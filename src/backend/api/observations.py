@@ -1,0 +1,466 @@
+"""
+Observation (lab values) API endpoints.
+
+Handles retrieval, filtering, verification, and trend data.
+"""
+
+import json
+from typing import Optional
+from datetime import datetime
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
+from sqlalchemy import select, and_
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from core.database import get_db
+from models import Observation, AuditLog
+
+router = APIRouter()
+
+
+# Panel definitions - maps panel IDs to canonical analyte names
+PANEL_DEFINITIONS = {
+    "cbc": {
+        "name": "Complete Blood Count",
+        "analytes": ["wbc", "rbc", "hemoglobin", "hematocrit", "mcv", "mch", "mchc", "rdw", "platelets", "mpv"],
+    },
+    "cmp": {
+        "name": "Comprehensive Metabolic Panel",
+        "analytes": ["glucose", "bun", "creatinine", "sodium", "potassium", "chloride", "co2", "calcium", "protein_total", "albumin", "bilirubin_total", "alkaline_phosphatase", "ast", "alt"],
+    },
+    "lipid": {
+        "name": "Lipid Panel",
+        "analytes": ["cholesterol_total", "triglycerides", "hdl", "ldl", "vldl"],
+    },
+    "thyroid": {
+        "name": "Thyroid Panel",
+        "analytes": ["tsh", "t3_free", "t4_free", "t3_total", "t4_total"],
+    },
+}
+
+
+class ObservationResponse(BaseModel):
+    """Response model for observation data."""
+    id: str
+    profile_id: str
+    doc_id: str
+    analyte_canonical: str
+    analyte_raw: str
+    value: Optional[float] = None
+    value_text: Optional[str] = None
+    unit: Optional[str] = None
+    ref_low: Optional[float] = None
+    ref_high: Optional[float] = None
+    ref_range_text: Optional[str] = None
+    flag: Optional[str] = None
+    is_abnormal: Optional[bool] = None
+    collected_at: Optional[str] = None
+    user_verified: bool
+    extraction_confidence: Optional[float] = None
+    
+    class Config:
+        from_attributes = True
+    
+    @classmethod
+    def from_model(cls, obs: Observation) -> "ObservationResponse":
+        return cls(
+            id=obs.id,
+            profile_id=obs.profile_id,
+            doc_id=obs.doc_id,
+            analyte_canonical=obs.analyte_canonical,
+            analyte_raw=obs.analyte_raw,
+            value=obs.value,
+            value_text=obs.value_text,
+            unit=obs.unit,
+            ref_low=obs.ref_low,
+            ref_high=obs.ref_high,
+            ref_range_text=obs.ref_range_text,
+            flag=obs.flag,
+            is_abnormal=obs.is_abnormal,
+            collected_at=obs.collected_at.isoformat() if obs.collected_at else None,
+            user_verified=obs.user_verified,
+            extraction_confidence=obs.extraction_confidence,
+        )
+
+
+class ObservationVerify(BaseModel):
+    """Request model for verifying/editing an observation."""
+    value: Optional[float] = None
+    value_text: Optional[str] = None
+    unit: Optional[str] = None
+    ref_low: Optional[float] = None
+    ref_high: Optional[float] = None
+    collected_at: Optional[datetime] = None
+    notes: Optional[str] = None
+
+
+class TrendPoint(BaseModel):
+    """Single point in a trend series."""
+    date: str
+    value: float
+    unit: str
+    is_abnormal: bool
+    flag: Optional[str] = None
+    doc_id: str
+
+
+class TrendResponse(BaseModel):
+    """Response model for analyte trend data."""
+    analyte_canonical: str
+    analyte_display_name: str
+    unit: str
+    ref_low: Optional[float] = None
+    ref_high: Optional[float] = None
+    data_points: list[TrendPoint]
+    summary: str  # Human-readable summary for accessibility
+
+
+class PanelResponse(BaseModel):
+    """Response model for lab panel (CBC, CMP, etc.)."""
+    panel_id: str
+    panel_name: str
+    observations: list[ObservationResponse]
+    collection_date: Optional[str] = None
+
+
+async def create_audit_log(
+    db: AsyncSession,
+    event_type: str,
+    action: str,
+    profile_id: Optional[str] = None,
+    entity_type: Optional[str] = None,
+    entity_id: Optional[str] = None,
+    details: Optional[dict] = None,
+):
+    """Helper to create audit log entries."""
+    audit_log = AuditLog(
+        profile_id=profile_id,
+        event_type=event_type,
+        action=action,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        details_json=json.dumps(details) if details else None,
+        client_info="HealthCentral v0.1.0",
+    )
+    db.add(audit_log)
+
+
+@router.get("/", response_model=list[ObservationResponse])
+async def list_observations(
+    profile_id: str = Query(..., description="Profile ID"),
+    analyte: Optional[str] = Query(None, description="Filter by analyte"),
+    from_date: Optional[datetime] = Query(None, description="Start date"),
+    to_date: Optional[datetime] = Query(None, description="End date"),
+    abnormal_only: bool = Query(False, description="Only show abnormal values"),
+    needs_verification: bool = Query(False, description="Only show unverified"),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    List observations with optional filters.
+    
+    Supports filtering by analyte, date range, abnormal status,
+    and verification status.
+    """
+    # Build query with filters
+    query = select(Observation).where(Observation.profile_id == profile_id)
+    
+    if analyte:
+        query = query.where(Observation.analyte_canonical == analyte.lower())
+    
+    if from_date:
+        query = query.where(Observation.collected_at >= from_date)
+    
+    if to_date:
+        query = query.where(Observation.collected_at <= to_date)
+    
+    if abnormal_only:
+        query = query.where(Observation.is_abnormal == True)
+    
+    if needs_verification:
+        query = query.where(Observation.user_verified == False)
+    
+    query = query.order_by(Observation.collected_at.desc(), Observation.analyte_canonical)
+    
+    result = await db.execute(query)
+    observations = result.scalars().all()
+    
+    return [ObservationResponse.from_model(obs) for obs in observations]
+
+
+@router.get("/{observation_id}", response_model=ObservationResponse)
+async def get_observation(
+    observation_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get single observation details."""
+    result = await db.execute(select(Observation).where(Observation.id == observation_id))
+    observation = result.scalar_one_or_none()
+    
+    if not observation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Observation not found"
+        )
+    
+    return ObservationResponse.from_model(observation)
+
+
+@router.post("/{observation_id}/verify", response_model=ObservationResponse)
+async def verify_observation(
+    observation_id: str,
+    verify_data: ObservationVerify,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Verify and optionally edit an observation.
+    
+    - Applies user edits (value, unit, dates, etc.)
+    - Tracks original values for audit
+    - Marks as verified
+    - Creates audit log entry
+    """
+    result = await db.execute(select(Observation).where(Observation.id == observation_id))
+    observation = result.scalar_one_or_none()
+    
+    if not observation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Observation not found"
+        )
+    
+    # Store original values if this is first edit
+    if not observation.original_value_json:
+        original = {
+            "value": observation.value,
+            "value_text": observation.value_text,
+            "unit": observation.unit,
+            "ref_low": observation.ref_low,
+            "ref_high": observation.ref_high,
+            "collected_at": observation.collected_at.isoformat() if observation.collected_at else None,
+        }
+        observation.original_value_json = json.dumps(original)
+    
+    # Apply edits
+    changes = {}
+    if verify_data.value is not None:
+        changes["value"] = {"old": observation.value, "new": verify_data.value}
+        observation.value = verify_data.value
+    
+    if verify_data.value_text is not None:
+        changes["value_text"] = {"old": observation.value_text, "new": verify_data.value_text}
+        observation.value_text = verify_data.value_text
+    
+    if verify_data.unit is not None:
+        changes["unit"] = {"old": observation.unit, "new": verify_data.unit}
+        observation.unit = verify_data.unit
+    
+    if verify_data.ref_low is not None:
+        changes["ref_low"] = {"old": observation.ref_low, "new": verify_data.ref_low}
+        observation.ref_low = verify_data.ref_low
+    
+    if verify_data.ref_high is not None:
+        changes["ref_high"] = {"old": observation.ref_high, "new": verify_data.ref_high}
+        observation.ref_high = verify_data.ref_high
+    
+    if verify_data.collected_at is not None:
+        changes["collected_at"] = {
+            "old": observation.collected_at.isoformat() if observation.collected_at else None,
+            "new": verify_data.collected_at.isoformat(),
+        }
+        observation.collected_at = verify_data.collected_at
+    
+    if verify_data.notes is not None:
+        observation.notes = verify_data.notes
+    
+    # Mark as verified
+    observation.user_verified = True
+    observation.verified_at = datetime.utcnow()
+    observation.version += 1
+    
+    # Recalculate abnormal status
+    if observation.value is not None:
+        if observation.ref_low is not None and observation.value < observation.ref_low:
+            observation.is_abnormal = True
+            observation.flag = "L"
+        elif observation.ref_high is not None and observation.value > observation.ref_high:
+            observation.is_abnormal = True
+            observation.flag = "H"
+        else:
+            observation.is_abnormal = False
+            observation.flag = None
+    
+    # Create audit log
+    await create_audit_log(
+        db,
+        event_type="observation.verify",
+        action=f"Verified observation '{observation.analyte_canonical}'",
+        profile_id=observation.profile_id,
+        entity_type="observation",
+        entity_id=observation_id,
+        details={"changes": changes} if changes else None,
+    )
+    
+    await db.flush()
+    
+    return ObservationResponse.from_model(observation)
+
+
+@router.get("/trends/{analyte}", response_model=TrendResponse)
+async def get_analyte_trend(
+    analyte: str,
+    profile_id: str = Query(..., description="Profile ID"),
+    from_date: Optional[datetime] = Query(None, description="Start date"),
+    to_date: Optional[datetime] = Query(None, description="End date"),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get trend data for a specific analyte.
+    
+    Returns time-series data points with reference ranges
+    and a human-readable summary for accessibility.
+    """
+    # Build query
+    query = select(Observation).where(
+        and_(
+            Observation.profile_id == profile_id,
+            Observation.analyte_canonical == analyte.lower(),
+            Observation.value.isnot(None),
+        )
+    )
+    
+    if from_date:
+        query = query.where(Observation.collected_at >= from_date)
+    if to_date:
+        query = query.where(Observation.collected_at <= to_date)
+    
+    query = query.order_by(Observation.collected_at.asc())
+    
+    result = await db.execute(query)
+    observations = result.scalars().all()
+    
+    if not observations:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No data found for analyte '{analyte}'"
+        )
+    
+    # Build trend data
+    data_points = []
+    ref_low = None
+    ref_high = None
+    unit = None
+    
+    for obs in observations:
+        if obs.collected_at and obs.value is not None:
+            data_points.append(TrendPoint(
+                date=obs.collected_at.isoformat(),
+                value=obs.value,
+                unit=obs.unit or "",
+                is_abnormal=obs.is_abnormal or False,
+                flag=obs.flag,
+                doc_id=obs.doc_id,
+            ))
+            # Use most recent reference range
+            if obs.ref_low is not None:
+                ref_low = obs.ref_low
+            if obs.ref_high is not None:
+                ref_high = obs.ref_high
+            if obs.unit:
+                unit = obs.unit
+    
+    # Generate summary
+    if len(data_points) >= 2:
+        first_val = data_points[0].value
+        last_val = data_points[-1].value
+        change = last_val - first_val
+        change_pct = (change / first_val * 100) if first_val != 0 else 0
+        
+        if abs(change_pct) < 5:
+            trend = "stable"
+        elif change > 0:
+            trend = f"increased by {abs(change_pct):.1f}%"
+        else:
+            trend = f"decreased by {abs(change_pct):.1f}%"
+        
+        summary = f"{analyte.upper()} has {trend} over {len(data_points)} measurements."
+    else:
+        summary = f"Single measurement of {analyte.upper()} recorded."
+    
+    return TrendResponse(
+        analyte_canonical=analyte.lower(),
+        analyte_display_name=analyte.upper(),
+        unit=unit or "",
+        ref_low=ref_low,
+        ref_high=ref_high,
+        data_points=data_points,
+        summary=summary,
+    )
+
+
+@router.get("/panels/{panel_id}", response_model=PanelResponse)
+async def get_panel(
+    panel_id: str,
+    profile_id: str = Query(..., description="Profile ID"),
+    collection_date: Optional[datetime] = Query(None, description="Specific collection date"),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get lab panel data (CBC, CMP, lipids, etc.).
+    
+    Aggregates related observations for panel view.
+    """
+    panel_def = PANEL_DEFINITIONS.get(panel_id.lower())
+    if not panel_def:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unknown panel: {panel_id}"
+        )
+    
+    # Query observations for panel analytes
+    query = select(Observation).where(
+        and_(
+            Observation.profile_id == profile_id,
+            Observation.analyte_canonical.in_(panel_def["analytes"]),
+        )
+    )
+    
+    if collection_date:
+        # Filter by date (within same day)
+        start = collection_date.replace(hour=0, minute=0, second=0)
+        end = collection_date.replace(hour=23, minute=59, second=59)
+        query = query.where(
+            and_(
+                Observation.collected_at >= start,
+                Observation.collected_at <= end,
+            )
+        )
+    else:
+        # Get most recent for each analyte
+        query = query.order_by(Observation.collected_at.desc())
+    
+    result = await db.execute(query)
+    observations = result.scalars().all()
+    
+    # If no collection_date specified, get only most recent per analyte
+    if not collection_date:
+        seen_analytes = set()
+        filtered_obs = []
+        for obs in observations:
+            if obs.analyte_canonical not in seen_analytes:
+                seen_analytes.add(obs.analyte_canonical)
+                filtered_obs.append(obs)
+        observations = filtered_obs
+    
+    obs_responses = [ObservationResponse.from_model(obs) for obs in observations]
+    
+    # Get collection date from observations
+    coll_date = None
+    if observations and observations[0].collected_at:
+        coll_date = observations[0].collected_at.isoformat()
+    
+    return PanelResponse(
+        panel_id=panel_id.lower(),
+        panel_name=panel_def["name"],
+        observations=obs_responses,
+        collection_date=coll_date,
+    )
