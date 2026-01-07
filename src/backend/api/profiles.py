@@ -5,20 +5,24 @@ Handles profile creation, access control, and settings.
 """
 
 import uuid
-import json
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
 from core.config import settings
-from core.security import generate_encryption_key, seal_key_with_dpapi
-from models import Profile, AuditLog
+from core.security import (
+    generate_encryption_key,
+    seal_key_with_dpapi_legacy,
+    is_dpapi_available,
+)
+from core.audit import log_profile_event
+from models import Profile
 
 router = APIRouter()
 
@@ -56,28 +60,6 @@ class ProfileUnlock(BaseModel):
     pass
 
 
-async def create_audit_log(
-    db: AsyncSession,
-    event_type: str,
-    action: str,
-    profile_id: Optional[str] = None,
-    entity_type: Optional[str] = None,
-    entity_id: Optional[str] = None,
-    details: Optional[dict] = None,
-):
-    """Helper to create audit log entries."""
-    audit_log = AuditLog(
-        profile_id=profile_id,
-        event_type=event_type,
-        action=action,
-        entity_type=entity_type,
-        entity_id=entity_id,
-        details_json=json.dumps(details) if details else None,
-        client_info=f"HealthCentral v0.1.0",
-    )
-    db.add(audit_log)
-
-
 @router.post("/", response_model=ProfileResponse, status_code=status.HTTP_201_CREATED)
 async def create_profile(
     profile_data: ProfileCreate,
@@ -85,7 +67,7 @@ async def create_profile(
 ):
     """
     Create a new user profile with encrypted vault.
-    
+
     Creates:
     - Profile record with encryption key
     - Encrypted vault directory
@@ -93,17 +75,18 @@ async def create_profile(
     """
     profile_id = str(uuid.uuid4())
     encryption_key_id = str(uuid.uuid4())
-    
+
     # Generate and seal encryption key
+    # Note: Using legacy function for now; will migrate to password-based in Phase 2
     encryption_key = generate_encryption_key()
-    sealed_key = seal_key_with_dpapi(encryption_key)
-    
+    sealed_key = seal_key_with_dpapi_legacy(encryption_key)
+
     # Store sealed key in vault directory
     vault_path = Path(settings.app_data_path) / "vaults" / profile_id
     vault_path.mkdir(parents=True, exist_ok=True)
     key_path = vault_path / "key.bin"
     key_path.write_bytes(sealed_key)
-    
+
     # Create profile record
     profile = Profile(
         id=profile_id,
@@ -114,21 +97,19 @@ async def create_profile(
         updated_at=datetime.utcnow(),
         last_accessed_at=datetime.utcnow(),
     )
-    
+
     db.add(profile)
-    
+
     # Create audit log
-    await create_audit_log(
-        db,
-        event_type="profile.create",
-        action=f"Created profile '{profile_data.display_name}'",
+    await log_profile_event(
+        db=db,
+        event="create",
         profile_id=profile_id,
-        entity_type="profile",
-        entity_id=profile_id,
+        profile_name=profile_data.display_name,
     )
-    
+
     await db.flush()
-    
+
     return ProfileResponse.from_model(profile)
 
 
@@ -171,35 +152,33 @@ async def unlock_profile(
 ):
     """
     Unlock a profile for access.
-    
+
     Decrypts the profile key and enables access to encrypted data.
     Creates audit log entry.
     """
     result = await db.execute(select(Profile).where(Profile.id == profile_id))
     profile = result.scalar_one_or_none()
-    
+
     if not profile:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Profile not found"
         )
-    
+
     # Update profile status
     profile.is_locked = False
     profile.last_accessed_at = datetime.utcnow()
-    
+
     # Create audit log
-    await create_audit_log(
-        db,
-        event_type="profile.unlock",
-        action=f"Unlocked profile '{profile.display_name}'",
+    await log_profile_event(
+        db=db,
+        event="unlock",
         profile_id=profile_id,
-        entity_type="profile",
-        entity_id=profile_id,
+        profile_name=profile.display_name,
     )
-    
+
     await db.flush()
-    
+
     return ProfileResponse.from_model(profile)
 
 
@@ -210,32 +189,30 @@ async def lock_profile(
 ):
     """
     Lock a profile.
-    
+
     Clears decrypted keys from memory.
     Creates audit log entry.
     """
     result = await db.execute(select(Profile).where(Profile.id == profile_id))
     profile = result.scalar_one_or_none()
-    
+
     if not profile:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Profile not found"
         )
-    
+
     # Update profile status
     profile.is_locked = True
-    
+
     # Create audit log
-    await create_audit_log(
-        db,
-        event_type="profile.lock",
-        action=f"Locked profile '{profile.display_name}'",
+    await log_profile_event(
+        db=db,
+        event="lock",
         profile_id=profile_id,
-        entity_type="profile",
-        entity_id=profile_id,
+        profile_name=profile.display_name,
     )
-    
+
     await db.flush()
-    
+
     return ProfileResponse.from_model(profile)

@@ -5,6 +5,8 @@ Handles document import, listing, and viewing.
 """
 
 import json
+import logging
+import re
 from pathlib import Path
 from typing import Optional
 from datetime import datetime
@@ -16,8 +18,27 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
 from core.config import settings
-from models import Document, Profile, AuditLog
+from core.audit import log_document_event
+from models import Document, Profile
 from modules import IngestModule
+
+logger = logging.getLogger(__name__)
+
+# UUID validation pattern
+UUID_PATTERN = re.compile(
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    re.IGNORECASE
+)
+
+
+def validate_uuid(value: str, field_name: str = "ID") -> str:
+    """Validate that a string is a valid UUID format to prevent path traversal."""
+    if not UUID_PATTERN.match(value):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid {field_name} format"
+        )
+    return value
 
 router = APIRouter()
 
@@ -68,28 +89,6 @@ class PageResponse(BaseModel):
     has_tables: bool
 
 
-async def create_audit_log(
-    db: AsyncSession,
-    event_type: str,
-    action: str,
-    profile_id: Optional[str] = None,
-    entity_type: Optional[str] = None,
-    entity_id: Optional[str] = None,
-    details: Optional[dict] = None,
-):
-    """Helper to create audit log entries."""
-    audit_log = AuditLog(
-        profile_id=profile_id,
-        event_type=event_type,
-        action=action,
-        entity_type=entity_type,
-        entity_id=entity_id,
-        details_json=json.dumps(details) if details else None,
-        client_info="HealthCentral v0.1.0",
-    )
-    db.add(audit_log)
-
-
 @router.post("/import", response_model=DocumentImportResponse, status_code=status.HTTP_201_CREATED)
 async def import_document(
     file: UploadFile = File(...),
@@ -98,16 +97,19 @@ async def import_document(
 ):
     """
     Import a document (PDF or image) into a profile.
-    
+
     Process:
     1. Validate file type and size
     2. Compute content hash for deduplication
     3. Encrypt and store document
     4. Extract text and observations
     5. Create audit log entry
-    
+
     Returns extracted observations count and verification status.
     """
+    # Validate profile_id format (path traversal protection)
+    validate_uuid(profile_id, "profile_id")
+
     # Verify profile exists
     result = await db.execute(select(Profile).where(Profile.id == profile_id))
     profile = result.scalar_one_or_none()
@@ -116,11 +118,12 @@ async def import_document(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Profile not found"
         )
-    
+
     # Initialize ingest module for this profile's vault
+    # Note: encryption_key should be loaded from vault in production
     vault_path = Path(settings.app_data_path) / "vaults" / profile_id
     ingest = IngestModule(vault_path)
-    
+
     # Import the document
     try:
         import_result = await ingest.import_document(
@@ -134,7 +137,7 @@ async def import_document(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
-    
+
     # Create document record
     document = Document(
         id=import_result.document_id,
@@ -148,22 +151,21 @@ async def import_document(
         metadata_json=json.dumps(import_result.metadata),
         imported_at=datetime.utcnow(),
     )
-    
+
     db.add(document)
-    
+
     # Create audit log
-    await create_audit_log(
-        db,
-        event_type="document.import",
-        action=f"Imported document '{file.filename}'",
+    await log_document_event(
+        db=db,
+        event="import",
         profile_id=profile_id,
-        entity_type="document",
-        entity_id=import_result.document_id,
-        details={"filename": file.filename, "doc_type": import_result.doc_type},
+        document_id=import_result.document_id,
+        filename=file.filename,
+        details={"doc_type": import_result.doc_type, "encrypted": import_result.encrypted},
     )
-    
+
     await db.flush()
-    
+
     return DocumentImportResponse(
         document=DocumentResponse.from_model(document),
         observations_extracted=0,  # Will be filled after extraction
@@ -180,9 +182,12 @@ async def list_documents(
 ):
     """
     List documents for a profile.
-    
+
     Supports filtering by status and document type.
     """
+    # Validate profile_id format
+    validate_uuid(profile_id, "profile_id")
+
     # Build query
     query = select(Document).where(Document.profile_id == profile_id)
     
@@ -205,6 +210,9 @@ async def get_document(
     db: AsyncSession = Depends(get_db)
 ):
     """Get document details."""
+    # Validate document_id format (path traversal protection)
+    validate_uuid(document_id, "document_id")
+
     result = await db.execute(select(Document).where(Document.id == document_id))
     document = result.scalar_one_or_none()
     
@@ -224,30 +232,36 @@ async def get_document_pages(
 ):
     """
     Get document pages for provenance viewing.
-    
+
     Returns text content per page for citation display.
     """
+    # Validate document_id format (path traversal protection)
+    validate_uuid(document_id, "document_id")
+
     result = await db.execute(select(Document).where(Document.id == document_id))
     document = result.scalar_one_or_none()
-    
+
     if not document:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Document not found"
         )
-    
+
+    # Validate profile_id from document (defense in depth)
+    validate_uuid(document.profile_id, "profile_id")
+
     # Get document file path
     vault_path = Path(settings.app_data_path) / "vaults" / document.profile_id / "docs"
     doc_path = vault_path / f"{document_id}.bin"
-    
+
     if not doc_path.exists():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Document file not found"
         )
-    
+
     pages = []
-    
+
     if document.doc_type == "lab_pdf":
         try:
             import pdfplumber
@@ -261,9 +275,11 @@ async def get_document_pages(
                         has_tables=len(tables) > 0,
                     ))
         except Exception as e:
+            # Log the actual error for debugging but return generic message
+            logger.error(f"Failed to extract pages from document {document_id}: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to extract pages: {str(e)}"
+                detail="Failed to extract document pages"
             )
     else:
         # For images, return single "page"
@@ -272,7 +288,7 @@ async def get_document_pages(
             text="[Image document - OCR not yet implemented]",
             has_tables=False,
         ))
-    
+
     return pages
 
 
@@ -283,38 +299,43 @@ async def delete_document(
 ):
     """
     Delete a document and its associated data.
-    
+
     Creates audit log entry.
     """
+    # Validate document_id format (path traversal protection)
+    validate_uuid(document_id, "document_id")
+
     result = await db.execute(select(Document).where(Document.id == document_id))
     document = result.scalar_one_or_none()
-    
+
     if not document:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Document not found"
         )
-    
+
     profile_id = document.profile_id
     filename = document.source
-    
+
+    # Validate profile_id from document (defense in depth)
+    validate_uuid(profile_id, "profile_id")
+
     # Delete document file
     vault_path = Path(settings.app_data_path) / "vaults" / profile_id / "docs"
     doc_path = vault_path / f"{document_id}.bin"
     if doc_path.exists():
         doc_path.unlink()
-    
+
     # Delete document record (cascades to observations, chunks)
     await db.delete(document)
-    
+
     # Create audit log
-    await create_audit_log(
-        db,
-        event_type="document.delete",
-        action=f"Deleted document '{filename}'",
+    await log_document_event(
+        db=db,
+        event="delete",
         profile_id=profile_id,
-        entity_type="document",
-        entity_id=document_id,
+        document_id=document_id,
+        filename=filename,
     )
-    
+
     await db.flush()

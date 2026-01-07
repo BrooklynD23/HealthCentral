@@ -5,6 +5,7 @@ Handles retrieval, filtering, verification, and trend data.
 """
 
 import json
+import re
 from typing import Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -13,7 +14,24 @@ from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
-from models import Observation, AuditLog
+from core.audit import log_observation_event
+from models import Observation
+
+# UUID validation pattern
+UUID_PATTERN = re.compile(
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    re.IGNORECASE
+)
+
+
+def validate_uuid(value: str, field_name: str = "ID") -> str:
+    """Validate that a string is a valid UUID format."""
+    if not UUID_PATTERN.match(value):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid {field_name} format"
+        )
+    return value
 
 router = APIRouter()
 
@@ -123,28 +141,6 @@ class PanelResponse(BaseModel):
     collection_date: Optional[str] = None
 
 
-async def create_audit_log(
-    db: AsyncSession,
-    event_type: str,
-    action: str,
-    profile_id: Optional[str] = None,
-    entity_type: Optional[str] = None,
-    entity_id: Optional[str] = None,
-    details: Optional[dict] = None,
-):
-    """Helper to create audit log entries."""
-    audit_log = AuditLog(
-        profile_id=profile_id,
-        event_type=event_type,
-        action=action,
-        entity_type=entity_type,
-        entity_id=entity_id,
-        details_json=json.dumps(details) if details else None,
-        client_info="HealthCentral v0.1.0",
-    )
-    db.add(audit_log)
-
-
 @router.get("/", response_model=list[ObservationResponse])
 async def list_observations(
     profile_id: str = Query(..., description="Profile ID"),
@@ -157,10 +153,13 @@ async def list_observations(
 ):
     """
     List observations with optional filters.
-    
+
     Supports filtering by analyte, date range, abnormal status,
     and verification status.
     """
+    # Validate profile_id format
+    validate_uuid(profile_id, "profile_id")
+
     # Build query with filters
     query = select(Observation).where(Observation.profile_id == profile_id)
     
@@ -193,6 +192,9 @@ async def get_observation(
     db: AsyncSession = Depends(get_db)
 ):
     """Get single observation details."""
+    # Validate observation_id format
+    validate_uuid(observation_id, "observation_id")
+
     result = await db.execute(select(Observation).where(Observation.id == observation_id))
     observation = result.scalar_one_or_none()
     
@@ -213,12 +215,15 @@ async def verify_observation(
 ):
     """
     Verify and optionally edit an observation.
-    
+
     - Applies user edits (value, unit, dates, etc.)
     - Tracks original values for audit
     - Marks as verified
     - Creates audit log entry
     """
+    # Validate observation_id format
+    validate_uuid(observation_id, "observation_id")
+
     result = await db.execute(select(Observation).where(Observation.id == observation_id))
     observation = result.scalar_one_or_none()
     
@@ -290,18 +295,17 @@ async def verify_observation(
             observation.flag = None
     
     # Create audit log
-    await create_audit_log(
-        db,
-        event_type="observation.verify",
-        action=f"Verified observation '{observation.analyte_canonical}'",
+    await log_observation_event(
+        db=db,
+        event="verify",
         profile_id=observation.profile_id,
-        entity_type="observation",
-        entity_id=observation_id,
+        observation_id=observation_id,
+        analyte=observation.analyte_canonical,
         details={"changes": changes} if changes else None,
     )
-    
+
     await db.flush()
-    
+
     return ObservationResponse.from_model(observation)
 
 
@@ -315,10 +319,13 @@ async def get_analyte_trend(
 ):
     """
     Get trend data for a specific analyte.
-    
+
     Returns time-series data points with reference ranges
     and a human-readable summary for accessibility.
     """
+    # Validate profile_id format
+    validate_uuid(profile_id, "profile_id")
+
     # Build query
     query = select(Observation).where(
         and_(
@@ -406,9 +413,12 @@ async def get_panel(
 ):
     """
     Get lab panel data (CBC, CMP, lipids, etc.).
-    
+
     Aggregates related observations for panel view.
     """
+    # Validate profile_id format
+    validate_uuid(profile_id, "profile_id")
+
     panel_def = PANEL_DEFINITIONS.get(panel_id.lower())
     if not panel_def:
         raise HTTPException(
