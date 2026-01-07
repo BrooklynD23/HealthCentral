@@ -53,7 +53,8 @@ async def init_database() -> None:
         logs_dir.mkdir(parents=True, exist_ok=True)
     
     # Import all models to register them with Base
-    from models import profile, document, observation, audit
+    # This ensures all tables are created
+    from models import profile, document, observation, audit, chunk, embedding
     
     # Create tables
     async with engine.begin() as conn:
