@@ -130,4 +130,60 @@ Mitigations:
 - SQLCipher licensing approach for distribution
 - DB-embedded vectors vs encrypted external index default
 - Backup/export encryption UX (passphrase and recovery)
-- “exports” folder policy: inside-vault vs user-selected location
+- "exports" folder policy: inside-vault vs user-selected location
+
+---
+
+## Implementation Status (Updated 2026-01-07)
+
+### Phase 3: Per-Profile SQLCipher Databases - COMPLETED
+
+**Architecture Implemented:**
+
+```
+data/
+├── healthcentral.db          # Master DB (profiles, audit logs only)
+└── vaults/
+    └── {profile_id}/
+        ├── vault.db          # Per-profile encrypted SQLCipher DB
+        ├── key.bin           # Sealed encryption key
+        ├── key.method        # Seal method (dpapi/password)
+        └── docs/             # Encrypted document blobs
+```
+
+**Key Components:**
+
+1. **PerProfileDatabaseManager** (`core/profile_database.py`)
+   - Singleton manager for per-profile database connections
+   - Opens encrypted database on login with password-derived key
+   - Closes database and clears keys on logout/lock
+   - Thread-safe connection pool with asyncio locks
+
+2. **Database Separation:**
+   - **Master DB (Base):** Profile, AuditLog
+   - **Per-Profile DB (ProfileDatabaseBase):** Document, Observation, Chunk, Embedding
+
+3. **Session-Bound Database Access:**
+   - `ProfileDbSession` dependency for API endpoints
+   - Database connection tied to authenticated session
+   - Automatic key clearing on logout/lock
+
+4. **Security Features:**
+   - SQLCipher with raw hex key (no PBKDF2 overhead at query time)
+   - Key derived from sealed vault key using password
+   - Memory clearing attempt on connection close
+   - No cross-profile database access possible
+
+**Known Limitations:**
+- Python doesn't guarantee memory clearing (best-effort overwrite)
+- SQLCipher requires proper library installation for full encryption
+- Current implementation uses aiosqlite (encryption via PRAGMA on connect)
+
+**Files Modified:**
+- `core/profile_database.py` - NEW: Per-profile database manager
+- `core/database.py` - Updated: Master DB only
+- `core/auth.py` - Updated: ProfileDbSession dependency, login/logout hooks
+- `models/*.py` - Updated: Split between Base and ProfileDatabaseBase
+- `api/profiles.py` - Updated: Open/close profile DB on login/logout
+- `api/documents.py` - Updated: Use ProfileDbSession
+- `api/observations.py` - Updated: Use ProfileDbSession
