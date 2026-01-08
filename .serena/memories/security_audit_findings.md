@@ -14,8 +14,20 @@
 ### REMAINING Work:
 - ✅ Profile password authentication (Phase 2) - COMPLETED 2026-01-07
 - ✅ Authorization middleware for all endpoints - COMPLETED 2026-01-07
-- ⏳ Per-profile SQLCipher databases (Phase 3)
+- ✅ Per-profile SQLCipher databases (Phase 3) - COMPLETED 2026-01-07
 - ⏳ Verifier agent pattern for AI safety (Phase 4)
+
+### Phase 3 Implementation Details (2026-01-07):
+- Created `core/profile_database.py` with `PerProfileDatabaseManager` class
+- Implemented per-profile SQLCipher encrypted database architecture:
+  - Master DB: Profile metadata, AuditLog (for login/listing)
+  - Per-Profile DB: Document, Observation, Chunk, Embedding (encrypted)
+- Session-bound database connections:
+  - DB opened on login/unlock with password for key unsealing
+  - DB closed on logout/lock with key clearing from memory
+- Updated models to use `ProfileDatabaseBase` for per-profile tables
+- Added `ProfileDbSession` dependency for authenticated API endpoints
+- Memory clearing on logout/lock to prevent residual data access
 
 ### Phase 2 Implementation Details (2026-01-07):
 - Created `core/auth.py` with JWT session management

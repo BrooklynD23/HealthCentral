@@ -1,15 +1,21 @@
 """
 Authentication and session management for HealthCentral.
 
+Phase 3 Enhancements:
+- Per-profile database connection management
+- Session-bound database access
+- Memory clearing on logout/lock
+
 Provides:
 - JWT-based session tokens
 - Profile authentication dependencies
 - Session validation middleware
+- Profile database session dependencies
 """
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Annotated
+from typing import Optional, Annotated, AsyncGenerator
 from dataclasses import dataclass
 
 from fastapi import Depends, HTTPException, status, Request
@@ -25,7 +31,9 @@ from .security import (
     verify_token,
     verify_password,
     ACCESS_TOKEN_EXPIRE_MINUTES,
+    KeySealingError,
 )
+from .profile_database import get_profile_db_manager, ProfileDatabaseConnection
 from models import Profile
 
 logger = logging.getLogger(__name__)
@@ -37,16 +45,26 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 @dataclass
 class Session:
-    """Represents an authenticated user session."""
+    """
+    Represents an authenticated user session.
+
+    Phase 3: Sessions now track profile database connection state.
+    """
 
     profile_id: str
     profile_name: str
     expires_at: datetime
+    _db_connection: Optional[ProfileDatabaseConnection] = None
 
     @property
     def is_expired(self) -> bool:
         """Check if the session has expired."""
         return datetime.now(timezone.utc) > self.expires_at
+
+    @property
+    def has_db_connection(self) -> bool:
+        """Check if the session has an active database connection."""
+        return self._db_connection is not None
 
 
 class TokenResponse(BaseModel):
@@ -261,3 +279,101 @@ def require_profile_access(profile_id_param: str = "profile_id"):
 # Convenience dependency for common case
 RequireAuth = Annotated[Session, Depends(require_auth)]
 OptionalAuth = Annotated[Optional[Session], Depends(get_current_session)]
+
+
+async def get_profile_db_session(
+    session: Session = Depends(require_auth),
+) -> AsyncGenerator[AsyncSession, None]:
+    """
+    Get a database session for the authenticated profile's encrypted database.
+
+    Phase 3: This dependency provides access to the profile-specific
+    SQLCipher-encrypted database. The connection must have been opened
+    during login.
+
+    Args:
+        session: The authenticated session
+
+    Yields:
+        AsyncSession for the profile's encrypted database
+
+    Raises:
+        HTTPException 403: If profile database is not connected
+    """
+    db_manager = get_profile_db_manager()
+    connection = db_manager.get_connection(session.profile_id)
+
+    if not connection:
+        logger.error(f"Profile database not connected for {session.profile_id}")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Profile database not available. Please log in again.",
+        )
+
+    async with connection.get_session() as db_session:
+        yield db_session
+
+
+# Typed dependency for profile database sessions
+ProfileDbSession = Annotated[AsyncSession, Depends(get_profile_db_session)]
+
+
+async def open_profile_database_on_login(
+    profile_id: str,
+    password: str,
+) -> ProfileDatabaseConnection:
+    """
+    Open the per-profile encrypted database during login.
+
+    This should be called after password verification succeeds.
+
+    Args:
+        profile_id: The authenticated profile's UUID
+        password: The user's password (for key unsealing)
+
+    Returns:
+        ProfileDatabaseConnection for the profile
+
+    Raises:
+        HTTPException 500: If database cannot be opened
+    """
+    db_manager = get_profile_db_manager()
+    try:
+        connection = await db_manager.open_profile_database(profile_id, password)
+        logger.info(f"Opened profile database for {profile_id}")
+        return connection
+    except KeySealingError as e:
+        logger.error(f"Failed to unseal encryption key for {profile_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to access encrypted vault",
+        )
+    except FileNotFoundError as e:
+        logger.error(f"Vault not found for {profile_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Profile vault not found",
+        )
+    except Exception as e:
+        logger.error(f"Failed to open profile database for {profile_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to open profile database",
+        )
+
+
+async def close_profile_database_on_logout(profile_id: str) -> None:
+    """
+    Close the per-profile encrypted database during logout/lock.
+
+    This ensures:
+    - Database connections are properly closed
+    - Encryption keys are cleared from memory
+    - No residual access to profile data
+
+    Args:
+        profile_id: The profile's UUID
+    """
+    db_manager = get_profile_db_manager()
+    await db_manager.close_profile_database(profile_id)
+    logger.info(f"Closed profile database for {profile_id}")

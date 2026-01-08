@@ -3,6 +3,9 @@ Document management API endpoints.
 
 Handles document import, listing, and viewing.
 All endpoints require authentication.
+
+Phase 3: Documents are now stored in per-profile encrypted databases.
+Uses ProfileDbSession for database access instead of master database.
 """
 
 import json
@@ -20,8 +23,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from core.config import settings
 from core.audit import log_document_event
-from core.auth import RequireAuth, Session
-from models import Document, Profile
+from core.auth import RequireAuth, Session, ProfileDbSession
+from models import Document
 
 logger = logging.getLogger(__name__)
 
@@ -117,30 +120,24 @@ class PageResponse(BaseModel):
 async def import_document(
     session: RequireAuth,
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
+    profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     Import a document (PDF or image) into the authenticated profile.
+
+    Phase 3: Document metadata stored in per-profile encrypted database.
 
     Process:
     1. Validate file type and size
     2. Compute content hash for deduplication
     3. Encrypt and store document
     4. Extract text and observations
-    5. Create audit log entry
+    5. Create audit log entry (in master db)
 
     Returns extracted observations count and verification status.
     """
     profile_id = session.profile_id
-
-    # Verify profile exists
-    result = await db.execute(select(Profile).where(Profile.id == profile_id))
-    profile = result.scalar_one_or_none()
-    if not profile:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Profile not found"
-        )
 
     # Import using ingest module
     from modules import IngestModule
@@ -161,7 +158,7 @@ async def import_document(
             detail=str(e)
         )
 
-    # Create document record
+    # Create document record in per-profile encrypted database
     document = Document(
         id=import_result.document_id,
         profile_id=profile_id,
@@ -175,19 +172,19 @@ async def import_document(
         imported_at=datetime.utcnow(),
     )
 
-    db.add(document)
+    profile_db.add(document)
+    await profile_db.commit()
 
-    # Create audit log
+    # Create audit log in master database
     await log_document_event(
-        db=db,
+        db=master_db,
         event="import",
         profile_id=profile_id,
         document_id=import_result.document_id,
         filename=file.filename,
         details={"doc_type": import_result.doc_type, "encrypted": import_result.encrypted},
     )
-
-    await db.commit()
+    await master_db.commit()
 
     return DocumentImportResponse(
         document=DocumentResponse.from_model(document),
@@ -201,16 +198,17 @@ async def list_documents(
     session: RequireAuth,
     doc_status: Optional[str] = Query(None, alias="status", description="Filter by status"),
     doc_type: Optional[str] = Query(None, description="Filter by document type"),
-    db: AsyncSession = Depends(get_db),
+    profile_db: ProfileDbSession = None,
 ):
     """
     List documents for the authenticated profile.
 
+    Phase 3: Queries per-profile encrypted database.
     Supports filtering by status and document type.
     """
     profile_id = session.profile_id
 
-    # Build query - only show documents for authenticated profile
+    # Build query - documents are in per-profile database
     query = select(Document).where(Document.profile_id == profile_id)
 
     if doc_status:
@@ -220,7 +218,7 @@ async def list_documents(
 
     query = query.order_by(Document.imported_at.desc())
 
-    result = await db.execute(query)
+    result = await profile_db.execute(query)
     documents = result.scalars().all()
 
     return [DocumentResponse.from_model(doc) for doc in documents]
@@ -230,13 +228,13 @@ async def list_documents(
 async def get_document(
     document_id: str,
     session: RequireAuth,
-    db: AsyncSession = Depends(get_db),
+    profile_db: ProfileDbSession = None,
 ):
-    """Get document details."""
+    """Get document details from per-profile encrypted database."""
     # Validate document_id format (path traversal protection)
     validate_uuid(document_id, "document_id")
 
-    result = await db.execute(select(Document).where(Document.id == document_id))
+    result = await profile_db.execute(select(Document).where(Document.id == document_id))
     document = result.scalar_one_or_none()
 
     if not document:
@@ -255,17 +253,18 @@ async def get_document(
 async def get_document_pages(
     document_id: str,
     session: RequireAuth,
-    db: AsyncSession = Depends(get_db),
+    profile_db: ProfileDbSession = None,
 ):
     """
     Get document pages for provenance viewing.
 
+    Phase 3: Queries per-profile encrypted database.
     Returns text content per page for citation display.
     """
     # Validate document_id format (path traversal protection)
     validate_uuid(document_id, "document_id")
 
-    result = await db.execute(select(Document).where(Document.id == document_id))
+    result = await profile_db.execute(select(Document).where(Document.id == document_id))
     document = result.scalar_one_or_none()
 
     if not document:
@@ -323,17 +322,19 @@ async def get_document_pages(
 async def delete_document(
     document_id: str,
     session: RequireAuth,
-    db: AsyncSession = Depends(get_db),
+    profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     Delete a document and its associated data.
 
-    Creates audit log entry.
+    Phase 3: Deletes from per-profile encrypted database.
+    Creates audit log entry in master database.
     """
     # Validate document_id format (path traversal protection)
     validate_uuid(document_id, "document_id")
 
-    result = await db.execute(select(Document).where(Document.id == document_id))
+    result = await profile_db.execute(select(Document).where(Document.id == document_id))
     document = result.scalar_one_or_none()
 
     if not document:
@@ -354,16 +355,16 @@ async def delete_document(
     if doc_path.exists():
         doc_path.unlink()
 
-    # Delete document record (cascades to observations, chunks)
-    await db.delete(document)
+    # Delete document record from profile database (cascades to observations, chunks)
+    await profile_db.delete(document)
+    await profile_db.commit()
 
-    # Create audit log
+    # Create audit log in master database
     await log_document_event(
-        db=db,
+        db=master_db,
         event="delete",
         profile_id=profile_id,
         document_id=document_id,
         filename=filename,
     )
-
-    await db.commit()
+    await master_db.commit()

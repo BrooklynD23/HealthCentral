@@ -3,6 +3,9 @@ Observation (lab values) API endpoints.
 
 Handles retrieval, filtering, verification, and trend data.
 All endpoints require authentication.
+
+Phase 3: Observations are now stored in per-profile encrypted databases.
+Uses ProfileDbSession for database access instead of master database.
 """
 
 import json
@@ -18,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
 from core.audit import log_observation_event
-from core.auth import RequireAuth, Session
+from core.auth import RequireAuth, Session, ProfileDbSession
 from models import Observation
 
 logger = logging.getLogger(__name__)
@@ -178,17 +181,18 @@ async def list_observations(
     to_date: Optional[datetime] = Query(None, description="End date"),
     abnormal_only: bool = Query(False, description="Only show abnormal values"),
     needs_verification: bool = Query(False, description="Only show unverified"),
-    db: AsyncSession = Depends(get_db),
+    profile_db: ProfileDbSession = None,
 ):
     """
     List observations for the authenticated profile.
 
+    Phase 3: Queries per-profile encrypted database.
     Supports filtering by analyte, date range, abnormal status,
     and verification status.
     """
     profile_id = session.profile_id
 
-    # Build query with filters - only show observations for authenticated profile
+    # Build query with filters - observations are in per-profile database
     query = select(Observation).where(Observation.profile_id == profile_id)
 
     if analyte:
@@ -208,7 +212,7 @@ async def list_observations(
 
     query = query.order_by(Observation.collected_at.desc(), Observation.analyte_canonical)
 
-    result = await db.execute(query)
+    result = await profile_db.execute(query)
     observations = result.scalars().all()
 
     return [ObservationResponse.from_model(obs) for obs in observations]
@@ -218,13 +222,13 @@ async def list_observations(
 async def get_observation(
     observation_id: str,
     session: RequireAuth,
-    db: AsyncSession = Depends(get_db),
+    profile_db: ProfileDbSession = None,
 ):
-    """Get single observation details."""
+    """Get single observation details from per-profile encrypted database."""
     # Validate observation_id format
     validate_uuid(observation_id, "observation_id")
 
-    result = await db.execute(select(Observation).where(Observation.id == observation_id))
+    result = await profile_db.execute(select(Observation).where(Observation.id == observation_id))
     observation = result.scalar_one_or_none()
 
     if not observation:
@@ -244,10 +248,13 @@ async def verify_observation(
     observation_id: str,
     verify_data: ObservationVerify,
     session: RequireAuth,
-    db: AsyncSession = Depends(get_db),
+    profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     Verify and optionally edit an observation.
+
+    Phase 3: Observation in per-profile DB, audit log in master DB.
 
     - Applies user edits (value, unit, dates, etc.)
     - Tracks original values for audit
@@ -257,7 +264,7 @@ async def verify_observation(
     # Validate observation_id format
     validate_uuid(observation_id, "observation_id")
 
-    result = await db.execute(select(Observation).where(Observation.id == observation_id))
+    result = await profile_db.execute(select(Observation).where(Observation.id == observation_id))
     observation = result.scalar_one_or_none()
 
     if not observation:
@@ -330,17 +337,18 @@ async def verify_observation(
             observation.is_abnormal = False
             observation.flag = None
 
-    # Create audit log
+    await profile_db.commit()
+
+    # Create audit log in master database
     await log_observation_event(
-        db=db,
+        db=master_db,
         event="verify",
         profile_id=observation.profile_id,
         observation_id=observation_id,
         analyte=observation.analyte_canonical,
         details={"changes": changes} if changes else None,
     )
-
-    await db.commit()
+    await master_db.commit()
 
     return ObservationResponse.from_model(observation)
 
@@ -351,11 +359,12 @@ async def get_analyte_trend(
     session: RequireAuth,
     from_date: Optional[datetime] = Query(None, description="Start date"),
     to_date: Optional[datetime] = Query(None, description="End date"),
-    db: AsyncSession = Depends(get_db),
+    profile_db: ProfileDbSession = None,
 ):
     """
     Get trend data for a specific analyte.
 
+    Phase 3: Queries per-profile encrypted database.
     Returns time-series data points with reference ranges
     and a human-readable summary for accessibility.
     """
@@ -377,7 +386,7 @@ async def get_analyte_trend(
 
     query = query.order_by(Observation.collected_at.asc())
 
-    result = await db.execute(query)
+    result = await profile_db.execute(query)
     observations = result.scalars().all()
 
     if not observations:
@@ -444,11 +453,12 @@ async def get_panel(
     panel_id: str,
     session: RequireAuth,
     collection_date: Optional[datetime] = Query(None, description="Specific collection date"),
-    db: AsyncSession = Depends(get_db),
+    profile_db: ProfileDbSession = None,
 ):
     """
     Get lab panel data (CBC, CMP, lipids, etc.).
 
+    Phase 3: Queries per-profile encrypted database.
     Aggregates related observations for panel view.
     """
     profile_id = session.profile_id
@@ -460,7 +470,7 @@ async def get_panel(
             detail=f"Unknown panel: {panel_id}"
         )
 
-    # Query observations for panel analytes - only for authenticated profile
+    # Query observations for panel analytes from per-profile database
     query = select(Observation).where(
         and_(
             Observation.profile_id == profile_id,
@@ -482,7 +492,7 @@ async def get_panel(
         # Get most recent for each analyte
         query = query.order_by(Observation.collected_at.desc())
 
-    result = await db.execute(query)
+    result = await profile_db.execute(query)
     observations = result.scalars().all()
 
     # If no collection_date specified, get only most recent per analyte
