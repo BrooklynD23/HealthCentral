@@ -13,7 +13,10 @@
       "mcp__serena__find_symbol",
       "Bash(mkdir:*)",
       "mcp__serena__edit_memory",
-      "mcp__serena__think_about_whether_you_are_done"
+      "mcp__serena__think_about_whether_you_are_done",
+      "WebSearch",
+      "Bash(git -C /mnt/c/Users/DangT/Documents/GitHub/HealthCentral status)",
+      "Bash(git -C /mnt/c/Users/DangT/Documents/GitHub/HealthCentral log --oneline -5)"
     ]
   }
 }
