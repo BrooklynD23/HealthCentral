@@ -68,7 +68,8 @@ profiles/
 *.db-wal
 
 # Local AI models (large files)
-models/
+# Use /models/ to not match src/backend/models/ (SQLAlchemy models)
+/models/
 *.gguf
 *.bin
 *.safetensors
