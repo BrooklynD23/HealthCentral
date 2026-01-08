@@ -282,7 +282,15 @@ class PerProfileDatabaseManager:
 
         Creates all tables defined in profile-specific models.
         """
-        from models import document, observation, chunk, embedding
+        # Import all profile-specific models to register with ProfileDatabaseBase
+        from models import (
+            document,
+            observation,
+            chunk,
+            embedding,
+            interpretation,  # Lab interpretations
+            medication,      # Medication adherence
+        )
 
         async with engine.begin() as conn:
             await conn.run_sync(ProfileDatabaseBase.metadata.create_all)

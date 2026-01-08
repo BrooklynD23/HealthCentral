@@ -7,13 +7,22 @@ All significant operations should be logged through this module.
 
 import json
 import logging
-from typing import Optional, Any
+from typing import Optional, Any, TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import AuditLog
+# Deferred import to avoid circular dependency
+# models/__init__.py -> profile.py -> core.database -> core/__init__.py -> core.audit -> models
+if TYPE_CHECKING:
+    from models import AuditLog
 
 logger = logging.getLogger(__name__)
+
+
+def _get_audit_log_class():
+    """Lazy import of AuditLog to avoid circular imports."""
+    from models.audit import AuditLog
+    return AuditLog
 
 
 async def create_audit_log(
@@ -25,7 +34,7 @@ async def create_audit_log(
     entity_id: Optional[str] = None,
     details: Optional[dict[str, Any]] = None,
     client_info: str = "HealthCentral v0.1.0",
-) -> AuditLog:
+) -> "AuditLog":
     """
     Create an audit log entry.
 
@@ -52,6 +61,7 @@ async def create_audit_log(
         - export.create
         - auth.login, auth.logout, auth.failed
     """
+    AuditLog = _get_audit_log_class()
     audit_log = AuditLog(
         profile_id=profile_id,
         event_type=event_type,
@@ -84,7 +94,7 @@ async def log_profile_event(
     profile_id: str,
     profile_name: str,
     details: Optional[dict[str, Any]] = None,
-) -> AuditLog:
+) -> "AuditLog":
     """Log a profile-related event."""
     action_map = {
         "create": f"Created profile '{profile_name}'",
@@ -111,7 +121,7 @@ async def log_document_event(
     document_id: str,
     filename: Optional[str] = None,
     details: Optional[dict[str, Any]] = None,
-) -> AuditLog:
+) -> "AuditLog":
     """Log a document-related event."""
     name = filename or document_id
     action_map = {
@@ -139,7 +149,7 @@ async def log_observation_event(
     observation_id: str,
     analyte: str,
     details: Optional[dict[str, Any]] = None,
-) -> AuditLog:
+) -> "AuditLog":
     """Log an observation-related event."""
     action_map = {
         "verify": f"Verified observation '{analyte}'",
@@ -162,7 +172,7 @@ async def log_export_event(
     profile_id: str,
     export_type: str,
     details: Optional[dict[str, Any]] = None,
-) -> AuditLog:
+) -> "AuditLog":
     """Log an export event."""
     return await create_audit_log(
         db=db,
@@ -179,7 +189,7 @@ async def log_auth_event(
     event: str,
     profile_id: Optional[str] = None,
     details: Optional[dict[str, Any]] = None,
-) -> AuditLog:
+) -> "AuditLog":
     """Log an authentication event."""
     action_map = {
         "login": "User logged in",

@@ -2,20 +2,64 @@
 SQLAlchemy models for HealthCentral.
 
 Exports all models for use throughout the application.
+
+Model Organization:
+- Master Database (core.database.Base): Profile, AuditLog, BiomarkerKnowledge,
+  InterventionMapping, BiomarkerRelationship
+- Per-Profile Database (core.profile_database.ProfileDatabaseBase): Document,
+  Observation, Chunk, Embedding, LabInterpretation, PanelInterpretation,
+  Medication, MedicationSchedule, DoseTaken, AdherencePattern, ReminderLog
 """
 
+# Master database models
 from .profile import Profile
+from .audit import AuditLog
+
+# Knowledge base models (master database - reference data)
+from .knowledge_base import (
+    BiomarkerKnowledge,
+    InterventionMapping,
+    BiomarkerRelationship,
+)
+
+# Per-profile database models
 from .document import Document
 from .observation import Observation
-from .audit import AuditLog
 from .chunk import Chunk
 from .embedding import Embedding
 
+# Lab interpretation models (per-profile)
+from .interpretation import LabInterpretation, PanelInterpretation
+
+# Medication adherence models (per-profile)
+from .medication import (
+    Medication,
+    MedicationSchedule,
+    DoseTaken,
+    AdherencePattern,
+    ReminderLog,
+)
+
 __all__ = [
+    # Master database
     "Profile",
+    "AuditLog",
+    # Knowledge base (master)
+    "BiomarkerKnowledge",
+    "InterventionMapping",
+    "BiomarkerRelationship",
+    # Per-profile
     "Document",
     "Observation",
-    "AuditLog",
     "Chunk",
     "Embedding",
+    # Interpretations (per-profile)
+    "LabInterpretation",
+    "PanelInterpretation",
+    # Medications (per-profile)
+    "Medication",
+    "MedicationSchedule",
+    "DoseTaken",
+    "AdherencePattern",
+    "ReminderLog",
 ]

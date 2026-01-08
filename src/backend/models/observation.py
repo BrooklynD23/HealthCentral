@@ -17,6 +17,7 @@ from core.profile_database import ProfileDatabaseBase
 
 if TYPE_CHECKING:
     from .document import Document
+    from .interpretation import LabInterpretation
 
 
 class Observation(ProfileDatabaseBase):
@@ -101,6 +102,9 @@ class Observation(ProfileDatabaseBase):
     # Relationships (within profile database only)
     document: Mapped["Document"] = relationship(
         "Document", back_populates="observations"
+    )
+    interpretation: Mapped[Optional["LabInterpretation"]] = relationship(
+        "LabInterpretation", back_populates="observation", uselist=False
     )
 
     def __repr__(self) -> str:

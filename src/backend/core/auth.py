@@ -15,7 +15,7 @@ Provides:
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Annotated, AsyncGenerator
+from typing import Optional, Annotated, AsyncGenerator, TYPE_CHECKING
 from dataclasses import dataclass
 
 from fastapi import Depends, HTTPException, status, Request
@@ -34,7 +34,16 @@ from .security import (
     KeySealingError,
 )
 from .profile_database import get_profile_db_manager, ProfileDatabaseConnection
-from models import Profile
+
+# Deferred import to avoid circular dependency
+if TYPE_CHECKING:
+    from models import Profile
+
+
+def _get_profile_class():
+    """Lazy import of Profile to avoid circular imports."""
+    from models.profile import Profile
+    return Profile
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +97,7 @@ async def authenticate_profile(
     profile_id: str,
     password: str,
     db: AsyncSession,
-) -> Optional[Profile]:
+) -> Optional["Profile"]:
     """
     Authenticate a profile with password.
 
@@ -100,6 +109,7 @@ async def authenticate_profile(
     Returns:
         Profile if authentication succeeds, None otherwise
     """
+    Profile = _get_profile_class()
     result = await db.execute(select(Profile).where(Profile.id == profile_id))
     profile = result.scalar_one_or_none()
 
@@ -118,7 +128,7 @@ async def authenticate_profile(
     return profile
 
 
-def create_session_token(profile: Profile) -> TokenResponse:
+def create_session_token(profile: "Profile") -> TokenResponse:
     """
     Create a session token for an authenticated profile.
 
@@ -181,6 +191,7 @@ async def get_current_session(
         return None
 
     # Verify profile still exists
+    Profile = _get_profile_class()
     result = await db.execute(select(Profile).where(Profile.id == profile_id))
     profile = result.scalar_one_or_none()
     if not profile:

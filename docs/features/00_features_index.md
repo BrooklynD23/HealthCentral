@@ -9,6 +9,7 @@ This folder contains architecture plans and PRDs for new features added to Healt
 | `01_lab_result_interpreter_architecture.md` | Personal Lab Result Interpreter | Moderate (GPU) | Planning |
 | `02_medication_adherence_coach_architecture.md` | Adaptive Medication Adherence Coach | Light (CPU) | Planning |
 | `03_features_prd.md` | Combined PRD for both features | N/A | Planning |
+| `TASK_LIST.md` | **Implementation Task Tracker** | N/A | **Active** |
 
 ## Feature Overview
 
