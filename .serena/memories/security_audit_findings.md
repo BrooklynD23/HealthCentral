@@ -15,7 +15,43 @@
 - ✅ Profile password authentication (Phase 2) - COMPLETED 2026-01-07
 - ✅ Authorization middleware for all endpoints - COMPLETED 2026-01-07
 - ✅ Per-profile SQLCipher databases (Phase 3) - COMPLETED 2026-01-07
-- ⏳ Verifier agent pattern for AI safety (Phase 4)
+- ✅ Verifier agent pattern for AI safety (Phase 4) - COMPLETED 2026-01-07
+
+### Phase 4 Implementation Details (2026-01-07):
+- Created `modules/claim_extractor.py` with `ClaimExtractor` class:
+  - Parses LLM responses into individual verifiable claims
+  - Classifies claim types (factual, comparative, temporal, causal)
+  - Links claims to citations
+  - Filters verifiable vs unverifiable claims
+- Created `modules/source_authority.py` with `SourceAuthorityScorer`:
+  - Four-tier authority system (Tier 1-4)
+  - Tier 1: User-verified personal documents (highest trust)
+  - Tier 2: Peer-reviewed medical references
+  - Tier 3: Educational content
+  - Tier 4: Unverified sources (lowest trust)
+  - Validates authority requirements per claim type
+- Created `modules/verifier_agent.py` with `VerifierAgent`:
+  - Entailment checking (rule-based, LLM-ready)
+  - Contradiction detection with pattern matching
+  - Faithfulness scoring integration
+  - Batch verification support
+- Created `modules/faithfulness.py` with `FaithfulnessScorer`:
+  - Multi-component scoring: entailment, lexical, semantic
+  - Configurable weights and thresholds
+  - N-gram overlap analysis
+  - Entity extraction and matching
+- Updated `modules/rag.py` with verification pipeline:
+  - `_run_verification_pipeline()` orchestrates all Phase 4 components
+  - `VerificationMetadata` dataclass for transparency
+  - Integrated into `validate_response()` and `query()` methods
+- Updated `api/assistant.py`:
+  - Added `VerificationInfo` response model
+  - `/chat` endpoint now returns verification metadata
+  - New `/verification-status` endpoint for system info
+- Updated `core/config.py` with verification settings:
+  - `verification_enabled`, `min_faithfulness_score`
+  - `fail_on_contradiction`, `min_supporting_sources`
+  - `use_llm_entailment`, `multi_pass_verification`
 
 ### Phase 3 Implementation Details (2026-01-07):
 - Created `core/profile_database.py` with `PerProfileDatabaseManager` class
