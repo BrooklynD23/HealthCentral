@@ -68,6 +68,15 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_file_path: str = "logs/healthcentral.log"
     audit_log_enabled: bool = True
+
+    # Phase 4: AI Safety / Verification Settings
+    verification_enabled: bool = True
+    min_faithfulness_score: float = 0.6  # Minimum score for verified claims
+    min_entailment_confidence: float = 0.7  # Minimum NLI confidence
+    fail_on_contradiction: bool = True  # Fail if any source contradicts claim
+    min_supporting_sources: int = 1  # Minimum sources needed to verify claim
+    use_llm_entailment: bool = False  # Use LLM for complex entailment (vs rule-based)
+    multi_pass_verification: bool = False  # Enable multi-pass consistency checking
     
     @property
     def app_data_path(self) -> Path:
