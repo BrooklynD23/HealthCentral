@@ -1,10 +1,12 @@
 """
 Profile management API endpoints.
 
-Handles profile creation, access control, and settings.
+Handles profile creation, authentication, and access control.
 """
 
+import base64
 import uuid
+import logging
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
@@ -18,80 +20,198 @@ from core.database import get_db
 from core.config import settings
 from core.security import (
     generate_encryption_key,
-    seal_key_with_dpapi_legacy,
-    is_dpapi_available,
+    generate_salt,
+    hash_password,
+    seal_key_with_dpapi,
+    unseal_key_with_dpapi,
+    KeySealingError,
+)
+from core.auth import (
+    authenticate_profile,
+    create_session_token,
+    require_auth,
+    require_profile_access,
+    TokenResponse,
+    LoginRequest,
+    RequireAuth,
+    OptionalAuth,
+    Session,
 )
 from core.audit import log_profile_event
 from models import Profile
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
 class ProfileCreate(BaseModel):
     """Request model for creating a profile."""
+
     display_name: str = Field(..., min_length=1, max_length=255)
+    password: str = Field(..., min_length=8, max_length=128)
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_strength(cls, v: str) -> str:
+        """Validate password meets minimum security requirements."""
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        if not any(c.isupper() for c in v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not any(c.islower() for c in v):
+            raise ValueError("Password must contain at least one lowercase letter")
+        if not any(c.isdigit() for c in v):
+            raise ValueError("Password must contain at least one digit")
+        return v
 
 
 class ProfileResponse(BaseModel):
     """Response model for profile data."""
+
     id: str
     display_name: str
     is_locked: bool
+    has_password: bool
     created_at: str
     last_accessed_at: Optional[str] = None
-    
+
     class Config:
         from_attributes = True
-    
+
     @classmethod
     def from_model(cls, profile: Profile) -> "ProfileResponse":
         return cls(
             id=profile.id,
             display_name=profile.display_name,
             is_locked=profile.is_locked,
+            has_password=profile.password_hash is not None,
             created_at=profile.created_at.isoformat(),
-            last_accessed_at=profile.last_accessed_at.isoformat() if profile.last_accessed_at else None,
+            last_accessed_at=(
+                profile.last_accessed_at.isoformat() if profile.last_accessed_at else None
+            ),
+        )
+
+
+class ProfileListResponse(BaseModel):
+    """Response model for listing profiles (minimal info for selection)."""
+
+    id: str
+    display_name: str
+    has_password: bool
+    created_at: str
+
+    @classmethod
+    def from_model(cls, profile: Profile) -> "ProfileListResponse":
+        return cls(
+            id=profile.id,
+            display_name=profile.display_name,
+            has_password=profile.password_hash is not None,
+            created_at=profile.created_at.isoformat(),
         )
 
 
 class ProfileUnlock(BaseModel):
     """Request model for unlocking a profile."""
-    # Future: Add password/PIN for additional security
-    pass
+
+    password: str
 
 
-@router.post("/", response_model=ProfileResponse, status_code=status.HTTP_201_CREATED)
+class PasswordChange(BaseModel):
+    """Request model for changing profile password."""
+
+    current_password: str
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password_strength(cls, v: str) -> str:
+        """Validate password meets minimum security requirements."""
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        if not any(c.isupper() for c in v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not any(c.islower() for c in v):
+            raise ValueError("Password must contain at least one lowercase letter")
+        if not any(c.isdigit() for c in v):
+            raise ValueError("Password must contain at least one digit")
+        return v
+
+
+# =============================================================================
+# Public endpoints (no authentication required)
+# =============================================================================
+
+
+@router.get("/", response_model=list[ProfileListResponse])
+async def list_profiles(db: AsyncSession = Depends(get_db)):
+    """
+    List all available profiles.
+
+    Returns minimal info for profile selection screen.
+    No authentication required - this is the entry point.
+    """
+    result = await db.execute(select(Profile).order_by(Profile.created_at.desc()))
+    profiles = result.scalars().all()
+
+    return [ProfileListResponse.from_model(p) for p in profiles]
+
+
+@router.post("/", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def create_profile(
     profile_data: ProfileCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Create a new user profile with encrypted vault.
 
     Creates:
-    - Profile record with encryption key
+    - Profile record with hashed password
+    - Encryption key sealed with password-derived key
     - Encrypted vault directory
     - Audit log entry
+    - Session token for immediate access
+
+    The profile is automatically unlocked after creation.
     """
     profile_id = str(uuid.uuid4())
     encryption_key_id = str(uuid.uuid4())
 
-    # Generate and seal encryption key
-    # Note: Using legacy function for now; will migrate to password-based in Phase 2
-    encryption_key = generate_encryption_key()
-    sealed_key = seal_key_with_dpapi_legacy(encryption_key)
+    # Generate password hash and salt
+    password_salt = generate_salt()
+    password_hash = hash_password(profile_data.password)
 
-    # Store sealed key in vault directory
+    # Generate encryption key and seal it with password
+    encryption_key = generate_encryption_key()
+    try:
+        sealed_key, seal_method = seal_key_with_dpapi(
+            encryption_key, fallback_password=profile_data.password
+        )
+    except KeySealingError as e:
+        logger.error(f"Failed to seal encryption key: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create secure vault",
+        )
+
+    # Store sealed key and seal method in vault directory
     vault_path = Path(settings.app_data_path) / "vaults" / profile_id
     vault_path.mkdir(parents=True, exist_ok=True)
+
     key_path = vault_path / "key.bin"
     key_path.write_bytes(sealed_key)
+
+    # Store seal method for later unsealing
+    method_path = vault_path / "key.method"
+    method_path.write_text(seal_method)
 
     # Create profile record
     profile = Profile(
         id=profile_id,
         display_name=profile_data.display_name,
         encryption_key_id=encryption_key_id,
+        password_hash=password_hash,
+        password_salt=base64.b64encode(password_salt).decode("ascii"),
         is_locked=False,  # Start unlocked after creation
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
@@ -108,76 +228,134 @@ async def create_profile(
         profile_name=profile_data.display_name,
     )
 
-    await db.flush()
+    await db.commit()
 
-    return ProfileResponse.from_model(profile)
+    logger.info(f"Created profile: {profile_id} ({profile_data.display_name})")
 
-
-@router.get("/", response_model=list[ProfileResponse])
-async def list_profiles(db: AsyncSession = Depends(get_db)):
-    """
-    List all available profiles.
-    
-    Returns basic info only; profiles remain locked until explicitly unlocked.
-    """
-    result = await db.execute(select(Profile).order_by(Profile.created_at.desc()))
-    profiles = result.scalars().all()
-    
-    return [ProfileResponse.from_model(p) for p in profiles]
+    # Return session token for immediate access
+    return create_session_token(profile)
 
 
-@router.get("/{profile_id}", response_model=ProfileResponse)
-async def get_profile(
-    profile_id: str,
-    db: AsyncSession = Depends(get_db)
-):
-    """Get profile details."""
-    result = await db.execute(select(Profile).where(Profile.id == profile_id))
-    profile = result.scalar_one_or_none()
-    
-    if not profile:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Profile not found"
-        )
-    
-    return ProfileResponse.from_model(profile)
-
-
-@router.post("/{profile_id}/unlock", response_model=ProfileResponse)
-async def unlock_profile(
-    profile_id: str,
-    unlock_data: ProfileUnlock,
-    db: AsyncSession = Depends(get_db)
+@router.post("/login", response_model=TokenResponse)
+async def login(
+    login_data: LoginRequest,
+    db: AsyncSession = Depends(get_db),
 ):
     """
-    Unlock a profile for access.
+    Authenticate and log in to a profile.
 
-    Decrypts the profile key and enables access to encrypted data.
-    Creates audit log entry.
+    Verifies password and returns a session token.
     """
-    result = await db.execute(select(Profile).where(Profile.id == profile_id))
-    profile = result.scalar_one_or_none()
+    profile = await authenticate_profile(
+        profile_id=login_data.profile_id,
+        password=login_data.password,
+        db=db,
+    )
 
     if not profile:
+        # Use generic error message to prevent user enumeration
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Profile not found"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials",
         )
 
-    # Update profile status
+    # Update profile state
     profile.is_locked = False
     profile.last_accessed_at = datetime.utcnow()
 
     # Create audit log
     await log_profile_event(
         db=db,
-        event="unlock",
-        profile_id=profile_id,
+        event="login",
+        profile_id=profile.id,
         profile_name=profile.display_name,
     )
 
-    await db.flush()
+    await db.commit()
+
+    logger.info(f"Profile logged in: {profile.id}")
+
+    return create_session_token(profile)
+
+
+# =============================================================================
+# Protected endpoints (authentication required)
+# =============================================================================
+
+
+@router.get("/me", response_model=ProfileResponse)
+async def get_current_profile(
+    session: RequireAuth,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get the current authenticated profile.
+
+    Returns the profile associated with the session token.
+    """
+    result = await db.execute(select(Profile).where(Profile.id == session.profile_id))
+    profile = result.scalar_one_or_none()
+
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found",
+        )
+
+    return ProfileResponse.from_model(profile)
+
+
+@router.post("/logout")
+async def logout(
+    session: RequireAuth,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Log out the current session.
+
+    Marks the profile as locked and clears any cached keys.
+    Note: JWT tokens are stateless, so the token remains valid until expiry.
+    For true invalidation, implement a token blacklist (future enhancement).
+    """
+    result = await db.execute(select(Profile).where(Profile.id == session.profile_id))
+    profile = result.scalar_one_or_none()
+
+    if profile:
+        profile.is_locked = True
+
+        await log_profile_event(
+            db=db,
+            event="logout",
+            profile_id=profile.id,
+            profile_name=profile.display_name,
+        )
+
+        await db.commit()
+
+    logger.info(f"Profile logged out: {session.profile_id}")
+
+    return {"status": "logged_out"}
+
+
+@router.get("/{profile_id}", response_model=ProfileResponse)
+async def get_profile(
+    profile_id: str,
+    session: Session = Depends(require_profile_access()),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get profile details.
+
+    Requires authentication and access to the specified profile.
+    """
+    result = await db.execute(select(Profile).where(Profile.id == profile_id))
+    profile = result.scalar_one_or_none()
+
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found",
+        )
 
     return ProfileResponse.from_model(profile)
 
@@ -185,13 +363,14 @@ async def unlock_profile(
 @router.post("/{profile_id}/lock", response_model=ProfileResponse)
 async def lock_profile(
     profile_id: str,
-    db: AsyncSession = Depends(get_db)
+    session: Session = Depends(require_profile_access()),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Lock a profile.
 
-    Clears decrypted keys from memory.
-    Creates audit log entry.
+    Marks the profile as locked. The session token remains valid,
+    but the profile is marked as needing re-authentication.
     """
     result = await db.execute(select(Profile).where(Profile.id == profile_id))
     profile = result.scalar_one_or_none()
@@ -199,13 +378,11 @@ async def lock_profile(
     if not profile:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Profile not found"
+            detail="Profile not found",
         )
 
-    # Update profile status
     profile.is_locked = True
 
-    # Create audit log
     await log_profile_event(
         db=db,
         event="lock",
@@ -213,6 +390,147 @@ async def lock_profile(
         profile_name=profile.display_name,
     )
 
-    await db.flush()
+    await db.commit()
+
+    logger.info(f"Profile locked: {profile_id}")
 
     return ProfileResponse.from_model(profile)
+
+
+@router.post("/{profile_id}/unlock", response_model=TokenResponse)
+async def unlock_profile(
+    profile_id: str,
+    unlock_data: ProfileUnlock,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Unlock a profile with password.
+
+    Verifies password and returns a new session token.
+    This is equivalent to login but uses the profile_id from the path.
+    """
+    profile = await authenticate_profile(
+        profile_id=profile_id,
+        password=unlock_data.password,
+        db=db,
+    )
+
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid password",
+        )
+
+    profile.is_locked = False
+    profile.last_accessed_at = datetime.utcnow()
+
+    await log_profile_event(
+        db=db,
+        event="unlock",
+        profile_id=profile_id,
+        profile_name=profile.display_name,
+    )
+
+    await db.commit()
+
+    logger.info(f"Profile unlocked: {profile_id}")
+
+    return create_session_token(profile)
+
+
+@router.post("/{profile_id}/change-password")
+async def change_password(
+    profile_id: str,
+    password_data: PasswordChange,
+    session: Session = Depends(require_profile_access()),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Change the profile password.
+
+    Requires current password for verification.
+    Re-seals the encryption key with the new password.
+    """
+    result = await db.execute(select(Profile).where(Profile.id == profile_id))
+    profile = result.scalar_one_or_none()
+
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found",
+        )
+
+    # Verify current password
+    verified_profile = await authenticate_profile(
+        profile_id=profile_id,
+        password=password_data.current_password,
+        db=db,
+    )
+
+    if not verified_profile:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Current password is incorrect",
+        )
+
+    # Load and unseal the existing encryption key
+    vault_path = Path(settings.app_data_path) / "vaults" / profile_id
+    key_path = vault_path / "key.bin"
+    method_path = vault_path / "key.method"
+
+    if not key_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Vault key not found",
+        )
+
+    sealed_key = key_path.read_bytes()
+    seal_method = method_path.read_text().strip() if method_path.exists() else "password"
+
+    try:
+        encryption_key = unseal_key_with_dpapi(
+            sealed_key,
+            seal_method,
+            fallback_password=password_data.current_password,
+        )
+    except KeySealingError as e:
+        logger.error(f"Failed to unseal key for password change: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to access vault key",
+        )
+
+    # Re-seal with new password
+    try:
+        new_sealed_key, new_seal_method = seal_key_with_dpapi(
+            encryption_key, fallback_password=password_data.new_password
+        )
+    except KeySealingError as e:
+        logger.error(f"Failed to re-seal key with new password: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update vault key",
+        )
+
+    # Write new sealed key
+    key_path.write_bytes(new_sealed_key)
+    method_path.write_text(new_seal_method)
+
+    # Update password hash
+    new_salt = generate_salt()
+    profile.password_hash = hash_password(password_data.new_password)
+    profile.password_salt = base64.b64encode(new_salt).decode("ascii")
+    profile.updated_at = datetime.utcnow()
+
+    await log_profile_event(
+        db=db,
+        event="password_change",
+        profile_id=profile_id,
+        profile_name=profile.display_name,
+    )
+
+    await db.commit()
+
+    logger.info(f"Password changed for profile: {profile_id}")
+
+    return {"status": "password_changed"}

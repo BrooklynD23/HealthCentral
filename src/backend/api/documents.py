@@ -2,6 +2,7 @@
 Document management API endpoints.
 
 Handles document import, listing, and viewing.
+All endpoints require authentication.
 """
 
 import json
@@ -19,8 +20,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from core.config import settings
 from core.audit import log_document_event
+from core.auth import RequireAuth, Session
 from models import Document, Profile
-from modules import IngestModule
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,29 @@ def validate_uuid(value: str, field_name: str = "ID") -> str:
         )
     return value
 
+
+def verify_document_access(document: Document, session: Session) -> None:
+    """
+    Verify that the session has access to the document.
+
+    Args:
+        document: The document to check access for
+        session: The authenticated session
+
+    Raises:
+        HTTPException: 403 if access is denied
+    """
+    if document.profile_id != session.profile_id:
+        logger.warning(
+            f"Document access denied: session profile {session.profile_id} "
+            f"attempted to access document {document.id} belonging to {document.profile_id}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this document"
+        )
+
+
 router = APIRouter()
 
 
@@ -55,10 +79,10 @@ class DocumentResponse(BaseModel):
     imported_at: str
     parsed_at: Optional[str] = None
     verified_at: Optional[str] = None
-    
+
     class Config:
         from_attributes = True
-    
+
     @classmethod
     def from_model(cls, doc: Document) -> "DocumentResponse":
         return cls(
@@ -91,12 +115,12 @@ class PageResponse(BaseModel):
 
 @router.post("/import", response_model=DocumentImportResponse, status_code=status.HTTP_201_CREATED)
 async def import_document(
+    session: RequireAuth,
     file: UploadFile = File(...),
-    profile_id: str = Query(..., description="Profile ID to import document into"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
-    Import a document (PDF or image) into a profile.
+    Import a document (PDF or image) into the authenticated profile.
 
     Process:
     1. Validate file type and size
@@ -107,8 +131,7 @@ async def import_document(
 
     Returns extracted observations count and verification status.
     """
-    # Validate profile_id format (path traversal protection)
-    validate_uuid(profile_id, "profile_id")
+    profile_id = session.profile_id
 
     # Verify profile exists
     result = await db.execute(select(Profile).where(Profile.id == profile_id))
@@ -119,12 +142,12 @@ async def import_document(
             detail="Profile not found"
         )
 
-    # Initialize ingest module for this profile's vault
-    # Note: encryption_key should be loaded from vault in production
+    # Import using ingest module
+    from modules import IngestModule
+
     vault_path = Path(settings.app_data_path) / "vaults" / profile_id
     ingest = IngestModule(vault_path)
 
-    # Import the document
     try:
         import_result = await ingest.import_document(
             file=file.file,
@@ -164,7 +187,7 @@ async def import_document(
         details={"doc_type": import_result.doc_type, "encrypted": import_result.encrypted},
     )
 
-    await db.flush()
+    await db.commit()
 
     return DocumentImportResponse(
         document=DocumentResponse.from_model(document),
@@ -175,39 +198,39 @@ async def import_document(
 
 @router.get("/", response_model=list[DocumentResponse])
 async def list_documents(
-    profile_id: str = Query(..., description="Profile ID"),
+    session: RequireAuth,
     doc_status: Optional[str] = Query(None, alias="status", description="Filter by status"),
     doc_type: Optional[str] = Query(None, description="Filter by document type"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
-    List documents for a profile.
+    List documents for the authenticated profile.
 
     Supports filtering by status and document type.
     """
-    # Validate profile_id format
-    validate_uuid(profile_id, "profile_id")
+    profile_id = session.profile_id
 
-    # Build query
+    # Build query - only show documents for authenticated profile
     query = select(Document).where(Document.profile_id == profile_id)
-    
+
     if doc_status:
         query = query.where(Document.status == doc_status)
     if doc_type:
         query = query.where(Document.doc_type == doc_type)
-    
+
     query = query.order_by(Document.imported_at.desc())
-    
+
     result = await db.execute(query)
     documents = result.scalars().all()
-    
+
     return [DocumentResponse.from_model(doc) for doc in documents]
 
 
 @router.get("/{document_id}", response_model=DocumentResponse)
 async def get_document(
     document_id: str,
-    db: AsyncSession = Depends(get_db)
+    session: RequireAuth,
+    db: AsyncSession = Depends(get_db),
 ):
     """Get document details."""
     # Validate document_id format (path traversal protection)
@@ -215,20 +238,24 @@ async def get_document(
 
     result = await db.execute(select(Document).where(Document.id == document_id))
     document = result.scalar_one_or_none()
-    
+
     if not document:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Document not found"
         )
-    
+
+    # Verify session has access to this document
+    verify_document_access(document, session)
+
     return DocumentResponse.from_model(document)
 
 
 @router.get("/{document_id}/pages", response_model=list[PageResponse])
 async def get_document_pages(
     document_id: str,
-    db: AsyncSession = Depends(get_db)
+    session: RequireAuth,
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get document pages for provenance viewing.
@@ -247,8 +274,8 @@ async def get_document_pages(
             detail="Document not found"
         )
 
-    # Validate profile_id from document (defense in depth)
-    validate_uuid(document.profile_id, "profile_id")
+    # Verify session has access to this document
+    verify_document_access(document, session)
 
     # Get document file path
     vault_path = Path(settings.app_data_path) / "vaults" / document.profile_id / "docs"
@@ -295,7 +322,8 @@ async def get_document_pages(
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_document(
     document_id: str,
-    db: AsyncSession = Depends(get_db)
+    session: RequireAuth,
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Delete a document and its associated data.
@@ -314,11 +342,11 @@ async def delete_document(
             detail="Document not found"
         )
 
+    # Verify session has access to this document
+    verify_document_access(document, session)
+
     profile_id = document.profile_id
     filename = document.source
-
-    # Validate profile_id from document (defense in depth)
-    validate_uuid(profile_id, "profile_id")
 
     # Delete document file
     vault_path = Path(settings.app_data_path) / "vaults" / profile_id / "docs"
@@ -338,4 +366,4 @@ async def delete_document(
         filename=filename,
     )
 
-    await db.flush()
+    await db.commit()

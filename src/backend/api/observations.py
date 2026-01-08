@@ -2,12 +2,15 @@
 Observation (lab values) API endpoints.
 
 Handles retrieval, filtering, verification, and trend data.
+All endpoints require authentication.
 """
 
 import json
+import logging
 import re
 from typing import Optional
 from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select, and_
@@ -15,7 +18,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
 from core.audit import log_observation_event
+from core.auth import RequireAuth, Session
 from models import Observation
+
+logger = logging.getLogger(__name__)
 
 # UUID validation pattern
 UUID_PATTERN = re.compile(
@@ -32,6 +38,29 @@ def validate_uuid(value: str, field_name: str = "ID") -> str:
             detail=f"Invalid {field_name} format"
         )
     return value
+
+
+def verify_observation_access(observation: Observation, session: Session) -> None:
+    """
+    Verify that the session has access to the observation.
+
+    Args:
+        observation: The observation to check access for
+        session: The authenticated session
+
+    Raises:
+        HTTPException: 403 if access is denied
+    """
+    if observation.profile_id != session.profile_id:
+        logger.warning(
+            f"Observation access denied: session profile {session.profile_id} "
+            f"attempted to access observation {observation.id} belonging to {observation.profile_id}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this observation"
+        )
+
 
 router = APIRouter()
 
@@ -75,10 +104,10 @@ class ObservationResponse(BaseModel):
     collected_at: Optional[str] = None
     user_verified: bool
     extraction_confidence: Optional[float] = None
-    
+
     class Config:
         from_attributes = True
-    
+
     @classmethod
     def from_model(cls, obs: Observation) -> "ObservationResponse":
         return cls(
@@ -143,53 +172,53 @@ class PanelResponse(BaseModel):
 
 @router.get("/", response_model=list[ObservationResponse])
 async def list_observations(
-    profile_id: str = Query(..., description="Profile ID"),
+    session: RequireAuth,
     analyte: Optional[str] = Query(None, description="Filter by analyte"),
     from_date: Optional[datetime] = Query(None, description="Start date"),
     to_date: Optional[datetime] = Query(None, description="End date"),
     abnormal_only: bool = Query(False, description="Only show abnormal values"),
     needs_verification: bool = Query(False, description="Only show unverified"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
-    List observations with optional filters.
+    List observations for the authenticated profile.
 
     Supports filtering by analyte, date range, abnormal status,
     and verification status.
     """
-    # Validate profile_id format
-    validate_uuid(profile_id, "profile_id")
+    profile_id = session.profile_id
 
-    # Build query with filters
+    # Build query with filters - only show observations for authenticated profile
     query = select(Observation).where(Observation.profile_id == profile_id)
-    
+
     if analyte:
         query = query.where(Observation.analyte_canonical == analyte.lower())
-    
+
     if from_date:
         query = query.where(Observation.collected_at >= from_date)
-    
+
     if to_date:
         query = query.where(Observation.collected_at <= to_date)
-    
+
     if abnormal_only:
         query = query.where(Observation.is_abnormal == True)
-    
+
     if needs_verification:
         query = query.where(Observation.user_verified == False)
-    
+
     query = query.order_by(Observation.collected_at.desc(), Observation.analyte_canonical)
-    
+
     result = await db.execute(query)
     observations = result.scalars().all()
-    
+
     return [ObservationResponse.from_model(obs) for obs in observations]
 
 
 @router.get("/{observation_id}", response_model=ObservationResponse)
 async def get_observation(
     observation_id: str,
-    db: AsyncSession = Depends(get_db)
+    session: RequireAuth,
+    db: AsyncSession = Depends(get_db),
 ):
     """Get single observation details."""
     # Validate observation_id format
@@ -197,13 +226,16 @@ async def get_observation(
 
     result = await db.execute(select(Observation).where(Observation.id == observation_id))
     observation = result.scalar_one_or_none()
-    
+
     if not observation:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Observation not found"
         )
-    
+
+    # Verify session has access to this observation
+    verify_observation_access(observation, session)
+
     return ObservationResponse.from_model(observation)
 
 
@@ -211,7 +243,8 @@ async def get_observation(
 async def verify_observation(
     observation_id: str,
     verify_data: ObservationVerify,
-    db: AsyncSession = Depends(get_db)
+    session: RequireAuth,
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Verify and optionally edit an observation.
@@ -226,13 +259,16 @@ async def verify_observation(
 
     result = await db.execute(select(Observation).where(Observation.id == observation_id))
     observation = result.scalar_one_or_none()
-    
+
     if not observation:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Observation not found"
         )
-    
+
+    # Verify session has access to this observation
+    verify_observation_access(observation, session)
+
     # Store original values if this is first edit
     if not observation.original_value_json:
         original = {
@@ -244,44 +280,44 @@ async def verify_observation(
             "collected_at": observation.collected_at.isoformat() if observation.collected_at else None,
         }
         observation.original_value_json = json.dumps(original)
-    
+
     # Apply edits
     changes = {}
     if verify_data.value is not None:
         changes["value"] = {"old": observation.value, "new": verify_data.value}
         observation.value = verify_data.value
-    
+
     if verify_data.value_text is not None:
         changes["value_text"] = {"old": observation.value_text, "new": verify_data.value_text}
         observation.value_text = verify_data.value_text
-    
+
     if verify_data.unit is not None:
         changes["unit"] = {"old": observation.unit, "new": verify_data.unit}
         observation.unit = verify_data.unit
-    
+
     if verify_data.ref_low is not None:
         changes["ref_low"] = {"old": observation.ref_low, "new": verify_data.ref_low}
         observation.ref_low = verify_data.ref_low
-    
+
     if verify_data.ref_high is not None:
         changes["ref_high"] = {"old": observation.ref_high, "new": verify_data.ref_high}
         observation.ref_high = verify_data.ref_high
-    
+
     if verify_data.collected_at is not None:
         changes["collected_at"] = {
             "old": observation.collected_at.isoformat() if observation.collected_at else None,
             "new": verify_data.collected_at.isoformat(),
         }
         observation.collected_at = verify_data.collected_at
-    
+
     if verify_data.notes is not None:
         observation.notes = verify_data.notes
-    
+
     # Mark as verified
     observation.user_verified = True
     observation.verified_at = datetime.utcnow()
     observation.version += 1
-    
+
     # Recalculate abnormal status
     if observation.value is not None:
         if observation.ref_low is not None and observation.value < observation.ref_low:
@@ -293,7 +329,7 @@ async def verify_observation(
         else:
             observation.is_abnormal = False
             observation.flag = None
-    
+
     # Create audit log
     await log_observation_event(
         db=db,
@@ -304,7 +340,7 @@ async def verify_observation(
         details={"changes": changes} if changes else None,
     )
 
-    await db.flush()
+    await db.commit()
 
     return ObservationResponse.from_model(observation)
 
@@ -312,10 +348,10 @@ async def verify_observation(
 @router.get("/trends/{analyte}", response_model=TrendResponse)
 async def get_analyte_trend(
     analyte: str,
-    profile_id: str = Query(..., description="Profile ID"),
+    session: RequireAuth,
     from_date: Optional[datetime] = Query(None, description="Start date"),
     to_date: Optional[datetime] = Query(None, description="End date"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get trend data for a specific analyte.
@@ -323,8 +359,7 @@ async def get_analyte_trend(
     Returns time-series data points with reference ranges
     and a human-readable summary for accessibility.
     """
-    # Validate profile_id format
-    validate_uuid(profile_id, "profile_id")
+    profile_id = session.profile_id
 
     # Build query
     query = select(Observation).where(
@@ -334,29 +369,29 @@ async def get_analyte_trend(
             Observation.value.isnot(None),
         )
     )
-    
+
     if from_date:
         query = query.where(Observation.collected_at >= from_date)
     if to_date:
         query = query.where(Observation.collected_at <= to_date)
-    
+
     query = query.order_by(Observation.collected_at.asc())
-    
+
     result = await db.execute(query)
     observations = result.scalars().all()
-    
+
     if not observations:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No data found for analyte '{analyte}'"
         )
-    
+
     # Build trend data
     data_points = []
     ref_low = None
     ref_high = None
     unit = None
-    
+
     for obs in observations:
         if obs.collected_at and obs.value is not None:
             data_points.append(TrendPoint(
@@ -374,25 +409,25 @@ async def get_analyte_trend(
                 ref_high = obs.ref_high
             if obs.unit:
                 unit = obs.unit
-    
+
     # Generate summary
     if len(data_points) >= 2:
         first_val = data_points[0].value
         last_val = data_points[-1].value
         change = last_val - first_val
         change_pct = (change / first_val * 100) if first_val != 0 else 0
-        
+
         if abs(change_pct) < 5:
             trend = "stable"
         elif change > 0:
             trend = f"increased by {abs(change_pct):.1f}%"
         else:
             trend = f"decreased by {abs(change_pct):.1f}%"
-        
+
         summary = f"{analyte.upper()} has {trend} over {len(data_points)} measurements."
     else:
         summary = f"Single measurement of {analyte.upper()} recorded."
-    
+
     return TrendResponse(
         analyte_canonical=analyte.lower(),
         analyte_display_name=analyte.upper(),
@@ -407,17 +442,16 @@ async def get_analyte_trend(
 @router.get("/panels/{panel_id}", response_model=PanelResponse)
 async def get_panel(
     panel_id: str,
-    profile_id: str = Query(..., description="Profile ID"),
+    session: RequireAuth,
     collection_date: Optional[datetime] = Query(None, description="Specific collection date"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get lab panel data (CBC, CMP, lipids, etc.).
 
     Aggregates related observations for panel view.
     """
-    # Validate profile_id format
-    validate_uuid(profile_id, "profile_id")
+    profile_id = session.profile_id
 
     panel_def = PANEL_DEFINITIONS.get(panel_id.lower())
     if not panel_def:
@@ -425,15 +459,15 @@ async def get_panel(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Unknown panel: {panel_id}"
         )
-    
-    # Query observations for panel analytes
+
+    # Query observations for panel analytes - only for authenticated profile
     query = select(Observation).where(
         and_(
             Observation.profile_id == profile_id,
             Observation.analyte_canonical.in_(panel_def["analytes"]),
         )
     )
-    
+
     if collection_date:
         # Filter by date (within same day)
         start = collection_date.replace(hour=0, minute=0, second=0)
@@ -447,10 +481,10 @@ async def get_panel(
     else:
         # Get most recent for each analyte
         query = query.order_by(Observation.collected_at.desc())
-    
+
     result = await db.execute(query)
     observations = result.scalars().all()
-    
+
     # If no collection_date specified, get only most recent per analyte
     if not collection_date:
         seen_analytes = set()
@@ -460,14 +494,14 @@ async def get_panel(
                 seen_analytes.add(obs.analyte_canonical)
                 filtered_obs.append(obs)
         observations = filtered_obs
-    
+
     obs_responses = [ObservationResponse.from_model(obs) for obs in observations]
-    
+
     # Get collection date from observations
     coll_date = None
     if observations and observations[0].collected_at:
         coll_date = observations[0].collected_at.isoformat()
-    
+
     return PanelResponse(
         panel_id=panel_id.lower(),
         panel_name=panel_def["name"],

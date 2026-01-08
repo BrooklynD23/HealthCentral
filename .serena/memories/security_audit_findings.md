@@ -12,10 +12,19 @@
 - ✅ Sanitized error messages to not leak internal paths
 
 ### REMAINING Work:
-- ⏳ Profile password authentication (Phase 2)
+- ✅ Profile password authentication (Phase 2) - COMPLETED 2026-01-07
+- ✅ Authorization middleware for all endpoints - COMPLETED 2026-01-07
 - ⏳ Per-profile SQLCipher databases (Phase 3)
-- ⏳ Authorization middleware for all endpoints
 - ⏳ Verifier agent pattern for AI safety (Phase 4)
+
+### Phase 2 Implementation Details (2026-01-07):
+- Created `core/auth.py` with JWT session management
+- Added password field to ProfileCreate with validation (8+ chars, upper/lower/digit)
+- Added `/login`, `/logout`, `/me` endpoints
+- Added `RequireAuth` dependency to all protected endpoints
+- Added `require_profile_access()` for profile-specific authorization
+- All API modules (documents, observations, assistant, export) now require authentication
+- Removed legacy insecure `seal_key_with_dpapi_legacy` usage from profiles.py
 
 ---
 
