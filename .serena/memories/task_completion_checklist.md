@@ -44,7 +44,7 @@
 1. ✅ FIXED: `models/` directory created with all SQLAlchemy models
 2. ✅ FIXED: Document encryption implemented (AES-GCM in ingest.py)
 3. ✅ FIXED: DPAPI fallback now fails securely with KeySealingError
-4. ⏳ TODO: No authentication/authorization on API endpoints (Phase 2)
+4. ✅ FIXED: Authentication/authorization on all API endpoints (Phase 2 - 2026-01-07)
 5. ✅ FIXED: JWT secret persisted to data/.jwt_secret
 6. ✅ FIXED: Centralized audit logging in core/audit.py
 7. ✅ FIXED: UUID validation on all API parameters (path traversal protection)
