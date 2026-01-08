@@ -16,7 +16,27 @@
       "mcp__serena__think_about_whether_you_are_done",
       "WebSearch",
       "Bash(git -C /mnt/c/Users/DangT/Documents/GitHub/HealthCentral status)",
-      "Bash(git -C /mnt/c/Users/DangT/Documents/GitHub/HealthCentral log --oneline -5)"
+      "Bash(git -C /mnt/c/Users/DangT/Documents/GitHub/HealthCentral log --oneline -5)",
+      "mcp__serena__think_about_collected_information",
+      "mcp__serena__think_about_task_adherence",
+      "Bash(python -m py_compile:*)",
+      "Bash(python3 -m py_compile:*)",
+      "Bash(python3:*)",
+      "Bash(source venv/bin/activate)",
+      "Bash(pip install:*)",
+      "Bash(python:*)",
+      "Bash(./venv/Scripts/pip:*)",
+      "Bash(source:*)",
+      "Bash(./venv/Scripts/python.exe -m pip install:*)",
+      "Bash(./venv/Scripts/python.exe -c \"\nimport sys\nsys.path.insert\\(0, ''.''\\)\nfrom core.auth import RequireAuth, Session, TokenResponse\nfrom core.security import hash_password, verify_password, seal_key_with_dpapi, KeySealingError\nprint\\(''All auth imports successful!''\\)\n\")",
+      "Bash(cat:*)",
+      "Bash(curl:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nPhase 2: Profile password authentication and authorization\n\nSecurity improvements:\n- Add core/auth.py with JWT session management\n- Implement password authentication for profiles \\(8+ chars, upper/lower/digit\\)\n- Add login, logout, me endpoints to profiles API\n- Require authentication on all protected endpoints\n- Add profile-level authorization \\(users can only access their own data\\)\n- Use secure seal_key_with_dpapi\\(\\) instead of legacy insecure function\n\nAPI changes:\n- POST /profiles/ now requires password, returns JWT token\n- POST /profiles/login for authentication\n- POST /profiles/logout to end session\n- GET /profiles/me returns authenticated profile\n- All document, observation, assistant, export endpoints require Bearer token\n- Removed profile_id query parameters \\(derived from session\\)\n\nFiles:\n- NEW: src/backend/core/auth.py - Session management and auth dependencies\n- MODIFIED: api/profiles.py - Password auth, login/logout, password change\n- MODIFIED: api/documents.py - RequireAuth on all endpoints\n- MODIFIED: api/observations.py - RequireAuth on all endpoints\n- MODIFIED: api/assistant.py - RequireAuth on all endpoints\n- MODIFIED: api/export.py - RequireAuth on all endpoints\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__query-docs",
+      "Bash(./venv/Scripts/python.exe:*)",
+      "Bash(grep:*)"
     ]
   }
 }

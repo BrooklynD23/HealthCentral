@@ -36,6 +36,8 @@ from core.auth import (
     RequireAuth,
     OptionalAuth,
     Session,
+    open_profile_database_on_login,
+    close_profile_database_on_logout,
 )
 from core.audit import log_profile_event
 from models import Profile
@@ -232,6 +234,9 @@ async def create_profile(
 
     logger.info(f"Created profile: {profile_id} ({profile_data.display_name})")
 
+    # Phase 3: Open the per-profile encrypted database
+    await open_profile_database_on_login(profile_id, profile_data.password)
+
     # Return session token for immediate access
     return create_session_token(profile)
 
@@ -275,6 +280,9 @@ async def login(
 
     logger.info(f"Profile logged in: {profile.id}")
 
+    # Phase 3: Open the per-profile encrypted database
+    await open_profile_database_on_login(profile.id, login_data.password)
+
     return create_session_token(profile)
 
 
@@ -313,7 +321,9 @@ async def logout(
     """
     Log out the current session.
 
-    Marks the profile as locked and clears any cached keys.
+    Phase 3: Now closes the per-profile encrypted database and clears
+    encryption keys from memory.
+
     Note: JWT tokens are stateless, so the token remains valid until expiry.
     For true invalidation, implement a token blacklist (future enhancement).
     """
@@ -331,6 +341,9 @@ async def logout(
         )
 
         await db.commit()
+
+    # Phase 3: Close the per-profile encrypted database and clear keys
+    await close_profile_database_on_logout(session.profile_id)
 
     logger.info(f"Profile logged out: {session.profile_id}")
 
@@ -369,8 +382,8 @@ async def lock_profile(
     """
     Lock a profile.
 
-    Marks the profile as locked. The session token remains valid,
-    but the profile is marked as needing re-authentication.
+    Phase 3: Closes the per-profile encrypted database and clears
+    encryption keys from memory, preventing further access until unlock.
     """
     result = await db.execute(select(Profile).where(Profile.id == profile_id))
     profile = result.scalar_one_or_none()
@@ -392,6 +405,9 @@ async def lock_profile(
 
     await db.commit()
 
+    # Phase 3: Close the per-profile encrypted database and clear keys
+    await close_profile_database_on_logout(profile_id)
+
     logger.info(f"Profile locked: {profile_id}")
 
     return ProfileResponse.from_model(profile)
@@ -405,6 +421,9 @@ async def unlock_profile(
 ):
     """
     Unlock a profile with password.
+
+    Phase 3: Re-opens the per-profile encrypted database with the
+    provided password.
 
     Verifies password and returns a new session token.
     This is equivalent to login but uses the profile_id from the path.
@@ -432,6 +451,9 @@ async def unlock_profile(
     )
 
     await db.commit()
+
+    # Phase 3: Re-open the per-profile encrypted database
+    await open_profile_database_on_login(profile_id, unlock_data.password)
 
     logger.info(f"Profile unlocked: {profile_id}")
 
