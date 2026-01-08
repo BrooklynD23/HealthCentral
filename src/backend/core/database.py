@@ -72,8 +72,8 @@ async def init_database() -> None:
         vaults_dir.mkdir(parents=True, exist_ok=True)
 
     # Import only MASTER database models
-    # Profile and AuditLog use Base (master database)
-    from models import profile, audit
+    # Profile, AuditLog, and Knowledge Base use Base (master database)
+    from models import profile, audit, knowledge_base
 
     # Create master database tables
     async with engine.begin() as conn:
