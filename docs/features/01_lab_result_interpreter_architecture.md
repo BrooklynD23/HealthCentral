@@ -1,6 +1,6 @@
 # Personal Lab Result Interpreter - Architecture Document
 
-*Version 0.1 | January 2025 | Draft - Pending PM Approval*
+*Version 0.1 | January 2025 | Draft - (PM Approved)
 
 ---
 
@@ -16,7 +16,7 @@ The Personal Lab Result Interpreter transforms raw lab results into actionable h
 **US-1: Upload and Interpret Lab Results**
 - User uploads lab PDF through existing document import flow
 - System generates plain-language interpretations with citations
-- Medical disclaimers prominently displayed
+- Medical disclaimers prominently displayed 
 
 **US-2: View Personalized Health Advice**
 - Recommendations reference actual patient values
