@@ -36,7 +36,10 @@
       "mcp__context7__resolve-library-id",
       "mcp__context7__query-docs",
       "Bash(./venv/Scripts/python.exe:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(PYTHONPATH=. /mnt/c/Users/Danny/Documents/GitHub/HealthCentral/src/backend/venv/Scripts/python.exe:*)",
+      "Bash(/mnt/c/Users/Danny/Documents/GitHub/HealthCentral/src/backend/venv/Scripts/python.exe:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nPhase 0: Foundation for Lab Interpreter & Medication Coach features\n\nDatabase Models:\n- Add knowledge_base.py: BiomarkerKnowledge, InterventionMapping, BiomarkerRelationship\n- Add interpretation.py: LabInterpretation, PanelInterpretation\n- Add medication.py: Medication, MedicationSchedule, DoseTaken, AdherencePattern, ReminderLog\n- Update models/__init__.py with all 15 model exports\n- Add interpretation relationship to Observation model\n\nInfrastructure:\n- Update core/database.py to include knowledge_base in master DB init\n- Update core/profile_database.py to include interpretation, medication in profile DB init\n- Fix circular imports in core/auth.py and core/audit.py with deferred imports\n\nKnowledge Base Seed:\n- Add scripts/seed_knowledge_base.py with curated medical reference data\n- 12 biomarkers: lipid panel, HbA1c, glucose, hemoglobin, WBC, platelets, TSH, creatinine, vitamin D\n- 9 interventions: diet, exercise, lifestyle, supplement recommendations\n- 7 relationships: ratios \\(TC/HDL, LDL/HDL\\), correlations, panel memberships\n\nDocumentation:\n- Add TASK_LIST.md for feature implementation tracking\n- Update features index with task list reference\n- Add Serena memory for session persistence\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }
