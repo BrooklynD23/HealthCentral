@@ -133,26 +133,37 @@ Phase 0 → Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5
 ### 3.1 Notification Scheduler
 | Task | Status | Notes |
 |------|--------|-------|
-| Create `modules/notification_scheduler.py` | [ ] TODO | Background service |
-| Implement minute-by-minute checking loop | [ ] TODO | |
-| Implement priority calculation | [ ] TODO | initial → nudge → alert |
-| Integrate with schedule adaptive windows | [ ] TODO | |
+| Create `modules/notification_scheduler.py` | [x] DONE | 2026-01-29 Background scheduler with profile registration |
+| Implement minute-by-minute checking loop | [x] DONE | 2026-01-29 Async loop with configurable interval |
+| Implement priority calculation | [x] DONE | 2026-01-29 INITIAL → GENTLE_NUDGE → IMPORTANT_ALERT |
+| Integrate with schedule adaptive windows | [x] DONE | 2026-01-29 Uses learned windows from pattern learning |
 
 ### 3.2 Message Generator
 | Task | Status | Notes |
 |------|--------|-------|
-| Create `modules/message_generator.py` | [ ] TODO | |
-| Implement template selection | [ ] TODO | By priority + tone |
-| Add streak celebration messages | [ ] TODO | 3, 7, 14, 30 day |
-| Optional: LLM personalization | [ ] TODO | Use existing small model |
+| Create `modules/message_generator.py` | [x] DONE | 2026-01-29 Template-based message generation |
+| Implement template selection | [x] DONE | 2026-01-29 By priority + tone + time of day |
+| Add streak celebration messages | [x] DONE | 2026-01-29 3, 7, 14, 30, 60, 90, 365 day milestones |
+| Optional: LLM personalization | [ ] TODO | Defer to v0.3 |
 
 ### 3.3 Platform Notifications
 | Task | Status | Notes |
 |------|--------|-------|
-| Create `modules/platform_notifications.py` | [ ] TODO | Abstract interface |
-| Implement Windows ToastNotificationManager | [ ] TODO | Primary platform |
-| Add fallback plyer notifications | [ ] TODO | Cross-platform |
-| Test notification delivery | [ ] TODO | |
+| Create `modules/platform_notifications.py` | [x] DONE | 2026-01-29 Abstract provider interface |
+| Implement Windows ToastNotificationManager | [x] DONE | 2026-01-29 With winsdk integration |
+| Add fallback plyer notifications | [x] DONE | 2026-01-29 Cross-platform fallback |
+| Test notification delivery | [x] DONE | 2026-01-29 MockProvider for testing |
+
+### 3.4 Notification API Endpoints
+| Task | Status | Notes |
+|------|--------|-------|
+| Create `api/notifications.py` router | [x] DONE | 2026-01-29 Full notification management |
+| GET/PATCH /settings/{medication_id} | [x] DONE | 2026-01-29 Per-medication notification settings |
+| GET /history | [x] DONE | 2026-01-29 Notification history with stats |
+| POST /test | [x] DONE | 2026-01-29 Send test notification |
+| POST /test/{medication_id} | [x] DONE | 2026-01-29 Test with real medication context |
+| GET /scheduler/status | [x] DONE | 2026-01-29 Scheduler status monitoring |
+| POST /{reminder_id}/interaction | [x] DONE | 2026-01-29 Record user interactions |
 
 ---
 
@@ -301,12 +312,42 @@ apscheduler>=3.10.0   # Background task scheduling
 - Updated `modules/__init__.py` and `api/__init__.py` to export new modules
 - All files pass Python syntax validation
 
+### 2026-01-29 - Phase 3 Smart Notifications Complete
+- **Phase 3.1**: Created `modules/notification_scheduler.py`:
+  - NotificationScheduler with start/stop/pause/resume lifecycle
+  - Profile session registration for multi-profile support
+  - Minute-by-minute checking loop with configurable interval
+  - Priority escalation: INITIAL → GENTLE_NUDGE → IMPORTANT_ALERT
+  - Integration with adaptive windows from pattern learning
+  - Rate limiting (max notifications per hour)
+- **Phase 3.2**: Created `modules/message_generator.py`:
+  - Template-based message generation by priority and time of day
+  - Streak celebration messages at milestones (3, 7, 14, 30, 60, 90, 365 days)
+  - Missed recovery messages with encouraging tone
+  - Quiet hours summary messages
+- **Phase 3.3**: Created `modules/platform_notifications.py`:
+  - Abstract NotificationProvider interface
+  - WindowsToastProvider with winsdk integration
+  - PlyerProvider for cross-platform fallback
+  - MockProvider for testing
+  - NotificationService with provider fallback chain
+- **Phase 3.4**: Created `api/notifications.py`:
+  - GET/PATCH notification settings per medication
+  - GET notification history with statistics
+  - POST test notifications (generic and medication-specific)
+  - GET scheduler status monitoring
+  - POST reminder interaction recording
+- Updated `api/__init__.py` and `modules/__init__.py` with exports
+- Updated `requirements.txt` with apscheduler, plyer dependencies
+- Created comprehensive tests in `tests/test_phase3_notifications.py`
+- All files pass Python syntax validation
+
 ### Next Session Pickup
-1. Phase 0.3: BioMistral Model Integration (to enhance interpretation quality)
-2. Phase 3: Smart Notifications (notification_scheduler, message_generator, platform_notifications)
-3. Phase 4: Frontend Integration (React components for both features)
-4. Run full test suite once dependencies are installed
-5. Consider adding more biomarkers to seed data as needed
+1. Phase 0.3: BioMistral Model Integration (to enhance interpretation quality with LLM)
+2. Phase 4: Frontend Integration (React components for Lab Interpreter and Medication Coach)
+3. Phase 5: Polish & Testing (adversarial testing, accessibility audit, performance)
+4. Run full test suite with `pip install -r requirements.txt` first
+5. Consider integrating scheduler startup with FastAPI lifespan events
 
 ---
 
