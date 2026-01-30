@@ -59,6 +59,13 @@ httpx>=0.26.0
 aiofiles>=23.2.0
 
 # =============================================================================
+# Notifications (Phase 3: Smart Notifications)
+# =============================================================================
+apscheduler>=3.10.0       # Background task scheduling
+plyer>=2.1.0              # Cross-platform notifications
+# winsdk>=1.0.0b10        # Windows notification center (optional, Windows only)
+
+# =============================================================================
 # Development
 # =============================================================================
 pytest>=7.4.0

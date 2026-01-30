@@ -89,6 +89,36 @@ from .adherence_patterns import (
     get_pattern_learner,
 )
 
+# Phase 3: Smart Notifications modules
+from .message_generator import (
+    MessageGenerator,
+    MessageContext,
+    GeneratedMessage,
+    ReminderPriority,
+    MessageTone,
+    get_message_generator,
+)
+from .platform_notifications import (
+    NotificationService,
+    NotificationProvider,
+    NotificationPayload,
+    DeliveryResult,
+    DeliveryStatus,
+    NotificationPlatform,
+    get_notification_service,
+    initialize_notifications,
+)
+from .notification_scheduler import (
+    NotificationScheduler,
+    SchedulerState,
+    ScheduleCheck,
+    NotificationSettings,
+    SchedulerConfig,
+    get_notification_scheduler,
+    start_notification_scheduler,
+    stop_notification_scheduler,
+)
+
 __all__ = [
     # Core modules
     "IngestModule",
@@ -139,4 +169,27 @@ __all__ = [
     "MissedDayPattern",
     "StreakData",
     "get_pattern_learner",
+    # Phase 3: Smart Notifications
+    "MessageGenerator",
+    "MessageContext",
+    "GeneratedMessage",
+    "ReminderPriority",
+    "MessageTone",
+    "get_message_generator",
+    "NotificationService",
+    "NotificationProvider",
+    "NotificationPayload",
+    "DeliveryResult",
+    "DeliveryStatus",
+    "NotificationPlatform",
+    "get_notification_service",
+    "initialize_notifications",
+    "NotificationScheduler",
+    "SchedulerState",
+    "ScheduleCheck",
+    "NotificationSettings",
+    "SchedulerConfig",
+    "get_notification_scheduler",
+    "start_notification_scheduler",
+    "stop_notification_scheduler",
 ]
