@@ -1,6 +1,6 @@
 # HealthCentral Feature Implementation Task List
 
-**Version:** 0.2.0 | **Last Updated:** 2026-01-07 | **Branch:** Security-Revamp-2
+**Version:** 0.2.0 | **Last Updated:** 2026-01-29 | **Branch:** Security-Revamp-2
 
 ---
 
@@ -63,30 +63,30 @@ Phase 0 → Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5
 ### 1.1 Interpretation Pipeline
 | Task | Status | Notes |
 |------|--------|-------|
-| Create `modules/interpret.py` (InterpretModule) | [ ] TODO | Main orchestrator |
-| Create `modules/interpret_safety.py` (safety guardrails) | [ ] TODO | Prohibited patterns, required disclaimers |
-| Create `modules/recommend.py` (recommendation engine) | [ ] TODO | Evidence-based advice |
-| Create `modules/knowledge_loader.py` | [ ] TODO | Query knowledge base |
+| Create `modules/interpret.py` (InterpretModule) | [x] DONE | 2026-01-29 Main orchestrator with template-based generation |
+| Create `modules/interpret_safety.py` (safety guardrails) | [x] DONE | 2026-01-29 Prohibited patterns, required disclaimers |
+| Create `modules/recommend.py` (recommendation engine) | [x] DONE | 2026-01-29 Evidence-based advice with citations |
+| Create `modules/knowledge_loader.py` | [x] DONE | 2026-01-29 Query knowledge base with caching |
 
 ### 1.2 Safety Guardrails
 | Task | Status | Notes |
 |------|--------|-------|
-| Implement PROHIBITED_PATTERNS regex checking | [ ] TODO | No diagnoses, no dosing |
-| Implement REQUIRED_DISCLAIMERS validation | [ ] TODO | Must cite, must disclaim |
-| Add critical value flagging | [ ] TODO | Auto-flag for physician review |
+| Implement PROHIBITED_PATTERNS regex checking | [x] DONE | 2026-01-29 No diagnoses, no dosing, no emergency advice |
+| Implement REQUIRED_DISCLAIMERS validation | [x] DONE | 2026-01-29 Must cite, must disclaim |
+| Add critical value flagging | [x] DONE | 2026-01-29 Auto-flag for physician review |
 | Test adversarial inputs | [ ] TODO | Security testing |
 
 ### 1.3 API Endpoints
 | Task | Status | Notes |
 |------|--------|-------|
-| Create `api/interpretations.py` router | [ ] TODO | |
-| POST /observations/{id}/interpret | [ ] TODO | Generate interpretation |
-| GET /observations/{id}/interpretation | [ ] TODO | Get existing |
-| POST /panels/{name}/interpret | [ ] TODO | Panel interpretation |
-| GET /interpretations/recent | [ ] TODO | List recent |
-| GET /knowledge/biomarker/{analyte} | [ ] TODO | Knowledge lookup |
-| POST /interpretations/batch | [ ] TODO | Batch generation |
-| Create `api/schemas/interpretation.py` | [ ] TODO | Pydantic schemas |
+| Create `api/interpretations.py` router | [x] DONE | 2026-01-29 Full CRUD + batch |
+| POST /observations/{id}/interpret | [x] DONE | 2026-01-29 Generate interpretation |
+| GET /observations/{id}/interpretation | [x] DONE | 2026-01-29 Get existing |
+| POST /panels/{name}/interpret | [x] DONE | 2026-01-29 Panel interpretation |
+| GET /interpretations/recent | [x] DONE | 2026-01-29 List recent |
+| GET /knowledge/biomarker/{analyte} | [x] DONE | 2026-01-29 Knowledge lookup |
+| POST /interpretations/batch | [x] DONE | 2026-01-29 Batch generation |
+| Create `api/schemas/interpretation.py` | [x] DONE | 2026-01-29 Pydantic schemas (in interpretations.py) |
 
 ---
 
@@ -95,36 +95,36 @@ Phase 0 → Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5
 ### 2.1 Medication CRUD
 | Task | Status | Notes |
 |------|--------|-------|
-| Create `api/medications.py` router | [ ] TODO | |
-| POST /{profile}/medications | [ ] TODO | Create medication |
-| GET /{profile}/medications | [ ] TODO | List medications |
-| GET /{profile}/medications/{id} | [ ] TODO | Get medication |
-| PATCH /{profile}/medications/{id} | [ ] TODO | Update medication |
-| DELETE /{profile}/medications/{id} | [ ] TODO | Soft delete |
+| Create `api/medications.py` router | [x] DONE | 2026-01-29 Full CRUD with schedules, doses, stats |
+| POST /medications | [x] DONE | 2026-01-29 Create medication |
+| GET /medications | [x] DONE | 2026-01-29 List medications (active_only filter) |
+| GET /medications/{id} | [x] DONE | 2026-01-29 Get medication with schedules |
+| PATCH /medications/{id} | [x] DONE | 2026-01-29 Update medication |
+| DELETE /medications/{id} | [x] DONE | 2026-01-29 Soft delete (hard_delete option) |
 
 ### 2.2 Schedule Management
 | Task | Status | Notes |
 |------|--------|-------|
-| POST /{profile}/medications/{id}/schedules | [ ] TODO | Create schedule |
-| GET /{profile}/medications/{id}/schedules | [ ] TODO | List schedules |
-| PATCH /{profile}/medications/{id}/schedules/{sid} | [ ] TODO | Update |
-| DELETE /{profile}/medications/{id}/schedules/{sid} | [ ] TODO | Remove |
+| POST /medications/{id}/schedules | [x] DONE | 2026-01-29 Create schedule |
+| GET /medications/{id}/schedules | [x] DONE | 2026-01-29 List schedules |
+| PATCH /medications/{id}/schedules/{sid} | [x] DONE | 2026-01-29 Update |
+| DELETE /medications/{id}/schedules/{sid} | [x] DONE | 2026-01-29 Remove |
 
 ### 2.3 Dose Logging
 | Task | Status | Notes |
 |------|--------|-------|
-| POST /{profile}/medications/{id}/doses | [ ] TODO | Log dose |
-| GET /{profile}/medications/{id}/doses | [ ] TODO | List doses |
-| GET /{profile}/medications/{id}/stats | [ ] TODO | Adherence stats |
+| POST /medications/{id}/doses | [x] DONE | 2026-01-29 Log dose (taken or skipped) |
+| GET /medications/{id}/doses | [x] DONE | 2026-01-29 List doses with date filters |
+| GET /medications/{id}/stats | [x] DONE | 2026-01-29 Adherence stats, streaks |
 
 ### 2.4 Pattern Learning
 | Task | Status | Notes |
 |------|--------|-------|
-| Create `modules/adherence_patterns.py` | [ ] TODO | PatternLearner class |
-| Implement time window learning algorithm | [ ] TODO | Mean ± 1.5 std dev |
-| Implement weekday vs weekend detection | [ ] TODO | |
-| Implement missed day pattern detection | [ ] TODO | |
-| POST /{profile}/medications/{id}/learn-patterns | [ ] TODO | Trigger learning |
+| Create `modules/adherence_patterns.py` | [x] DONE | 2026-01-29 PatternLearner class |
+| Implement time window learning algorithm | [x] DONE | 2026-01-29 Mean ± 1.5 std dev with outlier removal |
+| Implement weekday vs weekend detection | [x] DONE | 2026-01-29 Detects significant differences |
+| Implement missed day pattern detection | [x] DONE | 2026-01-29 Identifies problem days |
+| POST /medications/{id}/learn-patterns | [x] DONE | 2026-01-29 Trigger learning, updates adaptive windows |
 
 ---
 
@@ -281,10 +281,32 @@ apscheduler>=3.10.0   # Background task scheduling
 - Tested database initialization - all tables created successfully
 - Models exported in `__init__.py`, database init files updated
 
+### 2026-01-29 - Phase 1 & Phase 2 Backend Complete
+- **Phase 1.1**: Created interpretation pipeline modules:
+  - `modules/interpret.py` - Main InterpretModule orchestrator with template-based generation
+  - `modules/interpret_safety.py` - Safety guardrails (prohibited patterns, disclaimers, critical values)
+  - `modules/recommend.py` - Evidence-based recommendation engine with citations
+  - `modules/knowledge_loader.py` - Knowledge base access with caching
+- **Phase 1.2**: Implemented safety guardrails:
+  - Prohibited patterns: diagnostic language, dosing, medication advice, emergency advice
+  - Required disclaimers validation
+  - Critical value flagging with auto-physician-review
+- **Phase 1.3**: Created `api/interpretations.py` with all endpoints:
+  - POST/GET observation interpretations
+  - Panel interpretations with relationship insights
+  - Batch processing, knowledge lookup
+- **Phase 2.1-2.4**: Created `api/medications.py` with full CRUD:
+  - Medications, schedules, dose logging, adherence stats
+  - `modules/adherence_patterns.py` - Pattern learning (time window, weekday/weekend, missed days)
+- Updated `modules/__init__.py` and `api/__init__.py` to export new modules
+- All files pass Python syntax validation
+
 ### Next Session Pickup
-1. Start with Phase 0.3: BioMistral Model Integration OR
-2. Start with Phase 1.1: Interpretation Pipeline
-3. Consider adding more biomarkers to seed data as needed
+1. Phase 0.3: BioMistral Model Integration (to enhance interpretation quality)
+2. Phase 3: Smart Notifications (notification_scheduler, message_generator, platform_notifications)
+3. Phase 4: Frontend Integration (React components for both features)
+4. Run full test suite once dependencies are installed
+5. Consider adding more biomarkers to seed data as needed
 
 ---
 

@@ -15,6 +15,12 @@ Phase 4 AI Safety modules:
 - source_authority: Score source reliability by tier
 - verifier_agent: Verify claims against cited sources
 - faithfulness: Measure response faithfulness to sources
+
+Phase 1 Lab Interpretation modules:
+- interpret: Main interpretation pipeline orchestrator
+- interpret_safety: Safety guardrails for interpretations
+- recommend: Evidence-based recommendation engine
+- knowledge_loader: Knowledge base data access
 """
 
 from .ingest import IngestModule
@@ -46,6 +52,43 @@ from .faithfulness import (
     FaithfulnessConfig,
 )
 
+# Phase 1: Lab Interpretation modules
+from .interpret import (
+    InterpretModule,
+    InterpretationContext,
+    InterpretationResult,
+    PanelInterpretationResult,
+    get_interpret_module,
+)
+from .interpret_safety import (
+    InterpretationSafetyGuard,
+    SafetyValidationResult,
+    get_safety_guard,
+)
+from .recommend import (
+    RecommendationEngine,
+    Recommendation,
+    RecommendationSet,
+    get_recommendation_engine,
+)
+from .knowledge_loader import (
+    KnowledgeLoader,
+    BiomarkerInfo,
+    InterventionInfo,
+    RelationshipInfo,
+    get_knowledge_loader,
+)
+
+# Phase 2: Medication Adherence modules
+from .adherence_patterns import (
+    PatternLearner,
+    TimeWindowPattern,
+    WeekdayPattern,
+    MissedDayPattern,
+    StreakData,
+    get_pattern_learner,
+)
+
 __all__ = [
     # Core modules
     "IngestModule",
@@ -71,4 +114,29 @@ __all__ = [
     "FaithfulnessScorer",
     "FaithfulnessScores",
     "FaithfulnessConfig",
+    # Phase 1: Lab Interpretation
+    "InterpretModule",
+    "InterpretationContext",
+    "InterpretationResult",
+    "PanelInterpretationResult",
+    "get_interpret_module",
+    "InterpretationSafetyGuard",
+    "SafetyValidationResult",
+    "get_safety_guard",
+    "RecommendationEngine",
+    "Recommendation",
+    "RecommendationSet",
+    "get_recommendation_engine",
+    "KnowledgeLoader",
+    "BiomarkerInfo",
+    "InterventionInfo",
+    "RelationshipInfo",
+    "get_knowledge_loader",
+    # Phase 2: Medication Adherence
+    "PatternLearner",
+    "TimeWindowPattern",
+    "WeekdayPattern",
+    "MissedDayPattern",
+    "StreakData",
+    "get_pattern_learner",
 ]
