@@ -290,6 +290,7 @@ class PerProfileDatabaseManager:
             embedding,
             interpretation,  # Lab interpretations
             medication,      # Medication adherence
+            model_settings,  # Model tier settings (Phase 0.3)
         )
 
         async with engine.begin() as conn:

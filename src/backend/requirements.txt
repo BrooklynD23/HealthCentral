@@ -39,6 +39,14 @@ sentence-transformers>=2.2.0
 numpy>=1.26.0
 
 # =============================================================================
+# Model Management (Phase 0.3)
+# =============================================================================
+huggingface-hub>=0.20.0    # Model downloading from HF
+psutil>=5.9.0              # Hardware detection (RAM, CPU, disk)
+py-cpuinfo>=9.0.0          # Detailed CPU info
+# Note: torch NOT required - GPU detection is optional bonus
+
+# =============================================================================
 # Vector Store
 # =============================================================================
 faiss-cpu>=1.7.4

@@ -10,6 +10,7 @@ Organized by domain:
 - assistant: RAG-powered chat
 - export: Summary and data export
 - profiles: Profile management
+- model_settings: Hardware detection and model tier selection (Phase 0.3)
 """
 
 from fastapi import APIRouter
@@ -22,6 +23,7 @@ from .notifications import router as notifications_router
 from .assistant import router as assistant_router
 from .export import router as export_router
 from .profiles import router as profiles_router
+from .model_settings import router as model_settings_router
 
 router = APIRouter()
 
@@ -34,3 +36,4 @@ router.include_router(medications_router, prefix="/medications", tags=["medicati
 router.include_router(notifications_router, prefix="/notifications", tags=["notifications"])
 router.include_router(assistant_router, prefix="/assistant", tags=["assistant"])
 router.include_router(export_router, prefix="/export", tags=["export"])
+router.include_router(model_settings_router, prefix="/settings/model", tags=["model-settings"])

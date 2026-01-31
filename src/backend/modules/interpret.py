@@ -7,12 +7,14 @@ using the knowledge base, safety guardrails, and recommendation engine.
 Phase 1: Core Lab Interpretation Engine - Main Orchestrator
 """
 
+import asyncio
 import json
 import logging
+import re
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,8 +35,30 @@ from .recommend import (
     RecommendationSet,
     get_recommendation_engine,
 )
+from .model_selector import ModelSelector, get_model_selector
 
 logger = logging.getLogger(__name__)
+
+# Citation-enforcing prompt template for LLM interpretation
+LLM_INTERPRETATION_PROMPT = """You are a medical results assistant explaining lab values to patients.
+
+RULES:
+1. Cite knowledge base facts as [KB:analyte_name]
+2. Cite intervention advice as [INT:intervention_id]
+3. NEVER diagnose conditions or diseases
+4. ALWAYS recommend consulting a healthcare provider for personalized advice
+5. Be patient-friendly and explain medical terms simply
+
+Lab Result:
+- Analyte: {analyte}
+- Value: {value} {unit}
+- Reference Range: {ref_low} - {ref_high}
+- Flag: {flag}
+
+Knowledge Base Information:
+{knowledge_text}
+
+Provide a clear, patient-friendly explanation with proper citations:"""
 
 
 @dataclass
@@ -89,6 +113,7 @@ class InterpretModule:
         knowledge_loader: Optional[KnowledgeLoader] = None,
         safety_guard: Optional[InterpretationSafetyGuard] = None,
         recommendation_engine: Optional[RecommendationEngine] = None,
+        model_selector: Optional[ModelSelector] = None,
     ):
         """
         Initialize the interpretation module.
@@ -97,10 +122,12 @@ class InterpretModule:
             knowledge_loader: Knowledge base loader
             safety_guard: Safety validation
             recommendation_engine: Recommendation generator
+            model_selector: Model selector for tiered LLM inference (Phase 0.3)
         """
         self._knowledge_loader = knowledge_loader or get_knowledge_loader()
         self._safety_guard = safety_guard or get_safety_guard()
         self._recommendation_engine = recommendation_engine or get_recommendation_engine()
+        self._model_selector = model_selector or get_model_selector()
 
     async def interpret_observation(
         self,
@@ -638,6 +665,322 @@ class InterpretModule:
                 ctx["change_percent"] = (change / prev_value) * 100 if prev_value != 0 else 0
 
         return json.dumps(ctx)
+
+    # =========================================================================
+    # Phase 0.3: LLM-based interpretation methods
+    # =========================================================================
+
+    async def _llm_interpretation(
+        self,
+        model: Any,
+        context: InterpretationContext,
+        profile_id: str,
+        db: AsyncSession,
+    ) -> tuple[str, Optional[str]]:
+        """
+        Generate interpretation using LLM with citation enforcement.
+
+        Falls back to template if LLM output lacks required citations.
+
+        Args:
+            model: Loaded Llama model instance
+            context: Interpretation context with observation and knowledge
+            profile_id: User profile ID
+            db: Database session
+
+        Returns:
+            Tuple of (interpretation_text, advice_text)
+        """
+        # Build the prompt
+        prompt = self._build_llm_prompt(context)
+
+        try:
+            # Run inference in thread pool for async safety
+            response = await self._model_selector.run_inference(
+                model=model,
+                prompt=prompt,
+                max_tokens=512,
+                temperature=0.3,
+                stop=["</s>", "\n\n\n"],
+            )
+
+            text = response["choices"][0]["text"].strip()
+
+            # Validate citations exist
+            if not self._validate_llm_citations(text):
+                logger.warning(
+                    "LLM output missing required citations, falling back to template"
+                )
+                return await self._generate_interpretation(context, db)
+
+            # Extract advice section if present
+            advice_text = self._extract_advice_from_llm(text, context)
+
+            return text, advice_text
+
+        except Exception as e:
+            logger.error(f"LLM interpretation failed: {e}, falling back to template")
+            return await self._generate_interpretation(context, db)
+
+    def _build_llm_prompt(self, context: InterpretationContext) -> str:
+        """Build prompt for LLM interpretation."""
+        obs = context.observation
+        kb = context.biomarker_info
+
+        # Build knowledge text from biomarker info
+        knowledge_text = ""
+        if kb:
+            knowledge_text = f"""
+- Display Name: {kb.display_name}
+- Description: {kb.description}
+- Normal Interpretation: {kb.normal_interpretation}
+- High Interpretation: {kb.high_interpretation}
+- Low Interpretation: {kb.low_interpretation}
+- Clinical Significance: {kb.clinical_significance or 'Not specified'}
+"""
+
+        # Add recommendations if available
+        if context.recommendations and context.recommendations.has_recommendations:
+            knowledge_text += "\nRecommendations:\n"
+            for rec in context.recommendations.recommendations[:3]:
+                knowledge_text += f"- [{rec.id}] {rec.title}: {rec.text}\n"
+
+        return LLM_INTERPRETATION_PROMPT.format(
+            analyte=kb.display_name if kb else obs.analyte_canonical.upper(),
+            value=obs.value if obs.value is not None else obs.value_text or "N/A",
+            unit=obs.unit or "",
+            ref_low=obs.ref_low or "N/A",
+            ref_high=obs.ref_high or "N/A",
+            flag=obs.flag or "normal",
+            knowledge_text=knowledge_text,
+        )
+
+    def _validate_llm_citations(self, text: str) -> bool:
+        """
+        Check for required citation patterns in LLM output.
+
+        Required patterns: [KB:*], [INT:*], or [Source:*]
+
+        Args:
+            text: LLM output text
+
+        Returns:
+            True if valid citations found, False otherwise.
+        """
+        pattern = r"\[KB:[^\]]+\]|\[INT:[^\]]+\]|\[Source:[^\]]+\]"
+        return bool(re.search(pattern, text))
+
+    def _extract_advice_from_llm(
+        self,
+        text: str,
+        context: InterpretationContext,
+    ) -> Optional[str]:
+        """
+        Extract advice section from LLM output.
+
+        Args:
+            text: LLM output text
+            context: Interpretation context
+
+        Returns:
+            Advice text if found, None otherwise.
+        """
+        # Look for recommendation citations and extract advice
+        advice_parts = []
+
+        # Find sentences with [INT:*] citations
+        int_pattern = r"[^.]*\[INT:[^\]]+\][^.]*\."
+        matches = re.findall(int_pattern, text)
+        if matches:
+            advice_parts.extend(matches)
+
+        # Add disclaimer
+        if advice_parts:
+            advice_parts.append(
+                "\nAlways consult your healthcare provider before making "
+                "changes to your diet, exercise, or lifestyle."
+            )
+            return " ".join(advice_parts)
+
+        # Fall back to recommendation engine output
+        if context.recommendations and context.recommendations.has_recommendations:
+            return self._recommendation_engine.format_recommendations_text(
+                context.recommendations,
+                include_rationale=False,
+                include_citations=True,
+            )
+
+        return None
+
+    async def interpret_with_model(
+        self,
+        observation_id: str,
+        profile_id: str,
+        profile_db: AsyncSession,
+        master_db: AsyncSession,
+        force_regenerate: bool = False,
+    ) -> InterpretationResult:
+        """
+        Generate interpretation using tiered model selection.
+
+        This is the preferred entry point for Phase 0.3+ interpretations.
+        Automatically selects the appropriate model tier based on user
+        preference and hardware capability.
+
+        Args:
+            observation_id: The observation UUID
+            profile_id: User profile ID
+            profile_db: Per-profile database session
+            master_db: Master database session
+            force_regenerate: Force regeneration even if exists
+
+        Returns:
+            InterpretationResult with interpretation or error
+        """
+        # Get model for inference
+        model, active_tier = await self._model_selector.get_model_for_inference(
+            profile_id=profile_id,
+            db=profile_db,
+        )
+
+        # If template mode, use standard method
+        if active_tier == "template" or model is None:
+            logger.info(f"Using template mode for observation {observation_id}")
+            return await self.interpret_observation(
+                observation_id=observation_id,
+                profile_db=profile_db,
+                master_db=master_db,
+                force_regenerate=force_regenerate,
+            )
+
+        logger.info(f"Using LLM tier '{active_tier}' for observation {observation_id}")
+
+        # Fetch observation
+        result = await profile_db.execute(
+            select(Observation).where(Observation.id == observation_id)
+        )
+        observation = result.scalar_one_or_none()
+
+        if not observation:
+            return InterpretationResult(
+                success=False,
+                error_message=f"Observation not found: {observation_id}",
+            )
+
+        # Assemble context
+        context = await self._assemble_context(
+            observation=observation,
+            profile_db=profile_db,
+            master_db=master_db,
+        )
+
+        # Generate LLM interpretation
+        interpretation_text, advice_text = await self._llm_interpretation(
+            model=model,
+            context=context,
+            profile_id=profile_id,
+            db=profile_db,
+        )
+
+        # Classify severity
+        severity_level = self._classify_severity(
+            value=observation.value,
+            ref_low=observation.ref_low,
+            ref_high=observation.ref_high,
+            biomarker_info=context.biomarker_info,
+        )
+
+        # Generate citations
+        citations = self._generate_citations(context)
+
+        # Validate safety
+        safety_result = self._safety_guard.validate_interpretation(
+            interpretation_text=interpretation_text,
+            advice_text=advice_text,
+            require_citations=True,
+        )
+
+        # Check for critical values
+        if observation.value is not None:
+            critical_result = self._safety_guard.check_critical_value(
+                analyte_canonical=observation.analyte_canonical,
+                value=observation.value,
+                critical_low=context.biomarker_info.critical_low if context.biomarker_info else None,
+                critical_high=context.biomarker_info.critical_high if context.biomarker_info else None,
+            )
+            if critical_result.requires_physician_review:
+                safety_result.requires_physician_review = True
+                safety_result.physician_review_reason = critical_result.physician_review_reason
+
+        # Ensure disclaimers
+        interpretation_text, advice_text = self._safety_guard.add_required_disclaimers(
+            interpretation_text=interpretation_text,
+            advice_text=advice_text,
+        )
+
+        # Build context JSON
+        context_json = self._build_context_json(context)
+
+        # Safety validation JSON
+        safety_json = json.dumps({
+            "passed": safety_result.passed,
+            "checks_passed": safety_result.checks_passed,
+            "checks_failed": safety_result.checks_failed,
+            "warnings": safety_result.warnings,
+        })
+
+        # Get model ID from tier config
+        from .model_selector import TIER_MODEL_CONFIG
+        model_config = TIER_MODEL_CONFIG.get(active_tier, {})
+        model_id = model_config.get("description", f"llm-{active_tier}")
+
+        # Handle regeneration
+        if force_regenerate:
+            existing = await profile_db.execute(
+                select(LabInterpretation).where(
+                    LabInterpretation.observation_id == observation_id
+                )
+            )
+            existing_interp = existing.scalar_one_or_none()
+        else:
+            existing_interp = None
+
+        interpretation = LabInterpretation(
+            id=str(uuid.uuid4()),
+            profile_id=observation.profile_id,
+            observation_id=observation_id,
+            interpretation_text=interpretation_text,
+            severity_level=severity_level,
+            advice_text=advice_text if advice_text else None,
+            citations_json=json.dumps(citations),
+            context_json=context_json,
+            model_id=model_id,
+            model_tier=active_tier,
+            confidence_score=0.90 if active_tier == "high" else 0.85,
+            requires_physician_review=safety_result.requires_physician_review,
+            physician_review_reason=safety_result.physician_review_reason,
+            safety_validation_json=safety_json,
+            regeneration_count=0,
+        )
+
+        if force_regenerate and existing_interp:
+            interpretation.regeneration_count = existing_interp.regeneration_count + 1
+            interpretation.previous_interpretation_id = existing_interp.id
+            await profile_db.delete(existing_interp)
+
+        profile_db.add(interpretation)
+        await profile_db.commit()
+
+        logger.info(
+            f"Generated LLM interpretation for observation {observation_id}: "
+            f"tier={active_tier}, severity={severity_level}"
+        )
+
+        return InterpretationResult(
+            success=True,
+            interpretation=interpretation,
+            safety_validation=safety_result,
+        )
 
     def _generate_panel_summary(
         self,

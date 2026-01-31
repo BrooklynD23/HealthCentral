@@ -51,10 +51,17 @@ Phase 0 → Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5
 ### 0.3 BioMistral Model Integration (Lab Interpreter)
 | Task | Status | Notes |
 |------|--------|-------|
-| Add BioMistral-7B GGUF download/setup script | [ ] TODO | ~4GB download |
-| Create hardware detection for tiered model selection | [ ] TODO | GPU → Phi-3 → Qwen → Templates |
-| Integrate with existing llama.cpp module | [ ] TODO | |
-| Test inference pipeline | [ ] TODO | |
+| Create UserModelSettings model | [x] DONE | 2026-01-30 Per-profile DB storage |
+| Create docs/model_tiers/ documentation | [x] DONE | 2026-01-30 README + tier docs |
+| Create modules/hardware_detection.py | [x] DONE | 2026-01-30 RAM/CPU-based tier detection |
+| Create modules/model_selector.py | [x] DONE | 2026-01-30 With async wrapper |
+| Create scripts/detect_hardware.py CLI | [x] DONE | 2026-01-30 Hardware info display |
+| Create scripts/model_manager.py CLI | [x] DONE | 2026-01-30 HF Hub integration |
+| Update modules/interpret.py for tiered inference | [x] DONE | 2026-01-30 Citation validation, LLM methods |
+| Create api/model_settings.py endpoints | [x] DONE | 2026-01-30 6 endpoints |
+| Update requirements.txt | [x] DONE | 2026-01-30 +huggingface-hub, psutil, py-cpuinfo |
+| Update config.py with model tier settings | [x] DONE | 2026-01-30 default_model_tier, auto_detect |
+| Update module/model exports | [x] DONE | 2026-01-30 __init__.py files |
 
 ---
 
@@ -342,12 +349,46 @@ apscheduler>=3.10.0   # Background task scheduling
 - Created comprehensive tests in `tests/test_phase3_notifications.py`
 - All files pass Python syntax validation
 
+### 2026-01-30 - Phase 0.3 Tiered Hardware Model System Complete
+- **Foundation**: Created UserModelSettings model in per-profile database
+- **Hardware Detection**: Created `modules/hardware_detection.py`:
+  - HardwareProfile dataclass with RAM/CPU/disk/GPU detection
+  - Tier requirements: low (8GB), mid (16GB), high (32GB) RAM
+  - Can run tier validation and recommendations
+- **Model Selection**: Created `modules/model_selector.py`:
+  - TIER_MODEL_CONFIG for Qwen2.5-0.5B, Phi-3-mini, BioMistral-7B
+  - Async-safe inference with asyncio.to_thread()
+  - Fallback chain: high → mid → low → template
+  - User preference persistence in database
+- **CLI Tools**: Created CLI scripts in scripts/:
+  - `detect_hardware.py` - Show hardware info and tier recommendation
+  - `model_manager.py` - detect, list, download, switch, cleanup commands
+- **Interpretation Integration**: Updated `modules/interpret.py`:
+  - Added model_selector to InterpretModule
+  - Added _llm_interpretation() with citation-enforcing prompt
+  - Added _validate_llm_citations() for [KB:*], [INT:*] patterns
+  - Added interpret_with_model() as preferred entry point
+- **API Endpoints**: Created `api/model_settings.py`:
+  - GET /settings/model - Current settings + hardware info
+  - POST /settings/model/detect - Run hardware detection
+  - POST /settings/model/tier - Set preferred tier
+  - GET /settings/model/tiers - List all tiers with status
+  - GET /settings/model/download-progress - Check download status
+  - POST /settings/model/download - Start model download
+- **Documentation**: Created docs/model_tiers/:
+  - README.md - Overview of tier system
+  - tier1_low.md - Qwen2.5 0.5B details
+  - tier2_mid.md - Phi-3-mini details
+  - tier3_high.md - BioMistral-7B details
+- **Dependencies**: Added huggingface-hub, psutil, py-cpuinfo to requirements.txt
+- **Config**: Added default_model_tier, auto_detect_hardware, model_download_timeout
+
 ### Next Session Pickup
-1. Phase 0.3: BioMistral Model Integration (to enhance interpretation quality with LLM)
-2. Phase 4: Frontend Integration (React components for Lab Interpreter and Medication Coach)
-3. Phase 5: Polish & Testing (adversarial testing, accessibility audit, performance)
-4. Run full test suite with `pip install -r requirements.txt` first
-5. Consider integrating scheduler startup with FastAPI lifespan events
+1. Phase 4: Frontend Integration (React components for Lab Interpreter and Medication Coach)
+2. Phase 5: Polish & Testing (adversarial testing, accessibility audit, performance)
+3. Run full test suite with `pip install -r requirements.txt` first
+4. Consider integrating scheduler startup with FastAPI lifespan events
+5. Test hardware detection and model downloading on actual hardware
 
 ---
 

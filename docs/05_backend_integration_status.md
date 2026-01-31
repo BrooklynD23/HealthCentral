@@ -1,7 +1,7 @@
 # Backend Integration Status
 
-**Last Updated:** 2024-12-28  
-**Status:** Phase 0 Implementation Complete
+**Last Updated:** 2026-01-30
+**Status:** Phase 0.3 Implementation Complete (Tiered Model System)
 
 ---
 
@@ -54,6 +54,46 @@ This document tracks the implementation status of backend-frontend integration f
 | `/api/v1/export/doctor-summary` | POST | ⏳ Stub | Generate summary (returns 501) |
 | `/api/v1/export/csv` | GET | ⏳ Stub | CSV export (returns 501) |
 | `/api/v1/export/json` | GET | ⏳ Stub | JSON export (returns 501) |
+
+#### Interpretations (`interpretations.py`)
+| Endpoint | Method | Status | Description |
+|----------|--------|--------|-------------|
+| `/api/v1/observations/{id}/interpret` | POST | ✅ Done | Generate interpretation |
+| `/api/v1/observations/{id}/interpretation` | GET | ✅ Done | Get existing interpretation |
+| `/api/v1/panels/{name}/interpret` | POST | ✅ Done | Panel interpretation |
+| `/api/v1/interpretations/recent` | GET | ✅ Done | List recent |
+| `/api/v1/knowledge/biomarker/{analyte}` | GET | ✅ Done | Knowledge lookup |
+| `/api/v1/interpretations/batch` | POST | ✅ Done | Batch generation |
+
+#### Medications (`medications.py`)
+| Endpoint | Method | Status | Description |
+|----------|--------|--------|-------------|
+| `/api/v1/medications/` | POST | ✅ Done | Create medication |
+| `/api/v1/medications/` | GET | ✅ Done | List medications |
+| `/api/v1/medications/{id}` | GET | ✅ Done | Get medication details |
+| `/api/v1/medications/{id}` | PATCH | ✅ Done | Update medication |
+| `/api/v1/medications/{id}` | DELETE | ✅ Done | Delete medication |
+| `/api/v1/medications/{id}/schedules` | POST/GET | ✅ Done | Manage schedules |
+| `/api/v1/medications/{id}/doses` | POST/GET | ✅ Done | Log and list doses |
+| `/api/v1/medications/{id}/stats` | GET | ✅ Done | Adherence stats |
+
+#### Notifications (`notifications.py`)
+| Endpoint | Method | Status | Description |
+|----------|--------|--------|-------------|
+| `/api/v1/notifications/settings/{med_id}` | GET/PATCH | ✅ Done | Notification settings |
+| `/api/v1/notifications/history` | GET | ✅ Done | Notification history |
+| `/api/v1/notifications/test` | POST | ✅ Done | Test notification |
+| `/api/v1/notifications/scheduler/status` | GET | ✅ Done | Scheduler status |
+
+#### Model Settings (`model_settings.py`) - Phase 0.3
+| Endpoint | Method | Status | Description |
+|----------|--------|--------|-------------|
+| `/api/v1/settings/model` | GET | ✅ Done | Get model settings + hardware info |
+| `/api/v1/settings/model/detect` | POST | ✅ Done | Run hardware detection |
+| `/api/v1/settings/model/tier` | POST | ✅ Done | Set preferred tier |
+| `/api/v1/settings/model/tiers` | GET | ✅ Done | List tiers with status |
+| `/api/v1/settings/model/download-progress` | GET | ✅ Done | Check download status |
+| `/api/v1/settings/model/download` | POST | ✅ Done | Start model download |
 
 ---
 
@@ -108,15 +148,25 @@ This document tracks the implementation status of backend-frontend integration f
 
 All models are implemented in `src/backend/models/`:
 
-| Model | Table | Status |
-|-------|-------|--------|
-| `Profile` | `profiles` | ✅ Done |
-| `Document` | `documents` | ✅ Done |
-| `Observation` | `observations` | ✅ Done |
-| `AnalyteMapping` | `analyte_mappings` | ✅ Done |
-| `AuditLog` | `audit_logs` | ✅ Done |
-| `Chunk` | `chunks` | ✅ Done |
-| `Embedding` | `embeddings` | ✅ Done |
+| Model | Table | Database | Status |
+|-------|-------|----------|--------|
+| `Profile` | `profiles` | Master | ✅ Done |
+| `AuditLog` | `audit_logs` | Master | ✅ Done |
+| `BiomarkerKnowledge` | `biomarker_knowledge` | Master | ✅ Done |
+| `InterventionMapping` | `intervention_mappings` | Master | ✅ Done |
+| `BiomarkerRelationship` | `biomarker_relationships` | Master | ✅ Done |
+| `Document` | `documents` | Per-Profile | ✅ Done |
+| `Observation` | `observations` | Per-Profile | ✅ Done |
+| `Chunk` | `chunks` | Per-Profile | ✅ Done |
+| `Embedding` | `embeddings` | Per-Profile | ✅ Done |
+| `LabInterpretation` | `lab_interpretations` | Per-Profile | ✅ Done |
+| `PanelInterpretation` | `panel_interpretations` | Per-Profile | ✅ Done |
+| `Medication` | `medications` | Per-Profile | ✅ Done |
+| `MedicationSchedule` | `medication_schedules` | Per-Profile | ✅ Done |
+| `DoseTaken` | `doses_taken` | Per-Profile | ✅ Done |
+| `AdherencePattern` | `adherence_patterns` | Per-Profile | ✅ Done |
+| `ReminderLog` | `reminder_logs` | Per-Profile | ✅ Done |
+| `UserModelSettings` | `user_model_settings` | Per-Profile | ✅ Done |
 
 ---
 
@@ -131,6 +181,16 @@ All models are implemented in `src/backend/models/`:
 | `analytics.py` | ⏳ Stub | Trend calculations not yet implemented |
 | `rag.py` | ⏳ Stub | RAG pipeline not yet implemented |
 | `export.py` | ⏳ Stub | Export generation not yet implemented |
+| `interpret.py` | ✅ Done | Lab interpretation pipeline with LLM support |
+| `interpret_safety.py` | ✅ Done | Safety guardrails for interpretations |
+| `recommend.py` | ✅ Done | Evidence-based recommendation engine |
+| `knowledge_loader.py` | ✅ Done | Knowledge base access with caching |
+| `adherence_patterns.py` | ✅ Done | Medication adherence pattern learning |
+| `message_generator.py` | ✅ Done | Notification message generation |
+| `notification_scheduler.py` | ✅ Done | Background notification scheduling |
+| `platform_notifications.py` | ✅ Done | Cross-platform notification delivery |
+| `hardware_detection.py` | ✅ Done | Hardware capability detection (Phase 0.3) |
+| `model_selector.py` | ✅ Done | Tiered model selection (Phase 0.3) |
 
 ---
 
@@ -158,11 +218,12 @@ Access:
 
 ## Next Steps
 
-1. **Implement PDF extraction** (`extract.py`) - Parse lab PDFs to extract observations
-2. **Implement normalization** (`normalize.py`) - Map analyte names to canonical forms
-3. **Connect remaining pages** - VerificationWorkbench, TrendsDashboard
-4. **Implement export APIs** - CSV, JSON, doctor summary generation
-5. **Implement RAG assistant** - Local LLM integration with citation validation
+1. **Frontend Integration** (Phase 4) - React components for Lab Interpreter and Medication Coach
+2. **Implement PDF extraction** (`extract.py`) - Parse lab PDFs to extract observations
+3. **Implement normalization** (`normalize.py`) - Map analyte names to canonical forms
+4. **Connect remaining pages** - VerificationWorkbench, TrendsDashboard
+5. **Implement export APIs** - CSV, JSON, doctor summary generation
+6. **Polish & Testing** (Phase 5) - Adversarial testing, accessibility audit, performance
 
 ---
 
