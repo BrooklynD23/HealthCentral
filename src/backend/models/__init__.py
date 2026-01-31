@@ -40,6 +40,9 @@ from .medication import (
     ReminderLog,
 )
 
+# Model settings (per-profile, Phase 0.3)
+from .model_settings import UserModelSettings
+
 __all__ = [
     # Master database
     "Profile",
@@ -62,4 +65,6 @@ __all__ = [
     "DoseTaken",
     "AdherencePattern",
     "ReminderLog",
+    # Model settings (per-profile, Phase 0.3)
+    "UserModelSettings",
 ]

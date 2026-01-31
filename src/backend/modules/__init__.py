@@ -89,6 +89,24 @@ from .adherence_patterns import (
     get_pattern_learner,
 )
 
+# Phase 0.3: Hardware Detection and Model Selection modules
+from .hardware_detection import (
+    HardwareProfile,
+    detect_hardware,
+    can_run_tier,
+    get_recommended_tier,
+    get_tier_display_info,
+    TIER_REQUIREMENTS,
+    TIER_ORDER,
+)
+from .model_selector import (
+    ModelSelector,
+    DownloadProgress,
+    get_model_selector,
+    TIER_MODEL_CONFIG,
+    TIER_FALLBACK_ORDER,
+)
+
 # Phase 3: Smart Notifications modules
 from .message_generator import (
     MessageGenerator,
@@ -169,6 +187,19 @@ __all__ = [
     "MissedDayPattern",
     "StreakData",
     "get_pattern_learner",
+    # Phase 0.3: Hardware Detection and Model Selection
+    "HardwareProfile",
+    "detect_hardware",
+    "can_run_tier",
+    "get_recommended_tier",
+    "get_tier_display_info",
+    "TIER_REQUIREMENTS",
+    "TIER_ORDER",
+    "ModelSelector",
+    "DownloadProgress",
+    "get_model_selector",
+    "TIER_MODEL_CONFIG",
+    "TIER_FALLBACK_ORDER",
     # Phase 3: Smart Notifications
     "MessageGenerator",
     "MessageContext",

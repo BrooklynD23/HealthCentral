@@ -54,6 +54,11 @@ class Settings(BaseSettings):
     default_embeddings_model: str = "bge-small-en-v1.5"
     chat_context_size: int = 4096
     inference_threads: int = 0
+
+    # Model Tier Settings (Phase 0.3)
+    default_model_tier: str = "low"  # String tier: "low", "mid", "high"
+    auto_detect_hardware: bool = True  # Run hardware detection on startup
+    model_download_timeout: int = 3600  # Download timeout in seconds (1 hour)
     
     # Vector store
     vector_store_type: Literal["sqlite-vss", "faiss"] = "sqlite-vss"
