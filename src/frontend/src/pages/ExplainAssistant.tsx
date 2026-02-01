@@ -8,58 +8,50 @@ import {
   AlertCircle,
   BookOpen,
   Clock,
+  CheckCircle2,
+  XCircle,
+  Info,
 } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui';
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
+import {
+  useSendMessage,
+  formatResponseText,
+  type ChatResponse,
+  type Citation,
+} from '@/services/assistant';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  citations?: { source: string; page: number }[];
+  citations?: { source: string; page: number | null; docId: string | null }[];
   timestamp: Date;
+  insufficientContext?: boolean;
+  verification?: {
+    enabled: boolean;
+    faithfulnessScore: number;
+    verifiedClaims: number;
+    totalClaims: number;
+  };
+  error?: string;
 }
 
-const mockMessages: Message[] = [
-  {
-    id: '1',
-    role: 'user',
-    content: 'What does my hemoglobin level mean?',
-    timestamp: new Date(Date.now() - 60000),
-  },
-  {
-    id: '2',
-    role: 'assistant',
-    content: `**What your report shows:**
-Your hemoglobin level is 14.2 g/dL, which falls within the reference range of 12.0-17.5 g/dL as stated in your Quest Diagnostics report from December 15, 2024.
-
-**General information:**
-Hemoglobin is a protein in red blood cells that carries oxygen throughout your body. Levels within the reference range typically indicate that your blood is carrying oxygen effectively.
-
-**Uncertainties:**
-Reference ranges can vary between laboratories and may depend on factors like age, sex, and altitude. Always discuss your specific results with your healthcare provider for personalized interpretation.`,
-    citations: [
-      { source: 'Quest Diagnostics Report', page: 1 },
-      { source: 'Medical Reference Corpus', page: 0 },
-    ],
-    timestamp: new Date(Date.now() - 30000),
-  },
-];
-
 const suggestedQuestions = [
-  'What does WBC count indicate?',
-  'Are my lipid levels healthy?',
-  'Explain the CMP panel results',
+  'What does my hemoglobin level mean?',
+  'Are my glucose levels normal?',
+  'Explain my cholesterol results',
   'What questions should I ask my doctor?',
 ];
 
 export function ExplainAssistant() {
   const prefersReducedMotion = useReducedMotion();
-  const [messages, setMessages] = useState<Message[]>(mockMessages);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const sendMessage = useSendMessage();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth' });
@@ -67,10 +59,10 @@ export function ExplainAssistant() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, prefersReducedMotion]);
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || sendMessage.isPending) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -80,23 +72,78 @@ export function ExplainAssistant() {
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    const question = input;
     setInput('');
-    setIsLoading(true);
 
-    // Simulate response
-    await new Promise((r) => setTimeout(r, 1500));
+    try {
+      const response = await sendMessage.mutateAsync({
+        question,
+        include_references: true,
+        enable_verification: true,
+      });
 
-    const assistantMessage: Message = {
+      const assistantMessage = convertResponseToMessage(response);
+      setMessages((prev) => [...prev, assistantMessage]);
+    } catch (error) {
+      // Handle error - create error message
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: getErrorContent(error),
+        timestamp: new Date(),
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    }
+  };
+
+  const convertResponseToMessage = (response: ChatResponse): Message => {
+    // Convert citations from all segments
+    const allCitations: { source: string; page: number | null; docId: string | null }[] = [];
+    response.segments.forEach((segment) => {
+      segment.citations.forEach((citation) => {
+        allCitations.push({
+          source: citation.doc_title || (citation.source_type === 'user_document' ? 'Your Document' : 'Reference'),
+          page: citation.page,
+          docId: citation.doc_id,
+        });
+      });
+    });
+
+    // Format content - replace [cite:N] with [N]
+    const content = formatResponseText(response.full_response);
+
+    return {
       id: (Date.now() + 1).toString(),
       role: 'assistant',
-      content:
-        "I'll help you understand that. Based on your reports, here's what I found...\n\n*This is a simulated response. In the full implementation, this would provide grounded information based on your actual medical records.*",
-      citations: [{ source: 'Your Documents', page: 1 }],
+      content,
+      citations: allCitations.length > 0 ? allCitations : undefined,
       timestamp: new Date(),
+      insufficientContext: response.insufficient_context,
+      verification: response.verification.enabled
+        ? {
+            enabled: true,
+            faithfulnessScore: response.verification.faithfulness_score,
+            verifiedClaims: response.verification.verified_claims,
+            totalClaims: response.verification.total_claims,
+          }
+        : undefined,
     };
+  };
 
-    setMessages((prev) => [...prev, assistantMessage]);
-    setIsLoading(false);
+  const getErrorContent = (error: unknown): string => {
+    if (error instanceof Error) {
+      if (error.message.includes('501')) {
+        return "I'm not fully configured yet. The chat feature requires a local language model to be set up. Please contact support or check the documentation for setup instructions.";
+      }
+      if (error.message.includes('401') || error.message.includes('403')) {
+        return 'Your session has expired. Please log in again to continue.';
+      }
+      if (error.message.includes('network') || error.message.includes('fetch')) {
+        return 'Unable to connect to the server. Please check your connection and try again.';
+      }
+    }
+    return "I encountered an error while processing your question. Please try again.";
   };
 
   return (
@@ -113,12 +160,24 @@ export function ExplainAssistant() {
               </div>
               <Badge variant="info" className="gap-1.5">
                 <FileText className="w-3 h-3" />
-                4 documents in context
+                Grounded Answers
               </Badge>
             </CardTitle>
           </CardHeader>
 
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            {messages.length === 0 && (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <div className="w-16 h-16 rounded-2xl bg-accent-subtle flex items-center justify-center mb-4">
+                  <Sparkles className="w-8 h-8 text-accent" />
+                </div>
+                <h3 className="text-lg font-medium text-ink mb-2">Ask about your lab results</h3>
+                <p className="text-sm text-ink-secondary max-w-md">
+                  I can help you understand your medical test results using information from your uploaded documents and trusted medical references. All answers are grounded with citations.
+                </p>
+              </div>
+            )}
+
             <AnimatePresence mode="popLayout">
               {messages.map((message) => (
                 <motion.div
@@ -136,9 +195,27 @@ export function ExplainAssistant() {
                       'max-w-[80%] rounded-2xl px-4 py-3',
                       message.role === 'user'
                         ? 'bg-accent text-white'
-                        : 'bg-surface-muted'
+                        : message.error
+                          ? 'bg-status-danger-subtle border border-status-danger/20'
+                          : message.insufficientContext
+                            ? 'bg-status-caution-subtle border border-status-caution/20'
+                            : 'bg-surface-muted'
                     )}
                   >
+                    {message.insufficientContext && (
+                      <div className="flex items-center gap-2 mb-2 text-status-caution">
+                        <Info className="w-4 h-4" />
+                        <span className="text-xs font-medium">Limited Context Available</span>
+                      </div>
+                    )}
+
+                    {message.error && (
+                      <div className="flex items-center gap-2 mb-2 text-status-danger">
+                        <XCircle className="w-4 h-4" />
+                        <span className="text-xs font-medium">Error</span>
+                      </div>
+                    )}
+
                     <div
                       className={cn(
                         'text-sm whitespace-pre-wrap',
@@ -158,11 +235,25 @@ export function ExplainAssistant() {
                               className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-white/80 text-ink-secondary hover:text-accent transition-colors"
                             >
                               <FileText className="w-3 h-3" />
-                              {citation.source}
-                              {citation.page > 0 && ` (p.${citation.page})`}
+                              [{i + 1}] {citation.source}
+                              {citation.page && ` (p.${citation.page})`}
                               <ExternalLink className="w-3 h-3" />
                             </button>
                           ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {message.verification && message.verification.enabled && (
+                      <div className="mt-3 pt-3 border-t border-black/[0.08]">
+                        <div className="flex items-center gap-2 text-xs">
+                          <CheckCircle2 className="w-3 h-3 text-status-success" />
+                          <span className="text-ink-secondary">
+                            {message.verification.verifiedClaims}/{message.verification.totalClaims} claims verified
+                          </span>
+                          <span className="text-ink-tertiary">
+                            ({Math.round(message.verification.faithfulnessScore * 100)}% faithfulness)
+                          </span>
                         </div>
                       </div>
                     )}
@@ -186,7 +277,7 @@ export function ExplainAssistant() {
               ))}
             </AnimatePresence>
 
-            {isLoading && (
+            {sendMessage.isPending && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -195,11 +286,11 @@ export function ExplainAssistant() {
                 <div className="bg-surface-muted rounded-2xl px-4 py-3">
                   <div className="flex items-center gap-2 text-ink-secondary">
                     <div className="flex gap-1">
-                      <span className="w-2 h-2 bg-accent rounded-full animate-bounce animation-delay-0" />
-                      <span className="w-2 h-2 bg-accent rounded-full animate-bounce animation-delay-150" />
-                      <span className="w-2 h-2 bg-accent rounded-full animate-bounce animation-delay-300" />
+                      <span className="w-2 h-2 bg-accent rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-2 h-2 bg-accent rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-2 h-2 bg-accent rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                     </div>
-                    <span className="text-sm">Thinking...</span>
+                    <span className="text-sm">Searching documents and generating response...</span>
                   </div>
                 </div>
               </motion.div>
@@ -222,11 +313,11 @@ export function ExplainAssistant() {
                   'text-sm text-ink placeholder:text-ink-tertiary',
                   'focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2'
                 )}
-                disabled={isLoading}
+                disabled={sendMessage.isPending}
               />
               <Button
                 onClick={handleSend}
-                disabled={!input.trim() || isLoading}
+                disabled={!input.trim() || sendMessage.isPending}
                 className="px-4"
               >
                 <Send className="w-4 h-4" />
@@ -249,10 +340,12 @@ export function ExplainAssistant() {
               <button
                 key={i}
                 onClick={() => setInput(question)}
+                disabled={sendMessage.isPending}
                 className={cn(
                   'w-full text-left px-3 py-2.5 rounded-xl text-sm',
                   'bg-surface-muted hover:bg-accent-subtle hover:text-accent',
-                  'transition-colors duration-200'
+                  'transition-colors duration-200',
+                  'disabled:opacity-50 disabled:cursor-not-allowed'
                 )}
               >
                 {question}

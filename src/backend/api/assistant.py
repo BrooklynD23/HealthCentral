@@ -271,10 +271,32 @@ async def get_test_intent(
     Returns:
         TestIntentResponse with verified explanation
     """
-    # TODO: Implement test intent lookup with verification
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Test intent lookup not yet implemented"
+    from modules.test_intent import TestIntentModule
+
+    intent_module = TestIntentModule()
+    result = intent_module.lookup(analyte)
+
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No information available for analyte: {analyte}"
+        )
+
+    return TestIntentResponse(
+        analyte=result["analyte"],
+        analyte_display_name=result["analyte_display_name"],
+        intent_summary=result["intent_summary"],
+        general_info=result["general_info"],
+        citations=[
+            Citation(
+                source_type="reference",
+                doc_id=None,
+                doc_title=result.get("source", "Medical Reference Database"),
+                page=None,
+                text_snippet=result["intent_summary"][:100],
+            )
+        ],
+        verification=VerificationInfo(enabled=False),
     )
 
 
@@ -297,10 +319,22 @@ async def get_glossary_term(
     Returns:
         GlossaryTermResponse with definition
     """
-    # TODO: Implement glossary lookup
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Glossary lookup not yet implemented"
+    from modules.glossary import GlossaryModule
+
+    glossary = GlossaryModule()
+    result = glossary.lookup(term)
+
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Term not found in glossary: {term}"
+        )
+
+    return GlossaryTermResponse(
+        term=result["term"],
+        definition=result["definition"],
+        related_terms=result.get("related_terms", []),
+        source=result.get("source", "Medical Reference Glossary"),
     )
 
 
