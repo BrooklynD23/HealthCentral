@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
   TrendingUp,
@@ -8,6 +8,9 @@ import {
   Filter,
   ExternalLink,
   Info,
+  Loader2,
+  AlertTriangle,
+  FileText,
 } from 'lucide-react';
 import {
   LineChart,
@@ -22,78 +25,140 @@ import {
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui';
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
-
-const mockChartData = [
-  { date: '2024-06', value: 13.8, refLow: 12.0, refHigh: 17.5 },
-  { date: '2024-08', value: 14.1, refLow: 12.0, refHigh: 17.5 },
-  { date: '2024-10', value: 13.5, refLow: 12.0, refHigh: 17.5 },
-  { date: '2024-12', value: 14.2, refLow: 12.0, refHigh: 17.5 },
-];
+import { useObservations, useTrend, usePanel } from '@/services/observations';
+import { useAuthStore } from '@/stores/authStore';
+import type { Observation } from '@/services/types';
 
 const panels = [
-  { id: 'cbc', label: 'CBC', count: 8 },
-  { id: 'cmp', label: 'CMP', count: 14 },
-  { id: 'lipids', label: 'Lipids', count: 5 },
-  { id: 'thyroid', label: 'Thyroid', count: 4 },
-];
-
-const analyteStats = [
-  {
-    name: 'Hemoglobin',
-    current: '14.2',
-    previous: '13.5',
-    unit: 'g/dL',
-    trend: 'up',
-    status: 'normal',
-  },
-  {
-    name: 'WBC Count',
-    current: '11.8',
-    previous: '10.2',
-    unit: 'K/uL',
-    trend: 'up',
-    status: 'high',
-  },
-  {
-    name: 'Platelets',
-    current: '245',
-    previous: '248',
-    unit: 'K/uL',
-    trend: 'stable',
-    status: 'normal',
-  },
-  {
-    name: 'RBC Count',
-    current: '4.8',
-    previous: '4.9',
-    unit: 'M/uL',
-    trend: 'down',
-    status: 'normal',
-  },
+  { id: 'cbc', label: 'CBC' },
+  { id: 'cmp', label: 'CMP' },
+  { id: 'lipids', label: 'Lipids' },
+  { id: 'thyroid', label: 'Thyroid' },
 ];
 
 export function TrendsDashboard() {
   const prefersReducedMotion = useReducedMotion();
+  const { profileId } = useAuthStore();
   const [activePanel, setActivePanel] = useState('cbc');
-  const [selectedAnalyte, setSelectedAnalyte] = useState('Hemoglobin');
+  const [selectedAnalyte, setSelectedAnalyte] = useState<string | null>(null);
 
-  const getTrendIcon = (trend: string) => {
-    switch (trend) {
-      case 'up':
-        return <TrendingUp className="w-4 h-4" />;
-      case 'down':
-        return <TrendingDown className="w-4 h-4" />;
-      default:
-        return <Minus className="w-4 h-4" />;
-    }
+  // Fetch all observations to get list of analytes
+  const {
+    data: observations,
+    isLoading: observationsLoading,
+    isError: observationsError,
+  } = useObservations({
+    profile_id: profileId || '',
+  });
+
+  // Get unique analytes from observations
+  const analyteList = useMemo(() => {
+    if (!observations) return [];
+    const uniqueAnalytes = new Map<string, Observation>();
+    observations.forEach((obs) => {
+      if (!uniqueAnalytes.has(obs.analyte_canonical)) {
+        uniqueAnalytes.set(obs.analyte_canonical, obs);
+      }
+    });
+    return Array.from(uniqueAnalytes.values());
+  }, [observations]);
+
+  // Auto-select first analyte if none selected
+  const effectiveSelectedAnalyte = selectedAnalyte || analyteList[0]?.analyte_canonical;
+
+  // Fetch trend data for selected analyte
+  const {
+    data: trendData,
+    isLoading: trendLoading,
+    isError: trendError,
+  } = useTrend(effectiveSelectedAnalyte, profileId || '');
+
+  // Fetch panel data when panel tab changes
+  const { data: panelData } = usePanel(activePanel, profileId || '');
+
+  // Transform trend data for chart
+  const chartData = useMemo(() => {
+    if (!trendData?.data_points) return [];
+    return trendData.data_points.map((point) => ({
+      date: point.date.slice(0, 7), // YYYY-MM format
+      value: point.value,
+      refLow: trendData.ref_low,
+      refHigh: trendData.ref_high,
+    }));
+  }, [trendData]);
+
+  // Get latest value info
+  const latestValue = trendData?.data_points?.[trendData.data_points.length - 1];
+  const previousValue = trendData?.data_points?.[trendData.data_points.length - 2];
+
+  const getTrendIcon = (current: number | undefined, previous: number | undefined) => {
+    if (!current || !previous) return <Minus className="w-4 h-4" />;
+    const diff = current - previous;
+    if (Math.abs(diff) < 0.1) return <Minus className="w-4 h-4" />;
+    if (diff > 0) return <TrendingUp className="w-4 h-4" />;
+    return <TrendingDown className="w-4 h-4" />;
   };
 
-  const getTrendColor = (trend: string, status: string) => {
-    if (status === 'high' || status === 'low') return 'text-status-attention';
-    if (trend === 'up') return 'text-status-verified';
-    if (trend === 'down') return 'text-status-caution';
+  const getTrendColor = (current: number | undefined, previous: number | undefined, isAbnormal: boolean) => {
+    if (isAbnormal) return 'text-status-attention';
+    if (!current || !previous) return 'text-ink-secondary';
+    const diff = current - previous;
+    if (diff > 0) return 'text-status-verified';
+    if (diff < 0) return 'text-status-caution';
     return 'text-ink-secondary';
   };
+
+  const handlePanelClick = (panelId: string) => {
+    setActivePanel(panelId);
+  };
+
+  // Loading state
+  if (observationsLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      </div>
+    );
+  }
+
+  // Error state
+  if (observationsError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <AlertTriangle className="w-12 h-12 text-status-attention mx-auto mb-3" />
+          <p className="text-ink-secondary">Failed to load observations</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Empty state
+  if (!observations || observations.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="font-display text-2xl font-semibold text-ink tracking-tight">
+            Trends Dashboard
+          </h1>
+          <p className="text-ink-secondary mt-1">
+            Track changes in your test results over time
+          </p>
+        </div>
+        <Card>
+          <CardContent className="py-16">
+            <div className="text-center">
+              <FileText className="w-12 h-12 text-ink-tertiary mx-auto mb-3" />
+              <p className="text-lg font-medium text-ink mb-1">No data available</p>
+              <p className="text-ink-secondary">
+                Import lab documents to see your trends.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -122,7 +187,7 @@ export function TrendsDashboard() {
         {panels.map((panel) => (
           <button
             key={panel.id}
-            onClick={() => setActivePanel(panel.id)}
+            onClick={() => handlePanelClick(panel.id)}
             className={cn(
               'px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200',
               'focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2',
@@ -132,16 +197,16 @@ export function TrendsDashboard() {
             )}
           >
             {panel.label}
-            <span
-              className={cn(
-                'ml-2 px-1.5 py-0.5 rounded text-xs',
-                activePanel === panel.id
-                  ? 'bg-white/20'
-                  : 'bg-black/[0.06]'
-              )}
-            >
-              {panel.count}
-            </span>
+            {panelData?.observations && activePanel === panel.id && (
+              <span
+                className={cn(
+                  'ml-2 px-1.5 py-0.5 rounded text-xs',
+                  'bg-white/20'
+                )}
+              >
+                {panelData.observations.length}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -152,8 +217,13 @@ export function TrendsDashboard() {
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <span>{selectedAnalyte}</span>
-                  <Badge variant="verified">Normal Range</Badge>
+                  <span>{trendData?.analyte_display_name || effectiveSelectedAnalyte}</span>
+                  {latestValue && !latestValue.is_abnormal && (
+                    <Badge variant="verified">Normal Range</Badge>
+                  )}
+                  {latestValue?.is_abnormal && (
+                    <Badge variant="attention">Outside Range</Badge>
+                  )}
                 </div>
                 <Button variant="ghost" size="sm" className="gap-1.5 text-xs">
                   <ExternalLink className="w-3.5 h-3.5" />
@@ -162,76 +232,104 @@ export function TrendsDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={mockChartData}
-                    margin={{ top: 20, right: 20, left: 0, bottom: 0 }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="rgba(0,0,0,0.06)"
-                      vertical={false}
-                    />
-                    <XAxis
-                      dataKey="date"
-                      tick={{ fontSize: 12, fill: '#6B6B6B' }}
-                      tickLine={false}
-                      axisLine={{ stroke: 'rgba(0,0,0,0.08)' }}
-                    />
-                    <YAxis
-                      domain={[10, 20]}
-                      tick={{ fontSize: 12, fill: '#6B6B6B' }}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: 'white',
-                        border: '1px solid rgba(0,0,0,0.08)',
-                        borderRadius: '12px',
-                        boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-                      }}
-                    />
-                    <ReferenceLine
-                      y={12.0}
-                      stroke="#7BA387"
-                      strokeDasharray="4 4"
-                      strokeOpacity={0.6}
-                    />
-                    <ReferenceLine
-                      y={17.5}
-                      stroke="#7BA387"
-                      strokeDasharray="4 4"
-                      strokeOpacity={0.6}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="value"
-                      stroke="#2D7D6F"
-                      strokeWidth={2.5}
-                      dot={{ fill: '#2D7D6F', strokeWidth: 0, r: 5 }}
-                      activeDot={{ r: 7, fill: '#2D7D6F' }}
-                      animationDuration={prefersReducedMotion ? 0 : 800}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="mt-4 p-4 rounded-xl bg-surface-muted">
-                <div className="flex items-start gap-3">
-                  <Info className="w-5 h-5 text-ink-secondary flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm text-ink">
-                      <strong>Latest value: 14.2 g/dL</strong> — Within the
-                      reference range (12.0-17.5 g/dL per report).
-                    </p>
-                    <p className="text-sm text-ink-secondary mt-1">
-                      Change from previous: +0.7 g/dL (5.2% increase)
-                    </p>
-                  </div>
+              {trendLoading ? (
+                <div className="h-72 flex items-center justify-center">
+                  <Loader2 className="w-8 h-8 animate-spin text-accent" />
                 </div>
-              </div>
+              ) : trendError || !trendData ? (
+                <div className="h-72 flex items-center justify-center">
+                  <p className="text-ink-secondary">No trend data available for this analyte</p>
+                </div>
+              ) : chartData.length === 0 ? (
+                <div className="h-72 flex items-center justify-center">
+                  <p className="text-ink-secondary">No trend data available</p>
+                </div>
+              ) : (
+                <>
+                  <div className="h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart
+                        data={chartData}
+                        margin={{ top: 20, right: 20, left: 0, bottom: 0 }}
+                      >
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          stroke="rgba(0,0,0,0.06)"
+                          vertical={false}
+                        />
+                        <XAxis
+                          dataKey="date"
+                          tick={{ fontSize: 12, fill: '#6B6B6B' }}
+                          tickLine={false}
+                          axisLine={{ stroke: 'rgba(0,0,0,0.08)' }}
+                        />
+                        <YAxis
+                          domain={['auto', 'auto']}
+                          tick={{ fontSize: 12, fill: '#6B6B6B' }}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: 'white',
+                            border: '1px solid rgba(0,0,0,0.08)',
+                            borderRadius: '12px',
+                            boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+                          }}
+                        />
+                        {trendData.ref_low !== null && (
+                          <ReferenceLine
+                            y={trendData.ref_low}
+                            stroke="#7BA387"
+                            strokeDasharray="4 4"
+                            strokeOpacity={0.6}
+                          />
+                        )}
+                        {trendData.ref_high !== null && (
+                          <ReferenceLine
+                            y={trendData.ref_high}
+                            stroke="#7BA387"
+                            strokeDasharray="4 4"
+                            strokeOpacity={0.6}
+                          />
+                        )}
+                        <Line
+                          type="monotone"
+                          dataKey="value"
+                          stroke="#2D7D6F"
+                          strokeWidth={2.5}
+                          dot={{ fill: '#2D7D6F', strokeWidth: 0, r: 5 }}
+                          activeDot={{ r: 7, fill: '#2D7D6F' }}
+                          animationDuration={prefersReducedMotion ? 0 : 800}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div className="mt-4 p-4 rounded-xl bg-surface-muted">
+                    <div className="flex items-start gap-3">
+                      <Info className="w-5 h-5 text-ink-secondary flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm text-ink">
+                          <strong>
+                            Latest value: {latestValue?.value} {trendData.unit}
+                          </strong>{' '}
+                          {trendData.ref_low !== null && trendData.ref_high !== null && (
+                            <>
+                              — Reference range: {trendData.ref_low}-{trendData.ref_high} {trendData.unit}
+                            </>
+                          )}
+                        </p>
+                        {trendData.summary && (
+                          <p className="text-sm text-ink-secondary mt-1">
+                            {trendData.summary}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -243,39 +341,36 @@ export function TrendsDashboard() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-black/[0.04]">
-                {analyteStats.map((stat, index) => (
+                {analyteList.map((obs, index) => (
                   <motion.button
-                    key={stat.name}
+                    key={obs.analyte_canonical}
                     initial={prefersReducedMotion ? {} : { opacity: 0, x: -8 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.05 }}
-                    onClick={() => setSelectedAnalyte(stat.name)}
+                    onClick={() => setSelectedAnalyte(obs.analyte_canonical)}
                     className={cn(
                       'w-full flex items-center justify-between p-4 text-left transition-colors',
                       'hover:bg-surface-muted/50 focus:outline-none focus:bg-accent-subtle',
-                      selectedAnalyte === stat.name && 'bg-accent-subtle'
+                      effectiveSelectedAnalyte === obs.analyte_canonical && 'bg-accent-subtle'
                     )}
                   >
                     <div>
-                      <p className="font-medium text-ink text-sm">{stat.name}</p>
+                      <p className="font-medium text-ink text-sm">{obs.analyte_raw}</p>
                       <p className="text-xs text-ink-secondary mt-0.5">
-                        {stat.current} {stat.unit}
+                        {obs.value ?? obs.value_text} {obs.unit}
                       </p>
                     </div>
                     <div
                       className={cn(
                         'flex items-center gap-1',
-                        getTrendColor(stat.trend, stat.status)
+                        getTrendColor(
+                          obs.value ?? undefined,
+                          undefined,
+                          obs.is_abnormal ?? false
+                        )
                       )}
                     >
-                      {getTrendIcon(stat.trend)}
-                      <span className="text-xs font-medium">
-                        {stat.trend === 'up'
-                          ? '+' + (parseFloat(stat.current) - parseFloat(stat.previous)).toFixed(1)
-                          : stat.trend === 'down'
-                          ? (parseFloat(stat.current) - parseFloat(stat.previous)).toFixed(1)
-                          : '—'}
-                      </span>
+                      {getTrendIcon(obs.value ?? undefined, undefined)}
                     </div>
                   </motion.button>
                 ))}

@@ -15,6 +15,24 @@ export interface Profile {
 
 export interface ProfileCreate {
   display_name: string;
+  password: string;
+}
+
+export interface TokenResponse {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+  profile_id: string;
+  profile_name: string;
+}
+
+export interface LoginRequest {
+  profile_id: string;
+  password: string;
+}
+
+export interface UnlockRequest {
+  password: string;
 }
 
 // Document types

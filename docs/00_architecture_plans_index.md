@@ -8,6 +8,7 @@ This folder contains regenerated planning files derived from the PRD:
 - `03_data_confidentiality_pipeline_plan.md`
 - `04_local_models_inference_plan.md`
 - `05_backend_integration_status.md` — Implementation tracking
+- `06_mvp_to_rag_execution_board.md` — MVP-first execution backlog (tickets + E2E matrix)
 
 ## Feature Expansion (v0.2)
 See `features/` subfolder for new feature architectures:
