@@ -39,7 +39,31 @@
       "Bash(grep:*)",
       "Bash(PYTHONPATH=. /mnt/c/Users/Danny/Documents/GitHub/HealthCentral/src/backend/venv/Scripts/python.exe:*)",
       "Bash(/mnt/c/Users/Danny/Documents/GitHub/HealthCentral/src/backend/venv/Scripts/python.exe:*)",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nPhase 0: Foundation for Lab Interpreter & Medication Coach features\n\nDatabase Models:\n- Add knowledge_base.py: BiomarkerKnowledge, InterventionMapping, BiomarkerRelationship\n- Add interpretation.py: LabInterpretation, PanelInterpretation\n- Add medication.py: Medication, MedicationSchedule, DoseTaken, AdherencePattern, ReminderLog\n- Update models/__init__.py with all 15 model exports\n- Add interpretation relationship to Observation model\n\nInfrastructure:\n- Update core/database.py to include knowledge_base in master DB init\n- Update core/profile_database.py to include interpretation, medication in profile DB init\n- Fix circular imports in core/auth.py and core/audit.py with deferred imports\n\nKnowledge Base Seed:\n- Add scripts/seed_knowledge_base.py with curated medical reference data\n- 12 biomarkers: lipid panel, HbA1c, glucose, hemoglobin, WBC, platelets, TSH, creatinine, vitamin D\n- 9 interventions: diet, exercise, lifestyle, supplement recommendations\n- 7 relationships: ratios \\(TC/HDL, LDL/HDL\\), correlations, panel memberships\n\nDocumentation:\n- Add TASK_LIST.md for feature implementation tracking\n- Update features index with task list reference\n- Add Serena memory for session persistence\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nPhase 0: Foundation for Lab Interpreter & Medication Coach features\n\nDatabase Models:\n- Add knowledge_base.py: BiomarkerKnowledge, InterventionMapping, BiomarkerRelationship\n- Add interpretation.py: LabInterpretation, PanelInterpretation\n- Add medication.py: Medication, MedicationSchedule, DoseTaken, AdherencePattern, ReminderLog\n- Update models/__init__.py with all 15 model exports\n- Add interpretation relationship to Observation model\n\nInfrastructure:\n- Update core/database.py to include knowledge_base in master DB init\n- Update core/profile_database.py to include interpretation, medication in profile DB init\n- Fix circular imports in core/auth.py and core/audit.py with deferred imports\n\nKnowledge Base Seed:\n- Add scripts/seed_knowledge_base.py with curated medical reference data\n- 12 biomarkers: lipid panel, HbA1c, glucose, hemoglobin, WBC, platelets, TSH, creatinine, vitamin D\n- 9 interventions: diet, exercise, lifestyle, supplement recommendations\n- 7 relationships: ratios \\(TC/HDL, LDL/HDL\\), correlations, panel memberships\n\nDocumentation:\n- Add TASK_LIST.md for feature implementation tracking\n- Update features index with task list reference\n- Add Serena memory for session persistence\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(ls:*)",
+      "Bash(ruff check:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nPhase 1 & 2: Lab Interpretation Engine and Medication Management\n\nPhase 1 - Lab Interpretation Engine:\n- Add modules/interpret.py: InterpretModule orchestrator with template-based generation\n- Add modules/interpret_safety.py: Safety guardrails \\(prohibited patterns, disclaimers, critical values\\)\n- Add modules/recommend.py: Evidence-based recommendation engine with citations\n- Add modules/knowledge_loader.py: Knowledge base access with caching\n- Add api/interpretations.py: Full API for interpretations\n  - POST/GET observation interpretations\n  - Panel interpretations with relationship insights\n  - Batch processing, knowledge lookup\n\nPhase 2 - Medication Management:\n- Add api/medications.py: Full CRUD for medications, schedules, doses\n  - Medication CRUD with soft/hard delete\n  - Schedule management with adaptive windows\n  - Dose logging with variance tracking\n  - Adherence statistics and streaks\n- Add modules/adherence_patterns.py: Pattern learning engine\n  - Time window learning \\(mean ± 1.5 std dev\\)\n  - Weekday vs weekend detection\n  - Missed day pattern detection\n  - Streak calculation and adaptive window updates\n\nInfrastructure:\n- Update modules/__init__.py with all new module exports\n- Update api/__init__.py with new routers \\(interpretations, medications\\)\n\nDocumentation:\n- Update TASK_LIST.md with completed Phase 1 and Phase 2 tasks\n- Update implementation_prompt_next_agent.md with next steps\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit:*)",
+      "Bash(tree:*)",
+      "Bash(wc:*)",
+      "Bash(npm install:*)",
+      "Bash(npm test:*)",
+      "Bash(npx tsc:*)",
+      "Bash(pip3 install:*)",
+      "Bash(/usr/bin/python3 -m pip install:*)",
+      "Bash(/mnt/c/Users/DangT/Documents/GitHub/HealthCentral/src/backend/venv/Scripts/python.exe -m pytest:*)",
+      "Bash(/mnt/c/Users/DangT/Documents/GitHub/HealthCentral/src/backend/venv/Scripts/pip.exe install:*)",
+      "Bash(npm run test:run:*)",
+      "Bash(./.venv/bin/python -m pytest:*)",
+      "Bash(cmd.exe /c \"python --version\")",
+      "Bash(cmd.exe /c \"cd src\\\\backend && ..\\\\..\\\\.venv\\\\Scripts\\\\python.exe -m pytest tests\\\\test_rag_pipeline.py::TestModelRunner -v --tb=short\")",
+      "Bash(cmd.exe /c \"cd src\\\\backend && ..\\\\..\\\\.venv\\\\Scripts\\\\python.exe -m pytest tests\\\\test_rag_pipeline.py::TestRAGModuleLLMIntegration -v --tb=short\")",
+      "Bash(cmd.exe /c \"cd src\\\\backend && ..\\\\..\\\\.venv\\\\Scripts\\\\python.exe -m pytest tests\\\\test_rag_pipeline.py -v --tb=line\")",
+      "Bash(cmd.exe /c \"cd src\\\\backend && ..\\\\..\\\\.venv\\\\Scripts\\\\python.exe -m pytest tests\\\\test_rag_pipeline.py::TestVectorSearchIntegration -v --tb=short\")",
+      "Bash(cmd.exe /c \"cd src\\\\backend && ..\\\\..\\\\.venv\\\\Scripts\\\\python.exe -m pytest tests\\\\test_rag_pipeline.py::TestModelRunner tests\\\\test_rag_pipeline.py::TestRAGModuleLLMIntegration tests\\\\test_rag_pipeline.py::TestVectorSearchIntegration -v --tb=line 2>&1\")",
+      "Bash(cmd.exe /c \"cd src\\\\backend && ..\\\\..\\\\.venv\\\\Scripts\\\\python.exe -m pytest tests\\\\test_rag_pipeline.py -v --tb=line 2>&1\")",
+      "Bash(cmd.exe /c \".venv\\\\Scripts\\\\pip.exe list | findstr psutil\")",
+      "Bash(cmd.exe /c \"cd src\\\\backend && ..\\\\..\\\\.venv\\\\Scripts\\\\python.exe -m pytest tests\\\\test_rag_pipeline.py -v --tb=short\")"
     ]
   }
 }
