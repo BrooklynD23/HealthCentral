@@ -2,12 +2,27 @@
 
 ## Mission (Updated 2026-01-31)
 
-Ship the **MVP end-to-end first** (import → verify → trends → export), then implement the **RAG assistant**.
+**MVP is complete!** The core flow (import → verify → trends → export) is working.
+
+**RAG Assistant pipeline is built** but needs LLM integration to complete the chat feature.
 
 Sprint cadence: **1 week**.
 
 The execution backlog (tickets + acceptance criteria + E2E matrix) lives in:
 - `docs/06_mvp_to_rag_execution_board.md`
+
+---
+
+## Quick Start for Next Agent
+
+1. **Read this document** first for context
+2. **Focus on Sprint 6**: LLM Integration + E2E Testing
+3. **Key blocker**: `/assistant/chat` returns 501 because `RAGModule.generate_response()` raises `NotImplementedError`
+4. **What works now**:
+   - Glossary lookups (`/assistant/glossary/{term}`)
+   - Test intent lookups (`/assistant/test-intent/{analyte}`)
+   - Document chunking and embedding generation
+   - Frontend UI is wired and ready
 
 ---
 
