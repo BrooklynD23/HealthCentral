@@ -1,3 +1,9 @@
+/**
+ * ExportPage - Export data and generate summaries
+ *
+ * Sprint 4: Wired to real API for CSV/JSON export and summary generation.
+ */
+
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
@@ -10,10 +16,24 @@ import {
   Calendar,
   Printer,
   MessageSquare,
+  FileJson,
+  FileSpreadsheet,
+  AlertCircle,
+  Loader2,
 } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui';
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
+import {
+  useExportCSV,
+  useExportJSON,
+  useGenerateSummary,
+  useDownloadSummary,
+  useGenerateQuestions,
+  useDocuments,
+} from '@/services';
+import { useAuthStore } from '@/stores/authStore';
+import type { SummaryResponse, QuestionItem } from '@/services/export';
 
 const exportSections = [
   { id: 'summary', label: 'Results Summary', included: true },
@@ -24,8 +44,20 @@ const exportSections = [
 
 export function ExportPage() {
   const prefersReducedMotion = useReducedMotion();
+  const profileId = useAuthStore((state) => state.profileId);
+
   const [sections, setSections] = useState(exportSections);
   const [copied, setCopied] = useState(false);
+  const [summary, setSummary] = useState<SummaryResponse | null>(null);
+  const [questions, setQuestions] = useState<QuestionItem[]>([]);
+
+  // API hooks
+  const exportCSV = useExportCSV();
+  const exportJSON = useExportJSON();
+  const generateSummary = useGenerateSummary();
+  const downloadSummary = useDownloadSummary();
+  const generateQuestions = useGenerateQuestions();
+  const { data: documents } = useDocuments({ profile_id: profileId || '' });
 
   const handleToggleSection = (id: string) => {
     setSections((prev) =>
@@ -34,10 +66,55 @@ export function ExportPage() {
   };
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText('Summary content would be copied here...');
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (summary) {
+      const text = summary.key_findings.join('\n');
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
+
+  const handleExportCSV = () => {
+    exportCSV.mutate(undefined);
+  };
+
+  const handleExportJSON = () => {
+    exportJSON.mutate(undefined);
+  };
+
+  const handleGenerateSummary = async () => {
+    const includeQuestions = sections.find((s) => s.id === 'questions')?.included;
+    const includeTrends = sections.find((s) => s.id === 'trends')?.included;
+
+    try {
+      const result = await generateSummary.mutateAsync({
+        include_trends: includeTrends,
+        include_questions: includeQuestions,
+        format: 'text',
+      });
+      setSummary(result);
+
+      // Also generate questions if enabled
+      if (includeQuestions) {
+        const questionsResult = await generateQuestions.mutateAsync();
+        setQuestions(questionsResult);
+      }
+    } catch (error) {
+      console.error('Failed to generate summary:', error);
+    }
+  };
+
+  const handleDownloadSummary = () => {
+    if (summary) {
+      downloadSummary.mutate(summary.summary_id);
+    }
+  };
+
+  const isLoading =
+    exportCSV.isPending ||
+    exportJSON.isPending ||
+    generateSummary.isPending ||
+    downloadSummary.isPending;
 
   return (
     <div className="space-y-6">
@@ -51,14 +128,59 @@ export function ExportPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="secondary" className="gap-2">
-            <Printer className="w-4 h-4" />
-            Print
+          <Button
+            variant="secondary"
+            className="gap-2"
+            onClick={handleExportCSV}
+            disabled={isLoading}
+          >
+            {exportCSV.isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <FileSpreadsheet className="w-4 h-4" />
+            )}
+            Download CSV
           </Button>
-          <Button className="gap-2">
-            <Download className="w-4 h-4" />
-            Download PDF
+          <Button
+            variant="secondary"
+            className="gap-2"
+            onClick={handleExportJSON}
+            disabled={isLoading}
+          >
+            {exportJSON.isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <FileJson className="w-4 h-4" />
+            )}
+            Download JSON
           </Button>
+          {summary ? (
+            <Button
+              className="gap-2"
+              onClick={handleDownloadSummary}
+              disabled={isLoading}
+            >
+              {downloadSummary.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
+              Download Summary
+            </Button>
+          ) : (
+            <Button
+              className="gap-2"
+              onClick={handleGenerateSummary}
+              disabled={isLoading}
+            >
+              {generateSummary.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <FileText className="w-4 h-4" />
+              )}
+              Generate Summary
+            </Button>
+          )}
         </div>
       </div>
 
@@ -77,6 +199,7 @@ export function ExportPage() {
                     size="sm"
                     onClick={handleCopy}
                     className="gap-1.5"
+                    disabled={!summary}
                   >
                     {copied ? (
                       <>
@@ -98,139 +221,110 @@ export function ExportPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6">
-              <motion.div
-                initial={prefersReducedMotion ? {} : { opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="prose prose-sm max-w-none"
-              >
-                <div className="flex items-center gap-3 mb-6 pb-4 border-b border-black/[0.08]">
-                  <div className="w-12 h-12 rounded-xl bg-accent-subtle flex items-center justify-center">
-                    <FileText className="w-6 h-6 text-accent" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-display font-semibold text-ink m-0">
-                      Health Summary Report
-                    </h2>
-                    <p className="text-sm text-ink-secondary m-0 flex items-center gap-2">
-                      <Calendar className="w-3.5 h-3.5" />
-                      Generated December 28, 2024
-                    </p>
-                  </div>
+              {generateSummary.isPending ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-accent" />
+                  <span className="ml-3 text-ink-secondary">Generating summary...</span>
                 </div>
-
-                <section className="mb-6">
-                  <h3 className="text-base font-semibold text-ink mb-3">
-                    Results Summary
-                  </h3>
-                  <p className="text-sm text-ink-secondary leading-relaxed">
-                    This report summarizes laboratory results from{' '}
-                    <strong>4 documents</strong> spanning June 2024 to December
-                    2024. Results are organized by test panel with reference
-                    ranges as reported by each laboratory.
-                  </p>
-                </section>
-
-                <section className="mb-6">
-                  <h3 className="text-base font-semibold text-ink mb-3">
-                    Complete Blood Count (CBC)
-                  </h3>
-                  <div className="rounded-xl bg-surface-muted p-4">
-                    <table className="w-full text-sm m-0">
-                      <thead>
-                        <tr className="border-b border-black/[0.08]">
-                          <th className="text-left font-medium text-ink-secondary py-2">
-                            Test
-                          </th>
-                          <th className="text-left font-medium text-ink-secondary py-2">
-                            Result
-                          </th>
-                          <th className="text-left font-medium text-ink-secondary py-2">
-                            Reference
-                          </th>
-                          <th className="text-left font-medium text-ink-secondary py-2">
-                            Status
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr className="border-b border-black/[0.04]">
-                          <td className="py-2 text-ink">Hemoglobin</td>
-                          <td className="py-2 font-mono">14.2 g/dL</td>
-                          <td className="py-2 text-ink-secondary">
-                            12.0-17.5 g/dL
-                          </td>
-                          <td className="py-2">
-                            <Badge variant="verified">Normal</Badge>
-                          </td>
-                        </tr>
-                        <tr className="border-b border-black/[0.04]">
-                          <td className="py-2 text-ink">WBC Count</td>
-                          <td className="py-2 font-mono text-status-attention">
-                            11.8 K/uL
-                          </td>
-                          <td className="py-2 text-ink-secondary">
-                            4.5-11.0 K/uL
-                          </td>
-                          <td className="py-2">
-                            <Badge variant="attention">High</Badge>
-                          </td>
-                        </tr>
-                        <tr>
-                          <td className="py-2 text-ink">Platelets</td>
-                          <td className="py-2 font-mono">245 K/uL</td>
-                          <td className="py-2 text-ink-secondary">
-                            150-400 K/uL
-                          </td>
-                          <td className="py-2">
-                            <Badge variant="verified">Normal</Badge>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
+              ) : generateSummary.isError ? (
+                <div className="flex items-center justify-center py-12 text-status-attention">
+                  <AlertCircle className="w-6 h-6 mr-2" />
+                  <span>Failed to generate summary. Please try again.</span>
+                </div>
+              ) : summary ? (
+                <motion.div
+                  initial={prefersReducedMotion ? {} : { opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="prose prose-sm max-w-none"
+                >
+                  <div className="flex items-center gap-3 mb-6 pb-4 border-b border-black/[0.08]">
+                    <div className="w-12 h-12 rounded-xl bg-accent-subtle flex items-center justify-center">
+                      <FileText className="w-6 h-6 text-accent" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-display font-semibold text-ink m-0">
+                        Health Summary Report
+                      </h2>
+                      <p className="text-sm text-ink-secondary m-0 flex items-center gap-2">
+                        <Calendar className="w-3.5 h-3.5" />
+                        Generated {new Date(summary.generated_at).toLocaleDateString()}
+                      </p>
+                    </div>
                   </div>
-                </section>
 
-                <section className="mb-6">
-                  <h3 className="text-base font-semibold text-ink mb-3">
-                    Values Outside Reference Range
-                  </h3>
-                  <div className="rounded-xl bg-status-attention-subtle p-4">
-                    <p className="text-sm text-ink m-0">
-                      <strong>WBC Count (11.8 K/uL):</strong> Slightly above the
-                      reference range of 4.5-11.0 K/uL as stated in the Quest
-                      Diagnostics report dated December 15, 2024.
-                    </p>
-                  </div>
-                </section>
-
-                {sections.find((s) => s.id === 'questions')?.included && (
                   <section className="mb-6">
-                    <h3 className="text-base font-semibold text-ink mb-3 flex items-center gap-2">
-                      <MessageSquare className="w-4 h-4" />
-                      Questions for Your Clinician
+                    <h3 className="text-base font-semibold text-ink mb-3">
+                      Results Summary
                     </h3>
-                    <ul className="text-sm text-ink-secondary pl-4 space-y-2">
-                      <li>
-                        Should I be concerned about the elevated WBC count?
-                      </li>
-                      <li>
-                        Are there any lifestyle changes that could affect these
-                        results?
-                      </li>
-                      <li>When should I schedule follow-up testing?</li>
-                    </ul>
+                    <p className="text-sm text-ink-secondary leading-relaxed">
+                      Date range: <strong>{summary.date_range}</strong>
+                    </p>
+                    <p className="text-sm text-ink-secondary leading-relaxed">
+                      {summary.abnormal_count > 0 ? (
+                        <>
+                          <span className="text-status-attention font-medium">
+                            {summary.abnormal_count} abnormal
+                          </span>{' '}
+                          value{summary.abnormal_count !== 1 ? 's' : ''} found.
+                        </>
+                      ) : (
+                        'All values within reference ranges.'
+                      )}
+                    </p>
                   </section>
-                )}
 
-                <footer className="pt-4 border-t border-black/[0.08] text-xs text-ink-tertiary">
-                  <p className="m-0">
-                    This summary was generated by HealthCentral based on
-                    uploaded laboratory reports. Reference ranges are as stated
-                    in each source document. This is not medical advice—discuss
-                    all results with your healthcare provider.
+                  {summary.key_findings.length > 0 && (
+                    <section className="mb-6">
+                      <h3 className="text-base font-semibold text-ink mb-3">
+                        Key Findings
+                      </h3>
+                      <div className="rounded-xl bg-surface-muted p-4">
+                        <ul className="text-sm text-ink space-y-2 m-0 list-none pl-0">
+                          {summary.key_findings.map((finding, i) => (
+                            <li key={i} className="flex items-start gap-2">
+                              <AlertCircle className="w-4 h-4 text-status-attention flex-shrink-0 mt-0.5" />
+                              {finding}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </section>
+                  )}
+
+                  {sections.find((s) => s.id === 'questions')?.included && questions.length > 0 && (
+                    <section className="mb-6">
+                      <h3 className="text-base font-semibold text-ink mb-3 flex items-center gap-2">
+                        <MessageSquare className="w-4 h-4" />
+                        Questions for Your Clinician
+                      </h3>
+                      <ul className="text-sm text-ink-secondary pl-4 space-y-2">
+                        {questions.map((q, i) => (
+                          <li key={i}>{q.question}</li>
+                        ))}
+                      </ul>
+                    </section>
+                  )}
+
+                  <footer className="pt-4 border-t border-black/[0.08] text-xs text-ink-tertiary">
+                    <p className="m-0">
+                      This summary was generated by HealthCentral based on
+                      uploaded laboratory reports. Reference ranges are as stated
+                      in each source document. This is not medical advice—discuss
+                      all results with your healthcare provider.
+                    </p>
+                  </footer>
+                </motion.div>
+              ) : (
+                <div className="text-center py-12">
+                  <FileText className="w-12 h-12 text-ink-tertiary mx-auto mb-4" />
+                  <p className="text-ink-secondary">
+                    Click "Generate Summary" to create a clinician-ready report.
                   </p>
-                </footer>
-              </motion.div>
+                  <p className="text-sm text-ink-tertiary mt-2">
+                    You can also download your data as CSV or JSON.
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -281,22 +375,34 @@ export function ExportPage() {
               <CardTitle className="text-base">Source Documents</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {[
-                { name: 'Quest Diagnostics', date: 'Dec 15, 2024' },
-                { name: 'LabCorp', date: 'Dec 10, 2024' },
-                { name: 'Primary Care', date: 'Nov 28, 2024' },
-              ].map((doc, i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted"
-                >
-                  <div>
-                    <p className="text-sm font-medium text-ink">{doc.name}</p>
-                    <p className="text-xs text-ink-tertiary">{doc.date}</p>
+              {documents && documents.length > 0 ? (
+                documents.slice(0, 5).map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-ink">
+                        {doc.source || 'Lab Report'}
+                      </p>
+                      <p className="text-xs text-ink-tertiary">
+                        {doc.collection_date
+                          ? new Date(doc.collection_date).toLocaleDateString()
+                          : 'No date'}
+                      </p>
+                    </div>
+                    <Badge
+                      variant={doc.status === 'parsed' ? 'verified' : 'default'}
+                    >
+                      {doc.status}
+                    </Badge>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-ink-tertiary" />
-                </div>
-              ))}
+                ))
+              ) : (
+                <p className="text-sm text-ink-tertiary text-center py-4">
+                  No documents imported yet.
+                </p>
+              )}
             </CardContent>
           </Card>
 
