@@ -11,7 +11,7 @@ The execution backlog (tickets + acceptance criteria + E2E matrix) lives in:
 
 ---
 
-## Current Status: Sprint 4 Complete
+## Current Status: Sprint 5 Complete
 
 ### Completed Sprints
 
@@ -21,7 +21,64 @@ The execution backlog (tickets + acceptance criteria + E2E matrix) lives in:
 | Sprint 2 | Import → Extract → Normalize → Persist | ✅ Complete |
 | Sprint 3 | Verification Workbench + Trends Dashboard | ✅ Complete |
 | Sprint 4 | Export System End-to-End | ✅ Complete |
-| **Sprint 5** | **RAG Assistant (Post-MVP)** | ⏳ **NEXT** |
+| Sprint 5 | RAG Assistant Pipeline | ✅ Complete |
+| **Sprint 6** | **LLM Integration + E2E Testing** | ⏳ **NEXT** |
+
+### What Was Done in Sprint 5
+
+1. **Backend Chunking Module** (`src/backend/modules/chunking.py`) - Created:
+   - Document text splitting with sentence boundary preservation
+   - Configurable chunk size and overlap
+   - Character position tracking for provenance
+   - Multi-page PDF support
+
+2. **Backend Embeddings Module** (`src/backend/modules/embeddings.py`) - Created:
+   - Sentence-transformers integration (all-MiniLM-L6-v2)
+   - Hash-based fallback for testing
+   - Vector-to-blob storage conversion
+   - Cosine similarity search
+
+3. **Backend Glossary Module** (`src/backend/modules/glossary.py`) - Created:
+   - 25+ curated medical term definitions
+   - Plain-language explanations
+   - Related terms linking
+   - No medical advice content
+
+4. **Backend Test Intent Module** (`src/backend/modules/test_intent.py`) - Created:
+   - 16+ analyte purpose explanations
+   - Educational content about test ordering reasons
+   - Conservative, factual information
+
+5. **RAGModule Updates** (`src/backend/modules/rag.py`) - Enhanced:
+   - `retrieve_context_sync()` method for synchronous retrieval
+   - `_search_vectors()` placeholder for vector store integration
+   - Ready for LLM integration
+
+6. **Assistant API** (`src/backend/api/assistant.py`) - Wired:
+   - `/assistant/glossary/{term}` - Returns curated definitions
+   - `/assistant/test-intent/{analyte}` - Returns test purpose info
+   - `/assistant/chat` - Returns 501 until LLM configured
+
+7. **Frontend Assistant Service** (`src/frontend/src/services/assistant.ts`) - Created:
+   - `useSendMessage()` - Chat mutation hook
+   - `useGlossaryLookup()` - Glossary query hook
+   - `useTestIntentLookup()` - Test intent query hook
+   - Citation formatting utilities
+
+8. **ExplainAssistant Page** (`src/frontend/src/pages/ExplainAssistant.tsx`) - Wired:
+   - Real API integration with useSendMessage hook
+   - Citation display with source links
+   - Verification info display
+   - Error handling (501, 401, network)
+   - Insufficient context indicators
+
+9. **Tests** - All passing:
+   - Backend: 27 RAG pipeline tests in `src/backend/tests/test_rag_pipeline.py`
+   - Frontend: 12 tests in `src/frontend/src/__tests__/ExplainAssistant.test.tsx`
+   - Total backend tests: 110 passing
+   - Total frontend tests: 51 passing
+
+---
 
 ### What Was Done in Sprint 4
 
@@ -55,7 +112,53 @@ The execution backlog (tickets + acceptance criteria + E2E matrix) lives in:
 
 ---
 
-## Sprint 5 Focus: RAG Assistant (Post-MVP)
+## Sprint 6 Focus: LLM Integration + E2E Testing
+
+### Objective
+
+Complete the RAG assistant by integrating a local LLM and running full end-to-end tests.
+
+### Tickets
+
+#### S6-BE-001: LLM Integration
+
+**Scope:** Integrate local LLM (llama.cpp or similar) for response generation.
+
+**Files to Modify:**
+- `src/backend/modules/rag.py` - Implement `generate_response()` with LLM inference
+- `src/backend/core/model_runner.py` (NEW) - LLM inference wrapper
+
+**Acceptance:**
+- `/assistant/chat` returns grounded responses (no 501)
+- Responses include `[cite:N]` citations
+- Timeout handling for long responses
+
+#### S6-BE-002: Vector Store Integration
+
+**Scope:** Persist embeddings to profile DB and implement real vector search.
+
+**Files to Modify:**
+- `src/backend/modules/rag.py` - Implement `_search_vectors()` with DB lookup
+- `src/backend/api/documents.py` - Trigger chunk+embed on import
+
+**Acceptance:**
+- Documents are chunked and embedded on import
+- Vector search returns relevant chunks by similarity
+- Filters (analyte, date) work correctly
+
+#### S6-E2E-001: End-to-End Test Suite
+
+**Scope:** Playwright tests for full user journeys.
+
+**Tests:**
+- E2E-RAG-001: No docs → insufficient context
+- E2E-RAG-002: With docs → citations in response
+- E2E-RAG-003: Prohibited request → safe refusal
+- E2E-RAG-004: Glossary + test-intent return 200
+
+---
+
+## Sprint 5 Focus: RAG Assistant (Post-MVP) - COMPLETE
 
 ### Objective
 

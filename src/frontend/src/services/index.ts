@@ -69,3 +69,26 @@ export type {
   QuestionItem,
   ExportFilters,
 } from './export';
+
+// Assistant hooks
+export {
+  useSendMessage,
+  useGlossaryLookup,
+  useTestIntentLookup,
+  useVerificationStatus,
+  useGlossaryMutation,
+  useTestIntentMutation,
+  formatCitation,
+  extractCitationRefs,
+  formatResponseText,
+} from './assistant';
+
+export type {
+  Citation,
+  ResponseSegment,
+  VerificationInfo,
+  ChatRequest,
+  ChatResponse,
+  GlossaryResponse,
+  TestIntentResponse,
+} from './assistant';

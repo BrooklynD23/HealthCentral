@@ -175,12 +175,102 @@ USER QUESTION: {question}"""
         """
         chunks = []
 
-        # TODO: Embed query
-        # TODO: Search user document vectors
-        # TODO: Search reference corpus vectors
-        # TODO: Merge and rank results
+        # Use sync version internally
+        chunks = self.retrieve_context_sync(
+            query=query,
+            profile_id=profile_id,
+            selected_analytes=selected_analytes,
+            from_date=from_date,
+            to_date=to_date,
+            include_references=include_references,
+            top_k=top_k,
+        )
 
         return chunks
+
+    def retrieve_context_sync(
+        self,
+        query: str,
+        profile_id: str,
+        selected_analytes: Optional[list[str]] = None,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        include_references: bool = True,
+        top_k: int = 10,
+    ) -> list[RetrievedChunk]:
+        """
+        Synchronous version of retrieve_context for use in non-async contexts.
+
+        Args:
+            query: User question
+            profile_id: Profile for user documents
+            selected_analytes: Filter by analytes
+            from_date: Filter by date range start
+            to_date: Filter by date range end
+            include_references: Include reference corpus
+            top_k: Number of chunks to retrieve
+
+        Returns:
+            List of relevant chunks with scores
+        """
+        # Search vectors (this is mocked in tests)
+        search_results = self._search_vectors(
+            query=query,
+            profile_id=profile_id,
+            selected_analytes=selected_analytes,
+            from_date=from_date,
+            to_date=to_date,
+            top_k=top_k,
+        )
+
+        # Convert to RetrievedChunk objects
+        chunks = []
+        for chunk_data, score in search_results:
+            chunks.append(RetrievedChunk(
+                chunk_id=chunk_data.get("chunk_id", ""),
+                source_type=chunk_data.get("source_type", "user_document"),
+                doc_id=chunk_data.get("doc_id"),
+                doc_title=chunk_data.get("doc_title"),
+                page=chunk_data.get("page_number"),
+                text=chunk_data.get("text", ""),
+                relevance_score=score,
+                is_user_verified=chunk_data.get("is_user_verified", False),
+                is_peer_reviewed=chunk_data.get("is_peer_reviewed", False),
+                publisher=chunk_data.get("publisher"),
+            ))
+
+        return chunks
+
+    def _search_vectors(
+        self,
+        query: str,
+        profile_id: str,
+        selected_analytes: Optional[list[str]] = None,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        top_k: int = 10,
+    ) -> list[tuple[dict, float]]:
+        """
+        Search vector database for relevant chunks.
+
+        This method will be implemented to use the actual vector store.
+        For now, returns empty list (to be mocked in tests).
+
+        Args:
+            query: Search query
+            profile_id: Profile to search
+            selected_analytes: Filter by analytes
+            from_date: Filter by date start
+            to_date: Filter by date end
+            top_k: Number of results
+
+        Returns:
+            List of (chunk_data, similarity_score) tuples
+        """
+        # TODO: Implement actual vector search
+        # This will use EmbeddingsModule to embed query
+        # Then search the vector store in the profile database
+        return []
 
     def compose_prompt(
         self,

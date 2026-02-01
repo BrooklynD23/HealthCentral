@@ -1,7 +1,7 @@
 # Backend Integration Status
 
 **Last Updated:** 2026-01-31
-**Status:** Sprint 4 Complete (Export System End-to-End)
+**Status:** Sprint 5 Complete (RAG Assistant Pipeline)
 
 ---
 
@@ -42,12 +42,12 @@ This document tracks the implementation status of backend-frontend integration f
 | `/api/v1/observations/trends/{analyte}` | GET | ✅ Done | Get trend data with summary |
 | `/api/v1/observations/panels/{panel_id}` | GET | ✅ Done | Get panel data (CBC, CMP, etc.) |
 
-#### Assistant (`assistant.py`)
+#### Assistant (`assistant.py`) - Sprint 5 Complete
 | Endpoint | Method | Status | Description |
 |----------|--------|--------|-------------|
-| `/api/v1/assistant/chat` | POST | ⏳ Stub | RAG chat (returns 501) |
-| `/api/v1/assistant/test-intent/{analyte}` | GET | ⏳ Stub | Test intent lookup (returns 501) |
-| `/api/v1/assistant/glossary/{term}` | GET | ⏳ Stub | Glossary lookup (returns 501) |
+| `/api/v1/assistant/chat` | POST | ⚠️ LLM Required | RAG chat (needs local model setup) |
+| `/api/v1/assistant/test-intent/{analyte}` | GET | ✅ Done | Test intent lookup from curated data |
+| `/api/v1/assistant/glossary/{term}` | GET | ✅ Done | Glossary lookup from curated data |
 | `/api/v1/assistant/verification-status` | GET | ✅ Done | Verification components status |
 
 #### Export (`export.py`) - Sprint 4 Complete
