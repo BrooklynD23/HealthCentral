@@ -9,6 +9,9 @@ export { ApiError, apiGet, apiPost, apiPut, apiDelete, apiUpload } from './api';
 export type {
   Profile,
   ProfileCreate,
+  TokenResponse,
+  LoginRequest,
+  UnlockRequest,
   Document,
   DocumentImportResponse,
   DocumentPage,
@@ -26,8 +29,10 @@ export {
   useProfiles,
   useProfile,
   useCreateProfile,
+  useLogin,
   useUnlockProfile,
   useLockProfile,
+  useLogout,
 } from './profiles';
 
 // Document hooks
@@ -48,3 +53,19 @@ export {
   usePanel,
   useAnalyteList,
 } from './observations';
+
+// Export hooks
+export {
+  useExportCSV,
+  useExportJSON,
+  useGenerateSummary,
+  useDownloadSummary,
+  useGenerateQuestions,
+} from './export';
+
+export type {
+  SummaryRequest,
+  SummaryResponse,
+  QuestionItem,
+  ExportFilters,
+} from './export';

@@ -1,7 +1,7 @@
 # Backend Integration Status
 
-**Last Updated:** 2026-01-30
-**Status:** Phase 0.3 Implementation Complete (Tiered Model System)
+**Last Updated:** 2026-01-31
+**Status:** Sprint 4 Complete (Export System End-to-End)
 
 ---
 
@@ -47,13 +47,17 @@ This document tracks the implementation status of backend-frontend integration f
 |----------|--------|--------|-------------|
 | `/api/v1/assistant/chat` | POST | ⏳ Stub | RAG chat (returns 501) |
 | `/api/v1/assistant/test-intent/{analyte}` | GET | ⏳ Stub | Test intent lookup (returns 501) |
+| `/api/v1/assistant/glossary/{term}` | GET | ⏳ Stub | Glossary lookup (returns 501) |
+| `/api/v1/assistant/verification-status` | GET | ✅ Done | Verification components status |
 
-#### Export (`export.py`)
+#### Export (`export.py`) - Sprint 4 Complete
 | Endpoint | Method | Status | Description |
 |----------|--------|--------|-------------|
-| `/api/v1/export/doctor-summary` | POST | ⏳ Stub | Generate summary (returns 501) |
-| `/api/v1/export/csv` | GET | ⏳ Stub | CSV export (returns 501) |
-| `/api/v1/export/json` | GET | ⏳ Stub | JSON export (returns 501) |
+| `/api/v1/export/doctor-summary` | POST | ✅ Done | Generate clinician-ready summary |
+| `/api/v1/export/doctor-summary/{summary_id}/download` | GET | ✅ Done | Download generated summary |
+| `/api/v1/export/questions` | POST | ✅ Done | Generate discussion questions |
+| `/api/v1/export/csv` | GET | ✅ Done | CSV export with filters |
+| `/api/v1/export/json` | GET | ✅ Done | JSON export with filters |
 
 #### Interpretations (`interpretations.py`)
 | Endpoint | Method | Status | Description |
@@ -107,12 +111,14 @@ This document tracks the implementation status of backend-frontend integration f
 | `profiles.ts` | React Query hooks for profile management |
 | `documents.ts` | React Query hooks for document management |
 | `observations.ts` | React Query hooks for observations and trends |
+| `export.ts` | React Query hooks for export functionality |
 | `index.ts` | Barrel export for all services |
 
 #### React Query Hooks
 - **Profiles:** `useProfiles`, `useProfile`, `useCreateProfile`, `useUnlockProfile`, `useLockProfile`
 - **Documents:** `useDocuments`, `useDocument`, `useDocumentPages`, `useImportDocument`, `useDeleteDocument`
 - **Observations:** `useObservations`, `useObservation`, `useVerifyObservation`, `useTrend`, `usePanel`, `useAnalyteList`
+- **Export:** `useExportCSV`, `useExportJSON`, `useGenerateSummary`, `useDownloadSummary`, `useGenerateQuestions`
 
 ---
 
@@ -122,10 +128,10 @@ This document tracks the implementation status of backend-frontend integration f
 |------|-------------------|-------|
 | `ProfileSetup.tsx` | ✅ Connected | Uses `useCreateProfile()` for real API calls |
 | `DocumentInbox.tsx` | ✅ Connected | Uses `useDocuments()`, `useImportDocument()` |
-| `VerificationWorkbench.tsx` | ⏳ Pending | Needs `useObservations()` integration |
-| `TrendsDashboard.tsx` | ⏳ Pending | Needs `useTrend()` integration |
-| `ExplainAssistant.tsx` | ⏳ Pending | Awaits assistant API implementation |
-| `ExportPage.tsx` | ⏳ Pending | Awaits export API implementation |
+| `VerificationWorkbench.tsx` | ✅ Connected | Uses `useObservations()`, `useVerifyObservation()` |
+| `TrendsDashboard.tsx` | ✅ Connected | Uses `useObservations()`, `useTrend()`, `usePanel()` |
+| `ExportPage.tsx` | ✅ Connected | Uses `useExportCSV()`, `useExportJSON()`, `useGenerateSummary()` |
+| `ExplainAssistant.tsx` | ⏳ Pending | Awaits assistant API implementation (Sprint 5) |
 
 ---
 
@@ -175,12 +181,12 @@ All models are implemented in `src/backend/models/`:
 | Module | Status | Notes |
 |--------|--------|-------|
 | `ingest.py` | ✅ Basic | File import, hashing, storage |
-| `extract.py` | ⏳ Stub | PDF parsing not yet implemented |
-| `normalize.py` | ⏳ Stub | Analyte mapping not yet implemented |
+| `extract.py` | ⏳ Partial | Table extraction implemented; text extraction still TODO |
+| `normalize.py` | ✅ Basic | Built-in synonym mapping implemented |
 | `verify.py` | ⏳ Stub | Verification workflow not yet implemented |
-| `analytics.py` | ⏳ Stub | Trend calculations not yet implemented |
+| `analytics.py` | ✅ Basic | Trend calculations implemented (deterministic) |
 | `rag.py` | ⏳ Stub | RAG pipeline not yet implemented |
-| `export.py` | ⏳ Stub | Export generation not yet implemented |
+| `export.py` | ✅ Done | CSV/JSON + summary/question generation - API fully wired (Sprint 4) |
 | `interpret.py` | ✅ Done | Lab interpretation pipeline with LLM support |
 | `interpret_safety.py` | ✅ Done | Safety guardrails for interpretations |
 | `recommend.py` | ✅ Done | Evidence-based recommendation engine |
@@ -218,12 +224,13 @@ Access:
 
 ## Next Steps
 
-1. **Frontend Integration** (Phase 4) - React components for Lab Interpreter and Medication Coach
-2. **Implement PDF extraction** (`extract.py`) - Parse lab PDFs to extract observations
-3. **Implement normalization** (`normalize.py`) - Map analyte names to canonical forms
-4. **Connect remaining pages** - VerificationWorkbench, TrendsDashboard
-5. **Implement export APIs** - CSV, JSON, doctor summary generation
-6. **Polish & Testing** (Phase 5) - Adversarial testing, accessibility audit, performance
+1. **Sprint 5: RAG Assistant (Post-MVP)**
+   - Implement chunking + embeddings pipeline
+   - Implement `RAGModule.retrieve_context()` with similarity search
+   - Implement `RAGModule.generate_response()` with citations
+   - Implement glossary + test-intent endpoints
+   - Wire `ExplainAssistant.tsx` to real API
+2. **Polish & Testing** - Adversarial testing, accessibility audit, performance
 
 ---
 
@@ -231,4 +238,3 @@ Access:
 
 1. **vite.config.ts lint warnings** - `@types/node` needs to be installed for Node.js type declarations
 2. **theme-color meta tag warning** - Informational only; progressive enhancement works in supported browsers
-

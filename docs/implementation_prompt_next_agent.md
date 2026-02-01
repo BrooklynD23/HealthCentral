@@ -1,292 +1,271 @@
 # Implementation Prompt for Next Agent
 
-## Mission
-Continue implementing HealthCentral's v0.2 features. **Priority: Phase 0.3 (BioMistral Model Integration)** - Build the tiered model management system with hardware detection.
+## Mission (Updated 2026-01-31)
 
-## Current Project State (2026-01-30)
+Ship the **MVP end-to-end first** (import → verify → trends → export), then implement the **RAG assistant**.
 
-| Phase | Status | Description |
-|-------|--------|-------------|
-| 0.1-0.2 | ✅ COMPLETE | Database models, seed data |
-| **0.3** | **⏳ PRIORITY** | **BioMistral Model Integration** |
-| 1 | ✅ COMPLETE | Lab Interpretation Engine (Backend) |
-| 2 | ✅ COMPLETE | Medication Management (Backend) |
-| 3 | ✅ COMPLETE | Smart Notifications (Backend) |
-| 4 | ⏳ PENDING | Frontend Integration |
-| 5 | ⏳ NOT STARTED | Polish & Testing |
+Sprint cadence: **1 week**.
 
-**Backend is feature-complete.** Now enhance interpretation quality with tiered LLM support.
-
-## Required Reading
-
-1. **`docs/features/TASK_LIST.md`** - Active task tracker with phase details
-2. **`docs/04_local_models_inference_plan.md`** - Local model inference architecture
-3. **`docs/features/01_lab_result_interpreter_architecture.md`** - Lab interpreter specs
+The execution backlog (tickets + acceptance criteria + E2E matrix) lives in:
+- `docs/06_mvp_to_rag_execution_board.md`
 
 ---
 
-## Phase 0.3: BioMistral Model Integration (PRIORITY)
+## Current Status: Sprint 4 Complete
 
-### Overview
-Build a comprehensive model management system with hardware detection and user choice. **Default to Tier 3** (Qwen2.5 0.5B) for broad compatibility while allowing users to upgrade based on their hardware.
+### Completed Sprints
 
-### 1. Model Tier Structure
+| Sprint | Focus | Status |
+|--------|-------|--------|
+| Sprint 1 | Auth + Session Plumbing | ✅ Complete |
+| Sprint 2 | Import → Extract → Normalize → Persist | ✅ Complete |
+| Sprint 3 | Verification Workbench + Trends Dashboard | ✅ Complete |
+| Sprint 4 | Export System End-to-End | ✅ Complete |
+| **Sprint 5** | **RAG Assistant (Post-MVP)** | ⏳ **NEXT** |
 
-Create organized model folder structure:
+### What Was Done in Sprint 4
+
+1. **Backend Export API** (`src/backend/api/export.py`) - Fully wired:
+   - `GET /export/csv` - Returns CSV data for authenticated profile
+   - `GET /export/json` - Returns JSON data for authenticated profile
+   - `POST /export/doctor-summary` - Generates clinician-ready summary
+   - `GET /export/doctor-summary/{id}/download` - Downloads generated summary
+   - `POST /export/questions` - Generates discussion prompts
+   - All endpoints use `ProfileDbSession` for data isolation
+   - Audit logging for all export actions
+
+2. **Frontend Export Service** (`src/frontend/src/services/export.ts`) - Created:
+   - `useExportCSV()` - Mutation for CSV download
+   - `useExportJSON()` - Mutation for JSON download
+   - `useGenerateSummary()` - Mutation for summary generation
+   - `useDownloadSummary()` - Mutation for summary download
+   - `useGenerateQuestions()` - Mutation for questions generation
+
+3. **ExportPage.tsx** - Fully wired to real API:
+   - CSV/JSON download buttons
+   - Summary generation with key findings display
+   - Summary download after generation
+   - Section toggles for customization
+   - Real document list from API
+
+4. **Tests** - All passing:
+   - Backend: 17 tests in `src/backend/tests/test_export_api.py`
+   - Frontend: 11 tests in `src/frontend/src/__tests__/ExportPage.test.tsx`
+   - Total frontend tests: 39 passing
+
+---
+
+## Sprint 5 Focus: RAG Assistant (Post-MVP)
+
+### Objective
+
+Implement the RAG-based assistant for grounded explanations with citations.
+
+### Tickets
+
+#### S5-BE-001: Chunking + Embeddings Pipeline
+
+**Scope:** Create/populate `Chunk` + `Embedding` from documents during import or background job.
+
+**Files to Create/Modify:**
+- `src/backend/modules/chunking.py` (NEW) - Document chunking logic
+- `src/backend/modules/embeddings.py` (NEW) - Embedding generation
+- `src/backend/api/documents.py` - Trigger chunking after import
+
+**Tests FIRST:**
 ```
-models/
-├── tier1_high/
-│   └── biomistral-7b.Q4_K_M.gguf (~4GB)
-│   └── README.md (requirements: GPU 8GB+ VRAM)
-├── tier2_mid/
-│   └── phi-3-mini.Q4_K_M.gguf (~2GB)
-│   └── README.md (requirements: GPU 4-6GB or 16GB RAM)
-├── tier3_low/
-│   └── qwen2.5-0.5b.Q4_K_M.gguf (~0.5GB)
-│   └── README.md (requirements: CPU-only, 8GB RAM) ← DEFAULT
-└── tier4_minimal/
-    └── template_only/ (no model file needed)
-    └── README.md (fallback, no LLM requirements)
-```
-
-### 2. Hardware Detection System
-
-Create `scripts/detect_hardware.py`:
-```python
-# Capabilities to detect:
-- GPU presence and VRAM (nvidia-smi or torch.cuda)
-- System RAM total and available
-- CPU cores and capabilities
-- Disk space for model storage
-
-# Output recommendation logic:
-- GPU 8GB+ VRAM → Recommend Tier 1, allow Tier 2-4
-- GPU 4-6GB or 16GB+ RAM → Recommend Tier 2, allow Tier 1-4
-- 8GB+ RAM, no GPU → Recommend Tier 3 (DEFAULT), allow Tier 2-4
-- <8GB RAM → Recommend Tier 4, allow Tier 3-4
-
-# Always default to Tier 3 if detection fails
-```
-
-### 3. Model Manager Script
-
-Create `scripts/model_manager.py`:
-```python
-# Commands:
-python scripts/model_manager.py detect          # Show hardware + recommendation
-python scripts/model_manager.py download --tier auto  # Download recommended tier
-python scripts/model_manager.py download --tier 3     # Download specific tier
-python scripts/model_manager.py list            # Show installed models
-python scripts/model_manager.py switch --tier 2 # Switch active tier
-python scripts/model_manager.py cleanup         # Remove unused models
-
-# Download sources (HuggingFace):
-- Tier 1: BioMistral/BioMistral-7B-GGUF
-- Tier 2: microsoft/Phi-3-mini-4k-instruct-gguf
-- Tier 3: Qwen/Qwen2.5-0.5B-Instruct-GGUF
-```
-
-### 4. Model Selector Module
-
-Create `src/backend/modules/model_selector.py`:
-```python
-class ModelSelector:
-    """Intelligent model selection with user preferences."""
-
-    def detect_hardware_tier(self) -> HardwareProfile:
-        """Assess system capabilities."""
-
-    def get_recommended_tier(self) -> int:
-        """Get hardware-based recommendation (default: 3)."""
-
-    def get_user_preference(self, profile_id: str) -> Optional[int]:
-        """Get user's saved tier preference."""
-
-    def set_user_preference(self, profile_id: str, tier: int) -> None:
-        """Save user's tier choice to profile."""
-
-    def get_active_tier(self, profile_id: str) -> int:
-        """Get tier to use: user preference > recommendation > default (3)."""
-
-    def load_model(self, tier: int) -> LlamaModel:
-        """Load model for specified tier with fallback chain."""
-
-    def get_fallback_chain(self, tier: int) -> List[int]:
-        """Return fallback tiers if loading fails: [tier, tier+1, ..., 4]."""
+src/backend/tests/test_rag_pipeline.py:
+├── API-RAG-INDEX-001: test_chunking_creates_chunks()
+├── API-RAG-INDEX-002: test_embeddings_created_for_chunks()
+└── API-RAG-INDEX-003: test_retrieval_returns_chunks_with_provenance()
 ```
 
-### 5. Hardware Detection Module
+**Acceptance:**
+- Documents are chunked on import
+- Embeddings are generated and stored in per-profile DB
+- Chunks include provenance (page, snippet)
 
-Create `src/backend/modules/hardware_detection.py`:
-```python
-@dataclass
-class HardwareProfile:
-    gpu_available: bool
-    gpu_vram_gb: Optional[float]
-    gpu_name: Optional[str]
-    ram_total_gb: float
-    ram_available_gb: float
-    cpu_cores: int
-    disk_free_gb: float
-    recommended_tier: int
-    max_supported_tier: int
-    detection_timestamp: datetime
+#### S5-BE-002: Implement RAGModule.retrieve_context()
 
-def detect_hardware() -> HardwareProfile:
-    """Detect system hardware capabilities."""
+**Scope:** Implement similarity search over stored embeddings.
 
-def get_tier_requirements(tier: int) -> dict:
-    """Return requirements for each tier."""
-    # Tier 1: {"gpu_vram_gb": 8, "ram_gb": 16, "disk_gb": 5}
-    # Tier 2: {"gpu_vram_gb": 4, "ram_gb": 16, "disk_gb": 3}
-    # Tier 3: {"gpu_vram_gb": 0, "ram_gb": 8, "disk_gb": 1}
-    # Tier 4: {"gpu_vram_gb": 0, "ram_gb": 4, "disk_gb": 0}
+**Files to Modify:**
+- `src/backend/modules/rag.py` - Implement `retrieve_context()`
 
-def can_run_tier(profile: HardwareProfile, tier: int) -> bool:
-    """Check if hardware can support a tier."""
+**Tests FIRST:**
+```
+src/backend/tests/test_rag_pipeline.py:
+├── API-RAG-RETRIEVE-001: test_similarity_search_returns_top_k()
+├── API-RAG-RETRIEVE-002: test_filter_by_analyte()
+└── API-RAG-RETRIEVE-003: test_filter_by_date_range()
 ```
 
-### 6. Integration Points
+**Acceptance:**
+- Top-k retrieval with similarity scores
+- Analyte and date filtering work
+- Returns provenance with each chunk
 
-**Update `modules/interpret.py`:**
-```python
-class InterpretModule:
-    def __init__(self, model_selector: ModelSelector = None):
-        self.model_selector = model_selector or get_model_selector()
+#### S5-BE-003: Implement RAGModule.generate_response()
 
-    async def generate_interpretation(self, context, profile_id: str):
-        tier = self.model_selector.get_active_tier(profile_id)
+**Scope:** Generate grounded responses with citations.
 
-        if tier == 4:
-            return self._template_based_interpretation(context)
+**Files to Modify:**
+- `src/backend/modules/rag.py` - Implement `generate_response()`
+- `src/backend/api/assistant.py` - Wire `/assistant/chat` endpoint
 
-        try:
-            model = self.model_selector.load_model(tier)
-            return await self._llm_interpretation(model, context)
-        except ModelLoadError:
-            # Fallback chain
-            for fallback_tier in self.model_selector.get_fallback_chain(tier):
-                try:
-                    model = self.model_selector.load_model(fallback_tier)
-                    return await self._llm_interpretation(model, context)
-                except ModelLoadError:
-                    continue
-            return self._template_based_interpretation(context)
+**Tests FIRST:**
+```
+src/backend/tests/test_rag_pipeline.py:
+├── API-AST-CHAT-001: test_chat_returns_structured_response()
+├── API-AST-CHAT-002: test_response_includes_citations()
+└── API-AST-CHAT-003: test_refusal_for_prohibited_topics()
 ```
 
-**Update `modules/rag.py`:**
-- Use ModelSelector for model loading
-- Add tier-aware context window sizing
-- Implement graceful degradation
+**Acceptance:**
+- `/assistant/chat` returns structured response
+- Response includes `[cite:N]` format citations
+- Prohibited medical advice is refused
 
-### 7. API Endpoints
+#### S5-BE-004: Implement Glossary + Test Intent
 
-Add to `api/settings.py` or create `api/model_settings.py`:
-```python
-GET  /settings/model              # Get current model settings
-POST /settings/model/detect       # Run hardware detection
-POST /settings/model/tier         # Set preferred tier
-GET  /settings/model/download-progress  # Check download status
-POST /settings/model/download     # Start model download
+**Scope:** Local lookups powered by curated tables.
+
+**Files to Modify:**
+- `src/backend/api/assistant.py` - Wire glossary and test-intent endpoints
+
+**Tests FIRST:**
+```
+src/backend/tests/test_rag_pipeline.py:
+├── API-AST-GLOSSARY-001: test_glossary_lookup()
+└── API-AST-INTENT-001: test_test_intent_lookup()
 ```
 
-### 8. Dependencies to Add
+**Acceptance:**
+- No `501` responses
+- Returns conservative, cited content
 
-Update `requirements.txt`:
-```txt
-# Model Management (Phase 0.3)
-huggingface-hub>=0.20.0    # Model downloading
-psutil>=5.9.0              # Hardware detection (RAM, CPU, disk)
-py-cpuinfo>=9.0.0          # Detailed CPU info
-# torch is optional - only for GPU detection, not required
+#### S5-FE-001: Wire ExplainAssistant
+
+**Scope:** Replace mock chat with real API.
+
+**Files to Modify:**
+- `src/frontend/src/services/assistant.ts` (NEW) - Assistant API hooks
+- `src/frontend/src/pages/ExplainAssistant.tsx` - Wire to real API
+
+**Tests FIRST:**
+```
+src/frontend/src/__tests__/ExplainAssistant.test.tsx:
+├── FE-AST-001: test_chat_sends_message()
+├── FE-AST-002: test_response_displays_citations()
+└── FE-AST-003: test_empty_state_handled()
 ```
 
-### 9. User Experience Flow
+**Acceptance:**
+- User can ask questions
+- Response displays with citations
+- Empty/error states handled
 
-**First Run:**
-1. App starts → detect hardware
-2. Show recommendation: "We recommend Tier 3 (Qwen 0.5B) for your system"
-3. User can accept or choose different tier
-4. Download selected model with progress indicator
-5. Save preference to profile
+---
 
-**Subsequent Runs:**
-1. Load saved preference
-2. Verify model still exists
-3. Option in settings to re-detect hardware or change tier
+## Required Reading (in order)
 
-**Settings UI (Phase 4):**
-- Current tier display
-- Hardware info display
-- Tier selection with requirements shown
-- Download/switch button
-- "Re-detect hardware" button
+1. `docs/Local_First_Medical_Results_Companion_PRD_v0_1.md` (MVP scope + safety constraints)
+2. `docs/06_mvp_to_rag_execution_board.md` (current sprint plan + test matrix)
+3. `docs/05_backend_integration_status.md` (endpoint inventory)
+4. `src/backend/modules/rag.py` - Review existing RAG module structure
+5. `src/backend/api/assistant.py` - Review current 501 stubs to replace
+6. `src/backend/models/chunk.py` - Existing Chunk model
+7. `src/backend/models/embedding.py` - Existing Embedding model
 
-### 10. Implementation Checklist
+---
 
-```markdown
-### Phase 0.3 Tasks
-| Task | Status | Notes |
-|------|--------|-------|
-| Create `models/` folder structure with READMEs | [ ] TODO | |
-| Create `scripts/detect_hardware.py` | [ ] TODO | |
-| Create `scripts/model_manager.py` | [ ] TODO | |
-| Create `modules/hardware_detection.py` | [ ] TODO | |
-| Create `modules/model_selector.py` | [ ] TODO | |
-| Update `modules/interpret.py` for tiered inference | [ ] TODO | |
-| Update `modules/rag.py` for model selector | [ ] TODO | |
-| Add model settings API endpoints | [ ] TODO | |
-| Update requirements.txt | [ ] TODO | |
-| Create unit tests for model selection | [ ] TODO | |
-| Test fallback chain | [ ] TODO | |
-| Document tier requirements | [ ] TODO | |
+## Current Repo State (Reality Check)
+
+### Backend
+
+- FastAPI backend is fully implemented for MVP
+- Per-profile SQLCipher DB isolation is implemented
+- **Export API** is fully implemented (Sprint 4)
+- **Assistant API** currently returns `501` stubs - Sprint 5 target
+- `Chunk`/`Embedding` models already exist but pipeline not populating them
+
+### Frontend
+
+- `ProfileSetup.tsx` - ✅ Uses real API with password auth
+- `DocumentInbox.tsx` - ✅ Uses real API hooks
+- `VerificationWorkbench.tsx` - ✅ Uses real API hooks
+- `TrendsDashboard.tsx` - ✅ Uses real API hooks
+- `ExportPage.tsx` - ✅ Uses real API hooks (Sprint 4)
+- `ExplainAssistant.tsx` - ⏳ Mock-driven (Sprint 5 target)
+
+### Auth System (Implemented in Sprint 1)
+
+- `authStore.ts` - Zustand store for JWT token management
+- `api.ts` - Adds `Authorization: Bearer <token>` header to all requests
+- `ProtectedRoute.tsx` - Auth guard component
+
+---
+
+## Developer Commands (Windows)
+
+- Start dev (recommended): `.\dev.ps1` or `.\dev.bat`
+- Backend tests: `cd src/backend; pytest -v`
+- Frontend tests: `cd src/frontend; npm test`
+- Run specific test file: `npm test -- --run src/__tests__/ExplainAssistant.test.tsx`
+
+---
+
+## TDD Workflow Reminder
+
+Follow Red-Green-Refactor strictly:
+
+1. **RED** - Write failing test first
+2. **Verify RED** - Run test, confirm it fails for the right reason
+3. **GREEN** - Write minimal code to pass
+4. **Verify GREEN** - Run test, confirm it passes
+5. **REFACTOR** - Clean up while staying green
+
+Never write implementation code before a failing test exists.
+
+---
+
+## Important Pitfalls / Guardrails
+
+- Do not rely on `profile_id` query params for access control. Use the authenticated session.
+- Keep all patient data in per-profile DB; master DB is reference/profile metadata only.
+- RAG responses must cite sources with `[cite:N]` format.
+- Refuse prohibited medical advice (diagnosis, treatment recommendations).
+- Test all API calls with mocked responses using URL-based mocking (see TrendsDashboard/ExportPage tests for pattern).
+
+---
+
+## Files Reference for Sprint 5
+
+### Backend
+```
+src/backend/api/assistant.py          # Wire to RAGModule (replace 501s)
+src/backend/modules/rag.py            # Implement retrieve_context() and generate_response()
+src/backend/modules/chunking.py       # NEW - Document chunking
+src/backend/modules/embeddings.py     # NEW - Embedding generation
+src/backend/models/chunk.py           # EXISTING - Chunk model
+src/backend/models/embedding.py       # EXISTING - Embedding model
+src/backend/tests/test_rag_pipeline.py # NEW - RAG pipeline tests
+```
+
+### Frontend
+```
+src/frontend/src/pages/ExplainAssistant.tsx       # Wire to real API
+src/frontend/src/services/assistant.ts            # NEW - Assistant API hooks
+src/frontend/src/__tests__/ExplainAssistant.test.tsx # NEW - Assistant tests
 ```
 
 ---
 
-## Phase 4: Frontend Integration (After Phase 0.3)
+## E2E Cases for Sprint 5
 
-**Lab Interpreter UI** (`components/features/interpreter/`):
-- InterpretedResultCard.tsx, InterpretedTrendChart.tsx
-- PanelInterpretationDashboard.tsx, ReferenceRangeComparison.tsx
-- `pages/LabInterpreter.tsx`, `services/interpretationService.ts`
-
-**Medication Coach UI** (`components/features/adherence/`):
-- MedicationCard.tsx, DoseLoggingModal.tsx
-- AdherenceDashboard.tsx, StreakDisplay.tsx, NotificationSettings.tsx
-- `pages/MedicationCoach.tsx`, `services/medicationService.ts`
-
-**Model Settings UI** (new for Phase 0.3):
-- ModelSettingsPanel.tsx - Tier selection, hardware info, download progress
-
----
-
-## Technical Patterns
-
-### Backend Patterns
-```python
-# API endpoint pattern
-@router.post("/endpoint")
-async def endpoint(
-    session: RequireAuth,
-    profile_db: ProfileDbSession = None,
-):
-    # Use profile_db for user data
-```
-
-### Key Files for Patterns
-- API: `api/interpretations.py`, `api/medications.py`, `api/notifications.py`
-- Modules: `modules/interpret.py`, `modules/adherence_patterns.py`
-
-## Quality Gates
-
-Before marking phases complete:
-- [ ] All unit tests passing (`pytest tests/`)
-- [ ] Python syntax valid (`python -m py_compile`)
-- [ ] Documentation updated in `TASK_LIST.md`
-
-## Task Tracking
-
-**Always update** `docs/features/TASK_LIST.md`:
-- Mark tasks `[x] DONE` with dates
-- Add session notes at bottom
+| ID | Area | Scenario | Expected |
+|----|------|----------|----------|
+| E2E-RAG-001 | Assistant | No docs → chat | Returns "insufficient context" (no hallucinations) |
+| E2E-RAG-002 | Assistant | With docs → chat | Response includes `[cite:N]` citations |
+| E2E-RAG-003 | Assistant | Prohibited advice prompt | Safe refusal / guarded response |
+| E2E-RAG-004 | Assistant | Glossary + test-intent | Endpoints return 200 with conservative content |
