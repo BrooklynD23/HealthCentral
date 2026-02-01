@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
-from core.auth import RequireAuth
+from core.auth import RequireAuth, ProfileDbSession
 from modules.rag import RAGModule, VerificationConfig
 from modules.faithfulness import FaithfulnessConfig
 
@@ -146,6 +146,7 @@ def get_rag_module() -> RAGModule:
 async def chat(
     request: ChatRequest,
     session: RequireAuth,
+    profile_db: ProfileDbSession = None,
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -169,12 +170,16 @@ async def chat(
     Args:
         request: Chat request with question and options
         session: Authenticated session (provides profile_id)
+        profile_db: Profile database session for vector search
         db: Database session
 
     Returns:
         ChatResponse with verified, grounded answer
     """
     rag = get_rag_module()
+
+    # Sprint 6: Set profile database for vector search
+    rag.set_profile_db(profile_db)
 
     try:
         # Run the RAG pipeline with verification

@@ -520,6 +520,155 @@ class ModelSelector:
 
         return downloaded
 
+    def download_model(
+        self,
+        tier: str,
+        progress_callback: Optional[callable] = None,
+    ) -> Optional[Path]:
+        """
+        Download a model for the specified tier from Hugging Face.
+
+        Args:
+            tier: Tier to download ("low", "mid", "high")
+            progress_callback: Optional callback for progress updates
+                              Signature: callback(downloaded_bytes, total_bytes)
+
+        Returns:
+            Path to downloaded model or None if failed.
+        """
+        if tier not in TIER_MODEL_CONFIG:
+            logger.error(f"Unknown tier: {tier}")
+            return None
+
+        config = TIER_MODEL_CONFIG[tier]
+        repo_id = config.get("repo")
+        filename = config.get("filename")
+        filename_pattern = config.get("filename_pattern", "")
+
+        if not repo_id:
+            logger.error(f"No repository configured for tier {tier}")
+            return None
+
+        try:
+            from huggingface_hub import hf_hub_download, list_repo_files
+
+            # If no specific filename, find one matching the pattern
+            if not filename:
+                logger.info(f"Discovering model file for {tier} from {repo_id}")
+                files = list_repo_files(repo_id)
+                gguf_files = [f for f in files if f.endswith(".gguf")]
+
+                if filename_pattern:
+                    matching = [f for f in gguf_files if filename_pattern.lower() in f.lower()]
+                    if matching:
+                        filename = matching[0]
+                    elif gguf_files:
+                        filename = gguf_files[0]
+                elif gguf_files:
+                    filename = gguf_files[0]
+
+                if not filename:
+                    logger.error(f"No GGUF files found in {repo_id}")
+                    return None
+
+            logger.info(f"Downloading {filename} from {repo_id}")
+
+            # Download with progress tracking
+            downloaded_path = hf_hub_download(
+                repo_id=repo_id,
+                filename=filename,
+                local_dir=str(self._models_path),
+                local_dir_use_symlinks=False,
+            )
+
+            result_path = Path(downloaded_path)
+            logger.info(f"Model downloaded to {result_path}")
+
+            return result_path
+
+        except ImportError:
+            logger.error(
+                "huggingface-hub not installed. "
+                "Install with: pip install huggingface-hub"
+            )
+            return None
+        except Exception as e:
+            logger.error(f"Failed to download model for tier {tier}: {e}")
+            return None
+
+    async def download_model_async(
+        self,
+        tier: str,
+        profile_id: Optional[str] = None,
+        db: Optional[AsyncSession] = None,
+    ) -> Optional[Path]:
+        """
+        Async wrapper for model downloading.
+
+        Args:
+            tier: Tier to download
+            profile_id: Optional profile ID for progress tracking
+            db: Optional database session for progress updates
+
+        Returns:
+            Path to downloaded model or None if failed.
+        """
+        if profile_id and db:
+            progress = DownloadProgress(
+                tier=tier,
+                status="downloading",
+                started_at=datetime.utcnow(),
+            )
+            await self.update_download_progress(profile_id, tier, progress, db)
+            await db.commit()
+
+        try:
+            result = await asyncio.to_thread(self.download_model, tier)
+
+            if profile_id and db:
+                progress.status = "completed" if result else "failed"
+                progress.completed_at = datetime.utcnow()
+                progress.path = str(result) if result else None
+                await self.update_download_progress(profile_id, tier, progress, db)
+                await db.commit()
+
+            return result
+
+        except Exception as e:
+            if profile_id and db:
+                progress = DownloadProgress(
+                    tier=tier,
+                    status="failed",
+                    error=str(e),
+                    completed_at=datetime.utcnow(),
+                )
+                await self.update_download_progress(profile_id, tier, progress, db)
+                await db.commit()
+            raise
+
+    def ensure_model_available(self, tier: str = "low") -> Optional[Path]:
+        """
+        Ensure a model is available, downloading if necessary.
+
+        This is the main entry point for auto-downloading models.
+
+        Args:
+            tier: Preferred tier to download if no models exist
+
+        Returns:
+            Path to an available model or None.
+        """
+        # Check if any model is already available
+        for check_tier in ["low", "mid", "high"]:
+            path = self.get_model_path(check_tier)
+            if path:
+                logger.info(f"Found existing model for tier {check_tier}: {path}")
+                return path
+
+        # No model found, download the requested tier
+        logger.info(f"No models found, downloading tier {tier}")
+        return self.download_model(tier)
+
     async def get_download_progress(
         self,
         profile_id: str,
