@@ -12,7 +12,11 @@ Handles:
 from typing import Optional
 from dataclasses import dataclass, field
 import re
+import logging
 
+from core.model_runner import get_model_runner, InferenceConfig
+
+from .embeddings import EmbeddingsModule
 from .claim_extractor import ClaimExtractor, ExtractedClaim, ClaimExtractionResult
 from .source_authority import (
     SourceAuthorityScorer,
@@ -138,8 +142,12 @@ USER QUESTION: {question}"""
             verification_config: Configuration for verifier agent
             faithfulness_config: Configuration for faithfulness scoring
         """
-        # TODO: Initialize embedding model
-        # TODO: Initialize LLM
+        self._logger = logging.getLogger(__name__)
+
+        # Sprint 6: Initialize LLM model runner and embeddings
+        self._model_runner = get_model_runner()
+        self._embedder = EmbeddingsModule()
+        self._profile_db = None  # Set per-request via set_profile_db()
 
         # Phase 4: Verification components
         self.enable_verification = enable_verification
@@ -241,6 +249,17 @@ USER QUESTION: {question}"""
 
         return chunks
 
+    def set_profile_db(self, profile_db):
+        """
+        Set the profile database session for vector search.
+
+        Must be called before querying if vector search is needed.
+
+        Args:
+            profile_db: Profile database session (SQLAlchemy async session)
+        """
+        self._profile_db = profile_db
+
     def _search_vectors(
         self,
         query: str,
@@ -253,8 +272,7 @@ USER QUESTION: {question}"""
         """
         Search vector database for relevant chunks.
 
-        This method will be implemented to use the actual vector store.
-        For now, returns empty list (to be mocked in tests).
+        Sprint 6: Implements real vector search using stored embeddings.
 
         Args:
             query: Search query
@@ -267,10 +285,99 @@ USER QUESTION: {question}"""
         Returns:
             List of (chunk_data, similarity_score) tuples
         """
-        # TODO: Implement actual vector search
-        # This will use EmbeddingsModule to embed query
-        # Then search the vector store in the profile database
-        return []
+        if self._profile_db is None:
+            self._logger.warning("Profile database not set for vector search")
+            return []
+
+        # Run synchronous search
+        import asyncio
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # Create a new task for the coroutine
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(
+                        asyncio.run,
+                        self._search_vectors_async(
+                            query, profile_id, selected_analytes, from_date, to_date, top_k
+                        )
+                    )
+                    return future.result()
+            else:
+                return asyncio.run(
+                    self._search_vectors_async(
+                        query, profile_id, selected_analytes, from_date, to_date, top_k
+                    )
+                )
+        except Exception as e:
+            self._logger.error(f"Vector search failed: {e}")
+            return []
+
+    async def _search_vectors_async(
+        self,
+        query: str,
+        profile_id: str,
+        selected_analytes: Optional[list[str]] = None,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        top_k: int = 10,
+    ) -> list[tuple[dict, float]]:
+        """
+        Async implementation of vector search.
+
+        Args:
+            query: Search query
+            profile_id: Profile to search
+            selected_analytes: Filter by analytes (not yet implemented)
+            from_date: Filter by date start (not yet implemented)
+            to_date: Filter by date end (not yet implemented)
+            top_k: Number of results
+
+        Returns:
+            List of (chunk_data, similarity_score) tuples
+        """
+        from sqlalchemy import select
+        from models import Chunk, Embedding, Document
+
+        # Embed the query
+        query_vector = self._embedder.embed_text(query)
+
+        # Fetch all chunks with embeddings from the profile database
+        # In production, this would use a proper vector index (FAISS, pgvector, etc.)
+        stmt = (
+            select(Chunk, Embedding, Document)
+            .join(Embedding, Chunk.id == Embedding.chunk_id)
+            .join(Document, Chunk.doc_id == Document.id)
+        )
+
+        result = await self._profile_db.execute(stmt)
+        rows = result.all()
+
+        if not rows:
+            return []
+
+        # Calculate similarity scores
+        candidates = []
+        for chunk, embedding, document in rows:
+            stored_vector = self._embedder.blob_to_vector(embedding.vector_blob)
+            similarity = self._embedder.cosine_similarity(query_vector, stored_vector)
+
+            chunk_data = {
+                "chunk_id": chunk.id,
+                "doc_id": chunk.doc_id,
+                "doc_title": document.source or f"Document {document.id[:8]}",
+                "text": chunk.text,
+                "page_number": chunk.page_number,
+                "source_type": "user_document",
+                "is_user_verified": document.status == "verified",
+            }
+            candidates.append((chunk_data, similarity))
+
+        # Sort by similarity descending and return top_k
+        candidates.sort(key=lambda x: x[1], reverse=True)
+
+        return candidates[:top_k]
 
     def compose_prompt(
         self,
@@ -307,10 +414,44 @@ USER QUESTION: {question}"""
         """
         Generate response using local LLM.
 
-        Uses llama.cpp or configured model runner.
+        Uses llama-cpp-python via the ModelRunner.
+
+        Args:
+            prompt: The composed prompt with context and question
+
+        Returns:
+            Generated response text
+
+        Raises:
+            RuntimeError: If LLM is not available
         """
-        # TODO: Implement LLM inference
-        raise NotImplementedError("LLM inference not yet implemented")
+        if not self._model_runner.is_available():
+            self._logger.warning("LLM model not available for inference")
+            raise NotImplementedError(
+                "LLM model not available. Please download a GGUF model to the models directory."
+            )
+
+        config = InferenceConfig(
+            max_tokens=1024,
+            temperature=0.1,  # Low temperature for factual, consistent responses
+            top_p=0.9,
+            timeout_seconds=60,
+        )
+
+        try:
+            result = await self._model_runner.generate_async(prompt, config)
+
+            if result.finish_reason == "timeout":
+                self._logger.warning("LLM generation timed out")
+                # Return a safe response rather than failing
+                return """UNCERTAINTIES:
+I was unable to fully process your question within the time limit. Please try asking a more specific question about your results."""
+
+            return result.text
+
+        except Exception as e:
+            self._logger.error(f"LLM generation failed: {e}")
+            raise RuntimeError(f"Failed to generate response: {e}")
 
     def validate_response(
         self,
