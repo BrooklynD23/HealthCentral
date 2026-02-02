@@ -8,8 +8,9 @@ Handles:
 - Confidence scoring
 """
 
+import io
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union, BinaryIO
 from dataclasses import dataclass, field
 import re
 
@@ -85,16 +86,17 @@ class ExtractModule:
     
     async def extract_from_pdf(
         self,
-        pdf_path: Path,
+        pdf_source: Union[Path, BinaryIO, io.BytesIO],
         document_id: str,
     ) -> ExtractionResult:
         """
         Extract lab values from a text-based PDF.
-        
+
         Args:
-            pdf_path: Path to PDF file
+            pdf_source: Path to PDF file, or file-like object (BytesIO) containing PDF data.
+                       BytesIO is used when reading decrypted documents from memory.
             document_id: Document ID for provenance
-            
+
         Returns:
             ExtractionResult with observations
         """
@@ -102,11 +104,11 @@ class ExtractModule:
             import pdfplumber
         except ImportError:
             raise RuntimeError("pdfplumber not installed")
-        
+
         observations = []
         collection_dates = []
-        
-        with pdfplumber.open(pdf_path) as pdf:
+
+        with pdfplumber.open(pdf_source) as pdf:
             for page_num, page in enumerate(pdf.pages, start=1):
                 # Extract text
                 text = page.extract_text() or ""

@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     database_type: Literal["sqlite", "postgresql"] = "sqlite"
     sqlite_database_path: str = "data/healthcentral.db"
     database_encryption_enabled: bool = True
+    # Require SQLCipher for profile databases. Set to False only for development.
+    database_encryption_required: bool = True
     
     # PostgreSQL (future server mode)
     postgres_host: str = "localhost"

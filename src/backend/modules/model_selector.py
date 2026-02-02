@@ -574,9 +574,12 @@ class ModelSelector:
             logger.info(f"Downloading {filename} from {repo_id}")
 
             # Download with progress tracking
+            # Use revision pinning for reproducible builds
+            revision = config.get("revision", "main")
             downloaded_path = hf_hub_download(
                 repo_id=repo_id,
                 filename=filename,
+                revision=revision,
                 local_dir=str(self._models_path),
                 local_dir_use_symlinks=False,
             )

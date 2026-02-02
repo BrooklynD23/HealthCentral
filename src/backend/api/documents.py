@@ -24,6 +24,7 @@ from core.database import get_db
 from core.config import settings
 from core.audit import log_document_event
 from core.auth import RequireAuth, Session, ProfileDbSession
+from core.document_crypto import get_decrypted_document, get_profile_encryption_key
 from models import Document, Observation, Chunk, Embedding
 from modules.extract import ExtractModule
 from modules.chunking import ChunkingModule
@@ -142,11 +143,17 @@ async def import_document(
     """
     profile_id = session.profile_id
 
-    # Import using ingest module
+    # Import using ingest module with encryption
     from modules import IngestModule
 
     vault_path = Path(settings.app_data_path) / "vaults" / profile_id
-    ingest = IngestModule(vault_path)
+    encryption_key = get_profile_encryption_key(profile_id)
+    if not encryption_key:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Profile vault not available - please log in again"
+        )
+    ingest = IngestModule(vault_path, encryption_key=encryption_key)
 
     try:
         import_result = await ingest.import_document(
@@ -184,10 +191,11 @@ async def import_document(
 
     if import_result.doc_type == "lab_pdf":
         try:
-            doc_path = vault_path / "docs" / f"{import_result.document_id}.bin"
+            # Decrypt document for extraction
+            decrypted_doc = get_decrypted_document(profile_id, import_result.document_id)
             extract_module = ExtractModule()
             extraction_result = await extract_module.extract_from_pdf(
-                doc_path, import_result.document_id
+                decrypted_doc, import_result.document_id
             )
 
             # Persist observations to profile database
@@ -232,8 +240,8 @@ async def import_document(
             try:
                 chunks_created = await _create_chunks_and_embeddings(
                     profile_db=profile_db,
+                    profile_id=profile_id,
                     doc_id=import_result.document_id,
-                    doc_path=doc_path,
                 )
                 logger.info(
                     f"Created {chunks_created} chunks with embeddings for document {import_result.document_id}"
@@ -290,8 +298,8 @@ def _canonicalize_analyte(raw_name: str) -> str:
 
 async def _create_chunks_and_embeddings(
     profile_db,
+    profile_id: str,
     doc_id: str,
-    doc_path: Path,
 ) -> int:
     """
     Sprint 6: Create text chunks and embeddings for RAG.
@@ -300,8 +308,8 @@ async def _create_chunks_and_embeddings(
 
     Args:
         profile_db: Profile database session
+        profile_id: Profile ID (for document decryption)
         doc_id: Document ID
-        doc_path: Path to the document file
 
     Returns:
         Number of chunks created
@@ -311,9 +319,10 @@ async def _create_chunks_and_embeddings(
     chunker = ChunkingModule()
     embedder = EmbeddingsModule()
 
-    # Extract text from each page
+    # Decrypt document and extract text from each page
+    decrypted_doc = get_decrypted_document(profile_id, doc_id)
     pages_text = []
-    with pdfplumber.open(doc_path) as pdf:
+    with pdfplumber.open(decrypted_doc) as pdf:
         for page in pdf.pages:
             text = page.extract_text() or ""
             pages_text.append(text)
@@ -459,22 +468,14 @@ async def get_document_pages(
     # Verify session has access to this document
     verify_document_access(document, session)
 
-    # Get document file path
-    vault_path = Path(settings.app_data_path) / "vaults" / document.profile_id / "docs"
-    doc_path = vault_path / f"{document_id}.bin"
-
-    if not doc_path.exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Document file not found"
-        )
-
     pages = []
 
     if document.doc_type == "lab_pdf":
         try:
             import pdfplumber
-            with pdfplumber.open(doc_path) as pdf:
+            # Decrypt document for page extraction
+            decrypted_doc = get_decrypted_document(document.profile_id, document_id)
+            with pdfplumber.open(decrypted_doc) as pdf:
                 for i, page in enumerate(pdf.pages):
                     text = page.extract_text() or ""
                     tables = page.extract_tables()
@@ -483,6 +484,17 @@ async def get_document_pages(
                         text=text,
                         has_tables=len(tables) > 0,
                     ))
+        except FileNotFoundError:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Document file not found"
+            )
+        except PermissionError as e:
+            logger.error(f"Permission denied accessing document {document_id}: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot access document - session may have expired"
+            )
         except Exception as e:
             # Log the actual error for debugging but return generic message
             logger.error(f"Failed to extract pages from document {document_id}: {e}")

@@ -15,14 +15,15 @@ import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/compo
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useDocuments, useImportDocument, type Document } from '@/services';
+import { useAuthStore } from '@/stores/authStore';
 
 export function DocumentInbox() {
   const prefersReducedMotion = useReducedMotion();
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  // Get active profile from localStorage
-  const profileId = localStorage.getItem('activeProfileId') || '';
+
+  // Get active profile from auth store
+  const profileId = useAuthStore((state) => state.profileId) || '';
   
   // Fetch documents from API
   const { data: documents = [], isLoading, error } = useDocuments({ profile_id: profileId });

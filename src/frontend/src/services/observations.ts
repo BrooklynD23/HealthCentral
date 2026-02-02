@@ -12,15 +12,14 @@ const QUERY_KEY = 'observations';
 
 // API functions
 async function fetchObservations(filters: ObservationFilters): Promise<Observation[]> {
-  const params: Record<string, string> = {
-    profile_id: filters.profile_id,
-  };
+  // profile_id is extracted from auth token by backend, not query params
+  const params: Record<string, string> = {};
   if (filters.analyte) params.analyte = filters.analyte;
   if (filters.from_date) params.from_date = filters.from_date;
   if (filters.to_date) params.to_date = filters.to_date;
   if (filters.abnormal_only) params.abnormal_only = 'true';
   if (filters.needs_verification) params.needs_verification = 'true';
-  
+
   return apiGet<Observation[]>('/observations/', params);
 }
 
@@ -40,29 +39,25 @@ async function verifyObservation(
 
 async function fetchTrend(
   analyte: string,
-  profileId: string,
   fromDate?: string,
   toDate?: string
 ): Promise<TrendData> {
-  const params: Record<string, string> = {
-    profile_id: profileId,
-  };
+  // profile_id is extracted from auth token by backend
+  const params: Record<string, string> = {};
   if (fromDate) params.from_date = fromDate;
   if (toDate) params.to_date = toDate;
-  
+
   return apiGet<TrendData>(`/observations/trends/${analyte}`, params);
 }
 
 async function fetchPanel(
   panelId: string,
-  profileId: string,
   collectionDate?: string
 ): Promise<Panel> {
-  const params: Record<string, string> = {
-    profile_id: profileId,
-  };
+  // profile_id is extracted from auth token by backend
+  const params: Record<string, string> = {};
   if (collectionDate) params.collection_date = collectionDate;
-  
+
   return apiGet<Panel>(`/observations/panels/${panelId}`, params);
 }
 
@@ -102,26 +97,26 @@ export function useVerifyObservation() {
 
 export function useTrend(
   analyte: string | undefined,
-  profileId: string | undefined,
+  _profileId?: string | undefined,
   fromDate?: string,
   toDate?: string
 ) {
   return useQuery({
-    queryKey: [QUERY_KEY, 'trends', analyte, profileId, fromDate, toDate],
-    queryFn: () => fetchTrend(analyte!, profileId!, fromDate, toDate),
-    enabled: !!analyte && !!profileId,
+    queryKey: [QUERY_KEY, 'trends', analyte, fromDate, toDate],
+    queryFn: () => fetchTrend(analyte!, fromDate, toDate),
+    enabled: !!analyte,
   });
 }
 
 export function usePanel(
   panelId: string | undefined,
-  profileId: string | undefined,
+  _profileId?: string | undefined,
   collectionDate?: string
 ) {
   return useQuery({
-    queryKey: [QUERY_KEY, 'panels', panelId, profileId, collectionDate],
-    queryFn: () => fetchPanel(panelId!, profileId!, collectionDate),
-    enabled: !!panelId && !!profileId,
+    queryKey: [QUERY_KEY, 'panels', panelId, collectionDate],
+    queryFn: () => fetchPanel(panelId!, collectionDate),
+    enabled: !!panelId,
   });
 }
 

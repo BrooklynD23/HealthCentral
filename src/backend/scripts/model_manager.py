@@ -128,9 +128,12 @@ def cmd_download(args):
         print(f"  Downloading to: {models_dir / filename}")
         print("  This may take a while...\n")
 
+        # Use revision pinning for reproducible builds
+        revision = config.get("revision", "main")
         local_path = hf_hub_download(
             repo_id=repo,
             filename=filename,
+            revision=revision,
             local_dir=str(models_dir),
             local_dir_use_symlinks=False,
         )
