@@ -37,6 +37,11 @@ from .security import (
 logger = logging.getLogger(__name__)
 
 
+class ProfileDatabaseEncryptionError(Exception):
+    """Raised when profile database encryption is not functional."""
+    pass
+
+
 class ProfileDatabaseBase(DeclarativeBase):
     """SQLAlchemy declarative base for profile-specific models."""
     pass
@@ -241,8 +246,31 @@ class PerProfileDatabaseManager:
             # This uses raw hex key mode (x'...') to avoid PBKDF2 overhead
             @event.listens_for(engine.sync_engine, "connect")
             def set_sqlite_pragma(dbapi_connection, connection_record):
-                """Set SQLCipher PRAGMA key on connection."""
+                """Set SQLCipher PRAGMA key on connection and verify encryption."""
                 cursor = dbapi_connection.cursor()
+
+                # Check if SQLCipher is available
+                cursor.execute("PRAGMA cipher_version")
+                cipher_version = cursor.fetchone()
+
+                if not cipher_version or not cipher_version[0]:
+                    # SQLCipher not available - PRAGMA key will be silently ignored
+                    if settings.database_encryption_required:
+                        cursor.close()
+                        raise ProfileDatabaseEncryptionError(
+                            "SQLCipher is not available but database encryption is required. "
+                            "Install SQLCipher or set DATABASE_ENCRYPTION_REQUIRED=false for development."
+                        )
+                    else:
+                        logger.warning(
+                            "SQLCipher not available - profile database will be UNENCRYPTED. "
+                            "This is only acceptable in development mode."
+                        )
+                        cursor.close()
+                        return
+
+                logger.debug(f"SQLCipher version: {cipher_version[0]}")
+
                 # Use raw key mode for direct key usage (no PBKDF2)
                 # Format: PRAGMA key = "x'<hex_key>'";
                 cursor.execute(f"PRAGMA key = \"x'{hex_key}'\"")

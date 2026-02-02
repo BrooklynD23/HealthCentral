@@ -16,9 +16,8 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.auth import RequireAuth, Session, ProfileDbSession
+from core.auth import RequireAuth, ProfileDbSession
 from models import UserModelSettings
 from modules.hardware_detection import (
     HardwareProfile,
@@ -129,8 +128,8 @@ class TiersListResponse(BaseModel):
     description="Get current model settings including hardware info and tier availability.",
 )
 async def get_model_settings(
-    session: Session = Depends(RequireAuth()),
-    profile_db: AsyncSession = Depends(ProfileDbSession),
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
 ):
     """Get current model settings and hardware information."""
     selector = get_model_selector()
@@ -211,8 +210,8 @@ async def get_model_settings(
     description="Run hardware detection and save results.",
 )
 async def run_hardware_detection(
-    session: Session = Depends(RequireAuth()),
-    profile_db: AsyncSession = Depends(ProfileDbSession),
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
 ):
     """Run hardware detection and save results to database."""
     selector = get_model_selector()
@@ -253,8 +252,8 @@ async def run_hardware_detection(
 )
 async def set_model_tier(
     request: TierSetRequest,
-    session: Session = Depends(RequireAuth()),
-    profile_db: AsyncSession = Depends(ProfileDbSession),
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
 ):
     """Set user's preferred model tier."""
     selector = get_model_selector()
@@ -306,8 +305,8 @@ async def set_model_tier(
     description="List all available tiers with their status.",
 )
 async def list_tiers(
-    session: Session = Depends(RequireAuth()),
-    profile_db: AsyncSession = Depends(ProfileDbSession),
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
 ):
     """List all available tiers with their status."""
     selector = get_model_selector()
@@ -353,8 +352,8 @@ async def list_tiers(
     description="Get download progress for all tiers.",
 )
 async def get_download_progress(
-    session: Session = Depends(RequireAuth()),
-    profile_db: AsyncSession = Depends(ProfileDbSession),
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
 ):
     """Get download progress for all tiers from database."""
     selector = get_model_selector()
@@ -389,8 +388,8 @@ async def get_download_progress(
 async def start_model_download(
     request: TierDownloadRequest,
     background_tasks: BackgroundTasks,
-    session: Session = Depends(RequireAuth()),
-    profile_db: AsyncSession = Depends(ProfileDbSession),
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
 ):
     """Start downloading a model in the background."""
     selector = get_model_selector()
@@ -477,9 +476,12 @@ async def _download_model_task(
             filename = matching[0] if matching else gguf_files[0]
 
         # Download (this blocks but we're in a background task)
+        # Use revision pinning for reproducible builds
+        revision = config.get("revision", "main")
         local_path = hf_hub_download(
             repo_id=repo,
             filename=filename,
+            revision=revision,
             local_dir=str(selector.models_path),
             local_dir_use_symlinks=False,
         )

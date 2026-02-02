@@ -32,7 +32,7 @@ import type { Observation } from '@/services/types';
 const panels = [
   { id: 'cbc', label: 'CBC' },
   { id: 'cmp', label: 'CMP' },
-  { id: 'lipids', label: 'Lipids' },
+  { id: 'lipid', label: 'Lipids' },
   { id: 'thyroid', label: 'Thyroid' },
 ];
 
