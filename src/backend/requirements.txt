@@ -14,8 +14,10 @@ pydantic-settings>=2.1.0
 # =============================================================================
 sqlalchemy>=2.0.25
 aiosqlite>=0.19.0
-# sqlcipher3 is installed separately (requires SQLCipher library)
-# For development without encryption: sqlite3 (built-in)
+alembic>=1.13.0
+
+# SQLCipher for encrypted per-profile databases (pre-compiled wheels)
+sqlcipher3-binary>=0.5.0
 
 # =============================================================================
 # PDF Processing

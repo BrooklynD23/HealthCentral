@@ -16,8 +16,6 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, AsyncGenerator
-from weakref import WeakValueDictionary
-
 from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -33,6 +31,8 @@ from .security import (
     KeySealingError,
     derive_key_from_password,
 )
+from .sqlcipher_driver import is_sqlcipher_available, get_sqlcipher_module
+from .migrations import run_profile_migration_async
 
 logger = logging.getLogger(__name__)
 
@@ -231,6 +231,12 @@ class PerProfileDatabaseManager:
             db_path = self._get_profile_db_path(profile_id)
             db_path.parent.mkdir(parents=True, exist_ok=True)
 
+            # Patch aiosqlite to use sqlcipher3 if available
+            if is_sqlcipher_available():
+                import aiosqlite.core
+                aiosqlite.core.sqlite3 = get_sqlcipher_module()
+                logger.debug("Patched aiosqlite to use sqlcipher3")
+
             # Create async engine
             # Note: SQLCipher requires setting the key via PRAGMA before any operations
             # We use the aiosqlite driver with a connect event to set the key
@@ -289,8 +295,9 @@ class PerProfileDatabaseManager:
                 expire_on_commit=False,
             )
 
-            # Initialize database schema
-            await self._init_profile_schema(engine)
+            # Run profile migrations (with baseline detection)
+            # This runs in a thread to avoid blocking the event loop
+            await run_profile_migration_async(db_path, encryption_key)
 
             # Create and cache connection
             connection = ProfileDatabaseConnection(
@@ -304,9 +311,13 @@ class PerProfileDatabaseManager:
             logger.info(f"Opened encrypted database for profile {profile_id}")
             return connection
 
-    async def _init_profile_schema(self, engine: AsyncEngine) -> None:
+    async def _init_profile_schema_for_tests(self, engine: AsyncEngine) -> None:
         """
-        Initialize the database schema for a profile database.
+        Initialize the database schema for tests only.
+
+        DEPRECATED: Normal runtime uses Alembic migrations.
+        This method is kept for test environments that need quick schema setup
+        without running the full migration machinery.
 
         Creates all tables defined in profile-specific models.
         """
