@@ -25,25 +25,22 @@ HealthCentral helps patients:
 
 ```
 HealthCentral/
-├── docs/                      # PRD and architecture documentation
+├── docs/                      # Architecture and feature documentation
 ├── implementation_plan/       # Feature implementation tracking
 ├── src/
-│   ├── backend/              # Python FastAPI backend services
+│   ├── backend/              # Python FastAPI backend
 │   │   ├── api/              # API routes and endpoints
-│   │   ├── core/             # Core configuration and security
-│   │   ├── modules/          # Feature modules (ingest, extract, etc.)
-│   │   ├── models/           # Database models and schemas
-│   │   └── services/         # Business logic services
-│   ├── frontend/             # Web UI (Tauri/Electron shell)
-│   │   ├── src/
-│   │   └── public/
-│   ├── shared/               # Shared types and utilities
-│   └── desktop/              # Desktop shell (Tauri)
+│   │   ├── core/             # Core config, security, database
+│   │   ├── models/           # SQLAlchemy database models
+│   │   ├── modules/          # Feature modules (ingest, RAG, etc.)
+│   │   └── tests/            # Backend test suites
+│   └── frontend/             # React + Vite + TypeScript
+│       ├── src/
+│       └── public/
+├── config/                   # Configuration templates (.env.example)
 ├── data/                     # Local data directory (gitignored)
 ├── models/                   # Local AI models (gitignored)
-├── tests/                    # Test suites
-├── scripts/                  # Build and utility scripts
-└── config/                   # Configuration templates
+└── scripts/                  # Build and utility scripts
 ```
 
 ## Technology Stack
@@ -54,7 +51,7 @@ HealthCentral/
 - **Vector Store**: sqlite-vss or FAISS (encrypted)
 - **Local LLM**: llama.cpp with GGUF models
 - **Embeddings**: bge-small-en or e5-small
-- **Desktop Shell**: Tauri (Rust + WebView)
+- **Frontend**: React + Vite + TypeScript
 
 ### Future Scalability
 Architecture designed for:
@@ -63,12 +60,83 @@ Architecture designed for:
 - Multi-user support with authentication
 - Cloud storage options (opt-in)
 
+## SQLCipher Setup (Required for Database Encryption)
+
+HealthCentral uses SQLCipher for encrypted per-profile databases. Each user profile has its own AES-256 encrypted SQLite database.
+
+### Installation
+
+#### Windows (Recommended: pre-built wheel)
+```powershell
+pip install sqlcipher3-binary
+```
+
+#### Linux (Debian/Ubuntu)
+```bash
+sudo apt-get install libsqlcipher-dev
+pip install sqlcipher3-binary
+```
+
+#### macOS
+```bash
+brew install sqlcipher
+pip install sqlcipher3-binary
+```
+
+### Verify Installation
+```python
+import sqlcipher3
+conn = sqlcipher3.connect(":memory:")
+cursor = conn.cursor()
+cursor.execute("PRAGMA cipher_version")
+print(cursor.fetchone())  # Should print ('4.x.x',)
+```
+
+### Development Without SQLCipher
+If you cannot install SQLCipher, set in `.env`:
+```
+DATABASE_ENCRYPTION_REQUIRED=false
+```
+**WARNING:** Profile databases will be unencrypted. Never use in production.
+
+## Database Migrations
+
+HealthCentral uses **Alembic** for database schema migrations with a dual-environment setup:
+
+- **Master database**: Profiles, audit logs, knowledge base (unencrypted)
+- **Profile databases**: Per-user SQLCipher encrypted vaults
+
+### Running Migrations
+
+```powershell
+cd src\backend
+
+# Run master database migrations
+python -m scripts.migrate master
+
+# Check migration status
+python -m scripts.migrate status
+
+# Run profile migrations (requires password)
+python -m scripts.migrate profile --profile-id <uuid>
+```
+
+### Safe Rollout
+
+The migration system includes **baseline detection**:
+- Existing databases without `alembic_version` are stamped (not migrated)
+- This prevents "table already exists" errors on existing installations
+- New installations get full schema creation via migrations
+
+Migrations run automatically:
+- Master migrations run on application startup
+- Profile migrations run when a vault is opened
+
 ## Getting Started
 
 ### Prerequisites
-- Python 3.10+
+- Python 3.11+
 - Node.js 18+ (for frontend)
-- Rust (for Tauri desktop shell - optional for web dev)
 
 ### Quick Start (Recommended)
 

@@ -11,13 +11,19 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from core.config import settings
 from core.database import init_database, close_database
+from core.migrations import run_master_migrations_async
 from api import router as api_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager for startup/shutdown events."""
+    # Initialize directories and verify SQLCipher
     await init_database()
+
+    # Run master database migrations (non-blocking via thread)
+    await run_master_migrations_async()
+
     yield
     await close_database()
 

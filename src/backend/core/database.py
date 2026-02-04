@@ -13,6 +13,7 @@ Supports:
 Uses repository pattern for database abstraction.
 """
 
+import logging
 from pathlib import Path
 from typing import AsyncGenerator
 
@@ -24,6 +25,9 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import DeclarativeBase
 
 from .config import settings
+from .sqlcipher_driver import is_sqlcipher_available, verify_cipher_version
+
+logger = logging.getLogger(__name__)
 
 
 class Base(DeclarativeBase):
@@ -53,11 +57,27 @@ async_session_maker = async_sessionmaker(
 
 async def init_database() -> None:
     """
-    Initialize the MASTER database and create tables.
+    Initialize the MASTER database directories and verify SQLCipher.
 
-    Phase 3: Only creates Profile and AuditLog tables.
-    Per-profile tables are created when a profile is first accessed.
+    Phase 3: Schema creation is handled by Alembic migrations.
+    This function only:
+    - Verifies SQLCipher availability if encryption is required
+    - Creates necessary directories (data, logs, vaults)
+
+    Migrations are run separately via run_master_migrations_async()
+    in the FastAPI lifespan handler.
     """
+    # Verify SQLCipher availability if encryption is required
+    if settings.database_encryption_required:
+        if not is_sqlcipher_available():
+            logger.critical(
+                "SQLCipher REQUIRED but not available. "
+                "Install: pip install sqlcipher3-binary"
+            )
+            raise RuntimeError("SQLCipher required but not available")
+        version = verify_cipher_version()
+        logger.info(f"SQLCipher available: version {version}")
+
     # Ensure data directory exists (local mode)
     if settings.app_mode == "local":
         data_dir = Path(settings.app_data_path)
@@ -71,13 +91,8 @@ async def init_database() -> None:
         vaults_dir = data_dir / "vaults"
         vaults_dir.mkdir(parents=True, exist_ok=True)
 
-    # Import only MASTER database models
-    # Profile, AuditLog, and Knowledge Base use Base (master database)
-    from models import profile, audit, knowledge_base
-
-    # Create master database tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # Note: Schema creation removed - now handled by Alembic migrations
+    # See core/migrations.py:run_master_migrations()
 
 
 async def close_database() -> None:

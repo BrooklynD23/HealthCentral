@@ -1,7 +1,7 @@
 # Backend Integration Status
 
-**Last Updated:** 2026-01-31
-**Status:** Sprint 5 Complete (RAG Assistant Pipeline)
+**Last Updated:** 2026-02-04
+**Status:** Sprint 6 Complete (Security Revamp + Alembic Migrations)
 
 ---
 
@@ -173,6 +173,57 @@ All models are implemented in `src/backend/models/`:
 | `AdherencePattern` | `adherence_patterns` | Per-Profile | ✅ Done |
 | `ReminderLog` | `reminder_logs` | Per-Profile | ✅ Done |
 | `UserModelSettings` | `user_model_settings` | Per-Profile | ✅ Done |
+
+---
+
+## Database Migrations (Alembic)
+
+HealthCentral uses Alembic for versioned schema migrations with a dual-environment setup.
+
+### Migration Architecture
+
+| Component | Location | Description |
+|-----------|----------|-------------|
+| `alembic.ini` | `src/backend/` | Configuration with `[master]` and `[profile]` sections |
+| Master env.py | `migrations/master/env.py` | Sync SQLite migrations for master DB |
+| Profile env.py | `migrations/profile/env.py` | SQLCipher-aware migrations with PRAGMA key |
+| Migration utilities | `core/migrations.py` | Baseline detection + async wrappers |
+| CLI tool | `scripts/migrate.py` | Manual migration execution |
+
+### Key Features
+
+1. **Baseline Detection**: Existing DBs without `alembic_version` are stamped (not re-created)
+2. **Non-blocking**: All Alembic calls run via `asyncio.to_thread()`
+3. **SQLCipher Support**: Profile migrations set `PRAGMA key` before operations
+4. **Automatic Execution**:
+   - Master migrations run on app startup (`main.py` lifespan)
+   - Profile migrations run on vault open (`profile_database.py`)
+
+### Schema Versions
+
+| Database | Current Revision | Tables |
+|----------|-----------------|--------|
+| Master | `001_initial` | profiles, audit_logs, biomarker_knowledge, intervention_mappings, biomarker_relationships |
+| Profile | `001_initial` | documents, observations, chunks, embeddings, lab_interpretations, panel_interpretations, medications, medication_schedules, doses_taken, adherence_patterns, reminder_logs, user_model_settings |
+
+### CLI Commands
+
+```bash
+cd src/backend
+
+# Run master migrations
+python -m scripts.migrate master
+
+# Check status
+python -m scripts.migrate status
+
+# Run profile migrations
+python -m scripts.migrate profile --profile-id <uuid> --password <pwd>
+
+# Alembic CLI (for development)
+alembic -c alembic.ini -n master current
+alembic -c alembic.ini -n master upgrade head
+```
 
 ---
 
