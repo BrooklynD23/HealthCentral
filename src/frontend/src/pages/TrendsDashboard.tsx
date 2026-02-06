@@ -89,8 +89,6 @@ export function TrendsDashboard() {
 
   // Get latest value info
   const latestValue = trendData?.data_points?.[trendData.data_points.length - 1];
-  const previousValue = trendData?.data_points?.[trendData.data_points.length - 2];
-
   const getTrendIcon = (current: number | undefined, previous: number | undefined) => {
     if (!current || !previous) return <Minus className="w-4 h-4" />;
     const diff = current - previous;
