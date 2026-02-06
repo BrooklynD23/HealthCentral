@@ -35,7 +35,7 @@ foreach ($cmd in @("python", "python3", "py")) {
         $version = & $cmd --version 2>&1
         if ($version -match "Python 3\.(\d+)") {
             $minorVersion = [int]$Matches[1]
-            if ($minorVersion -ge 10) {
+            if ($minorVersion -ge 11) {
                 $pythonCmd = $cmd
                 Write-Success "Found $version"
                 break
@@ -45,7 +45,7 @@ foreach ($cmd in @("python", "python3", "py")) {
 }
 
 if (-not $pythonCmd) {
-    Write-Error "Python 3.10+ is required but not found."
+    Write-Error "Python 3.11+ is required but not found."
     Write-Host "Please install Python from https://python.org" -ForegroundColor Gray
     exit 1
 }

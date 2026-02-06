@@ -49,6 +49,12 @@ class Settings(BaseSettings):
     auto_lock_timeout_minutes: int = 15
     use_dpapi: bool = True
     jwt_secret: str = ""
+    jwt_revocation_enabled: bool = True  # Allow logout to invalidate JWTs locally
+
+    # Authentication hardening
+    auth_rate_limit_enabled: bool = True
+    auth_rate_limit_max_attempts: int = 10
+    auth_rate_limit_window_seconds: int = 60
     
     # Local AI models
     models_path: str = "models/"
@@ -70,6 +76,7 @@ class Settings(BaseSettings):
     max_import_file_size_mb: int = 50
     supported_doc_types: str = "pdf,png,jpg,jpeg"
     ocr_enabled: bool = False
+    allow_legacy_plaintext_documents: bool = False
     
     # Logging
     log_level: str = "INFO"

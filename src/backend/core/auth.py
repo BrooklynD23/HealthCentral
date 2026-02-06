@@ -63,6 +63,7 @@ class Session:
     profile_id: str
     profile_name: str
     expires_at: datetime
+    token_jti: Optional[str] = None
     _db_connection: Optional[ProfileDatabaseConnection] = None
 
     @property
@@ -208,6 +209,7 @@ async def get_current_session(
         profile_id=profile_id,
         profile_name=payload.get("name", ""),
         expires_at=expires_at,
+        token_jti=payload.get("jti") if isinstance(payload.get("jti"), str) else None,
     )
 
 

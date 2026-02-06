@@ -118,7 +118,7 @@ test.describe('RAG Assistant Feature', () => {
 });
 
 test.describe('Assistant API Endpoints', () => {
-  test('E2E-RAG-004a: Glossary endpoint returns 200', async ({ request }) => {
+  test('E2E-RAG-004a: Glossary endpoint returns 200', async ({ request: _request }) => {
     // This test directly hits the API to verify the endpoint works
     // Note: Requires backend to be running
 
@@ -135,7 +135,7 @@ test.describe('Assistant API Endpoints', () => {
     // expect(body.definition).toBeDefined();
   });
 
-  test('E2E-RAG-004b: Test intent endpoint returns 200', async ({ request }) => {
+  test('E2E-RAG-004b: Test intent endpoint returns 200', async ({ request: _request }) => {
     // This test directly hits the API to verify the endpoint works
     // Note: Requires backend to be running
 

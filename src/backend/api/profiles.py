@@ -11,7 +11,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,8 +24,10 @@ from core.security import (
     hash_password,
     seal_key_with_dpapi,
     unseal_key_with_dpapi,
+    revoke_jwt_token,
     KeySealingError,
 )
+from core.rate_limiter import auth_rate_limiter
 from core.auth import (
     authenticate_profile,
     create_session_token,
@@ -244,6 +246,7 @@ async def create_profile(
 @router.post("/login", response_model=TokenResponse)
 async def login(
     login_data: LoginRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -251,6 +254,16 @@ async def login(
 
     Verifies password and returns a session token.
     """
+    client_ip = request.client.host if request.client else "unknown"
+    rate_key = f"login:{client_ip}"
+    decision = auth_rate_limiter.check(rate_key)
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts. Please try again shortly.",
+            headers={"Retry-After": str(decision.retry_after_seconds or 1)},
+        )
+
     profile = await authenticate_profile(
         profile_id=login_data.profile_id,
         password=login_data.password,
@@ -258,11 +271,14 @@ async def login(
     )
 
     if not profile:
+        auth_rate_limiter.add_failure(rate_key)
         # Use generic error message to prevent user enumeration
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
         )
+
+    auth_rate_limiter.reset(rate_key)
 
     # Update profile state
     profile.is_locked = False
@@ -324,9 +340,11 @@ async def logout(
     Phase 3: Now closes the per-profile encrypted database and clears
     encryption keys from memory.
 
-    Note: JWT tokens are stateless, so the token remains valid until expiry.
-    For true invalidation, implement a token blacklist (future enhancement).
+    Phase 4: Revokes the current JWT (by `jti`) so it cannot be reused after logout.
     """
+    if session.token_jti:
+        revoke_jwt_token(session.token_jti, int(session.expires_at.timestamp()))
+
     result = await db.execute(select(Profile).where(Profile.id == session.profile_id))
     profile = result.scalar_one_or_none()
 
@@ -408,6 +426,10 @@ async def lock_profile(
     # Phase 3: Close the per-profile encrypted database and clear keys
     await close_profile_database_on_logout(profile_id)
 
+    # Revoke the current JWT so the session can't be reused after locking.
+    if session.token_jti:
+        revoke_jwt_token(session.token_jti, int(session.expires_at.timestamp()))
+
     logger.info(f"Profile locked: {profile_id}")
 
     return ProfileResponse.from_model(profile)
@@ -417,6 +439,7 @@ async def lock_profile(
 async def unlock_profile(
     profile_id: str,
     unlock_data: ProfileUnlock,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -428,6 +451,16 @@ async def unlock_profile(
     Verifies password and returns a new session token.
     This is equivalent to login but uses the profile_id from the path.
     """
+    client_ip = request.client.host if request.client else "unknown"
+    rate_key = f"unlock:{client_ip}"
+    decision = auth_rate_limiter.check(rate_key)
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many unlock attempts. Please try again shortly.",
+            headers={"Retry-After": str(decision.retry_after_seconds or 1)},
+        )
+
     profile = await authenticate_profile(
         profile_id=profile_id,
         password=unlock_data.password,
@@ -435,10 +468,13 @@ async def unlock_profile(
     )
 
     if not profile:
+        auth_rate_limiter.add_failure(rate_key)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid password",
         )
+
+    auth_rate_limiter.reset(rate_key)
 
     profile.is_locked = False
     profile.last_accessed_at = datetime.utcnow()

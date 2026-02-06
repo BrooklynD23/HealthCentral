@@ -19,7 +19,6 @@ import {
   useSendMessage,
   formatResponseText,
   type ChatResponse,
-  type Citation,
 } from '@/services/assistant';
 
 interface Message {
@@ -53,12 +52,8 @@ export function ExplainAssistant() {
 
   const sendMessage = useSendMessage();
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth' });
-  };
-
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth' });
   }, [messages, prefersReducedMotion]);
 
   const handleSend = async () => {

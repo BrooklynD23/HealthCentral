@@ -5,8 +5,9 @@ Generates vector embeddings for text chunks using local models.
 Supports caching and batch processing for efficiency.
 """
 
+import math
+import re
 import struct
-from typing import Optional
 from dataclasses import dataclass
 import hashlib
 
@@ -139,7 +140,10 @@ class EmbeddingsModule:
         Generate deterministic embeddings using hashing.
 
         This is a fallback for when sentence-transformers is not available.
-        Not suitable for production semantic search but allows testing.
+        This is not a replacement for real semantic embeddings, but it is:
+        - deterministic (test-friendly)
+        - offline (no model downloads required)
+        - "good enough" to keep retrieval pipeline logic testable
         """
         vectors = []
         for text in texts:
@@ -149,29 +153,65 @@ class EmbeddingsModule:
 
     def _hash_to_vector(self, text: str, dimensions: int) -> list[float]:
         """
-        Convert text to a deterministic vector via hashing.
+        Convert text to a deterministic vector via token hashing.
 
-        Creates a pseudo-random vector from text hash that is:
-        - Deterministic (same text = same vector)
-        - Normalized (unit length)
-        - Dimension-stable
+        Uses a simple bag-of-words style hashing trick so that texts that share
+        meaningful tokens (e.g., analyte names, values, units) produce vectors
+        with higher cosine similarity.
         """
-        # Hash the text
-        text_hash = hashlib.sha256(text.lower().encode()).digest()
+        token_re = re.compile(r"[a-z0-9]+", re.IGNORECASE)
+        stopwords = {
+            "a",
+            "an",
+            "and",
+            "are",
+            "as",
+            "at",
+            "be",
+            "been",
+            "being",
+            "by",
+            "for",
+            "from",
+            "in",
+            "is",
+            "it",
+            "of",
+            "on",
+            "or",
+            "that",
+            "the",
+            "these",
+            "this",
+            "those",
+            "to",
+            "was",
+            "were",
+            "with",
+            "within",
+            "which",
+        }
 
-        # Generate enough random bytes for all dimensions
-        vector = []
-        for i in range(dimensions):
-            # Use different hash positions for each dimension
-            seed = hashlib.sha256(text_hash + i.to_bytes(4, 'little')).digest()
-            # Convert to float in range [-1, 1]
-            val = struct.unpack('f', seed[:4])[0]
-            # Normalize to reasonable range
-            val = (val % 2.0) - 1.0
-            vector.append(val)
+        tokens = [t.lower() for t in token_re.findall(text)]
+        filtered = [t for t in tokens if t not in stopwords]
+        if filtered:
+            tokens = filtered
 
-        # Normalize to unit length
-        magnitude = sum(v * v for v in vector) ** 0.5
+        vector = [0.0] * dimensions
+
+        # Unigram features
+        for token in tokens:
+            digest = hashlib.sha256(token.encode("utf-8")).digest()
+            idx = int.from_bytes(digest[:4], "little") % dimensions
+            vector[idx] += 1.0
+
+        # Bigram features (lighter weight) improve robustness for short texts.
+        for t1, t2 in zip(tokens, tokens[1:]):
+            digest = hashlib.sha256(f"{t1}_{t2}".encode("utf-8")).digest()
+            idx = int.from_bytes(digest[:4], "little") % dimensions
+            vector[idx] += 0.5
+
+        magnitude = math.sqrt(sum(v * v for v in vector))
         if magnitude > 0:
             vector = [v / magnitude for v in vector]
 

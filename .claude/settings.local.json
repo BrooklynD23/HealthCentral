@@ -63,7 +63,14 @@
       "Bash(cmd.exe /c \"cd src\\\\backend && ..\\\\..\\\\.venv\\\\Scripts\\\\python.exe -m pytest tests\\\\test_rag_pipeline.py::TestModelRunner tests\\\\test_rag_pipeline.py::TestRAGModuleLLMIntegration tests\\\\test_rag_pipeline.py::TestVectorSearchIntegration -v --tb=line 2>&1\")",
       "Bash(cmd.exe /c \"cd src\\\\backend && ..\\\\..\\\\.venv\\\\Scripts\\\\python.exe -m pytest tests\\\\test_rag_pipeline.py -v --tb=line 2>&1\")",
       "Bash(cmd.exe /c \".venv\\\\Scripts\\\\pip.exe list | findstr psutil\")",
-      "Bash(cmd.exe /c \"cd src\\\\backend && ..\\\\..\\\\.venv\\\\Scripts\\\\python.exe -m pytest tests\\\\test_rag_pipeline.py -v --tb=short\")"
+      "Bash(cmd.exe /c \"cd src\\\\backend && ..\\\\..\\\\.venv\\\\Scripts\\\\python.exe -m pytest tests\\\\test_rag_pipeline.py -v --tb=short\")",
+      "Bash(/mnt/c/Users/DangT/Documents/GitHub/HealthCentral/src/backend/venv/Scripts/python.exe -c:*)",
+      "Bash(npm run lint)",
+      "Bash(venv/Scripts/python.exe:*)",
+      "Bash(venv/Scripts/python:*)",
+      "Bash(venv/Scripts/pip.exe install:*)",
+      "Bash(git status:*)",
+      "Bash(echo:*)"
     ]
   }
 }

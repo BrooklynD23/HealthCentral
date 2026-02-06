@@ -22,6 +22,20 @@ from core.security import DocumentEncryption
 
 logger = logging.getLogger(__name__)
 
+_PDF_MAGIC = b"%PDF-"
+_PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+_JPG_MAGIC = b"\xff\xd8\xff"
+
+
+def _looks_like_plaintext_document(data: bytes) -> bool:
+    """
+    Heuristic to detect legacy plaintext documents.
+
+    We only allow plaintext fallback when the bytes clearly match a supported
+    document format. This prevents treating corrupted ciphertext as plaintext.
+    """
+    return data.startswith((_PDF_MAGIC, _PNG_MAGIC, _JPG_MAGIC))
+
 
 @dataclass
 class ImportResult:
@@ -191,9 +205,18 @@ class IngestModule:
                     associated_data=document_id.encode("utf-8")
                 )
             except Exception as e:
-                # Could be an unencrypted legacy document
-                logger.warning(f"Decryption failed for {document_id}, trying as plaintext: {e}")
-                return encrypted_data
+                if settings.allow_legacy_plaintext_documents and _looks_like_plaintext_document(
+                    encrypted_data
+                ):
+                    logger.warning(
+                        "Legacy plaintext document detected (decryption failed). "
+                        f"Returning raw bytes because allow_legacy_plaintext_documents=true: {document_id}"
+                    )
+                    return encrypted_data
+                raise ValueError(
+                    "Failed to decrypt stored document. If this is a legacy plaintext file, "
+                    "set ALLOW_LEGACY_PLAINTEXT_DOCUMENTS=true to allow read access."
+                ) from e
         else:
             # No encryption configured, return as-is
             return encrypted_data
