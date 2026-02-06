@@ -15,6 +15,24 @@ export interface Profile {
 
 export interface ProfileCreate {
   display_name: string;
+  password: string;
+}
+
+export interface TokenResponse {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+  profile_id: string;
+  profile_name: string;
+}
+
+export interface LoginRequest {
+  profile_id: string;
+  password: string;
+}
+
+export interface UnlockRequest {
+  password: string;
 }
 
 // Document types
@@ -113,4 +131,197 @@ export interface DocumentFilters {
   profile_id: string;
   status?: string;
   doc_type?: string;
+}
+
+// Interpretation types
+export interface Citation {
+  type: string;
+  id: string;
+  text: string;
+}
+
+export interface InterpretationResponse {
+  id: string;
+  observation_id: string;
+  interpretation_text: string;
+  severity_level: string;
+  advice_text: string | null;
+  citations: Citation[];
+  context: Record<string, unknown> | null;
+  model_id: string;
+  model_tier: string;
+  confidence_score: number;
+  requires_physician_review: boolean;
+  physician_review_reason: string | null;
+  viewed_at: string | null;
+  created_at: string;
+}
+
+export interface RelationshipInsight {
+  relationship: string;
+  value: number;
+  status: string;
+  interpretation: string;
+  source_id: string | null;
+}
+
+export interface PanelInterpretationResponse {
+  id: string;
+  panel_name: string;
+  collected_at: string;
+  observation_ids: string[];
+  summary_text: string;
+  overall_status: string;
+  relationship_insights: RelationshipInsight[] | null;
+  advice_text: string | null;
+  citations: Citation[];
+  confidence_score: number;
+  requires_physician_review: boolean;
+  created_at: string;
+}
+
+export interface BiomarkerKnowledge {
+  id: string;
+  analyte_canonical: string;
+  display_name: string;
+  description: string;
+  clinical_significance: string;
+  normal_interpretation: string;
+  high_interpretation: string;
+  low_interpretation: string;
+  reference_ranges: Record<string, unknown>;
+  common_causes_high: string[] | null;
+  common_causes_low: string[] | null;
+  critical_low: number | null;
+  critical_high: number | null;
+  standard_unit: string;
+  category: string;
+  panels: string[] | null;
+  sources: Record<string, unknown>[];
+}
+
+export interface BatchInterpretResponse {
+  successful: string[];
+  failed: Array<{ observation_id: string; error: string }>;
+}
+
+// Medication types
+export interface MedicationSchedule {
+  id: string;
+  medication_id: string;
+  schedule_label: string;
+  target_time: string;
+  adaptive_window_start: string | null;
+  adaptive_window_end: string | null;
+  reminder_offset_minutes: number;
+  days_of_week: number[] | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface Medication {
+  id: string;
+  profile_id: string;
+  name: string;
+  generic_name: string | null;
+  dosage_amount: number | null;
+  dosage_unit: string | null;
+  dosage_form: string | null;
+  frequency: string;
+  instructions: string | null;
+  is_active: boolean;
+  reminder_enabled: boolean;
+  started_at: string;
+  ended_at: string | null;
+  created_at: string;
+  updated_at: string;
+  schedules: MedicationSchedule[];
+}
+
+export interface MedicationCreate {
+  name: string;
+  generic_name?: string;
+  dosage_amount?: number;
+  dosage_unit?: string;
+  dosage_form?: string;
+  frequency?: string;
+  instructions?: string;
+  reminder_enabled?: boolean;
+  started_at?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface MedicationUpdate {
+  name?: string;
+  generic_name?: string;
+  dosage_amount?: number;
+  dosage_unit?: string;
+  dosage_form?: string;
+  frequency?: string;
+  instructions?: string;
+  reminder_enabled?: boolean;
+  is_active?: boolean;
+  ended_at?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface DoseLog {
+  taken_at: string;
+  log_method?: string;
+  dosage_amount?: number;
+  dosage_unit?: string;
+  notes?: string;
+  was_skipped?: boolean;
+  skip_reason?: string;
+}
+
+export interface DoseResponse {
+  id: string;
+  medication_id: string;
+  schedule_id: string | null;
+  taken_at: string;
+  log_method: string;
+  dosage_amount: number | null;
+  dosage_unit: string | null;
+  variance_minutes: number | null;
+  notes: string | null;
+  was_skipped: boolean;
+  skip_reason: string | null;
+  logged_at: string;
+}
+
+export interface AdherenceStats {
+  medication_id: string;
+  current_streak_days: number;
+  longest_streak_days: number;
+  last_7_days_adherence: number;
+  last_30_days_adherence: number;
+  total_doses_taken: number;
+  total_doses_skipped: number;
+  total_doses_expected: number;
+}
+
+export interface LearnPatternsResponse {
+  patterns_created: number;
+  schedules_updated: number;
+  time_window: Record<string, unknown> | null;
+  weekday_pattern: Record<string, unknown> | null;
+  missed_days: Array<Record<string, unknown>> | null;
+  streak: Record<string, unknown> | null;
+}
+
+export interface ScheduleCreate {
+  schedule_label: string;
+  target_time: string;
+  reminder_offset_minutes?: number;
+  days_of_week?: number[];
+  is_active?: boolean;
+}
+
+export interface ScheduleUpdate {
+  schedule_label?: string;
+  target_time?: string;
+  reminder_offset_minutes?: number;
+  days_of_week?: number[];
+  is_active?: boolean;
 }

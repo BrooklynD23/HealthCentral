@@ -14,8 +14,10 @@ pydantic-settings>=2.1.0
 # =============================================================================
 sqlalchemy>=2.0.25
 aiosqlite>=0.19.0
-# sqlcipher3 is installed separately (requires SQLCipher library)
-# For development without encryption: sqlite3 (built-in)
+alembic>=1.13.0
+
+# SQLCipher for encrypted per-profile databases (pre-compiled wheels)
+sqlcipher3-binary>=0.5.0
 
 # =============================================================================
 # PDF Processing
@@ -39,6 +41,14 @@ sentence-transformers>=2.2.0
 numpy>=1.26.0
 
 # =============================================================================
+# Model Management (Phase 0.3)
+# =============================================================================
+huggingface-hub>=0.20.0    # Model downloading from HF
+psutil>=5.9.0              # Hardware detection (RAM, CPU, disk)
+py-cpuinfo>=9.0.0          # Detailed CPU info
+# Note: torch NOT required - GPU detection is optional bonus
+
+# =============================================================================
 # Vector Store
 # =============================================================================
 faiss-cpu>=1.7.4
@@ -57,6 +67,13 @@ passlib[bcrypt]>=1.7.4
 python-dateutil>=2.8.0
 httpx>=0.26.0
 aiofiles>=23.2.0
+
+# =============================================================================
+# Notifications (Phase 3: Smart Notifications)
+# =============================================================================
+apscheduler>=3.10.0       # Background task scheduling
+plyer>=2.1.0              # Cross-platform notifications
+# winsdk>=1.0.0b10        # Windows notification center (optional, Windows only)
 
 # =============================================================================
 # Development

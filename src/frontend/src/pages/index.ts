@@ -2,5 +2,8 @@ export { ProfileSetup } from './ProfileSetup';
 export { DocumentInbox } from './DocumentInbox';
 export { VerificationWorkbench } from './VerificationWorkbench';
 export { TrendsDashboard } from './TrendsDashboard';
+export { LabInterpreter } from './LabInterpreter';
+export { MedicationCoach } from './MedicationCoach';
+export { MedicationDetail } from './MedicationDetail';
 export { ExplainAssistant } from './ExplainAssistant';
 export { ExportPage } from './ExportPage';

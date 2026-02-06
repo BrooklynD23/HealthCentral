@@ -8,8 +8,9 @@ Handles:
 - Confidence scoring
 """
 
+import io
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union, BinaryIO
 from dataclasses import dataclass, field
 import re
 
@@ -85,16 +86,17 @@ class ExtractModule:
     
     async def extract_from_pdf(
         self,
-        pdf_path: Path,
+        pdf_source: Union[Path, BinaryIO, io.BytesIO],
         document_id: str,
     ) -> ExtractionResult:
         """
         Extract lab values from a text-based PDF.
-        
+
         Args:
-            pdf_path: Path to PDF file
+            pdf_source: Path to PDF file, or file-like object (BytesIO) containing PDF data.
+                       BytesIO is used when reading decrypted documents from memory.
             document_id: Document ID for provenance
-            
+
         Returns:
             ExtractionResult with observations
         """
@@ -102,11 +104,11 @@ class ExtractModule:
             import pdfplumber
         except ImportError:
             raise RuntimeError("pdfplumber not installed")
-        
+
         observations = []
         collection_dates = []
-        
-        with pdfplumber.open(pdf_path) as pdf:
+
+        with pdfplumber.open(pdf_source) as pdf:
             for page_num, page in enumerate(pdf.pages, start=1):
                 # Extract text
                 text = page.extract_text() or ""
@@ -277,16 +279,125 @@ class ExtractModule:
             extraction_method="pdf_table",
         )
     
+    # Pattern for "Analyte: Value Unit" format
+    LINE_PATTERN = re.compile(
+        r"^([A-Za-z][A-Za-z0-9\s,\-]+?):\s*"  # Analyte name ending with colon
+        r"(\d+\.?\d*)\s*"  # Numeric value
+        r"(mg/dL|g/dL|mmol/L|mEq/L|U/L|IU/L|ng/mL|pg/mL|%|fL|K/uL|M/uL|cells/uL)?"  # Unit
+        r"(?:\s*\((?:Normal:|Ref:?)?\s*([<>]?\d+\.?\d*)\s*[-–]?\s*(\d+\.?\d*)?\))?"  # Reference range
+        r"(?:\s*(H|L|HH|LL|HIGH|LOW|ABNORMAL|CRITICAL))?"  # Flag
+        r"\s*$",
+        re.IGNORECASE | re.MULTILINE
+    )
+
+    # Alternative pattern for "Analyte Value Unit (Range)" without colon
+    ALT_LINE_PATTERN = re.compile(
+        r"^([A-Za-z][A-Za-z0-9\s,\-]+?)\s+"  # Analyte name
+        r"(\d+\.?\d*)\s*"  # Value
+        r"(mg/dL|g/dL|mmol/L|mEq/L|U/L|IU/L|ng/mL|pg/mL|%|fL|K/uL|M/uL|cells/uL)\s*"  # Required unit
+        r"(?:\(([<>]?\d+\.?\d*)\s*[-–]?\s*(\d+\.?\d*)?\))?"  # Reference range
+        r"(?:\s*(H|L|HH|LL|HIGH|LOW|ABNORMAL|CRITICAL))?"  # Flag
+        r"\s*$",
+        re.IGNORECASE | re.MULTILINE
+    )
+
     def _extract_from_text(
         self,
         text: str,
         page_num: int,
         document_id: str,
     ) -> list[ExtractedObservation]:
-        """Extract observations from unstructured text."""
-        # TODO: Implement text-based extraction
-        # This is more complex and vendor-specific
-        return []
+        """
+        Extract observations from unstructured text.
+
+        Sprint 2 - S2-BE-002: Implement text-based extraction.
+
+        Supports formats:
+        - "Analyte: Value Unit (Range) FLAG"
+        - "Analyte Value Unit (Range) FLAG"
+        """
+        observations = []
+
+        # Process line by line
+        for line in text.strip().split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+
+            obs = self._parse_text_line(line, page_num)
+            if obs:
+                observations.append(obs)
+
+        return observations
+
+    def _parse_text_line(
+        self,
+        line: str,
+        page_num: int,
+    ) -> Optional[ExtractedObservation]:
+        """Parse a single text line into an observation."""
+        # Try colon format first: "Glucose: 95 mg/dL (70-100)"
+        match = self.LINE_PATTERN.match(line)
+        if not match:
+            # Try alternative format: "Glucose 95 mg/dL (70-100)"
+            match = self.ALT_LINE_PATTERN.match(line)
+
+        if not match:
+            return None
+
+        groups = match.groups()
+        analyte = groups[0].strip() if groups[0] else None
+        value_str = groups[1] if len(groups) > 1 else None
+        unit = groups[2] if len(groups) > 2 else None
+        ref_low_str = groups[3] if len(groups) > 3 else None
+        ref_high_str = groups[4] if len(groups) > 4 else None
+        flag = groups[5].upper() if len(groups) > 5 and groups[5] else None
+
+        if not analyte or not value_str:
+            return None
+
+        # Parse numeric values
+        try:
+            value = float(value_str)
+        except (ValueError, TypeError):
+            return None
+
+        ref_low = None
+        ref_high = None
+        if ref_low_str:
+            try:
+                ref_low = float(ref_low_str.lstrip('<>'))
+            except (ValueError, TypeError):
+                pass
+        if ref_high_str:
+            try:
+                ref_high = float(ref_high_str)
+            except (ValueError, TypeError):
+                pass
+
+        # Calculate confidence
+        confidence = 0.5  # Base for text extraction
+        if value is not None:
+            confidence += 0.15
+        if unit:
+            confidence += 0.15
+        if ref_low is not None or ref_high is not None:
+            confidence += 0.1
+        if flag:
+            confidence += 0.1  # Flag detection adds confidence
+
+        return ExtractedObservation(
+            analyte_raw=analyte,
+            value=value,
+            unit=unit,
+            ref_low=ref_low,
+            ref_high=ref_high,
+            ref_range_text=f"{ref_low_str or ''}-{ref_high_str or ''}" if ref_low_str else None,
+            flag=flag,
+            provenance=Provenance(page=page_num, text_snippet=line),
+            confidence=min(confidence, 1.0),
+            extraction_method="pdf_text",
+        )
     
     def _extract_dates(self, text: str) -> list[str]:
         """Extract collection dates from text."""

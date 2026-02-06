@@ -1,8 +1,27 @@
+/**
+ * ProfileSetup Page
+ *
+ * Sprint 1 - S1-FE-001: Profile creation with password field.
+ *
+ * Creates a new profile with password authentication.
+ * Stores the returned JWT token in authStore.
+ */
+
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Heart, Lock, Shield, Database, ArrowRight, Check, AlertCircle } from 'lucide-react';
-import { Button, Card, CardContent } from '@/components/ui';
+import {
+  Heart,
+  Lock,
+  Shield,
+  Database,
+  ArrowRight,
+  Check,
+  AlertCircle,
+  Eye,
+  EyeOff,
+} from 'lucide-react';
+import { Button, Card, CardContent, Input } from '@/components/ui';
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useCreateProfile } from '@/services';
@@ -25,36 +44,95 @@ const features = [
   },
 ];
 
+/**
+ * Password validation rules matching backend requirements.
+ */
+function validatePassword(password: string): {
+  isValid: boolean;
+  errors: string[];
+} {
+  const errors: string[] = [];
+
+  if (password.length < 8) {
+    errors.push('At least 8 characters');
+  }
+  if (!/[A-Z]/.test(password)) {
+    errors.push('At least one uppercase letter');
+  }
+  if (!/[a-z]/.test(password)) {
+    errors.push('At least one lowercase letter');
+  }
+  if (!/[0-9]/.test(password)) {
+    errors.push('At least one digit');
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+  };
+}
+
 export function ProfileSetup() {
   const navigate = useNavigate();
   const prefersReducedMotion = useReducedMotion();
   const [isCreating, setIsCreating] = useState(false);
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  
+
+  // Form state
+  const [displayName, setDisplayName] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [formErrors, setFormErrors] = useState<{
+    displayName?: string;
+    password?: string;
+  }>({});
+
   const createProfile = useCreateProfile();
 
   const handleCreateProfile = async () => {
-    setIsCreating(true);
+    // Reset errors
+    setFormErrors({});
     setError(null);
+
+    // Validate
+    const errors: { displayName?: string; password?: string } = {};
+
+    if (!displayName.trim()) {
+      errors.displayName = 'Name is required';
+    }
+
+    if (!password) {
+      errors.password = 'Password is required';
+    } else {
+      const passwordValidation = validatePassword(password);
+      if (!passwordValidation.isValid) {
+        errors.password = passwordValidation.errors.join(', ');
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      return;
+    }
+
+    setIsCreating(true);
     setStep(0);
-    
+
     try {
       // Step 1: Creating vault
       await new Promise((r) => setTimeout(r, 500));
       setStep(1);
-      
+
       // Step 2: Setting up encryption - actual API call
-      const profile = await createProfile.mutateAsync({
-        display_name: 'My Health Profile',
+      await createProfile.mutateAsync({
+        display_name: displayName.trim() || 'My Health Profile',
+        password,
       });
-      
+
       setStep(2);
       await new Promise((r) => setTimeout(r, 500));
-      
-      // Store profile ID in localStorage for session persistence
-      localStorage.setItem('activeProfileId', profile.id);
-      
+
       navigate('/inbox');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create profile');
@@ -62,6 +140,10 @@ export function ProfileSetup() {
       setStep(0);
     }
   };
+
+  // Password strength indicator
+  const passwordValidation = validatePassword(password);
+  const showPasswordHints = password.length > 0 && !passwordValidation.isValid;
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -133,59 +215,114 @@ export function ProfileSetup() {
 
         <motion.div variants={itemVariants}>
           {!isCreating ? (
-            <Button
-              onClick={handleCreateProfile}
-              size="lg"
-              className="w-full group"
-            >
-              Create Your Profile
-              <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-            </Button>
+            <Card>
+              <CardContent className="p-6 space-y-4">
+                <Input
+                  label="Profile Name"
+                  placeholder="My Health Profile"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  error={formErrors.displayName}
+                  autoComplete="name"
+                />
+
+                <div className="relative">
+                  <Input
+                    type={showPassword ? 'text' : 'password'}
+                    label="Password"
+                    placeholder="Create a secure password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    error={formErrors.password}
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-[38px] text-ink-tertiary hover:text-ink transition-colors"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-5 h-5" />
+                    ) : (
+                      <Eye className="w-5 h-5" />
+                    )}
+                  </button>
+                </div>
+
+                {showPasswordHints && (
+                  <div className="text-sm text-ink-secondary space-y-1">
+                    <p className="font-medium">Password requirements:</p>
+                    <ul className="list-disc list-inside space-y-0.5">
+                      {passwordValidation.errors.map((err) => (
+                        <li key={err} className="text-status-critical">
+                          {err}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <Button
+                  onClick={handleCreateProfile}
+                  size="lg"
+                  className="w-full group"
+                  disabled={createProfile.isPending}
+                >
+                  Create Your Profile
+                  <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                </Button>
+              </CardContent>
+            </Card>
           ) : (
             <Card>
               <CardContent className="p-6">
                 <div className="space-y-3">
-                  {['Creating secure vault...', 'Setting up encryption...', 'Profile ready!'].map(
-                    (label, index) => (
+                  {[
+                    'Creating secure vault...',
+                    'Setting up encryption...',
+                    'Profile ready!',
+                  ].map((label, index) => (
+                    <div
+                      key={label}
+                      className={cn(
+                        'flex items-center gap-3 text-sm transition-opacity duration-300',
+                        step >= index ? 'opacity-100' : 'opacity-40'
+                      )}
+                    >
                       <div
-                        key={label}
                         className={cn(
-                          'flex items-center gap-3 text-sm transition-opacity duration-300',
-                          step >= index ? 'opacity-100' : 'opacity-40'
+                          'w-5 h-5 rounded-full flex items-center justify-center transition-colors',
+                          step > index
+                            ? 'bg-status-verified text-white'
+                            : step === index
+                            ? 'bg-accent text-white animate-pulse'
+                            : 'bg-surface-muted'
                         )}
                       >
-                        <div
-                          className={cn(
-                            'w-5 h-5 rounded-full flex items-center justify-center transition-colors',
-                            step > index
-                              ? 'bg-status-verified text-white'
-                              : step === index
-                              ? 'bg-accent text-white animate-pulse'
-                              : 'bg-surface-muted'
-                          )}
-                        >
-                          {step > index && <Check className="w-3 h-3" />}
-                        </div>
-                        <span
-                          className={cn(
-                            step >= index ? 'text-ink' : 'text-ink-tertiary'
-                          )}
-                        >
-                          {label}
-                        </span>
+                        {step > index && <Check className="w-3 h-3" />}
                       </div>
-                    )
-                  )}
+                      <span
+                        className={cn(
+                          step >= index ? 'text-ink' : 'text-ink-tertiary'
+                        )}
+                      >
+                        {label}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
           )}
-          
+
           {error && (
             <div className="mt-4 p-4 bg-status-critical/10 border border-status-critical/20 rounded-xl flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-status-critical flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-medium text-status-critical">Failed to create profile</p>
+                <p className="text-sm font-medium text-status-critical">
+                  Failed to create profile
+                </p>
                 <p className="text-sm text-ink-secondary mt-1">{error}</p>
               </div>
             </div>

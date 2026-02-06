@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     database_type: Literal["sqlite", "postgresql"] = "sqlite"
     sqlite_database_path: str = "data/healthcentral.db"
     database_encryption_enabled: bool = True
+    # Require SQLCipher for profile databases. Set to False only for development.
+    database_encryption_required: bool = True
     
     # PostgreSQL (future server mode)
     postgres_host: str = "localhost"
@@ -47,6 +49,12 @@ class Settings(BaseSettings):
     auto_lock_timeout_minutes: int = 15
     use_dpapi: bool = True
     jwt_secret: str = ""
+    jwt_revocation_enabled: bool = True  # Allow logout to invalidate JWTs locally
+
+    # Authentication hardening
+    auth_rate_limit_enabled: bool = True
+    auth_rate_limit_max_attempts: int = 10
+    auth_rate_limit_window_seconds: int = 60
     
     # Local AI models
     models_path: str = "models/"
@@ -54,6 +62,11 @@ class Settings(BaseSettings):
     default_embeddings_model: str = "bge-small-en-v1.5"
     chat_context_size: int = 4096
     inference_threads: int = 0
+
+    # Model Tier Settings (Phase 0.3)
+    default_model_tier: str = "low"  # String tier: "low", "mid", "high"
+    auto_detect_hardware: bool = True  # Run hardware detection on startup
+    model_download_timeout: int = 3600  # Download timeout in seconds (1 hour)
     
     # Vector store
     vector_store_type: Literal["sqlite-vss", "faiss"] = "sqlite-vss"
@@ -63,11 +76,21 @@ class Settings(BaseSettings):
     max_import_file_size_mb: int = 50
     supported_doc_types: str = "pdf,png,jpg,jpeg"
     ocr_enabled: bool = False
+    allow_legacy_plaintext_documents: bool = False
     
     # Logging
     log_level: str = "INFO"
     log_file_path: str = "logs/healthcentral.log"
     audit_log_enabled: bool = True
+
+    # Phase 4: AI Safety / Verification Settings
+    verification_enabled: bool = True
+    min_faithfulness_score: float = 0.6  # Minimum score for verified claims
+    min_entailment_confidence: float = 0.7  # Minimum NLI confidence
+    fail_on_contradiction: bool = True  # Fail if any source contradicts claim
+    min_supporting_sources: int = 1  # Minimum sources needed to verify claim
+    use_llm_entailment: bool = False  # Use LLM for complex entailment (vs rule-based)
+    multi_pass_verification: bool = False  # Enable multi-pass consistency checking
     
     @property
     def app_data_path(self) -> Path:

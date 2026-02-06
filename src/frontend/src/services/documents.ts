@@ -12,12 +12,11 @@ const QUERY_KEY = 'documents';
 
 // API functions
 async function fetchDocuments(filters: DocumentFilters): Promise<Document[]> {
-  const params: Record<string, string> = {
-    profile_id: filters.profile_id,
-  };
+  // profile_id is extracted from auth token by backend, not query params
+  const params: Record<string, string> = {};
   if (filters.status) params.status = filters.status;
   if (filters.doc_type) params.doc_type = filters.doc_type;
-  
+
   return apiGet<Document[]>('/documents/', params);
 }
 
@@ -29,13 +28,9 @@ async function fetchDocumentPages(documentId: string): Promise<DocumentPage[]> {
   return apiGet<DocumentPage[]>(`/documents/${documentId}/pages`);
 }
 
-async function importDocument(
-  file: File,
-  profileId: string
-): Promise<DocumentImportResponse> {
-  return apiUpload<DocumentImportResponse>('/documents/import', file, {
-    profile_id: profileId,
-  });
+async function importDocument(file: File): Promise<DocumentImportResponse> {
+  // profile_id is extracted from auth token by backend
+  return apiUpload<DocumentImportResponse>('/documents/import', file);
 }
 
 async function deleteDocument(documentId: string): Promise<void> {
@@ -69,10 +64,10 @@ export function useDocumentPages(documentId: string | undefined) {
 
 export function useImportDocument() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: ({ file, profileId }: { file: File; profileId: string }) =>
-      importDocument(file, profileId),
+    mutationFn: ({ file }: { file: File; profileId?: string }) =>
+      importDocument(file),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
     },

@@ -1,4 +1,7 @@
-# Local AI Models + Inference Plan (Draft v0 — pending PM approval)
+# Local AI Models + Inference Plan
+
+**Status:** Phase 0.3 Implemented (2026-01-30)
+**Implementation:** See `docs/model_tiers/` for tier documentation
 
 ## Requirements (from PRD)
 - Local-first assistant (RAG) with citations and conservative refusal behavior
@@ -97,3 +100,58 @@ Model is never the source of truth.
 - Default chat model: Phi-3 Mini vs Gemma 2 2B vs Qwen2.5 3B
 - Default embeddings: bge-small vs e5-small
 - Distribution policy for model downloads (bundled vs user-installed)
+
+---
+
+## Implementation Notes (Phase 0.3)
+
+### Implemented Tiered Model System
+
+| Tier | String ID | Model | Size | RAM Required | Default |
+|------|-----------|-------|------|--------------|---------|
+| 1 | `"low"` | Qwen2.5-0.5B-Instruct | ~0.5GB | 8GB | **YES** |
+| 2 | `"mid"` | Phi-3-mini-4k-instruct | ~2GB | 16GB | No |
+| 3 | `"high"` | BioMistral-7B | ~4GB | 32GB | No |
+| - | `"template"` | None | 0 | Any | Fallback |
+
+### Key Implementation Files
+
+- `modules/hardware_detection.py` - RAM/CPU/disk detection, tier recommendations
+- `modules/model_selector.py` - Model loading, async inference, fallback chain
+- `api/model_settings.py` - 6 REST endpoints for settings management
+- `models/model_settings.py` - UserModelSettings table (per-profile database)
+- `scripts/detect_hardware.py` - CLI hardware detection tool
+- `scripts/model_manager.py` - CLI model management tool
+
+### Citation Enforcement
+
+LLM interpretations require `[KB:*]`, `[INT:*]`, or `[Source:*]` citations.
+If missing, the system falls back to template-based interpretation.
+
+### Fallback Chain
+
+```
+high → mid → low → template
+```
+
+### CLI Usage
+
+```bash
+# Check hardware capabilities
+python scripts/detect_hardware.py
+
+# Download a model
+python scripts/model_manager.py download --tier low
+
+# List downloaded models
+python scripts/model_manager.py list
+```
+
+### API Endpoints
+
+- `GET /api/v1/settings/model` - Current settings + hardware info
+- `POST /api/v1/settings/model/detect` - Run hardware detection
+- `POST /api/v1/settings/model/tier` - Set preferred tier
+- `GET /api/v1/settings/model/tiers` - List all tiers
+- `POST /api/v1/settings/model/download` - Start model download
+- `GET /api/v1/settings/model/download-progress` - Check download status

@@ -1,7 +1,7 @@
 # Backend Integration Status
 
-**Last Updated:** 2024-12-28  
-**Status:** Phase 0 Implementation Complete
+**Last Updated:** 2026-02-04
+**Status:** Sprint 6 Complete (Security Revamp + Alembic Migrations)
 
 ---
 
@@ -42,18 +42,62 @@ This document tracks the implementation status of backend-frontend integration f
 | `/api/v1/observations/trends/{analyte}` | GET | ✅ Done | Get trend data with summary |
 | `/api/v1/observations/panels/{panel_id}` | GET | ✅ Done | Get panel data (CBC, CMP, etc.) |
 
-#### Assistant (`assistant.py`)
+#### Assistant (`assistant.py`) - Sprint 5 Complete
 | Endpoint | Method | Status | Description |
 |----------|--------|--------|-------------|
-| `/api/v1/assistant/chat` | POST | ⏳ Stub | RAG chat (returns 501) |
-| `/api/v1/assistant/test-intent/{analyte}` | GET | ⏳ Stub | Test intent lookup (returns 501) |
+| `/api/v1/assistant/chat` | POST | ⚠️ LLM Required | RAG chat (needs local model setup) |
+| `/api/v1/assistant/test-intent/{analyte}` | GET | ✅ Done | Test intent lookup from curated data |
+| `/api/v1/assistant/glossary/{term}` | GET | ✅ Done | Glossary lookup from curated data |
+| `/api/v1/assistant/verification-status` | GET | ✅ Done | Verification components status |
 
-#### Export (`export.py`)
+#### Export (`export.py`) - Sprint 4 Complete
 | Endpoint | Method | Status | Description |
 |----------|--------|--------|-------------|
-| `/api/v1/export/doctor-summary` | POST | ⏳ Stub | Generate summary (returns 501) |
-| `/api/v1/export/csv` | GET | ⏳ Stub | CSV export (returns 501) |
-| `/api/v1/export/json` | GET | ⏳ Stub | JSON export (returns 501) |
+| `/api/v1/export/doctor-summary` | POST | ✅ Done | Generate clinician-ready summary |
+| `/api/v1/export/doctor-summary/{summary_id}/download` | GET | ✅ Done | Download generated summary |
+| `/api/v1/export/questions` | POST | ✅ Done | Generate discussion questions |
+| `/api/v1/export/csv` | GET | ✅ Done | CSV export with filters |
+| `/api/v1/export/json` | GET | ✅ Done | JSON export with filters |
+
+#### Interpretations (`interpretations.py`)
+| Endpoint | Method | Status | Description |
+|----------|--------|--------|-------------|
+| `/api/v1/observations/{id}/interpret` | POST | ✅ Done | Generate interpretation |
+| `/api/v1/observations/{id}/interpretation` | GET | ✅ Done | Get existing interpretation |
+| `/api/v1/panels/{name}/interpret` | POST | ✅ Done | Panel interpretation |
+| `/api/v1/interpretations/recent` | GET | ✅ Done | List recent |
+| `/api/v1/knowledge/biomarker/{analyte}` | GET | ✅ Done | Knowledge lookup |
+| `/api/v1/interpretations/batch` | POST | ✅ Done | Batch generation |
+
+#### Medications (`medications.py`)
+| Endpoint | Method | Status | Description |
+|----------|--------|--------|-------------|
+| `/api/v1/medications/` | POST | ✅ Done | Create medication |
+| `/api/v1/medications/` | GET | ✅ Done | List medications |
+| `/api/v1/medications/{id}` | GET | ✅ Done | Get medication details |
+| `/api/v1/medications/{id}` | PATCH | ✅ Done | Update medication |
+| `/api/v1/medications/{id}` | DELETE | ✅ Done | Delete medication |
+| `/api/v1/medications/{id}/schedules` | POST/GET | ✅ Done | Manage schedules |
+| `/api/v1/medications/{id}/doses` | POST/GET | ✅ Done | Log and list doses |
+| `/api/v1/medications/{id}/stats` | GET | ✅ Done | Adherence stats |
+
+#### Notifications (`notifications.py`)
+| Endpoint | Method | Status | Description |
+|----------|--------|--------|-------------|
+| `/api/v1/notifications/settings/{med_id}` | GET/PATCH | ✅ Done | Notification settings |
+| `/api/v1/notifications/history` | GET | ✅ Done | Notification history |
+| `/api/v1/notifications/test` | POST | ✅ Done | Test notification |
+| `/api/v1/notifications/scheduler/status` | GET | ✅ Done | Scheduler status |
+
+#### Model Settings (`model_settings.py`) - Phase 0.3
+| Endpoint | Method | Status | Description |
+|----------|--------|--------|-------------|
+| `/api/v1/settings/model` | GET | ✅ Done | Get model settings + hardware info |
+| `/api/v1/settings/model/detect` | POST | ✅ Done | Run hardware detection |
+| `/api/v1/settings/model/tier` | POST | ✅ Done | Set preferred tier |
+| `/api/v1/settings/model/tiers` | GET | ✅ Done | List tiers with status |
+| `/api/v1/settings/model/download-progress` | GET | ✅ Done | Check download status |
+| `/api/v1/settings/model/download` | POST | ✅ Done | Start model download |
 
 ---
 
@@ -67,12 +111,14 @@ This document tracks the implementation status of backend-frontend integration f
 | `profiles.ts` | React Query hooks for profile management |
 | `documents.ts` | React Query hooks for document management |
 | `observations.ts` | React Query hooks for observations and trends |
+| `export.ts` | React Query hooks for export functionality |
 | `index.ts` | Barrel export for all services |
 
 #### React Query Hooks
 - **Profiles:** `useProfiles`, `useProfile`, `useCreateProfile`, `useUnlockProfile`, `useLockProfile`
 - **Documents:** `useDocuments`, `useDocument`, `useDocumentPages`, `useImportDocument`, `useDeleteDocument`
 - **Observations:** `useObservations`, `useObservation`, `useVerifyObservation`, `useTrend`, `usePanel`, `useAnalyteList`
+- **Export:** `useExportCSV`, `useExportJSON`, `useGenerateSummary`, `useDownloadSummary`, `useGenerateQuestions`
 
 ---
 
@@ -82,10 +128,10 @@ This document tracks the implementation status of backend-frontend integration f
 |------|-------------------|-------|
 | `ProfileSetup.tsx` | ✅ Connected | Uses `useCreateProfile()` for real API calls |
 | `DocumentInbox.tsx` | ✅ Connected | Uses `useDocuments()`, `useImportDocument()` |
-| `VerificationWorkbench.tsx` | ⏳ Pending | Needs `useObservations()` integration |
-| `TrendsDashboard.tsx` | ⏳ Pending | Needs `useTrend()` integration |
-| `ExplainAssistant.tsx` | ⏳ Pending | Awaits assistant API implementation |
-| `ExportPage.tsx` | ⏳ Pending | Awaits export API implementation |
+| `VerificationWorkbench.tsx` | ✅ Connected | Uses `useObservations()`, `useVerifyObservation()` |
+| `TrendsDashboard.tsx` | ✅ Connected | Uses `useObservations()`, `useTrend()`, `usePanel()` |
+| `ExportPage.tsx` | ✅ Connected | Uses `useExportCSV()`, `useExportJSON()`, `useGenerateSummary()` |
+| `ExplainAssistant.tsx` | ⏳ Pending | Awaits assistant API implementation (Sprint 5) |
 
 ---
 
@@ -108,15 +154,76 @@ This document tracks the implementation status of backend-frontend integration f
 
 All models are implemented in `src/backend/models/`:
 
-| Model | Table | Status |
-|-------|-------|--------|
-| `Profile` | `profiles` | ✅ Done |
-| `Document` | `documents` | ✅ Done |
-| `Observation` | `observations` | ✅ Done |
-| `AnalyteMapping` | `analyte_mappings` | ✅ Done |
-| `AuditLog` | `audit_logs` | ✅ Done |
-| `Chunk` | `chunks` | ✅ Done |
-| `Embedding` | `embeddings` | ✅ Done |
+| Model | Table | Database | Status |
+|-------|-------|----------|--------|
+| `Profile` | `profiles` | Master | ✅ Done |
+| `AuditLog` | `audit_logs` | Master | ✅ Done |
+| `BiomarkerKnowledge` | `biomarker_knowledge` | Master | ✅ Done |
+| `InterventionMapping` | `intervention_mappings` | Master | ✅ Done |
+| `BiomarkerRelationship` | `biomarker_relationships` | Master | ✅ Done |
+| `Document` | `documents` | Per-Profile | ✅ Done |
+| `Observation` | `observations` | Per-Profile | ✅ Done |
+| `Chunk` | `chunks` | Per-Profile | ✅ Done |
+| `Embedding` | `embeddings` | Per-Profile | ✅ Done |
+| `LabInterpretation` | `lab_interpretations` | Per-Profile | ✅ Done |
+| `PanelInterpretation` | `panel_interpretations` | Per-Profile | ✅ Done |
+| `Medication` | `medications` | Per-Profile | ✅ Done |
+| `MedicationSchedule` | `medication_schedules` | Per-Profile | ✅ Done |
+| `DoseTaken` | `doses_taken` | Per-Profile | ✅ Done |
+| `AdherencePattern` | `adherence_patterns` | Per-Profile | ✅ Done |
+| `ReminderLog` | `reminder_logs` | Per-Profile | ✅ Done |
+| `UserModelSettings` | `user_model_settings` | Per-Profile | ✅ Done |
+
+---
+
+## Database Migrations (Alembic)
+
+HealthCentral uses Alembic for versioned schema migrations with a dual-environment setup.
+
+### Migration Architecture
+
+| Component | Location | Description |
+|-----------|----------|-------------|
+| `alembic.ini` | `src/backend/` | Configuration with `[master]` and `[profile]` sections |
+| Master env.py | `migrations/master/env.py` | Sync SQLite migrations for master DB |
+| Profile env.py | `migrations/profile/env.py` | SQLCipher-aware migrations with PRAGMA key |
+| Migration utilities | `core/migrations.py` | Baseline detection + async wrappers |
+| CLI tool | `scripts/migrate.py` | Manual migration execution |
+
+### Key Features
+
+1. **Baseline Detection**: Existing DBs without `alembic_version` are stamped (not re-created)
+2. **Non-blocking**: All Alembic calls run via `asyncio.to_thread()`
+3. **SQLCipher Support**: Profile migrations set `PRAGMA key` before operations
+4. **Automatic Execution**:
+   - Master migrations run on app startup (`main.py` lifespan)
+   - Profile migrations run on vault open (`profile_database.py`)
+
+### Schema Versions
+
+| Database | Current Revision | Tables |
+|----------|-----------------|--------|
+| Master | `001_initial` | profiles, audit_logs, biomarker_knowledge, intervention_mappings, biomarker_relationships |
+| Profile | `001_initial` | documents, observations, chunks, embeddings, lab_interpretations, panel_interpretations, medications, medication_schedules, doses_taken, adherence_patterns, reminder_logs, user_model_settings |
+
+### CLI Commands
+
+```bash
+cd src/backend
+
+# Run master migrations
+python -m scripts.migrate master
+
+# Check status
+python -m scripts.migrate status
+
+# Run profile migrations
+python -m scripts.migrate profile --profile-id <uuid> --password <pwd>
+
+# Alembic CLI (for development)
+alembic -c alembic.ini -n master current
+alembic -c alembic.ini -n master upgrade head
+```
 
 ---
 
@@ -125,12 +232,22 @@ All models are implemented in `src/backend/models/`:
 | Module | Status | Notes |
 |--------|--------|-------|
 | `ingest.py` | ✅ Basic | File import, hashing, storage |
-| `extract.py` | ⏳ Stub | PDF parsing not yet implemented |
-| `normalize.py` | ⏳ Stub | Analyte mapping not yet implemented |
+| `extract.py` | ✅ Basic | Table + text extraction implemented; OCR pending |
+| `normalize.py` | ✅ Basic | Built-in synonym mapping implemented |
 | `verify.py` | ⏳ Stub | Verification workflow not yet implemented |
-| `analytics.py` | ⏳ Stub | Trend calculations not yet implemented |
+| `analytics.py` | ✅ Basic | Trend calculations implemented (deterministic) |
 | `rag.py` | ⏳ Stub | RAG pipeline not yet implemented |
-| `export.py` | ⏳ Stub | Export generation not yet implemented |
+| `export.py` | ✅ Done | CSV/JSON + summary/question generation - API fully wired (Sprint 4) |
+| `interpret.py` | ✅ Done | Lab interpretation pipeline with LLM support |
+| `interpret_safety.py` | ✅ Done | Safety guardrails for interpretations |
+| `recommend.py` | ✅ Done | Evidence-based recommendation engine |
+| `knowledge_loader.py` | ✅ Done | Knowledge base access with caching |
+| `adherence_patterns.py` | ✅ Done | Medication adherence pattern learning |
+| `message_generator.py` | ✅ Done | Notification message generation |
+| `notification_scheduler.py` | ✅ Done | Background notification scheduling |
+| `platform_notifications.py` | ✅ Done | Cross-platform notification delivery |
+| `hardware_detection.py` | ✅ Done | Hardware capability detection (Phase 0.3) |
+| `model_selector.py` | ✅ Done | Tiered model selection (Phase 0.3) |
 
 ---
 
@@ -158,11 +275,13 @@ Access:
 
 ## Next Steps
 
-1. **Implement PDF extraction** (`extract.py`) - Parse lab PDFs to extract observations
-2. **Implement normalization** (`normalize.py`) - Map analyte names to canonical forms
-3. **Connect remaining pages** - VerificationWorkbench, TrendsDashboard
-4. **Implement export APIs** - CSV, JSON, doctor summary generation
-5. **Implement RAG assistant** - Local LLM integration with citation validation
+1. **Sprint 5: RAG Assistant (Post-MVP)**
+   - Implement chunking + embeddings pipeline
+   - Implement `RAGModule.retrieve_context()` with similarity search
+   - Implement `RAGModule.generate_response()` with citations
+   - Implement glossary + test-intent endpoints
+   - Wire `ExplainAssistant.tsx` to real API
+2. **Polish & Testing** - Adversarial testing, accessibility audit, performance
 
 ---
 
@@ -170,4 +289,3 @@ Access:
 
 1. **vite.config.ts lint warnings** - `@types/node` needs to be installed for Node.js type declarations
 2. **theme-color meta tag warning** - Informational only; progressive enhancement works in supported browsers
-
