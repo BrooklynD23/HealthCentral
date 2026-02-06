@@ -20,6 +20,9 @@ import {
   DocumentInbox,
   VerificationWorkbench,
   TrendsDashboard,
+  LabInterpreter,
+  MedicationCoach,
+  MedicationDetail,
   ExplainAssistant,
   ExportPage,
 } from './pages';
@@ -48,6 +51,9 @@ function App() {
               <Route path="inbox" element={<DocumentInbox />} />
               <Route path="verify" element={<VerificationWorkbench />} />
               <Route path="trends" element={<TrendsDashboard />} />
+              <Route path="interpret" element={<LabInterpreter />} />
+              <Route path="medications" element={<MedicationCoach />} />
+              <Route path="medications/:medicationId" element={<MedicationDetail />} />
               <Route path="explain" element={<ExplainAssistant />} />
               <Route path="export" element={<ExportPage />} />
             </Route>

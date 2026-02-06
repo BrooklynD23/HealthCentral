@@ -7,6 +7,8 @@ import {
   MessageCircle,
   FileOutput,
   Heart,
+  Brain,
+  Pill,
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
@@ -15,6 +17,8 @@ const navItems = [
   { to: '/inbox', icon: Inbox, label: 'Inbox' },
   { to: '/verify', icon: CheckCircle, label: 'Verify' },
   { to: '/trends', icon: TrendingUp, label: 'Trends' },
+  { to: '/interpret', icon: Brain, label: 'Interpret' },
+  { to: '/medications', icon: Pill, label: 'Meds' },
   { to: '/explain', icon: MessageCircle, label: 'Explain' },
   { to: '/export', icon: FileOutput, label: 'Export' },
 ];
