@@ -12,9 +12,7 @@ import {
   Copy,
   Check,
   Eye,
-  ChevronRight,
   Calendar,
-  Printer,
   MessageSquare,
   FileJson,
   FileSpreadsheet,
@@ -96,7 +94,7 @@ export function ExportPage() {
 
       // Also generate questions if enabled
       if (includeQuestions) {
-        const questionsResult = await generateQuestions.mutateAsync();
+        const questionsResult = await generateQuestions.mutateAsync(undefined);
         setQuestions(questionsResult);
       }
     } catch (error) {
