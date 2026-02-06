@@ -232,7 +232,7 @@ alembic -c alembic.ini -n master upgrade head
 | Module | Status | Notes |
 |--------|--------|-------|
 | `ingest.py` | ✅ Basic | File import, hashing, storage |
-| `extract.py` | ⏳ Partial | Table extraction implemented; text extraction still TODO |
+| `extract.py` | ✅ Basic | Table + text extraction implemented; OCR pending |
 | `normalize.py` | ✅ Basic | Built-in synonym mapping implemented |
 | `verify.py` | ⏳ Stub | Verification workflow not yet implemented |
 | `analytics.py` | ✅ Basic | Trend calculations implemented (deterministic) |

@@ -14,11 +14,16 @@ Constraints (from PRD): offline-by-default; conservative outputs; provenance req
 
 ## Process topology (Windows desktop)
 
+### Current implementation (as of 2026-02-05)
+- Backend runs as a local FastAPI server on `127.0.0.1` (fixed port by default).
+- Frontend is a Vite/React app that talks to the backend over loopback HTTP.
+- Auth uses JWT Bearer tokens (HS256) with per-profile vault unlock for PHI access.
+
 ### Option A (recommended): sidecar service + local IPC
 - Desktop UI (Tauri/Electron) launches a packaged local backend process.
 - UI ↔ backend communication:
-  - Tauri `invoke` RPC, or
-  - Loopback HTTP on `127.0.0.1` with a per-launch bearer token and random ephemeral port.
+  - Loopback HTTP on `127.0.0.1` with JWT Bearer tokens (current), or
+  - (Future hardening) per-launch bearer token and random ephemeral port.
 
 Rules:
 - Backend must never bind to `0.0.0.0`.

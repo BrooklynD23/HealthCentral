@@ -7,6 +7,7 @@ All endpoints require authentication.
 Phase 4: Now includes verification metadata in responses.
 """
 
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -17,6 +18,8 @@ from core.database import get_db
 from core.auth import RequireAuth, ProfileDbSession
 from modules.rag import RAGModule, VerificationConfig
 from modules.faithfulness import FaithfulnessConfig
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -248,9 +251,13 @@ async def chat(
             detail="Chat functionality requires LLM setup. Please configure a local model."
         )
     except Exception as e:
+        logger.exception(
+            "Assistant chat request failed",
+            extra={"profile_id": session.profile_id},
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error processing chat request: {str(e)}"
+            detail="Error processing chat request"
         )
 
 

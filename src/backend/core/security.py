@@ -25,6 +25,7 @@ from passlib.context import CryptContext
 import base64
 
 from .config import settings
+from .token_revocation import TokenRevocationList
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 # Module-level JWT secret cache
 _jwt_secret_cache: Optional[str] = None
+_jwt_revocation_list: Optional[TokenRevocationList] = None
 
 
 class KeySealingError(Exception):
@@ -48,6 +50,36 @@ class KeySealingError(Exception):
 def _get_jwt_secret_path() -> Path:
     """Get the path to the persisted JWT secret file."""
     return Path(settings.app_data_path) / ".jwt_secret"
+
+
+def _get_jwt_revocation_path() -> Path:
+    """Get the path to the persisted JWT revocation list file."""
+    return Path(settings.app_data_path) / ".jwt_revoked_tokens.json"
+
+
+def _get_jwt_revocation_list() -> TokenRevocationList:
+    global _jwt_revocation_list
+    if _jwt_revocation_list is None:
+        _jwt_revocation_list = TokenRevocationList(_get_jwt_revocation_path())
+    return _jwt_revocation_list
+
+
+def revoke_jwt_token(jti: str, exp_timestamp: int) -> None:
+    """Revoke a token by `jti` until its `exp` timestamp."""
+    if not settings.jwt_revocation_enabled:
+        return
+    if not jti:
+        return
+    _get_jwt_revocation_list().revoke(jti=jti, exp=exp_timestamp)
+
+
+def is_jwt_token_revoked(jti: str) -> bool:
+    """Return True if a token `jti` is revoked."""
+    if not settings.jwt_revocation_enabled:
+        return False
+    if not jti:
+        return False
+    return _get_jwt_revocation_list().is_revoked(jti)
 
 
 def get_jwt_secret() -> str:
@@ -100,9 +132,13 @@ def create_access_token(
 ) -> str:
     """Create a JWT access token."""
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (
-        expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    )
+    now = datetime.now(timezone.utc)
+    expire = now + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    # Add standard claims for traceability / revocation.
+    # - `jti` enables token invalidation on logout (revocation list).
+    # - `iat` enables basic debugging and future refresh-token flows.
+    to_encode.setdefault("jti", secrets.token_urlsafe(16))
+    to_encode.setdefault("iat", int(now.timestamp()))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, get_jwt_secret(), algorithm=ALGORITHM)
 
@@ -111,6 +147,9 @@ def verify_token(token: str) -> Optional[dict]:
     """Verify and decode a JWT token."""
     try:
         payload = jwt.decode(token, get_jwt_secret(), algorithms=[ALGORITHM])
+        jti = payload.get("jti")
+        if isinstance(jti, str) and is_jwt_token_revoked(jti):
+            return None
         return payload
     except JWTError:
         return None
@@ -307,51 +346,6 @@ def unseal_key_with_dpapi(
 
     else:
         raise KeySealingError(f"Unknown seal method: {seal_method}")
-
-
-# Legacy functions for backward compatibility during migration
-def seal_key_with_dpapi_legacy(key: bytes) -> bytes:
-    """
-    DEPRECATED: Legacy seal function that returns unprotected key on failure.
-
-    WARNING: This function is insecure and only exists for migration purposes.
-    Use seal_key_with_dpapi() instead.
-    """
-    logger.warning("Using legacy insecure key sealing - migrate to seal_key_with_dpapi()")
-    if not settings.use_dpapi:
-        return key
-
-    try:
-        import win32crypt
-        sealed = win32crypt.CryptProtectData(
-            key,
-            "HealthCentral Profile Key",
-            None, None, None, 0,
-        )
-        return sealed
-    except Exception:
-        return key
-
-
-def unseal_key_with_dpapi_legacy(sealed_key: bytes) -> bytes:
-    """
-    DEPRECATED: Legacy unseal function that returns key unchanged on failure.
-
-    WARNING: This function is insecure and only exists for migration purposes.
-    Use unseal_key_with_dpapi() instead.
-    """
-    logger.warning("Using legacy insecure key unsealing - migrate to unseal_key_with_dpapi()")
-    if not settings.use_dpapi:
-        return sealed_key
-
-    try:
-        import win32crypt
-        _, key = win32crypt.CryptUnprotectData(
-            sealed_key, None, None, None, 0,
-        )
-        return key
-    except Exception:
-        return sealed_key
 
 
 class DocumentEncryption:

@@ -1,6 +1,6 @@
 # HealthCentral MVP → RAG Execution Board (1-Week Sprints)
 
-**Last updated:** 2026-01-31  
+**Last updated:** 2026-02-05  
 **Sprint length:** 1 week  
 **Priority:** MVP first, then RAG  
 
@@ -18,17 +18,17 @@ This board is a repo-aligned, test-first execution plan. It is meant to be used 
 
 ---
 
-## 1) Current Repo Reality (as of 2026-01-31)
+## 1) Current Repo Reality (as of 2026-02-05)
 
 ### 1.1 Backend (FastAPI)
 
 - Auth is Bearer-token based (`src/backend/core/auth.py`); endpoints depend on `RequireAuth`.
 - Per-profile SQLCipher DB sessions are opened on profile create/login/unlock (`src/backend/core/profile_database.py`).
-- **Assistant** endpoints exist but are effectively blocked by `RAGModule.generate_response()` raising `NotImplementedError` (`src/backend/modules/rag.py`).
-- **Export** API endpoints exist but return `501` (`src/backend/api/export.py`); there is an `ExportModule` implementation (`src/backend/modules/export.py`) that should be used instead of creating a new export service.
+- **Assistant** endpoints are implemented (`src/backend/api/assistant.py`, `src/backend/modules/rag.py`) but require a local model to be configured; otherwise `/assistant/chat` returns `501` with a setup message.
+- **Export** API endpoints are wired to `ExportModule` (`src/backend/api/export.py`, `src/backend/modules/export.py`) and should not return `501` in normal operation.
 - ✅ **PDF extraction**: table extraction AND `_extract_from_text()` are implemented (Sprint 2).
 - ✅ Document import triggers extraction pipeline and persists observations (Sprint 2).
-- `Chunk`/`Embedding` models already exist in the per-profile DB (`src/backend/models/chunk.py`, `src/backend/models/embedding.py`) but there is no pipeline populating them yet.
+- ✅ Chunking + embeddings are created on import for RAG indexing (Sprint 6) (`src/backend/api/documents.py`).
 
 ### 1.2 Frontend (Vite/React)
 
@@ -39,8 +39,8 @@ This board is a repo-aligned, test-first execution plan. It is meant to be used 
 - ✅ `DocumentInbox` wired to services.
 - ✅ `VerificationWorkbench` wired to observations API (Sprint 3).
 - ✅ `TrendsDashboard` wired to trends/panel APIs (Sprint 3).
-- ⏳ `ExportPage` still mock-driven (Sprint 4 target).
-- ⏳ `ExplainAssistant` still mock-driven (Sprint 5 target).
+- ✅ `ExportPage` wired to real export endpoints (Sprint 4).
+- ✅ `ExplainAssistant` wired to `/assistant/chat` (Sprint 5; requires local model setup).
 
 ---
 

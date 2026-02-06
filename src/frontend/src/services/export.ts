@@ -9,7 +9,7 @@
  * Sprint 4: Full implementation.
  */
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost } from './api';
 
 // Types

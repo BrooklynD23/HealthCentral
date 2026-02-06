@@ -279,6 +279,12 @@ class PerProfileDatabaseManager:
 
                 # Use raw key mode for direct key usage (no PBKDF2)
                 # Format: PRAGMA key = "x'<hex_key>'";
+                # Note: SQLCipher PRAGMA statements do not reliably support DB-API
+                # parameter binding. `hex_key` is derived internally and constrained
+                # to 64 uppercase hex chars to avoid injection/format issues.
+                if len(hex_key) != 64 or any(c not in "0123456789ABCDEF" for c in hex_key):
+                    cursor.close()
+                    raise ProfileDatabaseEncryptionError("Invalid SQLCipher key format")
                 cursor.execute(f"PRAGMA key = \"x'{hex_key}'\"")
                 # Verify the key worked by querying the database
                 try:
