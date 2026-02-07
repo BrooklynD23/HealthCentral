@@ -185,14 +185,26 @@ async def chat(
     rag.set_profile_db(profile_db)
 
     try:
+        # Resolve model runner for this request (supports external API opt-in)
+        runner = None
+        try:
+            from core.external_runner import get_runner_for_request
+            runner = await get_runner_for_request(session.profile_id, db)
+        except (ImportError, Exception):
+            pass  # Use default runner
+
         # Run the RAG pipeline with verification
         result = await rag.query(
             question=request.question,
             profile_id=session.profile_id,
             selected_analytes=request.selected_analytes,
+            selected_panel=request.selected_panel,
             from_date=request.from_date,
             to_date=request.to_date,
             include_references=request.include_references,
+            history=request.history if request.history else None,
+            model_runner=runner,
+            master_db=db,
         )
 
         # Convert to response format
@@ -245,11 +257,8 @@ async def chat(
         )
 
     except NotImplementedError:
-        # LLM not yet implemented - return informative error
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Chat functionality requires LLM setup. Please configure a local model."
-        )
+        # No LLM available — return knowledge-base fallback response
+        return await _build_knowledge_fallback(request, session.profile_id, db)
     except Exception as e:
         logger.exception(
             "Assistant chat request failed",
@@ -387,3 +396,105 @@ async def get_verification_status(
             "tier_4": "Unverified sources (lowest trust)",
         },
     }
+
+
+async def _build_knowledge_fallback(
+    request: ChatRequest,
+    profile_id: str,
+    db,
+) -> ChatResponse:
+    """
+    Build a knowledge-base response when no LLM is available.
+
+    Uses glossary and biomarker knowledge to provide rule-based answers
+    instead of returning a 501 error.
+    """
+    from modules.glossary import GlossaryModule
+    from modules.knowledge_loader import get_knowledge_loader
+    from modules.normalize import NormalizeModule
+
+    glossary = GlossaryModule()
+    knowledge = get_knowledge_loader()
+    normalizer = NormalizeModule()
+
+    segments = []
+    question_lower = request.question.lower()
+
+    # Try to find relevant biomarker info
+    found_analytes = []
+    for canonical, synonyms in normalizer.ANALYTE_SYNONYMS.items():
+        if canonical in question_lower or any(syn in question_lower for syn in synonyms):
+            found_analytes.append(canonical)
+
+    # Also include any explicitly selected analytes
+    if request.selected_analytes:
+        found_analytes.extend(request.selected_analytes)
+    found_analytes = list(set(found_analytes))
+
+    # Build knowledge-based response
+    knowledge_parts = []
+    for analyte in found_analytes[:3]:  # Limit to 3 analytes
+        try:
+            info = await knowledge.get_biomarker_knowledge(analyte, db)
+            if info:
+                knowledge_parts.append(
+                    f"**{info.display_name}**: {info.description}\n"
+                    f"- Normal: {info.normal_interpretation}\n"
+                    f"- High: {info.high_interpretation}\n"
+                    f"- Low: {info.low_interpretation}"
+                )
+        except Exception:
+            pass
+
+    if knowledge_parts:
+        segments.append(ResponseSegment(
+            segment_type="general_info",
+            content="\n\n".join(knowledge_parts),
+            citations=[],
+        ))
+
+    # Try glossary lookup for terms in the question
+    words = question_lower.split()
+    for word in words:
+        result = glossary.lookup(word)
+        if result:
+            segments.append(ResponseSegment(
+                segment_type="general_info",
+                content=f"**{result['term']}**: {result['definition']}",
+                citations=[],
+            ))
+            break  # One glossary hit is enough
+
+    # Add note about limited functionality
+    segments.append(ResponseSegment(
+        segment_type="uncertainty",
+        content=(
+            "Note: This response is based on the knowledge base only. "
+            "For personalized analysis of your lab results, please configure "
+            "a local AI model or external API in Settings."
+        ),
+        citations=[],
+    ))
+
+    if not knowledge_parts and not any(s.segment_type == "general_info" for s in segments):
+        segments.insert(0, ResponseSegment(
+            segment_type="uncertainty",
+            content=(
+                "I don't have specific information about your question in my knowledge base. "
+                "Try asking about a specific lab test (e.g., hemoglobin, glucose, cholesterol)."
+            ),
+            citations=[],
+        ))
+
+    full_response = "\n\n".join(s.content for s in segments)
+
+    return ChatResponse(
+        segments=segments,
+        full_response=full_response,
+        insufficient_context=False,
+        verification=VerificationInfo(
+            enabled=False,
+            summary="Knowledge base response (no LLM)",
+        ),
+        is_valid=True,
+    )

@@ -2,9 +2,10 @@
 Verification module.
 
 Handles:
-- Verification workflow management
-- User edit tracking
-- Version history
+- Verification data models
+- Field validation utilities
+
+Production verification is implemented in api/observations.py:verify_observation.
 """
 
 from typing import Optional
@@ -42,113 +43,49 @@ class VerificationEdit:
     edited_at: datetime
 
 
-class VerifyModule:
+# Fields that can be edited during verification
+EDITABLE_FIELDS = [
+    "value",
+    "value_text",
+    "unit",
+    "ref_low",
+    "ref_high",
+    "collected_at",
+    "notes",
+]
+
+
+def validate_edit_value(value, field_name: str) -> tuple[bool, str]:
     """
-    Verification workflow service.
-    
-    Manages the human-in-the-loop verification process
-    for extracted observations.
+    Validate a user-entered value for a verification edit.
+
+    Args:
+        value: Value to validate
+        field_name: Field being edited
+
+    Returns:
+        Tuple of (is_valid, error_message)
     """
-    
-    # Fields that can be edited
-    EDITABLE_FIELDS = [
-        "value",
-        "value_text",
-        "unit",
-        "ref_low",
-        "ref_high",
-        "collected_at",
-        "notes",
-    ]
-    
-    def __init__(self):
-        """Initialize verification module."""
-        pass
-    
-    def get_needs_verification(
-        self,
-        profile_id: str,
-        confidence_threshold: float = 0.7,
-    ) -> list[str]:
-        """
-        Get observation IDs that need verification.
-        
-        Criteria:
-        - Not yet verified
-        - Confidence below threshold
-        - OCR-derived (Phase 1+)
-        
-        Args:
-            profile_id: Profile ID
-            confidence_threshold: Minimum confidence for auto-accept
-            
-        Returns:
-            List of observation IDs needing verification
-        """
-        # TODO: Implement database query
-        return []
-    
-    def prepare_verification_payload(
-        self,
-        observation_id: str,
-    ) -> VerificationPayload:
-        """
-        Prepare data for verification UI.
-        
-        Includes extracted values and source snippet for comparison.
-        """
-        # TODO: Implement payload preparation
-        raise NotImplementedError()
-    
-    def apply_verification(
-        self,
-        observation_id: str,
-        edits: dict[str, any],
-        verified_by: str = "user",
-    ) -> bool:
-        """
-        Apply verification edits to an observation.
-        
-        Args:
-            observation_id: Observation to verify
-            edits: Dictionary of field -> new value
-            verified_by: Who verified (for audit)
-            
-        Returns:
-            True if successful
-        """
-        # Validate edits
-        for field in edits:
-            if field not in self.EDITABLE_FIELDS:
-                raise ValueError(f"Field not editable: {field}")
-        
-        # TODO: Implement edit application with version tracking
-        raise NotImplementedError()
-    
-    def validate_value(
-        self,
-        value: any,
-        field_name: str,
-    ) -> tuple[bool, str]:
-        """
-        Validate a user-entered value.
-        
-        Args:
-            value: Value to validate
-            field_name: Field being edited
-            
-        Returns:
-            Tuple of (is_valid, error_message)
-        """
-        if field_name in ["value", "ref_low", "ref_high"]:
-            try:
-                float(value)
-                return True, ""
-            except (ValueError, TypeError):
-                return False, "Must be a number"
-        
-        if field_name == "collected_at":
-            # TODO: Validate date format
+    if field_name not in EDITABLE_FIELDS:
+        return False, f"Field not editable: {field_name}"
+
+    if field_name in ("value", "ref_low", "ref_high"):
+        try:
+            float(value)
             return True, ""
-        
-        return True, ""
+        except (ValueError, TypeError):
+            return False, "Must be a number"
+
+    if field_name == "collected_at":
+        if not isinstance(value, str) or not value.strip():
+            return False, "Date is required"
+        # Accept ISO format or common date formats
+        for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%m-%d-%Y"):
+            try:
+                datetime.strptime(value.strip(), fmt)
+                return True, ""
+            except ValueError:
+                continue
+        return False, "Invalid date format. Use YYYY-MM-DD"
+
+    return True, ""

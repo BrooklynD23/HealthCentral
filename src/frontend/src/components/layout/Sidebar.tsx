@@ -9,6 +9,7 @@ import {
   Heart,
   Brain,
   Pill,
+  Settings,
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
@@ -21,6 +22,7 @@ const navItems = [
   { to: '/medications', icon: Pill, label: 'Meds' },
   { to: '/explain', icon: MessageCircle, label: 'Explain' },
   { to: '/export', icon: FileOutput, label: 'Export' },
+  { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
 export function Sidebar() {

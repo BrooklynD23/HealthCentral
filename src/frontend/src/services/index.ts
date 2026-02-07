@@ -87,8 +87,26 @@ export type {
   Citation,
   ResponseSegment,
   VerificationInfo,
+  ChatMessage,
   ChatRequest,
   ChatResponse,
   GlossaryResponse,
   TestIntentResponse,
 } from './assistant';
+
+// Model settings hooks
+export {
+  useModelSettings,
+  useDetectHardware,
+  useSetTier,
+  useTiers,
+  useDownloadProgress,
+  useStartDownload,
+} from './modelSettings';
+
+export type {
+  HardwareInfo,
+  TierStatus,
+  ModelSettings,
+  DownloadProgress,
+} from './modelSettings';

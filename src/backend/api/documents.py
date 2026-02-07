@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Optional
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, File, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,10 +27,27 @@ from core.auth import RequireAuth, Session, ProfileDbSession
 from core.document_crypto import get_decrypted_document, get_profile_encryption_key
 from models import Document, Observation, Chunk, Embedding
 from modules.extract import ExtractModule
+from modules.normalize import NormalizeModule
 from modules.chunking import ChunkingModule
 from modules.embeddings import EmbeddingsModule
 
 logger = logging.getLogger(__name__)
+
+# Shared normalizer instance
+_normalizer = NormalizeModule()
+
+
+def _parse_date_string(date_str: Optional[str]) -> Optional[datetime]:
+    """Parse a date string from extraction into a datetime object."""
+    if not date_str:
+        return None
+    for fmt in ("%m/%d/%Y", "%m/%d/%y", "%m-%d-%Y", "%m-%d-%y", "%b %d, %Y", "%b %d %Y"):
+        try:
+            return datetime.strptime(date_str.strip(), fmt)
+        except ValueError:
+            continue
+    return None
+
 
 # UUID validation pattern
 UUID_PATTERN = re.compile(
@@ -168,6 +185,32 @@ async def import_document(
             detail=str(e)
         )
 
+    # Check for duplicate content before creating new record
+    existing_result = await profile_db.execute(
+        select(Document).where(
+            Document.profile_id == profile_id,
+            Document.content_hash == import_result.content_hash,
+        )
+    )
+    existing_doc = existing_result.scalar_one_or_none()
+
+    if existing_doc:
+        # Clean up the encrypted file that ingest just stored
+        vault_path = Path(settings.app_data_path) / "vaults" / profile_id / "docs"
+        orphan_path = vault_path / f"{import_result.document_id}.bin"
+        if orphan_path.exists():
+            orphan_path.unlink()
+        # Return existing document with 200 (not 201)
+        obs_result = await profile_db.execute(
+            select(Observation).where(Observation.doc_id == existing_doc.id)
+        )
+        obs_count = len(obs_result.scalars().all())
+        return DocumentImportResponse(
+            document=DocumentResponse.from_model(existing_doc),
+            observations_extracted=obs_count,
+            needs_verification=False,
+        )
+
     # Create document record in per-profile encrypted database
     document = Document(
         id=import_result.document_id,
@@ -185,78 +228,100 @@ async def import_document(
     profile_db.add(document)
     await profile_db.commit()
 
-    # Sprint 2: Trigger extraction pipeline
+    # Trigger extraction pipeline
     observations_extracted = 0
     needs_verification = True
 
-    if import_result.doc_type == "lab_pdf":
-        try:
-            # Decrypt document for extraction
-            decrypted_doc = get_decrypted_document(profile_id, import_result.document_id)
-            extract_module = ExtractModule()
-            extraction_result = await extract_module.extract_from_pdf(
-                decrypted_doc, import_result.document_id
-            )
-
-            # Persist observations to profile database
-            import uuid
-            for extracted_obs in extraction_result.observations:
-                observation = Observation(
-                    id=str(uuid.uuid4()),
-                    profile_id=profile_id,
-                    doc_id=import_result.document_id,
-                    analyte_canonical=_canonicalize_analyte(extracted_obs.analyte_raw),
-                    analyte_raw=extracted_obs.analyte_raw,
-                    value=extracted_obs.value,
-                    value_text=extracted_obs.value_text,
-                    unit=extracted_obs.unit,
-                    ref_low=extracted_obs.ref_low,
-                    ref_high=extracted_obs.ref_high,
-                    ref_range_text=extracted_obs.ref_range_text,
-                    flag=extracted_obs.flag,
-                    is_abnormal=extracted_obs.flag is not None,
-                    extraction_confidence=extracted_obs.confidence,
-                    source_page=extracted_obs.provenance.page if extracted_obs.provenance else None,
-                    user_verified=False,
-                )
-                profile_db.add(observation)
-
-            observations_extracted = len(extraction_result.observations)
-
-            # Compute needs_verification
-            needs_verification = _compute_needs_verification(extraction_result.observations)
-
-            # Update document status to parsed
-            document.status = "parsed"
-            document.parsed_at = datetime.utcnow()
-
+    if import_result.doc_type in ("lab_pdf", "lab_pdf_scanned", "lab_image"):
+        # For scanned PDFs and images without OCR enabled: mark pending
+        if import_result.doc_type in ("lab_pdf_scanned", "lab_image") and not settings.ocr_enabled:
+            document.status = "pending_ocr"
             await profile_db.commit()
-
-            logger.info(
-                f"Extracted {observations_extracted} observations from document {import_result.document_id}"
-            )
-
-            # Sprint 6: Create chunks and embeddings for RAG
+        else:
             try:
-                chunks_created = await _create_chunks_and_embeddings(
-                    profile_db=profile_db,
-                    profile_id=profile_id,
-                    doc_id=import_result.document_id,
-                )
-                logger.info(
-                    f"Created {chunks_created} chunks with embeddings for document {import_result.document_id}"
-                )
-            except Exception as chunk_error:
-                logger.warning(
-                    f"Chunking failed for document {import_result.document_id}: {chunk_error}"
-                )
-                # Don't fail import if chunking fails - RAG just won't work for this doc
+                decrypted_doc = get_decrypted_document(profile_id, import_result.document_id)
+                extract_module = ExtractModule()
 
-        except Exception as e:
-            logger.error(f"Extraction failed for document {import_result.document_id}: {e}")
-            # Keep status as pending, don't fail the import
-            document.status = "extraction_failed"
-            await profile_db.commit()
+                # Choose extraction method based on doc type
+                if import_result.doc_type == "lab_pdf":
+                    extraction_result = await extract_module.extract_from_pdf(
+                        decrypted_doc, import_result.document_id
+                    )
+                elif import_result.doc_type == "lab_pdf_scanned":
+                    extraction_result = await extract_module.extract_from_scanned_pdf(
+                        decrypted_doc, import_result.document_id
+                    )
+                else:  # lab_image
+                    extraction_result = await extract_module.extract_from_image(
+                        decrypted_doc, import_result.document_id
+                    )
+
+                # Persist observations to profile database
+                import uuid
+                for extracted_obs in extraction_result.observations:
+                    normalized = _normalizer.normalize_analyte(extracted_obs.analyte_raw)
+                    observation = Observation(
+                        id=str(uuid.uuid4()),
+                        profile_id=profile_id,
+                        doc_id=import_result.document_id,
+                        analyte_canonical=normalized.canonical_name,
+                        analyte_raw=extracted_obs.analyte_raw,
+                        value=extracted_obs.value,
+                        value_text=extracted_obs.value_text,
+                        unit=extracted_obs.unit,
+                        ref_low=extracted_obs.ref_low,
+                        ref_high=extracted_obs.ref_high,
+                        ref_range_text=extracted_obs.ref_range_text,
+                        flag=extracted_obs.flag,
+                        is_abnormal=extracted_obs.flag is not None,
+                        extraction_confidence=extracted_obs.confidence,
+                        source_page=extracted_obs.provenance.page if extracted_obs.provenance else None,
+                        collected_at=_parse_date_string(extracted_obs.collected_at),
+                        user_verified=False,
+                    )
+                    profile_db.add(observation)
+
+                observations_extracted = len(extraction_result.observations)
+
+                # Persist document collection_date from earliest extracted date
+                if extraction_result.collection_dates:
+                    parsed_dates = [_parse_date_string(d) for d in extraction_result.collection_dates]
+                    valid_dates = [d for d in parsed_dates if d is not None]
+                    if valid_dates:
+                        document.collection_date = min(valid_dates)
+
+                # Compute needs_verification
+                needs_verification = _compute_needs_verification(extraction_result.observations)
+
+                # Update document status to parsed
+                document.status = "parsed"
+                document.parsed_at = datetime.utcnow()
+
+                await profile_db.commit()
+
+                logger.info(
+                    f"Extracted {observations_extracted} observations from document {import_result.document_id}"
+                )
+
+                # Create chunks and embeddings for RAG
+                try:
+                    chunks_created = await _create_chunks_and_embeddings(
+                        profile_db=profile_db,
+                        profile_id=profile_id,
+                        doc_id=import_result.document_id,
+                    )
+                    logger.info(
+                        f"Created {chunks_created} chunks with embeddings for document {import_result.document_id}"
+                    )
+                except Exception as chunk_error:
+                    logger.warning(
+                        f"Chunking failed for document {import_result.document_id}: {chunk_error}"
+                    )
+
+            except Exception as e:
+                logger.error(f"Extraction failed for document {import_result.document_id}: {e}")
+                document.status = "extraction_failed"
+                await profile_db.commit()
 
     # Create audit log in master database
     await log_document_event(
@@ -279,21 +344,6 @@ async def import_document(
         needs_verification=needs_verification,
     )
 
-
-def _canonicalize_analyte(raw_name: str) -> str:
-    """
-    Convert raw analyte name to canonical form.
-
-    Sprint 2: Simple canonicalization - lowercase and normalize spacing.
-    Future: Use a proper analyte mapping/ontology.
-    """
-    canonical = raw_name.lower().strip()
-    # Normalize common variations
-    canonical = canonical.replace("hemoglobin a1c", "hba1c")
-    canonical = canonical.replace("hemoglobin", "hgb")
-    canonical = canonical.replace(",", "")
-    canonical = canonical.replace("  ", " ")
-    return canonical
 
 
 async def _create_chunks_and_embeddings(
@@ -503,10 +553,14 @@ async def get_document_pages(
                 detail="Failed to extract document pages"
             )
     else:
-        # For images, return single "page"
+        # For images and scanned PDFs
+        if document.status == "pending_ocr":
+            text = "[Document requires OCR processing. Enable OCR in Settings to extract data.]"
+        else:
+            text = "[Image document]"
         pages.append(PageResponse(
             page_number=1,
-            text="[Image document - OCR not yet implemented]",
+            text=text,
             has_tables=False,
         ))
 

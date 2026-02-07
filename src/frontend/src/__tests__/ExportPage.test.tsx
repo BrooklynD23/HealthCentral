@@ -22,6 +22,7 @@ import { useAuthStore } from '@/stores/authStore';
 // Mock the API module with URL-based routing
 vi.mock('@/services/api', () => ({
   apiGet: vi.fn(),
+  apiGetRaw: vi.fn(),
   apiPost: vi.fn(),
   ApiError: class ApiError extends Error {
     constructor(
@@ -159,10 +160,19 @@ function setupApiMocks(options: {
       }
       return Promise.resolve(options.jsonContent ?? mockJsonContent);
     }
-    if (url.startsWith('/export/doctor-summary/') && url.endsWith('/download')) {
-      return Promise.resolve(options.summaryDownload ?? mockSummaryDownload);
-    }
     return Promise.resolve(null);
+  });
+
+  // Mock apiGetRaw for binary download (returns Response-like object)
+  vi.mocked(api.apiGetRaw).mockImplementation((url: string) => {
+    if (url.startsWith('/export/doctor-summary/') && url.endsWith('/download')) {
+      const content = options.summaryDownload ?? mockSummaryDownload;
+      return Promise.resolve({
+        headers: new Headers({ 'Content-Type': 'text/plain' }),
+        blob: () => Promise.resolve(new Blob([content], { type: 'text/plain' })),
+      } as Response);
+    }
+    return Promise.resolve(new Response());
   });
 
   vi.mocked(api.apiPost).mockImplementation((url: string) => {
@@ -341,12 +351,11 @@ describe('ExportPage', () => {
       await user.click(downloadButton);
 
       await waitFor(() => {
-        // Check that the download endpoint was called (may have other calls too)
-        const calls = vi.mocked(api.apiGet).mock.calls;
-        const downloadCall = calls.find(
-          (call) => call[0].includes('/export/doctor-summary/summary-123/download')
+        // Check that the raw download endpoint was called
+        expect(api.apiGetRaw).toHaveBeenCalledWith(
+          '/export/doctor-summary/summary-123/download',
+          expect.objectContaining({ format: 'text' })
         );
-        expect(downloadCall).toBeTruthy();
       });
     });
   });
@@ -392,6 +401,96 @@ describe('ExportPage', () => {
 
       // Questions section should be toggled
       expect(questionsToggle).toBeInTheDocument();
+    });
+  });
+
+  describe('FE-EXPORT-FORMAT: format selector', () => {
+    it('should render download format selector', async () => {
+      setupApiMocks({});
+
+      renderWithProviders(<ExportPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Download Format')).toBeInTheDocument();
+        expect(screen.getByText('Plain Text (.txt)')).toBeInTheDocument();
+        expect(screen.getByText('HTML (.html)')).toBeInTheDocument();
+        expect(screen.getByText('PDF (.pdf)')).toBeInTheDocument();
+      });
+    });
+
+    it('should default to text format', async () => {
+      setupApiMocks({});
+
+      renderWithProviders(<ExportPage />);
+
+      await waitFor(() => {
+        const textButton = screen.getByText('Plain Text (.txt)').closest('button');
+        // Text option should have the accent style (selected)
+        expect(textButton?.className).toContain('accent-subtle');
+      });
+    });
+
+    it('should switch format when selecting HTML', async () => {
+      const user = userEvent.setup();
+      setupApiMocks({});
+
+      renderWithProviders(<ExportPage />);
+
+      const htmlButton = screen.getByText('HTML (.html)').closest('button');
+      if (htmlButton) {
+        await user.click(htmlButton);
+      }
+
+      await waitFor(() => {
+        expect(htmlButton?.className).toContain('accent-subtle');
+      });
+    });
+
+    it('should download with selected format', async () => {
+      const user = userEvent.setup();
+
+      // Mock apiGetRaw to return HTML content when html format selected
+      vi.mocked(api.apiGetRaw).mockImplementation(() => {
+        return Promise.resolve({
+          headers: new Headers({ 'Content-Type': 'text/html' }),
+          blob: () => Promise.resolve(new Blob(['<html></html>'], { type: 'text/html' })),
+        } as Response);
+      });
+      setupApiMocks({});
+      // Re-mock apiGetRaw after setupApiMocks since it overrides
+      vi.mocked(api.apiGetRaw).mockImplementation(() => {
+        return Promise.resolve({
+          headers: new Headers({ 'Content-Type': 'text/html' }),
+          blob: () => Promise.resolve(new Blob(['<html></html>'], { type: 'text/html' })),
+        } as Response);
+      });
+
+      renderWithProviders(<ExportPage />);
+
+      // Select HTML format
+      const htmlButton = screen.getByText('HTML (.html)').closest('button');
+      if (htmlButton) {
+        await user.click(htmlButton);
+      }
+
+      // Generate summary first
+      const generateButton = screen.getByRole('button', { name: /generate summary/i });
+      await user.click(generateButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Health Summary Report/i)).toBeInTheDocument();
+      });
+
+      // Download with HTML format
+      const downloadButton = await screen.findByRole('button', { name: /download summary/i });
+      await user.click(downloadButton);
+
+      await waitFor(() => {
+        expect(api.apiGetRaw).toHaveBeenCalledWith(
+          '/export/doctor-summary/summary-123/download',
+          expect.objectContaining({ format: 'html' })
+        );
+      });
     });
   });
 });

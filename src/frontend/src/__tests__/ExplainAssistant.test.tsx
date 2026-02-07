@@ -314,7 +314,7 @@ describe('ExplainAssistant', () => {
       await user.type(input, 'Test question{enter}');
 
       await waitFor(() => {
-        expect(screen.getByText(/not fully configured/)).toBeInTheDocument();
+        expect(screen.getByText(/No AI model is configured/)).toBeInTheDocument();
       });
     });
 
