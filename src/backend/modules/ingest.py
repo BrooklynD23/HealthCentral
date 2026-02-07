@@ -136,14 +136,21 @@ class IngestModule:
             file_data: Raw file bytes
 
         Returns:
-            Document type string
+            Document type string: "lab_pdf", "lab_pdf_scanned", "lab_image", or "unknown"
         """
         ext = Path(filename).suffix.lower()
 
         if ext == ".pdf":
-            # Check if it's a scanned PDF (mostly images)
-            # For now, assume text-based; Phase 1 adds OCR detection
-            return "lab_pdf"
+            # Check if the PDF has extractable text or is scanned
+            from modules.extract import ExtractModule
+            extractor = ExtractModule()
+            try:
+                if extractor.has_extractable_text(io.BytesIO(file_data)):
+                    return "lab_pdf"
+                else:
+                    return "lab_pdf_scanned"
+            except Exception:
+                return "lab_pdf"  # Default to text-based on error
         elif ext in [".png", ".jpg", ".jpeg"]:
             return "lab_image"
         else:

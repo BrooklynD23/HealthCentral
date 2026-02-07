@@ -74,6 +74,23 @@ class UserModelSettings(ProfileDatabaseBase):
         nullable=True,
     )
 
+    # External API settings (Phase 2E) — opt-in, default off
+    use_external_api: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+    external_api_provider: Mapped[str] = mapped_column(
+        String(50),
+        default="",
+        nullable=False,
+    )
+    external_api_key_encrypted: Mapped[str] = mapped_column(
+        Text,
+        default="",
+        nullable=False,
+    )
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime,

@@ -26,7 +26,7 @@ Phase 1 Lab Interpretation modules:
 from .ingest import IngestModule
 from .extract import ExtractModule
 from .normalize import NormalizeModule
-from .verify import VerifyModule
+from .verify import VerificationPayload, VerificationEdit, validate_edit_value, EDITABLE_FIELDS
 from .analytics import AnalyticsModule
 from .rag import RAGModule
 from .export import ExportModule
@@ -142,7 +142,10 @@ __all__ = [
     "IngestModule",
     "ExtractModule",
     "NormalizeModule",
-    "VerifyModule",
+    "VerificationPayload",
+    "VerificationEdit",
+    "validate_edit_value",
+    "EDITABLE_FIELDS",
     "AnalyticsModule",
     "RAGModule",
     "ExportModule",

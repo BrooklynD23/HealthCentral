@@ -27,11 +27,12 @@ pypdf>=3.17.0
 python-multipart>=0.0.6
 
 # =============================================================================
-# OCR (Phase 1+)
+# OCR (Phase 1+) — gated by ocr_enabled config flag
+# Requires system package: tesseract-ocr
 # =============================================================================
-# pillow>=10.2.0
-# pytesseract>=0.3.10
-# pdf2image>=1.17.0
+pillow>=10.2.0
+pytesseract>=0.3.10
+pdf2image>=1.17.0
 
 # =============================================================================
 # Local AI / Embeddings
@@ -84,6 +85,12 @@ pytest-cov>=4.1.0
 black>=24.1.0
 ruff>=0.1.0
 mypy>=1.8.0
+
+# =============================================================================
+# PDF Export (Phase 3B) — optional, graceful fallback if not installed
+# Requires system packages: libpango1.0-dev libgdk-pixbuf2.0-dev
+# =============================================================================
+weasyprint>=60.0
 
 # =============================================================================
 # Future: Server Mode Dependencies

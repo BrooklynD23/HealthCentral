@@ -25,6 +25,7 @@ import {
   MedicationDetail,
   ExplainAssistant,
   ExportPage,
+  SettingsPage,
 } from './pages';
 
 const queryClient = new QueryClient({
@@ -56,6 +57,7 @@ function App() {
               <Route path="medications/:medicationId" element={<MedicationDetail />} />
               <Route path="explain" element={<ExplainAssistant />} />
               <Route path="export" element={<ExportPage />} />
+              <Route path="settings" element={<SettingsPage />} />
             </Route>
           </Route>
 

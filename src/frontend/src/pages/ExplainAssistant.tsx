@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Send,
@@ -11,14 +12,19 @@ import {
   CheckCircle2,
   XCircle,
   Info,
+  Settings,
+  Filter,
 } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui';
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { useAuthStore } from '@/stores/authStore';
+import { useAnalyteList } from '@/services';
 import {
   useSendMessage,
   formatResponseText,
   type ChatResponse,
+  type ChatMessage as ChatHistoryMessage,
 } from '@/services/assistant';
 
 interface Message {
@@ -46,15 +52,31 @@ const suggestedQuestions = [
 
 export function ExplainAssistant() {
   const prefersReducedMotion = useReducedMotion();
+  const navigate = useNavigate();
+  const profileId = useAuthStore((state) => state.profileId);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
+  const [modelUnavailable, setModelUnavailable] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Filter state
+  const [selectedAnalytes, setSelectedAnalytes] = useState<string[]>([]);
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+
+  const analyteList = useAnalyteList(profileId || undefined);
   const sendMessage = useSendMessage();
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth' });
   }, [messages, prefersReducedMotion]);
+
+  // Build conversation history for multi-turn context
+  const buildHistory = (): ChatHistoryMessage[] => {
+    return messages
+      .filter((m) => !m.error)
+      .map((m) => ({ role: m.role, content: m.content }));
+  };
 
   const handleSend = async () => {
     if (!input.trim() || sendMessage.isPending) return;
@@ -75,7 +97,19 @@ export function ExplainAssistant() {
         question,
         include_references: true,
         enable_verification: true,
+        selected_analytes: selectedAnalytes.length > 0 ? selectedAnalytes : undefined,
+        from_date: fromDate || undefined,
+        to_date: toDate || undefined,
+        history: buildHistory(),
       });
+
+      // If we get a knowledge-base only response, flag model unavailable
+      const isKnowledgeOnly = response.segments.some(
+        (s) => s.segment_type === 'uncertainty' && s.content.includes('knowledge base only')
+      );
+      if (isKnowledgeOnly) {
+        setModelUnavailable(true);
+      }
 
       const assistantMessage = convertResponseToMessage(response);
       setMessages((prev) => [...prev, assistantMessage]);
@@ -129,7 +163,8 @@ export function ExplainAssistant() {
   const getErrorContent = (error: unknown): string => {
     if (error instanceof Error) {
       if (error.message.includes('501')) {
-        return "I'm not fully configured yet. The chat feature requires a local language model to be set up. Please contact support or check the documentation for setup instructions.";
+        setModelUnavailable(true);
+        return "No AI model is configured yet. Go to Settings to download a local model or connect an external API provider.";
       }
       if (error.message.includes('401') || error.message.includes('403')) {
         return 'Your session has expired. Please log in again to continue.';
@@ -159,6 +194,27 @@ export function ExplainAssistant() {
               </Badge>
             </CardTitle>
           </CardHeader>
+
+          {modelUnavailable && (
+            <div className="mx-6 mt-4 flex items-center gap-3 px-4 py-3 rounded-xl bg-status-caution-subtle border border-status-caution/20">
+              <Settings className="w-5 h-5 text-status-caution flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-ink">No AI model configured</p>
+                <p className="text-xs text-ink-secondary">
+                  Responses are limited to the knowledge base. Configure a model for full functionality.
+                </p>
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => navigate('/settings')}
+                className="gap-1.5 flex-shrink-0"
+              >
+                <Settings className="w-3.5 h-3.5" />
+                Settings
+              </Button>
+            </div>
+          )}
 
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             {messages.length === 0 && (
@@ -323,6 +379,83 @@ export function ExplainAssistant() {
       </div>
 
       <div className="w-80 space-y-4">
+        {/* Filters */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Filter className="w-4 h-4 text-ink-secondary" />
+              Filters
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div>
+              <label className="text-xs text-ink-secondary block mb-1">Date Range</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => setFromDate(e.target.value)}
+                  className="flex-1 px-2 py-1.5 rounded-lg bg-surface-muted text-xs text-ink border border-black/[0.06] focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+                <span className="text-xs text-ink-tertiary">to</span>
+                <input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  className="flex-1 px-2 py-1.5 rounded-lg bg-surface-muted text-xs text-ink border border-black/[0.06] focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-ink-secondary block mb-1">
+                Analytes ({selectedAnalytes.length} selected)
+              </label>
+              <div className="max-h-32 overflow-y-auto rounded-xl bg-surface-muted p-2 space-y-1">
+                {analyteList && analyteList.length > 0 ? (
+                  analyteList.slice(0, 20).map((analyte: string) => (
+                    <button
+                      key={analyte}
+                      onClick={() =>
+                        setSelectedAnalytes((prev) =>
+                          prev.includes(analyte)
+                            ? prev.filter((a) => a !== analyte)
+                            : [...prev, analyte]
+                        )
+                      }
+                      className={cn(
+                        'w-full text-left px-2 py-1.5 rounded-lg text-xs transition-colors',
+                        selectedAnalytes.includes(analyte)
+                          ? 'bg-accent-subtle text-accent font-medium'
+                          : 'text-ink-secondary hover:bg-white'
+                      )}
+                    >
+                      {analyte}
+                    </button>
+                  ))
+                ) : (
+                  <p className="text-xs text-ink-tertiary text-center py-2">
+                    No analytes found
+                  </p>
+                )}
+              </div>
+            </div>
+            {(selectedAnalytes.length > 0 || fromDate || toDate) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-xs"
+                onClick={() => {
+                  setSelectedAnalytes([]);
+                  setFromDate('');
+                  setToDate('');
+                }}
+              >
+                Clear Filters
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">

@@ -3,14 +3,14 @@
  *
  * React Query hooks for export functionality:
  * - CSV/JSON data export
- * - Doctor summary generation
+ * - Doctor summary generation (text/html/pdf)
  * - Discussion questions generation
  *
- * Sprint 4: Full implementation.
+ * Sprint 4 + Phase 3C: Format-aware download with binary support.
  */
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiGet, apiPost } from './api';
+import { apiGet, apiGetRaw, apiPost } from './api';
 
 // Types
 export interface SummaryRequest {
@@ -45,7 +45,21 @@ export interface ExportFilters {
   to_date?: string;
 }
 
+export type ExportFormat = 'text' | 'html' | 'pdf';
+
 const QUERY_KEY = 'export';
+
+// Helper: trigger file download from blob
+function triggerDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 // API functions
 async function exportCSV(filters?: ExportFilters): Promise<string> {
@@ -74,60 +88,62 @@ async function generateSummary(request: SummaryRequest): Promise<SummaryResponse
   return apiPost<SummaryResponse, SummaryRequest>('/export/doctor-summary', request);
 }
 
-async function downloadSummary(summaryId: string): Promise<string> {
-  return apiGet<string>(`/export/doctor-summary/${summaryId}/download`);
+async function downloadSummary(
+  summaryId: string,
+  format: ExportFormat = 'text'
+): Promise<{ blob: Blob; contentType: string; extension: string }> {
+  const response = await apiGetRaw(
+    `/export/doctor-summary/${summaryId}/download`,
+    { format }
+  );
+
+  const contentType = response.headers.get('Content-Type') || 'text/plain';
+  const blob = await response.blob();
+
+  let extension = '.txt';
+  if (contentType.includes('html')) {
+    extension = '.html';
+  } else if (contentType.includes('pdf')) {
+    extension = '.pdf';
+  }
+
+  return { blob, contentType, extension };
 }
 
 async function generateQuestions(filters?: ExportFilters): Promise<QuestionItem[]> {
-  const params: Record<string, string> = {};
-  if (filters?.from_date) params.from_date = filters.from_date;
-  if (filters?.to_date) params.to_date = filters.to_date;
+  const queryParams = new URLSearchParams();
+  if (filters?.from_date) queryParams.set('from_date', filters.from_date);
+  if (filters?.to_date) queryParams.set('to_date', filters.to_date);
 
-  return apiPost<QuestionItem[]>('/export/questions');
+  const queryString = queryParams.toString();
+  const url = queryString ? `/export/questions?${queryString}` : '/export/questions';
+  return apiPost<QuestionItem[]>(url);
 }
 
 // React Query hooks
 
 /**
  * Mutation hook for exporting CSV data.
- * Call mutate() to trigger export.
  */
 export function useExportCSV() {
   return useMutation({
     mutationFn: (filters?: ExportFilters) => exportCSV(filters),
     onSuccess: (csvContent) => {
-      // Trigger file download
       const blob = new Blob([csvContent], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `health_data_${new Date().toISOString().split('T')[0]}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      triggerDownload(blob, `health_data_${new Date().toISOString().split('T')[0]}.csv`);
     },
   });
 }
 
 /**
  * Mutation hook for exporting JSON data.
- * Call mutate() to trigger export.
  */
 export function useExportJSON() {
   return useMutation({
     mutationFn: (filters?: ExportFilters) => exportJSON(filters),
     onSuccess: (jsonContent) => {
-      // Trigger file download
       const blob = new Blob([jsonContent], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `health_data_${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      triggerDownload(blob, `health_data_${new Date().toISOString().split('T')[0]}.json`);
     },
   });
 }
@@ -148,21 +164,14 @@ export function useGenerateSummary() {
 
 /**
  * Mutation hook for downloading a generated summary.
+ * Accepts { summaryId, format } to support text/html/pdf downloads.
  */
 export function useDownloadSummary() {
   return useMutation({
-    mutationFn: (summaryId: string) => downloadSummary(summaryId),
-    onSuccess: (textContent, summaryId) => {
-      // Trigger file download
-      const blob = new Blob([textContent], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `health_summary_${summaryId.substring(0, 8)}.txt`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+    mutationFn: ({ summaryId, format }: { summaryId: string; format: ExportFormat }) =>
+      downloadSummary(summaryId, format),
+    onSuccess: ({ blob, extension }, { summaryId }) => {
+      triggerDownload(blob, `health_summary_${summaryId.substring(0, 8)}${extension}`);
     },
   });
 }
@@ -172,6 +181,6 @@ export function useDownloadSummary() {
  */
 export function useGenerateQuestions() {
   return useMutation({
-    mutationFn: (filters?: ExportFilters) => generateQuestions(filters),
+    mutationFn: (filters: ExportFilters | void) => generateQuestions(filters || undefined),
   });
 }
