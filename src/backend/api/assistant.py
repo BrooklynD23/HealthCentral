@@ -181,15 +181,12 @@ async def chat(
     """
     rag = get_rag_module()
 
-    # Sprint 6: Set profile database for vector search
-    rag.set_profile_db(profile_db)
-
     try:
         # Resolve model runner for this request (supports external API opt-in)
         runner = None
         try:
             from core.external_runner import get_runner_for_request
-            runner = await get_runner_for_request(session.profile_id, db)
+            runner = await get_runner_for_request(session.profile_id, profile_db)
         except (ImportError, Exception):
             pass  # Use default runner
 
@@ -205,6 +202,7 @@ async def chat(
             history=request.history if request.history else None,
             model_runner=runner,
             master_db=db,
+            profile_db=profile_db,
         )
 
         # Convert to response format

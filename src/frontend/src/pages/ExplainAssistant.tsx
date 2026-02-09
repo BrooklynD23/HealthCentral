@@ -61,6 +61,7 @@ export function ExplainAssistant() {
 
   // Filter state
   const [selectedAnalytes, setSelectedAnalytes] = useState<string[]>([]);
+  const [selectedPanel, setSelectedPanel] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
 
@@ -98,6 +99,7 @@ export function ExplainAssistant() {
         include_references: true,
         enable_verification: true,
         selected_analytes: selectedAnalytes.length > 0 ? selectedAnalytes : undefined,
+        selected_panel: selectedPanel || undefined,
         from_date: fromDate || undefined,
         to_date: toDate || undefined,
         history: buildHistory(),
@@ -439,13 +441,33 @@ export function ExplainAssistant() {
                 )}
               </div>
             </div>
-            {(selectedAnalytes.length > 0 || fromDate || toDate) && (
+            <div>
+              <label htmlFor="panel-select" className="text-xs text-ink-secondary block mb-1">
+                Panel
+              </label>
+              <select
+                id="panel-select"
+                value={selectedPanel}
+                onChange={(e) => setSelectedPanel(e.target.value)}
+                className="w-full px-2 py-1.5 rounded-lg bg-surface-muted text-xs text-ink border border-black/[0.06] focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                <option value="">All panels</option>
+                <option value="Lipid Panel">Lipid Panel</option>
+                <option value="Metabolic Panel">Metabolic Panel</option>
+                <option value="CBC">CBC</option>
+                <option value="Thyroid Panel">Thyroid Panel</option>
+                <option value="Liver Panel">Liver Panel</option>
+                <option value="Kidney Panel">Kidney Panel</option>
+              </select>
+            </div>
+            {(selectedAnalytes.length > 0 || fromDate || toDate || selectedPanel) && (
               <Button
                 variant="ghost"
                 size="sm"
                 className="w-full text-xs"
                 onClick={() => {
                   setSelectedAnalytes([]);
+                  setSelectedPanel('');
                   setFromDate('');
                   setToDate('');
                 }}

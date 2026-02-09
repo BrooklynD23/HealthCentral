@@ -25,6 +25,8 @@ import {
   useTiers,
   useDownloadProgress,
   useStartDownload,
+  useExternalApiSettings,
+  useSaveExternalApiSettings,
 } from '@/services';
 
 const tierDescriptions: Record<string, { label: string; desc: string; icon: typeof Zap }> = {
@@ -45,9 +47,17 @@ export function SettingsPage() {
   const detectHardware = useDetectHardware();
   const setTier = useSetTier();
   const startDownload = useStartDownload();
+  const { data: externalApiData } = useExternalApiSettings();
+  const saveExternalApi = useSaveExternalApiSettings();
 
-  const isDownloading = startDownload.isPending;
-  const { data: downloadProgress } = useDownloadProgress(isDownloading);
+  const [downloadInitiated, setDownloadInitiated] = useState(false);
+  const { data: downloadProgress } = useDownloadProgress(downloadInitiated);
+
+  // Derive active download status from progress data
+  const hasActiveDownload = downloadInitiated && Object.values(downloadProgress || {}).some(
+    (p) => p.status === 'pending' || p.status === 'downloading'
+  );
+  const isDownloading = hasActiveDownload || startDownload.isPending;
 
   const handleDetectHardware = () => {
     detectHardware.mutate();
@@ -58,16 +68,22 @@ export function SettingsPage() {
   };
 
   const handleStartDownload = (tier: string) => {
+    setDownloadInitiated(true);
     startDownload.mutate(tier);
   };
 
-  const [externalEnabled, setExternalEnabled] = useState(false);
+  const externalEnabled = externalApiData?.use_external_api ?? false;
 
   const handleExternalApiToggle = () => {
     if (!externalEnabled) {
       setShowConsentDialog(true);
     } else {
-      setExternalEnabled(false);
+      saveExternalApi.mutate({
+        use_external_api: false,
+        provider: externalProvider,
+        api_key: '',
+        consent_acknowledged: true,
+      });
     }
   };
 
@@ -427,7 +443,13 @@ export function SettingsPage() {
               <Button
                 onClick={() => {
                   setShowConsentDialog(false);
-                  setExternalEnabled(true);
+                  saveExternalApi.mutate({
+                    use_external_api: true,
+                    provider: externalProvider,
+                    api_key: externalKey,
+                    model: externalModel,
+                    consent_acknowledged: true,
+                  });
                 }}
               >
                 I Understand, Enable

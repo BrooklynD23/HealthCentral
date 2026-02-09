@@ -154,7 +154,21 @@ class ExtractModule:
                 # Extract dates
                 dates = self._extract_dates(text)
                 collection_dates.extend(dates)
-        
+
+                # Propagate page-level date to observations missing collected_at
+                if dates:
+                    page_date = dates[0]  # Use first date found on this page
+                    for obs in observations:
+                        if obs.provenance and obs.provenance.page == page_num and obs.collected_at is None:
+                            obs.collected_at = page_date
+
+        # Final pass: assign earliest date to any observation still missing collected_at
+        if collection_dates:
+            fallback_date = collection_dates[0]
+            for obs in observations:
+                if obs.collected_at is None:
+                    obs.collected_at = fallback_date
+
         # Calculate overall confidence
         if observations:
             overall_confidence = sum(o.confidence for o in observations) / len(observations)
@@ -460,6 +474,20 @@ class ExtractModule:
             dates = self._extract_dates(text)
             collection_dates.extend(dates)
 
+            # Propagate page-level date to observations missing collected_at
+            if dates:
+                page_date = dates[0]
+                for obs in text_obs:
+                    if obs.collected_at is None:
+                        obs.collected_at = page_date
+
+        # Final pass: assign earliest date to any observation still missing collected_at
+        if collection_dates:
+            fallback_date = collection_dates[0]
+            for obs in observations:
+                if obs.collected_at is None:
+                    obs.collected_at = fallback_date
+
         overall_confidence = (
             sum(o.confidence for o in observations) / len(observations)
             if observations else 0.0
@@ -502,6 +530,13 @@ class ExtractModule:
             obs.confidence = min(obs.confidence * 0.8, 0.7)
             obs.extraction_method = "ocr_image"
         collection_dates = self._extract_dates(text)
+
+        # Propagate dates to observations missing collected_at
+        if collection_dates:
+            fallback_date = collection_dates[0]
+            for obs in observations:
+                if obs.collected_at is None:
+                    obs.collected_at = fallback_date
 
         overall_confidence = (
             sum(o.confidence for o in observations) / len(observations)
