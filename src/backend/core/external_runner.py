@@ -157,7 +157,7 @@ class ExternalModelRunner:
             )
 
 
-async def get_runner_for_request(profile_id: str, db) -> Optional["ExternalModelRunner"]:
+async def get_runner_for_request(profile_id: str, profile_db) -> Optional["ExternalModelRunner"]:
     """
     Get the appropriate model runner for a request based on user settings.
 
@@ -166,16 +166,16 @@ async def get_runner_for_request(profile_id: str, db) -> Optional["ExternalModel
 
     Args:
         profile_id: The authenticated user's profile ID
-        db: Master database session
+        profile_db: Profile database session (UserModelSettings is profile-scoped)
 
     Returns:
         ExternalModelRunner if user has external API configured, None otherwise
     """
     try:
         from sqlalchemy import select
-        from models import UserModelSettings
+        from models.model_settings import UserModelSettings
 
-        result = await db.execute(
+        result = await profile_db.execute(
             select(UserModelSettings).where(
                 UserModelSettings.profile_id == profile_id
             )

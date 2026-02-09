@@ -334,6 +334,59 @@ describe('ExplainAssistant', () => {
     });
   });
 
+  describe('HC-REM-007: Panel selector', () => {
+    it('should render panel selector in filter sidebar', () => {
+      renderWithProviders(<ExplainAssistant />);
+
+      expect(screen.getByLabelText(/panel/i)).toBeInTheDocument();
+    });
+
+    it('should include selected_panel in request', async () => {
+      const user = userEvent.setup();
+      const mockApiPost = vi.mocked(api.apiPost);
+      mockApiPost.mockResolvedValueOnce(mockChatResponse);
+
+      renderWithProviders(<ExplainAssistant />);
+
+      // Select a panel
+      const panelSelect = screen.getByLabelText(/panel/i);
+      await user.selectOptions(panelSelect, 'Lipid Panel');
+
+      // Send a message
+      const input = screen.getByPlaceholderText('Ask about your results...');
+      await user.type(input, 'Explain my lipids{enter}');
+
+      await waitFor(() => {
+        expect(mockApiPost).toHaveBeenCalledWith(
+          '/assistant/chat',
+          expect.objectContaining({
+            selected_panel: 'Lipid Panel',
+          })
+        );
+      });
+    });
+
+    it('should not include selected_panel when none selected', async () => {
+      const user = userEvent.setup();
+      const mockApiPost = vi.mocked(api.apiPost);
+      mockApiPost.mockResolvedValueOnce(mockChatResponse);
+
+      renderWithProviders(<ExplainAssistant />);
+
+      const input = screen.getByPlaceholderText('Ask about your results...');
+      await user.type(input, 'Test question{enter}');
+
+      await waitFor(() => {
+        expect(mockApiPost).toHaveBeenCalledWith(
+          '/assistant/chat',
+          expect.objectContaining({
+            selected_panel: undefined,
+          })
+        );
+      });
+    });
+  });
+
   describe('Suggested questions', () => {
     it('should populate input when suggested question is clicked', async () => {
       const user = userEvent.setup();

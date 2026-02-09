@@ -147,7 +147,6 @@ USER QUESTION: {question}"""
         # Sprint 6: Initialize LLM model runner and embeddings
         self._model_runner = get_model_runner()
         self._embedder = EmbeddingsModule()
-        self._profile_db = None  # Set per-request via set_profile_db()
 
         # Phase 4: Verification components
         self.enable_verification = enable_verification
@@ -166,6 +165,7 @@ USER QUESTION: {question}"""
         include_references: bool = True,
         top_k: int = 10,
         master_db=None,
+        profile_db=None,
     ) -> list[RetrievedChunk]:
         """
         Retrieve relevant chunks for the query (async).
@@ -179,6 +179,7 @@ USER QUESTION: {question}"""
             include_references: Include reference corpus
             top_k: Number of chunks to retrieve
             master_db: Master database session for reference lookups
+            profile_db: Profile database session for vector search
 
         Returns:
             List of relevant chunks with scores
@@ -186,7 +187,7 @@ USER QUESTION: {question}"""
         chunks = []
 
         # Search user document vectors directly (async)
-        if self._profile_db is not None:
+        if profile_db is not None:
             search_results = await self._search_vectors_async(
                 query=query,
                 profile_id=profile_id,
@@ -194,6 +195,7 @@ USER QUESTION: {question}"""
                 from_date=from_date,
                 to_date=to_date,
                 top_k=top_k,
+                profile_db=profile_db,
             )
 
             for chunk_data, score in search_results:
@@ -275,17 +277,6 @@ USER QUESTION: {question}"""
 
         return ref_chunks
 
-    def set_profile_db(self, profile_db):
-        """
-        Set the profile database session for vector search.
-
-        Must be called before querying if vector search is needed.
-
-        Args:
-            profile_db: Profile database session (SQLAlchemy async session)
-        """
-        self._profile_db = profile_db
-
     async def _search_vectors_async(
         self,
         query: str,
@@ -294,6 +285,7 @@ USER QUESTION: {question}"""
         from_date: Optional[str] = None,
         to_date: Optional[str] = None,
         top_k: int = 10,
+        profile_db=None,
     ) -> list[tuple[dict, float]]:
         """
         Async implementation of vector search with date/analyte/panel filtering.
@@ -347,7 +339,7 @@ USER QUESTION: {question}"""
             )
             stmt = stmt.where(Document.id.in_(analyte_doc_stmt))
 
-        result = await self._profile_db.execute(stmt)
+        result = await profile_db.execute(stmt)
         rows = result.all()
 
         if not rows:
@@ -764,6 +756,7 @@ I was unable to fully process your question within the time limit. Please try as
         history: Optional[list] = None,
         model_runner=None,
         master_db=None,
+        profile_db=None,
     ) -> ValidatedResponse:
         """
         Complete RAG query with retrieval, generation, and validation.
@@ -803,6 +796,7 @@ I was unable to fully process your question within the time limit. Please try as
             to_date=to_date,
             include_references=include_references,
             master_db=master_db,
+            profile_db=profile_db,
         )
 
         # Check for insufficient context

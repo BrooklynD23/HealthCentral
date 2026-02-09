@@ -70,7 +70,8 @@ async function exportCSV(filters?: ExportFilters): Promise<string> {
   if (filters?.from_date) params.from_date = filters.from_date;
   if (filters?.to_date) params.to_date = filters.to_date;
 
-  return apiGet<string>('/export/csv', params);
+  const response = await apiGetRaw('/export/csv', params);
+  return response.text();
 }
 
 async function exportJSON(filters?: ExportFilters): Promise<string> {
@@ -142,7 +143,8 @@ export function useExportJSON() {
   return useMutation({
     mutationFn: (filters?: ExportFilters) => exportJSON(filters),
     onSuccess: (jsonContent) => {
-      const blob = new Blob([jsonContent], { type: 'application/json' });
+      const content = typeof jsonContent === 'string' ? jsonContent : JSON.stringify(jsonContent, null, 2);
+      const blob = new Blob([content], { type: 'application/json' });
       triggerDownload(blob, `health_data_${new Date().toISOString().split('T')[0]}.json`);
     },
   });

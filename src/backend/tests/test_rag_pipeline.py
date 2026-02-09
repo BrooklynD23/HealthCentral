@@ -1143,34 +1143,59 @@ Always discuss your results with your healthcare provider."""
                     assert total_citations >= 1
 
 
-class TestVectorSearchIntegration:
-    """Tests for Sprint 6: Vector Search Integration."""
+class TestRAGProfileDbIsolation:
+    """Tests for HC-REM-008: RAG singleton must not hold mutable profile_db."""
 
-    def test_set_profile_db_stores_reference(self):
-        """set_profile_db should store the database reference."""
+    def test_query_requires_profile_db_parameter(self):
+        """
+        HC-REM-008-001: query() must accept profile_db as a keyword argument.
+        Calling without it should raise TypeError (required param).
+        """
+        import inspect
         from modules.rag import RAGModule
 
-        rag = RAGModule()
-
-        mock_db = MagicMock()
-        rag.set_profile_db(mock_db)
-
-        assert rag._profile_db is mock_db
-
-    def test_search_vectors_returns_empty_without_db(self):
-        """_search_vectors should return empty list without profile_db."""
-        from modules.rag import RAGModule
-
-        rag = RAGModule()
-        # Don't set profile_db
-
-        results = rag._search_vectors(
-            query="test query",
-            profile_id="test-profile",
-            top_k=5,
+        sig = inspect.signature(RAGModule.query)
+        assert "profile_db" in sig.parameters, (
+            "RAGModule.query() must have a 'profile_db' parameter"
         )
 
-        assert results == []
+    def test_retrieve_context_accepts_profile_db(self):
+        """
+        HC-REM-008-002: retrieve_context() must accept profile_db parameter.
+        """
+        import inspect
+        from modules.rag import RAGModule
+
+        sig = inspect.signature(RAGModule.retrieve_context)
+        assert "profile_db" in sig.parameters, (
+            "RAGModule.retrieve_context() must have a 'profile_db' parameter"
+        )
+
+    def test_no_set_profile_db_method(self):
+        """
+        HC-REM-008-003: RAGModule should no longer have set_profile_db().
+        """
+        from modules.rag import RAGModule
+
+        rag = RAGModule()
+        assert not hasattr(rag, "set_profile_db"), (
+            "set_profile_db() should be removed from RAGModule"
+        )
+
+    def test_no_profile_db_instance_attribute(self):
+        """
+        HC-REM-008-004: RAGModule should not store _profile_db on self.
+        """
+        from modules.rag import RAGModule
+
+        rag = RAGModule()
+        assert not hasattr(rag, "_profile_db"), (
+            "_profile_db should not be an instance attribute"
+        )
+
+
+class TestVectorSearchIntegration:
+    """Tests for Sprint 6: Vector Search Integration."""
 
     @pytest.mark.asyncio
     async def test_search_vectors_async_queries_database(self):
@@ -1187,12 +1212,11 @@ class TestVectorSearchIntegration:
         mock_result.all.return_value = []
         mock_db.execute.return_value = mock_result
 
-        rag.set_profile_db(mock_db)
-
         results = await rag._search_vectors_async(
             query="test query",
             profile_id="test-profile",
             top_k=5,
+            profile_db=mock_db,
         )
 
         # Should have called execute
@@ -1232,12 +1256,11 @@ class TestVectorSearchIntegration:
         mock_result.all.return_value = [(mock_chunk, mock_embedding, mock_document)]
         mock_db.execute.return_value = mock_result
 
-        rag.set_profile_db(mock_db)
-
         results = await rag._search_vectors_async(
             query="What is my glucose level?",
             profile_id="test-profile",
             top_k=5,
+            profile_db=mock_db,
         )
 
         # Should return one result

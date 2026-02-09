@@ -102,6 +102,8 @@ export {
   useTiers,
   useDownloadProgress,
   useStartDownload,
+  useExternalApiSettings,
+  useSaveExternalApiSettings,
 } from './modelSettings';
 
 export type {
@@ -109,4 +111,6 @@ export type {
   TierStatus,
   ModelSettings,
   DownloadProgress,
+  ExternalApiSettings,
+  ExternalApiSettingsSave,
 } from './modelSettings';

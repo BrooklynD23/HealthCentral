@@ -163,8 +163,19 @@ function setupApiMocks(options: {
     return Promise.resolve(null);
   });
 
-  // Mock apiGetRaw for binary download (returns Response-like object)
+  // Mock apiGetRaw for raw downloads (CSV + summary)
   vi.mocked(api.apiGetRaw).mockImplementation((url: string) => {
+    if (url === '/export/csv') {
+      if (options.csvError) {
+        return Promise.reject(new Error('Export failed'));
+      }
+      const content = options.csvContent ?? mockCsvContent;
+      return Promise.resolve({
+        headers: new Headers({ 'Content-Type': 'text/csv' }),
+        text: () => Promise.resolve(content),
+        blob: () => Promise.resolve(new Blob([content], { type: 'text/csv' })),
+      } as Response);
+    }
     if (url.startsWith('/export/doctor-summary/') && url.endsWith('/download')) {
       const content = options.summaryDownload ?? mockSummaryDownload;
       return Promise.resolve({
@@ -225,11 +236,33 @@ describe('ExportPage', () => {
       await user.click(csvButton);
 
       await waitFor(() => {
-        expect(api.apiGet).toHaveBeenCalledWith(
+        expect(api.apiGetRaw).toHaveBeenCalledWith(
           expect.stringContaining('/export/csv'),
           expect.any(Object)
         );
       });
+    });
+
+    it('FE-EXPORT-CSV-CONTENT-001: should use raw response handling for CSV content', async () => {
+      const user = userEvent.setup();
+      setupApiMocks({});
+
+      renderWithProviders(<ExportPage />);
+
+      const csvButton = screen.getByRole('button', { name: /csv/i });
+      await user.click(csvButton);
+
+      await waitFor(() => {
+        expect(api.apiGetRaw).toHaveBeenCalledWith(
+          expect.stringContaining('/export/csv'),
+          expect.any(Object)
+        );
+      });
+
+      expect(api.apiGet).not.toHaveBeenCalledWith(
+        expect.stringContaining('/export/csv'),
+        expect.anything()
+      );
     });
 
     it('should handle CSV export error gracefully', async () => {
@@ -274,6 +307,42 @@ describe('ExportPage', () => {
           expect.any(Object)
         );
       });
+    });
+
+    it('FE-EXPORT-JSON-CONTENT-002: should download valid JSON (not [object Object])', async () => {
+      const user = userEvent.setup();
+      setupApiMocks({
+        jsonContent: [
+          {
+            analyte_canonical: 'glucose',
+            value: 95.0,
+            unit: 'mg/dL',
+          },
+        ] as unknown as string,
+      });
+
+      renderWithProviders(<ExportPage />);
+
+      const jsonButton = screen.getByRole('button', { name: /json/i });
+      await user.click(jsonButton);
+
+      await waitFor(() => {
+        expect(mockCreateObjectURL).toHaveBeenCalled();
+      });
+
+      const calls = mockCreateObjectURL.mock.calls as unknown as [Blob][];
+      const blob = calls[calls.length - 1][0];
+
+      // Read blob content using FileReader (jsdom-compatible)
+      const blobText = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsText(blob);
+      });
+
+      expect(() => JSON.parse(blobText)).not.toThrow();
+      expect(blobText).toContain('"analyte_canonical"');
     });
   });
 

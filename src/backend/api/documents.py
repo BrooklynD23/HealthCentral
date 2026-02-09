@@ -16,6 +16,7 @@ from typing import Optional
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, File, Query, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -137,7 +138,12 @@ class PageResponse(BaseModel):
     has_tables: bool
 
 
-@router.post("/import", response_model=DocumentImportResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/import",
+    response_model=DocumentImportResponse,
+    status_code=status.HTTP_201_CREATED,
+    responses={200: {"model": DocumentImportResponse, "description": "Duplicate document already exists"}},
+)
 async def import_document(
     session: RequireAuth,
     file: UploadFile = File(...),
@@ -205,10 +211,14 @@ async def import_document(
             select(Observation).where(Observation.doc_id == existing_doc.id)
         )
         obs_count = len(obs_result.scalars().all())
-        return DocumentImportResponse(
+        response_data = DocumentImportResponse(
             document=DocumentResponse.from_model(existing_doc),
             observations_extracted=obs_count,
             needs_verification=False,
+        )
+        return JSONResponse(
+            content=response_data.model_dump(mode="json"),
+            status_code=status.HTTP_200_OK,
         )
 
     # Create document record in per-profile encrypted database

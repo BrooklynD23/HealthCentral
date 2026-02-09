@@ -116,6 +116,23 @@ class TiersListResponse(BaseModel):
     recommended_tier: str
 
 
+class ExternalApiSettingsRequest(BaseModel):
+    """Request to set external API settings."""
+    use_external_api: bool = False
+    provider: str = ""
+    api_key: str = ""
+    model: str = ""
+    consent_acknowledged: bool = False
+
+
+class ExternalApiSettingsResponse(BaseModel):
+    """Response for external API settings (key is masked)."""
+    use_external_api: bool
+    provider: str
+    model: str
+    api_key_configured: bool
+
+
 # =============================================================================
 # API Endpoints
 # =============================================================================
@@ -446,6 +463,124 @@ async def start_model_download(
     }
 
 
+@router.get(
+    "/external-api",
+    response_model=ExternalApiSettingsResponse,
+    summary="Get external API settings",
+    description="Get external API settings. API key is never returned.",
+)
+async def get_external_api_settings(
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
+):
+    """Get external API settings with masked key."""
+    result = await profile_db.execute(
+        select(UserModelSettings).where(
+            UserModelSettings.profile_id == session.profile_id
+        )
+    )
+    user_settings = result.scalar_one_or_none()
+
+    if not user_settings:
+        return ExternalApiSettingsResponse(
+            use_external_api=False,
+            provider="",
+            model="",
+            api_key_configured=False,
+        )
+
+    return ExternalApiSettingsResponse(
+        use_external_api=getattr(user_settings, "use_external_api", False),
+        provider=getattr(user_settings, "external_api_provider", ""),
+        model="",
+        api_key_configured=bool(getattr(user_settings, "external_api_key_encrypted", "")),
+    )
+
+
+@router.put(
+    "/external-api",
+    response_model=ExternalApiSettingsResponse,
+    summary="Save external API settings",
+    description="Save external API settings. Requires consent acknowledgement.",
+)
+async def save_external_api_settings(
+    request: ExternalApiSettingsRequest,
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
+):
+    """Save external API settings to profile database."""
+    if request.use_external_api and not request.consent_acknowledged:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="consent_acknowledged must be true to enable external API",
+        )
+
+    result = await profile_db.execute(
+        select(UserModelSettings).where(
+            UserModelSettings.profile_id == session.profile_id
+        )
+    )
+    user_settings = result.scalar_one_or_none()
+
+    if user_settings is None:
+        user_settings = UserModelSettings(
+            profile_id=session.profile_id,
+        )
+        profile_db.add(user_settings)
+
+    user_settings.use_external_api = request.use_external_api
+    user_settings.external_api_provider = request.provider
+
+    if request.api_key:
+        user_settings.external_api_key_encrypted = request.api_key
+
+    await profile_db.commit()
+
+    return ExternalApiSettingsResponse(
+        use_external_api=user_settings.use_external_api,
+        provider=user_settings.external_api_provider,
+        model=request.model,
+        api_key_configured=bool(user_settings.external_api_key_encrypted),
+    )
+
+
+async def _write_download_status(
+    profile_id: str,
+    tier: str,
+    selector: ModelSelector,
+    download_status: str,
+    progress_pct: float = 0.0,
+    error: Optional[str] = None,
+) -> None:
+    """Write download progress to the profile database from a background task."""
+    from core.profile_database import PerProfileDatabaseManager
+
+    db_manager = PerProfileDatabaseManager()
+    connection = db_manager.get_connection(profile_id)
+    if connection is None:
+        logger.warning(f"Cannot write download status: no connection for profile {profile_id}")
+        return
+
+    try:
+        async with connection.session_maker() as session:
+            progress = DownloadProgress(
+                tier=tier,
+                status=download_status,
+                progress=progress_pct,
+                started_at=datetime.utcnow(),
+                error=error,
+            )
+            await selector.update_download_progress(
+                profile_id=profile_id,
+                tier=tier,
+                progress=progress,
+                db=session,
+            )
+            await session.commit()
+    except Exception as e:
+        logger.error(f"Failed to write download status for tier '{tier}': {e}")
+
+
 async def _download_model_task(
     tier: str,
     profile_id: str,
@@ -454,8 +589,7 @@ async def _download_model_task(
     """
     Background task to download a model.
 
-    Note: This is a simplified implementation. For production,
-    consider using a proper task queue for long-running downloads.
+    Writes terminal status (completed/failed) to the profile database.
     """
     try:
         from huggingface_hub import hf_hub_download, list_repo_files
@@ -488,7 +622,9 @@ async def _download_model_task(
 
         logger.info(f"Download completed for tier '{tier}': {local_path}")
 
+        # Write completed status to DB
+        await _write_download_status(profile_id, tier, selector, "completed", 100.0)
+
     except Exception as e:
         logger.error(f"Download failed for tier '{tier}': {e}")
-        # Note: Cannot update database from background task easily
-        # In production, use a proper task queue with database access
+        await _write_download_status(profile_id, tier, selector, "failed", 0.0, str(e))
