@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from core.auth import RequireAuth, ProfileDbSession
+from core.auth import RequireAuth, ProfileDbSession, ProfileEncryptionManager
 from models import UserModelSettings
 from modules.hardware_detection import (
     HardwareProfile,
@@ -507,6 +507,7 @@ async def save_external_api_settings(
     request: ExternalApiSettingsRequest,
     session: RequireAuth,
     profile_db: ProfileDbSession,
+    encryption_manager: ProfileEncryptionManager,
 ):
     """Save external API settings to profile database."""
     if request.use_external_api and not request.consent_acknowledged:
@@ -532,7 +533,11 @@ async def save_external_api_settings(
     user_settings.external_api_provider = request.provider
 
     if request.api_key:
-        user_settings.external_api_key_encrypted = request.api_key
+        # Store as Fernet token text (starts with "gAAAAA"), never plaintext.
+        encrypted_key = encryption_manager.encrypt(
+            request.api_key.encode("utf-8")
+        ).decode("ascii")
+        user_settings.external_api_key_encrypted = encrypted_key
 
     await profile_db.commit()
 

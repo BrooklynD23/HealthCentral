@@ -32,6 +32,7 @@ from .security import (
     verify_password,
     ACCESS_TOKEN_EXPIRE_MINUTES,
     KeySealingError,
+    EncryptionManager,
 )
 from .profile_database import get_profile_db_manager, ProfileDatabaseConnection
 
@@ -294,6 +295,21 @@ RequireAuth = Annotated[Session, Depends(require_auth)]
 OptionalAuth = Annotated[Optional[Session], Depends(get_current_session)]
 
 
+def _get_required_profile_connection(profile_id: str) -> ProfileDatabaseConnection:
+    """Get active profile connection or raise a consistent auth error."""
+    db_manager = get_profile_db_manager()
+    connection = db_manager.get_connection(profile_id)
+
+    if not connection:
+        logger.error(f"Profile database not connected for {profile_id}")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Profile database not available. Please log in again.",
+        )
+
+    return connection
+
+
 async def get_profile_db_session(
     session: Session = Depends(require_auth),
 ) -> AsyncGenerator[AsyncSession, None]:
@@ -313,15 +329,7 @@ async def get_profile_db_session(
     Raises:
         HTTPException 403: If profile database is not connected
     """
-    db_manager = get_profile_db_manager()
-    connection = db_manager.get_connection(session.profile_id)
-
-    if not connection:
-        logger.error(f"Profile database not connected for {session.profile_id}")
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Profile database not available. Please log in again.",
-        )
+    connection = _get_required_profile_connection(session.profile_id)
 
     async with connection.get_session() as db_session:
         yield db_session
@@ -329,6 +337,25 @@ async def get_profile_db_session(
 
 # Typed dependency for profile database sessions
 ProfileDbSession = Annotated[AsyncSession, Depends(get_profile_db_session)]
+
+
+async def get_profile_encryption_manager(
+    session: Session = Depends(require_auth),
+) -> EncryptionManager:
+    """
+    Get an EncryptionManager initialized with the active profile vault key.
+
+    This allows request handlers to encrypt/decrypt profile-scoped secrets
+    without passing raw key material around.
+    """
+    connection = _get_required_profile_connection(session.profile_id)
+    return EncryptionManager(connection._encryption_key)
+
+
+ProfileEncryptionManager = Annotated[
+    EncryptionManager,
+    Depends(get_profile_encryption_manager),
+]
 
 
 async def open_profile_database_on_login(

@@ -264,7 +264,8 @@ class IngestModule:
         # Compute hashes (on plaintext for deduplication)
         content_hash, path_hash = self.compute_hashes(file_data, filename)
 
-        # TODO: Check for duplicates using content_hash
+        # Deduplication is handled in api/documents.py after import using content_hash.
+        # This module computes hashes and returns metadata for the caller to decide.
         is_duplicate = False
 
         # Detect document type

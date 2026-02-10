@@ -1,7 +1,7 @@
 # Backend Integration Status
 
-**Last Updated:** 2026-02-04
-**Status:** Sprint 6 Complete (Security Revamp + Alembic Migrations)
+**Last Updated:** 2026-02-09
+**Status:** Current integration baseline (post-security remediation, active backend/frontend contracts)
 
 ---
 
@@ -130,8 +130,12 @@ This document tracks the implementation status of backend-frontend integration f
 | `DocumentInbox.tsx` | ✅ Connected | Uses `useDocuments()`, `useImportDocument()` |
 | `VerificationWorkbench.tsx` | ✅ Connected | Uses `useObservations()`, `useVerifyObservation()` |
 | `TrendsDashboard.tsx` | ✅ Connected | Uses `useObservations()`, `useTrend()`, `usePanel()` |
+| `MedicationCoach.tsx` | ✅ Connected | Uses medication CRUD, schedules, dose logging, and adherence stats hooks |
+| `MedicationDetail.tsx` | ✅ Connected | Uses medication detail + schedule + dose history + pattern learning hooks |
+| `NotificationSettings.tsx` | ✅ Connected | Uses notification settings/history/scheduler APIs with local-time quiet-hours controls |
 | `ExportPage.tsx` | ✅ Connected | Uses `useExportCSV()`, `useExportJSON()`, `useGenerateSummary()` |
-| `ExplainAssistant.tsx` | ⏳ Pending | Awaits assistant API implementation (Sprint 5) |
+| `SettingsPage.tsx` | ✅ Connected | Uses model settings and external API hooks |
+| `ExplainAssistant.tsx` | ✅ Connected | Wired to `/assistant/chat` with citation + verification rendering |
 
 ---
 
@@ -234,9 +238,9 @@ alembic -c alembic.ini -n master upgrade head
 | `ingest.py` | ✅ Basic | File import, hashing, storage |
 | `extract.py` | ✅ Basic | Table + text extraction implemented; OCR pending |
 | `normalize.py` | ✅ Basic | Built-in synonym mapping implemented |
-| `verify.py` | ⏳ Stub | Verification workflow not yet implemented |
+| `verify.py` | Legacy / non-owning | Verification logic is enforced in API route (`api/observations.py`); module stubs are non-critical |
 | `analytics.py` | ✅ Basic | Trend calculations implemented (deterministic) |
-| `rag.py` | ⏳ Stub | RAG pipeline not yet implemented |
+| `rag.py` | ✅ Done (model-dependent) | Retrieval + generation + citation validation + safety checks; requires local model or external API config |
 | `export.py` | ✅ Done | CSV/JSON + summary/question generation - API fully wired (Sprint 4) |
 | `interpret.py` | ✅ Done | Lab interpretation pipeline with LLM support |
 | `interpret_safety.py` | ✅ Done | Safety guardrails for interpretations |
@@ -275,13 +279,12 @@ Access:
 
 ## Next Steps
 
-1. **Sprint 5: RAG Assistant (Post-MVP)**
-   - Implement chunking + embeddings pipeline
-   - Implement `RAGModule.retrieve_context()` with similarity search
-   - Implement `RAGModule.generate_response()` with citations
-   - Implement glossary + test-intent endpoints
-   - Wire `ExplainAssistant.tsx` to real API
-2. **Polish & Testing** - Adversarial testing, accessibility audit, performance
+1. **Validation hardening**
+   - Expand adversarial safety test coverage in CI (RAG + interpretation guardrails).
+   - Add environment-ready backend test execution in local/CI (current WSL runtime lacks backend pytest deps).
+2. **Remaining product work**
+   - Continue OCR and image-ingest UX integration.
+   - Continue docs consolidation to keep one canonical execution board.
 
 ---
 
@@ -289,3 +292,4 @@ Access:
 
 1. **vite.config.ts lint warnings** - `@types/node` needs to be installed for Node.js type declarations
 2. **theme-color meta tag warning** - Informational only; progressive enhancement works in supported browsers
+3. **Date persistence tracking note** - Date persistence (`Observation.collected_at`, `Document.collection_date`) is now implemented, but date parsing/timezone normalization still requires ongoing regression checks for filter consistency.

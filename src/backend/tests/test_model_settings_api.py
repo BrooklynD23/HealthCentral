@@ -19,7 +19,13 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from api.model_settings import router as model_settings_router
-from core.auth import Session, require_auth, get_profile_db_session
+from core.auth import (
+    Session,
+    require_auth,
+    get_profile_db_session,
+    get_profile_encryption_manager,
+)
+from core.security import EncryptionManager
 
 
 class _ScalarResult:
@@ -44,6 +50,7 @@ class _FakeProfileDb:
 
     def add(self, obj):
         self._added.append(obj)
+        self._existing_settings = obj
 
 
 def _make_app():
@@ -62,6 +69,10 @@ def _override_auth(profile_id: str):
     return _auth
 
 
+async def _override_encryption_manager():
+    return EncryptionManager()
+
+
 def test_put_external_api_requires_consent():
     """
     HC-REM-002-001: PUT /external-api without consent_acknowledged should return 400.
@@ -70,6 +81,7 @@ def test_put_external_api_requires_consent():
     app = _make_app()
     app.dependency_overrides[require_auth] = _override_auth(profile_id)
     app.dependency_overrides[get_profile_db_session] = lambda: _FakeProfileDb()
+    app.dependency_overrides[get_profile_encryption_manager] = _override_encryption_manager
 
     with TestClient(app) as client:
         response = client.put(
@@ -94,6 +106,7 @@ def test_put_external_api_persists():
 
     app = _make_app()
     app.dependency_overrides[require_auth] = _override_auth(profile_id)
+    app.dependency_overrides[get_profile_encryption_manager] = _override_encryption_manager
 
     async def _get_db():
         return profile_db
@@ -118,6 +131,10 @@ def test_put_external_api_persists():
     assert data["api_key_configured"] is True
     # Key should never be returned in response
     assert "api_key" not in data or "sk-test" not in str(data.get("api_key", ""))
+    # Key must be stored encrypted at rest
+    stored = profile_db._existing_settings.external_api_key_encrypted
+    assert stored != "sk-test-key-123"
+    assert stored.startswith("gAAAAA")
 
 
 def test_download_task_writes_terminal_status(monkeypatch):

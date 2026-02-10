@@ -2,6 +2,9 @@
 
 This folder contains regenerated planning files derived from the PRD:
 
+## Start Here (Current State)
+- `current_gap_audit_2026-02-09.md` — Canonical current-state execution board and ticket status
+
 ## Core Architecture
 - `01_backend_architecture_plan.md`
 - `02_frontend_accessibility_plan.md`

@@ -6,9 +6,8 @@ since UserModelSettings lives in the per-profile encrypted database.
 """
 
 import sys
-import uuid
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -26,7 +25,11 @@ async def test_runner_lookup_uses_profile_db():
     """
     from core.external_runner import get_runner_for_request, ExternalModelRunner
 
-    # Create mock settings
+    from core.security import EncryptionManager
+
+    encryption_manager = EncryptionManager()
+
+    # Create mock settings (legacy plaintext value)
     mock_settings = MagicMock()
     mock_settings.use_external_api = True
     mock_settings.external_api_provider = "openai"
@@ -38,11 +41,48 @@ async def test_runner_lookup_uses_profile_db():
     mock_profile_db = AsyncMock()
     mock_profile_db.execute.return_value = mock_result
 
-    runner = await get_runner_for_request("test-profile-id", mock_profile_db)
+    with patch(
+        "core.external_runner._get_profile_encryption_manager",
+        return_value=encryption_manager,
+    ):
+        runner = await get_runner_for_request("test-profile-id", mock_profile_db)
 
     assert runner is not None
     assert isinstance(runner, ExternalModelRunner)
     mock_profile_db.execute.assert_called_once()
+    mock_profile_db.commit.assert_awaited_once()
+    assert mock_settings.external_api_key_encrypted.startswith("gAAAAA")
+
+
+@pytest.mark.asyncio
+async def test_runner_decrypts_encrypted_api_key():
+    """Encrypted API key should be decrypted for request-time runner usage."""
+    from core.external_runner import get_runner_for_request, ExternalModelRunner
+    from core.security import EncryptionManager
+
+    encryption_manager = EncryptionManager()
+    encrypted_key = encryption_manager.encrypt(b"sk-encrypted-test-key").decode("ascii")
+
+    mock_settings = MagicMock()
+    mock_settings.use_external_api = True
+    mock_settings.external_api_provider = "openai"
+    mock_settings.external_api_key_encrypted = encrypted_key
+
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = mock_settings
+    mock_profile_db = AsyncMock()
+    mock_profile_db.execute.return_value = mock_result
+
+    with patch(
+        "core.external_runner._get_profile_encryption_manager",
+        return_value=encryption_manager,
+    ):
+        runner = await get_runner_for_request("test-profile-id", mock_profile_db)
+
+    assert runner is not None
+    assert isinstance(runner, ExternalModelRunner)
+    assert runner.is_available() is True
+    mock_profile_db.commit.assert_not_awaited()
 
 
 @pytest.mark.asyncio

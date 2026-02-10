@@ -9,11 +9,85 @@ Phase 2E: External API Backend (Opt-in)
 
 import logging
 from typing import Optional
-from dataclasses import dataclass
 
-from .model_runner import InferenceConfig, InferenceResult, get_model_runner
+from .model_runner import InferenceConfig, InferenceResult
 
 logger = logging.getLogger(__name__)
+
+FERNET_TOKEN_PREFIX = "gAAAAA"
+
+
+def _looks_like_fernet_token(value: str) -> bool:
+    """Return True when value appears to be a raw Fernet token string."""
+    return bool(value and value.startswith(FERNET_TOKEN_PREFIX))
+
+
+def _get_profile_encryption_manager(profile_id: str):
+    """Build an EncryptionManager from the active profile vault key."""
+    from .profile_database import get_profile_db_manager
+    from .security import EncryptionManager
+
+    db_manager = get_profile_db_manager()
+    connection = db_manager.get_connection(profile_id)
+    if not connection:
+        return None
+
+    return EncryptionManager(connection._encryption_key)
+
+
+async def _decrypt_or_migrate_api_key(
+    *,
+    profile_id: str,
+    profile_db,
+    user_settings,
+) -> str:
+    """
+    Resolve stored API key to plaintext for request-time usage only.
+
+    Supports backward compatibility by migrating legacy plaintext keys to
+    encrypted Fernet tokens on first read.
+    """
+    stored_key = getattr(user_settings, "external_api_key_encrypted", "") or ""
+    if not stored_key:
+        return ""
+
+    encryption_manager = _get_profile_encryption_manager(profile_id)
+    if encryption_manager is None:
+        logger.warning(
+            "External API runner unavailable: missing active profile encryption context",
+            extra={"profile_id": profile_id},
+        )
+        return ""
+
+    if _looks_like_fernet_token(stored_key):
+        try:
+            return encryption_manager.decrypt(stored_key.encode("ascii")).decode("utf-8")
+        except Exception:
+            logger.warning(
+                "Failed to decrypt external API key for profile; external API disabled for request",
+                extra={"profile_id": profile_id},
+            )
+            return ""
+
+    # Legacy plaintext value: allow this request, then migrate at rest.
+    plaintext_key = stored_key
+    try:
+        encrypted_key = encryption_manager.encrypt(
+            plaintext_key.encode("utf-8")
+        ).decode("ascii")
+        user_settings.external_api_key_encrypted = encrypted_key
+        await profile_db.commit()
+        logger.info(
+            "Migrated legacy plaintext external API key to encrypted format",
+            extra={"profile_id": profile_id},
+        )
+    except Exception:
+        logger.warning(
+            "Failed to migrate legacy external API key; using request-time plaintext fallback",
+            extra={"profile_id": profile_id},
+        )
+
+    return plaintext_key
 
 
 class ExternalModelRunner:
@@ -72,8 +146,6 @@ class ExternalModelRunner:
             config = InferenceConfig()
 
         try:
-            import httpx
-
             if self._provider == "openai":
                 return await self._call_openai(prompt, config)
             elif self._provider == "anthropic":
@@ -82,9 +154,12 @@ class ExternalModelRunner:
                 raise ValueError(f"Unsupported provider: {self._provider}")
 
         except Exception as e:
-            logger.error(f"External API call failed: {e}")
+            logger.error(
+                "External API call failed",
+                extra={"provider": self._provider, "error_type": type(e).__name__},
+            )
             return InferenceResult(
-                text=f"External API error: {str(e)}",
+                text="External API error: request failed",
                 tokens_generated=0,
                 finish_reason="error",
                 model_name=self._model,
@@ -184,13 +259,17 @@ async def get_runner_for_request(profile_id: str, profile_db) -> Optional["Exter
 
         if user_settings and getattr(user_settings, "use_external_api", False):
             provider = getattr(user_settings, "external_api_provider", "")
-            api_key = getattr(user_settings, "external_api_key_encrypted", "")
+            api_key = await _decrypt_or_migrate_api_key(
+                profile_id=profile_id,
+                profile_db=profile_db,
+                user_settings=user_settings,
+            )
             if provider and api_key:
                 return ExternalModelRunner(
                     provider=provider,
                     api_key=api_key,
                 )
-    except Exception as e:
-        logger.debug(f"Could not load external API settings: {e}")
+    except Exception:
+        logger.debug("Could not load external API settings")
 
     return None
