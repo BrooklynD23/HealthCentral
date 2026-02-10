@@ -9,6 +9,7 @@ import {
   CheckCircle,
   SkipForward,
   Sparkles,
+  Bell,
   Trash2,
 } from 'lucide-react';
 import {
@@ -187,6 +188,14 @@ export function MedicationDetail() {
               <Sparkles className="w-4 h-4" />
             )}
             Learn Patterns
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => navigate(`/notifications?medicationId=${medication.id}`)}
+            className="gap-2"
+          >
+            <Bell className="w-4 h-4" />
+            Notification Settings
           </Button>
           <Button
             variant="danger"

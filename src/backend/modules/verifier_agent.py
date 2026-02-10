@@ -315,8 +315,9 @@ class VerifierAgent:
 
         Uses secondary LLM to evaluate claim-source relationship.
         """
-        # TODO: Implement LLM-based entailment when LLM infrastructure is ready
-        # For now, fall back to rule-based
+        # Optional future enhancement: LLM-based entailment.
+        # Current default is rule-based matching (value checks + lexical overlap)
+        # and is selected by use_llm_entailment=False in config.
         return self._check_entailment_rules(claim, source)
 
     def _extract_values(self, text: str) -> list[str]:

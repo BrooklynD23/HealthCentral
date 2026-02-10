@@ -37,6 +37,7 @@ from .faithfulness import (
     FaithfulnessScores,
     FaithfulnessConfig,
 )
+from .interpret_safety import InterpretationSafetyGuard
 
 
 @dataclass
@@ -128,6 +129,14 @@ CONTEXT:
 
 USER QUESTION: {question}"""
 
+    # Treat conversation history as untrusted input; strip likely jailbreaks.
+    PROMPT_INJECTION_PATTERNS = [
+        r"\b(ignore|disregard|forget)\b.{0,60}\b(instruction|rules?|system|developer|prompt)\b",
+        r"\b(system prompt|developer message|jailbreak|dan mode|prompt injection)\b",
+        r"\b(override|bypass|disable)\b.{0,40}\b(safety|guardrails?|restrictions?|rules?)\b",
+        r"\b(act as|pretend to be|you are now)\b.{0,60}\b(doctor|physician|system|admin)\b",
+    ]
+
     def __init__(
         self,
         enable_verification: bool = True,
@@ -154,6 +163,14 @@ USER QUESTION: {question}"""
         self.authority_scorer = SourceAuthorityScorer()
         self.verifier = VerifierAgent(verification_config)
         self.faithfulness_scorer = FaithfulnessScorer(faithfulness_config)
+        self._compiled_prohibited_patterns = [
+            re.compile(pattern, re.IGNORECASE)
+            for pattern, _ in InterpretationSafetyGuard.PROHIBITED_PATTERNS
+        ]
+        self._compiled_prompt_injection_patterns = [
+            re.compile(pattern, re.IGNORECASE)
+            for pattern in self.PROMPT_INJECTION_PATTERNS
+        ]
 
     async def retrieve_context(
         self,
@@ -402,9 +419,8 @@ USER QUESTION: {question}"""
             # Limit history to last ~2000 chars to fit context window
             history_lines = []
             char_count = 0
-            for msg in reversed(history):
-                role = getattr(msg, "role", msg.get("role", "user")) if isinstance(msg, dict) else msg.role
-                content = getattr(msg, "content", msg.get("content", "")) if isinstance(msg, dict) else msg.content
+            sanitized_history = self._sanitize_history(history)
+            for role, content in reversed(sanitized_history):
                 line = f"{role.upper()}: {content}"
                 if char_count + len(line) > 2000:
                     break
@@ -426,6 +442,38 @@ USER QUESTION: {question}"""
             )
 
         return prompt
+
+    def _sanitize_history(self, history: list) -> list[tuple[str, str]]:
+        """
+        Drop unsafe history entries before injecting into the model prompt.
+
+        History can contain adversarial instructions from prior turns; these are
+        filtered using prompt-injection patterns.
+        """
+        sanitized = []
+        for msg in history:
+            role, content = self._extract_history_fields(msg)
+            if self._contains_prompt_injection(content):
+                self._logger.warning(
+                    "Filtered potentially unsafe conversation history entry"
+                )
+                continue
+            sanitized.append((role, content))
+        return sanitized
+
+    def _extract_history_fields(self, msg) -> tuple[str, str]:
+        """Normalize a history message object/dict into (role, content)."""
+        if isinstance(msg, dict):
+            role = str(msg.get("role", "user"))
+            content = str(msg.get("content", ""))
+        else:
+            role = str(getattr(msg, "role", "user"))
+            content = str(getattr(msg, "content", ""))
+        return role, content
+
+    def _contains_prompt_injection(self, text: str) -> bool:
+        """Check whether text contains likely prompt-injection content."""
+        return any(pattern.search(text) for pattern in self._compiled_prompt_injection_patterns)
 
     async def generate_response(
         self,
@@ -516,13 +564,8 @@ I was unable to fully process your question within the time limit. Please try as
                     errors.append("Report facts section missing citations")
 
         # Check for prohibited content
-        prohibited_patterns = [
-            r"\b(you should take|take this medication|dosage|prescribe)\b",
-            r"\b(diagnosis|diagnose|you have)\b",
-            r"\b(treatment plan|treat this|therapy)\b",
-        ]
-        for pattern in prohibited_patterns:
-            if re.search(pattern, response, re.IGNORECASE):
+        for pattern in self._compiled_prohibited_patterns:
+            if pattern.search(response):
                 errors.append("Response contains prohibited medical advice")
                 break
 

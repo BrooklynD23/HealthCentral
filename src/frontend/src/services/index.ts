@@ -3,7 +3,7 @@
  */
 
 // API utilities
-export { ApiError, apiGet, apiPost, apiPut, apiDelete, apiUpload } from './api';
+export { ApiError, apiGet, apiPost, apiPut, apiPatch, apiDelete, apiUpload } from './api';
 
 // Types
 export type {
@@ -22,6 +22,25 @@ export type {
   Panel,
   ObservationFilters,
   DocumentFilters,
+  Medication,
+  MedicationSchedule,
+  MedicationCreate,
+  MedicationUpdate,
+  DoseLog,
+  DoseResponse,
+  AdherenceStats,
+  LearnPatternsResponse,
+  ScheduleCreate,
+  ScheduleUpdate,
+  NotificationSettings,
+  NotificationSettingsUpdate,
+  ReminderLogEntry,
+  NotificationHistoryStats,
+  NotificationHistoryResponse,
+  NotificationSchedulerStatus,
+  TestNotificationRequest,
+  TestNotificationResponse,
+  ReminderInteractionType,
 } from './types';
 
 // Profile hooks
@@ -114,3 +133,18 @@ export type {
   ExternalApiSettings,
   ExternalApiSettingsSave,
 } from './modelSettings';
+
+// Notification hooks
+export {
+  useNotificationSettings,
+  useUpdateNotificationSettings,
+  useNotificationHistory,
+  useNotificationSchedulerStatus,
+  useSendTestNotification,
+  useSendMedicationTestNotification,
+  useRecordReminderInteraction,
+} from './notifications';
+
+export type {
+  NotificationHistoryFilters,
+} from './notifications';

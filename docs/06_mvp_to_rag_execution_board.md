@@ -1,5 +1,7 @@
 # HealthCentral MVP → RAG Execution Board (1-Week Sprints)
 
+> Historical Reference: this board is retained for sprint history. For current implementation priorities and live ticket status, use `docs/current_gap_audit_2026-02-09.md`.
+
 **Last updated:** 2026-02-05  
 **Sprint length:** 1 week  
 **Priority:** MVP first, then RAG  

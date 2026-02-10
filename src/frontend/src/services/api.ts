@@ -126,6 +126,23 @@ export async function apiPut<T, D = unknown>(
   return handleResponse<T>(response);
 }
 
+export async function apiPatch<T, D = unknown>(
+  endpoint: string,
+  data: D
+): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
+    credentials: 'include',
+    body: JSON.stringify(data),
+  });
+
+  return handleResponse<T>(response);
+}
+
 export async function apiDelete(endpoint: string): Promise<void> {
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     method: 'DELETE',

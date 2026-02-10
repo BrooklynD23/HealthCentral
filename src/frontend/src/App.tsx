@@ -23,6 +23,7 @@ import {
   LabInterpreter,
   MedicationCoach,
   MedicationDetail,
+  NotificationSettings,
   ExplainAssistant,
   ExportPage,
   SettingsPage,
@@ -55,6 +56,7 @@ function App() {
               <Route path="interpret" element={<LabInterpreter />} />
               <Route path="medications" element={<MedicationCoach />} />
               <Route path="medications/:medicationId" element={<MedicationDetail />} />
+              <Route path="notifications" element={<NotificationSettings />} />
               <Route path="explain" element={<ExplainAssistant />} />
               <Route path="export" element={<ExportPage />} />
               <Route path="settings" element={<SettingsPage />} />

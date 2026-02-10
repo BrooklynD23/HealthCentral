@@ -25,9 +25,17 @@ This task list tracks implementation of two new features:
 ### Implementation Order
 Phase 0 → Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5
 
+### Phase Status Snapshot (2026-02-09)
+- [x] Phase 0: Foundation
+- [x] Phase 1: Core Lab Interpretation Engine
+- [x] Phase 2: Core Medication Management
+- [x] Phase 3: Smart Notifications
+- [ ] Phase 4: Frontend Integration hardening
+- [ ] Phase 5: Polish & Testing
+
 ---
 
-## Phase 0: Foundation (Backend Infrastructure)
+## Phase 0: Foundation (Backend Infrastructure) [x] DONE
 
 ### 0.1 Database Models & Migrations
 | Task | Status | Notes |
@@ -65,7 +73,7 @@ Phase 0 → Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5
 
 ---
 
-## Phase 1: Core Lab Interpretation Engine
+## Phase 1: Core Lab Interpretation Engine [x] DONE
 
 ### 1.1 Interpretation Pipeline
 | Task | Status | Notes |
@@ -97,7 +105,7 @@ Phase 0 → Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5
 
 ---
 
-## Phase 2: Core Medication Management
+## Phase 2: Core Medication Management [x] DONE
 
 ### 2.1 Medication CRUD
 | Task | Status | Notes |
@@ -135,7 +143,7 @@ Phase 0 → Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5
 
 ---
 
-## Phase 3: Smart Notifications
+## Phase 3: Smart Notifications [x] DONE
 
 ### 3.1 Notification Scheduler
 | Task | Status | Notes |
