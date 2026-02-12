@@ -206,9 +206,27 @@ npm run dev
 - [Backend Integration Status](docs/05_backend_integration_status.md)
 - [Local AI Models](docs/04_local_models_inference_plan.md)
 
+## API Overview
+
+HealthCentral exposes a REST API via FastAPI at `http://localhost:8000/api/v1`. Interactive docs are available at `http://localhost:8000/docs`.
+
+| Group | Endpoints | Description |
+|-------|-----------|-------------|
+| **Profiles** | `/profiles/` | Create, list, unlock, and lock encrypted user profiles |
+| **Documents** | `/documents/` | Import PDFs/images, list, view pages, delete |
+| **Observations** | `/observations/` | List, verify, trend analysis, panel grouping |
+| **Assistant** | `/assistant/` | RAG chat with citations, test intent lookup, glossary |
+| **Interpretations** | `/interpretations/` | Lab and panel interpretation with LLM support |
+| **Medications** | `/medications/` | CRUD, schedules, dose logging, adherence stats |
+| **Notifications** | `/notifications/` | Reminder settings, history, scheduler status |
+| **Export** | `/export/` | CSV/JSON export, doctor summary, discussion questions |
+| **Settings** | `/settings/model/` | Model tier selection, hardware detection, downloads |
+
+For full endpoint details, see [Backend Integration Status](docs/05_backend_integration_status.md).
+
 ## Implementation Progress
 
-See [implementation_plan/](implementation_plan/) for detailed feature tracking.
+See [docs/features/TASK_LIST.md](docs/features/TASK_LIST.md) for the active remaining-work tracker.
 
 ## License
 

@@ -6,6 +6,7 @@
 
 import { afterEach, beforeAll, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
+import { useAuthStore } from '@/stores/authStore';
 
 // Mock window.matchMedia for framer-motion and responsive hooks
 beforeAll(() => {
@@ -27,9 +28,15 @@ beforeAll(() => {
   Element.prototype.scrollIntoView = vi.fn();
 });
 
-// Clear all mocks after each test
+// Clear all mocks and reset stores after each test
 afterEach(() => {
   vi.clearAllMocks();
+
+  // Reset Zustand auth store to prevent state leaking between tests
+  useAuthStore.getState().clearAuth();
+
+  // Clear localStorage to prevent persisted store state from leaking
+  localStorage.clear();
 });
 
 // Mock localStorage

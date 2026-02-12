@@ -404,3 +404,18 @@ export type ReminderInteractionType =
   | 'snoozed'
   | 'marked_taken'
   | 'opened_app';
+
+// Correlation types (UX-001: frontend-only temporal overlay)
+
+export interface MedicationOverlayPeriod {
+  medicationId: string;
+  medicationName: string;
+  startedAt: string;
+  endedAt: string | null;
+  dosageLabel: string | null;
+}
+
+export interface CorrelationContext {
+  observation: Observation;
+  activeMedications: MedicationOverlayPeriod[];
+}

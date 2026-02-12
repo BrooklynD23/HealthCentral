@@ -37,6 +37,10 @@ import {
   useDeleteMedication,
   useLearnPatterns,
 } from '@/services/medications';
+import { useObservations } from '@/services/observations';
+import { useAuthStore } from '@/stores/authStore';
+import { findObservationsDuringMedication } from '@/utils/correlation';
+import { FlaskConical } from 'lucide-react';
 import type { ScheduleCreate, DoseLog } from '@/services/types';
 
 const frequencyLabels: Record<string, string> = {
@@ -69,6 +73,18 @@ export function MedicationDetail() {
   } = useAdherenceStats(medicationId);
 
   const { data: doses } = useDoses(medicationId);
+
+  const { profileId } = useAuthStore();
+
+  // Fetch observations for correlation
+  const { data: allObservations } = useObservations({
+    profile_id: profileId || '',
+  });
+
+  // Find lab results during this medication's active period
+  const relatedObservations = medication
+    ? findObservationsDuringMedication(medication, allObservations ?? [])
+    : [];
 
   const logDose = useLogDose();
   const createSchedule = useCreateSchedule();
@@ -109,8 +125,9 @@ export function MedicationDetail() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center h-64" role="status" aria-live="polite">
         <Loader2 className="w-8 h-8 animate-spin text-accent" />
+        <span className="sr-only">Loading medication details...</span>
       </div>
     );
   }
@@ -343,6 +360,54 @@ export function MedicationDetail() {
             isAdding={createSchedule.isPending}
             isDeleting={deleteSchedule.isPending}
           />
+
+          {/* Related Lab Results (UX-001 correlation) */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <FlaskConical className="w-4 h-4 text-ink-secondary" />
+                Related Lab Results
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {relatedObservations.length === 0 ? (
+                <p className="text-sm text-ink-tertiary text-center py-4" data-testid="related-labs-empty">
+                  No lab results collected during this medication period.
+                </p>
+              ) : (
+                <div className="divide-y divide-black/[0.04]" data-testid="related-labs-list">
+                  {relatedObservations.slice(0, 8).map((obs) => (
+                    <a
+                      key={obs.id}
+                      href={`/trends?analyte=${obs.analyte_canonical}`}
+                      className="flex items-center justify-between py-2.5 hover:bg-surface-muted/50 -mx-2 px-2 rounded-lg transition-colors"
+                      aria-label={`View ${obs.analyte_raw} trend`}
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-ink">{obs.analyte_raw}</p>
+                        <p className="text-xs text-ink-tertiary">
+                          {obs.collected_at
+                            ? new Date(obs.collected_at).toLocaleDateString()
+                            : 'No date'}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-sm font-mono font-medium text-ink">
+                          {obs.value ?? obs.value_text ?? '-'}
+                        </span>
+                        <span className="text-xs text-ink-secondary ml-1">{obs.unit}</span>
+                      </div>
+                    </a>
+                  ))}
+                  {relatedObservations.length > 8 && (
+                    <p className="text-xs text-ink-tertiary text-center pt-2">
+                      +{relatedObservations.length - 8} more
+                    </p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Meta Info */}
           <Card>

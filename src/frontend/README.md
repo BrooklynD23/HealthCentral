@@ -65,6 +65,25 @@ npm run dev
 npm run build
 ```
 
+## Running Tests
+
+```bash
+# Run full test suite (deterministic, exits cleanly)
+npx vitest run
+
+# Run specific test file
+npx vitest run src/__tests__/TrendsDashboard.test.tsx
+
+# Run in watch mode (development)
+npx vitest
+
+# Type-check without emitting
+npx tsc --noEmit
+```
+
+Tests use `pool: 'forks'` for process isolation and a 10-second timeout.
+Zustand stores are reset after each test to prevent state leakage.
+
 ## Design Tokens
 
 See `src/styles/tokens.css` for:

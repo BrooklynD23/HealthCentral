@@ -1,6 +1,8 @@
 # Backend Integration Status
 
-**Last Updated:** 2026-02-09
+**Last Updated:** 2026-02-12
+**Owner:** Backend Lead
+**Refresh Trigger:** API endpoint added, changed, or removed
 **Status:** Current integration baseline (post-security remediation, active backend/frontend contracts)
 
 ---
@@ -42,10 +44,10 @@ This document tracks the implementation status of backend-frontend integration f
 | `/api/v1/observations/trends/{analyte}` | GET | ✅ Done | Get trend data with summary |
 | `/api/v1/observations/panels/{panel_id}` | GET | ✅ Done | Get panel data (CBC, CMP, etc.) |
 
-#### Assistant (`assistant.py`) - Sprint 5 Complete
+#### Assistant (`assistant.py`) - Current
 | Endpoint | Method | Status | Description |
 |----------|--------|--------|-------------|
-| `/api/v1/assistant/chat` | POST | ⚠️ LLM Required | RAG chat (needs local model setup) |
+| `/api/v1/assistant/chat` | POST | ✅ Done | RAG chat with local/external model path and no-model knowledge-base fallback |
 | `/api/v1/assistant/test-intent/{analyte}` | GET | ✅ Done | Test intent lookup from curated data |
 | `/api/v1/assistant/glossary/{term}` | GET | ✅ Done | Glossary lookup from curated data |
 | `/api/v1/assistant/verification-status` | GET | ✅ Done | Verification components status |
@@ -236,7 +238,7 @@ alembic -c alembic.ini -n master upgrade head
 | Module | Status | Notes |
 |--------|--------|-------|
 | `ingest.py` | ✅ Basic | File import, hashing, storage |
-| `extract.py` | ✅ Basic | Table + text extraction implemented; OCR pending |
+| `extract.py` | ✅ Basic+ | Table/text extraction and OCR paths implemented; OCR runtime depends on system OCR dependencies/config |
 | `normalize.py` | ✅ Basic | Built-in synonym mapping implemented |
 | `verify.py` | Legacy / non-owning | Verification logic is enforced in API route (`api/observations.py`); module stubs are non-critical |
 | `analytics.py` | ✅ Basic | Trend calculations implemented (deterministic) |
@@ -285,6 +287,35 @@ Access:
 2. **Remaining product work**
    - Continue OCR and image-ingest UX integration.
    - Continue docs consolidation to keep one canonical execution board.
+
+---
+
+## Backend Test Setup
+
+### Running Tests
+
+```bash
+# Linux/WSL (from repo root)
+bash scripts/run-backend-tests.sh
+
+# Windows PowerShell (from repo root)
+.\scripts\run-backend-tests.ps1
+
+# Run specific test file
+bash scripts/run-backend-tests.sh tests/test_bootstrap_check.py -q
+```
+
+### Test Environment
+
+- `TEST_MODE=1` is set automatically by `conftest.py` and the runner scripts.
+- `DATABASE_ENCRYPTION_REQUIRED=false` is set **only** in `conftest.py` for environments without SQLCipher.
+- The production default (`database_encryption_required: bool = True`) must remain unchanged in `core/config.py`.
+- `test_bootstrap_check.py` verifies all three invariants on every test run.
+
+### Prerequisites
+
+- Python 3.11+ with `pip install -r requirements.txt` (includes pytest)
+- SQLCipher optional — tests run without it via the conftest override
 
 ---
 

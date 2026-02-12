@@ -1,5 +1,8 @@
 # HealthCentral: Remaining Features Implementation Plan (Revised)
 
+> Historical Reference: this document is not an active tracker. It captures a prior execution plan whose primary checklist items were completed and is retained for history.
+> For active remaining work, use [`docs/features/TASK_LIST.md`](../features/TASK_LIST.md).
+
 ## Context
 
 The HealthCentral MVP has a solid foundation: auth, document import, text PDF extraction, verification, trends, interpretations, medications, and a RAG assistant skeleton. However, several pipelines have gaps (hardcoded stubs, missing date persistence, unconnected modules) and OCR/export/settings UI are missing entirely. This plan completes the four priority areas to make the app end-to-end functional.

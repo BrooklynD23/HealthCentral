@@ -48,3 +48,11 @@ def _ensure_writable_temp_dir() -> None:
 
 _ensure_writable_temp_dir()
 
+# TEST-ONLY: Mark this as a test environment. Never set these in production.
+# See TEST-001 in docs/features/TASK_LIST.md.
+os.environ["TEST_MODE"] = "1"
+
+# TEST-ONLY: Disable SQLCipher requirement for test environments that lack
+# the native library. Never set this in production. See TEST-001.
+os.environ["DATABASE_ENCRYPTION_REQUIRED"] = "false"
+
