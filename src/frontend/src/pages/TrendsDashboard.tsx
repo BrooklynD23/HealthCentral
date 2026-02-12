@@ -26,7 +26,10 @@ import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/compo
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useObservations, useTrend, usePanel } from '@/services/observations';
+import { useMedications } from '@/services/medications';
 import { useAuthStore } from '@/stores/authStore';
+import { findActiveMedications } from '@/utils/correlation';
+import { MedicationOverlay } from '@/components/MedicationOverlay';
 import type { Observation } from '@/services/types';
 
 const panels = [
@@ -76,6 +79,9 @@ export function TrendsDashboard() {
   // Fetch panel data when panel tab changes
   const { data: panelData } = usePanel(activePanel, profileId || '');
 
+  // Fetch medications for correlation overlay
+  const { data: medications } = useMedications();
+
   // Transform trend data for chart
   const chartData = useMemo(() => {
     if (!trendData?.data_points) return [];
@@ -89,6 +95,19 @@ export function TrendsDashboard() {
 
   // Get latest value info
   const latestValue = trendData?.data_points?.[trendData.data_points.length - 1];
+
+  // Compute medications active at time of latest observation for the selected analyte
+  const selectedObservation = useMemo(() => {
+    if (!effectiveSelectedAnalyte || !observations) return null;
+    return observations.find(
+      (obs) => obs.analyte_canonical === effectiveSelectedAnalyte
+    ) ?? null;
+  }, [observations, effectiveSelectedAnalyte]);
+
+  const activeMedsForSelected = useMemo(() => {
+    if (!selectedObservation || !medications) return [];
+    return findActiveMedications(selectedObservation, medications);
+  }, [selectedObservation, medications]);
   const getTrendIcon = (current: number | undefined, previous: number | undefined) => {
     if (!current || !previous) return <Minus className="w-4 h-4" />;
     const diff = current - previous;
@@ -113,8 +132,9 @@ export function TrendsDashboard() {
   // Loading state
   if (observationsLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center h-64" role="status" aria-live="polite">
         <Loader2 className="w-8 h-8 animate-spin text-accent" />
+        <span className="sr-only">Loading observations...</span>
       </div>
     );
   }
@@ -181,10 +201,12 @@ export function TrendsDashboard() {
         </div>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex gap-2" role="tablist" aria-label="Lab panels">
         {panels.map((panel) => (
           <button
             key={panel.id}
+            role="tab"
+            aria-selected={activePanel === panel.id}
             onClick={() => handlePanelClick(panel.id)}
             className={cn(
               'px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200',
@@ -325,6 +347,14 @@ export function TrendsDashboard() {
                         )}
                       </div>
                     </div>
+                  </div>
+
+                  {/* Medication Correlation Overlay */}
+                  <div className="mt-4">
+                    <p className="text-xs font-medium text-ink-secondary mb-2">
+                      Medications active at time of latest result
+                    </p>
+                    <MedicationOverlay medications={activeMedsForSelected} />
                   </div>
                 </>
               )}

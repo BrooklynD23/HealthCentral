@@ -338,6 +338,8 @@ export function ExportPage() {
                 <button
                   key={section.id}
                   onClick={() => handleToggleSection(section.id)}
+                  aria-pressed={section.included}
+                  aria-label={`${section.included ? 'Exclude' : 'Include'} ${section.label}`}
                   className={cn(
                     'w-full flex items-center justify-between px-3 py-3 rounded-xl',
                     'transition-colors duration-200',

@@ -3,6 +3,8 @@
 
 *Version 0.2 | January 2025 | Windows (primary)*
 
+**Last Updated:** 2026-02-12
+
 ---
 
 ## 1. Executive Summary
