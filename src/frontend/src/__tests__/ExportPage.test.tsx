@@ -22,6 +22,7 @@ import { useAuthStore } from '@/stores/authStore';
 // Mock the API module with URL-based routing
 vi.mock('@/services/api', () => ({
   apiGet: vi.fn(),
+  apiGetRaw: vi.fn(),
   apiPost: vi.fn(),
   ApiError: class ApiError extends Error {
     constructor(
@@ -159,10 +160,30 @@ function setupApiMocks(options: {
       }
       return Promise.resolve(options.jsonContent ?? mockJsonContent);
     }
-    if (url.startsWith('/export/doctor-summary/') && url.endsWith('/download')) {
-      return Promise.resolve(options.summaryDownload ?? mockSummaryDownload);
-    }
     return Promise.resolve(null);
+  });
+
+  // Mock apiGetRaw for raw downloads (CSV + summary)
+  vi.mocked(api.apiGetRaw).mockImplementation((url: string) => {
+    if (url === '/export/csv') {
+      if (options.csvError) {
+        return Promise.reject(new Error('Export failed'));
+      }
+      const content = options.csvContent ?? mockCsvContent;
+      return Promise.resolve({
+        headers: new Headers({ 'Content-Type': 'text/csv' }),
+        text: () => Promise.resolve(content),
+        blob: () => Promise.resolve(new Blob([content], { type: 'text/csv' })),
+      } as Response);
+    }
+    if (url.startsWith('/export/doctor-summary/') && url.endsWith('/download')) {
+      const content = options.summaryDownload ?? mockSummaryDownload;
+      return Promise.resolve({
+        headers: new Headers({ 'Content-Type': 'text/plain' }),
+        blob: () => Promise.resolve(new Blob([content], { type: 'text/plain' })),
+      } as Response);
+    }
+    return Promise.resolve(new Response());
   });
 
   vi.mocked(api.apiPost).mockImplementation((url: string) => {
@@ -215,11 +236,33 @@ describe('ExportPage', () => {
       await user.click(csvButton);
 
       await waitFor(() => {
-        expect(api.apiGet).toHaveBeenCalledWith(
+        expect(api.apiGetRaw).toHaveBeenCalledWith(
           expect.stringContaining('/export/csv'),
           expect.any(Object)
         );
       });
+    });
+
+    it('FE-EXPORT-CSV-CONTENT-001: should use raw response handling for CSV content', async () => {
+      const user = userEvent.setup();
+      setupApiMocks({});
+
+      renderWithProviders(<ExportPage />);
+
+      const csvButton = screen.getByRole('button', { name: /csv/i });
+      await user.click(csvButton);
+
+      await waitFor(() => {
+        expect(api.apiGetRaw).toHaveBeenCalledWith(
+          expect.stringContaining('/export/csv'),
+          expect.any(Object)
+        );
+      });
+
+      expect(api.apiGet).not.toHaveBeenCalledWith(
+        expect.stringContaining('/export/csv'),
+        expect.anything()
+      );
     });
 
     it('should handle CSV export error gracefully', async () => {
@@ -264,6 +307,42 @@ describe('ExportPage', () => {
           expect.any(Object)
         );
       });
+    });
+
+    it('FE-EXPORT-JSON-CONTENT-002: should download valid JSON (not [object Object])', async () => {
+      const user = userEvent.setup();
+      setupApiMocks({
+        jsonContent: [
+          {
+            analyte_canonical: 'glucose',
+            value: 95.0,
+            unit: 'mg/dL',
+          },
+        ] as unknown as string,
+      });
+
+      renderWithProviders(<ExportPage />);
+
+      const jsonButton = screen.getByRole('button', { name: /json/i });
+      await user.click(jsonButton);
+
+      await waitFor(() => {
+        expect(mockCreateObjectURL).toHaveBeenCalled();
+      });
+
+      const calls = mockCreateObjectURL.mock.calls as unknown as [Blob][];
+      const blob = calls[calls.length - 1][0];
+
+      // Read blob content using FileReader (jsdom-compatible)
+      const blobText = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsText(blob);
+      });
+
+      expect(() => JSON.parse(blobText)).not.toThrow();
+      expect(blobText).toContain('"analyte_canonical"');
     });
   });
 
@@ -341,12 +420,11 @@ describe('ExportPage', () => {
       await user.click(downloadButton);
 
       await waitFor(() => {
-        // Check that the download endpoint was called (may have other calls too)
-        const calls = vi.mocked(api.apiGet).mock.calls;
-        const downloadCall = calls.find(
-          (call) => call[0].includes('/export/doctor-summary/summary-123/download')
+        // Check that the raw download endpoint was called
+        expect(api.apiGetRaw).toHaveBeenCalledWith(
+          '/export/doctor-summary/summary-123/download',
+          expect.objectContaining({ format: 'text' })
         );
-        expect(downloadCall).toBeTruthy();
       });
     });
   });
@@ -392,6 +470,96 @@ describe('ExportPage', () => {
 
       // Questions section should be toggled
       expect(questionsToggle).toBeInTheDocument();
+    });
+  });
+
+  describe('FE-EXPORT-FORMAT: format selector', () => {
+    it('should render download format selector', async () => {
+      setupApiMocks({});
+
+      renderWithProviders(<ExportPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Download Format')).toBeInTheDocument();
+        expect(screen.getByText('Plain Text (.txt)')).toBeInTheDocument();
+        expect(screen.getByText('HTML (.html)')).toBeInTheDocument();
+        expect(screen.getByText('PDF (.pdf)')).toBeInTheDocument();
+      });
+    });
+
+    it('should default to text format', async () => {
+      setupApiMocks({});
+
+      renderWithProviders(<ExportPage />);
+
+      await waitFor(() => {
+        const textButton = screen.getByText('Plain Text (.txt)').closest('button');
+        // Text option should have the accent style (selected)
+        expect(textButton?.className).toContain('accent-subtle');
+      });
+    });
+
+    it('should switch format when selecting HTML', async () => {
+      const user = userEvent.setup();
+      setupApiMocks({});
+
+      renderWithProviders(<ExportPage />);
+
+      const htmlButton = screen.getByText('HTML (.html)').closest('button');
+      if (htmlButton) {
+        await user.click(htmlButton);
+      }
+
+      await waitFor(() => {
+        expect(htmlButton?.className).toContain('accent-subtle');
+      });
+    });
+
+    it('should download with selected format', async () => {
+      const user = userEvent.setup();
+
+      // Mock apiGetRaw to return HTML content when html format selected
+      vi.mocked(api.apiGetRaw).mockImplementation(() => {
+        return Promise.resolve({
+          headers: new Headers({ 'Content-Type': 'text/html' }),
+          blob: () => Promise.resolve(new Blob(['<html></html>'], { type: 'text/html' })),
+        } as Response);
+      });
+      setupApiMocks({});
+      // Re-mock apiGetRaw after setupApiMocks since it overrides
+      vi.mocked(api.apiGetRaw).mockImplementation(() => {
+        return Promise.resolve({
+          headers: new Headers({ 'Content-Type': 'text/html' }),
+          blob: () => Promise.resolve(new Blob(['<html></html>'], { type: 'text/html' })),
+        } as Response);
+      });
+
+      renderWithProviders(<ExportPage />);
+
+      // Select HTML format
+      const htmlButton = screen.getByText('HTML (.html)').closest('button');
+      if (htmlButton) {
+        await user.click(htmlButton);
+      }
+
+      // Generate summary first
+      const generateButton = screen.getByRole('button', { name: /generate summary/i });
+      await user.click(generateButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Health Summary Report/i)).toBeInTheDocument();
+      });
+
+      // Download with HTML format
+      const downloadButton = await screen.findByRole('button', { name: /download summary/i });
+      await user.click(downloadButton);
+
+      await waitFor(() => {
+        expect(api.apiGetRaw).toHaveBeenCalledWith(
+          '/export/doctor-summary/summary-123/download',
+          expect.objectContaining({ format: 'html' })
+        );
+      });
     });
   });
 });

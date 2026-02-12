@@ -83,6 +83,11 @@ class Settings(BaseSettings):
     log_file_path: str = "logs/healthcentral.log"
     audit_log_enabled: bool = True
 
+    # External API (Phase 2E) — per-user opt-in, default off
+    external_api_provider: str = ""  # "", "openai", "anthropic"
+    external_api_key: str = ""
+    external_api_model: str = ""
+
     # Phase 4: AI Safety / Verification Settings
     verification_enabled: bool = True
     min_faithfulness_score: float = 0.6  # Minimum score for verified claims

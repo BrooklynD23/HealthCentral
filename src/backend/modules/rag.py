@@ -37,6 +37,7 @@ from .faithfulness import (
     FaithfulnessScores,
     FaithfulnessConfig,
 )
+from .interpret_safety import InterpretationSafetyGuard
 
 
 @dataclass
@@ -128,6 +129,14 @@ CONTEXT:
 
 USER QUESTION: {question}"""
 
+    # Treat conversation history as untrusted input; strip likely jailbreaks.
+    PROMPT_INJECTION_PATTERNS = [
+        r"\b(ignore|disregard|forget)\b.{0,60}\b(instructions?|rules?|system|developer|prompt)\b",
+        r"\b(system prompt|developer message|jailbreak|dan mode|prompt injection)\b",
+        r"\b(override|bypass|disable)\b.{0,40}\b(safety|guardrails?|restrictions?|rules?)\b",
+        r"\b(act as|pretend to be|you are now)\b.{0,60}\b(doctor|physician|system|admin)\b",
+    ]
+
     def __init__(
         self,
         enable_verification: bool = True,
@@ -147,7 +156,6 @@ USER QUESTION: {question}"""
         # Sprint 6: Initialize LLM model runner and embeddings
         self._model_runner = get_model_runner()
         self._embedder = EmbeddingsModule()
-        self._profile_db = None  # Set per-request via set_profile_db()
 
         # Phase 4: Verification components
         self.enable_verification = enable_verification
@@ -155,6 +163,14 @@ USER QUESTION: {question}"""
         self.authority_scorer = SourceAuthorityScorer()
         self.verifier = VerifierAgent(verification_config)
         self.faithfulness_scorer = FaithfulnessScorer(faithfulness_config)
+        self._compiled_prohibited_patterns = [
+            re.compile(pattern, re.IGNORECASE)
+            for pattern, _ in InterpretationSafetyGuard.PROHIBITED_PATTERNS
+        ]
+        self._compiled_prompt_injection_patterns = [
+            re.compile(pattern, re.IGNORECASE)
+            for pattern in self.PROMPT_INJECTION_PATTERNS
+        ]
 
     async def retrieve_context(
         self,
@@ -165,9 +181,11 @@ USER QUESTION: {question}"""
         to_date: Optional[str] = None,
         include_references: bool = True,
         top_k: int = 10,
+        master_db=None,
+        profile_db=None,
     ) -> list[RetrievedChunk]:
         """
-        Retrieve relevant chunks for the query.
+        Retrieve relevant chunks for the query (async).
 
         Args:
             query: User question
@@ -177,142 +195,104 @@ USER QUESTION: {question}"""
             to_date: Filter by date range end
             include_references: Include reference corpus
             top_k: Number of chunks to retrieve
+            master_db: Master database session for reference lookups
+            profile_db: Profile database session for vector search
 
         Returns:
             List of relevant chunks with scores
         """
         chunks = []
 
-        # Use sync version internally
-        chunks = self.retrieve_context_sync(
-            query=query,
-            profile_id=profile_id,
-            selected_analytes=selected_analytes,
-            from_date=from_date,
-            to_date=to_date,
-            include_references=include_references,
-            top_k=top_k,
-        )
+        # Search user document vectors directly (async)
+        if profile_db is not None:
+            search_results = await self._search_vectors_async(
+                query=query,
+                profile_id=profile_id,
+                selected_analytes=selected_analytes,
+                from_date=from_date,
+                to_date=to_date,
+                top_k=top_k,
+                profile_db=profile_db,
+            )
+
+            for chunk_data, score in search_results:
+                chunks.append(RetrievedChunk(
+                    chunk_id=chunk_data.get("chunk_id", ""),
+                    source_type=chunk_data.get("source_type", "user_document"),
+                    doc_id=chunk_data.get("doc_id"),
+                    doc_title=chunk_data.get("doc_title"),
+                    page=chunk_data.get("page_number"),
+                    text=chunk_data.get("text", ""),
+                    relevance_score=score,
+                    is_user_verified=chunk_data.get("is_user_verified", False),
+                ))
+
+        # Add reference corpus chunks from knowledge base
+        if include_references and master_db:
+            ref_chunks = await self._get_reference_chunks(query, selected_analytes, master_db)
+            chunks.extend(ref_chunks)
 
         return chunks
 
-    def retrieve_context_sync(
+    async def _get_reference_chunks(
         self,
         query: str,
-        profile_id: str,
-        selected_analytes: Optional[list[str]] = None,
-        from_date: Optional[str] = None,
-        to_date: Optional[str] = None,
-        include_references: bool = True,
-        top_k: int = 10,
+        selected_analytes: Optional[list[str]],
+        master_db,
     ) -> list[RetrievedChunk]:
         """
-        Synchronous version of retrieve_context for use in non-async contexts.
+        Retrieve reference corpus chunks from the knowledge base.
 
-        Args:
-            query: User question
-            profile_id: Profile for user documents
-            selected_analytes: Filter by analytes
-            from_date: Filter by date range start
-            to_date: Filter by date range end
-            include_references: Include reference corpus
-            top_k: Number of chunks to retrieve
-
-        Returns:
-            List of relevant chunks with scores
+        Uses KnowledgeLoader to fetch biomarker data for analytes mentioned
+        in the query or selected by the user.
         """
-        # Search vectors (this is mocked in tests)
-        search_results = self._search_vectors(
-            query=query,
-            profile_id=profile_id,
-            selected_analytes=selected_analytes,
-            from_date=from_date,
-            to_date=to_date,
-            top_k=top_k,
-        )
+        from .knowledge_loader import get_knowledge_loader
+        from .normalize import NormalizeModule
 
-        # Convert to RetrievedChunk objects
-        chunks = []
-        for chunk_data, score in search_results:
-            chunks.append(RetrievedChunk(
-                chunk_id=chunk_data.get("chunk_id", ""),
-                source_type=chunk_data.get("source_type", "user_document"),
-                doc_id=chunk_data.get("doc_id"),
-                doc_title=chunk_data.get("doc_title"),
-                page=chunk_data.get("page_number"),
-                text=chunk_data.get("text", ""),
-                relevance_score=score,
-                is_user_verified=chunk_data.get("is_user_verified", False),
-                is_peer_reviewed=chunk_data.get("is_peer_reviewed", False),
-                publisher=chunk_data.get("publisher"),
-            ))
+        ref_chunks = []
+        knowledge = get_knowledge_loader()
+        normalizer = NormalizeModule()
 
-        return chunks
+        # Determine which analytes to look up
+        analytes_to_search = set(selected_analytes or [])
 
-    def set_profile_db(self, profile_db):
-        """
-        Set the profile database session for vector search.
+        # Also extract analyte mentions from the query text
+        query_lower = query.lower()
+        for canonical, synonyms in normalizer.ANALYTE_SYNONYMS.items():
+            if canonical in query_lower or any(syn in query_lower for syn in synonyms):
+                analytes_to_search.add(canonical)
 
-        Must be called before querying if vector search is needed.
-
-        Args:
-            profile_db: Profile database session (SQLAlchemy async session)
-        """
-        self._profile_db = profile_db
-
-    def _search_vectors(
-        self,
-        query: str,
-        profile_id: str,
-        selected_analytes: Optional[list[str]] = None,
-        from_date: Optional[str] = None,
-        to_date: Optional[str] = None,
-        top_k: int = 10,
-    ) -> list[tuple[dict, float]]:
-        """
-        Search vector database for relevant chunks.
-
-        Sprint 6: Implements real vector search using stored embeddings.
-
-        Args:
-            query: Search query
-            profile_id: Profile to search
-            selected_analytes: Filter by analytes
-            from_date: Filter by date start
-            to_date: Filter by date end
-            top_k: Number of results
-
-        Returns:
-            List of (chunk_data, similarity_score) tuples
-        """
-        if self._profile_db is None:
-            self._logger.warning("Profile database not set for vector search")
-            return []
-
-        # Run synchronous search
-        import asyncio
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # Create a new task for the coroutine
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(
-                        asyncio.run,
-                        self._search_vectors_async(
-                            query, profile_id, selected_analytes, from_date, to_date, top_k
-                        )
+        # Fetch knowledge entries for each analyte
+        for analyte in analytes_to_search:
+            try:
+                info = await knowledge.get_biomarker_knowledge(analyte, master_db)
+                if info:
+                    # Build a reference text from the knowledge entry
+                    ref_text = (
+                        f"{info.display_name}: {info.description}\n"
+                        f"Clinical significance: {info.clinical_significance}\n"
+                        f"Normal: {info.normal_interpretation}\n"
+                        f"High: {info.high_interpretation}\n"
+                        f"Low: {info.low_interpretation}"
                     )
-                    return future.result()
-            else:
-                return asyncio.run(
-                    self._search_vectors_async(
-                        query, profile_id, selected_analytes, from_date, to_date, top_k
-                    )
-                )
-        except Exception as e:
-            self._logger.error(f"Vector search failed: {e}")
-            return []
+                    if info.ref_range_adult:
+                        ref_text += f"\nReference range: {info.ref_range_adult}"
+
+                    ref_chunks.append(RetrievedChunk(
+                        chunk_id=f"ref_{info.id}",
+                        source_type="reference",
+                        doc_id=None,
+                        doc_title=f"Medical Reference: {info.display_name}",
+                        page=None,
+                        text=ref_text,
+                        relevance_score=0.8,
+                        is_peer_reviewed=True,
+                        publisher="HealthCentral Knowledge Base",
+                    ))
+            except Exception as e:
+                self._logger.debug(f"Failed to load reference for {analyte}: {e}")
+
+        return ref_chunks
 
     async def _search_vectors_async(
         self,
@@ -322,36 +302,61 @@ USER QUESTION: {question}"""
         from_date: Optional[str] = None,
         to_date: Optional[str] = None,
         top_k: int = 10,
+        profile_db=None,
     ) -> list[tuple[dict, float]]:
         """
-        Async implementation of vector search.
+        Async implementation of vector search with date/analyte/panel filtering.
 
         Args:
             query: Search query
             profile_id: Profile to search
-            selected_analytes: Filter by analytes (not yet implemented)
-            from_date: Filter by date start (not yet implemented)
-            to_date: Filter by date end (not yet implemented)
+            selected_analytes: Filter by canonical analyte names
+            from_date: Filter by date range start (ISO format)
+            to_date: Filter by date range end (ISO format)
             top_k: Number of results
 
         Returns:
             List of (chunk_data, similarity_score) tuples
         """
-        from sqlalchemy import select
-        from models import Chunk, Embedding, Document
+        from sqlalchemy import select, and_
+        from models import Chunk, Embedding, Document, Observation
+        from datetime import datetime
 
         # Embed the query
         query_vector = self._embedder.embed_text(query)
 
-        # Fetch all chunks with embeddings from the profile database
-        # In production, this would use a proper vector index (FAISS, pgvector, etc.)
+        # Build base query
         stmt = (
             select(Chunk, Embedding, Document)
             .join(Embedding, Chunk.id == Embedding.chunk_id)
             .join(Document, Chunk.doc_id == Document.id)
         )
 
-        result = await self._profile_db.execute(stmt)
+        # Apply date filters on Document.collection_date
+        if from_date:
+            try:
+                from_dt = datetime.fromisoformat(from_date)
+                stmt = stmt.where(Document.collection_date >= from_dt)
+            except (ValueError, TypeError):
+                pass
+
+        if to_date:
+            try:
+                to_dt = datetime.fromisoformat(to_date)
+                stmt = stmt.where(Document.collection_date <= to_dt)
+            except (ValueError, TypeError):
+                pass
+
+        # Apply analyte filter: only include documents that contain matching observations
+        if selected_analytes:
+            analyte_doc_stmt = (
+                select(Observation.doc_id)
+                .where(Observation.analyte_canonical.in_(selected_analytes))
+                .distinct()
+            )
+            stmt = stmt.where(Document.id.in_(analyte_doc_stmt))
+
+        result = await profile_db.execute(stmt)
         rows = result.all()
 
         if not rows:
@@ -383,11 +388,17 @@ USER QUESTION: {question}"""
         self,
         question: str,
         retrieved_chunks: list[RetrievedChunk],
+        history: Optional[list] = None,
     ) -> str:
         """
-        Compose the prompt with context and citation markers.
+        Compose the prompt with context, conversation history, and citation markers.
 
         Each chunk is labeled for citation tracking.
+
+        Args:
+            question: Current user question
+            retrieved_chunks: Retrieved context chunks
+            history: List of ChatMessage-like objects with .role and .content
         """
         context_parts = []
 
@@ -402,10 +413,67 @@ USER QUESTION: {question}"""
 
         context = "\n\n---\n\n".join(context_parts)
 
-        return self.SYSTEM_PROMPT.format(
+        # Build conversation history section
+        history_section = ""
+        if history:
+            # Limit history to last ~2000 chars to fit context window
+            history_lines = []
+            char_count = 0
+            sanitized_history = self._sanitize_history(history)
+            for role, content in reversed(sanitized_history):
+                line = f"{role.upper()}: {content}"
+                if char_count + len(line) > 2000:
+                    break
+                history_lines.insert(0, line)
+                char_count += len(line)
+            if history_lines:
+                history_section = "\n\nCONVERSATION HISTORY:\n" + "\n".join(history_lines) + "\n"
+
+        prompt = self.SYSTEM_PROMPT.format(
             context=context,
             question=question,
         )
+
+        # Insert history before the question
+        if history_section:
+            prompt = prompt.replace(
+                f"USER QUESTION: {question}",
+                f"{history_section}\nUSER QUESTION: {question}",
+            )
+
+        return prompt
+
+    def _sanitize_history(self, history: list) -> list[tuple[str, str]]:
+        """
+        Drop unsafe history entries before injecting into the model prompt.
+
+        History can contain adversarial instructions from prior turns; these are
+        filtered using prompt-injection patterns.
+        """
+        sanitized = []
+        for msg in history:
+            role, content = self._extract_history_fields(msg)
+            if self._contains_prompt_injection(content):
+                self._logger.warning(
+                    "Filtered potentially unsafe conversation history entry"
+                )
+                continue
+            sanitized.append((role, content))
+        return sanitized
+
+    def _extract_history_fields(self, msg) -> tuple[str, str]:
+        """Normalize a history message object/dict into (role, content)."""
+        if isinstance(msg, dict):
+            role = str(msg.get("role", "user"))
+            content = str(msg.get("content", ""))
+        else:
+            role = str(getattr(msg, "role", "user"))
+            content = str(getattr(msg, "content", ""))
+        return role, content
+
+    def _contains_prompt_injection(self, text: str) -> bool:
+        """Check whether text contains likely prompt-injection content."""
+        return any(pattern.search(text) for pattern in self._compiled_prompt_injection_patterns)
 
     async def generate_response(
         self,
@@ -496,13 +564,8 @@ I was unable to fully process your question within the time limit. Please try as
                     errors.append("Report facts section missing citations")
 
         # Check for prohibited content
-        prohibited_patterns = [
-            r"\b(you should take|take this medication|dosage|prescribe)\b",
-            r"\b(diagnosis|diagnose|you have)\b",
-            r"\b(treatment plan|treat this|therapy)\b",
-        ]
-        for pattern in prohibited_patterns:
-            if re.search(pattern, response, re.IGNORECASE):
+        for pattern in self._compiled_prohibited_patterns:
+            if pattern.search(response):
                 errors.append("Response contains prohibited medical advice")
                 break
 
@@ -729,9 +792,14 @@ I was unable to fully process your question within the time limit. Please try as
         question: str,
         profile_id: str,
         selected_analytes: Optional[list[str]] = None,
+        selected_panel: Optional[str] = None,
         from_date: Optional[str] = None,
         to_date: Optional[str] = None,
         include_references: bool = True,
+        history: Optional[list] = None,
+        model_runner=None,
+        master_db=None,
+        profile_db=None,
     ) -> ValidatedResponse:
         """
         Complete RAG query with retrieval, generation, and validation.
@@ -742,21 +810,36 @@ I was unable to fully process your question within the time limit. Please try as
             question: User's question
             profile_id: Profile ID for document access
             selected_analytes: Optional analyte filter
+            selected_panel: Optional panel name to map to analytes
             from_date: Optional date range start
             to_date: Optional date range end
             include_references: Whether to include reference corpus
+            history: Conversation history for multi-turn context
+            model_runner: Optional override model runner (for external API)
+            master_db: Master database session for reference lookups
 
         Returns:
             ValidatedResponse with verified, grounded answer
         """
+        # Resolve panel to analyte list if specified
+        effective_analytes = list(selected_analytes) if selected_analytes else []
+        if selected_panel:
+            from .normalize import NormalizeModule
+            normalizer = NormalizeModule()
+            panel_analytes = normalizer.get_panel_analytes(selected_panel)
+            if panel_analytes:
+                effective_analytes = list(set(effective_analytes + panel_analytes))
+
         # Step 1: Retrieve relevant context
         chunks = await self.retrieve_context(
             query=question,
             profile_id=profile_id,
-            selected_analytes=selected_analytes,
+            selected_analytes=effective_analytes if effective_analytes else None,
             from_date=from_date,
             to_date=to_date,
             include_references=include_references,
+            master_db=master_db,
+            profile_db=profile_db,
         )
 
         # Check for insufficient context
@@ -772,13 +855,39 @@ I was unable to fully process your question within the time limit. Please try as
                 insufficient_reasons=["No relevant documents found"],
             )
 
-        # Step 2: Compose prompt
-        prompt = self.compose_prompt(question, chunks)
+        # Step 2: Compose prompt with history
+        prompt = self.compose_prompt(question, chunks, history=history)
 
-        # Step 3: Generate response
-        response = await self.generate_response(prompt)
+        # Step 3: Generate response (use override runner if provided)
+        runner = model_runner or self._model_runner
+        response = await self._generate_with_runner(prompt, runner)
 
         # Step 4: Validate and verify response
         validated = self.validate_response(response, chunks)
 
         return validated
+
+    async def _generate_with_runner(self, prompt: str, runner) -> str:
+        """Generate response using the provided model runner."""
+        if not runner.is_available():
+            self._logger.warning("Model runner not available for inference")
+            raise NotImplementedError(
+                "LLM model not available. Please download a GGUF model or configure an external API."
+            )
+
+        config = InferenceConfig(
+            max_tokens=1024,
+            temperature=0.1,
+            top_p=0.9,
+            timeout_seconds=60,
+        )
+
+        try:
+            result = await runner.generate_async(prompt, config)
+            if result.finish_reason == "timeout":
+                return """UNCERTAINTIES:
+I was unable to fully process your question within the time limit. Please try asking a more specific question about your results."""
+            return result.text
+        except Exception as e:
+            self._logger.error(f"LLM generation failed: {e}")
+            raise RuntimeError(f"Failed to generate response: {e}")

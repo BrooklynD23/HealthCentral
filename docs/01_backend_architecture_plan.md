@@ -1,4 +1,4 @@
-# Backend Architecture Plan (Draft v0 — pending PM approval)
+# Backend Architecture Plan (Current Baseline + Future Hardening)
 
 ## Scope
 Local-first backend services that power:
@@ -10,11 +10,15 @@ Local-first backend services that power:
 
 Constraints (from PRD): offline-by-default; conservative outputs; provenance required for extracted fields and retrieved context; encryption at rest for DB, vector index, and stored documents.
 
+Status note (2026-02-09):
+- Loopback HTTP (`127.0.0.1`) + JWT Bearer auth is the current implementation, not a future proposal.
+- Sections labeled "Future hardening" describe optional follow-on improvements.
+
 ---
 
 ## Process topology (Windows desktop)
 
-### Current implementation (as of 2026-02-05)
+### Current implementation (as of 2026-02-09)
 - Backend runs as a local FastAPI server on `127.0.0.1` (fixed port by default).
 - Frontend is a Vite/React app that talks to the backend over loopback HTTP.
 - Auth uses JWT Bearer tokens (HS256) with per-profile vault unlock for PHI access.
@@ -22,7 +26,7 @@ Constraints (from PRD): offline-by-default; conservative outputs; provenance req
 ### Option A (recommended): sidecar service + local IPC
 - Desktop UI (Tauri/Electron) launches a packaged local backend process.
 - UI ↔ backend communication:
-  - Loopback HTTP on `127.0.0.1` with JWT Bearer tokens (current), or
+  - Loopback HTTP on `127.0.0.1` with JWT Bearer tokens (current baseline), or
   - (Future hardening) per-launch bearer token and random ephemeral port.
 
 Rules:
@@ -150,7 +154,7 @@ Composition rules:
 
 ## Open decisions (PM approval)
 - Tauri vs Electron choice (iteration speed vs footprint)
-- Backend comms: Tauri invoke vs loopback HTTP
+- Packaging comms hardening beyond current loopback HTTP + JWT baseline
 - OCR engine selection (Phase 1)
 - Curated reference corpus licensing constraints
 - External runner support policy (if any)

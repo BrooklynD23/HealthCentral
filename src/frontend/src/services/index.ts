@@ -3,7 +3,7 @@
  */
 
 // API utilities
-export { ApiError, apiGet, apiPost, apiPut, apiDelete, apiUpload } from './api';
+export { ApiError, apiGet, apiPost, apiPut, apiPatch, apiDelete, apiUpload } from './api';
 
 // Types
 export type {
@@ -22,6 +22,25 @@ export type {
   Panel,
   ObservationFilters,
   DocumentFilters,
+  Medication,
+  MedicationSchedule,
+  MedicationCreate,
+  MedicationUpdate,
+  DoseLog,
+  DoseResponse,
+  AdherenceStats,
+  LearnPatternsResponse,
+  ScheduleCreate,
+  ScheduleUpdate,
+  NotificationSettings,
+  NotificationSettingsUpdate,
+  ReminderLogEntry,
+  NotificationHistoryStats,
+  NotificationHistoryResponse,
+  NotificationSchedulerStatus,
+  TestNotificationRequest,
+  TestNotificationResponse,
+  ReminderInteractionType,
 } from './types';
 
 // Profile hooks
@@ -87,8 +106,45 @@ export type {
   Citation,
   ResponseSegment,
   VerificationInfo,
+  ChatMessage,
   ChatRequest,
   ChatResponse,
   GlossaryResponse,
   TestIntentResponse,
 } from './assistant';
+
+// Model settings hooks
+export {
+  useModelSettings,
+  useDetectHardware,
+  useSetTier,
+  useTiers,
+  useDownloadProgress,
+  useStartDownload,
+  useExternalApiSettings,
+  useSaveExternalApiSettings,
+} from './modelSettings';
+
+export type {
+  HardwareInfo,
+  TierStatus,
+  ModelSettings,
+  DownloadProgress,
+  ExternalApiSettings,
+  ExternalApiSettingsSave,
+} from './modelSettings';
+
+// Notification hooks
+export {
+  useNotificationSettings,
+  useUpdateNotificationSettings,
+  useNotificationHistory,
+  useNotificationSchedulerStatus,
+  useSendTestNotification,
+  useSendMedicationTestNotification,
+  useRecordReminderInteraction,
+} from './notifications';
+
+export type {
+  NotificationHistoryFilters,
+} from './notifications';

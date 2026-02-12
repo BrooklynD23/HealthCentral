@@ -126,6 +126,23 @@ export async function apiPut<T, D = unknown>(
   return handleResponse<T>(response);
 }
 
+export async function apiPatch<T, D = unknown>(
+  endpoint: string,
+  data: D
+): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
+    credentials: 'include',
+    body: JSON.stringify(data),
+  });
+
+  return handleResponse<T>(response);
+}
+
 export async function apiDelete(endpoint: string): Promise<void> {
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     method: 'DELETE',
@@ -137,6 +154,47 @@ export async function apiDelete(endpoint: string): Promise<void> {
   });
 
   return handleResponse<void>(response);
+}
+
+/**
+ * Raw GET request that returns the Response object directly.
+ * Use for binary downloads (PDF, HTML) where response.json() would fail.
+ */
+export async function apiGetRaw(
+  endpoint: string,
+  params?: Record<string, string>
+): Promise<Response> {
+  const url = new URL(`${API_BASE_URL}${endpoint}`);
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        url.searchParams.append(key, value);
+      }
+    });
+  }
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      ...getAuthHeaders(),
+    },
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    handleAuthError(response.status);
+    const errorBody = await response.text();
+    let message = errorBody;
+    try {
+      const parsed = JSON.parse(errorBody);
+      message = parsed.detail || parsed.message || errorBody;
+    } catch {
+      // Use raw text
+    }
+    throw new ApiError(response.status, response.statusText, message);
+  }
+
+  return response;
 }
 
 export async function apiUpload<T>(

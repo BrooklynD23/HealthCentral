@@ -263,6 +263,70 @@ class TestExtractModule:
             assert observations[0].confidence < 0.8
 
 
+class TestDatePropagation:
+    """Tests for HC-REM-005: Date propagation to observations."""
+
+    @pytest.fixture
+    def extract_module(self):
+        return ExtractModule()
+
+    @pytest.mark.asyncio
+    async def test_extracted_observations_have_collected_at(self, extract_module, tmp_path):
+        """
+        HC-REM-005-001: Observations should inherit dates from document-level extraction.
+
+        Given text with a date and analyte lines, every ExtractedObservation.collected_at
+        should be non-None.
+        """
+        mock_page = MagicMock()
+        mock_page.extract_text.return_value = (
+            "Collection Date: 01/15/2024\n"
+            "Glucose: 95 mg/dL (70-100)\n"
+            "Creatinine: 1.1 mg/dL (0.7-1.3)\n"
+        )
+        mock_page.extract_tables.return_value = []
+
+        mock_pdf = MagicMock()
+        mock_pdf.pages = [mock_page]
+        mock_pdf.__enter__ = MagicMock(return_value=mock_pdf)
+        mock_pdf.__exit__ = MagicMock(return_value=False)
+
+        with patch("pdfplumber.open", return_value=mock_pdf):
+            result = await extract_module.extract_from_pdf(tmp_path / "test.pdf", "doc-1")
+
+        assert len(result.observations) >= 1
+        for obs in result.observations:
+            assert obs.collected_at is not None, (
+                f"Observation '{obs.analyte_raw}' should have collected_at set"
+            )
+
+    @pytest.mark.asyncio
+    async def test_date_propagation_from_document_level(self, extract_module, tmp_path):
+        """
+        HC-REM-005-002: If no per-observation date exists, observations should
+        inherit the document-level collection date.
+        """
+        mock_page = MagicMock()
+        mock_page.extract_text.return_value = (
+            "Report Date: 03/20/2024\n"
+            "BUN: 18 mg/dL (7-20)\n"
+        )
+        mock_page.extract_tables.return_value = []
+
+        mock_pdf = MagicMock()
+        mock_pdf.pages = [mock_page]
+        mock_pdf.__enter__ = MagicMock(return_value=mock_pdf)
+        mock_pdf.__exit__ = MagicMock(return_value=False)
+
+        with patch("pdfplumber.open", return_value=mock_pdf):
+            result = await extract_module.extract_from_pdf(tmp_path / "test.pdf", "doc-1")
+
+        assert len(result.collection_dates) >= 1
+        for obs in result.observations:
+            assert obs.collected_at is not None
+            assert "03/20/2024" in obs.collected_at
+
+
 class TestExtractFromText:
     """Tests specifically for _extract_from_text implementation."""
 

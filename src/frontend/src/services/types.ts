@@ -325,3 +325,97 @@ export interface ScheduleUpdate {
   days_of_week?: number[];
   is_active?: boolean;
 }
+
+// Notification types
+export interface NotificationSettings {
+  medication_id: string;
+  enabled: boolean;
+  quiet_hours_start: string | null;
+  quiet_hours_end: string | null;
+  max_reminders_per_dose: number;
+  initial_offset_minutes: number;
+  nudge_delay_minutes: number;
+  alert_delay_minutes: number;
+  weekend_enabled: boolean;
+  celebration_enabled: boolean;
+}
+
+export interface NotificationSettingsUpdate {
+  enabled?: boolean;
+  quiet_hours_start?: string;
+  quiet_hours_end?: string;
+  max_reminders_per_dose?: number;
+  initial_offset_minutes?: number;
+  nudge_delay_minutes?: number;
+  alert_delay_minutes?: number;
+  weekend_enabled?: boolean;
+  celebration_enabled?: boolean;
+}
+
+export interface ReminderLogEntry {
+  id: string;
+  medication_id: string;
+  medication_name: string;
+  schedule_id: string | null;
+  reminder_type: string;
+  message_tone: string;
+  message: string;
+  sent_at: string;
+  delivery_method: string;
+  was_interacted: boolean;
+  interaction_type: string | null;
+  interacted_at: string | null;
+}
+
+export interface NotificationHistoryStats {
+  sent_last_7_days: number;
+  sent_last_30_days: number;
+  interaction_rate_7d: number;
+  by_type: Record<string, number>;
+}
+
+export interface NotificationHistoryResponse {
+  total: number;
+  reminders: ReminderLogEntry[];
+  stats: NotificationHistoryStats;
+}
+
+export interface NotificationSchedulerStatus {
+  state: 'stopped' | 'running' | 'paused';
+  active_platform: string | null;
+  registered_profiles: number;
+  notifications_sent_this_hour: number;
+  last_check: string | null;
+}
+
+export interface TestNotificationRequest {
+  title?: string;
+  body?: string;
+}
+
+export interface TestNotificationResponse {
+  success: boolean;
+  platform: string;
+  message: string;
+}
+
+export type ReminderInteractionType =
+  | 'dismissed'
+  | 'snoozed'
+  | 'marked_taken'
+  | 'opened_app';
+
+// Correlation types (UX-001: frontend-only temporal overlay)
+
+export interface MedicationOverlayPeriod {
+  medicationId: string;
+  medicationName: string;
+  startedAt: string;
+  endedAt: string | null;
+  dosageLabel: string | null;
+}
+
+export interface CorrelationContext {
+  observation: Observation;
+  activeMedications: MedicationOverlayPeriod[];
+}

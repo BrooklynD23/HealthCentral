@@ -42,6 +42,11 @@ export interface VerificationInfo {
   issues: string[];
 }
 
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export interface ChatRequest {
   question: string;
   selected_analytes?: string[];
@@ -50,6 +55,7 @@ export interface ChatRequest {
   to_date?: string;
   include_references?: boolean;
   enable_verification?: boolean;
+  history?: ChatMessage[];
 }
 
 export interface ChatResponse {

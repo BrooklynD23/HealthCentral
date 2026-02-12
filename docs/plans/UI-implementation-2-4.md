@@ -1,5 +1,8 @@
 # HealthCentral Implementation Plan
 
+> Historical Reference: this plan predates later implementation work and contains completed items.
+> Use `docs/features/TASK_LIST.md` for active remaining tasks.
+
 ## Status Corrections
 
 Based on codebase exploration, several items from the original summary are **already implemented**:

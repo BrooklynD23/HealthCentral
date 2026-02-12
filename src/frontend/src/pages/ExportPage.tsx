@@ -31,7 +31,7 @@ import {
   useDocuments,
 } from '@/services';
 import { useAuthStore } from '@/stores/authStore';
-import type { SummaryResponse, QuestionItem } from '@/services/export';
+import type { SummaryResponse, QuestionItem, ExportFormat } from '@/services/export';
 
 const exportSections = [
   { id: 'summary', label: 'Results Summary', included: true },
@@ -48,6 +48,7 @@ export function ExportPage() {
   const [copied, setCopied] = useState(false);
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
+  const [exportFormat, setExportFormat] = useState<ExportFormat>('text');
 
   // API hooks
   const exportCSV = useExportCSV();
@@ -94,7 +95,7 @@ export function ExportPage() {
 
       // Also generate questions if enabled
       if (includeQuestions) {
-        const questionsResult = await generateQuestions.mutateAsync(undefined);
+        const questionsResult = await generateQuestions.mutateAsync();
         setQuestions(questionsResult);
       }
     } catch (error) {
@@ -104,7 +105,7 @@ export function ExportPage() {
 
   const handleDownloadSummary = () => {
     if (summary) {
-      downloadSummary.mutate(summary.summary_id);
+      downloadSummary.mutate({ summaryId: summary.summary_id, format: exportFormat });
     }
   };
 
@@ -337,6 +338,8 @@ export function ExportPage() {
                 <button
                   key={section.id}
                   onClick={() => handleToggleSection(section.id)}
+                  aria-pressed={section.included}
+                  aria-label={`${section.included ? 'Exclude' : 'Include'} ${section.label}`}
                   className={cn(
                     'w-full flex items-center justify-between px-3 py-3 rounded-xl',
                     'transition-colors duration-200',
@@ -362,6 +365,48 @@ export function ExportPage() {
                     )}
                   >
                     {section.included && <Check className="w-3 h-3" />}
+                  </div>
+                </button>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Download Format</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {(['text', 'html', 'pdf'] as ExportFormat[]).map((fmt) => (
+                <button
+                  key={fmt}
+                  onClick={() => setExportFormat(fmt)}
+                  className={cn(
+                    'w-full flex items-center justify-between px-3 py-3 rounded-xl',
+                    'transition-colors duration-200',
+                    exportFormat === fmt
+                      ? 'bg-accent-subtle'
+                      : 'bg-surface-muted hover:bg-surface-sunken'
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'text-sm font-medium',
+                      exportFormat === fmt ? 'text-accent' : 'text-ink-secondary'
+                    )}
+                  >
+                    {fmt === 'text' ? 'Plain Text (.txt)' : fmt === 'html' ? 'HTML (.html)' : 'PDF (.pdf)'}
+                  </span>
+                  <div
+                    className={cn(
+                      'w-5 h-5 rounded-full flex items-center justify-center',
+                      exportFormat === fmt
+                        ? 'bg-accent'
+                        : 'bg-white border border-black/[0.12]'
+                    )}
+                  >
+                    {exportFormat === fmt && (
+                      <div className="w-2 h-2 rounded-full bg-white" />
+                    )}
                   </div>
                 </button>
               ))}

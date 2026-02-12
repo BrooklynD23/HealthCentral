@@ -191,6 +191,35 @@ Copy rules:
 
 ---
 
+## Audit Results (A11Y-001)
+
+**Audit date:** 2026-02-12
+
+### Fixes Applied
+
+| Component | Fix | Category |
+|-----------|-----|----------|
+| TrendsDashboard panel selector | Added `role="tablist"` + `role="tab"` + `aria-selected` | Keyboard/Semantic |
+| TrendsDashboard loading | Added `role="status"` + `aria-live="polite"` + sr-only text | Screen reader |
+| MedicationDetail loading | Added `role="status"` + `aria-live="polite"` + sr-only text | Screen reader |
+| VerificationWorkbench loading | Added `role="status"` + `aria-live="polite"` + sr-only text | Screen reader |
+| ExportPage section toggles | Added `aria-pressed` + descriptive `aria-label` | Semantic |
+| MedicationOverlay links | Added `aria-label` per medication link | Screen reader |
+| MedicationDetail related labs | Added `aria-label` per lab result link | Screen reader |
+| All framer-motion animations | Already respect `useReducedMotion()` | Reduced motion |
+
+### Automated Tests
+
+File: `src/frontend/src/__tests__/Accessibility.test.tsx`
+
+- Panel tablist/tab roles present
+- Active tab has `aria-selected="true"`
+- Loading states have `role="status"`
+- Verification workbench buttons have aria-labels
+- Export buttons have accessible names
+
+---
+
 ## QA acceptance checklist
 - Keyboard-only completion of import → verify → trends → export
 - Screen-reader sanity pass on all primary screens

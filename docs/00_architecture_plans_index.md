@@ -1,22 +1,45 @@
-# Architecture Planning Files (Regenerated)
+# HealthCentral Documentation Index (Current)
 
-This folder contains regenerated planning files derived from the PRD:
+**Last Updated:** 2026-02-12
+**Owner:** Project Lead
+**Refresh Trigger:** New doc added or doc archived
 
-## Core Architecture
-- `01_backend_architecture_plan.md`
-- `02_frontend_accessibility_plan.md`
-- `03_data_confidentiality_pipeline_plan.md`
-- `04_local_models_inference_plan.md`
-- `05_backend_integration_status.md` — Implementation tracking
-- `06_mvp_to_rag_execution_board.md` — MVP-first execution backlog (tickets + E2E matrix)
+This index defines the canonical documentation order and marks legacy planning files that are kept only for history.
 
-## Feature Expansion (v0.2)
-See `features/` subfolder for new feature architectures:
-- `features/00_features_index.md` — Index of new features
-- `features/01_lab_result_interpreter_architecture.md` — Personal Lab Result Interpreter (Moderate)
-- `features/02_medication_adherence_coach_architecture.md` — Adaptive Medication Adherence Coach (Light)
-- `features/03_features_prd.md` — Combined PRD for new features
+> Canonical index — see also [`docs/features/TASK_LIST.md`](features/TASK_LIST.md) for active work items.
+
+## Start Here (Canonical Order)
+
+1. `docs/current_gap_audit_2026-02-09.md`  
+   Final closure log for HC-T001 to HC-T006 and rationale for current architecture choices.
+2. `docs/05_backend_integration_status.md`  
+   Current backend/frontend contract and integration baseline.
+3. `docs/features/TASK_LIST.md`  
+   Remaining backlog only (active implementation and consolidation tasks).
+4. `docs/plans/next-agent-documentation-consolidation.md`  
+   Hands-off execution plan for the next implementation agent.
+
+## Architecture References (Current)
+
+- `docs/01_backend_architecture_plan.md`
+- `docs/02_frontend_accessibility_plan.md`
+- `docs/03_data_confidentiality_pipeline_plan.md`
+- `docs/04_local_models_inference_plan.md`
+
+## Feature References
+
+- `docs/features/00_features_index.md`
+- `docs/features/01_lab_result_interpreter_architecture.md`
+- `docs/features/02_medication_adherence_coach_architecture.md`
+- `docs/features/03_features_prd.md`
+
+## Historical References (Do Not Use as Active Backlog)
+
+- `docs/06_mvp_to_rag_execution_board.md` (sprint history)
+- `docs/plans/UI-implementation-2-4.md` (superseded UI plan)
+- `docs/plans/remaining-features-implementation.md` (superseded execution plan)
 
 ## Source PRDs
-- `Local_First_Medical_Results_Companion_PRD_v0_1.md` — Original MVP PRD
-- `features/03_features_prd.md` — Feature expansion PRD v0.2
+
+- `docs/Local_First_Medical_Results_Companion_PRD_v0_1.md`
+- `docs/features/03_features_prd.md`

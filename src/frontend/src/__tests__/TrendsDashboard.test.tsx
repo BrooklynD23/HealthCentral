@@ -23,6 +23,8 @@ import { useAuthStore } from '@/stores/authStore';
 vi.mock('@/services/api', () => ({
   apiGet: vi.fn(),
   apiPost: vi.fn(),
+  apiPut: vi.fn(),
+  apiDelete: vi.fn(),
   ApiError: class ApiError extends Error {
     constructor(
       public status: number,
@@ -150,6 +152,7 @@ const mockAllObservations = [
     value: 14.2,
     unit: 'g/dL',
     user_verified: true,
+    collected_at: '2024-12-15T00:00:00',
   },
   {
     id: 'obs-2',
@@ -160,6 +163,7 @@ const mockAllObservations = [
     value: 7.5,
     unit: 'K/uL',
     user_verified: true,
+    collected_at: '2024-12-15T00:00:00',
   },
   {
     id: 'obs-3',
@@ -170,6 +174,28 @@ const mockAllObservations = [
     value: 95,
     unit: 'mg/dL',
     user_verified: true,
+    collected_at: '2024-12-15T00:00:00',
+  },
+];
+
+const mockMedications = [
+  {
+    id: 'med-1',
+    profile_id: 'profile-123',
+    name: 'Metformin',
+    generic_name: null,
+    dosage_amount: 500,
+    dosage_unit: 'mg',
+    dosage_form: 'tablet',
+    frequency: 'twice_daily',
+    instructions: null,
+    is_active: true,
+    reminder_enabled: false,
+    started_at: '2024-01-01T00:00:00',
+    ended_at: null,
+    created_at: '2024-01-01T00:00:00',
+    updated_at: '2024-01-01T00:00:00',
+    schedules: [],
   },
 ];
 
@@ -179,6 +205,7 @@ function setupApiMocks(options: {
   trendData?: typeof mockTrendData | null;
   trendError?: boolean;
   panelData?: typeof mockPanelData | null;
+  medications?: typeof mockMedications | [];
 }) {
   vi.mocked(api.apiGet).mockImplementation((url: string) => {
     if (url === '/observations/') {
@@ -192,6 +219,9 @@ function setupApiMocks(options: {
     }
     if (url.startsWith('/observations/panels/')) {
       return Promise.resolve(options.panelData ?? mockPanelData);
+    }
+    if (url === '/medications/') {
+      return Promise.resolve(options.medications ?? mockMedications);
     }
     return Promise.resolve(null);
   });
@@ -336,6 +366,30 @@ describe('TrendsDashboard', () => {
           expect.stringContaining('/observations/trends/glucose'),
           expect.any(Object)
         );
+      });
+    });
+  });
+
+  describe('UX-001: Medication overlay', () => {
+    it('should show medication overlay when medications are active', async () => {
+      setupApiMocks({ medications: mockMedications });
+
+      renderWithProviders(<TrendsDashboard />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('medication-overlay')).toBeInTheDocument();
+      });
+
+      expect(screen.getByText('Metformin')).toBeInTheDocument();
+    });
+
+    it('should show empty overlay message when no medications are active', async () => {
+      setupApiMocks({ medications: [] });
+
+      renderWithProviders(<TrendsDashboard />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('medication-overlay-empty')).toBeInTheDocument();
       });
     });
   });

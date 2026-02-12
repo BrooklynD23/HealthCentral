@@ -83,7 +83,28 @@ class ExtractModule:
     def __init__(self):
         """Initialize extraction module."""
         self.parser_version = "0.1.0"
-    
+
+    def has_extractable_text(self, pdf_source: Union[Path, BinaryIO, io.BytesIO]) -> bool:
+        """
+        Check if a PDF has extractable text (not scanned/image-only).
+
+        Returns True if average chars per page >= 50, indicating real text content.
+        """
+        try:
+            import pdfplumber
+        except ImportError:
+            return True  # Assume text-based if pdfplumber unavailable
+
+        try:
+            with pdfplumber.open(pdf_source) as pdf:
+                if not pdf.pages:
+                    return False
+                total_chars = sum(len(page.extract_text() or "") for page in pdf.pages)
+                avg_chars = total_chars / len(pdf.pages)
+                return avg_chars >= 50
+        except Exception:
+            return True  # Default to text-based on error
+
     async def extract_from_pdf(
         self,
         pdf_source: Union[Path, BinaryIO, io.BytesIO],
@@ -133,7 +154,21 @@ class ExtractModule:
                 # Extract dates
                 dates = self._extract_dates(text)
                 collection_dates.extend(dates)
-        
+
+                # Propagate page-level date to observations missing collected_at
+                if dates:
+                    page_date = dates[0]  # Use first date found on this page
+                    for obs in observations:
+                        if obs.provenance and obs.provenance.page == page_num and obs.collected_at is None:
+                            obs.collected_at = page_date
+
+        # Final pass: assign earliest date to any observation still missing collected_at
+        if collection_dates:
+            fallback_date = collection_dates[0]
+            for obs in observations:
+                if obs.collected_at is None:
+                    obs.collected_at = fallback_date
+
         # Calculate overall confidence
         if observations:
             overall_confidence = sum(o.confidence for o in observations) / len(observations)
@@ -399,6 +434,123 @@ class ExtractModule:
             extraction_method="pdf_text",
         )
     
+    async def extract_from_scanned_pdf(
+        self,
+        pdf_source: Union[Path, BinaryIO, io.BytesIO],
+        document_id: str,
+    ) -> ExtractionResult:
+        """
+        Extract lab values from a scanned PDF using OCR.
+
+        Uses pdf2image to convert pages to images, then pytesseract for OCR.
+        OCR observations get base confidence 0.4 (lower than text extraction).
+        """
+        try:
+            from pdf2image import convert_from_bytes
+            import pytesseract
+        except ImportError:
+            raise RuntimeError("OCR dependencies not installed (pdf2image, pytesseract)")
+
+        # Read PDF bytes
+        if isinstance(pdf_source, (Path, str)):
+            pdf_bytes = Path(pdf_source).read_bytes()
+        else:
+            pdf_source.seek(0)
+            pdf_bytes = pdf_source.read()
+
+        images = convert_from_bytes(pdf_bytes)
+        observations = []
+        collection_dates = []
+
+        for page_num, image in enumerate(images, start=1):
+            text = pytesseract.image_to_string(image)
+            # Use existing text extraction on OCR output
+            text_obs = self._extract_from_text(text, page_num, document_id)
+            # Lower confidence for OCR-derived observations
+            for obs in text_obs:
+                obs.confidence = min(obs.confidence * 0.8, 0.7)
+                obs.extraction_method = "ocr_pdf"
+            observations.extend(text_obs)
+            dates = self._extract_dates(text)
+            collection_dates.extend(dates)
+
+            # Propagate page-level date to observations missing collected_at
+            if dates:
+                page_date = dates[0]
+                for obs in text_obs:
+                    if obs.collected_at is None:
+                        obs.collected_at = page_date
+
+        # Final pass: assign earliest date to any observation still missing collected_at
+        if collection_dates:
+            fallback_date = collection_dates[0]
+            for obs in observations:
+                if obs.collected_at is None:
+                    obs.collected_at = fallback_date
+
+        overall_confidence = (
+            sum(o.confidence for o in observations) / len(observations)
+            if observations else 0.0
+        )
+
+        return ExtractionResult(
+            document_id=document_id,
+            observations=observations,
+            collection_dates=collection_dates,
+            parser_version=self.parser_version,
+            overall_confidence=overall_confidence,
+        )
+
+    async def extract_from_image(
+        self,
+        image_source: Union[Path, BinaryIO, io.BytesIO],
+        document_id: str,
+    ) -> ExtractionResult:
+        """
+        Extract lab values from a direct image import (.png/.jpg).
+
+        Uses pytesseract for OCR. Observations get base confidence 0.4.
+        """
+        try:
+            from PIL import Image
+            import pytesseract
+        except ImportError:
+            raise RuntimeError("OCR dependencies not installed (pillow, pytesseract)")
+
+        if isinstance(image_source, (Path, str)):
+            image = Image.open(image_source)
+        else:
+            image_source.seek(0)
+            image = Image.open(image_source)
+
+        text = pytesseract.image_to_string(image)
+        observations = self._extract_from_text(text, 1, document_id)
+        # Lower confidence for OCR-derived observations
+        for obs in observations:
+            obs.confidence = min(obs.confidence * 0.8, 0.7)
+            obs.extraction_method = "ocr_image"
+        collection_dates = self._extract_dates(text)
+
+        # Propagate dates to observations missing collected_at
+        if collection_dates:
+            fallback_date = collection_dates[0]
+            for obs in observations:
+                if obs.collected_at is None:
+                    obs.collected_at = fallback_date
+
+        overall_confidence = (
+            sum(o.confidence for o in observations) / len(observations)
+            if observations else 0.0
+        )
+
+        return ExtractionResult(
+            document_id=document_id,
+            observations=observations,
+            collection_dates=collection_dates,
+            parser_version=self.parser_version,
+            overall_confidence=overall_confidence,
+        )
+
     def _extract_dates(self, text: str) -> list[str]:
         """Extract collection dates from text."""
         # Common date patterns
