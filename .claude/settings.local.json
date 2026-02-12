@@ -77,7 +77,9 @@
       "Bash(/mnt/c/Users/DangT/Documents/GitHub/HealthCentral/.venv/Scripts/python.exe -m pytest:*)",
       "Bash(/mnt/c/Users/DangT/Documents/GitHub/HealthCentral/.venv/Scripts/pip.exe install alembic)",
       "Bash(apt list:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(chmod:*)"
     ]
-  }
+  },
+  "outputStyle": "default"
 }
