@@ -63,6 +63,9 @@ class _FakeProfileDb:
 
 
 class _FakeMasterDb:
+    def add(self, _obj):
+        return None
+
     async def commit(self):
         return None
 

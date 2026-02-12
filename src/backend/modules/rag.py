@@ -131,7 +131,7 @@ USER QUESTION: {question}"""
 
     # Treat conversation history as untrusted input; strip likely jailbreaks.
     PROMPT_INJECTION_PATTERNS = [
-        r"\b(ignore|disregard|forget)\b.{0,60}\b(instruction|rules?|system|developer|prompt)\b",
+        r"\b(ignore|disregard|forget)\b.{0,60}\b(instructions?|rules?|system|developer|prompt)\b",
         r"\b(system prompt|developer message|jailbreak|dan mode|prompt injection)\b",
         r"\b(override|bypass|disable)\b.{0,40}\b(safety|guardrails?|restrictions?|rules?)\b",
         r"\b(act as|pretend to be|you are now)\b.{0,60}\b(doctor|physician|system|admin)\b",

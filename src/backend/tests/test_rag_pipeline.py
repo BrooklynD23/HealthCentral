@@ -334,7 +334,8 @@ class TestRetrievalPipeline:
             },
         ]
 
-    def test_api_rag_retrieve_001_similarity_search_returns_top_k(self, sample_indexed_chunks):
+    @pytest.mark.asyncio
+    async def test_api_rag_retrieve_001_similarity_search_returns_top_k(self, sample_indexed_chunks):
         """
         API-RAG-RETRIEVE-001: Similarity search returns top-k chunks.
 
@@ -344,19 +345,19 @@ class TestRetrievalPipeline:
 
         rag = RAGModule()
 
-        # Mock the internal retrieval to use our sample data
-        with patch.object(rag, '_search_vectors') as mock_search:
+        # Mock async vector search to use our sample data
+        with patch.object(rag, '_search_vectors_async', new_callable=AsyncMock) as mock_search:
             mock_search.return_value = [
                 (sample_indexed_chunks[0], 0.95),  # glucose
                 (sample_indexed_chunks[2], 0.88),  # glucose Dec
             ]
 
-            # This test verifies the interface - actual implementation
-            # will search the vector store
-            chunks = rag.retrieve_context_sync(
+            chunks = await rag.retrieve_context(
                 query="What is my glucose level?",
                 profile_id="test-profile",
+                include_references=False,
                 top_k=5,
+                profile_db=object(),
             )
 
             assert isinstance(chunks, list)
@@ -373,7 +374,8 @@ class TestRetrievalPipeline:
                 assert chunk.relevance_score >= 0.0
                 assert chunk.relevance_score <= 1.0
 
-    def test_api_rag_retrieve_002_filter_by_analyte(self, sample_indexed_chunks):
+    @pytest.mark.asyncio
+    async def test_api_rag_retrieve_002_filter_by_analyte(self, sample_indexed_chunks):
         """
         API-RAG-RETRIEVE-002: Retrieval filters by analyte.
 
@@ -383,18 +385,20 @@ class TestRetrievalPipeline:
 
         rag = RAGModule()
 
-        with patch.object(rag, '_search_vectors') as mock_search:
+        with patch.object(rag, '_search_vectors_async', new_callable=AsyncMock) as mock_search:
             # Only return glucose chunks when filtered
             mock_search.return_value = [
                 (sample_indexed_chunks[0], 0.95),
                 (sample_indexed_chunks[2], 0.88),
             ]
 
-            chunks = rag.retrieve_context_sync(
+            chunks = await rag.retrieve_context(
                 query="Show my glucose trends",
                 profile_id="test-profile",
                 selected_analytes=["glucose"],
+                include_references=False,
                 top_k=5,
+                profile_db=object(),
             )
 
             # All returned chunks should be related to glucose
@@ -402,7 +406,10 @@ class TestRetrievalPipeline:
                 # Check the text contains glucose-related content
                 assert "glucose" in chunk.text.lower() or len(chunks) == 0
 
-    def test_api_rag_retrieve_003_filter_by_date_range(self, sample_indexed_chunks):
+            assert mock_search.await_args.kwargs["selected_analytes"] == ["glucose"]
+
+    @pytest.mark.asyncio
+    async def test_api_rag_retrieve_003_filter_by_date_range(self, sample_indexed_chunks):
         """
         API-RAG-RETRIEVE-003: Retrieval filters by date range.
 
@@ -412,26 +419,31 @@ class TestRetrievalPipeline:
 
         rag = RAGModule()
 
-        with patch.object(rag, '_search_vectors') as mock_search:
+        with patch.object(rag, '_search_vectors_async', new_callable=AsyncMock) as mock_search:
             # Only return Jan 2024 chunks when filtered
             mock_search.return_value = [
                 (sample_indexed_chunks[0], 0.95),
                 (sample_indexed_chunks[1], 0.85),
             ]
 
-            chunks = rag.retrieve_context_sync(
+            chunks = await rag.retrieve_context(
                 query="What are my recent results?",
                 profile_id="test-profile",
                 from_date="2024-01-01",
                 to_date="2024-01-31",
+                include_references=False,
                 top_k=5,
+                profile_db=object(),
             )
 
             # All returned chunks should be from Jan 2024
             # (verified by mock returning filtered data)
             assert len(chunks) >= 0  # Implementation may return empty
+            assert mock_search.await_args.kwargs["from_date"] == "2024-01-01"
+            assert mock_search.await_args.kwargs["to_date"] == "2024-01-31"
 
-    def test_api_rag_index_003_retrieval_returns_chunks_with_provenance(self, sample_indexed_chunks):
+    @pytest.mark.asyncio
+    async def test_api_rag_index_003_retrieval_returns_chunks_with_provenance(self, sample_indexed_chunks):
         """
         API-RAG-INDEX-003: Retrieval returns chunks with provenance.
 
@@ -441,15 +453,17 @@ class TestRetrievalPipeline:
 
         rag = RAGModule()
 
-        with patch.object(rag, '_search_vectors') as mock_search:
+        with patch.object(rag, '_search_vectors_async', new_callable=AsyncMock) as mock_search:
             mock_search.return_value = [
                 (sample_indexed_chunks[0], 0.95),
             ]
 
-            chunks = rag.retrieve_context_sync(
+            chunks = await rag.retrieve_context(
                 query="glucose level",
                 profile_id="test-profile",
+                include_references=False,
                 top_k=1,
+                profile_db=object(),
             )
 
             if chunks:
@@ -926,7 +940,7 @@ Discuss with your provider for personalized guidance.
         with patch.object(rag, 'retrieve_context', new_callable=AsyncMock) as mock_retrieve:
             mock_retrieve.return_value = mock_chunks
 
-            with patch.object(rag, 'generate_response', new_callable=AsyncMock) as mock_gen:
+            with patch.object(rag, '_generate_with_runner', new_callable=AsyncMock) as mock_gen:
                 mock_gen.return_value = mock_response
 
                 result = await rag.query(
@@ -975,7 +989,7 @@ You should take insulin immediately. I diagnose you with diabetes. Take metformi
         with patch.object(rag, 'retrieve_context', new_callable=AsyncMock) as mock_retrieve:
             mock_retrieve.return_value = mock_chunks
 
-            with patch.object(rag, 'generate_response', new_callable=AsyncMock) as mock_gen:
+            with patch.object(rag, '_generate_with_runner', new_callable=AsyncMock) as mock_gen:
                 mock_gen.return_value = mock_bad_response
 
                 result = await rag.query(
