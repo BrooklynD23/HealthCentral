@@ -1,6 +1,6 @@
 # HealthCentral Documentation Index (Current)
 
-**Last Updated:** 2026-02-12
+**Last Updated:** 2026-02-14
 **Owner:** Project Lead
 **Refresh Trigger:** New doc added or doc archived
 
@@ -18,6 +18,11 @@ This index defines the canonical documentation order and marks legacy planning f
    Remaining backlog only (active implementation and consolidation tasks).
 4. `docs/plans/next-agent-documentation-consolidation.md`  
    Hands-off execution plan for the next implementation agent.
+
+## Sprint Planning References
+
+- `docs/plans/sprint-phase-2026-02-13-implementation-plan.md` (sprint ticket breakdown + structure audit)
+- Stabilization sprint (STAB-001 through STAB-007) tracked in `docs/features/TASK_LIST.md`
 
 ## Architecture References (Current)
 

@@ -1198,14 +1198,14 @@ Reference ranges may vary between labs.""",
     @pytest.mark.asyncio
     async def test_generate_response_raises_when_no_model(self):
         """
-        generate_response should raise NotImplementedError when model unavailable.
+        generate_response should raise ModelUnavailableError when model unavailable.
         """
-        from modules.rag import RAGModule
+        from modules.rag import RAGModule, ModelUnavailableError
 
         rag = RAGModule()
 
         with patch.object(rag._model_runner, 'is_available', return_value=False):
-            with pytest.raises(NotImplementedError):
+            with pytest.raises(ModelUnavailableError):
                 await rag.generate_response("Test prompt")
 
     @pytest.mark.asyncio

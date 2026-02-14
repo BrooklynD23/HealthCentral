@@ -22,7 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
-from core.config import settings
+from core.config import settings, is_ocr_available
 from core.audit import log_document_event
 from core.auth import RequireAuth, Session, ProfileDbSession
 from core.document_crypto import get_decrypted_document, get_profile_encryption_key
@@ -243,8 +243,8 @@ async def import_document(
     needs_verification = True
 
     if import_result.doc_type in ("lab_pdf", "lab_pdf_scanned", "lab_image"):
-        # For scanned PDFs and images without OCR enabled: mark pending
-        if import_result.doc_type in ("lab_pdf_scanned", "lab_image") and not settings.ocr_enabled:
+        # For scanned PDFs and images without OCR available: mark pending
+        if import_result.doc_type in ("lab_pdf_scanned", "lab_image") and not is_ocr_available():
             document.status = "pending_ocr"
             await profile_db.commit()
         else:
@@ -264,6 +264,16 @@ async def import_document(
                 else:  # lab_image
                     extraction_result = await extract_module.extract_from_image(
                         decrypted_doc, import_result.document_id
+                    )
+
+                # If extraction reports OCR unavailable, mark pending_ocr
+                if extraction_result.ocr_unavailable:
+                    document.status = "pending_ocr"
+                    await profile_db.commit()
+                    return DocumentImportResponse(
+                        document=DocumentResponse.from_model(document),
+                        observations_extracted=0,
+                        needs_verification=True,
                     )
 
                 # Persist observations to profile database

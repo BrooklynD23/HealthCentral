@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
 from core.auth import RequireAuth, ProfileDbSession
-from modules.rag import RAGModule, VerificationConfig
+from modules.rag import RAGModule, VerificationConfig, ModelUnavailableError
 from modules.faithfulness import FaithfulnessConfig
 
 logger = logging.getLogger(__name__)
@@ -254,7 +254,7 @@ async def chat(
             validation_errors=result.validation_errors,
         )
 
-    except NotImplementedError:
+    except ModelUnavailableError:
         # No LLM available — return knowledge-base fallback response
         return await _build_knowledge_fallback(request, session.profile_id, db)
     except Exception as e:

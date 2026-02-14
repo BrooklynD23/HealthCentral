@@ -1,7 +1,7 @@
 # HealthCentral Remaining Work Task List
 
-**Version:** 0.3.0
-**Last Updated:** 2026-02-12
+**Version:** 0.3.1
+**Last Updated:** 2026-02-14
 **Owner:** Project Lead
 **Refresh Trigger:** Task completed or new task identified
 **Scope:** Active remaining work only (implementation baseline already shipped)
@@ -49,10 +49,29 @@ It replaces legacy mixed-status lists and focuses on:
 | `A11Y-001` | Accessibility completion audit | Created `Accessibility.test.tsx` with 7 tests: tablist/tab roles, aria-selected, loading aria-live, form labels, button accessible names. | Added `role="tablist"/"tab"` + `aria-selected` to TrendsDashboard. Added `role="status"` + `aria-live="polite"` to all loading states. Added `aria-pressed` to ExportPage toggles. | Documented audit results in `docs/02_frontend_accessibility_plan.md`. | `src/frontend/src/__tests__/Accessibility.test.tsx`, `src/frontend/src/pages/TrendsDashboard.tsx`, `src/frontend/src/pages/MedicationDetail.tsx`, `src/frontend/src/pages/VerificationWorkbench.tsx`, `src/frontend/src/pages/ExportPage.tsx`, `docs/02_frontend_accessibility_plan.md` | [x] DONE |
 | `DOC-006` | API and user-facing docs completion | Added `_check_required_doc_sections()` lint rule with curated REQUIRED_SECTIONS dict. | Added "API Overview" section with endpoint group table to README.md. Fixed broken `implementation_plan/` link. Added `**Last Updated:**` to PRD. | Cross-linked README API Overview to backend integration status. Verified lint passes. | `scripts/docs_lint.py`, `README.md`, `docs/features/03_features_prd.md` | [x] DONE |
 
+The items above represent v0.3.0 hardening (completed 2026-02-12). The stabilization sprint below addresses production-readiness gaps identified 2026-02-14.
+
+Reference plan: `docs/plans/sprint-phase-2026-02-13-implementation-plan.md`
+
+---
+
+## Sprint 2026-02-14: Stabilization Items
+
+| Item ID | Scope | Phase T1 (Red: define failing check first) | Phase T2 (Green: implement minimal fix) | Phase T3 (Refactor/Verify: stabilize + document) | Primary File Targets | Status |
+|---------|-------|---------------------------------------------|------------------------------------------|---------------------------------------------------|----------------------|--------|
+| `STAB-001` | OCR graceful degradation | Importing scanned PDF with OCR unavailable must return 200 with `pending_ocr`, not 500 RuntimeError. | Replaced RuntimeError in `extract_from_scanned_pdf()` and `extract_from_image()` with graceful `ExtractionResult(ocr_unavailable=True)`. Updated `documents.py` precheck to use `is_ocr_available()`. Added "OCR Required" badge in `DocumentInbox.tsx`. | Verified no RuntimeError can propagate from OCR extraction methods. Frontend shows distinct badge for `pending_ocr` documents. | `src/backend/modules/extract.py`, `src/backend/api/documents.py`, `src/frontend/src/pages/DocumentInbox.tsx`, `src/backend/core/config.py` | [ ] PENDING |
+| `STAB-002` | Extraction silent-failure logging | `grep "except.*ValueError" extract.py` must show no bare `pass` blocks. | Added `import logging` and `logger = logging.getLogger(__name__)` to `extract.py`. Replaced all `pass` in except blocks with `logger.warning()` calls including `analyte`, `page_num`, and raw value context. | Functional behavior unchanged (parsed value stays None). Warning logs emitted for debugging. | `src/backend/modules/extract.py` | [ ] PENDING |
+| `STAB-003` | Config startup validation | `validate_startup()` must raise RuntimeError if `app_env == "production"` and `jwt_secret` is empty. `is_ocr_available()` must return False when tesseract not installed. | Added `validate_startup()` method to Settings class and `is_ocr_available()` standalone function in `config.py`. Called validation in `main.py` lifespan. Created `test_config_validation.py` with 9 test cases. | App starts normally in dev mode with no tesseract (warning only). Production hard-fails without JWT secret. | `src/backend/core/config.py`, `src/backend/main.py`, `src/backend/tests/test_config_validation.py` | [ ] PENDING |
+| `STAB-004` | CORS allow_headers hardening | `grep 'allow_headers' main.py` must not contain `"*"`. | Replaced `allow_headers=["*"]` with explicit `["Authorization", "Content-Type", "Accept", "X-Requested-With"]` in `main.py`. | Verified frontend `api.ts` only sends Authorization and Content-Type headers. | `src/backend/main.py` | [ ] PENDING |
+| `STAB-005` | Assistant fallback determinism | No `NotImplementedError` used for model-unavailable signaling. `assistant.py` must catch `ModelUnavailableError` specifically. | Defined `ModelUnavailableError(Exception)` in `rag.py`. Replaced both `NotImplementedError` raises with `ModelUnavailableError`. Updated `assistant.py` catch clause. | `/api/v1/assistant/chat` with no model returns 200 knowledge-based fallback (not 500/501). Same fallback behavior, explicit exception type. | `src/backend/modules/rag.py`, `src/backend/api/assistant.py` | [ ] PENDING |
+| `STAB-006` | E2E smoke suite + CI job | 2 new E2E spec files with 9 combined tests. Playwright config starts both backend and frontend. CI has `e2e-tests` job gated on both `frontend-tests` and `backend-tests`. | Created `document-import.spec.ts` (5 tests) and `settings-smoke.spec.ts` (4 tests). Updated `playwright.config.ts` with dual webServer array. Added `e2e-tests` job to `ci.yml`. Renamed E2E-RAG-002 from "501 error" to "no-model fallback". | All existing E2E tests still valid. No test requires real LLM model. CI pipeline has 4 jobs. | `src/frontend/e2e/document-import.spec.ts`, `src/frontend/e2e/settings-smoke.spec.ts`, `src/frontend/playwright.config.ts`, `.github/workflows/ci.yml`, `src/frontend/e2e/assistant.spec.ts` | [ ] PENDING |
+| `STAB-007` | Governance reconciliation | TASK_LIST.md must have STAB-001 through STAB-007 as active rows with Red/Green/Refactor columns. v0.3.0 items preserved with clear scope label. | Added stabilization sprint section to TASK_LIST.md with TDD-structured rows. Updated architecture index. | `python3 scripts/docs_lint.py` passes. No doc claims "all complete" while active items exist. | `docs/features/TASK_LIST.md`, `docs/00_architecture_plans_index.md` | [ ] PENDING |
+
 ---
 
 ## Recommended Execution Order
 
+### v0.3.0 (completed)
 1. `DOC-003`
 2. `DOC-004`
 3. `DOC-005`
@@ -61,6 +80,13 @@ It replaces legacy mixed-status lists and focuses on:
 6. `UX-001`
 7. `A11Y-001`
 8. `DOC-006`
+
+### Stabilization Sprint (2026-02-14)
+1. `STAB-004` + `STAB-002` (parallel)
+2. `STAB-003`
+3. `STAB-001` + `STAB-005` (parallel)
+4. `STAB-006`
+5. `STAB-007`
 
 ---
 
@@ -113,3 +139,13 @@ On the first of each month, review all canonical docs for freshness:
 - **DOC-006**: Added `_check_required_doc_sections()` lint rule. Added API Overview table to README.md. Fixed broken link. Added `Last Updated` to PRD.
 - **CI Gates**: Created `.github/workflows/ci.yml` with 3 jobs: docs-lint, backend-tests, frontend-tests.
 - **Verification**: `python3 scripts/docs_lint.py` → pass. `npx tsc --noEmit` → 0 errors. `npx vitest run` → 86/86 pass.
+
+### 2026-02-14 - Stabilization Sprint (STAB-001 through STAB-007)
+
+- **STAB-004**: Replaced `allow_headers=["*"]` with explicit header list in `main.py`.
+- **STAB-002**: Added `logging.getLogger(__name__)` to `extract.py`. Replaced all silent `pass` blocks in except handlers with `logger.warning()` calls.
+- **STAB-003**: Added `validate_startup()` method and `is_ocr_available()` function to `config.py`. Called in `main.py` lifespan. Created `test_config_validation.py` with 9 tests.
+- **STAB-001**: Replaced `RuntimeError` in OCR extraction methods with graceful `ExtractionResult(ocr_unavailable=True)`. Updated `documents.py` to use `is_ocr_available()`. Added "OCR Required" badge to `DocumentInbox.tsx`.
+- **STAB-005**: Defined `ModelUnavailableError` in `rag.py`. Replaced `NotImplementedError` at both raise sites. Updated `assistant.py` catch clause.
+- **STAB-006**: Created `document-import.spec.ts` (5 tests) and `settings-smoke.spec.ts` (4 tests). Updated `playwright.config.ts` with dual webServer. Added `e2e-tests` CI job. Renamed E2E-RAG-002.
+- **STAB-007**: Added stabilization sprint section to TASK_LIST.md with TDD-structured rows. Updated architecture index.

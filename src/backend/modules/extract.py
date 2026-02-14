@@ -9,10 +9,13 @@ Handles:
 """
 
 import io
+import logging
 from pathlib import Path
 from typing import Optional, Union, BinaryIO
 from dataclasses import dataclass, field
 import re
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -54,6 +57,7 @@ class ExtractionResult:
     notes: list[str] = field(default_factory=list)
     parser_version: str = "0.1.0"
     overall_confidence: float = 0.0
+    ocr_unavailable: bool = False
 
 
 class ExtractModule:
@@ -266,7 +270,10 @@ class ExtractModule:
                 try:
                     value = float(match.group(1))
                 except ValueError:
-                    pass
+                    logger.warning(
+                        "Failed to parse observation value",
+                        extra={"analyte": analyte, "raw_value": value_text, "page": page_num},
+                    )
         
         # Get unit
         unit = get_cell(unit_col) if unit_col >= 0 else None
@@ -281,7 +288,10 @@ class ExtractModule:
                     ref_low = float(range_match.group(1))
                     ref_high = float(range_match.group(2))
                 except ValueError:
-                    pass
+                    logger.warning(
+                        "Failed to parse reference range",
+                        extra={"analyte": analyte, "raw_range": range_text, "page": page_num},
+                    )
         
         # Get flag
         flag = None
@@ -403,12 +413,18 @@ class ExtractModule:
             try:
                 ref_low = float(ref_low_str.lstrip('<>'))
             except (ValueError, TypeError):
-                pass
+                logger.warning(
+                    "Failed to parse reference bound",
+                    extra={"analyte": analyte, "raw_value": ref_low_str, "page": page_num},
+                )
         if ref_high_str:
             try:
                 ref_high = float(ref_high_str)
             except (ValueError, TypeError):
-                pass
+                logger.warning(
+                    "Failed to parse reference bound",
+                    extra={"analyte": analyte, "raw_value": ref_high_str, "page": page_num},
+                )
 
         # Calculate confidence
         confidence = 0.5  # Base for text extraction
@@ -444,12 +460,32 @@ class ExtractModule:
 
         Uses pdf2image to convert pages to images, then pytesseract for OCR.
         OCR observations get base confidence 0.4 (lower than text extraction).
+        Returns graceful result with ocr_unavailable=True if OCR deps missing.
         """
+        from core.config import is_ocr_available
+
+        if not is_ocr_available():
+            return ExtractionResult(
+                document_id=document_id,
+                observations=[],
+                collection_dates=[],
+                parser_version=self.parser_version,
+                overall_confidence=0.0,
+                ocr_unavailable=True,
+            )
+
         try:
             from pdf2image import convert_from_bytes
             import pytesseract
         except ImportError:
-            raise RuntimeError("OCR dependencies not installed (pdf2image, pytesseract)")
+            return ExtractionResult(
+                document_id=document_id,
+                observations=[],
+                collection_dates=[],
+                parser_version=self.parser_version,
+                overall_confidence=0.0,
+                ocr_unavailable=True,
+            )
 
         # Read PDF bytes
         if isinstance(pdf_source, (Path, str)):
@@ -510,12 +546,32 @@ class ExtractModule:
         Extract lab values from a direct image import (.png/.jpg).
 
         Uses pytesseract for OCR. Observations get base confidence 0.4.
+        Returns graceful result with ocr_unavailable=True if OCR deps missing.
         """
+        from core.config import is_ocr_available
+
+        if not is_ocr_available():
+            return ExtractionResult(
+                document_id=document_id,
+                observations=[],
+                collection_dates=[],
+                parser_version=self.parser_version,
+                overall_confidence=0.0,
+                ocr_unavailable=True,
+            )
+
         try:
             from PIL import Image
             import pytesseract
         except ImportError:
-            raise RuntimeError("OCR dependencies not installed (pillow, pytesseract)")
+            return ExtractionResult(
+                document_id=document_id,
+                observations=[],
+                collection_dates=[],
+                parser_version=self.parser_version,
+                overall_confidence=0.0,
+                ocr_unavailable=True,
+            )
 
         if isinstance(image_source, (Path, str)):
             image = Image.open(image_source)

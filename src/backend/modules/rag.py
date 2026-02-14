@@ -16,6 +16,10 @@ import logging
 
 from core.model_runner import get_model_runner, InferenceConfig
 
+
+class ModelUnavailableError(Exception):
+    """Raised when no LLM model is available for inference."""
+
 from .embeddings import EmbeddingsModule
 from .claim_extractor import ClaimExtractor, ExtractedClaim, ClaimExtractionResult
 from .source_authority import (
@@ -495,7 +499,7 @@ USER QUESTION: {question}"""
         """
         if not self._model_runner.is_available():
             self._logger.warning("LLM model not available for inference")
-            raise NotImplementedError(
+            raise ModelUnavailableError(
                 "LLM model not available. Please download a GGUF model to the models directory."
             )
 
@@ -871,7 +875,7 @@ I was unable to fully process your question within the time limit. Please try as
         """Generate response using the provided model runner."""
         if not runner.is_available():
             self._logger.warning("Model runner not available for inference")
-            raise NotImplementedError(
+            raise ModelUnavailableError(
                 "LLM model not available. Please download a GGUF model or configure an external API."
             )
 

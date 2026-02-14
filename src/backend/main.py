@@ -5,7 +5,9 @@ Local-first medical results companion API server.
 Designed for localhost operation with future scalability to web deployment.
 """
 
+import logging
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -14,10 +16,17 @@ from core.database import init_database, close_database
 from core.migrations import run_master_migrations_async
 from api import router as api_router
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager for startup/shutdown events."""
+    # Validate configuration (raises RuntimeError in production if jwt_secret empty)
+    startup_warnings = settings.validate_startup()
+    for w in startup_warnings:
+        logger.warning("Config validation: %s", w)
+
     # Initialize directories and verify SQLCipher
     await init_database()
 
@@ -52,7 +61,7 @@ def create_app() -> FastAPI:
         allow_origins=allowed_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
-        allow_headers=["*"],
+        allow_headers=["Authorization", "Content-Type", "Accept", "X-Requested-With"],
     )
     
     # Include API routes

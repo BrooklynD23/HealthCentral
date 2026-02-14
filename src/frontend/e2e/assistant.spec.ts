@@ -58,7 +58,7 @@ test.describe('RAG Assistant Feature', () => {
     ).toBeVisible({ timeout: 15000 });
   });
 
-  test('E2E-RAG-002: Handles 501 error gracefully', async ({ page }) => {
+  test('E2E-RAG-002: Handles no-model fallback gracefully', async ({ page }) => {
     // Set up authenticated user
     await setupAuthenticatedUser(page);
 
@@ -75,11 +75,11 @@ test.describe('RAG Assistant Feature', () => {
     await input.fill('What is my hemoglobin?');
     await page.getByRole('button').filter({ has: page.locator('svg') }).last().click();
 
-    // Should show error message about LLM not configured (501 error)
-    // or insufficient context response
+    // When no LLM is available, the backend returns a 200 knowledge-base fallback
+    // response instead of a 501 error
     await expect(
       page.getByText(
-        /(not fully configured|setup instructions|insufficient|don't have enough|limited context)/i
+        /(not fully configured|setup instructions|insufficient|don't have enough|limited context|knowledge base only)/i
       )
     ).toBeVisible({ timeout: 15000 });
   });

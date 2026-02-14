@@ -230,6 +230,11 @@ export function DocumentInbox() {
                       <CheckCircle className="w-3 h-3" />
                       Verified
                     </Badge>
+                  ) : doc.status === 'pending_ocr' ? (
+                    <Badge variant="default" className="gap-1" title="OCR processing is required. Enable OCR in Settings or install Tesseract to extract data from this document.">
+                      <AlertCircle className="w-3 h-3" />
+                      OCR Required
+                    </Badge>
                   ) : (
                     <Badge variant="caution" className="gap-1">
                       <AlertCircle className="w-3 h-3" />

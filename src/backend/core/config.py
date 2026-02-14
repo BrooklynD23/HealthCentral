@@ -6,6 +6,7 @@ Supports multiple deployment modes:
 - server: Web deployment, PostgreSQL, configurable origins (future)
 """
 
+import shutil
 from pathlib import Path
 from typing import Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -124,5 +125,43 @@ class Settings(BaseSettings):
         """Get list of supported file extensions."""
         return [ext.strip().lower() for ext in self.supported_doc_types.split(",")]
 
+    def validate_startup(self) -> list[str]:
+        """
+        Validate configuration at startup.
+
+        Returns list of warning strings for non-fatal issues.
+        Raises RuntimeError in production if jwt_secret is empty.
+        """
+        warnings: list[str] = []
+
+        # Check models_path exists or can be created
+        models_dir = Path(self.models_path)
+        if not models_dir.exists():
+            try:
+                models_dir.mkdir(parents=True, exist_ok=True)
+                warnings.append(f"Created missing models directory: {self.models_path}")
+            except OSError as e:
+                warnings.append(f"Cannot create models directory '{self.models_path}': {e}")
+
+        # Check OCR availability
+        if self.ocr_enabled and not shutil.which("tesseract"):
+            warnings.append(
+                "OCR enabled but tesseract not found on PATH; disabling OCR"
+            )
+            self.ocr_enabled = False
+
+        # Production hard-fail: JWT secret required
+        if self.app_env == "production" and not self.jwt_secret:
+            raise RuntimeError(
+                "jwt_secret must be set in production environment"
+            )
+
+        return warnings
+
 
 settings = Settings()
+
+
+def is_ocr_available() -> bool:
+    """Check if OCR is available at runtime (config enabled AND tesseract installed)."""
+    return settings.ocr_enabled and shutil.which("tesseract") is not None

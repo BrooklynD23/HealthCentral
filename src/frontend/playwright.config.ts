@@ -2,6 +2,7 @@
  * Playwright E2E Test Configuration
  *
  * Sprint 1 - S1-E2E-001: E2E Harness Setup
+ * STAB-006: Updated to start both frontend and backend servers
  */
 
 import { defineConfig, devices } from '@playwright/test';
@@ -27,10 +28,19 @@ export default defineConfig({
     },
   ],
 
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000,
-  },
+  webServer: [
+    {
+      command: 'python -m uvicorn main:app --host 127.0.0.1 --port 8000',
+      cwd: '../../src/backend',
+      url: 'http://localhost:8000/health',
+      reuseExistingServer: !process.env.CI,
+      timeout: 120 * 1000,
+    },
+    {
+      command: 'npm run dev',
+      url: 'http://localhost:3000',
+      reuseExistingServer: !process.env.CI,
+      timeout: 120 * 1000,
+    },
+  ],
 });
