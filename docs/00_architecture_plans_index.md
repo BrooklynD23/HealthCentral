@@ -21,8 +21,8 @@ This index defines the canonical documentation order and marks legacy planning f
 
 ## Sprint Planning References
 
-- `docs/plans/sprint-phase-2026-02-13-implementation-plan.md` (sprint ticket breakdown + structure audit)
-- Stabilization sprint (STAB-001 through STAB-007) tracked in `docs/features/TASK_LIST.md`
+- `docs/plans/sprint-phase-2026-02-13-implementation-plan.md` (historical planning draft + structure audit)
+- Stabilization sprint (STAB-001 through STAB-007) completion tracked in `docs/features/TASK_LIST.md`
 
 ## Architecture References (Current)
 

@@ -1,15 +1,29 @@
 # Backend Integration Status
 
-**Last Updated:** 2026-02-12
+**Last Updated:** 2026-02-14
 **Owner:** Backend Lead
 **Refresh Trigger:** API endpoint added, changed, or removed
-**Status:** Current integration baseline (post-security remediation, active backend/frontend contracts)
+**Status:** Current integration baseline (post-stabilization sprint, active backend/frontend contracts)
 
 ---
 
 ## Overview
 
 This document tracks the implementation status of backend-frontend integration for HealthCentral. The integration follows the architecture defined in `01_backend_architecture_plan.md`.
+
+---
+
+## Stabilization Updates (2026-02-14)
+
+The STAB-001 through STAB-007 sprint hardening work is implemented:
+
+- OCR extraction now degrades gracefully with `ocr_unavailable` signals instead of raising runtime crashes.
+- Document import uses runtime OCR capability checks and marks scanned/image docs as `pending_ocr` when unavailable.
+- Extraction parser no longer silently swallows parse failures; warning logs now capture parse-context metadata.
+- Startup config validation is enforced via `settings.validate_startup()` with production JWT-secret hard-fail behavior.
+- CORS `allow_headers` is explicit (`Authorization`, `Content-Type`, `Accept`, `X-Requested-With`) instead of wildcard.
+- Assistant no-model path now uses explicit `ModelUnavailableError` and deterministic knowledge-base fallback responses.
+- E2E smoke coverage expanded with `document-import.spec.ts` and `settings-smoke.spec.ts`; CI now includes an `e2e-tests` job.
 
 ---
 
@@ -129,7 +143,7 @@ This document tracks the implementation status of backend-frontend integration f
 | Page | Integration Status | Notes |
 |------|-------------------|-------|
 | `ProfileSetup.tsx` | ✅ Connected | Uses `useCreateProfile()` for real API calls |
-| `DocumentInbox.tsx` | ✅ Connected | Uses `useDocuments()`, `useImportDocument()` |
+| `DocumentInbox.tsx` | ✅ Connected | Uses `useDocuments()`, `useImportDocument()`, and renders `OCR Required` for `pending_ocr` docs |
 | `VerificationWorkbench.tsx` | ✅ Connected | Uses `useObservations()`, `useVerifyObservation()` |
 | `TrendsDashboard.tsx` | ✅ Connected | Uses `useObservations()`, `useTrend()`, `usePanel()` |
 | `MedicationCoach.tsx` | ✅ Connected | Uses medication CRUD, schedules, dose logging, and adherence stats hooks |
@@ -148,6 +162,14 @@ This document tracks the implementation status of backend-frontend integration f
 
 ### Environment Variables
 - `VITE_API_URL` - Backend API base URL (default: `http://localhost:8000/api/v1`)
+
+### Startup Validation + OCR Runtime Checks
+- `settings.validate_startup()` runs during FastAPI lifespan startup.
+- `is_ocr_available()` gates OCR work based on config flag + runtime `tesseract` availability.
+- Production mode now requires non-empty `jwt_secret` at startup.
+
+### CORS Hardening
+- `allow_headers` now uses explicit allow-list values in `main.py` (no wildcard).
 
 ### PWA Meta Tags (`index.html`)
 - Added light/dark theme-color meta tags
@@ -238,11 +260,11 @@ alembic -c alembic.ini -n master upgrade head
 | Module | Status | Notes |
 |--------|--------|-------|
 | `ingest.py` | ✅ Basic | File import, hashing, storage |
-| `extract.py` | ✅ Basic+ | Table/text extraction and OCR paths implemented; OCR runtime depends on system OCR dependencies/config |
+| `extract.py` | ✅ Hardened | Table/text extraction + OCR paths with graceful OCR-unavailable fallback and parse-failure warning logs |
 | `normalize.py` | ✅ Basic | Built-in synonym mapping implemented |
 | `verify.py` | Legacy / non-owning | Verification logic is enforced in API route (`api/observations.py`); module stubs are non-critical |
 | `analytics.py` | ✅ Basic | Trend calculations implemented (deterministic) |
-| `rag.py` | ✅ Done (model-dependent) | Retrieval + generation + citation validation + safety checks; requires local model or external API config |
+| `rag.py` | ✅ Done (model-dependent) | Retrieval + generation + citation validation + safety checks; explicit `ModelUnavailableError` path with assistant fallback handling |
 | `export.py` | ✅ Done | CSV/JSON + summary/question generation - API fully wired (Sprint 4) |
 | `interpret.py` | ✅ Done | Lab interpretation pipeline with LLM support |
 | `interpret_safety.py` | ✅ Done | Safety guardrails for interpretations |
@@ -281,12 +303,12 @@ Access:
 
 ## Next Steps
 
-1. **Validation hardening**
-   - Expand adversarial safety test coverage in CI (RAG + interpretation guardrails).
-   - Add environment-ready backend test execution in local/CI (current WSL runtime lacks backend pytest deps).
-2. **Remaining product work**
-   - Continue OCR and image-ingest UX integration.
-   - Continue docs consolidation to keep one canonical execution board.
+1. **Regression safety**
+   - Keep E2E smoke suite green in CI and expand deterministic fixtures as workflows evolve.
+   - Continue adversarial safety test expansion for RAG and interpretation guardrails.
+2. **Deferred backlog**
+   - Execute deferred feature work (advanced export formats, enhanced search, multi-source imports) in a future scoped sprint.
+   - Continue docs consolidation so canonical trackers stay synchronized with implemented behavior.
 
 ---
 
