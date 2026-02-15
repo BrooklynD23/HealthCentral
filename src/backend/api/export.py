@@ -237,6 +237,7 @@ async def generate_doctor_summary(
         "total_observations": summary.total_observations,
         "abnormal_count": summary.abnormal_count,
         "critical_count": summary.critical_count,
+        "observations": observations,  # Needed for chart generation
     }
     _summary_store[summary.summary_id] = summary_data
 
@@ -281,6 +282,7 @@ async def download_summary(
     summary_id: str,
     session: RequireAuth,
     format: str = Query("text", description="Download format: text, html, or pdf"),
+    include_charts: bool = Query(False, description="Embed trend charts in PDF/HTML"),
     master_db: AsyncSession = Depends(get_db),
 ):
     """
@@ -313,7 +315,7 @@ async def download_summary(
             db=master_db,
             profile_id=session.profile_id,
             export_type="summary_download",
-            details={"summary_id": summary_id, "format": format},
+            details={"summary_id": summary_id, "format": format, "include_charts": include_charts},
         )
         await master_db.commit()
     except Exception as e:
@@ -322,8 +324,30 @@ async def download_summary(
     export_module = ExportModule()
     short_id = summary_id[:8]
 
+    # Generate chart images if requested
+    chart_images = {}
+    if include_charts and format in ("pdf", "html"):
+        observations = summary_data.get("observations", [])
+        # Group by analyte for charting
+        from collections import defaultdict
+        analyte_data = defaultdict(list)
+        for obs in observations:
+            if obs.get("value") is not None and obs.get("collected_at"):
+                analyte_data[obs["analyte_canonical"]].append(obs)
+
+        for analyte, points in analyte_data.items():
+            if len(points) >= 2:
+                sorted_points = sorted(points, key=lambda x: x["collected_at"])
+                chart_images[analyte] = export_module.generate_chart_image(
+                    analyte=analyte,
+                    data_points=sorted_points,
+                    unit=sorted_points[0].get("unit", ""),
+                    ref_low=sorted_points[0].get("ref_low"),
+                    ref_high=sorted_points[0].get("ref_high"),
+                )
+
     if format == "html":
-        html_content = export_module.render_html_summary(summary_data)
+        html_content = export_module.render_html_summary(summary_data, chart_images=chart_images)
         return Response(
             content=html_content,
             media_type="text/html",
@@ -334,7 +358,7 @@ async def download_summary(
 
     elif format == "pdf":
         try:
-            pdf_bytes = export_module.render_pdf_summary(summary_data)
+            pdf_bytes = export_module.render_pdf_summary(summary_data, chart_images=chart_images)
             return Response(
                 content=pdf_bytes,
                 media_type="application/pdf",
