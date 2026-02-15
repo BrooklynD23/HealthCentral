@@ -327,7 +327,101 @@ class ExportModule:
             export_data.append(export_obs)
         
         return json.dumps(export_data, indent=2)
-    
+
+    def export_excel(
+        self,
+        observations: list[dict],
+        trends: list[dict],
+        medications: Optional[list[dict]] = None,
+    ) -> bytes:
+        """
+        Export data as formatted Excel workbook.
+
+        Returns xlsx bytes with sheets: Summary, Labs, Trends.
+        Includes conditional formatting for abnormal values.
+        """
+        from openpyxl import Workbook
+        from openpyxl.styles import PatternFill, Font, Alignment
+        from io import BytesIO
+
+        wb = Workbook()
+        abnormal_fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+        header_font = Font(bold=True, size=11)
+        header_fill = PatternFill(start_color="D9E2F3", end_color="D9E2F3", fill_type="solid")
+
+        # --- Summary Sheet ---
+        ws_summary = wb.active
+        ws_summary.title = "Summary"
+        ws_summary.append(["HealthCentral Lab Export"])
+        ws_summary["A1"].font = Font(bold=True, size=14)
+        ws_summary.append([f"Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}"])
+        ws_summary.append([f"Total Observations: {len(observations)}"])
+        abnormal_count = sum(1 for o in observations if o.get("is_abnormal"))
+        ws_summary.append([f"Abnormal Values: {abnormal_count}"])
+        ws_summary.append([])
+        ws_summary.append(["This export contains data from your uploaded lab reports."])
+        ws_summary.append(["Reference ranges are as stated in each source document."])
+
+        # --- Labs Sheet ---
+        ws_labs = wb.create_sheet("Labs")
+        lab_headers = ["Date", "Analyte", "Value", "Unit", "Ref Low", "Ref High", "Flag", "Verified"]
+        ws_labs.append(lab_headers)
+        for col_idx, _ in enumerate(lab_headers, 1):
+            cell = ws_labs.cell(row=1, column=col_idx)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal="center")
+        ws_labs.freeze_panes = "A2"
+
+        sorted_obs = sorted(
+            observations,
+            key=lambda x: (x.get("analyte_canonical", ""), x.get("collected_at") or datetime.min),
+        )
+        for obs in sorted_obs:
+            date_str = obs["collected_at"].strftime("%Y-%m-%d") if obs.get("collected_at") else ""
+            row = [
+                date_str,
+                obs.get("analyte_canonical", ""),
+                obs.get("value", ""),
+                obs.get("unit", ""),
+                obs.get("ref_low", ""),
+                obs.get("ref_high", ""),
+                obs.get("flag", ""),
+                "Yes" if obs.get("user_verified") else "No",
+            ]
+            ws_labs.append(row)
+            if obs.get("is_abnormal"):
+                row_idx = ws_labs.max_row
+                for col_idx in range(1, len(lab_headers) + 1):
+                    ws_labs.cell(row=row_idx, column=col_idx).fill = abnormal_fill
+
+        # Auto-width columns
+        for col in ws_labs.columns:
+            max_len = max((len(str(cell.value or "")) for cell in col), default=10)
+            ws_labs.column_dimensions[col[0].column_letter].width = min(max_len + 2, 30)
+
+        # --- Trends Sheet ---
+        ws_trends = wb.create_sheet("Trends")
+        trend_headers = ["Analyte", "Direction", "Change %"]
+        ws_trends.append(trend_headers)
+        for col_idx, _ in enumerate(trend_headers, 1):
+            cell = ws_trends.cell(row=1, column=col_idx)
+            cell.font = header_font
+            cell.fill = header_fill
+        ws_trends.freeze_panes = "A2"
+
+        for trend in trends:
+            ws_trends.append([
+                trend.get("analyte", ""),
+                trend.get("trend_direction", ""),
+                round(trend.get("delta_percent", 0), 1),
+            ])
+
+        buf = BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        return buf.read()
+
     def render_html_summary(
         self, summary_data: dict, chart_images: Optional[dict[str, bytes]] = None
     ) -> str:
