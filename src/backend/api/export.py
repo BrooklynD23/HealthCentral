@@ -592,3 +592,52 @@ async def export_json(
             "Content-Disposition": f'attachment; filename="{filename}"'
         }
     )
+
+
+@router.get("/excel")
+async def export_excel(
+    session: RequireAuth,
+    analytes: Optional[str] = Query(None, description="Comma-separated analyte filter"),
+    from_date: Optional[datetime] = Query(None, description="Start date"),
+    to_date: Optional[datetime] = Query(None, description="End date"),
+    profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """
+    Export observations as formatted Excel workbook.
+
+    Multi-sheet with conditional formatting for abnormal values.
+    Only includes data from the authenticated profile.
+    """
+    profile_id = session.profile_id
+
+    analyte_filter = None
+    if analytes:
+        analyte_filter = [a.strip().lower() for a in analytes.split(",")]
+
+    observations = await _fetch_observations(
+        profile_db, profile_id,
+        from_date=from_date, to_date=to_date, analyte_filter=analyte_filter,
+    )
+
+    trends = _compute_trends(observations)
+
+    export_module = ExportModule()
+    xlsx_bytes = export_module.export_excel(observations, trends)
+
+    try:
+        await log_export_event(
+            db=master_db, profile_id=profile_id, export_type="excel",
+            details={"observation_count": len(observations)},
+        )
+        await master_db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to log export event: {e}")
+
+    filename = f"health_data_{datetime.now(timezone.utc).strftime('%Y%m%d')}.xlsx"
+
+    return Response(
+        content=xlsx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
