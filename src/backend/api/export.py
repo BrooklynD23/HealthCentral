@@ -641,3 +641,83 @@ async def export_excel(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.get("/fhir")
+async def export_fhir(
+    session: RequireAuth,
+    analytes: Optional[str] = Query(None, description="Comma-separated analyte filter"),
+    from_date: Optional[datetime] = Query(None, description="Start date"),
+    to_date: Optional[datetime] = Query(None, description="End date"),
+    profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """
+    Export observations as FHIR R4 JSON Bundle.
+
+    Maps observations to FHIR Observation resources with LOINC codes
+    (when available via BiomarkerKnowledge lookup).
+    """
+    import json as json_lib
+    from models import BiomarkerKnowledge
+    from models.fhir_resources import FHIRPatient, map_observation_to_fhir, create_fhir_bundle
+
+    profile_id = session.profile_id
+
+    analyte_filter = None
+    if analytes:
+        analyte_filter = [a.strip().lower() for a in analytes.split(",")]
+
+    observations = await _fetch_observations(
+        profile_db, profile_id,
+        from_date=from_date, to_date=to_date, analyte_filter=analyte_filter,
+    )
+
+    # LOINC lookup from BiomarkerKnowledge (master DB)
+    loinc_map: dict[str, list[str]] = {}
+    try:
+        from sqlalchemy import select as sa_select
+        result = await master_db.execute(
+            sa_select(
+                BiomarkerKnowledge.analyte_canonical,
+                BiomarkerKnowledge.loinc_codes_json,
+            )
+        )
+        for row in result.all():
+            if row.loinc_codes_json:
+                codes = json_lib.loads(row.loinc_codes_json)
+                if isinstance(codes, list) and codes:
+                    loinc_map[row.analyte_canonical] = codes
+    except Exception as e:
+        logger.warning(f"LOINC lookup failed, proceeding without: {e}")
+
+    # Build FHIR resources
+    patient = FHIRPatient(id=profile_id, display_name=session.profile_name or "Unknown")
+    patient_ref = f"Patient/{profile_id}"
+
+    fhir_observations = [
+        map_observation_to_fhir(obs, patient_ref=patient_ref, loinc_map=loinc_map)
+        for obs in observations
+    ]
+
+    bundle = create_fhir_bundle(patient, fhir_observations)
+    bundle_json = json_lib.dumps(
+        bundle.model_dump(by_alias=True, exclude_none=True), indent=2
+    )
+
+    try:
+        await log_export_event(
+            db=master_db, profile_id=profile_id, export_type="fhir_r4",
+            details={"observation_count": len(observations), "loinc_mapped": len(loinc_map)},
+        )
+        await master_db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to log export event: {e}")
+
+    filename = f"health_data_{datetime.now(timezone.utc).strftime('%Y%m%d')}_fhir.json"
+
+    return Response(
+        content=bundle_json,
+        media_type="application/fhir+json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
