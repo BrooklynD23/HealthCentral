@@ -202,7 +202,65 @@ class ExportModule:
                     f"({trend.get('delta_percent', 0):.1f}% change from prior)"
                 )
         return "\n".join(lines) if lines else "No notable trends identified."
-    
+
+    def generate_chart_image(
+        self,
+        analyte: str,
+        data_points: list[dict],
+        unit: str = "",
+        ref_low: Optional[float] = None,
+        ref_high: Optional[float] = None,
+    ) -> bytes:
+        """
+        Generate a trend line chart as PNG bytes.
+
+        Uses matplotlib Agg backend (no display needed).
+        Returns empty bytes if data_points is empty.
+        """
+        if not data_points:
+            return b''
+
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+        import matplotlib.dates as mdates
+        from io import BytesIO
+
+        dates = [p["collected_at"] for p in data_points]
+        values = [p["value"] for p in data_points]
+
+        fig, ax = plt.subplots(figsize=(6, 3), dpi=150)
+
+        # Reference range shading
+        if ref_low is not None and ref_high is not None:
+            ax.axhspan(ref_low, ref_high, alpha=0.15, color='#2D7D6F', label='Reference range')
+
+        # Main line
+        ax.plot(dates, values, color='#1f2937', linewidth=1.5, marker='o', markersize=4)
+
+        # Highlight abnormal points
+        abnormal_dates = [p["collected_at"] for p in data_points if p.get("is_abnormal")]
+        abnormal_values = [p["value"] for p in data_points if p.get("is_abnormal")]
+        if abnormal_dates:
+            ax.scatter(abnormal_dates, abnormal_values, color='#b91c1c', s=40, zorder=5)
+
+        ax.set_title(f"{analyte} ({unit})" if unit else analyte, fontsize=10, fontweight='bold')
+        ax.set_ylabel(unit, fontsize=8)
+        ax.tick_params(axis='both', labelsize=7)
+
+        if len(dates) > 1:
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %Y'))
+            fig.autofmt_xdate(rotation=30)
+
+        ax.grid(axis='y', alpha=0.3)
+        fig.tight_layout()
+
+        buf = BytesIO()
+        fig.savefig(buf, format='png', bbox_inches='tight')
+        plt.close(fig)
+        buf.seek(0)
+        return buf.read()
+
     def export_csv(
         self,
         observations: list[dict],
@@ -270,7 +328,9 @@ class ExportModule:
         
         return json.dumps(export_data, indent=2)
     
-    def render_html_summary(self, summary_data: dict) -> str:
+    def render_html_summary(
+        self, summary_data: dict, chart_images: Optional[dict[str, bytes]] = None
+    ) -> str:
         """
         Render a doctor summary as an inline-CSS HTML document.
 
@@ -311,6 +371,15 @@ class ExportModule:
                 questions_html += f"<li style='margin-bottom:6px;'>{q_text}</li>"
             questions_html += "</ul></div>"
 
+        charts_html = ""
+        if chart_images:
+            import base64
+            charts_html = '<div style="margin-top:24px;"><h3 style="color:#1f2937;font-size:16px;margin-bottom:12px;">Trend Charts</h3>'
+            for analyte_name, png_bytes in chart_images.items():
+                b64 = base64.b64encode(png_bytes).decode('ascii')
+                charts_html += f'<div style="margin-bottom:16px;"><img src="data:image/png;base64,{b64}" alt="{analyte_name} trend chart" style="max-width:100%;border:1px solid #e5e7eb;border-radius:8px;"></div>'
+            charts_html += '</div>'
+
         html = f"""<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><title>HealthCentral Summary</title></head>
@@ -327,6 +396,8 @@ class ExportModule:
 
     {questions_html}
 
+    {charts_html}
+
     <div style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;">
         <p style="color:#9ca3af;font-size:12px;font-style:italic;">
             This is an AI-assisted summary of your lab results. It is not medical advice.
@@ -338,7 +409,9 @@ class ExportModule:
 </html>"""
         return html
 
-    def render_pdf_summary(self, summary_data: dict) -> bytes:
+    def render_pdf_summary(
+        self, summary_data: dict, chart_images: Optional[dict[str, bytes]] = None
+    ) -> bytes:
         """
         Render a doctor summary as PDF using WeasyPrint.
 
@@ -359,7 +432,7 @@ class ExportModule:
                 "System dependencies needed: libpango1.0-dev libgdk-pixbuf2.0-dev"
             )
 
-        html_content = self.render_html_summary(summary_data)
+        html_content = self.render_html_summary(summary_data, chart_images=chart_images)
         pdf_bytes = HTML(string=html_content).write_pdf()
         return pdf_bytes
 
