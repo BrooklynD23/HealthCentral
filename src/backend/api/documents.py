@@ -28,6 +28,7 @@ from core.auth import RequireAuth, Session, ProfileDbSession
 from core.document_crypto import get_decrypted_document, get_profile_encryption_key
 from models import Document, Observation, Chunk, Embedding
 from modules.extract import ExtractModule
+from modules.importers import get_importer, IMPORTER_REGISTRY
 from modules.normalize import NormalizeModule
 from modules.chunking import ChunkingModule
 from modules.embeddings import EmbeddingsModule
@@ -637,3 +638,111 @@ async def delete_document(
         filename=filename,
     )
     await master_db.commit()
+
+
+class ExternalImportResponse(BaseModel):
+    document_id: str
+    source_type: str
+    observation_count: int
+    error_count: int
+    warnings: list[str]
+
+
+@router.post(
+    "/import/external",
+    response_model=ExternalImportResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def import_external(
+    session: RequireAuth,
+    source_type: str = Query(..., description=f"Source type: {list(IMPORTER_REGISTRY.keys())}"),
+    file: UploadFile = File(...),
+    profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """
+    Import observations from an external source file.
+
+    Creates a synthetic Document for provenance (DD-2).
+    Route under /documents/import/external (DD-3).
+    """
+    import uuid
+    import hashlib
+    from datetime import datetime as dt
+
+    profile_id = session.profile_id
+    file_bytes = await file.read()
+
+    # Parse using appropriate importer
+    importer = get_importer(source_type)
+    result = importer.safe_parse(file_bytes, file.filename or "unknown")
+
+    # Create synthetic Document (DD-2)
+    doc_id = str(uuid.uuid4())
+
+    content_hash = hashlib.sha256(file_bytes).hexdigest()
+    path_hash = hashlib.sha256((file.filename or "").encode()).hexdigest()
+
+    doc = Document(
+        id=doc_id,
+        profile_id=profile_id,
+        path_hash=path_hash,
+        content_hash=content_hash,
+        doc_type="external_import",
+        source=source_type,
+        status="parsed",
+        page_count=None,
+        collection_date=result.observations[0].collected_at if result.observations else None,
+        imported_at=dt.utcnow(),
+        parsed_at=dt.utcnow(),
+        metadata_json=json.dumps(result.source_metadata),
+    )
+    profile_db.add(doc)
+
+    # Create Observations
+    obs_count = 0
+    for imported_obs in result.observations:
+        obs_id = str(uuid.uuid4())
+        obs = Observation(
+            id=obs_id,
+            profile_id=profile_id,
+            doc_id=doc_id,
+            analyte_canonical=imported_obs.analyte_raw.lower().replace(" ", "_"),
+            analyte_raw=imported_obs.analyte_raw,
+            value=imported_obs.value,
+            value_text=imported_obs.value_text,
+            unit=imported_obs.unit,
+            ref_low=imported_obs.ref_low,
+            ref_high=imported_obs.ref_high,
+            flag=imported_obs.flag,
+            is_abnormal=imported_obs.flag is not None and imported_obs.flag != "",
+            collected_at=imported_obs.collected_at,
+            user_verified=False,
+            extraction_confidence=0.9,
+            version=1,
+            created_at=dt.utcnow(),
+            updated_at=dt.utcnow(),
+        )
+        profile_db.add(obs)
+        obs_count += 1
+
+    await profile_db.commit()
+
+    # Audit log
+    try:
+        await log_document_event(
+            db=master_db, event="import", profile_id=profile_id,
+            document_id=doc_id, filename=file.filename,
+            details={"source": source_type, "type": "external", "observation_count": obs_count},
+        )
+        await master_db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to log import event: {e}")
+
+    return ExternalImportResponse(
+        document_id=doc_id,
+        source_type=source_type,
+        observation_count=obs_count,
+        error_count=len(result.errors),
+        warnings=result.warnings[:10],
+    )
