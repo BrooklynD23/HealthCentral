@@ -26,6 +26,7 @@ import {
   NotificationSettings,
   ExplainAssistant,
   ExportPage,
+  SearchPage,
   SettingsPage,
 } from './pages';
 
@@ -59,6 +60,7 @@ function App() {
               <Route path="notifications" element={<NotificationSettings />} />
               <Route path="explain" element={<ExplainAssistant />} />
               <Route path="export" element={<ExportPage />} />
+              <Route path="search" element={<SearchPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
           </Route>

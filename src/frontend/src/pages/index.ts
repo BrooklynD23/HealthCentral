@@ -8,4 +8,5 @@ export { MedicationDetail } from './MedicationDetail';
 export { NotificationSettings } from './NotificationSettings';
 export { ExplainAssistant } from './ExplainAssistant';
 export { ExportPage } from './ExportPage';
+export { SearchPage } from './SearchPage';
 export { SettingsPage } from './SettingsPage';
