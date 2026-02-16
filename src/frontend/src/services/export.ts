@@ -91,11 +91,15 @@ async function generateSummary(request: SummaryRequest): Promise<SummaryResponse
 
 async function downloadSummary(
   summaryId: string,
-  format: ExportFormat = 'text'
+  format: ExportFormat = 'text',
+  includeCharts: boolean = false,
 ): Promise<{ blob: Blob; contentType: string; extension: string }> {
+  const params: Record<string, string> = { format };
+  if (includeCharts) params.include_charts = 'true';
+
   const response = await apiGetRaw(
     `/export/doctor-summary/${summaryId}/download`,
-    { format }
+    params,
   );
 
   const contentType = response.headers.get('Content-Type') || 'text/plain';
@@ -170,8 +174,11 @@ export function useGenerateSummary() {
  */
 export function useDownloadSummary() {
   return useMutation({
-    mutationFn: ({ summaryId, format }: { summaryId: string; format: ExportFormat }) =>
-      downloadSummary(summaryId, format),
+    mutationFn: ({ summaryId, format, includeCharts }: {
+      summaryId: string;
+      format: ExportFormat;
+      includeCharts?: boolean;
+    }) => downloadSummary(summaryId, format, includeCharts),
     onSuccess: ({ blob, extension }, { summaryId }) => {
       triggerDownload(blob, `health_summary_${summaryId.substring(0, 8)}${extension}`);
     },
@@ -184,5 +191,52 @@ export function useDownloadSummary() {
 export function useGenerateQuestions() {
   return useMutation({
     mutationFn: (filters: ExportFilters | void) => generateQuestions(filters || undefined),
+  });
+}
+
+// --- Sprint 04: New Export Functions ---
+
+async function exportExcel(filters?: ExportFilters): Promise<Blob> {
+  const params: Record<string, string> = {};
+  if (filters?.analytes?.length) params.analytes = filters.analytes.join(',');
+  if (filters?.from_date) params.from_date = filters.from_date;
+  if (filters?.to_date) params.to_date = filters.to_date;
+
+  const response = await apiGetRaw('/export/excel', params);
+  return response.blob();
+}
+
+async function exportFHIR(filters?: ExportFilters): Promise<string> {
+  const params: Record<string, string> = {};
+  if (filters?.analytes?.length) params.analytes = filters.analytes.join(',');
+  if (filters?.from_date) params.from_date = filters.from_date;
+  if (filters?.to_date) params.to_date = filters.to_date;
+
+  const response = await apiGetRaw('/export/fhir', params);
+  return response.text();
+}
+
+/**
+ * Mutation hook for exporting Excel workbook.
+ */
+export function useExportExcel() {
+  return useMutation({
+    mutationFn: (filters?: ExportFilters) => exportExcel(filters),
+    onSuccess: (blob) => {
+      triggerDownload(blob, `health_data_${new Date().toISOString().split('T')[0]}.xlsx`);
+    },
+  });
+}
+
+/**
+ * Mutation hook for exporting FHIR R4 Bundle.
+ */
+export function useExportFHIR() {
+  return useMutation({
+    mutationFn: (filters?: ExportFilters) => exportFHIR(filters),
+    onSuccess: (content) => {
+      const blob = new Blob([content], { type: 'application/fhir+json' });
+      triggerDownload(blob, `health_data_${new Date().toISOString().split('T')[0]}_fhir.json`);
+    },
   });
 }

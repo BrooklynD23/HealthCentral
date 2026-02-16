@@ -77,6 +77,8 @@ export {
 export {
   useExportCSV,
   useExportJSON,
+  useExportExcel,
+  useExportFHIR,
   useGenerateSummary,
   useDownloadSummary,
   useGenerateQuestions,

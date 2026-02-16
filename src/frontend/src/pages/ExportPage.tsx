@@ -18,6 +18,8 @@ import {
   FileSpreadsheet,
   AlertCircle,
   Loader2,
+  Table2,
+  Heart,
 } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui';
 import { cn } from '@/utils/cn';
@@ -25,6 +27,8 @@ import { useReducedMotion } from '@/hooks/useReducedMotion';
 import {
   useExportCSV,
   useExportJSON,
+  useExportExcel,
+  useExportFHIR,
   useGenerateSummary,
   useDownloadSummary,
   useGenerateQuestions,
@@ -53,6 +57,8 @@ export function ExportPage() {
   // API hooks
   const exportCSV = useExportCSV();
   const exportJSON = useExportJSON();
+  const exportExcel = useExportExcel();
+  const exportFHIR = useExportFHIR();
   const generateSummary = useGenerateSummary();
   const downloadSummary = useDownloadSummary();
   const generateQuestions = useGenerateQuestions();
@@ -112,6 +118,8 @@ export function ExportPage() {
   const isLoading =
     exportCSV.isPending ||
     exportJSON.isPending ||
+    exportExcel.isPending ||
+    exportFHIR.isPending ||
     generateSummary.isPending ||
     downloadSummary.isPending;
 
@@ -152,6 +160,32 @@ export function ExportPage() {
               <FileJson className="w-4 h-4" />
             )}
             Download JSON
+          </Button>
+          <Button
+            variant="secondary"
+            className="gap-2"
+            onClick={() => exportExcel.mutate(undefined)}
+            disabled={isLoading}
+          >
+            {exportExcel.isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Table2 className="w-4 h-4" />
+            )}
+            Excel
+          </Button>
+          <Button
+            variant="secondary"
+            className="gap-2"
+            onClick={() => exportFHIR.mutate(undefined)}
+            disabled={isLoading}
+          >
+            {exportFHIR.isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Heart className="w-4 h-4" />
+            )}
+            FHIR
           </Button>
           {summary ? (
             <Button
