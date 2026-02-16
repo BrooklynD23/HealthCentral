@@ -205,3 +205,22 @@ async def log_auth_event(
         entity_type="auth",
         details=details,
     )
+
+
+async def log_search_event(
+    db: AsyncSession,
+    profile_id: str,
+    query: str,
+    mode: str,
+    result_count: int,
+    details: Optional[dict[str, Any]] = None,
+) -> "AuditLog":
+    """Log a search query event."""
+    return await create_audit_log(
+        db=db,
+        event_type="search.query",
+        action=f"Searched for '{query}' ({mode} mode, {result_count} results)",
+        profile_id=profile_id,
+        entity_type="search",
+        details={**(details or {}), "query": query, "mode": mode, "result_count": result_count},
+    )

@@ -24,6 +24,7 @@ from .assistant import router as assistant_router
 from .export import router as export_router
 from .profiles import router as profiles_router
 from .model_settings import router as model_settings_router
+from .search import router as search_router
 
 router = APIRouter()
 
@@ -37,3 +38,4 @@ router.include_router(notifications_router, prefix="/notifications", tags=["noti
 router.include_router(assistant_router, prefix="/assistant", tags=["assistant"])
 router.include_router(export_router, prefix="/export", tags=["export"])
 router.include_router(model_settings_router, prefix="/settings/model", tags=["model-settings"])
+router.include_router(search_router, prefix="/search", tags=["search"])
