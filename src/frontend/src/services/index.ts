@@ -136,6 +136,10 @@ export type {
   ExternalApiSettingsSave,
 } from './modelSettings';
 
+// Search hooks
+export { useSearch, useSearchSuggestions } from './search';
+export type { SearchFilters, SearchResultItem, SearchResponse } from './search';
+
 // Notification hooks
 export {
   useNotificationSettings,
