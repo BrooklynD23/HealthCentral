@@ -1,6 +1,6 @@
 # HealthCentral Documentation Index (Current)
 
-**Last Updated:** 2026-02-14
+**Last Updated:** 2026-02-15
 **Owner:** Project Lead
 **Refresh Trigger:** New doc added or doc archived
 
@@ -21,8 +21,10 @@ This index defines the canonical documentation order and marks legacy planning f
 
 ## Sprint Planning References
 
+- `docs/plans/pm-complete-unimplemented-features-2026-02-15.md` (consolidated PM backlog — reconciled 2026-02-15; sprints 01-03 completed, sprints 04-06 active)
+- `docs/plans/sprint-series-2026-02-15/README.md` (implementation-ready sprint documentation index)
 - `docs/plans/sprint-phase-2026-02-13-implementation-plan.md` (historical planning draft + structure audit)
-- Stabilization sprint (STAB-001 through STAB-007) completion tracked in `docs/features/TASK_LIST.md`
+- Stabilization sprint (STAB-001 through STAB-007), Lab Intelligence (LAB-001 through LAB-004), and Medication Coach Intelligence (MED-001 through MED-004) completion tracked in `docs/features/TASK_LIST.md`
 
 ## Architecture References (Current)
 

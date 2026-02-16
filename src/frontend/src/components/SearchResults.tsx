@@ -40,10 +40,12 @@ export function SearchResults({ results, isLoading }: SearchResultsProps) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" role="list">
       {results.map((result) => (
         <div
           key={result.id}
+          role="listitem"
+          aria-label={`${result.title}${result.type === 'observation' ? ' - Lab result' : ' - Document'}`}
           className="bg-white rounded-xl border border-black/[0.06] p-4 hover:border-accent/30 transition-colors"
         >
           <div className="flex items-start gap-3">
@@ -64,10 +66,12 @@ export function SearchResults({ results, isLoading }: SearchResultsProps) {
                   {result.type === 'observation' ? 'Lab' : 'Document'}
                 </Badge>
               </div>
-              <p
-                className="text-sm text-ink-secondary line-clamp-2"
-                dangerouslySetInnerHTML={{ __html: result.snippet }}
-              />
+              <p className="text-sm text-ink-secondary line-clamp-2">{result.snippet}</p>
+              {result.explanation && (
+                <p className="text-xs text-ink-tertiary mt-1">
+                  Why this result: {result.explanation}
+                </p>
+              )}
               <div className="flex items-center gap-4 mt-2 text-xs text-ink-tertiary">
                 {result.collected_at && (
                   <span className="flex items-center gap-1">

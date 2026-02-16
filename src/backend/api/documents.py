@@ -12,8 +12,9 @@ import json
 import logging
 import re
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Literal
 from datetime import datetime
+from urllib.parse import quote_plus, urlsplit, urlunsplit
 
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, File, Query, status
 from fastapi.responses import JSONResponse
@@ -37,6 +38,74 @@ logger = logging.getLogger(__name__)
 
 # Shared normalizer instance
 _normalizer = NormalizeModule()
+DEFAULT_OAUTH_REDIRECT_URI = "https://app.healthcentral.local/oauth/callback"
+_oauth_start_state_store: dict[str, dict[str, str]] = {}
+
+
+def _normalize_oauth_redirect_uri(uri: str) -> str:
+    """Validate and normalize an OAuth redirect URI for allowlist matching."""
+    parsed = urlsplit(uri.strip())
+    if parsed.scheme.lower() not in {"http", "https"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="redirect_uri must use http or https",
+        )
+    if not parsed.netloc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="redirect_uri must be an absolute URL",
+        )
+    if not parsed.path:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="redirect_uri must include a callback path",
+        )
+    if parsed.fragment:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="redirect_uri fragments are not allowed",
+        )
+    return urlunsplit(
+        (
+            parsed.scheme.lower(),
+            parsed.netloc.lower(),
+            parsed.path,
+            parsed.query,
+            "",
+        )
+    )
+
+
+def _resolve_oauth_redirect_uri(redirect_uri: Optional[str]) -> str:
+    """Resolve a validated redirect URI against configured allowlist entries."""
+    configured = settings.oauth_redirect_allowlist_urls
+    if not configured:
+        configured = [DEFAULT_OAUTH_REDIRECT_URI]
+
+    allowed = {_normalize_oauth_redirect_uri(uri) for uri in configured}
+    candidate = redirect_uri or configured[0]
+    normalized = _normalize_oauth_redirect_uri(candidate)
+    if normalized not in allowed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="redirect_uri is not in the allowed callback list",
+        )
+    return normalized
+
+
+def _store_oauth_start_state(
+    state: str,
+    profile_id: str,
+    connector_id: str,
+    redirect_uri: str,
+) -> None:
+    """Persist OAuth start metadata for future callback state verification."""
+    _oauth_start_state_store[state] = {
+        "profile_id": profile_id,
+        "connector_id": connector_id,
+        "redirect_uri": redirect_uri,
+        "created_at": datetime.utcnow().isoformat(),
+    }
 
 
 def _parse_date_string(date_str: Optional[str]) -> Optional[datetime]:
@@ -49,6 +118,38 @@ def _parse_date_string(date_str: Optional[str]) -> Optional[datetime]:
         except ValueError:
             continue
     return None
+
+
+async def _read_upload_bounded(
+    file: UploadFile,
+    max_bytes: int,
+    chunk_size: int = 1024 * 1024,
+) -> bytes:
+    """
+    Read an upload in chunks and enforce a hard max size during the read.
+
+    Raises HTTPException 413 once max_bytes is exceeded.
+    """
+    chunks: list[bytes] = []
+    total_bytes = 0
+
+    while True:
+        chunk = await file.read(chunk_size)
+        if not chunk:
+            break
+
+        total_bytes += len(chunk)
+        if total_bytes > max_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail=(
+                    f"File too large: {total_bytes / 1024 / 1024:.1f}MB "
+                    f"(max: {settings.max_import_file_size_mb}MB)"
+                ),
+            )
+        chunks.append(chunk)
+
+    return b"".join(chunks)
 
 
 # UUID validation pattern
@@ -640,12 +741,163 @@ async def delete_document(
     await master_db.commit()
 
 
+class ExternalImportErrorItem(BaseModel):
+    row: int
+    field: str
+    message: str
+    code: str = "parse_error"
+
+
+class ExternalImportValidation(BaseModel):
+    total_rows: int
+    parsed_rows: int
+    error_rows: int
+    warning_count: int
+    error_rate: float
+    max_error_rate: float
+    status: Literal["ok", "warning", "rejected"]
+
+
 class ExternalImportResponse(BaseModel):
     document_id: str
     source_type: str
     observation_count: int
     error_count: int
     warnings: list[str]
+    errors: list[ExternalImportErrorItem] = Field(default_factory=list)
+    validation: ExternalImportValidation
+
+
+class ExternalConnectorSummary(BaseModel):
+    connector_id: str
+    display_name: str
+    auth_type: Literal["file_upload", "oauth2"]
+    status: Literal["available", "scaffold"]
+    capabilities: list[str]
+
+
+class ExternalConnectorListResponse(BaseModel):
+    connectors: list[ExternalConnectorSummary]
+
+
+class OAuthStartResponse(BaseModel):
+    connector_id: str
+    status: Literal["scaffold"]
+    state: str
+    auth_url: str
+    message: str
+
+
+PORTAL_CONNECTOR_SCHEMAS: dict[str, dict] = {
+    "apple_health_portal": {
+        "display_name": "Apple Health Portal (Scaffold)",
+        "capabilities": ["oauth2", "read_observations"],
+    },
+    "google_fit_portal": {
+        "display_name": "Google Fit Portal (Scaffold)",
+        "capabilities": ["oauth2", "read_observations"],
+    },
+    "quest_portal": {
+        "display_name": "Quest Portal (Scaffold)",
+        "capabilities": ["oauth2", "download_labs"],
+    },
+    "labcorp_portal": {
+        "display_name": "LabCorp Portal (Scaffold)",
+        "capabilities": ["oauth2", "download_labs"],
+    },
+}
+
+
+@router.get(
+    "/import/external/connectors",
+    response_model=ExternalConnectorListResponse,
+)
+async def list_external_connectors(session: RequireAuth):
+    """
+    List supported external import connectors.
+
+    Includes both file-based importers and OAuth portal scaffolds.
+    """
+    connectors: list[ExternalConnectorSummary] = []
+
+    for source_type in sorted(IMPORTER_REGISTRY.keys()):
+        connectors.append(
+            ExternalConnectorSummary(
+                connector_id=source_type,
+                display_name=source_type.replace("_", " ").title(),
+                auth_type="file_upload",
+                status="available",
+                capabilities=["file_import"],
+            )
+        )
+
+    for connector_id, schema in PORTAL_CONNECTOR_SCHEMAS.items():
+        connectors.append(
+            ExternalConnectorSummary(
+                connector_id=connector_id,
+                display_name=schema["display_name"],
+                auth_type="oauth2",
+                status="scaffold",
+                capabilities=schema["capabilities"],
+            )
+        )
+
+    return ExternalConnectorListResponse(connectors=connectors)
+
+
+@router.post(
+    "/import/external/connectors/{connector_id}/oauth/start",
+    response_model=OAuthStartResponse,
+)
+async def start_external_connector_oauth(
+    connector_id: str,
+    session: RequireAuth,
+    redirect_uri: Optional[str] = Query(
+        None,
+        description="Callback URI for OAuth code exchange",
+    ),
+):
+    """
+    Start OAuth for a portal connector.
+
+    This endpoint provides scaffolding metadata and does not perform token exchange.
+    """
+    import uuid
+
+    if connector_id in IMPORTER_REGISTRY:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Connector '{connector_id}' uses file upload and does not require OAuth",
+        )
+
+    if connector_id not in PORTAL_CONNECTOR_SCHEMAS:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unknown connector: {connector_id}",
+        )
+
+    state = uuid.uuid4().hex
+    safe_redirect = _resolve_oauth_redirect_uri(redirect_uri)
+    _store_oauth_start_state(
+        state=state,
+        profile_id=session.profile_id,
+        connector_id=connector_id,
+        redirect_uri=safe_redirect,
+    )
+    auth_url = (
+        f"https://oauth.healthcentral.local/{connector_id}/authorize"
+        f"?state={state}&redirect_uri={quote_plus(safe_redirect)}"
+    )
+    return OAuthStartResponse(
+        connector_id=connector_id,
+        status="scaffold",
+        state=state,
+        auth_url=auth_url,
+        message=(
+            "OAuth connector scaffolding is active. "
+            "Token exchange implementation is pending."
+        ),
+    )
 
 
 @router.post(
@@ -671,11 +923,18 @@ async def import_external(
     from datetime import datetime as dt
 
     profile_id = session.profile_id
-    file_bytes = await file.read()
+    max_bytes = settings.max_import_file_size_mb * 1024 * 1024
+    file_bytes = await _read_upload_bounded(file=file, max_bytes=max_bytes)
 
     # Parse using appropriate importer
-    importer = get_importer(source_type)
-    result = importer.safe_parse(file_bytes, file.filename or "unknown")
+    try:
+        importer = get_importer(source_type)
+        result = importer.safe_parse(file_bytes, file.filename or "unknown")
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
 
     # Create synthetic Document (DD-2)
     doc_id = str(uuid.uuid4())
@@ -739,10 +998,35 @@ async def import_external(
     except Exception as e:
         logger.warning(f"Failed to log import event: {e}")
 
+    total_rows = len(result.observations) + len(result.errors)
+    error_rate = (len(result.errors) / total_rows) if total_rows else 0.0
+    validation_status: Literal["ok", "warning", "rejected"] = "ok"
+    if len(result.errors) > 0:
+        validation_status = "warning"
+    if error_rate > importer.max_error_rate:
+        validation_status = "rejected"
+
     return ExternalImportResponse(
         document_id=doc_id,
         source_type=source_type,
         observation_count=obs_count,
         error_count=len(result.errors),
         warnings=result.warnings[:10],
+        errors=[
+            ExternalImportErrorItem(
+                row=e.row,
+                field=e.field,
+                message=e.message,
+            )
+            for e in result.errors[:100]
+        ],
+        validation=ExternalImportValidation(
+            total_rows=total_rows,
+            parsed_rows=len(result.observations),
+            error_rows=len(result.errors),
+            warning_count=len(result.warnings),
+            error_rate=round(error_rate, 4),
+            max_error_rate=importer.max_error_rate,
+            status=validation_status,
+        ),
     )

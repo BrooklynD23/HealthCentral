@@ -92,6 +92,7 @@ export type {
   SummaryResponse,
   QuestionItem,
   ExportFilters,
+  SummaryTemplateOptions,
 } from './export';
 
 // Assistant hooks

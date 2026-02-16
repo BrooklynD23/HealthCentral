@@ -1,6 +1,6 @@
 # Backend Integration Status
 
-**Last Updated:** 2026-02-14
+**Last Updated:** 2026-02-16
 **Owner:** Backend Lead
 **Refresh Trigger:** API endpoint added, changed, or removed
 **Status:** Current integration baseline (post-stabilization sprint, active backend/frontend contracts)
@@ -74,6 +74,14 @@ The STAB-001 through STAB-007 sprint hardening work is implemented:
 | `/api/v1/export/questions` | POST | ✅ Done | Generate discussion questions |
 | `/api/v1/export/csv` | GET | ✅ Done | CSV export with filters |
 | `/api/v1/export/json` | GET | ✅ Done | JSON export with filters |
+| `/api/v1/export/excel` | GET | ✅ Done | Excel export (summary/labs/trends workbook) |
+| `/api/v1/export/fhir` | GET | ✅ Done | FHIR R4 Bundle JSON export |
+
+#### Search (`search.py`) - Sprint 4 Backend
+| Endpoint | Method | Status | Description |
+|----------|--------|--------|-------------|
+| `/api/v1/search` | GET | ✅ Done | Hybrid/full-text/semantic search with pagination |
+| `/api/v1/search/suggestions` | GET | ✅ Done | Prefix suggestions for analyte names |
 
 #### Interpretations (`interpretations.py`)
 | Endpoint | Method | Status | Description |
@@ -128,6 +136,7 @@ The STAB-001 through STAB-007 sprint hardening work is implemented:
 | `documents.ts` | React Query hooks for document management |
 | `observations.ts` | React Query hooks for observations and trends |
 | `export.ts` | React Query hooks for export functionality |
+| `search.ts` | React Query hooks for hybrid search and suggestions |
 | `index.ts` | Barrel export for all services |
 
 #### React Query Hooks
@@ -135,6 +144,7 @@ The STAB-001 through STAB-007 sprint hardening work is implemented:
 - **Documents:** `useDocuments`, `useDocument`, `useDocumentPages`, `useImportDocument`, `useDeleteDocument`
 - **Observations:** `useObservations`, `useObservation`, `useVerifyObservation`, `useTrend`, `usePanel`, `useAnalyteList`
 - **Export:** `useExportCSV`, `useExportJSON`, `useGenerateSummary`, `useDownloadSummary`, `useGenerateQuestions`
+- **Search:** `useSearch`, `useSearchSuggestions`
 
 ---
 
@@ -150,6 +160,7 @@ The STAB-001 through STAB-007 sprint hardening work is implemented:
 | `MedicationDetail.tsx` | ✅ Connected | Uses medication detail + schedule + dose history + pattern learning hooks |
 | `NotificationSettings.tsx` | ✅ Connected | Uses notification settings/history/scheduler APIs with local-time quiet-hours controls |
 | `ExportPage.tsx` | ✅ Connected | Uses `useExportCSV()`, `useExportJSON()`, `useGenerateSummary()` |
+| `SearchPage.tsx` | ✅ Connected | Uses `useSearch()` with mode/date/abnormal filters and pagination |
 | `SettingsPage.tsx` | ✅ Connected | Uses model settings and external API hooks |
 | `ExplainAssistant.tsx` | ✅ Connected | Wired to `/assistant/chat` with citation + verification rendering |
 
@@ -265,7 +276,9 @@ alembic -c alembic.ini -n master upgrade head
 | `verify.py` | Legacy / non-owning | Verification logic is enforced in API route (`api/observations.py`); module stubs are non-critical |
 | `analytics.py` | ✅ Basic | Trend calculations implemented (deterministic) |
 | `rag.py` | ✅ Done (model-dependent) | Retrieval + generation + citation validation + safety checks; explicit `ModelUnavailableError` path with assistant fallback handling |
-| `export.py` | ✅ Done | CSV/JSON + summary/question generation - API fully wired (Sprint 4) |
+| `export.py` | ✅ Done | CSV/JSON + summary/question generation - API fully wired (Sprint 4), with HTML output escaping and spreadsheet formula-injection hardening |
+| `search.py` | ✅ Done | Hybrid search (FTS + semantic + RRF), snippet sanitization, and pagination contract support |
+| `importers/` | ✅ Done (core parsers) | Apple Health, Google Fit, Generic CSV, Quest, LabCorp, HL7v2 parser package; external connector OAuth scaffolding now enforces redirect allowlist validation |
 | `interpret.py` | ✅ Done | Lab interpretation pipeline with LLM support |
 | `interpret_safety.py` | ✅ Done | Safety guardrails for interpretations |
 | `recommend.py` | ✅ Done | Evidence-based recommendation engine |
@@ -307,8 +320,16 @@ Access:
    - Keep E2E smoke suite green in CI and expand deterministic fixtures as workflows evolve.
    - Continue adversarial safety test expansion for RAG and interpretation guardrails.
 2. **Deferred backlog**
-   - Execute deferred feature work (advanced export formats, enhanced search, multi-source imports) in a future scoped sprint.
+   - Sprint 4 polish for search history/saved searches, export template customization, and importer OAuth connectors is implemented.
+   - Continue follow-up hardening and productionization for OAuth callback/state exchange flow.
    - Continue docs consolidation so canonical trackers stay synchronized with implemented behavior.
+
+### Recent Security Hardening (2026-02-16)
+
+- Summary HTML/PDF template rendering now escapes untrusted branding and summary content before interpolation.
+- CSV/XLSX export sanitization now guards formula-like payloads even when prefixed by whitespace/control characters.
+- OAuth scaffold start endpoint validates `redirect_uri` against `settings.oauth_redirect_allowlist` and records state metadata for callback verification scaffolding.
+- Search history/saved searches are session-scoped by default in the frontend, with explicit user opt-in to persist on device.
 
 ---
 

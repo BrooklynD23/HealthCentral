@@ -1,5 +1,6 @@
 """Tests for Apple Health and Google Fit importers."""
 
+import builtins
 import pytest
 from datetime import datetime
 from modules.importers.base import ImportResult
@@ -21,6 +22,11 @@ SAMPLE_APPLE_HEALTH_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
           startDate="2024-01-15 12:00:00 -0500"
           endDate="2024-01-15 12:00:00 -0500"/>
 </HealthData>
+"""
+
+SAMPLE_APPLE_HEALTH_CSV = b"""type,sourceName,unit,value,startDate,endDate
+HKQuantityTypeIdentifierBloodGlucose,Health,mg/dL,98,2024-01-15 08:30:00 -0500,2024-01-15 08:30:00 -0500
+HKQuantityTypeIdentifierHeartRate,Apple Watch,count/min,72,2024-01-15 12:00:00 -0500,2024-01-15 12:00:00 -0500
 """
 
 
@@ -60,5 +66,35 @@ class TestAppleHealthImporter:
         with pytest.raises(ValueError, match="XML"):
             self.importer.parse(b"not xml at all", "bad.xml")
 
+    def test_missing_defusedxml_fails_closed(self, monkeypatch):
+        real_import = builtins.__import__
+
+        def _blocked_import(name, *args, **kwargs):
+            if name.startswith("defusedxml"):
+                raise ImportError("No module named defusedxml")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", _blocked_import)
+
+        with pytest.raises(ValueError, match="defusedxml is required"):
+            self.importer.parse(SAMPLE_APPLE_HEALTH_XML, "export.xml")
+
     def test_supported_extensions(self):
         assert "xml" in self.importer.supported_extensions
+        assert "csv" in self.importer.supported_extensions
+
+    def test_parse_csv_variant(self):
+        result = self.importer.parse(SAMPLE_APPLE_HEALTH_CSV, "export.csv")
+        assert len(result.observations) == 2
+        assert result.source_metadata["source"] == "apple_health_csv"
+        assert result.observations[0].analyte_raw == "blood_glucose"
+
+    def test_csv_variant_records_row_errors(self):
+        bad_csv = (
+            b"type,unit,value,startDate\n"
+            b"HKQuantityTypeIdentifierBloodGlucose,mg/dL,abc,2024-01-15\n"
+        )
+        result = self.importer.parse(bad_csv, "bad.csv")
+        assert len(result.observations) == 0
+        assert len(result.errors) == 1
+        assert result.errors[0].field == "value"

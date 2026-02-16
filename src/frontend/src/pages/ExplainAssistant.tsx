@@ -179,7 +179,7 @@ export function ExplainAssistant() {
   };
 
   return (
-    <div className="h-[calc(100vh-10rem)] flex gap-6">
+    <div className="flex flex-col gap-6 md:h-[calc(100vh-10rem)] md:flex-row">
       <div className="flex-1 flex flex-col">
         <Card className="flex-1 flex flex-col overflow-hidden">
           <CardHeader className="border-b border-black/[0.04] flex-shrink-0">
@@ -218,7 +218,7 @@ export function ExplainAssistant() {
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div className="flex-1 overflow-y-auto p-6 space-y-6" role="log" aria-live="polite">
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-center">
                 <div className="w-16 h-16 rounded-2xl bg-accent-subtle flex items-center justify-center mb-4">
@@ -360,6 +360,7 @@ export function ExplainAssistant() {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
                 placeholder="Ask about your results..."
+                aria-label="Ask about your results"
                 className={cn(
                   'flex-1 px-4 py-3 rounded-xl',
                   'bg-surface-muted border-0',
@@ -372,6 +373,7 @@ export function ExplainAssistant() {
                 onClick={handleSend}
                 disabled={!input.trim() || sendMessage.isPending}
                 className="px-4"
+                aria-label="Send message"
               >
                 <Send className="w-4 h-4" />
               </Button>
@@ -380,7 +382,7 @@ export function ExplainAssistant() {
         </Card>
       </div>
 
-      <div className="w-80 space-y-4">
+      <div className="w-full space-y-4 md:w-80">
         {/* Filters */}
         <Card>
           <CardHeader className="pb-2">
@@ -491,6 +493,7 @@ export function ExplainAssistant() {
                 key={i}
                 onClick={() => setInput(question)}
                 disabled={sendMessage.isPending}
+                aria-label={`Ask: ${question}`}
                 className={cn(
                   'w-full text-left px-3 py-2.5 rounded-xl text-sm',
                   'bg-surface-muted hover:bg-accent-subtle hover:text-accent',

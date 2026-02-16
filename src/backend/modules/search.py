@@ -10,7 +10,9 @@ Design Decision DD-1: SQL+cosine for v1, no FAISS.
 Design Decision DD-5: FTS5 on both observations and chunks.
 """
 
+import html
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Optional
 from datetime import datetime
@@ -19,6 +21,15 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
+HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _snippet_to_plain_text(snippet: Optional[str]) -> str:
+    """Return a plain-text snippet safe for direct rendering."""
+    if not snippet:
+        return ""
+    without_tags = HTML_TAG_RE.sub("", snippet)
+    return html.unescape(without_tags)
 
 
 @dataclass
@@ -112,7 +123,7 @@ class SearchModule:
         try:
             obs_sql = text("""
                 SELECT o.id, o.analyte_canonical, o.value, o.unit, o.collected_at,
-                       o.is_abnormal, snippet(observations_fts, 0, '<b>', '</b>', '...', 32) as snip,
+                       o.is_abnormal, snippet(observations_fts, 0, '', '', '...', 32) as snip,
                        rank
                 FROM observations_fts
                 JOIN observations o ON observations_fts.rowid = o.rowid
@@ -128,7 +139,7 @@ class SearchModule:
                     id=row.id,
                     type="observation",
                     title=row.analyte_canonical,
-                    snippet=row.snip or "",
+                    snippet=_snippet_to_plain_text(row.snip or ""),
                     analyte=row.analyte_canonical,
                     value=row.value,
                     unit=row.unit,
@@ -152,7 +163,7 @@ class SearchModule:
         try:
             chunk_sql = text("""
                 SELECT c.id, c.doc_id, c.text, c.page_number,
-                       snippet(chunks_fts, 0, '<b>', '</b>', '...', 48) as snip,
+                       snippet(chunks_fts, 0, '', '', '...', 48) as snip,
                        rank
                 FROM chunks_fts
                 JOIN chunks c ON chunks_fts.rowid = c.rowid
@@ -167,7 +178,9 @@ class SearchModule:
                     id=row.id,
                     type="chunk",
                     title=f"Document content (page {row.page_number or '?'})",
-                    snippet=row.snip or row.text[:200],
+                    snippet=_snippet_to_plain_text(
+                        row.snip or (row.text[:200] if row.text else "")
+                    ),
                     explanation="Full-text match on document content",
                 ))
         except Exception as e:
@@ -202,7 +215,7 @@ class SearchModule:
                     id=chunk_data.get("chunk_id", ""),
                     type="chunk",
                     title=chunk_data.get("doc_title", "Document"),
-                    snippet=chunk_data.get("text", "")[:200],
+                    snippet=_snippet_to_plain_text((chunk_data.get("text", "") or "")[:200]),
                     score=similarity,
                     explanation=f"Semantic similarity: {similarity:.3f}",
                 ))

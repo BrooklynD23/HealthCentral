@@ -91,3 +91,53 @@ class TestRenderHtmlWithCharts:
         }
         result = self.export.render_html_summary(summary_data, chart_images={})
         assert "data:image/png;base64," not in result
+
+    def test_template_customization_applies_branding_and_section_toggles(self):
+        summary_data = {
+            "key_findings": ["Glucose high"],
+            "sections": [
+                {"title": "Overview", "content": "Overview content"},
+                {"title": "Notable Trends", "content": "Trend content"},
+            ],
+            "questions": ["Question content"],
+        }
+        result = self.export.render_html_summary(
+            summary_data,
+            template_options={
+                "brand_name": "Clinic X",
+                "brand_tagline": "Custom Report",
+                "accent_color": "#123ABC",
+                "include_trends": False,
+                "include_questions": False,
+                "include_key_findings": False,
+            },
+        )
+        assert "Clinic X" in result
+        assert "Custom Report" in result
+        assert "#123ABC" in result
+        assert "Notable Trends" not in result
+        assert "Questions for Your Provider" not in result
+        assert "Key Findings" not in result
+
+    def test_html_summary_escapes_untrusted_template_content(self):
+        summary_data = {
+            "key_findings": ['critical <img src=x onerror=alert("f")>'],
+            "sections": [
+                {"title": "<script>alert('title')</script>", "content": "<b>unsafe</b>"},
+            ],
+            "questions": [{"question": "<svg onload=alert('q')>"}],
+            "date_range": "<img src=x onerror=alert('d')>",
+        }
+        result = self.export.render_html_summary(
+            summary_data,
+            template_options={
+                "brand_name": '</title><script>alert("brand")</script>',
+                "brand_tagline": '<img src=x onerror=alert("tagline")>',
+            },
+        )
+
+        assert "<script>alert(\"brand\")</script>" not in result
+        assert "<img src=x onerror=alert(\"tagline\")>" not in result
+        assert "&lt;script&gt;alert(&quot;brand&quot;)&lt;/script&gt;" in result
+        assert "&lt;b&gt;unsafe&lt;/b&gt;" in result
+        assert "<svg onload=alert('q')>" not in result

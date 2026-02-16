@@ -8,7 +8,7 @@ Design Decision DD-4: Minimal Patient resource, LOINC via BiomarkerKnowledge loo
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Any
 from pydantic import BaseModel, Field
 
 
@@ -58,7 +58,7 @@ class FHIRPatient(BaseModel):
     id: str
     display_name: str = Field(exclude=True)
     name: list[FHIRHumanName] = None
-    _birthDate: Optional[FHIRAbsentField] = Field(
+    birthDate_extension: Optional[FHIRAbsentField] = Field(
         default_factory=FHIRAbsentField, alias="_birthDate"
     )
 
@@ -171,3 +171,136 @@ def create_fhir_bundle(
             FHIRBundleEntry(resource=obs.model_dump(by_alias=True, exclude_none=True))
         )
     return FHIRBundle(entry=entries)
+
+
+def _validation_issue(
+    severity: str,
+    code: str,
+    diagnostics: str,
+    expression: str,
+) -> dict[str, str]:
+    return {
+        "severity": severity,
+        "code": code,
+        "diagnostics": diagnostics,
+        "expression": expression,
+    }
+
+
+def validate_fhir_bundle(bundle_payload: dict[str, Any]) -> list[dict[str, str]]:
+    """
+    Lightweight conformance checks for exported FHIR bundles.
+
+    This is intentionally minimal and non-blocking unless strict mode is enabled
+    by the API caller.
+    """
+    issues: list[dict[str, str]] = []
+
+    if bundle_payload.get("resourceType") != "Bundle":
+        issues.append(
+            _validation_issue(
+                "error",
+                "structure",
+                "Bundle.resourceType must be 'Bundle'",
+                "Bundle.resourceType",
+            )
+        )
+
+    entries = bundle_payload.get("entry")
+    if not isinstance(entries, list):
+        issues.append(
+            _validation_issue(
+                "error",
+                "required",
+                "Bundle.entry must be a list",
+                "Bundle.entry",
+            )
+        )
+        return issues
+
+    for idx, entry in enumerate(entries):
+        path = f"Bundle.entry[{idx}]"
+        resource = entry.get("resource") if isinstance(entry, dict) else None
+        if not isinstance(resource, dict):
+            issues.append(
+                _validation_issue(
+                    "error",
+                    "structure",
+                    "Entry resource must be an object",
+                    f"{path}.resource",
+                )
+            )
+            continue
+
+        resource_type = resource.get("resourceType")
+        if not resource_type:
+            issues.append(
+                _validation_issue(
+                    "error",
+                    "required",
+                    "Resource missing resourceType",
+                    f"{path}.resource.resourceType",
+                )
+            )
+            continue
+
+        if resource_type == "Patient":
+            if not resource.get("id"):
+                issues.append(
+                    _validation_issue(
+                        "error",
+                        "required",
+                        "Patient.id is required",
+                        f"{path}.resource.id",
+                    )
+                )
+            if not resource.get("name"):
+                issues.append(
+                    _validation_issue(
+                        "warning",
+                        "required",
+                        "Patient.name is recommended",
+                        f"{path}.resource.name",
+                    )
+                )
+
+        if resource_type == "Observation":
+            if not resource.get("status"):
+                issues.append(
+                    _validation_issue(
+                        "error",
+                        "required",
+                        "Observation.status is required",
+                        f"{path}.resource.status",
+                    )
+                )
+            if not resource.get("code"):
+                issues.append(
+                    _validation_issue(
+                        "error",
+                        "required",
+                        "Observation.code is required",
+                        f"{path}.resource.code",
+                    )
+                )
+            has_value = bool(resource.get("valueQuantity")) or bool(resource.get("valueString"))
+            if not has_value:
+                issues.append(
+                    _validation_issue(
+                        "warning",
+                        "required",
+                        "Observation should include valueQuantity or valueString",
+                        f"{path}.resource.valueQuantity",
+                    )
+                )
+            if not resource.get("subject"):
+                issues.append(
+                    _validation_issue(
+                        "warning",
+                        "required",
+                        "Observation.subject is recommended",
+                        f"{path}.resource.subject",
+                    )
+                )
+
+    return issues

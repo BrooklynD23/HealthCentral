@@ -20,6 +20,8 @@ from modules.search import SearchModule, SearchFilters
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+MAX_SEARCH_OFFSET = 1000
+MAX_SEARCH_WINDOW = 1000
 
 
 class SearchResultItem(BaseModel):
@@ -49,7 +51,7 @@ async def search(
     q: str = Query(..., min_length=1, max_length=500, description="Search query"),
     mode: str = Query("hybrid", description="Search mode: hybrid, text, or semantic"),
     limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0),
+    offset: int = Query(0, ge=0, le=MAX_SEARCH_OFFSET),
     from_date: Optional[datetime] = Query(None),
     to_date: Optional[datetime] = Query(None),
     analyte: Optional[str] = Query(None),
@@ -71,24 +73,25 @@ async def search(
         analyte=analyte,
         abnormal_only=abnormal_only,
     )
+    fetch_window = min(limit + offset, MAX_SEARCH_WINDOW)
 
     if mode == "text":
         results = await search_module.search_fulltext(
-            q, profile_db, profile_id, filters, limit=limit + offset,
+            q, profile_db, profile_id, filters, limit=fetch_window,
         )
         total = len(results)
         results = results[offset:offset + limit]
         response_mode = "text"
     elif mode == "semantic":
         results_raw = await search_module.search_semantic(
-            q, profile_db, profile_id, top_k=limit + offset,
+            q, profile_db, profile_id, top_k=fetch_window,
         )
         total = len(results_raw)
         results = results_raw[offset:offset + limit]
         response_mode = "semantic"
     else:
         search_response = await search_module.search_hybrid(
-            q, profile_db, profile_id, filters, limit=limit + offset,
+            q, profile_db, profile_id, filters, limit=fetch_window,
         )
         total = search_response.total_count
         results = search_response.results[offset:offset + limit]

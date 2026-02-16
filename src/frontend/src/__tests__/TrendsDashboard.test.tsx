@@ -37,6 +37,42 @@ vi.mock('@/services/api', () => ({
   },
 }));
 
+// Mock framer-motion to avoid animation issues in jsdom
+vi.mock('framer-motion', async () => {
+  const actual = await vi.importActual('framer-motion');
+  const filterDomProps = (props: Record<string, unknown>) => {
+    const {
+      variants: _variants,
+      initial: _initial,
+      animate: _animate,
+      exit: _exit,
+      whileHover: _whileHover,
+      whileTap: _whileTap,
+      transition: _transition,
+      layout: _layout,
+      layoutId: _layoutId,
+      ...domProps
+    } = props;
+    return domProps;
+  };
+
+  return {
+    ...actual,
+    motion: {
+      div: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) => {
+        return <div {...filterDomProps(props)}>{children}</div>;
+      },
+      button: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) => {
+        return <button {...filterDomProps(props)}>{children}</button>;
+      },
+      tr: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) => {
+        return <tr {...filterDomProps(props)}>{children}</tr>;
+      },
+    },
+    AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  };
+});
+
 // Mock recharts to avoid canvas issues in tests
 vi.mock('recharts', async () => {
   const actual = await vi.importActual('recharts');

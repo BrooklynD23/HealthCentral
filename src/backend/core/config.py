@@ -89,6 +89,13 @@ class Settings(BaseSettings):
     external_api_key: str = ""
     external_api_model: str = ""
 
+    # OAuth connector scaffold callbacks (comma-separated absolute URLs)
+    oauth_redirect_allowlist: str = (
+        "https://app.healthcentral.local/oauth/callback,"
+        "http://localhost:3000/oauth/callback,"
+        "http://127.0.0.1:3000/oauth/callback"
+    )
+
     # Phase 4: AI Safety / Verification Settings
     verification_enabled: bool = True
     min_faithfulness_score: float = 0.6  # Minimum score for verified claims
@@ -124,6 +131,18 @@ class Settings(BaseSettings):
     def supported_extensions(self) -> list[str]:
         """Get list of supported file extensions."""
         return [ext.strip().lower() for ext in self.supported_doc_types.split(",")]
+
+    @property
+    def oauth_redirect_allowlist_urls(self) -> list[str]:
+        """Get normalized OAuth callback allowlist URLs."""
+        urls = [
+            item.strip()
+            for item in self.oauth_redirect_allowlist.split(",")
+            if item.strip()
+        ]
+        if urls:
+            return urls
+        return ["https://app.healthcentral.local/oauth/callback"]
 
     def validate_startup(self) -> list[str]:
         """

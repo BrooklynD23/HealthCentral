@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 import uuid
 import json
+import csv
+from io import StringIO
 
 # Add backend to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -108,6 +110,32 @@ class TestExportCSV:
         assert len(lines) == 2
         assert "glucose" in csv_output.lower()
         assert "hemoglobin_a1c" not in csv_output.lower()
+
+    def test_api_export_001c_csv_export_sanitizes_formula_like_strings(self, export_module):
+        """
+        CSV export should neutralize formula-like string cells.
+        """
+        observations = [
+            {
+                "analyte_canonical": "\t=SUM(1,1)",
+                "value": "\t-cmd|' /C calc'!A0",
+                "unit": " +mg/dL",
+                "ref_low": 70.0,
+                "ref_high": 100.0,
+                "flag": "@H",
+                "is_abnormal": True,
+                "user_verified": False,
+                "collected_at": datetime(2024, 1, 15, tzinfo=timezone.utc),
+            },
+        ]
+
+        csv_output = export_module.export_csv(observations)
+        rows = list(csv.reader(StringIO(csv_output)))
+
+        assert rows[1][1] == "'\t=SUM(1,1)"
+        assert rows[1][2] == "'\t-cmd|' /C calc'!A0"
+        assert rows[1][3] == "' +mg/dL"
+        assert rows[1][6] == "'@H"
 
 
 class TestExportJSON:

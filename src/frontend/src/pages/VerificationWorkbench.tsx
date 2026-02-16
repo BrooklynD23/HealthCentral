@@ -175,7 +175,7 @@ export function VerificationWorkbench() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-semibold text-ink tracking-tight">
             Verification Workbench
@@ -184,7 +184,7 @@ export function VerificationWorkbench() {
             Review and correct extracted values from your documents
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center flex-wrap gap-3">
           {unverifiedCount > 0 && (
             <Badge variant="caution" className="gap-1.5">
               <AlertTriangle className="w-3.5 h-3.5" />
@@ -202,8 +202,8 @@ export function VerificationWorkbench() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        <div className="col-span-2">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+        <div className="md:col-span-2">
           <Card>
             <CardHeader className="border-b border-black/[0.04]">
               <CardTitle className="flex items-center gap-3">

@@ -9,20 +9,20 @@ Sprint 4: Wired to ExportModule for CSV/JSON/summary/questions generation.
 
 import logging
 import re
+from copy import deepcopy
 from typing import Optional
 from datetime import datetime, timezone
-from io import StringIO
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import Response
 from pydantic import BaseModel
-from sqlalchemy import select, and_
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
 from core.auth import RequireAuth, ProfileDbSession
 from core.audit import log_export_event
-from models import Observation
+from models import Observation, Medication
 from modules.export import ExportModule
 
 logger = logging.getLogger(__name__)
@@ -34,6 +34,7 @@ UUID_PATTERN = re.compile(
     r'^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     re.IGNORECASE
 )
+HEX_COLOR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 
 # In-memory summary storage (for MVP - would be DB in production)
 _summary_store: dict[str, dict] = {}
@@ -47,6 +48,57 @@ def validate_uuid(value: str, field_name: str = "ID") -> str:
             detail=f"Invalid {field_name} format"
         )
     return value
+
+
+def _build_template_options(
+    brand_name: Optional[str],
+    brand_tagline: Optional[str],
+    accent_color: Optional[str],
+    include_overview: bool,
+    include_abnormal: bool,
+    include_trends: bool,
+    include_questions: bool,
+    include_key_findings: bool,
+) -> dict:
+    """Assemble a normalized summary template configuration."""
+    resolved_color = (accent_color or "").strip()
+    if not HEX_COLOR_RE.fullmatch(resolved_color):
+        resolved_color = "#2D7D6F"
+
+    return {
+        "brand_name": (brand_name or "HealthCentral").strip() or "HealthCentral",
+        "brand_tagline": (brand_tagline or "Lab Results Summary").strip() or "Lab Results Summary",
+        "accent_color": resolved_color,
+        "include_overview": include_overview,
+        "include_abnormal": include_abnormal,
+        "include_trends": include_trends,
+        "include_questions": include_questions,
+        "include_key_findings": include_key_findings,
+        "include_disclaimer": True,
+    }
+
+
+def _apply_section_toggles(summary_data: dict, template_options: dict) -> dict:
+    """Filter summary sections/questions for non-HTML exports."""
+    rendered = deepcopy(summary_data)
+    filtered_sections = []
+    for section in rendered.get("sections", []):
+        title = str(section.get("title", "")).lower()
+        if "overview" in title and not template_options["include_overview"]:
+            continue
+        if "outside reference range" in title and not template_options["include_abnormal"]:
+            continue
+        if "trend" in title and not template_options["include_trends"]:
+            continue
+        filtered_sections.append(section)
+    rendered["sections"] = filtered_sections
+
+    if not template_options["include_key_findings"]:
+        rendered["key_findings"] = []
+    if not template_options["include_questions"]:
+        rendered["questions"] = []
+
+    return rendered
 
 
 class SummaryRequest(BaseModel):
@@ -283,6 +335,17 @@ async def download_summary(
     session: RequireAuth,
     format: str = Query("text", description="Download format: text, html, or pdf"),
     include_charts: bool = Query(False, description="Embed trend charts in PDF/HTML"),
+    brand_name: Optional[str] = Query(None, description="Template brand name override"),
+    brand_tagline: Optional[str] = Query(None, description="Template subtitle override"),
+    accent_color: Optional[str] = Query(
+        None,
+        description="Hex color for HTML/PDF header (e.g. #2D7D6F)",
+    ),
+    include_overview: bool = Query(True, description="Include overview section"),
+    include_abnormal: bool = Query(True, description="Include abnormal-values section"),
+    include_trends: bool = Query(True, description="Include trends section"),
+    include_questions: bool = Query(True, description="Include questions section"),
+    include_key_findings: bool = Query(True, description="Include key findings section"),
     master_db: AsyncSession = Depends(get_db),
 ):
     """
@@ -309,13 +372,38 @@ async def download_summary(
             detail="Access denied to this summary"
         )
 
+    template_options = _build_template_options(
+        brand_name=brand_name,
+        brand_tagline=brand_tagline,
+        accent_color=accent_color,
+        include_overview=include_overview,
+        include_abnormal=include_abnormal,
+        include_trends=include_trends,
+        include_questions=include_questions,
+        include_key_findings=include_key_findings,
+    )
+    rendered_summary = _apply_section_toggles(summary_data, template_options)
+
     # Log download
     try:
         await log_export_event(
             db=master_db,
             profile_id=session.profile_id,
             export_type="summary_download",
-            details={"summary_id": summary_id, "format": format, "include_charts": include_charts},
+            details={
+                "summary_id": summary_id,
+                "format": format,
+                "include_charts": include_charts,
+                "template": {
+                    "brand_name": template_options["brand_name"],
+                    "accent_color": template_options["accent_color"],
+                    "include_overview": template_options["include_overview"],
+                    "include_abnormal": template_options["include_abnormal"],
+                    "include_trends": template_options["include_trends"],
+                    "include_questions": template_options["include_questions"],
+                    "include_key_findings": template_options["include_key_findings"],
+                },
+            },
         )
         await master_db.commit()
     except Exception as e:
@@ -347,7 +435,11 @@ async def download_summary(
                 )
 
     if format == "html":
-        html_content = export_module.render_html_summary(summary_data, chart_images=chart_images)
+        html_content = export_module.render_html_summary(
+            rendered_summary,
+            chart_images=chart_images,
+            template_options=template_options,
+        )
         return Response(
             content=html_content,
             media_type="text/html",
@@ -358,7 +450,11 @@ async def download_summary(
 
     elif format == "pdf":
         try:
-            pdf_bytes = export_module.render_pdf_summary(summary_data, chart_images=chart_images)
+            pdf_bytes = export_module.render_pdf_summary(
+                rendered_summary,
+                chart_images=chart_images,
+                template_options=template_options,
+            )
             return Response(
                 content=pdf_bytes,
                 media_type="application/pdf",
@@ -376,25 +472,25 @@ async def download_summary(
         # Default: text format
         lines = [
             "=" * 60,
-            "HEALTH SUMMARY REPORT",
+            f"{template_options['brand_name'].upper()} SUMMARY REPORT",
             "=" * 60,
             "",
-            f"Generated: {summary_data['generated_at']}",
-            f"Total Observations: {summary_data['total_observations']}",
-            f"Abnormal Values: {summary_data['abnormal_count']}",
-            f"Critical Values: {summary_data['critical_count']}",
+            f"Generated: {rendered_summary['generated_at']}",
+            f"Total Observations: {rendered_summary['total_observations']}",
+            f"Abnormal Values: {rendered_summary['abnormal_count']}",
+            f"Critical Values: {rendered_summary['critical_count']}",
             "",
         ]
 
-        if summary_data["key_findings"]:
+        if rendered_summary["key_findings"]:
             lines.append("-" * 40)
             lines.append("KEY FINDINGS")
             lines.append("-" * 40)
-            for finding in summary_data["key_findings"]:
+            for finding in rendered_summary["key_findings"]:
                 lines.append(f"  - {finding}")
             lines.append("")
 
-        for section in summary_data["sections"]:
+        for section in rendered_summary["sections"]:
             lines.append("-" * 40)
             lines.append(section["title"].upper())
             lines.append("-" * 40)
@@ -621,14 +717,42 @@ async def export_excel(
     )
 
     trends = _compute_trends(observations)
+    meds_result = await profile_db.execute(
+        select(Medication)
+        .where(Medication.profile_id == profile_id)
+        .order_by(Medication.name.asc())
+    )
+    medications = meds_result.scalars().all()
+    medication_rows = [
+        {
+            "name": med.name,
+            "generic_name": med.generic_name,
+            "dosage_amount": med.dosage_amount,
+            "dosage_unit": med.dosage_unit,
+            "frequency": med.frequency,
+            "is_active": med.is_active,
+            "reminder_enabled": med.reminder_enabled,
+            "started_at": med.started_at,
+            "ended_at": med.ended_at,
+            "instructions": med.instructions,
+        }
+        for med in medications
+    ]
 
     export_module = ExportModule()
-    xlsx_bytes = export_module.export_excel(observations, trends)
+    xlsx_bytes = export_module.export_excel(
+        observations,
+        trends,
+        medications=medication_rows,
+    )
 
     try:
         await log_export_event(
             db=master_db, profile_id=profile_id, export_type="excel",
-            details={"observation_count": len(observations)},
+            details={
+                "observation_count": len(observations),
+                "medication_count": len(medication_rows),
+            },
         )
         await master_db.commit()
     except Exception as e:
@@ -649,6 +773,14 @@ async def export_fhir(
     analytes: Optional[str] = Query(None, description="Comma-separated analyte filter"),
     from_date: Optional[datetime] = Query(None, description="Start date"),
     to_date: Optional[datetime] = Query(None, description="End date"),
+    validate: bool = Query(
+        False,
+        description="Run lightweight FHIR conformance checks (non-strict by default)",
+    ),
+    validation_strict: bool = Query(
+        False,
+        description="When validate=true, return 422 if any conformance issues are found",
+    ),
     profile_db: ProfileDbSession = None,
     master_db: AsyncSession = Depends(get_db),
 ):
@@ -660,7 +792,12 @@ async def export_fhir(
     """
     import json as json_lib
     from models import BiomarkerKnowledge
-    from models.fhir_resources import FHIRPatient, map_observation_to_fhir, create_fhir_bundle
+    from models.fhir_resources import (
+        FHIRPatient,
+        map_observation_to_fhir,
+        create_fhir_bundle,
+        validate_fhir_bundle,
+    )
 
     profile_id = session.profile_id
 
@@ -701,23 +838,41 @@ async def export_fhir(
     ]
 
     bundle = create_fhir_bundle(patient, fhir_observations)
-    bundle_json = json_lib.dumps(
-        bundle.model_dump(by_alias=True, exclude_none=True), indent=2
-    )
+    bundle_payload = bundle.model_dump(by_alias=True, exclude_none=True)
+    validation_issues = validate_fhir_bundle(bundle_payload) if validate else []
+    if validate and validation_strict and validation_issues:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "message": "FHIR conformance validation failed",
+                "issues": validation_issues,
+            },
+        )
+
+    bundle_json = json_lib.dumps(bundle_payload, indent=2)
 
     try:
         await log_export_event(
             db=master_db, profile_id=profile_id, export_type="fhir_r4",
-            details={"observation_count": len(observations), "loinc_mapped": len(loinc_map)},
+            details={
+                "observation_count": len(observations),
+                "loinc_mapped": len(loinc_map),
+                "validated": validate,
+                "validation_issue_count": len(validation_issues),
+                "validation_strict": validation_strict,
+            },
         )
         await master_db.commit()
     except Exception as e:
         logger.warning(f"Failed to log export event: {e}")
 
     filename = f"health_data_{datetime.now(timezone.utc).strftime('%Y%m%d')}_fhir.json"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    if validate:
+        headers["X-FHIR-Validation-Issues"] = str(len(validation_issues))
 
     return Response(
         content=bundle_json,
         media_type="application/fhir+json",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers=headers,
     )

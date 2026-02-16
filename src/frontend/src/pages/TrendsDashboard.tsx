@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import {
   LineChart,
+  BarChart,
+  Bar,
   Line,
   XAxis,
   YAxis,
@@ -25,6 +27,7 @@ import {
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui';
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { useObservations, useTrend, usePanel } from '@/services/observations';
 import { useMedications } from '@/services/medications';
 import { useAuthStore } from '@/stores/authStore';
@@ -39,11 +42,68 @@ const panels = [
   { id: 'thyroid', label: 'Thyroid' },
 ];
 
+type DateRangePreset = '3m' | '6m' | '12m' | 'all';
+
+const dateRangeOptions: Array<{ value: DateRangePreset; label: string }> = [
+  { value: '3m', label: 'Last 3 Months' },
+  { value: '6m', label: 'Last 6 Months' },
+  { value: '12m', label: 'Last 12 Months' },
+  { value: 'all', label: 'All Time' },
+];
+
+function isoDate(daysAgo: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() - daysAgo);
+  return date.toISOString().slice(0, 10);
+}
+
+function fromDateForPreset(preset: DateRangePreset): string | undefined {
+  if (preset === 'all') return undefined;
+  if (preset === '3m') return isoDate(90);
+  if (preset === '6m') return isoDate(180);
+  return isoDate(365);
+}
+
+function TrendTooltip({
+  active,
+  payload,
+  label,
+  unit,
+  refLow,
+  refHigh,
+}: {
+  active?: boolean;
+  payload?: Array<{ value: number }>;
+  label?: string;
+  unit: string | null;
+  refLow: number | null;
+  refHigh: number | null;
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+  return (
+    <div className="rounded-xl border border-black/[0.08] bg-white px-3 py-2 shadow-soft">
+      <p className="text-xs text-ink-secondary">{label}</p>
+      <p className="text-sm font-semibold text-ink">
+        {payload[0].value} {unit}
+      </p>
+      {refLow !== null && refHigh !== null && (
+        <p className="text-xs text-ink-secondary">
+          Range: {refLow}-{refHigh} {unit}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function TrendsDashboard() {
   const prefersReducedMotion = useReducedMotion();
   const { profileId } = useAuthStore();
   const [activePanel, setActivePanel] = useState('cbc');
   const [selectedAnalyte, setSelectedAnalyte] = useState<string | null>(null);
+  const [zoomLevel, setZoomLevel] = useState(0);
+  const [chartType, setChartType] = useState<'line' | 'bar'>('line');
+  const [dateRangePreset, setDateRangePreset] = useState<DateRangePreset>('12m');
+  const [isDateMenuOpen, setIsDateMenuOpen] = useState(false);
 
   // Fetch all observations to get list of analytes
   const {
@@ -70,11 +130,25 @@ export function TrendsDashboard() {
   const effectiveSelectedAnalyte = selectedAnalyte || analyteList[0]?.analyte_canonical;
 
   // Fetch trend data for selected analyte
+  const fromDate = useMemo(
+    () => fromDateForPreset(dateRangePreset),
+    [dateRangePreset]
+  );
+
   const {
     data: trendData,
     isLoading: trendLoading,
     isError: trendError,
-  } = useTrend(effectiveSelectedAnalyte, profileId || '');
+    refetch: refetchTrend,
+  } = useTrend(effectiveSelectedAnalyte, profileId || '', fromDate);
+
+  useAutoRefresh(
+    () => {
+      void refetchTrend();
+    },
+    30_000,
+    !!effectiveSelectedAnalyte
+  );
 
   // Fetch panel data when panel tab changes
   const { data: panelData } = usePanel(activePanel, profileId || '');
@@ -92,6 +166,12 @@ export function TrendsDashboard() {
       refHigh: trendData.ref_high,
     }));
   }, [trendData]);
+
+  const visibleChartData = useMemo(() => {
+    if (zoomLevel <= 0) return chartData;
+    const visibleCount = Math.max(2, chartData.length - zoomLevel);
+    return chartData.slice(-visibleCount);
+  }, [chartData, zoomLevel]);
 
   // Get latest value info
   const latestValue = trendData?.data_points?.[trendData.data_points.length - 1];
@@ -128,6 +208,10 @@ export function TrendsDashboard() {
   const handlePanelClick = (panelId: string) => {
     setActivePanel(panelId);
   };
+
+  const dateRangeLabel =
+    dateRangeOptions.find((option) => option.value === dateRangePreset)?.label ||
+    'Last 12 Months';
 
   // Loading state
   if (observationsLoading) {
@@ -180,7 +264,7 @@ export function TrendsDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-semibold text-ink tracking-tight">
             Trends Dashboard
@@ -189,19 +273,50 @@ export function TrendsDashboard() {
             Track changes in your test results over time
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Button variant="secondary" className="gap-2">
+        <div className="flex items-center flex-wrap gap-2">
+          <div className="relative">
+            <Button
+              variant="secondary"
+              className="gap-2 min-h-[44px]"
+              onClick={() => setIsDateMenuOpen((prev) => !prev)}
+            >
+              <Calendar className="w-4 h-4" />
+              {dateRangeLabel}
+            </Button>
+            {isDateMenuOpen && (
+              <div className="absolute right-0 z-20 mt-2 w-44 rounded-xl border border-black/[0.08] bg-white p-2 shadow-soft">
+                {dateRangeOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={cn(
+                      'w-full rounded-lg px-3 py-2 text-left text-sm',
+                      'hover:bg-surface-muted',
+                      dateRangePreset === option.value && 'bg-accent-subtle text-accent'
+                    )}
+                    onClick={() => {
+                      setDateRangePreset(option.value);
+                      setIsDateMenuOpen(false);
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <Button variant="secondary" className="gap-2 min-h-[44px]">
             <Calendar className="w-4 h-4" />
-            Last 12 Months
+            Timeline
           </Button>
-          <Button variant="secondary" className="gap-2">
+          <Button variant="secondary" className="gap-2 min-h-[44px]">
             <Filter className="w-4 h-4" />
             Filters
           </Button>
         </div>
       </div>
 
-      <div className="flex gap-2" role="tablist" aria-label="Lab panels">
+      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Lab panels">
         {panels.map((panel) => (
           <button
             key={panel.id}
@@ -209,7 +324,7 @@ export function TrendsDashboard() {
             aria-selected={activePanel === panel.id}
             onClick={() => handlePanelClick(panel.id)}
             className={cn(
-              'px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200',
+              'px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 min-h-[44px]',
               'focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2',
               activePanel === panel.id
                 ? 'bg-accent text-white shadow-soft'
@@ -231,8 +346,8 @@ export function TrendsDashboard() {
         ))}
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        <div className="col-span-2">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+        <div className="md:col-span-2">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
@@ -245,10 +360,50 @@ export function TrendsDashboard() {
                     <Badge variant="attention">Outside Range</Badge>
                   )}
                 </div>
-                <Button variant="ghost" size="sm" className="gap-1.5 text-xs">
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  View Sources
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    aria-label="Zoom out"
+                    onClick={() => setZoomLevel((prev) => Math.max(0, prev - 1))}
+                  >
+                    -
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    aria-label="Zoom in"
+                    onClick={() => setZoomLevel((prev) => Math.min(3, prev + 1))}
+                  >
+                    +
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={chartType === 'line' ? 'primary' : 'ghost'}
+                    size="sm"
+                    aria-label="Line chart"
+                    aria-pressed={chartType === 'line'}
+                    onClick={() => setChartType('line')}
+                  >
+                    Line
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={chartType === 'bar' ? 'primary' : 'ghost'}
+                    size="sm"
+                    aria-label="Bar chart"
+                    aria-pressed={chartType === 'bar'}
+                    onClick={() => setChartType('bar')}
+                  >
+                    Bar
+                  </Button>
+                  <Button variant="ghost" size="sm" className="gap-1.5 text-xs">
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    View Sources
+                  </Button>
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -266,65 +421,130 @@ export function TrendsDashboard() {
                 </div>
               ) : (
                 <>
-                  <div className="h-72">
+                  <div
+                    className="h-72 min-h-[200px]"
+                    data-testid="chart-container"
+                    data-zoom={zoomLevel}
+                    data-chart-type={chartType}
+                    data-drilldown-enabled="true"
+                    data-has-custom-tooltip="true"
+                  >
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart
-                        data={chartData}
-                        margin={{ top: 20, right: 20, left: 0, bottom: 0 }}
-                      >
-                        <CartesianGrid
-                          strokeDasharray="3 3"
-                          stroke="rgba(0,0,0,0.06)"
-                          vertical={false}
-                        />
-                        <XAxis
-                          dataKey="date"
-                          tick={{ fontSize: 12, fill: '#6B6B6B' }}
-                          tickLine={false}
-                          axisLine={{ stroke: 'rgba(0,0,0,0.08)' }}
-                        />
-                        <YAxis
-                          domain={['auto', 'auto']}
-                          tick={{ fontSize: 12, fill: '#6B6B6B' }}
-                          tickLine={false}
-                          axisLine={false}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: 'white',
-                            border: '1px solid rgba(0,0,0,0.08)',
-                            borderRadius: '12px',
-                            boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-                          }}
-                        />
-                        {trendData.ref_low !== null && (
-                          <ReferenceLine
-                            y={trendData.ref_low}
-                            stroke="#7BA387"
-                            strokeDasharray="4 4"
-                            strokeOpacity={0.6}
+                      {chartType === 'line' ? (
+                        <LineChart
+                          data={visibleChartData}
+                          margin={{ top: 20, right: 20, left: 0, bottom: 0 }}
+                        >
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            stroke="rgba(0,0,0,0.06)"
+                            vertical={false}
                           />
-                        )}
-                        {trendData.ref_high !== null && (
-                          <ReferenceLine
-                            y={trendData.ref_high}
-                            stroke="#7BA387"
-                            strokeDasharray="4 4"
-                            strokeOpacity={0.6}
+                          <XAxis
+                            dataKey="date"
+                            tick={{ fontSize: 12, fill: '#6B6B6B' }}
+                            tickLine={false}
+                            axisLine={{ stroke: 'rgba(0,0,0,0.08)' }}
                           />
-                        )}
-                        <Line
-                          type="monotone"
-                          dataKey="value"
-                          stroke="#2D7D6F"
-                          strokeWidth={2.5}
-                          dot={{ fill: '#2D7D6F', strokeWidth: 0, r: 5 }}
-                          activeDot={{ r: 7, fill: '#2D7D6F' }}
-                          animationDuration={prefersReducedMotion ? 0 : 800}
-                        />
-                      </LineChart>
+                          <YAxis
+                            domain={['auto', 'auto']}
+                            tick={{ fontSize: 12, fill: '#6B6B6B' }}
+                            tickLine={false}
+                            axisLine={false}
+                          />
+                          <Tooltip
+                            content={
+                              <TrendTooltip
+                                unit={trendData.unit}
+                                refLow={trendData.ref_low}
+                                refHigh={trendData.ref_high}
+                              />
+                            }
+                          />
+                          {trendData.ref_low !== null && (
+                            <ReferenceLine
+                              y={trendData.ref_low}
+                              stroke="#7BA387"
+                              strokeDasharray="4 4"
+                              strokeOpacity={0.6}
+                            />
+                          )}
+                          {trendData.ref_high !== null && (
+                            <ReferenceLine
+                              y={trendData.ref_high}
+                              stroke="#7BA387"
+                              strokeDasharray="4 4"
+                              strokeOpacity={0.6}
+                            />
+                          )}
+                          <Line
+                            type="monotone"
+                            dataKey="value"
+                            stroke="#2D7D6F"
+                            strokeWidth={2.5}
+                            dot={{ fill: '#2D7D6F', strokeWidth: 0, r: 5 }}
+                            activeDot={{ r: 7, fill: '#2D7D6F' }}
+                            animationDuration={prefersReducedMotion ? 0 : 800}
+                          />
+                        </LineChart>
+                      ) : (
+                        <BarChart
+                          data={visibleChartData}
+                          margin={{ top: 20, right: 20, left: 0, bottom: 0 }}
+                        >
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            stroke="rgba(0,0,0,0.06)"
+                            vertical={false}
+                          />
+                          <XAxis
+                            dataKey="date"
+                            tick={{ fontSize: 12, fill: '#6B6B6B' }}
+                            tickLine={false}
+                            axisLine={{ stroke: 'rgba(0,0,0,0.08)' }}
+                          />
+                          <YAxis
+                            domain={['auto', 'auto']}
+                            tick={{ fontSize: 12, fill: '#6B6B6B' }}
+                            tickLine={false}
+                            axisLine={false}
+                          />
+                          <Tooltip
+                            content={
+                              <TrendTooltip
+                                unit={trendData.unit}
+                                refLow={trendData.ref_low}
+                                refHigh={trendData.ref_high}
+                              />
+                            }
+                          />
+                          <Bar dataKey="value" fill="#2D7D6F" radius={[6, 6, 0, 0]} />
+                        </BarChart>
+                      )}
                     </ResponsiveContainer>
                   </div>
+
+                  <table
+                    className="sr-only"
+                    aria-label={`${trendData.analyte_display_name} trend data`}
+                  >
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Value</th>
+                        <th>Unit</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {chartData.map((point) => (
+                        <tr key={`${point.date}-${point.value}`}>
+                          <td>{point.date}</td>
+                          <td>{point.value}</td>
+                          <td>{trendData.unit}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
 
                   <div className="mt-4 p-4 rounded-xl bg-surface-muted">
                     <div className="flex items-start gap-3">

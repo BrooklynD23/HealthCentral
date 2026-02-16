@@ -9,6 +9,7 @@ from models.fhir_resources import (
     FHIRBundle,
     map_observation_to_fhir,
     create_fhir_bundle,
+    validate_fhir_bundle,
 )
 
 
@@ -103,3 +104,32 @@ class TestFHIRBundle:
         data = bundle.model_dump(by_alias=True, exclude_none=True)
         json_str = json.dumps(data)
         assert '"resourceType": "Bundle"' in json_str
+
+
+class TestFHIRValidationHooks:
+    def test_validation_passes_for_generated_bundle(self):
+        patient = FHIRPatient(id="p1", display_name="Valid Patient")
+        obs = {
+            "id": "obs-1",
+            "analyte_canonical": "glucose",
+            "value": 95.0,
+            "unit": "mg/dL",
+            "collected_at": datetime(2024, 1, 15),
+        }
+        fhir_obs = map_observation_to_fhir(obs, patient_ref="Patient/p1")
+        bundle = create_fhir_bundle(patient, [fhir_obs])
+        issues = validate_fhir_bundle(bundle.model_dump(by_alias=True, exclude_none=True))
+        assert issues == []
+
+    def test_validation_reports_missing_required_fields(self):
+        invalid_bundle = {
+            "resourceType": "Bundle",
+            "type": "collection",
+            "entry": [
+                {"resource": {"resourceType": "Observation", "id": "obs-1"}}
+            ],
+        }
+        issues = validate_fhir_bundle(invalid_bundle)
+        diagnostics = {issue["diagnostics"] for issue in issues}
+        assert "Observation.status is required" in diagnostics
+        assert "Observation.code is required" in diagnostics

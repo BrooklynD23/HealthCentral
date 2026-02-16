@@ -19,6 +19,14 @@ Hemoglobin A1c,6.5,%,4.0-5.6,H,2024-01-15
 Cholesterol Total,210,mg/dL,< 200,H,2024-01-15
 """
 
+SAMPLE_QUEST_PROVIDER_CSV = b"""Test Name,Result,Units,Reference Range,Abnormal Flag,Collection Date
+Glucose,95,mg/dL,70-100,,2024-01-15
+"""
+
+SAMPLE_LABCORP_PROVIDER_CSV = b"""Test,Result,Units,Reference Interval,Flag,Collection Date
+Glucose,95,mg/dL,70-100,,2024-01-15
+"""
+
 
 class TestGenericCSVImporter:
     def setup_method(self):
@@ -67,6 +75,11 @@ class TestQuestImporter:
         result = QuestImporter().parse(SAMPLE_CSV, "quest_results.csv")
         assert len(result.observations) >= 1
 
+    def test_parse_provider_specific_collection_date_header(self):
+        result = QuestImporter().parse(SAMPLE_QUEST_PROVIDER_CSV, "quest_results.csv")
+        assert len(result.observations) == 1
+        assert result.observations[0].collected_at == datetime(2024, 1, 15)
+
 
 # --- LabCorp ---
 
@@ -79,6 +92,12 @@ class TestLabCorpImporter:
     def test_parse_standard_csv(self):
         result = LabCorpImporter().parse(SAMPLE_CSV, "labcorp_results.csv")
         assert len(result.observations) >= 1
+
+    def test_parse_provider_specific_reference_interval_header(self):
+        result = LabCorpImporter().parse(SAMPLE_LABCORP_PROVIDER_CSV, "labcorp_results.csv")
+        assert len(result.observations) == 1
+        assert result.observations[0].ref_low == 70.0
+        assert result.observations[0].ref_high == 100.0
 
 
 # --- HL7 v2 ---

@@ -69,6 +69,14 @@ def _parse_reference_range(range_str: str) -> tuple[Optional[float], Optional[fl
 class GenericCSVImporter(BaseImporter):
     source_name = "generic_csv"
     supported_extensions = ["csv"]
+    column_aliases: dict[str, list[str]] = COLUMN_ALIASES
+
+    def __init__(self):
+        # Copy aliases per instance so subclasses/tests can customize safely.
+        self.column_aliases = {
+            field: list(aliases)
+            for field, aliases in self.column_aliases.items()
+        }
 
     def parse(self, file_bytes: bytes, filename: str) -> ImportResult:
         try:
@@ -95,14 +103,15 @@ class GenericCSVImporter(BaseImporter):
             )
 
         # Detect column mappings
-        col_analyte = _detect_column(headers, COLUMN_ALIASES["analyte"])
-        col_value = _detect_column(headers, COLUMN_ALIASES["value"])
-        col_unit = _detect_column(headers, COLUMN_ALIASES["unit"])
-        col_date = _detect_column(headers, COLUMN_ALIASES["date"])
-        col_ref_low = _detect_column(headers, COLUMN_ALIASES["ref_low"])
-        col_ref_high = _detect_column(headers, COLUMN_ALIASES["ref_high"])
-        col_flag = _detect_column(headers, COLUMN_ALIASES["flag"])
-        col_ref_range = _detect_column(headers, COLUMN_ALIASES["reference_range"])
+        aliases = self.column_aliases
+        col_analyte = _detect_column(headers, aliases["analyte"])
+        col_value = _detect_column(headers, aliases["value"])
+        col_unit = _detect_column(headers, aliases["unit"])
+        col_date = _detect_column(headers, aliases["date"])
+        col_ref_low = _detect_column(headers, aliases["ref_low"])
+        col_ref_high = _detect_column(headers, aliases["ref_high"])
+        col_flag = _detect_column(headers, aliases["flag"])
+        col_ref_range = _detect_column(headers, aliases["reference_range"])
 
         if col_analyte is None:
             raise ValueError(

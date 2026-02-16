@@ -145,20 +145,20 @@ export function SettingsPage() {
             <CardContent className="p-6">
               {settings?.hardware_info ? (
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="rounded-xl bg-surface-muted p-4">
+                  <div className="rounded-xl bg-surface-muted p-4" aria-label={`RAM: ${settings.hardware_info.ram_total_gb.toFixed(1)} GB`}>
                     <p className="text-xs text-ink-tertiary mb-1">RAM</p>
                     <p className="text-sm font-medium text-ink">{settings.hardware_info.ram_total_gb.toFixed(1)} GB</p>
                   </div>
-                  <div className="rounded-xl bg-surface-muted p-4">
+                  <div className="rounded-xl bg-surface-muted p-4" aria-label={`CPU: ${settings.hardware_info.cpu_cores} cores`}>
                     <p className="text-xs text-ink-tertiary mb-1">CPU</p>
                     <p className="text-sm font-medium text-ink">{settings.hardware_info.cpu_cores} cores</p>
                     <p className="text-xs text-ink-tertiary truncate">{settings.hardware_info.cpu_name || 'Unknown'}</p>
                   </div>
-                  <div className="rounded-xl bg-surface-muted p-4">
+                  <div className="rounded-xl bg-surface-muted p-4" aria-label={`Disk free: ${settings.hardware_info.disk_free_gb.toFixed(1)} GB`}>
                     <p className="text-xs text-ink-tertiary mb-1">Disk Free</p>
                     <p className="text-sm font-medium text-ink">{settings.hardware_info.disk_free_gb.toFixed(1)} GB</p>
                   </div>
-                  <div className="rounded-xl bg-surface-muted p-4">
+                  <div className="rounded-xl bg-surface-muted p-4" aria-label={`GPU: ${settings.hardware_info.gpu_name || 'Not detected'}`}>
                     <p className="text-xs text-ink-tertiary mb-1">GPU</p>
                     <p className="text-sm font-medium text-ink">
                       {settings.hardware_info.gpu_name || 'Not detected'}
@@ -193,7 +193,7 @@ export function SettingsPage() {
                 Model Tier
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-6 space-y-3">
+            <CardContent className="p-6 space-y-3" role="radiogroup" aria-label="Model tier">
               {tiersData?.tiers.map((tier) => {
                 const desc = tierDescriptions[tier.tier];
                 const isSelected = settings?.preferred_tier === tier.tier;
@@ -203,6 +203,9 @@ export function SettingsPage() {
                 return (
                   <div
                     key={tier.tier}
+                    role="radio"
+                    aria-checked={isSelected}
+                    aria-label={desc?.label || tier.tier}
                     className={cn(
                       'flex items-center justify-between px-4 py-4 rounded-xl border transition-colors',
                       isSelected
@@ -279,7 +282,14 @@ export function SettingsPage() {
                       <p className="text-sm font-medium text-ink capitalize">Downloading {tier}...</p>
                       <p className="text-xs text-ink-secondary">{Math.round(progress.progress)}%</p>
                     </div>
-                    <div className="w-full bg-black/[0.06] rounded-full h-2">
+                    <div
+                      className="w-full bg-black/[0.06] rounded-full h-2"
+                      role="progressbar"
+                      aria-valuenow={Math.round(progress.progress)}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-label={`Downloading ${tier} model`}
+                    >
                       <div
                         className="bg-accent rounded-full h-2 transition-all duration-300"
                         style={{ width: `${Math.round(progress.progress)}%` }}
@@ -336,6 +346,9 @@ export function SettingsPage() {
               </p>
 
               <button
+                role="switch"
+                aria-checked={externalEnabled}
+                aria-label="Use External API"
                 onClick={handleExternalApiToggle}
                 className={cn(
                   'w-full flex items-center justify-between px-3 py-3 rounded-xl',

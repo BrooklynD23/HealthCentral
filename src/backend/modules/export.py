@@ -12,7 +12,37 @@ from dataclasses import dataclass
 from datetime import datetime
 import json
 import csv
+import re
+from html import escape
 from io import StringIO
+
+FORMULA_PREFIXES = ("=", "+", "-", "@")
+FORMULA_BYPASS_PREFIXES = (" ", "\t", "\r", "\n")
+HEX_COLOR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
+
+
+def sanitize_spreadsheet_cell(value):
+    """
+    Prevent formula injection in spreadsheet software.
+
+    Prefixes risky string values with a single quote so spreadsheet apps
+    interpret them as literal text.
+    """
+    if isinstance(value, str):
+        normalized = value.lstrip("".join(FORMULA_BYPASS_PREFIXES))
+        if normalized[:1] in FORMULA_PREFIXES:
+            return f"'{value}"
+    return value
+
+
+def _escape_html(value: object) -> str:
+    """HTML-escape untrusted content before interpolation."""
+    return escape(str(value), quote=True)
+
+
+def _escape_html_multiline(value: object) -> str:
+    """Escape untrusted text while preserving line breaks."""
+    return _escape_html(value).replace("\n", "<br>")
 
 
 @dataclass
@@ -220,10 +250,14 @@ class ExportModule:
         if not data_points:
             return b''
 
-        import matplotlib
-        matplotlib.use('Agg')
-        import matplotlib.pyplot as plt
-        import matplotlib.dates as mdates
+        try:
+            import matplotlib
+            matplotlib.use('Agg')
+            import matplotlib.pyplot as plt
+            import matplotlib.dates as mdates
+        except ImportError:
+            # Keep PDF/HTML export functional in environments without plotting deps.
+            return self._build_fallback_chart_png()
         from io import BytesIO
 
         dates = [p["collected_at"] for p in data_points]
@@ -261,6 +295,43 @@ class ExportModule:
         buf.seek(0)
         return buf.read()
 
+    def _build_fallback_chart_png(self, width: int = 480, height: int = 240) -> bytes:
+        """Generate a valid placeholder PNG when matplotlib is unavailable."""
+        import struct
+        import zlib
+
+        width = max(width, 2)
+        height = max(height, 2)
+
+        def chunk(tag: bytes, payload: bytes) -> bytes:
+            crc = zlib.crc32(tag + payload) & 0xFFFFFFFF
+            return (
+                struct.pack("!I", len(payload))
+                + tag
+                + payload
+                + struct.pack("!I", crc)
+            )
+
+        raw = bytearray()
+        for y in range(height):
+            raw.append(0)  # Filter method 0 for each scanline.
+            for x in range(width):
+                base = 230 - int((y / (height - 1)) * 40)
+                stripe = 18 if (x // 24) % 2 == 0 else 0
+                r = max(0, min(255, base - stripe))
+                g = max(0, min(255, base + 10))
+                b = max(0, min(255, 245 - stripe))
+                raw.extend((r, g, b))
+
+        ihdr = struct.pack("!IIBBBBB", width, height, 8, 2, 0, 0, 0)
+        idat = zlib.compress(bytes(raw), level=6)
+        return (
+            b"\x89PNG\r\n\x1a\n"
+            + chunk(b"IHDR", ihdr)
+            + chunk(b"IDAT", idat)
+            + chunk(b"IEND", b"")
+        )
+
     def export_csv(
         self,
         observations: list[dict],
@@ -293,14 +364,14 @@ class ExportModule:
         for obs in sorted(observations, key=lambda x: (x.get("analyte_canonical", ""), x.get("collected_at", datetime.min))):
             date_str = obs.get("collected_at", "").strftime("%Y-%m-%d") if obs.get("collected_at") else ""
             writer.writerow([
-                date_str,
-                obs.get("analyte_canonical", ""),
-                obs.get("value", ""),
-                obs.get("unit", ""),
-                obs.get("ref_low", ""),
-                obs.get("ref_high", ""),
-                obs.get("flag", ""),
-                "Yes" if obs.get("user_verified") else "No",
+                sanitize_spreadsheet_cell(date_str),
+                sanitize_spreadsheet_cell(obs.get("analyte_canonical", "")),
+                sanitize_spreadsheet_cell(obs.get("value", "")),
+                sanitize_spreadsheet_cell(obs.get("unit", "")),
+                sanitize_spreadsheet_cell(obs.get("ref_low", "")),
+                sanitize_spreadsheet_cell(obs.get("ref_high", "")),
+                sanitize_spreadsheet_cell(obs.get("flag", "")),
+                sanitize_spreadsheet_cell("Yes" if obs.get("user_verified") else "No"),
             ])
         
         return output.getvalue()
@@ -337,13 +408,15 @@ class ExportModule:
         """
         Export data as formatted Excel workbook.
 
-        Returns xlsx bytes with sheets: Summary, Labs, Trends.
+        Returns xlsx bytes with sheets: Summary, Labs, Medications, Trends.
         Includes conditional formatting for abnormal values.
         """
         from openpyxl import Workbook
         from openpyxl.styles import PatternFill, Font, Alignment
+        from openpyxl.worksheet.datavalidation import DataValidation
         from io import BytesIO
 
+        medications = medications or []
         wb = Workbook()
         abnormal_fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
         header_font = Font(bold=True, size=11)
@@ -358,6 +431,19 @@ class ExportModule:
         ws_summary.append([f"Total Observations: {len(observations)}"])
         abnormal_count = sum(1 for o in observations if o.get("is_abnormal"))
         ws_summary.append([f"Abnormal Values: {abnormal_count}"])
+        ws_summary.append([f"Medications: {len(medications)}"])
+        ws_summary.append([])
+        ws_summary.append(["Workbook Metrics", "Value"])
+        ws_summary["A7"].font = header_font
+        ws_summary["B7"].font = header_font
+        ws_summary["A7"].fill = header_fill
+        ws_summary["B7"].fill = header_fill
+        ws_summary.append(["Total Observations (formula)", '=MAX(0,COUNTA(Labs!B:B)-1)'])
+        ws_summary.append([
+            "Abnormal Values (formula)",
+            '=MAX(0,COUNTIFS(Labs!A:A,"<>",Labs!G:G,"<>")-1)',
+        ])
+        ws_summary.append(["Medication Count (formula)", '=MAX(0,COUNTA(Medications!A:A)-1)'])
         ws_summary.append([])
         ws_summary.append(["This export contains data from your uploaded lab reports."])
         ws_summary.append(["Reference ranges are as stated in each source document."])
@@ -380,14 +466,14 @@ class ExportModule:
         for obs in sorted_obs:
             date_str = obs["collected_at"].strftime("%Y-%m-%d") if obs.get("collected_at") else ""
             row = [
-                date_str,
-                obs.get("analyte_canonical", ""),
-                obs.get("value", ""),
-                obs.get("unit", ""),
-                obs.get("ref_low", ""),
-                obs.get("ref_high", ""),
-                obs.get("flag", ""),
-                "Yes" if obs.get("user_verified") else "No",
+                sanitize_spreadsheet_cell(date_str),
+                sanitize_spreadsheet_cell(obs.get("analyte_canonical", "")),
+                sanitize_spreadsheet_cell(obs.get("value", "")),
+                sanitize_spreadsheet_cell(obs.get("unit", "")),
+                sanitize_spreadsheet_cell(obs.get("ref_low", "")),
+                sanitize_spreadsheet_cell(obs.get("ref_high", "")),
+                sanitize_spreadsheet_cell(obs.get("flag", "")),
+                sanitize_spreadsheet_cell("Yes" if obs.get("user_verified") else "No"),
             ]
             ws_labs.append(row)
             if obs.get("is_abnormal"):
@@ -395,10 +481,93 @@ class ExportModule:
                 for col_idx in range(1, len(lab_headers) + 1):
                     ws_labs.cell(row=row_idx, column=col_idx).fill = abnormal_fill
 
+        flag_validation = DataValidation(
+            type="list",
+            formula1='"N,L,H,LL,HH,CRITICAL"',
+            allow_blank=True,
+        )
+        verified_validation = DataValidation(
+            type="list",
+            formula1='"Yes,No"',
+            allow_blank=False,
+        )
+        ws_labs.add_data_validation(flag_validation)
+        ws_labs.add_data_validation(verified_validation)
+        flag_validation.add("G2:G1048576")
+        verified_validation.add("H2:H1048576")
+
         # Auto-width columns
         for col in ws_labs.columns:
             max_len = max((len(str(cell.value or "")) for cell in col), default=10)
             ws_labs.column_dimensions[col[0].column_letter].width = min(max_len + 2, 30)
+
+        # --- Medications Sheet ---
+        ws_meds = wb.create_sheet("Medications")
+        medication_headers = [
+            "Medication",
+            "Generic Name",
+            "Dosage",
+            "Frequency",
+            "Active",
+            "Reminder Enabled",
+            "Started",
+            "Ended",
+            "Instructions",
+        ]
+        ws_meds.append(medication_headers)
+        for col_idx, _ in enumerate(medication_headers, 1):
+            cell = ws_meds.cell(row=1, column=col_idx)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal="center")
+        ws_meds.freeze_panes = "A2"
+
+        for med in medications:
+            dosage_parts = []
+            amount = med.get("dosage_amount")
+            unit = med.get("dosage_unit")
+            if amount is not None:
+                dosage_parts.append(str(amount))
+            if unit:
+                dosage_parts.append(str(unit))
+            dosage = " ".join(dosage_parts)
+
+            started_at = med.get("started_at")
+            ended_at = med.get("ended_at")
+            started_str = (
+                started_at.strftime("%Y-%m-%d")
+                if hasattr(started_at, "strftime")
+                else str(started_at or "")
+            )
+            ended_str = (
+                ended_at.strftime("%Y-%m-%d")
+                if hasattr(ended_at, "strftime")
+                else str(ended_at or "")
+            )
+
+            ws_meds.append([
+                sanitize_spreadsheet_cell(med.get("name", "")),
+                sanitize_spreadsheet_cell(med.get("generic_name", "")),
+                sanitize_spreadsheet_cell(dosage),
+                sanitize_spreadsheet_cell(med.get("frequency", "")),
+                "TRUE" if med.get("is_active", True) else "FALSE",
+                "TRUE" if med.get("reminder_enabled", False) else "FALSE",
+                sanitize_spreadsheet_cell(started_str),
+                sanitize_spreadsheet_cell(ended_str),
+                sanitize_spreadsheet_cell(med.get("instructions", "")),
+            ])
+
+        bool_validation = DataValidation(
+            type="list",
+            formula1='"TRUE,FALSE"',
+            allow_blank=False,
+        )
+        ws_meds.add_data_validation(bool_validation)
+        bool_validation.add("E2:F1048576")
+
+        for col in ws_meds.columns:
+            max_len = max((len(str(cell.value or "")) for cell in col), default=10)
+            ws_meds.column_dimensions[col[0].column_letter].width = min(max_len + 2, 40)
 
         # --- Trends Sheet ---
         ws_trends = wb.create_sheet("Trends")
@@ -412,8 +581,8 @@ class ExportModule:
 
         for trend in trends:
             ws_trends.append([
-                trend.get("analyte", ""),
-                trend.get("trend_direction", ""),
+                sanitize_spreadsheet_cell(trend.get("analyte", "")),
+                sanitize_spreadsheet_cell(trend.get("trend_direction", "")),
                 round(trend.get("delta_percent", 0), 1),
             ])
 
@@ -423,46 +592,82 @@ class ExportModule:
         return buf.read()
 
     def render_html_summary(
-        self, summary_data: dict, chart_images: Optional[dict[str, bytes]] = None
+        self,
+        summary_data: dict,
+        chart_images: Optional[dict[str, bytes]] = None,
+        template_options: Optional[dict] = None,
     ) -> str:
         """
         Render a doctor summary as an inline-CSS HTML document.
 
         Args:
             summary_data: Summary data dict with sections, key_findings, etc.
+            template_options: Optional branding/section customization options.
 
         Returns:
             HTML string suitable for email/print
         """
+        template_options = template_options or {}
+
+        def _flag(name: str, default: bool = True) -> bool:
+            value = template_options.get(name)
+            return default if value is None else bool(value)
+
+        brand_name = str(template_options.get("brand_name") or "HealthCentral").strip()[:80]
+        brand_tagline = str(
+            template_options.get("brand_tagline") or "Lab Results Summary"
+        ).strip()[:120]
+        accent_color = str(template_options.get("accent_color") or "#2D7D6F").strip()
+        if not HEX_COLOR_RE.fullmatch(accent_color):
+            accent_color = "#2D7D6F"
+        safe_brand_name = _escape_html(brand_name)
+        safe_brand_tagline = _escape_html(brand_tagline)
+
+        include_key_findings = _flag("include_key_findings", default=True)
+        include_overview = _flag("include_overview", default=True)
+        include_abnormal = _flag("include_abnormal", default=True)
+        include_trends = _flag("include_trends", default=True)
+        include_questions = _flag("include_questions", default=True)
+        include_disclaimer = _flag("include_disclaimer", default=True)
+
         date_range = summary_data.get("date_range", "")
+        safe_date_range = _escape_html(date_range)
         key_findings = summary_data.get("key_findings", [])
         sections = summary_data.get("sections", [])
         questions = summary_data.get("questions", [])
 
         findings_html = ""
         for finding in key_findings:
-            # Color-code by severity
-            color = "#b91c1c" if "critical" in finding.lower() else "#d97706" if any(
-                f in finding.lower() for f in ["high", "low", "abnormal"]
+            finding_text = str(finding)
+            lower = finding_text.lower()
+            color = "#b91c1c" if "critical" in lower else "#d97706" if any(
+                f in lower for f in ["high", "low", "abnormal"]
             ) else "#374151"
-            findings_html += f'<li style="color:{color};margin-bottom:4px;">{finding}</li>'
+            findings_html += f'<li style="color:{color};margin-bottom:4px;">{_escape_html(finding_text)}</li>'
 
         sections_html = ""
         for section in sections:
-            title = section.get("title", "")
-            content = section.get("content", "").replace("\n", "<br>")
+            title = str(section.get("title", ""))
+            normalized_title = title.lower()
+            if "overview" in normalized_title and not include_overview:
+                continue
+            if "outside reference range" in normalized_title and not include_abnormal:
+                continue
+            if "trend" in normalized_title and not include_trends:
+                continue
+            content = _escape_html_multiline(section.get("content", ""))
             sections_html += f"""
             <div style="margin-bottom:20px;">
-                <h3 style="color:#1f2937;font-size:16px;margin-bottom:8px;border-bottom:1px solid #e5e7eb;padding-bottom:4px;">{title}</h3>
+                <h3 style="color:#1f2937;font-size:16px;margin-bottom:8px;border-bottom:1px solid #e5e7eb;padding-bottom:4px;">{_escape_html(title)}</h3>
                 <p style="color:#4b5563;font-size:14px;line-height:1.6;">{content}</p>
             </div>"""
 
         questions_html = ""
-        if questions:
+        if include_questions and questions:
             questions_html = '<div style="margin-top:20px;"><h3 style="color:#1f2937;font-size:16px;margin-bottom:8px;">Questions for Your Provider</h3><ul style="color:#4b5563;font-size:14px;">'
             for q in questions:
                 q_text = q.get("question", q) if isinstance(q, dict) else q
-                questions_html += f"<li style='margin-bottom:6px;'>{q_text}</li>"
+                questions_html += f"<li style='margin-bottom:6px;'>{_escape_html(q_text)}</li>"
             questions_html += "</ul></div>"
 
         charts_html = ""
@@ -471,20 +676,30 @@ class ExportModule:
             charts_html = '<div style="margin-top:24px;"><h3 style="color:#1f2937;font-size:16px;margin-bottom:12px;">Trend Charts</h3>'
             for analyte_name, png_bytes in chart_images.items():
                 b64 = base64.b64encode(png_bytes).decode('ascii')
-                charts_html += f'<div style="margin-bottom:16px;"><img src="data:image/png;base64,{b64}" alt="{analyte_name} trend chart" style="max-width:100%;border:1px solid #e5e7eb;border-radius:8px;"></div>'
+                safe_analyte = _escape_html(analyte_name)
+                charts_html += f'<div style="margin-bottom:16px;"><img src="data:image/png;base64,{b64}" alt="{safe_analyte} trend chart" style="max-width:100%;border:1px solid #e5e7eb;border-radius:8px;"></div>'
             charts_html += '</div>'
+
+        disclaimer_html = ""
+        if include_disclaimer:
+            disclaimer_html = (
+                '<p style="color:#9ca3af;font-size:12px;font-style:italic;">'
+                "This is an AI-assisted summary of your lab results. It is not medical advice. "
+                "Please discuss all findings with your healthcare provider."
+                "</p>"
+            )
 
         html = f"""<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><title>HealthCentral Summary</title></head>
+<head><meta charset="UTF-8"><title>{safe_brand_name} Summary</title></head>
 <body style="font-family:'Source Sans 3',Arial,sans-serif;max-width:800px;margin:0 auto;padding:24px;background:#fff;">
-    <div style="background:#2D7D6F;color:white;padding:20px 24px;border-radius:12px;margin-bottom:24px;">
-        <h1 style="margin:0;font-family:'Fraunces',Georgia,serif;font-size:24px;">HealthCentral</h1>
-        <p style="margin:4px 0 0;font-size:14px;opacity:0.9;">Lab Results Summary</p>
-        {f'<p style="margin:4px 0 0;font-size:13px;opacity:0.8;">{date_range}</p>' if date_range else ''}
+    <div style="background:{accent_color};color:white;padding:20px 24px;border-radius:12px;margin-bottom:24px;">
+        <h1 style="margin:0;font-family:'Fraunces',Georgia,serif;font-size:24px;">{safe_brand_name}</h1>
+        <p style="margin:4px 0 0;font-size:14px;opacity:0.9;">{safe_brand_tagline}</p>
+        {f'<p style="margin:4px 0 0;font-size:13px;opacity:0.8;">{safe_date_range}</p>' if date_range else ''}
     </div>
 
-    {f'<div style="margin-bottom:20px;"><h2 style="color:#1f2937;font-size:18px;">Key Findings</h2><ul style="padding-left:20px;">{findings_html}</ul></div>' if findings_html else ''}
+    {f'<div style="margin-bottom:20px;"><h2 style="color:#1f2937;font-size:18px;">Key Findings</h2><ul style="padding-left:20px;">{findings_html}</ul></div>' if include_key_findings and findings_html else ''}
 
     {sections_html}
 
@@ -493,18 +708,18 @@ class ExportModule:
     {charts_html}
 
     <div style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;">
-        <p style="color:#9ca3af;font-size:12px;font-style:italic;">
-            This is an AI-assisted summary of your lab results. It is not medical advice.
-            Please discuss all findings with your healthcare provider.
-        </p>
-        <p style="color:#9ca3af;font-size:11px;">Generated by HealthCentral &bull; {datetime.utcnow().strftime('%B %d, %Y')}</p>
+        {disclaimer_html}
+        <p style="color:#9ca3af;font-size:11px;">Generated by {safe_brand_name} &bull; {datetime.utcnow().strftime('%B %d, %Y')}</p>
     </div>
 </body>
 </html>"""
         return html
 
     def render_pdf_summary(
-        self, summary_data: dict, chart_images: Optional[dict[str, bytes]] = None
+        self,
+        summary_data: dict,
+        chart_images: Optional[dict[str, bytes]] = None,
+        template_options: Optional[dict] = None,
     ) -> bytes:
         """
         Render a doctor summary as PDF using WeasyPrint.
@@ -526,7 +741,11 @@ class ExportModule:
                 "System dependencies needed: libpango1.0-dev libgdk-pixbuf2.0-dev"
             )
 
-        html_content = self.render_html_summary(summary_data, chart_images=chart_images)
+        html_content = self.render_html_summary(
+            summary_data,
+            chart_images=chart_images,
+            template_options=template_options,
+        )
         pdf_bytes = HTML(string=html_content).write_pdf()
         return pdf_bytes
 

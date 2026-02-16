@@ -53,6 +53,10 @@ export function ExportPage() {
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
   const [exportFormat, setExportFormat] = useState<ExportFormat>('text');
+  const [brandName, setBrandName] = useState('HealthCentral');
+  const [brandTagline, setBrandTagline] = useState('Lab Results Summary');
+  const [accentColor, setAccentColor] = useState('#2D7D6F');
+  const [includeCharts, setIncludeCharts] = useState(false);
 
   // API hooks
   const exportCSV = useExportCSV();
@@ -111,7 +115,26 @@ export function ExportPage() {
 
   const handleDownloadSummary = () => {
     if (summary) {
-      downloadSummary.mutate({ summaryId: summary.summary_id, format: exportFormat });
+      const includeOverview = sections.find((s) => s.id === 'summary')?.included ?? true;
+      const includeTrends = sections.find((s) => s.id === 'trends')?.included ?? true;
+      const includeAbnormal = sections.find((s) => s.id === 'flagged')?.included ?? true;
+      const includeQuestions = sections.find((s) => s.id === 'questions')?.included ?? false;
+
+      downloadSummary.mutate({
+        summaryId: summary.summary_id,
+        format: exportFormat,
+        includeCharts: includeCharts && exportFormat !== 'text',
+        templateOptions: {
+          brandName,
+          brandTagline,
+          accentColor,
+          includeOverview,
+          includeAbnormal,
+          includeTrends,
+          includeQuestions,
+          includeKeyFindings: includeAbnormal,
+        },
+      });
     }
   };
 
@@ -125,7 +148,7 @@ export function ExportPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-semibold text-ink tracking-tight">
             Export Summary
@@ -134,7 +157,7 @@ export function ExportPage() {
             Generate a clinician-ready summary of your results
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center flex-wrap gap-3">
           <Button
             variant="secondary"
             className="gap-2"
@@ -217,8 +240,8 @@ export function ExportPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        <div className="col-span-2">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+        <div className="md:col-span-2">
           <Card>
             <CardHeader className="border-b border-black/[0.04]">
               <CardTitle className="flex items-center justify-between">
@@ -375,7 +398,7 @@ export function ExportPage() {
                   aria-pressed={section.included}
                   aria-label={`${section.included ? 'Exclude' : 'Include'} ${section.label}`}
                   className={cn(
-                    'w-full flex items-center justify-between px-3 py-3 rounded-xl',
+                    'w-full flex items-center justify-between px-3 py-3 rounded-xl min-h-[44px]',
                     'transition-colors duration-200',
                     section.included
                       ? 'bg-accent-subtle'
@@ -444,6 +467,52 @@ export function ExportPage() {
                   </div>
                 </button>
               ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Template Branding</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div>
+                <label className="text-xs text-ink-tertiary mb-1 block">Brand name</label>
+                <input
+                  type="text"
+                  value={brandName}
+                  onChange={(e) => setBrandName(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded-lg border border-black/[0.08] text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-ink-tertiary mb-1 block">Tagline</label>
+                <input
+                  type="text"
+                  value={brandTagline}
+                  onChange={(e) => setBrandTagline(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded-lg border border-black/[0.08] text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-ink-tertiary mb-1 block">Accent color</label>
+                <input
+                  type="text"
+                  value={accentColor}
+                  onChange={(e) => setAccentColor(e.target.value)}
+                  placeholder="#2D7D6F"
+                  className="w-full px-3 py-1.5 rounded-lg border border-black/[0.08] text-sm"
+                />
+              </div>
+              <label className="flex items-center gap-2 text-sm text-ink-secondary">
+                <input
+                  type="checkbox"
+                  checked={includeCharts}
+                  onChange={(e) => setIncludeCharts(e.target.checked)}
+                  className="rounded border-black/[0.12]"
+                  disabled={exportFormat === 'text'}
+                />
+                Include trend charts in HTML/PDF
+              </label>
             </CardContent>
           </Card>
 

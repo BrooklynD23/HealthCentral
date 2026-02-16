@@ -47,6 +47,17 @@ export interface ExportFilters {
 
 export type ExportFormat = 'text' | 'html' | 'pdf';
 
+export interface SummaryTemplateOptions {
+  brandName?: string;
+  brandTagline?: string;
+  accentColor?: string;
+  includeOverview?: boolean;
+  includeAbnormal?: boolean;
+  includeTrends?: boolean;
+  includeQuestions?: boolean;
+  includeKeyFindings?: boolean;
+}
+
 const QUERY_KEY = 'export';
 
 // Helper: trigger file download from blob
@@ -93,9 +104,28 @@ async function downloadSummary(
   summaryId: string,
   format: ExportFormat = 'text',
   includeCharts: boolean = false,
+  templateOptions?: SummaryTemplateOptions,
 ): Promise<{ blob: Blob; contentType: string; extension: string }> {
   const params: Record<string, string> = { format };
   if (includeCharts) params.include_charts = 'true';
+  if (templateOptions?.brandName) params.brand_name = templateOptions.brandName;
+  if (templateOptions?.brandTagline) params.brand_tagline = templateOptions.brandTagline;
+  if (templateOptions?.accentColor) params.accent_color = templateOptions.accentColor;
+  if (templateOptions?.includeOverview !== undefined) {
+    params.include_overview = String(templateOptions.includeOverview);
+  }
+  if (templateOptions?.includeAbnormal !== undefined) {
+    params.include_abnormal = String(templateOptions.includeAbnormal);
+  }
+  if (templateOptions?.includeTrends !== undefined) {
+    params.include_trends = String(templateOptions.includeTrends);
+  }
+  if (templateOptions?.includeQuestions !== undefined) {
+    params.include_questions = String(templateOptions.includeQuestions);
+  }
+  if (templateOptions?.includeKeyFindings !== undefined) {
+    params.include_key_findings = String(templateOptions.includeKeyFindings);
+  }
 
   const response = await apiGetRaw(
     `/export/doctor-summary/${summaryId}/download`,
@@ -174,11 +204,12 @@ export function useGenerateSummary() {
  */
 export function useDownloadSummary() {
   return useMutation({
-    mutationFn: ({ summaryId, format, includeCharts }: {
+    mutationFn: ({ summaryId, format, includeCharts, templateOptions }: {
       summaryId: string;
       format: ExportFormat;
       includeCharts?: boolean;
-    }) => downloadSummary(summaryId, format, includeCharts),
+      templateOptions?: SummaryTemplateOptions;
+    }) => downloadSummary(summaryId, format, includeCharts, templateOptions),
     onSuccess: ({ blob, extension }, { summaryId }) => {
       triggerDownload(blob, `health_summary_${summaryId.substring(0, 8)}${extension}`);
     },

@@ -8,7 +8,6 @@
  */
 
 import { test, expect } from '@playwright/test';
-import path from 'path';
 
 // Helper to set up authenticated state
 async function setupAuthenticatedUser(page, profileName = 'Test Profile') {

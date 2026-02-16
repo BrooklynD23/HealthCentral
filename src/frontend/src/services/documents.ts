@@ -14,6 +14,21 @@ export interface ExternalImportResponse {
   observation_count: number;
   error_count: number;
   warnings: string[];
+  errors: Array<{
+    row: number;
+    field: string;
+    message: string;
+    code: string;
+  }>;
+  validation: {
+    total_rows: number;
+    parsed_rows: number;
+    error_rows: number;
+    warning_count: number;
+    error_rate: number;
+    max_error_rate: number;
+    status: 'ok' | 'warning' | 'rejected';
+  };
 }
 
 const QUERY_KEY = 'documents';

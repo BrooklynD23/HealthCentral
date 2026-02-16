@@ -96,7 +96,7 @@ export function DocumentInbox() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-semibold text-ink tracking-tight">
             Document Inbox
@@ -121,6 +121,8 @@ export function DocumentInbox() {
       </div>
 
       <Card
+        role="region"
+        aria-label="Document upload area"
         className={cn(
           'border-2 border-dashed transition-all duration-200',
           isDragging
@@ -197,13 +199,16 @@ export function DocumentInbox() {
               variants={containerVariants}
               initial="hidden"
               animate="show"
+              role="list"
+              aria-label="Document list"
               className="divide-y divide-black/[0.04]"
             >
               {documents.map((doc) => (
                 <motion.div
                   key={doc.id}
                   variants={itemVariants}
-                  className="flex items-center gap-4 p-4 hover:bg-surface-muted/50 transition-colors group"
+                  role="listitem"
+                  className="flex flex-col gap-3 p-4 transition-colors hover:bg-surface-muted/50 group md:flex-row md:items-center md:gap-4"
                 >
                   <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-surface-muted flex items-center justify-center">
                     <FileText className="w-5 h-5 text-ink-secondary" />
@@ -226,23 +231,23 @@ export function DocumentInbox() {
                   </Badge>
 
                   {doc.status === 'verified' ? (
-                    <Badge variant="verified" className="gap-1">
+                    <Badge variant="verified" className="gap-1" aria-label="Status: Verified">
                       <CheckCircle className="w-3 h-3" />
                       Verified
                     </Badge>
                   ) : doc.status === 'pending_ocr' ? (
-                    <Badge variant="default" className="gap-1" title="OCR processing is required. Enable OCR in Settings or install Tesseract to extract data from this document.">
+                    <Badge variant="default" className="gap-1" aria-label="Status: OCR Required" title="OCR processing is required. Enable OCR in Settings or install Tesseract to extract data from this document.">
                       <AlertCircle className="w-3 h-3" />
                       OCR Required
                     </Badge>
                   ) : (
-                    <Badge variant="caution" className="gap-1">
+                    <Badge variant="caution" className="gap-1" aria-label={`Status: ${doc.status === 'pending' ? 'Pending' : 'Needs Review'}`}>
                       <AlertCircle className="w-3 h-3" />
                       {doc.status === 'pending' ? 'Pending' : 'Needs Review'}
                     </Badge>
                   )}
 
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                     <Button variant="ghost" size="icon" aria-label="View document">
                       <Eye className="w-4 h-4" />
                     </Button>
