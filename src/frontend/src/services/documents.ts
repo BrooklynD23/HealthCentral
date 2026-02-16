@@ -8,6 +8,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiDelete, apiUpload } from './api';
 import type { Document, DocumentImportResponse, DocumentPage, DocumentFilters } from './types';
 
+export interface ExternalImportResponse {
+  document_id: string;
+  source_type: string;
+  observation_count: number;
+  error_count: number;
+  warnings: string[];
+}
+
 const QUERY_KEY = 'documents';
 
 // API functions
@@ -35,6 +43,17 @@ async function importDocument(file: File): Promise<DocumentImportResponse> {
 
 async function deleteDocument(documentId: string): Promise<void> {
   return apiDelete(`/documents/${documentId}`);
+}
+
+async function importExternal(
+  file: File,
+  sourceType: string,
+): Promise<ExternalImportResponse> {
+  return apiUpload<ExternalImportResponse>(
+    '/documents/import/external',
+    file,
+    { source_type: sourceType },
+  );
 }
 
 // React Query hooks
@@ -76,9 +95,21 @@ export function useImportDocument() {
 
 export function useDeleteDocument() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: deleteDocument,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+    },
+  });
+}
+
+export function useImportExternal() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ file, sourceType }: { file: File; sourceType: string }) =>
+      importExternal(file, sourceType),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
     },

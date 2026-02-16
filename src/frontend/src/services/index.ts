@@ -61,7 +61,10 @@ export {
   useDocumentPages,
   useImportDocument,
   useDeleteDocument,
+  useImportExternal,
 } from './documents';
+
+export type { ExternalImportResponse } from './documents';
 
 // Observation hooks
 export {
