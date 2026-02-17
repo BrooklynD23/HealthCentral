@@ -194,7 +194,7 @@ export function NotificationSettings() {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/medications')}>
+          <Button variant="ghost" size="icon" aria-label="Back to medications" onClick={() => navigate('/medications')}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div>

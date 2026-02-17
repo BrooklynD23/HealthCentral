@@ -360,8 +360,9 @@ export function SearchPage() {
                   Abnormal values only
                 </label>
                 <div>
-                  <label className="text-xs text-ink-tertiary mb-1 block">From date</label>
+                  <label htmlFor="search-from-date" className="text-xs text-ink-tertiary mb-1 block">From date</label>
                   <input
+                    id="search-from-date"
                     type="date"
                     value={filters.from_date || ''}
                     onChange={(e) =>
@@ -371,8 +372,9 @@ export function SearchPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-ink-tertiary mb-1 block">To date</label>
+                  <label htmlFor="search-to-date" className="text-xs text-ink-tertiary mb-1 block">To date</label>
                   <input
+                    id="search-to-date"
                     type="date"
                     value={filters.to_date || ''}
                     onChange={(e) =>

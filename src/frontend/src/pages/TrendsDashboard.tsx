@@ -33,6 +33,7 @@ import { useMedications } from '@/services/medications';
 import { useAuthStore } from '@/stores/authStore';
 import { findActiveMedications } from '@/utils/correlation';
 import { MedicationOverlay } from '@/components/MedicationOverlay';
+import { PanelChartView } from '@/components/PanelChartView';
 import type { Observation } from '@/services/types';
 
 const panels = [
@@ -345,6 +346,10 @@ export function TrendsDashboard() {
           </button>
         ))}
       </div>
+
+      {panelData && panelData.observations.length > 0 && (
+        <PanelChartView panel={panelData} className="mb-6" />
+      )}
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         <div className="md:col-span-2">

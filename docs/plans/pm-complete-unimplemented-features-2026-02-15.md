@@ -1,6 +1,6 @@
 # PM Findings Consolidated Backlog - Sprint Series (2026-02-15)
 
-**Last Updated:** 2026-02-16
+**Last Updated:** 2026-02-17
 **Owner:** Planning Agent
 **Refresh Trigger:** PM scope change, architecture decision update, or sprint handoff completion
 **Primary Source:** PM finding package dated 2026-02-14, reconciled against codebase 2026-02-16
@@ -25,7 +25,7 @@ This corrected version reflects verified implementation status.
 2. `docs/plans/sprint-series-2026-02-15/sprint-02-lab-intelligence.md` - **COMPLETED**
 3. `docs/plans/sprint-series-2026-02-15/sprint-03-medication-coach-intelligence.md` - **COMPLETED**
 4. `docs/plans/sprint-series-2026-02-15/sprint-04-data-interoperability.md` - ACTIVE (partially complete, follow-up gaps remain)
-5. `docs/plans/sprint-series-2026-02-15/sprint-05-frontend-quality-testing.md` - **SUBSTANTIALLY COMPLETE** (all 5 work packages implemented, 164/164 vitest pass)
+5. `docs/plans/sprint-series-2026-02-15/sprint-05-frontend-quality-testing.md` - **COMPLETED** (all 5 work packages implemented + closeout polish, 188/188 vitest pass)
 6. `docs/plans/sprint-series-2026-02-15/sprint-06-platform-compliance.md` - ACTIVE (remaining work)
 7. `docs/plans/sprint-series-2026-02-15/review-audit-checklist.md`
 
@@ -151,53 +151,47 @@ All 4 medication coach features are implemented. Backend modules fully built; fr
 
 ---
 
-## SUBSTANTIALLY COMPLETE - Frontend Quality and Testing (Sprint 05)
+## COMPLETED - Frontend Quality and Testing (Sprint 05)
+
+All 5 work packages implemented with closeout polish. **188/188 vitest tests passing**, 0 TS errors, lint clean.
 
 ### UXQA-001 Advanced Accessibility Completion
-- **Status:** Implemented (32 tests passing)
-- **What exists:** `Accessibility.test.tsx` expanded to 32 tests covering ARIA roles, landmarks, keyboard navigation, and screen reader support across all major pages:
-  - TrendsDashboard: tablist/tab/aria-selected, chart data summary, loading aria-live
-  - VerificationWorkbench: action button aria-labels (edit/verify/expand)
-  - ExportPage: accessible button names
-  - SearchPage: search input label, radiogroup/radio mode selector, clear/filter toggle labels, pagination labels
-  - SearchResults: list/listitem roles with aria-labels
-  - DocumentInbox: region/file input labels, document list roles, status badges, action buttons
-  - SettingsPage: switch/radiogroup roles, hardware info cards, progress bar
-  - ExplainAssistant: chat input, send button, message log with aria-live, suggested question labels
-  - AppLayout: skip-to-main-content link, main landmark with id
-- **Remaining polish:** Color contrast conformance automated tooling (axe-core integration).
+- **Status:** COMPLETE (32 ARIA tests + 11 structural axe-core tests)
+- **What exists:**
+  - `Accessibility.test.tsx` — 32 tests covering ARIA roles, landmarks, keyboard navigation, and screen reader support across all major pages
+  - `StructuralA11y.test.tsx` — 11 axe-core structural a11y tests (contrast rules disabled for JSDOM; contrast covered by E2E)
+  - `vitest-axe` dev dependency for `toHaveNoViolations` matcher
+  - `src/frontend/src/types/vitest-axe.d.ts` — type augmentation for vitest-axe matchers
+  - A11y fixes applied: `aria-label` on ExplainAssistant date inputs, `htmlFor/id` on SearchPage/ExportPage labels, `aria-label` on NotificationSettings back button
+  - `contrast-audit.spec.ts` — Playwright E2E axe contrast audit (4 pages)
 
 ### UXQA-002 Mobile Responsiveness and Touch Optimization
-- **Status:** Implemented (22 tests passing)
-- **What exists:** `ResponsiveLayout.test.tsx` with 22 tests. All core pages updated with:
-  - `grid-cols-1 md:grid-cols-3` responsive grids
-  - `flex-wrap` for button groups and tabs
-  - `min-h-[44px]` touch targets on interactive elements
-  - `md:flex-row` responsive stacking on DocumentInbox items
-  - `md:opacity-0 md:group-hover:opacity-100` mobile-visible action buttons
-- **Remaining polish:** PWA manifest and service worker scaffolding.
+- **Status:** COMPLETE (22 tests passing + PWA scaffolding)
+- **What exists:**
+  - `ResponsiveLayout.test.tsx` — 22 tests for responsive grids, flex-wrap, touch targets
+  - PWA scaffolding: `public/manifest.webmanifest`, `public/sw.js` (no-op service worker), `public/favicon.svg`, `public/icons/icon-192.png`, `public/icons/icon-512.png`
+  - `index.html` — manifest link added
+  - `main.tsx` — production-only service worker registration
 
 ### UXQA-003 Advanced Data Visualization
-- **Status:** Implemented (27 tests passing)
-- **What exists:** `VisualizationInteractions.test.tsx` with 27 tests. TrendsDashboard updated with:
-  - Zoom in/out controls with clamped levels (0-3)
-  - Date range picker (3m/6m/12m/all) with data refetch
-  - Line/bar chart type toggle with aria-pressed
-  - Custom tooltip with value, unit, reference range
-  - Data point drill-down attribute support
-  - Screen reader sr-only data table below chart
-  - `useAutoRefresh` hook (configurable interval, enable/disable, cleanup)
-- **Remaining polish:** Panel-specific chart views, adherence visualization integration.
+- **Status:** COMPLETE (27 interaction tests + 7 PanelChartView tests + 5 AdherenceChart tests)
+- **What exists:**
+  - `VisualizationInteractions.test.tsx` — 27 tests for zoom, date range, chart type, tooltip, drill-down, sr-only table, auto-refresh
+  - `PanelChartView.tsx` — Panel multi-analyte normalized bar chart with sr-only data table
+  - `PanelChartView.test.tsx` — 7 tests (empty state, chart rendering, table structure, abnormal marking)
+  - `AdherenceChart.tsx` — Daily medication adherence stacked bar chart with sr-only data table
+  - `AdherenceChart.test.tsx` — 5 tests (empty state, aggregation, taken/skipped counts)
+  - `TrendsDashboard.tsx` — PanelChartView integrated between panel tabs and main grid
 
 ### UXQA-004 Comprehensive E2E Workflow Expansion
-- **Status:** Implemented (spec files written)
+- **Status:** COMPLETE (spec files written)
 - **What exists:** 7 E2E spec files total:
   - Existing: `auth.spec.ts`, `assistant.spec.ts`, `document-import.spec.ts`, `settings-smoke.spec.ts`
   - New: `document-workflow.spec.ts`, `ocr-workflow.spec.ts`, `model-management.spec.ts`
 - **Note:** E2E specs require running backend + Playwright browser; not exercised in unit test suite.
 
 ### UXQA-005 Performance and Security Test Foundations
-- **Status:** Implemented (baseline harness)
+- **Status:** COMPLETE (baseline harness)
 - **What exists:**
   - `src/backend/tests/performance/test_api_load.py` — API load test baseline
   - `src/backend/tests/security/test_auth_bypass.py` — Auth bypass regression tests
@@ -275,20 +269,15 @@ All 4 medication coach features are implemented. Backend modules fully built; fr
 ### HIGH PRIORITY (Next Sprint)
 - DATA-005 Search UI completion (history/saved searches and explanation rendering).
 - DATA-006 Import connector expansion (OAuth scaffolding + portal connectors).
-- UXQA-004 E2E workflow expansion.
-- UXQA-005 Performance and security test foundations.
 - OPS-003 Security hardening framework (rate limiting, audit logging).
 
 ### MEDIUM PRIORITY (Following Sprint)
 - DATA-001 PDF template customization (branding/section toggles).
 - DATA-002 Excel workbook parity (medications sheet + validation/formulas).
 - DATA-003 FHIR conformance validation hooks.
-- UXQA-001 Accessibility completion.
-- UXQA-002 Mobile responsiveness.
 
 ### LOW PRIORITY (Future)
 - DATA-004 Search backend enhancements (scale/performance hardening).
-- UXQA-003 Advanced data visualization.
 - OPS-001 Performance monitoring.
 - OPS-002 Backup and recovery.
 - OPS-004/005/006 Documentation programs.
@@ -303,9 +292,9 @@ All 4 medication coach features are implemented. Backend modules fully built; fr
 | Lab Intelligence (Sprint 02) | 4 | All DONE |
 | Medication Intelligence (Sprint 03) | 4 | All DONE |
 | Data Interoperability (Sprint 04) | 6 | 1 done (DATA-004), 5 partial |
-| Frontend Quality/Testing (Sprint 05) | 5 | 0 done, 2 partial (UXQA-001, UXQA-004) |
+| Frontend Quality/Testing (Sprint 05) | 5 | All DONE |
 | Platform/Compliance (Sprint 06) | 6 | 0 done, 1 partial (OPS-004) |
-| **Total remaining work items** | **16** | **8 not started, 8 partial** |
+| **Total remaining work items** | **11** | **5 not started, 6 partial** |
 
 ## Audit Handoff
 

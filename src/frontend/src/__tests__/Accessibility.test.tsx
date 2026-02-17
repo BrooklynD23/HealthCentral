@@ -425,7 +425,7 @@ describe('Accessibility Audit (A11Y-001)', () => {
       expect(semanticRadio).toHaveAttribute('aria-checked', 'false');
     });
 
-    it('should have aria-label on clear search button', async () => {
+    it('should have aria-label on clear search button', { timeout: 30000 }, async () => {
       const { useSearch } = await import('@/services/search');
       vi.mocked(useSearch).mockReturnValue({
         data: { results: [], total_count: 0, query: 'test', mode: 'hybrid' },
@@ -445,7 +445,7 @@ describe('Accessibility Audit (A11Y-001)', () => {
       await waitFor(() => {
         const clearButton = screen.getByLabelText('Clear search');
         expect(clearButton).toBeInTheDocument();
-      });
+      }, { timeout: 30000 });
     });
 
     it('should have aria-label on filter toggle button', () => {

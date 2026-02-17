@@ -476,8 +476,9 @@ export function ExportPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div>
-                <label className="text-xs text-ink-tertiary mb-1 block">Brand name</label>
+                <label htmlFor="export-brand-name" className="text-xs text-ink-tertiary mb-1 block">Brand name</label>
                 <input
+                  id="export-brand-name"
                   type="text"
                   value={brandName}
                   onChange={(e) => setBrandName(e.target.value)}
@@ -485,8 +486,9 @@ export function ExportPage() {
                 />
               </div>
               <div>
-                <label className="text-xs text-ink-tertiary mb-1 block">Tagline</label>
+                <label htmlFor="export-tagline" className="text-xs text-ink-tertiary mb-1 block">Tagline</label>
                 <input
+                  id="export-tagline"
                   type="text"
                   value={brandTagline}
                   onChange={(e) => setBrandTagline(e.target.value)}
@@ -494,8 +496,9 @@ export function ExportPage() {
                 />
               </div>
               <div>
-                <label className="text-xs text-ink-tertiary mb-1 block">Accent color</label>
+                <label htmlFor="export-accent-color" className="text-xs text-ink-tertiary mb-1 block">Accent color</label>
                 <input
+                  id="export-accent-color"
                   type="text"
                   value={accentColor}
                   onChange={(e) => setAccentColor(e.target.value)}

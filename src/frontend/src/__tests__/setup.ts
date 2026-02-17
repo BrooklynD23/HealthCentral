@@ -4,9 +4,13 @@
  * Global test configuration and mocks.
  */
 
-import { afterEach, beforeAll, vi } from 'vitest';
+import { afterEach, beforeAll, vi, expect } from 'vitest';
 import '@testing-library/jest-dom/vitest';
+import * as vitestAxeMatchers from 'vitest-axe/matchers';
 import { useAuthStore } from '@/stores/authStore';
+
+// Register vitest-axe matchers (vitest-axe/extend-expect is empty in v0.1.0)
+expect.extend(vitestAxeMatchers);
 
 // Mock window.matchMedia for framer-motion and responsive hooks
 beforeAll(() => {

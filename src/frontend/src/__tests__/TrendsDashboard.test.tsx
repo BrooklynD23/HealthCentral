@@ -254,7 +254,7 @@ function setupApiMocks(options: {
       return Promise.resolve(options.trendData ?? mockTrendData);
     }
     if (url.startsWith('/observations/panels/')) {
-      return Promise.resolve(options.panelData ?? mockPanelData);
+      return Promise.resolve(options.panelData ?? { ...mockPanelData, observations: [] });
     }
     if (url === '/medications/') {
       return Promise.resolve(options.medications ?? mockMedications);

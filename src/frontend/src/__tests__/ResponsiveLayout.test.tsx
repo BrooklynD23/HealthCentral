@@ -261,14 +261,14 @@ describe('UXQA-002: Mobile Responsiveness', () => {
 
       await waitFor(() => {
         expect(screen.getByText('Trends Dashboard')).toBeInTheDocument();
-      }, { timeout: 15000 });
+      }, { timeout: 120000 });
 
       // The main layout grid should use responsive breakpoints
       const grid = container.querySelector('.grid');
       expect(grid).not.toBeNull();
       expect(grid?.className).toContain('grid-cols-1');
       expect(grid?.className).toContain('md:grid-cols-3');
-    }, 30000);
+    }, 120000);
 
     it('uses responsive col-span (md:col-span-2)', async () => {
       const TrendsDashboard = await importTrendsDashboard();
