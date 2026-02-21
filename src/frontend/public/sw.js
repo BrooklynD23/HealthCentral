@@ -10,6 +10,14 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+
+  // Only intercept same-origin GET requests; pass through all others
+  // (non-GET, cross-origin requests are handled natively by the browser)
+  if (event.request.method !== 'GET' || url.origin !== self.location.origin) {
+    return;
+  }
+
   // Pass-through — no caching in scaffold version
   event.respondWith(fetch(event.request));
 });

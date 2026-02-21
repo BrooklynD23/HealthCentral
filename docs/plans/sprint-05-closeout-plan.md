@@ -17,9 +17,9 @@ dynamic import + heavy Recharts initialization competes for resources when run a
 ### Fix
 **File**: `src/frontend/src/__tests__/ResponsiveLayout.test.tsx`
 
-1. Increase the `waitFor` timeout on line 264 from `15000` → `30000` ms (matching the outer test timeout)
-2. Add `vi.setConfig({ testTimeout: 30_000 })` at the top of the TrendsDashboard responsive describe block
-3. Verify: full `npx vitest run` must show **164/164 pass** (or 165 if the fix itself adds a sanity check)
+1. Increase the `waitFor` timeout on line 264 from `15000` → `120000` ms
+2. Set the outer test timeout to `120000` ms via the second argument to `it()`
+3. Verify: full `npx vitest run` must show **164/164 pass** (or more if new tests added)
 
 ### Exit Criteria
 - `npx vitest run` — all tests green, zero failures, zero flakes on 2 consecutive runs
@@ -364,7 +364,7 @@ Once all checks green, merge (squash-and-merge recommended for sprint closeout).
 
 ## File Inventory
 
-### New Files (8)
+### New Files (10)
 | File | Lines | Purpose |
 |------|-------|---------|
 | `src/frontend/src/__tests__/StructuralA11y.test.tsx` | ~250 | axe-core structural a11y (11 pages, no contrast) |
@@ -378,7 +378,7 @@ Once all checks green, merge (squash-and-merge recommended for sprint closeout).
 | `src/frontend/src/__tests__/PanelChartView.test.tsx` | ~150 | PanelChartView tests (7) |
 | `src/frontend/src/__tests__/AdherenceChart.test.tsx` | ~120 | AdherenceChart tests (6) |
 
-### Modified Files (5)
+### Modified Files (7)
 | File | Change |
 |------|--------|
 | `src/frontend/package.json` | Add `vitest-axe`, `@axe-core/playwright` |
