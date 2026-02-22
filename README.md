@@ -26,13 +26,20 @@ HealthCentral helps patients:
 ```
 HealthCentral/
 ├── docs/                      # Architecture and feature documentation
-├── implementation_plan/       # Feature implementation tracking
+│   ├── api/                   # API endpoint documentation
+│   ├── user/                  # User guides, workflows, FAQ
+│   ├── compliance/            # HIPAA, data privacy, audit checklist
+│   ├── features/              # Feature architecture + active task list
+│   └── model_tiers/           # AI model tier documentation
 ├── src/
 │   ├── backend/              # Python FastAPI backend
 │   │   ├── api/              # API routes and endpoints
 │   │   ├── core/             # Core config, security, database
 │   │   ├── models/           # SQLAlchemy database models
 │   │   ├── modules/          # Feature modules (ingest, RAG, etc.)
+│   │   ├── monitoring/       # Metrics, correlation IDs, timing
+│   │   ├── security/         # Input validation, rate limiting, headers
+│   │   ├── scripts/          # Backup, migrations, model management
 │   │   └── tests/            # Backend test suites
 │   └── frontend/             # React + Vite + TypeScript
 │       ├── src/
@@ -199,12 +206,23 @@ npm run dev
 
 ## Documentation
 
-- [Product Requirements (PRD)](docs/Local_First_Medical_Results_Companion_PRD_v0_1.md)
-- [Backend Architecture](docs/01_backend_architecture_plan.md)
-- [Frontend & Accessibility](docs/02_frontend_accessibility_plan.md)
-- [Data Confidentiality](docs/03_data_confidentiality_pipeline_plan.md)
+### For Users
+- [Getting Started](docs/user/getting-started.md)
+- [Workflows](docs/user/workflows.md)
+- [Troubleshooting](docs/user/troubleshooting.md)
+- [FAQ](docs/user/faq.md)
+
+### For Developers
+- [API Documentation](docs/api/README.md)
 - [Backend Integration Status](docs/05_backend_integration_status.md)
-- [Local AI Models](docs/04_local_models_inference_plan.md)
+- [Backend Architecture](docs/01_backend_architecture_plan.md)
+- [Documentation Index](docs/00_architecture_plans_index.md)
+
+### Compliance & Operations
+- [HIPAA Controls](docs/compliance/hipaa-controls.md)
+- [Data Privacy](docs/compliance/data-privacy.md)
+- [Disaster Recovery](docs/compliance/disaster-recovery.md)
+- [Audit Checklist](docs/compliance/audit-checklist.md)
 
 ## API Overview
 
@@ -221,8 +239,9 @@ HealthCentral exposes a REST API via FastAPI at `http://localhost:8000/api/v1`. 
 | **Notifications** | `/notifications/` | Reminder settings, history, scheduler status |
 | **Export** | `/export/` | CSV/JSON export, doctor summary, discussion questions |
 | **Settings** | `/settings/model/` | Model tier selection, hardware detection, downloads |
+| **Monitoring** | `/health`, `/monitoring/` | Health check, metrics dashboard |
 
-For full endpoint details, see [Backend Integration Status](docs/05_backend_integration_status.md).
+For full endpoint details, see [API Documentation](docs/api/endpoints.md).
 
 ## Implementation Progress
 

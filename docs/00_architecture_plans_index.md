@@ -1,6 +1,6 @@
 # HealthCentral Documentation Index (Current)
 
-**Last Updated:** 2026-02-14
+**Last Updated:** 2026-02-21
 **Owner:** Project Lead
 **Refresh Trigger:** New doc added or doc archived
 
@@ -10,19 +10,10 @@ This index defines the canonical documentation order and marks legacy planning f
 
 ## Start Here (Canonical Order)
 
-1. `docs/current_gap_audit_2026-02-09.md`  
-   Final closure log for HC-T001 to HC-T006 and rationale for current architecture choices.
-2. `docs/05_backend_integration_status.md`  
+1. `docs/05_backend_integration_status.md`
    Current backend/frontend contract and integration baseline.
-3. `docs/features/TASK_LIST.md`  
+2. `docs/features/TASK_LIST.md`
    Remaining backlog only (active implementation and consolidation tasks).
-4. `docs/plans/next-agent-documentation-consolidation.md`  
-   Hands-off execution plan for the next implementation agent.
-
-## Sprint Planning References
-
-- `docs/plans/sprint-phase-2026-02-13-implementation-plan.md` (historical planning draft + structure audit)
-- Stabilization sprint (STAB-001 through STAB-007) completion tracked in `docs/features/TASK_LIST.md`
 
 ## Architecture References (Current)
 
@@ -38,11 +29,21 @@ This index defines the canonical documentation order and marks legacy planning f
 - `docs/features/02_medication_adherence_coach_architecture.md`
 - `docs/features/03_features_prd.md`
 
+## Operations & Compliance Documentation (Sprint 06)
+
+- `docs/api/` — API endpoint documentation, authentication, integration guide
+- `docs/user/` — User workflows, getting started, troubleshooting, FAQ
+- `docs/compliance/` — HIPAA controls, data privacy, audit checklist, disaster recovery, security review
+- `docs/model_tiers/` — Tiered model system documentation
+
 ## Historical References (Do Not Use as Active Backlog)
 
 - `docs/06_mvp_to_rag_execution_board.md` (sprint history)
 - `docs/plans/UI-implementation-2-4.md` (superseded UI plan)
 - `docs/plans/remaining-features-implementation.md` (superseded execution plan)
+- `docs/plans/next-agent-documentation-consolidation.md` (completed hardening plan)
+- `docs/plans/sprint-phase-2026-02-13-implementation-plan.md` (superseded planning draft)
+- `docs/plans/sprint-series-2026-02-15/sprint-06-handoff-prompt.md` (completed sprint handoff)
 
 ## Source PRDs
 

@@ -29,13 +29,14 @@ CANONICAL_DOCS = [
     "docs/05_backend_integration_status.md",
     "docs/features/00_features_index.md",
     "docs/features/TASK_LIST.md",
-    "docs/plans/next-agent-documentation-consolidation.md",
 ]
 
 HISTORICAL_DOCS = [
     "docs/06_mvp_to_rag_execution_board.md",
     "docs/plans/UI-implementation-2-4.md",
     "docs/plans/remaining-features-implementation.md",
+    "docs/plans/next-agent-documentation-consolidation.md",
+    "docs/plans/sprint-phase-2026-02-13-implementation-plan.md",
 ]
 
 REQUIRED_SECTIONS: dict[str, list[str]] = {

@@ -13,6 +13,7 @@ technical safeguards for protected health information (PHI).
 | [Data Privacy](data-privacy.md) | Data classification, encryption, retention |
 | [Audit Checklist](audit-checklist.md) | Pre-deployment compliance checklist |
 | [Disaster Recovery](disaster-recovery.md) | Backup and recovery runbook |
+| [Security Review — Sprint 06](security-review-sprint06.md) | Static security analysis of Sprint 06 code |
 
 ## Scope
 

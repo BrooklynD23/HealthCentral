@@ -1,15 +1,30 @@
 # Backend Integration Status
 
-**Last Updated:** 2026-02-14
+**Last Updated:** 2026-02-21
 **Owner:** Backend Lead
 **Refresh Trigger:** API endpoint added, changed, or removed
-**Status:** Current integration baseline (post-stabilization sprint, active backend/frontend contracts)
+**Status:** Current integration baseline (through Sprint 06 — Platform Operations & Compliance)
 
 ---
 
 ## Overview
 
 This document tracks the implementation status of backend-frontend integration for HealthCentral. The integration follows the architecture defined in `01_backend_architecture_plan.md`.
+
+---
+
+## Sprint 06 Updates (2026-02-21)
+
+Sprint 06 (Platform Operations & Compliance) added operational infrastructure:
+
+- **Security middleware stack** (`src/backend/security/`): InputValidationMiddleware (body size + null byte rejection), RateLimitMiddleware (sliding window counter + X-RateLimit-* headers), SecurityHeadersMiddleware (OWASP headers, HSTS/CSP in server mode), SecurityAuditMiddleware (structured JSON logging for mutating requests).
+- **Monitoring package** (`src/backend/monitoring/`): MetricsCollector (ring buffer, route-template keyed), CorrelationIdMiddleware (UUID4 via contextvars), TimingMiddleware (perf_counter + X-Response-Time-Ms header), enhanced `/health` with metrics summary.
+- **Backup utility** (`src/backend/scripts/backup.py`): CLI for backup (sqlite3.backup API), verify (SHA-256), restore (with .bak safety copies), and prune operations.
+- **Middleware stack order** (outermost→innermost): CORS → CorrelationId → SecurityHeaders → RateLimit → InputValidation → SecurityAudit → Timing → Routes.
+- **New config fields**: `api_rate_limit_enabled`, `api_rate_limit_max_requests`, `api_rate_limit_window_seconds`, `max_request_body_bytes`, `security_headers_enabled`, `audit_security_events_to_db`, `metrics_enabled`, `metrics_buffer_size`, `correlation_id_header`.
+- **CI**: Added `security-scan` job (bandit + pip-audit, non-blocking) to `.github/workflows/ci.yml`.
+- **CORS**: Added `X-Correlation-ID` to `allow_headers`.
+- **Documentation**: `docs/api/` (5 files), `docs/user/` (5 files), `docs/compliance/` (5 files).
 
 ---
 
@@ -114,6 +129,12 @@ The STAB-001 through STAB-007 sprint hardening work is implemented:
 | `/api/v1/settings/model/tiers` | GET | ✅ Done | List tiers with status |
 | `/api/v1/settings/model/download-progress` | GET | ✅ Done | Check download status |
 | `/api/v1/settings/model/download` | POST | ✅ Done | Start model download |
+
+#### Health & Monitoring (`monitoring/health.py`) - Sprint 06
+| Endpoint | Method | Status | Description |
+|----------|--------|--------|-------------|
+| `/health` | GET | ✅ Done | Health check with optional metrics summary (no auth) |
+| `/api/v1/monitoring/metrics` | GET | ✅ Done | Full metrics dashboard (per-endpoint stats) |
 
 ---
 
@@ -277,6 +298,20 @@ alembic -c alembic.ini -n master upgrade head
 | `hardware_detection.py` | ✅ Done | Hardware capability detection (Phase 0.3) |
 | `model_selector.py` | ✅ Done | Tiered model selection (Phase 0.3) |
 
+### Sprint 06 Packages
+
+| Package | Module | Status | Notes |
+|---------|--------|--------|-------|
+| `security/` | `input_validator.py` | ✅ Done | ASGI middleware: body size limits, null byte rejection |
+| `security/` | `rate_limit_middleware.py` | ✅ Done | Sliding window counter + X-RateLimit-* headers |
+| `security/` | `security_headers.py` | ✅ Done | OWASP security headers (HSTS/CSP in server mode) |
+| `security/` | `audit_middleware.py` | ✅ Done | Structured JSON logging for mutating requests |
+| `monitoring/` | `metrics.py` | ✅ Done | Ring buffer metrics collector (route-template keyed) |
+| `monitoring/` | `correlation.py` | ✅ Done | Correlation ID middleware (UUID4, contextvars) |
+| `monitoring/` | `timing_middleware.py` | ✅ Done | Request timing + X-Response-Time-Ms header |
+| `monitoring/` | `health.py` | ✅ Done | Enhanced /health + /monitoring/metrics endpoints |
+| `scripts/` | `backup.py` | ✅ Done | Backup/verify/restore/prune CLI utility |
+
 ---
 
 ## Running the Application
@@ -303,12 +338,15 @@ Access:
 
 ## Next Steps
 
-1. **Regression safety**
+1. **Security remediation** (Sprint 06 review findings in `docs/compliance/security-review-sprint06.md`)
+   - Lock down `/monitoring/metrics` with auth in server mode (S06-SEC-001).
+   - Replace import endpoint body-size bypass with explicit upload limit (S06-SEC-002/003).
+   - Add path traversal validation to backup restore (S06-SEC-004).
+2. **Regression safety**
    - Keep E2E smoke suite green in CI and expand deterministic fixtures as workflows evolve.
    - Continue adversarial safety test expansion for RAG and interpretation guardrails.
-2. **Deferred backlog**
+3. **Deferred backlog**
    - Execute deferred feature work (advanced export formats, enhanced search, multi-source imports) in a future scoped sprint.
-   - Continue docs consolidation so canonical trackers stay synchronized with implemented behavior.
 
 ---
 

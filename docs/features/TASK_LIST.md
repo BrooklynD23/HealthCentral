@@ -1,7 +1,7 @@
 # HealthCentral Remaining Work Task List
 
-**Version:** 0.3.2
-**Last Updated:** 2026-02-14
+**Version:** 0.4.0
+**Last Updated:** 2026-02-21
 **Owner:** Project Lead
 **Refresh Trigger:** Task completed or new task identified
 **Scope:** Active remaining work only (implementation baseline already shipped)
@@ -21,19 +21,19 @@ It replaces legacy mixed-status lists and focuses on:
 
 ## Canonical Doc Order
 
-1. `docs/current_gap_audit_2026-02-09.md` (closure log for HC-T001 to HC-T006)
-2. `docs/05_backend_integration_status.md` (current API/UI integration baseline)
-3. `docs/features/TASK_LIST.md` (this active remaining-work tracker)
-4. `docs/plans/next-agent-documentation-consolidation.md` (hands-off execution plan)
+1. `docs/05_backend_integration_status.md` (current API/UI integration baseline)
+2. `docs/features/TASK_LIST.md` (this active remaining-work tracker)
 
 ---
 
-## Current Baseline Snapshot (2026-02-14)
+## Current Baseline Snapshot (2026-02-21)
 
 - Completed baseline areas: auth, import/extract/verify, trends, export, assistant, interpretations, medications, notifications, settings.
-- Major drift cleanup completed: doc indexes aligned, historical banners added to superseded plan files, stale assistant/OCR status wording corrected.
 - Stabilization sprint (STAB-001 through STAB-007) completed on 2026-02-14.
-- Remaining work now centers on deferred feature backlog and future optimization.
+- Sprint 05 (Frontend Quality & Testing) completed on 2026-02-19: 188 frontend tests, accessibility, responsive layout, visualization interactions, E2E workflows.
+- Sprint 06 (Platform Operations & Compliance) completed on 2026-02-21: security middleware (4 classes, 31 tests), monitoring/metrics (23 tests), backup/restore (14 tests), API/user/compliance documentation (14 files).
+- Documentation consolidation completed on 2026-02-21: all canonical docs updated, historical docs marked, security report relocated.
+- Remaining work: security remediation from Sprint 06 review, deferred feature backlog.
 
 ---
 
@@ -101,7 +101,7 @@ On the first of each month, review all canonical docs for freshness:
 4. Run `python3 scripts/docs_lint.py` to catch any drift.
 5. Update this section's "Last cadence review" date below.
 
-**Last cadence review:** 2026-02-12
+**Last cadence review:** 2026-02-21
 
 ---
 
@@ -140,6 +140,22 @@ On the first of each month, review all canonical docs for freshness:
 - **DOC-006**: Added `_check_required_doc_sections()` lint rule. Added API Overview table to README.md. Fixed broken link. Added `Last Updated` to PRD.
 - **CI Gates**: Created `.github/workflows/ci.yml` with 3 jobs: docs-lint, backend-tests, frontend-tests.
 - **Verification**: `python3 scripts/docs_lint.py` → pass. `npx tsc --noEmit` → 0 errors. `npx vitest run` → 86/86 pass.
+
+### 2026-02-21 - Sprint 06 + Documentation Consolidation
+
+- **Sprint 06 implementation** on `sprint/06-platform-compliance` (6 commits, 39 new files, 68 tests, 4163 lines):
+  - OPS-003: Security middleware (InputValidation, RateLimit, SecurityHeaders, SecurityAudit) + CI security-scan job.
+  - OPS-001: Monitoring (MetricsCollector, CorrelationId, Timing, enhanced /health).
+  - OPS-002: Backup utility (sqlite3.backup API, SHA-256 verify, restore with .bak safety, prune).
+  - OPS-004/005/006: API docs, user docs, compliance docs (14 files total).
+- **Documentation consolidation**:
+  - Moved `next-agent-documentation-consolidation.md` from canonical to historical (all work packages done).
+  - Added `sprint-phase-2026-02-13-implementation-plan.md` to historical list in docs_lint.py.
+  - Relocated `security_best_practices_report.md` from repo root to `docs/compliance/security-review-sprint06.md`.
+  - Marked `sprint-06-handoff-prompt.md` as historical.
+  - Updated architecture index, backend integration status, features index, TASK_LIST, README with Sprint 06 completions.
+  - Updated `implementation_plan/README.md` sprint progress table.
+- **Verification**: `python3 scripts/docs_lint.py` → pass. `npx tsc --noEmit` → 0 errors. `npm run lint` → clean.
 
 ### 2026-02-14 - Stabilization Sprint (STAB-001 through STAB-007)
 

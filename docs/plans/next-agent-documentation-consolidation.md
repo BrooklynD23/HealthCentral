@@ -1,5 +1,8 @@
 # Next Agent Plan: Documentation Consolidation + Remaining Hardening
 
+> Historical Reference: this plan is retained for history. All work packages (DOC-003 through DOC-006, TEST-001/002, UX-001, A11Y-001) were completed in the v0.3.0 hardening pass (2026-02-12). This document is not an active tracker.
+> For current status, see [`docs/features/TASK_LIST.md`](../features/TASK_LIST.md).
+
 **Last Updated:** 2026-02-12
 **Owner:** Implementation Agent
 **Refresh Trigger:** New hardening task added or doc work package completed
