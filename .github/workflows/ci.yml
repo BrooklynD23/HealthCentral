@@ -66,6 +66,35 @@ jobs:
         working-directory: src/frontend
         run: npx vitest run
 
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install security tools
+        run: pip install bandit pip-audit
+
+      - name: Run Bandit
+        run: bandit -r src/backend/ -x src/backend/tests/ -f json -o bandit-report.json || true
+
+      - name: Run pip-audit
+        run: pip install -r src/backend/requirements.txt && pip-audit --format=json --output=pip-audit-report.json || true
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            bandit-report.json
+            pip-audit-report.json
+
   e2e-tests:
     name: E2E Smoke Tests
     runs-on: ubuntu-latest

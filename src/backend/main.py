@@ -15,6 +15,10 @@ from core.config import settings
 from core.database import init_database, close_database
 from core.migrations import run_master_migrations_async
 from api import router as api_router
+from security.input_validator import InputValidationMiddleware
+from security.rate_limit_middleware import RateLimitMiddleware
+from security.security_headers import SecurityHeadersMiddleware
+from security.audit_middleware import SecurityAuditMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -56,14 +60,43 @@ def create_app() -> FastAPI:
     if settings.app_mode == "server":
         allowed_origins = settings.cors_origins
     
+    # Middleware stack (Starlette: last added = outermost)
+    # Request flow: CORS → CorrelationId → SecurityHeaders → RateLimit → InputValidation → Audit → Timing → Routes
+
+    # 1. Timing (innermost — OPS-001, added later)
+    # 2. Security audit logging
+    app.add_middleware(
+        SecurityAuditMiddleware,
+        log_to_db=settings.audit_security_events_to_db,
+    )
+    # 3. Input validation
+    app.add_middleware(
+        InputValidationMiddleware,
+        max_request_body_bytes=settings.max_request_body_bytes,
+    )
+    # 4. Rate limiting (before body validation — cheap rejection)
+    app.add_middleware(
+        RateLimitMiddleware,
+        max_requests=settings.api_rate_limit_max_requests,
+        window_seconds=settings.api_rate_limit_window_seconds,
+        enabled=settings.api_rate_limit_enabled,
+    )
+    # 5. Security headers
+    app.add_middleware(
+        SecurityHeadersMiddleware,
+        enabled=settings.security_headers_enabled,
+        server_mode=(settings.app_mode == "server"),
+    )
+    # 6. Correlation ID (OPS-001, added later)
+    # 7. CORS (outermost — handles preflight before anything else)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
-        allow_headers=["Authorization", "Content-Type", "Accept", "X-Requested-With"],
+        allow_headers=["Authorization", "Content-Type", "Accept", "X-Requested-With", "X-Correlation-ID"],
     )
-    
+
     # Include API routes
     app.include_router(api_router, prefix="/api/v1")
     

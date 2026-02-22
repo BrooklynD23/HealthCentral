@@ -56,6 +56,23 @@ class Settings(BaseSettings):
     auth_rate_limit_enabled: bool = True
     auth_rate_limit_max_attempts: int = 10
     auth_rate_limit_window_seconds: int = 60
+
+    # API rate limiting (OPS-003)
+    api_rate_limit_enabled: bool = True
+    api_rate_limit_max_requests: int = 100
+    api_rate_limit_window_seconds: int = 60
+
+    # Input validation (OPS-003)
+    max_request_body_bytes: int = 10_485_760  # 10 MB
+
+    # Security headers (OPS-003)
+    security_headers_enabled: bool = True
+    audit_security_events_to_db: bool = False
+
+    # Monitoring (OPS-001)
+    metrics_enabled: bool = True
+    metrics_buffer_size: int = 10000
+    correlation_id_header: str = "X-Correlation-ID"
     
     # Local AI models
     models_path: str = "models/"
