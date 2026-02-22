@@ -19,6 +19,9 @@ from security.input_validator import InputValidationMiddleware
 from security.rate_limit_middleware import RateLimitMiddleware
 from security.security_headers import SecurityHeadersMiddleware
 from security.audit_middleware import SecurityAuditMiddleware
+from monitoring.correlation import CorrelationIdMiddleware
+from monitoring.timing_middleware import TimingMiddleware
+from monitoring.health import router as health_router
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +66,8 @@ def create_app() -> FastAPI:
     # Middleware stack (Starlette: last added = outermost)
     # Request flow: CORS → CorrelationId → SecurityHeaders → RateLimit → InputValidation → Audit → Timing → Routes
 
-    # 1. Timing (innermost — OPS-001, added later)
+    # 1. Timing (innermost — measures route handling time)
+    app.add_middleware(TimingMiddleware)
     # 2. Security audit logging
     app.add_middleware(
         SecurityAuditMiddleware,
@@ -87,7 +91,11 @@ def create_app() -> FastAPI:
         enabled=settings.security_headers_enabled,
         server_mode=(settings.app_mode == "server"),
     )
-    # 6. Correlation ID (OPS-001, added later)
+    # 6. Correlation ID
+    app.add_middleware(
+        CorrelationIdMiddleware,
+        header_name=settings.correlation_id_header,
+    )
     # 7. CORS (outermost — handles preflight before anything else)
     app.add_middleware(
         CORSMiddleware,
@@ -99,16 +107,11 @@ def create_app() -> FastAPI:
 
     # Include API routes
     app.include_router(api_router, prefix="/api/v1")
-    
-    @app.get("/health")
-    async def health_check():
-        """Health check endpoint."""
-        return {
-            "status": "healthy",
-            "mode": settings.app_mode,
-            "version": "0.1.0"
-        }
-    
+
+    # Health and monitoring endpoints (replaces inline /health)
+    app.include_router(health_router)
+    app.include_router(health_router, prefix="/api/v1")
+
     return app
 
 
