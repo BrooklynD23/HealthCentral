@@ -1,0 +1,135 @@
+# Frequently Asked Questions
+
+## General
+
+### What is HealthCentral?
+
+HealthCentral is a local-first medical results companion that helps you track,
+understand, and share your lab results. All data is encrypted and stored on your
+device.
+
+### Is my data sent to the cloud?
+
+No. By default, all processing happens locally on your device. AI models run
+locally. The optional external API feature (OpenAI/Anthropic) sends only the
+specific query to the cloud — never your full health record.
+
+### What file formats are supported?
+
+PDF lab reports and image files (PNG, JPG, JPEG). OCR for images requires
+Tesseract to be installed and `OCR_ENABLED=true`.
+
+### Can multiple people use the same installation?
+
+Yes. Each person creates their own profile with a separate password. Each
+profile has its own encrypted database — profiles cannot access each other's data.
+
+### How do I delete my data?
+
+Delete your profile through the app, or manually remove the vault file from
+`data/vaults/`. The master database entry is cleaned up automatically.
+
+## Security
+
+### How is my data encrypted?
+
+Profile databases use SQLCipher (AES-256 encryption). Your password is used to
+derive the encryption key. The master database stores only profile metadata
+(name, creation date), not health data.
+
+### What happens if I forget my password?
+
+There is no password recovery mechanism. If you forget your password, your
+encrypted vault cannot be opened. This is by design for security. **Keep backups
+of your data** using the backup utility.
+
+### Is HealthCentral HIPAA compliant?
+
+HealthCentral implements many HIPAA technical safeguards (encryption at rest,
+audit logging, access controls). However, HIPAA compliance depends on your
+specific deployment context. See [HIPAA Controls](../compliance/hipaa-controls.md).
+
+### How does rate limiting work?
+
+All API endpoints are rate-limited to prevent abuse:
+- General: 100 requests per 60 seconds
+- Authentication: 10 attempts per 60 seconds
+- Rate limit headers are included on every response
+
+## Features
+
+### How accurate is the document extraction?
+
+Extraction accuracy depends on document quality and format. Always verify
+extracted observations against your original document. Verified observations
+are marked separately from unverified ones.
+
+### Can I edit extracted values?
+
+Yes. Use the verify/edit feature on any observation to correct values that
+were extracted incorrectly.
+
+### What AI models are used?
+
+HealthCentral supports multiple model tiers:
+- **Low tier**: Small, fast models suitable for any hardware
+- **Mid tier**: Balanced performance and quality
+- **High tier**: Best quality, requires powerful hardware
+
+You can also configure external APIs (OpenAI, Anthropic) for cloud processing.
+
+### What lab panels are supported?
+
+Currently: Complete Blood Count (CBC), Comprehensive Metabolic Panel (CMP),
+Lipid Panel, and Thyroid Panel. Individual analytes are supported regardless of
+panel grouping.
+
+### Can I export my data?
+
+Yes, multiple formats:
+- **Doctor Summary**: Formatted report for clinician visits
+- **CSV**: Spreadsheet-compatible observation export
+- **JSON**: Machine-readable complete export
+- **Discussion Questions**: AI-generated questions for doctor visits
+
+### Does the assistant have access to my full history?
+
+The RAG assistant queries your verified observations to provide grounded,
+personalized answers. It does not hallucinate or use information not in your
+records.
+
+## Technical
+
+### What databases does HealthCentral use?
+
+SQLite (master database) and SQLCipher (encrypted profile vaults). No external
+database server required.
+
+### Can I run HealthCentral on a server?
+
+Yes. Set `APP_MODE=server` and configure `CORS_ORIGINS`, `JWT_SECRET`, and
+other server settings. See the API documentation for details.
+
+### How do I update HealthCentral?
+
+Pull the latest code and run database migrations:
+```bash
+git pull
+pip install -r src/backend/requirements.txt
+cd src/frontend && npm install
+```
+Migrations run automatically on startup.
+
+### How do I back up my data?
+
+Use the backup utility:
+```bash
+python src/backend/scripts/backup.py --action backup --data-dir data/
+```
+See [Disaster Recovery](../compliance/disaster-recovery.md) for the full runbook.
+
+### What ports does HealthCentral use?
+
+- Backend API: port 8000 (configurable via `PORT`)
+- Frontend dev server: port 3000
+- In local mode, both bind to `127.0.0.1` only
