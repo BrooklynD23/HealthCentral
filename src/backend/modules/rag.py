@@ -15,6 +15,7 @@ import re
 import logging
 
 from core.model_runner import get_model_runner, InferenceConfig
+from core.config import settings
 
 
 class ModelUnavailableError(Exception):
@@ -811,24 +812,92 @@ I was unable to fully process your question within the time limit. Please try as
             from sqlalchemy import select
             from models.memory_item import MemoryItem
 
-            stmt = select(MemoryItem).where(MemoryItem.profile_id == profile_id)
+            max_items = max(0, int(getattr(settings, "assistant_memory_max_items_in_prompt", 0)))
+            max_chars = max(0, int(getattr(settings, "assistant_memory_max_prompt_chars", 0)))
+            if max_items <= 0 or max_chars <= 0:
+                return ""
+
+            header = (
+                "\nUSER PREFERENCES (from memory store — do NOT cite, "
+                "use only for personalisation):\n"
+            )
+            if len(header) >= max_chars:
+                return ""
+
+            stmt = (
+                select(MemoryItem)
+                .where(MemoryItem.profile_id == profile_id)
+                .order_by(MemoryItem.updated_at.desc())
+            )
             result = await profile_db.execute(stmt)
             items = result.scalars().all()
 
             if not items:
                 return ""
 
-            lines = []
-            for item in items:
-                cat_label = f" [{item.category}]" if item.category else ""
-                lines.append(f"- {item.key}{cat_label}: {item.value}")
+            def _single_line(value: str) -> str:
+                return " ".join(str(value or "").split())
 
-            return (
-                "\nUSER PREFERENCES (from memory store — do NOT cite, "
-                "use only for personalisation):\n"
-                + "\n".join(lines)
-                + "\n"
-            )
+            def _normalize_value(value: str) -> str:
+                text = str(value or "")
+                text = text.replace("\x00", "")
+                text = text.replace("\r\n", "\n").replace("\r", "\n")
+                return text.strip()
+
+            def _render_item(*, label: str, value: str, max_len: int) -> str:
+                suffix = " …[truncated]"
+                clean_value = _normalize_value(value)
+                if "\n" in clean_value:
+                    rendered = "- " + label + ":\n" + "\n".join(
+                        "  " + line for line in clean_value.split("\n")
+                    )
+                else:
+                    rendered = f"- {label}: {clean_value}"
+
+                if len(rendered) <= max_len:
+                    return rendered
+
+                if max_len <= len(suffix):
+                    return rendered[:max_len]
+                return rendered[: max_len - len(suffix)] + suffix
+
+            lines: list[str] = []
+            current_len = len(header) + 1  # include trailing newline below
+
+            for item in items:
+                if len(lines) >= max_items:
+                    break
+
+                combined = f"{item.key}\n{item.category or ''}\n{item.value}"
+                if self._contains_prompt_injection(combined):
+                    self._logger.warning(
+                        "Filtered potentially unsafe memory item",
+                        extra={"memory_item_id": getattr(item, "id", None)},
+                    )
+                    continue
+
+                label = _single_line(item.key)
+                category = _single_line(item.category) if item.category else ""
+                if category:
+                    label = f"{label} [{category}]"
+
+                remaining = max_chars - current_len
+                if remaining <= 0:
+                    break
+
+                rendered = _render_item(label=label, value=item.value, max_len=remaining)
+                if not rendered:
+                    break
+
+                lines.append(rendered)
+                current_len += len(rendered) + 1  # newline join
+                if current_len >= max_chars:
+                    break
+
+            if not lines:
+                return ""
+
+            return header + "\n".join(lines) + "\n"
         except Exception as e:
             self._logger.debug(f"Memory retrieval failed: {e}")
             return ""
@@ -905,7 +974,6 @@ I was unable to fully process your question within the time limit. Please try as
         # Step 2: Optionally retrieve memory context (ASSIST-MEM-003)
         memory_section = ""
         if use_memory:
-            from core.config import settings
             if settings.assistant_memory_enabled:
                 memory_section = await self._retrieve_memory_context(
                     profile_id, profile_db
