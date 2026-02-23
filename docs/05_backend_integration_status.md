@@ -1,6 +1,6 @@
 # Backend Integration Status
 
-**Last Updated:** 2026-02-21
+**Last Updated:** 2026-02-23
 **Owner:** Backend Lead
 **Refresh Trigger:** API endpoint added, changed, or removed
 **Status:** Current integration baseline (through Sprint 06 — Platform Operations & Compliance)
@@ -22,7 +22,7 @@ Sprint 06 (Platform Operations & Compliance) added operational infrastructure:
 - **Backup utility** (`src/backend/scripts/backup.py`): CLI for backup (sqlite3.backup API), verify (SHA-256), restore (with .bak safety copies), and prune operations.
 - **Middleware stack order** (outermost→innermost): CORS → CorrelationId → SecurityHeaders → RateLimit → InputValidation → SecurityAudit → Timing → Routes.
 - **New config fields**: `api_rate_limit_enabled`, `api_rate_limit_max_requests`, `api_rate_limit_window_seconds`, `max_request_body_bytes`, `security_headers_enabled`, `audit_security_events_to_db`, `metrics_enabled`, `metrics_buffer_size`, `correlation_id_header`.
-- **CI**: Added `security-scan` job (bandit + pip-audit, non-blocking) to `.github/workflows/ci.yml`.
+- **CI**: Added `security-scan` job (bandit + pip-audit, **blocking on high/critical** via `scripts/security_gate.py`) to `.github/workflows/ci.yml`.
 - **CORS**: Added `X-Correlation-ID` to `allow_headers`.
 - **Documentation**: `docs/api/` (5 files), `docs/user/` (5 files), `docs/compliance/` (5 files).
 
@@ -111,6 +111,7 @@ The STAB-001 through STAB-007 sprint hardening work is implemented:
 | `/api/v1/medications/{id}/schedules` | POST/GET | ✅ Done | Manage schedules |
 | `/api/v1/medications/{id}/doses` | POST/GET | ✅ Done | Log and list doses |
 | `/api/v1/medications/{id}/stats` | GET | ✅ Done | Adherence stats |
+| `/api/v1/medications/{id}/correlations` | GET | ✅ Done | Lab observations during medication period (MED-CORR-001) |
 
 #### Notifications (`notifications.py`)
 | Endpoint | Method | Status | Description |
@@ -343,14 +344,21 @@ Access:
 
 ## Next Steps
 
-1. **Security remediation** — SEC-001 through SEC-006 remediated (commit `39a9984`). Remaining: SEC-007 (proxy IP keying) and SEC-008 (CI scan policy) deferred to next sprint.
+1. **Security remediation** — SEC-001 through SEC-008 fully remediated:
+   - SEC-001–SEC-006: commit `39a9984`
+   - SEC-007 (proxy-aware IP keying): commit `ae2e9ea` — configurable trusted-proxy CIDR list, safe-by-default
+   - SEC-008 (CI scan policy): commit `ae2e9ea` — `scripts/security_gate.py` blocks high/critical findings
 2. **Regression safety**
    - Keep E2E smoke suite green in CI and expand deterministic fixtures as workflows evolve.
    - Continue adversarial safety test expansion for RAG and interpretation guardrails.
    - Backend security regression tests added (`test_security_remediation.py`).
-3. **Deferred backlog**
-   - SEC-007 (proxy-aware IP keying for rate limiter) and SEC-008 (CI scan policy enforcement).
-   - Feature work (advanced export formats, enhanced search, multi-source imports) in a future scoped sprint.
+3. **Feature backlog** (Phases 5-6)
+   - PRIV-RED-001: Redaction pipeline for external API prompts
+   - OCR-BOX-001: Bounding-box citations in verification UI
+   - UX-CONF-001: Confidence scoring surfaced consistently
+   - EXPORT-CHART-001: Chart image export
+   - ASSIST-MEM-001/002/003: Persistent assistant memory store
+   - INGEST-EPIC-001: Imaging/pathology/visit notes ingestion (spec)
 
 ---
 
