@@ -11,6 +11,7 @@ import logging
 from typing import Optional
 
 from .model_runner import InferenceConfig, InferenceResult
+from .config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -144,6 +145,22 @@ class ExternalModelRunner:
         """
         if config is None:
             config = InferenceConfig()
+
+        # Apply redaction before sending to external provider (PRIV-RED-001)
+        if settings.redaction_enabled:
+            from modules.redaction import RedactionEngine
+
+            engine = RedactionEngine(
+                policy_level=settings.redaction_policy_level
+            )
+            redaction_result = engine.redact(prompt)
+            if redaction_result.redacted_count > 0:
+                logger.info(
+                    "Redacted %d PII/PHI items before external API call",
+                    redaction_result.redacted_count,
+                    extra={"provider": self._provider},
+                )
+            prompt = redaction_result.text
 
         try:
             if self._provider == "openai":

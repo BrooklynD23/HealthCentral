@@ -105,6 +105,14 @@ class Settings(BaseSettings):
     log_file_path: str = "logs/healthcentral.log"
     audit_log_enabled: bool = True
 
+    # Memory store (ASSIST-MEM-001)
+    max_memory_items_per_profile: int = 100
+    assistant_memory_enabled: bool = False  # ASSIST-MEM-003: inject memory into RAG context
+
+    # Redaction (PRIV-RED-001) — applied before external API calls
+    redaction_enabled: bool = True
+    redaction_policy_level: str = "standard"  # "strict", "standard", "minimal"
+
     # External API (Phase 2E) — per-user opt-in, default off
     external_api_provider: str = ""  # "", "openai", "anthropic"
     external_api_key: str = ""
