@@ -296,6 +296,7 @@ async def import_document(
                         is_abnormal=extracted_obs.flag is not None,
                         extraction_confidence=extracted_obs.confidence,
                         source_page=extracted_obs.provenance.page if extracted_obs.provenance else None,
+                        source_bbox_json=json.dumps(list(extracted_obs.provenance.bbox)) if extracted_obs.provenance and extracted_obs.provenance.bbox else None,
                         collected_at=_parse_date_string(extracted_obs.collected_at),
                         user_verified=False,
                     )
@@ -585,6 +586,75 @@ async def get_document_pages(
         ))
 
     return pages
+
+
+@router.get("/{document_id}/pages/{page_number}/image")
+async def get_page_image(
+    document_id: str,
+    page_number: int,
+    session: RequireAuth,
+    profile_db: ProfileDbSession = None,
+):
+    """
+    Render a PDF page as a PNG image for bounding-box citation overlay.
+
+    OCR-BOX-001: Returns the page as image/png for visual provenance display.
+    """
+    validate_uuid(document_id, "document_id")
+
+    result = await profile_db.execute(select(Document).where(Document.id == document_id))
+    document = result.scalar_one_or_none()
+
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found",
+        )
+
+    verify_document_access(document, session)
+
+    if page_number < 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Page number must be >= 1",
+        )
+
+    try:
+        import pdfplumber
+        from io import BytesIO
+
+        decrypted_doc = get_decrypted_document(document.profile_id, document_id)
+        with pdfplumber.open(decrypted_doc) as pdf:
+            if page_number > len(pdf.pages):
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Page {page_number} not found (document has {len(pdf.pages)} pages)",
+                )
+            page = pdf.pages[page_number - 1]
+            img = page.to_image(resolution=150)
+
+            buf = BytesIO()
+            img.save(buf, format="PNG")
+            buf.seek(0)
+
+            return Response(
+                content=buf.getvalue(),
+                media_type="image/png",
+                headers={"Cache-Control": "private, max-age=300"},
+            )
+    except HTTPException:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document file not found",
+        )
+    except Exception as e:
+        logger.error(f"Failed to render page image for document {document_id}, page {page_number}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to render page image",
+        )
 
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)

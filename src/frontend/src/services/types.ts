@@ -79,6 +79,8 @@ export interface Observation {
   collected_at: string | null;
   user_verified: boolean;
   extraction_confidence: number | null;
+  source_page: number | null;
+  source_bbox_json: string | null;
 }
 
 export interface ObservationVerify {
@@ -91,6 +93,13 @@ export interface ObservationVerify {
   notes?: string;
 }
 
+export interface BoundingBox {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
 export interface TrendPoint {
   date: string;
   value: number;
@@ -98,6 +107,7 @@ export interface TrendPoint {
   is_abnormal: boolean;
   flag: string | null;
   doc_id: string;
+  extraction_confidence: number | null;
 }
 
 export interface TrendData {
@@ -404,6 +414,29 @@ export type ReminderInteractionType =
   | 'snoozed'
   | 'marked_taken'
   | 'opened_app';
+
+// Memory store types (ASSIST-MEM-001)
+export interface MemoryItem {
+  id: string;
+  profile_id: string;
+  key: string;
+  value: string;
+  category: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MemoryItemCreate {
+  key: string;
+  value: string;
+  category?: string;
+}
+
+export interface MemoryItemUpdate {
+  key?: string;
+  value?: string;
+  category?: string;
+}
 
 // Correlation types (UX-001: frontend-only temporal overlay)
 

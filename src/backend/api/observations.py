@@ -107,6 +107,8 @@ class ObservationResponse(BaseModel):
     collected_at: Optional[str] = None
     user_verified: bool
     extraction_confidence: Optional[float] = None
+    source_page: Optional[int] = None
+    source_bbox_json: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -130,6 +132,8 @@ class ObservationResponse(BaseModel):
             collected_at=obs.collected_at.isoformat() if obs.collected_at else None,
             user_verified=obs.user_verified,
             extraction_confidence=obs.extraction_confidence,
+            source_page=obs.source_page,
+            source_bbox_json=obs.source_bbox_json,
         )
 
 
@@ -152,6 +156,7 @@ class TrendPoint(BaseModel):
     is_abnormal: bool
     flag: Optional[str] = None
     doc_id: str
+    extraction_confidence: Optional[float] = None
 
 
 class TrendResponse(BaseModel):
@@ -410,6 +415,7 @@ async def get_analyte_trend(
                 is_abnormal=obs.is_abnormal or False,
                 flag=obs.flag,
                 doc_id=obs.doc_id,
+                extraction_confidence=obs.extraction_confidence,
             ))
             # Use most recent reference range
             if obs.ref_low is not None:

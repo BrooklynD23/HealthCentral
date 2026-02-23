@@ -10,6 +10,15 @@ import type { Document, DocumentImportResponse, DocumentPage, DocumentFilters } 
 
 const QUERY_KEY = 'documents';
 
+/**
+ * Build the URL for a page image endpoint (OCR-BOX-001).
+ * Uses the same base URL as the API client.
+ */
+export function getPageImageUrl(documentId: string, pageNumber: number): string {
+  const base = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+  return `${base}/documents/${documentId}/pages/${pageNumber}/image`;
+}
+
 // API functions
 async function fetchDocuments(filters: DocumentFilters): Promise<Document[]> {
   // profile_id is extracted from auth token by backend, not query params

@@ -17,7 +17,8 @@ import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useObservations, useVerifyObservation } from '@/services/observations';
 import { useAuthStore } from '@/stores/authStore';
 import { apiGet } from '@/services/api';
-import type { Observation, DocumentPage } from '@/services/types';
+import { PageImageOverlay } from '@/components/PageImageOverlay';
+import type { Observation, DocumentPage, BoundingBox } from '@/services/types';
 
 export function VerificationWorkbench() {
   const prefersReducedMotion = useReducedMotion();
@@ -116,6 +117,17 @@ export function VerificationWorkbench() {
     }
     return '-';
   };
+
+  // Parse bbox JSON for selected observation
+  const selectedObservation = observations?.find((o) => o.id === selectedRow) ?? null;
+  const selectedBbox: BoundingBox | null = (() => {
+    if (!selectedObservation?.source_bbox_json) return null;
+    try {
+      const arr = JSON.parse(selectedObservation.source_bbox_json) as number[];
+      if (arr.length === 4) return { x0: arr[0], y0: arr[1], x1: arr[2], y1: arr[3] };
+    } catch { /* invalid JSON */ }
+    return null;
+  })();
 
   // Count unverified items
   const unverifiedCount = observations?.filter((o) => !o.user_verified).length ?? 0;
@@ -341,6 +353,15 @@ export function VerificationWorkbench() {
         </div>
 
         <div className="space-y-4">
+          {/* OCR Bounding-Box Citation Overlay (OCR-BOX-001) */}
+          {selectedObservation?.source_page && selectedObservation?.doc_id && (
+            <PageImageOverlay
+              documentId={selectedObservation.doc_id}
+              pageNumber={selectedObservation.source_page}
+              bbox={selectedBbox}
+            />
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Source Preview</CardTitle>
