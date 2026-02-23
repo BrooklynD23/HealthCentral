@@ -62,6 +62,10 @@ class Settings(BaseSettings):
     api_rate_limit_max_requests: int = 100
     api_rate_limit_window_seconds: int = 60
 
+    # Proxy trust (SEC-007)
+    trusted_proxy_enabled: bool = False
+    trusted_proxy_cidrs: list[str] = []  # e.g. ["127.0.0.1/32", "10.0.0.0/8"]
+
     # Input validation (OPS-003)
     max_request_body_bytes: int = 10_485_760  # 10 MB
 

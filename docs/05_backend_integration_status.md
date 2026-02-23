@@ -189,6 +189,11 @@ The STAB-001 through STAB-007 sprint hardening work is implemented:
 - `is_ocr_available()` gates OCR work based on config flag + runtime `tesseract` availability.
 - Production mode now requires non-empty `jwt_secret` at startup.
 
+### Proxy Trust for Rate Limiting (SEC-007)
+- `trusted_proxy_enabled` (default: `false`) — enable proxy-aware client IP extraction.
+- `trusted_proxy_cidrs` (default: `[]`) — list of trusted proxy CIDRs (e.g., `["10.0.0.0/8", "172.16.0.0/12"]`).
+- When enabled, rate limiting extracts the real client IP from `X-Forwarded-For` only if the direct connection comes from a trusted proxy CIDR. Spoofed headers from untrusted sources are ignored.
+
 ### CORS Hardening
 - `allow_headers` now uses explicit allow-list values in `main.py` (no wildcard).
 

@@ -7,6 +7,7 @@ returns remaining count and reset time for standard rate limit headers.
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 import threading
 import time
@@ -77,6 +78,60 @@ class SlidingWindowCounter:
             )
 
 
+def _extract_client_ip(
+    scope: dict,
+    trusted_proxy_enabled: bool = False,
+    trusted_proxy_cidrs: list[str] | None = None,
+) -> str:
+    """
+    Extract client IP from ASGI scope.
+
+    When trusted_proxy_enabled is True and the direct client is in
+    trusted_proxy_cidrs, use the rightmost untrusted IP from
+    X-Forwarded-For. Otherwise (default), use scope["client"].
+    """
+    client = scope.get("client")
+    direct_ip = client[0] if client else "unknown"
+
+    if not trusted_proxy_enabled or not trusted_proxy_cidrs:
+        return direct_ip
+
+    # Check if direct client is a trusted proxy
+    try:
+        direct_addr = ipaddress.ip_address(direct_ip)
+    except ValueError:
+        return direct_ip
+
+    is_trusted = any(
+        direct_addr in ipaddress.ip_network(cidr, strict=False)
+        for cidr in trusted_proxy_cidrs
+    )
+
+    if not is_trusted:
+        return direct_ip
+
+    # Parse X-Forwarded-For header
+    headers = dict(scope.get("headers", []))
+    xff = headers.get(b"x-forwarded-for", b"").decode("latin-1").strip()
+    if not xff:
+        return direct_ip
+
+    # Use the rightmost non-trusted IP (closest to user)
+    parts = [p.strip() for p in xff.split(",")]
+    for ip_str in reversed(parts):
+        try:
+            addr = ipaddress.ip_address(ip_str)
+            if not any(
+                addr in ipaddress.ip_network(cidr, strict=False)
+                for cidr in trusted_proxy_cidrs
+            ):
+                return ip_str
+        except ValueError:
+            continue
+
+    return direct_ip
+
+
 class RateLimitMiddleware:
     """
     ASGI middleware for HTTP rate limiting.
@@ -96,9 +151,13 @@ class RateLimitMiddleware:
         max_requests: int = 100,
         window_seconds: int = 60,
         enabled: bool = True,
+        trusted_proxy_enabled: bool = False,
+        trusted_proxy_cidrs: list[str] | None = None,
     ) -> None:
         self.app = app
         self.enabled = enabled
+        self.trusted_proxy_enabled = trusted_proxy_enabled
+        self.trusted_proxy_cidrs = trusted_proxy_cidrs or []
         self.counter = SlidingWindowCounter(
             max_requests=max_requests,
             window_seconds=window_seconds,
@@ -121,9 +180,10 @@ class RateLimitMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # Extract client IP
-        client = scope.get("client")
-        client_ip = client[0] if client else "unknown"
+        # Extract client IP (proxy-aware when configured — SEC-007)
+        client_ip = _extract_client_ip(
+            scope, self.trusted_proxy_enabled, self.trusted_proxy_cidrs,
+        )
 
         result = self.counter.record_request(client_ip)
         limit_str = str(self.counter.max_requests).encode()

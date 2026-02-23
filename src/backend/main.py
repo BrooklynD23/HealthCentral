@@ -84,6 +84,8 @@ def create_app() -> FastAPI:
         max_requests=settings.api_rate_limit_max_requests,
         window_seconds=settings.api_rate_limit_window_seconds,
         enabled=settings.api_rate_limit_enabled,
+        trusted_proxy_enabled=settings.trusted_proxy_enabled,
+        trusted_proxy_cidrs=settings.trusted_proxy_cidrs,
     )
     # 5. Security headers
     app.add_middleware(

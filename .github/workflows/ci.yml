@@ -69,7 +69,6 @@ jobs:
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
@@ -88,12 +87,19 @@ jobs:
         run: pip install -r src/backend/requirements.txt && pip-audit --format=json --output=pip-audit-report.json || true
 
       - name: Upload security reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: security-reports
           path: |
             bandit-report.json
             pip-audit-report.json
+
+      # Waiver process: to temporarily allow a known finding, add its test_id
+      # (bandit) or vuln_id (pip-audit) to scripts/security_gate.py waivers list.
+      # All waivers must have an owner and expiry date.
+      - name: Security gate (fail on high/critical)
+        run: python3 scripts/security_gate.py --bandit bandit-report.json --pip-audit pip-audit-report.json
 
   e2e-tests:
     name: E2E Smoke Tests
