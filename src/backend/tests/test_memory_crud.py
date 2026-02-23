@@ -120,21 +120,78 @@ class TestMemoryItemModel:
 # ---------------------------------------------------------------------------
 
 class TestCrossProfileIsolation:
-    """Verify that the endpoint logic checks profile_id before returning data."""
+    """F-007: Avoid leaking cross-profile existence (404 over 403)."""
 
-    def test_profile_mismatch_denied(self):
-        """When item belongs to a different profile, access should be denied."""
+    @pytest.mark.asyncio
+    async def test_get_queries_by_id_and_profile_and_returns_404(self):
         from fastapi import HTTPException
+        from api.memory import get_memory_item
 
-        mock_item = MagicMock()
-        mock_item.profile_id = "profile-A"
+        item_id = str(uuid.uuid4())
+        session = MagicMock(profile_id="profile-B")
 
-        # Simulate the check in get_memory_item
-        requesting_profile = "profile-B"
-        if mock_item.profile_id != requesting_profile:
-            with pytest.raises(HTTPException) as exc:
-                raise HTTPException(status_code=403, detail="Access denied")
-            assert exc.value.status_code == 403
+        result_mock = MagicMock()
+        result_mock.scalar_one_or_none.return_value = None
+
+        profile_db = AsyncMock()
+        profile_db.execute.return_value = result_mock
+
+        with pytest.raises(HTTPException) as exc:
+            await get_memory_item(item_id=item_id, session=session, profile_db=profile_db)
+        assert exc.value.status_code == 404
+
+        stmt = profile_db.execute.call_args.args[0]
+        where_cols = {getattr(getattr(c, "left", None), "name", None) for c in stmt._where_criteria}
+        assert {"id", "profile_id"} <= where_cols
+
+    @pytest.mark.asyncio
+    async def test_update_queries_by_id_and_profile_and_returns_404(self):
+        from fastapi import HTTPException
+        from api.memory import update_memory_item, MemoryItemUpdate
+
+        item_id = str(uuid.uuid4())
+        session = MagicMock(profile_id="profile-B")
+
+        result_mock = MagicMock()
+        result_mock.scalar_one_or_none.return_value = None
+
+        profile_db = AsyncMock()
+        profile_db.execute.return_value = result_mock
+
+        with pytest.raises(HTTPException) as exc:
+            await update_memory_item(
+                item_id=item_id,
+                data=MemoryItemUpdate(value="new"),
+                session=session,
+                profile_db=profile_db,
+            )
+        assert exc.value.status_code == 404
+
+        stmt = profile_db.execute.call_args.args[0]
+        where_cols = {getattr(getattr(c, "left", None), "name", None) for c in stmt._where_criteria}
+        assert {"id", "profile_id"} <= where_cols
+
+    @pytest.mark.asyncio
+    async def test_delete_queries_by_id_and_profile_and_returns_404(self):
+        from fastapi import HTTPException
+        from api.memory import delete_memory_item
+
+        item_id = str(uuid.uuid4())
+        session = MagicMock(profile_id="profile-B")
+
+        result_mock = MagicMock()
+        result_mock.scalar_one_or_none.return_value = None
+
+        profile_db = AsyncMock()
+        profile_db.execute.return_value = result_mock
+
+        with pytest.raises(HTTPException) as exc:
+            await delete_memory_item(item_id=item_id, session=session, profile_db=profile_db)
+        assert exc.value.status_code == 404
+
+        stmt = profile_db.execute.call_args.args[0]
+        where_cols = {getattr(getattr(c, "left", None), "name", None) for c in stmt._where_criteria}
+        assert {"id", "profile_id"} <= where_cols
 
 
 # ---------------------------------------------------------------------------

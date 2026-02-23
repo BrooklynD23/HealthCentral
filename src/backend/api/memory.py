@@ -154,7 +154,10 @@ async def get_memory_item(
     profile_id = session.profile_id
 
     result = await profile_db.execute(
-        select(MemoryItem).where(MemoryItem.id == item_id)
+        select(MemoryItem).where(
+            MemoryItem.id == item_id,
+            MemoryItem.profile_id == profile_id,
+        )
     )
     item = result.scalar_one_or_none()
 
@@ -162,12 +165,6 @@ async def get_memory_item(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Memory item not found",
-        )
-
-    if item.profile_id != profile_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied",
         )
 
     return MemoryItemResponse.from_model(item)
@@ -185,7 +182,10 @@ async def update_memory_item(
     profile_id = session.profile_id
 
     result = await profile_db.execute(
-        select(MemoryItem).where(MemoryItem.id == item_id)
+        select(MemoryItem).where(
+            MemoryItem.id == item_id,
+            MemoryItem.profile_id == profile_id,
+        )
     )
     item = result.scalar_one_or_none()
 
@@ -193,12 +193,6 @@ async def update_memory_item(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Memory item not found",
-        )
-
-    if item.profile_id != profile_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied",
         )
 
     if data.key is not None:
@@ -225,7 +219,10 @@ async def delete_memory_item(
     profile_id = session.profile_id
 
     result = await profile_db.execute(
-        select(MemoryItem).where(MemoryItem.id == item_id)
+        select(MemoryItem).where(
+            MemoryItem.id == item_id,
+            MemoryItem.profile_id == profile_id,
+        )
     )
     item = result.scalar_one_or_none()
 
@@ -233,12 +230,6 @@ async def delete_memory_item(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Memory item not found",
-        )
-
-    if item.profile_id != profile_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied",
         )
 
     await profile_db.delete(item)
