@@ -260,3 +260,92 @@ class TestExternalRunnerIntegration:
         assert len(captured_prompts) == 1
         assert "123-45-6789" not in captured_prompts[0]
         assert "[SSN-REDACTED]" in captured_prompts[0]
+
+    @pytest.mark.asyncio
+    async def test_production_blocks_when_redaction_disabled_without_break_glass(self):
+        """F-002: External calls must not proceed unredacted in production by default."""
+        from core.external_runner import ExternalModelRunner
+        from core.model_runner import InferenceResult
+
+        runner = ExternalModelRunner(provider="openai", api_key="test-key")
+
+        async def mock_call_openai(prompt, config):
+            return InferenceResult(
+                text="Response",
+                tokens_generated=1,
+                finish_reason="stop",
+                model_name="gpt-4o-mini",
+            )
+
+        with patch.object(runner, "_call_openai", side_effect=mock_call_openai) as mock_call:
+            with patch("core.external_runner.settings") as mock_settings:
+                mock_settings.app_env = "production"
+                mock_settings.external_api_redaction_break_glass = False
+                mock_settings.redaction_enabled = False
+                mock_settings.redaction_policy_level = "strict"
+                result = await runner.generate_async("SSN: 123-45-6789")
+
+        mock_call.assert_not_called()
+        assert result.finish_reason == "error"
+        assert "redaction is required" in result.text.lower()
+
+    @pytest.mark.asyncio
+    async def test_production_blocks_when_policy_not_strict_without_break_glass(self):
+        """F-001: Production external calls must use strict redaction by default."""
+        from core.external_runner import ExternalModelRunner
+        from core.model_runner import InferenceResult
+
+        runner = ExternalModelRunner(provider="openai", api_key="test-key")
+
+        async def mock_call_openai(prompt, config):
+            return InferenceResult(
+                text="Response",
+                tokens_generated=1,
+                finish_reason="stop",
+                model_name="gpt-4o-mini",
+            )
+
+        with patch.object(runner, "_call_openai", side_effect=mock_call_openai) as mock_call:
+            with patch("core.external_runner.settings") as mock_settings:
+                mock_settings.app_env = "production"
+                mock_settings.external_api_redaction_break_glass = False
+                mock_settings.redaction_enabled = True
+                mock_settings.redaction_policy_level = "standard"
+                result = await runner.generate_async("SSN: 123-45-6789")
+
+        mock_call.assert_not_called()
+        assert result.finish_reason == "error"
+        assert "strict redaction" in result.text.lower()
+
+    @pytest.mark.asyncio
+    async def test_break_glass_allows_unredacted_call_with_audit_warning(self, caplog):
+        """F-002: Break-glass must be explicit and logged."""
+        import logging
+
+        from core.external_runner import ExternalModelRunner
+        from core.model_runner import InferenceResult
+
+        runner = ExternalModelRunner(provider="openai", api_key="test-key")
+        original_prompt = "Patient: John Doe SSN 123-45-6789"
+        captured_prompts: list[str] = []
+
+        async def mock_call_openai(prompt, config):
+            captured_prompts.append(prompt)
+            return InferenceResult(
+                text="Response",
+                tokens_generated=1,
+                finish_reason="stop",
+                model_name="gpt-4o-mini",
+            )
+
+        caplog.set_level(logging.WARNING)
+        with patch.object(runner, "_call_openai", side_effect=mock_call_openai):
+            with patch("core.external_runner.settings") as mock_settings:
+                mock_settings.app_env = "production"
+                mock_settings.external_api_redaction_break_glass = True
+                mock_settings.redaction_enabled = False
+                mock_settings.redaction_policy_level = "standard"
+                await runner.generate_async(original_prompt)
+
+        assert captured_prompts == [original_prompt]
+        assert any("SECURITY_AUDIT:" in r.message for r in caplog.records)

@@ -111,7 +111,9 @@ class Settings(BaseSettings):
 
     # Redaction (PRIV-RED-001) — applied before external API calls
     redaction_enabled: bool = True
-    redaction_policy_level: str = "standard"  # "strict", "standard", "minimal"
+    redaction_policy_level: str = "strict"  # "strict", "standard", "minimal"
+    # Break-glass: allow unsafe external prompts in production (NOT recommended).
+    external_api_redaction_break_glass: bool = False
 
     # External API (Phase 2E) — per-user opt-in, default off
     external_api_provider: str = ""  # "", "openai", "anthropic"
@@ -189,6 +191,43 @@ class Settings(BaseSettings):
             raise RuntimeError(
                 "jwt_secret must be set in production environment"
             )
+
+        # Redaction config validation (F-001/F-002)
+        from modules.redaction import VALID_POLICY_LEVELS
+
+        if self.redaction_policy_level not in VALID_POLICY_LEVELS:
+            raise RuntimeError(
+                f"Invalid redaction_policy_level '{self.redaction_policy_level}'; "
+                f"must be one of {sorted(VALID_POLICY_LEVELS)}"
+            )
+
+        if self.external_api_redaction_break_glass:
+            warnings.append(
+                "EXTERNAL_API_REDACTION_BREAK_GLASS is enabled; external prompts may be sent with reduced/no redaction"
+            )
+
+        if self.app_env == "production" and not self.external_api_redaction_break_glass:
+            if not self.redaction_enabled:
+                raise RuntimeError(
+                    "redaction_enabled must be True in production (required for external API calls). "
+                    "To override (NOT recommended), set EXTERNAL_API_REDACTION_BREAK_GLASS=true."
+                )
+            if self.redaction_policy_level != "strict":
+                raise RuntimeError(
+                    "redaction_policy_level must be 'strict' in production (required for external API calls). "
+                    "To override (NOT recommended), set EXTERNAL_API_REDACTION_BREAK_GLASS=true."
+                )
+        elif self.app_env == "production" and self.external_api_redaction_break_glass:
+            if not self.redaction_enabled:
+                warnings.append(
+                    "Redaction is disabled in production while EXTERNAL_API_REDACTION_BREAK_GLASS=true; "
+                    "external prompts may be sent unredacted"
+                )
+            elif self.redaction_policy_level != "strict":
+                warnings.append(
+                    f"Non-strict redaction policy '{self.redaction_policy_level}' in production while "
+                    "EXTERNAL_API_REDACTION_BREAK_GLASS=true; external prompts may include PHI/PII"
+                )
 
         # Production safety: debug is already forced off by model_post_init.
         # No additional action needed here.

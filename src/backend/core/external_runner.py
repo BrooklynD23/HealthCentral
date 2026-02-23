@@ -8,6 +8,7 @@ Phase 2E: External API Backend (Opt-in)
 """
 
 import logging
+import json
 from typing import Optional
 
 from .model_runner import InferenceConfig, InferenceResult
@@ -103,10 +104,12 @@ class ExternalModelRunner:
         provider: str,
         api_key: str,
         model: str = "",
+        profile_id: Optional[str] = None,
     ):
         self._provider = provider
         self._api_key = api_key
         self._model = model or self._default_model()
+        self._profile_id = profile_id
 
     def _default_model(self) -> str:
         if self._provider == "openai":
@@ -117,7 +120,20 @@ class ExternalModelRunner:
 
     def is_available(self) -> bool:
         """Check if the external API is configured."""
-        return bool(self._provider and self._api_key)
+        if not (self._provider and self._api_key):
+            return False
+
+        # Defense-in-depth: do not consider external runner available in production
+        # unless redaction is safely configured (F-001/F-002).
+        app_env = getattr(settings, "app_env", "development")
+        break_glass = getattr(settings, "external_api_redaction_break_glass", False) is True
+        if app_env == "production" and not break_glass:
+            if getattr(settings, "redaction_enabled", False) is not True:
+                return False
+            if getattr(settings, "redaction_policy_level", "") != "strict":
+                return False
+
+        return True
 
     def generate(
         self,
@@ -146,21 +162,81 @@ class ExternalModelRunner:
         if config is None:
             config = InferenceConfig()
 
-        # Apply redaction before sending to external provider (PRIV-RED-001)
-        if settings.redaction_enabled:
-            from modules.redaction import RedactionEngine
+        app_env = getattr(settings, "app_env", "development")
+        break_glass = getattr(settings, "external_api_redaction_break_glass", False) is True
+        redaction_enabled = getattr(settings, "redaction_enabled", False) is True
+        policy_level = getattr(settings, "redaction_policy_level", "strict")
 
-            engine = RedactionEngine(
-                policy_level=settings.redaction_policy_level
-            )
-            redaction_result = engine.redact(prompt)
-            if redaction_result.redacted_count > 0:
-                logger.info(
-                    "Redacted %d PII/PHI items before external API call",
-                    redaction_result.redacted_count,
-                    extra={"provider": self._provider},
+        # Enforce strict redaction for any external provider call in production,
+        # unless an explicit break-glass override is enabled (F-001/F-002).
+        if app_env == "production" and not break_glass:
+            if not redaction_enabled:
+                logger.error(
+                    "External API call blocked: redaction is required in production",
+                    extra={"provider": self._provider, "profile_id": self._profile_id},
                 )
+                return InferenceResult(
+                    text="External API error: redaction is required for external calls",
+                    tokens_generated=0,
+                    finish_reason="error",
+                    model_name=self._model,
+                )
+            if policy_level != "strict":
+                logger.error(
+                    "External API call blocked: strict redaction is required in production",
+                    extra={
+                        "provider": self._provider,
+                        "profile_id": self._profile_id,
+                        "policy_level": policy_level,
+                    },
+                )
+                return InferenceResult(
+                    text="External API error: strict redaction is required for external calls",
+                    tokens_generated=0,
+                    finish_reason="error",
+                    model_name=self._model,
+                )
+
+        redacted_count: Optional[int] = None
+        if redaction_enabled:
+            from modules.redaction import RedactionEngine, VALID_POLICY_LEVELS
+
+            if policy_level not in VALID_POLICY_LEVELS:
+                logger.error(
+                    "External API call blocked: invalid redaction_policy_level",
+                    extra={
+                        "provider": self._provider,
+                        "profile_id": self._profile_id,
+                        "policy_level": policy_level,
+                    },
+                )
+                return InferenceResult(
+                    text="External API error: redaction is misconfigured",
+                    tokens_generated=0,
+                    finish_reason="error",
+                    model_name=self._model,
+                )
+
+            engine = RedactionEngine(policy_level=policy_level)
+            redaction_result = engine.redact(prompt)
+            redacted_count = redaction_result.redacted_count
             prompt = redaction_result.text
+
+        audit_data = {
+            "event": "security.external_api.call",
+            "provider": self._provider,
+            "model": self._model,
+            "profile_id": self._profile_id,
+            "app_env": app_env,
+            "redaction_enabled": redaction_enabled,
+            "redaction_policy_level": policy_level if redaction_enabled else None,
+            "redaction_redacted_count": redacted_count,
+            "redaction_break_glass": break_glass,
+        }
+        if break_glass and (not redaction_enabled or policy_level != "strict"):
+            logger.warning("SECURITY_AUDIT: %s", json.dumps(audit_data, default=str))
+        else:
+            logger.info("SECURITY_AUDIT: %s", json.dumps(audit_data, default=str))
 
         try:
             if self._provider == "openai":
@@ -285,6 +361,7 @@ async def get_runner_for_request(profile_id: str, profile_db) -> Optional["Exter
                 return ExternalModelRunner(
                     provider=provider,
                     api_key=api_key,
+                    profile_id=profile_id,
                 )
     except Exception:
         logger.debug("Could not load external API settings")

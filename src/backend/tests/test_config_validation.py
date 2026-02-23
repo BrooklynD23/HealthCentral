@@ -75,6 +75,36 @@ class TestValidateStartup:
         # Either directory was created or a warning was emitted
         assert models_dir.exists() or any("models" in w.lower() for w in warnings)
 
+    def test_production_redaction_disabled_raises(self):
+        """F-002: Production must not allow external redaction to be disabled."""
+        s = _make_settings(app_env="production", redaction_enabled=False)
+        with pytest.raises(RuntimeError, match="redaction_enabled must be True"):
+            s.validate_startup()
+
+    def test_production_non_strict_redaction_policy_raises(self):
+        """F-001: Production must require strict redaction for external calls."""
+        s = _make_settings(app_env="production", redaction_policy_level="standard")
+        with pytest.raises(RuntimeError, match="redaction_policy_level must be 'strict'"):
+            s.validate_startup()
+
+    def test_production_break_glass_allows_unsafe_redaction_with_warning(self):
+        """F-001/F-002: Break-glass allows unsafe config but must warn."""
+        s = _make_settings(
+            app_env="production",
+            external_api_redaction_break_glass=True,
+            redaction_enabled=False,
+            redaction_policy_level="standard",
+        )
+        warnings = s.validate_startup()
+        assert any("break_glass" in w.lower() for w in warnings)
+        assert any("unredacted" in w.lower() for w in warnings)
+
+    def test_invalid_redaction_policy_level_raises(self):
+        """Startup validation must fail fast on invalid redaction policy values."""
+        s = _make_settings(redaction_policy_level="nonexistent")
+        with pytest.raises(RuntimeError, match="Invalid redaction_policy_level"):
+            s.validate_startup()
+
 
 class TestIsOcrAvailable:
     """Tests for the is_ocr_available() standalone function."""
