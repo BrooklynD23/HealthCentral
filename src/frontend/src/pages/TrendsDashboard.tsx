@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   TrendingUp,
@@ -11,6 +11,8 @@ import {
   Loader2,
   AlertTriangle,
   FileText,
+  Download,
+  Image,
 } from 'lucide-react';
 import {
   LineChart,
@@ -90,8 +92,36 @@ export function TrendsDashboard() {
       value: point.value,
       refLow: trendData.ref_low,
       refHigh: trendData.ref_high,
+      confidence: point.extraction_confidence,
     }));
   }, [trendData]);
+
+  // Chart container ref for export (EXPORT-CHART-001)
+  const chartRef = useRef<HTMLDivElement>(null);
+
+  const handleExportPNG = useCallback(async () => {
+    if (!chartRef.current) return;
+    const { default: html2canvas } = await import('html2canvas');
+    const canvas = await html2canvas(chartRef.current, { backgroundColor: '#ffffff' });
+    const link = document.createElement('a');
+    link.download = `${effectiveSelectedAnalyte || 'chart'}-trend.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  }, [effectiveSelectedAnalyte]);
+
+  const handleExportSVG = useCallback(() => {
+    if (!chartRef.current) return;
+    const svgElement = chartRef.current.querySelector('svg');
+    if (!svgElement) return;
+    const serializer = new XMLSerializer();
+    const svgString = serializer.serializeToString(svgElement);
+    const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    const link = document.createElement('a');
+    link.download = `${effectiveSelectedAnalyte || 'chart'}-trend.svg`;
+    link.href = URL.createObjectURL(blob);
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }, [effectiveSelectedAnalyte]);
 
   // Get latest value info
   const latestValue = trendData?.data_points?.[trendData.data_points.length - 1];
@@ -245,10 +275,32 @@ export function TrendsDashboard() {
                     <Badge variant="attention">Outside Range</Badge>
                   )}
                 </div>
-                <Button variant="ghost" size="sm" className="gap-1.5 text-xs">
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  View Sources
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5 text-xs"
+                    onClick={handleExportPNG}
+                    aria-label="Download chart as PNG"
+                  >
+                    <Image className="w-3.5 h-3.5" />
+                    PNG
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5 text-xs"
+                    onClick={handleExportSVG}
+                    aria-label="Download chart as SVG"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    SVG
+                  </Button>
+                  <Button variant="ghost" size="sm" className="gap-1.5 text-xs">
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    View Sources
+                  </Button>
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -266,7 +318,7 @@ export function TrendsDashboard() {
                 </div>
               ) : (
                 <>
-                  <div className="h-72">
+                  <div className="h-72" ref={chartRef}>
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart
                         data={chartData}
@@ -295,6 +347,27 @@ export function TrendsDashboard() {
                             border: '1px solid rgba(0,0,0,0.08)',
                             borderRadius: '12px',
                             boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+                          }}
+                          content={({ active, payload }) => {
+                            if (!active || !payload?.[0]) return null;
+                            const data = payload[0].payload as {
+                              date: string;
+                              value: number;
+                              confidence: number | null;
+                            };
+                            return (
+                              <div className="bg-white border border-black/[0.08] rounded-xl shadow-soft px-4 py-3">
+                                <p className="text-sm font-medium text-ink">
+                                  {data.value} {trendData?.unit}
+                                </p>
+                                <p className="text-xs text-ink-secondary">{data.date}</p>
+                                {data.confidence != null && (
+                                  <p className="text-xs text-ink-tertiary mt-1">
+                                    Confidence: {(data.confidence * 100).toFixed(0)}%
+                                  </p>
+                                )}
+                              </div>
+                            );
                           }}
                         />
                         {trendData.ref_low !== null && (

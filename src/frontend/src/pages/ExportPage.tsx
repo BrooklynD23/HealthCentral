@@ -30,6 +30,7 @@ import {
   useGenerateQuestions,
   useDocuments,
 } from '@/services';
+import { useObservations } from '@/services/observations';
 import { useAuthStore } from '@/stores/authStore';
 import type { SummaryResponse, QuestionItem, ExportFormat } from '@/services/export';
 
@@ -57,6 +58,12 @@ export function ExportPage() {
   const downloadSummary = useDownloadSummary();
   const generateQuestions = useGenerateQuestions();
   const { data: documents } = useDocuments({ profile_id: profileId || '' });
+  const { data: allObservations } = useObservations({ profile_id: profileId || '' });
+
+  // Data quality: count low-confidence observations (UX-CONF-001)
+  const lowConfidenceCount = allObservations?.filter(
+    (obs) => obs.extraction_confidence != null && obs.extraction_confidence < 0.8
+  ).length ?? 0;
 
   const handleToggleSection = (id: string) => {
     setSections((prev) =>
@@ -448,6 +455,26 @@ export function ExportPage() {
               )}
             </CardContent>
           </Card>
+
+          {lowConfidenceCount > 0 && (
+            <Card className="border-status-caution/30">
+              <CardContent className="p-4">
+                <div className="flex gap-3">
+                  <AlertCircle className="w-5 h-5 text-status-caution flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-ink mb-1">
+                      Data Quality Note
+                    </p>
+                    <p className="text-xs text-ink-secondary leading-relaxed">
+                      {lowConfidenceCount} observation{lowConfidenceCount !== 1 ? 's have' : ' has'} lower
+                      extraction confidence (&lt; 80%). Review these in the
+                      Verification Workbench before sharing with your clinician.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <div className="text-xs text-ink-tertiary text-center px-4">
             Export includes only information from your uploaded documents. No
