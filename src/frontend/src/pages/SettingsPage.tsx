@@ -17,6 +17,7 @@ import {
   Server,
 } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui';
+import { MemoryManager } from '@/components/MemoryManager';
 import { cn } from '@/utils/cn';
 import {
   useModelSettings,
@@ -407,6 +408,9 @@ export function SettingsPage() {
           </div>
         </div>
       </div>
+
+      {/* Assistant Memory */}
+      <MemoryManager />
 
       {/* Consent Dialog */}
       {showConsentDialog && (
