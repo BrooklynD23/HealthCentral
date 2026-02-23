@@ -38,7 +38,7 @@ class InputValidationMiddleware:
     def __init__(self, app: Callable, max_request_body_bytes: int = 10_485_760) -> None:
         self.app = app
         self.max_request_body_bytes = max_request_body_bytes
-        self.max_upload_bytes = app_settings.max_import_file_size_mb * 1024 * 1024
+        self.max_upload_bytes = int(app_settings.max_import_file_size_mb * 1024 * 1024 * 1.05)
 
     async def __call__(self, scope: dict, receive: Callable, send: Callable) -> None:
         if scope["type"] != "http":

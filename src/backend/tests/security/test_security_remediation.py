@@ -6,8 +6,6 @@ Each test is tagged with the finding ID it validates.
 
 import json
 from pathlib import Path
-from unittest.mock import patch
-
 import pytest
 
 from scripts.backup import _validate_manifest_path
@@ -155,6 +153,24 @@ class TestSEC002UploadLimits:
         assert capture.status == 200
 
     @pytest.mark.asyncio
+    async def test_import_with_multipart_overhead_passes(self):
+        """UPL-001: A 50 MB file + multipart framing overhead (within 5%) passes."""
+        from security.input_validator import InputValidationMiddleware
+
+        mw = InputValidationMiddleware(passthrough_app, max_request_body_bytes=100)
+        # Exact 50 MB + 2% overhead (well within 5% cushion)
+        exact_50mb = 50 * 1024 * 1024
+        with_overhead = int(exact_50mb * 1.02)
+        scope = make_scope(
+            method="POST",
+            path="/api/v1/documents/import",
+            headers=[[b"content-length", str(with_overhead).encode()]],
+        )
+        capture = ResponseCapture()
+        await mw(scope, make_receive(), capture)
+        assert capture.status == 200
+
+    @pytest.mark.asyncio
     async def test_non_import_oversized_rejected(self):
         """SEC-002: Non-import endpoint with Content-Length > 10 MB → 413."""
         from security.input_validator import InputValidationMiddleware
@@ -292,10 +308,10 @@ class TestSEC004PathTraversal:
 # ===========================================================================
 
 class TestSEC006ProductionDebugGuard:
-    """validate_startup() forces debug=False in production."""
+    """model_post_init forces debug=False in production at construction time."""
 
-    def test_production_debug_forced_off(self):
-        """SEC-006: debug=True in production → forced to False."""
+    def test_production_debug_forced_off_at_construction(self):
+        """SEC-006: debug=True in production -> forced to False at construction time."""
         from core.config import Settings
 
         s = Settings(
@@ -303,17 +319,29 @@ class TestSEC006ProductionDebugGuard:
             debug=True,
             jwt_secret="test-secret-at-least-32-chars-long!!",
         )
-        warnings = s.validate_startup()
-
+        # debug should already be False WITHOUT calling validate_startup()
         assert s.debug is False
-        assert any("debug" in w.lower() and "production" in w.lower() for w in warnings)
+
+    def test_production_debug_forced_before_validate_startup(self):
+        """SEC-006: debug is forced off before validate_startup() runs."""
+        from core.config import Settings
+
+        s = Settings(
+            app_env="production",
+            debug=True,
+            jwt_secret="test-secret-at-least-32-chars-long!!",
+        )
+        # model_post_init already did the work
+        assert s.debug is False
+        # validate_startup() should still work without errors
+        warnings = s.validate_startup()
+        assert isinstance(warnings, list)
 
     def test_development_debug_stays_on(self):
         """SEC-006: debug=True in development is left alone."""
         from core.config import Settings
 
         s = Settings(app_env="development", debug=True)
-        warnings = s.validate_startup()
-
         assert s.debug is True
-        assert not any("debug" in w.lower() and "overridden" in w.lower() for w in warnings)
+        warnings = s.validate_startup()
+        assert s.debug is True

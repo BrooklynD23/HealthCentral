@@ -115,6 +115,11 @@ class Settings(BaseSettings):
     use_llm_entailment: bool = False  # Use LLM for complex entailment (vs rule-based)
     multi_pass_verification: bool = False  # Enable multi-pass consistency checking
     
+    def model_post_init(self, __context) -> None:
+        """Enforce production safety invariants at construction time."""
+        if self.app_env == "production" and self.debug:
+            object.__setattr__(self, "debug", False)
+
     @property
     def app_data_path(self) -> Path:
         """Get the application data directory path."""
@@ -173,12 +178,8 @@ class Settings(BaseSettings):
                 "jwt_secret must be set in production environment"
             )
 
-        # Production safety: force debug off even if misconfigured
-        if self.app_env == "production" and self.debug:
-            self.debug = False
-            warnings.append(
-                "debug=True overridden to False in production environment"
-            )
+        # Production safety: debug is already forced off by model_post_init.
+        # No additional action needed here.
 
         return warnings
 

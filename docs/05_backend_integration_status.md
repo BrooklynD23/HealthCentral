@@ -18,7 +18,7 @@ This document tracks the implementation status of backend-frontend integration f
 Sprint 06 (Platform Operations & Compliance) added operational infrastructure:
 
 - **Security middleware stack** (`src/backend/security/`): InputValidationMiddleware (body size + null byte rejection), RateLimitMiddleware (sliding window counter + X-RateLimit-* headers), SecurityHeadersMiddleware (OWASP headers, HSTS/CSP in server mode), SecurityAuditMiddleware (structured JSON logging for mutating requests).
-- **Monitoring package** (`src/backend/monitoring/`): MetricsCollector (ring buffer, route-template keyed), CorrelationIdMiddleware (UUID4 via contextvars), TimingMiddleware (perf_counter + X-Response-Time-Ms header), enhanced `/health` with metrics summary.
+- **Monitoring package** (`src/backend/monitoring/`): MetricsCollector (ring buffer, route-template keyed), CorrelationIdMiddleware (UUID4 via contextvars), TimingMiddleware (perf_counter + X-Response-Time-Ms header), lightweight `/health` liveness probe (status, mode, version only).
 - **Backup utility** (`src/backend/scripts/backup.py`): CLI for backup (sqlite3.backup API), verify (SHA-256), restore (with .bak safety copies), and prune operations.
 - **Middleware stack order** (outermost→innermost): CORS → CorrelationId → SecurityHeaders → RateLimit → InputValidation → SecurityAudit → Timing → Routes.
 - **New config fields**: `api_rate_limit_enabled`, `api_rate_limit_max_requests`, `api_rate_limit_window_seconds`, `max_request_body_bytes`, `security_headers_enabled`, `audit_security_events_to_db`, `metrics_enabled`, `metrics_buffer_size`, `correlation_id_header`.
@@ -133,8 +133,8 @@ The STAB-001 through STAB-007 sprint hardening work is implemented:
 #### Health & Monitoring (`monitoring/health.py`) - Sprint 06
 | Endpoint | Method | Status | Description |
 |----------|--------|--------|-------------|
-| `/health` | GET | ✅ Done | Health check with optional metrics summary (no auth) |
-| `/api/v1/monitoring/metrics` | GET | ✅ Done | Full metrics dashboard (per-endpoint stats) |
+| `/health` | GET | ✅ Done | Liveness probe (status, mode, version only) |
+| `/api/v1/monitoring/metrics` | GET | ✅ Done | Full metrics dashboard (per-endpoint stats, auth required) |
 
 ---
 
@@ -338,15 +338,14 @@ Access:
 
 ## Next Steps
 
-1. **Security remediation** (Sprint 06 review findings in `docs/compliance/security-review-sprint06.md`)
-   - Lock down `/monitoring/metrics` with auth in server mode (S06-SEC-001).
-   - Replace import endpoint body-size bypass with explicit upload limit (S06-SEC-002/003).
-   - Add path traversal validation to backup restore (S06-SEC-004).
+1. **Security remediation** — SEC-001 through SEC-006 remediated (commit `39a9984`). Remaining: SEC-007 (proxy IP keying) and SEC-008 (CI scan policy) deferred to next sprint.
 2. **Regression safety**
    - Keep E2E smoke suite green in CI and expand deterministic fixtures as workflows evolve.
    - Continue adversarial safety test expansion for RAG and interpretation guardrails.
+   - Backend security regression tests added (`test_security_remediation.py`).
 3. **Deferred backlog**
-   - Execute deferred feature work (advanced export formats, enhanced search, multi-source imports) in a future scoped sprint.
+   - SEC-007 (proxy-aware IP keying for rate limiter) and SEC-008 (CI scan policy enforcement).
+   - Feature work (advanced export formats, enhanced search, multi-source imports) in a future scoped sprint.
 
 ---
 

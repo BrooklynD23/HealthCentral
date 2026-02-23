@@ -52,7 +52,7 @@
 - Reduce concurrent requests if running multiple tabs
 - Check disk space for the `data/` directory
 - Restart the backend to clear in-memory caches
-- Check `/health` endpoint for metrics summary
+- Check `/health` endpoint for application status
 
 ### 6. Rate limiting (429 Too Many Requests)
 
@@ -98,12 +98,13 @@ verbose output.
 curl http://localhost:8000/health | python -m json.tool
 ```
 
-Returns application status, mode, version, and metrics summary.
+Returns application status, mode, and version.
 
 ### Metrics
 
 ```bash
-curl http://localhost:8000/api/v1/monitoring/metrics | python -m json.tool
+curl -H "Authorization: Bearer <token>" \
+  http://localhost:8000/api/v1/monitoring/metrics | python -m json.tool
 ```
 
-Returns detailed performance metrics for debugging slow endpoints.
+Returns detailed performance metrics for debugging slow endpoints (auth required).

@@ -1,6 +1,6 @@
 # HealthCentral Documentation Index (Current)
 
-**Last Updated:** 2026-02-21
+**Last Updated:** 2026-02-23
 **Owner:** Project Lead
 **Refresh Trigger:** New doc added or doc archived
 
@@ -14,6 +14,11 @@ This index defines the canonical documentation order and marks legacy planning f
    Current backend/frontend contract and integration baseline.
 2. `docs/features/TASK_LIST.md`
    Remaining backlog only (active implementation and consolidation tasks).
+
+## Planning (Current)
+
+- `docs/plans/roadmap_gap_closure.md`  
+  Gap-closure roadmap (security follow-ups + PRD completion) intended for PM/Senior Dev approval, then conversion into GitHub Issues.
 
 ## Architecture References (Current)
 
