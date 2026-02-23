@@ -11,6 +11,9 @@ Uses ProfileDbSession for database access instead of master database.
 import json
 import logging
 import re
+import threading
+import time
+from collections import OrderedDict
 from pathlib import Path
 from typing import Optional
 from datetime import datetime
@@ -36,6 +39,51 @@ logger = logging.getLogger(__name__)
 
 # Shared normalizer instance
 _normalizer = NormalizeModule()
+
+# ---------------------------------------------------------------------------
+# Page image rendering cache (F-005)
+# ---------------------------------------------------------------------------
+
+_PAGE_IMAGE_CACHE_TTL_SECONDS = 300
+_PAGE_IMAGE_CACHE_MAX_ENTRIES = 32
+_PAGE_IMAGE_CACHE_MAX_ITEM_BYTES = 2_000_000  # avoid unbounded memory growth
+
+_PageImageCacheKey = tuple[str, str, int, int]  # (profile_id, document_id, page_number, resolution)
+_page_image_cache: "OrderedDict[_PageImageCacheKey, tuple[float, bytes]]" = OrderedDict()
+_page_image_cache_lock = threading.Lock()
+
+
+def _page_image_cache_get(key: _PageImageCacheKey) -> bytes | None:
+    now = time.time()
+    with _page_image_cache_lock:
+        expired = [k for k, (expires_at, _) in _page_image_cache.items() if expires_at <= now]
+        for k in expired:
+            _page_image_cache.pop(k, None)
+
+        entry = _page_image_cache.get(key)
+        if not entry:
+            return None
+        expires_at, value = entry
+        if expires_at <= now:
+            _page_image_cache.pop(key, None)
+            return None
+        _page_image_cache.move_to_end(key)
+        return value
+
+
+def _page_image_cache_set(key: _PageImageCacheKey, value: bytes) -> None:
+    if len(value) > _PAGE_IMAGE_CACHE_MAX_ITEM_BYTES:
+        return
+    now = time.time()
+    with _page_image_cache_lock:
+        expired = [k for k, (expires_at, _) in _page_image_cache.items() if expires_at <= now]
+        for k in expired:
+            _page_image_cache.pop(k, None)
+
+        _page_image_cache[key] = (now + _PAGE_IMAGE_CACHE_TTL_SECONDS, value)
+        _page_image_cache.move_to_end(key)
+        while len(_page_image_cache) > _PAGE_IMAGE_CACHE_MAX_ENTRIES:
+            _page_image_cache.popitem(last=False)
 
 
 def _parse_date_string(date_str: Optional[str]) -> Optional[datetime]:
@@ -619,6 +667,21 @@ async def get_page_image(
             detail="Page number must be >= 1",
         )
 
+    resolution = 150
+    cache_key: _PageImageCacheKey = (
+        document.profile_id,
+        document_id,
+        page_number,
+        resolution,
+    )
+    cached = _page_image_cache_get(cache_key)
+    if cached is not None:
+        return Response(
+            content=cached,
+            media_type="image/png",
+            headers={"Cache-Control": f"private, max-age={_PAGE_IMAGE_CACHE_TTL_SECONDS}"},
+        )
+
     try:
         import pdfplumber
         from io import BytesIO
@@ -631,16 +694,18 @@ async def get_page_image(
                     detail=f"Page {page_number} not found (document has {len(pdf.pages)} pages)",
                 )
             page = pdf.pages[page_number - 1]
-            img = page.to_image(resolution=150)
+            img = page.to_image(resolution=resolution)
 
             buf = BytesIO()
             img.save(buf, format="PNG")
             buf.seek(0)
+            content = buf.getvalue()
+            _page_image_cache_set(cache_key, content)
 
             return Response(
-                content=buf.getvalue(),
+                content=content,
                 media_type="image/png",
-                headers={"Cache-Control": "private, max-age=300"},
+                headers={"Cache-Control": f"private, max-age={_PAGE_IMAGE_CACHE_TTL_SECONDS}"},
             )
     except HTTPException:
         raise

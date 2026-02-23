@@ -7,6 +7,8 @@ Covers: bbox JSON round-trip, page image content-type, out-of-range 404, auth re
 import json
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+import types
+from io import BytesIO
 
 from api.observations import ObservationResponse
 
@@ -150,3 +152,60 @@ class TestPageImageEndpoint:
         with pytest.raises(HTTPException) as exc_info:
             validate_uuid("../../etc/passwd", "document_id")
         assert exc_info.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_page_image_uses_in_process_cache(self):
+        """F-005: Repeated requests should not re-render the same page image."""
+        from api.documents import get_page_image
+        import api.documents as documents_api
+
+        # Clear any prior cache state from other tests
+        with documents_api._page_image_cache_lock:
+            documents_api._page_image_cache.clear()
+
+        document_id = "11111111-1111-4111-8111-111111111111"
+        session = MagicMock(profile_id="profile-1")
+
+        mock_doc = MagicMock()
+        mock_doc.id = document_id
+        mock_doc.profile_id = "profile-1"
+
+        result_mock = MagicMock()
+        result_mock.scalar_one_or_none.return_value = mock_doc
+
+        profile_db = AsyncMock()
+        profile_db.execute.return_value = result_mock
+
+        png_bytes = b"\x89PNG\r\n\x1a\nfakepng"
+
+        class FakeImage:
+            def save(self, buf, format="PNG"):
+                buf.write(png_bytes)
+
+        class FakePage:
+            def to_image(self, resolution: int = 150):
+                return FakeImage()
+
+        class FakePdf:
+            pages = [FakePage()]
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+        fake_pdfplumber = types.ModuleType("pdfplumber")
+        fake_pdfplumber.open = MagicMock(return_value=FakePdf())
+
+        with (
+            patch.dict("sys.modules", {"pdfplumber": fake_pdfplumber}),
+            patch("api.documents.get_decrypted_document", return_value=BytesIO(b"%PDF-FAKE")),
+        ):
+            r1 = await get_page_image(document_id, 1, session, profile_db)
+            r2 = await get_page_image(document_id, 1, session, profile_db)
+
+        assert r1.media_type == "image/png"
+        assert r1.body == png_bytes
+        assert r2.body == png_bytes
+        assert fake_pdfplumber.open.call_count == 1
