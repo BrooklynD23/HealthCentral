@@ -43,6 +43,9 @@ from .medication import (
 # Model settings (per-profile, Phase 0.3)
 from .model_settings import UserModelSettings
 
+# Memory store (per-profile, ASSIST-MEM-001)
+from .memory_item import MemoryItem
+
 __all__ = [
     # Master database
     "Profile",
@@ -67,4 +70,6 @@ __all__ = [
     "ReminderLog",
     # Model settings (per-profile, Phase 0.3)
     "UserModelSettings",
+    # Memory store (per-profile)
+    "MemoryItem",
 ]
