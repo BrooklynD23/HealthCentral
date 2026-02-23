@@ -57,6 +57,57 @@ class RestoreResult:
     error: str = ""
 
 
+def _validate_manifest_path(base_dir: Path, relative_path: str) -> Path:
+    """
+    Validate a relative path from a backup manifest against path traversal.
+
+    Args:
+        base_dir: The trusted base directory.
+        relative_path: The path string read from the manifest.
+
+    Returns:
+        Resolved absolute path guaranteed to be under base_dir.
+
+    Raises:
+        ValueError: If the path is absolute, contains '..' components, or
+                    resolves outside base_dir.
+    """
+    # Reject absolute paths (Unix and Windows drive letters)
+    if relative_path.startswith("/") or relative_path.startswith("\\"):
+        raise ValueError(
+            f"Manifest contains absolute path: {relative_path}"
+        )
+    if len(relative_path) >= 2 and relative_path[1] == ":":
+        raise ValueError(
+            f"Manifest contains absolute Windows path: {relative_path}"
+        )
+
+    # Reject any '..' components
+    parts = Path(relative_path).parts
+    if ".." in parts:
+        raise ValueError(
+            f"Manifest contains path traversal: {relative_path}"
+        )
+
+    # Reject null bytes
+    if "\x00" in relative_path:
+        raise ValueError(
+            f"Manifest path contains null byte: {relative_path!r}"
+        )
+
+    # Resolve and confirm it stays under base_dir
+    resolved = (base_dir / relative_path).resolve()
+    base_resolved = base_dir.resolve()
+    try:
+        resolved.relative_to(base_resolved)
+    except ValueError:
+        raise ValueError(
+            f"Manifest path escapes base directory: {relative_path}"
+        )
+
+    return resolved
+
+
 def _compute_sha256(file_path: Path) -> str:
     """Compute SHA-256 hash of a file."""
     h = hashlib.sha256()
@@ -203,8 +254,13 @@ def verify(backup_path: Path) -> VerifyResult:
     files_checked = 0
 
     for entry in manifest.get("files", []):
-        file_path = backup_path / entry["path"]
         files_checked += 1
+
+        try:
+            file_path = _validate_manifest_path(backup_path, entry["path"])
+        except ValueError as e:
+            errors.append(str(e))
+            continue
 
         if not file_path.exists():
             errors.append(f"Missing file: {entry['path']}")
@@ -245,8 +301,16 @@ def restore(backup_path: Path, data_dir: Path) -> RestoreResult:
     files_restored = 0
 
     for entry in manifest.get("files", []):
-        src_file = backup_path / entry["path"]
-        dest_file = data_dir / entry["path"]
+        try:
+            src_file = _validate_manifest_path(backup_path, entry["path"])
+            dest_file = _validate_manifest_path(data_dir, entry["path"])
+        except ValueError as e:
+            return RestoreResult(
+                success=False,
+                files_restored=files_restored,
+                safety_copies=safety_copies,
+                error=f"Path validation failed: {e}",
+            )
 
         # Create safety copy of existing file
         if dest_file.exists():

@@ -21,7 +21,7 @@ from security.security_headers import SecurityHeadersMiddleware
 from security.audit_middleware import SecurityAuditMiddleware
 from monitoring.correlation import CorrelationIdMiddleware
 from monitoring.timing_middleware import TimingMiddleware
-from monitoring.health import router as health_router
+from monitoring.health import health_router, metrics_router
 
 logger = logging.getLogger(__name__)
 
@@ -108,9 +108,10 @@ def create_app() -> FastAPI:
     # Include API routes
     app.include_router(api_router, prefix="/api/v1")
 
-    # Health and monitoring endpoints (replaces inline /health)
+    # Public liveness probe at root /health (no auth, no prefix)
     app.include_router(health_router)
-    app.include_router(health_router, prefix="/api/v1")
+    # Auth-protected metrics under /api/v1/monitoring/metrics
+    app.include_router(metrics_router, prefix="/api/v1")
 
     return app
 

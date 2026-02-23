@@ -10,6 +10,8 @@ from __future__ import annotations
 import logging
 from typing import Callable
 
+from core.config import settings as app_settings
+
 logger = logging.getLogger(__name__)
 
 # Paths that allow multipart/form-data uploads (larger bodies expected)
@@ -19,6 +21,10 @@ IMPORT_PATH_PREFIXES = (
 )
 
 
+class _BodyTooLargeError(Exception):
+    """Internal signal raised by counting receive when body exceeds limit."""
+
+
 class InputValidationMiddleware:
     """
     ASGI middleware for input validation.
@@ -26,12 +32,13 @@ class InputValidationMiddleware:
     - Rejects requests with null bytes in path or query string.
     - Enforces Content-Length limit (rejects before body is read).
     - For chunked/streaming requests, wraps receive to count bytes incrementally.
-    - Allows multipart/form-data on import endpoints without body-size rejection.
+    - Import endpoints get a larger limit (max_import_file_size_mb from config).
     """
 
     def __init__(self, app: Callable, max_request_body_bytes: int = 10_485_760) -> None:
         self.app = app
         self.max_request_body_bytes = max_request_body_bytes
+        self.max_upload_bytes = app_settings.max_import_file_size_mb * 1024 * 1024
 
     async def __call__(self, scope: dict, receive: Callable, send: Callable) -> None:
         if scope["type"] != "http":
@@ -61,6 +68,7 @@ class InputValidationMiddleware:
 
         # Check if this is an import endpoint (allows larger multipart uploads)
         is_import = any(path.startswith(prefix) for prefix in IMPORT_PATH_PREFIXES)
+        effective_limit = self.max_upload_bytes if is_import else self.max_request_body_bytes
 
         # Body size enforcement for non-GET/HEAD/OPTIONS methods
         if method in ("POST", "PUT", "PATCH", "DELETE"):
@@ -70,27 +78,46 @@ class InputValidationMiddleware:
             if content_length_raw is not None:
                 try:
                     content_length = int(content_length_raw)
+                    if content_length < 0:
+                        raise ValueError("negative")
                 except (ValueError, TypeError):
                     await self._send_error(send, 400, "Invalid Content-Length")
                     return
 
-                if not is_import and content_length > self.max_request_body_bytes:
+                if content_length > effective_limit:
                     logger.warning(
                         "Request body too large: %d > %d",
-                        content_length, self.max_request_body_bytes,
+                        content_length, effective_limit,
                     )
                     await self._send_error(send, 413, "Request body too large")
                     return
-            elif not is_import:
+            else:
                 # No Content-Length — wrap receive to count bytes incrementally
-                receive = self._make_counting_receive(receive)
+                receive = self._make_counting_receive(receive, effective_limit)
 
-        await self.app(scope, receive, send)
+        response_started = False
 
-    def _make_counting_receive(self, original_receive: Callable) -> Callable:
+        async def tracked_send(message: dict) -> None:
+            nonlocal response_started
+            if message["type"] == "http.response.start":
+                response_started = True
+            await send(message)
+
+        try:
+            await self.app(scope, receive, tracked_send)
+        except _BodyTooLargeError:
+            if not response_started:
+                await self._send_error(send, 413, "Request body too large")
+            else:
+                logger.error(
+                    "Body size limit exceeded after response headers already sent"
+                )
+
+    def _make_counting_receive(
+        self, original_receive: Callable, max_bytes: int,
+    ) -> Callable:
         """Wrap receive to count body bytes and reject if exceeded."""
         bytes_received = 0
-        max_bytes = self.max_request_body_bytes
 
         async def counting_receive() -> dict:
             nonlocal bytes_received
@@ -99,7 +126,7 @@ class InputValidationMiddleware:
                 body = message.get("body", b"")
                 bytes_received += len(body)
                 if bytes_received > max_bytes:
-                    raise ValueError(
+                    raise _BodyTooLargeError(
                         f"Request body exceeded {max_bytes} bytes"
                     )
             return message

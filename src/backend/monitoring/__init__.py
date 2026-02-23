@@ -3,7 +3,7 @@
 from .metrics import MetricsCollector, MetricsSummary, EndpointStats, metrics_collector
 from .correlation import CorrelationIdMiddleware, get_correlation_id
 from .timing_middleware import TimingMiddleware
-from .health import router as health_router
+from .health import health_router, metrics_router
 
 __all__ = [
     "MetricsCollector",
@@ -14,4 +14,5 @@ __all__ = [
     "get_correlation_id",
     "TimingMiddleware",
     "health_router",
+    "metrics_router",
 ]

@@ -173,6 +173,13 @@ class Settings(BaseSettings):
                 "jwt_secret must be set in production environment"
             )
 
+        # Production safety: force debug off even if misconfigured
+        if self.app_env == "production" and self.debug:
+            self.debug = False
+            warnings.append(
+                "debug=True overridden to False in production environment"
+            )
+
         return warnings
 
 

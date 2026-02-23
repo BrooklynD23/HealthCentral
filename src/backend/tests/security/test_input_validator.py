@@ -104,18 +104,14 @@ async def test_oversized_content_length_rejected():
 
 @pytest.mark.asyncio
 async def test_streaming_body_exceeded_rejected():
-    """POST without Content-Length that exceeds limit during streaming."""
-    mw = InputValidationMiddleware(passthrough_app, max_request_body_bytes=10)
+    """POST without Content-Length that exceeds limit during streaming returns 413."""
 
-    # App that reads body via receive
     async def body_reading_app(scope, receive, send):
-        try:
+        """App that reads body via receive before responding."""
+        while True:
             msg = await receive()
-            _ = msg.get("body", b"")
-        except ValueError:
-            await send({"type": "http.response.start", "status": 413, "headers": []})
-            await send({"type": "http.response.body", "body": b'{"detail":"too large"}'})
-            return
+            if not msg.get("more_body", False):
+                break
         await send({"type": "http.response.start", "status": 200, "headers": []})
         await send({"type": "http.response.body", "body": b"ok"})
 
@@ -163,7 +159,7 @@ async def test_invalid_content_length():
 
 @pytest.mark.asyncio
 async def test_multipart_import_allowed():
-    """Multipart upload on import endpoints bypasses body size limit."""
+    """Upload on import endpoints uses the larger upload limit (not the default body limit)."""
     mw = InputValidationMiddleware(passthrough_app, max_request_body_bytes=100)
     scope = make_scope(
         method="POST",

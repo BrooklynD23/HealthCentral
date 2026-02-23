@@ -184,5 +184,5 @@ Available panel IDs: `cbc`, `cmp`, `lipid`, `thyroid`
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/health` | No | Health check with metrics summary |
-| GET | `/api/v1/monitoring/metrics` | No | Full metrics dashboard |
+| GET | `/health` | No | Liveness probe (status, mode, version) |
+| GET | `/api/v1/monitoring/metrics` | Yes | Full metrics dashboard (Bearer token required) |

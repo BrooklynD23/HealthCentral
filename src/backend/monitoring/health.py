@@ -1,47 +1,42 @@
 """
 Enhanced health and metrics endpoints.
 
-/health - Public health check with optional metrics summary.
+/health - Public liveness probe (no sensitive data).
 /monitoring/metrics - Auth-required full metrics dashboard.
 """
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 
+from core.auth import RequireAuth
 from core.config import settings
 from .metrics import metrics_collector
 
-router = APIRouter()
+# Public liveness probe — mounted at root (no /api/v1 prefix)
+health_router = APIRouter()
+
+# Auth-protected metrics — mounted under /api/v1
+metrics_router = APIRouter()
 
 
-@router.get("/health")
+@health_router.get("/health")
 async def health_check():
-    """Health check endpoint with optional metrics summary."""
-    response = {
+    """Lightweight liveness probe — no metrics, no computation."""
+    return {
         "status": "healthy",
         "mode": settings.app_mode,
         "version": "0.1.0",
     }
-    if settings.metrics_enabled:
-        summary = metrics_collector.get_summary()
-        response["metrics"] = {
-            "total_requests": summary.total_requests,
-            "error_rate": round(summary.error_rate, 4),
-            "p50_ms": round(summary.p50_ms, 2),
-            "p95_ms": round(summary.p95_ms, 2),
-            "uptime_seconds": round(summary.uptime_seconds, 1),
-        }
-    return response
 
 
-@router.get("/monitoring/metrics")
-async def get_metrics():
+@metrics_router.get("/monitoring/metrics")
+async def get_metrics(session: RequireAuth):
     """
     Full metrics dashboard.
 
     Returns detailed per-endpoint statistics.
-    Should be auth-protected in production.
+    Requires Bearer token authentication.
     """
     if not settings.metrics_enabled:
         raise HTTPException(status_code=404, detail="Metrics not enabled")
