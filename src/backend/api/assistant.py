@@ -59,6 +59,9 @@ class ChatRequest(BaseModel):
     # Conversation history (for context)
     history: list[ChatMessage] = []
 
+    # ASSIST-MEM-003: Include user memory items in context
+    use_memory: bool = False
+
     # Phase 4: Verification options
     enable_verification: bool = True  # Enable claim verification
     min_faithfulness_score: Optional[float] = None  # Override default threshold
@@ -203,6 +206,7 @@ async def chat(
             model_runner=runner,
             master_db=db,
             profile_db=profile_db,
+            use_memory=request.use_memory,
         )
 
         # Convert to response format

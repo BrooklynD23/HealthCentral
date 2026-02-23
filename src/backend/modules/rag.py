@@ -791,6 +791,48 @@ I was unable to fully process your question within the time limit. Please try as
 
         return segments
 
+    async def _retrieve_memory_context(
+        self,
+        profile_id: str,
+        profile_db,
+    ) -> str:
+        """
+        Retrieve user memory items and format as context block.
+
+        ASSIST-MEM-003: Memory items are injected as a USER PREFERENCES section
+        so the model can personalise responses without altering citation rules.
+
+        Returns empty string when no items exist or feature is disabled.
+        """
+        if profile_db is None:
+            return ""
+
+        try:
+            from sqlalchemy import select
+            from models.memory_item import MemoryItem
+
+            stmt = select(MemoryItem).where(MemoryItem.profile_id == profile_id)
+            result = await profile_db.execute(stmt)
+            items = result.scalars().all()
+
+            if not items:
+                return ""
+
+            lines = []
+            for item in items:
+                cat_label = f" [{item.category}]" if item.category else ""
+                lines.append(f"- {item.key}{cat_label}: {item.value}")
+
+            return (
+                "\nUSER PREFERENCES (from memory store — do NOT cite, "
+                "use only for personalisation):\n"
+                + "\n".join(lines)
+                + "\n"
+            )
+        except Exception as e:
+            self._logger.debug(f"Memory retrieval failed: {e}")
+            return ""
+
     async def query(
         self,
         question: str,
@@ -804,6 +846,7 @@ I was unable to fully process your question within the time limit. Please try as
         model_runner=None,
         master_db=None,
         profile_db=None,
+        use_memory: bool = False,
     ) -> ValidatedResponse:
         """
         Complete RAG query with retrieval, generation, and validation.
@@ -859,8 +902,24 @@ I was unable to fully process your question within the time limit. Please try as
                 insufficient_reasons=["No relevant documents found"],
             )
 
-        # Step 2: Compose prompt with history
+        # Step 2: Optionally retrieve memory context (ASSIST-MEM-003)
+        memory_section = ""
+        if use_memory:
+            from core.config import settings
+            if settings.assistant_memory_enabled:
+                memory_section = await self._retrieve_memory_context(
+                    profile_id, profile_db
+                )
+
+        # Step 2b: Compose prompt with history
         prompt = self.compose_prompt(question, chunks, history=history)
+
+        # Inject memory section after context, before user question
+        if memory_section:
+            prompt = prompt.replace(
+                f"USER QUESTION: {question}",
+                f"{memory_section}\nUSER QUESTION: {question}",
+            )
 
         # Step 3: Generate response (use override runner if provided)
         runner = model_runner or self._model_runner
