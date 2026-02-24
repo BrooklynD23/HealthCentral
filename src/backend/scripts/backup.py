@@ -167,6 +167,11 @@ def backup(
 
     Uses SQLite's backup() API for consistent online snapshots.
     """
+    if not data_dir.exists():
+        raise FileNotFoundError(f"Data directory not found: {data_dir}")
+    if not data_dir.is_dir():
+        raise NotADirectoryError(f"Data directory is not a directory: {data_dir}")
+
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     dest_dir = backup_dir / f"backup_{timestamp}"
     dest_dir.mkdir(parents=True, exist_ok=True)
