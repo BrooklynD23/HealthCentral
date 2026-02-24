@@ -230,8 +230,8 @@ class TestSEC003StreamingLimit:
             mock_settings.max_import_file_size_mb = 1  # 1 MB limit
             mw = InputValidationMiddleware(body_reading_app, max_request_body_bytes=10)
 
-        # Streaming body exceeding the 1 MB upload limit
-        over_upload = (1 * 1024 * 1024) + 1
+        # Streaming body exceeding the effective upload limit (includes headroom)
+        over_upload = mw.max_upload_bytes + 1
         scope = make_scope(method="POST", path="/api/v1/documents/import")
         capture = ResponseCapture()
         await mw(scope, make_receive(b"x" * over_upload), capture)
