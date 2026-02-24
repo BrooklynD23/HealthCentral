@@ -5,11 +5,11 @@
  * Falls back to text-only when no bbox data or image unavailable.
  */
 
-import { useState, useRef, useCallback, type FC } from 'react';
+import { useState, useRef, useCallback, useEffect, type FC } from 'react';
 import { AlertTriangle, ImageOff } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui';
 import { cn } from '@/utils/cn';
-import { getPageImageUrl } from '@/services/documents';
+import { fetchPageImageBlob } from '@/services/documents';
 import type { BoundingBox } from '@/services/types';
 
 export interface PageImageOverlayProps {
@@ -29,6 +29,7 @@ export const PageImageOverlay: FC<PageImageOverlayProps> = ({
 }) => {
   const [imageError, setImageError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [imageDimensions, setImageDimensions] = useState<{
     naturalWidth: number;
     naturalHeight: number;
@@ -37,7 +38,34 @@ export const PageImageOverlay: FC<PageImageOverlayProps> = ({
   } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const imageUrl = getPageImageUrl(documentId, pageNumber);
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl: string | null = null;
+
+    setImageError(false);
+    setImageLoaded(false);
+    setImageSrc(null);
+    setImageDimensions(null);
+
+    (async () => {
+      try {
+        const blob = await fetchPageImageBlob(documentId, pageNumber);
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setImageSrc(objectUrl);
+      } catch {
+        if (cancelled) return;
+        setImageError(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [documentId, pageNumber]);
 
   const handleImageLoad = useCallback(
     (e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -55,6 +83,10 @@ export const PageImageOverlay: FC<PageImageOverlayProps> = ({
 
   const handleImageError = useCallback(() => {
     setImageError(true);
+    setImageSrc((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
   }, []);
 
   // Compute scaled bbox rectangle for overlay
@@ -96,7 +128,7 @@ export const PageImageOverlay: FC<PageImageOverlayProps> = ({
         </p>
         <div ref={containerRef} className="relative inline-block w-full">
           <img
-            src={imageUrl}
+            src={imageSrc ?? undefined}
             alt={`Page ${pageNumber} of document`}
             className={cn(
               'w-full h-auto rounded border border-black/[0.06]',
@@ -104,8 +136,6 @@ export const PageImageOverlay: FC<PageImageOverlayProps> = ({
             )}
             onLoad={handleImageLoad}
             onError={handleImageError}
-            // Auth header sent via cookie; for token-based auth, use a fetched blob
-            crossOrigin="use-credentials"
           />
 
           {/* Loading placeholder */}

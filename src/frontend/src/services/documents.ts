@@ -5,7 +5,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiGet, apiDelete, apiUpload } from './api';
+import { apiGet, apiDelete, apiUpload, apiGetRaw } from './api';
 import type { Document, DocumentImportResponse, DocumentPage, DocumentFilters } from './types';
 
 const QUERY_KEY = 'documents';
@@ -17,6 +17,22 @@ const QUERY_KEY = 'documents';
 export function getPageImageUrl(documentId: string, pageNumber: number): string {
   const base = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
   return `${base}/documents/${documentId}/pages/${pageNumber}/image`;
+}
+
+/**
+ * Fetch a page image as a Blob using Authorization headers (OCR-BOX-001).
+ *
+ * Do not rely on credentialed <img> requests (no Authorization header) and
+ * do not put tokens into URLs (F-008).
+ */
+export async function fetchPageImageBlob(
+  documentId: string,
+  pageNumber: number
+): Promise<Blob> {
+  const response = await apiGetRaw(
+    `/documents/${documentId}/pages/${pageNumber}/image`
+  );
+  return response.blob();
 }
 
 // API functions
