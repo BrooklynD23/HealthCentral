@@ -91,6 +91,25 @@ class UserModelSettings(ProfileDatabaseBase):
         nullable=False,
     )
 
+    # Timezone for streak/badge computation (GAM-001)
+    timezone: Mapped[str] = mapped_column(
+        Text,
+        default="UTC",
+        nullable=False,
+    )
+
+    # Voice logging preferences (MED-VOICE-001)
+    voice_logging_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+    voice_modal_seen: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime,

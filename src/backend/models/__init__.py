@@ -43,6 +43,9 @@ from .medication import (
 # Model settings (per-profile, Phase 0.3)
 from .model_settings import UserModelSettings
 
+# Gamification (per-profile, GAM-001)
+from .gamification import BadgeDefinition, EarnedBadge
+
 # Memory store (per-profile, ASSIST-MEM-001)
 from .memory_item import MemoryItem
 
@@ -70,6 +73,9 @@ __all__ = [
     "ReminderLog",
     # Model settings (per-profile, Phase 0.3)
     "UserModelSettings",
+    # Gamification (per-profile, GAM-001)
+    "BadgeDefinition",
+    "EarnedBadge",
     # Memory store (per-profile)
     "MemoryItem",
 ]
