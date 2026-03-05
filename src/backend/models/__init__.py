@@ -46,6 +46,9 @@ from .model_settings import UserModelSettings
 # Gamification (per-profile, GAM-001)
 from .gamification import BadgeDefinition, EarnedBadge
 
+# Document classification (per-profile, INGEST-EPIC-001)
+from .document_category import DocumentCategory, DocumentEntity
+
 # Memory store (per-profile, ASSIST-MEM-001)
 from .memory_item import MemoryItem
 
@@ -76,6 +79,9 @@ __all__ = [
     # Gamification (per-profile, GAM-001)
     "BadgeDefinition",
     "EarnedBadge",
+    # Document classification (per-profile, INGEST-EPIC-001)
+    "DocumentCategory",
+    "DocumentEntity",
     # Memory store (per-profile)
     "MemoryItem",
 ]

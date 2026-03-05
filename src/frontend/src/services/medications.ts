@@ -16,6 +16,7 @@ import type {
   ScheduleUpdate,
   DoseLog,
   DoseResponse,
+  DoseLogResponse,
   AdherenceStats,
   LearnPatternsResponse,
 } from './types';
@@ -89,9 +90,9 @@ async function logDose(
   medicationId: string,
   data: DoseLog,
   scheduleId?: string
-): Promise<DoseResponse> {
+): Promise<DoseLogResponse> {
   const params = scheduleId ? `?schedule_id=${scheduleId}` : '';
-  return apiPost<DoseResponse, DoseLog>(
+  return apiPost<DoseLogResponse, DoseLog>(
     `/medications/${medicationId}/doses${params}`,
     data
   );
@@ -273,6 +274,9 @@ export function useLogDose() {
       });
       queryClient.invalidateQueries({
         queryKey: [QUERY_KEY, medicationId, 'stats'],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['gamification', 'badges'],
       });
     },
   });

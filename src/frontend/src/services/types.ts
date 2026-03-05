@@ -311,6 +311,36 @@ export interface AdherenceStats {
   total_doses_expected: number;
 }
 
+// Gamification types
+export interface BadgeInfo {
+  badge_id: string;
+  name: string;
+  description: string;
+  icon: string;
+  medication_id: string | null;
+  earned_at: string;
+}
+
+export interface DoseLogResponse {
+  dose: DoseResponse;
+  newly_earned_badges: BadgeInfo[];
+}
+
+export interface BadgeStatus {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  criteria_type: string;
+  earned: boolean;
+  earned_at: string | null;
+  medication_id: string | null;
+}
+
+export interface BadgeListResponse {
+  badges: BadgeStatus[];
+}
+
 export interface LearnPatternsResponse {
   patterns_created: number;
   schedules_updated: number;

@@ -133,6 +133,21 @@ class ExternalApiSettingsResponse(BaseModel):
     api_key_configured: bool
 
 
+class TimezoneResponse(BaseModel):
+    timezone: str
+
+class TimezoneUpdate(BaseModel):
+    timezone: str = Field(..., description="IANA timezone string, e.g. 'America/New_York'")
+
+class VoiceSettingsResponse(BaseModel):
+    voice_logging_enabled: bool
+    voice_modal_seen: bool
+
+class VoiceSettingsUpdate(BaseModel):
+    voice_logging_enabled: Optional[bool] = None
+    voice_modal_seen: Optional[bool] = None
+
+
 # =============================================================================
 # API Endpoints
 # =============================================================================
@@ -633,3 +648,87 @@ async def _download_model_task(
     except Exception as e:
         logger.error(f"Download failed for tier '{tier}': {e}")
         await _write_download_status(profile_id, tier, selector, "failed", 0.0, str(e))
+
+
+@router.get("/timezone", response_model=TimezoneResponse)
+async def get_timezone(
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
+):
+    """Get profile timezone setting."""
+    profile_id = session.profile_id
+    result = await profile_db.execute(
+        select(UserModelSettings).where(UserModelSettings.profile_id == profile_id)
+    )
+    settings = result.scalar_one_or_none()
+    return TimezoneResponse(timezone=settings.timezone if settings else "UTC")
+
+
+@router.put("/timezone", response_model=TimezoneResponse)
+async def set_timezone(
+    data: TimezoneUpdate,
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
+):
+    """Set profile timezone."""
+    from zoneinfo import ZoneInfo
+    try:
+        ZoneInfo(data.timezone)  # validate
+    except (KeyError, ValueError):
+        raise HTTPException(status_code=422, detail=f"Invalid timezone: {data.timezone}")
+
+    profile_id = session.profile_id
+    result = await profile_db.execute(
+        select(UserModelSettings).where(UserModelSettings.profile_id == profile_id)
+    )
+    settings = result.scalar_one_or_none()
+    if not settings:
+        raise HTTPException(status_code=404, detail="Settings not found")
+
+    settings.timezone = data.timezone
+    await profile_db.commit()
+    return TimezoneResponse(timezone=settings.timezone)
+
+
+@router.get("/voice", response_model=VoiceSettingsResponse)
+async def get_voice_settings(
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
+):
+    """Get voice logging preferences."""
+    profile_id = session.profile_id
+    result = await profile_db.execute(
+        select(UserModelSettings).where(UserModelSettings.profile_id == profile_id)
+    )
+    settings = result.scalar_one_or_none()
+    return VoiceSettingsResponse(
+        voice_logging_enabled=settings.voice_logging_enabled if settings else False,
+        voice_modal_seen=settings.voice_modal_seen if settings else False,
+    )
+
+
+@router.patch("/voice", response_model=VoiceSettingsResponse)
+async def update_voice_settings(
+    data: VoiceSettingsUpdate,
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
+):
+    """Update voice logging preferences."""
+    profile_id = session.profile_id
+    result = await profile_db.execute(
+        select(UserModelSettings).where(UserModelSettings.profile_id == profile_id)
+    )
+    settings = result.scalar_one_or_none()
+    if not settings:
+        raise HTTPException(status_code=404, detail="Settings not found")
+
+    if data.voice_logging_enabled is not None:
+        settings.voice_logging_enabled = data.voice_logging_enabled
+    if data.voice_modal_seen is not None:
+        settings.voice_modal_seen = data.voice_modal_seen
+
+    await profile_db.commit()
+    return VoiceSettingsResponse(
+        voice_logging_enabled=settings.voice_logging_enabled,
+        voice_modal_seen=settings.voice_modal_seen,
+    )

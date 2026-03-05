@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { CheckCircle, X, Loader2, SkipForward } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle } from '@/components/ui';
 import { cn } from '@/utils/cn';
-import type { DoseLog } from '@/services/types';
+import type { DoseLog, MedicationSchedule } from '@/services/types';
 
 interface DoseLoggingModalProps {
   medicationName: string;
-  onSubmit: (data: DoseLog) => void;
+  schedules?: MedicationSchedule[];
+  onSubmit: (data: DoseLog, scheduleId?: string) => void;
   onClose: () => void;
   isSubmitting?: boolean;
 }
@@ -22,6 +23,7 @@ const skipReasons = [
 
 export function DoseLoggingModal({
   medicationName,
+  schedules,
   onSubmit,
   onClose,
   isSubmitting,
@@ -31,13 +33,36 @@ export function DoseLoggingModal({
   const [notes, setNotes] = useState('');
 
   const handleSubmit = () => {
-    onSubmit({
-      taken_at: new Date().toISOString(),
-      log_method: 'manual',
-      was_skipped: mode === 'skipped',
-      skip_reason: mode === 'skipped' ? skipReason || undefined : undefined,
-      notes: notes.trim() || undefined,
-    });
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+    // Auto-match to nearest active schedule
+    let matchedScheduleId: string | undefined;
+    if (schedules && schedules.length > 0 && mode === 'taken') {
+      let closestDist = Infinity;
+      for (const sched of schedules) {
+        if (!sched.is_active) continue;
+        const [h, m] = sched.target_time.split(':').map(Number);
+        const schedMinutes = h * 60 + m;
+        const rawDist = Math.abs(nowMinutes - schedMinutes);
+        const dist = Math.min(rawDist, 1440 - rawDist);
+        if (dist < closestDist) {
+          closestDist = dist;
+          matchedScheduleId = sched.id;
+        }
+      }
+    }
+
+    onSubmit(
+      {
+        taken_at: now.toISOString(),
+        log_method: 'manual',
+        was_skipped: mode === 'skipped',
+        skip_reason: mode === 'skipped' ? skipReason || undefined : undefined,
+        notes: notes.trim() || undefined,
+      },
+      matchedScheduleId,
+    );
   };
 
   return (

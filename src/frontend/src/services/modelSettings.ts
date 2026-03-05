@@ -10,7 +10,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiGet, apiPost, apiPut } from './api';
+import { apiGet, apiPost, apiPut, apiPatch } from './api';
 
 // Types
 
@@ -216,6 +216,63 @@ export function useSaveExternalApiSettings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'external-api'] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+    },
+  });
+}
+
+// Timezone settings
+
+async function fetchTimezone(): Promise<{ timezone: string }> {
+  return apiGet<{ timezone: string }>('/settings/model/timezone');
+}
+
+async function saveTimezone(timezone: string): Promise<{ timezone: string }> {
+  return apiPut<{ timezone: string }, { timezone: string }>(
+    '/settings/model/timezone',
+    { timezone }
+  );
+}
+
+export function useTimezone() {
+  return useQuery({
+    queryKey: ['settings', 'timezone'],
+    queryFn: fetchTimezone,
+  });
+}
+
+export function useSaveTimezone() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (timezone: string) => saveTimezone(timezone),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings', 'timezone'] });
+    },
+  });
+}
+
+// Voice settings
+
+async function fetchVoiceSettings(): Promise<{ voice_logging_enabled: boolean; voice_modal_seen: boolean }> {
+  return apiGet('/settings/model/voice');
+}
+
+async function saveVoiceSettings(data: { voice_logging_enabled?: boolean; voice_modal_seen?: boolean }) {
+  return apiPatch('/settings/model/voice', data);
+}
+
+export function useVoiceSettings() {
+  return useQuery({
+    queryKey: ['settings', 'voice'],
+    queryFn: fetchVoiceSettings,
+  });
+}
+
+export function useSaveVoiceSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: saveVoiceSettings,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings', 'voice'] });
     },
   });
 }

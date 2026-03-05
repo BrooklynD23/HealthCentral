@@ -15,6 +15,7 @@ import {
   Shield,
   Zap,
   Server,
+  Mic,
 } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui';
 import { MemoryManager } from '@/components/MemoryManager';
@@ -28,7 +29,28 @@ import {
   useStartDownload,
   useExternalApiSettings,
   useSaveExternalApiSettings,
+  useTimezone,
+  useSaveTimezone,
+  useVoiceSettings,
+  useSaveVoiceSettings,
 } from '@/services';
+
+const COMMON_TIMEZONES = [
+  'UTC',
+  'America/New_York',
+  'America/Chicago',
+  'America/Denver',
+  'America/Los_Angeles',
+  'America/Anchorage',
+  'Pacific/Honolulu',
+  'Europe/London',
+  'Europe/Paris',
+  'Europe/Berlin',
+  'Asia/Tokyo',
+  'Asia/Shanghai',
+  'Asia/Kolkata',
+  'Australia/Sydney',
+];
 
 const tierDescriptions: Record<string, { label: string; desc: string; icon: typeof Zap }> = {
   low: { label: 'Low (Qwen2.5 0.5B)', desc: 'Fast, lightweight — works on most hardware', icon: Zap },
@@ -50,6 +72,11 @@ export function SettingsPage() {
   const startDownload = useStartDownload();
   const { data: externalApiData } = useExternalApiSettings();
   const saveExternalApi = useSaveExternalApiSettings();
+
+  const { data: timezoneData } = useTimezone();
+  const saveTimezone = useSaveTimezone();
+  const { data: voiceData } = useVoiceSettings();
+  const saveVoice = useSaveVoiceSettings();
 
   const [downloadInitiated, setDownloadInitiated] = useState(false);
   const { data: downloadProgress } = useDownloadProgress(downloadInitiated);
@@ -119,6 +146,30 @@ export function SettingsPage() {
 
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-2 space-y-6">
+          {/* Timezone */}
+          <Card>
+            <CardHeader className="border-b border-black/[0.04]">
+              <CardTitle className="flex items-center gap-3">
+                <Cpu className="w-5 h-5 text-ink-secondary" />
+                Timezone
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <p className="text-sm text-ink-secondary mb-3">
+                Used for streak and badge calculations.
+              </p>
+              <select
+                value={timezoneData?.timezone ?? 'UTC'}
+                onChange={(e) => saveTimezone.mutate(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-surface-muted text-sm text-ink border border-black/[0.06] focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                {COMMON_TIMEZONES.map((tz) => (
+                  <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
+                ))}
+              </select>
+            </CardContent>
+          </Card>
+
           {/* Hardware Info */}
           <Card>
             <CardHeader className="border-b border-black/[0.04]">

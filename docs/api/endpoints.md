@@ -119,13 +119,56 @@ Available panel IDs: `cbc`, `cmp`, `lipid`, `thyroid`
 
 ### POST /medications/{medication_id}/doses
 
+**Query Parameters:** `schedule_id` (optional) — auto-matched schedule ID
+
+**Request:**
 ```json
 {
-    "status": "taken | skipped",
-    "taken_at": "ISO 8601 datetime",
-    "notes": "string"
+    "taken_at": "ISO 8601 datetime (required)",
+    "log_method": "manual | voice",
+    "dosage_amount": "number",
+    "dosage_unit": "string",
+    "notes": "string",
+    "was_skipped": "boolean (default false)",
+    "skip_reason": "string (when was_skipped=true)"
 }
 ```
+
+**Response:**
+```json
+{
+    "dose": {
+        "id": "string",
+        "medication_id": "string",
+        "schedule_id": "string | null",
+        "taken_at": "ISO 8601 datetime",
+        "log_method": "string",
+        "dosage_amount": "number | null",
+        "dosage_unit": "string | null",
+        "variance_minutes": "number | null",
+        "notes": "string | null",
+        "was_skipped": "boolean",
+        "skip_reason": "string | null",
+        "logged_at": "ISO 8601 datetime"
+    },
+    "newly_earned_badges": [
+        {
+            "badge_id": "string",
+            "name": "string",
+            "description": "string",
+            "icon": "string",
+            "medication_id": "string | null",
+            "earned_at": "ISO 8601 datetime"
+        }
+    ]
+}
+```
+
+## Gamification
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/gamification/badges` | Yes | List all badges with earned status |
 
 ## Notifications
 

@@ -25,6 +25,7 @@ from .export import router as export_router
 from .profiles import router as profiles_router
 from .model_settings import router as model_settings_router
 from .memory import router as memory_router
+from .gamification import router as gamification_router
 
 router = APIRouter()
 
@@ -39,3 +40,4 @@ router.include_router(assistant_router, prefix="/assistant", tags=["assistant"])
 router.include_router(export_router, prefix="/export", tags=["export"])
 router.include_router(model_settings_router, prefix="/settings/model", tags=["model-settings"])
 router.include_router(memory_router, prefix="/memory", tags=["memory"])
+router.include_router(gamification_router, prefix="/gamification", tags=["gamification"])

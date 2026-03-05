@@ -18,7 +18,7 @@ BASE_HEADERS: list[tuple[bytes, bytes]] = [
     (b"x-frame-options", b"DENY"),
     (b"referrer-policy", b"strict-origin-when-cross-origin"),
     (b"x-xss-protection", b"1; mode=block"),
-    (b"permissions-policy", b"camera=(), microphone=(), geolocation=()"),
+    (b"permissions-policy", b"camera=(), microphone=(self), geolocation=()"),
 ]
 
 # Headers only in server mode (external access)

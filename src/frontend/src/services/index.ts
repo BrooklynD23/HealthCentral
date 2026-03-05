@@ -148,3 +148,21 @@ export {
 export type {
   NotificationHistoryFilters,
 } from './notifications';
+
+// Gamification hooks
+export { useBadges } from './gamification';
+
+export type {
+  BadgeInfo,
+  DoseLogResponse,
+  BadgeStatus,
+  BadgeListResponse,
+} from './types';
+
+// Timezone + Voice settings hooks
+export {
+  useTimezone,
+  useSaveTimezone,
+  useVoiceSettings,
+  useSaveVoiceSettings,
+} from './modelSettings';
