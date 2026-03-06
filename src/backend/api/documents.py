@@ -34,6 +34,11 @@ from modules.extract import ExtractModule
 from modules.normalize import NormalizeModule
 from modules.chunking import ChunkingModule
 from modules.embeddings import EmbeddingsModule
+from modules.document_classifier import classify_document
+from modules.extract_imaging import extract_imaging_entities
+from modules.extract_pathology import extract_pathology_entities
+from modules.extract_visit_notes import extract_visit_note_entities
+from models.document_category import DocumentCategory, DocumentEntity
 
 logger = logging.getLogger(__name__)
 
@@ -290,6 +295,8 @@ async def import_document(
     observations_extracted = 0
     needs_verification = True
 
+    extracted_text: Optional[str] = None
+
     if import_result.doc_type in ("lab_pdf", "lab_pdf_scanned", "lab_image"):
         # For scanned PDFs and images without OCR available: mark pending
         if import_result.doc_type in ("lab_pdf_scanned", "lab_image") and not is_ocr_available():
@@ -313,6 +320,8 @@ async def import_document(
                     extraction_result = await extract_module.extract_from_image(
                         decrypted_doc, import_result.document_id
                     )
+
+                extracted_text = extraction_result.extracted_text
 
                 # If extraction reports OCR unavailable, mark pending_ocr
                 if extraction_result.ocr_unavailable:
@@ -391,6 +400,15 @@ async def import_document(
                 logger.error(f"Extraction failed for document {import_result.document_id}: {e}")
                 document.status = "extraction_failed"
                 await profile_db.commit()
+
+    # Classify document and extract entities (runs for all doc types)
+    await _classify_and_extract_entities(
+        profile_db=profile_db,
+        profile_id=profile_id,
+        doc_id=import_result.document_id,
+        doc_type=import_result.doc_type,
+        pre_extracted_text=extracted_text,
+    )
 
     # Create audit log in master database
     await log_document_event(
@@ -504,6 +522,128 @@ def _compute_needs_verification(observations: list) -> bool:
     return False
 
 
+_CATEGORY_EXTRACTORS = {
+    "imaging": extract_imaging_entities,
+    "pathology": extract_pathology_entities,
+    "visit_notes": extract_visit_note_entities,
+}
+
+
+async def _classify_and_extract_entities(
+    profile_db: AsyncSession,
+    profile_id: str,
+    doc_id: str,
+    doc_type: str,
+    pre_extracted_text: Optional[str] = None,
+) -> None:
+    """Classify a document and persist category + extracted entities.
+
+    Extracts text from the decrypted document, runs the rule-based classifier,
+    and if a category is found, runs the appropriate entity extractor.
+    Fully non-fatal: every stage (text extraction, classification, entity
+    extraction, DB persistence) is wrapped so failures never propagate to
+    the caller.
+    """
+    import uuid as _uuid
+
+    # --- Stage 1: text extraction ---
+    try:
+        text = pre_extracted_text or _get_document_text(profile_id, doc_id, doc_type)
+    except Exception as e:
+        logger.warning(f"Cannot extract text for classification of {doc_id}: {e}")
+        return
+
+    if not text or not text.strip():
+        return
+
+    # --- Stage 2: classification ---
+    try:
+        result = classify_document(text)
+    except Exception as e:
+        logger.warning(f"Classification failed for {doc_id}: {e}")
+        return
+
+    if result.category == "unknown":
+        return
+
+    # --- Stage 3: entity extraction ---
+    entities: list[dict] = []
+    extractor = _CATEGORY_EXTRACTORS.get(result.category)
+    if extractor:
+        try:
+            entities = extractor(text)
+        except Exception as e:
+            logger.warning(
+                f"Entity extraction failed for {doc_id} "
+                f"(category={result.category}): {e}"
+            )
+            # Continue — we can still persist the category without entities
+
+    # --- Stage 4: DB persistence ---
+    try:
+        category_record = DocumentCategory(
+            id=str(_uuid.uuid4()),
+            doc_id=doc_id,
+            category=result.category,
+            confidence=result.confidence,
+            classified_by=result.classified_by,
+        )
+        profile_db.add(category_record)
+
+        for ent in entities:
+            entity_record = DocumentEntity(
+                id=str(_uuid.uuid4()),
+                doc_id=doc_id,
+                category=result.category,
+                entity_type=ent["entity_type"],
+                entity_value=ent["entity_value"],
+                confidence=ent["confidence"],
+                source_page=ent.get("source_page"),
+            )
+            profile_db.add(entity_record)
+
+        await profile_db.commit()
+        logger.info(
+            f"Classified document {doc_id} as {result.category} "
+            f"(confidence={result.confidence})"
+        )
+    except Exception as e:
+        logger.warning(
+            f"Failed to persist classification for {doc_id} "
+            f"(category={result.category}): {e}"
+        )
+        try:
+            await profile_db.rollback()
+        except Exception as rb_err:
+            logger.warning(f"Rollback after classification failure for {doc_id}: {rb_err}")
+
+
+def _get_document_text(profile_id: str, doc_id: str, doc_type: str) -> str:
+    """Extract plain text from a document for classification.
+
+    Used as a fallback when pre_extracted_text is not available.
+    For text-based PDFs, uses pdfplumber. For scanned/image docs,
+    text should be supplied via pre_extracted_text from the extraction
+    pipeline to avoid duplicate OCR.
+
+    Returns empty string on failure.
+    """
+    # Default: text-based PDF extraction via pdfplumber
+    try:
+        import pdfplumber
+
+        decrypted_doc = get_decrypted_document(profile_id, doc_id)
+        with pdfplumber.open(decrypted_doc) as pdf:
+            pages_text = []
+            for page in pdf.pages:
+                text = page.extract_text() or ""
+                pages_text.append(text)
+            return "\f".join(pages_text)
+    except Exception:
+        return ""
+
+
+
 @router.get("/", response_model=list[DocumentResponse])
 async def list_documents(
     session: RequireAuth,
@@ -558,6 +698,100 @@ async def get_document(
     verify_document_access(document, session)
 
     return DocumentResponse.from_model(document)
+
+
+class DocumentCategoryResponse(BaseModel):
+    """Response model for document category."""
+    id: str
+    doc_id: str
+    category: str
+    confidence: float
+    classified_by: str
+
+    class Config:
+        from_attributes = True
+
+
+class DocumentEntityResponse(BaseModel):
+    """Response model for document entity."""
+    id: str
+    doc_id: str
+    category: str
+    entity_type: str
+    entity_value: str
+    confidence: float
+    source_page: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+
+@router.get("/{document_id}/category", response_model=DocumentCategoryResponse)
+async def get_document_category(
+    document_id: str,
+    session: RequireAuth,
+    profile_db: ProfileDbSession = None,
+):
+    """Get the classification category for a document."""
+    validate_uuid(document_id, "document_id")
+
+    # Verify document exists and user has access
+    doc_result = await profile_db.execute(select(Document).where(Document.id == document_id))
+    document = doc_result.scalar_one_or_none()
+    if not document:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    verify_document_access(document, session)
+
+    result = await profile_db.execute(
+        select(DocumentCategory).where(DocumentCategory.doc_id == document_id)
+    )
+    category = result.scalar_one_or_none()
+
+    if not category:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No category found for this document")
+
+    return DocumentCategoryResponse(
+        id=category.id,
+        doc_id=category.doc_id,
+        category=category.category,
+        confidence=category.confidence,
+        classified_by=category.classified_by,
+    )
+
+
+@router.get("/{document_id}/entities", response_model=list[DocumentEntityResponse])
+async def get_document_entities(
+    document_id: str,
+    session: RequireAuth,
+    profile_db: ProfileDbSession = None,
+):
+    """Get extracted entities for a document."""
+    validate_uuid(document_id, "document_id")
+
+    # Verify document exists and user has access
+    doc_result = await profile_db.execute(select(Document).where(Document.id == document_id))
+    document = doc_result.scalar_one_or_none()
+    if not document:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    verify_document_access(document, session)
+
+    result = await profile_db.execute(
+        select(DocumentEntity).where(DocumentEntity.doc_id == document_id)
+    )
+    entities = result.scalars().all()
+
+    return [
+        DocumentEntityResponse(
+            id=ent.id,
+            doc_id=ent.doc_id,
+            category=ent.category,
+            entity_type=ent.entity_type,
+            entity_value=ent.entity_value,
+            confidence=ent.confidence,
+            source_page=ent.source_page,
+        )
+        for ent in entities
+    ]
 
 
 @router.get("/{document_id}/pages", response_model=list[PageResponse])

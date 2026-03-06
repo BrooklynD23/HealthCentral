@@ -58,6 +58,7 @@ class ExtractionResult:
     parser_version: str = "0.1.0"
     overall_confidence: float = 0.0
     ocr_unavailable: bool = False
+    extracted_text: Optional[str] = None
 
 
 class ExtractModule:
@@ -132,11 +133,13 @@ class ExtractModule:
 
         observations = []
         collection_dates = []
+        pages_text: list[str] = []
 
         with pdfplumber.open(pdf_source) as pdf:
             for page_num, page in enumerate(pdf.pages, start=1):
                 # Extract text
                 text = page.extract_text() or ""
+                pages_text.append(text)
                 
                 # Extract tables (more structured)
                 tables = page.extract_tables() or []
@@ -185,8 +188,9 @@ class ExtractModule:
             collection_dates=collection_dates,
             parser_version=self.parser_version,
             overall_confidence=overall_confidence,
+            extracted_text="\f".join(pages_text),
         )
-    
+
     def _extract_from_table(
         self,
         table: list[list[str]],
@@ -497,9 +501,11 @@ class ExtractModule:
         images = convert_from_bytes(pdf_bytes)
         observations = []
         collection_dates = []
+        pages_text: list[str] = []
 
         for page_num, image in enumerate(images, start=1):
             text = pytesseract.image_to_string(image)
+            pages_text.append(text)
             # Use existing text extraction on OCR output
             text_obs = self._extract_from_text(text, page_num, document_id)
             # Lower confidence for OCR-derived observations
@@ -535,6 +541,7 @@ class ExtractModule:
             collection_dates=collection_dates,
             parser_version=self.parser_version,
             overall_confidence=overall_confidence,
+            extracted_text="\f".join(pages_text),
         )
 
     async def extract_from_image(
@@ -605,6 +612,7 @@ class ExtractModule:
             collection_dates=collection_dates,
             parser_version=self.parser_version,
             overall_confidence=overall_confidence,
+            extracted_text=text,
         )
 
     def _extract_dates(self, text: str) -> list[str]:
