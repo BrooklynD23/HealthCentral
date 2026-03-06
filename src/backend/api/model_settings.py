@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from core.auth import RequireAuth, ProfileDbSession, ProfileEncryptionManager
+from core.profile_database import get_profile_db_manager
 from models import UserModelSettings
 from modules.hardware_detection import (
     HardwareProfile,
@@ -148,6 +149,31 @@ class VoiceSettingsUpdate(BaseModel):
     voice_modal_seen: Optional[bool] = None
 
 
+async def _get_user_settings(
+    profile_id: str,
+    profile_db: ProfileDbSession,
+) -> Optional[UserModelSettings]:
+    """Fetch the profile's model settings row if it exists."""
+    result = await profile_db.execute(
+        select(UserModelSettings).where(UserModelSettings.profile_id == profile_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def _get_or_create_user_settings(
+    profile_id: str,
+    profile_db: ProfileDbSession,
+) -> UserModelSettings:
+    """Load the profile settings row, creating an in-session row if absent."""
+    settings = await _get_user_settings(profile_id, profile_db)
+    if settings is not None:
+        return settings
+
+    settings = UserModelSettings(profile_id=profile_id)
+    profile_db.add(settings)
+    return settings
+
+
 # =============================================================================
 # API Endpoints
 # =============================================================================
@@ -170,12 +196,7 @@ async def get_model_settings(
     hardware = selector.detect_hardware_tier()
 
     # Get user settings from database
-    result = await profile_db.execute(
-        select(UserModelSettings).where(
-            UserModelSettings.profile_id == session.profile_id
-        )
-    )
-    user_settings = result.scalar_one_or_none()
+    user_settings = await _get_user_settings(session.profile_id, profile_db)
 
     # Determine current tier
     if user_settings and user_settings.preferred_tier:
@@ -489,12 +510,7 @@ async def get_external_api_settings(
     profile_db: ProfileDbSession,
 ):
     """Get external API settings with masked key."""
-    result = await profile_db.execute(
-        select(UserModelSettings).where(
-            UserModelSettings.profile_id == session.profile_id
-        )
-    )
-    user_settings = result.scalar_one_or_none()
+    user_settings = await _get_user_settings(session.profile_id, profile_db)
 
     if not user_settings:
         return ExternalApiSettingsResponse(
@@ -531,18 +547,7 @@ async def save_external_api_settings(
             detail="consent_acknowledged must be true to enable external API",
         )
 
-    result = await profile_db.execute(
-        select(UserModelSettings).where(
-            UserModelSettings.profile_id == session.profile_id
-        )
-    )
-    user_settings = result.scalar_one_or_none()
-
-    if user_settings is None:
-        user_settings = UserModelSettings(
-            profile_id=session.profile_id,
-        )
-        profile_db.add(user_settings)
+    user_settings = await _get_or_create_user_settings(session.profile_id, profile_db)
 
     user_settings.use_external_api = request.use_external_api
     user_settings.external_api_provider = request.provider
@@ -559,7 +564,7 @@ async def save_external_api_settings(
     return ExternalApiSettingsResponse(
         use_external_api=user_settings.use_external_api,
         provider=user_settings.external_api_provider,
-        model=request.model,
+        model="",
         api_key_configured=bool(user_settings.external_api_key_encrypted),
     )
 
@@ -573,16 +578,14 @@ async def _write_download_status(
     error: Optional[str] = None,
 ) -> None:
     """Write download progress to the profile database from a background task."""
-    from core.profile_database import PerProfileDatabaseManager
-
-    db_manager = PerProfileDatabaseManager()
+    db_manager = get_profile_db_manager()
     connection = db_manager.get_connection(profile_id)
     if connection is None:
         logger.warning(f"Cannot write download status: no connection for profile {profile_id}")
         return
 
     try:
-        async with connection.session_maker() as session:
+        async with connection.get_session() as session:
             progress = DownloadProgress(
                 tier=tier,
                 status=download_status,
@@ -596,7 +599,6 @@ async def _write_download_status(
                 progress=progress,
                 db=session,
             )
-            await session.commit()
     except Exception as e:
         logger.error(f"Failed to write download status for tier '{tier}': {e}")
 
@@ -657,10 +659,7 @@ async def get_timezone(
 ):
     """Get profile timezone setting."""
     profile_id = session.profile_id
-    result = await profile_db.execute(
-        select(UserModelSettings).where(UserModelSettings.profile_id == profile_id)
-    )
-    settings = result.scalar_one_or_none()
+    settings = await _get_user_settings(profile_id, profile_db)
     return TimezoneResponse(timezone=settings.timezone if settings else "UTC")
 
 
@@ -678,12 +677,7 @@ async def set_timezone(
         raise HTTPException(status_code=422, detail=f"Invalid timezone: {data.timezone}")
 
     profile_id = session.profile_id
-    result = await profile_db.execute(
-        select(UserModelSettings).where(UserModelSettings.profile_id == profile_id)
-    )
-    settings = result.scalar_one_or_none()
-    if not settings:
-        raise HTTPException(status_code=404, detail="Settings not found")
+    settings = await _get_or_create_user_settings(profile_id, profile_db)
 
     settings.timezone = data.timezone
     await profile_db.commit()
@@ -697,10 +691,7 @@ async def get_voice_settings(
 ):
     """Get voice logging preferences."""
     profile_id = session.profile_id
-    result = await profile_db.execute(
-        select(UserModelSettings).where(UserModelSettings.profile_id == profile_id)
-    )
-    settings = result.scalar_one_or_none()
+    settings = await _get_user_settings(profile_id, profile_db)
     return VoiceSettingsResponse(
         voice_logging_enabled=settings.voice_logging_enabled if settings else False,
         voice_modal_seen=settings.voice_modal_seen if settings else False,
@@ -715,12 +706,7 @@ async def update_voice_settings(
 ):
     """Update voice logging preferences."""
     profile_id = session.profile_id
-    result = await profile_db.execute(
-        select(UserModelSettings).where(UserModelSettings.profile_id == profile_id)
-    )
-    settings = result.scalar_one_or_none()
-    if not settings:
-        raise HTTPException(status_code=404, detail="Settings not found")
+    settings = await _get_or_create_user_settings(profile_id, profile_db)
 
     if data.voice_logging_enabled is not None:
         settings.voice_logging_enabled = data.voice_logging_enabled

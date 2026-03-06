@@ -63,8 +63,8 @@ class TestEarnedBadge:
             profile_id="p1",
             badge_id="first-log",
         )
-        assert eb.id is not None
-        assert len(eb.id) == 36  # UUID format
+        # SQLAlchemy column defaults are populated on INSERT, not object init.
+        assert eb.id is None
 
     def test_repr(self):
         eb = EarnedBadge(

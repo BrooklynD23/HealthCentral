@@ -16,6 +16,7 @@ import {
   Zap,
   Server,
   Mic,
+  Clock,
 } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui';
 import { MemoryManager } from '@/components/MemoryManager';
@@ -150,7 +151,7 @@ export function SettingsPage() {
           <Card>
             <CardHeader className="border-b border-black/[0.04]">
               <CardTitle className="flex items-center gap-3">
-                <Cpu className="w-5 h-5 text-ink-secondary" />
+                <Clock className="w-5 h-5 text-ink-secondary" />
                 Timezone
               </CardTitle>
             </CardHeader>
@@ -167,6 +168,51 @@ export function SettingsPage() {
                   <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
                 ))}
               </select>
+            </CardContent>
+          </Card>
+
+          {/* Voice Logging */}
+          <Card>
+            <CardHeader className="border-b border-black/[0.04]">
+              <CardTitle className="flex items-center gap-3">
+                <Mic className="w-5 h-5 text-ink-secondary" />
+                Voice Logging
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <p className="text-sm text-ink-secondary mb-3">
+                Use your microphone to log doses by voice. Speech is processed locally by your browser.
+              </p>
+              <button
+                onClick={() => {
+                  saveVoice.mutate({
+                    voice_logging_enabled: !voiceData?.voice_logging_enabled,
+                  });
+                }}
+                className={cn(
+                  'w-full flex items-center justify-between px-3 py-3 rounded-xl',
+                  'transition-colors duration-200',
+                  voiceData?.voice_logging_enabled
+                    ? 'bg-accent-subtle'
+                    : 'bg-surface-muted hover:bg-surface-sunken'
+                )}
+              >
+                <span className={cn(
+                  'text-sm font-medium',
+                  voiceData?.voice_logging_enabled ? 'text-accent' : 'text-ink-secondary'
+                )}>
+                  Enable Voice Logging
+                </span>
+                <div className={cn(
+                  'w-10 h-6 rounded-full relative transition-colors',
+                  voiceData?.voice_logging_enabled ? 'bg-accent' : 'bg-black/[0.12]'
+                )}>
+                  <div className={cn(
+                    'absolute w-4 h-4 rounded-full bg-white top-1 transition-transform',
+                    voiceData?.voice_logging_enabled ? 'translate-x-5' : 'translate-x-1'
+                  )} />
+                </div>
+              </button>
             </CardContent>
           </Card>
 

@@ -32,6 +32,8 @@ function makeObservation(overrides: Partial<Observation> = {}): Observation {
     collected_at: '2025-06-15T00:00:00',
     user_verified: true,
     extraction_confidence: 0.95,
+    source_page: null,
+    source_bbox_json: null,
     ...overrides,
   };
 }

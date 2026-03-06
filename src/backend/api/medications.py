@@ -11,8 +11,9 @@ import json
 import logging
 import re
 import uuid
+from datetime import date, datetime, time, timedelta, timezone as dt_timezone
 from typing import Optional
-from datetime import datetime, time, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
@@ -28,7 +29,10 @@ from models import (
     DoseTaken,
     AdherencePattern,
     ReminderLog,
+    UserModelSettings,
+    EarnedBadge,
 )
+from modules.badge_evaluator import BadgeEvalResult, evaluate_badges_after_dose
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +62,25 @@ def verify_medication_access(medication: Medication, session: Session) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied to this medication"
         )
+
+
+def _profile_timezone_name(settings: Optional[UserModelSettings]) -> str:
+    """Return a safe IANA timezone string for the profile."""
+    timezone_name = settings.timezone if settings and settings.timezone else "UTC"
+    try:
+        ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError:
+        logger.warning("Invalid profile timezone '%s'; falling back to UTC", timezone_name)
+        return "UTC"
+    return timezone_name
+
+
+def _local_date_for_timezone(value: datetime, timezone_name: str) -> date:
+    """Convert a timestamp to a local date in the profile timezone."""
+    timestamp = value
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=dt_timezone.utc)
+    return timestamp.astimezone(ZoneInfo(timezone_name)).date()
 
 
 # Request/Response Models
@@ -239,6 +262,33 @@ class DoseResponse(BaseModel):
             skip_reason=dose.skip_reason,
             logged_at=dose.logged_at.isoformat(),
         )
+
+
+class BadgeInfo(BaseModel):
+    """Serialized badge award returned after dose logging."""
+    badge_id: str
+    name: str
+    description: str
+    icon: str
+    medication_id: Optional[str] = None
+    earned_at: str
+
+    @classmethod
+    def from_result(cls, badge: BadgeEvalResult) -> "BadgeInfo":
+        return cls(
+            badge_id=badge.badge_id,
+            name=badge.name,
+            description=badge.description,
+            icon=badge.icon,
+            medication_id=badge.medication_id or None,
+            earned_at=badge.earned_at.isoformat(),
+        )
+
+
+class DoseLogResponse(BaseModel):
+    """Response for dose logging with badge evaluation results."""
+    dose: DoseResponse
+    newly_earned_badges: list[BadgeInfo] = Field(default_factory=list)
 
 
 class AdherenceStats(BaseModel):
@@ -700,7 +750,7 @@ async def delete_schedule(
 
 @router.post(
     "/{medication_id}/doses",
-    response_model=DoseResponse,
+    response_model=DoseLogResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def log_dose(
@@ -766,11 +816,77 @@ async def log_dose(
     await profile_db.commit()
     await profile_db.refresh(dose_record)
 
+    newly_earned_badges: list[BadgeInfo] = []
+    if not dose_record.was_skipped:
+        try:
+            settings_result = await profile_db.execute(
+                select(UserModelSettings).where(
+                    UserModelSettings.profile_id == session.profile_id
+                )
+            )
+            profile_settings = settings_result.scalar_one_or_none()
+            profile_timezone = _profile_timezone_name(profile_settings)
+
+            med_doses_result = await profile_db.execute(
+                select(DoseTaken).where(
+                    DoseTaken.medication_id == medication_id,
+                    DoseTaken.was_skipped.is_(False),
+                ).order_by(DoseTaken.taken_at.desc()).limit(200)
+            )
+            medication_doses = list(med_doses_result.scalars().all())
+
+            profile_doses_result = await profile_db.execute(
+                select(DoseTaken)
+                .join(Medication, Medication.id == DoseTaken.medication_id)
+                .where(
+                    Medication.profile_id == session.profile_id,
+                    DoseTaken.was_skipped.is_(False),
+                )
+                .order_by(DoseTaken.taken_at.desc())
+                .limit(500)
+            )
+            profile_doses = list(profile_doses_result.scalars().all())
+
+            earned_result = await profile_db.execute(
+                select(EarnedBadge).where(
+                    EarnedBadge.profile_id == session.profile_id
+                )
+            )
+            existing_badges = earned_result.scalars().all()
+            existing_badge_keys = {
+                f"{badge.badge_id}:{badge.medication_id}" for badge in existing_badges
+            }
+
+            badge_results = await evaluate_badges_after_dose(
+                profile_id=session.profile_id,
+                medication_id=medication_id,
+                doses_for_medication=medication_doses,
+                all_profile_doses=profile_doses,
+                timezone=profile_timezone,
+                existing_badge_keys=existing_badge_keys,
+                db=profile_db,
+                as_of_date=_local_date_for_timezone(
+                    dose_record.taken_at,
+                    profile_timezone,
+                ),
+            )
+            if badge_results:
+                await profile_db.commit()
+                newly_earned_badges = [
+                    BadgeInfo.from_result(badge) for badge in badge_results
+                ]
+        except Exception as exc:
+            await profile_db.rollback()
+            logger.warning("Badge evaluation failed after dose log: %s", exc)
+
     logger.info(
         f"Logged dose for {medication_id}: "
         f"{'skipped' if dose.was_skipped else 'taken'} at {dose.taken_at}"
     )
-    return DoseResponse.from_model(dose_record)
+    return DoseLogResponse(
+        dose=DoseResponse.from_model(dose_record),
+        newly_earned_badges=newly_earned_badges,
+    )
 
 
 @router.get(

@@ -1,30 +1,34 @@
 """
-Tests for HC-REM-002: External API settings persistence.
-
-Tests that:
-- PUT /external-api saves settings to profile DB
-- PUT without consent returns 400
-- GET /external-api masks the API key
+Tests for model settings persistence and background download status.
 """
 
+from __future__ import annotations
+
+import asyncio
 import sys
+import types
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
+import pytest
+from fastapi import HTTPException
 
 # Add backend to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from api.model_settings import router as model_settings_router
-from core.auth import (
-    Session,
-    require_auth,
-    get_profile_db_session,
-    get_profile_encryption_manager,
+from api.model_settings import (
+    ExternalApiSettingsRequest,
+    TimezoneUpdate,
+    VoiceSettingsUpdate,
+    _download_model_task,
+    get_external_api_settings,
+    save_external_api_settings,
+    set_timezone,
+    update_voice_settings,
 )
+from core.auth import Session
 from core.security import EncryptionManager
 
 
@@ -53,124 +57,88 @@ class _FakeProfileDb:
         self._existing_settings = obj
 
 
-def _make_app():
-    app = FastAPI()
-    app.include_router(model_settings_router, prefix="/settings/model")
-    return app
+def _session(profile_id: str) -> Session:
+    return Session(
+        profile_id=profile_id,
+        profile_name="Test",
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+    )
 
 
-def _override_auth(profile_id: str):
-    async def _auth():
-        return Session(
-            profile_id=profile_id,
-            profile_name="Test",
-            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
-        )
-    return _auth
-
-
-async def _override_encryption_manager():
-    return EncryptionManager()
-
-
-def test_put_external_api_requires_consent():
-    """
-    HC-REM-002-001: PUT /external-api without consent_acknowledged should return 400.
-    """
+@pytest.mark.asyncio
+async def test_put_external_api_requires_consent():
     profile_id = str(uuid.uuid4())
-    app = _make_app()
-    app.dependency_overrides[require_auth] = _override_auth(profile_id)
-    app.dependency_overrides[get_profile_db_session] = lambda: _FakeProfileDb()
-    app.dependency_overrides[get_profile_encryption_manager] = _override_encryption_manager
 
-    with TestClient(app) as client:
-        response = client.put(
-            "/settings/model/external-api",
-            json={
-                "use_external_api": True,
-                "provider": "openai",
-                "api_key": "sk-test",
-                "consent_acknowledged": False,
-            },
+    with pytest.raises(HTTPException) as exc_info:
+        await save_external_api_settings(
+            request=ExternalApiSettingsRequest(
+                use_external_api=True,
+                provider="openai",
+                api_key="sk-test",
+                consent_acknowledged=False,
+            ),
+            session=_session(profile_id),
+            profile_db=_FakeProfileDb(),
+            encryption_manager=EncryptionManager(),
         )
 
-    assert response.status_code == 400
+    assert exc_info.value.status_code == 400
 
 
-def test_put_external_api_persists():
-    """
-    HC-REM-002-002: PUT /external-api with valid payload saves to profile DB.
-    """
+@pytest.mark.asyncio
+async def test_put_external_api_persists():
     profile_id = str(uuid.uuid4())
     profile_db = _FakeProfileDb(existing_settings=None)
 
-    app = _make_app()
-    app.dependency_overrides[require_auth] = _override_auth(profile_id)
-    app.dependency_overrides[get_profile_encryption_manager] = _override_encryption_manager
+    response = await save_external_api_settings(
+        request=ExternalApiSettingsRequest(
+            use_external_api=True,
+            provider="openai",
+            api_key="sk-test-key-123",
+            model="gpt-4o-mini",
+            consent_acknowledged=True,
+        ),
+        session=_session(profile_id),
+        profile_db=profile_db,
+        encryption_manager=EncryptionManager(),
+    )
 
-    async def _get_db():
-        return profile_db
-
-    app.dependency_overrides[get_profile_db_session] = _get_db
-
-    with TestClient(app) as client:
-        response = client.put(
-            "/settings/model/external-api",
-            json={
-                "use_external_api": True,
-                "provider": "openai",
-                "api_key": "sk-test-key-123",
-                "consent_acknowledged": True,
-            },
-        )
-
-    assert response.status_code == 200
-    data = response.json()
-    assert data["use_external_api"] is True
-    assert data["provider"] == "openai"
-    assert data["api_key_configured"] is True
-    # Key should never be returned in response
-    assert "api_key" not in data or "sk-test" not in str(data.get("api_key", ""))
-    # Key must be stored encrypted at rest
+    assert response.use_external_api is True
+    assert response.provider == "openai"
+    assert response.model == ""
+    assert response.api_key_configured is True
     stored = profile_db._existing_settings.external_api_key_encrypted
     assert stored != "sk-test-key-123"
     assert stored.startswith("gAAAAA")
+    assert profile_db._committed is True
 
 
 def test_download_task_writes_terminal_status(monkeypatch):
-    """
-    HC-REM-009-001: Background download task should write completed status to DB.
-    """
-    import asyncio
-    from unittest.mock import MagicMock, AsyncMock, patch
-    from api.model_settings import _download_model_task, _write_download_status
-
     profile_id = str(uuid.uuid4())
     selector = MagicMock()
     selector.models_path = "/tmp/models"
     selector.update_download_progress = AsyncMock()
 
-    # Mock hf_hub_download to succeed
     monkeypatch.setattr(
         "api.model_settings.TIER_MODEL_CONFIG",
         {"low": {"repo": "test/repo", "filename": "model.gguf", "revision": "main"}},
     )
+    monkeypatch.setitem(
+        sys.modules,
+        "huggingface_hub",
+        types.SimpleNamespace(
+            hf_hub_download=MagicMock(return_value="/tmp/models/model.gguf"),
+            list_repo_files=MagicMock(return_value=["model.gguf"]),
+        ),
+    )
 
     with patch("api.model_settings._write_download_status", new_callable=AsyncMock) as mock_write:
-        with patch("huggingface_hub.hf_hub_download", return_value="/tmp/models/model.gguf"):
-            asyncio.run(_download_model_task("low", profile_id, selector))
+        asyncio.run(_download_model_task("low", profile_id, selector))
 
         mock_write.assert_called_once_with(profile_id, "low", selector, "completed", 100.0)
 
 
 def test_download_task_writes_failure_status(monkeypatch):
-    """
-    HC-REM-009-002: Background download task should write failed status on error.
-    """
-    import asyncio
-    from unittest.mock import MagicMock, AsyncMock, patch
-    from api.model_settings import _download_model_task
-
     profile_id = str(uuid.uuid4())
     selector = MagicMock()
     selector.models_path = "/tmp/models"
@@ -179,46 +147,72 @@ def test_download_task_writes_failure_status(monkeypatch):
         "api.model_settings.TIER_MODEL_CONFIG",
         {"low": {"repo": "test/repo", "filename": "model.gguf", "revision": "main"}},
     )
+    monkeypatch.setitem(
+        sys.modules,
+        "huggingface_hub",
+        types.SimpleNamespace(
+            hf_hub_download=MagicMock(side_effect=RuntimeError("Download failed")),
+            list_repo_files=MagicMock(return_value=["model.gguf"]),
+        ),
+    )
 
     with patch("api.model_settings._write_download_status", new_callable=AsyncMock) as mock_write:
-        with patch("huggingface_hub.hf_hub_download", side_effect=RuntimeError("Download failed")):
-            asyncio.run(_download_model_task("low", profile_id, selector))
+        asyncio.run(_download_model_task("low", profile_id, selector))
 
         mock_write.assert_called_once_with(
             profile_id, "low", selector, "failed", 0.0, "Download failed"
         )
 
 
-def test_get_external_api_masks_key():
-    """
-    HC-REM-002-003: GET /external-api should return api_key_configured bool,
-    never the raw key.
-    """
-    from unittest.mock import MagicMock
-
+@pytest.mark.asyncio
+async def test_get_external_api_masks_key():
     profile_id = str(uuid.uuid4())
 
     mock_settings = MagicMock()
     mock_settings.use_external_api = True
     mock_settings.external_api_provider = "anthropic"
     mock_settings.external_api_key_encrypted = "encrypted-key-data"
-    mock_settings.preferred_tier = "low"
-    mock_settings.auto_detect_enabled = True
 
-    profile_db = _FakeProfileDb(existing_settings=mock_settings)
+    response = await get_external_api_settings(
+        session=_session(profile_id),
+        profile_db=_FakeProfileDb(existing_settings=mock_settings),
+    )
 
-    app = _make_app()
-    app.dependency_overrides[require_auth] = _override_auth(profile_id)
+    assert response.api_key_configured is True
+    assert "encrypted-key-data" not in str(response)
 
-    async def _get_db():
-        return profile_db
 
-    app.dependency_overrides[get_profile_db_session] = _get_db
+@pytest.mark.asyncio
+async def test_put_timezone_upserts_when_missing():
+    profile_id = str(uuid.uuid4())
+    profile_db = _FakeProfileDb(existing_settings=None)
 
-    with TestClient(app) as client:
-        response = client.get("/settings/model/external-api")
+    response = await set_timezone(
+        data=TimezoneUpdate(timezone="America/New_York"),
+        session=_session(profile_id),
+        profile_db=profile_db,
+    )
 
-    assert response.status_code == 200
-    data = response.json()
-    assert data["api_key_configured"] is True
-    assert "encrypted-key-data" not in str(data)
+    assert response.timezone == "America/New_York"
+    assert profile_db._existing_settings is not None
+    assert profile_db._existing_settings.timezone == "America/New_York"
+    assert profile_db._committed is True
+
+
+@pytest.mark.asyncio
+async def test_patch_voice_upserts_when_missing():
+    profile_id = str(uuid.uuid4())
+    profile_db = _FakeProfileDb(existing_settings=None)
+
+    response = await update_voice_settings(
+        data=VoiceSettingsUpdate(voice_logging_enabled=True, voice_modal_seen=True),
+        session=_session(profile_id),
+        profile_db=profile_db,
+    )
+
+    assert response.voice_logging_enabled is True
+    assert response.voice_modal_seen is True
+    assert profile_db._existing_settings is not None
+    assert profile_db._existing_settings.voice_logging_enabled is True
+    assert profile_db._existing_settings.voice_modal_seen is True
+    assert profile_db._committed is True

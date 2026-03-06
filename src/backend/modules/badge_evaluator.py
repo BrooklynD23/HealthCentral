@@ -48,6 +48,13 @@ def _badge_key(badge_id: str, medication_id: str) -> str:
     return f"{badge_id}:{medication_id}"
 
 
+def _to_local_date(value: datetime, tz: ZoneInfo) -> date:
+    """Convert a timestamp to a calendar date in the profile timezone."""
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=dt_timezone.utc)
+    return value.astimezone(tz).date()
+
+
 async def evaluate_badges_after_dose(
     profile_id: str,
     medication_id: str,
@@ -56,6 +63,7 @@ async def evaluate_badges_after_dose(
     timezone: str,
     existing_badge_keys: set[str],
     db: AsyncSession,
+    as_of_date: Optional[date] = None,
 ) -> list[BadgeEvalResult]:
     """Evaluate all badge criteria after a dose log.
 
@@ -67,13 +75,15 @@ async def evaluate_badges_after_dose(
         timezone: IANA timezone string for date grouping.
         existing_badge_keys: Set of 'badge_id:medication_id' already earned.
         db: Async database session for persisting new badges.
+        as_of_date: Optional local calendar date to evaluate against. Use this
+            for backdated dose logs so streak awards are based on taken_at.
 
     Returns:
         List of newly earned badges.
     """
     now = datetime.now(dt_timezone.utc)
     tz = ZoneInfo(timezone)
-    today = datetime.now(tz).date()
+    today = as_of_date or _to_local_date(now, tz)
     newly_earned: list[BadgeEvalResult] = []
     seen_keys = set(existing_badge_keys)
 
@@ -134,7 +144,7 @@ async def evaluate_badges_after_dose(
         perfect_days = 0
         for day_offset in range(7):
             check_date = today - timedelta(days=day_offset)
-            day_doses = [d for d in scheduled_doses if d.taken_at.astimezone(tz).date() == check_date]
+            day_doses = [d for d in scheduled_doses if _to_local_date(d.taken_at, tz) == check_date]
             if day_doses and all(abs(d.variance_minutes) <= 60 for d in day_doses):
                 perfect_days += 1
         if perfect_days >= 7:

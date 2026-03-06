@@ -1,13 +1,11 @@
 """Tests for badge evaluation logic."""
 
-import uuid
-from datetime import datetime, date, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
-from zoneinfo import ZoneInfo
+from datetime import datetime, date, timedelta, timezone as dt_timezone
+from unittest.mock import MagicMock
 
 import pytest
 
-from modules.badge_evaluator import evaluate_badges_after_dose, BadgeEvalResult
+from modules.badge_evaluator import evaluate_badges_after_dose
 
 
 def _make_dose(taken_at_str, medication_id="med-1", was_skipped=False, variance_minutes=None, schedule_id=None):
@@ -35,7 +33,8 @@ class TestFirstLogBadge:
             all_profile_doses=all_doses,
             timezone="UTC",
             existing_badge_keys=set(),
-            db=AsyncMock(),
+            db=MagicMock(),
+            as_of_date=date(2026, 3, 4),
         )
         badge_ids = [b.badge_id for b in result]
         assert "first-log" in badge_ids
@@ -44,8 +43,15 @@ class TestFirstLogBadge:
 class TestStreakBadges:
     @pytest.mark.asyncio
     async def test_seven_day_streak_earns_week_warrior(self):
+        start = date(2026, 2, 26)
         doses = [
-            _make_dose(f"2026-02-{26 + i:02d}T08:00:00+00:00")
+            _make_dose(
+                datetime.combine(
+                    start + timedelta(days=i),
+                    datetime.min.time(),
+                    tzinfo=dt_timezone.utc,
+                ).replace(hour=8).isoformat()
+            )
             for i in range(7)
         ]
         result = await evaluate_badges_after_dose(
@@ -55,15 +61,23 @@ class TestStreakBadges:
             all_profile_doses=doses,
             timezone="UTC",
             existing_badge_keys={"first-log:"},
-            db=AsyncMock(),
+            db=MagicMock(),
+            as_of_date=date(2026, 3, 4),
         )
         badge_ids = [b.badge_id for b in result]
         assert "week-warrior" in badge_ids
 
     @pytest.mark.asyncio
     async def test_already_earned_badge_not_duplicated(self):
+        start = date(2026, 2, 26)
         doses = [
-            _make_dose(f"2026-02-{26 + i:02d}T08:00:00+00:00")
+            _make_dose(
+                datetime.combine(
+                    start + timedelta(days=i),
+                    datetime.min.time(),
+                    tzinfo=dt_timezone.utc,
+                ).replace(hour=8).isoformat()
+            )
             for i in range(7)
         ]
         result = await evaluate_badges_after_dose(
@@ -73,7 +87,8 @@ class TestStreakBadges:
             all_profile_doses=doses,
             timezone="UTC",
             existing_badge_keys={"first-log:", "week-warrior:med-1"},
-            db=AsyncMock(),
+            db=MagicMock(),
+            as_of_date=date(2026, 3, 4),
         )
         badge_ids = [b.badge_id for b in result]
         assert "week-warrior" not in badge_ids
@@ -94,7 +109,8 @@ class TestComebackKid:
             all_profile_doses=doses,
             timezone="UTC",
             existing_badge_keys={"first-log:"},
-            db=AsyncMock(),
+            db=MagicMock(),
+            as_of_date=date(2026, 3, 4),
         )
         badge_ids = [b.badge_id for b in result]
         assert "comeback-kid" in badge_ids

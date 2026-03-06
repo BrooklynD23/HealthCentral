@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Pill,
   Plus,
@@ -10,6 +10,8 @@ import {
   MedicationCard,
   MedicationForm,
   DoseLoggingModal,
+  BadgeToast,
+  AchievementsWidget,
 } from '@/components/medication-coach';
 import {
   useMedications,
@@ -17,12 +19,14 @@ import {
   useLogDose,
 } from '@/services/medications';
 import { useNavigate } from 'react-router-dom';
-import type { MedicationCreate, Medication } from '@/services/types';
+import type { MedicationCreate, Medication, BadgeInfo } from '@/services/types';
 
 export function MedicationCoach() {
   const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
   const [loggingMed, setLoggingMed] = useState<Medication | null>(null);
+  const [earnedBadge, setEarnedBadge] = useState<BadgeInfo | null>(null);
+  const dismissBadge = useCallback(() => setEarnedBadge(null), []);
 
   const {
     data: medications,
@@ -131,6 +135,12 @@ export function MedicationCoach() {
         </div>
       )}
 
+      {/* Achievements */}
+      <AchievementsWidget />
+
+      {/* Badge Toast */}
+      <BadgeToast badge={earnedBadge} onDismiss={dismissBadge} />
+
       {/* Dose Logging Modal */}
       {loggingMed && (
         <DoseLoggingModal
@@ -138,7 +148,15 @@ export function MedicationCoach() {
           onSubmit={(data) => {
             logDose.mutate(
               { medicationId: loggingMed.id, data },
-              { onSuccess: () => setLoggingMed(null) }
+              {
+                onSuccess: (response) => {
+                  setLoggingMed(null);
+                  const badges = response?.newly_earned_badges;
+                  if (badges && badges.length > 0) {
+                    setEarnedBadge(badges[0]);
+                  }
+                },
+              }
             );
           }}
           onClose={() => setLoggingMed(null)}

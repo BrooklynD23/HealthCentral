@@ -367,14 +367,33 @@ Access:
 ### Running Tests
 
 ```bash
-# Linux/WSL (from repo root)
+# Linux/WSL (activate a Linux-native venv first, then run from repo root)
 bash scripts/run-backend-tests.sh
 
 # Windows PowerShell (from repo root)
 .\scripts\run-backend-tests.ps1
 
-# Run specific test file
+# Run specific test file (Linux/WSL)
 bash scripts/run-backend-tests.sh tests/test_bootstrap_check.py -q
+```
+
+### Recommended WSL Setup
+
+```bash
+# Create a Linux-native virtualenv outside /mnt/c
+python3 -m venv ~/venvs/healthcentral-backend
+source ~/venvs/healthcentral-backend/bin/activate
+python -m pip install --upgrade pip
+
+# Test-focused install that skips optional heavy local-AI/export packages
+grep -vE '^(llama-cpp-python|sentence-transformers|weasyprint)' \
+  src/backend/requirements.txt \
+  > /tmp/hc-backend-test-requirements.txt
+
+python -m pip install -r /tmp/hc-backend-test-requirements.txt
+
+# Run backend tests from repo root
+bash scripts/run-backend-tests.sh
 ```
 
 ### Test Environment
@@ -386,7 +405,11 @@ bash scripts/run-backend-tests.sh tests/test_bootstrap_check.py -q
 
 ### Prerequisites
 
-- Python 3.11+ with `pip install -r requirements.txt` (includes pytest)
+- Python 3.11+.
+- `pytest` available either from the system package (`sudo apt-get install -y python3-pytest`) or from an activated Linux-native virtualenv.
+- Backend dependencies installed in the same Linux environment that will run the tests.
+- `src/backend/requirements.txt` includes optional heavy packages for local LLM inference and export.
+  For WSL test loops, a reduced install that skips `llama-cpp-python`, `sentence-transformers`, and `weasyprint` is usually sufficient.
 - SQLCipher optional — tests run without it via the conftest override
 
 ---
@@ -396,3 +419,4 @@ bash scripts/run-backend-tests.sh tests/test_bootstrap_check.py -q
 1. **vite.config.ts lint warnings** - `@types/node` needs to be installed for Node.js type declarations
 2. **theme-color meta tag warning** - Informational only; progressive enhancement works in supported browsers
 3. **Date persistence tracking note** - Date persistence (`Observation.collected_at`, `Document.collection_date`) is now implemented, but date parsing/timezone normalization still requires ongoing regression checks for filter consistency.
+4. **Windows venv in WSL** - Avoid using a Windows `.venv` from WSL for backend pytest. Use a Linux-native venv instead.

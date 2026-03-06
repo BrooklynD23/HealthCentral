@@ -73,7 +73,7 @@ export function EntityDetailView({ entities, className }: EntityDetailViewProps)
                       {isLowConfidence && (
                         <AlertTriangle
                           className="w-3 h-3 text-status-caution"
-                          title={`Low confidence: ${Math.round(entity.confidence * 100)}%`}
+                          aria-label={`Low confidence: ${Math.round(entity.confidence * 100)}%`}
                         />
                       )}
                     </span>

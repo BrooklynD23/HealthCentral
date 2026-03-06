@@ -180,7 +180,13 @@ If you prefer manual setup:
 git clone https://github.com/your-org/HealthCentral.git
 cd HealthCentral
 
-# Backend setup
+# Backend setup (Linux/WSL)
+python3 -m venv ~/venvs/healthcentral-backend
+source ~/venvs/healthcentral-backend/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r src/backend/requirements.txt
+
+# Backend setup (Windows PowerShell)
 cd src/backend
 python -m venv venv
 venv\Scripts\activate  # Windows
