@@ -14,7 +14,7 @@ from typing import Optional
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -76,8 +76,7 @@ class InterpretationResponse(BaseModel):
     viewed_at: Optional[str] = None
     created_at: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
     @classmethod
     def from_model(cls, interp: LabInterpretation) -> "InterpretationResponse":
@@ -139,8 +138,7 @@ class PanelInterpretationResponse(BaseModel):
     requires_physician_review: bool
     created_at: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
     @classmethod
     def from_model(cls, interp: PanelInterpretation) -> "PanelInterpretationResponse":

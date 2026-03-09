@@ -20,7 +20,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, File, Query, status
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -158,8 +158,7 @@ class DocumentResponse(BaseModel):
     parsed_at: Optional[str] = None
     verified_at: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
     @classmethod
     def from_model(cls, doc: Document) -> "DocumentResponse":
@@ -708,8 +707,7 @@ class DocumentCategoryResponse(BaseModel):
     confidence: float
     classified_by: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DocumentEntityResponse(BaseModel):
@@ -722,8 +720,7 @@ class DocumentEntityResponse(BaseModel):
     confidence: float
     source_page: Optional[int] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 @router.get("/{document_id}/category", response_model=DocumentCategoryResponse)

@@ -177,6 +177,10 @@ USER QUESTION: {question}"""
             for pattern in self.PROMPT_INJECTION_PATTERNS
         ]
 
+    # TODO(INGEST-F): Add category filter parameter to retrieve_context
+    # to allow callers to restrict retrieval to specific document categories
+    # (imaging, pathology, visit_notes, lab). See implementation plan Task 23.
+
     async def retrieve_context(
         self,
         query: str,

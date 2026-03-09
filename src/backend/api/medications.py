@@ -16,13 +16,14 @@ from typing import Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
 from core.audit import log_document_event
 from core.auth import RequireAuth, Session, ProfileDbSession
+from core.time import utcnow
 from models import (
     Medication,
     MedicationSchedule,
@@ -200,8 +201,7 @@ class MedicationResponse(BaseModel):
     updated_at: str
     schedules: list[ScheduleResponse] = []
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
     @classmethod
     def from_model(cls, med: Medication, include_schedules: bool = True) -> "MedicationResponse":
@@ -336,7 +336,7 @@ async def create_medication(
         is_active=True,
         reminder_enabled=medication.reminder_enabled,
         metadata_json=json.dumps(medication.metadata) if medication.metadata else None,
-        started_at=medication.started_at or datetime.utcnow(),
+        started_at=medication.started_at or utcnow(),
     )
 
     profile_db.add(med)
@@ -511,7 +511,7 @@ async def delete_medication(
         event_type = "medication_delete"
     else:
         medication.is_active = False
-        medication.ended_at = datetime.utcnow()
+        medication.ended_at = utcnow()
         event_type = "medication_deactivate"
 
     await profile_db.commit()
@@ -809,7 +809,7 @@ async def log_dose(
         notes=dose.notes,
         was_skipped=dose.was_skipped,
         skip_reason=dose.skip_reason if dose.was_skipped else None,
-        logged_at=datetime.utcnow(),
+        logged_at=utcnow(),
     )
 
     profile_db.add(dose_record)
@@ -965,7 +965,7 @@ async def get_adherence_stats(
     verify_medication_access(medication, session)
 
     # Get dose counts
-    now = datetime.utcnow()
+    now = utcnow()
     seven_days_ago = now - timedelta(days=7)
     thirty_days_ago = now - timedelta(days=30)
 
@@ -1080,7 +1080,7 @@ async def _calculate_current_streak(medication_id: str, db: AsyncSession) -> int
         return 0
 
     streak = 0
-    today = datetime.utcnow().date()
+    today = utcnow().date()
     current_date = today
 
     # Group doses by date

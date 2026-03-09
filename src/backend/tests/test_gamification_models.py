@@ -5,10 +5,10 @@ and EarnedBadge models before implementation is verified.
 """
 
 import uuid
-from datetime import datetime
 
 import pytest
 
+from core.time import utcnow
 from models.gamification import BadgeDefinition, EarnedBadge
 
 
@@ -43,7 +43,7 @@ class TestEarnedBadge:
             profile_id="profile-1",
             badge_id="week-warrior",
             medication_id="med-1",
-            earned_at=datetime.utcnow(),
+            earned_at=utcnow(),
         )
         assert eb.medication_id == "med-1"
         assert eb.badge_id == "week-warrior"

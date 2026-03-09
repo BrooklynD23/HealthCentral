@@ -149,6 +149,17 @@ export type {
   NotificationHistoryFilters,
 } from './notifications';
 
+// Document category hooks
+export {
+  useDocumentCategory,
+  useDocumentEntities,
+} from './documentCategories';
+
+export type {
+  DocumentCategoryResponse,
+  DocumentEntityResponse,
+} from './documentCategories';
+
 // Gamification hooks
 export { useBadges } from './gamification';
 

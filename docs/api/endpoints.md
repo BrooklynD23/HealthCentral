@@ -42,6 +42,8 @@ All endpoints are prefixed with `/api/v1`. Auth-required endpoints need a
 | POST | `/documents/import` | Yes | Import PDF/image, extract observations |
 | GET | `/documents/` | Yes | List documents |
 | GET | `/documents/{document_id}` | Yes | Get document details |
+| GET | `/documents/{document_id}/category` | Yes | Get document classification category |
+| GET | `/documents/{document_id}/entities` | Yes | Get extracted entities for document |
 | GET | `/documents/{document_id}/pages` | Yes | Get document pages |
 | DELETE | `/documents/{document_id}` | Yes | Delete document |
 
@@ -53,6 +55,38 @@ Accepts `multipart/form-data` with a file field. Supported types: PDF, PNG, JPG,
 curl -X POST http://localhost:8000/api/v1/documents/import \
   -H "Authorization: Bearer <token>" \
   -F "file=@lab-results.pdf"
+```
+
+### GET /documents/{document_id}/category
+
+Returns the classification category for a document. 404 if no category is assigned.
+
+```json
+{
+    "id": "uuid",
+    "doc_id": "uuid",
+    "category": "imaging | pathology | visit_notes | lab",
+    "confidence": 0.95,
+    "classified_by": "rule"
+}
+```
+
+### GET /documents/{document_id}/entities
+
+Returns extracted entities for a document. Empty array if none found.
+
+```json
+[
+    {
+        "id": "uuid",
+        "doc_id": "uuid",
+        "category": "imaging",
+        "entity_type": "modality",
+        "entity_value": "MRI",
+        "confidence": 0.95,
+        "source_page": null
+    }
+]
 ```
 
 ## Observations

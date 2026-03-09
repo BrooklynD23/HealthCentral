@@ -11,7 +11,7 @@ import uuid
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, func
 
 from core.auth import RequireAuth, ProfileDbSession
@@ -66,8 +66,7 @@ class MemoryItemResponse(BaseModel):
     created_at: str
     updated_at: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
     @classmethod
     def from_model(cls, item: MemoryItem) -> "MemoryItemResponse":

@@ -16,6 +16,8 @@ import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useDocuments, useImportDocument, type Document } from '@/services';
 import { useAuthStore } from '@/stores/authStore';
+// CategoryBadge + EntityDetailView available in @/components/documents/
+// Wire into document detail view when it's built (no detail page exists yet)
 
 export function DocumentInbox() {
   const prefersReducedMotion = useReducedMotion();

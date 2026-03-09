@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 import uuid
-from datetime import datetime
+from datetime import timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -19,6 +19,7 @@ from api.documents import (
     DocumentEntityResponse,
 )
 from core.auth import Session
+from core.time import utcnow
 from models.document_category import DocumentCategory, DocumentEntity
 
 
@@ -38,11 +39,10 @@ class _ScalarResult:
 
 
 def _make_session(profile_id: str = "test-profile") -> Session:
-    from datetime import timedelta
     return Session(
         profile_id=profile_id,
         profile_name="Test Profile",
-        expires_at=datetime.utcnow() + timedelta(hours=1),
+        expires_at=utcnow() + timedelta(hours=1),
     )
 
 

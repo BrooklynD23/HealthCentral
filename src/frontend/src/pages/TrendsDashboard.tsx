@@ -12,7 +12,7 @@ import {
   AlertTriangle,
   FileText,
   Download,
-  Image,
+  Image as ImageIcon,
 } from 'lucide-react';
 import {
   LineChart,
@@ -40,6 +40,63 @@ const panels = [
   { id: 'lipid', label: 'Lipids' },
   { id: 'thyroid', label: 'Thyroid' },
 ];
+
+function downloadFile(href: string, filename: string) {
+  const link = document.createElement('a');
+  link.download = filename;
+  link.href = href;
+  link.click();
+}
+
+async function renderSvgToCanvas(svgElement: SVGSVGElement) {
+  const serializer = new XMLSerializer();
+  const svgClone = svgElement.cloneNode(true) as SVGSVGElement;
+  const viewBox = svgClone.viewBox.baseVal;
+  const bounds = svgElement.getBoundingClientRect();
+  const width = Math.max(
+    Math.ceil(bounds.width || viewBox.width || Number(svgClone.getAttribute('width')) || 0),
+    1
+  );
+  const height = Math.max(
+    Math.ceil(bounds.height || viewBox.height || Number(svgClone.getAttribute('height')) || 0),
+    1
+  );
+
+  svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  svgClone.setAttribute('width', String(width));
+  svgClone.setAttribute('height', String(height));
+
+  const blob = new Blob([serializer.serializeToString(svgClone)], {
+    type: 'image/svg+xml;charset=utf-8',
+  });
+  const objectUrl = URL.createObjectURL(blob);
+
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const nextImage = new Image();
+      nextImage.onload = () => resolve(nextImage);
+      nextImage.onerror = () => reject(new Error('Failed to load chart SVG'));
+      nextImage.src = objectUrl;
+    });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext('2d');
+    if (!context) {
+      throw new Error('Canvas 2D context is unavailable');
+    }
+
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, width, height);
+    context.drawImage(image, 0, 0, width, height);
+
+    return canvas;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
 
 export function TrendsDashboard() {
   const prefersReducedMotion = useReducedMotion();
@@ -101,12 +158,14 @@ export function TrendsDashboard() {
 
   const handleExportPNG = useCallback(async () => {
     if (!chartRef.current) return;
-    const { default: html2canvas } = await import('html2canvas');
-    const canvas = await html2canvas(chartRef.current, { backgroundColor: '#ffffff' });
-    const link = document.createElement('a');
-    link.download = `${effectiveSelectedAnalyte || 'chart'}-trend.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
+    const svgElement = chartRef.current.querySelector('svg');
+    if (!svgElement) return;
+
+    const canvas = await renderSvgToCanvas(svgElement);
+    downloadFile(
+      canvas.toDataURL('image/png'),
+      `${effectiveSelectedAnalyte || 'chart'}-trend.png`
+    );
   }, [effectiveSelectedAnalyte]);
 
   const handleExportSVG = useCallback(() => {
@@ -116,11 +175,9 @@ export function TrendsDashboard() {
     const serializer = new XMLSerializer();
     const svgString = serializer.serializeToString(svgElement);
     const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-    const link = document.createElement('a');
-    link.download = `${effectiveSelectedAnalyte || 'chart'}-trend.svg`;
-    link.href = URL.createObjectURL(blob);
-    link.click();
-    URL.revokeObjectURL(link.href);
+    const objectUrl = URL.createObjectURL(blob);
+    downloadFile(objectUrl, `${effectiveSelectedAnalyte || 'chart'}-trend.svg`);
+    URL.revokeObjectURL(objectUrl);
   }, [effectiveSelectedAnalyte]);
 
   // Get latest value info
@@ -283,7 +340,7 @@ export function TrendsDashboard() {
                     onClick={handleExportPNG}
                     aria-label="Download chart as PNG"
                   >
-                    <Image className="w-3.5 h-3.5" />
+                    <ImageIcon className="w-3.5 h-3.5" />
                     PNG
                   </Button>
                   <Button
