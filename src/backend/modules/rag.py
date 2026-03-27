@@ -177,9 +177,8 @@ USER QUESTION: {question}"""
             for pattern in self.PROMPT_INJECTION_PATTERNS
         ]
 
-    # TODO(INGEST-F): Add category filter parameter to retrieve_context
-    # to allow callers to restrict retrieval to specific document categories
-    # (imaging, pathology, visit_notes, lab). See implementation plan Task 23.
+    # INGEST-F: Category filter support for retrieve_context
+    VALID_CATEGORIES = {"imaging", "pathology", "visit_notes", "lab"}
 
     async def retrieve_context(
         self,
@@ -192,6 +191,7 @@ USER QUESTION: {question}"""
         top_k: int = 10,
         master_db=None,
         profile_db=None,
+        category: Optional[str] = None,
     ) -> list[RetrievedChunk]:
         """
         Retrieve relevant chunks for the query (async).
@@ -206,6 +206,7 @@ USER QUESTION: {question}"""
             top_k: Number of chunks to retrieve
             master_db: Master database session for reference lookups
             profile_db: Profile database session for vector search
+            category: Optional document category filter (imaging, pathology, visit_notes, lab)
 
         Returns:
             List of relevant chunks with scores
@@ -222,6 +223,7 @@ USER QUESTION: {question}"""
                 to_date=to_date,
                 top_k=top_k,
                 profile_db=profile_db,
+                category=category,
             )
 
             for chunk_data, score in search_results:

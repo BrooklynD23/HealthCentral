@@ -103,3 +103,14 @@ exports/
 # Crash reports and debugging
 crash_reports/
 *.dmp
+
+# ── GSD baseline (auto-generated) ──
+.gsd
+*.code-workspace
+.env.*
+!.env.example
+.next/
+*.pyc
+target/
+vendor/
+coverage/
