@@ -47,12 +47,15 @@ export interface ChatMessage {
   content: string;
 }
 
+export type DocumentCategory = 'imaging' | 'pathology' | 'visit_notes' | 'lab';
+
 export interface ChatRequest {
   question: string;
   selected_analytes?: string[];
   selected_panel?: string;
   from_date?: string;
   to_date?: string;
+  document_category?: DocumentCategory;
   include_references?: boolean;
   enable_verification?: boolean;
   history?: ChatMessage[];

@@ -314,9 +314,10 @@ USER QUESTION: {question}"""
         to_date: Optional[str] = None,
         top_k: int = 10,
         profile_db=None,
+        category: Optional[str] = None,
     ) -> list[tuple[dict, float]]:
         """
-        Async implementation of vector search with date/analyte/panel filtering.
+        Async implementation of vector search with date/analyte/panel/category filtering.
 
         Args:
             query: Search query
@@ -325,12 +326,13 @@ USER QUESTION: {question}"""
             from_date: Filter by date range start (ISO format)
             to_date: Filter by date range end (ISO format)
             top_k: Number of results
+            category: Optional document category filter
 
         Returns:
             List of (chunk_data, similarity_score) tuples
         """
-        from sqlalchemy import select, and_
-        from models import Chunk, Embedding, Document, Observation
+        from sqlalchemy import select
+        from models import Chunk, DocumentCategory, Embedding, Document, Observation
         from datetime import datetime
 
         # Embed the query
@@ -366,6 +368,15 @@ USER QUESTION: {question}"""
                 .distinct()
             )
             stmt = stmt.where(Document.id.in_(analyte_doc_stmt))
+
+        # Apply category filter: only include documents classified into the requested bucket
+        if category:
+            category_doc_stmt = (
+                select(DocumentCategory.doc_id)
+                .where(DocumentCategory.category == category)
+                .distinct()
+            )
+            stmt = stmt.where(Document.id.in_(category_doc_stmt))
 
         result = await profile_db.execute(stmt)
         rows = result.all()
@@ -922,6 +933,7 @@ I was unable to fully process your question within the time limit. Please try as
         master_db=None,
         profile_db=None,
         use_memory: bool = False,
+        category: Optional[str] = None,
     ) -> ValidatedResponse:
         """
         Complete RAG query with retrieval, generation, and validation.
@@ -939,6 +951,7 @@ I was unable to fully process your question within the time limit. Please try as
             history: Conversation history for multi-turn context
             model_runner: Optional override model runner (for external API)
             master_db: Master database session for reference lookups
+            category: Optional document category filter for user-document retrieval
 
         Returns:
             ValidatedResponse with verified, grounded answer
@@ -962,6 +975,7 @@ I was unable to fully process your question within the time limit. Please try as
             include_references=include_references,
             master_db=master_db,
             profile_db=profile_db,
+            category=category,
         )
 
         # Check for insufficient context

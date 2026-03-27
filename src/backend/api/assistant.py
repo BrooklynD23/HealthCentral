@@ -8,7 +8,7 @@ Phase 4: Now includes verification metadata in responses.
 """
 
 import logging
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -43,6 +43,9 @@ class Citation(BaseModel):
     authority_score: Optional[float] = None  # 0.0-1.0
 
 
+DocumentCategoryValue = Literal["imaging", "pathology", "visit_notes", "lab"]
+
+
 class ChatRequest(BaseModel):
     """Request model for chat."""
     question: str
@@ -52,6 +55,10 @@ class ChatRequest(BaseModel):
     selected_panel: Optional[str] = None
     from_date: Optional[str] = None
     to_date: Optional[str] = None
+    document_category: Optional[DocumentCategoryValue] = Field(
+        default=None,
+        description="Optional document category filter for user-document retrieval.",
+    )
 
     # Options
     include_references: bool = True  # Include general reference info
@@ -207,6 +214,7 @@ async def chat(
             master_db=db,
             profile_db=profile_db,
             use_memory=request.use_memory,
+            category=request.document_category,
         )
 
         # Convert to response format
