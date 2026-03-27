@@ -146,6 +146,21 @@ Includes page numbering and proper formatting for printing.
    - Description of what changed and why
    - Reference to any related issues
 
+### Repo hygiene for status-sensitive work
+
+Treat local helper state separately from shared project changes so dirty-worktree checks stay meaningful:
+
+- **Ignore category:** `.bg-shell/` and `.wsl-pytest-venv/` are local-only directories used for shell state and WSL verification bootstrap. They belong in `.gitignore`, not in commits.
+- **Clean-up category:** ad-hoc root files such as `PLAN.md`, `HANDOFF-*.md`, and generated local reports like `*_report*.md` should be removed or relocated before review. They are intentionally not broadly ignored because they can look like real project docs.
+- **Document category:** when contributor guidance changes, update `README.md`, `CONTRIBUTING.md`, and `.gsd/KNOWLEDGE.md` together so future audits interpret local-only artifacts consistently.
+
+#### Lightweight pre-merge checklist
+
+1. Run `git status --short` from the repository root.
+2. Confirm that only intentional tracked edits remain.
+3. Delete, rename, or move any local-only scratch files before asking someone else to interpret the worktree.
+4. Re-run the repo checks relevant to your changes; for documentation-only hygiene changes, start with `python3 scripts/docs_lint.py`.
+
 ### PR Checklist
 
 - [ ] Tests pass locally (`pytest` and `npm test`)
@@ -153,6 +168,7 @@ Includes page numbering and proper formatting for printing.
 - [ ] New code has appropriate test coverage
 - [ ] Documentation updated if needed
 - [ ] No sensitive data (API keys, passwords) committed
+- [ ] Pre-merge hygiene pass completed (no unexpected local-only artifacts in `git status`)
 
 ## Project Structure
 

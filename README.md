@@ -207,6 +207,15 @@ What this proves:
 - The repo's recorded backend proof commands assume the repo-root interpreter path `./.wsl-pytest-venv/bin/python`. If that environment is missing, recreate it with the commands above instead of falling back to an unprepared system interpreter.
 - `npx --prefix src/frontend tsc --noEmit -p src/frontend/tsconfig.json` is the supported local frontend verification command for mounted WSL checkouts. If broader frontend tests stall on an NTFS-mounted repo, rerun them from CI or a native Linux checkout instead of changing the proof command above.
 
+### Local-only artifact hygiene
+
+Use the following repo-hygiene rules whenever you are about to interpret `git status`, perform an audit, or do pre-merge cleanup:
+
+- `.bg-shell/` and `.wsl-pytest-venv/` are local-only helper directories. They should stay gitignored and should not be treated as shared project changes.
+- Root scratch markdown and ad-hoc generated reports such as `PLAN.md`, `HANDOFF-*.md`, and `*_report*.md` are **not** broadly ignored on purpose. Clean them up or move them elsewhere before dirty-worktree reviews so status output keeps reflecting real shared work.
+- Run `git status --short` before release-oriented or status-sensitive work. If unexpected local-only files appear, clear them first instead of normalizing them into the repo.
+- Use the contributor checklist in `CONTRIBUTING.md` when you need a repeatable pre-merge hygiene pass.
+
 ### Manual Installation
 
 If you prefer manual setup beyond the verification bootstrap above:

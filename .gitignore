@@ -29,6 +29,12 @@ ENV/
 env/
 .venv/
 
+# Developer-local helpers (ignore these so routine dirty-worktree checks stay focused)
+.bg-shell/
+.wsl-pytest-venv/
+# Intentionally do not add broad ignore rules for local-only scratch notes/reports;
+# contributors should delete or relocate those before pre-merge work.
+
 # IDE
 .vscode/
 .idea/
