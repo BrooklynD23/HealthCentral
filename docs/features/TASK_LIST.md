@@ -1,7 +1,7 @@
 # HealthCentral Remaining Work Task List
 
 **Version:** 0.4.0
-**Last Updated:** 2026-02-21
+**Last Updated:** 2026-03-27
 **Owner:** Project Lead
 **Refresh Trigger:** Task completed or new task identified
 **Scope:** Active remaining work only (implementation baseline already shipped)
@@ -21,19 +21,21 @@ It replaces legacy mixed-status lists and focuses on:
 
 ## Canonical Doc Order
 
-1. `docs/05_backend_integration_status.md` (current API/UI integration baseline)
-2. `docs/features/TASK_LIST.md` (this active remaining-work tracker)
+1. `README.md` (repo entrypoint and audited live feature surface overview)
+2. `docs/api/endpoints.md` (exact mounted backend routes; API source of truth)
+3. `docs/features/TASK_LIST.md` (this active remaining-work tracker)
+4. `docs/05_backend_integration_status.md` (**Historical Reference** — Sprint 06 snapshot retained for audit context, not the live tracker)
 
 ---
 
-## Current Baseline Snapshot (2026-02-21)
+## Current Baseline Snapshot (2026-03-27)
 
-- Completed baseline areas: auth, import/extract/verify, trends, export, assistant, interpretations, medications, notifications, settings.
+- Completed baseline areas: auth, import/extract/verify, trends, export, assistant, assistant memory, interpretations, medications, notifications, gamification, settings, and document categorization/entity extraction.
 - Stabilization sprint (STAB-001 through STAB-007) completed on 2026-02-14.
 - Sprint 05 (Frontend Quality & Testing) completed on 2026-02-19: 188 frontend tests, accessibility, responsive layout, visualization interactions, E2E workflows.
 - Sprint 06 (Platform Operations & Compliance) completed on 2026-02-21: security middleware (4 classes, 31 tests), monitoring/metrics (23 tests), backup/restore (14 tests), API/user/compliance documentation (14 files).
-- Documentation consolidation completed on 2026-02-21: all canonical docs updated, historical docs marked, security report relocated.
-- Remaining work: security remediation from Sprint 06 review, deferred feature backlog.
+- Documentation reconciliation refreshed on 2026-03-27: `README.md` and `docs/api/endpoints.md` describe the audited live surface; `docs/05_backend_integration_status.md` is now explicitly historical.
+- Remaining work: security remediation from Sprint 06 review, deferred feature backlog, and the separate in-progress RAG category-filter wiring noted in the M001 audit.
 
 ---
 
@@ -115,6 +117,14 @@ On the first of each month, review all canonical docs for freshness:
 ---
 
 ## Session Notes
+
+### 2026-03-27 - Live Surface Reconciliation Pass
+
+- Reconciled the canonical doc ownership model with the M001/S01 audit and the mounted router inventory.
+- Promoted `README.md` and `docs/api/endpoints.md` as the live surface source of truth for contributors.
+- Marked `docs/05_backend_integration_status.md` as a **Historical Reference** for the Sprint 06 snapshot rather than an active live-surface tracker.
+- Updated the baseline summary here to explicitly include assistant memory, gamification, model settings sub-surfaces, and document categorization/entity/image routes.
+- Verification: `python3 scripts/docs_lint.py` and targeted `rg` drift checks re-run after reconciliation.
 
 ### 2026-02-12 - Documentation Drift Consolidation Pass
 

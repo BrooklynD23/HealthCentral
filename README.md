@@ -220,7 +220,8 @@ npm run dev
 
 ### For Developers
 - [API Documentation](docs/api/README.md)
-- [Backend Integration Status](docs/05_backend_integration_status.md)
+- [Live API Endpoints (source of truth)](docs/api/endpoints.md)
+- [Backend Integration Status (Historical Reference)](docs/05_backend_integration_status.md)
 - [Backend Architecture](docs/01_backend_architecture_plan.md)
 - [Documentation Index](docs/00_architecture_plans_index.md)
 
@@ -236,16 +237,21 @@ HealthCentral exposes a REST API via FastAPI at `http://localhost:8000/api/v1`. 
 
 | Group | Endpoints | Description |
 |-------|-----------|-------------|
-| **Profiles** | `/profiles/` | Create, list, unlock, and lock encrypted user profiles |
-| **Documents** | `/documents/` | Import PDFs/images, list, view pages, delete |
+| **Profiles** | `/profiles/` | Create, list, log in to, unlock, lock, and manage encrypted user profiles |
+| **Documents** | `/documents/` | Import PDFs/images, list, classify, inspect extracted entities, render page images, delete |
 | **Observations** | `/observations/` | List, verify, trend analysis, panel grouping |
-| **Assistant** | `/assistant/` | RAG chat with citations, test intent lookup, glossary |
-| **Interpretations** | `/interpretations/` | Lab and panel interpretation with LLM support |
-| **Medications** | `/medications/` | CRUD, schedules, dose logging, adherence stats |
-| **Notifications** | `/notifications/` | Reminder settings, history, scheduler status |
+| **Interpretations** | `/interpretations/` | Observation and panel interpretation plus biomarker knowledge lookup |
+| **Assistant** | `/assistant/` | RAG chat with citations, glossary, and verification status |
+| **Memory** | `/memory/` | Persistent assistant memory CRUD per profile |
+| **Medications** | `/medications/` | CRUD, schedules, dose logging, adherence stats, pattern learning |
+| **Gamification** | `/gamification/` | Badge inventory plus profile streak summaries |
+| **Notifications** | `/notifications/` | Reminder settings, history, test sends, scheduler status, interaction logging |
 | **Export** | `/export/` | CSV/JSON export, doctor summary, discussion questions |
-| **Settings** | `/settings/model/` | Model tier selection, hardware detection, downloads |
-| **Monitoring** | `/health`, `/monitoring/` | Health check, metrics dashboard |
+| **Model Settings** | `/settings/model` | Model tier selection, downloads, external API config, timezone, and voice preferences |
+| **Monitoring** | `/health`, `/monitoring/` | Health check and authenticated metrics dashboard |
+
+Exact path-level API **source of truth**: [docs/api/endpoints.md](docs/api/endpoints.md).
+`docs/05_backend_integration_status.md` is a **Historical Reference** that preserves the Sprint 06 snapshot and audit context, not the live API tracker.
 
 For full endpoint details, see [API Documentation](docs/api/endpoints.md).
 
