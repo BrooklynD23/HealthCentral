@@ -2,6 +2,18 @@
 # Python 3.11+ required
 
 # =============================================================================
+# Contributor Bootstrap Notes
+# =============================================================================
+# The supported backend verification path in this repo uses a Linux-native venv
+# created from the repository root, for example:
+#   python3 -m venv .wsl-pytest-venv
+#   ./.wsl-pytest-venv/bin/python -m pip install -r src/backend/requirements.txt
+# When working from WSL on a /mnt/c checkout, do not reuse a Windows virtualenv
+# inside the mounted tree; compiled wheels can mismatch and make pytest fail
+# before HealthCentral imports are exercised.
+# Install this file with the same interpreter you will later use for pytest.
+
+# =============================================================================
 # Core Framework
 # =============================================================================
 fastapi>=0.109.0

@@ -20,6 +20,22 @@ Use these docs for current-state work:
 
 ---
 
+## Local verification bootstrap pointer
+
+This historical snapshot does **not** define the current contributor bootstrap path. Use the root `README.md` section **Supported Local Verification Bootstrap (WSL/Linux)** and `src/frontend/README.md` for the maintained proof commands.
+
+Current audited local proof commands:
+
+```bash
+python3 scripts/docs_lint.py
+npx --prefix src/frontend tsc --noEmit -p src/frontend/tsconfig.json
+PYTHONPATH=src/backend ./.wsl-pytest-venv/bin/python -m pytest src/backend/tests/test_bootstrap_check.py -q
+```
+
+Environment caveats carried forward from the audit:
+- In WSL, create and use a Linux-native repo-root virtualenv such as `./.wsl-pytest-venv`; do not invoke a Windows-created virtualenv from `/mnt/c/...`.
+- For mounted WSL checkouts, the supported local frontend proof is the TypeScript check above. If broader frontend test runners stall on NTFS, re-run them from CI or a native Linux checkout instead of changing the bootstrap proof command.
+
 ## What this Sprint 06 snapshot captured accurately
 
 The Sprint 06 baseline remains useful historical context for the work that shipped in the platform/compliance pass:

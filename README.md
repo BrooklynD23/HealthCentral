@@ -171,9 +171,45 @@ Once running:
 
 Press `Ctrl+C` to stop both servers.
 
+### Supported Local Verification Bootstrap (WSL/Linux)
+
+The canonical local proof path used by this repo's task summaries and milestone verification runs is the WSL/Linux command path below. Run every command from the repository root.
+
+```bash
+python3 --version
+node --version
+
+python3 -m venv .wsl-pytest-venv
+./.wsl-pytest-venv/bin/python -m pip install --upgrade pip
+./.wsl-pytest-venv/bin/python -m pip install -r src/backend/requirements.txt
+npm --prefix src/frontend install
+
+python3 scripts/docs_lint.py
+npx --prefix src/frontend tsc --noEmit -p src/frontend/tsconfig.json
+PYTHONPATH=src/backend ./.wsl-pytest-venv/bin/python -m pytest src/backend/tests/test_bootstrap_check.py -q
+```
+
+What this proves:
+- docs drift checks run from repo root;
+- the frontend type-check works with the checked-in `src/frontend/tsconfig.json`;
+- the backend pytest environment can import project dependencies and keeps the production encryption default intact.
+
+#### Verification prerequisites and recovery notes
+
+- **Python**: use Python 3.11+ and create the backend verifier environment from the same WSL/Linux interpreter you will use for pytest.
+- **Node.js**: use Node.js 18+ so `npx --prefix src/frontend ...` resolves the frontend toolchain correctly.
+- **SQLCipher**: if `pip install -r src/backend/requirements.txt` fails around `sqlcipher3-binary` on Debian/Ubuntu, install `libsqlcipher-dev` first, then retry the pip install.
+- **OCR packages**: `tesseract-ocr` and PDF/image system libraries are required for OCR-heavy backend tests and runtime features, but the bootstrap smoke test above does not depend on them.
+
+#### Windows / WSL caveats
+
+- If you are inside WSL, create and use the virtualenv from WSL (`python3 -m venv .wsl-pytest-venv`). Do **not** activate a Windows-created virtualenv from `/mnt/c/...`; compiled wheels can mismatch and produce false-negative pytest failures before app code runs.
+- The repo's recorded backend proof commands assume the repo-root interpreter path `./.wsl-pytest-venv/bin/python`. If that environment is missing, recreate it with the commands above instead of falling back to an unprepared system interpreter.
+- `npx --prefix src/frontend tsc --noEmit -p src/frontend/tsconfig.json` is the supported local frontend verification command for mounted WSL checkouts. If broader frontend tests stall on an NTFS-mounted repo, rerun them from CI or a native Linux checkout instead of changing the proof command above.
+
 ### Manual Installation
 
-If you prefer manual setup:
+If you prefer manual setup beyond the verification bootstrap above:
 
 ```bash
 # Clone repository
@@ -186,15 +222,19 @@ source ~/venvs/healthcentral-backend/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r src/backend/requirements.txt
 
+# Frontend setup
+npm --prefix src/frontend install
+```
+
+```powershell
 # Backend setup (Windows PowerShell)
-cd src/backend
-python -m venv venv
-venv\Scripts\activate  # Windows
-pip install -r requirements.txt
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r src/backend/requirements.txt
 
 # Frontend setup
-cd ../frontend
-npm install
+npm --prefix src/frontend install
 ```
 
 ### Manual Development

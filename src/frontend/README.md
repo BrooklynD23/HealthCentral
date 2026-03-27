@@ -65,6 +65,21 @@ npm run dev
 npm run build
 ```
 
+## Supported Contributor Verification Path
+
+The audited local proof commands for this repo are run from the repository root so backend and frontend verification stay copy-paste compatible:
+
+```bash
+npm --prefix src/frontend install
+npx --prefix src/frontend tsc --noEmit -p src/frontend/tsconfig.json
+```
+
+Use that root-level form when following `README.md`, GSD task plans, or milestone verification notes.
+
+### WSL / Windows caveat
+
+If the repo is checked out under `/mnt/c/...` and longer-running frontend tests stall on the NTFS mount, treat CI or a native Linux checkout as the source of truth for `vitest` and browser-heavy suites. The type-check command above is the supported local frontend proof used by the environment bootstrap slice.
+
 ## Running Tests
 
 ```bash
@@ -77,8 +92,8 @@ npx vitest run src/__tests__/TrendsDashboard.test.tsx
 # Run in watch mode (development)
 npx vitest
 
-# Type-check without emitting
-npx tsc --noEmit
+# Type-check without emitting (from repo root)
+npx --prefix src/frontend tsc --noEmit -p src/frontend/tsconfig.json
 ```
 
 Tests use `pool: 'forks'` for process isolation and a 10-second timeout.
