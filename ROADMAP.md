@@ -10,7 +10,7 @@ Reconstruct the current project state after inactivity by auditing branch histor
 |----|-------|------|---------|------|------------|
 | S01 | Branch and functionality audit | medium | — | ✅ | After this slice, the team can answer: what shipped through Sprint 06, what `main` added afterward, and what is currently partial or broken. |
 | S02 | Initialize GSD baseline artifacts | low | S01 | ✅ | After this slice, future contributors can open GSD artifacts instead of reconstructing status from scratch. |
-| S03 | Recovery backlog and next-step framing | medium | S01, S02 | ⬜ | After this slice, the team has a prioritized shortlist of cleanup and follow-up work instead of an unstructured pile of drift. |
+| S03 | Recovery backlog and next-step framing | medium | S01, S02 | ✅ | After this slice, the team has a prioritized shortlist of cleanup and follow-up work instead of an unstructured pile of drift. |
 
 ## Planned Next Milestone
 
