@@ -30,6 +30,8 @@ env/
 .venv/
 
 # Developer-local helpers (ignore these so routine dirty-worktree checks stay focused)
+# The repo_hygiene_check guard intentionally handles root scratch markdown/report files
+# instead of hiding them behind broad ignore rules.
 .bg-shell/
 .wsl-pytest-venv/
 # Intentionally do not add broad ignore rules for local-only scratch notes/reports;
