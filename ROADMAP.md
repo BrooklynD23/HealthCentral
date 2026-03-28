@@ -21,10 +21,10 @@ Reconstruct the current project state after inactivity by auditing branch histor
   - Canonical roadmap: `.gsd/milestones/M002/M002-ROADMAP.md`
   - Validation: `.gsd/milestones/M002/M002-VALIDATION.md`
   - Summary: `.gsd/milestones/M002/M002-SUMMARY.md`
-- **M003: Assistant surfacing and proof hardening** — Active.
+- **M003: Assistant surfacing and proof hardening** — Completed.
   - `S01` Explain Assistant category filter exposure — complete
   - `S02` Proof-surface cleanup for docs and auth — complete
-  - `S03` Integrated verification and hygiene guardrails — active
+  - `S03` Integrated verification and hygiene guardrails — complete
   - Contributor proof bundle (repo root):
     - `python3 scripts/repo_hygiene_check.py`
     - `python3 scripts/docs_lint.py`
@@ -32,4 +32,6 @@ Reconstruct the current project state after inactivity by auditing branch histor
     - `npx --prefix src/frontend playwright test --config src/frontend/playwright.config.ts src/frontend/e2e/assistant.spec.ts --grep "category"`
     - `PYTHONPATH=src/backend ./.wsl-pytest-venv/bin/python -m pytest src/backend/tests/test_bootstrap_check.py src/backend/tests/security/test_password_hashing.py src/backend/tests/test_repo_hygiene_check.py -q`
   - Canonical roadmap: `.gsd/milestones/M003/M003-ROADMAP.md`
+  - Validation: `.gsd/milestones/M003/M003-VALIDATION.md`
+  - Summary: `.gsd/milestones/M003/M003-SUMMARY.md`
   - Slice plans: `.gsd/milestones/M003/slices/S01/S01-PLAN.md`, `.gsd/milestones/M003/slices/S02/S02-PLAN.md`, `.gsd/milestones/M003/slices/S03/S03-PLAN.md`
