@@ -5,6 +5,7 @@ import { dirname, resolve } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+const isWslWindowsMount = process.cwd().startsWith('/mnt/');
 
 export default defineConfig({
   plugins: [react()],
@@ -13,7 +14,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/__tests__/setup.ts'],
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
-    pool: 'forks',
+    pool: isWslWindowsMount ? 'threads' : 'forks',
     testTimeout: 10000,
   },
   resolve: {

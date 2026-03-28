@@ -8,7 +8,8 @@ Usage:
 Baseline rules:
   1. Canonical docs must include a "Last Updated" field.
   2. Historical docs must include a "Historical Reference" banner near the top.
-  3. docs/05_backend_integration_status.md must not contain stale marker "LLM Required".
+  3. docs/05_backend_integration_status.md must stay classified as historical and must
+     not contain stale marker "LLM Required".
   4. docs/features/TASK_LIST.md must include Red/Green/Refactor phases and non-empty
      phase content for active TODO rows.
   5. (DOC-004) Canonical docs must include "Owner:" and "Refresh Trigger:" fields.
@@ -26,12 +27,12 @@ from pathlib import Path
 
 CANONICAL_DOCS = [
     "docs/00_architecture_plans_index.md",
-    "docs/05_backend_integration_status.md",
     "docs/features/00_features_index.md",
     "docs/features/TASK_LIST.md",
 ]
 
 HISTORICAL_DOCS = [
+    "docs/05_backend_integration_status.md",
     "docs/06_mvp_to_rag_execution_board.md",
     "docs/plans/UI-implementation-2-4.md",
     "docs/plans/remaining-features-implementation.md",
@@ -87,13 +88,28 @@ def _check_historical_banners(repo_root: Path) -> list[str]:
     return errors
 
 
+def _check_backend_status_classification(_repo_root: Path) -> list[str]:
+    errors: list[str] = []
+
+    if BACKEND_STATUS_DOC in CANONICAL_DOCS:
+        errors.append(
+            f"{BACKEND_STATUS_DOC}: lint config misclassifies it as canonical; it must remain historical"
+        )
+    if BACKEND_STATUS_DOC not in HISTORICAL_DOCS:
+        errors.append(
+            f"{BACKEND_STATUS_DOC}: lint config no longer treats it as historical"
+        )
+
+    return errors
+
+
 def _check_backend_status_stale_marker(repo_root: Path) -> list[str]:
     errors: list[str] = []
     text = _read_text(repo_root, BACKEND_STATUS_DOC)
 
     if "LLM Required" in text:
         errors.append(
-            f"{BACKEND_STATUS_DOC}: contains stale marker 'LLM Required'"
+            f"{BACKEND_STATUS_DOC}: historical snapshot contains stale marker 'LLM Required'"
         )
 
     return errors
@@ -208,6 +224,7 @@ def lint_docs(repo_root: Path) -> list[str]:
     checks = (
         _check_last_updated,
         _check_historical_banners,
+        _check_backend_status_classification,
         _check_backend_status_stale_marker,
         _check_feature_index_not_planning,
         _check_task_list_tdd_phases,

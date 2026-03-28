@@ -300,7 +300,7 @@ HealthCentral exposes a REST API via FastAPI at `http://localhost:8000/api/v1`. 
 | **Monitoring** | `/health`, `/monitoring/` | Health check and authenticated metrics dashboard |
 
 Exact path-level API **source of truth**: [docs/api/endpoints.md](docs/api/endpoints.md).
-`docs/05_backend_integration_status.md` is a **Historical Reference** that preserves the Sprint 06 snapshot and audit context, not the live API tracker.
+`docs/05_backend_integration_status.md` is a **Historical Reference** that preserves the Sprint 06 snapshot and audit context, not the live API tracker or part of the canonical ownership/freshness rotation.
 
 For full endpoint details, see [API Documentation](docs/api/endpoints.md).
 

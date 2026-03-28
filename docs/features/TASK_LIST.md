@@ -44,7 +44,7 @@ It replaces legacy mixed-status lists and focuses on:
 | Item ID | Scope | Phase T1 (Red: define failing check first) | Phase T2 (Green: implement minimal fix) | Phase T3 (Refactor/Verify: stabilize + document) | Primary File Targets | Status |
 |---------|-------|---------------------------------------------|------------------------------------------|---------------------------------------------------|----------------------|--------|
 | `DOC-003` | Automated documentation drift checks | Added baseline drift checks in `scripts/docs_lint.py` for stale markers and contradictory labels. | Implemented executable local entrypoint: `python3 scripts/docs_lint.py`. | Documented rule set in script header and validated passing baseline run. | `scripts/docs_lint.py` (new), `docs/00_architecture_plans_index.md`, `docs/features/TASK_LIST.md` | [x] DONE |
-| `DOC-004` | Canonical doc ownership and update policy | Added `_check_canonical_ownership()` lint rule checking for `Owner:` and `Refresh Trigger:` fields. | Added `**Owner:**` and `**Refresh Trigger:**` to all 5 canonical docs. Added cross-links. | Added monthly review cadence section to TASK_LIST.md. | `scripts/docs_lint.py`, `docs/00_architecture_plans_index.md`, `docs/05_backend_integration_status.md`, `docs/features/00_features_index.md`, `docs/features/TASK_LIST.md`, `docs/plans/next-agent-documentation-consolidation.md` | [x] DONE |
+| `DOC-004` | Canonical doc ownership and update policy | Added `_check_canonical_ownership()` lint rule checking for `Owner:` and `Refresh Trigger:` fields. | Added `**Owner:**` and `**Refresh Trigger:**` to the canonical docs and cross-links across the active doc set. | Added monthly review cadence section to TASK_LIST.md. | `scripts/docs_lint.py`, `docs/00_architecture_plans_index.md`, `docs/05_backend_integration_status.md`, `docs/features/00_features_index.md`, `docs/features/TASK_LIST.md`, `docs/plans/next-agent-documentation-consolidation.md` | [x] DONE |
 | `DOC-005` | Redundant/outdated document handling | Added `_check_historical_inactive_language()` lint rule checking top 15 lines for inactive-tracker phrases. | Updated `remaining-features-implementation.md` banner with "not an active tracker" language. Verified existing banners in other historical docs. | Confirmed all historical docs have pointers to TASK_LIST.md. | `scripts/docs_lint.py`, `docs/plans/remaining-features-implementation.md` | [x] DONE |
 | `TEST-001` | Backend test execution reliability | Created `test_bootstrap_check.py` with 3 assertions: pytest importable, TEST_MODE set, production encryption default unchanged. | Updated `conftest.py` with TEST_MODE=1 and DATABASE_ENCRYPTION_REQUIRED=false (test-only). Created `scripts/run-backend-tests.sh` and `.ps1`. | Documented backend test setup in `docs/05_backend_integration_status.md`. | `src/backend/tests/test_bootstrap_check.py`, `src/backend/tests/conftest.py`, `scripts/run-backend-tests.sh`, `scripts/run-backend-tests.ps1`, `docs/05_backend_integration_status.md` | [x] DONE |
 | `TEST-002` | Frontend test runner stability | Triaged baseline: 72/72 tests passing. Identified Zustand store leak as isolation risk. | Added store reset in `setup.ts` afterEach. Added `pool: 'forks'` and `testTimeout: 10000` to vitest.config.ts. | Verified 72/72 pass deterministically. Documented stable test command in `src/frontend/README.md`. | `src/frontend/src/__tests__/setup.ts`, `src/frontend/vitest.config.ts`, `src/frontend/README.md` | [x] DONE |
@@ -126,6 +126,13 @@ On the first of each month, review all canonical docs for freshness:
 - Updated the baseline summary here to explicitly include assistant memory, gamification, model settings sub-surfaces, and document categorization/entity/image routes.
 - Verification: `python3 scripts/docs_lint.py` and targeted `rg` drift checks re-run after reconciliation.
 
+### 2026-03-27 - Historical Doc Ownership Reclassification
+
+- Reclassified `docs/05_backend_integration_status.md` under the historical-doc lint bucket instead of the canonical ownership bucket.
+- Kept the historical banner, inactive-tracker wording, and stale-marker guard in place so the Sprint 06 snapshot still fails loudly if it drifts.
+- Removed the implication that contributors must preserve canonical `Owner` / `Refresh Trigger` metadata on this file.
+- Verification: `python3 scripts/docs_lint.py`.
+
 ### 2026-02-12 - Documentation Drift Consolidation Pass
 
 - Updated canonical documentation index and feature index to current-state language.
@@ -141,7 +148,7 @@ On the first of each month, review all canonical docs for freshness:
 
 ### 2026-02-12 - Hardening Plan v2 Complete (DOC-004 through DOC-006, TEST-001/002, UX-001, A11Y-001)
 
-- **DOC-004**: Added `Owner` + `Refresh Trigger` fields to all 5 canonical docs. Added lint rule `_check_canonical_ownership()`. Added monthly review cadence section.
+- **DOC-004**: Added `Owner` + `Refresh Trigger` fields to the canonical docs. Added lint rule `_check_canonical_ownership()`. Added monthly review cadence section. The Sprint 06 backend snapshot is now treated as historical and no longer participates in that ownership rule.
 - **DOC-005**: Added inactive-tracker language lint rule `_check_historical_inactive_language()`. Updated `remaining-features-implementation.md` banner.
 - **TEST-001**: Created `test_bootstrap_check.py` (3 assertions), updated `conftest.py` with test-only env vars, created `run-backend-tests.sh` and `.ps1`.
 - **TEST-002**: Added Zustand store reset in `setup.ts` afterEach. Added `pool: 'forks'` + `testTimeout: 10000` to vitest.config.ts. 86/86 tests pass deterministically.

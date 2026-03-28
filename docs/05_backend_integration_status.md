@@ -1,9 +1,8 @@
 # Backend Integration Status
 
 **Last Updated:** 2026-03-27
-**Owner:** Backend/platform maintainers
-**Refresh Trigger:** Sprint-06 baseline framing changes or audit follow-up updates
 **Status:** Historical Reference — Sprint 06 integration snapshot retained for audit context
+**Tracking Policy:** Historical snapshot only; not an active tracker and not part of the canonical ownership/freshness rotation
 
 > Historical Reference: this document captures the Sprint 06 integration baseline that was audited in M001/S01. It is retained for delivery history and audit context, and is **not** the source of truth for the live API surface.
 
