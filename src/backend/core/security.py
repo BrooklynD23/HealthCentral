@@ -9,20 +9,20 @@ Handles:
 - AES-GCM document encryption
 """
 
+import base64
+import logging
 import os
 import secrets
-import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
+import bcrypt
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from jose import JWTError, jwt
-from passlib.context import CryptContext
-import base64
 
 from .config import settings
 from .token_revocation import TokenRevocationList
@@ -30,8 +30,8 @@ from .token_revocation import TokenRevocationList
 logger = logging.getLogger(__name__)
 
 
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Password hashing configuration
+PASSWORD_HASH_ROUNDS = 12
 
 # JWT configuration
 ALGORITHM = "HS256"
@@ -156,13 +156,28 @@ def verify_token(token: str) -> Optional[dict]:
 
 
 def hash_password(password: str) -> str:
-    """Hash a password for storage."""
-    return pwd_context.hash(password)
+    """Hash a password for storage using bcrypt."""
+    password_bytes = password.encode("utf-8")
+    salt = bcrypt.gensalt(rounds=PASSWORD_HASH_ROUNDS)
+    return bcrypt.hashpw(password_bytes, salt).decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a password against its hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+    """Verify a password against its bcrypt hash."""
+    try:
+        plain_password_bytes = plain_password.encode("utf-8")
+        hashed_password_bytes = hashed_password.encode("utf-8")
+    except AttributeError:
+        logger.warning("Password verification failed: password inputs must be strings")
+        return False
+
+    try:
+        return bcrypt.checkpw(plain_password_bytes, hashed_password_bytes)
+    except ValueError:
+        logger.warning(
+            "Password verification failed: stored password hash is not a valid bcrypt hash"
+        )
+        return False
 
 
 def generate_encryption_key() -> bytes:
