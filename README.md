@@ -173,7 +173,7 @@ Press `Ctrl+C` to stop both servers.
 
 ### Supported Local Verification Bootstrap (WSL/Linux)
 
-The canonical local proof path used by this repo's task summaries and milestone verification runs is the WSL/Linux command path below. Run every command from the repository root.
+Use the WSL/Linux bootstrap path below to create the verifier environment that the repo-root proof bundle expects. Run every command from the repository root.
 
 ```bash
 python3 --version
@@ -189,12 +189,12 @@ npx --prefix src/frontend tsc --noEmit -p src/frontend/tsconfig.json
 PYTHONPATH=src/backend ./.wsl-pytest-venv/bin/python -m pytest src/backend/tests/test_bootstrap_check.py -q
 ```
 
-What this proves:
+What this bootstrap proves:
 - docs drift checks run from repo root;
 - the frontend type-check works with the checked-in `src/frontend/tsconfig.json`;
 - the backend pytest environment can import project dependencies and keeps the production encryption default intact.
 
-#### Verification prerequisites and recovery notes
+#### Bootstrap prerequisites and recovery notes
 
 - **Python**: use Python 3.11+ and create the backend verifier environment from the same WSL/Linux interpreter you will use for pytest.
 - **Node.js**: use Node.js 18+ so `npx --prefix src/frontend ...` resolves the frontend toolchain correctly.
@@ -205,7 +205,25 @@ What this proves:
 
 - If you are inside WSL, create and use the virtualenv from WSL (`python3 -m venv .wsl-pytest-venv`). Do **not** activate a Windows-created virtualenv from `/mnt/c/...`; compiled wheels can mismatch and produce false-negative pytest failures before app code runs.
 - The repo's recorded backend proof commands assume the repo-root interpreter path `./.wsl-pytest-venv/bin/python`. If that environment is missing, recreate it with the commands above instead of falling back to an unprepared system interpreter.
-- `npx --prefix src/frontend tsc --noEmit -p src/frontend/tsconfig.json` is the supported local frontend verification command for mounted WSL checkouts. If broader frontend tests stall on an NTFS-mounted repo, rerun them from CI or a native Linux checkout instead of changing the proof command above.
+- `npx --prefix src/frontend tsc --noEmit -p src/frontend/tsconfig.json` is the supported local frontend verification command for mounted WSL checkouts. If broader frontend tests stall on an NTFS-mounted repo, rerun them from CI or a native Linux checkout instead of changing the bootstrap command above.
+
+### Current Contributor Proof Bundle
+
+After the bootstrap succeeds, this is the maintained repo-root proof bundle for the current assistant-category and hygiene surface:
+
+```bash
+python3 scripts/repo_hygiene_check.py
+python3 scripts/docs_lint.py
+npm --prefix src/frontend run test:run -- src/__tests__/ExplainAssistant.test.tsx
+npx --prefix src/frontend playwright test --config src/frontend/playwright.config.ts src/frontend/e2e/assistant.spec.ts --grep "category"
+PYTHONPATH=src/backend ./.wsl-pytest-venv/bin/python -m pytest src/backend/tests/test_bootstrap_check.py src/backend/tests/security/test_password_hashing.py src/backend/tests/test_repo_hygiene_check.py -q
+```
+
+What this proves:
+- no disallowed root scratch markdown/report artifacts are present before merge-sensitive work;
+- docs follow the current historical-reference ownership rules;
+- the Explain Assistant document-category filter is covered at both component and browser level;
+- the supported backend proof bundle catches bootstrap, password-hashing, and repo-hygiene regressions from the same repo-root WSL interpreter path.
 
 ### Local-only artifact hygiene
 

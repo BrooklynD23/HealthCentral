@@ -67,19 +67,31 @@ npm run dev
 - Backend API: http://localhost:8000
 - API Docs: http://localhost:8000/docs
 
-### Running Tests
+### Running the Maintained Repo-Root Proof Bundle
+
+Follow the WSL/Linux bootstrap in `README.md` first so `./.wsl-pytest-venv` and the frontend dependencies exist, then run the maintained proof bundle from the repository root:
+
+```bash
+python3 scripts/repo_hygiene_check.py
+python3 scripts/docs_lint.py
+npm --prefix src/frontend run test:run -- src/__tests__/ExplainAssistant.test.tsx
+npx --prefix src/frontend playwright test --config src/frontend/playwright.config.ts src/frontend/e2e/assistant.spec.ts --grep "category"
+PYTHONPATH=src/backend ./.wsl-pytest-venv/bin/python -m pytest src/backend/tests/test_bootstrap_check.py src/backend/tests/security/test_password_hashing.py src/backend/tests/test_repo_hygiene_check.py -q
+```
+
+This is the current contributor verification path for the assistant-category surface and repo-hygiene guardrails. Run broader suites as needed after this bundle passes.
+
+### Additional Focused Checks
 
 ```bash
 # Backend tests
-cd src/backend
-python -m pytest tests/ -v
+PYTHONPATH=src/backend ./.wsl-pytest-venv/bin/python -m pytest src/backend/tests/ -v
 
 # Frontend tests
-cd src/frontend
-npm test
+npm --prefix src/frontend test
 
 # Frontend lint
-npm run lint
+npm --prefix src/frontend run lint
 ```
 
 ### Code Style
@@ -159,12 +171,17 @@ Treat local helper state separately from shared project changes so dirty-worktre
 1. Run `git status --short` from the repository root.
 2. Confirm that only intentional tracked edits remain.
 3. Delete, rename, or move any local-only scratch files before asking someone else to interpret the worktree.
-4. Re-run the repo checks relevant to your changes; for documentation-only hygiene changes, start with `python3 scripts/docs_lint.py`.
+4. Run the maintained repo-root proof bundle from the repository root:
+   - `python3 scripts/repo_hygiene_check.py`
+   - `python3 scripts/docs_lint.py`
+   - `npm --prefix src/frontend run test:run -- src/__tests__/ExplainAssistant.test.tsx`
+   - `npx --prefix src/frontend playwright test --config src/frontend/playwright.config.ts src/frontend/e2e/assistant.spec.ts --grep "category"`
+   - `PYTHONPATH=src/backend ./.wsl-pytest-venv/bin/python -m pytest src/backend/tests/test_bootstrap_check.py src/backend/tests/security/test_password_hashing.py src/backend/tests/test_repo_hygiene_check.py -q`
+   For docs-only changes you can start with the first two commands, but do not update contributor-facing proof instructions unless the full bundle still matches reality.
 
 ### PR Checklist
 
-- [ ] Tests pass locally (`pytest` and `npm test`)
-- [ ] Lint passes (`ruff` and `npm run lint`)
+- [ ] Maintained repo-root proof bundle passes (`python3 scripts/repo_hygiene_check.py`, `python3 scripts/docs_lint.py`, `npm --prefix src/frontend run test:run -- src/__tests__/ExplainAssistant.test.tsx`, `npx --prefix src/frontend playwright test --config src/frontend/playwright.config.ts src/frontend/e2e/assistant.spec.ts --grep "category"`, and `PYTHONPATH=src/backend ./.wsl-pytest-venv/bin/python -m pytest src/backend/tests/test_bootstrap_check.py src/backend/tests/security/test_password_hashing.py src/backend/tests/test_repo_hygiene_check.py -q`)
 - [ ] New code has appropriate test coverage
 - [ ] Documentation updated if needed
 - [ ] No sensitive data (API keys, passwords) committed
