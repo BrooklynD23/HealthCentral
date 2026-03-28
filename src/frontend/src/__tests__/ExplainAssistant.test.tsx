@@ -17,6 +17,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ExplainAssistant } from '@/pages/ExplainAssistant';
 import * as api from '@/services/api';
+import { useAuthStore } from '@/stores/authStore';
 
 // Mock the API module with URL-based routing
 vi.mock('@/services/api', () => ({
@@ -58,10 +59,18 @@ function renderWithProviders(component: React.ReactNode) {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>{component}</BrowserRouter>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        {component}
+      </BrowserRouter>
     </QueryClientProvider>
   );
 }
+
+const mockObservations = [
+  { analyte_canonical: 'glucose' },
+  { analyte_canonical: 'hemoglobin' },
+  { analyte_canonical: 'glucose' },
+];
 
 const mockChatResponse = {
   segments: [
@@ -141,6 +150,19 @@ const mockInsufficientContextResponse = {
 describe('ExplainAssistant', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
+    useAuthStore.getState().setAuth({
+      token: 'test-token',
+      profileId: 'profile-123',
+      profileName: 'Test Profile',
+    });
+    vi.mocked(api.apiGet).mockImplementation(async (url) => {
+      if (url === '/observations/') {
+        return mockObservations;
+      }
+
+      return [];
+    });
   });
 
   describe('FE-AST-001: Chat sends message', () => {
@@ -388,18 +410,17 @@ describe('ExplainAssistant', () => {
   });
 
   describe('HC-M003-S01: Document category filter', () => {
-    it('should render document category selector with all-documents default', () => {
+    it('should render document category selector with backend-supported option labels', () => {
       renderWithProviders(<ExplainAssistant />);
 
       const categorySelect = screen.getByLabelText(/document category/i) as HTMLSelectElement;
+      const optionLabels = Array.from(categorySelect.options).map((option) => option.textContent);
+      const optionValues = Array.from(categorySelect.options).map((option) => option.value);
 
       expect(categorySelect).toBeInTheDocument();
       expect(categorySelect.value).toBe('');
-      expect(screen.getByRole('option', { name: 'All documents' })).toBeInTheDocument();
-      expect(screen.getByRole('option', { name: 'Lab' })).toBeInTheDocument();
-      expect(screen.getByRole('option', { name: 'Imaging' })).toBeInTheDocument();
-      expect(screen.getByRole('option', { name: 'Pathology' })).toBeInTheDocument();
-      expect(screen.getByRole('option', { name: 'Visit Notes' })).toBeInTheDocument();
+      expect(optionValues).toEqual(['', 'lab', 'imaging', 'pathology', 'visit_notes']);
+      expect(optionLabels).toEqual(['All documents', 'Lab', 'Imaging', 'Pathology', 'Visit Notes']);
     });
 
     it('should include document_category in request when a category is selected', async () => {
@@ -425,7 +446,7 @@ describe('ExplainAssistant', () => {
       });
     });
 
-    it('should clear document category and omit it from the next request', async () => {
+    it('should omit document_category after resetting to all documents while preserving other filters', async () => {
       const user = userEvent.setup();
       const mockApiPost = vi.mocked(api.apiPost);
       mockApiPost.mockResolvedValueOnce(mockChatResponse);
@@ -433,21 +454,54 @@ describe('ExplainAssistant', () => {
       renderWithProviders(<ExplainAssistant />);
 
       const categorySelect = screen.getByLabelText(/document category/i) as HTMLSelectElement;
-      await user.selectOptions(categorySelect, 'visit_notes');
-      expect(categorySelect.value).toBe('visit_notes');
+      const panelSelect = screen.getByLabelText(/panel/i);
 
-      await user.click(screen.getByRole('button', { name: /clear filters/i }));
+      await user.selectOptions(panelSelect, 'Lipid Panel');
+      await user.selectOptions(categorySelect, 'lab');
+      expect(categorySelect.value).toBe('lab');
+
+      await user.selectOptions(categorySelect, screen.getByRole('option', { name: 'All documents' }));
       expect(categorySelect.value).toBe('');
 
       const input = screen.getByPlaceholderText('Ask about your results...');
-      await user.type(input, 'Summarize my notes{enter}');
+      await user.type(input, 'Explain my lipids{enter}');
 
       await waitFor(() => {
-        expect(mockApiPost).toHaveBeenCalled();
+        expect(mockApiPost).toHaveBeenCalledWith(
+          '/assistant/chat',
+          expect.objectContaining({
+            selected_panel: 'Lipid Panel',
+          })
+        );
       });
 
       const request = mockApiPost.mock.calls[0]?.[1] as Record<string, unknown>;
       expect(request).not.toHaveProperty('document_category');
+    });
+
+    it('should clear document category alongside existing filters when clear filters is used', async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<ExplainAssistant />);
+
+      const categorySelect = screen.getByLabelText(/document category/i) as HTMLSelectElement;
+      const panelSelect = screen.getByLabelText(/panel/i) as HTMLSelectElement;
+
+      const glucoseFilter = await screen.findByRole('button', { name: 'glucose' });
+      await user.click(glucoseFilter);
+      await user.selectOptions(panelSelect, 'CBC');
+      await user.selectOptions(categorySelect, 'visit_notes');
+
+      expect(screen.getByText(/analytes \(1 selected\)/i)).toBeInTheDocument();
+      expect(panelSelect.value).toBe('CBC');
+      expect(categorySelect.value).toBe('visit_notes');
+      expect(screen.getByRole('button', { name: /clear filters/i })).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: /clear filters/i }));
+
+      expect(screen.getByText(/analytes \(0 selected\)/i)).toBeInTheDocument();
+      expect(panelSelect.value).toBe('');
+      expect(categorySelect.value).toBe('');
+      expect(screen.queryByRole('button', { name: /clear filters/i })).not.toBeInTheDocument();
     });
   });
 
