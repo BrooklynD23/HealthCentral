@@ -27,8 +27,7 @@ async function setupAuthenticatedUser(page: Page, profileName = 'Test Profile') 
 }
 
 async function seedAuthenticatedSession(page: Page, profileName = 'Playwright Category Test') {
-  await page.goto('/');
-  await page.evaluate(({ profileName }) => {
+  await page.addInitScript(({ profileName }) => {
     localStorage.clear();
     localStorage.setItem(
       'healthcentral-auth',
@@ -162,8 +161,6 @@ test.describe('RAG Assistant Feature', () => {
   });
 
   test('E2E-RAG-005: Category filter sends selected document category in the chat request', async ({ page }) => {
-    let capturedChatPayload: Record<string, unknown> | null = null;
-
     await page.route(/\/api\/v1\/observations\/?(?:\?.*)?$/, async (route) => {
       await route.fulfill({
         status: 200,
@@ -172,8 +169,7 @@ test.describe('RAG Assistant Feature', () => {
       });
     });
 
-    await page.route(/\/api\/v1\/assistant\/chat$/, async (route) => {
-      capturedChatPayload = route.request().postDataJSON() as Record<string, unknown>;
+    await page.route(/\/api\/v1\/assistant\/chat\/?(?:\?.*)?$/, async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -186,15 +182,22 @@ test.describe('RAG Assistant Feature', () => {
 
     await expect(page.getByText(/explain assistant/i)).toBeVisible({ timeout: 10000 });
 
-    await page.getByLabel('Document Category').selectOption('imaging');
-    await expect(page.getByLabel('Document Category')).toHaveValue('imaging');
+    const categoryFilter = page.getByRole('combobox', { name: 'Document Category' });
+    await expect(categoryFilter).toBeVisible();
+    await categoryFilter.selectOption('imaging');
+    await expect(categoryFilter).toHaveValue('imaging');
+
+    const assistantRequest = page.waitForRequest(
+      (request) =>
+        request.method() === 'POST' && /\/api\/v1\/assistant\/chat\/?(?:\?.*)?$/.test(request.url())
+    );
 
     const input = page.getByPlaceholder(/ask about your results/i);
     await input.fill('Show me my imaging results.');
     await page.getByRole('button').filter({ has: page.locator('svg') }).last().click();
 
-    await expect.poll(() => capturedChatPayload?.document_category).toBe('imaging');
-    expect(capturedChatPayload).toMatchObject({
+    const chatRequestPayload = (await assistantRequest).postDataJSON() as Record<string, unknown>;
+    expect(chatRequestPayload).toMatchObject({
       question: 'Show me my imaging results.',
       include_references: true,
       enable_verification: true,

@@ -9,7 +9,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 const cliArgs = process.argv.slice(2).join(' ');
 const isAssistantCategoryProofRun =
-  cliArgs.includes('src/frontend/e2e/assistant.spec.ts') && /\bcategory\b/i.test(cliArgs);
+  process.env.PLAYWRIGHT_ASSISTANT_CATEGORY_PROOF === '1' ||
+  (/assistant\.spec\.[cm]?[jt]sx?/i.test(cliArgs) && /\bcategory\b/i.test(cliArgs));
 
 const frontendServer = {
   command: 'npm run dev -- --host 127.0.0.1 --port 3000',
