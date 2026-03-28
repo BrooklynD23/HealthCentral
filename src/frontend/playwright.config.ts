@@ -7,6 +7,26 @@
 
 import { defineConfig, devices } from '@playwright/test';
 
+const cliArgs = process.argv.slice(2).join(' ');
+const isAssistantCategoryProofRun =
+  cliArgs.includes('src/frontend/e2e/assistant.spec.ts') && /\bcategory\b/i.test(cliArgs);
+
+const frontendServer = {
+  command: 'npm run dev -- --host 127.0.0.1 --port 3000',
+  cwd: '.',
+  url: 'http://127.0.0.1:3000',
+  reuseExistingServer: !process.env.CI,
+  timeout: 120 * 1000,
+};
+
+const backendServer = {
+  command: 'python -m uvicorn main:app --host 127.0.0.1 --port 8000',
+  cwd: '../../src/backend',
+  url: 'http://127.0.0.1:8000/health',
+  reuseExistingServer: !process.env.CI,
+  timeout: 120 * 1000,
+};
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
@@ -16,7 +36,7 @@ export default defineConfig({
   reporter: 'html',
 
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: 'http://127.0.0.1:3000',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
@@ -28,19 +48,5 @@ export default defineConfig({
     },
   ],
 
-  webServer: [
-    {
-      command: 'python -m uvicorn main:app --host 127.0.0.1 --port 8000',
-      cwd: '../../src/backend',
-      url: 'http://localhost:8000/health',
-      reuseExistingServer: !process.env.CI,
-      timeout: 120 * 1000,
-    },
-    {
-      command: 'npm run dev',
-      url: 'http://localhost:3000',
-      reuseExistingServer: !process.env.CI,
-      timeout: 120 * 1000,
-    },
-  ],
+  webServer: isAssistantCategoryProofRun ? [frontendServer] : [backendServer, frontendServer],
 });

@@ -10,10 +10,10 @@
  * - Glossary and test-intent endpoint verification
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 // Helper to set up authenticated state
-async function setupAuthenticatedUser(page, profileName = 'Test Profile') {
+async function setupAuthenticatedUser(page: Page, profileName = 'Test Profile') {
   await page.goto('/setup');
   await page.evaluate(() => localStorage.clear());
 
@@ -26,6 +26,51 @@ async function setupAuthenticatedUser(page, profileName = 'Test Profile') {
   await expect(page).toHaveURL(/\/inbox/, { timeout: 15000 });
 }
 
+async function seedAuthenticatedSession(page: Page, profileName = 'Playwright Category Test') {
+  await page.goto('/');
+  await page.evaluate(({ profileName }) => {
+    localStorage.clear();
+    localStorage.setItem(
+      'healthcentral-auth',
+      JSON.stringify({
+        state: {
+          token: 'playwright-token',
+          profileId: 'profile-123',
+          profileName,
+          expiresAt: Date.now() + 60 * 60 * 1000,
+          isAuthenticated: true,
+        },
+        version: 0,
+      })
+    );
+  }, { profileName });
+}
+
+const mockChatResponse = {
+  segments: [
+    {
+      segment_type: 'general_info' as const,
+      content: 'Category request proof response.',
+      citations: [],
+    },
+  ],
+  full_response: 'Category request proof response.',
+  insufficient_context: false,
+  insufficient_reasons: [],
+  verification: {
+    enabled: false,
+    total_claims: 0,
+    verified_claims: 0,
+    failed_claims: 0,
+    faithfulness_score: 1,
+    authority_score: 1,
+    summary: '',
+    issues: [],
+  },
+  is_valid: true,
+  validation_errors: [],
+};
+
 test.describe('RAG Assistant Feature', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
@@ -37,7 +82,7 @@ test.describe('RAG Assistant Feature', () => {
     await setupAuthenticatedUser(page);
 
     // Navigate to assistant page
-    await page.goto('/assistant');
+    await page.goto('/explain');
 
     // Wait for the page to load
     await expect(page.getByText(/explain assistant|ask about your results/i)).toBeVisible({
@@ -63,7 +108,7 @@ test.describe('RAG Assistant Feature', () => {
     await setupAuthenticatedUser(page);
 
     // Navigate to assistant
-    await page.goto('/assistant');
+    await page.goto('/explain');
 
     // Wait for the page to load
     await expect(page.getByText(/explain assistant|ask about your results/i)).toBeVisible({
@@ -86,7 +131,7 @@ test.describe('RAG Assistant Feature', () => {
 
   test('E2E-RAG-003: Suggested questions are clickable', async ({ page }) => {
     await setupAuthenticatedUser(page);
-    await page.goto('/assistant');
+    await page.goto('/explain');
 
     // Wait for page load
     await expect(page.getByText(/explain assistant/i)).toBeVisible({ timeout: 10000 });
@@ -106,7 +151,7 @@ test.describe('RAG Assistant Feature', () => {
 
   test('E2E-RAG-004: Shows warning about not providing medical advice', async ({ page }) => {
     await setupAuthenticatedUser(page);
-    await page.goto('/assistant');
+    await page.goto('/explain');
 
     // Wait for page load
     await expect(page.getByText(/explain assistant/i)).toBeVisible({ timeout: 10000 });
@@ -114,6 +159,48 @@ test.describe('RAG Assistant Feature', () => {
     // Should show the important disclaimer
     await expect(page.getByText(/does not provide medical advice/i)).toBeVisible();
     await expect(page.getByText(/always consult your healthcare provider/i)).toBeVisible();
+  });
+
+  test('E2E-RAG-005: Category filter sends selected document category in the chat request', async ({ page }) => {
+    let capturedChatPayload: Record<string, unknown> | null = null;
+
+    await page.route(/\/api\/v1\/observations\/?(?:\?.*)?$/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      });
+    });
+
+    await page.route(/\/api\/v1\/assistant\/chat$/, async (route) => {
+      capturedChatPayload = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mockChatResponse),
+      });
+    });
+
+    await seedAuthenticatedSession(page);
+    await page.goto('/explain');
+
+    await expect(page.getByText(/explain assistant/i)).toBeVisible({ timeout: 10000 });
+
+    await page.getByLabel('Document Category').selectOption('imaging');
+    await expect(page.getByLabel('Document Category')).toHaveValue('imaging');
+
+    const input = page.getByPlaceholder(/ask about your results/i);
+    await input.fill('Show me my imaging results.');
+    await page.getByRole('button').filter({ has: page.locator('svg') }).last().click();
+
+    await expect.poll(() => capturedChatPayload?.document_category).toBe('imaging');
+    expect(capturedChatPayload).toMatchObject({
+      question: 'Show me my imaging results.',
+      include_references: true,
+      enable_verification: true,
+      document_category: 'imaging',
+    });
+    await expect(page.getByText('Category request proof response.')).toBeVisible();
   });
 });
 
@@ -154,7 +241,7 @@ test.describe('Assistant API Endpoints', () => {
 test.describe('Assistant UI Components', () => {
   test('Shows loading state while sending message', async ({ page }) => {
     await setupAuthenticatedUser(page);
-    await page.goto('/assistant');
+    await page.goto('/explain');
 
     await expect(page.getByText(/explain assistant/i)).toBeVisible({ timeout: 10000 });
 
@@ -171,7 +258,7 @@ test.describe('Assistant UI Components', () => {
 
   test('Displays user message after sending', async ({ page }) => {
     await setupAuthenticatedUser(page);
-    await page.goto('/assistant');
+    await page.goto('/explain');
 
     await expect(page.getByText(/explain assistant/i)).toBeVisible({ timeout: 10000 });
 
@@ -188,7 +275,7 @@ test.describe('Assistant UI Components', () => {
 
   test('Input clears after sending message', async ({ page }) => {
     await setupAuthenticatedUser(page);
-    await page.goto('/assistant');
+    await page.goto('/explain');
 
     await expect(page.getByText(/explain assistant/i)).toBeVisible({ timeout: 10000 });
 
@@ -202,7 +289,7 @@ test.describe('Assistant UI Components', () => {
 
   test('Empty input disables send button', async ({ page }) => {
     await setupAuthenticatedUser(page);
-    await page.goto('/assistant');
+    await page.goto('/explain');
 
     await expect(page.getByText(/explain assistant/i)).toBeVisible({ timeout: 10000 });
 
