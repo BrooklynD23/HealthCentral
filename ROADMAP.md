@@ -12,10 +12,18 @@ Reconstruct the current project state after inactivity by auditing branch histor
 | S02 | Initialize GSD baseline artifacts | low | S01 | ✅ | After this slice, future contributors can open GSD artifacts instead of reconstructing status from scratch. |
 | S03 | Recovery backlog and next-step framing | medium | S01, S02 | ✅ | After this slice, the team has a prioritized shortlist of cleanup and follow-up work instead of an unstructured pile of drift. |
 
-## Planned Next Milestone
+## Follow-up Milestone Status
 
-- **M002: Immediate Recovery Backlog** — Follow-up milestone planned from the S03 recovery framing work.
-  - `S01` Documentation reconciliation — canonical docs vs. live audited surface
-  - `S02` Environment bootstrap verification — reproducible local setup and proof commands
-  - `S03` Branch hygiene and local artifact containment — local-only artifact policy and pre-merge hygiene
+- **M002: Immediate Recovery Backlog** — Completed.
+  - `S01` Documentation reconciliation — complete
+  - `S02` Environment bootstrap verification — complete
+  - `S03` Branch hygiene and local artifact containment — complete
   - Canonical roadmap: `.gsd/milestones/M002/M002-ROADMAP.md`
+  - Validation: `.gsd/milestones/M002/M002-VALIDATION.md`
+  - Summary: `.gsd/milestones/M002/M002-SUMMARY.md`
+- **M003: Assistant surfacing and proof hardening** — Planned.
+  - `S01` Explain Assistant category filter exposure — planned
+  - `S02` Proof-surface cleanup for docs and auth — planned
+  - `S03` Integrated verification and hygiene guardrails — planned
+  - Canonical roadmap: `.gsd/milestones/M003/M003-ROADMAP.md`
+  - Slice plans: `.gsd/milestones/M003/slices/S01/S01-PLAN.md`, `.gsd/milestones/M003/slices/S02/S02-PLAN.md`, `.gsd/milestones/M003/slices/S03/S03-PLAN.md`

@@ -387,6 +387,70 @@ describe('ExplainAssistant', () => {
     });
   });
 
+  describe('HC-M003-S01: Document category filter', () => {
+    it('should render document category selector with all-documents default', () => {
+      renderWithProviders(<ExplainAssistant />);
+
+      const categorySelect = screen.getByLabelText(/document category/i) as HTMLSelectElement;
+
+      expect(categorySelect).toBeInTheDocument();
+      expect(categorySelect.value).toBe('');
+      expect(screen.getByRole('option', { name: 'All documents' })).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: 'Lab' })).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: 'Imaging' })).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: 'Pathology' })).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: 'Visit Notes' })).toBeInTheDocument();
+    });
+
+    it('should include document_category in request when a category is selected', async () => {
+      const user = userEvent.setup();
+      const mockApiPost = vi.mocked(api.apiPost);
+      mockApiPost.mockResolvedValueOnce(mockChatResponse);
+
+      renderWithProviders(<ExplainAssistant />);
+
+      const categorySelect = screen.getByLabelText(/document category/i);
+      await user.selectOptions(categorySelect, 'lab');
+
+      const input = screen.getByPlaceholderText('Ask about your results...');
+      await user.type(input, 'Explain my lab results{enter}');
+
+      await waitFor(() => {
+        expect(mockApiPost).toHaveBeenCalledWith(
+          '/assistant/chat',
+          expect.objectContaining({
+            document_category: 'lab',
+          })
+        );
+      });
+    });
+
+    it('should clear document category and omit it from the next request', async () => {
+      const user = userEvent.setup();
+      const mockApiPost = vi.mocked(api.apiPost);
+      mockApiPost.mockResolvedValueOnce(mockChatResponse);
+
+      renderWithProviders(<ExplainAssistant />);
+
+      const categorySelect = screen.getByLabelText(/document category/i) as HTMLSelectElement;
+      await user.selectOptions(categorySelect, 'visit_notes');
+      expect(categorySelect.value).toBe('visit_notes');
+
+      await user.click(screen.getByRole('button', { name: /clear filters/i }));
+      expect(categorySelect.value).toBe('');
+
+      const input = screen.getByPlaceholderText('Ask about your results...');
+      await user.type(input, 'Summarize my notes{enter}');
+
+      await waitFor(() => {
+        expect(mockApiPost).toHaveBeenCalled();
+      });
+
+      const request = mockApiPost.mock.calls[0]?.[1] as Record<string, unknown>;
+      expect(request).not.toHaveProperty('document_category');
+    });
+  });
+
   describe('Suggested questions', () => {
     it('should populate input when suggested question is clicked', async () => {
       const user = userEvent.setup();

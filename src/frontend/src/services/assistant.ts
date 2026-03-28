@@ -47,7 +47,9 @@ export interface ChatMessage {
   content: string;
 }
 
-export type DocumentCategory = 'imaging' | 'pathology' | 'visit_notes' | 'lab';
+export const DOCUMENT_CATEGORIES = ['lab', 'imaging', 'pathology', 'visit_notes'] as const;
+
+export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number];
 
 export interface ChatRequest {
   question: string;

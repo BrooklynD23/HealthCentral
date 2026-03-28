@@ -21,10 +21,12 @@ import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useAuthStore } from '@/stores/authStore';
 import { useAnalyteList } from '@/services';
 import {
+  DOCUMENT_CATEGORIES,
   useSendMessage,
   formatResponseText,
   type ChatResponse,
   type ChatMessage as ChatHistoryMessage,
+  type DocumentCategory,
 } from '@/services/assistant';
 
 interface Message {
@@ -50,6 +52,15 @@ const suggestedQuestions = [
   'What questions should I ask my doctor?',
 ];
 
+const documentCategoryLabels: Record<DocumentCategory, string> = {
+  lab: 'Lab',
+  imaging: 'Imaging',
+  pathology: 'Pathology',
+  visit_notes: 'Visit Notes',
+};
+
+type DocumentCategoryFilterValue = '' | DocumentCategory;
+
 export function ExplainAssistant() {
   const prefersReducedMotion = useReducedMotion();
   const navigate = useNavigate();
@@ -62,6 +73,7 @@ export function ExplainAssistant() {
   // Filter state
   const [selectedAnalytes, setSelectedAnalytes] = useState<string[]>([]);
   const [selectedPanel, setSelectedPanel] = useState('');
+  const [selectedDocumentCategory, setSelectedDocumentCategory] = useState<DocumentCategoryFilterValue>('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
 
@@ -102,6 +114,7 @@ export function ExplainAssistant() {
         selected_panel: selectedPanel || undefined,
         from_date: fromDate || undefined,
         to_date: toDate || undefined,
+        ...(selectedDocumentCategory ? { document_category: selectedDocumentCategory } : {}),
         history: buildHistory(),
       });
 
@@ -409,6 +422,24 @@ export function ExplainAssistant() {
               </div>
             </div>
             <div>
+              <label htmlFor="document-category-select" className="text-xs text-ink-secondary block mb-1">
+                Document Category
+              </label>
+              <select
+                id="document-category-select"
+                value={selectedDocumentCategory}
+                onChange={(e) => setSelectedDocumentCategory(e.target.value as DocumentCategoryFilterValue)}
+                className="w-full px-2 py-1.5 rounded-lg bg-surface-muted text-xs text-ink border border-black/[0.06] focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                <option value="">All documents</option>
+                {DOCUMENT_CATEGORIES.map((category) => (
+                  <option key={category} value={category}>
+                    {documentCategoryLabels[category]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
               <label className="text-xs text-ink-secondary block mb-1">
                 Analytes ({selectedAnalytes.length} selected)
               </label>
@@ -460,7 +491,7 @@ export function ExplainAssistant() {
                 <option value="Kidney Panel">Kidney Panel</option>
               </select>
             </div>
-            {(selectedAnalytes.length > 0 || fromDate || toDate || selectedPanel) && (
+            {(selectedAnalytes.length > 0 || fromDate || toDate || selectedPanel || selectedDocumentCategory) && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -468,6 +499,7 @@ export function ExplainAssistant() {
                 onClick={() => {
                   setSelectedAnalytes([]);
                   setSelectedPanel('');
+                  setSelectedDocumentCategory('');
                   setFromDate('');
                   setToDate('');
                 }}
