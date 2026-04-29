@@ -50,6 +50,117 @@ HealthCentral/
 └── scripts/                  # Build and utility scripts
 ```
 
+## Architecture Diagrams
+
+### High-Level System Context
+
+```mermaid
+flowchart LR
+    User[Patient] -->|Upload docs, review results| UI[Desktop UI (React/Vite)]
+    UI -->|JWT + Loopback HTTP| API[FastAPI Backend]
+    API -->|SQLCipher| MasterDB[(Master DB)]
+    API -->|SQLCipher| ProfileDB[(Per-Profile Vault DB)]
+    API --> Vault[(Encrypted Documents Vault)]
+    API --> Vector[(Encrypted Vector Index)]
+    API --> LLM[Local LLM (llama.cpp)]
+    API --> Embeddings[Local Embeddings Model]
+    API --> Export[Doctor-ready Exports]
+```
+
+### Backend Component View
+
+```mermaid
+flowchart TB
+    subgraph Backend[FastAPI Backend]
+        Ingest[Ingest Module]
+        Extract[Extract Module]
+        Normalize[Normalize Module]
+        Verify[Verify Module]
+        Analytics[Analytics Module]
+        RAG[RAG Assistant]
+        Interpret[Interpretations]
+        Export[Export Pipeline]
+        Monitor[Monitoring & Audit]
+    end
+
+    Ingest --> Extract --> Normalize --> Verify --> Analytics
+    Verify --> Interpret --> Export
+    Analytics --> RAG
+    RAG --> Export
+    Monitor --> Backend
+```
+
+### Core Data Model (UML)
+
+```mermaid
+classDiagram
+    class Profile {
+        +id: UUID
+        +created_at: datetime
+    }
+
+    class Document {
+        +id: UUID
+        +profile_id: UUID
+        +doc_type: string
+        +imported_at: datetime
+    }
+
+    class Observation {
+        +id: UUID
+        +profile_id: UUID
+        +document_id: UUID
+        +analyte: string
+        +value: float
+        +unit: string
+        +observed_at: datetime
+    }
+
+    class Interpretation {
+        +id: UUID
+        +observation_id: UUID
+        +summary_text: string
+        +citations_json: string
+    }
+
+    class AssistantMemory {
+        +id: UUID
+        +profile_id: UUID
+        +content: string
+        +created_at: datetime
+    }
+
+    Profile "1" --> "many" Document
+    Profile "1" --> "many" Observation
+    Observation "1" --> "0..1" Interpretation
+    Profile "1" --> "many" AssistantMemory
+```
+
+### Document-to-Insight Sequence
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant UI as Desktop UI
+    participant API as FastAPI Backend
+    participant Vault as Encrypted Vault
+    participant DB as SQLCipher DB
+    participant LLM as Local LLM
+
+    User->>UI: Upload lab PDF
+    UI->>API: POST /documents
+    API->>Vault: Store encrypted file
+    API->>DB: Persist document metadata
+    API->>API: Extract + normalize
+    API->>UI: Verification payload
+    User->>UI: Verify/edit values
+    UI->>API: POST /observations/verify
+    API->>DB: Store verified observations
+    API->>LLM: Generate grounded interpretation
+    API->>DB: Save interpretation + citations
+    API->>UI: Trend + explanation response
+```
+
 ## Technology Stack
 
 ### Current (Local-Only MVP)
@@ -66,6 +177,11 @@ Architecture designed for:
 - Mobile apps (shared API layer)
 - Multi-user support with authentication
 - Cloud storage options (opt-in)
+
+## Documentation Drift Notes
+
+- README architecture sections align with `docs/01_backend_architecture_plan.md`, `docs/features/00_features_index.md`, and `docs/api/endpoints.md` as of 2026-04-29.
+- To validate documentation drift locally, run: `python3 scripts/docs_lint.py`.
 
 ## SQLCipher Setup (Required for Database Encryption)
 
@@ -129,7 +245,6 @@ python -m scripts.migrate profile --profile-id <uuid>
 ```
 
 ### Safe Rollout
-
 The migration system includes **baseline detection**:
 - Existing databases without `alembic_version` are stamped (not migrated)
 - This prevents "table already exists" errors on existing installations
@@ -151,10 +266,12 @@ The easiest way to start development is using the included dev script:
 
 ```powershell
 # From the project root directory
-.\dev.bat
+.
+\dev.bat
 
 # Or directly with PowerShell
-.\dev.ps1
+.
+\dev.ps1
 ```
 
 This script automatically:
@@ -203,9 +320,9 @@ What this bootstrap proves:
 
 #### Windows / WSL caveats
 
-- If you are inside WSL, create and use the virtualenv from WSL (`python3 -m venv .wsl-pytest-venv`). Do **not** activate a Windows-created virtualenv from `/mnt/c/...`; compiled wheels can mismatch and produce false-negative pytest failures before app code runs.
-- The repo's recorded backend proof commands assume the repo-root interpreter path `./.wsl-pytest-venv/bin/python`. If that environment is missing, recreate it with the commands above instead of falling back to an unprepared system interpreter.
-- `npx --prefix src/frontend tsc --noEmit -p src/frontend/tsconfig.json` is the supported local frontend verification command for mounted WSL checkouts. If broader frontend tests stall on an NTFS-mounted repo, rerun them from CI or a native Linux checkout instead of changing the bootstrap command above.
+- If you are inside WSL, create and use the virtualenv from WSL (`python3 -m venv .wsl-pytest-venv`). Do **not** activate a Windows-created virtualenv from `/mnt/c/...`; compiled wheels can mismatch architecture.
+- The repo's recorded backend proof commands assume the repo-root interpreter path `./.wsl-pytest-venv/bin/python`. If that environment is missing, recreate it with the commands above instead of changing the command paths.
+- `npx --prefix src/frontend tsc --noEmit -p src/frontend/tsconfig.json` is the supported local frontend verification command for mounted WSL checkouts. If broader frontend tests stall on an NTFS-mounted repo, run them from a Linux-native filesystem.
 
 ### Current Contributor Proof Bundle
 
@@ -216,7 +333,7 @@ python3 scripts/repo_hygiene_check.py
 python3 scripts/docs_lint.py
 npm --prefix src/frontend run test:run -- src/__tests__/ExplainAssistant.test.tsx
 npx --prefix src/frontend playwright test --config src/frontend/playwright.config.ts src/frontend/e2e/assistant.spec.ts --grep "category"
-PYTHONPATH=src/backend ./.wsl-pytest-venv/bin/python -m pytest src/backend/tests/test_bootstrap_check.py src/backend/tests/security/test_password_hashing.py src/backend/tests/test_repo_hygiene_check.py -q
+PYTHONPATH=src/backend ./.wsl-pytest-venv/bin/python -m pytest src/backend/tests/test_bootstrap_check.py src/backend/tests/security/test_password_hashing.py src/backend/tests/test_repo_hygiene_check.py
 ```
 
 What this proves:
@@ -230,7 +347,7 @@ What this proves:
 Use the following repo-hygiene rules whenever you are about to interpret `git status`, perform an audit, or do pre-merge cleanup:
 
 - `.bg-shell/` and `.wsl-pytest-venv/` are local-only helper directories. They should stay gitignored and should not be treated as shared project changes.
-- Root scratch markdown and ad-hoc generated reports such as `PLAN.md`, `HANDOFF-*.md`, and `*_report*.md` are **not** broadly ignored on purpose. Clean them up or move them elsewhere before dirty-worktree reviews so status output keeps reflecting real shared work.
+- Root scratch markdown and ad-hoc generated reports such as `PLAN.md`, `HANDOFF-*.md`, and `*_report*.md` are **not** broadly ignored on purpose. Clean them up or move them elsewhere before dirt-sensitive work.
 - Run `git status --short` before release-oriented or status-sensitive work. If unexpected local-only files appear, clear them first instead of normalizing them into the repo.
 - Use the contributor checklist in `CONTRIBUTING.md` when you need a repeatable pre-merge hygiene pass.
 
@@ -256,7 +373,8 @@ npm --prefix src/frontend install
 ```powershell
 # Backend setup (Windows PowerShell)
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+.
+\venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -r src/backend/requirements.txt
 
@@ -318,7 +436,7 @@ HealthCentral exposes a REST API via FastAPI at `http://localhost:8000/api/v1`. 
 | **Monitoring** | `/health`, `/monitoring/` | Health check and authenticated metrics dashboard |
 
 Exact path-level API **source of truth**: [docs/api/endpoints.md](docs/api/endpoints.md).
-`docs/05_backend_integration_status.md` is a **Historical Reference** that preserves the Sprint 06 snapshot and audit context, not the live API tracker or part of the canonical ownership/freshness rotation.
+`docs/05_backend_integration_status.md` is a **Historical Reference** that preserves the Sprint 06 snapshot and audit context, not the live API tracker or part of the canonical ownership/freshness policy.
 
 For full endpoint details, see [API Documentation](docs/api/endpoints.md).
 
@@ -332,4 +450,4 @@ See [docs/features/TASK_LIST.md](docs/features/TASK_LIST.md) for the active rema
 
 ## Disclaimer
 
-This application is for informational and educational purposes only. It does not provide medical advice, diagnosis, or treatment recommendations. Always consult with qualified healthcare professionals for medical decisions.
+This application is for informational and educational purposes only. It does not provide medical advice, diagnosis, or treatment recommendations. Always consult with qualified healthcare professionals for medical concerns.
