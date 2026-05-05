@@ -37,7 +37,7 @@ async def lifespan(app: FastAPI):
     # Initialize directories and verify SQLCipher
     await init_database()
 
-    # Run master database migrations (non-blocking via thread)
+    # Run master database migrations
     await run_master_migrations_async()
 
     yield

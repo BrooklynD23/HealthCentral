@@ -18,11 +18,13 @@ test.describe('Authentication Flow', () => {
   test('E2E-AUTH-001: Create profile with password - token stored, inbox loads', async ({
     page,
   }) => {
+    const profileName = `Playwright Auth ${Date.now()}`;
+
     // Navigate to setup
     await page.goto('/setup');
 
     // Fill in profile name
-    await page.getByLabel('Profile Name').fill('Test Profile');
+    await page.getByLabel('Profile Name').fill(profileName);
 
     // Fill in password
     await page.getByPlaceholder('Create a secure password').fill('SecurePass123');

@@ -7,11 +7,10 @@ Provides safe migration execution for:
 
 Key features:
 - Baseline detection: Existing DBs without alembic_version are stamped (not migrated)
-- Thread-safe execution: All Alembic calls run in threads via asyncio.to_thread()
+- Startup-safe execution: Alembic calls run synchronously at startup/login gates
 - SQLCipher support: Profile migrations use PRAGMA key for encryption
 """
 
-import asyncio
 import logging
 from pathlib import Path
 from typing import Optional
@@ -19,6 +18,7 @@ from typing import Optional
 from alembic import command
 from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, event, inspect, text
 
 from .config import settings
@@ -149,8 +149,24 @@ def run_master_migrations() -> None:
                 command.stamp(config, "head")
                 logger.info("Master database baselined successfully.")
             else:
-                # Either empty DB or has alembic_version: upgrade
-                logger.info("Running master database upgrade to head...")
+                current_revision = None
+                if has_alembic_version:
+                    current_revision = MigrationContext.configure(
+                        connection
+                    ).get_current_revision()
+                    heads = set(ScriptDirectory.from_config(config).get_heads())
+                    if current_revision in heads:
+                        logger.info(
+                            "Master database already at head revision %s.",
+                            current_revision,
+                        )
+                        return
+
+                # Either empty DB or has pending migrations: upgrade
+                logger.info(
+                    "Running master database upgrade to head from revision %s...",
+                    current_revision or "<empty>",
+                )
                 command.upgrade(config, "head")
                 logger.info("Master database migrations completed.")
 
@@ -162,9 +178,11 @@ async def run_master_migrations_async() -> None:
     """
     Async wrapper for master migrations.
 
-    Runs migrations in a thread to avoid blocking the event loop.
+    Alembic's synchronous migration runner can hang when scheduled through the
+    event-loop executor in this app's startup path. Run it directly here:
+    startup cannot serve requests until migrations finish anyway.
     """
-    await asyncio.to_thread(run_master_migrations)
+    run_master_migrations()
 
 
 # =============================================================================
@@ -288,8 +306,26 @@ def run_profile_migration(
                 command.stamp(config, "head")
                 logger.info("Profile database baselined successfully.")
             else:
-                # Either empty DB or has alembic_version: upgrade
-                logger.info(f"Running profile database upgrade to head for {vault_path}...")
+                current_revision = None
+                if has_alembic_version:
+                    current_revision = MigrationContext.configure(
+                        connection
+                    ).get_current_revision()
+                    heads = set(ScriptDirectory.from_config(config).get_heads())
+                    if current_revision in heads:
+                        logger.info(
+                            "Profile database at %s already at head revision %s.",
+                            vault_path,
+                            current_revision,
+                        )
+                        return
+
+                # Either empty DB or has pending migrations: upgrade
+                logger.info(
+                    "Running profile database upgrade to head for %s from revision %s...",
+                    vault_path,
+                    current_revision or "<empty>",
+                )
                 command.upgrade(config, "head")
                 logger.info("Profile database migrations completed.")
 
@@ -304,13 +340,14 @@ async def run_profile_migration_async(
     """
     Async wrapper for profile migrations.
 
-    Runs migrations in a thread to avoid blocking the event loop.
+    Run synchronously for the same reason as master migrations: login/profile
+    unlock cannot continue until the per-profile schema is current.
 
     Args:
         vault_path: Path to the SQLCipher database file
         encryption_key: Raw 32-byte encryption key
     """
-    await asyncio.to_thread(run_profile_migration, vault_path, encryption_key)
+    run_profile_migration(vault_path, encryption_key)
 
 
 # =============================================================================

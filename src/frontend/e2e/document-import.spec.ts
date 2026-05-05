@@ -8,19 +8,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import path from 'path';
-
-// Helper to set up authenticated state
-async function setupAuthenticatedUser(page, profileName = 'Test Profile') {
-  await page.goto('/setup');
-  await page.evaluate(() => localStorage.clear());
-
-  await page.getByLabel('Profile Name').fill(profileName);
-  await page.getByPlaceholder('Create a secure password').fill('SecurePass123');
-  await page.getByRole('button', { name: /create your profile/i }).click();
-
-  await expect(page).toHaveURL(/\/inbox/, { timeout: 15000 });
-}
+import { openAuthenticatedPage } from './support/auth';
 
 test.describe('Document Import Smoke Tests', () => {
   test.beforeEach(async ({ page }) => {
@@ -28,8 +16,8 @@ test.describe('Document Import Smoke Tests', () => {
     await page.evaluate(() => localStorage.clear());
   });
 
-  test('E2E-DOC-001: Navigate to inbox, verify empty state renders', async ({ page }) => {
-    await setupAuthenticatedUser(page);
+  test('E2E-DOC-001: Navigate to inbox, verify empty state renders', async ({ page, request }) => {
+    await openAuthenticatedPage(page, request);
 
     // Should be on inbox
     await expect(page).toHaveURL(/\/inbox/);
@@ -40,8 +28,8 @@ test.describe('Document Import Smoke Tests', () => {
     ).toBeVisible({ timeout: 10000 });
   });
 
-  test('E2E-DOC-002: Upload test PDF, verify document list item appears', async ({ page }) => {
-    await setupAuthenticatedUser(page);
+  test('E2E-DOC-002: Upload test PDF, verify document list item appears', async ({ page, request }) => {
+    await openAuthenticatedPage(page, request);
 
     // Create a minimal test PDF in memory and upload
     const fileInput = page.locator('input[type="file"]');
@@ -67,8 +55,8 @@ test.describe('Document Import Smoke Tests', () => {
     ).toBeVisible({ timeout: 15000 });
   });
 
-  test('E2E-DOC-003: Upload non-PDF, verify rejection message', async ({ page }) => {
-    await setupAuthenticatedUser(page);
+  test('E2E-DOC-003: Upload non-PDF, verify rejection message', async ({ page, request }) => {
+    await openAuthenticatedPage(page, request);
 
     const fileInput = page.locator('input[type="file"]');
 
@@ -91,8 +79,8 @@ test.describe('Document Import Smoke Tests', () => {
     await expect(page.getByText('invalid-file.txt')).not.toBeVisible();
   });
 
-  test('E2E-DOC-004: Upload PDF, verify correct status badge text', async ({ page }) => {
-    await setupAuthenticatedUser(page);
+  test('E2E-DOC-004: Upload PDF, verify correct status badge text', async ({ page, request }) => {
+    await openAuthenticatedPage(page, request);
 
     const fileInput = page.locator('input[type="file"]');
 
@@ -120,12 +108,12 @@ test.describe('Document Import Smoke Tests', () => {
     ).toBeVisible();
   });
 
-  test('E2E-DOC-005: Verify OCR Required badge renders for pending_ocr status', async ({ page }) => {
-    await setupAuthenticatedUser(page);
+  test('E2E-DOC-005: Verify OCR Required badge renders for pending_ocr status', async ({ page, request }) => {
+    await openAuthenticatedPage(page, request);
 
     // Inject a mock document with pending_ocr status into the page
     // by intercepting the API response
-    await page.route('**/api/v1/documents/*', async (route) => {
+    await page.route('**/api/v1/documents/**', async (route) => {
       const response = await route.fetch().catch(() => null);
       if (response && response.ok()) {
         const json = await response.json();

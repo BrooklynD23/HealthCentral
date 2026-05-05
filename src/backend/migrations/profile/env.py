@@ -34,6 +34,7 @@ from models import (  # noqa: F401
     embedding,
     interpretation,
     medication,
+    memory_item,
     model_settings,
 )
 

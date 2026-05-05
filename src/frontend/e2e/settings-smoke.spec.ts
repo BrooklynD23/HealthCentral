@@ -11,18 +11,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-
-// Helper to set up authenticated state
-async function setupAuthenticatedUser(page, profileName = 'Test Profile') {
-  await page.goto('/setup');
-  await page.evaluate(() => localStorage.clear());
-
-  await page.getByLabel('Profile Name').fill(profileName);
-  await page.getByPlaceholder('Create a secure password').fill('SecurePass123');
-  await page.getByRole('button', { name: /create your profile/i }).click();
-
-  await expect(page).toHaveURL(/\/inbox/, { timeout: 15000 });
-}
+import { openAuthenticatedPage } from './support/auth';
 
 test.describe('Settings Page Smoke Tests', () => {
   test.beforeEach(async ({ page }) => {
@@ -32,11 +21,9 @@ test.describe('Settings Page Smoke Tests', () => {
 
   test('E2E-SET-001: Navigate to settings, verify hardware detection button visible', async ({
     page,
+    request,
   }) => {
-    await setupAuthenticatedUser(page);
-
-    // Navigate to settings
-    await page.goto('/settings');
+    await openAuthenticatedPage(page, request, '/settings');
 
     // Hardware detection button should be visible
     await expect(
@@ -44,9 +31,8 @@ test.describe('Settings Page Smoke Tests', () => {
     ).toBeVisible({ timeout: 10000 });
   });
 
-  test('E2E-SET-002: Verify tier selection cards render', async ({ page }) => {
-    await setupAuthenticatedUser(page);
-    await page.goto('/settings');
+  test('E2E-SET-002: Verify tier selection cards render', async ({ page, request }) => {
+    await openAuthenticatedPage(page, request, '/settings');
 
     // Wait for page to load
     await page.waitForTimeout(2000);
@@ -62,9 +48,8 @@ test.describe('Settings Page Smoke Tests', () => {
     ).toBeVisible();
   });
 
-  test('E2E-SET-003: Verify external API toggle and consent dialog', async ({ page }) => {
-    await setupAuthenticatedUser(page);
-    await page.goto('/settings');
+  test('E2E-SET-003: Verify external API toggle and consent dialog', async ({ page, request }) => {
+    await openAuthenticatedPage(page, request, '/settings');
 
     // Find external API toggle
     const apiToggle = page.getByRole('switch', { name: /external api|cloud api/i }).or(
@@ -83,9 +68,9 @@ test.describe('Settings Page Smoke Tests', () => {
 
   test('E2E-SET-004: Verify download button appears for downloadable tiers', async ({
     page,
+    request,
   }) => {
-    await setupAuthenticatedUser(page);
-    await page.goto('/settings');
+    await openAuthenticatedPage(page, request, '/settings');
 
     // Wait for page to load
     await page.waitForTimeout(2000);

@@ -7,13 +7,14 @@ Handles profile creation, authentication, and access control.
 import base64
 import uuid
 import logging
+import shutil
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
@@ -40,13 +41,34 @@ from core.auth import (
     Session,
     open_profile_database_on_login,
     close_profile_database_on_logout,
+    ProfileDbSession,
 )
 from core.audit import log_profile_event
-from models import Profile
+from models import (
+    AdherencePattern,
+    Chunk,
+    Document,
+    DocumentCategory,
+    DocumentEntity,
+    DoseTaken,
+    EarnedBadge,
+    Embedding,
+    LabInterpretation,
+    Medication,
+    MedicationSchedule,
+    MemoryItem,
+    Observation,
+    PanelInterpretation,
+    Profile,
+    ReminderLog,
+    UserModelSettings,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+_SYNTHETIC_E2E_PROFILE_PREFIX = "Playwright E2E"
 
 
 class ProfileCreate(BaseModel):
@@ -365,6 +387,64 @@ async def logout(
     logger.info(f"Profile logged out: {session.profile_id}")
 
     return {"status": "logged_out"}
+
+
+@router.post("/test/reset", status_code=status.HTTP_204_NO_CONTENT)
+async def reset_synthetic_test_profile(
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
+):
+    """
+    Reset data for the authenticated Playwright synthetic profile.
+
+    This endpoint is intentionally unavailable in production and only accepts
+    profiles whose display name starts with the Playwright E2E prefix. It uses
+    the normal session JWT path and does not create an auth bypass.
+    """
+    if settings.app_env == "production":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+
+    if not session.profile_name.startswith(_SYNTHETIC_E2E_PROFILE_PREFIX):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Test reset is limited to synthetic Playwright profiles",
+        )
+
+    try:
+        for model in (
+            Embedding,
+            Chunk,
+            DocumentEntity,
+            DocumentCategory,
+            LabInterpretation,
+            PanelInterpretation,
+            Observation,
+            Document,
+            DoseTaken,
+            ReminderLog,
+            AdherencePattern,
+            MedicationSchedule,
+            Medication,
+            MemoryItem,
+            UserModelSettings,
+            EarnedBadge,
+        ):
+            await profile_db.execute(delete(model))
+
+        docs_path = Path(settings.app_data_path) / "vaults" / session.profile_id / "docs"
+        if docs_path.exists():
+            shutil.rmtree(docs_path)
+        docs_path.mkdir(parents=True, exist_ok=True)
+
+        await profile_db.commit()
+    except Exception as exc:
+        await profile_db.rollback()
+        logger.exception("Synthetic profile reset failed for %s", session.profile_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Synthetic profile reset failed: {exc}",
+        ) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/{profile_id}", response_model=ProfileResponse)

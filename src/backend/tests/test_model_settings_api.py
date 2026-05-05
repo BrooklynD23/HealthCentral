@@ -137,8 +137,12 @@ def test_download_task_writes_terminal_status(monkeypatch):
         ),
     )
 
+    async def inline_to_thread(func, *args, **kwargs):
+        return func(*args, **kwargs)
+
     with patch("api.model_settings._write_download_status", new_callable=AsyncMock) as mock_write:
-        asyncio.run(_download_model_task("low", profile_id, selector))
+        with patch("asyncio.to_thread", side_effect=inline_to_thread):
+            asyncio.run(_download_model_task("low", profile_id, selector))
 
         assert mock_write.call_count == 2
         first_call = mock_write.call_args_list[0]
@@ -166,8 +170,12 @@ def test_download_task_writes_failure_status(monkeypatch):
         ),
     )
 
+    async def inline_to_thread(func, *args, **kwargs):
+        return func(*args, **kwargs)
+
     with patch("api.model_settings._write_download_status", new_callable=AsyncMock) as mock_write:
-        asyncio.run(_download_model_task("low", profile_id, selector))
+        with patch("asyncio.to_thread", side_effect=inline_to_thread):
+            asyncio.run(_download_model_task("low", profile_id, selector))
 
         assert mock_write.call_count == 2
         first_call = mock_write.call_args_list[0]
@@ -197,11 +205,9 @@ def test_download_task_uses_to_thread(monkeypatch):
 
     to_thread_calls: list = []
 
-    original_to_thread = asyncio.to_thread
-
     async def tracking_to_thread(func, *args, **kwargs):
         to_thread_calls.append(func)
-        return await original_to_thread(func, *args, **kwargs)
+        return func(*args, **kwargs)
 
     with patch("api.model_settings._write_download_status", new_callable=AsyncMock):
         with patch("asyncio.to_thread", side_effect=tracking_to_thread):
