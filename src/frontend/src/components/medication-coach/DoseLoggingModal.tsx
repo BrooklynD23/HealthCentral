@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { CheckCircle, X, Loader2, SkipForward } from 'lucide-react';
-import { Button, Card, CardContent, CardHeader, CardTitle } from '@/components/ui';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Button, Card, CardContent, CardHeader, CardTitle, modalVariants, backdropVariants } from '@/components/ui';
 import { cn } from '@/utils/cn';
 import type { DoseLog, MedicationSchedule } from '@/services/types';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 
 interface DoseLoggingModalProps {
   medicationName: string;
@@ -28,6 +30,7 @@ export function DoseLoggingModal({
   onClose,
   isSubmitting,
 }: DoseLoggingModalProps) {
+  const prefersReducedMotion = useReducedMotion();
   const [mode, setMode] = useState<'taken' | 'skipped'>('taken');
   const [skipReason, setSkipReason] = useState('');
   const [notes, setNotes] = useState('');
@@ -68,124 +71,144 @@ export function DoseLoggingModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+      <motion.div
+        initial="initial"
+        animate="animate"
+        exit="exit"
+        variants={backdropVariants}
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
         onClick={onClose}
         aria-hidden
       />
 
       {/* Modal */}
-      <Card className="relative z-10 w-full max-w-md shadow-elevated">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-lg">Log Dose</CardTitle>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            aria-label="Close"
-          >
-            <X className="w-4 h-4" />
-          </Button>
-        </CardHeader>
-
-        <CardContent className="space-y-4">
-          <p className="text-sm text-ink-secondary">
-            Logging for <strong className="text-ink">{medicationName}</strong>
-          </p>
-
-          {/* Taken / Skipped Toggle */}
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setMode('taken')}
-              className={cn(
-                'flex items-center justify-center gap-2 p-3 rounded-xl text-sm font-medium transition-all',
-                'focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2',
-                mode === 'taken'
-                  ? 'bg-status-verified-subtle text-status-verified border-2 border-status-verified/30'
-                  : 'bg-surface-muted text-ink-secondary border-2 border-transparent hover:bg-surface-sunken'
-              )}
+      <motion.div
+        initial="initial"
+        animate="animate"
+        exit="exit"
+        variants={prefersReducedMotion ? backdropVariants : modalVariants}
+        className="relative z-10 w-full max-w-md"
+      >
+        <Card className="shadow-elevated border-black/[0.08]">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-lg">Log Dose</CardTitle>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              aria-label="Close"
+              className="h-8 w-8 rounded-lg"
             >
-              <CheckCircle className="w-4 h-4" />
-              Taken
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('skipped')}
-              className={cn(
-                'flex items-center justify-center gap-2 p-3 rounded-xl text-sm font-medium transition-all',
-                'focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2',
-                mode === 'skipped'
-                  ? 'bg-status-caution-subtle text-status-caution border-2 border-status-caution/30'
-                  : 'bg-surface-muted text-ink-secondary border-2 border-transparent hover:bg-surface-sunken'
-              )}
-            >
-              <SkipForward className="w-4 h-4" />
-              Skipped
-            </button>
-          </div>
+              <X className="w-4 h-4" />
+            </Button>
+          </CardHeader>
 
-          {/* Skip Reason */}
-          {mode === 'skipped' && (
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-ink">Reason</label>
-              <div className="flex flex-wrap gap-2">
-                {skipReasons.map((reason) => (
-                  <button
-                    key={reason.value}
-                    type="button"
-                    onClick={() => setSkipReason(reason.value)}
-                    className={cn(
-                      'px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
-                      'focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1',
-                      skipReason === reason.value
-                        ? 'bg-status-caution-subtle text-status-caution'
-                        : 'bg-surface-muted text-ink-secondary hover:bg-surface-sunken'
-                    )}
-                  >
-                    {reason.label}
-                  </button>
-                ))}
-              </div>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-ink-secondary">
+              Logging for <strong className="text-ink">{medicationName}</strong>
+            </p>
+
+            {/* Taken / Skipped Toggle */}
+            <div className="grid grid-cols-2 gap-2 p-1 bg-surface-muted rounded-2xl">
+              <button
+                type="button"
+                onClick={() => setMode('taken')}
+                className={cn(
+                  'flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all relative',
+                  'focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2',
+                  mode === 'taken'
+                    ? 'bg-white text-status-verified shadow-sm'
+                    : 'text-ink-secondary hover:text-ink'
+                )}
+              >
+                <CheckCircle className={cn('w-4 h-4', mode === 'taken' ? 'text-status-verified' : 'text-ink-tertiary')} />
+                Taken
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode('skipped')}
+                className={cn(
+                  'flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all relative',
+                  'focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2',
+                  mode === 'skipped'
+                    ? 'bg-white text-status-caution shadow-sm'
+                    : 'text-ink-secondary hover:text-ink'
+                )}
+              >
+                <SkipForward className={cn('w-4 h-4', mode === 'skipped' ? 'text-status-caution' : 'text-ink-tertiary')} />
+                Skipped
+              </button>
             </div>
-          )}
 
-          {/* Notes */}
-          <div className="space-y-1.5">
-            <label htmlFor="dose-notes" className="text-sm font-medium text-ink">
-              Notes (optional)
-            </label>
-            <textarea
-              id="dose-notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Any notes about this dose..."
-              rows={2}
-              className={cn(
-                'flex w-full rounded-xl border border-black/[0.08] bg-surface-elevated',
-                'px-3 py-2 text-sm text-ink',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
-                'resize-none'
+            {/* Skip Reason */}
+            <AnimatePresence mode="wait">
+              {mode === 'skipped' && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-2 overflow-hidden"
+                >
+                  <label className="text-sm font-medium text-ink">Reason</label>
+                  <div className="flex flex-wrap gap-2">
+                    {skipReasons.map((reason) => (
+                      <button
+                        key={reason.value}
+                        type="button"
+                        onClick={() => setSkipReason(reason.value)}
+                        className={cn(
+                          'px-3 py-1.5 rounded-full text-xs font-medium transition-all',
+                          'focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1',
+                          skipReason === reason.value
+                            ? 'bg-status-caution text-white shadow-sm'
+                            : 'bg-surface-sunken text-ink-secondary hover:bg-black/[0.08]'
+                        )}
+                      >
+                        {reason.label}
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
               )}
-            />
-          </div>
+            </AnimatePresence>
 
-          {/* Submit */}
-          <Button
-            onClick={handleSubmit}
-            disabled={isSubmitting || (mode === 'skipped' && !skipReason)}
-            className="w-full"
-          >
-            {isSubmitting ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : mode === 'taken' ? (
-              'Log as Taken'
-            ) : (
-              'Log as Skipped'
-            )}
-          </Button>
-        </CardContent>
-      </Card>
+            {/* Notes */}
+            <div className="space-y-1.5">
+              <label htmlFor="dose-notes" className="text-sm font-medium text-ink">
+                Notes (optional)
+              </label>
+              <textarea
+                id="dose-notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Any notes about this dose..."
+                rows={2}
+                className={cn(
+                  'flex w-full rounded-xl border border-black/[0.08] bg-surface-elevated',
+                  'px-3 py-2 text-sm text-ink placeholder:text-ink-tertiary',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-0 focus:border-accent',
+                  'resize-none transition-all'
+                )}
+              />
+            </div>
+
+            {/* Submit */}
+            <Button
+              onClick={handleSubmit}
+              disabled={isSubmitting || (mode === 'skipped' && !skipReason)}
+              className="w-full"
+            >
+              {isSubmitting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : mode === 'taken' ? (
+                'Log as Taken'
+              ) : (
+                'Log as Skipped'
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+      </motion.div>
     </div>
   );
 }

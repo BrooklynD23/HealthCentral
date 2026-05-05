@@ -4,7 +4,9 @@
 .DESCRIPTION
     One-click launcher that checks for dependencies, installs anything missing,
     handles common Windows pitfalls (SQLCipher, corrupted node_modules, port
-    conflicts), starts both backend and frontend servers, and opens the browser.
+    conflicts), installs OCR tooling on Windows (Tesseract + Poppler via winget
+    when available), syncs OCR_ENABLED in src/backend/.env, starts both servers,
+    and opens the browser.
 .EXAMPLE
     .\dev.ps1
 .NOTES
@@ -36,20 +38,229 @@ function Write-Err     { param($msg) Write-Host "  [-] $msg" -ForegroundColor Re
 
 function Test-PortInUse {
     param([int]$Port)
-    $listener = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue |
-                Where-Object { $_.State -eq 'Listen' }
+    $listener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
     return $null -ne $listener
+}
+
+function Get-ListenerPidsForPort {
+    param([int]$Port)
+    $ids = @{}
+    foreach ($c in @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)) {
+        $id = [int]$c.OwningProcess
+        if ($id -gt 0) { $ids[$id] = $true }
+    }
+    if ($ids.Count -gt 0) {
+        return @([int[]]($ids.Keys))
+    }
+    # Fallback when cmdlet omits owners or policy blocks it (English LISTENING lines).
+    if ($env:OS -eq 'Windows_NT') {
+        foreach ($line in @(netstat -ano 2>$null)) {
+            if ($line -notmatch 'LISTENING') { continue }
+            if ($line -notmatch "\:$($Port)\s+") { continue }
+            if ($line -match 'LISTENING\s+(\d+)\s*$') {
+                $id = [int]$Matches[1]
+                if ($id -gt 0) { $ids[$id] = $true }
+            }
+        }
+    }
+    return @([int[]]($ids.Keys))
+}
+
+# Uvicorn --reload: child holds the socket; taskkill /T on the child does not kill the reloader parent,
+# which respawns a new listener. Walk ancestors and return the topmost python in the chain (reloader).
+function Get-ProcessPortKillTarget {
+    param([int]$ProcessId)
+    $protected = @{ 0 = $true; 4 = $true }
+    if ($protected.ContainsKey($ProcessId)) { return $ProcessId }
+    $proc = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+    if (-not $proc) { return $ProcessId }
+    $name = $proc.ProcessName
+    if ($name -notmatch '^(python|pythonw)(\d+)?$') {
+        return $ProcessId
+    }
+    $topPython = $ProcessId
+    $current = $ProcessId
+    $seen = @{}
+    for ($depth = 0; $depth -lt 32; $depth++) {
+        if ($seen.ContainsKey($current)) { break }
+        $seen[$current] = $true
+        $row = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId=$current" -ErrorAction SilentlyContinue
+        if (-not $row) { break }
+        $parent = [int]$row.ParentProcessId
+        if ($parent -le 0 -or $protected.ContainsKey($parent) -or $parent -eq $current) { break }
+        $pProc = Get-Process -Id $parent -ErrorAction SilentlyContinue
+        if (-not $pProc) { break }
+        $pName = $pProc.ProcessName
+        if ($pName -match '^(python|pythonw)(\d+)?$') {
+            $topPython = $parent
+            $current = $parent
+        } else {
+            break
+        }
+    }
+    return $topPython
+}
+
+function Invoke-ElevatedTaskKill {
+    param([int[]]$ProcessIds)
+    if ($ProcessIds.Count -eq 0) { return $false }
+    $ids = ($ProcessIds | ForEach-Object { "/PID $_" }) -join " "
+    # Single UAC prompt; kills process trees for each PID.
+    $inner = "taskkill /F /T $ids 2>`$null; exit `$LASTEXITCODE"
+    try {
+        $p = Start-Process -FilePath "powershell.exe" -Verb RunAs -ArgumentList @(
+            "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-Command", $inner
+        ) -PassThru -Wait
+        return ($p.ExitCode -eq 0)
+    } catch {
+        return $false
+    }
+}
+
+function Write-PortListenerDiagnostics {
+    param([int]$Port)
+    $pids = Get-ListenerPidsForPort -Port $Port
+    if ($pids.Count -eq 0) {
+        Write-Warn "Port $Port still looks busy but no listener PID was found (reserved port range, or run as Administrator). Check: netsh interface ipv4 show excludedportrange protocol=tcp"
+        return
+    }
+    foreach ($procId in $pids) {
+        $name = (Get-Process -Id $procId -ErrorAction SilentlyContinue).ProcessName
+        if ($name) {
+            Write-Warn "Still listening on ${Port}: PID $procId ($name). Close it manually, approve the UAC prompt when re-running dev.ps1, or set HC_SKIP_ELEVATED_PORT_KILL=1 and free the port yourself."
+        } else {
+            Write-Warn "Still listening on ${Port}: PID $procId. Close it manually, approve the UAC prompt when re-running dev.ps1, or set HC_SKIP_ELEVATED_PORT_KILL=1 and free the port yourself."
+        }
+    }
 }
 
 function Stop-ProcessOnPort {
     param([int]$Port)
-    $connections = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue |
-                   Where-Object { $_.State -eq 'Listen' }
-    foreach ($conn in $connections) {
-        try {
-            Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue
-        } catch { }
+    # Never kill System idle (0) or the Windows kernel System process (4).
+    $protected = @{ 0 = $true; 4 = $true }
+    $maxRounds = 10
+    for ($round = 0; $round -lt $maxRounds; $round++) {
+        if (-not (Test-PortInUse $Port)) { return }
+        $pids = Get-ListenerPidsForPort -Port $Port
+        if ($pids.Count -eq 0) { return }
+        $targets = @{}
+        foreach ($procId in $pids) {
+            if ($protected.ContainsKey($procId)) { continue }
+            $killId = Get-ProcessPortKillTarget -ProcessId $procId
+            if (-not $protected.ContainsKey($killId)) { $targets[$killId] = $true }
+        }
+        $tk = Get-Command taskkill.exe -ErrorAction SilentlyContinue
+        foreach ($killId in [int[]]($targets.Keys)) {
+            Stop-Process -Id $killId -Force -ErrorAction SilentlyContinue
+            if ($tk -and (Get-Process -Id $killId -ErrorAction SilentlyContinue)) {
+                & taskkill.exe /F /T /PID $killId 2>$null | Out-Null
+            }
+        }
+        Start-Sleep -Milliseconds 500
     }
+    # Same user should not need this; handles protected / odd service cases and stubborn reloaders.
+    if ($env:HC_SKIP_ELEVATED_PORT_KILL -eq "1") { return }
+    if (-not (Test-PortInUse $Port)) { return }
+    $pids = Get-ListenerPidsForPort -Port $Port
+    if ($pids.Count -eq 0) { return }
+    $targets = @{}
+    foreach ($procId in $pids) {
+        if ($protected.ContainsKey($procId)) { continue }
+        $killId = Get-ProcessPortKillTarget -ProcessId $procId
+        if (-not $protected.ContainsKey($killId)) { $targets[$killId] = $true }
+    }
+    $ids = @([int[]]($targets.Keys))
+    if ($ids.Count -eq 0) { return }
+    Write-Warn "Port $Port still in use; requesting elevated permission to stop listener(s) (one UAC prompt) ..."
+    [void](Invoke-ElevatedTaskKill -ProcessIds $ids)
+    Start-Sleep -Milliseconds 800
+}
+
+function Refresh-EnvPathFromRegistry {
+    $m = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+    $u = [Environment]::GetEnvironmentVariable('Path', 'User')
+    if ($m -and $u) {
+        $env:Path = "$m;$u"
+    } elseif ($m) {
+        $env:Path = $m
+    } elseif ($u) {
+        $env:Path = $u
+    }
+}
+
+function Add-TesseractToPathIfPresent {
+    if ($env:OS -ne 'Windows_NT') { return $false }
+    $candidates = @(
+        (Join-Path $env:ProgramFiles 'Tesseract-OCR'),
+        (Join-Path ${env:ProgramFiles(x86)} 'Tesseract-OCR')
+    )
+    foreach ($dir in $candidates) {
+        $exe = Join-Path $dir 'tesseract.exe'
+        if (Test-Path -LiteralPath $exe) {
+            if ($env:Path -notlike "*$dir*") {
+                $env:Path = "$dir;$env:Path"
+            }
+            return $true
+        }
+    }
+    return $false
+}
+
+function Find-PdftoppmAndPrependPath {
+    if ($env:OS -ne 'Windows_NT') { return $false }
+    if (Get-Command pdftoppm.exe -ErrorAction SilentlyContinue) { return $true }
+    $pkgRoot = Join-Path $env:LOCALAPPDATA 'Microsoft\WinGet\Packages'
+    if (-not (Test-Path -LiteralPath $pkgRoot)) { return $false }
+    try {
+        $hit = Get-ChildItem -Path $pkgRoot -Recurse -Filter 'pdftoppm.exe' -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+        if ($hit) {
+            $bin = Split-Path $hit.FullName -Parent
+            if ($env:Path -notlike "*$bin*") {
+                $env:Path = "$bin;$env:Path"
+            }
+            return $true
+        }
+    } catch { }
+    return $false
+}
+
+function Set-DotEnvKey {
+    param(
+        [Parameter(Mandatory)][string]$FilePath,
+        [Parameter(Mandatory)][string]$Key,
+        [Parameter(Mandatory)][string]$Value
+    )
+    $pattern = "^\s*$([regex]::Escape($Key))\s*="
+    $newLine = "$Key=$Value"
+    $lines = if (Test-Path -LiteralPath $FilePath) {
+        Get-Content -LiteralPath $FilePath
+    } else {
+        @()
+    }
+    $out = New-Object System.Collections.Generic.List[string]
+    $found = $false
+    foreach ($line in $lines) {
+        if ($line -match $pattern) {
+            if (-not $found) {
+                [void]$out.Add($newLine)
+                $found = $true
+            }
+        } else {
+            [void]$out.Add($line)
+        }
+    }
+    if (-not $found) {
+        if ($out.Count -gt 0 -and $out[$out.Count - 1] -ne '') { [void]$out.Add('') }
+        [void]$out.Add($newLine)
+    }
+    $out | Set-Content -LiteralPath $FilePath
+}
+
+function Test-TesseractOnPath {
+    if (Get-Command tesseract -ErrorAction SilentlyContinue) { return $true }
+    if (Get-Command tesseract.exe -ErrorAction SilentlyContinue) { return $true }
+    return $false
 }
 
 # ---------------------------------------------------------------------------
@@ -202,6 +413,54 @@ if ($pipExit -ne 0) {
 }
 
 # ===================================================================
+#  STEP 3b - OCR system tools (Windows): Tesseract + Poppler
+# ===================================================================
+# Python wheels (pillow, pytesseract, pdf2image) are installed in STEP 3.
+# Set HC_SKIP_OCR_SETUP=1 to skip winget installs and .env OCR_ENABLED sync.
+if ($env:HC_SKIP_OCR_SETUP -eq "1") {
+    Write-Status "Skipping OCR auto-setup (HC_SKIP_OCR_SETUP=1)."
+} elseif ($env:OS -eq "Windows_NT") {
+    Write-Host "  --- OCR dependencies (Windows) ---" -ForegroundColor DarkGray
+    $winget = Get-Command winget.exe -ErrorAction SilentlyContinue
+    Refresh-EnvPathFromRegistry
+    [void](Add-TesseractToPathIfPresent)
+
+    $tessOk = Test-TesseractOnPath
+    if (-not $tessOk) {
+        if ($winget) {
+            Write-Status "Installing Tesseract OCR via winget (may require approval) ..."
+            $null = & winget install -e --id UB-Mannheim.TesseractOCR --accept-package-agreements --accept-source-agreements 2>&1
+            Refresh-EnvPathFromRegistry
+            [void](Add-TesseractToPathIfPresent)
+        } else {
+            Write-Warn "Tesseract not found and winget is unavailable. For scanned PDFs: https://github.com/UB-Mannheim/tesseract/wiki"
+        }
+    }
+
+    $tessOk = Test-TesseractOnPath
+    if ($tessOk) {
+        Write-Ok "Tesseract OCR is available"
+    } else {
+        Write-Warn "Tesseract still not on PATH - restart this window after install, or add Tesseract-OCR to PATH."
+    }
+
+    $popOk = [bool](Get-Command pdftoppm.exe -ErrorAction SilentlyContinue)
+    if (-not $popOk -and $winget) {
+        Write-Status "Installing Poppler via winget (scanned PDF rasterization for OCR) ..."
+        $null = & winget install -e --id oschwartz10612.Poppler --accept-package-agreements --accept-source-agreements 2>&1
+        Refresh-EnvPathFromRegistry
+    }
+
+    $popOk = [bool](Get-Command pdftoppm.exe -ErrorAction SilentlyContinue)
+    if (-not $popOk) { $popOk = Find-PdftoppmAndPrependPath }
+    if ($popOk) {
+        Write-Ok "Poppler (pdftoppm) is available"
+    } else {
+        Write-Warn "pdftoppm not on PATH - scanned PDF OCR may fail until Poppler is installed (e.g. winget install oschwartz10612.Poppler)."
+    }
+}
+
+# ===================================================================
 #  STEP 4  -  Ensure .env exists with safe defaults
 # ===================================================================
 Write-Status "Checking .env configuration ..."
@@ -234,6 +493,25 @@ if (-not $sqlcipherAvailable) {
         $envContent = $envContent -replace "DATABASE_ENCRYPTION_REQUIRED\s*=\s*true", "DATABASE_ENCRYPTION_REQUIRED=false"
         Set-Content $ENV_FILE $envContent -NoNewline
         Write-Warn "Set DATABASE_ENCRYPTION_REQUIRED=false (SQLCipher not installed)"
+    }
+}
+
+# Match backend gate: OCR_ENABLED is meaningful only when Tesseract is on PATH.
+if ($env:HC_SKIP_OCR_SETUP -ne "1") {
+    Refresh-EnvPathFromRegistry
+    if ($env:OS -eq "Windows_NT") {
+        [void](Add-TesseractToPathIfPresent)
+    }
+    $tesseractResolved = Test-TesseractOnPath
+    if (-not $tesseractResolved -and $env:OS -eq "Windows_NT") {
+        [void](Add-TesseractToPathIfPresent)
+        $tesseractResolved = Test-TesseractOnPath
+    }
+    Set-DotEnvKey -FilePath $ENV_FILE -Key "OCR_ENABLED" -Value $(if ($tesseractResolved) { "true" } else { "false" })
+    if ($tesseractResolved) {
+        Write-Ok "Synced .env: OCR_ENABLED=true (Tesseract on PATH)"
+    } else {
+        Write-Warn "Synced .env: OCR_ENABLED=false (Tesseract not detected - install and re-run dev.ps1)"
     }
 }
 
@@ -293,6 +571,7 @@ if (Test-PortInUse $BACKEND_PORT) {
     Start-Sleep -Seconds 1
     if (Test-PortInUse $BACKEND_PORT) {
         Write-Err "Could not free port $BACKEND_PORT. Close the application using it and try again."
+        Write-PortListenerDiagnostics -Port $BACKEND_PORT
         Read-Host "  Press Enter to exit"
         exit 1
     }
@@ -307,6 +586,7 @@ if (Test-PortInUse $FRONTEND_PORT) {
     Start-Sleep -Seconds 1
     if (Test-PortInUse $FRONTEND_PORT) {
         Write-Err "Could not free port $FRONTEND_PORT. Close the application using it and try again."
+        Write-PortListenerDiagnostics -Port $FRONTEND_PORT
         Read-Host "  Press Enter to exit"
         exit 1
     }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Search, Shield, ShieldCheck, User } from 'lucide-react';
 import { cn } from '@/utils/cn';
+import { Button } from '@/components/ui';
 
 export function TopBar() {
   const [safeMode, setSafeMode] = useState(true);
@@ -9,19 +10,19 @@ export function TopBar() {
   return (
     <header className="sticky top-0 z-40 h-16 px-8 flex items-center justify-between gap-6 bg-surface/80 backdrop-blur-md border-b border-black/[0.04]">
       <div className="flex-1 max-w-md">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-tertiary" />
+        <div className="relative group">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-tertiary group-focus-within:text-accent transition-colors" />
           <input
             type="search"
             placeholder="Search tests, terms..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className={cn(
-              'w-full pl-10 pr-4 py-2.5 rounded-xl',
+              'w-full pl-10 pr-4 py-2 rounded-xl h-10',
               'bg-white border border-black/[0.06]',
               'text-sm text-ink placeholder:text-ink-tertiary',
-              'focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2',
-              'transition-shadow duration-200'
+              'focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent focus:ring-offset-0',
+              'transition-all duration-200'
             )}
             aria-label="Search tests and terms"
           />
@@ -29,15 +30,13 @@ export function TopBar() {
       </div>
 
       <div className="flex items-center gap-3">
-        <button
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={() => setSafeMode(!safeMode)}
           className={cn(
-            'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium',
-            'min-h-[44px] transition-all duration-200',
-            'focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2',
-            safeMode
-              ? 'bg-verified-subtle text-status-verified'
-              : 'bg-surface-muted text-ink-secondary hover:bg-black/[0.06]'
+            'gap-2 h-10 px-4 rounded-xl font-medium border-black/[0.06]',
+            safeMode && 'bg-status-verified-subtle text-status-verified border-status-verified/20 hover:bg-status-verified-subtle'
           )}
           aria-pressed={safeMode ? "true" : "false"}
           aria-label={`Safety mode ${safeMode ? 'enabled' : 'disabled'}`}
@@ -50,26 +49,22 @@ export function TopBar() {
           <span>Safety Mode</span>
           <span
             className={cn(
-              'px-1.5 py-0.5 rounded text-xs font-semibold',
+              'px-1.5 py-0.5 rounded text-[10px] font-bold tracking-wider',
               safeMode ? 'bg-status-verified/20' : 'bg-black/10'
             )}
           >
             {safeMode ? 'ON' : 'OFF'}
           </span>
-        </button>
+        </Button>
 
-        <button
-          className={cn(
-            'w-10 h-10 rounded-xl flex items-center justify-center',
-            'bg-surface-elevated border border-black/[0.06] shadow-soft',
-            'text-ink-secondary hover:text-ink hover:shadow-card',
-            'focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2',
-            'transition-all duration-200'
-          )}
+        <Button
+          variant="secondary"
+          size="icon"
+          className="h-10 w-10 rounded-xl border-black/[0.06]"
           aria-label="User profile"
         >
           <User className="w-5 h-5" />
-        </button>
+        </Button>
       </div>
     </header>
   );

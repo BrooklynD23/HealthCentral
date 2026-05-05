@@ -1,11 +1,12 @@
 import { Outlet } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
-import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { PageTransition } from '@/components/ui';
+import { useLocation } from 'react-router-dom';
 
 export function AppLayout() {
-  const prefersReducedMotion = useReducedMotion();
+  const location = useLocation();
 
   return (
     <div className="flex min-h-screen bg-surface">
@@ -15,14 +16,14 @@ export function AppLayout() {
         <TopBar />
         
         <main className="flex-1 p-8">
-          <motion.div
-            initial={prefersReducedMotion ? {} : { opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, ease: 'easeOut' }}
-            className="max-w-7xl mx-auto"
-          >
-            <Outlet />
-          </motion.div>
+          <AnimatePresence mode="wait">
+            <PageTransition
+              key={location.pathname}
+              className="max-w-7xl mx-auto"
+            >
+              <Outlet />
+            </PageTransition>
+          </AnimatePresence>
         </main>
       </div>
     </div>

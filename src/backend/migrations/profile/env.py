@@ -131,7 +131,6 @@ def run_migrations_online() -> None:
     url = f"sqlite:///{vault_path}"
 
     # Create engine with SQLCipher module if available
-    connect_args = {}
     creator = None
 
     if is_sqlcipher_available():
@@ -143,11 +142,15 @@ def run_migrations_online() -> None:
 
         creator = _creator
 
-    engine = create_engine(
-        url,
-        poolclass=pool.NullPool,
-        creator=creator,
-    )
+    # Never pass creator=None; SQLAlchemy treats it as a callable factory.
+    if creator is not None:
+        engine = create_engine(
+            url,
+            poolclass=pool.NullPool,
+            creator=creator,
+        )
+    else:
+        engine = create_engine(url, poolclass=pool.NullPool)
 
     # Register event to set PRAGMA key on every connection
     @event.listens_for(engine, "connect")

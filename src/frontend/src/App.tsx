@@ -10,7 +10,7 @@
 import { Suspense, lazy, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
+import { Skeleton } from './components/ui';
 
 // Layout
 import { AppLayout } from './components/layout';
@@ -59,8 +59,16 @@ const queryClient = new QueryClient({
 
 function RouteFallback() {
   return (
-    <div className="flex min-h-[40vh] items-center justify-center" role="status" aria-live="polite">
-      <Loader2 className="h-8 w-8 animate-spin text-accent" />
+    <div className="max-w-7xl mx-auto p-8 space-y-8 animate-fade-in" role="status" aria-live="polite">
+      <div className="space-y-2">
+        <Skeleton className="h-10 w-1/4" />
+        <Skeleton className="h-4 w-1/3" />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <Skeleton className="h-48 rounded-2xl" />
+        <Skeleton className="h-48 rounded-2xl" />
+        <Skeleton className="h-48 rounded-2xl" />
+      </div>
       <span className="sr-only">Loading page...</span>
     </div>
   );

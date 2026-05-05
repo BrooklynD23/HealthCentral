@@ -4,7 +4,8 @@
  * Phase 4B: Hardware detection, tier selection, model download, external API opt-in.
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Cpu,
   HardDrive,
@@ -18,9 +19,11 @@ import {
   Mic,
   Clock,
 } from 'lucide-react';
-import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui';
+import { Button, Card, CardContent, CardHeader, CardTitle, Badge, Skeleton, StaggerGroup, StaggerItem, modalVariants, backdropVariants } from '@/components/ui';
+import { motion, AnimatePresence } from 'framer-motion';
 import { MemoryManager } from '@/components/MemoryManager';
 import { cn } from '@/utils/cn';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 import {
   useModelSettings,
   useDetectHardware,
@@ -79,6 +82,8 @@ export function SettingsPage() {
   const { data: voiceData } = useVoiceSettings();
   const saveVoice = useSaveVoiceSettings();
 
+  const queryClient = useQueryClient();
+  const prefersReducedMotion = useReducedMotion();
   const [downloadInitiated, setDownloadInitiated] = useState(false);
   const { data: downloadProgress } = useDownloadProgress(downloadInitiated);
 
@@ -87,6 +92,23 @@ export function SettingsPage() {
     (p) => p.status === 'pending' || p.status === 'downloading'
   );
   const isDownloading = hasActiveDownload || startDownload.isPending;
+
+  // When a download transitions to completed, refresh tier list and settings
+  const prevProgressRef = useRef<typeof downloadProgress>(undefined);
+  useEffect(() => {
+    const prev = prevProgressRef.current;
+    prevProgressRef.current = downloadProgress;
+    if (!prev || !downloadProgress) return;
+    const justCompleted = Object.values(downloadProgress).some(
+      (p) => p.status === 'completed'
+    ) && Object.values(prev).some(
+      (p) => p.status === 'pending' || p.status === 'downloading'
+    );
+    if (justCompleted) {
+      queryClient.invalidateQueries({ queryKey: ['model-settings'] });
+      queryClient.invalidateQueries({ queryKey: ['model-settings', 'tiers'] });
+    }
+  }, [downloadProgress, queryClient]);
 
   const handleDetectHardware = () => {
     detectHardware.mutate();
@@ -118,9 +140,22 @@ export function SettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="w-8 h-8 animate-spin text-accent" />
-        <span className="ml-3 text-ink-secondary">Loading settings...</span>
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-4 w-64" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-6">
+            <Skeleton className="h-40 rounded-2xl" />
+            <Skeleton className="h-40 rounded-2xl" />
+            <Skeleton className="h-80 rounded-2xl" />
+          </div>
+          <div className="space-y-4">
+            <Skeleton className="h-48 rounded-2xl" />
+            <Skeleton className="h-64 rounded-2xl" />
+          </div>
+        </div>
       </div>
     );
   }
@@ -145,8 +180,8 @@ export function SettingsPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        <div className="col-span-2 space-y-6">
+      <StaggerGroup className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <StaggerItem className="lg:col-span-2 space-y-6">
           {/* Timezone */}
           <Card>
             <CardHeader className="border-b border-black/[0.04]">
@@ -162,7 +197,7 @@ export function SettingsPage() {
               <select
                 value={timezoneData?.timezone ?? 'UTC'}
                 onChange={(e) => saveTimezone.mutate(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-surface-muted text-sm text-ink border border-black/[0.06] focus:outline-none focus:ring-2 focus:ring-accent"
+                className="w-full px-3 py-2 rounded-xl bg-surface-muted text-sm text-ink border border-black/[0.06] focus:outline-none focus:ring-2 focus:ring-accent transition-all"
               >
                 {COMMON_TIMEZONES.map((tz) => (
                   <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
@@ -190,11 +225,11 @@ export function SettingsPage() {
                   });
                 }}
                 className={cn(
-                  'w-full flex items-center justify-between px-3 py-3 rounded-xl',
-                  'transition-colors duration-200',
+                  'w-full flex items-center justify-between px-4 py-3 rounded-xl',
+                  'transition-all duration-300 ease-in-out',
                   voiceData?.voice_logging_enabled
-                    ? 'bg-accent-subtle'
-                    : 'bg-surface-muted hover:bg-surface-sunken'
+                    ? 'bg-accent-subtle border border-accent/20'
+                    : 'bg-surface-muted border border-transparent hover:bg-surface-sunken'
                 )}
               >
                 <span className={cn(
@@ -204,11 +239,11 @@ export function SettingsPage() {
                   Enable Voice Logging
                 </span>
                 <div className={cn(
-                  'w-10 h-6 rounded-full relative transition-colors',
+                  'w-10 h-6 rounded-full relative transition-colors duration-300',
                   voiceData?.voice_logging_enabled ? 'bg-accent' : 'bg-black/[0.12]'
                 )}>
                   <div className={cn(
-                    'absolute w-4 h-4 rounded-full bg-white top-1 transition-transform',
+                    'absolute w-4 h-4 rounded-full bg-white top-1 transition-transform duration-300',
                     voiceData?.voice_logging_enabled ? 'translate-x-5' : 'translate-x-1'
                   )} />
                 </div>
@@ -227,7 +262,7 @@ export function SettingsPage() {
                 <Button
                   variant="secondary"
                   size="sm"
-                  className="gap-1.5"
+                  className="gap-1.5 border-black/[0.06]"
                   onClick={handleDetectHardware}
                   disabled={detectHardware.isPending}
                 >
@@ -243,39 +278,39 @@ export function SettingsPage() {
             <CardContent className="p-6">
               {settings?.hardware_info ? (
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="rounded-xl bg-surface-muted p-4">
-                    <p className="text-xs text-ink-tertiary mb-1">RAM</p>
-                    <p className="text-sm font-medium text-ink">{settings.hardware_info.ram_total_gb.toFixed(1)} GB</p>
+                  <div className="rounded-xl bg-surface-muted p-4 border border-black/[0.02]">
+                    <p className="text-xs text-ink-tertiary mb-1 font-medium uppercase tracking-wider">RAM</p>
+                    <p className="text-sm font-bold text-ink">{settings.hardware_info.ram_total_gb.toFixed(1)} GB</p>
                   </div>
-                  <div className="rounded-xl bg-surface-muted p-4">
-                    <p className="text-xs text-ink-tertiary mb-1">CPU</p>
-                    <p className="text-sm font-medium text-ink">{settings.hardware_info.cpu_cores} cores</p>
-                    <p className="text-xs text-ink-tertiary truncate">{settings.hardware_info.cpu_name || 'Unknown'}</p>
+                  <div className="rounded-xl bg-surface-muted p-4 border border-black/[0.02]">
+                    <p className="text-xs text-ink-tertiary mb-1 font-medium uppercase tracking-wider">CPU</p>
+                    <p className="text-sm font-bold text-ink">{settings.hardware_info.cpu_cores} cores</p>
+                    <p className="text-[10px] text-ink-tertiary truncate font-medium">{settings.hardware_info.cpu_name || 'Unknown'}</p>
                   </div>
-                  <div className="rounded-xl bg-surface-muted p-4">
-                    <p className="text-xs text-ink-tertiary mb-1">Disk Free</p>
-                    <p className="text-sm font-medium text-ink">{settings.hardware_info.disk_free_gb.toFixed(1)} GB</p>
+                  <div className="rounded-xl bg-surface-muted p-4 border border-black/[0.02]">
+                    <p className="text-xs text-ink-tertiary mb-1 font-medium uppercase tracking-wider">Disk Free</p>
+                    <p className="text-sm font-bold text-ink">{settings.hardware_info.disk_free_gb.toFixed(1)} GB</p>
                   </div>
-                  <div className="rounded-xl bg-surface-muted p-4">
-                    <p className="text-xs text-ink-tertiary mb-1">GPU</p>
-                    <p className="text-sm font-medium text-ink">
+                  <div className="rounded-xl bg-surface-muted p-4 border border-black/[0.02]">
+                    <p className="text-xs text-ink-tertiary mb-1 font-medium uppercase tracking-wider">GPU</p>
+                    <p className="text-sm font-bold text-ink">
                       {settings.hardware_info.gpu_name || 'Not detected'}
                     </p>
                     {settings.hardware_info.gpu_vram_gb && (
-                      <p className="text-xs text-ink-tertiary">{settings.hardware_info.gpu_vram_gb} GB VRAM</p>
+                      <p className="text-[10px] text-ink-tertiary font-medium">{settings.hardware_info.gpu_vram_gb} GB VRAM</p>
                     )}
                   </div>
-                  <div className="col-span-2 rounded-xl bg-accent-subtle p-4">
-                    <p className="text-xs text-accent mb-1">Recommended Tier</p>
-                    <p className="text-sm font-semibold text-accent capitalize">
+                  <div className="col-span-2 rounded-xl bg-accent-subtle p-4 border border-accent/10">
+                    <p className="text-xs text-accent mb-1 font-bold uppercase tracking-wider">Recommended Tier</p>
+                    <p className="text-lg font-display font-bold text-accent capitalize">
                       {settings.hardware_info.recommended_tier}
                     </p>
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-8">
-                  <Cpu className="w-10 h-10 text-ink-tertiary mx-auto mb-3" />
-                  <p className="text-sm text-ink-secondary">
+                <div className="text-center py-12 border-2 border-dashed border-black/[0.04] rounded-2xl">
+                  <Cpu className="w-10 h-10 text-ink-tertiary mx-auto mb-3 opacity-50" />
+                  <p className="text-sm text-ink-secondary max-w-[240px] mx-auto">
                     Run hardware detection to see recommended model settings.
                   </p>
                 </div>
@@ -302,30 +337,31 @@ export function SettingsPage() {
                   <div
                     key={tier.tier}
                     className={cn(
-                      'flex items-center justify-between px-4 py-4 rounded-xl border transition-colors',
+                      'flex items-center justify-between px-4 py-4 rounded-xl border transition-all duration-300',
                       isSelected
-                        ? 'border-accent bg-accent-subtle'
-                        : 'border-black/[0.06] hover:border-black/[0.12]'
+                        ? 'border-accent bg-accent-subtle shadow-sm'
+                        : 'border-black/[0.06] hover:border-black/[0.12] hover:bg-black/[0.01]'
                     )}
                   >
                     <div className="flex items-center gap-3">
-                      <TierIcon className={cn('w-5 h-5', isSelected ? 'text-accent' : 'text-ink-secondary')} />
+                      <div className={cn('p-2 rounded-lg', isSelected ? 'bg-accent/10' : 'bg-surface-muted')}>
+                        <TierIcon className={cn('w-5 h-5', isSelected ? 'text-accent' : 'text-ink-secondary')} />
+                      </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <p className={cn('text-sm font-medium', isSelected ? 'text-accent' : 'text-ink')}>
+                          <p className={cn('text-sm font-bold', isSelected ? 'text-accent' : 'text-ink')}>
                             {desc?.label || tier.tier}
                           </p>
                           {isRecommended && (
-                            <Badge variant="default" className="text-[10px]">Recommended</Badge>
+                            <Badge variant="accent" className="text-[9px] uppercase tracking-wider font-bold">Recommended</Badge>
                           )}
                         </div>
-                        <p className="text-xs text-ink-tertiary">{desc?.desc || tier.description}</p>
-                        <p className="text-xs text-ink-tertiary mt-0.5">{tier.description}</p>
+                        <p className="text-xs text-ink-secondary mt-0.5">{desc?.desc || tier.description}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       {tier.downloaded ? (
-                        <Badge variant="verified" className="gap-1">
+                        <Badge variant="verified" className="gap-1 font-bold">
                           <Check className="w-3 h-3" />
                           Ready
                         </Badge>
@@ -333,24 +369,25 @@ export function SettingsPage() {
                         <Button
                           variant="secondary"
                           size="sm"
-                          className="gap-1.5"
+                          className="gap-1.5 h-8 border-black/[0.06] text-xs font-bold"
                           onClick={() => handleStartDownload(tier.tier)}
                           disabled={isDownloading}
                         >
                           {isDownloading ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <Loader2 className="w-3 h-3 animate-spin" />
                           ) : (
-                            <Download className="w-3.5 h-3.5" />
+                            <Download className="w-3 h-3" />
                           )}
                           Download
                         </Button>
                       ) : (
-                        <Badge variant="default">Incompatible</Badge>
+                        <Badge variant="default" className="opacity-50">Incompatible</Badge>
                       )}
                       {!isSelected && (tier.downloaded || tier.can_run) && (
                         <Button
                           variant={isSelected ? 'primary' : 'ghost'}
                           size="sm"
+                          className="h-8 text-xs font-bold"
                           onClick={() => handleSetTier(tier.tier)}
                           disabled={setTier.isPending}
                         >
@@ -361,7 +398,7 @@ export function SettingsPage() {
                   </div>
                 );
               }) ?? (
-                <div className="text-center py-8">
+                <div className="text-center py-12 border-2 border-dashed border-black/[0.04] rounded-2xl">
                   <p className="text-sm text-ink-secondary">
                     Run hardware detection first to see available tiers.
                   </p>
@@ -369,50 +406,77 @@ export function SettingsPage() {
               )}
 
               {/* Download Progress */}
-              {downloadProgress && Object.entries(downloadProgress).map(([tier, progress]) => {
-                if (progress.status !== 'downloading') return null;
-                return (
-                  <div key={tier} className="rounded-xl bg-surface-muted p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-medium text-ink capitalize">Downloading {tier}...</p>
-                      <p className="text-xs text-ink-secondary">{Math.round(progress.progress)}%</p>
-                    </div>
-                    <div className="w-full bg-black/[0.06] rounded-full h-2">
-                      <div
-                        className="bg-accent rounded-full h-2 transition-all duration-300"
-                        style={{ width: `${Math.round(progress.progress)}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+              <AnimatePresence>
+                {downloadProgress && Object.entries(downloadProgress).map(([progressTier, progress]) => {
+                  if (progress.status !== 'downloading' && progress.status !== 'pending') return null;
+                  const pct = progress.progress <= 1 && progress.progress > 0
+                    ? Math.round(progress.progress * 100)
+                    : Math.round(progress.progress);
+                  const isIndeterminate = pct === 0;
+                  const label = progress.status === 'pending' ? 'Preparing…' : `${pct}%`;
+                  return (
+                    <motion.div
+                      key={progressTier}
+                      initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                      animate={{ opacity: 1, height: 'auto', marginTop: 12 }}
+                      exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                      className="rounded-xl bg-surface-muted p-4 border border-black/[0.04] overflow-hidden"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm font-bold text-ink capitalize flex items-center gap-2">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-accent" />
+                          Downloading {progressTier}…
+                        </p>
+                        <p className="text-xs font-bold text-accent">{label}</p>
+                      </div>
+                      <div className="w-full bg-black/[0.06] rounded-full h-2 overflow-hidden">
+                        {isIndeterminate ? (
+                          <div className="h-2 w-1/3 bg-accent rounded-full animate-shimmer" />
+                        ) : (
+                          <motion.div
+                            className="bg-accent rounded-full h-2"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${pct}%` }}
+                            transition={{ duration: 0.5 }}
+                          />
+                        )}
+                      </div>
+                      {progress.total_bytes > 0 && (
+                        <p className="text-[10px] text-ink-tertiary mt-2 font-medium">
+                          {(progress.downloaded_bytes / 1_073_741_824).toFixed(2)} GB / {(progress.total_bytes / 1_073_741_824).toFixed(2)} GB
+                        </p>
+                      )}
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
             </CardContent>
           </Card>
-        </div>
+        </StaggerItem>
 
         {/* Sidebar */}
-        <div className="space-y-4">
+        <StaggerItem className="space-y-4">
           {/* Current Status */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Current Status</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted">
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted border border-black/[0.02]">
                 <span className="text-sm text-ink-secondary">Active Tier</span>
-                <Badge variant="verified" className="capitalize">
+                <Badge variant="verified" className="capitalize font-bold">
                   {settings?.current_tier || 'none'}
                 </Badge>
               </div>
-              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted">
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted border border-black/[0.02]">
                 <span className="text-sm text-ink-secondary">Preferred</span>
-                <span className="text-sm font-medium text-ink capitalize">
+                <span className="text-sm font-bold text-ink capitalize">
                   {settings?.preferred_tier || 'auto'}
                 </span>
               </div>
-              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted">
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted border border-black/[0.02]">
                 <span className="text-sm text-ink-secondary">External API</span>
-                <Badge variant={externalEnabled ? 'verified' : 'default'}>
+                <Badge variant={externalEnabled ? 'verified' : 'default'} className="font-bold">
                   {externalEnabled ? 'Enabled' : 'Off'}
                 </Badge>
               </div>
@@ -423,12 +487,12 @@ export function SettingsPage() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
-                <Shield className="w-4 h-4" />
+                <Shield className="w-4 h-4 text-ink-secondary" />
                 External API
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <p className="text-xs text-ink-tertiary">
+              <p className="text-xs text-ink-tertiary leading-relaxed">
                 Optionally use an external AI provider for higher quality responses.
                 Your data will be sent to the provider's servers.
               </p>
@@ -436,11 +500,11 @@ export function SettingsPage() {
               <button
                 onClick={handleExternalApiToggle}
                 className={cn(
-                  'w-full flex items-center justify-between px-3 py-3 rounded-xl',
-                  'transition-colors duration-200',
+                  'w-full flex items-center justify-between px-4 py-3 rounded-xl',
+                  'transition-all duration-300 ease-in-out',
                   externalEnabled
-                    ? 'bg-accent-subtle'
-                    : 'bg-surface-muted hover:bg-surface-sunken'
+                    ? 'bg-accent-subtle border border-accent/20'
+                    : 'bg-surface-muted border border-transparent hover:bg-surface-sunken'
                 )}
               >
                 <span className={cn(
@@ -450,115 +514,157 @@ export function SettingsPage() {
                   Use External API
                 </span>
                 <div className={cn(
-                  'w-10 h-6 rounded-full relative transition-colors',
+                  'w-10 h-6 rounded-full relative transition-colors duration-300',
                   externalEnabled ? 'bg-accent' : 'bg-black/[0.12]'
                 )}>
                   <div className={cn(
-                    'absolute w-4 h-4 rounded-full bg-white top-1 transition-transform',
+                    'absolute w-4 h-4 rounded-full bg-white top-1 transition-transform duration-300',
                     externalEnabled ? 'translate-x-5' : 'translate-x-1'
                   )} />
                 </div>
               </button>
 
-              {externalEnabled && (
-                <div className="space-y-2 pt-2">
-                  <div>
-                    <label className="text-xs text-ink-secondary block mb-1">Provider</label>
-                    <select
-                      value={externalProvider}
-                      onChange={(e) => setExternalProvider(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-surface-muted text-sm text-ink border border-black/[0.06] focus:outline-none focus:ring-2 focus:ring-accent"
-                    >
-                      <option value="">Select provider</option>
-                      <option value="openai">OpenAI</option>
-                      <option value="anthropic">Anthropic</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-ink-secondary block mb-1">API Key</label>
-                    <input
-                      type="password"
-                      value={externalKey}
-                      onChange={(e) => setExternalKey(e.target.value)}
-                      placeholder="sk-..."
-                      className="w-full px-3 py-2 rounded-xl bg-surface-muted text-sm text-ink border border-black/[0.06] focus:outline-none focus:ring-2 focus:ring-accent"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-ink-secondary block mb-1">Model</label>
-                    <input
-                      type="text"
-                      value={externalModel}
-                      onChange={(e) => setExternalModel(e.target.value)}
-                      placeholder="e.g. gpt-4o, claude-sonnet-4-5-20250929"
-                      className="w-full px-3 py-2 rounded-xl bg-surface-muted text-sm text-ink border border-black/[0.06] focus:outline-none focus:ring-2 focus:ring-accent"
-                    />
-                  </div>
-                </div>
-              )}
+              <AnimatePresence>
+                {externalEnabled && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="space-y-3 pt-2 overflow-hidden"
+                  >
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-ink-tertiary block mb-1.5 ml-1">Provider</label>
+                      <select
+                        value={externalProvider}
+                        onChange={(e) => setExternalProvider(e.target.value)}
+                        className="w-full px-3 py-2.5 h-11 rounded-xl bg-surface-elevated text-sm text-ink border border-black/[0.08] focus:outline-none focus:ring-2 focus:ring-accent transition-all"
+                      >
+                        <option value="">Select provider</option>
+                        <option value="openai">OpenAI</option>
+                        <option value="anthropic">Anthropic</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-ink-tertiary block mb-1.5 ml-1">API Key</label>
+                      <input
+                        type="password"
+                        value={externalKey}
+                        onChange={(e) => setExternalKey(e.target.value)}
+                        placeholder="sk-..."
+                        className="w-full px-3 py-2.5 h-11 rounded-xl bg-surface-elevated text-sm text-ink border border-black/[0.08] focus:outline-none focus:ring-2 focus:ring-accent transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-ink-tertiary block mb-1.5 ml-1">Model</label>
+                      <input
+                        type="text"
+                        value={externalModel}
+                        onChange={(e) => setExternalModel(e.target.value)}
+                        placeholder="e.g. gpt-4o, claude-sonnet"
+                        className="w-full px-3 py-2.5 h-11 rounded-xl bg-surface-elevated text-sm text-ink border border-black/[0.08] focus:outline-none focus:ring-2 focus:ring-accent transition-all"
+                      />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </CardContent>
           </Card>
 
-          <div className="text-xs text-ink-tertiary text-center px-4">
+          <div className="text-[10px] text-ink-tertiary text-center px-4 leading-relaxed font-medium">
             All model inference runs locally by default. No data leaves your device unless
             you explicitly enable an external API.
           </div>
-        </div>
-      </div>
+        </StaggerItem>
+      </StaggerGroup>
 
       {/* Assistant Memory */}
       <MemoryManager />
 
       {/* Consent Dialog */}
-      {showConsentDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-status-attention/10 flex items-center justify-center">
-                <Shield className="w-5 h-5 text-status-attention" />
-              </div>
-              <h2 className="text-lg font-display font-semibold text-ink">
-                Privacy Notice
-              </h2>
-            </div>
-            <p className="text-sm text-ink-secondary mb-2">
-              Enabling an external API means your health data will be sent to a
-              third-party server for processing. This includes:
-            </p>
-            <ul className="text-sm text-ink-secondary space-y-1 mb-4 list-disc pl-5">
-              <li>Lab results and observations referenced in your questions</li>
-              <li>Your conversation messages and context</li>
-              <li>Analyte names and values for interpretation</li>
-            </ul>
-            <p className="text-sm text-ink-secondary mb-6">
-              Your data will be processed according to the provider's privacy policy.
-              You can disable this at any time to return to local-only processing.
-            </p>
-            <div className="flex items-center gap-3 justify-end">
-              <Button
-                variant="secondary"
-                onClick={() => setShowConsentDialog(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={() => {
-                  setShowConsentDialog(false);
-                  saveExternalApi.mutate({
-                    use_external_api: true,
-                    provider: externalProvider,
-                    api_key: externalKey,
-                    model: externalModel,
-                    consent_acknowledged: true,
-                  });
-                }}
-              >
-                I Understand, Enable
-              </Button>
-            </div>
+      <AnimatePresence>
+        {showConsentDialog && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              variants={backdropVariants}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setShowConsentDialog(false)}
+              aria-hidden
+            />
+            <motion.div
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              variants={prefersReducedMotion ? backdropVariants : modalVariants}
+              className="relative z-10 w-full max-w-md"
+            >
+              <Card className="shadow-elevated border-black/[0.08] overflow-hidden">
+                <div className="p-6">
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="w-12 h-12 rounded-2xl bg-status-critical-subtle flex items-center justify-center border border-status-critical/10">
+                      <Shield className="w-6 h-6 text-status-critical" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-display font-bold text-ink">
+                        Privacy Notice
+                      </h2>
+                      <p className="text-xs text-ink-tertiary font-medium">External API Processing</p>
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <p className="text-sm text-ink-secondary leading-relaxed">
+                      Enabling an external API means your health data will be sent to a
+                      third-party server for processing. This includes:
+                    </p>
+                    <ul className="text-sm text-ink-secondary space-y-2 list-none">
+                      {[
+                        'Lab results and observations referenced in your questions',
+                        'Your conversation messages and context',
+                        'Analyte names and values for interpretation'
+                      ].map((item, i) => (
+                        <li key={i} className="flex items-start gap-2">
+                          <div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-accent shrink-0" />
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="text-sm text-ink-secondary leading-relaxed pt-2">
+                      Your data will be processed according to the provider's privacy policy.
+                      You can disable this at any time to return to local-only processing.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 justify-end mt-8">
+                    <Button
+                      variant="ghost"
+                      onClick={() => setShowConsentDialog(false)}
+                      className="font-bold"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setShowConsentDialog(false);
+                        saveExternalApi.mutate({
+                          use_external_api: true,
+                          provider: externalProvider,
+                          api_key: externalKey,
+                          model: externalModel,
+                          consent_acknowledged: true,
+                        });
+                      }}
+                      className="font-bold"
+                    >
+                      I Understand, Enable
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
     </div>
   );
 }

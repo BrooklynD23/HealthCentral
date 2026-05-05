@@ -10,6 +10,8 @@ Phase 0.3: Tiered Hardware Model System
 import asyncio
 import json
 import logging
+import threading
+import time
 from datetime import datetime
 from typing import Optional
 
@@ -38,6 +40,69 @@ from modules.model_selector import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# ---------------------------------------------------------------------------
+# Thread-safe live download progress store
+# Keyed by "{profile_id}:{tier}" → {"downloaded_bytes", "total_bytes",
+#   "progress" (0–100), "last_updated" (monotonic)}
+# Written by _ProgressTqdm running in a thread pool; read by the GET handler.
+# Cleared when a download reaches a terminal state.
+# ---------------------------------------------------------------------------
+_live_progress: dict[str, dict] = {}
+_live_progress_lock = threading.Lock()
+
+_PROGRESS_THROTTLE_SECS = 1.0  # min seconds between in-memory updates
+
+
+def _make_progress_key(profile_id: str, tier: str) -> str:
+    return f"{profile_id}:{tier}"
+
+
+def _set_live_progress(key: str, downloaded: int, total: int) -> None:
+    now = time.monotonic()
+    with _live_progress_lock:
+        existing = _live_progress.get(key)
+        if existing and (now - existing.get("last_updated", 0)) < _PROGRESS_THROTTLE_SECS:
+            return
+        pct = (downloaded / total * 100.0) if total else 0.0
+        _live_progress[key] = {
+            "downloaded_bytes": downloaded,
+            "total_bytes": total,
+            "progress": pct,
+            "last_updated": now,
+        }
+
+
+def _clear_live_progress(key: str) -> None:
+    with _live_progress_lock:
+        _live_progress.pop(key, None)
+
+
+def _get_live_progress(key: str) -> Optional[dict]:
+    with _live_progress_lock:
+        return dict(_live_progress[key]) if key in _live_progress else None
+
+
+def _make_progress_tqdm(profile_id: str, tier: str):
+    """Return a tqdm subclass that funnels chunk updates into _live_progress."""
+    from tqdm.auto import tqdm as _base_tqdm
+
+    key = _make_progress_key(profile_id, tier)
+
+    class _ProgressTqdm(_base_tqdm):
+        def __init__(self, *args, **kwargs):
+            # Force enable so updates fire even in non-TTY server contexts
+            kwargs["disable"] = False
+            # Strip huggingface-specific kwarg that base tqdm doesn't know
+            kwargs.pop("name", None)
+            super().__init__(*args, **kwargs)
+
+        def update(self, n=1):
+            super().update(n)
+            if self.total:
+                _set_live_progress(key, int(self.n), int(self.total))
+
+    return _ProgressTqdm
 
 
 # =============================================================================
@@ -408,7 +473,7 @@ async def get_download_progress(
     session: RequireAuth,
     profile_db: ProfileDbSession,
 ):
-    """Get download progress for all tiers from database."""
+    """Get download progress for all tiers from database, merged with live in-memory data."""
     selector = get_model_selector()
 
     progress = await selector.get_download_progress(
@@ -416,15 +481,26 @@ async def get_download_progress(
         db=profile_db,
     )
 
-    # Convert to response format
+    # Convert to response format, overlaying live byte counts for active downloads
     response = {}
     for tier, prog in progress.items():
+        downloaded_bytes = prog.downloaded_bytes
+        total_bytes = prog.total_bytes
+        pct = prog.progress
+
+        if prog.status in ("pending", "downloading"):
+            live = _get_live_progress(_make_progress_key(session.profile_id, tier))
+            if live:
+                downloaded_bytes = live["downloaded_bytes"]
+                total_bytes = live["total_bytes"]
+                pct = live["progress"]
+
         response[tier] = DownloadProgressResponse(
             tier=prog.tier,
             status=prog.status,
-            progress=prog.progress,
-            downloaded_bytes=prog.downloaded_bytes,
-            total_bytes=prog.total_bytes,
+            progress=pct,
+            downloaded_bytes=downloaded_bytes,
+            total_bytes=total_bytes,
             path=prog.path,
             error=prog.error,
         )
@@ -611,18 +687,24 @@ async def _download_model_task(
     """
     Background task to download a model.
 
+    Runs the blocking hf_hub_download call in a thread pool so the asyncio
+    event loop (and therefore progress-polling requests) stays responsive.
     Writes terminal status (completed/failed) to the profile database.
     """
+    progress_key = _make_progress_key(profile_id, tier)
     try:
         from huggingface_hub import hf_hub_download, list_repo_files
 
         config = TIER_MODEL_CONFIG[tier]
         repo = config["repo"]
 
-        # Discover GGUF file if not specified
+        # Advance status to "downloading" so the UI shows the progress bar
+        await _write_download_status(profile_id, tier, selector, "downloading", 0.0)
+
+        # Discover GGUF file if not specified (also blocking — run in thread)
         filename = config.get("filename")
         if not filename:
-            files = list_repo_files(repo)
+            files = await asyncio.to_thread(list_repo_files, repo)
             gguf_files = [f for f in files if f.endswith(".gguf")]
             if not gguf_files:
                 raise ValueError(f"No GGUF files found in {repo}")
@@ -631,24 +713,30 @@ async def _download_model_task(
             matching = [f for f in gguf_files if pattern in f.lower()]
             filename = matching[0] if matching else gguf_files[0]
 
-        # Download (this blocks but we're in a background task)
-        # Use revision pinning for reproducible builds
+        # Build a tqdm class that pushes byte progress into _live_progress
+        ProgressTqdm = _make_progress_tqdm(profile_id, tier)
+
         revision = config.get("revision", "main")
-        local_path = hf_hub_download(
+
+        # Run the blocking download without stalling the event loop
+        local_path = await asyncio.to_thread(
+            hf_hub_download,
             repo_id=repo,
             filename=filename,
             revision=revision,
             local_dir=str(selector.models_path),
             local_dir_use_symlinks=False,
+            tqdm_class=ProgressTqdm,
         )
 
         logger.info(f"Download completed for tier '{tier}': {local_path}")
 
-        # Write completed status to DB
+        _clear_live_progress(progress_key)
         await _write_download_status(profile_id, tier, selector, "completed", 100.0)
 
     except Exception as e:
         logger.error(f"Download failed for tier '{tier}': {e}")
+        _clear_live_progress(progress_key)
         await _write_download_status(profile_id, tier, selector, "failed", 0.0, str(e))
 
 

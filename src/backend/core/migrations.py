@@ -231,7 +231,11 @@ def run_profile_migration(
 
         creator = _creator
 
-    engine = create_engine(url, creator=creator)
+    # Never pass creator=None; SQLAlchemy treats it as a callable factory.
+    if creator is not None:
+        engine = create_engine(url, creator=creator)
+    else:
+        engine = create_engine(url)
 
     # Set PRAGMA key on connection
     @event.listens_for(engine, "connect")
@@ -358,7 +362,11 @@ def get_profile_current_revision(
 
         creator = _creator
 
-    engine = create_engine(url, creator=creator)
+    # Never pass creator=None; SQLAlchemy treats it as a callable factory.
+    if creator is not None:
+        engine = create_engine(url, creator=creator)
+    else:
+        engine = create_engine(url)
 
     @event.listens_for(engine, "connect")
     def set_cipher_key(dbapi_connection, connection_record):

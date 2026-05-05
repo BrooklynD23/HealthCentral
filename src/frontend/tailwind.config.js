@@ -39,6 +39,8 @@ export default {
           'verified-subtle': '#F0F7F2',
           info: '#6B8CAE',
           'info-subtle': '#F0F4F8',
+          critical: '#C9857A',
+          'critical-subtle': '#FDF2F0',
         },
         // Dark mode colors
         dark: {
@@ -86,6 +88,7 @@ export default {
         'slide-down': 'slideDown 0.3s ease-out',
         'scale-in': 'scaleIn 0.2s ease-out',
         'pulse-soft': 'pulseSoft 2s ease-in-out infinite',
+        'shimmer': 'shimmer 1.4s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: {
@@ -107,6 +110,10 @@ export default {
         pulseSoft: {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '0.7' },
+        },
+        shimmer: {
+          '0%': { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(400%)' },
         },
       },
       transitionDuration: {

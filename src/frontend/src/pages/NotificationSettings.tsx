@@ -10,7 +10,7 @@ import {
   Activity,
   ArrowLeft,
 } from 'lucide-react';
-import { Button, Card, CardContent, CardHeader, CardTitle, Badge, Input } from '@/components/ui';
+import { Button, Card, CardContent, CardHeader, CardTitle, Badge, Input, Skeleton, StaggerGroup, StaggerItem, EmptyState } from '@/components/ui';
 import { useMedications } from '@/services/medications';
 import {
   useNotificationSettings,
@@ -173,8 +173,15 @@ export function NotificationSettings() {
 
   if (medicationsLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-4 w-64" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Skeleton className="lg:col-span-2 h-[600px] rounded-2xl" />
+          <Skeleton className="h-[400px] rounded-2xl" />
+        </div>
       </div>
     );
   }
@@ -194,7 +201,7 @@ export function NotificationSettings() {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/medications')}>
+          <Button variant="ghost" size="icon" onClick={() => navigate('/medications')} className="h-10 w-10 rounded-xl">
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div>
@@ -207,18 +214,16 @@ export function NotificationSettings() {
           </div>
         </div>
 
-        <Card>
-          <CardContent className="py-14 text-center">
-            <Bell className="w-10 h-10 text-ink-tertiary mx-auto mb-3" />
-            <p className="text-lg font-medium text-ink mb-1">No medications to configure</p>
-            <p className="text-ink-secondary mb-4">
-              Add a medication first, then return here to tune reminder behavior.
-            </p>
-            <Button onClick={() => navigate('/medications')}>
+        <EmptyState
+          icon={Bell}
+          title="No medications to configure"
+          description="Add a medication first, then return here to tune reminder behavior."
+          action={
+            <Button onClick={() => navigate('/medications')} className="gap-2">
               Go to Medication Coach
             </Button>
-          </CardContent>
-        </Card>
+          }
+        />
       </div>
     );
   }
@@ -263,8 +268,8 @@ export function NotificationSettings() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
+      <StaggerGroup className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <StaggerItem className="lg:col-span-2 space-y-6">
           <Card>
             <CardHeader className="border-b border-black/[0.04]">
               <CardTitle className="flex items-center gap-2">
@@ -276,7 +281,7 @@ export function NotificationSettings() {
               <label className="block text-sm font-medium text-ink">
                 Medication
                 <select
-                  className="mt-1.5 h-11 w-full rounded-xl border border-black/[0.08] bg-white px-3 text-sm text-ink"
+                  className="mt-1.5 h-11 w-full rounded-xl border border-black/[0.08] bg-white px-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-all"
                   value={selectedMedicationId}
                   onChange={(e) => handleMedicationChange(e.target.value)}
                 >
@@ -289,17 +294,25 @@ export function NotificationSettings() {
               </label>
 
               {settingsQuery.isLoading ? (
-                <div className="flex items-center justify-center py-10">
-                  <Loader2 className="w-6 h-6 animate-spin text-accent" />
+                <div className="space-y-4 py-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <Skeleton className="h-12" />
+                    <Skeleton className="h-12" />
+                    <Skeleton className="h-12" />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <Skeleton className="h-20" />
+                    <Skeleton className="h-20" />
+                  </div>
                 </div>
               ) : settingsQuery.isError ? (
-                <div className="rounded-xl bg-status-attention-subtle text-status-attention p-3 text-sm">
+                <div className="rounded-xl bg-status-critical-subtle text-status-critical p-4 text-sm border border-status-critical/10">
                   Failed to load notification settings for this medication.
                 </div>
               ) : (
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <label className="flex items-center justify-between rounded-xl border border-black/[0.08] p-3">
+                    <label className="flex items-center justify-between rounded-xl border border-black/[0.08] p-3 hover:bg-surface-muted transition-colors cursor-pointer group">
                       <span className="text-sm text-ink">Reminders enabled</span>
                       <input
                         type="checkbox"
@@ -308,11 +321,11 @@ export function NotificationSettings() {
                           ...prev,
                           enabled: e.target.checked,
                         }))}
-                        className="h-4 w-4 accent-accent"
+                        className="h-4 w-4 accent-accent rounded"
                       />
                     </label>
 
-                    <label className="flex items-center justify-between rounded-xl border border-black/[0.08] p-3">
+                    <label className="flex items-center justify-between rounded-xl border border-black/[0.08] p-3 hover:bg-surface-muted transition-colors cursor-pointer group">
                       <span className="text-sm text-ink">Weekend reminders</span>
                       <input
                         type="checkbox"
@@ -321,11 +334,11 @@ export function NotificationSettings() {
                           ...prev,
                           weekendEnabled: e.target.checked,
                         }))}
-                        className="h-4 w-4 accent-accent"
+                        className="h-4 w-4 accent-accent rounded"
                       />
                     </label>
 
-                    <label className="flex items-center justify-between rounded-xl border border-black/[0.08] p-3">
+                    <label className="flex items-center justify-between rounded-xl border border-black/[0.08] p-3 hover:bg-surface-muted transition-colors cursor-pointer group">
                       <span className="text-sm text-ink">Celebration messages</span>
                       <input
                         type="checkbox"
@@ -334,7 +347,7 @@ export function NotificationSettings() {
                           ...prev,
                           celebrationEnabled: e.target.checked,
                         }))}
-                        className="h-4 w-4 accent-accent"
+                        className="h-4 w-4 accent-accent rounded"
                       />
                     </label>
                   </div>
@@ -404,7 +417,7 @@ export function NotificationSettings() {
                     />
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 pt-2">
                     <Button
                       onClick={handleSaveSettings}
                       disabled={updateSettings.isPending}
@@ -421,7 +434,7 @@ export function NotificationSettings() {
                       variant="secondary"
                       disabled={!selectedMedicationId || sendMedicationTest.isPending}
                       onClick={() => selectedMedicationId && sendMedicationTest.mutate(selectedMedicationId)}
-                      className="gap-2"
+                      className="gap-2 border-black/[0.06]"
                     >
                       {sendMedicationTest.isPending ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -433,23 +446,8 @@ export function NotificationSettings() {
                   </div>
 
                   {updateSettings.isSuccess && (
-                    <p className="text-sm text-status-verified">
+                    <p className="text-sm text-status-verified font-medium animate-fade-in">
                       Notification settings saved for {selectedMedicationName}.
-                    </p>
-                  )}
-                  {updateSettings.isError && (
-                    <p className="text-sm text-status-attention">
-                      Unable to save notification settings. Please try again.
-                    </p>
-                  )}
-                  {sendMedicationTest.isSuccess && (
-                    <p className="text-sm text-status-info">
-                      {sendMedicationTest.data.message}
-                    </p>
-                  )}
-                  {sendGenericTest.isSuccess && (
-                    <p className="text-sm text-status-info">
-                      {sendGenericTest.data.message}
                     </p>
                   )}
                 </>
@@ -481,46 +479,50 @@ export function NotificationSettings() {
               </div>
 
               {historyQuery.isLoading ? (
-                <div className="flex items-center justify-center py-10">
-                  <Loader2 className="w-6 h-6 animate-spin text-accent" />
+                <div className="space-y-3 py-4">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
                 </div>
               ) : historyQuery.isError ? (
-                <p className="text-sm text-status-attention">
+                <p className="text-sm text-status-critical">
                   Unable to load notification history.
                 </p>
               ) : !historyQuery.data || historyQuery.data.reminders.length === 0 ? (
-                <p className="text-sm text-ink-secondary py-6 text-center">
-                  No reminder history for the selected filters.
-                </p>
+                <div className="py-10 text-center border-2 border-dashed border-black/[0.04] rounded-2xl">
+                  <p className="text-sm text-ink-secondary">
+                    No reminder history for the selected filters.
+                  </p>
+                </div>
               ) : (
                 <>
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto rounded-xl border border-black/[0.04]">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="text-left text-ink-tertiary border-b border-black/[0.06]">
-                          <th className="py-2 pr-3 font-medium">Sent</th>
-                          <th className="py-2 pr-3 font-medium">Medication</th>
-                          <th className="py-2 pr-3 font-medium">Type</th>
-                          <th className="py-2 pr-3 font-medium">Delivery</th>
-                          <th className="py-2 font-medium">Status</th>
+                        <tr className="text-left text-ink-tertiary bg-surface-muted">
+                          <th className="py-3 px-4 font-medium">Sent</th>
+                          <th className="py-3 px-4 font-medium">Medication</th>
+                          <th className="py-3 px-4 font-medium">Type</th>
+                          <th className="py-3 px-4 font-medium">Delivery</th>
+                          <th className="py-3 px-4 font-medium">Status</th>
                         </tr>
                       </thead>
-                      <tbody>
+                      <tbody className="divide-y divide-black/[0.04]">
                         {historyQuery.data.reminders.map((reminder) => (
-                          <tr key={reminder.id} className="border-b border-black/[0.04]">
-                            <td className="py-2 pr-3 text-ink-secondary">
+                          <tr key={reminder.id} className="hover:bg-black/[0.01] transition-colors">
+                            <td className="py-3 px-4 text-ink-secondary whitespace-nowrap">
                               {new Date(reminder.sent_at).toLocaleString()}
                             </td>
-                            <td className="py-2 pr-3 text-ink">{reminder.medication_name}</td>
-                            <td className="py-2 pr-3 text-ink-secondary">{reminder.reminder_type}</td>
-                            <td className="py-2 pr-3 text-ink-secondary">{reminder.delivery_method}</td>
-                            <td className="py-2">
+                            <td className="py-3 px-4 text-ink font-medium">{reminder.medication_name}</td>
+                            <td className="py-3 px-4 text-ink-secondary capitalize">{reminder.reminder_type}</td>
+                            <td className="py-3 px-4 text-ink-secondary capitalize">{reminder.delivery_method}</td>
+                            <td className="py-3 px-4">
                               {reminder.was_interacted ? (
-                                <Badge variant="verified">
+                                <Badge variant="verified" className="capitalize">
                                   {reminder.interaction_type ?? 'interacted'}
                                 </Badge>
                               ) : (
-                                <Badge variant="default">sent</Badge>
+                                <Badge variant="default" className="capitalize">sent</Badge>
                               )}
                             </td>
                           </tr>
@@ -529,8 +531,8 @@ export function NotificationSettings() {
                     </table>
                   </div>
 
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-ink-tertiary">
+                  <div className="flex items-center justify-between pt-2">
+                    <p className="text-xs text-ink-tertiary font-medium">
                       Page {page} of {totalPages}
                     </p>
                     <div className="flex items-center gap-2">
@@ -539,6 +541,7 @@ export function NotificationSettings() {
                         size="sm"
                         disabled={page <= 1}
                         onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                        className="h-8 rounded-lg"
                       >
                         Previous
                       </Button>
@@ -547,6 +550,7 @@ export function NotificationSettings() {
                         size="sm"
                         disabled={page >= totalPages}
                         onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                        className="h-8 rounded-lg"
                       >
                         Next
                       </Button>
@@ -556,31 +560,31 @@ export function NotificationSettings() {
               )}
             </CardContent>
           </Card>
-        </div>
+        </StaggerItem>
 
-        <div className="space-y-4">
+        <StaggerItem className="space-y-4">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
-                <Clock3 className="w-4 h-4" />
+                <Clock3 className="w-4 h-4 text-ink-secondary" />
                 Scheduler Status
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {schedulerQuery.isLoading ? (
-                <div className="flex items-center gap-2 text-sm text-ink-secondary">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Loading scheduler state...
+                <div className="space-y-2">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
                 </div>
               ) : schedulerQuery.isError || !schedulerQuery.data ? (
-                <p className="text-sm text-status-attention">
+                <p className="text-sm text-status-critical">
                   Could not load scheduler status.
                 </p>
               ) : (
                 <>
                   <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted">
                     <span className="text-sm text-ink-secondary">State</span>
-                    <Badge variant={schedulerBadgeVariant(schedulerQuery.data.state)}>
+                    <Badge variant={schedulerBadgeVariant(schedulerQuery.data.state)} className="capitalize">
                       {schedulerQuery.data.state}
                     </Badge>
                   </div>
@@ -605,7 +609,7 @@ export function NotificationSettings() {
 
                   {schedulerQuery.data.state === 'stopped'
                     && schedulerQuery.data.registered_profiles === 0 && (
-                    <div className="rounded-xl bg-status-info-subtle text-status-info p-3 text-sm">
+                    <div className="rounded-xl bg-status-info-subtle text-status-info p-3 text-sm border border-status-info/10">
                       Scheduler is not initialized for this session yet.
                     </div>
                   )}
@@ -639,8 +643,8 @@ export function NotificationSettings() {
               </div>
             </CardContent>
           </Card>
-        </div>
-      </div>
+        </StaggerItem>
+      </StaggerGroup>
     </div>
   );
 }

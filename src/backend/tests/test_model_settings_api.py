@@ -23,6 +23,10 @@ from api.model_settings import (
     TimezoneUpdate,
     VoiceSettingsUpdate,
     _download_model_task,
+    _clear_live_progress,
+    _get_live_progress,
+    _make_progress_key,
+    _set_live_progress,
     get_external_api_settings,
     save_external_api_settings,
     set_timezone,
@@ -114,6 +118,7 @@ async def test_put_external_api_persists():
 
 
 def test_download_task_writes_terminal_status(monkeypatch):
+    """Task writes 'downloading' at start then 'completed' on success."""
     profile_id = str(uuid.uuid4())
     selector = MagicMock()
     selector.models_path = "/tmp/models"
@@ -135,10 +140,15 @@ def test_download_task_writes_terminal_status(monkeypatch):
     with patch("api.model_settings._write_download_status", new_callable=AsyncMock) as mock_write:
         asyncio.run(_download_model_task("low", profile_id, selector))
 
-        mock_write.assert_called_once_with(profile_id, "low", selector, "completed", 100.0)
+        assert mock_write.call_count == 2
+        first_call = mock_write.call_args_list[0]
+        assert first_call.args == (profile_id, "low", selector, "downloading", 0.0)
+        second_call = mock_write.call_args_list[1]
+        assert second_call.args == (profile_id, "low", selector, "completed", 100.0)
 
 
 def test_download_task_writes_failure_status(monkeypatch):
+    """Task writes 'downloading' at start then 'failed' with error message on exception."""
     profile_id = str(uuid.uuid4())
     selector = MagicMock()
     selector.models_path = "/tmp/models"
@@ -159,9 +169,69 @@ def test_download_task_writes_failure_status(monkeypatch):
     with patch("api.model_settings._write_download_status", new_callable=AsyncMock) as mock_write:
         asyncio.run(_download_model_task("low", profile_id, selector))
 
-        mock_write.assert_called_once_with(
-            profile_id, "low", selector, "failed", 0.0, "Download failed"
-        )
+        assert mock_write.call_count == 2
+        first_call = mock_write.call_args_list[0]
+        assert first_call.args == (profile_id, "low", selector, "downloading", 0.0)
+        second_call = mock_write.call_args_list[1]
+        assert second_call.args == (profile_id, "low", selector, "failed", 0.0, "Download failed")
+
+
+def test_download_task_uses_to_thread(monkeypatch):
+    """hf_hub_download must run in a thread pool to keep the event loop unblocked."""
+    profile_id = str(uuid.uuid4())
+    selector = MagicMock()
+    selector.models_path = "/tmp/models"
+
+    monkeypatch.setattr(
+        "api.model_settings.TIER_MODEL_CONFIG",
+        {"low": {"repo": "test/repo", "filename": "model.gguf", "revision": "main"}},
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "huggingface_hub",
+        types.SimpleNamespace(
+            hf_hub_download=MagicMock(return_value="/tmp/models/model.gguf"),
+            list_repo_files=MagicMock(return_value=["model.gguf"]),
+        ),
+    )
+
+    to_thread_calls: list = []
+
+    original_to_thread = asyncio.to_thread
+
+    async def tracking_to_thread(func, *args, **kwargs):
+        to_thread_calls.append(func)
+        return await original_to_thread(func, *args, **kwargs)
+
+    with patch("api.model_settings._write_download_status", new_callable=AsyncMock):
+        with patch("asyncio.to_thread", side_effect=tracking_to_thread):
+            asyncio.run(_download_model_task("low", profile_id, selector))
+
+    # The task must offload at least the download itself to a thread pool worker
+    assert len(to_thread_calls) >= 1, (
+        "Expected asyncio.to_thread to be called at least once for the blocking download"
+    )
+
+
+def test_live_progress_store_lifecycle():
+    """Live progress is set, readable, and cleared correctly."""
+    profile_id = str(uuid.uuid4())
+    key = _make_progress_key(profile_id, "low")
+
+    # Initially absent
+    assert _get_live_progress(key) is None
+
+    # Write progress
+    _set_live_progress(key, downloaded=512_000_000, total=1_073_741_824)
+    result = _get_live_progress(key)
+    assert result is not None
+    assert result["downloaded_bytes"] == 512_000_000
+    assert result["total_bytes"] == 1_073_741_824
+    assert abs(result["progress"] - 47.68) < 0.1
+
+    # Clear removes entry
+    _clear_live_progress(key)
+    assert _get_live_progress(key) is None
 
 
 @pytest.mark.asyncio
