@@ -569,38 +569,32 @@ if (-not (Test-Path $dataDir)) {
 }
 
 # ===================================================================
-#  STEP 7  -  Check for port conflicts
+#  STEP 7  -  Resolve ports (best-effort free, then scan for available)
 # ===================================================================
 Write-Host "  --- Checking ports ---" -ForegroundColor DarkGray
 
 if (Test-PortInUse $BACKEND_PORT) {
-    Write-Warn "Port $BACKEND_PORT is already in use. Trying to free it ..."
+    Write-Warn "Port $BACKEND_PORT is in use. Trying to free it ..."
     Stop-ProcessOnPort $BACKEND_PORT
     Start-Sleep -Seconds 1
-    if (Test-PortInUse $BACKEND_PORT) {
-        Write-Err "Could not free port $BACKEND_PORT. Close the application using it and try again."
-        Write-PortListenerDiagnostics -Port $BACKEND_PORT
-        Read-Host "  Press Enter to exit"
-        exit 1
-    }
-    Write-Ok "Port $BACKEND_PORT freed"
+}
+$resolvedBackendPort = Find-FreePort -StartPort $BACKEND_PORT
+if ($resolvedBackendPort -ne $BACKEND_PORT) {
+    Write-Warn "Port $BACKEND_PORT still in use - using port $resolvedBackendPort for backend"
 } else {
-    Write-Ok "Port $BACKEND_PORT is available (backend)"
+    Write-Ok "Port $resolvedBackendPort is available (backend)"
 }
 
 if (Test-PortInUse $FRONTEND_PORT) {
-    Write-Warn "Port $FRONTEND_PORT is already in use. Trying to free it ..."
+    Write-Warn "Port $FRONTEND_PORT is in use. Trying to free it ..."
     Stop-ProcessOnPort $FRONTEND_PORT
     Start-Sleep -Seconds 1
-    if (Test-PortInUse $FRONTEND_PORT) {
-        Write-Err "Could not free port $FRONTEND_PORT. Close the application using it and try again."
-        Write-PortListenerDiagnostics -Port $FRONTEND_PORT
-        Read-Host "  Press Enter to exit"
-        exit 1
-    }
-    Write-Ok "Port $FRONTEND_PORT freed"
+}
+$resolvedFrontendPort = Find-FreePort -StartPort $FRONTEND_PORT
+if ($resolvedFrontendPort -ne $FRONTEND_PORT) {
+    Write-Warn "Port $FRONTEND_PORT still in use - using port $resolvedFrontendPort for frontend"
 } else {
-    Write-Ok "Port $FRONTEND_PORT is available (frontend)"
+    Write-Ok "Port $resolvedFrontendPort is available (frontend)"
 }
 
 Write-Host ""
