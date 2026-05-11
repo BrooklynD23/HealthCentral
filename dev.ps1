@@ -176,6 +176,14 @@ function Stop-ProcessOnPort {
     Start-Sleep -Milliseconds 800
 }
 
+function Find-FreePort {
+    param([int]$StartPort, [int]$MaxPort = 65535)
+    for ($port = $StartPort; $port -le $MaxPort; $port++) {
+        if (-not (Test-PortInUse $port)) { return $port }
+    }
+    throw "No free port found between $StartPort and $MaxPort"
+}
+
 function Refresh-EnvPathFromRegistry {
     $m = [Environment]::GetEnvironmentVariable('Path', 'Machine')
     $u = [Environment]::GetEnvironmentVariable('Path', 'User')
