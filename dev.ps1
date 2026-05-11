@@ -615,9 +615,9 @@ Write-Host "  =============================================" -ForegroundColor Gr
 Write-Host "    Starting HealthCentral ..." -ForegroundColor Green
 Write-Host "  =============================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "    Backend API:  http://localhost:$BACKEND_PORT" -ForegroundColor Cyan
-Write-Host "    Frontend:     http://localhost:$FRONTEND_PORT" -ForegroundColor Cyan
-Write-Host "    API Docs:     http://localhost:$BACKEND_PORT/docs" -ForegroundColor Cyan
+Write-Host "    Backend API:  http://localhost:$resolvedBackendPort" -ForegroundColor Cyan
+Write-Host "    Frontend:     http://localhost:$resolvedFrontendPort" -ForegroundColor Cyan
+Write-Host "    API Docs:     http://localhost:$resolvedBackendPort/docs" -ForegroundColor Cyan
 Write-Host ""
 
 # We need to pass the current PATH to background jobs so they can find npm/node.
@@ -626,7 +626,7 @@ $npmPath     = (Get-Command npm -ErrorAction SilentlyContinue).Source | Split-Pa
 
 # -- Backend (background process) --
 $backendProc = Start-Process -FilePath $venvPython `
-    -ArgumentList "-m", "uvicorn", "main:app", "--reload", "--host", "127.0.0.1", "--port", "$BACKEND_PORT" `
+    -ArgumentList "-m", "uvicorn", "main:app", "--reload", "--host", "127.0.0.1", "--port", "$resolvedBackendPort" `
     -WorkingDirectory $BACKEND_DIR `
     -WindowStyle Hidden `
     -PassThru
@@ -638,7 +638,7 @@ Start-Sleep -Seconds 2
 # Use the vite.cmd binary directly so we don't need cmd.exe with && chaining
 $frontendVite = Join-Path $FRONTEND_DIR "node_modules\.bin\vite.cmd"
 $frontendProc = Start-Process -FilePath $frontendVite `
-    -ArgumentList "--port", "$FRONTEND_PORT" `
+    -ArgumentList "--port", "$resolvedFrontendPort", "--strictPort" `
     -WorkingDirectory $FRONTEND_DIR `
     -WindowStyle Hidden `
     -PassThru
@@ -663,12 +663,12 @@ while ($elapsed -lt $maxWait) {
     $elapsed++
 
     try {
-        $response = Invoke-WebRequest -Uri "http://localhost:$FRONTEND_PORT" `
+        $response = Invoke-WebRequest -Uri "http://localhost:$resolvedFrontendPort" `
                         -UseBasicParsing -TimeoutSec 2 -ErrorAction SilentlyContinue
         if ($response.StatusCode -eq 200) {
             Write-Ok "Servers are ready!"
             Write-Host ""
-            Start-Process "http://localhost:$FRONTEND_PORT"
+            Start-Process "http://localhost:$resolvedFrontendPort"
             $opened = $true
             break
         }
@@ -677,7 +677,7 @@ while ($elapsed -lt $maxWait) {
 
 if (-not $opened) {
     Write-Warn "Servers are still starting. Opening browser anyway ..."
-    Start-Process "http://localhost:$FRONTEND_PORT"
+    Start-Process "http://localhost:$resolvedFrontendPort"
 }
 
 # ===================================================================
@@ -722,7 +722,7 @@ try {
             $ec = $backendProc.ExitCode
             Write-Warn "Backend stopped unexpectedly [exit code $ec]. Restarting ..."
             $backendProc = Start-Process -FilePath $venvPython `
-                -ArgumentList "-m", "uvicorn", "main:app", "--reload", "--host", "127.0.0.1", "--port", "$BACKEND_PORT" `
+                -ArgumentList "-m", "uvicorn", "main:app", "--reload", "--host", "127.0.0.1", "--port", "$resolvedBackendPort" `
                 -WorkingDirectory $BACKEND_DIR `
                 -WindowStyle Hidden `
                 -PassThru
@@ -733,7 +733,7 @@ try {
             $ec = $frontendProc.ExitCode
             Write-Warn "Frontend stopped unexpectedly [exit code $ec]. Restarting ..."
             $frontendProc = Start-Process -FilePath $frontendVite `
-                -ArgumentList "--port", "$FRONTEND_PORT" `
+                -ArgumentList "--port", "$resolvedFrontendPort", "--strictPort" `
                 -WorkingDirectory $FRONTEND_DIR `
                 -WindowStyle Hidden `
                 -PassThru
