@@ -600,6 +600,15 @@ if ($resolvedFrontendPort -ne $FRONTEND_PORT) {
 Write-Host ""
 
 # ===================================================================
+#  STEP 7b - Sync frontend .env.local with resolved backend port
+# ===================================================================
+$frontendEnvLocal = Join-Path $FRONTEND_DIR ".env.local"
+Set-DotEnvKey -FilePath $frontendEnvLocal -Key "VITE_API_URL" `
+    -Value "http://localhost:$resolvedBackendPort/api/v1"
+Write-Ok "Synced .env.local: VITE_API_URL=http://localhost:$resolvedBackendPort/api/v1"
+Write-Host ""
+
+# ===================================================================
 #  STEP 8  -  Launch servers
 # ===================================================================
 Write-Host "  =============================================" -ForegroundColor Green
