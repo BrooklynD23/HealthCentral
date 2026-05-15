@@ -1,6 +1,6 @@
 # HealthCentral Documentation Index (Current)
 
-**Last Updated:** 2026-02-23
+**Last Updated:** 2026-05-15
 **Owner:** Project Lead
 **Refresh Trigger:** New doc added or doc archived
 
@@ -10,9 +10,11 @@ This index defines the canonical documentation order and marks legacy planning f
 
 ## Start Here (Canonical Order)
 
-1. `docs/05_backend_integration_status.md`
-   Current backend/frontend contract and integration baseline.
-2. `docs/features/TASK_LIST.md`
+1. `README.md`
+   Repository entrypoint, current architecture overview, setup, and verification commands.
+2. `docs/api/endpoints.md`
+   Exact mounted backend route inventory and auth requirements.
+3. `docs/features/TASK_LIST.md`
    Remaining backlog only (active implementation and consolidation tasks).
 
 ## Planning (Current)
@@ -43,6 +45,7 @@ This index defines the canonical documentation order and marks legacy planning f
 
 ## Historical References (Do Not Use as Active Backlog)
 
+- `docs/05_backend_integration_status.md` (Sprint 06 integration snapshot retained for audit context)
 - `docs/06_mvp_to_rag_execution_board.md` (sprint history)
 - `docs/plans/UI-implementation-2-4.md` (superseded UI plan)
 - `docs/plans/remaining-features-implementation.md` (superseded execution plan)

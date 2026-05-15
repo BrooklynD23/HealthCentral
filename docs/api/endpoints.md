@@ -1,6 +1,6 @@
 # API Endpoints
 
-**Last Updated:** 2026-03-27
+**Last Updated:** 2026-05-15
 **Owner:** Platform maintainers
 **Refresh Trigger:** Mounted backend route added, removed, renamed, or auth requirement changed
 **Status:** Source of truth for the live mounted backend API
@@ -30,6 +30,8 @@ Auth-required endpoints need `Authorization: Bearer <token>`.
 | POST | `/documents/import` | Yes | Import a PDF/image document |
 | GET | `/documents/` | Yes | List documents with optional status/type filters |
 | GET | `/documents/{document_id}` | Yes | Get document metadata |
+| POST | `/documents/{document_id}/reprocess` | Yes | Retry extraction/OCR and rebuild observations/chunks |
+| POST | `/documents/{document_id}/verify` | Yes | Mark all observations for a document as verified |
 | GET | `/documents/{document_id}/category` | Yes | Get the classified document category |
 | GET | `/documents/{document_id}/entities` | Yes | Get extracted document entities |
 | GET | `/documents/{document_id}/pages` | Yes | Get page text/provenance data |
@@ -45,12 +47,14 @@ Auth-required endpoints need `Authorization: Bearer <token>`.
 | POST | `/observations/{observation_id}/verify` | Yes | Verify or edit an observation |
 | GET | `/observations/trends/{analyte}` | Yes | Get analyte trend data |
 | GET | `/observations/panels/{panel_id}` | Yes | Get grouped panel data |
+| GET | `/observations/panels/{panel_id}/snapshots` | Yes | Get panel snapshots grouped by document and collection day |
 
 ## Interpretations
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | POST | `/interpretations/observations/{observation_id}/interpret` | Yes | Generate an observation interpretation |
+| POST | `/interpretations/observations/{observation_id}/interpret-grounded` | Yes | Generate an interpretation plus grounded RAG explanation |
 | GET | `/interpretations/observations/{observation_id}/interpretation` | Yes | Get a stored observation interpretation |
 | POST | `/interpretations/panels/{panel_name}/interpret` | Yes | Generate a panel interpretation |
 | GET | `/interpretations/recent` | Yes | List recent interpretations |
@@ -139,6 +143,9 @@ Auth-required endpoints need `Authorization: Bearer <token>`.
 | PUT | `/settings/model/timezone` | Yes | Set the profile timezone |
 | GET | `/settings/model/voice` | Yes | Get voice logging preferences |
 | PATCH | `/settings/model/voice` | Yes | Update voice logging preferences |
+| GET | `/settings/model/diagnostics` | Yes | Get local OCR/model/SQLCipher/GPU diagnostics |
+| POST | `/settings/model/diagnostics/recheck` | Yes | Re-run environment diagnostics |
+| PATCH | `/settings/model/ocr` | Yes | Update per-profile OCR preference |
 
 ## Health and Monitoring
 

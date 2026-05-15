@@ -15,20 +15,32 @@ git clone https://github.com/your-org/HealthCentral.git
 cd HealthCentral
 ```
 
-### 2. Install Backend Dependencies
+### 2. Recommended Development Launch
+
+On Windows, use the repo launcher from the project root:
+
+```powershell
+.\dev.bat
+
+# Or directly with PowerShell
+.\dev.ps1
+```
+
+The launcher checks prerequisites, installs backend/frontend dependencies, creates local data directories, resolves ports, writes the frontend `VITE_API_URL` override, and starts both servers. Defaults are `http://localhost:3000` for the app and `http://localhost:8000` for the API, but if either port is busy the launcher selects the next free port and prints the resolved URLs.
+
+### 3. Manual Backend Dependencies
 
 ```bash
 pip install -r src/backend/requirements.txt
 ```
 
-### 3. Install Frontend Dependencies
+### 4. Manual Frontend Dependencies
 
 ```bash
-cd src/frontend
-npm install
+npm --prefix src/frontend install
 ```
 
-### 4. Install SQLCipher (Linux)
+### 5. Install SQLCipher (Linux)
 
 ```bash
 sudo apt-get install -y libsqlcipher-dev
@@ -41,27 +53,33 @@ brew install sqlcipher
 
 ## First Launch
 
-### Start the Backend
+### Start Both Servers
+
+```powershell
+.\dev.ps1
+```
+
+Use the app/API URLs printed by the launcher. The health check is available at the printed backend URL plus `/health`.
+
+### Manual Backend
 
 ```bash
 cd src/backend
-python main.py
+python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-The API starts at `http://localhost:8000`. Health check: `http://localhost:8000/health`
-
-### Start the Frontend
+### Manual Frontend
 
 ```bash
 cd src/frontend
 npm run dev
 ```
 
-The app opens at `http://localhost:3000`.
+Manual defaults are `http://localhost:3000` for the app and `http://localhost:8000` for the API. If you change the backend port manually, set `src/frontend/.env.local` with `VITE_API_URL=http://localhost:<port>/api/v1` before starting Vite.
 
 ## Creating Your First Profile
 
-1. Open the app at `http://localhost:3000`
+1. Open the app URL printed by `dev.ps1`, or `http://localhost:3000` for a manual default launch
 2. Click **Create Profile**
 3. Enter your name and a strong password
 4. Your encrypted vault is created automatically

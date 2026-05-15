@@ -43,7 +43,11 @@ HealthCentral/
 │   │   └── tests/            # Backend test suites
 │   └── frontend/             # React + Vite + TypeScript
 │       ├── src/
-│       └── public/
+│       │   ├── components/   # Reusable UI and feature components
+│       │   ├── pages/        # Routed application screens
+│       │   ├── services/     # API client and React Query hooks
+│       │   └── stores/       # Zustand auth/session state
+│       └── e2e/              # Playwright/browser verification specs
 ├── config/                   # Configuration templates (.env.example)
 ├── data/                     # Local data directory (gitignored)
 ├── models/                   # Local AI models (gitignored)
@@ -56,13 +60,14 @@ HealthCentral/
 
 ```mermaid
 flowchart LR
-    User[Patient] -->|Upload docs, review results| UI[Desktop UI (React/Vite)]
-    UI -->|JWT + Loopback HTTP| API[FastAPI Backend]
-    API -->|SQLCipher| MasterDB[(Master DB)]
-    API -->|SQLCipher| ProfileDB[(Per-Profile Vault DB)]
-    API --> Vault[(Encrypted Documents Vault)]
-    API --> Vector[(Encrypted Vector Index)]
-    API --> LLM[Local LLM (llama.cpp)]
+    User[Patient] -->|Upload docs, review results| UI[React/Vite UI]
+    UI -->|/api/v1 via Vite proxy or loopback HTTP| API[FastAPI Backend]
+    API -->|profile metadata, auth, audit, knowledge| MasterDB[(Master SQLite DB)]
+    API -->|session-bound PHI| ProfileDB[(Per-Profile SQLCipher Vault DB)]
+    API -->|AES-GCM files| Vault[(Encrypted Documents Vault)]
+    API --> Vector[(Encrypted Embeddings / Vector Index)]
+    API --> LLM[Local GGUF LLM via llama.cpp]
+    API -. opt-in only .-> External[External LLM APIs]
     API --> Embeddings[Local Embeddings Model]
     API --> Export[Doctor-ready Exports]
 ```
@@ -72,6 +77,7 @@ flowchart LR
 ```mermaid
 flowchart TB
     subgraph Backend[FastAPI Backend]
+        Profiles[Profiles & Sessions]
         Ingest[Ingest Module]
         Extract[Extract Module]
         Normalize[Normalize Module]
@@ -79,16 +85,23 @@ flowchart TB
         Analytics[Analytics Module]
         RAG[RAG Assistant]
         Interpret[Interpretations]
+        Meds[Medications, Notifications, Gamification]
+        Settings[Model & Voice Settings]
         Export[Export Pipeline]
         Monitor[Monitoring & Audit]
     end
 
+    Profiles --> Ingest
     Ingest --> Extract --> Normalize --> Verify --> Analytics
     Verify --> Interpret --> Export
     Analytics --> RAG
+    Meds --> RAG
+    Settings --> RAG
     RAG --> Export
     Monitor --> Backend
 ```
+
+Request flow is also part of the architecture: CORS, correlation IDs, security headers, rate limiting, input validation, security audit logging, and timing middleware wrap the mounted API routes. The live router inventory is maintained in [`docs/api/endpoints.md`](docs/api/endpoints.md); [`docs/05_backend_integration_status.md`](docs/05_backend_integration_status.md) is historical audit context only.
 
 ### Core Data Model (UML)
 
@@ -99,42 +112,41 @@ classDiagram
         +created_at: datetime
     }
 
-    class Document {
-        +id: UUID
-        +profile_id: UUID
-        +doc_type: string
-        +imported_at: datetime
+    class ProfileVault {
+        +vault.db: SQLCipher
+        +documents/: AES-GCM files
+        +sealed_key: encrypted bytes
     }
 
-    class Observation {
-        +id: UUID
-        +profile_id: UUID
-        +document_id: UUID
-        +analyte: string
-        +value: float
-        +unit: string
-        +observed_at: datetime
+    class ClinicalData {
+        +documents
+        +observations
+        +interpretations
+        +medications
+        +reminders
     }
 
-    class Interpretation {
-        +id: UUID
-        +observation_id: UUID
-        +summary_text: string
-        +citations_json: string
+    class RetrievalData {
+        +document_chunks
+        +embeddings
+        +assistant_memory
+        +knowledge_references
     }
 
-    class AssistantMemory {
-        +id: UUID
-        +profile_id: UUID
-        +content: string
-        +created_at: datetime
+    class AppData {
+        +model_settings
+        +gamification
+        +exports
+        +audit_events
     }
 
-    Profile "1" --> "many" Document
-    Profile "1" --> "many" Observation
-    Observation "1" --> "0..1" Interpretation
-    Profile "1" --> "many" AssistantMemory
+    Profile "1" --> "1" ProfileVault
+    ProfileVault "1" --> "many" ClinicalData
+    ProfileVault "1" --> "many" RetrievalData
+    ProfileVault "1" --> "many" AppData
 ```
+
+The UML above is a domain map, not a table catalog. The live model layer includes documents, observations, interpretations, knowledge/chunks/embeddings, medication adherence, notifications, memory, model settings, document categories/entities, exports, audit events, and gamification.
 
 ### Document-to-Insight Sequence
 
@@ -147,29 +159,32 @@ sequenceDiagram
     participant DB as SQLCipher DB
     participant LLM as Local LLM
 
-    User->>UI: Upload lab PDF
-    UI->>API: POST /documents
+    User->>UI: Upload lab PDF/image
+    UI->>API: POST /api/v1/documents/import
     API->>Vault: Store encrypted file
-    API->>DB: Persist document metadata
-    API->>API: Extract + normalize
+    API->>DB: Persist metadata, extracted rows, provenance
+    API->>API: Classify, extract, normalize
     API->>UI: Verification payload
     User->>UI: Verify/edit values
-    UI->>API: POST /observations/verify
+    UI->>API: POST /api/v1/observations/{id}/verify
     API->>DB: Store verified observations
-    API->>LLM: Generate grounded interpretation
+    API->>LLM: Generate grounded interpretation with citations
     API->>DB: Save interpretation + citations
     API->>UI: Trend + explanation response
 ```
 
 ## Technology Stack
 
-### Current (Local-Only MVP)
+### Current
 - **Backend**: Python 3.11+ with FastAPI
-- **Database**: SQLite + SQLCipher (encrypted)
-- **Vector Store**: sqlite-vss or FAISS (encrypted)
-- **Local LLM**: llama.cpp with GGUF models
-- **Embeddings**: bge-small-en or e5-small
+- **Database**: SQLite master DB plus per-profile SQLCipher vault DBs
+- **Document Vault**: AES-GCM encrypted files under per-profile vault directories
+- **Vector/Retrieval**: FAISS/vector embeddings plus local curated reference content
+- **Local LLM**: llama-cpp-python with GGUF models
+- **Optional External LLMs**: OpenAI/Anthropic-compatible runners behind opt-in model settings and redaction checks
+- **Embeddings**: sentence-transformers models such as bge/e5 tiers
 - **Frontend**: React + Vite + TypeScript
+- **Frontend State/Data**: React Router, TanStack Query, and Zustand
 
 ### Future Scalability
 Architecture designed for:
@@ -178,10 +193,15 @@ Architecture designed for:
 - Multi-user support with authentication
 - Cloud storage options (opt-in)
 
-## Documentation Drift Notes
+## Documentation Source of Truth
 
-- README architecture sections align with `docs/01_backend_architecture_plan.md`, `docs/features/00_features_index.md`, and `docs/api/endpoints.md` as of 2026-04-29.
-- To validate documentation drift locally, run: `python3 scripts/docs_lint.py`.
+- [`docs/00_architecture_plans_index.md`](docs/00_architecture_plans_index.md): canonical documentation order.
+- [`docs/api/endpoints.md`](docs/api/endpoints.md): exact mounted API route inventory and auth requirements.
+- [`docs/01_backend_architecture_plan.md`](docs/01_backend_architecture_plan.md): backend architecture baseline and future hardening notes.
+- [`docs/features/TASK_LIST.md`](docs/features/TASK_LIST.md): active remaining-work tracker.
+- [`docs/05_backend_integration_status.md`](docs/05_backend_integration_status.md): historical Sprint 06 snapshot retained for audit context only.
+
+To validate docs ownership, required sections, and historical-doc classification locally, run `python3 scripts/docs_lint.py`.
 
 ## SQLCipher Setup (Required for Database Encryption)
 
@@ -279,12 +299,16 @@ This script automatically:
 - Creates a Python virtual environment if needed
 - Installs all dependencies (pip and npm)
 - Creates the data directory structure
+- Resolves the next free backend/frontend ports if defaults are busy
+- Syncs `src/frontend/.env.local` with the resolved backend API URL
 - Starts both backend and frontend servers
 
-Once running:
+Default URLs when the standard ports are free:
 - **Frontend**: http://localhost:3000
 - **Backend API**: http://localhost:8000
 - **API Documentation**: http://localhost:8000/docs
+
+If a port is busy, use the resolved URLs printed by `dev.ps1` / `dev.bat`.
 
 Press `Ctrl+C` to stop both servers.
 

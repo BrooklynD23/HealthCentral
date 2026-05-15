@@ -10,17 +10,19 @@ Local-first backend services that power:
 
 Constraints (from PRD): offline-by-default; conservative outputs; provenance required for extracted fields and retrieved context; encryption at rest for DB, vector index, and stored documents.
 
-Status note (2026-02-09):
+Status note (2026-05-15):
 - Loopback HTTP (`127.0.0.1`) + JWT Bearer auth is the current implementation, not a future proposal.
+- The Windows developer launcher resolves the next free backend/frontend ports when defaults are unavailable and syncs `src/frontend/.env.local` for the Vite proxy.
+- [`docs/api/endpoints.md`](api/endpoints.md) is the source of truth for the live mounted API surface.
 - Sections labeled "Future hardening" describe optional follow-on improvements.
 
 ---
 
 ## Process topology (Windows desktop)
 
-### Current implementation (as of 2026-02-09)
-- Backend runs as a local FastAPI server on `127.0.0.1` (fixed port by default).
-- Frontend is a Vite/React app that talks to the backend over loopback HTTP.
+### Current implementation (as of 2026-05-15)
+- Backend runs as a local FastAPI server on `127.0.0.1`; default port is `8000`, and the Windows dev launcher can select the next free port.
+- Frontend is a Vite/React app that talks to the backend over same-origin `/api/v1` in development through the Vite proxy, or over loopback HTTP in packaged/deployed modes.
 - Auth uses JWT Bearer tokens (HS256) with per-profile vault unlock for PHI access.
 
 ### Option A (recommended): sidecar service + local IPC
@@ -108,29 +110,7 @@ Composition rules:
 
 ## API surface (local-only)
 
-### Documents
-- `POST /documents/import`
-- `GET /documents`
-- `GET /documents/{id}/pages` (for provenance viewing)
-
-### Observations
-- `GET /observations?analyte=&from=&to=&abnormal=`
-- `POST /observations/{id}/verify` (apply edit + verified flag)
-- `GET /panels/{panel_id}` (CBC/CMP/etc aggregation)
-
-### Assistant
-- `POST /assistant/chat`
-  - Input: profile, selected analytes/panels, timeframe, user question, “include references” toggle
-  - Output: answer segments + citations + “insufficient info” reasons
-
-### Export
-- `POST /export/doctor-summary`
-- `POST /export/csv`
-- `POST /export/json`
-
-### Settings / Safety
-- `GET /settings`
-- `POST /settings` (offline-only, model selection, memory toggle, idle lock timer)
+The live mounted route inventory is maintained in [`docs/api/endpoints.md`](api/endpoints.md). Keep endpoint-level details there so this architecture document remains focused on process boundaries, module responsibilities, and hardening policy.
 
 ---
 
