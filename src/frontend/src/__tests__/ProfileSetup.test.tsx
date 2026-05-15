@@ -100,10 +100,16 @@ describe('ProfileSetup', () => {
 
       // Verify API called with password
       await waitFor(() => {
-        expect(api.apiPost).toHaveBeenCalledWith('/profiles/', {
-          display_name: 'My Health Profile',
-          password: 'SecurePass123',
-        });
+        expect(api.apiPost).toHaveBeenCalledWith(
+          '/profiles/',
+          {
+            display_name: 'My Health Profile',
+            password: 'SecurePass123',
+          },
+          expect.objectContaining({
+            signal: expect.any(AbortSignal),
+          })
+        );
       });
 
       // Verify token stored in auth store

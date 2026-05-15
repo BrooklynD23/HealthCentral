@@ -143,3 +143,25 @@ class TestIsOcrAvailable:
             assert is_ocr_available() is False
         finally:
             settings.ocr_enabled = original
+
+
+class TestComputeOcrEffective:
+    """Per-profile OCR effective gate."""
+
+    def test_user_off_blocks(self, monkeypatch):
+        from core import config as cfg
+
+        monkeypatch.setattr(cfg.settings, "ocr_enabled", True)
+        monkeypatch.setattr(cfg, "is_tesseract_on_path", lambda: True)
+        effective, blockers = cfg.compute_ocr_effective(False)
+        assert effective is False
+        assert "user_disabled" in blockers
+
+    def test_tesseract_missing_blocks(self, monkeypatch):
+        from core import config as cfg
+
+        monkeypatch.setattr(cfg.settings, "ocr_enabled", True)
+        monkeypatch.setattr(cfg, "is_tesseract_on_path", lambda: False)
+        effective, blockers = cfg.compute_ocr_effective(True)
+        assert effective is False
+        assert "tesseract_missing" in blockers

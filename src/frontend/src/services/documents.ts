@@ -5,8 +5,14 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiGet, apiDelete, apiUpload, apiGetRaw } from './api';
-import type { Document, DocumentImportResponse, DocumentPage, DocumentFilters } from './types';
+import { apiGet, apiDelete, apiUpload, apiGetRaw, apiPost, getApiBaseUrl } from './api';
+import type {
+  Document,
+  DocumentImportResponse,
+  DocumentPage,
+  DocumentFilters,
+  DocumentVerifyResponse,
+} from './types';
 
 const QUERY_KEY = 'documents';
 
@@ -15,7 +21,7 @@ const QUERY_KEY = 'documents';
  * Uses the same base URL as the API client.
  */
 export function getPageImageUrl(documentId: string, pageNumber: number): string {
-  const base = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+  const base = getApiBaseUrl().replace(/\/$/, '');
   return `${base}/documents/${documentId}/pages/${pageNumber}/image`;
 }
 
@@ -62,6 +68,14 @@ async function deleteDocument(documentId: string): Promise<void> {
   return apiDelete(`/documents/${documentId}`);
 }
 
+async function reprocessDocument(documentId: string): Promise<DocumentImportResponse> {
+  return apiPost<DocumentImportResponse>(`/documents/${documentId}/reprocess`);
+}
+
+async function verifyDocument(documentId: string): Promise<DocumentVerifyResponse> {
+  return apiPost<DocumentVerifyResponse>(`/documents/${documentId}/verify`);
+}
+
 // React Query hooks
 export function useDocuments(filters: DocumentFilters) {
   return useQuery({
@@ -106,6 +120,30 @@ export function useDeleteDocument() {
     mutationFn: deleteDocument,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+    },
+  });
+}
+
+export function useReprocessDocument() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: reprocessDocument,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: ['observations'] });
+    },
+  });
+}
+
+export function useVerifyDocument() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: verifyDocument,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: ['observations'] });
     },
   });
 }

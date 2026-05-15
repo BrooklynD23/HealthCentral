@@ -4,9 +4,9 @@
 .DESCRIPTION
     One-click launcher that checks for dependencies, installs anything missing,
     handles common Windows pitfalls (SQLCipher, corrupted node_modules, port
-    conflicts), installs OCR tooling on Windows (Tesseract + Poppler via winget
-    when available), syncs OCR_ENABLED in src/backend/.env, starts both servers,
-    and opens the browser.
+    conflicts by resolving the next free port when needed, installs OCR tooling
+    on Windows (Tesseract + Poppler via winget when available), syncs
+    OCR_ENABLED in src/backend/.env, starts both servers, and opens the browser.
 .EXAMPLE
     .\dev.ps1
 .NOTES
@@ -265,6 +265,41 @@ function Set-DotEnvKey {
     $out | Set-Content -LiteralPath $FilePath
 }
 
+function Start-FrontendDevServer {
+    param(
+        [Parameter(Mandatory)][string]$NodeExePath,
+        [Parameter(Mandatory)][string]$FrontendViteScriptPath,
+        [Parameter(Mandatory)][int]$Port,
+        [Parameter(Mandatory)][string]$WorkingDirectory,
+        [Parameter(Mandatory)][string]$LogPath
+    )
+    $logDir = Split-Path -Parent $LogPath
+    if (-not (Test-Path -LiteralPath $logDir)) {
+        New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+    }
+    # Hidden cmd.exe + shell redirect fails silently; launch node directly (Vite logs to stderr).
+    return Start-Process -FilePath $NodeExePath `
+        -ArgumentList $FrontendViteScriptPath, "--port", "$Port", "--strictPort" `
+        -WorkingDirectory $WorkingDirectory `
+        -WindowStyle Hidden `
+        -RedirectStandardError $LogPath `
+        -PassThru
+}
+
+function Write-LogTail {
+    param(
+        [Parameter(Mandatory)][string]$LogPath,
+        [string]$Label = "Log output",
+        [int]$Tail = 20
+    )
+    if (-not (Test-Path -LiteralPath $LogPath)) {
+        Write-Warn "$Label not found at $LogPath"
+        return
+    }
+    Write-Warn "$Label (last $Tail lines):"
+    Get-Content -LiteralPath $LogPath -Tail $Tail | ForEach-Object { Write-Host "      $_" -ForegroundColor DarkGray }
+}
+
 function Test-TesseractOnPath {
     if (Get-Command tesseract -ErrorAction SilentlyContinue) { return $true }
     if (Get-Command tesseract.exe -ErrorAction SilentlyContinue) { return $true }
@@ -314,18 +349,33 @@ if (-not $pythonCmd) {
 # -- Node.js --
 Write-Status "Looking for Node.js 18+ ..."
 $nodeOk = $false
+$nodeExe = $null
 try {
     $nodeVersion = & node --version 2>&1
     if ($nodeVersion -match "v(\d+)\.") {
         if ([int]$Matches[1] -ge 18) {
             Write-Ok "Found Node.js $nodeVersion"
+            $nodeExe = (Get-Command node -ErrorAction Stop).Source
             $nodeOk = $true
         } else {
             Write-Warn "Found Node.js $nodeVersion - version 18+ recommended."
+            $nodeExe = (Get-Command node -ErrorAction Stop).Source
             $nodeOk = $true   # allow older versions to try
         }
     }
 } catch { }
+# Cursor's bundled node is first on PATH in the IDE but cannot run Vite reliably as a hidden child process.
+if ($nodeOk) {
+    $programFilesNode = Join-Path ${env:ProgramFiles} "nodejs\node.exe"
+    if (Test-Path -LiteralPath $programFilesNode) {
+        $nodeExe = $programFilesNode
+    } elseif ($nodeExe -match 'cursor[\\/]resources') {
+        $altNode = Get-Command node -All -ErrorAction SilentlyContinue |
+            Where-Object { $_.Source -notmatch 'cursor[\\/]resources' } |
+            Select-Object -First 1
+        if ($altNode) { $nodeExe = $altNode.Source }
+    }
+}
 if (-not $nodeOk) {
     Write-Err "Node.js is required but not found."
     Write-Host ""
@@ -532,10 +582,11 @@ Write-Host ""
 Write-Host "  --- Setting up frontend ---" -ForegroundColor DarkGray
 
 $viteBin = Join-Path $FRONTEND_DIR "node_modules\.bin\vite.cmd"
+$viteScript = Join-Path $FRONTEND_DIR "node_modules\vite\bin\vite.js"
 $nodeModulesDir = Join-Path $FRONTEND_DIR "node_modules"
 
 # Install if node_modules missing OR vite binary missing (corrupted install)
-if (-not (Test-Path $nodeModulesDir) -or -not (Test-Path $viteBin)) {
+if (-not (Test-Path $nodeModulesDir) -or -not (Test-Path $viteBin) -or -not (Test-Path $viteScript)) {
     if (Test-Path $nodeModulesDir) {
         Write-Warn "node_modules exists but looks incomplete. Reinstalling ..."
         Remove-Item $nodeModulesDir -Recurse -Force -ErrorAction SilentlyContinue
@@ -546,7 +597,7 @@ if (-not (Test-Path $nodeModulesDir) -or -not (Test-Path $viteBin)) {
     & npm install 2>&1 | Out-Null
     Pop-Location
 
-    if (-not (Test-Path $viteBin)) {
+    if (-not (Test-Path $viteBin) -or -not (Test-Path $viteScript)) {
         Write-Err "npm install succeeded but Vite was not found."
         Write-Err "Try deleting src\frontend\node_modules and running again."
         Read-Host "  Press Enter to exit"
@@ -623,6 +674,7 @@ Write-Host ""
 # We need to pass the current PATH to background jobs so they can find npm/node.
 $currentPath = $env:PATH
 $npmPath     = (Get-Command npm -ErrorAction SilentlyContinue).Source | Split-Path
+$frontendLog = Join-Path $ROOT_DIR "logs\dev-frontend.log"
 
 # -- Backend (background process) --
 $backendProc = Start-Process -FilePath $venvPython `
@@ -635,18 +687,19 @@ $backendProc = Start-Process -FilePath $venvPython `
 Start-Sleep -Seconds 2
 
 # -- Frontend (background process) --
-# Use the vite.cmd binary directly so we don't need cmd.exe with && chaining
-$frontendVite = Join-Path $FRONTEND_DIR "node_modules\.bin\vite.cmd"
-$frontendProc = Start-Process -FilePath $frontendVite `
-    -ArgumentList "--port", "$resolvedFrontendPort", "--strictPort" `
+# Launch Vite via node + vite.js directly to avoid .cmd wrapper issues on Windows.
+$frontendProc = Start-FrontendDevServer `
+    -NodeExePath $nodeExe `
+    -FrontendViteScriptPath $viteScript `
+    -Port $resolvedFrontendPort `
     -WorkingDirectory $FRONTEND_DIR `
-    -WindowStyle Hidden `
-    -PassThru
+    -LogPath $frontendLog
 
 $bPid = $backendProc.Id
 $fPid = $frontendProc.Id
 Write-Ok "Backend  started  [PID $bPid]"
 Write-Ok "Frontend started  [PID $fPid]"
+Write-Status "Frontend log: $frontendLog"
 Write-Host ""
 
 # ===================================================================
@@ -661,6 +714,14 @@ $opened  = $false
 while ($elapsed -lt $maxWait) {
     Start-Sleep -Seconds 1
     $elapsed++
+
+    if ($frontendProc.HasExited) {
+        $ec = $frontendProc.ExitCode
+        Write-Err "Frontend exited during startup [exit code $ec]."
+        Write-LogTail -LogPath $frontendLog -Label "Frontend log"
+        Read-Host "  Press Enter to exit"
+        exit 1
+    }
 
     try {
         $response = Invoke-WebRequest -Uri "http://localhost:$resolvedFrontendPort" `
@@ -708,6 +769,7 @@ function Stop-Servers {
 }
 
 try {
+    $frontendRestartCount = 0
     while ($true) {
         Start-Sleep -Seconds 2
 
@@ -732,13 +794,22 @@ try {
         if ($frontendDead) {
             $ec = $frontendProc.ExitCode
             Write-Warn "Frontend stopped unexpectedly [exit code $ec]. Restarting ..."
-            $frontendProc = Start-Process -FilePath $frontendVite `
-                -ArgumentList "--port", "$resolvedFrontendPort", "--strictPort" `
+            Write-LogTail -LogPath $frontendLog -Label "Frontend log"
+            $frontendRestartCount++
+            if ($frontendRestartCount -ge 3) {
+                Write-Err "Frontend failed repeatedly. See $frontendLog"
+                break
+            }
+            $frontendProc = Start-FrontendDevServer `
+                -NodeExePath $nodeExe `
+                -FrontendViteScriptPath $viteScript `
+                -Port $resolvedFrontendPort `
                 -WorkingDirectory $FRONTEND_DIR `
-                -WindowStyle Hidden `
-                -PassThru
+                -LogPath $frontendLog
             $fPid = $frontendProc.Id
             Write-Ok "Frontend restarted [PID $fPid]"
+        } else {
+            $frontendRestartCount = 0
         }
     }
 } finally {

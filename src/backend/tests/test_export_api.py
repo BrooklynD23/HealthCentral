@@ -370,6 +370,23 @@ class TestSummaryDownload:
         assert "Overview" in summary.sections[0].title
         assert "Outside Reference Range" in summary.sections[1].title
 
+    def test_api_export_004c_html_summary_renders_questions_section(self):
+        """HTML summary should include clinician questions when present."""
+        export_module = ExportModule()
+        summary_data = {
+            "date_range": "2024-01-01 to 2024-01-31",
+            "key_findings": ["A1c elevated"],
+            "sections": [{"title": "Overview", "content": "Summary body"}],
+            "questions": [
+                {"question": "What follow-up labs do you recommend?"},
+                {"question": "Could medication timing affect this trend?"},
+            ],
+        }
+
+        html = export_module.render_html_summary(summary_data)
+        assert "Questions for Your Provider" in html
+        assert "What follow-up labs do you recommend?" in html
+
 
 class TestQuestionsGeneration:
     """Tests for discussion questions generation."""

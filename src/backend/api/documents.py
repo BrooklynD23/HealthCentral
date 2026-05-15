@@ -21,15 +21,15 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, File, Query, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
-from core.config import settings, is_ocr_available
+from core.config import settings, user_ocr_preference_enabled, compute_ocr_effective
 from core.audit import log_document_event
 from core.auth import RequireAuth, Session, ProfileDbSession
 from core.document_crypto import get_decrypted_document, get_profile_encryption_key
-from models import Document, Observation, Chunk, Embedding
+from models import Document, Observation, Chunk, Embedding, UserModelSettings
 from modules.extract import ExtractModule
 from modules.normalize import NormalizeModule
 from modules.chunking import ChunkingModule
@@ -183,6 +183,19 @@ class DocumentImportResponse(BaseModel):
     needs_verification: bool
 
 
+class DocumentVerifyResponse(BaseModel):
+    """Response model for document-level verification."""
+    document: DocumentResponse
+    verified_count: int
+
+
+def _split_extracted_text_pages(extracted_text: Optional[str]) -> list[str]:
+    """Split extraction text into page-like segments."""
+    if not extracted_text:
+        return []
+    return [p for p in extracted_text.split("\f") if p and p.strip()]
+
+
 class PageResponse(BaseModel):
     """Response model for document page content."""
     page_number: int
@@ -293,112 +306,18 @@ async def import_document(
     # Trigger extraction pipeline
     observations_extracted = 0
     needs_verification = True
-
     extracted_text: Optional[str] = None
 
-    if import_result.doc_type in ("lab_pdf", "lab_pdf_scanned", "lab_image"):
-        # For scanned PDFs and images without OCR available: mark pending
-        if import_result.doc_type in ("lab_pdf_scanned", "lab_image") and not is_ocr_available():
-            document.status = "pending_ocr"
-            await profile_db.commit()
-        else:
-            try:
-                decrypted_doc = get_decrypted_document(profile_id, import_result.document_id)
-                extract_module = ExtractModule()
-
-                # Choose extraction method based on doc type
-                if import_result.doc_type == "lab_pdf":
-                    extraction_result = await extract_module.extract_from_pdf(
-                        decrypted_doc, import_result.document_id
-                    )
-                elif import_result.doc_type == "lab_pdf_scanned":
-                    extraction_result = await extract_module.extract_from_scanned_pdf(
-                        decrypted_doc, import_result.document_id
-                    )
-                else:  # lab_image
-                    extraction_result = await extract_module.extract_from_image(
-                        decrypted_doc, import_result.document_id
-                    )
-
-                extracted_text = extraction_result.extracted_text
-
-                # If extraction reports OCR unavailable, mark pending_ocr
-                if extraction_result.ocr_unavailable:
-                    document.status = "pending_ocr"
-                    await profile_db.commit()
-                    return DocumentImportResponse(
-                        document=DocumentResponse.from_model(document),
-                        observations_extracted=0,
-                        needs_verification=True,
-                    )
-
-                # Persist observations to profile database
-                import uuid
-                for extracted_obs in extraction_result.observations:
-                    normalized = _normalizer.normalize_analyte(extracted_obs.analyte_raw)
-                    observation = Observation(
-                        id=str(uuid.uuid4()),
-                        profile_id=profile_id,
-                        doc_id=import_result.document_id,
-                        analyte_canonical=normalized.canonical_name,
-                        analyte_raw=extracted_obs.analyte_raw,
-                        value=extracted_obs.value,
-                        value_text=extracted_obs.value_text,
-                        unit=extracted_obs.unit,
-                        ref_low=extracted_obs.ref_low,
-                        ref_high=extracted_obs.ref_high,
-                        ref_range_text=extracted_obs.ref_range_text,
-                        flag=extracted_obs.flag,
-                        is_abnormal=extracted_obs.flag is not None,
-                        extraction_confidence=extracted_obs.confidence,
-                        source_page=extracted_obs.provenance.page if extracted_obs.provenance else None,
-                        source_bbox_json=json.dumps(list(extracted_obs.provenance.bbox)) if extracted_obs.provenance and extracted_obs.provenance.bbox else None,
-                        collected_at=_parse_date_string(extracted_obs.collected_at),
-                        user_verified=False,
-                    )
-                    profile_db.add(observation)
-
-                observations_extracted = len(extraction_result.observations)
-
-                # Persist document collection_date from earliest extracted date
-                if extraction_result.collection_dates:
-                    parsed_dates = [_parse_date_string(d) for d in extraction_result.collection_dates]
-                    valid_dates = [d for d in parsed_dates if d is not None]
-                    if valid_dates:
-                        document.collection_date = min(valid_dates)
-
-                # Compute needs_verification
-                needs_verification = _compute_needs_verification(extraction_result.observations)
-
-                # Update document status to parsed
-                document.status = "parsed"
-                document.parsed_at = datetime.utcnow()
-
-                await profile_db.commit()
-
-                logger.info(
-                    f"Extracted {observations_extracted} observations from document {import_result.document_id}"
-                )
-
-                # Create chunks and embeddings for RAG
-                try:
-                    chunks_created = await _create_chunks_and_embeddings(
-                        profile_db=profile_db,
-                        profile_id=profile_id,
-                        doc_id=import_result.document_id,
-                    )
-                    logger.info(
-                        f"Created {chunks_created} chunks with embeddings for document {import_result.document_id}"
-                    )
-                except Exception as chunk_error:
-                    logger.warning(
-                        f"Chunking failed for document {import_result.document_id}: {chunk_error}"
-                    )
-
-            except Exception as e:
-                logger.error(f"Extraction failed for document {import_result.document_id}: {e}")
-                document.status = "extraction_failed"
-                await profile_db.commit()
+    extraction_outcome = await _run_extraction_pipeline(
+        profile_db=profile_db,
+        profile_id=profile_id,
+        document=document,
+        refresh_existing=False,
+    )
+    if extraction_outcome is not None:
+        observations_extracted = extraction_outcome["observations_extracted"]
+        needs_verification = extraction_outcome["needs_verification"]
+        extracted_text = extraction_outcome.get("extracted_text")
 
     # Classify document and extract entities (runs for all doc types)
     await _classify_and_extract_entities(
@@ -432,10 +351,153 @@ async def import_document(
 
 
 
+async def _run_extraction_pipeline(
+    profile_db: AsyncSession,
+    profile_id: str,
+    document: Document,
+    *,
+    refresh_existing: bool,
+) -> Optional[dict]:
+    """Run lab extraction for a document and persist observations/chunks."""
+    if document.doc_type not in ("lab_pdf", "lab_pdf_scanned", "lab_image"):
+        return None
+
+    user_settings_row = (
+        await profile_db.execute(
+            select(UserModelSettings).where(UserModelSettings.profile_id == profile_id)
+        )
+    ).scalar_one_or_none()
+    user_pref = user_ocr_preference_enabled(user_settings_row)
+    ocr_effective, _ = compute_ocr_effective(user_pref)
+
+    if document.doc_type in ("lab_pdf_scanned", "lab_image") and not ocr_effective:
+        document.status = "pending_ocr"
+        document.parsed_at = None
+        document.verified_at = None
+        await profile_db.commit()
+        return {
+            "observations_extracted": 0,
+            "needs_verification": True,
+            "extracted_text": None,
+        }
+
+    try:
+        decrypted_doc = get_decrypted_document(profile_id, document.id)
+        extract_module = ExtractModule()
+        if document.doc_type == "lab_pdf":
+            extraction_result = await extract_module.extract_from_pdf(decrypted_doc, document.id)
+        elif document.doc_type == "lab_pdf_scanned":
+            extraction_result = await extract_module.extract_from_scanned_pdf(
+                decrypted_doc,
+                document.id,
+                effective_ocr=ocr_effective,
+            )
+        else:
+            extraction_result = await extract_module.extract_from_image(
+                decrypted_doc,
+                document.id,
+                effective_ocr=ocr_effective,
+            )
+
+        if extraction_result.ocr_unavailable:
+            document.status = "pending_ocr"
+            document.parsed_at = None
+            document.verified_at = None
+            await profile_db.commit()
+            return {
+                "observations_extracted": 0,
+                "needs_verification": True,
+                "extracted_text": extraction_result.extracted_text,
+            }
+
+        if refresh_existing:
+            await profile_db.execute(
+                delete(Observation).where(Observation.doc_id == document.id)
+            )
+
+        import uuid
+
+        for extracted_obs in extraction_result.observations:
+            normalized = _normalizer.normalize_analyte(extracted_obs.analyte_raw)
+            observation = Observation(
+                id=str(uuid.uuid4()),
+                profile_id=profile_id,
+                doc_id=document.id,
+                analyte_canonical=normalized.canonical_name,
+                analyte_raw=extracted_obs.analyte_raw,
+                value=extracted_obs.value,
+                value_text=extracted_obs.value_text,
+                unit=extracted_obs.unit,
+                ref_low=extracted_obs.ref_low,
+                ref_high=extracted_obs.ref_high,
+                ref_range_text=extracted_obs.ref_range_text,
+                flag=extracted_obs.flag,
+                is_abnormal=extracted_obs.flag is not None,
+                extraction_confidence=extracted_obs.confidence,
+                source_page=extracted_obs.provenance.page if extracted_obs.provenance else None,
+                source_bbox_json=json.dumps(list(extracted_obs.provenance.bbox))
+                if extracted_obs.provenance and extracted_obs.provenance.bbox
+                else None,
+                collected_at=_parse_date_string(extracted_obs.collected_at),
+                user_verified=False,
+            )
+            profile_db.add(observation)
+
+        if extraction_result.collection_dates:
+            parsed_dates = [_parse_date_string(d) for d in extraction_result.collection_dates]
+            valid_dates = [d for d in parsed_dates if d is not None]
+            document.collection_date = min(valid_dates) if valid_dates else None
+        else:
+            document.collection_date = None
+
+        observations_extracted = len(extraction_result.observations)
+        needs_verification = _compute_needs_verification(extraction_result.observations)
+        document.status = "parsed"
+        document.parsed_at = datetime.utcnow()
+        document.verified_at = None
+
+        try:
+            chunks_created = await _create_chunks_and_embeddings(
+                profile_db=profile_db,
+                profile_id=profile_id,
+                doc_id=document.id,
+                extracted_text=extraction_result.extracted_text,
+                refresh_existing=refresh_existing,
+            )
+            logger.info(
+                f"Created {chunks_created} chunks with embeddings for document {document.id}"
+            )
+        except Exception as chunk_error:
+            logger.warning(f"Chunking failed for document {document.id}: {chunk_error}")
+
+        await profile_db.commit()
+        logger.info(
+            f"Extracted {observations_extracted} observations from document {document.id}"
+        )
+        return {
+            "observations_extracted": observations_extracted,
+            "needs_verification": needs_verification,
+            "extracted_text": extraction_result.extracted_text,
+        }
+    except Exception as e:
+        logger.error(f"Extraction failed for document {document.id}: {e}")
+        document.status = "extraction_failed"
+        document.parsed_at = None
+        document.verified_at = None
+        await profile_db.commit()
+        return {
+            "observations_extracted": 0,
+            "needs_verification": True,
+            "extracted_text": None,
+        }
+
+
 async def _create_chunks_and_embeddings(
     profile_db,
     profile_id: str,
     doc_id: str,
+    extracted_text: Optional[str] = None,
+    refresh_existing: bool = False,
 ) -> int:
     """
     Sprint 6: Create text chunks and embeddings for RAG.
@@ -455,19 +517,22 @@ async def _create_chunks_and_embeddings(
     chunker = ChunkingModule()
     embedder = EmbeddingsModule()
 
-    # Decrypt document and extract text from each page
-    decrypted_doc = get_decrypted_document(profile_id, doc_id)
-    pages_text = []
-    with pdfplumber.open(decrypted_doc) as pdf:
-        for page in pdf.pages:
-            text = page.extract_text() or ""
-            pages_text.append(text)
+    pages_text = _split_extracted_text_pages(extracted_text)
+    if not pages_text:
+        decrypted_doc = get_decrypted_document(profile_id, doc_id)
+        with pdfplumber.open(decrypted_doc) as pdf:
+            for page in pdf.pages:
+                text = page.extract_text() or ""
+                pages_text.append(text)
 
     # Chunk across all pages
     all_chunks = chunker.chunk_pdf_pages(doc_id=doc_id, pages=pages_text)
 
     if not all_chunks:
         return 0
+
+    if refresh_existing:
+        await profile_db.execute(delete(Chunk).where(Chunk.doc_id == doc_id))
 
     # Generate embeddings
     embeddings = embedder.embed_chunks(all_chunks)
@@ -699,6 +764,117 @@ async def get_document(
     return DocumentResponse.from_model(document)
 
 
+@router.post("/{document_id}/reprocess", response_model=DocumentImportResponse)
+async def reprocess_document(
+    document_id: str,
+    session: RequireAuth,
+    profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """Retry extraction/OCR and rebuild observations/chunks for a document."""
+    validate_uuid(document_id, "document_id")
+
+    result = await profile_db.execute(select(Document).where(Document.id == document_id))
+    document = result.scalar_one_or_none()
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found",
+        )
+    verify_document_access(document, session)
+
+    # Reclassify from clean state after extraction refresh.
+    await profile_db.execute(delete(DocumentEntity).where(DocumentEntity.doc_id == document_id))
+    await profile_db.execute(delete(DocumentCategory).where(DocumentCategory.doc_id == document_id))
+
+    extraction_outcome = await _run_extraction_pipeline(
+        profile_db=profile_db,
+        profile_id=session.profile_id,
+        document=document,
+        refresh_existing=True,
+    )
+    observations_extracted = extraction_outcome["observations_extracted"] if extraction_outcome else 0
+    needs_verification = extraction_outcome["needs_verification"] if extraction_outcome else True
+    extracted_text = extraction_outcome.get("extracted_text") if extraction_outcome else None
+
+    await _classify_and_extract_entities(
+        profile_db=profile_db,
+        profile_id=session.profile_id,
+        doc_id=document_id,
+        doc_type=document.doc_type,
+        pre_extracted_text=extracted_text,
+    )
+
+    await log_document_event(
+        db=master_db,
+        event="parse",
+        profile_id=session.profile_id,
+        document_id=document_id,
+        filename=document.source,
+        details={
+            "action": "reprocess",
+            "status": document.status,
+            "observations_extracted": observations_extracted,
+        },
+    )
+    await master_db.commit()
+
+    return DocumentImportResponse(
+        document=DocumentResponse.from_model(document),
+        observations_extracted=observations_extracted,
+        needs_verification=needs_verification,
+    )
+
+
+@router.post("/{document_id}/verify", response_model=DocumentVerifyResponse)
+async def verify_document(
+    document_id: str,
+    session: RequireAuth,
+    profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """Mark all observations for a document as verified."""
+    validate_uuid(document_id, "document_id")
+
+    doc_result = await profile_db.execute(select(Document).where(Document.id == document_id))
+    document = doc_result.scalar_one_or_none()
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found",
+        )
+    verify_document_access(document, session)
+
+    result = await profile_db.execute(
+        select(Observation).where(Observation.doc_id == document_id)
+    )
+    observations = result.scalars().all()
+    now = datetime.utcnow()
+    for obs in observations:
+        obs.user_verified = True
+        obs.verified_at = now
+        obs.version += 1
+
+    document.status = "verified"
+    document.verified_at = now
+    await profile_db.commit()
+
+    await log_document_event(
+        db=master_db,
+        event="verify",
+        profile_id=session.profile_id,
+        document_id=document_id,
+        filename=document.source,
+        details={"verified_count": len(observations)},
+    )
+    await master_db.commit()
+
+    return DocumentVerifyResponse(
+        document=DocumentResponse.from_model(document),
+        verified_count=len(observations),
+    )
+
+
 class DocumentCategoryResponse(BaseModel):
     """Response model for document category."""
     id: str
@@ -853,16 +1029,38 @@ async def get_document_pages(
                 detail="Failed to extract document pages"
             )
     else:
-        # For images and scanned PDFs
-        if document.status == "pending_ocr":
-            text = "[Document requires OCR processing. Enable OCR in Settings to extract data.]"
+        # For scanned/image docs, prefer OCR/chunk text if available.
+        chunk_result = await profile_db.execute(
+            select(Chunk)
+            .where(Chunk.doc_id == document_id)
+            .order_by(Chunk.page_number.asc(), Chunk.chunk_index.asc())
+        )
+        chunks = chunk_result.scalars().all()
+        if chunks:
+            page_to_text: dict[int, list[str]] = {}
+            for chunk in chunks:
+                page = chunk.page_number or 1
+                page_to_text.setdefault(page, []).append(chunk.text)
+            for page_num in sorted(page_to_text.keys()):
+                pages.append(
+                    PageResponse(
+                        page_number=page_num,
+                        text="\n\n".join(page_to_text[page_num]),
+                        has_tables=False,
+                    )
+                )
         else:
-            text = "[Image document]"
-        pages.append(PageResponse(
-            page_number=1,
-            text=text,
-            has_tables=False,
-        ))
+            if document.status == "pending_ocr":
+                text = "[Document requires OCR processing. Enable OCR in Settings to extract data.]"
+            else:
+                text = "[Image document]"
+            pages.append(
+                PageResponse(
+                    page_number=1,
+                    text=text,
+                    has_tables=False,
+                )
+            )
 
     return pages
 

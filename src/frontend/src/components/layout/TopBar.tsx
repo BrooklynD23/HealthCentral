@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Search, Shield, ShieldCheck, User } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui';
 
 export function TopBar() {
+  const navigate = useNavigate();
   const [safeMode, setSafeMode] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -58,10 +60,13 @@ export function TopBar() {
         </Button>
 
         <Button
+          type="button"
           variant="secondary"
           size="icon"
           className="h-10 w-10 rounded-xl border-black/[0.06]"
-          aria-label="User profile"
+          aria-label="Profile and settings"
+          title="Profile and settings"
+          onClick={() => navigate('/settings')}
         >
           <User className="w-5 h-5" />
         </Button>

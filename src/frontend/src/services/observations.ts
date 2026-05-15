@@ -15,6 +15,7 @@ async function fetchObservations(filters: ObservationFilters): Promise<Observati
   // profile_id is extracted from auth token by backend, not query params
   const params: Record<string, string> = {};
   if (filters.analyte) params.analyte = filters.analyte;
+  if (filters.doc_id) params.doc_id = filters.doc_id;
   if (filters.from_date) params.from_date = filters.from_date;
   if (filters.to_date) params.to_date = filters.to_date;
   if (filters.abnormal_only) params.abnormal_only = 'true';

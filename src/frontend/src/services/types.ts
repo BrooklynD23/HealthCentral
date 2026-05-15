@@ -55,6 +55,11 @@ export interface DocumentImportResponse {
   needs_verification: boolean;
 }
 
+export interface DocumentVerifyResponse {
+  document: Document;
+  verified_count: number;
+}
+
 export interface DocumentPage {
   page_number: number;
   text: string;
@@ -131,6 +136,7 @@ export interface Panel {
 export interface ObservationFilters {
   profile_id: string;
   analyte?: string;
+  doc_id?: string;
   from_date?: string;
   to_date?: string;
   abnormal_only?: boolean;
@@ -213,6 +219,44 @@ export interface BiomarkerKnowledge {
 export interface BatchInterpretResponse {
   successful: string[];
   failed: Array<{ observation_id: string; error: string }>;
+}
+
+export interface GroundedCitation {
+  source_type: string;
+  doc_id: string | null;
+  doc_title: string | null;
+  page: number | null;
+  text_snippet: string;
+  authority_tier?: number;
+  authority_score?: number;
+}
+
+export interface GroundedInterpretationSegment {
+  segment_type: string;
+  content: string;
+  citations: GroundedCitation[];
+}
+
+export interface GroundedVerification {
+  enabled: boolean;
+  total_claims: number;
+  verified_claims: number;
+  failed_claims: number;
+  faithfulness_score: number;
+  authority_score: number;
+  summary: string;
+  issues: string[];
+}
+
+export interface GroundedInterpretationResponse {
+  interpretation: InterpretationResponse;
+  grounded_segments: GroundedInterpretationSegment[];
+  full_response: string;
+  insufficient_context: boolean;
+  insufficient_reasons: string[];
+  verification: GroundedVerification;
+  is_valid: boolean;
+  validation_errors: string[];
 }
 
 // Medication types

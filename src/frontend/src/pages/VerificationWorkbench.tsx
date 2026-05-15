@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   CheckCircle,
@@ -15,14 +16,41 @@ import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/compo
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useObservations, useVerifyObservation } from '@/services/observations';
+import { useDocuments, useVerifyDocument, useReprocessDocument } from '@/services';
 import { useAuthStore } from '@/stores/authStore';
 import { apiGet } from '@/services/api';
 import { PageImageOverlay } from '@/components/PageImageOverlay';
-import type { Observation, DocumentPage, BoundingBox } from '@/services/types';
+import type { Observation, DocumentPage, BoundingBox, Document } from '@/services/types';
+
+const DOCUMENT_ATTENTION_STATUSES = new Set([
+  'pending',
+  'pending_ocr',
+  'parsed',
+  'extraction_failed',
+]);
+
+function documentAttentionHint(doc: Document): string {
+  switch (doc.status) {
+    case 'pending_ocr':
+      return 'OCR is required or unavailable. In Settings, turn on document OCR under Document import and ensure Tesseract is installed. Your server must allow OCR (OCR_ENABLED). Or use a clearer scan.';
+    case 'extraction_failed':
+      return 'Extraction failed for this file. Try re-importing or a different PDF export.';
+    case 'pending':
+      return 'Import is still processing or pending extraction.';
+    case 'parsed':
+      return 'No lab values were extracted or the document is not marked fully verified yet. Check the source in Inbox or review OCR quality.';
+    default:
+      return 'This document may need review in Inbox.';
+  }
+}
 
 export function VerificationWorkbench() {
   const prefersReducedMotion = useReducedMotion();
   const { profileId } = useAuthStore();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedDocId = searchParams.get('doc');
+  const mode = searchParams.get('mode');
+  const documentReviewMode = !!selectedDocId && mode === 'all';
   const [selectedRow, setSelectedRow] = useState<string | null>(null);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [editingObservation, setEditingObservation] = useState<Observation | null>(null);
@@ -31,23 +59,43 @@ export function VerificationWorkbench() {
   const [loadingSource, setLoadingSource] = useState(false);
 
   // Fetch observations that need verification
-  const {
-    data: observations,
-    isLoading,
-    isError,
-    error,
-  } = useObservations({
+  const observationFilters = documentReviewMode
+    ? { profile_id: profileId || '', doc_id: selectedDocId || undefined }
+    : { profile_id: profileId || '', needs_verification: true };
+  const { data: observations, isLoading, isError, error } = useObservations(observationFilters);
+
+  const { data: allDocuments = [], isLoading: documentsLoading } = useDocuments({
     profile_id: profileId || '',
-    needs_verification: true,
   });
 
   const verifyMutation = useVerifyObservation();
+  const verifyDocumentMutation = useVerifyDocument();
+  const reprocessMutation = useReprocessDocument();
+  const selectedDocument = selectedDocId
+    ? allDocuments.find((d) => d.id === selectedDocId) ?? null
+    : null;
 
   const handleVerify = async (observation: Observation) => {
     await verifyMutation.mutateAsync({
       observationId: observation.id,
       data: {},
     });
+  };
+
+  const handleMarkAllVerifiedClick = async () => {
+    if (selectedDocId) {
+      await verifyDocumentMutation.mutateAsync(selectedDocId);
+      return;
+    }
+    if (!observations?.length) return;
+    for (const obs of observations) {
+      if (!obs.user_verified) {
+        await verifyMutation.mutateAsync({
+          observationId: obs.id,
+          data: {},
+        });
+      }
+    }
   };
 
   const handleEdit = (observation: Observation) => {
@@ -69,10 +117,9 @@ export function VerificationWorkbench() {
     setEditingObservation(null);
   };
 
-  const handleRowSelect = async (observation: Observation) => {
+  const handleRowSelect = useCallback(async (observation: Observation) => {
     setSelectedRow(observation.id);
 
-    // Load source document pages
     if (observation.doc_id) {
       setLoadingSource(true);
       try {
@@ -86,6 +133,25 @@ export function VerificationWorkbench() {
       } finally {
         setLoadingSource(false);
       }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!selectedDocId) return;
+    const match = observations?.find((o) => o.doc_id === selectedDocId);
+    if (match) {
+      void handleRowSelect(match);
+      if (!documentReviewMode) {
+        const next = new URLSearchParams(searchParams);
+        next.delete('doc');
+        setSearchParams(next, { replace: true });
+      }
+    }
+  }, [observations, searchParams, setSearchParams, handleRowSelect, selectedDocId, documentReviewMode]);
+
+  const handleViewSourceClick = () => {
+    if (observations && observations.length > 0) {
+      void handleRowSelect(observations[0]);
     }
   };
 
@@ -156,8 +222,58 @@ export function VerificationWorkbench() {
     );
   }
 
-  // Empty state
+  // Empty state — observation queue clear, but documents may still need attention
   if (!observations || observations.length === 0) {
+    if (documentReviewMode && selectedDocument) {
+      const needsRetry =
+        selectedDocument.status === 'pending_ocr' || selectedDocument.status === 'extraction_failed';
+      return (
+        <div className="space-y-6">
+          <div>
+            <h1 className="font-display text-2xl font-semibold text-ink tracking-tight">
+              Verification Workbench
+            </h1>
+            <p className="text-ink-secondary mt-1">
+              Review and correct extracted values from your documents
+            </p>
+          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-status-attention" />
+                {selectedDocument.source || 'Selected document'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-ink-secondary">
+                No extracted values are available for this document yet. Status: {selectedDocument.status.replace(/_/g, ' ')}.
+              </p>
+              <p className="text-sm text-ink-secondary">{documentAttentionHint(selectedDocument)}</p>
+              <div className="flex flex-wrap gap-2">
+                {needsRetry && (
+                  <Button
+                    onClick={() => reprocessMutation.mutate(selectedDocument.id)}
+                    disabled={reprocessMutation.isPending}
+                    className="gap-2"
+                  >
+                    {reprocessMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                    Continue OCR / Retry extraction
+                  </Button>
+                )}
+                <Button variant="secondary" asChild>
+                  <Link to="/inbox">Open Inbox</Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
+    const attentionDocuments = documentsLoading
+      ? []
+      : allDocuments.filter((d) => DOCUMENT_ATTENTION_STATUSES.has(d.status));
+
     return (
       <div className="space-y-6">
         <div>
@@ -168,19 +284,62 @@ export function VerificationWorkbench() {
             Review and correct extracted values from your documents
           </p>
         </div>
-        <Card>
-          <CardContent className="py-16">
-            <div className="text-center">
-              <CheckCircle className="w-12 h-12 text-status-verified mx-auto mb-3" />
-              <p className="text-lg font-medium text-ink mb-1">
-                All observations verified
+
+        {documentsLoading ? (
+          <Card>
+            <CardContent className="py-16 flex justify-center">
+              <Loader2 className="w-8 h-8 animate-spin text-accent" aria-hidden />
+              <span className="sr-only">Loading documents…</span>
+            </CardContent>
+          </Card>
+        ) : attentionDocuments.length > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-status-attention" />
+                Documents needing attention
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-ink-secondary">
+                There are no lab values waiting in the verification queue. These imports still need
+                follow-up (OCR, extraction, or document-level review).
               </p>
-              <p className="text-ink-secondary">
-                No items need review at this time.
+              <ul className="divide-y divide-black/[0.06] rounded-xl border border-black/[0.06] bg-surface-muted/30">
+                {attentionDocuments.map((doc) => (
+                  <li key={doc.id} className="p-4 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium text-ink truncate">{doc.source || 'Untitled document'}</p>
+                      <p className="text-xs text-ink-secondary mt-0.5">
+                        {doc.doc_type.replace(/_/g, ' ')} · {doc.status.replace(/_/g, ' ')}
+                      </p>
+                    </div>
+                    <p className="text-xs text-ink-secondary sm:max-w-md shrink-0">
+                      {documentAttentionHint(doc)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-sm text-ink-secondary">
+                Open{' '}
+                <Link to="/inbox" className="text-accent font-medium hover:underline">
+                  Inbox
+                </Link>{' '}
+                to preview files or re-import. In Settings, check Document import (OCR) if scans are not readable.
               </p>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardContent className="py-16">
+              <div className="text-center">
+                <CheckCircle className="w-12 h-12 text-status-verified mx-auto mb-3" />
+                <p className="text-lg font-medium text-ink mb-1">All observations verified</p>
+                <p className="text-ink-secondary">No items need review at this time.</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     );
   }
@@ -197,20 +356,52 @@ export function VerificationWorkbench() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {documentReviewMode && selectedDocument && (
+            <Badge variant="default">
+              Reviewing: {selectedDocument.source || 'Document'}
+            </Badge>
+          )}
           {unverifiedCount > 0 && (
             <Badge variant="caution" className="gap-1.5">
               <AlertTriangle className="w-3.5 h-3.5" />
               {unverifiedCount} items need review
             </Badge>
           )}
-          <Button variant="secondary" className="gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            className="gap-2"
+            onClick={handleViewSourceClick}
+            disabled={!observations?.length}
+          >
             <Eye className="w-4 h-4" />
             View Source
           </Button>
-          <Button className="gap-2">
+          <Button
+            type="button"
+            className="gap-2"
+            onClick={() => void handleMarkAllVerifiedClick()}
+            disabled={
+              !observations?.length ||
+              verifyMutation.isPending ||
+              verifyDocumentMutation.isPending
+            }
+          >
             <CheckCircle className="w-4 h-4" />
-            Mark All Verified
+            {documentReviewMode ? 'Mark Document Verified' : 'Mark All Verified'}
           </Button>
+          {documentReviewMode && selectedDocument && (
+            <Button
+              type="button"
+              variant="secondary"
+              className="gap-2"
+              onClick={() => reprocessMutation.mutate(selectedDocument.id)}
+              disabled={reprocessMutation.isPending}
+            >
+              {reprocessMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              Retry extraction
+            </Button>
+          )}
         </div>
       </div>
 

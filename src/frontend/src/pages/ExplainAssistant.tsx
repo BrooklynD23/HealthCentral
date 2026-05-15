@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -19,7 +19,8 @@ import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/compo
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useAuthStore } from '@/stores/authStore';
-import { useAnalyteList } from '@/services';
+import { useAnalyteList, useModelSettings, useExternalApiSettings } from '@/services';
+import { useObservations } from '@/services/observations';
 import {
   DOCUMENT_CATEGORIES,
   useSendMessage,
@@ -78,7 +79,24 @@ export function ExplainAssistant() {
   const [toDate, setToDate] = useState('');
 
   const analyteList = useAnalyteList(profileId || undefined);
+  const { data: observationPool } = useObservations({ profile_id: profileId || '' });
   const sendMessage = useSendMessage();
+  const { data: modelSettings, isLoading: modelSettingsLoading } = useModelSettings();
+  const { data: externalApi } = useExternalApiSettings();
+
+  const activeModelSummary = useMemo(() => {
+    if (externalApi?.use_external_api && (externalApi.model || externalApi.provider)) {
+      const p = externalApi.provider || 'External API';
+      const m = externalApi.model || 'default';
+      return `${p} · ${m}`;
+    }
+    const tier = modelSettings?.current_tier;
+    if (tier && modelSettings?.tier_availability?.[tier]?.model) {
+      return modelSettings.tier_availability[tier].model as string;
+    }
+    if (tier) return `Tier: ${tier}`;
+    return 'Local model';
+  }, [modelSettings, externalApi]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth' });
@@ -110,6 +128,8 @@ export function ExplainAssistant() {
         question,
         include_references: true,
         enable_verification: true,
+        min_faithfulness_score: 0.6,
+        use_memory: true,
         selected_analytes: selectedAnalytes.length > 0 ? selectedAnalytes : undefined,
         selected_panel: selectedPanel || undefined,
         from_date: fromDate || undefined,
@@ -203,9 +223,13 @@ export function ExplainAssistant() {
                 </div>
                 <span>Explain Assistant</span>
               </div>
-              <Badge variant="info" className="gap-1.5">
-                <FileText className="w-3 h-3" />
-                Grounded Answers
+              <Badge variant="info" className="gap-1.5 max-w-[min(20rem,55vw)]" title={activeModelSummary}>
+                <FileText className="w-3 h-3 shrink-0" />
+                {modelSettingsLoading ? (
+                  <span className="inline-block h-3.5 w-28 bg-white/50 animate-pulse rounded" aria-hidden />
+                ) : (
+                  <span className="truncate">{activeModelSummary}</span>
+                )}
               </Badge>
             </CardTitle>
           </CardHeader>
@@ -228,6 +252,15 @@ export function ExplainAssistant() {
                 <Settings className="w-3.5 h-3.5" />
                 Settings
               </Button>
+            </div>
+          )}
+
+          {(observationPool?.some((obs) => !obs.user_verified) ?? false) && (
+            <div className="mx-6 mt-4 flex items-center gap-3 px-4 py-3 rounded-xl bg-status-caution-subtle border border-status-caution/20">
+              <AlertCircle className="w-5 h-5 text-status-caution flex-shrink-0" />
+              <p className="text-xs text-ink-secondary">
+                Some values are still unverified. Answers stay grounded, but confirm key numbers in Verify for highest confidence.
+              </p>
             </div>
           )}
 

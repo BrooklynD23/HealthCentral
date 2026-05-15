@@ -28,7 +28,9 @@ async function fetchProfile(profileId: string): Promise<Profile> {
 }
 
 async function createProfile(data: ProfileCreate): Promise<TokenResponse> {
-  return apiPost<TokenResponse, ProfileCreate>('/profiles/', data);
+  return apiPost<TokenResponse, ProfileCreate>('/profiles/', data, {
+    signal: AbortSignal.timeout(180_000),
+  });
 }
 
 async function login(data: LoginRequest): Promise<TokenResponse> {

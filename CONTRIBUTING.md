@@ -84,6 +84,9 @@ This is the current contributor verification path for the assistant-category sur
 ### Additional Focused Checks
 
 ```bash
+# Opt-in Playwright suite (requires lab PDF on disk; see README "Full UI verification")
+cd src/frontend && npx playwright test --config playwright.config.ts --project real-pdf-local
+
 # Backend tests
 PYTHONPATH=src/backend ./.wsl-pytest-venv/bin/python -m pytest src/backend/tests/ -v
 

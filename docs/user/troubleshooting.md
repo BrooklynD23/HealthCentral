@@ -29,7 +29,8 @@
 **Solutions**:
 - Ensure the file is a supported format (PDF, PNG, JPG, JPEG)
 - Check file size is under 50 MB
-- For images, ensure OCR is enabled (`OCR_ENABLED=true`) and Tesseract installed
+- For scans and images, turn on **Document import (OCR)** in **Settings**, ensure **Tesseract** is on `PATH`, and set **`OCR_ENABLED=true`** in the backend `.env` (admin cap). Restart the backend after changing `.env`.
+- For multi-page history (e.g. several lipid panels), use **`GET /api/v1/observations/panels/{panel_id}/snapshots`** or review by document in the inbox.
 - Check if the document is a lab report (non-lab documents won't extract observations)
 - Review backend logs for extraction errors
 

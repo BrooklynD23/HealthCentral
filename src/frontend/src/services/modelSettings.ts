@@ -46,6 +46,35 @@ export interface ModelSettings {
   auto_detect_enabled: boolean;
   hardware_info: HardwareInfo;
   tier_availability: Record<string, TierStatus>;
+  ocr_preference_enabled: boolean;
+  ocr_effective: boolean;
+  ocr_blockers: string[];
+}
+
+export interface OcrSettingsResponse {
+  ocr_preference_enabled: boolean;
+  ocr_effective: boolean;
+  ocr_blockers: string[];
+}
+
+export interface DiagnosticFixAction {
+  type: string;
+  label: string;
+  command?: string | null;
+  url?: string | null;
+}
+
+export interface DiagnosticComponent {
+  id: string;
+  label: string;
+  status: 'ok' | 'warn' | 'error';
+  detail: string;
+  fix_actions: DiagnosticFixAction[];
+}
+
+export interface DiagnosticsListResponse {
+  components: DiagnosticComponent[];
+  checked_at: string;
 }
 
 export interface DownloadProgress {
@@ -273,6 +302,52 @@ export function useSaveVoiceSettings() {
     mutationFn: saveVoiceSettings,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings', 'voice'] });
+    },
+  });
+}
+
+// OCR preference & environment diagnostics
+
+async function saveOcrPreference(ocr_preference_enabled: boolean): Promise<OcrSettingsResponse> {
+  return apiPatch<OcrSettingsResponse, { ocr_preference_enabled: boolean }>(
+    '/settings/model/ocr',
+    { ocr_preference_enabled }
+  );
+}
+
+async function fetchDiagnostics(): Promise<DiagnosticsListResponse> {
+  return apiGet<DiagnosticsListResponse>('/settings/model/diagnostics');
+}
+
+async function recheckDiagnostics(): Promise<DiagnosticsListResponse> {
+  return apiPost<DiagnosticsListResponse>('/settings/model/diagnostics/recheck');
+}
+
+export function useSaveOcrPreference() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: saveOcrPreference,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'diagnostics'] });
+    },
+  });
+}
+
+export function useEnvironmentDiagnostics() {
+  return useQuery({
+    queryKey: [QUERY_KEY, 'diagnostics'],
+    queryFn: fetchDiagnostics,
+    staleTime: 15_000,
+  });
+}
+
+export function useRecheckDiagnostics() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: recheckDiagnostics,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'diagnostics'] });
     },
   });
 }

@@ -3,11 +3,29 @@
  *
  * Base configuration and fetch wrapper for all API calls.
  * Sprint 1: Added Authorization header support.
+ *
+ * In development, requests use same-origin `/api/v1` so Vite can proxy to the
+ * backend port from `.env.local` (avoids stale absolute URLs when ports shift).
  */
 
 import { useAuthStore } from '@/stores/authStore';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+function resolveApiBaseUrl(): string {
+  if (import.meta.env.DEV) {
+    return '/api/v1';
+  }
+  const fromEnv = import.meta.env.VITE_API_URL;
+  return typeof fromEnv === 'string' && fromEnv.trim()
+    ? fromEnv.trim().replace(/\/$/, '')
+    : 'http://localhost:8000/api/v1';
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
+
+/** Same base URL used by `api*` helpers (handy for `<img src>` and diagnostics). */
+export function getApiBaseUrl(): string {
+  return API_BASE_URL;
+}
 
 export class ApiError extends Error {
   constructor(
@@ -32,14 +50,49 @@ function getAuthHeaders(): Record<string, string> {
 }
 
 /**
+ * After session invalidation, send the user to profile setup/sign-in so they are not
+ * stuck on a protected page behind a generic error (e.g. failed document list).
+ */
+function redirectToSessionRecovery(): void {
+  if (typeof window === 'undefined') return;
+  if (window.location.pathname === '/setup') return;
+  window.location.replace(`${window.location.origin}/setup`);
+}
+
+/**
  * Handle 401/403 errors by clearing auth state.
  */
 function handleAuthError(status: number): void {
   if (status === 401) {
-    // Clear auth state on unauthorized
     useAuthStore.getState().clearAuth();
+    redirectToSessionRecovery();
   }
   // 403 is kept - profile database locked, but token may still be valid
+}
+
+function networkFailureHint(): string {
+  if (API_BASE_URL.startsWith('/')) {
+    return (
+      ' Start the backend (e.g. dev.ps1) and restart the frontend dev server after changing .env.local. ' +
+      'If you opened this page days ago, refresh so Vite picks up the latest proxy target.'
+    );
+  }
+  const origin = API_BASE_URL.replace(/\/api\/v1\/?$/i, '');
+  return ` Is the API running at ${origin}?`;
+}
+
+async function fetchOrExplain(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch (e) {
+    const isFetchFailed =
+      e instanceof TypeError &&
+      (e.message === 'Failed to fetch' || e.message.toLowerCase().includes('fetch'));
+    if (isFetchFailed) {
+      throw new Error(`Failed to fetch.${networkFailureHint()}`);
+    }
+    throw e;
+  }
 }
 
 async function handleResponse<T>(response: Response): Promise<T> {
@@ -67,20 +120,31 @@ async function handleResponse<T>(response: Response): Promise<T> {
   return response.json();
 }
 
+/** Build `/api/v1/...` or absolute API URL with optional query string. */
+function buildApiUrl(endpoint: string, params?: Record<string, string>): string {
+  const base = API_BASE_URL.replace(/\/$/, '');
+  const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  let url = `${base}${path}`;
+  if (params) {
+    const sp = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        sp.append(key, value);
+      }
+    });
+    const q = sp.toString();
+    if (q) url += `?${q}`;
+  }
+  return url;
+}
+
 export async function apiGet<T>(
   endpoint: string,
   params?: Record<string, string>
 ): Promise<T> {
-  const url = new URL(`${API_BASE_URL}${endpoint}`);
-  if (params) {
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        url.searchParams.append(key, value);
-      }
-    });
-  }
+  const url = buildApiUrl(endpoint, params);
 
-  const response = await fetch(url.toString(), {
+  const response = await fetchOrExplain(url, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
@@ -94,9 +158,12 @@ export async function apiGet<T>(
 
 export async function apiPost<T, D = unknown>(
   endpoint: string,
-  data?: D
+  data?: D,
+  init?: Omit<RequestInit, 'method' | 'body' | 'headers'>
 ): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  const url = buildApiUrl(endpoint);
+
+  const response = await fetchOrExplain(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -104,6 +171,7 @@ export async function apiPost<T, D = unknown>(
     },
     credentials: 'include',
     body: data ? JSON.stringify(data) : undefined,
+    ...init,
   });
 
   return handleResponse<T>(response);
@@ -113,7 +181,9 @@ export async function apiPut<T, D = unknown>(
   endpoint: string,
   data: D
 ): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  const url = buildApiUrl(endpoint);
+
+  const response = await fetchOrExplain(url, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -130,7 +200,9 @@ export async function apiPatch<T, D = unknown>(
   endpoint: string,
   data: D
 ): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  const url = buildApiUrl(endpoint);
+
+  const response = await fetchOrExplain(url, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
@@ -144,7 +216,9 @@ export async function apiPatch<T, D = unknown>(
 }
 
 export async function apiDelete(endpoint: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  const url = buildApiUrl(endpoint);
+
+  const response = await fetchOrExplain(url, {
     method: 'DELETE',
     headers: {
       'Content-Type': 'application/json',
@@ -164,16 +238,9 @@ export async function apiGetRaw(
   endpoint: string,
   params?: Record<string, string>
 ): Promise<Response> {
-  const url = new URL(`${API_BASE_URL}${endpoint}`);
-  if (params) {
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        url.searchParams.append(key, value);
-      }
-    });
-  }
+  const url = buildApiUrl(endpoint, params);
 
-  const response = await fetch(url.toString(), {
+  const response = await fetchOrExplain(url, {
     method: 'GET',
     headers: {
       ...getAuthHeaders(),
@@ -202,19 +269,12 @@ export async function apiUpload<T>(
   file: File,
   params?: Record<string, string>
 ): Promise<T> {
-  const url = new URL(`${API_BASE_URL}${endpoint}`);
-  if (params) {
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        url.searchParams.append(key, value);
-      }
-    });
-  }
+  const url = buildApiUrl(endpoint, params);
 
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await fetch(url.toString(), {
+  const response = await fetchOrExplain(url, {
     method: 'POST',
     headers: {
       ...getAuthHeaders(),

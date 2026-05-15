@@ -4,21 +4,26 @@ Hardware detection module for model tier selection.
 Phase 0.3: Tiered Hardware Model System
 
 Detects system capabilities (RAM, CPU, disk) to recommend appropriate
-model tiers. GPU detection is optional - tiers are based primarily on RAM.
+model tiers. GPU detection uses PyTorch CUDA (optional), nvidia-smi, or
+Windows WMI. Tier selection uses RAM + disk; when GPU reports sufficient VRAM,
+an effective-RAM boost can recommend a higher tier (GPU assists local inference).
 """
 
 import logging
+import platform
+import re
 import shutil
+import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Tuple
 
 import psutil
 
 logger = logging.getLogger(__name__)
 
 
-# Tier requirements (RAM-based, GPU is bonus)
+# Tier requirements (RAM-based; GPU VRAM can lift effective RAM for recommendation)
 TIER_REQUIREMENTS: dict[str, dict[str, float]] = {
     "low": {"ram_gb": 8, "disk_gb": 1},      # Qwen 0.5B
     "mid": {"ram_gb": 16, "disk_gb": 3},     # Phi-3-mini
@@ -27,6 +32,133 @@ TIER_REQUIREMENTS: dict[str, dict[str, float]] = {
 
 # Tier priority order (highest to lowest)
 TIER_ORDER = ["high", "mid", "low"]
+
+# Minimum GPU VRAM (GB) before we apply an effective-RAM boost toward tier selection.
+GPU_VRAM_BUMP_MIN_GB = 8.0
+# Max GB added to effective RAM when GPU VRAM exceeds the threshold (caps overshoot).
+GPU_EFFECTIVE_RAM_BOOST_CAP_GB = 24.0
+
+_NVIDIA_SMI_TIMEOUT_SEC = 5.0
+_WMIC_TIMEOUT_SEC = 5.0
+
+
+def _effective_ram_gb(ram_gb: float, gpu_vram_gb: Optional[float]) -> float:
+    """RAM used for tier rules; VRAM beyond the threshold counts toward RAM need up to a cap."""
+    if gpu_vram_gb is None or gpu_vram_gb < GPU_VRAM_BUMP_MIN_GB:
+        return ram_gb
+    over = max(0.0, gpu_vram_gb - GPU_VRAM_BUMP_MIN_GB)
+    boost = min(GPU_EFFECTIVE_RAM_BOOST_CAP_GB, over)
+    return ram_gb + boost
+
+
+def _detect_gpu_torch_cuda() -> Tuple[Optional[str], Optional[float]]:
+    try:
+        import torch
+        if torch.cuda.is_available():
+            name = torch.cuda.get_device_name(0)
+            props = torch.cuda.get_device_properties(0)
+            vram = props.total_memory / (1024**3)
+            return name, vram
+    except ImportError:
+        logger.debug("torch not available for GPU detection")
+    except Exception as e:
+        logger.debug("torch GPU detection failed: %s", e)
+    return None, None
+
+
+def _detect_gpu_nvidia_smi() -> Tuple[Optional[str], Optional[float]]:
+    """Use nvidia-smi when NVIDIA drivers are installed (no PyTorch required)."""
+    try:
+        completed = subprocess.run(
+            [
+                "nvidia-smi",
+                "--query-gpu=name,memory.total",
+                "--format=csv,noheader,nounits",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=_NVIDIA_SMI_TIMEOUT_SEC,
+        )
+        if completed.returncode != 0 or not (completed.stdout or "").strip():
+            return None, None
+        first = (completed.stdout or "").strip().splitlines()[0]
+        parts = [p.strip() for p in first.split(",")]
+        if len(parts) < 2:
+            return None, None
+        name, mem_raw = parts[0], parts[1]
+        if not name:
+            return None, None
+        try:
+            mem_mb = float(re.sub(r"[^\d.]", "", mem_raw) or 0.0)
+        except ValueError:
+            mem_mb = 0.0
+        vram_gb = mem_mb / 1024.0 if mem_mb else None
+        return name, vram_gb
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as e:
+        logger.debug("nvidia-smi GPU detection skipped or failed: %s", e)
+    except Exception as e:
+        logger.debug("nvidia-smi GPU detection failed: %s", e)
+    return None, None
+
+
+def _detect_gpu_wmi_windows() -> Tuple[Optional[str], Optional[float]]:
+    """Fallback display adapter name on Windows (VRAM often unavailable)."""
+    if platform.system() != "Windows":
+        return None, None
+    try:
+        completed = subprocess.run(
+            [
+                "wmic",
+                "path",
+                "Win32_VideoController",
+                "get",
+                "Name",
+                "/format:list",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=_WMIC_TIMEOUT_SEC,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        if completed.returncode != 0 or not (completed.stdout or "").strip():
+            return None, None
+        lines = [ln.strip() for ln in completed.stdout.splitlines() if ln.strip()]
+        names: list[str] = []
+        for ln in lines:
+            if ln.startswith("Name="):
+                val = ln.split("=", 1)[1].strip()
+                if val:
+                    names.append(val)
+        if not names:
+            return None, None
+        # Prefer non-Generic/Microsoft Basic if multiple entries
+        preferred = next((n for n in names if "basic" not in n.lower() and "microsoft" not in n.lower()), names[0])
+        return preferred, None
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as e:
+        logger.debug("WMI GPU detection skipped or failed: %s", e)
+    except Exception as e:
+        logger.debug("WMI GPU detection failed: %s", e)
+    return None, None
+
+
+def _detect_gpu() -> Tuple[bool, Optional[float], Optional[str]]:
+    """
+    Try multiple strategies. Prefer concrete name + VRAM when available.
+    Order: torch CUDA, nvidia-smi, Windows WMI (name only).
+    """
+    name, vram = _detect_gpu_torch_cuda()
+    if name:
+        return True, vram, name
+
+    name, vram = _detect_gpu_nvidia_smi()
+    if name:
+        return True, vram, name
+
+    name, _v = _detect_gpu_wmi_windows()
+    if name:
+        return True, vram, name
+
+    return False, None, None
 
 
 @dataclass
@@ -135,7 +267,6 @@ def detect_hardware(models_path: Optional[str] = None) -> HardwareProfile:
         info = cpuinfo.get_cpu_info()
         cpu_name = info.get("brand_raw") or info.get("brand")
     except Exception:
-        # py-cpuinfo not available or failed
         pass
 
     # Disk space detection
@@ -145,32 +276,14 @@ def detect_hardware(models_path: Optional[str] = None) -> HardwareProfile:
         disk_usage = shutil.disk_usage(check_path)
         disk_free_gb = disk_usage.free / (1024**3)
     except Exception as e:
-        logger.warning(f"Could not determine disk space: {e}")
+        logger.warning("Could not determine disk space: %s", e)
 
-    # GPU detection (optional - don't fail if not available)
-    gpu_available = False
-    gpu_vram_gb = None
-    gpu_name = None
+    gpu_available, gpu_vram_gb, gpu_name = _detect_gpu()
 
-    try:
-        # Try torch for GPU detection
-        import torch
-        if torch.cuda.is_available():
-            gpu_available = True
-            gpu_name = torch.cuda.get_device_name(0)
-            # Get VRAM in GB
-            props = torch.cuda.get_device_properties(0)
-            gpu_vram_gb = props.total_memory / (1024**3)
-    except ImportError:
-        # torch not installed - GPU detection skipped
-        logger.debug("torch not available, skipping GPU detection")
-    except Exception as e:
-        logger.debug(f"GPU detection failed: {e}")
-
-    # Determine recommended tier
     recommended_tier = get_recommended_tier_from_hardware(
         ram_gb=ram_total_gb,
         disk_gb=disk_free_gb,
+        gpu_vram_gb=gpu_vram_gb,
     )
 
     profile = HardwareProfile(
@@ -188,10 +301,13 @@ def detect_hardware(models_path: Optional[str] = None) -> HardwareProfile:
     )
 
     logger.info(
-        f"Hardware detected: RAM={ram_total_gb:.1f}GB, "
-        f"CPU={cpu_cores} cores, Disk={disk_free_gb:.1f}GB free, "
-        f"GPU={'Yes' if gpu_available else 'No'}, "
-        f"Recommended tier={recommended_tier}"
+        "Hardware detected: RAM=%.1fGB, CPU=%d cores, Disk=%.1fGB free, "
+        "GPU=%s, Recommended tier=%s",
+        ram_total_gb,
+        cpu_cores,
+        disk_free_gb,
+        "Yes" if gpu_available else "No",
+        recommended_tier,
     )
 
     return profile
@@ -201,18 +317,14 @@ def can_run_tier(profile: HardwareProfile, tier: str) -> bool:
     """
     Check if hardware supports a specific tier.
 
-    Args:
-        profile: Hardware profile from detect_hardware()
-        tier: Tier string ("low", "mid", "high")
-
-    Returns:
-        True if hardware meets tier requirements, False otherwise.
+    Uses the same effective-RAM rules as recommended tier when GPU VRAM is known.
     """
     if tier not in TIER_REQUIREMENTS:
-        return tier == "template"  # Template always works
+        return tier == "template"
 
     requirements = TIER_REQUIREMENTS[tier]
-    ram_ok = profile.ram_total_gb >= requirements["ram_gb"]
+    effective_ram = _effective_ram_gb(profile.ram_total_gb, profile.gpu_vram_gb)
+    ram_ok = effective_ram >= requirements["ram_gb"]
     disk_ok = profile.disk_free_gb >= requirements["disk_gb"]
 
     return ram_ok and disk_ok
@@ -221,55 +333,32 @@ def can_run_tier(profile: HardwareProfile, tier: str) -> bool:
 def get_recommended_tier_from_hardware(
     ram_gb: float,
     disk_gb: float,
+    gpu_vram_gb: Optional[float] = None,
 ) -> str:
     """
     Determine the recommended tier based on raw hardware values.
 
+    Uses effective RAM (Physical RAM + capped VRAM boost when VRAM >= GPU_VRAM_BUMP_MIN_GB).
     Returns the highest tier that meets requirements.
-
-    Args:
-        ram_gb: Total RAM in gigabytes
-        disk_gb: Free disk space in gigabytes
-
-    Returns:
-        Tier string: "high", "mid", or "low"
     """
-    # Check tiers from highest to lowest
+    effective_ram = _effective_ram_gb(ram_gb, gpu_vram_gb)
+
     for tier in TIER_ORDER:
         requirements = TIER_REQUIREMENTS[tier]
-        if ram_gb >= requirements["ram_gb"] and disk_gb >= requirements["disk_gb"]:
+        if effective_ram >= requirements["ram_gb"] and disk_gb >= requirements["disk_gb"]:
             return tier
 
-    # Default to low even if requirements not met
-    # (system will use templates as fallback)
     return "low"
 
 
 def get_recommended_tier(profile: HardwareProfile) -> str:
-    """
-    Get the recommended tier from an existing hardware profile.
-
-    This is a convenience wrapper that returns the pre-computed
-    recommended_tier from the profile.
-
-    Args:
-        profile: Hardware profile from detect_hardware()
-
-    Returns:
-        Tier string: "high", "mid", or "low"
-    """
+    """Return pre-computed recommended_tier from the profile."""
     return profile.recommended_tier
 
 
 def get_tier_display_info(tier: str) -> dict:
     """
     Get display information for a tier.
-
-    Args:
-        tier: Tier string ("low", "mid", "high", "template")
-
-    Returns:
-        Dictionary with tier display information.
     """
     info = {
         "low": {

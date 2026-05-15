@@ -110,6 +110,13 @@ class UserModelSettings(ProfileDatabaseBase):
         nullable=False,
     )
 
+    # OCR for scanned PDFs / lab images (Phase 1+); default on for new profiles
+    ocr_preference_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+    )
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime,

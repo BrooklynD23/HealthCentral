@@ -342,6 +342,17 @@ What this proves:
 - the Explain Assistant document-category filter is covered at both component and browser level;
 - the supported backend proof bundle catches bootstrap, password-hashing, and repo-hygiene regressions from the same repo-root WSL interpreter path.
 
+### Full UI verification (optional)
+
+- **Browser MCP (manual):** Step-by-step sweep and report template in [`src/frontend/e2e/BROWSER_MCP_PLAYBOOK.md`](src/frontend/e2e/BROWSER_MCP_PLAYBOOK.md).
+- **Playwright (real PDF on disk):** Set `HC_E2E_REAL_PDF` to an absolute path, or on Windows rely on the default path documented in [`src/frontend/e2e/ui-full-verification.spec.ts`](src/frontend/e2e/ui-full-verification.spec.ts). Then from `src/frontend`:
+
+```bash
+npx playwright test --config playwright.config.ts --project real-pdf-local
+```
+
+CI runs the **`chromium`** project only (`npx playwright test --project chromium`), so the real-PDF suite is opt-in locally.
+
 ### Local-only artifact hygiene
 
 Use the following repo-hygiene rules whenever you are about to interpret `git status`, perform an audit, or do pre-merge cleanup:

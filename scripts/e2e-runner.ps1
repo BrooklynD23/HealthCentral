@@ -31,8 +31,8 @@ try {
         Write-Host "`nRunning all E2E tests..." -ForegroundColor Yellow
     }
 
-    # Run Playwright tests
-    $command = "npx playwright test $grepArg"
+    # Run Playwright tests (chromium project only — excludes real-PDF local suite)
+    $command = "npx playwright test --project chromium $grepArg"
     Write-Host "Executing: $command" -ForegroundColor Gray
     Invoke-Expression $command
 

@@ -11,11 +11,11 @@ echo =============================
 cd /d "%~dp0..\src\frontend"
 
 if "%1"=="" (
-    echo Running all E2E tests...
-    npx playwright test
+    echo Running chromium E2E project (excludes real-PDF local suite)...
+    npx playwright test --project chromium
 ) else (
     echo Running tests matching: %1
-    npx playwright test --grep "%1"
+    npx playwright test --project chromium --grep "%1"
 )
 
 if %ERRORLEVEL% EQU 0 (

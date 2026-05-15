@@ -215,3 +215,10 @@ def test_api_import_dedup_http_002_new_import_returns_201(monkeypatch):
         )
 
     assert response.status_code == 201
+
+
+def test_document_text_pages_split_helper_handles_ocr_formfeed():
+    """OCR text should split into per-page segments for chunking/page preview."""
+    text = "page one text\fpage two text\f\n\fpage three"
+    pages = documents_api._split_extracted_text_pages(text)
+    assert pages == ["page one text", "page two text", "page three"]

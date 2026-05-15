@@ -16,8 +16,9 @@ specific query to the cloud — never your full health record.
 
 ### What file formats are supported?
 
-PDF lab reports and image files (PNG, JPG, JPEG). OCR for images requires
-Tesseract to be installed and `OCR_ENABLED=true`.
+PDF lab reports and image files (PNG, JPG, JPEG). OCR for scans requires Tesseract,
+**Document import (OCR)** enabled in Settings for your profile, and `OCR_ENABLED=true`
+in the server `.env`.
 
 ### Can multiple people use the same installation?
 

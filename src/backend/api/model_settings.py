@@ -12,16 +12,18 @@ import json
 import logging
 import threading
 import time
-from datetime import datetime
-from typing import Optional
+from datetime import datetime, timezone
+from typing import Optional, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy import select
 
 from core.auth import RequireAuth, ProfileDbSession, ProfileEncryptionManager
+from core.config import user_ocr_preference_enabled, compute_ocr_effective
 from core.profile_database import get_profile_db_manager
 from models import UserModelSettings
+from modules.environment_diagnostics import build_environment_diagnostics
 from modules.hardware_detection import (
     HardwareProfile,
     detect_hardware,
@@ -163,6 +165,9 @@ class ModelSettingsResponse(BaseModel):
     auto_detect_enabled: bool
     hardware_info: HardwareInfoResponse
     tier_availability: dict[str, TierStatusResponse]
+    ocr_preference_enabled: bool = True
+    ocr_effective: bool = False
+    ocr_blockers: list[str] = Field(default_factory=list)
 
 
 class DownloadProgressResponse(BaseModel):
@@ -214,6 +219,39 @@ class VoiceSettingsUpdate(BaseModel):
     voice_modal_seen: Optional[bool] = None
 
 
+class OcrSettingsUpdate(BaseModel):
+    """Toggle per-profile OCR for scanned PDFs and lab images."""
+    ocr_preference_enabled: bool
+
+
+class OcrSettingsResponse(BaseModel):
+    ocr_preference_enabled: bool
+    ocr_effective: bool
+    ocr_blockers: list[str] = Field(default_factory=list)
+
+
+class DiagnosticFixAction(BaseModel):
+    """Suggested remediation step (copy command, link, or in-app action)."""
+    model_config = ConfigDict(populate_by_name=True)
+    type: str = Field(validation_alias="action_type")
+    label: str
+    command: Optional[str] = None
+    url: Optional[str] = None
+
+
+class DiagnosticComponentResponse(BaseModel):
+    id: str
+    label: str
+    status: Literal["ok", "warn", "error"]
+    detail: str
+    fix_actions: list[DiagnosticFixAction]
+
+
+class DiagnosticsListResponse(BaseModel):
+    components: list[DiagnosticComponentResponse]
+    checked_at: str
+
+
 async def _get_user_settings(
     profile_id: str,
     profile_db: ProfileDbSession,
@@ -237,6 +275,26 @@ async def _get_or_create_user_settings(
     settings = UserModelSettings(profile_id=profile_id)
     profile_db.add(settings)
     return settings
+
+
+def _diagnostics_list_response() -> DiagnosticsListResponse:
+    raw = build_environment_diagnostics()
+    components: list[DiagnosticComponentResponse] = []
+    for c in raw:
+        actions = [DiagnosticFixAction.model_validate(a) for a in c["fix_actions"]]
+        components.append(
+            DiagnosticComponentResponse(
+                id=c["id"],
+                label=c["label"],
+                status=c["status"],
+                detail=c["detail"],
+                fix_actions=actions,
+            )
+        )
+    return DiagnosticsListResponse(
+        components=components,
+        checked_at=datetime.now(timezone.utc).isoformat(),
+    )
 
 
 # =============================================================================
@@ -299,6 +357,9 @@ async def get_model_settings(
         can_run=True,
     )
 
+    ocr_pref = user_ocr_preference_enabled(user_settings)
+    ocr_effective, ocr_blockers = compute_ocr_effective(ocr_pref)
+
     return ModelSettingsResponse(
         current_tier=current_tier,
         preferred_tier=preferred_tier,
@@ -318,6 +379,9 @@ async def get_model_settings(
             detection_timestamp=hardware.detection_timestamp.isoformat(),
         ),
         tier_availability=tier_availability,
+        ocr_preference_enabled=ocr_pref,
+        ocr_effective=ocr_effective,
+        ocr_blockers=ocr_blockers,
     )
 
 
@@ -805,4 +869,50 @@ async def update_voice_settings(
     return VoiceSettingsResponse(
         voice_logging_enabled=settings.voice_logging_enabled,
         voice_modal_seen=settings.voice_modal_seen,
+    )
+
+
+@router.get(
+    "/diagnostics",
+    response_model=DiagnosticsListResponse,
+    summary="Environment diagnostics",
+    description="Status of OCR stack, models, SQLCipher, and GPU with fix hints.",
+)
+async def get_environment_diagnostics(session: RequireAuth):
+    """Report status of local tools (OCR, models, SQLCipher, GPU)."""
+    _ = session
+    return _diagnostics_list_response()
+
+
+@router.post(
+    "/diagnostics/recheck",
+    response_model=DiagnosticsListResponse,
+    summary="Re-run environment diagnostics",
+    description="Same as GET /diagnostics; for explicit UI refresh after fixes.",
+)
+async def recheck_environment_diagnostics(session: RequireAuth):
+    _ = session
+    return _diagnostics_list_response()
+
+
+@router.patch(
+    "/ocr",
+    response_model=OcrSettingsResponse,
+    summary="Update OCR preference",
+    description="Per-profile toggle for scanned PDF and image OCR (subject to server config and Tesseract).",
+)
+async def update_ocr_settings(
+    data: OcrSettingsUpdate,
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
+):
+    settings_row = await _get_or_create_user_settings(session.profile_id, profile_db)
+    settings_row.ocr_preference_enabled = data.ocr_preference_enabled
+    await profile_db.commit()
+    ocr_pref = user_ocr_preference_enabled(settings_row)
+    ocr_effective, ocr_blockers = compute_ocr_effective(ocr_pref)
+    return OcrSettingsResponse(
+        ocr_preference_enabled=ocr_pref,
+        ocr_effective=ocr_effective,
+        ocr_blockers=ocr_blockers,
     )

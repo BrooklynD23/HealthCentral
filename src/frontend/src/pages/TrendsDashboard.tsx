@@ -195,6 +195,14 @@ export function TrendsDashboard() {
     if (!selectedObservation || !medications) return [];
     return findActiveMedications(selectedObservation, medications);
   }, [selectedObservation, medications]);
+  const unverifiedCount = useMemo(
+    () => observations?.filter((obs) => !obs.user_verified).length ?? 0,
+    [observations]
+  );
+  const lowConfidenceCount = useMemo(
+    () => observations?.filter((obs) => (obs.extraction_confidence ?? 1) < 0.8).length ?? 0,
+    [observations]
+  );
   const getTrendIcon = (current: number | undefined, previous: number | undefined) => {
     if (!current || !previous) return <Minus className="w-4 h-4" />;
     const diff = current - previous;
@@ -277,6 +285,16 @@ export function TrendsDashboard() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {unverifiedCount > 0 && (
+            <Badge variant="caution">
+              {unverifiedCount} unverified values
+            </Badge>
+          )}
+          {lowConfidenceCount > 0 && (
+            <Badge variant="attention">
+              {lowConfidenceCount} low-confidence extractions
+            </Badge>
+          )}
           <Button variant="secondary" className="gap-2">
             <Calendar className="w-4 h-4" />
             Last 12 Months

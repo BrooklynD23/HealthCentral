@@ -35,6 +35,28 @@ vi.mock('@/services/api', () => ({
   },
 }));
 
+/** Default: documents list empty, observations from tests via shared state. */
+function defaultApiGetMock(observations: unknown[]) {
+  return (url: string) => {
+    if (url.startsWith('/documents') && url.includes('/pages')) {
+      return Promise.resolve([
+        {
+          page_number: 1,
+          text: 'Glucose: 95 mg/dL (70-100)',
+          has_tables: true,
+        },
+      ]);
+    }
+    if (url.startsWith('/documents')) {
+      return Promise.resolve([]);
+    }
+    if (url.startsWith('/observations')) {
+      return Promise.resolve(observations);
+    }
+    return Promise.resolve([]);
+  };
+}
+
 function renderWithProviders(component: React.ReactNode) {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -93,12 +115,11 @@ describe('VerificationWorkbench', () => {
       profileId: 'profile-123',
       profileName: 'Test Profile',
     });
+    vi.mocked(api.apiGet).mockImplementation(defaultApiGetMock(mockObservations));
   });
 
   describe('FE-VERIFY-001: test_loads_observations_from_api', () => {
     it('should load observations from API on mount', async () => {
-      vi.mocked(api.apiGet).mockResolvedValueOnce(mockObservations);
-
       renderWithProviders(<VerificationWorkbench />);
 
       // Should show loading state initially, then observations
@@ -116,8 +137,6 @@ describe('VerificationWorkbench', () => {
     });
 
     it('should display observation values from API', async () => {
-      vi.mocked(api.apiGet).mockResolvedValueOnce(mockObservations);
-
       renderWithProviders(<VerificationWorkbench />);
 
       await waitFor(() => {
@@ -131,8 +150,6 @@ describe('VerificationWorkbench', () => {
     });
 
     it('should show items needing review badge', async () => {
-      vi.mocked(api.apiGet).mockResolvedValueOnce(mockObservations);
-
       renderWithProviders(<VerificationWorkbench />);
 
       await waitFor(() => {
@@ -145,13 +162,24 @@ describe('VerificationWorkbench', () => {
   describe('FE-VERIFY-002: test_verify_updates_list', () => {
     it('should mark observation as verified when verify button clicked', async () => {
       const user = userEvent.setup();
-      vi.mocked(api.apiGet).mockResolvedValueOnce(mockObservations);
 
       const verifiedObs = { ...mockObservations[0], user_verified: true };
-      vi.mocked(api.apiPost).mockResolvedValueOnce(verifiedObs);
+      const state = { obs: mockObservations as typeof mockObservations };
 
-      // After verification, should re-fetch with one less unverified
-      vi.mocked(api.apiGet).mockResolvedValueOnce([mockObservations[1]]);
+      vi.mocked(api.apiGet).mockImplementation((url: string) => {
+        if (url.startsWith('/documents')) {
+          return Promise.resolve([]);
+        }
+        if (url.startsWith('/observations')) {
+          return Promise.resolve(state.obs);
+        }
+        return Promise.resolve([]);
+      });
+
+      vi.mocked(api.apiPost).mockImplementation(async () => {
+        state.obs = [mockObservations[1]];
+        return verifiedObs;
+      });
 
       renderWithProviders(<VerificationWorkbench />);
 
@@ -184,7 +212,6 @@ describe('VerificationWorkbench', () => {
   describe('FE-VERIFY-003: test_edit_value_persists', () => {
     it('should allow editing observation value', async () => {
       const user = userEvent.setup();
-      vi.mocked(api.apiGet).mockResolvedValueOnce(mockObservations);
 
       renderWithProviders(<VerificationWorkbench />);
 
@@ -213,16 +240,8 @@ describe('VerificationWorkbench', () => {
   describe('FE-VERIFY-004: test_source_preview_loads', () => {
     it('should show source preview when row is selected', async () => {
       const user = userEvent.setup();
-      vi.mocked(api.apiGet).mockResolvedValueOnce(mockObservations);
 
-      // Mock document pages API
-      vi.mocked(api.apiGet).mockResolvedValueOnce([
-        {
-          page_number: 1,
-          text: 'Glucose: 95 mg/dL (70-100)',
-          has_tables: true,
-        },
-      ]);
+      vi.mocked(api.apiGet).mockImplementation(defaultApiGetMock(mockObservations));
 
       renderWithProviders(<VerificationWorkbench />);
 
@@ -243,7 +262,7 @@ describe('VerificationWorkbench', () => {
 
   describe('Empty state', () => {
     it('should show empty state when no observations need verification', async () => {
-      vi.mocked(api.apiGet).mockResolvedValueOnce([]);
+      vi.mocked(api.apiGet).mockImplementation(defaultApiGetMock([]));
 
       renderWithProviders(<VerificationWorkbench />);
 
@@ -251,6 +270,79 @@ describe('VerificationWorkbench', () => {
         expect(
           screen.getByText(/all observations verified/i)
         ).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Document review mode', () => {
+    it('loads all observations for selected document when mode=all', async () => {
+      window.history.pushState({}, '', '/verify?doc=doc-1&mode=all');
+      vi.mocked(api.apiGet).mockImplementation((url: string) => {
+        if (url.startsWith('/documents')) {
+          return Promise.resolve([
+            {
+              id: 'doc-1',
+              profile_id: 'profile-123',
+              doc_type: 'lab_pdf',
+              source: 'sample.pdf',
+              status: 'parsed',
+              page_count: 1,
+              collection_date: null,
+              imported_at: new Date().toISOString(),
+              parsed_at: new Date().toISOString(),
+              verified_at: null,
+            },
+          ]);
+        }
+        if (url.startsWith('/observations')) {
+          return Promise.resolve(mockObservations);
+        }
+        return Promise.resolve([]);
+      });
+
+      renderWithProviders(<VerificationWorkbench />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/reviewing: sample.pdf/i)).toBeInTheDocument();
+      });
+
+      expect(api.apiGet).toHaveBeenCalledWith(
+        '/observations/',
+        expect.objectContaining({
+          doc_id: 'doc-1',
+        })
+      );
+      expect(screen.getByRole('button', { name: /mark document verified/i })).toBeInTheDocument();
+    });
+
+    it('shows OCR retry action when selected document has no extracted rows', async () => {
+      window.history.pushState({}, '', '/verify?doc=doc-ocr&mode=all');
+      vi.mocked(api.apiGet).mockImplementation((url: string) => {
+        if (url.startsWith('/documents')) {
+          return Promise.resolve([
+            {
+              id: 'doc-ocr',
+              profile_id: 'profile-123',
+              doc_type: 'lab_image',
+              source: 'scan.png',
+              status: 'pending_ocr',
+              page_count: 1,
+              collection_date: null,
+              imported_at: new Date().toISOString(),
+              parsed_at: null,
+              verified_at: null,
+            },
+          ]);
+        }
+        if (url.startsWith('/observations')) {
+          return Promise.resolve([]);
+        }
+        return Promise.resolve([]);
+      });
+
+      renderWithProviders(<VerificationWorkbench />);
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /continue ocr/i })).toBeInTheDocument();
       });
     });
   });

@@ -11,6 +11,7 @@ import type {
   PanelInterpretationResponse,
   BiomarkerKnowledge,
   BatchInterpretResponse,
+  GroundedInterpretationResponse,
 } from './types';
 
 const QUERY_KEY = 'interpretations';
@@ -25,6 +26,17 @@ async function generateInterpretation(
   if (forceRegenerate) params.force_regenerate = 'true';
   return apiPost<InterpretationResponse>(
     `/interpretations/observations/${observationId}/interpret?${new URLSearchParams(params)}`
+  );
+}
+
+async function generateGroundedInterpretation(
+  observationId: string,
+  forceRegenerate = false
+): Promise<GroundedInterpretationResponse> {
+  const params: Record<string, string> = {};
+  if (forceRegenerate) params.force_regenerate = 'true';
+  return apiPost<GroundedInterpretationResponse>(
+    `/interpretations/observations/${observationId}/interpret-grounded?${new URLSearchParams(params)}`
   );
 }
 
@@ -100,6 +112,24 @@ export function useGenerateInterpretation() {
     }) => generateInterpretation(observationId, forceRegenerate),
     onSuccess: (data) => {
       queryClient.setQueryData([QUERY_KEY, data.observation_id], data);
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'recent'] });
+    },
+  });
+}
+
+export function useGenerateGroundedInterpretation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      observationId,
+      forceRegenerate,
+    }: {
+      observationId: string;
+      forceRegenerate?: boolean;
+    }) => generateGroundedInterpretation(observationId, forceRegenerate),
+    onSuccess: (data, variables) => {
+      queryClient.setQueryData([QUERY_KEY, variables.observationId], data.interpretation);
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'recent'] });
     },
   });

@@ -214,6 +214,23 @@ async def generate_doctor_summary(
     # Compute trends
     trends = _compute_trends(observations) if request.include_trends else []
 
+    questions: list[QuestionItem] = []
+    if request.include_questions:
+        export_module = ExportModule()
+        generated_questions = export_module.generate_questions(
+            observations=observations,
+            trends=trends,
+        )
+        questions = [
+            QuestionItem(
+                category=q.category,
+                question=q.question,
+                context=q.context,
+                related_analytes=q.related_analytes,
+            )
+            for q in generated_questions
+        ]
+
     # Generate summary using ExportModule
     export_module = ExportModule()
     summary = await export_module.generate_doctor_summary(
@@ -237,6 +254,7 @@ async def generate_doctor_summary(
         "total_observations": summary.total_observations,
         "abnormal_count": summary.abnormal_count,
         "critical_count": summary.critical_count,
+        "questions": [q.model_dump() for q in questions],
     }
     _summary_store[summary.summary_id] = summary_data
 
@@ -250,6 +268,7 @@ async def generate_doctor_summary(
                 "summary_id": summary.summary_id,
                 "format": request.format,
                 "observation_count": summary.total_observations,
+                "question_count": len(questions),
             },
         )
         await master_db.commit()
@@ -375,6 +394,16 @@ async def download_summary(
             lines.append(section["title"].upper())
             lines.append("-" * 40)
             lines.append(section["content"])
+            lines.append("")
+
+        if summary_data.get("questions"):
+            lines.append("-" * 40)
+            lines.append("QUESTIONS FOR YOUR PROVIDER")
+            lines.append("-" * 40)
+            for q in summary_data["questions"]:
+                q_text = q.get("question", "") if isinstance(q, dict) else str(q)
+                if q_text:
+                    lines.append(f"  - {q_text}")
             lines.append("")
 
         lines.append("=" * 60)

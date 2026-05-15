@@ -11,6 +11,7 @@ Key features:
 - SQLCipher support: Profile migrations use PRAGMA key for encryption
 """
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Optional
@@ -340,14 +341,15 @@ async def run_profile_migration_async(
     """
     Async wrapper for profile migrations.
 
-    Run synchronously for the same reason as master migrations: login/profile
-    unlock cannot continue until the per-profile schema is current.
+    Runs blocking Alembic/SQLAlchemy work in a worker thread so the event loop
+    stays responsive during vault migrations (profile create/login still waits
+    for completion).
 
     Args:
         vault_path: Path to the SQLCipher database file
         encryption_key: Raw 32-byte encryption key
     """
-    run_profile_migration(vault_path, encryption_key)
+    await asyncio.to_thread(run_profile_migration, vault_path, encryption_key)
 
 
 # =============================================================================

@@ -11,8 +11,9 @@ Uses ProfileDbSession for database access instead of master database.
 import json
 import logging
 import re
+from collections import defaultdict
 from typing import Optional
-from datetime import datetime
+from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
@@ -22,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from core.audit import log_observation_event
 from core.auth import RequireAuth, Session, ProfileDbSession
-from models import Observation
+from models import Document, Observation
 
 logger = logging.getLogger(__name__)
 
@@ -177,10 +178,92 @@ class PanelResponse(BaseModel):
     collection_date: Optional[str] = None
 
 
+class PanelSnapshotResponse(BaseModel):
+    """One logical panel snapshot: observations from the same document and collection day."""
+    collection_date: Optional[str] = None  # ISO date (calendar day) when known
+    doc_id: str
+    observations: list[ObservationResponse]
+
+
+def _panel_analyte_sort_key(canonical: str, order: list[str]) -> int:
+    try:
+        return order.index(canonical)
+    except ValueError:
+        return 9999
+
+
+@router.get("/panels/{panel_id}/snapshots", response_model=list[PanelSnapshotResponse])
+async def get_panel_snapshots(
+    panel_id: str,
+    session: RequireAuth,
+    profile_db: ProfileDbSession = None,
+):
+    """
+    Distinct panel snapshots grouped by source document and collection calendar day.
+
+    Use this when a profile has multiple historical panels (e.g. several lipid panels).
+    """
+    profile_id = session.profile_id
+    panel_def = PANEL_DEFINITIONS.get(panel_id.lower())
+    if not panel_def:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unknown panel: {panel_id}",
+        )
+
+    query = (
+        select(Observation)
+        .where(
+            and_(
+                Observation.profile_id == profile_id,
+                Observation.analyte_canonical.in_(panel_def["analytes"]),
+            )
+        )
+        .order_by(Observation.collected_at.desc())
+    )
+    result = await profile_db.execute(query)
+    all_obs = result.scalars().all()
+
+    groups: dict[tuple[str, Optional[date]], list[Observation]] = defaultdict(list)
+    for obs in all_obs:
+        day = obs.collected_at.date() if obs.collected_at else None
+        groups[(obs.doc_id, day)].append(obs)
+
+    snapshots: list[PanelSnapshotResponse] = []
+    analyte_order = panel_def["analytes"]
+    for (doc_id, day), obs_list in groups.items():
+        by_analyte: dict[str, Observation] = {}
+        for o in sorted(
+            obs_list,
+            key=lambda x: (x.extraction_confidence or 0.0),
+            reverse=True,
+        ):
+            if o.analyte_canonical not in by_analyte:
+                by_analyte[o.analyte_canonical] = o
+        chosen = list(by_analyte.values())
+        chosen.sort(key=lambda o: _panel_analyte_sort_key(o.analyte_canonical, analyte_order))
+        snapshots.append(
+            PanelSnapshotResponse(
+                collection_date=day.isoformat() if day else None,
+                doc_id=doc_id,
+                observations=[ObservationResponse.from_model(o) for o in chosen],
+            )
+        )
+
+    def sort_snap(s: PanelSnapshotResponse) -> tuple:
+        # Newest calendar date first; missing date last
+        key_date = s.collection_date or "0000-01-01"
+        return (key_date, s.doc_id)
+
+    snapshots.sort(key=sort_snap, reverse=True)
+    return snapshots
+
+
 @router.get("/", response_model=list[ObservationResponse])
 async def list_observations(
     session: RequireAuth,
     analyte: Optional[str] = Query(None, description="Filter by analyte"),
+    doc_id: Optional[str] = Query(None, description="Filter by source document ID"),
     from_date: Optional[datetime] = Query(None, description="Start date"),
     to_date: Optional[datetime] = Query(None, description="End date"),
     abnormal_only: bool = Query(False, description="Only show abnormal values"),
@@ -201,6 +284,10 @@ async def list_observations(
 
     if analyte:
         query = query.where(Observation.analyte_canonical == analyte.lower())
+
+    if doc_id:
+        validate_uuid(doc_id, "doc_id")
+        query = query.where(Observation.doc_id == doc_id)
 
     if from_date:
         query = query.where(Observation.collected_at >= from_date)
@@ -341,6 +428,23 @@ async def verify_observation(
             observation.is_abnormal = False
             observation.flag = None
 
+    await profile_db.flush()
+
+    remaining = await profile_db.execute(
+        select(Observation.id).where(
+            Observation.doc_id == observation.doc_id,
+            Observation.user_verified.is_(False),
+        )
+    )
+    if remaining.first() is None:
+        doc_result = await profile_db.execute(
+            select(Document).where(Document.id == observation.doc_id)
+        )
+        document = doc_result.scalar_one_or_none()
+        if document is not None and document.status != "verified":
+            document.status = "verified"
+            document.verified_at = datetime.utcnow()
+
     await profile_db.commit()
 
     # Create audit log in master database
@@ -463,8 +567,9 @@ async def get_panel(
     """
     Get lab panel data (CBC, CMP, lipids, etc.).
 
-    Phase 3: Queries per-profile encrypted database.
-    Aggregates related observations for panel view.
+    When ``collection_date`` is omitted, returns the **most recent value per analyte
+    across all documents** (not necessarily a single draw). For separate historical
+    panels, use ``GET /observations/panels/{panel_id}/snapshots``.
     """
     profile_id = session.profile_id
 

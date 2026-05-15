@@ -55,6 +55,12 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+      testIgnore: ['**/ui-full-verification.spec.ts'],
+    },
+    {
+      name: 'real-pdf-local',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: ['**/ui-full-verification.spec.ts'],
     },
   ],
 

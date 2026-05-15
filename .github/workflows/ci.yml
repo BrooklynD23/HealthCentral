@@ -135,6 +135,6 @@ jobs:
 
       - name: Run E2E tests
         working-directory: src/frontend
-        run: npx playwright test
+        run: npx playwright test --project chromium
         env:
           CI: true

@@ -21,7 +21,7 @@ import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useObservations, useTrend } from '@/services/observations';
 import {
   useInterpretation,
-  useGenerateInterpretation,
+  useGenerateGroundedInterpretation,
   useGeneratePanelInterpretation,
 } from '@/services/interpretations';
 import { useAuthStore } from '@/stores/authStore';
@@ -45,6 +45,8 @@ export function LabInterpreter() {
   const [activePanel, setActivePanel] = useState('cbc');
   const [selectedObservation, setSelectedObservation] = useState<Observation | null>(null);
   const [panelInterpretation, setPanelInterpretation] = useState<PanelInterpretationResponse | null>(null);
+  const [groundedSummary, setGroundedSummary] = useState<string | null>(null);
+  const [groundedValidation, setGroundedValidation] = useState<{ isValid: boolean; score: number } | null>(null);
 
   const {
     data: observations,
@@ -78,12 +80,23 @@ export function LabInterpreter() {
     profileId || ''
   );
 
-  const generateInterpretation = useGenerateInterpretation();
+  const generateInterpretation = useGenerateGroundedInterpretation();
   const generatePanelInterp = useGeneratePanelInterpretation();
 
   const handleGenerateInterpretation = () => {
     if (!effectiveObservation) return;
-    generateInterpretation.mutate({ observationId: effectiveObservation.id });
+    generateInterpretation.mutate(
+      { observationId: effectiveObservation.id },
+      {
+        onSuccess: (data) => {
+          setGroundedSummary(data.full_response);
+          setGroundedValidation({
+            isValid: data.is_valid,
+            score: data.verification.faithfulness_score,
+          });
+        },
+      }
+    );
   };
 
   const handleGeneratePanelInterpretation = () => {
@@ -167,6 +180,11 @@ export function LabInterpreter() {
           )}
           Interpret {activePanel.toUpperCase()} Panel
         </Button>
+        {groundedValidation && (
+          <Badge variant={groundedValidation.isValid ? 'verified' : 'caution'}>
+            Grounded faithfulness: {(groundedValidation.score * 100).toFixed(0)}%
+          </Badge>
+        )}
       </div>
 
       {/* Panel Tabs */}
@@ -261,6 +279,16 @@ export function LabInterpreter() {
               </CardContent>
             </Card>
           ) : null}
+          {groundedSummary && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Grounded explanation</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-ink-secondary whitespace-pre-wrap">{groundedSummary}</p>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Analyte Sidebar */}

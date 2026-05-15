@@ -22,6 +22,7 @@ from api.model_settings import (
     ExternalApiSettingsRequest,
     TimezoneUpdate,
     VoiceSettingsUpdate,
+    OcrSettingsUpdate,
     _download_model_task,
     _clear_live_progress,
     _get_live_progress,
@@ -31,6 +32,8 @@ from api.model_settings import (
     save_external_api_settings,
     set_timezone,
     update_voice_settings,
+    update_ocr_settings,
+    _diagnostics_list_response,
 )
 from core.auth import Session
 from core.security import EncryptionManager
@@ -292,3 +295,28 @@ async def test_patch_voice_upserts_when_missing():
     assert profile_db._existing_settings.voice_logging_enabled is True
     assert profile_db._existing_settings.voice_modal_seen is True
     assert profile_db._committed is True
+
+
+@pytest.mark.asyncio
+async def test_patch_ocr_persists_preference():
+    profile_id = str(uuid.uuid4())
+    profile_db = _FakeProfileDb(existing_settings=None)
+
+    response = await update_ocr_settings(
+        data=OcrSettingsUpdate(ocr_preference_enabled=False),
+        session=_session(profile_id),
+        profile_db=profile_db,
+    )
+
+    assert response.ocr_preference_enabled is False
+    assert profile_db._existing_settings is not None
+    assert profile_db._existing_settings.ocr_preference_enabled is False
+    assert profile_db._committed is True
+
+
+def test_diagnostics_response_has_core_components():
+    r = _diagnostics_list_response()
+    assert r.checked_at
+    ids = {c.id for c in r.components}
+    assert "tesseract" in ids
+    assert "ocr_python" in ids

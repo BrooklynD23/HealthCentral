@@ -15,12 +15,16 @@ import {
   useTiers,
   useStartDownload,
   useSaveExternalApiSettings,
+  useEnvironmentDiagnostics,
+  useRecheckDiagnostics,
+  useSaveOcrPreference,
 } from '@/services/modelSettings';
 
 vi.mock('@/services/api', () => ({
   apiGet: vi.fn(),
   apiPost: vi.fn(),
   apiPut: vi.fn(),
+  apiPatch: vi.fn(),
 }));
 
 function renderWithProviders(component: React.ReactNode) {
@@ -75,6 +79,29 @@ function SaveExternalApiProbe() {
   );
 }
 
+function DiagnosticsProbe() {
+  useEnvironmentDiagnostics();
+  return <div>diagnostics-probe</div>;
+}
+
+function RecheckDiagnosticsProbe() {
+  const mutation = useRecheckDiagnostics();
+  return (
+    <button type="button" onClick={() => mutation.mutate()}>
+      recheck-diagnostics
+    </button>
+  );
+}
+
+function SaveOcrProbe() {
+  const mutation = useSaveOcrPreference();
+  return (
+    <button type="button" onClick={() => mutation.mutate(true)}>
+      save-ocr
+    </button>
+  );
+}
+
 describe('ModelSettings service route contract', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -91,6 +118,13 @@ describe('ModelSettings service route contract', () => {
         return Promise.resolve({
           tiers: [],
           recommended_tier: 'low',
+        });
+      }
+
+      if (endpoint.endsWith('/diagnostics')) {
+        return Promise.resolve({
+          components: [],
+          checked_at: new Date().toISOString(),
         });
       }
 
@@ -113,6 +147,9 @@ describe('ModelSettings service route contract', () => {
           detection_timestamp: new Date().toISOString(),
         },
         tier_availability: {},
+        ocr_preference_enabled: true,
+        ocr_effective: false,
+        ocr_blockers: ['tesseract_missing'],
       });
     });
 
@@ -120,6 +157,12 @@ describe('ModelSettings service route contract', () => {
       success: true,
       tier: 'low',
       status: 'pending',
+    });
+
+    vi.mocked(api.apiPatch).mockResolvedValue({
+      ocr_preference_enabled: true,
+      ocr_effective: false,
+      ocr_blockers: [],
     });
   });
 
@@ -171,6 +214,42 @@ describe('ModelSettings service route contract', () => {
       provider: 'openai',
       api_key: 'sk-test',
       consent_acknowledged: true,
+    });
+  });
+
+  it('FE-SETTINGS-API-005: useEnvironmentDiagnostics should GET /settings/model/diagnostics', async () => {
+    renderWithProviders(<DiagnosticsProbe />);
+
+    await waitFor(() => {
+      expect(api.apiGet).toHaveBeenCalledWith('/settings/model/diagnostics');
+    });
+  });
+
+  it('FE-SETTINGS-API-006: useRecheckDiagnostics should POST recheck', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.apiPost).mockResolvedValueOnce({
+      components: [],
+      checked_at: new Date().toISOString(),
+    });
+    renderWithProviders(<RecheckDiagnosticsProbe />);
+
+    await user.click(screen.getByRole('button', { name: /recheck-diagnostics/i }));
+
+    await waitFor(() => {
+      expect(api.apiPost).toHaveBeenCalledWith('/settings/model/diagnostics/recheck');
+    });
+  });
+
+  it('FE-SETTINGS-API-007: useSaveOcrPreference should PATCH /settings/model/ocr', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<SaveOcrProbe />);
+
+    await user.click(screen.getByRole('button', { name: /save-ocr/i }));
+
+    await waitFor(() => {
+      expect(api.apiPatch).toHaveBeenCalledWith('/settings/model/ocr', {
+        ocr_preference_enabled: true,
+      });
     });
   });
 });

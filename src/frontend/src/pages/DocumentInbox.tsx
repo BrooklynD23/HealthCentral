@@ -1,4 +1,6 @@
 import { useState, useRef } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { motion } from 'framer-motion';
 import {
   Upload,
@@ -10,18 +12,32 @@ import {
   Eye,
   Plus,
   Loader2,
+  X,
+  RefreshCcw,
 } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui';
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
-import { useDocuments, useImportDocument, type Document } from '@/services';
+import {
+  useDocuments,
+  useImportDocument,
+  useDeleteDocument,
+  useReprocessDocument,
+  ApiError,
+  type Document,
+  type DocumentImportResponse,
+} from '@/services';
 import { useAuthStore } from '@/stores/authStore';
+import { PageImageOverlay } from '@/components/PageImageOverlay';
 // CategoryBadge + EntityDetailView available in @/components/documents/
 // Wire into document detail view when it's built (no detail page exists yet)
 
 export function DocumentInbox() {
   const prefersReducedMotion = useReducedMotion();
+  const navigate = useNavigate();
   const [isDragging, setIsDragging] = useState(false);
+  const [previewDocId, setPreviewDocId] = useState<string | null>(null);
+  const [lastImport, setLastImport] = useState<DocumentImportResponse | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Get active profile from auth store
@@ -30,6 +46,10 @@ export function DocumentInbox() {
   // Fetch documents from API
   const { data: documents = [], isLoading, error } = useDocuments({ profile_id: profileId });
   const importDocument = useImportDocument();
+  const deleteDocument = useDeleteDocument();
+  const reprocessDocument = useReprocessDocument();
+
+  const closePreview = () => setPreviewDocId(null);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -54,10 +74,15 @@ export function DocumentInbox() {
     if (!profileId) return;
     
     try {
-      await importDocument.mutateAsync({ file, profileId });
+      const result = await importDocument.mutateAsync({ file, profileId });
+      setLastImport(result);
     } catch (err) {
       console.error('Failed to import document:', err);
     }
+  };
+
+  const handleReprocessDocument = (doc: Document) => {
+    reprocessDocument.mutate(doc.id);
   };
   
   const handleBrowseClick = () => {
@@ -81,6 +106,13 @@ export function DocumentInbox() {
       'lab_image': 'Lab Image',
     };
     return typeMap[doc.doc_type] || doc.doc_type;
+  };
+
+  const handleDeleteDocument = (doc: Document) => {
+    if (!window.confirm(`Remove "${doc.source || 'this document'}" from your library? This cannot be undone.`)) {
+      return;
+    }
+    deleteDocument.mutate(doc.id);
   };
 
   const containerVariants = {
@@ -167,10 +199,61 @@ export function DocumentInbox() {
 
       {error && (
         <Card className="border-status-critical/20 bg-status-critical/5">
-          <CardContent className="py-4">
-            <div className="flex items-center gap-3 text-status-critical">
-              <AlertCircle className="w-5 h-5" />
-              <span>Failed to load documents. Please try again.</span>
+          <CardContent className="py-4 space-y-3">
+            <div className="flex items-start gap-3 text-status-critical">
+              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-medium text-ink">
+                  {error instanceof ApiError && error.status === 401
+                    ? 'Your session has ended or is invalid.'
+                    : error instanceof ApiError && error.status === 403
+                      ? 'Access denied — your profile may be locked.'
+                      : 'Failed to load documents'}
+                </p>
+                <p className="text-sm text-ink-secondary">
+                  {error instanceof ApiError && error.status === 401
+                    ? 'For privacy, invalid sessions are cleared. Sign in again to continue.'
+                    : error instanceof ApiError && error.status === 403
+                      ? 'Unlock your profile or adjust access in Settings.'
+                      : 'Check that the HealthCentral server is running and try again.'}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 pl-8">
+              {(error instanceof ApiError && (error.status === 401 || error.status === 403)) && (
+                <>
+                  <Button variant="secondary" size="sm" className="gap-1.5" asChild>
+                    <Link to="/setup">Sign in again</Link>
+                  </Button>
+                  <Button variant="secondary" size="sm" className="gap-1.5" asChild>
+                    <Link to="/settings">Open Settings</Link>
+                  </Button>
+                </>
+              )}
+              <Button variant="secondary" size="sm" onClick={() => navigate(0)}>
+                Retry
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {lastImport && (
+        <Card className="border-accent/20 bg-accent-subtle/40">
+          <CardContent className="py-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-1">
+              <p className="font-medium text-ink">Document imported: {lastImport.document.source || 'Untitled document'}</p>
+              <p className="text-sm text-ink-secondary">
+                {lastImport.observations_extracted} values extracted · status {lastImport.document.status.replace(/_/g, ' ')}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setPreviewDocId(lastImport.document.id)}>
+                Preview
+              </Button>
+              <Button size="sm" onClick={() => navigate(`/verify?doc=${lastImport.document.id}&mode=all`)}>
+                Review values
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -233,7 +316,7 @@ export function DocumentInbox() {
                       Verified
                     </Badge>
                   ) : doc.status === 'pending_ocr' ? (
-                    <Badge variant="default" className="gap-1" title="OCR processing is required. Enable OCR in Settings or install Tesseract to extract data from this document.">
+                    <Badge variant="default" className="gap-1" title="OCR processing is required. In Settings, enable document OCR and install Tesseract (or your admin must set OCR_ENABLED).">
                       <AlertCircle className="w-3 h-3" />
                       OCR Required
                     </Badge>
@@ -244,13 +327,59 @@ export function DocumentInbox() {
                     </Badge>
                   )}
 
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="icon" aria-label="View document">
+                  <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label="View document"
+                      onClick={() => setPreviewDocId(doc.id)}
+                    >
                       <Eye className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" aria-label="More options">
-                      <MoreVertical className="w-4 h-4" />
-                    </Button>
+                    <DropdownMenu.Root>
+                      <DropdownMenu.Trigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label="More options"
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenu.Trigger>
+                      <DropdownMenu.Portal>
+                        <DropdownMenu.Content
+                          className="min-w-[12rem] rounded-xl border border-black/[0.08] bg-white p-1 shadow-lg z-[100]"
+                          sideOffset={8}
+                          align="end"
+                        >
+                          <DropdownMenu.Item
+                            className="rounded-lg px-3 py-2 text-sm outline-none cursor-pointer hover:bg-surface-muted focus:bg-surface-muted"
+                            onSelect={() => navigate(`/verify?doc=${doc.id}&mode=all`)}
+                          >
+                            Review extracted values
+                          </DropdownMenu.Item>
+                          {(doc.status === 'pending_ocr' || doc.status === 'extraction_failed' || doc.status === 'parsed') && (
+                            <DropdownMenu.Item
+                              className="rounded-lg px-3 py-2 text-sm outline-none cursor-pointer hover:bg-surface-muted focus:bg-surface-muted"
+                              onSelect={() => handleReprocessDocument(doc)}
+                            >
+                              <span className="inline-flex items-center gap-2">
+                                <RefreshCcw className="w-3.5 h-3.5" />
+                                Continue OCR / Retry extraction
+                              </span>
+                            </DropdownMenu.Item>
+                          )}
+                          <DropdownMenu.Item
+                            className="rounded-lg px-3 py-2 text-sm outline-none cursor-pointer text-status-critical hover:bg-status-critical/10 focus:bg-status-critical/10"
+                            onSelect={() => handleDeleteDocument(doc)}
+                          >
+                            Delete…
+                          </DropdownMenu.Item>
+                        </DropdownMenu.Content>
+                      </DropdownMenu.Portal>
+                    </DropdownMenu.Root>
                   </div>
                 </motion.div>
               ))}
@@ -258,6 +387,33 @@ export function DocumentInbox() {
           )}
         </CardContent>
       </Card>
+
+      {previewDocId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="document-preview-title"
+          onClick={closePreview}
+        >
+          <Card
+            className="w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-elevated"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <CardHeader className="flex flex-row items-center justify-between flex-shrink-0 border-b border-black/[0.04]">
+              <CardTitle id="document-preview-title" className="text-lg">
+                Document preview
+              </CardTitle>
+              <Button type="button" variant="ghost" size="icon" onClick={closePreview} aria-label="Close">
+                <X className="w-5 h-5" />
+              </Button>
+            </CardHeader>
+            <CardContent className="overflow-y-auto p-4">
+              <PageImageOverlay documentId={previewDocId} pageNumber={1} bbox={null} />
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

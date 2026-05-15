@@ -135,7 +135,15 @@ export function ProfileSetup() {
 
       navigate('/inbox');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create profile');
+      const raw = err instanceof Error ? err.message : String(err);
+      const timedOut =
+        raw.toLowerCase().includes('aborted') ||
+        raw.toLowerCase().includes('timeout');
+      setError(
+        timedOut
+          ? 'Request timed out while creating your profile. Confirm the API is running and .env.local VITE_API_URL matches its port (see backend terminal or logs/healthcentral.log).'
+          : raw || 'Failed to create profile'
+      );
       setIsCreating(false);
       setStep(0);
     }

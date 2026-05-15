@@ -73,7 +73,13 @@ export function ExportPage() {
 
   const handleCopy = async () => {
     if (summary) {
-      const text = summary.key_findings.join('\n');
+      const questionLines = questions.map((q) => `- ${q.question}`);
+      const text = [
+        ...summary.key_findings,
+        ...(questionLines.length
+          ? ['', 'Questions for your clinician:', ...questionLines]
+          : []),
+      ].join('\n');
       await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -134,6 +140,9 @@ export function ExportPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {(allObservations?.some((obs) => !obs.user_verified) ?? false) && (
+            <Badge variant="caution">Contains unverified values</Badge>
+          )}
           <Button
             variant="secondary"
             className="gap-2"

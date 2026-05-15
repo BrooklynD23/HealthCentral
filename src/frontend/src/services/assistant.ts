@@ -60,6 +60,8 @@ export interface ChatRequest {
   document_category?: DocumentCategory;
   include_references?: boolean;
   enable_verification?: boolean;
+  min_faithfulness_score?: number;
+  use_memory?: boolean;
   history?: ChatMessage[];
 }
 

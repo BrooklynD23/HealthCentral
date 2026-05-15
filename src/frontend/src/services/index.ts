@@ -14,6 +14,7 @@ export type {
   UnlockRequest,
   Document,
   DocumentImportResponse,
+  DocumentVerifyResponse,
   DocumentPage,
   Observation,
   ObservationVerify,
@@ -61,6 +62,8 @@ export {
   useDocumentPages,
   useImportDocument,
   useDeleteDocument,
+  useReprocessDocument,
+  useVerifyDocument,
 } from './documents';
 
 // Observation hooks
@@ -123,6 +126,9 @@ export {
   useStartDownload,
   useExternalApiSettings,
   useSaveExternalApiSettings,
+  useSaveOcrPreference,
+  useEnvironmentDiagnostics,
+  useRecheckDiagnostics,
 } from './modelSettings';
 
 export type {
@@ -132,6 +138,10 @@ export type {
   DownloadProgress,
   ExternalApiSettings,
   ExternalApiSettingsSave,
+  OcrSettingsResponse,
+  DiagnosticFixAction,
+  DiagnosticComponent,
+  DiagnosticsListResponse,
 } from './modelSettings';
 
 // Notification hooks

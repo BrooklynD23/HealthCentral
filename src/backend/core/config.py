@@ -98,6 +98,8 @@ class Settings(BaseSettings):
     max_import_file_size_mb: int = 50
     supported_doc_types: str = "pdf,png,jpg,jpeg"
     ocr_enabled: bool = False
+    # Reserved for future AI-assisted lab JSON extraction (no pipeline wiring yet)
+    ai_assisted_lab_extraction: bool = False
     allow_legacy_plaintext_documents: bool = False
     
     # Logging
@@ -240,6 +242,42 @@ class Settings(BaseSettings):
 settings = Settings()
 
 
+def is_tesseract_on_path() -> bool:
+    """True if the Tesseract binary is discoverable on PATH."""
+    return shutil.which("tesseract") is not None
+
+
 def is_ocr_available() -> bool:
-    """Check if OCR is available at runtime (config enabled AND tesseract installed)."""
-    return settings.ocr_enabled and shutil.which("tesseract") is not None
+    """
+    Server-level OCR capability: deployment allows OCR and Tesseract is installed.
+
+    Startup validation may set ocr_enabled False if Tesseract was missing at boot.
+    Per-profile user preference is handled separately via compute_ocr_effective.
+    """
+    return settings.ocr_enabled and is_tesseract_on_path()
+
+
+def user_ocr_preference_enabled(user_settings: object | None) -> bool:
+    """Default ON when no settings row exists yet."""
+    if user_settings is None:
+        return True
+    return bool(getattr(user_settings, "ocr_preference_enabled", True))
+
+
+def compute_ocr_effective(user_pref_enabled: bool) -> tuple[bool, list[str]]:
+    """
+    Effective OCR for a profile: env cap, Tesseract, and user toggle.
+
+    Returns:
+        (effective, blockers) where blockers are stable codes for the UI:
+        disabled_by_admin, tesseract_missing, user_disabled
+    """
+    blockers: list[str] = []
+    if not settings.ocr_enabled:
+        blockers.append("disabled_by_admin")
+    if not is_tesseract_on_path():
+        blockers.append("tesseract_missing")
+    if not user_pref_enabled:
+        blockers.append("user_disabled")
+    effective = settings.ocr_enabled and is_tesseract_on_path() and user_pref_enabled
+    return effective, blockers

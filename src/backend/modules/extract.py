@@ -458,6 +458,8 @@ class ExtractModule:
         self,
         pdf_source: Union[Path, BinaryIO, io.BytesIO],
         document_id: str,
+        *,
+        effective_ocr: bool = True,
     ) -> ExtractionResult:
         """
         Extract lab values from a scanned PDF using OCR.
@@ -467,6 +469,16 @@ class ExtractModule:
         Returns graceful result with ocr_unavailable=True if OCR deps missing.
         """
         from core.config import is_ocr_available
+
+        if not effective_ocr:
+            return ExtractionResult(
+                document_id=document_id,
+                observations=[],
+                collection_dates=[],
+                parser_version=self.parser_version,
+                overall_confidence=0.0,
+                ocr_unavailable=True,
+            )
 
         if not is_ocr_available():
             return ExtractionResult(
@@ -548,6 +560,8 @@ class ExtractModule:
         self,
         image_source: Union[Path, BinaryIO, io.BytesIO],
         document_id: str,
+        *,
+        effective_ocr: bool = True,
     ) -> ExtractionResult:
         """
         Extract lab values from a direct image import (.png/.jpg).
@@ -556,6 +570,16 @@ class ExtractModule:
         Returns graceful result with ocr_unavailable=True if OCR deps missing.
         """
         from core.config import is_ocr_available
+
+        if not effective_ocr:
+            return ExtractionResult(
+                document_id=document_id,
+                observations=[],
+                collection_dates=[],
+                parser_version=self.parser_version,
+                overall_confidence=0.0,
+                ocr_unavailable=True,
+            )
 
         if not is_ocr_available():
             return ExtractionResult(

@@ -4,7 +4,8 @@
  * Phase 4B: Hardware detection, tier selection, model download, external API opt-in.
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Cpu,
@@ -18,6 +19,10 @@ import {
   Server,
   Mic,
   Clock,
+  FileText,
+  Wrench,
+  Copy,
+  Settings as SettingsIcon,
 } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge, Skeleton, StaggerGroup, StaggerItem, modalVariants, backdropVariants } from '@/components/ui';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -37,7 +42,16 @@ import {
   useSaveTimezone,
   useVoiceSettings,
   useSaveVoiceSettings,
+  useSaveOcrPreference,
+  useEnvironmentDiagnostics,
+  useRecheckDiagnostics,
 } from '@/services';
+
+const OCR_BLOCKER_LABELS: Record<string, string> = {
+  disabled_by_admin: 'OCR is disabled in server configuration (OCR_ENABLED). Restart the backend after changing .env.',
+  tesseract_missing: 'Install Tesseract OCR and add it to PATH.',
+  user_disabled: 'Turn on document OCR below for this profile.',
+};
 
 const COMMON_TIMEZONES = [
   'UTC',
@@ -64,6 +78,7 @@ const tierDescriptions: Record<string, { label: string; desc: string; icon: type
 
 export function SettingsPage() {
   const [showConsentDialog, setShowConsentDialog] = useState(false);
+  const [diagToolId, setDiagToolId] = useState<string | null>(null);
   const [externalProvider, setExternalProvider] = useState('');
   const [externalKey, setExternalKey] = useState('');
   const [externalModel, setExternalModel] = useState('');
@@ -81,7 +96,11 @@ export function SettingsPage() {
   const saveTimezone = useSaveTimezone();
   const { data: voiceData } = useVoiceSettings();
   const saveVoice = useSaveVoiceSettings();
+  const saveOcr = useSaveOcrPreference();
+  const { data: diagnostics, isLoading: diagnosticsLoading } = useEnvironmentDiagnostics();
+  const recheckDiagnostics = useRecheckDiagnostics();
 
+  const focusedDiag = diagnostics?.components.find((c) => c.id === diagToolId) ?? null;
   const queryClient = useQueryClient();
   const prefersReducedMotion = useReducedMotion();
   const [downloadInitiated, setDownloadInitiated] = useState(false);
@@ -176,7 +195,7 @@ export function SettingsPage() {
           Settings
         </h1>
         <p className="text-ink-secondary mt-1">
-          Configure AI model and hardware preferences
+          Configure AI models, document import (OCR), and hardware.
         </p>
       </div>
 
@@ -248,6 +267,149 @@ export function SettingsPage() {
                   )} />
                 </div>
               </button>
+            </CardContent>
+          </Card>
+
+          {/* Document import / OCR */}
+          <Card>
+            <CardHeader className="border-b border-black/[0.04]">
+              <CardTitle className="flex items-center gap-3">
+                <FileText className="w-5 h-5 text-ink-secondary" />
+                Document import (OCR)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 space-y-3">
+              <p className="text-sm text-ink-secondary">
+                Extract text from scanned PDFs and lab images using Tesseract. Your preference applies to this profile;
+                the server must also allow OCR (<code className="text-xs bg-surface-muted px-1 rounded">OCR_ENABLED</code>).
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  saveOcr.mutate(!settings?.ocr_preference_enabled);
+                }}
+                disabled={saveOcr.isPending}
+                className={cn(
+                  'w-full flex items-center justify-between px-4 py-3 rounded-xl',
+                  'transition-all duration-300 ease-in-out',
+                  settings?.ocr_preference_enabled
+                    ? 'bg-accent-subtle border border-accent/20'
+                    : 'bg-surface-muted border border-transparent hover:bg-surface-sunken'
+                )}
+              >
+                <span
+                  className={cn(
+                    'text-sm font-medium',
+                    settings?.ocr_preference_enabled ? 'text-accent' : 'text-ink-secondary'
+                  )}
+                >
+                  Enable OCR for scans &amp; images
+                </span>
+                <div
+                  className={cn(
+                    'w-10 h-6 rounded-full relative transition-colors duration-300',
+                    settings?.ocr_preference_enabled ? 'bg-accent' : 'bg-black/[0.12]'
+                  )}
+                >
+                  <div
+                    className={cn(
+                      'absolute w-4 h-4 rounded-full bg-white top-1 transition-transform duration-300',
+                      settings?.ocr_preference_enabled ? 'translate-x-5' : 'translate-x-1'
+                    )}
+                  />
+                </div>
+              </button>
+              <div
+                className={cn(
+                  'rounded-xl px-3 py-2.5 text-sm border',
+                  settings?.ocr_effective
+                    ? 'bg-status-verified-subtle border-status-verified/20 text-status-verified'
+                    : 'bg-status-attention-subtle border-status-attention/20 text-status-attention'
+                )}
+              >
+                {settings?.ocr_effective ? (
+                  <span>OCR is active for this profile (Tesseract + server allow).</span>
+                ) : (
+                  <div className="space-y-1">
+                    <p className="font-medium">OCR is blocked</p>
+                    <ul className="list-disc pl-4 text-xs space-y-0.5 opacity-90">
+                      {(settings?.ocr_blockers ?? []).map((b) => (
+                        <li key={b}>{OCR_BLOCKER_LABELS[b] ?? b}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Environment & tools */}
+          <Card>
+            <CardHeader className="border-b border-black/[0.04]">
+              <CardTitle className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-3">
+                  <Wrench className="w-5 h-5 text-ink-secondary" />
+                  Environment &amp; tools
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="gap-1.5 border-black/[0.06]"
+                  onClick={() => recheckDiagnostics.mutate()}
+                  disabled={recheckDiagnostics.isPending || diagnosticsLoading}
+                >
+                  {recheckDiagnostics.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Wrench className="w-4 h-4" />
+                  )}
+                  Re-check
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 space-y-2">
+              <p className="text-sm text-ink-secondary mb-2">
+                Local dependencies for OCR, encryption, models, and GPU. Use the fix menu for copy-paste install hints.
+              </p>
+              {diagnosticsLoading && !diagnostics ? (
+                <Skeleton className="h-24 rounded-xl" />
+              ) : (
+                (diagnostics?.components ?? []).map((c) => (
+                  <div
+                    key={c.id}
+                    className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-surface-muted border border-black/[0.04]"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-ink truncate">{c.label}</p>
+                      <p className="text-xs text-ink-tertiary truncate">{c.detail}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge
+                        variant={
+                          c.status === 'ok'
+                            ? 'verified'
+                            : c.status === 'error'
+                              ? 'attention'
+                              : 'caution'
+                        }
+                        className="capitalize"
+                      >
+                        {c.status}
+                      </Badge>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        aria-label={`Fix ${c.label}`}
+                        onClick={() => setDiagToolId(c.id)}
+                      >
+                        <SettingsIcon className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
 
@@ -480,6 +642,12 @@ export function SettingsPage() {
                   {externalEnabled ? 'Enabled' : 'Off'}
                 </Badge>
               </div>
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted border border-black/[0.02]">
+                <span className="text-sm text-ink-secondary">OCR (profile)</span>
+                <Badge variant={settings?.ocr_effective ? 'verified' : 'attention'} className="font-bold">
+                  {settings?.ocr_effective ? 'Ready' : 'Blocked'}
+                </Badge>
+              </div>
             </CardContent>
           </Card>
 
@@ -579,6 +747,103 @@ export function SettingsPage() {
 
       {/* Assistant Memory */}
       <MemoryManager />
+
+      {/* Diagnostics fix actions */}
+      <AnimatePresence>
+        {focusedDiag && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              variants={backdropVariants}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setDiagToolId(null)}
+              aria-hidden
+            />
+            <motion.div
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              variants={modalVariants}
+              transition={{ type: prefersReducedMotion ? 'tween' : 'spring', duration: prefersReducedMotion ? 0.15 : undefined }}
+              className="relative w-full max-w-md rounded-2xl bg-surface-elevated border border-black/[0.08] shadow-xl p-6 max-h-[85vh] overflow-y-auto"
+              role="dialog"
+              aria-labelledby="diag-tool-title"
+            >
+              <h2 id="diag-tool-title" className="font-display font-semibold text-lg text-ink">
+                {focusedDiag.label}
+              </h2>
+              <p className="text-sm text-ink-secondary mt-2">{focusedDiag.detail}</p>
+              <div className="mt-4 space-y-2">
+                {focusedDiag.fix_actions.length === 0 ? (
+                  <p className="text-xs text-ink-tertiary">No automated fix steps. Check docs or reinstall the component.</p>
+                ) : (
+                  focusedDiag.fix_actions.map((a, i) => (
+                    <div
+                      key={`${a.label}-${i}`}
+                      className="rounded-xl border border-black/[0.06] p-3 bg-surface-muted"
+                    >
+                      <p className="text-xs font-bold text-ink-tertiary uppercase tracking-wide">{a.label}</p>
+                      {a.type === 'copy_command' && a.command && (
+                        <div className="mt-2 flex items-start gap-2">
+                          <code className="text-[11px] flex-1 break-all bg-surface-elevated rounded-lg px-2 py-1.5 border border-black/[0.06]">
+                            {a.command}
+                          </code>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className="shrink-0 h-8 px-2"
+                            onClick={() => navigator.clipboard.writeText(a.command!)}
+                            aria-label="Copy command"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
+                      {a.type === 'open_url' && a.url && (
+                        <div className="mt-2">
+                          {a.url.startsWith('/') ? (
+                            <Link
+                              to={a.url}
+                              className="text-sm font-medium text-accent hover:underline"
+                              onClick={() => setDiagToolId(null)}
+                            >
+                              Open {a.url}
+                            </Link>
+                          ) : (
+                            <a href={a.url} className="text-sm font-medium text-accent hover:underline" target="_blank" rel="noreferrer">
+                              Open link
+                            </a>
+                          )}
+                        </div>
+                      )}
+                      {a.type === 'rerun_detection' && (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          className="mt-2"
+                          onClick={() => {
+                            recheckDiagnostics.mutate();
+                            setDiagToolId(null);
+                          }}
+                        >
+                          Re-run diagnostics
+                        </Button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+              <Button type="button" variant="ghost" className="mt-6 w-full" onClick={() => setDiagToolId(null)}>
+                Close
+              </Button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Consent Dialog */}
       <AnimatePresence>

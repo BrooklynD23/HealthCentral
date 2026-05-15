@@ -27,6 +27,8 @@ from models import (
     BiomarkerKnowledge,
 )
 from modules import get_interpret_module
+from modules.rag import ModelUnavailableError
+from api.assistant import get_rag_module
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +114,48 @@ class InterpretationResponse(BaseModel):
             viewed_at=interp.viewed_at.isoformat() if interp.viewed_at else None,
             created_at=interp.created_at.isoformat(),
         )
+
+
+class GroundedCitationResponse(BaseModel):
+    """Citation from grounded interpretation retrieval."""
+    source_type: str
+    doc_id: Optional[str] = None
+    doc_title: Optional[str] = None
+    page: Optional[int] = None
+    text_snippet: str
+    authority_tier: Optional[int] = None
+    authority_score: Optional[float] = None
+
+
+class GroundedSegmentResponse(BaseModel):
+    """Grounded segment response."""
+    segment_type: str
+    content: str
+    citations: list[GroundedCitationResponse] = []
+
+
+class GroundedVerificationResponse(BaseModel):
+    """Verification details for grounded interpretation."""
+    enabled: bool = False
+    total_claims: int = 0
+    verified_claims: int = 0
+    failed_claims: int = 0
+    faithfulness_score: float = 0.0
+    authority_score: float = 0.0
+    summary: str = ""
+    issues: list[str] = []
+
+
+class GroundedInterpretationResponse(BaseModel):
+    """Combined template interpretation + grounded RAG explanation."""
+    interpretation: InterpretationResponse
+    grounded_segments: list[GroundedSegmentResponse]
+    full_response: str
+    insufficient_context: bool = False
+    insufficient_reasons: list[str] = []
+    verification: GroundedVerificationResponse = GroundedVerificationResponse()
+    is_valid: bool = True
+    validation_errors: list[str] = []
 
 
 class RelationshipInsight(BaseModel):
@@ -334,6 +378,131 @@ async def generate_interpretation(
 
     logger.info(f"Generated interpretation for observation {observation_id}")
     return InterpretationResponse.from_model(interp_result.interpretation)
+
+
+@router.post(
+    "/observations/{observation_id}/interpret-grounded",
+    response_model=GroundedInterpretationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def generate_grounded_interpretation(
+    observation_id: str,
+    session: RequireAuth,
+    force_regenerate: bool = Query(False, description="Force regeneration even if exists"),
+    profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """Generate interpretation plus grounded RAG explanation with citations."""
+    validate_uuid(observation_id, "observation_id")
+
+    result = await profile_db.execute(
+        select(Observation).where(Observation.id == observation_id)
+    )
+    observation = result.scalar_one_or_none()
+    if not observation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Observation not found",
+        )
+    if observation.profile_id != session.profile_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this observation",
+        )
+
+    interpret_module = get_interpret_module()
+    interp_result = await interpret_module.interpret_observation(
+        observation_id=observation_id,
+        profile_db=profile_db,
+        master_db=master_db,
+        force_regenerate=force_regenerate,
+    )
+    if not interp_result.success or not interp_result.interpretation:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=interp_result.error_message or "Failed to generate interpretation",
+        )
+
+    rag = get_rag_module()
+    question = (
+        f"Explain my lab result for {observation.analyte_raw} "
+        f"({observation.value if observation.value is not None else observation.value_text} "
+        f"{observation.unit or ''}) and what it may indicate. "
+        "Use my report details first, then general context."
+    )
+
+    runner = None
+    try:
+        from core.external_runner import get_runner_for_request
+
+        runner = await get_runner_for_request(session.profile_id, profile_db)
+    except Exception:
+        runner = None
+
+    try:
+        rag_result = await rag.query(
+            question=question,
+            profile_id=session.profile_id,
+            selected_analytes=[observation.analyte_canonical],
+            include_references=True,
+            model_runner=runner,
+            master_db=master_db,
+            profile_db=profile_db,
+            use_memory=False,
+        )
+    except ModelUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail=str(exc),
+        )
+
+    grounded_segments: list[GroundedSegmentResponse] = []
+    for seg in rag_result.segments:
+        grounded_segments.append(
+            GroundedSegmentResponse(
+                segment_type=seg.segment_type,
+                content=seg.content,
+                citations=[
+                    GroundedCitationResponse(
+                        source_type=c.source_type,
+                        doc_id=c.doc_id,
+                        doc_title=c.doc_title,
+                        page=c.page,
+                        text_snippet=c.text_snippet,
+                        authority_tier=c.authority_tier,
+                        authority_score=c.authority_score,
+                    )
+                    for c in seg.citations
+                ],
+            )
+        )
+
+    full_response = "\n\n".join(
+        f"**{seg.segment_type.upper().replace('_', ' ')}**\n{seg.content}"
+        for seg in rag_result.segments
+    )
+
+    verification = GroundedVerificationResponse(
+        enabled=rag_result.verification.verification_enabled,
+        total_claims=rag_result.verification.total_claims,
+        verified_claims=rag_result.verification.verified_claims,
+        failed_claims=rag_result.verification.failed_claims,
+        faithfulness_score=rag_result.verification.faithfulness_score,
+        authority_score=rag_result.verification.authority_score,
+        summary=rag_result.verification.verification_summary,
+        issues=rag_result.verification.claims_with_issues,
+    )
+
+    return GroundedInterpretationResponse(
+        interpretation=InterpretationResponse.from_model(interp_result.interpretation),
+        grounded_segments=grounded_segments,
+        full_response=full_response,
+        insufficient_context=rag_result.insufficient_context,
+        insufficient_reasons=rag_result.insufficient_reasons,
+        verification=verification,
+        is_valid=rag_result.is_valid,
+        validation_errors=rag_result.validation_errors,
+    )
 
 
 @router.get(
