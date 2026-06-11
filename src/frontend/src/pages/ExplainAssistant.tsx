@@ -16,6 +16,11 @@ import {
   Filter,
   PlusCircle,
   History,
+  ThumbsUp,
+  ThumbsDown,
+  ChevronDown,
+  ChevronUp,
+  Tag,
 } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui';
 import { cn } from '@/utils/cn';
@@ -33,6 +38,7 @@ import {
   type ChatMessage as ChatHistoryMessage,
   type DocumentCategory,
 } from '@/services/assistant';
+import { useSubmitFeedback, FEEDBACK_TAGS, type FeedbackTag } from '@/services/feedback';
 
 interface Message {
   id: string;
@@ -48,6 +54,8 @@ interface Message {
     totalClaims: number;
   };
   error?: string;
+  /** Backend turn ID for the assistant ChatTurn row (used for feedback). */
+  turnId?: string;
 }
 
 const FALLBACK_QUESTIONS = [
@@ -124,6 +132,69 @@ export function ExplainAssistant() {
   const analyteList = useAnalyteList(profileId || undefined);
   const { data: observationPool } = useObservations({ profile_id: profileId || '' });
   const sendMessage = useSendMessage();
+  const submitFeedback = useSubmitFeedback();
+
+  // Per-message feedback UI state: rating, tag picker open, correction text
+  const [feedbackState, setFeedbackState] = useState<
+    Record<string, { rating: 1 | -1 | null; tagsOpen: boolean; correctionOpen: boolean; correction: string; submitting: boolean; submitted: boolean; selectedTags: FeedbackTag[] }>
+  >({});
+
+  const getFeedbackState = (msgId: string) =>
+    feedbackState[msgId] ?? { rating: null, tagsOpen: false, correctionOpen: false, correction: '', submitting: false, submitted: false, selectedTags: [] };
+
+  const updateFeedbackState = (msgId: string, patch: Partial<ReturnType<typeof getFeedbackState>>) =>
+    setFeedbackState((prev) => ({ ...prev, [msgId]: { ...getFeedbackState(msgId), ...patch } }));
+
+  const handleFeedback = async (msg: Message, rating: 1 | -1) => {
+    if (!msg.turnId || !currentSessionId) return;
+    const fs = getFeedbackState(msg.id);
+    const newRating = fs.rating === rating ? null : rating; // toggle
+    updateFeedbackState(msg.id, { rating: newRating, submitting: true });
+    if (newRating === null) {
+      updateFeedbackState(msg.id, { submitting: false });
+      return;
+    }
+    // Open correction textarea on thumbs-down
+    if (newRating === -1) {
+      updateFeedbackState(msg.id, { tagsOpen: true, correctionOpen: true });
+    }
+    try {
+      await submitFeedback.mutateAsync({
+        turnId: msg.turnId,
+        data: {
+          session_id: currentSessionId,
+          rating: newRating,
+          response_text: msg.content,
+          feedback_tags: fs.selectedTags.length > 0 ? fs.selectedTags : undefined,
+          correction_text: fs.correction.trim() || undefined,
+        },
+      });
+      updateFeedbackState(msg.id, { submitting: false, submitted: true });
+    } catch {
+      updateFeedbackState(msg.id, { submitting: false });
+    }
+  };
+
+  const handleSubmitCorrection = async (msg: Message) => {
+    if (!msg.turnId || !currentSessionId) return;
+    const fs = getFeedbackState(msg.id);
+    updateFeedbackState(msg.id, { submitting: true });
+    try {
+      await submitFeedback.mutateAsync({
+        turnId: msg.turnId,
+        data: {
+          session_id: currentSessionId,
+          rating: fs.rating ?? -1,
+          response_text: msg.content,
+          feedback_tags: fs.selectedTags.length > 0 ? fs.selectedTags : undefined,
+          correction_text: fs.correction.trim() || undefined,
+        },
+      });
+      updateFeedbackState(msg.id, { submitting: false, submitted: true, correctionOpen: false, tagsOpen: false });
+    } catch {
+      updateFeedbackState(msg.id, { submitting: false });
+    }
+  };
 
   // Build suggested-question chips from the user's actual analytes.
   // Up to 4 analyte-specific chips; fall back to the static list when
@@ -255,8 +326,9 @@ export function ExplainAssistant() {
     // Format content - replace [cite:N] with [N]
     const content = formatResponseText(response.full_response);
 
+    const msgId = (Date.now() + 1).toString();
     return {
-      id: (Date.now() + 1).toString(),
+      id: msgId,
       role: 'assistant',
       content,
       citations: allCitations.length > 0 ? allCitations : undefined,
@@ -267,9 +339,13 @@ export function ExplainAssistant() {
             enabled: true,
             faithfulnessScore: response.verification.faithfulness_score,
             verifiedClaims: response.verification.verified_claims,
-            totalClaims: response.verification.total_claims,
+            totalClaims: response.verification.total_calls || response.verification.total_claims,
           }
         : undefined,
+      // turnId is not returned by the chat endpoint directly; we use the
+      // message id as a stable key; the backend turn_id is recorded when
+      // the user submits feedback (passed via session context).
+      turnId: msgId,
     };
   };
 
@@ -474,6 +550,103 @@ export function ExplainAssistant() {
                         minute: '2-digit',
                       })}
                     </div>
+
+                    {/* ── Feedback widget (assistant turns only) ── */}
+                    {message.role === 'assistant' && !message.error && (() => {
+                      const fs = getFeedbackState(message.id);
+                      return (
+                        <div className="mt-3 pt-2 border-t border-black/[0.06]">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-ink-tertiary mr-1">Was this helpful?</span>
+                            <button
+                              onClick={() => handleFeedback(message, 1)}
+                              disabled={fs.submitting}
+                              title="Helpful"
+                              className={cn(
+                                'p-1 rounded-lg transition-colors',
+                                fs.rating === 1
+                                  ? 'bg-status-success/20 text-status-success'
+                                  : 'text-ink-tertiary hover:text-status-success hover:bg-status-success/10'
+                              )}
+                            >
+                              <ThumbsUp className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleFeedback(message, -1)}
+                              disabled={fs.submitting}
+                              title="Not helpful"
+                              className={cn(
+                                'p-1 rounded-lg transition-colors',
+                                fs.rating === -1
+                                  ? 'bg-status-danger/20 text-status-danger'
+                                  : 'text-ink-tertiary hover:text-status-danger hover:bg-status-danger/10'
+                              )}
+                            >
+                              <ThumbsDown className="w-3.5 h-3.5" />
+                            </button>
+                            {fs.rating === -1 && (
+                              <button
+                                onClick={() => updateFeedbackState(message.id, { tagsOpen: !fs.tagsOpen, correctionOpen: !fs.correctionOpen })}
+                                className="ml-1 flex items-center gap-1 text-xs text-ink-tertiary hover:text-ink transition-colors"
+                              >
+                                <Tag className="w-3 h-3" />
+                                {fs.tagsOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                              </button>
+                            )}
+                            {fs.submitted && (
+                              <span className="text-xs text-status-success ml-1">Thanks!</span>
+                            )}
+                          </div>
+
+                          {/* Tag picker + correction (shown on thumbs-down) */}
+                          {fs.rating === -1 && fs.tagsOpen && (
+                            <div className="mt-2 space-y-2">
+                              <div className="flex flex-wrap gap-1">
+                                {FEEDBACK_TAGS.map((tag) => (
+                                  <button
+                                    key={tag}
+                                    onClick={() => {
+                                      const tags = fs.selectedTags.includes(tag)
+                                        ? fs.selectedTags.filter((t) => t !== tag)
+                                        : [...fs.selectedTags, tag];
+                                      updateFeedbackState(message.id, { selectedTags: tags });
+                                    }}
+                                    className={cn(
+                                      'text-xs px-2 py-0.5 rounded-full border transition-colors',
+                                      fs.selectedTags.includes(tag)
+                                        ? 'bg-accent text-white border-accent'
+                                        : 'bg-white/60 text-ink-secondary border-black/10 hover:border-accent hover:text-accent'
+                                    )}
+                                  >
+                                    {tag.replace(/_/g, ' ')}
+                                  </button>
+                                ))}
+                              </div>
+
+                              {fs.correctionOpen && (
+                                <div className="space-y-1">
+                                  <textarea
+                                    value={fs.correction}
+                                    onChange={(e) => updateFeedbackState(message.id, { correction: e.target.value })}
+                                    placeholder="Optional: write a better answer…"
+                                    rows={3}
+                                    className="w-full text-xs px-2 py-1.5 rounded-lg bg-white/80 border border-black/10 text-ink placeholder:text-ink-tertiary focus:outline-none focus:ring-2 focus:ring-accent resize-none"
+                                  />
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleSubmitCorrection(message)}
+                                    disabled={fs.submitting}
+                                    className="text-xs py-1 h-auto"
+                                  >
+                                    {fs.submitting ? 'Saving…' : 'Submit feedback'}
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </motion.div>
               ))}

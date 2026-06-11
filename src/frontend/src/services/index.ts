@@ -211,3 +211,20 @@ export {
   useVoiceSettings,
   useSaveVoiceSettings,
 } from './modelSettings';
+
+// RL feedback hooks (RL-FEED-001/002)
+export {
+  useSubmitFeedback,
+  useFeedbackStats,
+  useExportDataset,
+  FEEDBACK_TAGS,
+} from './feedback';
+
+export type {
+  FeedbackTag,
+  FeedbackRequest,
+  FeedbackResponse,
+  FeedbackStatsResponse,
+  ExportRequest,
+  ExportResponse,
+} from './feedback';
