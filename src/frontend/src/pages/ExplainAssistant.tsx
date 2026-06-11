@@ -50,7 +50,7 @@ interface Message {
   error?: string;
 }
 
-const suggestedQuestions = [
+const FALLBACK_QUESTIONS = [
   'What does my hemoglobin level mean?',
   'Are my glucose levels normal?',
   'Explain my cholesterol results',
@@ -124,6 +124,37 @@ export function ExplainAssistant() {
   const analyteList = useAnalyteList(profileId || undefined);
   const { data: observationPool } = useObservations({ profile_id: profileId || '' });
   const sendMessage = useSendMessage();
+
+  // Build suggested-question chips from the user's actual analytes.
+  // Up to 4 analyte-specific chips; fall back to the static list when
+  // the user has no observations yet.
+  const suggestedQuestions = useMemo(() => {
+    const analytes: string[] = analyteList && analyteList.length > 0
+      ? analyteList.slice(0, 4)
+      : [];
+    if (analytes.length === 0) return FALLBACK_QUESTIONS;
+
+    const DISPLAY: Record<string, string> = {
+      ldl_cholesterol: 'LDL Cholesterol',
+      hdl_cholesterol: 'HDL Cholesterol',
+      total_cholesterol: 'Total Cholesterol',
+      triglycerides: 'Triglycerides',
+      hemoglobin_a1c: 'A1C',
+      glucose_fasting: 'Fasting Glucose',
+      glucose: 'Glucose',
+      hemoglobin: 'Hemoglobin',
+      tsh: 'TSH',
+      creatinine: 'Creatinine',
+      vitamin_d: 'Vitamin D',
+    };
+    const chips = analytes.map((a) => {
+      const name = DISPLAY[a] ?? a.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+      return `How's my ${name}?`;
+    });
+    // Append one generic follow-up question
+    chips.push("What questions should I ask my doctor?");
+    return chips;
+  }, [analyteList]);
   const { data: modelSettings, isLoading: modelSettingsLoading } = useModelSettings();
   const { data: externalApi } = useExternalApiSettings();
 
@@ -208,7 +239,13 @@ export function ExplainAssistant() {
     response.segments.forEach((segment) => {
       segment.citations.forEach((citation) => {
         allCitations.push({
-          source: citation.doc_title || (citation.source_type === 'user_document' ? 'Your Document' : 'Reference'),
+          source: citation.doc_title || (
+            citation.source_type === 'user_observation'
+              ? 'Your Results'
+              : citation.source_type === 'user_document'
+                ? 'Your Document'
+                : 'Reference'
+          ),
           page: citation.page,
           docId: citation.doc_id,
         });
@@ -392,7 +429,12 @@ export function ExplainAssistant() {
                           {message.citations.map((citation, i) => (
                             <button
                               key={i}
-                              className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-white/80 text-ink-secondary hover:text-accent transition-colors"
+                              className={cn(
+                                'inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-colors',
+                                citation.source === 'Your Results'
+                                  ? 'bg-accent-subtle text-accent font-medium hover:bg-accent hover:text-white'
+                                  : 'bg-white/80 text-ink-secondary hover:text-accent'
+                              )}
                             >
                               <FileText className="w-3 h-3" />
                               [{i + 1}] {citation.source}

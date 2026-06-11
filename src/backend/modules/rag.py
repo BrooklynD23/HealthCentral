@@ -49,7 +49,7 @@ from .interpret_safety import InterpretationSafetyGuard
 class RetrievedChunk:
     """A chunk retrieved for context."""
     chunk_id: str
-    source_type: str  # "user_document" or "reference"
+    source_type: str  # "user_document", "reference", or "user_observation"
     doc_id: Optional[str]
     doc_title: Optional[str]
     page: Optional[int]
@@ -59,6 +59,9 @@ class RetrievedChunk:
     is_user_verified: bool = False
     is_peer_reviewed: bool = False
     publisher: Optional[str] = None
+    # Biomarker grounding: True when this chunk was synthesised from
+    # the profile's own Observation rows (not a document chunk).
+    is_observation_summary: bool = False
 
 
 @dataclass
@@ -122,12 +125,14 @@ class RAGModule:
 CRITICAL RULES:
 1. You must cite sources for ALL factual claims using [cite:N] format
 2. Separate your response into:
-   - REPORT FACTS: What the patient's report shows (must cite user documents)
+   - REPORT FACTS: What the patient's report shows (must cite [YOUR_RESULTS:N] or user documents)
    - GENERAL INFO: Educational context (cite reference materials)
    - UNCERTAINTIES: What cannot be determined
 3. NEVER provide diagnosis, treatment advice, or medication dosing
 4. Use neutral, non-alarming language
-5. If you cannot answer with citations, say "I don't have enough information"
+5. Context labeled [YOUR_RESULTS:N] contains the patient's own measured values — cite these in REPORT FACTS
+6. Context labeled [REFERENCE:N] contains general medical knowledge — cite these in GENERAL INFO
+7. If you cannot answer with citations, say "I don't have enough information"
 
 CONTEXT:
 {context}
@@ -192,6 +197,7 @@ USER QUESTION: {question}"""
         master_db=None,
         profile_db=None,
         category: Optional[str] = None,
+        include_observations: bool = True,
     ) -> list[RetrievedChunk]:
         """
         Retrieve relevant chunks for the query (async).
@@ -243,7 +249,184 @@ USER QUESTION: {question}"""
             ref_chunks = await self._get_reference_chunks(query, selected_analytes, master_db)
             chunks.extend(ref_chunks)
 
+        # Add observation-grounded context from the user's own results
+        # These are inserted BEFORE reference chunks so the LLM sees "YOUR RESULTS"
+        # first when building the REPORT FACTS section.
+        if include_observations and profile_db is not None:
+            obs_chunks = await self._get_observation_chunks(
+                query=query,
+                profile_id=profile_id,
+                selected_analytes=selected_analytes,
+                from_date=from_date,
+                to_date=to_date,
+                profile_db=profile_db,
+            )
+            # Prepend so observation context has lowest citation index numbers
+            # (citation [1], [2] … are user's own results; reference [N+] are KB)
+            chunks = obs_chunks + chunks
+
         return chunks
+
+    async def _get_observation_chunks(
+        self,
+        query: str,
+        profile_id: str,
+        selected_analytes: Optional[list[str]],
+        from_date: Optional[str],
+        to_date: Optional[str],
+        profile_db,
+    ) -> list[RetrievedChunk]:
+        """
+        Build synthetic "YOUR RESULTS" chunks from the profile's Observation rows.
+
+        For each analyte mentioned in the query (or in selected_analytes), we:
+        1. Find the most-recent value and the trend direction (rising/falling/stable)
+           over the last 3 measurements.
+        2. Format a compact, citable text block:
+               YOUR RESULTS — LDL Cholesterol
+               Latest value : 145 mg/dL  (collected 2025-03-10)
+               Reference range: 0–100 mg/dL
+               Flag: HIGH
+               Trend (last 3): 155 → 150 → 145  (improving)
+        3. Return it as a RetrievedChunk with source_type="user_observation" and
+           is_observation_summary=True so citation and faithfulness logic can handle
+           it correctly ("your results" vs reference citations).
+
+        At most 5 analytes are surfaced to keep the prompt compact.
+        """
+        from .normalize import NormalizeModule
+        from sqlalchemy import select
+        from models.observation import Observation
+        from datetime import datetime
+
+        normalizer = NormalizeModule()
+
+        # Build analyte candidate set from query text + explicit selection
+        analytes_to_search: set[str] = set(selected_analytes or [])
+        query_lower = query.lower()
+        for canonical, synonyms in normalizer.ANALYTE_SYNONYMS.items():
+            if canonical in query_lower or any(syn in query_lower for syn in synonyms):
+                analytes_to_search.add(canonical)
+
+        if not analytes_to_search:
+            return []
+
+        obs_chunks: list[RetrievedChunk] = []
+
+        for analyte in list(analytes_to_search)[:5]:
+            try:
+                stmt = (
+                    select(Observation)
+                    .where(
+                        Observation.profile_id == profile_id,
+                        Observation.analyte_canonical == analyte,
+                        Observation.value.isnot(None),
+                    )
+                    .order_by(Observation.collected_at.desc().nullslast())
+                    .limit(5)
+                )
+
+                # Apply date range filters when provided
+                if from_date:
+                    try:
+                        from_dt = datetime.fromisoformat(from_date)
+                        stmt = stmt.where(Observation.collected_at >= from_dt)
+                    except (ValueError, TypeError):
+                        pass
+                if to_date:
+                    try:
+                        to_dt = datetime.fromisoformat(to_date)
+                        stmt = stmt.where(Observation.collected_at <= to_dt)
+                    except (ValueError, TypeError):
+                        pass
+
+                result = await profile_db.execute(stmt)
+                rows = result.scalars().all()
+
+                if not rows:
+                    continue
+
+                # Most recent observation
+                latest = rows[0]
+                display_name = normalizer.DISPLAY_NAMES.get(analyte, analyte.replace("_", " ").title())
+
+                # Build value string
+                val_str = f"{latest.value}"
+                if latest.unit:
+                    val_str += f" {latest.unit}"
+
+                # Reference range
+                ref_str = ""
+                if latest.ref_low is not None and latest.ref_high is not None:
+                    unit_sfx = f" {latest.unit}" if latest.unit else ""
+                    ref_str = f"{latest.ref_low}–{latest.ref_high}{unit_sfx}"
+                elif latest.ref_range_text:
+                    ref_str = latest.ref_range_text
+
+                # Collection date
+                date_str = ""
+                if latest.collected_at:
+                    date_str = latest.collected_at.strftime("%Y-%m-%d")
+
+                # Flag / abnormal marker
+                flag_str = ""
+                if latest.flag:
+                    flag_str = latest.flag.upper()
+                elif latest.is_abnormal:
+                    if latest.ref_high is not None and latest.value > latest.ref_high:
+                        flag_str = "HIGH"
+                    elif latest.ref_low is not None and latest.value < latest.ref_low:
+                        flag_str = "LOW"
+
+                # Trend over last 3 readings (newest first)
+                trend_str = ""
+                if len(rows) >= 2:
+                    vals = [r.value for r in rows[:3] if r.value is not None]
+                    if len(vals) >= 2:
+                        arrow = ""
+                        delta = vals[0] - vals[-1]
+                        pct = abs(delta) / abs(vals[-1]) * 100 if vals[-1] != 0 else 0
+                        if pct < 3:
+                            arrow = "stable"
+                        elif delta < 0:
+                            arrow = "decreasing"
+                        else:
+                            arrow = "increasing"
+                        trend_vals = " → ".join(str(v) for v in reversed(vals))
+                        trend_str = f"Trend (last {len(vals)}): {trend_vals}  ({arrow})"
+
+                # Compose the grounded text block
+                lines = [f"YOUR RESULTS — {display_name}"]
+                lines.append(f"Latest value : {val_str}")
+                if date_str:
+                    lines.append(f"Collected    : {date_str}")
+                if ref_str:
+                    lines.append(f"Reference    : {ref_str}")
+                if flag_str:
+                    lines.append(f"Flag         : {flag_str}")
+                if trend_str:
+                    lines.append(trend_str)
+                if latest.user_verified:
+                    lines.append("(User-verified result)")
+
+                text = "\n".join(lines)
+
+                obs_chunks.append(RetrievedChunk(
+                    chunk_id=f"obs_{latest.id}",
+                    source_type="user_observation",
+                    doc_id=latest.doc_id,
+                    doc_title=f"Your {display_name} Result",
+                    page=None,
+                    text=text,
+                    relevance_score=0.95,  # user's own data is maximally relevant
+                    is_user_verified=latest.user_verified,
+                    is_observation_summary=True,
+                ))
+
+            except Exception as exc:
+                self._logger.debug("Failed to build observation chunk for %s: %s", analyte, exc)
+
+        return obs_chunks
 
     async def _get_reference_chunks(
         self,
@@ -425,11 +608,16 @@ USER QUESTION: {question}"""
         context_parts = []
 
         for i, chunk in enumerate(retrieved_chunks, start=1):
-            source_label = f"[{chunk.source_type.upper()}:{i}]"
-            if chunk.doc_title:
-                source_label += f" {chunk.doc_title}"
-            if chunk.page:
-                source_label += f" (page {chunk.page})"
+            if getattr(chunk, "is_observation_summary", False):
+                source_label = f"[YOUR_RESULTS:{i}]"
+                if chunk.doc_title:
+                    source_label += f" {chunk.doc_title}"
+            else:
+                source_label = f"[{chunk.source_type.upper()}:{i}]"
+                if chunk.doc_title:
+                    source_label += f" {chunk.doc_title}"
+                if chunk.page:
+                    source_label += f" (page {chunk.page})"
 
             context_parts.append(f"{source_label}\n{chunk.text}")
 
@@ -985,6 +1173,7 @@ I was unable to fully process your question within the time limit. Please try as
             master_db=master_db,
             profile_db=profile_db,
             category=category,
+            include_observations=True,
         )
 
         # Check for insufficient context

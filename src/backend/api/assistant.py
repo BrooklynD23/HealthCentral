@@ -641,7 +641,7 @@ async def chat(
         )
 
     except ModelUnavailableError:
-        return await _build_knowledge_fallback(request, session.profile_id, db)
+        return await _build_knowledge_fallback(request, session.profile_id, db, profile_db)
     except Exception as e:
         logger.exception(
             "Assistant chat request failed",
@@ -867,8 +867,14 @@ async def _build_knowledge_fallback(
     request: ChatRequest,
     profile_id: str,
     db,
+    profile_db=None,
 ) -> ChatResponse:
-    """Build a knowledge-base response when no LLM is available."""
+    """Build a knowledge-base response when no LLM is available.
+
+    When profile_db is provided, we augment each analyte block with the
+    user's latest observed value, reference range, and flag so the
+    answer is grounded in their own data even without an LLM.
+    """
     from modules.glossary import GlossaryModule
     from modules.knowledge_loader import get_knowledge_loader
     from modules.normalize import NormalizeModule
@@ -889,17 +895,80 @@ async def _build_knowledge_fallback(
         found_analytes.extend(request.selected_analytes)
     found_analytes = list(set(found_analytes))
 
+    # Pull latest observation for each analyte so fallback is user-grounded
+    async def _fetch_latest_obs(analyte: str):
+        if profile_db is None:
+            return None
+        try:
+            from sqlalchemy import select
+            from models.observation import Observation
+            result = await profile_db.execute(
+                select(Observation)
+                .where(
+                    Observation.profile_id == profile_id,
+                    Observation.analyte_canonical == analyte,
+                    Observation.value.isnot(None),
+                )
+                .order_by(Observation.collected_at.desc().nullslast())
+                .limit(1)
+            )
+            return result.scalar_one_or_none()
+        except Exception:
+            return None
+
     knowledge_parts = []
+    obs_citations = []
     for analyte in found_analytes[:3]:
         try:
             info = await knowledge.get_biomarker_knowledge(analyte, db)
+            obs = await _fetch_latest_obs(analyte)
+
             if info:
-                knowledge_parts.append(
-                    f"**{info.display_name}**: {info.description}\n"
-                    f"- Normal: {info.normal_interpretation}\n"
-                    f"- High: {info.high_interpretation}\n"
-                    f"- Low: {info.low_interpretation}"
-                )
+                part_lines = [f"**{info.display_name}**: {info.description}"]
+
+                # ── User's own result block ──────────────────────────────
+                if obs is not None:
+                    val_str = str(obs.value)
+                    if obs.unit:
+                        val_str += f" {obs.unit}"
+                    date_str = ""
+                    if obs.collected_at:
+                        date_str = f" (collected {obs.collected_at.strftime('%Y-%m-%d')})"
+                    ref_str = ""
+                    if obs.ref_low is not None and obs.ref_high is not None:
+                        ref_str = f"{obs.ref_low}–{obs.ref_high}"
+                        if obs.unit:
+                            ref_str += f" {obs.unit}"
+                    elif obs.ref_range_text:
+                        ref_str = obs.ref_range_text
+                    flag_str = ""
+                    if obs.flag:
+                        flag_str = f"  **[{obs.flag.upper()}]**"
+                    elif obs.is_abnormal:
+                        if obs.ref_high is not None and obs.value > obs.ref_high:
+                            flag_str = "  **[HIGH]**"
+                        elif obs.ref_low is not None and obs.value < obs.ref_low:
+                            flag_str = "  **[LOW]**"
+
+                    cite_idx = len(obs_citations) + 1
+                    obs_citations.append(Citation(
+                        source_type="user_observation",
+                        doc_id=obs.doc_id,
+                        doc_title=f"Your {info.display_name} Result",
+                        page=None,
+                        text_snippet=f"{info.display_name}: {val_str}{date_str}",
+                        relevance_score=0.95,
+                    ))
+                    result_line = f"  **Your result**: {val_str}{date_str}{flag_str} [cite:{cite_idx}]"
+                    if ref_str:
+                        result_line += f"\n  Reference range: {ref_str}"
+                    part_lines.append(result_line)
+
+                # ── Standard interpretation guidance ─────────────────────
+                part_lines.append(f"- Normal: {info.normal_interpretation}")
+                part_lines.append(f"- High: {info.high_interpretation}")
+                part_lines.append(f"- Low: {info.low_interpretation}")
+                knowledge_parts.append("\n".join(part_lines))
         except Exception:
             pass
 
@@ -907,7 +976,7 @@ async def _build_knowledge_fallback(
         segments.append(ResponseSegment(
             segment_type="general_info",
             content="\n\n".join(knowledge_parts),
-            citations=[],
+            citations=obs_citations,
         ))
 
     words = question_lower.split()
