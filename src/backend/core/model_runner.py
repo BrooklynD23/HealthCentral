@@ -1,30 +1,40 @@
 """
-Local LLM Model Runner.
+core.model_runner — Thin facade over the active LLM provider.
 
-Provides inference capabilities using llama-cpp-python for local model execution.
-Supports configurable model loading, timeouts, and resource management.
+Public API is unchanged from the original implementation so all existing
+call-sites (modules/rag.py, api/interpretations.py, api/assistant.py, etc.)
+continue to work without modification.
 
-Sprint 6: LLM Integration for RAG Assistant
+The actual inference is delegated to the provider selected by
+core.llm.factory.get_provider() (LlamaCppProvider by default, OllamaProvider
+when LLM_PROVIDER=ollama).
+
+Python 3.10-compatible: no 3.11+ syntax.
 """
+
+from __future__ import annotations
 
 import asyncio
 import logging
-from pathlib import Path
-from typing import Optional
 from dataclasses import dataclass
-
-from .config import settings
+from pathlib import Path
+from typing import List, Optional
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Data types — kept here so existing "from core.model_runner import ..." works
+# ---------------------------------------------------------------------------
 
 
 @dataclass
 class InferenceConfig:
     """Configuration for LLM inference."""
     max_tokens: int = 1024
-    temperature: float = 0.1  # Low temperature for factual responses
+    temperature: float = 0.1
     top_p: float = 0.9
-    stop_sequences: list[str] | None = None
+    stop_sequences: Optional[List[str]] = None
     timeout_seconds: int = 60
 
 
@@ -33,16 +43,30 @@ class InferenceResult:
     """Result from LLM inference."""
     text: str
     tokens_generated: int
-    finish_reason: str  # "stop", "length", "timeout"
+    finish_reason: str   # "stop" | "length" | "timeout"
     model_name: str
+
+
+# ---------------------------------------------------------------------------
+# ModelRunner facade
+# ---------------------------------------------------------------------------
 
 
 class ModelRunner:
     """
-    Local LLM inference runner using llama-cpp-python.
+    Facade over the active LLM provider.
 
-    Manages model loading, inference execution, and resource cleanup.
-    Designed for privacy-first local execution without external API calls.
+    Exposes the same public API as the original llama-cpp-python implementation:
+        is_available()
+        generate(prompt, config) -> InferenceResult
+        generate_async(prompt, config) -> InferenceResult
+        unload()
+
+    Internally converts the legacy prompt-string API to the chat-message API
+    expected by providers (wraps the prompt as a single user message).
+
+    Also exposes ensure_model_available() for backward compatibility with
+    code that calls it before inference.
     """
 
     def __init__(
@@ -50,70 +74,37 @@ class ModelRunner:
         model_path: Optional[str] = None,
         n_ctx: int = 4096,
         n_threads: int = 0,
+        # Provider override — used by tests to inject mocks.
+        _provider=None,
     ):
-        """
-        Initialize the model runner.
-
-        Args:
-            model_path: Path to GGUF model file. If None, uses default from settings.
-            n_ctx: Context window size (default 4096)
-            n_threads: Number of CPU threads (0 = auto-detect)
-        """
-        self._model = None
         self._model_path = model_path
         self._n_ctx = n_ctx
-        self._n_threads = n_threads if n_threads > 0 else settings.inference_threads
-        self._initialized = False
+        self._n_threads = n_threads
+        self._provider_override = _provider
+
+    def _get_provider(self):
+        """Return the active provider, honouring test overrides."""
+        if self._provider_override is not None:
+            return self._provider_override
+        from core.llm.factory import get_provider
+        return get_provider()
+
+    # ------------------------------------------------------------------
+    # Legacy helpers (preserve original call-site contracts)
+    # ------------------------------------------------------------------
 
     def _find_model_path(self) -> Optional[Path]:
-        """
-        Find the model file to use.
-
-        Looks in order:
-        1. Explicitly provided path
-        2. Settings default
-        3. Common model names in models directory
-        4. Auto-download if enabled and no model found
-        """
-        if self._model_path:
-            path = Path(self._model_path)
-            if path.exists():
-                return path
-
-        models_dir = Path(settings.models_path)
-        if not models_dir.exists():
-            models_dir.mkdir(parents=True, exist_ok=True)
-
-        # Look for GGUF files matching common patterns
-        search_patterns = [
-            f"{settings.default_chat_model}*.gguf",
-            "phi-3*.gguf",
-            "llama*.gguf",
-            "mistral*.gguf",
-            "qwen*.gguf",
-            "*.gguf",
-        ]
-
-        for pattern in search_patterns:
-            matches = list(models_dir.glob(pattern))
-            if matches:
-                # Prefer quantized versions (smaller, faster)
-                for match in matches:
-                    if "q4" in match.name.lower() or "q5" in match.name.lower():
-                        return match
-                return matches[0]
-
+        """Delegate to provider's path resolution for backward compat."""
+        provider = self._get_provider()
+        if hasattr(provider, "_find_model_path"):
+            return provider._find_model_path()
         return None
 
     def ensure_model_available(self, auto_download: bool = True) -> Optional[Path]:
         """
-        Ensure a model is available, optionally downloading if needed.
+        Ensure a model is available, optionally triggering a download.
 
-        Args:
-            auto_download: If True, download a model when none exists
-
-        Returns:
-            Path to available model or None
+        Preserved for backward compatibility (called by some startup paths).
         """
         path = self._find_model_path()
         if path:
@@ -122,63 +113,24 @@ class ModelRunner:
         if not auto_download:
             return None
 
-        # Try to auto-download using ModelSelector
         try:
             from modules.model_selector import get_model_selector
-
             selector = get_model_selector()
-            downloaded = selector.ensure_model_available(tier="low")
-            return downloaded
-        except Exception as e:
-            logger.warning(f"Auto-download failed: {e}")
+            return selector.ensure_model_available(tier="low")
+        except Exception as exc:
+            logger.warning("ensure_model_available: auto-download failed: %s", exc)
             return None
 
-    def _ensure_initialized(self) -> bool:
-        """
-        Lazy initialization of the LLM model.
-
-        Returns True if model is ready, False if initialization failed.
-        """
-        if self._initialized:
-            return self._model is not None
-
-        self._initialized = True
-        model_path = self._find_model_path()
-
-        if not model_path:
-            logger.warning(
-                f"No LLM model found. Please download a GGUF model to {settings.models_path}"
-            )
-            return False
-
-        try:
-            from llama_cpp import Llama
-
-            logger.info(f"Loading LLM model from {model_path}")
-
-            self._model = Llama(
-                model_path=str(model_path),
-                n_ctx=self._n_ctx,
-                n_threads=self._n_threads if self._n_threads > 0 else None,
-                verbose=settings.debug,
-            )
-
-            logger.info(f"LLM model loaded successfully: {model_path.name}")
-            return True
-
-        except ImportError:
-            logger.error(
-                "llama-cpp-python not installed. "
-                "Install with: pip install llama-cpp-python"
-            )
-            return False
-        except Exception as e:
-            logger.error(f"Failed to load LLM model: {e}")
-            return False
+    # ------------------------------------------------------------------
+    # Core inference methods
+    # ------------------------------------------------------------------
 
     def is_available(self) -> bool:
-        """Check if the model is available for inference."""
-        return self._ensure_initialized()
+        """Check if the active provider is ready for inference."""
+        try:
+            return self._get_provider().is_available()
+        except Exception:
+            return False
 
     def generate(
         self,
@@ -186,52 +138,38 @@ class ModelRunner:
         config: Optional[InferenceConfig] = None,
     ) -> InferenceResult:
         """
-        Generate a response from the LLM.
+        Synchronous text generation.
 
-        Args:
-            prompt: The prompt to send to the model
-            config: Inference configuration (uses defaults if not provided)
-
-        Returns:
-            InferenceResult with generated text and metadata
+        Wraps *prompt* as a single user message and delegates to the provider.
 
         Raises:
-            RuntimeError: If model is not available
+            RuntimeError: if provider is unavailable or inference fails.
         """
-        if not self._ensure_initialized():
-            raise RuntimeError(
-                "LLM model not available. Please download a GGUF model."
-            )
+        from core.llm.provider import ChatMessage, ProviderUnavailableError
 
         if config is None:
             config = InferenceConfig()
 
-        stop = config.stop_sequences or []
+        messages = [ChatMessage(role="user", content=prompt)]
+        provider = self._get_provider()
 
         try:
-            result = self._model(
-                prompt,
-                max_tokens=config.max_tokens,
-                temperature=config.temperature,
-                top_p=config.top_p,
-                stop=stop,
-                echo=False,
-            )
+            result = provider.generate(messages, config)
+        except ProviderUnavailableError as exc:
+            raise RuntimeError(str(exc)) from exc
+        except Exception as exc:
+            logger.error("ModelRunner.generate failed: %s", exc)
+            raise RuntimeError(f"LLM inference failed: {exc}") from exc
 
-            generated_text = result["choices"][0]["text"]
-            finish_reason = result["choices"][0].get("finish_reason", "stop")
-            tokens_generated = result.get("usage", {}).get("completion_tokens", 0)
-
+        # Ensure the result is an InferenceResult (providers may return their own)
+        if not isinstance(result, InferenceResult):
             return InferenceResult(
-                text=generated_text.strip(),
-                tokens_generated=tokens_generated,
-                finish_reason=finish_reason,
-                model_name=self._model_path or settings.default_chat_model,
+                text=getattr(result, "text", str(result)),
+                tokens_generated=getattr(result, "tokens_generated", 0),
+                finish_reason=getattr(result, "finish_reason", "stop"),
+                model_name=getattr(result, "model_name", "unknown"),
             )
-
-        except Exception as e:
-            logger.error(f"LLM inference failed: {e}")
-            raise RuntimeError(f"LLM inference failed: {e}")
+        return result
 
     async def generate_async(
         self,
@@ -239,67 +177,75 @@ class ModelRunner:
         config: Optional[InferenceConfig] = None,
     ) -> InferenceResult:
         """
-        Async wrapper for generate() with timeout support.
+        Async text generation with timeout.
 
-        Args:
-            prompt: The prompt to send to the model
-            config: Inference configuration (uses defaults if not provided)
-
-        Returns:
-            InferenceResult with generated text and metadata
-
-        Raises:
-            asyncio.TimeoutError: If generation exceeds timeout
-            RuntimeError: If model is not available or inference fails
+        Mirrors original ModelRunner.generate_async() contract exactly.
         """
+        from core.llm.provider import ChatMessage, ProviderUnavailableError
+
         if config is None:
             config = InferenceConfig()
 
-        # Run the sync generation in a thread pool
-        loop = asyncio.get_event_loop()
+        messages = [ChatMessage(role="user", content=prompt)]
+        provider = self._get_provider()
 
         try:
-            result = await asyncio.wait_for(
-                loop.run_in_executor(
-                    None,
-                    lambda: self.generate(prompt, config)
-                ),
-                timeout=config.timeout_seconds,
-            )
-            return result
-
+            result = await provider.generate_async(messages, config)
+        except ProviderUnavailableError as exc:
+            raise RuntimeError(str(exc)) from exc
         except asyncio.TimeoutError:
-            logger.warning(f"LLM generation timed out after {config.timeout_seconds}s")
+            logger.warning(
+                "ModelRunner.generate_async timed out after %ds",
+                config.timeout_seconds,
+            )
             return InferenceResult(
-                text="I apologize, but generating a response is taking longer than expected. Please try again with a simpler question.",
+                text=(
+                    "I apologize, but generating a response is taking longer than "
+                    "expected. Please try again with a simpler question."
+                ),
                 tokens_generated=0,
                 finish_reason="timeout",
-                model_name=self._model_path or settings.default_chat_model,
+                model_name="unknown",
             )
+        except Exception as exc:
+            logger.error("ModelRunner.generate_async failed: %s", exc)
+            raise RuntimeError(f"LLM inference failed: {exc}") from exc
 
-    def unload(self):
-        """Unload the model to free memory."""
-        if self._model is not None:
-            del self._model
-            self._model = None
-            self._initialized = False
-            logger.info("LLM model unloaded")
+        if not isinstance(result, InferenceResult):
+            return InferenceResult(
+                text=getattr(result, "text", str(result)),
+                tokens_generated=getattr(result, "tokens_generated", 0),
+                finish_reason=getattr(result, "finish_reason", "stop"),
+                model_name=getattr(result, "model_name", "unknown"),
+            )
+        return result
+
+    def unload(self) -> None:
+        """Unload the provider to free memory."""
+        try:
+            provider = self._get_provider()
+            provider.unload()
+        except Exception as exc:
+            logger.warning("ModelRunner.unload: %s", exc)
 
 
-# Global model runner instance
+# ---------------------------------------------------------------------------
+# Module-level singleton — same pattern as the original
+# ---------------------------------------------------------------------------
+
 _model_runner: Optional[ModelRunner] = None
 
 
 def get_model_runner() -> ModelRunner:
-    """Get or create the global model runner instance."""
+    """Get or create the global ModelRunner facade instance."""
     global _model_runner
     if _model_runner is None:
         _model_runner = ModelRunner()
     return _model_runner
 
 
-def reset_model_runner():
-    """Reset the global model runner (for testing)."""
+def reset_model_runner() -> None:
+    """Reset the global model runner (for testing / hot-reload)."""
     global _model_runner
     if _model_runner is not None:
         _model_runner.unload()

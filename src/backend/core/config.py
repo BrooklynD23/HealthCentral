@@ -89,6 +89,20 @@ class Settings(BaseSettings):
     default_model_tier: str = "low"  # String tier: "low", "mid", "high"
     auto_detect_hardware: bool = True  # Run hardware detection on startup
     model_download_timeout: int = 3600  # Download timeout in seconds (1 hour)
+
+    # LLM Provider Selection (P1: provider abstraction)
+    # llm_provider: which inference backend to use.
+    #   "llama_cpp"  — local GGUF via llama-cpp-python (default, always local)
+    #   "ollama"     — local Ollama daemon at localhost:11434 (optional)
+    llm_provider: str = "llama_cpp"
+
+    # llm_model: model identifier for the selected provider.
+    #   llama_cpp:  path to a .gguf file (empty = auto-detect from models_path)
+    #   ollama:     Ollama model tag, e.g. "gemma4:12b", "gemma4:e4b", "gemma4:26b"
+    llm_model: str = ""
+
+    # Ollama base URL (must be localhost — non-local URLs are rejected at startup)
+    ollama_base_url: str = "http://127.0.0.1:11434"
     
     # Vector store
     vector_store_type: Literal["sqlite-vss", "faiss"] = "sqlite-vss"
