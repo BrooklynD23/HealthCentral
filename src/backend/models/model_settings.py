@@ -117,6 +117,13 @@ class UserModelSettings(ProfileDatabaseBase):
         nullable=False,
     )
 
+    # ASSIST-MEM-003: per-profile toggle for memory injection into RAG context
+    assistant_memory_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+    )
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime,

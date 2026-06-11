@@ -436,20 +436,29 @@ USER QUESTION: {question}"""
         context = "\n\n---\n\n".join(context_parts)
 
         # Build conversation history section
+        # Token budget: up to half the context window (chars), so history
+        # never crowds out retrieved chunks.  Newest turns have priority.
+        _hist_char_budget = max(
+            500,
+            int(getattr(settings, "chat_context_size", 4096) * 0.5),
+        )
         history_section = ""
         if history:
-            # Limit history to last ~2000 chars to fit context window
-            history_lines = []
+            history_lines: list[str] = []
             char_count = 0
             sanitized_history = self._sanitize_history(history)
             for role, content in reversed(sanitized_history):
                 line = f"{role.upper()}: {content}"
-                if char_count + len(line) > 2000:
+                if char_count + len(line) + 1 > _hist_char_budget:
                     break
                 history_lines.insert(0, line)
-                char_count += len(line)
+                char_count += len(line) + 1
             if history_lines:
-                history_section = "\n\nCONVERSATION HISTORY:\n" + "\n".join(history_lines) + "\n"
+                history_section = (
+                    "\n\nSESSION HISTORY (do NOT cite these turns \u2014 for context only):\n"
+                    + "\n".join(history_lines)
+                    + "\n"
+                )
 
         prompt = self.SYSTEM_PROMPT.format(
             context=context,
@@ -992,12 +1001,13 @@ I was unable to fully process your question within the time limit. Please try as
             )
 
         # Step 2: Optionally retrieve memory context (ASSIST-MEM-003)
+        # Note: use_memory arriving here already means both the request flag
+        # AND the per-profile/global setting are True (checked by api/assistant.py).
         memory_section = ""
         if use_memory:
-            if settings.assistant_memory_enabled:
-                memory_section = await self._retrieve_memory_context(
-                    profile_id, profile_db
-                )
+            memory_section = await self._retrieve_memory_context(
+                profile_id, profile_db
+            )
 
         # Step 2b: Compose prompt with history
         prompt = self.compose_prompt(question, chunks, history=history)

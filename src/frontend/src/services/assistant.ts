@@ -63,6 +63,7 @@ export interface ChatRequest {
   min_faithfulness_score?: number;
   use_memory?: boolean;
   history?: ChatMessage[];
+  session_id?: string | null;
 }
 
 export interface ChatResponse {
@@ -73,6 +74,7 @@ export interface ChatResponse {
   verification: VerificationInfo;
   is_valid: boolean;
   validation_errors: string[];
+  session_id?: string | null;
 }
 
 export interface GlossaryResponse {
@@ -89,6 +91,42 @@ export interface TestIntentResponse {
   general_info: string;
   citations: Citation[];
   verification: VerificationInfo;
+}
+
+
+// Session management types (ASSIST-HIST-001)
+
+export interface SessionSummary {
+  session_id: string;
+  title: string | null;
+  turn_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SessionListResponse {
+  sessions: SessionSummary[];
+}
+
+export interface SessionHistoryResponse {
+  session_id: string;
+  title: string | null;
+  turns: ChatMessage[];
+}
+
+export interface NewSessionRequest {
+  title?: string;
+}
+
+export interface NewSessionResponse {
+  session_id: string;
+  title: string | null;
+  created_at: string;
+}
+
+export interface MemorySettingsResponse {
+  assistant_memory_enabled: boolean;
+  global_default: boolean;
 }
 
 const QUERY_KEY = 'assistant';
@@ -109,6 +147,34 @@ async function lookupTestIntent(analyte: string): Promise<TestIntentResponse> {
 
 async function getVerificationStatus(): Promise<Record<string, unknown>> {
   return apiGet<Record<string, unknown>>('/assistant/verification-status');
+}
+
+
+async function listSessions(): Promise<SessionListResponse> {
+  return apiGet<SessionListResponse>('/assistant/sessions');
+}
+
+async function createSession(data: NewSessionRequest): Promise<NewSessionResponse> {
+  return apiPost<NewSessionResponse, NewSessionRequest>('/assistant/sessions', data);
+}
+
+async function getSessionHistory(sessionId: string): Promise<SessionHistoryResponse> {
+  return apiGet<SessionHistoryResponse>(`/assistant/sessions/${sessionId}`);
+}
+
+async function deleteSession(sessionId: string): Promise<void> {
+  return apiDelete(`/assistant/sessions/${sessionId}`);
+}
+
+async function getMemorySettings(): Promise<MemorySettingsResponse> {
+  return apiGet<MemorySettingsResponse>('/assistant/memory-settings');
+}
+
+async function updateMemorySettings(enabled: boolean): Promise<MemorySettingsResponse> {
+  return apiPatch<MemorySettingsResponse, { assistant_memory_enabled: boolean }>(
+    '/assistant/memory-settings',
+    { assistant_memory_enabled: enabled },
+  );
 }
 
 // React Query hooks
@@ -191,6 +257,80 @@ export function useGlossaryMutation() {
 export function useTestIntentMutation() {
   return useMutation({
     mutationFn: (analyte: string) => lookupTestIntent(analyte),
+  });
+}
+
+
+/**
+ * Query hook for listing chat sessions.
+ */
+export function useChatSessions() {
+  return useQuery({
+    queryKey: [QUERY_KEY, 'sessions'],
+    queryFn: listSessions,
+    staleTime: 1000 * 30,
+  });
+}
+
+/**
+ * Mutation hook for creating a new chat session explicitly.
+ */
+export function useCreateChatSession() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: NewSessionRequest) => createSession(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'sessions'] });
+    },
+  });
+}
+
+/**
+ * Query hook to load full turn history for a session.
+ */
+export function useChatSessionHistory(sessionId: string | null | undefined) {
+  return useQuery({
+    queryKey: [QUERY_KEY, 'session-history', sessionId],
+    queryFn: () => getSessionHistory(sessionId!),
+    enabled: !!sessionId,
+    staleTime: 1000 * 5,
+  });
+}
+
+/**
+ * Mutation hook to delete a chat session.
+ */
+export function useDeleteChatSession() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (sessionId: string) => deleteSession(sessionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'sessions'] });
+    },
+  });
+}
+
+/**
+ * Query hook for per-profile memory injection toggle.
+ */
+export function useMemorySettings() {
+  return useQuery({
+    queryKey: [QUERY_KEY, 'memory-settings'],
+    queryFn: getMemorySettings,
+    staleTime: 1000 * 60,
+  });
+}
+
+/**
+ * Mutation hook to update per-profile memory injection toggle.
+ */
+export function useUpdateMemorySettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (enabled: boolean) => updateMemorySettings(enabled),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'memory-settings'] });
+    },
   });
 }
 

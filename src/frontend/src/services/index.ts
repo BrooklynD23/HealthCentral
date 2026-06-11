@@ -100,9 +100,16 @@ export {
   useVerificationStatus,
   useGlossaryMutation,
   useTestIntentMutation,
+  useChatSessions,
+  useCreateChatSession,
+  useChatSessionHistory,
+  useDeleteChatSession,
+  useMemorySettings,
+  useUpdateMemorySettings,
   formatCitation,
   extractCitationRefs,
   formatResponseText,
+  DOCUMENT_CATEGORIES,
 } from './assistant';
 
 export type {
@@ -114,6 +121,12 @@ export type {
   ChatResponse,
   GlossaryResponse,
   TestIntentResponse,
+  SessionSummary,
+  SessionListResponse,
+  SessionHistoryResponse,
+  NewSessionRequest,
+  NewSessionResponse,
+  MemorySettingsResponse,
 } from './assistant';
 
 // Model settings hooks
@@ -169,6 +182,17 @@ export type {
   DocumentCategoryResponse,
   DocumentEntityResponse,
 } from './documentCategories';
+
+// Memory store hooks (ASSIST-MEM-001/002)
+export {
+  useMemoryItems,
+  useMemoryItem,
+  useCreateMemoryItem,
+  useUpdateMemoryItem,
+  useDeleteMemoryItem,
+} from './memory';
+
+export type { MemoryItem, MemoryItemCreate, MemoryItemUpdate } from './types';
 
 // Gamification hooks
 export { useBadges } from './gamification';

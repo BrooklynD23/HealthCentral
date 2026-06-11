@@ -123,7 +123,7 @@ class Settings(BaseSettings):
 
     # Memory store (ASSIST-MEM-001)
     max_memory_items_per_profile: int = 100
-    assistant_memory_enabled: bool = False  # ASSIST-MEM-003: inject memory into RAG context
+    assistant_memory_enabled: bool = True  # ASSIST-MEM-003: inject memory into RAG context
     assistant_memory_max_items_in_prompt: int = 20
     assistant_memory_max_prompt_chars: int = 2000
 

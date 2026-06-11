@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -14,6 +14,8 @@ import {
   Info,
   Settings,
   Filter,
+  PlusCircle,
+  History,
 } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui';
 import { cn } from '@/utils/cn';
@@ -24,6 +26,8 @@ import { useObservations } from '@/services/observations';
 import {
   DOCUMENT_CATEGORIES,
   useSendMessage,
+  useChatSessions,
+  useChatSessionHistory,
   formatResponseText,
   type ChatResponse,
   type ChatMessage as ChatHistoryMessage,
@@ -69,7 +73,46 @@ export function ExplainAssistant() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [modelUnavailable, setModelUnavailable] = useState(false);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [sessionLoaded, setSessionLoaded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Load the most recent session on mount (ASSIST-HIST-001)
+  const { data: sessionsData } = useChatSessions();
+  const mostRecentSessionId = sessionsData?.sessions?.[0]?.session_id ?? null;
+  const { data: sessionHistory, isLoading: historyLoading } = useChatSessionHistory(
+    !sessionLoaded && !currentSessionId ? mostRecentSessionId : null,
+  );
+
+  // When session history loads, populate messages from DB
+  useEffect(() => {
+    if (sessionLoaded || historyLoading) return;
+    if (!mostRecentSessionId) {
+      setSessionLoaded(true);
+      return;
+    }
+    if (!sessionHistory) return;
+
+    setCurrentSessionId(mostRecentSessionId);
+    setSessionLoaded(true);
+
+    const restored: Message[] = sessionHistory.turns.map((turn, i) => ({
+      id: `restored-${i}`,
+      role: turn.role as 'user' | 'assistant',
+      content: turn.content,
+      timestamp: new Date(),
+    }));
+    if (restored.length > 0) {
+      setMessages(restored);
+    }
+  }, [sessionHistory, historyLoading, mostRecentSessionId, sessionLoaded]);
+
+  const startNewConversation = useCallback(() => {
+    setCurrentSessionId(null);
+    setMessages([]);
+    setInput('');
+    setModelUnavailable(false);
+  }, []);
 
   // Filter state
   const [selectedAnalytes, setSelectedAnalytes] = useState<string[]>([]);
@@ -102,13 +145,6 @@ export function ExplainAssistant() {
     messagesEndRef.current?.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth' });
   }, [messages, prefersReducedMotion]);
 
-  // Build conversation history for multi-turn context
-  const buildHistory = (): ChatHistoryMessage[] => {
-    return messages
-      .filter((m) => !m.error)
-      .map((m) => ({ role: m.role, content: m.content }));
-  };
-
   const handleSend = async () => {
     if (!input.trim() || sendMessage.isPending) return;
 
@@ -135,8 +171,13 @@ export function ExplainAssistant() {
         from_date: fromDate || undefined,
         to_date: toDate || undefined,
         ...(selectedDocumentCategory ? { document_category: selectedDocumentCategory } : {}),
-        history: buildHistory(),
+        session_id: currentSessionId,
       });
+
+      // Track the session_id returned by the backend (may be new implicit session)
+      if (response.session_id && response.session_id !== currentSessionId) {
+        setCurrentSessionId(response.session_id);
+      }
 
       // If we get a knowledge-base only response, flag model unavailable
       const isKnowledgeOnly = response.segments.some(
@@ -223,7 +264,20 @@ export function ExplainAssistant() {
                 </div>
                 <span>Explain Assistant</span>
               </div>
-              <Badge variant="info" className="gap-1.5 max-w-[min(20rem,55vw)]" title={activeModelSummary}>
+              <div className="flex items-center gap-2">
+                {messages.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={startNewConversation}
+                    className="gap-1.5 text-xs text-ink-secondary"
+                    title="Start a new conversation"
+                  >
+                    <PlusCircle className="w-3.5 h-3.5" />
+                    New
+                  </Button>
+                )}
+                <Badge variant="info" className="gap-1.5 max-w-[min(20rem,55vw)]" title={activeModelSummary}>
                 <FileText className="w-3 h-3 shrink-0" />
                 {modelSettingsLoading ? (
                   <span className="inline-block h-3.5 w-28 bg-white/50 animate-pulse rounded" aria-hidden />
@@ -231,6 +285,7 @@ export function ExplainAssistant() {
                   <span className="truncate">{activeModelSummary}</span>
                 )}
               </Badge>
+              </div>
             </CardTitle>
           </CardHeader>
 
@@ -274,6 +329,12 @@ export function ExplainAssistant() {
                 <p className="text-sm text-ink-secondary max-w-md">
                   I can help you understand your medical test results using information from your uploaded documents and trusted medical references. All answers are grounded with citations.
                 </p>
+                {sessionsData && sessionsData.sessions.length > 0 && !sessionLoaded && (
+                  <p className="text-xs text-ink-tertiary mt-2 flex items-center gap-1">
+                    <History className="w-3 h-3" />
+                    Loading previous conversation…
+                  </p>
+                )}
               </div>
             )}
 
