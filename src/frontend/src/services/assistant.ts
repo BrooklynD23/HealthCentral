@@ -10,7 +10,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiGet, apiPost } from './api';
+import { apiGet, apiPost, apiDelete, apiPatch } from './api';
 
 // Types
 

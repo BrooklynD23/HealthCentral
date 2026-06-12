@@ -127,6 +127,7 @@ export type {
   NewSessionRequest,
   NewSessionResponse,
   MemorySettingsResponse,
+  DocumentCategory,
 } from './assistant';
 
 // Model settings hooks
