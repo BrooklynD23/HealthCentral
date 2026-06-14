@@ -55,6 +55,9 @@ For active remaining work, see [`docs/features/TASK_LIST.md`](../docs/features/T
 |------|---------|-------|------|
 | 2024-12-28 | Project structure setup | 0 | [2024-12-28_project-structure-setup.md](2024-12-28_project-structure-setup.md) |
 | 2026-02-04 | Dual Alembic migrations | 0 | [2026-02-04_alembic-dual-migrations.md](2026-02-04_alembic-dual-migrations.md) |
+| 2026-06-11 | Agent overhaul plan | 2 | [2026-06-11_agent-overhaul-plan.md](2026-06-11_agent-overhaul-plan.md) |
+| 2026-06-11 | Breakage map | 2 | [2026-06-11_breakage-map.md](2026-06-11_breakage-map.md) |
+| 2026-06-11 | Verification report | 2 | [2026-06-11_verification-report.md](2026-06-11_verification-report.md) |
 
 ## Architecture Notes
 

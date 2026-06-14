@@ -340,6 +340,7 @@ cd src/frontend && npm run build
 ## Alembic Migrations Needed
 1. `UserModelSettings.use_external_api: bool = False` + `external_api_provider`, `external_api_key_encrypted` columns (Phase 2E)
 - **Note:** `content_hash` index already exists. `collection_date` index already exists on model. No other migrations needed.
+- **Completed:** Migrations `007_chat_sessions.py` and `008_response_feedback.py` were completed 2026-06-11 (persistent chat sessions and RL feedback capture).
 
 ## New Dependencies to Add
 - `weasyprint>=60.0` in requirements.txt (Phase 3B) — optional, with graceful fallback

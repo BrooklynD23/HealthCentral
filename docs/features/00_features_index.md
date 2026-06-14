@@ -28,6 +28,11 @@ This folder contains feature architecture references and the active remaining-wo
 - Lab-to-medication correlation UX implemented (MedicationOverlay component, TrendsDashboard integration).
 - Accessibility audit completed with ARIA roles, live regions, keyboard navigation.
 
+### Recent Updates
+
+- **Model-Agnostic Provider Layer**: Backend now supports hardware-adaptive LLM selection via `src/backend/core/llm/` provider interface. Users select provider and model through the model provider API (`GET`/`PUT /api/v1/settings/model/provider`). Available providers: `llama_cpp_provider` (default, embeds llama.cpp, auto-detects GGUF chat template) and `ollama_provider` (optional, localhost-only base URL). Hardware tier auto-selection currently accepts `low`, `mid`, and `high` for set/download operations; Gemma 4 configs are registered/read-visible as alternates but current write schemas do not accept them as selectable/downloadable tiers.
+- **Biomarker Grounding in RAG**: Lab Interpreter assistant responses now ground in two citation layers. `[YOUR_RESULTS:N]` cites patient's own observation context (latest measured value, normal range, trend direction), while `[REFERENCE:N]` cites auto-seeded reference knowledge base (general biomarker definitions, clinical significance). At startup, the reference KB auto-populates if empty via `seed_knowledge_base.py`. Response structure separates "Report Facts" (citing user's data) from "General Info" (citing reference KB) to maintain education-only framing and no-medical-advice compliance.
+
 ## Remaining Work
 
 - Security remediation from Sprint 06 review (see `docs/compliance/security-review-sprint06.md`).

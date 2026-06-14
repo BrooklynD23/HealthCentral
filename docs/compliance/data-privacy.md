@@ -73,6 +73,25 @@ Users can export their data at any time:
 | JSON | `GET /export/json` | All observations |
 | Doctor Summary | `POST /export/doctor-summary` | Formatted clinical report |
 
+## Reinforcement Learning Dataset Export
+
+Users can opt-in to feedback collection on assistant chat responses (thumbs up/down, optional corrections). This feedback enables local RL dataset generation for future model fine-tuning:
+
+| Property | Implementation |
+|----------|----------------|
+| Feedback collection | User rates responses via `POST /feedback/turns/{turn_id}` with optional text corrections |
+| Export endpoint | `POST /feedback/export` (requires explicit `confirmed=true` — never automatic) |
+| Export format | JSONL files: DPO pairs, SFT examples, GRPO reward data (written to local storage only) |
+| PHI redaction | **Mandatory and non-configurable**: prompt/response text is passed through `modules/redaction.py` before export. The current standard policy covers identifiers such as SSNs, emails, phone numbers, and context-prefixed names; it does not guarantee removal of every lab value, date, medication name, or biomarker value. |
+| Local-first | No network calls; files written to local storage only |
+| Audit logging | Feedback creation and export events captured as `feedback.*` audit log entries |
+
+**Key safeguards:**
+- Export requires explicit user confirmation (`confirmed=true` parameter); never silent or automatic
+- Identifier redaction is applied before export; users should still review JSONL files before sharing because medical values and medication names may remain when not matched by the redaction rules
+- Redaction policy is mandatory and not user-configurable for the export endpoint (see `modules/redaction.py`)
+- Exported datasets are persistent local files under the configured export directory until manually deleted
+
 ## Data Deletion
 
 ### Profile Deletion
@@ -103,6 +122,7 @@ When enabled by user opt-in:
 - Full health records are never transmitted
 - API key stored locally (never logged or transmitted elsewhere)
 - Provider: OpenAI or Anthropic (user choice)
+- PHI redaction applied to API prompts per `modules/redaction.py` policy
 
 ### No Analytics or Telemetry
 

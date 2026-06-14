@@ -64,6 +64,23 @@ POST /api/v1/settings/model/download
 
 The exact GGUF filename is discovered at download time using `huggingface_hub.list_repo_files()`. The system prefers Q4_K_M quantization when available.
 
+## Alternative: Gemma 4 E4B
+
+For users with 12GB RAM who want multimodal capability and extended context:
+
+| Property | Value |
+|----------|-------|
+| Model Name | Gemma 4 E4B |
+| Size | ~2.8GB (Q4_K_M quantization) |
+| Context Size | 256K tokens |
+| Type | Multimodal with function-calling |
+| Features | Image understanding, extended context |
+
+**Repository** (PLACEHOLDER—not yet verified on HuggingFace): `unsloth/gemma-4-e4b-it-GGUF`
+**Ollama tag**: `gemma4:e4b`
+
+Registered as a read-visible alternate near Tier 2. Requires slightly less RAM than Phi-3-mini-4k-instruct (12GB vs 16GB) while offering multimodal support and a much larger context window (256K vs 4K). Current tier set/download APIs accept only `low`, `mid`, and `high`; use `LLM_PROVIDER=llama_cpp` or `LLM_PROVIDER=ollama` plus `LLM_MODEL`, or use the `/api/v1/settings/model/provider` endpoint at runtime for direct provider/model switching.
+
 ## Fallback Behavior
 
 If Phi-3-mini isn't available or fails, the system falls back to:
