@@ -17,6 +17,11 @@ class ComputeTrendInput(ToolInput):
 
 
 class TrendPoint(ToolOutput):
+    # observation_id is the source handle the draft/guard cites for THIS point.
+    # A trend sentence must map to a real source (groundedness mapping), and a
+    # manually entered observation has no document chunk — so the supporting
+    # observation handle travels with each point or the answer can't be cited.
+    observation_id: str
     collected_at: datetime
     value: float
 

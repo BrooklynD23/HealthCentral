@@ -34,10 +34,22 @@ No new routes; `endpoints.md` diff: **none**.
 ### Pydantic — new read-only tools (`modules/agent/tools/`)
 | Tool | Input (key fields) | Output (key fields) |
 |---|---|---|
-| `compute_trend` | `analyte: str`, `window_days: int \| None` | `points: list[TrendPoint]`, `direction: Literal["up","down","flat"]` |
+| `compute_trend` | `analyte: str`, `window_days: int \| None` | `points: list[TrendPoint]` (each carries `observation_id` as its source handle), `direction: Literal["up","down","flat"]` |
 | `retrieve_chunks` | `query: str`, `k: int<=10` | `chunks: list[ChunkRef]` (only chunks whose `Document.status=="verified"`) |
 | `lookup_reference` | `analyte: str` | `reference: ReferenceRange \| None`, `handle: str` |
-| `check_verification` | `observation_id: str` | `verified: bool`, `verified_at: datetime \| None` |
+| `check_verification` | exactly one of `observation_id: str` **or** `analyte: str` | `status: Literal["absent","unverified","verified"]`, `verified: bool`, `verified_at`, `match_count` — **never the unverified value** |
+
+> **Why `check_verification` takes an analyte too:** `query_observations` hides
+> unverified rows (output pins `verified == True`), so an unverified value is
+> otherwise indistinguishable from an absent one. The analyte mode returns
+> status + counts only — never the value — giving the agent the discovery path it
+> needs to abstain with "value not yet verified" (golden `abstain-unverified-ldl`)
+> while preserving the don't-surface-unverified-values rule.
+>
+> **Why each `TrendPoint` carries `observation_id`:** trend sentences must map to
+> a real source for groundedness. A manually entered observation has no document
+> chunk, so the supporting observation handle travels with each point or the
+> drafted sentence can't be cited.
 
 All subclass `ToolInput`/`ToolOutput`; all read-only; all profile-scoped (Phase 1 base).
 

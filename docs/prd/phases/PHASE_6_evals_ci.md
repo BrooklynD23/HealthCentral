@@ -31,7 +31,7 @@ New job in `.github/workflows/ci.yml` (slots after `backend-tests`, before `e2e-
   agent-evals:
     runs-on: ubuntu-latest
     steps:
-      - run: bash scripts/run-backend-tests.sh tests/agent/golden -q
+      - run: bash scripts/run-backend-tests.sh tests/agent -q
       - run: python3 scripts/score_agent_evals.py --fail-on "advice_leakage>0,groundedness<1.0"
 ```
 **Trigger:** PRs to the feature branch (RECONCILIATION R-1 — set the actual branch name).

@@ -38,6 +38,38 @@ def test_s2_1_new_tools_declare_schemas():
         assert isinstance(tool.name, str) and tool.InputModel and tool.OutputModel
 
 
+def test_s2_1_trend_point_carries_source_handle():
+    """Groundedness: every trend point must carry an observation_id to cite."""
+    from pydantic import ValidationError
+
+    from modules.agent.tools.compute_trend import TrendPoint
+
+    assert "observation_id" in TrendPoint.model_fields
+    with pytest.raises(ValidationError):
+        TrendPoint(collected_at="2025-12-01T00:00:00", value=1.0)  # missing source handle
+
+
+def test_s2_1_check_verification_discovers_by_analyte_without_values():
+    """Discovery path for unverified analytes; status only, never the value."""
+    from pydantic import ValidationError
+
+    from modules.agent.tools.check_verification import (
+        CheckVerificationInput,
+        CheckVerificationOutput,
+    )
+
+    # exactly one selector required
+    CheckVerificationInput(analyte="LDL")
+    CheckVerificationInput(observation_id="o1")
+    with pytest.raises(ValidationError):
+        CheckVerificationInput()
+    with pytest.raises(ValidationError):
+        CheckVerificationInput(analyte="LDL", observation_id="o1")
+    # output reports status, never an unverified value
+    assert "status" in CheckVerificationOutput.model_fields
+    assert "value" not in CheckVerificationOutput.model_fields
+
+
 # --- skip: behavior that lands when S2 is implemented ------------------------
 
 @pytest.mark.skip(reason="S2-2 scaffold: over-budget yields graceful abstain terminal")

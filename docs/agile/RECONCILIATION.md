@@ -28,8 +28,8 @@ artifact, or the human resolves an open item below
 ### R-2 — Proof-bundle venv is Windows-pathed
 - **Bundle says:** run the proof bundle via
   `PYTHONPATH=src/backend ./.wsl-pytest-venv/bin/python -m pytest ...`.
-- **Reality:** `.wsl-pytest-venv/pyvenv.cfg` points at
-  `/mnt/c/Users/DangT/Documents/GitHub/HealthCentral/.wsl-pytest-venv` and
+- **Reality:** `.wsl-pytest-venv/pyvenv.cfg` points at a Windows-host path
+  (`/mnt/c/Users/<user>/Documents/GitHub/HealthCentral/.wsl-pytest-venv`) and
   `/usr/bin/python3.12`, neither of which exists in this Linux container. The venv
   cannot execute here.
 - **Action taken:** Validated the committed scaffolds by (a) `py_compile` over all
