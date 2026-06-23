@@ -330,6 +330,24 @@ class TestExportConfirmationGate:
             )
         assert exc_info.value.status_code == 404
 
+    @pytest.mark.asyncio
+    async def test_export_rejects_path_traversal(self):
+        """HC-RL-PATH: output_dir outside allowed base rejected with 400."""
+        from api.feedback import export_dataset, ExportRequest
+        from fastapi import HTTPException
+
+        db = _make_profile_db_with([])  # empty so we test path check before 404
+        mock_session = MagicMock()
+        mock_session.profile_id = "prof-test-1111-2222-3333"
+
+        with pytest.raises(HTTPException) as exc_info:
+            await export_dataset(
+                body=ExportRequest(confirmed=True, output_dir="../../../../etc"),
+                session=mock_session,
+                profile_db=db,
+            )
+        assert exc_info.value.status_code == 400
+
 
 # ---------------------------------------------------------------------------
 # rl_dataset: DPO pairing logic

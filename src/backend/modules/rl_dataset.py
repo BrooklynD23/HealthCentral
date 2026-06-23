@@ -32,24 +32,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
+from core.feedback_constants import VALID_TAGS
 from modules.redaction import RedactionEngine
 
 logger = logging.getLogger(__name__)
 
 # Bump when the export schema changes
 SCHEMA_VERSION = "1.0"
-
-VALID_TAGS = frozenset({
-    "inaccurate",
-    "too_technical",
-    "missing_context",
-    "unsafe",
-    "too_long",
-    "too_short",
-    "off_topic",
-    "helpful",
-})
-
 
 @dataclass
 class FeedbackRecord:

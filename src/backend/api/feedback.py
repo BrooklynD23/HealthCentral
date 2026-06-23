@@ -32,6 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.auth import RequireAuth, ProfileDbSession
 from core.audit import create_audit_log
 from core.database import get_db
+from core.feedback_constants import VALID_TAGS
 from core.time import utcnow
 from models.response_feedback import ResponseFeedback
 
@@ -58,18 +59,6 @@ async def _emit_audit(event_type: str, action: str, profile_id: str,
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-# Valid feedback tags
-VALID_TAGS = frozenset({
-    "inaccurate",
-    "too_technical",
-    "missing_context",
-    "unsafe",
-    "too_long",
-    "too_short",
-    "off_topic",
-    "helpful",
-})
 
 # Default export directory (relative to the backend working dir)
 _DEFAULT_EXPORT_DIR = Path(os.environ.get(
@@ -338,6 +327,24 @@ async def export_dataset(
 
     profile_id = session.profile_id
 
+    # Determine output directory
+    base_dir = _DEFAULT_EXPORT_DIR.resolve()
+    if body.output_dir:
+        out_dir = Path(body.output_dir).resolve()
+        if not out_dir.is_relative_to(base_dir):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="output_dir must be within the allowed export directory.",
+            )
+    else:
+        out_dir = base_dir
+    profile_out_dir = (out_dir / f"profile_{profile_id}").resolve()
+    if not profile_out_dir.is_relative_to(base_dir):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="output_dir must be within the allowed export directory.",
+        )
+
     # Load all feedback for this profile
     result = await profile_db.execute(
         select(ResponseFeedback).where(
@@ -351,10 +358,6 @@ async def export_dataset(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No feedback records found for this profile.",
         )
-
-    # Determine output directory
-    out_dir = Path(body.output_dir) if body.output_dir else _DEFAULT_EXPORT_DIR
-    profile_out_dir = out_dir / f"profile_{profile_id[:8]}"
 
     # Convert ORM rows → FeedbackRecord dataclasses for the module
     from modules.rl_dataset import FeedbackRecord, export_rl_datasets

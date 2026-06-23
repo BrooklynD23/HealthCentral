@@ -15,6 +15,7 @@ This folder contains feature architecture references and the active remaining-wo
 | `01_lab_result_interpreter_architecture.md` | Personal Lab Result Interpreter | Architecture reference |
 | `02_medication_adherence_coach_architecture.md` | Adaptive Medication Adherence Coach | Architecture reference |
 | `03_features_prd.md` | Combined PRD for both features | Product intent reference |
+| `04_self_improvement_loop.md` | Self-Improvement Loop | Design spec |
 | `TASK_LIST.md` | Remaining implementation tasks | **Canonical active tracker** |
 
 ## Current Status Summary (as of Sprint 06)
