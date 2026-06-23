@@ -15,6 +15,38 @@ import argparse
 import json
 import sys
 
+# Documented security waivers. Each entry suppresses ONE specific known finding
+# that has no available upstream fix and is mitigated by context. Keep this list
+# short, justified, and reviewed by the date noted — do not use it to silence
+# fixable findings.
+PIP_AUDIT_WAIVERS = [
+    {
+        "package": "diskcache",
+        "vuln_id": "CVE-2025-69872",
+        "reason": (
+            "Transitive dependency; not imported anywhere in HealthCentral. The "
+            "CVE requires an attacker with write access to the cache directory. "
+            "HealthCentral is local-first and any such cache lives in the user's "
+            "own profile space, not a shared/attacker-writable location. No fixed "
+            "upstream release exists (5.6.3 is latest; the CVE covers through 5.6.3)."
+        ),
+        "review_by": "2026-09-01",
+    },
+]
+
+
+def find_waiver(finding: dict) -> dict | None:
+    """Return the matching waiver for a pip-audit finding, or None."""
+    if finding.get("tool") != "pip-audit":
+        return None
+    for waiver in PIP_AUDIT_WAIVERS:
+        if (
+            finding.get("package") == waiver["package"]
+            and finding.get("vuln_id") == waiver["vuln_id"]
+        ):
+            return waiver
+    return None
+
 
 def check_bandit(report_path: str) -> list[dict]:
     """Parse bandit JSON report and return high/critical findings."""
@@ -88,13 +120,30 @@ def main() -> int:
     all_findings.extend(check_bandit(args.bandit))
     all_findings.extend(check_pip_audit(args.pip_audit))
 
-    if not all_findings:
-        print("Security gate: PASS (no high/critical findings)")
+    active_findings: list[dict] = []
+    waived_findings: list[tuple[dict, dict]] = []
+    for f in all_findings:
+        waiver = find_waiver(f)
+        if waiver is not None:
+            waived_findings.append((f, waiver))
+        else:
+            active_findings.append(f)
+
+    if waived_findings:
+        print(f"Security gate: {len(waived_findings)} waived finding(s) (documented, no upstream fix):")
+        for f, waiver in waived_findings:
+            print(f"  [WAIVED] {f['package']}=={f['version']} {f['vuln_id']}")
+            print(f"    reason: {waiver['reason']}")
+            print(f"    review by: {waiver['review_by']}")
+        print()
+
+    if not active_findings:
+        print("Security gate: PASS (no unwaived high/critical findings)")
         return 0
 
-    print(f"Security gate: FAIL ({len(all_findings)} high/critical finding(s))")
+    print(f"Security gate: FAIL ({len(active_findings)} high/critical finding(s))")
     print()
-    for f in all_findings:
+    for f in active_findings:
         if f["tool"] == "bandit":
             print(f"  [{f['tool']}] {f['severity']}/{f['confidence']}: {f['issue']}")
             print(f"    {f['file']}:{f['line']} ({f['test_id']})")
