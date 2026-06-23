@@ -35,7 +35,6 @@ import {
   useChatSessionHistory,
   formatResponseText,
   type ChatResponse,
-  type ChatMessage as ChatHistoryMessage,
   type DocumentCategory,
 } from '@/services/assistant';
 import { useSubmitFeedback, FEEDBACK_TAGS, type FeedbackTag } from '@/services/feedback';
@@ -109,6 +108,8 @@ export function ExplainAssistant() {
       role: turn.role as 'user' | 'assistant',
       content: turn.content,
       timestamp: new Date(),
+      // Real ChatTurn.id so feedback works after a reload.
+      turnId: turn.turn_id ?? undefined,
     }));
     if (restored.length > 0) {
       setMessages(restored);
@@ -339,13 +340,13 @@ export function ExplainAssistant() {
             enabled: true,
             faithfulnessScore: response.verification.faithfulness_score,
             verifiedClaims: response.verification.verified_claims,
-            totalClaims: response.verification.total_calls || response.verification.total_claims,
+            totalClaims: response.verification.total_claims,
           }
         : undefined,
-      // turnId is not returned by the chat endpoint directly; we use the
-      // message id as a stable key; the backend turn_id is recorded when
-      // the user submits feedback (passed via session context).
-      turnId: msgId,
+      // Use the persisted assistant ChatTurn.id so feedback joins back to the
+      // real turn. Fall back to the local id only if the backend omitted it
+      // (e.g. an unpersisted response).
+      turnId: response.turn_id ?? msgId,
     };
   };
 
@@ -442,7 +443,7 @@ export function ExplainAssistant() {
                 <p className="text-sm text-ink-secondary max-w-md">
                   I can help you understand your medical test results using information from your uploaded documents and trusted medical references. All answers are grounded with citations.
                 </p>
-                {sessionsData && sessionsData.sessions.length > 0 && !sessionLoaded && (
+                {(sessionsData?.sessions?.length ?? 0) > 0 && !sessionLoaded && (
                   <p className="text-xs text-ink-tertiary mt-2 flex items-center gap-1">
                     <History className="w-3 h-3" />
                     Loading previous conversation…

@@ -15,7 +15,7 @@ import { apiGet, apiPost, apiDelete, apiPatch } from './api';
 // Types
 
 export interface Citation {
-  source_type: 'user_document' | 'reference';
+  source_type: 'user_document' | 'reference' | 'user_observation';
   doc_id: string | null;
   doc_title: string | null;
   page: number | null;
@@ -45,6 +45,8 @@ export interface VerificationInfo {
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+  // Persisted ChatTurn.id, present on turns returned from session history.
+  turn_id?: string | null;
 }
 
 export const DOCUMENT_CATEGORIES = ['lab', 'imaging', 'pathology', 'visit_notes'] as const;
@@ -75,6 +77,8 @@ export interface ChatResponse {
   is_valid: boolean;
   validation_errors: string[];
   session_id?: string | null;
+  // Persisted assistant ChatTurn.id, used to attach feedback.
+  turn_id?: string | null;
 }
 
 export interface GlossaryResponse {

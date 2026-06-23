@@ -244,6 +244,9 @@ class TestLoadSessionHistory:
         assert msgs[0].role == "user"
         assert msgs[0].content == "hello"
         assert msgs[2].content == "more"
+        # turn_id is surfaced so the client can attach feedback after reload
+        assert msgs[0].turn_id == turns[0].id
+        assert msgs[1].turn_id == turns[1].id
 
     @pytest.mark.asyncio
     async def test_returns_empty_for_no_turns(self):
@@ -280,7 +283,7 @@ class TestAppendTurns:
         added = db.add.call_args_list
 
         session_obj = _make_session()
-        await _append_turns(
+        returned_id = await _append_turns(
             session=session_obj,
             profile_id="prof-1",
             user_content="What is HbA1c?",
@@ -294,6 +297,9 @@ class TestAppendTurns:
         # turn indexes should be 4 and 5
         indexes = sorted(call[0][0].turn_index for call in added)
         assert indexes == [4, 5]
+        # returns the persisted assistant ChatTurn.id (for feedback association)
+        assistant_turn = next(call[0][0] for call in added if call[0][0].role == "assistant")
+        assert returned_id == assistant_turn.id
 
 
 # ---------------------------------------------------------------------------
@@ -634,3 +640,55 @@ class TestAutoExtractMemory:
         await _auto_extract_memory("I take metformin", "prof-1", db)
 
         assert len(added) == 0
+
+
+# ---------------------------------------------------------------------------
+# Tests: chat() ModelUnavailable fallback persists turns (Codex P2)
+# ---------------------------------------------------------------------------
+
+class TestModelUnavailableFallback:
+    @pytest.mark.asyncio
+    async def test_fallback_persists_turn_and_returns_ids(self):
+        """When no LLM is available, the chat fallback must persist the
+        user+assistant turn, return the session id, and surface the assistant
+        turn id so the answer can be resumed and rated."""
+        import api.assistant as A
+        from api.assistant import ChatRequest, ChatResponse, VerificationInfo
+
+        chat_session = _make_session(profile_id="prof-1")
+        fallback_resp = ChatResponse(
+            segments=[],
+            full_response="KB-only answer",
+            verification=VerificationInfo(enabled=False),
+            session_id=None,
+            turn_id=None,
+        )
+
+        auth = MagicMock()
+        auth.profile_id = "prof-1"
+        profile_db = AsyncMock()
+        master_db = AsyncMock()
+
+        rag = MagicMock()
+        rag.query = AsyncMock(side_effect=A.ModelUnavailableError("no model"))
+
+        with patch.object(A, "get_rag_module", return_value=rag), \
+             patch.object(A, "_get_or_create_session", AsyncMock(return_value=chat_session)), \
+             patch.object(A, "_load_session_history", AsyncMock(return_value=[])), \
+             patch.object(A, "_effective_use_memory", AsyncMock(return_value=False)), \
+             patch.object(A, "_build_knowledge_fallback", AsyncMock(return_value=fallback_resp)), \
+             patch.object(A, "_append_turns", AsyncMock(return_value="assist-turn-id")) as mock_append:
+            result = await A.chat(
+                ChatRequest(question="How is my glucose?"),
+                auth,
+                profile_db=profile_db,
+                db=master_db,
+            )
+
+        assert result.session_id == chat_session.id
+        assert result.turn_id == "assist-turn-id"
+        mock_append.assert_awaited_once()
+        kwargs = mock_append.await_args.kwargs
+        assert kwargs["assistant_content"] == "KB-only answer"
+        assert kwargs["user_content"] == "How is my glucose?"
+        profile_db.commit.assert_awaited()

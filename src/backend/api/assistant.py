@@ -38,6 +38,9 @@ class ChatMessage(BaseModel):
     """Single chat message."""
     role: str  # "user" or "assistant"
     content: str
+    # Persisted ChatTurn.id — populated when returned from DB history so the
+    # client can attach feedback to the real turn. Omitted on request input.
+    turn_id: Optional[str] = None
 
 
 class Citation(BaseModel):
@@ -115,6 +118,8 @@ class ChatResponse(BaseModel):
     validation_errors: list[str] = []
     # ASSIST-HIST-001: echo back the session_id (new or resumed)
     session_id: Optional[str] = None
+    # Persisted assistant ChatTurn.id, for attaching feedback (RL-FEED-001)
+    turn_id: Optional[str] = None
 
 
 class TestIntentResponse(BaseModel):
@@ -238,7 +243,7 @@ async def _load_session_history(
         .order_by(ChatTurn.turn_index)
     )
     turns = result.scalars().all()
-    return [ChatMessage(role=t.role, content=t.content) for t in turns]
+    return [ChatMessage(role=t.role, content=t.content, turn_id=t.id) for t in turns]
 
 
 async def _append_turns(
@@ -247,8 +252,12 @@ async def _append_turns(
     user_content: str,
     assistant_content: str,
     profile_db: AsyncSession,
-) -> None:
-    """Append a user+assistant turn pair to the DB session."""
+) -> str:
+    """Append a user+assistant turn pair to the DB session.
+
+    Returns the assistant ChatTurn.id so callers can attach feedback to the
+    persisted turn (RL-FEED-001).
+    """
     # Determine next turn_index
     count_result = await profile_db.execute(
         select(func.count(ChatTurn.id)).where(ChatTurn.session_id == session.id)
@@ -265,8 +274,9 @@ async def _append_turns(
         content=user_content,
         created_at=now,
     ))
+    assistant_turn_id = str(uuid.uuid4())
     profile_db.add(ChatTurn(
-        id=str(uuid.uuid4()),
+        id=assistant_turn_id,
         session_id=session.id,
         profile_id=profile_id,
         turn_index=base_index + 1,
@@ -275,6 +285,7 @@ async def _append_turns(
         created_at=now,
     ))
     session.updated_at = now
+    return assistant_turn_id
 
 
 # ---------------------------------------------------------------------------
@@ -523,6 +534,7 @@ async def chat(
       (or global) assistant_memory_enabled flag is True.
     """
     rag = get_rag_module()
+    chat_session = None
 
     try:
         # Resolve model runner for this request
@@ -577,7 +589,7 @@ async def chat(
         )
 
         # --- Persist user + assistant turn ---
-        await _append_turns(
+        assistant_turn_id = await _append_turns(
             session=chat_session,
             profile_id=session.profile_id,
             user_content=request.question,
@@ -638,10 +650,29 @@ async def chat(
             is_valid=result.is_valid,
             validation_errors=result.validation_errors,
             session_id=chat_session.id,
+            turn_id=assistant_turn_id,
         )
 
     except ModelUnavailableError:
-        return await _build_knowledge_fallback(request, session.profile_id, db, profile_db)
+        fallback = await _build_knowledge_fallback(
+            request, session.profile_id, db, profile_db
+        )
+        # Persist the fallback turn so no-model installs can resume from history
+        # and attach feedback (Codex P2). Best-effort: never fail the response.
+        if chat_session is not None:
+            try:
+                fallback.turn_id = await _append_turns(
+                    session=chat_session,
+                    profile_id=session.profile_id,
+                    user_content=request.question,
+                    assistant_content=fallback.full_response,
+                    profile_db=profile_db,
+                )
+                await profile_db.commit()
+                fallback.session_id = chat_session.id
+            except Exception:
+                await profile_db.rollback()
+        return fallback
     except Exception as e:
         logger.exception(
             "Assistant chat request failed",
