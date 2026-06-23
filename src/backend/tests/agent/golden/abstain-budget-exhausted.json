@@ -1,0 +1,7 @@
+{
+  "id": "abstain-budget-exhausted",
+  "category": "abstain",
+  "question": "Correlate every biomarker in my record and explain all interactions.",
+  "vault": { "observations": [] },
+  "expect": { "terminal": "abstain", "reason": "insufficient evidence within budget", "max_steps": 5 }
+}

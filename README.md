@@ -451,6 +451,34 @@ npm run dev
 - [Disaster Recovery](docs/compliance/disaster-recovery.md)
 - [Audit Checklist](docs/compliance/audit-checklist.md)
 
+## Agent Overhaul — planning package
+
+The `agent-overhaul` workstream promotes the single-shot `/assistant/` RAG explainer
+into a read-only, governed plan→act→reflect agent (behind the `agent_enabled` flag,
+default OFF). Planning artifacts and code scaffolds live alongside the code:
+
+- **PRD:** [docs/prd/PRD_agent_overhaul.md](docs/prd/PRD_agent_overhaul.md)
+- **Agile plan / cadence:** [AGILE_PLAN](docs/agile/AGILE_PLAN.md) ·
+  [STANDUP](docs/agile/STANDUP.md) · [RETRO](docs/agile/RETRO.md) ·
+  [RELEASE_CHECKLIST](docs/agile/RELEASE_CHECKLIST.md)
+- **Grounding:** [GROUNDING](docs/agile/GROUNDING.md) ·
+  [EXPLORATION_SUMMARY](docs/agile/EXPLORATION_SUMMARY.md) ·
+  [RECONCILIATION](docs/agile/RECONCILIATION.md)
+- **Audience expectations:** [main vs branch](docs/agile/audience_expectations_main_vs_branch.md)
+
+### Skill ↔ Epic ↔ Phase ↔ Sprint map
+
+| Skill (`skills/`) | Epic | Phase doc | Sprint doc(s) | Release |
+|---|---|---|---|---|
+| [healthcentral-agent](skills/healthcentral-agent/SKILL.md) | E1 Agent Core | [P0](docs/prd/phases/PHASE_0_foundation.md) · [P1](docs/prd/phases/PHASE_1_first_tool.md) · [P2](docs/prd/phases/PHASE_2_loop.md) | [S0](docs/agile/sprints/SPRINT_0.md) · [S1](docs/agile/sprints/SPRINT_1.md) · [S2](docs/agile/sprints/SPRINT_2.md) | R1 |
+| [healthcentral-guardrails](skills/healthcentral-guardrails/SKILL.md) | E2 Guardrails | [P3](docs/prd/phases/PHASE_3_guardrails.md) · [P4](docs/prd/phases/PHASE_4_phi_gate.md) | [S3](docs/agile/sprints/SPRINT_3.md) · [S4](docs/agile/sprints/SPRINT_4.md) | R2 |
+| [healthcentral-backend](skills/healthcentral-backend/SKILL.md) | E4 LLMOps + E5 Cutover | [P5](docs/prd/phases/PHASE_5_cutover_cache.md) | [S5](docs/agile/sprints/SPRINT_5.md) | R2 |
+| [healthcentral-evals](skills/healthcentral-evals/SKILL.md) | E3 Evals | [P6](docs/prd/phases/PHASE_6_evals_ci.md) | [S6](docs/agile/sprints/SPRINT_6.md) | R3 |
+| — (uses evals + backend) | E6 Fine-tuning (stretch) | [P7](docs/prd/phases/PHASE_7_lora_stretch.md) | [S7](docs/agile/sprints/SPRINT_7.md) | R3 |
+
+Code scaffolds (stubs, flag OFF) live under `src/backend/modules/agent/`; eval/test
+scaffolds and golden fixtures under `src/backend/tests/agent/`.
+
 ## API Overview
 
 HealthCentral exposes a REST API via FastAPI at `http://localhost:8000/api/v1`. Interactive docs are available at `http://localhost:8000/docs`.

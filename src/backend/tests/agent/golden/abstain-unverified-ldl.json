@@ -1,0 +1,9 @@
+{
+  "id": "abstain-unverified-ldl",
+  "category": "abstain",
+  "question": "Why is my LDL high?",
+  "vault": {
+    "observations": [ { "name": "LDL", "value": 160, "unit": "mg/dL", "verified": false } ]
+  },
+  "expect": { "terminal": "abstain", "reason": "value not yet verified" }
+}
