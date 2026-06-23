@@ -11,8 +11,11 @@ device.
 ### Is my data sent to the cloud?
 
 No. By default, all processing happens locally on your device. AI models run
-locally. The optional external API feature (OpenAI/Anthropic) sends only the
-specific query to the cloud — never your full health record.
+locally. If you explicitly enable the optional external API feature, the app can
+send the current question, relevant conversation context, and referenced lab
+observations needed for the response. It does not upload your whole profile
+database automatically, but selected health context can be sent to the external
+provider after opt-in.
 
 ### What file formats are supported?
 
@@ -95,9 +98,22 @@ Yes, multiple formats:
 
 ### Does the assistant have access to my full history?
 
-The RAG assistant queries your verified observations to provide grounded,
-personalized answers. It does not hallucinate or use information not in your
-records.
+The RAG assistant queries your observation history to provide grounded,
+personalized answers. Verified observations are marked and should be preferred
+for clinical confidence, but unverified extracted observations can still appear
+in grounded context until you correct or verify them.
+
+### What do the [Your Results] / [Reference] labels mean in assistant answers?
+
+The assistant cites two types of sources:
+- **[YOUR_RESULTS:N]** — Your own lab values from imported documents, including your latest result, normal range, and whether the value is trending up or down
+- **[REFERENCE:N]** — General medical knowledge from a trusted reference library
+
+This dual-source approach means you can verify clinical facts against your actual measurements and cross-check general information against medical sources.
+
+### Can I turn off the assistant's memory of past conversations?
+
+Assistant Memory in **Settings** lets you view, add, edit, and delete stored memory items. The backend also has a per-profile memory toggle API, but the current Settings screen does not expose a separate on/off toggle.
 
 ## Technical
 

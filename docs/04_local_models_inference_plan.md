@@ -26,6 +26,24 @@
   - require local auth token between app and runner
 - Keep as “advanced” / opt-in because it expands the security surface.
 
+### Provider Selection (Implemented)
+
+The provider abstraction described above is implemented in `src/backend/core/llm/`:
+
+- `provider.py` — abstract provider interface (capabilities(), is_available(), generate(), generate_async(), generate_stream())
+- `factory.py` — `get_provider()` / `reset_provider()` instantiate the active provider based on settings
+- `llama_cpp_provider.py` — default provider; auto-detects the chat template from GGUF metadata
+- `ollama_provider.py` — optional provider; enforces localhost-only via `_assert_localhost()` (privacy guarantee — Ollama base URL must never point off-device)
+
+Configuration via `.env` (see `config/.env.example`):
+- `LLM_PROVIDER` — `llama_cpp` (default) or `ollama`
+- `LLM_MODEL` — model identifier (GGUF repo for llama_cpp, Ollama tag for ollama)
+- `OLLAMA_BASE_URL` — must be localhost
+
+The active provider/model can also be switched at runtime via `GET`/`PUT /api/v1/settings/model/provider` (src/backend/api/model_settings.py) — runtime changes are NOT persisted to `.env`.
+
+Gemma 4 (E2B/E4B/12B) is now a registered model family across the hardware tiers — see `docs/model_tiers/`.
+
 ---
 
 ## Recommended open-weight chat models (prioritize average hardware)
@@ -39,7 +57,7 @@ Assume quantized weights (e.g., 4-bit GGUF). Favor smaller models first.
 Use cases:
 - chat + summarization
 - grounded explanations when retrieval context is strong
-- clinician-ready narrative glue (facts and stats still come from code + verified data)
+- clinician-ready narrative glue (facts and stats still come from code + retrieved observation context, with verified values marked separately)
 
 ### Tier 2: balanced quality (mid-range laptops/desktops)
 - Llama 3.1 8B Instruct

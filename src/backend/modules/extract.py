@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Optional, Union, BinaryIO
 from dataclasses import dataclass, field
 import re
+from datetime import datetime, date as date_type
 
 logger = logging.getLogger(__name__)
 
@@ -639,18 +640,134 @@ class ExtractModule:
             extracted_text=text,
         )
 
-    def _extract_dates(self, text: str) -> list[str]:
-        """Extract collection dates from text."""
-        # Common date patterns
-        date_patterns = [
-            r"\b(\d{1,2}/\d{1,2}/\d{2,4})\b",
-            r"\b(\d{1,2}-\d{1,2}-\d{2,4})\b",
-            r"\b(\w{3}\s+\d{1,2},?\s+\d{4})\b",
+    # Collection-date label patterns (higher priority than generic dates)
+    _COLLECTION_LABEL_RE = re.compile(
+        r"(?:collected?(?:\s+date)?|collection\s+date|date\s+of\s+(?:service|collection)|"
+        r"specimen\s+(?:date|collected)|drawn\s+(?:date|on)|accession\s+date)"
+        r"[:\s]+([\w/\-,\s]+)",
+        re.IGNORECASE,
+    )
+
+    # Plausibility bounds for extracted dates
+    _DATE_MIN = date_type(1950, 1, 1)
+
+    @staticmethod
+    def _date_is_plausible(d: datetime) -> bool:
+        """Return True if date falls within 1950..today+1 day."""
+        from datetime import date as _date, timedelta
+        today = _date.today()
+        return ExtractModule._DATE_MIN <= d.date() <= today + timedelta(days=1)
+
+    @staticmethod
+    def _normalize_date_str(raw: str) -> Optional[str]:
+        """
+        Parse *raw* into a canonical ISO-8601 string (YYYY-MM-DD).
+
+        Accepted formats (all US lab-report variants):
+          YYYY-MM-DD [THH:MM[:SS]]  — ISO 8601, with or without time
+          MM/DD/YYYY or MM/DD/YY
+          MM-DD-YYYY or MM-DD-YY
+          Month DD, YYYY  (full month name, comma optional)
+          Mon DD, YYYY    (3-letter abbreviation, comma optional)
+          DD-Mon-YYYY     (e.g. 15-Jan-2024)
+
+        Returns None if unparseable or implausible.
+        """
+        raw = raw.strip()
+        if not raw:
+            return None
+
+        formats = [
+            "%Y-%m-%dT%H:%M:%S",
+            "%Y-%m-%dT%H:%M",
+            "%Y-%m-%d",
+            "%m/%d/%Y",
+            "%m/%d/%y",
+            "%m-%d-%Y",
+            "%m-%d-%y",
+            "%B %d, %Y",
+            "%B %d %Y",
+            "%b %d, %Y",
+            "%b %d %Y",
+            "%d-%b-%Y",
         ]
-        
-        dates = []
-        for pattern in date_patterns:
-            matches = re.findall(pattern, text, re.IGNORECASE)
-            dates.extend(matches)
-        
-        return dates
+        for fmt in formats:
+            try:
+                parsed = datetime.strptime(raw, fmt)
+                if ExtractModule._date_is_plausible(parsed):
+                    return parsed.strftime("%Y-%m-%d")
+            except ValueError:
+                continue
+        return None
+
+    def _extract_dates(self, text: str) -> list[str]:
+        """
+        Extract collection dates from lab-report text.
+
+        Priority order:
+          1. Text adjacent to collection-date labels
+             ("Collected:", "Collection Date:", "Date of Service:", etc.)
+          2. All other date-shaped strings
+
+        Returns a list of ISO-8601 date strings (YYYY-MM-DD), deduplicated,
+        in priority order.  Dates that cannot be parsed or are implausible
+        (outside 1950..today+1) are silently dropped.
+        """
+        priority: list[str] = []
+        generic: list[str] = []
+        seen: set[str] = set()
+
+        # --- Stage 1: collection-label dates (highest priority) ---
+        for m in self._COLLECTION_LABEL_RE.finditer(text):
+            # The capture group may contain extra words; try progressively
+            # shorter substrings so we get just the date part.
+            raw_tail = m.group(1).strip()
+            for candidate in _date_candidates_from_tail(raw_tail):
+                iso = self._normalize_date_str(candidate)
+                if iso and iso not in seen:
+                    seen.add(iso)
+                    priority.append(iso)
+                    break  # first parseable candidate wins for this label
+
+        # --- Stage 2: generic date-shaped tokens in the full text ---
+        # Patterns ordered from most-specific to least-specific
+        generic_patterns = [
+            # ISO 8601 with optional time: 2024-01-15 or 2024-01-15T14:30
+            r"\b(\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])(?:T\d{2}:\d{2}(?::\d{2})?)?)\b",
+            # Full month name: January 15, 2024 or January 15 2024
+            r"\b((?:January|February|March|April|May|June|July|August|September|October|November|December)"
+            r"\s+\d{1,2},?\s+\d{4})\b",
+            # 3-letter abbrev: Jan 15, 2024 or Jan 15 2024
+            r"\b((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s+\d{1,2},?\s+\d{4})\b",
+            # DD-Mon-YYYY: 15-Jan-2024
+            r"\b(\d{1,2}-(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)-\d{4})\b",
+            # MM/DD/YYYY or MM/DD/YY
+            r"\b(\d{1,2}/\d{1,2}/\d{2,4})\b",
+            # MM-DD-YYYY or MM-DD-YY (only when NOT already matched as ISO)
+            r"\b(\d{1,2}-\d{1,2}-\d{4})\b",
+        ]
+
+        for pattern in generic_patterns:
+            for m in re.finditer(pattern, text, re.IGNORECASE):
+                candidate = m.group(1).strip()
+                iso = self._normalize_date_str(candidate)
+                if iso and iso not in seen:
+                    seen.add(iso)
+                    generic.append(iso)
+
+        return priority + generic
+
+
+def _date_candidates_from_tail(tail: str) -> list[str]:
+    """
+    Given the text after a collection-date label, yield progressively
+    shorter prefix strings so the caller can find the date token.
+
+    E.g. "01/15/2024 Some extra text" -> ["01/15/2024 Some extra text",
+                                           "01/15/2024 Some extra", "01/15/2024"]
+    """
+    words = tail.split()
+    candidates = []
+    for length in range(len(words), 0, -1):
+        candidates.append(" ".join(words[:length]))
+    return candidates

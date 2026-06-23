@@ -36,6 +36,7 @@ from models import (  # noqa: F401
     medication,
     memory_item,
     model_settings,
+    chat_session,
 )
 
 logger = logging.getLogger("alembic.env")
@@ -45,7 +46,7 @@ config = context.config
 
 # Set up logging from alembic.ini
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # Target metadata for autogenerate support
 target_metadata = ProfileDatabaseBase.metadata

@@ -46,6 +46,8 @@ import {
   useEnvironmentDiagnostics,
   useRecheckDiagnostics,
 } from '@/services';
+import { useFeedbackStats, useExportDataset } from '@/services/feedback';
+import { Database, Download as DownloadIcon } from 'lucide-react';
 
 const OCR_BLOCKER_LABELS: Record<string, string> = {
   disabled_by_admin: 'OCR is disabled in server configuration (OCR_ENABLED). Restart the backend after changing .env.',
@@ -78,6 +80,8 @@ const tierDescriptions: Record<string, { label: string; desc: string; icon: type
 
 export function SettingsPage() {
   const [showConsentDialog, setShowConsentDialog] = useState(false);
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [exportResult, setExportResult] = useState<{ dpo: number; sft: number; grpo: number; path: string } | null>(null);
   const [diagToolId, setDiagToolId] = useState<string | null>(null);
   const [externalProvider, setExternalProvider] = useState('');
   const [externalKey, setExternalKey] = useState('');
@@ -98,6 +102,8 @@ export function SettingsPage() {
   const saveVoice = useSaveVoiceSettings();
   const saveOcr = useSaveOcrPreference();
   const { data: diagnostics, isLoading: diagnosticsLoading } = useEnvironmentDiagnostics();
+  const { data: feedbackStats } = useFeedbackStats();
+  const exportDataset = useExportDataset();
   const recheckDiagnostics = useRecheckDiagnostics();
 
   const focusedDiag = diagnostics?.components.find((c) => c.id === diagToolId) ?? null;
@@ -744,6 +750,124 @@ export function SettingsPage() {
           </div>
         </StaggerItem>
       </StaggerGroup>
+
+      {/* RL Training Data */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Database className="w-5 h-5 text-ink-secondary" />
+            Training Data
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-ink-secondary">
+            Thumbs-up/down feedback you give on assistant responses is stored locally and can
+            be exported as a DPO/GRPO-ready preference dataset for offline fine-tuning.
+          </p>
+
+          {feedbackStats && (
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-xl bg-surface-muted p-3 text-center">
+                <p className="text-2xl font-semibold text-ink">{feedbackStats.total_feedback}</p>
+                <p className="text-xs text-ink-secondary mt-1">Total ratings</p>
+              </div>
+              <div className="rounded-xl bg-status-success/10 p-3 text-center">
+                <p className="text-2xl font-semibold text-status-success">{feedbackStats.positive_count}</p>
+                <p className="text-xs text-ink-secondary mt-1">Helpful</p>
+              </div>
+              <div className="rounded-xl bg-status-danger/10 p-3 text-center">
+                <p className="text-2xl font-semibold text-status-danger">{feedbackStats.negative_count}</p>
+                <p className="text-xs text-ink-secondary mt-1">Not helpful</p>
+              </div>
+            </div>
+          )}
+
+          {feedbackStats && feedbackStats.correction_count > 0 && (
+            <p className="text-xs text-ink-secondary">
+              {feedbackStats.correction_count} correction{feedbackStats.correction_count !== 1 ? 's' : ''} provided
+              — these become &ldquo;chosen&rdquo; examples in DPO pairs.
+            </p>
+          )}
+
+          {exportResult && (
+            <div className="rounded-xl bg-status-success/10 p-3 text-sm text-status-success space-y-1">
+              <p className="font-medium">Export complete</p>
+              <p className="text-xs text-ink-secondary">
+                {exportResult.dpo} DPO pairs · {exportResult.sft} SFT positives · {exportResult.grpo} reward records
+              </p>
+              <p className="text-xs text-ink-tertiary break-all">{exportResult.path}</p>
+            </div>
+          )}
+
+          <Button
+            variant="secondary"
+            onClick={() => setShowExportDialog(true)}
+            disabled={!feedbackStats || feedbackStats.total_feedback === 0}
+            className="gap-2"
+          >
+            <DownloadIcon className="w-4 h-4" />
+            Export training data
+          </Button>
+
+          {(!feedbackStats || feedbackStats.total_feedback === 0) && (
+            <p className="text-xs text-ink-tertiary">
+              Rate some assistant responses first to enable export.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Export confirmation dialog */}
+      <AnimatePresence>
+        {showExportDialog && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial="initial" animate="animate" exit="exit"
+              variants={backdropVariants}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setShowExportDialog(false)}
+            />
+            <motion.div
+              initial="initial" animate="animate" exit="exit"
+              variants={modalVariants}
+              className="relative bg-surface rounded-2xl shadow-2xl p-6 max-w-md w-full z-10 space-y-4"
+            >
+              <h3 className="text-lg font-semibold text-ink">Export training data?</h3>
+              <p className="text-sm text-ink-secondary">
+                This will write JSONL files (DPO pairs, SFT positives, GRPO rewards) to your local
+                filesystem. Redaction is applied to all prompt and response text before writing.
+              </p>
+              <p className="text-xs text-ink-tertiary">
+                Files are stored locally only and never uploaded. No network calls are made.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <Button variant="ghost" onClick={() => setShowExportDialog(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={async () => {
+                    setShowExportDialog(false);
+                    try {
+                      const res = await exportDataset.mutateAsync({ confirmed: true });
+                      setExportResult({
+                        dpo: res.dpo_pairs_count,
+                        sft: res.sft_positives_count,
+                        grpo: res.grpo_rewards_count,
+                        path: res.metadata_path,
+                      });
+                    } catch {
+                      // error surfaced by React Query
+                    }
+                  }}
+                  disabled={exportDataset.isPending}
+                >
+                  {exportDataset.isPending ? 'Exporting…' : 'Confirm Export'}
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Assistant Memory */}
       <MemoryManager />

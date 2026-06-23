@@ -34,32 +34,84 @@ logger = logging.getLogger(__name__)
 
 
 # Tier to model mapping (centralized configuration)
+#
+# Gemma 4 family (released 2026-06-03, Apache 2.0):
+#   Sizes: E2B, E4B (edge), 12B, 26B MoE (A4B active), 31B dense.
+#   Features: multimodal (text+image), 256K context, native function-calling.
+#   GGUF sources: unsloth/* and ggml-org/* on Hugging Face.
+#   Ollama tags: gemma4:e2b, gemma4:e4b, gemma4:12b, gemma4:26b, gemma4:31b
+#   Chat template: auto-detected by llama.cpp from GGUF metadata.
+#
+# PLACEHOLDER URLs (verify before production):
+#   unsloth/gemma-4-e2b-it-GGUF, unsloth/gemma-4-e4b-it-GGUF
+#   ggml-org/gemma-4-12b-it-GGUF
 TIER_MODEL_CONFIG: dict[str, dict[str, Any]] = {
+    # -- low: edge / phone-class (>=8 GB RAM, >=1 GB disk) -----------------------
     "low": {
         "repo": "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
         "filename": "qwen2.5-0.5b-instruct-q4_k_m.gguf",
         "context_size": 2048,
-        "n_gpu_layers": 0,  # CPU-only default
+        "n_gpu_layers": 0,
         "description": "Qwen2.5 0.5B - Fast, lightweight",
     },
+    # -- gemma4-e2b: Gemma 4 E2B edge (>=8 GB RAM, >=2 GB disk) -----------------
+    # ~1.5 GB Q4_K_M. PLACEHOLDER: check https://hf.co/unsloth/gemma-4-e2b-it-GGUF
+    "gemma4-e2b": {
+        "repo": "unsloth/gemma-4-e2b-it-GGUF",
+        "filename": None,
+        "filename_pattern": "q4_k_m",
+        "context_size": 8192,
+        "n_gpu_layers": 0,
+        "multimodal": True,
+        "function_calling": True,
+        "description": "Gemma 4 E2B (edge) - Multimodal, 256K ctx, Apache 2.0",
+        "ollama_tag": "gemma4:e2b",
+    },
+    # -- gemma4-e4b: Gemma 4 E4B edge (>=12 GB RAM, >=4 GB disk) ----------------
+    # ~2.8 GB Q4_K_M. PLACEHOLDER: check https://hf.co/unsloth/gemma-4-e4b-it-GGUF
+    "gemma4-e4b": {
+        "repo": "unsloth/gemma-4-e4b-it-GGUF",
+        "filename": None,
+        "filename_pattern": "q4_k_m",
+        "context_size": 16384,
+        "n_gpu_layers": 0,
+        "multimodal": True,
+        "function_calling": True,
+        "description": "Gemma 4 E4B (edge) - Multimodal, 256K ctx, Apache 2.0",
+        "ollama_tag": "gemma4:e4b",
+    },
+    # -- mid: balanced quality (>=16 GB RAM, >=3 GB disk) ------------------------
     "mid": {
         "repo": "microsoft/Phi-3-mini-4k-instruct-gguf",
-        "filename": None,  # Discover at download time
-        "filename_pattern": "q4_k_m",  # Prefer Q4_K_M quantization
+        "filename": None,
+        "filename_pattern": "q4_k_m",
         "context_size": 4096,
         "n_gpu_layers": 0,
         "description": "Phi-3-mini - Balanced quality",
     },
+    # -- gemma4-12b: Gemma 4 12B dense (>=16 GB RAM, >=8 GB disk) ---------------
+    # ~7-8 GB Q4_K_M. PLACEHOLDER: check https://hf.co/ggml-org/gemma-4-12b-it-GGUF
+    "gemma4-12b": {
+        "repo": "ggml-org/gemma-4-12b-it-GGUF",
+        "filename": None,
+        "filename_pattern": "q4_k_m",
+        "context_size": 32768,
+        "n_gpu_layers": 0,
+        "multimodal": True,
+        "function_calling": True,
+        "description": "Gemma 4 12B - Multimodal, 256K ctx, Apache 2.0",
+        "ollama_tag": "gemma4:12b",
+    },
+    # -- high: best quality (>=32 GB RAM, >=5 GB disk) ---------------------------
     "high": {
         "repo": "BioMistral/BioMistral-7B-GGUF",
-        "filename": None,  # Discover at download time
+        "filename": None,
         "filename_pattern": "q4_k_m",
         "context_size": 4096,
-        "n_gpu_layers": 0,  # GPU optional bonus
+        "n_gpu_layers": 0,
         "description": "BioMistral-7B - Medical-specialized",
     },
 }
-
 # Fallback order when model unavailable
 TIER_FALLBACK_ORDER = ["high", "mid", "low", "template"]
 

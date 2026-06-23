@@ -324,7 +324,10 @@ class TestDatePropagation:
         assert len(result.collection_dates) >= 1
         for obs in result.observations:
             assert obs.collected_at is not None
-            assert "03/20/2024" in obs.collected_at
+            # _extract_dates() now normalises to ISO-8601 (YYYY-MM-DD)
+            assert obs.collected_at == "2024-03-20", (
+                f"Expected ISO date '2024-03-20', got {obs.collected_at!r}"
+            )
 
 
 class TestExtractFromText:

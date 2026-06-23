@@ -25,13 +25,17 @@ logger = logging.getLogger(__name__)
 
 # Tier requirements (RAM-based; GPU VRAM can lift effective RAM for recommendation)
 TIER_REQUIREMENTS: dict[str, dict[str, float]] = {
-    "low": {"ram_gb": 8, "disk_gb": 1},      # Qwen 0.5B
-    "mid": {"ram_gb": 16, "disk_gb": 3},     # Phi-3-mini
-    "high": {"ram_gb": 32, "disk_gb": 5},    # BioMistral-7B
+    "low":        {"ram_gb": 8,  "disk_gb": 1},   # Qwen 0.5B
+    "gemma4-e2b": {"ram_gb": 8,  "disk_gb": 2},   # Gemma 4 E2B ~1.5 GB Q4
+    "gemma4-e4b": {"ram_gb": 12, "disk_gb": 4},   # Gemma 4 E4B ~2.8 GB Q4
+    "mid":        {"ram_gb": 16, "disk_gb": 3},   # Phi-3-mini
+    "gemma4-12b": {"ram_gb": 16, "disk_gb": 8},   # Gemma 4 12B ~7-8 GB Q4
+    "high":       {"ram_gb": 32, "disk_gb": 5},   # BioMistral-7B
 }
 
 # Tier priority order (highest to lowest)
-TIER_ORDER = ["high", "mid", "low"]
+# Gemma 4 tiers are ordered by capability alongside legacy tiers.
+TIER_ORDER = ["high", "gemma4-12b", "mid", "gemma4-e4b", "gemma4-e2b", "low"]
 
 # Minimum GPU VRAM (GB) before we apply an effective-RAM boost toward tier selection.
 GPU_VRAM_BUMP_MIN_GB = 8.0

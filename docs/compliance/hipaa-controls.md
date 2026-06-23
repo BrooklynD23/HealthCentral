@@ -47,8 +47,8 @@ requirements under 45 CFR 164.312.
 | Audit logging | `core/audit.py` logs all significant operations |
 | Event types | Profile, document, observation, export, auth events |
 | Log format | Structured JSON with timestamps and correlation IDs |
-| Security audit | `SecurityAuditMiddleware` logs mutating requests |
-| Log persistence | Database + application log file |
+| Security audit | `SecurityAuditMiddleware` emits application-log entries for mutating requests |
+| Log persistence | Database audit log for core audit events; application logger for security middleware entries |
 | Immutability | Audit log entries are append-only |
 
 ### Audited Events
@@ -60,7 +60,8 @@ requirements under 45 CFR 164.312.
 | `document.*` | Import, view, delete |
 | `observation.*` | Verify, edit, delete |
 | `export.*` | Summary generation, data export |
-| `security.*` | Rate limiting, input rejection |
+| `feedback.*` | Feedback created, annotated, or exported for RL |
+| Security middleware log entries | Mutating request summaries emitted to the application logger |
 
 ## 164.312(c) — Integrity Controls
 
@@ -110,6 +111,17 @@ requirements under 45 CFR 164.312.
 | Server mode | HTTPS required (HSTS max-age 1 year) |
 | API security | Bearer token authentication |
 | Correlation | X-Correlation-ID for request tracing |
+
+## Reinforcement Learning and Dataset Export
+
+HealthCentral supports opt-in feedback collection and RL dataset export for model improvement:
+
+| Control | Implementation |
+|---------|----------------|
+| Feedback audit logging | `api/feedback.py` creates `feedback.*` audit log entries for all feedback operations (create, annotate, export) |
+| PHI redaction policy | `modules/rl_dataset.py` applies `modules/redaction.py` before export. Current standard rules cover common identifiers such as SSNs, emails, phone numbers, and context-prefixed names; exported JSONL can still contain lab values, dates, medication names, or biomarker values that do not match those rules. |
+| User consent | Explicit `confirmed=true` required in `POST /feedback/export` request — never automatic or silent |
+| Data retention | Feedback retained in profile DB until user deletion; exported datasets are persistent local files until manually deleted |
 
 ## Gaps and Future Work
 

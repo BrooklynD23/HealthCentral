@@ -10,7 +10,7 @@
 
 ### Steps
 
-1. Navigate to **Documents** in the sidebar
+1. Navigate to **Inbox** in the sidebar
 2. Click **Import Document**
 3. Select your lab report file (PDF or image)
 4. Wait for processing (extraction happens automatically)
@@ -27,7 +27,7 @@
 
 ### Viewing Your Results
 
-1. Navigate to **Observations** in the sidebar
+1. Navigate to **Verify** in the sidebar
 2. Browse all extracted lab values
 3. Use filters to narrow by analyte, date range, or abnormal status
 4. Click any observation for full details including source document
@@ -52,8 +52,8 @@ After import, you should verify extracted values:
 
 View related tests together:
 
-1. Navigate to **Panels**
-2. Select a panel type: CBC, CMP, Lipid, or Thyroid
+1. Navigate to **Interpret**
+2. Select a panel type such as CBC, CMP, Lipid, or Thyroid
 3. See all related observations in context
 
 ## AI Interpretations
@@ -76,7 +76,7 @@ View related tests together:
 
 ### AI Assistant Chat
 
-1. Navigate to **Assistant** in the sidebar
+1. Navigate to **Explain** in the sidebar
 2. Ask questions about your results in natural language
 3. The assistant uses your actual lab data for grounded answers
 4. Example questions:
@@ -84,11 +84,44 @@ View related tests together:
    - "How has my cholesterol changed over the past year?"
    - "What should I ask my doctor about my thyroid results?"
 
+#### Giving Feedback on Responses
+
+After each assistant response, you can provide feedback:
+
+1. Click the **thumbs up** or **thumbs down** icon
+2. Optionally add a correction or note explaining why the answer was helpful or unhelpful
+3. Your feedback helps improve future responses
+
+#### Managing Chat Sessions
+
+Create and resume persistent conversations:
+
+1. In **Explain**, click **New** after a conversation has messages to start a fresh conversation
+2. The app automatically loads the most recent saved session when you return
+3. Session list/create/history/delete APIs exist for backend and service use, but the current UI does not expose a session sidebar, rename control, or session switcher
+
+#### Memory Setting
+
+The assistant can store facts for later use:
+
+1. Navigate to **Settings > Assistant Memory**
+2. Add, edit, filter, or delete memory items such as preferences, medications, or allergies
+3. The backend includes a per-profile memory toggle API, but the current Settings screen does not expose a separate on/off toggle
+
+#### Understanding Citations
+
+When the assistant answers your question, it cites its sources:
+
+- **[YOUR_RESULTS:N]** — Your own measured lab values from imported documents (latest result, normal range, and trend direction shown under "Report Facts")
+- **[REFERENCE:N]** — General medical knowledge from the reference library, shown under "General Info"
+
+This means you can verify answers against your actual data and trusted medical sources.
+
 ## Medication Management
 
 ### Adding a Medication
 
-1. Navigate to **Medications** in the sidebar
+1. Navigate to **Meds** in the sidebar
 2. Click **Add Medication**
 3. Enter medication name, dosage, and frequency
 4. Optionally add notes (e.g., "take with food")
@@ -118,17 +151,17 @@ View related tests together:
 ### Doctor Summary
 
 1. Navigate to **Export**
-2. Click **Generate Doctor Summary**
+2. Click **Generate Summary**
 3. A clinician-ready report is created with:
    - Recent lab results and trends
    - Abnormal values highlighted
    - Medication list and adherence
-4. Download as a formatted document
+4. Click **Download Summary** and choose text, HTML, or PDF
 
 ### Discussion Questions
 
-1. In the Export section, click **Generate Questions**
-2. Get suggested questions to ask your doctor based on your data
+1. In **Export**, leave **Questions for Clinician** enabled under **Include Sections**
+2. Generate a summary to include suggested questions based on your data
 
 ### Data Export
 
@@ -157,5 +190,5 @@ For users who prefer cloud AI:
 
 1. Navigate to **Settings > Model > External API**
 2. Choose provider (OpenAI or Anthropic)
-3. Enter your API key (stored locally, never transmitted)
+3. Enter your API key (stored locally and used by the backend to call the selected provider)
 4. Select a model

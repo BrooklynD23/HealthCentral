@@ -40,6 +40,22 @@ async def lifespan(app: FastAPI):
     # Run master database migrations
     await run_master_migrations_async()
 
+    # Auto-seed knowledge base (idempotent — skips rows that already exist)
+    try:
+        from scripts.seed_knowledge_base import seed_all
+        seed_results = await seed_all(skip_db_init=True)
+        if any(v > 0 for v in seed_results.values()):
+            logger.info(
+                "Knowledge base seeded: %s biomarkers, %s interventions, %s relationships",
+                seed_results["biomarkers"],
+                seed_results["interventions"],
+                seed_results["relationships"],
+            )
+        else:
+            logger.debug("Knowledge base already seeded — no new rows inserted")
+    except Exception as _seed_exc:
+        logger.warning("Knowledge base seeding skipped: %s", _seed_exc)
+
     yield
     await close_database()
 
