@@ -338,14 +338,22 @@ class TestExternalRunnerIntegration:
                 model_name="gpt-4o-mini",
             )
 
-        caplog.set_level(logging.WARNING)
-        with patch.object(runner, "_call_openai", side_effect=mock_call_openai):
-            with patch("core.external_runner.settings") as mock_settings:
-                mock_settings.app_env = "production"
-                mock_settings.external_api_redaction_break_glass = True
-                mock_settings.redaction_enabled = False
-                mock_settings.redaction_policy_level = "standard"
-                await runner.generate_async(original_prompt)
+        # Capture the named logger directly and re-enable it: when the full
+        # suite runs, an earlier test may leave this module logger disabled or
+        # non-propagating, which silently drops the warning and makes this
+        # assertion flap. Scoping caplog to the logger and forcing it enabled
+        # makes the break-glass audit assertion order-independent.
+        ext_logger = logging.getLogger("core.external_runner")
+        ext_logger.disabled = False
+        ext_logger.propagate = True
+        with caplog.at_level(logging.WARNING, logger="core.external_runner"):
+            with patch.object(runner, "_call_openai", side_effect=mock_call_openai):
+                with patch("core.external_runner.settings") as mock_settings:
+                    mock_settings.app_env = "production"
+                    mock_settings.external_api_redaction_break_glass = True
+                    mock_settings.redaction_enabled = False
+                    mock_settings.redaction_policy_level = "standard"
+                    await runner.generate_async(original_prompt)
 
         assert captured_prompts == [original_prompt]
-        assert any("SECURITY_AUDIT:" in r.message for r in caplog.records)
+        assert any("SECURITY_AUDIT:" in r.getMessage() for r in caplog.records)

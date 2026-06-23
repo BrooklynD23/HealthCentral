@@ -36,7 +36,9 @@ def test_profile_migration_omits_creator_when_sqlcipher_unavailable(
     migrations.run_profile_migration(vault_path, encryption_key)
 
     assert vault_path.exists()
+    # Tracks the latest profile migration head; bump when a new profile
+    # migration is added (currently 006_ocr_preference).
     assert (
         migrations.get_profile_current_revision(vault_path, encryption_key)
-        == "005_memory_items"
+        == "006_ocr_preference"
     )
