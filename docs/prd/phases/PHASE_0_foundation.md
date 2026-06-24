@@ -1,8 +1,11 @@
 # Phase 0 — Foundation & Flag
 
-**Last Updated:** 2026-06-23
+**Last Updated:** 2026-06-24
 **Owner:** [Owner]
 **Refresh Trigger:** Flag mechanism, audit-event schema, or `modules/agent/` layout changes
+**Status:** ✅ Done — S0-1, S0-2, S0-3, S0-4 all delivered (S0-2/S0-3 via commit
+3e63df2; S0-1/S0-4 via the planning bundle). See AC deviation note under Exit
+criteria below.
 
 | Map | Value |
 |---|---|
@@ -17,10 +20,18 @@ keeps `main` behavior identical when OFF, and the audit-event schema wired throu
 existing monitoring/audit stack — so governance exists from day one, before any node does.
 
 ## Exit criteria (= R1 exit, partial — the flag half)
-- `modules/agent/` imports clean; `pytest` collects `tests/agent/`.
-- `agent_enabled` defaults **OFF**; `/assistant/chat` byte-identical to legacy when off.
-- One audit event persists through the existing `core.audit` / monitoring path.
-- AGILE_PLAN + STANDUP + RETRO committed under `docs/agile/` (done in this pass).
+- ✅ `modules/agent/` imports clean; `pytest` collects `tests/agent/`. (S0-1)
+- ✅ `agent_enabled` defaults **OFF**; `/assistant/chat` byte-identical to legacy
+  when off. (S0-2 — `is_agent_enabled` in `modules/agent/settings.py`, defensive
+  on shape, tested) **AC deviation:** met functionally, but no persisted
+  `agent_enabled` column exists on `UserModelSettings` yet (no migration adds
+  one), so no live caller can flip it ON via stored settings today. See
+  [`RECONCILIATION.md` R-8](../../agile/RECONCILIATION.md) — recommended
+  resolution is bundled into the S5 cutover (S5-1).
+- ✅ One audit event persists through the existing `core.audit` / monitoring
+  path. (S0-3 — `emit_audit_event` in `modules/agent/audit.py`, no-ops when
+  `db is None`, tested)
+- ✅ AGILE_PLAN + STANDUP + RETRO committed under `docs/agile/` (done in this pass). (S0-4)
 
 ## CONTRACTS
 

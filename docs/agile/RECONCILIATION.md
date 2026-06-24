@@ -1,6 +1,6 @@
 # Reconciliation — exploration vs. inherited planning bundle
 
-**Last Updated:** 2026-06-23
+**Last Updated:** 2026-06-24
 **Owner:** [Owner] (solo client/engineer — final approver)
 **Refresh Trigger:** A new conflict is found between live code and an inherited
 artifact, or the human resolves an open item below
@@ -50,6 +50,36 @@ artifact, or the human resolves an open item below
 - **Needs you to:** If `agent_overhaul_plan.md` exists elsewhere, drop it in and I'll
   reconcile any phase-boundary differences. Until then the AGILE_PLAN IDs are the
   spine and phases map 1:1 to sprints.
+
+### R-8 — `agent_enabled` has no persisted column or migration yet
+- **Status:** Open — needs a human nod on timing (proposed resolution below).
+- **Owner:** [Owner]
+- **Date found:** 2026-06-24 (S0 close-out reconciliation pass, post commit 3e63df2)
+- **Bundle says:** Phase 0's data-shape contract says `agent_enabled: bool` lives
+  in model settings, default `False`, profile-scoped, "no schema migration needed
+  if stored in existing settings JSON; if a column is added, ship both
+  master+profile migrations only where the column lands."
+- **Reality:** `UserModelSettings` ORM (`src/backend/models/model_settings.py`)
+  has no `agent_enabled` column, and no Alembic migration adds one.
+  `is_agent_enabled` (`src/backend/modules/agent/settings.py`) works correctly
+  today — it falls through to the `AGENT_ENABLED_DEFAULT` (`False`) via
+  `getattr`/`.get()` on whatever shape it's handed — but because no persisted
+  field exists yet, no live caller can turn the flag ON via stored settings.
+  S0-2's AC ("flag defaults off; `/assistant/` path unchanged when off") is
+  satisfied either way, since OFF is exactly what happens whether the column is
+  missing or present-and-false.
+- **Action taken:** None yet — flagged here rather than silently adding a
+  column/migration outside of a scoped story.
+- **Recommended resolution:** The S5 cutover sprint (S5-1, which flips the
+  default and wires `/assistant/` to read a real settings object) should add the
+  `agent_enabled` column + Alembic migration at that point, when there's an
+  actual caller to wire it to. Reference the existing
+  `user_ocr_preference_enabled` pattern in `core/config.py` (defaults the
+  preference, doesn't require the column to exist for the helper to be safe) —
+  `is_agent_enabled` already follows that same shape; only the column is missing.
+- **Needs you to:** Confirm S5-1 is the right sprint to own the migration (vs.
+  pulling it earlier into S1 if a story needs to actually persist a non-default
+  value sooner).
 
 ## Observations from exploration (no conflict, but worth your eye)
 

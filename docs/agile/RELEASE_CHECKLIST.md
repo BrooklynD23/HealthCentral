@@ -1,6 +1,6 @@
 # Release Checklist — Agent Overhaul
 
-**Last Updated:** 2026-06-23
+**Last Updated:** 2026-06-24
 **Owner:** [Owner] (accepts stories at review)
 **Refresh Trigger:** A backing story is accepted/rejected, or a Report 0 dimension changes
 
@@ -23,8 +23,8 @@
 | 5 | Golden eval suite, 4 axes, CI gate | S6-1, S6-2, S6-3 | R3 | `[ ]` *(gated)* |
 | 6 | Local-first + explicit PHI redaction gate + offline-verified loop | S4-1, S4-2 | R2 | `[ ]` |
 | 7 | Speed capped + cached; p95 ≤ main + 50% | S2-2, S5-2, S5-3 | R2 | `[ ]` |
-| 8 | Every agent decision emits a structured audit event | S0-3, S1-4 (+ per-node throughout) | R1 | `[ ]` |
-| 9 | Behind a flag; legacy path kept one release (rollback safety) | S0-2, S5-1 | R2 | `[ ]` |
+| 8 | Every agent decision emits a structured audit event | S0-3, S1-4 (+ per-node throughout) | R1 | `[~]` *(S0-3 persistence helper done & tested; per-node emission from S1-4 onward still pending)* |
+| 9 | Behind a flag; legacy path kept one release (rollback safety) | S0-2, S5-1 | R2 | `[~]` *(S0-2 flag helper done, defaults OFF, tested; no live caller wired yet — S5-1 cutover pending, see RECONCILIATION R-8)* |
 
 ## Success-metric gates (AGILE_PLAN §1 — release-level, do not redefine)
 These are the numeric bars the gated rows above must clear before flipping `true`:

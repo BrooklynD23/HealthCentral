@@ -1,9 +1,11 @@
 # Sprint 0 — Inception (2026-06-22 → 06-28)
 
-**Last Updated:** 2026-06-23
+**Last Updated:** 2026-06-24
 **Owner:** [Owner]
 **Refresh Trigger:** S0 story scope/AC changes, or the foundation contracts move
 **Release:** R1 · **Epic:** E1 · **Phase:** [PHASE_0](../../prd/phases/PHASE_0_foundation.md)
+**Status:** ✅ Done — all four stories delivered (commit 3e63df2). Suite: 24
+passed, 18 skipped (remaining skips belong to future sprints).
 
 ## Goal
 A provable foundation: `modules/agent/` exists and collects, the `agent_enabled`
@@ -11,12 +13,22 @@ flag is wired OFF-by-default, the audit-event schema is defined, and the cadence
 files are committed.
 
 ## Stories (IDs/points 1:1 with AGILE_PLAN §6)
-| ID | Story | Acceptance criteria | Pts |
-|---|---|---|---|
-| S0-1 | Scaffold `modules/agent/` | dirs + empty graph runner import-clean; `pytest` collects `tests/agent/` | 2 |
-| S0-2 | Add `agent_enabled` flag to model settings | flag defaults OFF; `/assistant/` path unchanged when off | 2 |
-| S0-3 | Define audit-event schema for agent nodes | one event persists through existing monitoring/audit | 3 |
-| S0-4 | `AGILE_PLAN` + `STANDUP`/`RETRO` under `docs/agile/` | files committed | 1 |
+| ID | Story | Acceptance criteria | Pts | Status |
+|---|---|---|---|---|
+| S0-1 | Scaffold `modules/agent/` | dirs + empty graph runner import-clean; `pytest` collects `tests/agent/` | 2 | ✅ Done (planning bundle) |
+| S0-2 | Add `agent_enabled` flag to model settings | flag defaults OFF; `/assistant/` path unchanged when off | 2 | ✅ Done (commit 3e63df2) — see AC deviation note below |
+| S0-3 | Define audit-event schema for agent nodes | one event persists through existing monitoring/audit | 3 | ✅ Done (commit 3e63df2) |
+| S0-4 | `AGILE_PLAN` + `STANDUP`/`RETRO` under `docs/agile/` | files committed | 1 | ✅ Done (planning bundle) |
+
+### AC deviation note (S0-2)
+S0-2's AC is met **functionally**: `is_agent_enabled` defaults OFF
+(`AGENT_ENABLED_DEFAULT = False`) and is defensive on shape (`None` / dict /
+ORM-attribute access), so `/assistant/` is unchanged when off. However, no
+persisted `agent_enabled` column exists yet on `UserModelSettings` (no
+migration adds one) — so today the helper can only ever read the absent-key
+default. Tracked as a gap, not a blocker for S0 close-out, in
+[`RECONCILIATION.md` R-8](../RECONCILIATION.md); recommended resolution is
+the S5 cutover sprint (S5-1) adding the column + migration.
 
 ## DoR / DoD (AGILE_PLAN §2)
 - **DoR:** each story above has AC, a touched-files list (see Phase 0 contracts +
