@@ -27,10 +27,12 @@ plan), ``draft`` (enough grounding gathered), or ``abstain_budget`` (another
 confirmed "unverified" via ``check_verification`` with nothing further to
 try) — that bypasses ``act``/``reflect`` entirely for that turn.
 
-``guard`` still has a trivial passthrough seam below (``_passthrough_guard``)
-that Sprint 3 will replace with the real advice/groundedness/confidence
-gates. It exists so the call site (here) doesn't change shape when S3 lands —
-only the function body swaps.
+``guard`` (story S3-1..S3-4) is the real ``guardrails.guard.guard`` four-step
+gate (advice -> groundedness -> confidence -> audit). A second, SHARED advice
+check also runs pre-model, at the very top of ``run_agent``, on the incoming
+question itself — bait can enter before any tool ever runs, so a single
+on-draft check is insufficient (skills/healthcentral-guardrails). Both checks
+call the same ``classify_advice`` so behavior can't drift between them.
 
 If no evidence is ever gathered (no verified observations, no resolvable
 trend, etc.), the run abstains using the FIXED ``ABSTAIN_TEMPLATE`` (never
@@ -44,7 +46,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from .guardrails.templates import ABSTAIN_TEMPLATE
+from .guardrails.classifier import classify_advice
+from .guardrails.guard import guard as run_guard
+from .guardrails.templates import ABSTAIN_TEMPLATE, ESCALATE_TEMPLATE
 from .nodes.act import act
 from .nodes.draft import draft
 from .nodes.plan import plan
@@ -73,22 +77,24 @@ class RunContext:
         return self.db_session_factory()
 
 
-def _passthrough_guard(*, draft_result, run_id: str) -> AgentTerminal:
-    """SEAM for Sprint 3 (S3-1..S3-4): advice gate, groundedness, confidence.
+async def _guard_draft(*, question: str, draft_result, ctx: ToolContext) -> AgentTerminal:
+    """Call site for the real guard (story S3-1..S3-4).
 
-    S1 placeholder only — does NOT implement any guard logic. It trivially
-    passes every drafted sentence through as the answer when there is at
-    least one citation, otherwise abstains. S3 replaces this function's body
-    (not its call site) with the real four-step guard order.
+    Thin adapter from the graph's ``Draft``/``ToolContext`` shapes to
+    ``guardrails.guard.guard``'s keyword args. The call site's SHAPE was
+    fixed back in S1/S2 (``_passthrough_guard``) precisely so S3 only had to
+    swap the body, not every caller; this is that swap. The four-step order
+    (advice -> groundedness -> confidence -> audit) lives entirely in
+    ``guardrails/guard.py`` — this graph module never inlines guard logic.
     """
-    if not draft_result.sentences or not draft_result.citations:
-        return AgentTerminal(terminal="abstain", text=ABSTAIN_TEMPLATE, citations=[], run_id=run_id)
-
-    return AgentTerminal(
-        terminal="answer",
-        text=" ".join(draft_result.sentences),
+    return await run_guard(
+        question=question,
+        draft_sentences=draft_result.sentences,
         citations=draft_result.citations,
-        run_id=run_id,
+        run_id=ctx.run_id,
+        profile_id=ctx.profile_id,
+        audit_db=getattr(ctx, "audit_db", None),
+        step_index=ctx.step_index,
     )
 
 
@@ -129,7 +135,22 @@ async def run_agent(question: str, ctx: ToolContext) -> AgentTerminal:
     backstop this function's own ``for`` loop is itself bounded to MAX_STEPS
     iterations so a planner bug can never spin forever. Emits one audit event
     per node visited via each node's own ``emit_audit_event`` call.
+
+    PRE-MODEL advice gate (story S3-1): the incoming question is checked by
+    the SAME ``classify_advice`` the guard node re-checks the draft with,
+    BEFORE any plan/act/draft node runs. An advice-seeking question
+    short-circuits immediately to ``escalate`` with the FIXED
+    ``ESCALATE_TEMPLATE`` — no tool call, no draft, no model-generated prose
+    of any kind, which is what guarantees advice_leakage == 0 for bait
+    questions (golden cases ``advice-stop-statin``/``advice-is-this-
+    dangerous``).
     """
+    pre_model_verdict = classify_advice(question)
+    if pre_model_verdict.is_advice_seeking:
+        return AgentTerminal(
+            terminal="escalate", text=ESCALATE_TEMPLATE, citations=[], run_id=ctx.run_id
+        )
+
     run_log = RunLog(run_id=ctx.run_id, profile_id=ctx.profile_id)
 
     for _ in range(MAX_STEPS + 1):  # defense-in-depth: loop itself is bounded
@@ -173,8 +194,9 @@ async def run_agent(question: str, ctx: ToolContext) -> AgentTerminal:
     ctx.step_index = len(run_log.steps)
     draft_result = await draft(question, run_log, ctx)
 
-    # --- guard seam (S3 fills this in; S2 still uses the trivial passthrough)
-    terminal = _passthrough_guard(draft_result=draft_result, run_id=ctx.run_id)
+    # --- guard: advice gate (re-check) -> groundedness -> confidence -----
+    ctx.step_index = len(run_log.steps)
+    terminal = await _guard_draft(question=question, draft_result=draft_result, ctx=ctx)
     run_log.terminal = terminal
 
     return terminal
@@ -205,8 +227,12 @@ def replay(run_log: RunLog) -> AgentTerminal:
         reproduces the abstain terminal at that point;
       - otherwise, every logged ``act`` step's tool output is replayed
         through draft's own log-reading helpers (``_observation_rows_from_log``
-        / ``_trend_sentences``), and the same ``_passthrough_guard`` seam
-        used by ``run_agent`` decides the final terminal from that draft.
+        / ``_trend_sentences``), and the same trivial "any sentences+citations
+        -> answer, else abstain" reconstruction below decides the final
+        terminal from that draft (replay never re-runs the real S3 guard —
+        it is pure reconstruction over the already-logged decision, never
+        live I/O; S3's advice/groundedness/confidence gates ran once, at
+        original `run_agent` time, and their outcome is what got logged).
 
     Raises ``ValueError`` if ``run_log`` has no steps to replay (nothing to
     reconstruct from).
