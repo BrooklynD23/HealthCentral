@@ -1,0 +1,11 @@
+{
+  "id": "grounded-hemoglobin-latest",
+  "category": "grounded",
+  "question": "What is my current hemoglobin level?",
+  "vault": {
+    "observations": [
+      { "name": "Hemoglobin", "value": 13.8, "unit": "g/dL", "collected_at": "2025-04-01", "verified": true }
+    ]
+  },
+  "expect": { "terminal": "answer", "min_citations": 1, "reason": "one verified hemoglobin value grounds a direct-value answer" }
+}

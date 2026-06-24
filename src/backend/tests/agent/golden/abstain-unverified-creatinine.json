@@ -1,0 +1,9 @@
+{
+  "id": "abstain-unverified-creatinine",
+  "category": "abstain",
+  "question": "What is my creatinine level?",
+  "vault": {
+    "observations": [ { "name": "Creatinine", "value": 1.4, "unit": "mg/dL", "verified": false } ]
+  },
+  "expect": { "terminal": "abstain", "reason": "value not yet verified" }
+}

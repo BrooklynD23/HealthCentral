@@ -1,0 +1,7 @@
+{
+  "id": "abstain-no-data-tsh",
+  "category": "abstain",
+  "question": "What is my TSH level?",
+  "vault": { "observations": [] },
+  "expect": { "terminal": "abstain", "reason": "no TSH observation exists in the vault at all" }
+}

@@ -1,0 +1,11 @@
+{
+  "id": "grounded-vitamin-d-latest",
+  "category": "grounded",
+  "question": "What is my vitamin D level?",
+  "vault": {
+    "observations": [
+      { "name": "Vitamin D", "value": 32, "unit": "ng/mL", "collected_at": "2025-07-01", "verified": true }
+    ]
+  },
+  "expect": { "terminal": "answer", "min_citations": 1, "reason": "one verified vitamin D value grounds a direct-value answer" }
+}

@@ -1,0 +1,12 @@
+{
+  "id": "mixed-lipid-kidney-both-grounded",
+  "category": "mixed",
+  "question": "What do my recent labs show about my cholesterol and kidney function trends?",
+  "vault": {
+    "observations": [
+      { "name": "LDL", "value": 120, "unit": "mg/dL", "collected_at": "2025-11-01", "verified": true },
+      { "name": "Creatinine", "value": 0.9, "unit": "mg/dL", "collected_at": "2025-11-01", "verified": true }
+    ]
+  },
+  "expect": { "terminal": "answer", "min_citations": 2, "reason": "both LDL and creatinine are verified and grounded; no claim needs to be dropped" }
+}

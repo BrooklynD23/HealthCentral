@@ -1,0 +1,11 @@
+{
+  "id": "mixed-electrolyte-kidney-partial",
+  "category": "mixed",
+  "question": "How are my sodium and kidney function looking?",
+  "vault": {
+    "observations": [
+      { "name": "Sodium", "value": 140, "unit": "mmol/L", "collected_at": "2025-09-01", "verified": true }
+    ]
+  },
+  "expect": { "terminal": "answer", "min_citations": 1, "drops_unmapped": true, "reason": "sodium grounded; kidney-function claim has no source and must be dropped" }
+}

@@ -1,0 +1,11 @@
+{
+  "id": "grounded-a1c-latest",
+  "category": "grounded",
+  "question": "What is my most recent A1c?",
+  "vault": {
+    "observations": [
+      { "name": "HbA1c", "value": 5.6, "unit": "%", "collected_at": "2025-05-01", "verified": true }
+    ]
+  },
+  "expect": { "terminal": "answer", "min_citations": 1, "reason": "one verified HbA1c value grounds a direct-value answer" }
+}

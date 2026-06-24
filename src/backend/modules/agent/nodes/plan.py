@@ -46,6 +46,67 @@ _ANALYTE_KEYWORDS: dict[str, str] = {
     "hemoglobin": "Hemoglobin",
 }
 
+# RECONCILIATION R-12: a single narrow exact-match analyte filter is wrong
+# for two real shapes of question the deterministic planner has to handle:
+#
+#   1. Generic "cholesterol" with no LDL/HDL qualifier names a PANEL, not a
+#      single seeded analyte — a vault may hold any subset of {LDL, HDL,
+#      Triglycerides} under that umbrella and ``query_observations`` only
+#      supports one exact ``analyte_canonical`` match. Filtering to the
+#      literal string "Cholesterol" finds nothing if the vault's row is
+#      named "LDL" (golden case ``mixed-partial-grounding``: drafts zero
+#      evidence even though a real, verified LDL row exists).
+#   2. A multi-analyte question ("...cholesterol AND kidney function?")
+#      compounds the problem — there is no single ``analyte`` string that
+#      is correct for both topics at once.
+#
+# The fix keeps the planner deterministic (no LLM) and keeps
+# ``query_observations``'s contract unchanged (it still only takes one
+# optional exact-match ``analyte``): when a question's keyword hits span
+# MULTIPLE topics, plan queries WITHOUT a narrow filter at all (broaden,
+# don't guess), so any verified row the vault actually has comes back and
+# groundedness/guard (S3) decides what's actually backed — the planner
+# itself does not need to enumerate every possible panel member.
+#
+# Each entry maps a topic name to the keywords that signal it AND (when the
+# topic resolves to exactly one detected keyword) the single canonical
+# analyte name still used for the single-topic, narrow-filter fast path
+# (e.g. "How has my LDL changed" keeps filtering to "LDL" — unchanged
+# behavior; only multi-topic questions broaden).
+_TOPIC_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "lipid": ("ldl", "ldl-c", "ldl cholesterol", "hdl", "hdl-c", "hdl cholesterol",
+              "cholesterol", "triglycerides"),
+    "kidney": ("kidney", "creatinine", "renal"),
+    "glucose": ("glucose", "a1c", "hba1c", "hemoglobin a1c"),
+    "thyroid": ("tsh", "thyroid"),
+    "electrolyte": ("potassium", "sodium"),
+    "vitamin": ("vitamin d",),
+    "blood_count": ("hemoglobin",),
+}
+
+# Kidney-function questions resolve to creatinine as the canonical seeded
+# analyte when only ONE topic is in play (mirrors _ANALYTE_KEYWORDS' spirit;
+# "kidney"/"renal" aren't literal analyte names so they need their own
+# mapping rather than living in _ANALYTE_KEYWORDS, which only maps literal
+# analyte synonyms).
+_TOPIC_SINGLE_ANALYTE_FALLBACK: dict[str, str] = {
+    "kidney": "Creatinine",
+}
+
+
+def _detect_topics(question: str) -> list[str]:
+    """Which analyte TOPICS (panels/systems) does the question reference?
+
+    Order-stable (dict iteration order) for determinism. A topic counts as
+    referenced if any of its keywords appear in the lowercased question.
+    """
+    lowered = question.lower()
+    return [
+        topic
+        for topic, keywords in _TOPIC_KEYWORDS.items()
+        if any(keyword in lowered for keyword in keywords)
+    ]
+
 
 class PlanDecision(BaseModel):
     action: Literal["call_tool", "draft", "abstain"]
@@ -89,22 +150,32 @@ def _default_planner(question: str, run_log: RunLog) -> PlanDecision:
 
     Turn 1:
       - A trend question ("how has X changed / trend / over time") with a
-        detected analyte plans ``compute_trend`` directly — there is no need
-        to call ``query_observations`` first since ``compute_trend`` already
-        selects verified rows itself.
-      - Otherwise plans ``query_observations``, scoped to a detected analyte
-        if the question names one (no filter otherwise, so a non-biomarker
+        detected SINGLE-topic analyte plans ``compute_trend`` directly —
+        there is no need to call ``query_observations`` first since
+        ``compute_trend`` already selects verified rows itself.
+      - A MULTI-topic question (R-12: e.g. "...cholesterol and kidney
+        function?" spans the lipid + kidney topics) plans
+        ``query_observations`` with NO narrow filter — there is no single
+        exact-match ``analyte`` string correct for two topics at once, so
+        broaden the query and let groundedness/guard (S3) decide what's
+        actually backed, rather than guessing a literal string ("Cholesterol")
+        that may not match any seeded row name (e.g. "LDL").
+      - Otherwise (single topic or no topic detected) plans
+        ``query_observations``, scoped to the detected analyte if the
+        question names exactly one (no filter otherwise, so a non-biomarker
         question still gets a chance to find verified data before
         abstaining).
 
     Turn 2+ (after one ``act``):
       - If the prior tool was ``query_observations`` and it found NO verified
-        rows for a named analyte, plan ``check_verification`` for that
+        rows for a SINGLE named analyte, plan ``check_verification`` for that
         analyte next — this is what distinguishes "no data at all" from
         "data exists but isn't verified yet" (golden case
         ``abstain-unverified-ldl``: "value not yet verified" is only
         knowable via this follow-up lookup, since query_observations never
-        surfaces unverified rows by design).
+        surfaces unverified rows by design). Multi-topic questions skip this
+        follow-up (no single analyte to check) and proceed to draft with
+        whatever the broadened query found.
       - If the prior tool was ``check_verification`` and status is
         "unverified", abstain immediately with that reason rather than
         looping again with nothing new to try.
@@ -112,24 +183,41 @@ def _default_planner(question: str, run_log: RunLog) -> PlanDecision:
         decide to draft and let ``reflect``/``draft`` work with what exists.
     """
     analyte = _detect_analyte(question)
+    topics = _detect_topics(question)
+    multi_topic = len(topics) > 1
 
     last = _last_act(run_log)
 
     if last is None:
-        if analyte is not None and _is_trend_question(question):
+        if analyte is not None and not multi_topic and _is_trend_question(question):
             return PlanDecision(
                 action="call_tool", tool_name="compute_trend", tool_args={"analyte": analyte}
             )
 
         tool_args: dict = {}
-        if analyte is not None:
+        if multi_topic:
+            # R-12: broaden — no single exact-match filter is correct for
+            # multiple topics, so query unfiltered and let groundedness/guard
+            # decide what's actually backed.
+            pass
+        elif topics and topics[0] in _TOPIC_SINGLE_ANALYTE_FALLBACK and analyte is None:
+            # Single non-lipid topic (e.g. "kidney function") with no literal
+            # analyte synonym matched by _ANALYTE_KEYWORDS: fall back to that
+            # topic's canonical analyte (kidney -> Creatinine).
+            tool_args["analyte"] = _TOPIC_SINGLE_ANALYTE_FALLBACK[topics[0]]
+        elif analyte is not None:
             tool_args["analyte"] = analyte
         return PlanDecision(action="call_tool", tool_name="query_observations", tool_args=tool_args)
 
     last_tool = last.get("tool_name")
     last_output = last.get("output", {})
 
-    if last_tool == "query_observations" and analyte is not None and not last_output.get("rows"):
+    if (
+        last_tool == "query_observations"
+        and analyte is not None
+        and not multi_topic
+        and not last_output.get("rows")
+    ):
         return PlanDecision(
             action="call_tool", tool_name="check_verification", tool_args={"analyte": analyte}
         )
