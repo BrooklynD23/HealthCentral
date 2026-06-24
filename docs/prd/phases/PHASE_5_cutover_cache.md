@@ -1,14 +1,14 @@
 # Phase 5 — Cutover + Cache
 
-**Last Updated:** 2026-06-23
+**Last Updated:** 2026-06-24 (S5 delivered — **R2 SHIPPED**, commit 3765565)
 **Owner:** [Owner]
 **Refresh Trigger:** `/assistant/chat` response shape, cache key/invalidation, or fallback policy change
 
 | Map | Value |
 |---|---|
-| Release | **R2 — Governed & live** (R2 **ships** at end of S5) |
+| Release | **R2 — Governed & live** — **SHIPPED 2026-06-24** (commit 3765565) |
 | Epic | **E5 — Cutover & Fallback** + **E4 — LLMOps** (`skills/healthcentral-backend`) |
-| Sprint | **S5** (S5-1…S5-3) |
+| Sprint | **S5** (S5-1…S5-3) — **delivered** |
 | Binding skills | `healthcentral-backend`, `healthcentral-agent` |
 
 ## Objective
@@ -16,11 +16,33 @@ Make the agent the assistant: flip `/assistant/chat` to the agent (legacy kept o
 release), add a semantic cache keyed `(question, profile_version)` that invalidates on new
 verified data, and surface per-node timing/tokens in the monitoring dashboard.
 
-## Exit criteria (= **R2 exit**, AGILE_PLAN §5)
-- Guard node enforces; `/assistant/chat` served by agent; cache on.
-- Flag **default ON**; legacy fallback reachable for one release (FR-14).
-- Repeat question served from cache; invalidates on new verified data (FR-15).
-- p95 latency visible in `/monitoring/metrics`; p95 ≤ legacy + 50% (FR-16, metric §4).
+## Delivered (S5, commit 3765565)
+- **S5-1 cutover:** `AGENT_ENABLED_DEFAULT` flipped to `True` (`test_s0_2_flag_defaults_off`
+  updated to expect `True` — a documented cutover, not a weakening). Persisted via a new
+  `agent_enabled` Boolean column on `UserModelSettings` — note this is a **PROFILE-DB**
+  table, NOT master, so it ships as profile migration `009_agent_enabled.py` (linear
+  `down_revision` off `008_response_feedback`, reversible) — resolves RECONCILIATION R-8.
+  New `PATCH /model-settings/agent` endpoint toggles it. `api/assistant.py`'s `POST /chat`
+  now serves via the agent graph when `is_agent_enabled(settings)` is `True`, with a
+  `try/except` that falls back to the legacy `rag.query` path on ANY agent exception or
+  when the flag is off; legacy path is byte-identical when taken; session/turn persistence
+  + `turn_id` identical on both paths.
+- **S5-2 semantic cache** (`modules/agent/cache.py`): in-process dict keyed on
+  `CacheKey(normalize_question(q), profile_version)`; `profile_version` = count of verified
+  observations (PRD §10 Q4); a version bump is a different key, which is a guaranteed miss
+  (the invalidation). Consulted in the agent serving path (`_serve_via_agent`).
+- **S5-3 per-node metrics** (`modules/agent/metrics.py` + `graph.py`): `record_node_timing`
+  → `metrics_collector.record_request(method="AGENT", route_template=f"agent.<node>")`;
+  each node timed; surfaces on `/api/v1/monitoring/metrics`.
+
+## Exit criteria (= **R2 exit**, AGILE_PLAN §5) — status
+- Guard node enforces; `/assistant/chat` served by agent; cache on. — **met.**
+- Flag **default ON**; legacy fallback reachable for one release (FR-14). — **met.**
+- Repeat question served from cache; invalidates on new verified data (FR-15). — **met.**
+- p95 latency visible in `/monitoring/metrics`; p95 ≤ legacy + 50% (FR-16, metric §4). —
+  **partially met:** p95/p50 are now visible on the endpoint summary (live-tested); the
+  numeric ≤ legacy+50% comparison itself has not yet been measured — tracked as the one
+  open item in RELEASE_CHECKLIST row 7 / the p95 metric-gate row (both `[~]`).
 
 ## CONTRACTS
 

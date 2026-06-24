@@ -1,6 +1,6 @@
 # Release Checklist — Agent Overhaul
 
-**Last Updated:** 2026-06-24 (S4 close-out)
+**Last Updated:** 2026-06-24 (S5 close-out — R2 ships)
 **Owner:** [Owner] (accepts stories at review)
 **Refresh Trigger:** A backing story is accepted/rejected, or a Report 0 dimension changes
 
@@ -22,9 +22,9 @@
 | 4 | First-class **abstain / escalate** behavior | S3-3, S3-4 | R2 | `[~]` *(S4 update: R-12 is RESOLVED — `nodes/plan.py`'s `_detect_topics()` fix (commit 43f7a4b) makes `mixed-partial-grounding` resolve `answer` with the kidney claim dropped, exactly as its `expect` block names. The golden set is now 30 cases (9 grounded, 8 abstain, 8 advice-bait, 5 mixed) and `test_s4_3_golden_set_categories_pass` asserts all 30 resolve to their expected terminal — zero known end-to-end gaps. Still kept `[~]`, not `[x]`: this row's bar is a **zero-tolerance CI eval gate** over the golden set, and that gate is explicitly S6/R3 scope (row 5) — today's 30/30 pass is a local pytest assertion, not a CI-enforced release gate. Flip to `[x]` when S6 wires the same assertion into CI.)* |
 | 5 | Golden eval suite, 4 axes, CI gate | S6-1, S6-2, S6-3 | R3 | `[ ]` *(gated)* |
 | 6 | Local-first + explicit PHI redaction gate + offline-verified loop | S4-1, S4-2 | R2 | `[x]` *(S4-1 `guardrails/redaction_gate.py:gate_external_payload` is a thin fail-closed adapter over `RedactionEngine(policy_level).redact(payload).text` — no bypass param, signature-enforced, two extra fail-closed tests (`test_s4_1_gate_fails_closed_on_invalid_policy_level`, `test_s4_1_gate_fails_closed_when_engine_raises`). Verified by grep that the agent graph has no external-egress call site today — `run_agent` is fully local/deterministic, so the gate is the documented mandatory chokepoint for any FUTURE agent external-LLM tool, distinct from `core/external_runner.py`'s existing `/assistant/`-scoped enforcement (out of scope here, untouched). S4-2 `test_s4_2_offline_loop_completes` monkeypatches `socket` to block `AF_INET`/`AF_INET6` + `create_connection` (leaves `AF_UNIX` for asyncio's self-pipe) and runs both grounded→answer and abstain→abstain through the harness with zero network. Local-first proven live, commit 43f7a4b.)* |
-| 7 | Speed capped + cached; p95 ≤ main + 50% | S2-2, S5-2, S5-3 | R2 | `[ ]` |
+| 7 | Speed capped + cached; p95 ≤ main + 50% | S2-2, S5-2, S5-3 | R2 | `[~]` *(S5 update: S5-2 semantic cache, `modules/agent/cache.py` — in-process dict keyed on `CacheKey(normalize_question(q), profile_version)`, `profile_version` = COUNT of verified observations (PRD §10 Q4); a version bump is a guaranteed miss, the invalidation mechanism. Consulted first in `api/assistant.py`'s `_serve_via_agent`. S5-3 per-node timing, `modules/agent/metrics.py` + `graph.py` — `record_node_timing` records each node into `metrics_collector` as `method="AGENT"`, `route_template="agent.<node>"`, surfaced on `/api/v1/monitoring/metrics`; live-tested by the new assertions in `test_s5_cutover_cache.py` (p95/p50 present on the endpoint summary). Both mechanisms are implemented, wired into the live serving path, and tested — but the row's bar is the **p95 ≤ legacy + 50% numeric gate**, and today's test only asserts the metric is surfaced (`stats.p95_ms >= 0.0`), not that it clears the +50% bar against the legacy path under load. Not yet actually measured — kept `[~]`, not `[x]`, until that comparison is run. See the metric-gate row below, also `[~]`.)* |
 | 8 | Every agent decision emits a structured audit event | S0-3, S1-4 (+ per-node throughout) | R1 | `[x]` *(S0-3 persistence helper + S1-4 per-node emission both done & tested — plan/act/draft each emit exactly one audit event per run, verified by `test_s1_first_tool.py`; S2 extends coverage to reflect (`agent.reflect`) and terminal (`agent.terminal`) plus the four new tools, each self-auditing per Phase 2's audit-event schema. Still confirmed live via `test_s1_first_tool.py` + `test_s2_loop.py`.)* |
-| 9 | Behind a flag; legacy path kept one release (rollback safety) | S0-2, S5-1 | R2 | `[~]` *(S0-2 flag helper done, defaults OFF, tested; no live caller wired yet — S5-1 cutover pending, see RECONCILIATION R-8)* |
+| 9 | Behind a flag; legacy path kept one release (rollback safety) | S0-2, S5-1 | R2 | `[x]` *(S5-1, commit 3765565: `AGENT_ENABLED_DEFAULT` flipped to `True` — `test_s0_2_flag_defaults_off` updated to assert the new default (a documented cutover, not a weakened test). The flag is now actually persisted: a new `agent_enabled` Boolean column on `UserModelSettings` — a PROFILE-DB table, not master, via profile migration `009_agent_enabled.py` (linear `down_revision` off `008_response_feedback`, reversible) — resolves RECONCILIATION R-8. A new `PATCH /model-settings/agent` endpoint toggles it. `api/assistant.py`'s `POST /chat` now serves via the agent graph when `is_agent_enabled(settings)` is `True`, wrapped in a `try/except` that falls back to the legacy `rag.query` path on ANY agent exception or when the flag is off — the legacy path is byte-identical when taken, and session/turn persistence + `turn_id` are identical on both paths. Rollback safety proven: flip the flag (or hit any agent exception) and the legacy path runs unchanged.)* |
 
 ## Success-metric gates (AGILE_PLAN §1 — release-level, do not redefine)
 These are the numeric bars the gated rows above must clear before flipping `true`:
@@ -34,7 +34,7 @@ These are the numeric bars the gated rows above must clear before flipping `true
 | Groundedness rate | 100% of answer sentences map to a source | eval axis 1 (S6-2) | `[ ]` |
 | Advice leakage | 0 across the golden set | eval axis 4, zero-tolerance (S6-3) | `[ ]` |
 | Abstention correctness | ≥ 95% on insufficient-evidence cases | eval axis 3 (S6-2) | `[ ]` |
-| p95 local latency | ≤ single-shot path + 50% | LLMOps timing (S5-3) | `[ ]` |
+| p95 local latency | ≤ single-shot path + 50% | LLMOps timing (S5-3) | `[~]` *(S5-3 wires per-node timing into `metrics_collector` under `agent.<node>` route templates, surfaced on `/api/v1/monitoring/metrics` and proven live by `test_s5_cutover_cache.py` — p50/p95 are now visible. The numeric comparison against the legacy path's p95 + 50% has not actually been run yet; kept `[~]` until that measurement is taken, not `[x]` on "instrumentation exists.")* |
 | Offline operation | full loop runs network-disabled | S4-2 + CI | `[~]` *(S4-2's `test_s4_2_offline_loop_completes` proves it locally — network-disabled, both grounded→answer and abstain→abstain pass with zero socket access. Backing column says "S4-2 + CI"; the CI wiring itself is S6 scope, so kept `[~]` until that lands.)* |
 | Audit completeness | every node emits a structured event | audit assertion (S1-4) | `[x]` *(asserted live in `test_s1_first_tool.py` for plan/act/draft; remaining nodes — reflect, guard — land in S2/S3)* |
 
@@ -49,4 +49,16 @@ These are the numeric bars the gated rows above must clear before flipping `true
   success-metric gates below remain `[ ]`/`(gated)` until S6 wires them into CI.
 - **R2 (S3–S5):** guard node enforces; `/assistant/` served by agent; cache on. →
   rows 3, 4, 6, 7, 9.
+  **R2 SHIPPED 2026-06-24** — S5's feature commit (3765565) lands the cutover:
+  `/assistant/`'s `POST /chat` now serves via the agent graph by default
+  (`AGENT_ENABLED_DEFAULT = True`, persisted via profile migration
+  `009_agent_enabled`), with the legacy `rag.query` path kept reachable as a
+  one-release fallback on any agent exception (row 9, `[x]`); the semantic
+  cache (S5-2) and per-node timing (S5-3) are both implemented and live in the
+  serving path (row 7, `[~]` — mechanism shipped, the p95 ≤ legacy+50%
+  numeric gate itself is not yet measured). Rows 3, 4, 6 were already `[x]`/`[~]`
+  from S3/S4. Exit criteria substantially met: guard enforces, agent serves
+  `/assistant/`, cache is on. The one open item is the latency *measurement*
+  (not the instrumentation) — tracked in row 7 and the p95 metric-gate row
+  above, both `[~]` pending that comparison.
 - **R3 (S6–S7):** evals gate CI; (stretch) LoRA ≥ base on golden set. → row 5 + metric gates.

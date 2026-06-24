@@ -1,6 +1,6 @@
 # Reconciliation — exploration vs. inherited planning bundle
 
-**Last Updated:** 2026-06-24 (S4 close-out)
+**Last Updated:** 2026-06-24 (S5 close-out — R2 ships)
 **Owner:** [Owner] (solo client/engineer — final approver)
 **Refresh Trigger:** A new conflict is found between live code and an inherited
 artifact, or the human resolves an open item below
@@ -52,8 +52,16 @@ artifact, or the human resolves an open item below
   spine and phases map 1:1 to sprints.
 
 ### R-8 — `agent_enabled` has no persisted column or migration yet
-- **Status:** Open — needs a human nod on timing (proposed resolution below).
-- **Owner:** [Owner]
+- **Status:** **RESOLVED** (S5, commit 3765565). `agent_enabled` is now a real
+  Boolean column on `UserModelSettings` — a **PROFILE-DB** table, not master
+  — shipped via profile migration `009_agent_enabled.py` (linear
+  `down_revision` off `008_response_feedback`, reversible). A new
+  `PATCH /model-settings/agent` endpoint toggles it, and `api/assistant.py`'s
+  `POST /chat` reads the persisted value through `is_agent_enabled(settings)`
+  to decide whether to serve via the agent graph. The recommended resolution
+  below (own the migration in S5-1, when there's an actual caller) is exactly
+  what happened.
+- **Owner:** [Owner] (closed)
 - **Date found:** 2026-06-24 (S0 close-out reconciliation pass, post commit 3e63df2)
 - **Bundle says:** Phase 0's data-shape contract says `agent_enabled: bool` lives
   in model settings, default `False`, profile-scoped, "no schema migration needed
@@ -283,6 +291,101 @@ artifact, or the human resolves an open item below
 - **Needs you to:** Confirm S6 (not an S4 follow-up) is the right sprint to own
   this golden-fixture gap, since today's 30 cases all pass and nothing is broken —
   this is a coverage recommendation, not a defect.
+
+### R-15 — Agent path drops legacy context features (multi-turn history, memory, context filters) (IMPORTANT)
+- **Status:** Open — needs a product decision before R2 GA (proposed resolution below).
+- **Owner:** product/client
+- **Date found:** 2026-06-24 (S5 close-out reconciliation pass, post commit 3765565)
+- **Bundle says:** `/assistant/chat`'s existing contract (ASSIST-HIST-001,
+  ASSIST-MEM-003) honors multi-turn conversation history loaded from the DB
+  (falling back to client-supplied `history[]`), dual-gated memory injection
+  (`use_memory` request flag AND the per-profile/global
+  `assistant_memory_enabled` setting), and context-selection filters
+  (`selected_analytes`, `selected_panel`, `from_date`, `to_date`,
+  `document_category`) — all consumed by the legacy `rag.query` call in
+  `api/assistant.py`.
+- **Reality:** S5-1's cutover calls `_serve_via_agent(question=..., profile_id=...,
+  profile_db=..., db=...)` — it does not pass `db_history`, `inject_memory`, or any
+  of the five context-selection filters. Since the agent path is now the
+  **default** (flag ON), every chat request that doesn't hit the exception
+  fallback silently loses multi-turn context, memory injection, and the
+  ability to scope a question to selected analytes/panel/date-range/document
+  category — all of which the legacy path one branch below still honors.
+  This is not a crash or a test failure; it is a silent behavioral narrowing
+  on the new default path, caught by reading the diff against the legacy
+  branch at close-out, not by any S5 test (no S5 AC named these inputs).
+- **Action taken:** None — flagged here rather than threading five additional
+  parameters into `run_agent`/`RunContext` outside a scoped story, since
+  doing so touches the agent graph's planner/tool-context contract, not just
+  the API call site.
+- **Recommended resolution:** A product decision before R2 GA (i.e., before
+  removing the legacy fallback or treating R2 as feature-complete): either (a)
+  thread conversation history, memory injection, and the context-selection
+  filters into `run_agent`/`ToolContext` so the agent path reaches parity with
+  legacy, or (b) explicitly document the cutover as a deliberate scope
+  reduction for R2 (agent serves single-turn, unfiltered, memory-less
+  questions only) and decide whether that's acceptable for GA traffic.
+- **Needs you to:** Pick (a) or (b) — this determines whether S6+ scope grows
+  to include context-parity work.
+
+### R-16 — `insufficient_context` hardcoded `False` on the agent path, even for abstain terminals
+- **Status:** Open — needs a human nod (proposed resolution below).
+- **Owner:** [Owner]
+- **Date found:** 2026-06-24 (S5 close-out reconciliation pass, post commit 3765565)
+- **Bundle says:** `ChatResponse.insufficient_context` exists so the frontend
+  can render an "insufficient evidence" state distinct from a normal answer;
+  on the legacy path it's set from `result.insufficient_context`, computed by
+  `rag.query` from the actual verification outcome.
+- **Reality:** On the agent success branch in `api/assistant.py`'s `chat()`,
+  `insufficient_context` is set to the literal `False` unconditionally —
+  regardless of whether the agent's terminal was `answer`, `abstain`, or
+  `escalate`. `abstain` is literally the terminal that means "not enough
+  verified info to answer" (`AgentTerminal.terminal: Literal["answer",
+  "abstain", "escalate"]`), so a user whose question abstains today sees
+  `insufficient_context=False` in the response — the opposite of what the
+  field is supposed to signal, and a UI-accuracy regression versus the legacy
+  path's behavior on the same underlying condition.
+- **Action taken:** None — flagged here rather than patching the mapping
+  outside a scoped story, since it's a one-line fix but changes response
+  content the frontend may render on.
+- **Recommended resolution:** Map `terminal == "abstain"` (and arguably
+  `"escalate"`, pending a product call on whether escalation also counts as
+  "insufficient context" for UI purposes) to `insufficient_context=True` on
+  the agent branch, mirroring what the legacy path's verification outcome
+  already produces for the analogous condition.
+- **Needs you to:** Confirm the abstain→`insufficient_context=True` mapping
+  (and decide on escalate) before or alongside the fix.
+
+### R-17 — Semantic cache has no eviction and narrow invalidation (count-only, not document-content-aware)
+- **Status:** Open — needs a human nod on bounding before high-traffic use (proposed resolution below).
+- **Owner:** [Owner]
+- **Date found:** 2026-06-24 (S5 close-out reconciliation pass, post commit 3765565)
+- **Bundle says:** Phase 5's data-shape contract: cache keyed
+  `(normalized_question, profile_version)`, invalidating "when new verified
+  data lands" — a stale cached explanation of changed data is a correctness
+  bug.
+- **Reality:** `modules/agent/cache.py` is a module-level Python dict with no
+  TTL, no LRU, and no size bound — every distinct `(question, profile_version)`
+  pair seen across the process's lifetime stays resident in memory forever
+  (only `clear_cache()`, a test-only helper, ever empties it). Separately,
+  `profile_version` is sourced as the **COUNT** of verified observations only
+  — it does not change when a verified **document's** content is edited, even
+  though `retrieve_chunks` reads from verified documents. So a cached answer
+  that cites a document chunk can go stale (the document was corrected/
+  re-verified with different text) without the cache key changing, because
+  the observation count didn't move.
+- **Action taken:** None — implemented exactly to S5-2's AC (repeat question
+  served from cache; invalidates on new verified data via the count signal),
+  which did not specify eviction or document-content invalidation.
+- **Recommended resolution:** Before high-traffic use: (a) bound the cache —
+  either an LRU with a max-entries cap or a TTL, since an in-process unbounded
+  dict is a slow memory leak under real traffic; (b) broaden the
+  `profile_version` signal to also change on verified-document edits (e.g.
+  fold in a document-content version/hash alongside the observation count),
+  closing the document-edit staleness gap.
+- **Needs you to:** Confirm bounding + broadening the invalidation signal as
+  S6+ scope, or whether the bundle considers the count-only signal acceptable
+  for the documents in scope today.
 
 ## Observations from exploration (no conflict, but worth your eye)
 

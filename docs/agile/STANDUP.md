@@ -7,6 +7,44 @@
 
 ---
 
+## 2026-06-24 (S5) — **R2 ships**
+- **Yesterday:** S5-1 (cutover — `AGENT_ENABLED_DEFAULT` flipped to `True`;
+  `test_s0_2_flag_defaults_off` updated to expect `True`, a documented cutover
+  not a weakened test; new `agent_enabled` Boolean column on
+  `UserModelSettings`, a PROFILE-DB table, via profile migration
+  `009_agent_enabled.py`, linear off `008_response_feedback`, reversible —
+  resolves RECONCILIATION R-8; new `PATCH /model-settings/agent` endpoint to
+  toggle it; `api/assistant.py`'s `POST /chat` now serves via the agent graph
+  when `is_agent_enabled(settings)` is `True`, with a `try/except` that falls
+  back to the legacy `rag.query` path on ANY agent exception or when the flag
+  is off — legacy path byte-identical when taken, session/turn persistence +
+  `turn_id` identical on both paths), S5-2 (semantic cache,
+  `modules/agent/cache.py` — in-process dict keyed on
+  `CacheKey(normalize_question(q), profile_version)`; `profile_version` =
+  count of verified observations per PRD §10 Q4; a version bump is a
+  guaranteed-miss key, which is the invalidation mechanism; consulted in the
+  agent serving path), and S5-3 (per-node metrics,
+  `modules/agent/metrics.py` + `graph.py` — `record_node_timing` records into
+  `metrics_collector` as `method="AGENT"`,
+  `route_template=f"agent.<node>"`; each node timed; surfaces on
+  `/api/v1/monitoring/metrics`) implemented and merged (commit 3765565).
+  Agent suite: **43 passed, 3 skipped** — chat-session and biomarker-assistant
+  suites pass with zero regressions.
+- **Today:** Closing out S5 tracking docs (checklist, phase/sprint status,
+  reconciliation) and marking **R2 shipped**. Next up: S6 kickoff (golden-set
+  growth to 50–100, CI eval gate) — pauses at the CI-gate boundary per the
+  sprint plan.
+- **Blocker:** None for S5 functionally — cutover, cache, and metrics are all
+  live and tested, zero regressions on chat-session/biomarker-assistant.
+  Three new reconciliation items opened at close-out, not blocking R2: (1) the
+  agent serving path drops legacy context features (multi-turn history,
+  ASSIST-MEM-003 memory injection, and the context-selection filters) that
+  the legacy `rag.query` path honored — needs a product decision before R2
+  GA; (2) `insufficient_context` is hardcoded `False` on the agent success
+  branch even for `abstain` terminals; (3) the semantic cache has no
+  eviction/TTL and only invalidates on verified-observation count, not
+  verified-document content edits. See RECONCILIATION.md R-15, R-16, R-17.
+
 ## 2026-06-24 (S4)
 - **Yesterday:** S4-1 (PHI redaction gate, `guardrails/redaction_gate.py` —
   `gate_external_payload` is a thin fail-closed adapter over

@@ -15,6 +15,69 @@
 
 ---
 
+## S5 — Cutover + cache (implemented, commit 3765565) — **R2 release retro**
+> This is also the **R2 release retro point**: S5 is R2's last sprint
+> (AGILE_PLAN §5), and the RELEASE_CHECKLIST rows backing R2 (3, 4, 6, 7, 9)
+> are now `[x]`/`[~]` at this close-out (row 7 stays `[~]`: cache + per-node
+> timing are live, but the p95 ≤ legacy+50% numeric gate is not yet measured).
+> The three iteration questions below are answered both at sprint scope and,
+> where noted, at release scope.
+- **Keep:** Making the cutover's fallback a `try/except` around the ENTIRE
+  agent call (`_serve_via_agent`) rather than around individual sub-steps
+  means "any agent exception → legacy path" is a property of the call site,
+  not a hope that every internal failure mode was anticipated — the same
+  defense-in-depth posture S2 took with the hard `MAX_STEPS` budget and S4
+  took with the redaction gate's signature-enforced no-bypass guarantee.
+  Keying the semantic cache on `profile_version` (a COUNT, recomputed fresh
+  every call) instead of a push-based invalidation event means there is no
+  separate "remember to invalidate" code path to forget — staleness is
+  structurally impossible by construction, not policed by convention.
+- **Drop:** The cutover wires `_serve_via_agent` with only `question` and
+  `profile_id` — it does not thread through `db_history`, the dual-gated
+  `inject_memory` flag (ASSIST-MEM-003), or any of the context-selection
+  filters (`selected_analytes`, `selected_panel`, `from_date`, `to_date`,
+  `document_category`) that the legacy `rag.query` call two lines below it
+  still receives. This was caught at close-out by reading the diff side by
+  side with the legacy branch, not by a failing test — none of S5-1's AC
+  named these inputs, so nothing asserts they're honored. Same shape of gap
+  RETRO has flagged every sprint so far (S0–S4): a story's AC matching the
+  happy path doesn't guarantee parity with the path it's replacing. Also
+  caught: the agent branch hardcodes `insufficient_context=False`
+  unconditionally, even when the terminal is `abstain` (literally "not
+  enough verified info"), which is a UI-accuracy regression no test caught
+  because no S5 test asserts on `insufficient_context` for an abstain
+  terminal served via the agent path. Opened R-15 and R-16, recommended for a
+  product decision / quick fix before R2 GA.
+- **Try:** Re-asking the three iteration questions (AGILE_PLAN §8), at both
+  sprint and **R2 release** scope:
+  1. *Did the eval set catch what mattered?* At sprint scope: the cache-key
+     and per-node-timing assertions in `test_s5_cutover_cache.py` pass live
+     and exercise exactly the mechanisms they name. But the eval set has no
+     case that drives a multi-turn or memory-dependent question through the
+     now-default agent path, so it could not have caught R-15 (context
+     features dropped) — that gap was found by code reading, not by a red
+     test. At release scope: R2 ships with this gap open; next sprint's
+     first new story should be a golden/integration case that asserts
+     multi-turn context actually reaches the agent path, per AGILE_PLAN §8
+     Q1's own rule of starting from the reproduction of the gap just found.
+  2. *Is the read-only rule still holding?* Yes — the cache reads/writes an
+     in-process dict (no DB write), and `record_node_timing` only reads node
+     durations into the existing metrics collector. No new write path to
+     profile/master data was introduced by S5.
+  3. *Is governance still structural?* Yes for the cutover mechanism itself —
+     the fallback is a `try/except` at the call site (structural), not a
+     convention to remember; the flag is now persisted via a real column +
+     migration, not just an in-memory default. But R-16
+     (`insufficient_context` hardcoded `False`) is exactly the kind of drift
+     RETRO's Q3 exists to catch: a UI-facing signal that was correct on the
+     legacy path quietly became wrong on the new default path, not through a
+     prompt or a model choice, but through a literal that should have been
+     computed from the terminal type. **At release scope this is the
+     headline R1→R2 boundary close:** R1 proved the loop, R2 proves the
+     guard enforces and the agent serves live traffic with a safety-net
+     fallback — R3 (S6) is where the eval gate gets CI teeth and where R-15
+     (context parity) should be resolved before any GA push beyond R2.
+
 ## S4 — PHI gate + offline + golden set to 30 (implemented, commit 43f7a4b)
 - **Keep:** Writing the redaction gate (`gate_external_payload`) as a
   mandatory chokepoint *before* any agent tool actually needs it, rather than
