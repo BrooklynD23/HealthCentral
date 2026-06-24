@@ -99,15 +99,21 @@ async def test_s1_4_audit_event_per_node(agent_profile_db, make_run_context, mon
         return await original(event, db=db)
 
     monkeypatch.setattr(audit, "emit_audit_event", _capture)
-    # query_observations / plan / draft import emit_audit_event by reference at
-    # module load time, so patch each module's bound name too.
+    # query_observations / compute_trend / plan / draft import emit_audit_event
+    # by reference at module load time, so patch each module's bound name too.
+    # (Since S2-2, a "changed over time" question like this test's plans
+    # compute_trend directly rather than query_observations — see
+    # nodes/plan.py's trend-keyword detection — so both tools' bound
+    # references need patching for this capture to see every act event.)
     import modules.agent.nodes.plan as plan_mod
     import modules.agent.nodes.draft as draft_mod
     import modules.agent.tools.query_observations as qo_mod
+    import modules.agent.tools.compute_trend as ct_mod
 
     monkeypatch.setattr(plan_mod, "emit_audit_event", _capture)
     monkeypatch.setattr(draft_mod, "emit_audit_event", _capture)
     monkeypatch.setattr(qo_mod, "emit_audit_event", _capture)
+    monkeypatch.setattr(ct_mod, "emit_audit_event", _capture)
 
     session_maker = agent_profile_db
     profile_id = str(uuid.uuid4())

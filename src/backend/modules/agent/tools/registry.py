@@ -40,11 +40,22 @@ def validate_args(name: str, raw_args: dict) -> ToolInput:
 
 
 def _register_builtin_tools() -> None:
-    """Register Sprint 1's read-only tool(s). Idempotent across re-imports."""
+    """Register Sprint 1+2's read-only tools. Idempotent across re-imports."""
+    from .check_verification import CheckVerificationTool
+    from .compute_trend import ComputeTrendTool
+    from .lookup_reference import LookupReferenceTool
     from .query_observations import QueryObservationsTool
+    from .retrieve_chunks import RetrieveChunksTool
 
-    if QueryObservationsTool.name not in _REGISTRY:
-        register(QueryObservationsTool())
+    for tool_cls in (
+        QueryObservationsTool,
+        ComputeTrendTool,
+        CheckVerificationTool,
+        LookupReferenceTool,
+        RetrieveChunksTool,
+    ):
+        if tool_cls.name not in _REGISTRY:
+            register(tool_cls())
 
 
 _register_builtin_tools()

@@ -22,7 +22,9 @@ from datetime import datetime
 from typing import ClassVar, Literal
 
 from pydantic import model_validator
+from sqlalchemy import select
 
+from ..audit import AgentAuditEvent, emit_audit_event
 from ..state import ToolContext
 from .base import ToolInput, ToolOutput
 
@@ -56,10 +58,68 @@ class CheckVerificationTool:
     OutputModel: ClassVar[type[ToolOutput]] = CheckVerificationOutput
 
     async def run(self, args: CheckVerificationInput, ctx: ToolContext) -> CheckVerificationOutput:
-        """SCAFFOLD: Sprint 2 (S2-1).
+        """Look up verification status by ``observation_id`` or ``analyte``. READ ONLY.
 
         Reads ``user_verified``/``verified_at`` for the matching observation(s)
-        scoped to ``ctx`` profile. In analyte mode, returns status + match_count
-        WITHOUT the value. Emits an agent.act audit event. READ ONLY.
+        scoped to ``ctx``'s profile session. Never returns the underlying
+        ``value`` — only status ("absent"/"unverified"/"verified") + counts.
+        Emits one ``agent.act`` audit event (handles/counts only).
         """
-        raise NotImplementedError("S2-1: verification status by observation_id or analyte (no values)")
+        from models.observation import Observation
+
+        if args.observation_id:
+            stmt = select(Observation).where(Observation.id == args.observation_id)
+        else:
+            stmt = select(Observation).where(
+                Observation.analyte_canonical.ilike(args.analyte)
+            )
+
+        async with ctx.db_session() as session:
+            result = await session.execute(stmt)
+            rows = result.scalars().all()
+
+        match_count = len(rows)
+        verified_row = next((row for row in rows if row.user_verified), None)
+
+        if match_count == 0:
+            status: Literal["absent", "unverified", "verified"] = "absent"
+            verified = False
+            verified_at = None
+        elif verified_row is not None:
+            status = "verified"
+            verified = True
+            verified_at = verified_row.verified_at
+        else:
+            status = "unverified"
+            verified = False
+            verified_at = None
+
+        output = CheckVerificationOutput(
+            observation_id=args.observation_id,
+            analyte=args.analyte,
+            status=status,
+            verified=verified,
+            verified_at=verified_at,
+            match_count=match_count,
+        )
+
+        await emit_audit_event(
+            AgentAuditEvent(
+                run_id=ctx.run_id,
+                node="act",
+                profile_id=ctx.profile_id,
+                event_type="agent.act",
+                action="check_verification",
+                step_index=ctx.step_index,
+                details={
+                    "tool_name": self.name,
+                    "observation_id": args.observation_id,
+                    "analyte": args.analyte,
+                    "status": status,
+                    "match_count": match_count,
+                },
+            ),
+            db=getattr(ctx, "audit_db", None),
+        )
+
+        return output

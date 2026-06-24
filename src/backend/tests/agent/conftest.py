@@ -122,6 +122,39 @@ async def seed_observation(
     return observation_id
 
 
+async def seed_chunk(
+    session_maker,
+    *,
+    doc_id: str,
+    text: str,
+    chunk_id: str | None = None,
+    chunk_index: int = 0,
+    page_number: int | None = None,
+) -> str:
+    """Insert one Chunk row (RAG text segment) and return its id.
+
+    Mirrors ``seed_document``/``seed_observation``'s pattern. Used by
+    ``retrieve_chunks`` tests/eval cases — the chunk inherits its verified
+    status from the parent ``Document.status`` (RECONCILIATION R-5), so this
+    helper takes no ``verified`` flag of its own.
+    """
+    from models.chunk import Chunk
+
+    chunk_id = chunk_id or str(uuid.uuid4())
+    async with session_maker() as session:
+        session.add(
+            Chunk(
+                id=chunk_id,
+                doc_id=doc_id,
+                chunk_index=chunk_index,
+                text=text,
+                page_number=page_number,
+            )
+        )
+        await session.commit()
+    return chunk_id
+
+
 @pytest.fixture
 def make_run_context():
     """Factory returning a ``RunContext`` bound to an in-memory session_maker.
