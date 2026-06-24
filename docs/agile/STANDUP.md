@@ -7,6 +7,26 @@
 
 ---
 
+## 2026-06-24 (S1)
+- **Yesterday:** S1-1 (typed tool registry), S1-2 (`query_observations`), S1-3
+  (plan→act→draft single-step path), and S1-4 (per-node audit emission)
+  implemented and merged (commit 0f09cd3). The three S1 skip-stubs in
+  `test_s1_first_tool.py` flipped to live assertions — verified-only filtering,
+  flag-on answer with ≥1 citation, and exactly one audit event each from
+  plan/act/draft. Suite went from 24 passed/18 skipped to **27 passed, 15
+  skipped** — zero failures, flag-off legacy path untouched.
+- **Today:** Closing out S1 tracking docs (checklist, sprint/phase status,
+  reconciliation) and prepping S2 kickoff (reflect node + step budget loop,
+  `compute_trend`/`retrieve_chunks`/`lookup_reference`/`check_verification`).
+- **Blocker:** None for S1 functionally — the single-step path is green. Two
+  deliberate scope deferrals carried forward by design, not blocking: the
+  planner is deterministic/keyword-based for S1 (LLM seam is injectable via
+  the `planner` param, no live model called yet), and `graph.py`'s guard node
+  is a trivial passthrough (`_passthrough_guard`) awaiting S3's real
+  advice/groundedness/confidence gates. New reconciliation item opened for the
+  `ToolContext` Protocol's `run_id`/`step_index` extension — see
+  RECONCILIATION.md R-9.
+
 ## 2026-06-24 (S0)
 - **Yesterday:** S0-2 (`is_agent_enabled`) and S0-3 (`emit_audit_event`) implemented
   and merged (commit 3e63df2). The two S0 skip-stubs in `test_s0_foundation.py`

@@ -81,6 +81,39 @@ artifact, or the human resolves an open item below
   pulling it earlier into S1 if a story needs to actually persist a non-default
   value sooner).
 
+### R-9 — `ToolContext` Protocol extended with `run_id`/`step_index` for audit correlation
+- **Status:** Open — needs a human nod on the mechanism (proposed resolution below).
+- **Owner:** [Owner]
+- **Date found:** 2026-06-24 (S1 close-out reconciliation pass, post commit 0f09cd3)
+- **Bundle says:** Phase 0's `ToolContext` Protocol (`modules/agent/state.py`)
+  was scoped to `profile_id`/`db_session` only — enough for a tool to run a
+  scoped query, nothing about correlating its audit event to a specific run/step.
+- **Reality:** S1 needed each tool (and each node) to self-emit one
+  `agent.act`/`agent.plan`/`agent.answer` event correlated to the run that
+  produced it, so `state.py`'s `ToolContext` Protocol was extended
+  additively with `run_id: str` and `step_index: int`. `query_observations.run`
+  and the plan/act/draft nodes now read these off `ctx` to stamp their
+  self-emitted events, rather than the caller passing `run_id`/`step_index` in
+  as explicit parameters alongside `ctx`.
+- **Action taken:** Extended `ToolContext` additively (no existing field
+  removed or retyped) and wired `graph.run_agent`'s mutable `RunContext` to
+  satisfy the extended Protocol. Not treated as a breaking change since every
+  existing caller shape (profile_id/db_session) still satisfies the Protocol;
+  only callers that need correlated audit events need to populate the two new
+  fields.
+- **Recommended resolution:** Confirm carrying `run_id`/`step_index` *on* the
+  context object is the intended audit-correlation mechanism for the
+  remaining sprints (S2's multi-step reflect loop will mutate `step_index`
+  every iteration; S3's guard node will read both off the same `ctx`), versus
+  passing them as explicit parameters alongside `ctx` on every node/tool
+  call. The context-carried approach keeps node/tool signatures stable as
+  more steps are added (S2-1's four new tools, the reflect loop) at the cost
+  of widening what's implicitly available off `ctx` — worth a deliberate
+  human call before S2 builds more on top of it.
+- **Needs you to:** Confirm `ToolContext`-carried correlation is the pattern
+  to keep, or redirect to explicit parameters before S2-1 adds four more tools
+  against the same Protocol.
+
 ## Observations from exploration (no conflict, but worth your eye)
 
 ### R-4 — Read-only audit coverage gap

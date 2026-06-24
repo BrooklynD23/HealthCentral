@@ -1,8 +1,9 @@
 # Phase 1 — First Tool, End-to-End
 
-**Last Updated:** 2026-06-23
+**Last Updated:** 2026-06-24
 **Owner:** [Owner]
 **Refresh Trigger:** Tool registry contract, `query_observations` shape, or node audit changes
+**Status:** S1-1…S1-4 delivered (commit 0f09cd3; suite 27 passed, 15 skipped). See AC deviations below.
 
 | Map | Value |
 |---|---|
@@ -17,10 +18,31 @@ malformed calls, a `query_observations` tool, and a plan→act→single-step-ans
 returns a cited answer — each node emitting an audit event.
 
 ## Exit criteria
-- Bad tool input → `ValidationError`, tool body never reached (FR-2).
-- `query_observations` returns only `user_verified == True` rows for the current profile (FR-3).
-- Flag ON → answer with ≥1 citation; flag OFF → legacy path (FR-4).
-- plan/act/answer each emit an audit event (assertion test).
+- [x] Bad tool input → `ValidationError`, tool body never reached (FR-2). —
+  `tools/registry.py` `validate_args` runs raw args through the tool's
+  `InputModel` before `run()` is ever called.
+- [x] `query_observations` returns only `user_verified == True` rows for the
+  current profile (FR-3). — DB filter + `ObservationRow.verified: Literal[True]`
+  pinned at the output-model layer.
+- [x] Flag ON → answer with ≥1 citation; flag OFF → legacy path (FR-4). —
+  `graph.run_agent` single-step plan→act→draft path; abstains via
+  `ABSTAIN_TEMPLATE` when no verified data exists.
+- [x] plan/act/answer each emit an audit event (assertion test). — one
+  `agent.plan` / `agent.act` / `agent.answer` event per run, asserted live in
+  `test_s1_first_tool.py`.
+
+### AC deviations from the original contract
+- **Planner is deterministic, not LLM-backed.** `nodes/plan.py` uses
+  keyword-based analyte detection to decide `call_tool(query_observations)` vs
+  `draft`. The `planner` param is an injectable seam for a future LLM-backed
+  planner — no live model is called in S1. This satisfies S1-3's AC (flag-on →
+  cited answer) without taking on prompt-engineering risk this sprint.
+- **Guard node is a passthrough; reflect node is not wired.** `graph.py` wires
+  `plan→act→draft→guard` for the single-step case, but `guard` is currently
+  `_passthrough_guard` — a trivial seam S3 will replace with the real
+  advice/groundedness/confidence gates (no guard logic implemented here). The
+  `reflect` node (loop + step budget, S2-2) is intentionally not called yet —
+  S1 never loops; multi-step plan→act→reflect is deferred to S2.
 
 ## CONTRACTS
 
