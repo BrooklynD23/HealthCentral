@@ -39,6 +39,22 @@ class AgentAuditEvent(BaseModel):
 async def emit_audit_event(event: AgentAuditEvent, *, db: Any = None) -> None:
     """Persist one agent audit event through core.audit.create_audit_log.
 
-    SCAFFOLD: implemented in Sprint 0 (story S0-3).
+    No-ops gracefully when ``db`` is ``None`` so unit tests can exercise
+    callers without a live database session. ``event.details`` must already
+    contain only handles/counts — never raw PHI prompts (PRD §7); this hook
+    does not scrub, it only forwards.
     """
-    raise NotImplementedError("S0-3: wire emit_audit_event -> core.audit.create_audit_log")
+    if db is None:
+        return
+
+    from core.audit import create_audit_log
+
+    await create_audit_log(
+        db,
+        event_type=event.event_type,
+        action=event.action,
+        profile_id=event.profile_id,
+        entity_type="agent_node",
+        entity_id=event.run_id,
+        details=event.details,
+    )
