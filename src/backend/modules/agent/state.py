@@ -25,9 +25,16 @@ class ToolContext(Protocol):
     At implementation time this is satisfied by the FastAPI ``ProfileDbSession``
     dependency bound to the unlocked vault (see docs/agile/EXPLORATION_SUMMARY.md
     section B). Typed as a Protocol so scaffolds stay import-clean.
+
+    ``run_id`` and ``step_index`` are carried so a tool's own ``agent.act``
+    audit event can be correlated back to its RunLog entry; ``audit_db`` is the
+    optional db handle forwarded to ``audit.emit_audit_event`` (``None`` is a
+    graceful no-op, e.g. in unit tests with no live database).
     """
 
     profile_id: str
+    run_id: str
+    step_index: int
 
     def db_session(self) -> Any: ...
 

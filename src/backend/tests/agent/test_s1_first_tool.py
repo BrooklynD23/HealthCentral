@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+
 import pytest
 from pydantic import ValidationError
 
@@ -10,6 +12,7 @@ from modules.agent.tools.query_observations import (
     QueryObservationsInput,
     QueryObservationsTool,
 )
+from tests.agent.conftest import seed_document, seed_observation
 
 
 # --- live: typed-registry / tool contracts (FR-2, FR-3) ---------------------
@@ -34,18 +37,89 @@ def test_query_observations_tool_declares_read_only_schemas():
     assert QueryObservationsTool.InputModel is QueryObservationsInput
 
 
-# --- skip: behavior that lands when S1 is implemented ------------------------
+# --- live: behavior landed in S1 ---------------------------------------------
 
-@pytest.mark.skip(reason="S1-2 scaffold: query returns only verified rows for current profile")
-def test_s1_2_returns_only_verified_rows():
-    ...
+@pytest.mark.asyncio
+async def test_s1_2_returns_only_verified_rows(agent_profile_db, make_run_context):
+    """S1-2: query returns only verified rows for current profile."""
+    session_maker = agent_profile_db
+    profile_id = str(uuid.uuid4())
+    doc_id = await seed_document(session_maker, profile_id=profile_id)
+
+    verified_id = await seed_observation(
+        session_maker, profile_id=profile_id, doc_id=doc_id,
+        analyte="LDL", value=138.0, verified=True,
+    )
+    await seed_observation(
+        session_maker, profile_id=profile_id, doc_id=doc_id,
+        analyte="LDL", value=999.0, verified=False,
+    )
+
+    ctx = make_run_context(session_maker, profile_id=profile_id)
+    tool = QueryObservationsTool()
+    output = await tool.run(QueryObservationsInput(), ctx)
+
+    assert len(output.rows) == 1
+    assert output.rows[0].observation_id == verified_id
+    assert output.rows[0].verified is True
+    assert output.rows[0].value == 138.0
 
 
-@pytest.mark.skip(reason="S1-3 scaffold: flag-on plan->act->answer yields >=1 citation")
-def test_s1_3_flag_on_answer_has_citation():
-    ...
+@pytest.mark.asyncio
+async def test_s1_3_flag_on_answer_has_citation(agent_profile_db, make_run_context):
+    """S1-3: flag-on plan->act->answer yields >=1 citation."""
+    from modules.agent.graph import run_agent
+
+    session_maker = agent_profile_db
+    profile_id = str(uuid.uuid4())
+    doc_id = await seed_document(session_maker, profile_id=profile_id)
+    await seed_observation(
+        session_maker, profile_id=profile_id, doc_id=doc_id,
+        analyte="LDL", value=138.0, verified=True,
+    )
+
+    ctx = make_run_context(session_maker, profile_id=profile_id)
+    terminal = await run_agent("How has my LDL changed over the last year?", ctx)
+
+    assert terminal.terminal == "answer"
+    assert len(terminal.citations) >= 1
 
 
-@pytest.mark.skip(reason="S1-4 scaffold: plan/act/answer each emit an audit event")
-def test_s1_4_audit_event_per_node():
-    ...
+@pytest.mark.asyncio
+async def test_s1_4_audit_event_per_node(agent_profile_db, make_run_context, monkeypatch):
+    """S1-4: plan, act, and draft each emit exactly one audit event."""
+    from modules.agent import audit
+    from modules.agent.graph import run_agent
+
+    emitted: list[str] = []
+    original = audit.emit_audit_event
+
+    async def _capture(event, *, db=None):
+        emitted.append(event.node)
+        return await original(event, db=db)
+
+    monkeypatch.setattr(audit, "emit_audit_event", _capture)
+    # query_observations / plan / draft import emit_audit_event by reference at
+    # module load time, so patch each module's bound name too.
+    import modules.agent.nodes.plan as plan_mod
+    import modules.agent.nodes.draft as draft_mod
+    import modules.agent.tools.query_observations as qo_mod
+
+    monkeypatch.setattr(plan_mod, "emit_audit_event", _capture)
+    monkeypatch.setattr(draft_mod, "emit_audit_event", _capture)
+    monkeypatch.setattr(qo_mod, "emit_audit_event", _capture)
+
+    session_maker = agent_profile_db
+    profile_id = str(uuid.uuid4())
+    doc_id = await seed_document(session_maker, profile_id=profile_id)
+    await seed_observation(
+        session_maker, profile_id=profile_id, doc_id=doc_id,
+        analyte="LDL", value=138.0, verified=True,
+    )
+
+    ctx = make_run_context(session_maker, profile_id=profile_id)
+    await run_agent("How has my LDL changed over the last year?", ctx)
+
+    assert emitted.count("plan") == 1
+    assert emitted.count("act") == 1
+    assert emitted.count("draft") == 1
