@@ -23,6 +23,7 @@ from core.auth import RequireAuth, ProfileDbSession, ProfileEncryptionManager
 from core.config import user_ocr_preference_enabled, compute_ocr_effective
 from core.profile_database import get_profile_db_manager
 from models import UserModelSettings
+from modules.agent.settings import is_agent_enabled
 from modules.environment_diagnostics import build_environment_diagnostics
 from modules.hardware_detection import (
     HardwareProfile,
@@ -168,6 +169,7 @@ class ModelSettingsResponse(BaseModel):
     ocr_preference_enabled: bool = True
     ocr_effective: bool = False
     ocr_blockers: list[str] = Field(default_factory=list)
+    agent_enabled: bool = True
 
 
 class DownloadProgressResponse(BaseModel):
@@ -228,6 +230,16 @@ class OcrSettingsResponse(BaseModel):
     ocr_preference_enabled: bool
     ocr_effective: bool
     ocr_blockers: list[str] = Field(default_factory=list)
+
+
+class UserModelSettingsUpdate(BaseModel):
+    """Partial update for the agent_enabled cutover flag (Agent Overhaul S5-1)."""
+    agent_enabled: Optional[bool] = None
+
+
+class AgentSettingsResponse(BaseModel):
+    agent_enabled: bool
+
 
 class ProviderInfoResponse(BaseModel):
     """Current LLM provider configuration."""
@@ -406,6 +418,7 @@ async def get_model_settings(
         ocr_preference_enabled=ocr_pref,
         ocr_effective=ocr_effective,
         ocr_blockers=ocr_blockers,
+        agent_enabled=is_agent_enabled(user_settings),
     )
 
 
@@ -1035,3 +1048,26 @@ async def update_ocr_settings(
         ocr_effective=ocr_effective,
         ocr_blockers=ocr_blockers,
     )
+
+
+@router.patch(
+    "/agent",
+    response_model=AgentSettingsResponse,
+    summary="Update agent_enabled",
+    description=(
+        "Per-profile toggle for the Agent Overhaul cutover (S5-1). When True "
+        "(the default), POST /assistant/chat serves via the agent graph, "
+        "falling back to the legacy retrieval path on any agent error. "
+        "When False, /assistant/chat always uses the legacy path."
+    ),
+)
+async def update_agent_settings(
+    data: UserModelSettingsUpdate,
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
+):
+    settings_row = await _get_or_create_user_settings(session.profile_id, profile_db)
+    if data.agent_enabled is not None:
+        settings_row.agent_enabled = data.agent_enabled
+    await profile_db.commit()
+    return AgentSettingsResponse(agent_enabled=is_agent_enabled(settings_row))

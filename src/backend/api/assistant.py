@@ -8,10 +8,15 @@ Phase 4: Now includes verification metadata in responses.
 ASSIST-HIST-001: Session persistence — create/list/resume chat sessions,
   persist every user+assistant turn to the per-profile DB.
 ASSIST-MEM-003: Memory injection gated by (request flag AND per-profile setting).
+Agent Overhaul S5-1: POST /chat serves via the agent graph when
+  is_agent_enabled(settings) is True (the default post-cutover), falling back
+  to the legacy rag.query path on any agent exception or when the flag is
+  explicitly off. Session/turn persistence is identical on both paths.
 """
 
 import logging
 import uuid
+from contextlib import asynccontextmanager
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -23,8 +28,19 @@ from core.database import get_db
 from core.auth import RequireAuth, ProfileDbSession
 from core.time import utcnow
 from models.chat_session import ChatSession, ChatTurn
+from models.model_settings import UserModelSettings
+from models.observation import Observation
 from modules.rag import RAGModule, VerificationConfig, ModelUnavailableError
 from modules.faithfulness import FaithfulnessConfig
+from modules.agent.cache import (
+    CacheKey,
+    get_cached,
+    normalize_question,
+    put_cached,
+)
+from modules.agent.graph import RunContext, new_run_id, run_agent
+from modules.agent.schemas import AgentTerminal
+from modules.agent.settings import is_agent_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -509,6 +525,122 @@ async def update_memory_settings(
 
 
 # ---------------------------------------------------------------------------
+# Agent cutover helpers (Agent Overhaul S5-1, S5-2)
+# ---------------------------------------------------------------------------
+
+async def _get_user_model_settings(
+    profile_id: str,
+    profile_db: AsyncSession,
+) -> Optional[UserModelSettings]:
+    """Fetch the profile's UserModelSettings row, or None if it has never
+    saved settings (is_agent_enabled treats that as AGENT_ENABLED_DEFAULT).
+    """
+    result = await profile_db.execute(
+        select(UserModelSettings).where(UserModelSettings.profile_id == profile_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def _profile_version(profile_id: str, profile_db: AsyncSession) -> int:
+    """Cache version source (S5-2): the count of verified observations for
+    this profile. PRD §10 Q4: profile_version increments on any observation
+    verify, so a new verify always produces a different CacheKey and thus a
+    guaranteed cache miss — never a stale answer for changed data.
+    """
+    result = await profile_db.execute(
+        select(func.count(Observation.id)).where(
+            Observation.profile_id == profile_id,
+            Observation.user_verified == True,  # noqa: E712
+        )
+    )
+    return result.scalar() or 0
+
+
+def _agent_terminal_to_response_parts(
+    terminal: AgentTerminal,
+) -> tuple[list[ResponseSegment], VerificationInfo]:
+    """Map an AgentTerminal onto the ChatResponse's segments/verification
+    shape (ChatResponse schema itself is unchanged — no breaking client
+    changes). One segment carries the terminal's text; "answer" terminals
+    are grounded (every sentence in them already carries a citation per
+    draft/guard's contract) so verification reports them as such, while
+    abstain/escalate are fixed-template, zero-claim terminals.
+    """
+    citations = [
+        Citation(
+            source_type="reference" if c.source_type == "reference" else "user_document",
+            doc_id=c.source_id if c.source_type == "document" else None,
+            doc_title=None,
+            page=None,
+            text_snippet=c.locator or c.source_id,
+            relevance_score=1.0,
+        )
+        for c in terminal.citations
+    ]
+
+    segment_type = "report_facts" if terminal.terminal == "answer" else "uncertainty"
+    segments = [
+        ResponseSegment(segment_type=segment_type, content=terminal.text, citations=citations)
+    ]
+
+    is_answer = terminal.terminal == "answer"
+    verification = VerificationInfo(
+        enabled=True,
+        total_claims=len(citations) if is_answer else 0,
+        verified_claims=len(citations) if is_answer else 0,
+        failed_claims=0,
+        faithfulness_score=1.0 if is_answer else 0.0,
+        authority_score=1.0 if is_answer else 0.0,
+        summary=f"agent:{terminal.terminal}",
+        issues=[],
+    )
+    return segments, verification
+
+
+async def _serve_via_agent(
+    question: str,
+    profile_id: str,
+    profile_db: AsyncSession,
+    db: AsyncSession,
+) -> tuple[list[ResponseSegment], str, VerificationInfo]:
+    """Run the agent graph for ``question`` and return (segments,
+    full_response, verification) — the same shapes the legacy rag.query path
+    produces, so the caller's session/turn persistence is unaffected.
+
+    Consults the semantic cache (S5-2) first: a hit short-circuits the run
+    entirely. PHI: nothing here logs the raw question; only the run_id and
+    handle/count-shaped audit details cross into logging (audit.py contract).
+    """
+    profile_version = await _profile_version(profile_id, profile_db)
+    cache_key = CacheKey(
+        normalized_question=normalize_question(question),
+        profile_version=profile_version,
+    )
+
+    cached = get_cached(cache_key)
+    if cached is not None:
+        segments, verification = _agent_terminal_to_response_parts(cached)
+        return segments, cached.text, verification
+
+    @asynccontextmanager
+    async def _db_session_factory():
+        yield profile_db
+
+    ctx = RunContext(
+        profile_id=profile_id,
+        run_id=new_run_id(),
+        db_session_factory=_db_session_factory,
+        audit_db=db,
+    )
+    terminal = await run_agent(question, ctx)
+
+    put_cached(cache_key, terminal)
+
+    segments, verification = _agent_terminal_to_response_parts(terminal)
+    return segments, terminal.text, verification
+
+
+# ---------------------------------------------------------------------------
 # Main chat endpoint
 # ---------------------------------------------------------------------------
 
@@ -566,29 +698,98 @@ async def chat(
             request.use_memory, session.profile_id, profile_db
         )
 
-        result = await rag.query(
-            question=request.question,
-            profile_id=session.profile_id,
-            selected_analytes=request.selected_analytes,
-            selected_panel=request.selected_panel,
-            from_date=request.from_date,
-            to_date=request.to_date,
-            include_references=request.include_references,
-            history=db_history if db_history else None,
-            model_runner=runner,
-            master_db=db,
-            profile_db=profile_db,
-            use_memory=inject_memory,
-            category=request.document_category,
-        )
+        # --- Agent Overhaul S5-1: agent path with legacy fallback ---
+        # Resolve the persisted per-profile flag (resolves RECONCILIATION
+        # R-8); None (fresh profile, no settings row) falls through to
+        # AGENT_ENABLED_DEFAULT inside is_agent_enabled.
+        user_model_settings = await _get_user_model_settings(session.profile_id, profile_db)
+        use_agent = is_agent_enabled(user_model_settings)
 
-        # Build full response text
-        full_response = "\n\n".join(
-            f"**{seg.segment_type.upper().replace('_', ' ')}**\n{seg.content}"
-            for seg in result.segments
-        )
+        agent_failed = False
+        if use_agent:
+            try:
+                segments, full_response, verification = await _serve_via_agent(
+                    question=request.question,
+                    profile_id=session.profile_id,
+                    profile_db=profile_db,
+                    db=db,
+                )
+                insufficient_context = False
+                insufficient_reasons: list[str] = []
+                is_valid = True
+                validation_errors: list[str] = []
+            except Exception:
+                # One-release safety net (S5-1 AC): ANY agent exception falls
+                # back to the legacy path below so the user still gets an
+                # answer. Never log the raw question (PHI) — handles/counts
+                # only, per the agent audit contract.
+                logger.exception(
+                    "Agent path failed; falling back to legacy rag.query",
+                    extra={"profile_id": session.profile_id},
+                )
+                agent_failed = True
 
-        # --- Persist user + assistant turn ---
+        if not use_agent or agent_failed:
+            result = await rag.query(
+                question=request.question,
+                profile_id=session.profile_id,
+                selected_analytes=request.selected_analytes,
+                selected_panel=request.selected_panel,
+                from_date=request.from_date,
+                to_date=request.to_date,
+                include_references=request.include_references,
+                history=db_history if db_history else None,
+                model_runner=runner,
+                master_db=db,
+                profile_db=profile_db,
+                use_memory=inject_memory,
+                category=request.document_category,
+            )
+
+            # Build full response text
+            full_response = "\n\n".join(
+                f"**{seg.segment_type.upper().replace('_', ' ')}**\n{seg.content}"
+                for seg in result.segments
+            )
+
+            # Build response
+            segments = []
+            for seg in result.segments:
+                citations = [
+                    Citation(
+                        source_type=c.source_type,
+                        doc_id=c.doc_id,
+                        doc_title=c.doc_title,
+                        page=c.page,
+                        text_snippet=c.text_snippet,
+                        authority_tier=c.authority_tier,
+                        authority_score=c.authority_score,
+                    )
+                    for c in seg.citations
+                ]
+                segments.append(ResponseSegment(
+                    segment_type=seg.segment_type,
+                    content=seg.content,
+                    citations=citations,
+                ))
+
+            verification = VerificationInfo(
+                enabled=result.verification.verification_enabled,
+                total_claims=result.verification.total_claims,
+                verified_claims=result.verification.verified_claims,
+                failed_claims=result.verification.failed_claims,
+                faithfulness_score=result.verification.faithfulness_score,
+                authority_score=result.verification.authority_score,
+                summary=result.verification.verification_summary,
+                issues=result.verification.claims_with_issues,
+            )
+
+            insufficient_context = result.insufficient_context
+            insufficient_reasons = result.insufficient_reasons
+            is_valid = result.is_valid
+            validation_errors = result.validation_errors
+
+        # --- Persist user + assistant turn (identical on both paths) ---
         assistant_turn_id = await _append_turns(
             session=chat_session,
             profile_id=session.profile_id,
@@ -609,46 +810,14 @@ async def chat(
             except Exception:
                 pass  # non-fatal
 
-        # Build response
-        segments = []
-        for seg in result.segments:
-            citations = [
-                Citation(
-                    source_type=c.source_type,
-                    doc_id=c.doc_id,
-                    doc_title=c.doc_title,
-                    page=c.page,
-                    text_snippet=c.text_snippet,
-                    authority_tier=c.authority_tier,
-                    authority_score=c.authority_score,
-                )
-                for c in seg.citations
-            ]
-            segments.append(ResponseSegment(
-                segment_type=seg.segment_type,
-                content=seg.content,
-                citations=citations,
-            ))
-
-        verification = VerificationInfo(
-            enabled=result.verification.verification_enabled,
-            total_claims=result.verification.total_claims,
-            verified_claims=result.verification.verified_claims,
-            failed_claims=result.verification.failed_claims,
-            faithfulness_score=result.verification.faithfulness_score,
-            authority_score=result.verification.authority_score,
-            summary=result.verification.verification_summary,
-            issues=result.verification.claims_with_issues,
-        )
-
         return ChatResponse(
             segments=segments,
             full_response=full_response,
-            insufficient_context=result.insufficient_context,
-            insufficient_reasons=result.insufficient_reasons,
+            insufficient_context=insufficient_context,
+            insufficient_reasons=insufficient_reasons,
             verification=verification,
-            is_valid=result.is_valid,
-            validation_errors=result.validation_errors,
+            is_valid=is_valid,
+            validation_errors=validation_errors,
             session_id=chat_session.id,
             turn_id=assistant_turn_id,
         )

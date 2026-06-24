@@ -24,8 +24,12 @@ def test_s0_1_agent_package_imports_clean():
 
 
 def test_s0_2_flag_defaults_off():
-    """S0-2: the agent flag default is OFF (legacy path unchanged)."""
-    assert settings.AGENT_ENABLED_DEFAULT is False
+    """S0-2 set the agent flag default OFF; S5 cutover flipped it ON per spec
+    AC (AGILE_PLAN.md Sprint 5 S5-1) — this is the documented cutover, not a
+    weakening. The legacy path remains reachable as a fallback (flag False,
+    or any agent exception) — see api/assistant.py.
+    """
+    assert settings.AGENT_ENABLED_DEFAULT is True
 
 
 def test_s0_3_audit_event_schema_has_required_fields():
@@ -50,15 +54,16 @@ def test_step_budget_constant_is_five():
 # --- skip: behavior that lands when S0 is implemented ------------------------
 
 def test_s0_2_flag_off_means_legacy_path_unchanged():
-    """S0-2: flag defaults OFF for absent key / empty settings / None; ON only
-    when agent_enabled is explicitly truthy — so the legacy /assistant/ path
-    is unaffected unless a profile opts in.
+    """S0-2 / S5-1: absent key / empty settings / None fall through to
+    ``AGENT_ENABLED_DEFAULT`` (True since the S5 cutover); an explicit
+    ``False`` always wins, which is exactly what keeps the legacy
+    ``/assistant/`` path reachable as the documented fallback.
     """
-    # Absent key in a dict-like settings payload.
-    assert settings.is_agent_enabled({}) is False
-    # No settings row at all (fresh profile).
-    assert settings.is_agent_enabled(None) is False
-    # Explicitly falsy.
+    # Absent key in a dict-like settings payload -> default (True post-S5-1).
+    assert settings.is_agent_enabled({}) is True
+    # No settings row at all (fresh profile) -> default.
+    assert settings.is_agent_enabled(None) is True
+    # Explicitly falsy always wins over the default.
     assert settings.is_agent_enabled({"agent_enabled": False}) is False
 
     # Explicitly truthy -> True, via dict shape.
@@ -70,11 +75,11 @@ def test_s0_2_flag_off_means_legacy_path_unchanged():
 
     assert settings.is_agent_enabled(_Settings()) is True
 
-    # Attribute absent on an object -> default OFF.
+    # Attribute absent on an object -> default (True post-S5-1).
     class _EmptySettings:
         pass
 
-    assert settings.is_agent_enabled(_EmptySettings()) is False
+    assert settings.is_agent_enabled(_EmptySettings()) is True
 
 
 @pytest.mark.asyncio

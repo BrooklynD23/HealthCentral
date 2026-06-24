@@ -41,7 +41,9 @@ model-generated prose) — abstain is a first-class success, not an error path.
 
 from __future__ import annotations
 
+import time
 import uuid
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -49,12 +51,27 @@ from typing import Any
 from .guardrails.classifier import classify_advice
 from .guardrails.guard import guard as run_guard
 from .guardrails.templates import ABSTAIN_TEMPLATE, ESCALATE_TEMPLATE
+from .metrics import record_node_timing
 from .nodes.act import act
 from .nodes.draft import draft
 from .nodes.plan import plan
 from .nodes.reflect import reflect
 from .schemas import AgentTerminal
 from .state import MAX_STEPS, RunLog, RunStep, ToolContext
+
+
+@contextmanager
+def _timed_node(node: str):
+    """Time one node's execution and surface it via ``record_node_timing``
+    (story S5-3). Trivial overhead: one ``time.monotonic()`` pair plus a
+    dict append in the metrics collector — never on the critical path of
+    grounding/guard decisions, just observed around them.
+    """
+    start = time.monotonic()
+    try:
+        yield
+    finally:
+        record_node_timing(node, time.monotonic() - start)
 
 
 @dataclass
@@ -134,7 +151,10 @@ async def run_agent(question: str, ctx: ToolContext) -> AgentTerminal:
     before a call that would exceed the cap, and as a defense-in-depth
     backstop this function's own ``for`` loop is itself bounded to MAX_STEPS
     iterations so a planner bug can never spin forever. Emits one audit event
-    per node visited via each node's own ``emit_audit_event`` call.
+    per node visited via each node's own ``emit_audit_event`` call. Each node
+    visited (plan/act/reflect/draft/guard) also has its wall-clock duration
+    recorded via ``record_node_timing`` (story S5-3), surfacing per-node
+    p50/p95/p99 on ``/api/v1/monitoring/metrics``.
 
     PRE-MODEL advice gate (story S3-1): the incoming question is checked by
     the SAME ``classify_advice`` the guard node re-checks the draft with,
@@ -156,7 +176,8 @@ async def run_agent(question: str, ctx: ToolContext) -> AgentTerminal:
     for _ in range(MAX_STEPS + 1):  # defense-in-depth: loop itself is bounded
         # --- plan: choose the next tool, decide to draft, or abstain ----
         ctx.step_index = len(run_log.steps)
-        decision = await plan(question, run_log, ctx)
+        with _timed_node("plan"):
+            decision = await plan(question, run_log, ctx)
         _record_plan_step(run_log, ctx, decision)
 
         if decision.action == "abstain":
@@ -171,11 +192,13 @@ async def run_agent(question: str, ctx: ToolContext) -> AgentTerminal:
 
         # decision.action == "call_tool": execute exactly one tool call ----
         ctx.step_index = len(run_log.steps)
-        await act(decision.tool_name, decision.tool_args or {}, run_log, ctx)
+        with _timed_node("act"):
+            await act(decision.tool_name, decision.tool_args or {}, run_log, ctx)
 
         # --- reflect: loop back to plan, proceed to draft, or hit budget -
         ctx.step_index = len(run_log.steps)
-        reflect_decision = await reflect(run_log, ctx)
+        with _timed_node("reflect"):
+            reflect_decision = await reflect(run_log, ctx)
         _record_reflect_step(run_log, ctx, reflect_decision)
 
         if reflect_decision.decision == "abstain_budget":
@@ -192,11 +215,13 @@ async def run_agent(question: str, ctx: ToolContext) -> AgentTerminal:
 
     # --- draft: compose the grounded answer from gathered evidence -----
     ctx.step_index = len(run_log.steps)
-    draft_result = await draft(question, run_log, ctx)
+    with _timed_node("draft"):
+        draft_result = await draft(question, run_log, ctx)
 
     # --- guard: advice gate (re-check) -> groundedness -> confidence -----
     ctx.step_index = len(run_log.steps)
-    terminal = await _guard_draft(question=question, draft_result=draft_result, ctx=ctx)
+    with _timed_node("guard"):
+        terminal = await _guard_draft(question=question, draft_result=draft_result, ctx=ctx)
     run_log.terminal = terminal
 
     return terminal
