@@ -1,14 +1,14 @@
 # Phase 2 — The Loop Closes (multi-step reflect)
 
-**Last Updated:** 2026-06-23
+**Last Updated:** 2026-06-24
 **Owner:** [Owner]
 **Refresh Trigger:** Step-budget value, run-log shape, or the four new tool contracts change
 
 | Map | Value |
 |---|---|
-| Release | **R1 — Walking skeleton** (R1 **ships** at end of S2) |
+| Release | **R1 — Walking skeleton** — **SHIPPED 2026-06-24** (end of S2, commit fbb4fe7) |
 | Epic | **E1 — Agent Core** (`skills/healthcentral-agent`) |
-| Sprint | **S2** (S2-1…S2-4) |
+| Sprint | **S2** (S2-1…S2-4) — **delivered**, commit fbb4fe7; agent suite 30 passed / 12 skipped |
 | Binding skills | `healthcentral-agent`, `healthcentral-backend`, `healthcentral-evals` |
 
 ## Objective
@@ -16,15 +16,42 @@ Close the loop: four more read-only tools, a reflect node with a hard ≤5-step 
 terminates gracefully, a replayable per-step run log, and the eval-harness skeleton with
 two seed cases (1 grounded, 1 abstain).
 
-## Exit criteria (= **R1 exit**, AGILE_PLAN §5)
+## Status: delivered (commit fbb4fe7) — R1 exit criteria met
+- S2-1 — `compute_trend`, `check_verification`, `lookup_reference`, `retrieve_chunks`:
+  **delivered**, all four typed/read-only/audited and registered.
+- S2-2 — reflect node + hard `MAX_STEPS=5` budget: **delivered**;
+  `graph.run_agent` is the real plan→act→reflect→(loop|draft)→guard(passthrough)→terminal
+  loop; over-budget → graceful abstain (`ABSTAIN_TEMPLATE`).
+- S2-3 — replayability: **delivered**; `graph.replay` reconstructs the terminal from
+  `RunLog.steps` without re-calling any tool (proven by a test that makes `registry.get`
+  raise during replay).
+- S2-4 — eval harness + 2 seed cases: **delivered**; `tests/agent/eval_harness.py`
+  materializes a golden case's vault into an in-memory profile DB and runs `run_agent`;
+  `grounded-ldl-trend` and `abstain-unverified-ldl` both pass.
+
+### AC deviations (see RECONCILIATION.md R-10, R-11)
+- **`retrieve_chunks`** uses a deterministic text-match fallback over verified chunks
+  rather than the RAG vector retriever — the real vector path needs an `Embedding` row
+  per chunk from the ingest pipeline, which golden/unit fixtures don't generate. Falls
+  back further to most-recent verified chunks if no text match. Still typed, read-only,
+  audited, and scoped to `Document.status == "verified"`.
+- **`lookup_reference`** reads the master-DB `BiomarkerKnowledge` table directly via
+  `core.database.async_session_maker` (new `modules/agent/knowledge_lookup.py` adapter),
+  not `ctx.db_session` — the contract's `ToolContext.db_session` is profile-scoped, but
+  reference-range knowledge lives in the master DB. Degrades gracefully to handle-only
+  (`reference=None`, stable handle still returned) when the master DB isn't reachable.
+
+## Exit criteria (= **R1 exit**, AGILE_PLAN §5) — MET
 - One tool end-to-end, audited, **flag off = no change** — demonstrated by a flag-ON
-  agent answering a real biomarker question with citations.
+  agent answering a real biomarker question with citations. ✓
 - `compute_trend`, `retrieve_chunks`, `lookup_reference`, `check_verification` each typed,
-  read-only, profile-scoped, audited (FR-5).
+  read-only, profile-scoped, audited (FR-5). ✓ (see AC deviations above for
+  `retrieve_chunks`/`lookup_reference` data-source notes — both remain read-only/audited)
 - Step budget exceeded → graceful terminal `abstain` ("insufficient evidence within
-  budget"), never crash/spin (FR-6).
-- A failed run is reconstructable from its structured log (FR-7).
-- 2 seed eval cases pass locally (1 grounded, 1 abstain).
+  budget"), never crash/spin (FR-6). ✓
+- A failed run is reconstructable from its structured log (FR-7). ✓
+- 2 seed eval cases pass locally (1 grounded, 1 abstain). ✓ (harness exists and is green
+  locally; **CI eval gate is S6/R3 scope**, not part of this R1 exit)
 
 ## CONTRACTS
 

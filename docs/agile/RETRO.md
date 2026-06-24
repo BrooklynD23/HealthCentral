@@ -15,6 +15,62 @@
 
 ---
 
+## S2 — The loop closes (implemented, commit fbb4fe7) — **R1 release retro**
+> This is also the **R1 release retro point**: S2 is R1's last sprint
+> (AGILE_PLAN §5), and the RELEASE_CHECKLIST rows backing R1 (1, 2, 8) all
+> flipped `[x]` at this close-out. The three iteration questions below are
+> answered both at sprint scope and, where noted, at release scope.
+- **Keep:** Letting the deterministic planner grow incrementally (trend
+  questions → `compute_trend`; analyte "why" questions with no verified rows
+  → `check_verification` → abstain) rather than reaching for a live LLM
+  planner kept S2 provable the same way S1 was — no prompt-engineering risk
+  taken on to close the loop. Making the reflect node's budget check
+  structural (`MAX_STEPS=5`, hard stop → graceful `ABSTAIN_TEMPLATE`) instead
+  of advisory means "the loop never spins" is a property of the graph, not a
+  hope about model behavior — the same defense-in-depth posture as S1's
+  `Literal[True]` pin on verified observations. Building `graph.replay` to
+  reconstruct a terminal from `RunLog.steps` *without* re-calling any tool
+  (proven by a test that makes `registry.get` raise during replay) means a
+  failed run's story is trustworthy even if the live tools have since changed
+  or are unreachable.
+- **Drop:** Two AC deviations were absorbed mid-sprint rather than being
+  flagged in S2-1's acceptance criteria up front — same shape of gap RETRO
+  called out for S0-2 and S1-3: "does this story's AC say what happens when
+  the ideal data path isn't available?" `retrieve_chunks` falling back to
+  deterministic text-match (the real RAG vector retriever needs `Embedding`
+  rows the golden fixtures don't generate) and `lookup_reference` reading the
+  master DB directly instead of through `ctx.db_session` (which is
+  profile-scoped, and `BiomarkerKnowledge` isn't) were both reasonable calls,
+  but neither was anticipated in SPRINT_2's AC — caught at close-out via
+  RECONCILIATION rather than stated going in. Opened R-10 and R-11.
+- **Try:** Re-asking the three iteration questions (AGILE_PLAN §8), at both
+  sprint and **R1 release** scope:
+  1. *Did the eval set catch what mattered?* At sprint scope: yes for the two
+     seed cases (`grounded-ldl-trend`, `abstain-unverified-ldl`), both pass
+     live via the new harness. At release scope: the harness is real but it
+     is **not yet CI-gated** (that's S6/R3) and only covers 2 golden cases —
+     R1 shipping does not mean the eval set is comprehensive, only that the
+     skeleton works end-to-end. Next sprint (S3) should add a golden case for
+     the guard node's advice-bait rejection, since that's the next thing a
+     real failure would slip through.
+  2. *Is the read-only rule still holding?* Yes — all four new S2-1 tools are
+     pure reads (`compute_trend` aggregates existing verified observations,
+     `retrieve_chunks` reads verified-document chunks, `lookup_reference`
+     reads master-DB reference data, `check_verification` reads status/counts
+     only and never the unverified value itself). No write path introduced.
+     At release scope: R1's entire surface area is read-only end-to-end —
+     this held for the whole release, not just one sprint.
+  3. *Is governance still structural?* Partially, same as S1's flag: audit
+     emission is now structural across every node including the two new S2
+     event types (`agent.reflect`, `agent.terminal`), and the step budget is
+     structural (hard stop, not a suggestion) — but the guard node itself
+     remains `_passthrough_guard`, so "governance enforced per step" is still
+     not true end-to-end. **At release scope this is the headline R1→R2
+     boundary**: R1 proves the loop and the audit trail; R2 (starting S3) is
+     where the guard node stops being a passthrough. Don't let S3 treat the
+     passthrough as load-bearing — RELEASE_CHECKLIST rows 3/4 stay `[ ]` until
+     it's real.
+
 ## S1 — First tool, end-to-end (implemented, commit 0f09cd3)
 - **Keep:** Making the planner a seam (`planner` param, deterministic
   keyword-based implementation for now) instead of either hard-coding the

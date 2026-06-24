@@ -114,6 +114,61 @@ artifact, or the human resolves an open item below
   to keep, or redirect to explicit parameters before S2-1 adds four more tools
   against the same Protocol.
 
+### R-10 — `lookup_reference` reads the master DB directly, bypassing the profile-scoped `ToolContext`
+- **Status:** Open — needs a human nod on the pattern (proposed resolution below).
+- **Owner:** [Owner]
+- **Date found:** 2026-06-24 (S2 close-out reconciliation pass, post commit fbb4fe7)
+- **Bundle says:** Phase 0's `ToolContext` Protocol (`modules/agent/state.py`)
+  exposes `db_session` as the profile-scoped session a tool should use for its
+  reads (extended in R-9 with `run_id`/`step_index` for audit correlation, but
+  still profile-scoped for data access).
+- **Reality:** `lookup_reference` needs `BiomarkerKnowledge`, which lives in the
+  **master** DB, not any profile DB. `ctx.db_session` can't reach it, so the new
+  `modules/agent/knowledge_lookup.py` adapter opens its own session via
+  `core.database.async_session_maker` directly, independent of `ctx`. It degrades
+  gracefully (`reference=None`, stable handle still returned) if the master DB
+  isn't reachable, rather than crashing.
+- **Action taken:** Implemented the direct master-DB read as a self-contained
+  adapter module rather than extending `ToolContext` again, since `run_id` (R-9)
+  was an additive correlation field and this is a different kind of need (a
+  second data source, not more metadata on the same one).
+- **Recommended resolution:** Confirm whether master-DB reads should keep going
+  through ad hoc adapters like `knowledge_lookup.py` (one per tool that needs
+  master-DB data) or whether `ToolContext` should grow a second, explicit
+  `master_db_session` field so the pattern is visible in the Protocol itself.
+  Worth deciding before S3+ tools need master-DB data too — better to pick one
+  shape now than have a third pattern appear.
+- **Needs you to:** Confirm the intended pattern for master-DB-reading tools
+  (ad hoc adapter vs. extending `ToolContext`) before more tools need it.
+
+### R-11 — `retrieve_chunks` falls back to deterministic text-match instead of the RAG vector retriever
+- **Status:** Open — needs a human nod on golden-fixture scope (proposed
+  resolution below).
+- **Owner:** [Owner]
+- **Date found:** 2026-06-24 (S2 close-out reconciliation pass, post commit fbb4fe7)
+- **Bundle says:** Phase 2's `retrieve_chunks` contract returns `chunks:
+  list[ChunkRef]` restricted to chunks whose parent `Document.status ==
+  "verified"` (R-5), implying retrieval goes through the existing RAG vector
+  path (`modules/rag.py`).
+- **Reality:** The real vector retriever requires an `Embedding` row per chunk,
+  produced by the ingest pipeline. Golden cases and unit fixtures don't generate
+  embeddings, so `retrieve_chunks` instead uses a deterministic, typed,
+  read-only, audited substring-match-over-verified-chunks fallback (falling
+  back further to most-recent verified chunks if no text match), so the tool is
+  exercisable in tests without standing up the embedding pipeline.
+- **Action taken:** Shipped the text-match fallback as the only path for now;
+  did not wire the real vector retriever or add embedding-seeding to golden
+  fixtures, since neither was in S2-1's scoped AC.
+- **Recommended resolution:** Decide whether S4 or S6 golden cases should start
+  seeding `Embedding` rows so the real vector-retrieval path gets exercised by
+  evals (closer to production behavior), or whether the text-match fallback is
+  judged acceptable for eval purposes indefinitely (simpler, deterministic,
+  no embedding-model dependency in CI). This decision should land before S6
+  builds the CI eval gate on top of whichever path is authoritative.
+- **Needs you to:** Confirm whether S4/S6 golden cases should seed embeddings to
+  exercise the real vector path, or whether the text-match fallback is
+  acceptable for evals going forward.
+
 ## Observations from exploration (no conflict, but worth your eye)
 
 ### R-4 — Read-only audit coverage gap

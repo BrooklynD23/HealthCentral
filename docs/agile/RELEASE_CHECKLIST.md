@@ -16,14 +16,14 @@
 
 | # | Report 0 dimension (target) | Backing stories | Release | Status |
 |---|---|---|---|---|
-| 1 | Plan→act→reflect loop, up to 5 read-only lookups | S1-3, S2-2 | R1 | `[~]` *(S1-3 ships plan→act→draft→answer for a single step; reflect node + step budget loop land in S2-2)* |
-| 2 | Combines multiple values / trends / references | S2-1, S1-3 | R1 | `[~]` *(S1-3 cites one or more verified observations from a single tool call; trend/reference combination needs S2-1's additional tools)* |
+| 1 | Plan→act→reflect loop, up to 5 read-only lookups | S1-3, S2-2 | R1 | `[x]` *(S2-2 lands the real plan→act→reflect→(loop\|draft)→guard→terminal loop with a hard MAX_STEPS=5 budget; over-budget → graceful abstain. Verified by `test_s2_loop.py`'s over-budget-abstains-gracefully assertion, now live.)* |
+| 2 | Combines multiple values / trends / references | S2-1, S1-3 | R1 | `[x]` *(S2-1 lands `compute_trend` (trend, each point cites `observation_id`), `lookup_reference` (master-DB reference ranges), `retrieve_chunks` (verified-doc chunks), and `check_verification` (status/count only) — all typed, read-only, audited, registered. The seed eval `grounded-ldl-trend` exercises the multi-tool combination live.)* |
 | 3 | Mechanical guard node: advice gate ×2, unmapped-claim drop, abstain/escalate | S3-1, S3-2, S3-3 | R2 | `[ ]` |
 | 4 | First-class **abstain / escalate** behavior | S3-3, S3-4 | R2 | `[ ]` *(gated)* |
 | 5 | Golden eval suite, 4 axes, CI gate | S6-1, S6-2, S6-3 | R3 | `[ ]` *(gated)* |
 | 6 | Local-first + explicit PHI redaction gate + offline-verified loop | S4-1, S4-2 | R2 | `[ ]` |
 | 7 | Speed capped + cached; p95 ≤ main + 50% | S2-2, S5-2, S5-3 | R2 | `[ ]` |
-| 8 | Every agent decision emits a structured audit event | S0-3, S1-4 (+ per-node throughout) | R1 | `[x]` *(S0-3 persistence helper + S1-4 per-node emission both done & tested — plan/act/draft each emit exactly one audit event per run, verified by `test_s1_first_tool.py`)* |
+| 8 | Every agent decision emits a structured audit event | S0-3, S1-4 (+ per-node throughout) | R1 | `[x]` *(S0-3 persistence helper + S1-4 per-node emission both done & tested — plan/act/draft each emit exactly one audit event per run, verified by `test_s1_first_tool.py`; S2 extends coverage to reflect (`agent.reflect`) and terminal (`agent.terminal`) plus the four new tools, each self-auditing per Phase 2's audit-event schema. Still confirmed live via `test_s1_first_tool.py` + `test_s2_loop.py`.)* |
 | 9 | Behind a flag; legacy path kept one release (rollback safety) | S0-2, S5-1 | R2 | `[~]` *(S0-2 flag helper done, defaults OFF, tested; no live caller wired yet — S5-1 cutover pending, see RECONCILIATION R-8)* |
 
 ## Success-metric gates (AGILE_PLAN §1 — release-level, do not redefine)
@@ -40,6 +40,13 @@ These are the numeric bars the gated rows above must clear before flipping `true
 
 ## Release exit criteria (AGILE_PLAN §5 — fixed for R1/R2)
 - **R1 (S0–S2):** one tool end-to-end, audited, flag off = no change. → rows 1, 2, 8.
+  **R1 SHIPPED 2026-06-24** — all three backing rows (1, 2, 8) accepted `[x]` at S2
+  close-out (commit fbb4fe7). Exit criteria met: plan→act→reflect→draft loop closes
+  with a hard 5-step budget and graceful abstain; multi-tool trend/reference
+  combination is live; every node (plan/act/reflect/draft + the four S2 tools) emits
+  a structured audit event. Note: the eval harness (S2-4) exists and the two seed
+  cases pass locally, but the **CI eval gate is S6/R3 scope** — row 5 and the
+  success-metric gates below remain `[ ]`/`(gated)` until S6 wires them into CI.
 - **R2 (S3–S5):** guard node enforces; `/assistant/` served by agent; cache on. →
   rows 3, 4, 6, 7, 9.
 - **R3 (S6–S7):** evals gate CI; (stretch) LoRA ≥ base on golden set. → row 5 + metric gates.
