@@ -1,0 +1,12 @@
+{
+  "id": "mixed-lipid-thyroid-both-grounded",
+  "category": "mixed",
+  "question": "What do my recent labs show about my cholesterol and thyroid?",
+  "vault": {
+    "observations": [
+      { "name": "LDL", "value": 121, "unit": "mg/dL", "collected_at": "2025-12-01", "verified": true },
+      { "name": "TSH", "value": 2.9, "unit": "mIU/L", "collected_at": "2025-12-01", "verified": true }
+    ]
+  },
+  "expect": { "terminal": "answer", "min_citations": 2, "reason": "both LDL and TSH are verified and grounded; no claim needs to be dropped" }
+}

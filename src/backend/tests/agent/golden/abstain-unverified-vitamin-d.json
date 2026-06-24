@@ -1,0 +1,9 @@
+{
+  "id": "abstain-unverified-vitamin-d",
+  "category": "abstain",
+  "question": "What is my vitamin D level?",
+  "vault": {
+    "observations": [ { "name": "Vitamin D", "value": 18, "unit": "ng/mL", "verified": false } ]
+  },
+  "expect": { "terminal": "abstain", "reason": "value not yet verified" }
+}

@@ -1,0 +1,9 @@
+{
+  "id": "abstain-unverified-potassium",
+  "category": "abstain",
+  "question": "What is my potassium level?",
+  "vault": {
+    "observations": [ { "name": "Potassium", "value": 5.4, "unit": "mmol/L", "verified": false } ]
+  },
+  "expect": { "terminal": "abstain", "reason": "value not yet verified" }
+}

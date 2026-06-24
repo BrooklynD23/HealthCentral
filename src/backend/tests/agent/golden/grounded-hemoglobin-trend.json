@@ -1,0 +1,12 @@
+{
+  "id": "grounded-hemoglobin-trend",
+  "category": "grounded",
+  "question": "How has my hemoglobin changed over time?",
+  "vault": {
+    "observations": [
+      { "name": "Hemoglobin", "value": 13.2, "unit": "g/dL", "collected_at": "2025-05-01", "verified": true },
+      { "name": "Hemoglobin", "value": 13.9, "unit": "g/dL", "collected_at": "2025-11-01", "verified": true }
+    ]
+  },
+  "expect": { "terminal": "answer", "min_citations": 1, "reason": "two verified hemoglobin values support a grounded trend" }
+}

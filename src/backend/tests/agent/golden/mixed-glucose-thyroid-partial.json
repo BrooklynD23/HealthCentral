@@ -1,0 +1,13 @@
+{
+  "id": "mixed-glucose-thyroid-partial",
+  "category": "mixed",
+  "question": "What do my labs show about my glucose and thyroid?",
+  "vault": {
+    "observations": [
+      { "name": "Glucose", "value": 101, "unit": "mg/dL", "collected_at": "2025-09-01", "verified": true }
+    ],
+    "documents": [ { "id": "doc-1", "status": "verified" } ],
+    "chunks": [ { "id": "chunk-1", "document_id": "doc-1", "text": "Glucose 101 mg/dL." } ]
+  },
+  "expect": { "terminal": "answer", "min_citations": 1, "drops_unmapped": true, "reason": "glucose grounded; thyroid claim has no source and must be dropped" }
+}

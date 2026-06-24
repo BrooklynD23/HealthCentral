@@ -1,0 +1,12 @@
+{
+  "id": "grounded-tsh-trend",
+  "category": "grounded",
+  "question": "How has my TSH changed over time?",
+  "vault": {
+    "observations": [
+      { "name": "TSH", "value": 3.1, "unit": "mIU/L", "collected_at": "2025-04-01", "verified": true },
+      { "name": "TSH", "value": 2.4, "unit": "mIU/L", "collected_at": "2025-11-01", "verified": true }
+    ]
+  },
+  "expect": { "terminal": "answer", "min_citations": 1, "reason": "two verified TSH values support a grounded trend" }
+}

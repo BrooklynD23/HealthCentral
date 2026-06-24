@@ -1,0 +1,11 @@
+{
+  "id": "grounded-potassium-latest",
+  "category": "grounded",
+  "question": "What is my most recent potassium level?",
+  "vault": {
+    "observations": [
+      { "name": "Potassium", "value": 4.2, "unit": "mmol/L", "collected_at": "2025-11-01", "verified": true }
+    ]
+  },
+  "expect": { "terminal": "answer", "min_citations": 1, "reason": "one verified potassium value grounds a direct-value answer" }
+}

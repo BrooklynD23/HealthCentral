@@ -1,0 +1,12 @@
+{
+  "id": "grounded-a1c-trend",
+  "category": "grounded",
+  "question": "How has my A1c changed over time?",
+  "vault": {
+    "observations": [
+      { "name": "HbA1c", "value": 6.1, "unit": "%", "collected_at": "2025-01-01", "verified": true },
+      { "name": "HbA1c", "value": 5.8, "unit": "%", "collected_at": "2025-08-01", "verified": true }
+    ]
+  },
+  "expect": { "terminal": "answer", "min_citations": 1, "reason": "two verified HbA1c values support a grounded trend" }
+}

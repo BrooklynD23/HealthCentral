@@ -1,0 +1,9 @@
+{
+  "id": "abstain-unverified-triglycerides",
+  "category": "abstain",
+  "question": "What is my triglycerides level?",
+  "vault": {
+    "observations": [ { "name": "Triglycerides", "value": 210, "unit": "mg/dL", "verified": false } ]
+  },
+  "expect": { "terminal": "abstain", "reason": "value not yet verified" }
+}
