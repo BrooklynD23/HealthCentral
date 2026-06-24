@@ -15,6 +15,59 @@
 
 ---
 
+## S4 — PHI gate + offline + golden set to 30 (implemented, commit 43f7a4b)
+- **Keep:** Writing the redaction gate (`gate_external_payload`) as a
+  mandatory chokepoint *before* any agent tool actually needs it, rather than
+  waiting for the first external-egress tool to motivate the design, means
+  the no-bypass guarantee is locked in by signature (no `bypass` param
+  exists to add pressure to later) rather than retrofitted under deadline
+  pressure once a real feature depends on it — the same defense-in-depth
+  posture S1 took with `Literal[True]` and S3 took with the mechanical
+  groundedness check. Fixing R-12 by broadening the planner's query
+  (`_detect_topics()` + no-narrow-filter multi-topic path) instead of trying
+  to enumerate every analyte synonym into `_ANALYTE_KEYWORDS` kept the fix
+  small and pushed the actual "what's grounded" decision to groundedness/
+  guard (S3), where it already belongs — the planner's job is to fetch
+  candidate evidence, not to decide what survives.
+- **Drop:** Growing the golden set to 30 mixed/grounded/abstain/advice-bait
+  cases and watching all 30 pass green surfaced that the *kind* of "mixed"
+  coverage we have is narrower than it looks: every mixed case currently
+  achieves `drops_unmapped` by the planner never drafting a sentence for the
+  ungrounded topic in the first place (no evidence retrieved → no sentence
+  composed), not by `groundedness.map_sentences` actually stripping an
+  already-composed, citation-less sentence out of a draft. That second path
+  — compose first, drop second — is real, mechanically tested
+  (`test_s3_2_unmapped_claim_dropped`), and presumably what will happen if a
+  future drafter ever composes speculative prose. But no *golden* case
+  exercises it end-to-end today. Same shape of gap RETRO has flagged every
+  sprint so far (S0–S3): a story's AC matching the unit-level mechanism
+  doesn't guarantee the eval suite exercises that mechanism's hardest path.
+  Opened R-14, recommended for S6 scope (golden-set growth to 50-100 already
+  on the books there).
+- **Try:** Re-asking the three iteration questions (AGILE_PLAN §8):
+  1. *Did the eval set catch what mattered?* Partially — growing to 30 cases
+     and running them all green confirmed the planner fix (R-12) generalizes
+     across topic combinations (lipid+kidney, glucose+kidney,
+     electrolyte+kidney, lipid+glucose), which is real signal. But the set's
+     blind spot (R-14: no case forces a compose-then-drop) was found by
+     *reading* the fixtures at close-out, not by a failing test — the set
+     told us our code works, not that our coverage was complete. Next
+     sprint's eval work (S6) should add at least one golden case purpose-built
+     to force a composed-then-dropped sentence, per AGILE_PLAN §8 Q1's own
+     rule of starting from a reproduction of the gap just found.
+  2. *Is the read-only rule still holding?* Yes — the redaction gate reads
+     and transforms a payload string, writes nothing, and has no live caller
+     in the agent graph at all yet (by design, S4-1's docstring is explicit
+     about this). The offline test only asserts absence of network calls;
+     it adds no new write path.
+  3. *Is governance still structural?* Yes, and S4 extends the pattern one
+     step further than S3: the redaction gate's "no bypass" guarantee is
+     enforced by the **function signature itself** (no `bypass` parameter
+     exists to pass `True` to), not by a convention or a code-review rule —
+     the strongest form of "structural" seen yet in this project. The
+     offline test makes "local-first" a property the CI suite can prove
+     (network calls fail loudly) rather than a claim in a docstring.
+
 ## S3 — Guardrails as a node (implemented, commit f60e0c1)
 - **Keep:** Making the advice classifier ONE shared instance called from two
   call sites (pre-model on the question, and inside the guard on the draft)

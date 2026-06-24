@@ -1,6 +1,6 @@
 # Reconciliation — exploration vs. inherited planning bundle
 
-**Last Updated:** 2026-06-24 (S3 close-out)
+**Last Updated:** 2026-06-24 (S4 close-out)
 **Owner:** [Owner] (solo client/engineer — final approver)
 **Refresh Trigger:** A new conflict is found between live code and an inherited
 artifact, or the human resolves an open item below
@@ -170,8 +170,21 @@ artifact, or the human resolves an open item below
   acceptable for evals going forward.
 
 ### R-12 — Planner analyte-synonym gap blocks the `mixed-partial-grounding` golden case (IMPORTANT)
-- **Status:** Open — needs a human nod on scope (proposed resolution below).
-- **Owner:** S4
+- **Status:** **RESOLVED** (S4, commit 43f7a4b). `nodes/plan.py` adds
+  `_detect_topics()` — a keyword→topic-group mapping (lipid, kidney, glucose,
+  thyroid, electrolyte, vitamin, blood_count) plus a `_TOPIC_SINGLE_ANALYTE_FALLBACK`
+  (kidney → `"Creatinine"`) for the single-topic case. When a question's keywords
+  span MULTIPLE topics, `_default_planner` now plans `query_observations` with NO
+  narrow `analyte` filter at all — broadening the query rather than guessing one
+  exact-match string — so any verified row the vault actually has comes back, and
+  groundedness/guard (S3) decides what's actually backed. `mixed-partial-grounding`
+  now resolves to `answer` with 1 citation (LDL grounded, kidney-function claim
+  dropped, matching its `expect.drops_unmapped: true`); single-topic behavior
+  (e.g. "How has my LDL changed") is unchanged since it still resolves to exactly
+  one topic and keeps the narrow filter; no S1/S2/S3 regressions. Verified live via
+  `test_s4_3_golden_set_categories_pass` (all 30 golden cases, including this one
+  and four new sibling mixed-topic cases, resolve to their expected terminal).
+- **Owner:** S4 (closed)
 - **Date found:** 2026-06-24 (S3 close-out reconciliation pass, post commit f60e0c1)
 - **Bundle says:** The guardrails skill's mixed-evidence case
   (`mixed-partial-grounding.json`) expects a question naming multiple analytes
@@ -231,6 +244,45 @@ artifact, or the human resolves an open item below
   this threshold.
 - **Needs you to:** Confirm the 0.6 threshold and the binary confidence
   default, or redirect before S6 builds the eval gate on top of it.
+
+### R-14 — Golden set's `drops_unmapped` cases never exercise groundedness actually dropping a composed sentence
+- **Status:** Open — needs a human nod on S6 scope (proposed resolution below).
+- **Owner:** S6
+- **Date found:** 2026-06-24 (S4 close-out reconciliation pass, post commit 43f7a4b)
+- **Bundle says:** The guardrails skill's mixed-evidence golden cases (e.g.
+  `mixed-partial-grounding.json`, `expect.drops_unmapped: true`) exist to prove the
+  guard node's S3-2 groundedness mapping mechanically drops an unmapped claim from a
+  drafted answer — "a sentence survives iff it has a citation with a non-empty
+  `source_id`; unmapped sentences dropped mechanically" (RELEASE_CHECKLIST row 3).
+- **Reality:** With R-12 resolved, the planner now broadens multi-topic queries
+  instead of guessing a narrow filter — which means for every mixed golden case,
+  the draft node only ever composes a sentence for the topic it actually retrieved
+  evidence for (e.g. LDL). It never drafts a sentence for the ungrounded topic
+  (kidney function) in the first place, because no evidence for that topic came
+  back from `query_observations` to draft a sentence from. So `drops_unmapped`
+  passes for the right reason at the planner/draft layer (no speculative prose is
+  generated) but for the WRONG reason at the guard layer: `groundedness.map_sentences`
+  is never actually exercised dropping an already-composed, citation-less sentence
+  by any golden case. That specific mechanism — compose first, drop second — is
+  real and covered, but only by the S3 unit test
+  (`test_s3_2_unmapped_claim_dropped` in `test_s3_guardrails.py`), which hands the
+  guard a synthetic draft directly. The end-to-end plan→act→draft→guard path never
+  produces that shape on its own with today's golden fixtures.
+- **Action taken:** None yet — flagged here rather than hand-crafting a golden
+  fixture outside a scoped story. All 30 current golden cases pass
+  (`test_s4_3_golden_set_categories_pass`); this is a coverage gap, not a failing
+  test.
+- **Recommended resolution:** S6's golden-set growth (30 → 50–100, per
+  PHASE_4/SPRINT_4 and the success-metric gates' eval-axis work) should include at
+  least one case engineered so the draft node composes a sentence for a topic with
+  NO retrievable evidence (rather than the topic simply never being queried) and
+  the citation-less sentence reaches the guard, forcing `groundedness.map_sentences`
+  to drop it live. This closes the gap between "the mechanism is unit-tested" and
+  "the mechanism is exercised end-to-end by an eval case," matching the same
+  standard R-12 itself was held to.
+- **Needs you to:** Confirm S6 (not an S4 follow-up) is the right sprint to own
+  this golden-fixture gap, since today's 30 cases all pass and nothing is broken —
+  this is a coverage recommendation, not a defect.
 
 ## Observations from exploration (no conflict, but worth your eye)
 

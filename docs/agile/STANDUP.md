@@ -7,6 +7,46 @@
 
 ---
 
+## 2026-06-24 (S4)
+- **Yesterday:** S4-1 (PHI redaction gate, `guardrails/redaction_gate.py` —
+  `gate_external_payload` is a thin fail-closed adapter over
+  `RedactionEngine(policy_level).redact(payload).text`, no bypass param,
+  signature-enforced; verified by grep that the agent graph has no
+  external-egress call site today, so the gate stands as the documented
+  mandatory chokepoint for any FUTURE agent external-LLM tool, separate from
+  `core/external_runner.py`'s existing `/assistant/`-scoped enforcement; two
+  extra fail-closed tests added), S4-2 (network-disabled offline integration
+  test — monkeypatches `socket` to block `AF_INET`/`AF_INET6` +
+  `create_connection`, leaves `AF_UNIX` for asyncio's self-pipe; runs both
+  grounded→answer and abstain→abstain through the harness with zero network,
+  proving local-first), and S4-3 (golden set grown 6→30: 9 grounded, 8
+  abstain, 8 advice-bait, 5 mixed; `test_s4_3_golden_set_categories_pass`
+  asserts every case resolves to its expected terminal) implemented and
+  merged (commit 43f7a4b). R-12 (planner analyte-synonym gap) is RESOLVED in
+  the same commit: `nodes/plan.py` adds `_detect_topics()` — a
+  keyword→topic-group mapping (lipid/kidney/glucose/thyroid/electrolyte/
+  vitamin/blood_count) plus a kidney→Creatinine single-topic fallback — so a
+  multi-topic question now queries `query_observations` with NO narrow
+  filter (broaden instead of guessing one exact-match string), letting
+  groundedness/guard decide what's actually backed.
+  `mixed-partial-grounding.json` now resolves to `answer` with 1 citation,
+  the LDL claim grounded and the kidney-function claim dropped; single-topic
+  behavior is unchanged; no S1/S2/S3 regressions. Suite went to **40 passed,
+  6 skipped**.
+- **Today:** Closing out S4 tracking docs (checklist, sprint/phase status,
+  reconciliation) and marking R2's local-first/PHI-gate row. Next up: S5
+  kickoff (cutover — `/assistant/` served by agent, cache on, flag default
+  flip).
+- **Blocker:** None for S4 functionally — all three stories are live and
+  unit/integration tested, and R-12 is closed. One new reconciliation item
+  opened at close-out, not blocking: the mixed golden cases achieve
+  `drops_unmapped` by the planner never composing the ungrounded sentence in
+  the first place (draft only emits sentences for retrieved evidence),
+  rather than by `groundedness.map_sentences` dropping an already-composed
+  sentence — so the end-to-end groundedness-DROP path is exercised today
+  only by the S3 unit test, not by any golden case. See RECONCILIATION.md
+  R-14.
+
 ## 2026-06-24 (S3)
 - **Yesterday:** S3-1 (advice classifier, `guardrails/classifier.py` — one shared
   instance, called pre-model on the question AND inside the guard on the draft;

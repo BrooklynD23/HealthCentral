@@ -1,6 +1,6 @@
 # Phase 4 — PHI Gate + External Path
 
-**Last Updated:** 2026-06-23
+**Last Updated:** 2026-06-24 (S4 delivered, commit 43f7a4b)
 **Owner:** [Owner]
 **Refresh Trigger:** Redaction gate signature, offline-test harness, or golden-set categories change
 
@@ -17,9 +17,22 @@ redaction gate, a network-disabled integration test proves the full loop runs lo
 the golden set grows to ~30 cases including advice-bait and abstention categories.
 
 ## Exit criteria
-- Nothing leaves local without passing the existing redaction gate (FR-12 / SG-4).
+- Nothing leaves local without passing the existing redaction gate (FR-12 / SG-4). **DELIVERED**
+  (S4-1, commit 43f7a4b) — `gate_external_payload` fail-closed, no bypass param.
 - Full loop completes offline on the local GGUF — network-disabled integration test (FR-13).
+  **DELIVERED** (S4-2) — `test_s4_2_offline_loop_completes` blocks `AF_INET`/`AF_INET6` +
+  `create_connection`, both grounded→answer and abstain→abstain run with zero network.
 - Golden set ≈30 cases; advice-bait + abstention categories represented; all pass (FR-17 seed).
+  **DELIVERED** (S4-3) — 30 cases (9 grounded, 8 abstain, 8 advice-bait, 5 mixed),
+  `test_s4_3_golden_set_categories_pass` green. S6 grows the set further to 50–100.
+
+**Status: S4-1, S4-2, S4-3 all delivered and unit/integration tested (commit 43f7a4b).**
+Important scope note: a grep of `modules/agent/` at S4 implementation time found **no
+external-egress call site in the agent graph today** — `run_agent` is fully local/
+deterministic. The redaction gate therefore has no live caller yet; it exists as the
+documented, mandatory chokepoint any FUTURE agent external-LLM tool must route through.
+This is distinct from `core/external_runner.py`'s existing `/assistant/`-scoped redaction
+enforcement, which is untouched and out of scope here.
 
 ## CONTRACTS
 
