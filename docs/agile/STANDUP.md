@@ -7,6 +7,36 @@
 
 ---
 
+## 2026-06-24 (S3)
+- **Yesterday:** S3-1 (advice classifier, `guardrails/classifier.py` — one shared
+  instance, called pre-model on the question AND inside the guard on the draft;
+  advice-bait questions short-circuit to `escalate` with the fixed
+  `ESCALATE_TEMPLATE`, zero tools run, zero generated prose, advice_leakage=0),
+  S3-2 (groundedness mapping, `guardrails/groundedness.py` — a sentence survives
+  iff it has a citation with a non-empty `source_id`; unmapped sentences dropped
+  mechanically; zero survivors → abstain), S3-3 (guard node,
+  `guardrails/guard.py` — runs the four-step order advice→groundedness→
+  confidence→audit, returns a schema-validated `answer|abstain|escalate`,
+  emits `agent.guard`; replaced `graph.py`'s S2 `_passthrough_guard` seam with
+  the real guard, and added the pre-model advice gate at the top of
+  `run_agent`), and S3-4 (confidence threshold → abstain via the fixed
+  `ABSTAIN_TEMPLATE`, no hedging; threshold = the existing faithfulness
+  `min_overall_score` (0.6) per PRD §10 Q2, default confidence is 1.0 when
+  ≥1 grounded sentence survives with real `source_id`s else 0.0) implemented
+  and merged (commit f60e0c1). Suite went to **35 passed, 9 skipped** — zero
+  failures, flag-off legacy path untouched.
+- **Today:** Closing out S3 tracking docs (checklist, sprint/phase status,
+  reconciliation) and marking R2's guard-node backing rows. Next up: S4
+  kickoff (PHI redaction gate + offline-verified loop).
+- **Blocker:** None for S3 functionally — all four stories are live and unit
+  tested. One golden case, `mixed-partial-grounding`, does not yet resolve
+  end-to-end through `run_agent`: `nodes/plan.py`'s `_detect_analyte` maps
+  "cholesterol" → canonical `"Cholesterol"`, so `query_observations` misses the
+  seeded `LDL` row and `check_verification` reports "absent" before the guard
+  ever runs — a planner gap, not a guard bug. Captured as a new reconciliation
+  item for S4 to fix, alongside the PRD §10 Q2 confidence-threshold choice
+  needing client confirmation — see RECONCILIATION.md R-12, R-13.
+
 ## 2026-06-24 (S2)
 - **Yesterday:** S2-1 (`compute_trend`, `check_verification`, `lookup_reference`,
   `retrieve_chunks` — four typed, read-only, audited tools, registered), S2-2

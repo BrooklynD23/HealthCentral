@@ -1,8 +1,21 @@
 # Phase 3 — Guardrails as a Node
 
-**Last Updated:** 2026-06-23
+**Last Updated:** 2026-06-24 (S3 delivered, commit f60e0c1)
 **Owner:** [Owner]
 **Refresh Trigger:** Guard order, advice classifier, fixed templates, or terminal schema change
+
+**Status:** S3-1…S3-4 delivered. Advice classifier (`guardrails/classifier.py`)
+shared by both call sites (pre-model on the question, and on the draft inside
+`guard()`); groundedness mapping (`guardrails/groundedness.py`) drops unmapped
+sentences mechanically; guard node (`guardrails/guard.py`) runs the four-step
+order and replaced `graph.py`'s S2 passthrough; confidence threshold → abstain
+via the fixed templates. All unit-tested live in `test_s3_guardrails.py`
+(suite: 35 passed, 9 skipped). **Confidence threshold chosen = the existing
+faithfulness `min_overall_score` (0.6)**, resolving PRD §10 Q2 by proposal —
+**needs client confirmation**, see RECONCILIATION R-13. One golden case
+(`mixed-partial-grounding`) does not yet resolve end-to-end due to a planner
+analyte-detection gap (not a guard defect) — see RECONCILIATION R-12, owned by
+S4. The CI eval gate over the full golden set remains S6/R3 scope.
 
 | Map | Value |
 |---|---|

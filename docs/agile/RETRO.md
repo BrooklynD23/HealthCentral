@@ -15,6 +15,57 @@
 
 ---
 
+## S3 — Guardrails as a node (implemented, commit f60e0c1)
+- **Keep:** Making the advice classifier ONE shared instance called from two
+  call sites (pre-model on the question, and inside the guard on the draft)
+  rather than two independently-tuned classifiers means there's no drift
+  between "what we refuse before thinking" and "what we refuse after
+  thinking" — the same defense-in-depth posture S1 took with the
+  `Literal[True]` pin and S2 took with the hard `MAX_STEPS` budget. Making
+  groundedness mapping purely mechanical (citation with a non-empty
+  `source_id`, nothing fuzzier) instead of model-judged means "no unmapped
+  claim survives" is a property of the guard node, not a hope about model
+  self-restraint — directly answering RETRO's S1/S2 carried-forward iteration
+  Q3 ("is governance still structural?") with the headline R1→R2 boundary
+  call: the guard node is no longer `_passthrough_guard`.
+- **Drop:** The mixed-partial-grounding golden case surfaced a planner gap
+  (analyte-synonym detection) at S3 close-out rather than during S3-2's own
+  AC — same shape of gap RETRO has now flagged three sprints running (S0-2,
+  S1-3, S2-1's AC deviations): "does this story's AC say what happens when an
+  upstream node hands the guard zero evidence instead of partial evidence?"
+  The guard behaved correctly (drop unmapped, would abstain on zero survivors)
+  but never got the chance to prove it on this fixture because the planner's
+  exact-match analyte filter starved it before guard ran. Opened R-12, owned
+  by S4. Also carried forward without a sprint-level decision: PRD §10 Q2's
+  confidence threshold was *resolved by proposal* (reuse
+  `modules/faithfulness.py`'s `min_overall_score`, 0.6) rather than by an
+  explicit client confirmation — same "open question answered by assumption"
+  shape. Opened R-13.
+- **Try:** Re-asking the three iteration questions (AGILE_PLAN §8):
+  1. *Did the eval set catch what mattered?* Yes, sharply — the
+     advice-bait pair (`advice-stop-statin`, `advice-is-this-dangerous`) and
+     the unmapped-drop fixtures all pass live and exercise exactly the
+     behavior they name. But `mixed-partial-grounding` (the case meant to
+     prove "grounded answer + dropped unmapped claim" together) caught a real
+     failure *upstream* of the guard — proof the four-axis golden set finds
+     bugs anywhere in the pipeline, not just in the node under test this
+     sprint. Next sprint's first new story should be the planner fix that
+     makes this case resolve to `answer` with one dropped sentence, per
+     AGILE_PLAN §8 Q1's own rule.
+  2. *Is the read-only rule still holding?* Yes — the guard node only reads
+     drafted sentences and citations already produced upstream; it writes
+     nothing and calls no tool. The advice classifier and groundedness
+     mapper are both pure functions over text already in hand.
+  3. *Is governance still structural?* Yes, and this is the sprint where the
+     answer changes from "partially" (S1, S2) to "yes" for the guard
+     specifically: the four-step order (advice → groundedness → confidence →
+     audit) is code in `guard.py`, not a prompt instruction; both fixed
+     templates are module constants covered by a copy test, not
+     model-generated strings; the confidence threshold is a numeric constant
+     compared in code, not a model self-assessment. The remaining
+     "governance" gap is no longer the guard node — it's S4's PHI redaction
+     gate and S5's flag cutover, tracked separately.
+
 ## S2 — The loop closes (implemented, commit fbb4fe7) — **R1 release retro**
 > This is also the **R1 release retro point**: S2 is R1's last sprint
 > (AGILE_PLAN §5), and the RELEASE_CHECKLIST rows backing R1 (1, 2, 8) all

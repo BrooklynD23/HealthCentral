@@ -1,6 +1,6 @@
 # Reconciliation — exploration vs. inherited planning bundle
 
-**Last Updated:** 2026-06-24
+**Last Updated:** 2026-06-24 (S3 close-out)
 **Owner:** [Owner] (solo client/engineer — final approver)
 **Refresh Trigger:** A new conflict is found between live code and an inherited
 artifact, or the human resolves an open item below
@@ -168,6 +168,69 @@ artifact, or the human resolves an open item below
 - **Needs you to:** Confirm whether S4/S6 golden cases should seed embeddings to
   exercise the real vector path, or whether the text-match fallback is
   acceptable for evals going forward.
+
+### R-12 — Planner analyte-synonym gap blocks the `mixed-partial-grounding` golden case (IMPORTANT)
+- **Status:** Open — needs a human nod on scope (proposed resolution below).
+- **Owner:** S4
+- **Date found:** 2026-06-24 (S3 close-out reconciliation pass, post commit f60e0c1)
+- **Bundle says:** The guardrails skill's mixed-evidence case
+  (`mixed-partial-grounding.json`) expects a question naming multiple analytes
+  ("What do my recent labs show about my cholesterol and kidney function?") to
+  resolve to `answer`, with the grounded LDL claim surviving and the
+  ungrounded kidney-function claim dropped by the guard (S3-2).
+- **Reality:** The fixture does **not** pass end-to-end through `run_agent` —
+  and it is not a guard bug. `nodes/plan.py`'s `_detect_analyte` maps the
+  word "cholesterol" to the canonical analyte `"Cholesterol"`, but the
+  fixture's vault seeds an observation named `"LDL"`, not `"Cholesterol"`.
+  `query_observations(analyte="Cholesterol")` therefore misses the seeded LDL
+  row, `check_verification` reports the analyte as absent, and the planner
+  drafts with zero evidence before the guard node ever runs. The guard would
+  correctly drop an unmapped claim or abstain on zero survivors — it never
+  gets the chance to prove it on this fixture because the planner starves it
+  first.
+- **Action taken:** None yet — flagged here rather than patching the planner
+  outside a scoped story. `test_s3_guardrails.py`'s guard-level assertions
+  (`test_s3_2_unmapped_claim_dropped`, the advice-bait and low-confidence
+  cases) exercise the guard directly and pass; only the full
+  plan→act→draft→guard path for this specific golden case is blocked.
+- **Recommended resolution:** S4 fixes the planner's analyte detection —
+  either broaden `"cholesterol"` to resolve to the LDL/HDL/triglyceride lipid
+  panel rather than an exact-match `"Cholesterol"` synonym, or drop strict
+  exact-match filtering in favor of a multi-analyte question querying
+  observations without a narrow single-analyte filter — so the mixed golden
+  case resolves to `answer` with the unmapped kidney-function claim dropped,
+  per its own `expect` block.
+- **Needs you to:** Confirm S4 (not S3 follow-up, not S6) is the right sprint
+  to own the planner fix, since the guard itself is already correct and
+  tested.
+
+### R-13 — Confidence threshold (PRD §10 Q2) resolved by proposal, not by client confirmation
+- **Status:** Open — needs a human nod (proposed resolution already adopted in code).
+- **Owner:** [Owner]
+- **Date found:** 2026-06-24 (S3 close-out reconciliation pass, post commit f60e0c1)
+- **Bundle says:** PRD §10 Q2 lists the confidence-threshold numeric cutoff as
+  an open question for the human, with a proposed default: "reuse the
+  existing faithfulness threshold from `modules/faithfulness.py`."
+- **Reality:** S3-4 adopted the proposal as-is: `CONFIDENCE_THRESHOLD` in
+  `guardrails/guard.py` is set to the faithfulness module's
+  `min_overall_score` (0.6), and confidence itself is computed as a binary
+  1.0/0.0 — 1.0 when at least one grounded sentence survives groundedness
+  mapping with a real (non-empty) `source_id`, else 0.0. This was the
+  pragmatic choice to unblock S3-4 rather than waiting on a round-trip with
+  the client, since the bundle already named it as the proposed default.
+- **Action taken:** Implemented the proposed default; did not introduce a
+  graded/continuous confidence score, since the bundle's proposal and S3-4's
+  AC only required a threshold comparison, not a scored confidence model.
+- **Recommended resolution:** Client confirms (a) 0.6 (faithfulness's
+  `min_overall_score`) is the right threshold for the guard's abstain
+  decision specifically, as distinct from faithfulness scoring's own use of
+  that number, and (b) whether a binary 1.0/0.0 default confidence is
+  acceptable long-term or whether a graded confidence signal (e.g. proportion
+  of sentences with real citations, or a model self-assessment) is wanted
+  before S6's CI eval gate locks in abstention-correctness scoring against
+  this threshold.
+- **Needs you to:** Confirm the 0.6 threshold and the binary confidence
+  default, or redirect before S6 builds the eval gate on top of it.
 
 ## Observations from exploration (no conflict, but worth your eye)
 
