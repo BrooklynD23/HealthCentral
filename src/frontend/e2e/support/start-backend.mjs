@@ -60,6 +60,14 @@ const child = spawn(
     env: {
       ...process.env,
       APP_ENV: process.env.APP_ENV || 'development',
+      // The Playwright suite runs many specs in parallel, each seeding an
+      // authenticated session, which legitimately exceeds the production
+      // per-IP request budget and trips the rate limiter (429) during test
+      // setup. Disable rate limiting for the E2E backend so smoke tests
+      // exercise user flows rather than the limiter. Rate-limit behavior has
+      // dedicated backend unit tests; no E2E spec asserts on it.
+      API_RATE_LIMIT_ENABLED: process.env.API_RATE_LIMIT_ENABLED || 'false',
+      AUTH_RATE_LIMIT_ENABLED: process.env.AUTH_RATE_LIMIT_ENABLED || 'false',
     },
   }
 );
