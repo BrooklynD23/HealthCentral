@@ -41,6 +41,12 @@
   wrapper per PHASE_6's documented job shape. R-1 (CI branch-filter / final
   branch name) stays open for the same reason — the workflow placement and
   branch trigger are the live decision in front of the user.
+- **Follow-up (same day):** The CI workflow was approved and added —
+  commit a672b88 adds the `agent-evals` job to `.github/workflows/ci.yml`
+  (runs `scripts/agent_eval_gate.py`, triggers PR→main + push→main/Security-Revamp-*,
+  enforced on PRs to main). R-1 is now RESOLVED. R3 ships on the first green
+  `agent-evals` run on a PR to main; not marked SHIPPED yet because the job
+  hasn't executed in CI (still on the feature branch).
 
 ## 2026-06-24 (S5) — **R2 ships**
 - **Yesterday:** S5-1 (cutover — `AGENT_ENABLED_DEFAULT` flipped to `True`;

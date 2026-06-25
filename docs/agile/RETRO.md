@@ -75,6 +75,10 @@
      the loop, R2 proved the guard enforces in production, R3's logic proves
      the eval gate works — the only remaining step before this is a
      genuinely CI-enforced release is a human approving the workflow change.
+     **Follow-up (same day):** that approval landed — commit a672b88 adds the
+     `agent-evals` job to `.github/workflows/ci.yml` (enforced on PRs to
+     main), so the release process is now structural too; R-1 is resolved.
+     R3 ships on the first green `agent-evals` run on a PR.
 
 ## S5 — Cutover + cache (implemented, commit 3765565) — **R2 release retro**
 > This is also the **R2 release retro point**: S5 is R2's last sprint

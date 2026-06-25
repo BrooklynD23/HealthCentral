@@ -1,6 +1,6 @@
 # Release Checklist — Agent Overhaul
 
-**Last Updated:** 2026-06-24 (S6 close-out — R3 core complete, CI workflow pending approval)
+**Last Updated:** 2026-06-24 (S6 close-out — CI eval gate added, a672b88; R3 ships on first green run)
 **Owner:** [Owner] (accepts stories at review)
 **Refresh Trigger:** A backing story is accepted/rejected, or a Report 0 dimension changes
 
@@ -20,8 +20,8 @@
 | 2 | Combines multiple values / trends / references | S2-1, S1-3 | R1 | `[x]` *(S2-1 lands `compute_trend` (trend, each point cites `observation_id`), `lookup_reference` (master-DB reference ranges), `retrieve_chunks` (verified-doc chunks), and `check_verification` (status/count only) — all typed, read-only, audited, registered. The seed eval `grounded-ldl-trend` exercises the multi-tool combination live.)* |
 | 3 | Mechanical guard node: advice gate ×2, unmapped-claim drop, abstain/escalate | S3-1, S3-2, S3-3 | R2 | `[x]` *(S3-1 advice classifier shared by both call sites — pre-model on the question, short-circuits to `escalate` with the fixed `ESCALATE_TEMPLATE`, zero tools/prose; and on the draft inside `guard()`. S3-2 groundedness mapping drops unmapped sentences mechanically. S3-3 guard node runs the 4-step order and replaced `graph.py`'s S2 passthrough. All behaviorally implemented and unit-tested live in `test_s3_guardrails.py`. Note: this is the **mechanism**, proven on unit fixtures — the zero-tolerance CI eval gate over the full golden set is S6/R3 scope, see row 5 and metric gates below.)* |
 | 4 | First-class **abstain / escalate** behavior | S3-3, S3-4 | R2 | `[~]` *(S4 update: R-12 is RESOLVED — `nodes/plan.py`'s `_detect_topics()` fix (commit 43f7a4b) makes `mixed-partial-grounding` resolve `answer` with the kidney claim dropped, exactly as its `expect` block names. The golden set is now 30 cases (9 grounded, 8 abstain, 8 advice-bait, 5 mixed) and `test_s4_3_golden_set_categories_pass` asserts all 30 resolve to their expected terminal — zero known end-to-end gaps. Still kept `[~]`, not `[x]`: this row's bar is a **zero-tolerance CI eval gate** over the golden set, and that gate is explicitly S6/R3 scope (row 5) — today's 30/30 pass is a local pytest assertion, not a CI-enforced release gate. Flip to `[x]` when S6 wires the same assertion into CI.)* |
-| 5 | Golden eval suite, 4 axes, CI gate | S6-1, S6-2, S6-3 | R3 | `[~]` *(S6 close-out, commit 1571927: golden set grown 30→58 (grounded 18 / advice-bait 15 / abstain 14 / mixed 11), `test_s6_1_golden_set_size` live (asserts 50–100 + category coverage) — **`[x]`-worthy on its own**. 4-axis scorer at `src/backend/modules/agent/eval/scorer.py` (groundedness, citation, abstention, advice_leakage — all numeric, all at bar: groundedness==1.0, citation==1.0, abstention==1.0, advice_leakage==0), `test_s6_2_four_axis_scoring` live — **`[x]`-worthy on its own**. Gate-fails-on-regression LOGIC is also live and proven: `scripts/agent_eval_gate.py` runs the golden set through the scorer and exits non-zero on advice_leakage>0 OR groundedness<100% OR abstention mismatch (0=pass,1=regression,2=error); `test_s6_3_ci_gate_fails_on_regression` plants a regression and asserts the gate fails, then asserts it passes clean — **`[x]`-worthy on its own**. Kept `[~]` overall, not `[x]`, only because this row's full bar is "CI gate" — the `.github/workflows` job that actually wraps this script and fails a PR is the one outstanding piece; gate script ready, CI workflow pending approval. See row 5b and the R3 exit-criteria note below.)* |
-| 5b | — *(CI workflow wrapper for row 5)* | S6-3 (workflow half) | R3 | `[~]` *(gate script ready (`scripts/agent_eval_gate.py`); CI workflow pending approval — the `.github/workflows` job that invokes this script and turns a planted-regression PR red has NOT been added; this is the single remaining R3 item, awaiting user approval as of 2026-06-24.)* |
+| 5 | Golden eval suite, 4 axes, CI gate | S6-1, S6-2, S6-3 | R3 | `[x]` *(S6, commit 1571927: golden set grown 30→58 (grounded 18 / advice-bait 15 / abstain 14 / mixed 11), `test_s6_1_golden_set_size` live (asserts 50–100 + category coverage). 4-axis scorer at `src/backend/modules/agent/eval/scorer.py` (groundedness, citation, abstention, advice_leakage — all numeric, all at bar: groundedness==1.0, citation==1.0, abstention==1.0, advice_leakage==0), `test_s6_2_four_axis_scoring` live. Gate-fails-on-regression LOGIC live and proven: `scripts/agent_eval_gate.py` runs the golden set through the scorer and exits non-zero on advice_leakage>0 OR groundedness<100% OR abstention mismatch (0=pass,1=regression,2=error); `test_s6_3_ci_gate_fails_on_regression` plants a regression and asserts the gate fails, then asserts it passes clean. The CI wrapper that was the one outstanding piece is now ADDED (commit a672b88 — see row 5b): the `agent-evals` job in `.github/workflows/ci.yml` invokes `scripts/agent_eval_gate.py` and is enforced on PRs to main, closing this row's full "CI gate" bar. Note: the job has not yet executed on a PR (we're on a feature branch), so R3 the release ships on the first green `agent-evals` run — see the R3 exit-criteria note below.)* |
+| 5b | — *(CI workflow wrapper for row 5)* | S6-3 (workflow half) | R3 | `[x]` *(CI workflow ADDED in commit a672b88: the `agent-evals` job in `.github/workflows/ci.yml` runs `scripts/agent_eval_gate.py`, triggers PR→main + push→main/Security-Revamp-* (matching existing CI), and is enforced on PRs to main. The gate logic (`scripts/agent_eval_gate.py`, commit 1571927) was already proven locally; this wires it into CI. Not yet observed green on an actual PR run — the job hasn't executed in CI yet because the work is on a feature branch.)* |
 | 6 | Local-first + explicit PHI redaction gate + offline-verified loop | S4-1, S4-2 | R2 | `[x]` *(S4-1 `guardrails/redaction_gate.py:gate_external_payload` is a thin fail-closed adapter over `RedactionEngine(policy_level).redact(payload).text` — no bypass param, signature-enforced, two extra fail-closed tests (`test_s4_1_gate_fails_closed_on_invalid_policy_level`, `test_s4_1_gate_fails_closed_when_engine_raises`). Verified by grep that the agent graph has no external-egress call site today — `run_agent` is fully local/deterministic, so the gate is the documented mandatory chokepoint for any FUTURE agent external-LLM tool, distinct from `core/external_runner.py`'s existing `/assistant/`-scoped enforcement (out of scope here, untouched). S4-2 `test_s4_2_offline_loop_completes` monkeypatches `socket` to block `AF_INET`/`AF_INET6` + `create_connection` (leaves `AF_UNIX` for asyncio's self-pipe) and runs both grounded→answer and abstain→abstain through the harness with zero network. Local-first proven live, commit 43f7a4b.)* |
 | 7 | Speed capped + cached; p95 ≤ main + 50% | S2-2, S5-2, S5-3 | R2 | `[~]` *(S5 update: S5-2 semantic cache, `modules/agent/cache.py` — in-process dict keyed on `CacheKey(normalize_question(q), profile_version)`, `profile_version` = COUNT of verified observations (PRD §10 Q4); a version bump is a guaranteed miss, the invalidation mechanism. Consulted first in `api/assistant.py`'s `_serve_via_agent`. S5-3 per-node timing, `modules/agent/metrics.py` + `graph.py` — `record_node_timing` records each node into `metrics_collector` as `method="AGENT"`, `route_template="agent.<node>"`, surfaced on `/api/v1/monitoring/metrics`; live-tested by the new assertions in `test_s5_cutover_cache.py` (p95/p50 present on the endpoint summary). Both mechanisms are implemented, wired into the live serving path, and tested — but the row's bar is the **p95 ≤ legacy + 50% numeric gate**, and today's test only asserts the metric is surfaced (`stats.p95_ms >= 0.0`), not that it clears the +50% bar against the legacy path under load. Not yet actually measured — kept `[~]`, not `[x]`, until that comparison is run. See the metric-gate row below, also `[~]`.)* |
 | 8 | Every agent decision emits a structured audit event | S0-3, S1-4 (+ per-node throughout) | R1 | `[x]` *(S0-3 persistence helper + S1-4 per-node emission both done & tested — plan/act/draft each emit exactly one audit event per run, verified by `test_s1_first_tool.py`; S2 extends coverage to reflect (`agent.reflect`) and terminal (`agent.terminal`) plus the four new tools, each self-auditing per Phase 2's audit-event schema. Still confirmed live via `test_s1_first_tool.py` + `test_s2_loop.py`.)* |
@@ -63,18 +63,21 @@ These are the numeric bars the gated rows above must clear before flipping `true
   (not the instrumentation) — tracked in row 7 and the p95 metric-gate row
   above, both `[~]` pending that comparison.
 - **R3 (S6–S7):** evals gate CI; (stretch) LoRA ≥ base on golden set. → row 5 + metric gates.
-  **R3 PENDING — CI workflow awaiting approval (2026-06-24).** S6's feature
-  commit (1571927) delivers the eval *logic* in full: golden set grown 30→58
-  (grounded 18 / advice-bait 15 / abstain 14 / mixed 11, `test_s6_1_golden_set_size`
-  live), the 4-axis scorer (`src/backend/modules/agent/eval/scorer.py`,
-  `test_s6_2_four_axis_scoring` live, all axes at bar), and the runnable gate
-  script (`scripts/agent_eval_gate.py`, `test_s6_3_ci_gate_fails_on_regression`
-  live — plants a regression, asserts the gate fails, then asserts clean
-  passes). Agent suite now 46 passed / 0 skipped (was 43/3); full backend 668
-  passed, 1 known pre-existing RAG-embedding flake (unchanged). R3 is **NOT**
-  shipped: the `.github/workflows` job that actually wraps this script and
-  fails a PR on a planted regression is the one outstanding piece, and it is
-  PENDING USER APPROVAL — not yet added to `.github/`. Do not mark row 5 or
-  this release `[x]`/SHIPPED until that workflow lands. Row 7 (p95 ≤
-  legacy+50%) remains `[~]` — instrumented, not yet measured; unrelated to
-  this blocker.
+  **R3 — CI gate added (a672b88); ships on first green `agent-evals` run on a
+  PR to main (2026-06-24).** S6's feature commit (1571927) delivers the eval
+  *logic* in full: golden set grown 30→58 (grounded 18 / advice-bait 15 /
+  abstain 14 / mixed 11, `test_s6_1_golden_set_size` live), the 4-axis scorer
+  (`src/backend/modules/agent/eval/scorer.py`, `test_s6_2_four_axis_scoring`
+  live, all axes at bar), and the runnable gate script
+  (`scripts/agent_eval_gate.py`, `test_s6_3_ci_gate_fails_on_regression` live
+  — plants a regression, asserts the gate fails, then asserts clean passes).
+  Agent suite now 46 passed / 0 skipped (was 43/3); full backend 668 passed,
+  1 known pre-existing RAG-embedding flake (unchanged). The CI wrapper is now
+  ADDED (commit a672b88): the `agent-evals` job in `.github/workflows/ci.yml`
+  invokes `scripts/agent_eval_gate.py` and is enforced on PRs to main
+  (triggers PR→main + push→main/Security-Revamp-*, matching existing CI) —
+  rows 5 and 5b are now `[x]`. R3 is **not yet** marked SHIPPED only because
+  the `agent-evals` job has not executed on an actual PR yet (the work is on
+  a feature branch); R3 ships on the first green `agent-evals` run on a PR to
+  main. Row 7 (p95 ≤ legacy+50%) remains `[~]` — instrumented, not yet
+  measured; unrelated to the CI gate.

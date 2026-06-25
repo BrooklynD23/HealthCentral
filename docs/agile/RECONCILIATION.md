@@ -1,6 +1,6 @@
 # Reconciliation — exploration vs. inherited planning bundle
 
-**Last Updated:** 2026-06-24 (S6 close-out — R3 core complete, CI workflow pending approval)
+**Last Updated:** 2026-06-24 (S6 close-out — CI eval gate added, a672b88; R-1 resolved)
 **Owner:** [Owner] (solo client/engineer — final approver)
 **Refresh Trigger:** A new conflict is found between live code and an inherited
 artifact, or the human resolves an open item below
@@ -15,7 +15,21 @@ artifact, or the human resolves an open item below
 ## Conflicts requiring a human decision
 
 ### R-1 — Branch name mismatch
-- **Status:** Open — still the live approval decision in front of the user (S6 close-out update below).
+- **Status:** **RESOLVED** (S6, commit a672b88). The eval-gate CI workflow is
+  now added with the agreed branch filter: the `agent-evals` job in
+  `.github/workflows/ci.yml` runs `scripts/agent_eval_gate.py` and triggers on
+  `pull_request: branches: [main]` + `push: branches: [main, 'Security-Revamp-*']`,
+  matching the rest of CI rather than the bundle's never-created
+  `fix/agent-overhaul`. The feature branch
+  (`claude/agent-overhaul-prd-sprints-2vgb5h`) merges to `main`, so gating on
+  PRs to `main` is the resolution: the gate runs on the PR that merges this
+  work, not on pushes to the feature branch itself. The branch-filter
+  question this item raised is therefore answered — the gate filters on
+  `main`, the agreed integration target — and the workflow has been placed.
+  (Not yet observed executing in CI, since no PR has run it from the feature
+  branch yet; that's a "ships on first green run" note in PHASE_6 /
+  RELEASE_CHECKLIST, not an open reconciliation conflict.)
+- **Date found:** 2026-06-24 (S0 inception); **resolved:** 2026-06-24 (S6, commit a672b88)
 - **Bundle says:** develop on `fix/agent-overhaul`.
 - **Environment says:** develop on `claude/agent-overhaul-prd-sprints-2vgb5h` (the
   only feature branch present; `fix/agent-overhaul` does not exist in this clone).
@@ -33,12 +47,11 @@ artifact, or the human resolves an open item below
   (`claude/agent-overhaul-prd-sprints-2vgb5h`) today. Nothing under
   `.github/` was changed in commit 1571927; this remains untouched pending
   the approval decision.
-- **Needs you to:** Confirm this is the intended branch, or create/rename to
-  `fix/agent-overhaul` before merge. The eval-CI gate in Phase 6 is written to
-  trigger on `fix/agent-overhaul` per the evals skill — **update the workflow
-  branch filter to whatever the final branch name is.** This is now also the
-  blocker on adding the `agent-evals` job itself: the workflow addition and
-  the branch-filter decision are the same outstanding approval.
+- **Needs you to:** Nothing further for the CI gate — the workflow is added
+  and gates PRs to `main` (commit a672b88). If you still intend to
+  rename/merge via `fix/agent-overhaul` rather than `main`, add that branch to
+  the `agent-evals` triggers; otherwise the `main`-targeted filter is the
+  resolution and no action is needed.
 
 ### R-2 — Proof-bundle venv is Windows-pathed
 - **Bundle says:** run the proof bundle via
