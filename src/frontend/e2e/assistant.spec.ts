@@ -63,7 +63,7 @@ test.describe('RAG Assistant Feature', () => {
     // Wait for response - should show insufficient context or error
     // With no documents, the assistant should indicate it doesn't have enough info
     await expect(
-      page.getByText(/(insufficient|don't have enough|no relevant|limited context|not fully configured)/i)
+      page.getByText(/(insufficient|don't have enough|no relevant|limited context|not fully configured)/i).first()
     ).toBeVisible({ timeout: 15000 });
   });
 
@@ -86,7 +86,7 @@ test.describe('RAG Assistant Feature', () => {
     await expect(
       page.getByText(
         /(not fully configured|setup instructions|insufficient|don't have enough|limited context|knowledge base only)/i
-      )
+      ).first()
     ).toBeVisible({ timeout: 15000 });
   });
 

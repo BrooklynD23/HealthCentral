@@ -49,9 +49,11 @@ test.describe('Document Import Smoke Tests', () => {
     });
 
     // Wait for import to process — either a list item appears or an error
-    // The document should appear in the list with a status badge
+    // The document should appear in the list with a status badge.
+    // Use .first(): the filename/status text can match the import toast, the
+    // status line, and the list heading simultaneously (strict-mode otherwise).
     await expect(
-      page.getByText(/test-report\.pdf|pending|needs review|parsed/i)
+      page.getByText(/test-report\.pdf|pending|needs review|parsed/i).first()
     ).toBeVisible({ timeout: 15000 });
   });
 
@@ -84,8 +86,13 @@ test.describe('Document Import Smoke Tests', () => {
 
     const fileInput = page.locator('input[type="file"]');
 
+    // NOTE: include a unique comment marker so this file's content hash differs
+    // from the one uploaded in E2E-DOC-002. The backend dedupes imports by
+    // content hash and returns the *existing* document (with its original
+    // filename) on a match — which would make the status-test.pdf assertion
+    // below fail because the toast/list would show the earlier file's name.
     const pdfContent = Buffer.from(
-      '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n' +
+      '%PDF-1.4\n%status-test-unique-marker\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n' +
       '2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n' +
       '3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R/Resources<<>>>>endobj\n' +
       'xref\n0 4\ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n0\n%%EOF'
@@ -97,14 +104,15 @@ test.describe('Document Import Smoke Tests', () => {
       buffer: pdfContent,
     });
 
-    // Wait for the document to appear
+    // Wait for the document to appear (.first(): matches both the import toast
+    // and the list heading)
     await expect(
-      page.getByText(/status-test\.pdf/i)
+      page.getByText(/status-test\.pdf/i).first()
     ).toBeVisible({ timeout: 15000 });
 
     // Should show one of the valid status badges
     await expect(
-      page.getByText(/pending|needs review|verified|ocr required/i)
+      page.getByText(/pending|needs review|verified|ocr required/i).first()
     ).toBeVisible();
   });
 
@@ -144,7 +152,7 @@ test.describe('Document Import Smoke Tests', () => {
 
     // The "OCR Required" badge should be visible
     await expect(
-      page.getByText(/ocr required/i)
+      page.getByText(/ocr required/i).first()
     ).toBeVisible({ timeout: 10000 });
   });
 });

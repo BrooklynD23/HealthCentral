@@ -27,7 +27,7 @@ test.describe('Settings Page Smoke Tests', () => {
 
     // Hardware detection button should be visible
     await expect(
-      page.getByRole('button', { name: /detect hardware|auto-detect|scan hardware/i })
+      page.getByRole('button', { name: /detect hardware|re-detect|auto-detect|scan hardware/i })
     ).toBeVisible({ timeout: 10000 });
   });
 
