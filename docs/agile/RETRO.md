@@ -15,6 +15,67 @@
 
 ---
 
+## S6 — Golden set + 4-axis scorer + eval gate (implemented, commit 1571927) — **R3 release retro (final sprint)**
+> This is the **final-sprint retro** for the Agent Overhaul plan: S6 is R3's
+> last sprint (AGILE_PLAN §5), and R3 is the last release. The eval *logic*
+> backing row 5 (golden set, 4-axis scoring, gate-fails-on-regression) is now
+> live and green — but R3 itself is **not shipped**: the actual
+> `.github/workflows` PR-gating job that wraps `scripts/agent_eval_gate.py` is
+> PENDING USER APPROVAL and has not been added. RELEASE_CHECKLIST row 5 stays
+> `[~]` and the R3 exit-criteria note is explicit: **R3 PENDING — CI workflow
+> awaiting approval (2026-06-24).**
+- **Keep:** Writing the gate script (`scripts/agent_eval_gate.py`) as a
+  standalone, directly-runnable program — not a pytest fixture, not something
+  that only exists inside CI — meant the gate's behavior (exit 0/1/2,
+  regression detection) could be proven locally today, independent of
+  whether or when the `.github/workflows` wrapper gets approved. Same
+  defense-in-depth posture as S4's redaction gate and S2's hard step budget:
+  the safety mechanism is real and testable on its own, not contingent on
+  the infrastructure around it. Resolving R-14 by driving a REAL
+  plan→act→draft and appending a synthetic citation-less sentence
+  (`score_composed_drop_case`) — rather than handing the guard a synthetic
+  draft directly, as the S3 unit test does — closes the exact gap RETRO
+  flagged at S4 close-out: the end-to-end compose-then-drop path is now
+  exercised by an eval case, not just a unit test.
+- **Drop:** The golden-set growth (30→58) and the 4-axis scorer are both
+  code-complete and green, but the release-level deliverable named in
+  AGILE_PLAN §5 for R3 is "evals gate CI" — a CI job, not a script sitting in
+  `scripts/`. Treating S6-3 as "logic done, ship it" risked declaring R3
+  shipped on the strength of a script nobody's PR is actually gated by yet.
+  Caught at close-out by re-reading PHASE_6's exit criteria literally
+  ("`.github/workflows` job turns a planted regression PR red") rather than
+  by a failing test — same shape of gap RETRO has flagged most sprints this
+  release: a story's AC/logic being green doesn't mean the release-level
+  claim is true. R3 is being held at PENDING specifically so this doesn't
+  repeat what R-1 already flagged (workflow placement + branch filter is
+  still an open human decision).
+- **Try:** Re-asking the three iteration questions (AGILE_PLAN §8), at both
+  sprint and **R3 release** scope, for the last time this plan:
+  1. *Did the eval set catch what mattered?* Yes, decisively — growing to 58
+     cases across all four categories and scoring every axis numerically
+     means a real regression (advice leakage, dropped groundedness, a wrong
+     abstain) now has somewhere concrete to show up, and
+     `test_s6_3_ci_gate_fails_on_regression` proves the gate actually goes
+     red on a planted one rather than just asserting green forever. At
+     release scope: the eval set and scorer are release-ready; what's
+     missing is purely the CI wrapper, not more eval coverage.
+  2. *Is the read-only rule still holding?* Yes — the scorer and gate script
+     only read golden fixtures and run the existing read-only agent graph;
+     `score_composed_drop_case` drives a real plan→act→draft but mutates
+     nothing persisted. No new write path introduced by S6.
+  3. *Is governance still structural?* Yes, and this is the sprint where the
+     answer becomes "yes, and provably so end-to-end": the gate's thresholds
+     (groundedness==1.0, citation==1.0, abstention==1.0, advice_leakage==0)
+     are numeric constants compared in code, not eyeballed; the regression
+     test proves the gate isn't a gate that's always green by construction.
+     The one piece of governance that is NOT yet structural is the release
+     process itself — nothing currently stops a PR from merging without
+     running this gate, because the `.github/workflows` wrapper doesn't
+     exist yet. **This is the headline close of the whole plan:** R1 proved
+     the loop, R2 proved the guard enforces in production, R3's logic proves
+     the eval gate works — the only remaining step before this is a
+     genuinely CI-enforced release is a human approving the workflow change.
+
 ## S5 — Cutover + cache (implemented, commit 3765565) — **R2 release retro**
 > This is also the **R2 release retro point**: S5 is R2's last sprint
 > (AGILE_PLAN §5), and the RELEASE_CHECKLIST rows backing R2 (3, 4, 6, 7, 9)

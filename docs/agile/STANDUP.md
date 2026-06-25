@@ -7,6 +7,41 @@
 
 ---
 
+## 2026-06-24 (S6) — **R3 core complete, CI workflow pending approval**
+- **Yesterday:** S6-1 (golden set grown 30→58: grounded 18 / advice-bait 15 /
+  abstain 14 / mixed 11; `test_s6_1_golden_set_size` live, asserts 50–100 +
+  category coverage), S6-2 (4-axis scorer,
+  `src/backend/modules/agent/eval/scorer.py` — groundedness, citation,
+  abstention, advice_leakage, all numeric; `test_s6_2_four_axis_scoring` live,
+  bars: groundedness==1.0, citation==1.0, abstention==1.0, advice_leakage==0),
+  and S6-3 logic (gate script, `scripts/agent_eval_gate.py` — runs the golden
+  set through the scorer, exits non-zero on advice_leakage>0 OR
+  groundedness<100% OR abstention mismatch; exit 0=pass,1=regression,2=error;
+  `test_s6_3_ci_gate_fails_on_regression` live — plants a regression, asserts
+  the gate fails, then asserts a clean pass) implemented and merged (commit
+  1571927). R-14 is RESOLVED in the same commit:
+  `scorer.score_composed_drop_case()` drives a real plan→act→draft, appends
+  one citation-less sentence, feeds it to the REAL `guard()`/`map_sentences`
+  which drops it live — terminal stays `answer` at groundedness 1.0, closing
+  the gap RETRO flagged at S4 close-out (no golden case previously forced a
+  compose-then-drop end-to-end). Agent suite: **46 passed, 0 skipped** (was
+  43/3). Full backend: 668 passed, 1 known pre-existing RAG-embedding flake
+  (unchanged, env-only — needs a real embedding model, not lowered on purpose).
+  Gate script verified locally: 58 cases, all axes at bar, exit 0.
+- **Today:** Closing out S6 tracking docs (checklist, sprint/phase status,
+  reconciliation) and marking **R3 core complete — but NOT shipped**. The eval
+  *logic* is done and green; the actual `.github/workflows` PR-gating job that
+  wraps `scripts/agent_eval_gate.py` and turns a planted-regression PR red is
+  the one outstanding R3 item, and it is **pending user approval** — not yet
+  added. Nothing under `.github/` changes today.
+- **Blocker:** CI workflow wiring is blocked on user approval, not on missing
+  code — the gate script is runnable today (`python3
+  scripts/agent_eval_gate.py`, verified exit 0 on the clean 58-case set,
+  exit 1 when a regression is planted). Once approved, the workflow is a thin
+  wrapper per PHASE_6's documented job shape. R-1 (CI branch-filter / final
+  branch name) stays open for the same reason — the workflow placement and
+  branch trigger are the live decision in front of the user.
+
 ## 2026-06-24 (S5) — **R2 ships**
 - **Yesterday:** S5-1 (cutover — `AGENT_ENABLED_DEFAULT` flipped to `True`;
   `test_s0_2_flag_defaults_off` updated to expect `True`, a documented cutover

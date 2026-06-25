@@ -1,6 +1,6 @@
 # Reconciliation — exploration vs. inherited planning bundle
 
-**Last Updated:** 2026-06-24 (S5 close-out — R2 ships)
+**Last Updated:** 2026-06-24 (S6 close-out — R3 core complete, CI workflow pending approval)
 **Owner:** [Owner] (solo client/engineer — final approver)
 **Refresh Trigger:** A new conflict is found between live code and an inherited
 artifact, or the human resolves an open item below
@@ -15,15 +15,30 @@ artifact, or the human resolves an open item below
 ## Conflicts requiring a human decision
 
 ### R-1 — Branch name mismatch
+- **Status:** Open — still the live approval decision in front of the user (S6 close-out update below).
 - **Bundle says:** develop on `fix/agent-overhaul`.
 - **Environment says:** develop on `claude/agent-overhaul-prd-sprints-2vgb5h` (the
   only feature branch present; `fix/agent-overhaul` does not exist in this clone).
 - **Action taken:** Worked on `claude/agent-overhaul-prd-sprints-2vgb5h`, treating it
   as the same logical workstream. `main` untouched.
+- **S6 close-out update (2026-06-24, commit 1571927):** The gate-script HALF
+  of the eval-CI gate is now ready and proven — `scripts/agent_eval_gate.py`
+  is runnable, exits non-zero on a regression, and `test_s6_3_ci_gate_fails_on_regression`
+  proves it locally. What is still unresolved is exactly this reconciliation
+  item: the `.github/workflows` job that calls this script, and which branch
+  filter it should trigger on, have NOT been added — that placement decision
+  is the live approval item in front of the user right now. Today's actual
+  `ci.yml` triggers are `push: branches: [main, 'Security-Revamp-*']` and
+  `pull_request: branches: [main]` — neither names this feature branch
+  (`claude/agent-overhaul-prd-sprints-2vgb5h`) today. Nothing under
+  `.github/` was changed in commit 1571927; this remains untouched pending
+  the approval decision.
 - **Needs you to:** Confirm this is the intended branch, or create/rename to
   `fix/agent-overhaul` before merge. The eval-CI gate in Phase 6 is written to
   trigger on `fix/agent-overhaul` per the evals skill — **update the workflow
-  branch filter to whatever the final branch name is.**
+  branch filter to whatever the final branch name is.** This is now also the
+  blocker on adding the `agent-evals` job itself: the workflow addition and
+  the branch-filter decision are the same outstanding approval.
 
 ### R-2 — Proof-bundle venv is Windows-pathed
 - **Bundle says:** run the proof bundle via
@@ -254,8 +269,24 @@ artifact, or the human resolves an open item below
   default, or redirect before S6 builds the eval gate on top of it.
 
 ### R-14 — Golden set's `drops_unmapped` cases never exercise groundedness actually dropping a composed sentence
-- **Status:** Open — needs a human nod on S6 scope (proposed resolution below).
-- **Owner:** S6
+- **Status:** **RESOLVED** (S6, commit 1571927). `scorer.score_composed_drop_case()`
+  (`src/backend/modules/agent/eval/scorer.py`) drives a real `plan → act →
+  draft` for a genuinely citation-grounded case, then appends ONE extra
+  sentence with NO corresponding citation to the drafted terminal, and feeds
+  that augmented terminal to the REAL `guard()`/`groundedness.map_sentences` —
+  not a synthetic draft, not a mocked guard. The guard mechanically drops the
+  citation-less sentence live; the terminal stays `answer` at
+  `groundedness_after_drop == 1.0`, proving the case the unit test
+  (`test_s3_2_unmapped_claim_dropped`) already covered in isolation now also
+  has an end-to-end eval-level proof. `report.composed_drop_check` (a
+  `ComposedDropCheck` with `dropped`, `terminal`, `groundedness_after_drop`,
+  `passed` fields) is asserted in `test_s6_2_four_axis_scoring`
+  (`dropped is True`, `terminal == "answer"`, `groundedness_after_drop == 1.0`,
+  `passed is True`) and is part of the gate's pass/fail decision in
+  `scripts/agent_eval_gate.py`. This closes the exact gap flagged at S4
+  close-out: "compose first, drop second" is now exercised end-to-end by an
+  eval case, not only by the S3 unit test.
+- **Owner:** S6 (closed)
 - **Date found:** 2026-06-24 (S4 close-out reconciliation pass, post commit 43f7a4b)
 - **Bundle says:** The guardrails skill's mixed-evidence golden cases (e.g.
   `mixed-partial-grounding.json`, `expect.drops_unmapped: true`) exist to prove the

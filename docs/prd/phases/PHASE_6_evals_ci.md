@@ -1,12 +1,12 @@
 # Phase 6 — Evals Gate CI
 
-**Last Updated:** 2026-06-23
+**Last Updated:** 2026-06-24 (S6 close-out — R3 core complete, CI workflow pending approval)
 **Owner:** [Owner]
 **Refresh Trigger:** Scoring-axis definitions, golden-set size, or the CI gate condition change
 
 | Map | Value |
 |---|---|
-| Release | **R3 — Measured & tuned** (R3 **core ships** at end of S6) |
+| Release | **R3 — Measured & tuned** (R3 core logic delivered at S6 close-out, commit 1571927; **R3 PENDING — CI workflow awaiting approval (2026-06-24)**) |
 | Epic | **E3 — Evals** (`skills/healthcentral-evals`) |
 | Sprint | **S6** (S6-1…S6-3) |
 | Binding skills | `healthcentral-evals`, `healthcentral-backend` |
@@ -18,10 +18,28 @@ fails any PR where advice leakage > 0 or groundedness < 100%.
 
 ## Exit criteria (= **R3 core exit**, AGILE_PLAN §5)
 - Evals gate CI. Golden set 50–100 cases across panels + edge cases (FR-17).
+  **Delivered** (commit 1571927): 58 cases (grounded 18 / advice-bait 15 /
+  abstain 14 / mixed 11), `test_s6_1_golden_set_size` live.
 - All four axes scored numerically: groundedness, citation accuracy, abstention
-  correctness, advice leakage.
+  correctness, advice leakage. **Delivered** (commit 1571927):
+  `src/backend/modules/agent/eval/scorer.py`, `test_s6_2_four_axis_scoring`
+  live, all axes at bar (groundedness==1.0, citation==1.0, abstention==1.0,
+  advice_leakage==0).
 - `.github/workflows` job turns a **planted regression PR red** (a gate not seen to fail
-  is not a gate — evals skill).
+  is not a gate — evals skill). **Gate LOGIC delivered, workflow NOT delivered.**
+  The runnable script (`scripts/agent_eval_gate.py`) is done and proven —
+  `test_s6_3_ci_gate_fails_on_regression` plants a regression, asserts the
+  gate fails (exit 1), then asserts a clean pass (exit 0). The actual
+  `.github/workflows` job that invokes this script against real PRs has
+  **not been added** — it is PENDING USER APPROVAL.
+
+> **R3 PENDING — CI workflow awaiting approval (2026-06-24).** Commit
+> 1571927 closes the eval-logic half of this phase (golden set, scorer, gate
+> script) but the CI-enforcement half — the actual `.github/workflows` job —
+> is the one item still in front of the user. Do not treat R3 as shipped
+> until that workflow is approved and added. See RELEASE_CHECKLIST row 5 and
+> RECONCILIATION R-1 (workflow placement + branch filter is the live
+> decision blocking it).
 
 ## CONTRACTS
 
@@ -32,10 +50,18 @@ New job in `.github/workflows/ci.yml` (slots after `backend-tests`, before `e2e-
     runs-on: ubuntu-latest
     steps:
       - run: bash scripts/run-backend-tests.sh tests/agent -q
-      - run: python3 scripts/score_agent_evals.py --fail-on "advice_leakage>0,groundedness<1.0"
+      - run: python3 scripts/agent_eval_gate.py
 ```
 **Trigger:** PRs to the feature branch (RECONCILIATION R-1 — set the actual branch name).
 This is the **acceptance gate** for audience Report 0's matrix.
+
+**Status (2026-06-24):** the script half (`scripts/agent_eval_gate.py`,
+commit 1571927) is written, runnable, and proven locally — see
+`test_s6_3_ci_gate_fails_on_regression`. The YAML job above has **not** been
+added to `.github/workflows/ci.yml`; that addition, and the final call on the
+branch trigger (R-1), are PENDING USER APPROVAL. Until that lands, this gate
+is not CI-enforced — it can be run manually (`python3
+scripts/agent_eval_gate.py`) but nothing stops a PR from merging without it.
 
 ### Scoring axes (all programmatic — evals skill)
 `scripts/score_agent_evals.py` emits a JSON report:
