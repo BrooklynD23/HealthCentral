@@ -504,12 +504,24 @@ async def get_analyte_trend(
         )
 
     # Build trend data
+    # Observations with collected_at go into the time-series line.
+    # Observations without a date are still counted and reported in the
+    # summary so the user knows data exists but cannot be plotted.
     data_points = []
+    undated_count = 0
     ref_low = None
     ref_high = None
     unit = None
 
     for obs in observations:
+        # Collect reference range and unit from every observation regardless of date
+        if obs.ref_low is not None:
+            ref_low = obs.ref_low
+        if obs.ref_high is not None:
+            ref_high = obs.ref_high
+        if obs.unit:
+            unit = obs.unit
+
         if obs.collected_at and obs.value is not None:
             data_points.append(TrendPoint(
                 date=obs.collected_at.isoformat(),
@@ -520,15 +532,12 @@ async def get_analyte_trend(
                 doc_id=obs.doc_id,
                 extraction_confidence=obs.extraction_confidence,
             ))
-            # Use most recent reference range
-            if obs.ref_low is not None:
-                ref_low = obs.ref_low
-            if obs.ref_high is not None:
-                ref_high = obs.ref_high
-            if obs.unit:
-                unit = obs.unit
+        elif obs.value is not None:
+            # Has a value but no date — count it so the summary is accurate
+            undated_count += 1
 
     # Generate summary
+    total_count = len(data_points) + undated_count
     if len(data_points) >= 2:
         first_val = data_points[0].value
         last_val = data_points[-1].value
@@ -542,7 +551,21 @@ async def get_analyte_trend(
         else:
             trend = f"decreased by {abs(change_pct):.1f}%"
 
-        summary = f"{analyte.upper()} has {trend} over {len(data_points)} measurements."
+        summary = f"{analyte.upper()} has {trend} over {len(data_points)} dated measurements."
+        if undated_count:
+            summary += f" {undated_count} additional measurement(s) have no collection date and are not shown on the chart."
+    elif len(data_points) == 1:
+        summary = f"Single dated measurement of {analyte.upper()} recorded."
+        if undated_count:
+            summary += f" {undated_count} additional measurement(s) have no collection date."
+    elif undated_count:
+        # No dated points at all — return a response with empty data_points but
+        # a helpful summary rather than 404, so the UI can show the latest-values table.
+        summary = (
+            f"{total_count} measurement(s) of {analyte.upper()} found, "
+            f"but none have a collection date so no trend line can be drawn. "
+            f"Use the analyte list to see the latest value."
+        )
     else:
         summary = f"Single measurement of {analyte.upper()} recorded."
 

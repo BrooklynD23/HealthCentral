@@ -388,8 +388,14 @@ export function TrendsDashboard() {
                   <p className="text-ink-secondary">No trend data available for this analyte</p>
                 </div>
               ) : chartData.length === 0 ? (
-                <div className="h-72 flex items-center justify-center">
-                  <p className="text-ink-secondary">No trend data available</p>
+                <div className="h-72 flex items-center justify-center flex-col gap-3">
+                  <p className="text-ink-secondary">
+                    {trendData.summary || 'No dated measurements to chart.'}
+                  </p>
+                  <p className="text-xs text-ink-tertiary">
+                    Collection dates could not be read from the source document.
+                    Re-import or reprocess the document, or verify the observation to set a date.
+                  </p>
                 </div>
               ) : (
                 <>
@@ -535,6 +541,9 @@ export function TrendsDashboard() {
                       <p className="text-xs text-ink-secondary mt-0.5">
                         {obs.value ?? obs.value_text} {obs.unit}
                       </p>
+                      {obs.collected_at === null && (
+                        <p className="text-xs text-ink-tertiary mt-0.5 italic">undated</p>
+                      )}
                     </div>
                     <div
                       className={cn(

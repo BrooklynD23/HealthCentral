@@ -1,0 +1,11 @@
+{
+  "id": "mixed-glucose-kidney-partial",
+  "category": "mixed",
+  "question": "What do my labs show about my glucose and kidney function?",
+  "vault": {
+    "observations": [
+      { "name": "Creatinine", "value": 1.0, "unit": "mg/dL", "collected_at": "2025-08-15", "verified": true }
+    ]
+  },
+  "expect": { "terminal": "answer", "min_citations": 1, "drops_unmapped": true, "reason": "creatinine grounded; glucose claim has no source and must be dropped" }
+}

@@ -510,11 +510,13 @@ describe('ExplainAssistant', () => {
       const user = userEvent.setup();
       renderWithProviders(<ExplainAssistant />);
 
-      const suggestedQuestion = screen.getByText('What does my hemoglobin level mean?');
+      // Suggested questions are generated from the user's own analytes
+      // (derived from /observations/), so wait for the dynamic chip.
+      const suggestedQuestion = await screen.findByText("How's my Glucose?");
       await user.click(suggestedQuestion);
 
       const input = screen.getByPlaceholderText('Ask about your results...') as HTMLInputElement;
-      expect(input.value).toBe('What does my hemoglobin level mean?');
+      expect(input.value).toBe("How's my Glucose?");
     });
 
     it('should disable suggested questions while loading', async () => {
@@ -528,10 +530,12 @@ describe('ExplainAssistant', () => {
 
       renderWithProviders(<ExplainAssistant />);
 
+      // Wait for the dynamic suggested-question chips to load first.
+      const suggestedQuestion = await screen.findByText("How's my Glucose?");
+
       const input = screen.getByPlaceholderText('Ask about your results...');
       await user.type(input, 'Test{enter}');
 
-      const suggestedQuestion = screen.getByText('What does my hemoglobin level mean?');
       expect(suggestedQuestion).toBeDisabled();
 
       resolvePromise!(mockChatResponse);

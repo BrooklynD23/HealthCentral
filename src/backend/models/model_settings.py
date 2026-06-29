@@ -117,6 +117,24 @@ class UserModelSettings(ProfileDatabaseBase):
         nullable=False,
     )
 
+    # ASSIST-MEM-003: per-profile toggle for memory injection into RAG context
+    assistant_memory_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+    )
+
+    # Agent Overhaul S5-1: persisted agent_enabled flag (resolves
+    # RECONCILIATION R-8). Read via modules.agent.settings.is_agent_enabled.
+    # Defaults True (the S5 cutover default) for both new rows and existing
+    # rows migrated by 009_agent_enabled.
+    agent_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        server_default="1",
+        nullable=False,
+    )
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime,

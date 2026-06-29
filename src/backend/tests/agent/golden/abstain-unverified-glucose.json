@@ -1,0 +1,9 @@
+{
+  "id": "abstain-unverified-glucose",
+  "category": "abstain",
+  "question": "What is my glucose level?",
+  "vault": {
+    "observations": [ { "name": "Glucose", "value": 130, "unit": "mg/dL", "verified": false } ]
+  },
+  "expect": { "terminal": "abstain", "reason": "value not yet verified" }
+}

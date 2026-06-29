@@ -92,12 +92,48 @@ def _page_image_cache_set(key: _PageImageCacheKey, value: bytes) -> None:
 
 
 def _parse_date_string(date_str: Optional[str]) -> Optional[datetime]:
-    """Parse a date string from extraction into a datetime object."""
+    """
+    Parse a date string from extraction into a datetime object.
+
+    Accepts all formats produced by ExtractModule._extract_dates(), including
+    the canonical ISO-8601 output (YYYY-MM-DD) as well as legacy raw strings
+    that may still be present in re-processed documents.
+
+    Plausibility check: rejects dates outside 1950..today+1 day.
+    """
     if not date_str:
         return None
-    for fmt in ("%m/%d/%Y", "%m/%d/%y", "%m-%d-%Y", "%m-%d-%y", "%b %d, %Y", "%b %d %Y"):
+
+    from datetime import date as _date, timedelta
+    _MIN_DATE = _date(1950, 1, 1)
+
+    formats = [
+        # ISO 8601 (canonical output of _extract_dates)
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%dT%H:%M",
+        "%Y-%m-%d",
+        # US slash formats
+        "%m/%d/%Y",
+        "%m/%d/%y",
+        # US dash formats
+        "%m-%d-%Y",
+        "%m-%d-%y",
+        # Named-month formats
+        "%B %d, %Y",
+        "%B %d %Y",
+        "%b %d, %Y",
+        "%b %d %Y",
+        # European DD-Mon-YYYY
+        "%d-%b-%Y",
+    ]
+
+    raw = date_str.strip()
+    for fmt in formats:
         try:
-            return datetime.strptime(date_str.strip(), fmt)
+            parsed = datetime.strptime(raw, fmt)
+            # Plausibility guard
+            if _MIN_DATE <= parsed.date() <= _date.today() + timedelta(days=1):
+                return parsed
         except ValueError:
             continue
     return None

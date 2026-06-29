@@ -1,0 +1,7 @@
+{
+  "id": "abstain-empty-vault-no-analyte",
+  "category": "abstain",
+  "question": "What do my labs say about my overall health?",
+  "vault": { "observations": [] },
+  "expect": { "terminal": "abstain", "reason": "no observations at all and no specific analyte named" }
+}

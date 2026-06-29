@@ -885,10 +885,17 @@ async def seed_biomarker_relationships(session: AsyncSession) -> int:
     return count
 
 
-async def seed_all() -> dict:
-    """Seed all knowledge base data."""
-    # Initialize database first
-    await init_database()
+async def seed_all(skip_db_init: bool = False) -> dict:
+    """Seed all knowledge base data.
+
+    Args:
+        skip_db_init: When True, skip calling init_database() because the caller
+                      (e.g. main.py lifespan) has already initialised the engine.
+                      Defaults to False so standalone invocation still works.
+    """
+    # Initialize database unless the caller already did it
+    if not skip_db_init:
+        await init_database()
 
     results = {
         "biomarkers": 0,

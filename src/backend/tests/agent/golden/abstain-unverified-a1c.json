@@ -1,0 +1,9 @@
+{
+  "id": "abstain-unverified-a1c",
+  "category": "abstain",
+  "question": "What is my A1c?",
+  "vault": {
+    "observations": [ { "name": "HbA1c", "value": 6.8, "unit": "%", "verified": false } ]
+  },
+  "expect": { "terminal": "abstain", "reason": "value not yet verified" }
+}

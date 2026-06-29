@@ -1,0 +1,9 @@
+{
+  "id": "abstain-no-data-vitamin-d",
+  "category": "abstain",
+  "question": "What is my vitamin D level?",
+  "vault": {
+    "observations": []
+  },
+  "expect": { "terminal": "abstain", "reason": "no vitamin D observation exists in the vault at all" }
+}

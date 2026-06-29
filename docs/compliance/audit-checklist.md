@@ -33,7 +33,7 @@ Use this checklist before deploying HealthCentral to production or sharing with 
 | 15 | Auth events logged (login, logout, failed) | [ ] |
 | 16 | Document events logged (import, view, delete) | [ ] |
 | 17 | Observation events logged (verify, edit) | [ ] |
-| 18 | Security events logged (rate limit, input rejection) | [ ] |
+| 18 | Security middleware application-log entries captured and retained per policy | [ ] |
 | 19 | Log files rotated and retained per policy | [ ] |
 | 20 | Audit logs do not contain PHI in plaintext | [ ] |
 
@@ -47,52 +47,60 @@ Use this checklist before deploying HealthCentral to production or sharing with 
 | 24 | XSS headers present (X-Content-Type-Options, etc.) | [ ] |
 | 25 | File upload types restricted to PDF/PNG/JPG/JPEG | [ ] |
 
+## Reinforcement Learning and Feedback
+
+| # | Item | Status |
+|---|------|--------|
+| 26 | RL feedback export requires explicit user confirmation (`confirmed=true`) | [ ] |
+| 27 | Redaction of PHI in exported RL datasets verified (spot-check sample JSONL export for plaintext PHI) | [ ] |
+| 28 | Audit log contains feedback export events (`feedback.*` event types) | [ ] |
+
 ## Backup and Recovery
 
 | # | Item | Status |
 |---|------|--------|
-| 26 | Backup script tested and working | [ ] |
-| 27 | Backup integrity verification passing | [ ] |
-| 28 | Restore procedure tested successfully | [ ] |
-| 29 | Backup retention policy configured (30 days default) | [ ] |
-| 30 | Disaster recovery runbook reviewed and accessible | [ ] |
+| 29 | Backup script tested and working | [ ] |
+| 30 | Backup integrity verification passing | [ ] |
+| 31 | Restore procedure tested successfully | [ ] |
+| 32 | Backup retention policy configured (30 days default) | [ ] |
+| 33 | Disaster recovery runbook reviewed and accessible | [ ] |
 
 ## Network Security (Server Mode)
 
 | # | Item | Status |
 |---|------|--------|
-| 31 | CORS origins restricted to known domains | [ ] |
-| 32 | API bound to appropriate interface (not 0.0.0.0 without firewall) | [ ] |
-| 33 | HSTS enabled with max-age >= 1 year | [ ] |
-| 34 | Debug mode disabled (`DEBUG=false`) | [ ] |
-| 35 | API docs disabled in production (auto when debug=false) | [ ] |
+| 34 | CORS origins restricted to known domains | [ ] |
+| 35 | API bound to appropriate interface (not 0.0.0.0 without firewall) | [ ] |
+| 36 | HSTS enabled with max-age >= 1 year | [ ] |
+| 37 | Debug mode disabled (`DEBUG=false`) | [ ] |
+| 38 | API docs disabled in production (auto when debug=false) | [ ] |
 
 ## Security Headers
 
 | # | Item | Status |
 |---|------|--------|
-| 36 | X-Content-Type-Options: nosniff | [ ] |
-| 37 | X-Frame-Options: DENY | [ ] |
-| 38 | Referrer-Policy set | [ ] |
-| 39 | Permissions-Policy restricts camera/mic/geo | [ ] |
-| 40 | X-Correlation-ID present on responses | [ ] |
+| 39 | X-Content-Type-Options: nosniff | [ ] |
+| 40 | X-Frame-Options: DENY | [ ] |
+| 41 | Referrer-Policy set | [ ] |
+| 42 | Permissions-Policy restricts camera/mic/geo | [ ] |
+| 43 | X-Correlation-ID present on responses | [ ] |
 
 ## Monitoring
 
 | # | Item | Status |
 |---|------|--------|
-| 41 | Health endpoint accessible (/health) | [ ] |
-| 42 | Metrics collection enabled | [ ] |
-| 43 | Error rates monitored | [ ] |
-| 44 | Response times tracked | [ ] |
+| 44 | Health endpoint accessible (/health) | [ ] |
+| 45 | Metrics collection enabled | [ ] |
+| 46 | Error rates monitored | [ ] |
+| 47 | Response times tracked | [ ] |
 
 ## Dependencies
 
 | # | Item | Status |
 |---|------|--------|
-| 45 | pip-audit run with no critical vulnerabilities | [ ] |
-| 46 | Bandit scan completed with no high-severity findings | [ ] |
-| 47 | All dependencies pinned to specific versions | [ ] |
+| 48 | pip-audit run with no critical vulnerabilities | [ ] |
+| 49 | Bandit scan completed with no high-severity findings | [ ] |
+| 50 | All dependencies pinned to specific versions | [ ] |
 
 ## Sign-Off
 

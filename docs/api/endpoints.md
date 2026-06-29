@@ -1,6 +1,6 @@
 # API Endpoints
 
-**Last Updated:** 2026-05-15
+**Last Updated:** 2026-06-13
 **Owner:** Platform maintainers
 **Refresh Trigger:** Mounted backend route added, removed, renamed, or auth requirement changed
 **Status:** Source of truth for the live mounted backend API
@@ -22,6 +22,7 @@ Auth-required endpoints need `Authorization: Bearer <token>`.
 | POST | `/profiles/{profile_id}/lock` | Yes | Lock a profile and revoke the current session |
 | POST | `/profiles/{profile_id}/unlock` | No | Unlock a profile with password and return a session token |
 | POST | `/profiles/{profile_id}/change-password` | Yes | Change the profile password |
+| POST | `/profiles/test/reset` | Yes | Reset test data outside production |
 
 ## Documents
 
@@ -30,7 +31,7 @@ Auth-required endpoints need `Authorization: Bearer <token>`.
 | POST | `/documents/import` | Yes | Import a PDF/image document |
 | GET | `/documents/` | Yes | List documents with optional status/type filters |
 | GET | `/documents/{document_id}` | Yes | Get document metadata |
-| POST | `/documents/{document_id}/reprocess` | Yes | Retry extraction/OCR and rebuild observations/chunks |
+| POST | `/documents/{document_id}/reprocess` | Yes | Retry extraction/OCR and rebuild observations/chunks — also backfills collected_at for documents affected by earlier date-extraction gaps |
 | POST | `/documents/{document_id}/verify` | Yes | Mark all observations for a document as verified |
 | GET | `/documents/{document_id}/category` | Yes | Get the classified document category |
 | GET | `/documents/{document_id}/entities` | Yes | Get extracted document entities |
@@ -69,6 +70,20 @@ Auth-required endpoints need `Authorization: Bearer <token>`.
 | GET | `/assistant/test-intent/{analyte}` | Yes | Test intent lookup for an analyte |
 | GET | `/assistant/glossary/{term}` | Yes | Glossary lookup |
 | GET | `/assistant/verification-status` | Yes | Get assistant verification component status |
+| GET | `/assistant/sessions` | Yes | List chat sessions for the profile |
+| POST | `/assistant/sessions` | Yes | Create a new chat session |
+| GET | `/assistant/sessions/{session_id}` | Yes | Get a session's message history |
+| DELETE | `/assistant/sessions/{session_id}` | Yes | Delete a chat session |
+| GET | `/assistant/memory-settings` | Yes | Get the per-profile RAG memory toggle |
+| PATCH | `/assistant/memory-settings` | Yes | Update the per-profile RAG memory toggle |
+
+## Feedback
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/feedback/turns/{turn_id}` | Yes | Upsert rating/correction feedback for an assistant turn |
+| GET | `/feedback/stats` | Yes | Get aggregate feedback stats for the profile |
+| POST | `/feedback/export` | Yes | Export redacted DPO/GRPO/SFT preference datasets (requires `confirmed=true`) |
 
 ## Memory
 
@@ -132,6 +147,8 @@ Auth-required endpoints need `Authorization: Bearer <token>`.
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/settings/model` | Yes | Get model settings and hardware summary |
+| GET | `/settings/model/provider` | Yes | Get the active LLM provider and its capability flags |
+| PUT | `/settings/model/provider` | Yes | Switch the active LLM provider/model at runtime; Ollama provider URL must remain localhost |
 | POST | `/settings/model/detect` | Yes | Run hardware detection |
 | POST | `/settings/model/tier` | Yes | Set preferred model tier |
 | GET | `/settings/model/tiers` | Yes | List tier availability |

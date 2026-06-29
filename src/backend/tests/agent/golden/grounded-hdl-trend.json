@@ -1,0 +1,12 @@
+{
+  "id": "grounded-hdl-trend",
+  "category": "grounded",
+  "question": "How has my HDL changed over time?",
+  "vault": {
+    "observations": [
+      { "name": "HDL", "value": 48, "unit": "mg/dL", "collected_at": "2025-02-15", "verified": true },
+      { "name": "HDL", "value": 52, "unit": "mg/dL", "collected_at": "2025-09-15", "verified": true }
+    ]
+  },
+  "expect": { "terminal": "answer", "min_citations": 1, "reason": "two verified HDL values support a grounded trend" }
+}

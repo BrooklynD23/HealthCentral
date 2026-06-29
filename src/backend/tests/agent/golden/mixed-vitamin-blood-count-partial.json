@@ -1,0 +1,13 @@
+{
+  "id": "mixed-vitamin-blood-count-partial",
+  "category": "mixed",
+  "question": "What do my labs show about my vitamin D and hemoglobin?",
+  "vault": {
+    "observations": [
+      { "name": "Hemoglobin", "value": 13.5, "unit": "g/dL", "collected_at": "2025-11-01", "verified": true }
+    ],
+    "documents": [ { "id": "doc-1", "status": "verified" } ],
+    "chunks": [ { "id": "chunk-1", "document_id": "doc-1", "text": "Hemoglobin 13.5 g/dL." } ]
+  },
+  "expect": { "terminal": "answer", "min_citations": 1, "drops_unmapped": true, "reason": "hemoglobin grounded; vitamin D claim has no source and must be dropped" }
+}

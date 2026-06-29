@@ -30,14 +30,13 @@ WAIVERS: dict[str, dict[str, str]] = {
     "CVE-2025-69872": {
         "package": "diskcache",
         "reason": (
-            "Transitive dependency of llama-cpp-python; no fixed diskcache "
-            "release exists (5.6.3 is the latest published version). The CVE "
-            "requires local write access to the on-disk cache directory, which "
-            "in this local-first desktop app means the user's own machine is "
-            "already compromised. Re-evaluate when a patched diskcache ships."
+            "diskcache is a transitive dependency of llama-cpp-python; no "
+            "patched release exists. The pickle deserialization RCE requires "
+            "local write access to the cache directory, which is outside the "
+            "local-first, single-user threat model."
         ),
-        "owner": "Platform/Security",
-        "expires": "2026-09-30",
+        "owner": "dangtran1022@gmail.com",
+        "expires": "2026-09-23",
     },
 }
 

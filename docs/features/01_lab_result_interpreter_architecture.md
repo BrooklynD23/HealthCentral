@@ -136,15 +136,19 @@ class BiomarkerRelationship(Base):
 
 ### Model Selection
 
-**Primary:** BioMistral-7B (GGUF 4-bit quantized)
-- Fine-tuned on PubMed and clinical texts
-- ~4GB RAM, runs on CPU (moderate speed)
-- Falls within "Tier 2: balanced quality" category
+The system uses a **hardware-adaptive tiered provider system** that automatically selects the optimal LLM provider and model based on available hardware. The provider layer (`src/backend/core/llm/`) is model-agnostic and supports:
 
-**Fallback Strategy:**
-1. Use existing Phi-3 Mini with medical knowledge base RAG
-2. Template-based interpretations with knowledge base fill-in
-3. Manual review required for all interpretations
+**Providers:**
+- `llama_cpp_provider` (default): Embeds llama.cpp; auto-detects chat template from GGUF
+- `ollama_provider` (optional): Requires localhost Ollama service
+
+**Hardware Tiers** (auto-detected at startup, overridable by user):
+- **Tier 1 (High):** BioMistral-7B | GPU 8GB+ VRAM or 32GB+ RAM | Best medical accuracy
+- **Tier 2 (Mid):** Phi-3-mini + Enhanced RAG | GPU 4-6GB VRAM or 16GB RAM | Good with strong KB
+- **Tier 3 (Low):** Qwen2.5-0.5B + RAG | CPU-only, 8GB RAM | Basic, KB-heavy
+- **Gemma 4 alternates:** gemma4-e2b / gemma4-e4b / gemma4-12b | GPU preferred, CPU viable | Registered/read-visible in model config, but current set/download write APIs accept only `low`, `mid`, and `high`
+
+Provider/model selection is configurable via `GET`/`PUT /api/v1/settings/model/provider` and managed by `modules/model_selector.py` + `modules/hardware_detection.py`.
 
 ### Interpretation Pipeline
 
@@ -188,6 +192,29 @@ class BiomarkerRelationship(Base):
    - Audit log entry
 ```
 
+### Biomarker Grounding
+
+The assistant RAG pipeline grounds biomarker-related responses in **two independent citation layers**:
+
+**Patient's Own Results `[YOUR_RESULTS:N]`:**
+- Latest measured value for the biomarker
+- Normal reference range (sex-specific if applicable)
+- Trend direction over time (improving/stable/worsening)
+- Extracted from patient's observation history
+
+**General Reference Knowledge `[REFERENCE:N]`:**
+- Auto-seeded at startup via `seed_knowledge_base.py` if empty
+- Clinical significance of the biomarker
+- Common causes of abnormality
+- General management principles
+- Sourced from `biomarker_knowledge` table
+
+**Response Structure:**
+- "Report Facts" section cites `[YOUR_RESULTS:N]` exclusively (patient's personal data context)
+- "General Info" section cites `[REFERENCE:N]` exclusively (reference KB context)
+- This separation maintains the education-only framing and ensures no medical advice is provided
+- All outputs include disclaimers directing user to healthcare provider
+
 ### Safety Guardrails
 
 ```python
@@ -212,22 +239,22 @@ class InterpretationSafetyGuard:
 ## 5. API Endpoints
 
 ```python
-@router.post("/observations/{observation_id}/interpret")
+@router.post("/api/v1/interpretations/observations/{observation_id}/interpret-grounded")
 async def generate_interpretation(observation_id: str, force_regenerate: bool = False)
 
-@router.get("/observations/{observation_id}/interpretation")
+@router.get("/api/v1/interpretations/observations/{observation_id}/interpretation")
 async def get_interpretation(observation_id: str)
 
-@router.post("/panels/{panel_name}/interpret")
+@router.post("/api/v1/interpretations/panels/{panel_name}/interpret")
 async def generate_panel_interpretation(panel_name: str, collected_at: datetime)
 
-@router.get("/interpretations/recent")
+@router.get("/api/v1/interpretations/recent")
 async def get_recent_interpretations(limit: int = 10)
 
-@router.get("/knowledge/biomarker/{analyte_canonical}")
+@router.get("/api/v1/interpretations/knowledge/biomarker/{analyte_canonical}")
 async def get_biomarker_knowledge(analyte_canonical: str)
 
-@router.post("/interpretations/batch")
+@router.post("/api/v1/interpretations/batch")
 async def batch_generate_interpretations(observation_ids: list[str])
 ```
 

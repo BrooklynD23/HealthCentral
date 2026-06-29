@@ -23,6 +23,7 @@ from core.auth import RequireAuth, ProfileDbSession, ProfileEncryptionManager
 from core.config import user_ocr_preference_enabled, compute_ocr_effective
 from core.profile_database import get_profile_db_manager
 from models import UserModelSettings
+from modules.agent.settings import is_agent_enabled
 from modules.environment_diagnostics import build_environment_diagnostics
 from modules.hardware_detection import (
     HardwareProfile,
@@ -168,6 +169,7 @@ class ModelSettingsResponse(BaseModel):
     ocr_preference_enabled: bool = True
     ocr_effective: bool = False
     ocr_blockers: list[str] = Field(default_factory=list)
+    agent_enabled: bool = True
 
 
 class DownloadProgressResponse(BaseModel):
@@ -228,6 +230,40 @@ class OcrSettingsResponse(BaseModel):
     ocr_preference_enabled: bool
     ocr_effective: bool
     ocr_blockers: list[str] = Field(default_factory=list)
+
+
+class UserModelSettingsUpdate(BaseModel):
+    """Partial update for the agent_enabled cutover flag (Agent Overhaul S5-1)."""
+    agent_enabled: Optional[bool] = None
+
+
+class AgentSettingsResponse(BaseModel):
+    agent_enabled: bool
+
+
+class ProviderInfoResponse(BaseModel):
+    """Current LLM provider configuration."""
+    llm_provider: str
+    llm_model: str
+    ollama_base_url: str
+    available: bool
+    capabilities: dict
+
+
+class ProviderSetRequest(BaseModel):
+    """Request to change the active LLM provider."""
+    llm_provider: str = Field(
+        ...,
+        description="Provider to use: 'llama_cpp' or 'ollama'",
+        pattern="^(llama_cpp|ollama)$",
+    )
+    llm_model: str = Field(
+        default="",
+        description=(
+            "Model identifier: empty = auto for llama_cpp; "
+            "Ollama tag (e.g. 'gemma4:12b') for ollama"
+        ),
+    )
 
 
 class DiagnosticFixAction(BaseModel):
@@ -382,6 +418,7 @@ async def get_model_settings(
         ocr_preference_enabled=ocr_pref,
         ocr_effective=ocr_effective,
         ocr_blockers=ocr_blockers,
+        agent_enabled=is_agent_enabled(user_settings),
     )
 
 
@@ -709,6 +746,101 @@ async def save_external_api_settings(
     )
 
 
+
+@router.get(
+    "/provider",
+    response_model=ProviderInfoResponse,
+    summary="Get active LLM provider",
+    description="Return the active LLM provider and its capability flags.",
+)
+async def get_llm_provider(session: RequireAuth):
+    """Return active provider info and capability flags."""
+    _ = session
+    from core.llm.factory import get_provider
+    from core.config import settings as app_settings
+
+    provider = get_provider()
+    caps = provider.capabilities()
+
+    return ProviderInfoResponse(
+        llm_provider=app_settings.llm_provider,
+        llm_model=app_settings.llm_model or "(auto)",
+        ollama_base_url=app_settings.ollama_base_url,
+        available=provider.is_available(),
+        capabilities={
+            "context_len": caps.context_len,
+            "multimodal": caps.multimodal,
+            "function_calling": caps.function_calling,
+            "streaming": caps.streaming,
+            "provider_name": caps.provider_name,
+            "model_name": caps.model_name,
+        },
+    )
+
+
+@router.put(
+    "/provider",
+    response_model=ProviderInfoResponse,
+    summary="Set active LLM provider",
+    description=(
+        "Change the active LLM provider for the current session. "
+        "Only localhost providers are permitted (privacy guarantee). "
+        "Changes take effect immediately but are not persisted to .env — "
+        "update LLM_PROVIDER / LLM_MODEL in your .env for permanent changes."
+    ),
+)
+async def set_llm_provider(
+    request: ProviderSetRequest,
+    session: RequireAuth,
+):
+    """Switch the active LLM provider at runtime."""
+    _ = session
+    from core.llm.factory import reset_provider
+    from core.llm.ollama_provider import _assert_localhost
+    from core.config import settings as app_settings
+
+    # Validate Ollama base_url stays local (already enforced in OllamaProvider
+    # constructor, but assert early for a cleaner error message).
+    if request.llm_provider == "ollama":
+        try:
+            _assert_localhost(app_settings.ollama_base_url)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    # Mutate the runtime settings fields (does NOT write .env).
+    object.__setattr__(app_settings, "llm_provider", request.llm_provider)
+    object.__setattr__(app_settings, "llm_model", request.llm_model)
+
+    # Drop the cached provider so get_provider() builds a fresh one.
+    reset_provider()
+
+    from core.llm.factory import get_provider
+    provider = get_provider()
+    caps = provider.capabilities()
+
+    logger.info(
+        "LLM provider switched to '%s' model='%s' by profile %s",
+        request.llm_provider,
+        request.llm_model or "(auto)",
+        session.profile_id,
+    )
+
+    return ProviderInfoResponse(
+        llm_provider=request.llm_provider,
+        llm_model=request.llm_model or "(auto)",
+        ollama_base_url=app_settings.ollama_base_url,
+        available=provider.is_available(),
+        capabilities={
+            "context_len": caps.context_len,
+            "multimodal": caps.multimodal,
+            "function_calling": caps.function_calling,
+            "streaming": caps.streaming,
+            "provider_name": caps.provider_name,
+            "model_name": caps.model_name,
+        },
+    )
+
+
 async def _write_download_status(
     profile_id: str,
     tier: str,
@@ -916,3 +1048,26 @@ async def update_ocr_settings(
         ocr_effective=ocr_effective,
         ocr_blockers=ocr_blockers,
     )
+
+
+@router.patch(
+    "/agent",
+    response_model=AgentSettingsResponse,
+    summary="Update agent_enabled",
+    description=(
+        "Per-profile toggle for the Agent Overhaul cutover (S5-1). When True "
+        "(the default), POST /assistant/chat serves via the agent graph, "
+        "falling back to the legacy retrieval path on any agent error. "
+        "When False, /assistant/chat always uses the legacy path."
+    ),
+)
+async def update_agent_settings(
+    data: UserModelSettingsUpdate,
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
+):
+    settings_row = await _get_or_create_user_settings(session.profile_id, profile_db)
+    if data.agent_enabled is not None:
+        settings_row.agent_enabled = data.agent_enabled
+    await profile_db.commit()
+    return AgentSettingsResponse(agent_enabled=is_agent_enabled(settings_row))

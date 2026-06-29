@@ -36,6 +36,7 @@ from models import (  # noqa: F401
     medication,
     memory_item,
     model_settings,
+    chat_session,
 )
 
 logger = logging.getLogger("alembic.env")

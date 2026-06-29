@@ -1,0 +1,13 @@
+{
+  "id": "mixed-thyroid-electrolyte-partial",
+  "category": "mixed",
+  "question": "What do my labs show about my thyroid and sodium levels?",
+  "vault": {
+    "observations": [
+      { "name": "Sodium", "value": 140, "unit": "mmol/L", "collected_at": "2025-12-01", "verified": true }
+    ],
+    "documents": [ { "id": "doc-1", "status": "verified" } ],
+    "chunks": [ { "id": "chunk-1", "document_id": "doc-1", "text": "Sodium 140 mmol/L." } ]
+  },
+  "expect": { "terminal": "answer", "min_citations": 1, "drops_unmapped": true, "reason": "sodium grounded; thyroid claim has no source and must be dropped" }
+}

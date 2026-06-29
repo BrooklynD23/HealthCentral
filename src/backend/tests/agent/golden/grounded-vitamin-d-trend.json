@@ -1,0 +1,12 @@
+{
+  "id": "grounded-vitamin-d-trend",
+  "category": "grounded",
+  "question": "How has my vitamin D changed over time?",
+  "vault": {
+    "observations": [
+      { "name": "Vitamin D", "value": 22, "unit": "ng/mL", "collected_at": "2025-03-01", "verified": true },
+      { "name": "Vitamin D", "value": 34, "unit": "ng/mL", "collected_at": "2025-10-01", "verified": true }
+    ]
+  },
+  "expect": { "terminal": "answer", "min_citations": 1, "reason": "two verified vitamin D values support a grounded trend" }
+}

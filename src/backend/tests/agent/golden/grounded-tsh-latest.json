@@ -1,0 +1,11 @@
+{
+  "id": "grounded-tsh-latest",
+  "category": "grounded",
+  "question": "What was my latest TSH result?",
+  "vault": {
+    "observations": [
+      { "name": "TSH", "value": 2.1, "unit": "mIU/L", "collected_at": "2025-08-01", "verified": true }
+    ]
+  },
+  "expect": { "terminal": "answer", "min_citations": 1, "reason": "one verified TSH value grounds a direct-value answer" }
+}
