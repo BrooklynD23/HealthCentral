@@ -39,7 +39,7 @@ test.describe('Authentication Flow', () => {
     await expect(page).toHaveURL(/\/inbox/, { timeout: 10000 });
 
     // Inbox should load
-    await expect(page.getByText(/documents|inbox/i)).toBeVisible();
+    await expect(page.getByText(/documents|inbox/i).first()).toBeVisible();
   });
 
   test('E2E-AUTH-002: Missing password blocks submit', async ({ page }) => {

@@ -6,67 +6,39 @@ Usage:
     python3 scripts/security_gate.py [--bandit bandit-report.json] [--pip-audit pip-audit-report.json]
 
 Exit codes:
-    0 — no high/critical findings
-    1 — high/critical findings detected
+    0 — no unwaived high/critical findings
+    1 — unwaived high/critical findings detected
     2 — report parsing error
+
+Waivers
+-------
+A finding can be accepted with an explicit, time-boxed waiver (see WAIVERS).
+Every waiver MUST declare an owner and an expiry date. Once the expiry date
+passes, the waiver stops suppressing the finding and the gate fails again,
+which forces the risk to be re-reviewed rather than silently accepted forever.
 """
 
 import argparse
 import json
 import sys
-from datetime import date
+from datetime import date, datetime
 
-# ---------------------------------------------------------------------------
-# Waivers — temporarily allow a known finding past the gate.
-#
-# Each waiver must carry an owner and an expiry date (ISO YYYY-MM-DD). A waiver
-# matches a bandit finding by its ``test_id`` or a pip-audit finding by its
-# ``vuln_id``. Expired waivers are ignored, so the finding fails the gate again
-# once the expiry date has passed. Keep this list short and review on expiry.
-# ---------------------------------------------------------------------------
-WAIVERS: list[dict] = [
-    {
-        "id": "CVE-2025-69872",
-        "owner": "dangtran1022@gmail.com",
-        "expiry": "2026-09-23",
+# Accepted findings keyed by advisory id (CVE / GHSA / PYSEC) or bandit test id.
+# Matching is done against the finding's id AND its aliases, so either the CVE
+# or the GHSA form works.
+WAIVERS: dict[str, dict[str, str]] = {
+    "CVE-2025-69872": {
+        "package": "diskcache",
         "reason": (
             "diskcache is a transitive dependency of llama-cpp-python; no "
             "patched release exists. The pickle deserialization RCE requires "
             "local write access to the cache directory, which is outside the "
             "local-first, single-user threat model."
         ),
+        "owner": "dangtran1022@gmail.com",
+        "expires": "2026-09-23",
     },
-]
-
-
-def _finding_id(finding: dict) -> str:
-    """Return the identifier a waiver matches against for a given finding."""
-    return finding.get("vuln_id") or finding.get("test_id") or ""
-
-
-def partition_waived(findings: list[dict], today: date | None = None) -> tuple[list[dict], list[dict]]:
-    """Split findings into (active, waived) using non-expired waivers."""
-    today = today or date.today()
-    active_waivers = {}
-    for w in WAIVERS:
-        try:
-            expiry = date.fromisoformat(w["expiry"])
-        except (KeyError, ValueError):
-            # Malformed waiver — treat as absent so the finding still fails.
-            continue
-        if expiry >= today:
-            active_waivers[w["id"]] = w
-
-    active: list[dict] = []
-    waived: list[dict] = []
-    for f in findings:
-        waiver = active_waivers.get(_finding_id(f))
-        if waiver:
-            f = {**f, "_waiver": waiver}
-            waived.append(f)
-        else:
-            active.append(f)
-    return active, waived
+}
 
 
 def check_bandit(report_path: str) -> list[dict]:
@@ -118,9 +90,42 @@ def check_pip_audit(report_path: str) -> list[dict]:
                 "package": dep.get("name", ""),
                 "version": dep.get("version", ""),
                 "vuln_id": v.get("id", ""),
+                "aliases": list(v.get("aliases", []) or []),
                 "description": v.get("description", "")[:200],
             })
     return findings
+
+
+def _finding_ids(finding: dict) -> set[str]:
+    """All identifiers a waiver could match for this finding."""
+    ids: set[str] = set()
+    if finding.get("vuln_id"):
+        ids.add(finding["vuln_id"])
+    if finding.get("test_id"):
+        ids.add(finding["test_id"])
+    ids.update(finding.get("aliases", []) or [])
+    return ids
+
+
+def match_waiver(finding: dict) -> tuple[str, dict] | None:
+    """Return (matched_id, waiver) if any id of the finding has a waiver."""
+    for ident in _finding_ids(finding):
+        if ident in WAIVERS:
+            return ident, WAIVERS[ident]
+    return None
+
+
+def _describe(finding: dict) -> str:
+    if finding["tool"] == "bandit":
+        return (
+            f"  [{finding['tool']}] {finding['severity']}/{finding['confidence']}: "
+            f"{finding['issue']}\n    {finding['file']}:{finding['line']} ({finding['test_id']})"
+        )
+    return (
+        f"  [{finding['tool']}] {finding['severity']}: "
+        f"{finding['package']}=={finding['version']}\n    "
+        f"{finding['vuln_id']}: {finding['description']}"
+    )
 
 
 def main() -> int:
@@ -141,29 +146,43 @@ def main() -> int:
     all_findings.extend(check_bandit(args.bandit))
     all_findings.extend(check_pip_audit(args.pip_audit))
 
-    all_findings, waived = partition_waived(all_findings)
+    today = date.today()
+    active: list[dict] = []
+    waived: list[tuple[dict, str, dict]] = []
+
+    for f in all_findings:
+        matched = match_waiver(f)
+        if matched is not None:
+            ident, waiver = matched
+            expires = datetime.strptime(waiver["expires"], "%Y-%m-%d").date()
+            if expires >= today:
+                waived.append((f, ident, waiver))
+                continue
+            # Expired waiver: do not suppress; surface it as active with a note.
+            f = {**f, "_expired": (ident, expires)}
+        active.append(f)
 
     if waived:
-        print(f"Security gate: {len(waived)} finding(s) waived")
-        for f in waived:
-            w = f["_waiver"]
-            print(f"  [WAIVED until {w['expiry']}, owner {w['owner']}] {_finding_id(f)}")
-            print(f"    {w['reason']}")
-        print()
+        print(f"Security gate: {len(waived)} finding(s) suppressed by active waiver(s)")
+        for f, ident, waiver in waived:
+            print(_describe(f))
+            print(
+                f"    WAIVED {ident} (owner={waiver['owner']}, expires={waiver['expires']}): "
+                f"{waiver['reason']}"
+            )
+            print()
 
-    if not all_findings:
-        print("Security gate: PASS (no high/critical findings)")
+    if not active:
+        print("Security gate: PASS (no unwaived high/critical findings)")
         return 0
 
-    print(f"Security gate: FAIL ({len(all_findings)} high/critical finding(s))")
+    print(f"Security gate: FAIL ({len(active)} high/critical finding(s))")
     print()
-    for f in all_findings:
-        if f["tool"] == "bandit":
-            print(f"  [{f['tool']}] {f['severity']}/{f['confidence']}: {f['issue']}")
-            print(f"    {f['file']}:{f['line']} ({f['test_id']})")
-        else:
-            print(f"  [{f['tool']}] {f['severity']}: {f['package']}=={f['version']}")
-            print(f"    {f['vuln_id']}: {f['description']}")
+    for f in active:
+        print(_describe(f))
+        if "_expired" in f:
+            ident, expires = f["_expired"]
+            print(f"    NOTE: waiver for {ident} EXPIRED on {expires} — re-review required")
         print()
 
     return 1

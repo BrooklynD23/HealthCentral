@@ -123,6 +123,15 @@ cd src/frontend
 npm run lint
 ```
 
+### Agent Code-Knowledge Layer (Serena)
+
+For AI-assisted development, this repo ships a **dev-only, always-fresh** code-knowledge layer
+([Serena](https://github.com/oraios/serena), an LSP-over-MCP server) that gives coding agents
+precise symbol/reference navigation over the codebase. It auto-launches in Claude Code via the
+repo-root `.mcp.json` and reaches **source code + docs only** (never patient data). See
+[docs/dev/agent-code-knowledge.md](docs/dev/agent-code-knowledge.md) for setup, tools, the
+privacy guarantee, and the safety-critical module list.
+
 ## Making Changes
 
 ### Branch Naming

@@ -15,11 +15,15 @@ Baseline rules:
   5. (DOC-004) Canonical docs must include "Owner:" and "Refresh Trigger:" fields.
   6. (DOC-005) Historical docs must contain inactive-tracker language in the top 15 lines.
   7. (DOC-006) Required sections checklist for key user-facing docs.
+  8. (DOC-007) Relative markdown links in docs must resolve to an existing file.
+  9. (DOC-009) `npm run <script>` references in the frontend README must exist in
+     src/frontend/package.json (catches README drift when scripts are renamed/removed).
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from pathlib import Path
@@ -48,6 +52,13 @@ REQUIRED_SECTIONS: dict[str, list[str]] = {
 BACKEND_STATUS_DOC = "docs/05_backend_integration_status.md"
 TASK_LIST_DOC = "docs/features/TASK_LIST.md"
 FEATURE_INDEX_DOC = "docs/features/00_features_index.md"
+
+# DOC-009: frontend README and the package.json it documents.
+FRONTEND_README = "src/frontend/README.md"
+FRONTEND_PACKAGE_JSON = "src/frontend/package.json"
+
+# DOC-007: extra markdown roots (beyond docs/) whose links are checked.
+EXTRA_LINK_ROOTS = ["README.md", FRONTEND_README]
 
 
 def _read_text(repo_root: Path, relative_path: str) -> str:
@@ -220,6 +231,67 @@ def _check_required_doc_sections(repo_root: Path) -> list[str]:
     return errors
 
 
+_FENCED_BLOCK = re.compile(r"```.*?```", re.DOTALL)
+_MD_LINK = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
+
+
+def _markdown_files(repo_root: Path) -> list[Path]:
+    """All markdown whose internal links DOC-007 validates: everything under
+    docs/, plus the repo-root and frontend READMEs (the files most prone to
+    pointing at moved/renamed paths)."""
+    files = sorted((repo_root / "docs").rglob("*.md"))
+    for rel in EXTRA_LINK_ROOTS:
+        p = repo_root / rel
+        if p.exists():
+            files.append(p)
+    return files
+
+
+def _check_internal_links(repo_root: Path) -> list[str]:
+    """DOC-007: every relative markdown link resolves to an existing path.
+
+    External (http/https/mailto/tel), in-page anchors (#...), and links inside
+    fenced code blocks are ignored. Anchors/queries are stripped before
+    resolving — we check the file exists, not the anchor."""
+    errors: list[str] = []
+    for path in _markdown_files(repo_root):
+        text = _FENCED_BLOCK.sub("", path.read_text(encoding="utf-8", errors="ignore"))
+        rel_path = path.relative_to(repo_root).as_posix()
+        for match in _MD_LINK.finditer(text):
+            target = match.group(1).strip()
+            # Drop link titles: [t](path "Title") -> path; and <path> wrappers.
+            target = target.split()[0].strip("<>") if target.split() else ""
+            if not target or target.startswith(
+                ("http://", "https://", "mailto:", "tel:", "#")
+            ):
+                continue
+            path_part = target.split("#")[0].split("?")[0]
+            if not path_part:
+                continue
+            if not (path.parent / path_part).resolve().exists():
+                errors.append(
+                    f"{rel_path}: broken internal link -> {target} (DOC-007)"
+                )
+    return errors
+
+
+def _check_frontend_readme_scripts(repo_root: Path) -> list[str]:
+    """DOC-009: every `npm run <script>` in the frontend README is a real script
+    in src/frontend/package.json (README drifts when scripts are renamed)."""
+    errors: list[str] = []
+    # NB: don't strip code fences here — the `npm run ...` commands live inside them.
+    readme = _read_text(repo_root, FRONTEND_README)
+    package = json.loads(_read_text(repo_root, FRONTEND_PACKAGE_JSON))
+    defined = set(package.get("scripts", {}))
+    for referenced in sorted(set(re.findall(r"npm run ([A-Za-z0-9:_-]+)", readme))):
+        if referenced not in defined:
+            errors.append(
+                f"{FRONTEND_README}: references undefined npm script "
+                f"'npm run {referenced}' (not in {FRONTEND_PACKAGE_JSON}) (DOC-009)"
+            )
+    return errors
+
+
 def lint_docs(repo_root: Path) -> list[str]:
     checks = (
         _check_last_updated,
@@ -231,6 +303,8 @@ def lint_docs(repo_root: Path) -> list[str]:
         _check_canonical_ownership,
         _check_historical_inactive_language,
         _check_required_doc_sections,
+        _check_internal_links,
+        _check_frontend_readme_scripts,
     )
 
     errors: list[str] = []

@@ -29,7 +29,11 @@ logger = logging.getLogger("alembic.env")
 # Alembic Config object
 config = context.config
 
-# Set up logging from alembic.ini
+# Set up logging from alembic.ini.
+# disable_existing_loggers=False: when migrations run in-process (e.g. app
+# startup or tests), the default True would silence every already-imported
+# application logger, which is both surprising in production and a source of
+# order-dependent test failures.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name, disable_existing_loggers=False)
 

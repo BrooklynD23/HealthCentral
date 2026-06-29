@@ -14,6 +14,7 @@ technical safeguards for protected health information (PHI).
 | [Audit Checklist](audit-checklist.md) | Pre-deployment compliance checklist |
 | [Disaster Recovery](disaster-recovery.md) | Backup and recovery runbook |
 | [Security Review — Sprint 06](security-review-sprint06.md) | Static security analysis of Sprint 06 code |
+| [Advisories](advisories.md) | Security/observability advisories and their resolution |
 | [RL Dataset Export Policy](data-privacy.md#reinforcement-learning-dataset-export) | Feedback collection, export, and redaction safeguards |
 
 ## Scope

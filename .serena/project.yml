@@ -29,6 +29,10 @@
 # The first language is the default language and the respective language server will be used as a fallback.
 # Note that when using the JetBrains backend, language servers are not used and this list is correspondingly ignored.
 languages:
+# Python is listed first so the Python language server is the default/fallback:
+# the backend (src/backend, where the safety-critical code lives) is the primary
+# surface agents need to reason about. TypeScript covers the React frontend.
+- python
 - typescript
 
 # the encoding used by text files in the project
@@ -41,7 +45,24 @@ ignore_all_files_in_gitignore: true
 # list of additional paths to ignore in this project.
 # Same syntax as gitignore, so you can use * and **.
 # Note: global ignored_paths from serena_config.yml are also applied additively.
-ignored_paths: []
+#
+# STRICT CODE+DOCS ALLOWLIST (privacy / no-PHI invariant, CLAUDE.md):
+# ignore_all_files_in_gitignore (above) already excludes data/, profiles/, *.db*,
+# /models/, and the virtualenvs because .gitignore lists them. The entries below
+# RE-STATE the sensitive ones explicitly so the exclusion is enforced by THIS
+# config and survives even if .gitignore changes — the knowledge layer must reach
+# source code + docs only, never patient data or local vaults.
+ignored_paths:
+- "data/"             # local app data (gitignored; sensitive)
+- "profiles/"         # per-profile SQLCipher vaults (gitignored; PHI)
+- "**/*.db"           # any SQLite/SQLCipher DB
+- "**/*.db-journal"
+- "**/*.db-shm"
+- "**/*.db-wal"
+- "models/"           # downloaded AI models (large, non-source)
+- ".agent-venv/"      # local Python venv (non-source)
+- ".wsl-pytest-venv/" # WSL verification venv (non-source)
+- ".bg-shell/"        # local-only shell state
 
 # whether the project is in read-only mode
 # If set to true, all editing tools will be disabled and attempts to use them will result in an error
@@ -55,7 +76,22 @@ excluded_tools: []
 
 # initial prompt for the project. It will always be given to the LLM upon activating the project
 # (contrary to the memories, which are loaded on demand).
-initial_prompt: ""
+initial_prompt: |
+  HealthCentral is a LOCAL-FIRST health app (Python FastAPI backend in src/backend,
+  React/TypeScript frontend in src/frontend). This Serena project is a DEV knowledge
+  layer over SOURCE CODE AND DOCS ONLY — it never exposes patient data (data/, profiles/,
+  *.db are excluded).
+
+  SAFETY-CRITICAL modules require maintainer approval BEFORE editing (see CLAUDE.md /
+  CONTRIBUTING.md). When a change touches or reaches any of these, flag it and confirm
+  before proceeding:
+    - src/backend/security/**            (auth, validation, rate limiting, headers)
+    - src/backend/core/profile_database.py  (per-profile SQLCipher encryption)
+    - src/backend/modules/interpret_safety.py  (clinical safety guardrails)
+    - src/backend/modules/rag.py             (retrieval / verification)
+    - src/backend/modules/faithfulness/**    (groundedness checks)
+    - src/backend/modules/verifier_agent.py  (claim verification)
+  Use find_referencing_symbols to check whether a proposed change reaches these before editing.
 # the name by which the project can be referenced within Serena
 project_name: "HealthCentral"
 
