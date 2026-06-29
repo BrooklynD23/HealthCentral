@@ -1073,8 +1073,13 @@ class TestModelRunner:
 
         runner = ModelRunner()
         assert runner is not None
-        assert runner._model is None  # Lazy initialization
-        assert runner._initialized is False
+        # ModelRunner is now a facade over a provider; _model/_initialized live
+        # on the underlying LlamaCppProvider, not on ModelRunner itself.
+        # Verify the provider exists and is not yet loaded.
+        provider = runner._get_provider()
+        assert provider is not None
+        # The provider should not have a model loaded yet (lazy init).
+        assert getattr(provider, "_model", None) is None
 
     def test_model_runner_is_available_without_model(self):
         """is_available should return False when no model is present."""
@@ -1117,27 +1122,27 @@ class TestModelRunner:
 
     @pytest.mark.asyncio
     async def test_model_runner_generate_async_with_mock(self):
-        """generate_async should work with mocked model."""
+        """generate_async should work with a mocked provider."""
         from core.model_runner import ModelRunner, InferenceConfig, InferenceResult
+        from unittest.mock import AsyncMock, MagicMock
 
-        runner = ModelRunner()
+        # Inject a fully-mocked provider so no real model is needed.
+        mock_provider = MagicMock()
+        mock_provider.is_available.return_value = True
+        expected = InferenceResult(
+            text="Mocked response",
+            tokens_generated=10,
+            finish_reason="stop",
+            model_name="mock-model",
+        )
+        mock_provider.generate_async = AsyncMock(return_value=expected)
 
-        # Mock the generate method
-        with patch.object(runner, 'generate') as mock_generate:
-            mock_generate.return_value = InferenceResult(
-                text="Mocked response",
-                tokens_generated=10,
-                finish_reason="stop",
-                model_name="mock-model",
-            )
+        runner = ModelRunner(_provider=mock_provider)
+        config = InferenceConfig(timeout_seconds=5)
+        result = await runner.generate_async("Test prompt", config)
 
-            # Also mock is_available to return True
-            with patch.object(runner, 'is_available', return_value=True):
-                config = InferenceConfig(timeout_seconds=5)
-                result = await runner.generate_async("Test prompt", config)
-
-                assert result.text == "Mocked response"
-                assert result.finish_reason == "stop"
+        assert result.text == "Mocked response"
+        assert result.finish_reason == "stop"
 
 
 class TestRAGModuleLLMIntegration:

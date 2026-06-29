@@ -14,6 +14,59 @@ Exit codes:
 import argparse
 import json
 import sys
+from datetime import date
+
+# ---------------------------------------------------------------------------
+# Waivers — temporarily allow a known finding past the gate.
+#
+# Each waiver must carry an owner and an expiry date (ISO YYYY-MM-DD). A waiver
+# matches a bandit finding by its ``test_id`` or a pip-audit finding by its
+# ``vuln_id``. Expired waivers are ignored, so the finding fails the gate again
+# once the expiry date has passed. Keep this list short and review on expiry.
+# ---------------------------------------------------------------------------
+WAIVERS: list[dict] = [
+    {
+        "id": "CVE-2025-69872",
+        "owner": "dangtran1022@gmail.com",
+        "expiry": "2026-09-23",
+        "reason": (
+            "diskcache is a transitive dependency of llama-cpp-python; no "
+            "patched release exists. The pickle deserialization RCE requires "
+            "local write access to the cache directory, which is outside the "
+            "local-first, single-user threat model."
+        ),
+    },
+]
+
+
+def _finding_id(finding: dict) -> str:
+    """Return the identifier a waiver matches against for a given finding."""
+    return finding.get("vuln_id") or finding.get("test_id") or ""
+
+
+def partition_waived(findings: list[dict], today: date | None = None) -> tuple[list[dict], list[dict]]:
+    """Split findings into (active, waived) using non-expired waivers."""
+    today = today or date.today()
+    active_waivers = {}
+    for w in WAIVERS:
+        try:
+            expiry = date.fromisoformat(w["expiry"])
+        except (KeyError, ValueError):
+            # Malformed waiver — treat as absent so the finding still fails.
+            continue
+        if expiry >= today:
+            active_waivers[w["id"]] = w
+
+    active: list[dict] = []
+    waived: list[dict] = []
+    for f in findings:
+        waiver = active_waivers.get(_finding_id(f))
+        if waiver:
+            f = {**f, "_waiver": waiver}
+            waived.append(f)
+        else:
+            active.append(f)
+    return active, waived
 
 
 def check_bandit(report_path: str) -> list[dict]:
@@ -87,6 +140,16 @@ def main() -> int:
     all_findings: list[dict] = []
     all_findings.extend(check_bandit(args.bandit))
     all_findings.extend(check_pip_audit(args.pip_audit))
+
+    all_findings, waived = partition_waived(all_findings)
+
+    if waived:
+        print(f"Security gate: {len(waived)} finding(s) waived")
+        for f in waived:
+            w = f["_waiver"]
+            print(f"  [WAIVED until {w['expiry']}, owner {w['owner']}] {_finding_id(f)}")
+            print(f"    {w['reason']}")
+        print()
 
     if not all_findings:
         print("Security gate: PASS (no high/critical findings)")

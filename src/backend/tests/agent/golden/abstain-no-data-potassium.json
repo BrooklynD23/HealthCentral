@@ -1,0 +1,9 @@
+{
+  "id": "abstain-no-data-potassium",
+  "category": "abstain",
+  "question": "What is my potassium level?",
+  "vault": {
+    "observations": []
+  },
+  "expect": { "terminal": "abstain", "reason": "no potassium observation exists in the vault at all" }
+}

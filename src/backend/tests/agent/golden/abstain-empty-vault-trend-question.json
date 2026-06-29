@@ -1,0 +1,9 @@
+{
+  "id": "abstain-empty-vault-trend-question",
+  "category": "abstain",
+  "question": "How has my health changed over time?",
+  "vault": {
+    "observations": []
+  },
+  "expect": { "terminal": "abstain", "reason": "no observations at all and no specific analyte named, even though phrased as a trend question" }
+}

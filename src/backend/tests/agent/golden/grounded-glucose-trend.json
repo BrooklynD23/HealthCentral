@@ -1,0 +1,12 @@
+{
+  "id": "grounded-glucose-trend",
+  "category": "grounded",
+  "question": "How has my glucose changed over the last year?",
+  "vault": {
+    "observations": [
+      { "name": "Glucose", "value": 110, "unit": "mg/dL", "collected_at": "2025-06-01", "verified": true },
+      { "name": "Glucose", "value": 95, "unit": "mg/dL", "collected_at": "2025-12-01", "verified": true }
+    ]
+  },
+  "expect": { "terminal": "answer", "min_citations": 1, "reason": "two verified glucose values support a grounded trend" }
+}

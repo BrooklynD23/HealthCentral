@@ -1,0 +1,9 @@
+{
+  "id": "abstain-unverified-hdl",
+  "category": "abstain",
+  "question": "What is my HDL level?",
+  "vault": {
+    "observations": [ { "name": "HDL", "value": 45, "unit": "mg/dL", "verified": false } ]
+  },
+  "expect": { "terminal": "abstain", "reason": "value not yet verified" }
+}

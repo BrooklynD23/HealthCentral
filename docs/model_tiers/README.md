@@ -9,9 +9,27 @@ The system supports three quality tiers plus a template fallback:
 | Tier | ID | Model | Size | Default |
 |------|-----|-------|------|---------|
 | 1 (Low) | `low` | Qwen2.5-0.5B-Instruct | ~0.5GB | **YES** |
+| 1 (Alt) | `gemma4-e2b` | Gemma 4 E2B | ~1.5GB | No |
 | 2 (Mid) | `mid` | Phi-3-mini-4k-instruct | ~2GB | No |
+| 2 (Alt) | `gemma4-e4b` | Gemma 4 E4B | ~2.8GB | No |
 | 3 (High) | `high` | BioMistral-7B | ~4GB | No |
+| 3 (Alt) | `gemma4-12b` | Gemma 4 12B | ~7-8GB | No |
 | Fallback | `template` | None (templates) | 0 | Auto |
+
+**Note on Gemma 4 models**: The Gemma 4 family (released 2026-06-03, Apache 2.0) offers multimodal capability and extended 256K context. HuggingFace repository names for GGUF quantizations are marked as PLACEHOLDER in the source code and have not yet been verified to exist. These alternate IDs are registered/read-visible in model configuration, but the current set/download request schemas only accept `low`, `mid`, and `high`; use `LLM_PROVIDER`/`LLM_MODEL` or the provider endpoint for direct provider/model switching rather than treating Gemma IDs as downloadable tier selections.
+
+## Model Agnosticism
+
+The active LLM provider is controlled by the `LLM_PROVIDER` environment variable.
+
+| Provider | Behavior |
+|---|---|
+| `llama_cpp` | **Default.** Reads GGUF files from the `models/` directory. Fully offline and private. |
+| `ollama` | Talks to a running Ollama daemon at `localhost:11434`. Automatically falls back to `llama_cpp` if the daemon is unreachable. |
+
+- **Gemma 4 chat template** is auto-detected from GGUF metadata via `chat_format="auto"` in llama.cpp — no manual template configuration needed.
+- **Runtime switch:** `PUT /api/v1/settings/model/provider` swaps providers without a restart. To persist across restarts, set `LLM_PROVIDER` in `.env`.
+- ⚠️ **Placeholder warning:** Gemma 4 HuggingFace repo URLs in `modules/model_selector.py` are unverified placeholders. Confirm the repo exists before downloading.
 
 ## Tier Selection Logic
 

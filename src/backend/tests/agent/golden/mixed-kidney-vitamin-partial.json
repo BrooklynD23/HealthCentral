@@ -1,0 +1,13 @@
+{
+  "id": "mixed-kidney-vitamin-partial",
+  "category": "mixed",
+  "question": "What do my labs show about my kidney function and vitamin D?",
+  "vault": {
+    "observations": [
+      { "name": "Creatinine", "value": 1.0, "unit": "mg/dL", "collected_at": "2025-10-01", "verified": true }
+    ],
+    "documents": [ { "id": "doc-1", "status": "verified" } ],
+    "chunks": [ { "id": "chunk-1", "document_id": "doc-1", "text": "Creatinine 1.0 mg/dL." } ]
+  },
+  "expect": { "terminal": "answer", "min_citations": 1, "drops_unmapped": true, "reason": "creatinine grounded; vitamin D claim has no source and must be dropped" }
+}

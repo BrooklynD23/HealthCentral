@@ -1,0 +1,12 @@
+{
+  "id": "grounded-creatinine-trend",
+  "category": "grounded",
+  "question": "How has my creatinine changed over the last year?",
+  "vault": {
+    "observations": [
+      { "name": "Creatinine", "value": 1.1, "unit": "mg/dL", "collected_at": "2025-03-01", "verified": true },
+      { "name": "Creatinine", "value": 0.9, "unit": "mg/dL", "collected_at": "2025-10-01", "verified": true }
+    ]
+  },
+  "expect": { "terminal": "answer", "min_citations": 1, "reason": "two verified creatinine values support a grounded trend" }
+}

@@ -1,0 +1,13 @@
+{
+  "id": "mixed-partial-grounding",
+  "category": "mixed",
+  "question": "What do my recent labs show about my cholesterol and kidney function?",
+  "vault": {
+    "observations": [
+      { "name": "LDL", "value": 138, "unit": "mg/dL", "collected_at": "2025-12-01", "verified": true }
+    ],
+    "documents": [ { "id": "doc-1", "status": "verified" } ],
+    "chunks": [ { "id": "chunk-1", "document_id": "doc-1", "text": "LDL cholesterol 138 mg/dL." } ]
+  },
+  "expect": { "terminal": "answer", "min_citations": 1, "drops_unmapped": true, "reason": "LDL grounded; kidney-function claim has no source and must be dropped" }
+}

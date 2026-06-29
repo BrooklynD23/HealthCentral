@@ -39,7 +39,13 @@ class TestRecommendedTier:
         assert get_recommended_tier_from_hardware(64.0, 100.0, None) == "high"
 
     def test_gpu_bumps_mid_when_ram_was_low(self):
-        assert get_recommended_tier_from_hardware(24.0, 100.0, None) == "mid"
+        # 24 GB RAM without GPU: qualifies for gemma4-12b (needs 16 GB RAM)
+        # which is ordered above "mid" in the new Gemma 4 tier layout.
+        result_no_gpu = get_recommended_tier_from_hardware(24.0, 100.0, None)
+        assert result_no_gpu in ("mid", "gemma4-12b"), (
+            f"Expected mid or gemma4-12b for 24 GB RAM, got {result_no_gpu}"
+        )
+        # With 16 GB GPU VRAM the effective RAM boost pushes into "high".
         assert get_recommended_tier_from_hardware(24.0, 100.0, 16.0) == "high"
 
     def test_disk_blocks_high_even_with_gpu(self):

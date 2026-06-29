@@ -73,6 +73,23 @@ Knowledge: {knowledge_text}
 Provide a patient-friendly explanation with citations:
 ```
 
+## Alternative: Gemma 4 E2B
+
+For users with 8GB RAM who want multimodal capability and extended context:
+
+| Property | Value |
+|----------|-------|
+| Model Name | Gemma 4 E2B |
+| Size | ~1.5GB (Q4_K_M quantization) |
+| Context Size | 256K tokens |
+| Type | Multimodal with function-calling |
+| Features | Image understanding, extended context |
+
+**Repository** (PLACEHOLDER—not yet verified on HuggingFace): `unsloth/gemma-4-e2b-it-GGUF`
+**Ollama tag**: `gemma4:e2b`
+
+Registered as a read-visible alternate near Tier 1 (`low`), offering the same 8GB RAM floor as Qwen2.5-0.5B but with multimodal and function-calling support. Current tier set/download APIs accept only `low`, `mid`, and `high`; use `LLM_PROVIDER=llama_cpp` or `LLM_PROVIDER=ollama` plus `LLM_MODEL`, or use the `/api/v1/settings/model/provider` endpoint at runtime for direct provider/model switching.
+
 ## Fallback Behavior
 
 If Qwen2.5-0.5B fails to include required citations, the system falls back to template-based interpretation automatically.

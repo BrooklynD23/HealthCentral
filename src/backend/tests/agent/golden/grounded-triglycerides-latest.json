@@ -1,0 +1,11 @@
+{
+  "id": "grounded-triglycerides-latest",
+  "category": "grounded",
+  "question": "What is my most recent triglycerides result?",
+  "vault": {
+    "observations": [
+      { "name": "Triglycerides", "value": 150, "unit": "mg/dL", "collected_at": "2025-10-15", "verified": true }
+    ]
+  },
+  "expect": { "terminal": "answer", "min_citations": 1, "reason": "one verified triglycerides value grounds a direct-value answer" }
+}

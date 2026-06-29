@@ -94,3 +94,20 @@ Your HbA1c result is 7.2% which is above the reference range of 4.0-5.6%.
 A value above 6.5% suggests diabetes. [INT:lifestyle_diet]
 Consider consulting your healthcare provider about dietary changes.
 ```
+
+## Alternative: Gemma 4 12B
+
+For users with 16GB RAM who want extended context and multimodal capability:
+
+| Property | Value |
+|----------|-------|
+| Model Name | Gemma 4 12B |
+| Size | ~7-8GB (Q4_K_M quantization) |
+| Context Size | 256K tokens |
+| Type | Multimodal with function-calling |
+| Features | Image understanding, extended context, long-form reasoning |
+
+**Repository** (PLACEHOLDER—not yet verified on HuggingFace): `ggml-org/gemma-4-12b-it-GGUF`
+**Ollama tag**: `gemma4:12b`
+
+Registered as a read-visible alternate near Tier 3 (`high`). Requires half the RAM of BioMistral-7B (16GB vs 32GB) while offering a significantly larger context window (256K vs 4K tokens) and multimodal support. Trade-off: BioMistral-7B remains the preferred choice for maximum medical-domain specialization; Gemma 4 12B prioritizes context length and multimodal capability. Current tier set/download APIs accept only `low`, `mid`, and `high`; use `LLM_PROVIDER=llama_cpp` or `LLM_PROVIDER=ollama` plus `LLM_MODEL`, or use the `/api/v1/settings/model/provider` endpoint at runtime for direct provider/model switching.

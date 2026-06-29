@@ -135,9 +135,10 @@ Reddit users have expressed:
 
 #### Resource Requirements
 
-- **Model:** BioMistral-7B (GGUF 4-bit quantized) or fallback to existing LLM
-- **Storage:** ~500MB-1GB for medical knowledge base
-- **Compute:** GPU recommended, CPU fallback available
+- **Model:** Hardware-adaptive tiered system auto-selects provider and model based on available hardware. The current write APIs accept Low (Qwen2.5-0.5B), Mid (Phi-3-mini), and High (BioMistral-7B). Gemma 4 variants are registered/read-visible alternates in model config, but current set/download schemas do not accept them as selectable tiers. See `modules/model_selector.py` + `modules/hardware_detection.py`.
+- **Providers:** `llama_cpp_provider` (default, embeds llama.cpp with auto-detected GGUF chat template) or `ollama_provider` (localhost optional).
+- **Storage:** ~500MB-1GB for medical knowledge base; auto-seeded at startup if empty.
+- **Compute:** GPU recommended for Tier 1; CPU fallback available for lower tiers.
 
 ### 5.2 Adaptive Medication Adherence Coach
 
@@ -222,27 +223,27 @@ Reddit users have expressed:
 ### Lab Interpreter API
 
 ```
-POST   /observations/{id}/interpret        Generate interpretation
-GET    /observations/{id}/interpretation   Get existing interpretation
-POST   /panels/{name}/interpret            Generate panel interpretation
-GET    /interpretations/recent             List recent interpretations
-GET    /knowledge/biomarker/{analyte}      Get knowledge base entry
-POST   /interpretations/batch              Batch generate interpretations
+POST   /api/v1/interpretations/observations/{id}/interpret-grounded   Generate interpretation
+GET    /api/v1/interpretations/observations/{id}/interpretation       Get existing interpretation
+POST   /api/v1/interpretations/panels/{name}/interpret                Generate panel interpretation
+GET    /api/v1/interpretations/recent                                 List recent interpretations
+GET    /api/v1/interpretations/knowledge/biomarker/{analyte}          Get knowledge base entry
+POST   /api/v1/interpretations/batch                                  Batch generate interpretations
 ```
 
 ### Medication Coach API
 
 ```
-POST   /{profile}/medications              Create medication
-GET    /{profile}/medications              List medications
-GET    /{profile}/medications/{id}         Get medication details
-POST   /{profile}/medications/{id}/schedules   Create schedule
-GET    /{profile}/medications/{id}/schedules   List schedules
-POST   /{profile}/medications/{id}/doses   Log dose
-GET    /{profile}/medications/{id}/doses   List doses
-GET    /{profile}/medications/{id}/stats   Get adherence stats
-POST   /{profile}/medications/{id}/learn-patterns   Trigger pattern learning
-GET    /{profile}/medications/{id}/correlations   Get lab correlations
+POST   /api/v1/medications                         Create medication
+GET    /api/v1/medications                         List medications
+GET    /api/v1/medications/{id}                    Get medication details
+POST   /api/v1/medications/{id}/schedules          Create schedule
+GET    /api/v1/medications/{id}/schedules          List schedules
+POST   /api/v1/medications/{id}/doses              Log dose
+GET    /api/v1/medications/{id}/doses              List doses
+GET    /api/v1/medications/{id}/stats              Get adherence stats
+POST   /api/v1/medications/{id}/learn-patterns     Trigger pattern learning
+GET    /api/v1/medications/{id}/correlations       Get lab correlations
 ```
 
 ---

@@ -1,0 +1,12 @@
+{
+  "id": "grounded-sodium-trend",
+  "category": "grounded",
+  "question": "How has my sodium changed over time?",
+  "vault": {
+    "observations": [
+      { "name": "Sodium", "value": 138, "unit": "mmol/L", "collected_at": "2025-02-01", "verified": true },
+      { "name": "Sodium", "value": 141, "unit": "mmol/L", "collected_at": "2025-09-01", "verified": true }
+    ]
+  },
+  "expect": { "terminal": "answer", "min_citations": 1, "reason": "two verified sodium values support a grounded trend" }
+}

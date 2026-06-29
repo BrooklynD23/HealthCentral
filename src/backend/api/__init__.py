@@ -41,3 +41,6 @@ router.include_router(export_router, prefix="/export", tags=["export"])
 router.include_router(model_settings_router, prefix="/settings/model", tags=["model-settings"])
 router.include_router(memory_router, prefix="/memory", tags=["memory"])
 router.include_router(gamification_router, prefix="/gamification", tags=["gamification"])
+
+from .feedback import router as feedback_router
+router.include_router(feedback_router, prefix="/feedback", tags=["feedback"])

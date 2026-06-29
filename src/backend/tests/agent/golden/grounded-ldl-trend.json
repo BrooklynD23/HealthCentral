@@ -1,0 +1,14 @@
+{
+  "id": "grounded-ldl-trend",
+  "category": "grounded",
+  "question": "How has my LDL changed over the last year?",
+  "vault": {
+    "observations": [
+      { "name": "LDL", "value": 160, "unit": "mg/dL", "collected_at": "2025-06-01", "verified": true },
+      { "name": "LDL", "value": 138, "unit": "mg/dL", "collected_at": "2025-12-01", "verified": true }
+    ],
+    "documents": [ { "id": "doc-ldl-1", "status": "verified" } ],
+    "chunks": [ { "id": "chunk-ldl-1", "document_id": "doc-ldl-1", "text": "LDL cholesterol 138 mg/dL." } ]
+  },
+  "expect": { "terminal": "answer", "min_citations": 1, "reason": "two verified LDL values support a grounded trend" }
+}

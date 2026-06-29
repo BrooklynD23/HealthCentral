@@ -71,7 +71,7 @@
 
 **Solutions**:
 - Verify your observations are correct (verify after import)
-- Check verification status: the assistant uses verified data
+- Check verification status: the assistant can use extracted observations before verification, but verified values are marked and are safer to rely on
 - Try rephrasing your question
 - For complex queries, use the panel interpretation feature instead
 
@@ -85,6 +85,20 @@
 - For restore, stop the application first
 - Check `.bak` files if restore overwrote existing data
 - See [Disaster Recovery Runbook](../compliance/disaster-recovery.md)
+
+### 9. Trend graphs are missing data points or appear empty
+
+**Symptoms**: Trend graphs show fewer data points than expected, or no data at all, even though you've imported documents.
+
+**Solutions**:
+- This may be caused by a date-extraction issue that was recently fixed. Some documents with dates in uncommon formats (e.g., spelled-out months or alternative ISO-8601 formats) were not recognized, so their collection dates were not extracted.
+- **Re-process the affected documents** to backfill missing dates:
+  1. Navigate to **Inbox** in the sidebar
+  2. Find the document(s) with missing or incorrect collection dates
+  3. Select **Continue OCR / Retry extraction** in the inbox, or use **Retry extraction** from the verification workbench
+  4. The document will be re-extracted with improved date recognition
+  5. Check the **Trends** tab again — the data points should now appear
+- Alternatively, you can delete and re-import the document, which will trigger a fresh extraction with the current date parser
 
 ## Getting Help
 

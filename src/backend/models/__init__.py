@@ -52,6 +52,9 @@ from .document_category import DocumentCategory, DocumentEntity
 # Memory store (per-profile, ASSIST-MEM-001)
 from .memory_item import MemoryItem
 
+# Chat session persistence (per-profile, ASSIST-HIST-001)
+from .chat_session import ChatSession, ChatTurn
+
 __all__ = [
     # Master database
     "Profile",
@@ -84,4 +87,7 @@ __all__ = [
     "DocumentEntity",
     # Memory store (per-profile)
     "MemoryItem",
+    # Chat session persistence (per-profile)
+    "ChatSession",
+    "ChatTurn",
 ]

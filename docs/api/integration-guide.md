@@ -89,7 +89,7 @@ The typical document workflow:
 1. **Import**: `POST /documents/import` with file
 2. **Review**: `GET /observations/` to see extracted values
 3. **Verify**: `POST /observations/{id}/verify` to confirm accuracy
-4. **Interpret**: `POST /interpretations/observations/{id}/interpret`
+4. **Interpret**: `POST /interpretations/observations/{id}/interpret-grounded`
 5. **Export**: `POST /export/doctor-summary` for clinician report
 
 ### Correlation IDs

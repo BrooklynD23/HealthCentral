@@ -100,9 +100,16 @@ export {
   useVerificationStatus,
   useGlossaryMutation,
   useTestIntentMutation,
+  useChatSessions,
+  useCreateChatSession,
+  useChatSessionHistory,
+  useDeleteChatSession,
+  useMemorySettings,
+  useUpdateMemorySettings,
   formatCitation,
   extractCitationRefs,
   formatResponseText,
+  DOCUMENT_CATEGORIES,
 } from './assistant';
 
 export type {
@@ -114,6 +121,13 @@ export type {
   ChatResponse,
   GlossaryResponse,
   TestIntentResponse,
+  SessionSummary,
+  SessionListResponse,
+  SessionHistoryResponse,
+  NewSessionRequest,
+  NewSessionResponse,
+  MemorySettingsResponse,
+  DocumentCategory,
 } from './assistant';
 
 // Model settings hooks
@@ -170,6 +184,17 @@ export type {
   DocumentEntityResponse,
 } from './documentCategories';
 
+// Memory store hooks (ASSIST-MEM-001/002)
+export {
+  useMemoryItems,
+  useMemoryItem,
+  useCreateMemoryItem,
+  useUpdateMemoryItem,
+  useDeleteMemoryItem,
+} from './memory';
+
+export type { MemoryItem, MemoryItemCreate, MemoryItemUpdate } from './types';
+
 // Gamification hooks
 export { useBadges } from './gamification';
 
@@ -187,3 +212,20 @@ export {
   useVoiceSettings,
   useSaveVoiceSettings,
 } from './modelSettings';
+
+// RL feedback hooks (RL-FEED-001/002)
+export {
+  useSubmitFeedback,
+  useFeedbackStats,
+  useExportDataset,
+  FEEDBACK_TAGS,
+} from './feedback';
+
+export type {
+  FeedbackTag,
+  FeedbackRequest,
+  FeedbackResponse,
+  FeedbackStatsResponse,
+  ExportRequest,
+  ExportResponse,
+} from './feedback';
