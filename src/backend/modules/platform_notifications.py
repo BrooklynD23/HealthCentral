@@ -3,6 +3,7 @@ Platform-specific notification delivery.
 
 Provides abstract interface for notifications with implementations for:
 - Windows Toast Notifications (primary)
+- Cross-platform via desktop-notifier (prototype)
 - Cross-platform fallback via plyer
 
 Phase 3: Smart Notifications - Platform Delivery Component
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 class NotificationPlatform(str, Enum):
     """Supported notification platforms."""
     WINDOWS_TOAST = "windows_toast"
+    DESKTOP_NOTIFIER = "desktop_notifier"
     PLYER = "plyer"
     IN_APP = "in_app"
     MOCK = "mock"  # For testing
@@ -295,6 +297,83 @@ class PlyerProvider(NotificationProvider):
         return self.is_available()
 
 
+class DesktopNotifierProvider(NotificationProvider):
+    """
+    Cross-platform notification provider using the desktop-notifier library.
+
+    Uses native notification centers via DBus (Linux), UNUserNotificationCenter
+    (macOS), and WinRT (Windows). Async-native, so it integrates directly with
+    this module's async send() interface without a thread hop. Prototype
+    provider offered alongside plyer/winsdk (not a replacement).
+    """
+
+    def __init__(self):
+        self._notifier = None
+        self._initialized = False
+
+    @property
+    def platform(self) -> NotificationPlatform:
+        return NotificationPlatform.DESKTOP_NOTIFIER
+
+    def is_available(self) -> bool:
+        """Check if desktop-notifier is installed."""
+        try:
+            from desktop_notifier import DesktopNotifier
+            if self._notifier is None:
+                self._notifier = DesktopNotifier(app_name="HealthCentral")
+            self._initialized = True
+            return True
+        except ImportError:
+            logger.debug("desktop-notifier not installed")
+            return False
+        except Exception as e:
+            # Constructing DesktopNotifier can fail on systems lacking the
+            # required desktop services/config (e.g. no DBus on a headless
+            # host). Treat any such failure as "unavailable" so the provider
+            # degrades gracefully and NotificationService initialization is
+            # not broken.
+            logger.debug(f"desktop-notifier unavailable: {e}")
+            return False
+
+    async def send(self, payload: NotificationPayload) -> DeliveryResult:
+        """Send notification via desktop-notifier."""
+        if not self.is_available():
+            return DeliveryResult(
+                success=False,
+                status=DeliveryStatus.FAILED,
+                platform=self.platform,
+                error_message="desktop-notifier not available",
+            )
+
+        try:
+            native_id = await self._notifier.send(
+                title=payload.title,
+                message=payload.body,
+                timeout=payload.timeout_seconds,
+            )
+
+            return DeliveryResult(
+                success=True,
+                status=DeliveryStatus.SENT,
+                platform=self.platform,
+                delivered_at=datetime.utcnow(),
+                native_id=str(native_id) if native_id is not None else payload.id,
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to send desktop-notifier notification: {e}")
+            return DeliveryResult(
+                success=False,
+                status=DeliveryStatus.FAILED,
+                platform=self.platform,
+                error_message=str(e),
+            )
+
+    async def request_permission(self) -> bool:
+        """desktop-notifier requests permission automatically on first send."""
+        return self.is_available()
+
+
 class MockProvider(NotificationProvider):
     """Mock provider for testing."""
 
@@ -379,6 +458,10 @@ class NotificationService:
         # Windows gets toast provider first
         if sys.platform == "win32":
             providers.append(WindowsToastProvider())
+
+        # desktop-notifier: cross-platform native notification centers
+        # (DBus/UNUserNotificationCenter/WinRT), tried before plyer
+        providers.append(DesktopNotifierProvider())
 
         # plyer as fallback for all platforms
         providers.append(PlyerProvider())
