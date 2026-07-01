@@ -198,12 +198,14 @@ class TestPageImageEndpoint:
         fake_pdfplumber = types.ModuleType("pdfplumber")
         fake_pdfplumber.open = MagicMock(return_value=FakePdf())
 
+        master_db = AsyncMock()
+
         with (
             patch.dict("sys.modules", {"pdfplumber": fake_pdfplumber}),
             patch("api.documents.get_decrypted_document", return_value=BytesIO(b"%PDF-FAKE")),
         ):
-            r1 = await get_page_image(document_id, 1, session, profile_db)
-            r2 = await get_page_image(document_id, 1, session, profile_db)
+            r1 = await get_page_image(document_id, 1, session, profile_db, master_db)
+            r2 = await get_page_image(document_id, 1, session, profile_db, master_db)
 
         assert r1.media_type == "image/png"
         assert r1.body == png_bytes

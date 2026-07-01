@@ -79,7 +79,8 @@ class TestGetDocumentCategory:
         mock_db.execute = mock_execute
 
         session = _make_session()
-        result = await get_document_category(doc_id, session, mock_db)
+        master_db = AsyncMock()
+        result = await get_document_category(doc_id, session, mock_db, master_db)
 
         assert isinstance(result, DocumentCategoryResponse)
         assert result.category == "imaging"
@@ -96,7 +97,7 @@ class TestGetDocumentCategory:
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as exc_info:
-            await get_document_category(doc_id, _make_session(), mock_db)
+            await get_document_category(doc_id, _make_session(), mock_db, AsyncMock())
         assert exc_info.value.status_code == 404
 
     @pytest.mark.asyncio
@@ -118,7 +119,7 @@ class TestGetDocumentCategory:
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as exc_info:
-            await get_document_category(doc_id, _make_session(), mock_db)
+            await get_document_category(doc_id, _make_session(), mock_db, AsyncMock())
         assert exc_info.value.status_code == 404
 
 
@@ -133,7 +134,7 @@ class TestGetDocumentCategory:
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as exc_info:
-            await get_document_category(doc_id, _make_session("test-profile"), mock_db)
+            await get_document_category(doc_id, _make_session("test-profile"), mock_db, AsyncMock())
         assert exc_info.value.status_code == 403
 
 
@@ -173,7 +174,7 @@ class TestGetDocumentEntities:
         mock_db = AsyncMock()
         mock_db.execute = mock_execute
 
-        result = await get_document_entities(doc_id, _make_session(), mock_db)
+        result = await get_document_entities(doc_id, _make_session(), mock_db, AsyncMock())
         assert len(result) == 2
         assert result[0].entity_type == "modality"
         assert result[1].entity_type == "body_region"
@@ -194,7 +195,7 @@ class TestGetDocumentEntities:
         mock_db = AsyncMock()
         mock_db.execute = mock_execute
 
-        result = await get_document_entities(doc_id, _make_session(), mock_db)
+        result = await get_document_entities(doc_id, _make_session(), mock_db, AsyncMock())
         assert result == []
 
     @pytest.mark.asyncio
@@ -207,7 +208,7 @@ class TestGetDocumentEntities:
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as exc_info:
-            await get_document_entities(doc_id, _make_session(), mock_db)
+            await get_document_entities(doc_id, _make_session(), mock_db, AsyncMock())
         assert exc_info.value.status_code == 404
 
     @pytest.mark.asyncio
@@ -221,5 +222,5 @@ class TestGetDocumentEntities:
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as exc_info:
-            await get_document_entities(doc_id, _make_session("test-profile"), mock_db)
+            await get_document_entities(doc_id, _make_session("test-profile"), mock_db, AsyncMock())
         assert exc_info.value.status_code == 403

@@ -197,6 +197,7 @@ async def get_panel_snapshots(
     panel_id: str,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     Distinct panel snapshots grouped by source document and collection calendar day.
@@ -256,6 +257,20 @@ async def get_panel_snapshots(
         return (key_date, s.doc_id)
 
     snapshots.sort(key=sort_snap, reverse=True)
+
+    try:
+        await log_observation_event(
+            db=master_db,
+            event="view",
+            profile_id=profile_id,
+            observation_id="all",
+            analyte=panel_id.lower(),
+            details={"action": "panel_snapshots", "count": len(snapshots)},
+        )
+        await master_db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to log panel snapshots view audit event: {e}")
+
     return snapshots
 
 
@@ -269,6 +284,7 @@ async def list_observations(
     abnormal_only: bool = Query(False, description="Only show abnormal values"),
     needs_verification: bool = Query(False, description="Only show unverified"),
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     List observations for the authenticated profile.
@@ -306,6 +322,19 @@ async def list_observations(
     result = await profile_db.execute(query)
     observations = result.scalars().all()
 
+    try:
+        await log_observation_event(
+            db=master_db,
+            event="view",
+            profile_id=profile_id,
+            observation_id="all",
+            analyte=analyte or "all",
+            details={"action": "list", "count": len(observations)},
+        )
+        await master_db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to log observation list view audit event: {e}")
+
     return [ObservationResponse.from_model(obs) for obs in observations]
 
 
@@ -314,6 +343,7 @@ async def get_observation(
     observation_id: str,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Get single observation details from per-profile encrypted database."""
     # Validate observation_id format
@@ -330,6 +360,18 @@ async def get_observation(
 
     # Verify session has access to this observation
     verify_observation_access(observation, session)
+
+    try:
+        await log_observation_event(
+            db=master_db,
+            event="view",
+            profile_id=observation.profile_id,
+            observation_id=observation_id,
+            analyte=observation.analyte_canonical,
+        )
+        await master_db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to log observation view audit event: {e}")
 
     return ObservationResponse.from_model(observation)
 
@@ -468,6 +510,7 @@ async def get_analyte_trend(
     from_date: Optional[datetime] = Query(None, description="Start date"),
     to_date: Optional[datetime] = Query(None, description="End date"),
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     Get trend data for a specific analyte.
@@ -569,6 +612,19 @@ async def get_analyte_trend(
     else:
         summary = f"Single measurement of {analyte.upper()} recorded."
 
+    try:
+        await log_observation_event(
+            db=master_db,
+            event="view",
+            profile_id=profile_id,
+            observation_id=analyte,
+            analyte=analyte,
+            details={"action": "trend", "count": len(data_points)},
+        )
+        await master_db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to log analyte trend view audit event: {e}")
+
     return TrendResponse(
         analyte_canonical=analyte.lower(),
         analyte_display_name=analyte.upper(),
@@ -586,6 +642,7 @@ async def get_panel(
     session: RequireAuth,
     collection_date: Optional[datetime] = Query(None, description="Specific collection date"),
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     Get lab panel data (CBC, CMP, lipids, etc.).
@@ -644,6 +701,19 @@ async def get_panel(
     coll_date = None
     if observations and observations[0].collected_at:
         coll_date = observations[0].collected_at.isoformat()
+
+    try:
+        await log_observation_event(
+            db=master_db,
+            event="view",
+            profile_id=profile_id,
+            observation_id=panel_id.lower(),
+            analyte=panel_def["name"],
+            details={"action": "panel", "count": len(obs_responses)},
+        )
+        await master_db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to log panel view audit event: {e}")
 
     return PanelResponse(
         panel_id=panel_id.lower(),

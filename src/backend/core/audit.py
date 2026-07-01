@@ -155,6 +155,7 @@ async def log_observation_event(
         "verify": f"Verified observation '{analyte}'",
         "edit": f"Edited observation '{analyte}'",
         "delete": f"Deleted observation '{analyte}'",
+        "view": f"Viewed observation '{analyte}'",
     }
     return await create_audit_log(
         db=db,

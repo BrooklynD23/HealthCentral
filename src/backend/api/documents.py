@@ -750,6 +750,7 @@ async def list_documents(
     doc_status: Optional[str] = Query(None, alias="status", description="Filter by status"),
     doc_type: Optional[str] = Query(None, description="Filter by document type"),
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     List documents for the authenticated profile.
@@ -772,6 +773,23 @@ async def list_documents(
     result = await profile_db.execute(query)
     documents = result.scalars().all()
 
+    try:
+        await log_document_event(
+            db=master_db,
+            event="view",
+            profile_id=profile_id,
+            document_id="all",
+            details={
+                "action": "list",
+                "count": len(documents),
+                "status": doc_status,
+                "doc_type": doc_type,
+            },
+        )
+        await master_db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to log document list view audit event: {e}")
+
     return [DocumentResponse.from_model(doc) for doc in documents]
 
 
@@ -780,6 +798,7 @@ async def get_document(
     document_id: str,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Get document details from per-profile encrypted database."""
     # Validate document_id format (path traversal protection)
@@ -796,6 +815,18 @@ async def get_document(
 
     # Verify session has access to this document
     verify_document_access(document, session)
+
+    try:
+        await log_document_event(
+            db=master_db,
+            event="view",
+            profile_id=session.profile_id,
+            document_id=document_id,
+            filename=document.source,
+        )
+        await master_db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to log document view audit event: {e}")
 
     return DocumentResponse.from_model(document)
 
@@ -940,6 +971,7 @@ async def get_document_category(
     document_id: str,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Get the classification category for a document."""
     validate_uuid(document_id, "document_id")
@@ -959,6 +991,19 @@ async def get_document_category(
     if not category:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No category found for this document")
 
+    try:
+        await log_document_event(
+            db=master_db,
+            event="view",
+            profile_id=session.profile_id,
+            document_id=document_id,
+            filename=document.source,
+            details={"action": "category"},
+        )
+        await master_db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to log document category view audit event: {e}")
+
     return DocumentCategoryResponse(
         id=category.id,
         doc_id=category.doc_id,
@@ -973,6 +1018,7 @@ async def get_document_entities(
     document_id: str,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Get extracted entities for a document."""
     validate_uuid(document_id, "document_id")
@@ -988,6 +1034,19 @@ async def get_document_entities(
         select(DocumentEntity).where(DocumentEntity.doc_id == document_id)
     )
     entities = result.scalars().all()
+
+    try:
+        await log_document_event(
+            db=master_db,
+            event="view",
+            profile_id=session.profile_id,
+            document_id=document_id,
+            filename=document.source,
+            details={"action": "entities", "count": len(entities)},
+        )
+        await master_db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to log document entities view audit event: {e}")
 
     return [
         DocumentEntityResponse(
@@ -1008,6 +1067,7 @@ async def get_document_pages(
     document_id: str,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     Get document pages for provenance viewing.
@@ -1098,6 +1158,19 @@ async def get_document_pages(
                 )
             )
 
+    try:
+        await log_document_event(
+            db=master_db,
+            event="view",
+            profile_id=session.profile_id,
+            document_id=document_id,
+            filename=document.source,
+            details={"action": "pages", "count": len(pages)},
+        )
+        await master_db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to log document pages view audit event: {e}")
+
     return pages
 
 
@@ -1107,6 +1180,7 @@ async def get_page_image(
     page_number: int,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     Render a PDF page as a PNG image for bounding-box citation overlay.
@@ -1131,6 +1205,19 @@ async def get_page_image(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Page number must be >= 1",
         )
+
+    try:
+        await log_document_event(
+            db=master_db,
+            event="view",
+            profile_id=session.profile_id,
+            document_id=document_id,
+            filename=document.source,
+            details={"action": "page_image", "page_number": page_number},
+        )
+        await master_db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to log document page image view audit event: {e}")
 
     resolution = 150
     cache_key: _PageImageCacheKey = (
