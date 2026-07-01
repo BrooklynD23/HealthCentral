@@ -474,6 +474,17 @@ class TestPlatformNotifications:
             finally:
                 loop.close()
 
+    def test_desktop_notifier_provider_construction_error_is_swallowed(self):
+        """A non-ImportError during DesktopNotifier construction (e.g. no DBus
+        session bus on a headless host) must be treated as 'unavailable', not
+        bubble up and break NotificationService initialization."""
+        provider = DesktopNotifierProvider()
+        fake_module = MagicMock()
+        fake_module.DesktopNotifier.side_effect = RuntimeError("no DBus session bus")
+        with patch.dict(sys.modules, {"desktop_notifier": fake_module}):
+            # Must return False, never raise.
+            assert provider.is_available() is False
+
     def test_notification_payload_defaults(self):
         """Test NotificationPayload default values."""
         payload = NotificationPayload(

@@ -326,6 +326,14 @@ class DesktopNotifierProvider(NotificationProvider):
         except ImportError:
             logger.debug("desktop-notifier not installed")
             return False
+        except Exception as e:
+            # Constructing DesktopNotifier can fail on systems lacking the
+            # required desktop services/config (e.g. no DBus on a headless
+            # host). Treat any such failure as "unavailable" so the provider
+            # degrades gracefully and NotificationService initialization is
+            # not broken.
+            logger.debug(f"desktop-notifier unavailable: {e}")
+            return False
 
     async def send(self, payload: NotificationPayload) -> DeliveryResult:
         """Send notification via desktop-notifier."""
