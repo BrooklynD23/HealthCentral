@@ -143,9 +143,9 @@ class Settings(BaseSettings):
     min_entailment_confidence: float = 0.7  # Minimum NLI confidence
     fail_on_contradiction: bool = True  # Fail if any source contradicts claim
     min_supporting_sources: int = 1  # Minimum sources needed to verify claim
+    # See docs/plans/2026-06-30-tech-upgrade-survey-9-areas.md Area 1 for planned NLI wiring
     use_llm_entailment: bool = False  # Use LLM for complex entailment (vs rule-based)
-    multi_pass_verification: bool = False  # Enable multi-pass consistency checking
-    
+
     def model_post_init(self, __context) -> None:
         """Enforce production safety invariants at construction time."""
         if self.app_env == "production" and self.debug:
