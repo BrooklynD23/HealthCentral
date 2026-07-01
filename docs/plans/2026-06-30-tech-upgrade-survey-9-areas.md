@@ -2,6 +2,7 @@
 
 **Date:** 2026-06-30
 **Status:** Research complete — awaiting implementation planning (no code changed)
+**Revision 2:** Post-review gap-closure added (Section 14) — grounding re-verified against code; test-coverage map, shared model-distribution prerequisite, and quick-win cleanup planned out.
 **Context:** A full-repo exploration pass (3 parallel Explore agents) mapped HealthCentral's current architecture and feature set. A follow-up research pass (9 parallel research agents, each with WebSearch/WebFetch + read-only repo access) then surveyed open-source repos and recent papers (2024–2026) for technologies that could upgrade specific components. This document is the persisted, full-detail record of that survey, intended to be read by a higher-reasoning agent that will turn selected recommendations into an implementation plan. **No code was changed to produce this document.** A branch-history check (see "Overlap Check" below) confirmed none of these specific recommendations are already implemented elsewhere in the repo.
 
 ---
@@ -21,6 +22,7 @@
 11. [Area 8: Auth & Encryption](#area-8-auth--encryption)
 12. [Area 9: Gamification & Analytics](#area-9-gamification--analytics)
 13. [Notes for the Implementation-Planning Agent](#13-notes-for-the-implementation-planning-agent)
+14. [Gap-Closure Implementation Suggestions (post-review)](#14-gap-closure-implementation-suggestions-post-review)
 
 ---
 
@@ -30,7 +32,7 @@
 
 **LLM pipeline**: `modules/chunking.py` (200-token chunks, 50-token overlap, sentence-boundary aware) → `modules/embeddings.py` (sentence-transformers `all-MiniLM-L6-v2`, 384-dim; falls back to SHA256 hash-based deterministic embeddings when the real model is unavailable) → `modules/rag.py` (prompt composition enforcing citation tags `[YOUR_RESULTS:N]` / `[REFERENCE:N]` / `[KB:N]` / `[INT:N]`) → `modules/interpret.py` (template mode default — hardcoded clinical templates with inline citations; LLM mode via tiered `model_selector.py`) → safety/faithfulness verification → `modules/redaction.py` before any export.
 
-**Model tiers** (`modules/model_selector.py`): High tier BioMistral-7B (32GB+ RAM), Mid tier Phi-3-mini (16GB+), Low tier Qwen2.5-0.5B (8GB+), Template-only fallback (zero RAM, all hardware). Ollama default model: `gemma4:12b` (+ edge variants `e2b`/`e4b`).
+**Model tiers** (`modules/model_selector.py`): High tier BioMistral-7B (32GB+ RAM), Mid tier Phi-3-mini (16GB+), Low tier Qwen2.5-0.5B (8GB+), Template-only fallback (zero RAM, all hardware). Ollama default model: `gemma4:12b` (+ edge variants `e2b`/`e4b`). **Note:** the `gemma4:*` tags are marked `PLACEHOLDER` in `model_selector.py` and `scripts/download_models.py` (expected canonical repos "as of 2026-06-11 … verify before deploying"; real filenames discovered at runtime via `list_repo_files()`) — treat the generative default as not-yet-pinned (see §14.4). BioMistral/Phi-3/Qwen tier models are real (`model_selector.py:107`, `hardware_detection.py:33`).
 
 **Provider abstraction** (`core/llm/`): exactly 4 files — `provider.py` (`ProviderProtocol`, `CapabilityFlags`, `ChatMessage`), `factory.py` (`get_provider()` reads `LLM_PROVIDER`/`LLM_MODEL` env, `reset_provider()`), `ollama_provider.py` (localhost-only), `llama_cpp_provider.py` (local GGUF). `core/model_runner.py`'s `ModelRunner` is the facade all callers use. **New providers belong only in `core/llm/` — no new abstraction layers elsewhere (CLAUDE.md hard rule).**
 
@@ -387,7 +389,7 @@ JWT auth and password hashing live in `src/backend/core/security.py`: token issu
 
 ### Recommendation
 - **JWT: prototype PyJWT first**, then migrate off python-jose. This is the clearest, lowest-risk win in this batch — drop-in replacement, MIT, actively maintained, smaller dependency surface, sidesteps the unfixed `ecdsa` CVE chain. **Requires human sign-off per CLAUDE.md before touching `core/security.py`.**
-- **Password hashing: prototype argon2-cffi**, but treat as lower urgency than the JWT swap. Current bcrypt usage isn't broken (cost factor should be confirmed ≥12, not verified in this pass), so this is "should modernize," not "must fix." **Requires human sign-off.**
+- **Password hashing: argon2-cffi is optional hardening, not a fix.** Verified during review: `core/security.py:34` sets `PASSWORD_HASH_ROUNDS = 12` — exactly the OWASP minimum, so bcrypt usage is **compliant today**, not below the floor. This *downgrades* the argon2 migration from "should modernize" to "optional future hardening" (memory-hardness), and it should rank **below** the PyJWT swap, which fixes an actual maintenance/CVE-exposure problem rather than gilding a compliant one. If pursued: argon2-cffi migration touches the stored-hash format and needs a verify-and-rehash path for existing bcrypt hashes. **Requires human sign-off.**
 - **SQLCipher: no change justified.** Still the conservative, audited choice; sqlite3mc is interesting but offers no concrete problem it solves here.
 - **Audit log hash-chaining: prototype/spike only.** Worth a small design spike (no new dependency, pure stdlib `hashlib`) to add a `prev_hash` chain to the audit table for tamper evidence — but this is additive logging, not auth/crypto-library replacement, so it carries lower review weight than the JWT/password items (though it still touches audit logging, so still flag for review per CLAUDE.md's audit-logging invariant).
 
@@ -463,3 +465,53 @@ None from inaction. Risk of adopting Trophy: silent network dependency violating
 6. **One confirmed dead-code item independent of any specific area's recommendation**: `core/config.py`'s `vector_store_type` field and the unused `faiss-cpu` dependency are candidates for a small, low-risk cleanup PR regardless of whether Area 2's "no change" recommendation is revisited.
 7. **License discipline matters in this codebase** — every candidate surfaced and recommended above is MIT/Apache-2.0/BSD-3. Several candidates considered and explicitly rejected (Surya model weights, LayoutLMv3) were disqualified specifically on licensing grounds (OpenRAIL-M commercial restrictions, CC BY-NC-SA). Any new candidate introduced during implementation planning should be checked against the same bar.
 8. **All new LLM/ML components must integrate via existing facades** — `core/llm/` (`ModelRunner`/`ProviderProtocol`) for any generative component, and the existing `sentence-transformers` dependency path for any embedding/classifier component — per CLAUDE.md's "no new abstraction layers" rule.
+9. **Before planning Area 1 or 3, read Section 14.2 first.** Both add locally-run models that share one unbuilt prerequisite (offline model distribution + loading). Landing that shared infra once de-risks both; the per-area effort estimates assume it exists. Section 14 also carries the test-coverage map (§14.1) every safety-critical change must keep green, and a standalone quick-win cleanup (§14.5) safe to do immediately.
+
+---
+
+## 14. Gap-Closure Implementation Suggestions (post-review)
+
+A post-hoc review re-verified every load-bearing file/line citation in this document against the code (all confirmed accurate — `faithfulness.py:117/134`, `verifier_agent.py:88/321`, `rag.py:574`, `config.py:108`, agent package exactly 2662 LOC, `graph.py` docstring verbatim, no `faiss`/`apscheduler`/`langgraph` imports). The review then surfaced five gaps that made the survey less *actionable* than it should be for the next agent. Each is planned out below as a concrete suggestion. **These are suggestions — no code was changed to write them.**
+
+### 14.1 — Test-coverage map for safety-critical areas
+*Gap: the survey named no existing guards, so a planning agent wouldn't know what must stay green.* Any change to Areas 1/3/8 must keep these passing; CI enforces the eval and backend gates.
+
+| Area | Guarding suites (`src/backend/tests/`) | CI gate |
+|---|---|---|
+| 1 Faithfulness/Entailment | `test_rag_pipeline.py`, `test_interpret_safety_adversarial.py`, `test_phase4_ai_safety.py`; agent golden evals via `tests/agent/eval_harness.py` + `tests/agent/test_s6_evals.py` (categories grounded / abstain / advice-bait / mixed; advice-bait cases assert `advice_leakage == 0` and `terminal == "escalate"`, 50–100 cases) | `.github/workflows/ci.yml` → `agent-evals` job → `scripts/agent_eval_gate.py` ("fail on advice leakage / ungrounded answers") |
+| 3 Redaction | `test_redaction.py`, `tests/agent/test_s4_phi_gate.py` (incl. offline path `test_s4_2_offline_loop_completes`) | `agent-evals` + `backend-tests` |
+| 8 Auth/Encryption | `tests/security/test_password_hashing.py`, `tests/security/test_audit_middleware.py` | `backend-tests` |
+
+**Implementation guidance (preserves the "additive, never weaken" invariant):**
+- Area 1: validate the new NLI signal by *adding* golden cases (new advice-bait/mixed items where the rule-based check passes but NLI should catch an unsupported claim) — do **not** relax existing `advice_leakage`/`min_citations` assertions or the 0.6 faithfulness threshold.
+- Area 3: extend `test_redaction.py` with contextual-PHI fixtures (free-text names with no label prefix) as **new** assertions the NER pass must catch — leave every existing regex-floor assertion intact.
+- Area 8: `test_password_hashing.py` must keep passing across any bcrypt→argon2 transition (verify-old-rehash-new path), and the JWT-library swap must not alter token claim/algorithm behavior asserted by the auth suite.
+
+### 14.2 — Shared prerequisite: local model distribution & offline loading
+*Gap: Areas 1, 3, (and 4 if revisited) each add a locally-run model, but the per-area structure hid that they share one unbuilt dependency.* Resolve this once, before/with whichever of Area 1 or 3 lands first.
+
+**Why it's shared and real:**
+- The NLI cross-encoder (Area 1) and Philter/Presidio/NER models (Area 3) are **not GGUF LLMs**, so `scripts/download_models.py` — GGUF/Ollama-only, per its own docstring — does **not** cover them.
+- They inherit and worsen a latent tension already in `modules/embeddings.py`: it lazy-loads `SentenceTransformer(model_name)` on first use (`embeddings.py:55-56`), which triggers a Hugging Face Hub download unless pre-cached. No `HF_HUB_OFFLINE` / `TRANSFORMERS_OFFLINE` / `local_files_only` is set anywhere in `modules/` or `core/` (confirmed via grep) — so first-load is an implicit network call, at odds with the "no network calls in product code paths" invariant.
+
+**Suggested plan:**
+1. **Acquisition** — extend `scripts/download_models.py` with a non-GGUF branch (or add a `scripts/download_aux_models.py` sibling) that fetches transformers / sentence-transformers / spaCy artifacts via `huggingface-hub` into the existing model-cache root, and register each aux model with a tier requirement mirroring `TIER_MODEL_CONFIG` in `modules/model_selector.py`.
+2. **Offline runtime load** — load every aux model with offline semantics (`local_files_only=True` for transformers/ST; spaCy/Presidio equivalents), following the existing lazy-load-on-first-use pattern in `embeddings.py`, so product paths never hit the network.
+3. **Graceful degradation** — mirror `embeddings.py`'s deterministic fallback: a missing aux model must fall back to the existing rule-based path (regex faithfulness, regex redaction), never error. This keeps the template/rule-only hardware tier fully functional and preserves the safety floor.
+4. **Tier gating** — make the NLI (Area 1: xsmall fits 8GB) and NER (Area 3: Presidio/spaCy heavier, likely 16GB+) models opt-in per hardware tier, gated the same way OCR already is (`settings.ocr_enabled` + per-user toggle).
+5. **Verify** — add a test asserting product code paths make no outbound network call when the cache is populated, extending the offline-loop pattern already proven by `tests/agent/test_s4_phi_gate.py::test_s4_2_offline_loop_completes`.
+
+**Effort: M** (shared infra), amortized across Areas 1, 3, and any future Area 4 model adoption. The per-area effort estimates in this survey assume this exists.
+
+### 14.3 — bcrypt cost factor (resolved)
+*Gap: the survey left this "unverified."* Now verified: `core/security.py:34` → `PASSWORD_HASH_ROUNDS = 12`, exactly the OWASP floor. Consequence folded into the Area 8 recommendation: argon2-cffi drops from "should modernize" to "optional hardening," ranked below the PyJWT swap (which fixes a real maintenance/CVE-exposure problem). No further investigation needed.
+
+### 14.4 — gemma4 tags are placeholders (resolved)
+*Gap: the survey reported `gemma4:12b` as a shipped default.* `scripts/download_models.py` and `modules/model_selector.py` both mark the `gemma4:*` tags `PLACEHOLDER` (canonical repos "expected as of 2026-06-11 … verify before deploying"; real filenames resolved at runtime via `list_repo_files()`). The implementation agent should treat the generative default LLM as **not yet pinned** and confirm the actual Gemma repo/tag (or a substitute) before relying on it. This does not affect any Area 1/3 recommendation — those are classifier/NER models independent of the generative tier. (Repo-summary line in §1 annotated accordingly.)
+
+### 14.5 — Quick-win cleanup: remove dead vector-store config + unused dependency
+*Gap: buried as a footnote under a "no change justified" area — it's actually the lowest-risk action item in the survey.* Independent of Area 2's verdict, two dead artifacts can be removed in one low-risk PR:
+- `core/config.py:108` — `vector_store_type: Literal["sqlite-vss", "faiss"]`, never read (confirmed no reference in `rag.py`/`embeddings.py`).
+- `faiss-cpu>=1.7.4` in `requirements.txt` — never imported anywhere in `src/backend` (confirmed).
+
+**Plan:** delete the config field and the dependency pin → grep-confirm zero references → run `backend-tests` + `pip-audit` (fewer deps = smaller attack surface). **Effort: S.** Safe to do regardless of any other decision. *Alternative if the team wants to keep a future-feature placeholder:* repoint the field's allowed values to `["linear", "sqlite-vec"]` and document it as aspirational — but outright removal is cleaner.
