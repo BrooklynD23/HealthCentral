@@ -16,7 +16,7 @@ Local-first, privacy-first desktop app: patients import lab PDFs/medical documen
   - `migrations/master/` + `migrations/profile/` — separate Alembic chains (see `implementation_plan/2026-02-04_alembic-dual-migrations.md`)
 - **Frontend** `src/frontend/` — React + Vite + TS, Tailwind, React Query, Zustand.
   - `src/pages/` (TrendsDashboard, ExplainAssistant, VerificationWorkbench, SettingsPage…), `src/services/` (API client + hooks; export everything through `services/index.ts` barrel), `e2e/` Playwright
-- **Docs** `docs/` (architecture plans, PRD, compliance), `implementation_plan/` (dated plans, breakage maps, verification reports — add yours here)
+- **Docs** `docs/` (architecture plans, PRD, compliance), `implementation_plan/` (dated plans, breakage maps, verification reports — add yours here). `.claude/skills/` has vendored process skills (TDD, debugging, planning — see `.claude/skills/README.md`).
 
 ## Commands (Windows is the native dev environment)
 
