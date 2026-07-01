@@ -35,7 +35,15 @@ It replaces legacy mixed-status lists and focuses on:
 - Sprint 05 (Frontend Quality & Testing) completed on 2026-02-19: 188 frontend tests, accessibility, responsive layout, visualization interactions, E2E workflows.
 - Sprint 06 (Platform Operations & Compliance) completed on 2026-02-21: security middleware (4 classes, 31 tests), monitoring/metrics (23 tests), backup/restore (14 tests), API/user/compliance documentation (14 files).
 - Documentation reconciliation refreshed on 2026-03-27: `README.md` and `docs/api/endpoints.md` describe the audited live surface; `docs/05_backend_integration_status.md` is now explicitly historical.
-- Remaining work: security remediation from Sprint 06 review, deferred feature backlog, and the separate in-progress RAG category-filter wiring noted in the M001 audit.
+- Remaining work: security remediation from Sprint 06 review, deferred feature backlog, the separate in-progress RAG category-filter wiring noted in the M001 audit (`INGEST-F`), and `MED-CORR-001` (medication correlations endpoint — see below).
+
+---
+
+## Open Items (Not Yet Started)
+
+| Item ID | Scope | Priority | Ticket Detail | Primary File Targets | Status |
+|---------|-------|----------|----------------|----------------------|--------|
+| `MED-CORR-001` | `GET /medications/{id}/correlations` backend endpoint — currently only a frontend heuristic (`src/frontend/src/utils/correlation.ts`) exists; no backend route. Discovered via a 2026-07 doc-accuracy audit: `docs/plans/roadmap_gap_closure.md` had marked this "✅ COMPLETE" though the endpoint was never built. | P2 | Full ticket (goal, deliverables, acceptance criteria, TDD plan) at `docs/plans/roadmap_gap_closure.md:235` | `src/backend/api/medications.py`, `src/backend/models/`, `src/backend/tests/` (new test module) | [ ] OPEN |
 
 ---
 

@@ -230,7 +230,7 @@ Rate limiting is keyed on `scope["client"]` which may be wrong behind reverse pr
 
 ---
 
-## Phase 3 — Product API Completion ✅ COMPLETE
+## Phase 3 — Product API Completion ⚠️ NOT COMPLETE (MED-CORR-001 still open — see Status Update above)
 
 ### MED-CORR-001 — Implement `GET /medications/{id}/correlations`
 
