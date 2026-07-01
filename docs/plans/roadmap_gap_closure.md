@@ -6,6 +6,11 @@
 **Refresh Trigger:** Scope/priority change, PRD decision, or ticket completion  
 **Primary Tracker (after approval):** GitHub Issues + Milestones (sync back to `docs/features/TASK_LIST.md` as needed)
 
+> **Status Update (verified against codebase):** Most tickets below are confirmed complete in code, but this file is **not fully superseded** — do not treat it as historical.
+> - **Confirmed DONE:** SEC-006, UPL-001, DOC-DRIFT-001, TEST-NIT-001 (Phase 1); SEC-007, SEC-008 (Phase 2); PRD-DEC-VOICE-001, PRD-DEC-GAM-001 (resolved via the approved `2026-03-04-prd-voice-gamification-ingest-design.md`), MED-VOICE-001, GAM-001 (Phase 4B); PRIV-RED-001, OCR-BOX-001, UX-CONF-001 (Phase 5); INGEST-EPIC-001, ASSIST-MEM-EPIC-001, EXPORT-CHART-001 (Phase 6).
+> - **Still OPEN:** **MED-CORR-001** (`GET /medications/{id}/correlations`, Phase 3) — despite the "✅ COMPLETE" phase header below, no such endpoint exists in `src/backend/api/medications.py`, no frontend usage exists, and `docs/05_backend_integration_status.md` explicitly confirms "the live medication router... does not currently mount a medication correlations endpoint." Also, INGEST-EPIC-001's Task 23 (RAG category-aware retrieval, `INGEST-F`) remains deferred per `docs/features/TASK_LIST.md` and a live `TODO(INGEST-F)` in `src/backend/modules/rag.py`.
+> - Treat the "✅ COMPLETE" phase markers below with caution until MED-CORR-001 is implemented or explicitly descoped.
+
 ## Purpose
 
 Turn the Gap Analysis report into a **reviewable, copy/paste-ready ticket pack** that an implementation agent can execute with:

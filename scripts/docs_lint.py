@@ -42,6 +42,7 @@ HISTORICAL_DOCS = [
     "docs/plans/remaining-features-implementation.md",
     "docs/plans/next-agent-documentation-consolidation.md",
     "docs/plans/sprint-phase-2026-02-13-implementation-plan.md",
+    "docs/plans/2026-03-04-handoff.md",
 ]
 
 REQUIRED_SECTIONS: dict[str, list[str]] = {
