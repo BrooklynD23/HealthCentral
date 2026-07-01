@@ -64,7 +64,6 @@ py-cpuinfo>=9.0.0          # Detailed CPU info
 # =============================================================================
 # Vector Store
 # =============================================================================
-faiss-cpu>=1.7.4
 # sqlite-vss requires separate installation
 
 # =============================================================================
@@ -84,8 +83,8 @@ aiofiles>=23.2.0
 # =============================================================================
 # Notifications (Phase 3: Smart Notifications)
 # =============================================================================
-apscheduler>=3.10.0       # Background task scheduling
 plyer>=2.1.0              # Cross-platform notifications
+desktop-notifier>=6.2.0   # Cross-platform notifications (async, DBus/UNUserNotificationCenter/WinRT)
 # winsdk>=1.0.0b10        # Windows notification center (optional, Windows only)
 
 # =============================================================================

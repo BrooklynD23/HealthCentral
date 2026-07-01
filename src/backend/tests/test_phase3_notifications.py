@@ -31,6 +31,7 @@ from modules.platform_notifications import (
     NotificationPlatform,
     MockProvider,
     PlyerProvider,
+    DesktopNotifierProvider,
     get_notification_service,
 )
 from modules.notification_scheduler import (
@@ -443,6 +444,35 @@ class TestPlatformNotifications:
         provider = PlyerProvider()
         # May or may not be available depending on environment
         assert isinstance(provider.is_available(), bool)
+
+    def test_desktop_notifier_provider_availability(self):
+        """Test DesktopNotifierProvider degrades gracefully when unavailable."""
+        provider = DesktopNotifierProvider()
+        # May or may not be available depending on whether desktop-notifier
+        # is installed in this environment; must never raise.
+        assert isinstance(provider.is_available(), bool)
+        assert provider.platform == NotificationPlatform.DESKTOP_NOTIFIER
+
+    def test_desktop_notifier_provider_send_when_unavailable(self):
+        """Test DesktopNotifierProvider reports failure instead of raising
+        when the optional dependency is missing, so the service can fall
+        back to the next provider."""
+        provider = DesktopNotifierProvider()
+        with patch.object(provider, "is_available", return_value=False):
+            loop = asyncio.new_event_loop()
+            try:
+                payload = NotificationPayload(
+                    id="test",
+                    title="Title",
+                    body="Body",
+                    medication_id="med",
+                )
+                result = loop.run_until_complete(provider.send(payload))
+                assert result.success is False
+                assert result.status == DeliveryStatus.FAILED
+                assert result.platform == NotificationPlatform.DESKTOP_NOTIFIER
+            finally:
+                loop.close()
 
     def test_notification_payload_defaults(self):
         """Test NotificationPayload default values."""

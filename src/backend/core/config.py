@@ -105,7 +105,6 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://127.0.0.1:11434"
     
     # Vector store
-    vector_store_type: Literal["sqlite-vss", "faiss"] = "sqlite-vss"
     embedding_dimensions: int = 384
     
     # Document processing
