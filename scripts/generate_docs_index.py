@@ -49,6 +49,9 @@ def _extract_summary(text: str, max_len: int = 200) -> str:
             continue
         paragraph.append(stripped)
     summary = " ".join(paragraph)
+    # Rewrite [text](target) to just the text: source-relative link targets
+    # don't resolve from docs/INDEX.md and would trip DOC-007.
+    summary = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", summary)
     if len(summary) > max_len:
         summary = summary[: max_len - 1].rsplit(" ", 1)[0] + "…"
     return summary or "(no summary — see file)"
