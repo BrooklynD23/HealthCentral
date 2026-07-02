@@ -1,6 +1,9 @@
 # Date
 2026-02-04
 
+> Historical Reference: this plan predates later implementation work and contains completed items.
+> Use `docs/features/TASK_LIST.md` for active remaining tasks.
+
 # Feature
 Dual Alembic migration system (master + per-profile SQLCipher vaults)
 

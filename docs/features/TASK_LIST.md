@@ -23,13 +23,19 @@ It replaces legacy mixed-status lists and focuses on:
 
 1. `README.md` (repo entrypoint and audited live feature surface overview)
 2. `docs/api/endpoints.md` (exact mounted backend routes; API source of truth)
-3. `docs/features/TASK_LIST.md` (this active remaining-work tracker)
-4. `docs/05_backend_integration_status.md` (**Historical Reference** — Sprint 06 snapshot retained for audit context, not the live tracker)
+3. `docs/00_architecture_plans_index.md` (full documentation index — start here for anything not covered by the four entries in this list)
+4. `docs/features/TASK_LIST.md` (this active remaining-work tracker)
+5. `docs/05_backend_integration_status.md` (**Historical Reference** — Sprint 06 snapshot retained for audit context, not the live tracker)
+
+This exact order (paths + sequence) must also appear in `README.md`'s "Documentation Source of Truth"
+and `docs/00_architecture_plans_index.md`'s "Start Here" sections — `scripts/docs_lint.py`'s DOC-010
+check enforces the three stay identical.
 
 ---
 
 ## Current Baseline Snapshot (2026-03-27)
 
+- Sprint 1 (Auth + Session), Sprint 2 (Import/Extract/Normalize/Persist), Sprint 3 (Verification Workbench + Trends Dashboard), and Sprint 4 (Export System + Data Interoperability) all completed pre-2026-02 — this is what "import/extract/verify, trends, export" below refers to. (Merged in from `implementation_plan/README.md`, since removed — its MVP checklist and Sprint Progress table covered the same ground.)
 - Completed baseline areas: auth, import/extract/verify, trends, export, assistant, assistant memory, interpretations, medications, notifications, gamification, settings, and document categorization/entity extraction.
 - Stabilization sprint (STAB-001 through STAB-007) completed on 2026-02-14.
 - Sprint 05 (Frontend Quality & Testing) completed on 2026-02-19: 188 frontend tests, accessibility, responsive layout, visualization interactions, E2E workflows.

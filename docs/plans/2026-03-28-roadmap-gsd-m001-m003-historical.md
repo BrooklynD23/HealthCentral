@@ -1,5 +1,11 @@
 <!-- Generated from .gsd/milestones/M001/M001-ROADMAP.md via GSD planning tools. Re-run milestone planning to refresh. -->
 
+> Historical Reference: this file was formerly `ROADMAP.md` at the repo root and is retained for
+> history — not an active tracker. All three milestones (M001-M003) are marked complete below, and
+> the `.gsd/` directory this file was generated from no longer exists anywhere in the repo — do not
+> attempt to regenerate it. `docs/plans/roadmap_gap_closure.md` is the current, live roadmap. Use
+> `docs/features/TASK_LIST.md` for active remaining tasks.
+
 # M001: Project Re-entry Audit and GSD Baseline
 
 ## Vision

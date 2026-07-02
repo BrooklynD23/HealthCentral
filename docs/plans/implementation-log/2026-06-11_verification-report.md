@@ -1,4 +1,8 @@
 # Verification Report — 2026-06-11
+
+> Historical Reference: this plan predates later implementation work and contains completed items.
+> Use `docs/features/TASK_LIST.md` for active remaining tasks.
+
 Branch: `fix/agent-overhaul`  
 Verified by: automated agent pass (Claude Sonnet 4.6)
 

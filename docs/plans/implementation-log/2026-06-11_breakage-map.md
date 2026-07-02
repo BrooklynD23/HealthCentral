@@ -1,5 +1,8 @@
 # HealthCentral Breakage Map — 2026-06-11
 
+> Historical Reference: this plan predates later implementation work and contains completed items.
+> Use `docs/features/TASK_LIST.md` for active remaining tasks.
+
 Branch: `fix/agent-overhaul`  
 Diagnosed by: automated agent (Claude Sonnet 4.6)  
 Python runtime used: system Python 3.10.12 (venv at `.wsl-pytest-venv` is Python 3.12 but its `lib/` directory is a dead symlink on the 9p mount — all tests were run with `python3` directly)

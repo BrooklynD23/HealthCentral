@@ -1,5 +1,8 @@
 # Project Structure Setup
 
+> Historical Reference: this plan predates later implementation work and contains completed items.
+> Use `docs/features/TASK_LIST.md` for active remaining tasks.
+
 **Date**: 2024-12-28  
 **Phase**: 0 (MVP Foundation)  
 **Status**: ✅ Completed  

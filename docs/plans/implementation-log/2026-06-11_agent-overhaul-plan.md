@@ -1,5 +1,10 @@
 # Agent Overhaul Plan — 2026-06-11
 
+> Historical Reference: this plan predates later implementation work and contains completed items.
+> Use `docs/features/TASK_LIST.md` for active remaining tasks. Its own P0-P5 phase goals (pipeline
+> fixes, provider abstraction, RAG memory, biomarker chat, RL feedback) were superseded by the more
+> granular `docs/prd/phases/PHASE_0-7_*.md` + `docs/agile/sprints/` structure and are confirmed shipped.
+
 Branch: `fix/agent-overhaul`
 
 ## Goals
