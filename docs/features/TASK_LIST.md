@@ -1,7 +1,7 @@
 # HealthCentral Remaining Work Task List
 
 **Version:** 0.5.0
-**Last Updated:** 2026-07-01
+**Last Updated:** 2026-07-02
 **Owner:** Project Lead
 **Refresh Trigger:** Task completed or new task identified
 **Scope:** Active remaining work only (implementation baseline already shipped)
@@ -54,6 +54,15 @@ check enforces the three stay identical.
 | `S06-SEC-003` | Streaming request-body size enforcement raises a bare `ValueError` (`src/backend/security/input_validator.py:101-104`) with no global exception handler converting it to a 413 — confirmed still open via 2026-07 re-verification (S06-SEC-001 and S06-SEC-002 in the same review doc were found resolved/mitigated and corrected in place). Oversized streaming requests may 500 instead of cleanly rejecting. | P2 | Full finding + fix options at `docs/compliance/security-review-sprint06.md` (S06-SEC-003 section) | `src/backend/security/input_validator.py`, `src/backend/main.py` (exception handler registration) | [ ] OPEN |
 | `DOC-API-001` | `PATCH /settings/model/agent` existed in code with no entry in `docs/api/endpoints.md` — already fixed in this session (added at `docs/api/endpoints.md:166`). Listed here only as a closed-loop record; no further action. | P4 | N/A | `docs/api/endpoints.md` | [x] DONE (2026-07-01) |
 | `E2E-MED-001` | `MedicationDetail` page (`/medications/:medicationId`) has zero Playwright e2e coverage — route exists and works, just untested end-to-end. All other pages have at least one covering spec. | P3 | None yet — needs a new or extended spec under `src/frontend/e2e/` | `src/frontend/e2e/` (new spec or extend `ui-full-verification.spec.ts`), `src/frontend/src/pages/MedicationDetail.tsx` | [ ] OPEN |
+| `SEC-RECOV-001` | Recovery key for profile encryption — a forgotten password is currently permanent, unrecoverable loss of the profile's entire health record (DEK is sealed by password only, `core/profile_database.py`; no recovery path exists). Generate a one-time recovery code at profile creation that seals a second DEK copy. **GATED (auth/encryption) — design sign-off required before any code.** | P1 | Full ticket at [`docs/plans/2026-07-02-architect-review-proposal-tickets.md`](../plans/2026-07-02-architect-review-proposal-tickets.md#sec-recov-001--recovery-key-for-profile-encryption) | `src/backend/core/security.py`, `src/backend/core/profile_database.py`, `src/backend/api/profiles.py`, frontend ProfileSetup/unlock | [ ] OPEN |
+| `BKUP-UX-001` | User-facing scheduled backup & restore — `scripts/backup.py` (Sprint 06 OPS-002) is a developer CLI no patient will run; device loss currently destroys the whole record. Surface backup/verify/restore in SettingsPage with scheduling via the existing asyncio-scheduler pattern. Restore/key edge cases flagged for review. | P2 | Full ticket at [`docs/plans/2026-07-02-architect-review-proposal-tickets.md`](../plans/2026-07-02-architect-review-proposal-tickets.md#bkup-ux-001--user-facing-scheduled-backup--restore) | `src/backend/scripts/backup.py`, new backup routes, `src/frontend/src/pages/SettingsPage.tsx` | [ ] OPEN |
+| `INGEST-FHIR-001` | FHIR R4 structured import (lab `Observation`/`DiagnosticReport` bundles) — zero structured ingest exists today; everything goes PDF/image → OCR → regex. Portal FHIR exports (Cures Act) give exact values/units/ranges/LOINC codes with no OCR errors. Deterministic stdlib-JSON parsing, no new dependency, imports stay unverified until workbench review. | P2 | Full ticket at [`docs/plans/2026-07-02-architect-review-proposal-tickets.md`](../plans/2026-07-02-architect-review-proposal-tickets.md#ingest-fhir-001--fhir-r4-structured-import-lab-observations-first) | `src/backend/modules/extract_fhir.py` (new), `modules/ingest.py`, `modules/normalize.py`/`glossary.py` (LOINC map) | [ ] OPEN |
+| `NORM-UNIT-001` | Unit normalization/conversion — `normalize.py`'s docstring promises "Unit preservation and conversion" but no conversion exists; TrendsDashboard assumes one unit per analyte, so cross-lab unit mixes (mg/dL vs mmol/L) silently corrupt or fragment trend lines. Table-driven per-analyte conversion at trend-read time; originals never mutated. Step 0: audit actual mixed-unit behavior. | P2 | Full ticket at [`docs/plans/2026-07-02-architect-review-proposal-tickets.md`](../plans/2026-07-02-architect-review-proposal-tickets.md#norm-unit-001--unit-normalization--conversion-for-cross-lab-comparability) | `src/backend/modules/normalize.py`, `src/backend/api/observations.py`, `src/frontend/src/pages/TrendsDashboard.tsx` | [ ] OPEN |
+| `PROF-DEL-001` | Profile deletion & data lifecycle — no `DELETE /profiles/{id}` route exists (every sub-entity is deletable; the profile is immortal), though `core/audit.py`'s event conventions already list `profile.delete`. Ordered crypto-erase sequence (keys first) + export-before-erase. **DECISION FIRST: audit-row retention (retain vs. anonymized tombstone) is a compliance call — scope with user before coding.** | P2 | Full ticket at [`docs/plans/2026-07-02-architect-review-proposal-tickets.md`](../plans/2026-07-02-architect-review-proposal-tickets.md#prof-del-001--profile-deletion--data-lifecycle-right-to-erase) | `src/backend/api/profiles.py`, `core/profile_database.py`, `modules/export.py`, `docs/compliance/data-privacy.md` | [ ] OPEN |
+| `RAG-INJ-001` | Injection-filter retrieved chunks — `rag.py` screens conversation history and memory items through `PROMPT_INJECTION_PATTERNS` but composes OCR'd document/reference chunk text into prompts unfiltered; the least-trusted input is the only unscreened one. Additive: reuse the existing compiled patterns at chunk-composition time (both legacy-RAG and agent paths), flag-and-log, measure false positives first. Guardrail-adjacent — review-gate the diff. | P2 | Full ticket at [`docs/plans/2026-07-02-architect-review-proposal-tickets.md`](../plans/2026-07-02-architect-review-proposal-tickets.md#rag-inj-001--injection-filter-retrieved-documentreference-chunks) | `src/backend/modules/rag.py`, `src/backend/modules/agent/` (guardrails subpackage) | [ ] OPEN |
+| `CITE-SRC-001` | Citation click-through to source — `[YOUR_RESULTS:N]` chips in ExplainAssistant become deep links to the source document page/bbox region in the Verification Workbench. Bbox OCR data and per-chunk document provenance already exist; this is additive response-schema fields + frontend routing. Turns citations from labels into checkable evidence. | P3 | Full ticket at [`docs/plans/2026-07-02-architect-review-proposal-tickets.md`](../plans/2026-07-02-architect-review-proposal-tickets.md#cite-src-001--citation-click-through-to-source-document-region) | `src/backend/api/assistant.py`, `src/frontend/src/pages/ExplainAssistant.tsx`, `VerificationWorkbench.tsx` | [ ] OPEN |
+| `AUDIT-PHI-001` | Audit-log PHI minimization — audit rows (free-text `action`, arbitrary `details` JSON) land in the unencrypted master DB, the one place patient-linked data escapes SQLCipher; the 2026-07 GET-route audit expansion increased that volume. Phase A: inventory call sites, allowlist-scrub `details` inside `create_audit_log` (single choke point). Phase B (master-DB encryption) explicitly out of scope/gated. | P2 | Full ticket at [`docs/plans/2026-07-02-architect-review-proposal-tickets.md`](../plans/2026-07-02-architect-review-proposal-tickets.md#audit-phi-001--audit-log-phi-minimization-in-the-unencrypted-master-db) | `src/backend/core/audit.py`, `api/` call sites, `docs/compliance/hipaa-controls.md` | [ ] OPEN |
+| `MODEL-INT-001` | Model-artifact integrity manifest — `download_models.py`/`model_selector.py` have zero checksum handling (and Gemma4 URLs are still `PLACEHOLDER`); a silently swapped model artifact silently invalidates every tuned guardrail threshold and golden eval. Checked-in SHA256 manifest, verify at download and at `llama_cpp` load (hash cached by path+mtime+size). Foundation for the shared model-distribution infra the findings report wants. | P3 | Full ticket at [`docs/plans/2026-07-02-architect-review-proposal-tickets.md`](../plans/2026-07-02-architect-review-proposal-tickets.md#model-int-001--model-artifact-integrity-manifest-sha256-pin--verify-on-load) | `scripts/download_models.py`, `src/backend/modules/model_selector.py`, `src/backend/core/llm/`, `config/model_manifest.json` (new) | [ ] OPEN |
 
 ---
 
@@ -135,6 +144,33 @@ On the first of each month, review all canonical docs for freshness:
 ---
 
 ## Session Notes
+
+### 2026-07-02 - Architect Review: Nine New Proposal Tickets Registered
+
+Review-and-propose pass (branch `claude/healthcentral-arch-review-qrwht3`) requested as input to the
+next build cycle: independent architecture judgment on what the consolidated findings report
+(`docs/plans/2026-07-02-consolidated-findings-report.md`) and this backlog missed entirely — every
+item below is additional to that report's Section 4, not a rehash. Each proposal was verified
+against the codebase before ticketing (no FHIR handling anywhere in `src/`; no unit-conversion code
+despite `normalize.py`'s docstring claim; `backup.py` CLI-only; password-only DEK unsealing with no
+recovery path; no profile DELETE route; `rag.py` injection filter covering history/memory but not
+retrieved chunks; no model checksum handling).
+
+Nine tickets registered in the Open Items table, full designs + implementation guidance in
+`docs/plans/2026-07-02-architect-review-proposal-tickets.md`:
+
+- **Data durability** (highest trust stakes): `SEC-RECOV-001` (recovery key — **gated**, needs
+  design sign-off), `BKUP-UX-001` (user-facing backup/restore).
+- **User value**: `INGEST-FHIR-001` (structured import, bypasses OCR), `CITE-SRC-001` (citation
+  click-through to source region).
+- **Correctness**: `NORM-UNIT-001` (cross-lab unit conversion in trends).
+- **Privacy/safety hygiene**: `PROF-DEL-001` (**decision first**: audit-row retention),
+  `RAG-INJ-001` (review-gated, guardrail-adjacent), `AUDIT-PHI-001` (**decision** on legacy rows;
+  phase B gated), `MODEL-INT-001`.
+
+No product code was changed this session — docs only. Next step: user sign-off conversations for
+`SEC-RECOV-001` and the `PROF-DEL-001`/`AUDIT-PHI-001` decisions; `NORM-UNIT-001`/`RAG-INJ-001`/
+`MODEL-INT-001` are shovel-ready for an implementation agent.
 
 ### 2026-07-01 - Multi-Agent Tech Survey, Gap-Closure Round, and Compliance Audit (session summary for next planning pass)
 

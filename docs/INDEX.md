@@ -276,7 +276,7 @@ Date: 2026-02-22 Scope (Sprint 06 commits): `a2d25cc` (OPS-003), `1662f0e` (OPS-
 
 **Agent Code-Knowledge Layer (Serena / LSP-over-MCP)**
 
-A **dev-only** knowledge layer that gives coding agents (Claude Code, etc.) precise, **always-fresh** understanding of this codebase via [Serena](https://github.com/oraios/serena), an LSP-over-MCP…
+A **dev-only** knowledge layer that gives coding agents (Claude Code, etc.) precise, **always-fresh** understanding of this codebase via Serena, an LSP-over-MCP server. It exposes language-server…
 
 ## `docs/features/00_features_index.md`
 
@@ -315,6 +315,8 @@ Links to: `docs/00_architecture_plans_index.md`
 **HealthCentral Remaining Work Task List**
 
 ---
+
+Links to: `docs/plans/2026-07-02-architect-review-proposal-tickets.md`
 
 ## `docs/model_tiers/README.md`
 
@@ -387,6 +389,30 @@ Links to: `src/backend/api/assistant.py`, `src/backend/api/documents.py`, `src/b
 **Tech Upgrade Survey: 9 Component Areas**
 
 **Revision 2:** Post-review gap-closure added (Section 14) — grounding re-verified against code; test-coverage map, shared model-distribution prerequisite, and quick-win cleanup planned out.…
+
+## `docs/plans/2026-07-02-architect-review-proposal-tickets.md`
+
+**Architect Review Proposal Tickets (2026-07-02)**
+
+---
+
+Links to: `docs/features/TASK_LIST.md`, `docs/plans/2026-07-02-consolidated-findings-report.md`
+
+## `docs/plans/2026-07-02-consolidated-findings-report.md`
+
+**HealthCentral — Consolidated Findings Report (2026-07-02)**
+
+---
+
+Links to: `docs/00_architecture_plans_index.md`, `docs/features/TASK_LIST.md`
+
+## `docs/plans/2026-07-02-fable5-architect-handoff-prompt.md`
+
+**Handoff Prompt for Claude Fable 5 — System Architect Review**
+
+session, asking it to review `2026-07-02-consolidated-findings-report.md` as a system architect and synthesize new feature/improvement ideas — not to write code, and not to be run inside this repo's…
+
+Links to: `docs/plans/2026-07-02-consolidated-findings-report.md`
 
 ## `docs/plans/UI-implementation-2-4.md`
 
