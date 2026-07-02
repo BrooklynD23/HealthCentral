@@ -163,6 +163,7 @@ Auth-required endpoints need `Authorization: Bearer <token>`.
 | GET | `/settings/model/diagnostics` | Yes | Get local OCR/model/SQLCipher/GPU diagnostics |
 | POST | `/settings/model/diagnostics/recheck` | Yes | Re-run environment diagnostics |
 | PATCH | `/settings/model/ocr` | Yes | Update per-profile OCR preference |
+| PATCH | `/settings/model/agent` | Yes | Per-profile toggle for the Agent Overhaul cutover (S5-1) — when enabled (default), `/assistant/chat` serves via the agent graph, falling back to the legacy retrieval path on error |
 
 ## Health and Monitoring
 

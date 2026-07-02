@@ -2,6 +2,8 @@
 
 Use this checklist before deploying HealthCentral to production or sharing with users.
 
+> **Note (2026-07-01):** All 50 items below are unchecked, which is correct — this checklist has not yet been run against an actual deployment, and checking a box here should mean "verified for this deployment," not "code capability exists." A 2026-07-01 doc-accuracy pass spot-checked items #6-7 (rate limiting), #14-20 (audit logging), and items in the Security Headers section against current code and confirmed working implementations exist in `src/backend/core/audit.py`, `src/backend/security/security_headers.py`, and `src/backend/core/rate_limiter.py`. That's evidence the *capability* is built, not a substitute for actually running this checklist before a real deployment — leave items unchecked until that happens.
+
 ## Access Control
 
 | # | Item | Status |

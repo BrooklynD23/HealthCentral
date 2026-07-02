@@ -1,7 +1,7 @@
 # HealthCentral Remaining Work Task List
 
-**Version:** 0.4.0
-**Last Updated:** 2026-03-27
+**Version:** 0.5.0
+**Last Updated:** 2026-07-01
 **Owner:** Project Lead
 **Refresh Trigger:** Task completed or new task identified
 **Scope:** Active remaining work only (implementation baseline already shipped)
@@ -44,6 +44,10 @@ It replaces legacy mixed-status lists and focuses on:
 | Item ID | Scope | Priority | Ticket Detail | Primary File Targets | Status |
 |---------|-------|----------|----------------|----------------------|--------|
 | `MED-CORR-001` | `GET /medications/{id}/correlations` backend endpoint — currently only a frontend heuristic (`src/frontend/src/utils/correlation.ts`) exists; no backend route. Discovered via a 2026-07 doc-accuracy audit: `docs/plans/roadmap_gap_closure.md` had marked this "✅ COMPLETE" though the endpoint was never built. | P2 | Full ticket (goal, deliverables, acceptance criteria, TDD plan) at `docs/plans/roadmap_gap_closure.md:235` | `src/backend/api/medications.py`, `src/backend/models/`, `src/backend/tests/` (new test module) | [ ] OPEN |
+| `RL-REDACT-001` | RL dataset export (`POST /feedback/export`) hardcodes `RedactionEngine(policy_level="standard")` (`modules/rl_dataset.py:19,103`) — the "standard" policy does not redact lab values, dates, medication names, or biomarker values (only "strict" covers DOB/addresses/MRNs, per `hipaa-controls.md:122`, `data-privacy.md:99`). Any exported DPO/GRPO/SFT training data may retain clinically identifying content. Highest safety-stakes item found in the 2026-07 audit. **Needs a decision, not just a fix:** should export force `policy_level="strict"` unconditionally, or be configurable with `strict` as the enforced floor? Scope with the user before implementing — this affects `modules/redaction.py`, an ask-before-touching file per CLAUDE.md, if the redaction call site itself needs new policy plumbing. | P1 | None yet — needs scoping | `src/backend/modules/rl_dataset.py`, `src/backend/api/feedback.py`, `src/backend/modules/redaction.py` (read-only reference), `docs/compliance/hipaa-controls.md`, `docs/compliance/data-privacy.md` | [ ] OPEN |
+| `S06-SEC-003` | Streaming request-body size enforcement raises a bare `ValueError` (`src/backend/security/input_validator.py:101-104`) with no global exception handler converting it to a 413 — confirmed still open via 2026-07 re-verification (S06-SEC-001 and S06-SEC-002 in the same review doc were found resolved/mitigated and corrected in place). Oversized streaming requests may 500 instead of cleanly rejecting. | P2 | Full finding + fix options at `docs/compliance/security-review-sprint06.md` (S06-SEC-003 section) | `src/backend/security/input_validator.py`, `src/backend/main.py` (exception handler registration) | [ ] OPEN |
+| `DOC-API-001` | `PATCH /settings/model/agent` existed in code with no entry in `docs/api/endpoints.md` — already fixed in this session (added at `docs/api/endpoints.md:166`). Listed here only as a closed-loop record; no further action. | P4 | N/A | `docs/api/endpoints.md` | [x] DONE (2026-07-01) |
+| `E2E-MED-001` | `MedicationDetail` page (`/medications/:medicationId`) has zero Playwright e2e coverage — route exists and works, just untested end-to-end. All other pages have at least one covering spec. | P3 | None yet — needs a new or extended spec under `src/frontend/e2e/` | `src/frontend/e2e/` (new spec or extend `ui-full-verification.spec.ts`), `src/frontend/src/pages/MedicationDetail.tsx` | [ ] OPEN |
 
 ---
 
@@ -125,6 +129,36 @@ On the first of each month, review all canonical docs for freshness:
 ---
 
 ## Session Notes
+
+### 2026-07-01 - Multi-Agent Tech Survey, Gap-Closure Round, and Compliance Audit (session summary for next planning pass)
+
+This was a multi-turn session (branch `claude/agent-exploration-tech-research-en1ia3`, PR #8) running parallel Explore/research/implementation agents. Read this before starting the next planning pass — it's a map of what changed and what's still open.
+
+**1. Tech upgrade survey** (`docs/plans/2026-06-30-tech-upgrade-survey-9-areas.md`): 9-area open-source/research survey (faithfulness/entailment, retrieval indexing, PHI redaction, OCR/extraction, agent orchestration, frontend, notifications, auth/encryption, gamification) with per-area candidates, recommendations, and effort estimates. Two corrections baked in: `modules/agent/` is a hand-rolled state machine, **not** LangGraph; `apscheduler` was a dead dependency (real scheduler is a hand-rolled asyncio loop). Section 14 has 5 gap-closure implementation suggestions (test-coverage map, shared model-distribution prerequisite for future NLI/NER work, bcrypt-is-fine correction, Gemma4-placeholder correction, dead-code cleanup).
+
+**2. Implemented from that survey** (safe/no-sign-off items only — Areas 1/3/8 deliberately deferred, they touch CLAUDE.md-protected safety/auth files and need explicit sign-off before any work starts):
+- §14.5 cleanup: removed dead `vector_store_type` config + unused `faiss-cpu` dependency.
+- Area 6: Recharts 2.10.3 → 3.9.1 (v2 was EOL upstream).
+- Area 7: dropped unused `apscheduler`; added additive `DesktopNotifierProvider` (plyer/winsdk retained as fallback).
+- Config cleanup: removed dead `multi_pass_verification`/`verification_passes` fields (confirmed never read); kept `use_llm_entailment` as an intentional placeholder for future NLI wiring (Area 1).
+
+**3. Real gap found and fixed:** 11 GET routes across `api/documents.py`/`api/observations.py` had zero audit logging (middleware only covers mutating methods; these routes had no handler-level logging either) — violated CLAUDE.md's explicit audit-logging invariant. Fixed with additive `event="view"` logging, try/except-wrapped so a logging failure can't fail a read. A post-review bug (3 list/aggregate routes passing `profile_id` as the audit `entity_id`, producing misleading log rows) was caught and fixed before commit.
+
+**4. Tooling added:** vendored all 14 skills from `github.com/obra/superpowers` (MIT) into `.claude/skills/`, so they work as slash commands in Claude Code web/cloud sessions (repo-committed skills carry over; user-level `~/.claude/skills/` does not). `.gitignore` narrowed from blanket `.claude/` to `.claude/*` + `!.claude/skills/` so they're actually trackable — verified nothing else under `.claude/` is exposed by this change.
+
+**5. Docs consolidation:** `2026-03-04-handoff.md` bannered historical (corrected its own overstated "23/23 tasks" claim to 22/23 — RAG category-filter wiring, `INGEST-F`, is still open). `roadmap_gap_closure.md` deliberately **not** bannered — found a real discrepancy (see MED-CORR-001 below) and got a "Status Update" note instead of a false supersession claim.
+
+**6. New tickets registered this session** (see Open Items table below): `MED-CORR-001` (medication correlations endpoint marked "COMPLETE" but never built). This session's follow-up compliance/gap audit found more — see the new rows added just below.
+
+**7. Compliance audit findings** (`docs/compliance/security-review-sprint06.md`, `audit-checklist.md` corrected in place): `S06-SEC-001` (unauth metrics dashboard) verified **resolved**. `S06-SEC-002` (upload size bypass) verified **partially mitigated** (bounded limit now applied, not unlimited — `modules/ingest.py`'s in-memory read behavior not re-verified this pass). `S06-SEC-003` (ValueError not caught globally on streaming body size limit) confirmed **still open**. `audit-checklist.md`'s 50 unchecked items are correctly unchecked (it's a per-deployment sign-off, not a code-capability inventory) — annotated with which areas have supporting code evidence without checking boxes on its behalf.
+
+**8. Not started, needs a decision before scoping:**
+- RL dataset export redaction gap (highest safety stakes of anything found this session — default "standard" policy doesn't redact lab values/dates/medication names/biomarker values on `POST /feedback/export`; only "strict" does, and strict isn't default). See Open Items table.
+- HIPAA technical safeguards: MFA, automated key rotation, penetration testing, BAA template — none implemented; these are product/ops decisions as much as engineering ones.
+- `F-006` (removing `profile_id` from API response DTOs) — still just a review doc, not started, not approved.
+- Areas 1/3/8 from the tech survey (faithfulness/entailment NLI, PHI redaction NER, auth library swaps) — recommendations exist, implementation needs explicit sign-off per CLAUDE.md before any code changes to `faithfulness.py`/`verifier_agent.py`/`redaction.py`/`core/security.py`.
+
+**Next planning pass should start by:** picking one of the "not started" items above (RL export redaction and S06-SEC-003 are the two with genuine safety/security stakes), scoping it as its own ticket the way `MED-CORR-001` was done, and getting explicit sign-off before touching any CLAUDE.md-protected file.
 
 ### 2026-03-27 - Live Surface Reconciliation Pass
 
