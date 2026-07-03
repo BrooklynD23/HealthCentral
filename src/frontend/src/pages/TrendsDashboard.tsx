@@ -150,6 +150,8 @@ export function TrendsDashboard() {
       refLow: trendData.ref_low,
       refHigh: trendData.ref_high,
       confidence: point.extraction_confidence,
+      originalValue: point.original_value ?? null,
+      originalUnit: point.original_unit ?? null,
     }));
   }, [trendData]);
 
@@ -435,12 +437,19 @@ export function TrendsDashboard() {
                               date: string;
                               value: number;
                               confidence: number | null;
+                              originalValue: number | null;
+                              originalUnit: string | null;
                             };
                             return (
                               <div className="bg-white border border-black/[0.08] rounded-xl shadow-soft px-4 py-3">
                                 <p className="text-sm font-medium text-ink">
                                   {data.value} {trendData?.unit}
                                 </p>
+                                {data.originalUnit != null && data.originalValue != null && (
+                                  <p className="text-xs text-ink-tertiary">
+                                    Reported: {data.originalValue} {data.originalUnit}
+                                  </p>
+                                )}
                                 <p className="text-xs text-ink-secondary">{data.date}</p>
                                 {data.confidence != null && (
                                   <p className="text-xs text-ink-tertiary mt-1">

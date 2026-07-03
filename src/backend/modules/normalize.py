@@ -11,6 +11,114 @@ from typing import Optional
 from dataclasses import dataclass
 
 
+# --- Cross-lab unit conversion (NORM-UNIT-001) ---------------------------------
+#
+# The same analyte is reported in different units by different labs (mg/dL vs
+# mmol/L, etc.). Without conversion, a trend line mixing units is not just
+# fragmented — its computed change percentage is meaningless (94 mg/dL vs
+# 5.22 mmol/L is the SAME glucose, but naive subtraction reads as a ~94% drop).
+#
+# Each table entry gives the analyte's canonical (display) unit plus a factor
+# per recognized unit variant that converts a value in that unit INTO the
+# canonical unit. The canonical unit's own factor is 1.0. Factors are
+# established clinical constants (conventional <-> SI). Canonical is the
+# conventional (US) unit here because the app's reference ranges come from
+# US-style lab reports.
+#
+# Scope note (deliberately conservative for a patient health app): this table
+# covers mass/molar-concentration conversions where cross-unit reporting is
+# common and the factor is an unambiguous scalar. It intentionally omits CBC
+# cell-count "x10^3/µL <-> x10^9/L" cases — those are numerically identical
+# (factor 1.0, a cosmetic relabel only) but their unit strings vary wildly and
+# parsing them wrong is a real risk. Untabled analytes keep legacy behavior.
+#
+# NEVER guess a factor for an unlisted unit — `convert_to_canonical` returns
+# None and callers must treat the point as non-comparable.
+
+# Per analyte: (canonical_unit, {normalized_unit: factor_to_canonical})
+UNIT_CONVERSIONS: dict[str, tuple[str, dict[str, float]]] = {
+    "glucose": ("mg/dL", {"mg/dl": 1.0, "mmol/l": 18.0156}),
+    "total_cholesterol": ("mg/dL", {"mg/dl": 1.0, "mmol/l": 38.67}),
+    "hdl_cholesterol": ("mg/dL", {"mg/dl": 1.0, "mmol/l": 38.67}),
+    "ldl_cholesterol": ("mg/dL", {"mg/dl": 1.0, "mmol/l": 38.67}),
+    "triglycerides": ("mg/dL", {"mg/dl": 1.0, "mmol/l": 88.57}),
+    "creatinine": ("mg/dL", {"mg/dl": 1.0, "umol/l": 1.0 / 88.42}),
+    "bun": ("mg/dL", {"mg/dl": 1.0, "mmol/l": 1.0 / 0.357}),
+    "calcium": ("mg/dL", {"mg/dl": 1.0, "mmol/l": 4.008}),
+    "bilirubin_total": ("mg/dL", {"mg/dl": 1.0, "umol/l": 1.0 / 17.1}),
+    "hemoglobin": ("g/dL", {"g/dl": 1.0, "g/l": 0.1}),
+    "albumin": ("g/dL", {"g/dl": 1.0, "g/l": 0.1}),
+    "total_protein": ("g/dL", {"g/dl": 1.0, "g/l": 0.1}),
+    "iron": ("µg/dL", {"ug/dl": 1.0, "umol/l": 1.0 / 0.179}),
+    "vitamin_d": ("ng/mL", {"ng/ml": 1.0, "nmol/l": 1.0 / 2.496}),
+    "vitamin_b12": ("pg/mL", {"pg/ml": 1.0, "pmol/l": 1.0 / 0.738}),
+    "folate": ("ng/mL", {"ng/ml": 1.0, "nmol/l": 1.0 / 2.266}),
+    "ferritin": ("ng/mL", {"ng/ml": 1.0, "ug/l": 1.0}),
+    "tsh": ("µIU/mL", {"uiu/ml": 1.0, "miu/l": 1.0}),
+    "free_t4": ("ng/dL", {"ng/dl": 1.0, "pmol/l": 1.0 / 12.87}),
+}
+
+_SUPERSCRIPTS = {"¹": "1", "²": "2", "³": "3", "⁶": "6", "⁹": "9"}
+
+
+def normalize_unit(unit: str) -> str:
+    """Fold a raw unit string to a canonical lowercase-ASCII key for lookup.
+
+    Unifies the micro sign / greek mu, superscript digits, the multiplication
+    sign, and whitespace/case so that "µmol/L", "μmol/L", and "UMOL/L " all
+    map to the same key.
+    """
+    u = unit.strip().lower()
+    u = u.replace("µ", "u").replace("μ", "u")  # µ (micro), μ (mu)
+    for sup, digit in _SUPERSCRIPTS.items():
+        u = u.replace(sup, digit)
+    u = u.replace("×", "x")  # ×
+    u = u.replace(" ", "")
+    return u
+
+
+@dataclass(frozen=True)
+class UnitConversion:
+    """Result of expressing a value in its analyte's canonical unit."""
+    canonical_value: float
+    canonical_unit: str
+    original_value: float
+    original_unit: str
+    converted: bool  # True when the original unit differed from canonical
+
+
+def canonical_unit_for(analyte_canonical: str) -> Optional[str]:
+    """The canonical display unit for an analyte, or None if it has no
+    conversion table entry (caller should keep legacy per-observation units)."""
+    entry = UNIT_CONVERSIONS.get(analyte_canonical.lower())
+    return entry[0] if entry else None
+
+
+def convert_to_canonical(
+    analyte_canonical: str, value: float, unit: Optional[str]
+) -> Optional[UnitConversion]:
+    """Express `value` (given in `unit`) in the analyte's canonical unit.
+
+    Returns None when the analyte is untabled, the unit is missing, or the unit
+    is not a recognized variant for that analyte — the caller must then treat
+    the point as non-comparable and never assume a factor.
+    """
+    entry = UNIT_CONVERSIONS.get(analyte_canonical.lower())
+    if entry is None or not unit:
+        return None
+    canonical_unit, factors = entry
+    factor = factors.get(normalize_unit(unit))
+    if factor is None:
+        return None
+    return UnitConversion(
+        canonical_value=value * factor,
+        canonical_unit=canonical_unit,
+        original_value=value,
+        original_unit=unit,
+        converted=factor != 1.0,
+    )
+
+
 @dataclass
 class NormalizedAnalyte:
     """Normalized analyte information."""

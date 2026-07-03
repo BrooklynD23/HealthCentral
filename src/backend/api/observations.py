@@ -24,6 +24,11 @@ from core.database import get_db
 from core.audit import log_observation_event
 from core.auth import RequireAuth, Session, ProfileDbSession
 from models import Document, Observation
+from modules.normalize import (
+    canonical_unit_for,
+    convert_to_canonical,
+    normalize_unit,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +162,10 @@ class TrendPoint(BaseModel):
     flag: Optional[str] = None
     doc_id: str
     extraction_confidence: Optional[float] = None
+    # Provenance when the point was converted from a differently-reported unit
+    # (NORM-UNIT-001). Both None when no conversion happened.
+    original_value: Optional[float] = None
+    original_unit: Optional[str] = None
 
 
 class TrendResponse(BaseModel):
@@ -550,6 +559,21 @@ async def get_analyte_trend(
     # Observations with collected_at go into the time-series line.
     # Observations without a date are still counted and reported in the
     # summary so the user knows data exists but cannot be plotted.
+    #
+    # Unit handling (NORM-UNIT-001): only when a tabled analyte's series
+    # actually mixes >=2 distinct units AND every unit is convertible do we
+    # normalize to the canonical unit. Otherwise we keep the exact legacy
+    # per-observation behavior — this scopes the change tightly to the corrupted
+    # case and guarantees no change for any single-unit series.
+    analyte_key = analyte.lower()
+    canonical_unit = canonical_unit_for(analyte_key)
+    distinct_units = {normalize_unit(o.unit) for o in observations if o.unit}
+    all_convertible = canonical_unit is not None and all(
+        convert_to_canonical(analyte_key, o.value, o.unit) is not None
+        for o in observations
+    )
+    normalize_units = canonical_unit is not None and len(distinct_units) > 1 and all_convertible
+
     data_points = []
     undated_count = 0
     ref_low = None
@@ -557,23 +581,45 @@ async def get_analyte_trend(
     unit = None
 
     for obs in observations:
-        # Collect reference range and unit from every observation regardless of date
-        if obs.ref_low is not None:
-            ref_low = obs.ref_low
-        if obs.ref_high is not None:
-            ref_high = obs.ref_high
-        if obs.unit:
-            unit = obs.unit
+        if normalize_units:
+            conv = convert_to_canonical(analyte_key, obs.value, obs.unit)
+            point_value = conv.canonical_value
+            point_unit = canonical_unit
+            original_value = conv.original_value if conv.converted else None
+            original_unit = conv.original_unit if conv.converted else None
+            unit = canonical_unit
+            # Convert reference range using this observation's own unit.
+            if obs.ref_low is not None:
+                rc = convert_to_canonical(analyte_key, obs.ref_low, obs.unit)
+                if rc is not None:
+                    ref_low = rc.canonical_value
+            if obs.ref_high is not None:
+                rc = convert_to_canonical(analyte_key, obs.ref_high, obs.unit)
+                if rc is not None:
+                    ref_high = rc.canonical_value
+        else:
+            point_value = obs.value
+            point_unit = obs.unit or ""
+            original_value = None
+            original_unit = None
+            if obs.ref_low is not None:
+                ref_low = obs.ref_low
+            if obs.ref_high is not None:
+                ref_high = obs.ref_high
+            if obs.unit:
+                unit = obs.unit
 
         if obs.collected_at and obs.value is not None:
             data_points.append(TrendPoint(
                 date=obs.collected_at.isoformat(),
-                value=obs.value,
-                unit=obs.unit or "",
+                value=point_value,
+                unit=point_unit,
                 is_abnormal=obs.is_abnormal or False,
                 flag=obs.flag,
                 doc_id=obs.doc_id,
                 extraction_confidence=obs.extraction_confidence,
+                original_value=original_value,
+                original_unit=original_unit,
             ))
         elif obs.value is not None:
             # Has a value but no date — count it so the summary is accurate
@@ -611,6 +657,9 @@ async def get_analyte_trend(
         )
     else:
         summary = f"Single measurement of {analyte.upper()} recorded."
+
+    if normalize_units:
+        summary += f" Values normalized to {canonical_unit} for comparison across labs."
 
     try:
         await log_observation_event(
