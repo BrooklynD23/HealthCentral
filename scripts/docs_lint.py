@@ -332,11 +332,7 @@ def _check_internal_links(repo_root: Path) -> list[str]:
     return errors
 
 
-def write_link_graph(repo_root: Path, out_path: str = "docs/_link_graph.json") -> Path:
-    """Emit a forward+backward link graph from the same link data DOC-007
-    already collects, so an agent can answer 'what links here?' without
-    re-deriving structure each session. Not a lint check — purely descriptive,
-    never fails the build. Call via `python3 scripts/docs_lint.py --link-graph`."""
+def build_link_graph(repo_root: Path) -> dict[str, dict[str, list[str]]]:
     forward: dict[str, list[str]] = {}
     backward: dict[str, list[str]] = {}
 
@@ -350,7 +346,15 @@ def write_link_graph(repo_root: Path, out_path: str = "docs/_link_graph.json") -
         if rel_path not in backward[resolved_rel]:
             backward[resolved_rel].append(rel_path)
 
-    graph = {"links_to": forward, "linked_from": backward}
+    return {"links_to": forward, "linked_from": backward}
+
+
+def write_link_graph(repo_root: Path, out_path: str = "docs/_link_graph.json") -> Path:
+    """Emit a forward+backward link graph from the same link data DOC-007
+    already collects, so an agent can answer 'what links here?' without
+    re-deriving structure each session. Not a lint check — purely descriptive,
+    never fails the build. Call via `python3 scripts/docs_lint.py --link-graph`."""
+    graph = build_link_graph(repo_root)
     dest = repo_root / out_path
     dest.write_text(json.dumps(graph, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return dest

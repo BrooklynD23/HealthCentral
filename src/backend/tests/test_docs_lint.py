@@ -15,14 +15,27 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "docs_lint.py"
+GEN_SCRIPT_PATH = REPO_ROOT / "scripts" / "generate_docs_index.py"
 SPEC = importlib.util.spec_from_file_location("docs_lint_root", SCRIPT_PATH)
 assert SPEC is not None and SPEC.loader is not None
 docs_lint = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = docs_lint
 SPEC.loader.exec_module(docs_lint)
 
+GEN_SPEC = importlib.util.spec_from_file_location("generate_docs_index_root", GEN_SCRIPT_PATH)
+assert GEN_SPEC is not None and GEN_SPEC.loader is not None
+generate_docs_index = importlib.util.module_from_spec(GEN_SPEC)
+sys.modules[GEN_SPEC.name] = generate_docs_index
+GEN_SPEC.loader.exec_module(generate_docs_index)
+
 _check_internal_links = docs_lint._check_internal_links
 _check_frontend_readme_scripts = docs_lint._check_frontend_readme_scripts
+
+
+def check_docs_index(repo_root: Path) -> int:
+    check = getattr(generate_docs_index, "check", None)
+    assert check is not None
+    return check(repo_root)
 
 
 # --- DOC-007: internal markdown links -------------------------------------
@@ -108,3 +121,21 @@ def test_doc007_and_doc009_pass_on_the_real_repo() -> None:
     test suite catches drift before CI does."""
     assert _check_internal_links(REPO_ROOT) == []
     assert _check_frontend_readme_scripts(REPO_ROOT) == []
+
+
+def test_docs_index_check_passes_on_real_repo() -> None:
+    assert check_docs_index(REPO_ROOT) == 0
+
+
+def test_docs_index_check_detects_stale_index(tmp_path: Path) -> None:
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "a.md").write_text("# A\n\n[link](./b.md)\n", encoding="utf-8")
+    (tmp_path / "docs" / "b.md").write_text("# B\n", encoding="utf-8")
+    (tmp_path / "docs" / "INDEX.md").write_text(
+        "# Documentation Index\n\nstale\n", encoding="utf-8"
+    )
+    (tmp_path / "docs" / "_link_graph.json").write_text(
+        json.dumps({"linked_from": {}, "links_to": {}}), encoding="utf-8"
+    )
+
+    assert check_docs_index(tmp_path) == 1

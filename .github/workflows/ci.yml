@@ -21,6 +21,9 @@ jobs:
       - name: Run docs lint
         run: python3 scripts/docs_lint.py
 
+      - name: Check generated docs freshness
+        run: python3 scripts/generate_docs_index.py --check
+
   backend-tests:
     name: Backend Tests
     runs-on: ubuntu-latest

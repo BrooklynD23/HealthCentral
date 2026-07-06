@@ -219,7 +219,7 @@ This was a multi-turn session (branch `claude/agent-exploration-tech-research-en
 - §14.5 cleanup: removed dead `vector_store_type` config + unused `faiss-cpu` dependency.
 - Area 6: Recharts 2.10.3 → 3.9.1 (v2 was EOL upstream).
 - Area 7: dropped unused `apscheduler`; added additive `DesktopNotifierProvider` (plyer/winsdk retained as fallback).
-- Config cleanup: removed dead `multi_pass_verification`/`verification_passes` fields (confirmed never read); kept `use_llm_entailment` as an intentional placeholder for future NLI wiring (Area 1).
+- Config cleanup: removed dead `multi_pass_verification`/`verification_passes` fields (confirmed never read); kept `use_llm_entailment` as an intentional placeholder for future NLI wiring (Area 1). *(Retroactive sign-off 2026-07-05: user approved the dffe1f9 verifier_agent.py dead-config removal.)*
 
 **3. Real gap found and fixed:** 11 GET routes across `api/documents.py`/`api/observations.py` had zero audit logging (middleware only covers mutating methods; these routes had no handler-level logging either) — violated CLAUDE.md's explicit audit-logging invariant. Fixed with additive `event="view"` logging, try/except-wrapped so a logging failure can't fail a read. A post-review bug (3 list/aggregate routes passing `profile_id` as the audit `entity_id`, producing misleading log rows) was caught and fixed before commit.
 

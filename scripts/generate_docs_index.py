@@ -11,12 +11,14 @@ Usage:
 
 from __future__ import annotations
 
+import argparse
+import json
 import re
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from docs_lint import _markdown_files, _iter_markdown_links  # noqa: E402
+from docs_lint import _markdown_files, _iter_markdown_links, build_link_graph  # noqa: E402
 
 _TITLE = re.compile(r"^#\s+(.+)$", re.MULTILINE)
 _SKIP_LINE = re.compile(
@@ -103,8 +105,48 @@ def generate(repo_root: Path) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def _read_text(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
+
+
+def check(repo_root: Path) -> int:
+    index_path = repo_root / "docs" / "INDEX.md"
+    graph_path = repo_root / "docs" / "_link_graph.json"
+
+    expected_index = generate(repo_root)
+    actual_index = _read_text(index_path)
+    expected_graph = build_link_graph(repo_root)
+    actual_graph = json.loads(_read_text(graph_path))
+
+    stale = False
+    if actual_index != expected_index:
+        stale = True
+        print("docs/INDEX.md is stale.")
+    if actual_graph != expected_graph:
+        stale = True
+        print("docs/_link_graph.json is stale.")
+    if stale:
+        print(
+            "Regenerate with: python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py --link-graph"
+        )
+        return 1
+    print("docs/INDEX.md and docs/_link_graph.json are fresh.")
+    return 0
+
+
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Generate or verify docs/INDEX.md")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Verify docs/INDEX.md and docs/_link_graph.json are up to date",
+    )
+    args = parser.parse_args()
+
     repo_root = Path(__file__).resolve().parent.parent
+    if args.check:
+        return check(repo_root)
+
     content = generate(repo_root)
     dest = repo_root / "docs" / "INDEX.md"
     dest.write_text(content, encoding="utf-8")
