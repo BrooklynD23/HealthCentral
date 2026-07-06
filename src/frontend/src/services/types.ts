@@ -127,6 +127,7 @@ export interface TrendData {
   ref_high: number | null;
   data_points: TrendPoint[];
   summary: string;
+  excluded_count?: number;
 }
 
 export interface Panel {

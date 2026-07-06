@@ -508,6 +508,11 @@ export function TrendsDashboard() {
                             {trendData.summary}
                           </p>
                         )}
+                        {(trendData.excluded_count ?? 0) > 0 && (
+                          <p className="text-sm text-ink-secondary mt-1">
+                            {trendData.excluded_count} point(s) hidden — unrecognized unit
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
