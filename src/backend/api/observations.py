@@ -21,7 +21,7 @@ from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
-from core.audit import log_observation_event
+from core.audit import audit_and_commit, log_observation_event
 from core.auth import RequireAuth, Session, ProfileDbSession
 from models import Document, Observation
 from modules.normalize import (
@@ -176,6 +176,7 @@ class TrendResponse(BaseModel):
     ref_low: Optional[float] = None
     ref_high: Optional[float] = None
     data_points: list[TrendPoint]
+    excluded_count: int = 0
     summary: str  # Human-readable summary for accessibility
 
 
@@ -267,18 +268,15 @@ async def get_panel_snapshots(
 
     snapshots.sort(key=sort_snap, reverse=True)
 
-    try:
-        await log_observation_event(
-            db=master_db,
-            event="view",
-            profile_id=profile_id,
-            observation_id="all",
-            analyte=panel_id.lower(),
-            details={"action": "panel_snapshots", "count": len(snapshots)},
-        )
-        await master_db.commit()
-    except Exception as e:
-        logger.warning(f"Failed to log panel snapshots view audit event: {e}")
+    await audit_and_commit(
+        master_db,
+        log_observation_event,
+        event="view",
+        profile_id=profile_id,
+        observation_id="all",
+        analyte=panel_id.lower(),
+        details={"action": "panel_snapshots", "count": len(snapshots)},
+    )
 
     return snapshots
 
@@ -331,18 +329,15 @@ async def list_observations(
     result = await profile_db.execute(query)
     observations = result.scalars().all()
 
-    try:
-        await log_observation_event(
-            db=master_db,
-            event="view",
-            profile_id=profile_id,
-            observation_id="all",
-            analyte=analyte or "all",
-            details={"action": "list", "count": len(observations)},
-        )
-        await master_db.commit()
-    except Exception as e:
-        logger.warning(f"Failed to log observation list view audit event: {e}")
+    await audit_and_commit(
+        master_db,
+        log_observation_event,
+        event="view",
+        profile_id=profile_id,
+        observation_id="all",
+        analyte=analyte or "all",
+        details={"action": "list", "count": len(observations)},
+    )
 
     return [ObservationResponse.from_model(obs) for obs in observations]
 
@@ -370,17 +365,14 @@ async def get_observation(
     # Verify session has access to this observation
     verify_observation_access(observation, session)
 
-    try:
-        await log_observation_event(
-            db=master_db,
-            event="view",
-            profile_id=observation.profile_id,
-            observation_id=observation_id,
-            analyte=observation.analyte_canonical,
-        )
-        await master_db.commit()
-    except Exception as e:
-        logger.warning(f"Failed to log observation view audit event: {e}")
+    await audit_and_commit(
+        master_db,
+        log_observation_event,
+        event="view",
+        profile_id=observation.profile_id,
+        observation_id=observation_id,
+        analyte=observation.analyte_canonical,
+    )
 
     return ObservationResponse.from_model(observation)
 
@@ -555,79 +547,107 @@ async def get_analyte_trend(
             detail=f"No data found for analyte '{analyte}'"
         )
 
-    # Build trend data
-    # Observations with collected_at go into the time-series line.
-    # Observations without a date are still counted and reported in the
-    # summary so the user knows data exists but cannot be plotted.
-    #
-    # Unit handling (NORM-UNIT-001): only when a tabled analyte's series
-    # actually mixes >=2 distinct units AND every unit is convertible do we
-    # normalize to the canonical unit. Otherwise we keep the exact legacy
-    # per-observation behavior — this scopes the change tightly to the corrupted
-    # case and guarantees no change for any single-unit series.
     analyte_key = analyte.lower()
     canonical_unit = canonical_unit_for(analyte_key)
+    conversions = [
+        (obs, convert_to_canonical(analyte_key, obs.value, obs.unit))
+        for obs in observations
+    ]
     distinct_units = {normalize_unit(o.unit) for o in observations if o.unit}
-    all_convertible = canonical_unit is not None and all(
-        convert_to_canonical(analyte_key, o.value, o.unit) is not None
-        for o in observations
-    )
-    normalize_units = canonical_unit is not None and len(distinct_units) > 1 and all_convertible
+    any_convertible = any(conv is not None for _, conv in conversions)
+    normalize_units = canonical_unit is not None and len(distinct_units) > 1 and any_convertible
+    mixed_unnormalized = len(distinct_units) > 1 and not normalize_units
 
     data_points = []
     undated_count = 0
     ref_low = None
     ref_high = None
     unit = None
+    excluded_count = 0
+    ref_source_both = None
+    ref_source_any = None
 
-    for obs in observations:
+    for obs, conv in conversions:
+        emitted = True
         if normalize_units:
-            conv = convert_to_canonical(analyte_key, obs.value, obs.unit)
-            point_value = conv.canonical_value
-            point_unit = canonical_unit
-            original_value = conv.original_value if conv.converted else None
-            original_unit = conv.original_unit if conv.converted else None
-            unit = canonical_unit
-            # Convert reference range using this observation's own unit.
-            if obs.ref_low is not None:
-                rc = convert_to_canonical(analyte_key, obs.ref_low, obs.unit)
-                if rc is not None:
-                    ref_low = rc.canonical_value
-            if obs.ref_high is not None:
-                rc = convert_to_canonical(analyte_key, obs.ref_high, obs.unit)
-                if rc is not None:
-                    ref_high = rc.canonical_value
+            if conv is None:
+                excluded_count += 1
+                emitted = False
+            else:
+                point_value = conv.canonical_value
+                point_unit = canonical_unit or ""
+                original_value = conv.original_value if conv.converted else None
+                original_unit = conv.original_unit if conv.converted else None
+                unit = canonical_unit
         else:
             point_value = obs.value
             point_unit = obs.unit or ""
             original_value = None
             original_unit = None
-            if obs.ref_low is not None:
-                ref_low = obs.ref_low
-            if obs.ref_high is not None:
-                ref_high = obs.ref_high
             if obs.unit:
                 unit = obs.unit
 
-        if obs.collected_at and obs.value is not None:
-            data_points.append(TrendPoint(
-                date=obs.collected_at.isoformat(),
-                value=point_value,
-                unit=point_unit,
-                is_abnormal=obs.is_abnormal or False,
-                flag=obs.flag,
-                doc_id=obs.doc_id,
-                extraction_confidence=obs.extraction_confidence,
-                original_value=original_value,
-                original_unit=original_unit,
-            ))
-        elif obs.value is not None:
-            # Has a value but no date — count it so the summary is accurate
-            undated_count += 1
+        if emitted:
+            if obs.ref_low is not None and obs.ref_high is not None:
+                ref_source_both = obs
+            elif obs.ref_low is not None or obs.ref_high is not None:
+                ref_source_any = obs
+
+            if obs.collected_at and obs.value is not None:
+                data_points.append(TrendPoint(
+                    date=obs.collected_at.isoformat(),
+                    value=point_value,
+                    unit=point_unit,
+                    is_abnormal=obs.is_abnormal or False,
+                    flag=obs.flag,
+                    doc_id=obs.doc_id,
+                    extraction_confidence=obs.extraction_confidence,
+                    original_value=original_value,
+                    original_unit=original_unit,
+                ))
+            elif obs.value is not None:
+                # Has a value but no date — count it so the summary is accurate
+                undated_count += 1
+
+    ref_source = ref_source_both or ref_source_any
+    if ref_source is not None:
+        if normalize_units:
+            ref_low_conv = None
+            ref_high_conv = None
+            if ref_source.ref_low is not None:
+                ref_low_result = convert_to_canonical(
+                    analyte_key,
+                    ref_source.ref_low,
+                    ref_source.unit,
+                )
+                if ref_low_result is not None:
+                    ref_low_conv = ref_low_result.canonical_value
+            if ref_source.ref_high is not None:
+                ref_high_result = convert_to_canonical(
+                    analyte_key,
+                    ref_source.ref_high,
+                    ref_source.unit,
+                )
+                if ref_high_result is not None:
+                    ref_high_conv = ref_high_result.canonical_value
+
+            if (
+                (ref_source.ref_low is None or ref_low_conv is not None)
+                and (ref_source.ref_high is None or ref_high_conv is not None)
+            ):
+                ref_low = ref_low_conv
+                ref_high = ref_high_conv
+            else:
+                ref_low = ref_source.ref_low
+                ref_high = ref_source.ref_high
+        else:
+            ref_low = ref_source.ref_low
+            ref_high = ref_source.ref_high
 
     # Generate summary
     total_count = len(data_points) + undated_count
-    if len(data_points) >= 2:
+    suppress_delta = mixed_unnormalized or (canonical_unit is not None and not any_convertible)
+    if len(data_points) >= 2 and not suppress_delta:
         first_val = data_points[0].value
         last_val = data_points[-1].value
         change = last_val - first_val
@@ -643,16 +663,35 @@ async def get_analyte_trend(
         summary = f"{analyte.upper()} has {trend} over {len(data_points)} dated measurements."
         if undated_count:
             summary += f" {undated_count} additional measurement(s) have no collection date and are not shown on the chart."
+    elif len(data_points) >= 2 and suppress_delta:
+        if mixed_unnormalized:
+            summary = (
+                f"{analyte.upper()} has {len(data_points)} dated measurements recorded in multiple units; "
+                "change across units is not computed."
+            )
+        else:
+            summary = (
+                f"{analyte.upper()} has {len(data_points)} dated measurements recorded, "
+                "but the unit is not recognized for this analyte; change across units is not computed."
+            )
+        if undated_count:
+            summary += f" {undated_count} additional measurement(s) have no collection date and are not shown on the chart."
     elif len(data_points) == 1:
         summary = f"Single dated measurement of {analyte.upper()} recorded."
         if undated_count:
             summary += f" {undated_count} additional measurement(s) have no collection date."
-    elif undated_count:
+    elif undated_count or excluded_count:
         # No dated points at all — return a response with empty data_points but
         # a helpful summary rather than 404, so the UI can show the latest-values table.
+        hidden_note = ""
+        if excluded_count:
+            hidden_note = (
+                f" {excluded_count} measurement(s) hidden — unit not recognized for this analyte."
+            )
         summary = (
-            f"{total_count} measurement(s) of {analyte.upper()} found, "
-            f"but none have a collection date so no trend line can be drawn. "
+            f"{total_count + excluded_count} measurement(s) of {analyte.upper()} found, "
+            f"but none have a collection date so no trend line can be drawn."
+            f"{hidden_note} "
             f"Use the analyte list to see the latest value."
         )
     else:
@@ -661,18 +700,18 @@ async def get_analyte_trend(
     if normalize_units:
         summary += f" Values normalized to {canonical_unit} for comparison across labs."
 
-    try:
-        await log_observation_event(
-            db=master_db,
-            event="view",
-            profile_id=profile_id,
-            observation_id=analyte,
-            analyte=analyte,
-            details={"action": "trend", "count": len(data_points)},
-        )
-        await master_db.commit()
-    except Exception as e:
-        logger.warning(f"Failed to log analyte trend view audit event: {e}")
+    if excluded_count > 0 and len(data_points) > 0:
+        summary += f" {excluded_count} measurement(s) hidden — unit not recognized for this analyte."
+
+    await audit_and_commit(
+        master_db,
+        log_observation_event,
+        event="view",
+        profile_id=profile_id,
+        observation_id=analyte,
+        analyte=analyte,
+        details={"action": "trend", "count": len(data_points)},
+    )
 
     return TrendResponse(
         analyte_canonical=analyte.lower(),
@@ -681,6 +720,7 @@ async def get_analyte_trend(
         ref_low=ref_low,
         ref_high=ref_high,
         data_points=data_points,
+        excluded_count=excluded_count,
         summary=summary,
     )
 
@@ -751,18 +791,15 @@ async def get_panel(
     if observations and observations[0].collected_at:
         coll_date = observations[0].collected_at.isoformat()
 
-    try:
-        await log_observation_event(
-            db=master_db,
-            event="view",
-            profile_id=profile_id,
-            observation_id=panel_id.lower(),
-            analyte=panel_def["name"],
-            details={"action": "panel", "count": len(obs_responses)},
-        )
-        await master_db.commit()
-    except Exception as e:
-        logger.warning(f"Failed to log panel view audit event: {e}")
+    await audit_and_commit(
+        master_db,
+        log_observation_event,
+        event="view",
+        profile_id=profile_id,
+        observation_id=panel_id.lower(),
+        analyte=panel_def["name"],
+        details={"action": "panel", "count": len(obs_responses)},
+    )
 
     return PanelResponse(
         panel_id=panel_id.lower(),

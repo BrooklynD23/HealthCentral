@@ -115,7 +115,8 @@ def convert_to_canonical(
         canonical_unit=canonical_unit,
         original_value=value,
         original_unit=unit,
-        converted=factor != 1.0,
+        # True when the reported unit string differs from canonical, even at factor 1.0.
+        converted=normalize_unit(unit) != normalize_unit(canonical_unit),
     )
 
 
