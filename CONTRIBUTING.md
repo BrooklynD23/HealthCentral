@@ -11,7 +11,7 @@ Please be respectful and constructive in all interactions. We are committed to p
 ### Prerequisites
 
 - Python 3.11+
-- Node.js 18+
+- Node.js 22+ (Node.js 24 LTS recommended)
 - Git
 
 ### Development Setup

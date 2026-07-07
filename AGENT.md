@@ -8,7 +8,7 @@ Local-first, privacy-first desktop app: patients import lab PDFs/medical documen
 
 ## Stack & layout
 
-- **Backend** `src/backend/` — Python 3.10+, FastAPI, SQLAlchemy, Alembic (dual chains), llama-cpp-python (lazy/optional import).
+- **Backend** `src/backend/` — Python 3.11+, FastAPI, SQLAlchemy, Alembic (dual chains), llama-cpp-python (lazy/optional import).
   - `api/` — routes (registered in `main.py`): documents, observations, assistant, memory, feedback, model_settings, profiles…
   - `modules/` — feature logic: `ingest`/`extract*` (document pipeline), `rag` (retrieval + prompt composition), `normalize`/`glossary` (analyte synonyms), `interpret*`/`faithfulness`/`verifier_agent`/`redaction` (safety — do not touch casually), `rl_dataset` (DPO/GRPO export)
   - `core/` — config, security, db, `time` (use `core.time.utcnow`), `llm/` (provider layer: `LlamaCppProvider` default, `OllamaProvider` localhost-only, `factory.get_provider()`), `model_runner` (stable facade — the only LLM entry point for feature code)

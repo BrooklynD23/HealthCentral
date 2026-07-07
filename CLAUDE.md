@@ -28,7 +28,7 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
 
 ## Hard invariants (violations = broken build or broken trust)
 
-- **Python 3.10 compatible.** No `from datetime import UTC` (use `core.time.utcnow`), no 3.11+ syntax.
+- **Target Python 3.11+.** Do not use Python 3.12+ only syntax or APIs unless the project explicitly raises the minimum version. Use `core.time.utcnow` as the single timestamp helper.
 - **Per-profile data isolation.** Patient data lives in per-profile SQLCipher DBs via `ProfileDbSession`. Never query profile data through the master `get_db()`.
 - **Local-first.** No network calls in product code paths. Ollama provider is localhost-only by design — keep it that way.
 - **Redaction before anything leaves.** Any path that writes user text to exportable files or external runners must pass through `modules/redaction.py` first.

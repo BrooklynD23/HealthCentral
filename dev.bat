@@ -26,7 +26,7 @@ if %PS_EXIT% neq 0 (
     echo.
     echo  Common fixes:
     echo    1. Make sure Python 3.11+ is installed:  https://python.org
-    echo    2. Make sure Node.js 18+ is installed:   https://nodejs.org
+    echo    2. Make sure Node.js 22+ is installed:   https://nodejs.org
     echo    3. Restart your computer after installing Python/Node.
     echo    4. Check logs\dev-frontend.log if the frontend exits during startup.
     echo.

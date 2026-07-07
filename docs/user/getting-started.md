@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - Python 3.11 or later
-- Node.js 20 or later
+- Node.js 22 or later (Node.js 24 LTS recommended)
 - SQLCipher library (`libsqlcipher-dev` on Ubuntu/Debian)
 
 ## Installation

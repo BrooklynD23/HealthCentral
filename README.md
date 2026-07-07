@@ -283,7 +283,7 @@ Migrations run automatically:
 
 ### Prerequisites
 - Python 3.11+
-- Node.js 18+ (for frontend)
+- Node.js 22+ (for frontend; Node.js 24 LTS recommended)
 
 ### Quick Start (Recommended)
 
@@ -343,7 +343,7 @@ What this bootstrap proves:
 #### Bootstrap prerequisites and recovery notes
 
 - **Python**: use Python 3.11+ and create the backend verifier environment from the same WSL/Linux interpreter you will use for pytest.
-- **Node.js**: use Node.js 18+ so `npx --prefix src/frontend ...` resolves the frontend toolchain correctly.
+- **Node.js**: use Node.js 22+ (Node.js 24 LTS recommended) so `npx --prefix src/frontend ...` resolves the frontend toolchain correctly.
 - **SQLCipher**: if `pip install -r src/backend/requirements.txt` fails around `sqlcipher3-binary` on Debian/Ubuntu, install `libsqlcipher-dev` first, then retry the pip install.
 - **OCR packages**: `tesseract-ocr` and PDF/image system libraries are required for OCR-heavy backend tests and runtime features, but the bootstrap smoke test above does not depend on them.
 
