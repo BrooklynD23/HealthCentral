@@ -1200,6 +1200,7 @@ async def get_page_image(
     )
     cached = _page_image_cache_get(cache_key)
     content: bytes
+    is_freshly_rendered = False
     try:
         if cached is not None:
             content = cached
@@ -1221,7 +1222,7 @@ async def get_page_image(
                 img.save(buf, format="PNG")
                 buf.seek(0)
                 content = buf.getvalue()
-                _page_image_cache_set(cache_key, content)
+                is_freshly_rendered = True
     except HTTPException:
         raise
     except FileNotFoundError:
@@ -1236,6 +1237,10 @@ async def get_page_image(
             detail="Failed to render page image",
         )
 
+    # Cache only after the view has been successfully audited: if the
+    # audit write fails, a freshly rendered page isn't left sitting in
+    # the cache unable to ever be served (the fail-closed audit means
+    # every serve, cache hit or not, must succeed its audit anyway).
     await audit_and_commit(
         master_db,
         log_document_event,
@@ -1245,6 +1250,9 @@ async def get_page_image(
         filename=document.source,
         details={"action": "page_image", "page_number": page_number},
     )
+
+    if is_freshly_rendered:
+        _page_image_cache_set(cache_key, content)
 
     return Response(
         content=content,
