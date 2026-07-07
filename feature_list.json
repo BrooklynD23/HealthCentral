@@ -1,0 +1,126 @@
+{
+  "$comment": "Structured task inventory for the agentic harness (docs/agentic/harness.md). Statuses: pending | in_progress | completed. Never mark completed without running the verification_steps; record outcomes in docs/agentic/progress.md.",
+  "features": [
+    {
+      "id": "HC-M01",
+      "category": "dependency-baseline",
+      "description": "Enforce canonical runtime policy: Python 3.11+, Node.js 22+ (24 LTS recommended) across docs, setup scripts, CI, and package.json engines.",
+      "user_value": "New contributors and CI run on one consistent, supported toolchain; no setup failures from contradictory docs.",
+      "verification_steps": [
+        "grep -rn -E 'Python 3\\.10|Node(\\.js)? 1[68]|Node(\\.js)? 20' README.md AGENT.md CLAUDE.md CONTRIBUTING.md docs/user/ dev.ps1 dev.bat .github/ returns nothing",
+        "python3 scripts/docs_lint.py passes",
+        "CI frontend jobs run on node-version 22"
+      ],
+      "priority": 1,
+      "status": "completed"
+    },
+    {
+      "id": "HC-M02",
+      "category": "windows-bootstrap",
+      "description": "dev.ps1 offers automatic Python 3.11 installation via winget (prompt defaults to Yes), refreshes PATH from registry, re-checks with the same detection function, and falls back to manual instructions on any failure.",
+      "user_value": "Non-technical Windows users can go from zero to running app with one double-click even without Python installed.",
+      "verification_steps": [
+        "PowerShell AST parse of dev.ps1 reports no errors",
+        "Manual: run dev.ps1 on a machine without Python and confirm the winget path, the [Y/n] prompt, and the fallback messages"
+      ],
+      "priority": 1,
+      "status": "completed"
+    },
+    {
+      "id": "HC-M03",
+      "category": "agentic-harness",
+      "description": "Documented, repeatable agent loop: docs/agentic/{harness,evals,mcp-tools,roadmap,progress}.md plus this feature inventory, so any future agent session can resume from repo state alone.",
+      "user_value": "Project demonstrates production agentic-engineering practice; work survives context resets and model changes.",
+      "verification_steps": [
+        "All five docs/agentic files exist and pass python3 scripts/docs_lint.py",
+        "python3 scripts/generate_docs_index.py --check passes"
+      ],
+      "priority": 2,
+      "status": "completed"
+    },
+    {
+      "id": "HC-M04",
+      "category": "ai-safety",
+      "description": "Consolidated AI-safety policy doc (docs/compliance/ai-safety.md): refusal/escalation boundaries, grounding and citation requirements, uncertainty handling, emergency disclaimers, and pointers to the prompt-injection and PHI-leakage evals.",
+      "user_value": "Reviewers and contributors see the non-diagnostic product boundary and how it is enforced in code and CI, not just claimed.",
+      "verification_steps": [
+        "docs/compliance/ai-safety.md exists, is linked from docs/compliance/README.md, and every code/test path it cites resolves",
+        "python3 scripts/agent_eval_gate.py exits 0"
+      ],
+      "priority": 2,
+      "status": "completed"
+    },
+    {
+      "id": "HC-M05",
+      "category": "ai-safety",
+      "description": "Expand the adversarial eval set: dedicated prompt-injection corpus (instructions embedded in uploaded documents and memory items) and PHI-leakage probes on every export path, wired into scripts/agent_eval_gate.py or a sibling gate.",
+      "user_value": "Injection and leakage resistance become regression-tested guarantees instead of one-time reviews.",
+      "verification_steps": [
+        "New pytest cases (HC-XXX-NNN naming) fail when an injection succeeds or an export leaks unredacted text",
+        "Gate runs in CI and blocks merge on regression"
+      ],
+      "priority": 2,
+      "status": "pending"
+    },
+    {
+      "id": "HC-M06",
+      "category": "data-science",
+      "description": "Data-quality test suite and extraction eval card: labeled golden set of lab PDFs (synthetic), precision/recall on analyte, unit, date extraction; published as docs/agentic/eval-cards/extraction.md with versioned metrics.",
+      "user_value": "Extraction accuracy is measured, tracked over time, and demonstrable — core Data Science portfolio evidence.",
+      "verification_steps": [
+        "Golden-set pytest suite runs in CI with explicit thresholds",
+        "Eval card records metric, dataset version, and date for each run"
+      ],
+      "priority": 3,
+      "status": "pending"
+    },
+    {
+      "id": "HC-M07",
+      "category": "production-readiness",
+      "description": "Observability baseline: structured logging with request IDs across API routes, a /health endpoint check in e2e, and a local metrics summary (no external telemetry — local-first invariant).",
+      "user_value": "Failures in real use are diagnosable from logs without violating the no-network guarantee.",
+      "verification_steps": [
+        "pytest asserts request-ID propagation and audit-log coverage on document/observation/profile routes",
+        "e2e smoke hits /health"
+      ],
+      "priority": 3,
+      "status": "pending"
+    },
+    {
+      "id": "HC-M08",
+      "category": "production-readiness",
+      "description": "Packaged desktop distribution path (installer or bundled runtime) with signed release checklist, extending docs/agile/RELEASE_CHECKLIST.md.",
+      "user_value": "Real patients can install the app without a developer toolchain.",
+      "verification_steps": [
+        "Documented build produces an artifact that boots on a clean Windows VM",
+        "Release checklist items each name a verifying command or manual step"
+      ],
+      "priority": 4,
+      "status": "pending"
+    },
+    {
+      "id": "HC-M09",
+      "category": "mcp-tooling",
+      "description": "Implement the local script tools from docs/agentic/mcp-tools.md (run_tests, run_lint, run_typecheck, run_e2e, check_docs_versions) as thin, credential-free wrappers; add read-only SQLite/SQLCipher inspection for synthetic dev vaults.",
+      "user_value": "Agents verify work through narrow, auditable interfaces instead of ad-hoc shell, reducing risky tool calls.",
+      "verification_steps": [
+        "Each wrapper exits nonzero on underlying failure (spot-check by injecting a failing test)",
+        "DB tool rejects write statements"
+      ],
+      "priority": 4,
+      "status": "pending"
+    },
+    {
+      "id": "HC-M10",
+      "category": "product",
+      "description": "Resolve the product name: 'HealthCentral' collides with an existing public health-media brand (healthcentral.com). Treat as internal codename; choose and clear a release name before any public distribution.",
+      "user_value": "Avoids trademark risk before the project is shown publicly as a product.",
+      "verification_steps": [
+        "Owner decision recorded in docs/agentic/progress.md",
+        "If renamed: grep for old name in user-facing strings returns only historical docs"
+      ],
+      "priority": 5,
+      "status": "pending"
+    }
+  ]
+}

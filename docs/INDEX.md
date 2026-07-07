@@ -72,6 +72,46 @@ This board is a repo-aligned, test-first execution plan. It is meant to be used 
 
 Local-first application for patients to import medical documents, extract structured information with user verification, visualize trends, and generate grounded explanations and clinician-ready…
 
+## `docs/agentic/evals.md`
+
+**Evaluation Harness**
+
+What "verified" means in this repo. Every task in feature_list.json names its verification steps; this file catalogs the evaluation categories and the concrete commands behind them.
+
+Links to: `feature_list.json`
+
+## `docs/agentic/harness.md`
+
+**Agentic Development Harness**
+
+How AI agents (and humans supervising them) work in this repo. Behavioral rules live in CLAUDE.md; repo onboarding lives in AGENT.md. This document defines the repeatable loop so any future agent…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/INDEX.md`, `docs/agentic/evals.md`, `docs/agentic/mcp-tools.md`, `docs/agentic/progress.md`, `feature_list.json`
+
+## `docs/agentic/mcp-tools.md`
+
+**MCP and Tooling Plan**
+
+Practical plan for Model Context Protocol servers and local tools that support the agentic workflow in harness.md. Nothing here is a product dependency — the product itself stays local-first with no…
+
+Links to: `docs/agentic/evals.md`, `docs/agentic/harness.md`
+
+## `docs/agentic/progress.md`
+
+**Agent Progress Log**
+
+Session-by-session record of agent work: what changed, what was verified, what failed, and the next priority. This supplements git history with verification evidence — it does not replace it. Newest…
+
+Links to: `feature_list.json`
+
+## `docs/agentic/roadmap.md`
+
+**Agentic Project Roadmap**
+
+Why this project exists as an agentic-engineering exercise, and what "done well" looks like. The working loop is in harness.md; verification is in evals.md; the live task inventory is…
+
+Links to: `docs/agentic/evals.md`, `docs/agentic/harness.md`, `docs/agentic/mcp-tools.md`, `docs/agentic/progress.md`, `docs/compliance/README.md`, `docs/compliance/ai-safety.md`, `feature_list.json`
+
 ## `docs/agile/AGILE_PLAN.md`
 
 **HealthCentral — Agent Overhaul Agile Plan**
@@ -226,13 +266,21 @@ cd src/backend python main.py
 
 HealthCentral implements security and privacy controls aligned with HIPAA technical safeguards for protected health information (PHI).
 
-Links to: `docs/compliance/advisories.md`, `docs/compliance/audit-checklist.md`, `docs/compliance/data-privacy.md`, `docs/compliance/disaster-recovery.md`, `docs/compliance/hipaa-controls.md`, `docs/compliance/security-review-sprint06.md`
+Links to: `docs/compliance/advisories.md`, `docs/compliance/ai-safety.md`, `docs/compliance/audit-checklist.md`, `docs/compliance/data-privacy.md`, `docs/compliance/disaster-recovery.md`, `docs/compliance/hipaa-controls.md`, `docs/compliance/security-review-sprint06.md`
 
 ## `docs/compliance/advisories.md`
 
 **Security & Compliance Advisories**
 
 This document records security/observability issues discovered in HealthCentral that affect compliance posture, along with their resolution and operational guidance.
+
+## `docs/compliance/ai-safety.md`
+
+**AI Safety Policy**
+
+How the assistant stays educational and grounded, and where each boundary is enforced. Companion to Data Privacy and HIPAA Controls; the CI enforcement lives in `scripts/agent_eval_gate.py` and the…
+
+Links to: `CLAUDE.md`, `docs/compliance/data-privacy.md`, `docs/compliance/hipaa-controls.md`, `feature_list.json`
 
 ## `docs/compliance/audit-checklist.md`
 
@@ -646,7 +694,7 @@ Links to: `docs/compliance/disaster-recovery.md`, `docs/compliance/hipaa-control
 
 **Getting Started**
 
-- Python 3.11 or later - Node.js 20 or later - SQLCipher library (`libsqlcipher-dev` on Ubuntu/Debian)
+- Python 3.11 or later - Node.js 22 or later (Node.js 24 LTS recommended) - SQLCipher library (`libsqlcipher-dev` on Ubuntu/Debian)
 
 Links to: `docs/user/workflows.md`
 

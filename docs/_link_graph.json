@@ -3,6 +3,13 @@
     ".github/workflows/ci.yml": [
       "docs/roles/devops-and-ci.md"
     ],
+    "AGENT.md": [
+      "docs/agentic/harness.md"
+    ],
+    "CLAUDE.md": [
+      "docs/agentic/harness.md",
+      "docs/compliance/ai-safety.md"
+    ],
     "CONTRIBUTING.md": [
       "docs/roles/devops-and-ci.md"
     ],
@@ -33,10 +40,28 @@
       "README.md"
     ],
     "docs/INDEX.md": [
+      "docs/agentic/harness.md",
       "docs/roles/00_roles_index.md"
     ],
     "docs/Local_First_Medical_Results_Companion_PRD_v0_1.md": [
       "docs/roles/product-and-prd.md"
+    ],
+    "docs/agentic/evals.md": [
+      "docs/agentic/harness.md",
+      "docs/agentic/mcp-tools.md",
+      "docs/agentic/roadmap.md"
+    ],
+    "docs/agentic/harness.md": [
+      "docs/agentic/mcp-tools.md",
+      "docs/agentic/roadmap.md"
+    ],
+    "docs/agentic/mcp-tools.md": [
+      "docs/agentic/harness.md",
+      "docs/agentic/roadmap.md"
+    ],
+    "docs/agentic/progress.md": [
+      "docs/agentic/harness.md",
+      "docs/agentic/roadmap.md"
     ],
     "docs/agile/AGILE_PLAN.md": [
       "docs/roles/product-and-prd.md",
@@ -117,7 +142,14 @@
       "docs/api/README.md",
       "docs/roles/backend-api.md"
     ],
+    "docs/compliance/README.md": [
+      "docs/agentic/roadmap.md"
+    ],
     "docs/compliance/advisories.md": [
+      "docs/compliance/README.md"
+    ],
+    "docs/compliance/ai-safety.md": [
+      "docs/agentic/roadmap.md",
       "docs/compliance/README.md"
     ],
     "docs/compliance/audit-checklist.md": [
@@ -127,6 +159,7 @@
     ],
     "docs/compliance/data-privacy.md": [
       "docs/compliance/README.md",
+      "docs/compliance/ai-safety.md",
       "docs/roles/security-and-compliance.md",
       "README.md"
     ],
@@ -143,6 +176,7 @@
     ],
     "docs/compliance/hipaa-controls.md": [
       "docs/compliance/README.md",
+      "docs/compliance/ai-safety.md",
       "docs/roles/security-and-compliance.md",
       "docs/user/faq.md",
       "README.md"
@@ -314,6 +348,13 @@
       "docs/user/getting-started.md",
       "README.md"
     ],
+    "feature_list.json": [
+      "docs/agentic/evals.md",
+      "docs/agentic/harness.md",
+      "docs/agentic/progress.md",
+      "docs/agentic/roadmap.md",
+      "docs/compliance/ai-safety.md"
+    ],
     "scripts/docs_lint.py": [
       "docs/roles/devops-and-ci.md"
     ],
@@ -453,6 +494,34 @@
     "docs/01_backend_architecture_plan.md": [
       "docs/api/endpoints.md"
     ],
+    "docs/agentic/evals.md": [
+      "feature_list.json"
+    ],
+    "docs/agentic/harness.md": [
+      "CLAUDE.md",
+      "AGENT.md",
+      "docs/agentic/progress.md",
+      "feature_list.json",
+      "docs/INDEX.md",
+      "docs/agentic/evals.md",
+      "docs/agentic/mcp-tools.md"
+    ],
+    "docs/agentic/mcp-tools.md": [
+      "docs/agentic/harness.md",
+      "docs/agentic/evals.md"
+    ],
+    "docs/agentic/progress.md": [
+      "feature_list.json"
+    ],
+    "docs/agentic/roadmap.md": [
+      "docs/agentic/harness.md",
+      "docs/agentic/evals.md",
+      "feature_list.json",
+      "docs/compliance/ai-safety.md",
+      "docs/agentic/progress.md",
+      "docs/compliance/README.md",
+      "docs/agentic/mcp-tools.md"
+    ],
     "docs/agile/EXPLORATION_SUMMARY.md": [
       "docs/agile/RECONCILIATION.md"
     ],
@@ -496,10 +565,17 @@
     "docs/compliance/README.md": [
       "docs/compliance/hipaa-controls.md",
       "docs/compliance/data-privacy.md",
+      "docs/compliance/ai-safety.md",
       "docs/compliance/audit-checklist.md",
       "docs/compliance/disaster-recovery.md",
       "docs/compliance/security-review-sprint06.md",
       "docs/compliance/advisories.md"
+    ],
+    "docs/compliance/ai-safety.md": [
+      "docs/compliance/data-privacy.md",
+      "docs/compliance/hipaa-controls.md",
+      "feature_list.json",
+      "CLAUDE.md"
     ],
     "docs/compliance/hipaa-controls.md": [
       "docs/compliance/disaster-recovery.md"
