@@ -151,14 +151,14 @@
     {
       "id": "HC-M10",
       "category": "product",
-      "description": "Resolve the product name: 'HealthCentral' collides with an existing public health-media brand (healthcentral.com). Treat as internal codename; choose and clear a release name before any public distribution.",
+      "description": "Rename the product (owner decision 2026-07-07): 'HealthCentral' collides with healthcentral.com. Stage 1 DONE — surface audit + screened shortlist at docs/plans/2026-07-07-rename-audit-and-shortlist.md. Stage 2 (manual, blocking): owner picks a candidate and clears it against USPTO TESS/domains/app stores. Stage 3: one PR changing user-visible strings only (internal HC_*/HC-* identifiers and DB filenames kept).",
       "user_value": "Avoids trademark risk before the project is shown publicly as a product.",
       "verification_steps": [
-        "Owner decision recorded in docs/agentic/progress.md",
-        "If renamed: grep for old name in user-facing strings returns only historical docs"
+        "Owner clearance recorded in docs/agentic/progress.md",
+        "After rename: grep for old name returns only historical docs and kept internal identifiers; app boots with new title; tsc/vitest/docs gates pass"
       ],
-      "priority": 5,
-      "status": "pending"
+      "priority": 3,
+      "status": "in_progress"
     }
   ]
 }
