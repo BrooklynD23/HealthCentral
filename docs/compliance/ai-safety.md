@@ -23,13 +23,13 @@ The application organizes health information, visualizes trends, and explains re
 
 ## Prompt injection
 
-Retrieved documents, memory items, and any external text are data, not instructions. Existing injection cases live in `src/backend/tests/test_memory_integration.py` and `src/backend/tests/test_rag_pipeline.py`; a dedicated adversarial corpus (instructions embedded in uploaded documents and memory) is tracked as HC-M05 in [feature_list.json](../../feature_list.json).
+Retrieved documents, memory items, and any external text are data, not instructions. Injection cases live in `src/backend/tests/test_memory_integration.py` and `src/backend/tests/test_rag_pipeline.py`, and an adversarial injection corpus with an `injection_resistance` axis and an end-to-end compose check now runs in the CI eval gate (`scripts/agent_eval_gate.py`). Extending that corpus to instructions embedded in uploaded documents and in memory items remains open under HC-M05 in [feature_list.json](../../feature_list.json).
 
 ## PHI leakage
 
 - No real PHI in development — synthetic seed data only.
 - Anything leaving the local boundary (RL dataset export, any external runner) passes `modules/redaction.py` first and requires explicit user confirmation (see [Data Privacy — RL Dataset Export](data-privacy.md#reinforcement-learning-dataset-export)).
-- Leakage probes on every export path are part of HC-M05; redaction behavior is regression-tested in the backend suite.
+- PHI-leakage probes run in the CI eval gate (`phi_leakage` axis, must be 0); covering every export path is tracked under HC-M05. Redaction behavior is regression-tested in the backend suite.
 
 ## Change control
 

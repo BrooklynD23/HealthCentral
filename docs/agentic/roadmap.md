@@ -16,20 +16,20 @@ Why this project exists as an agentic-engineering exercise, and what "done well"
 | Harness engineering | [feature_list.json](../../feature_list.json), [progress.md](progress.md), CI eval gates (`scripts/agent_eval_gate.py`) |
 | Data Science | extraction golden sets and eval cards (planned: HC-M06), RL dataset export pipeline |
 | SWE production readiness | CI (tests, type-check, e2e, security gate), release checklist, observability baseline (planned: HC-M07/M08) |
-| AI safety | 4-axis agent eval gate, `modules/interpret_safety.py` adversarial tests, redaction pipeline, planned injection/PHI-leakage corpus (HC-M05) |
+| AI safety | 6-axis agent eval gate (incl. injection_resistance / phi_leakage, HC-M05), `modules/interpret_safety.py` adversarial tests, redaction pipeline |
 | Healthcare judgment | Non-diagnostic boundary, [docs/compliance/](../compliance/README.md) privacy-by-design suite |
 
 ## Milestones
 
-Near-term (verified state as of 2026-07-07 — HC-M01…HC-M04 complete):
+Near-term (verified state as of 2026-07-07 — HC-M01, HC-M03, HC-M04 complete):
 
 1. **Consistent runtime baseline** — Python 3.11+, Node 22+ everywhere, enforced by grep-able policy and CI. *(done)*
-2. **One-click Windows bootstrap** — dev.ps1 auto-installs Python via winget with graceful fallback. *(done)*
+2. **One-click Windows bootstrap** — dev.ps1 auto-installs Python via winget with graceful fallback. *(implemented; tier-3 validation on a real Python-less Windows machine still pending — HC-M02)*
 3. **Documented agent harness** — this directory + feature inventory. *(done)*
 
 Next (ordered; details and verification in `feature_list.json`):
 
-4. **Adversarial eval expansion (HC-M05)** — prompt-injection corpus (instructions embedded in uploaded documents / memory items) and PHI-leakage probes on export paths, wired into the CI eval gate. Existing base: ~58 golden cases scored on groundedness / citation / abstention / advice-leakage.
+4. **Adversarial eval expansion (HC-M05)** — injection_resistance / phi_leakage axes, the injection corpus, and the end-to-end compose check are wired into the CI eval gate (74 golden cases green). Remaining: corpus cases for instructions embedded in uploaded documents and in memory items, per the original scope.
 5. **Extraction eval card (HC-M06)** — synthetic labeled lab-PDF golden set; precision/recall on analyte, unit, and date extraction with versioned metrics. This is the flagship Data Science artifact.
 6. **Observability baseline (HC-M07)** — structured logs with request IDs, audit-coverage tests, local-only metrics (no telemetry; local-first is an invariant).
 7. **Distribution (HC-M08)** — installable desktop build verified on a clean Windows VM.

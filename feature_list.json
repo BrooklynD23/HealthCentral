@@ -24,7 +24,7 @@
         "Manual: run dev.ps1 on a machine without Python and confirm the winget path, the [Y/n] prompt, and the fallback messages"
       ],
       "priority": 1,
-      "status": "completed"
+      "status": "in_progress"
     },
     {
       "id": "HC-M03",
@@ -60,7 +60,7 @@
         "Gate runs in CI and blocks merge on regression"
       ],
       "priority": 2,
-      "status": "completed"
+      "status": "in_progress"
     },
     {
       "id": "HC-M06",

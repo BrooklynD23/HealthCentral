@@ -102,7 +102,7 @@ Links to: `docs/agentic/evals.md`, `docs/agentic/harness.md`
 
 Session-by-session record of agent work: what changed, what was verified, what failed, and the next priority. This supplements git history with verification evidence — it does not replace it. Newest…
 
-Links to: `feature_list.json`
+Links to: `docs/plans/2026-07-07-rename-audit-and-shortlist.md`, `feature_list.json`
 
 ## `docs/agentic/roadmap.md`
 
@@ -461,6 +461,12 @@ Links to: `docs/00_architecture_plans_index.md`, `docs/features/TASK_LIST.md`
 session, asking it to review `2026-07-02-consolidated-findings-report.md` as a system architect and synthesize new feature/improvement ideas — not to write code, and not to be run inside this repo's…
 
 Links to: `docs/plans/2026-07-02-consolidated-findings-report.md`
+
+## `docs/plans/2026-07-07-rename-audit-and-shortlist.md`
+
+**Product Rename: Surface Audit + Candidate Shortlist (HC-M10, stage 1)**
+
+Owner decision (2026-07-07): rename the product — "HealthCentral" collides with the existing health-media brand healthcentral.com. This document is stage 1 of the plan: how big the rename is, and a…
 
 ## `docs/plans/UI-implementation-2-4.md`
 

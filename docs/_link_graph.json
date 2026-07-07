@@ -235,6 +235,9 @@
       "docs/plans/2026-07-02-architect-review-proposal-tickets.md",
       "docs/plans/2026-07-02-fable5-architect-handoff-prompt.md"
     ],
+    "docs/plans/2026-07-07-rename-audit-and-shortlist.md": [
+      "docs/agentic/progress.md"
+    ],
     "docs/plans/implementation-log": [
       "docs/00_architecture_plans_index.md"
     ],
@@ -511,6 +514,7 @@
       "docs/agentic/evals.md"
     ],
     "docs/agentic/progress.md": [
+      "docs/plans/2026-07-07-rename-audit-and-shortlist.md",
       "feature_list.json"
     ],
     "docs/agentic/roadmap.md": [
