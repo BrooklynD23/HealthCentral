@@ -564,14 +564,18 @@ async def get_analyte_trend(
     ref_high = None
     unit = None
     excluded_count = 0
+    excluded_dated_count = 0
     ref_source_both = None
-    ref_source_any = None
+    ref_low_source = None
+    ref_high_source = None
 
     for obs, conv in conversions:
         emitted = True
         if normalize_units:
             if conv is None:
                 excluded_count += 1
+                if obs.collected_at:
+                    excluded_dated_count += 1
                 emitted = False
             else:
                 point_value = conv.canonical_value
@@ -590,8 +594,11 @@ async def get_analyte_trend(
         if emitted:
             if obs.ref_low is not None and obs.ref_high is not None:
                 ref_source_both = obs
-            elif obs.ref_low is not None or obs.ref_high is not None:
-                ref_source_any = obs
+            else:
+                if obs.ref_low is not None:
+                    ref_low_source = obs
+                if obs.ref_high is not None:
+                    ref_high_source = obs
 
             if obs.collected_at and obs.value is not None:
                 data_points.append(TrendPoint(
@@ -609,40 +616,34 @@ async def get_analyte_trend(
                 # Has a value but no date — count it so the summary is accurate
                 undated_count += 1
 
-    ref_source = ref_source_both or ref_source_any
-    if ref_source is not None:
-        if normalize_units:
-            ref_low_conv = None
-            ref_high_conv = None
-            if ref_source.ref_low is not None:
-                ref_low_result = convert_to_canonical(
-                    analyte_key,
-                    ref_source.ref_low,
-                    ref_source.unit,
-                )
-                if ref_low_result is not None:
-                    ref_low_conv = ref_low_result.canonical_value
-            if ref_source.ref_high is not None:
-                ref_high_result = convert_to_canonical(
-                    analyte_key,
-                    ref_source.ref_high,
-                    ref_source.unit,
-                )
-                if ref_high_result is not None:
-                    ref_high_conv = ref_high_result.canonical_value
+    def _resolve_ref_bound(value, source_obs):
+        # Converts a single reference-range bound using its own source
+        # observation's unit; falls back to the raw value if conversion
+        # fails or normalization isn't active. Each bound is resolved
+        # from its own source only — bounds are never mixed from
+        # sources with incompatible units.
+        if value is None or source_obs is None:
+            return None
+        if not normalize_units:
+            return value
+        result = convert_to_canonical(analyte_key, value, source_obs.unit)
+        return result.canonical_value if result is not None else value
 
-            if (
-                (ref_source.ref_low is None or ref_low_conv is not None)
-                and (ref_source.ref_high is None or ref_high_conv is not None)
-            ):
-                ref_low = ref_low_conv
-                ref_high = ref_high_conv
-            else:
-                ref_low = ref_source.ref_low
-                ref_high = ref_source.ref_high
-        else:
-            ref_low = ref_source.ref_low
-            ref_high = ref_source.ref_high
+    if ref_source_both is not None:
+        # A single observation supplies both bounds — prefer it over
+        # combining bounds from different observations.
+        ref_low = _resolve_ref_bound(ref_source_both.ref_low, ref_source_both)
+        ref_high = _resolve_ref_bound(ref_source_both.ref_high, ref_source_both)
+    elif ref_low_source is not None or ref_high_source is not None:
+        # No single observation has both bounds; combine the latest
+        # observation supplying each bound independently rather than
+        # dropping one when they come from different observations.
+        ref_low = _resolve_ref_bound(
+            ref_low_source.ref_low if ref_low_source else None, ref_low_source
+        )
+        ref_high = _resolve_ref_bound(
+            ref_high_source.ref_high if ref_high_source else None, ref_high_source
+        )
 
     # Generate summary
     total_count = len(data_points) + undated_count
@@ -681,17 +682,22 @@ async def get_analyte_trend(
         if undated_count:
             summary += f" {undated_count} additional measurement(s) have no collection date."
     elif undated_count or excluded_count:
-        # No dated points at all — return a response with empty data_points but
-        # a helpful summary rather than 404, so the UI can show the latest-values table.
-        hidden_note = ""
-        if excluded_count:
-            hidden_note = (
-                f" {excluded_count} measurement(s) hidden — unit not recognized for this analyte."
-            )
+        # No dated, plottable points at all — return a response with empty
+        # data_points but a helpful summary rather than 404, so the UI can
+        # show the latest-values table. State the actual reason(s): a
+        # measurement can be missing from the chart either because it has
+        # no collection date, or because its unit couldn't be recognized
+        # for this analyte (excluded_dated_count) — don't claim "no
+        # collection date" for measurements excluded for the latter reason.
+        reasons = []
+        if undated_count:
+            reasons.append("have no collection date")
+        if excluded_dated_count:
+            reasons.append("use a unit not recognized for this analyte")
+        reason_text = " and ".join(reasons) if reasons else "cannot be plotted"
         summary = (
             f"{total_count + excluded_count} measurement(s) of {analyte.upper()} found, "
-            f"but none have a collection date so no trend line can be drawn."
-            f"{hidden_note} "
+            f"but no trend line can be drawn: {reason_text}. "
             f"Use the analyte list to see the latest value."
         )
     else:
