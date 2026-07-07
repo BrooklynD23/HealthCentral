@@ -729,10 +729,12 @@ USER QUESTION: {question}"""
         whole chunk would discard the grounding evidence around the attack
         and change retrieval behavior; substituting the instruction span
         keeps the citable prose intact while defanging it. Observation
-        summaries are self-generated from the profile's own rows and skip
-        the scan (their fields are already sanitized at draft/summary time).
+        summaries are scanned too (HC-SEC-002): although their layout is
+        self-generated, they embed raw DB fields (unit, ref_range_text,
+        flag) that originate from parsed uploads or user input and are not
+        sanitized anywhere upstream.
         """
-        if source_type not in ("reference", "user_document"):
+        if source_type not in ("reference", "user_document", "user_observation"):
             return text
         if not self._contains_prompt_injection(text):
             return text
@@ -904,7 +906,12 @@ I was unable to fully process your question within the time limit. Please try as
                         doc_id=chunk.doc_id,
                         doc_title=chunk.doc_title,
                         page=chunk.page,
-                        text_snippet=chunk.text[:200],
+                        # HC-SEC-001: snippets reach the frontend, so sanitize
+                        # like prompt text — BEFORE truncation, so a partially
+                        # truncated injection span cannot evade the patterns.
+                        text_snippet=self._sanitize_chunk_text(
+                            chunk.text, chunk.source_type
+                        )[:200],
                         authority_tier=classified.authority_tier.value,
                         authority_score=classified.authority_score,
                     ))
