@@ -21,9 +21,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
 from core.auth import RequireAuth, ProfileDbSession
-from core.audit import log_export_event
+from core.audit import audit_and_commit, log_export_event
 from models import Observation
 from modules.export import ExportModule
+from modules.normalize import canonical_unit_for, convert_to_canonical, normalize_unit
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +137,13 @@ def _compute_trends(observations: list[dict]) -> list[dict]:
     """
     Compute trend data from observations.
 
-    Groups by analyte and calculates direction/change.
+    Groups by analyte and calculates direction/change. Values are
+    converted to a canonical unit (modules.normalize) before comparing
+    across dates so cross-lab unit differences (e.g. mg/dL vs mmol/L)
+    don't produce a spurious delta (NORM-UNIT-001). Observations whose
+    unit can't be converted are excluded from the comparison; if the
+    analyte isn't in the conversion table and its units are mixed, no
+    trend is reported rather than comparing incompatible numbers.
     """
     # Group observations by analyte
     analyte_groups: dict[str, list[dict]] = {}
@@ -157,8 +164,28 @@ def _compute_trends(observations: list[dict]) -> list[dict]:
         if len(sorted_obs) < 2:
             continue
 
-        first_val = sorted_obs[0]["value"]
-        last_val = sorted_obs[-1]["value"]
+        canonical_unit = canonical_unit_for(analyte)
+        distinct_units = {
+            normalize_unit(o["unit"]) for o in sorted_obs if o.get("unit")
+        }
+
+        if len(distinct_units) > 1:
+            if canonical_unit is None:
+                # Untabled analyte with mixed units: no safe basis for
+                # comparison, don't report a trend.
+                continue
+            comparable_values = []
+            for o in sorted_obs:
+                conv = convert_to_canonical(analyte, o["value"], o.get("unit"))
+                if conv is not None:
+                    comparable_values.append(conv.canonical_value)
+            if len(comparable_values) < 2:
+                continue
+        else:
+            comparable_values = [o["value"] for o in sorted_obs]
+
+        first_val = comparable_values[0]
+        last_val = comparable_values[-1]
 
         if first_val == 0:
             continue
@@ -259,21 +286,18 @@ async def generate_doctor_summary(
     _summary_store[summary.summary_id] = summary_data
 
     # Create audit log
-    try:
-        await log_export_event(
-            db=master_db,
-            profile_id=profile_id,
-            export_type="doctor_summary",
-            details={
-                "summary_id": summary.summary_id,
-                "format": request.format,
-                "observation_count": summary.total_observations,
-                "question_count": len(questions),
-            },
-        )
-        await master_db.commit()
-    except Exception as e:
-        logger.warning(f"Failed to log export event: {e}")
+    await audit_and_commit(
+        master_db,
+        log_export_event,
+        profile_id=profile_id,
+        export_type="doctor_summary",
+        details={
+            "summary_id": summary.summary_id,
+            "format": request.format,
+            "observation_count": summary.total_observations,
+            "question_count": len(questions),
+        },
+    )
 
     # Build date range string
     date_range = "All time"
@@ -327,16 +351,13 @@ async def download_summary(
         )
 
     # Log download
-    try:
-        await log_export_event(
-            db=master_db,
-            profile_id=session.profile_id,
-            export_type="summary_download",
-            details={"summary_id": summary_id, "format": format},
-        )
-        await master_db.commit()
-    except Exception as e:
-        logger.warning(f"Failed to log export event: {e}")
+    await audit_and_commit(
+        master_db,
+        log_export_event,
+        profile_id=session.profile_id,
+        export_type="summary_download",
+        details={"summary_id": summary_id, "format": format},
+    )
 
     export_module = ExportModule()
     short_id = summary_id[:8]
@@ -459,16 +480,13 @@ async def generate_questions(
     )
 
     # Log generation
-    try:
-        await log_export_event(
-            db=master_db,
-            profile_id=profile_id,
-            export_type="questions",
-            details={"question_count": len(questions)},
-        )
-        await master_db.commit()
-    except Exception as e:
-        logger.warning(f"Failed to log export event: {e}")
+    await audit_and_commit(
+        master_db,
+        log_export_event,
+        profile_id=profile_id,
+        export_type="questions",
+        details={"question_count": len(questions)},
+    )
 
     return [
         QuestionItem(
@@ -517,16 +535,13 @@ async def export_csv(
     csv_content = export_module.export_csv(observations)
 
     # Log export
-    try:
-        await log_export_event(
-            db=master_db,
-            profile_id=profile_id,
-            export_type="csv",
-            details={"observation_count": len(observations)},
-        )
-        await master_db.commit()
-    except Exception as e:
-        logger.warning(f"Failed to log export event: {e}")
+    await audit_and_commit(
+        master_db,
+        log_export_event,
+        profile_id=profile_id,
+        export_type="csv",
+        details={"observation_count": len(observations)},
+    )
 
     # Generate filename with date
     filename = f"health_data_{datetime.now(timezone.utc).strftime('%Y%m%d')}.csv"
@@ -576,16 +591,13 @@ async def export_json(
     json_content = export_module.export_json(observations)
 
     # Log export
-    try:
-        await log_export_event(
-            db=master_db,
-            profile_id=profile_id,
-            export_type="json",
-            details={"observation_count": len(observations)},
-        )
-        await master_db.commit()
-    except Exception as e:
-        logger.warning(f"Failed to log export event: {e}")
+    await audit_and_commit(
+        master_db,
+        log_export_event,
+        profile_id=profile_id,
+        export_type="json",
+        details={"observation_count": len(observations)},
+    )
 
     # Generate filename with date
     filename = f"health_data_{datetime.now(timezone.utc).strftime('%Y%m%d')}.json"

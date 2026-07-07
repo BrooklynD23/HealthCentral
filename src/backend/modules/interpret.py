@@ -509,12 +509,23 @@ class InterpretModule:
             context.comparison_unit = observation.unit
             context.comparison_current_value = observation.value
             observation_unit_norm = normalize_unit(observation.unit or "")
+            # Untabled analyte (or unit unrecognized): we can't normalize,
+            # so only exclude a historical point when both it and the
+            # current observation have a unit AND those units clearly
+            # differ. A missing/blank unit on either side isn't treated
+            # as a mismatch (common OCR extraction gap) — this keeps the
+            # pre-fix permissiveness for the common case while still
+            # guarding against comparing two visibly different units.
             context.historical_values = [
                 (obs.collected_at, obs.value)
                 for obs in hist_obs
                 if obs.collected_at
                 and obs.value is not None
-                and normalize_unit(obs.unit or "") == observation_unit_norm
+                and (
+                    not observation_unit_norm
+                    or not normalize_unit(obs.unit or "")
+                    or normalize_unit(obs.unit or "") == observation_unit_norm
+                )
             ]
 
         # Determine trend

@@ -294,7 +294,12 @@ USER QUESTION: {question}"""
 
         At most 5 analytes are surfaced to keep the prompt compact.
         """
-        from .normalize import NormalizeModule
+        from .normalize import (
+            NormalizeModule,
+            canonical_unit_for,
+            convert_to_canonical,
+            normalize_unit,
+        )
         from sqlalchemy import select
         from models.observation import Observation
         from datetime import datetime
@@ -378,10 +383,29 @@ USER QUESTION: {question}"""
                     elif latest.ref_low is not None and latest.value < latest.ref_low:
                         flag_str = "LOW"
 
-                # Trend over last 3 readings (newest first)
+                # Trend over last 3 readings (newest first). Values are
+                # converted to a canonical unit before comparing across
+                # dates so cross-lab unit differences (e.g. mg/dL vs
+                # mmol/L) don't produce a spurious delta (NORM-UNIT-001).
                 trend_str = ""
                 if len(rows) >= 2:
-                    vals = [r.value for r in rows[:3] if r.value is not None]
+                    recent_rows = [r for r in rows[:3] if r.value is not None]
+                    distinct_units = {
+                        normalize_unit(r.unit) for r in recent_rows if r.unit
+                    }
+                    canonical_unit = canonical_unit_for(analyte)
+                    if len(distinct_units) > 1 and canonical_unit is not None:
+                        vals = []
+                        for r in recent_rows:
+                            conv = convert_to_canonical(analyte, r.value, r.unit)
+                            if conv is not None:
+                                vals.append(conv.canonical_value)
+                    elif len(distinct_units) > 1:
+                        # Untabled analyte with mixed units: no safe basis
+                        # for comparison.
+                        vals = []
+                    else:
+                        vals = [r.value for r in recent_rows]
                     if len(vals) >= 2:
                         arrow = ""
                         delta = vals[0] - vals[-1]
