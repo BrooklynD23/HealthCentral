@@ -18,7 +18,11 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from docs_lint import _markdown_files, _iter_markdown_links, build_link_graph  # noqa: E402
+from docs_lint import (  # noqa: E402
+    _iter_markdown_links,
+    _read_markdown_corpus,
+    build_link_graph,
+)
 
 _TITLE = re.compile(r"^#\s+(.+)$", re.MULTILINE)
 _SKIP_LINE = re.compile(
@@ -59,9 +63,12 @@ def _extract_summary(text: str, max_len: int = 200) -> str:
     return summary or "(no summary — see file)"
 
 
-def generate(repo_root: Path) -> str:
+def generate(repo_root: Path, corpus: list[tuple[Path, str]] | None = None) -> str:
+    if corpus is None:
+        corpus = _read_markdown_corpus(repo_root)
+
     forward: dict[str, list[str]] = {}
-    for rel_path, _target, resolved_rel in _iter_markdown_links(repo_root):
+    for rel_path, _target, resolved_rel in _iter_markdown_links(repo_root, corpus=corpus):
         if resolved_rel is None or resolved_rel == rel_path:
             continue
         forward.setdefault(rel_path, [])
@@ -69,9 +76,8 @@ def generate(repo_root: Path) -> str:
             forward[rel_path].append(resolved_rel)
 
     entries = []
-    for path in _markdown_files(repo_root):
+    for path, text in corpus:
         rel_path = path.relative_to(repo_root).as_posix()
-        text = path.read_text(encoding="utf-8", errors="ignore")
         entries.append(
             {
                 "path": rel_path,
@@ -113,9 +119,14 @@ def check(repo_root: Path) -> int:
     index_path = repo_root / "docs" / "INDEX.md"
     graph_path = repo_root / "docs" / "_link_graph.json"
 
-    expected_index = generate(repo_root)
+    # Read the markdown corpus once and reuse it for both the index and the
+    # link-graph regeneration, instead of each independently re-reading and
+    # re-scanning every doc file from disk.
+    corpus = _read_markdown_corpus(repo_root)
+
+    expected_index = generate(repo_root, corpus=corpus)
     actual_index = _read_text(index_path)
-    expected_graph = build_link_graph(repo_root)
+    expected_graph = build_link_graph(repo_root, corpus=corpus)
     actual_graph = json.loads(_read_text(graph_path))
 
     stale = False

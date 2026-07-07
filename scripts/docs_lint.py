@@ -289,13 +289,28 @@ def _markdown_files(repo_root: Path) -> list[Path]:
     return files
 
 
-def _iter_markdown_links(repo_root: Path):
+def _read_markdown_corpus(repo_root: Path) -> list[tuple[Path, str]]:
+    """Reads every markdown file's raw text exactly once, so callers that
+    need multiple passes over the corpus (link extraction, title/summary
+    extraction, graph building) don't each re-read every file from disk."""
+    return [
+        (path, path.read_text(encoding="utf-8", errors="ignore"))
+        for path in _markdown_files(repo_root)
+    ]
+
+
+def _iter_markdown_links(repo_root: Path, corpus: list[tuple[Path, str]] | None = None):
     """Shared link-collection pass used by both DOC-007 (validation) and the
     backlink-graph emitter: yields (rel_path, target, resolved_rel_path_or_None)
     for every relative markdown link in the docs corpus. External links,
-    in-page anchors, and links inside fenced code blocks are skipped."""
-    for path in _markdown_files(repo_root):
-        text = _FENCED_BLOCK.sub("", path.read_text(encoding="utf-8", errors="ignore"))
+    in-page anchors, and links inside fenced code blocks are skipped.
+
+    Pass a pre-read `corpus` (see `_read_markdown_corpus`) to avoid re-reading
+    every file from disk when the caller also needs the raw text elsewhere."""
+    if corpus is None:
+        corpus = _read_markdown_corpus(repo_root)
+    for path, raw_text in corpus:
+        text = _FENCED_BLOCK.sub("", raw_text)
         rel_path = path.relative_to(repo_root).as_posix()
         for match in _MD_LINK.finditer(text):
             target = match.group(1).strip()
@@ -332,11 +347,13 @@ def _check_internal_links(repo_root: Path) -> list[str]:
     return errors
 
 
-def build_link_graph(repo_root: Path) -> dict[str, dict[str, list[str]]]:
+def build_link_graph(
+    repo_root: Path, corpus: list[tuple[Path, str]] | None = None
+) -> dict[str, dict[str, list[str]]]:
     forward: dict[str, list[str]] = {}
     backward: dict[str, list[str]] = {}
 
-    for rel_path, _target, resolved_rel in _iter_markdown_links(repo_root):
+    for rel_path, _target, resolved_rel in _iter_markdown_links(repo_root, corpus=corpus):
         if resolved_rel is None or resolved_rel == rel_path:
             continue
         forward.setdefault(rel_path, [])
