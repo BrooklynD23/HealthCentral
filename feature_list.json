@@ -60,7 +60,7 @@
         "Gate runs in CI and blocks merge on regression"
       ],
       "priority": 2,
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "HC-M06",
@@ -77,25 +77,50 @@
     {
       "id": "HC-M07",
       "category": "production-readiness",
-      "description": "Observability baseline: structured logging with request IDs across API routes, a /health endpoint check in e2e, and a local metrics summary (no external telemetry — local-first invariant).",
+      "description": "Observability gap-closure (most of the stack already exists: CorrelationIdMiddleware, /health route, MetricsCollector p50/p95/p99, TimingMiddleware, DB audit logging). Remaining: (1) correlation ID injected into log records via a logging.Filter in a new core/logging_setup.py, and into SecurityAuditMiddleware's JSON payload; (2) optional JSON log format behind a settings flag (stdlib only); (3) an e2e step hitting the running backend's /health.",
       "user_value": "Failures in real use are diagnosable from logs without violating the no-network guarantee.",
       "verification_steps": [
-        "pytest asserts request-ID propagation and audit-log coverage on document/observation/profile routes",
-        "e2e smoke hits /health"
+        "tests/monitoring/test_correlation.py asserts log records carry the correlation ID",
+        "tests/security/test_audit_middleware.py asserts the audit JSON payload carries it",
+        "e2e smoke hits /health and asserts 200 + status field"
       ],
       "priority": 3,
       "status": "pending"
     },
     {
-      "id": "HC-M08",
+      "id": "HC-M08a",
       "category": "production-readiness",
-      "description": "Packaged desktop distribution path (installer or bundled runtime) with signed release checklist, extending docs/agile/RELEASE_CHECKLIST.md.",
-      "user_value": "Real patients can install the app without a developer toolchain.",
-      "verification_steps": [
-        "Documented build produces an artifact that boots on a clean Windows VM",
-        "Release checklist items each name a verifying command or manual step"
-      ],
+      "description": "Packaging phase 0 — decision spike doc (docs/plans/<date>-packaging-decision.md): PyInstaller+Tauri vs PyInstaller+Electron vs portable folder + launcher. Criteria: SQLCipher/llama-cpp native bundling, model download-on-first-run, code signing, size. Prepared recommendation: portable folder first.",
+      "user_value": "Distribution decisions are recorded with tradeoffs before any packaging code exists.",
+      "verification_steps": ["Decision doc exists, passes docs lint, and names a chosen path with rationale"],
       "priority": 4,
+      "status": "pending"
+    },
+    {
+      "id": "HC-M08b",
+      "category": "production-readiness",
+      "description": "Packaging phase 1 — frozen backend proof: PyInstaller spec for main:app + uvicorn with hidden imports (sqlcipher3, llama-cpp, sentence-transformers).",
+      "user_value": "The backend runs on a machine with no Python installed.",
+      "verification_steps": ["Frozen exe boots on a clean Windows VM, /health returns 200, a vault opens"],
+      "priority": 4,
+      "status": "pending"
+    },
+    {
+      "id": "HC-M08c",
+      "category": "production-readiness",
+      "description": "Packaging phase 2 — frontend static build served by the frozen backend (FastAPI StaticFiles) + end-user launcher + first-run model download flow; Node is no longer a runtime dependency.",
+      "user_value": "One folder, one launcher — no developer toolchain for patients.",
+      "verification_steps": ["Full app usable from the packaged folder on a clean VM with no Node/Python installed"],
+      "priority": 4,
+      "status": "pending"
+    },
+    {
+      "id": "HC-M08d",
+      "category": "production-readiness",
+      "description": "Packaging phase 3 — docs/agile/DISTRIBUTION_CHECKLIST.md (RELEASE_CHECKLIST.md is the agent-overhaul acceptance gate, not distribution): clean-VM install test, signing decision, upgrade/uninstall path, data-directory location.",
+      "user_value": "Every release ships against an explicit, verifiable distribution checklist.",
+      "verification_steps": ["Checklist exists; each item names a verifying command or manual step"],
+      "priority": 5,
       "status": "pending"
     },
     {
@@ -108,6 +133,19 @@
         "DB tool rejects write statements"
       ],
       "priority": 4,
+      "status": "pending"
+    },
+    {
+      "id": "HC-M11",
+      "category": "ai-safety",
+      "description": "Wire a real NLI cross-encoder (candidate: cross-encoder/nli-deberta-v3-xsmall, MIT, ~22M params, via the existing sentence-transformers dependency) to populate the existing-but-never-fed entailment_scores parameter in modules/faithfulness.py and make verifier_agent.py's use_llm_entailment flag route to a real implementation instead of its stub. Additive: regex scoring remains the floor; flag defaults off. Verified 2026-07-07: production faithfulness is 100% rule-based today (consistency_score hardcoded 1.0; _check_entailment_llm is a stub). Depends on non-GGUF model-distribution support in scripts/download_models.py. Touches two ask-before-touching files — requires its own owner approval when scheduled.",
+      "user_value": "Faithfulness scoring gains a semantic signal instead of regex-only matching, reducing missed hallucinations in assistant outputs.",
+      "verification_steps": [
+        "With the flag on, a synthetic contradicted claim scores below threshold where regex-only scoring passed it",
+        "With the flag off (default), all existing faithfulness/verifier tests pass unchanged",
+        "Offline test proves no network access at inference time (model loaded from local path)"
+      ],
+      "priority": 3,
       "status": "pending"
     },
     {

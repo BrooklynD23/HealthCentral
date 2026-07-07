@@ -35,7 +35,7 @@ Next (ordered; details and verification in `feature_list.json`):
 7. **Distribution (HC-M08)** — installable desktop build verified on a clean Windows VM.
 8. **Narrow agent tools (HC-M09)** — credential-free script tools per [mcp-tools.md](mcp-tools.md).
 
-Reported by subagent survey and worth verifying before scheduling (evidence not yet confirmed by the orchestrator): RL dataset export may use `standard` rather than `strict` redaction (lab values/dates survive into training exports), and production faithfulness scoring is rule-based with no NLI model wired despite scaffolding for one. Both would slot in around milestone 4 if confirmed.
+Two findings from the earlier subagent survey were verified first-hand on 2026-07-07: (1) RL dataset export used `standard` rather than `strict` redaction (`modules/rl_dataset.py` hardcoded it; DOB/address were never scrubbed from training exports) — **confirmed and fixed** as part of milestone 4's PHI-leakage work (ticket RL-REDACT-001 in `docs/features/TASK_LIST.md`, now closed); (2) production faithfulness scoring is 100% rule-based — `modules/faithfulness.py` falls back to regex pseudo-entailment, `consistency_score` is hardcoded, and `verifier_agent.py`'s `use_llm_entailment` flag routes to a stub — **confirmed**, tracked as HC-M11 (NLI cross-encoder wiring, own approval required since it touches two ask-before-touching files).
 
 ## Brand risk (flagged for owner decision)
 
