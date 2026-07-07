@@ -275,7 +275,7 @@ def replay(run_log: RunLog) -> AgentTerminal:
                 terminal="abstain", text=ABSTAIN_TEMPLATE, citations=[], run_id=run_log.run_id
             )
 
-    from .nodes.draft import _observation_rows_from_log, _trend_sentences
+    from .nodes.draft import _observation_rows_from_log, _observation_sentence, _trend_sentences
     from .schemas import Citation
 
     sentences: list[str] = []
@@ -289,11 +289,7 @@ def replay(run_log: RunLog) -> AgentTerminal:
     for row in _observation_rows_from_log(run_log):
         if row["observation_id"] in cited_observation_ids:
             continue
-        unit = f" {row['unit']}" if row.get("unit") else ""
-        sentences.append(
-            f"Your verified {row['analyte']} result was {row['value']}{unit} "
-            f"(collected {row['collected_at']})."
-        )
+        sentences.append(_observation_sentence(row))
         citations.append(
             Citation(source_type="document", source_id=row["observation_id"], locator=row["observation_id"])
         )

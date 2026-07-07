@@ -643,7 +643,9 @@ USER QUESTION: {question}"""
                 if chunk.page:
                     source_label += f" (page {chunk.page})"
 
-            context_parts.append(f"{source_label}\n{chunk.text}")
+            context_parts.append(
+                f"{source_label}\n{self._sanitize_chunk_text(chunk.text, chunk.source_type)}"
+            )
 
         context = "\n\n---\n\n".join(context_parts)
 
@@ -717,6 +719,28 @@ USER QUESTION: {question}"""
     def _contains_prompt_injection(self, text: str) -> bool:
         """Check whether text contains likely prompt-injection content."""
         return any(pattern.search(text) for pattern in self._compiled_prompt_injection_patterns)
+
+    def _sanitize_chunk_text(self, text: str, source_type: str) -> str:
+        """Neutralize prompt-injection spans inside retrieved chunk text.
+
+        Retrieved reference/user-document text is untrusted input (a document
+        can carry embedded instructions), yet it is composed into the model
+        prompt. Neutralize — do NOT drop — the matching spans: dropping a
+        whole chunk would discard the grounding evidence around the attack
+        and change retrieval behavior; substituting the instruction span
+        keeps the citable prose intact while defanging it. Observation
+        summaries are self-generated from the profile's own rows and skip
+        the scan (their fields are already sanitized at draft/summary time).
+        """
+        if source_type not in ("reference", "user_document"):
+            return text
+        if not self._contains_prompt_injection(text):
+            return text
+        sanitized = text
+        for pattern in self._compiled_prompt_injection_patterns:
+            sanitized = pattern.sub("[UNTRUSTED-INSTRUCTION-REMOVED]", sanitized)
+        self._logger.warning("Neutralized prompt-injection content in retrieved chunk text")
+        return sanitized
 
     async def generate_response(
         self,
