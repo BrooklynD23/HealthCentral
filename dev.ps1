@@ -322,43 +322,83 @@ Write-Host ""
 Write-Host "  --- Checking prerequisites ---" -ForegroundColor DarkGray
 
 # -- Python --
-Write-Status "Looking for Python 3.11+ ..."
-$pythonCmd = $null
-foreach ($cmd in @("python", "python3", "py")) {
-    try {
-        $version = & $cmd --version 2>&1
-        if ($version -match "Python 3\.(\d+)") {
-            if ([int]$Matches[1] -ge 11) {
-                $pythonCmd = $cmd
-                Write-Ok "Found $version"
-                break
+function Find-Python311Command {
+    foreach ($cmd in @("python", "python3", "py")) {
+        try {
+            $version = & $cmd --version 2>&1
+            if ($version -match "Python 3\.(\d+)") {
+                if ([int]$Matches[1] -ge 11) {
+                    return [pscustomobject]@{ Cmd = $cmd; Version = "$version" }
+                }
             }
-        }
-    } catch { }
+        } catch { }
+    }
+    return $null
 }
-if (-not $pythonCmd) {
-    Write-Err "Python 3.11+ is required but not found."
+
+function Write-PythonManualInstallHelp {
     Write-Host ""
     Write-Host "    Download it from:  https://python.org/downloads" -ForegroundColor White
     Write-Host "    (Make sure to check 'Add Python to PATH' during install)" -ForegroundColor Gray
     Write-Host ""
-    Read-Host "  Press Enter to exit"
-    exit 1
+}
+
+Write-Status "Looking for Python 3.11+ ..."
+$pythonCmd = $null
+$pythonFound = Find-Python311Command
+if ($pythonFound) {
+    $pythonCmd = $pythonFound.Cmd
+    Write-Ok "Found $($pythonFound.Version)"
+}
+if (-not $pythonCmd) {
+    Write-Err "Python 3.11+ is required but not found."
+    $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
+    if (-not $wingetCmd) {
+        Write-PythonManualInstallHelp
+        Read-Host "  Press Enter to exit"
+        exit 1
+    }
+    $answer = Read-Host "  Python 3.11+ was not found. Install Python 3.11 automatically with winget? [Y/n]"
+    if ($answer -and $answer.Trim() -match '^[Nn]') {
+        Write-PythonManualInstallHelp
+        Read-Host "  Press Enter to exit"
+        exit 1
+    }
+    Write-Status "Installing Python 3.11 via winget (this may take a few minutes) ..."
+    & winget install --id Python.Python.3.11 --exact --source winget --accept-package-agreements --accept-source-agreements
+    if ($LASTEXITCODE -ne 0) {
+        Write-Err "winget install failed (exit code $LASTEXITCODE)."
+        Write-PythonManualInstallHelp
+        Read-Host "  Press Enter to exit"
+        exit 1
+    }
+    Refresh-EnvPathFromRegistry
+    $pythonFound = Find-Python311Command
+    if ($pythonFound) {
+        $pythonCmd = $pythonFound.Cmd
+        Write-Ok "Found $($pythonFound.Version) (installed via winget)"
+    } else {
+        Write-Err "winget completed but Python is not visible in this shell."
+        Write-Host "    Restart the terminal and run dev.ps1 again, or install manually:" -ForegroundColor White
+        Write-PythonManualInstallHelp
+        Read-Host "  Press Enter to exit"
+        exit 1
+    }
 }
 
 # -- Node.js --
-Write-Status "Looking for Node.js 18+ ..."
+Write-Status "Looking for Node.js 22+ ..."
 $nodeOk = $false
 $nodeExe = $null
 try {
     $nodeVersion = & node --version 2>&1
     if ($nodeVersion -match "v(\d+)\.") {
-        if ([int]$Matches[1] -ge 18) {
+        if ([int]$Matches[1] -ge 22) {
             Write-Ok "Found Node.js $nodeVersion"
             $nodeExe = (Get-Command node -ErrorAction Stop).Source
             $nodeOk = $true
         } else {
-            Write-Warn "Found Node.js $nodeVersion - version 18+ recommended."
+            Write-Warn "Found Node.js $nodeVersion - version 22+ required (Node.js 24 LTS recommended)."
             $nodeExe = (Get-Command node -ErrorAction Stop).Source
             $nodeOk = $true   # allow older versions to try
         }
@@ -377,9 +417,9 @@ if ($nodeOk) {
     }
 }
 if (-not $nodeOk) {
-    Write-Err "Node.js is required but not found."
+    Write-Err "Node.js 22+ is required but not found."
     Write-Host ""
-    Write-Host "    Download it from:  https://nodejs.org" -ForegroundColor White
+    Write-Host "    Download it from:  https://nodejs.org  (Node.js 24 LTS recommended)" -ForegroundColor White
     Write-Host ""
     Read-Host "  Press Enter to exit"
     exit 1
