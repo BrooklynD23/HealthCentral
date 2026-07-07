@@ -471,6 +471,69 @@ class TestRedactionOnExport:
         assert "doctor@example.com" not in dpo_content
         assert "[EMAIL-REDACTED]" in dpo_content
 
+    def test_dob_redacted_in_prompt(self, tmp_path):
+        """RL-REDACT-001: exports use the STRICT policy, so DOB (a strict-only
+        rule the old 'standard' export missed) must be scrubbed. This test is
+        the downgrade tripwire — it fails if anyone weakens the export policy
+        back below strict."""
+        from modules.rl_dataset import export_rl_datasets
+
+        pos = _make_record(
+            rating=1,
+            prompt_snapshot="Patient DOB: 03/15/1985 asked: What is TSH?",
+            response_text="TSH is thyroid-stimulating hormone.",
+        )
+        export_rl_datasets([pos], tmp_path, "prof-1")
+
+        sft_content = (tmp_path / "sft_positives.jsonl").read_text()
+        assert "03/15/1985" not in sft_content
+        assert "REDACTED" in sft_content
+
+    def test_address_redacted_in_response(self, tmp_path):
+        """RL-REDACT-001: street addresses (strict-only rule) must be scrubbed."""
+        from modules.rl_dataset import export_rl_datasets
+
+        pos = _make_record(
+            rating=1,
+            prompt_snapshot="What is LDL?",
+            response_text="Visit the lab at 456 Oak Ave. for a retest of LDL.",
+        )
+        export_rl_datasets([pos], tmp_path, "prof-1")
+
+        sft_content = (tmp_path / "sft_positives.jsonl").read_text()
+        assert "456 Oak Ave" not in sft_content
+        assert "[ADDRESS-REDACTED]" in sft_content
+
+    def test_mrn_redacted_in_prompt(self, tmp_path):
+        """RL-REDACT-001: MRN identifiers must be scrubbed from exports."""
+        from modules.rl_dataset import export_rl_datasets
+
+        pos = _make_record(
+            rating=1,
+            prompt_snapshot="MRN: 8834412 asked about glucose",
+            response_text="Glucose is blood sugar.",
+        )
+        export_rl_datasets([pos], tmp_path, "prof-1")
+
+        sft_content = (tmp_path / "sft_positives.jsonl").read_text()
+        assert "8834412" not in sft_content
+        assert "[MRN-REDACTED]" in sft_content
+
+    def test_iso_collection_dates_preserved(self, tmp_path):
+        """ISO-8601 collection timestamps are the clinical signal — strict
+        export redaction must NOT strip them."""
+        from modules.rl_dataset import export_rl_datasets
+
+        pos = _make_record(
+            rating=1,
+            prompt_snapshot="What was my glucose on 2025-05-01?",
+            response_text="Your glucose collected 2025-05-01 was 95 mg/dL.",
+        )
+        export_rl_datasets([pos], tmp_path, "prof-1")
+
+        sft_content = (tmp_path / "sft_positives.jsonl").read_text()
+        assert "2025-05-01" in sft_content
+
     def test_redaction_count_reported(self, tmp_path):
         from modules.rl_dataset import export_rl_datasets
 

@@ -138,6 +138,52 @@ class TestAddressRedaction:
 
 
 # ---------------------------------------------------------------------------
+# MRN redaction (RL-REDACT-001, strict only)
+# ---------------------------------------------------------------------------
+
+class TestMRNRedaction:
+    def test_mrn_redacted_strict(self):
+        text = "MRN: 8834412 admitted for panel"
+        result = _engine("strict").redact(text)
+        assert "8834412" not in result.text
+        assert "[MRN-REDACTED]" in result.text
+
+    def test_medical_record_number_redacted_strict(self):
+        text = "Medical record number 44-AB-9921 on file"
+        result = _engine("strict").redact(text)
+        assert "44-AB-9921" not in result.text
+
+    def test_mrn_not_redacted_standard(self):
+        text = "MRN: 8834412 admitted for panel"
+        result = _engine("standard").redact(text)
+        assert "8834412" in result.text
+
+
+# ---------------------------------------------------------------------------
+# Numeric date redaction (RL-REDACT-001, strict only)
+# ---------------------------------------------------------------------------
+
+class TestNumericDateRedaction:
+    def test_slash_date_redacted_strict(self):
+        text = "Admitted 03/15/1985 per chart"
+        result = _engine("strict").redact(text)
+        assert "03/15/1985" not in result.text
+        assert "[DATE-REDACTED]" in result.text
+
+    def test_iso_collection_date_preserved_strict(self):
+        # ISO-8601 collection timestamps are the longitudinal clinical signal
+        # RL exports carry — deliberately NOT matched by the numeric_date rule.
+        text = "Glucose 95 mg/dL collected 2025-05-01"
+        result = _engine("strict").redact(text)
+        assert "2025-05-01" in result.text
+
+    def test_slash_date_not_redacted_standard(self):
+        text = "Admitted 03/15/1985 per chart"
+        result = _engine("standard").redact(text)
+        assert "03/15/1985" in result.text
+
+
+# ---------------------------------------------------------------------------
 # Policy levels
 # ---------------------------------------------------------------------------
 

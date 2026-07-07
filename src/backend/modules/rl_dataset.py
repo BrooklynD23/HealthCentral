@@ -16,10 +16,11 @@ Pairing logic:
       - Positive-only turns with no pairable negative → SFT file
   - Redaction is always applied before writing.
 
-Privacy: redaction.RedactionEngine(policy_level="standard") is applied to
-prompt_snapshot, response_text, and correction_text before any write.
-
-Python 3.10-compatible.
+Privacy: redaction.RedactionEngine(policy_level="strict") is applied to
+prompt_snapshot, response_text, and correction_text before any write
+(RL-REDACT-001: exported training data leaves the profile's trust boundary,
+so it always gets the widest rule set — DOB/address/MRN/date included —
+with no configuration knob to weaken it).
 """
 
 from __future__ import annotations
@@ -100,7 +101,8 @@ def export_rl_datasets(
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    engine = RedactionEngine(policy_level="standard")
+    # RL-REDACT-001: exports cross the trust boundary — always strict, no knob.
+    engine = RedactionEngine(policy_level="strict")
     result = ExportResult()
 
     total_redacted = 0
