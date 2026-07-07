@@ -398,9 +398,7 @@ try {
             $nodeExe = (Get-Command node -ErrorAction Stop).Source
             $nodeOk = $true
         } else {
-            Write-Warn "Found Node.js $nodeVersion - version 22+ required (Node.js 24 LTS recommended)."
-            $nodeExe = (Get-Command node -ErrorAction Stop).Source
-            $nodeOk = $true   # allow older versions to try
+            Write-Err "Found Node.js $nodeVersion - version 22+ is required; this version is too old and will not be used."
         }
     }
 } catch { }
