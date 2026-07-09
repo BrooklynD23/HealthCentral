@@ -358,6 +358,9 @@
       "docs/agentic/roadmap.md",
       "docs/compliance/ai-safety.md"
     ],
+    "openwiki/README.md": [
+      "docs/00_architecture_plans_index.md"
+    ],
     "scripts/docs_lint.py": [
       "docs/roles/devops-and-ci.md"
     ],
@@ -492,7 +495,8 @@
     "docs/00_architecture_plans_index.md": [
       "docs/features/TASK_LIST.md",
       "docs/roles/00_roles_index.md",
-      "docs/plans/implementation-log"
+      "docs/plans/implementation-log",
+      "openwiki/README.md"
     ],
     "docs/01_backend_architecture_plan.md": [
       "docs/api/endpoints.md"

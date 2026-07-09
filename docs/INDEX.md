@@ -20,7 +20,7 @@ Links to: `docs/00_architecture_plans_index.md`, `docs/01_backend_architecture_p
 
 This index defines the canonical documentation order and marks legacy planning files that are kept only for history.
 
-Links to: `docs/features/TASK_LIST.md`, `docs/plans/implementation-log`, `docs/roles/00_roles_index.md`
+Links to: `docs/features/TASK_LIST.md`, `docs/plans/implementation-log`, `docs/roles/00_roles_index.md`, `openwiki/README.md`
 
 ## `docs/01_backend_architecture_plan.md`
 

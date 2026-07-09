@@ -36,6 +36,10 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
 - **No medical advice.** Outputs are educational, grounded, cited (`[REFERENCE:N]` / `[YOUR_RESULTS:N]`). `interpret_safety` prohibited patterns (diagnosis, dosing) must keep passing.
 - **Dual migrations.** Master DB and per-profile DB have separate Alembic chains (`migrations/master/`, `migrations/profile/`). New profile tables = new profile migration, linear `down_revision`.
 
+## OpenWiki usage
+
+Generated repo-navigation docs live in `openwiki/`. Use them to locate code, trace dependencies, and identify likely files for a task. Do not treat OpenWiki as authority over safety, privacy, medical, compliance, architecture decisions, or backlog state. If OpenWiki conflicts with `CLAUDE.md`, `AGENT.md`, `docs/00_architecture_plans_index.md`, or `docs/roles/00_roles_index.md`, the hand-maintained docs win.
+
 ## Commit style
 
 `fix(scope):` / `feat(scope):` / `docs:` prefixes; small, single-purpose commits on a feature branch.
