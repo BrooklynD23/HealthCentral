@@ -8,14 +8,22 @@ This index defines the canonical documentation order and marks legacy planning f
 
 > Canonical index — see also [`docs/features/TASK_LIST.md`](features/TASK_LIST.md) for active work items.
 
-## Start Here (Canonical Order)
+## Start Here (Canonical Doc Order)
 
 1. `README.md`
    Repository entrypoint, current architecture overview, setup, and verification commands.
 2. `docs/api/endpoints.md`
    Exact mounted backend route inventory and auth requirements.
-3. `docs/features/TASK_LIST.md`
+3. `docs/00_architecture_plans_index.md`
+   This file — full documentation index (you are here).
+4. `docs/features/TASK_LIST.md`
    Remaining backlog only (active implementation and consolidation tasks).
+5. `docs/05_backend_integration_status.md`
+   Historical Reference — Sprint 06 snapshot retained for audit context, not the live tracker.
+
+Also see [`docs/roles/00_roles_index.md`](roles/00_roles_index.md) for a domain-based ("which doc for
+X") entry point, and [`docs/plans/implementation-log/`](plans/implementation-log/) for point-in-time
+implementation notes (formerly the top-level `implementation_plan/` directory).
 
 ## Planning (Current)
 
@@ -51,7 +59,11 @@ This index defines the canonical documentation order and marks legacy planning f
 - `docs/plans/remaining-features-implementation.md` (superseded execution plan)
 - `docs/plans/next-agent-documentation-consolidation.md` (completed hardening plan)
 - `docs/plans/sprint-phase-2026-02-13-implementation-plan.md` (superseded planning draft)
-- `docs/plans/sprint-series-2026-02-15/sprint-06-handoff-prompt.md` (completed sprint handoff)
+- `docs/plans/2026-02-15-sprint-06-handoff-prompt.md` (completed sprint handoff; flattened from `sprint-series-2026-02-15/`)
+- `docs/plans/2026-03-04-handoff.md` (superseded handoff, 22/23 tasks — RAG category-filter still open)
+- `docs/plans/2026-03-28-roadmap-gsd-m001-m003-historical.md` (formerly root `ROADMAP.md`; `.gsd/` source no longer exists)
+- `docs/plans/2026-05-15-cursor-lab-workflow-plan.md` (formerly `.cursor/plans/`; confirmed shipped)
+- `docs/plans/implementation-log/` (formerly top-level `implementation_plan/`; 5 point-in-time notes, all shipped)
 
 ## Source PRDs
 

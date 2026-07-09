@@ -113,6 +113,10 @@ export interface TrendPoint {
   flag: string | null;
   doc_id: string;
   extraction_confidence: number | null;
+  // Set when the point was normalized from a differently-reported unit
+  // (NORM-UNIT-001); both null when no conversion happened.
+  original_value?: number | null;
+  original_unit?: string | null;
 }
 
 export interface TrendData {
@@ -123,6 +127,7 @@ export interface TrendData {
   ref_high: number | null;
   data_points: TrendPoint[];
   summary: string;
+  excluded_count?: number;
 }
 
 export interface Panel {

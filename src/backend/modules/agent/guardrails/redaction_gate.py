@@ -18,9 +18,12 @@ only external-call path in this codebase today is ``core/external_runner.py``
 provider call — that call site is OUT OF SCOPE for the agent overhaul (S5
 wires `/assistant/` cutover, not S4) and is left untouched here.
 
-So today this module has no caller in the agent graph — by design. It exists
-as the SINGLE mandatory chokepoint any future agent external-egress tool MUST
-route its payload through before anything leaves the device. The network-
+So today ``gate_external_payload`` has no caller in the agent graph — by
+design. It exists as the SINGLE mandatory chokepoint any future agent
+external-egress tool MUST route its payload through before anything leaves
+the device. (``sanitize_untrusted_field`` below IS called from the graph —
+by ``draft`` on vault-derived free-text fields; that is inbound-field
+hygiene, not external egress, and does not change this gate's charter.) The network-
 disabled offline integration test (S4-2, ``test_s4_2_offline_loop_completes``)
 asserts the full default loop never needs this gate at all: zero network
 access end-to-end. If a future sprint adds an agent tool that calls out
@@ -47,3 +50,33 @@ def gate_external_payload(payload: str, policy_level: str = "standard") -> str:
 
     result = RedactionEngine(policy_level=policy_level).redact(payload)
     return result.text
+
+
+def sanitize_untrusted_field(text: str | None) -> str | None:
+    """Neutralize injection markers and PHI patterns in a vault-derived field.
+
+    Observation ``analyte``/``unit`` strings originate from document
+    extraction — attacker-influenceable input that ``draft`` composes
+    verbatim into the terminal text (HC-M05). This scrubs, in order:
+
+      1. prompt-injection markers, using the SAME pattern list
+         ``modules.rag.RAGModule`` applies to history/memory (imported, not
+         copied, so the two surfaces cannot drift), and
+      2. PHI patterns via the strict ``RedactionEngine`` rule set.
+
+    Same thin-adapter charter as ``gate_external_payload``: no redaction
+    logic of its own, no bypass parameter, and it never returns the raw
+    ``text`` on an exception path — errors propagate (fail closed).
+    """
+    import re
+
+    from modules.rag import RAGModule
+    from modules.redaction import RedactionEngine
+
+    if not text:
+        return text
+
+    sanitized = text
+    for pattern in RAGModule.PROMPT_INJECTION_PATTERNS:
+        sanitized = re.sub(pattern, "[SANITIZED]", sanitized, flags=re.IGNORECASE)
+    return RedactionEngine(policy_level="strict").redact(sanitized).text

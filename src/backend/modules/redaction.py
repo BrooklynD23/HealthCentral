@@ -105,6 +105,26 @@ _RULES: tuple[RedactionRule, ...] = (
         replacement="[ADDRESS-REDACTED]",
         policy_levels=frozenset({"strict"}),
     ),
+    # RL-REDACT-001 additions (strict only — additive, no existing rule or
+    # level changed). Context-labeled MRN, and slash/dash NUMERIC dates
+    # (DOB/admission style, e.g. 01/02/1980). ISO-8601 collection timestamps
+    # (2025-05-01) are deliberately NOT matched: they are the longitudinal
+    # clinical signal RL exports exist to carry, and the yyyy-first shape
+    # never matches the d{1,2}-first pattern below.
+    RedactionRule(
+        name="mrn",
+        pattern=re.compile(
+            r"(?i)\b(?:mrn|medical\s+record\s+(?:number|no\.?))\s*[:#]?\s*[A-Z0-9][A-Z0-9-]{3,}\b"
+        ),
+        replacement="[MRN-REDACTED]",
+        policy_levels=frozenset({"strict"}),
+    ),
+    RedactionRule(
+        name="numeric_date",
+        pattern=re.compile(r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b"),
+        replacement="[DATE-REDACTED]",
+        policy_levels=frozenset({"strict"}),
+    ),
 )
 
 # Valid policy levels

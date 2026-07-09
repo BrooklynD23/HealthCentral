@@ -26,7 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
 from core.config import settings, user_ocr_preference_enabled, compute_ocr_effective
-from core.audit import log_document_event
+from core.audit import log_document_event, audit_and_commit
 from core.auth import RequireAuth, Session, ProfileDbSession
 from core.document_crypto import get_decrypted_document, get_profile_encryption_key
 from models import Document, Observation, Chunk, Embedding, UserModelSettings
@@ -750,6 +750,7 @@ async def list_documents(
     doc_status: Optional[str] = Query(None, alias="status", description="Filter by status"),
     doc_type: Optional[str] = Query(None, description="Filter by document type"),
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     List documents for the authenticated profile.
@@ -772,6 +773,20 @@ async def list_documents(
     result = await profile_db.execute(query)
     documents = result.scalars().all()
 
+    await audit_and_commit(
+        master_db,
+        log_document_event,
+        event="view",
+        profile_id=profile_id,
+        document_id="all",
+        details={
+            "action": "list",
+            "count": len(documents),
+            "status": doc_status,
+            "doc_type": doc_type,
+        },
+    )
+
     return [DocumentResponse.from_model(doc) for doc in documents]
 
 
@@ -780,6 +795,7 @@ async def get_document(
     document_id: str,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Get document details from per-profile encrypted database."""
     # Validate document_id format (path traversal protection)
@@ -796,6 +812,15 @@ async def get_document(
 
     # Verify session has access to this document
     verify_document_access(document, session)
+
+    await audit_and_commit(
+        master_db,
+        log_document_event,
+        event="view",
+        profile_id=session.profile_id,
+        document_id=document_id,
+        filename=document.source,
+    )
 
     return DocumentResponse.from_model(document)
 
@@ -940,6 +965,7 @@ async def get_document_category(
     document_id: str,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Get the classification category for a document."""
     validate_uuid(document_id, "document_id")
@@ -959,6 +985,16 @@ async def get_document_category(
     if not category:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No category found for this document")
 
+    await audit_and_commit(
+        master_db,
+        log_document_event,
+        event="view",
+        profile_id=session.profile_id,
+        document_id=document_id,
+        filename=document.source,
+        details={"action": "category"},
+    )
+
     return DocumentCategoryResponse(
         id=category.id,
         doc_id=category.doc_id,
@@ -973,6 +1009,7 @@ async def get_document_entities(
     document_id: str,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Get extracted entities for a document."""
     validate_uuid(document_id, "document_id")
@@ -988,6 +1025,16 @@ async def get_document_entities(
         select(DocumentEntity).where(DocumentEntity.doc_id == document_id)
     )
     entities = result.scalars().all()
+
+    await audit_and_commit(
+        master_db,
+        log_document_event,
+        event="view",
+        profile_id=session.profile_id,
+        document_id=document_id,
+        filename=document.source,
+        details={"action": "entities", "count": len(entities)},
+    )
 
     return [
         DocumentEntityResponse(
@@ -1008,6 +1055,7 @@ async def get_document_pages(
     document_id: str,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     Get document pages for provenance viewing.
@@ -1098,6 +1146,16 @@ async def get_document_pages(
                 )
             )
 
+    await audit_and_commit(
+        master_db,
+        log_document_event,
+        event="view",
+        profile_id=session.profile_id,
+        document_id=document_id,
+        filename=document.source,
+        details={"action": "pages", "count": len(pages)},
+    )
+
     return pages
 
 
@@ -1107,6 +1165,7 @@ async def get_page_image(
     page_number: int,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     Render a PDF page as a PNG image for bounding-box citation overlay.
@@ -1140,38 +1199,30 @@ async def get_page_image(
         resolution,
     )
     cached = _page_image_cache_get(cache_key)
-    if cached is not None:
-        return Response(
-            content=cached,
-            media_type="image/png",
-            headers={"Cache-Control": f"private, max-age={_PAGE_IMAGE_CACHE_TTL_SECONDS}"},
-        )
-
+    content: bytes
+    is_freshly_rendered = False
     try:
-        import pdfplumber
-        from io import BytesIO
+        if cached is not None:
+            content = cached
+        else:
+            import pdfplumber
+            from io import BytesIO
 
-        decrypted_doc = get_decrypted_document(document.profile_id, document_id)
-        with pdfplumber.open(decrypted_doc) as pdf:
-            if page_number > len(pdf.pages):
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Page {page_number} not found (document has {len(pdf.pages)} pages)",
-                )
-            page = pdf.pages[page_number - 1]
-            img = page.to_image(resolution=resolution)
+            decrypted_doc = get_decrypted_document(document.profile_id, document_id)
+            with pdfplumber.open(decrypted_doc) as pdf:
+                if page_number > len(pdf.pages):
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Page {page_number} not found (document has {len(pdf.pages)} pages)",
+                    )
+                page = pdf.pages[page_number - 1]
+                img = page.to_image(resolution=resolution)
 
-            buf = BytesIO()
-            img.save(buf, format="PNG")
-            buf.seek(0)
-            content = buf.getvalue()
-            _page_image_cache_set(cache_key, content)
-
-            return Response(
-                content=content,
-                media_type="image/png",
-                headers={"Cache-Control": f"private, max-age={_PAGE_IMAGE_CACHE_TTL_SECONDS}"},
-            )
+                buf = BytesIO()
+                img.save(buf, format="PNG")
+                buf.seek(0)
+                content = buf.getvalue()
+                is_freshly_rendered = True
     except HTTPException:
         raise
     except FileNotFoundError:
@@ -1185,6 +1236,29 @@ async def get_page_image(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to render page image",
         )
+
+    # Cache only after the view has been successfully audited: if the
+    # audit write fails, a freshly rendered page isn't left sitting in
+    # the cache unable to ever be served (the fail-closed audit means
+    # every serve, cache hit or not, must succeed its audit anyway).
+    await audit_and_commit(
+        master_db,
+        log_document_event,
+        event="view",
+        profile_id=session.profile_id,
+        document_id=document_id,
+        filename=document.source,
+        details={"action": "page_image", "page_number": page_number},
+    )
+
+    if is_freshly_rendered:
+        _page_image_cache_set(cache_key, content)
+
+    return Response(
+        content=content,
+        media_type="image/png",
+        headers={"Cache-Control": f"private, max-age={_PAGE_IMAGE_CACHE_TTL_SECONDS}"},
+    )
 
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)

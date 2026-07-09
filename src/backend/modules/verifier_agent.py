@@ -87,10 +87,6 @@ class VerificationConfig:
     # Whether to use LLM for complex entailment (vs rule-based)
     use_llm_entailment: bool = False
 
-    # Enable multiple verification passes for consistency
-    multi_pass_verification: bool = False
-    verification_passes: int = 3
-
 
 class VerifierAgent:
     """

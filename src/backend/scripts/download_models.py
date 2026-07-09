@@ -32,6 +32,10 @@ The downloader uses list_repo_files() at runtime to discover actual filenames,
 so the script will work once the repo exists even if the filename differs from
 the placeholder comment.
 
+NOTE: Confirming the above URLs requires a network context with huggingface.co
+reachable. Automated sandboxed sessions may not have that access and therefore
+may not be able to verify these placeholders.
+
 Python 3.10-compatible: no 3.11+ syntax.
 """
 

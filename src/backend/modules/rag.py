@@ -294,7 +294,12 @@ USER QUESTION: {question}"""
 
         At most 5 analytes are surfaced to keep the prompt compact.
         """
-        from .normalize import NormalizeModule
+        from .normalize import (
+            NormalizeModule,
+            canonical_unit_for,
+            convert_to_canonical,
+            normalize_unit,
+        )
         from sqlalchemy import select
         from models.observation import Observation
         from datetime import datetime
@@ -378,10 +383,29 @@ USER QUESTION: {question}"""
                     elif latest.ref_low is not None and latest.value < latest.ref_low:
                         flag_str = "LOW"
 
-                # Trend over last 3 readings (newest first)
+                # Trend over last 3 readings (newest first). Values are
+                # converted to a canonical unit before comparing across
+                # dates so cross-lab unit differences (e.g. mg/dL vs
+                # mmol/L) don't produce a spurious delta (NORM-UNIT-001).
                 trend_str = ""
                 if len(rows) >= 2:
-                    vals = [r.value for r in rows[:3] if r.value is not None]
+                    recent_rows = [r for r in rows[:3] if r.value is not None]
+                    distinct_units = {
+                        normalize_unit(r.unit) for r in recent_rows if r.unit
+                    }
+                    canonical_unit = canonical_unit_for(analyte)
+                    if len(distinct_units) > 1 and canonical_unit is not None:
+                        vals = []
+                        for r in recent_rows:
+                            conv = convert_to_canonical(analyte, r.value, r.unit)
+                            if conv is not None:
+                                vals.append(conv.canonical_value)
+                    elif len(distinct_units) > 1:
+                        # Untabled analyte with mixed units: no safe basis
+                        # for comparison.
+                        vals = []
+                    else:
+                        vals = [r.value for r in recent_rows]
                     if len(vals) >= 2:
                         arrow = ""
                         delta = vals[0] - vals[-1]
@@ -619,7 +643,9 @@ USER QUESTION: {question}"""
                 if chunk.page:
                     source_label += f" (page {chunk.page})"
 
-            context_parts.append(f"{source_label}\n{chunk.text}")
+            context_parts.append(
+                f"{source_label}\n{self._sanitize_chunk_text(chunk.text, chunk.source_type)}"
+            )
 
         context = "\n\n---\n\n".join(context_parts)
 
@@ -693,6 +719,30 @@ USER QUESTION: {question}"""
     def _contains_prompt_injection(self, text: str) -> bool:
         """Check whether text contains likely prompt-injection content."""
         return any(pattern.search(text) for pattern in self._compiled_prompt_injection_patterns)
+
+    def _sanitize_chunk_text(self, text: str, source_type: str) -> str:
+        """Neutralize prompt-injection spans inside retrieved chunk text.
+
+        Retrieved reference/user-document text is untrusted input (a document
+        can carry embedded instructions), yet it is composed into the model
+        prompt. Neutralize — do NOT drop — the matching spans: dropping a
+        whole chunk would discard the grounding evidence around the attack
+        and change retrieval behavior; substituting the instruction span
+        keeps the citable prose intact while defanging it. Observation
+        summaries are scanned too (HC-SEC-002): although their layout is
+        self-generated, they embed raw DB fields (unit, ref_range_text,
+        flag) that originate from parsed uploads or user input and are not
+        sanitized anywhere upstream.
+        """
+        if source_type not in ("reference", "user_document", "user_observation"):
+            return text
+        if not self._contains_prompt_injection(text):
+            return text
+        sanitized = text
+        for pattern in self._compiled_prompt_injection_patterns:
+            sanitized = pattern.sub("[UNTRUSTED-INSTRUCTION-REMOVED]", sanitized)
+        self._logger.warning("Neutralized prompt-injection content in retrieved chunk text")
+        return sanitized
 
     async def generate_response(
         self,
@@ -856,7 +906,12 @@ I was unable to fully process your question within the time limit. Please try as
                         doc_id=chunk.doc_id,
                         doc_title=chunk.doc_title,
                         page=chunk.page,
-                        text_snippet=chunk.text[:200],
+                        # HC-SEC-001: snippets reach the frontend, so sanitize
+                        # like prompt text — BEFORE truncation, so a partially
+                        # truncated injection span cannot evade the patterns.
+                        text_snippet=self._sanitize_chunk_text(
+                            chunk.text, chunk.source_type
+                        )[:200],
                         authority_tier=classified.authority_tier.value,
                         authority_score=classified.authority_score,
                     ))

@@ -20,6 +20,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import Observation, LabInterpretation, PanelInterpretation
+from modules.normalize import (
+    canonical_unit_for,
+    convert_to_canonical,
+    normalize_unit,
+)
 from .knowledge_loader import (
     KnowledgeLoader,
     BiomarkerInfo,
@@ -67,6 +72,8 @@ class InterpretationContext:
     observation: Observation
     biomarker_info: Optional[BiomarkerInfo] = None
     historical_values: list[tuple[datetime, float]] = field(default_factory=list)
+    comparison_unit: Optional[str] = None
+    comparison_current_value: Optional[float] = None
     trend_direction: str = "unknown"  # stable, improving, worsening, unknown
     related_abnormalities: list[str] = field(default_factory=list)
     recommendations: Optional[RecommendationSet] = None
@@ -473,16 +480,58 @@ class InterpretModule:
         )
         hist_obs = historical.scalars().all()
 
-        context.historical_values = [
-            (obs.collected_at, obs.value)
-            for obs in hist_obs
-            if obs.collected_at and obs.value is not None
-        ]
+        current_canonical_unit = canonical_unit_for(observation.analyte_canonical)
+        current_conv = None
+        if observation.value is not None and current_canonical_unit is not None:
+            current_conv = convert_to_canonical(
+                observation.analyte_canonical,
+                observation.value,
+                observation.unit,
+            )
+
+        if current_conv is not None:
+            context.comparison_unit = current_conv.canonical_unit
+            context.comparison_current_value = current_conv.canonical_value
+            context.historical_values = []
+            for obs in hist_obs:
+                if obs.collected_at and obs.value is not None:
+                    hist_conv = convert_to_canonical(
+                        observation.analyte_canonical,
+                        obs.value,
+                        obs.unit,
+                    )
+                    if hist_conv is None:
+                        continue
+                    context.historical_values.append(
+                        (obs.collected_at, hist_conv.canonical_value)
+                    )
+        else:
+            context.comparison_unit = observation.unit
+            context.comparison_current_value = observation.value
+            observation_unit_norm = normalize_unit(observation.unit or "")
+            # Untabled analyte (or unit unrecognized): we can't normalize,
+            # so only exclude a historical point when both it and the
+            # current observation have a unit AND those units clearly
+            # differ. A missing/blank unit on either side isn't treated
+            # as a mismatch (common OCR extraction gap) — this keeps the
+            # pre-fix permissiveness for the common case while still
+            # guarding against comparing two visibly different units.
+            context.historical_values = [
+                (obs.collected_at, obs.value)
+                for obs in hist_obs
+                if obs.collected_at
+                and obs.value is not None
+                and (
+                    not observation_unit_norm
+                    or not normalize_unit(obs.unit or "")
+                    or normalize_unit(obs.unit or "") == observation_unit_norm
+                )
+            ]
 
         # Determine trend
-        if context.historical_values and observation.value is not None:
+        if context.historical_values and context.comparison_current_value is not None:
             prev_value = context.historical_values[0][1]
-            current_value = observation.value
+            current_value = context.comparison_current_value
             if abs(current_value - prev_value) / max(prev_value, 0.001) < 0.05:
                 context.trend_direction = "stable"
             elif current_value > prev_value:
@@ -524,7 +573,17 @@ class InterpretModule:
         unit_str = obs.unit or ""
         display_name = kb.display_name if kb else obs.analyte_canonical.upper()
 
-        parts.append(f"Your {display_name} result is {value_str} {unit_str}.")
+        value_sentence = f"Your {display_name} result is {value_str}".strip()
+        if unit_str:
+            value_sentence += f" {unit_str}"
+        if (
+            context.comparison_unit
+            and context.comparison_current_value is not None
+            and normalize_unit(obs.unit or "") != normalize_unit(context.comparison_unit or "")
+        ):
+            value_sentence += f" (values compared in {context.comparison_unit})"
+        value_sentence += "."
+        parts.append(value_sentence)
 
         # Reference range context
         if obs.ref_low is not None and obs.ref_high is not None:
@@ -555,19 +614,21 @@ class InterpretModule:
                 parts.append("This value is within the normal reference range.")
 
         # Trend information
-        if context.historical_values:
+        if context.historical_values and context.comparison_current_value is not None:
             prev_date, prev_value = context.historical_values[0]
+            prev_value_str = f"{round(prev_value, 2):g}"
+            comparison_unit = context.comparison_unit or ""
             if context.trend_direction == "stable":
                 parts.append(
-                    f"This is stable compared to your previous result of {prev_value} {unit_str}."
+                    f"This is stable compared to your previous result of {prev_value_str} {comparison_unit}."
                 )
             elif context.trend_direction == "increasing":
                 parts.append(
-                    f"This has increased from your previous result of {prev_value} {unit_str}."
+                    f"This has increased from your previous result of {prev_value_str} {comparison_unit}."
                 )
             else:
                 parts.append(
-                    f"This has decreased from your previous result of {prev_value} {unit_str}."
+                    f"This has decreased from your previous result of {prev_value_str} {comparison_unit}."
                 )
 
         # Clinical significance
@@ -652,6 +713,7 @@ class InterpretModule:
         ctx = {
             "trend": context.trend_direction,
             "historical_count": len(context.historical_values),
+            "comparison_unit": context.comparison_unit,
         }
 
         if context.historical_values:
@@ -659,8 +721,8 @@ class InterpretModule:
             ctx["prev_value"] = prev_value
             ctx["prev_date"] = prev_date.isoformat() if prev_date else None
 
-            if context.observation.value is not None and prev_value:
-                change = context.observation.value - prev_value
+            if context.comparison_current_value is not None and prev_value is not None:
+                change = context.comparison_current_value - prev_value
                 ctx["change"] = change
                 ctx["change_percent"] = (change / prev_value) * 100 if prev_value != 0 else 0
 

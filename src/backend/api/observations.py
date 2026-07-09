@@ -21,9 +21,14 @@ from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
-from core.audit import log_observation_event
+from core.audit import audit_and_commit, log_observation_event
 from core.auth import RequireAuth, Session, ProfileDbSession
 from models import Document, Observation
+from modules.normalize import (
+    canonical_unit_for,
+    convert_to_canonical,
+    normalize_unit,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +162,10 @@ class TrendPoint(BaseModel):
     flag: Optional[str] = None
     doc_id: str
     extraction_confidence: Optional[float] = None
+    # Provenance when the point was converted from a differently-reported unit
+    # (NORM-UNIT-001). Both None when no conversion happened.
+    original_value: Optional[float] = None
+    original_unit: Optional[str] = None
 
 
 class TrendResponse(BaseModel):
@@ -167,6 +176,7 @@ class TrendResponse(BaseModel):
     ref_low: Optional[float] = None
     ref_high: Optional[float] = None
     data_points: list[TrendPoint]
+    excluded_count: int = 0
     summary: str  # Human-readable summary for accessibility
 
 
@@ -197,6 +207,7 @@ async def get_panel_snapshots(
     panel_id: str,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     Distinct panel snapshots grouped by source document and collection calendar day.
@@ -256,6 +267,17 @@ async def get_panel_snapshots(
         return (key_date, s.doc_id)
 
     snapshots.sort(key=sort_snap, reverse=True)
+
+    await audit_and_commit(
+        master_db,
+        log_observation_event,
+        event="view",
+        profile_id=profile_id,
+        observation_id="all",
+        analyte=panel_id.lower(),
+        details={"action": "panel_snapshots", "count": len(snapshots)},
+    )
+
     return snapshots
 
 
@@ -269,6 +291,7 @@ async def list_observations(
     abnormal_only: bool = Query(False, description="Only show abnormal values"),
     needs_verification: bool = Query(False, description="Only show unverified"),
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     List observations for the authenticated profile.
@@ -306,6 +329,16 @@ async def list_observations(
     result = await profile_db.execute(query)
     observations = result.scalars().all()
 
+    await audit_and_commit(
+        master_db,
+        log_observation_event,
+        event="view",
+        profile_id=profile_id,
+        observation_id="all",
+        analyte=analyte or "all",
+        details={"action": "list", "count": len(observations)},
+    )
+
     return [ObservationResponse.from_model(obs) for obs in observations]
 
 
@@ -314,6 +347,7 @@ async def get_observation(
     observation_id: str,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Get single observation details from per-profile encrypted database."""
     # Validate observation_id format
@@ -330,6 +364,15 @@ async def get_observation(
 
     # Verify session has access to this observation
     verify_observation_access(observation, session)
+
+    await audit_and_commit(
+        master_db,
+        log_observation_event,
+        event="view",
+        profile_id=observation.profile_id,
+        observation_id=observation_id,
+        analyte=observation.analyte_canonical,
+    )
 
     return ObservationResponse.from_model(observation)
 
@@ -468,6 +511,7 @@ async def get_analyte_trend(
     from_date: Optional[datetime] = Query(None, description="Start date"),
     to_date: Optional[datetime] = Query(None, description="End date"),
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     Get trend data for a specific analyte.
@@ -503,42 +547,108 @@ async def get_analyte_trend(
             detail=f"No data found for analyte '{analyte}'"
         )
 
-    # Build trend data
-    # Observations with collected_at go into the time-series line.
-    # Observations without a date are still counted and reported in the
-    # summary so the user knows data exists but cannot be plotted.
+    analyte_key = analyte.lower()
+    canonical_unit = canonical_unit_for(analyte_key)
+    conversions = [
+        (obs, convert_to_canonical(analyte_key, obs.value, obs.unit))
+        for obs in observations
+    ]
+    distinct_units = {normalize_unit(o.unit) for o in observations if o.unit}
+    any_convertible = any(conv is not None for _, conv in conversions)
+    normalize_units = canonical_unit is not None and len(distinct_units) > 1 and any_convertible
+    mixed_unnormalized = len(distinct_units) > 1 and not normalize_units
+
     data_points = []
     undated_count = 0
     ref_low = None
     ref_high = None
     unit = None
+    excluded_count = 0
+    excluded_dated_count = 0
+    ref_source_both = None
+    ref_low_source = None
+    ref_high_source = None
 
-    for obs in observations:
-        # Collect reference range and unit from every observation regardless of date
-        if obs.ref_low is not None:
-            ref_low = obs.ref_low
-        if obs.ref_high is not None:
-            ref_high = obs.ref_high
-        if obs.unit:
-            unit = obs.unit
+    for obs, conv in conversions:
+        emitted = True
+        if normalize_units:
+            if conv is None:
+                excluded_count += 1
+                if obs.collected_at:
+                    excluded_dated_count += 1
+                emitted = False
+            else:
+                point_value = conv.canonical_value
+                point_unit = canonical_unit or ""
+                original_value = conv.original_value if conv.converted else None
+                original_unit = conv.original_unit if conv.converted else None
+                unit = canonical_unit
+        else:
+            point_value = obs.value
+            point_unit = obs.unit or ""
+            original_value = None
+            original_unit = None
+            if obs.unit:
+                unit = obs.unit
 
-        if obs.collected_at and obs.value is not None:
-            data_points.append(TrendPoint(
-                date=obs.collected_at.isoformat(),
-                value=obs.value,
-                unit=obs.unit or "",
-                is_abnormal=obs.is_abnormal or False,
-                flag=obs.flag,
-                doc_id=obs.doc_id,
-                extraction_confidence=obs.extraction_confidence,
-            ))
-        elif obs.value is not None:
-            # Has a value but no date — count it so the summary is accurate
-            undated_count += 1
+        if emitted:
+            if obs.ref_low is not None and obs.ref_high is not None:
+                ref_source_both = obs
+            else:
+                if obs.ref_low is not None:
+                    ref_low_source = obs
+                if obs.ref_high is not None:
+                    ref_high_source = obs
+
+            if obs.collected_at and obs.value is not None:
+                data_points.append(TrendPoint(
+                    date=obs.collected_at.isoformat(),
+                    value=point_value,
+                    unit=point_unit,
+                    is_abnormal=obs.is_abnormal or False,
+                    flag=obs.flag,
+                    doc_id=obs.doc_id,
+                    extraction_confidence=obs.extraction_confidence,
+                    original_value=original_value,
+                    original_unit=original_unit,
+                ))
+            elif obs.value is not None:
+                # Has a value but no date — count it so the summary is accurate
+                undated_count += 1
+
+    def _resolve_ref_bound(value, source_obs):
+        # Converts a single reference-range bound using its own source
+        # observation's unit; falls back to the raw value if conversion
+        # fails or normalization isn't active. Each bound is resolved
+        # from its own source only — bounds are never mixed from
+        # sources with incompatible units.
+        if value is None or source_obs is None:
+            return None
+        if not normalize_units:
+            return value
+        result = convert_to_canonical(analyte_key, value, source_obs.unit)
+        return result.canonical_value if result is not None else value
+
+    if ref_source_both is not None:
+        # A single observation supplies both bounds — prefer it over
+        # combining bounds from different observations.
+        ref_low = _resolve_ref_bound(ref_source_both.ref_low, ref_source_both)
+        ref_high = _resolve_ref_bound(ref_source_both.ref_high, ref_source_both)
+    elif ref_low_source is not None or ref_high_source is not None:
+        # No single observation has both bounds; combine the latest
+        # observation supplying each bound independently rather than
+        # dropping one when they come from different observations.
+        ref_low = _resolve_ref_bound(
+            ref_low_source.ref_low if ref_low_source else None, ref_low_source
+        )
+        ref_high = _resolve_ref_bound(
+            ref_high_source.ref_high if ref_high_source else None, ref_high_source
+        )
 
     # Generate summary
     total_count = len(data_points) + undated_count
-    if len(data_points) >= 2:
+    suppress_delta = mixed_unnormalized or (canonical_unit is not None and not any_convertible)
+    if len(data_points) >= 2 and not suppress_delta:
         first_val = data_points[0].value
         last_val = data_points[-1].value
         change = last_val - first_val
@@ -554,20 +664,60 @@ async def get_analyte_trend(
         summary = f"{analyte.upper()} has {trend} over {len(data_points)} dated measurements."
         if undated_count:
             summary += f" {undated_count} additional measurement(s) have no collection date and are not shown on the chart."
+    elif len(data_points) >= 2 and suppress_delta:
+        if mixed_unnormalized:
+            summary = (
+                f"{analyte.upper()} has {len(data_points)} dated measurements recorded in multiple units; "
+                "change across units is not computed."
+            )
+        else:
+            summary = (
+                f"{analyte.upper()} has {len(data_points)} dated measurements recorded, "
+                "but the unit is not recognized for this analyte; change across units is not computed."
+            )
+        if undated_count:
+            summary += f" {undated_count} additional measurement(s) have no collection date and are not shown on the chart."
     elif len(data_points) == 1:
         summary = f"Single dated measurement of {analyte.upper()} recorded."
         if undated_count:
             summary += f" {undated_count} additional measurement(s) have no collection date."
-    elif undated_count:
-        # No dated points at all — return a response with empty data_points but
-        # a helpful summary rather than 404, so the UI can show the latest-values table.
+    elif undated_count or excluded_count:
+        # No dated, plottable points at all — return a response with empty
+        # data_points but a helpful summary rather than 404, so the UI can
+        # show the latest-values table. State the actual reason(s): a
+        # measurement can be missing from the chart either because it has
+        # no collection date, or because its unit couldn't be recognized
+        # for this analyte (excluded_dated_count) — don't claim "no
+        # collection date" for measurements excluded for the latter reason.
+        reasons = []
+        if undated_count:
+            reasons.append("have no collection date")
+        if excluded_dated_count:
+            reasons.append("use a unit not recognized for this analyte")
+        reason_text = " and ".join(reasons) if reasons else "cannot be plotted"
         summary = (
-            f"{total_count} measurement(s) of {analyte.upper()} found, "
-            f"but none have a collection date so no trend line can be drawn. "
+            f"{total_count + excluded_count} measurement(s) of {analyte.upper()} found, "
+            f"but no trend line can be drawn: {reason_text}. "
             f"Use the analyte list to see the latest value."
         )
     else:
         summary = f"Single measurement of {analyte.upper()} recorded."
+
+    if normalize_units:
+        summary += f" Values normalized to {canonical_unit} for comparison across labs."
+
+    if excluded_count > 0 and len(data_points) > 0:
+        summary += f" {excluded_count} measurement(s) hidden — unit not recognized for this analyte."
+
+    await audit_and_commit(
+        master_db,
+        log_observation_event,
+        event="view",
+        profile_id=profile_id,
+        observation_id=analyte,
+        analyte=analyte,
+        details={"action": "trend", "count": len(data_points)},
+    )
 
     return TrendResponse(
         analyte_canonical=analyte.lower(),
@@ -576,6 +726,7 @@ async def get_analyte_trend(
         ref_low=ref_low,
         ref_high=ref_high,
         data_points=data_points,
+        excluded_count=excluded_count,
         summary=summary,
     )
 
@@ -586,6 +737,7 @@ async def get_panel(
     session: RequireAuth,
     collection_date: Optional[datetime] = Query(None, description="Specific collection date"),
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     Get lab panel data (CBC, CMP, lipids, etc.).
@@ -644,6 +796,16 @@ async def get_panel(
     coll_date = None
     if observations and observations[0].collected_at:
         coll_date = observations[0].collected_at.isoformat()
+
+    await audit_and_commit(
+        master_db,
+        log_observation_event,
+        event="view",
+        profile_id=profile_id,
+        observation_id=panel_id.lower(),
+        analyte=panel_def["name"],
+        details={"action": "panel", "count": len(obs_responses)},
+    )
 
     return PanelResponse(
         panel_id=panel_id.lower(),

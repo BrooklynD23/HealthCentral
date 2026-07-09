@@ -45,6 +45,8 @@ logger = logging.getLogger(__name__)
 # PLACEHOLDER URLs (verify before production):
 #   unsloth/gemma-4-e2b-it-GGUF, unsloth/gemma-4-e4b-it-GGUF
 #   ggml-org/gemma-4-12b-it-GGUF
+# NOTE: verifying these requires a network context with huggingface.co
+# reachable; automated sandboxed sessions may not be able to confirm them.
 TIER_MODEL_CONFIG: dict[str, dict[str, Any]] = {
     # -- low: edge / phone-class (>=8 GB RAM, >=1 GB disk) -----------------------
     "low": {

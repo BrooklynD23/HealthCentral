@@ -25,6 +25,7 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 from ..audit import AgentAuditEvent, emit_audit_event
+from ..guardrails.redaction_gate import sanitize_untrusted_field
 from ..schemas import Citation
 from ..state import RunLog, ToolContext
 
@@ -54,6 +55,20 @@ def _observation_rows_from_log(run_log: RunLog) -> list[dict]:
     return rows
 
 
+def _observation_sentence(row: dict) -> str:
+    """Compose the one grounded sentence for an observation row.
+
+    ``analyte``/``unit`` are extraction-derived free text — untrusted input
+    that would otherwise reach the user verbatim through the terminal, so
+    both are scrubbed of injection markers and PHI patterns first (HC-M05;
+    see guardrails/redaction_gate.sanitize_untrusted_field).
+    """
+    analyte = sanitize_untrusted_field(row["analyte"])
+    unit_value = sanitize_untrusted_field(row.get("unit"))
+    unit = f" {unit_value}" if unit_value else ""
+    return f"Your verified {analyte} result was {row['value']}{unit} (collected {row['collected_at']})."
+
+
 def _trend_sentences(run_log: RunLog) -> tuple[list[str], list[Citation]]:
     """Compose grounded trend sentences from compute_trend outputs in the log.
 
@@ -67,7 +82,7 @@ def _trend_sentences(run_log: RunLog) -> tuple[list[str], list[Citation]]:
     citations: list[Citation] = []
 
     for output in _act_outputs(run_log, "compute_trend"):
-        analyte = output.get("analyte", "result")
+        analyte = sanitize_untrusted_field(output.get("analyte", "result"))
         points = output.get("points", [])
         if not points:
             continue
@@ -113,11 +128,7 @@ async def draft(question: str, run_log: RunLog, ctx: ToolContext) -> Draft:
     for row in rows:
         if row["observation_id"] in cited_observation_ids:
             continue
-        unit = f" {row['unit']}" if row.get("unit") else ""
-        sentences.append(
-            f"Your verified {row['analyte']} result was {row['value']}{unit} "
-            f"(collected {row['collected_at']})."
-        )
+        sentences.append(_observation_sentence(row))
         citations.append(
             Citation(
                 source_type="document",

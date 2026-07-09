@@ -15,6 +15,7 @@ from unittest.mock import MagicMock
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+import pytest
 
 # Add backend to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -63,11 +64,19 @@ class _FakeProfileDb:
 
 
 class _FakeMasterDb:
-    def add(self, _obj):
-        return None
+    def __init__(self):
+        self.added = []
+
+    def add(self, obj):
+        self.added.append(obj)
 
     async def commit(self):
         return None
+
+
+class _FailingMasterDb(_FakeMasterDb):
+    async def commit(self):
+        raise RuntimeError("audit commit failed")
 
 
 class _FakeIngestModule:
@@ -222,3 +231,232 @@ def test_document_text_pages_split_helper_handles_ocr_formfeed():
     text = "page one text\fpage two text\f\n\fpage three"
     pages = documents_api._split_extracted_text_pages(text)
     assert pages == ["page one text", "page two text", "page three"]
+
+
+class _FakeSingleDocProfileDb:
+    """Profile DB that returns a single fixed document for any query."""
+
+    def __init__(self, document: Document):
+        self._document = document
+
+    async def execute(self, _stmt):
+        return _ScalarResult(one=self._document)
+
+
+def test_hc_documents_101_get_document_creates_view_audit_log():
+    """
+    HC-DOCUMENTS-101
+
+    GET /documents/{document_id} must write a 'document.view' AuditLog row
+    to the master database (audit logging on every route that touches
+    documents, per CLAUDE.md).
+    """
+    profile_id = str(uuid.uuid4())
+    document_id = str(uuid.uuid4())
+    document = Document(
+        id=document_id,
+        profile_id=profile_id,
+        path_hash="d" * 64,
+        content_hash="e" * 64,
+        doc_type="lab_pdf",
+        source="report.pdf",
+        status="parsed",
+        page_count=1,
+        metadata_json="{}",
+        imported_at=datetime.utcnow(),
+    )
+    profile_db = _FakeSingleDocProfileDb(document)
+    master_db = _FakeMasterDb()
+
+    app = FastAPI()
+    app.include_router(documents_router, prefix="/documents")
+
+    async def _override_auth():
+        return Session(
+            profile_id=profile_id,
+            profile_name="Test Profile",
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        )
+
+    async def _override_profile_db():
+        return profile_db
+
+    async def _override_master_db():
+        return master_db
+
+    app.dependency_overrides[require_auth] = _override_auth
+    app.dependency_overrides[get_profile_db_session] = _override_profile_db
+    app.dependency_overrides[get_db] = _override_master_db
+
+    with TestClient(app) as client:
+        response = client.get(f"/documents/{document_id}")
+
+    assert response.status_code == 200
+    assert len(master_db.added) == 1
+    audit_log = master_db.added[0]
+    assert audit_log.event_type == "document.view"
+    assert audit_log.entity_id == document_id
+    assert audit_log.profile_id == profile_id
+
+
+def test_hc_documents_103_get_document_fails_closed_on_audit_failure():
+    """
+    HC-DOCUMENTS-103
+
+    GET /documents/{document_id} must fail closed if the audit commit fails.
+    """
+    profile_id = str(uuid.uuid4())
+    document_id = str(uuid.uuid4())
+    document = Document(
+        id=document_id,
+        profile_id=profile_id,
+        path_hash="d" * 64,
+        content_hash="e" * 64,
+        doc_type="lab_pdf",
+        source="report.pdf",
+        status="parsed",
+        page_count=1,
+        metadata_json="{}",
+        imported_at=datetime.utcnow(),
+    )
+    profile_db = _FakeSingleDocProfileDb(document)
+    master_db = _FailingMasterDb()
+
+    app = FastAPI()
+    app.include_router(documents_router, prefix="/documents")
+
+    async def _override_auth():
+        return Session(
+            profile_id=profile_id,
+            profile_name="Test Profile",
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        )
+
+    async def _override_profile_db():
+        return profile_db
+
+    async def _override_master_db():
+        return master_db
+
+    app.dependency_overrides[require_auth] = _override_auth
+    app.dependency_overrides[get_profile_db_session] = _override_profile_db
+    app.dependency_overrides[get_db] = _override_master_db
+
+    with TestClient(app) as client:
+        with pytest.raises(RuntimeError):
+            client.get(f"/documents/{document_id}")
+
+    assert len(master_db.added) == 1
+
+
+def test_hc_documents_104_list_documents_fails_closed_on_audit_failure():
+    """
+    HC-DOCUMENTS-104
+
+    GET /documents/ must fail closed if the audit commit fails.
+    """
+    profile_id = str(uuid.uuid4())
+    document = Document(
+        id=str(uuid.uuid4()),
+        profile_id=profile_id,
+        path_hash="f" * 64,
+        content_hash="a" * 64,
+        doc_type="lab_pdf",
+        source="report2.pdf",
+        status="parsed",
+        page_count=1,
+        metadata_json="{}",
+        imported_at=datetime.utcnow(),
+    )
+
+    class _FakeListProfileDb:
+        async def execute(self, _stmt):
+            return _ScalarResult(all_items=[document])
+
+    profile_db = _FakeListProfileDb()
+    master_db = _FailingMasterDb()
+
+    app = FastAPI()
+    app.include_router(documents_router, prefix="/documents")
+
+    async def _override_auth():
+        return Session(
+            profile_id=profile_id,
+            profile_name="Test Profile",
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        )
+
+    async def _override_profile_db():
+        return profile_db
+
+    async def _override_master_db():
+        return master_db
+
+    app.dependency_overrides[require_auth] = _override_auth
+    app.dependency_overrides[get_profile_db_session] = _override_profile_db
+    app.dependency_overrides[get_db] = _override_master_db
+
+    with TestClient(app) as client:
+        with pytest.raises(RuntimeError):
+            client.get("/documents/")
+
+    assert len(master_db.added) == 1
+
+
+def test_hc_documents_102_list_documents_creates_view_audit_log():
+    """
+    HC-DOCUMENTS-102
+
+    GET /documents/ must write a single 'document.view' AuditLog row
+    (once per request, not once per item) to the master database.
+    """
+    profile_id = str(uuid.uuid4())
+    document = Document(
+        id=str(uuid.uuid4()),
+        profile_id=profile_id,
+        path_hash="f" * 64,
+        content_hash="a" * 64,
+        doc_type="lab_pdf",
+        source="report2.pdf",
+        status="parsed",
+        page_count=1,
+        metadata_json="{}",
+        imported_at=datetime.utcnow(),
+    )
+
+    class _FakeListProfileDb:
+        async def execute(self, _stmt):
+            return _ScalarResult(all_items=[document])
+
+    profile_db = _FakeListProfileDb()
+    master_db = _FakeMasterDb()
+
+    app = FastAPI()
+    app.include_router(documents_router, prefix="/documents")
+
+    async def _override_auth():
+        return Session(
+            profile_id=profile_id,
+            profile_name="Test Profile",
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        )
+
+    async def _override_profile_db():
+        return profile_db
+
+    async def _override_master_db():
+        return master_db
+
+    app.dependency_overrides[require_auth] = _override_auth
+    app.dependency_overrides[get_profile_db_session] = _override_profile_db
+    app.dependency_overrides[get_db] = _override_master_db
+
+    with TestClient(app) as client:
+        response = client.get("/documents/")
+
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+    assert len(master_db.added) == 1
+    audit_log = master_db.added[0]
+    assert audit_log.event_type == "document.view"
+    assert audit_log.profile_id == profile_id

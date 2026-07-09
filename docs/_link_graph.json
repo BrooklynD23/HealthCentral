@@ -1,0 +1,748 @@
+{
+  "linked_from": {
+    ".github/workflows/ci.yml": [
+      "docs/roles/devops-and-ci.md"
+    ],
+    "AGENT.md": [
+      "docs/agentic/harness.md"
+    ],
+    "CLAUDE.md": [
+      "docs/agentic/harness.md",
+      "docs/compliance/ai-safety.md"
+    ],
+    "CONTRIBUTING.md": [
+      "docs/roles/devops-and-ci.md"
+    ],
+    "SECURITY.md": [
+      "docs/roles/security-and-compliance.md"
+    ],
+    "docs/00_architecture_plans_index.md": [
+      "docs/features/00_features_index.md",
+      "docs/plans/2026-07-02-consolidated-findings-report.md",
+      "docs/roles/00_roles_index.md",
+      "README.md"
+    ],
+    "docs/01_backend_architecture_plan.md": [
+      "docs/roles/backend-api.md",
+      "README.md"
+    ],
+    "docs/02_frontend_accessibility_plan.md": [
+      "docs/roles/frontend.md"
+    ],
+    "docs/03_data_confidentiality_pipeline_plan.md": [
+      "docs/roles/data-and-migrations.md",
+      "docs/roles/security-and-compliance.md"
+    ],
+    "docs/04_local_models_inference_plan.md": [
+      "docs/roles/ai-llm-pipeline-and-safety.md"
+    ],
+    "docs/05_backend_integration_status.md": [
+      "README.md"
+    ],
+    "docs/INDEX.md": [
+      "docs/agentic/harness.md",
+      "docs/roles/00_roles_index.md"
+    ],
+    "docs/Local_First_Medical_Results_Companion_PRD_v0_1.md": [
+      "docs/roles/product-and-prd.md"
+    ],
+    "docs/agentic/evals.md": [
+      "docs/agentic/harness.md",
+      "docs/agentic/mcp-tools.md",
+      "docs/agentic/roadmap.md"
+    ],
+    "docs/agentic/harness.md": [
+      "docs/agentic/mcp-tools.md",
+      "docs/agentic/roadmap.md"
+    ],
+    "docs/agentic/mcp-tools.md": [
+      "docs/agentic/harness.md",
+      "docs/agentic/roadmap.md"
+    ],
+    "docs/agentic/progress.md": [
+      "docs/agentic/harness.md",
+      "docs/agentic/roadmap.md"
+    ],
+    "docs/agile/AGILE_PLAN.md": [
+      "docs/roles/product-and-prd.md",
+      "README.md"
+    ],
+    "docs/agile/EXPLORATION_SUMMARY.md": [
+      "docs/agile/GROUNDING.md",
+      "README.md"
+    ],
+    "docs/agile/GROUNDING.md": [
+      "README.md"
+    ],
+    "docs/agile/RECONCILIATION.md": [
+      "docs/agile/EXPLORATION_SUMMARY.md",
+      "docs/agile/GROUNDING.md",
+      "docs/agile/sprints/SPRINT_0.md",
+      "docs/prd/phases/PHASE_0_foundation.md",
+      "README.md"
+    ],
+    "docs/agile/RELEASE_CHECKLIST.md": [
+      "docs/prd/PRD_agent_overhaul.md",
+      "docs/roles/devops-and-ci.md",
+      "README.md"
+    ],
+    "docs/agile/RETRO.md": [
+      "docs/agile/sprints/SPRINT_0.md",
+      "README.md"
+    ],
+    "docs/agile/STANDUP.md": [
+      "docs/agile/sprints/SPRINT_0.md",
+      "README.md"
+    ],
+    "docs/agile/audience_expectations_main_vs_branch.md": [
+      "README.md"
+    ],
+    "docs/agile/sprints/SPRINT_0.md": [
+      "README.md"
+    ],
+    "docs/agile/sprints/SPRINT_1.md": [
+      "README.md"
+    ],
+    "docs/agile/sprints/SPRINT_2.md": [
+      "README.md"
+    ],
+    "docs/agile/sprints/SPRINT_3.md": [
+      "README.md"
+    ],
+    "docs/agile/sprints/SPRINT_4.md": [
+      "README.md"
+    ],
+    "docs/agile/sprints/SPRINT_5.md": [
+      "README.md"
+    ],
+    "docs/agile/sprints/SPRINT_6.md": [
+      "README.md"
+    ],
+    "docs/agile/sprints/SPRINT_7.md": [
+      "README.md"
+    ],
+    "docs/api/README.md": [
+      "README.md"
+    ],
+    "docs/api/authentication.md": [
+      "docs/api/README.md",
+      "docs/roles/backend-api.md"
+    ],
+    "docs/api/endpoints.md": [
+      "docs/01_backend_architecture_plan.md",
+      "docs/api/README.md",
+      "docs/roles/backend-api.md",
+      "README.md"
+    ],
+    "docs/api/error-codes.md": [
+      "docs/api/README.md",
+      "docs/roles/backend-api.md"
+    ],
+    "docs/api/integration-guide.md": [
+      "docs/api/README.md",
+      "docs/roles/backend-api.md"
+    ],
+    "docs/compliance/README.md": [
+      "docs/agentic/roadmap.md"
+    ],
+    "docs/compliance/advisories.md": [
+      "docs/compliance/README.md"
+    ],
+    "docs/compliance/ai-safety.md": [
+      "docs/agentic/roadmap.md",
+      "docs/compliance/README.md"
+    ],
+    "docs/compliance/audit-checklist.md": [
+      "docs/compliance/README.md",
+      "docs/roles/security-and-compliance.md",
+      "README.md"
+    ],
+    "docs/compliance/data-privacy.md": [
+      "docs/compliance/README.md",
+      "docs/compliance/ai-safety.md",
+      "docs/roles/security-and-compliance.md",
+      "README.md"
+    ],
+    "docs/compliance/disaster-recovery.md": [
+      "docs/compliance/README.md",
+      "docs/compliance/hipaa-controls.md",
+      "docs/roles/security-and-compliance.md",
+      "docs/user/faq.md",
+      "docs/user/troubleshooting.md",
+      "README.md"
+    ],
+    "docs/compliance/f006-profile-id-removal-review.md": [
+      "docs/roles/security-and-compliance.md"
+    ],
+    "docs/compliance/hipaa-controls.md": [
+      "docs/compliance/README.md",
+      "docs/compliance/ai-safety.md",
+      "docs/roles/security-and-compliance.md",
+      "docs/user/faq.md",
+      "README.md"
+    ],
+    "docs/compliance/security-review-sprint06.md": [
+      "docs/compliance/README.md",
+      "docs/roles/security-and-compliance.md"
+    ],
+    "docs/features/00_features_index.md": [
+      "docs/roles/product-and-prd.md"
+    ],
+    "docs/features/01_lab_result_interpreter_architecture.md": [
+      "docs/roles/product-and-prd.md"
+    ],
+    "docs/features/02_medication_adherence_coach_architecture.md": [
+      "docs/roles/product-and-prd.md"
+    ],
+    "docs/features/03_features_prd.md": [
+      "docs/roles/product-and-prd.md"
+    ],
+    "docs/features/04_self_improvement_loop.md": [
+      "docs/roles/product-and-prd.md"
+    ],
+    "docs/features/TASK_LIST.md": [
+      "docs/00_architecture_plans_index.md",
+      "docs/plans/2026-03-04-handoff.md",
+      "docs/plans/2026-07-02-architect-review-proposal-tickets.md",
+      "docs/plans/2026-07-02-consolidated-findings-report.md",
+      "docs/plans/next-agent-documentation-consolidation.md",
+      "docs/plans/remaining-features-implementation.md",
+      "docs/roles/product-and-prd.md",
+      "README.md"
+    ],
+    "docs/model_tiers/README.md": [
+      "docs/roles/ai-llm-pipeline-and-safety.md"
+    ],
+    "docs/model_tiers/tier1_low.md": [
+      "docs/model_tiers/README.md",
+      "docs/roles/ai-llm-pipeline-and-safety.md"
+    ],
+    "docs/model_tiers/tier2_mid.md": [
+      "docs/model_tiers/README.md",
+      "docs/roles/ai-llm-pipeline-and-safety.md"
+    ],
+    "docs/model_tiers/tier3_high.md": [
+      "docs/model_tiers/README.md",
+      "docs/roles/ai-llm-pipeline-and-safety.md"
+    ],
+    "docs/plans/2026-06-30-tech-upgrade-survey-9-areas.md": [
+      "docs/roles/ai-llm-pipeline-and-safety.md"
+    ],
+    "docs/plans/2026-07-02-architect-review-proposal-tickets.md": [
+      "docs/features/TASK_LIST.md"
+    ],
+    "docs/plans/2026-07-02-consolidated-findings-report.md": [
+      "docs/plans/2026-07-02-architect-review-proposal-tickets.md",
+      "docs/plans/2026-07-02-fable5-architect-handoff-prompt.md"
+    ],
+    "docs/plans/2026-07-07-rename-audit-and-shortlist.md": [
+      "docs/agentic/progress.md"
+    ],
+    "docs/plans/implementation-log": [
+      "docs/00_architecture_plans_index.md"
+    ],
+    "docs/plans/implementation-log/2024-12-28_project-structure-setup.md": [
+      "docs/plans/implementation-log/README.md"
+    ],
+    "docs/plans/implementation-log/2026-02-04_alembic-dual-migrations.md": [
+      "docs/plans/implementation-log/README.md",
+      "docs/roles/data-and-migrations.md"
+    ],
+    "docs/plans/implementation-log/2026-06-11_agent-overhaul-plan.md": [
+      "docs/plans/implementation-log/README.md"
+    ],
+    "docs/plans/implementation-log/2026-06-11_breakage-map.md": [
+      "docs/plans/implementation-log/README.md"
+    ],
+    "docs/plans/implementation-log/2026-06-11_verification-report.md": [
+      "docs/plans/implementation-log/README.md"
+    ],
+    "docs/prd/PRD_agent_overhaul.md": [
+      "docs/roles/ai-llm-pipeline-and-safety.md",
+      "README.md"
+    ],
+    "docs/prd/phases": [
+      "docs/roles/ai-llm-pipeline-and-safety.md"
+    ],
+    "docs/prd/phases/PHASE_0_foundation.md": [
+      "docs/agile/sprints/SPRINT_0.md",
+      "README.md"
+    ],
+    "docs/prd/phases/PHASE_1_first_tool.md": [
+      "docs/agile/sprints/SPRINT_1.md",
+      "README.md"
+    ],
+    "docs/prd/phases/PHASE_2_loop.md": [
+      "docs/agile/sprints/SPRINT_2.md",
+      "README.md"
+    ],
+    "docs/prd/phases/PHASE_3_guardrails.md": [
+      "docs/agile/sprints/SPRINT_3.md",
+      "README.md"
+    ],
+    "docs/prd/phases/PHASE_4_phi_gate.md": [
+      "docs/agile/sprints/SPRINT_4.md",
+      "README.md"
+    ],
+    "docs/prd/phases/PHASE_5_cutover_cache.md": [
+      "docs/agile/sprints/SPRINT_5.md",
+      "README.md"
+    ],
+    "docs/prd/phases/PHASE_6_evals_ci.md": [
+      "docs/agile/sprints/SPRINT_6.md",
+      "README.md"
+    ],
+    "docs/prd/phases/PHASE_7_lora_stretch.md": [
+      "docs/agile/sprints/SPRINT_7.md",
+      "README.md"
+    ],
+    "docs/roles/00_roles_index.md": [
+      "docs/00_architecture_plans_index.md"
+    ],
+    "docs/roles/ai-llm-pipeline-and-safety.md": [
+      "docs/roles/00_roles_index.md",
+      "docs/roles/product-and-prd.md",
+      "docs/roles/security-and-compliance.md"
+    ],
+    "docs/roles/backend-api.md": [
+      "docs/roles/00_roles_index.md",
+      "docs/roles/data-and-migrations.md",
+      "docs/roles/frontend.md",
+      "README.md"
+    ],
+    "docs/roles/data-and-migrations.md": [
+      "docs/roles/00_roles_index.md",
+      "docs/roles/ai-llm-pipeline-and-safety.md",
+      "docs/roles/backend-api.md",
+      "docs/roles/security-and-compliance.md"
+    ],
+    "docs/roles/devops-and-ci.md": [
+      "docs/roles/00_roles_index.md"
+    ],
+    "docs/roles/frontend.md": [
+      "docs/roles/00_roles_index.md",
+      "docs/roles/product-and-prd.md"
+    ],
+    "docs/roles/product-and-prd.md": [
+      "docs/roles/00_roles_index.md",
+      "docs/roles/frontend.md"
+    ],
+    "docs/roles/security-and-compliance.md": [
+      "docs/roles/00_roles_index.md",
+      "docs/roles/ai-llm-pipeline-and-safety.md",
+      "docs/roles/backend-api.md",
+      "docs/roles/data-and-migrations.md",
+      "docs/roles/devops-and-ci.md"
+    ],
+    "docs/user/faq.md": [
+      "docs/user/README.md",
+      "README.md"
+    ],
+    "docs/user/getting-started.md": [
+      "docs/user/README.md",
+      "README.md"
+    ],
+    "docs/user/troubleshooting.md": [
+      "docs/user/README.md",
+      "README.md"
+    ],
+    "docs/user/workflows.md": [
+      "docs/user/README.md",
+      "docs/user/getting-started.md",
+      "README.md"
+    ],
+    "feature_list.json": [
+      "docs/agentic/evals.md",
+      "docs/agentic/harness.md",
+      "docs/agentic/progress.md",
+      "docs/agentic/roadmap.md",
+      "docs/compliance/ai-safety.md"
+    ],
+    "scripts/docs_lint.py": [
+      "docs/roles/devops-and-ci.md"
+    ],
+    "skills/healthcentral-agent/SKILL.md": [
+      "docs/roles/ai-llm-pipeline-and-safety.md",
+      "README.md"
+    ],
+    "skills/healthcentral-backend/SKILL.md": [
+      "docs/roles/backend-api.md",
+      "README.md"
+    ],
+    "skills/healthcentral-evals/SKILL.md": [
+      "docs/roles/ai-llm-pipeline-and-safety.md",
+      "README.md"
+    ],
+    "skills/healthcentral-guardrails/SKILL.md": [
+      "docs/roles/ai-llm-pipeline-and-safety.md",
+      "README.md"
+    ],
+    "src/backend/api/assistant.py": [
+      "docs/plans/2026-05-15-cursor-lab-workflow-plan.md"
+    ],
+    "src/backend/api/documents.py": [
+      "docs/plans/2026-05-15-cursor-lab-workflow-plan.md"
+    ],
+    "src/backend/api/export.py": [
+      "docs/plans/2026-05-15-cursor-lab-workflow-plan.md"
+    ],
+    "src/backend/api/observations.py": [
+      "docs/plans/2026-05-15-cursor-lab-workflow-plan.md"
+    ],
+    "src/backend/modules/export.py": [
+      "docs/plans/2026-05-15-cursor-lab-workflow-plan.md"
+    ],
+    "src/backend/modules/interpret.py": [
+      "docs/plans/2026-05-15-cursor-lab-workflow-plan.md"
+    ],
+    "src/backend/modules/rag.py": [
+      "docs/plans/2026-05-15-cursor-lab-workflow-plan.md"
+    ],
+    "src/frontend/README.md": [
+      "docs/roles/frontend.md"
+    ],
+    "src/frontend/e2e/BROWSER_MCP_PLAYBOOK.md": [
+      "docs/roles/frontend.md",
+      "README.md"
+    ],
+    "src/frontend/e2e/ui-full-verification.spec.ts": [
+      "docs/plans/2026-05-15-cursor-lab-workflow-plan.md",
+      "README.md"
+    ],
+    "src/frontend/src/__tests__/VerificationWorkbench.test.tsx": [
+      "docs/plans/2026-05-15-cursor-lab-workflow-plan.md"
+    ],
+    "src/frontend/src/pages/DocumentInbox.tsx": [
+      "docs/plans/2026-05-15-cursor-lab-workflow-plan.md"
+    ],
+    "src/frontend/src/pages/ExplainAssistant.tsx": [
+      "docs/plans/2026-05-15-cursor-lab-workflow-plan.md"
+    ],
+    "src/frontend/src/pages/ExportPage.tsx": [
+      "docs/plans/2026-05-15-cursor-lab-workflow-plan.md"
+    ],
+    "src/frontend/src/pages/LabInterpreter.tsx": [
+      "docs/plans/2026-05-15-cursor-lab-workflow-plan.md"
+    ],
+    "src/frontend/src/pages/TrendsDashboard.tsx": [
+      "docs/plans/2026-05-15-cursor-lab-workflow-plan.md"
+    ],
+    "src/frontend/src/pages/VerificationWorkbench.tsx": [
+      "docs/plans/2026-05-15-cursor-lab-workflow-plan.md"
+    ],
+    "src/frontend/src/services/documents.ts": [
+      "docs/plans/2026-05-15-cursor-lab-workflow-plan.md"
+    ],
+    "src/frontend/src/services/observations.ts": [
+      "docs/plans/2026-05-15-cursor-lab-workflow-plan.md"
+    ],
+    "src/frontend/src/services/types.ts": [
+      "docs/plans/2026-05-15-cursor-lab-workflow-plan.md"
+    ]
+  },
+  "links_to": {
+    "README.md": [
+      "docs/api/endpoints.md",
+      "docs/05_backend_integration_status.md",
+      "docs/01_backend_architecture_plan.md",
+      "docs/roles/backend-api.md",
+      "src/frontend/e2e/BROWSER_MCP_PLAYBOOK.md",
+      "src/frontend/e2e/ui-full-verification.spec.ts",
+      "docs/user/getting-started.md",
+      "docs/user/workflows.md",
+      "docs/user/troubleshooting.md",
+      "docs/user/faq.md",
+      "docs/api/README.md",
+      "docs/00_architecture_plans_index.md",
+      "docs/compliance/hipaa-controls.md",
+      "docs/compliance/data-privacy.md",
+      "docs/compliance/disaster-recovery.md",
+      "docs/compliance/audit-checklist.md",
+      "docs/prd/PRD_agent_overhaul.md",
+      "docs/agile/AGILE_PLAN.md",
+      "docs/agile/STANDUP.md",
+      "docs/agile/RETRO.md",
+      "docs/agile/RELEASE_CHECKLIST.md",
+      "docs/agile/GROUNDING.md",
+      "docs/agile/EXPLORATION_SUMMARY.md",
+      "docs/agile/RECONCILIATION.md",
+      "docs/agile/audience_expectations_main_vs_branch.md",
+      "skills/healthcentral-agent/SKILL.md",
+      "docs/prd/phases/PHASE_0_foundation.md",
+      "docs/prd/phases/PHASE_1_first_tool.md",
+      "docs/prd/phases/PHASE_2_loop.md",
+      "docs/agile/sprints/SPRINT_0.md",
+      "docs/agile/sprints/SPRINT_1.md",
+      "docs/agile/sprints/SPRINT_2.md",
+      "skills/healthcentral-guardrails/SKILL.md",
+      "docs/prd/phases/PHASE_3_guardrails.md",
+      "docs/prd/phases/PHASE_4_phi_gate.md",
+      "docs/agile/sprints/SPRINT_3.md",
+      "docs/agile/sprints/SPRINT_4.md",
+      "skills/healthcentral-backend/SKILL.md",
+      "docs/prd/phases/PHASE_5_cutover_cache.md",
+      "docs/agile/sprints/SPRINT_5.md",
+      "skills/healthcentral-evals/SKILL.md",
+      "docs/prd/phases/PHASE_6_evals_ci.md",
+      "docs/agile/sprints/SPRINT_6.md",
+      "docs/prd/phases/PHASE_7_lora_stretch.md",
+      "docs/agile/sprints/SPRINT_7.md",
+      "docs/features/TASK_LIST.md"
+    ],
+    "docs/00_architecture_plans_index.md": [
+      "docs/features/TASK_LIST.md",
+      "docs/roles/00_roles_index.md",
+      "docs/plans/implementation-log"
+    ],
+    "docs/01_backend_architecture_plan.md": [
+      "docs/api/endpoints.md"
+    ],
+    "docs/agentic/evals.md": [
+      "feature_list.json"
+    ],
+    "docs/agentic/harness.md": [
+      "CLAUDE.md",
+      "AGENT.md",
+      "docs/agentic/progress.md",
+      "feature_list.json",
+      "docs/INDEX.md",
+      "docs/agentic/evals.md",
+      "docs/agentic/mcp-tools.md"
+    ],
+    "docs/agentic/mcp-tools.md": [
+      "docs/agentic/harness.md",
+      "docs/agentic/evals.md"
+    ],
+    "docs/agentic/progress.md": [
+      "docs/plans/2026-07-07-rename-audit-and-shortlist.md",
+      "feature_list.json"
+    ],
+    "docs/agentic/roadmap.md": [
+      "docs/agentic/harness.md",
+      "docs/agentic/evals.md",
+      "feature_list.json",
+      "docs/compliance/ai-safety.md",
+      "docs/agentic/progress.md",
+      "docs/compliance/README.md",
+      "docs/agentic/mcp-tools.md"
+    ],
+    "docs/agile/EXPLORATION_SUMMARY.md": [
+      "docs/agile/RECONCILIATION.md"
+    ],
+    "docs/agile/GROUNDING.md": [
+      "docs/agile/EXPLORATION_SUMMARY.md",
+      "docs/agile/RECONCILIATION.md"
+    ],
+    "docs/agile/sprints/SPRINT_0.md": [
+      "docs/prd/phases/PHASE_0_foundation.md",
+      "docs/agile/RECONCILIATION.md",
+      "docs/agile/STANDUP.md",
+      "docs/agile/RETRO.md"
+    ],
+    "docs/agile/sprints/SPRINT_1.md": [
+      "docs/prd/phases/PHASE_1_first_tool.md"
+    ],
+    "docs/agile/sprints/SPRINT_2.md": [
+      "docs/prd/phases/PHASE_2_loop.md"
+    ],
+    "docs/agile/sprints/SPRINT_3.md": [
+      "docs/prd/phases/PHASE_3_guardrails.md"
+    ],
+    "docs/agile/sprints/SPRINT_4.md": [
+      "docs/prd/phases/PHASE_4_phi_gate.md"
+    ],
+    "docs/agile/sprints/SPRINT_5.md": [
+      "docs/prd/phases/PHASE_5_cutover_cache.md"
+    ],
+    "docs/agile/sprints/SPRINT_6.md": [
+      "docs/prd/phases/PHASE_6_evals_ci.md"
+    ],
+    "docs/agile/sprints/SPRINT_7.md": [
+      "docs/prd/phases/PHASE_7_lora_stretch.md"
+    ],
+    "docs/api/README.md": [
+      "docs/api/authentication.md",
+      "docs/api/endpoints.md",
+      "docs/api/error-codes.md",
+      "docs/api/integration-guide.md"
+    ],
+    "docs/compliance/README.md": [
+      "docs/compliance/hipaa-controls.md",
+      "docs/compliance/data-privacy.md",
+      "docs/compliance/ai-safety.md",
+      "docs/compliance/audit-checklist.md",
+      "docs/compliance/disaster-recovery.md",
+      "docs/compliance/security-review-sprint06.md",
+      "docs/compliance/advisories.md"
+    ],
+    "docs/compliance/ai-safety.md": [
+      "docs/compliance/data-privacy.md",
+      "docs/compliance/hipaa-controls.md",
+      "feature_list.json",
+      "CLAUDE.md"
+    ],
+    "docs/compliance/hipaa-controls.md": [
+      "docs/compliance/disaster-recovery.md"
+    ],
+    "docs/features/00_features_index.md": [
+      "docs/00_architecture_plans_index.md"
+    ],
+    "docs/features/TASK_LIST.md": [
+      "docs/plans/2026-07-02-architect-review-proposal-tickets.md"
+    ],
+    "docs/model_tiers/README.md": [
+      "docs/model_tiers/tier1_low.md",
+      "docs/model_tiers/tier2_mid.md",
+      "docs/model_tiers/tier3_high.md"
+    ],
+    "docs/plans/2026-03-04-handoff.md": [
+      "docs/features/TASK_LIST.md"
+    ],
+    "docs/plans/2026-05-15-cursor-lab-workflow-plan.md": [
+      "src/backend/api/documents.py",
+      "src/backend/api/observations.py",
+      "src/frontend/src/pages/VerificationWorkbench.tsx",
+      "src/frontend/src/pages/DocumentInbox.tsx",
+      "src/backend/modules/rag.py",
+      "src/backend/api/assistant.py",
+      "src/backend/modules/export.py",
+      "src/backend/api/export.py",
+      "src/frontend/src/services/documents.ts",
+      "src/frontend/src/services/types.ts",
+      "src/frontend/src/services/observations.ts",
+      "src/frontend/src/pages/TrendsDashboard.tsx",
+      "src/frontend/src/pages/LabInterpreter.tsx",
+      "src/frontend/src/pages/ExplainAssistant.tsx",
+      "src/backend/modules/interpret.py",
+      "src/frontend/src/pages/ExportPage.tsx",
+      "src/frontend/src/__tests__/VerificationWorkbench.test.tsx",
+      "src/frontend/e2e/ui-full-verification.spec.ts"
+    ],
+    "docs/plans/2026-07-02-architect-review-proposal-tickets.md": [
+      "docs/features/TASK_LIST.md",
+      "docs/plans/2026-07-02-consolidated-findings-report.md"
+    ],
+    "docs/plans/2026-07-02-consolidated-findings-report.md": [
+      "docs/features/TASK_LIST.md",
+      "docs/00_architecture_plans_index.md"
+    ],
+    "docs/plans/2026-07-02-fable5-architect-handoff-prompt.md": [
+      "docs/plans/2026-07-02-consolidated-findings-report.md"
+    ],
+    "docs/plans/implementation-log/README.md": [
+      "docs/plans/implementation-log/2024-12-28_project-structure-setup.md",
+      "docs/plans/implementation-log/2026-02-04_alembic-dual-migrations.md",
+      "docs/plans/implementation-log/2026-06-11_agent-overhaul-plan.md",
+      "docs/plans/implementation-log/2026-06-11_breakage-map.md",
+      "docs/plans/implementation-log/2026-06-11_verification-report.md"
+    ],
+    "docs/plans/next-agent-documentation-consolidation.md": [
+      "docs/features/TASK_LIST.md"
+    ],
+    "docs/plans/remaining-features-implementation.md": [
+      "docs/features/TASK_LIST.md"
+    ],
+    "docs/prd/PRD_agent_overhaul.md": [
+      "docs/agile/RELEASE_CHECKLIST.md"
+    ],
+    "docs/prd/phases/PHASE_0_foundation.md": [
+      "docs/agile/RECONCILIATION.md"
+    ],
+    "docs/roles/00_roles_index.md": [
+      "docs/roles/backend-api.md",
+      "docs/roles/frontend.md",
+      "docs/roles/data-and-migrations.md",
+      "docs/roles/ai-llm-pipeline-and-safety.md",
+      "docs/roles/security-and-compliance.md",
+      "docs/roles/devops-and-ci.md",
+      "docs/roles/product-and-prd.md",
+      "docs/00_architecture_plans_index.md",
+      "docs/INDEX.md"
+    ],
+    "docs/roles/ai-llm-pipeline-and-safety.md": [
+      "docs/04_local_models_inference_plan.md",
+      "docs/model_tiers/README.md",
+      "docs/model_tiers/tier1_low.md",
+      "docs/model_tiers/tier2_mid.md",
+      "docs/model_tiers/tier3_high.md",
+      "docs/prd/PRD_agent_overhaul.md",
+      "docs/prd/phases",
+      "docs/plans/2026-06-30-tech-upgrade-survey-9-areas.md",
+      "skills/healthcentral-agent/SKILL.md",
+      "skills/healthcentral-guardrails/SKILL.md",
+      "skills/healthcentral-evals/SKILL.md",
+      "docs/roles/security-and-compliance.md",
+      "docs/roles/data-and-migrations.md"
+    ],
+    "docs/roles/backend-api.md": [
+      "docs/01_backend_architecture_plan.md",
+      "docs/api/endpoints.md",
+      "docs/api/authentication.md",
+      "docs/api/error-codes.md",
+      "docs/api/integration-guide.md",
+      "skills/healthcentral-backend/SKILL.md",
+      "docs/roles/data-and-migrations.md",
+      "docs/roles/security-and-compliance.md"
+    ],
+    "docs/roles/data-and-migrations.md": [
+      "docs/plans/implementation-log/2026-02-04_alembic-dual-migrations.md",
+      "docs/03_data_confidentiality_pipeline_plan.md",
+      "docs/roles/security-and-compliance.md",
+      "docs/roles/backend-api.md"
+    ],
+    "docs/roles/devops-and-ci.md": [
+      ".github/workflows/ci.yml",
+      "scripts/docs_lint.py",
+      "docs/agile/RELEASE_CHECKLIST.md",
+      "CONTRIBUTING.md",
+      "docs/roles/security-and-compliance.md"
+    ],
+    "docs/roles/frontend.md": [
+      "docs/02_frontend_accessibility_plan.md",
+      "src/frontend/README.md",
+      "src/frontend/e2e/BROWSER_MCP_PLAYBOOK.md",
+      "docs/roles/backend-api.md",
+      "docs/roles/product-and-prd.md"
+    ],
+    "docs/roles/product-and-prd.md": [
+      "docs/Local_First_Medical_Results_Companion_PRD_v0_1.md",
+      "docs/features/03_features_prd.md",
+      "docs/features/00_features_index.md",
+      "docs/features/01_lab_result_interpreter_architecture.md",
+      "docs/features/02_medication_adherence_coach_architecture.md",
+      "docs/features/04_self_improvement_loop.md",
+      "docs/features/TASK_LIST.md",
+      "docs/agile/AGILE_PLAN.md",
+      "docs/roles/ai-llm-pipeline-and-safety.md",
+      "docs/roles/frontend.md"
+    ],
+    "docs/roles/security-and-compliance.md": [
+      "docs/03_data_confidentiality_pipeline_plan.md",
+      "docs/compliance/hipaa-controls.md",
+      "docs/compliance/data-privacy.md",
+      "docs/compliance/audit-checklist.md",
+      "docs/compliance/disaster-recovery.md",
+      "docs/compliance/security-review-sprint06.md",
+      "docs/compliance/f006-profile-id-removal-review.md",
+      "SECURITY.md",
+      "docs/roles/ai-llm-pipeline-and-safety.md",
+      "docs/roles/data-and-migrations.md"
+    ],
+    "docs/user/README.md": [
+      "docs/user/getting-started.md",
+      "docs/user/workflows.md",
+      "docs/user/troubleshooting.md",
+      "docs/user/faq.md"
+    ],
+    "docs/user/faq.md": [
+      "docs/compliance/hipaa-controls.md",
+      "docs/compliance/disaster-recovery.md"
+    ],
+    "docs/user/getting-started.md": [
+      "docs/user/workflows.md"
+    ],
+    "docs/user/troubleshooting.md": [
+      "docs/compliance/disaster-recovery.md"
+    ]
+  }
+}

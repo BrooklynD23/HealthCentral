@@ -34,13 +34,15 @@ env/
 # instead of hiding them behind broad ignore rules.
 .bg-shell/
 .wsl-pytest-venv/
+.venv-test/
 # Intentionally do not add broad ignore rules for local-only scratch notes/reports;
 # contributors should delete or relocate those before pre-merge work.
 
 # IDE
 .vscode/
 .idea/
-.claude/
+.claude/*
+!.claude/skills/
 *.swp
 *.swo
 *~

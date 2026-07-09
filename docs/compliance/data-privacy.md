@@ -82,7 +82,7 @@ Users can opt-in to feedback collection on assistant chat responses (thumbs up/d
 | Feedback collection | User rates responses via `POST /api/v1/feedback/turns/{turn_id}` with optional text corrections |
 | Export endpoint | `POST /api/v1/feedback/export` (requires explicit `confirmed=true` — never automatic) |
 | Export format | JSONL files: DPO pairs, SFT examples, GRPO reward data (written to local storage only) |
-| PHI redaction | **Mandatory and non-configurable**: prompt/response text is passed through `modules/redaction.py` before export. The current standard policy covers identifiers such as SSNs, emails, phone numbers, and context-prefixed names; it does not guarantee removal of every lab value, date, medication name, or biomarker value. |
+| PHI redaction | **Mandatory and non-configurable**: prompt/response text is passed through `modules/redaction.py` at the **strict** policy level before export (RL-REDACT-001, 2026-07-07). Strict covers SSNs, emails, phone numbers, context-prefixed names, DOB, street addresses, MRNs, and slash/dash numeric dates. It does not remove lab values, biomarker names, medication names, or ISO-8601 collection timestamps — a recorded deferral (they are the training signal); see `docs/features/TASK_LIST.md` RL-REDACT-001. |
 | Local-first | No network calls; files written to local storage only |
 | Audit logging | Feedback creation and export events captured as `feedback.*` audit log entries |
 
@@ -96,7 +96,7 @@ Users can opt-in to feedback collection on assistant chat responses (thumbs up/d
 
 | Field | Exported? | Notes |
 |---|---|---|
-| Redacted prompt snapshot | ✅ Yes | SSNs, emails, phone, name-context stripped (`standard` policy). Dates of birth, addresses, MRNs require `strict` policy and are **not** removed by the default export. Lab values and biomarker names are **not** removed. |
+| Redacted prompt snapshot | ✅ Yes | SSNs, emails, phone, name-context, DOB, addresses, MRNs, and slash/dash numeric dates stripped (`strict` policy — the export's mandatory level since RL-REDACT-001). Lab values, biomarker names, and ISO-8601 collection dates are **not** removed (recorded deferral: they are the training signal). |
 | User rating (+1/−1) | ✅ Yes | |
 | Correction text | ✅ Yes | Same redaction as prompt snapshot |
 | Model name / provider | ✅ Yes | |

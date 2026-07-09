@@ -1,0 +1,164 @@
+{
+  "$comment": "Structured task inventory for the agentic harness (docs/agentic/harness.md). Statuses: pending | in_progress | completed. Never mark completed without running the verification_steps; record outcomes in docs/agentic/progress.md.",
+  "features": [
+    {
+      "id": "HC-M01",
+      "category": "dependency-baseline",
+      "description": "Enforce canonical runtime policy: Python 3.11+, Node.js 22+ (24 LTS recommended) across docs, setup scripts, CI, and package.json engines.",
+      "user_value": "New contributors and CI run on one consistent, supported toolchain; no setup failures from contradictory docs.",
+      "verification_steps": [
+        "grep -rn -E 'Python 3\\.10|Node(\\.js)? 1[68]|Node(\\.js)? 20' README.md AGENT.md CLAUDE.md CONTRIBUTING.md docs/user/ dev.ps1 dev.bat .github/ returns nothing",
+        "python3 scripts/docs_lint.py passes",
+        "CI frontend jobs run on node-version 22"
+      ],
+      "priority": 1,
+      "status": "completed"
+    },
+    {
+      "id": "HC-M02",
+      "category": "windows-bootstrap",
+      "description": "dev.ps1 offers automatic Python 3.11 installation via winget (prompt defaults to Yes), refreshes PATH from registry, re-checks with the same detection function, and falls back to manual instructions on any failure.",
+      "user_value": "Non-technical Windows users can go from zero to running app with one double-click even without Python installed.",
+      "verification_steps": [
+        "PowerShell AST parse of dev.ps1 reports no errors",
+        "Manual: run dev.ps1 on a machine without Python and confirm the winget path, the [Y/n] prompt, and the fallback messages"
+      ],
+      "priority": 1,
+      "status": "in_progress"
+    },
+    {
+      "id": "HC-M03",
+      "category": "agentic-harness",
+      "description": "Documented, repeatable agent loop: docs/agentic/{harness,evals,mcp-tools,roadmap,progress}.md plus this feature inventory, so any future agent session can resume from repo state alone.",
+      "user_value": "Project demonstrates production agentic-engineering practice; work survives context resets and model changes.",
+      "verification_steps": [
+        "All five docs/agentic files exist and pass python3 scripts/docs_lint.py",
+        "python3 scripts/generate_docs_index.py --check passes"
+      ],
+      "priority": 2,
+      "status": "completed"
+    },
+    {
+      "id": "HC-M04",
+      "category": "ai-safety",
+      "description": "Consolidated AI-safety policy doc (docs/compliance/ai-safety.md): refusal/escalation boundaries, grounding and citation requirements, uncertainty handling, emergency disclaimers, and pointers to the prompt-injection and PHI-leakage evals.",
+      "user_value": "Reviewers and contributors see the non-diagnostic product boundary and how it is enforced in code and CI, not just claimed.",
+      "verification_steps": [
+        "docs/compliance/ai-safety.md exists, is linked from docs/compliance/README.md, and every code/test path it cites resolves",
+        "python3 scripts/agent_eval_gate.py exits 0"
+      ],
+      "priority": 2,
+      "status": "completed"
+    },
+    {
+      "id": "HC-M05",
+      "category": "ai-safety",
+      "description": "Expand the adversarial eval set: dedicated prompt-injection corpus (instructions embedded in uploaded documents and memory items) and PHI-leakage probes on every export path, wired into scripts/agent_eval_gate.py or a sibling gate.",
+      "user_value": "Injection and leakage resistance become regression-tested guarantees instead of one-time reviews.",
+      "verification_steps": [
+        "New pytest cases (HC-XXX-NNN naming) fail when an injection succeeds or an export leaks unredacted text",
+        "Gate runs in CI and blocks merge on regression"
+      ],
+      "priority": 2,
+      "status": "in_progress"
+    },
+    {
+      "id": "HC-M06",
+      "category": "data-science",
+      "description": "Data-quality test suite and extraction eval card: labeled golden set of lab PDFs (synthetic), precision/recall on analyte, unit, date extraction; published as docs/agentic/eval-cards/extraction.md with versioned metrics.",
+      "user_value": "Extraction accuracy is measured, tracked over time, and demonstrable — core Data Science portfolio evidence.",
+      "verification_steps": [
+        "Golden-set pytest suite runs in CI with explicit thresholds",
+        "Eval card records metric, dataset version, and date for each run"
+      ],
+      "priority": 3,
+      "status": "pending"
+    },
+    {
+      "id": "HC-M07",
+      "category": "production-readiness",
+      "description": "Observability gap-closure (most of the stack already exists: CorrelationIdMiddleware, /health route, MetricsCollector p50/p95/p99, TimingMiddleware, DB audit logging). Remaining: (1) correlation ID injected into log records via a logging.Filter in a new core/logging_setup.py, and into SecurityAuditMiddleware's JSON payload; (2) optional JSON log format behind a settings flag (stdlib only); (3) an e2e step hitting the running backend's /health.",
+      "user_value": "Failures in real use are diagnosable from logs without violating the no-network guarantee.",
+      "verification_steps": [
+        "tests/monitoring/test_correlation.py asserts log records carry the correlation ID",
+        "tests/security/test_audit_middleware.py asserts the audit JSON payload carries it",
+        "e2e smoke hits /health and asserts 200 + status field"
+      ],
+      "priority": 3,
+      "status": "pending"
+    },
+    {
+      "id": "HC-M08a",
+      "category": "production-readiness",
+      "description": "Packaging phase 0 — decision spike doc (docs/plans/<date>-packaging-decision.md): PyInstaller+Tauri vs PyInstaller+Electron vs portable folder + launcher. Criteria: SQLCipher/llama-cpp native bundling, model download-on-first-run, code signing, size. Prepared recommendation: portable folder first.",
+      "user_value": "Distribution decisions are recorded with tradeoffs before any packaging code exists.",
+      "verification_steps": ["Decision doc exists, passes docs lint, and names a chosen path with rationale"],
+      "priority": 4,
+      "status": "pending"
+    },
+    {
+      "id": "HC-M08b",
+      "category": "production-readiness",
+      "description": "Packaging phase 1 — frozen backend proof: PyInstaller spec for main:app + uvicorn with hidden imports (sqlcipher3, llama-cpp, sentence-transformers).",
+      "user_value": "The backend runs on a machine with no Python installed.",
+      "verification_steps": ["Frozen exe boots on a clean Windows VM, /health returns 200, a vault opens"],
+      "priority": 4,
+      "status": "pending"
+    },
+    {
+      "id": "HC-M08c",
+      "category": "production-readiness",
+      "description": "Packaging phase 2 — frontend static build served by the frozen backend (FastAPI StaticFiles) + end-user launcher + first-run model download flow; Node is no longer a runtime dependency.",
+      "user_value": "One folder, one launcher — no developer toolchain for patients.",
+      "verification_steps": ["Full app usable from the packaged folder on a clean VM with no Node/Python installed"],
+      "priority": 4,
+      "status": "pending"
+    },
+    {
+      "id": "HC-M08d",
+      "category": "production-readiness",
+      "description": "Packaging phase 3 — docs/agile/DISTRIBUTION_CHECKLIST.md (RELEASE_CHECKLIST.md is the agent-overhaul acceptance gate, not distribution): clean-VM install test, signing decision, upgrade/uninstall path, data-directory location.",
+      "user_value": "Every release ships against an explicit, verifiable distribution checklist.",
+      "verification_steps": ["Checklist exists; each item names a verifying command or manual step"],
+      "priority": 5,
+      "status": "pending"
+    },
+    {
+      "id": "HC-M09",
+      "category": "mcp-tooling",
+      "description": "Implement the local script tools from docs/agentic/mcp-tools.md (run_tests, run_lint, run_typecheck, run_e2e, check_docs_versions) as thin, credential-free wrappers; add read-only SQLite/SQLCipher inspection for synthetic dev vaults.",
+      "user_value": "Agents verify work through narrow, auditable interfaces instead of ad-hoc shell, reducing risky tool calls.",
+      "verification_steps": [
+        "Each wrapper exits nonzero on underlying failure (spot-check by injecting a failing test)",
+        "DB tool rejects write statements"
+      ],
+      "priority": 4,
+      "status": "pending"
+    },
+    {
+      "id": "HC-M11",
+      "category": "ai-safety",
+      "description": "Wire a real NLI cross-encoder (candidate: cross-encoder/nli-deberta-v3-xsmall, MIT, ~22M params, via the existing sentence-transformers dependency) to populate the existing-but-never-fed entailment_scores parameter in modules/faithfulness.py and make verifier_agent.py's use_llm_entailment flag route to a real implementation instead of its stub. Additive: regex scoring remains the floor; flag defaults off. Verified 2026-07-07: production faithfulness is 100% rule-based today (consistency_score hardcoded 1.0; _check_entailment_llm is a stub). Depends on non-GGUF model-distribution support in scripts/download_models.py. Touches two ask-before-touching files — requires its own owner approval when scheduled.",
+      "user_value": "Faithfulness scoring gains a semantic signal instead of regex-only matching, reducing missed hallucinations in assistant outputs.",
+      "verification_steps": [
+        "With the flag on, a synthetic contradicted claim scores below threshold where regex-only scoring passed it",
+        "With the flag off (default), all existing faithfulness/verifier tests pass unchanged",
+        "Offline test proves no network access at inference time (model loaded from local path)"
+      ],
+      "priority": 3,
+      "status": "pending"
+    },
+    {
+      "id": "HC-M10",
+      "category": "product",
+      "description": "Rename the product (owner decision 2026-07-07): 'HealthCentral' collides with healthcentral.com. Stage 1 DONE — surface audit + screened shortlist at docs/plans/2026-07-07-rename-audit-and-shortlist.md. Stage 2 (manual, blocking): owner picks a candidate and clears it against USPTO TESS/domains/app stores. Stage 3: one PR changing user-visible strings only (internal HC_*/HC-* identifiers and DB filenames kept).",
+      "user_value": "Avoids trademark risk before the project is shown publicly as a product.",
+      "verification_steps": [
+        "Owner clearance recorded in docs/agentic/progress.md",
+        "After rename: grep for old name returns only historical docs and kept internal identifiers; app boots with new title; tsc/vitest/docs gates pass"
+      ],
+      "priority": 3,
+      "status": "in_progress"
+    }
+  ]
+}

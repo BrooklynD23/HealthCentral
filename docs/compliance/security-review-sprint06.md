@@ -6,6 +6,8 @@ Primary stack in scope: FastAPI (Python) backend + GitHub Actions CI.
 
 This report is **findings + remediation plan only**. It intentionally **does not implement** changes.
 
+> **Status update (2026-07-01):** Re-verified against current code during a doc-accuracy audit. **S06-SEC-001 is RESOLVED** (auth now enforced). **S06-SEC-002 is PARTIALLY MITIGATED** (bounded limit now applied, no longer unlimited — see finding for what's still unverified). **S06-SEC-003 is CONFIRMED STILL OPEN** (the `ValueError`-to-500 gap is real as of this pass). CI's `bandit`/`pip-audit` still run with `continue-on-error: true` per `.github/workflows/ci.yml` — unchanged.
+
 ## Executive summary
 
 Sprint 06 adds valuable security middleware, monitoring, and backup tooling, but it also introduces a few high-impact security risks:
@@ -25,9 +27,11 @@ Additional medium/low items include `/health` being rate-limit-exempt while comp
 
 ## Findings
 
-### S06-SEC-001 — Unauthenticated metrics dashboard exposed
+### S06-SEC-001 — Unauthenticated metrics dashboard exposed — ✅ RESOLVED (verified 2026-07-01)
 
-- Severity: **Critical**
+**Update:** Independently re-verified against current code. `src/backend/monitoring/health.py:34` now takes `session: RequireAuth` as a parameter on `get_metrics()` — the fix recommended below has been applied. `docs/api/endpoints.md:172` already correctly documents this route as `Auth: Yes`. No further action needed on this finding; retained below for historical record only.
+
+- Severity: **Critical** (at time of original review)
 - Impact (1 sentence): Any network-reachable deployment exposes internal endpoint inventory + performance/error characteristics, which materially improves attacker reconnaissance and can reveal operational state.
 - Location:
   - `src/backend/monitoring/health.py:38-70` (metrics dashboard route)
@@ -54,14 +58,16 @@ Additional medium/low items include `/health` being rate-limit-exempt while comp
 
 ---
 
-### S06-SEC-002 — Upload endpoints bypass request size limits → memory/CPU DoS
+### S06-SEC-002 — Upload endpoints bypass request size limits → memory/CPU DoS — ⚠️ PARTIALLY MITIGATED (verified 2026-07-01)
 
-- Severity: **High**
+**Update:** Independently re-verified against current code. `src/backend/security/input_validator.py`'s middleware no longer treats import endpoints as unlimited — it now applies `effective_limit = self.max_upload_bytes if is_import else self.max_request_body_bytes`, i.e. a separate, larger, but still-enforced limit for import/upload paths, matching remediation option 1 below. This is *not* the "explicitly bypasses"/"no limit" behavior originally described — the middleware-level fix has landed. **Still open:** `modules/ingest.py` reportedly still reads the full upload into memory before checking size (not re-verified this pass) — if true, that's a narrower risk (bounded by `max_upload_bytes`, not unlimited) than originally described, but worth a fresh check before closing this finding entirely.
+
+- Severity: **High** (at time of original review; now bounded, not unlimited)
 - Impact (1 sentence): Attackers can send extremely large bodies to import/upload endpoints, causing memory exhaustion or severe performance degradation.
 - Location:
   - `src/backend/security/input_validator.py:15-87` (import/upload bypass logic)
   - `src/backend/modules/ingest.py:256-263` (reads entire upload into memory before size validation)
-- Evidence:
+- Evidence (original, at time of review):
   - `src/backend/security/input_validator.py:15-19` defines `IMPORT_PATH_PREFIXES` including `/api/v1/documents/import` and `/api/v1/documents/upload`.
   - `src/backend/security/input_validator.py:62-88` sets `is_import` and then **skips** both `Content-Length` enforcement and streaming counting when `is_import` is true.
   - `src/backend/modules/ingest.py:256-263` does `file_data = file.read()` and only then checks `len(file_data)` against `settings.max_import_file_size_mb`.

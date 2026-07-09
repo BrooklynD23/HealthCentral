@@ -155,6 +155,7 @@ async def log_observation_event(
         "verify": f"Verified observation '{analyte}'",
         "edit": f"Edited observation '{analyte}'",
         "delete": f"Deleted observation '{analyte}'",
+        "view": f"Viewed observation '{analyte}'",
     }
     return await create_audit_log(
         db=db,
@@ -182,6 +183,22 @@ async def log_export_event(
         entity_type="export",
         details=details,
     )
+
+
+async def audit_and_commit(
+    db: AsyncSession,
+    log_fn: Any,
+    **log_kwargs: Any,
+) -> "AuditLog":
+    """Write an audit row and commit it, fail-closed.
+
+    Used by read (view) routes. Any failure propagates to the caller and
+    fails the request: a view that cannot be audited must not be served
+    (consistent with write routes, which never swallowed audit errors).
+    """
+    entry = await log_fn(db=db, **log_kwargs)
+    await db.commit()
+    return entry
 
 
 async def log_auth_event(

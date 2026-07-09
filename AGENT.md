@@ -8,15 +8,15 @@ Local-first, privacy-first desktop app: patients import lab PDFs/medical documen
 
 ## Stack & layout
 
-- **Backend** `src/backend/` — Python 3.10+, FastAPI, SQLAlchemy, Alembic (dual chains), llama-cpp-python (lazy/optional import).
+- **Backend** `src/backend/` — Python 3.11+, FastAPI, SQLAlchemy, Alembic (dual chains), llama-cpp-python (lazy/optional import).
   - `api/` — routes (registered in `main.py`): documents, observations, assistant, memory, feedback, model_settings, profiles…
   - `modules/` — feature logic: `ingest`/`extract*` (document pipeline), `rag` (retrieval + prompt composition), `normalize`/`glossary` (analyte synonyms), `interpret*`/`faithfulness`/`verifier_agent`/`redaction` (safety — do not touch casually), `rl_dataset` (DPO/GRPO export)
   - `core/` — config, security, db, `time` (use `core.time.utcnow`), `llm/` (provider layer: `LlamaCppProvider` default, `OllamaProvider` localhost-only, `factory.get_provider()`), `model_runner` (stable facade — the only LLM entry point for feature code)
   - `models/` — SQLAlchemy; profile-scoped tables (observations, chat_sessions, chat_turns, response_feedback) live in per-profile DBs
-  - `migrations/master/` + `migrations/profile/` — separate Alembic chains (see `implementation_plan/2026-02-04_alembic-dual-migrations.md`)
+  - `migrations/master/` + `migrations/profile/` — separate Alembic chains (see `docs/plans/implementation-log/2026-02-04_alembic-dual-migrations.md`)
 - **Frontend** `src/frontend/` — React + Vite + TS, Tailwind, React Query, Zustand.
   - `src/pages/` (TrendsDashboard, ExplainAssistant, VerificationWorkbench, SettingsPage…), `src/services/` (API client + hooks; export everything through `services/index.ts` barrel), `e2e/` Playwright
-- **Docs** `docs/` (architecture plans, PRD, compliance), `implementation_plan/` (dated plans, breakage maps, verification reports — add yours here)
+- **Docs** `docs/` — start at [`docs/00_architecture_plans_index.md`](docs/00_architecture_plans_index.md) (canonical order) or [`docs/roles/00_roles_index.md`](docs/roles/00_roles_index.md) (domain-based "which doc for X"); `docs/plans/` (active + historical plans/decisions log, incl. `implementation-log/` for point-in-time notes). `.claude/skills/` has vendored process skills (TDD, debugging, planning — see `.claude/skills/README.md`); `skills/` (no dot) is HealthCentral's own project-domain skills — see `skills/README.md` to avoid confusing the two.
 
 ## Commands (Windows is the native dev environment)
 
@@ -43,4 +43,4 @@ Known env-only failure: 1 RAG embedding-similarity test needs a real embedding m
 
 ## Definition of done
 
-Tests written/updated and passing, no new backend failures, `tsc --noEmit` clean, app boots, hard invariants in CLAUDE.md respected, dated notes for non-trivial work added to `implementation_plan/`.
+Tests written/updated and passing, no new backend failures, `tsc --noEmit` clean, app boots, hard invariants in CLAUDE.md respected, non-trivial work logged in `docs/features/TASK_LIST.md`'s Session Notes (or a new dated file under `docs/plans/` for a substantial standalone plan).

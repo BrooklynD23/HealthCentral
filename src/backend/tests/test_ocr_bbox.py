@@ -198,14 +198,71 @@ class TestPageImageEndpoint:
         fake_pdfplumber = types.ModuleType("pdfplumber")
         fake_pdfplumber.open = MagicMock(return_value=FakePdf())
 
+        master_db = AsyncMock()
+
         with (
             patch.dict("sys.modules", {"pdfplumber": fake_pdfplumber}),
             patch("api.documents.get_decrypted_document", return_value=BytesIO(b"%PDF-FAKE")),
         ):
-            r1 = await get_page_image(document_id, 1, session, profile_db)
-            r2 = await get_page_image(document_id, 1, session, profile_db)
+            r1 = await get_page_image(document_id, 1, session, profile_db, master_db)
+            r2 = await get_page_image(document_id, 1, session, profile_db, master_db)
 
         assert r1.media_type == "image/png"
         assert r1.body == png_bytes
         assert r2.body == png_bytes
         assert fake_pdfplumber.open.call_count == 1
+        assert master_db.commit.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_page_image_out_of_range_does_not_audit(self):
+        """Out-of-range pages should return 404 without writing an audit row."""
+        from api.documents import get_page_image
+        import api.documents as documents_api
+
+        with documents_api._page_image_cache_lock:
+            documents_api._page_image_cache.clear()
+
+        document_id = "11111111-1111-4111-8111-111111111111"
+        session = MagicMock(profile_id="profile-1")
+
+        mock_doc = MagicMock()
+        mock_doc.id = document_id
+        mock_doc.profile_id = "profile-1"
+
+        result_mock = MagicMock()
+        result_mock.scalar_one_or_none.return_value = mock_doc
+
+        profile_db = AsyncMock()
+        profile_db.execute.return_value = result_mock
+
+        class FakeImage:
+            def save(self, buf, format="PNG"):
+                buf.write(b"unused")
+
+        class FakePage:
+            def to_image(self, resolution: int = 150):
+                return FakeImage()
+
+        class FakePdf:
+            pages = [FakePage()]
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+        fake_pdfplumber = types.ModuleType("pdfplumber")
+        fake_pdfplumber.open = MagicMock(return_value=FakePdf())
+
+        master_db = AsyncMock()
+
+        with (
+            patch.dict("sys.modules", {"pdfplumber": fake_pdfplumber}),
+            patch("api.documents.get_decrypted_document", return_value=BytesIO(b"%PDF-FAKE")),
+        ):
+            with pytest.raises(Exception) as exc_info:
+                await get_page_image(document_id, 2, session, profile_db, master_db)
+
+        assert getattr(exc_info.value, "status_code", None) == 404
+        assert master_db.commit.await_count == 0

@@ -11,6 +11,7 @@ technical safeguards for protected health information (PHI).
 |----------|-------------|
 | [HIPAA Controls](hipaa-controls.md) | HIPAA 164.312 technical safeguards mapping |
 | [Data Privacy](data-privacy.md) | Data classification, encryption, retention |
+| [AI Safety](ai-safety.md) | Refusal/escalation boundaries, grounding, injection and PHI-leakage evals |
 | [Audit Checklist](audit-checklist.md) | Pre-deployment compliance checklist |
 | [Disaster Recovery](disaster-recovery.md) | Backup and recovery runbook |
 | [Security Review — Sprint 06](security-review-sprint06.md) | Static security analysis of Sprint 06 code |

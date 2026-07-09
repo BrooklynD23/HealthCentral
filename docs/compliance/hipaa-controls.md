@@ -119,7 +119,7 @@ HealthCentral supports opt-in feedback collection and RL dataset export for mode
 | Control | Implementation |
 |---------|----------------|
 | Feedback audit logging | `api/feedback.py` creates `feedback.*` audit log entries for all feedback operations (create, annotate, export) |
-| PHI redaction policy | `modules/rl_dataset.py` applies `modules/redaction.py` before export. Current standard rules cover common identifiers such as SSNs, emails, phone numbers, and context-prefixed names; exported JSONL can still contain lab values, dates, medication names, or biomarker values that do not match those rules. |
+| PHI redaction policy | `modules/rl_dataset.py` applies `modules/redaction.py` at the **strict** policy level before export (RL-REDACT-001, 2026-07-07): SSNs, emails, phones, context-prefixed names, DOB, street addresses, MRNs, and slash/dash numeric dates are removed. Exported JSONL can still contain lab values, biomarker names, medication names, and ISO-8601 collection timestamps — a recorded deferral (they are the training signal); see `docs/features/TASK_LIST.md` RL-REDACT-001. |
 | User consent | Explicit `confirmed=true` required in `POST /feedback/export` request — never automatic or silent |
 | Data retention | Feedback retained in profile DB until user deletion; exported datasets are persistent local files until manually deleted |
 

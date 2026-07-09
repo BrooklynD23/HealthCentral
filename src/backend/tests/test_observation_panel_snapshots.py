@@ -7,6 +7,7 @@ import uuid
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -95,6 +96,7 @@ async def test_panel_snapshots_groups_by_doc_and_day():
         panel_id="lipid",
         session=_session(pid),
         profile_db=_FakeProfileDb(rows),
+        master_db=AsyncMock(),
     )
     assert len(out) == 2
     assert out[0].collection_date == "2024-07-01"
@@ -115,6 +117,7 @@ async def test_panel_snapshots_dedupes_analyte_per_group():
         panel_id="lipid",
         session=_session(pid),
         profile_db=_FakeProfileDb(rows),
+        master_db=AsyncMock(),
     )
     assert len(out) == 1
     assert len(out[0].observations) == 1

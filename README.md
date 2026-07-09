@@ -195,13 +195,18 @@ Architecture designed for:
 
 ## Documentation Source of Truth
 
-- [`docs/00_architecture_plans_index.md`](docs/00_architecture_plans_index.md): canonical documentation order.
-- [`docs/api/endpoints.md`](docs/api/endpoints.md): exact mounted API route inventory and auth requirements.
-- [`docs/01_backend_architecture_plan.md`](docs/01_backend_architecture_plan.md): backend architecture baseline and future hardening notes.
-- [`docs/features/TASK_LIST.md`](docs/features/TASK_LIST.md): active remaining-work tracker.
-- [`docs/05_backend_integration_status.md`](docs/05_backend_integration_status.md): historical Sprint 06 snapshot retained for audit context only.
+1. `README.md` (this file — repo entrypoint)
+2. `docs/api/endpoints.md` (exact mounted API route inventory and auth requirements)
+3. `docs/00_architecture_plans_index.md` (full documentation index; see also `docs/roles/00_roles_index.md` for a domain-based entry point)
+4. `docs/features/TASK_LIST.md` (active remaining-work tracker)
+5. `docs/05_backend_integration_status.md` (Historical Reference — Sprint 06 snapshot retained for audit context only)
 
-To validate docs ownership, required sections, and historical-doc classification locally, run `python3 scripts/docs_lint.py`.
+For backend architecture detail specifically, see [`docs/01_backend_architecture_plan.md`](docs/01_backend_architecture_plan.md)
+(reachable via the architecture index and [`docs/roles/backend-api.md`](docs/roles/backend-api.md)).
+
+To validate docs ownership, required sections, canonical-order consistency, and historical-doc
+classification locally, run `python3 scripts/docs_lint.py` (add `--link-graph` to also regenerate
+`docs/_link_graph.json`).
 
 ## SQLCipher Setup (Required for Database Encryption)
 
@@ -278,7 +283,7 @@ Migrations run automatically:
 
 ### Prerequisites
 - Python 3.11+
-- Node.js 18+ (for frontend)
+- Node.js 22+ (for frontend; Node.js 24 LTS recommended)
 
 ### Quick Start (Recommended)
 
@@ -338,7 +343,7 @@ What this bootstrap proves:
 #### Bootstrap prerequisites and recovery notes
 
 - **Python**: use Python 3.11+ and create the backend verifier environment from the same WSL/Linux interpreter you will use for pytest.
-- **Node.js**: use Node.js 18+ so `npx --prefix src/frontend ...` resolves the frontend toolchain correctly.
+- **Node.js**: use Node.js 22+ (Node.js 24 LTS recommended) so `npx --prefix src/frontend ...` resolves the frontend toolchain correctly.
 - **SQLCipher**: if `pip install -r src/backend/requirements.txt` fails around `sqlcipher3-binary` on Debian/Ubuntu, install `libsqlcipher-dev` first, then retry the pip install.
 - **OCR packages**: `tesseract-ocr` and PDF/image system libraries are required for OCR-heavy backend tests and runtime features, but the bootstrap smoke test above does not depend on them.
 
