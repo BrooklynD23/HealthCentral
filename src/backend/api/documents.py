@@ -37,7 +37,7 @@ from modules.embeddings import EmbeddingsModule
 from modules.document_classifier import classify_document
 from modules.extract_imaging import extract_imaging_entities
 from modules.extract_pathology import extract_pathology_entities
-from modules.extract_visit_notes import extract_visit_note_entities
+from modules.extract_visit_notes import extract_visit_note_entities, llm_assist_visit_entities
 from models.document_category import DocumentCategory, DocumentEntity
 
 logger = logging.getLogger(__name__)
@@ -635,11 +635,14 @@ async def _classify_and_extract_entities(
     doc_id: str,
     doc_type: str,
     pre_extracted_text: Optional[str] = None,
+    llm_assist: bool = False,
 ) -> None:
     """Classify a document and persist category + extracted entities.
 
     Extracts text from the decrypted document, runs the rule-based classifier,
-    and if a category is found, runs the appropriate entity extractor.
+    and if a category is found, runs the appropriate entity extractor. When
+    *llm_assist* is explicitly enabled (default OFF), visit notes also get a
+    hard-validated LLM proposal pass on top of the rule-based entities.
     Fully non-fatal: every stage (text extraction, classification, entity
     extraction, DB persistence) is wrapped so failures never propagate to
     the caller.
@@ -678,6 +681,12 @@ async def _classify_and_extract_entities(
                 f"(category={result.category}): {e}"
             )
             # Continue — we can still persist the category without entities
+
+    if llm_assist and result.category == "visit_notes":
+        try:
+            entities.extend(await llm_assist_visit_entities(text, entities))
+        except Exception as e:
+            logger.warning(f"LLM-assist entity pass failed for {doc_id}: {e}")
 
     # --- Stage 4: DB persistence ---
     try:
@@ -833,10 +842,15 @@ async def get_document(
 async def reprocess_document(
     document_id: str,
     session: RequireAuth,
+    llm_assist: bool = False,
     profile_db: ProfileDbSession = None,
     master_db: AsyncSession = Depends(get_db),
 ):
-    """Retry extraction/OCR and rebuild observations/chunks for a document."""
+    """Retry extraction/OCR and rebuild observations/chunks for a document.
+
+    ``llm_assist`` (query, default False) additionally runs the hard-validated
+    LLM entity-proposal pass for visit notes; rule-based extraction always runs.
+    """
     validate_uuid(document_id, "document_id")
 
     result = await profile_db.execute(select(Document).where(Document.id == document_id))
@@ -868,6 +882,7 @@ async def reprocess_document(
         doc_id=document_id,
         doc_type=document.doc_type,
         pre_extracted_text=extracted_text,
+        llm_assist=llm_assist,
     )
 
     await log_document_event(
@@ -880,6 +895,7 @@ async def reprocess_document(
             "action": "reprocess",
             "status": document.status,
             "observations_extracted": observations_extracted,
+            "llm_assist": llm_assist,
         },
     )
     await master_db.commit()
