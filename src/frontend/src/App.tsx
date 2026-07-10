@@ -51,6 +51,10 @@ const CareTasksPage = lazy(async () => {
   const module = await import('./pages/CareTasksPage');
   return { default: module.CareTasksPage };
 });
+const TimelinePage = lazy(async () => {
+  const module = await import('./pages/TimelinePage');
+  return { default: module.TimelinePage };
+});
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -97,6 +101,7 @@ function App() {
               <Route path="inbox" element={<DocumentInbox />} />
               <Route path="verify" element={<VerificationWorkbench />} />
               <Route path="trends" element={lazyRoute(<TrendsDashboard />)} />
+              <Route path="timeline" element={lazyRoute(<TimelinePage />)} />
               <Route path="interpret" element={lazyRoute(<LabInterpreter />)} />
               <Route path="medications" element={lazyRoute(<MedicationCoach />)} />
               <Route path="medications/:medicationId" element={lazyRoute(<MedicationDetail />)} />

@@ -145,6 +145,31 @@ On the first of each month, review all canonical docs for freshness:
 
 ## Session Notes
 
+### 2026-07-10 - HC-M14 Health Timeline (branch `claude/hc-m14-timeline`)
+
+One chronological view of the health record, derived on read — no new tables,
+no migrations. Done TDD-first (`tests/test_timeline.py`, HC-TML-001..005).
+
+- **Read-model** `modules/timeline.py`: derives events from the per-profile DB.
+  Lab observations collapse to one `lab_results` event per (document, collection
+  day) with verified/unverified/mixed status; classified documents
+  (imaging/pathology/visit_notes) get one event each with date precedence
+  `collection_date` > parseable date entity (`report_date`/`visit_date`, reusing
+  `ExtractModule._normalize_date_str`) > `imported_at`; medications produce
+  start events and, when `ended_at` is set, stop events. Undated observation
+  groups are excluded from the dated stream and returned in a separate
+  `undated` list, mirroring the undated-observation rule in the observations API.
+- **API** `api/timeline.py`: `GET /api/v1/timeline/` (session-scoped profile,
+  optional `event_type`, `date_from`, `date_to`), fail-closed audit logging via
+  `audit_and_commit` (`timeline.view`).
+- **Frontend**: `pages/TimelinePage.tsx` (event cards with type badge, date +
+  source, verification chip, links to inbox/trends/medications/verify; filter
+  controls; undated section), `services/timeline.ts` `useTimeline` hook via the
+  barrel, `/timeline` route + sidebar entry. 3 vitest contract tests.
+- **Verification**: backend 734 passed / 1 known env-only embedding failure
+  (unchanged baseline); `npx tsc --noEmit` clean; `npx vitest run` 108/108;
+  `from main import app` OK.
+
 ### 2026-07-03 - NORM-UNIT-001 Implemented (cross-lab unit normalization)
 
 First of the shovel-ready architect-review tickets, done TDD-first (branch

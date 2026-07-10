@@ -173,6 +173,18 @@ export type {
   NotificationHistoryFilters,
 } from './notifications';
 
+// Timeline hooks (HC-M14)
+export { useTimeline } from './timeline';
+
+export type {
+  TimelineEvent,
+  TimelineEventType,
+  TimelineDateSource,
+  TimelineVerificationStatus,
+  TimelineResponse,
+  TimelineFilters,
+} from './timeline';
+
 // Document category hooks
 export {
   useDocumentCategory,
