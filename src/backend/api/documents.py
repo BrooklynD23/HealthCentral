@@ -699,6 +699,10 @@ async def _classify_and_extract_entities(
                 entity_value=ent["entity_value"],
                 confidence=ent["confidence"],
                 source_page=ent.get("source_page"),
+                char_start=ent.get("char_start"),
+                char_end=ent.get("char_end"),
+                quote=ent.get("quote"),
+                extraction_version=ent.get("extraction_version"),
             )
             profile_db.add(entity_record)
 
@@ -956,6 +960,11 @@ class DocumentEntityResponse(BaseModel):
     entity_value: str
     confidence: float
     source_page: Optional[int] = None
+    char_start: Optional[int] = None
+    char_end: Optional[int] = None
+    quote: Optional[str] = None
+    verified_by_user: Optional[bool] = None
+    extraction_version: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -1036,18 +1045,69 @@ async def get_document_entities(
         details={"action": "entities", "count": len(entities)},
     )
 
-    return [
-        DocumentEntityResponse(
-            id=ent.id,
-            doc_id=ent.doc_id,
-            category=ent.category,
-            entity_type=ent.entity_type,
-            entity_value=ent.entity_value,
-            confidence=ent.confidence,
-            source_page=ent.source_page,
+    return [DocumentEntityResponse.model_validate(ent) for ent in entities]
+
+
+class EntityVerificationRequest(BaseModel):
+    """Request body for setting an entity's user verification state.
+
+    verified: true = verified, false = rejected, null = reset to unreviewed.
+    """
+    verified: Optional[bool] = None
+
+
+@router.patch(
+    "/{document_id}/entities/{entity_id}/verification",
+    response_model=DocumentEntityResponse,
+)
+async def set_entity_verification(
+    document_id: str,
+    entity_id: str,
+    payload: EntityVerificationRequest,
+    session: RequireAuth,
+    profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """Set the user verification state of an extracted entity."""
+    validate_uuid(document_id, "document_id")
+    validate_uuid(entity_id, "entity_id")
+
+    # Verify document exists and user has access
+    doc_result = await profile_db.execute(select(Document).where(Document.id == document_id))
+    document = doc_result.scalar_one_or_none()
+    if not document:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    verify_document_access(document, session)
+
+    result = await profile_db.execute(
+        select(DocumentEntity).where(
+            DocumentEntity.id == entity_id,
+            DocumentEntity.doc_id == document_id,
         )
-        for ent in entities
-    ]
+    )
+    entity = result.scalar_one_or_none()
+    if not entity:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entity not found")
+
+    entity.verified_by_user = payload.verified
+    await profile_db.commit()
+
+    await log_document_event(
+        db=master_db,
+        event="verify",
+        profile_id=session.profile_id,
+        document_id=document_id,
+        filename=document.source,
+        details={
+            "action": "entity_verification",
+            "entity_id": entity_id,
+            "entity_type": entity.entity_type,
+            "verified": payload.verified,
+        },
+    )
+    await master_db.commit()
+
+    return DocumentEntityResponse.model_validate(entity)
 
 
 @router.get("/{document_id}/pages", response_model=list[PageResponse])
