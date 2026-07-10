@@ -187,6 +187,22 @@ export type {
   EntityVerificationRequest,
 } from './documentCategories';
 
+// Care task hooks (HC-M15)
+export {
+  useCareTasks,
+  useCareTaskCandidates,
+  useAcceptCareTask,
+  useUpdateCareTask,
+} from './careTasks';
+
+export type {
+  CarePlanTask,
+  CareTaskCandidate,
+  CareTaskStatus,
+  AcceptCareTaskRequest,
+  CareTaskUpdateRequest,
+} from './careTasks';
+
 // Memory store hooks (ASSIST-MEM-001/002)
 export {
   useMemoryItems,
