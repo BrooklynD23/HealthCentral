@@ -43,6 +43,12 @@ const ENTITY_LABELS: Record<string, string> = {
   provider: 'Provider',
   visit_date: 'Visit Date',
   vitals: 'Vitals',
+  medication_change: 'Medication Change',
+  test_ordered: 'Test Ordered',
+  referral: 'Referral',
+  follow_up_instruction: 'Follow-up Instruction',
+  warning_sign: 'Warning Sign',
+  facility: 'Facility',
 };
 
 export function EntityDetailView({
