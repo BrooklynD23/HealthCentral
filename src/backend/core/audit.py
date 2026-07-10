@@ -168,6 +168,30 @@ async def log_observation_event(
     )
 
 
+async def log_care_task_event(
+    db: AsyncSession,
+    event: str,
+    profile_id: str,
+    task_id: str,
+    details: Optional[dict[str, Any]] = None,
+) -> "AuditLog":
+    """Log a care-plan task event (HC-M15)."""
+    action_map = {
+        "view": "Viewed care plan tasks",
+        "create": "Accepted care plan task",
+        "update": "Updated care plan task",
+    }
+    return await create_audit_log(
+        db=db,
+        event_type=f"care_task.{event}",
+        action=action_map.get(event, f"Care plan task {event}"),
+        profile_id=profile_id,
+        entity_type="care_task",
+        entity_id=task_id,
+        details=details,
+    )
+
+
 async def log_export_event(
     db: AsyncSession,
     profile_id: str,
