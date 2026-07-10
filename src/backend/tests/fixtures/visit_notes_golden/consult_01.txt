@@ -1,0 +1,16 @@
+CARDIOLOGY CONSULT NOTE
+Requested by: Dr. Amy Fontaine
+Patient: Walter Briggs   Date of visit: 03/27/2026
+Consultant: Dr. Luis Herrera, Cardiology
+
+Reason for visit: palpitations
+
+ASSESSMENT: Likely benign premature atrial contractions. No evidence of structural heart disease on exam.
+
+RECOMMENDATIONS:
+Order an echocardiogram and a 14-day event monitor.
+Decrease caffeine intake.
+Continue low-dose aspirin 81 mg daily.
+Refer to electrophysiology if the event monitor shows sustained arrhythmia.
+
+Return to our clinic in 6 weeks to review results.

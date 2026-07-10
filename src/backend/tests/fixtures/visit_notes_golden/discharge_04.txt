@@ -1,0 +1,16 @@
+DISCHARGE SUMMARY - MEDICATION RECONCILIATION
+Facility: Harborview Community Hospital
+Patient: Beatrice Muller    Discharge date: 02/28/2026
+
+Your medication list was updated during this stay:
+
+START: apixaban 5 mg twice daily
+STOP: warfarin
+INCREASE: atorvastatin to 40 mg nightly
+CONTINUE: metformin 1000 mg twice daily
+
+Anticoagulation clinic will manage your apixaban; they will contact you within 3 days.
+
+Repeat CBC in 2 weeks.
+
+Call 911 if you have signs of stroke such as sudden weakness on one side or trouble speaking.

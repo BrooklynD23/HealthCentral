@@ -1,0 +1,20 @@
+After Visit Summary
+Lakeside Endocrinology Clinic
+
+Patient: Maria Chen    Visit date: 02/09/2026
+Seen by: Dr. Priya Anand
+Location: Lakeside Endocrinology Clinic, 3rd Floor
+
+Chief Complaint: diabetes management
+
+Your A1c has improved but is still above goal.
+
+Plan:
+Increase metformin to 1000 mg twice daily.
+Repeat hemoglobin A1c in 3 months.
+Referred to ophthalmology for your yearly diabetic eye exam.
+Schedule an appointment with the diabetes educator.
+
+Return to clinic in 3 months.
+
+Call your care team if you have repeated blood sugar readings below 70, confusion, or sweating.
