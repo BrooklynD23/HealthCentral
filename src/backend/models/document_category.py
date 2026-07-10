@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import String, Text, Float, Integer, DateTime, ForeignKey
+from sqlalchemy import String, Text, Float, Integer, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.profile_database import ProfileDatabaseBase
@@ -42,6 +42,13 @@ class DocumentEntity(ProfileDatabaseBase):
     confidence: Mapped[float] = mapped_column(Float, nullable=False)
     source_page: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     source_bbox_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # HC-M12 source spans: verbatim quote such that text[char_start:char_end] == quote
+    char_start: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    char_end: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    quote: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # null = unreviewed, True = verified, False = rejected
+    verified_by_user: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    extraction_version: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
 
     def __repr__(self) -> str:
