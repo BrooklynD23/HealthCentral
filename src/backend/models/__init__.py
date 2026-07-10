@@ -55,6 +55,9 @@ from .memory_item import MemoryItem
 # Chat session persistence (per-profile, ASSIST-HIST-001)
 from .chat_session import ChatSession, ChatTurn
 
+# Care-plan tasks (per-profile, HC-M15)
+from .care_plan_task import CarePlanTask
+
 __all__ = [
     # Master database
     "Profile",
@@ -90,4 +93,6 @@ __all__ = [
     # Chat session persistence (per-profile)
     "ChatSession",
     "ChatTurn",
+    # Care-plan tasks (per-profile, HC-M15)
+    "CarePlanTask",
 ]

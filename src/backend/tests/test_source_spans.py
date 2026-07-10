@@ -309,9 +309,11 @@ def test_hc_span_009_migration_010_upgrade_and_downgrade_run_clean(tmp_path, mon
     encryption_key = b"0" * 32
 
     migrations.run_profile_migration(vault_path, encryption_key)
+    # Chain head moved to 011 (HC-M15); migration 010 must still walk cleanly.
+    head_revision = "011_care_plan_tasks"
     assert (
         migrations.get_profile_current_revision(vault_path, encryption_key)
-        == "010_entity_source_spans"
+        == head_revision
     )
 
     config = migrations._get_alembic_config("profile")
@@ -327,5 +329,5 @@ def test_hc_span_009_migration_010_upgrade_and_downgrade_run_clean(tmp_path, mon
     command.upgrade(config, "head")
     assert (
         migrations.get_profile_current_revision(vault_path, encryption_key)
-        == "010_entity_source_spans"
+        == head_revision
     )
