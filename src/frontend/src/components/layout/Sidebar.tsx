@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import {
   Inbox,
   CheckCircle,
+  ClipboardList,
   TrendingUp,
   MessageCircle,
   FileOutput,
@@ -22,6 +23,7 @@ const navItems = [
   { to: '/interpret', icon: Brain, label: 'Interpret' },
   { to: '/medications', icon: Pill, label: 'Meds' },
   { to: '/notifications', icon: Bell, label: 'Alerts' },
+  { to: '/care-tasks', icon: ClipboardList, label: 'Tasks' },
   { to: '/explain', icon: MessageCircle, label: 'Explain' },
   { to: '/export', icon: FileOutput, label: 'Export' },
   { to: '/settings', icon: Settings, label: 'Settings' },

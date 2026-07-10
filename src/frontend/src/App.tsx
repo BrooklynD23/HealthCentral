@@ -47,6 +47,10 @@ const ExportPage = lazy(async () => {
   const module = await import('./pages/ExportPage');
   return { default: module.ExportPage };
 });
+const CareTasksPage = lazy(async () => {
+  const module = await import('./pages/CareTasksPage');
+  return { default: module.CareTasksPage };
+});
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -97,6 +101,7 @@ function App() {
               <Route path="medications" element={lazyRoute(<MedicationCoach />)} />
               <Route path="medications/:medicationId" element={lazyRoute(<MedicationDetail />)} />
               <Route path="notifications" element={lazyRoute(<NotificationSettings />)} />
+              <Route path="care-tasks" element={lazyRoute(<CareTasksPage />)} />
               <Route path="explain" element={lazyRoute(<ExplainAssistant />)} />
               <Route path="export" element={lazyRoute(<ExportPage />)} />
               <Route path="settings" element={<SettingsPage />} />
