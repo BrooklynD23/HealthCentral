@@ -305,3 +305,12 @@ This was a multi-turn session (branch `claude/agent-exploration-tech-research-en
 - **STAB-006**: Created `document-import.spec.ts` (5 tests) and `settings-smoke.spec.ts` (4 tests). Updated `playwright.config.ts` with dual webServer. Added `e2e-tests` CI job. Renamed E2E-RAG-002.
 - **STAB-007**: Added stabilization sprint section to TASK_LIST.md with TDD-structured rows. Updated architecture index.
 - **CI Gates (updated)**: CI now has 4 jobs: docs-lint, backend-tests, frontend-tests, and e2e-tests.
+
+### 2026-07-10 - HC-M12 Entity Source Spans + User Verification (HC-SPAN)
+
+- **Schema**: `DocumentEntity` gained nullable `char_start`, `char_end`, `quote` (verbatim source substring, invariant `text[char_start:char_end] == quote`), `verified_by_user` (null=unreviewed / true=verified / false=rejected), `extraction_version`. Profile migration `010_entity_source_spans` (additive, working downgrade, linear on `009_agent_enabled`).
+- **Extractors**: `extract_imaging` / `extract_pathology` / `extract_visit_notes` now attach spans via new `modules/extract_spans.with_span()` (uses regex match spans, whitespace-trimmed; unresolvable span => quote None + confidence capped at 0.5; `extraction_version="rule-v2"`).
+- **API**: entity fields persisted in `_classify_and_extract_entities`; `GET /documents/{id}/entities` returns the new fields; new `PATCH /documents/{doc_id}/entities/{entity_id}/verification` with body `{verified: true|false|null}` (auth + profile-DB scoping + master-DB audit logging matching neighboring routes).
+- **Frontend**: `EntityDetailView` shows each entity's verbatim quote plus verify/reject controls; rendered in `VerificationWorkbench` for the selected document (including document-review mode with no lab observations). `useSetEntityVerification` / `setEntityVerification` exported through the services barrel.
+- **Tests**: backend `tests/test_source_spans.py` (HC-SPAN: extractor span exactness, confidence cap, API round-trip, PATCH state + audit + 404/403, migration 010 upgrade/downgrade); migration-head assertion bumped to 010 in the SQLCipher-fallback test; frontend `EntityVerificationService.test.tsx` (FE-SPAN contract tests).
+- **Verification**: backend `pytest` 740 passed / 1 known env-only embedding failure (unchanged); `npx tsc --noEmit` → 0 errors; `npx vitest run` → 109/109 pass; `from main import app` boots.
