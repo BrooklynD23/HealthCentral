@@ -4,8 +4,8 @@
  * React Query hooks for document classification and entity data.
  */
 
-import { useQuery } from '@tanstack/react-query';
-import { apiGet } from './api';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiGet, apiPatch } from './api';
 
 export interface DocumentCategoryResponse {
   id: string;
@@ -23,6 +23,26 @@ export interface DocumentEntityResponse {
   entity_value: string;
   confidence: number;
   source_page: number | null;
+  char_start: number | null;
+  char_end: number | null;
+  quote: string | null;
+  verified_by_user: boolean | null;
+  extraction_version: string | null;
+}
+
+export interface EntityVerificationRequest {
+  verified: boolean | null;
+}
+
+export function setEntityVerification(
+  docId: string,
+  entityId: string,
+  verified: boolean | null
+): Promise<DocumentEntityResponse> {
+  return apiPatch<DocumentEntityResponse, EntityVerificationRequest>(
+    `/documents/${docId}/entities/${entityId}/verification`,
+    { verified }
+  );
 }
 
 export function useDocumentCategory(docId: string) {
@@ -38,5 +58,24 @@ export function useDocumentEntities(docId: string) {
     queryKey: ['documents', docId, 'entities'],
     queryFn: () => apiGet<DocumentEntityResponse[]>(`/documents/${docId}/entities`),
     enabled: !!docId,
+  });
+}
+
+export function useSetEntityVerification() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      docId,
+      entityId,
+      verified,
+    }: {
+      docId: string;
+      entityId: string;
+      verified: boolean | null;
+    }) => setEntityVerification(docId, entityId, verified),
+    onSuccess: (_data, { docId }) => {
+      queryClient.invalidateQueries({ queryKey: ['documents', docId, 'entities'] });
+    },
   });
 }

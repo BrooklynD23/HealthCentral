@@ -177,11 +177,14 @@ export type {
 export {
   useDocumentCategory,
   useDocumentEntities,
+  useSetEntityVerification,
+  setEntityVerification,
 } from './documentCategories';
 
 export type {
   DocumentCategoryResponse,
   DocumentEntityResponse,
+  EntityVerificationRequest,
 } from './documentCategories';
 
 // Memory store hooks (ASSIST-MEM-001/002)
