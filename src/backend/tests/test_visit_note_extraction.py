@@ -252,7 +252,7 @@ class TestLlmAssist:
         runner = _FakeRunner(json.dumps([
             {
                 "entity_type": "warning_sign",
-                "entity_value": "call the office if headache, blurred vision, chest pain",
+                "entity_value": "call the office if you have a headache",
                 "quote": quote,
                 "confidence": 0.99,
             }
@@ -329,6 +329,65 @@ class TestLlmAssist:
         assert await llm_assist_visit_entities(
             AVS_TEXT, [], runner=_FakeRunner("I cannot help with that.")
         ) == []
+
+    @pytest.mark.asyncio
+    async def test_hc_avs_014_fabricated_value_with_real_quote_rejected(self):
+        """A crafted document can induce the model to pair a real verbatim
+        quote with fabricated advice text. entity_value must be grounded in
+        the validated quote — no free model text may survive into it."""
+        text = (
+            "DISCHARGE INSTRUCTIONS\n"
+            "Medication changes:\n"
+            "Discontinue warfarin immediately.\n"
+            "Follow up in 2 weeks.\n"
+        )
+        quote = "Discontinue warfarin immediately"
+        assert quote in text
+        runner = _FakeRunner(json.dumps([
+            # Real quote, fabricated dosing advice (leading canonical verb
+            # alone must not be enough).
+            {
+                "entity_type": "medication_change",
+                "entity_value": "start URGENT: take double dose of warfarin tonight",
+                "quote": quote,
+            },
+            # Non-medication types have no verb check at all — grounding
+            # must still reject fabricated text.
+            {
+                "entity_type": "warning_sign",
+                "entity_value": "URGENT: take double dose of warfarin tonight",
+                "quote": quote,
+            },
+            {
+                "entity_type": "follow_up_instruction",
+                "entity_value": "return tomorrow for emergency dialysis",
+                "quote": "Follow up in 2 weeks",
+            },
+        ]))
+        assert await llm_assist_visit_entities(text, [], runner=runner) == []
+
+    @pytest.mark.asyncio
+    async def test_hc_avs_015_faithful_normalization_accepted(self):
+        """A value that faithfully normalizes its quote is accepted,
+        including the canonical medication verb normalized from a synonym
+        in the quote ("Discontinue" -> "stop")."""
+        text = (
+            "DISCHARGE INSTRUCTIONS\n"
+            "Medication changes:\n"
+            "Discontinue warfarin immediately.\n"
+        )
+        quote = "Discontinue warfarin immediately"
+        runner = _FakeRunner(json.dumps([
+            {
+                "entity_type": "medication_change",
+                "entity_value": "stop warfarin",
+                "quote": quote,
+            }
+        ]))
+        entities = await llm_assist_visit_entities(text, [], runner=runner)
+        assert len(entities) == 1
+        assert entities[0]["entity_value"] == "stop warfarin"
+        assert entities[0]["quote"] == quote
 
     @pytest.mark.asyncio
     async def test_hc_avs_012_document_text_is_data_not_instructions(self):
