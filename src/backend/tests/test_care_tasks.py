@@ -228,6 +228,46 @@ class TestDueDateRules:
         assert cand["due_date_confidence"] is not None
         assert cand["suggested_status"] == "open"
 
+    def test_hc_task_026_stray_past_absolute_date_prefers_anchored_relative(self):
+        """A stray absolute date in the quote (a past reference, e.g. a
+        prior MRI) must not override the real relative expression."""
+        doc_id = str(uuid.uuid4())
+        doc = _make_document(doc_id)
+        quote = "Will review the MRI performed 01/04/2019, return in 6 weeks"
+        ent = _make_entity(
+            doc_id,
+            entity_type="follow_up_instruction",
+            entity_value=quote,
+            quote=quote,
+        )
+        cand = derive_task_candidates(
+            [ent, _visit_date_entity(doc_id, "06/10/2026")], doc
+        )[0]
+        # Anchored relative resolution wins: 2026-06-10 + 6 weeks.
+        assert cand["due_date"] == date(2026, 7, 22)
+        assert cand["due_date_confidence"] is not None
+        assert cand["due_date_confidence"] <= 0.8
+        assert cand["suggested_status"] == "open"
+
+    def test_hc_task_027_past_absolute_date_alone_never_becomes_due_date(self):
+        """An absolute date earlier than the anchor (document) date is a
+        reference to the past, not a follow-up due date."""
+        doc_id = str(uuid.uuid4())
+        doc = _make_document(doc_id)
+        quote = "Follow up regarding the MRI performed 01/04/2019"
+        ent = _make_entity(
+            doc_id,
+            entity_type="follow_up_instruction",
+            entity_value=quote,
+            quote=quote,
+        )
+        cand = derive_task_candidates(
+            [ent, _visit_date_entity(doc_id, "06/10/2026")], doc
+        )[0]
+        assert cand["due_date"] is None
+        assert cand["due_date_confidence"] is None
+        assert cand["suggested_status"] == "needs_review"
+
     def test_hc_task_010_property_no_due_date_without_textual_basis(self):
         """Property: a candidate has a due date only when its source text has
         an absolute date, or a relative expression AND the document has an

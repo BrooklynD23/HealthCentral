@@ -6,13 +6,20 @@ and are never persisted until the user explicitly accepts one.
 
 Due-date rule (hard constraint) — a candidate NEVER gets an invented due date:
 
-- An absolute date written in the entity's own source text parses directly.
 - A relative expression ("in 4 weeks", "within 3 months") resolves only
   against a confident document anchor date (a visit_date entity or the
   document's collection date); the computed date's confidence is <= 0.8.
-- Anything else — vague timing ("soon", "as needed"), no timeframe, or a
-  relative expression with no anchor — yields due_date=None,
-  due_date_confidence=None, and suggested_status "needs_review".
+  When the text contains BOTH an anchored relative expression and an
+  absolute date, the relative resolution wins (a stray absolute date is
+  usually a past reference, e.g. "the MRI performed 01/04/2019").
+- Otherwise an absolute date written in the entity's own source text parses
+  directly — but only if it is not earlier than the anchor date; a date in
+  the anchor's past must never become a due date. Without any anchor the
+  absolute date is trusted as-is.
+- Anything else — vague timing ("soon", "as needed"), no timeframe, a
+  relative expression with no anchor, or a past absolute date — yields
+  due_date=None, due_date_confidence=None, and suggested_status
+  "needs_review".
 """
 
 from __future__ import annotations
@@ -129,17 +136,18 @@ def _derive_due(
 ) -> tuple[Optional[date], Optional[float], str]:
     """(due_date, due_date_confidence, suggested_status) for one entity.
 
-    A due date is produced ONLY from an absolute date in the source text, or
-    a relative expression resolved against an anchored document date.
+    A due date is produced ONLY from a relative expression resolved against
+    an anchored document date (preferred), or an absolute date in the source
+    text that is not earlier than the anchor. See the module docstring.
     """
-    absolute = _find_absolute_date(source_text)
-    if absolute is not None:
-        return absolute, ABSOLUTE_DATE_CONFIDENCE, "open"
-
     relative = RELATIVE_PATTERN.search(source_text)
     if relative is not None and anchor is not None:
         due = _add_interval(anchor, int(relative.group(1)), relative.group(2).lower())
         return due, ANCHORED_RELATIVE_CONFIDENCE, "open"
+
+    absolute = _find_absolute_date(source_text)
+    if absolute is not None and (anchor is None or absolute >= anchor):
+        return absolute, ABSOLUTE_DATE_CONFIDENCE, "open"
 
     return None, None, "needs_review"
 
