@@ -16,7 +16,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.documents import validate_uuid, verify_document_access
@@ -165,8 +165,10 @@ async def get_care_task_candidates(
 ):
     """Derive task candidates for a document (computed on read, not persisted).
 
-    Excludes entities already linked to a persisted task and entities the
-    user rejected (verified_by_user == False).
+    Excludes entities already linked to a persisted task — by entity id, and
+    by content (same source quote for this document, so a reprocess that
+    recreates entities under fresh UUIDs cannot resurface accepted tasks) —
+    and entities the user rejected (verified_by_user == False).
     """
     validate_uuid(doc_id, "doc_id")
     document = await _load_document_or_404(profile_db, doc_id, session)
@@ -179,8 +181,12 @@ async def get_care_task_candidates(
     task_result = await profile_db.execute(
         select(CarePlanTask).where(CarePlanTask.source_document_id == doc_id)
     )
+    existing_tasks = task_result.scalars().all()
     linked_entity_ids = {
-        task.source_entity_id for task in task_result.scalars().all() if task.source_entity_id
+        task.source_entity_id for task in existing_tasks if task.source_entity_id
+    }
+    linked_quotes = {
+        task.source_quote for task in existing_tasks if task.source_quote
     }
     excluded = linked_entity_ids | {
         ent.id for ent in entities if ent.verified_by_user is False
@@ -190,6 +196,7 @@ async def get_care_task_candidates(
         cand
         for cand in derive_task_candidates(entities, document)
         if cand["source_entity_id"] not in excluded
+        and (cand["source_quote"] is None or cand["source_quote"] not in linked_quotes)
     ]
 
     await audit_and_commit(
@@ -246,8 +253,17 @@ async def accept_care_task(
             detail="Quote does not match the entity's stored quote",
         )
 
+    # Duplicate guard keyed on entity id AND on content (document + quote):
+    # a reprocess recreates entities under fresh UUIDs, so the entity-id
+    # check alone would allow duplicate tasks for the same instruction.
+    duplicate_clauses = [CarePlanTask.source_entity_id == entity.id]
+    if entity.quote is not None:
+        duplicate_clauses.append(
+            (CarePlanTask.source_document_id == payload.source_document_id)
+            & (CarePlanTask.source_quote == entity.quote)
+        )
     existing_result = await profile_db.execute(
-        select(CarePlanTask).where(CarePlanTask.source_entity_id == entity.id)
+        select(CarePlanTask).where(or_(*duplicate_clauses)).limit(1)
     )
     if existing_result.scalar_one_or_none():
         raise HTTPException(

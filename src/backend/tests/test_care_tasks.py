@@ -661,6 +661,133 @@ class TestUpdateEndpoint:
 
 
 # ---------------------------------------------------------------------------
+# Reprocess resilience: duplicate detection must be content-keyed
+# ---------------------------------------------------------------------------
+
+import pytest_asyncio  # noqa: E402
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E402
+
+from core.profile_database import ProfileDatabaseBase  # noqa: E402
+from models import Document  # noqa: E402
+
+
+@pytest_asyncio.fixture
+async def real_profile_db():
+    engine = create_async_engine("sqlite+aiosqlite://")
+    async with engine.begin() as conn:
+        await conn.run_sync(ProfileDatabaseBase.metadata.create_all)
+    session = AsyncSession(engine, expire_on_commit=False)
+    try:
+        yield session
+    finally:
+        await session.close()
+        await engine.dispose()
+
+
+class TestReprocessDuplicateGuards:
+    """Reprocess deletes and recreates DocumentEntity rows with fresh UUIDs
+    while SQLite FK enforcement is off, so task.source_entity_id dangles
+    silently. Duplicate detection must therefore also key on content
+    (source_document_id + source_quote), and nothing may crash on a
+    dangling entity id."""
+
+    QUOTE = "Repeat CBC in 4 weeks"
+
+    def _document(self, doc_id: str) -> Document:
+        return Document(
+            id=doc_id,
+            profile_id="test-profile",
+            path_hash="x" * 64,
+            content_hash="y" * 64,
+            doc_type="lab_pdf",
+            source="visit-note.pdf",
+            status="parsed",
+            collection_date=datetime(2026, 4, 2),
+            imported_at=datetime(2026, 4, 2, 12, 0, 0),
+        )
+
+    def _entity(self, doc_id: str) -> DocumentEntity:
+        return _make_entity(
+            doc_id,
+            entity_type="test_ordered",
+            entity_value=self.QUOTE,
+            quote=self.QUOTE,
+        )
+
+    @pytest.mark.asyncio
+    async def test_hc_task_028_reprocess_then_accept_flow(
+        self, real_profile_db, monkeypatch
+    ):
+        from fastapi import HTTPException
+
+        monkeypatch.setattr("api.care_tasks.log_care_task_event", AsyncMock())
+        master_db = AsyncMock()
+        db = real_profile_db
+
+        doc_id = str(uuid.uuid4())
+        db.add(self._document(doc_id))
+        original = self._entity(doc_id)
+        db.add(original)
+        await db.commit()
+
+        # Accept the candidate -> task persisted, linked to the entity.
+        task = await accept_care_task(
+            AcceptTaskRequest(
+                source_entity_id=original.id,
+                source_document_id=doc_id,
+                source_quote=self.QUOTE,
+            ),
+            _make_session(),
+            db,
+            master_db,
+        )
+        assert task.source_entity_id == original.id
+
+        # Simulate reprocess: delete + recreate the entity with a fresh UUID
+        # and identical text (FK enforcement is off, the link dangles).
+        await db.delete(original)
+        recreated = self._entity(doc_id)
+        db.add(recreated)
+        await db.commit()
+        assert recreated.id != task.source_entity_id
+
+        # The recreated entity's candidate is excluded (same quote).
+        candidates = await get_care_task_candidates(
+            _make_session(), doc_id, db, master_db
+        )
+        assert candidates == []
+
+        # A second accept for the equivalent entity 409s.
+        with pytest.raises(HTTPException) as exc_info:
+            await accept_care_task(
+                AcceptTaskRequest(
+                    source_entity_id=recreated.id,
+                    source_document_id=doc_id,
+                    source_quote=self.QUOTE,
+                ),
+                _make_session(),
+                db,
+                master_db,
+            )
+        assert exc_info.value.status_code == 409
+
+        # GET /care-tasks still works with the dangling entity id...
+        tasks = await list_care_tasks(_make_session(), None, db, master_db)
+        assert len(tasks) == 1
+        assert tasks[0].source_entity_id == task.source_entity_id
+
+        # ...and so does PATCH.
+        updated = await update_care_task(
+            tasks[0].id,
+            CareTaskUpdateRequest(status="done"),
+            _make_session(),
+            db,
+            master_db,
+        )
+        assert updated.status == "done"
+
+
+# ---------------------------------------------------------------------------
 # Migration 011 upgrade/downgrade/upgrade
 # ---------------------------------------------------------------------------
 
