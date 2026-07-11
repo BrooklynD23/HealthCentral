@@ -145,6 +145,41 @@ class TestGoldenSet:
         assert seen > 0
 
 
+class TestMedicationChangeStoplist:
+    """Device/lifestyle instructions must not be labeled medication changes,
+    even when the stoplist word is not the first word of the object."""
+
+    @pytest.mark.parametrize(
+        "sentence",
+        [
+            "Start using a cane when walking outside.",
+            "Start wearing compression stockings daily.",
+            "Begin gentle daily walks around the block.",
+        ],
+    )
+    def test_hc_avs_016_device_lifestyle_is_not_medication_change(self, sentence):
+        med_changes = [
+            e for e in extract_visit_note_entities(sentence)
+            if e["entity_type"] == "medication_change"
+        ]
+        assert med_changes == [], sentence
+
+    @pytest.mark.parametrize(
+        "sentence,expected",
+        [
+            ("Start atorvastatin 20 mg nightly.", "start atorvastatin 20 mg nightly"),
+            ("Stop lisinopril.", "stop lisinopril"),
+            ("Increase metformin to 1000 mg twice daily.", "increase metformin to 1000 mg twice daily"),
+        ],
+    )
+    def test_hc_avs_017_real_medication_phrases_still_match(self, sentence, expected):
+        values = [
+            e["entity_value"] for e in extract_visit_note_entities(sentence)
+            if e["entity_type"] == "medication_change"
+        ]
+        assert values == [expected]
+
+
 class TestVisitTypeCanonicalization:
     @pytest.mark.parametrize(
         "text,expected",

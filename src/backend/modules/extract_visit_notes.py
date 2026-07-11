@@ -94,16 +94,28 @@ MEDICATION_CHANGE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-# First object word that marks a lifestyle/activity instruction, not a drug.
+# Object words that mark a device/lifestyle/activity instruction, not a
+# drug — checked against EVERY word of the captured object ("start using a
+# cane when walking outside" is not a medication change).
 _NON_MEDICATION_WORDS = frozenset({
-    "walking", "running", "exercise", "exercises", "exercising", "physical",
-    "activity", "activities", "caffeine", "alcohol", "salt", "sodium",
-    "smoking", "driving", "work", "working", "school", "diet", "stretching",
-    "fluid", "fluids",
-    # function words that signal a narrative, not a medication object
+    "walk", "walks", "walking", "running", "exercise", "exercises",
+    "exercising", "physical", "activity", "activities", "caffeine",
+    "alcohol", "salt", "sodium", "smoking", "driving", "work", "working",
+    "school", "diet", "stretching", "fluid", "fluids",
+    # devices / garments
+    "cane", "walker", "crutches", "brace", "splint", "sling",
+    "stocking", "stockings", "wear", "wearing", "using",
+})
+
+# Function words that signal a narrative, not a medication object — only
+# meaningful as the FIRST word ("to" and "with" appear mid-phrase in real
+# instructions like "increase metformin to 1000 mg").
+_NON_MEDICATION_LEADING_WORDS = frozenset({
     "to", "with", "if", "for", "at", "on", "in", "as", "this", "that",
     "all", "any",
 })
+
+_OBJECT_WORD = re.compile(r"[a-z]+")
 
 _TEST_KEYWORDS = re.compile(
     r"\b(?:CBC|CMP|BMP|TSH|PSA|INR|A1c|hemoglobin\s+A1c|lipid\s+panel"
@@ -225,9 +237,12 @@ def _medication_change_candidates(text: str) -> list[tuple[re.Match, str]]:
     candidates = []
     for m in MEDICATION_CHANGE_PATTERN.finditer(text):
         obj = _clean_value(m.group(2))
-        if not obj:
+        words = _OBJECT_WORD.findall(obj.lower())
+        if not words:
             continue
-        if obj.split()[0].lower() in _NON_MEDICATION_WORDS:
+        if words[0] in _NON_MEDICATION_LEADING_WORDS:
+            continue
+        if any(w in _NON_MEDICATION_WORDS for w in words):
             continue
         verb = _canonical_med_verb(m.group(1))
         prefix = "change to" if verb == "change" else verb

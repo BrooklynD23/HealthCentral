@@ -66,6 +66,14 @@
       ]
     },
     {
+      "file": "avs_06.txt",
+      "expected": [
+        {"entity_type": "visit_type", "match": "after_visit_summary"},
+        {"entity_type": "medication_change", "match": "start naproxen 250 mg"},
+        {"entity_type": "follow_up_instruction", "match": "6 weeks"}
+      ]
+    },
+    {
       "file": "discharge_01.txt",
       "expected": [
         {"entity_type": "visit_type", "match": "discharge"},
