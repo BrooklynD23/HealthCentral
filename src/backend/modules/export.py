@@ -4,15 +4,18 @@ Export module.
 Handles:
 - Doctor-ready summary generation
 - CSV/JSON data export
-- Question list generation
+- Question list generation (HC-M17: multi-source, template-driven, no LLM)
+- Visit-prep packet composition (HC-M18: redacted before it can leave)
 """
 
 from typing import Optional
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime, timedelta
 import json
 import csv
 from io import StringIO
+
+from core.time import utcnow
 
 
 @dataclass
@@ -42,13 +45,26 @@ class DoctorSummary:
     critical_count: int
 
 
-@dataclass  
+@dataclass
 class QuestionPrompt:
-    """A discussion prompt for clinician visits."""
-    category: str  # "trend", "abnormal", "clarification"
+    """A discussion prompt for clinician visits.
+
+    HC-M17: every question carries provenance. Categories:
+    "trend", "abnormal", "clarification", "follow_up",
+    "medication_change", "test_ordered", "referral".
+    """
+    category: str
     question: str
     context: str
     related_analytes: list[str]
+    # Provenance (HC-M17). Defaults keep pre-existing constructions valid.
+    source_kind: str = "observation"  # observation | trend | care_task | entity
+    source_id: Optional[str] = None
+    source_quote: Optional[str] = None
+
+
+# Open care tasks due within this many days count as "near due" (HC-M17).
+NEAR_DUE_WINDOW_DAYS = 14
 
 
 class ExportModule:
@@ -367,14 +383,26 @@ class ExportModule:
         self,
         observations: list[dict],
         trends: list[dict],
+        care_tasks: Optional[list[dict]] = None,
+        entities: Optional[list[dict]] = None,
+        today: Optional[date] = None,
     ) -> list[QuestionPrompt]:
         """
-        Generate discussion prompts for clinician visits.
-        
-        Framed as discussion starters, not medical questions.
+        Generate discussion prompts for clinician visits (template-driven,
+        no LLM). Framed as discussion starters, not medical advice — every
+        question is interrogative and cites its source.
+
+        New sources (HC-M17), all optional so existing callers keep working:
+        - care_tasks: dicts with id, title, status, due_date, source_quote,
+          source_entity_id. needs_review tasks ask for clarification; open
+          tasks near/past due ask about scheduling.
+        - entities: visit-note entity dicts with id, entity_type,
+          entity_value, quote, verified_by_user. Only entities the user
+          VERIFIED are used (unverified data is excluded — HC-M18 policy).
         """
         questions = []
-        
+        today = today or utcnow().date()
+
         # Questions about abnormal values
         abnormal_obs = [o for o in observations if o.get("is_abnormal")]
         for obs in abnormal_obs[:3]:  # Limit to top 3
@@ -383,8 +411,10 @@ class ExportModule:
                 question=f"I noticed my {obs['analyte_canonical']} was outside the reference range. What might that indicate?",
                 context=f"Value: {obs['value']} {obs.get('unit', '')}, flagged as {obs.get('flag', 'abnormal')}",
                 related_analytes=[obs["analyte_canonical"]],
+                source_kind="observation",
+                source_id=str(obs.get("id")) if obs.get("id") else None,
             ))
-        
+
         # Questions about trends
         for trend in trends:
             if trend.get("trend_direction") in ["up", "down"]:
@@ -393,6 +423,238 @@ class ExportModule:
                     question=f"My {trend['analyte']} has been {trend['trend_direction']}. Should I be concerned?",
                     context=f"Changed {trend.get('delta_percent', 0):.1f}% from prior value",
                     related_analytes=[trend["analyte"]],
+                    source_kind="trend",
+                    source_id=trend["analyte"],
                 ))
-        
+
+        # Questions from accepted care-plan tasks (HC-M17).
+        task_entity_ids = set()
+        for task in care_tasks or []:
+            if task.get("source_entity_id"):
+                task_entity_ids.add(task["source_entity_id"])
+            status = task.get("status")
+            quote = task.get("source_quote") or task.get("title", "")
+            if status == "needs_review":
+                questions.append(QuestionPrompt(
+                    category="clarification",
+                    question=f'The note says: "{quote}". Can you clarify when and with whom this should happen?',
+                    context="This accepted follow-up item is marked needs review — no clear timing was found in the note.",
+                    related_analytes=[],
+                    source_kind="care_task",
+                    source_id=task.get("id"),
+                    source_quote=task.get("source_quote"),
+                ))
+            elif status == "open":
+                due = task.get("due_date")
+                if due is not None and due <= today + timedelta(days=NEAR_DUE_WINDOW_DAYS):
+                    questions.append(QuestionPrompt(
+                        category="follow_up",
+                        question=f"This follow-up is still open: {task.get('title', '')}. Should it be scheduled?",
+                        context=f"Open follow-up task due {due.isoformat()}.",
+                        related_analytes=[],
+                        source_kind="care_task",
+                        source_id=task.get("id"),
+                        source_quote=task.get("source_quote"),
+                    ))
+
+        # Questions from verified visit-note entities (HC-M17). Unverified
+        # entities are excluded; entities already covered by an accepted care
+        # task are skipped to avoid duplicate questions.
+        for ent in entities or []:
+            if ent.get("verified_by_user") is not True:
+                continue
+            if ent.get("id") in task_entity_ids:
+                continue
+            entity_type = ent.get("entity_type")
+            value = ent.get("entity_value", "")
+            quote = ent.get("quote") or value
+            if entity_type == "medication_change":
+                question = f"Can you confirm this change to my medication list: {value}?"
+                context = "Verified medication change found in a visit note."
+            elif entity_type == "test_ordered":
+                question = f"Can you explain why this test was ordered: {quote}?"
+                context = "Verified test order found in a visit note."
+            elif entity_type == "referral":
+                question = f"Who should I schedule the {value} referral with, and how soon?"
+                context = "Verified referral found in a visit note."
+            else:
+                continue
+            questions.append(QuestionPrompt(
+                category=entity_type,
+                question=question,
+                context=context,
+                related_analytes=[],
+                source_kind="entity",
+                source_id=ent.get("id"),
+                source_quote=ent.get("quote"),
+            ))
+
         return questions
+
+    def compose_visit_prep_packet(
+        self,
+        profile_id: str,
+        reason_for_visit: Optional[str] = None,
+        medications: Optional[list[dict]] = None,
+        observations: Optional[list[dict]] = None,
+        visit_mentions: Optional[list[dict]] = None,
+        care_tasks: Optional[list[dict]] = None,
+        questions: Optional[list[QuestionPrompt]] = None,
+        selected_documents: Optional[list[dict]] = None,
+    ) -> dict:
+        """Compose a visit-prep packet (HC-M18).
+
+        Every section argument is optional: None means the user excluded the
+        section; an empty list renders "None recorded." so the clinician can
+        tell "excluded" from "empty".
+
+        Unverified-data policy (applied everywhere): unverified observations
+        and unverified entities are EXCLUDED. Care tasks exist only through
+        explicit user acceptance, so they are user-verified by construction.
+
+        Hard invariant: every piece of assembled content passes through
+        modules/redaction.py (strict policy — matches the RL-dataset export,
+        the strictest existing export path) BEFORE it is stored or rendered,
+        so no downloadable format can carry unredacted text. Dates are
+        rendered ISO-8601, which the strict numeric_date rule deliberately
+        does not match.
+        """
+        import uuid
+        from modules.redaction import RedactionEngine
+
+        sections: list[dict] = []
+
+        if reason_for_visit is not None and reason_for_visit.strip():
+            sections.append({
+                "title": "Reason for Visit",
+                "content": reason_for_visit.strip(),
+            })
+
+        if medications is not None:
+            lines = []
+            for med in medications:
+                dose = ""
+                if med.get("dosage_amount") is not None:
+                    amount = med["dosage_amount"]
+                    amount_str = f"{amount:g}" if isinstance(amount, float) else str(amount)
+                    dose = f" {amount_str} {med.get('dosage_unit') or ''}".rstrip()
+                line = f"- {med.get('name', '')}{dose} — {med.get('frequency', '')}"
+                if med.get("instructions"):
+                    line += f" ({med['instructions']})"
+                lines.append(line)
+            sections.append({
+                "title": "Current Medications",
+                "content": "\n".join(lines) if lines else "None recorded.",
+            })
+
+        if observations is not None:
+            verified_abnormal = [
+                o for o in observations
+                if o.get("is_abnormal") and o.get("user_verified")
+            ]
+            lines = []
+            for obs in sorted(
+                verified_abnormal,
+                key=lambda x: x.get("collected_at") or datetime.min,
+                reverse=True,
+            ):
+                collected = obs.get("collected_at")
+                date_str = collected.date().isoformat() if collected else "no date"
+                lines.append(
+                    f"- {obs.get('analyte_canonical', '')}: {obs.get('value', '')} {obs.get('unit', '')} "
+                    f"(ref {obs.get('ref_low', '?')}-{obs.get('ref_high', '?')}) "
+                    f"[{obs.get('flag', 'abnormal')}] — {date_str}"
+                )
+            sections.append({
+                "title": "Recent Abnormal Lab Results (verified)",
+                "content": "\n".join(lines) if lines else "None recorded.",
+            })
+
+        if visit_mentions is not None:
+            lines = []
+            for mention in visit_mentions:
+                if mention.get("verified_by_user") is not True:
+                    continue  # unverified data is excluded
+                date_str = mention.get("doc_date") or "no date"
+                label = str(mention.get("entity_type", "")).replace("_", " ")
+                lines.append(f"- {date_str}: {label}: {mention.get('entity_value', '')}")
+            sections.append({
+                "title": "Recent Visits and Diagnoses (verified)",
+                "content": "\n".join(lines) if lines else "None recorded.",
+            })
+
+        if care_tasks is not None:
+            lines = []
+            for task in care_tasks:
+                due = task.get("due_date")
+                due_str = due.isoformat() if due else "no due date"
+                line = f"- [{task.get('status', '')}] {task.get('title', '')} (due: {due_str})"
+                if task.get("source_quote"):
+                    line += f' — note: "{task["source_quote"]}"'
+                lines.append(line)
+            sections.append({
+                "title": "Open Follow-up Items",
+                "content": "\n".join(lines) if lines else "None recorded.",
+            })
+
+        if questions is not None:
+            lines = [f"- {q.question}" for q in questions]
+            sections.append({
+                "title": "Questions for Your Provider",
+                "content": "\n".join(lines) if lines else "None recorded.",
+            })
+
+        if selected_documents is not None:
+            lines = []
+            for doc in selected_documents:
+                collected = doc.get("collection_date")
+                date_str = collected.date().isoformat() if collected else "no date"
+                filename = str(doc.get("source") or "Document").replace("\\", "/").rsplit("/", 1)[-1]
+                lines.append(f"- {filename} ({date_str})")
+            sections.append({
+                "title": "Source Documents",
+                "content": "\n".join(lines) if lines else "None recorded.",
+            })
+
+        # Redaction before anything can leave (hard invariant). Strict policy:
+        # matches or exceeds every existing export path.
+        engine = RedactionEngine(policy_level="strict")
+        redaction_count = 0
+        for section in sections:
+            result = engine.redact(section["content"])
+            section["content"] = result.text
+            redaction_count += result.redacted_count
+
+        generated_at = utcnow()
+        footer = (
+            "Only user-verified data is included in this packet. "
+            "This packet was generated by HealthCentral from your uploaded "
+            "records. It is not medical advice — please review everything "
+            "with your healthcare provider."
+        )
+        md_lines = [
+            "# Visit Prep Packet",
+            "",
+            f"Generated: {generated_at.date().isoformat()}",
+            "",
+        ]
+        for section in sections:
+            md_lines.append(f"## {section['title']}")
+            md_lines.append("")
+            md_lines.append(section["content"])
+            md_lines.append("")
+        md_lines.append("---")
+        md_lines.append(footer)
+
+        return {
+            "packet_id": str(uuid.uuid4()),
+            "profile_id": profile_id,
+            "generated_at": generated_at.isoformat(),
+            "sections": sections,
+            "questions": [
+                {"question": q.question, "category": q.category}
+                for q in (questions or [])
+            ],
+            "markdown": "\n".join(md_lines),
+            "redaction_count": redaction_count,
+        }
