@@ -14,6 +14,7 @@ import re
 import threading
 import time
 from collections import OrderedDict
+from dataclasses import asdict
 from pathlib import Path
 from typing import Optional
 from datetime import datetime
@@ -38,6 +39,7 @@ from modules.document_classifier import classify_document
 from modules.extract_imaging import extract_imaging_entities
 from modules.extract_pathology import extract_pathology_entities
 from modules.extract_visit_notes import extract_visit_note_entities, llm_assist_visit_entities
+from modules.highlights import Highlight, derive_highlights
 from models.document_category import DocumentCategory, DocumentEntity
 
 logger = logging.getLogger(__name__)
@@ -1124,6 +1126,136 @@ async def set_entity_verification(
     await master_db.commit()
 
     return DocumentEntityResponse.model_validate(entity)
+
+
+# ---------------------------------------------------------------------------
+# Smart highlights (HC-M16) — derived on read, never persisted
+# ---------------------------------------------------------------------------
+
+_HIGHLIGHTS_SUMMARY_MAX_DOCS = 50
+
+
+class HighlightResponse(BaseModel):
+    """A derived organizational tag resolving to its source row (HC-M16)."""
+
+    highlight_type: str
+    doc_id: str
+    source_kind: str  # 'entity' | 'observation'
+    source_id: str
+    quote: Optional[str] = None
+    confidence: Optional[float] = None
+    verification_state: str
+
+    @classmethod
+    def from_highlight(cls, highlight: Highlight) -> "HighlightResponse":
+        return cls(**asdict(highlight))
+
+
+class DocumentHighlightSummary(BaseModel):
+    """Highlight-type counts for one document (inbox chips)."""
+
+    doc_id: str
+    counts: dict[str, int]
+
+
+@router.get("/highlights/summary", response_model=list[DocumentHighlightSummary])
+async def get_highlights_summary(
+    session: RequireAuth,
+    limit: int = Query(
+        20,
+        ge=1,
+        le=_HIGHLIGHTS_SUMMARY_MAX_DOCS,
+        description="Most recently imported documents to summarize",
+    ),
+    profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """Per-document highlight-type counts for recent documents.
+
+    Bounded: only the *limit* most recently imported documents are
+    considered; documents with no highlights are omitted.
+    """
+    doc_result = await profile_db.execute(
+        select(Document.id)
+        .where(Document.profile_id == session.profile_id)
+        .order_by(Document.imported_at.desc())
+        .limit(limit)
+    )
+    doc_ids = list(doc_result.scalars().all())
+
+    counts_by_doc: dict[str, dict[str, int]] = {doc_id: {} for doc_id in doc_ids}
+    if doc_ids:
+        entity_result = await profile_db.execute(
+            select(DocumentEntity).where(DocumentEntity.doc_id.in_(doc_ids))
+        )
+        obs_result = await profile_db.execute(
+            select(Observation).where(Observation.doc_id.in_(doc_ids))
+        )
+        for highlight in derive_highlights(
+            entity_result.scalars().all(), obs_result.scalars().all()
+        ):
+            counts = counts_by_doc[highlight.doc_id]
+            counts[highlight.highlight_type] = counts.get(highlight.highlight_type, 0) + 1
+
+    summaries = [
+        DocumentHighlightSummary(doc_id=doc_id, counts=counts_by_doc[doc_id])
+        for doc_id in doc_ids
+        if counts_by_doc[doc_id]
+    ]
+
+    await audit_and_commit(
+        master_db,
+        log_document_event,
+        event="view",
+        profile_id=session.profile_id,
+        document_id="all",
+        details={
+            "action": "highlights_summary",
+            "limit": limit,
+            "count": len(summaries),
+        },
+    )
+
+    return summaries
+
+
+@router.get("/{document_id}/highlights", response_model=list[HighlightResponse])
+async def get_document_highlights(
+    document_id: str,
+    session: RequireAuth,
+    profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """Derived highlights for one document (computed on read)."""
+    validate_uuid(document_id, "document_id")
+
+    doc_result = await profile_db.execute(select(Document).where(Document.id == document_id))
+    document = doc_result.scalar_one_or_none()
+    if not document:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    verify_document_access(document, session)
+
+    entity_result = await profile_db.execute(
+        select(DocumentEntity).where(DocumentEntity.doc_id == document_id)
+    )
+    obs_result = await profile_db.execute(
+        select(Observation).where(Observation.doc_id == document_id)
+    )
+    highlights = derive_highlights(
+        entity_result.scalars().all(), obs_result.scalars().all()
+    )
+
+    await audit_and_commit(
+        master_db,
+        log_document_event,
+        event="view",
+        profile_id=session.profile_id,
+        document_id=document_id,
+        filename=document.source,
+        details={"action": "highlights", "count": len(highlights)},
+    )
+
+    return [HighlightResponse.from_highlight(h) for h in highlights]
 
 
 @router.get("/{document_id}/pages", response_model=list[PageResponse])
