@@ -1,14 +1,17 @@
 /**
  * EntityDetailView — table of extracted entities per document.
  * Low-confidence entities shown with dashed border + warning icon.
- * Each entity shows its verbatim source quote (HC-M12) and, when a
- * verification handler is provided, verify/reject controls.
+ * Each entity shows its verbatim source quote (HC-M12), its derived
+ * highlight tags (HC-M16), and, when a verification handler is
+ * provided, verify/reject controls.
  */
 
 import { AlertTriangle, CheckCircle, X } from 'lucide-react';
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from '@/components/ui';
 import { cn } from '@/utils/cn';
 import type { DocumentEntityResponse } from '@/services/documentCategories';
+import { useDocumentHighlights, type HighlightType } from '@/services/highlights';
+import { HighlightChips } from './HighlightChips';
 
 interface EntityDetailViewProps {
   entities: DocumentEntityResponse[];
@@ -57,6 +60,16 @@ export function EntityDetailView({
   onSetVerification,
   verificationPending,
 }: EntityDetailViewProps) {
+  // Derived highlight tags (HC-M16), grouped per source entity.
+  const { data: highlights = [] } = useDocumentHighlights(entities[0]?.doc_id);
+  const highlightsByEntity = new Map<string, Partial<Record<HighlightType, number>>>();
+  for (const highlight of highlights) {
+    if (highlight.source_kind !== 'entity') continue;
+    const counts = highlightsByEntity.get(highlight.source_id) ?? {};
+    counts[highlight.highlight_type] = (counts[highlight.highlight_type] ?? 0) + 1;
+    highlightsByEntity.set(highlight.source_id, counts);
+  }
+
   if (entities.length === 0) return null;
 
   return (
@@ -104,6 +117,12 @@ export function EntityDetailView({
                       <p className="mt-1 text-xs text-ink-secondary font-mono italic break-words">
                         &ldquo;{entity.quote}&rdquo;
                       </p>
+                    )}
+                    {highlightsByEntity.has(entity.id) && (
+                      <HighlightChips
+                        counts={highlightsByEntity.get(entity.id)!}
+                        className="mt-1.5"
+                      />
                     )}
                   </td>
                   {onSetVerification && (
