@@ -22,7 +22,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from core.auth import RequireAuth, ProfileDbSession
 from core.audit import audit_and_commit, log_export_event
-from models import Observation
+from models import CarePlanTask, Document, Medication, Observation
+from models.document_category import DocumentEntity
 from modules.export import ExportModule
 from modules.normalize import canonical_unit_for, convert_to_canonical, normalize_unit
 
@@ -38,6 +39,15 @@ UUID_PATTERN = re.compile(
 
 # In-memory summary storage (for MVP - would be DB in production)
 _summary_store: dict[str, dict] = {}
+
+# In-memory visit-prep packet storage (HC-M18; same MVP pattern as summaries)
+_packet_store: dict[str, dict] = {}
+
+# Visit-note entity types that generate doctor questions (HC-M17).
+QUESTION_ENTITY_TYPES = ("medication_change", "test_ordered", "referral")
+
+# Verified entity types shown as visit/diagnosis mentions in the packet.
+VISIT_MENTION_ENTITY_TYPES = ("diagnoses", "visit_type", "chief_complaint")
 
 
 def validate_uuid(value: str, field_name: str = "ID") -> str:
@@ -80,11 +90,31 @@ class SummaryResponse(BaseModel):
 
 
 class QuestionItem(BaseModel):
-    """A discussion prompt for clinician visits."""
-    category: str  # "trend", "abnormal", "clarification"
+    """A discussion prompt for clinician visits.
+
+    Categories: "trend", "abnormal", "clarification", "follow_up",
+    "medication_change", "test_ordered", "referral" (HC-M17).
+    """
+    category: str
     question: str
     context: str  # Why this question is suggested
     related_analytes: list[str]
+    # Provenance (HC-M17). Optional so existing consumers keep working.
+    source_kind: Optional[str] = None  # observation | trend | care_task | entity
+    source_id: Optional[str] = None
+    source_quote: Optional[str] = None
+
+    @classmethod
+    def from_prompt(cls, q) -> "QuestionItem":
+        return cls(
+            category=q.category,
+            question=q.question,
+            context=q.context,
+            related_analytes=q.related_analytes,
+            source_kind=q.source_kind,
+            source_id=q.source_id,
+            source_quote=q.source_quote,
+        )
 
 
 async def _fetch_observations(
@@ -130,6 +160,117 @@ async def _fetch_observations(
             "collected_at": obs.collected_at,
         }
         for obs in observations
+    ]
+
+
+async def _fetch_care_task_dicts(profile_db: AsyncSession) -> list[dict]:
+    """Open and needs_review care-plan tasks as dicts for ExportModule.
+
+    Tasks are user-accepted by construction (HC-M15), so no verification
+    filter is needed. Profile isolation comes from the per-profile DB.
+    """
+    result = await profile_db.execute(
+        select(CarePlanTask).where(CarePlanTask.status.in_(["open", "needs_review"]))
+    )
+    return [
+        {
+            "id": task.id,
+            "title": task.title,
+            "status": task.status,
+            "due_date": task.due_date,
+            "source_quote": task.source_quote,
+            "source_entity_id": task.source_entity_id,
+        }
+        for task in result.scalars().all()
+    ]
+
+
+async def _fetch_question_entity_dicts(profile_db: AsyncSession) -> list[dict]:
+    """Verified visit-note entities that can generate doctor questions."""
+    result = await profile_db.execute(
+        select(DocumentEntity).where(
+            DocumentEntity.entity_type.in_(QUESTION_ENTITY_TYPES),
+            DocumentEntity.verified_by_user.is_(True),
+        )
+    )
+    return [
+        {
+            "id": ent.id,
+            "entity_type": ent.entity_type,
+            "entity_value": ent.entity_value,
+            "quote": ent.quote,
+            "verified_by_user": ent.verified_by_user,
+        }
+        for ent in result.scalars().all()
+    ]
+
+
+async def _fetch_active_medication_dicts(
+    profile_db: AsyncSession, profile_id: str
+) -> list[dict]:
+    """Active medications from the tracker for the packet."""
+    result = await profile_db.execute(
+        select(Medication).where(
+            Medication.profile_id == profile_id,
+            Medication.is_active.is_(True),
+        )
+    )
+    return [
+        {
+            "id": med.id,
+            "name": med.name,
+            "dosage_amount": med.dosage_amount,
+            "dosage_unit": med.dosage_unit,
+            "frequency": med.frequency,
+            "instructions": med.instructions,
+        }
+        for med in result.scalars().all()
+    ]
+
+
+async def _fetch_visit_mention_dicts(profile_db: AsyncSession) -> list[dict]:
+    """Verified visit/diagnosis mention entities, with their document date."""
+    result = await profile_db.execute(
+        select(DocumentEntity, Document)
+        .join(Document, Document.id == DocumentEntity.doc_id)
+        .where(
+            DocumentEntity.entity_type.in_(VISIT_MENTION_ENTITY_TYPES),
+            DocumentEntity.verified_by_user.is_(True),
+        )
+    )
+    return [
+        {
+            "id": ent.id,
+            "entity_type": ent.entity_type,
+            "entity_value": ent.entity_value,
+            "doc_date": (
+                doc.collection_date.date().isoformat() if doc.collection_date else None
+            ),
+            "verified_by_user": ent.verified_by_user,
+        }
+        for ent, doc in result.all()
+    ]
+
+
+async def _fetch_selected_document_dicts(
+    profile_db: AsyncSession, profile_id: str, doc_ids: list[str]
+) -> list[dict]:
+    """Filename/date metadata for the user-selected source documents."""
+    if not doc_ids:
+        return []
+    result = await profile_db.execute(
+        select(Document).where(
+            Document.id.in_(doc_ids),
+            Document.profile_id == profile_id,
+        )
+    )
+    return [
+        {
+            "id": doc.id,
+            "source": doc.source,
+            "collection_date": doc.collection_date,
+        }
+        for doc in result.scalars().all()
     ]
 
 
@@ -248,15 +389,7 @@ async def generate_doctor_summary(
             observations=observations,
             trends=trends,
         )
-        questions = [
-            QuestionItem(
-                category=q.category,
-                question=q.question,
-                context=q.context,
-                related_analytes=q.related_analytes,
-            )
-            for q in generated_questions
-        ]
+        questions = [QuestionItem.from_prompt(q) for q in generated_questions]
 
     # Generate summary using ExportModule
     export_module = ExportModule()
@@ -458,6 +591,10 @@ async def generate_questions(
     User-initiated only. Framed as discussion prompts,
     not medical advice.
     Only includes data from the authenticated profile.
+
+    HC-M17: besides abnormal values and trends, questions are derived from
+    open/needs_review care-plan tasks and verified visit-note entities
+    (medication changes, ordered tests, referrals), each tied to its source.
     """
     profile_id = session.profile_id
 
@@ -472,11 +609,17 @@ async def generate_questions(
     # Compute trends
     trends = _compute_trends(observations)
 
+    # HC-M17 sources: accepted care tasks + verified visit-note entities.
+    care_tasks = await _fetch_care_task_dicts(profile_db)
+    entities = await _fetch_question_entity_dicts(profile_db)
+
     # Generate questions using ExportModule
     export_module = ExportModule()
     questions = export_module.generate_questions(
         observations=observations,
         trends=trends,
+        care_tasks=care_tasks,
+        entities=entities,
     )
 
     # Log generation
@@ -488,15 +631,231 @@ async def generate_questions(
         details={"question_count": len(questions)},
     )
 
-    return [
-        QuestionItem(
-            category=q.category,
-            question=q.question,
-            context=q.context,
-            related_analytes=q.related_analytes,
+    return [QuestionItem.from_prompt(q) for q in questions]
+
+
+class VisitPrepRequest(BaseModel):
+    """Request model for the visit-prep packet (HC-M18).
+
+    confirm MUST be true — packet generation assembles personal health data
+    into an exportable artifact, so it requires the same explicit user
+    confirmation as the RL dataset export.
+    """
+
+    reason_for_visit: Optional[str] = None
+    from_date: Optional[datetime] = None
+    to_date: Optional[datetime] = None
+
+    # Section include flags
+    include_medications: bool = True
+    include_labs: bool = True
+    include_visits: bool = True
+    include_tasks: bool = True
+    include_questions: bool = True
+
+    selected_doc_ids: Optional[list[str]] = None
+    confirm: bool = False
+
+
+class VisitPrepResponse(BaseModel):
+    """Response model for visit-prep packet generation."""
+
+    packet_id: str
+    profile_id: str
+    generated_at: str
+    section_titles: list[str]
+    markdown: str
+    redaction_count: int
+
+
+@router.post("/visit-prep", response_model=VisitPrepResponse)
+async def generate_visit_prep(
+    request: VisitPrepRequest,
+    session: RequireAuth,
+    profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """
+    Generate a visit-prep packet (HC-M18).
+
+    One exportable packet before an appointment: reason for visit, current
+    medications, recent abnormal verified labs, verified visit/diagnosis
+    mentions, open follow-up tasks, generated questions (HC-M17), and the
+    selected source documents. Unverified data is excluded everywhere.
+
+    Requires confirm=true. All content is redacted (strict policy) by the
+    ExportModule before it is stored or downloadable. Creates an audit entry.
+    """
+    if request.confirm is not True:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Visit-prep export requires confirm=true in the request body.",
         )
-        for q in questions
-    ]
+
+    profile_id = session.profile_id
+    for doc_id in request.selected_doc_ids or []:
+        validate_uuid(doc_id, "selected_doc_ids entry")
+
+    observations = None
+    questions = None
+    if request.include_labs or request.include_questions:
+        fetched_observations = await _fetch_observations(
+            profile_db,
+            profile_id,
+            from_date=request.from_date,
+            to_date=request.to_date,
+        )
+        observations = fetched_observations if request.include_labs else None
+
+    medications = (
+        await _fetch_active_medication_dicts(profile_db, profile_id)
+        if request.include_medications
+        else None
+    )
+    visit_mentions = (
+        await _fetch_visit_mention_dicts(profile_db) if request.include_visits else None
+    )
+    care_tasks = (
+        await _fetch_care_task_dicts(profile_db)
+        if request.include_tasks or request.include_questions
+        else None
+    )
+
+    export_module = ExportModule()
+    if request.include_questions:
+        # Packet policy: unverified data is excluded — questions inside the
+        # packet only draw on verified observations (and verified entities,
+        # which generate_questions enforces itself).
+        verified_observations = [
+            o for o in fetched_observations if o.get("user_verified")
+        ]
+        questions = export_module.generate_questions(
+            observations=verified_observations,
+            trends=_compute_trends(verified_observations),
+            care_tasks=care_tasks,
+            entities=await _fetch_question_entity_dicts(profile_db),
+        )
+
+    selected_documents = (
+        await _fetch_selected_document_dicts(
+            profile_db, profile_id, request.selected_doc_ids
+        )
+        if request.selected_doc_ids
+        else None
+    )
+
+    packet = export_module.compose_visit_prep_packet(
+        profile_id=profile_id,
+        reason_for_visit=request.reason_for_visit,
+        medications=medications,
+        observations=observations,
+        visit_mentions=visit_mentions,
+        care_tasks=care_tasks if request.include_tasks else None,
+        questions=questions,
+        selected_documents=selected_documents,
+    )
+    _packet_store[packet["packet_id"]] = packet
+
+    await audit_and_commit(
+        master_db,
+        log_export_event,
+        profile_id=profile_id,
+        export_type="visit_prep",
+        details={
+            "packet_id": packet["packet_id"],
+            "section_titles": [s["title"] for s in packet["sections"]],
+            "redaction_count": packet["redaction_count"],
+        },
+    )
+
+    return VisitPrepResponse(
+        packet_id=packet["packet_id"],
+        profile_id=profile_id,
+        generated_at=packet["generated_at"],
+        section_titles=[s["title"] for s in packet["sections"]],
+        markdown=packet["markdown"],
+        redaction_count=packet["redaction_count"],
+    )
+
+
+@router.get("/visit-prep/{packet_id}/download")
+async def download_visit_prep(
+    packet_id: str,
+    session: RequireAuth,
+    format: str = Query("markdown", description="Download format: markdown, html, or pdf"),
+    master_db: AsyncSession = Depends(get_db),
+):
+    """
+    Download a previously generated visit-prep packet.
+
+    markdown is always available; html/pdf reuse the doctor-summary
+    renderer (pdf requires WeasyPrint, 501 if not installed). Content was
+    redacted at composition time, so every format is redacted.
+    """
+    validate_uuid(packet_id, "packet_id")
+
+    packet = _packet_store.get(packet_id)
+    if not packet:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Visit-prep packet not found",
+        )
+
+    if packet["profile_id"] != session.profile_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this packet",
+        )
+
+    await audit_and_commit(
+        master_db,
+        log_export_event,
+        profile_id=session.profile_id,
+        export_type="visit_prep_download",
+        details={"packet_id": packet_id, "format": format},
+    )
+
+    short_id = packet_id[:8]
+    if format in ("html", "pdf"):
+        export_module = ExportModule()
+        # Reuse the existing doctor-summary renderer (no new dependency).
+        summary_data = {
+            "date_range": f"Visit Prep Packet — {packet['generated_at'][:10]}",
+            "key_findings": [],
+            "sections": packet["sections"],
+            "questions": [],  # already rendered as a packet section
+        }
+        if format == "html":
+            return Response(
+                content=export_module.render_html_summary(summary_data),
+                media_type="text/html",
+                headers={
+                    "Content-Disposition": f'attachment; filename="visit_prep_{short_id}.html"'
+                },
+            )
+        try:
+            pdf_bytes = export_module.render_pdf_summary(summary_data)
+        except ImportError as e:
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail=str(e),
+            )
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="visit_prep_{short_id}.pdf"'
+            },
+        )
+
+    # Default: markdown (always available)
+    return Response(
+        content=packet["markdown"],
+        media_type="text/markdown",
+        headers={
+            "Content-Disposition": f'attachment; filename="visit_prep_{short_id}.md"'
+        },
+    )
 
 
 @router.get("/csv")
