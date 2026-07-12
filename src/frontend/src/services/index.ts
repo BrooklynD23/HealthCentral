@@ -215,6 +215,14 @@ export type {
   CareTaskUpdateRequest,
 } from './careTasks';
 
+// Medication reconciliation hooks (HC-M19)
+export { useMedReconciliation } from './medReconcile';
+
+export type {
+  MedReconcileSuggestion,
+  MedReconcileSuggestionType,
+} from './medReconcile';
+
 // Memory store hooks (ASSIST-MEM-001/002)
 export {
   useMemoryItems,
