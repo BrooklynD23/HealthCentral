@@ -83,6 +83,10 @@ export {
   useGenerateSummary,
   useDownloadSummary,
   useGenerateQuestions,
+  useGenerateVisitPrep,
+  useDownloadVisitPrep,
+  generateVisitPrep,
+  downloadVisitPrep,
 } from './export';
 
 export type {
@@ -90,6 +94,9 @@ export type {
   SummaryResponse,
   QuestionItem,
   ExportFilters,
+  VisitPrepRequest,
+  VisitPrepResponse,
+  VisitPrepFormat,
 } from './export';
 
 // Assistant hooks
