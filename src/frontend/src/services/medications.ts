@@ -6,7 +6,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiGet, apiPost, apiPut, apiDelete } from './api';
+import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from './api';
 import type {
   Medication,
   MedicationCreate,
@@ -43,7 +43,8 @@ async function updateMedication(
   medicationId: string,
   data: MedicationUpdate
 ): Promise<Medication> {
-  return apiPut<Medication, MedicationUpdate>(`/medications/${medicationId}`, data);
+  // Backend exposes PATCH /medications/{id} (partial update).
+  return apiPatch<Medication, MedicationUpdate>(`/medications/${medicationId}`, data);
 }
 
 async function deleteMedication(
