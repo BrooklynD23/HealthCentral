@@ -215,6 +215,19 @@ export type {
   CareTaskUpdateRequest,
 } from './careTasks';
 
+// Smart highlight hooks (HC-M16)
+export {
+  useDocumentHighlights,
+  useHighlightsSummary,
+  HIGHLIGHT_LABELS,
+} from './highlights';
+
+export type {
+  Highlight,
+  HighlightType,
+  DocumentHighlightSummary,
+} from './highlights';
+
 // Memory store hooks (ASSIST-MEM-001/002)
 export {
   useMemoryItems,

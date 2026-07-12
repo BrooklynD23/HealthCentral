@@ -145,6 +145,41 @@ On the first of each month, review all canonical docs for freshness:
 
 ## Session Notes
 
+### 2026-07-12 - HC-M16 Smart Highlights (branch `claude/hc-m16-highlights`)
+
+Small derived tags ("abnormal lab", "medication started", "needs
+verification") on documents so what matters is visible without opening
+everything. Pure on-read derivation from existing rows — no new tables, no
+migrations, no LLM, no interpretation. Done TDD-first
+(`tests/test_highlights.py`, HC-HLT-001..022).
+
+- **Derivation** `modules/highlights.py`: `Highlight {highlight_type, doc_id,
+  source_kind ('entity'|'observation'), source_id, quote, confidence,
+  verification_state}` — every tag resolves to its source row. Rules:
+  `abnormal_value` from `Observation.is_abnormal`;
+  `medication_started/stopped/changed` from `medication_change` entities keyed
+  off the canonical leading verb of `entity_value` (start→started,
+  stop→stopped, else changed); `follow_up_needed` / `test_ordered` /
+  `referral_created` / `new_diagnosis_mentioned` from their entity types;
+  `low_confidence_extraction` (< 0.6); `needs_verification`
+  (`verified_by_user IS NULL`). One entity can produce several highlights;
+  rejected entities (`verified_by_user == false`) produce none at all.
+- **API** (documents router): `GET /documents/{doc_id}/highlights` and
+  `GET /documents/highlights/summary?limit=N` (per-document type counts for
+  the N≤50 most recently imported documents; empty documents omitted). Both
+  profile-scoped via `ProfileDbSession` with fail-closed `audit_and_commit`
+  view audits.
+- **Frontend**: `services/highlights.ts` (`useDocumentHighlights`,
+  `useHighlightsSummary`, neutral `HIGHLIGHT_LABELS`) via the barrel;
+  `components/documents/HighlightChips.tsx` (calm badge chips — organizational
+  tags, not clinical alerts); chips on DocumentInbox rows (summary endpoint,
+  capped at 4 + overflow) and per entity in EntityDetailView (matched by
+  `source_id`). TimelinePage deliberately untouched (sibling-branch merge
+  risk). 4 vitest contract tests (FE-HLT-API-001..004).
+- **Verification**: backend 839 passed / 1 known env-only embedding failure
+  (baseline 811/1 + 28 new); `npx tsc --noEmit` exit 0 (unchanged);
+  `npx vitest run` 121/121 (117 baseline + 4); `from main import app` OK.
+
 ### 2026-07-10 - HC-M14 Health Timeline (branch `claude/hc-m14-timeline`)
 
 One chronological view of the health record, derived on read — no new tables,

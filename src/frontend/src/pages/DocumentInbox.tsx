@@ -23,12 +23,14 @@ import {
   useImportDocument,
   useDeleteDocument,
   useReprocessDocument,
+  useHighlightsSummary,
   ApiError,
   type Document,
   type DocumentImportResponse,
 } from '@/services';
 import { useAuthStore } from '@/stores/authStore';
 import { PageImageOverlay } from '@/components/PageImageOverlay';
+import { HighlightChips } from '@/components/documents/HighlightChips';
 // CategoryBadge + EntityDetailView available in @/components/documents/
 // Wire into document detail view when it's built (no detail page exists yet)
 
@@ -48,6 +50,10 @@ export function DocumentInbox() {
   const importDocument = useImportDocument();
   const deleteDocument = useDeleteDocument();
   const reprocessDocument = useReprocessDocument();
+
+  // Highlight chips for recent documents (HC-M16) — organizational tags only
+  const { data: highlightSummary = [] } = useHighlightsSummary();
+  const highlightsByDoc = new Map(highlightSummary.map((s) => [s.doc_id, s.counts]));
 
   const closePreview = () => setPreviewDocId(null);
 
@@ -304,6 +310,13 @@ export function DocumentInbox() {
                         {new Date(doc.imported_at).toLocaleDateString()}
                       </span>
                     </div>
+                    {highlightsByDoc.has(doc.id) && (
+                      <HighlightChips
+                        counts={highlightsByDoc.get(doc.id)!}
+                        max={4}
+                        className="mt-1.5"
+                      />
+                    )}
                   </div>
 
                   <Badge variant={doc.doc_type === 'lab_pdf' ? 'accent' : 'default'}>
