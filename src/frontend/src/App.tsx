@@ -55,6 +55,10 @@ const TimelinePage = lazy(async () => {
   const module = await import('./pages/TimelinePage');
   return { default: module.TimelinePage };
 });
+const PinboardsPage = lazy(async () => {
+  const module = await import('./pages/PinboardsPage');
+  return { default: module.PinboardsPage };
+});
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -107,6 +111,7 @@ function App() {
               <Route path="medications/:medicationId" element={lazyRoute(<MedicationDetail />)} />
               <Route path="notifications" element={lazyRoute(<NotificationSettings />)} />
               <Route path="care-tasks" element={lazyRoute(<CareTasksPage />)} />
+              <Route path="pinboards" element={lazyRoute(<PinboardsPage />)} />
               <Route path="explain" element={lazyRoute(<ExplainAssistant />)} />
               <Route path="export" element={lazyRoute(<ExportPage />)} />
               <Route path="settings" element={<SettingsPage />} />

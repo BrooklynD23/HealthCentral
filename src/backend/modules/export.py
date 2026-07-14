@@ -502,6 +502,7 @@ class ExportModule:
         care_tasks: Optional[list[dict]] = None,
         questions: Optional[list[QuestionPrompt]] = None,
         selected_documents: Optional[list[dict]] = None,
+        packet_title: str = "Visit Prep Packet",
     ) -> dict:
         """Compose a visit-prep packet (HC-M18).
 
@@ -634,7 +635,7 @@ class ExportModule:
             "with your healthcare provider."
         )
         md_lines = [
-            "# Visit Prep Packet",
+            f"# {packet_title}",
             "",
             f"Generated: {generated_at.date().isoformat()}",
             "",
@@ -658,4 +659,5 @@ class ExportModule:
             ],
             "markdown": "\n".join(md_lines),
             "redaction_count": redaction_count,
+            "packet_title": packet_title,
         }

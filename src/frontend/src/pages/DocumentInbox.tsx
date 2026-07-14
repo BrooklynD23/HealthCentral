@@ -31,6 +31,7 @@ import {
 import { useAuthStore } from '@/stores/authStore';
 import { PageImageOverlay } from '@/components/PageImageOverlay';
 import { HighlightChips } from '@/components/documents/HighlightChips';
+import { AddToPinboardButton } from '@/components/pinboards/AddToPinboardButton';
 // CategoryBadge + EntityDetailView available in @/components/documents/
 // Wire into document detail view when it's built (no detail page exists yet)
 
@@ -341,6 +342,7 @@ export function DocumentInbox() {
                   )}
 
                   <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity">
+                    <AddToPinboardButton items={[{ item_type: 'document', item_id: doc.id }]} />
                     <Button
                       type="button"
                       variant="ghost"

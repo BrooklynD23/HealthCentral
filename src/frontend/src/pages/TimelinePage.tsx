@@ -29,6 +29,7 @@ import type {
   TimelineEventType,
   TimelineVerificationStatus,
 } from '@/services/timeline';
+import { AddToPinboardButton } from '@/components/pinboards/AddToPinboardButton';
 
 const EVENT_TYPE_OPTIONS: { value: TimelineEventType | ''; label: string }[] = [
   { value: '', label: 'All events' },
@@ -75,6 +76,11 @@ function EventCard({ event }: { event: TimelineEvent }) {
   const Icon = meta.icon;
   const needsVerification =
     event.verification_status === 'unverified' || event.verification_status === 'mixed';
+  const pinnableItems = event.event_type === 'lab_results'
+    ? event.related_ids.map((id) => ({ item_type: 'observation' as const, item_id: id }))
+    : event.doc_id
+      ? [{ item_type: 'document' as const, item_id: event.doc_id }]
+      : [];
 
   return (
     <Card>
@@ -88,6 +94,9 @@ function EventCard({ event }: { event: TimelineEvent }) {
               <Badge variant="accent">{meta.label}</Badge>
               {verification && (
                 <Badge variant={verification.variant}>{verification.label}</Badge>
+              )}
+              {pinnableItems.length > 0 && (
+                <AddToPinboardButton items={pinnableItems} label={`Add ${event.title} to pinboard`} />
               )}
             </div>
             <p className="mt-1.5 text-sm font-medium text-ink truncate">{event.title}</p>

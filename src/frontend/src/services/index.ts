@@ -243,6 +243,35 @@ export type {
   MedReconcileSuggestionType,
 } from './medReconcile';
 
+// User-curated record collections (HC-M20)
+export {
+  listPinboards,
+  createPinboard,
+  renamePinboard,
+  deletePinboard,
+  listPinboardItems,
+  addPinboardItem,
+  removePinboardItem,
+  exportPinboard,
+  usePinboards,
+  usePinboardItems,
+  useCreatePinboard,
+  useRenamePinboard,
+  useDeletePinboard,
+  useAddPinboardItem,
+  useRemovePinboardItem,
+  useExportPinboard,
+} from './pinboards';
+
+export type {
+  Pinboard,
+  PinboardItem,
+  PinboardItemType,
+  AddPinboardItemRequest,
+  PinboardExportRequest,
+  PinboardExportResponse,
+} from './pinboards';
+
 // Memory store hooks (ASSIST-MEM-001/002)
 export {
   useMemoryItems,
