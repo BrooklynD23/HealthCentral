@@ -29,6 +29,7 @@ from .gamification import router as gamification_router
 from .care_tasks import router as care_tasks_router
 from .timeline import router as timeline_router
 from .med_reconcile import router as med_reconcile_router
+from .search import router as search_router
 
 router = APIRouter()
 
@@ -47,6 +48,7 @@ router.include_router(gamification_router, prefix="/gamification", tags=["gamifi
 router.include_router(care_tasks_router, prefix="/care-tasks", tags=["care-tasks"])
 router.include_router(timeline_router, prefix="/timeline", tags=["timeline"])
 router.include_router(med_reconcile_router, prefix="/med-reconciliation", tags=["med-reconciliation"])
+router.include_router(search_router, prefix="/search", tags=["search"])
 
 from .feedback import router as feedback_router
 router.include_router(feedback_router, prefix="/feedback", tags=["feedback"])
