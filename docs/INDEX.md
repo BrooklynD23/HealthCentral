@@ -468,6 +468,12 @@ Links to: `docs/plans/2026-07-02-consolidated-findings-report.md`
 
 Owner decision (2026-07-07): rename the product — "HealthCentral" collides with the existing health-media brand healthcentral.com. This document is stage 1 of the plan: how big the rename is, and a…
 
+## `docs/plans/2026-07-12-phase-c-handoff-prompt.md`
+
+**Handoff Prompt — Phase C (Pinboards, Search, Confidence UX)**
+
+Copy everything below the line into the new session.
+
 ## `docs/plans/UI-implementation-2-4.md`
 
 **HealthCentral Implementation Plan**
