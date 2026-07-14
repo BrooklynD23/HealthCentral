@@ -103,6 +103,14 @@ def _drug_tokens(entity_value: str) -> tuple[str | None, list[str]]:
     right after the action verb (fillers skipped), ending at the first
     number or dose/frequency word. Returns (None, []) when the leading
     token is not a recognized action.
+
+    Dose-first phrasings ("stop the 81 mg aspirin") put the dose before the
+    drug name: if the span hits a number/dose token before any drug token
+    has been collected, that phrase is skipped (not treated as the end of
+    the span) and name-like tokens after it are still collected. Once a
+    drug token has been collected, a dose/number token ends the span as
+    before — this never changes an already-successful match, it only
+    recovers names that would otherwise be missed entirely.
     """
     tokens = _TOKEN.findall(str(entity_value).lower())
     if not tokens or tokens[0] not in _ACTIONS:
@@ -114,7 +122,11 @@ def _drug_tokens(entity_value: str) -> tuple[str | None, list[str]]:
     drug: list[str] = []
     for token in rest:
         if token in _NON_DRUG_TOKENS or token.isdigit() or not re.search(r"[a-z]", token):
-            break
+            if drug:
+                break
+            # No drug name collected yet — this looks like a dose/unit
+            # phrase preceding the name, so keep looking past it.
+            continue
         drug.append(token)
         if len(drug) >= 4:
             break
@@ -179,7 +191,8 @@ def _suggestion(
     summary: str | None = None,
     reason: str | None = None,
 ) -> dict:
-    confidence = float(_get(entity, "confidence") or 0.5)
+    raw_confidence = _get(entity, "confidence")
+    confidence = 0.5 if raw_confidence is None else float(raw_confidence)
     cap = 0.4 if suggestion_type == "unclear" else 0.9
     return {
         "suggestion_type": suggestion_type,

@@ -631,3 +631,68 @@ class TestProfileIsolation:
         assert len(result) == 1
         assert result[0].suggestion_type == "stopped_medication"
         assert result[0].matched_medication_id == own.id
+
+
+# ---------------------------------------------------------------------------
+# Confidence handling (review fix): 0.0 is a real value, not "missing"
+# ---------------------------------------------------------------------------
+
+
+class TestConfidenceHandling:
+    def test_hc_mrec_030_zero_confidence_is_not_coerced_to_default(self):
+        """A legitimate confidence of 0.0 must stay 0.0 (or lower after the
+        unclear-case cap), not be treated as missing and defaulted to 0.5."""
+        entities = [
+            _med_entity(DOC_ID, "start metformin 500 mg", confidence=0.0)
+        ]
+        suggestions = derive_reconciliation_suggestions(entities, [])
+        assert len(suggestions) == 1
+        assert suggestions[0]["suggestion_type"] == "new_medication"
+        assert suggestions[0]["confidence"] == 0.0
+
+    def test_hc_mrec_031_missing_confidence_still_defaults_to_half(self):
+        entities = [
+            _med_entity(DOC_ID, "start metformin 500 mg", confidence=None)
+        ]
+        suggestions = derive_reconciliation_suggestions(entities, [])
+        assert len(suggestions) == 1
+        assert suggestions[0]["confidence"] == 0.5
+
+
+# ---------------------------------------------------------------------------
+# Dose-first drug-name parsing (review fix)
+# ---------------------------------------------------------------------------
+
+
+class TestDoseFirstDrugParsing:
+    def test_hc_mrec_032_dose_first_phrasing_still_matches_drug_on_list(self):
+        """'stop the 81 mg aspirin' puts the dose before the drug name; the
+        parser must not give up and must still recognize 'aspirin'."""
+        med = _medication("aspirin", dosage_amount=81.0)
+        suggestions = derive_reconciliation_suggestions(
+            [_med_entity(DOC_ID, "stop the 81 mg aspirin")], [med]
+        )
+        assert len(suggestions) == 1
+        s = suggestions[0]
+        assert s["suggestion_type"] == "stopped_medication"
+        assert s["matched_medication_id"] == med.id
+        assert s["drug_name"] == "aspirin"
+
+    def test_hc_mrec_033_dose_first_phrasing_with_no_drug_name_stays_unclear(self):
+        """Purely dose/frequency words after the dose-first phrase still
+        yield 'unclear' — no name is fabricated."""
+        suggestions = derive_reconciliation_suggestions(
+            [_med_entity(DOC_ID, "stop the 81 mg twice daily")], []
+        )
+        assert len(suggestions) == 1
+        assert suggestions[0]["suggestion_type"] == "unclear"
+        assert suggestions[0]["drug_name"] is None
+
+    def test_hc_mrec_034_normal_dose_after_name_phrasing_unaffected(self):
+        """Regression guard: ordinary 'name then dose' phrasing keeps ending
+        the span at the first dose token, exactly as before."""
+        suggestions = derive_reconciliation_suggestions(
+            [_med_entity(DOC_ID, "start metformin 500 mg twice daily")], []
+        )
+        assert len(suggestions) == 1
+        assert suggestions[0]["drug_name"] == "metformin"
