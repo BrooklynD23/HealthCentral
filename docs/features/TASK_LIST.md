@@ -145,6 +145,32 @@ On the first of each month, review all canonical docs for freshness:
 
 ## Session Notes
 
+### 2026-07-13 - Phase C Extraction Confidence + Duplicate Upload Warning (HC-CONF / HC-DUP)
+
+- **Extraction-confidence UX**: document list/import responses now expose the
+  lowest already-stored observation/entity extraction confidence (no new score
+  or persistence). `VerificationWorkbench` shows percentage + low/medium/high
+  band for each observation and extracted entity; `DocumentInbox` labels the
+  lowest item confidence on each document. Missing confidence is distinct from
+  `0.0`, which renders as `0% · Low extraction confidence`.
+- **Duplicate warning**: import reuses `IngestModule`'s SHA-256 content hash and
+  checks only the active profile's documents. An exact hash match warns first;
+  otherwise an extracted same collection date is a secondary signal. The new
+  document is always retained and the 201 response includes optional
+  `duplicate_warning {match_type, document_id, title}`. `DocumentInbox` shows a
+  dismissible notice that explicitly says the upload still completed. Detection
+  errors log and degrade to no warning. Existing import audit logging remains and
+  records the warning type. No schema changes or migrations.
+- **Tests**: backend `tests/test_document_confidence_duplicates.py` plus the
+  import contract in `tests/test_documents_api.py` cover HC-CONF-001..002 and
+  HC-DUP-001..006 (including exact/different/same-date, warn-only completion,
+  and cross-profile isolation). Frontend adds HC-CONF-003..004 and
+  FE-HC-DUP-001. Focused backend verification: 14 passed. Full frontend:
+  131/131 (128 baseline + 3). `npx tsc --noEmit` and `from main import app`
+  exit 0. The exact full backend command was attempted but this sandbox stalls
+  at the first real async-SQLite test; a standalone `aiosqlite.connect(':memory:')`
+  reproduces the same environment hang, so no full-suite count was available.
+
 ### 2026-07-12 - HC-M16 Smart Highlights (branch `claude/hc-m16-highlights`)
 
 Small derived tags ("abnormal lab", "medication started", "needs

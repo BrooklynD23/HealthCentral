@@ -55,7 +55,9 @@ afterEach(async () => {
   vi.clearAllMocks();
 
   // Reset Zustand auth store to prevent state leaking between tests
-  const { useAuthStore } = await import('@/stores/authStore');
+  const { useAuthStore } = await vi.importActual<typeof import('@/stores/authStore')>(
+    '@/stores/authStore'
+  );
   useAuthStore.getState().clearAuth();
 
   // Clear localStorage to prevent persisted store state from leaking
