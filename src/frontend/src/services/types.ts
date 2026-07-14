@@ -47,12 +47,19 @@ export interface Document {
   imported_at: string;
   parsed_at: string | null;
   verified_at: string | null;
+  /** Lowest stored confidence among extracted observations/entities. */
+  extraction_confidence: number | null;
 }
 
 export interface DocumentImportResponse {
   document: Document;
   observations_extracted: number;
   needs_verification: boolean;
+  duplicate_warning: {
+    match_type: 'content_hash' | 'same_date';
+    document_id: string;
+    title: string | null;
+  } | null;
 }
 
 export interface DocumentVerifyResponse {

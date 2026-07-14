@@ -12,6 +12,7 @@ import { cn } from '@/utils/cn';
 import type { DocumentEntityResponse } from '@/services/documentCategories';
 import { useDocumentHighlights, type HighlightType } from '@/services/highlights';
 import { HighlightChips } from './HighlightChips';
+import { ExtractionConfidenceBadge } from './ExtractionConfidenceBadge';
 
 interface EntityDetailViewProps {
   entities: DocumentEntityResponse[];
@@ -113,6 +114,9 @@ export function EntityDetailView({
                   </td>
                   <td className="py-2 text-ink break-words max-w-xs align-top">
                     {entity.entity_value}
+                    <div className="mt-1">
+                      <ExtractionConfidenceBadge confidence={entity.confidence} />
+                    </div>
                     {entity.quote && (
                       <p className="mt-1 text-xs text-ink-secondary font-mono italic break-words">
                         &ldquo;{entity.quote}&rdquo;

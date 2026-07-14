@@ -7,11 +7,11 @@
 import { afterEach, beforeAll, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 
-// Mock localStorage before any module (e.g. the Zustand auth store) reads the
-// bare `localStorage` global at import time. This must run before the
-// `@/stores/authStore` import below, so it is a plain (non-imported) module
-// side effect rather than living after a static import statement, which ESM
-// would hoist ahead of it regardless of source order.
+// Mock localStorage before any module (e.g. the persisted Zustand auth store)
+// reads the bare `localStorage` global at import time. This must be a plain
+// (non-imported) module side effect — ESM hoists static imports ahead of it
+// regardless of source order — and Node 26 exposes a global localStorage
+// accessor that can otherwise resolve undefined.
 const localStorageMock = (() => {
   let store: Record<string, string> = {};
   return {
@@ -28,11 +28,14 @@ const localStorageMock = (() => {
   };
 })();
 
-Object.defineProperty(window, 'localStorage', {
+Object.defineProperty(globalThis, 'localStorage', {
+  configurable: true,
   value: localStorageMock,
 });
-
-const { useAuthStore } = await import('@/stores/authStore');
+Object.defineProperty(window, 'localStorage', {
+  configurable: true,
+  value: localStorageMock,
+});
 
 // Mock window.matchMedia for framer-motion and responsive hooks
 beforeAll(() => {
@@ -55,10 +58,13 @@ beforeAll(() => {
 });
 
 // Clear all mocks and reset stores after each test
-afterEach(() => {
+afterEach(async () => {
   vi.clearAllMocks();
 
   // Reset Zustand auth store to prevent state leaking between tests
+  const { useAuthStore } = await vi.importActual<typeof import('@/stores/authStore')>(
+    '@/stores/authStore'
+  );
   useAuthStore.getState().clearAuth();
 
   // Clear localStorage to prevent persisted store state from leaking

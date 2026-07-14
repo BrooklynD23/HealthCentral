@@ -27,6 +27,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { apiGet } from '@/services/api';
 import { PageImageOverlay } from '@/components/PageImageOverlay';
 import { EntityDetailView } from '@/components/documents/EntityDetailView';
+import { ExtractionConfidenceBadge } from '@/components/documents/ExtractionConfidenceBadge';
 import type { Observation, DocumentPage, BoundingBox, Document } from '@/services/types';
 import type { DocumentEntityResponse } from '@/services';
 
@@ -187,17 +188,6 @@ export function VerificationWorkbench() {
       return 'text-status-caution';
     }
     return 'text-ink';
-  };
-
-  const getConfidenceBadge = (confidence: number | null) => {
-    if (confidence === null) return null;
-    if (confidence >= 0.8) {
-      return <Badge variant="verified">High Confidence</Badge>;
-    }
-    if (confidence >= 0.5) {
-      return <Badge variant="caution">Medium</Badge>;
-    }
-    return <Badge variant="attention">Low Confidence</Badge>;
   };
 
   const formatRefRange = (observation: Observation) => {
@@ -510,7 +500,7 @@ export function VerificationWorkbench() {
                           {formatRefRange(observation)} {observation.unit}
                         </td>
                         <td className="px-4 py-4">
-                          {getConfidenceBadge(observation.extraction_confidence)}
+                          <ExtractionConfidenceBadge confidence={observation.extraction_confidence} />
                         </td>
                         <td className="px-4 py-4 text-right">
                           <div className="flex items-center justify-end gap-1">

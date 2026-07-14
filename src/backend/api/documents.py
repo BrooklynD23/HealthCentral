@@ -16,11 +16,10 @@ import time
 from collections import OrderedDict
 from dataclasses import asdict
 from pathlib import Path
-from typing import Optional
-from datetime import datetime
+from typing import Literal, Optional
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, File, Query, status
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -195,11 +194,16 @@ class DocumentResponse(BaseModel):
     imported_at: str
     parsed_at: Optional[str] = None
     verified_at: Optional[str] = None
+    extraction_confidence: Optional[float] = None
 
     model_config = ConfigDict(from_attributes=True)
 
     @classmethod
-    def from_model(cls, doc: Document) -> "DocumentResponse":
+    def from_model(
+        cls,
+        doc: Document,
+        extraction_confidence: Optional[float] = None,
+    ) -> "DocumentResponse":
         return cls(
             id=doc.id,
             profile_id=doc.profile_id,
@@ -211,7 +215,16 @@ class DocumentResponse(BaseModel):
             imported_at=doc.imported_at.isoformat(),
             parsed_at=doc.parsed_at.isoformat() if doc.parsed_at else None,
             verified_at=doc.verified_at.isoformat() if doc.verified_at else None,
+            extraction_confidence=extraction_confidence,
         )
+
+
+class DuplicateWarning(BaseModel):
+    """Non-blocking notice that an import resembles an existing document."""
+
+    match_type: Literal["content_hash", "same_date"]
+    document_id: str
+    title: Optional[str] = None
 
 
 class DocumentImportResponse(BaseModel):
@@ -219,12 +232,99 @@ class DocumentImportResponse(BaseModel):
     document: DocumentResponse
     observations_extracted: int
     needs_verification: bool
+    duplicate_warning: Optional[DuplicateWarning] = None
 
 
 class DocumentVerifyResponse(BaseModel):
     """Response model for document-level verification."""
     document: DocumentResponse
     verified_count: int
+
+
+async def _document_extraction_confidences(
+    profile_db: AsyncSession,
+    profile_id: str,
+    document_ids: list[str],
+) -> dict[str, float]:
+    """Return each document's lowest stored observation/entity confidence."""
+    if not document_ids:
+        return {}
+
+    confidences: dict[str, list[float]] = {}
+    observation_rows = (
+        await profile_db.execute(
+            select(Observation.doc_id, Observation.extraction_confidence).where(
+                Observation.profile_id == profile_id,
+                Observation.doc_id.in_(document_ids),
+                Observation.extraction_confidence.is_not(None),
+            )
+        )
+    ).all()
+    entity_rows = (
+        await profile_db.execute(
+            select(DocumentEntity.doc_id, DocumentEntity.confidence)
+            .join(Document, Document.id == DocumentEntity.doc_id)
+            .where(
+                Document.profile_id == profile_id,
+                DocumentEntity.doc_id.in_(document_ids),
+            )
+        )
+    ).all()
+
+    for doc_id, confidence in [*observation_rows, *entity_rows]:
+        if confidence is not None:
+            confidences.setdefault(doc_id, []).append(confidence)
+    return {doc_id: min(values) for doc_id, values in confidences.items()}
+
+
+async def _find_duplicate_warning(
+    profile_db: AsyncSession,
+    profile_id: str,
+    *,
+    content_hash: str,
+    collection_date: Optional[datetime],
+    exclude_document_id: Optional[str] = None,
+) -> Optional[DuplicateWarning]:
+    """Find a profile-local duplicate signal without ever blocking import."""
+    try:
+        hash_query = select(Document).where(
+            Document.profile_id == profile_id,
+            Document.content_hash == content_hash,
+        )
+        if exclude_document_id is not None:
+            hash_query = hash_query.where(Document.id != exclude_document_id)
+        hash_query = hash_query.order_by(Document.imported_at.desc()).limit(1)
+        hash_match = (await profile_db.execute(hash_query)).scalar_one_or_none()
+        if hash_match is not None and hash_match.profile_id == profile_id:
+            return DuplicateWarning(
+                match_type="content_hash",
+                document_id=hash_match.id,
+                title=hash_match.source,
+            )
+
+        if collection_date is None:
+            return None
+
+        day_start = datetime.combine(collection_date.date(), datetime.min.time())
+        day_end = day_start + timedelta(days=1)
+        date_query = select(Document).where(
+            Document.profile_id == profile_id,
+            Document.collection_date >= day_start,
+            Document.collection_date < day_end,
+        )
+        if exclude_document_id is not None:
+            date_query = date_query.where(Document.id != exclude_document_id)
+        date_query = date_query.order_by(Document.imported_at.desc()).limit(1)
+        date_match = (await profile_db.execute(date_query)).scalar_one_or_none()
+        if date_match is not None and date_match.profile_id == profile_id:
+            return DuplicateWarning(
+                match_type="same_date",
+                document_id=date_match.id,
+                title=date_match.source,
+            )
+    except Exception as exc:
+        logger.warning("Duplicate warning check failed; import will continue: %s", exc)
+    return None
 
 
 def _split_extracted_text_pages(extracted_text: Optional[str]) -> list[str]:
@@ -245,7 +345,6 @@ class PageResponse(BaseModel):
     "/import",
     response_model=DocumentImportResponse,
     status_code=status.HTTP_201_CREATED,
-    responses={200: {"model": DocumentImportResponse, "description": "Duplicate document already exists"}},
 )
 async def import_document(
     session: RequireAuth,
@@ -294,35 +393,12 @@ async def import_document(
             detail=str(e)
         )
 
-    # Check for duplicate content before creating new record
-    existing_result = await profile_db.execute(
-        select(Document).where(
-            Document.profile_id == profile_id,
-            Document.content_hash == import_result.content_hash,
-        )
+    duplicate_warning = await _find_duplicate_warning(
+        profile_db,
+        profile_id,
+        content_hash=import_result.content_hash,
+        collection_date=None,
     )
-    existing_doc = existing_result.scalar_one_or_none()
-
-    if existing_doc:
-        # Clean up the encrypted file that ingest just stored
-        vault_path = Path(settings.app_data_path) / "vaults" / profile_id / "docs"
-        orphan_path = vault_path / f"{import_result.document_id}.bin"
-        if orphan_path.exists():
-            orphan_path.unlink()
-        # Return existing document with 200 (not 201)
-        obs_result = await profile_db.execute(
-            select(Observation).where(Observation.doc_id == existing_doc.id)
-        )
-        obs_count = len(obs_result.scalars().all())
-        response_data = DocumentImportResponse(
-            document=DocumentResponse.from_model(existing_doc),
-            observations_extracted=obs_count,
-            needs_verification=False,
-        )
-        return JSONResponse(
-            content=response_data.model_dump(mode="json"),
-            status_code=status.HTTP_200_OK,
-        )
 
     # Create document record in per-profile encrypted database
     document = Document(
@@ -366,6 +442,21 @@ async def import_document(
         pre_extracted_text=extracted_text,
     )
 
+    if duplicate_warning is None:
+        duplicate_warning = await _find_duplicate_warning(
+            profile_db,
+            profile_id,
+            content_hash=import_result.content_hash,
+            collection_date=document.collection_date,
+            exclude_document_id=document.id,
+        )
+
+    confidence_by_doc = await _document_extraction_confidences(
+        profile_db,
+        profile_id,
+        [document.id],
+    )
+
     # Create audit log in master database
     await log_document_event(
         db=master_db,
@@ -377,14 +468,19 @@ async def import_document(
             "doc_type": import_result.doc_type,
             "encrypted": import_result.encrypted,
             "observations_extracted": observations_extracted,
+            "duplicate_warning": duplicate_warning.match_type if duplicate_warning else None,
         },
     )
     await master_db.commit()
 
     return DocumentImportResponse(
-        document=DocumentResponse.from_model(document),
+        document=DocumentResponse.from_model(
+            document,
+            confidence_by_doc.get(document.id),
+        ),
         observations_extracted=observations_extracted,
         needs_verification=needs_verification,
+        duplicate_warning=duplicate_warning,
     )
 
 
@@ -787,6 +883,11 @@ async def list_documents(
 
     result = await profile_db.execute(query)
     documents = result.scalars().all()
+    confidence_by_doc = await _document_extraction_confidences(
+        profile_db,
+        profile_id,
+        [doc.id for doc in documents],
+    )
 
     await audit_and_commit(
         master_db,
@@ -802,7 +903,10 @@ async def list_documents(
         },
     )
 
-    return [DocumentResponse.from_model(doc) for doc in documents]
+    return [
+        DocumentResponse.from_model(doc, confidence_by_doc.get(doc.id))
+        for doc in documents
+    ]
 
 
 @router.get("/{document_id}", response_model=DocumentResponse)
