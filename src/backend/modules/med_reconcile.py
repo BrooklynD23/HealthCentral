@@ -179,7 +179,8 @@ def _suggestion(
     summary: str | None = None,
     reason: str | None = None,
 ) -> dict:
-    confidence = float(_get(entity, "confidence") or 0.5)
+    raw_confidence = _get(entity, "confidence")
+    confidence = 0.5 if raw_confidence is None else float(raw_confidence)
     cap = 0.4 if suggestion_type == "unclear" else 0.9
     return {
         "suggestion_type": suggestion_type,

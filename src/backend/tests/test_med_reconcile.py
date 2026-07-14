@@ -631,3 +631,25 @@ class TestProfileIsolation:
         assert len(result) == 1
         assert result[0].suggestion_type == "stopped_medication"
         assert result[0].matched_medication_id == own.id
+
+
+# ---------------------------------------------------------------------------
+# Confidence handling (review fix): 0.0 is a real value, not "missing"
+# ---------------------------------------------------------------------------
+
+
+class TestConfidenceHandling:
+    def test_hc_mrec_030_zero_confidence_is_not_coerced_to_default(self):
+        """A legitimate confidence of 0.0 must stay 0.0 (or lower after the
+        unclear-case cap), not be treated as missing and defaulted to 0.5."""
+        entities = [
+            _med_entity(DOC_ID, "start metformin 500 mg", confidence=0.0)
+        ]
+        suggestions = derive_reconciliation_suggestions(entities, [])
+        assert len(suggestions) == 1
+        assert suggestions[0]["suggestion_type"] == "new_medication"
+        assert suggestions[0]["confidence"] == 0.0
+
+    def test_hc_mrec_031_missing_confidence_still_defaults_to_half(self):
+        entities = [
+            _med_entity(DOC_ID, "start metformin 500 mg", confidence=None)
