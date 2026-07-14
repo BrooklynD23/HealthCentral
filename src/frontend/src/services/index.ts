@@ -192,6 +192,17 @@ export type {
   TimelineFilters,
 } from './timeline';
 
+// Local cross-record search hooks (HC-M21)
+export { useSearch } from './search';
+
+export type {
+  SearchFilters,
+  SearchRecordType,
+  SearchResponse,
+  SearchResult,
+  SearchVerifiedStatus,
+} from './search';
+
 // Document category hooks
 export {
   useDocumentCategory,

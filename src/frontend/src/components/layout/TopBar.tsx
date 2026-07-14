@@ -9,14 +9,20 @@ export function TopBar() {
   const [safeMode, setSafeMode] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
+  const submitSearch = (event: React.FormEvent) => {
+    event.preventDefault();
+    const q = searchQuery.trim();
+    if (q) navigate(`/search?${new URLSearchParams({ q }).toString()}`);
+  };
+
   return (
     <header className="sticky top-0 z-40 h-16 px-8 flex items-center justify-between gap-6 bg-surface/80 backdrop-blur-md border-b border-black/[0.04]">
-      <div className="flex-1 max-w-md">
+      <form className="flex-1 max-w-md" role="search" onSubmit={submitSearch}>
         <div className="relative group">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-tertiary group-focus-within:text-accent transition-colors" />
           <input
             type="search"
-            placeholder="Search tests, terms..."
+            placeholder="Search health records..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className={cn(
@@ -26,10 +32,10 @@ export function TopBar() {
               'focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent focus:ring-offset-0',
               'transition-all duration-200'
             )}
-            aria-label="Search tests and terms"
+            aria-label="Search health records"
           />
         </div>
-      </div>
+      </form>
 
       <div className="flex items-center gap-3">
         <Button

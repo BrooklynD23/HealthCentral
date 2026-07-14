@@ -6,7 +6,33 @@
 
 import { afterEach, beforeAll, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { useAuthStore } from '@/stores/authStore';
+
+// Mock localStorage before any module (e.g. the Zustand auth store) reads the
+// bare `localStorage` global at import time. This must run before the
+// `@/stores/authStore` import below, so it is a plain (non-imported) module
+// side effect rather than living after a static import statement, which ESM
+// would hoist ahead of it regardless of source order.
+const localStorageMock = (() => {
+  let store: Record<string, string> = {};
+  return {
+    getItem: (key: string) => store[key] || null,
+    setItem: (key: string, value: string) => {
+      store[key] = value;
+    },
+    removeItem: (key: string) => {
+      delete store[key];
+    },
+    clear: () => {
+      store = {};
+    },
+  };
+})();
+
+Object.defineProperty(window, 'localStorage', {
+  value: localStorageMock,
+});
+
+const { useAuthStore } = await import('@/stores/authStore');
 
 // Mock window.matchMedia for framer-motion and responsive hooks
 beforeAll(() => {

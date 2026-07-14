@@ -184,6 +184,55 @@ Verification: backend 909 passed / 2 known-preexisting failures (1 env-only
 embedding-similarity test; 1 docs-index staleness unrelated to this branch,
 confirmed present before these changes too) — baseline 900/1 + 9 new tests,
 zero new failures. `from main import app` OK.
+### 2026-07-13 - HC-M21 Search & Filtering (branch `claude/hc-m21-search`)
+
+Local cross-record search over documents, extracted entities, and observations.
+Search remains inside each profile's SQLCipher database; there are no network or
+LLM paths and no master-DB record queries.
+
+- **Runtime index** `modules/search.py`: idempotently creates a canonical derived
+  `search_records` table plus an FTS5 `search_records_fts` virtual table in the
+  per-profile database and rebuilds both from current rows before search. This is
+  intentionally **not an Alembic migration**: the index is derived, disposable,
+  and rebuildable, while the next profile migration number is owned by HC-M20.
+  If FTS5 creation, refresh, or querying is unavailable, the same API uses
+  bounded `LIKE` matching against the canonical derived rows. Actual FTS5 and a
+  forced-unavailable LIKE path are both covered. Rejected entities are excluded;
+  unreviewed entities, observations, and documents remain searchable with an
+  explicit `unverified` status.
+- **API** `api/search.py`: `GET /api/v1/search/` searches document chunk text,
+  entity values/quotes, and observation names/values. Filters are `provider`,
+  `date_from`, `date_to`, `category`, and `highlight_type`; date names match the
+  timeline route. `q` is capped at 200 characters and `limit` at 100. The route
+  uses `ProfileDbSession` only for record data and fail-closed `search.view` audit
+  logging; raw query/provider text is not copied into the master audit details.
+- **Frontend**: typed `services/search.ts` hook via the services barrel;
+  `SearchPage` at `/search` with timeline-style filters/result cards and explicit
+  “Needs verification” badges; the existing compact TopBar field now navigates
+  to the search page. All wording is record-keeping framing.
+- **Tests**: backend `tests/test_search.py` HC-SRCH-001..012 (14 tests including
+  parameterized three-source matching); frontend `SearchService.test.tsx`
+  FE-SRCH-API-001..003 and `SearchPage.test.tsx` FE-SRCH-UI-001..003.
+- **Frontend test-setup fix** `src/frontend/src/__tests__/setup.ts`: the static
+  `import { useAuthStore } from '@/stores/authStore'` was hoisted (ESM import
+  hoisting) ahead of the `localStorage` mock defined lower in the same file, so
+  the auth store's `zustand/persist` middleware captured the bare global
+  `localStorage` — undefined at that point in this environment — once at
+  module load, permanently disabling persistence and throwing
+  `Cannot read properties of undefined (reading 'setItem')` from every test's
+  `afterEach`. This was a pre-existing, environment-wide failure (reproduced on
+  unrelated suites, e.g. `CareTasksService.test.tsx`) uncovered while verifying
+  HC-M21, not caused by it. Fix: install the `localStorage` mock as a plain
+  top-level statement, then `await import('@/stores/authStore')` after it, so
+  the store's persist middleware resolves the mock instead of a stale
+  reference.
+- **Verification**: full backend suite `python -m pytest tests/ -p no:cacheprovider -q`
+  → 914 passed, 1 failed (900 baseline + 14 new HC-SRCH tests; the 1 failure is
+  the pre-existing environment-only RAG embedding-similarity test, threshold
+  untouched). App import (`from main import app`) exits 0. Full frontend
+  `npx vitest run` → 134/134 passed (128 baseline + 6 new: FE-SRCH-UI-001..003,
+  FE-SRCH-API-001..003), after the test-setup fix above. `npx tsc --noEmit`
+  exits 0. Playwright was not run (browsers are not provisioned here).
 
 ### 2026-07-12 - HC-M16 Smart Highlights (branch `claude/hc-m16-highlights`)
 

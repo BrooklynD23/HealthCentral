@@ -680,6 +680,12 @@ Links to: `SECURITY.md`, `docs/03_data_confidentiality_pipeline_plan.md`, `docs/
 
 ---
 
+## `docs/superpowers/plans/2026-07-13-hc-m21-search.md`
+
+**HC-M21 Search & Filtering Implementation Plan**
+
+---
+
 ## `docs/superpowers/specs/2026-05-11-dynamic-port-selection-design.md`
 
 **Dynamic Port Selection for dev.ps1**
