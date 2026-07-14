@@ -145,6 +145,46 @@ On the first of each month, review all canonical docs for freshness:
 
 ## Session Notes
 
+### 2026-07-13 - Phase B adversarial-review fixes (branch `claude/hc-phase-b-review-fixes`)
+
+Six findings from an adversarial review of Phase B (HC-M17/M18/M19 export and
+med-reconciliation code) fixed, each with a regression test. No new features,
+no scope creep.
+
+- **Visit-prep Questions leak** (`api/export.py`): when `include_tasks=False`
+  or `include_labs=False`, the packet's Questions section no longer draws on
+  the excluded care tasks / observations — only sections the user chose to
+  include feed `generate_questions`. Tests: HC-PKT-017, HC-PKT-018.
+- **Unescaped HTML in HTML/PDF summary download** (`modules/export.py`
+  `render_html_summary`): section titles/content and question text are now
+  `html.escape()`d before interpolation (escape first, then `\n`→`<br>`);
+  local var renamed `html_doc` to avoid shadowing the new `html` import.
+  Test: `test_api_export_004d`.
+- **Zero confidence coerced to 0.5** (`modules/med_reconcile.py`
+  `_suggestion`): `float(_get(entity, "confidence") or 0.5)` treated a
+  legitimate `0.0` as missing; now only `None` defaults to 0.5. Tests:
+  HC-MREC-030, HC-MREC-031.
+- **Dose-first drug-name parsing** (`modules/med_reconcile.py`
+  `_drug_tokens`): "stop the 81 mg aspirin" collected no drug tokens because
+  the span ended at the leading dose phrase. Now, only while no drug token
+  has been collected yet, a number/dose token is skipped rather than ending
+  the span, so the name after the dose is still found — a match already in
+  hand still ends at the first dose token exactly as before. Tests:
+  HC-MREC-032, HC-MREC-033, HC-MREC-034 (regression guard).
+- **Visit-mentions date filter ignored** (`api/export.py`
+  `_fetch_visit_mention_dicts`): now filters on `Document.collection_date`
+  against the request's `from_date`/`to_date` when given (unchanged when
+  absent). Test: HC-PKT-019 (real per-profile DB).
+- **Test gap**: `_fetch_question_entity_dicts`'s SQL-level verified-only
+  filter was only covered via monkeypatched fetchers; added one real-DB test
+  confirming unverified entities are excluded. Test: HC-PKT-020. (Fetcher
+  code itself was already correct — this closes a coverage gap only.)
+
+Verification: backend 909 passed / 2 known-preexisting failures (1 env-only
+embedding-similarity test; 1 docs-index staleness unrelated to this branch,
+confirmed present before these changes too) — baseline 900/1 + 9 new tests,
+zero new failures. `from main import app` OK.
+
 ### 2026-07-12 - HC-M16 Smart Highlights (branch `claude/hc-m16-highlights`)
 
 Small derived tags ("abnormal lab", "medication started", "needs
