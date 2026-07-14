@@ -174,14 +174,26 @@ LLM paths and no master-DB record queries.
 - **Tests**: backend `tests/test_search.py` HC-SRCH-001..012 (14 tests including
   parameterized three-source matching); frontend `SearchService.test.tsx`
   FE-SRCH-API-001..003 and `SearchPage.test.tsx` FE-SRCH-UI-001..003.
-- **Verification**: targeted backend search suite 14/14 passed; app import exits
-  0; `npx tsc --noEmit` exits 0; full Vitest 134/134 (128 baseline + 6). The full
-  backend suite was attempted with a sandbox-only asyncio selector-poll shim
-  after the unmodified command stalled on aiosqlite. A parallel all-files retry
-  produced completed summaries covering 678 passing tests after its only new
-  failure (the generated docs index) was fixed and rerun; the remaining 18-file
-  group stalled without a summary, including the known environment-dependent
-  RAG file. Playwright was not run (browsers are not provisioned here).
+- **Frontend test-setup fix** `src/frontend/src/__tests__/setup.ts`: the static
+  `import { useAuthStore } from '@/stores/authStore'` was hoisted (ESM import
+  hoisting) ahead of the `localStorage` mock defined lower in the same file, so
+  the auth store's `zustand/persist` middleware captured the bare global
+  `localStorage` — undefined at that point in this environment — once at
+  module load, permanently disabling persistence and throwing
+  `Cannot read properties of undefined (reading 'setItem')` from every test's
+  `afterEach`. This was a pre-existing, environment-wide failure (reproduced on
+  unrelated suites, e.g. `CareTasksService.test.tsx`) uncovered while verifying
+  HC-M21, not caused by it. Fix: install the `localStorage` mock as a plain
+  top-level statement, then `await import('@/stores/authStore')` after it, so
+  the store's persist middleware resolves the mock instead of a stale
+  reference.
+- **Verification**: full backend suite `python -m pytest tests/ -p no:cacheprovider -q`
+  → 914 passed, 1 failed (900 baseline + 14 new HC-SRCH tests; the 1 failure is
+  the pre-existing environment-only RAG embedding-similarity test, threshold
+  untouched). App import (`from main import app`) exits 0. Full frontend
+  `npx vitest run` → 134/134 passed (128 baseline + 6 new: FE-SRCH-UI-001..003,
+  FE-SRCH-API-001..003), after the test-setup fix above. `npx tsc --noEmit`
+  exits 0. Playwright was not run (browsers are not provisioned here).
 
 ### 2026-07-12 - HC-M16 Smart Highlights (branch `claude/hc-m16-highlights`)
 
