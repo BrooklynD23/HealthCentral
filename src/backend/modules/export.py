@@ -308,7 +308,7 @@ class ExportModule:
             color = "#b91c1c" if "critical" in finding.lower() else "#d97706" if any(
                 f in finding.lower() for f in ["high", "low", "abnormal"]
             ) else "#374151"
-            findings_html += f'<li style="color:{color};margin-bottom:4px;">{finding}</li>'
+            findings_html += f'<li style="color:{color};margin-bottom:4px;">{html.escape(finding)}</li>'
 
         sections_html = ""
         for section in sections:

@@ -394,7 +394,7 @@ class TestSummaryDownload:
         export_module = ExportModule()
         payload = "<script>alert(1)</script>"
         summary_data = {
-            "key_findings": [],
+            "key_findings": [payload],
             "sections": [{"title": payload, "content": payload}],
             "questions": [{"question": payload}],
         }
