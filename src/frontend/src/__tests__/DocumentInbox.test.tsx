@@ -34,6 +34,8 @@ vi.mock('@/services', () => ({
   useDeleteDocument: vi.fn(() => ({ mutate: vi.fn() })),
   useReprocessDocument: vi.fn(() => ({ mutate: vi.fn() })),
   useHighlightsSummary: vi.fn(() => ({ data: [] })),
+  usePinboards: vi.fn(() => ({ data: [] })),
+  useAddPinboardItem: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
 }));
 
 vi.mock('@/components/PageImageOverlay', () => ({
