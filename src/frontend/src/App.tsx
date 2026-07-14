@@ -55,6 +55,10 @@ const TimelinePage = lazy(async () => {
   const module = await import('./pages/TimelinePage');
   return { default: module.TimelinePage };
 });
+const SearchPage = lazy(async () => {
+  const module = await import('./pages/SearchPage');
+  return { default: module.SearchPage };
+});
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -102,6 +106,7 @@ function App() {
               <Route path="verify" element={<VerificationWorkbench />} />
               <Route path="trends" element={lazyRoute(<TrendsDashboard />)} />
               <Route path="timeline" element={lazyRoute(<TimelinePage />)} />
+              <Route path="search" element={lazyRoute(<SearchPage />)} />
               <Route path="interpret" element={lazyRoute(<LabInterpreter />)} />
               <Route path="medications" element={lazyRoute(<MedicationCoach />)} />
               <Route path="medications/:medicationId" element={lazyRoute(<MedicationDetail />)} />

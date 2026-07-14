@@ -188,16 +188,11 @@ async def _build_rows(db: AsyncSession, profile_id: str) -> list[dict]:
     for observation in observations:
         observations_by_doc.setdefault(observation.doc_id, []).append(observation)
 
-    entity_highlights = {
-        (highlight.source_kind, highlight.source_id): highlight.highlight_type
-        for highlight in derive_entity_highlights(entities)
-    }
-    observation_highlights = {
-        (highlight.source_kind, highlight.source_id): highlight.highlight_type
-        for highlight in derive_observation_highlights(observations)
-    }
     source_highlights: dict[tuple[str, str], set[str]] = {}
-    for highlight in derive_entity_highlights(entities) + derive_observation_highlights(observations):
+    highlights = derive_entity_highlights(entities) + derive_observation_highlights(
+        observations
+    )
+    for highlight in highlights:
         source_highlights.setdefault(
             (highlight.source_kind, highlight.source_id), set()
         ).add(highlight.highlight_type)
