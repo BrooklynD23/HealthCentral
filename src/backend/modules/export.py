@@ -11,6 +11,7 @@ Handles:
 from typing import Optional
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+import html
 import json
 import csv
 from io import StringIO
@@ -311,8 +312,8 @@ class ExportModule:
 
         sections_html = ""
         for section in sections:
-            title = section.get("title", "")
-            content = section.get("content", "").replace("\n", "<br>")
+            title = html.escape(section.get("title", ""))
+            content = html.escape(section.get("content", "")).replace("\n", "<br>")
             sections_html += f"""
             <div style="margin-bottom:20px;">
                 <h3 style="color:#1f2937;font-size:16px;margin-bottom:8px;border-bottom:1px solid #e5e7eb;padding-bottom:4px;">{title}</h3>
@@ -324,10 +325,10 @@ class ExportModule:
             questions_html = '<div style="margin-top:20px;"><h3 style="color:#1f2937;font-size:16px;margin-bottom:8px;">Questions for Your Provider</h3><ul style="color:#4b5563;font-size:14px;">'
             for q in questions:
                 q_text = q.get("question", q) if isinstance(q, dict) else q
-                questions_html += f"<li style='margin-bottom:6px;'>{q_text}</li>"
+                questions_html += f"<li style='margin-bottom:6px;'>{html.escape(q_text)}</li>"
             questions_html += "</ul></div>"
 
-        html = f"""<!DOCTYPE html>
+        html_doc = f"""<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><title>HealthCentral Summary</title></head>
 <body style="font-family:'Source Sans 3',Arial,sans-serif;max-width:800px;margin:0 auto;padding:24px;background:#fff;">
@@ -352,7 +353,7 @@ class ExportModule:
     </div>
 </body>
 </html>"""
-        return html
+        return html_doc
 
     def render_pdf_summary(self, summary_data: dict) -> bytes:
         """
