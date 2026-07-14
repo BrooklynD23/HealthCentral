@@ -454,3 +454,181 @@ class TestVisitPrepRoute:
         assert "555-123-4567" not in body
         assert "A12345" not in body
         assert "[PHONE-REDACTED]" in body
+
+
+# ---------------------------------------------------------------------------
+# Excluded-section leakage into the Questions section (review fix)
+# ---------------------------------------------------------------------------
+
+
+class TestQuestionsSectionExclusion:
+    """Content the user excluded from the packet (include_tasks=False /
+    include_labs=False) must not resurface as a question source — the
+    Questions section may only draw on sections the user chose to include."""
+
+    @pytest.mark.asyncio
+    async def test_hc_pkt_017_excluded_tasks_do_not_leak_into_questions(
+        self, monkeypatch
+    ):
+        _patch_fetchers(
+            monkeypatch,
+            tasks=[
+                _task(
+                    status="needs_review",
+                    source_quote="Repeat CBC in 4 weeks",
+                )
+            ],
+        )
+        monkeypatch.setattr("api.export.log_export_event", AsyncMock())
+
+        request = VisitPrepRequest(
+            include_tasks=False,
+            include_questions=True,
+            confirm=True,
+        )
+        response = await generate_visit_prep(
+            request, _make_session(), AsyncMock(), AsyncMock()
+        )
+        assert "Questions for Your Provider" in response.section_titles
+        assert "Repeat CBC" not in response.markdown
+        assert "clarify" not in response.markdown.lower()
+
+    @pytest.mark.asyncio
+    async def test_hc_pkt_018_excluded_labs_do_not_leak_into_questions(
+        self, monkeypatch
+    ):
+        _patch_fetchers(
+            monkeypatch,
+            observations=[_obs(analyte_canonical="hemoglobin_a1c")],
+        )
+        monkeypatch.setattr("api.export.log_export_event", AsyncMock())
+
+        request = VisitPrepRequest(
+            include_labs=False,
+            include_questions=True,
+            confirm=True,
+        )
+        response = await generate_visit_prep(
+            request, _make_session(), AsyncMock(), AsyncMock()
+        )
+        assert "Questions for Your Provider" in response.section_titles
+        assert "Recent Abnormal Lab Results" not in response.markdown
+        assert "hemoglobin_a1c" not in response.markdown
+
+
+# ---------------------------------------------------------------------------
+# Real profile-DB fetchers: date filtering and verified-only policy
+# ---------------------------------------------------------------------------
+
+import pytest_asyncio  # noqa: E402
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E402
+
+from core.profile_database import ProfileDatabaseBase  # noqa: E402
+from models import Document  # noqa: E402
+from models.document_category import DocumentEntity  # noqa: E402
+from api.export import (  # noqa: E402
+    _fetch_question_entity_dicts,
+    _fetch_visit_mention_dicts,
+)
+
+
+@pytest_asyncio.fixture
+async def real_profile_db():
+    engine = create_async_engine("sqlite+aiosqlite://")
+    async with engine.begin() as conn:
+        await conn.run_sync(ProfileDatabaseBase.metadata.create_all)
+    session = AsyncSession(engine, expire_on_commit=False)
+    try:
+        yield session
+    finally:
+        await session.close()
+        await engine.dispose()
+
+
+def _document(doc_id: str, collection_date, profile_id: str = "test-profile") -> Document:
+    return Document(
+        id=doc_id,
+        profile_id=profile_id,
+        path_hash="x" * 64,
+        content_hash="y" * 64,
+        doc_type="visit_notes",
+        source="visit-note.pdf",
+        status="parsed",
+        collection_date=collection_date,
+        imported_at=datetime(2026, 4, 2, 12, 0, 0),
+    )
+
+
+def _document_entity(doc_id: str, entity_type: str, value: str, **overrides) -> DocumentEntity:
+    fields = dict(
+        id=str(uuid.uuid4()),
+        doc_id=doc_id,
+        category="visit_notes",
+        entity_type=entity_type,
+        entity_value=value,
+        confidence=0.8,
+        source_page=None,
+        char_start=0,
+        char_end=len(value),
+        quote=value,
+        verified_by_user=None,
+        extraction_version="rule-v2",
+    )
+    fields.update(overrides)
+    return DocumentEntity(**fields)
+
+
+class TestRealFetchers:
+    @pytest.mark.asyncio
+    async def test_hc_pkt_019_visit_mentions_respect_date_range(self, real_profile_db):
+        db = real_profile_db
+        in_range_doc = str(uuid.uuid4())
+        out_of_range_doc = str(uuid.uuid4())
+        db.add(_document(in_range_doc, datetime(2026, 5, 20, tzinfo=timezone.utc)))
+        db.add(_document(out_of_range_doc, datetime(2026, 1, 1, tzinfo=timezone.utc)))
+        db.add(_document_entity(
+            in_range_doc, "diagnoses", "Type 2 diabetes", verified_by_user=True,
+        ))
+        db.add(_document_entity(
+            out_of_range_doc, "diagnoses", "Hypertension", verified_by_user=True,
+        ))
+        await db.commit()
+
+        mentions = await _fetch_visit_mention_dicts(
+            db,
+            from_date=datetime(2026, 4, 1, tzinfo=timezone.utc),
+            to_date=datetime(2026, 6, 1, tzinfo=timezone.utc),
+        )
+        values = {m["entity_value"] for m in mentions}
+        assert values == {"Type 2 diabetes"}
+
+        # Without a range, both are returned (unchanged existing behavior).
+        all_mentions = await _fetch_visit_mention_dicts(db)
+        assert {m["entity_value"] for m in all_mentions} == {
+            "Type 2 diabetes", "Hypertension",
+        }
+
+    @pytest.mark.asyncio
+    async def test_hc_pkt_020_question_entities_real_fetcher_excludes_unverified(
+        self, real_profile_db
+    ):
+        db = real_profile_db
+        doc_id = str(uuid.uuid4())
+        db.add(_document(doc_id, datetime(2026, 5, 20, tzinfo=timezone.utc)))
+        db.add(_document_entity(
+            doc_id, "medication_change", "start metformin 500 mg",
+            verified_by_user=True,
+        ))
+        db.add(_document_entity(
+            doc_id, "test_ordered", "repeat CBC in 4 weeks",
+            verified_by_user=False,
+        ))
+        db.add(_document_entity(
+            doc_id, "referral", "see cardiology",
+            verified_by_user=None,
+        ))
+        await db.commit()
+
+        entities = await _fetch_question_entity_dicts(db)
+        values = {e["entity_value"] for e in entities}
+        assert values == {"start metformin 500 mg"}
