@@ -6,7 +6,29 @@
 
 import { afterEach, beforeAll, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { useAuthStore } from '@/stores/authStore';
+
+// Install storage before test modules import persisted Zustand stores. Node 26
+// exposes a global localStorage accessor that can otherwise resolve undefined.
+const localStorageMock = (() => {
+  let store: Record<string, string> = {};
+  return {
+    getItem: (key: string) => store[key] || null,
+    setItem: (key: string, value: string) => {
+      store[key] = value;
+    },
+    removeItem: (key: string) => {
+      delete store[key];
+    },
+    clear: () => {
+      store = {};
+    },
+  };
+})();
+
+Object.defineProperty(globalThis, 'localStorage', {
+  configurable: true,
+  value: localStorageMock,
+});
 
 // Mock window.matchMedia for framer-motion and responsive hooks
 beforeAll(() => {
@@ -29,33 +51,13 @@ beforeAll(() => {
 });
 
 // Clear all mocks and reset stores after each test
-afterEach(() => {
+afterEach(async () => {
   vi.clearAllMocks();
 
   // Reset Zustand auth store to prevent state leaking between tests
+  const { useAuthStore } = await import('@/stores/authStore');
   useAuthStore.getState().clearAuth();
 
   // Clear localStorage to prevent persisted store state from leaking
   localStorage.clear();
-});
-
-// Mock localStorage
-const localStorageMock = (() => {
-  let store: Record<string, string> = {};
-  return {
-    getItem: (key: string) => store[key] || null,
-    setItem: (key: string, value: string) => {
-      store[key] = value;
-    },
-    removeItem: (key: string) => {
-      delete store[key];
-    },
-    clear: () => {
-      store = {};
-    },
-  };
-})();
-
-Object.defineProperty(window, 'localStorage', {
-  value: localStorageMock,
 });

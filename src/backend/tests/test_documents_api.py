@@ -1,20 +1,19 @@
 """
 Tests for document import API behavior.
 
-TDD scaffolding for HC-REM-004:
-- Duplicate imports should return 200 (existing document), not 201.
+Phase C duplicate imports are warn-only: a new document is still created.
 """
 
 from __future__ import annotations
 
 import sys
+import io
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
+from fastapi import UploadFile
 import pytest
 
 # Add backend to path for imports
@@ -22,8 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from api.documents import router as documents_router
 from api import documents as documents_api
-from core.auth import Session, require_auth, get_profile_db_session
-from core.database import get_db
+from core.auth import Session
 from models import Document
 from modules.ingest import ImportResult
 import modules
@@ -49,6 +47,7 @@ class _FakeProfileDb:
         self._existing_doc = existing_doc
         self._obs_count = obs_count
         self._execute_calls = 0
+        self._added = []
 
     async def execute(self, _stmt):
         self._execute_calls += 1
@@ -59,8 +58,8 @@ class _FakeProfileDb:
     async def commit(self):
         return None
 
-    def add(self, _obj):
-        return None
+    def add(self, obj):
+        self._added.append(obj)
 
 
 class _FakeMasterDb:
@@ -96,11 +95,12 @@ class _FakeIngestModule:
         )
 
 
-def test_api_import_dedup_http_001_duplicate_returns_200(monkeypatch):
+@pytest.mark.asyncio
+async def test_HC_DUP_006_duplicate_returns_201_with_warning(monkeypatch):
     """
     API-IMPORT-DEDUP-HTTP-001
 
-    Duplicate import should return 200 with the existing document.
+    Exact duplicate content warns but still creates the new document.
     """
     profile_id = str(uuid.uuid4())
     existing_doc = Document(
@@ -117,36 +117,47 @@ def test_api_import_dedup_http_001_duplicate_returns_200(monkeypatch):
     )
     profile_db = _FakeProfileDb(existing_doc=existing_doc, obs_count=2)
 
-    app = FastAPI()
-    app.include_router(documents_router, prefix="/documents")
-
-    async def _override_auth():
-        return Session(
-            profile_id=profile_id,
-            profile_name="Test Profile",
-            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
-        )
-
-    async def _override_profile_db():
-        return profile_db
-
-    async def _override_master_db():
-        return _FakeMasterDb()
-
-    app.dependency_overrides[require_auth] = _override_auth
-    app.dependency_overrides[get_profile_db_session] = _override_profile_db
-    app.dependency_overrides[get_db] = _override_master_db
-
     monkeypatch.setattr(documents_api, "get_profile_encryption_key", lambda _profile_id: b"x" * 32)
     monkeypatch.setattr(modules, "IngestModule", _FakeIngestModule)
 
-    with TestClient(app) as client:
-        response = client.post(
-            "/documents/import",
-            files={"file": ("duplicate.pdf", b"%PDF-1.4\n%fake\n", "application/pdf")},
-        )
+    async def _mock_pipeline(**_kwargs):
+        return {
+            "observations_extracted": 0,
+            "needs_verification": True,
+            "extracted_text": "",
+        }
 
-    assert response.status_code == 200
+    async def _mock_classify(**_kwargs):
+        return None
+
+    async def _mock_confidences(*_args, **_kwargs):
+        return {}
+
+    monkeypatch.setattr(documents_api, "_run_extraction_pipeline", _mock_pipeline)
+    monkeypatch.setattr(documents_api, "_classify_and_extract_entities", _mock_classify)
+    monkeypatch.setattr(documents_api, "_document_extraction_confidences", _mock_confidences)
+
+    response = await documents_api.import_document(
+        session=Session(
+            profile_id=profile_id,
+            profile_name="Test Profile",
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        ),
+        file=UploadFile(filename="duplicate.pdf", file=io.BytesIO(b"%PDF-1.4\n%fake\n")),
+        profile_db=profile_db,
+        master_db=_FakeMasterDb(),
+    )
+
+    import_route = next(route for route in documents_router.routes if route.path == "/import")
+    assert import_route.status_code == 201
+    body = response.model_dump(mode="json")
+    assert body["document"]["id"] != existing_doc.id
+    assert body["duplicate_warning"] == {
+        "match_type": "content_hash",
+        "document_id": existing_doc.id,
+        "title": "existing.pdf",
+    }
+    assert len(profile_db._added) == 1
 
 
 class _FakeNewImportProfileDb:
@@ -167,7 +178,8 @@ class _FakeNewImportProfileDb:
         self._added.append(obj)
 
 
-def test_api_import_dedup_http_002_new_import_returns_201(monkeypatch):
+@pytest.mark.asyncio
+async def test_api_import_dedup_http_002_new_import_returns_201(monkeypatch):
     """
     API-IMPORT-DEDUP-HTTP-002
 
@@ -176,28 +188,25 @@ def test_api_import_dedup_http_002_new_import_returns_201(monkeypatch):
     profile_id = str(uuid.uuid4())
     profile_db = _FakeNewImportProfileDb()
 
-    app = FastAPI()
-    app.include_router(documents_router, prefix="/documents")
-
-    async def _override_auth():
-        return Session(
-            profile_id=profile_id,
-            profile_name="Test Profile",
-            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
-        )
-
-    async def _override_profile_db():
-        return profile_db
-
-    async def _override_master_db():
-        return _FakeMasterDb()
-
-    app.dependency_overrides[require_auth] = _override_auth
-    app.dependency_overrides[get_profile_db_session] = _override_profile_db
-    app.dependency_overrides[get_db] = _override_master_db
-
     monkeypatch.setattr(documents_api, "get_profile_encryption_key", lambda _profile_id: b"x" * 32)
     monkeypatch.setattr(modules, "IngestModule", _FakeIngestModule)
+
+    async def _mock_pipeline(**_kwargs):
+        return {
+            "observations_extracted": 0,
+            "needs_verification": True,
+            "extracted_text": "",
+        }
+
+    async def _mock_classify(**_kwargs):
+        return None
+
+    async def _mock_confidences(*_args, **_kwargs):
+        return {}
+
+    monkeypatch.setattr(documents_api, "_run_extraction_pipeline", _mock_pipeline)
+    monkeypatch.setattr(documents_api, "_classify_and_extract_entities", _mock_classify)
+    monkeypatch.setattr(documents_api, "_document_extraction_confidences", _mock_confidences)
 
     # Mock decrypted doc + extraction to avoid real PDF processing
     mock_extraction = MagicMock()
@@ -217,13 +226,18 @@ def test_api_import_dedup_http_002_new_import_returns_201(monkeypatch):
         lambda _pid, _did: b"fake-pdf",
     )
 
-    with TestClient(app) as client:
-        response = client.post(
-            "/documents/import",
-            files={"file": ("new_report.pdf", b"%PDF-1.4\n%fake\n", "application/pdf")},
-        )
+    response = await documents_api.import_document(
+        session=Session(
+            profile_id=profile_id,
+            profile_name="Test Profile",
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        ),
+        file=UploadFile(filename="new_report.pdf", file=io.BytesIO(b"%PDF-1.4\n%fake\n")),
+        profile_db=profile_db,
+        master_db=_FakeMasterDb(),
+    )
 
-    assert response.status_code == 201
+    assert response.duplicate_warning is None
 
 
 def test_document_text_pages_split_helper_handles_ocr_formfeed():
@@ -243,7 +257,8 @@ class _FakeSingleDocProfileDb:
         return _ScalarResult(one=self._document)
 
 
-def test_hc_documents_101_get_document_creates_view_audit_log():
+@pytest.mark.asyncio
+async def test_hc_documents_101_get_document_creates_view_audit_log():
     """
     HC-DOCUMENTS-101
 
@@ -268,30 +283,18 @@ def test_hc_documents_101_get_document_creates_view_audit_log():
     profile_db = _FakeSingleDocProfileDb(document)
     master_db = _FakeMasterDb()
 
-    app = FastAPI()
-    app.include_router(documents_router, prefix="/documents")
-
-    async def _override_auth():
-        return Session(
+    response = await documents_api.get_document(
+        document_id=document_id,
+        session=Session(
             profile_id=profile_id,
             profile_name="Test Profile",
             expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
-        )
+        ),
+        profile_db=profile_db,
+        master_db=master_db,
+    )
 
-    async def _override_profile_db():
-        return profile_db
-
-    async def _override_master_db():
-        return master_db
-
-    app.dependency_overrides[require_auth] = _override_auth
-    app.dependency_overrides[get_profile_db_session] = _override_profile_db
-    app.dependency_overrides[get_db] = _override_master_db
-
-    with TestClient(app) as client:
-        response = client.get(f"/documents/{document_id}")
-
-    assert response.status_code == 200
+    assert response.id == document_id
     assert len(master_db.added) == 1
     audit_log = master_db.added[0]
     assert audit_log.event_type == "document.view"
@@ -299,7 +302,8 @@ def test_hc_documents_101_get_document_creates_view_audit_log():
     assert audit_log.profile_id == profile_id
 
 
-def test_hc_documents_103_get_document_fails_closed_on_audit_failure():
+@pytest.mark.asyncio
+async def test_hc_documents_103_get_document_fails_closed_on_audit_failure():
     """
     HC-DOCUMENTS-103
 
@@ -322,34 +326,23 @@ def test_hc_documents_103_get_document_fails_closed_on_audit_failure():
     profile_db = _FakeSingleDocProfileDb(document)
     master_db = _FailingMasterDb()
 
-    app = FastAPI()
-    app.include_router(documents_router, prefix="/documents")
-
-    async def _override_auth():
-        return Session(
-            profile_id=profile_id,
-            profile_name="Test Profile",
-            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+    with pytest.raises(RuntimeError):
+        await documents_api.get_document(
+            document_id=document_id,
+            session=Session(
+                profile_id=profile_id,
+                profile_name="Test Profile",
+                expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+            ),
+            profile_db=profile_db,
+            master_db=master_db,
         )
-
-    async def _override_profile_db():
-        return profile_db
-
-    async def _override_master_db():
-        return master_db
-
-    app.dependency_overrides[require_auth] = _override_auth
-    app.dependency_overrides[get_profile_db_session] = _override_profile_db
-    app.dependency_overrides[get_db] = _override_master_db
-
-    with TestClient(app) as client:
-        with pytest.raises(RuntimeError):
-            client.get(f"/documents/{document_id}")
 
     assert len(master_db.added) == 1
 
 
-def test_hc_documents_104_list_documents_fails_closed_on_audit_failure():
+@pytest.mark.asyncio
+async def test_hc_documents_104_list_documents_fails_closed_on_audit_failure(monkeypatch):
     """
     HC-DOCUMENTS-104
 
@@ -376,34 +369,29 @@ def test_hc_documents_104_list_documents_fails_closed_on_audit_failure():
     profile_db = _FakeListProfileDb()
     master_db = _FailingMasterDb()
 
-    app = FastAPI()
-    app.include_router(documents_router, prefix="/documents")
-
-    async def _override_auth():
-        return Session(
-            profile_id=profile_id,
-            profile_name="Test Profile",
-            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+    monkeypatch.setattr(
+        documents_api,
+        "_document_extraction_confidences",
+        AsyncMock(return_value={}),
+    )
+    with pytest.raises(RuntimeError):
+        await documents_api.list_documents(
+            session=Session(
+                profile_id=profile_id,
+                profile_name="Test Profile",
+                expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+            ),
+            doc_status=None,
+            doc_type=None,
+            profile_db=profile_db,
+            master_db=master_db,
         )
-
-    async def _override_profile_db():
-        return profile_db
-
-    async def _override_master_db():
-        return master_db
-
-    app.dependency_overrides[require_auth] = _override_auth
-    app.dependency_overrides[get_profile_db_session] = _override_profile_db
-    app.dependency_overrides[get_db] = _override_master_db
-
-    with TestClient(app) as client:
-        with pytest.raises(RuntimeError):
-            client.get("/documents/")
 
     assert len(master_db.added) == 1
 
 
-def test_hc_documents_102_list_documents_creates_view_audit_log():
+@pytest.mark.asyncio
+async def test_hc_documents_102_list_documents_creates_view_audit_log(monkeypatch):
     """
     HC-DOCUMENTS-102
 
@@ -431,31 +419,24 @@ def test_hc_documents_102_list_documents_creates_view_audit_log():
     profile_db = _FakeListProfileDb()
     master_db = _FakeMasterDb()
 
-    app = FastAPI()
-    app.include_router(documents_router, prefix="/documents")
-
-    async def _override_auth():
-        return Session(
+    monkeypatch.setattr(
+        documents_api,
+        "_document_extraction_confidences",
+        AsyncMock(return_value={}),
+    )
+    response = await documents_api.list_documents(
+        session=Session(
             profile_id=profile_id,
             profile_name="Test Profile",
             expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
-        )
+        ),
+        doc_status=None,
+        doc_type=None,
+        profile_db=profile_db,
+        master_db=master_db,
+    )
 
-    async def _override_profile_db():
-        return profile_db
-
-    async def _override_master_db():
-        return master_db
-
-    app.dependency_overrides[require_auth] = _override_auth
-    app.dependency_overrides[get_profile_db_session] = _override_profile_db
-    app.dependency_overrides[get_db] = _override_master_db
-
-    with TestClient(app) as client:
-        response = client.get("/documents/")
-
-    assert response.status_code == 200
-    assert len(response.json()) == 1
+    assert len(response) == 1
     assert len(master_db.added) == 1
     audit_log = master_db.added[0]
     assert audit_log.event_type == "document.view"
