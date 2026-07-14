@@ -58,6 +58,9 @@ from .chat_session import ChatSession, ChatTurn
 # Care-plan tasks (per-profile, HC-M15)
 from .care_plan_task import CarePlanTask
 
+# User-curated record collections (per-profile, HC-M20)
+from .pinboard import Pinboard, PinboardItem
+
 __all__ = [
     # Master database
     "Profile",
@@ -95,4 +98,7 @@ __all__ = [
     "ChatTurn",
     # Care-plan tasks (per-profile, HC-M15)
     "CarePlanTask",
+    # Pinboards (per-profile, HC-M20)
+    "Pinboard",
+    "PinboardItem",
 ]

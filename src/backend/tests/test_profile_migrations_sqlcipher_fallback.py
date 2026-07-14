@@ -38,5 +38,5 @@ def test_profile_migration_omits_creator_when_sqlcipher_unavailable(
     assert vault_path.exists()
     assert (
         migrations.get_profile_current_revision(vault_path, encryption_key)
-        == "011_care_plan_tasks"
+        == "012_pinboards"
     )
