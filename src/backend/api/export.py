@@ -186,9 +186,15 @@ async def _fetch_care_task_dicts(profile_db: AsyncSession) -> list[dict]:
 
 
 async def _fetch_question_entity_dicts(profile_db: AsyncSession) -> list[dict]:
-    """Verified visit-note entities that can generate doctor questions."""
+    """Verified visit-note entities that can generate doctor questions.
+
+    Joins Document so entities orphaned by an old document delete (before
+    entity cleanup existed) never feed exported questions.
+    """
     result = await profile_db.execute(
-        select(DocumentEntity).where(
+        select(DocumentEntity)
+        .join(Document, Document.id == DocumentEntity.doc_id)
+        .where(
             DocumentEntity.entity_type.in_(QUESTION_ENTITY_TYPES),
             DocumentEntity.verified_by_user.is_(True),
         )

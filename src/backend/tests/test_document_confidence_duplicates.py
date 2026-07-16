@@ -181,3 +181,41 @@ async def test_HC_DUP_005_cross_profile_document_does_not_warn():
     )
 
     assert warning is None
+
+
+@pytest.mark.asyncio
+async def test_HC_CONF_005_rejected_entity_confidence_is_ignored():
+    """A low-confidence extraction the user already rejected must not pin
+    the document's displayed confidence forever (real per-profile DB)."""
+    import pytest  # noqa: F401
+    from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+
+    from core.profile_database import ProfileDatabaseBase
+    from models.document_category import DocumentEntity
+
+    engine = create_async_engine("sqlite+aiosqlite://")
+    async with engine.begin() as conn:
+        await conn.run_sync(ProfileDatabaseBase.metadata.create_all)
+    db = AsyncSession(engine, expire_on_commit=False)
+    try:
+        doc = _document(PROFILE_A, content_hash="a" * 64)
+        db.add(doc)
+        db.add(DocumentEntity(
+            id=str(uuid.uuid4()), doc_id=doc.id, category="visit_notes",
+            entity_type="medication_change", entity_value="junk",
+            confidence=0.1, verified_by_user=False,
+        ))
+        db.add(DocumentEntity(
+            id=str(uuid.uuid4()), doc_id=doc.id, category="visit_notes",
+            entity_type="test_ordered", entity_value="repeat cbc",
+            confidence=0.9, verified_by_user=None,
+        ))
+        await db.commit()
+
+        confidences = await documents_api._document_extraction_confidences(
+            db, PROFILE_A, [doc.id]
+        )
+        assert confidences == {doc.id: 0.9}
+    finally:
+        await db.close()
+        await engine.dispose()

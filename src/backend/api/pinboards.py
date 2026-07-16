@@ -134,7 +134,12 @@ async def _validate_item_target(
     # HC-M17 questions are derived rather than stored. A question pin keeps
     # the UUID of its verified observation/entity or accepted care task.
     for model in (Observation, CarePlanTask, DocumentEntity):
-        result = await profile_db.execute(select(model).where(model.id == payload.item_id))
+        stmt = select(model).where(model.id == payload.item_id)
+        if model is DocumentEntity:
+            # Entities can outlive a deleted document (no cascade); only a
+            # live document makes the quote a valid question source.
+            stmt = stmt.join(Document, Document.id == DocumentEntity.doc_id)
+        result = await profile_db.execute(stmt)
         source = result.scalar_one_or_none()
         if source is not None:
             if isinstance(source, Observation) and (
@@ -183,7 +188,12 @@ async def _prune_stale_items(
             Observation, question_ids, Observation.profile_id == profile_id
         ),
         await existing_ids(CarePlanTask, question_ids),
-        await existing_ids(DocumentEntity, question_ids),
+        await existing_ids(
+            DocumentEntity,
+            question_ids,
+            # Prune entity pins orphaned by a document delete.
+            DocumentEntity.doc_id.in_(select(Document.id)),
+        ),
     )
 
     valid_items = [
@@ -453,7 +463,9 @@ async def export_pinboard_packet(
             for task in task_result.scalars().all()
         ]
         entity_result = await profile_db.execute(
-            select(DocumentEntity).where(
+            select(DocumentEntity)
+            .join(Document, Document.id == DocumentEntity.doc_id)
+            .where(
                 DocumentEntity.id.in_(question_ids),
                 DocumentEntity.verified_by_user.is_(True),
             )

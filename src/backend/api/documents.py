@@ -303,6 +303,9 @@ async def _document_extraction_confidences(
             .where(
                 Document.profile_id == profile_id,
                 DocumentEntity.doc_id.in_(document_ids),
+                # Rejected extractions no longer count toward the displayed
+                # confidence — the user has already resolved them.
+                DocumentEntity.verified_by_user.is_not(False),
             )
         )
     ).all()
@@ -1004,6 +1007,17 @@ async def reprocess_document(
         )
     verify_document_access(document, session)
 
+    # A user's rejection of an extraction is a safety decision; remember the
+    # rejected (entity_type, quote) pairs so re-extraction of the same span
+    # under a new UUID does not resurface it as unreviewed.
+    rejected_rows = await profile_db.execute(
+        select(DocumentEntity.entity_type, DocumentEntity.quote).where(
+            DocumentEntity.doc_id == document_id,
+            DocumentEntity.verified_by_user.is_(False),
+        )
+    )
+    rejected_extractions = set(rejected_rows.all())
+
     # Reclassify from clean state after extraction refresh.
     await _prune_document_pin_targets(
         profile_db, document_id, include_document=False
@@ -1029,6 +1043,15 @@ async def reprocess_document(
         pre_extracted_text=extracted_text,
         llm_assist=llm_assist,
     )
+
+    if rejected_extractions:
+        recreated = await profile_db.execute(
+            select(DocumentEntity).where(DocumentEntity.doc_id == document_id)
+        )
+        for entity in recreated.scalars():
+            if (entity.entity_type, entity.quote) in rejected_extractions:
+                entity.verified_by_user = False
+
     # Ensure target cleanup is committed even when classification returns
     # early (for example, empty text or an unknown category).
     await profile_db.commit()
@@ -1649,6 +1672,12 @@ async def delete_document(
     await _prune_document_pin_targets(
         profile_db, document_id, include_document=True
     )
+
+    # Entities/categories have no ORM cascade from Document (and SQLite FK
+    # enforcement is off); delete them explicitly so entity quotes — verbatim
+    # document text — cannot outlive the document into exports or pins.
+    await profile_db.execute(delete(DocumentEntity).where(DocumentEntity.doc_id == document_id))
+    await profile_db.execute(delete(DocumentCategory).where(DocumentCategory.doc_id == document_id))
 
     # Delete document file
     vault_path = Path(settings.app_data_path) / "vaults" / profile_id / "docs"

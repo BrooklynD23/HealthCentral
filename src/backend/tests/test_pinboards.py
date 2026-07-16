@@ -448,3 +448,69 @@ async def test_hc_pin_013_export_renders_selected_verified_normal_observation(
 
     assert "Selected Lab Results (verified)" in response.section_titles
     assert "sodium: 140.0 mmol/L" in response.markdown
+
+
+@pytest.mark.asyncio
+async def test_hc_pin_014_question_pin_requires_live_source_document(
+    real_profile_db,
+):
+    """A verified entity orphaned by a document delete is not a valid
+    question source: its quote is verbatim text of a deleted document."""
+    from api.pinboards import PinboardItemCreateRequest, _validate_item_target
+    from models.document_category import DocumentEntity
+
+    orphan = DocumentEntity(
+        id=str(uuid.uuid4()),
+        doc_id=str(uuid.uuid4()),
+        category="visit_notes",
+        entity_type="medication_change",
+        entity_value="start metoprolol 25 mg",
+        confidence=0.9,
+        quote="Start metoprolol 25 mg",
+        verified_by_user=True,
+    )
+    real_profile_db.add(orphan)
+    await real_profile_db.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        await _validate_item_target(
+            real_profile_db,
+            PinboardItemCreateRequest(item_type="question", item_id=orphan.id),
+            _session(),
+        )
+    assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_hc_pin_015_list_prunes_question_pins_of_deleted_documents(
+    real_profile_db, monkeypatch
+):
+    from api.pinboards import list_pinboard_items
+    from models import PinboardItem
+    from models.document_category import DocumentEntity
+
+    board = _pinboard()
+    orphan = DocumentEntity(
+        id=str(uuid.uuid4()),
+        doc_id=str(uuid.uuid4()),
+        category="visit_notes",
+        entity_type="medication_change",
+        entity_value="start metoprolol 25 mg",
+        confidence=0.9,
+        quote="Start metoprolol 25 mg",
+        verified_by_user=True,
+    )
+    pin = _item(board.id, item_type="question", item_id=orphan.id)
+    real_profile_db.add_all([board, orphan, pin])
+    await real_profile_db.commit()
+    monkeypatch.setattr("api.pinboards.log_pinboard_event", AsyncMock())
+
+    response = await list_pinboard_items(
+        board.id, _session(), real_profile_db, AsyncMock()
+    )
+
+    assert response == []
+    remaining = await real_profile_db.execute(
+        select(PinboardItem).where(PinboardItem.id == pin.id)
+    )
+    assert remaining.scalar_one_or_none() is None

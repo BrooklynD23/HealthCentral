@@ -664,3 +664,25 @@ class TestRealFetchers:
         entities = await _fetch_question_entity_dicts(db)
         values = {e["entity_value"] for e in entities}
         assert values == {"start metformin 500 mg"}
+
+    @pytest.mark.asyncio
+    async def test_hc_pkt_022_question_entities_exclude_orphans_of_deleted_documents(
+        self, real_profile_db
+    ):
+        """A verified entity whose document row no longer exists (deleted
+        before entity cleanup existed) must not feed exported questions."""
+        db = real_profile_db
+        live_doc = str(uuid.uuid4())
+        db.add(_document(live_doc, datetime(2026, 5, 20, tzinfo=timezone.utc)))
+        db.add(_document_entity(
+            live_doc, "medication_change", "start metformin 500 mg",
+            verified_by_user=True,
+        ))
+        db.add(_document_entity(
+            str(uuid.uuid4()), "medication_change", "start metoprolol 25 mg",
+            verified_by_user=True,
+        ))
+        await db.commit()
+
+        entities = await _fetch_question_entity_dicts(db)
+        assert {e["entity_value"] for e in entities} == {"start metformin 500 mg"}

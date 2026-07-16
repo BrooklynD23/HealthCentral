@@ -529,3 +529,147 @@ async def test_HC_PIN_012_reprocess_prunes_recreated_targets_before_extraction(
 
     assert call_order == ["cleanup", "pipeline"]
     profile_db.commit.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# Entity lifecycle on delete/reprocess (real per-profile DB)
+# ---------------------------------------------------------------------------
+
+import pytest_asyncio  # noqa: E402
+from sqlalchemy import select  # noqa: E402
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E402
+
+from core.profile_database import ProfileDatabaseBase  # noqa: E402
+from models.document_category import DocumentCategory, DocumentEntity  # noqa: E402
+
+
+@pytest_asyncio.fixture
+async def entity_profile_db():
+    from models import Pinboard, PinboardItem  # noqa: F401 -- register tables
+
+    engine = create_async_engine("sqlite+aiosqlite://")
+    async with engine.begin() as conn:
+        await conn.run_sync(ProfileDatabaseBase.metadata.create_all)
+    session = AsyncSession(engine, expire_on_commit=False)
+    try:
+        yield session
+    finally:
+        await session.close()
+        await engine.dispose()
+
+
+def _entity_row(
+    doc_id: str,
+    *,
+    entity_type: str = "medication_change",
+    quote: str = "Start metoprolol 25 mg",
+    verified: bool | None = None,
+) -> DocumentEntity:
+    return DocumentEntity(
+        id=str(uuid.uuid4()),
+        doc_id=doc_id,
+        category="visit_notes",
+        entity_type=entity_type,
+        entity_value=quote.lower(),
+        confidence=0.8,
+        quote=quote,
+        verified_by_user=verified,
+    )
+
+
+def _real_db_session(profile_id: str) -> Session:
+    return Session(
+        profile_id=profile_id,
+        profile_name="Test Profile",
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+    )
+
+
+@pytest.mark.asyncio
+async def test_HC_ENT_030_delete_document_removes_entities_and_categories(
+    entity_profile_db, monkeypatch
+):
+    """Deleting a document must delete its extracted entities/categories:
+    entity quotes carry verbatim document text and must not remain
+    exportable after the document is gone."""
+    profile_id = str(uuid.uuid4())
+    document = _pin_cleanup_document(profile_id)
+    entity_profile_db.add(document)
+    entity_profile_db.add(_entity_row(document.id, verified=True))
+    entity_profile_db.add(DocumentCategory(
+        id=str(uuid.uuid4()),
+        doc_id=document.id,
+        category="visit_notes",
+        confidence=0.9,
+        classified_by="rule",
+    ))
+    await entity_profile_db.commit()
+    monkeypatch.setattr(documents_api, "log_document_event", AsyncMock())
+
+    await documents_api.delete_document(
+        document.id,
+        _real_db_session(profile_id),
+        entity_profile_db,
+        AsyncMock(),
+    )
+
+    remaining_entities = await entity_profile_db.execute(
+        select(DocumentEntity).where(DocumentEntity.doc_id == document.id)
+    )
+    assert remaining_entities.scalars().all() == []
+    remaining_categories = await entity_profile_db.execute(
+        select(DocumentCategory).where(DocumentCategory.doc_id == document.id)
+    )
+    assert remaining_categories.scalars().all() == []
+
+
+@pytest.mark.asyncio
+async def test_HC_ENT_031_reprocess_reapplies_rejections_by_quote(
+    entity_profile_db, monkeypatch
+):
+    """A user's explicit rejection of an extraction is a safety decision;
+    reprocess recreating the same (entity_type, quote) under a new UUID
+    must not silently resurface the rejected content as unreviewed."""
+    profile_id = str(uuid.uuid4())
+    document = _pin_cleanup_document(profile_id)
+    entity_profile_db.add(document)
+    entity_profile_db.add(
+        _entity_row(document.id, quote="Stop aspirin", verified=False)
+    )
+    await entity_profile_db.commit()
+
+    async def pipeline(**_kwargs):
+        return {
+            "observations_extracted": 0,
+            "needs_verification": True,
+            "extracted_text": "",
+        }
+
+    async def classify(**_kwargs):
+        # Simulate extraction recreating the same span under a new UUID,
+        # plus a genuinely new extraction.
+        entity_profile_db.add(
+            _entity_row(document.id, quote="Stop aspirin", verified=None)
+        )
+        entity_profile_db.add(_entity_row(
+            document.id, entity_type="test_ordered",
+            quote="Repeat CBC", verified=None,
+        ))
+
+    monkeypatch.setattr(documents_api, "_run_extraction_pipeline", pipeline)
+    monkeypatch.setattr(documents_api, "_classify_and_extract_entities", classify)
+    monkeypatch.setattr(documents_api, "log_document_event", AsyncMock())
+
+    await documents_api.reprocess_document(
+        document.id,
+        _real_db_session(profile_id),
+        False,
+        entity_profile_db,
+        AsyncMock(),
+    )
+
+    rows = (await entity_profile_db.execute(
+        select(DocumentEntity).where(DocumentEntity.doc_id == document.id)
+    )).scalars().all()
+    by_quote = {row.quote: row.verified_by_user for row in rows}
+    assert by_quote == {"Stop aspirin": False, "Repeat CBC": None}
