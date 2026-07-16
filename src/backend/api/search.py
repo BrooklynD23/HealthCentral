@@ -16,6 +16,7 @@ from modules.highlights import HIGHLIGHT_TYPES
 from modules.search import SearchResult, search_records
 
 router = APIRouter()
+DOCUMENT_CATEGORIES = frozenset({"imaging", "pathology", "visit_notes", "lab"})
 
 
 class SearchResultResponse(BaseModel):
@@ -67,6 +68,12 @@ async def get_search_results(
     master_db: AsyncSession = Depends(get_db),
 ):
     """Search documents, extracted entities, and observations locally."""
+    query = q.strip()
+    if not query:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Search text cannot be blank",
+        )
     if date_from is not None and date_to is not None and date_from > date_to:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -77,15 +84,21 @@ async def get_search_results(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Unknown highlight_type. Valid values: {sorted(HIGHLIGHT_TYPES)}",
         )
+    validated_category = category.strip().lower() if category is not None else None
+    if validated_category is not None and validated_category not in DOCUMENT_CATEGORIES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Unknown category. Valid values: {sorted(DOCUMENT_CATEGORIES)}",
+        )
 
     results = await search_records(
         profile_db,
         session.profile_id,
-        q.strip(),
+        query,
         provider=provider,
         date_from=date_from,
         date_to=date_to,
-        category=category,
+        category=validated_category,
         highlight_type=highlight_type,
         limit=limit,
     )
@@ -103,7 +116,7 @@ async def get_search_results(
             "limit": limit,
             "provider_filter": provider is not None,
             "date_filter": date_from is not None or date_to is not None,
-            "category": category,
+            "category": validated_category,
             "highlight_type": highlight_type,
         },
     )

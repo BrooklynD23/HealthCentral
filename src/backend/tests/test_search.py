@@ -159,6 +159,15 @@ async def profile_db():
                 confidence=0.8,
                 verified_by_user=False,
             ),
+            DocumentEntity(
+                doc_id=DOC_LAB_ID,
+                category="lab",
+                entity_type="provider",
+                entity_value="Dr Unreviewed",
+                quote="Provider: Dr Unreviewed",
+                confidence=0.8,
+                verified_by_user=None,
+            ),
             Observation(
                 id=str(uuid.uuid4()),
                 profile_id=PROFILE_ID,
@@ -217,7 +226,7 @@ async def test_HC_SRCH_002_index_ensure_and_refresh_are_idempotent(profile_db):
     await refresh_search_index(profile_db, PROFILE_ID, use_fts=first_mode)
 
     count = await profile_db.scalar(text("SELECT count(*) FROM search_records"))
-    assert count == 9  # 3 documents + 4 non-rejected entities + 2 observations
+    assert count == 10  # 3 documents + 5 non-rejected entities + 2 observations
 
 
 @pytest.mark.asyncio
@@ -387,3 +396,136 @@ def test_HC_SRCH_012_route_declares_query_and_limit_bounds():
     assert constraints["MaxLen"].max_length == 200
     assert constraints["Ge"].ge == 1
     assert constraints["Le"].le <= 100
+
+
+@pytest.mark.asyncio
+async def test_HC_SRCH_013_category_filter_rejects_free_text_before_audit(
+    profile_db, monkeypatch
+):
+    import api.search as search_api
+    from fastapi import HTTPException
+
+    audit_mock = AsyncMock(return_value=object())
+    search_mock = AsyncMock(return_value=[])
+    monkeypatch.setattr(search_api, "create_audit_log", audit_mock)
+    monkeypatch.setattr(search_api, "search_records", search_mock)
+    session = Session(
+        profile_id=PROFILE_ID,
+        profile_name="Search Profile",
+        expires_at=utcnow(),
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await search_api.get_search_results(
+            session=session,
+            q="report",
+            provider=None,
+            date_from=None,
+            date_to=None,
+            category="private patient note",
+            highlight_type=None,
+            limit=20,
+            profile_db=profile_db,
+            master_db=AsyncMock(),
+        )
+
+    assert exc.value.status_code == 422
+    search_mock.assert_not_awaited()
+    audit_mock.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_HC_SRCH_014_unreviewed_provider_does_not_feed_provider_filter(profile_db):
+    from modules.search import search_records
+
+    results = await search_records(
+        profile_db,
+        PROFILE_ID,
+        "glucose",
+        provider="Dr Unreviewed",
+    )
+
+    assert results == []
+
+
+@pytest.mark.asyncio
+async def test_HC_SRCH_015_route_rejects_blank_after_trim_before_audit(
+    profile_db, monkeypatch
+):
+    import api.search as search_api
+    from fastapi import HTTPException
+
+    search_mock = AsyncMock(return_value=[])
+    audit_mock = AsyncMock(return_value=object())
+    monkeypatch.setattr(search_api, "search_records", search_mock)
+    monkeypatch.setattr(search_api, "create_audit_log", audit_mock)
+
+    with pytest.raises(HTTPException) as exc:
+        await search_api.get_search_results(
+            session=Session(
+                profile_id=PROFILE_ID,
+                profile_name="Search Profile",
+                expires_at=utcnow(),
+            ),
+            q="   ",
+            provider=None,
+            date_from=None,
+            date_to=None,
+            category=None,
+            highlight_type=None,
+            limit=20,
+            profile_db=profile_db,
+            master_db=AsyncMock(),
+        )
+
+    assert exc.value.status_code == 400
+    search_mock.assert_not_awaited()
+    audit_mock.assert_not_awaited()
+
+
+def _force_like_fallback(monkeypatch):
+    import modules.search as search
+
+    monkeypatch.setattr(
+        search,
+        "_create_fts_table",
+        AsyncMock(side_effect=OperationalError("fts5 unavailable", {}, Exception())),
+    )
+    return search
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("wildcard", ["%", "_"])
+async def test_HC_SRCH_016_like_fallback_treats_query_wildcards_literally(
+    profile_db, monkeypatch, wildcard
+):
+    search = _force_like_fallback(monkeypatch)
+
+    results = await search.search_records(profile_db, PROFILE_ID, wildcard)
+
+    assert results == []
+
+
+@pytest.mark.asyncio
+async def test_HC_SRCH_017_like_fallback_escapes_provider_wildcards(
+    profile_db, monkeypatch
+):
+    search = _force_like_fallback(monkeypatch)
+
+    results = await search.search_records(
+        profile_db, PROFILE_ID, "glucose", provider="%"
+    )
+
+    assert results == []
+
+
+@pytest.mark.asyncio
+async def test_HC_SRCH_018_like_fallback_ands_query_tokens(profile_db, monkeypatch):
+    search = _force_like_fallback(monkeypatch)
+
+    results = await search.search_records(
+        profile_db, PROFILE_ID, "hydration follow-up"
+    )
+
+    assert {result.record_type for result in results} == {"document"}
+    assert {result.doc_id for result in results} == {DOC_ID}
