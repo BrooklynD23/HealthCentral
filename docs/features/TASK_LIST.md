@@ -145,6 +145,47 @@ On the first of each month, review all canonical docs for freshness:
 
 ## Session Notes
 
+### 2026-07-16 - Phases A-C integration adversarial-review fixes (branch `claude/orchestrate-phases-adversarial-review-b24op0`)
+
+Adversarial review of the combined Phases A-C integration branch (all of
+HC-M12..M21 + HC-C1 merged together) surfaced cross-feature gaps the three
+per-phase reviews could not see. Each fix landed test-first.
+
+- **Deleted documents left exportable entity quotes behind** (HIGH):
+  `DocumentEntity`/`DocumentCategory` have no ORM cascade from `Document`
+  and SQLite FK enforcement is off, so `DELETE /documents/{id}` orphaned
+  verified entities whose verbatim quotes kept feeding `/export/questions`,
+  the visit-prep packet, and pinboard question pins. `delete_document` now
+  deletes both explicitly (mirroring reprocess); defensively,
+  `_fetch_question_entity_dicts`, pinboard question-pin validation,
+  `_prune_stale_items`, and the pinboard export query all require a live
+  parent `Document`, so pre-fix orphans are inert too. Tests: HC-ENT-030,
+  HC-PKT-022, HC-PIN-014, HC-PIN-015.
+- **Duplicate doctor questions after reprocess**: question generation
+  deduped entities against tasks by `source_entity_id` only, but reprocess
+  recreates the same extraction under a new UUID, yielding two questions
+  for one instruction. `generate_questions` now also dedupes on the
+  task's verbatim `source_quote` (same key the care-task accept flow
+  already uses). Test: HC-QGN-014.
+- **Reprocess resurfaced user-rejected extractions**: deleting and
+  recreating entities reset `verified_by_user` to NULL, silently undoing an
+  explicit rejection (a safety decision) — the recreated span reappeared in
+  med-reconcile, highlights, search, and care-task candidates. Reprocess now
+  snapshots rejected `(entity_type, quote)` pairs and re-applies the
+  rejection to recreated entities that match. Verified entities still reset
+  to unreviewed on purpose (conservative direction). Test: HC-ENT-031.
+- **Rejected entities pinned document confidence**: the inbox confidence
+  badge took the minimum over all entity confidences, so a rejected junk
+  0.1-confidence extraction kept a document "low confidence" forever.
+  `_document_extraction_confidences` now excludes
+  `verified_by_user IS FALSE` rows. Test: HC-CONF-005.
+
+Deferred (documented, not fixed here): e2e synthetic-profile reset does not
+clear `CarePlanTask`/`Pinboard`/`PinboardItem` (test-only endpoint);
+`search_records` full index rebuild per query (single-user local app;
+revisit if record counts grow); in-memory packet/summary stores have no TTL
+(pre-existing MVP pattern, surface doubled by Phase B/C).
+
 ### 2026-07-13 - Phase B adversarial-review fixes (branch `claude/hc-phase-b-review-fixes`)
 
 Six findings from an adversarial review of Phase B (HC-M17/M18/M19 export and
