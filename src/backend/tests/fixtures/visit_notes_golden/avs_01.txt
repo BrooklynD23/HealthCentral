@@ -1,0 +1,20 @@
+AFTER VISIT SUMMARY
+Maple Grove Family Medicine
+Patient: Jordan Rivera        DOB: 05/14/1971
+Date of visit: 03/18/2026
+Provider: Dr. Elena Vasquez
+Facility: Maple Grove Family Medicine, Suite 210
+
+Reason for visit: high blood pressure check
+
+Your blood pressure today was 152/94.
+
+Medication changes:
+Start lisinopril 10 mg by mouth once daily.
+Continue amlodipine 5 mg daily.
+
+Tests ordered: basic metabolic panel (BMP) before your next visit.
+
+Follow up in 4 weeks for a blood pressure recheck.
+
+Call the office if you have a headache that will not go away, blurred vision, or chest pain.

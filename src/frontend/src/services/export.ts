@@ -33,11 +33,47 @@ export interface SummaryResponse {
 }
 
 export interface QuestionItem {
-  category: 'trend' | 'abnormal' | 'clarification';
+  category:
+    | 'trend'
+    | 'abnormal'
+    | 'clarification'
+    | 'follow_up'
+    | 'medication_change'
+    | 'test_ordered'
+    | 'referral';
   question: string;
   context: string;
   related_analytes: string[];
+  // Provenance (HC-M17)
+  source_kind?: 'observation' | 'trend' | 'care_task' | 'entity' | null;
+  source_id?: string | null;
+  source_quote?: string | null;
 }
+
+// Visit-prep packet (HC-M18)
+export interface VisitPrepRequest {
+  reason_for_visit?: string;
+  from_date?: string;
+  to_date?: string;
+  include_medications?: boolean;
+  include_labs?: boolean;
+  include_visits?: boolean;
+  include_tasks?: boolean;
+  include_questions?: boolean;
+  selected_doc_ids?: string[];
+  confirm: boolean;
+}
+
+export interface VisitPrepResponse {
+  packet_id: string;
+  profile_id: string;
+  generated_at: string;
+  section_titles: string[];
+  markdown: string;
+  redaction_count: number;
+}
+
+export type VisitPrepFormat = 'markdown' | 'html' | 'pdf';
 
 export interface ExportFilters {
   analytes?: string[];
@@ -102,6 +138,40 @@ async function downloadSummary(
   const blob = await response.blob();
 
   let extension = '.txt';
+  if (contentType.includes('html')) {
+    extension = '.html';
+  } else if (contentType.includes('pdf')) {
+    extension = '.pdf';
+  }
+
+  return { blob, contentType, extension };
+}
+
+/**
+ * Generate a visit-prep packet (HC-M18). The backend requires an explicit
+ * confirm: true and redacts all packet content before it can be downloaded.
+ */
+export async function generateVisitPrep(
+  request: VisitPrepRequest
+): Promise<VisitPrepResponse> {
+  return apiPost<VisitPrepResponse, VisitPrepRequest>('/export/visit-prep', request);
+}
+
+/**
+ * Download a previously generated visit-prep packet.
+ */
+export async function downloadVisitPrep(
+  packetId: string,
+  format: VisitPrepFormat = 'markdown'
+): Promise<{ blob: Blob; contentType: string; extension: string }> {
+  const response = await apiGetRaw(`/export/visit-prep/${packetId}/download`, {
+    format,
+  });
+
+  const contentType = response.headers.get('Content-Type') || 'text/markdown';
+  const blob = await response.blob();
+
+  let extension = '.md';
   if (contentType.includes('html')) {
     extension = '.html';
   } else if (contentType.includes('pdf')) {
@@ -184,5 +254,27 @@ export function useDownloadSummary() {
 export function useGenerateQuestions() {
   return useMutation({
     mutationFn: (filters: ExportFilters | void) => generateQuestions(filters || undefined),
+  });
+}
+
+/**
+ * Mutation hook for generating a visit-prep packet (HC-M18).
+ */
+export function useGenerateVisitPrep() {
+  return useMutation({
+    mutationFn: (request: VisitPrepRequest) => generateVisitPrep(request),
+  });
+}
+
+/**
+ * Mutation hook for downloading a generated visit-prep packet.
+ */
+export function useDownloadVisitPrep() {
+  return useMutation({
+    mutationFn: ({ packetId, format }: { packetId: string; format: VisitPrepFormat }) =>
+      downloadVisitPrep(packetId, format),
+    onSuccess: ({ blob, extension }, { packetId }) => {
+      triggerDownload(blob, `visit_prep_${packetId.substring(0, 8)}${extension}`);
+    },
   });
 }

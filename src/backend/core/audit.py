@@ -168,6 +168,58 @@ async def log_observation_event(
     )
 
 
+async def log_care_task_event(
+    db: AsyncSession,
+    event: str,
+    profile_id: str,
+    task_id: str,
+    details: Optional[dict[str, Any]] = None,
+) -> "AuditLog":
+    """Log a care-plan task event (HC-M15)."""
+    action_map = {
+        "view": "Viewed care plan tasks",
+        "create": "Accepted care plan task",
+        "update": "Updated care plan task",
+    }
+    return await create_audit_log(
+        db=db,
+        event_type=f"care_task.{event}",
+        action=action_map.get(event, f"Care plan task {event}"),
+        profile_id=profile_id,
+        entity_type="care_task",
+        entity_id=task_id,
+        details=details,
+    )
+
+
+async def log_pinboard_event(
+    db: AsyncSession,
+    event: str,
+    profile_id: str,
+    pinboard_id: str,
+    details: Optional[dict[str, Any]] = None,
+) -> "AuditLog":
+    """Log a pinboard or pinboard-item event (HC-M20)."""
+    action_map = {
+        "view": "Viewed pinboards",
+        "create": "Created pinboard",
+        "update": "Renamed pinboard",
+        "delete": "Deleted pinboard",
+        "item_add": "Added item to pinboard",
+        "item_remove": "Removed item from pinboard",
+        "export": "Exported pinboard packet",
+    }
+    return await create_audit_log(
+        db=db,
+        event_type=f"pinboard.{event}",
+        action=action_map.get(event, f"Pinboard {event}"),
+        profile_id=profile_id,
+        entity_type="pinboard",
+        entity_id=pinboard_id,
+        details=details,
+    )
+
+
 async def log_export_event(
     db: AsyncSession,
     profile_id: str,

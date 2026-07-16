@@ -47,6 +47,22 @@ const ExportPage = lazy(async () => {
   const module = await import('./pages/ExportPage');
   return { default: module.ExportPage };
 });
+const CareTasksPage = lazy(async () => {
+  const module = await import('./pages/CareTasksPage');
+  return { default: module.CareTasksPage };
+});
+const TimelinePage = lazy(async () => {
+  const module = await import('./pages/TimelinePage');
+  return { default: module.TimelinePage };
+});
+const PinboardsPage = lazy(async () => {
+  const module = await import('./pages/PinboardsPage');
+  return { default: module.PinboardsPage };
+});
+const SearchPage = lazy(async () => {
+  const module = await import('./pages/SearchPage');
+  return { default: module.SearchPage };
+});
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -93,10 +109,14 @@ function App() {
               <Route path="inbox" element={<DocumentInbox />} />
               <Route path="verify" element={<VerificationWorkbench />} />
               <Route path="trends" element={lazyRoute(<TrendsDashboard />)} />
+              <Route path="timeline" element={lazyRoute(<TimelinePage />)} />
+              <Route path="search" element={lazyRoute(<SearchPage />)} />
               <Route path="interpret" element={lazyRoute(<LabInterpreter />)} />
               <Route path="medications" element={lazyRoute(<MedicationCoach />)} />
               <Route path="medications/:medicationId" element={lazyRoute(<MedicationDetail />)} />
               <Route path="notifications" element={lazyRoute(<NotificationSettings />)} />
+              <Route path="care-tasks" element={lazyRoute(<CareTasksPage />)} />
+              <Route path="pinboards" element={lazyRoute(<PinboardsPage />)} />
               <Route path="explain" element={lazyRoute(<ExplainAssistant />)} />
               <Route path="export" element={lazyRoute(<ExportPage />)} />
               <Route path="settings" element={<SettingsPage />} />

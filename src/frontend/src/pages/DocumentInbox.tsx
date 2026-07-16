@@ -23,12 +23,16 @@ import {
   useImportDocument,
   useDeleteDocument,
   useReprocessDocument,
+  useHighlightsSummary,
   ApiError,
   type Document,
   type DocumentImportResponse,
 } from '@/services';
 import { useAuthStore } from '@/stores/authStore';
 import { PageImageOverlay } from '@/components/PageImageOverlay';
+import { HighlightChips } from '@/components/documents/HighlightChips';
+import { AddToPinboardButton } from '@/components/pinboards/AddToPinboardButton';
+import { ExtractionConfidenceBadge } from '@/components/documents/ExtractionConfidenceBadge';
 // CategoryBadge + EntityDetailView available in @/components/documents/
 // Wire into document detail view when it's built (no detail page exists yet)
 
@@ -38,6 +42,7 @@ export function DocumentInbox() {
   const [isDragging, setIsDragging] = useState(false);
   const [previewDocId, setPreviewDocId] = useState<string | null>(null);
   const [lastImport, setLastImport] = useState<DocumentImportResponse | null>(null);
+  const [duplicateWarnings, setDuplicateWarnings] = useState<DocumentImportResponse[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Get active profile from auth store
@@ -48,6 +53,10 @@ export function DocumentInbox() {
   const importDocument = useImportDocument();
   const deleteDocument = useDeleteDocument();
   const reprocessDocument = useReprocessDocument();
+
+  // Highlight chips for recent documents (HC-M16) — organizational tags only
+  const { data: highlightSummary = [] } = useHighlightsSummary();
+  const highlightsByDoc = new Map(highlightSummary.map((s) => [s.doc_id, s.counts]));
 
   const closePreview = () => setPreviewDocId(null);
 
@@ -76,6 +85,9 @@ export function DocumentInbox() {
     try {
       const result = await importDocument.mutateAsync({ file, profileId });
       setLastImport(result);
+      if (result.duplicate_warning) {
+        setDuplicateWarnings((current) => [...current, result]);
+      }
     } catch (err) {
       console.error('Failed to import document:', err);
     }
@@ -259,6 +271,45 @@ export function DocumentInbox() {
         </Card>
       )}
 
+      {duplicateWarnings.map((importResult) => (
+        <Card
+          key={importResult.document.id}
+          className="border-status-caution/30 bg-status-caution/5"
+          role="status"
+        >
+          <CardContent className="py-4 flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-status-caution shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-ink">Possible duplicate upload</p>
+                <p className="text-sm text-ink-secondary mt-1">
+                  {importResult.duplicate_warning?.match_type === 'content_hash'
+                    ? 'This file has the same content as'
+                    : 'This document has the same recorded date as'}{' '}
+                  <span className="font-medium">
+                    {importResult.duplicate_warning?.title || 'an existing document'}
+                  </span>
+                  . The new upload was still imported; review both records if needed.
+                </p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={`Dismiss duplicate warning for ${
+                importResult.duplicate_warning?.title || importResult.document.source || 'document'
+              }`}
+              onClick={() => setDuplicateWarnings((current) =>
+                current.filter((warning) => warning.document.id !== importResult.document.id)
+              )}
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </CardContent>
+        </Card>
+      ))}
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
@@ -304,6 +355,16 @@ export function DocumentInbox() {
                         {new Date(doc.imported_at).toLocaleDateString()}
                       </span>
                     </div>
+                    {highlightsByDoc.has(doc.id) && (
+                      <HighlightChips
+                        counts={highlightsByDoc.get(doc.id)!}
+                        max={4}
+                        className="mt-1.5"
+                      />
+                    )}
+                    <div className="mt-1.5">
+                      <ExtractionConfidenceBadge confidence={doc.extraction_confidence} lowest />
+                    </div>
                   </div>
 
                   <Badge variant={doc.doc_type === 'lab_pdf' ? 'accent' : 'default'}>
@@ -328,6 +389,7 @@ export function DocumentInbox() {
                   )}
 
                   <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity">
+                    <AddToPinboardButton items={[{ item_type: 'document', item_id: doc.id }]} />
                     <Button
                       type="button"
                       variant="ghost"

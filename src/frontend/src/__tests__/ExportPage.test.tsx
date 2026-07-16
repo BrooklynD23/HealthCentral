@@ -364,7 +364,7 @@ describe('ExportPage', () => {
       renderWithProviders(<ExportPage />);
 
       // Click generate summary button
-      const generateButton = screen.getByRole('button', { name: /generate|create/i });
+      const generateButton = screen.getByRole('button', { name: /generate summary/i });
       await user.click(generateButton);
 
       await waitFor(() => {
@@ -381,7 +381,7 @@ describe('ExportPage', () => {
 
       renderWithProviders(<ExportPage />);
 
-      const generateButton = screen.getByRole('button', { name: /generate|create/i });
+      const generateButton = screen.getByRole('button', { name: /generate summary/i });
       await user.click(generateButton);
 
       // After generation, should show findings

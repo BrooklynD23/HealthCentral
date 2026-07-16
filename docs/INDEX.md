@@ -20,7 +20,7 @@ Links to: `docs/00_architecture_plans_index.md`, `docs/01_backend_architecture_p
 
 This index defines the canonical documentation order and marks legacy planning files that are kept only for history.
 
-Links to: `docs/features/TASK_LIST.md`, `docs/plans/implementation-log`, `docs/roles/00_roles_index.md`
+Links to: `docs/features/TASK_LIST.md`, `docs/plans/implementation-log`, `docs/roles/00_roles_index.md`, `openwiki/README.md`
 
 ## `docs/01_backend_architecture_plan.md`
 
@@ -468,6 +468,20 @@ Links to: `docs/plans/2026-07-02-consolidated-findings-report.md`
 
 Owner decision (2026-07-07): rename the product — "HealthCentral" collides with the existing health-media brand healthcentral.com. This document is stage 1 of the plan: how big the rename is, and a…
 
+## `docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md`
+
+**Post-Visit & Record Intelligence Roadmap**
+
+---
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/harness.md`, `feature_list.json`
+
+## `docs/plans/2026-07-12-phase-c-handoff-prompt.md`
+
+**Handoff Prompt — Phase C (Pinboards, Search, Confidence UX)**
+
+Copy everything below the line into the new session.
+
 ## `docs/plans/UI-implementation-2-4.md`
 
 **HealthCentral Implementation Plan**
@@ -671,6 +685,12 @@ Links to: `SECURITY.md`, `docs/03_data_confidentiality_pipeline_plan.md`, `docs/
 ## `docs/superpowers/plans/2026-05-11-dynamic-port-selection.md`
 
 **Dynamic Port Selection Implementation Plan**
+
+---
+
+## `docs/superpowers/plans/2026-07-13-hc-m21-search.md`
+
+**HC-M21 Search & Filtering Implementation Plan**
 
 ---
 

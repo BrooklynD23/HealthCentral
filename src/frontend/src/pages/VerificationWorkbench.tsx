@@ -16,11 +16,20 @@ import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/compo
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useObservations, useVerifyObservation } from '@/services/observations';
-import { useDocuments, useVerifyDocument, useReprocessDocument } from '@/services';
+import {
+  useDocuments,
+  useVerifyDocument,
+  useReprocessDocument,
+  useDocumentEntities,
+  useSetEntityVerification,
+} from '@/services';
 import { useAuthStore } from '@/stores/authStore';
 import { apiGet } from '@/services/api';
 import { PageImageOverlay } from '@/components/PageImageOverlay';
+import { EntityDetailView } from '@/components/documents/EntityDetailView';
+import { ExtractionConfidenceBadge } from '@/components/documents/ExtractionConfidenceBadge';
 import type { Observation, DocumentPage, BoundingBox, Document } from '@/services/types';
+import type { DocumentEntityResponse } from '@/services';
 
 const DOCUMENT_ATTENTION_STATUSES = new Set([
   'pending',
@@ -74,6 +83,22 @@ export function VerificationWorkbench() {
   const selectedDocument = selectedDocId
     ? allDocuments.find((d) => d.id === selectedDocId) ?? null
     : null;
+
+  // Extracted document entities (HC-M12): verbatim source quotes + verify/reject
+  const entityDocId =
+    selectedDocId ?? observations?.find((o) => o.id === selectedRow)?.doc_id ?? '';
+  const { data: docEntities = [] } = useDocumentEntities(entityDocId);
+  const entityVerificationMutation = useSetEntityVerification();
+  const handleSetEntityVerification = (
+    entity: DocumentEntityResponse,
+    verified: boolean | null
+  ) => {
+    entityVerificationMutation.mutate({
+      docId: entity.doc_id,
+      entityId: entity.id,
+      verified,
+    });
+  };
 
   const handleVerify = async (observation: Observation) => {
     await verifyMutation.mutateAsync({
@@ -163,17 +188,6 @@ export function VerificationWorkbench() {
       return 'text-status-caution';
     }
     return 'text-ink';
-  };
-
-  const getConfidenceBadge = (confidence: number | null) => {
-    if (confidence === null) return null;
-    if (confidence >= 0.8) {
-      return <Badge variant="verified">High Confidence</Badge>;
-    }
-    if (confidence >= 0.5) {
-      return <Badge variant="caution">Medium</Badge>;
-    }
-    return <Badge variant="attention">Low Confidence</Badge>;
   };
 
   const formatRefRange = (observation: Observation) => {
@@ -266,6 +280,11 @@ export function VerificationWorkbench() {
               </div>
             </CardContent>
           </Card>
+          <EntityDetailView
+            entities={docEntities}
+            onSetVerification={handleSetEntityVerification}
+            verificationPending={entityVerificationMutation.isPending}
+          />
         </div>
       );
     }
@@ -481,7 +500,7 @@ export function VerificationWorkbench() {
                           {formatRefRange(observation)} {observation.unit}
                         </td>
                         <td className="px-4 py-4">
-                          {getConfidenceBadge(observation.extraction_confidence)}
+                          <ExtractionConfidenceBadge confidence={observation.extraction_confidence} />
                         </td>
                         <td className="px-4 py-4 text-right">
                           <div className="flex items-center justify-end gap-1">
@@ -587,6 +606,12 @@ export function VerificationWorkbench() {
               )}
             </CardContent>
           </Card>
+
+          <EntityDetailView
+            entities={docEntities}
+            onSetVerification={handleSetEntityVerification}
+            verificationPending={entityVerificationMutation.isPending}
+          />
 
           <Card className="bg-status-info-subtle border-status-info/20">
             <CardContent className="p-4">

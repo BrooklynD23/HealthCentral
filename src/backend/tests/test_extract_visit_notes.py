@@ -11,7 +11,8 @@ class TestExtractVisitNoteEntities:
         entities = extract_visit_note_entities(text)
         types = [e for e in entities if e["entity_type"] == "visit_type"]
         assert len(types) == 1
-        assert types[0]["entity_value"] == "progress note"
+        # HC-M13: visit_type values are canonical subtypes.
+        assert types[0]["entity_value"] == "progress"
 
     def test_extracts_chief_complaint(self):
         text = "Chief Complaint: Follow-up hypertension\nASSESSMENT: BP controlled"

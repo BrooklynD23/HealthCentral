@@ -28,17 +28,33 @@ import {
   useGenerateSummary,
   useDownloadSummary,
   useGenerateQuestions,
+  useGenerateVisitPrep,
+  useDownloadVisitPrep,
   useDocuments,
 } from '@/services';
 import { useObservations } from '@/services/observations';
 import { useAuthStore } from '@/stores/authStore';
-import type { SummaryResponse, QuestionItem, ExportFormat } from '@/services/export';
+import type {
+  SummaryResponse,
+  QuestionItem,
+  ExportFormat,
+  VisitPrepFormat,
+  VisitPrepResponse,
+} from '@/services/export';
 
 const exportSections = [
   { id: 'summary', label: 'Results Summary', included: true },
   { id: 'trends', label: 'Trend Analysis', included: true },
   { id: 'flagged', label: 'Flagged Values', included: true },
   { id: 'questions', label: 'Questions for Clinician', included: false },
+];
+
+const visitPrepSectionDefaults = [
+  { id: 'medications', label: 'Current medications', included: true },
+  { id: 'labs', label: 'Recent abnormal verified labs', included: true },
+  { id: 'visits', label: 'Recent visits & diagnoses', included: true },
+  { id: 'tasks', label: 'Open follow-up items', included: true },
+  { id: 'questions', label: 'Questions for your provider', included: true },
 ];
 
 export function ExportPage() {
@@ -51,12 +67,21 @@ export function ExportPage() {
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
   const [exportFormat, setExportFormat] = useState<ExportFormat>('text');
 
+  // Visit prep packet state (HC-M18)
+  const [visitPrepSections, setVisitPrepSections] = useState(visitPrepSectionDefaults);
+  const [reasonForVisit, setReasonForVisit] = useState('');
+  const [visitPrepConfirmed, setVisitPrepConfirmed] = useState(false);
+  const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
+  const [visitPrep, setVisitPrep] = useState<VisitPrepResponse | null>(null);
+
   // API hooks
   const exportCSV = useExportCSV();
   const exportJSON = useExportJSON();
   const generateSummary = useGenerateSummary();
   const downloadSummary = useDownloadSummary();
   const generateQuestions = useGenerateQuestions();
+  const generateVisitPrep = useGenerateVisitPrep();
+  const downloadVisitPrep = useDownloadVisitPrep();
   const { data: documents } = useDocuments({ profile_id: profileId || '' });
   const { data: allObservations } = useObservations({ profile_id: profileId || '' });
 
@@ -119,6 +144,50 @@ export function ExportPage() {
   const handleDownloadSummary = () => {
     if (summary) {
       downloadSummary.mutate({ summaryId: summary.summary_id, format: exportFormat });
+    }
+  };
+
+  const handleToggleVisitPrepSection = (id: string) => {
+    setVisitPrepSections((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, included: !s.included } : s))
+    );
+    setVisitPrep(null);
+  };
+
+  const handleToggleSelectedDoc = (docId: string) => {
+    setSelectedDocIds((prev) =>
+      prev.includes(docId) ? prev.filter((id) => id !== docId) : [...prev, docId]
+    );
+    setVisitPrep(null);
+  };
+
+  const visitPrepIncluded = (id: string) =>
+    visitPrepSections.find((s) => s.id === id)?.included ?? true;
+
+  const handleGenerateVisitPrep = async () => {
+    if (!visitPrepConfirmed) return;
+    try {
+      const result = await generateVisitPrep.mutateAsync({
+        reason_for_visit: reasonForVisit.trim() || undefined,
+        include_medications: visitPrepIncluded('medications'),
+        include_labs: visitPrepIncluded('labs'),
+        include_visits: visitPrepIncluded('visits'),
+        include_tasks: visitPrepIncluded('tasks'),
+        include_questions: visitPrepIncluded('questions'),
+        selected_doc_ids: selectedDocIds.length ? selectedDocIds : undefined,
+        confirm: true,
+      });
+      setVisitPrep(result);
+    } catch (error) {
+      console.error('Failed to generate visit prep packet:', error);
+    }
+  };
+
+  const handleDownloadVisitPrep = () => {
+    if (visitPrep) {
+      const format: VisitPrepFormat =
+        exportFormat === 'text' ? 'markdown' : exportFormat;
+      downloadVisitPrep.mutate({ packetId: visitPrep.packet_id, format });
     }
   };
 
@@ -200,7 +269,7 @@ export function ExportPage() {
       </div>
 
       <div className="grid grid-cols-3 gap-6">
-        <div className="col-span-2">
+        <div className="col-span-2 space-y-6">
           <Card>
             <CardHeader className="border-b border-black/[0.04]">
               <CardTitle className="flex items-center justify-between">
@@ -340,6 +409,154 @@ export function ExportPage() {
                   </p>
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="border-b border-black/[0.04]">
+              <CardTitle className="flex items-center gap-3">
+                <Calendar className="w-5 h-5 text-ink-secondary" />
+                Visit Prep Packet
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 space-y-4">
+              <p className="text-sm text-ink-secondary">
+                One packet for your next appointment: your reason for the
+                visit, current medications, recent abnormal verified labs,
+                open follow-up items, and questions for your provider.
+                Unverified data is excluded, and personal identifiers are
+                redacted before download.
+              </p>
+
+              <div>
+                <label
+                  htmlFor="reason-for-visit"
+                  className="block text-sm font-medium text-ink mb-1.5"
+                >
+                  Reason for visit (optional)
+                </label>
+                <textarea
+                  id="reason-for-visit"
+                  value={reasonForVisit}
+                  onChange={(e) => {
+                    setReasonForVisit(e.target.value);
+                    setVisitPrep(null);
+                  }}
+                  rows={2}
+                  placeholder="e.g. Persistent headaches for two weeks"
+                  className="w-full rounded-xl border border-black/[0.12] bg-white px-3 py-2 text-sm text-ink placeholder:text-ink-tertiary focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+              </div>
+
+              <div>
+                <p className="text-sm font-medium text-ink mb-1.5">Sections</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {visitPrepSections.map((section) => (
+                    <label
+                      key={section.id}
+                      className="flex items-center gap-2 text-sm text-ink-secondary cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={section.included}
+                        onChange={() => handleToggleVisitPrepSection(section.id)}
+                        className="rounded border-black/[0.2] text-accent focus:ring-accent"
+                      />
+                      {section.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {documents && documents.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium text-ink mb-1.5">
+                    Attach source documents (optional)
+                  </p>
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                    {documents.slice(0, 10).map((doc) => (
+                      <label
+                        key={doc.id}
+                        className="flex items-center gap-2 text-sm text-ink-secondary cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedDocIds.includes(doc.id)}
+                          onChange={() => handleToggleSelectedDoc(doc.id)}
+                          className="rounded border-black/[0.2] text-accent focus:ring-accent"
+                        />
+                        <span className="truncate">
+                          {doc.source || 'Lab Report'}
+                          {doc.collection_date
+                            ? ` — ${new Date(doc.collection_date).toLocaleDateString()}`
+                            : ''}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <label className="flex items-start gap-2 text-sm text-ink cursor-pointer rounded-xl bg-surface-muted px-3 py-3">
+                <input
+                  type="checkbox"
+                  checked={visitPrepConfirmed}
+                  onChange={(e) => setVisitPrepConfirmed(e.target.checked)}
+                  className="mt-0.5 rounded border-black/[0.2] text-accent focus:ring-accent"
+                />
+                <span>
+                  I understand this creates an exportable file containing my
+                  health data and I want to generate it.
+                </span>
+              </label>
+
+              {generateVisitPrep.isError && (
+                <div className="flex items-center text-sm text-status-attention">
+                  <AlertCircle className="w-4 h-4 mr-2 flex-shrink-0" />
+                  Failed to generate the packet. Please try again.
+                </div>
+              )}
+
+              {visitPrep && (
+                <div className="rounded-xl bg-surface-muted p-4 text-sm text-ink-secondary">
+                  <p className="font-medium text-ink mb-1">Packet ready</p>
+                  <p>
+                    Sections: {visitPrep.section_titles.join(', ')}
+                    {visitPrep.redaction_count > 0 &&
+                      ` — ${visitPrep.redaction_count} personal identifier${
+                        visitPrep.redaction_count !== 1 ? 's' : ''
+                      } redacted`}
+                  </p>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <Button
+                  className="gap-2"
+                  onClick={handleGenerateVisitPrep}
+                  disabled={!visitPrepConfirmed || generateVisitPrep.isPending}
+                >
+                  {generateVisitPrep.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <FileText className="w-4 h-4" />
+                  )}
+                  Generate Packet
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="gap-2"
+                  onClick={handleDownloadVisitPrep}
+                  disabled={!visitPrep || downloadVisitPrep.isPending}
+                >
+                  {downloadVisitPrep.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4" />
+                  )}
+                  Download Packet
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>

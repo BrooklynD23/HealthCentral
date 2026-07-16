@@ -387,6 +387,22 @@ class TestSummaryDownload:
         assert "Questions for Your Provider" in html
         assert "What follow-up labs do you recommend?" in html
 
+    def test_api_export_004d_html_summary_escapes_section_and_question_html(self):
+        """A section title/content or question containing markup must render
+        escaped, not as live HTML/script (HC review fix — unescaped HTML in
+        the packet HTML/PDF download)."""
+        export_module = ExportModule()
+        payload = "<script>alert(1)</script>"
+        summary_data = {
+            "key_findings": [payload],
+            "sections": [{"title": payload, "content": payload}],
+            "questions": [{"question": payload}],
+        }
+
+        html = export_module.render_html_summary(summary_data)
+        assert payload not in html
+        assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+
 
 class TestQuestionsGeneration:
     """Tests for discussion questions generation."""

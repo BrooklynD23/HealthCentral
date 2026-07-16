@@ -6,7 +6,13 @@ import { cn } from '@/utils/cn';
 import type { MedicationCreate, Medication } from '@/services/types';
 
 interface MedicationFormProps {
-  initialValues?: Medication;
+  initialValues?: Partial<Medication>;
+  /**
+   * 'add' keeps the create labels even when fields are pre-filled (e.g. a
+   * reconciliation suggestion seeding the name). Defaults to 'edit' when
+   * initialValues are present, 'add' otherwise.
+   */
+  mode?: 'add' | 'edit';
   onSubmit: (data: MedicationCreate) => void;
   onCancel: () => void;
   isSubmitting?: boolean;
@@ -30,11 +36,13 @@ const dosageForms = [
 
 export function MedicationForm({
   initialValues,
+  mode,
   onSubmit,
   onCancel,
   isSubmitting,
   className,
 }: MedicationFormProps) {
+  const isEdit = mode ? mode === 'edit' : Boolean(initialValues);
   const [name, setName] = useState(initialValues?.name ?? '');
   const [genericName, setGenericName] = useState(initialValues?.generic_name ?? '');
   const [dosageAmount, setDosageAmount] = useState(
@@ -66,7 +74,7 @@ export function MedicationForm({
     <Card className={className}>
       <CardHeader>
         <CardTitle>
-          {initialValues ? 'Edit Medication' : 'Add Medication'}
+          {isEdit ? 'Edit Medication' : 'Add Medication'}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -221,7 +229,7 @@ export function MedicationForm({
             <Button type="submit" disabled={!name.trim() || isSubmitting}>
               {isSubmitting ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
-              ) : initialValues ? (
+              ) : isEdit ? (
                 'Save Changes'
               ) : (
                 'Add Medication'

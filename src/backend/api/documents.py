@@ -14,14 +14,14 @@ import re
 import threading
 import time
 from collections import OrderedDict
+from dataclasses import asdict
 from pathlib import Path
-from typing import Optional
-from datetime import datetime
+from typing import Literal, Optional
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, File, Query, status
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select, delete
+from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
@@ -29,7 +29,14 @@ from core.config import settings, user_ocr_preference_enabled, compute_ocr_effec
 from core.audit import log_document_event, audit_and_commit
 from core.auth import RequireAuth, Session, ProfileDbSession
 from core.document_crypto import get_decrypted_document, get_profile_encryption_key
-from models import Document, Observation, Chunk, Embedding, UserModelSettings
+from models import (
+    Chunk,
+    Document,
+    Embedding,
+    Observation,
+    PinboardItem,
+    UserModelSettings,
+)
 from modules.extract import ExtractModule
 from modules.normalize import NormalizeModule
 from modules.chunking import ChunkingModule
@@ -37,13 +44,43 @@ from modules.embeddings import EmbeddingsModule
 from modules.document_classifier import classify_document
 from modules.extract_imaging import extract_imaging_entities
 from modules.extract_pathology import extract_pathology_entities
-from modules.extract_visit_notes import extract_visit_note_entities
+from modules.extract_visit_notes import extract_visit_note_entities, llm_assist_visit_entities
+from modules.highlights import Highlight, derive_highlights
 from models.document_category import DocumentCategory, DocumentEntity
 
 logger = logging.getLogger(__name__)
 
 # Shared normalizer instance
 _normalizer = NormalizeModule()
+
+
+async def _prune_document_pin_targets(
+    profile_db: AsyncSession,
+    document_id: str,
+    *,
+    include_document: bool,
+) -> None:
+    """Delete pins for targets removed with a document in the same transaction."""
+    observation_ids = select(Observation.id).where(Observation.doc_id == document_id)
+    entity_ids = select(DocumentEntity.id).where(DocumentEntity.doc_id == document_id)
+    conditions = [
+        and_(
+            PinboardItem.item_type.in_(("observation", "question")),
+            PinboardItem.item_id.in_(observation_ids),
+        ),
+        and_(
+            PinboardItem.item_type == "question",
+            PinboardItem.item_id.in_(entity_ids),
+        ),
+    ]
+    if include_document:
+        conditions.append(
+            and_(
+                PinboardItem.item_type == "document",
+                PinboardItem.item_id == document_id,
+            )
+        )
+    await profile_db.execute(delete(PinboardItem).where(or_(*conditions)))
 
 # ---------------------------------------------------------------------------
 # Page image rendering cache (F-005)
@@ -193,11 +230,16 @@ class DocumentResponse(BaseModel):
     imported_at: str
     parsed_at: Optional[str] = None
     verified_at: Optional[str] = None
+    extraction_confidence: Optional[float] = None
 
     model_config = ConfigDict(from_attributes=True)
 
     @classmethod
-    def from_model(cls, doc: Document) -> "DocumentResponse":
+    def from_model(
+        cls,
+        doc: Document,
+        extraction_confidence: Optional[float] = None,
+    ) -> "DocumentResponse":
         return cls(
             id=doc.id,
             profile_id=doc.profile_id,
@@ -209,7 +251,16 @@ class DocumentResponse(BaseModel):
             imported_at=doc.imported_at.isoformat(),
             parsed_at=doc.parsed_at.isoformat() if doc.parsed_at else None,
             verified_at=doc.verified_at.isoformat() if doc.verified_at else None,
+            extraction_confidence=extraction_confidence,
         )
+
+
+class DuplicateWarning(BaseModel):
+    """Non-blocking notice that an import resembles an existing document."""
+
+    match_type: Literal["content_hash", "same_date"]
+    document_id: str
+    title: Optional[str] = None
 
 
 class DocumentImportResponse(BaseModel):
@@ -217,12 +268,102 @@ class DocumentImportResponse(BaseModel):
     document: DocumentResponse
     observations_extracted: int
     needs_verification: bool
+    duplicate_warning: Optional[DuplicateWarning] = None
 
 
 class DocumentVerifyResponse(BaseModel):
     """Response model for document-level verification."""
     document: DocumentResponse
     verified_count: int
+
+
+async def _document_extraction_confidences(
+    profile_db: AsyncSession,
+    profile_id: str,
+    document_ids: list[str],
+) -> dict[str, float]:
+    """Return each document's lowest stored observation/entity confidence."""
+    if not document_ids:
+        return {}
+
+    confidences: dict[str, list[float]] = {}
+    observation_rows = (
+        await profile_db.execute(
+            select(Observation.doc_id, Observation.extraction_confidence).where(
+                Observation.profile_id == profile_id,
+                Observation.doc_id.in_(document_ids),
+                Observation.extraction_confidence.is_not(None),
+            )
+        )
+    ).all()
+    entity_rows = (
+        await profile_db.execute(
+            select(DocumentEntity.doc_id, DocumentEntity.confidence)
+            .join(Document, Document.id == DocumentEntity.doc_id)
+            .where(
+                Document.profile_id == profile_id,
+                DocumentEntity.doc_id.in_(document_ids),
+                # Rejected extractions no longer count toward the displayed
+                # confidence — the user has already resolved them.
+                DocumentEntity.verified_by_user.is_not(False),
+            )
+        )
+    ).all()
+
+    for doc_id, confidence in [*observation_rows, *entity_rows]:
+        if confidence is not None:
+            confidences.setdefault(doc_id, []).append(confidence)
+    return {doc_id: min(values) for doc_id, values in confidences.items()}
+
+
+async def _find_duplicate_warning(
+    profile_db: AsyncSession,
+    profile_id: str,
+    *,
+    content_hash: str,
+    collection_date: Optional[datetime],
+    exclude_document_id: Optional[str] = None,
+) -> Optional[DuplicateWarning]:
+    """Find a profile-local duplicate signal without ever blocking import."""
+    try:
+        hash_query = select(Document).where(
+            Document.profile_id == profile_id,
+            Document.content_hash == content_hash,
+        )
+        if exclude_document_id is not None:
+            hash_query = hash_query.where(Document.id != exclude_document_id)
+        hash_query = hash_query.order_by(Document.imported_at.desc()).limit(1)
+        hash_match = (await profile_db.execute(hash_query)).scalar_one_or_none()
+        if hash_match is not None and hash_match.profile_id == profile_id:
+            return DuplicateWarning(
+                match_type="content_hash",
+                document_id=hash_match.id,
+                title=hash_match.source,
+            )
+
+        if collection_date is None:
+            return None
+
+        day_start = datetime.combine(collection_date.date(), datetime.min.time())
+        day_end = day_start + timedelta(days=1)
+        date_query = select(Document).where(
+            Document.profile_id == profile_id,
+            Document.collection_date >= day_start,
+            Document.collection_date < day_end,
+        )
+        if exclude_document_id is not None:
+            date_query = date_query.where(Document.id != exclude_document_id)
+        date_query = date_query.order_by(Document.imported_at.desc()).limit(1)
+        date_match = (await profile_db.execute(date_query)).scalar_one_or_none()
+        if date_match is not None and date_match.profile_id == profile_id:
+            return DuplicateWarning(
+                match_type="same_date",
+                document_id=date_match.id,
+                title=date_match.source,
+            )
+    except Exception as exc:
+        logger.warning("Duplicate warning check failed; import will continue: %s", exc)
+    return None
 
 
 def _split_extracted_text_pages(extracted_text: Optional[str]) -> list[str]:
@@ -243,7 +384,6 @@ class PageResponse(BaseModel):
     "/import",
     response_model=DocumentImportResponse,
     status_code=status.HTTP_201_CREATED,
-    responses={200: {"model": DocumentImportResponse, "description": "Duplicate document already exists"}},
 )
 async def import_document(
     session: RequireAuth,
@@ -292,35 +432,12 @@ async def import_document(
             detail=str(e)
         )
 
-    # Check for duplicate content before creating new record
-    existing_result = await profile_db.execute(
-        select(Document).where(
-            Document.profile_id == profile_id,
-            Document.content_hash == import_result.content_hash,
-        )
+    duplicate_warning = await _find_duplicate_warning(
+        profile_db,
+        profile_id,
+        content_hash=import_result.content_hash,
+        collection_date=None,
     )
-    existing_doc = existing_result.scalar_one_or_none()
-
-    if existing_doc:
-        # Clean up the encrypted file that ingest just stored
-        vault_path = Path(settings.app_data_path) / "vaults" / profile_id / "docs"
-        orphan_path = vault_path / f"{import_result.document_id}.bin"
-        if orphan_path.exists():
-            orphan_path.unlink()
-        # Return existing document with 200 (not 201)
-        obs_result = await profile_db.execute(
-            select(Observation).where(Observation.doc_id == existing_doc.id)
-        )
-        obs_count = len(obs_result.scalars().all())
-        response_data = DocumentImportResponse(
-            document=DocumentResponse.from_model(existing_doc),
-            observations_extracted=obs_count,
-            needs_verification=False,
-        )
-        return JSONResponse(
-            content=response_data.model_dump(mode="json"),
-            status_code=status.HTTP_200_OK,
-        )
 
     # Create document record in per-profile encrypted database
     document = Document(
@@ -364,6 +481,21 @@ async def import_document(
         pre_extracted_text=extracted_text,
     )
 
+    if duplicate_warning is None:
+        duplicate_warning = await _find_duplicate_warning(
+            profile_db,
+            profile_id,
+            content_hash=import_result.content_hash,
+            collection_date=document.collection_date,
+            exclude_document_id=document.id,
+        )
+
+    confidence_by_doc = await _document_extraction_confidences(
+        profile_db,
+        profile_id,
+        [document.id],
+    )
+
     # Create audit log in master database
     await log_document_event(
         db=master_db,
@@ -375,14 +507,19 @@ async def import_document(
             "doc_type": import_result.doc_type,
             "encrypted": import_result.encrypted,
             "observations_extracted": observations_extracted,
+            "duplicate_warning": duplicate_warning.match_type if duplicate_warning else None,
         },
     )
     await master_db.commit()
 
     return DocumentImportResponse(
-        document=DocumentResponse.from_model(document),
+        document=DocumentResponse.from_model(
+            document,
+            confidence_by_doc.get(document.id),
+        ),
         observations_extracted=observations_extracted,
         needs_verification=needs_verification,
+        duplicate_warning=duplicate_warning,
     )
 
 
@@ -635,11 +772,14 @@ async def _classify_and_extract_entities(
     doc_id: str,
     doc_type: str,
     pre_extracted_text: Optional[str] = None,
+    llm_assist: bool = False,
 ) -> None:
     """Classify a document and persist category + extracted entities.
 
     Extracts text from the decrypted document, runs the rule-based classifier,
-    and if a category is found, runs the appropriate entity extractor.
+    and if a category is found, runs the appropriate entity extractor. When
+    *llm_assist* is explicitly enabled (default OFF), visit notes also get a
+    hard-validated LLM proposal pass on top of the rule-based entities.
     Fully non-fatal: every stage (text extraction, classification, entity
     extraction, DB persistence) is wrapped so failures never propagate to
     the caller.
@@ -679,6 +819,12 @@ async def _classify_and_extract_entities(
             )
             # Continue — we can still persist the category without entities
 
+    if llm_assist and result.category == "visit_notes":
+        try:
+            entities.extend(await llm_assist_visit_entities(text, entities))
+        except Exception as e:
+            logger.warning(f"LLM-assist entity pass failed for {doc_id}: {e}")
+
     # --- Stage 4: DB persistence ---
     try:
         category_record = DocumentCategory(
@@ -699,6 +845,10 @@ async def _classify_and_extract_entities(
                 entity_value=ent["entity_value"],
                 confidence=ent["confidence"],
                 source_page=ent.get("source_page"),
+                char_start=ent.get("char_start"),
+                char_end=ent.get("char_end"),
+                quote=ent.get("quote"),
+                extraction_version=ent.get("extraction_version"),
             )
             profile_db.add(entity_record)
 
@@ -772,6 +922,11 @@ async def list_documents(
 
     result = await profile_db.execute(query)
     documents = result.scalars().all()
+    confidence_by_doc = await _document_extraction_confidences(
+        profile_db,
+        profile_id,
+        [doc.id for doc in documents],
+    )
 
     await audit_and_commit(
         master_db,
@@ -787,7 +942,10 @@ async def list_documents(
         },
     )
 
-    return [DocumentResponse.from_model(doc) for doc in documents]
+    return [
+        DocumentResponse.from_model(doc, confidence_by_doc.get(doc.id))
+        for doc in documents
+    ]
 
 
 @router.get("/{document_id}", response_model=DocumentResponse)
@@ -829,10 +987,15 @@ async def get_document(
 async def reprocess_document(
     document_id: str,
     session: RequireAuth,
+    llm_assist: bool = False,
     profile_db: ProfileDbSession = None,
     master_db: AsyncSession = Depends(get_db),
 ):
-    """Retry extraction/OCR and rebuild observations/chunks for a document."""
+    """Retry extraction/OCR and rebuild observations/chunks for a document.
+
+    ``llm_assist`` (query, default False) additionally runs the hard-validated
+    LLM entity-proposal pass for visit notes; rule-based extraction always runs.
+    """
     validate_uuid(document_id, "document_id")
 
     result = await profile_db.execute(select(Document).where(Document.id == document_id))
@@ -844,7 +1007,21 @@ async def reprocess_document(
         )
     verify_document_access(document, session)
 
+    # A user's rejection of an extraction is a safety decision; remember the
+    # rejected (entity_type, quote) pairs so re-extraction of the same span
+    # under a new UUID does not resurface it as unreviewed.
+    rejected_rows = await profile_db.execute(
+        select(DocumentEntity.entity_type, DocumentEntity.quote).where(
+            DocumentEntity.doc_id == document_id,
+            DocumentEntity.verified_by_user.is_(False),
+        )
+    )
+    rejected_extractions = set(rejected_rows.all())
+
     # Reclassify from clean state after extraction refresh.
+    await _prune_document_pin_targets(
+        profile_db, document_id, include_document=False
+    )
     await profile_db.execute(delete(DocumentEntity).where(DocumentEntity.doc_id == document_id))
     await profile_db.execute(delete(DocumentCategory).where(DocumentCategory.doc_id == document_id))
 
@@ -864,7 +1041,20 @@ async def reprocess_document(
         doc_id=document_id,
         doc_type=document.doc_type,
         pre_extracted_text=extracted_text,
+        llm_assist=llm_assist,
     )
+
+    if rejected_extractions:
+        recreated = await profile_db.execute(
+            select(DocumentEntity).where(DocumentEntity.doc_id == document_id)
+        )
+        for entity in recreated.scalars():
+            if (entity.entity_type, entity.quote) in rejected_extractions:
+                entity.verified_by_user = False
+
+    # Ensure target cleanup is committed even when classification returns
+    # early (for example, empty text or an unknown category).
+    await profile_db.commit()
 
     await log_document_event(
         db=master_db,
@@ -876,6 +1066,7 @@ async def reprocess_document(
             "action": "reprocess",
             "status": document.status,
             "observations_extracted": observations_extracted,
+            "llm_assist": llm_assist,
         },
     )
     await master_db.commit()
@@ -956,6 +1147,11 @@ class DocumentEntityResponse(BaseModel):
     entity_value: str
     confidence: float
     source_page: Optional[int] = None
+    char_start: Optional[int] = None
+    char_end: Optional[int] = None
+    quote: Optional[str] = None
+    verified_by_user: Optional[bool] = None
+    extraction_version: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -1036,18 +1232,199 @@ async def get_document_entities(
         details={"action": "entities", "count": len(entities)},
     )
 
-    return [
-        DocumentEntityResponse(
-            id=ent.id,
-            doc_id=ent.doc_id,
-            category=ent.category,
-            entity_type=ent.entity_type,
-            entity_value=ent.entity_value,
-            confidence=ent.confidence,
-            source_page=ent.source_page,
+    return [DocumentEntityResponse.model_validate(ent) for ent in entities]
+
+
+class EntityVerificationRequest(BaseModel):
+    """Request body for setting an entity's user verification state.
+
+    verified: true = verified, false = rejected, null = reset to unreviewed.
+    """
+    verified: Optional[bool] = None
+
+
+@router.patch(
+    "/{document_id}/entities/{entity_id}/verification",
+    response_model=DocumentEntityResponse,
+)
+async def set_entity_verification(
+    document_id: str,
+    entity_id: str,
+    payload: EntityVerificationRequest,
+    session: RequireAuth,
+    profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """Set the user verification state of an extracted entity."""
+    validate_uuid(document_id, "document_id")
+    validate_uuid(entity_id, "entity_id")
+
+    # Verify document exists and user has access
+    doc_result = await profile_db.execute(select(Document).where(Document.id == document_id))
+    document = doc_result.scalar_one_or_none()
+    if not document:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    verify_document_access(document, session)
+
+    result = await profile_db.execute(
+        select(DocumentEntity).where(
+            DocumentEntity.id == entity_id,
+            DocumentEntity.doc_id == document_id,
         )
-        for ent in entities
+    )
+    entity = result.scalar_one_or_none()
+    if not entity:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entity not found")
+
+    entity.verified_by_user = payload.verified
+    await profile_db.commit()
+
+    await log_document_event(
+        db=master_db,
+        event="verify",
+        profile_id=session.profile_id,
+        document_id=document_id,
+        filename=document.source,
+        details={
+            "action": "entity_verification",
+            "entity_id": entity_id,
+            "entity_type": entity.entity_type,
+            "verified": payload.verified,
+        },
+    )
+    await master_db.commit()
+
+    return DocumentEntityResponse.model_validate(entity)
+
+
+# ---------------------------------------------------------------------------
+# Smart highlights (HC-M16) — derived on read, never persisted
+# ---------------------------------------------------------------------------
+
+_HIGHLIGHTS_SUMMARY_MAX_DOCS = 50
+
+
+class HighlightResponse(BaseModel):
+    """A derived organizational tag resolving to its source row (HC-M16)."""
+
+    highlight_type: str
+    doc_id: str
+    source_kind: str  # 'entity' | 'observation'
+    source_id: str
+    quote: Optional[str] = None
+    confidence: Optional[float] = None
+    verification_state: str
+
+    @classmethod
+    def from_highlight(cls, highlight: Highlight) -> "HighlightResponse":
+        return cls(**asdict(highlight))
+
+
+class DocumentHighlightSummary(BaseModel):
+    """Highlight-type counts for one document (inbox chips)."""
+
+    doc_id: str
+    counts: dict[str, int]
+
+
+@router.get("/highlights/summary", response_model=list[DocumentHighlightSummary])
+async def get_highlights_summary(
+    session: RequireAuth,
+    limit: int = Query(
+        20,
+        ge=1,
+        le=_HIGHLIGHTS_SUMMARY_MAX_DOCS,
+        description="Most recently imported documents to summarize",
+    ),
+    profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """Per-document highlight-type counts for recent documents.
+
+    Bounded: only the *limit* most recently imported documents are
+    considered; documents with no highlights are omitted.
+    """
+    doc_result = await profile_db.execute(
+        select(Document.id)
+        .where(Document.profile_id == session.profile_id)
+        .order_by(Document.imported_at.desc())
+        .limit(limit)
+    )
+    doc_ids = list(doc_result.scalars().all())
+
+    counts_by_doc: dict[str, dict[str, int]] = {doc_id: {} for doc_id in doc_ids}
+    if doc_ids:
+        entity_result = await profile_db.execute(
+            select(DocumentEntity).where(DocumentEntity.doc_id.in_(doc_ids))
+        )
+        obs_result = await profile_db.execute(
+            select(Observation).where(Observation.doc_id.in_(doc_ids))
+        )
+        for highlight in derive_highlights(
+            entity_result.scalars().all(), obs_result.scalars().all()
+        ):
+            counts = counts_by_doc[highlight.doc_id]
+            counts[highlight.highlight_type] = counts.get(highlight.highlight_type, 0) + 1
+
+    summaries = [
+        DocumentHighlightSummary(doc_id=doc_id, counts=counts_by_doc[doc_id])
+        for doc_id in doc_ids
+        if counts_by_doc[doc_id]
     ]
+
+    await audit_and_commit(
+        master_db,
+        log_document_event,
+        event="view",
+        profile_id=session.profile_id,
+        document_id="all",
+        details={
+            "action": "highlights_summary",
+            "limit": limit,
+            "count": len(summaries),
+        },
+    )
+
+    return summaries
+
+
+@router.get("/{document_id}/highlights", response_model=list[HighlightResponse])
+async def get_document_highlights(
+    document_id: str,
+    session: RequireAuth,
+    profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """Derived highlights for one document (computed on read)."""
+    validate_uuid(document_id, "document_id")
+
+    doc_result = await profile_db.execute(select(Document).where(Document.id == document_id))
+    document = doc_result.scalar_one_or_none()
+    if not document:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    verify_document_access(document, session)
+
+    entity_result = await profile_db.execute(
+        select(DocumentEntity).where(DocumentEntity.doc_id == document_id)
+    )
+    obs_result = await profile_db.execute(
+        select(Observation).where(Observation.doc_id == document_id)
+    )
+    highlights = derive_highlights(
+        entity_result.scalars().all(), obs_result.scalars().all()
+    )
+
+    await audit_and_commit(
+        master_db,
+        log_document_event,
+        event="view",
+        profile_id=session.profile_id,
+        document_id=document_id,
+        filename=document.source,
+        details={"action": "highlights", "count": len(highlights)},
+    )
+
+    return [HighlightResponse.from_highlight(h) for h in highlights]
 
 
 @router.get("/{document_id}/pages", response_model=list[PageResponse])
@@ -1291,6 +1668,16 @@ async def delete_document(
 
     profile_id = document.profile_id
     filename = document.source
+
+    await _prune_document_pin_targets(
+        profile_db, document_id, include_document=True
+    )
+
+    # Entities/categories have no ORM cascade from Document (and SQLite FK
+    # enforcement is off); delete them explicitly so entity quotes — verbatim
+    # document text — cannot outlive the document into exports or pins.
+    await profile_db.execute(delete(DocumentEntity).where(DocumentEntity.doc_id == document_id))
+    await profile_db.execute(delete(DocumentCategory).where(DocumentCategory.doc_id == document_id))
 
     # Delete document file
     vault_path = Path(settings.app_data_path) / "vaults" / profile_id / "docs"

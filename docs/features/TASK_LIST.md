@@ -1,7 +1,7 @@
 # HealthCentral Remaining Work Task List
 
 **Version:** 0.5.0
-**Last Updated:** 2026-07-02
+**Last Updated:** 2026-07-09
 **Owner:** Project Lead
 **Refresh Trigger:** Task completed or new task identified
 **Scope:** Active remaining work only (implementation baseline already shipped)
@@ -144,6 +144,239 @@ On the first of each month, review all canonical docs for freshness:
 ---
 
 ## Session Notes
+
+### 2026-07-16 - Phases A-C integration adversarial-review fixes (branch `claude/orchestrate-phases-adversarial-review-b24op0`)
+
+Adversarial review of the combined Phases A-C integration branch (all of
+HC-M12..M21 + HC-C1 merged together) surfaced cross-feature gaps the three
+per-phase reviews could not see. Each fix landed test-first.
+
+- **Deleted documents left exportable entity quotes behind** (HIGH):
+  `DocumentEntity`/`DocumentCategory` have no ORM cascade from `Document`
+  and SQLite FK enforcement is off, so `DELETE /documents/{id}` orphaned
+  verified entities whose verbatim quotes kept feeding `/export/questions`,
+  the visit-prep packet, and pinboard question pins. `delete_document` now
+  deletes both explicitly (mirroring reprocess); defensively,
+  `_fetch_question_entity_dicts`, pinboard question-pin validation,
+  `_prune_stale_items`, and the pinboard export query all require a live
+  parent `Document`, so pre-fix orphans are inert too. Tests: HC-ENT-030,
+  HC-PKT-022, HC-PIN-014, HC-PIN-015.
+- **Duplicate doctor questions after reprocess**: question generation
+  deduped entities against tasks by `source_entity_id` only, but reprocess
+  recreates the same extraction under a new UUID, yielding two questions
+  for one instruction. `generate_questions` now also dedupes on the
+  task's verbatim `source_quote` (same key the care-task accept flow
+  already uses). Test: HC-QGN-014.
+- **Reprocess resurfaced user-rejected extractions**: deleting and
+  recreating entities reset `verified_by_user` to NULL, silently undoing an
+  explicit rejection (a safety decision) — the recreated span reappeared in
+  med-reconcile, highlights, search, and care-task candidates. Reprocess now
+  snapshots rejected `(entity_type, quote)` pairs and re-applies the
+  rejection to recreated entities that match. Verified entities still reset
+  to unreviewed on purpose (conservative direction). Test: HC-ENT-031.
+- **Rejected entities pinned document confidence**: the inbox confidence
+  badge took the minimum over all entity confidences, so a rejected junk
+  0.1-confidence extraction kept a document "low confidence" forever.
+  `_document_extraction_confidences` now excludes
+  `verified_by_user IS FALSE` rows. Test: HC-CONF-005.
+
+Deferred (documented, not fixed here): e2e synthetic-profile reset does not
+clear `CarePlanTask`/`Pinboard`/`PinboardItem` (test-only endpoint);
+`search_records` full index rebuild per query (single-user local app;
+revisit if record counts grow); in-memory packet/summary stores have no TTL
+(pre-existing MVP pattern, surface doubled by Phase B/C).
+
+### 2026-07-13 - Phase B adversarial-review fixes (branch `claude/hc-phase-b-review-fixes`)
+
+Six findings from an adversarial review of Phase B (HC-M17/M18/M19 export and
+med-reconciliation code) fixed, each with a regression test. No new features,
+no scope creep.
+
+- **Visit-prep Questions leak** (`api/export.py`): when `include_tasks=False`
+  or `include_labs=False`, the packet's Questions section no longer draws on
+  the excluded care tasks / observations — only sections the user chose to
+  include feed `generate_questions`. Tests: HC-PKT-017, HC-PKT-018.
+- **Unescaped HTML in HTML/PDF summary download** (`modules/export.py`
+  `render_html_summary`): section titles/content and question text are now
+  `html.escape()`d before interpolation (escape first, then `\n`→`<br>`);
+  local var renamed `html_doc` to avoid shadowing the new `html` import.
+  Test: `test_api_export_004d`.
+- **Zero confidence coerced to 0.5** (`modules/med_reconcile.py`
+  `_suggestion`): `float(_get(entity, "confidence") or 0.5)` treated a
+  legitimate `0.0` as missing; now only `None` defaults to 0.5. Tests:
+  HC-MREC-030, HC-MREC-031.
+- **Dose-first drug-name parsing** (`modules/med_reconcile.py`
+  `_drug_tokens`): "stop the 81 mg aspirin" collected no drug tokens because
+  the span ended at the leading dose phrase. Now, only while no drug token
+  has been collected yet, a number/dose token is skipped rather than ending
+  the span, so the name after the dose is still found — a match already in
+  hand still ends at the first dose token exactly as before. Tests:
+  HC-MREC-032, HC-MREC-033, HC-MREC-034 (regression guard).
+- **Visit-mentions date filter ignored** (`api/export.py`
+  `_fetch_visit_mention_dicts`): now filters on `Document.collection_date`
+  against the request's `from_date`/`to_date` when given (unchanged when
+  absent). Test: HC-PKT-019 (real per-profile DB).
+- **Test gap**: `_fetch_question_entity_dicts`'s SQL-level verified-only
+  filter was only covered via monkeypatched fetchers; added one real-DB test
+  confirming unverified entities are excluded. Test: HC-PKT-020. (Fetcher
+  code itself was already correct — this closes a coverage gap only.)
+
+Verification: backend 909 passed / 2 known-preexisting failures (1 env-only
+embedding-similarity test; 1 docs-index staleness unrelated to this branch,
+confirmed present before these changes too) — baseline 900/1 + 9 new tests,
+zero new failures. `from main import app` OK.
+### 2026-07-13 - HC-M21 Search & Filtering (branch `claude/hc-m21-search`)
+
+Local cross-record search over documents, extracted entities, and observations.
+Search remains inside each profile's SQLCipher database; there are no network or
+LLM paths and no master-DB record queries.
+
+- **Runtime index** `modules/search.py`: idempotently creates a canonical derived
+  `search_records` table plus an FTS5 `search_records_fts` virtual table in the
+  per-profile database and rebuilds both from current rows before search. This is
+  intentionally **not an Alembic migration**: the index is derived, disposable,
+  and rebuildable, while the next profile migration number is owned by HC-M20.
+  If FTS5 creation, refresh, or querying is unavailable, the same API uses
+  bounded `LIKE` matching against the canonical derived rows. Actual FTS5 and a
+  forced-unavailable LIKE path are both covered. Rejected entities are excluded;
+  unreviewed entities, observations, and documents remain searchable with an
+  explicit `unverified` status.
+- **API** `api/search.py`: `GET /api/v1/search/` searches document chunk text,
+  entity values/quotes, and observation names/values. Filters are `provider`,
+  `date_from`, `date_to`, `category`, and `highlight_type`; date names match the
+  timeline route. `q` is capped at 200 characters and `limit` at 100. The route
+  uses `ProfileDbSession` only for record data and fail-closed `search.view` audit
+  logging; raw query/provider text is not copied into the master audit details.
+- **Frontend**: typed `services/search.ts` hook via the services barrel;
+  `SearchPage` at `/search` with timeline-style filters/result cards and explicit
+  “Needs verification” badges; the existing compact TopBar field now navigates
+  to the search page. All wording is record-keeping framing.
+- **Tests**: backend `tests/test_search.py` HC-SRCH-001..012 (14 tests including
+  parameterized three-source matching); frontend `SearchService.test.tsx`
+  FE-SRCH-API-001..003 and `SearchPage.test.tsx` FE-SRCH-UI-001..003.
+- **Frontend test-setup fix** `src/frontend/src/__tests__/setup.ts`: the static
+  `import { useAuthStore } from '@/stores/authStore'` was hoisted (ESM import
+  hoisting) ahead of the `localStorage` mock defined lower in the same file, so
+  the auth store's `zustand/persist` middleware captured the bare global
+  `localStorage` — undefined at that point in this environment — once at
+  module load, permanently disabling persistence and throwing
+  `Cannot read properties of undefined (reading 'setItem')` from every test's
+  `afterEach`. This was a pre-existing, environment-wide failure (reproduced on
+  unrelated suites, e.g. `CareTasksService.test.tsx`) uncovered while verifying
+  HC-M21, not caused by it. Fix: install the `localStorage` mock as a plain
+  top-level statement, then `await import('@/stores/authStore')` after it, so
+  the store's persist middleware resolves the mock instead of a stale
+  reference.
+- **Verification**: full backend suite `python -m pytest tests/ -p no:cacheprovider -q`
+  → 914 passed, 1 failed (900 baseline + 14 new HC-SRCH tests; the 1 failure is
+  the pre-existing environment-only RAG embedding-similarity test, threshold
+  untouched). App import (`from main import app`) exits 0. Full frontend
+  `npx vitest run` → 134/134 passed (128 baseline + 6 new: FE-SRCH-UI-001..003,
+  FE-SRCH-API-001..003), after the test-setup fix above. `npx tsc --noEmit`
+  exits 0. Playwright was not run (browsers are not provisioned here).
+### 2026-07-13 - Phase C Extraction Confidence + Duplicate Upload Warning (HC-CONF / HC-DUP)
+
+- **Extraction-confidence UX**: document list/import responses now expose the
+  lowest already-stored observation/entity extraction confidence (no new score
+  or persistence). `VerificationWorkbench` shows percentage + low/medium/high
+  band for each observation and extracted entity; `DocumentInbox` labels the
+  lowest item confidence on each document. Missing confidence is distinct from
+  `0.0`, which renders as `0% · Low extraction confidence`.
+- **Duplicate warning**: import reuses `IngestModule`'s SHA-256 content hash and
+  checks only the active profile's documents. An exact hash match warns first;
+  otherwise an extracted same collection date is a secondary signal. The new
+  document is always retained and the 201 response includes optional
+  `duplicate_warning {match_type, document_id, title}`. `DocumentInbox` shows a
+  dismissible notice that explicitly says the upload still completed. Detection
+  errors log and degrade to no warning. Existing import audit logging remains and
+  records the warning type. No schema changes or migrations.
+- **Tests**: backend `tests/test_document_confidence_duplicates.py` plus the
+  import contract in `tests/test_documents_api.py` cover HC-CONF-001..002 and
+  HC-DUP-001..006 (including exact/different/same-date, warn-only completion,
+  and cross-profile isolation). Frontend adds HC-CONF-003..004 and
+  FE-HC-DUP-001. Focused backend verification: 14 passed. Full frontend:
+  131/131 (128 baseline + 3). `npx tsc --noEmit` and `from main import app`
+  exit 0. The exact full backend command was attempted but this sandbox stalls
+  at the first real async-SQLite test; a standalone `aiosqlite.connect(':memory:')`
+  reproduces the same environment hang, so no full-suite count was available.
+
+### 2026-07-12 - HC-M16 Smart Highlights (branch `claude/hc-m16-highlights`)
+
+Small derived tags ("abnormal lab", "medication started", "needs
+verification") on documents so what matters is visible without opening
+everything. Pure on-read derivation from existing rows — no new tables, no
+migrations, no LLM, no interpretation. Done TDD-first
+(`tests/test_highlights.py`, HC-HLT-001..022).
+
+- **Derivation** `modules/highlights.py`: `Highlight {highlight_type, doc_id,
+  source_kind ('entity'|'observation'), source_id, quote, confidence,
+  verification_state}` — every tag resolves to its source row. Rules:
+  `abnormal_value` from `Observation.is_abnormal`;
+  `medication_started/stopped/changed` from `medication_change` entities keyed
+  off the canonical leading verb of `entity_value` (start→started,
+  stop→stopped, else changed); `follow_up_needed` / `test_ordered` /
+  `referral_created` / `new_diagnosis_mentioned` from their entity types;
+  `low_confidence_extraction` (< 0.6); `needs_verification`
+  (`verified_by_user IS NULL`). One entity can produce several highlights;
+  rejected entities (`verified_by_user == false`) produce none at all.
+- **API** (documents router): `GET /documents/{doc_id}/highlights` and
+  `GET /documents/highlights/summary?limit=N` (per-document type counts for
+  the N≤50 most recently imported documents; empty documents omitted). Both
+  profile-scoped via `ProfileDbSession` with fail-closed `audit_and_commit`
+  view audits.
+- **Frontend**: `services/highlights.ts` (`useDocumentHighlights`,
+  `useHighlightsSummary`, neutral `HIGHLIGHT_LABELS`) via the barrel;
+  `components/documents/HighlightChips.tsx` (calm badge chips — organizational
+  tags, not clinical alerts); chips on DocumentInbox rows (summary endpoint,
+  capped at 4 + overflow) and per entity in EntityDetailView (matched by
+  `source_id`). TimelinePage deliberately untouched (sibling-branch merge
+  risk). 4 vitest contract tests (FE-HLT-API-001..004).
+- **Verification**: backend 839 passed / 1 known env-only embedding failure
+  (baseline 811/1 + 28 new); `npx tsc --noEmit` exit 0 (unchanged);
+  `npx vitest run` 121/121 (117 baseline + 4); `from main import app` OK.
+
+### 2026-07-10 - HC-M14 Health Timeline (branch `claude/hc-m14-timeline`)
+
+One chronological view of the health record, derived on read — no new tables,
+no migrations. Done TDD-first (`tests/test_timeline.py`, HC-TML-001..005).
+
+- **Read-model** `modules/timeline.py`: derives events from the per-profile DB.
+  Lab observations collapse to one `lab_results` event per (document, collection
+  day) with verified/unverified/mixed status; classified documents
+  (imaging/pathology/visit_notes) get one event each with date precedence
+  `collection_date` > parseable date entity (`report_date`/`visit_date`, reusing
+  `ExtractModule._normalize_date_str`) > `imported_at`; medications produce
+  start events and, when `ended_at` is set, stop events. Undated observation
+  groups are excluded from the dated stream and returned in a separate
+  `undated` list, mirroring the undated-observation rule in the observations API.
+- **API** `api/timeline.py`: `GET /api/v1/timeline/` (session-scoped profile,
+  optional `event_type`, `date_from`, `date_to`), fail-closed audit logging via
+  `audit_and_commit` (`timeline.view`).
+- **Frontend**: `pages/TimelinePage.tsx` (event cards with type badge, date +
+  source, verification chip, links to inbox/trends/medications/verify; filter
+  controls; undated section), `services/timeline.ts` `useTimeline` hook via the
+  barrel, `/timeline` route + sidebar entry. 3 vitest contract tests.
+- **Verification**: backend 734 passed / 1 known env-only embedding failure
+  (unchanged baseline); `npx tsc --noEmit` clean; `npx vitest run` 108/108;
+  `from main import app` OK.
+
+### 2026-07-09 - OpenWiki integration scaffolding (docs only)
+
+Evaluated OpenWiki (LangChain's generated-repo-docs CLI) as a navigation layer for coding agents
+and subordinated it to the existing doc hierarchy before any generation runs (branch
+`claude/openwiki-integration-ftskdr`). Decision: adopt as advisory navigation only — never as
+authority over safety/privacy/medical/compliance/architecture docs.
+
+- `CLAUDE.md`: new "OpenWiki usage" section — generated docs are for locating code/tracing
+  dependencies; hand-maintained docs win on conflict.
+- `AGENT.md`: added `openwiki/` to the layout section with the same advisory framing.
+- `openwiki/README.md` (new, hand-maintained): authority order, generation commands
+  (`openwiki --init` / `--update` — needs an LLM API key, so run locally), pre-commit review rules
+  for generated output (reject anything weakening CLAUDE.md hard invariants), and the CI decision:
+  auto-update workflow deferred until one manual generate/review/merge cycle; PRs only, no auto-merge.
+- `docs/00_architecture_plans_index.md`: "Generated Navigation (Advisory)" section linking it.
+
+No product code touched. Wiki content itself is not yet generated.
 
 ### 2026-07-03 - NORM-UNIT-001 Implemented (cross-lab unit normalization)
 
@@ -305,3 +538,81 @@ This was a multi-turn session (branch `claude/agent-exploration-tech-research-en
 - **STAB-006**: Created `document-import.spec.ts` (5 tests) and `settings-smoke.spec.ts` (4 tests). Updated `playwright.config.ts` with dual webServer. Added `e2e-tests` CI job. Renamed E2E-RAG-002.
 - **STAB-007**: Added stabilization sprint section to TASK_LIST.md with TDD-structured rows. Updated architecture index.
 - **CI Gates (updated)**: CI now has 4 jobs: docs-lint, backend-tests, frontend-tests, and e2e-tests.
+
+### 2026-07-10 - HC-M12 Entity Source Spans + User Verification (HC-SPAN)
+
+- **Schema**: `DocumentEntity` gained nullable `char_start`, `char_end`, `quote` (verbatim source substring, invariant `text[char_start:char_end] == quote`), `verified_by_user` (null=unreviewed / true=verified / false=rejected), `extraction_version`. Profile migration `010_entity_source_spans` (additive, working downgrade, linear on `009_agent_enabled`).
+- **Extractors**: `extract_imaging` / `extract_pathology` / `extract_visit_notes` now attach spans via new `modules/extract_spans.with_span()` (uses regex match spans, whitespace-trimmed; unresolvable span => quote None + confidence capped at 0.5; `extraction_version="rule-v2"`).
+- **API**: entity fields persisted in `_classify_and_extract_entities`; `GET /documents/{id}/entities` returns the new fields; new `PATCH /documents/{doc_id}/entities/{entity_id}/verification` with body `{verified: true|false|null}` (auth + profile-DB scoping + master-DB audit logging matching neighboring routes).
+- **Frontend**: `EntityDetailView` shows each entity's verbatim quote plus verify/reject controls; rendered in `VerificationWorkbench` for the selected document (including document-review mode with no lab observations). `useSetEntityVerification` / `setEntityVerification` exported through the services barrel.
+- **Tests**: backend `tests/test_source_spans.py` (HC-SPAN: extractor span exactness, confidence cap, API round-trip, PATCH state + audit + 404/403, migration 010 upgrade/downgrade); migration-head assertion bumped to 010 in the SQLCipher-fallback test; frontend `EntityVerificationService.test.tsx` (FE-SPAN contract tests).
+- **Verification**: backend `pytest` 740 passed / 1 known env-only embedding failure (unchanged); `npx tsc --noEmit` → 0 errors; `npx vitest run` → 109/109 pass; `from main import app` boots.
+
+### 2026-07-10 - HC-M13 After-Visit / Discharge Extraction Upgrade (HC-AVS)
+
+- **New visit-note entity types** (rule-based, all span-attached via `with_span`, `extraction_version="rule-v2"`): `medication_change` (normalized value always starts with start|stop|increase|decrease|change|continue; lifestyle-instruction stoplist avoids "start walking"-style false positives; full drug/dose decomposition deferred to HC-M19), `test_ordered` (verb clause + keyword gate, passive "X was ordered", labeled "Tests ordered:"), `referral`, `follow_up_instruction` (timeframe/schedule/labeled forms), `warning_sign` (call/return/seek/911 + labeled "Warning signs:"), `facility` (labeled only). Overlapping matches deduped per type by outermost span.
+- **`visit_type` canonicalized** to `after_visit_summary | discharge | progress | consult | annual | other` (entity type name unchanged; pattern extended with AVS/after-visit-summary/discharge-instructions phrasings).
+- **Classifier**: `VISIT_STRONG` gained "after visit summary", case-sensitive "AVS", "patient instructions", "discharge instructions".
+- **Optional LLM-assist pass** (`llm-assist-v1`, default OFF): `llm_assist_visit_entities()` asks ModelRunner (facade only) for additional entities, hard-validates every proposal — entity_type must be in the allowed set, quote must be an exact substring of the document (used to derive char_start/char_end), medication_change must be verb-first, confidence capped at 0.7, dedup against rule entities, all failures degrade to `[]`. Wired behind explicit `?llm_assist=true` on `POST /documents/{id}/reprocess` (flag recorded in the audit event); rule-based extraction always runs and remains the no-LLM fallback. Document text is fenced as untrusted data in the prompt and cannot alter behavior beyond proposing entities that still pass validation.
+- **Golden set**: `tests/fixtures/visit_notes_golden/` — 12 synthetic fictional AVS/discharge/consult/progress fixtures + `manifest.json` ground truth, including an adversarial prompt-injection fixture asserted inert. Measured per-type precision/recall on the golden set: 1.00/1.00 for all seven evaluated types (thresholds set beneath that in `test_visit_note_extraction.py`).
+- **Frontend**: six new entity-type labels in `EntityDetailView` (renders generically otherwise; no other UI change).
+- **Tests**: `tests/test_visit_note_extraction.py` (HC-AVS-001..013: golden-set precision/recall, span exactness, verb-first contract, canonical visit_type, injection inertness, classifier keywords, LLM-assist validation/dedup/failure modes, explicit-flag wiring); one assertion in `test_extract_visit_notes.py` updated for canonical visit_type ("progress note" -> "progress").
+- **Verification**: backend `pytest` 767 passed / 1 known env-only embedding failure (baseline 740 + 27 new); `npx tsc --noEmit` unchanged vs base (pre-existing TS5101 deprecation only); `from main import app` boots. No new tables or migrations.
+
+### 2026-07-10 - HC-M15 Follow-Up Task Extraction + Tracker (HC-TASK)
+
+- **Schema**: new per-profile table `care_plan_task` (`models/care_plan_task.py`): uuid pk, title, nullable `due_date`/`due_date_confidence`, status `open|done|ignored|needs_review`, source provenance (`source_document_id` FK documents, `source_entity_id` FK document_entity, verbatim `source_quote`), `user_note`, timestamps via `core.time.utcnow`. Profile migration `011_care_plan_tasks` (working downgrade, linear on `010_entity_source_spans`); head assertions bumped 010→011 in the SQLCipher-fallback and HC-SPAN migration tests.
+- **Candidate derivation** (`modules/care_tasks.py`): `derive_task_candidates(entities, document)` turns `follow_up_instruction` / `test_ordered` / `referral` entities into candidates (concise imperative title with timing tail stripped, source quote, suggested status), computed on read and never persisted. **Hard due-date rule — never invent a date**: absolute dates in the entity's own source text parse directly (confidence 0.9); relative expressions ("in 4 weeks", "within 3 months", ranges resolve to the earliest bound) resolve only against an anchored document date (visit_date entity, else document collection date) with confidence 0.75 (≤ 0.8 cap); vague/absent timing or no anchor ⇒ `due_date=None`, `suggested_status="needs_review"`. Calendar-aware month/year addition with end-of-month clamping.
+- **API** (`api/care_tasks.py`, prefix `/care-tasks`): `GET /care-tasks` (status filter), `GET /care-tasks/candidates?doc_id=` (excludes entities already linked to a task and user-rejected entities, `verified_by_user == false`), `POST /care-tasks/accept` (the ONLY way a task is created — server re-derives the candidate from the stored entity, payload quote must match the entity's stored quote, 409 on mismatch/rejected/already-linked), `PATCH /care-tasks/{id}` (status transitions + user_note). All routes use ProfileDbSession with document profile-access checks and master-DB audit logging via new `core.audit.log_care_task_event` (`care_task.*` event types).
+- **Frontend**: new `CareTasksPage` (route `/care-tasks`, sidebar "Tasks"): checklist grouped by status with done/ignore/reopen controls; every task and candidate displays the clinician's verbatim words prefixed "The note says:" (recorded instructions, never app recommendations). Candidates panel at the top of the page behind a document selector with explicit "Add to checklist" acceptance. `services/careTasks.ts` hooks exported through the barrel; no new dependencies. Notifications/reminders deliberately not wired (later milestone); timeline untouched (sibling branch).
+- **Tests**: backend `tests/test_care_tasks.py` (HC-TASK-001..025: derivation per entity type, never-invent-due-dates property over phrase×relative×absolute×anchor combinations, anchored/unanchored relative resolution, vague timing, candidate exclusion of linked/rejected entities, accept persistence + quote validation + audit, status transitions, 403 profile scoping, migration 011 up/down/up); frontend `CareTasksService.test.tsx` (FE-TASK-API-001..005 contract tests).
+- **Verification**: backend `pytest` 795 passed / 1 known env-only embedding failure (baseline 767 + 28 new); `npx tsc --noEmit` unchanged vs base; `npx vitest run` → 114/114 pass (109 + 5 new); `from main import app` boots.
+
+### 2026-07-11 - Phase A Adversarial-Review Fixes (HC-AVS / HC-TASK hardening)
+
+Four confirmed findings from the Phase A adversarial review, each fixed test-first on `claude/hc-phase-a-integration`:
+
+- **LLM-assist value grounding (HIGH)** (`modules/extract_visit_notes.py`): validation checked only that the quote was a verbatim document substring — `entity_value` could carry fabricated model text into candidate/task titles and UI. Now every alphanumeric token of `entity_value` must appear in the validated quote (`_value_grounded_in_quote`); the single exception is medication_change's canonical leading verb, which may be normalized from a synonym in the quote ("discontinue" → "stop"). Ungrounded proposals are skipped. Tests HC-AVS-014/015; HC-AVS-008's value updated to be quote-grounded.
+- **Due-date mis-anchoring (MEDIUM-HIGH)** (`modules/care_tasks.py` `_derive_due`): the first absolute date anywhere in the source text won at confidence 0.9, so a stray past reference ("…the MRI performed 01/04/2019, return in 6 weeks") became the due date. Now an anchored relative expression is preferred when both are present, and an absolute date only becomes a due date when it is >= the anchor date (no-anchor behavior unchanged); failures fall through to the vague-timing path (`due_date=None`, needs_review). Never-invent-dates property preserved. Tests HC-TASK-026/027.
+- **Reprocess orphans task links / duplicate tasks (MEDIUM)** (`api/care_tasks.py`): reprocess recreates `DocumentEntity` rows under fresh UUIDs (SQLite FK enforcement off), dangling `source_entity_id`, so entity-id-only duplicate guards let accepted tasks resurface and be re-accepted. Candidates now also exclude by content (same `source_quote` for the document) and accept 409s on a `(source_document_id, source_quote)` match; list/PATCH tolerate dangling entity ids. FK pragma deliberately untouched. Test HC-TASK-028 (real in-memory profile DB, full reprocess-then-accept flow).
+- **medication_change device/lifestyle false positives (MEDIUM-LOW)** (`modules/extract_visit_notes.py`): the stoplist only checked the object's first word, so "Start using a cane when walking outside", "Start wearing compression stockings daily", "Begin gentle daily walks around the block" fired. Content stoplist words (extended with cane/walker/crutches/brace/stockings/wearing/walks/…) are now checked against every object word; function words (to/with/if/…) stay first-word-only so real phrases ("increase metformin to 1000 mg") keep matching. Tests HC-AVS-016/017 + new golden fixture `avs_06.txt` (lifestyle lines unlabeled = false positives); golden thresholds unchanged.
+- **Verification**: backend `pytest` 811 passed / 1 known env-only embedding failure (baseline 800 + 11 new); `npx tsc --noEmit` unchanged (clean); `npx vitest run` → 117/117; `from main import app` boots.
+
+### 2026-07-12 - HC-M19 Medication Reconciliation from Documents (HC-MREC)
+
+- **Comparison module** (`modules/med_reconcile.py`): `derive_reconciliation_suggestions(entities, medications)` compares a document's `medication_change` entities (user-rejected entities excluded, `verified_by_user != False`) against the profile's medication list. Pure function, computed on read — **no new tables or migrations**, nothing persisted. Suggestion types: `new_medication` (start/continue of a drug not on the active list; an inactive match is reported with its inactive entry), `stopped_medication` (stop of an active listed drug), `dose_or_frequency_change` (increase/decrease/change of a listed drug), `possible_duplicate` (start of an active listed drug), `unclear` (with a stated reason). Agreement (continue of an active listed drug, stop of an already-inactive one) produces no suggestion. Output capped at 100 suggestions (deterministic, first entities win).
+- **Matching — never guess**: the drug name is the consecutive name-like tokens right after the entity's canonical action verb (fillers skipped; dose/frequency/route vocabulary and numbers end the span; ≤ 4 tokens). Exact-token match only against `medication.name` + `generic_name` (case/whitespace-normalized); multiple candidates are refined by requiring every drug token; anything still ambiguous, unparseable, or a stop/change of an unlisted drug ⇒ `unclear` with the reason spelled out. Each suggestion carries suggestion_type, source_entity_id, verbatim source_quote + entity_value, drug_name (tokens verbatim from the source), matched_medication_id (nullable), current_list_summary (built only from the matched entry's own fields, e.g. "atorvastatin 10 mg once daily", or the fixed phrase "not on your list"), confidence (≤ 0.9; unclear ≤ 0.4), reason.
+- **API** (`api/med_reconcile.py`, prefix `/med-reconciliation`): `GET /med-reconciliation?doc_id=` returns suggestions; auth + ProfileDbSession + document profile-access check + master-DB audit event (`document.med_reconcile`) via `audit_and_commit`. **Deliberately no accept/apply endpoint** — the medication list changes only through the existing `/medications` endpoints, initiated by the user.
+- **Frontend**: reconciliation panel on `MedicationCoach` (document selector like CareTasksPage's candidates panel). Each suggestion renders the note's verbatim words ("The note says: …"), the user's own entry ("Your list has: …"), a neutral difference label, and a button that only **pre-fills** the existing medication form: "Review and add to your list" (seeds the add form's name from the source's own drug tokens) or "Review this entry" (opens the edit form for the matched entry). The user completes and submits the normal form; nothing is applied from a suggestion. `MedicationForm` gained `mode` + `Partial<Medication>` initialValues for pre-filled adds; `updateMedication` service switched to PATCH to match the backend route (edit path was previously unused in the UI). `services/medReconcile.ts` (query hook only — no mutation, by design) exported through the barrel.
+- **Safety wording (tested)**: all generated strings are record-keeping framing; a backend test asserts payload wording contains no imperative/advice patterns (you should / recommend / advice / "take your …"), that every drug token in a suggestion appears verbatim in the source entity's value/quote (no fabrication), and that `current_list_summary` comes only from the user's own list fields or the fixed neutral phrase.
+- **Tests**: backend `tests/test_med_reconcile.py` (HC-MREC-001..029, 32 tests: each suggestion type from seeded fixtures, generic-name match, inactive-entry handling, ambiguity/unclear paths, rejected-entity exclusion, no-fabrication property, wording property, payload shape, bounded output, endpoint + audit + 400/403/404, profile isolation on a real in-memory profile DB — another profile's medication never matches). Frontend `MedReconcileService.test.tsx` (FE-MREC-API-001..003 incl. an assertion that the service exposes no write mutation).
+- **Verification**: backend `pytest` 843 passed / 1 known env-only embedding failure (baseline 811 + 32 new); `npx tsc --noEmit` → exit 0 (unchanged); `npx vitest run` → 120/120 (117 + 3 new); `from main import app` boots.
+
+### 2026-07-12 - HC-M17 Doctor-Question Generator Upgrade + HC-M18 Visit-Prep Packet (HC-QGN / HC-PKT)
+
+- **HC-M17 question sources** (`modules/export.py` `generate_questions`, template-driven, no LLM): besides the existing abnormal-value and trend prompts, questions are now derived from (a) accepted care-plan tasks — `needs_review` tasks ask for clarification quoting the clinician's words ("The note says: …. Can you clarify when and with whom this should happen?"), open tasks due within 14 days or past due ask "This follow-up is still open: …. Should it be scheduled?"; (b) user-VERIFIED visit-note entities — `medication_change` ("Can you confirm this change to my medication list: …?"), `test_ordered` ("Can you explain why this test was ordered: …?"), `referral` ("Who should I schedule the … referral with, and how soon?"). Entities already linked to an accepted task are skipped (no duplicates). Every `QuestionPrompt` now carries provenance: `source_kind` (observation|trend|care_task|entity), `source_id`, `source_quote` — dataclass extension with defaults, all existing constructions/calls unchanged. Questions are interrogative-only and advice-free (tested: every question ends with "?", never contains "you should"/"make sure to"/"be sure to").
+- **`POST /export/questions`** now fetches open/needs_review tasks and verified question entities from the profile DB and returns the new sources; response model gains optional `source_kind`/`source_id`/`source_quote` (backward compatible — original fields untouched).
+- **HC-M18 packet composer** (`ExportModule.compose_visit_prep_packet`): assembles Reason for Visit (user free text), Current Medications (active tracker meds), Recent Abnormal Lab Results (verified), Recent Visits and Diagnoses (verified entities: diagnoses/visit_type/chief_complaint with document date), Open Follow-up Items (with verbatim source quotes), Questions for Your Provider (HC-M17), Source Documents (filenames/dates of user-selected docs). Section args are `None`=excluded vs `[]`=rendered "None recorded.". **Unverified-data policy: EXCLUDED everywhere** — unverified observations and unverified entities never enter the packet (care tasks are user-accepted by construction); the packet footer states "Only user-verified data is included". **Redaction hard invariant**: every section's content passes through `modules/redaction.py` `RedactionEngine(policy_level="strict")` (call-only; matches the RL-dataset export, the strictest existing export path) before storage, so all download formats are redacted; dates render ISO-8601, which the strict numeric_date rule deliberately does not match.
+- **Routes** (`api/export.py`): `POST /export/visit-prep` — request `{reason_for_visit?, from_date?, to_date?, include_medications/labs/visits/tasks/questions (default true), selected_doc_ids?, confirm}`; `confirm=true` REQUIRED (400 otherwise, mirroring the RL-export convention); audited as `export.create`/`visit_prep`. `GET /export/visit-prep/{packet_id}/download?format=markdown|html|pdf` — markdown always; html/pdf reuse the existing doctor-summary renderer (WeasyPrint stays lazy, 501 when absent; no new dependency); profile-ownership check + audited as `visit_prep_download`. In-memory packet store mirrors the existing `_summary_store` MVP pattern.
+- **Frontend**: `ExportPage` gains a "Visit Prep Packet" card — section checkboxes, reason-for-visit textarea, optional source-document selection, explicit confirm checkbox gating Generate, then Download (markdown by default, html/pdf via the existing format selector). `generateVisitPrep`/`downloadVisitPrep` + `useGenerateVisitPrep`/`useDownloadVisitPrep` in `services/export.ts`, barrel-exported; `QuestionItem` type extended with the new categories and provenance fields. Existing ExportPage test selector `/generate|create/i` became ambiguous with the new button; narrowed to `/generate summary/i` (selector fix only).
+- **Tests**: backend `tests/test_export_questions.py` (HC-QGN-001..013: each source, provenance fields, unverified exclusion, near/past-due window, done/ignored skipped, task-entity dedup, interrogative/no-advice invariant, dataclass + 2-arg backward compatibility, route + audit) and `tests/test_visit_prep_packet.py` (HC-PKT-001..016: section assembly, excluded-vs-empty sections, ISO dates survive strict redaction, unverified-exclusion policy, seeded phone+MRN redacted in module output and through the route/download, confirm-required 400, include flags, audit rows on generate and download, markdown/html download flow, 403 cross-profile, 404 unknown packet); frontend `VisitPrepService.test.tsx` (contract tests for the new service functions).
+- **Verification**: backend `pytest` 840 passed / 1 known env-only embedding failure (baseline 811 + 29 new); `npx tsc --noEmit` → exit 0 (unchanged); `npx vitest run` → 121/121 (baseline 117 + 4 new); `from main import app` boots.
+
+### 2026-07-13 - HC-M20 Pinboards (HC-PIN)
+
+- **Schema**: new per-profile `pinboard` and `pinboard_item` models store named user collections and polymorphic references (`document|observation|care_task|question` + item UUID). Profile migration `012_pinboards` is linear on exact revision ID `011_care_plan_tasks`, cascades board deletion to its items, and enforces uniqueness per `(pinboard_id, item_type, item_id)`.
+- **API** (`api/pinboards.py`, prefix `/pinboards`): create/list/rename/delete boards and add/list/remove items, all through `ProfileDbSession`; every successful route writes a fail-closed master audit row through `log_pinboard_event` without copying user-authored board names into the master DB. Targets are checked in the active profile DB before insertion; duplicate adds (including unique-constraint races) return 409. Derived HC-M17 questions pin their verified observation/entity or accepted care-task source UUID because questions have no standalone persistence table.
+- **Focused export**: `POST /pinboards/{id}/export` requires `confirm=true`, selects only pinned content, excludes unverified observations/entities, and calls the existing `ExportModule.compose_visit_prep_packet` rather than creating a second composer. The shared composer gained only a packet-title parameter; strict `RedactionEngine` processing, verified-only footer, packet storage, and existing visit-prep download formats remain shared.
+- **Frontend**: new `/pinboards` page and sidebar entry support board CRUD, item removal, board-scoped explicit-confirm packet generation, and download; switching boards clears confirmation and hides any prior board's packet. `services/pinboards.ts` exposes direct functions and React Query hooks through the barrel. Document Inbox rows and pinnable Timeline rows have small add-to-pinboard menus; grouped lab events add their referenced observations, while medication events remain outside HC-M20's item types.
+- **Tests**: backend `tests/test_pinboards.py` (HC-PIN-001..007: CRUD, item add/list/remove/dedup, audit events/content boundary, confirm-required export, unverified exclusion, strict-redaction invocation, exact migration parent/unique key, concurrent dedup conflict); frontend `PinboardsService.test.tsx` (FE-PIN-API-001..004) and `PinboardsPage.test.tsx` (FE-PIN-PAGE-001 board-scoped confirmation/download). The frontend setup now installs its localStorage shim before importing persisted Zustand stores, preserving the existing cleanup behavior under Node 25+.
+- **Verification**: backend full suite 907 passed / 1 known env-only embedding-similarity failure (run with the preinstalled uvloop policy because this sandbox's default selector hangs on `aiosqlite` thread wakeups); `npx tsc --noEmit` exits 0; `npx vitest run` 133/133; `from main import app` boots. Playwright skipped because browsers are not provisioned in this environment.
+
+### 2026-07-16 - Phase C Adversarial-Review Fixes
+
+- **Search privacy and provenance**: search category filters now accept only the canonical document categories before profile search or master-DB auditing; provider metadata is sourced only from explicitly verified provider entities. Tests HC-SRCH-013/014.
+- **Verified-only packet inputs**: pinboard source-document export excludes documents not marked verified, and visit-prep questions cannot fetch visit-note entities when visits are excluded. Tests HC-PIN-008 and HC-PKT-021.
+- **Pin lifecycle**: document deletion and reprocessing remove pins for targets deleted in the same profile-DB transaction; listing and export defensively prune missing polymorphic targets. Tests HC-PIN-009..012.
+- **Curated normal labs**: pinboard packets render all explicitly selected verified observations, including normal results, under a selected-results heading; ordinary visit-prep packets retain abnormal-only behavior. Test HC-PIN-013.
+- **LIKE fallback safety**: whitespace-only route queries are rejected, tokenless queries return no results, query/provider LIKE values are escaped, and multi-token fallback queries preserve FTS-style AND semantics. Tests HC-SRCH-015..018.
+- **Multi-file duplicate warnings**: Document Inbox accumulates duplicate notices per imported file and lets each notice be dismissed independently while retaining the latest-import action card. Test FE-HC-DUP-002.
+- **Constraints preserved**: no migrations or schema changes, no protected safety/auth/encryption modules changed, no network or LLM paths added, and all touched routes retain their existing master audit behavior.

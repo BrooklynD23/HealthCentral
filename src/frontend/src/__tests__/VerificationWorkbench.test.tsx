@@ -157,6 +157,18 @@ describe('VerificationWorkbench', () => {
         expect(screen.getByText(/2 items need review/i)).toBeInTheDocument();
       });
     });
+
+    it('HC-CONF-003: shows extraction confidence percentage and preserves 0.0', async () => {
+      vi.mocked(api.apiGet).mockImplementation(defaultApiGetMock([
+        { ...mockObservations[0], extraction_confidence: 0.0 },
+      ]));
+
+      renderWithProviders(<VerificationWorkbench />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/0%.*low extraction confidence/i)).toBeInTheDocument();
+      });
+    });
   });
 
   describe('FE-VERIFY-002: test_verify_updates_list', () => {

@@ -1,0 +1,158 @@
+{
+  "description": "Golden set for HC-M13 after-visit / discharge extraction. Fictional patients only. Matching semantics: 'visit_type' expected values must EQUAL the extracted entity_value; all other types match when the expected 'match' string is a case-insensitive substring of the extracted entity_value. Every entity of an evaluated type that a careful human reader would extract is labeled here; unlabeled extractions of evaluated types count as false positives.",
+  "evaluated_types": [
+    "visit_type",
+    "medication_change",
+    "test_ordered",
+    "referral",
+    "follow_up_instruction",
+    "warning_sign",
+    "facility"
+  ],
+  "fixtures": [
+    {
+      "file": "avs_01.txt",
+      "expected": [
+        {"entity_type": "visit_type", "match": "after_visit_summary"},
+        {"entity_type": "facility", "match": "Maple Grove Family Medicine, Suite 210"},
+        {"entity_type": "medication_change", "match": "start lisinopril 10 mg"},
+        {"entity_type": "medication_change", "match": "continue amlodipine 5 mg"},
+        {"entity_type": "test_ordered", "match": "basic metabolic panel"},
+        {"entity_type": "follow_up_instruction", "match": "4 weeks"},
+        {"entity_type": "warning_sign", "match": "headache"}
+      ]
+    },
+    {
+      "file": "avs_02.txt",
+      "expected": [
+        {"entity_type": "visit_type", "match": "after_visit_summary"},
+        {"entity_type": "facility", "match": "Lakeside Endocrinology Clinic"},
+        {"entity_type": "medication_change", "match": "increase metformin to 1000 mg"},
+        {"entity_type": "test_ordered", "match": "hemoglobin a1c"},
+        {"entity_type": "referral", "match": "ophthalmology"},
+        {"entity_type": "follow_up_instruction", "match": "diabetes educator"},
+        {"entity_type": "follow_up_instruction", "match": "3 months"},
+        {"entity_type": "warning_sign", "match": "below 70"}
+      ]
+    },
+    {
+      "file": "avs_03.txt",
+      "expected": [
+        {"entity_type": "visit_type", "match": "after_visit_summary"},
+        {"entity_type": "medication_change", "match": "cough syrup"},
+        {"entity_type": "medication_change", "match": "start benzonatate 100 mg"},
+        {"entity_type": "test_ordered", "match": "chest x-ray"},
+        {"entity_type": "follow_up_instruction", "match": "PCP"},
+        {"entity_type": "warning_sign", "match": "trouble breathing"}
+      ]
+    },
+    {
+      "file": "avs_04.txt",
+      "expected": [
+        {"entity_type": "visit_type", "match": "after_visit_summary"},
+        {"entity_type": "medication_change", "match": "multivitamin"},
+        {"entity_type": "test_ordered", "match": "lipid panel"},
+        {"entity_type": "test_ordered", "match": "mammogram"},
+        {"entity_type": "follow_up_instruction", "match": "1 year"}
+      ]
+    },
+    {
+      "file": "avs_05.txt",
+      "expected": [
+        {"entity_type": "visit_type", "match": "after_visit_summary"},
+        {"entity_type": "medication_change", "match": "start naproxen 500 mg"},
+        {"entity_type": "referral", "match": "orthopedics"},
+        {"entity_type": "follow_up_instruction", "match": "6 weeks"}
+      ]
+    },
+    {
+      "file": "avs_06.txt",
+      "expected": [
+        {"entity_type": "visit_type", "match": "after_visit_summary"},
+        {"entity_type": "medication_change", "match": "start naproxen 250 mg"},
+        {"entity_type": "follow_up_instruction", "match": "6 weeks"}
+      ]
+    },
+    {
+      "file": "discharge_01.txt",
+      "expected": [
+        {"entity_type": "visit_type", "match": "discharge"},
+        {"entity_type": "facility", "match": "St. Anne Regional Medical Center"},
+        {"entity_type": "medication_change", "match": "start amoxicillin-clavulanate 875 mg"},
+        {"entity_type": "medication_change", "match": "stop azithromycin"},
+        {"entity_type": "medication_change", "match": "continue home medications"},
+        {"entity_type": "test_ordered", "match": "chest x-ray"},
+        {"entity_type": "follow_up_instruction", "match": "1 week"},
+        {"entity_type": "warning_sign", "match": "fever over 101"},
+        {"entity_type": "warning_sign", "match": "chest pain"}
+      ]
+    },
+    {
+      "file": "discharge_02.txt",
+      "expected": [
+        {"entity_type": "visit_type", "match": "discharge"},
+        {"entity_type": "facility", "match": "Riverbend Heart Institute"},
+        {"entity_type": "medication_change", "match": "increase furosemide to 40 mg"},
+        {"entity_type": "medication_change", "match": "decrease metoprolol to 25 mg"},
+        {"entity_type": "medication_change", "match": "change to losartan 50 mg"},
+        {"entity_type": "test_ordered", "match": "basic metabolic panel"},
+        {"entity_type": "referral", "match": "cardiology"},
+        {"entity_type": "follow_up_instruction", "match": "10 days"},
+        {"entity_type": "warning_sign", "match": "3 pounds"},
+        {"entity_type": "warning_sign", "match": "shortness of breath at rest"}
+      ]
+    },
+    {
+      "file": "discharge_03.txt",
+      "expected": [
+        {"entity_type": "visit_type", "match": "discharge"},
+        {"entity_type": "facility", "match": "Cedar Valley Surgery Center"},
+        {"entity_type": "medication_change", "match": "continue ibuprofen 600 mg"},
+        {"entity_type": "medication_change", "match": "start regular blood pressure medication"},
+        {"entity_type": "follow_up_instruction", "match": "2 weeks"},
+        {"entity_type": "warning_sign", "match": "redness"},
+        {"entity_type": "warning_sign", "match": "fever above 101.5"}
+      ]
+    },
+    {
+      "file": "discharge_04.txt",
+      "expected": [
+        {"entity_type": "visit_type", "match": "discharge"},
+        {"entity_type": "facility", "match": "Harborview Community Hospital"},
+        {"entity_type": "medication_change", "match": "start apixaban 5 mg"},
+        {"entity_type": "medication_change", "match": "stop warfarin"},
+        {"entity_type": "medication_change", "match": "increase atorvastatin to 40 mg nightly"},
+        {"entity_type": "medication_change", "match": "continue metformin 1000 mg"},
+        {"entity_type": "test_ordered", "match": "CBC"},
+        {"entity_type": "warning_sign", "match": "stroke"}
+      ]
+    },
+    {
+      "file": "consult_01.txt",
+      "expected": [
+        {"entity_type": "visit_type", "match": "consult"},
+        {"entity_type": "medication_change", "match": "continue low-dose aspirin 81 mg"},
+        {"entity_type": "test_ordered", "match": "echocardiogram"},
+        {"entity_type": "referral", "match": "electrophysiology"},
+        {"entity_type": "follow_up_instruction", "match": "6 weeks"}
+      ]
+    },
+    {
+      "file": "progress_01.txt",
+      "expected": [
+        {"entity_type": "visit_type", "match": "progress"},
+        {"entity_type": "test_ordered", "match": "TSH"},
+        {"entity_type": "follow_up_instruction", "match": "3 months"}
+      ]
+    },
+    {
+      "file": "adversarial_injection.txt",
+      "expected": [
+        {"entity_type": "visit_type", "match": "after_visit_summary"},
+        {"entity_type": "medication_change", "match": "start sertraline 50 mg"},
+        {"entity_type": "follow_up_instruction", "match": "8 weeks"},
+        {"entity_type": "warning_sign", "match": "self-harm"}
+      ]
+    }
+  ]
+}

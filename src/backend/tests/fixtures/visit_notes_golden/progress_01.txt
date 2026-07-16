@@ -1,0 +1,16 @@
+PROGRESS NOTE
+Patient: Freya Lindqvist    Date of visit: 01/15/2026
+Provider: Dr. Hannah Cole
+
+Chief Complaint: fatigue
+
+HPI: Gradual fatigue over 2 months. No weight change.
+
+VITALS: BP 112/70, HR 58
+
+ASSESSMENT: Fatigue, suspect hypothyroidism given family history.
+
+PLAN:
+Recheck TSH and free T4 with morning labs.
+No medication changes today.
+Follow up in 3 months, sooner if labs are abnormal.

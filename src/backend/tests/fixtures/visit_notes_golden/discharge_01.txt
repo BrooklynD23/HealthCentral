@@ -1,0 +1,19 @@
+HOSPITAL DISCHARGE SUMMARY
+Facility: St. Anne Regional Medical Center
+
+Patient: Harold Kim    Admission: 02/10/2026   Discharge date: 02/14/2026
+Attending: Dr. Robert Ellis
+
+Discharge diagnoses: community-acquired pneumonia, dehydration
+
+Medication changes at discharge:
+Start amoxicillin-clavulanate 875 mg twice daily for 7 days.
+Stop azithromycin (course completed in hospital).
+Continue home medications otherwise.
+
+Repeat chest x-ray in 6 weeks to confirm the pneumonia has cleared.
+
+Follow up with Dr. Patel in 1 week.
+
+Warning signs: call your doctor if you have a fever over 101 F, worsening cough, or shortness of breath.
+Go to the emergency room if you have chest pain or severe trouble breathing.

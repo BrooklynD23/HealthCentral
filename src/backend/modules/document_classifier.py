@@ -22,7 +22,7 @@ PATHOLOGY_STRONG = re.compile(
 PATHOLOGY_SECTION = re.compile(r"\b(DIAGNOSIS|MARGINS|SPECIAL\s+STAINS|IMMUNOHISTOCHEMISTRY)\b")
 
 VISIT_STRONG = re.compile(
-    r"\b(chief\s+complaint|progress\s+note|discharge\s+summary|consult\s+note|history\s+of\s+present\s+illness)\b",
+    r"\b(chief\s+complaint|progress\s+note|discharge\s+summary|discharge\s+instructions|consult\s+note|history\s+of\s+present\s+illness|after[\-\s]visit\s+summary|(?-i:AVS)|patient\s+instructions)\b",
     re.IGNORECASE,
 )
 VISIT_SECTION = re.compile(r"\b(ASSESSMENT|PLAN|VITAL\s+SIGNS|REVIEW\s+OF\s+SYSTEMS)\b")

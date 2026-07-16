@@ -83,6 +83,10 @@ export {
   useGenerateSummary,
   useDownloadSummary,
   useGenerateQuestions,
+  useGenerateVisitPrep,
+  useDownloadVisitPrep,
+  generateVisitPrep,
+  downloadVisitPrep,
 } from './export';
 
 export type {
@@ -90,6 +94,9 @@ export type {
   SummaryResponse,
   QuestionItem,
   ExportFilters,
+  VisitPrepRequest,
+  VisitPrepResponse,
+  VisitPrepFormat,
 } from './export';
 
 // Assistant hooks
@@ -173,16 +180,108 @@ export type {
   NotificationHistoryFilters,
 } from './notifications';
 
+// Timeline hooks (HC-M14)
+export { useTimeline } from './timeline';
+
+export type {
+  TimelineEvent,
+  TimelineEventType,
+  TimelineDateSource,
+  TimelineVerificationStatus,
+  TimelineResponse,
+  TimelineFilters,
+} from './timeline';
+
+// Local cross-record search hooks (HC-M21)
+export { useSearch } from './search';
+
+export type {
+  SearchFilters,
+  SearchRecordType,
+  SearchResponse,
+  SearchResult,
+  SearchVerifiedStatus,
+} from './search';
+
 // Document category hooks
 export {
   useDocumentCategory,
   useDocumentEntities,
+  useSetEntityVerification,
+  setEntityVerification,
 } from './documentCategories';
 
 export type {
   DocumentCategoryResponse,
   DocumentEntityResponse,
+  EntityVerificationRequest,
 } from './documentCategories';
+
+// Care task hooks (HC-M15)
+export {
+  useCareTasks,
+  useCareTaskCandidates,
+  useAcceptCareTask,
+  useUpdateCareTask,
+} from './careTasks';
+
+export type {
+  CarePlanTask,
+  CareTaskCandidate,
+  CareTaskStatus,
+  AcceptCareTaskRequest,
+  CareTaskUpdateRequest,
+} from './careTasks';
+
+// Smart highlight hooks (HC-M16)
+export {
+  useDocumentHighlights,
+  useHighlightsSummary,
+  HIGHLIGHT_LABELS,
+} from './highlights';
+
+export type {
+  Highlight,
+  HighlightType,
+  DocumentHighlightSummary,
+} from './highlights';
+
+// Medication reconciliation hooks (HC-M19)
+export { useMedReconciliation } from './medReconcile';
+
+export type {
+  MedReconcileSuggestion,
+  MedReconcileSuggestionType,
+} from './medReconcile';
+
+// User-curated record collections (HC-M20)
+export {
+  listPinboards,
+  createPinboard,
+  renamePinboard,
+  deletePinboard,
+  listPinboardItems,
+  addPinboardItem,
+  removePinboardItem,
+  exportPinboard,
+  usePinboards,
+  usePinboardItems,
+  useCreatePinboard,
+  useRenamePinboard,
+  useDeletePinboard,
+  useAddPinboardItem,
+  useRemovePinboardItem,
+  useExportPinboard,
+} from './pinboards';
+
+export type {
+  Pinboard,
+  PinboardItem,
+  PinboardItemType,
+  AddPinboardItemRequest,
+  PinboardExportRequest,
+  PinboardExportResponse,
+} from './pinboards';
 
 // Memory store hooks (ASSIST-MEM-001/002)
 export {

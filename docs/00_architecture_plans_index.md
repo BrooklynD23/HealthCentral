@@ -1,6 +1,6 @@
 # HealthCentral Documentation Index (Current)
 
-**Last Updated:** 2026-05-15
+**Last Updated:** 2026-07-09
 **Owner:** Project Lead
 **Refresh Trigger:** New doc added or doc archived
 
@@ -24,6 +24,12 @@ This index defines the canonical documentation order and marks legacy planning f
 Also see [`docs/roles/00_roles_index.md`](roles/00_roles_index.md) for a domain-based ("which doc for
 X") entry point, and [`docs/plans/implementation-log/`](plans/implementation-log/) for point-in-time
 implementation notes (formerly the top-level `implementation_plan/` directory).
+
+## Generated Navigation (Advisory — Not Authoritative)
+
+- [`openwiki/README.md`](../openwiki/README.md) — OpenWiki-generated repo map for coding agents
+  (code location, file relationships). Advisory only: if it conflicts with this index, `CLAUDE.md`,
+  `AGENT.md`, or `docs/roles/00_roles_index.md`, the hand-maintained docs win.
 
 ## Planning (Current)
 

@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import re
 
+from modules.extract_spans import with_span
+
 
 MODALITY_PATTERN = re.compile(
     r"\b(MRI|CT\s*scan|CT|X[\-\s]?ray|ultrasound|radiograph|fluoroscopy|mammograph|PET\s*scan|PET/CT)\b",
@@ -34,76 +36,76 @@ def extract_imaging_entities(text: str) -> list[dict]:
     """
     entities: list[dict] = []
 
-    modalities = MODALITY_PATTERN.findall(text)
-    if modalities:
-        entities.append({
+    modality = MODALITY_PATTERN.search(text)
+    if modality:
+        entities.append(with_span({
             "entity_type": "modality",
-            "entity_value": modalities[0].strip(),
+            "entity_value": modality.group(1).strip(),
             "confidence": 0.95,
             "source_page": None,
-        })
+        }, text, modality))
 
-    regions = BODY_REGION_PATTERN.findall(text)
-    if regions:
-        entities.append({
+    region = BODY_REGION_PATTERN.search(text)
+    if region:
+        entities.append(with_span({
             "entity_type": "body_region",
-            "entity_value": regions[0].strip().lower(),
+            "entity_value": region.group(1).strip().lower(),
             "confidence": 0.9,
             "source_page": None,
-        })
+        }, text, region))
 
     findings = FINDINGS_PATTERN.search(text)
     if findings:
-        entities.append({
+        entities.append(with_span({
             "entity_type": "finding",
             "entity_value": findings.group(1).strip()[:500],
             "confidence": 0.85,
             "source_page": None,
-        })
+        }, text, findings))
 
     impression = IMPRESSION_PATTERN.search(text)
     if impression:
-        entities.append({
+        entities.append(with_span({
             "entity_type": "impression",
             "entity_value": impression.group(1).strip()[:500],
             "confidence": 0.85,
             "source_page": None,
-        })
+        }, text, impression))
 
     laterality = LATERALITY_PATTERN.search(text)
     if laterality:
-        entities.append({
+        entities.append(with_span({
             "entity_type": "laterality",
             "entity_value": laterality.group(1).lower(),
             "confidence": 0.9,
             "source_page": None,
-        })
+        }, text, laterality))
 
     contrast = CONTRAST_PATTERN.search(text)
     if contrast:
-        entities.append({
+        entities.append(with_span({
             "entity_type": "contrast_used",
             "entity_value": contrast.group(1).strip().lower(),
             "confidence": 0.9,
             "source_page": None,
-        })
+        }, text, contrast))
 
     provider = ORDERING_PROVIDER_PATTERN.search(text)
     if provider:
-        entities.append({
+        entities.append(with_span({
             "entity_type": "ordering_provider",
             "entity_value": provider.group(1).strip(),
             "confidence": 0.8,
             "source_page": None,
-        })
+        }, text, provider))
 
     report_date = REPORT_DATE_PATTERN.search(text)
     if report_date:
-        entities.append({
+        entities.append(with_span({
             "entity_type": "report_date",
             "entity_value": report_date.group(1).strip(),
             "confidence": 0.9,
             "source_page": None,
-        })
+        }, text, report_date))
 
     return entities
