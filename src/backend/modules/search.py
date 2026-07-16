@@ -24,6 +24,7 @@ from modules.highlights import derive_entity_highlights, derive_observation_high
 logger = logging.getLogger(__name__)
 
 _PROVIDER_ENTITY_TYPES = {"provider", "ordering_provider"}
+_LIKE_ESCAPE = "\\"
 
 _CREATE_RECORDS_SQL = """
 CREATE TABLE IF NOT EXISTS search_records (
@@ -181,7 +182,7 @@ async def _build_rows(db: AsyncSession, profile_id: str) -> list[dict]:
     providers_by_doc: dict[str, list[str]] = {}
     for entity in entities:
         entities_by_doc.setdefault(entity.doc_id, []).append(entity)
-        if entity.entity_type in _PROVIDER_ENTITY_TYPES and entity.verified_by_user is not False:
+        if entity.entity_type in _PROVIDER_ENTITY_TYPES and entity.verified_by_user is True:
             providers_by_doc.setdefault(entity.doc_id, []).append(entity.entity_value)
 
     observations_by_doc: dict[str, list[Observation]] = {}
@@ -323,8 +324,8 @@ async def refresh_search_index(
 def _filter_sql(filters: dict, params: dict) -> str:
     conditions = ["profile_id = :profile_id"]
     if filters.get("provider"):
-        conditions.append("lower(provider) LIKE :provider")
-        params["provider"] = f"%{filters['provider'].lower()}%"
+        conditions.append("lower(provider) LIKE :provider ESCAPE '\\'")
+        params["provider"] = f"%{_escape_like(filters['provider'].lower())}%"
     if filters.get("date_from"):
         conditions.append("record_date >= :date_from")
         params["date_from"] = filters["date_from"].isoformat()
@@ -338,6 +339,14 @@ def _filter_sql(filters: dict, params: dict) -> str:
         conditions.append("highlight_types LIKE :highlight_type")
         params["highlight_type"] = f"%|{filters['highlight_type']}|%"
     return " AND ".join(conditions)
+
+
+def _escape_like(value: str) -> str:
+    return (
+        value.replace(_LIKE_ESCAPE, _LIKE_ESCAPE * 2)
+        .replace("%", f"{_LIKE_ESCAPE}%")
+        .replace("_", f"{_LIKE_ESCAPE}_")
+    )
 
 
 def _fts_expression(query: str) -> Optional[str]:
@@ -367,13 +376,23 @@ async def _search_fts(db: AsyncSession, query: str, params: dict, where: str):
 
 
 async def _search_like(db: AsyncSession, query: str, params: dict, where: str):
-    params["like_query"] = f"%{query.lower()}%"
+    tokens = re.findall(r"\w+", query, flags=re.UNICODE)
+    if not tokens:
+        return []
+    token_conditions = []
+    for index, token in enumerate(tokens):
+        parameter = f"like_query_{index}"
+        params[parameter] = f"%{_escape_like(token.lower())}%"
+        token_conditions.append(
+            f"(lower(title) LIKE :{parameter} ESCAPE '\\' "
+            f"OR lower(content) LIKE :{parameter} ESCAPE '\\')"
+        )
     statement = text(
         f"""
         SELECT record_type, record_id, doc_id, title, content AS snippet,
                record_date, verified_status, category, highlight_types
         FROM search_records
-        WHERE (lower(title) LIKE :like_query OR lower(content) LIKE :like_query)
+        WHERE {' AND '.join(token_conditions)}
           AND {where}
         ORDER BY record_date DESC, row_key
         LIMIT :limit
@@ -419,6 +438,8 @@ async def search_records(
     limit: int = 50,
 ) -> list[SearchResult]:
     """Refresh and query one profile's local index with identical filters."""
+    if _fts_expression(query) is None:
+        return []
     use_fts = await ensure_search_index(db)
     use_fts = await refresh_search_index(db, profile_id, use_fts=use_fts)
     params = {"profile_id": profile_id, "limit": limit}

@@ -515,6 +515,38 @@ class TestQuestionsSectionExclusion:
         assert "Recent Abnormal Lab Results" not in response.markdown
         assert "hemoglobin_a1c" not in response.markdown
 
+    @pytest.mark.asyncio
+    async def test_hc_pkt_021_excluded_visits_do_not_feed_question_entities(
+        self, monkeypatch
+    ):
+        import api.export as export_api
+
+        _patch_fetchers(
+            monkeypatch,
+            entities=[{
+                "id": str(uuid.uuid4()),
+                "entity_type": "test_ordered",
+                "entity_value": "private visit order",
+                "quote": "private visit order",
+                "verified_by_user": True,
+            }],
+        )
+        monkeypatch.setattr("api.export.log_export_event", AsyncMock())
+
+        response = await generate_visit_prep(
+            VisitPrepRequest(
+                include_visits=False,
+                include_questions=True,
+                confirm=True,
+            ),
+            _make_session(),
+            AsyncMock(),
+            AsyncMock(),
+        )
+
+        assert "private visit order" not in response.markdown
+        export_api._fetch_question_entity_dicts.assert_not_awaited()
+
 
 # ---------------------------------------------------------------------------
 # Real profile-DB fetchers: date filtering and verified-only policy

@@ -21,7 +21,7 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, File, Query, status
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select, delete
+from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
@@ -29,7 +29,14 @@ from core.config import settings, user_ocr_preference_enabled, compute_ocr_effec
 from core.audit import log_document_event, audit_and_commit
 from core.auth import RequireAuth, Session, ProfileDbSession
 from core.document_crypto import get_decrypted_document, get_profile_encryption_key
-from models import Document, Observation, Chunk, Embedding, UserModelSettings
+from models import (
+    Chunk,
+    Document,
+    Embedding,
+    Observation,
+    PinboardItem,
+    UserModelSettings,
+)
 from modules.extract import ExtractModule
 from modules.normalize import NormalizeModule
 from modules.chunking import ChunkingModule
@@ -45,6 +52,35 @@ logger = logging.getLogger(__name__)
 
 # Shared normalizer instance
 _normalizer = NormalizeModule()
+
+
+async def _prune_document_pin_targets(
+    profile_db: AsyncSession,
+    document_id: str,
+    *,
+    include_document: bool,
+) -> None:
+    """Delete pins for targets removed with a document in the same transaction."""
+    observation_ids = select(Observation.id).where(Observation.doc_id == document_id)
+    entity_ids = select(DocumentEntity.id).where(DocumentEntity.doc_id == document_id)
+    conditions = [
+        and_(
+            PinboardItem.item_type.in_(("observation", "question")),
+            PinboardItem.item_id.in_(observation_ids),
+        ),
+        and_(
+            PinboardItem.item_type == "question",
+            PinboardItem.item_id.in_(entity_ids),
+        ),
+    ]
+    if include_document:
+        conditions.append(
+            and_(
+                PinboardItem.item_type == "document",
+                PinboardItem.item_id == document_id,
+            )
+        )
+    await profile_db.execute(delete(PinboardItem).where(or_(*conditions)))
 
 # ---------------------------------------------------------------------------
 # Page image rendering cache (F-005)
@@ -969,6 +1005,9 @@ async def reprocess_document(
     verify_document_access(document, session)
 
     # Reclassify from clean state after extraction refresh.
+    await _prune_document_pin_targets(
+        profile_db, document_id, include_document=False
+    )
     await profile_db.execute(delete(DocumentEntity).where(DocumentEntity.doc_id == document_id))
     await profile_db.execute(delete(DocumentCategory).where(DocumentCategory.doc_id == document_id))
 
@@ -990,6 +1029,9 @@ async def reprocess_document(
         pre_extracted_text=extracted_text,
         llm_assist=llm_assist,
     )
+    # Ensure target cleanup is committed even when classification returns
+    # early (for example, empty text or an unknown category).
+    await profile_db.commit()
 
     await log_document_event(
         db=master_db,
@@ -1603,6 +1645,10 @@ async def delete_document(
 
     profile_id = document.profile_id
     filename = document.source
+
+    await _prune_document_pin_targets(
+        profile_db, document_id, include_document=True
+    )
 
     # Delete document file
     vault_path = Path(settings.app_data_path) / "vaults" / profile_id / "docs"

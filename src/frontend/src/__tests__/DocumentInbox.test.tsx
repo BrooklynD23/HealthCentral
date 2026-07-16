@@ -99,4 +99,53 @@ describe('DocumentInbox Phase C warnings and confidence', () => {
     expect(screen.queryByText(/possible duplicate upload/i)).not.toBeInTheDocument();
     expect(screen.getByText(/document imported: new-copy\.pdf/i)).toBeInTheDocument();
   });
+
+  it('FE-HC-DUP-002: retains independently dismissible warnings for multi-file imports', async () => {
+    const user = userEvent.setup();
+    const importResponse = (id: string, source: string, prior: string) => ({
+      document: {
+        id,
+        profile_id: 'profile-123',
+        doc_type: 'lab_pdf',
+        source,
+        status: 'parsed',
+        page_count: 1,
+        collection_date: '2026-07-01T00:00:00',
+        imported_at: '2026-07-13T10:00:00',
+        parsed_at: '2026-07-13T10:00:01',
+        verified_at: null,
+        extraction_confidence: 0.9,
+      },
+      observations_extracted: 1,
+      needs_verification: true,
+      duplicate_warning: {
+        match_type: 'content_hash',
+        document_id: `existing-${id}`,
+        title: prior,
+      },
+    });
+    mutateAsync
+      .mockResolvedValueOnce(importResponse('new-a', 'copy-a.pdf', 'prior-a.pdf'))
+      .mockResolvedValueOnce(importResponse('new-b', 'copy-b.pdf', 'prior-b.pdf'));
+
+    render(<BrowserRouter><DocumentInbox /></BrowserRouter>);
+    await user.upload(
+      screen.getByLabelText(/upload medical documents/i),
+      [
+        new File(['%PDF-1.4 a'], 'copy-a.pdf', { type: 'application/pdf' }),
+        new File(['%PDF-1.4 b'], 'copy-b.pdf', { type: 'application/pdf' }),
+      ]
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/prior-a\.pdf/i)).toBeInTheDocument();
+      expect(screen.getByText(/prior-b\.pdf/i)).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', {
+      name: /dismiss duplicate warning for prior-a\.pdf/i,
+    }));
+    expect(screen.queryByText(/prior-a\.pdf/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/prior-b\.pdf/i)).toBeInTheDocument();
+  });
 });

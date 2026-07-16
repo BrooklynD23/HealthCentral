@@ -42,7 +42,7 @@ export function DocumentInbox() {
   const [isDragging, setIsDragging] = useState(false);
   const [previewDocId, setPreviewDocId] = useState<string | null>(null);
   const [lastImport, setLastImport] = useState<DocumentImportResponse | null>(null);
-  const [duplicateWarningDismissed, setDuplicateWarningDismissed] = useState(false);
+  const [duplicateWarnings, setDuplicateWarnings] = useState<DocumentImportResponse[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Get active profile from auth store
@@ -85,7 +85,9 @@ export function DocumentInbox() {
     try {
       const result = await importDocument.mutateAsync({ file, profileId });
       setLastImport(result);
-      setDuplicateWarningDismissed(false);
+      if (result.duplicate_warning) {
+        setDuplicateWarnings((current) => [...current, result]);
+      }
     } catch (err) {
       console.error('Failed to import document:', err);
     }
@@ -269,19 +271,23 @@ export function DocumentInbox() {
         </Card>
       )}
 
-      {lastImport?.duplicate_warning && !duplicateWarningDismissed && (
-        <Card className="border-status-caution/30 bg-status-caution/5" role="status">
+      {duplicateWarnings.map((importResult) => (
+        <Card
+          key={importResult.document.id}
+          className="border-status-caution/30 bg-status-caution/5"
+          role="status"
+        >
           <CardContent className="py-4 flex items-start justify-between gap-3">
             <div className="flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-status-caution shrink-0 mt-0.5" />
               <div>
                 <p className="font-medium text-ink">Possible duplicate upload</p>
                 <p className="text-sm text-ink-secondary mt-1">
-                  {lastImport.duplicate_warning.match_type === 'content_hash'
+                  {importResult.duplicate_warning?.match_type === 'content_hash'
                     ? 'This file has the same content as'
                     : 'This document has the same recorded date as'}{' '}
                   <span className="font-medium">
-                    {lastImport.duplicate_warning.title || 'an existing document'}
+                    {importResult.duplicate_warning?.title || 'an existing document'}
                   </span>
                   . The new upload was still imported; review both records if needed.
                 </p>
@@ -291,14 +297,18 @@ export function DocumentInbox() {
               type="button"
               variant="ghost"
               size="icon"
-              aria-label="Dismiss duplicate warning"
-              onClick={() => setDuplicateWarningDismissed(true)}
+              aria-label={`Dismiss duplicate warning for ${
+                importResult.duplicate_warning?.title || importResult.document.source || 'document'
+              }`}
+              onClick={() => setDuplicateWarnings((current) =>
+                current.filter((warning) => warning.document.id !== importResult.document.id)
+              )}
             >
               <X className="w-4 h-4" />
             </Button>
           </CardContent>
         </Card>
-      )}
+      ))}
 
       <Card>
         <CardHeader>

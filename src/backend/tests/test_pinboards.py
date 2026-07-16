@@ -9,12 +9,16 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import pytest_asyncio
 from fastapi import HTTPException
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.auth import Session
 from core.time import utcnow
+from core.profile_database import ProfileDatabaseBase
 
 
 def _session(profile_id: str = "test-profile") -> Session:
@@ -70,6 +74,21 @@ def _item(pinboard_id: str, **overrides):
     }
     fields.update(overrides)
     return PinboardItem(**fields)
+
+
+@pytest_asyncio.fixture
+async def real_profile_db():
+    from models import Pinboard, PinboardItem  # noqa: F401 -- register tables
+
+    engine = create_async_engine("sqlite+aiosqlite://")
+    async with engine.begin() as connection:
+        await connection.run_sync(ProfileDatabaseBase.metadata.create_all)
+    session = AsyncSession(engine, expire_on_commit=False)
+    try:
+        yield session
+    finally:
+        await session.close()
+        await engine.dispose()
 
 
 @pytest.mark.asyncio
@@ -142,6 +161,10 @@ async def test_hc_pin_002_add_list_remove_and_duplicate_conflict(monkeypatch):
     ]
     audit = AsyncMock()
     monkeypatch.setattr("api.pinboards.log_pinboard_event", audit)
+    monkeypatch.setattr(
+        "api.pinboards._prune_stale_items",
+        AsyncMock(side_effect=lambda _db, items, _profile_id: items),
+    )
     master_db = AsyncMock()
 
     added = await add_pinboard_item(
@@ -223,6 +246,10 @@ async def test_hc_pin_005_export_excludes_unverified_and_invokes_existing_redact
     monkeypatch.setattr(RedactionEngine, "redact", tracked)
     audit = AsyncMock()
     monkeypatch.setattr("api.pinboards.log_pinboard_event", audit)
+    monkeypatch.setattr(
+        "api.pinboards._prune_stale_items",
+        AsyncMock(side_effect=lambda _db, current_items, _profile_id: current_items),
+    )
 
     response = await export_pinboard_packet(
         board.id,
@@ -269,3 +296,155 @@ async def test_hc_pin_007_unique_constraint_race_returns_conflict(monkeypatch):
         )
     assert exc.value.status_code == 409
     profile_db.rollback.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_hc_pin_008_export_excludes_unverified_source_documents(monkeypatch):
+    from api.pinboards import PinboardExportRequest, export_pinboard_packet
+
+    board = _pinboard()
+    verified_id = str(uuid.uuid4())
+    unverified_id = str(uuid.uuid4())
+    items = [
+        _item(board.id, item_id=verified_id),
+        _item(board.id, item_id=unverified_id),
+    ]
+    verified = type("Document", (), {
+        "id": verified_id,
+        "source": "verified-record.pdf",
+        "collection_date": datetime(2026, 6, 1, tzinfo=timezone.utc),
+        "status": "verified",
+    })()
+    unverified = type("Document", (), {
+        "id": unverified_id,
+        "source": "unverified-private-record.pdf",
+        "collection_date": datetime(2026, 6, 2, tzinfo=timezone.utc),
+        "status": "parsed",
+    })()
+    profile_db = AsyncMock()
+    profile_db.execute.side_effect = [
+        _Result(one=board),
+        _Result(items=items),
+        _Result(items=[verified, unverified]),
+    ]
+    monkeypatch.setattr("api.pinboards.log_pinboard_event", AsyncMock())
+    monkeypatch.setattr(
+        "api.pinboards._prune_stale_items",
+        AsyncMock(side_effect=lambda _db, current_items, _profile_id: current_items),
+    )
+
+    response = await export_pinboard_packet(
+        board.id,
+        PinboardExportRequest(confirm=True),
+        _session(),
+        profile_db,
+        AsyncMock(),
+    )
+
+    assert "verified-record.pdf" in response.markdown
+    assert "unverified-private-record.pdf" not in response.markdown
+
+
+@pytest.mark.asyncio
+async def test_hc_pin_009_list_prunes_stale_polymorphic_targets(
+    real_profile_db, monkeypatch
+):
+    from api.pinboards import list_pinboard_items
+    from models import PinboardItem
+
+    board = _pinboard()
+    stale = _item(board.id, item_type="observation", item_id=str(uuid.uuid4()))
+    real_profile_db.add_all([board, stale])
+    await real_profile_db.commit()
+    monkeypatch.setattr("api.pinboards.log_pinboard_event", AsyncMock())
+
+    response = await list_pinboard_items(
+        board.id, _session(), real_profile_db, AsyncMock()
+    )
+
+    assert response == []
+    remaining = await real_profile_db.execute(
+        select(PinboardItem).where(PinboardItem.id == stale.id)
+    )
+    assert remaining.scalar_one_or_none() is None
+
+
+@pytest.mark.asyncio
+async def test_hc_pin_010_export_skips_and_prunes_stale_targets(
+    real_profile_db, monkeypatch
+):
+    from api.pinboards import PinboardExportRequest, export_pinboard_packet
+    from models import PinboardItem
+
+    board = _pinboard()
+    stale = _item(board.id, item_type="document", item_id=str(uuid.uuid4()))
+    real_profile_db.add_all([board, stale])
+    await real_profile_db.commit()
+    monkeypatch.setattr("api.pinboards.log_pinboard_event", AsyncMock())
+
+    response = await export_pinboard_packet(
+        board.id,
+        PinboardExportRequest(confirm=True),
+        _session(),
+        real_profile_db,
+        AsyncMock(),
+    )
+
+    assert "Source Documents" not in response.section_titles
+    remaining = await real_profile_db.execute(
+        select(PinboardItem).where(PinboardItem.id == stale.id)
+    )
+    assert remaining.scalar_one_or_none() is None
+
+
+@pytest.mark.asyncio
+async def test_hc_pin_013_export_renders_selected_verified_normal_observation(
+    monkeypatch,
+):
+    from api.pinboards import PinboardExportRequest, export_pinboard_packet
+
+    board = _pinboard()
+    observation_id = str(uuid.uuid4())
+    items = [
+        _item(
+            board.id,
+            item_type="observation",
+            item_id=observation_id,
+        )
+    ]
+    normal = type("Observation", (), {
+        "id": observation_id,
+        "analyte_canonical": "sodium",
+        "analyte_raw": "Sodium",
+        "value": 140.0,
+        "value_text": None,
+        "unit": "mmol/L",
+        "ref_low": 135.0,
+        "ref_high": 145.0,
+        "flag": None,
+        "is_abnormal": False,
+        "user_verified": True,
+        "collected_at": datetime(2026, 6, 1, tzinfo=timezone.utc),
+    })()
+    profile_db = AsyncMock()
+    profile_db.execute.side_effect = [
+        _Result(one=board),
+        _Result(items=items),
+        _Result(items=[normal]),
+    ]
+    monkeypatch.setattr("api.pinboards.log_pinboard_event", AsyncMock())
+    monkeypatch.setattr(
+        "api.pinboards._prune_stale_items",
+        AsyncMock(side_effect=lambda _db, current_items, _profile_id: current_items),
+    )
+
+    response = await export_pinboard_packet(
+        board.id,
+        PinboardExportRequest(confirm=True),
+        _session(),
+        profile_db,
+        AsyncMock(),
+    )
+
+    assert "Selected Lab Results (verified)" in response.section_titles
+    assert "sodium: 140.0 mmol/L" in response.markdown
