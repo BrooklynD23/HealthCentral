@@ -740,7 +740,8 @@ async def generate_visit_prep(
         # Packet policy: unverified data is excluded — questions inside the
         # packet only draw on verified observations (and verified entities,
         # which generate_questions enforces itself). Content the user has
-        # excluded from the packet (include_labs=False / include_tasks=False)
+        # excluded from the packet (include_labs=False / include_tasks=False /
+        # include_visits=False)
         # must not resurface as question inputs either.
         verified_observations = (
             [o for o in fetched_observations if o.get("user_verified")]
@@ -748,11 +749,16 @@ async def generate_visit_prep(
             else []
         )
         questions_care_tasks = care_tasks if request.include_tasks else []
+        question_entities = (
+            await _fetch_question_entity_dicts(profile_db)
+            if request.include_visits
+            else []
+        )
         questions = export_module.generate_questions(
             observations=verified_observations,
             trends=_compute_trends(verified_observations),
             care_tasks=questions_care_tasks,
-            entities=await _fetch_question_entity_dicts(profile_db),
+            entities=question_entities,
         )
 
     selected_documents = (
