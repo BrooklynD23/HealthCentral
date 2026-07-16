@@ -428,11 +428,16 @@ class ExportModule:
                     source_id=trend["analyte"],
                 ))
 
-        # Questions from accepted care-plan tasks (HC-M17).
+        # Questions from accepted care-plan tasks (HC-M17). Entity ids go
+        # stale when a reprocess recreates the same extraction under a new
+        # UUID, so dedupe also keys on the verbatim source quote.
         task_entity_ids = set()
+        task_quotes = set()
         for task in care_tasks or []:
             if task.get("source_entity_id"):
                 task_entity_ids.add(task["source_entity_id"])
+            if task.get("source_quote"):
+                task_quotes.add(task["source_quote"])
             status = task.get("status")
             quote = task.get("source_quote") or task.get("title", "")
             if status == "needs_review":
@@ -465,6 +470,8 @@ class ExportModule:
             if ent.get("verified_by_user") is not True:
                 continue
             if ent.get("id") in task_entity_ids:
+                continue
+            if ent.get("quote") and ent.get("quote") in task_quotes:
                 continue
             entity_type = ent.get("entity_type")
             value = ent.get("entity_value", "")

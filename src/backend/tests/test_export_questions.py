@@ -189,6 +189,26 @@ class TestQuestionSources:
         assert len(questions) == 1
         assert questions[0].source_kind == "care_task"
 
+    def test_hc_qgn_014_task_quote_dedupes_entity_recreated_with_new_id(self, export_module):
+        """A reprocess deletes and recreates entities under new UUIDs, so a
+        task's source_entity_id can go stale. The shared verbatim quote must
+        still prevent a duplicate question for the same instruction."""
+        ent = _entity(
+            entity_type="test_ordered",
+            entity_value="CBC",
+            quote="Repeat CBC in 4 weeks",
+        )
+        task = _task(
+            status="needs_review",
+            source_quote="Repeat CBC in 4 weeks",
+            source_entity_id=str(uuid.uuid4()),  # stale pre-reprocess entity id
+        )
+        questions = export_module.generate_questions(
+            observations=[], trends=[], care_tasks=[task], entities=[ent], today=TODAY
+        )
+        assert len(questions) == 1
+        assert questions[0].source_kind == "care_task"
+
 
 class TestInterrogativeInvariant:
     def test_hc_qgn_009_all_questions_interrogative_and_advice_free(self, export_module):
