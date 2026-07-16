@@ -1,7 +1,7 @@
 # HealthCentral Remaining Work Task List
 
 **Version:** 0.5.0
-**Last Updated:** 2026-07-02
+**Last Updated:** 2026-07-09
 **Owner:** Project Lead
 **Refresh Trigger:** Task completed or new task identified
 **Scope:** Active remaining work only (implementation baseline already shipped)
@@ -318,6 +318,24 @@ no migrations. Done TDD-first (`tests/test_timeline.py`, HC-TML-001..005).
 - **Verification**: backend 734 passed / 1 known env-only embedding failure
   (unchanged baseline); `npx tsc --noEmit` clean; `npx vitest run` 108/108;
   `from main import app` OK.
+
+### 2026-07-09 - OpenWiki integration scaffolding (docs only)
+
+Evaluated OpenWiki (LangChain's generated-repo-docs CLI) as a navigation layer for coding agents
+and subordinated it to the existing doc hierarchy before any generation runs (branch
+`claude/openwiki-integration-ftskdr`). Decision: adopt as advisory navigation only — never as
+authority over safety/privacy/medical/compliance/architecture docs.
+
+- `CLAUDE.md`: new "OpenWiki usage" section — generated docs are for locating code/tracing
+  dependencies; hand-maintained docs win on conflict.
+- `AGENT.md`: added `openwiki/` to the layout section with the same advisory framing.
+- `openwiki/README.md` (new, hand-maintained): authority order, generation commands
+  (`openwiki --init` / `--update` — needs an LLM API key, so run locally), pre-commit review rules
+  for generated output (reject anything weakening CLAUDE.md hard invariants), and the CI decision:
+  auto-update workflow deferred until one manual generate/review/merge cycle; PRs only, no auto-merge.
+- `docs/00_architecture_plans_index.md`: "Generated Navigation (Advisory)" section linking it.
+
+No product code touched. Wiki content itself is not yet generated.
 
 ### 2026-07-03 - NORM-UNIT-001 Implemented (cross-lab unit normalization)
 
