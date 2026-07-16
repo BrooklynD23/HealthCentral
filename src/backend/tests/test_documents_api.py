@@ -441,3 +441,91 @@ async def test_hc_documents_102_list_documents_creates_view_audit_log(monkeypatc
     audit_log = master_db.added[0]
     assert audit_log.event_type == "document.view"
     assert audit_log.profile_id == profile_id
+
+
+def _pin_cleanup_document(profile_id: str, *, doc_type: str = "visit_note_pdf") -> Document:
+    return Document(
+        id=str(uuid.uuid4()),
+        profile_id=profile_id,
+        path_hash="d" * 64,
+        content_hash="e" * 64,
+        doc_type=doc_type,
+        source="cleanup.pdf",
+        status="parsed",
+        page_count=1,
+        metadata_json="{}",
+        imported_at=datetime.utcnow(),
+    )
+
+
+@pytest.mark.asyncio
+async def test_HC_PIN_011_document_delete_prunes_pin_targets_before_commit(
+    monkeypatch,
+):
+    profile_id = str(uuid.uuid4())
+    document = _pin_cleanup_document(profile_id)
+    profile_db = AsyncMock()
+    profile_db.execute.return_value = _ScalarResult(one=document)
+    cleanup = AsyncMock()
+    monkeypatch.setattr(documents_api, "_prune_document_pin_targets", cleanup)
+    monkeypatch.setattr(documents_api, "log_document_event", AsyncMock())
+
+    await documents_api.delete_document(
+        document.id,
+        Session(
+            profile_id=profile_id,
+            profile_name="Test Profile",
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        ),
+        profile_db,
+        AsyncMock(),
+    )
+
+    cleanup.assert_awaited_once_with(
+        profile_db, document.id, include_document=True
+    )
+    profile_db.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_HC_PIN_012_reprocess_prunes_recreated_targets_before_extraction(
+    monkeypatch,
+):
+    profile_id = str(uuid.uuid4())
+    document = _pin_cleanup_document(profile_id)
+    profile_db = AsyncMock()
+    profile_db.execute.return_value = _ScalarResult(one=document)
+    call_order = []
+
+    async def cleanup(*_args, **_kwargs):
+        call_order.append("cleanup")
+
+    async def pipeline(**_kwargs):
+        call_order.append("pipeline")
+        return {
+            "observations_extracted": 0,
+            "needs_verification": True,
+            "extracted_text": "",
+        }
+
+    monkeypatch.setattr(documents_api, "_prune_document_pin_targets", cleanup)
+    monkeypatch.setattr(documents_api, "_run_extraction_pipeline", pipeline)
+    monkeypatch.setattr(
+        documents_api, "_classify_and_extract_entities", AsyncMock()
+    )
+    monkeypatch.setattr(documents_api, "log_document_event", AsyncMock())
+
+    await documents_api.reprocess_document(
+        document.id,
+        Session(
+            profile_id=profile_id,
+            profile_name="Test Profile",
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        ),
+        False,
+        profile_db,
+        AsyncMock(),
+    )
+
+    assert call_order == ["cleanup", "pipeline"]
+    profile_db.commit.assert_awaited_once()

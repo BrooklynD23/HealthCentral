@@ -147,6 +147,57 @@ async def _validate_item_target(
     raise HTTPException(status_code=404, detail="Verified question source not found")
 
 
+async def _prune_stale_items(
+    profile_db: AsyncSession,
+    items: list[PinboardItem],
+    profile_id: str,
+) -> list[PinboardItem]:
+    """Remove polymorphic pins whose profile-scoped target no longer exists."""
+    ids_by_type = {
+        item_type: {item.item_id for item in items if item.item_type == item_type}
+        for item_type in ("document", "observation", "care_task", "question")
+    }
+
+    async def existing_ids(model, ids: set[str], *conditions) -> set[str]:
+        if not ids:
+            return set()
+        result = await profile_db.execute(
+            select(model.id).where(model.id.in_(ids), *conditions)
+        )
+        return set(result.scalars().all())
+
+    valid_by_type = {
+        "document": await existing_ids(
+            Document, ids_by_type["document"], Document.profile_id == profile_id
+        ),
+        "observation": await existing_ids(
+            Observation,
+            ids_by_type["observation"],
+            Observation.profile_id == profile_id,
+        ),
+        "care_task": await existing_ids(CarePlanTask, ids_by_type["care_task"]),
+    }
+    question_ids = ids_by_type["question"]
+    valid_by_type["question"] = set().union(
+        await existing_ids(
+            Observation, question_ids, Observation.profile_id == profile_id
+        ),
+        await existing_ids(CarePlanTask, question_ids),
+        await existing_ids(DocumentEntity, question_ids),
+    )
+
+    valid_items = [
+        item for item in items if item.item_id in valid_by_type[item.item_type]
+    ]
+    if len(valid_items) != len(items):
+        valid_ids = {item.id for item in valid_items}
+        for item in items:
+            if item.id not in valid_ids:
+                await profile_db.delete(item)
+        await profile_db.commit()
+    return valid_items
+
+
 @router.post("/", response_model=PinboardResponse, status_code=status.HTTP_201_CREATED)
 async def create_pinboard(
     payload: PinboardCreateRequest,
@@ -269,7 +320,9 @@ async def list_pinboard_items(
         select(PinboardItem).where(PinboardItem.pinboard_id == board.id)
         .order_by(PinboardItem.created_at.desc())
     )
-    items = result.scalars().all()
+    items = await _prune_stale_items(
+        profile_db, list(result.scalars().all()), session.profile_id
+    )
     await audit_and_commit(
         master_db, log_pinboard_event, event="view", profile_id=session.profile_id,
         pinboard_id=board.id, details={"action": "list_items", "count": len(items)},
@@ -330,7 +383,9 @@ async def export_pinboard_packet(
     item_result = await profile_db.execute(
         select(PinboardItem).where(PinboardItem.pinboard_id == board.id)
     )
-    items = item_result.scalars().all()
+    items = await _prune_stale_items(
+        profile_db, list(item_result.scalars().all()), session.profile_id
+    )
     ids_by_type = {
         item_type: [item.item_id for item in items if item.item_type == item_type]
         for item_type in ("document", "observation", "care_task", "question")
@@ -342,11 +397,13 @@ async def export_pinboard_packet(
             select(Document).where(
                 Document.id.in_(ids_by_type["document"]),
                 Document.profile_id == session.profile_id,
+                Document.status == "verified",
             )
         )
         documents = [
             {"id": doc.id, "source": doc.source, "collection_date": doc.collection_date}
             for doc in result.scalars().all()
+            if doc.status == "verified"
         ]
 
     observations = []
@@ -421,6 +478,7 @@ async def export_pinboard_packet(
         questions=questions if question_ids else None,
         selected_documents=documents if ids_by_type["document"] else None,
         packet_title="Pinboard Packet",
+        include_normal_observations=True,
     )
     _packet_store[packet["packet_id"]] = packet
     await audit_and_commit(

@@ -503,6 +503,7 @@ class ExportModule:
         questions: Optional[list[QuestionPrompt]] = None,
         selected_documents: Optional[list[dict]] = None,
         packet_title: str = "Visit Prep Packet",
+        include_normal_observations: bool = False,
     ) -> dict:
         """Compose a visit-prep packet (HC-M18).
 
@@ -550,13 +551,14 @@ class ExportModule:
             })
 
         if observations is not None:
-            verified_abnormal = [
+            verified_observations = [
                 o for o in observations
-                if o.get("is_abnormal") and o.get("user_verified")
+                if o.get("user_verified")
+                and (include_normal_observations or o.get("is_abnormal"))
             ]
             lines = []
             for obs in sorted(
-                verified_abnormal,
+                verified_observations,
                 key=lambda x: x.get("collected_at") or datetime.min,
                 reverse=True,
             ):
@@ -565,10 +567,15 @@ class ExportModule:
                 lines.append(
                     f"- {obs.get('analyte_canonical', '')}: {obs.get('value', '')} {obs.get('unit', '')} "
                     f"(ref {obs.get('ref_low', '?')}-{obs.get('ref_high', '?')}) "
-                    f"[{obs.get('flag', 'abnormal')}] — {date_str}"
+                    f"[{obs.get('flag') or ('abnormal' if obs.get('is_abnormal') else 'normal')}] "
+                    f"— {date_str}"
                 )
             sections.append({
-                "title": "Recent Abnormal Lab Results (verified)",
+                "title": (
+                    "Selected Lab Results (verified)"
+                    if include_normal_observations
+                    else "Recent Abnormal Lab Results (verified)"
+                ),
                 "content": "\n".join(lines) if lines else "None recorded.",
             })
 
