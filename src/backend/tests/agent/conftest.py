@@ -50,7 +50,12 @@ async def agent_profile_db():
     don't need a real encrypted vault on disk.
     """
     from core.profile_database import ProfileDatabaseBase
-    from models import document, observation  # noqa: F401  (register tables)
+    from models import (  # noqa: F401  (register tables)
+        care_plan_task,
+        document,
+        document_category,
+        observation,
+    )
 
     engine = create_async_engine(
         "sqlite+aiosqlite://",
@@ -67,7 +72,13 @@ async def agent_profile_db():
     await engine.dispose()
 
 
-async def seed_document(session_maker, *, profile_id: str, doc_id: str | None = None) -> str:
+async def seed_document(
+    session_maker,
+    *,
+    profile_id: str,
+    doc_id: str | None = None,
+    collection_date: datetime | None = None,
+) -> str:
     """Insert a minimal Document row (Observation's required FK) and return its id."""
     from models.document import Document
 
@@ -82,6 +93,7 @@ async def seed_document(session_maker, *, profile_id: str, doc_id: str | None = 
                 doc_type="lab_pdf",
                 status="verified",
                 imported_at=datetime.utcnow(),
+                collection_date=collection_date,
             )
         )
         await session.commit()
@@ -153,6 +165,68 @@ async def seed_chunk(
         )
         await session.commit()
     return chunk_id
+
+
+async def seed_care_task(
+    session_maker,
+    *,
+    title: str,
+    status: str = "open",
+    due_date=None,
+    source_document_id: str | None = None,
+    source_quote: str | None = None,
+    task_id: str | None = None,
+) -> str:
+    """Insert one CarePlanTask row (HC-M24) and return its id."""
+    from models.care_plan_task import CarePlanTask
+
+    task_id = task_id or str(uuid.uuid4())
+    async with session_maker() as session:
+        session.add(
+            CarePlanTask(
+                id=task_id,
+                title=title,
+                status=status,
+                due_date=due_date,
+                source_document_id=source_document_id,
+                source_quote=source_quote,
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow(),
+            )
+        )
+        await session.commit()
+    return task_id
+
+
+async def seed_medication_change_entity(
+    session_maker,
+    *,
+    doc_id: str,
+    entity_value: str,
+    quote: str | None = None,
+    verified_by_user: bool | None = True,
+    entity_id: str | None = None,
+) -> str:
+    """Insert one ``medication_change`` DocumentEntity row (HC-M24) and return its id."""
+    from models.document_category import DocumentEntity
+
+    entity_id = entity_id or str(uuid.uuid4())
+    async with session_maker() as session:
+        session.add(
+            DocumentEntity(
+                id=entity_id,
+                doc_id=doc_id,
+                category="medication",
+                entity_type="medication_change",
+                entity_value=entity_value,
+                confidence=0.9,
+                quote=quote,
+                verified_by_user=verified_by_user,
+                created_at=datetime.utcnow(),
+            )
+        )
+        await session.commit()
+    return entity_id
 
 
 @pytest.fixture
