@@ -115,6 +115,46 @@ class PlanDecision(BaseModel):
     abstain_reason: str | None = None
 
 
+# HC-M24 (Phase E, bounded agentic queries): keyword cues for the three
+# record-navigation intents. Same spirit/scale as _ANALYTE_KEYWORDS/
+# _TREND_KEYWORDS above — small, deterministic, no LLM. Checked BEFORE the
+# analyte/trend detection below so a record-navigation question (which never
+# names a biomarker) can't accidentally fall through to query_observations.
+_CARE_TASK_KEYWORDS = ("follow-up", "follow up", "task", "open item")
+_MED_CHANGE_KEYWORDS = (
+    "medication change", "med change", "medication changes", "med changes",
+    "started or stopped", "start or stop",
+)
+_TIMELINE_KEYWORDS = (
+    "what changed", "since my last visit", "since last visit",
+    "visit history", "history", "timeline",
+)
+
+
+def _detect_care_task_intent(question: str) -> bool:
+    """Open-tasks intent: "which follow-up tasks are open?" etc.
+
+    Exported (imported by name) for reuse by the no-LLM fallback
+    (``api/assistant.py._build_knowledge_fallback``) so the two surfaces
+    can't drift on what counts as this intent — same precedent as
+    ``graph.replay`` importing draft.py's private composition helpers.
+    """
+    lowered = question.lower()
+    return any(keyword in lowered for keyword in _CARE_TASK_KEYWORDS)
+
+
+def _detect_med_change_intent(question: str) -> bool:
+    """Medication-change intent: "show all medication changes" etc."""
+    lowered = question.lower()
+    return any(keyword in lowered for keyword in _MED_CHANGE_KEYWORDS)
+
+
+def _detect_timeline_intent(question: str) -> bool:
+    """What-changed/history intent: "what changed since my last visit?" etc."""
+    lowered = question.lower()
+    return any(keyword in lowered for keyword in _TIMELINE_KEYWORDS)
+
+
 # Keyword cues recognized by the deterministic planner for a "how has X
 # changed over time" trend question. Intentionally small (same spirit as
 # _ANALYTE_KEYWORDS) — richer NLU is out of scope for the deterministic S1/S2
@@ -149,6 +189,20 @@ def _default_planner(question: str, run_log: RunLog) -> PlanDecision:
     """Deterministic plan, now multi-turn (S2-2): react to prior act results.
 
     Turn 1:
+      - HC-M24: a record-navigation intent (open follow-up tasks / medication
+        changes / what-changed-since-last-visit / visit history) routes
+        straight to its dedicated single-call tool
+        (query_care_tasks/query_medication_changes/query_timeline) — checked
+        FIRST, before analyte/trend detection, since these questions never
+        name a biomarker and each tool already returns bounded, filtered
+        evidence in one call (no follow-up turn needed, same shape as the
+        trend fast path below). The "since my last visit" / "history" case
+        deliberately does NOT do a two-call "find latest visit date, then
+        filter" sequence — MAX_STEPS=5 would allow it, but a single
+        unfiltered query_timeline call (capped at 50, newest-first) is the
+        simpler deterministic option and draft/guard already handle framing
+        the result as a history list; see docs/features/TASK_LIST.md HC-M24
+        session notes for why.
       - A trend question ("how has X changed / trend / over time") with a
         detected SINGLE-topic analyte plans ``compute_trend`` directly —
         there is no need to call ``query_observations`` first since
@@ -189,6 +243,19 @@ def _default_planner(question: str, run_log: RunLog) -> PlanDecision:
     last = _last_act(run_log)
 
     if last is None:
+        if _detect_care_task_intent(question):
+            return PlanDecision(
+                action="call_tool",
+                tool_name="query_care_tasks",
+                tool_args={"status_filter": "open"},
+            )
+        if _detect_med_change_intent(question):
+            return PlanDecision(
+                action="call_tool", tool_name="query_medication_changes", tool_args={}
+            )
+        if _detect_timeline_intent(question):
+            return PlanDecision(action="call_tool", tool_name="query_timeline", tool_args={})
+
         if analyte is not None and not multi_topic and _is_trend_question(question):
             return PlanDecision(
                 action="call_tool", tool_name="compute_trend", tool_args={"analyte": analyte}

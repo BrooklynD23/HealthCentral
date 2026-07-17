@@ -18,6 +18,17 @@ S2 scope (story S2-2): also compose grounded TREND sentences from
 composition is left for later stories that need them (S3+); this stays the
 simplest grounded draft that still satisfies "every sentence carries a source
 handle" for the tools currently composed here.
+
+HC-M24 (Phase E, bounded agentic queries): also composes grounded
+record-navigation sentences from ``query_care_tasks``/
+``query_medication_changes``/``query_timeline`` output — one sentence per
+row plus a single summary sentence per tool call (mirrors the trend
+composition's "per-point sentence + one summary citing every point"
+shape). ``title``/``source_quote``/``entity_value``/``quote`` are already
+sanitized by their tools (unlike ``analyte``/``unit`` above, which the tool
+leaves raw and THIS module sanitizes) — see each tool's module docstring —
+so draft composes them as-is, framed as record-keeping only ("The note
+says: …", "You have N open follow-up items"), never advice.
 """
 
 from __future__ import annotations
@@ -108,6 +119,119 @@ def _trend_sentences(run_log: RunLog) -> tuple[list[str], list[Citation]]:
     return sentences, citations
 
 
+def _care_task_sentences(run_log: RunLog) -> tuple[list[str], list[Citation]]:
+    """Compose grounded follow-up-task sentences from query_care_tasks outputs.
+
+    One sentence per task row, citing that task's ``task_id``, plus a single
+    "You have N ... follow-up items" summary sentence citing every row (same
+    "per-row + trailing summary" shape as ``_trend_sentences``). Fields are
+    already sanitized by the tool (see tools/query_care_tasks.py) — this
+    composes them as-is, record-keeping framing only.
+    """
+    sentences: list[str] = []
+    citations: list[Citation] = []
+
+    for output in _act_outputs(run_log, "query_care_tasks"):
+        rows = output.get("rows", [])
+        if not rows:
+            continue
+
+        row_citations = [
+            Citation(source_type="document", source_id=r["task_id"], locator=r["task_id"])
+            for r in rows
+        ]
+
+        for row in rows:
+            due = f" (due {row['due_date']})" if row.get("due_date") else ""
+            quote = row.get("source_quote")
+            quote_part = f' The note says: "{quote}"' if quote else ""
+            sentences.append(f"Open follow-up: {row['title']}{due}.{quote_part}")
+            citations.append(
+                Citation(source_type="document", source_id=row["task_id"], locator=row["task_id"])
+            )
+
+        status = rows[0].get("status", "open") if len({r.get("status") for r in rows}) == 1 else "matching"
+        plural = "s" if len(rows) != 1 else ""
+        sentences.append(f"You have {len(rows)} {status} follow-up item{plural}.")
+        citations.extend(row_citations)
+
+    return sentences, citations
+
+
+def _med_change_sentences(run_log: RunLog) -> tuple[list[str], list[Citation]]:
+    """Compose grounded medication-change sentences from query_medication_changes outputs.
+
+    One sentence per entity row, citing that entity's ``entity_id``, plus a
+    single "You have N recorded medication changes" summary sentence citing
+    every row. Fields are already sanitized by the tool (see
+    tools/query_medication_changes.py) — this composes them as-is,
+    record-keeping framing only.
+    """
+    sentences: list[str] = []
+    citations: list[Citation] = []
+
+    for output in _act_outputs(run_log, "query_medication_changes"):
+        rows = output.get("rows", [])
+        if not rows:
+            continue
+
+        row_citations = [
+            Citation(source_type="document", source_id=r["entity_id"], locator=r["doc_id"])
+            for r in rows
+        ]
+
+        for row in rows:
+            date_part = f" ({row['document_date']})" if row.get("document_date") else ""
+            quote = row.get("quote")
+            quote_part = f' The note says: "{quote}"' if quote else ""
+            sentences.append(f"Medication change: {row['entity_value']}{date_part}.{quote_part}")
+            citations.append(
+                Citation(source_type="document", source_id=row["entity_id"], locator=row["doc_id"])
+            )
+
+        plural = "s" if len(rows) != 1 else ""
+        sentences.append(f"You have {len(rows)} recorded medication change{plural}.")
+        citations.extend(row_citations)
+
+    return sentences, citations
+
+
+def _timeline_sentences(run_log: RunLog) -> tuple[list[str], list[Citation]]:
+    """Compose grounded history sentences from query_timeline outputs.
+
+    One sentence per event row, citing that event's ``event_id`` (timeline
+    events are already their own deterministic source handle — see
+    modules/timeline.py's module docstring), plus a single "Your history
+    includes N recorded events" summary sentence citing every row. ``title``
+    is already sanitized by the tool (see tools/query_timeline.py).
+    """
+    sentences: list[str] = []
+    citations: list[Citation] = []
+
+    for output in _act_outputs(run_log, "query_timeline"):
+        rows = output.get("rows", [])
+        if not rows:
+            continue
+
+        row_citations = [
+            Citation(source_type="document", source_id=r["event_id"], locator=r.get("doc_id"))
+            for r in rows
+        ]
+
+        for row in rows:
+            date_part = f" on {row['event_date']}" if row.get("event_date") else ""
+            sentences.append(f"{row['title']}{date_part}.")
+            citations.append(
+                Citation(source_type="document", source_id=row["event_id"], locator=row.get("doc_id"))
+            )
+
+        plural = "s" if len(rows) != 1 else ""
+        sentences.append(f"Your history includes {len(rows)} recorded event{plural}.")
+        citations.extend(row_citations)
+
+    return sentences, citations
+
+
 async def draft(question: str, run_log: RunLog, ctx: ToolContext) -> Draft:
     """Compose a grounded draft from verified evidence gathered so far.
 
@@ -136,6 +260,18 @@ async def draft(question: str, run_log: RunLog, ctx: ToolContext) -> Draft:
                 locator=row["observation_id"],
             )
         )
+
+    care_task_sentences, care_task_citations = _care_task_sentences(run_log)
+    sentences.extend(care_task_sentences)
+    citations.extend(care_task_citations)
+
+    med_change_sentences, med_change_citations = _med_change_sentences(run_log)
+    sentences.extend(med_change_sentences)
+    citations.extend(med_change_citations)
+
+    timeline_sentences, timeline_citations = _timeline_sentences(run_log)
+    sentences.extend(timeline_sentences)
+    citations.extend(timeline_citations)
 
     result = Draft(sentences=sentences, citations=citations)
 
