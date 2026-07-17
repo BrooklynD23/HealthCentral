@@ -1063,6 +1063,135 @@ async def get_verification_status(session: RequireAuth):
     }
 
 
+async def _build_care_task_fallback(request: ChatRequest, profile_db) -> ChatResponse:
+    """No-LLM deterministic answer for the open-tasks intent (HC-M24).
+
+    Lists open + needs_review care_plan_task rows (both count as "still
+    outstanding" from the user's point of view) with their source quotes,
+    each carrying a citation. Record-keeping framing only — never advice.
+    ``verification.enabled`` stays False, same as the rest of the fallback.
+    """
+    from models.care_plan_task import CarePlanTask
+    from modules.agent.guardrails.redaction_gate import sanitize_untrusted_field
+
+    result = await profile_db.execute(
+        select(CarePlanTask)
+        .where(CarePlanTask.status.in_(["open", "needs_review"]))
+        .order_by(CarePlanTask.created_at.desc())
+        .limit(50)
+    )
+    tasks = result.scalars().all()
+
+    citations: list[Citation] = []
+    lines: list[str] = []
+    for task in tasks:
+        title = sanitize_untrusted_field(task.title)
+        due = f" (due {task.due_date.isoformat()})" if task.due_date else ""
+        quote = sanitize_untrusted_field(task.source_quote)
+        quote_part = f' The note says: "{quote}"' if quote else ""
+        lines.append(f"- {title}{due}.{quote_part}")
+        citations.append(Citation(
+            source_type="user_observation",
+            doc_id=task.source_document_id,
+            doc_title="Care task",
+            text_snippet=(quote or title)[:200],
+            relevance_score=1.0,
+        ))
+
+    plural = "s" if len(tasks) != 1 else ""
+    header = f"You have {len(tasks)} open follow-up item{plural}."
+    content = header + ("\n" + "\n".join(lines) if lines else "")
+
+    segments = [
+        ResponseSegment(segment_type="report_facts", content=content, citations=citations),
+        ResponseSegment(
+            segment_type="uncertainty",
+            content=(
+                "Note: This response is based on your recorded follow-up tasks only. "
+                "For personalized analysis, please configure a local AI model or "
+                "external API in Settings."
+            ),
+            citations=[],
+        ),
+    ]
+
+    return ChatResponse(
+        segments=segments,
+        full_response="\n\n".join(s.content for s in segments),
+        insufficient_context=False,
+        verification=VerificationInfo(enabled=False, summary="Care task response (no LLM)"),
+        is_valid=True,
+        session_id=None,
+    )
+
+
+async def _build_med_change_fallback(request: ChatRequest, profile_db) -> ChatResponse:
+    """No-LLM deterministic answer for the medication-changes intent (HC-M24).
+
+    Lists verified ``medication_change`` DocumentEntity rows (unverified/
+    rejected NEVER returned) with their source quotes, each carrying a
+    citation. Record-keeping framing only — never advice.
+    ``verification.enabled`` stays False, same as the rest of the fallback.
+    """
+    from models.document import Document
+    from models.document_category import DocumentEntity
+    from modules.agent.guardrails.redaction_gate import sanitize_untrusted_field
+
+    result = await profile_db.execute(
+        select(DocumentEntity, Document.collection_date)
+        .join(Document, DocumentEntity.doc_id == Document.id)
+        .where(
+            DocumentEntity.entity_type == "medication_change",
+            DocumentEntity.verified_by_user == True,  # noqa: E712
+        )
+        .order_by(Document.collection_date.desc())
+        .limit(50)
+    )
+    rows = result.all()
+
+    citations: list[Citation] = []
+    lines: list[str] = []
+    for entity, collection_date in rows:
+        value = sanitize_untrusted_field(entity.entity_value)
+        quote = sanitize_untrusted_field(entity.quote)
+        date_str = f" ({collection_date.strftime('%Y-%m-%d')})" if collection_date else ""
+        quote_part = f' The note says: "{quote}"' if quote else ""
+        lines.append(f"- {value}{date_str}.{quote_part}")
+        citations.append(Citation(
+            source_type="user_observation",
+            doc_id=entity.doc_id,
+            doc_title="Medication change",
+            text_snippet=(quote or value)[:200],
+            relevance_score=1.0,
+        ))
+
+    plural = "s" if len(rows) != 1 else ""
+    header = f"You have {len(rows)} recorded medication change{plural}."
+    content = header + ("\n" + "\n".join(lines) if lines else "")
+
+    segments = [
+        ResponseSegment(segment_type="report_facts", content=content, citations=citations),
+        ResponseSegment(
+            segment_type="uncertainty",
+            content=(
+                "Note: This response is based on your recorded medication changes only. "
+                "For personalized analysis, please configure a local AI model or "
+                "external API in Settings."
+            ),
+            citations=[],
+        ),
+    ]
+
+    return ChatResponse(
+        segments=segments,
+        full_response="\n\n".join(s.content for s in segments),
+        insufficient_context=False,
+        verification=VerificationInfo(enabled=False, summary="Medication change response (no LLM)"),
+        is_valid=True,
+        session_id=None,
+    )
+
+
 async def _build_knowledge_fallback(
     request: ChatRequest,
     profile_id: str,
@@ -1074,7 +1203,22 @@ async def _build_knowledge_fallback(
     When profile_db is provided, we augment each analyte block with the
     user's latest observed value, reference range, and flag so the
     answer is grounded in their own data even without an LLM.
+
+    HC-M24: two deterministic record-navigation intents are checked FIRST,
+    before the analyte path below — open-tasks and medication-changes
+    questions never name a biomarker, so routing them through the analyte
+    KB lookup would just fall through to "I don't have specific information".
+    Reuses the SAME intent keyword-detection the agent's plan node uses
+    (``modules.agent.nodes.plan``) so the two surfaces can't drift on what
+    counts as each intent.
     """
+    from modules.agent.nodes.plan import _detect_care_task_intent, _detect_med_change_intent
+
+    if profile_db is not None and _detect_care_task_intent(request.question):
+        return await _build_care_task_fallback(request, profile_db)
+    if profile_db is not None and _detect_med_change_intent(request.question):
+        return await _build_med_change_fallback(request, profile_db)
+
     from modules.glossary import GlossaryModule
     from modules.knowledge_loader import get_knowledge_loader
     from modules.normalize import NormalizeModule
