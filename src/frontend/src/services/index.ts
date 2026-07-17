@@ -14,6 +14,7 @@ export type {
   UnlockRequest,
   Document,
   DocumentImportResponse,
+  ImportSummary,
   DocumentVerifyResponse,
   DocumentPage,
   Observation,

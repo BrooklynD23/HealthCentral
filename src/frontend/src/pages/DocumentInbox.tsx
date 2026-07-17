@@ -158,7 +158,7 @@ export function DocumentInbox() {
         <input
           ref={fileInputRef}
           type="file"
-          accept=".pdf,.png,.jpg,.jpeg"
+          accept=".pdf,.png,.jpg,.jpeg,.csv,.json"
           multiple
           className="hidden"
           onChange={handleFileInputChange}
@@ -258,6 +258,13 @@ export function DocumentInbox() {
               <p className="text-sm text-ink-secondary">
                 {lastImport.observations_extracted} values extracted · status {lastImport.document.status.replace(/_/g, ' ')}
               </p>
+              {lastImport.import_summary && (
+                <p className="text-sm text-ink-secondary">
+                  Imported {lastImport.import_summary.observations_imported} lab results and{' '}
+                  {lastImport.import_summary.entities_imported} record mentions — all pending your
+                  verification
+                </p>
+              )}
             </div>
             <div className="flex gap-2">
               <Button variant="secondary" size="sm" onClick={() => setPreviewDocId(lastImport.document.id)}>
