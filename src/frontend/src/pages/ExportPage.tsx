@@ -30,6 +30,8 @@ import {
   useGenerateQuestions,
   useGenerateVisitPrep,
   useDownloadVisitPrep,
+  useGenerateFhirExport,
+  useDownloadFhirExport,
   useDocuments,
 } from '@/services';
 import { useObservations } from '@/services/observations';
@@ -40,6 +42,7 @@ import type {
   ExportFormat,
   VisitPrepFormat,
   VisitPrepResponse,
+  FhirExportResponse,
 } from '@/services/export';
 
 const exportSections = [
@@ -74,6 +77,10 @@ export function ExportPage() {
   const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
   const [visitPrep, setVisitPrep] = useState<VisitPrepResponse | null>(null);
 
+  // FHIR R4 export state (HC-M22)
+  const [fhirConfirmed, setFhirConfirmed] = useState(false);
+  const [fhirExport, setFhirExport] = useState<FhirExportResponse | null>(null);
+
   // API hooks
   const exportCSV = useExportCSV();
   const exportJSON = useExportJSON();
@@ -82,6 +89,8 @@ export function ExportPage() {
   const generateQuestions = useGenerateQuestions();
   const generateVisitPrep = useGenerateVisitPrep();
   const downloadVisitPrep = useDownloadVisitPrep();
+  const generateFhirExport = useGenerateFhirExport();
+  const downloadFhirExport = useDownloadFhirExport();
   const { data: documents } = useDocuments({ profile_id: profileId || '' });
   const { data: allObservations } = useObservations({ profile_id: profileId || '' });
 
@@ -188,6 +197,22 @@ export function ExportPage() {
       const format: VisitPrepFormat =
         exportFormat === 'text' ? 'markdown' : exportFormat;
       downloadVisitPrep.mutate({ packetId: visitPrep.packet_id, format });
+    }
+  };
+
+  const handleGenerateFhirExport = async () => {
+    if (!fhirConfirmed) return;
+    try {
+      const result = await generateFhirExport.mutateAsync({ confirm: true });
+      setFhirExport(result);
+    } catch (error) {
+      console.error('Failed to generate FHIR export:', error);
+    }
+  };
+
+  const handleDownloadFhirExport = () => {
+    if (fhirExport) {
+      downloadFhirExport.mutate(fhirExport.export_id);
     }
   };
 
@@ -555,6 +580,90 @@ export function ExportPage() {
                     <Download className="w-4 h-4" />
                   )}
                   Download Packet
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="border-b border-black/[0.04]">
+              <CardTitle className="flex items-center gap-3">
+                <FileJson className="w-5 h-5 text-ink-secondary" />
+                FHIR Export (R4)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 space-y-4">
+              <p className="text-sm text-ink-secondary">
+                Export your verified health record as a FHIR R4 Bundle
+                (JSON file) so other systems can read it. Only
+                user-verified data is included, and personal identifiers
+                are redacted before download. Export only — this file is
+                never sent anywhere automatically.
+              </p>
+
+              <label className="flex items-start gap-2 text-sm text-ink cursor-pointer rounded-xl bg-surface-muted px-3 py-3">
+                <input
+                  type="checkbox"
+                  checked={fhirConfirmed}
+                  onChange={(e) => {
+                    setFhirConfirmed(e.target.checked);
+                    setFhirExport(null);
+                  }}
+                  className="mt-0.5 rounded border-black/[0.2] text-accent focus:ring-accent"
+                />
+                <span>
+                  I understand this creates an exportable file containing my
+                  health data and I want to generate it.
+                </span>
+              </label>
+
+              {generateFhirExport.isError && (
+                <div className="flex items-center text-sm text-status-attention">
+                  <AlertCircle className="w-4 h-4 mr-2 flex-shrink-0" />
+                  Failed to generate the FHIR export. Please try again.
+                </div>
+              )}
+
+              {fhirExport && (
+                <div className="rounded-xl bg-surface-muted p-4 text-sm text-ink-secondary">
+                  <p className="font-medium text-ink mb-1">Bundle ready</p>
+                  <p>
+                    {Object.entries(fhirExport.resource_counts)
+                      .map(([type, count]) => `${count} ${type}`)
+                      .join(', ')}
+                    {fhirExport.redaction_count > 0 &&
+                      ` — ${fhirExport.redaction_count} personal identifier${
+                        fhirExport.redaction_count !== 1 ? 's' : ''
+                      } redacted`}
+                  </p>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <Button
+                  className="gap-2"
+                  onClick={handleGenerateFhirExport}
+                  disabled={!fhirConfirmed || generateFhirExport.isPending}
+                >
+                  {generateFhirExport.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <FileJson className="w-4 h-4" />
+                  )}
+                  Generate Bundle
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="gap-2"
+                  onClick={handleDownloadFhirExport}
+                  disabled={!fhirExport || downloadFhirExport.isPending}
+                >
+                  {downloadFhirExport.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4" />
+                  )}
+                  Download Bundle
                 </Button>
               </div>
             </CardContent>
