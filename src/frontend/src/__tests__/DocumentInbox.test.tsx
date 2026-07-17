@@ -148,4 +148,44 @@ describe('DocumentInbox Phase C warnings and confidence', () => {
     expect(screen.queryByText(/prior-a\.pdf/i)).not.toBeInTheDocument();
     expect(screen.getByText(/prior-b\.pdf/i)).toBeInTheDocument();
   });
+
+  it('FE-FIMP-001: shows an import summary line for a structured (CSV/FHIR) import', async () => {
+    const user = userEvent.setup();
+    mutateAsync.mockResolvedValue({
+      document: {
+        id: 'new-doc-csv',
+        profile_id: 'profile-123',
+        doc_type: 'lab_csv',
+        source: 'labs.csv',
+        status: 'parsed',
+        page_count: null,
+        collection_date: '2026-07-01T00:00:00',
+        imported_at: '2026-07-13T10:00:00',
+        parsed_at: '2026-07-13T10:00:01',
+        verified_at: null,
+        extraction_confidence: 0.6,
+      },
+      observations_extracted: 3,
+      needs_verification: true,
+      duplicate_warning: null,
+      import_summary: {
+        source_kind: 'lab_csv',
+        observations_imported: 3,
+        entities_imported: 1,
+        skipped: [],
+      },
+    });
+
+    render(<BrowserRouter><DocumentInbox /></BrowserRouter>);
+    await user.upload(
+      screen.getByLabelText(/upload medical documents/i),
+      new File(['Analyte,Value\nGlucose,100\n'], 'labs.csv', { type: 'text/csv' })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/imported 3 lab results and 1 record mentions.*pending your verification/i)
+      ).toBeInTheDocument();
+    });
+  });
 });

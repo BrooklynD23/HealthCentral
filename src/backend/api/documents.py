@@ -46,7 +46,12 @@ from modules.extract_imaging import extract_imaging_entities
 from modules.extract_pathology import extract_pathology_entities
 from modules.extract_visit_notes import extract_visit_note_entities, llm_assist_visit_entities
 from modules.highlights import Highlight, derive_highlights
+from modules.import_structured import parse_fhir_bundle, parse_lab_csv
 from models.document_category import DocumentCategory, DocumentEntity
+
+# Doc types handled by the structured-import pipeline (HC-M23) instead of the
+# OCR/regex extraction + rule-based classification pipeline.
+_STRUCTURED_IMPORT_DOC_TYPES = ("lab_csv", "fhir_bundle")
 
 logger = logging.getLogger(__name__)
 
@@ -263,12 +268,24 @@ class DuplicateWarning(BaseModel):
     title: Optional[str] = None
 
 
+class ImportSummary(BaseModel):
+    """Summary of a structured import (CSV/FHIR) for the client (HC-M23)."""
+
+    source_kind: Literal["lab_csv", "fhir_bundle"]
+    observations_imported: int
+    entities_imported: int
+    skipped: list[dict] = Field(default_factory=list)
+
+
 class DocumentImportResponse(BaseModel):
     """Response model for document import."""
     document: DocumentResponse
     observations_extracted: int
     needs_verification: bool
     duplicate_warning: Optional[DuplicateWarning] = None
+    # Only set for CSV/FHIR structured imports (HC-M23); optional so
+    # existing PDF/image import clients are unaffected.
+    import_summary: Optional[ImportSummary] = None
 
 
 class DocumentVerifyResponse(BaseModel):
@@ -460,26 +477,40 @@ async def import_document(
     observations_extracted = 0
     needs_verification = True
     extracted_text: Optional[str] = None
+    import_summary: Optional[ImportSummary] = None
 
-    extraction_outcome = await _run_extraction_pipeline(
-        profile_db=profile_db,
-        profile_id=profile_id,
-        document=document,
-        refresh_existing=False,
-    )
-    if extraction_outcome is not None:
-        observations_extracted = extraction_outcome["observations_extracted"]
-        needs_verification = extraction_outcome["needs_verification"]
-        extracted_text = extraction_outcome.get("extracted_text")
+    if import_result.doc_type in _STRUCTURED_IMPORT_DOC_TYPES:
+        # CSV/FHIR structured import (HC-M23): parse + persist directly,
+        # skipping OCR/regex extraction and rule-based classification —
+        # there is no document text to run either over.
+        structured_outcome = await _run_structured_import_pipeline(
+            profile_db=profile_db,
+            profile_id=profile_id,
+            document=document,
+        )
+        observations_extracted = structured_outcome["observations_extracted"]
+        needs_verification = structured_outcome["needs_verification"]
+        import_summary = structured_outcome["import_summary"]
+    else:
+        extraction_outcome = await _run_extraction_pipeline(
+            profile_db=profile_db,
+            profile_id=profile_id,
+            document=document,
+            refresh_existing=False,
+        )
+        if extraction_outcome is not None:
+            observations_extracted = extraction_outcome["observations_extracted"]
+            needs_verification = extraction_outcome["needs_verification"]
+            extracted_text = extraction_outcome.get("extracted_text")
 
-    # Classify document and extract entities (runs for all doc types)
-    await _classify_and_extract_entities(
-        profile_db=profile_db,
-        profile_id=profile_id,
-        doc_id=import_result.document_id,
-        doc_type=import_result.doc_type,
-        pre_extracted_text=extracted_text,
-    )
+        # Classify document and extract entities (runs for all doc types)
+        await _classify_and_extract_entities(
+            profile_db=profile_db,
+            profile_id=profile_id,
+            doc_id=import_result.document_id,
+            doc_type=import_result.doc_type,
+            pre_extracted_text=extracted_text,
+        )
 
     if duplicate_warning is None:
         duplicate_warning = await _find_duplicate_warning(
@@ -497,18 +528,26 @@ async def import_document(
     )
 
     # Create audit log in master database
+    audit_details = {
+        "doc_type": import_result.doc_type,
+        "encrypted": import_result.encrypted,
+        "observations_extracted": observations_extracted,
+        "duplicate_warning": duplicate_warning.match_type if duplicate_warning else None,
+    }
+    if import_summary is not None:
+        audit_details.update({
+            "source_kind": import_summary.source_kind,
+            "observations_imported": import_summary.observations_imported,
+            "entities_imported": import_summary.entities_imported,
+            "skipped_count": len(import_summary.skipped),
+        })
     await log_document_event(
         db=master_db,
         event="import",
         profile_id=profile_id,
         document_id=import_result.document_id,
         filename=file.filename,
-        details={
-            "doc_type": import_result.doc_type,
-            "encrypted": import_result.encrypted,
-            "observations_extracted": observations_extracted,
-            "duplicate_warning": duplicate_warning.match_type if duplicate_warning else None,
-        },
+        details=audit_details,
     )
     await master_db.commit()
 
@@ -520,6 +559,7 @@ async def import_document(
         observations_extracted=observations_extracted,
         needs_verification=needs_verification,
         duplicate_warning=duplicate_warning,
+        import_summary=import_summary,
     )
 
 
@@ -663,6 +703,125 @@ async def _run_extraction_pipeline(
             "needs_verification": True,
             "extracted_text": None,
         }
+
+
+async def _run_structured_import_pipeline(
+    profile_db: AsyncSession,
+    profile_id: str,
+    document: Document,
+) -> dict:
+    """Parse a lab_csv/fhir_bundle document and persist observations/entities.
+
+    HC-M23: replaces the OCR/regex extraction pipeline AND rule-based
+    classification (`_run_extraction_pipeline` + `_classify_and_extract_entities`)
+    for structured imports — parsing is pure stdlib csv/json
+    (`modules/import_structured.py`), so there is no text to OCR or classify.
+    Persisted fields mirror `_run_extraction_pipeline`'s shape exactly:
+    `user_verified=False` always, the undated rule (no dated observations ->
+    `document.collection_date = None`), and `extraction_confidence` from the
+    parser (flat 0.6 — imported facts are not source-graded the way OCR
+    spans are).
+    """
+    import uuid
+
+    decrypted_doc = get_decrypted_document(profile_id, document.id)
+    raw_bytes = decrypted_doc.read()
+    text = raw_bytes.decode("utf-8", errors="replace")
+
+    if document.doc_type == "lab_csv":
+        result = parse_lab_csv(text)
+    else:
+        # JSON is already known-good ("resourceType": "Bundle") by the time
+        # a Document row exists — IngestModule.detect_doc_type rejected
+        # anything else with a 400 before we got here.
+        result = parse_fhir_bundle(text)
+
+    for obs_data in result.observations:
+        normalized = _normalizer.normalize_analyte(obs_data["analyte_raw"])
+        observation = Observation(
+            id=str(uuid.uuid4()),
+            profile_id=profile_id,
+            doc_id=document.id,
+            analyte_canonical=normalized.canonical_name,
+            analyte_raw=obs_data["analyte_raw"],
+            value=obs_data.get("value"),
+            value_text=obs_data.get("value_text"),
+            unit=obs_data.get("unit"),
+            ref_low=obs_data.get("ref_low"),
+            ref_high=obs_data.get("ref_high"),
+            ref_range_text=obs_data.get("ref_range_text"),
+            flag=obs_data.get("flag"),
+            is_abnormal=obs_data.get("flag") is not None,
+            extraction_confidence=obs_data.get("confidence"),
+            collected_at=_parse_date_string(obs_data.get("collected_at")),
+            user_verified=False,
+        )
+        profile_db.add(observation)
+
+    for ent_data in result.entities:
+        entity_record = DocumentEntity(
+            id=str(uuid.uuid4()),
+            doc_id=document.id,
+            category=ent_data["category"],
+            entity_type=ent_data["entity_type"],
+            entity_value=ent_data["entity_value"],
+            confidence=ent_data.get("confidence"),
+            quote=ent_data.get("quote"),
+            verified_by_user=None,
+            extraction_version="import-v1",
+        )
+        profile_db.add(entity_record)
+
+    # DocumentCategory is one row per document (get_document_category uses
+    # scalar_one_or_none(), which raises on >1 row). Only the four existing
+    # category values are valid: prefer "lab" when any observations were
+    # produced, else "visit_notes" when entities exist, else no category.
+    if result.observations:
+        category = "lab"
+    elif result.entities:
+        category = "visit_notes"
+    else:
+        category = None
+
+    if category:
+        profile_db.add(DocumentCategory(
+            id=str(uuid.uuid4()),
+            doc_id=document.id,
+            category=category,
+            confidence=1.0,
+            classified_by="import",
+        ))
+
+    # Undated rule, mirroring _run_extraction_pipeline (:619-624): never
+    # invent a date. document.collection_date is the earliest dated
+    # observation, or None if none were dated.
+    parsed_dates = [
+        _parse_date_string(o["collected_at"])
+        for o in result.observations
+        if o.get("collected_at")
+    ]
+    valid_dates = [d for d in parsed_dates if d is not None]
+    document.collection_date = min(valid_dates) if valid_dates else None
+
+    document.status = "parsed"
+    document.parsed_at = datetime.utcnow()
+    document.verified_at = None
+
+    await profile_db.commit()
+
+    observations_extracted = len(result.observations)
+    return {
+        "observations_extracted": observations_extracted,
+        # Imported data is always unverified -> always needs review.
+        "needs_verification": True,
+        "extracted_text": None,
+        "import_summary": ImportSummary(
+            source_kind=result.source_kind,
+            observations_imported=observations_extracted,
+            entities_imported=len(result.entities),
+            skipped=result.skipped,
+        ),
+    }
 
 
 async def _create_chunks_and_embeddings(

@@ -109,7 +109,7 @@ class Settings(BaseSettings):
     
     # Document processing
     max_import_file_size_mb: int = 50
-    supported_doc_types: str = "pdf,png,jpg,jpeg"
+    supported_doc_types: str = "pdf,png,jpg,jpeg,csv,json"
     ocr_enabled: bool = False
     # Reserved for future AI-assisted lab JSON extraction (no pipeline wiring yet)
     ai_assisted_lab_extraction: bool = False

@@ -51,6 +51,13 @@ export interface Document {
   extraction_confidence: number | null;
 }
 
+export interface ImportSummary {
+  source_kind: 'lab_csv' | 'fhir_bundle';
+  observations_imported: number;
+  entities_imported: number;
+  skipped: Array<{ reason: string; detail: string }>;
+}
+
 export interface DocumentImportResponse {
   document: Document;
   observations_extracted: number;
@@ -60,6 +67,8 @@ export interface DocumentImportResponse {
     document_id: string;
     title: string | null;
   } | null;
+  /** Only set for CSV/FHIR structured imports (HC-M23). */
+  import_summary: ImportSummary | null;
 }
 
 export interface DocumentVerifyResponse {
