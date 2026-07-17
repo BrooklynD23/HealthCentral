@@ -87,6 +87,10 @@ export {
   useDownloadVisitPrep,
   generateVisitPrep,
   downloadVisitPrep,
+  useGenerateFhirExport,
+  useDownloadFhirExport,
+  generateFhirExport,
+  downloadFhirExport,
 } from './export';
 
 export type {
@@ -97,6 +101,8 @@ export type {
   VisitPrepRequest,
   VisitPrepResponse,
   VisitPrepFormat,
+  FhirExportRequest,
+  FhirExportResponse,
 } from './export';
 
 // Assistant hooks
