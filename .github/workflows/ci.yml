@@ -81,7 +81,9 @@ jobs:
           python-version: '3.11'
 
       - name: Install security tools
-        run: pip install bandit pip-audit
+        # setuptools>=83 patches PYSEC-2026-3447; the runner image ships an
+        # older copy that pip-audit would flag when scanning the environment.
+        run: pip install --upgrade "setuptools>=83" bandit pip-audit
 
       - name: Run Bandit
         run: bandit -r src/backend/ -x src/backend/tests/ -f json -o bandit-report.json || true
