@@ -400,6 +400,39 @@ class TestRedaction:
         assert "555-111-2222" not in patient["name"][0]["text"]
         assert result["redaction_count"] > 0
 
+    def test_hc_fhir_082_unknown_analyte_unit_and_dosage_unit_redacted(self):
+        """Finding 3 regression: for an unknown analyte,
+        modules/normalize.py falls back to the cleaned raw document text as
+        analyte_canonical (not a controlled vocabulary term), and both
+        Observation.valueQuantity.unit and MedicationStatement's dosage
+        unit are verbatim extraction-derived free text. All three must be
+        redacted like any other narrative field before leaving the device.
+        """
+        obs = _obs(
+            id="obs-1",
+            analyte_canonical="call me at 555-222-3333",
+            unit="see 555-222-3333",
+        )
+        med = _med(id="med-1", dosage_unit="555-222-3333 units")
+        result = build_fhir_bundle("Jane Doe", [obs], [med], [], [], [])
+
+        serialized = json.dumps(result["bundle"])
+        assert "555-222-3333" not in serialized
+        assert result["redaction_count"] > 0
+
+        [observation] = [
+            e["resource"] for e in result["bundle"]["entry"]
+            if e["resource"]["resourceType"] == "Observation"
+        ]
+        assert "555-222-3333" not in observation["code"]["text"]
+        assert "555-222-3333" not in observation["valueQuantity"]["unit"]
+
+        [medication] = [
+            e["resource"] for e in result["bundle"]["entry"]
+            if e["resource"]["resourceType"] == "MedicationStatement"
+        ]
+        assert "555-222-3333" not in medication["dosage"][0]["text"]
+
 
 class TestResourceCounts:
     def test_hc_fhir_090_resource_counts_reflect_included_resources(self):

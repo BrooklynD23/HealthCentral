@@ -13,10 +13,11 @@ Hard invariants enforced here (do not weaken):
   data leaves the device.
 - Redaction: every free-text string sourced from user or document narrative
   (display name, entity values, quotes, task titles, medication names/
-  instructions, document metadata titles) is passed through
+  instructions, dosage units, document metadata titles, observation analyte
+  names/units) is passed through
   ``modules.redaction.RedactionEngine(policy_level="strict")`` before it is
   placed in the bundle. Structured fields (ISO-8601 dates, numeric values,
-  coded enums like status/frequency/analyte_canonical) are left as-is.
+  coded enums like status/frequency/flag) are left as-is.
 - No invented dates: a missing date/datetime is omitted from the resource
   entirely rather than defaulted to "now" or an empty string.
 """
@@ -112,9 +113,11 @@ def build_patient(display_name: str, redact) -> dict:
 def build_observation(obs: dict, patient_ref: str, redact) -> dict:
     resource = _base_resource("Observation", obs["id"])
     resource["status"] = "final"
-    # analyte_canonical is a controlled vocabulary term (no LOINC codes
-    # exist in this data), not user narrative — left unredacted, text-only.
-    resource["code"] = {"text": obs.get("analyte_canonical")}
+    # analyte_canonical is normally a controlled vocabulary term, but for an
+    # unknown analyte modules/normalize.py falls back to the cleaned raw
+    # document text — narrative, not a coded value — so it is redacted like
+    # any other free-text field.
+    resource["code"] = {"text": redact(obs.get("analyte_canonical"))}
     resource["subject"] = {"reference": patient_ref}
 
     value = obs.get("value")
@@ -122,7 +125,7 @@ def build_observation(obs: dict, patient_ref: str, redact) -> dict:
     if value is not None:
         quantity: dict = {"value": value}
         if obs.get("unit"):
-            quantity["unit"] = obs["unit"]
+            quantity["unit"] = redact(obs["unit"])
         resource["valueQuantity"] = quantity
     elif value_text:
         resource["valueString"] = redact(value_text)
@@ -161,7 +164,7 @@ def build_medication_statement(med: dict, patient_ref: str, redact) -> dict:
     parts: list[str] = []
     amount, unit, form, frequency = (
         med.get("dosage_amount"),
-        med.get("dosage_unit"),
+        redact(med.get("dosage_unit")),
         med.get("dosage_form"),
         med.get("frequency"),
     )
