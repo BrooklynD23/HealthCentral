@@ -431,6 +431,41 @@ def test_hc_agq_042_plan_routes_timeline_intent():
     assert decision2.tool_name == "query_timeline"
 
 
+def test_hc_agq_042b_plan_analyte_bearing_question_not_hijacked_by_timeline_keywords():
+    """Finding 4 regression: broad timeline keywords ("history", "changed",
+    "since my last visit") were checked before analyte/trend detection, so
+    an analyte-bearing question routed to query_timeline instead of the
+    analyte/trend path. Timeline routing must be gated on no analyte (or
+    topic) being detected; a pure timeline question with no biomarker
+    mention must still route to query_timeline.
+    """
+    from modules.agent.nodes.plan import _default_planner
+
+    run_log = RunLog(run_id="r1", profile_id="p1")
+    decision = _default_planner("Explain my cholesterol history", run_log)
+
+    assert decision.action == "call_tool"
+    assert decision.tool_name != "query_timeline"
+    assert decision.tool_name in ("query_observations", "compute_trend")
+    assert decision.tool_args.get("analyte") == "Cholesterol"
+
+    run_log2 = RunLog(run_id="r2", profile_id="p1")
+    decision2 = _default_planner(
+        "How has my cholesterol changed since my last visit?", run_log2
+    )
+
+    assert decision2.action == "call_tool"
+    assert decision2.tool_name != "query_timeline"
+    assert decision2.tool_name in ("query_observations", "compute_trend")
+    assert decision2.tool_args.get("analyte") == "Cholesterol"
+
+    # Pure timeline question with no biomarker mention still routes through.
+    run_log3 = RunLog(run_id="r3", profile_id="p1")
+    decision3 = _default_planner("What changed since my last visit?", run_log3)
+    assert decision3.action == "call_tool"
+    assert decision3.tool_name == "query_timeline"
+
+
 # ---------------------------------------------------------------------------
 # HC-AGQ-050..053: draft composition
 # ---------------------------------------------------------------------------
