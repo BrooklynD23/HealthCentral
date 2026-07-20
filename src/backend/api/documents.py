@@ -1166,6 +1166,15 @@ async def reprocess_document(
         )
     verify_document_access(document, session)
 
+    if document.doc_type in _STRUCTURED_IMPORT_DOC_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Reprocessing is not available for imported structured documents "
+                "(CSV/FHIR). Delete and re-import the file instead."
+            ),
+        )
+
     # A user's rejection of an extraction is a safety decision; remember the
     # rejected (entity_type, quote) pairs so re-extraction of the same span
     # under a new UUID does not resurface it as unreviewed.

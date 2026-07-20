@@ -649,3 +649,85 @@ class TestStructuredImportRoute:
         assert response.document.doc_type == "lab_csv"
         assert response.import_summary.observations_imported == 0
         assert response.import_summary.skipped[0]["reason"] == "empty_file"
+
+    async def test_hc_fimp_067_reprocess_structured_import_returns_400_and_preserves_data(
+        self, monkeypatch, real_profile_db
+    ):
+        """Finding 1 regression: reprocessing a doc imported via HC-M23
+        (FHIR bundle) must not wipe its entities/category — the extraction
+        pipeline has no text to rebuild from for structured imports, so the
+        route must reject the reprocess request before mutating anything."""
+        from api import documents as documents_api
+        from models import DocumentCategory, DocumentEntity, Observation
+        import modules
+
+        bundle = _bundle([
+            {"resource": {
+                "resourceType": "Observation",
+                "code": {"text": "Glucose"},
+                "valueQuantity": {"value": 101, "unit": "mg/dL"},
+            }},
+            {"resource": {
+                "resourceType": "MedicationStatement",
+                "status": "active",
+                "medicationCodeableConcept": {"text": "metformin"},
+                "dosage": [{"text": "500 mg twice daily"}],
+            }},
+        ]).encode()
+
+        monkeypatch.setattr(documents_api, "get_profile_encryption_key", lambda _pid: b"x" * 32)
+        monkeypatch.setattr(documents_api, "get_decrypted_document", lambda _pid, _did: io.BytesIO(bundle))
+        monkeypatch.setattr(modules, "IngestModule", _FakeStructuredIngestModule)
+
+        session = _session()
+        import_response = await documents_api.import_document(
+            session=session,
+            file=UploadFile(filename="export.json", file=io.BytesIO(bundle)),
+            profile_db=real_profile_db,
+            master_db=_FakeMasterDb(),
+        )
+        document_id = import_response.document.id
+
+        async def _entity_count():
+            rows = (
+                await real_profile_db.execute(
+                    select(DocumentEntity).where(DocumentEntity.doc_id == document_id)
+                )
+            ).scalars().all()
+            return len(rows)
+
+        async def _category_count():
+            rows = (
+                await real_profile_db.execute(
+                    select(DocumentCategory).where(DocumentCategory.doc_id == document_id)
+                )
+            ).scalars().all()
+            return len(rows)
+
+        async def _observation_count():
+            rows = (
+                await real_profile_db.execute(
+                    select(Observation).where(Observation.doc_id == document_id)
+                )
+            ).scalars().all()
+            return len(rows)
+
+        entities_before = await _entity_count()
+        categories_before = await _category_count()
+        observations_before = await _observation_count()
+        assert entities_before == 1
+        assert categories_before == 1
+        assert observations_before == 1
+
+        with pytest.raises(HTTPException) as exc:
+            await documents_api.reprocess_document(
+                document_id=document_id,
+                session=session,
+                profile_db=real_profile_db,
+                master_db=_FakeMasterDb(),
+            )
+        assert exc.value.status_code == 400
+
+        assert await _entity_count() == entities_before
+        assert await _category_count() == categories_before
+        assert await _observation_count() == observations_before

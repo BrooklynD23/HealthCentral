@@ -193,16 +193,21 @@ def _default_planner(question: str, run_log: RunLog) -> PlanDecision:
         changes / what-changed-since-last-visit / visit history) routes
         straight to its dedicated single-call tool
         (query_care_tasks/query_medication_changes/query_timeline) — checked
-        FIRST, before analyte/trend detection, since these questions never
-        name a biomarker and each tool already returns bounded, filtered
-        evidence in one call (no follow-up turn needed, same shape as the
-        trend fast path below). The "since my last visit" / "history" case
-        deliberately does NOT do a two-call "find latest visit date, then
-        filter" sequence — MAX_STEPS=5 would allow it, but a single
-        unfiltered query_timeline call (capped at 50, newest-first) is the
-        simpler deterministic option and draft/guard already handle framing
-        the result as a history list; see docs/features/TASK_LIST.md HC-M24
-        session notes for why.
+        before analyte/trend detection, since these questions never name a
+        biomarker and each tool already returns bounded, filtered evidence
+        in one call (no follow-up turn needed, same shape as the trend fast
+        path below). The timeline branch is additionally gated on no
+        analyte/topic being detected: broad keywords like "history" and
+        "changed" also appear in analyte-bearing questions ("Explain my
+        cholesterol history"), which must fall through to the analyte/trend
+        path below instead of being answered as an undifferentiated event
+        list. The "since my last visit" / "history" case (once it does win
+        the gate) deliberately does NOT do a two-call "find latest visit
+        date, then filter" sequence — MAX_STEPS=5 would allow it, but a
+        single unfiltered query_timeline call (capped at 50, newest-first)
+        is the simpler deterministic option and draft/guard already handle
+        framing the result as a history list; see
+        docs/features/TASK_LIST.md HC-M24 session notes for why.
       - A trend question ("how has X changed / trend / over time") with a
         detected SINGLE-topic analyte plans ``compute_trend`` directly —
         there is no need to call ``query_observations`` first since
@@ -253,7 +258,13 @@ def _default_planner(question: str, run_log: RunLog) -> PlanDecision:
             return PlanDecision(
                 action="call_tool", tool_name="query_medication_changes", tool_args={}
             )
-        if _detect_timeline_intent(question):
+        if _detect_timeline_intent(question) and analyte is None and not topics:
+            # Gate on no analyte/topic detected: broad timeline keywords
+            # ("history", "changed", "since my last visit") also appear in
+            # analyte-bearing questions ("Explain my cholesterol history"),
+            # which must route down the analyte/trend path below instead —
+            # a biomarker question should never be answered as an
+            # undifferentiated event list.
             return PlanDecision(action="call_tool", tool_name="query_timeline", tool_args={})
 
         if analyte is not None and not multi_topic and _is_trend_question(question):

@@ -431,6 +431,41 @@ def test_hc_agq_042_plan_routes_timeline_intent():
     assert decision2.tool_name == "query_timeline"
 
 
+def test_hc_agq_042b_plan_analyte_bearing_question_not_hijacked_by_timeline_keywords():
+    """Finding 4 regression: broad timeline keywords ("history", "changed",
+    "since my last visit") were checked before analyte/trend detection, so
+    an analyte-bearing question routed to query_timeline instead of the
+    analyte/trend path. Timeline routing must be gated on no analyte (or
+    topic) being detected; a pure timeline question with no biomarker
+    mention must still route to query_timeline.
+    """
+    from modules.agent.nodes.plan import _default_planner
+
+    run_log = RunLog(run_id="r1", profile_id="p1")
+    decision = _default_planner("Explain my cholesterol history", run_log)
+
+    assert decision.action == "call_tool"
+    assert decision.tool_name != "query_timeline"
+    assert decision.tool_name in ("query_observations", "compute_trend")
+    assert decision.tool_args.get("analyte") == "Cholesterol"
+
+    run_log2 = RunLog(run_id="r2", profile_id="p1")
+    decision2 = _default_planner(
+        "How has my cholesterol changed since my last visit?", run_log2
+    )
+
+    assert decision2.action == "call_tool"
+    assert decision2.tool_name != "query_timeline"
+    assert decision2.tool_name in ("query_observations", "compute_trend")
+    assert decision2.tool_args.get("analyte") == "Cholesterol"
+
+    # Pure timeline question with no biomarker mention still routes through.
+    run_log3 = RunLog(run_id="r3", profile_id="p1")
+    decision3 = _default_planner("What changed since my last visit?", run_log3)
+    assert decision3.action == "call_tool"
+    assert decision3.tool_name == "query_timeline"
+
+
 # ---------------------------------------------------------------------------
 # HC-AGQ-050..053: draft composition
 # ---------------------------------------------------------------------------
@@ -549,6 +584,67 @@ async def test_hc_agq_052_draft_composes_timeline_sentences_with_citations(
     mapping = map_sentences(result.sentences, result.citations)
     assert mapping.dropped == []
     assert any(c.source_id == "lab:d1:2026-05-01" for c in result.citations)
+
+
+@pytest.mark.asyncio
+async def test_hc_agq_052b_draft_labels_unverified_timeline_events_not_grounded_history(
+    agent_profile_db, make_run_context
+):
+    """Finding 2 regression: query_timeline returns rows regardless of
+    verification_status (build_timeline emits "unverified" for unverified
+    observations/documents), but draft must not compose an unverified
+    event's title into a plain grounded sentence — that would present it
+    as established history with no label, unlike query_observations/
+    query_medication_changes which are verified-only. Only "verified"/"n/a"
+    events get full sentences; excluded events are rolled into one labeled
+    pending-verification sentence that still carries a citation.
+    """
+    from modules.agent.guardrails.groundedness import map_sentences
+    from modules.agent.nodes.draft import draft
+
+    session_maker = agent_profile_db
+    profile_id = str(uuid.uuid4())
+    ctx = make_run_context(session_maker, profile_id=profile_id)
+
+    run_log = RunLog(run_id=ctx.run_id, profile_id=profile_id)
+    run_log.steps.append(
+        _act_step(
+            "query_timeline",
+            {
+                "rows": [
+                    {
+                        "event_id": "lab:d1:2026-05-01",
+                        "event_type": "lab_results",
+                        "event_date": "2026-05-01",
+                        "title": "Lab results (1 analyte)",
+                        "doc_id": "d1",
+                        "related_ids": ["o1"],
+                        "verification_status": "verified",
+                    },
+                    {
+                        "event_id": "doc:d2",
+                        "event_type": "imaging",
+                        "event_date": "2026-06-01",
+                        "title": "Imported chest X-ray report",
+                        "doc_id": "d2",
+                        "related_ids": [],
+                        "verification_status": "unverified",
+                    },
+                ]
+            },
+        )
+    )
+
+    result = await draft("What changed since my last visit?", run_log, ctx)
+    combined = " ".join(result.sentences)
+
+    assert "Lab results (1 analyte) on 2026-05-01." in result.sentences
+    assert "Imported chest X-ray report" not in combined
+    assert any("pending your verification" in s for s in result.sentences)
+
+    mapping = map_sentences(result.sentences, result.citations)
+    assert mapping.dropped == []
+    assert any(c.source_id == "doc:d2" for c in mapping.citations)
 
 
 @pytest.mark.asyncio
