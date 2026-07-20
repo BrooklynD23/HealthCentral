@@ -199,11 +199,21 @@ def _med_change_sentences(run_log: RunLog) -> tuple[list[str], list[Citation]]:
 def _timeline_sentences(run_log: RunLog) -> tuple[list[str], list[Citation]]:
     """Compose grounded history sentences from query_timeline outputs.
 
-    One sentence per event row, citing that event's ``event_id`` (timeline
-    events are already their own deterministic source handle — see
-    modules/timeline.py's module docstring), plus a single "Your history
-    includes N recorded events" summary sentence citing every row. ``title``
-    is already sanitized by the tool (see tools/query_timeline.py).
+    query_timeline returns every event with its ``verification_status``
+    (build_timeline emits "unverified"/"mixed" for unverified observations
+    or documents — see modules/timeline.py). Only events whose status is
+    "verified" or "n/a" (no verification concept applies, e.g. a medication
+    start/stop entry) get a full grounded sentence, one per event, citing
+    that event's ``event_id`` (timeline events are already their own
+    deterministic source handle). This mirrors query_observations/
+    query_medication_changes, which only ever surface verified rows — an
+    unverified/mixed event must never be presented as established history
+    with no label. Verified events get a single "Your history includes N
+    recorded events" summary sentence citing every one of them; any
+    excluded (unverified/mixed) events are rolled into a single labeled
+    "N more recorded event(s) pending your verification" sentence citing
+    one of them, so the pending count itself stays grounded. ``title`` is
+    already sanitized by the tool (see tools/query_timeline.py).
     """
     sentences: list[str] = []
     citations: list[Citation] = []
@@ -213,21 +223,38 @@ def _timeline_sentences(run_log: RunLog) -> tuple[list[str], list[Citation]]:
         if not rows:
             continue
 
+        verified_rows = [r for r in rows if r.get("verification_status") in ("verified", "n/a")]
+        pending_rows = [r for r in rows if r.get("verification_status") not in ("verified", "n/a")]
+
         row_citations = [
             Citation(source_type="document", source_id=r["event_id"], locator=r.get("doc_id"))
-            for r in rows
+            for r in verified_rows
         ]
 
-        for row in rows:
+        for row in verified_rows:
             date_part = f" on {row['event_date']}" if row.get("event_date") else ""
             sentences.append(f"{row['title']}{date_part}.")
             citations.append(
                 Citation(source_type="document", source_id=row["event_id"], locator=row.get("doc_id"))
             )
 
-        plural = "s" if len(rows) != 1 else ""
-        sentences.append(f"Your history includes {len(rows)} recorded event{plural}.")
-        citations.extend(row_citations)
+        if verified_rows:
+            plural = "s" if len(verified_rows) != 1 else ""
+            sentences.append(f"Your history includes {len(verified_rows)} recorded event{plural}.")
+            citations.extend(row_citations)
+
+        if pending_rows:
+            plural = "s" if len(pending_rows) != 1 else ""
+            sentences.append(
+                f"You have {len(pending_rows)} more recorded event{plural} pending your verification."
+            )
+            citations.append(
+                Citation(
+                    source_type="document",
+                    source_id=pending_rows[0]["event_id"],
+                    locator=pending_rows[0].get("doc_id"),
+                )
+            )
 
     return sentences, citations
 

@@ -552,6 +552,67 @@ async def test_hc_agq_052_draft_composes_timeline_sentences_with_citations(
 
 
 @pytest.mark.asyncio
+async def test_hc_agq_052b_draft_labels_unverified_timeline_events_not_grounded_history(
+    agent_profile_db, make_run_context
+):
+    """Finding 2 regression: query_timeline returns rows regardless of
+    verification_status (build_timeline emits "unverified" for unverified
+    observations/documents), but draft must not compose an unverified
+    event's title into a plain grounded sentence — that would present it
+    as established history with no label, unlike query_observations/
+    query_medication_changes which are verified-only. Only "verified"/"n/a"
+    events get full sentences; excluded events are rolled into one labeled
+    pending-verification sentence that still carries a citation.
+    """
+    from modules.agent.guardrails.groundedness import map_sentences
+    from modules.agent.nodes.draft import draft
+
+    session_maker = agent_profile_db
+    profile_id = str(uuid.uuid4())
+    ctx = make_run_context(session_maker, profile_id=profile_id)
+
+    run_log = RunLog(run_id=ctx.run_id, profile_id=profile_id)
+    run_log.steps.append(
+        _act_step(
+            "query_timeline",
+            {
+                "rows": [
+                    {
+                        "event_id": "lab:d1:2026-05-01",
+                        "event_type": "lab_results",
+                        "event_date": "2026-05-01",
+                        "title": "Lab results (1 analyte)",
+                        "doc_id": "d1",
+                        "related_ids": ["o1"],
+                        "verification_status": "verified",
+                    },
+                    {
+                        "event_id": "doc:d2",
+                        "event_type": "imaging",
+                        "event_date": "2026-06-01",
+                        "title": "Imported chest X-ray report",
+                        "doc_id": "d2",
+                        "related_ids": [],
+                        "verification_status": "unverified",
+                    },
+                ]
+            },
+        )
+    )
+
+    result = await draft("What changed since my last visit?", run_log, ctx)
+    combined = " ".join(result.sentences)
+
+    assert "Lab results (1 analyte) on 2026-05-01." in result.sentences
+    assert "Imported chest X-ray report" not in combined
+    assert any("pending your verification" in s for s in result.sentences)
+
+    mapping = map_sentences(result.sentences, result.citations)
+    assert mapping.dropped == []
+    assert any(c.source_id == "doc:d2" for c in mapping.citations)
+
+
+@pytest.mark.asyncio
 async def test_hc_agq_053_draft_drops_injection_payload_never_reaches_sentence(
     agent_profile_db, make_run_context
 ):
