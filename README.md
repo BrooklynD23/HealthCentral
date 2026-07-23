@@ -7,11 +7,11 @@ A privacy-first desktop application for patients to import medical documents, ex
 ## Overview
 
 HealthCentral helps patients:
-- **Import** lab PDFs and medical documents into a secure local vault
-- **Extract & Verify** structured data with human-in-the-loop verification
+- **Import** lab PDFs, medical documents, and CSV/FHIR R4 exports from other systems into a secure local vault
+- **Extract & Verify** structured data with human-in-the-loop verification — structured (CSV/FHIR) imports always land unverified, and medication mentions become reconciliation suggestions, never direct tracker mutations
 - **Visualize** longitudinal trends with reference range context
-- **Understand** results via grounded explanations with citations (local RAG)
-- **Export** doctor-ready summaries and discussion prompts
+- **Understand** results via grounded explanations with citations (local RAG), including bounded read-only questions about open follow-up tasks, medication changes, and record timeline
+- **Export** doctor-ready summaries, discussion prompts, and a verified-only, redacted FHIR R4 bundle for other systems
 
 ## Core Principles
 
@@ -60,7 +60,7 @@ HealthCentral/
 
 ```mermaid
 flowchart LR
-    User[Patient] -->|Upload docs, review results| UI[React/Vite UI]
+    User[Patient] -->|Upload docs, CSV/FHIR, review results| UI[React/Vite UI]
     UI -->|/api/v1 via Vite proxy or loopback HTTP| API[FastAPI Backend]
     API -->|profile metadata, auth, audit, knowledge| MasterDB[(Master SQLite DB)]
     API -->|session-bound PHI| ProfileDB[(Per-Profile SQLCipher Vault DB)]
@@ -69,7 +69,7 @@ flowchart LR
     API --> LLM[Local GGUF LLM via llama.cpp]
     API -. opt-in only .-> External[External LLM APIs]
     API --> Embeddings[Local Embeddings Model]
-    API --> Export[Doctor-ready Exports]
+    API --> Export[Doctor-ready Exports + FHIR R4 Bundle]
 ```
 
 ### Backend Component View
@@ -80,19 +80,21 @@ flowchart TB
         Profiles[Profiles & Sessions]
         Ingest[Ingest Module]
         Extract[Extract Module]
+        StructImport[Structured Import<br/>CSV/FHIR parsers]
         Normalize[Normalize Module]
         Verify[Verify Module]
         Analytics[Analytics Module]
-        RAG[RAG Assistant]
+        RAG[RAG Assistant + Agent Tools]
         Interpret[Interpretations]
         Meds[Medications, Notifications, Gamification]
         Settings[Model & Voice Settings]
-        Export[Export Pipeline]
+        Export[Export Pipeline + FHIR R4]
         Monitor[Monitoring & Audit]
     end
 
     Profiles --> Ingest
     Ingest --> Extract --> Normalize --> Verify --> Analytics
+    Ingest --> StructImport --> Verify
     Verify --> Interpret --> Export
     Analytics --> RAG
     Meds --> RAG
@@ -159,11 +161,15 @@ sequenceDiagram
     participant DB as SQLCipher DB
     participant LLM as Local LLM
 
-    User->>UI: Upload lab PDF/image
+    User->>UI: Upload lab PDF/image OR CSV/FHIR export
     UI->>API: POST /api/v1/documents/import
     API->>Vault: Store encrypted file
-    API->>DB: Persist metadata, extracted rows, provenance
-    API->>API: Classify, extract, normalize
+    alt PDF/image
+        API->>API: Classify, extract (OCR), normalize
+    else CSV/FHIR (HC-M23)
+        API->>API: Parse structured file (no OCR/classification)
+    end
+    API->>DB: Persist metadata, extracted rows (always unverified for CSV/FHIR), provenance
     API->>UI: Verification payload
     User->>UI: Verify/edit values
     UI->>API: POST /api/v1/observations/{id}/verify
@@ -171,6 +177,11 @@ sequenceDiagram
     API->>LLM: Generate grounded interpretation with citations
     API->>DB: Save interpretation + citations
     API->>UI: Trend + explanation response
+    User->>UI: Ask "what's still open?" / "what changed?"
+    UI->>API: POST /api/v1/assistant/chat
+    API->>API: Agent routes to bounded read-only tool (HC-M24)
+    API->>DB: Query verified care tasks/med changes/timeline
+    API->>UI: Cited, record-navigation answer
 ```
 
 ## Technology Stack
@@ -491,15 +502,15 @@ HealthCentral exposes a REST API via FastAPI at `http://localhost:8000/api/v1`. 
 | Group | Endpoints | Description |
 |-------|-----------|-------------|
 | **Profiles** | `/profiles/` | Create, list, log in to, unlock, lock, and manage encrypted user profiles |
-| **Documents** | `/documents/` | Import PDFs/images, list, classify, inspect extracted entities, render page images, delete |
+| **Documents** | `/documents/` | Import PDFs/images or CSV/FHIR structured files (HC-M23, always unverified), list, classify, inspect extracted entities, render page images, delete |
 | **Observations** | `/observations/` | List, verify, trend analysis, panel grouping |
 | **Interpretations** | `/interpretations/` | Observation and panel interpretation plus biomarker knowledge lookup |
-| **Assistant** | `/assistant/` | RAG chat with citations, glossary, and verification status |
+| **Assistant** | `/assistant/` | RAG chat with citations, glossary, verification status, and bounded read-only agent queries over care tasks/medication changes/timeline (HC-M24) |
 | **Memory** | `/memory/` | Persistent assistant memory CRUD per profile |
 | **Medications** | `/medications/` | CRUD, schedules, dose logging, adherence stats, pattern learning |
 | **Gamification** | `/gamification/` | Badge inventory plus profile streak summaries |
 | **Notifications** | `/notifications/` | Reminder settings, history, test sends, scheduler status, interaction logging |
-| **Export** | `/export/` | CSV/JSON export, doctor summary, discussion questions |
+| **Export** | `/export/` | CSV/JSON export, doctor summary, discussion questions, verified-only redacted FHIR R4 bundle export/download (HC-M22) |
 | **Model Settings** | `/settings/model` | Model tier selection, downloads, external API config, timezone, and voice preferences |
 | **Monitoring** | `/health`, `/monitoring/` | Health check and authenticated metrics dashboard |
 

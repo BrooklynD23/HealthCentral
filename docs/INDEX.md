@@ -26,7 +26,7 @@ Links to: `docs/features/TASK_LIST.md`, `docs/plans/implementation-log`, `docs/r
 
 **Backend Architecture Plan (Current Baseline + Future Hardening)**
 
-Local-first backend services that power: - Document ingestion (PDF/images), parsing, normalization, and verification workflow - Trend/stat calculations (deterministic code, not the LLM) - Grounded…
+Local-first backend services that power: - Document ingestion (PDF/images, plus CSV/FHIR R4 Bundle structured imports — HC-M23), parsing, normalization, and verification workflow - Trend/stat…
 
 Links to: `docs/api/endpoints.md`
 
