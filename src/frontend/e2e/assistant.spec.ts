@@ -61,9 +61,12 @@ test.describe('RAG Assistant Feature', () => {
     await page.getByRole('button').filter({ has: page.locator('svg') }).last().click();
 
     // Wait for response - should show insufficient context or error
-    // With no documents, the assistant should indicate it doesn't have enough info
+    // With no documents, the assistant should indicate it doesn't have enough
+    // info. The agent path (Agent Overhaul) abstains with the fixed
+    // ABSTAIN_TEMPLATE ("isn't enough verified information"); the legacy
+    // path uses the older phrasings.
     await expect(
-      page.getByText(/(insufficient|don't have enough|no relevant|limited context|not fully configured)/i).first()
+      page.getByText(/(insufficient|don't have enough|isn't enough verified information|no relevant|limited context|not fully configured)/i).first()
     ).toBeVisible({ timeout: 15000 });
   });
 
@@ -81,11 +84,13 @@ test.describe('RAG Assistant Feature', () => {
     await input.fill('What is my hemoglobin?');
     await page.getByRole('button').filter({ has: page.locator('svg') }).last().click();
 
-    // When no LLM is available, the backend returns a 200 knowledge-base fallback
-    // response instead of a 501 error
+    // When no LLM is available, the backend returns a 200 graceful fallback
+    // instead of a 501 error: the agent path abstains with the fixed
+    // ABSTAIN_TEMPLATE ("isn't enough verified information"), while the
+    // legacy path returns the knowledge-base-only response.
     await expect(
       page.getByText(
-        /(not fully configured|setup instructions|insufficient|don't have enough|limited context|knowledge base only)/i
+        /(not fully configured|setup instructions|insufficient|don't have enough|isn't enough verified information|limited context|knowledge base only)/i
       ).first()
     ).toBeVisible({ timeout: 15000 });
   });
