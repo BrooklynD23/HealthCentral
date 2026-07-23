@@ -22,7 +22,8 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from jose import JWTError, jwt
+import jwt
+from jwt import PyJWTError
 
 from .config import settings
 from .token_revocation import TokenRevocationList
@@ -151,7 +152,7 @@ def verify_token(token: str) -> Optional[dict]:
         if isinstance(jti, str) and is_jwt_token_revoked(jti):
             return None
         return payload
-    except JWTError:
+    except PyJWTError:
         return None
 
 

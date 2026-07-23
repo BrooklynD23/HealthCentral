@@ -70,7 +70,11 @@ py-cpuinfo>=9.0.0          # Detailed CPU info
 # Security
 # =============================================================================
 cryptography>=42.0.0
-python-jose[cryptography]>=3.3.0
+# PyJWT (not python-jose) for JWT: HS256 only, and python-jose pulls the
+# unmaintained pure-Python `ecdsa` package (PYSEC-2026-1325 Minerva timing
+# attack, no fix release). PyJWT signs/verifies via `cryptography` and has no
+# ecdsa dependency, removing the finding at the source.
+PyJWT>=2.8.0
 bcrypt>=4.1.2
 
 # =============================================================================
