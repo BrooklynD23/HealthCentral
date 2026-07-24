@@ -7,8 +7,10 @@ All endpoints require authentication.
 Sprint 4: Wired to ExportModule for CSV/JSON/summary/questions generation.
 """
 
+import json
 import logging
 import re
+import uuid
 from typing import Optional
 from datetime import datetime, timezone
 from io import StringIO
@@ -22,9 +24,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from core.auth import RequireAuth, ProfileDbSession
 from core.audit import audit_and_commit, log_export_event
-from models import CarePlanTask, Document, Medication, Observation
-from models.document_category import DocumentEntity
+from models import CarePlanTask, Document, Medication, Observation, Profile
+from models.document_category import DocumentCategory, DocumentEntity
 from modules.export import ExportModule
+from modules.fhir_export import build_fhir_bundle
 from modules.normalize import canonical_unit_for, convert_to_canonical, normalize_unit
 
 logger = logging.getLogger(__name__)
@@ -42,6 +45,13 @@ _summary_store: dict[str, dict] = {}
 
 # In-memory visit-prep packet storage (HC-M18; same MVP pattern as summaries)
 _packet_store: dict[str, dict] = {}
+
+# In-memory FHIR R4 export storage (HC-M22; same MVP pattern as _packet_store)
+_fhir_store: dict[str, dict] = {}
+
+# Verified entity types that feed the FHIR export (Condition, Encounter,
+# DiagnosticReport). Only verified_by_user is True rows are ever fetched.
+FHIR_ENTITY_TYPES = ("diagnosis", "visit_type", "impression", "finding")
 
 # Visit-note entity types that generate doctor questions (HC-M17).
 QUESTION_ENTITY_TYPES = ("medication_change", "test_ordered", "referral")
@@ -154,6 +164,7 @@ async def _fetch_observations(
             "unit": obs.unit,
             "ref_low": obs.ref_low,
             "ref_high": obs.ref_high,
+            "ref_range_text": obs.ref_range_text,
             "flag": obs.flag,
             "is_abnormal": obs.is_abnormal,
             "user_verified": obs.user_verified,
@@ -998,4 +1009,286 @@ async def export_json(
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"'
         }
+    )
+
+
+# ---------------------------------------------------------------------------
+# FHIR R4 export (HC-M22)
+# ---------------------------------------------------------------------------
+
+
+async def _fetch_all_medication_dicts(
+    profile_db: AsyncSession, profile_id: str
+) -> list[dict]:
+    """All medications (active and inactive) for the FHIR export."""
+    result = await profile_db.execute(
+        select(Medication).where(Medication.profile_id == profile_id)
+    )
+    return [
+        {
+            "id": med.id,
+            "name": med.name,
+            "generic_name": med.generic_name,
+            "dosage_amount": med.dosage_amount,
+            "dosage_unit": med.dosage_unit,
+            "dosage_form": med.dosage_form,
+            "frequency": med.frequency,
+            "instructions": med.instructions,
+            "is_active": med.is_active,
+            "started_at": med.started_at,
+            "ended_at": med.ended_at,
+        }
+        for med in result.scalars().all()
+    ]
+
+
+async def _fetch_document_dicts_for_fhir(
+    profile_db: AsyncSession, profile_id: str
+) -> list[dict]:
+    """Document metadata + category for the FHIR export (no binary content)."""
+    result = await profile_db.execute(
+        select(Document).where(Document.profile_id == profile_id)
+    )
+    documents = result.scalars().all()
+    doc_ids = [doc.id for doc in documents]
+
+    categories: dict[str, str] = {}
+    if doc_ids:
+        cat_result = await profile_db.execute(
+            select(DocumentCategory).where(DocumentCategory.doc_id.in_(doc_ids))
+        )
+        categories = {cat.doc_id: cat.category for cat in cat_result.scalars().all()}
+
+    return [
+        {
+            "id": doc.id,
+            "category": categories.get(doc.id),
+            "collection_date": doc.collection_date,
+            "imported_at": doc.imported_at,
+            "metadata_json": doc.metadata_json,
+        }
+        for doc in documents
+    ]
+
+
+async def _fetch_fhir_entity_dicts(profile_db: AsyncSession) -> list[dict]:
+    """Verified entities that can feed Condition/Encounter/DiagnosticReport.
+
+    Unreviewed (null) and rejected (False) entities are never fetched —
+    the unverified-data policy is enforced here, not just in fhir_export.py.
+    """
+    result = await profile_db.execute(
+        select(DocumentEntity).where(
+            DocumentEntity.entity_type.in_(FHIR_ENTITY_TYPES),
+            DocumentEntity.verified_by_user.is_(True),
+        )
+    )
+    return [
+        {
+            "id": ent.id,
+            "doc_id": ent.doc_id,
+            "entity_type": ent.entity_type,
+            "entity_value": ent.entity_value,
+            "quote": ent.quote,
+            "verified_by_user": ent.verified_by_user,
+        }
+        for ent in result.scalars().all()
+    ]
+
+
+async def _fetch_care_task_dicts_for_fhir(profile_db: AsyncSession) -> list[dict]:
+    """All care-plan tasks (every status) for the CarePlan resource.
+
+    Care-plan tasks are user-accepted by construction (HC-M15); "ignored"
+    tasks are included here and excluded inside modules/fhir_export.py so
+    the exclusion rule lives in one place.
+    """
+    result = await profile_db.execute(select(CarePlanTask))
+    return [
+        {
+            "id": task.id,
+            "title": task.title,
+            "status": task.status,
+            "due_date": task.due_date,
+            "source_quote": task.source_quote,
+        }
+        for task in result.scalars().all()
+    ]
+
+
+class FhirExportRequest(BaseModel):
+    """Request model for the FHIR R4 export (HC-M22).
+
+    confirm MUST be true — the export assembles personal health data into
+    an exportable artifact, so it requires the same explicit user
+    confirmation as the visit-prep packet and RL dataset export.
+    """
+
+    confirm: bool = False
+    include_documents: bool = True
+    include_medications: bool = True
+    include_observations: bool = True
+    include_conditions: bool = True
+    include_care_plan: bool = True
+    include_encounters: bool = True
+    include_reports: bool = True
+
+
+class FhirExportResponse(BaseModel):
+    """Response model for FHIR R4 export generation."""
+
+    export_id: str
+    profile_id: str
+    generated_at: str
+    resource_counts: dict[str, int]
+    redaction_count: int
+
+
+@router.post("/fhir", response_model=FhirExportResponse)
+async def generate_fhir_export(
+    request: FhirExportRequest,
+    session: RequireAuth,
+    profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """
+    Generate a FHIR R4 export Bundle (HC-M22).
+
+    Export-only (no import), file-based, local-first — no network calls.
+    Requires confirm=true. Only user-verified observations and verified
+    document entities are included (matching the HC-M18 unverified-data
+    exclusion policy); medications and accepted care-plan tasks are
+    user-entered/accepted, so they are included as metadata. All free-text
+    content is redacted (strict policy) before the bundle is stored, and
+    the generation is audit-logged.
+    """
+    if request.confirm is not True:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="FHIR export requires confirm=true in the request body.",
+        )
+
+    profile_id = session.profile_id
+
+    profile_result = await master_db.execute(
+        select(Profile).where(Profile.id == profile_id)
+    )
+    profile = profile_result.scalar_one_or_none()
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found",
+        )
+
+    observations = (
+        await _fetch_observations(profile_db, profile_id)
+        if request.include_observations
+        else []
+    )
+    medications = (
+        await _fetch_all_medication_dicts(profile_db, profile_id)
+        if request.include_medications
+        else []
+    )
+    documents = (
+        await _fetch_document_dicts_for_fhir(profile_db, profile_id)
+        if (request.include_documents or request.include_encounters or request.include_reports)
+        else []
+    )
+    entities = (
+        await _fetch_fhir_entity_dicts(profile_db)
+        if (request.include_conditions or request.include_encounters or request.include_reports)
+        else []
+    )
+    care_tasks = (
+        await _fetch_care_task_dicts_for_fhir(profile_db)
+        if request.include_care_plan
+        else []
+    )
+
+    result = build_fhir_bundle(
+        profile.display_name,
+        observations,
+        medications,
+        documents,
+        entities,
+        care_tasks,
+        include_observations=request.include_observations,
+        include_medications=request.include_medications,
+        include_conditions=request.include_conditions,
+        include_documents=request.include_documents,
+        include_encounters=request.include_encounters,
+        include_care_plan=request.include_care_plan,
+        include_reports=request.include_reports,
+    )
+
+    export_id = str(uuid.uuid4())
+    _fhir_store[export_id] = {
+        "profile_id": profile_id,
+        "bundle": result["bundle"],
+    }
+
+    await audit_and_commit(
+        master_db,
+        log_export_event,
+        profile_id=profile_id,
+        export_type="fhir_r4",
+        details={
+            "export_id": export_id,
+            "resource_counts": result["resource_counts"],
+            "redaction_count": result["redaction_count"],
+        },
+    )
+
+    return FhirExportResponse(
+        export_id=export_id,
+        profile_id=profile_id,
+        generated_at=result["bundle"]["timestamp"],
+        resource_counts=result["resource_counts"],
+        redaction_count=result["redaction_count"],
+    )
+
+
+@router.get("/fhir/{export_id}/download")
+async def download_fhir_export(
+    export_id: str,
+    session: RequireAuth,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """
+    Download a previously generated FHIR R4 export as a Bundle JSON file.
+
+    Content was redacted at generation time, so the download is already
+    safe to hand to another system. Creates an audit entry.
+    """
+    validate_uuid(export_id, "export_id")
+
+    stored = _fhir_store.get(export_id)
+    if not stored:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="FHIR export not found",
+        )
+
+    if stored["profile_id"] != session.profile_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this export",
+        )
+
+    await audit_and_commit(
+        master_db,
+        log_export_event,
+        profile_id=session.profile_id,
+        export_type="fhir_r4_download",
+        details={"export_id": export_id},
+    )
+
+    short_id = export_id[:8]
+    return Response(
+        content=json.dumps(stored["bundle"], indent=2),
+        media_type="application/fhir+json",
+        headers={
+            "Content-Disposition": f'attachment; filename="fhir_export_{short_id}.json"'
+        },
     )

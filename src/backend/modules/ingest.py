@@ -9,6 +9,7 @@ Handles:
 """
 
 import hashlib
+import json
 import logging
 from pathlib import Path
 from typing import Optional, BinaryIO
@@ -136,7 +137,8 @@ class IngestModule:
             file_data: Raw file bytes
 
         Returns:
-            Document type string: "lab_pdf", "lab_pdf_scanned", "lab_image", or "unknown"
+            Document type string: "lab_pdf", "lab_pdf_scanned", "lab_image",
+            "lab_csv", "fhir_bundle", or "unknown"
         """
         ext = Path(filename).suffix.lower()
 
@@ -153,6 +155,20 @@ class IngestModule:
                 return "lab_pdf"  # Default to text-based on error
         elif ext in [".png", ".jpg", ".jpeg"]:
             return "lab_image"
+        elif ext == ".csv":
+            return "lab_csv"
+        elif ext == ".json":
+            # A JSON upload only counts as a FHIR import when it actually
+            # parses and declares itself a Bundle; anything else is
+            # "unknown" so import_document() below rejects it with a clear
+            # 400 rather than silently storing an unrecognized file.
+            try:
+                data = json.loads(file_data.decode("utf-8"))
+            except (UnicodeDecodeError, ValueError):
+                return "unknown"
+            if isinstance(data, dict) and data.get("resourceType") == "Bundle":
+                return "fhir_bundle"
+            return "unknown"
         else:
             return "unknown"
 
@@ -270,6 +286,14 @@ class IngestModule:
 
         # Detect document type
         doc_type = self.detect_doc_type(filename, file_data)
+        if doc_type == "unknown":
+            ext = Path(filename).suffix.lower()
+            if ext == ".json":
+                raise ValueError(
+                    "JSON file is not a valid FHIR R4 Bundle "
+                    "(must be parseable JSON with resourceType \"Bundle\")"
+                )
+            raise ValueError(f"Unsupported or unrecognized file: {filename}")
 
         # Generate document ID
         document_id = str(uuid.uuid4())

@@ -75,6 +75,26 @@ export interface VisitPrepResponse {
 
 export type VisitPrepFormat = 'markdown' | 'html' | 'pdf';
 
+// FHIR R4 export (HC-M22)
+export interface FhirExportRequest {
+  confirm: boolean;
+  include_documents?: boolean;
+  include_medications?: boolean;
+  include_observations?: boolean;
+  include_conditions?: boolean;
+  include_care_plan?: boolean;
+  include_encounters?: boolean;
+  include_reports?: boolean;
+}
+
+export interface FhirExportResponse {
+  export_id: string;
+  profile_id: string;
+  generated_at: string;
+  resource_counts: Record<string, number>;
+  redaction_count: number;
+}
+
 export interface ExportFilters {
   analytes?: string[];
   from_date?: string;
@@ -181,6 +201,31 @@ export async function downloadVisitPrep(
   return { blob, contentType, extension };
 }
 
+/**
+ * Generate a FHIR R4 export Bundle (HC-M22). The backend requires an
+ * explicit confirm: true and redacts all bundle content before it can be
+ * downloaded.
+ */
+export async function generateFhirExport(
+  request: FhirExportRequest
+): Promise<FhirExportResponse> {
+  return apiPost<FhirExportResponse, FhirExportRequest>('/export/fhir', request);
+}
+
+/**
+ * Download a previously generated FHIR R4 export as a Bundle JSON file.
+ */
+export async function downloadFhirExport(
+  exportId: string
+): Promise<{ blob: Blob; contentType: string; extension: string }> {
+  const response = await apiGetRaw(`/export/fhir/${exportId}/download`);
+
+  const contentType = response.headers.get('Content-Type') || 'application/fhir+json';
+  const blob = await response.blob();
+
+  return { blob, contentType, extension: '.json' };
+}
+
 async function generateQuestions(filters?: ExportFilters): Promise<QuestionItem[]> {
   const queryParams = new URLSearchParams();
   if (filters?.from_date) queryParams.set('from_date', filters.from_date);
@@ -275,6 +320,27 @@ export function useDownloadVisitPrep() {
       downloadVisitPrep(packetId, format),
     onSuccess: ({ blob, extension }, { packetId }) => {
       triggerDownload(blob, `visit_prep_${packetId.substring(0, 8)}${extension}`);
+    },
+  });
+}
+
+/**
+ * Mutation hook for generating a FHIR R4 export (HC-M22).
+ */
+export function useGenerateFhirExport() {
+  return useMutation({
+    mutationFn: (request: FhirExportRequest) => generateFhirExport(request),
+  });
+}
+
+/**
+ * Mutation hook for downloading a generated FHIR R4 export.
+ */
+export function useDownloadFhirExport() {
+  return useMutation({
+    mutationFn: (exportId: string) => downloadFhirExport(exportId),
+    onSuccess: ({ blob, extension }, exportId) => {
+      triggerDownload(blob, `fhir_export_${exportId.substring(0, 8)}${extension}`);
     },
   });
 }

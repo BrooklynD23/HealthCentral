@@ -44,7 +44,10 @@ def _register_builtin_tools() -> None:
     from .check_verification import CheckVerificationTool
     from .compute_trend import ComputeTrendTool
     from .lookup_reference import LookupReferenceTool
+    from .query_care_tasks import QueryCareTasksTool
+    from .query_medication_changes import QueryMedicationChangesTool
     from .query_observations import QueryObservationsTool
+    from .query_timeline import QueryTimelineTool
     from .retrieve_chunks import RetrieveChunksTool
 
     for tool_cls in (
@@ -53,6 +56,9 @@ def _register_builtin_tools() -> None:
         CheckVerificationTool,
         LookupReferenceTool,
         RetrieveChunksTool,
+        QueryCareTasksTool,
+        QueryMedicationChangesTool,
+        QueryTimelineTool,
     ):
         if tool_cls.name not in _REGISTRY:
             register(tool_cls())

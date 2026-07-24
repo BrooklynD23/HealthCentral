@@ -2,10 +2,10 @@
 
 ## Scope
 Local-first backend services that power:
-- Document ingestion (PDF/images), parsing, normalization, and verification workflow
+- Document ingestion (PDF/images, plus CSV/FHIR R4 Bundle structured imports — HC-M23), parsing, normalization, and verification workflow
 - Trend/stat calculations (deterministic code, not the LLM)
-- Grounded assistant (local RAG) with citation enforcement
-- Export pipelines (clinician-ready summary, CSV/JSON)
+- Grounded assistant (local RAG) with citation enforcement, including bounded read-only agent tools for record-navigation questions (HC-M24)
+- Export pipelines (clinician-ready summary, CSV/JSON, FHIR R4 Bundle — HC-M22)
 - Local audit logs and safety rails
 
 Constraints (from PRD): offline-by-default; conservative outputs; provenance required for extracted fields and retrieved context; encryption at rest for DB, vector index, and stored documents.
@@ -49,7 +49,7 @@ Rules:
 Responsibilities:
 - Import/copy/link source files into per-profile vault folder
 - Content hashing, dedup heuristics, metadata capture
-- Type detection (lab PDF vs scan vs image)
+- Type detection (lab PDF vs scan vs image vs CSV lab export vs FHIR R4 Bundle — HC-M23; CSV/FHIR skip OCR/extraction and are parsed by a dedicated structured-import pipeline, always landing unverified)
 
 Outputs:
 - `document_id`, `path_hash`, `doc_type`, `imported_at`, `metadata_json`
@@ -94,11 +94,13 @@ Composition rules:
   - citations are missing where required
   - “report facts” are not supported by retrieved user chunks
   - model attempts diagnosis/treatment advice
+- bounded, read-only agent tools (`query_care_tasks`, `query_medication_changes`, `query_timeline` — HC-M24) answer record-navigation questions with cited, non-speculative summaries and a deterministic no-LLM fallback for the same intents
 
 ### 7) `export`
 - Clinician-ready summary (1–2 pages) from verified observations + citations
 - CSV/JSON export of normalized observations
 - Chart export images + CSV
+- FHIR R4 `Bundle` export (HC-M22) — verified-only, strict-redacted, confirmation-gated
 
 ### 8) `audit`
 - Append-only event log:

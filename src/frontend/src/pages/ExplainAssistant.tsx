@@ -64,6 +64,14 @@ const FALLBACK_QUESTIONS = [
   'What questions should I ask my doctor?',
 ];
 
+// HC-M24: bounded record-navigation queries — one-click chips that send
+// immediately (rather than just prefilling) through the same handleSend path.
+const RECORD_QUERY_CHIPS = [
+  'Which follow-up tasks are open?',
+  'Show all medication changes',
+  'What changed since my last visit?',
+];
+
 const documentCategoryLabels: Record<DocumentCategory, string> = {
   lab: 'Lab',
   imaging: 'Imaging',
@@ -248,18 +256,18 @@ export function ExplainAssistant() {
     messagesEndRef.current?.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth' });
   }, [messages, prefersReducedMotion]);
 
-  const handleSend = async () => {
-    if (!input.trim() || sendMessage.isPending) return;
+  const handleSend = async (overrideQuestion?: string) => {
+    const question = (overrideQuestion ?? input).trim();
+    if (!question || sendMessage.isPending) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: input,
+      content: question,
       timestamp: new Date(),
     };
 
     setMessages((prev) => [...prev, userMessage]);
-    const question = input;
     setInput('');
 
     try {
@@ -676,6 +684,28 @@ export function ExplainAssistant() {
           </div>
 
           <div className="border-t border-black/[0.04] p-4 flex-shrink-0">
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <span className="text-xs font-medium text-ink-tertiary flex items-center gap-1">
+                <History className="w-3 h-3" />
+                Ask about your records
+              </span>
+              {RECORD_QUERY_CHIPS.map((question) => (
+                <button
+                  key={question}
+                  type="button"
+                  onClick={() => handleSend(question)}
+                  disabled={sendMessage.isPending}
+                  className={cn(
+                    'px-3 py-1.5 rounded-full text-xs',
+                    'bg-surface-muted hover:bg-accent-subtle hover:text-accent',
+                    'transition-colors duration-200',
+                    'disabled:opacity-50 disabled:cursor-not-allowed'
+                  )}
+                >
+                  {question}
+                </button>
+              ))}
+            </div>
             <div className="flex gap-3">
               <input
                 type="text"
@@ -692,7 +722,7 @@ export function ExplainAssistant() {
                 disabled={sendMessage.isPending}
               />
               <Button
-                onClick={handleSend}
+                onClick={() => handleSend()}
                 disabled={!input.trim() || sendMessage.isPending}
                 className="px-4"
               >

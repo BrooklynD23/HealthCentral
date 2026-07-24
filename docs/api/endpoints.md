@@ -1,6 +1,6 @@
 # API Endpoints
 
-**Last Updated:** 2026-06-13
+**Last Updated:** 2026-07-23
 **Owner:** Platform maintainers
 **Refresh Trigger:** Mounted backend route added, removed, renamed, or auth requirement changed
 **Status:** Source of truth for the live mounted backend API
@@ -28,13 +28,16 @@ Auth-required endpoints need `Authorization: Bearer <token>`.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/documents/import` | Yes | Import a PDF/image document |
+| POST | `/documents/import` | Yes | Import a PDF/image document, or a `.csv`/`.json` (FHIR R4 `Bundle`) structured file (HC-M23) — structured imports skip OCR/classification and land observations and medication/diagnosis mentions as **unverified** rows via a dedicated parser pipeline; response includes an `import_summary` for structured imports |
 | GET | `/documents/` | Yes | List documents with optional status/type filters |
 | GET | `/documents/{document_id}` | Yes | Get document metadata |
-| POST | `/documents/{document_id}/reprocess` | Yes | Retry extraction/OCR and rebuild observations/chunks — also backfills collected_at for documents affected by earlier date-extraction gaps |
+| POST | `/documents/{document_id}/reprocess` | Yes | Retry extraction/OCR and rebuild observations/chunks — also backfills collected_at for documents affected by earlier date-extraction gaps; rejected with 400 for `lab_csv`/`fhir_bundle` documents (delete and re-import instead) |
 | POST | `/documents/{document_id}/verify` | Yes | Mark all observations for a document as verified |
 | GET | `/documents/{document_id}/category` | Yes | Get the classified document category |
 | GET | `/documents/{document_id}/entities` | Yes | Get extracted document entities |
+| PATCH | `/documents/{document_id}/entities/{entity_id}/verification` | Yes | Set an extracted entity's user verification state (`verified`: true/false/null) |
+| GET | `/documents/highlights/summary` | Yes | Per-document smart-highlight type counts for the most recently imported documents (HC-M16), derived on read |
+| GET | `/documents/{document_id}/highlights` | Yes | Get derived smart highlights for one document (HC-M16), derived on read |
 | GET | `/documents/{document_id}/pages` | Yes | Get page text/provenance data |
 | GET | `/documents/{document_id}/pages/{page_number}/image` | Yes | Render a document page as PNG |
 | DELETE | `/documents/{document_id}` | Yes | Delete a document and associated data |
@@ -66,7 +69,7 @@ Auth-required endpoints need `Authorization: Bearer <token>`.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/assistant/chat` | Yes | Chat with the grounded assistant |
+| POST | `/assistant/chat` | Yes | Chat with the grounded assistant — when the agent graph is enabled, routes bounded read-only queries (open follow-up tasks, medication changes, timeline/"what changed") to dedicated agent tools (HC-M24), with deterministic no-LLM fallbacks for the same intents |
 | GET | `/assistant/test-intent/{analyte}` | Yes | Test intent lookup for an analyte |
 | GET | `/assistant/glossary/{term}` | Yes | Glossary lookup |
 | GET | `/assistant/verification-status` | Yes | Get assistant verification component status |
@@ -139,8 +142,52 @@ Auth-required endpoints need `Authorization: Bearer <token>`.
 | POST | `/export/doctor-summary` | Yes | Generate a clinician summary |
 | GET | `/export/doctor-summary/{summary_id}/download` | Yes | Download a generated summary |
 | POST | `/export/questions` | Yes | Generate discussion prompts |
+| POST | `/export/visit-prep` | Yes | Generate a visit-prep packet (HC-M18) — requires `confirm=true`; unverified data excluded everywhere, all content redacted (strict policy) |
+| GET | `/export/visit-prep/{packet_id}/download` | Yes | Download a generated visit-prep packet as markdown, HTML, or PDF (`format` query param; PDF returns 501 if WeasyPrint is not installed) |
 | GET | `/export/csv` | Yes | Export observations as CSV |
 | GET | `/export/json` | Yes | Export observations as JSON |
+| POST | `/export/fhir` | Yes | Generate a FHIR R4 export `Bundle` (HC-M22) — requires `confirm=true`; verified-only observations/entities, all free text redacted (strict policy) before storage |
+| GET | `/export/fhir/{export_id}/download` | Yes | Download a previously generated FHIR R4 `Bundle` as `application/fhir+json` |
+
+## Care Tasks
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/care-tasks/` | Yes | List persisted care-plan tasks, optionally filtered by `status` |
+| GET | `/care-tasks/candidates` | Yes | Derive task candidates for a document (computed on read, not persisted) |
+| POST | `/care-tasks/accept` | Yes | Persist a task from a candidate — the only way a task is created |
+| PATCH | `/care-tasks/{task_id}` | Yes | Update a task's status (`open`/`done`/`ignored`/`needs_review`) or user note |
+
+## Timeline
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/timeline/` | Yes | Chronological view of the profile's health record (lab observations, classified documents, medication starts/stops), derived on read; supports `event_type`/`date_from`/`date_to` filters |
+
+## Medication Reconciliation
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/med-reconciliation/` | Yes | Compare a document's medication mentions against the medication list (`doc_id` query param); read-only, computed on read — never applies changes to the medication list |
+
+## Pinboards
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/pinboards/` | Yes | Create a pinboard |
+| GET | `/pinboards/` | Yes | List pinboards |
+| PATCH | `/pinboards/{pinboard_id}` | Yes | Rename a pinboard |
+| DELETE | `/pinboards/{pinboard_id}` | Yes | Delete a pinboard |
+| POST | `/pinboards/{pinboard_id}/items` | Yes | Add an item to a pinboard |
+| GET | `/pinboards/{pinboard_id}/items` | Yes | List items on a pinboard |
+| DELETE | `/pinboards/{pinboard_id}/items/{item_id}` | Yes | Remove an item from a pinboard |
+| POST | `/pinboards/{pinboard_id}/export` | Yes | Generate a visit-prep packet scoped to a pinboard's items — requires `confirm=true` |
+
+## Search
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/search/` | Yes | Bounded local search over documents, extracted entities, and observations (HC-M21); `q` required, with optional `provider`/`date_from`/`date_to`/`category`/`highlight_type`/`limit` filters |
 
 ## Model Settings
 

@@ -1,6 +1,6 @@
 # HealthCentral Documentation Index (Current)
 
-**Last Updated:** 2026-07-09
+**Last Updated:** 2026-07-23
 **Owner:** Project Lead
 **Refresh Trigger:** New doc added or doc archived
 

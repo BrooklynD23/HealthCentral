@@ -505,6 +505,39 @@ describe('ExplainAssistant', () => {
     });
   });
 
+  describe('HC-M24: record-navigation chips', () => {
+    it('should render the three "Ask about your records" chips', () => {
+      renderWithProviders(<ExplainAssistant />);
+
+      expect(screen.getByText('Which follow-up tasks are open?')).toBeInTheDocument();
+      expect(screen.getByText('Show all medication changes')).toBeInTheDocument();
+      expect(screen.getByText('What changed since my last visit?')).toBeInTheDocument();
+    });
+
+    it('should send the question immediately when a record-query chip is clicked', async () => {
+      const user = userEvent.setup();
+      const mockApiPost = vi.mocked(api.apiPost);
+      mockApiPost.mockResolvedValueOnce(mockChatResponse);
+
+      renderWithProviders(<ExplainAssistant />);
+
+      await user.click(screen.getByText('Which follow-up tasks are open?'));
+
+      await waitFor(() => {
+        expect(mockApiPost).toHaveBeenCalledWith(
+          '/assistant/chat',
+          expect.objectContaining({
+            question: 'Which follow-up tasks are open?',
+          })
+        );
+      });
+
+      // The chip send bypasses the free-text input, which should stay empty.
+      const input = screen.getByPlaceholderText('Ask about your results...') as HTMLInputElement;
+      expect(input.value).toBe('');
+    });
+  });
+
   describe('Suggested questions', () => {
     it('should populate input when suggested question is clicked', async () => {
       const user = userEvent.setup();
