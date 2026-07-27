@@ -85,7 +85,7 @@ class QueryObservationsTool:
                 details={
                     "tool_name": self.name,
                     "observation_ids": [r.observation_id for r in rows],
-                    "analyte_filter": args.analyte,
+                    "analyte_filter_present": args.analyte is not None,
                     "count": len(rows),
                 },
             ),

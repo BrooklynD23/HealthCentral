@@ -349,7 +349,8 @@ async def create_medication(
         event="medication_create",
         profile_id=session.profile_id,
         document_id=med.id,
-        details={"medication_name": med.name},
+        # AUDIT-PHI-001: drug names are clinical content; med.id is the handle.
+        details=None,
     )
     await master_db.commit()
 
@@ -522,7 +523,8 @@ async def delete_medication(
         event=event_type,
         profile_id=session.profile_id,
         document_id=medication_id,
-        details={"medication_name": medication.name},
+        # AUDIT-PHI-001: drug names are clinical content; medication_id is the handle.
+        details=None,
     )
     await master_db.commit()
 

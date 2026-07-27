@@ -805,7 +805,8 @@ async def generate_visit_prep(
         export_type="visit_prep",
         details={
             "packet_id": packet["packet_id"],
-            "section_titles": [s["title"] for s in packet["sections"]],
+            # AUDIT-PHI-001: section titles are content-derived free text.
+            "count": len(packet["sections"]),
             "redaction_count": packet["redaction_count"],
         },
     )

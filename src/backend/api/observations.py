@@ -497,7 +497,11 @@ async def verify_observation(
         profile_id=observation.profile_id,
         observation_id=observation_id,
         analyte=observation.analyte_canonical,
-        details={"changes": changes} if changes else None,
+        # AUDIT-PHI-001: field names only. The old {"changes": {...}} shape wrote
+        # verbatim lab values, units and reference ranges into the unencrypted
+        # master DB. Which fields the user corrected is the auditable fact; what
+        # they corrected them to lives in the encrypted profile DB.
+        details={"changed_fields": sorted(changes)} if changes else None,
     )
     await master_db.commit()
 

@@ -50,6 +50,44 @@ requirements under 45 CFR 164.312.
 | Security audit | `SecurityAuditMiddleware` emits application-log entries for mutating requests |
 | Log persistence | Database audit log for core audit events; application logger for security middleware entries |
 | Immutability | Audit log entries are append-only |
+| PHI minimization | `core/audit.py` allowlist-scrubs every row before write (AUDIT-PHI-001, see below) |
+
+### PHI Minimization in Audit Rows (AUDIT-PHI-001)
+
+Audit rows are written to the **master database, which is not encrypted** — the
+profile databases are SQLCipher-encrypted, the master DB holds profile metadata
+and this audit trail. It is therefore the one place patient-linked data can
+escape the encryption boundary, and its content is minimized accordingly.
+
+`create_audit_log` is the single choke point: every `log_*_event` helper and
+every agent audit event passes through it, so a new call site inherits the
+guarantee without opting in.
+
+| Rule | Enforcement |
+|------|-------------|
+| `action` is a static template | `_scrub_action` accepts only strings in `ALLOWED_ACTIONS`; anything else is replaced by the (always static) `event_type` |
+| `details` is allowlisted | `_scrub_details` keeps only ids, counts, booleans and spaceless enum values whose key is in `ALLOWED_DETAIL_KEYS`; everything else is dropped and counted as `_scrubbed` |
+| No free text | String values must match `^[A-Za-z0-9_.:/\-]{1,64}$` — a value containing a space cannot be persisted |
+| Application log too | The `logger.info` line records the scrubbed action, so the plaintext app log does not become a second copy |
+
+Specifically **not** recorded: document filenames, analyte names, medication
+names, observation values/units/reference ranges, export section titles,
+filesystem paths, profile display names, and assistant query text. The
+corresponding `entity_id` is retained as the join key into the encrypted
+profile database, where that content legitimately lives.
+
+**Audit coverage is unchanged.** This control minimizes what each row contains;
+it does not remove events. Every route that touched documents, observations or
+profile data before still writes a row.
+
+**Legacy rows.** Rows written before this control was added may still contain
+filenames, analyte names and edit values. They are deliberately left untouched
+rather than rewritten — rewriting an append-only audit trail is a worse
+property to give up than the exposure it would remove. The only path that
+removes them is profile deletion (PROF-DEL-001), which purges that profile's
+audit rows entirely.
+
+**Out of scope / gated:** encrypting the master database itself (Phase B).
 
 ### Audited Events
 

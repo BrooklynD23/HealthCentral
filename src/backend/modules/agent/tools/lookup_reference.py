@@ -76,7 +76,7 @@ class LookupReferenceTool:
                 step_index=ctx.step_index,
                 details={
                     "tool_name": self.name,
-                    "analyte": args.analyte,
+                    # AUDIT-PHI-001: analyte names are clinical content.
                     "handle": handle,
                     "found": reference is not None,
                 },
