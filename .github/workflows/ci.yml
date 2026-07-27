@@ -24,6 +24,9 @@ jobs:
       - name: Check generated docs freshness
         run: python3 scripts/generate_docs_index.py --check
 
+      - name: Lint feature inventory
+        run: python3 scripts/feature_list_lint.py
+
   backend-tests:
     name: Backend Tests
     runs-on: ubuntu-latest
