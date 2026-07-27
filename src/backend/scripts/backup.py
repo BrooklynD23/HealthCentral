@@ -140,7 +140,13 @@ def _backup_sqlite(source: Path, dest: Path) -> str:
 
 
 def _discover_databases(data_dir: Path) -> list[Path]:
-    """Discover all database files in the data directory."""
+    """Discover all database files in the data directory.
+
+    Profile vaults live at ``vaults/{profile_id}/vault.db`` — one directory per
+    profile — so this must recurse. A flat ``vaults/*.db`` glob matches nothing
+    and silently produces a backup containing only the master database, i.e.
+    no patient health data at all.
+    """
     dbs: list[Path] = []
 
     # Master database
@@ -148,13 +154,40 @@ def _discover_databases(data_dir: Path) -> list[Path]:
     if master_db.exists():
         dbs.append(master_db)
 
-    # Profile vault databases
+    # Profile vault databases (one per profile subdirectory)
     vaults_dir = data_dir / "vaults"
     if vaults_dir.exists():
-        for db_file in sorted(vaults_dir.glob("*.db")):
+        for db_file in sorted(vaults_dir.rglob("*.db")):
             dbs.append(db_file)
 
     return dbs
+
+
+def _discover_key_files(data_dir: Path) -> list[Path]:
+    """Discover the sealed key files that make the vault databases readable.
+
+    A vault database without its sealed key is ciphertext with no way in, so a
+    backup that omits these restores nothing usable. Both the password-sealed
+    primary key and the recovery-sealed copy (SEC-RECOV-001) are included —
+    omitting the recovery copy would silently break recovery after a restore.
+
+    These files are sealed, not plaintext: the primary needs the profile
+    password and the recovery copy needs the recovery code. The backup is
+    therefore no more sensitive than the vault it accompanies — but it does
+    mean a backup plus a known password is full access, which is exactly what
+    "restore" has to mean.
+    """
+    key_files: list[Path] = []
+    vaults_dir = data_dir / "vaults"
+    if not vaults_dir.exists():
+        return key_files
+
+    for profile_dir in sorted(p for p in vaults_dir.iterdir() if p.is_dir()):
+        for name in ("key.bin", "key.method", "key.recovery.bin", "key.recovery.method"):
+            candidate = profile_dir / name
+            if candidate.exists():
+                key_files.append(candidate)
+    return key_files
 
 
 def backup(
@@ -178,14 +211,17 @@ def backup(
 
     databases = _discover_databases(data_dir)
 
+    key_files = _discover_key_files(data_dir)
+
     if profile_id:
-        vault_name = f"{profile_id}.db"
+        # Vaults are directories named by profile id, so match on the parent.
         databases = [
             db for db in databases
-            if db.name == "healthcentral.db" or db.name == vault_name
+            if db.name == "healthcentral.db" or db.parent.name == profile_id
         ]
+        key_files = [k for k in key_files if k.parent.name == profile_id]
 
-    if not databases:
+    if not databases and not key_files:
         return BackupResult(
             success=True,
             backup_path=dest_dir,
@@ -213,6 +249,20 @@ def backup(
             "sha256": checksum,
             "size_bytes": dest_file.stat().st_size,
             "method": method,
+        })
+
+    # Sealed key files are copied verbatim -- they are opaque blobs, not
+    # SQLite databases, so the backup API does not apply.
+    for key_path in key_files:
+        rel_path = key_path.relative_to(data_dir)
+        dest_file = dest_dir / rel_path
+        dest_file.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(key_path, dest_file)
+        manifest_files.append({
+            "path": str(rel_path),
+            "sha256": _compute_sha256(dest_file),
+            "size_bytes": dest_file.stat().st_size,
+            "method": "file_copy",
         })
 
     manifest = {

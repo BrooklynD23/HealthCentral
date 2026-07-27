@@ -19,6 +19,7 @@ import type {
   DoseLogResponse,
   AdherenceStats,
   LearnPatternsResponse,
+  MedicationCorrelations,
 } from './types';
 
 const QUERY_KEY = 'medications';
@@ -122,6 +123,29 @@ async function learnPatterns(
   const params = scheduleId ? `?schedule_id=${scheduleId}` : '';
   return apiPost<LearnPatternsResponse>(
     `/medications/${medicationId}/learn-patterns${params}`
+  );
+}
+
+
+/**
+ * MED-CORR-001: observations collected while a medication was active.
+ *
+ * The backend now owns this overlap rule (it used to exist only as the
+ * frontend heuristic in utils/correlation.ts). It is a temporal overlap, not
+ * an effect claim.
+ */
+async function fetchMedicationCorrelations(
+  medicationId: string,
+  params?: { analyte?: string; verified_only?: boolean }
+): Promise<MedicationCorrelations> {
+  const query: Record<string, string> = {};
+  if (params?.analyte) query.analyte = params.analyte;
+  if (params?.verified_only !== undefined) {
+    query.verified_only = String(params.verified_only);
+  }
+  return apiGet<MedicationCorrelations>(
+    `/medications/${medicationId}/correlations`,
+    query
   );
 }
 
@@ -320,5 +344,16 @@ export function useLearnPatterns() {
         queryKey: [QUERY_KEY, medicationId],
       });
     },
+  });
+}
+
+export function useMedicationCorrelations(
+  medicationId: string | undefined,
+  params?: { analyte?: string; verified_only?: boolean }
+) {
+  return useQuery({
+    queryKey: ['medications', medicationId, 'correlations', params],
+    queryFn: () => fetchMedicationCorrelations(medicationId!, params),
+    enabled: !!medicationId,
   });
 }

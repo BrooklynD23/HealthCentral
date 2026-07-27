@@ -113,6 +113,18 @@ class LlamaCppProvider:
             )
             return False
 
+        # MODEL-INT-001: check the artifact against its pinned SHA256 before it
+        # is loaded. Advisory by design -- hard-failing would leave a
+        # local-first desktop user with a dead app and no path forward -- but
+        # a mismatch is logged loudly, because every guardrail threshold and
+        # golden eval in this repo was tuned against the pinned artifact.
+        try:
+            from modules.model_integrity import verify_and_log
+
+            verify_and_log(model_path, getattr(self._settings, "llm_model_tier", "low"))
+        except Exception:  # pragma: no cover - integrity check must never block loading
+            logger.debug("MODEL-INT-001: integrity check skipped", exc_info=True)
+
         try:
             Llama = _load_llama_class()
             logger.info("LlamaCppProvider: loading model from %s", model_path)

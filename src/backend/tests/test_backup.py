@@ -32,15 +32,23 @@ def data_dir(tmp_path):
     conn.commit()
     conn.close()
 
-    # Create vault database
-    vaults = d / "vaults"
-    vaults.mkdir()
-    vault_db = vaults / "profile-123.db"
+    # Create vault database. The real on-disk layout is one directory per
+    # profile: vaults/{profile_id}/vault.db, alongside its sealed key files.
+    # This fixture previously used a flat vaults/{profile_id}.db, which matched
+    # the (broken) flat glob in backup.py and hid the fact that profile data
+    # was never actually being backed up.
+    vault_dir = d / "vaults" / "profile-123"
+    vault_dir.mkdir(parents=True)
+    vault_db = vault_dir / "vault.db"
     conn = sqlite3.connect(str(vault_db))
     conn.execute("CREATE TABLE records (id INTEGER PRIMARY KEY)")
     conn.execute("INSERT INTO records VALUES (1)")
     conn.commit()
     conn.close()
+
+    # Sealed key files — without these a restored vault is unopenable.
+    (vault_dir / "key.bin").write_bytes(b"sealed-primary")
+    (vault_dir / "key.method").write_text("password")
 
     return d
 
@@ -73,7 +81,8 @@ class TestBackup:
         assert "timestamp" in manifest
         assert "app_version" in manifest
         assert "files" in manifest
-        assert len(manifest["files"]) == 2  # master + vault
+        # master DB + vault DB + the two sealed key files
+        assert len(manifest["files"]) == 4
         for entry in manifest["files"]:
             assert "sha256" in entry
             assert "path" in entry
@@ -82,7 +91,8 @@ class TestBackup:
     def test_backup_specific_profile(self, data_dir, backup_dir):
         """Backup with profile_id only includes master + that profile."""
         result = backup(data_dir, backup_dir, profile_id="profile-123")
-        assert result.files_backed_up == 2  # master + profile-123.db
+        # master DB + the profile vault DB + its two sealed key files
+        assert result.files_backed_up == 4
 
     def test_empty_data_dir_succeeds(self, tmp_path, backup_dir):
         """Backup of empty data dir succeeds with 0 files."""
@@ -105,7 +115,7 @@ class TestVerify:
         backup_path = sorted(backup_dir.iterdir())[-1]
         result = verify(backup_path)
         assert result.valid
-        assert result.files_checked == 2
+        assert result.files_checked == 4
 
     def test_corrupted_file_detected(self, data_dir, backup_dir):
         """Corrupted file is detected by checksum."""
@@ -155,7 +165,7 @@ class TestRestore:
         restore_dir.mkdir()
         result = restore(backup_path, restore_dir)
         assert result.success
-        assert result.files_restored == 2
+        assert result.files_restored == 4
         assert (restore_dir / "healthcentral.db").exists()
 
     def test_restore_creates_bak(self, data_dir, backup_dir):

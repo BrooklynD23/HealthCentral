@@ -21,7 +21,7 @@ from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
-from core.audit import log_document_event
+from core.audit import audit_and_commit, log_document_event
 from core.auth import RequireAuth, Session, ProfileDbSession
 from core.time import utcnow
 from models import (
@@ -29,6 +29,7 @@ from models import (
     MedicationSchedule,
     DoseTaken,
     AdherencePattern,
+    Observation,
     ReminderLog,
     UserModelSettings,
     EarnedBadge,
@@ -412,6 +413,143 @@ async def get_medication(
 
     verify_medication_access(medication, session)
     return MedicationResponse.from_model(medication)
+
+
+class CorrelatedObservation(BaseModel):
+    """One observation collected while the medication was active."""
+
+    id: str
+    analyte_canonical: str
+    value: Optional[float]
+    value_text: Optional[str]
+    unit: Optional[str]
+    ref_low: Optional[float]
+    ref_high: Optional[float]
+    flag: Optional[str]
+    is_abnormal: Optional[bool]
+    collected_at: Optional[str]
+    user_verified: bool
+
+
+class MedicationCorrelationsResponse(BaseModel):
+    """Observations overlapping a medication's active window (MED-CORR-001).
+
+    Deliberately *not* an effect claim. This is a temporal overlap: these
+    results were collected while you were taking this medication. Whether the
+    medication caused any change is a clinical judgement this app does not make.
+    """
+
+    medication_id: str
+    started_at: Optional[str]
+    ended_at: Optional[str]
+    observation_count: int
+    excluded_undated_count: int
+    analytes: list[str]
+    observations: list[CorrelatedObservation]
+
+
+@router.get(
+    "/{medication_id}/correlations",
+    response_model=MedicationCorrelationsResponse,
+)
+async def get_medication_correlations(
+    medication_id: str,
+    session: RequireAuth,
+    master_db: AsyncSession = Depends(get_db),
+    profile_db: ProfileDbSession = None,
+    analyte: Optional[str] = Query(None, description="Restrict to one analyte"),
+    verified_only: bool = Query(True, description="Only user-verified observations"),
+):
+    """List observations collected during this medication's active window.
+
+    MED-CORR-001. The same overlap rule the frontend already used
+    (`src/frontend/src/utils/correlation.ts`) is implemented here so there is
+    one definition rather than two that can drift:
+
+        started_at <= collected_at AND (ended_at IS NULL OR collected_at <= ended_at)
+
+    Undated observations are excluded and counted separately, mirroring the
+    existing rule that undated observations are listed but never placed on a
+    timeline. Defaults to verified observations only: an unverified extraction
+    is not a fact to correlate against.
+    """
+    validate_uuid(medication_id, "medication_id")
+
+    result = await profile_db.execute(
+        select(Medication).where(Medication.id == medication_id)
+    )
+    medication = result.scalar_one_or_none()
+
+    if not medication:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Medication not found"
+        )
+
+    verify_medication_access(medication, session)
+
+    conditions = [Observation.collected_at.is_not(None)]
+    if medication.started_at is not None:
+        conditions.append(Observation.collected_at >= medication.started_at)
+    if medication.ended_at is not None:
+        conditions.append(Observation.collected_at <= medication.ended_at)
+    if analyte:
+        conditions.append(Observation.analyte_canonical == analyte)
+    if verified_only:
+        conditions.append(Observation.user_verified.is_(True))
+
+    obs_result = await profile_db.execute(
+        select(Observation)
+        .where(and_(*conditions))
+        .order_by(Observation.collected_at.asc())
+    )
+    observations = list(obs_result.scalars().all())
+
+    # Counted, not silently dropped — an undated result is missing information,
+    # not an absence of data.
+    undated_conditions = [Observation.collected_at.is_(None)]
+    if analyte:
+        undated_conditions.append(Observation.analyte_canonical == analyte)
+    if verified_only:
+        undated_conditions.append(Observation.user_verified.is_(True))
+    undated_result = await profile_db.execute(
+        select(func.count()).select_from(Observation).where(and_(*undated_conditions))
+    )
+    excluded_undated = undated_result.scalar_one() or 0
+
+    await audit_and_commit(
+        master_db,
+        log_document_event,
+        event="view",
+        profile_id=session.profile_id,
+        document_id=medication_id,
+        details={"count": len(observations), "entity_type": "medication_correlations"},
+    )
+
+    return MedicationCorrelationsResponse(
+        medication_id=medication.id,
+        started_at=medication.started_at.isoformat() if medication.started_at else None,
+        ended_at=medication.ended_at.isoformat() if medication.ended_at else None,
+        observation_count=len(observations),
+        excluded_undated_count=excluded_undated,
+        analytes=sorted({o.analyte_canonical for o in observations}),
+        observations=[
+            CorrelatedObservation(
+                id=o.id,
+                analyte_canonical=o.analyte_canonical,
+                value=o.value,
+                value_text=o.value_text,
+                unit=o.unit,
+                ref_low=o.ref_low,
+                ref_high=o.ref_high,
+                flag=o.flag,
+                is_abnormal=o.is_abnormal,
+                collected_at=o.collected_at.isoformat() if o.collected_at else None,
+                user_verified=o.user_verified,
+            )
+            for o in observations
+        ],
+    )
 
 
 @router.patch(

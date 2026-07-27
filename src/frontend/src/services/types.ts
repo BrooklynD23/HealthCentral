@@ -73,6 +73,36 @@ export interface ProfileDeleteRequest {
   export_acknowledged: boolean;
 }
 
+/** MED-CORR-001: one observation collected during a medication's active window. */
+export interface CorrelatedObservation {
+  id: string;
+  analyte_canonical: string;
+  value: number | null;
+  value_text: string | null;
+  unit: string | null;
+  ref_low: number | null;
+  ref_high: number | null;
+  flag: string | null;
+  is_abnormal: boolean | null;
+  collected_at: string | null;
+  user_verified: boolean;
+}
+
+/**
+ * Temporal overlap between a medication and lab results — deliberately not an
+ * effect claim. Whether the medication caused a change is a clinical judgement
+ * this app does not make.
+ */
+export interface MedicationCorrelations {
+  medication_id: string;
+  started_at: string | null;
+  ended_at: string | null;
+  observation_count: number;
+  excluded_undated_count: number;
+  analytes: string[];
+  observations: CorrelatedObservation[];
+}
+
 // Document types
 export interface Document {
   id: string;
