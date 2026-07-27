@@ -1,6 +1,6 @@
 # HealthCentral Documentation Index (Current)
 
-**Last Updated:** 2026-07-23
+**Last Updated:** 2026-07-27
 **Owner:** Project Lead
 **Refresh Trigger:** New doc added or doc archived
 
@@ -24,6 +24,17 @@ This index defines the canonical documentation order and marks legacy planning f
 Also see [`docs/roles/00_roles_index.md`](roles/00_roles_index.md) for a domain-based ("which doc for
 X") entry point, and [`docs/plans/implementation-log/`](plans/implementation-log/) for point-in-time
 implementation notes (formerly the top-level `implementation_plan/` directory).
+
+## Architecture Diagrams (Current)
+
+- [`docs/architecture/README.md`](architecture/README.md) — hand-authored mermaid diagram set:
+  system context and process topology, [backend structure](architecture/backend.md) (request
+  lifecycle, module dependencies, data architecture), [pipelines](architecture/pipelines.md)
+  (document→insight, agent graph, safety control-flow), [frontend](architecture/frontend.md), and
+  [CI gates](architecture/ci-and-quality-gates.md).
+- [`docs/architecture/performance-scalability-review.md`](architecture/performance-scalability-review.md)
+  — honest assessment of what degrades as one profile's record grows, and what this system
+  deliberately does not need.
 
 ## Generated Navigation (Advisory — Not Authoritative)
 

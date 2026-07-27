@@ -20,7 +20,7 @@ Links to: `docs/00_architecture_plans_index.md`, `docs/01_backend_architecture_p
 
 This index defines the canonical documentation order and marks legacy planning files that are kept only for history.
 
-Links to: `docs/features/TASK_LIST.md`, `docs/plans/implementation-log`, `docs/roles/00_roles_index.md`, `openwiki/README.md`
+Links to: `docs/architecture/README.md`, `docs/architecture/backend.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/architecture/frontend.md`, `docs/architecture/performance-scalability-review.md`, `docs/architecture/pipelines.md`, `docs/features/TASK_LIST.md`, `docs/plans/implementation-log`, `docs/roles/00_roles_index.md`, `openwiki/README.md`
 
 ## `docs/01_backend_architecture_plan.md`
 
@@ -259,6 +259,54 @@ All errors return a JSON body:
 **Integration Guide**
 
 cd src/backend python main.py
+
+## `docs/architecture/README.md`
+
+**Architecture Diagrams**
+
+Hand-authored mermaid diagrams of the running system, kept here so the whole structure can be reviewed in one place. Mermaid rather than image files on purpose: diagrams render on GitHub, and they…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/00_architecture_plans_index.md`, `docs/architecture/backend.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/architecture/frontend.md`, `docs/architecture/performance-scalability-review.md`, `docs/architecture/pipelines.md`, `docs/compliance/hipaa-controls.md`
+
+## `docs/architecture/backend.md`
+
+**Backend Structure**
+
+Part of the architecture diagram set.
+
+Links to: `docs/architecture/README.md`
+
+## `docs/architecture/ci-and-quality-gates.md`
+
+**CI & Quality Gates**
+
+Part of the architecture diagram set.
+
+Links to: `docs/architecture/README.md`
+
+## `docs/architecture/frontend.md`
+
+**Frontend Architecture**
+
+Part of the architecture diagram set.
+
+Links to: `docs/architecture/README.md`
+
+## `docs/architecture/performance-scalability-review.md`
+
+**Performance & Scalability Review**
+
+Part of the architecture diagram set.
+
+Links to: `docs/architecture/README.md`
+
+## `docs/architecture/pipelines.md`
+
+**Pipelines: Documents, Assistant, Safety**
+
+Part of the architecture diagram set.
+
+Links to: `docs/architecture/README.md`
 
 ## `docs/compliance/README.md`
 
@@ -624,7 +672,7 @@ Distill the big model's good grounded-refusal behavior into a small local LoRA a
 
 This is a domain-based entry point into HealthCentral's architecture documentation, organized like an engineering team's subsystem ownership — not job titles (this is a solo-dev repo; see…
 
-Links to: `docs/00_architecture_plans_index.md`, `docs/INDEX.md`, `docs/roles/ai-llm-pipeline-and-safety.md`, `docs/roles/backend-api.md`, `docs/roles/data-and-migrations.md`, `docs/roles/devops-and-ci.md`, `docs/roles/frontend.md`, `docs/roles/product-and-prd.md`, `docs/roles/security-and-compliance.md`
+Links to: `docs/00_architecture_plans_index.md`, `docs/INDEX.md`, `docs/architecture/README.md`, `docs/roles/ai-llm-pipeline-and-safety.md`, `docs/roles/backend-api.md`, `docs/roles/data-and-migrations.md`, `docs/roles/devops-and-ci.md`, `docs/roles/frontend.md`, `docs/roles/product-and-prd.md`, `docs/roles/security-and-compliance.md`
 
 ## `docs/roles/ai-llm-pipeline-and-safety.md`
 
