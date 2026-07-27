@@ -1,9 +1,11 @@
 # Sprint 5 — Cutover + cache (07-27 → 08-02)
 
+> Historical Reference: this sprint record is retained for history and is not an active tracker; the sprint completed and is not maintained going forward. For active remaining work, use [`docs/features/TASK_LIST.md`](../../features/TASK_LIST.md).
+
 **Last Updated:** 2026-06-24 (S5 delivered — **R2 SHIPPED**, commit 3765565)
 **Owner:** [Owner]
 **Refresh Trigger:** S5 story scope/AC, `/assistant/chat` response shape, or cache key changes
-**Release:** R2 (**R2 SHIPPED 2026-06-24**) · **Epic:** E5 + E4 · **Phase:** [PHASE_5](../../prd/phases/PHASE_5_cutover_cache.md)
+**Release:** R2 (**R2 SHIPPED 2026-06-24**) · **Epic:** E5 + E4 · **Phase:** [PHASE_5](../prd-phases/PHASE_5_cutover_cache.md)
 
 ## Goal
 The agent IS the assistant: flip the route, add the semantic cache, surface per-node timing.

@@ -1,9 +1,11 @@
 # Sprint 0 — Inception (2026-06-22 → 06-28)
 
+> Historical Reference: this sprint record is retained for history and is not an active tracker; the sprint completed and is not maintained going forward. For active remaining work, use [`docs/features/TASK_LIST.md`](../../features/TASK_LIST.md).
+
 **Last Updated:** 2026-06-24
 **Owner:** [Owner]
 **Refresh Trigger:** S0 story scope/AC changes, or the foundation contracts move
-**Release:** R1 · **Epic:** E1 · **Phase:** [PHASE_0](../../prd/phases/PHASE_0_foundation.md)
+**Release:** R1 · **Epic:** E1 · **Phase:** [PHASE_0](../prd-phases/PHASE_0_foundation.md)
 **Status:** ✅ Done — all four stories delivered (commit 3e63df2). Suite: 24
 passed, 18 skipped (remaining skips belong to future sprints).
 
@@ -27,7 +29,7 @@ ORM-attribute access), so `/assistant/` is unchanged when off. However, no
 persisted `agent_enabled` column exists yet on `UserModelSettings` (no
 migration adds one) — so today the helper can only ever read the absent-key
 default. Tracked as a gap, not a blocker for S0 close-out, in
-[`RECONCILIATION.md` R-8](../RECONCILIATION.md); recommended resolution is
+[`RECONCILIATION.md` R-8](../agile/RECONCILIATION.md); recommended resolution is
 the S5 cutover sprint (S5-1) adding the column + migration.
 
 ## DoR / DoD (AGILE_PLAN §2)
@@ -52,7 +54,7 @@ the S5 cutover sprint (S5-1) adding the column + migration.
 - Tests: `tests/agent/test_s0_foundation.py`, `conftest.py`.
 
 ## Standup / retro pointers
-- Append the daily one-liner to [`docs/agile/STANDUP.md`](../STANDUP.md) (newest on top).
-- Sunday: 3 bullets (keep/drop/try) to [`docs/agile/RETRO.md`](../RETRO.md); re-ask the
+- Append the daily one-liner to [`docs/agile/STANDUP.md`](../agile/STANDUP.md) (newest on top).
+- Sunday: 3 bullets (keep/drop/try) to [`docs/agile/RETRO.md`](../agile/RETRO.md); re-ask the
   three iteration questions (AGILE_PLAN §8). **Review (client hat):** demo the
   flag-OFF no-change guarantee to yourself before accepting S0-1/S0-2.

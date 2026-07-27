@@ -1,9 +1,11 @@
 # Sprint 2 — The loop closes (07-06 → 07-12)
 
+> Historical Reference: this sprint record is retained for history and is not an active tracker; the sprint completed and is not maintained going forward. For active remaining work, use [`docs/features/TASK_LIST.md`](../../features/TASK_LIST.md).
+
 **Last Updated:** 2026-06-24
 **Owner:** [Owner]
 **Refresh Trigger:** S2 story scope/AC changes, step-budget value, or run-log shape moves
-**Release:** R1 — **SHIPPED 2026-06-24** (commit fbb4fe7) · **Epic:** E1 · **Phase:** [PHASE_2](../../prd/phases/PHASE_2_loop.md)
+**Release:** R1 — **SHIPPED 2026-06-24** (commit fbb4fe7) · **Epic:** E1 · **Phase:** [PHASE_2](../prd-phases/PHASE_2_loop.md)
 
 ## Goal
 Multi-step reflect with a hard budget; replayable runs; the eval-harness skeleton.

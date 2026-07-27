@@ -1,5 +1,7 @@
 # Phase 3 — Guardrails as a Node
 
+> Historical Reference: this phase spec is retained for history and is not an active tracker; the phase completed and is not maintained going forward. For active remaining work, use [`docs/features/TASK_LIST.md`](../../features/TASK_LIST.md).
+
 **Last Updated:** 2026-06-24 (S3 delivered, commit f60e0c1)
 **Owner:** [Owner]
 **Refresh Trigger:** Guard order, advice classifier, fixed templates, or terminal schema change

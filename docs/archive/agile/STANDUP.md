@@ -1,5 +1,7 @@
 # Standup Log — Agent Overhaul
 
+> Historical Reference: this is a point-in-time snapshot retained for history and is not an active tracker. For active remaining work, use [`docs/features/TASK_LIST.md`](../../features/TASK_LIST.md).
+
 > **Format (keep it):** one dated block per working day. Three lines:
 > *Yesterday / Today / Blocker*. Append at the **top** (newest first). Two
 > minutes, not a status report. This is the solo-engineer memory between

@@ -1,5 +1,7 @@
 # Phase 6 — Evals Gate CI
 
+> Historical Reference: this phase spec is retained for history and is not an active tracker; the phase completed and is not maintained going forward. For active remaining work, use [`docs/features/TASK_LIST.md`](../../features/TASK_LIST.md).
+
 **Last Updated:** 2026-06-24 (S6 close-out — CI eval gate added, a672b88; R3 ships on first green run)
 **Owner:** [Owner]
 **Refresh Trigger:** Scoring-axis definitions, golden-set size, or the CI gate condition change

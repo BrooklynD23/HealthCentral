@@ -20,6 +20,10 @@ Baseline rules:
      src/frontend/package.json (catches README drift when scripts are renamed/removed).
   10. (DOC-010) README.md, docs/00_architecture_plans_index.md, and
       docs/features/TASK_LIST.md must state an identical "Canonical Doc Order".
+  11. (DOC-011) Every doc under docs/ is reachable from the index system --
+      an unlinked doc is drift with a timestamp.
+  13. (DOC-013) Everything under docs/archive/ carries a Historical Reference
+      banner, so retained history cannot be mistaken for live guidance.
 """
 
 from __future__ import annotations
@@ -40,13 +44,13 @@ CANONICAL_DOCS = [
 HISTORICAL_DOCS = [
     "docs/05_backend_integration_status.md",
     "docs/06_mvp_to_rag_execution_board.md",
-    "docs/plans/UI-implementation-2-4.md",
-    "docs/plans/remaining-features-implementation.md",
-    "docs/plans/next-agent-documentation-consolidation.md",
-    "docs/plans/sprint-phase-2026-02-13-implementation-plan.md",
-    "docs/plans/2026-03-04-handoff.md",
-    "docs/plans/2026-02-15-sprint-06-handoff-prompt.md",
-    "docs/plans/2026-03-28-roadmap-gsd-m001-m003-historical.md",
+    "docs/archive/plans/UI-implementation-2-4.md",
+    "docs/archive/plans/remaining-features-implementation.md",
+    "docs/archive/plans/next-agent-documentation-consolidation.md",
+    "docs/archive/plans/sprint-phase-2026-02-13-implementation-plan.md",
+    "docs/archive/plans/2026-03-04-handoff.md",
+    "docs/archive/plans/2026-02-15-sprint-06-handoff-prompt.md",
+    "docs/archive/plans/2026-03-28-roadmap-gsd-m001-m003-historical.md",
     "docs/plans/2026-05-15-cursor-lab-workflow-plan.md",
     "docs/plans/implementation-log/README.md",
     "docs/plans/implementation-log/2024-12-28_project-structure-setup.md",
@@ -428,6 +432,73 @@ def _check_canonical_order_consistency(repo_root: Path) -> list[str]:
     return errors
 
 
+def _check_archive_policy(repo_root: Path) -> list[str]:
+    """DOC-013: docs/archive/ holds history, and must read like it.
+
+    Every archived doc carries a Historical Reference banner in its top 15
+    lines, and no canonical doc links into the archive as if it were current.
+    Without this, archiving degrades into "a folder things got moved to" and
+    the next reader cannot tell retained history from live guidance.
+    """
+    errors: list[str] = []
+    archive_dir = repo_root / "docs" / "archive"
+    if not archive_dir.is_dir():
+        return errors
+
+    for path in sorted(archive_dir.rglob("*.md")):
+        rel_path = path.relative_to(repo_root).as_posix()
+        if path.name == "README.md" and path.parent == archive_dir:
+            continue  # the policy doc itself describes the archive, it is not archived
+        head = "\n".join(path.read_text(encoding="utf-8").splitlines()[:15])
+        if "Historical Reference" not in head:
+            errors.append(
+                f"{rel_path}: archived doc missing 'Historical Reference' banner "
+                f"in top 15 lines (DOC-013)"
+            )
+    return errors
+
+
+def _check_orphaned_docs(repo_root: Path) -> list[str]:
+    """DOC-011: every doc under docs/ is discoverable.
+
+    A doc that nothing references is a doc nobody finds and nobody updates --
+    it becomes drift with a timestamp. "Discoverable" means either another doc
+    links to it (reusing the link data DOC-007 already collects) or it is
+    catalogued in the generated flat map `docs/INDEX.md`, which is the
+    documented entry point for exactly this purpose.
+
+    This is deliberately weaker than "linked from a hand-maintained index":
+    that stricter bar would be the better goal, but enforcing it today would
+    fail on a corpus that predates the rule. What this catches now is a doc
+    added without regenerating the index, i.e. a file no documented path
+    reaches at all.
+    """
+    entry_points = {
+        "docs/INDEX.md",
+        "docs/00_architecture_plans_index.md",
+        "docs/roles/00_roles_index.md",
+    }
+
+    linked: set[str] = set()
+    for _source, _target, resolved in _iter_markdown_links(repo_root):
+        if resolved:
+            linked.add(resolved)
+
+    index_path = repo_root / "docs" / "INDEX.md"
+    index_text = index_path.read_text(encoding="utf-8") if index_path.exists() else ""
+
+    errors: list[str] = []
+    for path in sorted((repo_root / "docs").rglob("*.md")):
+        rel_path = path.relative_to(repo_root).as_posix()
+        if rel_path in entry_points or rel_path in linked or rel_path in index_text:
+            continue
+        errors.append(
+            f"{rel_path}: not linked from any doc and absent from docs/INDEX.md "
+            f"(DOC-011 orphan) -- run scripts/generate_docs_index.py"
+        )
+    return errors
+
+
 def _check_frontend_readme_scripts(repo_root: Path) -> list[str]:
     """DOC-009: every `npm run <script>` in the frontend README is a real script
     in src/frontend/package.json (README drifts when scripts are renamed)."""
@@ -459,6 +530,8 @@ def lint_docs(repo_root: Path) -> list[str]:
         _check_internal_links,
         _check_frontend_readme_scripts,
         _check_canonical_order_consistency,
+        _check_archive_policy,
+        _check_orphaned_docs,
     )
 
     errors: list[str] = []

@@ -1,5 +1,7 @@
 # Phase 0 — Foundation & Flag
 
+> Historical Reference: this phase spec is retained for history and is not an active tracker; the phase completed and is not maintained going forward. For active remaining work, use [`docs/features/TASK_LIST.md`](../../features/TASK_LIST.md).
+
 **Last Updated:** 2026-06-24
 **Owner:** [Owner]
 **Refresh Trigger:** Flag mechanism, audit-event schema, or `modules/agent/` layout changes
@@ -26,7 +28,7 @@ existing monitoring/audit stack — so governance exists from day one, before an
   on shape, tested) **AC deviation:** met functionally, but no persisted
   `agent_enabled` column exists on `UserModelSettings` yet (no migration adds
   one), so no live caller can flip it ON via stored settings today. See
-  [`RECONCILIATION.md` R-8](../../agile/RECONCILIATION.md) — recommended
+  [`RECONCILIATION.md` R-8](../agile/RECONCILIATION.md) — recommended
   resolution is bundled into the S5 cutover (S5-1).
 - ✅ One audit event persists through the existing `core.audit` / monitoring
   path. (S0-3 — `emit_audit_event` in `modules/agent/audit.py`, no-ops when

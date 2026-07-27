@@ -4,7 +4,7 @@
 > [`docs/features/TASK_LIST.md`](../features/TASK_LIST.md)'s Open Items table on 2026-07-02.
 > Each proposal was verified against the codebase before ticketing (verification commands are
 > included per ticket). Background and ranking rationale: the review pass that followed
-> [`2026-07-02-consolidated-findings-report.md`](2026-07-02-consolidated-findings-report.md) —
+> [`2026-07-02-consolidated-findings-report.md`](../archive/plans/2026-07-02-consolidated-findings-report.md) —
 > every item here is *additional to* that report's Section 4 recommendations, not a duplicate.
 >
 > **For the implementing agent:** tickets marked **GATED** touch CLAUDE.md ask-before-touching

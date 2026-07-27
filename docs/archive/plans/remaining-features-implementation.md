@@ -1,7 +1,7 @@
 # HealthCentral: Remaining Features Implementation Plan (Revised)
 
 > Historical Reference: this document is not an active tracker. It captures a prior execution plan whose primary checklist items were completed and is retained for history.
-> For active remaining work, use [`docs/features/TASK_LIST.md`](../features/TASK_LIST.md).
+> For active remaining work, use [`docs/features/TASK_LIST.md`](../../features/TASK_LIST.md).
 
 ## Context
 

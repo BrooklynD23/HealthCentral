@@ -1,9 +1,11 @@
 # Sprint 1 — First tool, end-to-end (06-29 → 07-05)
 
+> Historical Reference: this sprint record is retained for history and is not an active tracker; the sprint completed and is not maintained going forward. For active remaining work, use [`docs/features/TASK_LIST.md`](../../features/TASK_LIST.md).
+
 **Last Updated:** 2026-06-24
 **Owner:** [Owner]
 **Refresh Trigger:** S1 story scope/AC changes, or tool/registry contracts move
-**Release:** R1 · **Epic:** E1 · **Phase:** [PHASE_1](../../prd/phases/PHASE_1_first_tool.md)
+**Release:** R1 · **Epic:** E1 · **Phase:** [PHASE_1](../prd-phases/PHASE_1_first_tool.md)
 **Status:** Delivered — commit 0f09cd3. Suite: 27 passed, 15 skipped (was 24
 passed, 18 skipped). Flag-off legacy path untouched.
 

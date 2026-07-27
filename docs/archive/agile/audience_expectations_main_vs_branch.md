@@ -1,5 +1,7 @@
 # Audience Expectations — `origin/main` vs `fix/agent-overhaul` (target)
 
+> Historical Reference: this is a point-in-time snapshot retained for history and is not an active tracker. For active remaining work, use [`docs/features/TASK_LIST.md`](../../features/TASK_LIST.md).
+
 > **Read this first.** The left column is what HealthCentral does **today** on
 > `origin/main`. The right column is the **target finished state** of the
 > `fix/agent-overhaul` branch as defined by the Agile plan — it is a commitment to

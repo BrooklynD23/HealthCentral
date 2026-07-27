@@ -1,9 +1,11 @@
 # Sprint 4 — PHI gate + external path (07-20 → 07-26)
 
+> Historical Reference: this sprint record is retained for history and is not an active tracker; the sprint completed and is not maintained going forward. For active remaining work, use [`docs/features/TASK_LIST.md`](../../features/TASK_LIST.md).
+
 **Last Updated:** 2026-06-24 (S4 delivered, commit 43f7a4b)
 **Owner:** [Owner] · **Safety:** [Safety-reviewer]
 **Refresh Trigger:** S4 story scope/AC, redaction-gate contract, or offline-test harness changes
-**Release:** R2 · **Epic:** E2 · **Phase:** [PHASE_4](../../prd/phases/PHASE_4_phi_gate.md)
+**Release:** R2 · **Epic:** E2 · **Phase:** [PHASE_4](../prd-phases/PHASE_4_phi_gate.md)
 
 ## Goal
 Safe opt-in egress: redaction gate inherited; full loop proven offline; golden set ~30.

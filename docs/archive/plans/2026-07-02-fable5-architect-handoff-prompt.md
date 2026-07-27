@@ -1,5 +1,7 @@
 # Handoff Prompt for Claude Fable 5 — System Architect Review
 
+> Historical Reference: this handoff prompt is retained for history and is not an active tracker. For active remaining work, use [`docs/features/TASK_LIST.md`](../../features/TASK_LIST.md).
+
 **Purpose of this file:** a ready-to-paste prompt for a *separate* Claude Fable 5 (`claude-fable-5`)
 session, asking it to review [`2026-07-02-consolidated-findings-report.md`](2026-07-02-consolidated-findings-report.md)
 as a system architect and synthesize new feature/improvement ideas — not to write code, and not to

@@ -1,9 +1,11 @@
 # Sprint 6 — Evals gate CI (08-03 → 08-09)
 
+> Historical Reference: this sprint record is retained for history and is not an active tracker; the sprint completed and is not maintained going forward. For active remaining work, use [`docs/features/TASK_LIST.md`](../../features/TASK_LIST.md).
+
 **Last Updated:** 2026-06-24 (S6 close-out — R3 core complete, CI workflow pending approval)
 **Owner:** [Owner] · **Safety:** [Safety-reviewer]
 **Refresh Trigger:** S6 story scope/AC, scoring-axis definitions, or the CI gate condition changes
-**Release:** R3 (**R3 core complete — CI workflow pending approval**) · **Epic:** E3 · **Phase:** [PHASE_6](../../prd/phases/PHASE_6_evals_ci.md)
+**Release:** R3 (**R3 core complete — CI workflow pending approval**) · **Epic:** E3 · **Phase:** [PHASE_6](../prd-phases/PHASE_6_evals_ci.md)
 
 ## Goal
 It provably behaves: 50–100 golden cases, automated 4-axis scoring, a CI gate that

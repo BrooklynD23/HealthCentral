@@ -1,5 +1,7 @@
 # Retro Log — Agent Overhaul
 
+> Historical Reference: this is a point-in-time snapshot retained for history and is not an active tracker. For active remaining work, use [`docs/features/TASK_LIST.md`](../../features/TASK_LIST.md).
+
 > **Format (keep it):** one block per sprint, three bullets — *Keep / Drop /
 > Try*. Append at the **top** (newest first). The retro is the "revisit &
 > iterate" engine (AGILE_PLAN §3, §8): every Sunday re-ask the three iteration

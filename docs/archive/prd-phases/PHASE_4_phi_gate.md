@@ -1,5 +1,7 @@
 # Phase 4 — PHI Gate + External Path
 
+> Historical Reference: this phase spec is retained for history and is not an active tracker; the phase completed and is not maintained going forward. For active remaining work, use [`docs/features/TASK_LIST.md`](../../features/TASK_LIST.md).
+
 **Last Updated:** 2026-06-24 (S4 delivered, commit 43f7a4b)
 **Owner:** [Owner]
 **Refresh Trigger:** Redaction gate signature, offline-test harness, or golden-set categories change

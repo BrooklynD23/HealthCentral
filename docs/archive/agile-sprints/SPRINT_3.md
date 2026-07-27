@@ -1,9 +1,11 @@
 # Sprint 3 — Guardrails as a node (07-13 → 07-19)
 
+> Historical Reference: this sprint record is retained for history and is not an active tracker; the sprint completed and is not maintained going forward. For active remaining work, use [`docs/features/TASK_LIST.md`](../../features/TASK_LIST.md).
+
 **Last Updated:** 2026-06-24 (delivered, commit f60e0c1)
 **Owner:** [Owner] · **Safety:** [Safety-reviewer]
 **Refresh Trigger:** S3 story scope/AC, guard order, or fixed-template copy changes
-**Release:** R2 · **Epic:** E2 · **Phase:** [PHASE_3](../../prd/phases/PHASE_3_guardrails.md)
+**Release:** R2 · **Epic:** E2 · **Phase:** [PHASE_3](../prd-phases/PHASE_3_guardrails.md)
 
 ## Goal
 Structural safety: the guard node enforces advice-gate ×2, groundedness drop, and

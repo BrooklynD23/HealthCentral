@@ -1,5 +1,7 @@
 # Handoff Prompt — Phase C (Pinboards, Search, Confidence UX)
 
+> Historical Reference: this handoff prompt is retained for history and is not an active tracker. For active remaining work, use [`docs/features/TASK_LIST.md`](../../features/TASK_LIST.md).
+
 > Status: HANDOFF for the next orchestration session (Fable 5)
 > Date: 2026-07-12
 > Prior session delivered Phases A and B of the post-visit roadmap via orchestrated subagents.

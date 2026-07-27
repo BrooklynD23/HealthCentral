@@ -1,5 +1,7 @@
 # Exploration Summary — agent overhaul integration points
 
+> Historical Reference: this is a point-in-time snapshot retained for history and is not an active tracker. For active remaining work, use [`docs/features/TASK_LIST.md`](../../features/TASK_LIST.md).
+
 **Last Updated:** 2026-06-23
 **Owner:** [Owner] (solo client/engineer)
 **Refresh Trigger:** A touched module below is renamed/moved, or a new integration

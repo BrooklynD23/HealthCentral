@@ -1,11 +1,13 @@
 # HealthCentral — Consolidated Findings Report (2026-07-02)
 
+> Historical Reference: this report is retained for history and is not an active tracker. For active remaining work, use [`docs/features/TASK_LIST.md`](../../features/TASK_LIST.md).
+
 > Snapshot compiled from a single agent session's exploration, research, and code-review passes.
 > Not a new codebase scan — it synthesizes findings already verified during that session (Explore
 > agents, research agents, direct code reads, and a review pass). Intended as structured input for
 > a subsequent planning/ideation pass, not as a standalone roadmap. See
-> [`docs/features/TASK_LIST.md`](../features/TASK_LIST.md) for the live, actively-maintained backlog
-> and [`docs/00_architecture_plans_index.md`](../00_architecture_plans_index.md) for canonical doc
+> [`docs/features/TASK_LIST.md`](../../features/TASK_LIST.md) for the live, actively-maintained backlog
+> and [`docs/00_architecture_plans_index.md`](../../00_architecture_plans_index.md) for canonical doc
 > order.
 
 ---

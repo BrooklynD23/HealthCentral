@@ -9,8 +9,8 @@ feature-flag mechanism changes on `main`
 > any PRD/phase/sprint doc (STEP 0). It records what HealthCentral does **today**
 > on `main`, so every downstream artifact can be checked against reality rather
 > than against the plan. Deeper exploration of integration points lives in
-> [EXPLORATION_SUMMARY.md](EXPLORATION_SUMMARY.md); conflicts surfaced during
-> grounding are routed to [RECONCILIATION.md](RECONCILIATION.md).
+> [EXPLORATION_SUMMARY.md](../archive/agile/EXPLORATION_SUMMARY.md); conflicts surfaced during
+> grounding are routed to [RECONCILIATION.md](../archive/agile/RECONCILIATION.md).
 
 ---
 

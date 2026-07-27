@@ -1,5 +1,22 @@
 # Compliance Documentation
 
+## Privacy guarantees added 2026-07-27
+
+Three previously-open items landed together; each is documented in the file
+named beside it.
+
+| Guarantee | Where | What changed |
+|---|---|---|
+| **Audit rows carry no PHI** | [`hipaa-controls.md`](hipaa-controls.md) | `core/audit.py` allowlist-scrubs every row before write. Actions are static templates; `details` keeps only ids, counts, booleans and spaceless enums. Filenames, analyte names, medication names, observation values and query text are dropped. Coverage is unchanged — content is minimized, no event removed. |
+| **Right to erase** | [`data-privacy.md`](data-privacy.md) | `DELETE /profiles/{id}` destroys the sealed keys (the cryptographic erase), sweeps the vault, purges that profile's audit rows and leaves one anonymized tombstone. The claim made is file deletion plus key destruction — never byte overwriting, which SSD wear-levelling makes false. |
+| **Recoverable encryption** | [`data-privacy.md`](data-privacy.md) | A one-time recovery code seals a second copy of the data key, so a forgotten password is no longer permanent loss of the record. The code is never persisted, logged, or hashed. |
+
+**Known residual:** audit rows written *before* the minimization landed may
+still contain filenames and analyte names. They are deliberately left untouched
+rather than rewritten — an append-only audit trail is a worse property to give
+up than the exposure it would remove. Profile deletion is the only path that
+removes them.
+
 ## Overview
 
 HealthCentral implements security and privacy controls aligned with HIPAA
