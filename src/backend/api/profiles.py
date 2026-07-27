@@ -43,9 +43,10 @@ from core.auth import (
     close_profile_database_on_logout,
     ProfileDbSession,
 )
-from core.audit import log_profile_event
+from core.audit import create_audit_log, log_profile_event
 from models import (
     AdherencePattern,
+    AuditLog,
     Chunk,
     Document,
     DocumentCategory,
@@ -65,6 +66,10 @@ from models import (
 )
 
 logger = logging.getLogger(__name__)
+
+# PROF-DEL-001: fixed, locale-stable confirmation phrase. Deliberately not the
+# profile display name — that would put a patient identifier in the request body.
+PROFILE_DELETE_CONFIRMATION = "DELETE MY HEALTH DATA"
 
 router = APIRouter()
 
@@ -140,6 +145,20 @@ class ProfileUnlock(BaseModel):
     """Request model for unlocking a profile."""
 
     password: str
+
+
+class ProfileDeleteRequest(BaseModel):
+    """Request model for irreversibly deleting a profile (PROF-DEL-001).
+
+    ``confirmation_phrase`` is a fixed constant rather than the profile's
+    display name: it is deterministic for e2e tests and it keeps a
+    patient-identifying string out of the request body (and therefore out of
+    any request log).
+    """
+
+    password: str
+    confirmation_phrase: str
+    export_acknowledged: bool = False
 
 
 class PasswordChange(BaseModel):
@@ -444,6 +463,152 @@ async def reset_synthetic_test_profile(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Synthetic profile reset failed: {exc}",
         ) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+async def _load_profile_for_delete(profile_id: str, db: AsyncSession) -> Optional[Profile]:
+    """Fetch the profile row targeted by a delete, or None if it is already gone."""
+    result = await db.execute(select(Profile).where(Profile.id == profile_id))
+    return result.scalar_one_or_none()
+
+
+@router.delete("/{profile_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_profile(
+    profile_id: str,
+    payload: ProfileDeleteRequest,
+    request: Request,
+    session: Session = Depends(require_profile_access()),
+    db: AsyncSession = Depends(get_db),
+):
+    """Irreversibly delete a profile and everything belonging to it (PROF-DEL-001).
+
+    Ordering matters and is chosen so that a crash leaves a *recoverable*
+    state rather than a corrupt one:
+
+    1. re-authenticate with the password (a session token alone is not enough)
+    2. close the profile database, releasing handles and zeroing the in-memory key
+    3. **delete the sealed key files first** — destroying the key is the
+       cryptographic erase; after this point the vault is unreadable even if
+       the database file survives
+    4. sweep the whole vault directory (db, WAL/SHM sidecars, encrypted documents)
+    5. purge the profile's audit rows, delete the master row, write one
+       anonymized tombstone
+
+    What this does **not** claim: overwriting the bytes on disk. SSD
+    wear-levelling makes that guarantee false, so the honest claim — and the
+    one the UI makes — is file deletion plus key destruction.
+
+    Export-before-erase is handled in the UI: the export routes stream
+    downloads rather than writing files server-side, so the client performs the
+    export and sets ``export_acknowledged``. Building a second, server-side
+    export path that drops a PHI file somewhere with no delivery channel would
+    be worse than the problem it solves.
+    """
+    profile = await _load_profile_for_delete(profile_id, db)
+    if profile is None:
+        # Already deleted. The frontend treats 404-on-delete as success.
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found",
+        )
+
+    client_ip = request.client.host if request.client else "unknown"
+    rate_key = f"delete:{client_ip}:{profile_id}"
+    decision = auth_rate_limiter.check(rate_key)
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many deletion attempts. Try again later.",
+            headers={"Retry-After": str(decision.retry_after_seconds)},
+        )
+
+    authenticated = await authenticate_profile(profile_id, payload.password, db)
+    if authenticated is None:
+        auth_rate_limiter.add_failure(rate_key)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect password",
+        )
+
+    if payload.confirmation_phrase != PROFILE_DELETE_CONFIRMATION:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Confirmation phrase must be exactly '{PROFILE_DELETE_CONFIRMATION}'",
+        )
+
+    if not payload.export_acknowledged:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Deletion is permanent. Download your data first, then retry "
+                "with export_acknowledged set."
+            ),
+        )
+
+    # A live token must not keep pointing at a profile that no longer exists.
+    if session.token_jti:
+        revoke_jwt_token(session.token_jti, int(session.expires_at.timestamp()))
+
+    await close_profile_database_on_logout(profile_id)
+
+    from core.profile_database import get_profile_db_manager
+
+    manager = get_profile_db_manager()
+
+    # --- Step 3: the crypto-erase commit point -----------------------------
+    # Enumerated from profile_database rather than hardcoded here, so a future
+    # sealed copy of the DEK (e.g. a recovery key) is destroyed automatically.
+    try:
+        for key_path in manager.get_profile_key_paths(profile_id):
+            key_path.unlink(missing_ok=True)
+    except OSError as exc:
+        # Abort *before* the master row goes: leaving it lets the user retry
+        # with a re-auth instead of stranding an unreadable orphan vault.
+        logger.error("Profile deletion aborted: sealed key could not be destroyed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not destroy the profile encryption key; nothing was deleted.",
+        ) from exc
+
+    # --- Step 4: sweep the vault -------------------------------------------
+    # The key is already gone, so the data is already cryptographically erased.
+    # A filesystem hiccup here (Windows file locks are the usual cause) must
+    # not abort the database cleanup; a retry finishes the sweep.
+    vault_path = manager.get_profile_vault_path(profile_id)
+    try:
+        if vault_path.exists():
+            shutil.rmtree(vault_path)
+    except OSError:
+        logger.warning(
+            "Vault directory could not be fully removed after key destruction; "
+            "data is already unreadable, residual files remain",
+        )
+
+    # --- Step 5: master DB, in one transaction ------------------------------
+    audit_result = await db.execute(
+        delete(AuditLog).where(AuditLog.profile_id == profile_id)
+    )
+    purged = getattr(audit_result, "rowcount", 0) or 0
+
+    # Core delete(), not db.delete(obj): the ORM cascade would need an eager
+    # load of profile.audit_logs and raise MissingGreenlet on the async engine.
+    await db.execute(delete(Profile).where(Profile.id == profile_id))
+
+    # The tombstone goes in only after the profile row is gone, with
+    # profile_id=None — both the FK requires it and the owner's decision does:
+    # it records that a deletion happened, not whose.
+    await create_audit_log(
+        db=db,
+        event_type="profile.delete",
+        action="Deleted profile",
+        profile_id=None,
+        entity_type="profile",
+        entity_id=None,
+        details={"audit_rows_purged": purged},
+    )
+    await db.commit()
+
+    logger.info("Profile deleted and vault erased")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

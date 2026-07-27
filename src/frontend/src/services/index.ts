@@ -54,6 +54,8 @@ export {
   useUnlockProfile,
   useLockProfile,
   useLogout,
+  useDeleteProfile,
+  PROFILE_DELETE_CONFIRMATION,
 } from './profiles';
 
 // Document hooks

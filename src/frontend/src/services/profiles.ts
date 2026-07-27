@@ -6,7 +6,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiGet, apiPost } from './api';
+import { apiDelete, apiGet, apiPost } from './api';
 import { useAuthStore } from '@/stores/authStore';
 import type {
   Profile,
@@ -14,7 +14,14 @@ import type {
   TokenResponse,
   LoginRequest,
   UnlockRequest,
+  ProfileDeleteRequest,
 } from './types';
+
+/**
+ * PROF-DEL-001: the backend requires this exact phrase. Keep it in one place
+ * so the confirmation input and the request body cannot drift apart.
+ */
+export const PROFILE_DELETE_CONFIRMATION = 'DELETE MY HEALTH DATA';
 
 const QUERY_KEY = 'profiles';
 
@@ -53,6 +60,13 @@ async function lockProfile(profileId: string): Promise<Profile> {
 
 async function logout(): Promise<void> {
   return apiPost<void>('/profiles/logout');
+}
+
+async function deleteProfile(
+  profileId: string,
+  data: ProfileDeleteRequest
+): Promise<void> {
+  return apiDelete<ProfileDeleteRequest>(`/profiles/${profileId}`, data);
 }
 
 // React Query hooks
@@ -156,6 +170,32 @@ export function useLogout() {
     },
     onError: () => {
       // Clear auth even on error (e.g., if server is unreachable)
+      clearAuth();
+      queryClient.clear();
+    },
+  });
+}
+
+/**
+ * Irreversibly delete a profile and everything in its vault (PROF-DEL-001).
+ *
+ * The caller must have offered the user a data export first: the backend
+ * rejects the request unless `export_acknowledged` is set.
+ */
+export function useDeleteProfile() {
+  const queryClient = useQueryClient();
+  const clearAuth = useAuthStore((state) => state.clearAuth);
+
+  return useMutation({
+    mutationFn: ({
+      profileId,
+      data,
+    }: {
+      profileId: string;
+      data: ProfileDeleteRequest;
+    }) => deleteProfile(profileId, data),
+    onSuccess: () => {
+      // The session now points at a profile that no longer exists.
       clearAuth();
       queryClient.clear();
     },

@@ -143,6 +143,27 @@ class PerProfileDatabaseManager:
         vault_path = Path(settings.app_data_path) / "vaults" / profile_id
         return vault_path / "key.method"
 
+    def get_profile_vault_path(self, profile_id: str) -> Path:
+        """Get the directory holding everything belonging to one profile."""
+        return Path(settings.app_data_path) / "vaults" / profile_id
+
+    def get_profile_key_paths(self, profile_id: str) -> list[Path]:
+        """Every sealed-key artifact for a profile, in deletion order.
+
+        Deleting these files *is* the cryptographic erase (PROF-DEL-001):
+        without the sealed key the SQLCipher vault is unreadable even if the
+        database file survives. This is the single enumeration of sealed-key
+        artifacts — any future feature that seals another copy of the DEK MUST
+        add its paths here, or profile deletion will leave a usable key behind.
+
+        (If DEK rotation is ever implemented, it must reseal every copy listed
+        here, not just the primary one.)
+        """
+        return [
+            self._get_profile_key_path(profile_id),
+            self._get_profile_key_method_path(profile_id),
+        ]
+
     async def _load_encryption_key(
         self,
         profile_id: str,

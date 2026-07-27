@@ -109,13 +109,53 @@ Users can opt-in to feedback collection on assistant chat responses (thumbs up/d
 
 ## Data Deletion
 
-### Profile Deletion
+### Profile Deletion (PROF-DEL-001)
 
-When a profile is deleted:
-1. Encrypted vault database file is removed
-2. Master database entry is deleted
-3. Audit log records the deletion event
-4. Associated backups are not automatically deleted (manual prune required)
+`DELETE /api/v1/profiles/{id}` — implemented 2026-07-27. Before this, every
+sub-entity was deletable but the profile itself was not, which contradicted the
+product's data-sovereignty premise.
+
+**Gates.** The request requires all three:
+1. the profile password, re-entered (a session token alone is not sufficient)
+2. the exact confirmation phrase `DELETE MY HEALTH DATA`
+3. `export_acknowledged` — the UI offers a data download first
+
+**Order of operations**, chosen so that an interrupted deletion leaves a
+recoverable state rather than a corrupt one:
+1. Re-authenticate; rate-limited per client and profile.
+2. Revoke the caller's session token and close the profile database, releasing
+   file handles and clearing the in-memory encryption key.
+3. **Delete the sealed key files first.** This is the crypto-erase commit
+   point: without the sealed key the vault is unreadable even if the database
+   file survives. If the key cannot be destroyed, the operation aborts before
+   the master row is touched, so the user can retry.
+4. Sweep the whole vault directory — database, WAL/SHM sidecars, and encrypted
+   documents. Failures here are logged but do not abort: the data is already
+   cryptographically erased, and a retry finishes the cleanup.
+5. In one master transaction: purge the audit rows, delete the profile row,
+   write the tombstone.
+
+**Audit-row retention — owner decision, 2026-07-27.** The profile's audit rows
+are **purged**, and a single **anonymized** `profile.delete` tombstone is
+retained recording that a deletion occurred and how many rows were purged. The
+tombstone carries no profile id, no display name and no hash of either — a
+random id would still be a linkage handle back to the person.
+
+The alternative considered and rejected was retaining the full audit trail for
+HIPAA-style accountability. It was rejected because it leaves the unencrypted
+master database holding a trace of a person who asked to be erased, which
+contradicts the guarantee this feature exists to provide. This purge is also
+the **only** mechanism that removes audit rows written before AUDIT-PHI-001's
+minimization landed (see `hipaa-controls.md` — legacy rows are otherwise left
+untouched).
+
+**What is claimed, and what is not.** The claim is *file deletion plus key
+destruction*. We do not claim the bytes are overwritten: SSD wear-levelling
+makes that guarantee false, and the UI copy says exactly this.
+
+**Backups are not automatically deleted** — a manual prune is still required.
+A backup taken before deletion contains the sealed key and remains readable
+with the password.
 
 ### Document Deletion
 

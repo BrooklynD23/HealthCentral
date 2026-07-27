@@ -35,6 +35,18 @@ export interface UnlockRequest {
   password: string;
 }
 
+/**
+ * PROF-DEL-001 — irreversible profile deletion.
+ *
+ * `export_acknowledged` records that the user was offered a data export before
+ * erasing; the backend rejects the request without it.
+ */
+export interface ProfileDeleteRequest {
+  password: string;
+  confirmation_phrase: string;
+  export_acknowledged: boolean;
+}
+
 // Document types
 export interface Document {
   id: string;

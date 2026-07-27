@@ -27,6 +27,7 @@ import {
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge, Skeleton, StaggerGroup, StaggerItem, modalVariants, backdropVariants } from '@/components/ui';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MemoryManager } from '@/components/MemoryManager';
+import { DangerZone } from '@/components/settings/DangerZone';
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import {
@@ -871,6 +872,9 @@ export function SettingsPage() {
 
       {/* Assistant Memory */}
       <MemoryManager />
+
+      {/* Irreversible profile deletion (PROF-DEL-001) */}
+      <DangerZone />
 
       {/* Diagnostics fix actions */}
       <AnimatePresence>
