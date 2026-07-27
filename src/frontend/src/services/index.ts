@@ -55,6 +55,8 @@ export {
   useLockProfile,
   useLogout,
   useDeleteProfile,
+  useRecoverProfile,
+  useIssueRecoveryCode,
   PROFILE_DELETE_CONFIRMATION,
 } from './profiles';
 

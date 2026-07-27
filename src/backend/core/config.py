@@ -57,6 +57,11 @@ class Settings(BaseSettings):
     auth_rate_limit_max_attempts: int = 10
     auth_rate_limit_window_seconds: int = 60
 
+    # Profile recovery (SEC-RECOV-001): tighter than login because each attempt
+    # costs a full PBKDF2 derivation.
+    recovery_rate_limit_max_attempts: int = 5
+    recovery_rate_limit_window_seconds: int = 900
+
     # API rate limiting (OPS-003)
     api_rate_limit_enabled: bool = True
     api_rate_limit_max_requests: int = 100

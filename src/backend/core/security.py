@@ -203,6 +203,72 @@ def generate_salt() -> bytes:
     return os.urandom(16)
 
 
+# ---------------------------------------------------------------------------
+# SEC-RECOV-001 — profile recovery codes
+#
+# A forgotten password used to mean permanent, unrecoverable loss of the entire
+# health record: the data-encryption key was sealed by the password alone, and
+# local-first means there is no server-side reset by design. A recovery code
+# seals a *second copy of the same DEK*, so the record survives a forgotten
+# password without weakening the password path.
+#
+# Crockford base32: no I, L, O or U — removes the characters people misread
+# when copying a code off paper, and removes the risk of accidental words.
+# ---------------------------------------------------------------------------
+
+_CROCKFORD_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+RECOVERY_CODE_GROUPS = 8
+RECOVERY_CODE_GROUP_LEN = 4
+_RECOVERY_CODE_LEN = RECOVERY_CODE_GROUPS * RECOVERY_CODE_GROUP_LEN  # 32 chars ~= 160 bits
+
+# Crockford decoding aliases: these are read-alikes, not distinct symbols.
+_CROCKFORD_ALIASES = {"I": "1", "L": "1", "O": "0", "U": "V"}
+
+
+def generate_recovery_code() -> str:
+    """Generate a one-time profile recovery code, formatted for transcription.
+
+    Returns a hyphen-grouped string such as ``H4K2-9QMR-...`` (8 groups of 4).
+    The code is shown to the user exactly once and is never persisted — only
+    the seal derived from it is stored.
+    """
+    chars = [secrets.choice(_CROCKFORD_ALPHABET) for _ in range(_RECOVERY_CODE_LEN)]
+    groups = [
+        "".join(chars[i:i + RECOVERY_CODE_GROUP_LEN])
+        for i in range(0, _RECOVERY_CODE_LEN, RECOVERY_CODE_GROUP_LEN)
+    ]
+    return "-".join(groups)
+
+
+def normalize_recovery_code(code: str) -> str:
+    """Normalize a user-entered recovery code to its canonical form.
+
+    Accepts lowercase, arbitrary spacing/hyphenation, and the Crockford
+    read-alike characters (I/L for 1, O for 0, U for V) so that someone
+    transcribing from paper is not punished for a legible mistake.
+
+    Raises:
+        ValueError: if the code is not the right length or contains characters
+            outside the alphabet. Raised *before* any key derivation, so a
+            malformed code costs no PBKDF2 work.
+    """
+    if not isinstance(code, str):
+        raise ValueError("Recovery code must be a string")
+
+    stripped = "".join(ch for ch in code.upper() if not ch.isspace() and ch != "-")
+    translated = "".join(_CROCKFORD_ALIASES.get(ch, ch) for ch in stripped)
+
+    if len(translated) != _RECOVERY_CODE_LEN:
+        raise ValueError(
+            f"Recovery code must be {_RECOVERY_CODE_LEN} characters "
+            f"({RECOVERY_CODE_GROUPS} groups of {RECOVERY_CODE_GROUP_LEN})"
+        )
+    if any(ch not in _CROCKFORD_ALPHABET for ch in translated):
+        raise ValueError("Recovery code contains invalid characters")
+
+    return translated
+
+
 class EncryptionManager:
     """
     Manages encryption/decryption of sensitive data.
@@ -254,7 +320,11 @@ def is_dpapi_available() -> bool:
         return False
 
 
-def seal_key_with_dpapi(key: bytes, fallback_password: Optional[str] = None) -> tuple[bytes, str]:
+def seal_key_with_dpapi(
+    key: bytes,
+    fallback_password: Optional[str] = None,
+    force_password: bool = False,
+) -> tuple[bytes, str]:
     """
     Seal (encrypt) a key using Windows DPAPI or password-based encryption.
 
@@ -264,6 +334,12 @@ def seal_key_with_dpapi(key: bytes, fallback_password: Optional[str] = None) -> 
     Args:
         key: The encryption key to seal
         fallback_password: Password to use if DPAPI is unavailable
+        force_password: Skip DPAPI entirely and always seal with the password.
+            **For recovery copies only** (SEC-RECOV-001). A recovery key exists
+            to survive losing the machine — an OS reinstall destroys the DPAPI
+            user context, so a DPAPI-sealed recovery copy would be worthless
+            in exactly the situation it is meant for. Never use this for the
+            primary seal, which should stay DPAPI-protected where available.
 
     Returns:
         Tuple of (sealed_key, seal_method) where seal_method is 'dpapi' or 'password'
@@ -271,7 +347,7 @@ def seal_key_with_dpapi(key: bytes, fallback_password: Optional[str] = None) -> 
     Raises:
         KeySealingError: If sealing fails and no fallback is available
     """
-    if settings.use_dpapi and is_dpapi_available():
+    if not force_password and settings.use_dpapi and is_dpapi_available():
         try:
             import win32crypt
             # Encrypt using DPAPI with user scope

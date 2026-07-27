@@ -5,6 +5,7 @@ Handles profile creation, authentication, and access control.
 """
 
 import base64
+import os
 import uuid
 import logging
 import shutil
@@ -21,14 +22,17 @@ from core.database import get_db
 from core.config import settings
 from core.security import (
     generate_encryption_key,
+    generate_recovery_code,
     generate_salt,
     hash_password,
+    normalize_recovery_code,
     seal_key_with_dpapi,
     unseal_key_with_dpapi,
     revoke_jwt_token,
     KeySealingError,
 )
-from core.rate_limiter import auth_rate_limiter
+from core.rate_limiter import auth_rate_limiter, recovery_rate_limiter
+from core.profile_database import get_profile_db_manager
 from core.auth import (
     authenticate_profile,
     create_session_token,
@@ -129,6 +133,7 @@ class ProfileListResponse(BaseModel):
     id: str
     display_name: str
     has_password: bool
+    has_recovery_code: bool
     created_at: str
 
     @classmethod
@@ -137,6 +142,9 @@ class ProfileListResponse(BaseModel):
             id=profile.id,
             display_name=profile.display_name,
             has_password=profile.password_hash is not None,
+            # Whether to offer "Forgot password?" on the unlock screen. Derived
+            # from file existence, so it cannot desync from the actual seal.
+            has_recovery_code=get_profile_db_manager().has_recovery_key(profile.id),
             created_at=profile.created_at.isoformat(),
         )
 
@@ -145,6 +153,47 @@ class ProfileUnlock(BaseModel):
     """Request model for unlocking a profile."""
 
     password: str
+
+
+class ProfileCreateResponse(TokenResponse):
+    """Session token plus the one-time recovery code shown at creation."""
+
+    recovery_code: str
+
+
+class ProfileRecoverRequest(BaseModel):
+    """Request model for unlocking a profile with its recovery code."""
+
+    recovery_code: str
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password_strength(cls, v: str) -> str:
+        """Same strength bar as profile creation — recovery must not be a
+        back door to a weaker password."""
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        if not any(c.isupper() for c in v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not any(c.islower() for c in v):
+            raise ValueError("Password must contain at least one lowercase letter")
+        if not any(c.isdigit() for c in v):
+            raise ValueError("Password must contain at least one digit")
+        return v
+
+
+class RecoveryCodeResponse(BaseModel):
+    """A freshly generated recovery code, returned exactly once."""
+
+    recovery_code: str
+    replaced_existing: bool
+
+
+class RecoveryResponse(TokenResponse):
+    """Session token plus the rotated recovery code, shown once."""
+
+    recovery_code: str
 
 
 class ProfileDeleteRequest(BaseModel):
@@ -201,7 +250,7 @@ async def list_profiles(db: AsyncSession = Depends(get_db)):
     return [ProfileListResponse.from_model(p) for p in profiles]
 
 
-@router.post("/", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=ProfileCreateResponse, status_code=status.HTTP_201_CREATED)
 async def create_profile(
     profile_data: ProfileCreate,
     db: AsyncSession = Depends(get_db),
@@ -279,8 +328,23 @@ async def create_profile(
     # Phase 3: Open the per-profile encrypted database
     await open_profile_database_on_login(profile_id, profile_data.password)
 
+    # SEC-RECOV-001: seal a second copy of the same DEK under a one-time
+    # recovery code, so a forgotten password is no longer permanent loss of the
+    # record. Done after the profile row is committed so a failure here cannot
+    # orphan a half-created profile.
+    recovery_code = _issue_recovery_code(profile_id, encryption_key)
+    await log_profile_event(
+        db=db,
+        event="recovery_code_generated",
+        profile_id=profile_id,
+        profile_name=profile_data.display_name,
+        details={"trigger": "profile_create"},
+    )
+    await db.commit()
+
     # Return session token for immediate access
-    return create_session_token(profile)
+    token = create_session_token(profile)
+    return ProfileCreateResponse(**token.model_dump(), recovery_code=recovery_code)
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -464,6 +528,238 @@ async def reset_synthetic_test_profile(
             detail=f"Synthetic profile reset failed: {exc}",
         ) from exc
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+def _atomic_write(path: Path, data: bytes) -> None:
+    """Write a key artifact atomically.
+
+    A half-written sealed key is an unopenable vault, so the new bytes land in
+    a sibling temp file and are moved into place with os.replace.
+    """
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_bytes(data)
+    os.replace(tmp, path)
+
+
+def _issue_recovery_code(profile_id: str, dek: bytes) -> str:
+    """Seal a second copy of ``dek`` under a fresh recovery code and return it.
+
+    The code itself is never persisted, logged, or hashed — only the seal it
+    derives. A stored hash would be an offline verification oracle with no
+    operational upside.
+
+    ``force_password=True`` is mandatory here: a DPAPI-sealed recovery copy
+    would be tied to the current OS user account and therefore useless after
+    the reinstall it exists to survive.
+    """
+    code = generate_recovery_code()
+    sealed, method = seal_key_with_dpapi(
+        dek,
+        fallback_password=normalize_recovery_code(code),
+        force_password=True,
+    )
+
+    manager = get_profile_db_manager()
+    _atomic_write(manager._get_profile_recovery_key_path(profile_id), sealed)
+    _atomic_write(manager._get_profile_recovery_method_path(profile_id), method.encode())
+    return code
+
+
+def _unseal_dek_with_recovery_code(profile_id: str, code: str) -> bytes:
+    """Recover the DEK from the recovery-sealed copy.
+
+    Raises KeySealingError if the code is wrong — Fernet is authenticated, so
+    a bad code fails to decrypt. There is deliberately no stored verifier.
+    """
+    manager = get_profile_db_manager()
+    key_path = manager._get_profile_recovery_key_path(profile_id)
+    method_path = manager._get_profile_recovery_method_path(profile_id)
+
+    if not key_path.exists():
+        raise KeySealingError("This profile has no recovery code")
+
+    method = method_path.read_text().strip() if method_path.exists() else "password"
+    return unseal_key_with_dpapi(
+        key_path.read_bytes(), method, fallback_password=normalize_recovery_code(code)
+    )
+
+
+@router.post("/{profile_id}/recovery-code", response_model=RecoveryCodeResponse)
+async def issue_recovery_code(
+    profile_id: str,
+    payload: ProfileUnlock,
+    session: Session = Depends(require_profile_access()),
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate (or replace) this profile's recovery code (SEC-RECOV-001).
+
+    Serves both backfill for profiles created before recovery codes existed and
+    user-initiated rotation. Requires the password: it is both a re-auth and
+    the only way to unseal the DEK that the new copy will re-seal.
+
+    The code is returned exactly once and is not recoverable afterwards.
+    """
+    result = await db.execute(select(Profile).where(Profile.id == profile_id))
+    profile = result.scalar_one_or_none()
+    if profile is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+
+    if await authenticate_profile(profile_id, payload.password, db) is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect password"
+        )
+
+    manager = get_profile_db_manager()
+    key_path = manager._get_profile_key_path(profile_id)
+    method_path = manager._get_profile_key_method_path(profile_id)
+    if not key_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Vault key not found"
+        )
+
+    method = method_path.read_text().strip() if method_path.exists() else "password"
+    try:
+        dek = unseal_key_with_dpapi(
+            key_path.read_bytes(), method, fallback_password=payload.password
+        )
+        had_previous = manager.has_recovery_key(profile_id)
+        code = _issue_recovery_code(profile_id, dek)
+    except KeySealingError as exc:
+        logger.error("Recovery code generation failed for a profile")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not generate a recovery code",
+        ) from exc
+
+    await log_profile_event(
+        db=db,
+        event="recovery_code_generated",
+        profile_id=profile_id,
+        profile_name=profile.display_name,
+        details={"trigger": "user_request" if had_previous else "backfill"},
+    )
+    await db.commit()
+
+    return RecoveryCodeResponse(recovery_code=code, replaced_existing=had_previous)
+
+
+@router.post("/{profile_id}/recover", response_model=RecoveryResponse)
+async def recover_profile(
+    profile_id: str,
+    payload: ProfileRecoverRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Unlock a profile with its recovery code and set a new password.
+
+    Unauthenticated by necessity — the caller has lost the password, which is
+    the only other credential. Rate-limited because each attempt costs a
+    600k-iteration PBKDF2: 160 bits of entropy is not brute-forceable, but an
+    unbounded endpoint is a local CPU-exhaustion vector.
+
+    Write order is chosen for crash safety: the primary key files are replaced
+    before the password hash is committed. A crash in between leaves the old
+    hash with a new-password seal — login fails cleanly and the recovery code
+    still works. The inverse order would leave auth accepting a password that
+    cannot open the vault.
+    """
+    result = await db.execute(select(Profile).where(Profile.id == profile_id))
+    profile = result.scalar_one_or_none()
+    if profile is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+
+    client_ip = request.client.host if request.client else "unknown"
+    rate_key = f"recover:{client_ip}:{profile_id}"
+    decision = recovery_rate_limiter.check(rate_key)
+    if not decision.allowed:
+        # No audit row here: the attempts that produced the limit were already
+        # logged, and writing on rejection would make this a write amplifier.
+        logger.warning("Recovery attempts rate-limited for a profile")
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many recovery attempts. Try again later.",
+            headers={"Retry-After": str(decision.retry_after_seconds)},
+        )
+
+    async def _fail(reason: str, detail: str, code: int) -> None:
+        recovery_rate_limiter.add_failure(rate_key)
+        await log_profile_event(
+            db=db,
+            event="recovery_failed",
+            profile_id=profile_id,
+            profile_name=profile.display_name,
+            details={"reason": reason},
+        )
+        # Commit before raising so the failed attempt cannot be lost to rollback.
+        await db.commit()
+        raise HTTPException(status_code=code, detail=detail)
+
+    try:
+        normalize_recovery_code(payload.recovery_code)
+    except ValueError:
+        # Rejected before any key derivation — a malformed code costs no PBKDF2.
+        await _fail("malformed_code", "That recovery code is not valid.", 400)
+
+    try:
+        dek = _unseal_dek_with_recovery_code(profile_id, payload.recovery_code)
+    except KeySealingError:
+        reason = (
+            "no_recovery_seal"
+            if not get_profile_db_manager().has_recovery_key(profile_id)
+            else "invalid_code"
+        )
+        await _fail(reason, "That recovery code is not valid.", 401)
+
+    # Re-seal the primary copy under the new password, atomically.
+    manager = get_profile_db_manager()
+    try:
+        sealed_key, seal_method = seal_key_with_dpapi(
+            dek, fallback_password=payload.new_password
+        )
+    except KeySealingError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not re-seal the vault key",
+        ) from exc
+
+    _atomic_write(manager._get_profile_key_path(profile_id), sealed_key)
+    _atomic_write(manager._get_profile_key_method_path(profile_id), seal_method.encode())
+
+    profile.password_hash = hash_password(payload.new_password)
+    profile.password_salt = base64.b64encode(generate_salt()).decode("ascii")
+    profile.is_locked = False
+    profile.last_accessed_at = datetime.utcnow()
+
+    # Rotate the recovery code rather than invalidating it: plain invalidation
+    # would leave the user with *no* recovery until they remember to generate
+    # one, a durability regression in the feature whose whole point is
+    # durability. Rotation gives one-time-use semantics and keeps the invariant
+    # "there is always exactly one valid recovery code".
+    new_code = _issue_recovery_code(profile_id, dek)
+
+    recovery_rate_limiter.reset(rate_key)
+
+    await log_profile_event(
+        db=db, event="recovered", profile_id=profile_id,
+        profile_name=profile.display_name,
+        details={"password_reset": True, "recovery_rotated": True},
+    )
+    await log_profile_event(
+        db=db, event="recovery_code_generated", profile_id=profile_id,
+        profile_name=profile.display_name,
+        details={"trigger": "post_recovery"},
+    )
+    await db.commit()
+
+    await open_profile_database_on_login(profile_id, payload.new_password)
+
+    logger.info("Profile access recovered with a recovery code")
+
+    token = create_session_token(profile)
+    return RecoveryResponse(
+        **token.model_dump(),
+        recovery_code=new_code,
+    )
 
 
 async def _load_profile_for_delete(profile_id: str, db: AsyncSession) -> Optional[Profile]:

@@ -8,7 +8,7 @@
  */
 
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Heart,
@@ -25,6 +25,7 @@ import { Button, Card, CardContent, Input } from '@/components/ui';
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useCreateProfile } from '@/services';
+import { RecoveryCodeCard } from '@/components/profile/RecoveryCodeCard';
 
 const features = [
   {
@@ -78,6 +79,8 @@ export function ProfileSetup() {
   const [isCreating, setIsCreating] = useState(false);
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  // SEC-RECOV-001: shown once, between creation and entering the app.
+  const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
 
   // Form state
   const [displayName, setDisplayName] = useState('');
@@ -125,7 +128,7 @@ export function ProfileSetup() {
       setStep(1);
 
       // Step 2: Setting up encryption - actual API call
-      await createProfile.mutateAsync({
+      const created = await createProfile.mutateAsync({
         display_name: displayName.trim() || 'My Health Profile',
         password,
       });
@@ -133,7 +136,10 @@ export function ProfileSetup() {
       setStep(2);
       await new Promise((r) => setTimeout(r, 500));
 
-      navigate('/inbox');
+      // Show the one-time recovery code before entering the app. This is the
+      // only time it exists in plaintext anywhere.
+      setRecoveryCode(created.recovery_code);
+      setIsCreating(false);
     } catch (err) {
       const raw = err instanceof Error ? err.message : String(err);
       const timedOut =
@@ -165,6 +171,20 @@ export function ProfileSetup() {
     hidden: { opacity: 0, y: 20 },
     show: { opacity: 1, y: 0, transition: { duration: 0.4 } },
   };
+
+  if (recoveryCode) {
+    return (
+      <div className="min-h-screen bg-surface flex items-center justify-center p-6">
+        <div className="w-full max-w-md">
+          <RecoveryCodeCard
+            code={recoveryCode}
+            acknowledgeLabel="Continue to my records"
+            onAcknowledge={() => navigate('/inbox')}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-surface flex items-center justify-center p-6">
@@ -280,6 +300,15 @@ export function ProfileSetup() {
                   Create Your Profile
                   <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
                 </Button>
+
+                {/* SEC-RECOV-001: the way back in for an existing profile
+                    whose password has been forgotten. */}
+                <p className="mt-4 text-center text-sm text-ink-secondary">
+                  Already have a profile and forgot the password?{' '}
+                  <Link to="/recover" className="underline">
+                    Use your recovery code
+                  </Link>
+                </p>
               </CardContent>
             </Card>
           ) : (

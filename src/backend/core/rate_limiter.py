@@ -86,3 +86,12 @@ auth_rate_limiter = FixedWindowRateLimiter(
     window_seconds=settings.auth_rate_limit_window_seconds,
 )
 
+# Stricter limiter for profile recovery (SEC-RECOV-001). Not about guessing
+# entropy -- a 160-bit code is not brute-forceable -- but about cost: each
+# attempt runs a 600k-iteration PBKDF2, so an unbounded endpoint is a local
+# CPU-exhaustion vector. It also brakes typo storms.
+recovery_rate_limiter = FixedWindowRateLimiter(
+    max_attempts=settings.recovery_rate_limit_max_attempts,
+    window_seconds=settings.recovery_rate_limit_window_seconds,
+)
+

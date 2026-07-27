@@ -40,7 +40,12 @@ The profile DEK is sealed and unsealed only via the user's password (`core/profi
 - The recovery code is never persisted, only its derived-seal output. Entropy source: `secrets`.
 - Audit events: `profile.recovery_code_generated`, `profile.recovered` (via existing `log_profile_event`, `core/audit.py:91`) — log the event, never the code.
 - Frontend: ProfileSetup step + a "Forgot password?" entry on unlock. Keep UI copy honest: losing both password and code means the data is unrecoverable, by design.
-- **Open design questions to settle at sign-off:** (a) invalidate the recovery seal after use, or keep it valid? (b) is a recovery attempt rate-limited (reuse `core/rate_limiter.py`)? (c) does recovery require any second factor once MFA (HIPAA backlog) exists?
+- **Open design questions — settled at owner sign-off 2026-07-27, implemented:**
+  - **(a) Invalidate after use? No — rotate.** On successful recovery a new code is generated, sealed and shown once. Plain invalidation would leave the user with *zero* recovery until they remembered to generate one, a durability regression in the feature whose entire purpose is durability. Rotation gives one-time-use semantics and preserves the invariant "there is always exactly one valid recovery code". Note the recovery seal covers the **DEK**, not the password, so an ordinary `change_password` neither invalidates nor needs to touch it (pinned by `HC-RECOV-017`).
+  - **(b) Rate limited? Yes — a separate, stricter limiter.** Not for entropy (160 bits is not brute-forceable) but for cost: each attempt runs a 600k-iteration PBKDF2, so an unbounded endpoint is a local CPU-exhaustion vector. `recovery_rate_limiter` is 5 attempts / 900s, keyed per client *and* profile so one profile's typos cannot lock out another. Malformed codes are rejected by `normalize_recovery_code` **before** any derivation, so a bad-format attempt costs nothing.
+  - **(c) Second factor once MFA exists?** Out of scope — no MFA exists to compose with. Revisit when the HIPAA MFA backlog item is scheduled.
+
+**Implemented 2026-07-27.** `force_password=True` on `seal_key_with_dpapi` makes the recovery copy always password-derived: a DPAPI-sealed recovery copy is tied to the current OS user account and would be worthless after exactly the reinstall it exists to survive (`HC-RECOV-010`). The code is never persisted, logged, or hashed — a stored hash would be an offline verification oracle with no operational upside. Key artifacts are enumerated from `get_profile_key_paths()`, which is also what PROF-DEL-001 deletes, so a deleted profile cannot leave a usable recovery key behind (`HC-RECOV-023`).
 
 **Acceptance Criteria**
 - [ ] Design section approved by human sign-off before implementation.

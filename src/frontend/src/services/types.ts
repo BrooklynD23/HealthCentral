@@ -11,6 +11,8 @@ export interface Profile {
   is_locked: boolean;
   created_at: string;
   last_accessed_at: string | null;
+  /** SEC-RECOV-001: whether to offer "Forgot password?" on the unlock screen. */
+  has_recovery_code?: boolean;
 }
 
 export interface ProfileCreate {
@@ -24,6 +26,30 @@ export interface TokenResponse {
   expires_in: number;
   profile_id: string;
   profile_name: string;
+}
+
+/**
+ * SEC-RECOV-001 — profile creation now also returns a one-time recovery code.
+ * It is shown exactly once and cannot be retrieved afterwards.
+ */
+export interface ProfileCreateResponse extends TokenResponse {
+  recovery_code: string;
+}
+
+/** Unlock a profile with its recovery code and set a new password. */
+export interface ProfileRecoverRequest {
+  recovery_code: string;
+  new_password: string;
+}
+
+/** Session token plus the rotated recovery code, shown once. */
+export interface ProfileRecoverResponse extends TokenResponse {
+  recovery_code: string;
+}
+
+export interface RecoveryCodeResponse {
+  recovery_code: string;
+  replaced_existing: boolean;
 }
 
 export interface LoginRequest {
