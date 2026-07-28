@@ -124,3 +124,7 @@ crash_reports/
 target/
 vendor/
 coverage/
+
+# Playwright run artifacts (reports, traces, screenshots) — regenerated per run
+src/frontend/test-results/
+src/frontend/playwright-report/
