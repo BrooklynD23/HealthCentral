@@ -291,7 +291,7 @@ def replay(run_log: RunLog) -> AgentTerminal:
             continue
         sentences.append(_observation_sentence(row))
         citations.append(
-            Citation(source_type="document", source_id=row["observation_id"], locator=row["observation_id"])
+            Citation(source_type="document", source_id=row["observation_id"], locator=row["observation_id"], source_kind="observation")
         )
 
     if not sentences or not citations:

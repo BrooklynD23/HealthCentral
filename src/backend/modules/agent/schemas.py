@@ -20,6 +20,13 @@ class Citation(BaseModel):
     locator: str | None = Field(
         default=None, description="page+span for documents, handle for references"
     )
+    # CITE-SRC-001: `source_id` is heterogeneous — an observation, care-task,
+    # entity or timeline-event id, all carried as source_type="document".
+    # Without a discriminator the API layer cannot tell which deep-link target
+    # it holds, and would have to guess from the id's shape.
+    source_kind: Literal["observation", "task", "entity", "event", "reference"] | None = Field(
+        default=None, description="Which kind of row source_id refers to"
+    )
 
 
 class AgentTerminal(BaseModel):

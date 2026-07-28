@@ -99,7 +99,7 @@ def _trend_sentences(run_log: RunLog) -> tuple[list[str], list[Citation]]:
             continue
 
         point_citations = [
-            Citation(source_type="document", source_id=p["observation_id"], locator=p["observation_id"])
+            Citation(source_type="document", source_id=p["observation_id"], locator=p["observation_id"], source_kind="observation")
             for p in points
         ]
 
@@ -107,7 +107,7 @@ def _trend_sentences(run_log: RunLog) -> tuple[list[str], list[Citation]]:
             unit = ""  # TrendPoint carries no unit; value-only point sentence
             sentences.append(f"Your verified {analyte} result was {p['value']}{unit} (collected {p['collected_at']}).")
             citations.append(
-                Citation(source_type="document", source_id=p["observation_id"], locator=p["observation_id"])
+                Citation(source_type="document", source_id=p["observation_id"], locator=p["observation_id"], source_kind="observation")
             )
 
         if len(points) >= 2:
@@ -137,7 +137,7 @@ def _care_task_sentences(run_log: RunLog) -> tuple[list[str], list[Citation]]:
             continue
 
         row_citations = [
-            Citation(source_type="document", source_id=r["task_id"], locator=r["task_id"])
+            Citation(source_type="document", source_id=r["task_id"], locator=r["task_id"], source_kind="task")
             for r in rows
         ]
 
@@ -147,7 +147,7 @@ def _care_task_sentences(run_log: RunLog) -> tuple[list[str], list[Citation]]:
             quote_part = f' The note says: "{quote}"' if quote else ""
             sentences.append(f"Open follow-up: {row['title']}{due}.{quote_part}")
             citations.append(
-                Citation(source_type="document", source_id=row["task_id"], locator=row["task_id"])
+                Citation(source_type="document", source_id=row["task_id"], locator=row["task_id"], source_kind="task")
             )
 
         status = rows[0].get("status", "open") if len({r.get("status") for r in rows}) == 1 else "matching"
@@ -176,7 +176,7 @@ def _med_change_sentences(run_log: RunLog) -> tuple[list[str], list[Citation]]:
             continue
 
         row_citations = [
-            Citation(source_type="document", source_id=r["entity_id"], locator=r["doc_id"])
+            Citation(source_type="document", source_id=r["entity_id"], locator=r["doc_id"], source_kind="entity")
             for r in rows
         ]
 
@@ -186,7 +186,7 @@ def _med_change_sentences(run_log: RunLog) -> tuple[list[str], list[Citation]]:
             quote_part = f' The note says: "{quote}"' if quote else ""
             sentences.append(f"Medication change: {row['entity_value']}{date_part}.{quote_part}")
             citations.append(
-                Citation(source_type="document", source_id=row["entity_id"], locator=row["doc_id"])
+                Citation(source_type="document", source_id=row["entity_id"], locator=row["doc_id"], source_kind="entity")
             )
 
         plural = "s" if len(rows) != 1 else ""
@@ -227,7 +227,7 @@ def _timeline_sentences(run_log: RunLog) -> tuple[list[str], list[Citation]]:
         pending_rows = [r for r in rows if r.get("verification_status") not in ("verified", "n/a")]
 
         row_citations = [
-            Citation(source_type="document", source_id=r["event_id"], locator=r.get("doc_id"))
+            Citation(source_type="document", source_id=r["event_id"], locator=r.get("doc_id"), source_kind="event")
             for r in verified_rows
         ]
 
@@ -235,7 +235,7 @@ def _timeline_sentences(run_log: RunLog) -> tuple[list[str], list[Citation]]:
             date_part = f" on {row['event_date']}" if row.get("event_date") else ""
             sentences.append(f"{row['title']}{date_part}.")
             citations.append(
-                Citation(source_type="document", source_id=row["event_id"], locator=row.get("doc_id"))
+                Citation(source_type="document", source_id=row["event_id"], locator=row.get("doc_id"), source_kind="event")
             )
 
         if verified_rows:

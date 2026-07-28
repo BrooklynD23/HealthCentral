@@ -23,6 +23,16 @@ export interface Citation {
   relevance_score?: number;
   authority_tier?: number;
   authority_score?: number;
+  /**
+   * CITE-SRC-001 deep-link target. Present only when the citation resolves to
+   * a specific row the user can inspect — reference-corpus citations, care
+   * tasks and timeline events legitimately have none, and must not be
+   * rendered as clickable.
+   */
+  observation_id?: string | null;
+  entity_id?: string | null;
+  source_page?: number | null;
+  source_bbox_json?: string | null;
 }
 
 export interface ResponseSegment {

@@ -1315,6 +1315,9 @@ class DocumentEntityResponse(BaseModel):
     entity_value: str
     confidence: float
     source_page: Optional[int] = None
+    # CITE-SRC-001: stored since HC-M12 but never returned, so the frontend
+    # could not highlight an entity's region the way it can an observation's.
+    source_bbox_json: Optional[str] = None
     char_start: Optional[int] = None
     char_end: Optional[int] = None
     quote: Optional[str] = None

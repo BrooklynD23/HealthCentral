@@ -49,6 +49,11 @@ def _make_obs(
     obs.user_verified = verified
     obs.doc_id = doc_id or str(uuid.uuid4())
     obs.notes = None
+    # Nullable on the real model, but they must be real values rather than
+    # MagicMocks: CITE-SRC-001 reads them into a Pydantic Citation, and a
+    # MagicMock fails validation.
+    obs.source_page = None
+    obs.source_bbox_json = None
     return obs
 
 

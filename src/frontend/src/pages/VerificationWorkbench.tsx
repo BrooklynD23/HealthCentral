@@ -60,6 +60,9 @@ export function VerificationWorkbench() {
   const selectedDocId = searchParams.get('doc');
   const mode = searchParams.get('mode');
   const documentReviewMode = !!selectedDocId && mode === 'all';
+  // CITE-SRC-001: deep link from an assistant citation chip.
+  const citedObservationId = searchParams.get('observation');
+  const [citedNotFound, setCitedNotFound] = useState(false);
   const [selectedRow, setSelectedRow] = useState<string | null>(null);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [editingObservation, setEditingObservation] = useState<Observation | null>(null);
@@ -68,9 +71,14 @@ export function VerificationWorkbench() {
   const [loadingSource, setLoadingSource] = useState(false);
 
   // Fetch observations that need verification
-  const observationFilters = documentReviewMode
-    ? { profile_id: profileId || '', doc_id: selectedDocId || undefined }
-    : { profile_id: profileId || '', needs_verification: true };
+  // A cited observation is normally already *verified* — that is exactly why the
+  // assistant was willing to ground an answer on it — so the default
+  // needs_verification filter would never contain it. Widen to the whole
+  // document when following a citation.
+  const observationFilters =
+    documentReviewMode || citedObservationId
+      ? { profile_id: profileId || '', doc_id: selectedDocId || undefined }
+      : { profile_id: profileId || '', needs_verification: true };
   const { data: observations, isLoading, isError, error } = useObservations(observationFilters);
 
   const { data: allDocuments = [], isLoading: documentsLoading } = useDocuments({
@@ -161,8 +169,25 @@ export function VerificationWorkbench() {
     }
   }, []);
 
+  // CITE-SRC-001: select the exact observation a citation pointed at.
   useEffect(() => {
-    if (!selectedDocId) return;
+    if (!citedObservationId || !observations) return;
+    const match = observations.find((o) => o.id === citedObservationId);
+    if (match) {
+      setCitedNotFound(false);
+      void handleRowSelect(match);
+      document
+        .getElementById(`observation-row-${match.id}`)
+        ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    } else {
+      // The row was deleted, or the document was reprocessed. Say so rather
+      // than silently showing an unrelated selection.
+      setCitedNotFound(true);
+    }
+  }, [citedObservationId, observations, handleRowSelect]);
+
+  useEffect(() => {
+    if (!selectedDocId || citedObservationId) return;
     const match = observations?.find((o) => o.doc_id === selectedDocId);
     if (match) {
       void handleRowSelect(match);
@@ -172,7 +197,7 @@ export function VerificationWorkbench() {
         setSearchParams(next, { replace: true });
       }
     }
-  }, [observations, searchParams, setSearchParams, handleRowSelect, selectedDocId, documentReviewMode]);
+  }, [observations, searchParams, setSearchParams, handleRowSelect, selectedDocId, documentReviewMode, citedObservationId]);
 
   const handleViewSourceClick = () => {
     if (observations && observations.length > 0) {
@@ -424,6 +449,16 @@ export function VerificationWorkbench() {
         </div>
       </div>
 
+      {citedNotFound && (
+        <div
+          role="status"
+          className="rounded-lg border border-status-caution/40 bg-status-caution/5 px-4 py-3 text-sm"
+        >
+          That source is no longer available — the result it pointed to may have
+          been deleted, or its document re-extracted.
+        </div>
+      )}
+
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-2">
           <Card>
@@ -459,6 +494,7 @@ export function VerificationWorkbench() {
                     {observations.map((observation, index) => (
                       <motion.tr
                         key={observation.id}
+                        id={`observation-row-${observation.id}`}
                         initial={prefersReducedMotion ? {} : { opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.05 }}
