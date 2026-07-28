@@ -1,6 +1,6 @@
 # Architecture Diagrams
 
-**Last Updated:** 2026-07-27
+**Last Updated:** 2026-07-28
 **Owner:** Project Lead
 **Refresh Trigger:** A new router, module, database, migration chain, or CI job is added or removed
 
@@ -53,6 +53,7 @@ graph TB
         subgraph storage["Storage"]
             MASTER[("Master DB — SQLite<br/><b>NOT encrypted</b><br/>profile metadata + audit log")]
             VAULT[("Per-profile vaults — SQLCipher<br/><b>encrypted</b><br/>vault.db + key.bin + key.recovery.bin + docs/")]
+            BACKUPS[("backups/&lt;profile_id&gt;/<br/>snapshots + sha256 manifest")]
             MODELS[("models/ — GGUF artifacts<br/>SHA256-pinned where available")]
         end
 
@@ -72,6 +73,7 @@ graph TB
     LCPP --> MODELS
     CORE --> MASTER
     CORE --> VAULT
+    CORE --> BACKUPS
     HF -.->|"explicit, user-initiated<br/>model download only"| MODELS
 
     classDef encrypted fill:#1b5e20,stroke:#66bb6a,color:#fff
@@ -106,7 +108,7 @@ flowchart LR
     subgraph runtime["What actually serves a request"]
         UVI2["uvicorn worker"]
         LOOP["asyncio event loop"]
-        SCHED["notification scheduler<br/>(asyncio task)"]
+        SCHED["backup scheduler<br/>(asyncio task, fail-soft)"]
         LLAMA["llama.cpp<br/><b>blocking, in-process</b>"]
     end
 
@@ -115,6 +117,11 @@ flowchart LR
     LOOP --> SCHED
     LOOP -.->|"holds the loop<br/>during generation"| LLAMA
 ```
+
+The only background task the app actually starts is the **backup scheduler**
+(BKUP-UX-001). `notification_scheduler` exists in the codebase but is
+deliberately not wired into the lifespan — worth knowing before assuming
+reminders fire on their own.
 
 The dotted edge is a real constraint, not a stylistic choice: llama.cpp
 inference is CPU-bound and in-process, so a long generation occupies the worker.

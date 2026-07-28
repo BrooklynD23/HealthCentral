@@ -1,6 +1,6 @@
 # Backend Structure
 
-**Last Updated:** 2026-07-27
+**Last Updated:** 2026-07-28
 **Owner:** Project Lead
 **Refresh Trigger:** Middleware order changes, a router is added/removed, or a migration chain gains a head
 
@@ -132,7 +132,7 @@ erDiagram
 flowchart LR
     subgraph chains["Two independent Alembic chains"]
         direction TB
-        MM["migrations/master/<br/>head: 001_initial_schema"]
+        MM["migrations/master/<br/>head: 002_backup_schedules"]
         PM["migrations/profile/<br/>head: 012_pinboards"]
     end
 
@@ -146,6 +146,13 @@ The profile chain is applied **once per profile database**, so an N-profile
 install runs the same migration N times against N separate files. New profile
 tables need a new profile migration with a linear `down_revision`; the two
 chains never cross.
+
+**Backup schedules live in the master DB too, and for a related reason.** A
+background scheduler must know a backup is due while the vault is still
+*locked* — and anything inside the vault is unreadable until unlock. So
+`backup_schedules` (master migration `002`) holds only ids, enums, counts and
+timestamps, and a scheduled run against a locked profile is recorded as
+`skipped_locked` rather than claimed as a success.
 
 **Why the master DB is the sensitive one.** It is unencrypted and it is
 per-install rather than per-profile, so anything written there escapes both the
