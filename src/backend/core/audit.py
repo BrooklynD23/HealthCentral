@@ -57,6 +57,9 @@ ALLOWED_ACTIONS: frozenset[str] = frozenset({
     "Searched health records", "Viewed timeline", "Viewed health timeline",
     "Viewed highlights",
     "Viewed medication reconciliation", "Exported RL dataset", "Recorded response feedback",
+    # backup (BKUP-UX-001)
+    "Viewed backups", "Created backup", "Verified backup", "Restored from backup",
+    "Pruned backups", "Updated backup schedule",
 })
 
 # Keys whose *string* values may survive (still subject to _ENUM_VALUE_RE).

@@ -14,6 +14,7 @@ Model Organization:
 # Master database models
 from .profile import Profile
 from .audit import AuditLog
+from .backup_schedule import BackupSchedule
 
 # Knowledge base models (master database - reference data)
 from .knowledge_base import (
@@ -65,6 +66,7 @@ __all__ = [
     # Master database
     "Profile",
     "AuditLog",
+    "BackupSchedule",
     # Knowledge base (master)
     "BiomarkerKnowledge",
     "InterventionMapping",

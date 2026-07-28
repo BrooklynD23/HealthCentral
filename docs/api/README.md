@@ -62,6 +62,7 @@ for what every request passes through before it reaches one.
 | Model settings | `/settings/model` | Provider, tier, downloads, timezone, voice |
 | Gamification | `/gamification` | Badges, settings |
 | Notifications | `/notifications` | Reminder settings |
+| Backup | `/backup` | List/create/verify/download/restore backups + schedule (BKUP-UX-001) |
 | Monitoring | `/monitoring` | Metrics (auth-protected); `/health` is public and unprefixed |
 
 **Every route touching documents, observations or profile data writes an audit

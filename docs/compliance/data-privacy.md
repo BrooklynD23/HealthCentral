@@ -153,9 +153,18 @@ untouched).
 destruction*. We do not claim the bytes are overwritten: SSD wear-levelling
 makes that guarantee false, and the UI copy says exactly this.
 
-**Backups are not automatically deleted** — a manual prune is still required.
-A backup taken before deletion contains the sealed key and remains readable
-with the password.
+**Backups are not automatically deleted** — a manual prune is still required
+(Settings → Backup & restore). A backup taken before deletion contains the
+sealed key and remains readable with the password, which is exactly what makes
+it restorable; it is also why a downloaded archive should be kept as carefully
+as the device itself.
+
+**Backup archives are deliberately not redacted** (BKUP-UX-001). Every other
+export path passes through `modules/redaction.py` because it produces something
+destined for a third party. A backup is the opposite: the user's own
+full-fidelity record, going to their own machine, and a redacted backup cannot
+be restored. This is the one export-shaped path that is intentionally
+unredacted.
 
 ### Document Deletion
 

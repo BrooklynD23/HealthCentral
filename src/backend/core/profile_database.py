@@ -167,6 +167,15 @@ class PerProfileDatabaseManager:
         """
         return self._get_profile_recovery_key_path(profile_id).exists()
 
+    def is_profile_open(self, profile_id: str) -> bool:
+        """Whether this profile's encrypted database is currently open.
+
+        The background backup scheduler needs this: a locked vault cannot be
+        read, so a scheduled backup must record that it was skipped rather than
+        claim a success it did not achieve (BKUP-UX-001).
+        """
+        return profile_id in self._connections
+
     def get_profile_vault_path(self, profile_id: str) -> Path:
         """Get the directory holding everything belonging to one profile."""
         return Path(settings.app_data_path) / "vaults" / profile_id

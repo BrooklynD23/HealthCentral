@@ -27,6 +27,7 @@ import {
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge, Skeleton, StaggerGroup, StaggerItem, modalVariants, backdropVariants } from '@/components/ui';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MemoryManager } from '@/components/MemoryManager';
+import { BackupCard } from '@/components/settings/BackupCard';
 import { DangerZone } from '@/components/settings/DangerZone';
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
@@ -872,6 +873,10 @@ export function SettingsPage() {
 
       {/* Assistant Memory */}
       <MemoryManager />
+
+      {/* Backup & restore (BKUP-UX-001) — sits directly above the danger
+          zone, since taking a backup is the step before deleting anything. */}
+      <BackupCard />
 
       {/* Irreversible profile deletion (PROF-DEL-001) */}
       <DangerZone />
