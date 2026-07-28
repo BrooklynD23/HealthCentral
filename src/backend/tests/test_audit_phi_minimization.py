@@ -358,3 +358,66 @@ def test_hc_aud_008c_scrubbers_never_raise():
     assert _scrub_details({}) is None
     assert _scrub_details(None) is None
     assert _scrub_action("anything at all", "some.event") == "some.event"
+
+
+# --------------------------------------------------------------------------
+# HC-AUD-009 — agent events keep their identity without growing the allowlist
+# --------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_hc_aud_009_agent_events_use_registered_static_actions():
+    """Agent nodes and tools pass their own identity as `action` (e.g.
+    "query_timeline"). Persisting that verbatim would mean registering every
+    tool name and silently degrading each new tool's rows until someone
+    remembered to. emit_audit_event maps to a static per-node template instead.
+    """
+    from modules.agent.audit import AGENT_NODE_ACTIONS, AgentAuditEvent, emit_audit_event
+
+    for node, expected_action in AGENT_NODE_ACTIONS.items():
+        db = _FakeDb()
+        await emit_audit_event(
+            AgentAuditEvent(
+                run_id="run-1",
+                node=node,
+                profile_id="p1",
+                event_type=f"agent.{node}",
+                action="query_timeline",
+                step_index=0,
+                details={"tool_name": "query_timeline", "count": 3},
+            ),
+            db=db,
+        )
+        row = db.added[0]
+        assert row.action == expected_action
+        assert row.action in ALLOWED_ACTIONS
+
+        # Identity is preserved as allowlisted enum data, not lost.
+        details = _details_of(row)
+        assert details["node"] == node
+        assert details["action"] == "query_timeline"
+        assert details["tool_name"] == "query_timeline"
+        assert details["count"] == 3
+
+
+@pytest.mark.asyncio
+async def test_hc_aud_009b_a_new_tool_needs_no_allowlist_change():
+    """The point of the mapping: an unknown tool name still lands in a
+    registered action rather than degrading to a bare event type."""
+    from modules.agent.audit import AgentAuditEvent, emit_audit_event
+
+    db = _FakeDb()
+    await emit_audit_event(
+        AgentAuditEvent(
+            run_id="run-2",
+            node="act",
+            profile_id="p1",
+            event_type="agent.act",
+            action="some_future_tool",
+            step_index=1,
+            details={"tool_name": "some_future_tool"},
+        ),
+        db=db,
+    )
+    row = db.added[0]
+    assert row.action == "Agent used a tool"
+    assert _details_of(row)["tool_name"] == "some_future_tool"

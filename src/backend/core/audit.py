@@ -44,6 +44,9 @@ ALLOWED_ACTIONS: frozenset[str] = frozenset({
     # observation
     "Verified observation", "Edited observation", "Deleted observation",
     "Viewed observation",
+    # agent nodes (see modules/agent/audit.py AGENT_NODE_ACTIONS)
+    "Agent planned a step", "Agent used a tool", "Agent drafted a response",
+    "Agent reflected on a draft", "Agent step",
     # care tasks / pinboards
     "Viewed care plan tasks", "Accepted care plan task", "Updated care plan task",
     "Viewed pinboards", "Created pinboard", "Renamed pinboard", "Deleted pinboard",
@@ -51,7 +54,8 @@ ALLOWED_ACTIONS: frozenset[str] = frozenset({
     # export / auth / misc read routes
     "Exported data", "User logged in", "User logged out",
     "Authentication failed", "Session expired",
-    "Searched health records", "Viewed timeline", "Viewed highlights",
+    "Searched health records", "Viewed timeline", "Viewed health timeline",
+    "Viewed highlights",
     "Viewed medication reconciliation", "Exported RL dataset", "Recorded response feedback",
 })
 
@@ -62,7 +66,7 @@ STRING_DETAIL_KEYS: frozenset[str] = frozenset({
     "export_type", "format", "packet_id", "summary_id", "source_kind",
     "source_document_id", "source_entity_id", "observation_id", "category",
     "highlight_type", "event_type", "event_type_filter", "decision", "direction",
-    "handle", "abstain_reason", "since_date", "trigger", "reason",
+    "handle", "abstain_reason", "since_date", "trigger", "reason", "node",
 })
 
 # Keys holding short lists of opaque identifiers.
