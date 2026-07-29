@@ -59,7 +59,7 @@ Stored in master database (not encrypted by default).
 |-----------|-------------------|--------------|
 | Health data (PHI) | Indefinite | Delete via UI or API |
 | Audit logs | Indefinite | Archival recommended |
-| Backups | 30 days | Configurable via `--retention-days` |
+| Backups | 30 days | Settings → Backup & restore, or `--retention-days`. `0` means never prune. Deleted with the profile. |
 | Request metrics | In-memory (session) | Cleared on restart |
 | AI model cache | Persistent | Manual cleanup via settings |
 

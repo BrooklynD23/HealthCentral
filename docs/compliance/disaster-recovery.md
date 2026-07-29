@@ -87,6 +87,23 @@ The restore process:
 3. Copies backed-up files to the data directory
 4. Reports the number of files restored and safety copy locations
 
+### Whole-install restore vs. profile-scoped restore
+
+The CLI above is a **whole-install** restore: every file in the manifest is
+copied back, including the master database. That is right when rebuilding a
+machine, and wrong for a single profile — a profile's backup still contains the
+shared master DB, so replacing it wholesale would delete every profile created
+since the backup and roll the audit trail back with it.
+
+`POST /backup/{id}/restore` is therefore **profile-scoped** (BK-01): vault and
+sealed key files are restored verbatim, but instead of copying the master DB
+over the live one, only that profile's row is re-applied from the backed-up
+copy. The row travels with the restore rather than being skipped because
+`password_hash`/`password_salt` live in the master DB while the sealed key
+lives in the vault — restoring old keys against a newer hash would let the user
+log in and then find the vault refuses to open. Other profiles' rows, and the
+live audit trail, are left alone.
+
 ### Post-Restore Validation
 
 ```bash
@@ -110,6 +127,10 @@ python src/backend/scripts/backup.py --action prune \
     --backup-dir backups/ \
     --retention-days 30
 ```
+
+`--retention-days 0` means **never prune**, not "prune everything" — the same
+reading the Settings UI and the scheduler use. To clear backups deliberately,
+delete the directory.
 
 ## 6. Escalation
 

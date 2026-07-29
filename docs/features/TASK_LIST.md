@@ -64,6 +64,9 @@ check enforces the three stay identical.
 | `AUDIT-PHI-001` | Audit-log PHI minimization — audit rows (free-text `action`, arbitrary `details` JSON) land in the unencrypted master DB, the one place patient-linked data escapes SQLCipher; the 2026-07 GET-route audit expansion increased that volume. Phase A: inventory call sites, allowlist-scrub `details` inside `create_audit_log` (single choke point). Phase B (master-DB encryption) explicitly out of scope/gated. | P2 | Full ticket at [`docs/plans/2026-07-02-architect-review-proposal-tickets.md`](../plans/2026-07-02-architect-review-proposal-tickets.md#audit-phi-001--audit-log-phi-minimization-in-the-unencrypted-master-db) | `src/backend/core/audit.py`, `api/` call sites, `docs/compliance/hipaa-controls.md` | [x] DONE (2026-07-27) — Phase A allowlist scrubber in `create_audit_log` + call-site fixes. Phase B still out of scope/gated. Tests HC-AUD-001..008 |
 | `MODEL-INT-001` | Model-artifact integrity manifest — `download_models.py`/`model_selector.py` have zero checksum handling (and Gemma4 URLs are still `PLACEHOLDER`); a silently swapped model artifact silently invalidates every tuned guardrail threshold and golden eval. Checked-in SHA256 manifest, verify at download and at `llama_cpp` load (hash cached by path+mtime+size). Foundation for the shared model-distribution infra the findings report wants. | P3 | Full ticket at [`docs/plans/2026-07-02-architect-review-proposal-tickets.md`](../plans/2026-07-02-architect-review-proposal-tickets.md#model-int-001--model-artifact-integrity-manifest-sha256-pin--verify-on-load) | `scripts/download_models.py`, `src/backend/modules/model_selector.py`, `src/backend/core/llm/`, `config/model_manifest.json` (new) | [x] DONE (2026-07-27) — `config/model_manifest.json` + `modules/model_integrity.py`, checked at load. Unpinned tiers report UNPINNED rather than passing. Tests HC-MINT-001..011 |
 
+| `SQL-FK-001` | `PRAGMA foreign_keys` is enabled **nowhere** in the codebase (zero hits across all `.py`), so every `ondelete="CASCADE"` declared on a model is inert on SQLite. Two features have already had to work around it by deleting children explicitly — `delete_document` (entities/categories, 2026-07-16) and `delete_profile` (`backup_schedules`, 2026-07-29) — which means the next FK someone adds will silently not cascade either. Turning the pragma on is a repo-wide behaviour change affecting every relationship, so it needs its own pass: audit every FK, decide cascade vs. restrict per relationship, and expect previously-tolerated orphan writes to start failing. | P2 | None yet — needs a written audit of every FK before flipping anything | `src/backend/core/database.py`, `src/backend/core/profile_database.py`, all `models/` | [ ] OPEN |
+| `CITE-AGENT-001` | Agent-path citations carry no page number. `modules/agent/nodes/draft.py:102` builds `locator` from the row id, not a page, because the agent *tools* never return `source_page`/`source_bbox_json` — so an answer produced through the agent path yields citation chips that deep-link to the row but cannot highlight the region, while the RAG path can. Not a regression (the agent path never had it); an enhancement that needs the tool return shapes widened first. | P3 | None yet | `src/backend/modules/agent/tools/`, `src/backend/modules/agent/nodes/draft.py`, `src/backend/api/assistant.py` | [ ] OPEN |
+
 ---
 
 ## Active Remaining Items (TDD Structured)
@@ -144,6 +147,67 @@ On the first of each month, review all canonical docs for freshness:
 ---
 
 ## Session Notes
+
+### 2026-07-29 - Pre-PR fix pass on `claude/backlog-repo-docs-yl7isc`
+
+A review of the branch before opening the PR — three exploration passes over
+the backup subsystem, the security/audit changes and the frontend — found nine
+defects, two of them data-corruption grade. The common thread: BKUP-UX-001 was
+built on `scripts/backup.py` without re-examining what its `restore()` does to
+a *multi-profile* install, and without re-checking the guarantees PROF-DEL-001
+had already made. Two features that each work alone broke each other.
+
+Each landed as its own ticket and commit. The three corruption-grade ones had
+their tests written **failing first** — a test that never failed proves
+nothing about a bug like this.
+
+- **BK-01 (critical): profile restore overwrote the shared master DB.**
+  `restore()` copied back every manifest entry, and a profile-scoped backup's
+  manifest includes `healthcentral.db` — all profiles' rows and the whole
+  audit trail. Restoring profile A's old backup deleted profile B's row while
+  B's vault survived on disk, orphaned. The route is now profile-scoped: vault
+  and keys restored verbatim, and only that profile's master row re-applied
+  from the backed-up copy. *Excluding* the master DB instead would have been
+  wrong — `password_hash` lives there while the sealed key travels in the
+  backup, so an intervening password change would let the user log in and then
+  find the vault refuses to open. Tests HC-BKUP-026..029.
+- **BK-02 (critical): deleting a profile left its backups.** The sweep covered
+  `vaults/<id>` only; `backups/<id>` holds `vault.db` and *both* sealed keys,
+  so a fully restorable copy survived a "permanent" deletion while DangerZone
+  claimed the key was destroyed. Now swept as Step 5. The `backup_schedules`
+  row is deleted explicitly — its `ondelete="CASCADE"` is inert (see
+  `SQL-FK-001`). Tests HC-PDEL-015..017.
+- **BK-03: `retention_days=0` meant opposite things.** `prune()` read it as
+  "older than now" (delete everything); the scheduler read it as "never
+  prune". Settled on never-prune, guarded inside `prune()` so the CLI is
+  covered. Tests HC-BKUP-030/031.
+- **BK-04: `core.time.utcnow` sweep** across the new backup code, per CLAUDE.md.
+- **SEC-01: no rate-limiter reset after a successful re-auth** in
+  `delete_profile` or `restore_backup`, unlike `login`/`unlock_profile` —
+  failures accumulated until the user was locked out of deleting their own
+  profile or restoring their own backup. Tests HC-PDEL-018, HC-BKUP-032.
+- **FE-01/FE-04: entity citations were a dead end.** The chip emitted
+  `?entity=…` but the workbench read only `observation`, and the effect that
+  strips `doc` from the URL then removed the one parameter naming the
+  document. Entity citations usually point at narrative documents with no lab
+  values at all, so that path gets its own landing. `citedNotFound` is now
+  cleared on citation change. Tests FE-CITE-002.
+- **FE-02/FE-03: restore left a broken session and a shared password field.**
+  The session stayed authenticated against a vault whose keys had just been
+  replaced (every later call 403s); restore now ends the session and hands the
+  reason to the setup screen via sessionStorage. The restore password no
+  longer carries from one backup's form to another's. Tests FE-BKUP-001/002.
+
+**One review finding rejected.** The security pass classified "deletion leaves
+backups" as intentional, citing data-privacy.md's "backups are not
+automatically deleted". That line was written about the *old developer-CLI*
+backups in a directory users never created; it does not license the new
+behaviour, and the same review's claim that the FK cascade removes the
+schedule row is wrong on SQLite. Both the code and that doc line are corrected.
+
+**Filed, not fixed:** `SQL-FK-001` (pragma is repo-wide, needs its own audit)
+and `CITE-AGENT-001` (needs the agent tools to return page data — an
+enhancement, not a regression from this branch).
 
 ### 2026-07-16 - Phases A-C integration adversarial-review fixes (branch `claude/orchestrate-phases-adversarial-review-b24op0`)
 
