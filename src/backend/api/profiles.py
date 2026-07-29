@@ -827,6 +827,11 @@ async def delete_profile(
             detail="Incorrect password",
         )
 
+    # Matches login and unlock_profile: a good password clears the counter.
+    # Without this, failures accumulate across successful attempts until the
+    # user is locked out of deleting their own profile (SEC-01).
+    auth_rate_limiter.reset(rate_key)
+
     if payload.confirmation_phrase != PROFILE_DELETE_CONFIRMATION:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

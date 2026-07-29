@@ -413,3 +413,33 @@ async def test_hc_pdel_017_backup_schedule_row_is_deleted_explicitly(vaults):
     assert any("DELETE FROM backup_schedules" in s for s in db.executed), (
         "the schedule row must be deleted explicitly, not left to an inert cascade"
     )
+
+
+@pytest.mark.asyncio
+async def test_hc_pdel_018_successful_reauth_resets_the_rate_limiter(vaults):
+    """login and unlock_profile both reset the limiter after a good password.
+    delete did not, so failed attempts accumulated across successful ones until
+    the user was locked out of deleting their own profile."""
+    from core.rate_limiter import auth_rate_limiter
+    from core.config import settings as core_settings
+
+    if not core_settings.auth_rate_limit_enabled:
+        pytest.skip("rate limiting disabled in this configuration")
+
+    key = "delete:127.0.0.1:profile-a"
+    auth_rate_limiter.reset(key)
+    try:
+        # One short of the block threshold, so the reset is the only thing
+        # standing between the next mistyped password and a lockout.
+        for _ in range(auth_rate_limiter._max_attempts - 1):
+            auth_rate_limiter.add_failure(key)
+
+        await _delete(profile_id="profile-a")
+
+        auth_rate_limiter.add_failure(key)
+        assert auth_rate_limiter.check(key).allowed is True, (
+            "a successful re-auth must clear the counter, as login and "
+            "unlock_profile both do"
+        )
+    finally:
+        auth_rate_limiter.reset(key)

@@ -398,6 +398,11 @@ async def restore_backup(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect password"
         )
 
+    # A good password clears the counter, as it does everywhere else auth is
+    # re-checked. Without it, mistypes accumulate across successful restores
+    # until the user is locked out of their own backups (SEC-01).
+    auth_rate_limiter.reset(rate_key)
+
     if payload.confirmation_phrase != BACKUP_RESTORE_CONFIRMATION:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

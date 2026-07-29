@@ -187,7 +187,7 @@ async def test_hc_bkup_015_download_leaves_no_temp_file_behind(data_dir):
 async def _restore(
     backup_id, *, password="CorrectHorse1",
     confirmation=backup_api.BACKUP_RESTORE_CONFIRMATION,
-    authenticates=True, profile_exists=True,
+    authenticates=True, profile_exists=True, client_host="127.0.0.1",
 ):
     master_db = AsyncMock()
     profile = SimpleNamespace(id="profile-a") if profile_exists else None
@@ -203,7 +203,7 @@ async def _restore(
             payload=backup_api.RestoreRequest(
                 password=password, confirmation_phrase=confirmation
             ),
-            request=SimpleNamespace(client=SimpleNamespace(host="127.0.0.1")),
+            request=SimpleNamespace(client=SimpleNamespace(host=client_host)),
             session=_session(),
             master_db=master_db,
         )
@@ -551,3 +551,34 @@ async def test_hc_bkup_031_prune_route_honours_retention_zero(data_dir):
 
     assert response.removed == 0
     assert backup_path.is_dir()
+
+
+# ---------------------------------------------------------------------------
+# HC-BKUP-032 — a good password clears the restore limiter (SEC-01)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_hc_bkup_032_successful_reauth_resets_the_restore_limiter(data_dir):
+    """restore_backup copied delete_profile's pattern, including its omission:
+    failures accumulated across successful attempts, so a user who mistyped
+    their password a few times over a session got locked out of restoring."""
+    from core.rate_limiter import auth_rate_limiter
+    from core.config import settings as core_settings
+
+    if not core_settings.auth_rate_limit_enabled:
+        pytest.skip("rate limiting disabled in this configuration")
+
+    created = await _create("profile-a")
+
+    key = "restore:1.2.3.4:profile-a"
+    auth_rate_limiter.reset(key)
+    try:
+        for _ in range(auth_rate_limiter._max_attempts - 1):
+            auth_rate_limiter.add_failure(key)
+
+        await _restore(created.backup_id, client_host="1.2.3.4")
+
+        auth_rate_limiter.add_failure(key)
+        assert auth_rate_limiter.check(key).allowed is True
+    finally:
+        auth_rate_limiter.reset(key)
