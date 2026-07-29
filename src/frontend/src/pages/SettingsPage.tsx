@@ -506,6 +506,7 @@ export function SettingsPage() {
                 return (
                   <div
                     key={tier.tier}
+                    data-testid={`tier-row-${tier.tier}`}
                     className={cn(
                       'flex items-center justify-between px-4 py-4 rounded-xl border transition-all duration-300',
                       isSelected

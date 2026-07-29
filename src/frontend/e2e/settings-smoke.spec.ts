@@ -7,7 +7,7 @@
  * - Hardware detection button
  * - Tier selection cards
  * - External API toggle and consent dialog
- * - Download button for downloadable tiers
+ * - Every tier reporting exactly one availability state
  */
 
 import { test, expect } from '@playwright/test';
@@ -66,18 +66,40 @@ test.describe('Settings Page Smoke Tests', () => {
     ).toBeVisible({ timeout: 5000 });
   });
 
-  test('E2E-SET-004: Verify download button appears for downloadable tiers', async ({
+  test('E2E-SET-004: every model tier reports exactly one availability state', async ({
     page,
     request,
   }) => {
     await openAuthenticatedPage(page, request, '/settings');
 
-    // Wait for page to load
-    await page.waitForTimeout(2000);
+    // This used to assert that *some* Download button existed. That is a
+    // property of the machine running the test, not of the app: the button
+    // renders only for a tier that is `can_run` and not yet downloaded, and
+    // `can_run_tier()` requires >= 8 GB RAM even for the smallest tier. On a
+    // 7 GB CI runner every tier is legitimately "Incompatible" and the old
+    // assertion failed against correct behaviour.
+    //
+    // The invariant that actually holds on any hardware: each tier row shows
+    // exactly one of Ready / Download / Incompatible — never none (a row that
+    // tells the user nothing) and never two (contradictory state).
+    const tierRows = page.locator('[data-testid^="tier-row-"]');
+    await expect(tierRows.first()).toBeVisible({ timeout: 10000 });
 
-    // Should show at least one download-related button
-    await expect(
-      page.getByRole('button', { name: /download|install|get model/i }).first()
-    ).toBeVisible({ timeout: 10000 });
+    const rowCount = await tierRows.count();
+    expect(rowCount).toBeGreaterThan(0);
+
+    for (let i = 0; i < rowCount; i++) {
+      const row = tierRows.nth(i);
+      const testId = await row.getAttribute('data-testid');
+
+      const states = await Promise.all([
+        row.getByText(/^Ready$/).count(),
+        row.getByRole('button', { name: /download|install|get model/i }).count(),
+        row.getByText(/^Incompatible$/).count(),
+      ]);
+
+      const shown = states.reduce((sum, n) => sum + Math.min(n, 1), 0);
+      expect(shown, `${testId} should show exactly one of Ready/Download/Incompatible, got ${JSON.stringify(states)}`).toBe(1);
+    }
   });
 });
