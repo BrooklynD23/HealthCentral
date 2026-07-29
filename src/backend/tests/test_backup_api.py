@@ -375,3 +375,126 @@ def test_hc_bkup_025_schedule_columns_are_phi_free():
         "a new backup_schedules column must be an id/enum/count/timestamp, "
         "never health data or user text"
     )
+
+
+# ---------------------------------------------------------------------------
+# HC-BKUP-026..029 — restore must not corrupt other profiles (BK-01)
+# ---------------------------------------------------------------------------
+
+def _seed_master(path, profiles):
+    """Write a master DB holding one row per profile, with password hashes."""
+    conn = sqlite3.connect(path)
+    # The shared fixture creates a stub `profiles` table; replace it with the
+    # column set these tests actually assert on.
+    conn.execute("DROP TABLE IF EXISTS profiles")
+    conn.execute(
+        "CREATE TABLE profiles "
+        "(id TEXT PRIMARY KEY, display_name TEXT, encryption_key_id TEXT, "
+        "password_hash TEXT, password_salt TEXT, is_locked INTEGER, "
+        "created_at TEXT, updated_at TEXT, last_accessed_at TEXT)"
+    )
+    for pid, pwhash in profiles.items():
+        conn.execute(
+            "INSERT INTO profiles VALUES (?,?,?,?,?,?,?,?,?)",
+            (pid, f"name-{pid}", f"key-{pid}", pwhash, "salt", 0, "2026-01-01", "2026-01-01", None),
+        )
+    conn.commit()
+    conn.close()
+
+
+def _master_profile_ids(path) -> set[str]:
+    conn = sqlite3.connect(path)
+    rows = {r[0] for r in conn.execute("SELECT id FROM profiles")}
+    conn.close()
+    return rows
+
+
+def _master_password_hash(path, profile_id) -> str | None:
+    conn = sqlite3.connect(path)
+    row = conn.execute(
+        "SELECT password_hash FROM profiles WHERE id = ?", (profile_id,)
+    ).fetchone()
+    conn.close()
+    return row[0] if row else None
+
+
+@pytest.mark.asyncio
+async def test_hc_bkup_026_restoring_one_profile_leaves_the_other_intact(data_dir):
+    """The isolation assertion this feature shipped without.
+
+    A profile-scoped backup includes the SHARED master DB. Restoring it
+    wholesale rolls the master back, deleting any profile created since —
+    their vault survives on disk, orphaned and unreachable.
+    """
+    master = data_dir / "healthcentral.db"
+    _seed_master(master, {"profile-a": "hash-a-old"})
+
+    created = await _create("profile-a")
+
+    # Profile B is created *after* A's backup.
+    _seed_master(master, {"profile-a": "hash-a-old", "profile-b": "hash-b"})
+
+    await _restore(created.backup_id)
+
+    ids = _master_profile_ids(master)
+    assert "profile-b" in ids, "restoring profile A must not delete profile B"
+    assert "profile-a" in ids
+
+
+@pytest.mark.asyncio
+async def test_hc_bkup_027_restore_reapplies_the_backed_up_password_hash(data_dir):
+    """The sealed key travels with the backup but the password hash lives in
+    the master DB. If the hash is not rolled back with it, login succeeds and
+    the vault then refuses to open."""
+    master = data_dir / "healthcentral.db"
+    _seed_master(master, {"profile-a": "hash-at-backup-time"})
+
+    created = await _create("profile-a")
+
+    # User changes their password after the backup.
+    _seed_master(master, {"profile-a": "hash-changed-later", "profile-b": "hash-b"})
+
+    await _restore(created.backup_id)
+
+    assert _master_password_hash(master, "profile-a") == "hash-at-backup-time"
+    # ...without disturbing the other profile's credentials.
+    assert _master_password_hash(master, "profile-b") == "hash-b"
+
+
+@pytest.mark.asyncio
+async def test_hc_bkup_028_restore_returns_vault_files(data_dir):
+    """The vault itself is still restored verbatim — scoping the master row
+    must not turn restore into a no-op."""
+    master = data_dir / "healthcentral.db"
+    _seed_master(master, {"profile-a": "hash-a"})
+
+    vault_db = data_dir / "vaults" / "profile-a" / "vault.db"
+    created = await _create("profile-a")
+
+    original = vault_db.read_bytes()
+    vault_db.write_bytes(b"clobbered-since-backup")
+
+    result, _ = await _restore(created.backup_id)
+
+    assert vault_db.read_bytes() == original
+    assert result.files_restored > 0
+
+
+def test_hc_bkup_029_unscoped_restore_still_replaces_the_master(data_dir):
+    """Full-install restore (the CLI path) keeps whole-file semantics — that
+    is correct when you are rebuilding an entire machine."""
+    from scripts import backup as backup_script
+
+    master = data_dir / "healthcentral.db"
+    _seed_master(master, {"profile-a": "hash-a"})
+
+    backup_dir = data_dir / "backups" / "full"
+    backup_dir.mkdir(parents=True)
+    created = backup_script.backup(data_dir=data_dir, backup_dir=backup_dir)
+
+    _seed_master(master, {"profile-a": "hash-a", "profile-b": "hash-b"})
+
+    backup_script.restore(created.backup_path, data_dir)
+
+    # No profile_id given -> the whole master is rolled back, B included.
+    assert _master_profile_ids(master) == {"profile-a"}

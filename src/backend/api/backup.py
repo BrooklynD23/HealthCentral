@@ -408,7 +408,12 @@ async def restore_backup(
     # Release file handles and clear the in-memory key before overwriting.
     await close_profile_database_on_logout(session.profile_id)
 
-    result = backup_script.restore(backup_path=path, data_dir=_data_dir())
+    # Scoped to this profile: a profile-scoped backup contains the SHARED
+    # master DB, and restoring that wholesale would roll back every other
+    # profile's row and the whole audit trail (BK-01).
+    result = backup_script.restore(
+        backup_path=path, data_dir=_data_dir(), profile_id=session.profile_id
+    )
     if not result.success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

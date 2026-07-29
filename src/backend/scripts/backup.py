@@ -59,6 +59,13 @@ class RestoreResult:
     error: str = ""
 
 
+# The one file in a profile-scoped backup that is NOT that profile's own data:
+# the master DB holds every profile's row, the whole audit trail and the backup
+# schedules. Restoring it wholesale from a profile-scoped backup is how one
+# profile's rollback deletes another profile (BK-01).
+MASTER_DB_NAME = "healthcentral.db"
+
+
 def _validate_manifest_path(base_dir: Path, relative_path: str) -> Path:
     """
     Validate a relative path from a backup manifest against path traversal.
@@ -337,11 +344,65 @@ def verify(backup_path: Path) -> VerifyResult:
     )
 
 
-def restore(backup_path: Path, data_dir: Path) -> RestoreResult:
+def _reapply_profile_row(backup_master: Path, live_master: Path, profile_id: str) -> None:
+    """Copy one profile's row from a backed-up master DB into the live one.
+
+    Why this exists: a profile-scoped restore must not roll the shared master
+    database back (that deletes other profiles), but it also cannot simply skip
+    it. The sealed `key.bin` being restored was sealed with the password that
+    was current *at backup time*, while `password_hash` lives in the master DB.
+    Leave the live hash alone and the user logs in with their newer password and
+    then finds the vault refuses to open.
+
+    So exactly one row moves: this profile's. Other profiles' rows, and the
+    append-only audit trail, are untouched.
+    """
+    source = sqlite3.connect(f"file:{backup_master}?mode=ro", uri=True)
+    try:
+        source.row_factory = sqlite3.Row
+        row = source.execute(
+            "SELECT * FROM profiles WHERE id = ?", (profile_id,)
+        ).fetchone()
+    finally:
+        source.close()
+
+    if row is None:
+        # The backup predates this profile, or was taken for a different one.
+        # Nothing to re-apply; the vault files are still restored.
+        logger.warning("Backup contains no master row for the restored profile")
+        return
+
+    columns = list(row.keys())
+    placeholders = ", ".join("?" for _ in columns)
+    column_list = ", ".join(f'"{c}"' for c in columns)
+
+    target = sqlite3.connect(live_master)
+    try:
+        target.execute("DELETE FROM profiles WHERE id = ?", (profile_id,))
+        target.execute(
+            f"INSERT INTO profiles ({column_list}) VALUES ({placeholders})",
+            tuple(row[c] for c in columns),
+        )
+        target.commit()
+    finally:
+        target.close()
+
+
+def restore(
+    backup_path: Path,
+    data_dir: Path,
+    profile_id: str | None = None,
+) -> RestoreResult:
     """
     Restore databases from a backup.
 
     Creates .bak safety copies of existing files before overwriting.
+
+    ``profile_id`` scopes the restore to one profile (BK-01). When set, the
+    shared master database is **not** overwritten — only that profile's row is
+    re-applied from the backup, so restoring one profile cannot delete another.
+    Leave it None for a full-install restore, where replacing the master
+    wholesale is the correct behaviour.
     """
     # Verify first
     verify_result = verify(backup_path)
@@ -358,6 +419,10 @@ def restore(backup_path: Path, data_dir: Path) -> RestoreResult:
     files_restored = 0
 
     for entry in manifest.get("files", []):
+        # Profile-scoped restore: hold the master DB back and merge one row
+        # from it after the file copies, rather than clobbering every profile.
+        if profile_id and Path(entry["path"]).name == MASTER_DB_NAME:
+            continue
         try:
             src_file = _validate_manifest_path(backup_path, entry["path"])
             dest_file = _validate_manifest_path(data_dir, entry["path"])
@@ -378,6 +443,20 @@ def restore(backup_path: Path, data_dir: Path) -> RestoreResult:
         dest_file.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src_file, dest_file)
         files_restored += 1
+
+    if profile_id:
+        backup_master = backup_path / MASTER_DB_NAME
+        live_master = data_dir / MASTER_DB_NAME
+        if backup_master.exists() and live_master.exists():
+            try:
+                _reapply_profile_row(backup_master, live_master, profile_id)
+            except sqlite3.Error as exc:
+                return RestoreResult(
+                    success=False,
+                    files_restored=files_restored,
+                    safety_copies=safety_copies,
+                    error=f"Could not re-apply the profile row: {exc}",
+                )
 
     logger.info(
         "Restore complete: %d files from %s",
