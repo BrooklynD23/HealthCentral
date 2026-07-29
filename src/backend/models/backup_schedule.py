@@ -25,6 +25,7 @@ from sqlalchemy import String, DateTime, Boolean, Integer, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.database import Base
+from core.time import utcnow
 
 
 # Interval values. Stored as a short enum string rather than a number of
@@ -74,10 +75,10 @@ class BackupSchedule(Base):
     last_file_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.utcnow
+        DateTime, nullable=False, default=utcnow
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime, nullable=False, default=utcnow, onupdate=utcnow
     )
 
     def __repr__(self) -> str:  # pragma: no cover - debug helper

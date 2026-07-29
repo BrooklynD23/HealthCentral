@@ -22,7 +22,6 @@ makes.
 
 import logging
 import zipfile
-from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from typing import Optional
@@ -44,6 +43,7 @@ from core.auth import (
 from core.config import settings
 from core.database import get_db
 from core.rate_limiter import auth_rate_limiter
+from core.time import utcfromtimestamp, utcnow
 from models import BackupSchedule, Profile
 from scripts import backup as backup_script
 
@@ -172,7 +172,7 @@ def _summarize(path: Path) -> BackupSummary:
     files = [f for f in path.rglob("*") if f.is_file()]
     return BackupSummary(
         backup_id=path.name,
-        created_at=datetime.utcfromtimestamp(path.stat().st_mtime).isoformat() + "Z",
+        created_at=utcfromtimestamp(path.stat().st_mtime).isoformat() + "Z",
         file_count=max(len(files) - 1, 0),  # manifest.json is bookkeeping
         size_bytes=sum(f.stat().st_size for f in files),
     )
@@ -267,7 +267,7 @@ async def create_backup(
         backup_id=result.backup_path.name,
         file_count=result.files_backed_up,
         method=result.method,
-        created_at=datetime.utcnow().isoformat() + "Z",
+        created_at=utcnow().isoformat() + "Z",
     )
 
 

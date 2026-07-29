@@ -24,6 +24,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from core.time import utcnow
+
 logger = logging.getLogger(__name__)
 
 APP_VERSION = "0.1.0"
@@ -205,7 +207,7 @@ def backup(
     if not data_dir.is_dir():
         raise NotADirectoryError(f"Data directory is not a directory: {data_dir}")
 
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    timestamp = utcnow().strftime("%Y%m%d_%H%M%S")
     dest_dir = backup_dir / f"backup_{timestamp}"
     dest_dir.mkdir(parents=True, exist_ok=True)
 
@@ -267,7 +269,7 @@ def backup(
 
     manifest = {
         "timestamp": timestamp,
-        "created_at": datetime.utcnow().isoformat() + "Z",
+        "created_at": utcnow().isoformat() + "Z",
         "app_version": APP_VERSION,
         "backup_method": backup_method,
         "files": manifest_files,
@@ -395,7 +397,7 @@ def prune(backup_dir: Path, retention_days: int = 30) -> int:
 
     Returns the number of backup directories removed.
     """
-    cutoff = datetime.utcnow() - timedelta(days=retention_days)
+    cutoff = utcnow() - timedelta(days=retention_days)
     removed = 0
 
     for entry in sorted(backup_dir.iterdir()):
