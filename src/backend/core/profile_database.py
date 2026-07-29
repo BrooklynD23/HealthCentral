@@ -191,6 +191,11 @@ class PerProfileDatabaseManager:
 
         (If DEK rotation is ever implemented, it must reseal every copy listed
         here, not just the primary one.)
+
+        This list covers the *live* key files only. Copies also travel inside
+        backups, so `delete_profile` sweeps `<app_data>/backups/<profile_id>`
+        as a separate step — a new key location needs adding here **and**
+        needs to be inside the directories those two sweeps cover.
         """
         return [
             self._get_profile_key_path(profile_id),

@@ -87,9 +87,10 @@ export function DangerZone() {
           <h3 className="font-semibold">Delete this profile</h3>
           <p className="text-sm text-muted-foreground mt-1">
             This removes your encrypted health record from this device: every
-            document, lab result, medication and note. Your encryption key is
-            destroyed, which makes the data unreadable. This cannot be undone,
-            and there is no cloud copy to restore from.
+            document, lab result, medication and note, along with any backups
+            this app is holding for you. Your encryption key is destroyed, which
+            makes the data unreadable. This cannot be undone, and there is no
+            cloud copy to restore from.
           </p>
         </div>
 
@@ -102,9 +103,10 @@ export function DangerZone() {
             <div>
               <p className="text-sm font-medium">1. Take a backup first</p>
               <p className="text-xs text-muted-foreground mb-2">
-                Once deleted it cannot be recovered, so take a complete copy
-                while you can. A backup includes your documents, results and
-                the key that opens them, and can be restored later.
+                Deleting also removes the backups stored on this device, so a
+                downloaded copy is the only one that survives. A backup includes
+                your documents, results and the key that opens them, and can be
+                restored later.
               </p>
               <Button
                 size="sm"

@@ -132,8 +132,14 @@ recoverable state rather than a corrupt one:
 4. Sweep the whole vault directory — database, WAL/SHM sidecars, and encrypted
    documents. Failures here are logged but do not abort: the data is already
    cryptographically erased, and a retry finishes the cleanup.
-5. In one master transaction: purge the audit rows, delete the profile row,
-   write the tombstone.
+5. Sweep the profile's backup directory (`<app_data>/backups/<profile_id>`) on
+   the same log-and-continue terms. Each backup holds its own copy of the sealed
+   key, so leaving them behind would leave the record restorable after a
+   "permanent" deletion.
+6. In one master transaction: purge the audit rows, delete the profile row,
+   delete the `backup_schedules` row, write the tombstone. The schedule row is
+   deleted explicitly rather than by FK cascade — `PRAGMA foreign_keys` is not
+   enabled, so the `ondelete="CASCADE"` on the model is inert on SQLite.
 
 **Audit-row retention — owner decision, 2026-07-27.** The profile's audit rows
 are **purged**, and a single **anonymized** `profile.delete` tombstone is
@@ -153,11 +159,16 @@ untouched).
 destruction*. We do not claim the bytes are overwritten: SSD wear-levelling
 makes that guarantee false, and the UI copy says exactly this.
 
-**Backups are not automatically deleted** — a manual prune is still required
-(Settings → Backup & restore). A backup taken before deletion contains the
-sealed key and remains readable with the password, which is exactly what makes
-it restorable; it is also why a downloaded archive should be kept as carefully
-as the device itself.
+**App-created backups are deleted with the profile; downloaded archives are
+not.** A backup contains the sealed key and remains readable with the password
+— which is exactly what makes it restorable, and exactly why one left on disk
+would defeat the erase. So the backups the app manages, under
+`<app_data>/backups/<profile_id>`, are swept as part of deletion (step 5 above).
+An archive the user downloaded has left the app's reach entirely and cannot be
+reclaimed; it should be kept as carefully as the device itself, and destroyed by
+hand if the intent is a complete erase. The delete flow offers "back up and
+download" as its first step precisely so this is a deliberate choice rather than
+a leftover.
 
 **Backup archives are deliberately not redacted** (BKUP-UX-001). Every other
 export path passes through `modules/redaction.py` because it produces something

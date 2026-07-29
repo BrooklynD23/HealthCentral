@@ -355,3 +355,61 @@ async def test_hc_pdel_014_session_is_closed_and_token_revoked(vaults):
 
     closed.assert_awaited_once()
     revoked.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# HC-PDEL-015..018 — erase completeness and rate-limiter hygiene (BK-02, SEC-01)
+# ---------------------------------------------------------------------------
+
+def _make_backup(root: Path, profile_id: str) -> Path:
+    """A backup directory as api/backup.py lays them out, keys included."""
+    backup = root / "backups" / profile_id / "backup_20260101_000000"
+    backup.mkdir(parents=True)
+    (backup / "manifest.json").write_text("{}")
+    (backup / "healthcentral.db").write_bytes(b"master")
+    vault = backup / "vaults" / profile_id
+    vault.mkdir(parents=True)
+    (vault / "vault.db").write_bytes(b"encrypted")
+    (vault / "key.bin").write_bytes(b"sealed-primary")
+    (vault / "key.recovery.bin").write_bytes(b"sealed-recovery")
+    return backup
+
+
+@pytest.mark.asyncio
+async def test_hc_pdel_015_backups_are_destroyed_with_the_profile(vaults):
+    """The Danger Zone tells the user their encryption key is destroyed and the
+    data is unreadable. A retained backup holds `key.bin` AND
+    `key.recovery.bin` alongside the vault, so leaving it makes that statement
+    false and the record fully recoverable.
+    """
+    backup = _make_backup(vaults.root, "profile-a")
+    assert (backup / "vaults" / "profile-a" / "key.recovery.bin").exists()
+
+    await _delete(profile_id="profile-a")
+
+    assert not (vaults.root / "backups" / "profile-a").exists()
+
+
+@pytest.mark.asyncio
+async def test_hc_pdel_016_another_profiles_backups_survive(vaults):
+    """Erasing one profile must not touch another's backups."""
+    _make_backup(vaults.root, "profile-a")
+    other = _make_backup(vaults.root, "profile-b")
+
+    await _delete(profile_id="profile-a")
+
+    assert other.exists()
+    assert (other / "vaults" / "profile-b" / "key.bin").exists()
+
+
+@pytest.mark.asyncio
+async def test_hc_pdel_017_backup_schedule_row_is_deleted_explicitly(vaults):
+    """`backup_schedules.profile_id` declares ON DELETE CASCADE, but SQLite
+    ignores foreign keys unless `PRAGMA foreign_keys=ON` is set, and it is set
+    nowhere in this codebase. Relying on the cascade orphans the row, so the
+    delete must be explicit."""
+    _, db = await _delete(profile_id="profile-a")
+
+    assert any("DELETE FROM backup_schedules" in s for s in db.executed), (
+        "the schedule row must be deleted explicitly, not left to an inert cascade"
+    )

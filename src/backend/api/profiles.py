@@ -51,6 +51,7 @@ from core.audit import create_audit_log, log_profile_event
 from models import (
     AdherencePattern,
     AuditLog,
+    BackupSchedule,
     Chunk,
     Document,
     DocumentCategory,
@@ -880,11 +881,36 @@ async def delete_profile(
             "data is already unreadable, residual files remain",
         )
 
-    # --- Step 5: master DB, in one transaction ------------------------------
+    # --- Step 5: sweep the backups -----------------------------------------
+    # Backups hold a full, restorable copy of this profile — vault.db plus BOTH
+    # sealed keys. Leaving them would make the Danger Zone's promise ("your
+    # encryption key is destroyed, which makes the data unreadable") false, and
+    # the record trivially recoverable from the same disk. The delete flow
+    # offers "back up and download" as its first step, so the user has already
+    # been given their copy to keep.
+    backups_path = Path(settings.app_data_path) / "backups" / profile_id
+    try:
+        if backups_path.exists():
+            shutil.rmtree(backups_path)
+    except OSError:
+        logger.warning(
+            "Backup directory could not be fully removed after key destruction; "
+            "residual files remain",
+        )
+
+    # --- Step 6: master DB, in one transaction ------------------------------
     audit_result = await db.execute(
         delete(AuditLog).where(AuditLog.profile_id == profile_id)
     )
     purged = getattr(audit_result, "rowcount", 0) or 0
+
+    # `backup_schedules.profile_id` declares ON DELETE CASCADE, but SQLite
+    # ignores foreign keys unless `PRAGMA foreign_keys=ON` is set, and it is set
+    # nowhere in this codebase. Relying on the cascade orphans the row, so the
+    # delete is explicit.
+    await db.execute(
+        delete(BackupSchedule).where(BackupSchedule.profile_id == profile_id)
+    )
 
     # Core delete(), not db.delete(obj): the ORM cascade would need an eager
     # load of profile.audit_logs and raise MissingGreenlet on the async engine.
