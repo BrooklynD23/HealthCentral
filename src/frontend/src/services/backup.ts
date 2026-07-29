@@ -8,10 +8,34 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiGetRaw, apiPost, apiPut } from './api';
+import { useAuthStore } from '@/stores/authStore';
 
 const QUERY_KEY = 'backups';
 
 export const BACKUP_RESTORE_CONFIRMATION = 'RESTORE MY DATA';
+
+/**
+ * Set on a successful restore, read once by the setup/sign-in screen.
+ *
+ * Clearing auth bounces the user out of the app immediately, so the reason has
+ * to outlive this page — otherwise someone who just restored on purpose lands
+ * on "Welcome to HealthCentral" and reasonably concludes they lost everything.
+ * sessionStorage, not the auth store, precisely because the store is what gets
+ * cleared.
+ */
+export const RESTORE_NOTICE_KEY = 'hc.restoreNotice';
+
+/** Reads and consumes the notice. Returns null when there is nothing to say. */
+export function takeRestoreNotice(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const notice = window.sessionStorage.getItem(RESTORE_NOTICE_KEY);
+    if (notice) window.sessionStorage.removeItem(RESTORE_NOTICE_KEY);
+    return notice;
+  } catch {
+    return null;
+  }
+}
 
 export type BackupFrequency = 'off' | 'daily' | 'weekly';
 
@@ -148,12 +172,30 @@ export function useVerifyBackup() {
 
 export function useRestoreBackup() {
   const queryClient = useQueryClient();
+  const clearAuth = useAuthStore((state) => state.clearAuth);
   return useMutation({
     mutationFn: ({ backupId, data }: { backupId: string; data: RestoreRequest }) =>
       restoreBackup(backupId, data),
     onSuccess: () => {
       // The vault underneath every cached query has just been replaced.
       queryClient.clear();
+
+      // And so have its sealed keys. The server dropped the in-memory key
+      // before overwriting, so this session can no longer open the vault it
+      // is authenticated against — every subsequent call 403s with nothing
+      // the user can act on. Ending the session is the honest outcome, and
+      // it is the same path api.ts already takes on session invalidation.
+      try {
+        window.sessionStorage.setItem(
+          RESTORE_NOTICE_KEY,
+          'Your profile was restored from a backup. Sign in again to open it — ' +
+            'use the password that was in use when that backup was made, since ' +
+            'the password and recovery code were restored along with the data.'
+        );
+      } catch {
+        // Private-mode storage failures must not block the sign-out itself.
+      }
+      clearAuth();
     },
   });
 }

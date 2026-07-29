@@ -25,6 +25,7 @@ import { Button, Card, CardContent, Input } from '@/components/ui';
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useCreateProfile } from '@/services';
+import { takeRestoreNotice } from '@/services/backup';
 import { RecoveryCodeCard } from '@/components/profile/RecoveryCodeCard';
 
 const features = [
@@ -81,6 +82,10 @@ export function ProfileSetup() {
   const [error, setError] = useState<string | null>(null);
   // SEC-RECOV-001: shown once, between creation and entering the app.
   const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
+  // FE-02: a restore ends the session deliberately. Without this the user
+  // lands on "Welcome to HealthCentral" and reads it as having lost the data
+  // they just restored. Read once, on first render.
+  const [restoreNotice] = useState<string | null>(() => takeRestoreNotice());
 
   // Form state
   const [displayName, setDisplayName] = useState('');
@@ -199,6 +204,17 @@ export function ProfileSetup() {
         animate="show"
         className="w-full max-w-lg relative z-10"
       >
+        {restoreNotice && (
+          <motion.div variants={itemVariants} className="mb-6">
+            <div
+              role="status"
+              className="rounded-lg border border-status-info/30 bg-status-info-subtle px-4 py-3 text-sm text-ink"
+            >
+              {restoreNotice}
+            </div>
+          </motion.div>
+        )}
+
         <motion.div variants={itemVariants} className="text-center mb-10">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-accent to-accent/80 shadow-card mb-6">
             <Heart className="w-8 h-8 text-white" strokeWidth={2} />

@@ -9,7 +9,7 @@
  * phrase, and honest copy about what changes afterwards.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Button,
   Card,
@@ -55,6 +55,16 @@ export function BackupCard() {
   const [phrase, setPhrase] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // FE-03: one password/phrase pair serves the whole list, so opening restore
+  // on a second backup used to inherit whatever was typed for the first — a
+  // pre-filled destructive form pointing at the wrong snapshot. Switching
+  // targets (or closing the form) starts clean, and the password does not sit
+  // in component state past the moment it is needed.
+  useEffect(() => {
+    setPassword('');
+    setPhrase('');
+  }, [restoringId]);
 
   const backups = listing?.backups ?? [];
   const canRestore =
@@ -261,7 +271,9 @@ export function BackupCard() {
                           then is replaced. Your password and recovery code also
                           revert to the ones that were in use when this backup
                           was made — if you have changed either since, the old
-                          ones are what will work afterwards.
+                          ones are what will work afterwards. You will be
+                          signed out when it finishes, because the keys this
+                          session is holding are replaced too.
                         </p>
                       </div>
 
