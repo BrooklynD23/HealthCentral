@@ -38,6 +38,16 @@ const DOCUMENT_ATTENTION_STATUSES = new Set([
   'extraction_failed',
 ]);
 
+/** `[x0,y0,x1,y1]` as stored on observations and entities alike. */
+function parseBbox(json: string | null | undefined): BoundingBox | null {
+  if (!json) return null;
+  try {
+    const arr = JSON.parse(json) as number[];
+    if (arr.length === 4) return { x0: arr[0], y0: arr[1], x1: arr[2], y1: arr[3] };
+  } catch { /* invalid JSON */ }
+  return null;
+}
+
 function documentAttentionHint(doc: Document): string {
   switch (doc.status) {
     case 'pending_ocr':
@@ -60,8 +70,11 @@ export function VerificationWorkbench() {
   const selectedDocId = searchParams.get('doc');
   const mode = searchParams.get('mode');
   const documentReviewMode = !!selectedDocId && mode === 'all';
-  // CITE-SRC-001: deep link from an assistant citation chip.
+  // CITE-SRC-001: deep link from an assistant citation chip. A citation is
+  // backed by either an observation (a lab value) or a document entity (a
+  // finding, impression, diagnosis…) — both must land somewhere real.
   const citedObservationId = searchParams.get('observation');
+  const citedEntityId = searchParams.get('entity');
   const [citedNotFound, setCitedNotFound] = useState(false);
   const [selectedRow, setSelectedRow] = useState<string | null>(null);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
@@ -76,7 +89,7 @@ export function VerificationWorkbench() {
   // needs_verification filter would never contain it. Widen to the whole
   // document when following a citation.
   const observationFilters =
-    documentReviewMode || citedObservationId
+    documentReviewMode || citedObservationId || citedEntityId
       ? { profile_id: profileId || '', doc_id: selectedDocId || undefined }
       : { profile_id: profileId || '', needs_verification: true };
   const { data: observations, isLoading, isError, error } = useObservations(observationFilters);
@@ -95,7 +108,8 @@ export function VerificationWorkbench() {
   // Extracted document entities (HC-M12): verbatim source quotes + verify/reject
   const entityDocId =
     selectedDocId ?? observations?.find((o) => o.id === selectedRow)?.doc_id ?? '';
-  const { data: docEntities = [] } = useDocumentEntities(entityDocId);
+  const { data: docEntities = [], isLoading: entitiesLoading } =
+    useDocumentEntities(entityDocId);
   const entityVerificationMutation = useSetEntityVerification();
   const handleSetEntityVerification = (
     entity: DocumentEntityResponse,
@@ -169,6 +183,13 @@ export function VerificationWorkbench() {
     }
   }, []);
 
+  // FE-04: the notice belongs to one citation, not to the page. Without this,
+  // following a second citation that resolves fine still shows "no longer
+  // available" from the first one, sitting above a perfectly good selection.
+  useEffect(() => {
+    setCitedNotFound(false);
+  }, [citedObservationId, citedEntityId]);
+
   // CITE-SRC-001: select the exact observation a citation pointed at.
   useEffect(() => {
     if (!citedObservationId || !observations) return;
@@ -186,8 +207,26 @@ export function VerificationWorkbench() {
     }
   }, [citedObservationId, observations, handleRowSelect]);
 
+  // CITE-SRC-001: the entity-backed half of the same deep link. Entities have
+  // no row in the observations table, so there is nothing to select — the
+  // landing is the highlighted row in Extracted Information plus the page
+  // region, which is what the citation was pointing at in the first place.
   useEffect(() => {
-    if (!selectedDocId || citedObservationId) return;
+    if (!citedEntityId || entitiesLoading) return;
+    const match = docEntities.find((e) => e.id === citedEntityId);
+    if (match) {
+      document
+        .getElementById(`entity-row-${match.id}`)
+        ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    } else {
+      setCitedNotFound(true);
+    }
+  }, [citedEntityId, docEntities, entitiesLoading]);
+
+  useEffect(() => {
+    // An entity citation needs `doc` to stay in the URL — it is the only thing
+    // telling the workbench which document's entities to load.
+    if (!selectedDocId || citedObservationId || citedEntityId) return;
     const match = observations?.find((o) => o.doc_id === selectedDocId);
     if (match) {
       void handleRowSelect(match);
@@ -197,7 +236,7 @@ export function VerificationWorkbench() {
         setSearchParams(next, { replace: true });
       }
     }
-  }, [observations, searchParams, setSearchParams, handleRowSelect, selectedDocId, documentReviewMode, citedObservationId]);
+  }, [observations, searchParams, setSearchParams, handleRowSelect, selectedDocId, documentReviewMode, citedObservationId, citedEntityId]);
 
   const handleViewSourceClick = () => {
     if (observations && observations.length > 0) {
@@ -225,14 +264,12 @@ export function VerificationWorkbench() {
 
   // Parse bbox JSON for selected observation
   const selectedObservation = observations?.find((o) => o.id === selectedRow) ?? null;
-  const selectedBbox: BoundingBox | null = (() => {
-    if (!selectedObservation?.source_bbox_json) return null;
-    try {
-      const arr = JSON.parse(selectedObservation.source_bbox_json) as number[];
-      if (arr.length === 4) return { x0: arr[0], y0: arr[1], x1: arr[2], y1: arr[3] };
-    } catch { /* invalid JSON */ }
-    return null;
-  })();
+  const selectedBbox: BoundingBox | null = parseBbox(selectedObservation?.source_bbox_json);
+
+  // The entity a citation pointed at, if any — drives the same page overlay.
+  const citedEntity = citedEntityId
+    ? docEntities.find((e) => e.id === citedEntityId) ?? null
+    : null;
 
   // Count unverified items
   const unverifiedCount = observations?.filter((o) => !o.user_verified).length ?? 0;
@@ -263,6 +300,52 @@ export function VerificationWorkbench() {
 
   // Empty state — observation queue clear, but documents may still need attention
   if (!observations || observations.length === 0) {
+    // An entity citation commonly points at a narrative document — a radiology
+    // report, a visit note — which has entities but no lab values at all. The
+    // generic "queue is clear" view would drop the user somewhere unrelated to
+    // what they clicked, so the citation gets its own landing.
+    if (citedEntityId) {
+      return (
+        <div className="space-y-6">
+          <div>
+            <h1 className="font-display text-2xl font-semibold text-ink tracking-tight">
+              Verification Workbench
+            </h1>
+            <p className="text-ink-secondary mt-1">
+              {selectedDocument?.source
+                ? `Cited from ${selectedDocument.source}`
+                : 'Cited source'}
+            </p>
+          </div>
+
+          {citedNotFound && (
+            <div
+              role="status"
+              className="rounded-lg border border-status-caution/40 bg-status-caution/5 px-4 py-3 text-sm"
+            >
+              That source is no longer available — the finding it pointed to may
+              have been deleted, or its document re-extracted.
+            </div>
+          )}
+
+          {citedEntity?.source_page && (
+            <PageImageOverlay
+              documentId={citedEntity.doc_id}
+              pageNumber={citedEntity.source_page}
+              bbox={parseBbox(citedEntity.source_bbox_json)}
+            />
+          )}
+
+          <EntityDetailView
+            entities={docEntities}
+            onSetVerification={handleSetEntityVerification}
+            verificationPending={entityVerificationMutation.isPending}
+            highlightEntityId={citedEntityId}
+          />
+        </div>
+      );
+    }
+
     if (documentReviewMode && selectedDocument) {
       const needsRetry =
         selectedDocument.status === 'pending_ocr' || selectedDocument.status === 'extraction_failed';
@@ -309,6 +392,7 @@ export function VerificationWorkbench() {
             entities={docEntities}
             onSetVerification={handleSetEntityVerification}
             verificationPending={entityVerificationMutation.isPending}
+            highlightEntityId={citedEntityId}
           />
         </div>
       );
@@ -454,8 +538,8 @@ export function VerificationWorkbench() {
           role="status"
           className="rounded-lg border border-status-caution/40 bg-status-caution/5 px-4 py-3 text-sm"
         >
-          That source is no longer available — the result it pointed to may have
-          been deleted, or its document re-extracted.
+          That source is no longer available — the result or finding it pointed
+          to may have been deleted, or its document re-extracted.
         </div>
       )}
 
@@ -599,14 +683,21 @@ export function VerificationWorkbench() {
         </div>
 
         <div className="space-y-4">
-          {/* OCR Bounding-Box Citation Overlay (OCR-BOX-001) */}
-          {selectedObservation?.source_page && selectedObservation?.doc_id && (
+          {/* OCR Bounding-Box Citation Overlay (OCR-BOX-001). An observation
+              selection wins over a cited entity: the user clicked the row. */}
+          {selectedObservation?.source_page && selectedObservation?.doc_id ? (
             <PageImageOverlay
               documentId={selectedObservation.doc_id}
               pageNumber={selectedObservation.source_page}
               bbox={selectedBbox}
             />
-          )}
+          ) : citedEntity?.source_page ? (
+            <PageImageOverlay
+              documentId={citedEntity.doc_id}
+              pageNumber={citedEntity.source_page}
+              bbox={parseBbox(citedEntity.source_bbox_json)}
+            />
+          ) : null}
 
           <Card>
             <CardHeader>
@@ -647,6 +738,7 @@ export function VerificationWorkbench() {
             entities={docEntities}
             onSetVerification={handleSetEntityVerification}
             verificationPending={entityVerificationMutation.isPending}
+            highlightEntityId={citedEntityId}
           />
 
           <Card className="bg-status-info-subtle border-status-info/20">

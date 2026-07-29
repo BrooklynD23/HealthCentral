@@ -23,6 +23,8 @@ export interface DocumentEntityResponse {
   entity_value: string;
   confidence: number;
   source_page: number | null;
+  // CITE-SRC-001: the entity's region on that page, as a JSON [x0,y0,x1,y1].
+  source_bbox_json: string | null;
   char_start: number | null;
   char_end: number | null;
   quote: string | null;
