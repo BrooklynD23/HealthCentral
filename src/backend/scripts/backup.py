@@ -474,8 +474,17 @@ def prune(backup_dir: Path, retention_days: int = 30) -> int:
     """
     Remove backups older than retention_days.
 
+    ``retention_days=0`` means **never prune**, not "prune everything". The
+    arithmetic reading — everything older than *now* — would delete a user's
+    entire backup history from a value the Settings UI presents as "keep
+    forever", and which `modules/backup_scheduler` already treats that way. The
+    guard lives here rather than in the callers so the CLI is covered too.
+
     Returns the number of backup directories removed.
     """
+    if retention_days <= 0:
+        return 0
+
     cutoff = utcnow() - timedelta(days=retention_days)
     removed = 0
 

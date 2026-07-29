@@ -9,6 +9,7 @@ Test IDs continue from HC-BKUP-008 in tests/test_backup_completeness.py.
 
 from __future__ import annotations
 
+import json
 import sqlite3
 import zipfile
 from datetime import datetime, timedelta, timezone
@@ -498,3 +499,55 @@ def test_hc_bkup_029_unscoped_restore_still_replaces_the_master(data_dir):
 
     # No profile_id given -> the whole master is rolled back, B included.
     assert _master_profile_ids(master) == {"profile-a"}
+
+
+# ---------------------------------------------------------------------------
+# HC-BKUP-030..031 — retention_days=0 means "never prune" (BK-03)
+# ---------------------------------------------------------------------------
+
+def test_hc_bkup_030_retention_zero_prunes_nothing(data_dir):
+    """`0` used to mean "older than right now" — i.e. delete everything. The
+    scheduler already read it as "never prune" and skipped the call, so the
+    same number meant opposite things depending on which path you came in
+    through. It now means "never prune" in the function itself."""
+    from scripts import backup as backup_script
+
+    backup_dir = data_dir / "backups" / "profile-a"
+    backup_dir.mkdir(parents=True)
+    created = backup_script.backup(data_dir=data_dir, backup_dir=backup_dir)
+
+    # Age it well past any plausible window.
+    manifest = created.backup_path / "manifest.json"
+    payload = json.loads(manifest.read_text())
+    payload["created_at"] = "2020-01-01T00:00:00Z"
+    manifest.write_text(json.dumps(payload))
+
+    assert backup_script.prune(backup_dir, retention_days=0) == 0
+    assert created.backup_path.is_dir()
+
+    # A real window still prunes it — the guard is about 0, not about prune.
+    assert backup_script.prune(backup_dir, retention_days=30) == 1
+    assert not created.backup_path.exists()
+
+
+@pytest.mark.asyncio
+async def test_hc_bkup_031_prune_route_honours_retention_zero(data_dir):
+    """The route accepts ge=0, so a user who set retention to 0 in Settings —
+    where it reads as "keep forever" — could wipe their history by pruning."""
+    created = await _create("profile-a")
+    backup_path = data_dir / "backups" / "profile-a" / created.backup_id
+
+    manifest = backup_path / "manifest.json"
+    payload = json.loads(manifest.read_text())
+    payload["created_at"] = "2020-01-01T00:00:00Z"
+    manifest.write_text(json.dumps(payload))
+
+    with patch.object(backup_api, "audit_and_commit", AsyncMock()):
+        response = await backup_api.prune_backups(
+            payload=backup_api.PruneRequest(retention_days=0),
+            session=_session("profile-a"),
+            master_db=AsyncMock(),
+        )
+
+    assert response.removed == 0
+    assert backup_path.is_dir()

@@ -103,7 +103,12 @@ class RestoreResponse(BaseModel):
 
 
 class PruneRequest(BaseModel):
-    retention_days: int = Field(default=30, ge=0, le=3650)
+    retention_days: int = Field(
+        default=30,
+        ge=0,
+        le=3650,
+        description="Delete backups older than this many days. 0 means never prune.",
+    )
 
 
 class PruneResponse(BaseModel):
@@ -122,7 +127,12 @@ class ScheduleResponse(BaseModel):
 class ScheduleRequest(BaseModel):
     enabled: bool
     frequency: str = "off"
-    retention_days: int = Field(default=30, ge=0, le=3650)
+    retention_days: int = Field(
+        default=30,
+        ge=0,
+        le=3650,
+        description="Delete backups older than this many days. 0 means never prune.",
+    )
 
 
 # ---------------------------------------------------------------------------
