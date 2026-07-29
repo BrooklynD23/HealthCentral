@@ -1,6 +1,6 @@
 # API Endpoints
 
-**Last Updated:** 2026-07-23
+**Last Updated:** 2026-07-29
 **Owner:** Platform maintainers
 **Refresh Trigger:** Mounted backend route added, removed, renamed, or auth requirement changed
 **Status:** Source of truth for the live mounted backend API
@@ -22,6 +22,9 @@ Auth-required endpoints need `Authorization: Bearer <token>`.
 | POST | `/profiles/{profile_id}/lock` | Yes | Lock a profile and revoke the current session |
 | POST | `/profiles/{profile_id}/unlock` | No | Unlock a profile with password and return a session token |
 | POST | `/profiles/{profile_id}/change-password` | Yes | Change the profile password |
+| POST | `/profiles/{profile_id}/recovery-code` | Yes | Generate or replace this profile's recovery code (SEC-RECOV-001). Requires the current password in the body; seals a **second copy of the same DEK** under a code-derived key, so the code is shown exactly once and cannot be re-read |
+| POST | `/profiles/{profile_id}/recover` | No | Unlock with the recovery code and set a new password. Unauthenticated by necessity — the caller has lost the password. Rate-limited on a stricter limiter than login (each attempt runs a 600k-iteration PBKDF2), and returns a **rotated** recovery code, since the old one has now been used |
+| DELETE | `/profiles/{profile_id}` | Yes | Irreversibly delete a profile (PROF-DEL-001). Requires password re-auth, an exact confirmation phrase, and `export_acknowledged`. Ordered crypto-erase: sealed keys first (the commit point), then the vault sweep, then the profile's backups, then one master transaction that purges the audit rows, deletes the profile and `backup_schedules` rows, and writes an anonymized tombstone |
 | POST | `/profiles/test/reset` | Yes | Reset test data outside production |
 
 ## Documents
@@ -148,6 +151,32 @@ Auth-required endpoints need `Authorization: Bearer <token>`.
 | GET | `/export/json` | Yes | Export observations as JSON |
 | POST | `/export/fhir` | Yes | Generate a FHIR R4 export `Bundle` (HC-M22) — requires `confirm=true`; verified-only observations/entities, all free text redacted (strict policy) before storage |
 | GET | `/export/fhir/{export_id}/download` | Yes | Download a previously generated FHIR R4 `Bundle` as `application/fhir+json` |
+
+## Backup and Restore
+
+Backups (BKUP-UX-001) are the full-fidelity, restorable copy of a profile, and
+are the one export-shaped path that is **deliberately not redacted** — a
+redacted backup cannot be restored. Every route below is scoped to the calling
+session's profile; `backup_id` is treated as hostile and path traversal is
+refused. Backups are stored under `<app_data>/backups/<profile_id>` and are
+deleted along with the profile.
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/backup/` | Yes | List this profile's backups, newest first |
+| POST | `/backup/` | Yes | Create a backup of this profile now — vault DB, encrypted documents and the sealed key files, with a SHA-256 manifest |
+| POST | `/backup/{backup_id}/verify` | Yes | Re-check a backup's files against the SHA-256s in its manifest |
+| GET | `/backup/{backup_id}/download` | Yes | Stream the backup as a zip so it can leave the device; built in memory, so no second plaintext copy is written to disk |
+| POST | `/backup/{backup_id}/restore` | Yes | **Overwrites live data.** Requires password re-auth *and* an exact confirmation phrase, and refuses a backup that fails verification. Profile-scoped: vault and keys are restored verbatim, but only this profile's row is re-applied from the backed-up master DB, so other profiles and the live audit trail are untouched (BK-01) |
+| POST | `/backup/prune` | Yes | Delete this profile's backups older than `retention_days`. **`0` means never prune**, matching the scheduler and the Settings UI (BK-03) |
+| GET | `/backup/schedule` | Yes | Get this profile's backup schedule (frequency, retention, last run and outcome) |
+| PUT | `/backup/schedule` | Yes | Set frequency (`off`/`daily`/`weekly`) and retention. The schedule row lives in the **master** DB, not the vault, because the scheduler must know a backup is due while the profile is locked — so it carries ids, enums, counts and timestamps only |
+
+A successful restore ends the session: the server drops the in-memory key
+before overwriting, so the caller is authenticated against keys that no longer
+exist and every subsequent profile-data call would 403. Clients should clear
+auth and send the user back to sign in with the password that was in use when
+the backup was made.
 
 ## Care Tasks
 
