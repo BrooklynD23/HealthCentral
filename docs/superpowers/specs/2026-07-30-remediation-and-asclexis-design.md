@@ -114,10 +114,29 @@ Changes: `src/frontend/index.html` (`<title>`, meta description, apple-mobile-we
 
 - `HC-*` ticket and test prefixes (111 identifiers)
 - `HC_*` environment variables
-- **`healthcentral.db` and vault filenames — renaming these breaks every existing vault**
+- vault filenames (`vaults/{profile_id}/vault.db`, `key.bin`, `key.method`) — these never carried the product name
 - historical `docs/plans/` logs and git history
 
-**Logic choice.** The hand-maintained decision document outranks fresh inference, per `CLAUDE.md`'s conflict rule. More concretely: a rename that orphans existing user data would defeat the product's central promise. The `client_info` string `"Asclexis v0.1.0"` written into audit rows does change — it is user-facing provenance, not a storage key.
+**Logic choice.** `HC-*` and `HC_*` are internal identifiers with no user-facing surface; churning 111 test IDs would produce a large diff with no benefit and would break every cross-reference in the historical logs. The `client_info` string written into audit rows *does* change to `"Asclexis v0.1.0"` — that is user-facing provenance, not a storage key.
+
+## B1a — Master database filename *(supersedes the 2026-07-07 decision)*
+
+**Scope:** `src/backend/core/config.py:173`, a new startup migration, `src/backend/scripts/backup.py` (`MASTER_DB_NAME`), `config/.env.example`.
+
+**Why the prior decision is superseded.** The 2026-07-07 audit kept `healthcentral.db` on the stated grounds that "renaming breaks existing vaults." That rationale is inaccurate: vaults are named `vault.db` / `key.bin` / `key.method` and never contained the product name. Renaming the master DB cannot corrupt a vault.
+
+**The real failure mode.** The master database is the sole index of which profiles exist, and the only home of `password_hash` and `encryption_key_id`. Point the app at a filename that does not exist and Alembic creates an empty one: the profile list renders empty and every vault on disk becomes unreachable. **No data is destroyed; all of it becomes invisible.** For a health-record application that is a severe user-facing outcome, which is why the migration below is mandatory rather than optional.
+
+**Why now.** No packaged distribution exists — `HC-M08a` through `HC-M08d` (decision spike, frozen backend, static frontend, distribution checklist) are all `pending`. No end user can install the application today, so the affected installs are developer machines and test data. The cost of this rename rises monotonically from here: once shipped, it becomes a migration across machines nobody can inspect. Leaving it means `healthcentral.db` persists in every future user's data directory permanently — the most durable remaining evidence of the name being retired for trademark distance.
+
+**Solution, in order:**
+
+1. **`config.py:173`** — derive the filename from settings rather than hardcoding `"healthcentral.db"`. This also fixes a latent bug found during diagnosis: `database_url` uses only the *parent* of `sqlite_database_path`, so `SQLITE_DATABASE_PATH=data/mydb.db` silently has no effect on the filename. The setting advertises control it does not have.
+2. **Startup migration, before any connection is opened.** If `asclexis.db` is absent and `healthcentral.db` is present, rename it **together with its `-wal` and `-shm` sidecars**. Nothing in the codebase handles sidecars today; orphaning a `-wal` containing unflushed transactions loses them. Guard on absent-target *and* present-source so the operation is idempotent and a no-op on fresh installs.
+3. **Backup compatibility.** `MASTER_DB_NAME` is what `restore()` matches on, and every pre-rename backup manifest lists `healthcentral.db`. Accept **either** name on restore. Changing the constant naively makes `_reapply_profile_row`'s `if backup_master.exists()` guard skip silently, restoring a vault whose sealed keys may not match the live password hash — exactly the failure BK-01 was written to prevent.
+4. **Test with a populated old-named database:** profiles still list, and a vault still unlocks after migration.
+
+**Logic choice.** Renaming without step 2 is data-invisibility; renaming without step 3 reintroduces the BK-01 bug through a side door. The three are one change, not a rename plus optional extras.
 
 ## B2 — The four `skills/healthcentral-*` directories
 
@@ -125,7 +144,7 @@ Changes: `src/frontend/index.html` (`<title>`, meta description, apple-mobile-we
 
 **Problem.** These postdate the 2026-07-07 audit, so its scope table does not mention them. Directory names are how agents invoke skills, making them part of the agent-facing surface.
 
-**Solution.** Rename to `asclexis-*` and update the two referring files.
+**Solution.** Rename to `asclexis-agent`, `asclexis-backend`, `asclexis-evals`, `asclexis-guardrails`, and update the two referring files. **Owner-confirmed 2026-07-30.**
 
 **Logic choice.** Low blast radius, and leaving them makes the retired name permanent in the surface agents read every session. This is an addition to the prior decision, not a contradiction of it — that decision scoped out `HC-*` *identifiers*, which these are not.
 
@@ -188,5 +207,14 @@ Both claim **"~620 backend tests"**. The real figure is **1205**, roughly double
 - `PRAGMA foreign_keys` repo-wide (`SQL-FK-001`) — a behaviour change for every relationship, needs its own audit.
 - Agent-path citation page numbers (`CITE-AGENT-001`) — requires widening agent tool return shapes.
 - The absent sign-in / unlock screen. `useLogin` and `useUnlockProfile` exist with no consuming page, which makes the post-restore landing thinner than it should be. Pre-dates this work; worth its own ticket.
-- Renaming the repository directory and the `healthcentral.db` filename.
+- Renaming the repository directory.
 - The six pre-existing `datetime.utcnow()` calls in `api/profiles.py` outside line 732.
+
+## Decision log
+
+| Date | Decision | Supersedes |
+|---|---|---|
+| 2026-07-07 | Rename the product; keep `HC-*`/`HC_*` identifiers and storage filenames | — |
+| 2026-07-30 | Name is **Asclexis**; screened (no direct collision), formal clearance still the owner's | 2026-07-07 stage 2 |
+| 2026-07-30 | **Rename the master DB to `asclexis.db`** with a startup migration | The 2026-07-07 "keep storage filenames" decision, whose stated rationale ("renaming breaks existing vaults") was inaccurate — vaults never carried the product name |
+| 2026-07-30 | Rename `skills/healthcentral-*` → `asclexis-*` | Not covered by 2026-07-07 (these skills postdate it) |
