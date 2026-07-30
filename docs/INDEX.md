@@ -778,6 +778,12 @@ Links to: `SECURITY.md`, `docs/03_data_confidentiality_pipeline_plan.md`, `docs/
 
 `dev.ps1` hardcodes `$FRONTEND_PORT = 3000` and `$BACKEND_PORT = 8000`. If either port is in use and can't be freed (UAC denied, system-reserved range, stubborn service), the script exits with an…
 
+## `docs/superpowers/specs/2026-07-30-remediation-and-asclexis-design.md`
+
+**Remediation, Rename to Asclexis, and Agent-Instruction Reoptimization**
+
+A pre-merge audit of PR #18 (branch `claude/backlog-repo-docs-yl7isc`, 22 commits, 133 files) found ten defects, three of them merge blockers, in a branch whose CI was fully green. Separately, two…
+
 ## `docs/user/README.md`
 
 **HealthCentral User Guide**
