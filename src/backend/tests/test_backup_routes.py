@@ -253,3 +253,86 @@ def test_hc_bkup_038_partial_restore_500_does_not_claim_nothing_changed(
     assert "replaced" in detail.lower()
     assert "password" in detail.lower()
     assert "2 safety copy/copies" in detail
+
+
+def test_hc_bkup_040_partial_restore_still_writes_an_audit_row(data_dir, monkeypatch):
+    """A partial restore is a *known, destructive* mutation of profile data: the
+    vault database and both sealed key files are already the backup's. The
+    partial branch raised HTTPException before audit_and_commit ran, so the one
+    event most worth having a record of was the one event with no record.
+    CLAUDE.md requires audit logging on every route that touches profile data.
+
+    The row must also be PHI-safe: audit rows land in the *unencrypted* master
+    DB, so `details` stays ids/enums/counts — no exception text, no paths.
+    """
+    from pathlib import Path
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from core.audit import _scrub_details
+    from scripts.backup import RestoreResult
+
+    calls: list[dict] = []
+
+    async def _record(db, log_fn, **kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(id="audit-row")
+
+    with route_client(backup_api.router, "/backup") as client:
+        created = client.post("/backup/")
+        assert created.status_code == 201, created.text
+        backup_id = created.json()["backup_id"]
+
+        monkeypatch.setattr(
+            backup_api,
+            "authenticate_profile",
+            AsyncMock(return_value=SimpleNamespace(id="profile-a")),
+        )
+        monkeypatch.setattr(
+            backup_api, "close_profile_database_on_logout", AsyncMock()
+        )
+        monkeypatch.setattr(
+            backup_api.backup_script,
+            "restore",
+            lambda **kwargs: RestoreResult(
+                success=False,
+                partial=True,
+                files_restored=3,
+                safety_copies=[Path("vault.db.bak"), Path("key.bin.bak")],
+                error="Could not re-apply the profile row: boom",
+            ),
+        )
+        monkeypatch.setattr(backup_api, "audit_and_commit", _record)
+
+        response = client.post(
+            f"/backup/{backup_id}/restore",
+            json={
+                "password": "CorrectHorse1",
+                "confirmation_phrase": backup_api.BACKUP_RESTORE_CONFIRMATION,
+            },
+        )
+
+    assert response.status_code == 500, response.text
+
+    restore_rows = [c for c in calls if c.get("event_type") == "backup.restore"]
+    assert restore_rows, (
+        "the vault and both sealed keys were replaced and no audit row was "
+        f"written; audit calls seen: {[c.get('event_type') for c in calls]}"
+    )
+    row = restore_rows[-1]
+    assert row["entity_type"] == "backup"
+    assert row["entity_id"] == backup_id
+    assert row["profile_id"] == "profile-a"
+
+    details = row["details"]
+    assert details["count"] == 3
+    assert "partial" in str(details.values()).lower(), (
+        f"the outcome must be recorded, not just the count: {details!r}"
+    )
+    # PHI-free and machine-shaped: the allowlist scrubber must not have to drop
+    # anything, and nothing from the exception or a file path may appear.
+    assert _scrub_details(details) == details, (
+        f"details would be scrubbed, so it is not machine-shaped: {details!r}"
+    )
+    assert "boom" not in str(details)
+    assert ".bak" not in str(details)

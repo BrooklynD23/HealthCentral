@@ -436,8 +436,13 @@ def restore(
             src_file = _validate_manifest_path(backup_path, entry["path"])
             dest_file = _validate_manifest_path(data_dir, entry["path"])
         except ValueError as e:
+            # Truthfully, not defensively: this return sits *inside* the copy
+            # loop, so whether anything was already replaced depends on where
+            # the loop got to. Blanket `partial=True` would be as false on the
+            # first entry as `partial=False` is on the fifth.
             return RestoreResult(
                 success=False,
+                partial=files_restored > 0,
                 files_restored=files_restored,
                 safety_copies=safety_copies,
                 error=f"Path validation failed: {e}",
@@ -461,10 +466,14 @@ def restore(
                 _reapply_profile_row(backup_master, live_master, profile_id)
             except sqlite3.Error as exc:
                 # The copy loop above already replaced vault.db and both sealed
-                # keys. This is a partial restore, not a clean failure.
+                # keys. This is a partial restore, not a clean failure. Keyed on
+                # the copy count, not hardcoded: a backup of a profile with no
+                # vault yet copies nothing (the master is held back), and
+                # _reapply_profile_row never commits on failure, so there is
+                # genuinely nothing to warn about.
                 return RestoreResult(
                     success=False,
-                    partial=True,
+                    partial=files_restored > 0,
                     files_restored=files_restored,
                     safety_copies=safety_copies,
                     error=f"Could not re-apply the profile row: {exc}",

@@ -498,6 +498,21 @@ async def restore_backup(
     )
     if not result.success:
         if result.partial:
+            # Audit BEFORE raising. A partial restore has already replaced the
+            # vault database and both sealed key files — a destructive mutation
+            # of profile data, and the one this trail most needs to hold. The
+            # `details` stay machine-shaped (enum + count): audit rows live in
+            # the unencrypted master DB, so no error text and no file paths.
+            await audit_and_commit(
+                master_db,
+                create_audit_log,
+                event_type="backup.restore",
+                action="Restored from backup",
+                profile_id=session.profile_id,
+                entity_type="backup",
+                entity_id=backup_id,
+                details={"status": "partial", "count": result.files_restored},
+            )
             # Do not say "nothing changed" — the vault and sealed keys are
             # already the backup's. Name the safety copies so recovery is
             # possible, and warn that the password may have reverted.

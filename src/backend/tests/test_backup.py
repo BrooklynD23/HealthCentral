@@ -259,3 +259,137 @@ def test_hc_bkup_037_partial_restore_is_reported_as_partial(tmp_path, monkeypatc
     )
     assert result.files_restored > 0
     assert result.safety_copies, "the .bak copies must be named so recovery is possible"
+
+
+def test_hc_bkup_039_midloop_path_failure_after_a_copy_is_partial(tmp_path):
+    """The *other* post-copy return path: a manifest path that fails validation
+    against the destination, part-way through the copy loop.
+
+    HC-BKUP-037 covered the reconciliation failure. This one is the return
+    inside the copy loop itself. On a full-install restore the master DB is
+    copied first, so a validation failure on a later entry leaves real files
+    already replaced — yet the result reported `partial=False`, which the API
+    turns into "nothing was changed". Reproduced here with a `vaults` symlink
+    in the destination that resolves outside the data directory (a plausible
+    "put the vaults on another disk" layout), so the destination-side
+    validation fails while the backup-side one succeeds.
+    """
+    from scripts import backup as backup_script
+
+    data_dir = tmp_path / "data"
+    vault = data_dir / "vaults" / "profile-a"
+    vault.mkdir(parents=True)
+    conn = sqlite3.connect(vault / "vault.db")
+    conn.execute("CREATE TABLE observations (id TEXT)")
+    conn.commit()
+    conn.close()
+    (vault / "key.bin").write_bytes(b"sealed")
+    (vault / "key.method").write_text("password")
+
+    master = data_dir / "healthcentral.db"
+    conn = sqlite3.connect(master)
+    conn.execute("CREATE TABLE profiles (id TEXT)")
+    conn.commit()
+    conn.close()
+
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    created = backup_script.backup(data_dir=data_dir, backup_dir=backup_dir)
+
+    # Destination: master DB present (so it copies), `vaults` a symlink that
+    # escapes the destination root (so the next entry fails validation).
+    target = tmp_path / "target"
+    target.mkdir()
+    (target / "healthcentral.db").write_bytes(b"live-master")
+    outside = tmp_path / "elsewhere" / "vaults"
+    outside.mkdir(parents=True)
+    (target / "vaults").symlink_to(outside, target_is_directory=True)
+
+    result = backup_script.restore(created.backup_path, target)
+
+    assert result.success is False
+    assert "path validation failed" in result.error.lower()
+    assert result.files_restored > 0, "the master DB should already have been copied"
+    assert result.partial is True, (
+        "files were already replaced before validation failed, so the API must "
+        "not tell the user nothing was changed"
+    )
+
+
+def test_hc_bkup_039b_first_entry_path_failure_is_not_partial(tmp_path):
+    """The other half of the same truth: if the *first* entry fails validation,
+    nothing was copied and `partial=True` would be just as false as
+    `partial=False` is above. Blanket-setting it swaps one lie for another.
+    """
+    from scripts import backup as backup_script
+
+    data_dir = tmp_path / "data"
+    vault = data_dir / "vaults" / "profile-a"
+    vault.mkdir(parents=True)
+    conn = sqlite3.connect(vault / "vault.db")
+    conn.execute("CREATE TABLE observations (id TEXT)")
+    conn.commit()
+    conn.close()
+
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    created = backup_script.backup(data_dir=data_dir, backup_dir=backup_dir)
+
+    target = tmp_path / "target"
+    target.mkdir()
+    outside = tmp_path / "elsewhere" / "vaults"
+    outside.mkdir(parents=True)
+    (target / "vaults").symlink_to(outside, target_is_directory=True)
+
+    result = backup_script.restore(created.backup_path, target)
+
+    assert result.success is False
+    assert result.files_restored == 0
+    assert result.partial is False, (
+        "nothing was copied, so claiming a partial restore is its own falsehood"
+    )
+
+
+def test_hc_bkup_039c_reconciliation_failure_with_no_copies_is_not_partial(
+    tmp_path, monkeypatch
+):
+    """Same truthfulness rule applied to the reconciliation return.
+
+    A profile-scoped restore skips the master DB, so a backup of a profile that
+    has no vault yet contains *only* the master DB and copies nothing. If
+    re-applying the profile row then fails, `_reapply_profile_row` never
+    committed, so no file and no row changed — `partial=True` would tell the
+    user their data was replaced when it was not.
+    """
+    from scripts import backup as backup_script
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    master = data_dir / "healthcentral.db"
+    conn = sqlite3.connect(master)
+    conn.execute("CREATE TABLE profiles (id TEXT)")
+    conn.execute("INSERT INTO profiles VALUES ('profile-a')")
+    conn.commit()
+    conn.close()
+
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    created = backup_script.backup(
+        data_dir=data_dir, backup_dir=backup_dir, profile_id="profile-a"
+    )
+
+    def _boom(*args, **kwargs):
+        raise sqlite3.Error("simulated reconciliation failure")
+
+    monkeypatch.setattr(backup_script, "_reapply_profile_row", _boom)
+
+    result = backup_script.restore(
+        created.backup_path, data_dir, profile_id="profile-a"
+    )
+
+    assert result.success is False
+    assert result.files_restored == 0
+    assert result.partial is False, (
+        "no file was copied and the row re-apply never committed, so nothing "
+        "was replaced"
+    )
