@@ -168,7 +168,9 @@ def _resolve_backup_dir(profile_id: str, backup_id: str) -> Path:
     """
     root = _profile_backup_root(profile_id).resolve()
     candidate = (root / backup_id).resolve()
-    if candidate != root and root not in candidate.parents:
+    # `candidate == root` must be rejected, not exempted: the backup root is
+    # not a backup, and `backup_id="."` resolved to it and zipped everything.
+    if candidate == root or root not in candidate.parents:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid backup id"
         )

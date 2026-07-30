@@ -588,3 +588,19 @@ async def test_hc_bkup_032_successful_reauth_resets_the_restore_limiter(data_dir
         assert auth_rate_limiter.check(key).allowed is True
     finally:
         auth_rate_limiter.reset(key)
+
+
+# ---------------------------------------------------------------------------
+# HC-BKUP-041 — the backup root is not itself a backup
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("hostile", [".", "./", "profile-a/.."])
+def test_hc_bkup_041_backup_root_is_not_a_backup(data_dir, hostile):
+    """`candidate == root` short-circuits the traversal guard, so `.` resolved
+    to the profile's whole backup root and the download zipped every backup at
+    once. The root is not a backup and must never resolve."""
+    (data_dir / "backups" / "profile-a").mkdir(parents=True, exist_ok=True)
+
+    with pytest.raises(HTTPException) as exc:
+        backup_api._resolve_backup_dir("profile-a", hostile)
+    assert exc.value.status_code in (400, 404)
