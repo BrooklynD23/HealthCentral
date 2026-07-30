@@ -21,6 +21,9 @@ makes.
 """
 
 import logging
+import shutil
+import sqlite3
+import tempfile
 import zipfile
 from io import BytesIO
 from pathlib import Path
@@ -308,6 +311,46 @@ async def verify_backup(
     )
 
 
+def _single_profile_master_bytes(master_path: Path, profile_id: str) -> bytes:
+    """A copy of the master DB holding only this profile's rows.
+
+    The on-disk backup keeps the full master DB because restore needs this
+    profile's password_hash, which lives there while the sealed key travels in
+    the vault (BK-01). A *download* leaves the device, so it must not carry
+    another profile's display_name, password hash, or audit history. Restore and
+    export have opposite requirements; one artifact cannot serve both.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        scoped = Path(tmp) / backup_script.MASTER_DB_NAME
+        shutil.copy2(master_path, scoped)
+        conn = sqlite3.connect(scoped)
+        try:
+            tables = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                )
+            }
+            for table in ("profiles", "audit_logs", "backup_schedules"):
+                if table not in tables:
+                    continue
+                columns = {
+                    row[1] for row in conn.execute(f"PRAGMA table_info({table})")
+                }
+                if "profile_id" in columns:
+                    conn.execute(
+                        f"DELETE FROM {table} WHERE profile_id != ?", (profile_id,)
+                    )
+                elif "id" in columns and table == "profiles":
+                    conn.execute("DELETE FROM profiles WHERE id != ?", (profile_id,))
+            conn.commit()
+            conn.execute("VACUUM")
+            conn.commit()
+        finally:
+            conn.close()
+        return scoped.read_bytes()
+
+
 @router.get("/{backup_id}/download")
 async def download_backup(
     backup_id: str,
@@ -331,8 +374,18 @@ async def download_backup(
     buffer = BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
         for file_path in sorted(path.rglob("*")):
-            if file_path.is_file():
-                archive.write(file_path, arcname=str(file_path.relative_to(path)))
+            if not file_path.is_file():
+                continue
+            arcname = str(file_path.relative_to(path))
+            if file_path.name == backup_script.MASTER_DB_NAME:
+                # Scoped copy, not the shared file — see
+                # _single_profile_master_bytes.
+                archive.writestr(
+                    arcname,
+                    _single_profile_master_bytes(file_path, session.profile_id),
+                )
+            else:
+                archive.write(file_path, arcname=arcname)
     buffer.seek(0)
 
     await audit_and_commit(

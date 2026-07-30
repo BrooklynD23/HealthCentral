@@ -159,8 +159,14 @@ async def test_hc_bkup_014_download_streams_a_complete_zip(data_dir):
     # The sealed key must be in the archive, or a restore is unopenable.
     assert any(n.endswith("key.bin") for n in names)
     assert any(n.endswith("vault.db") for n in names)
-    # And it must not contain another profile's vault.
+    # A filename check cannot see inside healthcentral.db, which is where the
+    # real cross-profile leak lived. Isolation is asserted properly in
+    # test_backup_routes.py::test_hc_bkup_035; keep the cheap check here too.
     assert not any("profile-b" in n for n in names)
+    assert "healthcentral.db" in names, (
+        "the scoped master copy must still be present, or a restore from this "
+        "archive cannot re-apply the profile row"
+    )
 
 
 @pytest.mark.asyncio
