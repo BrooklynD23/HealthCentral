@@ -63,7 +63,10 @@ function citationTarget(citation: CitationChip): string | null {
   const params = new URLSearchParams();
   if (citation.observationId) {
     params.set('observation', citation.observationId);
-  } else if (citation.entityId) {
+  } else if (citation.entityId && citation.docId) {
+    // An entity is only inspectable with its document — the workbench loads
+    // entities per doc. Without docId this rendered as a chip that navigated
+    // nowhere, which on a health record is worse than a plain label.
     params.set('entity', citation.entityId);
   } else {
     return null;

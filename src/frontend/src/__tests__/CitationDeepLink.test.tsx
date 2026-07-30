@@ -26,7 +26,10 @@ function citationTarget(citation: CitationChip): string | null {
   const params = new URLSearchParams();
   if (citation.observationId) {
     params.set('observation', citation.observationId);
-  } else if (citation.entityId) {
+  } else if (citation.entityId && citation.docId) {
+    // An entity is only inspectable with its document — the workbench loads
+    // entities per doc. Without docId this rendered as a chip that navigated
+    // nowhere, which on a health record is worse than a plain label.
     params.set('entity', citation.entityId);
   } else {
     return null;
@@ -67,6 +70,12 @@ describe('FE-CITE-001: citation deep links', () => {
     // region — these must render as labels, not buttons.
     expect(citationTarget({ ...base, source: 'Reference' })).toBeNull();
     expect(citationTarget({ ...base, docId: 'doc-9' })).toBeNull();
+  });
+
+  it('renders as plain text when an entity has no document', () => {
+    // The workbench loads entities per document, so an entity without docId
+    // cannot be resolved. A chip that navigates nowhere is worse than a label.
+    expect(citationTarget({ ...base, entityId: 'ent-4' })).toBeNull();
   });
 
   it('prefers the observation target when both ids are present', () => {

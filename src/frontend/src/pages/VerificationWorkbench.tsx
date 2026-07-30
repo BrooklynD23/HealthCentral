@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -82,6 +82,10 @@ export function VerificationWorkbench() {
   const [editValue, setEditValue] = useState('');
   const [sourcePages, setSourcePages] = useState<DocumentPage[]>([]);
   const [loadingSource, setLoadingSource] = useState(false);
+  // A citation applies once per navigation. Without this the effect below
+  // re-runs on every `observations` refetch — and verifying a row invalidates
+  // that query — so the user's selection snaps back to the cited row.
+  const appliedCitationRef = useRef<string | null>(null);
 
   // Fetch observations that need verification
   // A cited observation is normally already *verified* — that is exactly why the
@@ -188,13 +192,16 @@ export function VerificationWorkbench() {
   // available" from the first one, sitting above a perfectly good selection.
   useEffect(() => {
     setCitedNotFound(false);
+    appliedCitationRef.current = null;
   }, [citedObservationId, citedEntityId]);
 
   // CITE-SRC-001: select the exact observation a citation pointed at.
   useEffect(() => {
     if (!citedObservationId || !observations) return;
+    if (appliedCitationRef.current === citedObservationId) return;
     const match = observations.find((o) => o.id === citedObservationId);
     if (match) {
+      appliedCitationRef.current = citedObservationId;
       setCitedNotFound(false);
       void handleRowSelect(match);
       document
@@ -213,6 +220,10 @@ export function VerificationWorkbench() {
   // region, which is what the citation was pointing at in the first place.
   useEffect(() => {
     if (!citedEntityId || entitiesLoading) return;
+    // No doc means no entity list can be fetched, so "no longer available" is
+    // the wrong message — nothing was ever looked up. Citations without an
+    // inspectable source are filtered at emit time instead (citationTarget).
+    if (!entityDocId) return;
     const match = docEntities.find((e) => e.id === citedEntityId);
     if (match) {
       document
@@ -221,7 +232,7 @@ export function VerificationWorkbench() {
     } else {
       setCitedNotFound(true);
     }
-  }, [citedEntityId, docEntities, entitiesLoading]);
+  }, [citedEntityId, docEntities, entitiesLoading, entityDocId]);
 
   useEffect(() => {
     // An entity citation needs `doc` to stay in the URL — it is the only thing
