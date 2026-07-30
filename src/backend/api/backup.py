@@ -497,9 +497,23 @@ async def restore_backup(
         backup_path=path, data_dir=_data_dir(), profile_id=session.profile_id
     )
     if not result.success:
+        if result.partial:
+            # Do not say "nothing changed" — the vault and sealed keys are
+            # already the backup's. Name the safety copies so recovery is
+            # possible, and warn that the password may have reverted.
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=(
+                    "Your data was replaced from the backup, but the profile "
+                    "record could not be updated. Sign in with the password "
+                    "that was in use when this backup was made. "
+                    f"{len(result.safety_copies)} safety copy/copies of the "
+                    "replaced files were kept alongside them."
+                ),
+            )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Restore failed; safety copies were left in place.",
+            detail="Restore failed; nothing was changed and safety copies remain.",
         )
 
     await audit_and_commit(

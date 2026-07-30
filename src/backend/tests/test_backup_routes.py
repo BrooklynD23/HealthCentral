@@ -197,3 +197,59 @@ def test_hc_bkup_036_download_scopes_audit_and_schedule_tables(data_dir):
     assert profiles == [("profile-a",)], f"leaked other profiles: {profiles}"
     assert schedules == [("sch-1",)], f"leaked other schedules: {schedules}"
     assert audits == [("aud-1", "profile-a")], f"leaked audit rows: {audits}"
+
+
+def test_hc_bkup_038_partial_restore_500_does_not_claim_nothing_changed(
+    data_dir, monkeypatch
+):
+    """The 500 the user actually sees. A partial restore has already replaced
+    the vault and sealed keys, so the response must not read like a clean
+    failure: it has to say the data was replaced, which password now applies,
+    and that safety copies exist. Both cases stay HTTP 500."""
+    from pathlib import Path
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from scripts.backup import RestoreResult
+
+    with route_client(backup_api.router, "/backup") as client:
+        created = client.post("/backup/")
+        assert created.status_code == 201, created.text
+        backup_id = created.json()["backup_id"]
+
+        monkeypatch.setattr(
+            backup_api,
+            "authenticate_profile",
+            AsyncMock(return_value=SimpleNamespace(id="profile-a")),
+        )
+        monkeypatch.setattr(
+            backup_api, "close_profile_database_on_logout", AsyncMock()
+        )
+        monkeypatch.setattr(
+            backup_api.backup_script,
+            "restore",
+            lambda **kwargs: RestoreResult(
+                success=False,
+                partial=True,
+                files_restored=3,
+                safety_copies=[Path("vault.db.bak"), Path("key.bin.bak")],
+                error="Could not re-apply the profile row: boom",
+            ),
+        )
+
+        response = client.post(
+            f"/backup/{backup_id}/restore",
+            json={
+                "password": "CorrectHorse1",
+                "confirmation_phrase": backup_api.BACKUP_RESTORE_CONFIRMATION,
+            },
+        )
+
+    assert response.status_code == 500, response.text
+    detail = response.json()["detail"]
+    assert "nothing was changed" not in detail.lower(), (
+        f"the vault and sealed keys were already replaced, so this is false: {detail!r}"
+    )
+    assert "replaced" in detail.lower()
+    assert "password" in detail.lower()
+    assert "2 safety copy/copies" in detail

@@ -52,11 +52,20 @@ class VerifyResult:
 
 @dataclass(frozen=True)
 class RestoreResult:
-    """Result of a restore operation."""
+    """Result of a restore operation.
+
+    `success=False` means nothing was touched — validation or verification
+    failed before any copy. `partial=True` means files WERE replaced and
+    reconciliation then failed: the vault and sealed keys are the backup's, but
+    the master row was not re-applied, so the live password hash may not match.
+    The distinction matters because "nothing changed" is a false reassurance
+    during data loss.
+    """
     success: bool
     files_restored: int
     safety_copies: list[Path]
     error: str = ""
+    partial: bool = False
 
 
 # The one file in a profile-scoped backup that is NOT that profile's own data:
@@ -451,8 +460,11 @@ def restore(
             try:
                 _reapply_profile_row(backup_master, live_master, profile_id)
             except sqlite3.Error as exc:
+                # The copy loop above already replaced vault.db and both sealed
+                # keys. This is a partial restore, not a clean failure.
                 return RestoreResult(
                     success=False,
+                    partial=True,
                     files_restored=files_restored,
                     safety_copies=safety_copies,
                     error=f"Could not re-apply the profile row: {exc}",

@@ -211,3 +211,51 @@ class TestPrune:
         removed = prune(backup_dir, retention_days=30)
         assert removed == 1
         assert not result.backup_path.exists()
+
+
+def test_hc_bkup_037_partial_restore_is_reported_as_partial(tmp_path, monkeypatch):
+    """A reconciliation failure happens *after* the vault and both sealed keys
+    are replaced. Reporting success=False makes the API and UI say "Nothing was
+    changed", which is false and leaves the user unable to reason about state."""
+    import sqlite3
+    from scripts import backup as backup_script
+
+    data_dir = tmp_path / "data"
+    vault = data_dir / "vaults" / "profile-a"
+    vault.mkdir(parents=True)
+    conn = sqlite3.connect(vault / "vault.db")
+    conn.execute("CREATE TABLE observations (id TEXT)")
+    conn.commit()
+    conn.close()
+    (vault / "key.bin").write_bytes(b"sealed")
+    (vault / "key.method").write_text("password")
+
+    master = data_dir / "healthcentral.db"
+    conn = sqlite3.connect(master)
+    conn.execute("CREATE TABLE profiles (id TEXT, display_name TEXT)")
+    conn.execute("INSERT INTO profiles VALUES ('profile-a', 'Ann')")
+    conn.commit()
+    conn.close()
+
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    created = backup_script.backup(
+        data_dir=data_dir, backup_dir=backup_dir, profile_id="profile-a"
+    )
+
+    def _boom(*args, **kwargs):
+        raise sqlite3.Error("simulated reconciliation failure")
+
+    monkeypatch.setattr(backup_script, "_reapply_profile_row", _boom)
+
+    result = backup_script.restore(
+        created.backup_path, data_dir, profile_id="profile-a"
+    )
+
+    assert result.success is False
+    assert result.partial is True, (
+        "files were already replaced, so this is a partial restore — reporting "
+        "it as a clean failure tells the user nothing changed, which is false"
+    )
+    assert result.files_restored > 0
+    assert result.safety_copies, "the .bak copies must be named so recovery is possible"

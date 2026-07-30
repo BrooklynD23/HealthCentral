@@ -122,8 +122,13 @@ export function BackupCard() {
       setPassword('');
       setPhrase('');
     } catch (err) {
+      // The server's message distinguishes a clean failure from a partial one,
+      // so prefer it. The fallback must not claim nothing changed — that is
+      // exactly the false reassurance this fix removes.
       setError(
-        err instanceof Error ? err.message : 'Restore failed. Nothing was changed.'
+        err instanceof Error
+          ? err.message
+          : 'Restore failed. Check Settings to confirm your data before continuing.'
       );
     }
   };
