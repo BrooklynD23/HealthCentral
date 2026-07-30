@@ -331,6 +331,9 @@ def _single_profile_master_bytes(master_path: Path, profile_id: str) -> bytes:
                     "SELECT name FROM sqlite_master WHERE type='table'"
                 )
             }
+            # The table name is interpolated because SQLite does not bind
+            # identifiers as parameters. Safe: the names come from the
+            # hardcoded tuple below, never from a request.
             for table in ("profiles", "audit_logs", "backup_schedules"):
                 if table not in tables:
                     continue
@@ -338,8 +341,16 @@ def _single_profile_master_bytes(master_path: Path, profile_id: str) -> bytes:
                     row[1] for row in conn.execute(f"PRAGMA table_info({table})")
                 }
                 if "profile_id" in columns:
+                    # `IS NULL OR` is load-bearing, not belt-and-braces:
+                    # audit_logs.profile_id is nullable for system events, and
+                    # profile deletion writes a profile_id=None tombstone. Under
+                    # SQL three-valued logic `NULL != 'profile-a'` is NULL, not
+                    # TRUE, so a bare `!=` would leave other people's deletion
+                    # events and purge counts in the downloaded archive.
                     conn.execute(
-                        f"DELETE FROM {table} WHERE profile_id != ?", (profile_id,)
+                        f"DELETE FROM {table} WHERE profile_id IS NULL "
+                        "OR profile_id != ?",
+                        (profile_id,),
                     )
                 elif "id" in columns and table == "profiles":
                     conn.execute("DELETE FROM profiles WHERE id != ?", (profile_id,))

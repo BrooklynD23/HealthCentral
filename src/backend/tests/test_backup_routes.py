@@ -128,3 +128,72 @@ def test_hc_bkup_035_download_carries_only_this_profile(data_dir):
     conn.close()
 
     assert rows == [("profile-a", "Ann")], f"leaked other profiles: {rows}"
+
+
+def test_hc_bkup_036_download_scopes_audit_and_schedule_tables(data_dir):
+    """HC-BKUP-035 only opened `profiles`, so the other two scoped tables went
+    unchecked — and one of them has a NULL case. `audit_logs.profile_id` is
+    nullable for system events, and profile deletion writes a `profile_id=None`
+    tombstone. Under SQL three-valued logic `NULL != 'profile-a'` is NULL, not
+    TRUE, so a plain `!=` predicate leaves those rows in the archive: other
+    people's deletion events and purge counts, riding out on this user's
+    download.
+    """
+    import io
+    import zipfile
+
+    master = data_dir / "healthcentral.db"
+    conn = sqlite3.connect(master)
+    conn.execute("DROP TABLE IF EXISTS profiles")
+    conn.execute(
+        "CREATE TABLE profiles (id TEXT, display_name TEXT, password_hash TEXT)"
+    )
+    conn.executemany(
+        "INSERT INTO profiles VALUES (?, ?, ?)",
+        [("profile-a", "Ann", "hash-a"), ("profile-b", "Bob", "hash-b")],
+    )
+    conn.execute(
+        "CREATE TABLE audit_logs (id TEXT, profile_id TEXT, event_type TEXT)"
+    )
+    conn.executemany(
+        "INSERT INTO audit_logs VALUES (?, ?, ?)",
+        [
+            ("aud-1", "profile-a", "backup.create"),
+            ("aud-2", "profile-b", "document.view"),
+            # The system-event tombstone: profiles.py writes profile_id=None
+            # when a profile is erased, so the row outlives its subject.
+            ("aud-3", None, "profile.delete"),
+        ],
+    )
+    conn.execute(
+        "CREATE TABLE backup_schedules (id TEXT, profile_id TEXT, frequency TEXT)"
+    )
+    conn.executemany(
+        "INSERT INTO backup_schedules VALUES (?, ?, ?)",
+        [("sch-1", "profile-a", "daily"), ("sch-2", "profile-b", "weekly")],
+    )
+    conn.commit()
+    conn.close()
+
+    with route_client(backup_api.router, "/backup") as client:
+        created = client.post("/backup/")
+        assert created.status_code == 201, created.text
+        backup_id = created.json()["backup_id"]
+
+        response = client.get(f"/backup/{backup_id}/download")
+
+    assert response.status_code == 200
+    archive = zipfile.ZipFile(io.BytesIO(response.content))
+    scratch = data_dir / "from_zip_036.db"
+    scratch.write_bytes(archive.read("healthcentral.db"))
+    conn = sqlite3.connect(scratch)
+    try:
+        profiles = conn.execute("SELECT id FROM profiles").fetchall()
+        audits = conn.execute("SELECT id, profile_id FROM audit_logs").fetchall()
+        schedules = conn.execute("SELECT id FROM backup_schedules").fetchall()
+    finally:
+        conn.close()
+
+    assert profiles == [("profile-a",)], f"leaked other profiles: {profiles}"
+    assert schedules == [("sch-1",)], f"leaked other schedules: {schedules}"
+    assert audits == [("aud-1", "profile-a")], f"leaked audit rows: {audits}"
