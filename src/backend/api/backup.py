@@ -35,10 +35,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.audit import audit_and_commit, create_audit_log, log_export_event
 from core.auth import (
     RequireAuth,
-    Session,
     authenticate_profile,
     close_profile_database_on_logout,
-    require_profile_access,
 )
 from core.config import settings
 from core.database import get_db
@@ -357,7 +355,12 @@ async def restore_backup(
     backup_id: str,
     payload: RestoreRequest,
     request: Request,
-    session: Session = Depends(require_profile_access()),
+    # RequireAuth, not require_profile_access(): that dependency reads a
+    # `profile_id` path parameter this route does not have, so it 400'd every
+    # request. The route is single-profile by construction anyway —
+    # _resolve_backup_dir(session.profile_id, ...) already scopes it — so
+    # adding a profile_id path param would only add a spoofable input.
+    session: RequireAuth,
     master_db: AsyncSession = Depends(get_db),
 ):
     """Restore this profile from a backup. **Overwrites live data.**

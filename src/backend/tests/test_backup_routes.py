@@ -45,3 +45,37 @@ def test_hc_bkup_033_harness_resolves_dependencies(data_dir):
         response = client.get("/backup/")
 
     assert response.status_code == 200, response.text
+
+
+def test_hc_bkup_034_restore_route_is_reachable(data_dir, monkeypatch):
+    """The regression that 32 direct-call tests could not see: the route used
+    Depends(require_profile_access()), which reads path_params["profile_id"] —
+    a parameter this route does not have — so every request 400'd before any
+    handler logic ran."""
+    from unittest.mock import AsyncMock
+    from types import SimpleNamespace
+
+    with route_client(backup_api.router, "/backup") as client:
+        created = client.post("/backup/")
+        assert created.status_code == 201, created.text
+        backup_id = created.json()["backup_id"]
+
+        monkeypatch.setattr(
+            backup_api,
+            "authenticate_profile",
+            AsyncMock(return_value=SimpleNamespace(id="profile-a")),
+        )
+        monkeypatch.setattr(
+            backup_api, "close_profile_database_on_logout", AsyncMock()
+        )
+
+        response = client.post(
+            f"/backup/{backup_id}/restore",
+            json={
+                "password": "CorrectHorse1",
+                "confirmation_phrase": backup_api.BACKUP_RESTORE_CONFIRMATION,
+            },
+        )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["files_restored"] > 0
