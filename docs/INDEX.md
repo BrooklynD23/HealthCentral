@@ -772,6 +772,24 @@ Links to: `SECURITY.md`, `docs/03_data_confidentiality_pipeline_plan.md`, `docs/
 
 ---
 
+## `docs/superpowers/plans/2026-07-30-phase-a-audit-fix-pass.md`
+
+**Phase A: Audit Fix Pass Implementation Plan**
+
+- Target **Python 3.11+**. Do not use 3.12-only syntax or APIs. - Use `core.time.utcnow` as the single timestamp helper. Never `datetime.utcnow()`. - All LLM calls go through the `ModelRunner`…
+
+## `docs/superpowers/plans/2026-07-30-phase-b-asclexis-rename.md`
+
+**Phase B: Asclexis Rename and Branding Implementation Plan**
+
+- **Preserve, do not rename:** `HC-*` ticket and test prefixes (111 identifiers), `HC_*` environment variables, vault filenames (`vaults/{profile_id}/vault.db`, `key.bin`, `key.method` — these never…
+
+## `docs/superpowers/plans/2026-07-30-phase-c-agent-instructions.md`
+
+**Phase C: Agent Instruction Reoptimization Implementation Plan**
+
+- **Keep every existing hard invariant in `CLAUDE.md` verbatim.** They are load-bearing and were not the problem. Reword nothing in that section. - **No claim ships unrun.** Every factual assertion…
+
 ## `docs/superpowers/specs/2026-05-11-dynamic-port-selection-design.md`
 
 **Dynamic Port Selection for dev.ps1**
