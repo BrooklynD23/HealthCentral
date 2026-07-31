@@ -177,10 +177,15 @@ def _scrub_action(action: str, event_type: str) -> str:
     """
     if action in ALLOWED_ACTIONS:
         return action
-    logger.warning(
-        "Unregistered audit action replaced by event type (AUDIT-PHI-001)",
-        extra={"event_type": event_type},
-    )
+    if action != event_type:
+        # Only warn when something was actually replaced. A caller that passed
+        # event_type as the action already supplied the safe static value, so
+        # warning there fires this alarm on routine operations and trains
+        # readers to ignore the one signal that catches real drift.
+        logger.warning(
+            "Unregistered audit action replaced by event type (AUDIT-PHI-001)",
+            extra={"event_type": event_type},
+        )
     return event_type
 
 

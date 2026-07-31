@@ -421,3 +421,33 @@ async def test_hc_aud_009b_a_new_tool_needs_no_allowlist_change():
     row = db.added[0]
     assert row.action == "Agent used a tool"
     assert _details_of(row)["tool_name"] == "some_future_tool"
+
+
+# --------------------------------------------------------------------------
+# HC-AUD-010 — the drift warning only fires when something was replaced
+# --------------------------------------------------------------------------
+
+def test_hc_aud_010_passing_event_type_as_action_is_not_drift(caplog):
+    """_scrub_action's fallback IS event_type, so a caller that passes it
+    deliberately has already complied. Warning anyway fires the drift alarm on
+    routine operations and teaches readers to ignore it."""
+    with caplog.at_level(logging.WARNING, logger=audit_module.__name__):
+        result = _scrub_action("medication.create", "medication.create")
+
+    assert result == "medication.create"
+    assert not [r for r in caplog.records if "Unregistered audit action" in r.message], (
+        "action == event_type is already the safe static value, not drift"
+    )
+
+
+def test_hc_aud_010b_a_genuinely_replaced_action_still_warns(caplog):
+    """The other direction: narrowing the warning must not silence real drift.
+    An unregistered action *different* from event_type is a call site that
+    escaped the registry, and that is the signal this warning exists for."""
+    with caplog.at_level(logging.WARNING, logger=audit_module.__name__):
+        result = _scrub_action("Deleted medication 'Metformin 500mg'", "medication.delete")
+
+    assert result == "medication.delete"
+    assert [r for r in caplog.records if "Unregistered audit action" in r.message], (
+        "a replaced action is real drift and must still warn"
+    )
