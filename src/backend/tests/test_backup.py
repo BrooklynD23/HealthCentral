@@ -545,6 +545,57 @@ def test_hc_bkup_046_stored_master_excludes_null_profile_id_audit_rows(tmp_path)
     assert audits == [("aud-1", "profile-a")], f"leaked audit rows: {audits}"
 
 
+def test_hc_bkup_047_restore_without_a_master_row_is_partial_not_success(tmp_path):
+    """A restore that cannot re-apply the profile row is not a success.
+
+    The vault and both sealed keys are already the backup's, but `password_hash`
+    was never re-applied — so the user signs in with their current password and
+    the vault refuses to open. Reporting `success=True` sends them away believing
+    the restore worked. This is the same post-copy truth the three other exits
+    already tell.
+    """
+    from scripts import backup as backup_script
+
+    data_dir = tmp_path / "data"
+    vault = data_dir / "vaults" / "profile-a"
+    vault.mkdir(parents=True)
+    conn = sqlite3.connect(vault / "vault.db")
+    conn.execute("CREATE TABLE observations (id TEXT)")
+    conn.commit()
+    conn.close()
+    (vault / "key.bin").write_bytes(b"sealed")
+    (vault / "key.method").write_text("password")
+
+    # A master with no row for profile-a: the backup was taken for someone else,
+    # or predates this profile.
+    master = data_dir / "healthcentral.db"
+    conn = sqlite3.connect(master)
+    conn.execute("CREATE TABLE profiles (id TEXT, display_name TEXT)")
+    conn.execute("INSERT INTO profiles VALUES ('profile-b', 'Bob')")
+    conn.commit()
+    conn.close()
+
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    created = backup_script.backup(
+        data_dir=data_dir, backup_dir=backup_dir, profile_id="profile-a"
+    )
+
+    result = backup_script.restore(
+        created.backup_path, data_dir, profile_id="profile-a"
+    )
+
+    assert result.files_restored > 0, "the vault and sealed keys were replaced"
+    assert result.success is False, (
+        "the sealed keys are the backup's but the live password hash was never "
+        "re-applied, so the vault will not open — this is not a success"
+    )
+    assert result.partial is True, (
+        "files were replaced and reconciliation did not complete"
+    )
+    assert result.safety_copies, "the .bak copies must be named so recovery is possible"
+
+
 def test_hc_bkup_039c_reconciliation_failure_with_no_copies_is_not_partial(
     tmp_path, monkeypatch
 ):

@@ -51,6 +51,12 @@ def data_dir(tmp_path, monkeypatch):
         (vault / "key.method").write_text("password")
     conn = sqlite3.connect(tmp_path / "healthcentral.db")
     conn.execute("CREATE TABLE profiles (id TEXT)")
+    # Both profiles have a master row. A profile that can sign in always does,
+    # and a restore that finds none is a distinct, non-success outcome
+    # (HC-BKUP-047) rather than the ordinary case these tests exercise.
+    conn.executemany(
+        "INSERT INTO profiles VALUES (?)", [("profile-a",), ("profile-b",)]
+    )
     conn.commit()
     conn.close()
     return tmp_path

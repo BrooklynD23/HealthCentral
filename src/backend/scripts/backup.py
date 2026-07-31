@@ -411,8 +411,12 @@ def verify(backup_path: Path) -> VerifyResult:
     )
 
 
-def _reapply_profile_row(backup_master: Path, live_master: Path, profile_id: str) -> None:
+def _reapply_profile_row(backup_master: Path, live_master: Path, profile_id: str) -> bool:
     """Copy one profile's row from a backed-up master DB into the live one.
+
+    Returns True if the row was re-applied, False if the backup holds no row for
+    this profile. The caller needs that distinction: "no row" is not a no-op, it
+    is an unreconciled restore.
 
     Why this exists: a profile-scoped restore must not roll the shared master
     database back (that deletes other profiles), but it also cannot simply skip
@@ -435,9 +439,10 @@ def _reapply_profile_row(backup_master: Path, live_master: Path, profile_id: str
 
     if row is None:
         # The backup predates this profile, or was taken for a different one.
-        # Nothing to re-apply; the vault files are still restored.
+        # The vault files were still replaced, so this is not a clean outcome —
+        # the caller decides what to report.
         logger.warning("Backup contains no master row for the restored profile")
-        return
+        return False
 
     columns = list(row.keys())
     placeholders = ", ".join("?" for _ in columns)
@@ -453,6 +458,8 @@ def _reapply_profile_row(backup_master: Path, live_master: Path, profile_id: str
         target.commit()
     finally:
         target.close()
+
+    return True
 
 
 def restore(
@@ -521,7 +528,9 @@ def restore(
         live_master = data_dir / MASTER_DB_NAME
         if backup_master.exists() and live_master.exists():
             try:
-                _reapply_profile_row(backup_master, live_master, profile_id)
+                reapplied = _reapply_profile_row(
+                    backup_master, live_master, profile_id
+                )
             except sqlite3.Error as exc:
                 # The copy loop above already replaced vault.db and both sealed
                 # keys. This is a partial restore, not a clean failure. Keyed on
@@ -535,6 +544,25 @@ def restore(
                     files_restored=files_restored,
                     safety_copies=safety_copies,
                     error=f"Could not re-apply the profile row: {exc}",
+                )
+
+            if not reapplied:
+                # A missing row is as unreconciled as a failed write: the vault
+                # and both sealed keys are already the backup's, but the live
+                # password_hash still belongs to the newer password. The user
+                # would sign in fine and find the vault refuses to open, so
+                # reporting success here is the most misleading answer
+                # available. Keyed on the copy count for the same reason as the
+                # exits above: with nothing copied, nothing was replaced.
+                return RestoreResult(
+                    success=False,
+                    partial=files_restored > 0,
+                    files_restored=files_restored,
+                    safety_copies=safety_copies,
+                    error=(
+                        "The backup contains no profile row for this profile, "
+                        "so the password could not be reconciled."
+                    ),
                 )
 
     logger.info(
