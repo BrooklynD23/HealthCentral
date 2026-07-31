@@ -199,6 +199,68 @@ def test_hc_bkup_036_download_scopes_audit_and_schedule_tables(data_dir):
     assert audits == [("aud-1", "profile-a")], f"leaked audit rows: {audits}"
 
 
+def test_hc_bkup_042_downloaded_archive_verifies_and_restores(data_dir):
+    """The archive a user actually keeps must pass the app's own integrity
+    check — otherwise the one artifact that survives device loss is refused at
+    the door.
+
+    The download swapped a single-profile master into the zip but shipped the
+    manifest verbatim, so `manifest.json` still carried the SHA256 and size of
+    the FULL master. `verify()` checksums every manifest entry and the restore
+    route refuses anything that fails, so the downloaded backup was
+    unrestorable. Unzip what the user gets, and verify it exactly as the app
+    would.
+    """
+    import io
+    import zipfile
+
+    from scripts import backup as backup_script
+
+    master = data_dir / "healthcentral.db"
+    conn = sqlite3.connect(master)
+    conn.execute("DROP TABLE IF EXISTS profiles")
+    conn.execute(
+        "CREATE TABLE profiles (id TEXT, display_name TEXT, password_hash TEXT)"
+    )
+    conn.executemany(
+        "INSERT INTO profiles VALUES (?, ?, ?)",
+        [("profile-a", "Ann", "hash-a"), ("profile-b", "Bob", "hash-b")],
+    )
+    conn.commit()
+    conn.close()
+
+    with route_client(backup_api.router, "/backup") as client:
+        created = client.post("/backup/")
+        assert created.status_code == 201, created.text
+        backup_id = created.json()["backup_id"]
+
+        response = client.get(f"/backup/{backup_id}/download")
+
+    assert response.status_code == 200
+
+    # Exactly what a user does with the file: unzip it somewhere and restore.
+    unpacked = data_dir / "unpacked" / backup_id
+    unpacked.mkdir(parents=True)
+    zipfile.ZipFile(io.BytesIO(response.content)).extractall(unpacked)
+
+    check = backup_script.verify(unpacked)
+    assert check.valid, (
+        "the downloaded archive fails the app's own integrity check, so the "
+        f"restore route refuses it: {check.errors}"
+    )
+
+    # And it must still be scoped: the archive leaves the device.
+    conn = sqlite3.connect(unpacked / "healthcentral.db")
+    rows = conn.execute("SELECT id FROM profiles").fetchall()
+    conn.close()
+    assert rows == [("profile-a",)], f"leaked other profiles: {rows}"
+
+    # Verification is the gate the restore route applies, so an archive that
+    # passes it must actually restore.
+    result = backup_script.restore(unpacked, data_dir, profile_id="profile-a")
+    assert result.success, result.error
+
+
 def test_hc_bkup_038_partial_restore_500_does_not_claim_nothing_changed(
     data_dir, monkeypatch
 ):

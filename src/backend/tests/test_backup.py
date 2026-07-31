@@ -1,6 +1,7 @@
 """Tests for backup and recovery utility."""
 
 import json
+import shutil
 import sqlite3
 from pathlib import Path
 
@@ -348,6 +349,200 @@ def test_hc_bkup_039b_first_entry_path_failure_is_not_partial(tmp_path):
     assert result.partial is False, (
         "nothing was copied, so claiming a partial restore is its own falsehood"
     )
+
+
+def _seed_two_profile_install(data_dir: Path) -> Path:
+    """A data dir with two profiles: master rows, audit rows, vaults and keys."""
+    data_dir.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(data_dir / "healthcentral.db")
+    conn.execute(
+        "CREATE TABLE profiles (id TEXT, display_name TEXT, password_hash TEXT)"
+    )
+    conn.executemany(
+        "INSERT INTO profiles VALUES (?, ?, ?)",
+        [("profile-a", "Ann", "hash-a"), ("profile-b", "Bob", "hash-b")],
+    )
+    conn.execute("CREATE TABLE audit_logs (id TEXT, profile_id TEXT, event_type TEXT)")
+    conn.executemany(
+        "INSERT INTO audit_logs VALUES (?, ?, ?)",
+        [
+            ("aud-1", "profile-a", "backup.create"),
+            ("aud-2", "profile-b", "document.view"),
+            # profiles.py writes a profile_id=None tombstone when a profile is
+            # erased, so the row outlives its subject.
+            ("aud-3", None, "profile.delete"),
+        ],
+    )
+    conn.execute(
+        "CREATE TABLE backup_schedules (id TEXT, profile_id TEXT, frequency TEXT)"
+    )
+    conn.executemany(
+        "INSERT INTO backup_schedules VALUES (?, ?, ?)",
+        [("sch-1", "profile-a", "daily"), ("sch-2", "profile-b", "weekly")],
+    )
+    conn.commit()
+    conn.close()
+
+    for pid in ("profile-a", "profile-b"):
+        vault = data_dir / "vaults" / pid
+        vault.mkdir(parents=True)
+        conn = sqlite3.connect(vault / "vault.db")
+        conn.execute("CREATE TABLE observations (id TEXT)")
+        conn.commit()
+        conn.close()
+        (vault / "key.bin").write_bytes(b"sealed-" + pid.encode())
+        (vault / "key.method").write_text("password")
+    return data_dir
+
+
+def test_hc_bkup_043_scoped_backup_does_not_store_other_profiles(tmp_path):
+    """Right-to-erase reaches the backups this app holds — or it does not mean
+    much. A profile-scoped backup stored the FULL master DB on disk, so
+    deleting profile B left B's display_name, password_hash and audit rows
+    sitting inside every one of profile A's backups indefinitely. DangerZone.tsx
+    promises deletion removes the backups this app holds; a copy in someone
+    else's directory is outside anything deletion can reach.
+    """
+    from scripts import backup as backup_script
+
+    data_dir = _seed_two_profile_install(tmp_path / "data")
+    created = backup_script.backup(
+        data_dir=data_dir, backup_dir=tmp_path / "backups", profile_id="profile-a"
+    )
+
+    conn = sqlite3.connect(created.backup_path / "healthcentral.db")
+    try:
+        profiles = conn.execute("SELECT id, password_hash FROM profiles").fetchall()
+        schedules = conn.execute("SELECT id FROM backup_schedules").fetchall()
+    finally:
+        conn.close()
+
+    assert profiles == [("profile-a", "hash-a")], (
+        f"another profile's credentials are stored in this backup: {profiles}"
+    )
+    assert schedules == [("sch-1",)], f"leaked other schedules: {schedules}"
+
+    # And the manifest must describe what is actually stored, or verify fails.
+    check = backup_script.verify(created.backup_path)
+    assert check.valid, check.errors
+
+
+def test_hc_bkup_044_unscoped_backup_still_stores_the_full_master(tmp_path):
+    """Constraint (a): the full-install CLI path (`profile_id=None`) is a backup
+    of the whole machine. Scoping it would quietly turn "back up this install"
+    into "back up whichever profile happened to be first", so only the
+    profile-scoped path is scoped.
+    """
+    from scripts import backup as backup_script
+
+    data_dir = _seed_two_profile_install(tmp_path / "data")
+    created = backup_script.backup(data_dir=data_dir, backup_dir=tmp_path / "backups")
+
+    conn = sqlite3.connect(created.backup_path / "healthcentral.db")
+    try:
+        profiles = conn.execute("SELECT id FROM profiles").fetchall()
+        audits = conn.execute("SELECT id FROM audit_logs").fetchall()
+    finally:
+        conn.close()
+
+    assert profiles == [("profile-a",), ("profile-b",)], profiles
+    assert audits == [("aud-1",), ("aud-2",), ("aud-3",)], audits
+    assert backup_script.verify(created.backup_path).valid
+
+
+def test_hc_bkup_045_old_full_master_backups_still_verify_and_restore(tmp_path):
+    """Constraint (b): backups taken before this change hold a full master DB.
+    They are the ones a user reaches for after losing a device, so they must
+    keep verifying and restoring — `_reapply_profile_row` reads whichever master
+    is present. Constructed by hand rather than by calling `backup()`, so the
+    old shape is pinned even after `backup()` stops producing it.
+    """
+    import json
+
+    from scripts import backup as backup_script
+
+    data_dir = _seed_two_profile_install(tmp_path / "data")
+
+    # Old-style backup: full master, this profile's vault and keys.
+    old = tmp_path / "backups" / "backup_20200101_000000"
+    (old / "vaults" / "profile-a").mkdir(parents=True)
+    entries = []
+    for rel in (
+        "healthcentral.db",
+        "vaults/profile-a/vault.db",
+        "vaults/profile-a/key.bin",
+        "vaults/profile-a/key.method",
+    ):
+        dest = old / rel
+        shutil.copy2(data_dir / rel, dest)
+        entries.append(
+            {
+                "path": rel,
+                "sha256": _compute_sha256(dest),
+                "size_bytes": dest.stat().st_size,
+                "method": "file_copy",
+            }
+        )
+    (old / "manifest.json").write_text(
+        json.dumps(
+            {
+                "timestamp": "20200101_000000",
+                "created_at": "2020-01-01T00:00:00Z",
+                "app_version": "0.1.0",
+                "backup_method": "file_copy",
+                "files": entries,
+            }
+        )
+    )
+
+    # The full master really is in there — this is the old shape, not the new.
+    conn = sqlite3.connect(old / "healthcentral.db")
+    assert conn.execute("SELECT COUNT(*) FROM profiles").fetchone()[0] == 2
+    conn.close()
+
+    assert backup_script.verify(old).valid
+
+    # Change the live password hash so re-application is observable.
+    conn = sqlite3.connect(data_dir / "healthcentral.db")
+    conn.execute("UPDATE profiles SET password_hash = 'hash-a-new' WHERE id = 'profile-a'")
+    conn.commit()
+    conn.close()
+
+    result = backup_script.restore(old, data_dir, profile_id="profile-a")
+    assert result.success, result.error
+
+    conn = sqlite3.connect(data_dir / "healthcentral.db")
+    try:
+        rows = conn.execute(
+            "SELECT id, password_hash FROM profiles ORDER BY id"
+        ).fetchall()
+    finally:
+        conn.close()
+    # A's hash came back from the backup (BK-01); B is untouched.
+    assert rows == [("profile-a", "hash-a"), ("profile-b", "hash-b")], rows
+
+
+def test_hc_bkup_046_stored_master_excludes_null_profile_id_audit_rows(tmp_path):
+    """Constraint (c): `audit_logs.profile_id` is nullable for system events and
+    profile deletion writes a `profile_id=None` tombstone. Under SQL
+    three-valued logic `NULL != 'profile-a'` is NULL, not TRUE, so a bare `!=`
+    predicate keeps other people's deletion events and purge counts in the
+    stored master. The `IS NULL OR` half is load-bearing.
+    """
+    from scripts import backup as backup_script
+
+    data_dir = _seed_two_profile_install(tmp_path / "data")
+    created = backup_script.backup(
+        data_dir=data_dir, backup_dir=tmp_path / "backups", profile_id="profile-a"
+    )
+
+    conn = sqlite3.connect(created.backup_path / "healthcentral.db")
+    try:
+        audits = conn.execute("SELECT id, profile_id FROM audit_logs").fetchall()
+    finally:
+        conn.close()
+
+    assert audits == [("aud-1", "profile-a")], f"leaked audit rows: {audits}"
 
 
 def test_hc_bkup_039c_reconciliation_failure_with_no_copies_is_not_partial(

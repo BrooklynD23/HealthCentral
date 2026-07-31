@@ -208,6 +208,58 @@ def _discover_key_files(data_dir: Path) -> list[Path]:
     return key_files
 
 
+def _scope_master_to_profile(master_copy: Path, profile_id: str) -> None:
+    """Reduce an already-copied master DB to just one profile's rows.
+
+    A profile-scoped backup still needs *this* profile's master row: restore has
+    to re-apply `password_hash`, which lives here while the sealed key travels
+    with the vault (BK-01). It does not need anyone else's. Keeping the whole
+    master meant deleting profile B left B's display_name, password hash and
+    audit rows inside every one of profile A's backups, where right-to-erase
+    could not reach them.
+
+    This runs on the copy in the backup directory, before its checksum goes into
+    the manifest, so what is stored and what the manifest describes are the same
+    bytes. Doing it later — at download time — produced an archive that failed
+    its own verification and could not be restored.
+    """
+    conn = sqlite3.connect(master_copy)
+    try:
+        tables = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }
+        # The table name is interpolated because SQLite does not bind
+        # identifiers as parameters. Safe: the names come from the hardcoded
+        # tuple below, never from a request.
+        for table in ("profiles", "audit_logs", "backup_schedules"):
+            if table not in tables:
+                continue
+            columns = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+            if "profile_id" in columns:
+                # `IS NULL OR` is load-bearing, not belt-and-braces:
+                # audit_logs.profile_id is nullable for system events, and
+                # profile deletion writes a profile_id=None tombstone. Under
+                # SQL three-valued logic `NULL != 'profile-a'` is NULL, not
+                # TRUE, so a bare `!=` would leave other people's deletion
+                # events and purge counts in this profile's backup.
+                conn.execute(
+                    f"DELETE FROM {table} WHERE profile_id IS NULL OR profile_id != ?",
+                    (profile_id,),
+                )
+            elif "id" in columns and table == "profiles":
+                conn.execute("DELETE FROM profiles WHERE id != ?", (profile_id,))
+        conn.commit()
+        # Without VACUUM the deleted rows stay readable in free pages, which
+        # for password hashes is not good enough.
+        conn.execute("VACUUM")
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def backup(
     data_dir: Path,
     backup_dir: Path,
@@ -260,6 +312,12 @@ def backup(
         method = _backup_sqlite(db_path, dest_file)
         if method == "file_copy":
             backup_method = "file_copy"
+
+        # A profile-scoped backup keeps only this profile's master rows. An
+        # unscoped one is a backup of the whole install and keeps everything.
+        # Scope before checksumming so the manifest describes what is stored.
+        if profile_id and db_path.name == MASTER_DB_NAME:
+            _scope_master_to_profile(dest_file, profile_id)
 
         checksum = _compute_sha256(dest_file)
         manifest_files.append({
