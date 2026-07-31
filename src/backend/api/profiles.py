@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
 from core.config import settings
+from core.time import utcnow
 from core.security import (
     generate_encryption_key,
     generate_recovery_code,
@@ -729,7 +730,7 @@ async def recover_profile(
     profile.password_hash = hash_password(payload.new_password)
     profile.password_salt = base64.b64encode(generate_salt()).decode("ascii")
     profile.is_locked = False
-    profile.last_accessed_at = datetime.utcnow()
+    profile.last_accessed_at = utcnow()
 
     # Rotate the recovery code rather than invalidating it: plain invalidation
     # would leave the user with *no* recovery until they remember to generate

@@ -333,3 +333,21 @@ def test_hc_recov_022_password_seal_roundtrip_still_works():
 
     assert method == "password"
     assert unseal_key_with_dpapi(sealed, method, fallback_password="CorrectHorse1") == key
+
+
+# ---------------------------------------------------------------------------
+# HC-RECOV-025 — recover_profile uses the project's timestamp helper
+# ---------------------------------------------------------------------------
+
+def test_hc_recov_025_recovery_uses_the_project_time_helper():
+    """CLAUDE.md names core.time.utcnow as the single timestamp helper.
+    datetime.utcnow() is also deprecated from 3.12. This is a source assertion
+    because the returned value is identical either way — only the call differs."""
+    import inspect
+    import api.profiles as profiles_api
+
+    source = inspect.getsource(profiles_api.recover_profile)
+    assert "datetime.utcnow()" not in source, (
+        "use core.time.utcnow, per the hard invariant this branch enforces "
+        "elsewhere"
+    )
