@@ -346,6 +346,12 @@ def backup(
         "created_at": utcnow().isoformat() + "Z",
         "app_version": APP_VERSION,
         "backup_method": backup_method,
+        # Records what the stored master DB actually contains: one profile's
+        # rows, or the whole install. Restore needs this to tell the two apart —
+        # they are the same filename with very different meanings. Null for an
+        # unscoped backup, which is also how a pre-scoping backup (no key at
+        # all) reads.
+        "profile_id": profile_id,
         "files": manifest_files,
     }
 
@@ -476,7 +482,9 @@ def restore(
     shared master database is **not** overwritten — only that profile's row is
     re-applied from the backup, so restoring one profile cannot delete another.
     Leave it None for a full-install restore, where replacing the master
-    wholesale is the correct behaviour.
+    wholesale is the correct behaviour — but only if the backup is itself a
+    whole-install backup. A profile-scoped backup restored with ``profile_id``
+    None is refused outright, before anything is copied.
     """
     # Verify first
     verify_result = verify(backup_path)
@@ -489,6 +497,37 @@ def restore(
         )
 
     manifest = json.loads((backup_path / "manifest.json").read_text())
+
+    # A profile-scoped backup stores a master DB holding only that profile's
+    # rows. Copying it over the live master — which is what an unscoped restore
+    # does — deletes every other profile, their backup schedules and the shared
+    # audit trail, strands their vaults with no way to sign in, and used to
+    # report success while doing it. The documented DR procedure walks straight
+    # into this: `--action restore --backup-dir backups/` takes the newest
+    # directory with no `--profile-id`.
+    #
+    # This runs before the copy loop and before any `.bak` is written, so
+    # `success=False, partial=False, files_restored=0` is literally true rather
+    # than a hopeful description of a half-finished restore.
+    #
+    # `.get` with a None default is the backward-compatibility hinge: backups
+    # taken before scoping existed carry no key and hold a full master, so they
+    # read as unscoped and restore exactly as they always have.
+    backup_scope = manifest.get("profile_id")
+    if profile_id is None and backup_scope:
+        return RestoreResult(
+            success=False,
+            partial=False,
+            files_restored=0,
+            safety_copies=[],
+            error=(
+                f"This backup is scoped to profile '{backup_scope}': its master "
+                "database contains only that profile's rows. Restoring it as a "
+                "whole install would delete every other profile. Re-run with "
+                f"--profile-id {backup_scope}, or use a whole-install backup."
+            ),
+        )
+
     safety_copies: list[Path] = []
     files_restored = 0
 
@@ -644,7 +683,9 @@ def main() -> None:
         "--profile-id",
         type=str,
         default=None,
-        help="Backup specific profile only",
+        help="Scope to a single profile (backup: this profile only; "
+             "restore: re-apply only this profile's row instead of "
+             "overwriting the master DB)",
     )
     parser.add_argument(
         "--retention-days",
@@ -688,7 +729,10 @@ def main() -> None:
         if not backups:
             print("No backups found")
             sys.exit(1)
-        result = restore(backups[0], args.data_dir)
+        # `--profile-id` is honoured here too: refusing a scoped backup and then
+        # ignoring the flag the error tells the operator to pass would leave the
+        # CLI with no way to restore a scoped backup at all.
+        result = restore(backups[0], args.data_dir, args.profile_id)
         if result.success:
             print(f"Restore: {result.files_restored} files restored")
             for bak in result.safety_copies:

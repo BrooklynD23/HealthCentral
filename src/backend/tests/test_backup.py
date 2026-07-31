@@ -3,6 +3,7 @@
 import json
 import shutil
 import sqlite3
+import sys
 from pathlib import Path
 
 import pytest
@@ -639,3 +640,285 @@ def test_hc_bkup_039c_reconciliation_failure_with_no_copies_is_not_partial(
         "no file was copied and the row re-apply never committed, so nothing "
         "was replaced"
     )
+
+
+def test_hc_bkup_048_scoped_backup_refuses_whole_install_restore(tmp_path):
+    """A profile-scoped backup must not be restorable as a whole install.
+
+    Since the stored master holds only the scoped profile's rows, copying it
+    over the live master deletes every other profile — their rows, their
+    schedules and the shared audit trail — and leaves their vaults on disk with
+    no way to sign in. `docs/compliance/disaster-recovery.md` sends an operator
+    down exactly this path: `--action restore --backup-dir backups/` with no
+    `--profile-id`, against whichever backup directory is newest. Silent data
+    loss reported as success is the worst available outcome, so refuse.
+    """
+    from scripts import backup as backup_script
+
+    data_dir = _seed_two_profile_install(tmp_path / "data")
+    created = backup_script.backup(
+        data_dir=data_dir, backup_dir=tmp_path / "backups", profile_id="profile-a"
+    )
+
+    result = backup_script.restore(created.backup_path, data_dir, profile_id=None)
+
+    conn = sqlite3.connect(data_dir / "healthcentral.db")
+    try:
+        profiles = conn.execute("SELECT id FROM profiles ORDER BY id").fetchall()
+        audits = conn.execute("SELECT id FROM audit_logs ORDER BY id").fetchall()
+        schedules = conn.execute("SELECT id FROM backup_schedules ORDER BY id").fetchall()
+    finally:
+        conn.close()
+
+    assert result.success is False, (
+        "a scoped backup restored as a whole install reported success while "
+        f"deleting other profiles; live profiles are now {profiles}"
+    )
+    assert result.partial is False
+    assert result.files_restored == 0
+    assert "profile-a" in result.error, (
+        f"the error must name the profile the backup belongs to: {result.error!r}"
+    )
+
+    # Nothing was lost.
+    assert profiles == [("profile-a",), ("profile-b",)], profiles
+    assert audits == [("aud-1",), ("aud-2",), ("aud-3",)], audits
+    assert schedules == [("sch-1",), ("sch-2",)], schedules
+
+
+def _old_style_backup(data_dir: Path, dest: Path) -> Path:
+    """A pre-scoping backup, built by hand: FULL master, no scope key.
+
+    Constructed rather than produced by `backup()` so the old on-disk shape
+    stays pinned now that `backup()` no longer emits it.
+    """
+    dest.mkdir(parents=True)
+    entries = []
+    for rel in (
+        "healthcentral.db",
+        "vaults/profile-a/vault.db",
+        "vaults/profile-a/key.bin",
+        "vaults/profile-a/key.method",
+    ):
+        target = dest / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(data_dir / rel, target)
+        entries.append(
+            {
+                "path": rel,
+                "sha256": _compute_sha256(target),
+                "size_bytes": target.stat().st_size,
+                "method": "file_copy",
+            }
+        )
+    (dest / "manifest.json").write_text(
+        json.dumps(
+            {
+                "timestamp": "20200101_000000",
+                "created_at": "2020-01-01T00:00:00Z",
+                "app_version": "0.1.0",
+                "backup_method": "file_copy",
+                # No "profile_id" key at all — this is the point of the fixture.
+                "files": entries,
+            }
+        )
+    )
+    return dest
+
+
+def test_hc_bkup_049_manifest_records_the_backup_scope(tmp_path):
+    """Restore can only refuse the dangerous combination if the backup says what
+    it is. Two backups with the same filenames mean different things; the
+    manifest is the only place that distinction can live.
+    """
+    from scripts import backup as backup_script
+
+    data_dir = _seed_two_profile_install(tmp_path / "data")
+
+    scoped = backup_script.backup(
+        data_dir=data_dir, backup_dir=tmp_path / "b1", profile_id="profile-a"
+    )
+    whole = backup_script.backup(data_dir=data_dir, backup_dir=tmp_path / "b2")
+
+    scoped_manifest = json.loads(scoped.manifest_path.read_text())
+    whole_manifest = json.loads(whole.manifest_path.read_text())
+
+    assert scoped_manifest["profile_id"] == "profile-a"
+    assert whole_manifest.get("profile_id") is None
+
+
+def test_hc_bkup_050_refusal_touches_nothing_on_disk(tmp_path):
+    """`success=False, partial=False` has to be literally true, not a hopeful
+    label on a half-finished restore. The live master must be byte-identical and
+    no `.bak` may exist — a `.bak` would mean a copy had already begun.
+    """
+    from scripts import backup as backup_script
+
+    data_dir = _seed_two_profile_install(tmp_path / "data")
+    created = backup_script.backup(
+        data_dir=data_dir, backup_dir=tmp_path / "backups", profile_id="profile-a"
+    )
+
+    before = _compute_sha256(data_dir / "healthcentral.db")
+    result = backup_script.restore(created.backup_path, data_dir, profile_id=None)
+    after = _compute_sha256(data_dir / "healthcentral.db")
+
+    assert result.success is False
+    assert before == after, "the live master was modified by a refused restore"
+    assert result.safety_copies == []
+    baks = sorted(p.name for p in data_dir.rglob("*.bak"))
+    assert baks == [], f"a refused restore wrote safety copies: {baks}"
+
+
+def test_hc_bkup_051_scoped_backup_still_restores_with_matching_profile_id(tmp_path):
+    """The app's own restore path (`POST /backup/{id}/restore`) always passes a
+    profile id. The refusal must not touch it.
+    """
+    from scripts import backup as backup_script
+
+    data_dir = _seed_two_profile_install(tmp_path / "data")
+    created = backup_script.backup(
+        data_dir=data_dir, backup_dir=tmp_path / "backups", profile_id="profile-a"
+    )
+
+    conn = sqlite3.connect(data_dir / "healthcentral.db")
+    conn.execute("UPDATE profiles SET password_hash = 'hash-a-new' WHERE id = 'profile-a'")
+    conn.commit()
+    conn.close()
+
+    result = backup_script.restore(
+        created.backup_path, data_dir, profile_id="profile-a"
+    )
+    assert result.success, result.error
+
+    conn = sqlite3.connect(data_dir / "healthcentral.db")
+    try:
+        rows = conn.execute("SELECT id, password_hash FROM profiles ORDER BY id").fetchall()
+        audits = conn.execute("SELECT id FROM audit_logs ORDER BY id").fetchall()
+    finally:
+        conn.close()
+    assert rows == [("profile-a", "hash-a"), ("profile-b", "hash-b")], rows
+    assert audits == [("aud-1",), ("aud-2",), ("aud-3",)], audits
+
+
+def test_hc_bkup_052_unscoped_backup_still_restores_as_whole_install(tmp_path):
+    """Whole-install DR — the case the runbook describes — is unaffected: an
+    unscoped backup carries a full master and is copied back wholesale.
+    """
+    from scripts import backup as backup_script
+
+    data_dir = _seed_two_profile_install(tmp_path / "data")
+    created = backup_script.backup(data_dir=data_dir, backup_dir=tmp_path / "backups")
+
+    # Diverge the live install so the restore is observable.
+    conn = sqlite3.connect(data_dir / "healthcentral.db")
+    conn.execute("DELETE FROM profiles WHERE id = 'profile-b'")
+    conn.execute("DELETE FROM audit_logs WHERE id = 'aud-2'")
+    conn.commit()
+    conn.close()
+
+    result = backup_script.restore(created.backup_path, data_dir, profile_id=None)
+    assert result.success, result.error
+    assert result.files_restored > 0
+
+    conn = sqlite3.connect(data_dir / "healthcentral.db")
+    try:
+        profiles = conn.execute("SELECT id FROM profiles ORDER BY id").fetchall()
+        audits = conn.execute("SELECT id FROM audit_logs ORDER BY id").fetchall()
+    finally:
+        conn.close()
+    assert profiles == [("profile-a",), ("profile-b",)], profiles
+    assert audits == [("aud-1",), ("aud-2",), ("aud-3",)], audits
+
+
+def test_hc_bkup_053_pre_scoping_backup_restores_as_a_whole_install(tmp_path):
+    """Backward compatibility, whole-install path. A backup taken before scoping
+    existed has no `profile_id` key and holds a full master. Absent must read as
+    unscoped, or the fix would refuse every backup a user already has — turning
+    a data-loss bug into a total-recovery-failure bug.
+    """
+    from scripts import backup as backup_script
+
+    data_dir = _seed_two_profile_install(tmp_path / "data")
+    old = _old_style_backup(data_dir, tmp_path / "backups" / "backup_20200101_000000")
+
+    assert "profile_id" not in json.loads((old / "manifest.json").read_text())
+
+    conn = sqlite3.connect(data_dir / "healthcentral.db")
+    conn.execute("DELETE FROM profiles WHERE id = 'profile-b'")
+    conn.commit()
+    conn.close()
+
+    result = backup_script.restore(old, data_dir, profile_id=None)
+    assert result.success, result.error
+
+    conn = sqlite3.connect(data_dir / "healthcentral.db")
+    try:
+        profiles = conn.execute("SELECT id FROM profiles ORDER BY id").fetchall()
+    finally:
+        conn.close()
+    assert profiles == [("profile-a",), ("profile-b",)], profiles
+
+
+def test_hc_bkup_054_pre_scoping_backup_still_restores_scoped(tmp_path):
+    """Backward compatibility, profile-scoped path: HC-BKUP-045's scenario must
+    keep working with the scope key absent — the master is held back and one row
+    re-applied, exactly as before.
+    """
+    from scripts import backup as backup_script
+
+    data_dir = _seed_two_profile_install(tmp_path / "data")
+    old = _old_style_backup(data_dir, tmp_path / "backups" / "backup_20200101_000000")
+
+    conn = sqlite3.connect(data_dir / "healthcentral.db")
+    conn.execute("UPDATE profiles SET password_hash = 'hash-a-new' WHERE id = 'profile-a'")
+    conn.commit()
+    conn.close()
+
+    result = backup_script.restore(old, data_dir, profile_id="profile-a")
+    assert result.success, result.error
+
+    conn = sqlite3.connect(data_dir / "healthcentral.db")
+    try:
+        rows = conn.execute("SELECT id, password_hash FROM profiles ORDER BY id").fetchall()
+    finally:
+        conn.close()
+    assert rows == [("profile-a", "hash-a"), ("profile-b", "hash-b")], rows
+
+
+def test_hc_bkup_055_cli_restore_honours_profile_id(tmp_path, monkeypatch, capsys):
+    """The refusal tells the operator to re-run with `--profile-id`. If the CLI
+    parsed that flag and then dropped it on the restore call, the instruction
+    would be a dead end and a scoped backup would be unrestorable from the CLI.
+    """
+    from scripts import backup as backup_script
+
+    data_dir = _seed_two_profile_install(tmp_path / "data")
+    backup_dir = tmp_path / "backups"
+    backup_script.backup(
+        data_dir=data_dir, backup_dir=backup_dir, profile_id="profile-a"
+    )
+
+    base = [
+        "backup.py", "--action", "restore",
+        "--backup-dir", str(backup_dir), "--data-dir", str(data_dir),
+    ]
+
+    # Without the flag: refused, non-zero exit, nothing touched.
+    monkeypatch.setattr(sys, "argv", base)
+    with pytest.raises(SystemExit) as exc:
+        backup_script.main()
+    assert exc.value.code == 1
+    assert "profile-a" in capsys.readouterr().out
+
+    # With the flag: the same backup restores.
+    monkeypatch.setattr(sys, "argv", base + ["--profile-id", "profile-a"])
+    backup_script.main()
+    assert "files restored" in capsys.readouterr().out
+
+    conn = sqlite3.connect(data_dir / "healthcentral.db")
+    try:
+        profiles = conn.execute("SELECT id FROM profiles ORDER BY id").fetchall()
+    finally:
+        conn.close()
+    assert profiles == [("profile-a",), ("profile-b",)], profiles

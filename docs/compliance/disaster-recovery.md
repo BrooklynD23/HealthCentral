@@ -32,7 +32,8 @@ python src/backend/scripts/backup.py --action backup --data-dir data/ --backup-d
 ```
 
 Options:
-- `--profile-id <id>`: Back up only a specific profile (plus master DB)
+- `--profile-id <id>`: Back up only a specific profile (its vault, its sealed
+  keys, and only that profile's rows from the master DB)
 - `--backup-dir <path>`: Custom backup destination (default: `backups/`)
 
 ### What Happens
@@ -91,11 +92,33 @@ The restore process:
 
 The CLI above is a **whole-install** restore: every file in the manifest is
 copied back, including the master database. That is right when rebuilding a
-machine, and wrong for a single profile — a profile's backup still contains the
-shared master DB, so replacing it wholesale would delete every profile created
-since the backup and roll the audit trail back with it.
+machine, and wrong for a single profile.
 
-`POST /backup/{id}/restore` is therefore **profile-scoped** (BK-01): vault and
+A backup taken with `--profile-id` is **profile-scoped**: the master database it
+stores holds only that profile's rows — its profile row, its audit entries and
+its backup schedule — so one profile's backup no longer carries another
+profile's credentials. The manifest records the scope in a top-level
+`"profile_id"` field (`null` for a whole-install backup).
+
+That makes the two kinds of backup non-interchangeable, and the restore
+enforces it: **a profile-scoped backup cannot be restored as a whole install.**
+Copying its master over the live one would delete every other profile. Running
+the CLI above against a scoped backup directory therefore fails immediately,
+before any file is touched, naming the profile the backup belongs to. Re-run it
+with the matching `--profile-id`:
+
+```bash
+python src/backend/scripts/backup.py --action restore \
+    --backup-dir backups/ \
+    --data-dir data/ \
+    --profile-id <id>
+```
+
+Backups taken before scoping was introduced have no `"profile_id"` field and
+contain a full master database. They are treated as whole-install backups and
+restore exactly as they always have, by either path.
+
+`POST /backup/{id}/restore` is always **profile-scoped** (BK-01): vault and
 sealed key files are restored verbatim, but instead of copying the master DB
 over the live one, only that profile's row is re-applied from the backed-up
 copy. The row travels with the restore rather than being skipped because
@@ -149,6 +172,7 @@ If recovery fails:
     "created_at": "2026-02-21T14:30:00Z",
     "app_version": "0.1.0",
     "backup_method": "sqlite_backup",
+    "profile_id": null,
     "files": [
         {
             "path": "healthcentral.db",
