@@ -49,7 +49,7 @@ def data_dir(tmp_path, monkeypatch):
         conn.close()
         (vault / "key.bin").write_bytes(b"sealed-" + pid.encode())
         (vault / "key.method").write_text("password")
-    conn = sqlite3.connect(tmp_path / "healthcentral.db")
+    conn = sqlite3.connect(tmp_path / "asclexis.db")
     conn.execute("CREATE TABLE profiles (id TEXT)")
     # Both profiles have a master row. A profile that can sign in always does,
     # and a restore that finds none is a distinct, non-success outcome
@@ -132,7 +132,7 @@ async def test_hc_bkup_013_verify_detects_a_tampered_backup(data_dir):
         )
     assert good.valid is True
 
-    (path / "healthcentral.db").write_bytes(b"corrupted")
+    (path / "asclexis.db").write_bytes(b"corrupted")
     with patch.object(backup_api, "audit_and_commit", AsyncMock()):
         bad = await backup_api.verify_backup(
             created.backup_id, session=_session(), master_db=AsyncMock()
@@ -165,11 +165,11 @@ async def test_hc_bkup_014_download_streams_a_complete_zip(data_dir):
     # The sealed key must be in the archive, or a restore is unopenable.
     assert any(n.endswith("key.bin") for n in names)
     assert any(n.endswith("vault.db") for n in names)
-    # A filename check cannot see inside healthcentral.db, which is where the
+    # A filename check cannot see inside asclexis.db, which is where the
     # real cross-profile leak lived. Isolation is asserted properly in
     # test_backup_routes.py::test_hc_bkup_035; keep the cheap check here too.
     assert not any("profile-b" in n for n in names)
-    assert "healthcentral.db" in names, (
+    assert "asclexis.db" in names, (
         "the scoped master copy must still be present, or a restore from this "
         "archive cannot re-apply the profile row"
     )
@@ -244,7 +244,7 @@ async def test_hc_bkup_018_restore_refuses_a_corrupt_backup(data_dir):
     this route could do."""
     created = await _create()
     path = data_dir / "backups" / "profile-a" / created.backup_id
-    (path / "healthcentral.db").write_bytes(b"corrupted")
+    (path / "asclexis.db").write_bytes(b"corrupted")
 
     with pytest.raises(HTTPException) as exc:
         await _restore(created.backup_id)
@@ -439,7 +439,7 @@ async def test_hc_bkup_026_restoring_one_profile_leaves_the_other_intact(data_di
     wholesale rolls the master back, deleting any profile created since —
     their vault survives on disk, orphaned and unreachable.
     """
-    master = data_dir / "healthcentral.db"
+    master = data_dir / "asclexis.db"
     _seed_master(master, {"profile-a": "hash-a-old"})
 
     created = await _create("profile-a")
@@ -459,7 +459,7 @@ async def test_hc_bkup_027_restore_reapplies_the_backed_up_password_hash(data_di
     """The sealed key travels with the backup but the password hash lives in
     the master DB. If the hash is not rolled back with it, login succeeds and
     the vault then refuses to open."""
-    master = data_dir / "healthcentral.db"
+    master = data_dir / "asclexis.db"
     _seed_master(master, {"profile-a": "hash-at-backup-time"})
 
     created = await _create("profile-a")
@@ -478,7 +478,7 @@ async def test_hc_bkup_027_restore_reapplies_the_backed_up_password_hash(data_di
 async def test_hc_bkup_028_restore_returns_vault_files(data_dir):
     """The vault itself is still restored verbatim — scoping the master row
     must not turn restore into a no-op."""
-    master = data_dir / "healthcentral.db"
+    master = data_dir / "asclexis.db"
     _seed_master(master, {"profile-a": "hash-a"})
 
     vault_db = data_dir / "vaults" / "profile-a" / "vault.db"
@@ -498,7 +498,7 @@ def test_hc_bkup_029_unscoped_restore_still_replaces_the_master(data_dir):
     is correct when you are rebuilding an entire machine."""
     from scripts import backup as backup_script
 
-    master = data_dir / "healthcentral.db"
+    master = data_dir / "asclexis.db"
     _seed_master(master, {"profile-a": "hash-a"})
 
     backup_dir = data_dir / "backups" / "full"

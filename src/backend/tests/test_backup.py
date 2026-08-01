@@ -27,7 +27,7 @@ def data_dir(tmp_path):
     d.mkdir()
 
     # Create master database
-    master_db = d / "healthcentral.db"
+    master_db = d / "asclexis.db"
     conn = sqlite3.connect(str(master_db))
     conn.execute("CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT)")
     conn.execute("INSERT INTO test VALUES (1, 'hello')")
@@ -168,7 +168,7 @@ class TestRestore:
         result = restore(backup_path, restore_dir)
         assert result.success
         assert result.files_restored == 4
-        assert (restore_dir / "healthcentral.db").exists()
+        assert (restore_dir / "asclexis.db").exists()
 
     def test_restore_creates_bak(self, data_dir, backup_dir):
         """Restore creates .bak of existing files."""
@@ -232,7 +232,7 @@ def test_hc_bkup_037_partial_restore_is_reported_as_partial(tmp_path, monkeypatc
     (vault / "key.bin").write_bytes(b"sealed")
     (vault / "key.method").write_text("password")
 
-    master = data_dir / "healthcentral.db"
+    master = data_dir / "asclexis.db"
     conn = sqlite3.connect(master)
     conn.execute("CREATE TABLE profiles (id TEXT, display_name TEXT)")
     conn.execute("INSERT INTO profiles VALUES ('profile-a', 'Ann')")
@@ -288,7 +288,7 @@ def test_hc_bkup_039_midloop_path_failure_after_a_copy_is_partial(tmp_path):
     (vault / "key.bin").write_bytes(b"sealed")
     (vault / "key.method").write_text("password")
 
-    master = data_dir / "healthcentral.db"
+    master = data_dir / "asclexis.db"
     conn = sqlite3.connect(master)
     conn.execute("CREATE TABLE profiles (id TEXT)")
     conn.commit()
@@ -302,7 +302,7 @@ def test_hc_bkup_039_midloop_path_failure_after_a_copy_is_partial(tmp_path):
     # escapes the destination root (so the next entry fails validation).
     target = tmp_path / "target"
     target.mkdir()
-    (target / "healthcentral.db").write_bytes(b"live-master")
+    (target / "asclexis.db").write_bytes(b"live-master")
     outside = tmp_path / "elsewhere" / "vaults"
     outside.mkdir(parents=True)
     (target / "vaults").symlink_to(outside, target_is_directory=True)
@@ -355,7 +355,7 @@ def test_hc_bkup_039b_first_entry_path_failure_is_not_partial(tmp_path):
 def _seed_two_profile_install(data_dir: Path) -> Path:
     """A data dir with two profiles: master rows, audit rows, vaults and keys."""
     data_dir.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(data_dir / "healthcentral.db")
+    conn = sqlite3.connect(data_dir / "asclexis.db")
     conn.execute(
         "CREATE TABLE profiles (id TEXT, display_name TEXT, password_hash TEXT)"
     )
@@ -411,7 +411,7 @@ def test_hc_bkup_043_scoped_backup_does_not_store_other_profiles(tmp_path):
         data_dir=data_dir, backup_dir=tmp_path / "backups", profile_id="profile-a"
     )
 
-    conn = sqlite3.connect(created.backup_path / "healthcentral.db")
+    conn = sqlite3.connect(created.backup_path / "asclexis.db")
     try:
         profiles = conn.execute("SELECT id, password_hash FROM profiles").fetchall()
         schedules = conn.execute("SELECT id FROM backup_schedules").fetchall()
@@ -439,7 +439,7 @@ def test_hc_bkup_044_unscoped_backup_still_stores_the_full_master(tmp_path):
     data_dir = _seed_two_profile_install(tmp_path / "data")
     created = backup_script.backup(data_dir=data_dir, backup_dir=tmp_path / "backups")
 
-    conn = sqlite3.connect(created.backup_path / "healthcentral.db")
+    conn = sqlite3.connect(created.backup_path / "asclexis.db")
     try:
         profiles = conn.execute("SELECT id FROM profiles").fetchall()
         audits = conn.execute("SELECT id FROM audit_logs").fetchall()
@@ -469,7 +469,7 @@ def test_hc_bkup_045_old_full_master_backups_still_verify_and_restore(tmp_path):
     (old / "vaults" / "profile-a").mkdir(parents=True)
     entries = []
     for rel in (
-        "healthcentral.db",
+        "asclexis.db",
         "vaults/profile-a/vault.db",
         "vaults/profile-a/key.bin",
         "vaults/profile-a/key.method",
@@ -497,14 +497,14 @@ def test_hc_bkup_045_old_full_master_backups_still_verify_and_restore(tmp_path):
     )
 
     # The full master really is in there — this is the old shape, not the new.
-    conn = sqlite3.connect(old / "healthcentral.db")
+    conn = sqlite3.connect(old / "asclexis.db")
     assert conn.execute("SELECT COUNT(*) FROM profiles").fetchone()[0] == 2
     conn.close()
 
     assert backup_script.verify(old).valid
 
     # Change the live password hash so re-application is observable.
-    conn = sqlite3.connect(data_dir / "healthcentral.db")
+    conn = sqlite3.connect(data_dir / "asclexis.db")
     conn.execute("UPDATE profiles SET password_hash = 'hash-a-new' WHERE id = 'profile-a'")
     conn.commit()
     conn.close()
@@ -512,7 +512,7 @@ def test_hc_bkup_045_old_full_master_backups_still_verify_and_restore(tmp_path):
     result = backup_script.restore(old, data_dir, profile_id="profile-a")
     assert result.success, result.error
 
-    conn = sqlite3.connect(data_dir / "healthcentral.db")
+    conn = sqlite3.connect(data_dir / "asclexis.db")
     try:
         rows = conn.execute(
             "SELECT id, password_hash FROM profiles ORDER BY id"
@@ -537,7 +537,7 @@ def test_hc_bkup_046_stored_master_excludes_null_profile_id_audit_rows(tmp_path)
         data_dir=data_dir, backup_dir=tmp_path / "backups", profile_id="profile-a"
     )
 
-    conn = sqlite3.connect(created.backup_path / "healthcentral.db")
+    conn = sqlite3.connect(created.backup_path / "asclexis.db")
     try:
         audits = conn.execute("SELECT id, profile_id FROM audit_logs").fetchall()
     finally:
@@ -569,7 +569,7 @@ def test_hc_bkup_047_restore_without_a_master_row_is_partial_not_success(tmp_pat
 
     # A master with no row for profile-a: the backup was taken for someone else,
     # or predates this profile.
-    master = data_dir / "healthcentral.db"
+    master = data_dir / "asclexis.db"
     conn = sqlite3.connect(master)
     conn.execute("CREATE TABLE profiles (id TEXT, display_name TEXT)")
     conn.execute("INSERT INTO profiles VALUES ('profile-b', 'Bob')")
@@ -612,7 +612,7 @@ def test_hc_bkup_039c_reconciliation_failure_with_no_copies_is_not_partial(
 
     data_dir = tmp_path / "data"
     data_dir.mkdir()
-    master = data_dir / "healthcentral.db"
+    master = data_dir / "asclexis.db"
     conn = sqlite3.connect(master)
     conn.execute("CREATE TABLE profiles (id TEXT)")
     conn.execute("INSERT INTO profiles VALUES ('profile-a')")
@@ -662,7 +662,7 @@ def test_hc_bkup_048_scoped_backup_refuses_whole_install_restore(tmp_path):
 
     result = backup_script.restore(created.backup_path, data_dir, profile_id=None)
 
-    conn = sqlite3.connect(data_dir / "healthcentral.db")
+    conn = sqlite3.connect(data_dir / "asclexis.db")
     try:
         profiles = conn.execute("SELECT id FROM profiles ORDER BY id").fetchall()
         audits = conn.execute("SELECT id FROM audit_logs ORDER BY id").fetchall()
@@ -695,7 +695,7 @@ def _old_style_backup(data_dir: Path, dest: Path) -> Path:
     dest.mkdir(parents=True)
     entries = []
     for rel in (
-        "healthcentral.db",
+        "asclexis.db",
         "vaults/profile-a/vault.db",
         "vaults/profile-a/key.bin",
         "vaults/profile-a/key.method",
@@ -759,9 +759,9 @@ def test_hc_bkup_050_refusal_touches_nothing_on_disk(tmp_path):
         data_dir=data_dir, backup_dir=tmp_path / "backups", profile_id="profile-a"
     )
 
-    before = _compute_sha256(data_dir / "healthcentral.db")
+    before = _compute_sha256(data_dir / "asclexis.db")
     result = backup_script.restore(created.backup_path, data_dir, profile_id=None)
-    after = _compute_sha256(data_dir / "healthcentral.db")
+    after = _compute_sha256(data_dir / "asclexis.db")
 
     assert result.success is False
     assert before == after, "the live master was modified by a refused restore"
@@ -781,7 +781,7 @@ def test_hc_bkup_051_scoped_backup_still_restores_with_matching_profile_id(tmp_p
         data_dir=data_dir, backup_dir=tmp_path / "backups", profile_id="profile-a"
     )
 
-    conn = sqlite3.connect(data_dir / "healthcentral.db")
+    conn = sqlite3.connect(data_dir / "asclexis.db")
     conn.execute("UPDATE profiles SET password_hash = 'hash-a-new' WHERE id = 'profile-a'")
     conn.commit()
     conn.close()
@@ -791,7 +791,7 @@ def test_hc_bkup_051_scoped_backup_still_restores_with_matching_profile_id(tmp_p
     )
     assert result.success, result.error
 
-    conn = sqlite3.connect(data_dir / "healthcentral.db")
+    conn = sqlite3.connect(data_dir / "asclexis.db")
     try:
         rows = conn.execute("SELECT id, password_hash FROM profiles ORDER BY id").fetchall()
         audits = conn.execute("SELECT id FROM audit_logs ORDER BY id").fetchall()
@@ -811,7 +811,7 @@ def test_hc_bkup_052_unscoped_backup_still_restores_as_whole_install(tmp_path):
     created = backup_script.backup(data_dir=data_dir, backup_dir=tmp_path / "backups")
 
     # Diverge the live install so the restore is observable.
-    conn = sqlite3.connect(data_dir / "healthcentral.db")
+    conn = sqlite3.connect(data_dir / "asclexis.db")
     conn.execute("DELETE FROM profiles WHERE id = 'profile-b'")
     conn.execute("DELETE FROM audit_logs WHERE id = 'aud-2'")
     conn.commit()
@@ -821,7 +821,7 @@ def test_hc_bkup_052_unscoped_backup_still_restores_as_whole_install(tmp_path):
     assert result.success, result.error
     assert result.files_restored > 0
 
-    conn = sqlite3.connect(data_dir / "healthcentral.db")
+    conn = sqlite3.connect(data_dir / "asclexis.db")
     try:
         profiles = conn.execute("SELECT id FROM profiles ORDER BY id").fetchall()
         audits = conn.execute("SELECT id FROM audit_logs ORDER BY id").fetchall()
@@ -844,7 +844,7 @@ def test_hc_bkup_053_pre_scoping_backup_restores_as_a_whole_install(tmp_path):
 
     assert "profile_id" not in json.loads((old / "manifest.json").read_text())
 
-    conn = sqlite3.connect(data_dir / "healthcentral.db")
+    conn = sqlite3.connect(data_dir / "asclexis.db")
     conn.execute("DELETE FROM profiles WHERE id = 'profile-b'")
     conn.commit()
     conn.close()
@@ -852,7 +852,7 @@ def test_hc_bkup_053_pre_scoping_backup_restores_as_a_whole_install(tmp_path):
     result = backup_script.restore(old, data_dir, profile_id=None)
     assert result.success, result.error
 
-    conn = sqlite3.connect(data_dir / "healthcentral.db")
+    conn = sqlite3.connect(data_dir / "asclexis.db")
     try:
         profiles = conn.execute("SELECT id FROM profiles ORDER BY id").fetchall()
     finally:
@@ -870,7 +870,7 @@ def test_hc_bkup_054_pre_scoping_backup_still_restores_scoped(tmp_path):
     data_dir = _seed_two_profile_install(tmp_path / "data")
     old = _old_style_backup(data_dir, tmp_path / "backups" / "backup_20200101_000000")
 
-    conn = sqlite3.connect(data_dir / "healthcentral.db")
+    conn = sqlite3.connect(data_dir / "asclexis.db")
     conn.execute("UPDATE profiles SET password_hash = 'hash-a-new' WHERE id = 'profile-a'")
     conn.commit()
     conn.close()
@@ -878,7 +878,7 @@ def test_hc_bkup_054_pre_scoping_backup_still_restores_scoped(tmp_path):
     result = backup_script.restore(old, data_dir, profile_id="profile-a")
     assert result.success, result.error
 
-    conn = sqlite3.connect(data_dir / "healthcentral.db")
+    conn = sqlite3.connect(data_dir / "asclexis.db")
     try:
         rows = conn.execute("SELECT id, password_hash FROM profiles ORDER BY id").fetchall()
     finally:
@@ -916,7 +916,7 @@ def test_hc_bkup_055_cli_restore_honours_profile_id(tmp_path, monkeypatch, capsy
     backup_script.main()
     assert "files restored" in capsys.readouterr().out
 
-    conn = sqlite3.connect(data_dir / "healthcentral.db")
+    conn = sqlite3.connect(data_dir / "asclexis.db")
     try:
         profiles = conn.execute("SELECT id FROM profiles ORDER BY id").fetchall()
     finally:

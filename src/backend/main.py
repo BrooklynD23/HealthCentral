@@ -29,6 +29,13 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager for startup/shutdown events."""
+    # Before any engine is created: an existing install has the legacy master
+    # DB filename, and opening a connection to the new name would create an
+    # empty database and hide every profile.
+    from core.db_migration import migrate_master_db_filename
+
+    migrate_master_db_filename(settings.app_data_path)
+
     # Validate configuration (raises RuntimeError in production if jwt_secret empty)
     startup_warnings = settings.validate_startup()
     for w in startup_warnings:

@@ -106,7 +106,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     # Master database status
     try:
         master_rev = get_master_current_revision()
-        master_db = Path(settings.app_data_path) / "healthcentral.db"
+        master_db = Path(settings.app_data_path) / settings.master_db_filename
         print(f"Master Database: {master_db}")
         print(f"  Current revision: {master_rev or '(not initialized)'}")
         print(f"  Exists: {master_db.exists()}")

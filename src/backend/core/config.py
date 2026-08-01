@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     
     # Database
     database_type: Literal["sqlite", "postgresql"] = "sqlite"
-    sqlite_database_path: str = "data/healthcentral.db"
+    sqlite_database_path: str = "data/asclexis.db"
     database_encryption_enabled: bool = True
     # Require SQLCipher for profile databases. Set to False only for development.
     database_encryption_required: bool = True
@@ -167,10 +167,21 @@ class Settings(BaseSettings):
             return Path(self.sqlite_database_path).parent
     
     @property
+    def master_db_filename(self) -> str:
+        """Filename of the master database.
+
+        Derived from `sqlite_database_path` rather than hardcoded. Previously
+        `database_url` hardcoded the name and used only this setting's *parent*,
+        so SQLITE_DATABASE_PATH=data/mydb.db silently had no effect on the
+        filename — the setting advertised control it did not have.
+        """
+        return Path(self.sqlite_database_path).name or "asclexis.db"
+
+    @property
     def database_url(self) -> str:
         """Get the database connection URL."""
         if self.database_type == "sqlite":
-            db_path = self.app_data_path / "healthcentral.db"
+            db_path = self.app_data_path / self.master_db_filename
             return f"sqlite+aiosqlite:///{db_path}"
         else:
             return (

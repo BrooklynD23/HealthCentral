@@ -366,7 +366,7 @@ def _make_backup(root: Path, profile_id: str) -> Path:
     backup = root / "backups" / profile_id / "backup_20260101_000000"
     backup.mkdir(parents=True)
     (backup / "manifest.json").write_text("{}")
-    (backup / "healthcentral.db").write_bytes(b"master")
+    (backup / "asclexis.db").write_bytes(b"master")
     vault = backup / "vaults" / profile_id
     vault.mkdir(parents=True)
     (vault / "vault.db").write_bytes(b"encrypted")

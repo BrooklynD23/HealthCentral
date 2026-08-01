@@ -24,7 +24,7 @@ from scripts.backup import backup, _discover_databases, _discover_key_files
 
 def _seed(data_dir, profile_ids=("profile-a",), with_recovery=True):
     data_dir.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(data_dir / "healthcentral.db")
+    conn = sqlite3.connect(data_dir / "asclexis.db")
     conn.execute("CREATE TABLE profiles (id TEXT)")
     conn.commit()
     conn.close()
@@ -50,7 +50,7 @@ def test_hc_bkup_001_profile_vault_databases_are_discovered(tmp_path):
 
     found = {p.name for p in _discover_databases(data_dir)}
 
-    assert "healthcentral.db" in found
+    assert "asclexis.db" in found
     assert "vault.db" in found, "profile vault databases must be discovered"
 
 
@@ -85,7 +85,7 @@ def test_hc_bkup_004_backup_contains_everything_needed_to_restore(tmp_path):
     }
 
     assert {
-        "healthcentral.db",
+        "asclexis.db",
         "vaults/profile-a/vault.db",
         "vaults/profile-a/key.bin",
         "vaults/profile-a/key.method",

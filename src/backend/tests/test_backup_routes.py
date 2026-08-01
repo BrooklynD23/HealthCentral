@@ -30,7 +30,7 @@ def data_dir(tmp_path, monkeypatch):
         conn.close()
         (vault / "key.bin").write_bytes(b"sealed-" + pid.encode())
         (vault / "key.method").write_text("password")
-    conn = sqlite3.connect(tmp_path / "healthcentral.db")
+    conn = sqlite3.connect(tmp_path / "asclexis.db")
     conn.execute("CREATE TABLE profiles (id TEXT)")
     # Both profiles have a master row. A profile that can sign in always does,
     # and a restore that finds none is a distinct, non-success outcome
@@ -94,7 +94,7 @@ def test_hc_bkup_035_download_carries_only_this_profile(data_dir):
     import io
     import zipfile
 
-    master = data_dir / "healthcentral.db"
+    master = data_dir / "asclexis.db"
     conn = sqlite3.connect(master)
     conn.execute("DROP TABLE IF EXISTS profiles")
     conn.execute(
@@ -126,7 +126,7 @@ def test_hc_bkup_035_download_carries_only_this_profile(data_dir):
 
     # The assertion HC-BKUP-014 could not make: open the master DB *inside* the
     # archive and confirm it names exactly one profile.
-    extracted = archive.read("healthcentral.db")
+    extracted = archive.read("asclexis.db")
     scratch = data_dir / "from_zip.db"
     scratch.write_bytes(extracted)
     conn = sqlite3.connect(scratch)
@@ -148,7 +148,7 @@ def test_hc_bkup_036_download_scopes_audit_and_schedule_tables(data_dir):
     import io
     import zipfile
 
-    master = data_dir / "healthcentral.db"
+    master = data_dir / "asclexis.db"
     conn = sqlite3.connect(master)
     conn.execute("DROP TABLE IF EXISTS profiles")
     conn.execute(
@@ -191,7 +191,7 @@ def test_hc_bkup_036_download_scopes_audit_and_schedule_tables(data_dir):
     assert response.status_code == 200
     archive = zipfile.ZipFile(io.BytesIO(response.content))
     scratch = data_dir / "from_zip_036.db"
-    scratch.write_bytes(archive.read("healthcentral.db"))
+    scratch.write_bytes(archive.read("asclexis.db"))
     conn = sqlite3.connect(scratch)
     try:
         profiles = conn.execute("SELECT id FROM profiles").fetchall()
@@ -222,7 +222,7 @@ def test_hc_bkup_042_downloaded_archive_verifies_and_restores(data_dir):
 
     from scripts import backup as backup_script
 
-    master = data_dir / "healthcentral.db"
+    master = data_dir / "asclexis.db"
     conn = sqlite3.connect(master)
     conn.execute("DROP TABLE IF EXISTS profiles")
     conn.execute(
@@ -256,7 +256,7 @@ def test_hc_bkup_042_downloaded_archive_verifies_and_restores(data_dir):
     )
 
     # And it must still be scoped: the archive leaves the device.
-    conn = sqlite3.connect(unpacked / "healthcentral.db")
+    conn = sqlite3.connect(unpacked / "asclexis.db")
     rows = conn.execute("SELECT id FROM profiles").fetchall()
     conn.close()
     assert rows == [("profile-a",)], f"leaked other profiles: {rows}"

@@ -72,7 +72,37 @@ class RestoreResult:
 # the master DB holds every profile's row, the whole audit trail and the backup
 # schedules. Restoring it wholesale from a profile-scoped backup is how one
 # profile's rollback deletes another profile (BK-01).
-MASTER_DB_NAME = "healthcentral.db"
+MASTER_DB_NAME = "asclexis.db"
+
+# Every backup taken before the rename lists the old filename in its manifest.
+# A naive constant swap makes the `if backup_master.exists()` guard below skip
+# silently, so a pre-rename backup restores a vault whose sealed keys may not
+# match the live password hash — exactly the failure BK-01 exists to prevent.
+#
+# The split is read-side vs write-side. Anything that *classifies* a filename it
+# found — on disk or in a manifest — must accept every name in MASTER_DB_NAMES.
+# Anything that *chooses* a filename to create uses MASTER_DB_NAME alone.
+LEGACY_MASTER_DB_NAMES = ("healthcentral.db",)
+MASTER_DB_NAMES = (MASTER_DB_NAME, *LEGACY_MASTER_DB_NAMES)
+
+
+def _resolve_master(directory: Path) -> Path:
+    """Find the master DB in `directory`, preferring the current name.
+
+    Read-side helper. The startup migration renames the live master before any
+    engine opens, but `scripts/backup.py` is also a standalone CLI that can run
+    against an install which has not booted since the upgrade. Looking only for
+    the new name there would find nothing, and both callers treat a missing
+    master as "skip silently" — which is how BK-01 gets back in.
+
+    Falls back to the current name so callers still have a path to test with
+    `.exists()` when neither is present.
+    """
+    for name in MASTER_DB_NAMES:
+        candidate = directory / name
+        if candidate.exists():
+            return candidate
+    return directory / MASTER_DB_NAME
 
 
 def _validate_manifest_path(base_dir: Path, relative_path: str) -> Path:
@@ -167,8 +197,10 @@ def _discover_databases(data_dir: Path) -> list[Path]:
     """
     dbs: list[Path] = []
 
-    # Master database
-    master_db = data_dir / "healthcentral.db"
+    # Master database. Read-side: accept the legacy name too, so a CLI backup
+    # of an install that has not booted since the rename still captures the
+    # master rather than silently producing a vault-only backup.
+    master_db = _resolve_master(data_dir)
     if master_db.exists():
         dbs.append(master_db)
 
@@ -287,7 +319,7 @@ def backup(
         # Vaults are directories named by profile id, so match on the parent.
         databases = [
             db for db in databases
-            if db.name == "healthcentral.db" or db.parent.name == profile_id
+            if db.name in MASTER_DB_NAMES or db.parent.name == profile_id
         ]
         key_files = [k for k in key_files if k.parent.name == profile_id]
 
@@ -316,7 +348,11 @@ def backup(
         # A profile-scoped backup keeps only this profile's master rows. An
         # unscoped one is a backup of the whole install and keeps everything.
         # Scope before checksumming so the manifest describes what is stored.
-        if profile_id and db_path.name == MASTER_DB_NAME:
+        # Membership, not equality: if discovery picked up a legacy-named
+        # master, an equality check would skip scoping and quietly store every
+        # other profile's rows — display names and password hashes — inside
+        # this profile's backup.
+        if profile_id and db_path.name in MASTER_DB_NAMES:
             _scope_master_to_profile(dest_file, profile_id)
 
         checksum = _compute_sha256(dest_file)
@@ -534,7 +570,7 @@ def restore(
     for entry in manifest.get("files", []):
         # Profile-scoped restore: hold the master DB back and merge one row
         # from it after the file copies, rather than clobbering every profile.
-        if profile_id and Path(entry["path"]).name == MASTER_DB_NAME:
+        if profile_id and Path(entry["path"]).name in MASTER_DB_NAMES:
             continue
         try:
             src_file = _validate_manifest_path(backup_path, entry["path"])
@@ -563,8 +599,11 @@ def restore(
         files_restored += 1
 
     if profile_id:
-        backup_master = backup_path / MASTER_DB_NAME
-        live_master = data_dir / MASTER_DB_NAME
+        # Both read-side. The backup may be pre-rename and the live install may
+        # not have booted since the upgrade; either mismatch would leave
+        # `.exists()` False and skip reconciliation without a word.
+        backup_master = _resolve_master(backup_path)
+        live_master = _resolve_master(data_dir)
         if backup_master.exists() and live_master.exists():
             try:
                 reapplied = _reapply_profile_row(

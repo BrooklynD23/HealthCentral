@@ -45,8 +45,8 @@ def get_sync_url() -> str:
     """
     Convert async database URL to sync URL for Alembic.
 
-    settings.database_url returns: sqlite+aiosqlite:///data/healthcentral.db
-    We need: sqlite:///data/healthcentral.db
+    settings.database_url returns: sqlite+aiosqlite:///data/asclexis.db
+    We need: sqlite:///data/asclexis.db
     """
     async_url = settings.database_url
     # Replace aiosqlite with plain sqlite driver
