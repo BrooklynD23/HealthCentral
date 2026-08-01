@@ -1,7 +1,7 @@
 """FIXED escalation / abstention templates (Phase 3).
 
 These are constants. Editing copy is a code change WITH A TEST, never a prompt
-tweak (skills/healthcentral-guardrails). The model is NEVER allowed to generate
+tweak (skills/asclexis-guardrails). The model is NEVER allowed to generate
 escalation or abstention prose — the guard node returns these verbatim.
 """
 

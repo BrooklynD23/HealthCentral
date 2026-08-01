@@ -2,7 +2,7 @@
 
 A small hand-rolled state machine — NO LangGraph dependency unless the client
 explicitly approves it (local-first footprint stays clean;
-skills/healthcentral-agent).
+skills/asclexis-agent).
 
 Shape::
 
@@ -31,7 +31,7 @@ try) — that bypasses ``act``/``reflect`` entirely for that turn.
 gate (advice -> groundedness -> confidence -> audit). A second, SHARED advice
 check also runs pre-model, at the very top of ``run_agent``, on the incoming
 question itself — bait can enter before any tool ever runs, so a single
-on-draft check is insufficient (skills/healthcentral-guardrails). Both checks
+on-draft check is insufficient (skills/asclexis-guardrails). Both checks
 call the same ``classify_advice`` so behavior can't drift between them.
 
 If no evidence is ever gathered (no verified observations, no resolvable

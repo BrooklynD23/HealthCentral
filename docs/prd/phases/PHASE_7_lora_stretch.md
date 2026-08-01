@@ -10,7 +10,7 @@
 | Release | **R3 — Measured & tuned** (stretch) |
 | Epic | **E6 — Fine-tuning (stretch)** |
 | Sprint | **S7** (S7-1…S7-3) |
-| Binding skills | `healthcentral-evals`, `healthcentral-backend` |
+| Binding skills | `asclexis-evals`, `asclexis-backend` |
 
 ## Objective
 Distill the big model's good grounded-refusal behavior into a small local LoRA adapter so

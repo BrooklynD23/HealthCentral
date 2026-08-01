@@ -2,7 +2,7 @@
 
 Every answer the agent produces is one of three first-class terminals:
 ``answer | abstain | escalate``. ``abstain`` and ``escalate`` are SUCCESSES,
-never error paths (skills/healthcentral-guardrails, healthcentral-agent).
+never error paths (skills/asclexis-guardrails, asclexis-agent).
 """
 
 from __future__ import annotations

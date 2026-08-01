@@ -1,7 +1,7 @@
 """Run state, step log, and the hard step budget (Phase 1–2).
 
 Replayability is a feature requirement, not a debug nicety: replaying ``steps``
-in order must reproduce the same terminal (skills/healthcentral-agent). The step
+in order must reproduce the same terminal (skills/asclexis-agent). The step
 budget caps tool calls at MAX_STEPS; exceeding it is a graceful ``abstain``,
 never a crash or a spin.
 """

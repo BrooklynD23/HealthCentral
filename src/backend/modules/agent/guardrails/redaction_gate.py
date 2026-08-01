@@ -4,7 +4,7 @@ Thin adapter over the EXISTING engine (modules/redaction.py:
 ``RedactionEngine(policy_level).redact(text)``). No new redaction logic. Every
 external-runner call site routes its payload through this gate first. There is
 NO bypass — not for debugging, not "just this once"
-(skills/healthcentral-guardrails). Nothing leaves the device without passing it.
+(skills/asclexis-guardrails). Nothing leaves the device without passing it.
 
 Current state of the agent's external egress (verified at S4 implementation
 time by searching ``modules/agent/`` for any external-runner/external-LLM call

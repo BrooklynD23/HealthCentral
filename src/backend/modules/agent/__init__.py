@@ -1,7 +1,7 @@
 """HealthCentral read-only plan->act->reflect agent (E1 — Agent Core).
 
 SCAFFOLD ONLY. Bodies raise NotImplementedError; feature logic lands sprint by
-sprint per docs/agile/sprints/. Governing skill: skills/healthcentral-agent.
+sprint per docs/agile/sprints/. Governing skill: skills/asclexis-agent.
 
 The one inviolable rule: the agent is READ-ONLY over clinical data. No module
 here may write an observation, interpretation, medication, or any clinical row.

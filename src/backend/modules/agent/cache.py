@@ -3,7 +3,7 @@
 Keyed on ``(normalized_question, profile_version)``. Invalidates when new
 verified data lands — a stale cached explanation of changed data is a
 correctness bug, so the cache is NEVER consulted without the profile version
-(skills/healthcentral-backend). ``profile_version`` increments on any
+(skills/asclexis-backend). ``profile_version`` increments on any
 observation verify (PRD §10 Q4): it is sourced as the COUNT of verified
 (``Observation.user_verified == True``) rows for the profile (see
 ``modules.agent.cache.profile_version_for`` / ``api/assistant.py``'s call

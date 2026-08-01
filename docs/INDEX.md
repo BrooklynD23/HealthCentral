@@ -12,7 +12,7 @@
 
 **Local-First Medical Results Companion**
 
-Links to: `docs/00_architecture_plans_index.md`, `docs/01_backend_architecture_plan.md`, `docs/05_backend_integration_status.md`, `docs/agile/AGILE_PLAN.md`, `docs/agile/GROUNDING.md`, `docs/agile/RELEASE_CHECKLIST.md`, `docs/agile/sprints/SPRINT_7.md`, `docs/api/README.md`, `docs/api/endpoints.md`, `docs/architecture/README.md`, `docs/architecture/performance-scalability-review.md`, `docs/archive/agile-sprints/SPRINT_0.md`, `docs/archive/agile-sprints/SPRINT_1.md`, `docs/archive/agile-sprints/SPRINT_2.md`, `docs/archive/agile-sprints/SPRINT_3.md`, `docs/archive/agile-sprints/SPRINT_4.md`, `docs/archive/agile-sprints/SPRINT_5.md`, `docs/archive/agile-sprints/SPRINT_6.md`, `docs/archive/agile/EXPLORATION_SUMMARY.md`, `docs/archive/agile/RECONCILIATION.md`, `docs/archive/agile/RETRO.md`, `docs/archive/agile/STANDUP.md`, `docs/archive/agile/audience_expectations_main_vs_branch.md`, `docs/archive/prd-phases/PHASE_0_foundation.md`, `docs/archive/prd-phases/PHASE_1_first_tool.md`, `docs/archive/prd-phases/PHASE_2_loop.md`, `docs/archive/prd-phases/PHASE_3_guardrails.md`, `docs/archive/prd-phases/PHASE_4_phi_gate.md`, `docs/archive/prd-phases/PHASE_5_cutover_cache.md`, `docs/archive/prd-phases/PHASE_6_evals_ci.md`, `docs/compliance/audit-checklist.md`, `docs/compliance/data-privacy.md`, `docs/compliance/disaster-recovery.md`, `docs/compliance/hipaa-controls.md`, `docs/features/TASK_LIST.md`, `docs/prd/PRD_agent_overhaul.md`, `docs/prd/phases/PHASE_7_lora_stretch.md`, `docs/roles/backend-api.md`, `docs/user/faq.md`, `docs/user/getting-started.md`, `docs/user/troubleshooting.md`, `docs/user/workflows.md`, `skills/healthcentral-agent/SKILL.md`, `skills/healthcentral-backend/SKILL.md`, `skills/healthcentral-evals/SKILL.md`, `skills/healthcentral-guardrails/SKILL.md`, `src/frontend/e2e/BROWSER_MCP_PLAYBOOK.md`, `src/frontend/e2e/ui-full-verification.spec.ts`
+Links to: `docs/00_architecture_plans_index.md`, `docs/01_backend_architecture_plan.md`, `docs/05_backend_integration_status.md`, `docs/agile/AGILE_PLAN.md`, `docs/agile/GROUNDING.md`, `docs/agile/RELEASE_CHECKLIST.md`, `docs/agile/sprints/SPRINT_7.md`, `docs/api/README.md`, `docs/api/endpoints.md`, `docs/architecture/README.md`, `docs/architecture/performance-scalability-review.md`, `docs/archive/agile-sprints/SPRINT_0.md`, `docs/archive/agile-sprints/SPRINT_1.md`, `docs/archive/agile-sprints/SPRINT_2.md`, `docs/archive/agile-sprints/SPRINT_3.md`, `docs/archive/agile-sprints/SPRINT_4.md`, `docs/archive/agile-sprints/SPRINT_5.md`, `docs/archive/agile-sprints/SPRINT_6.md`, `docs/archive/agile/EXPLORATION_SUMMARY.md`, `docs/archive/agile/RECONCILIATION.md`, `docs/archive/agile/RETRO.md`, `docs/archive/agile/STANDUP.md`, `docs/archive/agile/audience_expectations_main_vs_branch.md`, `docs/archive/prd-phases/PHASE_0_foundation.md`, `docs/archive/prd-phases/PHASE_1_first_tool.md`, `docs/archive/prd-phases/PHASE_2_loop.md`, `docs/archive/prd-phases/PHASE_3_guardrails.md`, `docs/archive/prd-phases/PHASE_4_phi_gate.md`, `docs/archive/prd-phases/PHASE_5_cutover_cache.md`, `docs/archive/prd-phases/PHASE_6_evals_ci.md`, `docs/compliance/audit-checklist.md`, `docs/compliance/data-privacy.md`, `docs/compliance/disaster-recovery.md`, `docs/compliance/hipaa-controls.md`, `docs/features/TASK_LIST.md`, `docs/prd/PRD_agent_overhaul.md`, `docs/prd/phases/PHASE_7_lora_stretch.md`, `docs/roles/backend-api.md`, `docs/user/faq.md`, `docs/user/getting-started.md`, `docs/user/troubleshooting.md`, `docs/user/workflows.md`, `skills/asclexis-agent/SKILL.md`, `skills/asclexis-backend/SKILL.md`, `skills/asclexis-evals/SKILL.md`, `skills/asclexis-guardrails/SKILL.md`, `src/frontend/e2e/BROWSER_MCP_PLAYBOOK.md`, `src/frontend/e2e/ui-full-verification.spec.ts`
 
 ## `docs/00_architecture_plans_index.md`
 
@@ -452,6 +452,14 @@ Make the safety claims provable and regression-proof: grow the golden set to 50�
 
 Links to: `docs/features/TASK_LIST.md`
 
+## `docs/brand/brand-guidelines.md`
+
+**Asclexis — Brand Guidelines**
+
+This is mostly a safety document. The largest brand risk for this product is not visual inconsistency — it is copy that implies medical advice. That is both a compliance risk and a violation of an…
+
+Links to: `docs/plans/2026-07-07-rename-audit-and-shortlist.md`
+
 ## `docs/compliance/README.md`
 
 **Compliance Documentation**
@@ -710,7 +718,7 @@ Links to: `docs/00_architecture_plans_index.md`, `docs/INDEX.md`, `docs/architec
 
 The local-first LLM provider layer (`core/llm/`), hardware-tier model selection, RAG/grounding pipeline, the hand-rolled agent state machine (`modules/agent/` — **not** LangGraph), and its…
 
-Links to: `docs/04_local_models_inference_plan.md`, `docs/archive/prd-phases`, `docs/model_tiers/README.md`, `docs/model_tiers/tier1_low.md`, `docs/model_tiers/tier2_mid.md`, `docs/model_tiers/tier3_high.md`, `docs/plans/2026-06-30-tech-upgrade-survey-9-areas.md`, `docs/prd/PRD_agent_overhaul.md`, `docs/roles/data-and-migrations.md`, `docs/roles/security-and-compliance.md`, `skills/healthcentral-agent/SKILL.md`, `skills/healthcentral-evals/SKILL.md`, `skills/healthcentral-guardrails/SKILL.md`
+Links to: `docs/04_local_models_inference_plan.md`, `docs/archive/prd-phases`, `docs/model_tiers/README.md`, `docs/model_tiers/tier1_low.md`, `docs/model_tiers/tier2_mid.md`, `docs/model_tiers/tier3_high.md`, `docs/plans/2026-06-30-tech-upgrade-survey-9-areas.md`, `docs/prd/PRD_agent_overhaul.md`, `docs/roles/data-and-migrations.md`, `docs/roles/security-and-compliance.md`, `skills/asclexis-agent/SKILL.md`, `skills/asclexis-evals/SKILL.md`, `skills/asclexis-guardrails/SKILL.md`
 
 ## `docs/roles/backend-api.md`
 
@@ -718,7 +726,7 @@ Links to: `docs/04_local_models_inference_plan.md`, `docs/archive/prd-phases`, `
 
 FastAPI application (`src/backend/`), route handlers under `src/backend/api/`, business-logic modules under `src/backend/modules/`, and per-profile SQLCipher-encrypted vault access via…
 
-Links to: `docs/01_backend_architecture_plan.md`, `docs/api/authentication.md`, `docs/api/endpoints.md`, `docs/api/error-codes.md`, `docs/api/integration-guide.md`, `docs/roles/data-and-migrations.md`, `docs/roles/security-and-compliance.md`, `skills/healthcentral-backend/SKILL.md`
+Links to: `docs/01_backend_architecture_plan.md`, `docs/api/authentication.md`, `docs/api/endpoints.md`, `docs/api/error-codes.md`, `docs/api/integration-guide.md`, `docs/roles/data-and-migrations.md`, `docs/roles/security-and-compliance.md`, `skills/asclexis-backend/SKILL.md`
 
 ## `docs/roles/data-and-migrations.md`
 

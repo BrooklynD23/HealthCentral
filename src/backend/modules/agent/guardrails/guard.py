@@ -1,6 +1,6 @@
 """The guard node (Phase 3, stories S3-1..S3-4).
 
-Runs in this ORDER (skills/healthcentral-guardrails):
+Runs in this ORDER (skills/asclexis-guardrails):
   1. Advice gate (on the draft; the question is also checked pre-model) ->
      terminal ``escalate`` with the FIXED template. Never generate the prose.
   2. Groundedness mapping -> drop unmapped sentences; zero survivors -> ``abstain``.
@@ -78,7 +78,7 @@ async def guard(
 ) -> AgentTerminal:
     """Run the four-step guard order and return a schema-validated terminal.
 
-    Order (skills/healthcentral-guardrails, guardrails/guard.py docstring):
+    Order (skills/asclexis-guardrails, guardrails/guard.py docstring):
       1. Advice gate on the DRAFT (the question itself is also checked
          pre-model by the same classifier, at the top of ``run_agent`` —
          see graph.py). Any advice-seeking sentence -> ``escalate`` with the

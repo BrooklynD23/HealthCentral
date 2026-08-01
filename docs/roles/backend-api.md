@@ -15,7 +15,7 @@ under `src/backend/modules/`, and per-profile SQLCipher-encrypted vault access v
 - [`docs/api/authentication.md`](../api/authentication.md) — auth flow
 - [`docs/api/error-codes.md`](../api/error-codes.md) — error response conventions
 - [`docs/api/integration-guide.md`](../api/integration-guide.md) — client integration guide
-- [`../../skills/healthcentral-backend/SKILL.md`](../../skills/healthcentral-backend/SKILL.md) — project skill for backend work
+- [`../../skills/asclexis-backend/SKILL.md`](../../skills/asclexis-backend/SKILL.md) — project skill for backend work
 
 ## Related roles
 

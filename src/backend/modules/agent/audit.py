@@ -1,7 +1,7 @@
 """Audit-event schema + emission hook for agent nodes (Phase 0).
 
 The audit trail IS the governance deliverable: every node emits one structured
-event. A node with no audit event is not done (skills/healthcentral-agent).
+event. A node with no audit event is not done (skills/asclexis-agent).
 
 Read GETs are NOT auto-audited by SecurityAuditMiddleware (see
 docs/agile/RECONCILIATION.md R-4), so nodes emit explicitly through this hook.

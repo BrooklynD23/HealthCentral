@@ -17,7 +17,7 @@ guardrails (groundedness, redaction gate, PHI gate).
 - [`docs/prd/PRD_agent_overhaul.md`](../prd/PRD_agent_overhaul.md) — active PRD driving the agent phases below
 - [`docs/archive/prd-phases/`](../archive/prd-phases/) — `PHASE_0_foundation.md` through `PHASE_7_lora_stretch.md` (Phase 7 is an explicit stretch goal, deferred pending sign-off)
 - [`docs/plans/2026-06-30-tech-upgrade-survey-9-areas.md`](../plans/2026-06-30-tech-upgrade-survey-9-areas.md) — open-source tech survey (faithfulness/NLI, retrieval, redaction, OCR, agent orchestration)
-- [`../../skills/healthcentral-agent/SKILL.md`](../../skills/healthcentral-agent/SKILL.md), [`../../skills/healthcentral-guardrails/SKILL.md`](../../skills/healthcentral-guardrails/SKILL.md), [`../../skills/healthcentral-evals/SKILL.md`](../../skills/healthcentral-evals/SKILL.md) — project skills for this domain
+- [`../../skills/asclexis-agent/SKILL.md`](../../skills/asclexis-agent/SKILL.md), [`../../skills/asclexis-guardrails/SKILL.md`](../../skills/asclexis-guardrails/SKILL.md), [`../../skills/asclexis-evals/SKILL.md`](../../skills/asclexis-evals/SKILL.md) — project skills for this domain
 
 ## Related roles
 

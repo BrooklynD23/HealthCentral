@@ -61,12 +61,12 @@ the next sprint's scope still matches what you learned.
 
 Each maps to one of the six layers from the build thesis and to one backing Skill.
 
-- **E1 — Agent Core** (`healthcentral-agent`): the graph runner, typed tool
+- **E1 — Agent Core** (`asclexis-agent`): the graph runner, typed tool
   registry, read-only rule, step budget, audit hooks.
-- **E2 — Guardrails** (`healthcentral-guardrails`): advice classifier, abstention
+- **E2 — Guardrails** (`asclexis-guardrails`): advice classifier, abstention
   templates, groundedness mapping, PHI redaction gate.
-- **E3 — Evals** (`healthcentral-evals`): golden set, 4 scoring axes, CI workflow.
-- **E4 — LLMOps** (`healthcentral-backend` + agent): semantic cache, tier routing,
+- **E3 — Evals** (`asclexis-evals`): golden set, 4 scoring axes, CI workflow.
+- **E4 — LLMOps** (`asclexis-backend` + agent): semantic cache, tier routing,
   per-node timing/token tracking.
 - **E5 — Cutover & Fallback**: flip `/assistant/` to the agent, keep old path one release.
 - **E6 — Fine-tuning (stretch)**: LoRA distillation of grounded refusals into the local model.

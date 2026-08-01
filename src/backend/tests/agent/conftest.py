@@ -2,7 +2,7 @@
 
 Golden cases are checked-in JSON (docs/agile/EXPLORATION_SUMMARY.md, decided),
 loaded from ``tests/agent/golden/``. Each case is a triple: question + synthetic
-vault state + expected behavior (skills/healthcentral-evals).
+vault state + expected behavior (skills/asclexis-evals).
 
 The ``agent_profile_db`` / ``make_run_context`` fixtures below mirror the
 in-memory-SQLite pattern used elsewhere in the backend test suite for
