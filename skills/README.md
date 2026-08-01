@@ -1,6 +1,6 @@
-# `skills/` — HealthCentral Project Skills
+# `skills/` — Asclexis Project Skills
 
-These are project-domain skills specific to HealthCentral (backend conventions, guardrails, evals,
+These are project-domain skills specific to Asclexis (backend conventions, guardrails, evals,
 agent behavior) — see each subdirectory's `SKILL.md`. They are referenced from
 [`docs/roles/`](../docs/roles/00_roles_index.md), particularly
 [`ai-llm-pipeline-and-safety.md`](../docs/roles/ai-llm-pipeline-and-safety.md) and

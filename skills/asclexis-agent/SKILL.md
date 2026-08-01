@@ -1,5 +1,5 @@
 ---
-name: healthcentral-agent
+name: asclexis-agent
 description: Conventions for building and editing the HealthCentral agent in the fix/agent-overhaul branch. Use whenever creating or modifying anything under src/backend/modules/agent/ — the graph runner, nodes (plan/act/reflect/draft), the tool registry, the read-only tools over the profile vault, the step budget, or audit hooks. Triggers include any work mentioning "agent loop", "plan act reflect", "tool registry", "agent node", "step budget", or wiring the agent into the /assistant/ route.
 ---
 
@@ -27,7 +27,7 @@ unless the client explicitly approves it (local-first footprint stays clean).
 - **act**: execute exactly one tool call; never batch.
 - **reflect**: "do I have grounding for an answer yet?" → loop or proceed.
 - **draft**: compose answer; every sentence must carry a source handle.
-- **guard**: owned by `healthcentral-guardrails`; the agent calls it, never inlines it.
+- **guard**: owned by `asclexis-guardrails`; the agent calls it, never inlines it.
 - **terminal**: `answer | abstain | escalate` — all three are first-class successes.
 
 ## Tool registry
@@ -67,4 +67,4 @@ audit-emission assertion passes; flag-off regression passes; run log replays.
 
 Write clinical data · batch tool calls · skip the typed output schema · inline the
 guard logic · let the loop exceed budget · ship a node without an audit event ·
-call an external LLM without the redaction gate (see `healthcentral-guardrails`).
+call an external LLM without the redaction gate (see `asclexis-guardrails`).
