@@ -227,7 +227,7 @@ def cmd_cleanup(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Model manager for HealthCentral tiered model system"
+        description="Model manager for Asclexis tiered model system"
     )
     parser.add_argument(
         "--models-path",

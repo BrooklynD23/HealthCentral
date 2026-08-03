@@ -1,5 +1,5 @@
 /**
- * API Client for HealthCentral Backend
+ * API Client for Asclexis Backend
  *
  * Base configuration and fetch wrapper for all API calls.
  * Sprint 1: Added Authorization header support.

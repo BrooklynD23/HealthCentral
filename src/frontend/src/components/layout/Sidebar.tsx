@@ -46,7 +46,7 @@ export function Sidebar() {
           </div>
           <div>
             <h1 className="font-display text-lg font-semibold text-ink tracking-tight">
-              HealthCentral
+              Asclexis
             </h1>
             <p className="text-xs text-ink-secondary">Your health companion</p>
           </div>

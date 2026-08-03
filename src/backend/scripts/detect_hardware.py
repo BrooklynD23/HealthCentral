@@ -51,7 +51,7 @@ def main():
 
     # Human-readable output
     print("\n" + "=" * 60)
-    print("  HealthCentral Hardware Detection")
+    print("  Asclexis Hardware Detection")
     print("=" * 60)
 
     print("\n[System Information]")

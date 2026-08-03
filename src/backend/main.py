@@ -1,5 +1,5 @@
 """
-HealthCentral Backend - Main Application Entry Point
+Asclexis Backend - Main Application Entry Point
 
 Local-first medical results companion API server.
 Designed for localhost operation with future scalability to web deployment.
@@ -87,7 +87,7 @@ def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     
     app = FastAPI(
-        title="HealthCentral API",
+        title="Asclexis API",
         description="Local-first medical results companion - API backend",
         version="0.1.0",
         docs_url="/docs" if settings.debug else None,

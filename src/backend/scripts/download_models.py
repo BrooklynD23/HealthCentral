@@ -182,7 +182,7 @@ def cmd_ollama(tag: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Download GGUF models for HealthCentral",
+        description="Download GGUF models for Asclexis",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )

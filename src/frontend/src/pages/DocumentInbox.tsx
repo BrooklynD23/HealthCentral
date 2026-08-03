@@ -227,7 +227,7 @@ export function DocumentInbox() {
                     ? 'For privacy, invalid sessions are cleared. Sign in again to continue.'
                     : error instanceof ApiError && error.status === 403
                       ? 'Unlock your profile or adjust access in Settings.'
-                      : 'Check that the HealthCentral server is running and try again.'}
+                      : 'Check that the Asclexis server is running and try again.'}
                 </p>
               </div>
             </div>

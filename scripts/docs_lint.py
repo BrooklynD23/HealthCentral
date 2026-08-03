@@ -545,7 +545,7 @@ def lint_docs(repo_root: Path) -> list[str]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Lint HealthCentral docs for drift")
+    parser = argparse.ArgumentParser(description="Lint Asclexis docs for drift")
     parser.add_argument(
         "--repo-root",
         default=str(Path(__file__).resolve().parent.parent),

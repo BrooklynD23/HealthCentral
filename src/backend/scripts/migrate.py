@@ -133,7 +133,7 @@ def cmd_status(args: argparse.Namespace) -> int:
 def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description="HealthCentral database migration tool",
+        description="Asclexis database migration tool",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )

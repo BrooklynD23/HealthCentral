@@ -51,7 +51,7 @@ The following are in scope for security reports:
 
 ## Security Architecture
 
-HealthCentral is designed with security as a core principle:
+Asclexis is designed with security as a core principle:
 
 ### Data Protection
 

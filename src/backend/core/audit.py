@@ -203,7 +203,7 @@ async def create_audit_log(
     entity_type: Optional[str] = None,
     entity_id: Optional[str] = None,
     details: Optional[dict[str, Any]] = None,
-    client_info: str = "HealthCentral v0.1.0",
+    client_info: str = "Asclexis v0.1.0",
 ) -> "AuditLog":
     """
     Create an audit log entry.

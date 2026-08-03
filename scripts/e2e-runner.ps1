@@ -10,7 +10,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "HealthCentral E2E Test Runner" -ForegroundColor Cyan
+Write-Host "Asclexis E2E Test Runner" -ForegroundColor Cyan
 Write-Host "=============================" -ForegroundColor Cyan
 
 # Navigate to frontend directory

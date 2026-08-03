@@ -1,4 +1,4 @@
-# HealthCentral
+# Asclexis
 
 **Local-First Medical Results Companion**
 
@@ -6,7 +6,7 @@ A privacy-first desktop application for patients to import medical documents, ex
 
 ## Overview
 
-HealthCentral helps patients:
+Asclexis helps patients:
 - **Import** lab PDFs, medical documents, and CSV/FHIR R4 exports from other systems into a secure local vault
 - **Extract & Verify** structured data with human-in-the-loop verification — structured (CSV/FHIR) imports always land unverified, and medication mentions become reconciliation suggestions, never direct tracker mutations
 - **Visualize** longitudinal trends with reference range context
@@ -242,7 +242,7 @@ classification locally, run `python3 scripts/docs_lint.py` (add `--link-graph` t
 
 ## SQLCipher Setup (Required for Database Encryption)
 
-HealthCentral uses SQLCipher for encrypted per-profile databases. Each user profile has its own AES-256 encrypted SQLite database.
+Asclexis uses SQLCipher for encrypted per-profile databases. Each user profile has its own AES-256 encrypted SQLite database.
 
 ### Installation
 
@@ -281,7 +281,7 @@ DATABASE_ENCRYPTION_REQUIRED=false
 
 ## Database Migrations
 
-HealthCentral uses **Alembic** for database schema migrations with a dual-environment setup:
+Asclexis uses **Alembic** for database schema migrations with a dual-environment setup:
 
 - **Master database**: Profiles, audit logs, knowledge base (unencrypted)
 - **Profile databases**: Per-user SQLCipher encrypted vaults
@@ -433,8 +433,8 @@ git clone https://github.com/your-org/HealthCentral.git
 cd HealthCentral
 
 # Backend setup (Linux/WSL)
-python3 -m venv ~/venvs/healthcentral-backend
-source ~/venvs/healthcentral-backend/bin/activate
+python3 -m venv ~/venvs/asclexis-backend
+source ~/venvs/asclexis-backend/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r src/backend/requirements.txt
 
@@ -518,7 +518,7 @@ scaffolds and golden fixtures under `src/backend/tests/agent/`.
 
 ## API Overview
 
-HealthCentral exposes a REST API via FastAPI at `http://localhost:8000/api/v1`. Interactive docs are available at `http://localhost:8000/docs`.
+Asclexis exposes a REST API via FastAPI at `http://localhost:8000/api/v1`. Interactive docs are available at `http://localhost:8000/docs`.
 
 | Group | Endpoints | Description |
 |-------|-----------|-------------|

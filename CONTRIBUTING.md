@@ -1,6 +1,6 @@
-# Contributing to HealthCentral
+# Contributing to Asclexis
 
-Thank you for your interest in contributing to HealthCentral! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to Asclexis! This document provides guidelines and instructions for contributing.
 
 ## Code of Conduct
 
@@ -223,7 +223,7 @@ HealthCentral/
 
 ## Security Considerations
 
-HealthCentral handles sensitive health data. Please:
+Asclexis handles sensitive health data. Please:
 
 - Never log sensitive data (passwords, health information)
 - Use parameterized queries (SQLAlchemy ORM)

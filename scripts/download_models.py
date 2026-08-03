@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src" / "backend"))
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Download LLM models for HealthCentral",
+        description="Download LLM models for Asclexis",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Model Tiers:

@@ -1,5 +1,5 @@
 /**
- * HealthCentral Frontend Application
+ * Asclexis Frontend Application
  *
  * Local-first medical results companion UI.
  * Designed for accessibility (WCAG 2.2 AA).

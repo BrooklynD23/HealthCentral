@@ -184,7 +184,7 @@ delete the directory.
 
 If recovery fails:
 1. Check `.bak` files created during restore — these are your pre-restore safety copies
-2. Check application logs in `logs/healthcentral.log`
+2. Check application logs in `logs/asclexis.log`
 3. Verify SQLite file integrity: `sqlite3 <file> "PRAGMA integrity_check;"`
 4. If databases are encrypted (SQLCipher), ensure the encryption key is available
 5. Contact the development team with the error output and manifest.json contents

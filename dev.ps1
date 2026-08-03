@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    HealthCentral Development Server Startup Script
+    Asclexis Development Server Startup Script
 .DESCRIPTION
     One-click launcher that checks for dependencies, installs anything missing,
     handles common Windows pitfalls (SQLCipher, corrupted node_modules, port
@@ -309,10 +309,10 @@ function Test-TesseractOnPath {
 # ---------------------------------------------------------------------------
 # Banner
 # ---------------------------------------------------------------------------
-$host.UI.RawUI.WindowTitle = "HealthCentral"
+$host.UI.RawUI.WindowTitle = "Asclexis"
 Write-Host ""
 Write-Host "  =============================================" -ForegroundColor Magenta
-Write-Host "    HealthCentral  -  Development Server" -ForegroundColor Magenta
+Write-Host "    Asclexis  -  Development Server" -ForegroundColor Magenta
 Write-Host "  =============================================" -ForegroundColor Magenta
 Write-Host ""
 
@@ -701,7 +701,7 @@ Write-Host ""
 #  STEP 8  -  Launch servers
 # ===================================================================
 Write-Host "  =============================================" -ForegroundColor Green
-Write-Host "    Starting HealthCentral ..." -ForegroundColor Green
+Write-Host "    Starting Asclexis ..." -ForegroundColor Green
 Write-Host "  =============================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "    Backend API:  http://localhost:$resolvedBackendPort" -ForegroundColor Cyan
@@ -784,7 +784,7 @@ if (-not $opened) {
 # ===================================================================
 Write-Host ""
 Write-Host "  =============================================" -ForegroundColor Green
-Write-Host "    HealthCentral is running!" -ForegroundColor Green
+Write-Host "    Asclexis is running!" -ForegroundColor Green
 Write-Host "  =============================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "    Press Ctrl+C or close this window to stop." -ForegroundColor Gray

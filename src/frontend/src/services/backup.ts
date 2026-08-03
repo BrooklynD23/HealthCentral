@@ -19,7 +19,7 @@ export const BACKUP_RESTORE_CONFIRMATION = 'RESTORE MY DATA';
  *
  * Clearing auth bounces the user out of the app immediately, so the reason has
  * to outlive this page — otherwise someone who just restored on purpose lands
- * on "Welcome to HealthCentral" and reasonably concludes they lost everything.
+ * on "Welcome to Asclexis" and reasonably concludes they lost everything.
  * sessionStorage, not the auth store, precisely because the store is what gets
  * cleared.
  */

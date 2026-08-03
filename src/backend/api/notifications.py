@@ -119,7 +119,7 @@ class NotificationHistoryResponse(BaseModel):
 class TestNotificationRequest(BaseModel):
     """Request to send a test notification."""
     title: Optional[str] = "Test Notification"
-    body: Optional[str] = "This is a test notification from HealthCentral."
+    body: Optional[str] = "This is a test notification from Asclexis."
 
 
 class TestNotificationResponse(BaseModel):
@@ -399,7 +399,7 @@ async def send_test_notification(
     payload = NotificationPayload(
         id=str(uuid.uuid4()),
         title=request.title or "Test Notification",
-        body=request.body or "This is a test notification from HealthCentral.",
+        body=request.body or "This is a test notification from Asclexis.",
         medication_id="test",
     )
 

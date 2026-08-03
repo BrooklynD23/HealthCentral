@@ -42,9 +42,9 @@ class Settings(BaseSettings):
     # PostgreSQL (future server mode)
     postgres_host: str = "localhost"
     postgres_port: int = 5432
-    postgres_user: str = "healthcentral"
+    postgres_user: str = "asclexis"
     postgres_password: str = ""
-    postgres_database: str = "healthcentral"
+    postgres_database: str = "asclexis"
     
     # Security
     auto_lock_timeout_minutes: int = 15
@@ -122,7 +122,7 @@ class Settings(BaseSettings):
     
     # Logging
     log_level: str = "INFO"
-    log_file_path: str = "logs/healthcentral.log"
+    log_file_path: str = "logs/asclexis.log"
     audit_log_enabled: bool = True
 
     # Memory store (ASSIST-MEM-001)

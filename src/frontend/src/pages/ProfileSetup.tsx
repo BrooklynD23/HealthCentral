@@ -83,7 +83,7 @@ export function ProfileSetup() {
   // SEC-RECOV-001: shown once, between creation and entering the app.
   const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
   // FE-02: a restore ends the session deliberately. Without this the user
-  // lands on "Welcome to HealthCentral" and reads it as having lost the data
+  // lands on "Welcome to Asclexis" and reads it as having lost the data
   // they just restored. Read once, on first render.
   const [restoreNotice] = useState<string | null>(() => takeRestoreNotice());
 
@@ -152,7 +152,7 @@ export function ProfileSetup() {
         raw.toLowerCase().includes('timeout');
       setError(
         timedOut
-          ? 'Request timed out while creating your profile. Confirm the API is running and .env.local VITE_API_URL matches its port (see backend terminal or logs/healthcentral.log).'
+          ? 'Request timed out while creating your profile. Confirm the API is running and .env.local VITE_API_URL matches its port (see backend terminal or logs/asclexis.log).'
           : raw || 'Failed to create profile'
       );
       setIsCreating(false);
@@ -220,7 +220,7 @@ export function ProfileSetup() {
             <Heart className="w-8 h-8 text-white" strokeWidth={2} />
           </div>
           <h1 className="font-display text-3xl font-semibold text-ink tracking-tight mb-3">
-            Welcome to HealthCentral
+            Welcome to Asclexis
           </h1>
           <p className="text-ink-secondary text-lg">
             Your personal medical results companion.
