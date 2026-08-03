@@ -16,8 +16,37 @@ Local-first, privacy-first desktop app: patients import lab PDFs/medical documen
   - `migrations/master/` + `migrations/profile/` — separate Alembic chains (see `docs/plans/implementation-log/2026-02-04_alembic-dual-migrations.md`)
 - **Frontend** `src/frontend/` — React + Vite + TS, Tailwind, React Query, Zustand.
   - `src/pages/` (TrendsDashboard, ExplainAssistant, VerificationWorkbench, SettingsPage…), `src/services/` (API client + hooks; export everything through `services/index.ts` barrel), `e2e/` Playwright
-- **Docs** `docs/` — start at [`docs/00_architecture_plans_index.md`](docs/00_architecture_plans_index.md) (canonical order) or [`docs/roles/00_roles_index.md`](docs/roles/00_roles_index.md) (domain-based "which doc for X"); `docs/plans/` (active + historical plans/decisions log, incl. `implementation-log/` for point-in-time notes). `.claude/skills/` has vendored process skills (TDD, debugging, planning — see `.claude/skills/README.md`); `skills/` (no dot) is Asclexis's own project-domain skills (`asclexis-agent`, `asclexis-backend`, `asclexis-evals`, `asclexis-guardrails`) — see `skills/README.md` to avoid confusing the two.
+- **Docs** `docs/` — start at [`docs/00_architecture_plans_index.md`](docs/00_architecture_plans_index.md) (canonical order) or [`docs/roles/00_roles_index.md`](docs/roles/00_roles_index.md) (domain-based "which doc for X"); `docs/plans/` (active + historical plans/decisions log, incl. `implementation-log/` for point-in-time notes). Skills live in `.claude/skills/` and `skills/` — see [Skills](#skills) below.
 - **Generated repo map** [`openwiki/`](openwiki/README.md) — OpenWiki-generated navigation for coding agents (where code lives, how files connect). Advisory only: it never overrides CLAUDE.md, this file, or `docs/`. See `openwiki/README.md` for regeneration commands and review rules.
+
+## Skills
+
+Two directories, different purposes. `.claude/skills/` holds vendored **process**
+skills; `skills/` (no dot) holds this project's **domain** skills. Invoke by name.
+
+| Skill | Reach for it when |
+|---|---|
+| `test-driven-development` | Implementing any feature or bugfix, before writing implementation code |
+| `systematic-debugging` | Encountering any bug, test failure, or unexpected behavior, before proposing fixes |
+| `writing-plans` | You have a spec or requirements for a multi-step task, before touching code |
+| `executing-plans` | You have a written implementation plan to execute in a separate session with review checkpoints |
+| `subagent-driven-development` | Executing an implementation plan whose tasks are independent, in the current session |
+| `brainstorming` | Before any creative work — creating features, building components, adding functionality, or modifying behavior |
+| `verification-before-completion` | About to claim work is complete, fixed, or passing, before committing or creating PRs — evidence before assertions |
+| `requesting-code-review` | Completing a task or major feature, or before merging, to verify the work meets requirements |
+| `receiving-code-review` | Receiving review feedback, before implementing suggestions — especially if it seems unclear or technically questionable |
+| `dispatching-parallel-agents` | Facing 2+ independent tasks with no shared state or sequential dependencies |
+| `using-git-worktrees` | Starting feature work that needs isolation from the current workspace, or before executing a plan |
+| `finishing-a-development-branch` | Implementation is complete and tests pass, and you need to decide how to integrate the work |
+| `writing-skills` | Creating a new skill, editing an existing one, or verifying a skill works before deployment |
+| `using-superpowers` | Starting any conversation — establishes how to find and use skills before any other response |
+| `asclexis-backend` | Backend routes, feature modules under `src/backend/modules/`, SQLAlchemy models, Pydantic schemas, the SQLCipher per-profile vault, the dual Alembic chains, security/monitoring middleware, LLMOps (semantic cache, model tiers, llama.cpp serving, timing/token tracking), or the proof bundle |
+| `asclexis-agent` | Anything under `src/backend/modules/agent/` — the graph runner, plan/act/reflect/draft nodes, the tool registry, read-only tools over the profile vault, the step budget, audit hooks, or wiring the agent into the `/assistant/` route |
+| `asclexis-guardrails` | The guard node, advice classifier, abstention/escalation templates, groundedness and claim-to-source mapping, confidence thresholds, or the PHI redaction gate before any opt-in external LLM call |
+| `asclexis-evals` | Golden eval cases, synthetic vault states, the four scoring axes (groundedness, citation accuracy, abstention correctness, advice leakage), or the CI workflow that gates PRs on agent behavior |
+
+Full descriptions: [`.claude/skills/README.md`](.claude/skills/README.md) and
+[`skills/README.md`](skills/README.md).
 
 ## Commands (Windows is the native dev environment)
 

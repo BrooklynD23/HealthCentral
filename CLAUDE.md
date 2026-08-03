@@ -40,6 +40,17 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
 
 Generated repo-navigation docs live in `openwiki/`. Use them to locate code, trace dependencies, and identify likely files for a task. Do not treat OpenWiki as authority over safety, privacy, medical, compliance, architecture decisions, or backlog state. If OpenWiki conflicts with `CLAUDE.md`, `AGENT.md`, `docs/00_architecture_plans_index.md`, or `docs/roles/00_roles_index.md`, the hand-maintained docs win.
 
+## Skills
+
+This repo ships 18 skills — process skills in `.claude/skills/`, project-domain
+skills in `skills/`. The routing table is in [AGENT.md](AGENT.md#skills).
+
+- Check for a covering skill **before** improvising a workflow. A skill exists
+  because someone already worked out the right approach and wrote it down.
+- `test-driven-development` and `systematic-debugging` apply to essentially all
+  feature and bug work in this repo. Reach for them by default, not as a
+  ceremony when a task feels large.
+
 ## Commit style
 
 `fix(scope):` / `feat(scope):` / `docs:` prefixes; small, single-purpose commits on a feature branch.
