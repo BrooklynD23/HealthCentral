@@ -75,4 +75,16 @@ Known env-only failure: 1 RAG embedding-similarity test needs a real embedding m
 
 ## Definition of done
 
-Tests written/updated and passing, no new backend failures, `tsc --noEmit` clean, app boots, hard invariants in CLAUDE.md respected, non-trivial work logged in `docs/features/TASK_LIST.md`'s Session Notes (or a new dated file under `docs/plans/` for a substantial standalone plan).
+A task is done when all of the following are true **and you have seen the output
+that proves each one**:
+
+- Tests written or updated, and the new ones observed failing before the fix.
+- `cd src/backend && python -m pytest tests/ -p no:cacheprovider -q` shows no new
+  failures against the baseline above.
+- `cd src/frontend && npx tsc --noEmit` is clean and `npx vitest run` passes.
+- The app boots: `cd src/backend && python -c "from main import app"`.
+- Every hard invariant in [CLAUDE.md](CLAUDE.md) still holds.
+- Non-trivial work logged in `docs/features/TASK_LIST.md` Session Notes, or a
+  dated file under `docs/plans/` for a substantial standalone plan.
+
+"I believe these pass" is not done. Run them.

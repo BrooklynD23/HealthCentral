@@ -6,13 +6,17 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
 
 - If a request has multiple interpretations, state your assumption and ask before writing code.
 - ALWAYS ask before touching: `modules/interpret_safety.py`, `modules/redaction.py`, `modules/faithfulness.py`, `modules/verifier_agent.py`, anything auth/encryption. These are medical-safety and privacy guarantees, not ordinary code.
+- For read-only investigation across unfamiliar areas, prefer one broad
+  exploration pass over many narrow sequential greps; dispatch independent
+  searches in parallel when they share no state. Then verify what matters
+  yourself — an agent's report is a lead, not a finding.
 - This is a health app for real patients. When in doubt between a clever fix and a conservative one, pick conservative and say why.
 
 ## 2. Enforce simplicity
 
 - If 200 lines could be 50, rewrite. No speculative flexibility, no abstractions for single-use code, no features nobody asked for.
 - The provider abstraction already exists (`core/llm/`). Do not add new layers on top of it — add providers inside it.
-- Prefer extending an existing module over creating a new one. The `modules/` directory is already large; check for prior art (`grep` first).
+- Prefer extending an existing module over creating a new one. The `modules/` directory is already large, and there is usually prior art.
 
 ## 3. Surgical edits only
 
@@ -24,7 +28,19 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
 
 - Write or extend a test first, then make it pass. Tests live in `src/backend/tests/` (pytest, `HC-XXX-NNN` naming) and `src/frontend` (vitest + Playwright e2e).
 - Baseline: **1244 backend tests pass**; 1 known env-only failure (`test_api_rag_index_002b`, embedding similarity — needs a real embedding model). Do not "fix" it by lowering the 0.7 threshold. If your measured count differs from this line, the line is stale — update it in the same commit rather than working around it.
-- A task is done when: relevant tests pass, `python -m pytest tests/ -q` shows no new failures, `npx tsc --noEmit` is clean, and the app boots (`from main import app`).
+- **Run verification; never assert it.** Report the command and its actual
+  output. "Tests pass" without the output is not a result. If a check was
+  skipped, say which and why.
+- **A green suite is evidence, not proof.** On this branch 1244 passing backend
+  tests coexisted with a restore endpoint that returned 400 for every request
+  and a backup download that shipped every profile's password hash. The route
+  tests called handlers as plain functions, so FastAPI's dependency graph never
+  ran; the isolation test asserted on filenames, so it could not see data
+  leaking inside a file. Ask what your test would fail to notice.
+- **Route tests go through HTTP.** A test that calls a route function directly
+  cannot see a broken `Depends(...)`. Use `tests/support/routes.py::route_client`
+  for anything asserting auth, path scoping, or status codes.
+- Done is defined once, in [AGENT.md](AGENT.md#definition-of-done). It requires seeing the output, not believing it.
 
 ## Hard invariants (violations = broken build or broken trust)
 
