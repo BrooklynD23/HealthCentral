@@ -95,7 +95,10 @@ FRONTEND_README = "src/frontend/README.md"
 FRONTEND_PACKAGE_JSON = "src/frontend/package.json"
 
 # DOC-007: extra markdown roots (beyond docs/) whose links are checked.
-EXTRA_LINK_ROOTS = ["README.md", FRONTEND_README]
+# AGENT.md and CLAUDE.md are here because agents follow their links first and
+# have no way to notice a dead one; they were unchecked until the skills routing
+# table added links to both README files.
+EXTRA_LINK_ROOTS = ["README.md", FRONTEND_README, "AGENT.md", "CLAUDE.md"]
 
 
 def _read_text(repo_root: Path, relative_path: str) -> str:

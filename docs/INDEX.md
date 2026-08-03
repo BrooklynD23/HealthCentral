@@ -6,6 +6,22 @@
 > For reverse links ("what links here?"), see `docs/_link_graph.json`
 > (`python3 scripts/docs_lint.py --link-graph`).
 
+## `AGENT.md`
+
+**AGENT.md — Asclexis**
+
+Onboarding for any AI agent or new contributor. Behavioral rules are in CLAUDE.md. Treat this file like a new-hire briefing: what the project is, where things live, how to verify your work.
+
+Links to: `.claude/skills/README.md`, `CLAUDE.md`, `docs/00_architecture_plans_index.md`, `docs/roles/00_roles_index.md`, `openwiki/README.md`, `skills/README.md`
+
+## `CLAUDE.md`
+
+**CLAUDE.md — Asclexis**
+
+Behavioral rules for AI agents working in this repo. Repo facts, commands, and architecture live in AGENT.md — read it first.
+
+Links to: `AGENT.md`
+
 ## `README.md`
 
 **Asclexis**
@@ -64,7 +80,7 @@ This board is a repo-aligned, test-first execution plan. It is meant to be used 
 
 **Documentation Index**
 
-**Asclexis**
+**AGENT.md — Asclexis**
 
 ## `docs/Local_First_Medical_Results_Companion_PRD_v0_1.md`
 

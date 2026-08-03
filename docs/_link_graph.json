@@ -1,18 +1,23 @@
 {
   "linked_from": {
+    ".claude/skills/README.md": [
+      "AGENT.md"
+    ],
     ".github/workflows/ci.yml": [
       "docs/roles/devops-and-ci.md"
     ],
     "AGENT.md": [
       "docs/agentic/harness.md",
       "docs/architecture/README.md",
-      "docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md"
+      "docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md",
+      "CLAUDE.md"
     ],
     "CLAUDE.md": [
       "docs/agentic/harness.md",
       "docs/architecture/README.md",
       "docs/compliance/ai-safety.md",
-      "docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md"
+      "docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md",
+      "AGENT.md"
     ],
     "CONTRIBUTING.md": [
       "docs/roles/devops-and-ci.md"
@@ -25,7 +30,8 @@
       "docs/archive/plans/2026-07-02-consolidated-findings-report.md",
       "docs/features/00_features_index.md",
       "docs/roles/00_roles_index.md",
-      "README.md"
+      "README.md",
+      "AGENT.md"
     ],
     "docs/01_backend_architecture_plan.md": [
       "docs/roles/backend-api.md",
@@ -408,7 +414,8 @@
       "README.md"
     ],
     "docs/roles/00_roles_index.md": [
-      "docs/00_architecture_plans_index.md"
+      "docs/00_architecture_plans_index.md",
+      "AGENT.md"
     ],
     "docs/roles/ai-llm-pipeline-and-safety.md": [
       "docs/roles/00_roles_index.md",
@@ -477,10 +484,14 @@
       "docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md"
     ],
     "openwiki/README.md": [
-      "docs/00_architecture_plans_index.md"
+      "docs/00_architecture_plans_index.md",
+      "AGENT.md"
     ],
     "scripts/docs_lint.py": [
       "docs/roles/devops-and-ci.md"
+    ],
+    "skills/README.md": [
+      "AGENT.md"
     ],
     "skills/asclexis-agent/SKILL.md": [
       "docs/roles/ai-llm-pipeline-and-safety.md",
@@ -562,6 +573,17 @@
     ]
   },
   "links_to": {
+    "AGENT.md": [
+      "CLAUDE.md",
+      "docs/00_architecture_plans_index.md",
+      "docs/roles/00_roles_index.md",
+      "openwiki/README.md",
+      ".claude/skills/README.md",
+      "skills/README.md"
+    ],
+    "CLAUDE.md": [
+      "AGENT.md"
+    ],
     "README.md": [
       "docs/architecture/README.md",
       "docs/architecture/performance-scalability-review.md",
