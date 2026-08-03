@@ -1,4 +1,4 @@
-# CLAUDE.md — HealthCentral
+# CLAUDE.md — Asclexis
 
 Behavioral rules for AI agents working in this repo. Repo facts, commands, and architecture live in [AGENT.md](AGENT.md) — read it first.
 
@@ -23,7 +23,7 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
 ## 4. Loop toward verifiable success criteria
 
 - Write or extend a test first, then make it pass. Tests live in `src/backend/tests/` (pytest, `HC-XXX-NNN` naming) and `src/frontend` (vitest + Playwright e2e).
-- Baseline: ~620 backend tests pass; 1 known env-only failure (embedding similarity — needs a real embedding model). Do not "fix" it by lowering the 0.7 threshold.
+- Baseline: **1244 backend tests pass**; 1 known env-only failure (`test_api_rag_index_002b`, embedding similarity — needs a real embedding model). Do not "fix" it by lowering the 0.7 threshold. If your measured count differs from this line, the line is stale — update it in the same commit rather than working around it.
 - A task is done when: relevant tests pass, `python -m pytest tests/ -q` shows no new failures, `npx tsc --noEmit` is clean, and the app boots (`from main import app`).
 
 ## Hard invariants (violations = broken build or broken trust)
