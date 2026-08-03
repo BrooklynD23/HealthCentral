@@ -8,7 +8,7 @@
 
 ## `README.md`
 
-**HealthCentral**
+**Asclexis**
 
 **Local-First Medical Results Companion**
 
@@ -64,7 +64,7 @@ This board is a repo-aligned, test-first execution plan. It is meant to be used 
 
 **Documentation Index**
 
-**HealthCentral**
+**Asclexis**
 
 ## `docs/Local_First_Medical_Results_Companion_PRD_v0_1.md`
 
