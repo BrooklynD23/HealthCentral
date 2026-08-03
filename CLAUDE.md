@@ -31,8 +31,8 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
 - **Run verification; never assert it.** Report the command and its actual
   output. "Tests pass" without the output is not a result. If a check was
   skipped, say which and why.
-- **A green suite is evidence, not proof.** On this branch 1244 passing backend
-  tests coexisted with a restore endpoint that returned 400 for every request
+- **A green suite is evidence, not proof.** On this branch a green backend suite
+  coexisted with a restore endpoint that returned 400 for every request
   and a backup download that shipped every profile's password hash. The route
   tests called handlers as plain functions, so FastAPI's dependency graph never
   ran; the isolation test asserted on filenames, so it could not see data

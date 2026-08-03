@@ -45,7 +45,9 @@ skills; `skills/` (no dot) holds this project's **domain** skills. Invoke by nam
 | `asclexis-guardrails` | The guard node, advice classifier, abstention/escalation templates, groundedness and claim-to-source mapping, confidence thresholds, or the PHI redaction gate before any opt-in external LLM call |
 | `asclexis-evals` | Golden eval cases, synthetic vault states, the four scoring axes (groundedness, citation accuracy, abstention correctness, advice leakage), or the CI workflow that gates PRs on agent behavior |
 
-Full descriptions: [`.claude/skills/README.md`](.claude/skills/README.md) and
+Each skill's full description is the `description:` front matter in its own
+`SKILL.md`. For where the two directories come from and why they are separate,
+see [`.claude/skills/README.md`](.claude/skills/README.md) and
 [`skills/README.md`](skills/README.md).
 
 ## Commands (Windows is the native dev environment)
@@ -56,7 +58,7 @@ cd src/backend; python -m pytest tests/ -p no:cacheprovider -q   # backend tests
 cd src/frontend; npm run dev               # frontend only
 cd src/frontend; npx tsc --noEmit; npm run build; npx vitest run
 cd src/frontend; npx playwright test       # e2e
-python scripts/download_models.py          # GGUF / ollama pull (Gemma 4 tiers)
+cd src/backend; python scripts/download_models.py list   # GGUF tiers + ollama pull tags (Gemma 4)
 ```
 
 Known env-only failure: 1 RAG embedding-similarity test needs a real embedding model. WSL/9p mounts: clear `__pycache__` before pytest (stale bytecode causes phantom results); `node_modules` may be unusable — run frontend toolchain on Windows.
