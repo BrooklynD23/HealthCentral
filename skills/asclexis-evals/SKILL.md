@@ -1,9 +1,9 @@
 ---
 name: asclexis-evals
-description: How to write, grow, and run the HealthCentral agent eval suite. Use whenever creating or modifying golden eval cases, synthetic vault states, the four scoring axes (groundedness, citation accuracy, abstention correctness, advice leakage), or the CI workflow that gates PRs on agent behavior. Triggers include any work mentioning "eval", "golden set", "test case for the agent", "groundedness score", "abstention case", "advice-bait", "scoring", or wiring agent evals into .github/workflows.
+description: How to write, grow, and run the Asclexis agent eval suite. Use whenever creating or modifying golden eval cases, synthetic vault states, the four scoring axes (groundedness, citation accuracy, abstention correctness, advice leakage), or the CI workflow that gates PRs on agent behavior. Triggers include any work mentioning "eval", "golden set", "test case for the agent", "groundedness score", "abstention case", "advice-bait", "scoring", or wiring agent evals into .github/workflows.
 ---
 
-# HealthCentral Evals — proving the agent behaves
+# Asclexis Evals — proving the agent behaves
 
 This suite is the artifact that makes the whole overhaul credible. It lives under
 `src/backend/tests/agent/golden/`. The goal is not coverage for its own sake — it

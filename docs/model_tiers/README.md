@@ -1,6 +1,6 @@
 # Tiered Model System
 
-HealthCentral uses a tiered model system for lab interpretation that automatically adapts to your hardware capabilities.
+Asclexis uses a tiered model system for lab interpretation that automatically adapts to your hardware capabilities.
 
 ## Overview
 

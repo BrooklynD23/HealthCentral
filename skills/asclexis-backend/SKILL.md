@@ -1,9 +1,9 @@
 ---
 name: asclexis-backend
-description: FastAPI backend and data conventions for the HealthCentral repo. Use whenever creating or modifying backend routes, feature modules under src/backend/modules/, SQLAlchemy models, Pydantic schemas, the SQLCipher per-profile vault, Alembic dual-environment migrations, the security/monitoring middleware stack, LLMOps concerns (semantic cache, model tiers, llama.cpp serving, timing/token tracking), or the contributor proof bundle. Triggers include work mentioning "FastAPI route", "modules/", "SQLCipher", "vault", "Alembic migration", "model tier", "semantic cache", "endpoints.md", or "proof bundle".
+description: FastAPI backend and data conventions for the Asclexis repo. Use whenever creating or modifying backend routes, feature modules under src/backend/modules/, SQLAlchemy models, Pydantic schemas, the SQLCipher per-profile vault, Alembic dual-environment migrations, the security/monitoring middleware stack, LLMOps concerns (semantic cache, model tiers, llama.cpp serving, timing/token tracking), or the contributor proof bundle. Triggers include work mentioning "FastAPI route", "modules/", "SQLCipher", "vault", "Alembic migration", "model tier", "semantic cache", "endpoints.md", or "proof bundle".
 ---
 
-# HealthCentral Backend — conventions
+# Asclexis Backend — conventions
 
 Operational summary for backend work. The README architecture section and
 `docs/01_backend_architecture_plan.md` are the deeper authority; `docs/api/endpoints.md`

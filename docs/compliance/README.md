@@ -19,7 +19,7 @@ removes them.
 
 ## Overview
 
-HealthCentral implements security and privacy controls aligned with HIPAA
+Asclexis implements security and privacy controls aligned with HIPAA
 technical safeguards for protected health information (PHI).
 
 ## Documents
@@ -37,6 +37,6 @@ technical safeguards for protected health information (PHI).
 
 ## Scope
 
-These documents apply to the HealthCentral application in all deployment modes
+These documents apply to the Asclexis application in all deployment modes
 (local and server). Server deployments have additional requirements for network
 security, HSTS, and CSP headers.

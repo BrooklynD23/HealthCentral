@@ -1,9 +1,9 @@
 ---
 name: asclexis-guardrails
-description: Medical-safety guardrails for HealthCentral's agent and assistant. Use whenever creating or modifying the guard node, the advice classifier, abstention/escalation templates, groundedness/claim-to-source mapping, confidence thresholds, or the PHI redaction gate before any opt-in external LLM call. Triggers include any work mentioning "guardrail", "medical advice", "abstain", "escalate to doctor", "groundedness", "claim mapping", "PHI redaction", "confidence threshold", or anything that decides whether the model is allowed to speak.
+description: Medical-safety guardrails for Asclexis's agent and assistant. Use whenever creating or modifying the guard node, the advice classifier, abstention/escalation templates, groundedness/claim-to-source mapping, confidence thresholds, or the PHI redaction gate before any opt-in external LLM call. Triggers include any work mentioning "guardrail", "medical advice", "abstain", "escalate to doctor", "groundedness", "claim mapping", "PHI redaction", "confidence threshold", or anything that decides whether the model is allowed to speak.
 ---
 
-# HealthCentral Guardrails — medical safety
+# Asclexis Guardrails — medical safety
 
 This skill owns the `guard` node and everything that decides whether output is
 allowed to reach the user. Governance here is MECHANICAL — enforced in code, never

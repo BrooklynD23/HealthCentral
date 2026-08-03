@@ -142,7 +142,7 @@ Links to: `docs/prd/phases/PHASE_7_lora_stretch.md`
 
 ## `docs/api/README.md`
 
-**HealthCentral API Documentation**
+**Asclexis API Documentation**
 
 http://localhost:8000/api/v1
 
@@ -570,7 +570,7 @@ Links to: `docs/plans/2026-07-02-architect-review-proposal-tickets.md`
 
 **Tiered Model System**
 
-HealthCentral uses a tiered model system for lab interpretation that automatically adapts to your hardware capabilities.
+Asclexis uses a tiered model system for lab interpretation that automatically adapts to your hardware capabilities.
 
 Links to: `docs/model_tiers/tier1_low.md`, `docs/model_tiers/tier2_mid.md`, `docs/model_tiers/tier3_high.md`
 
@@ -812,9 +812,9 @@ A pre-merge audit of PR #18 (branch `claude/backlog-repo-docs-yl7isc`, 22 commit
 
 ## `docs/user/README.md`
 
-**HealthCentral User Guide**
+**Asclexis User Guide**
 
-Welcome to HealthCentral, your local-first medical results companion.
+Welcome to Asclexis, your local-first medical results companion.
 
 Links to: `docs/user/faq.md`, `docs/user/getting-started.md`, `docs/user/troubleshooting.md`, `docs/user/workflows.md`
 
@@ -850,8 +850,8 @@ Links to: `docs/compliance/disaster-recovery.md`
 
 ## `src/frontend/README.md`
 
-**HealthCentral Frontend**
+**Asclexis Frontend**
 
-Web-based UI for HealthCentral, designed to run within a Tauri desktop shell.
+Web-based UI for Asclexis, designed to run within a Tauri desktop shell.
 
 Links to: `docs/architecture/frontend.md`

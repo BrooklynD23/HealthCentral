@@ -1,9 +1,9 @@
 ---
 name: asclexis-agent
-description: Conventions for building and editing the HealthCentral agent in the fix/agent-overhaul branch. Use whenever creating or modifying anything under src/backend/modules/agent/ — the graph runner, nodes (plan/act/reflect/draft), the tool registry, the read-only tools over the profile vault, the step budget, or audit hooks. Triggers include any work mentioning "agent loop", "plan act reflect", "tool registry", "agent node", "step budget", or wiring the agent into the /assistant/ route.
+description: Conventions for building and editing the Asclexis agent. Use whenever creating or modifying anything under src/backend/modules/agent/ — the graph runner, nodes (plan/act/reflect/draft), the tool registry, the read-only tools over the profile vault, the step budget, or audit hooks. Triggers include any work mentioning "agent loop", "plan act reflect", "tool registry", "agent node", "step budget", or wiring the agent into the /assistant/ route.
 ---
 
-# HealthCentral Agent — build conventions
+# Asclexis Agent — build conventions
 
 This skill governs the agent graph. The companion `AGILE_PLAN.md` (docs/agile)
 owns *what* to build and when; this owns *how*. The single most important rule is

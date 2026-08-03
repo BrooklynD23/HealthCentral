@@ -1,4 +1,4 @@
-# HealthCentral API Documentation
+# Asclexis API Documentation
 
 **Last Updated:** 2026-07-27
 

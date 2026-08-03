@@ -1,8 +1,8 @@
-# HealthCentral User Guide
+# Asclexis User Guide
 
 **Last Updated:** 2026-07-27
 
-Welcome to HealthCentral, your local-first medical results companion.
+Welcome to Asclexis, your local-first medical results companion.
 
 ## Contents
 
@@ -53,6 +53,6 @@ Welcome to HealthCentral, your local-first medical results companion.
 
 ## A note on what this app does not do
 
-HealthCentral is educational. It explains what your results say and what a
+Asclexis is educational. It explains what your results say and what a
 reference source says about them. It does not diagnose, does not recommend
 treatment or dosing, and is not a substitute for your clinician.

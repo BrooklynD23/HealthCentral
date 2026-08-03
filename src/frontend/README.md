@@ -1,8 +1,8 @@
-# HealthCentral Frontend
+# Asclexis Frontend
 
 **Last Updated:** 2026-07-27
 
-Web-based UI for HealthCentral, designed to run within a Tauri desktop shell.
+Web-based UI for Asclexis, designed to run within a Tauri desktop shell.
 
 For how the frontend fits into the whole system, see the
 [frontend architecture diagrams](../../docs/architecture/frontend.md).
@@ -146,7 +146,7 @@ See `src/styles/tokens.css` for:
 
 ## UI/UX Aesthetic Guidelines
 
-HealthCentral follows a **"Clinical Calm"** aesthetic—refined minimalism with warm, reassuring touches. This avoids generic healthcare aesthetics and creates a memorable, trustworthy experience.
+Asclexis follows a **"Clinical Calm"** aesthetic—refined minimalism with warm, reassuring touches. This avoids generic healthcare aesthetics and creates a memorable, trustworthy experience.
 
 ### Design Philosophy
 - **Tone**: Refined, trustworthy, quietly confident—never sterile
