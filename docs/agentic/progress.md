@@ -2,6 +2,35 @@
 
 Session-by-session record of agent work: what changed, what was verified, what failed, and the next priority. This supplements git history with verification evidence — it does not replace it. Newest entries first.
 
+## 2026-07-30 — HC-M10 stage 3: the product is Asclexis
+
+**Completed:**
+
+- **HC-M10 stage 3 — rename executed (2026-07-30).** The product is **Asclexis**
+  (Asclepius, plus the "ask" reading that matches a product built to clarify
+  uncertainty rather than resolve it). Screening found no direct collision; the
+  Asclepius-derived namespace is nonetheless dense in adjacent goods (Ascletis
+  Pharma, AsclepiX Therapeutics, Asclemed USA's 24 marks), and **formal
+  TESS/registrar clearance remains the owner's** — a search pass is not
+  clearance, and nothing here should be read as claiming it is.
+  - **Preserved:** `HC-*` ticket/test prefixes and `HC_*` environment variables
+    (111 identifiers), vault filenames (`vaults/{profile_id}/vault.db`,
+    `key.bin`, `key.method` — these never carried the product name), and the
+    historical `docs/plans/` logs, which are point-in-time records.
+  - **Changed beyond the stage-1 table**, both owner-confirmed and both outside
+    what the 2026-07-07 audit could see: the master DB filename
+    (`healthcentral.db` → `asclexis.db`, with a startup migration in
+    `core/db_migration.py` that also moves the `-wal`/`-shm` sidecars and is
+    idempotent), and the four project-domain skills (`skills/healthcentral-*` →
+    `skills/asclexis-*`). The 2026-07-07 audit's "keep DB filenames" line rested
+    on the claim that renaming breaks existing vaults; that was inaccurate —
+    vault filenames are per-profile and never carried the product name — so the
+    owner superseded it.
+  - Brand philosophy and voice rules live in
+    [docs/brand/brand-guidelines.md](../brand/brand-guidelines.md); the "no
+    diagnosis, dosing, or prognosis" constraint binds brand copy the same way it
+    binds model output.
+
 ## 2026-07-07 (second session) — HC-M05 adversarial evals + fixes, RL-REDACT-001, winget branch tests
 
 **Completed:**
