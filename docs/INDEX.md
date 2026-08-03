@@ -102,7 +102,7 @@ Links to: `docs/agentic/evals.md`, `docs/agentic/harness.md`
 
 Session-by-session record of agent work: what changed, what was verified, what failed, and the next priority. This supplements git history with verification evidence — it does not replace it. Newest…
 
-Links to: `docs/plans/2026-07-07-rename-audit-and-shortlist.md`, `feature_list.json`
+Links to: `docs/brand/brand-guidelines.md`, `docs/plans/2026-07-07-rename-audit-and-shortlist.md`, `feature_list.json`
 
 ## `docs/agentic/roadmap.md`
 

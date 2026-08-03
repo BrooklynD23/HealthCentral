@@ -246,6 +246,9 @@
       "docs/archive/agile-sprints/SPRINT_6.md",
       "README.md"
     ],
+    "docs/brand/brand-guidelines.md": [
+      "docs/agentic/progress.md"
+    ],
     "docs/compliance/README.md": [
       "docs/agentic/roadmap.md"
     ],
@@ -659,6 +662,7 @@
       "docs/agentic/evals.md"
     ],
     "docs/agentic/progress.md": [
+      "docs/brand/brand-guidelines.md",
       "docs/plans/2026-07-07-rename-audit-and-shortlist.md",
       "feature_list.json"
     ],
