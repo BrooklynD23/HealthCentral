@@ -88,5 +88,8 @@ that proves each one**:
 - Every hard invariant in [CLAUDE.md](CLAUDE.md) still holds.
 - Non-trivial work logged in `docs/features/TASK_LIST.md` Session Notes, or a
   dated file under `docs/plans/` for a substantial standalone plan.
+- [`docs/agentic/recurring-failures.md`](docs/agentic/recurring-failures.md)
+  re-read, and any new instance of a listed failure mode recorded there.
 
-"I believe these pass" is not done. Run them.
+"I believe these pass" is not done. Run them. Every failure mode in
+`recurring-failures.md` shipped alongside a passing signal.

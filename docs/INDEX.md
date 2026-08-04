@@ -12,7 +12,7 @@
 
 Onboarding for any AI agent or new contributor. Behavioral rules are in CLAUDE.md. Treat this file like a new-hire briefing: what the project is, where things live, how to verify your work.
 
-Links to: `.claude/skills/README.md`, `CLAUDE.md`, `docs/00_architecture_plans_index.md`, `docs/roles/00_roles_index.md`, `openwiki/README.md`, `skills/README.md`
+Links to: `.claude/skills/README.md`, `CLAUDE.md`, `docs/00_architecture_plans_index.md`, `docs/agentic/recurring-failures.md`, `docs/roles/00_roles_index.md`, `openwiki/README.md`, `skills/README.md`
 
 ## `CLAUDE.md`
 
@@ -20,7 +20,7 @@ Links to: `.claude/skills/README.md`, `CLAUDE.md`, `docs/00_architecture_plans_i
 
 Behavioral rules for AI agents working in this repo. Repo facts, commands, and architecture live in AGENT.md — read it first.
 
-Links to: `AGENT.md`
+Links to: `AGENT.md`, `docs/agentic/recurring-failures.md`
 
 ## `README.md`
 
@@ -119,6 +119,12 @@ Links to: `docs/agentic/evals.md`, `docs/agentic/harness.md`
 Session-by-session record of agent work: what changed, what was verified, what failed, and the next priority. This supplements git history with verification evidence — it does not replace it. Newest…
 
 Links to: `docs/brand/brand-guidelines.md`, `docs/plans/2026-07-07-rename-audit-and-shortlist.md`, `feature_list.json`
+
+## `docs/agentic/recurring-failures.md`
+
+**Recurring Failure Modes**
+
+Mistakes this codebase has actually produced, with the evidence that exposed each one. Not hypothetical risks — every entry below shipped, or nearly shipped, and was caught late.
 
 ## `docs/agentic/roadmap.md`
 

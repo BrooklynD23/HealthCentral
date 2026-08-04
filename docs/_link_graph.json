@@ -75,6 +75,10 @@
       "docs/agentic/harness.md",
       "docs/agentic/roadmap.md"
     ],
+    "docs/agentic/recurring-failures.md": [
+      "AGENT.md",
+      "CLAUDE.md"
+    ],
     "docs/agile/AGILE_PLAN.md": [
       "docs/roles/product-and-prd.md",
       "README.md"
@@ -579,10 +583,12 @@
       "docs/roles/00_roles_index.md",
       "openwiki/README.md",
       ".claude/skills/README.md",
-      "skills/README.md"
+      "skills/README.md",
+      "docs/agentic/recurring-failures.md"
     ],
     "CLAUDE.md": [
-      "AGENT.md"
+      "AGENT.md",
+      "docs/agentic/recurring-failures.md"
     ],
     "README.md": [
       "docs/architecture/README.md",

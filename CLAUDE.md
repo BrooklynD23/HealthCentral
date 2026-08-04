@@ -46,6 +46,10 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
 - **Route tests go through HTTP.** A test that calls a route function directly
   cannot see a broken `Depends(...)`. Use `tests/support/routes.py::route_client`
   for anything asserting auth, path scoping, or status codes.
+- **Read [docs/agentic/recurring-failures.md](docs/agentic/recurring-failures.md)
+  before claiming done.** Eight failure modes this repo has actually produced,
+  each with the evidence that exposed it and a specific recheck. Catch a new
+  instance of one — or a mode that is not listed — and add it in the same commit.
 - Done is defined once, in [AGENT.md](AGENT.md#definition-of-done). It requires seeing the output, not believing it.
 
 ## Hard invariants (violations = broken build or broken trust)
