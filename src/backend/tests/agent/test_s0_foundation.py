@@ -86,6 +86,12 @@ def test_s0_2_flag_off_means_legacy_path_unchanged():
 async def test_s0_3_audit_event_persists_through_monitoring():
     """S0-3: emit_audit_event calls core.audit.create_audit_log exactly once
     with fields mapped per the audit.py docstring contract.
+
+    Updated for AUDIT-PHI-001: the persisted `action` is now a static per-node
+    template and the event's own action string travels in `details` instead.
+    Passing it through verbatim would require registering every tool name in
+    ALLOWED_ACTIONS, and any tool added later would silently have its rows
+    degraded to a bare event type until someone noticed.
     """
     event = audit.AgentAuditEvent(
         run_id="run-1",
@@ -104,9 +110,9 @@ async def test_s0_3_audit_event_persists_through_monitoring():
     mock_create.assert_awaited_once_with(
         fake_db,
         event_type="agent.plan",
-        action="chose tool",
+        action="Agent planned a step",
         profile_id="profile-1",
         entity_type="agent_node",
         entity_id="run-1",
-        details={"tool_count": 2},
+        details={"tool_count": 2, "node": "plan", "action": "chose tool"},
     )

@@ -20,6 +20,8 @@ interface EntityDetailViewProps {
   /** When provided, verify/reject controls are shown per entity. */
   onSetVerification?: (entity: DocumentEntityResponse, verified: boolean | null) => void;
   verificationPending?: boolean;
+  /** CITE-SRC-001: the entity an assistant citation deep-linked to. */
+  highlightEntityId?: string | null;
 }
 
 const ENTITY_LABELS: Record<string, string> = {
@@ -60,6 +62,7 @@ export function EntityDetailView({
   className,
   onSetVerification,
   verificationPending,
+  highlightEntityId,
 }: EntityDetailViewProps) {
   // Derived highlight tags (HC-M16), grouped per source entity.
   const { data: highlights = [] } = useDocumentHighlights(entities[0]?.doc_id);
@@ -96,9 +99,11 @@ export function EntityDetailView({
               return (
                 <tr
                   key={entity.id}
+                  id={`entity-row-${entity.id}`}
                   className={cn(
                     'border-b border-black/[0.04]',
-                    isLowConfidence && 'border-dashed border-status-caution/30'
+                    isLowConfidence && 'border-dashed border-status-caution/30',
+                    highlightEntityId === entity.id && 'bg-accent/10'
                   )}
                 >
                   <td className="py-2 text-ink-secondary whitespace-nowrap pr-4 align-top">

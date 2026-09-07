@@ -35,6 +35,21 @@ test.describe('Authentication Flow', () => {
     // Should show progress steps
     await expect(page.getByText('Creating secure vault...')).toBeVisible();
 
+    // SEC-RECOV-001: the one-time recovery code is shown before the app is
+    // entered, and cannot be skipped — losing it plus the password means the
+    // record is unrecoverable, so the acknowledgement is deliberately required.
+    const recoveryCode = page.getByTestId('recovery-code');
+    await expect(recoveryCode).toBeVisible({ timeout: 30000 });
+    await expect(recoveryCode).not.toBeEmpty();
+
+    const continueButton = page.getByRole('button', {
+      name: /continue to my records/i,
+    });
+    await expect(continueButton).toBeDisabled();
+
+    await page.getByLabel(/saved this recovery code/i).check();
+    await continueButton.click();
+
     // Wait for navigation to inbox
     await expect(page).toHaveURL(/\/inbox/, { timeout: 10000 });
 

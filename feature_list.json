@@ -17,7 +17,7 @@
     {
       "id": "HC-M02",
       "category": "windows-bootstrap",
-      "description": "dev.ps1 offers automatic Python 3.11 installation via winget (prompt defaults to Yes), refreshes PATH from registry, re-checks with the same detection function, and falls back to manual instructions on any failure.",
+      "description": "dev.ps1 offers automatic Python 3.11 installation via winget (prompt defaults to Yes), refreshes PATH from registry, re-checks with the same detection function, and falls back to manual instructions on any failure. Implementation is in place (dev.ps1:361-372); this stays in_progress only because the second verification step below is a manual test on a machine without Python that has not been run.",
       "user_value": "Non-technical Windows users can go from zero to running app with one double-click even without Python installed.",
       "verification_steps": [
         "PowerShell AST parse of dev.ps1 reports no errors",
@@ -53,14 +53,15 @@
     {
       "id": "HC-M05",
       "category": "ai-safety",
-      "description": "Expand the adversarial eval set: dedicated prompt-injection corpus (instructions embedded in uploaded documents and memory items) and PHI-leakage probes on every export path, wired into scripts/agent_eval_gate.py or a sibling gate.",
+      "description": "Expand the adversarial eval set: dedicated prompt-injection corpus (instructions embedded in uploaded documents and memory items) and PHI-leakage probes on every export path, wired into scripts/agent_eval_gate.py or a sibling gate. Delivered 2026-07-07: 10 injection-* and 6 phi-* golden cases under tests/agent/golden/, the injection_resistance and phi_leakage gate axes in scripts/agent_eval_gate.py, and the two product fixes the corpus caught (RAG-INJ-001 chunk sanitization, RL-REDACT-001 strict export redaction).",
       "user_value": "Injection and leakage resistance become regression-tested guarantees instead of one-time reviews.",
       "verification_steps": [
-        "New pytest cases (HC-XXX-NNN naming) fail when an injection succeeds or an export leaks unredacted text",
-        "Gate runs in CI and blocks merge on regression"
+        "python3 scripts/agent_eval_gate.py exits 0; injection_resistance == 1.000 and phi_leakage == 0",
+        "CI agent-evals job runs the gate and blocks merge on regression (.github/workflows/ci.yml)",
+        "python -m pytest tests/test_redaction.py tests/test_rl_feedback.py -p no:cacheprovider -q"
       ],
       "priority": 2,
-      "status": "in_progress"
+      "status": "completed"
     },
     {
       "id": "HC-M06",
@@ -151,14 +152,170 @@
     {
       "id": "HC-M10",
       "category": "product",
-      "description": "Rename the product (owner decision 2026-07-07): 'HealthCentral' collides with healthcentral.com. Stage 1 DONE — surface audit + screened shortlist at docs/plans/2026-07-07-rename-audit-and-shortlist.md. Stage 2 (manual, blocking): owner picks a candidate and clears it against USPTO TESS/domains/app stores. Stage 3: one PR changing user-visible strings only (internal HC_*/HC-* identifiers and DB filenames kept).",
+      "description": "Rename the product (owner decision 2026-07-07): 'HealthCentral' collides with healthcentral.com. Stages 1-3 DONE. Stage 1: surface audit + screened shortlist at docs/plans/2026-07-07-rename-audit-and-shortlist.md. Stage 2: owner picked Asclexis (2026-07-30); a screening pass found no direct collision, though the Asclepius-derived namespace is dense in adjacent goods — formal USPTO TESS/domain/app-store clearance remains the owner's and is NOT claimed here. Stage 3: user-visible strings renamed, plus two owner-confirmed additions beyond the stage-1 table — the master DB filename (asclexis.db, with a startup migration) and the four project-domain skills. HC_*/HC-* identifiers and vault filenames kept.",
       "user_value": "Avoids trademark risk before the project is shown publicly as a product.",
       "verification_steps": [
         "Owner clearance recorded in docs/agentic/progress.md",
         "After rename: grep for old name returns only historical docs and kept internal identifiers; app boots with new title; tsc/vitest/docs gates pass"
       ],
       "priority": 3,
-      "status": "in_progress"
+      "status": "completed"
+    },
+    {
+      "id": "HC-M12",
+      "category": "record-intelligence",
+      "description": "Entity source spans + per-entity user verification (HC-SPAN). document_entity gained char_start, char_end, quote (verbatim source text), verified_by_user and extraction_version via profile migration 010; the lab and the three category extractors populate spans, and VerificationWorkbench shows the quote beside each entity so it can be verified or rejected individually. Prerequisite for highlights, tasks, timeline citations and question generation.",
+      "user_value": "Every extracted fact can show the exact sentence in the source document it came from, so a patient can check the machine's work instead of trusting it.",
+      "verification_steps": [
+        "python -m pytest tests/test_source_spans.py -p no:cacheprovider -q",
+        "Extracted quote is an exact substring of the source document text (asserted in the span round-trip tests)"
+      ],
+      "priority": 2,
+      "status": "completed"
+    },
+    {
+      "id": "HC-M13",
+      "category": "record-intelligence",
+      "description": "After-visit / discharge extraction upgrade (HC-AVS). modules/extract_visit_notes.py was extended (not forked) with medication_change, test_ordered, referral, follow_up_instruction, warning_sign and facility entity types plus a visit_subtype refinement of the classifier. LLM-assist is optional, routed through ModelRunner, and any extraction whose quote is not a substring of the source is rejected. All entities land unverified.",
+      "user_value": "Uploading an after-visit summary or discharge note yields a structured, checkable breakdown instead of an opaque PDF.",
+      "verification_steps": [
+        "python -m pytest tests/test_extract_visit_notes.py tests/test_visit_note_extraction.py -p no:cacheprovider -q",
+        "python -m pytest tests/test_document_import_classification.py -p no:cacheprovider -q"
+      ],
+      "priority": 2,
+      "status": "completed"
+    },
+    {
+      "id": "HC-M14",
+      "category": "record-intelligence",
+      "description": "Health timeline (HC-TML). modules/timeline.py is a read-model deriving events from observations, document_category, document_entity and medications — no materialized table. GET /api/v1/timeline (api/timeline.py) supports type/date-range filters, is audit-logged, and goes through ProfileDbSession. Undated items land in a separate 'needs a date' tray, mirroring the undated-observation rule. Frontend TimelinePage.tsx.",
+      "user_value": "One chronological view of labs, visits, imaging, medication changes and tasks, each card linking back to its source document and verification status.",
+      "verification_steps": [
+        "python -m pytest tests/test_timeline.py -p no:cacheprovider -q",
+        "Timeline event queries go through ProfileDbSession (per-profile isolation asserted in the same module)"
+      ],
+      "priority": 2,
+      "status": "completed"
+    },
+    {
+      "id": "HC-M15",
+      "category": "record-intelligence",
+      "description": "Follow-up task extraction + tracker (HC-TASK). care_plan_task table (profile migration 011) plus modules/care_tasks.py deriving candidates from follow_up_instruction / test_ordered / referral entities. Due dates are never invented — vague timing yields due_date=None and status=needs_review. Tasks are created only on explicit user acceptance. api/care_tasks.py provides list/candidates/accept/update, all audit-logged.",
+      "user_value": "Clinician follow-up instructions become a checklist the patient can actually work through, each item showing the clinician's exact words.",
+      "verification_steps": [
+        "python -m pytest tests/test_care_tasks.py -p no:cacheprovider -q",
+        "No-invented-dates property holds: candidates with vague timing carry due_date=None and status=needs_review"
+      ],
+      "priority": 2,
+      "status": "completed"
+    },
+    {
+      "id": "HC-M16",
+      "category": "comprehension",
+      "description": "Smart highlights (HC-HLT). modules/highlights.py derives labels (abnormal_value, medication_started/stopped/changed, follow_up_needed, test_ordered, new_diagnosis_mentioned, low_confidence_extraction, needs_verification) from existing entities and observations — recomputed on read, no new table. Every highlight resolves to a source span. Surfaced as chips in DocumentInbox, timeline cards and document detail.",
+      "user_value": "The parts of a document that actually matter are visible at a glance, without a second extraction pass or any new interpretation.",
+      "verification_steps": [
+        "python -m pytest tests/test_highlights.py -p no:cacheprovider -q",
+        "Every derived highlight resolves to a source span (asserted in the tag-derivation matrix)"
+      ],
+      "priority": 3,
+      "status": "completed"
+    },
+    {
+      "id": "HC-M17",
+      "category": "comprehension",
+      "description": "Doctor-question generator upgrade (HC-QGN). modules/export.py QuestionPrompt sources were extended to include verified visit-note entities, medication changes, and open/needs_review tasks alongside trends and abnormals. Template-driven, each question carrying its source citation; LLM phrasing is optional through ModelRunner with a template fallback. Generated questions pass interpret_safety screening like any assistant output — no new safety code.",
+      "user_value": "The patient walks into an appointment with specific, sourced questions rather than a generic list.",
+      "verification_steps": [
+        "python -m pytest tests/test_export_questions.py -p no:cacheprovider -q",
+        "Generated questions carry citations and pass interpret_safety prohibited-pattern screening"
+      ],
+      "priority": 3,
+      "status": "completed"
+    },
+    {
+      "id": "HC-M18",
+      "category": "comprehension",
+      "description": "Visit-prep packet (HC-PKT). api/export.py POST /export/visit-prep + GET /export/visit-prep/{id}/download compose current medications, recent verified abnormal labs, recent visits, open tasks, saved questions and selected source documents into one Markdown/PDF packet reusing the doctor-summary renderer. All free text passes modules/redaction.py before being written, and generation requires explicit user confirmation.",
+      "user_value": "One printable document to bring to an appointment, assembled from verified data the patient already checked.",
+      "verification_steps": [
+        "python -m pytest tests/test_visit_prep_packet.py -p no:cacheprovider -q",
+        "Packet free text passes through modules/redaction.py before file write (asserted in the packet tests)"
+      ],
+      "priority": 3,
+      "status": "completed"
+    },
+    {
+      "id": "HC-M19",
+      "category": "comprehension",
+      "description": "Medication reconciliation from documents (HC-MREC). modules/med_reconcile.py diffs medication_change entities against the medication tracker and classifies each as new / stopped / dose-changed / possible-duplicate / unclear. GET /api/v1/med-reconciliation returns suggestions only — the tracker is never auto-mutated; every change requires user confirmation. Wording was reviewed against interpret_safety prohibited patterns.",
+      "user_value": "Discrepancies between what a document says and what the medication list holds surface as questions to confirm, not silent edits.",
+      "verification_steps": [
+        "python -m pytest tests/test_med_reconcile.py -p no:cacheprovider -q",
+        "Reconciliation never mutates the medication tracker without an explicit user action (asserted in the same module)"
+      ],
+      "priority": 2,
+      "status": "completed"
+    },
+    {
+      "id": "HC-M20",
+      "category": "workspace",
+      "description": "Pinboards (HC-PIN). pinboard / pinboard_item tables (profile migration 012) plus api/pinboards.py CRUD for user-curated collections of documents, observations, tasks and questions. Each pinboard exports a focused packet through the HC-M18 packet composer.",
+      "user_value": "A patient can group everything relevant to one concern — a symptom, a specialist, an upcoming appointment — and export just that.",
+      "verification_steps": [
+        "python -m pytest tests/test_pinboards.py -p no:cacheprovider -q",
+        "python -c \"import sys; sys.path.insert(0,'.'); from api.pinboards import router\" resolves"
+      ],
+      "priority": 3,
+      "status": "completed"
+    },
+    {
+      "id": "HC-M21",
+      "category": "workspace",
+      "description": "Search & filtering (HC-SRCH). modules/search.py provides cross-record search over documents, entities and observations using SQLite FTS5 inside the profile DB (stays local and encrypted), with filters by provider, date, category and highlight reusing the timeline filter params. GET /api/v1/search is bounded and audit-logged. Known scaling caveat: the FTS index is rebuilt per query — acceptable at single-user scale, tracked in the performance review.",
+      "user_value": "Finding a result, a note or a medication mention across the whole record takes a search box instead of scrolling every document.",
+      "verification_steps": [
+        "python -m pytest tests/test_search.py -p no:cacheprovider -q",
+        "Search stays inside the per-profile encrypted DB (no master-DB query in the search path)"
+      ],
+      "priority": 3,
+      "status": "completed"
+    },
+    {
+      "id": "HC-M22",
+      "category": "interoperability",
+      "description": "FHIR R4 export (HC-FHIR). modules/fhir_export.py maps verified data to Patient, Observation, MedicationStatement, Condition, DocumentReference, Encounter, CarePlan and DiagnosticReport resources. POST /export/fhir + GET /export/fhir/{id}/download (application/fhir+json), verified-only, strict-redacted (including code.text, valueQuantity.unit and dosage unit after HC-FHIR-082), confirm-gated, file-based, no network.",
+      "user_value": "The record is portable to any FHIR-capable system the patient chooses, without the data ever leaving the device automatically.",
+      "verification_steps": [
+        "python -m pytest tests/test_fhir_export.py -p no:cacheprovider -q",
+        "Every narrative field in the bundle passes the module's strict redactor (asserted by HC-FHIR-082)"
+      ],
+      "priority": 3,
+      "status": "completed"
+    },
+    {
+      "id": "HC-M23",
+      "category": "interoperability",
+      "description": "FHIR bundle + CSV lab import (HC-FIMP). modules/import_structured.py parses FHIR R4 bundles and CSV lab exports with stdlib json/csv only (no new dependency), feeding the existing classify/extract/verify pipeline through POST /documents/import. Ingest detects lab_csv / fhir_bundle doc types; everything lands unverified; MedicationStatement/Condition become reconciliation suggestions, never direct tracker mutations. Reprocess of structured imports is rejected with a 400 (HC-FIMP-067 data-loss guard).",
+      "user_value": "Portal exports import with exact values, units, ranges and LOINC codes instead of going through OCR and its errors.",
+      "verification_steps": [
+        "python -m pytest tests/test_structured_import.py -p no:cacheprovider -q",
+        "Reprocessing a lab_csv/fhir_bundle document returns 400 before any mutation (HC-FIMP-067)"
+      ],
+      "priority": 3,
+      "status": "completed"
+    },
+    {
+      "id": "HC-M24",
+      "category": "agentic",
+      "description": "Bounded agentic queries (HC-AGQ). Three read-only tools (query_care_tasks, query_medication_changes, query_timeline) added to modules/agent/tools/ with deterministic intent routing in the plan/draft nodes, no-LLM fallbacks preserved, and injection hardening on every new retrieval source (retrieved quotes are attacker-controlled text). Timeline routing is gated on no analyte/topic being detected so biomarker questions are not hijacked (HC-AGQ-042b); unverified events are labeled rather than grounded as history (HC-AGQ-052b).",
+      "user_value": "Questions like 'what changed since my last visit?' or 'which follow-ups are open?' get citation-gated answers over the patient's own record.",
+      "verification_steps": [
+        "python -m pytest tests/agent/test_agentic_queries.py -p no:cacheprovider -q",
+        "python3 scripts/agent_eval_gate.py exits 0 (injection_resistance == 1.0, phi_leakage == 0)"
+      ],
+      "priority": 2,
+      "status": "completed"
     }
   ]
 }

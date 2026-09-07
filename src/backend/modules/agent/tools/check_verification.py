@@ -114,7 +114,7 @@ class CheckVerificationTool:
                 details={
                     "tool_name": self.name,
                     "observation_id": args.observation_id,
-                    "analyte": args.analyte,
+                    # AUDIT-PHI-001: analyte names are clinical content.
                     "status": status,
                     "match_count": match_count,
                 },

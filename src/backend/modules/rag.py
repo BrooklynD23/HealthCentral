@@ -505,7 +505,7 @@ USER QUESTION: {question}"""
                         text=ref_text,
                         relevance_score=0.8,
                         is_peer_reviewed=True,
-                        publisher="HealthCentral Knowledge Base",
+                        publisher="Asclexis Knowledge Base",
                     ))
             except Exception as e:
                 self._logger.debug(f"Failed to load reference for {analyte}: {e}")

@@ -240,7 +240,7 @@ async def upsert_feedback(
     # Audit log (master DB) — best-effort, mockable via _emit_audit
     await _emit_audit(
         event_type="feedback.submit",
-        action=f"Feedback {'updated' if existing else 'submitted'} for turn {turn_id}",
+        action="Recorded response feedback",
         profile_id=profile_id,
         entity_type="response_feedback",
         entity_id=feedback.id,
@@ -390,14 +390,12 @@ async def export_dataset(
     # Audit log — best-effort, mockable via _emit_audit
     await _emit_audit(
         event_type="feedback.export",
-        action=f"RL dataset exported: {export_result.dpo_pairs_count} DPO, "
-               f"{export_result.sft_positives_count} SFT, "
-               f"{export_result.grpo_rewards_count} GRPO",
+        action="Exported RL dataset",
         profile_id=profile_id,
         entity_type="rl_export",
-        entity_id=str(profile_out_dir),
+        entity_id=profile_id,
         details={
-            "output_dir": str(profile_out_dir),
+            # AUDIT-PHI-001: export paths can embed profile/user names.
             "dpo_pairs": export_result.dpo_pairs_count,
             "sft": export_result.sft_positives_count,
             "grpo": export_result.grpo_rewards_count,

@@ -39,11 +39,48 @@ import {
 } from '@/services/assistant';
 import { useSubmitFeedback, FEEDBACK_TAGS, type FeedbackTag } from '@/services/feedback';
 
+/**
+ * A citation as rendered in the chat (CITE-SRC-001).
+ *
+ * `observationId` / `entityId` are the deep-link target. When both are absent
+ * the citation is a plain label — reference-corpus entries, care tasks and
+ * timeline events have no page region to point at, and a button that navigates
+ * nowhere is worse than plain text.
+ */
+interface CitationChip {
+  source: string;
+  page: number | null;
+  docId: string | null;
+  observationId: string | null;
+  entityId: string | null;
+}
+
+/**
+ * Build the Verification Workbench deep link for a citation, or null when it
+ * has no inspectable source (CITE-SRC-001).
+ */
+function citationTarget(citation: CitationChip): string | null {
+  const params = new URLSearchParams();
+  if (citation.observationId) {
+    params.set('observation', citation.observationId);
+  } else if (citation.entityId && citation.docId) {
+    // An entity is only inspectable with its document — the workbench loads
+    // entities per doc. Without docId this rendered as a chip that navigated
+    // nowhere, which on a health record is worse than a plain label.
+    params.set('entity', citation.entityId);
+  } else {
+    return null;
+  }
+  if (citation.docId) params.set('doc', citation.docId);
+  if (citation.page != null) params.set('page', String(citation.page));
+  return `/verify?${params.toString()}`;
+}
+
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  citations?: { source: string; page: number | null; docId: string | null }[];
+  citations?: CitationChip[];
   timestamp: Date;
   insufficientContext?: boolean;
   verification?: {
@@ -315,7 +352,7 @@ export function ExplainAssistant() {
 
   const convertResponseToMessage = (response: ChatResponse): Message => {
     // Convert citations from all segments
-    const allCitations: { source: string; page: number | null; docId: string | null }[] = [];
+    const allCitations: CitationChip[] = [];
     response.segments.forEach((segment) => {
       segment.citations.forEach((citation) => {
         allCitations.push({
@@ -326,8 +363,10 @@ export function ExplainAssistant() {
                 ? 'Your Document'
                 : 'Reference'
           ),
-          page: citation.page,
+          page: citation.page ?? citation.source_page ?? null,
           docId: citation.doc_id,
+          observationId: citation.observation_id ?? null,
+          entityId: citation.entity_id ?? null,
         });
       });
     });
@@ -511,22 +550,56 @@ export function ExplainAssistant() {
                       <div className="mt-3 pt-3 border-t border-black/[0.08]">
                         <p className="text-xs text-ink-secondary mb-2">Sources:</p>
                         <div className="flex flex-wrap gap-2">
-                          {message.citations.map((citation, i) => (
-                            <button
-                              key={i}
-                              className={cn(
-                                'inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-colors',
-                                citation.source === 'Your Results'
-                                  ? 'bg-accent-subtle text-accent font-medium hover:bg-accent hover:text-white'
-                                  : 'bg-white/80 text-ink-secondary hover:text-accent'
-                              )}
-                            >
-                              <FileText className="w-3 h-3" />
-                              [{i + 1}] {citation.source}
-                              {citation.page && ` (p.${citation.page})`}
-                              <ExternalLink className="w-3 h-3" />
-                            </button>
-                          ))}
+                          {message.citations.map((citation, i) => {
+                            const target = citationTarget(citation);
+                            const label = (
+                              <>
+                                <FileText className="w-3 h-3" />
+                                [{i + 1}] {citation.source}
+                                {citation.page && ` (p.${citation.page})`}
+                                {target && <ExternalLink className="w-3 h-3" />}
+                              </>
+                            );
+                            const base =
+                              citation.source === 'Your Results'
+                                ? 'bg-accent-subtle text-accent font-medium'
+                                : 'bg-white/80 text-ink-secondary';
+
+                            // A citation with no source region is a label, not
+                            // a control — rendering it as a button that goes
+                            // nowhere is worse than plain text (CITE-SRC-001).
+                            if (!target) {
+                              return (
+                                <span
+                                  key={i}
+                                  className={cn(
+                                    'inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg',
+                                    base
+                                  )}
+                                >
+                                  {label}
+                                </span>
+                              );
+                            }
+
+                            return (
+                              <button
+                                key={i}
+                                type="button"
+                                onClick={() => navigate(target)}
+                                title="Show this result in the source document"
+                                className={cn(
+                                  'inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-colors',
+                                  base,
+                                  citation.source === 'Your Results'
+                                    ? 'hover:bg-accent hover:text-white'
+                                    : 'hover:text-accent'
+                                )}
+                              >
+                                {label}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     )}

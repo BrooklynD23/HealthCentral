@@ -70,6 +70,14 @@ class Citation(BaseModel):
     # Phase 4: Authority information
     authority_tier: Optional[int] = None
     authority_score: Optional[float] = None
+    # CITE-SRC-001: deep-link target, so a citation is checkable evidence
+    # rather than a label. All optional and additive — a citation with no
+    # resolvable source (a reference-corpus entry, say) simply leaves them
+    # unset, and the UI renders it as non-interactive.
+    observation_id: Optional[str] = None
+    entity_id: Optional[str] = None
+    source_page: Optional[int] = None
+    source_bbox_json: Optional[str] = None  # "[x0,y0,x1,y1]" in page coords
 
 
 DocumentCategoryValue = Literal["imaging", "pathology", "visit_notes", "lab"]
@@ -566,17 +574,31 @@ def _agent_terminal_to_response_parts(
     draft/guard's contract) so verification reports them as such, while
     abstain/escalate are fixed-template, zero-claim terminals.
     """
-    citations = [
-        Citation(
+    def _to_api_citation(c) -> Citation:
+        """Map an agent citation onto the API shape (CITE-SRC-001).
+
+        The agent carries every row id as source_type="document", so
+        `source_kind` is what says whether source_id is an observation, a care
+        task, an entity or a timeline event. Only observations and entities are
+        deep-linkable today — tasks and events have no page/bbox of their own,
+        so they are left without a target and the UI renders them as plain
+        labels rather than dead buttons.
+        """
+        kind = getattr(c, "source_kind", None)
+        is_document = c.source_type == "document"
+        return Citation(
             source_type="reference" if c.source_type == "reference" else "user_document",
-            doc_id=c.source_id if c.source_type == "document" else None,
+            # `locator` carries the doc id for entity-backed citations.
+            doc_id=(c.locator if kind == "entity" else None) if is_document else None,
             doc_title=None,
             page=None,
+            observation_id=c.source_id if kind == "observation" else None,
+            entity_id=c.source_id if kind == "entity" else None,
             text_snippet=c.locator or c.source_id,
             relevance_score=1.0,
         )
-        for c in terminal.citations
-    ]
+
+    citations = [_to_api_citation(c) for c in terminal.citations]
 
     segment_type = "report_facts" if terminal.terminal == "answer" else "uncertainty"
     segments = [
@@ -1094,6 +1116,8 @@ async def _build_care_task_fallback(request: ChatRequest, profile_db) -> ChatRes
             source_type="user_observation",
             doc_id=task.source_document_id,
             doc_title="Care task",
+            # CITE-SRC-001: a task points back at the entity it was derived from.
+            entity_id=task.source_entity_id,
             text_snippet=(quote or title)[:200],
             relevance_score=1.0,
         ))
@@ -1161,6 +1185,11 @@ async def _build_med_change_fallback(request: ChatRequest, profile_db) -> ChatRe
             source_type="user_observation",
             doc_id=entity.doc_id,
             doc_title="Medication change",
+            # CITE-SRC-001: deep-link to the exact extracted entity.
+            entity_id=entity.id,
+            source_page=entity.source_page,
+            source_bbox_json=entity.source_bbox_json,
+            page=entity.source_page,
             text_snippet=(quote or value)[:200],
             relevance_score=1.0,
         ))
@@ -1299,7 +1328,18 @@ async def _build_knowledge_fallback(
                         source_type="user_observation",
                         doc_id=obs.doc_id,
                         doc_title=f"Your {info.display_name} Result",
-                        page=None,
+                        # CITE-SRC-001: the row is in hand here, so carry the
+                        # deep-link target. `page` was hardcoded None even
+                        # though source_page has been populated since HC-M12.
+                        # getattr: this whole block is wrapped in a bare
+                        # `except Exception: pass`, so a missing provenance
+                        # attribute would silently drop the entire biomarker
+                        # explanation. Provenance is nice to have; the
+                        # explanation is the point.
+                        page=getattr(obs, "source_page", None),
+                        observation_id=getattr(obs, "id", None),
+                        source_page=getattr(obs, "source_page", None),
+                        source_bbox_json=getattr(obs, "source_bbox_json", None),
                         text_snippet=f"{info.display_name}: {val_str}{date_str}",
                         relevance_score=0.95,
                     ))

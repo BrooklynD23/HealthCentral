@@ -270,9 +270,9 @@ class TestSEC004PathTraversal:
 
     def test_simple_filename_accepted(self, tmp_path: Path):
         """SEC-004: Simple filename resolves correctly."""
-        (tmp_path / "healthcentral.db").touch()
-        result = _validate_manifest_path(tmp_path, "healthcentral.db")
-        assert result == (tmp_path / "healthcentral.db").resolve()
+        (tmp_path / "asclexis.db").touch()
+        result = _validate_manifest_path(tmp_path, "asclexis.db")
+        assert result == (tmp_path / "asclexis.db").resolve()
 
     def test_null_byte_in_path_rejected(self, tmp_path: Path):
         """SEC-004: Path with null byte is rejected."""

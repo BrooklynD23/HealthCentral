@@ -6,13 +6,29 @@
 > For reverse links ("what links here?"), see `docs/_link_graph.json`
 > (`python3 scripts/docs_lint.py --link-graph`).
 
+## `AGENT.md`
+
+**AGENT.md — Asclexis**
+
+Onboarding for any AI agent or new contributor. Behavioral rules are in CLAUDE.md. Treat this file like a new-hire briefing: what the project is, where things live, how to verify your work.
+
+Links to: `.claude/skills/README.md`, `CLAUDE.md`, `docs/00_architecture_plans_index.md`, `docs/agentic/recurring-failures.md`, `docs/roles/00_roles_index.md`, `openwiki/README.md`, `skills/README.md`
+
+## `CLAUDE.md`
+
+**CLAUDE.md — Asclexis**
+
+Behavioral rules for AI agents working in this repo. Repo facts, commands, and architecture live in AGENT.md — read it first.
+
+Links to: `AGENT.md`, `docs/agentic/recurring-failures.md`
+
 ## `README.md`
 
-**HealthCentral**
+**Asclexis**
 
 **Local-First Medical Results Companion**
 
-Links to: `docs/00_architecture_plans_index.md`, `docs/01_backend_architecture_plan.md`, `docs/05_backend_integration_status.md`, `docs/agile/AGILE_PLAN.md`, `docs/agile/EXPLORATION_SUMMARY.md`, `docs/agile/GROUNDING.md`, `docs/agile/RECONCILIATION.md`, `docs/agile/RELEASE_CHECKLIST.md`, `docs/agile/RETRO.md`, `docs/agile/STANDUP.md`, `docs/agile/audience_expectations_main_vs_branch.md`, `docs/agile/sprints/SPRINT_0.md`, `docs/agile/sprints/SPRINT_1.md`, `docs/agile/sprints/SPRINT_2.md`, `docs/agile/sprints/SPRINT_3.md`, `docs/agile/sprints/SPRINT_4.md`, `docs/agile/sprints/SPRINT_5.md`, `docs/agile/sprints/SPRINT_6.md`, `docs/agile/sprints/SPRINT_7.md`, `docs/api/README.md`, `docs/api/endpoints.md`, `docs/compliance/audit-checklist.md`, `docs/compliance/data-privacy.md`, `docs/compliance/disaster-recovery.md`, `docs/compliance/hipaa-controls.md`, `docs/features/TASK_LIST.md`, `docs/prd/PRD_agent_overhaul.md`, `docs/prd/phases/PHASE_0_foundation.md`, `docs/prd/phases/PHASE_1_first_tool.md`, `docs/prd/phases/PHASE_2_loop.md`, `docs/prd/phases/PHASE_3_guardrails.md`, `docs/prd/phases/PHASE_4_phi_gate.md`, `docs/prd/phases/PHASE_5_cutover_cache.md`, `docs/prd/phases/PHASE_6_evals_ci.md`, `docs/prd/phases/PHASE_7_lora_stretch.md`, `docs/roles/backend-api.md`, `docs/user/faq.md`, `docs/user/getting-started.md`, `docs/user/troubleshooting.md`, `docs/user/workflows.md`, `skills/healthcentral-agent/SKILL.md`, `skills/healthcentral-backend/SKILL.md`, `skills/healthcentral-evals/SKILL.md`, `skills/healthcentral-guardrails/SKILL.md`, `src/frontend/e2e/BROWSER_MCP_PLAYBOOK.md`, `src/frontend/e2e/ui-full-verification.spec.ts`
+Links to: `docs/00_architecture_plans_index.md`, `docs/01_backend_architecture_plan.md`, `docs/05_backend_integration_status.md`, `docs/agile/AGILE_PLAN.md`, `docs/agile/GROUNDING.md`, `docs/agile/RELEASE_CHECKLIST.md`, `docs/agile/sprints/SPRINT_7.md`, `docs/api/README.md`, `docs/api/endpoints.md`, `docs/architecture/README.md`, `docs/architecture/performance-scalability-review.md`, `docs/archive/agile-sprints/SPRINT_0.md`, `docs/archive/agile-sprints/SPRINT_1.md`, `docs/archive/agile-sprints/SPRINT_2.md`, `docs/archive/agile-sprints/SPRINT_3.md`, `docs/archive/agile-sprints/SPRINT_4.md`, `docs/archive/agile-sprints/SPRINT_5.md`, `docs/archive/agile-sprints/SPRINT_6.md`, `docs/archive/agile/EXPLORATION_SUMMARY.md`, `docs/archive/agile/RECONCILIATION.md`, `docs/archive/agile/RETRO.md`, `docs/archive/agile/STANDUP.md`, `docs/archive/agile/audience_expectations_main_vs_branch.md`, `docs/archive/prd-phases/PHASE_0_foundation.md`, `docs/archive/prd-phases/PHASE_1_first_tool.md`, `docs/archive/prd-phases/PHASE_2_loop.md`, `docs/archive/prd-phases/PHASE_3_guardrails.md`, `docs/archive/prd-phases/PHASE_4_phi_gate.md`, `docs/archive/prd-phases/PHASE_5_cutover_cache.md`, `docs/archive/prd-phases/PHASE_6_evals_ci.md`, `docs/compliance/audit-checklist.md`, `docs/compliance/data-privacy.md`, `docs/compliance/disaster-recovery.md`, `docs/compliance/hipaa-controls.md`, `docs/features/TASK_LIST.md`, `docs/prd/PRD_agent_overhaul.md`, `docs/prd/phases/PHASE_7_lora_stretch.md`, `docs/roles/backend-api.md`, `docs/user/faq.md`, `docs/user/getting-started.md`, `docs/user/troubleshooting.md`, `docs/user/workflows.md`, `skills/asclexis-agent/SKILL.md`, `skills/asclexis-backend/SKILL.md`, `skills/asclexis-evals/SKILL.md`, `skills/asclexis-guardrails/SKILL.md`, `src/frontend/e2e/BROWSER_MCP_PLAYBOOK.md`, `src/frontend/e2e/ui-full-verification.spec.ts`
 
 ## `docs/00_architecture_plans_index.md`
 
@@ -20,7 +36,7 @@ Links to: `docs/00_architecture_plans_index.md`, `docs/01_backend_architecture_p
 
 This index defines the canonical documentation order and marks legacy planning files that are kept only for history.
 
-Links to: `docs/features/TASK_LIST.md`, `docs/plans/implementation-log`, `docs/roles/00_roles_index.md`, `openwiki/README.md`
+Links to: `docs/architecture/README.md`, `docs/architecture/backend.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/architecture/frontend.md`, `docs/architecture/performance-scalability-review.md`, `docs/architecture/pipelines.md`, `docs/archive/README.md`, `docs/archive/plans/2026-02-15-sprint-06-handoff-prompt.md`, `docs/archive/plans/2026-03-04-handoff.md`, `docs/archive/plans/2026-03-28-roadmap-gsd-m001-m003-historical.md`, `docs/archive/plans/2026-07-02-fable5-architect-handoff-prompt.md`, `docs/archive/plans/2026-07-12-phase-c-handoff-prompt.md`, `docs/archive/plans/UI-implementation-2-4.md`, `docs/archive/plans/next-agent-documentation-consolidation.md`, `docs/archive/plans/remaining-features-implementation.md`, `docs/archive/plans/sprint-phase-2026-02-13-implementation-plan.md`, `docs/features/TASK_LIST.md`, `docs/plans/2026-06-30-tech-upgrade-survey-9-areas.md`, `docs/plans/2026-07-02-architect-review-proposal-tickets.md`, `docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md`, `docs/plans/implementation-log`, `docs/plans/implementation-log/README.md`, `docs/plans/ingest-imaging-pathology-spec.md`, `docs/plans/roadmap_gap_closure.md`, `docs/roles/00_roles_index.md`, `docs/superpowers/plans/2026-05-11-dynamic-port-selection.md`, `docs/superpowers/plans/2026-07-13-hc-m21-search.md`, `openwiki/README.md`
 
 ## `docs/01_backend_architecture_plan.md`
 
@@ -64,7 +80,7 @@ This board is a repo-aligned, test-first execution plan. It is meant to be used 
 
 **Documentation Index**
 
-**HealthCentral**
+**AGENT.md — Asclexis**
 
 ## `docs/Local_First_Medical_Results_Companion_PRD_v0_1.md`
 
@@ -102,7 +118,13 @@ Links to: `docs/agentic/evals.md`, `docs/agentic/harness.md`
 
 Session-by-session record of agent work: what changed, what was verified, what failed, and the next priority. This supplements git history with verification evidence — it does not replace it. Newest…
 
-Links to: `docs/plans/2026-07-07-rename-audit-and-shortlist.md`, `feature_list.json`
+Links to: `docs/brand/brand-guidelines.md`, `docs/plans/2026-07-07-rename-audit-and-shortlist.md`, `feature_list.json`
+
+## `docs/agentic/recurring-failures.md`
+
+**Recurring Failure Modes**
+
+Mistakes this codebase has actually produced, with the evidence that exposed each one. Not hypothetical risks — every entry below shipped, or nearly shipped, and was caught late.
 
 ## `docs/agentic/roadmap.md`
 
@@ -118,107 +140,19 @@ Links to: `docs/agentic/evals.md`, `docs/agentic/harness.md`, `docs/agentic/mcp-
 
 ---
 
-## `docs/agile/EXPLORATION_SUMMARY.md`
-
-**Exploration Summary — agent overhaul integration points**
-
-point is discovered during a sprint
-
-Links to: `docs/agile/RECONCILIATION.md`
-
 ## `docs/agile/GROUNDING.md`
 
 **Grounding — Agent Overhaul**
 
 feature-flag mechanism changes on `main`
 
-Links to: `docs/agile/EXPLORATION_SUMMARY.md`, `docs/agile/RECONCILIATION.md`
-
-## `docs/agile/RECONCILIATION.md`
-
-**Reconciliation — exploration vs. inherited planning bundle**
-
-artifact, or the human resolves an open item below
+Links to: `docs/archive/agile/EXPLORATION_SUMMARY.md`, `docs/archive/agile/RECONCILIATION.md`
 
 ## `docs/agile/RELEASE_CHECKLIST.md`
 
 **Release Checklist — Agent Overhaul**
 
 These are the numeric bars the gated rows above must clear before flipping `true`:
-
-## `docs/agile/RETRO.md`
-
-**Retro Log — Agent Overhaul**
-
----
-
-## `docs/agile/STANDUP.md`
-
-**Standup Log — Agent Overhaul**
-
----
-
-## `docs/agile/audience_expectations_main_vs_branch.md`
-
-**Audience Expectations — `origin/main` vs `fix/agent-overhaul` (target)**
-
-This document is a *list of reports*, each a different lens for a different reader. Skim the matrix in Report 0, then read whichever lens matters to you.
-
-## `docs/agile/sprints/SPRINT_0.md`
-
-**Sprint 0 — Inception (2026-06-22 → 06-28)**
-
-passed, 18 skipped (remaining skips belong to future sprints).
-
-Links to: `docs/agile/RECONCILIATION.md`, `docs/agile/RETRO.md`, `docs/agile/STANDUP.md`, `docs/prd/phases/PHASE_0_foundation.md`
-
-## `docs/agile/sprints/SPRINT_1.md`
-
-**Sprint 1 — First tool, end-to-end (06-29 → 07-05)**
-
-passed, 18 skipped). Flag-off legacy path untouched.
-
-Links to: `docs/prd/phases/PHASE_1_first_tool.md`
-
-## `docs/agile/sprints/SPRINT_2.md`
-
-**Sprint 2 — The loop closes (07-06 → 07-12)**
-
-Multi-step reflect with a hard budget; replayable runs; the eval-harness skeleton.
-
-Links to: `docs/prd/phases/PHASE_2_loop.md`
-
-## `docs/agile/sprints/SPRINT_3.md`
-
-**Sprint 3 — Guardrails as a node (07-13 → 07-19)**
-
-Structural safety: the guard node enforces advice-gate ×2, groundedness drop, and confidence-abstain — all audited.
-
-Links to: `docs/prd/phases/PHASE_3_guardrails.md`
-
-## `docs/agile/sprints/SPRINT_4.md`
-
-**Sprint 4 — PHI gate + external path (07-20 → 07-26)**
-
-Safe opt-in egress: redaction gate inherited; full loop proven offline; golden set ~30.
-
-Links to: `docs/prd/phases/PHASE_4_phi_gate.md`
-
-## `docs/agile/sprints/SPRINT_5.md`
-
-**Sprint 5 — Cutover + cache (07-27 → 08-02)**
-
-The agent IS the assistant: flip the route, add the semantic cache, surface per-node timing.
-
-Links to: `docs/prd/phases/PHASE_5_cutover_cache.md`
-
-## `docs/agile/sprints/SPRINT_6.md`
-
-**Sprint 6 — Evals gate CI (08-03 → 08-09)**
-
-It provably behaves: 50–100 golden cases, automated 4-axis scoring, a CI gate that fails on advice leakage or groundedness drop.
-
-Links to: `docs/prd/phases/PHASE_6_evals_ci.md`
 
 ## `docs/agile/sprints/SPRINT_7.md`
 
@@ -230,11 +164,11 @@ Links to: `docs/prd/phases/PHASE_7_lora_stretch.md`
 
 ## `docs/api/README.md`
 
-**HealthCentral API Documentation**
+**Asclexis API Documentation**
 
 http://localhost:8000/api/v1
 
-Links to: `docs/api/authentication.md`, `docs/api/endpoints.md`, `docs/api/error-codes.md`, `docs/api/integration-guide.md`
+Links to: `docs/api/authentication.md`, `docs/api/endpoints.md`, `docs/api/error-codes.md`, `docs/api/integration-guide.md`, `docs/architecture/backend.md`, `docs/compliance/hipaa-controls.md`
 
 ## `docs/api/authentication.md`
 
@@ -260,11 +194,299 @@ All errors return a JSON body:
 
 cd src/backend python main.py
 
+## `docs/architecture/README.md`
+
+**Architecture Diagrams**
+
+Hand-authored mermaid diagrams of the running system, kept here so the whole structure can be reviewed in one place. Mermaid rather than image files on purpose: diagrams render on GitHub, and they…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/00_architecture_plans_index.md`, `docs/architecture/backend.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/architecture/frontend.md`, `docs/architecture/performance-scalability-review.md`, `docs/architecture/pipelines.md`, `docs/compliance/hipaa-controls.md`
+
+## `docs/architecture/backend.md`
+
+**Backend Structure**
+
+Part of the architecture diagram set.
+
+Links to: `docs/architecture/README.md`
+
+## `docs/architecture/ci-and-quality-gates.md`
+
+**CI & Quality Gates**
+
+Part of the architecture diagram set.
+
+Links to: `docs/architecture/README.md`
+
+## `docs/architecture/frontend.md`
+
+**Frontend Architecture**
+
+Part of the architecture diagram set.
+
+Links to: `docs/architecture/README.md`
+
+## `docs/architecture/performance-scalability-review.md`
+
+**Performance & Scalability Review**
+
+Part of the architecture diagram set.
+
+Links to: `docs/architecture/README.md`
+
+## `docs/architecture/pipelines.md`
+
+**Pipelines: Documents, Assistant, Safety**
+
+Part of the architecture diagram set.
+
+Links to: `docs/architecture/README.md`
+
+## `docs/archive/README.md`
+
+**docs/archive/ — Archive Policy**
+
+This directory holds documentation that is retained for history only. Nothing here is an active tracker, and nothing here should be read as describing current plans, current status, or open work.
+
+Links to: `docs/features/TASK_LIST.md`
+
+## `docs/archive/agile-sprints/SPRINT_0.md`
+
+**Sprint 0 — Inception (2026-06-22 → 06-28)**
+
+passed, 18 skipped (remaining skips belong to future sprints).
+
+Links to: `docs/archive/agile/RECONCILIATION.md`, `docs/archive/agile/RETRO.md`, `docs/archive/agile/STANDUP.md`, `docs/archive/prd-phases/PHASE_0_foundation.md`, `docs/features/TASK_LIST.md`
+
+## `docs/archive/agile-sprints/SPRINT_1.md`
+
+**Sprint 1 — First tool, end-to-end (06-29 → 07-05)**
+
+passed, 18 skipped). Flag-off legacy path untouched.
+
+Links to: `docs/archive/prd-phases/PHASE_1_first_tool.md`, `docs/features/TASK_LIST.md`
+
+## `docs/archive/agile-sprints/SPRINT_2.md`
+
+**Sprint 2 — The loop closes (07-06 → 07-12)**
+
+Multi-step reflect with a hard budget; replayable runs; the eval-harness skeleton.
+
+Links to: `docs/archive/prd-phases/PHASE_2_loop.md`, `docs/features/TASK_LIST.md`
+
+## `docs/archive/agile-sprints/SPRINT_3.md`
+
+**Sprint 3 — Guardrails as a node (07-13 → 07-19)**
+
+Structural safety: the guard node enforces advice-gate ×2, groundedness drop, and confidence-abstain — all audited.
+
+Links to: `docs/archive/prd-phases/PHASE_3_guardrails.md`, `docs/features/TASK_LIST.md`
+
+## `docs/archive/agile-sprints/SPRINT_4.md`
+
+**Sprint 4 — PHI gate + external path (07-20 → 07-26)**
+
+Safe opt-in egress: redaction gate inherited; full loop proven offline; golden set ~30.
+
+Links to: `docs/archive/prd-phases/PHASE_4_phi_gate.md`, `docs/features/TASK_LIST.md`
+
+## `docs/archive/agile-sprints/SPRINT_5.md`
+
+**Sprint 5 — Cutover + cache (07-27 → 08-02)**
+
+The agent IS the assistant: flip the route, add the semantic cache, surface per-node timing.
+
+Links to: `docs/archive/prd-phases/PHASE_5_cutover_cache.md`, `docs/features/TASK_LIST.md`
+
+## `docs/archive/agile-sprints/SPRINT_6.md`
+
+**Sprint 6 — Evals gate CI (08-03 → 08-09)**
+
+It provably behaves: 50–100 golden cases, automated 4-axis scoring, a CI gate that fails on advice leakage or groundedness drop.
+
+Links to: `docs/archive/prd-phases/PHASE_6_evals_ci.md`, `docs/features/TASK_LIST.md`
+
+## `docs/archive/agile/EXPLORATION_SUMMARY.md`
+
+**Exploration Summary — agent overhaul integration points**
+
+point is discovered during a sprint
+
+Links to: `docs/archive/agile/RECONCILIATION.md`, `docs/features/TASK_LIST.md`
+
+## `docs/archive/agile/RECONCILIATION.md`
+
+**Reconciliation — exploration vs. inherited planning bundle**
+
+artifact, or the human resolves an open item below
+
+Links to: `docs/features/TASK_LIST.md`
+
+## `docs/archive/agile/RETRO.md`
+
+**Retro Log — Agent Overhaul**
+
+---
+
+Links to: `docs/features/TASK_LIST.md`
+
+## `docs/archive/agile/STANDUP.md`
+
+**Standup Log — Agent Overhaul**
+
+---
+
+Links to: `docs/features/TASK_LIST.md`
+
+## `docs/archive/agile/audience_expectations_main_vs_branch.md`
+
+**Audience Expectations — `origin/main` vs `fix/agent-overhaul` (target)**
+
+This document is a *list of reports*, each a different lens for a different reader. Skim the matrix in Report 0, then read whichever lens matters to you.
+
+Links to: `docs/features/TASK_LIST.md`
+
+## `docs/archive/plans/2026-02-15-sprint-06-handoff-prompt.md`
+
+**Sprint 06 Agent Handoff Prompt**
+
+---
+
+## `docs/archive/plans/2026-03-04-handoff.md`
+
+**Implementation Handoff — GAM-001, MED-VOICE-001, INGEST-EPIC-001**
+
+**All tasks implemented (23 of 23).** Tests were not run in this handoff. Backend pytest is available in WSL2 when using a Linux-native venv; do not rely on a Windows venv from `/mnt/c/`.
+
+Links to: `docs/features/TASK_LIST.md`
+
+## `docs/archive/plans/2026-03-28-roadmap-gsd-m001-m003-historical.md`
+
+**M001: Project Re-entry Audit and GSD Baseline**
+
+Reconstruct the current project state after inactivity by auditing branch history, validating the live functionality baseline, and establishing GSD as the canonical roadmap and context layer for…
+
+## `docs/archive/plans/2026-07-02-consolidated-findings-report.md`
+
+**HealthCentral — Consolidated Findings Report (2026-07-02)**
+
+---
+
+Links to: `docs/00_architecture_plans_index.md`, `docs/features/TASK_LIST.md`
+
+## `docs/archive/plans/2026-07-02-fable5-architect-handoff-prompt.md`
+
+**Handoff Prompt for Claude Fable 5 — System Architect Review**
+
+session, asking it to review `2026-07-02-consolidated-findings-report.md` as a system architect and synthesize new feature/improvement ideas — not to write code, and not to be run inside this repo's…
+
+Links to: `docs/archive/plans/2026-07-02-consolidated-findings-report.md`, `docs/features/TASK_LIST.md`
+
+## `docs/archive/plans/2026-07-12-phase-c-handoff-prompt.md`
+
+**Handoff Prompt — Phase C (Pinboards, Search, Confidence UX)**
+
+Copy everything below the line into the new session.
+
+Links to: `docs/features/TASK_LIST.md`
+
+## `docs/archive/plans/UI-implementation-2-4.md`
+
+**HealthCentral Implementation Plan**
+
+Based on codebase exploration, several items from the original summary are **already implemented**:
+
+## `docs/archive/plans/next-agent-documentation-consolidation.md`
+
+**Next Agent Plan: Documentation Consolidation + Remaining Hardening**
+
+Execute the remaining documentation-consolidation and hardening backlog with minimal ambiguity, using a test-driven Red/Green/Refactor flow per item.
+
+Links to: `docs/features/TASK_LIST.md`
+
+## `docs/archive/plans/remaining-features-implementation.md`
+
+**HealthCentral: Remaining Features Implementation Plan (Revised)**
+
+The HealthCentral MVP has a solid foundation: auth, document import, text PDF extraction, verification, trends, interpretations, medications, and a RAG assistant skeleton. However, several pipelines…
+
+Links to: `docs/features/TASK_LIST.md`
+
+## `docs/archive/plans/sprint-phase-2026-02-13-implementation-plan.md`
+
+**HealthCentral Sprint Phase Plan - 2026-02-13**
+
+This document captures the detailed ticket findings for the next sprint phase (dated 2026-02-13) and includes an audit of sprint structure with implementation recommendations.
+
+## `docs/archive/prd-phases/PHASE_0_foundation.md`
+
+**Phase 0 — Foundation & Flag**
+
+3e63df2; S0-1/S0-4 via the planning bundle). See AC deviation note under Exit criteria below.
+
+Links to: `docs/archive/agile/RECONCILIATION.md`, `docs/features/TASK_LIST.md`
+
+## `docs/archive/prd-phases/PHASE_1_first_tool.md`
+
+**Phase 1 — First Tool, End-to-End**
+
+One real read-only loop end-to-end behind the flag: a typed tool registry that rejects malformed calls, a `query_observations` tool, and a plan→act→single-step-answer path that returns a cited…
+
+Links to: `docs/features/TASK_LIST.md`
+
+## `docs/archive/prd-phases/PHASE_2_loop.md`
+
+**Phase 2 — The Loop Closes (multi-step reflect)**
+
+Close the loop: four more read-only tools, a reflect node with a hard ≤5-step budget that terminates gracefully, a replayable per-step run log, and the eval-harness skeleton with two seed cases (1…
+
+Links to: `docs/features/TASK_LIST.md`
+
+## `docs/archive/prd-phases/PHASE_3_guardrails.md`
+
+**Phase 3 — Guardrails as a Node**
+
+shared by both call sites (pre-model on the question, and on the draft inside `guard()`); groundedness mapping (`guardrails/groundedness.py`) drops unmapped sentences mechanically; guard node…
+
+Links to: `docs/features/TASK_LIST.md`
+
+## `docs/archive/prd-phases/PHASE_4_phi_gate.md`
+
+**Phase 4 — PHI Gate + External Path**
+
+Make opt-in egress safe: the agent's external-LLM tool path inherits the existing PHI redaction gate, a network-disabled integration test proves the full loop runs locally, and the golden set grows…
+
+Links to: `docs/features/TASK_LIST.md`
+
+## `docs/archive/prd-phases/PHASE_5_cutover_cache.md`
+
+**Phase 5 — Cutover + Cache**
+
+Make the agent the assistant: flip `/assistant/chat` to the agent (legacy kept one release), add a semantic cache keyed `(question, profile_version)` that invalidates on new verified data, and…
+
+Links to: `docs/features/TASK_LIST.md`
+
+## `docs/archive/prd-phases/PHASE_6_evals_ci.md`
+
+**Phase 6 — Evals Gate CI**
+
+Make the safety claims provable and regression-proof: grow the golden set to 50–100 cases with synthetic vault states, score all four axes automatically, and add a CI job that fails any PR where…
+
+Links to: `docs/features/TASK_LIST.md`
+
+## `docs/brand/brand-guidelines.md`
+
+**Asclexis — Brand Guidelines**
+
+This is mostly a safety document. The largest brand risk for this product is not visual inconsistency — it is copy that implies medical advice. That is both a compliance risk and a violation of an…
+
+Links to: `docs/plans/2026-07-07-rename-audit-and-shortlist.md`
+
 ## `docs/compliance/README.md`
 
 **Compliance Documentation**
 
-HealthCentral implements security and privacy controls aligned with HIPAA technical safeguards for protected health information (PHI).
+Three previously-open items landed together; each is documented in the file named beside it.
 
 Links to: `docs/compliance/advisories.md`, `docs/compliance/ai-safety.md`, `docs/compliance/audit-checklist.md`, `docs/compliance/data-privacy.md`, `docs/compliance/disaster-recovery.md`, `docs/compliance/hipaa-controls.md`, `docs/compliance/security-review-sprint06.md`
 
@@ -370,7 +592,7 @@ Links to: `docs/plans/2026-07-02-architect-review-proposal-tickets.md`
 
 **Tiered Model System**
 
-HealthCentral uses a tiered model system for lab interpretation that automatically adapts to your hardware capabilities.
+Asclexis uses a tiered model system for lab interpretation that automatically adapts to your hardware capabilities.
 
 Links to: `docs/model_tiers/tier1_low.md`, `docs/model_tiers/tier2_mid.md`, `docs/model_tiers/tier3_high.md`
 
@@ -392,37 +614,17 @@ Balanced tier offering improved quality while maintaining reasonable resource us
 
 Premium tier with specialized medical knowledge. Requires significant resources.
 
-## `docs/plans/2026-02-15-sprint-06-handoff-prompt.md`
-
-**Sprint 06 Agent Handoff Prompt**
-
----
-
 ## `docs/plans/2026-03-04-gam-voice-ingest-implementation.md`
 
 **GAM-001, MED-VOICE-001, INGEST-EPIC-001 Implementation Plan**
 
 ---
 
-## `docs/plans/2026-03-04-handoff.md`
-
-**Implementation Handoff — GAM-001, MED-VOICE-001, INGEST-EPIC-001**
-
-**All tasks implemented (23 of 23).** Tests were not run in this handoff. Backend pytest is available in WSL2 when using a Linux-native venv; do not rely on a Windows venv from `/mnt/c/`.
-
-Links to: `docs/features/TASK_LIST.md`
-
 ## `docs/plans/2026-03-04-prd-voice-gamification-ingest-design.md`
 
 **PRD: Voice Logging, Gamification v1, INGEST-EPIC-001**
 
 ---
-
-## `docs/plans/2026-03-28-roadmap-gsd-m001-m003-historical.md`
-
-**M001: Project Re-entry Audit and GSD Baseline**
-
-Reconstruct the current project state after inactivity by auditing branch history, validating the live functionality baseline, and establishing GSD as the canonical roadmap and context layer for…
 
 ## `docs/plans/2026-05-15-cursor-lab-workflow-plan.md`
 
@@ -444,23 +646,7 @@ Links to: `src/backend/api/assistant.py`, `src/backend/api/documents.py`, `src/b
 
 ---
 
-Links to: `docs/features/TASK_LIST.md`, `docs/plans/2026-07-02-consolidated-findings-report.md`
-
-## `docs/plans/2026-07-02-consolidated-findings-report.md`
-
-**HealthCentral — Consolidated Findings Report (2026-07-02)**
-
----
-
-Links to: `docs/00_architecture_plans_index.md`, `docs/features/TASK_LIST.md`
-
-## `docs/plans/2026-07-02-fable5-architect-handoff-prompt.md`
-
-**Handoff Prompt for Claude Fable 5 — System Architect Review**
-
-session, asking it to review `2026-07-02-consolidated-findings-report.md` as a system architect and synthesize new feature/improvement ideas — not to write code, and not to be run inside this repo's…
-
-Links to: `docs/plans/2026-07-02-consolidated-findings-report.md`
+Links to: `docs/archive/plans/2026-07-02-consolidated-findings-report.md`, `docs/features/TASK_LIST.md`
 
 ## `docs/plans/2026-07-07-rename-audit-and-shortlist.md`
 
@@ -475,18 +661,6 @@ Owner decision (2026-07-07): rename the product — "HealthCentral" collides wit
 ---
 
 Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/harness.md`, `feature_list.json`
-
-## `docs/plans/2026-07-12-phase-c-handoff-prompt.md`
-
-**Handoff Prompt — Phase C (Pinboards, Search, Confidence UX)**
-
-Copy everything below the line into the new session.
-
-## `docs/plans/UI-implementation-2-4.md`
-
-**HealthCentral Implementation Plan**
-
-Based on codebase exploration, several items from the original summary are **already implemented**:
 
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
@@ -532,33 +706,11 @@ Links to: `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`,
 
 ---
 
-## `docs/plans/next-agent-documentation-consolidation.md`
-
-**Next Agent Plan: Documentation Consolidation + Remaining Hardening**
-
-Execute the remaining documentation-consolidation and hardening backlog with minimal ambiguity, using a test-driven Red/Green/Refactor flow per item.
-
-Links to: `docs/features/TASK_LIST.md`
-
-## `docs/plans/remaining-features-implementation.md`
-
-**HealthCentral: Remaining Features Implementation Plan (Revised)**
-
-The HealthCentral MVP has a solid foundation: auth, document import, text PDF extraction, verification, trends, interpretations, medications, and a RAG assistant skeleton. However, several pipelines…
-
-Links to: `docs/features/TASK_LIST.md`
-
 ## `docs/plans/roadmap_gap_closure.md`
 
 **Gap Closure Roadmap (Security + PRD Completion)**
 
 **Primary Tracker (after approval):** GitHub Issues + Milestones (sync back to `docs/features/TASK_LIST.md` as needed)
-
-## `docs/plans/sprint-phase-2026-02-13-implementation-plan.md`
-
-**HealthCentral Sprint Phase Plan - 2026-02-13**
-
-This document captures the detailed ticket findings for the next sprint phase (dated 2026-02-13) and includes an audit of sprint structure with implementation recommendations.
 
 ## `docs/prd/PRD_agent_overhaul.md`
 
@@ -567,50 +719,6 @@ This document captures the detailed ticket findings for the next sprint phase (d
 metric changes, or a release exit criterion is renegotiated
 
 Links to: `docs/agile/RELEASE_CHECKLIST.md`
-
-## `docs/prd/phases/PHASE_0_foundation.md`
-
-**Phase 0 — Foundation & Flag**
-
-3e63df2; S0-1/S0-4 via the planning bundle). See AC deviation note under Exit criteria below.
-
-Links to: `docs/agile/RECONCILIATION.md`
-
-## `docs/prd/phases/PHASE_1_first_tool.md`
-
-**Phase 1 — First Tool, End-to-End**
-
-One real read-only loop end-to-end behind the flag: a typed tool registry that rejects malformed calls, a `query_observations` tool, and a plan→act→single-step-answer path that returns a cited…
-
-## `docs/prd/phases/PHASE_2_loop.md`
-
-**Phase 2 — The Loop Closes (multi-step reflect)**
-
-Close the loop: four more read-only tools, a reflect node with a hard ≤5-step budget that terminates gracefully, a replayable per-step run log, and the eval-harness skeleton with two seed cases (1…
-
-## `docs/prd/phases/PHASE_3_guardrails.md`
-
-**Phase 3 — Guardrails as a Node**
-
-shared by both call sites (pre-model on the question, and on the draft inside `guard()`); groundedness mapping (`guardrails/groundedness.py`) drops unmapped sentences mechanically; guard node…
-
-## `docs/prd/phases/PHASE_4_phi_gate.md`
-
-**Phase 4 — PHI Gate + External Path**
-
-Make opt-in egress safe: the agent's external-LLM tool path inherits the existing PHI redaction gate, a network-disabled integration test proves the full loop runs locally, and the golden set grows…
-
-## `docs/prd/phases/PHASE_5_cutover_cache.md`
-
-**Phase 5 — Cutover + Cache**
-
-Make the agent the assistant: flip `/assistant/chat` to the agent (legacy kept one release), add a semantic cache keyed `(question, profile_version)` that invalidates on new verified data, and…
-
-## `docs/prd/phases/PHASE_6_evals_ci.md`
-
-**Phase 6 — Evals Gate CI**
-
-Make the safety claims provable and regression-proof: grow the golden set to 50–100 cases with synthetic vault states, score all four axes automatically, and add a CI job that fails any PR where…
 
 ## `docs/prd/phases/PHASE_7_lora_stretch.md`
 
@@ -624,7 +732,7 @@ Distill the big model's good grounded-refusal behavior into a small local LoRA a
 
 This is a domain-based entry point into HealthCentral's architecture documentation, organized like an engineering team's subsystem ownership — not job titles (this is a solo-dev repo; see…
 
-Links to: `docs/00_architecture_plans_index.md`, `docs/INDEX.md`, `docs/roles/ai-llm-pipeline-and-safety.md`, `docs/roles/backend-api.md`, `docs/roles/data-and-migrations.md`, `docs/roles/devops-and-ci.md`, `docs/roles/frontend.md`, `docs/roles/product-and-prd.md`, `docs/roles/security-and-compliance.md`
+Links to: `docs/00_architecture_plans_index.md`, `docs/INDEX.md`, `docs/architecture/README.md`, `docs/roles/ai-llm-pipeline-and-safety.md`, `docs/roles/backend-api.md`, `docs/roles/data-and-migrations.md`, `docs/roles/devops-and-ci.md`, `docs/roles/frontend.md`, `docs/roles/product-and-prd.md`, `docs/roles/security-and-compliance.md`
 
 ## `docs/roles/ai-llm-pipeline-and-safety.md`
 
@@ -632,7 +740,7 @@ Links to: `docs/00_architecture_plans_index.md`, `docs/INDEX.md`, `docs/roles/ai
 
 The local-first LLM provider layer (`core/llm/`), hardware-tier model selection, RAG/grounding pipeline, the hand-rolled agent state machine (`modules/agent/` — **not** LangGraph), and its…
 
-Links to: `docs/04_local_models_inference_plan.md`, `docs/model_tiers/README.md`, `docs/model_tiers/tier1_low.md`, `docs/model_tiers/tier2_mid.md`, `docs/model_tiers/tier3_high.md`, `docs/plans/2026-06-30-tech-upgrade-survey-9-areas.md`, `docs/prd/PRD_agent_overhaul.md`, `docs/prd/phases`, `docs/roles/data-and-migrations.md`, `docs/roles/security-and-compliance.md`, `skills/healthcentral-agent/SKILL.md`, `skills/healthcentral-evals/SKILL.md`, `skills/healthcentral-guardrails/SKILL.md`
+Links to: `docs/04_local_models_inference_plan.md`, `docs/archive/prd-phases`, `docs/model_tiers/README.md`, `docs/model_tiers/tier1_low.md`, `docs/model_tiers/tier2_mid.md`, `docs/model_tiers/tier3_high.md`, `docs/plans/2026-06-30-tech-upgrade-survey-9-areas.md`, `docs/prd/PRD_agent_overhaul.md`, `docs/roles/data-and-migrations.md`, `docs/roles/security-and-compliance.md`, `skills/asclexis-agent/SKILL.md`, `skills/asclexis-evals/SKILL.md`, `skills/asclexis-guardrails/SKILL.md`
 
 ## `docs/roles/backend-api.md`
 
@@ -640,7 +748,7 @@ Links to: `docs/04_local_models_inference_plan.md`, `docs/model_tiers/README.md`
 
 FastAPI application (`src/backend/`), route handlers under `src/backend/api/`, business-logic modules under `src/backend/modules/`, and per-profile SQLCipher-encrypted vault access via…
 
-Links to: `docs/01_backend_architecture_plan.md`, `docs/api/authentication.md`, `docs/api/endpoints.md`, `docs/api/error-codes.md`, `docs/api/integration-guide.md`, `docs/roles/data-and-migrations.md`, `docs/roles/security-and-compliance.md`, `skills/healthcentral-backend/SKILL.md`
+Links to: `docs/01_backend_architecture_plan.md`, `docs/api/authentication.md`, `docs/api/endpoints.md`, `docs/api/error-codes.md`, `docs/api/integration-guide.md`, `docs/roles/data-and-migrations.md`, `docs/roles/security-and-compliance.md`, `skills/asclexis-backend/SKILL.md`
 
 ## `docs/roles/data-and-migrations.md`
 
@@ -694,17 +802,41 @@ Links to: `SECURITY.md`, `docs/03_data_confidentiality_pipeline_plan.md`, `docs/
 
 ---
 
+## `docs/superpowers/plans/2026-07-30-phase-a-audit-fix-pass.md`
+
+**Phase A: Audit Fix Pass Implementation Plan**
+
+- Target **Python 3.11+**. Do not use 3.12-only syntax or APIs. - Use `core.time.utcnow` as the single timestamp helper. Never `datetime.utcnow()`. - All LLM calls go through the `ModelRunner`…
+
+## `docs/superpowers/plans/2026-07-30-phase-b-asclexis-rename.md`
+
+**Phase B: Asclexis Rename and Branding Implementation Plan**
+
+- **Preserve, do not rename:** `HC-*` ticket and test prefixes (111 identifiers), `HC_*` environment variables, vault filenames (`vaults/{profile_id}/vault.db`, `key.bin`, `key.method` — these never…
+
+## `docs/superpowers/plans/2026-07-30-phase-c-agent-instructions.md`
+
+**Phase C: Agent Instruction Reoptimization Implementation Plan**
+
+- **Keep every existing hard invariant in `CLAUDE.md` verbatim.** They are load-bearing and were not the problem. Reword nothing in that section. - **No claim ships unrun.** Every factual assertion…
+
 ## `docs/superpowers/specs/2026-05-11-dynamic-port-selection-design.md`
 
 **Dynamic Port Selection for dev.ps1**
 
 `dev.ps1` hardcodes `$FRONTEND_PORT = 3000` and `$BACKEND_PORT = 8000`. If either port is in use and can't be freed (UAC denied, system-reserved range, stubborn service), the script exits with an…
 
+## `docs/superpowers/specs/2026-07-30-remediation-and-asclexis-design.md`
+
+**Remediation, Rename to Asclexis, and Agent-Instruction Reoptimization**
+
+A pre-merge audit of PR #18 (branch `claude/backlog-repo-docs-yl7isc`, 22 commits, 133 files) found ten defects, three of them merge blockers, in a branch whose CI was fully green. Separately, two…
+
 ## `docs/user/README.md`
 
-**HealthCentral User Guide**
+**Asclexis User Guide**
 
-Welcome to HealthCentral, your local-first medical results companion.
+Welcome to Asclexis, your local-first medical results companion.
 
 Links to: `docs/user/faq.md`, `docs/user/getting-started.md`, `docs/user/troubleshooting.md`, `docs/user/workflows.md`
 
@@ -740,6 +872,8 @@ Links to: `docs/compliance/disaster-recovery.md`
 
 ## `src/frontend/README.md`
 
-**HealthCentral Frontend**
+**Asclexis Frontend**
 
-Web-based UI for HealthCentral, designed to run within a Tauri desktop shell.
+Web-based UI for Asclexis, designed to run within a Tauri desktop shell.
+
+Links to: `docs/architecture/frontend.md`

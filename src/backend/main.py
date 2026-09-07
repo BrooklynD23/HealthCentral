@@ -1,5 +1,5 @@
 """
-HealthCentral Backend - Main Application Entry Point
+Asclexis Backend - Main Application Entry Point
 
 Local-first medical results companion API server.
 Designed for localhost operation with future scalability to web deployment.
@@ -29,6 +29,13 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager for startup/shutdown events."""
+    # Before any engine is created: an existing install has the legacy master
+    # DB filename, and opening a connection to the new name would create an
+    # empty database and hide every profile.
+    from core.db_migration import migrate_master_db_filename
+
+    migrate_master_db_filename(settings.app_data_path)
+
     # Validate configuration (raises RuntimeError in production if jwt_secret empty)
     startup_warnings = settings.validate_startup()
     for w in startup_warnings:
@@ -56,7 +63,23 @@ async def lifespan(app: FastAPI):
     except Exception as _seed_exc:
         logger.warning("Knowledge base seeding skipped: %s", _seed_exc)
 
+    # Scheduled backups (BKUP-UX-001). Fail-soft, like the seeding block above:
+    # a scheduler that cannot start must not stop the app from booting — the
+    # user can still back up manually from Settings.
+    try:
+        from modules.backup_scheduler import start_backup_scheduler
+        await start_backup_scheduler()
+    except Exception as _sched_exc:
+        logger.warning("Backup scheduler not started: %s", _sched_exc)
+
     yield
+
+    try:
+        from modules.backup_scheduler import stop_backup_scheduler
+        await stop_backup_scheduler()
+    except Exception as _sched_exc:  # pragma: no cover - shutdown best effort
+        logger.warning("Backup scheduler shutdown issue: %s", _sched_exc)
+
     await close_database()
 
 
@@ -64,7 +87,7 @@ def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     
     app = FastAPI(
-        title="HealthCentral API",
+        title="Asclexis API",
         description="Local-first medical results companion - API backend",
         version="0.1.0",
         docs_url="/docs" if settings.debug else None,

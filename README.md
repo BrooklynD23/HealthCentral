@@ -1,4 +1,4 @@
-# HealthCentral
+# Asclexis
 
 **Local-First Medical Results Companion**
 
@@ -6,7 +6,7 @@ A privacy-first desktop application for patients to import medical documents, ex
 
 ## Overview
 
-HealthCentral helps patients:
+Asclexis helps patients:
 - **Import** lab PDFs, medical documents, and CSV/FHIR R4 exports from other systems into a secure local vault
 - **Extract & Verify** structured data with human-in-the-loop verification — structured (CSV/FHIR) imports always land unverified, and medication mentions become reconciliation suggestions, never direct tracker mutations
 - **Visualize** longitudinal trends with reference range context
@@ -55,6 +55,15 @@ HealthCentral/
 ```
 
 ## Architecture Diagrams
+
+The two highest-level views are kept inline below. The full set — request
+lifecycle and middleware chain, module dependency direction, dual-database and
+dual-migration data architecture, the document→insight pipeline, the agent
+graph and its guardrails, the safety/privacy control-flow, frontend structure,
+and the CI gates — lives in
+**[`docs/architecture/`](docs/architecture/README.md)** (13 mermaid diagrams),
+alongside an honest
+[performance & scalability review](docs/architecture/performance-scalability-review.md).
 
 ### High-Level System Context
 
@@ -197,12 +206,24 @@ sequenceDiagram
 - **Frontend**: React + Vite + TypeScript
 - **Frontend State/Data**: React Router, TanStack Query, and Zustand
 
-### Future Scalability
-Architecture designed for:
-- Web-based deployment (FastAPI → cloud hosting)
-- Mobile apps (shared API layer)
-- Multi-user support with authentication
-- Cloud storage options (opt-in)
+### Scalability posture
+
+The meaningful scaling axis here is **one person's record growing over years**,
+not concurrent users — this is a local-first desktop application by design, and
+moving inference or storage off-device would break the guarantee the product
+exists to make.
+
+What that means in practice, with the current known limits and where they bite,
+is written up in
+[`docs/architecture/performance-scalability-review.md`](docs/architecture/performance-scalability-review.md).
+The short version: search rebuilds its FTS index per query (the first thing to
+degrade as documents accumulate), a few generated-export stores are held in
+memory without a TTL, and LLM inference is deliberately in-process and blocking.
+The review also lists what this system explicitly does *not* need, so nobody
+adds a caching tier or a vector database to a single-user desktop app.
+
+Any future web or multi-user deployment would be a different product with a
+different privacy model; the shared API layer makes it *possible*, not planned.
 
 ## Documentation Source of Truth
 
@@ -221,7 +242,7 @@ classification locally, run `python3 scripts/docs_lint.py` (add `--link-graph` t
 
 ## SQLCipher Setup (Required for Database Encryption)
 
-HealthCentral uses SQLCipher for encrypted per-profile databases. Each user profile has its own AES-256 encrypted SQLite database.
+Asclexis uses SQLCipher for encrypted per-profile databases. Each user profile has its own AES-256 encrypted SQLite database.
 
 ### Installation
 
@@ -260,7 +281,7 @@ DATABASE_ENCRYPTION_REQUIRED=false
 
 ## Database Migrations
 
-HealthCentral uses **Alembic** for database schema migrations with a dual-environment setup:
+Asclexis uses **Alembic** for database schema migrations with a dual-environment setup:
 
 - **Master database**: Profiles, audit logs, knowledge base (unencrypted)
 - **Profile databases**: Per-user SQLCipher encrypted vaults
@@ -412,8 +433,8 @@ git clone https://github.com/your-org/HealthCentral.git
 cd HealthCentral
 
 # Backend setup (Linux/WSL)
-python3 -m venv ~/venvs/healthcentral-backend
-source ~/venvs/healthcentral-backend/bin/activate
+python3 -m venv ~/venvs/asclexis-backend
+source ~/venvs/asclexis-backend/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r src/backend/requirements.txt
 
@@ -475,21 +496,21 @@ default OFF). Planning artifacts and code scaffolds live alongside the code:
 
 - **PRD:** [docs/prd/PRD_agent_overhaul.md](docs/prd/PRD_agent_overhaul.md)
 - **Agile plan / cadence:** [AGILE_PLAN](docs/agile/AGILE_PLAN.md) ·
-  [STANDUP](docs/agile/STANDUP.md) · [RETRO](docs/agile/RETRO.md) ·
+  [STANDUP](docs/archive/agile/STANDUP.md) · [RETRO](docs/archive/agile/RETRO.md) ·
   [RELEASE_CHECKLIST](docs/agile/RELEASE_CHECKLIST.md)
 - **Grounding:** [GROUNDING](docs/agile/GROUNDING.md) ·
-  [EXPLORATION_SUMMARY](docs/agile/EXPLORATION_SUMMARY.md) ·
-  [RECONCILIATION](docs/agile/RECONCILIATION.md)
-- **Audience expectations:** [main vs branch](docs/agile/audience_expectations_main_vs_branch.md)
+  [EXPLORATION_SUMMARY](docs/archive/agile/EXPLORATION_SUMMARY.md) ·
+  [RECONCILIATION](docs/archive/agile/RECONCILIATION.md)
+- **Audience expectations:** [main vs branch](docs/archive/agile/audience_expectations_main_vs_branch.md)
 
 ### Skill ↔ Epic ↔ Phase ↔ Sprint map
 
 | Skill (`skills/`) | Epic | Phase doc | Sprint doc(s) | Release |
 |---|---|---|---|---|
-| [healthcentral-agent](skills/healthcentral-agent/SKILL.md) | E1 Agent Core | [P0](docs/prd/phases/PHASE_0_foundation.md) · [P1](docs/prd/phases/PHASE_1_first_tool.md) · [P2](docs/prd/phases/PHASE_2_loop.md) | [S0](docs/agile/sprints/SPRINT_0.md) · [S1](docs/agile/sprints/SPRINT_1.md) · [S2](docs/agile/sprints/SPRINT_2.md) | R1 |
-| [healthcentral-guardrails](skills/healthcentral-guardrails/SKILL.md) | E2 Guardrails | [P3](docs/prd/phases/PHASE_3_guardrails.md) · [P4](docs/prd/phases/PHASE_4_phi_gate.md) | [S3](docs/agile/sprints/SPRINT_3.md) · [S4](docs/agile/sprints/SPRINT_4.md) | R2 |
-| [healthcentral-backend](skills/healthcentral-backend/SKILL.md) | E4 LLMOps + E5 Cutover | [P5](docs/prd/phases/PHASE_5_cutover_cache.md) | [S5](docs/agile/sprints/SPRINT_5.md) | R2 |
-| [healthcentral-evals](skills/healthcentral-evals/SKILL.md) | E3 Evals | [P6](docs/prd/phases/PHASE_6_evals_ci.md) | [S6](docs/agile/sprints/SPRINT_6.md) | R3 |
+| [asclexis-agent](skills/asclexis-agent/SKILL.md) | E1 Agent Core | [P0](docs/archive/prd-phases/PHASE_0_foundation.md) · [P1](docs/archive/prd-phases/PHASE_1_first_tool.md) · [P2](docs/archive/prd-phases/PHASE_2_loop.md) | [S0](docs/archive/agile-sprints/SPRINT_0.md) · [S1](docs/archive/agile-sprints/SPRINT_1.md) · [S2](docs/archive/agile-sprints/SPRINT_2.md) | R1 |
+| [asclexis-guardrails](skills/asclexis-guardrails/SKILL.md) | E2 Guardrails | [P3](docs/archive/prd-phases/PHASE_3_guardrails.md) · [P4](docs/archive/prd-phases/PHASE_4_phi_gate.md) | [S3](docs/archive/agile-sprints/SPRINT_3.md) · [S4](docs/archive/agile-sprints/SPRINT_4.md) | R2 |
+| [asclexis-backend](skills/asclexis-backend/SKILL.md) | E4 LLMOps + E5 Cutover | [P5](docs/archive/prd-phases/PHASE_5_cutover_cache.md) | [S5](docs/archive/agile-sprints/SPRINT_5.md) | R2 |
+| [asclexis-evals](skills/asclexis-evals/SKILL.md) | E3 Evals | [P6](docs/archive/prd-phases/PHASE_6_evals_ci.md) | [S6](docs/archive/agile-sprints/SPRINT_6.md) | R3 |
 | — (uses evals + backend) | E6 Fine-tuning (stretch) | [P7](docs/prd/phases/PHASE_7_lora_stretch.md) | [S7](docs/agile/sprints/SPRINT_7.md) | R3 |
 
 Code scaffolds (stubs, flag OFF) live under `src/backend/modules/agent/`; eval/test
@@ -497,7 +518,7 @@ scaffolds and golden fixtures under `src/backend/tests/agent/`.
 
 ## API Overview
 
-HealthCentral exposes a REST API via FastAPI at `http://localhost:8000/api/v1`. Interactive docs are available at `http://localhost:8000/docs`.
+Asclexis exposes a REST API via FastAPI at `http://localhost:8000/api/v1`. Interactive docs are available at `http://localhost:8000/docs`.
 
 | Group | Endpoints | Description |
 |-------|-----------|-------------|

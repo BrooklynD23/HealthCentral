@@ -143,6 +143,67 @@ class PerProfileDatabaseManager:
         vault_path = Path(settings.app_data_path) / "vaults" / profile_id
         return vault_path / "key.method"
 
+    def _get_profile_recovery_key_path(self, profile_id: str) -> Path:
+        """Get the path to a profile's recovery-sealed encryption key.
+
+        A second copy of the same DEK, sealed with a key derived from the
+        one-time recovery code instead of the password (SEC-RECOV-001).
+        """
+        vault_path = Path(settings.app_data_path) / "vaults" / profile_id
+        return vault_path / "key.recovery.bin"
+
+    def _get_profile_recovery_method_path(self, profile_id: str) -> Path:
+        """Get the path to a profile's recovery key sealing method file."""
+        vault_path = Path(settings.app_data_path) / "vaults" / profile_id
+        return vault_path / "key.recovery.method"
+
+    def has_recovery_key(self, profile_id: str) -> bool:
+        """Whether this profile has a recovery code that can unlock it.
+
+        Derived from file existence rather than a database column on purpose:
+        one source of truth cannot desync from itself. A DB flag could drift
+        from the filesystem after a partial restore and tell the unlock screen
+        to offer a recovery path that does not exist.
+        """
+        return self._get_profile_recovery_key_path(profile_id).exists()
+
+    def is_profile_open(self, profile_id: str) -> bool:
+        """Whether this profile's encrypted database is currently open.
+
+        The background backup scheduler needs this: a locked vault cannot be
+        read, so a scheduled backup must record that it was skipped rather than
+        claim a success it did not achieve (BKUP-UX-001).
+        """
+        return profile_id in self._connections
+
+    def get_profile_vault_path(self, profile_id: str) -> Path:
+        """Get the directory holding everything belonging to one profile."""
+        return Path(settings.app_data_path) / "vaults" / profile_id
+
+    def get_profile_key_paths(self, profile_id: str) -> list[Path]:
+        """Every sealed-key artifact for a profile, in deletion order.
+
+        Deleting these files *is* the cryptographic erase (PROF-DEL-001):
+        without the sealed key the SQLCipher vault is unreadable even if the
+        database file survives. This is the single enumeration of sealed-key
+        artifacts — any future feature that seals another copy of the DEK MUST
+        add its paths here, or profile deletion will leave a usable key behind.
+
+        (If DEK rotation is ever implemented, it must reseal every copy listed
+        here, not just the primary one.)
+
+        This list covers the *live* key files only. Copies also travel inside
+        backups, so `delete_profile` sweeps `<app_data>/backups/<profile_id>`
+        as a separate step — a new key location needs adding here **and**
+        needs to be inside the directories those two sweeps cover.
+        """
+        return [
+            self._get_profile_key_path(profile_id),
+            self._get_profile_key_method_path(profile_id),
+            self._get_profile_recovery_key_path(profile_id),
+            self._get_profile_recovery_method_path(profile_id),
+        ]
+
     async def _load_encryption_key(
         self,
         profile_id: str,

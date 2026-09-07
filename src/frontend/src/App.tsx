@@ -1,5 +1,5 @@
 /**
- * HealthCentral Frontend Application
+ * Asclexis Frontend Application
  *
  * Local-first medical results companion UI.
  * Designed for accessibility (WCAG 2.2 AA).
@@ -63,6 +63,10 @@ const SearchPage = lazy(async () => {
   const module = await import('./pages/SearchPage');
   return { default: module.SearchPage };
 });
+const RecoverProfile = lazy(async () => {
+  const module = await import('./pages/RecoverProfile');
+  return { default: module.RecoverProfile };
+});
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -101,6 +105,9 @@ function App() {
         <Routes>
           {/* First run / no profile */}
           <Route path="/setup" element={<ProfileSetup />} />
+
+          {/* Forgot password -> recovery code (SEC-RECOV-001) */}
+          <Route path="/recover" element={lazyRoute(<RecoverProfile />)} />
 
           {/* Protected routes - require authentication */}
           <Route element={<ProtectedRoute />}>

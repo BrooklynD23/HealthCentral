@@ -252,7 +252,7 @@ export function NotificationSettings() {
           <Button
             variant="secondary"
             onClick={() => sendGenericTest.mutate({
-              title: 'HealthCentral Test Notification',
+              title: 'Asclexis Test Notification',
               body: 'Notifications are configured and ready.',
             })}
             disabled={sendGenericTest.isPending}

@@ -76,6 +76,8 @@ describe('ProfileSetup', () => {
         expires_in: 3600,
         profile_id: 'profile-uuid-123',
         profile_name: 'My Health Profile',
+        // SEC-RECOV-001: creation now also returns a one-time recovery code.
+        recovery_code: 'H4K2-9QMR-7TXB-3VWZ-5CDF-8GHJ-2NPS-6KTV',
       };
 
       vi.mocked(api.apiPost).mockResolvedValueOnce(mockTokenResponse);
@@ -118,6 +120,24 @@ describe('ProfileSetup', () => {
         expect(authState.token).toBe('test-jwt-token-123');
         expect(authState.profileId).toBe('profile-uuid-123');
       });
+
+      // SEC-RECOV-001: the one-time recovery code is shown before the app is
+      // entered, and the user cannot skip past it without acknowledging it.
+      const codeBlock = await screen.findByTestId('recovery-code');
+      expect(codeBlock).toHaveTextContent(
+        'H4K2-9QMR-7TXB-3VWZ-5CDF-8GHJ-2NPS-6KTV'
+      );
+      expect(mockNavigate).not.toHaveBeenCalled();
+
+      const continueButton = screen.getByRole('button', {
+        name: /continue to my records/i,
+      });
+      expect(continueButton).toBeDisabled();
+
+      await user.click(
+        screen.getByLabelText(/saved this recovery code/i)
+      );
+      await user.click(continueButton);
 
       // Verify navigation to inbox
       await waitFor(() => {

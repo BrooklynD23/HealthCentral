@@ -59,7 +59,7 @@ Stored in master database (not encrypted by default).
 |-----------|-------------------|--------------|
 | Health data (PHI) | Indefinite | Delete via UI or API |
 | Audit logs | Indefinite | Archival recommended |
-| Backups | 30 days | Configurable via `--retention-days` |
+| Backups | 30 days | Settings → Backup & restore, or `--retention-days`. `0` means never prune. Deleted with the profile. |
 | Request metrics | In-memory (session) | Cleared on restart |
 | AI model cache | Persistent | Manual cleanup via settings |
 
@@ -109,13 +109,73 @@ Users can opt-in to feedback collection on assistant chat responses (thumbs up/d
 
 ## Data Deletion
 
-### Profile Deletion
+### Profile Deletion (PROF-DEL-001)
 
-When a profile is deleted:
-1. Encrypted vault database file is removed
-2. Master database entry is deleted
-3. Audit log records the deletion event
-4. Associated backups are not automatically deleted (manual prune required)
+`DELETE /api/v1/profiles/{id}` — implemented 2026-07-27. Before this, every
+sub-entity was deletable but the profile itself was not, which contradicted the
+product's data-sovereignty premise.
+
+**Gates.** The request requires all three:
+1. the profile password, re-entered (a session token alone is not sufficient)
+2. the exact confirmation phrase `DELETE MY HEALTH DATA`
+3. `export_acknowledged` — the UI offers a data download first
+
+**Order of operations**, chosen so that an interrupted deletion leaves a
+recoverable state rather than a corrupt one:
+1. Re-authenticate; rate-limited per client and profile.
+2. Revoke the caller's session token and close the profile database, releasing
+   file handles and clearing the in-memory encryption key.
+3. **Delete the sealed key files first.** This is the crypto-erase commit
+   point: without the sealed key the vault is unreadable even if the database
+   file survives. If the key cannot be destroyed, the operation aborts before
+   the master row is touched, so the user can retry.
+4. Sweep the whole vault directory — database, WAL/SHM sidecars, and encrypted
+   documents. Failures here are logged but do not abort: the data is already
+   cryptographically erased, and a retry finishes the cleanup.
+5. Sweep the profile's backup directory (`<app_data>/backups/<profile_id>`) on
+   the same log-and-continue terms. Each backup holds its own copy of the sealed
+   key, so leaving them behind would leave the record restorable after a
+   "permanent" deletion.
+6. In one master transaction: purge the audit rows, delete the profile row,
+   delete the `backup_schedules` row, write the tombstone. The schedule row is
+   deleted explicitly rather than by FK cascade — `PRAGMA foreign_keys` is not
+   enabled, so the `ondelete="CASCADE"` on the model is inert on SQLite.
+
+**Audit-row retention — owner decision, 2026-07-27.** The profile's audit rows
+are **purged**, and a single **anonymized** `profile.delete` tombstone is
+retained recording that a deletion occurred and how many rows were purged. The
+tombstone carries no profile id, no display name and no hash of either — a
+random id would still be a linkage handle back to the person.
+
+The alternative considered and rejected was retaining the full audit trail for
+HIPAA-style accountability. It was rejected because it leaves the unencrypted
+master database holding a trace of a person who asked to be erased, which
+contradicts the guarantee this feature exists to provide. This purge is also
+the **only** mechanism that removes audit rows written before AUDIT-PHI-001's
+minimization landed (see `hipaa-controls.md` — legacy rows are otherwise left
+untouched).
+
+**What is claimed, and what is not.** The claim is *file deletion plus key
+destruction*. We do not claim the bytes are overwritten: SSD wear-levelling
+makes that guarantee false, and the UI copy says exactly this.
+
+**App-created backups are deleted with the profile; downloaded archives are
+not.** A backup contains the sealed key and remains readable with the password
+— which is exactly what makes it restorable, and exactly why one left on disk
+would defeat the erase. So the backups the app manages, under
+`<app_data>/backups/<profile_id>`, are swept as part of deletion (step 5 above).
+An archive the user downloaded has left the app's reach entirely and cannot be
+reclaimed; it should be kept as carefully as the device itself, and destroyed by
+hand if the intent is a complete erase. The delete flow offers "back up and
+download" as its first step precisely so this is a deliberate choice rather than
+a leftover.
+
+**Backup archives are deliberately not redacted** (BKUP-UX-001). Every other
+export path passes through `modules/redaction.py` because it produces something
+destined for a third party. A backup is the opposite: the user's own
+full-fidelity record, going to their own machine, and a redacted backup cannot
+be restored. This is the one export-shaped path that is intentionally
+unredacted.
 
 ### Document Deletion
 

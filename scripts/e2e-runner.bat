@@ -5,7 +5,7 @@ REM
 REM Usage: scripts\e2e-runner.bat [filter]
 REM Example: scripts\e2e-runner.bat auth
 
-echo HealthCentral E2E Test Runner
+echo Asclexis E2E Test Runner
 echo =============================
 
 cd /d "%~dp0..\src\frontend"

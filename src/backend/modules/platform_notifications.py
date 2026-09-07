@@ -113,7 +113,7 @@ class WindowsToastProvider(NotificationProvider):
     def __init__(self):
         self._toast_module = None
         self._initialized = False
-        self._app_id = "HealthCentral.MedicationReminder"
+        self._app_id = "Asclexis.MedicationReminder"
 
     @property
     def platform(self) -> NotificationPlatform:
@@ -270,7 +270,7 @@ class PlyerProvider(NotificationProvider):
             self._plyer.notify(
                 title=payload.title,
                 message=payload.body,
-                app_name="HealthCentral",
+                app_name="Asclexis",
                 app_icon=payload.icon_path,
                 timeout=payload.timeout_seconds,
             )
@@ -320,7 +320,7 @@ class DesktopNotifierProvider(NotificationProvider):
         try:
             from desktop_notifier import DesktopNotifier
             if self._notifier is None:
-                self._notifier = DesktopNotifier(app_name="HealthCentral")
+                self._notifier = DesktopNotifier(app_name="Asclexis")
             self._initialized = True
             return True
         except ImportError:

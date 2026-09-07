@@ -9,6 +9,20 @@ import { defineConfig, devices } from '@playwright/test';
 
 const cliArgs = process.argv.slice(2).join(' ');
 const e2eApiUrl = 'http://127.0.0.1:8000/api/v1';
+
+/**
+ * Optional Chromium override for sandboxes that ship a pre-installed browser
+ * whose build number does not match the pinned @playwright/test version (the
+ * package resolves a specific revision directory and fails if it is absent).
+ *
+ * Unset in CI, which installs the matching browser via `playwright install`,
+ * so this changes nothing there. Locally:
+ *   HC_E2E_CHROMIUM_PATH=/opt/pw-browsers/chromium npx playwright test
+ */
+const chromiumExecutablePath = process.env.HC_E2E_CHROMIUM_PATH;
+const chromiumLaunch = chromiumExecutablePath
+  ? { launchOptions: { executablePath: chromiumExecutablePath } }
+  : {};
 const isAssistantCategoryProofRun =
   process.env.PLAYWRIGHT_ASSISTANT_CATEGORY_PROOF === '1' ||
   (/assistant\.spec\.[cm]?[jt]sx?/i.test(cliArgs) && /\bcategory\b/i.test(cliArgs));
@@ -54,12 +68,12 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: { ...devices['Desktop Chrome'], ...chromiumLaunch },
       testIgnore: ['**/ui-full-verification.spec.ts'],
     },
     {
       name: 'real-pdf-local',
-      use: { ...devices['Desktop Chrome'] },
+      use: { ...devices['Desktop Chrome'], ...chromiumLaunch },
       testMatch: ['**/ui-full-verification.spec.ts'],
     },
   ],

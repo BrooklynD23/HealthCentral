@@ -110,7 +110,7 @@ class RetrieveChunksTool:
                 step_index=ctx.step_index,
                 details={
                     "tool_name": self.name,
-                    "query_match": query_lower,
+                    # AUDIT-PHI-001: the query is the user's own question text.
                     "chunk_ids": [c.chunk_id for c in chunks],
                     "count": len(chunks),
                 },

@@ -8,7 +8,7 @@
  */
 
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Heart,
@@ -25,6 +25,8 @@ import { Button, Card, CardContent, Input } from '@/components/ui';
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useCreateProfile } from '@/services';
+import { takeRestoreNotice } from '@/services/backup';
+import { RecoveryCodeCard } from '@/components/profile/RecoveryCodeCard';
 
 const features = [
   {
@@ -78,6 +80,12 @@ export function ProfileSetup() {
   const [isCreating, setIsCreating] = useState(false);
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  // SEC-RECOV-001: shown once, between creation and entering the app.
+  const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
+  // FE-02: a restore ends the session deliberately. Without this the user
+  // lands on "Welcome to Asclexis" and reads it as having lost the data
+  // they just restored. Read once, on first render.
+  const [restoreNotice] = useState<string | null>(() => takeRestoreNotice());
 
   // Form state
   const [displayName, setDisplayName] = useState('');
@@ -125,7 +133,7 @@ export function ProfileSetup() {
       setStep(1);
 
       // Step 2: Setting up encryption - actual API call
-      await createProfile.mutateAsync({
+      const created = await createProfile.mutateAsync({
         display_name: displayName.trim() || 'My Health Profile',
         password,
       });
@@ -133,7 +141,10 @@ export function ProfileSetup() {
       setStep(2);
       await new Promise((r) => setTimeout(r, 500));
 
-      navigate('/inbox');
+      // Show the one-time recovery code before entering the app. This is the
+      // only time it exists in plaintext anywhere.
+      setRecoveryCode(created.recovery_code);
+      setIsCreating(false);
     } catch (err) {
       const raw = err instanceof Error ? err.message : String(err);
       const timedOut =
@@ -141,7 +152,7 @@ export function ProfileSetup() {
         raw.toLowerCase().includes('timeout');
       setError(
         timedOut
-          ? 'Request timed out while creating your profile. Confirm the API is running and .env.local VITE_API_URL matches its port (see backend terminal or logs/healthcentral.log).'
+          ? 'Request timed out while creating your profile. Confirm the API is running and .env.local VITE_API_URL matches its port (see backend terminal or logs/asclexis.log).'
           : raw || 'Failed to create profile'
       );
       setIsCreating(false);
@@ -166,6 +177,20 @@ export function ProfileSetup() {
     show: { opacity: 1, y: 0, transition: { duration: 0.4 } },
   };
 
+  if (recoveryCode) {
+    return (
+      <div className="min-h-screen bg-surface flex items-center justify-center p-6">
+        <div className="w-full max-w-md">
+          <RecoveryCodeCard
+            code={recoveryCode}
+            acknowledgeLabel="Continue to my records"
+            onAcknowledge={() => navigate('/inbox')}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-surface flex items-center justify-center p-6">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -179,12 +204,23 @@ export function ProfileSetup() {
         animate="show"
         className="w-full max-w-lg relative z-10"
       >
+        {restoreNotice && (
+          <motion.div variants={itemVariants} className="mb-6">
+            <div
+              role="status"
+              className="rounded-lg border border-status-info/30 bg-status-info-subtle px-4 py-3 text-sm text-ink"
+            >
+              {restoreNotice}
+            </div>
+          </motion.div>
+        )}
+
         <motion.div variants={itemVariants} className="text-center mb-10">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-accent to-accent/80 shadow-card mb-6">
             <Heart className="w-8 h-8 text-white" strokeWidth={2} />
           </div>
           <h1 className="font-display text-3xl font-semibold text-ink tracking-tight mb-3">
-            Welcome to HealthCentral
+            Welcome to Asclexis
           </h1>
           <p className="text-ink-secondary text-lg">
             Your personal medical results companion.
@@ -280,6 +316,15 @@ export function ProfileSetup() {
                   Create Your Profile
                   <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
                 </Button>
+
+                {/* SEC-RECOV-001: the way back in for an existing profile
+                    whose password has been forgotten. */}
+                <p className="mt-4 text-center text-sm text-ink-secondary">
+                  Already have a profile and forgot the password?{' '}
+                  <Link to="/recover" className="underline">
+                    Use your recovery code
+                  </Link>
+                </p>
               </CardContent>
             </Card>
           ) : (

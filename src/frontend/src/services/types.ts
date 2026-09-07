@@ -11,6 +11,8 @@ export interface Profile {
   is_locked: boolean;
   created_at: string;
   last_accessed_at: string | null;
+  /** SEC-RECOV-001: whether to offer "Forgot password?" on the unlock screen. */
+  has_recovery_code?: boolean;
 }
 
 export interface ProfileCreate {
@@ -26,6 +28,30 @@ export interface TokenResponse {
   profile_name: string;
 }
 
+/**
+ * SEC-RECOV-001 — profile creation now also returns a one-time recovery code.
+ * It is shown exactly once and cannot be retrieved afterwards.
+ */
+export interface ProfileCreateResponse extends TokenResponse {
+  recovery_code: string;
+}
+
+/** Unlock a profile with its recovery code and set a new password. */
+export interface ProfileRecoverRequest {
+  recovery_code: string;
+  new_password: string;
+}
+
+/** Session token plus the rotated recovery code, shown once. */
+export interface ProfileRecoverResponse extends TokenResponse {
+  recovery_code: string;
+}
+
+export interface RecoveryCodeResponse {
+  recovery_code: string;
+  replaced_existing: boolean;
+}
+
 export interface LoginRequest {
   profile_id: string;
   password: string;
@@ -33,6 +59,48 @@ export interface LoginRequest {
 
 export interface UnlockRequest {
   password: string;
+}
+
+/**
+ * PROF-DEL-001 — irreversible profile deletion.
+ *
+ * `export_acknowledged` records that the user was offered a data export before
+ * erasing; the backend rejects the request without it.
+ */
+export interface ProfileDeleteRequest {
+  password: string;
+  confirmation_phrase: string;
+  export_acknowledged: boolean;
+}
+
+/** MED-CORR-001: one observation collected during a medication's active window. */
+export interface CorrelatedObservation {
+  id: string;
+  analyte_canonical: string;
+  value: number | null;
+  value_text: string | null;
+  unit: string | null;
+  ref_low: number | null;
+  ref_high: number | null;
+  flag: string | null;
+  is_abnormal: boolean | null;
+  collected_at: string | null;
+  user_verified: boolean;
+}
+
+/**
+ * Temporal overlap between a medication and lab results — deliberately not an
+ * effect claim. Whether the medication caused a change is a clinical judgement
+ * this app does not make.
+ */
+export interface MedicationCorrelations {
+  medication_id: string;
+  started_at: string | null;
+  ended_at: string | null;
+  observation_count: number;
+  excluded_undated_count: number;
+  analytes: string[];
+  observations: CorrelatedObservation[];
 }
 
 // Document types

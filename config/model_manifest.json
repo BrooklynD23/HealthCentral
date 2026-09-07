@@ -1,0 +1,48 @@
+{
+  "$comment": "MODEL-INT-001 — SHA256 pins for local model artifacts. A silently swapped model artifact silently invalidates every tuned guardrail threshold and golden eval, so the artifact identity is checked at download and at load. Entries with sha256=null are UNPINNED and are reported as such rather than being treated as verified: fabricating a hash would be worse than admitting we do not have one. Add a pin by downloading the artifact, running `python -m modules.model_integrity --hash <path>`, and recording the result here together with the date and where it was obtained.",
+  "manifest_version": 1,
+  "updated": "2026-07-27",
+  "models": {
+    "low": {
+      "repo": "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+      "filename": "qwen2.5-0.5b-instruct-q4_k_m.gguf",
+      "sha256": null,
+      "note": "Unpinned — pin on first verified local download."
+    },
+    "mid": {
+      "repo": "microsoft/Phi-3-mini-4k-instruct-gguf",
+      "filename": null,
+      "filename_pattern": "q4_k_m",
+      "sha256": null,
+      "note": "Unpinned — filename is resolved by pattern, so the pin must record the exact resolved filename."
+    },
+    "high": {
+      "repo": "BioMistral/BioMistral-7B-GGUF",
+      "filename": null,
+      "filename_pattern": "q4_k_m",
+      "sha256": null,
+      "note": "Unpinned — pin on first verified local download."
+    },
+    "gemma4-e2b": {
+      "repo": "unsloth/gemma-4-e2b-it-GGUF",
+      "filename": null,
+      "filename_pattern": "q4_k_m",
+      "sha256": null,
+      "note": "Repo URL is still a PLACEHOLDER in TIER_MODEL_CONFIG; cannot be pinned until the real artifact is confirmed."
+    },
+    "gemma4-e4b": {
+      "repo": "unsloth/gemma-4-e4b-it-GGUF",
+      "filename": null,
+      "filename_pattern": "q4_k_m",
+      "sha256": null,
+      "note": "Repo URL is still a PLACEHOLDER in TIER_MODEL_CONFIG; cannot be pinned until the real artifact is confirmed."
+    },
+    "gemma4-12b": {
+      "repo": "ggml-org/gemma-4-12b-it-GGUF",
+      "filename": null,
+      "filename_pattern": "q4_k_m",
+      "sha256": null,
+      "note": "Repo URL is still a PLACEHOLDER in TIER_MODEL_CONFIG; cannot be pinned until the real artifact is confirmed."
+    }
+  }
+}

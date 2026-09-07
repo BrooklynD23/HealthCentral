@@ -104,7 +104,7 @@ Each FR ties to an acceptance test and a sprint. "AT" = acceptance test.
 
 ## 6. Safety / governance requirements
 
-Binding skill: **`skills/healthcentral-guardrails`** (the guard node owner). Governance
+Binding skill: **`skills/asclexis-guardrails`** (the guard node owner). Governance
 is **mechanical** — enforced in code, never asked-for in a prompt. If a guarantee lives
 only in prompt text it is not a guardrail yet.
 

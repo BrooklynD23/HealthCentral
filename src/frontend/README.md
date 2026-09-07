@@ -1,6 +1,11 @@
-# HealthCentral Frontend
+# Asclexis Frontend
 
-Web-based UI for HealthCentral, designed to run within a Tauri desktop shell.
+**Last Updated:** 2026-07-27
+
+Web-based UI for Asclexis, designed to run within a Tauri desktop shell.
+
+For how the frontend fits into the whole system, see the
+[frontend architecture diagrams](../../docs/architecture/frontend.md).
 
 ## Technology Stack
 
@@ -29,28 +34,58 @@ Per the Frontend Accessibility Plan, this UI must:
 ```
 src/frontend/
 ├── src/
-│   ├── components/        # Reusable UI components
-│   │   ├── ui/           # Base components (shadcn/ui style)
-│   │   ├── a11y/         # Accessibility-enhanced components
-│   │   └── features/     # Feature-specific components
-│   ├── pages/            # Page components
-│   ├── hooks/            # Custom React hooks
-│   ├── services/         # API client services
-│   ├── stores/           # State management
-│   ├── types/            # TypeScript types
-│   └── utils/            # Utility functions
-├── public/               # Static assets
+│   ├── components/           # Reusable UI components
+│   │   ├── ui/              # Base components (Button, Card, Input, Badge, …)
+│   │   ├── layout/          # AppLayout, Sidebar, TopBar
+│   │   ├── auth/            # ProtectedRoute
+│   │   ├── profile/         # RecoveryCodeCard (SEC-RECOV-001)
+│   │   ├── settings/        # DangerZone — profile deletion (PROF-DEL-001)
+│   │   ├── documents/       # HighlightChips, EntityDetailView, confidence badges
+│   │   ├── lab-interpreter/ # Interpreted results, citations, disclaimers
+│   │   ├── medication-coach/# Forms, adherence, streaks, badges
+│   │   └── pinboards/       # AddToPinboardButton
+│   ├── pages/               # Page components (see Screens below)
+│   ├── hooks/               # Custom React hooks
+│   ├── services/            # API client + React Query hooks
+│   │                        #   exported through services/index.ts (the barrel)
+│   ├── stores/              # Zustand — session state only
+│   ├── types/               # TypeScript types
+│   └── utils/               # Utility functions
+├── e2e/                     # Playwright specs
+├── public/                  # Static assets
 └── package.json
 ```
 
-## Core Screens (from PRD)
+## Screens
 
-1. **First Run / Profile Setup** - Create encrypted profile
-2. **Document Inbox** - Import and list documents
-3. **Verification Workbench** - Review and correct extracted values
-4. **Trends Dashboard** - Visualize analyte trends
-5. **Explain (Assistant)** - RAG-powered Q&A with citations
-6. **Export** - Generate doctor-ready summaries
+The original six PRD screens, plus everything the post-visit roadmap
+(HC-M12…HC-M24) added.
+
+| Screen | Route | Purpose |
+|---|---|---|
+| **ProfileSetup** | `/setup` | Create an encrypted profile; shows the one-time recovery code |
+| **RecoverProfile** | `/recover` | Forgot-password path using the recovery code (SEC-RECOV-001) |
+| **DocumentInbox** | `/inbox` | Import and list documents; highlight chips, confidence, duplicate warnings |
+| **VerificationWorkbench** | `/verify` | Review and correct extracted values against their source quotes |
+| **TrendsDashboard** | `/trends` | Analyte trends with reference ranges and medication overlay |
+| **TimelinePage** | `/timeline` | Chronological view of labs, visits, imaging, medication changes (HC-M14) |
+| **SearchPage** | `/search` | Cross-record search and filtering (HC-M21) |
+| **LabInterpreter** | `/interpret` | Grounded, cited interpretations |
+| **MedicationCoach** | `/medications` | Medication list, adherence, streaks |
+| **MedicationDetail** | `/medications/:id` | One medication: schedule, doses, related labs |
+| **CareTasksPage** | `/care-tasks` | Follow-up task candidates and tracker (HC-M15) |
+| **PinboardsPage** | `/pinboards` | User-curated collections (HC-M20) |
+| **ExplainAssistant** | `/explain` | Cited Q&A over your own record, with agentic query chips (HC-M24) |
+| **ExportPage** | `/export` | Doctor summary, visit-prep packet (HC-M18), FHIR R4 (HC-M22), CSV/JSON |
+| **NotificationSettings** | `/notifications` | Medication reminders |
+| **SettingsPage** | `/settings` | Model tier, hardware, voice, memory — and the profile Danger Zone |
+
+### Conventions
+
+- **Import hooks from the `services/index.ts` barrel**, not from individual
+  service files, so the API surface stays visible in one place.
+- **Server state lives in React Query; only session state lives in Zustand.**
+  The auth store holds the token, profile id and expiry — nothing the server owns.
 
 ## Getting Started
 
@@ -111,7 +146,7 @@ See `src/styles/tokens.css` for:
 
 ## UI/UX Aesthetic Guidelines
 
-HealthCentral follows a **"Clinical Calm"** aesthetic—refined minimalism with warm, reassuring touches. This avoids generic healthcare aesthetics and creates a memorable, trustworthy experience.
+Asclexis follows a **"Clinical Calm"** aesthetic—refined minimalism with warm, reassuring touches. This avoids generic healthcare aesthetics and creates a memorable, trustworthy experience.
 
 ### Design Philosophy
 - **Tone**: Refined, trustworthy, quietly confident—never sterile

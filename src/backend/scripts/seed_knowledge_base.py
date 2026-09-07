@@ -913,7 +913,7 @@ async def seed_all(skip_db_init: bool = False) -> dict:
 
 
 if __name__ == "__main__":
-    print("Seeding HealthCentral Knowledge Base...")
+    print("Seeding Asclexis Knowledge Base...")
     print("=" * 50)
 
     results = asyncio.run(seed_all())

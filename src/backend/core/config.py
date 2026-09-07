@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     
     # Database
     database_type: Literal["sqlite", "postgresql"] = "sqlite"
-    sqlite_database_path: str = "data/healthcentral.db"
+    sqlite_database_path: str = "data/asclexis.db"
     database_encryption_enabled: bool = True
     # Require SQLCipher for profile databases. Set to False only for development.
     database_encryption_required: bool = True
@@ -42,9 +42,9 @@ class Settings(BaseSettings):
     # PostgreSQL (future server mode)
     postgres_host: str = "localhost"
     postgres_port: int = 5432
-    postgres_user: str = "healthcentral"
+    postgres_user: str = "asclexis"
     postgres_password: str = ""
-    postgres_database: str = "healthcentral"
+    postgres_database: str = "asclexis"
     
     # Security
     auto_lock_timeout_minutes: int = 15
@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     auth_rate_limit_enabled: bool = True
     auth_rate_limit_max_attempts: int = 10
     auth_rate_limit_window_seconds: int = 60
+
+    # Profile recovery (SEC-RECOV-001): tighter than login because each attempt
+    # costs a full PBKDF2 derivation.
+    recovery_rate_limit_max_attempts: int = 5
+    recovery_rate_limit_window_seconds: int = 900
 
     # API rate limiting (OPS-003)
     api_rate_limit_enabled: bool = True
@@ -117,7 +122,7 @@ class Settings(BaseSettings):
     
     # Logging
     log_level: str = "INFO"
-    log_file_path: str = "logs/healthcentral.log"
+    log_file_path: str = "logs/asclexis.log"
     audit_log_enabled: bool = True
 
     # Memory store (ASSIST-MEM-001)
@@ -162,10 +167,21 @@ class Settings(BaseSettings):
             return Path(self.sqlite_database_path).parent
     
     @property
+    def master_db_filename(self) -> str:
+        """Filename of the master database.
+
+        Derived from `sqlite_database_path` rather than hardcoded. Previously
+        `database_url` hardcoded the name and used only this setting's *parent*,
+        so SQLITE_DATABASE_PATH=data/mydb.db silently had no effect on the
+        filename — the setting advertised control it did not have.
+        """
+        return Path(self.sqlite_database_path).name or "asclexis.db"
+
+    @property
     def database_url(self) -> str:
         """Get the database connection URL."""
         if self.database_type == "sqlite":
-            db_path = self.app_data_path / "healthcentral.db"
+            db_path = self.app_data_path / self.master_db_filename
             return f"sqlite+aiosqlite:///{db_path}"
         else:
             return (

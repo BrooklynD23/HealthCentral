@@ -1,6 +1,6 @@
 # Tiered Model System
 
-HealthCentral uses a tiered model system for lab interpretation that automatically adapts to your hardware capabilities.
+Asclexis uses a tiered model system for lab interpretation that automatically adapts to your hardware capabilities.
 
 ## Overview
 
@@ -124,3 +124,25 @@ Model preferences are stored in `UserModelSettings` table in each profile's encr
 - `auto_detect_enabled`: Whether to auto-recommend based on hardware
 - `last_hardware_json`: Cached hardware detection results
 - `download_state_json`: Download progress (persists across restarts)
+
+## Artifact integrity (MODEL-INT-001)
+
+Every guardrail threshold and golden eval in this repo is tuned against
+specific model artifacts, so a silently swapped GGUF invalidates the safety
+evidence without failing anything visibly. `config/model_manifest.json` pins a
+SHA256 per artifact and `modules/model_integrity.py` checks it when the model
+is loaded.
+
+Two deliberate choices:
+
+- **Unpinned is reported, never assumed good.** Several tiers cannot be pinned
+  yet — the Gemma 4 repo URLs in `TIER_MODEL_CONFIG` are still `PLACEHOLDER`
+  — so those entries carry `sha256: null` and report `UNPINNED`. Fabricating a
+  hash, or treating "no pin" as "verified", would defeat the purpose.
+- **Verification is advisory at load.** Hard-failing would leave a local-first
+  desktop user with a dead app and no path forward. A mismatch is logged as an
+  error and exposed to the caller; enforcement is a policy decision.
+
+To pin an artifact: download it, run
+`python -m modules.model_integrity --hash <path>` from `src/backend`, and record
+the hash in the manifest with the date and where it came from.

@@ -1,5 +1,5 @@
 /**
- * API Client for HealthCentral Backend
+ * API Client for Asclexis Backend
  *
  * Base configuration and fetch wrapper for all API calls.
  * Sprint 1: Added Authorization header support.
@@ -215,7 +215,10 @@ export async function apiPatch<T, D = unknown>(
   return handleResponse<T>(response);
 }
 
-export async function apiDelete(endpoint: string): Promise<void> {
+export async function apiDelete<D = unknown>(
+  endpoint: string,
+  data?: D
+): Promise<void> {
   const url = buildApiUrl(endpoint);
 
   const response = await fetchOrExplain(url, {
@@ -225,6 +228,9 @@ export async function apiDelete(endpoint: string): Promise<void> {
       ...getAuthHeaders(),
     },
     credentials: 'include',
+    // Profile deletion (PROF-DEL-001) requires a body: password re-auth plus
+    // an explicit confirmation phrase.
+    ...(data !== undefined ? { body: JSON.stringify(data) } : {}),
   });
 
   return handleResponse<void>(response);

@@ -12,9 +12,15 @@ for a task. It does not override `CLAUDE.md`, `AGENT.md`, or canonical architect
    `docs/roles/00_roles_index.md`)
 4. `openwiki/` — this generated navigation layer
 
-**Status:** not yet generated. Wiki content has not been produced; only this hand-written README
-exists so the directory's role is defined before generation runs. This file is hand-maintained —
-keep it when regenerating.
+**Status:** still not generated (as of 2026-07-27). Wiki content has not been produced; only this
+hand-written README exists so the directory's role is defined before generation runs. This file is
+hand-maintained — keep it when regenerating.
+
+**In the meantime, use [`docs/architecture/`](../docs/architecture/README.md)** — a hand-authored
+mermaid diagram set covering system context, request lifecycle, module dependencies, data
+architecture, the document and assistant pipelines, the frontend, and the CI gates. Unlike this
+directory it is hand-maintained and therefore *is* authoritative within the doc hierarchy below
+`CLAUDE.md`/`AGENT.md`.
 
 ## Generating / updating
 

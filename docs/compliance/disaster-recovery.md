@@ -9,16 +9,32 @@ All databases are SQLite/SQLCipher files stored in the `data/` directory.
 
 | File | Description |
 |------|-------------|
-| `data/healthcentral.db` | Master database (profiles, audit logs, settings) |
-| `data/vaults/*.db` | Per-profile encrypted vault databases (documents, observations, medications) |
+| `data/healthcentral.db` | Master database (profiles, audit logs, settings) — **not** encrypted |
+| `data/vaults/<profile_id>/vault.db` | Per-profile SQLCipher vault (documents, observations, medications) |
+| `data/vaults/<profile_id>/key.bin`, `key.method` | Sealed DEK and its sealing method. **A vault without its key is ciphertext with no way in** — a backup omitting these restores nothing usable |
+| `data/vaults/<profile_id>/key.recovery.bin`, `key.recovery.method` | Recovery-code-sealed copy of the same DEK (SEC-RECOV-001) |
 
 ## 1. Backup Schedule
 
 | Frequency | Type | Retention |
 |-----------|------|-----------|
-| Daily | Full backup via SQLite backup API | 30 days |
-| Before updates | Manual backup | Until verified |
+| Daily/weekly (per profile schedule) | **Profile-scoped** backup via SQLite backup API | Per `retention_days` |
+| Before updates | Manual **whole-install** backup (CLI, no `--profile-id`) | Until verified |
 | After critical data entry | Optional manual backup | 7 days |
+
+> **The automatic backups are profile-scoped, not whole-install.** Both automatic
+> paths — the in-app "Back up now" button and the scheduler — always pass a
+> profile id, so they write to `data/backups/<profile_id>/` and their master DB
+> contains only that profile's rows. That is deliberate (a downloaded archive
+> must not carry other profiles' password hashes), but it has a consequence for
+> disaster recovery: **a scheduler backup cannot serve a whole-install restore,
+> and the restore will correctly refuse it.** Restoring per profile does recover
+> that profile's vault, sealed keys and master row — but *not* the shared audit
+> trail.
+>
+> If you need whole-install recovery, take a manual CLI backup **without**
+> `--profile-id` on the schedule above, and keep it somewhere the machine's loss
+> does not take with it.
 
 ## 2. Creating a Backup
 
@@ -32,7 +48,8 @@ python src/backend/scripts/backup.py --action backup --data-dir data/ --backup-d
 ```
 
 Options:
-- `--profile-id <id>`: Back up only a specific profile (plus master DB)
+- `--profile-id <id>`: Back up only a specific profile (its vault, its sealed
+  keys, and only that profile's rows from the master DB)
 - `--backup-dir <path>`: Custom backup destination (default: `backups/`)
 
 ### What Happens
@@ -83,9 +100,57 @@ python src/backend/scripts/backup.py --action restore \
 
 The restore process:
 1. Verifies backup integrity before proceeding
-2. Creates `.bak` safety copies of all existing database files
-3. Copies backed-up files to the data directory
-4. Reports the number of files restored and safety copy locations
+2. Refuses outright — before copying anything and before writing any `.bak` —
+   if a **profile-scoped** backup is restored as a whole install. Nothing is
+   touched; the error names the profile the backup belongs to
+3. Creates `.bak` safety copies of each file it is about to overwrite. In a
+   profile-scoped restore the master DB is held back and reconciled instead, so
+   it gets no `.bak`
+4. Copies backed-up files to the data directory
+5. Reports the number of files restored and safety copy locations. A restore
+   that replaced files but could not re-apply the profile's master row reports
+   **partial** rather than success — the vault and sealed keys are the backup's
+   while the live password hash may not be, so sign in with the password that
+   was in use when the backup was made
+
+### Whole-install restore vs. profile-scoped restore
+
+The CLI above is a **whole-install** restore: every file in the manifest is
+copied back, including the master database. That is right when rebuilding a
+machine, and wrong for a single profile.
+
+A backup taken with `--profile-id` is **profile-scoped**: the master database it
+stores holds only that profile's rows — its profile row, its audit entries and
+its backup schedule — so one profile's backup no longer carries another
+profile's credentials. The manifest records the scope in a top-level
+`"profile_id"` field (`null` for a whole-install backup).
+
+That makes the two kinds of backup non-interchangeable, and the restore
+enforces it: **a profile-scoped backup cannot be restored as a whole install.**
+Copying its master over the live one would delete every other profile. Running
+the CLI above against a scoped backup directory therefore fails immediately,
+before any file is touched, naming the profile the backup belongs to. Re-run it
+with the matching `--profile-id`:
+
+```bash
+python src/backend/scripts/backup.py --action restore \
+    --backup-dir backups/ \
+    --data-dir data/ \
+    --profile-id <id>
+```
+
+Backups taken before scoping was introduced have no `"profile_id"` field and
+contain a full master database. They are treated as whole-install backups and
+restore exactly as they always have, by either path.
+
+`POST /backup/{id}/restore` is always **profile-scoped** (BK-01): vault and
+sealed key files are restored verbatim, but instead of copying the master DB
+over the live one, only that profile's row is re-applied from the backed-up
+copy. The row travels with the restore rather than being skipped because
+`password_hash`/`password_salt` live in the master DB while the sealed key
+lives in the vault — restoring old keys against a newer hash would let the user
+log in and then find the vault refuses to open. Other profiles' rows, and the
+live audit trail, are left alone.
 
 ### Post-Restore Validation
 
@@ -111,11 +176,15 @@ python src/backend/scripts/backup.py --action prune \
     --retention-days 30
 ```
 
+`--retention-days 0` means **never prune**, not "prune everything" — the same
+reading the Settings UI and the scheduler use. To clear backups deliberately,
+delete the directory.
+
 ## 6. Escalation
 
 If recovery fails:
 1. Check `.bak` files created during restore — these are your pre-restore safety copies
-2. Check application logs in `logs/healthcentral.log`
+2. Check application logs in `logs/asclexis.log`
 3. Verify SQLite file integrity: `sqlite3 <file> "PRAGMA integrity_check;"`
 4. If databases are encrypted (SQLCipher), ensure the encryption key is available
 5. Contact the development team with the error output and manifest.json contents
@@ -128,6 +197,7 @@ If recovery fails:
     "created_at": "2026-02-21T14:30:00Z",
     "app_version": "0.1.0",
     "backup_method": "sqlite_backup",
+    "profile_id": null,
     "files": [
         {
             "path": "healthcentral.db",

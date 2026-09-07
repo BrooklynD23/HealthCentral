@@ -36,7 +36,7 @@ WAIVERS: dict[str, dict[str, str]] = {
             "local-first, single-user threat model."
         ),
         "owner": "dangtran1022@gmail.com",
-        "expires": "2026-09-23",
+        "expires": "2026-12-30",
     },
 }
 

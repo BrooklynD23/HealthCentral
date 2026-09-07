@@ -2,7 +2,7 @@
 
 Every answer the agent produces is one of three first-class terminals:
 ``answer | abstain | escalate``. ``abstain`` and ``escalate`` are SUCCESSES,
-never error paths (skills/healthcentral-guardrails, healthcentral-agent).
+never error paths (skills/asclexis-guardrails, asclexis-agent).
 """
 
 from __future__ import annotations
@@ -19,6 +19,13 @@ class Citation(BaseModel):
     source_id: str
     locator: str | None = Field(
         default=None, description="page+span for documents, handle for references"
+    )
+    # CITE-SRC-001: `source_id` is heterogeneous — an observation, care-task,
+    # entity or timeline-event id, all carried as source_type="document".
+    # Without a discriminator the API layer cannot tell which deep-link target
+    # it holds, and would have to guess from the id's shape.
+    source_kind: Literal["observation", "task", "entity", "event", "reference"] | None = Field(
+        default=None, description="Which kind of row source_id refers to"
     )
 
 

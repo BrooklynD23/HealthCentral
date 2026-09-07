@@ -1,11 +1,11 @@
 @echo off
 setlocal
-title HealthCentral - Starting...
+title Asclexis - Starting...
 color 0B
 
 echo.
 echo  =============================================
-echo   HealthCentral - One-Click Launcher
+echo   Asclexis - One-Click Launcher
 echo  =============================================
 echo.
 echo  Setting things up for you. Please wait...

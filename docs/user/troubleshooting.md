@@ -10,7 +10,7 @@
 - Verify the backend is running: `curl http://localhost:8000/health`
 - Check the port is not in use: `lsof -i :8000`
 - Verify Python environment has all dependencies: `pip install -r src/backend/requirements.txt`
-- Check logs: `tail -f logs/healthcentral.log`
+- Check logs: `tail -f logs/asclexis.log`
 
 ### 2. "Authentication failed" or 401 errors
 
@@ -104,7 +104,7 @@
 
 ### Logs
 
-Application logs are in `logs/healthcentral.log`. Set `LOG_LEVEL=DEBUG` for
+Application logs are in `logs/asclexis.log`. Set `LOG_LEVEL=DEBUG` for
 verbose output.
 
 ### Health Check

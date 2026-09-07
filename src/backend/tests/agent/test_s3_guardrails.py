@@ -1,7 +1,7 @@
 """Sprint 3 — Guardrails as a node. Stories S3-1..S3-4.
 
 Every sprint that touches the guard/answer path includes >=1 grounded + 1 abstain
-+ 1 advice-bait case (skills/healthcentral-evals). Those live in tests/agent/golden/
++ 1 advice-bait case (skills/asclexis-evals). Those live in tests/agent/golden/
 and are asserted present here; behavioral scoring lands with implementation.
 """
 

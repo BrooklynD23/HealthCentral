@@ -11,6 +11,7 @@ architectural detail, it belongs in the linked doc, not here.
 
 | If you're working on... | Read |
 |---|---|
+| Understanding how the whole system fits together | [`../architecture/README.md`](../architecture/README.md) (diagrams) |
 | FastAPI routes, modules, SQLCipher vault access | [`backend-api.md`](backend-api.md) |
 | React/Vite/TS app, routing, state, accessibility | [`frontend.md`](frontend.md) |
 | SQLAlchemy models, Alembic migrations, per-profile DB | [`data-and-migrations.md`](data-and-migrations.md) |

@@ -24,6 +24,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from core.time import utcnow
+
 logger = logging.getLogger(__name__)
 
 APP_VERSION = "0.1.0"
@@ -50,11 +52,57 @@ class VerifyResult:
 
 @dataclass(frozen=True)
 class RestoreResult:
-    """Result of a restore operation."""
+    """Result of a restore operation.
+
+    `success=False` means nothing was touched — validation or verification
+    failed before any copy. `partial=True` means files WERE replaced and
+    reconciliation then failed: the vault and sealed keys are the backup's, but
+    the master row was not re-applied, so the live password hash may not match.
+    The distinction matters because "nothing changed" is a false reassurance
+    during data loss.
+    """
     success: bool
     files_restored: int
     safety_copies: list[Path]
     error: str = ""
+    partial: bool = False
+
+
+# The one file in a profile-scoped backup that is NOT that profile's own data:
+# the master DB holds every profile's row, the whole audit trail and the backup
+# schedules. Restoring it wholesale from a profile-scoped backup is how one
+# profile's rollback deletes another profile (BK-01).
+MASTER_DB_NAME = "asclexis.db"
+
+# Every backup taken before the rename lists the old filename in its manifest.
+# A naive constant swap makes the `if backup_master.exists()` guard below skip
+# silently, so a pre-rename backup restores a vault whose sealed keys may not
+# match the live password hash — exactly the failure BK-01 exists to prevent.
+#
+# The split is read-side vs write-side. Anything that *classifies* a filename it
+# found — on disk or in a manifest — must accept every name in MASTER_DB_NAMES.
+# Anything that *chooses* a filename to create uses MASTER_DB_NAME alone.
+LEGACY_MASTER_DB_NAMES = ("healthcentral.db",)
+MASTER_DB_NAMES = (MASTER_DB_NAME, *LEGACY_MASTER_DB_NAMES)
+
+
+def _resolve_master(directory: Path) -> Path:
+    """Find the master DB in `directory`, preferring the current name.
+
+    Read-side helper. The startup migration renames the live master before any
+    engine opens, but `scripts/backup.py` is also a standalone CLI that can run
+    against an install which has not booted since the upgrade. Looking only for
+    the new name there would find nothing, and both callers treat a missing
+    master as "skip silently" — which is how BK-01 gets back in.
+
+    Falls back to the current name so callers still have a path to test with
+    `.exists()` when neither is present.
+    """
+    for name in MASTER_DB_NAMES:
+        candidate = directory / name
+        if candidate.exists():
+            return candidate
+    return directory / MASTER_DB_NAME
 
 
 def _validate_manifest_path(base_dir: Path, relative_path: str) -> Path:
@@ -140,21 +188,108 @@ def _backup_sqlite(source: Path, dest: Path) -> str:
 
 
 def _discover_databases(data_dir: Path) -> list[Path]:
-    """Discover all database files in the data directory."""
+    """Discover all database files in the data directory.
+
+    Profile vaults live at ``vaults/{profile_id}/vault.db`` — one directory per
+    profile — so this must recurse. A flat ``vaults/*.db`` glob matches nothing
+    and silently produces a backup containing only the master database, i.e.
+    no patient health data at all.
+    """
     dbs: list[Path] = []
 
-    # Master database
-    master_db = data_dir / "healthcentral.db"
+    # Master database. Read-side: accept the legacy name too, so a CLI backup
+    # of an install that has not booted since the rename still captures the
+    # master rather than silently producing a vault-only backup.
+    master_db = _resolve_master(data_dir)
     if master_db.exists():
         dbs.append(master_db)
 
-    # Profile vault databases
+    # Profile vault databases (one per profile subdirectory)
     vaults_dir = data_dir / "vaults"
     if vaults_dir.exists():
-        for db_file in sorted(vaults_dir.glob("*.db")):
+        for db_file in sorted(vaults_dir.rglob("*.db")):
             dbs.append(db_file)
 
     return dbs
+
+
+def _discover_key_files(data_dir: Path) -> list[Path]:
+    """Discover the sealed key files that make the vault databases readable.
+
+    A vault database without its sealed key is ciphertext with no way in, so a
+    backup that omits these restores nothing usable. Both the password-sealed
+    primary key and the recovery-sealed copy (SEC-RECOV-001) are included —
+    omitting the recovery copy would silently break recovery after a restore.
+
+    These files are sealed, not plaintext: the primary needs the profile
+    password and the recovery copy needs the recovery code. The backup is
+    therefore no more sensitive than the vault it accompanies — but it does
+    mean a backup plus a known password is full access, which is exactly what
+    "restore" has to mean.
+    """
+    key_files: list[Path] = []
+    vaults_dir = data_dir / "vaults"
+    if not vaults_dir.exists():
+        return key_files
+
+    for profile_dir in sorted(p for p in vaults_dir.iterdir() if p.is_dir()):
+        for name in ("key.bin", "key.method", "key.recovery.bin", "key.recovery.method"):
+            candidate = profile_dir / name
+            if candidate.exists():
+                key_files.append(candidate)
+    return key_files
+
+
+def _scope_master_to_profile(master_copy: Path, profile_id: str) -> None:
+    """Reduce an already-copied master DB to just one profile's rows.
+
+    A profile-scoped backup still needs *this* profile's master row: restore has
+    to re-apply `password_hash`, which lives here while the sealed key travels
+    with the vault (BK-01). It does not need anyone else's. Keeping the whole
+    master meant deleting profile B left B's display_name, password hash and
+    audit rows inside every one of profile A's backups, where right-to-erase
+    could not reach them.
+
+    This runs on the copy in the backup directory, before its checksum goes into
+    the manifest, so what is stored and what the manifest describes are the same
+    bytes. Doing it later — at download time — produced an archive that failed
+    its own verification and could not be restored.
+    """
+    conn = sqlite3.connect(master_copy)
+    try:
+        tables = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+        }
+        # The table name is interpolated because SQLite does not bind
+        # identifiers as parameters. Safe: the names come from the hardcoded
+        # tuple below, never from a request.
+        for table in ("profiles", "audit_logs", "backup_schedules"):
+            if table not in tables:
+                continue
+            columns = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+            if "profile_id" in columns:
+                # `IS NULL OR` is load-bearing, not belt-and-braces:
+                # audit_logs.profile_id is nullable for system events, and
+                # profile deletion writes a profile_id=None tombstone. Under
+                # SQL three-valued logic `NULL != 'profile-a'` is NULL, not
+                # TRUE, so a bare `!=` would leave other people's deletion
+                # events and purge counts in this profile's backup.
+                conn.execute(
+                    f"DELETE FROM {table} WHERE profile_id IS NULL OR profile_id != ?",
+                    (profile_id,),
+                )
+            elif "id" in columns and table == "profiles":
+                conn.execute("DELETE FROM profiles WHERE id != ?", (profile_id,))
+        conn.commit()
+        # Without VACUUM the deleted rows stay readable in free pages, which
+        # for password hashes is not good enough.
+        conn.execute("VACUUM")
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def backup(
@@ -172,20 +307,23 @@ def backup(
     if not data_dir.is_dir():
         raise NotADirectoryError(f"Data directory is not a directory: {data_dir}")
 
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    timestamp = utcnow().strftime("%Y%m%d_%H%M%S")
     dest_dir = backup_dir / f"backup_{timestamp}"
     dest_dir.mkdir(parents=True, exist_ok=True)
 
     databases = _discover_databases(data_dir)
 
+    key_files = _discover_key_files(data_dir)
+
     if profile_id:
-        vault_name = f"{profile_id}.db"
+        # Vaults are directories named by profile id, so match on the parent.
         databases = [
             db for db in databases
-            if db.name == "healthcentral.db" or db.name == vault_name
+            if db.name in MASTER_DB_NAMES or db.parent.name == profile_id
         ]
+        key_files = [k for k in key_files if k.parent.name == profile_id]
 
-    if not databases:
+    if not databases and not key_files:
         return BackupResult(
             success=True,
             backup_path=dest_dir,
@@ -207,6 +345,16 @@ def backup(
         if method == "file_copy":
             backup_method = "file_copy"
 
+        # A profile-scoped backup keeps only this profile's master rows. An
+        # unscoped one is a backup of the whole install and keeps everything.
+        # Scope before checksumming so the manifest describes what is stored.
+        # Membership, not equality: if discovery picked up a legacy-named
+        # master, an equality check would skip scoping and quietly store every
+        # other profile's rows — display names and password hashes — inside
+        # this profile's backup.
+        if profile_id and db_path.name in MASTER_DB_NAMES:
+            _scope_master_to_profile(dest_file, profile_id)
+
         checksum = _compute_sha256(dest_file)
         manifest_files.append({
             "path": str(rel_path),
@@ -215,11 +363,31 @@ def backup(
             "method": method,
         })
 
+    # Sealed key files are copied verbatim -- they are opaque blobs, not
+    # SQLite databases, so the backup API does not apply.
+    for key_path in key_files:
+        rel_path = key_path.relative_to(data_dir)
+        dest_file = dest_dir / rel_path
+        dest_file.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(key_path, dest_file)
+        manifest_files.append({
+            "path": str(rel_path),
+            "sha256": _compute_sha256(dest_file),
+            "size_bytes": dest_file.stat().st_size,
+            "method": "file_copy",
+        })
+
     manifest = {
         "timestamp": timestamp,
-        "created_at": datetime.utcnow().isoformat() + "Z",
+        "created_at": utcnow().isoformat() + "Z",
         "app_version": APP_VERSION,
         "backup_method": backup_method,
+        # Records what the stored master DB actually contains: one profile's
+        # rows, or the whole install. Restore needs this to tell the two apart —
+        # they are the same filename with very different meanings. Null for an
+        # unscoped backup, which is also how a pre-scoping backup (no key at
+        # all) reads.
+        "profile_id": profile_id,
         "files": manifest_files,
     }
 
@@ -285,11 +453,74 @@ def verify(backup_path: Path) -> VerifyResult:
     )
 
 
-def restore(backup_path: Path, data_dir: Path) -> RestoreResult:
+def _reapply_profile_row(backup_master: Path, live_master: Path, profile_id: str) -> bool:
+    """Copy one profile's row from a backed-up master DB into the live one.
+
+    Returns True if the row was re-applied, False if the backup holds no row for
+    this profile. The caller needs that distinction: "no row" is not a no-op, it
+    is an unreconciled restore.
+
+    Why this exists: a profile-scoped restore must not roll the shared master
+    database back (that deletes other profiles), but it also cannot simply skip
+    it. The sealed `key.bin` being restored was sealed with the password that
+    was current *at backup time*, while `password_hash` lives in the master DB.
+    Leave the live hash alone and the user logs in with their newer password and
+    then finds the vault refuses to open.
+
+    So exactly one row moves: this profile's. Other profiles' rows, and the
+    append-only audit trail, are untouched.
+    """
+    source = sqlite3.connect(f"file:{backup_master}?mode=ro", uri=True)
+    try:
+        source.row_factory = sqlite3.Row
+        row = source.execute(
+            "SELECT * FROM profiles WHERE id = ?", (profile_id,)
+        ).fetchone()
+    finally:
+        source.close()
+
+    if row is None:
+        # The backup predates this profile, or was taken for a different one.
+        # The vault files were still replaced, so this is not a clean outcome —
+        # the caller decides what to report.
+        logger.warning("Backup contains no master row for the restored profile")
+        return False
+
+    columns = list(row.keys())
+    placeholders = ", ".join("?" for _ in columns)
+    column_list = ", ".join(f'"{c}"' for c in columns)
+
+    target = sqlite3.connect(live_master)
+    try:
+        target.execute("DELETE FROM profiles WHERE id = ?", (profile_id,))
+        target.execute(
+            f"INSERT INTO profiles ({column_list}) VALUES ({placeholders})",
+            tuple(row[c] for c in columns),
+        )
+        target.commit()
+    finally:
+        target.close()
+
+    return True
+
+
+def restore(
+    backup_path: Path,
+    data_dir: Path,
+    profile_id: str | None = None,
+) -> RestoreResult:
     """
     Restore databases from a backup.
 
     Creates .bak safety copies of existing files before overwriting.
+
+    ``profile_id`` scopes the restore to one profile (BK-01). When set, the
+    shared master database is **not** overwritten — only that profile's row is
+    re-applied from the backup, so restoring one profile cannot delete another.
+    Leave it None for a full-install restore, where replacing the master
+    wholesale is the correct behaviour — but only if the backup is itself a
+    whole-install backup. A profile-scoped backup restored with ``profile_id``
+    None is refused outright, before anything is copied.
     """
     # Verify first
     verify_result = verify(backup_path)
@@ -302,16 +533,56 @@ def restore(backup_path: Path, data_dir: Path) -> RestoreResult:
         )
 
     manifest = json.loads((backup_path / "manifest.json").read_text())
+
+    # A profile-scoped backup stores a master DB holding only that profile's
+    # rows. Copying it over the live master — which is what an unscoped restore
+    # does — deletes every other profile, their backup schedules and the shared
+    # audit trail, strands their vaults with no way to sign in, and used to
+    # report success while doing it. The documented DR procedure walks straight
+    # into this: `--action restore --backup-dir backups/` takes the newest
+    # directory with no `--profile-id`.
+    #
+    # This runs before the copy loop and before any `.bak` is written, so
+    # `success=False, partial=False, files_restored=0` is literally true rather
+    # than a hopeful description of a half-finished restore.
+    #
+    # `.get` with a None default is the backward-compatibility hinge: backups
+    # taken before scoping existed carry no key and hold a full master, so they
+    # read as unscoped and restore exactly as they always have.
+    backup_scope = manifest.get("profile_id")
+    if profile_id is None and backup_scope:
+        return RestoreResult(
+            success=False,
+            partial=False,
+            files_restored=0,
+            safety_copies=[],
+            error=(
+                f"This backup is scoped to profile '{backup_scope}': its master "
+                "database contains only that profile's rows. Restoring it as a "
+                "whole install would delete every other profile. Re-run with "
+                f"--profile-id {backup_scope}, or use a whole-install backup."
+            ),
+        )
+
     safety_copies: list[Path] = []
     files_restored = 0
 
     for entry in manifest.get("files", []):
+        # Profile-scoped restore: hold the master DB back and merge one row
+        # from it after the file copies, rather than clobbering every profile.
+        if profile_id and Path(entry["path"]).name in MASTER_DB_NAMES:
+            continue
         try:
             src_file = _validate_manifest_path(backup_path, entry["path"])
             dest_file = _validate_manifest_path(data_dir, entry["path"])
         except ValueError as e:
+            # Truthfully, not defensively: this return sits *inside* the copy
+            # loop, so whether anything was already replaced depends on where
+            # the loop got to. Blanket `partial=True` would be as false on the
+            # first entry as `partial=False` is on the fifth.
             return RestoreResult(
                 success=False,
+                partial=files_restored > 0,
                 files_restored=files_restored,
                 safety_copies=safety_copies,
                 error=f"Path validation failed: {e}",
@@ -326,6 +597,51 @@ def restore(backup_path: Path, data_dir: Path) -> RestoreResult:
         dest_file.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src_file, dest_file)
         files_restored += 1
+
+    if profile_id:
+        # Both read-side. The backup may be pre-rename and the live install may
+        # not have booted since the upgrade; either mismatch would leave
+        # `.exists()` False and skip reconciliation without a word.
+        backup_master = _resolve_master(backup_path)
+        live_master = _resolve_master(data_dir)
+        if backup_master.exists() and live_master.exists():
+            try:
+                reapplied = _reapply_profile_row(
+                    backup_master, live_master, profile_id
+                )
+            except sqlite3.Error as exc:
+                # The copy loop above already replaced vault.db and both sealed
+                # keys. This is a partial restore, not a clean failure. Keyed on
+                # the copy count, not hardcoded: a backup of a profile with no
+                # vault yet copies nothing (the master is held back), and
+                # _reapply_profile_row never commits on failure, so there is
+                # genuinely nothing to warn about.
+                return RestoreResult(
+                    success=False,
+                    partial=files_restored > 0,
+                    files_restored=files_restored,
+                    safety_copies=safety_copies,
+                    error=f"Could not re-apply the profile row: {exc}",
+                )
+
+            if not reapplied:
+                # A missing row is as unreconciled as a failed write: the vault
+                # and both sealed keys are already the backup's, but the live
+                # password_hash still belongs to the newer password. The user
+                # would sign in fine and find the vault refuses to open, so
+                # reporting success here is the most misleading answer
+                # available. Keyed on the copy count for the same reason as the
+                # exits above: with nothing copied, nothing was replaced.
+                return RestoreResult(
+                    success=False,
+                    partial=files_restored > 0,
+                    files_restored=files_restored,
+                    safety_copies=safety_copies,
+                    error=(
+                        "The backup contains no profile row for this profile, "
+                        "so the password could not be reconciled."
+                    ),
+                )
 
     logger.info(
         "Restore complete: %d files from %s",
@@ -343,9 +659,18 @@ def prune(backup_dir: Path, retention_days: int = 30) -> int:
     """
     Remove backups older than retention_days.
 
+    ``retention_days=0`` means **never prune**, not "prune everything". The
+    arithmetic reading — everything older than *now* — would delete a user's
+    entire backup history from a value the Settings UI presents as "keep
+    forever", and which `modules/backup_scheduler` already treats that way. The
+    guard lives here rather than in the callers so the CLI is covered too.
+
     Returns the number of backup directories removed.
     """
-    cutoff = datetime.utcnow() - timedelta(days=retention_days)
+    if retention_days <= 0:
+        return 0
+
+    cutoff = utcnow() - timedelta(days=retention_days)
     removed = 0
 
     for entry in sorted(backup_dir.iterdir()):
@@ -397,7 +722,9 @@ def main() -> None:
         "--profile-id",
         type=str,
         default=None,
-        help="Backup specific profile only",
+        help="Scope to a single profile (backup: this profile only; "
+             "restore: re-apply only this profile's row instead of "
+             "overwriting the master DB)",
     )
     parser.add_argument(
         "--retention-days",
@@ -441,7 +768,10 @@ def main() -> None:
         if not backups:
             print("No backups found")
             sys.exit(1)
-        result = restore(backups[0], args.data_dir)
+        # `--profile-id` is honoured here too: refusing a scoped backup and then
+        # ignoring the flag the error tells the operator to pass would leave the
+        # CLI with no way to restore a scoped backup at all.
+        result = restore(backups[0], args.data_dir, args.profile_id)
         if result.success:
             print(f"Restore: {result.files_restored} files restored")
             for bak in result.safety_copies:

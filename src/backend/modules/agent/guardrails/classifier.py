@@ -3,7 +3,7 @@
 ONE classifier instance is shared by both call sites — pre-model (on the incoming
 question) AND on the draft — so behavior can't drift between them. A single
 front-door check is insufficient: bait can enter mid-conversation
-(skills/healthcentral-guardrails).
+(skills/asclexis-guardrails).
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ class AdviceVerdict(BaseModel):
 #
 # Patterns are intentionally small and easy to extend (mirrors the spirit of
 # nodes/plan.py's _ANALYTE_KEYWORDS) — richer NLU is out of scope here; this
-# is a mechanical gate, not a model call (skills/healthcentral-guardrails).
+# is a mechanical gate, not a model call (skills/asclexis-guardrails).
 _MEDICATION_PATTERNS = [
     r"\bshould i (?:stop|start|begin|quit|change|switch|increase|decrease|adjust|lower|raise|skip|take)\b.*\b(?:taking|my|the|this)\b",
     r"\b(?:stop|start|quit|change|switch|increase|decrease|adjust)\s+(?:taking\s+)?my\s+\w*\s*(?:statin|medication|medicine|pill|dose|dosage|drug|prescription|insulin|antibiotic)",
