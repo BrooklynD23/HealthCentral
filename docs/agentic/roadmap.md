@@ -2,6 +2,8 @@
 
 Why this project exists as an agentic-engineering exercise, and what "done well" looks like. The working loop is in [harness.md](harness.md); verification is in [evals.md](evals.md); the live task inventory is [feature_list.json](../../feature_list.json).
 
+The 2026-09-08 research pass on making the *product* agentic (not just the process that builds it) is planned in [../research/2026-09-08/PLAN.md](../research/2026-09-08/PLAN.md), with verified repo state and binding constraints in [../research/2026-09-08/00-brief.md](../research/2026-09-08/00-brief.md).
+
 ## Goals
 
 1. **Production-grade product engineering** on a real, safety-sensitive domain: local-first health data organization, trend visualization, and source-grounded explanation — explicitly *not* diagnosis, treatment, or dosing (see [ai-safety.md](../compliance/ai-safety.md)).

@@ -132,7 +132,7 @@ Mistakes this codebase has actually produced, with the evidence that exposed eac
 
 Why this project exists as an agentic-engineering exercise, and what "done well" looks like. The working loop is in harness.md; verification is in evals.md; the live task inventory is…
 
-Links to: `docs/agentic/evals.md`, `docs/agentic/harness.md`, `docs/agentic/mcp-tools.md`, `docs/agentic/progress.md`, `docs/compliance/README.md`, `docs/compliance/ai-safety.md`, `feature_list.json`
+Links to: `docs/agentic/evals.md`, `docs/agentic/harness.md`, `docs/agentic/mcp-tools.md`, `docs/agentic/progress.md`, `docs/compliance/README.md`, `docs/compliance/ai-safety.md`, `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/PLAN.md`, `feature_list.json`
 
 ## `docs/agile/AGILE_PLAN.md`
 
@@ -725,6 +725,20 @@ Links to: `docs/agile/RELEASE_CHECKLIST.md`
 **Phase 7 — LoRA Distillation (stretch)**
 
 Distill the big model's good grounded-refusal behavior into a small local LoRA adapter so the offline default is smaller and **just as safe** — gated by the same golden set, never weaker on any axis.
+
+## `docs/research/2026-09-08/00-brief.md`
+
+**Shared research brief — Asclexis agentic expansion (2026-09-08)**
+
+Every track document in this directory was produced against this brief. Read it before reading any track. It records **verified repo state** (commands and file paths given, run 2026-09-08 on branch…
+
+## `docs/research/2026-09-08/PLAN.md`
+
+**Research plan — from process-agentic to product-agentic**
+
+---
+
+Links to: `CLAUDE.md`, `docs/agentic/harness.md`, `docs/agentic/mcp-tools.md`, `docs/agentic/recurring-failures.md`, `docs/research/2026-09-08/00-brief.md`
 
 ## `docs/roles/00_roles_index.md`
 

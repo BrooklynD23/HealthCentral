@@ -17,6 +17,7 @@
       "docs/architecture/README.md",
       "docs/compliance/ai-safety.md",
       "docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md",
+      "docs/research/2026-09-08/PLAN.md",
       "AGENT.md"
     ],
     "CONTRIBUTING.md": [
@@ -65,17 +66,20 @@
     "docs/agentic/harness.md": [
       "docs/agentic/mcp-tools.md",
       "docs/agentic/roadmap.md",
-      "docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md"
+      "docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md",
+      "docs/research/2026-09-08/PLAN.md"
     ],
     "docs/agentic/mcp-tools.md": [
       "docs/agentic/harness.md",
-      "docs/agentic/roadmap.md"
+      "docs/agentic/roadmap.md",
+      "docs/research/2026-09-08/PLAN.md"
     ],
     "docs/agentic/progress.md": [
       "docs/agentic/harness.md",
       "docs/agentic/roadmap.md"
     ],
     "docs/agentic/recurring-failures.md": [
+      "docs/research/2026-09-08/PLAN.md",
       "AGENT.md",
       "CLAUDE.md"
     ],
@@ -417,6 +421,13 @@
       "docs/agile/sprints/SPRINT_7.md",
       "README.md"
     ],
+    "docs/research/2026-09-08/00-brief.md": [
+      "docs/agentic/roadmap.md",
+      "docs/research/2026-09-08/PLAN.md"
+    ],
+    "docs/research/2026-09-08/PLAN.md": [
+      "docs/agentic/roadmap.md"
+    ],
     "docs/roles/00_roles_index.md": [
       "docs/00_architecture_plans_index.md",
       "AGENT.md"
@@ -698,6 +709,8 @@
       "docs/agentic/harness.md",
       "docs/agentic/evals.md",
       "feature_list.json",
+      "docs/research/2026-09-08/PLAN.md",
+      "docs/research/2026-09-08/00-brief.md",
       "docs/compliance/ai-safety.md",
       "docs/agentic/progress.md",
       "docs/compliance/README.md",
@@ -907,6 +920,13 @@
     ],
     "docs/prd/PRD_agent_overhaul.md": [
       "docs/agile/RELEASE_CHECKLIST.md"
+    ],
+    "docs/research/2026-09-08/PLAN.md": [
+      "docs/research/2026-09-08/00-brief.md",
+      "docs/agentic/harness.md",
+      "docs/agentic/mcp-tools.md",
+      "CLAUDE.md",
+      "docs/agentic/recurring-failures.md"
     ],
     "docs/roles/00_roles_index.md": [
       "docs/architecture/README.md",
