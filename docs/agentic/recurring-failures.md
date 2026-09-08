@@ -95,10 +95,24 @@ vary — collected counts over pass counts.
 reported **stale** on the same commit. A concurrent subagent held ~37 files
 modified, so the working tree was not HEAD.
 
+A second instance, 2026-09-08, with a different cause: a docs-only commit added
+two plan docs, ran `python3 scripts/docs_lint.py` — the command `CLAUDE.md` and
+`AGENT.md` both name — and got "Docs lint passed." The commit shipped stale
+`docs/INDEX.md` and `docs/_link_graph.json` anyway, and
+`tests/test_docs_lint.py::test_docs_index_check_passes_on_real_repo` failed on the
+next full run. `docs_lint.py` does not check whether the generated index is
+current; only the pytest suite does. The documented command and the actual gate
+were two different things, and the passing one was the one that got run.
+
 **Recheck:** when anything else is editing the tree, verify commit-level gates in
 a throwaway `git worktree` detached at HEAD, not in place. Related: parallel
 agents running `git add` sweep each other's staged work — commit with explicit
 pathspecs (`git commit -m … -- <paths>`), and never `git reset` to clean up.
+And for **any** docs change, `scripts/docs_lint.py` passing is not sufficient —
+run `python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py
+--link-graph`, or run the backend suite, which is the only place the freshness of
+those two generated files is actually asserted. A docs-only diff is not a reason
+to skip the suite; it is the case where the relevant check is least obvious.
 
 ---
 

@@ -36,7 +36,7 @@ Links to: `docs/00_architecture_plans_index.md`, `docs/01_backend_architecture_p
 
 This index defines the canonical documentation order and marks legacy planning files that are kept only for history.
 
-Links to: `docs/architecture/README.md`, `docs/architecture/backend.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/architecture/frontend.md`, `docs/architecture/performance-scalability-review.md`, `docs/architecture/pipelines.md`, `docs/archive/README.md`, `docs/archive/plans/2026-02-15-sprint-06-handoff-prompt.md`, `docs/archive/plans/2026-03-04-handoff.md`, `docs/archive/plans/2026-03-28-roadmap-gsd-m001-m003-historical.md`, `docs/archive/plans/2026-07-02-fable5-architect-handoff-prompt.md`, `docs/archive/plans/2026-07-12-phase-c-handoff-prompt.md`, `docs/archive/plans/UI-implementation-2-4.md`, `docs/archive/plans/next-agent-documentation-consolidation.md`, `docs/archive/plans/remaining-features-implementation.md`, `docs/archive/plans/sprint-phase-2026-02-13-implementation-plan.md`, `docs/features/TASK_LIST.md`, `docs/plans/2026-06-30-tech-upgrade-survey-9-areas.md`, `docs/plans/2026-07-02-architect-review-proposal-tickets.md`, `docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md`, `docs/plans/implementation-log`, `docs/plans/implementation-log/README.md`, `docs/plans/ingest-imaging-pathology-spec.md`, `docs/plans/roadmap_gap_closure.md`, `docs/roles/00_roles_index.md`, `docs/superpowers/plans/2026-05-11-dynamic-port-selection.md`, `docs/superpowers/plans/2026-07-13-hc-m21-search.md`, `openwiki/README.md`
+Links to: `docs/architecture/README.md`, `docs/architecture/backend.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/architecture/frontend.md`, `docs/architecture/performance-scalability-review.md`, `docs/architecture/pipelines.md`, `docs/archive/README.md`, `docs/archive/plans/2026-02-15-sprint-06-handoff-prompt.md`, `docs/archive/plans/2026-03-04-handoff.md`, `docs/archive/plans/2026-03-28-roadmap-gsd-m001-m003-historical.md`, `docs/archive/plans/2026-07-02-fable5-architect-handoff-prompt.md`, `docs/archive/plans/2026-07-12-phase-c-handoff-prompt.md`, `docs/archive/plans/UI-implementation-2-4.md`, `docs/archive/plans/next-agent-documentation-consolidation.md`, `docs/archive/plans/remaining-features-implementation.md`, `docs/archive/plans/sprint-phase-2026-02-13-implementation-plan.md`, `docs/features/TASK_LIST.md`, `docs/plans/2026-06-30-tech-upgrade-survey-9-areas.md`, `docs/plans/2026-07-02-architect-review-proposal-tickets.md`, `docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md`, `docs/plans/2026-09-08-backlog-closure-plan.md`, `docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md`, `docs/plans/implementation-log`, `docs/plans/implementation-log/README.md`, `docs/plans/ingest-imaging-pathology-spec.md`, `docs/plans/roadmap_gap_closure.md`, `docs/roles/00_roles_index.md`, `docs/superpowers/plans/2026-05-11-dynamic-port-selection.md`, `docs/superpowers/plans/2026-07-13-hc-m21-search.md`, `openwiki/README.md`
 
 ## `docs/01_backend_architecture_plan.md`
 
@@ -586,7 +586,7 @@ Links to: `docs/00_architecture_plans_index.md`
 
 ---
 
-Links to: `docs/plans/2026-07-02-architect-review-proposal-tickets.md`
+Links to: `docs/agentic/recurring-failures.md`, `docs/plans/2026-07-02-architect-review-proposal-tickets.md`, `docs/plans/2026-09-08-backlog-closure-plan.md`, `docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md`
 
 ## `docs/model_tiers/README.md`
 
@@ -661,6 +661,22 @@ Owner decision (2026-07-07): rename the product — "HealthCentral" collides wit
 ---
 
 Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/harness.md`, `feature_list.json`
+
+## `docs/plans/2026-09-08-backlog-closure-plan.md`
+
+**Backlog Closure Plan — every open item, sequenced**
+
+Input: a repository audit dated 2026-09-08 listing partial features, open tickets, and pending milestones. Every claim in it was re-verified against the tree before being planned — §1 records what…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/mcp-tools.md`, `docs/agentic/recurring-failures.md`, `docs/features/TASK_LIST.md`, `docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md`, `feature_list.json`
+
+## `docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md`
+
+**SQL-FK-001 — Foreign Key Audit (prerequisite for enabling `PRAGMA foreign_keys`)**
+
+The `SQL-FK-001` ticket says the pragma cannot be flipped until "a written audit of every FK" exists. This is that audit. It is a reference table, not a plan — the sequenced work is in…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/features/TASK_LIST.md`, `docs/plans/2026-09-08-backlog-closure-plan.md`
 
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 

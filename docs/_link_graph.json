@@ -10,6 +10,8 @@
       "docs/agentic/harness.md",
       "docs/architecture/README.md",
       "docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md",
+      "docs/plans/2026-09-08-backlog-closure-plan.md",
+      "docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md",
       "CLAUDE.md"
     ],
     "CLAUDE.md": [
@@ -17,6 +19,8 @@
       "docs/architecture/README.md",
       "docs/compliance/ai-safety.md",
       "docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md",
+      "docs/plans/2026-09-08-backlog-closure-plan.md",
+      "docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md",
       "AGENT.md"
     ],
     "CONTRIBUTING.md": [
@@ -69,13 +73,16 @@
     ],
     "docs/agentic/mcp-tools.md": [
       "docs/agentic/harness.md",
-      "docs/agentic/roadmap.md"
+      "docs/agentic/roadmap.md",
+      "docs/plans/2026-09-08-backlog-closure-plan.md"
     ],
     "docs/agentic/progress.md": [
       "docs/agentic/harness.md",
       "docs/agentic/roadmap.md"
     ],
     "docs/agentic/recurring-failures.md": [
+      "docs/features/TASK_LIST.md",
+      "docs/plans/2026-09-08-backlog-closure-plan.md",
       "AGENT.md",
       "CLAUDE.md"
     ],
@@ -348,6 +355,8 @@
       "docs/archive/prd-phases/PHASE_5_cutover_cache.md",
       "docs/archive/prd-phases/PHASE_6_evals_ci.md",
       "docs/plans/2026-07-02-architect-review-proposal-tickets.md",
+      "docs/plans/2026-09-08-backlog-closure-plan.md",
+      "docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md",
       "docs/roles/product-and-prd.md",
       "README.md"
     ],
@@ -380,6 +389,16 @@
     ],
     "docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md": [
       "docs/00_architecture_plans_index.md"
+    ],
+    "docs/plans/2026-09-08-backlog-closure-plan.md": [
+      "docs/00_architecture_plans_index.md",
+      "docs/features/TASK_LIST.md",
+      "docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md"
+    ],
+    "docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md": [
+      "docs/00_architecture_plans_index.md",
+      "docs/features/TASK_LIST.md",
+      "docs/plans/2026-09-08-backlog-closure-plan.md"
     ],
     "docs/plans/implementation-log": [
       "docs/00_architecture_plans_index.md"
@@ -485,7 +504,8 @@
       "docs/agentic/progress.md",
       "docs/agentic/roadmap.md",
       "docs/compliance/ai-safety.md",
-      "docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md"
+      "docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md",
+      "docs/plans/2026-09-08-backlog-closure-plan.md"
     ],
     "openwiki/README.md": [
       "docs/00_architecture_plans_index.md",
@@ -644,6 +664,8 @@
       "docs/features/TASK_LIST.md",
       "docs/roles/00_roles_index.md",
       "docs/plans/implementation-log",
+      "docs/plans/2026-09-08-backlog-closure-plan.md",
+      "docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md",
       "docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md",
       "docs/plans/2026-07-02-architect-review-proposal-tickets.md",
       "docs/plans/roadmap_gap_closure.md",
@@ -861,7 +883,10 @@
       "docs/00_architecture_plans_index.md"
     ],
     "docs/features/TASK_LIST.md": [
-      "docs/plans/2026-07-02-architect-review-proposal-tickets.md"
+      "docs/plans/2026-07-02-architect-review-proposal-tickets.md",
+      "docs/plans/2026-09-08-backlog-closure-plan.md",
+      "docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md",
+      "docs/agentic/recurring-failures.md"
     ],
     "docs/model_tiers/README.md": [
       "docs/model_tiers/tier1_low.md",
@@ -897,6 +922,21 @@
       "AGENT.md",
       "feature_list.json",
       "docs/agentic/harness.md"
+    ],
+    "docs/plans/2026-09-08-backlog-closure-plan.md": [
+      "CLAUDE.md",
+      "AGENT.md",
+      "docs/features/TASK_LIST.md",
+      "feature_list.json",
+      "docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md",
+      "docs/agentic/recurring-failures.md",
+      "docs/agentic/mcp-tools.md"
+    ],
+    "docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md": [
+      "CLAUDE.md",
+      "AGENT.md",
+      "docs/features/TASK_LIST.md",
+      "docs/plans/2026-09-08-backlog-closure-plan.md"
     ],
     "docs/plans/implementation-log/README.md": [
       "docs/plans/implementation-log/2024-12-28_project-structure-setup.md",

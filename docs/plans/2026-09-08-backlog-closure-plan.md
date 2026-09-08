@@ -28,7 +28,7 @@ Verified 2026-09-08 by reading the code. An audit is a lead, not a finding.
 | `HC-M07`: correlation ID absent from log records, no JSON log format | **Confirmed** | `monitoring/correlation.py` stores the ID in a contextvar and a response header only; no `logging.Filter` exists, and `core/config.py` has no log-format setting. |
 | OpenWiki not generated | **Confirmed** | `openwiki/` contains only the hand-written `README.md`. |
 | `INGEST-FHIR-001` open — "zero structured ingest exists today" | **STALE — the tracker row is wrong** | HC-M23 shipped `modules/import_structured.py`, which parses FHIR R4 Bundles (`Observation`, `MedicationStatement`, `Condition`) and lab CSV. The row's premise was overtaken by work that landed after it was written. Real remaining scope is much smaller — see §5. |
-| 1245 backend tests, 6 CI jobs, no TODO/FIXME in product code | **Confirmed where checkable here** | 6 jobs in `.github/workflows/ci.yml`; zero TODO/FIXME/XXX/HACK in non-test backend code. The test count could **not** be verified in this container — pytest is not installed — so 1245 remains the documented baseline, unconfirmed by this session. |
+| 1245 backend tests, 6 CI jobs, no TODO/FIXME in product code | **Confirmed, measured** | 6 jobs in `.github/workflows/ci.yml`; zero TODO/FIXME/XXX/HACK in non-test backend code. Test count measured after installing the backend dependencies: **1245 collected, 1244 passed, 1 failed** — the failure is `test_api_rag_index_002b`, the documented env-only embedding case (`sentence-transformers` deliberately not installed). Matches `AGENT.md`'s baseline exactly. |
 
 Two things the audit did not surface, both found while verifying `SQL-FK-001`:
 
@@ -371,6 +371,8 @@ test's data setup or the code path it exposed — never in the constraint. A
 session that finds itself weakening an FK to get a green suite has misread this
 approval and should stop.
 
-**Not yet measured:** the size of that red. This container has no pytest, so the
-blast radius is still unknown at the time of the decision — the owner accepted it
-on that basis. Measure it before §3.3, not during.
+**Baseline now measured** (after the decision, same session): 1245 collected,
+1244 passing, 1 documented env-only failure. So the suite is a usable instrument
+for §3.3 — the red the pragma produces will be attributable, because the green it
+starts from is known. Measure the delta against this baseline, not against a
+remembered number.

@@ -184,10 +184,21 @@ a decision and a rationale each — at
 It found the models and the migration DDL agree everywhere, so flipping the
 pragma activates exactly what is declared; four constraints need changing first.
 
-**Verification:** documentation-only change. `python3 scripts/docs_lint.py`
-passes. The backend suite was **not** run — pytest is not installed in this
-container — so the 1245-collected baseline is unconfirmed by this session and
-is restated, not re-measured. No product code was touched.
+**Verification:** documentation-only change; no product code touched. The
+backend environment was stood up later in the same session (everything in
+`requirements.txt` except `llama-cpp-python` and `sentence-transformers`), so
+the baseline is now **measured, not restated**: `python -m pytest tests/ -p
+no:cacheprovider -q` collects **1245** and reports **1244 passed, 1 failed** —
+the failure being `test_api_rag_index_002b`, the documented env-only embedding
+case, which is expected without `sentence-transformers` installed. This matches
+`AGENT.md`'s stated baseline exactly.
+
+That run also caught a regression this session's own docs commit had shipped:
+`docs/INDEX.md` and `docs/_link_graph.json` were stale, failing
+`test_docs_lint.py::test_docs_index_check_passes_on_real_repo`, even though
+`scripts/docs_lint.py` — the command the docs actually name — passed. Both
+regenerated; recorded as a second instance of
+[recurring-failures.md §5](../agentic/recurring-failures.md).
 
 ### 2026-07-30 - Pre-merge audit corrections
 
