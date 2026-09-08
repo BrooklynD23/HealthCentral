@@ -38,11 +38,19 @@ is **out of date**. Verified 2026-09-08:
 
 Each was verified by command, not inferred:
 
-1. **The planner never calls a model.** `modules/agent/nodes/plan.py` docstring:
-   "S1/S2 ship a DETERMINISTIC planner — no live LLM is available in tests ... and
-   none is called here." Tool choice is `_ANALYTE_KEYWORDS` substring matching.
+1. **The entire agent graph is LLM-free** — corrected 2026-09-08 after Tracks 1
+   and 2 independently contradicted an earlier, weaker version of this line that
+   named only the planner. Verified: `grep -rn "ModelRunner\|model_runner\|generate"
+   modules/agent/ --include=*.py` returns **only docstrings**. `plan` is
+   `_ANALYTE_KEYWORDS` substring matching; `reflect` is a dict check; `draft`
+   composes prose from Python f-string templates (`nodes/draft.py:80,108,116`);
+   `guard`'s abstain/escalate text is fixed `templates.py` strings. So
+   `/assistant/chat` — with `agent_enabled` defaulting True — currently serves
+   **fully deterministic templated prose, with no model call in the path at all.**
    The `planner` parameter is injectable, so an LLM planner is a swap, not a
-   rewrite. **The loop is ReAct-shaped but not ReAct-driven.**
+   rewrite. **The loop is ReAct-shaped but not ReAct-driven, and not yet
+   generative.** This is a safety posture (zero hallucination surface), not an
+   oversight — but it caps what the assistant can express.
 2. **No constrained decoding.**
    `grep -rn "grammar\|response_format\|json_schema\|GBNF\|logits_processor" core/llm/ modules/`
    returns nothing. Any LLM planner would parse free text — the exact failure the
@@ -54,8 +62,12 @@ Each was verified by command, not inferred:
    `n_gpu_layers` only — no prefix reuse, no `n_batch`, no state save/load.
    Every agent step re-encodes a system prompt + retrieved chunks that are
    largely identical step to step.
-5. **MoE is a model choice, not an architecture.** Gemma-4-26B-MoE (A4B active)
-   appears in `TIER_MODEL_CONFIG`; nothing in the codebase exploits sparse
+5. **MoE is not even a model choice yet** — corrected 2026-09-08; an earlier
+   version of this line said Gemma-4-26B-MoE "appears in `TIER_MODEL_CONFIG`".
+   It does not. Verified: "26B MoE (A4B active)" appears only in a **comment**
+   (`model_selector.py:39`) describing the Gemma 4 family; the actual dict keys
+   are `low`, `gemma4-e2b`, `gemma4-e4b`, `gemma4-12b`, … with no MoE entry, and
+   `docs/model_tiers/README.md` does not list one either. Nothing exploits sparse
    activation, expert offload, or per-expert memory budgeting.
 6. **No product-side MCP.** `.mcp.json` configures serena for *development*.
    The product exposes no MCP server and consumes no MCP client.
@@ -125,4 +137,4 @@ must not be "fixed" by lowering its 0.7 threshold).
 Track filenames are shown as literals rather than links: each lands as its
 researcher completes, and the links are wired in the synthesis commit.
 
-Synthesis and sequencing live in `09-roadmap.md`.
+Synthesis and sequencing (`09-roadmap.md`) are **not yet written** — see PLAN.md §9.

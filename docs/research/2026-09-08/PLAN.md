@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-08 · **Branch:** `claude/healthcentral-agentic-research-r1n54x`
 **Orchestrator:** Opus · **Track researchers:** 8 × Sonnet 5, dispatched in parallel
-**Shared context:** [`00-brief.md`](00-brief.md) · **Synthesis:** `09-roadmap.md`
+**Shared context:** [`00-brief.md`](00-brief.md) · **Synthesis:** not yet written (§9)
 
 ---
 
@@ -68,19 +68,28 @@ it is seven specific things:
 
 | # | Gap | Sharpest evidence |
 |---|---|---|
-| G1 | The planner **never calls a model** — tool choice is keyword matching | `nodes/plan.py`: "no live LLM ... none is called here"; `_ANALYTE_KEYWORDS` |
+| G1 | **No node calls a model** — the whole graph is deterministic | `grep ModelRunner modules/agent/` → docstrings only; `draft.py:80,108,116` f-string prose |
 | G2 | **No constrained decoding** anywhere | zero grep hits for `grammar\|GBNF\|json_schema\|response_format` in `core/llm/` + `modules/` |
 | G3 | Routing is **per-machine, not per-task** | `model_selector.py` tiers on `hardware_detection.py` only |
 | G4 | **No KV-cache strategy** despite a loop that re-encodes near-identical prefixes | `llama_cpp_provider.py` exposes `n_ctx`/`n_gpu_layers` only |
-| G5 | **MoE is a menu item, not an architecture** | Gemma-4-26B-MoE in `TIER_MODEL_CONFIG`; nothing exploits sparsity |
+| G5 | **MoE is absent, not merely unexploited** | "26B MoE" is a *comment* at `model_selector.py:39`; no such dict entry exists |
 | G6 | **No product-side MCP** | `.mcp.json` is dev tooling (serena); no server, no client |
 | G7 | **No user-facing data control plane** | `core/audit.py` writes rows; no audit router in `api/`; no frontend surface |
 
-G1 is the keystone. The loop is ReAct-*shaped* but not ReAct-*driven* — and
-because `plan()` takes an injectable `planner` parameter, closing it is a swap,
+G1 is the keystone, and it is stronger than the version of this line written
+before the tracks reported: the loop is ReAct-*shaped*, not ReAct-*driven*, and
+not generative at all. Every answer `/assistant/chat` returns today is assembled
+from Python f-string templates. That is a deliberate safety posture — a zero
+hallucination surface — and it is why the eval gate can hold groundedness at
+1.0. It is also a ceiling: a template cannot explain an unanticipated question,
+which is the entire product premise.
+
+Because `plan()` takes an injectable `planner` parameter, closing G1 is a swap,
 not a rewrite. G2 is what makes that swap safe rather than reckless: an
 unconstrained small model emitting tool calls as free text is precisely the
-"fragile execution under load" failure the Technical Companion catalogues.
+"fragile execution under load" failure the Technical Companion catalogues. The
+sequencing is therefore forced — **G2 before G1** — and the templated path must
+survive as the fallback, not be replaced by the generative one.
 
 ---
 
@@ -201,7 +210,7 @@ On return, the orchestrator:
    cross-vendor-adversarial-review lesson applies — a disagreement surfaced is a
    bug found.
 4. **Rejects anything that violates §5** regardless of how good the idea is.
-5. **Synthesizes** into `09-roadmap.md`.
+5. **Synthesizes** into `09-roadmap.md` — not yet written; see §9.
 
 Nothing here becomes work until it survives that pass. Research output is
 evidence, and this repo has a documented history of a green signal coexisting
@@ -241,3 +250,56 @@ Stated up front so the synthesis is not read as more certain than it is:
 - **Competitive research reads marketing.** "Private AI" on a landing page often
   means "we don't sell your data," not "it runs on your device." Track 6 was told
   to distinguish these and will not always be able to.
+
+---
+
+## 9. Execution record (what actually happened)
+
+Written after the fact, per the repo's evidence rules. A plan that only records
+its intentions is not the artifact this project claims to be building.
+
+**Dispatch.** Eight Sonnet 5 researchers launched in parallel, ~16:31 UTC.
+All eight produced complete documents (6,758 lines total across the directory).
+
+**Five of eight terminated on an account session rate limit** (HTTP 429) —
+tracks 1, 4, 5, 6, 7. Critically, the limit hit each agent *after* it had
+written its document, during the wrap-up turn. Verified by inspecting the files
+rather than trusting the failure status: tracks 4–7 each end with complete
+Recommendations and Sources sections, and track 1 ends with the "Doc/code
+divergences" and "Extension points" tables its brief specified. No track was
+re-run, and nothing was reconstructed from an agent's summary message.
+
+**Two corrections the tracks forced on this plan's own premises.** Both were
+verified first-hand before being accepted, and both made the finding *stronger*,
+not weaker:
+
+| Corrected | Was written | Verified truth |
+|---|---|---|
+| **G1** | "the planner never calls a model" | *No node* calls a model. `draft` emits f-string templates; `guard` emits fixed strings. The graph is entirely LLM-free. |
+| **G5** | "Gemma-4-26B-MoE appears in `TIER_MODEL_CONFIG`" | It appears in a **comment** (`model_selector.py:39`). No MoE entry exists in the dict. |
+
+The G1 correction matters most: it means the default `/assistant/chat` path is
+not a chatbot with a loosely-governed model, it is a deterministic template
+engine with a tool loop in front of it. Every recommendation about routing,
+caching, constrained decoding, and structured output is therefore about a model
+call **that does not exist yet** — these are designs for the first generative
+node, not optimizations of an existing one. Read every track with that in mind.
+
+**Baseline reproduced live.** Track 1 installed the pure-Python requirements
+(deliberately excluding `llama-cpp-python`, `sentence-transformers`, and
+`torch`) and collected **exactly 1245 tests, zero errors** — matching
+`CLAUDE.md`. That is also positive evidence that both heavy imports are lazy,
+since collection never touched them. The full suite was *not* executed; only
+collected, plus the 78-test `tests/agent/` subset run to completion.
+
+**Egress limits on external research.** `WebFetch` was blocked by the
+environment's proxy for several domains (arxiv.org among them). Affected tracks
+fell back to `WebSearch` result snippets and marked the weaker claims
+`[UNVERIFIED]` per §4. Track 6 corroborated blocked sources against independent
+ones where it could. External citations in this directory are therefore not
+uniformly strong — check the tag before leaning on one.
+
+**Not done in this pass:** the synthesis roadmap (`09-roadmap.md`). Eight tracks
+returned; reconciling their cross-track disagreements into one sequenced plan is
+the next unit of work, and it is deliberately not being rushed to fill a
+placeholder link.

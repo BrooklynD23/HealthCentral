@@ -132,7 +132,7 @@ Mistakes this codebase has actually produced, with the evidence that exposed eac
 
 Why this project exists as an agentic-engineering exercise, and what "done well" looks like. The working loop is in harness.md; verification is in evals.md; the live task inventory is…
 
-Links to: `docs/agentic/evals.md`, `docs/agentic/harness.md`, `docs/agentic/mcp-tools.md`, `docs/agentic/progress.md`, `docs/compliance/README.md`, `docs/compliance/ai-safety.md`, `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/PLAN.md`, `feature_list.json`
+Links to: `docs/agentic/evals.md`, `docs/agentic/harness.md`, `docs/agentic/mcp-tools.md`, `docs/agentic/progress.md`, `docs/compliance/README.md`, `docs/compliance/ai-safety.md`, `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/01-codebase-audit.md`, `docs/research/2026-09-08/02-inference-serving.md`, `docs/research/2026-09-08/03-agentic-loops.md`, `docs/research/2026-09-08/04-mcp-interop.md`, `docs/research/2026-09-08/05-models-voice.md`, `docs/research/2026-09-08/06-competitive-landscape.md`, `docs/research/2026-09-08/07-data-control.md`, `docs/research/2026-09-08/08-frontend.md`, `docs/research/2026-09-08/PLAN.md`, `feature_list.json`
 
 ## `docs/agile/AGILE_PLAN.md`
 
@@ -731,6 +731,64 @@ Distill the big model's good grounded-refusal behavior into a small local LoRA a
 **Shared research brief — Asclexis agentic expansion (2026-09-08)**
 
 Every track document in this directory was produced against this brief. Read it before reading any track. It records **verified repo state** (commands and file paths given, run 2026-09-08 on branch…
+
+## `docs/research/2026-09-08/01-codebase-audit.md`
+
+**Track 1 — Codebase capability audit**
+
+All paths are relative to `src/backend/` unless stated otherwise. Line numbers verified 2026-09-08 by direct file read, not by memory or by trusting docstrings.
+
+## `docs/research/2026-09-08/02-inference-serving.md`
+
+**Track 2: Local inference and serving infrastructure**
+
+Read `00-brief.md` first for verified repo state and binding constraints. This document does not restate that premise except where it needed correction — see the note on §4.
+
+Links to: `src/backend/core/config.py`, `src/backend/core/llm/factory.py`, `src/backend/core/llm/llama_cpp_provider.py`, `src/backend/core/llm/ollama_provider.py`, `src/backend/modules/agent/cache.py`, `src/backend/modules/agent/guardrails/classifier.py`, `src/backend/modules/agent/guardrails/groundedness.py`, `src/backend/modules/agent/nodes/draft.py`, `src/backend/modules/agent/nodes/plan.py`, `src/backend/modules/agent/nodes/reflect.py`, `src/backend/modules/agent/state.py`, `src/backend/modules/agent/tools/base.py`, `src/backend/modules/agent/tools/registry.py`, `src/backend/modules/model_selector.py`, `src/backend/modules/rag.py`
+
+## `docs/research/2026-09-08/03-agentic-loops.md`
+
+**Track 3 — Agentic loop engineering**
+
+Research for the Asclexis (formerly HealthCentral) local-first health app. Read `00-brief.md` first — it records the verified repo state this track builds on and the constraints that bind every…
+
+Links to: `docs/research/2026-09-08/00-brief.md`
+
+## `docs/research/2026-09-08/04-mcp-interop.md`
+
+**Track 4 — Model Context Protocol & Health-Data Interoperability**
+
+Researched 2026-09-08. Knowledge cutoff May 2026; anything about the world after that carries a fetched URL or is marked `[UNVERIFIED]`, per the brief (`00-brief.md` §4). Repo claims carry a…
+
+Links to: `docs/research/2026-09-08/00-brief.md`
+
+## `docs/research/2026-09-08/05-models-voice.md`
+
+**Track 5 — Open-Weight Models, the NVIDIA Local Stack, and Voice**
+
+Research date: 2026-09-08. Model knowledge cutoff: May 2026 — everything below about releases after that date is either backed by a fetched/searched source (cited inline) or marked `[UNVERIFIED]`.…
+
+## `docs/research/2026-09-08/06-competitive-landscape.md`
+
+**Track 6 — Competitive and adjacent-landscape research**
+
+Research date: 2026-09-08. Model knowledge cutoff: May 2026 — everything below about post-cutoff events is sourced to a fetched URL or explicitly marked `[UNVERIFIED]`. This track is read-only on…
+
+## `docs/research/2026-09-08/07-data-control.md`
+
+**Track 7 — Data science, user data control, and compliance**
+
+Research for the Asclexis (formerly HealthCentral) agentic-expansion effort. Produced 2026-09-08 against `00-brief.md`. Read-only on source; this file is the only write. Every repo claim below…
+
+Links to: `docs/research/2026-09-08/00-brief.md`
+
+## `docs/research/2026-09-08/08-frontend.md`
+
+**Track 8 — Frontend refactor: motion, agent-trace UI, and design system**
+
+this document is the only write. Verified 2026-09-08 against branch `claude/healthcentral-agentic-research-r1n54x`. See `00-brief.md` for the shared baseline and constraints this track inherits.
+
+Links to: `docs/research/2026-09-08/00-brief.md`
 
 ## `docs/research/2026-09-08/PLAN.md`
 
