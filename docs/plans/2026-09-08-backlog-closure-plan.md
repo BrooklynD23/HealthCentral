@@ -52,15 +52,15 @@ same band are independent and can be parallelized.
 |---|---|---|
 | A | §3.1 care-task quote retention, §4 `MED-CORR-002`, §4 `SEC-RECOV-002` | A privacy defect and two shipped-but-unreachable backends. Highest value per line changed. |
 | B | §3 `SQL-FK-001`, §6 `HC-M07` | Correctness and diagnosability foundations. `SQL-FK-001` depends on §3.1 landing first. |
-| C | §5 `INGEST-FHIR-001`, §7 `HC-M06`, §8 `CITE-AGENT-001` | Feature and rigor work, each self-contained. |
+| C | §5 `INGEST-FHIR-001`, §7 `HC-M06`, §8 `CITE-AGENT-001`, §12 `HC-M11` | Feature and rigor work, each self-contained. `HC-M11` was approved 2026-09-08 and scheduled here ("after band A"); it still cannot start until its non-GGUF model-distribution dependency is built. |
 | D | §9 OpenWiki, §10 `HC-M09`, §11 `HC-M02` | Tooling and verification chores; no product risk. |
-| E | §12 `HC-M11`, §13 `HC-M08a-d` | Gated or large. `HC-M11` needs owner approval; `HC-M08` needs its decision spike before any code. |
+| E | §13 `HC-M08a-d` | Large, and strictly sequential — `HC-M08a`'s decision spike gates everything after it. |
 
-**Gates that must not be skipped.** `HC-M11` touches `modules/faithfulness.py` and
-`modules/verifier_agent.py` — both on CLAUDE.md's ask-before-touching list, so it
-requires explicit owner approval when scheduled. §3.1's retention question is a
-data-lifecycle decision, the same class that gated `PROF-DEL-001`; confirm the
-recommended answer with the owner before implementing.
+**Gates — all four cleared 2026-09-08.** The decisions that blocked parts of this
+plan have been made; see §14 for what was decided and what each one licenses. The
+approvals are scoped: `HC-M11` is approved to be *built*, not to be turned on by
+default, and §3.1's retention answer is approved as specified, not as a general
+licence to delete derived data.
 
 Every item below follows the repo's TDD convention: **T1** writes the check and
 observes it fail, **T2** is the smallest change that makes it pass, **T3**
@@ -79,8 +79,14 @@ is the implementation sequence it implies.
 ### 3.1 Prerequisite — care-task provenance and quote retention
 
 **Do this first, and ship it separately.** It fixes a live defect and it unblocks
-the pragma. Decision needed from the owner (recommendation in the FK audit §4.2):
-keep the task, null its provenance, clear `source_quote`.
+the pragma.
+
+**Decided 2026-09-08 (owner):** keep the task, null its provenance, clear
+`source_quote` — the recommendation from FK audit §4.2. The reasoning to preserve
+if this is ever revisited: a follow-up the patient still has to do does not stop
+being real because they deleted the PDF, but the verbatim clinician text has no
+right to outlive its source. This is a decision about *derived verbatim text*
+specifically; it does not license deleting other derived data on document delete.
 
 - **T1** — In `tests/test_care_plan_tasks.py` (or a new module, `HC-FKPREP-0NN`):
   create a document, extract a care task from it, delete the document through
@@ -273,6 +279,13 @@ because the tools never return the provenance. Enhancement, not regression.
 Blocked on a human, not on code: generation needs an LLM API key and must run
 locally, and the output needs review before it lands.
 
+**Decided 2026-09-08 (owner):** the owner runs generation locally and hands over
+the diff for review. The references to `openwiki/` in `CLAUDE.md` and `AGENT.md`
+therefore stay as-is — they describe intent that is now scheduled rather than
+stale guidance. If generation does not happen, revisit: an authority doc pointing
+at an empty directory is the exact failure mode recorded as
+[recurring-failures.md §8](../agentic/recurring-failures.md).
+
 - Run `npm install -g openwiki && openwiki --init`, then review the **full** diff
   including `CLAUDE.md`/`AGENT.md`/`AGENTS.md`, which OpenWiki may rewrite.
 - Reject any generated text that restates a hard invariant less strictly than
@@ -303,13 +316,23 @@ to build. Either run it and close the milestone, or record explicitly that it is
 unverifiable in the current environment — an untested install path should not be
 marked complete on the strength of an AST parse.
 
-## 12. `HC-M11` — NLI cross-encoder for faithfulness *(gated)*
+## 12. `HC-M11` — NLI cross-encoder for faithfulness *(approved)*
 
-**Requires owner approval before any code** — it touches `modules/faithfulness.py`
-and `modules/verifier_agent.py`, both on CLAUDE.md's ask-before-touching list.
-Also depends on non-GGUF model distribution in `scripts/download_models.py`.
+**Approved 2026-09-08 (owner), scheduled after band A.** The gate is cleared: it
+touches `modules/faithfulness.py` and `modules/verifier_agent.py`, both on
+CLAUDE.md's ask-before-touching list, and the owner has authorised the work.
 
-Scope when approved: wire a real cross-encoder into the existing-but-never-fed
+Read the approval narrowly. It licenses *building* the scorer behind a flag that
+defaults off — it is not authorisation to change what production faithfulness
+scoring does, to alter a threshold, or to touch anything else in those two files.
+Any of that is a fresh ask.
+
+**One prerequisite is not built.** `scripts/download_models.py` has no non-GGUF
+distribution path, and a cross-encoder is not a GGUF artifact. That comes first,
+or there is nothing to load. Do not work around it by fetching the model at
+runtime — that would break local-first.
+
+Scope: wire a real cross-encoder into the existing-but-never-fed
 `entailment_scores` parameter, and make `use_llm_entailment` route to it instead of
 its stub. Additive only — regex scoring stays the floor and the flag defaults off,
 so the existing faithfulness and verifier tests must pass **unchanged** with it
@@ -329,16 +352,25 @@ project will have built the packaging it then has to justify.
 
 ---
 
-## 14. Decisions required from the owner
+## 14. Owner decisions — all four answered 2026-09-08
 
-Four, listed so they can be answered in one pass rather than blocking four
-separate sessions:
+Recorded here so no future session re-asks, and so the *scope* of each approval
+survives longer than the conversation that produced it.
 
-1. **Care-task quote retention (§3.1).** Recommended: keep the task, null its
-   provenance, clear `source_quote`. Data-lifecycle call.
-2. **`HC-M11` approval (§12).** Two ask-before-touching files.
-3. **`SQL-FK-001` blast radius (§3.3).** Enabling the pragma will surface
-   previously-tolerated orphan writes as test failures. Confirm the appetite for
-   fixing those as they appear rather than deferring the flip again.
-4. **OpenWiki (§9).** Needs someone with an API key to run generation locally and
-   review the diff; it cannot be completed from a sandboxed session.
+| # | Decision | Answer | What it licenses |
+|---|---|---|---|
+| 1 | Care-task quote retention (§3.1) | **Keep the task, null its provenance, clear `source_quote`** | The specific change in §3.1, for derived *verbatim text*. Not a general licence to delete derived data on document delete. |
+| 2 | `HC-M11` approval (§12) | **Approved, scheduled after band A** | Building the cross-encoder behind a flag that defaults off, in two ask-before-touching files. **Not** changing production scoring behaviour, thresholds, or anything else in those files. Its model-distribution prerequisite is still unbuilt. |
+| 3 | `SQL-FK-001` blast radius (§3.3) | **Full: fix the four constraints, then flip the pragma** | Fixing orphan-write failures as the suite surfaces them. Explicitly *not* a licence to relax a constraint or skip a test to get green — that would invert the point of the change. |
+| 4 | OpenWiki (§9) | **Owner generates locally; this session reviews the diff** | Leaving the `openwiki/` references in `CLAUDE.md`/`AGENT.md` standing as scheduled intent. Revisit if generation does not happen. |
+
+One consequence worth stating plainly, because it is the riskiest of the four:
+decision 3 means the backend suite is expected to go red partway through §3.3.
+Each failure is a finding about a real orphan write, and the fix belongs in the
+test's data setup or the code path it exposed — never in the constraint. A
+session that finds itself weakening an FK to get a green suite has misread this
+approval and should stop.
+
+**Not yet measured:** the size of that red. This container has no pytest, so the
+blast radius is still unknown at the time of the decision — the owner accepted it
+on that basis. Measure it before §3.3, not during.
