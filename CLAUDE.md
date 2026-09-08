@@ -68,7 +68,7 @@ Generated repo-navigation docs live in `openwiki/`. Use them to locate code, tra
 
 ## Skills
 
-This repo ships 18 skills — process skills in `.claude/skills/`, project-domain
+This repo ships 36 skills — process skills in `.claude/skills/`, project-domain
 skills in `skills/`. The routing table is in [AGENT.md](AGENT.md#skills).
 
 - Check for a covering skill **before** improvising a workflow. A skill exists

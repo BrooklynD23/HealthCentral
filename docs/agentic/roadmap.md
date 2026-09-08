@@ -60,6 +60,13 @@ templates, `guard` emits fixed strings, and no node calls `ModelRunner`. Tracks:
 [data control](../research/2026-09-08/07-data-control.md),
 [frontend](../research/2026-09-08/08-frontend.md).
 
+Synthesis and next step: the sequenced
+[roadmap](../research/2026-09-08/09-roadmap.md) (five waves, plus an explicit
+"do not build" list), and the
+[frontier-audit prompt pack](../research/2026-09-08/FRONTIER-AUDIT-PROMPT.md)
+for handing the whole thing to Claude Fable 5.1 or GPT-6 Astra for an
+independent review.
+
 Research only — nothing here is verified by running it, and no track's
 recommendation has been accepted as work.
 

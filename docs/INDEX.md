@@ -132,7 +132,7 @@ Mistakes this codebase has actually produced, with the evidence that exposed eac
 
 Why this project exists as an agentic-engineering exercise, and what "done well" looks like. The working loop is in harness.md; verification is in evals.md; the live task inventory is…
 
-Links to: `docs/agentic/evals.md`, `docs/agentic/harness.md`, `docs/agentic/mcp-tools.md`, `docs/agentic/progress.md`, `docs/compliance/README.md`, `docs/compliance/ai-safety.md`, `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/01-codebase-audit.md`, `docs/research/2026-09-08/02-inference-serving.md`, `docs/research/2026-09-08/03-agentic-loops.md`, `docs/research/2026-09-08/04-mcp-interop.md`, `docs/research/2026-09-08/05-models-voice.md`, `docs/research/2026-09-08/06-competitive-landscape.md`, `docs/research/2026-09-08/07-data-control.md`, `docs/research/2026-09-08/08-frontend.md`, `docs/research/2026-09-08/PLAN.md`, `feature_list.json`
+Links to: `docs/agentic/evals.md`, `docs/agentic/harness.md`, `docs/agentic/mcp-tools.md`, `docs/agentic/progress.md`, `docs/compliance/README.md`, `docs/compliance/ai-safety.md`, `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/01-codebase-audit.md`, `docs/research/2026-09-08/02-inference-serving.md`, `docs/research/2026-09-08/03-agentic-loops.md`, `docs/research/2026-09-08/04-mcp-interop.md`, `docs/research/2026-09-08/05-models-voice.md`, `docs/research/2026-09-08/06-competitive-landscape.md`, `docs/research/2026-09-08/07-data-control.md`, `docs/research/2026-09-08/08-frontend.md`, `docs/research/2026-09-08/09-roadmap.md`, `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`, `docs/research/2026-09-08/PLAN.md`, `feature_list.json`
 
 ## `docs/agile/AGILE_PLAN.md`
 
@@ -789,6 +789,20 @@ Links to: `docs/research/2026-09-08/00-brief.md`
 this document is the only write. Verified 2026-09-08 against branch `claude/healthcentral-agentic-research-r1n54x`. See `00-brief.md` for the shared baseline and constraints this track inherits.
 
 Links to: `docs/research/2026-09-08/00-brief.md`
+
+## `docs/research/2026-09-08/09-roadmap.md`
+
+**Synthesis — sequenced roadmap**
+
+Merges the eight tracks into one dependency-ordered plan. Written after the tracks returned, against `00-brief.md` and the execution record in `PLAN.md` §9.
+
+Links to: `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`, `docs/research/2026-09-08/PLAN.md`
+
+## `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`
+
+**Frontier-model architecture audit — prompt pack**
+
+A ready-to-run brief for handing Asclexis to a frontier model (**Claude Fable 5.1** or **GPT-6 Astra**) for an independent architecture audit and roadmap.
 
 ## `docs/research/2026-09-08/PLAN.md`
 
