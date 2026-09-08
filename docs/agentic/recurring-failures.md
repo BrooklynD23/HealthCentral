@@ -143,6 +143,47 @@ backups on disk after profile deletion. That line was written about a different,
 older backup location. The same review asserted an FK cascade removed a row;
 `PRAGMA foreign_keys` is set nowhere in the codebase, so it is inert on SQLite.
 
+A third instance, 2026-09-08: the `INGEST-FHIR-001` tracker row opened with
+"zero structured ingest exists today; everything goes PDF/image → OCR → regex."
+HC-M23 shipped `modules/import_structured.py` — FHIR R4 Bundle and lab CSV
+parsing — on 2026-07-30. The row's premise had been false for weeks, and an
+audit built on it re-reported the ticket at full scope. A row is written once
+and read many times; nothing re-checks its opening clause when adjacent work
+lands.
+
 **Recheck:** a written decision is evidence about what someone believed, not
-proof that it was true. When a doc gives a *reason*, check the reason. An
-agent's report — including a reviewer's — is a lead, not a finding.
+proof that it was true. When a doc gives a *reason*, check the reason. When a
+ticket asserts an *absence* ("no X exists", "zero Y today"), grep for X before
+planning against it — absence claims age faster than anything else in a tracker.
+An agent's report — including a reviewer's — is a lead, not a finding.
+
+---
+
+## 9. An invariant enforced at one site, not across its class
+
+`delete_document` deletes `DocumentEntity` rows and states the rule in a comment:
+entity quotes are "verbatim document text" and must not "outlive the document
+into exports or pins" (`api/documents.py:1846-1851`). That is a rule about a
+*class* of data, enforced at exactly one table.
+
+`CarePlanTask.source_quote` — "Verbatim clinician wording the task was derived
+from" (`models/care_plan_task.py:45`) — is the same class, added later by HC-M15,
+and nothing deletes it. There is no `delete(CarePlanTask)` anywhere in `api/`. A
+patient who deletes a visit note still has its verbatim text in the tasks table.
+Found 2026-09-08, and only because `SQL-FK-001`'s audit forced a read of every
+parent/child delete path; no test failed, and nothing in the tracker pointed at
+it.
+
+The same shape appears in cleanup that rides on ORM cascade: `Chunk.embedding`
+declares `cascade="all, delete-orphan"`, so deleting a document through the ORM
+reaches embeddings — but the re-embed path uses a core `delete(Chunk)` statement
+(`api/documents.py:867`), which bypasses ORM cascade, and no `delete(Embedding)`
+exists to cover it. One path honours the rule, the adjacent one does not.
+
+**Recheck:** when a comment or doc justifies a deletion with a reason that names
+a *category* ("verbatim document text", "credential material", "anything
+exportable"), find every table in that category and confirm each has a delete
+path — `grep -rn "quote\|verbatim" src/backend/models/` — rather than trusting
+that the rule spread on its own. New features inherit schemas, not invariants.
+And where cleanup depends on ORM cascade, `grep -n "delete(" src/backend/api/*.py`
+finds the core statements that silently skip it.

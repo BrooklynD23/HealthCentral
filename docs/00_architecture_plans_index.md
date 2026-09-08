@@ -1,6 +1,6 @@
 # HealthCentral Documentation Index (Current)
 
-**Last Updated:** 2026-07-27
+**Last Updated:** 2026-09-08
 **Owner:** Project Lead
 **Refresh Trigger:** New doc added or doc archived
 
@@ -30,6 +30,11 @@ implementation notes (formerly the top-level `implementation_plan/` directory).
 Linked here so they are reachable from a hand-maintained index rather than only
 from the generated map (DOC-011).
 
+- [`docs/plans/2026-09-08-backlog-closure-plan.md`](plans/2026-09-08-backlog-closure-plan.md)
+  — every open item (partial features, open tickets, pending HC-M milestones) verified against the
+  tree and sequenced, with the four decisions the owner has to make.
+- [`docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md`](plans/2026-09-08-sql-fk-001-foreign-key-audit.md)
+  — the written FK audit `SQL-FK-001` was blocked on: all 20 constraints, a decision each.
 - [`docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md`](plans/2026-07-10-post-visit-record-intelligence-roadmap.md)
   — the HC-M12…HC-M24 roadmap; all phases now shipped, retained as the rationale record.
 - [`docs/plans/2026-07-02-architect-review-proposal-tickets.md`](plans/2026-07-02-architect-review-proposal-tickets.md)
