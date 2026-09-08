@@ -68,7 +68,8 @@ check enforces the three stay identical.
 | `CITE-AGENT-001` | Agent-path citations carry no page number. `modules/agent/nodes/draft.py:102` builds `locator` from the row id, not a page, because the agent *tools* never return `source_page`/`source_bbox_json` — so an answer produced through the agent path yields citation chips that deep-link to the row but cannot highlight the region, while the RAG path can. Not a regression (the agent path never had it); an enhancement that needs the tool return shapes widened first. | P3 | Plan at [`2026-09-08-backlog-closure-plan.md`](../plans/2026-09-08-backlog-closure-plan.md) §8 | `src/backend/modules/agent/tools/`, `src/backend/modules/agent/nodes/draft.py`, `src/backend/api/assistant.py` | [ ] OPEN |
 | `MED-CORR-002` | Wire the shipped correlations endpoint into the UI. `MED-CORR-001`'s stated goal was **one** definition of the medication/observation overlap rule; two still exist and they disagree — the backend defaults to `verified_only=True` (`api/medications.py:463`, "an unverified extraction is not a fact to correlate against") while `utils/correlation.ts` has no verified filter, so the app currently shows the looser answer. Verified 2026-09-08: the service layer is already done (`services/medications.ts:141,350`, exported via the barrel); only `TrendsDashboard.tsx:33,198` and `MedicationDetail.tsx:42` are unwired. | P1 | Plan at [`2026-09-08-backlog-closure-plan.md`](../plans/2026-09-08-backlog-closure-plan.md) §4.1 | `src/frontend/src/pages/TrendsDashboard.tsx`, `src/frontend/src/pages/MedicationDetail.tsx`, `src/frontend/src/utils/correlation.ts` (delete when no importer remains), `src/frontend/src/__tests__/CorrelationContract.test.ts` | [ ] OPEN |
 | `SEC-RECOV-002` | Recovery-code entry point in Settings — the follow-up `SEC-RECOV-001` was left PARTIAL on. `RecoverProfile.tsx` tells the user a recovery code "can only be created while you can still sign in", and no signed-in surface creates one, so the instruction cannot be followed and pre-existing profiles can never obtain a code. Verified 2026-09-08: `issueRecoveryCode` (`services/profiles.ts:60`) and `useIssueRecoveryCode` (`:264`) exist and are exported (`services/index.ts:59`); no page imports either. `has_recovery_code` is already on the profile response (`api/profiles.py:138,149`) to drive Create-vs-Replace wording. | P1 | Plan at [`2026-09-08-backlog-closure-plan.md`](../plans/2026-09-08-backlog-closure-plan.md) §4.2 | `src/frontend/src/pages/SettingsPage.tsx`, `src/frontend/e2e/`, `docs/user-guide/` | [ ] OPEN |
-| `CARE-QUOTE-001` | **Verbatim clinician text outlives the document it came from.** `delete_document` explicitly deletes `DocumentEntity`/`DocumentCategory` rows with the reason stated in code — entity quotes are "verbatim document text" that must not "outlive the document into exports or pins" (`api/documents.py:1846-1851`). `CarePlanTask.source_quote` is the same class of data (`models/care_plan_task.py:45`, "Verbatim clinician wording the task was derived from") and **nothing deletes it** — there is no `delete(CarePlanTask)` anywhere in `api/`. Found 2026-09-08 while auditing `SQL-FK-001`; it is a live retention defect independent of the pragma, and also the blocker for it (with FKs on, `DELETE FROM documents` raises for any document that produced a task). **Decided 2026-09-08 (owner): keep the task, null `source_document_id`/`source_entity_id`, clear `source_quote`.** The data-lifecycle gate (same class as `PROF-DEL-001`) is cleared — the decision covers derived verbatim text specifically, not derived data generally. | P1 | Plan at [`2026-09-08-backlog-closure-plan.md`](../plans/2026-09-08-backlog-closure-plan.md) §3.1; constraint detail at [`2026-09-08-sql-fk-001-foreign-key-audit.md`](../plans/2026-09-08-sql-fk-001-foreign-key-audit.md) §4.2 | `src/backend/api/documents.py`, `src/backend/models/care_plan_task.py`, `src/backend/tests/`, `docs/compliance/data-privacy.md` | [ ] OPEN |
+| `CARE-QUOTE-001` | **Verbatim clinician text outlives the document it came from.** `delete_document` explicitly deletes `DocumentEntity`/`DocumentCategory` rows with the reason stated in code — entity quotes are "verbatim document text" that must not "outlive the document into exports or pins" (`api/documents.py:1846-1851`). `CarePlanTask.source_quote` is the same class of data (`models/care_plan_task.py:45`, "Verbatim clinician wording the task was derived from") and **nothing deletes it** — there is no `delete(CarePlanTask)` anywhere in `api/`. Found 2026-09-08 while auditing `SQL-FK-001`; it is a live retention defect independent of the pragma, and also the blocker for it (with FKs on, `DELETE FROM documents` raises for any document that produced a task). **Decided 2026-09-08 (owner): keep the task, null `source_document_id`/`source_entity_id`, clear `source_quote`.** The data-lifecycle gate (same class as `PROF-DEL-001`) is cleared — the decision covers derived verbatim text specifically, not derived data generally. | P1 | Plan at [`2026-09-08-backlog-closure-plan.md`](../plans/2026-09-08-backlog-closure-plan.md) §3.1; constraint detail at [`2026-09-08-sql-fk-001-foreign-key-audit.md`](../plans/2026-09-08-sql-fk-001-foreign-key-audit.md) §4.2 | `src/backend/api/documents.py`, `src/backend/tests/test_documents_api.py`, `docs/compliance/data-privacy.md` | [x] DONE (2026-09-08) — `delete_document` now nulls provenance and clears `source_quote` for tasks derived from the deleted document. Tests HC-CAREQ-001..003 (001 observed failing first). **Deliberately not mirrored into reprocess** — the document still exists there, and `get_care_task_candidates` keys duplicate detection on `(source_document_id, source_quote)`, so clearing it would resurface accepted tasks. No model or migration change was needed; the FK constraint change stays with `SQL-FK-001`. |
+| `FEEDBACK-SNAP-001` | `response_feedback.prompt_snapshot` stores "the fully-composed prompt (with retrieved context) at the time of inference" (`models/response_feedback.py:74-78`) — retrieved context is document chunk text, so the column holds verbatim document text that document deletion does not clear. Found 2026-09-08 by `CARE-QUOTE-001`'s sweep. **Not the same fix:** `response_feedback` has no `doc_id`, so a targeted UPDATE has nothing to key on; the rows stay inside the encrypted vault; and RL export already forces strict redaction (`RL-REDACT-001`). Clearing snapshots retroactively also degrades the RL dataset they exist for — so this needs a decision (provenance column vs. retention window vs. documented acceptance), not a mechanic. | P3 | Analysis and options at [`2026-09-08-backlog-closure-plan.md`](../plans/2026-09-08-backlog-closure-plan.md) §15 | `src/backend/models/response_feedback.py`, `src/backend/api/feedback.py`, `docs/compliance/data-privacy.md` | [ ] OPEN |
 
 ---
 
@@ -150,6 +151,48 @@ On the first of each month, review all canonical docs for freshness:
 ---
 
 ## Session Notes
+
+### 2026-09-08 - CARE-QUOTE-001 shipped
+
+`delete_document` now clears the provenance and the verbatim `source_quote` of
+care-plan tasks derived from the deleted document, keeping the task itself.
+Owner decision, taken before implementation: a follow-up the patient still has
+to do does not stop being real because they deleted the PDF, but the clinician's
+verbatim wording has no right to outlive its source.
+
+Tests `HC-CAREQ-001..003` in `tests/test_documents_api.py`, alongside
+`HC-ENT-030`, which enforces the identical rule for entity quotes. HC-CAREQ-001
+was observed failing first, reporting the live defect in its own words:
+`AssertionError: verbatim clinician text outlived the deleted document`.
+HC-CAREQ-003 exists because the obvious wrong implementation — an unscoped
+`UPDATE care_plan_task` — passes HC-CAREQ-001 while stripping every other
+document's tasks.
+
+**The plan's own instruction was wrong, and reading the consumer caught it.** It
+said to mirror the clearing into the reprocess path. Reprocess keeps the
+document, so the retention rationale does not apply there, and
+`get_care_task_candidates` keys duplicate detection on
+`(source_document_id, source_quote)` — clearing either would resurface every
+already-accepted task as a fresh candidate on each reprocess. Recorded in
+[recurring-failures.md §2](../agentic/recurring-failures.md) as the one instance
+of that mode caught before it shipped.
+
+**The T3 sweep found a third table, not fixed here.**
+`response_feedback.prompt_snapshot` holds the fully-composed prompt including
+retrieved document text, with no `doc_id` to target and no cleanup on document
+deletion. Different mechanism, and the fix is a design decision rather than a
+mechanic, so it is tracked as `FEEDBACK-SNAP-001` with options written up rather
+than folded into this change. The gap is now stated in
+`docs/compliance/data-privacy.md` instead of being undocumented.
+
+**Verification:** `python -m pytest tests/ -p no:cacheprovider -q` →
+**1248 collected, 1247 passed, 1 failed**, the failure being the documented
+env-only `test_api_rag_index_002b`. Baseline moved 1245 → 1248 in `CLAUDE.md`
+and `AGENT.md` in the same commit, as `CLAUDE.md` requires. `python -c "from
+main import app"` boots. docs_lint, the regenerated docs index and link graph,
+and feature_list_lint all pass. Frontend checks not run — no frontend file was
+touched.
+
 
 ### 2026-09-08 - Backlog audit verified and planned
 

@@ -49,9 +49,22 @@ statement or data-loss path somewhere adjacent:
   `--profile-id`, which `main()` never forwarded. The remediation instruction
   was a dead end.
 
+Caught in advance once, 2026-09-08, which is the only reason it is not a fourth
+bullet above. `CARE-QUOTE-001`'s own written plan said to clear
+`care_plan_task.source_quote` on document delete **and to mirror that into the
+reprocess path**. Mirroring it would have broken duplicate detection:
+`get_care_task_candidates` keys "already accepted" on
+`(source_document_id, source_quote)` (`api/care_tasks.py:182-199`), so a cleared
+quote resurfaces every accepted task as a fresh candidate on each reprocess. The
+plan was written from the delete path alone; the reprocess path had a second,
+unrelated reason to need that column. Reading the consumer before editing the
+producer is what caught it.
+
 **Recheck:** after fixing anything in a multi-step flow, re-walk the *whole*
 round trip — create → verify → download → restore → prune — not just the diff.
-Ask what every other caller of the thing you changed now believes.
+Ask what every other caller of the thing you changed now believes. Before
+clearing or nulling a column, grep for every reader of it — a column that looks
+like dead provenance to one path is often a key to another.
 
 ---
 

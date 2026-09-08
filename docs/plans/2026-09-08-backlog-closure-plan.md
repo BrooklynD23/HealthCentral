@@ -95,12 +95,27 @@ specifically; it does not license deleting other derived data on document delete
   `source_quote is None`. Watch it fail on the quote assertion.
 - **T2** — In `delete_document` (`api/documents.py:1812`), before deleting the
   document, `UPDATE care_plan_task SET source_document_id=NULL,
-  source_entity_id=NULL, source_quote=NULL` for rows pointing at it. Mirror it in
-  the reprocess path (`:1193`), which also deletes `document_entity` rows.
+  source_entity_id=NULL, source_quote=NULL` for rows pointing at it.
+  ~~Mirror it in the reprocess path (`:1193`).~~ **Corrected during
+  implementation — do NOT mirror this into reprocess.** There the document still
+  exists, so the retention rationale does not apply, and
+  `get_care_task_candidates` (`api/care_tasks.py:182-199`) keys duplicate
+  detection on `(source_document_id, source_quote)`; clearing either would
+  resurface every already-accepted task as a fresh candidate on each reprocess.
+  The original instruction would have fixed one bug and created another one
+  layer over — see [recurring-failures.md §2](../agentic/recurring-failures.md).
 - **T3** — Add a row to `docs/compliance/data-privacy.md` recording that
   document deletion clears derived verbatim text. Check whether any other table
   stores verbatim document text with no delete path — this is the second instance
   of the pattern, so it deserves a sweep, not a point fix.
+
+**Shipped 2026-09-08.** Tests `HC-CAREQ-001..003` in `tests/test_documents_api.py`
+(HC-CAREQ-001 observed failing first, with the defect's own message: "verbatim
+clinician text outlived the deleted document"). HC-CAREQ-003 is the scoping guard
+— a broad `UPDATE care_plan_task` with no `WHERE` would pass HC-CAREQ-001 while
+stripping every other document's tasks. Suite: 1248 collected, 1247 passed, 1
+documented env-only failure. **The T3 sweep found a third instance,
+`FEEDBACK-SNAP-001`, which is not fixed here** — see §15.
 
 ### 3.2 Migration — align the four mismatched constraints
 
@@ -376,3 +391,35 @@ approval and should stop.
 for §3.3 — the red the pragma produces will be attributable, because the green it
 starts from is known. Measure the delta against this baseline, not against a
 remembered number.
+
+---
+
+## 15. `FEEDBACK-SNAP-001` — prompt snapshots retain document text *(open)*
+
+Found by the `CARE-QUOTE-001` T3 sweep, 2026-09-08. Recorded rather than fixed,
+because it is a different mechanism and the fix is a design decision, not a
+mechanic.
+
+`response_feedback.prompt_snapshot` stores "the fully-composed prompt (with
+retrieved context) at the time of inference" (`models/response_feedback.py:74-78`).
+Retrieved context is document chunk text, so the column holds verbatim document
+text — the same class `CARE-QUOTE-001` and the entity-quote deletion both protect.
+Deleting a document does not clear it.
+
+Why it is not the same fix:
+
+- **No provenance link.** `response_feedback` has no `doc_id`. There is no way to
+  find the rows quoting a given document without scanning text, so the targeted
+  `UPDATE` that works for care tasks has nothing to key on.
+- **Partly mitigated.** The rows stay inside the encrypted per-profile vault, and
+  RL dataset export forces `policy_level="strict"` redaction unconditionally
+  (`RL-REDACT-001`), so the export path is already covered.
+- **Deleting it costs something real.** The snapshot exists so preference pairs
+  can be reconstructed reproducibly; clearing it retroactively degrades the RL
+  dataset the feature was built for.
+
+Options, for whoever picks this up: add a `doc_ids` column populated at
+composition time so deletion can target it; clear snapshots older than a
+retention window; or accept it explicitly and say so in the privacy doc rather
+than leaving it undocumented. A written decision either way beats the current
+silence — the gap is now noted in `docs/compliance/data-privacy.md`.

@@ -180,9 +180,26 @@ unredacted.
 ### Document Deletion
 
 When a document is deleted:
-1. Document record removed from vault DB
-2. Associated observations optionally removed
-3. Audit log records the deletion
+1. Document record removed from vault DB, and the encrypted file removed from
+   `<app_data>/vaults/<profile_id>/docs/`
+2. Observations and chunks are removed with it (ORM cascade), and embeddings
+   with the chunks
+3. Extracted entities and categories are deleted explicitly — an entity `quote`
+   is verbatim document text and must not remain exportable once the document
+   is gone
+4. Pins targeting the document, its observations or its entities are pruned
+5. Care-plan tasks derived from the document are **kept**, but their provenance
+   (`source_document_id`, `source_entity_id`) and their verbatim
+   `source_quote` are cleared (CARE-QUOTE-001). A follow-up the patient still
+   has to do survives the document; the clinician's verbatim wording does not.
+6. Audit log records the deletion
+
+**Known gap.** `response_feedback.prompt_snapshot` stores the fully-composed
+assistant prompt including retrieved document context, and carries no link back
+to the documents it quoted, so document deletion cannot target it. It stays
+inside the encrypted per-profile vault, and RL dataset export forces strict
+redaction over it (RL-REDACT-001), but it is not erased when a source document
+is. Tracked as `FEEDBACK-SNAP-001`.
 
 ## Third-Party Data Sharing
 

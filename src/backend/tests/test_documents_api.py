@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from api.documents import router as documents_router
 from api import documents as documents_api
 from core.auth import Session
-from models import Document
+from models import CarePlanTask, Document
 from modules.ingest import ImportResult
 import modules
 
@@ -621,6 +621,122 @@ async def test_HC_ENT_030_delete_document_removes_entities_and_categories(
         select(DocumentCategory).where(DocumentCategory.doc_id == document.id)
     )
     assert remaining_categories.scalars().all() == []
+
+
+def _care_task(
+    doc_id: str,
+    entity_id: str | None = None,
+    *,
+    quote: str = "Repeat CBC in 4 weeks",
+) -> CarePlanTask:
+    return CarePlanTask(
+        id=str(uuid.uuid4()),
+        title="Repeat CBC",
+        status="open",
+        source_document_id=doc_id,
+        source_entity_id=entity_id,
+        source_quote=quote,
+        user_note="ask about the iron result",
+    )
+
+
+@pytest.mark.asyncio
+async def test_HC_CAREQ_001_delete_document_clears_care_task_quote_and_provenance(
+    entity_profile_db, monkeypatch
+):
+    """CARE-QUOTE-001. `source_quote` is verbatim clinician text, held to the
+    same standard as the entity quotes deleted directly above: it must not
+    outlive the document it was taken from.
+
+    The task itself survives — a follow-up the patient still has to do does not
+    stop being real because they deleted the PDF — but its provenance and its
+    verbatim text go with the document."""
+    profile_id = str(uuid.uuid4())
+    document = _pin_cleanup_document(profile_id)
+    entity = _entity_row(document.id, quote="Repeat CBC in 4 weeks")
+    entity_profile_db.add(document)
+    entity_profile_db.add(entity)
+    entity_profile_db.add(_care_task(document.id, entity.id))
+    await entity_profile_db.commit()
+    monkeypatch.setattr(documents_api, "log_document_event", AsyncMock())
+
+    await documents_api.delete_document(
+        document.id,
+        _real_db_session(profile_id),
+        entity_profile_db,
+        AsyncMock(),
+    )
+
+    result = await entity_profile_db.execute(select(CarePlanTask))
+    tasks = result.scalars().all()
+
+    assert len(tasks) == 1, "the follow-up itself must survive the document"
+    task = tasks[0]
+    assert task.source_quote is None, (
+        "verbatim clinician text outlived the deleted document"
+    )
+    assert task.source_document_id is None
+    assert task.source_entity_id is None
+
+
+@pytest.mark.asyncio
+async def test_HC_CAREQ_002_delete_document_preserves_the_rest_of_the_task(
+    entity_profile_db, monkeypatch
+):
+    """The cleanup is surgical: only provenance and the verbatim quote are
+    cleared. Title, status and the user's own note are the patient's data, not
+    the document's, and must be untouched."""
+    profile_id = str(uuid.uuid4())
+    document = _pin_cleanup_document(profile_id)
+    entity_profile_db.add(document)
+    entity_profile_db.add(_care_task(document.id))
+    await entity_profile_db.commit()
+    monkeypatch.setattr(documents_api, "log_document_event", AsyncMock())
+
+    await documents_api.delete_document(
+        document.id,
+        _real_db_session(profile_id),
+        entity_profile_db,
+        AsyncMock(),
+    )
+
+    result = await entity_profile_db.execute(select(CarePlanTask))
+    task = result.scalars().one()
+    assert task.title == "Repeat CBC"
+    assert task.status == "open"
+    assert task.user_note == "ask about the iron result"
+
+
+@pytest.mark.asyncio
+async def test_HC_CAREQ_003_delete_document_leaves_other_documents_tasks_alone(
+    entity_profile_db, monkeypatch
+):
+    """Scoping guard. The clearing UPDATE must key on the document being
+    deleted — a broad `UPDATE care_plan_task SET source_quote=NULL` would pass
+    HC-CAREQ-001 while silently stripping every other document's tasks."""
+    profile_id = str(uuid.uuid4())
+    doomed = _pin_cleanup_document(profile_id)
+    survivor = _pin_cleanup_document(profile_id)
+    entity_profile_db.add(doomed)
+    entity_profile_db.add(survivor)
+    entity_profile_db.add(_care_task(doomed.id))
+    entity_profile_db.add(_care_task(survivor.id, quote="Book eye exam"))
+    await entity_profile_db.commit()
+    monkeypatch.setattr(documents_api, "log_document_event", AsyncMock())
+
+    await documents_api.delete_document(
+        doomed.id,
+        _real_db_session(profile_id),
+        entity_profile_db,
+        AsyncMock(),
+    )
+
+    result = await entity_profile_db.execute(
+        select(CarePlanTask).where(CarePlanTask.source_document_id == survivor.id)
+    )
+    kept = result.scalars().one()
+    assert kept.source_quote == "Book eye exam"
+    assert kept.source_document_id == survivor.id
 
 
 @pytest.mark.asyncio

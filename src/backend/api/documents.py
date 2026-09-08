@@ -21,7 +21,7 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, File, Query, status
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import and_, delete, or_, select
+from sqlalchemy import and_, delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
@@ -30,6 +30,7 @@ from core.audit import log_document_event, audit_and_commit
 from core.auth import RequireAuth, Session, ProfileDbSession
 from core.document_crypto import get_decrypted_document, get_profile_encryption_key
 from models import (
+    CarePlanTask,
     Chunk,
     Document,
     Embedding,
@@ -1849,6 +1850,23 @@ async def delete_document(
     # document text — cannot outlive the document into exports or pins.
     await profile_db.execute(delete(DocumentEntity).where(DocumentEntity.doc_id == document_id))
     await profile_db.execute(delete(DocumentCategory).where(DocumentCategory.doc_id == document_id))
+
+    # CARE-QUOTE-001: `care_plan_task.source_quote` is verbatim clinician text
+    # and falls under the same rule as the entity quotes above — it must not
+    # outlive the document. The task itself is kept: a follow-up the patient
+    # still has to do does not stop being real because they deleted the PDF.
+    # Only the provenance and the quote go.
+    #
+    # Deliberately NOT mirrored into the reprocess path: there the document
+    # still exists, so the retention rationale does not apply, and
+    # `get_care_task_candidates` keys duplicate detection on
+    # (source_document_id, source_quote) — clearing either would resurface
+    # already-accepted tasks as fresh candidates on every reprocess.
+    await profile_db.execute(
+        update(CarePlanTask)
+        .where(CarePlanTask.source_document_id == document_id)
+        .values(source_document_id=None, source_entity_id=None, source_quote=None)
+    )
 
     # Delete document file
     vault_path = Path(settings.app_data_path) / "vaults" / profile_id / "docs"
