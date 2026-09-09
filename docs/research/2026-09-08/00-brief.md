@@ -123,6 +123,9 @@ must not be "fixed" by lowering its 0.7 threshold).
 
 ## 5. Track index
 
+> **Before acting on any track, read [`STATUS.md`](STATUS.md)** — it records
+> what has shipped, and what was rejected, since these were written.
+
 | # | Track | File |
 |---|---|---|
 | 1 | Codebase capability audit | `01-codebase-audit.md` |

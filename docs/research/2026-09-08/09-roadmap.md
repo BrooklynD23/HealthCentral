@@ -4,6 +4,8 @@ Merges the eight tracks into one dependency-ordered plan. Written after the
 tracks returned, against [`00-brief.md`](00-brief.md) and the execution record
 in [`PLAN.md`](PLAN.md) §9.
 
+Implementation status for everything below lives in [`STATUS.md`](STATUS.md).
+
 **This is a research synthesis, not an accepted backlog.** Nothing here is
 verified by running it. Items are proposals with sourced reasoning; each still
 needs a failing test before it becomes work.

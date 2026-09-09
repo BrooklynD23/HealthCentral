@@ -1,5 +1,11 @@
 # Track 1 — Codebase capability audit
 
+> **⚠ Point-in-time research (2026-09-08).** Work has shipped since this was
+> written, and some recommendations below are now **done** or **rejected**.
+> Read [`STATUS.md`](STATUS.md) before acting on anything here. This document is
+> deliberately not rewritten — it records what was known when it was written.
+
+
 All paths are relative to `src/backend/` unless stated otherwise. Line numbers
 verified 2026-09-08 by direct file read, not by memory or by trusting docstrings.
 

@@ -80,6 +80,7 @@
     ],
     "docs/agentic/recurring-failures.md": [
       "docs/research/2026-09-08/PLAN.md",
+      "docs/research/2026-09-08/STATUS.md",
       "AGENT.md",
       "CLAUDE.md"
     ],
@@ -428,7 +429,8 @@
       "docs/research/2026-09-08/07-data-control.md",
       "docs/research/2026-09-08/08-frontend.md",
       "docs/research/2026-09-08/09-roadmap.md",
-      "docs/research/2026-09-08/PLAN.md"
+      "docs/research/2026-09-08/PLAN.md",
+      "docs/research/2026-09-08/STATUS.md"
     ],
     "docs/research/2026-09-08/01-codebase-audit.md": [
       "docs/agentic/roadmap.md"
@@ -463,6 +465,16 @@
     ],
     "docs/research/2026-09-08/PLAN.md": [
       "docs/agentic/roadmap.md",
+      "docs/research/2026-09-08/09-roadmap.md",
+      "docs/research/2026-09-08/STATUS.md"
+    ],
+    "docs/research/2026-09-08/STATUS.md": [
+      "docs/research/2026-09-08/00-brief.md",
+      "docs/research/2026-09-08/01-codebase-audit.md",
+      "docs/research/2026-09-08/02-inference-serving.md",
+      "docs/research/2026-09-08/03-agentic-loops.md",
+      "docs/research/2026-09-08/05-models-voice.md",
+      "docs/research/2026-09-08/07-data-control.md",
       "docs/research/2026-09-08/09-roadmap.md"
     ],
     "docs/roles/00_roles_index.md": [
@@ -1011,7 +1023,14 @@
     "docs/prd/PRD_agent_overhaul.md": [
       "docs/agile/RELEASE_CHECKLIST.md"
     ],
+    "docs/research/2026-09-08/00-brief.md": [
+      "docs/research/2026-09-08/STATUS.md"
+    ],
+    "docs/research/2026-09-08/01-codebase-audit.md": [
+      "docs/research/2026-09-08/STATUS.md"
+    ],
     "docs/research/2026-09-08/02-inference-serving.md": [
+      "docs/research/2026-09-08/STATUS.md",
       "src/backend/modules/agent/nodes/plan.py",
       "src/backend/modules/agent/guardrails/classifier.py",
       "src/backend/modules/agent/guardrails/groundedness.py",
@@ -1029,12 +1048,17 @@
       "src/backend/core/config.py"
     ],
     "docs/research/2026-09-08/03-agentic-loops.md": [
+      "docs/research/2026-09-08/STATUS.md",
       "docs/research/2026-09-08/00-brief.md"
     ],
     "docs/research/2026-09-08/04-mcp-interop.md": [
       "docs/research/2026-09-08/00-brief.md"
     ],
+    "docs/research/2026-09-08/05-models-voice.md": [
+      "docs/research/2026-09-08/STATUS.md"
+    ],
     "docs/research/2026-09-08/07-data-control.md": [
+      "docs/research/2026-09-08/STATUS.md",
       "docs/research/2026-09-08/00-brief.md"
     ],
     "docs/research/2026-09-08/08-frontend.md": [
@@ -1043,6 +1067,7 @@
     "docs/research/2026-09-08/09-roadmap.md": [
       "docs/research/2026-09-08/00-brief.md",
       "docs/research/2026-09-08/PLAN.md",
+      "docs/research/2026-09-08/STATUS.md",
       "docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md"
     ],
     "docs/research/2026-09-08/PLAN.md": [
@@ -1051,6 +1076,11 @@
       "docs/agentic/mcp-tools.md",
       "CLAUDE.md",
       "docs/agentic/recurring-failures.md"
+    ],
+    "docs/research/2026-09-08/STATUS.md": [
+      "docs/research/2026-09-08/00-brief.md",
+      "docs/agentic/recurring-failures.md",
+      "docs/research/2026-09-08/PLAN.md"
     ],
     "docs/roles/00_roles_index.md": [
       "docs/architecture/README.md",

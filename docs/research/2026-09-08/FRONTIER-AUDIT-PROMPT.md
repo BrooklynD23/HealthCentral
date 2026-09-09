@@ -42,12 +42,13 @@ facts, facts before findings, findings before the ask.
 |---|---|---|
 | 1 | `CLAUDE.md` | The hard invariants. An audit that violates these produces unusable output |
 | 2 | `AGENT.md` | Stack, layout, commands, definition of done |
-| 3 | `docs/research/2026-09-08/00-brief.md` | Verified repo state and the seven gaps — **including the two corrections** |
-| 4 | `docs/research/2026-09-08/09-roadmap.md` | The current synthesis it is auditing |
-| 5 | `docs/research/2026-09-08/01-codebase-audit.md` | Ground truth on what the code actually does |
-| 6 | Tracks 02-08 | Load on demand; do not front-load all six unless the model has room |
-| 7 | `docs/agentic/recurring-failures.md` | Eight failure modes this repo has actually produced |
-| 8 | `feature_list.json`, `docs/agile/AGILE_PLAN.md` | Existing planning machinery the output must feed, not replace |
+| 3 | `docs/research/2026-09-08/STATUS.md` | **What has shipped since the tracks were written, and what was rejected.** Without this the model will re-propose done work and one harmful change |
+| 4 | `docs/research/2026-09-08/00-brief.md` | Verified repo state and the seven gaps — **including the two corrections** |
+| 5 | `docs/research/2026-09-08/09-roadmap.md` | The current synthesis it is auditing |
+| 6 | `docs/research/2026-09-08/01-codebase-audit.md` | Ground truth on what the code actually does |
+| 7 | Tracks 02-08 | Load on demand; do not front-load all six unless the model has room |
+| 8 | `docs/agentic/recurring-failures.md` | Eight failure modes this repo has actually produced |
+| 9 | `feature_list.json`, `docs/agile/AGILE_PLAN.md` | Existing planning machinery the output must feed, not replace |
 
 Both models hold ~1M tokens of context, and the whole research directory is
 ~6,800 lines, so items 1-5 plus the codebase fit comfortably. Prefer giving

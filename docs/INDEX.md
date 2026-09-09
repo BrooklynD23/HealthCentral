@@ -732,11 +732,15 @@ Distill the big model's good grounded-refusal behavior into a small local LoRA a
 
 Every track document in this directory was produced against this brief. Read it before reading any track. It records **verified repo state** (commands and file paths given, run 2026-09-08 on branch…
 
+Links to: `docs/research/2026-09-08/STATUS.md`
+
 ## `docs/research/2026-09-08/01-codebase-audit.md`
 
 **Track 1 — Codebase capability audit**
 
 All paths are relative to `src/backend/` unless stated otherwise. Line numbers verified 2026-09-08 by direct file read, not by memory or by trusting docstrings.
+
+Links to: `docs/research/2026-09-08/STATUS.md`
 
 ## `docs/research/2026-09-08/02-inference-serving.md`
 
@@ -744,7 +748,7 @@ All paths are relative to `src/backend/` unless stated otherwise. Line numbers v
 
 Read `00-brief.md` first for verified repo state and binding constraints. This document does not restate that premise except where it needed correction — see the note on §4.
 
-Links to: `src/backend/core/config.py`, `src/backend/core/llm/factory.py`, `src/backend/core/llm/llama_cpp_provider.py`, `src/backend/core/llm/ollama_provider.py`, `src/backend/modules/agent/cache.py`, `src/backend/modules/agent/guardrails/classifier.py`, `src/backend/modules/agent/guardrails/groundedness.py`, `src/backend/modules/agent/nodes/draft.py`, `src/backend/modules/agent/nodes/plan.py`, `src/backend/modules/agent/nodes/reflect.py`, `src/backend/modules/agent/state.py`, `src/backend/modules/agent/tools/base.py`, `src/backend/modules/agent/tools/registry.py`, `src/backend/modules/model_selector.py`, `src/backend/modules/rag.py`
+Links to: `docs/research/2026-09-08/STATUS.md`, `src/backend/core/config.py`, `src/backend/core/llm/factory.py`, `src/backend/core/llm/llama_cpp_provider.py`, `src/backend/core/llm/ollama_provider.py`, `src/backend/modules/agent/cache.py`, `src/backend/modules/agent/guardrails/classifier.py`, `src/backend/modules/agent/guardrails/groundedness.py`, `src/backend/modules/agent/nodes/draft.py`, `src/backend/modules/agent/nodes/plan.py`, `src/backend/modules/agent/nodes/reflect.py`, `src/backend/modules/agent/state.py`, `src/backend/modules/agent/tools/base.py`, `src/backend/modules/agent/tools/registry.py`, `src/backend/modules/model_selector.py`, `src/backend/modules/rag.py`
 
 ## `docs/research/2026-09-08/03-agentic-loops.md`
 
@@ -752,7 +756,7 @@ Links to: `src/backend/core/config.py`, `src/backend/core/llm/factory.py`, `src/
 
 Research for the Asclexis (formerly HealthCentral) local-first health app. Read `00-brief.md` first — it records the verified repo state this track builds on and the constraints that bind every…
 
-Links to: `docs/research/2026-09-08/00-brief.md`
+Links to: `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/STATUS.md`
 
 ## `docs/research/2026-09-08/04-mcp-interop.md`
 
@@ -768,6 +772,8 @@ Links to: `docs/research/2026-09-08/00-brief.md`
 
 Research date: 2026-09-08. Model knowledge cutoff: May 2026 — everything below about releases after that date is either backed by a fetched/searched source (cited inline) or marked `[UNVERIFIED]`.…
 
+Links to: `docs/research/2026-09-08/STATUS.md`
+
 ## `docs/research/2026-09-08/06-competitive-landscape.md`
 
 **Track 6 — Competitive and adjacent-landscape research**
@@ -780,7 +786,7 @@ Research date: 2026-09-08. Model knowledge cutoff: May 2026 — everything below
 
 Research for the Asclexis (formerly HealthCentral) agentic-expansion effort. Produced 2026-09-08 against `00-brief.md`. Read-only on source; this file is the only write. Every repo claim below…
 
-Links to: `docs/research/2026-09-08/00-brief.md`
+Links to: `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/STATUS.md`
 
 ## `docs/research/2026-09-08/08-frontend.md`
 
@@ -796,7 +802,7 @@ Links to: `docs/research/2026-09-08/00-brief.md`
 
 Merges the eight tracks into one dependency-ordered plan. Written after the tracks returned, against `00-brief.md` and the execution record in `PLAN.md` §9.
 
-Links to: `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`, `docs/research/2026-09-08/PLAN.md`
+Links to: `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`, `docs/research/2026-09-08/PLAN.md`, `docs/research/2026-09-08/STATUS.md`
 
 ## `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`
 
@@ -811,6 +817,14 @@ A ready-to-run brief for handing Asclexis to a frontier model (**Claude Fable 5.
 ---
 
 Links to: `CLAUDE.md`, `docs/agentic/harness.md`, `docs/agentic/mcp-tools.md`, `docs/agentic/recurring-failures.md`, `docs/research/2026-09-08/00-brief.md`
+
+## `docs/research/2026-09-08/STATUS.md`
+
+**Status — what has shipped since the tracks were written**
+
+**Read this before acting on any recommendation in this directory.**
+
+Links to: `docs/agentic/recurring-failures.md`, `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/PLAN.md`
 
 ## `docs/roles/00_roles_index.md`
 

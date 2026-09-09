@@ -1,5 +1,11 @@
 # Track 2: Local inference and serving infrastructure
 
+> **⚠ Point-in-time research (2026-09-08).** Work has shipped since this was
+> written, and some recommendations below are now **done** or **rejected**.
+> Read [`STATUS.md`](STATUS.md) before acting on anything here. This document is
+> deliberately not rewritten — it records what was known when it was written.
+
+
 Read `00-brief.md` first for verified repo state and binding constraints. This
 document does not restate that premise except where it needed correction —
 see the note on §4.

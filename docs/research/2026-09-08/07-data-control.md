@@ -1,5 +1,11 @@
 # Track 7 — Data science, user data control, and compliance
 
+> **⚠ Point-in-time research (2026-09-08).** Work has shipped since this was
+> written, and some recommendations below are now **done** or **rejected**.
+> Read [`STATUS.md`](STATUS.md) before acting on anything here. This document is
+> deliberately not rewritten — it records what was known when it was written.
+
+
 Research for the Asclexis (formerly HealthCentral) agentic-expansion effort.
 Produced 2026-09-08 against [`00-brief.md`](00-brief.md). Read-only on source;
 this file is the only write. Every repo claim below carries a `path:line` or

@@ -1,0 +1,75 @@
+# Status — what has shipped since the tracks were written
+
+**Read this before acting on any recommendation in this directory.**
+
+The eight track documents were written on 2026-09-08 against the repo state in
+[`00-brief.md`](00-brief.md). Work has shipped since. The tracks were **not**
+rewritten — they are point-in-time research, and editing them after the fact
+would destroy the record of what was known when. This file is the reconciliation
+layer instead.
+
+This exists because of [`recurring-failures.md`](../../agentic/recurring-failures.md)
+#8: *stale guidance that reads as authority*. A track that still lists a shipped
+change as a recommendation will get it implemented twice, and a track that lists
+a **rejected** change as a recommendation will get a known-harmful change made.
+
+## Shipped
+
+| Commit | Change | Tracks now stale |
+|---|---|---|
+| `2c98ae6` | Audit logging on all five `api/memory.py` routes | T3 §Recommendations row 8; T7 row 3 |
+| `2c98ae6` | Answer-cache versioned on evidence, not a count (`_profile_version` now fingerprints verified observations **and** verified documents) | T7 row 2 |
+| `2c98ae6` | Dead `default_embeddings_model` config removed | T5 |
+| `3c77eec` → `3eb9e9d` | `llama-cpp-python` pinned, then raised to `==0.3.35` | T2 row 3 |
+| `3eb9e9d` | Mid tier `Phi-3-mini-4k` → `Phi-4-mini-instruct`, context 4096 → 16384 | T1 tier table; T2 §5 quant table; T5 rows 3 and the tier table |
+| `f8ca137` | `download_models.py verify` — checks every tier repo against HuggingFace, exit-coded | T5 row 2 (the `list_repo_files()` recommendation) |
+| `13b1466` | Per-tier capability disclosure (`get_tier_capabilities`, `TierCapabilities` component) | New — no track proposed this; it came out of implementation |
+
+## Rejected — do not implement
+
+**T3's recommendation to route `MemoryItemCreate/Update.value` through
+`sanitize_untrusted_field` before persisting** (`03-agentic-loops.md`
+§Recommendations). The risk it names is real; the layer is wrong twice over:
+
+1. `modules/rag.py::_retrieve_memory_context` already filters injection-bearing
+   memory items at compose time, and fails closed on the **whole item** —
+   strictly safer than scrubbing a string.
+2. `sanitize_untrusted_field` applies **strict PHI redaction**. Memory items are
+   things a patient deliberately saved into their own encrypted vault. Writing
+   through it would corrupt them irreversibly, since the original is never
+   stored. The invariant is *redaction before anything **leaves***; a write into
+   the per-profile vault is PHI arriving at its designed home.
+
+Two tracks independently flagged the memory route, which made this look
+corroborated. Convergence is evidence the **area** matters, not that the
+**proposed fix** is right.
+
+## Still open, with new evidence
+
+- **Gemma 4 is real and supported.** `LLM_ARCH_GEMMA4` exists in current
+  llama.cpp; 0.3.35 vendors `llama.cpp@4df29be4f`, which declares it. The
+  blocker was only ever the 22-month-old wheel. The **repo paths remain
+  unverified** — run `python scripts/download_models.py verify`.
+- **The low tier is untouched by design.** `Qwen2.5-0.5B` is two generations
+  behind (llama.cpp now declares `qwen3`, `qwen35`, `qwen4exp`), but T5's
+  finding holds at any generation: 0.5B-class models cannot drive a tool loop.
+  Awaiting verified repo paths before a swap.
+- **`function_calling` is under-declared in `TIER_MODEL_CONFIG`.** Only the
+  Gemma 4 entries set it; Phi-4-mini and BioMistral support tool calling
+  regardless. The capability UI therefore says "Tool support unconfirmed" rather
+  than asserting absence. Filling these in properly is open work.
+
+## Baseline drift
+
+`CLAUDE.md`'s collected-test baseline moved **1245 → 1269** across these
+commits. Any track quoting 1245 is quoting the number that was true when it was
+written.
+
+## What is NOT covered by any track
+
+One dimension of the original request has no research track: **the repo as an
+artifact demonstrating the SWE → agentic-workflow journey.** Every track
+addresses the *product*; none addresses the *demonstration* — what to build so
+the repo evidences the harness evolution, the workflow iterations, and the
+process itself. [`PLAN.md`](PLAN.md) §1 frames that thesis but produces no
+recommendations for it. Treat it as an open gap, not as covered.

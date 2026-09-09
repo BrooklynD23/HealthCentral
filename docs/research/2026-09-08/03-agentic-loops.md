@@ -1,5 +1,11 @@
 # Track 3 — Agentic loop engineering
 
+> **⚠ Point-in-time research (2026-09-08).** Work has shipped since this was
+> written, and some recommendations below are now **done** or **rejected**.
+> Read [`STATUS.md`](STATUS.md) before acting on anything here. This document is
+> deliberately not rewritten — it records what was known when it was written.
+
+
 Research for the Asclexis (formerly HealthCentral) local-first health app.
 Read [`00-brief.md`](00-brief.md) first — it records the verified repo state
 this track builds on and the constraints that bind every recommendation

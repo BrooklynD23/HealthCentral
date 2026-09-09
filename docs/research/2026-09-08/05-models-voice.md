@@ -1,5 +1,11 @@
 # Track 5 — Open-Weight Models, the NVIDIA Local Stack, and Voice
 
+> **⚠ Point-in-time research (2026-09-08).** Work has shipped since this was
+> written, and some recommendations below are now **done** or **rejected**.
+> Read [`STATUS.md`](STATUS.md) before acting on anything here. This document is
+> deliberately not rewritten — it records what was known when it was written.
+
+
 Research date: 2026-09-08. Model knowledge cutoff: May 2026 — everything below
 about releases after that date is either backed by a fetched/searched source
 (cited inline) or marked `[UNVERIFIED]`. `huggingface.co` and `hf.co` were
