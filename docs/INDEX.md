@@ -810,6 +810,14 @@ Links to: `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/FRON
 
 A ready-to-run brief for handing Asclexis to a frontier model (**Claude Fable 5.1** or **GPT-6 Astra**) for an independent architecture audit and roadmap.
 
+## `docs/research/2026-09-08/GOAL-PROMPT.md`
+
+**`/goal` prompt — frontier architecture audit**
+
+A single-turn brief for a higher-reasoning model to audit the whole research corpus and produce the architecture plan. **3,475 characters** — everything between the fences is the prompt; nothing…
+
+Links to: `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`
+
 ## `docs/research/2026-09-08/PLAN.md`
 
 **Research plan — from process-agentic to product-agentic**
