@@ -73,11 +73,12 @@ see [`.claude/skills/README.md`](.claude/skills/README.md) and
 
 ```powershell
 .\dev.ps1                                  # full stack, auto-selects free ports
-cd src/backend; python -m pytest tests/ -p no:cacheprovider -q   # backend tests (1255 collected; 1255 pass in CI, 1254 without an embedding model)
+cd src/backend; python -m pytest tests/ -p no:cacheprovider -q   # backend tests (1262 collected; 1262 pass in CI, 1261 without an embedding model)
 cd src/frontend; npm run dev               # frontend only
 cd src/frontend; npx tsc --noEmit; npm run build; npx vitest run
 cd src/frontend; npx playwright test       # e2e
-cd src/backend; python scripts/download_models.py list   # GGUF tiers + ollama pull tags (Gemma 4)
+cd src/backend; python scripts/download_models.py list     # GGUF tiers + ollama pull tags
+cd src/backend; python scripts/download_models.py verify   # check every tier repo exists on HuggingFace (needs network)
 ```
 
 Known env-only failure: `test_api_rag_index_002b` needs a real embedding model, so it fails locally and passes in CI. WSL/9p mounts: clear `__pycache__` before pytest (stale bytecode causes phantom results); `node_modules` may be unusable — run frontend toolchain on Windows.

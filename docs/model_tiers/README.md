@@ -29,7 +29,18 @@ The active LLM provider is controlled by the `LLM_PROVIDER` environment variable
 
 - **Gemma 4 chat template** is auto-detected from GGUF metadata via `chat_format="auto"` in llama.cpp — no manual template configuration needed.
 - **Runtime switch:** `PUT /api/v1/settings/model/provider` swaps providers without a restart. To persist across restarts, set `LLM_PROVIDER` in `.env`.
-- ⚠️ **Placeholder warning:** Gemma 4 HuggingFace repo URLs in `modules/model_selector.py` are unverified placeholders. Confirm the repo exists before downloading.
+- ⚠️ **Placeholder warning:** Gemma 4 HuggingFace repo URLs in `modules/model_selector.py` are unverified placeholders, as is the `mid` tier's Phi-4-mini community quantizer. Confirm before downloading:
+
+  ```bash
+  cd src/backend && python scripts/download_models.py verify
+  ```
+
+  This checks every entry in `TIER_MODEL_CONFIG` against HuggingFace — that the
+  repo exists *and* that it carries a `.gguf` matching the tier's quantization
+  pattern — and exits non-zero if any tier is unverified, so it can gate a
+  release. It distinguishes "repo does not exist" from "could not reach
+  HuggingFace"; only the first means the config is wrong. It must run on a
+  machine with network access to huggingface.co.
 
 ## Tier Selection Logic
 
