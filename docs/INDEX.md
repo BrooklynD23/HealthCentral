@@ -818,6 +818,14 @@ files and feedback loops that keep an AI agent on task while it builds Asclexis.
 
 Links to: `docs/research/2026-09-08/STATUS.md`
 
+## `docs/research/2026-09-08/CONSULT-PROMPT.md`
+
+**Consultation prompt — what to actually integrate**
+
+For **Claude Fable 5.1** (`claude-fable-5-1`). **4,390 characters** — everything between the fences is the prompt.
+
+Links to: `docs/research/2026-09-08/GOAL-PROMPT.md`, `docs/research/2026-09-08/INDUSTRY-PROMPT.md`
+
 ## `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`
 
 **Frontier-model architecture audit — prompt pack**
@@ -854,7 +862,7 @@ Links to: `CLAUDE.md`, `docs/agentic/harness.md`, `docs/agentic/mcp-tools.md`, `
 
 **Read this before acting on any recommendation in this directory.**
 
-Links to: `docs/agentic/recurring-failures.md`, `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/10-demonstration-artifact.md`, `docs/research/2026-09-08/11-harness-engineering.md`, `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`, `docs/research/2026-09-08/GOAL-PROMPT.md`, `docs/research/2026-09-08/INDUSTRY-PROMPT.md`
+Links to: `docs/agentic/recurring-failures.md`, `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/10-demonstration-artifact.md`, `docs/research/2026-09-08/11-harness-engineering.md`, `docs/research/2026-09-08/CONSULT-PROMPT.md`, `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`, `docs/research/2026-09-08/GOAL-PROMPT.md`, `docs/research/2026-09-08/INDUSTRY-PROMPT.md`
 
 ## `docs/roles/00_roles_index.md`
 

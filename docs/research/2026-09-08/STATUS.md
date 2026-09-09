@@ -17,11 +17,13 @@ a **rejected** change as a recommendation will get a known-harmful change made.
 
 | Prompt | Purpose | Size |
 |---|---|---|
-| [`GOAL-PROMPT.md`](GOAL-PROMPT.md) | Audit the corpus, produce the architecture plan | 3,464 chars |
-| [`INDUSTRY-PROMPT.md`](INDUSTRY-PROMPT.md) | Research what changed since May 2026, propose what to adopt | 4,227 chars |
+| [`CONSULT-PROMPT.md`](CONSULT-PROMPT.md) | **Start here.** Which of the ~128 candidate changes should actually be integrated | 4,390 chars |
+| [`GOAL-PROMPT.md`](GOAL-PROMPT.md) | Is `09-roadmap.md` right? (subsumed by the consultation) | 3,464 chars |
+| [`INDUSTRY-PROMPT.md`](INDUSTRY-PROMPT.md) | What changed outside the repo since May 2026 | 4,227 chars |
 
-Run the audit first if doing both — its verdict may change what is worth
-integrating. Full context pack and data boundary:
+The consultation subsumes the roadmap audit — it asks explicitly where
+`09-roadmap.md` is wrong — so running both is largely redundant. The industry
+prompt is genuinely separate: it looks outward, the other two look in. Full context pack and data boundary:
 [`FRONTIER-AUDIT-PROMPT.md`](FRONTIER-AUDIT-PROMPT.md).
 
 ## Shipped
