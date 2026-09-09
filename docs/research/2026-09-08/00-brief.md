@@ -136,6 +136,8 @@ must not be "fixed" by lowering its 0.7 threshold).
 | 6 | Competitive landscape | `06-competitive-landscape.md` |
 | 7 | Data science, user data control, compliance | `07-data-control.md` |
 | 8 | Frontend refactor: motion, agent-trace UI, design system | `08-frontend.md` |
+| 9 | The repo as a demonstration artifact of the agentic journey | `10-demonstration-artifact.md` |
+| 10 | Harness & loop engineering — building the dev environment itself | `11-harness-engineering.md` |
 
 Track filenames are shown as literals rather than links: each lands as its
 researcher completes, and the links are wired in the synthesis commit.

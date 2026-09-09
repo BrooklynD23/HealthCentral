@@ -65,11 +65,33 @@ corroborated. Convergence is evidence the **area** matters, not that the
 commits. Any track quoting 1245 is quoting the number that was true when it was
 written.
 
-## What is NOT covered by any track
+## Tracks added after the first eight (2026-09-09)
 
-One dimension of the original request has no research track: **the repo as an
-artifact demonstrating the SWE → agentic-workflow journey.** Every track
-addresses the *product*; none addresses the *demonstration* — what to build so
-the repo evidences the harness evolution, the workflow iterations, and the
-process itself. [`PLAN.md`](PLAN.md) §1 frames that thesis but produces no
-recommendations for it. Treat it as an open gap, not as covered.
+Two dimensions of the original request had no track. Both were dispatched on
+2026-09-09. They are numbered by file, not dispatch order: files `01`-`08` are
+tracks 1-8, `09-roadmap.md` is the synthesis, and these follow it.
+
+| Track | Subject | File |
+|---|---|---|
+| 9 | The repo as an artifact demonstrating the SWE → agentic journey | [`10-demonstration-artifact.md`](10-demonstration-artifact.md) |
+| 10 | Harness & loop engineering — building the dev tooling and environment | `11-harness-engineering.md` (in progress) |
+
+Track 9's central finding is a set of **claim-vs-evidence gaps** — things the
+CS4610 reports describe that the repo cannot evidence. Every one below was
+verified independently before acceptance:
+
+| Claim | Source | Repo reality |
+|---|---|---|
+| Subagent definitions live in `.claude/agents/` | `docs/agentic/harness.md:25` | Directory does not exist |
+| A PreToolUse hook blocks PHI-bearing tool calls | Final Report §7.2 | No hooks, no `settings.json` anywhere |
+| A Ralph-style RAG sweep tuned reranking | Final Report §7.3 | No artifact — and `grep -i rerank modules/rag.py` returns nothing, so the swept feature does not exist |
+| OpenWiki provides repo navigation (present tense) | `CLAUDE.md` | `openwiki/README.md:15` — "still not generated (as of 2026-07-27)" |
+| Daily standup / retro in `docs/agile/STANDUP.md`, `RETRO.md` | `AGILE_PLAN.md:50,53` | Both moved to `docs/archive/agile/`; refs are inline code so `docs_lint.py` cannot catch them |
+
+Also verified: `docs/agentic/progress.md`'s last entry is 2026-07-30, with
+**48 commits since** — the log went silent across the backup-restore security
+fixes, the Asclexis rename, and this entire research pass, while
+`feature_list.json` and git history stayed current. And `CS4610_Report_Demo/`
+holds two tracked LibreOffice lock files (`.~lock…#`, `~$…docx`) that are not
+gitignored; they carry a container session name, not personal identity — repo
+litter rather than a leak.
