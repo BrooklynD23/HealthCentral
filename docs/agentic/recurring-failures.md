@@ -28,11 +28,22 @@ The most expensive pattern in this repo's history, twice over.
 - A frontend test used `waitFor(() => expect(...).not.toBeInTheDocument())`,
   which resolves on the first tick before the component has rendered anything.
   It passed against deliberately broken code.
+- 2026-09-08, `SEC-RECOV-002`: a unit test mocked `has_recovery_code` onto the
+  response of `GET /profiles/{id}`. The backend returns that field on
+  `ProfileListResponse` (`GET /profiles/`) and **never** on `ProfileResponse`
+  (`api/profiles.py:132-152`). Six green tests therefore certified a component
+  that could never reach its "replace" state, because the flag it branched on
+  was always undefined in production. The mock was not a simplification of the
+  API — it was a different API. Caught only by an e2e run against the real
+  backend, which rendered the wrong half of the component.
 
 **Recheck:** ask what your test would *fail to notice*. Then break the code on
 purpose and confirm the test goes red. A test that has never failed proves
 nothing. Route tests asserting auth, path scoping, or status codes go through
-HTTP — use `src/backend/tests/support/routes.py::route_client`.
+HTTP — use `src/backend/tests/support/routes.py::route_client`. And for any
+hand-written mock of a backend response, open the response model and confirm
+the field is on *that* endpoint: a mock is an assertion about the API, and an
+unchecked one turns the suite green against a contract that does not exist.
 
 ---
 

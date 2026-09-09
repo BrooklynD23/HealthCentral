@@ -1,16 +1,18 @@
 /**
  * UX-001 Phase 5: Correlation Contract Tests
  *
- * Tests the temporal heuristic for medication–observation correlation:
+ * Tests the temporal overlap rule as applied to the medication-overlay
+ * direction ("which medications were active when this result was collected"):
  *   med.started_at <= obs.collected_at AND
  *   (med.ended_at IS NULL OR med.ended_at >= obs.collected_at)
+ *
+ * MED-CORR-002 removed the inverse (`findObservationsDuringMedication`) and its
+ * cases here: that direction is now the backend's, covered by the
+ * HC-MCORR-001..010 endpoint tests and FE-MCORR-001..004.
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  findActiveMedications,
-  findObservationsDuringMedication,
-} from '@/utils/correlation';
+import { findActiveMedications } from '@/utils/correlation';
 import type { Medication, Observation } from '@/services/types';
 
 // Factory helpers — only include fields used by the correlation logic
@@ -121,22 +123,4 @@ describe('Correlation Contract (UX-001)', () => {
     });
   });
 
-  describe('findObservationsDuringMedication', () => {
-    it('returns observations within medication active period', () => {
-      const med = makeMedication({
-        started_at: '2025-01-01T00:00:00',
-        ended_at: '2025-12-31T00:00:00',
-      });
-      const observations = [
-        makeObservation({ id: 'obs-1', collected_at: '2025-06-15T00:00:00' }),
-        makeObservation({ id: 'obs-2', collected_at: '2024-06-15T00:00:00' }), // before
-        makeObservation({ id: 'obs-3', collected_at: '2026-06-15T00:00:00' }), // after
-      ];
-
-      const result = findObservationsDuringMedication(med, observations);
-
-      expect(result).toHaveLength(1);
-      expect(result[0].id).toBe('obs-1');
-    });
-  });
 });

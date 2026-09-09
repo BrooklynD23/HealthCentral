@@ -179,6 +179,18 @@ switch, the app shows the looser answer.
   `toOverlayPeriod`'s dosage-label formatting if the overlay still needs it — move
   it next to the component rather than leaving the module alive for one helper.
 
+**Shipped 2026-09-08, with one scope correction.** `MedicationDetail` now reads
+the endpoint, and `findObservationsDuringMedication` plus the dead
+`buildCorrelationContext` are gone. **`TrendsDashboard` was not converted, and
+should not be:** `findActiveMedications` answers the *inverse* question — "which
+medications were active when this result was collected" — and
+`GET /medications/{id}/correlations` is keyed by medication, so serving that
+direction from the server would take one request per medication. It also filters
+medications rather than observations, so the `verified_only` disagreement that
+motivated this ticket does not arise there. `correlation.ts` now contains that
+single function and documents the split. Tests FE-MCORR-001..004; FE-MCORR-003
+was observed failing first, proving the unverified result really was rendered.
+
 ### 4.2 `SEC-RECOV-002` — recovery-code entry point in Settings
 
 `RecoverProfile.tsx` tells the user a recovery code "can only be created while you
@@ -200,6 +212,19 @@ point.
 - **T3** — Playwright spec covering create → copy → reload → confirm the code is
   no longer displayed. Update `docs/user-guide/` with the backfill instructions,
   and re-read `RecoverProfile.tsx`'s copy so it now describes a path that exists.
+
+**Shipped 2026-09-08.** `RecoveryCodeCard` mounted in Settings above
+`BackupCard`. Tests FE-RECOV-001..006 and E2E-RECOV-001..002; `RecoverProfile`
+now names where to create a code.
+
+**The e2e earned its place immediately.** `has_recovery_code` is returned by
+`ProfileListResponse` (`GET /profiles/`) and never by `ProfileResponse`
+(`GET /profiles/{id}`). The component first read it from `useProfile`, and the
+unit test — which had mocked the field onto the single-profile response, a shape
+the API never returns — passed anyway. Six green tests certified a component
+that could never reach its "replace" state. Only the run against the real
+backend caught it. Recorded in
+[recurring-failures.md §1](../agentic/recurring-failures.md).
 
 ---
 
