@@ -13,6 +13,17 @@ This exists because of [`recurring-failures.md`](../../agentic/recurring-failure
 change as a recommendation will get it implemented twice, and a track that lists
 a **rejected** change as a recommendation will get a known-harmful change made.
 
+## Prompts for the next model
+
+| Prompt | Purpose | Size |
+|---|---|---|
+| [`GOAL-PROMPT.md`](GOAL-PROMPT.md) | Audit the corpus, produce the architecture plan | 3,464 chars |
+| [`INDUSTRY-PROMPT.md`](INDUSTRY-PROMPT.md) | Research what changed since May 2026, propose what to adopt | 4,227 chars |
+
+Run the audit first if doing both — its verdict may change what is worth
+integrating. Full context pack and data boundary:
+[`FRONTIER-AUDIT-PROMPT.md`](FRONTIER-AUDIT-PROMPT.md).
+
 ## Shipped
 
 | Commit | Change | Tracks now stale |

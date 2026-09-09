@@ -468,7 +468,16 @@
     "docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md": [
       "docs/agentic/roadmap.md",
       "docs/research/2026-09-08/09-roadmap.md",
-      "docs/research/2026-09-08/GOAL-PROMPT.md"
+      "docs/research/2026-09-08/GOAL-PROMPT.md",
+      "docs/research/2026-09-08/INDUSTRY-PROMPT.md",
+      "docs/research/2026-09-08/STATUS.md"
+    ],
+    "docs/research/2026-09-08/GOAL-PROMPT.md": [
+      "docs/research/2026-09-08/INDUSTRY-PROMPT.md",
+      "docs/research/2026-09-08/STATUS.md"
+    ],
+    "docs/research/2026-09-08/INDUSTRY-PROMPT.md": [
+      "docs/research/2026-09-08/STATUS.md"
     ],
     "docs/research/2026-09-08/PLAN.md": [
       "docs/agentic/roadmap.md",
@@ -1083,6 +1092,10 @@
     "docs/research/2026-09-08/GOAL-PROMPT.md": [
       "docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md"
     ],
+    "docs/research/2026-09-08/INDUSTRY-PROMPT.md": [
+      "docs/research/2026-09-08/GOAL-PROMPT.md",
+      "docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md"
+    ],
     "docs/research/2026-09-08/PLAN.md": [
       "docs/research/2026-09-08/00-brief.md",
       "docs/agentic/harness.md",
@@ -1093,6 +1106,9 @@
     "docs/research/2026-09-08/STATUS.md": [
       "docs/research/2026-09-08/00-brief.md",
       "docs/agentic/recurring-failures.md",
+      "docs/research/2026-09-08/GOAL-PROMPT.md",
+      "docs/research/2026-09-08/INDUSTRY-PROMPT.md",
+      "docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md",
       "docs/research/2026-09-08/10-demonstration-artifact.md",
       "docs/research/2026-09-08/11-harness-engineering.md"
     ],

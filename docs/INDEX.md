@@ -832,6 +832,14 @@ A single-turn brief for a higher-reasoning model to audit the whole research cor
 
 Links to: `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`
 
+## `docs/research/2026-09-08/INDUSTRY-PROMPT.md`
+
+**Industry-shift prompt — what to integrate next**
+
+A research brief for **Claude Fable 5.1** (`claude-fable-5-1`) exploring what agentic engineering has changed since the CS4610 reports were written, and what this project should adopt. **4,227…
+
+Links to: `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`, `docs/research/2026-09-08/GOAL-PROMPT.md`
+
 ## `docs/research/2026-09-08/PLAN.md`
 
 **Research plan — from process-agentic to product-agentic**
@@ -846,7 +854,7 @@ Links to: `CLAUDE.md`, `docs/agentic/harness.md`, `docs/agentic/mcp-tools.md`, `
 
 **Read this before acting on any recommendation in this directory.**
 
-Links to: `docs/agentic/recurring-failures.md`, `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/10-demonstration-artifact.md`, `docs/research/2026-09-08/11-harness-engineering.md`
+Links to: `docs/agentic/recurring-failures.md`, `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/10-demonstration-artifact.md`, `docs/research/2026-09-08/11-harness-engineering.md`, `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`, `docs/research/2026-09-08/GOAL-PROMPT.md`, `docs/research/2026-09-08/INDUSTRY-PROMPT.md`
 
 ## `docs/roles/00_roles_index.md`
 
