@@ -828,7 +828,7 @@ A ready-to-run brief for handing Asclexis to a frontier model (**Claude Fable 5.
 
 **`/goal` prompt — frontier architecture audit**
 
-A single-turn brief for a higher-reasoning model to audit the whole research corpus and produce the architecture plan. **3,475 characters** — everything between the fences is the prompt; nothing…
+A single-turn brief for a higher-reasoning model to audit the whole research corpus and produce the architecture plan. **3,464 characters** — everything between the fences is the prompt; nothing…
 
 Links to: `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`
 
