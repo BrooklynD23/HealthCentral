@@ -143,6 +143,22 @@ backups on disk after profile deletion. That line was written about a different,
 older backup location. The same review asserted an FK cascade removed a row;
 `PRAGMA foreign_keys` is set nowhere in the codebase, so it is inert on SQLite.
 
+A 2026-09-08 near-miss in the same shape, caught at implementation: a research
+track recommended routing `api/memory.py`'s `value` through
+`sanitize_untrusted_field` before persisting, to neutralize prompt injection.
+The *risk* was real; the *layer* was wrong twice over. `modules/rag.py::_retrieve_memory_context`
+already filters injection-bearing memory items at compose time — and it fails
+closed on the whole item, which is safer than scrubbing a string. Worse,
+`sanitize_untrusted_field` applies **strict PHI redaction**, so writing through
+it would have silently and irreversibly corrupted memory items a patient
+deliberately saved into their own encrypted vault. The invariant is "redaction
+before anything *leaves*"; a write into the per-profile vault is PHI arriving,
+not leaving. Two of the eight tracks had flagged the memory route, which made
+the recommendation look corroborated — convergence is evidence the *area*
+matters, not that the *proposed fix* is right.
+
 **Recheck:** a written decision is evidence about what someone believed, not
 proof that it was true. When a doc gives a *reason*, check the reason. An
-agent's report — including a reviewer's — is a lead, not a finding.
+agent's report — including a reviewer's — is a lead, not a finding. Before
+applying a defensive transform, check whether the defense already exists
+somewhere better, and ask what the transform destroys when it fires.

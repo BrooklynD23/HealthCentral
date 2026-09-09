@@ -82,10 +82,56 @@ These are not roadmap items. They are things that are currently wrong.
 | # | Item | Source | Why first |
 |---|---|---|---|
 | 0.1 | Audit logging on all five `api/memory.py` routes | T3, T7 | Verified hard-invariant violation |
-| 0.2 | Route memory `value` through `sanitize_untrusted_field` before persisting | T3 | Same route; memory is untrusted user text that later enters prompts |
-| 0.3 | Bump `profile_version` on document and memory-item **deletion** | T7 | Answer-cache staleness: a cached explanation can outlive the data it explained. A correctness bug in a health app |
-| 0.4 | Pin `llama-cpp-python` (currently unbounded `>=0.2.0`) | T2 | Nothing below can be reasoned about while the installed wheel's feature set is unknown |
-| 0.5 | Delete or wire the dead `default_embeddings_model = "bge-small-en-v1.5"` config | T5 | `core/config.py:89` is unused and misleading; `all-MiniLM-L6-v2` is what actually loads |
+| 0.2 | ~~Route memory `value` through `sanitize_untrusted_field` before persisting~~ | T3 | **REJECTED on implementation — see below** |
+| 0.3 | Fix answer-cache staleness | T7 | Root cause was deeper than "bump on deletion" — see below |
+| 0.4 | Pin `llama-cpp-python` (currently unbounded `>=0.2.0`) | T2 | **DEFERRED — needs a version the owner has actually run** |
+| 0.5 | Delete the dead `default_embeddings_model = "bge-small-en-v1.5"` config | T5 | `core/config.py:89` is unused and misleading; `all-MiniLM-L6-v2` is what actually loads |
+
+### What implementation changed (2026-09-08)
+
+Wave 0 was implemented the same day it was written. Three of the five items
+survived contact with the code unchanged; two did not.
+
+**0.2 is rejected, not deferred.** Track 3 was right that memory items are
+untrusted text that later enters prompts, and wrong about where to act on it.
+Two findings, both verified before rejecting:
+
+1. **The protection already exists, at the better layer.**
+   `modules/rag.py::_retrieve_memory_context` already checks each item's
+   combined `key`/`category`/`value` with `_contains_prompt_injection` and
+   **skips the whole item** when it matches, logging "Filtered potentially
+   unsafe memory item". Filtering at compose time is strictly safer than
+   scrubbing at write time: it fails closed on the entire item rather than
+   silently handing a partially-mangled string to the model.
+2. **Applying it at write time would have destroyed user data.**
+   `sanitize_untrusted_field` runs `RedactionEngine(policy_level="strict")`.
+   Memory items are things a patient deliberately saved into their own
+   encrypted vault — "my nephrologist is Dr. Chen", "metformin 500mg twice
+   daily". Strict-redacting those on write corrupts them irreversibly, since
+   the original is never stored. `CLAUDE.md`'s invariant is *redaction before
+   anything **leaves***; a write into the per-profile SQLCipher vault is the
+   PHI arriving at its designed home, not leaving it.
+
+**0.3's root cause was deeper than the roadmap stated.** "Bump
+`profile_version` on deletion" describes a symptom. `_profile_version` derived
+the version from a **COUNT of verified observations**, and a count is not a
+version — it decreases on delete, so deleting one verified observation and
+verifying a different one returns the key to a value the cache has already
+seen. Demonstrated by `HC-CACHE-VER-001`, which failed with *"both 2"*: a
+cached answer about the deleted observation was still served. The fix
+fingerprints both evidence sources the agent's tools actually read — verified
+observations and verified documents (`retrieve_chunks` filters on
+`Document.status == "verified"`) — each as a count paired with its latest
+`verified_at`. Memory items are deliberately **excluded**: no agent tool reads
+them, so they cannot change an agent answer; including them would be
+speculative.
+
+**0.4 is deferred, not done.** Pinning requires naming a version, and no
+recorded evidence of a tested `llama-cpp-python` version exists anywhere in the
+repo — `requirements.txt:52` is the only mention. Inventing a pin here would be
+`recurring-failures.md` #3 (figures asserted instead of measured), and the
+package cannot be built in this sandbox to test one. **This needs the version
+the owner actually runs locally.**
 
 ### Wave 1 — See before you change (blocks Wave 2)
 

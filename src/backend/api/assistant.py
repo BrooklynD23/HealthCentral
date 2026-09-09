@@ -29,6 +29,7 @@ from core.auth import RequireAuth, ProfileDbSession
 from core.time import utcnow
 from models.chat_session import ChatSession, ChatTurn
 from models.model_settings import UserModelSettings
+from models.document import Document
 from models.observation import Observation
 from modules.rag import RAGModule, VerificationConfig, ModelUnavailableError
 from modules.faithfulness import FaithfulnessConfig
@@ -549,19 +550,50 @@ async def _get_user_model_settings(
     return result.scalar_one_or_none()
 
 
-async def _profile_version(profile_id: str, profile_db: AsyncSession) -> int:
-    """Cache version source (S5-2): the count of verified observations for
-    this profile. PRD §10 Q4: profile_version increments on any observation
-    verify, so a new verify always produces a different CacheKey and thus a
-    guaranteed cache miss — never a stale answer for changed data.
+async def _profile_version(profile_id: str, profile_db: AsyncSession) -> str:
+    """Cache version source (S5-2): a fingerprint of the evidence this profile's
+    agent can ground an answer in.
+
+    PRD §10 Q4 requires that changed data can never serve a cached answer. The
+    original derivation was a COUNT of verified observations, and a count is not
+    a version: it decreases on delete, so deleting one verified observation and
+    verifying a different one returned the count — and therefore the CacheKey —
+    to a value the cache had already seen, serving an answer about data that no
+    longer existed (HC-CACHE-VER-001).
+
+    Two sources are fingerprinted because two feed the agent's tools: verified
+    observations (``query_observations``, ``compute_trend``) and verified
+    documents (``retrieve_chunks``, which filters on
+    ``Document.status == "verified"``). Each contributes a count paired with the
+    latest ``verified_at``, so the value changes on a verify, on a delete, and on
+    the delete-then-verify sequence that collides on count alone.
+
+    Memory items are deliberately excluded: no agent tool reads them
+    (``modules/agent/tools/`` has no memory tool), so they cannot change an
+    agent answer. Add them here if that ever stops being true.
+
+    Residual: two evidence sets could collide only by sharing both counts and
+    both microsecond ``verified_at`` maxima — a delete and a verify landing on
+    the identical timestamp with compensating counts. Fingerprinting the full id
+    set would close it exactly, at the cost of fetching every row per request.
     """
-    result = await profile_db.execute(
-        select(func.count(Observation.id)).where(
+    obs_result = await profile_db.execute(
+        select(func.count(Observation.id), func.max(Observation.verified_at)).where(
             Observation.profile_id == profile_id,
             Observation.user_verified == True,  # noqa: E712
         )
     )
-    return result.scalar() or 0
+    obs_count, obs_latest = obs_result.one()
+
+    doc_result = await profile_db.execute(
+        select(func.count(Document.id), func.max(Document.verified_at)).where(
+            Document.profile_id == profile_id,
+            Document.status == "verified",
+        )
+    )
+    doc_count, doc_latest = doc_result.one()
+
+    return f"o:{obs_count or 0}:{obs_latest or ''}|d:{doc_count or 0}:{doc_latest or ''}"
 
 
 def _agent_terminal_to_response_parts(
