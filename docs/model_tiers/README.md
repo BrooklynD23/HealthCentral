@@ -10,7 +10,7 @@ The system supports three quality tiers plus a template fallback:
 |------|-----|-------|------|---------|
 | 1 (Low) | `low` | Qwen2.5-0.5B-Instruct | ~0.5GB | **YES** |
 | 1 (Alt) | `gemma4-e2b` | Gemma 4 E2B | ~1.5GB | No |
-| 2 (Mid) | `mid` | Phi-3-mini-4k-instruct | ~2GB | No |
+| 2 (Mid) | `mid` | Phi-4-mini-instruct | ~2.5GB | No |
 | 2 (Alt) | `gemma4-e4b` | Gemma 4 E4B | ~2.8GB | No |
 | 3 (High) | `high` | BioMistral-7B | ~4GB | No |
 | 3 (Alt) | `gemma4-12b` | Gemma 4 12B | ~7-8GB | No |

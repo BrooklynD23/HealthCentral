@@ -604,7 +604,7 @@ The default tier for all installations. Optimized for speed and low resource usa
 
 ## `docs/model_tiers/tier2_mid.md`
 
-**Tier 2: Mid (Phi-3-mini-4k-instruct)**
+**Tier 2: Mid (Phi-4-mini-instruct)**
 
 Balanced tier offering improved quality while maintaining reasonable resource usage.
 

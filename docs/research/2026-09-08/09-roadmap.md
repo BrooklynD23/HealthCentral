@@ -138,26 +138,56 @@ and `llama_cpp/llama_chat_format.py:586` routes it through
 `_grammar_for_response_format` → `LlamaGrammar.from_json_schema`. So Wave 2's
 step 2.3 is not blocked by the runtime — only by the work itself.
 
-*Bad news for the model tiers.* **0.3.2 was released 2024-11-16.** It vendors a
-llama.cpp from that date, which predates the **Gemma 4 architecture (released
-2026-06-03)** by roughly nineteen months. Three of the six `TIER_MODEL_CONFIG`
-entries name Gemma 4 GGUFs — `gemma4-e2b`, `gemma4-e4b` (mid) and `gemma4-12b`
-(high) — and **cannot load on this runtime**. Only `Qwen2.5-0.5B` (low),
-`Phi-3-mini` (mid) and `BioMistral-7B` (high) predate the pin.
+*Bad news for the model tiers.* **0.3.2 was released 2024-11-16**, so it vendors
+a llama.cpp predating the **Gemma 4 architecture (released 2026-06-03)** by
+roughly nineteen months. Three of the six `TIER_MODEL_CONFIG` entries named
+Gemma 4 GGUFs and could not have loaded on it.
 
-That contradiction is falsifiable by one fact the owner has: *has a Gemma 4
-tier ever loaded successfully?* If yes, the running version is newer than 0.3.2
-and this pin is wrong. If no — which the config's own
-`# PLACEHOLDER URLs (verify before production)` comment suggests — then the
-Gemma 4 tiers are aspirational, and the mid/high tiers have never actually run
-the models the docs say they run. Either answer is worth having before Wave 2
-picks a planner model, because **the tier gate that keeps the LLM planner off
-the 0.5B tier assumes a working mid tier exists.**
+**The owner confirmed a Gemma 4 tier has never loaded**, which resolved the
+question: the Gemma 4 entries were aspirational, exactly as the config's own
+`# PLACEHOLDER URLs (verify before production)` comment hinted, and the mid and
+high tiers had never run the models the docs claimed. That mattered because
+Wave 2's tier gate — keeping the LLM planner off the 0.5B tier — assumes a
+working mid tier exists.
 
-Raising the pin is therefore a deliberate, re-tested decision — a new llama.cpp
-changes GGUF compatibility, quantization support, and chat-template detection
-all at once — not a routine bump. Track 5's separate recommendation to swap the
-mid tier to `Phi-4-mini-instruct` interacts with this directly.
+### Resolution (2026-09-09): pin raised to 0.3.35, mid tier swapped
+
+Both were done together because neither works alone.
+
+**Pin `0.3.2` → `0.3.35`.** Verified against upstream, not assumed: 0.3.35
+(2026-08-17) vendors `ggml-org/llama.cpp@4df29be4f`, whose `src/llama-arch.cpp`
+declares `gemma4`, `gemma4-assistant`, `gemma3n`, `qwen3` and `phi3`. So Gemma 4
+is real and *is* supported by a current runtime — the blocker was only ever the
+22-month-old wheel. The constrained-decoding hook Wave 2 needs exists in both
+versions, so raising the pin does not put it at risk.
+
+**Mid tier `Phi-3-mini-4k` → `Phi-4-mini-instruct`** (Track 5's
+recommendation). Same size class, same MIT license, and it escapes a 4K context
+window too small to hold retrieved chunks, a tool menu and a question at once.
+Phi-4-mini loads under llama.cpp's existing `phi3` architecture — there is no
+separate `phi4` arch — but it postdates the 0.3.2 wheel, so it required the pin
+raise. Context capped at 16K rather than the model's 128K: the KV cache for
+128K is impractical on this tier's CPU-only path (`n_gpu_layers: 0`).
+
+**Two things this did NOT resolve, both requiring a machine that can run the
+wheel:**
+
+1. **Nothing here was executed.** `llama-cpp-python` is a compiled package the
+   sandbox cannot build, so neither the pin nor the model swap has been run.
+   The first local run is the real test — load one model per configured tier.
+2. **The Phi-4-mini repo path is unverified.** `huggingface.co` is unreachable
+   from this environment, so `bartowski/microsoft_Phi-4-mini-instruct-GGUF`
+   comes from search results, not a live check. Microsoft publishes no
+   first-party Phi-4-*mini* GGUF (`microsoft/phi-4-gguf` is the 14B), so this is
+   a community quantizer — a supply-chain choice as much as a quality one.
+   Confirm with `huggingface_hub.list_repo_files()` and record a checksum in
+   `modules/model_integrity.py` before first download.
+
+**Still open:** the Gemma 4 repo paths remain `PLACEHOLDER` and unverified for
+the same reason, and the `low` tier still pins `Qwen2.5-0.5B` while llama.cpp
+now declares `qwen3`, `qwen35` and `qwen4exp` architectures — that tier is two
+generations behind, though Track 5's finding that 0.5B-class models cannot plan
+(~1.4% multi-turn tool-calling accuracy) applies regardless of generation.
 
 ### Wave 1 — See before you change (blocks Wave 2)
 

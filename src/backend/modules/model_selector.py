@@ -83,13 +83,31 @@ TIER_MODEL_CONFIG: dict[str, dict[str, Any]] = {
         "ollama_tag": "gemma4:e4b",
     },
     # -- mid: balanced quality (>=16 GB RAM, >=3 GB disk) ------------------------
+    # Phi-4-mini (3.8B, MIT) replaced Phi-3-mini-4k here: same size class, same
+    # license, newer training, and it escapes Phi-3-mini's 4K window — too small
+    # to hold retrieved chunks + a tool menu + a question at once.
+    #
+    # Requires llama-cpp-python >= 0.3.35. Phi-4-mini postdates the 0.3.2 wheel
+    # this project pinned until 2026-09-09; it loads under llama.cpp's existing
+    # `phi3` architecture (there is no separate `phi4` arch), but the Nov-2024
+    # llama.cpp inside 0.3.2 predates the model.
+    #
+    # UNVERIFIED repo path: huggingface.co is unreachable from the sandbox this
+    # was edited in, so the org/name below comes from search results, not from a
+    # live check. Microsoft publishes no first-party Phi-4-*mini* GGUF (only
+    # microsoft/phi-4-gguf, the 14B), so this is a community quantizer —
+    # confirm with huggingface_hub.list_repo_files() before first download, and
+    # note modules/model_integrity.py has no pinned checksum for it yet.
     "mid": {
-        "repo": "microsoft/Phi-3-mini-4k-instruct-gguf",
+        "repo": "bartowski/microsoft_Phi-4-mini-instruct-GGUF",
         "filename": None,
         "filename_pattern": "q4_k_m",
-        "context_size": 4096,
+        # Phi-4-mini supports 128K, but the KV cache for that is impractical on
+        # the CPU-only path this tier assumes (n_gpu_layers: 0). 16K matches the
+        # gemma4-e4b entry at a comparable size class.
+        "context_size": 16384,
         "n_gpu_layers": 0,
-        "description": "Phi-3-mini - Balanced quality",
+        "description": "Phi-4-mini (3.8B) - Balanced quality, MIT",
     },
     # -- gemma4-12b: Gemma 4 12B dense (>=16 GB RAM, >=8 GB disk) ---------------
     # ~7-8 GB Q4_K_M. PLACEHOLDER: check https://hf.co/ggml-org/gemma-4-12b-it-GGUF
