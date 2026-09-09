@@ -29,6 +29,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { MemoryManager } from '@/components/MemoryManager';
 import { BackupCard } from '@/components/settings/BackupCard';
 import { DangerZone } from '@/components/settings/DangerZone';
+import { TierCapabilities } from '@/components/settings/TierCapabilities';
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import {
@@ -528,6 +529,7 @@ export function SettingsPage() {
                           )}
                         </div>
                         <p className="text-xs text-ink-secondary mt-0.5">{desc?.desc || tier.description}</p>
+                        <TierCapabilities capabilities={tier.capabilities} />
                       </div>
                     </div>
                     <div className="flex items-center gap-2">

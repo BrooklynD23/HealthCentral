@@ -824,6 +824,43 @@ class ModelSelector:
 _model_selector: Optional[ModelSelector] = None
 
 
+def get_tier_capabilities(tier: str) -> dict[str, Any]:
+    """What a tier can do, for disclosure in the UI.
+
+    This is DISCLOSURE, not gating: nothing in the app refuses a feature based
+    on these today. It exists so a user choosing a tier can see what the choice
+    costs them — the tier list previously showed only whether their hardware
+    could run it, never what it would then be able to do.
+
+    ``agentic_capable`` is derived from ``function_calling``, never asserted
+    per-model. A tier that cannot call tools cannot drive the plan->act->reflect
+    loop, whatever its parameter count; 0.5B-class models score around 1.4% on
+    BFCL-style multi-turn tool calling. Deriving it keeps one source of truth,
+    so adding a tier cannot leave the two fields disagreeing.
+
+    Unknown tiers (including the no-LLM ``template`` fallback, which has no
+    entry in TIER_MODEL_CONFIG) report no capabilities rather than raising —
+    the caller is rendering a list, not making a safety decision.
+    """
+    cfg = TIER_MODEL_CONFIG.get(tier)
+    if not cfg:
+        return {
+            "context_size": 0,
+            "multimodal": False,
+            "function_calling": False,
+            "agentic_capable": False,
+        }
+
+    function_calling = bool(cfg.get("function_calling", False))
+    return {
+        "context_size": int(cfg.get("context_size", 0)),
+        "multimodal": bool(cfg.get("multimodal", False)),
+        "function_calling": function_calling,
+        "agentic_capable": function_calling,
+    }
+
+
+
 def get_model_selector() -> ModelSelector:
     """Get or create the global ModelSelector instance."""
     global _model_selector
