@@ -74,7 +74,7 @@ tracks 1-8, `09-roadmap.md` is the synthesis, and these follow it.
 | Track | Subject | File |
 |---|---|---|
 | 9 | The repo as an artifact demonstrating the SWE → agentic journey | [`10-demonstration-artifact.md`](10-demonstration-artifact.md) |
-| 10 | Harness & loop engineering — building the dev tooling and environment | `11-harness-engineering.md` (in progress) |
+| 10 | Harness & loop engineering — building the dev tooling and environment | [`11-harness-engineering.md`](11-harness-engineering.md) |
 
 Track 9's central finding is a set of **claim-vs-evidence gaps** — things the
 CS4610 reports describe that the repo cannot evidence. Every one below was
@@ -95,3 +95,28 @@ fixes, the Asclexis rename, and this entire research pass, while
 holds two tracked LibreOffice lock files (`.~lock…#`, `~$…docx`) that are not
 gitignored; they carry a container session name, not personal identity — repo
 litter rather than a leak.
+
+Track 10 found two things that are **defects, not documentation gaps**, both
+verified here before acceptance:
+
+1. **The security gate can pass without scanning anything.**
+   `scripts/security_gate.py:44-51` and `:71-78` catch
+   `FileNotFoundError, json.JSONDecodeError` on the bandit and pip-audit
+   reports, print a WARNING, and `return []` — which the gate reads as *zero
+   findings*, not as *failure*. `.github/workflows/ci.yml:92,95` run both
+   scanners with `|| true`, so a crashed scanner produces no exit code and a
+   missing or truncated report. The chain ends with CI green and nothing
+   scanned. This is `recurring-failures.md` #1 — a green signal that could not
+   have failed — in the one gate whose whole job is to fail.
+2. **`repo_hygiene_check.py` never runs against the live repo.** README.md:393
+   and CONTRIBUTING.md:75 document it as part of the pre-merge proof bundle, but
+   `ci.yml` never invokes it; only its unit tests against synthetic fixtures run.
+
+Track 10 also **corrects the reports' PHI-hook claim rather than just marking it
+unbuilt**: Claude Code hooks fire on the *coding agent's* tool calls and are
+documented upstream as "a convenience feature for automation, not a security
+boundary." They could not have enforced the product's runtime network
+guarantee. That guarantee does exist, correctly, as code —
+`core/llm/ollama_provider.py::_assert_localhost` and `modules/redaction.py` —
+independent of any hook. The reports described the wrong mechanism for a
+property the repo actually has.

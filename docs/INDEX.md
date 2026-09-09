@@ -846,7 +846,7 @@ Links to: `CLAUDE.md`, `docs/agentic/harness.md`, `docs/agentic/mcp-tools.md`, `
 
 **Read this before acting on any recommendation in this directory.**
 
-Links to: `docs/agentic/recurring-failures.md`, `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/10-demonstration-artifact.md`
+Links to: `docs/agentic/recurring-failures.md`, `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/10-demonstration-artifact.md`, `docs/research/2026-09-08/11-harness-engineering.md`
 
 ## `docs/roles/00_roles_index.md`
 
