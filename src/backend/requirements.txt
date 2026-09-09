@@ -49,7 +49,19 @@ pdf2image>=1.17.0
 # =============================================================================
 # Local AI / Embeddings
 # =============================================================================
-llama-cpp-python>=0.2.0
+# Pinned exactly to the version the project actually runs (2026-09-09).
+# 0.3.2 (released 2024-11-16) is verified to expose the constrained-decoding
+# hook the agent's future LLM planner needs: create_chat_completion accepts
+# response_format={"type": "json_object", "schema": {...}} (llama_types.py
+# ChatCompletionRequestResponseFormat), which llama_chat_format.py converts via
+# LlamaGrammar.from_json_schema.
+#
+# CAVEAT: this wheel vendors a Nov-2024 llama.cpp, which predates the Gemma 4
+# architecture (released 2026-06-03) that three of the six TIER_MODEL_CONFIG
+# entries name (modules/model_selector.py: gemma4-e2b, gemma4-e4b, gemma4-12b).
+# Those tiers cannot load on this pin. Raising it is a deliberate decision that
+# needs a re-test, not a bump — see docs/research/2026-09-08/09-roadmap.md §0.4.
+llama-cpp-python==0.3.2
 sentence-transformers>=2.2.0
 numpy>=1.26.0
 

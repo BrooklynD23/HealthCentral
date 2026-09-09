@@ -84,7 +84,7 @@ These are not roadmap items. They are things that are currently wrong.
 | 0.1 | Audit logging on all five `api/memory.py` routes | T3, T7 | Verified hard-invariant violation |
 | 0.2 | ~~Route memory `value` through `sanitize_untrusted_field` before persisting~~ | T3 | **REJECTED on implementation — see below** |
 | 0.3 | Fix answer-cache staleness | T7 | Root cause was deeper than "bump on deletion" — see below |
-| 0.4 | Pin `llama-cpp-python` (currently unbounded `>=0.2.0`) | T2 | **DEFERRED — needs a version the owner has actually run** |
+| 0.4 | Pin `llama-cpp-python` (was unbounded `>=0.2.0`) | T2 | Pinned `==0.3.2` on the owner's answer — **and it surfaced a model/runtime contradiction, see below** |
 | 0.5 | Delete the dead `default_embeddings_model = "bge-small-en-v1.5"` config | T5 | `core/config.py:89` is unused and misleading; `all-MiniLM-L6-v2` is what actually loads |
 
 ### What implementation changed (2026-09-08)
@@ -126,12 +126,38 @@ observations and verified documents (`retrieve_chunks` filters on
 them, so they cannot change an agent answer; including them would be
 speculative.
 
-**0.4 is deferred, not done.** Pinning requires naming a version, and no
-recorded evidence of a tested `llama-cpp-python` version exists anywhere in the
-repo — `requirements.txt:52` is the only mention. Inventing a pin here would be
-`recurring-failures.md` #3 (figures asserted instead of measured), and the
-package cannot be built in this sandbox to test one. **This needs the version
-the owner actually runs locally.**
+**0.4 is done, and it was worth more than a pin.** The owner supplied the
+version actually in use: **0.3.2**, now pinned exactly. Two facts were verified
+against the `v0.3.2` tag rather than assumed:
+
+*Good news for Wave 2.* 0.3.2 already exposes the constrained-decoding hook the
+LLM planner needs. `ChatCompletionRequestResponseFormat`
+(`llama_cpp/llama_types.py:158-162`) declares
+`type: Literal["text","json_object"]` **and** `schema: NotRequired[JsonType]`,
+and `llama_cpp/llama_chat_format.py:586` routes it through
+`_grammar_for_response_format` → `LlamaGrammar.from_json_schema`. So Wave 2's
+step 2.3 is not blocked by the runtime — only by the work itself.
+
+*Bad news for the model tiers.* **0.3.2 was released 2024-11-16.** It vendors a
+llama.cpp from that date, which predates the **Gemma 4 architecture (released
+2026-06-03)** by roughly nineteen months. Three of the six `TIER_MODEL_CONFIG`
+entries name Gemma 4 GGUFs — `gemma4-e2b`, `gemma4-e4b` (mid) and `gemma4-12b`
+(high) — and **cannot load on this runtime**. Only `Qwen2.5-0.5B` (low),
+`Phi-3-mini` (mid) and `BioMistral-7B` (high) predate the pin.
+
+That contradiction is falsifiable by one fact the owner has: *has a Gemma 4
+tier ever loaded successfully?* If yes, the running version is newer than 0.3.2
+and this pin is wrong. If no — which the config's own
+`# PLACEHOLDER URLs (verify before production)` comment suggests — then the
+Gemma 4 tiers are aspirational, and the mid/high tiers have never actually run
+the models the docs say they run. Either answer is worth having before Wave 2
+picks a planner model, because **the tier gate that keeps the LLM planner off
+the 0.5B tier assumes a working mid tier exists.**
+
+Raising the pin is therefore a deliberate, re-tested decision — a new llama.cpp
+changes GGUF compatibility, quantization support, and chat-template detection
+all at once — not a routine bump. Track 5's separate recommendation to swap the
+mid tier to `Phi-4-mini-instruct` interacts with this directly.
 
 ### Wave 1 — See before you change (blocks Wave 2)
 
