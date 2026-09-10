@@ -27,6 +27,9 @@ jobs:
       - name: Lint feature inventory
         run: python3 scripts/feature_list_lint.py
 
+      - name: Repo hygiene check
+        run: python3 scripts/repo_hygiene_check.py
+
   backend-tests:
     name: Backend Tests
     runs-on: ubuntu-latest
@@ -89,10 +92,45 @@ jobs:
         run: pip install --upgrade "setuptools>=83" bandit pip-audit
 
       - name: Run Bandit
-        run: bandit -r src/backend/ -x src/backend/tests/ -f json -o bandit-report.json || true
+        # Exit-code-aware: bandit exits 0 (clean) or 1 (findings reported --
+        # triaged below by security_gate.py's waiver process) when it ran
+        # successfully; >=2 means bandit itself errored (bad invocation,
+        # crash, could not write the report) -- verified empirically
+        # (argparse error -> 2) against bandit 1.9.4. Only >=2 fails this
+        # step; 0/1 must not be swallowed into "it ran" without evidence.
+        # `|| code=$?` is required, not cosmetic: Actions runs `run` blocks
+        # under `bash -e`, which aborts at a bare failing command before
+        # `code=$?` could capture it -- so exit 1 would fail this step and
+        # bypass the waiver process below.
+        run: |
+          code=0
+          bandit -r src/backend/ -x src/backend/tests/ -f json -o bandit-report.json || code=$?
+          if [ "$code" -ge 2 ]; then
+            echo "Bandit exited $code: internal error, not merely findings. Failing the build."
+            exit "$code"
+          fi
+          exit 0
+
+      - name: Install backend dependencies for pip-audit
+        run: pip install -r src/backend/requirements.txt
 
       - name: Run pip-audit
-        run: pip install -r src/backend/requirements.txt && pip-audit --format=json --output=pip-audit-report.json || true
+        # Same exit-code contract as bandit: 0 (clean) or 1 (vulnerabilities
+        # found -- triaged below) is a successful run; >=2 means pip-audit
+        # itself errored (bad invocation/crash) -- verified empirically
+        # (argparse error -> 2) against pip-audit 2.10.1. Note: some
+        # pip-audit internal errors (e.g. an unreadable requirements file)
+        # were observed to exit 1, indistinguishable here from "vulnerabilities
+        # found" -- that gap is covered by security_gate.py, which now fails
+        # closed (exit 2) when the report it expects is missing or malformed.
+        run: |
+          code=0
+          pip-audit --format=json --output=pip-audit-report.json || code=$?
+          if [ "$code" -ge 2 ]; then
+            echo "pip-audit exited $code: internal error, not merely findings. Failing the build."
+            exit "$code"
+          fi
+          exit 0
 
       - name: Upload security reports
         if: always()
