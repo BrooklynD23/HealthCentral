@@ -662,6 +662,14 @@ Owner decision (2026-07-07): rename the product — "HealthCentral" collides wit
 
 Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/harness.md`, `feature_list.json`
 
+## `docs/plans/2026-09-10-implementation-roadmap.md`
+
+**Implementation roadmap — accepted 2026-09-10**
+
+Derived from the Fable 5.1 consultation (`docs/research/2026-09-08/13-consultation.md`), which worked the ~113 candidate rows the ten Sonnet tracks produced and kept 19. This document turns that…
+
+Links to: `docs/research/2026-09-08/09-roadmap.md`, `docs/research/2026-09-08/13-consultation.md`
+
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
 **Project Structure Setup**
@@ -818,6 +826,14 @@ files and feedback loops that keep an AI agent on task while it builds Asclexis.
 
 Links to: `docs/research/2026-09-08/STATUS.md`
 
+## `docs/research/2026-09-08/13-consultation.md`
+
+**13 — Consultation: what to integrate, in what order, and what to drop**
+
+Written 2026-09-09 against the ten tracks (`01`-`08`, `10`, `11`), the synthesis in `09-roadmap.md`, and `STATUS.md`. Every repo claim below was re-verified in this session with `grep`/`sed` on…
+
+Links to: `docs/research/2026-09-08/09-roadmap.md`, `docs/research/2026-09-08/STATUS.md`
+
 ## `docs/research/2026-09-08/CONSULT-PROMPT.md`
 
 **Consultation prompt — what to actually integrate**
@@ -862,7 +878,7 @@ Links to: `CLAUDE.md`, `docs/agentic/harness.md`, `docs/agentic/mcp-tools.md`, `
 
 **Read this before acting on any recommendation in this directory.**
 
-Links to: `docs/agentic/recurring-failures.md`, `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/10-demonstration-artifact.md`, `docs/research/2026-09-08/11-harness-engineering.md`, `docs/research/2026-09-08/CONSULT-PROMPT.md`, `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`, `docs/research/2026-09-08/GOAL-PROMPT.md`, `docs/research/2026-09-08/INDUSTRY-PROMPT.md`
+Links to: `docs/agentic/recurring-failures.md`, `docs/plans/2026-09-10-implementation-roadmap.md`, `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/09-roadmap.md`, `docs/research/2026-09-08/10-demonstration-artifact.md`, `docs/research/2026-09-08/11-harness-engineering.md`, `docs/research/2026-09-08/13-consultation.md`, `docs/research/2026-09-08/CONSULT-PROMPT.md`, `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`, `docs/research/2026-09-08/GOAL-PROMPT.md`, `docs/research/2026-09-08/INDUSTRY-PROMPT.md`
 
 ## `docs/roles/00_roles_index.md`
 

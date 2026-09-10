@@ -13,6 +13,21 @@ This exists because of [`recurring-failures.md`](../../agentic/recurring-failure
 change as a recommendation will get it implemented twice, and a track that lists
 a **rejected** change as a recommendation will get a known-harmful change made.
 
+## The consultation and the accepted roadmap (2026-09-10)
+
+[`13-consultation.md`](13-consultation.md) is Claude Fable 5.1's verdict on the
+~113 candidate rows the ten tracks produced. It kept **19**, dropped the rest
+with reasons, and found the roadmap's ordering wrong in nine specific places.
+
+[`docs/plans/2026-09-10-implementation-roadmap.md`](../../plans/2026-09-10-implementation-roadmap.md)
+turns that verdict into work and **supersedes [`09-roadmap.md`](09-roadmap.md)'s
+wave ordering**. Eight of the consultation's load-bearing claims were
+re-verified before acceptance; all eight held. One was escalated: the agent path
+does not merely fabricate `faithfulness_score=1.0`
+(`api/assistant.py:641-648`) — that value is **rendered to patients**
+(`ExplainAssistant.tsx:607`, gated on an `enabled=True` the same code hardcodes),
+so the fix moved from the consultation's Phase B to Phase A.
+
 ## Prompts for the next model
 
 | Prompt | Purpose | Size |
