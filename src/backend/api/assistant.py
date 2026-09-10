@@ -601,10 +601,27 @@ def _agent_terminal_to_response_parts(
 ) -> tuple[list[ResponseSegment], VerificationInfo]:
     """Map an AgentTerminal onto the ChatResponse's segments/verification
     shape (ChatResponse schema itself is unchanged — no breaking client
-    changes). One segment carries the terminal's text; "answer" terminals
-    are grounded (every sentence in them already carries a citation per
-    draft/guard's contract) so verification reports them as such, while
-    abstain/escalate are fixed-template, zero-claim terminals.
+    changes). One segment carries the terminal's text.
+
+    VerificationInfo (A1, roadmap 2026-09-10) is derived from the guard's
+    ``surviving_count``/``dropped_count`` — real ``groundedness.map_sentences``
+    output, carried onto the terminal by ``guardrails/guard.py`` — never from
+    invented constants. ``total_claims``/``verified_claims``/``failed_claims``
+    count DRAFT SENTENCES that did/didn't survive groundedness mapping, not
+    citations: a trend summary can legitimately carry more citations than
+    sentences, so a citation count would misreport what was actually checked.
+    ``faithfulness_score`` is the surviving/total sentence ratio — a real
+    measurement, not the ``modules/faithfulness.py`` score (that module is not
+    called here; ``summary`` says "agent:groundedness", never implying it
+    ran). ``authority_score`` has no real computation on this path (no source-
+    authority scorer runs in the agent flow), so it stays at its honest
+    default of 0.0 rather than an invented value.
+
+    When a terminal carries no counts at all — the pre-model advice-gate
+    escalate, or an entry read back from the semantic cache/a terminal built
+    outside the guard node — no verifier ran, and ``enabled=False`` is the
+    honest value; the frontend already branches on ``enabled`` and shows
+    nothing in that case.
     """
     def _to_api_citation(c) -> Citation:
         """Map an agent citation onto the API shape (CITE-SRC-001).
@@ -637,17 +654,25 @@ def _agent_terminal_to_response_parts(
         ResponseSegment(segment_type=segment_type, content=terminal.text, citations=citations)
     ]
 
-    is_answer = terminal.terminal == "answer"
-    verification = VerificationInfo(
-        enabled=True,
-        total_claims=len(citations) if is_answer else 0,
-        verified_claims=len(citations) if is_answer else 0,
-        failed_claims=0,
-        faithfulness_score=1.0 if is_answer else 0.0,
-        authority_score=1.0 if is_answer else 0.0,
-        summary=f"agent:{terminal.terminal}",
-        issues=[],
-    )
+    surviving = terminal.surviving_count
+    dropped = terminal.dropped_count
+    if surviving is None or dropped is None:
+        # No groundedness mapping ran for this terminal — report honestly
+        # that no verifier ran, rather than inventing a score.
+        verification = VerificationInfo()
+    else:
+        total = surviving + dropped
+        faithfulness_score = round(surviving / total, 3) if total > 0 else 0.0
+        verification = VerificationInfo(
+            enabled=True,
+            total_claims=total,
+            verified_claims=surviving,
+            failed_claims=dropped,
+            faithfulness_score=faithfulness_score,
+            authority_score=0.0,
+            summary=f"agent:groundedness:{terminal.terminal}",
+            issues=[],
+        )
     return segments, verification
 
 
