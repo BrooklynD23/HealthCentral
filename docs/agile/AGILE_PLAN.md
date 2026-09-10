@@ -47,10 +47,10 @@ one prompt.
 | Ceremony | Solo form | When |
 |---|---|---|
 | Sprint planning | Pull 1 sprint of stories from backlog; confirm DoR | Mon, 20 min |
-| Daily standup | One line in `docs/agile/STANDUP.md`: yesterday / today / blocker | Daily, 2 min |
+| Daily standup | One line — yesterday / today / blocker. The log through S6 is archived at `docs/archive/agile/STANDUP.md`; active work is tracked in `docs/features/TASK_LIST.md` | Daily, 2 min |
 | Backlog grooming | Re-estimate + re-order remaining epics | Mid-sprint |
 | Review (client hat) | Demo the flag-gated behavior to yourself; accept/reject stories | Sun |
-| Retro | 3 bullets in `RETRO.md`: keep / drop / try | Sun, 10 min |
+| Retro | 3 bullets — keep / drop / try. The log through S6 is archived at `docs/archive/agile/RETRO.md` | Sun, 10 min |
 
 The retro is the "revisit & iterate" engine — every Sunday you re-decide whether
 the next sprint's scope still matches what you learned.

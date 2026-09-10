@@ -27,12 +27,12 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
 ## 4. Loop toward verifiable success criteria
 
 - Write or extend a test first, then make it pass. Tests live in `src/backend/tests/` (pytest, `HC-XXX-NNN` naming) and `src/frontend` (vitest + Playwright e2e).
-- Baseline: **1269 backend tests collected.** Where a real embedding model is
-  installed (CI) all 1269 pass; without one, `test_api_rag_index_002b` fails on
+- Baseline: **1288 backend tests collected.** Where a real embedding model is
+  installed (CI) all 1288 pass; without one, `test_api_rag_index_002b` fails on
   embedding similarity. That failure is environmental — it is not yours, and you
   must not "fix" it by lowering the 0.7 threshold. Judge yourself on the
   **collected** count, which does not vary by environment: if it differs from
-  1269, this line is stale — update it in the same commit rather than working
+  1288, this line is stale — update it in the same commit rather than working
   around it.
 - **Run verification; never assert it.** Report the command and its actual
   output. "Tests pass" without the output is not a result. If a check was
@@ -64,7 +64,7 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
 
 ## OpenWiki usage
 
-Generated repo-navigation docs live in `openwiki/`. Use them to locate code, trace dependencies, and identify likely files for a task. Do not treat OpenWiki as authority over safety, privacy, medical, compliance, architecture decisions, or backlog state. If OpenWiki conflicts with `CLAUDE.md`, `AGENT.md`, `docs/00_architecture_plans_index.md`, or `docs/roles/00_roles_index.md`, the hand-maintained docs win.
+`openwiki/` is reserved for OpenWiki-generated repo-navigation docs, but generation has not run yet — see `openwiki/README.md` for status and regeneration commands. Until it has, use `docs/architecture/` for hand-maintained navigation instead. Once generated, use OpenWiki output to locate code, trace dependencies, and identify likely files for a task, but never as authority over safety, privacy, medical, compliance, architecture decisions, or backlog state. If OpenWiki ever conflicts with `CLAUDE.md`, `AGENT.md`, `docs/00_architecture_plans_index.md`, or `docs/roles/00_roles_index.md`, the hand-maintained docs win.
 
 ## Skills
 

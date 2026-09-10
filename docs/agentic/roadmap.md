@@ -7,14 +7,14 @@ The 2026-09-08 research pass on making the *product* agentic (not just the proce
 ## Goals
 
 1. **Production-grade product engineering** on a real, safety-sensitive domain: local-first health data organization, trend visualization, and source-grounded explanation — explicitly *not* diagnosis, treatment, or dosing (see [ai-safety.md](../compliance/ai-safety.md)).
-2. **Modern agentic workflow as a first-class skill**: orchestrator + scoped subagents (`.claude/agents/`), evidence-gated progress, CI eval gates, and MCP/tool discipline. Industry usage research (Anthropic, 2026) shows the division of labor settling as humans making planning decisions and agents making execution decisions, with work shifting toward deployment, operation, and documentation — this repo is built to practice exactly that split.
+2. **Modern agentic workflow as a first-class skill**: orchestrator + ad hoc scoped subagents (see [harness.md](harness.md#subagent-rules)), evidence-gated progress, CI eval gates, and MCP/tool discipline. Industry usage research (Anthropic, 2026) shows the division of labor settling as humans making planning decisions and agents making execution decisions, with work shifting toward deployment, operation, and documentation — this repo is built to practice exactly that split.
 3. **Data Science rigor**: measurable extraction quality, golden-set evals with tracked metrics, data-quality tests, and eval cards rather than anecdotes.
 
 ## Why this is portfolio-relevant
 
 | Skill signal | Repo artifact |
 |--------------|---------------|
-| Agent orchestration | `.claude/agents/`, [harness.md](harness.md) |
+| Agent orchestration | ad hoc subagent dispatch, [harness.md](harness.md) |
 | Harness engineering | [feature_list.json](../../feature_list.json), [progress.md](progress.md), CI eval gates (`scripts/agent_eval_gate.py`) |
 | Data Science | extraction golden sets and eval cards (planned: HC-M06), RL dataset export pipeline |
 | SWE production readiness | CI (tests, type-check, e2e, security gate), release checklist, observability baseline (planned: HC-M07/M08) |
