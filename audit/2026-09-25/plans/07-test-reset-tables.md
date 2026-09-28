@@ -7,6 +7,10 @@
 > 4. **N-03:** `/profiles/test/reset` writes no audit row (`api/profiles.py:477-531`) and echoes `{exc}` in its 500 detail. Both are out of this plan's scope; they are recorded as gaps in the specs-compliance matrix.
 > 5. **Overlap with plan 06:** plan 06 Task 3 Step 5 would edit the same reset tuple. Land this plan's version, and treat plan 06 Step 5 as superseded rather than doing it twice.
 
+> **Wave-3 integration banner (2026-09-28)** — sources: `audit/2026-09-25/swarm-2026-09-27/wave3/3a-integration.md` B-4, M-10 (re-checked against `40f590e` before this banner was written).
+> 1. **Collected-count slots (3a B-4; owner-gated SLOT-RULE).** Task 1 adds `tests/test_profile_test_reset.py`, and its commit does not stage `CLAUDE.md`/`AGENT.md`. If the owner signs SLOT-RULE: every commit that changes the collected count also updates the collected slots in `CLAUDE.md` and `AGENT.md`, in the same commit, with the number measured on that commit's tree. Collected slots only; pass sentences are left as they are and flagged in the PR.
+> 2. **Owner gate P7-ROUTE (3a M-10; owner-gated, recommended default yes).** Task 2 edits `src/backend/api/profiles.py` (imports `:52-72`, a new constant after `:82`, the `/profiles/test/reset` endpoint `:498-532`). The same file holds login, unlock, change-password and recovery, so the edit is auth-adjacent and needs an explicit owner yes before Task 2 runs. The route is test-only: `app_env == "production"` → 404 and a non-`Playwright E2E` profile name → 403 (`git show 40f590e:src/backend/api/profiles.py | sed -n 489,496p`). Task 1 (tests) may run before the gate.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make `POST /profiles/test/reset` delete rows from **every** profile-scoped table — currently it misses 6 (`ChatSession`, `ChatTurn`, `ResponseFeedback`, `CarePlanTask`, `Pinboard`, `PinboardItem`), so Playwright e2e resets leave stale patient data and cross-test contamination (audit 2026-09-25 §11 P2).

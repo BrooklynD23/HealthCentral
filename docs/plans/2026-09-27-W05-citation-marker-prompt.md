@@ -89,7 +89,7 @@ All refs below are `main@40f590e`, which is identical at A and B. Re-verify the 
 - Edited docs get **no new markdown links**. Links would change `docs/_link_graph.json`/`docs/INDEX.md`, which every docs plan shares. Paths go in code spans.
 - Record every measurement in §15 of this file. Do not add links there either.
 - **Shell rules.** Shell state does not persist between tool calls, so every command block starts with `WT=/mnt/c/Users/DangT/Documents/GitHub/hc-w05` and `cd` to an absolute path under `"$WT"`. Every block that pipes starts with `set -o pipefail`. Where a piped exit code matters, check it as `${PIPESTATUS[0]}` (pytest) and do not rely on the last command's status.
-- **Baseline counts move with collection.** `CLAUDE.md` §4 requires the baseline count to be updated "in the same commit" that changes it. This plan adds 3 tests, so commit 1 also updates the **collected-count slots** in `CLAUDE.md` and `AGENT.md`, and nothing else (Task 1 Step 9). Pass-count sentences change only with a pass count measured in a named environment: interpreter, plus embedding model present or absent. This plan measures none, so they stay as they are and the PR flags them as unverified. Do not describe CI as having a real embedding model: `ci.yml` has no model step, and CI's `test_api_rag_index_002b` result depends on an implicit Hugging Face download (matrix LOCAL-03). This is required by `CLAUDE.md`, not licensed by D11, and does not touch `CLAUDE.md:62`.
+- **Baseline counts move with collection.** `CLAUDE.md` §4 requires the baseline count to be updated "in the same commit" that changes it. This plan adds 3 tests, so commit 1 also updates the **collected-count slots** in `CLAUDE.md` and `AGENT.md`, and nothing else (Task 1 Step 9; program ground rule, owner gate SLOT-RULE). Pass-count sentences change only with a pass count measured in a named environment: interpreter, plus embedding model present or absent. This plan measures none, so they stay as they are and the PR flags them as unverified. Do not describe CI as having a real embedding model: `ci.yml` has no model step, and CI's `test_api_rag_index_002b` result depends on an implicit Hugging Face download (matrix LOCAL-03). This is required by `CLAUDE.md`, not licensed by D11, and does not touch `CLAUDE.md:62`.
 - Line numbers in this plan are `main@40f590e` unless labelled otherwise. Re-verify each one on the post-P1 tree before editing.
 
 ## 4. Review focus (inputs no task's tests exercise)
@@ -135,8 +135,8 @@ Architecture and canonical docs are handed to P4 instead (§6).
 
 | File | Other editors | Order | Reason |
 |---|---|---|---|
-| `src/backend/modules/rag.py` | W-3 (legacy RAG verified-only, near `:322-328`). The W-4 draft (`2026-09-27-W04-legacy-abstain-and-eval-gate.md` §Files) says W-4 does **not** edit `rag.py`; it edits `api/assistant.py`. | File order: W-5 and W-3 run serially, either first. **Recommended behavioural order: W-5 before W-4.** | W-5 touches only `:128,133,134`. Today a model obeying `:128/:133` yields "Report facts section missing citations", so `is_valid=False`. Once W-4 serves an abstention for `is_valid=False`, that prompt bug would suppress answers that would otherwise pass. W-4's gate fakes generation, so W-5 cannot flip it. |
-| `docs/user/faq.md` | P4 plan 04 Task 8 (`:44-47`); W-3/D4 docs may touch `:100-104` ("unverified … can still appear in grounded context") | any order, serial | disjoint lines |
+| `src/backend/modules/rag.py` | W-3 (legacy RAG verified-only, `:323-332` and `:549-553`), then W-8 (`_search_vectors_async`). The W-4 draft (`2026-09-27-W04-legacy-abstain-and-eval-gate.md` §Files) says W-4 does **not** edit `rag.py`; it edits `api/assistant.py`. | File order (canonical, Wave-3 integration B-2): **W-5 → W-3 → W-8**, serial. **Recommended behavioural order: W-5 before W-4.** | W-5 touches only `:128,133,134`. Today a model obeying `:128/:133` yields "Report facts section missing citations", so `is_valid=False`. Once W-4 serves an abstention for `is_valid=False`, that prompt bug would suppress answers that would otherwise pass. W-4's gate fakes generation, so W-5 cannot flip it. |
+| `docs/user/faq.md` | P4 Task 7 (P04 §3 row 7, `:44-47`). W-3 edits no docs | any order, serial | disjoint lines |
 | `docs/compliance/ai-safety.md` | none planned; W-4 or W-6 might add abstention or external-runner wording | serial | shared file |
 | `CLAUDE.md`, `AGENT.md` | W-10 governance (`CLAUDE.md:62` and others); every test-adding plan edits the baseline count lines | serial. Whichever lands later re-measures and rewrites the count from its own START | W-5 edits only the count lines. `CLAUDE.md:62` goes to W-10 (C-1, §6). |
 
@@ -176,12 +176,13 @@ Architecture and canonical docs are handed to P4 instead (§6).
 
 - **Phases:**
   - P0-B, so the capstone package is committed and the links above resolve.
+  - P0-B2 (owner gate), so this plan file is committed on main: commit 2 edits its §15. Task 0 Step 1 checks it.
   - D9, the 3.11 venv.
   - P1, the post-merge tree. `rag.py` itself is not changed by A or B.
 - **Decisions:** D11 is decided. There is no dependency on P2–P8.
 - **Ordering:**
   - Recommended before W-4 (behavioural rationale in §5; no shared file).
-  - Serial with W-3 (shared `rag.py`).
+  - Before W-3 (shared `rag.py`; canonical order W-5 → W-3 → W-8).
   - Before P4's D11 doc task, which consumes §6.
   - Before or with W-10, which carries C-1.
 
@@ -201,8 +202,9 @@ Architecture and canonical docs are handed to P4 instead (§6).
   git merge-base --is-ancestor 7b2ff1f HEAD && git merge-base --is-ancestor 692fdf3 HEAD && echo "P1 landed"
   git rev-parse --short HEAD   # record as <START>
   git status --short           # must print nothing
+  git ls-files docs/plans/2026-09-27-W05-*.md   # P0-B2: expect this plan's path
   ```
-  Expected: `P1 landed`, and `git status --short` prints nothing. If `P1 landed` is not printed, **STOP**: this plan targets the post-P1 tree. Remove the unused worktree with `git -C /mnt/c/Users/DangT/Documents/GitHub/HealthCentral worktree remove "$WT"`.
+  Expected: `P1 landed`, `git status --short` prints nothing, and `ls-files` prints `docs/plans/2026-09-27-W05-citation-marker-prompt.md`. If `P1 landed` is not printed, **STOP**: this plan targets the post-P1 tree. If `ls-files` prints nothing, **STOP**: P0-B2 has not landed, so §15 and commit 2 have no tracked file. Remove the unused worktree with `git -C /mnt/c/Users/DangT/Documents/GitHub/HealthCentral worktree remove "$WT"`.
 
 - [ ] **Step 2: Confirm the interpreter.**
   ```bash
@@ -831,7 +833,7 @@ A pass bar would be an owner decision. W-4's gate uses canned generation, so a l
 ## 12. Owner sign-offs (unsigned)
 
 - [ ] Owner merges the W-5 PR. Signed: ______ Date: ______
-- [ ] Owner confirms D11 covers rewording `CLAUDE.md:62`, to land in W-10's governance commit (C-1). Signed: ______ Date: ______
+- [ ] Owner confirms D11 covers rewording `CLAUDE.md:62`, to land in W-10's governance commit (C-1; canonical gate **GOV-D11**, signature line in W-10 §10). Signed: ______ Date: ______
 - [ ] **(Not licensed by D11. Only if wanted.)** Owner approves adding "where N is the number in that source's context label" to prompt rule 1 (`rag.py:126`). Signed: ______ Date: ______
 - [ ] Owner decides whether F-3 (chip numbering) becomes a work item. Signed: ______ Date: ______
 

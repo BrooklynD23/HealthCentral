@@ -254,10 +254,10 @@ Every ID below was verified by `grep -n` on 2026-09-27. Lines refer to the untra
 | `api/profiles.py` | P5 → P7 → {G-B1, **G-C1**}; never concurrent | program `:69` "`api/profiles.py` (P5 → P7 → G-B1)". G-C1 edits only P7's tuple |
 | `migrations/profile/versions/` | P6 (`013`) → **G-C1** (`014`) | plan 06 Task 2 creates `013_fk_cascade_alignment` with `down_revision = "012_pinboards"` |
 | `tests/test_care_tasks.py` head literal | P6 → **G-C1** | the literal pins the head at `:809`, `:825`. Plan 06 does not mention it (finding F-4) |
-| `tests/test_visit_prep_packet.py`, `tests/test_fhir_export.py` | P5, W-2 → **G-C1** | W-2 plan lists both as neighbours; plan 05 edits `test_fhir_export.py` |
+| `tests/test_visit_prep_packet.py`, `tests/test_fhir_export.py` | P5, W-2 → **G-C1** | W-2 plan lists both as neighbours; plan 05 only runs `test_fhir_export.py` (`05:338`; the file already uses `core.time.utcnow`), it does not edit it (3a m-4) |
 | `docs/agentic/evals.md` | P4 → W-4 → **G-C3a** | plan 04 Task 1 (`:55`); W-4 plan `:149` |
-| `main.py` | P2 → {W-4, W-7} → **G-C3b** | P2, W-4 and W-7 edit the lifespan or routers. G-C3b edits only `create_app()` |
-| `feature_list.json` | W-1 / P8 → **G-C4** (status flip only) | W-1 plan `:703`; plan 08 |
+| `main.py` | P2 → **G-C3b** | P2 edits the lifespan (`:66-81`). W-4 and W-7 do not edit `main.py` (3a m-2). G-C3b edits only `create_app()` |
+| `feature_list.json` | **G-C4** only (status flip) | W-1 only reads it (W-1 `:671`); P08 forbids editing it (P08 "Does NOT license" #7, `:84`) (3a m-3) |
 | `CLAUDE.md` / `AGENT.md` baseline tokens | serial across every phase that changes collection (P1, P2, P5, P6, P7, W-*, **G-C1/C3a/C3b**) | program "Plan overlaps" row 3: "Each phase writes its own measured count; never edit concurrently" |
 | `AGENT.md:20`, `docs/00_architecture_plans_index.md:58` | P4 Task 13 → **G-C2** | plan 04 `:576-607` rewrites them to "not-yet-generated stub" |
 | `docs/INDEX.md`, `docs/_link_graph.json` | whichever lands last regenerates on a clean tree | program "Plan overlaps" row 4 |
@@ -322,7 +322,7 @@ All runs below used Windows Python 3.13.7 (`/mnt/c/Python313/python.exe`, FastAP
    - Four product paths resolve relative to source files: `api/feedback.py:66`, `core/migrations.py:31,46`, `modules/model_integrity.py:42`. The last one reaches the repo-root `config/model_manifest.json`.
    - The local-mode CORS list is hard-coded to `http://localhost:3000` and `http://127.0.0.1:3000` (`main.py:101`).
    - There is no `StaticFiles` mount (`architecture-overview.md:21`).
-   - The embedding model is 11 files, 91,578,415 bytes, revision `1110a243…`, per W-8 (`:17-22`, measured there).
+   - The embedding model is 11 files, 91,578,415 bytes, revision `1110a243…`, per W-8 (`:34`, `:103`, measured there).
 
 ## Findings outside this plan's scope (reported, not planned)
 
@@ -330,6 +330,7 @@ All runs below used Windows Python 3.13.7 (`/mnt/c/Python313/python.exe`, FastAP
   - `POST /feedback/export` writes `rl_exports/profile_<id>/` under `src/backend/rl_exports` by default (`api/feedback.py:64-67,331-341`).
   - `api/profiles.py` contains no `rl_exports` reference on main, A or B (`git show <ref>:src/backend/api/profiles.py | grep -c rl_export` → `0` for each). The files survive `DELETE /profiles/{id}`.
   - `git check-ignore -v --no-index src/backend/rl_exports/profile_x/dpo.jsonl` exits 1, so the path is not ignored and a directory `git add` would stage it.
+  - Re-verified 2026-09-28 (Wave 6): the default is `Path(api/feedback.py).parents[1] / "rl_exports"` = `src/backend/rl_exports` (`api/feedback.py:64-66`, main = A = B). Only an `RL_EXPORT_DIR` under a `data/` directory is ignored (`git check-ignore` → `.gitignore:74:data/` for `data/rl_exports/…` and `src/backend/data/rl_exports/…`). Status: **not ignored at the default path; not swept by `DELETE /profiles`** (matrix row PRIV-10, gap, unowned; the erase fix is crypto-erase, ask-first).
   - The content is strict-redacted (PRIV-01), but it is still per-profile derived data left after erasure. `docs/compliance/data-privacy.md:108` documents the path.
   - The docstring at `api/profiles.py:799-800` ("the export routes stream downloads rather than writing files server-side") is already false for this route.
   - **Needs its own item and an owner decision**: sweep it in the delete flow (auth-adjacent, ask first) and ignore it.
@@ -1721,6 +1722,8 @@ npx playwright test e2e/health-smoke.spec.ts --project chromium; $pw = $LASTEXIT
 ```
 Expected: `playwright exit=0`. If the local environment cannot start the web servers or a browser (recurring-failures #4), record **UNMEASURED locally** and rely on CI `e2e-tests`. **Break it** (mode (c), the spec is new and owned): change `'healthy'` to `'ok'` → red; restore from the backup copy.
 
+**Count sequencing (3b minor 7):** this spec adds one Playwright test, so the chromium list moves +1 (28 → 29 on a main-based tree, 30 → 31 on A+B). W-11a Task 11 (PR-4, G-B6) writes the measured Playwright count into the capstone rows. If PR-4 has merged, record `npx playwright test --list --project chromium | Select-Object -Last 1` in the PR body and name the now-stale rows for the orchestrator; this plan does not edit capstone rows.
+
 ## Task C3b.4: Full suite, commit, PR
 
 - [ ] **Step 1.** Run Task C1.5 Step 1 in `$WT` (expected collected = START + 4). Check that `grep -rn "basicConfig\|dictConfig\|setLevel" "$WT/src/backend/core/logging_setup.py"` prints nothing: no handler or level change.
@@ -1838,7 +1841,7 @@ If a fetch fails (no network, gated repo), write **UNMEASURED** plus this comman
        - If W-8 has not landed, the record labels this mechanism **"proposed (W-8, not on main)"**. `download_models.py` at B@7b2ff1f `:5-18` lists only GGUF/Ollama commands, and W-8 (`:15`) describes the embedding command as proposed.
      - **Which model: a PROPOSAL, owner-gated as S-C4-5.**
        - D8 approves only "the small embedding model" ([owner-decisions](../capstone-report/owner-decisions-2026-09-27.md):21). It names no model, revision, hash or file set.
-       - The candidate is W-8's own *proposal* (W-8 `:17-22`): `models/embeddings/all-MiniLM-L6-v2/`, 11 files, 91,578,415 bytes, revision `1110a243fdf4706b3f48f1d95db1a4f5529b4d41`, `model.safetensors` sha256 `53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db`.
+       - The candidate is W-8's own *proposal* (W-8 `:34`, `:103`): `models/embeddings/all-MiniLM-L6-v2/`, 11 files, 91,578,415 bytes, revision `1110a243fdf4706b3f48f1d95db1a4f5529b4d41`, `model.safetensors` sha256 `53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db`.
        - The record writes these values as "proposed (W-8), pending S-C4-5". It never writes them as the installer's contents.
        - If S-C4-5 names another model or revision, the record takes that one. The size and hash are then re-measured, never carried over.
      - The launcher sets `EMBEDDING_MODEL_PATH` to an **absolute** path inside the install directory. W-8 resolves relative paths against `Path(__file__)`, which PyInstaller one-file relocates to a temporary extraction directory.
@@ -1853,7 +1856,7 @@ If a fetch fails (no network, gated repo), write **UNMEASURED** plus this comman
      - S-C4-2: data-directory location.
      - S-C4-3: code signing (yes/no, who pays).
      - S-C4-4: licence notices for redistributed models and libraries.
-     - S-C4-5: the exact embedding model and revision to bundle. W-8's candidate is `all-MiniLM-L6-v2@1110a243…`. It must match whatever W-8's own sign-off selects.
+     - S-C4-5: the exact embedding model and revision to bundle. W-8's candidate is `all-MiniLM-L6-v2@1110a243…`. It must match the revision signed under canonical owner gate **EMB-REV** (W-8's sign-off line; 3a M-6).
   7. **What this record does not decide:** no build is authorised; HC-M08b starts only after S-C4-1.
 
 - [ ] **Step 2: Gates**

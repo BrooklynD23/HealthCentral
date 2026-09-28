@@ -15,6 +15,12 @@
 > - `git merge-tree` confirms the 5 conflicted files listed below. `SettingsPage.tsx` auto-merges.
 > - Preflight: the working tree holds uncommitted owner edits to `docs/INDEX.md` and `.serena/project.yml`, plus the untracked `audit/` and `docs/capstone-report/`. Do not merge in this tree, and do not stash or discard these without the owner. Use a clean worktree (recurring-failures #5).
 
+> **Wave-3 integration banner (2026-09-28)** — sources: `audit/2026-09-25/swarm-2026-09-27/wave3/3a-integration.md` (B-5, M-11), `wave3/3b-evidence.md` (M1, M9). Each item was re-checked against the refs before this banner was written.
+> 1. **Drift check exits 1 on the merged tree (3a B-5; owner-gated P1-DRIFT).** The Task 3 Step 5 union keeps A's `docs/agentic/recurring-failures.md:33` token `` `GET /profiles/` `` (`git show 692fdf3:docs/agentic/recurring-failures.md | sed -n 33p`). On the A+B merge-tree, `python3 scripts/harness_drift_check.py` prints `ERROR: docs/agentic/recurring-failures.md:33: missing path '/profiles/'` and exits 1 (`wave3/drift_m.out`); on B alone it passes (`wave3/drift_b.out`). If the owner signs **P1-DRIFT**, reword that token during the Task 3 Step 5 conflict resolution (for example `GET /profiles` or "the list route"). Do not edit the checker (W-1 forbids it). Until P1-DRIFT is signed, Task 6 Step 4 and Task 8 Step 4 cannot reach drift=0: STOP there and ask. **P1 measured acceptance now includes "`harness_drift_check.py` exits 0"** (Task 6 Step 4 and Task 8 Step 4, pre-banner lines `:376` and `:495`; Done checklist).
+> 2. **Task 4 Step 2 writes only the collected number (3a M-11).** Do not derive an `N-1` figure for the "without an embedding model" sentence. That is a pass count derived from a collected count. Leave the pass sentence as it is and flag it in the PR (W-8 owns that clause).
+> 3. **B's own count slots disagree (3b M1).** B `AGENT.md:76` says "1269 collected"; B `CLAUDE.md:30` says 1288, and B collects **1288** (`wave3/btree`). `AGENT.md:76` is stale. Task 4's measured figure replaces both, so P1 reconciles them.
+> 4. **`agent_eval_gate.py` prints PASS and then hangs (3b M9, matrix GATE-14, unowned).** On a scratch main tree (Win Py 3.13.7, HF offline) it printed `All 74 golden cases passed.` / `Agent eval gate: PASS` and was killed by `timeout 420` with `rc=124` (`wave3/evalgate.out`). Linux/3.11 is UNMEASURED. Until GATE-14 is fixed, Task 6 Step 5 runs the gate under a timeout and accepts on the output line, not on the exit code alone.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Land both unmerged `claude/*` branches onto `main` via two sequential, human-approved PRs — `claude/healthcentral-agentic-research-r1n54x` first (it carries the P1 fail-open security-gate fix), then `claude/asclexis-repo-audit-349pjq` — resolving the five known doc conflicts on the second PR's branch before its human merge.
@@ -285,7 +291,7 @@ Expected last line: `NNNN tests collected` — predicted ≈1291. Whatever it pr
 
 - [ ] **Step 2: Write the measured number into both baseline spots**
 
-In `AGENT.md` (Commands block comment) and `CLAUDE.md` (§4 baseline paragraph + the "if it differs from" line): replace `MEASURED_PENDING` with the observed count, and `N-1` for the "without an embedding model" figure. Commit:
+In `AGENT.md` (Commands block comment) and `CLAUDE.md` (§4 baseline paragraph + the "if it differs from" line): replace `MEASURED_PENDING` with the observed count. *(Wave-3 banner item 2: write only the collected number. Leave the "without an embedding model" pass sentence as it is and flag it in the PR; do not write `N-1`.)* Commit:
 
 ```bash
 cd <repo-root>
@@ -376,15 +382,16 @@ python3 scripts/repo_hygiene_check.py; echo "hygiene=$?"
 python3 scripts/harness_drift_check.py; echo "drift=$?"
 ```
 
-Expected: all `=0`. (`harness_drift_check.py` exists only post-merge — that's why it runs here and not on old main.)
+Expected: all `=0`. (`harness_drift_check.py` exists only post-merge — that's why it runs here and not on old main.) *(Wave-3 banner item 1: `drift=0` holds only after the P1-DRIFT reword. Measured without it: `drift=1`.)*
 
 - [ ] **Step 5: Agent eval gate**
 
 ```bash
-python3 scripts/agent_eval_gate.py
+timeout 600 python3 scripts/agent_eval_gate.py 2>&1 | tee /tmp/eval_gate.out; echo "rc=${PIPESTATUS[0]}"
+grep -c "Agent eval gate: PASS" /tmp/eval_gate.out
 ```
 
-Expected: exit 0 (74 golden cases, absolute bars — a regression here means a conflict resolution touched agent code; it shouldn't have).
+Expected: `rc=0`, or `rc=124` with the grep printing `1` and `All 74 golden cases passed.` in the output (the known post-PASS hang, GATE-14; Wave-3 banner item 4). Any other rc, or no PASS line, is a failure (74 golden cases, absolute bars — a regression here means a conflict resolution touched agent code; it shouldn't have).
 
 - [ ] **Step 6: Frontend — on the WINDOWS host, not WSL**
 
@@ -506,5 +513,6 @@ Expected: all exit 0.
 - Both branches landed on `main` via human-merged PRs; executor never touched `main`.
 - Security gate proven fail-closed on the merged tree with a poisoned report (exit 2), and still exit-0 on clean input.
 - Backend suite collected count measured post-merge and written identically into `CLAUDE.md` and `AGENT.md`; suite green (modulo the documented `test_api_rag_index_002b` environmental failure).
+- `python3 scripts/harness_drift_check.py` exits 0 on the merged tree (requires owner gate P1-DRIFT; Wave-3 banner item 1).
 - `npx tsc --noEmit` + `npx vitest run` green on Windows; both Settings mounts coexist.
 - All five doc conflicts resolved by union-or-regeneration; no branch content silently dropped.

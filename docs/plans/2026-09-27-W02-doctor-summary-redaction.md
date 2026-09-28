@@ -93,8 +93,9 @@ This plan implements the first sentence and pins the "keep full-fidelity" half w
 | W-2 | [handoff §5](../../audit/2026-09-25/handoff-2026-09-27-execution.md) `:139` | "The doctor summary (text/html/pdf) passes strict `RedactionEngine` before render … HC-EXPR-001 … HC-EXPR-002 … HC-EXPR-003 … 3 new tests; failures ⊆ start" |
 
 **Proposed matrix change** (for the PR description only; not edited here):
-- PRIV-04, doctor summary → **tested for labelled PHI shapes** (HC-EXPR-001/003). The known gap is O-3, recorded as a strict xfail.
-- PRIV-04, CSV/JSON → **documented exception, tested byte-stable** (HC-EXPR-002). Effective once W-10 lands.
+- PRIV-04, doctor summary → **`tested`** (HC-EXPR-001/003; labelled PHI shapes only). The known gap is O-3, recorded as a strict xfail and named in the row's gap column.
+- PRIV-04, CSV/JSON → **`tested`** as a named D3 exception (HC-EXPR-002 pins the bytes unchanged). Effective once W-10 lands.
+- The PRIV-04 row as a whole stays **`partial`** while `/export/questions` is open (EXPORT-QUESTIONS). Status values are only those defined at matrix `:18-27`.
 
 ## Files
 
@@ -146,11 +147,12 @@ This plan implements the first sentence and pins the "keep full-fidelity" half w
 | Needs | Why | Check (Task 0) |
 |---|---|---|
 | D3 | the approval | quoted above |
+| P0-B, P0-B2 | the capstone package and this plan file are committed on main; commit 4 edits this plan file (owner gate P0-B2) | `git -C "$WT" ls-files docs/plans/2026-09-27-W02-*.md` prints the plan path |
 | D9 | the 3.11 venv at `$HOME/venvs/asclexis-311` | `"$PY" --version` → `Python 3.11.x` |
 | P1 | branches A and B on main | `git merge-base --is-ancestor 7b2ff1f HEAD && git merge-base --is-ancestor 692fdf3 HEAD` |
 | P4, then the W-10 governance commit | handoff §3 `:96`: "P4 doc drift … → **governance commit** (§5) → P5". The CSV/JSON exception must already be in `CLAUDE.md` | `grep -nE "CSV\|JSON" "$WT/CLAUDE.md"` shows the D3 exception wording |
 | P5 | shares `modules/export.py` | `! grep -q "datetime.utcnow" "$WT/src/backend/modules/export.py"` |
-| P0-D | the program graph (`:59`) lists P0-D → G-A | **Not found:** there is no D3/D4 brief in `docs/plans/` (`ls`, 2026-09-27). D3 is already decided; the orchestrator confirms P0-D is moot for W-2 (sign-off S-5) |
+| P0-D | the program graph (`:59`) lists P0-D → G-A | **Not found:** there is no D3/D4 brief in `docs/plans/` (`ls`, 2026-09-27). D3 is already decided; the orchestrator confirms P0-D is moot for W-2 (sign-off S-5; canonical gate P0-D-MOOT) |
 
 ---
 
@@ -208,7 +210,7 @@ All of this was prototyped in a scratchpad (not committed) on **main@40f590e**, 
 - **O-4 · Adjacent surfaces.** Not in W-2.
   - ExportPage "Copy" (`ExportPage.tsx:108-121`) joins the summary `key_findings`, which W-2 redacts, with output from `POST /export/questions`.
   - `/export/questions` is **not** redacted and returns verbatim care-task `source_quote` (plan 01 `:78`; `api/export.py:607-661`).
-  - Is that clipboard text "the doctor summary"? D3 does not say. Decide separately.
+  - Is that clipboard text "the doctor summary"? D3 does not say. Decide separately (canonical gate EXPORT-QUESTIONS; sign-off S-4).
 
 ---
 
@@ -250,10 +252,12 @@ Expected:
 WT=/mnt/c/Users/DangT/Documents/GitHub/HealthCentral-w02; PY="$HOME/venvs/asclexis-311/bin/python"; set -o pipefail
 ! grep -q "datetime.utcnow" "$WT/src/backend/modules/export.py" && echo P5-in
 grep -nE "CSV|JSON" "$WT/CLAUDE.md"
+git -C "$WT" ls-files docs/plans/2026-09-27-W02-*.md
 ```
 Expected:
 - `P5-in`;
-- at least one `CLAUDE.md` line naming CSV/JSON as a deliberate redaction exception (W-10).
+- at least one `CLAUDE.md` line naming CSV/JSON as a deliberate redaction exception (W-10);
+- `docs/plans/2026-09-27-W02-doctor-summary-redaction.md` (P0-B2: the plan set is committed, so commit 4 has a tracked file).
 
 Any miss → **STOP** and name the missing phase.
 
@@ -320,7 +324,7 @@ Record verbatim:
 - **ENV0** = interpreter plus embedding model present or absent (`test_api_rag_index_002b` PASSED means present, FAILED means absent);
 - **WP0** = `weasyprint-renders` or `weasyprint-cannot-render`. The probe is the same `write_pdf()` call the real-PDF test's fixture makes: import alone is not enough, because missing Pango raises `OSError` at render time.
 
-If a figure in `COLLECTED_SLOTS` ≠ N0, **STOP**: an earlier phase left the baseline stale. Report it; do not fix it here.
+If a figure in `COLLECTED_SLOTS` ≠ N0, **STOP**: an earlier phase left the baseline stale. Report it; do not fix it here. (Program owner gate SLOT-RULE, proposed, makes every earlier collection-changing phase update these slots; until it is signed and applied, this STOP is expected after P5.)
 
 ---
 
@@ -1420,12 +1424,12 @@ Each revert restores the collected slots together with the tests it removes, so 
   - [ ] (b) Separately approve a `redaction.py` change under its own plan.
 
   Signed: ________ Date: ________
-- [ ] **S-4 / O-4.** Choose one:
+- [ ] **S-4 / O-4** (canonical gate **EXPORT-QUESTIONS**, shared with P08 R11). Choose one:
   - [ ] `/export/questions` and ExportPage "Copy" stay outside W-2.
   - [ ] Open a separate item.
 
   Signed: ________ Date: ________
-- [ ] **S-5.** P0-D is moot for W-2, because D3 is decided. Signed (owner or orchestrator): ________ Date: ________
+- [ ] **S-5** (canonical gate **P0-D-MOOT**). P0-D is moot for W-2, because D3 is decided. Signed (owner or orchestrator): ________ Date: ________
 - [ ] **S-6.** Merge approval for the W-2 PR (only after S-3). Signed: ________ Date: ________
 
 ## Commit plan

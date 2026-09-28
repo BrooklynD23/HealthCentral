@@ -1,6 +1,6 @@
 # Asclexis — Architecture & Integration Overview
 
-**Last Updated:** 2026-09-27
+**Last Updated:** 2026-09-28
 **Evidence basis:** main @ `40f590e` (working tree also carries the owner's uncommitted `.serena/project.yml` / `docs/INDEX.md` edits — neither affects code). Two unmerged branches are described only in §13 (proposed).
 
 This document separates **verified current architecture** (§1–§11) from **proposed change** (§13). Every current-state statement carries `path:line` evidence from the 2026-09-27 re-check (orchestrator + read-only mapping agents; load-bearing lines spot-verified by the orchestrator). Where the hand-drawn diagrams in [`docs/architecture/`](../architecture/README.md) disagree with code, §12 lists the divergence; code wins.
@@ -81,7 +81,7 @@ Dashed edges are network or conditional paths. The only default-on outbound path
 | Assistant | `api/assistant.py`, `modules/agent/`, `modules/rag.py` | question → cited answer or abstention | vault reads; chat persisted per profile | ModelRunner (legacy path only) | wired, tested; eval-gated on agent path only |
 | LLM layer | `core/model_runner.py`, `core/llm/` | prompt → text | local model files; Ollama pinned to 127.0.0.1 (`core/llm/ollama_provider.py:31-54`, `core/llm/factory.py:51`) | llama-cpp-python (lazy) | wired |
 | External runner (opt-in) | `core/external_runner.py` | prompt → cloud completion | strict redaction when `redaction_enabled` (default True, `core/config.py:135`); production blocks non-strict unless break-glass (`core/external_runner.py:166-198`); outside production `redaction_enabled=False` skips redaction (`:201`) | `httpx` | implemented, off by default |
-| Exports | `api/export.py`, `modules/export.py`, `modules/fhir_export.py`, `api/feedback.py` + `modules/rl_dataset.py` | vault → CSV/JSON/summary/visit-prep/FHIR/JSONL | redaction on RL, FHIR, visit-prep, pinboard; **not** on CSV/JSON/doctor summary (§8); export artifacts held in module-level dicts (lost on restart — audit P1-3, REPORTED) | redaction | wired, partly tested |
+| Exports | `api/export.py`, `modules/export.py`, `modules/fhir_export.py`, `api/feedback.py` + `modules/rl_dataset.py` | vault → CSV/JSON/summary/visit-prep/FHIR/JSONL | redaction on RL, FHIR, visit-prep, pinboard; **not** on CSV/JSON/doctor summary (§8); export artifacts held in process-memory dicts `api/export.py:44,47,50` (`_summary_store`, `_packet_store`, `_fhir_store`; `api/pinboards.py:13,495` also writes `_packet_store`), lost on restart (matrix PRIV-08 `gap`; W-11b measured a 404 after restart) | redaction | wired, partly tested |
 | Backup / restore | `api/backup.py`, `scripts/backup.py`, `modules/backup_scheduler.py` | vault → archive; archive → vault | unredacted by design (`docs/compliance/data-privacy.md:173-178`); raw `sqlite3` (bypasses SQLAlchemy listeners) | master `backup_schedules` | wired, HTTP-tested (`tests/test_backup_routes.py`) |
 | Notifications | `modules/notification_scheduler.py`, `api/notifications.py` | schedule → reminder | vault | — | implemented, **not wired** (`:559` has no production caller) |
 | Audit trail | `core/audit.py` | event → `audit_logs` row + logger echo | master DB (unencrypted); also logged at INFO via the logger (`core/audit.py:254-261`); no product code configures a file sink, so plan 08's `logs/asclexis.log` claim is UNVERIFIED | — | wired; 4 profile routes unaudited (matrix §7, AUD-02) |
@@ -108,7 +108,7 @@ Dashed edges are network or conditional paths. The only default-on outbound path
 | FHIR export, visit-prep, pinboards | yes | `modules/fhir_export.py:358`, `api/export.py:764`, `api/pinboards.py:146,452` |
 | Medications | yes by default; `verified_only` is a query parameter the caller can override | `api/medications.py:461,499,514`; `src/frontend/src/services/medications.ts:143` |
 | Trends endpoint | **no** | `api/observations.py:529-535` (no `user_verified` filter) |
-| Legacy RAG retrieval | **no** (labels verified rows only) | `modules/rag.py:322-328,433,549-552` |
+| Legacy RAG retrieval | **no** (labels verified rows only) | `modules/rag.py:323-331,433,549-552` |
 | CSV / JSON / doctor summary | **no** | `api/export.py:130-150` |
 
 Whether trends must exclude unverified rows is a **spec question** (PRD `docs/Local_First_Medical_Results_Companion_PRD_v0_1.md` requires verification of OCR numerics; `docs/architecture/pipelines.md:53-56` says downstream surfaces consume the verified set) — recorded as owner-gated in the matrix, not decided here.
@@ -127,7 +127,7 @@ Whether trends must exclude unverified rows is a **spec question** (PRD `docs/Lo
 |---|---|---|---|---|
 | `core/llm/llama_cpp_provider.py:36` | local inference | yes (it is the provider) | on | — |
 | `core/llm/ollama_provider.py` (`httpx`) | local inference | yes | off; host pinned `127.0.0.1:11434` | `:31-54,73` |
-| `modules/model_selector.py:438` `from llama_cpp import Llama` | tiered interpretation | **no** | **dormant** — only caller chain is `interpret_with_model` (`modules/interpret.py:877`), which has **0 callers** | `grep -rn interpret_with_model src/backend` |
+| `modules/model_selector.py:438` (`:456` after P1) `from llama_cpp import Llama` | tiered interpretation | **no** | **dormant** — only caller chain is `interpret_with_model` (`modules/interpret.py:877`), which has **0 callers** | `grep -rn interpret_with_model src/backend` |
 | `core/external_runner.py:261-300` (`httpx` → OpenAI/Anthropic) | opt-in cloud inference | **no** | off (`use_external_api` default `False`, `models/model_settings.py:78-81`); strict redaction default | used by `api/assistant.py:697`, `api/interpretations.py:436` |
 | `modules/embeddings.py:56` `SentenceTransformer(name)` | embeddings | n/a | **implicit** HF download on first use (no `local_files_only`/offline flag) | — |
 | `hf_hub_download` (`api/model_settings.py:892-919`, `modules/model_selector.py:607-633`) | model download | n/a | user-triggered | — |
@@ -182,10 +182,10 @@ Branch-protection "required checks" are not stored in the repo → **unknown**. 
 | `docs/architecture/pipelines.md:110` | guard → `interpret_safety · faithfulness · verifier_agent` | agent guard imports only `FaithfulnessConfig` (`guardrails/guard.py:32`); those modules run on the legacy path |
 | `docs/architecture/pipelines.md:181-182` | redaction unconditional on the export path | CSV/JSON/doctor summary unredacted (§8) |
 | `docs/architecture/README.md:50` | ModelRunner "the only LLM entry point" | dormant `model_selector` bypass + opt-in external runner (§7) |
-| `docs/architecture/backend.md:93` | `core/` never imports from `modules/` | `core/config.py:229`, `core/model_runner.py:117`, `core/external_runner.py:202` |
+| `docs/architecture/backend.md:93` | `core/` never imports from `modules/` | 5 imports: `core/config.py:229`, `core/document_crypto.py:65`, `core/external_runner.py:202`, `core/llm/llama_cpp_provider.py:122`, `core/model_runner.py:117` (matrix GATE-13) |
 | `docs/architecture/ci-and-quality-gates.md:19,45` | frontend job runs build | CI runs `tsc --noEmit` + `vitest run` only |
 
-These are documentation defects to fix in the doc-drift phase (P3 of the program); none is fixed in this pass.
+These are documentation defects to fix in the doc-drift phase (P4 of the program); none is fixed in this pass.
 
 ## 13. Proposed change (not current behaviour)
 
@@ -208,6 +208,6 @@ These are documentation defects to fix in the doc-drift phase (P3 of the program
 
 - How a built SPA is served outside dev (no static mount, no shell).
 - Which CI checks are merge-required (branch protection not in repo).
-- Frontend test counts (155 vitest / 25 e2e claimed; not measured this pass; `vitest run` stalls under WSL on `/mnt/c`).
+- Frontend pass counts (not run; `vitest run` stalls under WSL on `/mnt/c`). Listed counts @main: vitest 165 tests / 28 files, Playwright chromium 28 tests / 5 files; the old "155 / 25" were pass counts (`docs/features/TASK_LIST.md:794`; matrix GATE-03, GATE-06).
 - Backend **pass** counts on any ref (only collection was measured, Python 3.13.7 on Windows vs CI 3.11).
 - Runtime behaviour of backup `skipped_locked` and agent cache hit rates (not executed).

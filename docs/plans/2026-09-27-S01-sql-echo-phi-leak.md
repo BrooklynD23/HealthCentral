@@ -11,7 +11,8 @@
 
 **Status:** PROPOSED — not executed. Nothing in this plan is implemented, wired or tested on any branch.
 - S-1 is a **new HIGH security finding** with **no owner decision yet**.
-- The whole plan is **owner-gated**: sign-offs S1-A (Task 2) and S1-B (Task 3) are **unsigned**.
+- The whole plan is **owner-gated**: sign-offs S1-A (Task 2) and S1-B (Task 3) are **unsigned**. Program register: both sit under canonical gate **SQL-ECHO** (with P08 S-3, answered by "yes → S-1"; 3a §3.2). S1-A includes the one-line edit in the ask-first `core/profile_database.py`; no agent may sign it.
+- Review status: 3 Codex rounds; round 3 = PASS, no findings (`audit/2026-09-25/swarm-2026-09-27/reviews/S01-r3-response.md`).
 - Task 1 (write the failing tests, observe RED) may run before the gate. Nothing is committed before the gate.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task by task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -107,7 +108,7 @@ Planning used a scratch extract of **B@7b2ff1f** (`git archive 7b2ff1f src/backe
 | A + B | `4 passed` |
 | Break-its BI-1…BI-5, BI-7 | each red as tabulated in Task 4 |
 | Neighbours with A + B | `tests/security tests/test_profile_recovery.py tests/test_profile_deletion.py tests/test_audit_phi_minimization.py` → `146 passed` |
-| `-k sqlecho` | `4/1271 tests collected (1267 deselected)` in the scratch tree (4 unrelated collection errors from missing repo-root scripts). The selector matches only the new tests |
+| `-k sqlecho` | `4/1271 tests collected (1267 deselected)` in the scratch tree (4 unrelated collection errors from missing repo-root scripts). The selector matches only the new tests. **Selector check only — never a baseline:** 1271 is a broken scratch extract of B (B collects 1288), not comparable to any collected slot (3b minor 10) |
 | Whole-app probe (Task 4 Step 4 script) | **unfixed:** NAME=1 `$2b$`=1 ANALYTE=1 `731.0419`=2 NOTE=1, `sqlalchemy.engine` lines=156. **fixed:** all 0, lines=0. **fixed + `SQL_ECHO=true`:** all 0, `parameters hidden`=69, lines=156 |
 | ID collision | `git grep -i "sqlecho\|hc[-_]sql"` on 40f590e, 7b2ff1f, 692fdf3 → 0 hits; no `SQL_ECHO` anywhere |
 
@@ -275,7 +276,7 @@ Record verbatim:
 - `pytest-exit`;
 - **ENV0** = embedding model present or absent (`test_api_rag_index_002b` PASSED or FAILED).
 
-If any figure in `COLLECTED_SLOTS` ≠ N0, **STOP**. An earlier phase left the baseline stale; report it and do not fix it here. (At B@7b2ff1f, `AGENT.md:76` says 1269 while `CLAUDE.md:30` says 1288. P1 is expected to reconcile them.)
+If any figure in `COLLECTED_SLOTS` ≠ N0, **STOP**. An earlier phase left the baseline stale; report it and do not fix it here. (Program rule **SLOT-RULE**, proposed in 3a B-4: every collection-changing phase updates the slots in the same commit; a stale slot here names that phase's miss.) (At B@7b2ff1f, `AGENT.md:76` says 1269 while `CLAUDE.md:30` says 1288. P1 is expected to reconcile them.)
 
 - [ ] **Step 6: Reproduce the leak on the start tree (whole app)**
 
@@ -1092,8 +1093,8 @@ Expected `--cached` list: this plan file only.
 
 ## Owner sign-offs (unsigned)
 
-- [ ] **S1-A** — I approve the S1-A change exactly as quoted in [Approval scope](#approval-scope): a `sql_echo` setting (default false); both runtime engines use `echo=settings.sql_echo`; `.env.example` documents it; tests HC-SQLECHO-001…003; count slots. This includes the one-line edit inside `create_async_engine(...)` in the ask-first file `core/profile_database.py`. — Owner: ________ Date: ________
-- [ ] **S1-B** — I approve the S1-B change exactly as quoted: `hide_parameters=True` on both runtime engines; the `.env.example` comment; HC-SQLECHO-004; count slots. — Owner: ________ Date: ________
+- [ ] **S1-A** (canonical gate SQL-ECHO) — I approve the S1-A change exactly as quoted in [Approval scope](#approval-scope): a `sql_echo` setting (default false); both runtime engines use `echo=settings.sql_echo`; `.env.example` documents it; tests HC-SQLECHO-001…003; count slots. This includes the one-line edit inside `create_async_engine(...)` in the ask-first file `core/profile_database.py`. — Owner: ________ Date: ________
+- [ ] **S1-B** (canonical gate SQL-ECHO) — I approve the S1-B change exactly as quoted: `hide_parameters=True` on both runtime engines; the `.env.example` comment; HC-SQLECHO-004; count slots. — Owner: ________ Date: ________
 - [ ] **Merge** — owner merges the PR. — Owner: ________ Date: ________
 
 ## Commit plan

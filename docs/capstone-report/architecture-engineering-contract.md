@@ -1,6 +1,6 @@
 # Asclexis — Architecture & Engineering Contract
 
-**Last Updated:** 2026-09-27
+**Last Updated:** 2026-09-28
 **Authority:** [`CLAUDE.md`](../../CLAUDE.md) and [`AGENT.md`](../../AGENT.md) override this file. It restates their invariants as testable contracts. A rule is `BINDING` only when CLAUDE.md or AGENT.md states it. Rules drawn from other repo documents (compliance docs, API README) or inferred by this pass are `PROPOSED`, with the source cited. *(Corrected 2026-09-27 after the contracts review: an earlier draft labelled six such rules BINDING and narrowed two CLAUDE.md invariants; see the follow-up §Validation.)*
 
 This contract turns the repo's invariants into rules a reviewer can check. Current compliance for each rule is tracked in [specs-compliance-matrix.md](specs-compliance-matrix.md). The system being governed is described in [architecture-overview.md](architecture-overview.md).
@@ -15,6 +15,7 @@ This contract turns the repo's invariants into rules a reviewer can check. Curre
 | **Verify** | The command or evidence a reviewer runs. Grep commands run from the repo root. Pytest runs from `src/backend` using an interpreter that has the backend dependencies (see C-GATE-1). |
 | **On violation** | What the engineer does. For every BINDING contract the rule is the same: **stop and ask; never weaken the guard to proceed** (CLAUDE.md §3). |
 | **Owner** | Who decides when the rule itself is in question. |
+| **Planned by** | The 2026-09-27 plan(s) that would change the status (IDs as in the matrix legend). A plan changes nothing until it merges. |
 
 "Status today" is a summary. The matrix row it cites holds the evidence.
 
@@ -35,18 +36,20 @@ This contract turns the repo's invariants into rules a reviewer can check. Curre
   - `tests/agent/test_s4_phi_gate.py::test_s4_2_offline_loop_completes` blocks AF_INET for the agent loop only.
   - No lint bans network imports.
 - **Verify:**
-  - `grep -rnE "import (requests|httpx|aiohttp|socket|urllib\.request|huggingface_hub|sentence_transformers)|from (requests|httpx|aiohttp|huggingface_hub|sentence_transformers)" src/backend --include=*.py | grep -v /tests/`. Every hit must be in `core/llm/ollama_provider.py`, `core/external_runner.py`, the model-download code (`api/model_settings.py`, `modules/model_selector.py`, `scripts/model_manager.py`), `modules/embeddings.py`, or the import-availability probe in `modules/environment_diagnostics.py:268`. That is 7 files on 2026-09-27.
+  - `grep -rnE "import (requests|httpx|aiohttp|socket|urllib\.request|huggingface_hub|sentence_transformers)|from (requests|httpx|aiohttp|huggingface_hub|sentence_transformers)" src/backend --include=*.py | grep -v /tests/`. Every hit must be in `core/llm/ollama_provider.py`, `core/external_runner.py`, the model-download code (`api/model_settings.py`, `modules/model_selector.py`, `scripts/model_manager.py`), `modules/embeddings.py`, or the import-availability probe in `modules/environment_diagnostics.py:268`. That is 7 files at main on 2026-09-27, 8 after P1 (B's `src/backend/scripts/download_models.py` adds `huggingface_hub`, `:53`).
   - `pytest tests/test_llm_provider_layer.py -k "local"` covers the Ollama allow-list only (2 tests).
-- **Status today:** partial. `modules/embeddings.py:56` can fetch from Hugging Face implicitly on first use (matrix LOCAL-03).
+- **Status today:** partial. `modules/embeddings.py:56` fetches from Hugging Face implicitly. Observed 2026-09-27 17:05 PDT during a local full-suite run (11 files, 91,578,415 B), and relied on by CI (`ci.yml:30-48` has no model step) (matrix LOCAL-03, LOCAL-06).
 - **On violation:** stop; remove the call or route it through an approved path.
 - **Owner:** Project owner.
+- **Planned by:** W-8, W-6.
 
-**C-LOCAL-2 · PROPOSED.**
-- **Rule:** The embedding model MUST load from a local path or cache and MUST NOT download implicitly at query time. Downloads happen only through the user-triggered model manager.
+**C-LOCAL-2 · PROPOSED** (owner-approved D8 + D8-delivery, `owner-decisions-2026-09-27.md:21,26`; not yet in CLAUDE.md).
+- **Rule:** The embedding model MUST load from a local path or cache and MUST NOT download implicitly at query time. Downloads happen only through the user-triggered model manager. Interim delivery (D8-delivery): the model is fetched once by `src/backend/scripts/download_models.py` into a local models dir; runtime loads that path with HF offline and fails closed if it is absent.
 - **Enforced at:** none.
-- **Verify:** a test that sets `HF_HUB_OFFLINE=1` and asserts `EmbeddingModule` fails closed or loads from the local path.
+- **Verify:** a test that sets `HF_HUB_OFFLINE=1` and asserts `EmbeddingModule` fails closed or loads from the local path (planned: W-8 HC-EMB-001/002, with sockets blocked and an empty `HF_HOME`).
 - **On violation:** —.
 - **Owner:** Owner decides whether implicit first-use download is acceptable.
+- **Planned by:** W-8.
 
 **C-LOCAL-3 · PROPOSED** (source: `docs/compliance/data-privacy.md:53`).
 - **Rule:** In `local` mode the backend MUST bind `127.0.0.1`, and CORS MUST list only the localhost frontend origins.
@@ -69,8 +72,10 @@ This contract turns the repo's invariants into rules a reviewer can check. Curre
 - **Rule:** Any test asserting auth, path scoping, or status codes MUST go through HTTP (`route_client`), not a direct handler call.
 - **Enforced at:** review only.
 - **Verify:** `grep -ln "route_client" src/backend/tests` must include each new route test.
+- **Status today:** review only. Known direct-call status assertions: `test_profile_deletion.py` HC-PDEL-001…018; HC-PKT-014/015 (`tests/test_visit_prep_packet.py:403-432`); HC-FHIR-103/104 (W-11b F-6). `api/profiles.py` guards have no HTTP test (matrix ISO-02).
 - **On violation:** rewrite the test through HTTP and break the code on purpose to see it go red (recurring-failures #1).
 - **Owner:** Engineering.
+- **Planned by:** W-11a (profiles); W-11b keeps F-6 as direct-call (documented).
 
 ## 3. Encryption and key lifecycle
 
@@ -81,9 +86,10 @@ This contract turns the repo's invariants into rules a reviewer can check. Curre
   - `core/security.py:323` (sealing) and `api/profiles.py:546-589` (recovery copy).
   - `database_encryption_required=True` default (`core/config.py:40`).
 - **Verify:** `pytest tests/security/test_key_sealing_baseline.py tests/test_profile_recovery.py`.
-- **Status today:** partial: tested, but the backend suite sets `DATABASE_ENCRYPTION_REQUIRED=false` (`tests/conftest.py:57`), so no pytest proves on-disk ciphertext (matrix KEY-02).
+- **Status today:** partial: tested, but the backend suite sets `DATABASE_ENCRYPTION_REQUIRED=false` (`tests/conftest.py:57`), so no pytest proves on-disk ciphertext (matrix KEY-02). **Native Windows dev vaults are unencrypted:** `sqlcipher3-binary` has no cp313 `win_amd64` wheel (`pip download … --only-binary=:all:` → "No matching distribution"), so `dev.ps1:471-500` installs without it and `:586-593` flips `DATABASE_ENCRYPTION_REQUIRED=false`; `dev.ps1:578` writes `=false` in the fallback `.env` even when SQLCipher is present (matrix KEY-08).
 - **On violation:** stop; CLAUDE.md requires asking before any auth or encryption change.
 - **Owner:** Project owner.
+- **Planned by:** W-11a (KEY-02 test); the Windows posture is unowned → owner item (G-C4 packaging must ship SQLCipher).
 
 **C-KEY-2 · BINDING (ask-first).**
 - **Rule:** Profile deletion MUST crypto-erase in this order:
@@ -116,15 +122,17 @@ This contract turns the repo's invariants into rules a reviewer can check. Curre
 - **On violation:** stop.
 - **Owner:** Project owner.
 
-**C-VERIFY-2 · OWNER-GATED.**
+**C-VERIFY-2 · PROPOSED** (owner decision D4, 2026-09-27; becomes a repo rule when W-10 amends `data-privacy.md`).
 - **Rule:** Which consumers MUST read verified rows only.
   - Today: the agent tools, FHIR, visit-prep, pinboards and medications do.
   - Today: the trends endpoint, legacy RAG and CSV/JSON/doctor summary do not.
   - `docs/architecture/pipelines.md:53-56` claims all do.
+  - D4: legacy RAG MUST cite verified observations only; trends MAY show unverified points only when visibly labelled. Exports carrying unverified rows (CSV/JSON/doctor summary, `api/export.py:130-150`) are **not decided** (owner item, D4-EXPORTS).
 - **Enforced at:** agent path: `agent-evals` golden `abstain-unverified-*`. Others: none.
 - **Verify:** `grep -n "user_verified" src/backend/api/observations.py src/backend/modules/rag.py src/backend/api/export.py`.
 - **On violation:** —.
 - **Owner:** Owner decides; then the losing side (code or doc) is corrected.
+- **Planned by:** W-3, W-10, P04 N1.
 
 ## 5. Assistant citations and medical safety
 
@@ -134,7 +142,7 @@ This contract turns the repo's invariants into rules a reviewer can check. Curre
   - `modules/interpret_safety.py:49`.
   - `tests/test_interpret_safety_adversarial.py`, `tests/test_phase4_ai_safety.py`.
   - CI `agent-evals` (`advice_leakage == 0`).
-- **Verify:** `pytest tests/test_interpret_safety_adversarial.py tests/test_phase4_ai_safety.py tests/agent/test_s3_guardrails.py`; `<interp> scripts/agent_eval_gate.py` (interpreter with backend deps; see C-GATE-1).
+- **Verify:** `pytest tests/test_interpret_safety_adversarial.py tests/test_phase4_ai_safety.py tests/agent/test_s3_guardrails.py`; `<interp> scripts/agent_eval_gate.py` (interpreter with backend deps; see C-GATE-1). It prints `Agent eval gate: PASS` but did not exit within 420 s on Win Py 3.13.7 (2026-09-27, `rc=124`; matrix GATE-14, unfixed and unowned; Linux/3.11 UNMEASURED). Until GATE-14 is fixed, read the PASS line and the bars, not the exit code.
 - **On violation:** stop.
 - **Owner:** Project owner.
 
@@ -142,11 +150,12 @@ This contract turns the repo's invariants into rules a reviewer can check. Curre
 - **Rule:** Every factual answer sentence MUST map to a citable source (the user's verified data or the reference KB). Memory and session history MUST NOT be citable. When grounding fails, the system MUST abstain or escalate rather than answer.
 - **Enforced at:**
   - Agent path: `guardrails/groundedness.py`, `guardrails/guard.py`; CI bars groundedness / citation / abstention == 1.0 over 74 cases.
-  - Legacy path: `modules/rag.py:793` `validate_response` (`[cite:N]`, `:819`) and a faithfulness threshold of 0.6 (`:862`). **This threshold does not block.** `rag.py:861-870` only sets `is_valid=False` and appends an error; `api/assistant.py:772-811` still serves the segments. Only `pages/LabInterpreter.tsx` reads `is_valid`. There is no CI eval gate, and this path runs whenever the agent raises (`api/assistant.py:743-755`).
-- **Verify:** `<interp> scripts/agent_eval_gate.py` (interpreter with backend deps; see C-GATE-1).
+  - Legacy path: `validate_response` (`modules/rag.py:793-872`, `[cite:N]` at `:819`) sets `is_valid=False` (`:869`) on any of 5 triggers (`:826`, `:833`, `:838`, `:858`, `:863`); faithfulness < 0.6 (`:862`) is one of them. **None blocks:** `api/assistant.py:772-811` still serves the segments. Only `pages/LabInterpreter.tsx` reads `is_valid`. There is no CI eval gate, and this path runs whenever the agent raises (`api/assistant.py:743-755`).
+- **Verify:** `<interp> scripts/agent_eval_gate.py` (interpreter with backend deps; see C-GATE-1). It prints `Agent eval gate: PASS` but did not exit within 420 s on Win Py 3.13.7 (2026-09-27, `rc=124`; matrix GATE-14, unfixed and unowned; Linux/3.11 UNMEASURED). Until GATE-14 is fixed, read the PASS line and the bars, not the exit code.
 - **Status today:** partial. The agent path is enforced (SAFE-03). The legacy path serves low-faithfulness answers to the patient with no abstention (SAFE-04, raised in priority).
 - **On violation:** stop.
 - **Owner:** Project owner.
+- **Planned by:** W-4 (G-B5 decided).
 
 **C-SAFE-3 · PROPOSED** (derived from `CLAUDE.md:62` "grounded"; not stated there).
 - **Rule:** Trust indicators shown to the patient (faithfulness/verification scores) MUST be computed, never constants.
@@ -162,15 +171,16 @@ This contract turns the repo's invariants into rules a reviewer can check. Curre
 - **On violation:** revert.
 - **Owner:** Project owner.
 
-**C-SAFE-5 · PROPOSED.**
+**C-SAFE-5 · PROPOSED** (decided D11: docs match code).
 - **Rule:** One citation-marker vocabulary across docs, prompt and validator.
   - Today `CLAUDE.md` and the docs name `[YOUR_RESULTS:N]`/`[REFERENCE:N]`.
   - The legacy validator accepts `[cite:N]`.
-  - The legacy prompt instructs both (`modules/rag.py:120-132`).
+  - The legacy prompt instructs both (`modules/rag.py:123-140`; contradictory lines `:128`, `:133`, `:134`).
 - **Enforced at:** none.
 - **Verify:** —.
 - **On violation:** —.
-- **Owner:** Owner. The prompt lives beside ask-first modules, so ask first.
+- **Owner:** Owner. The prompt lives beside ask-first modules, so ask first. D11 decided; `CLAUDE.md:62` changes only if W-10 Q1 (GOV-D11) is signed.
+- **Planned by:** W-5, W-10, P04 N8.
 
 ## 6. Redaction before anything leaves
 
@@ -178,9 +188,10 @@ This contract turns the repo's invariants into rules a reviewer can check. Curre
 - **Rule:** Any path that writes user text to exportable files or external runners MUST pass through `modules/redaction.py` first (`CLAUDE.md:60`, verbatim scope). RL export MUST force `policy_level="strict"` with no configuration knob. Backups are the single documented exception.
 - **Enforced at:** `modules/rl_dataset.py:105-215`, `modules/fhir_export.py:50-65`, `modules/export.py:533,637-642`. Tests: `tests/test_rl_feedback.py`, `tests/test_fhir_export.py`, `tests/test_visit_prep_packet.py`.
 - **Verify:** `grep -n "RedactionEngine" src/backend/modules/export.py src/backend/modules/fhir_export.py src/backend/modules/rl_dataset.py`.
-- **Status today:** **contradicted** for CSV/JSON/doctor summary (`modules/export.py:82,223,267,290,358`), while `docs/compliance/data-privacy.md:173-174` says every non-backup export is redacted (matrix PRIV-04).
-- **On violation:** stop. Narrowing the invariant to third-party exports (the wording of `data-privacy.md:175`) would be an owner decision (program D3); this contract does not make it. Until D3 is answered, CSV/JSON/doctor summary violate `CLAUDE.md:60` as written.
+- **Status today:** **contradicted** for the doctor summary (`api/export.py:379,482`; text built inline `:551-604`; `modules/export.py:82,290,358`) and `/export/questions` (`api/export.py:607`). CSV/JSON (`modules/export.py:223,267`) become owner-approved named exceptions (D3) once W-10 amends `CLAUDE.md:60` and `data-privacy.md:173-174`; until then `data-privacy.md:173-174` (every non-backup export is redacted) is false (matrix PRIV-04).
+- **On violation:** stop. D3 is decided (2026-09-27): redact the doctor summary; CSV/JSON are named exceptions once W-10 lands. Until then, CSV/JSON/doctor summary violate `CLAUDE.md:60` as written.
 - **Owner:** Project owner.
+- **Planned by:** W-2, W-10.
 
 **C-REDACT-2 · BINDING.**
 - **Rule:** The external runner MUST apply strict redaction before any network call, unconditionally (`CLAUDE.md:60`).
@@ -189,17 +200,19 @@ This contract turns the repo's invariants into rules a reviewer can check. Curre
   - in production, break-glass bypasses the block (`:172`).
 - **Enforced at:** `core/external_runner.py:166-236`; `tests/test_redaction.py::TestExternalRunnerIntegration`; `tests/test_config_validation.py`.
 - **Verify:** `pytest tests/test_redaction.py -k ExternalRunner`.
-- **Status today:** partial. Default `redaction_enabled=True` (`core/config.py:135`), but the two bypasses above exist (matrix LOCAL-04).
+- **Status today:** partial. Default `redaction_enabled=True` (`core/config.py:135`), but the bypasses at `core/external_runner.py:201` (dev) and `:172` (production break-glass) exist, main = B. The payload is the whole composed prompt (`modules/rag.py:1256-1268`), not only the question (`data-privacy.md:196-197` @main is false; matrix LOCAL-04, LOCAL-07).
 - **On violation:** stop.
-- **Owner:** Project owner.
+- **Owner:** Project owner. D12 decided: unconditional strict; break-glass only with audit + UI warning.
+- **Planned by:** W-6, W-10.
 
 **C-REDACT-3 · PROPOSED** (source: `docs/compliance/hipaa-controls.md:53`).
 - **Rule:** Logs and audit rows MUST NOT contain PHI (medication names, values, document text); use UUIDs.
-- **Enforced at:** `tests/test_audit_phi_minimization.py` (HC-AUD-001…010b).
+- **Enforced at:** `tests/test_audit_phi_minimization.py` (HC-AUD-001…010b); none for SQLAlchemy loggers (HC-AUD-007 caplogs `core.audit` only).
 - **Verify:** `pytest tests/test_audit_phi_minimization.py`.
-- **Status today:** plan 02 found `medication_name` logged at INFO in `modules/notification_scheduler.py` (≈:517-520, REPORTED) — fix scheduled in plan 02.
+- **Status today:** **violated in the default dev config.** Both engines set `echo=settings.debug` (`core/database.py:46`, `core/profile_database.py:308`) with `debug=True` (`core/config.py:28`) and no `hide_parameters`, so bound PHI goes to stderr (S-01 probe; matrix PRIV-06, PRIV-09). `medication_name` at INFO (`modules/notification_scheduler.py:517-520`, VERIFIED) and `display_name` at INFO (`api/profiles.py:328`) are masked only by root WARN.
 - **On violation:** stop.
 - **Owner:** Project owner.
+- **Planned by:** S-1 (SQL-ECHO), audit plan 02.
 
 ## 7. Inference boundary
 
@@ -208,17 +221,19 @@ This contract turns the repo's invariants into rules a reviewer can check. Curre
 - **Enforced at:** none automated.
 - **Verify:** `grep -rnE "import llama_cpp|from llama_cpp" src/backend --include=*.py | grep -v /tests/` should return only `core/llm/llama_cpp_provider.py:36`.
 - **Status today:** two deviations.
-  1. **Dormant:** `modules/model_selector.py:438`, reachable only via `interpret_with_model` (0 callers) (matrix LLM-02).
-  2. **Live, opt-in:** `ExternalModelRunner` (`core/external_runner.py:95`, `httpx` at `:263,296`) is a standalone runner that `api/assistant.py` and `api/interpretations.py` pass into `rag.query`. It does not go through `ModelRunner`. Whether it is an allowed exception is **OWNER-GATED**.
+  1. **Dormant:** `modules/model_selector.py:438` @main (`:456` after P1), reachable only via `interpret_with_model` (0 callers) (matrix LLM-02).
+  2. **Live, opt-in:** `ExternalModelRunner` (`core/external_runner.py:95`, `httpx` at `:263,296`) is a standalone runner that `api/assistant.py` and `api/interpretations.py` pass into `rag.query`. It does not go through `ModelRunner`. It is an owner-approved exception (D12), pending W-10's CLAUDE.md amendment.
 - **On violation:** stop; never extend the dormant path.
 - **Owner:** Engineering.
+- **Planned by:** W-7, W-6, W-10.
 
 **C-LLM-2 · PROPOSED.**
 - **Rule:** An automated boundary check (a pytest scanning imports, or a ruff banned-API rule run in CI) MUST fail on a new `llama_cpp`/`ollama`/HTTP-client import outside `core/llm/` (plus `core/external_runner.py` only if the owner accepts that deviation).
-- **Enforced at:** none.
+- **Enforced at:** none (after W-7: HC-LLMB in `backend-tests`, `llama_cpp` only; that is a suite test, so matrix LLM-02 → `tested`, not `enforced`).
 - **Verify:** break it on purpose and watch CI go red.
 - **On violation:** —.
 - **Owner:** Engineering; owner decides what to do with the dormant path (delete vs route through ModelRunner).
+- **Planned by:** W-7, W-11a (ruff).
 
 **C-LLM-3 · BINDING.**
 - **Rule:** The no-LLM fallback MUST keep answering (knowledge fallback) when no model is available.
@@ -234,9 +249,9 @@ This contract turns the repo's invariants into rules a reviewer can check. Curre
 - **Rule:** New and changed code MUST use `core.time.utcnow` (naive UTC: `datetime.now(UTC).replace(tzinfo=None)`, `core/time.py:9-11`). It MUST NOT introduce aware datetimes into naive SQLite `DateTime` columns. It MUST NOT use Python 3.12+-only syntax or APIs (target 3.11; CI pins 3.11).
 - **Enforced at:** `tests/test_profile_recovery.py::test_hc_recov_025_recovery_uses_the_project_time_helper` (one module only).
 - **Verify:** `grep -rn "datetime.utcnow" src/backend --include=*.py | grep -v /tests/ | wc -l` → 101 today; must not rise.
-- **Status today:** 101 lines / 109 references in 30 product files (matrix TIME-01).
+- **Status today:** 101 lines / 109 references in 30 product files (matrix TIME-01). Plus **12 aware-datetime lines in 8 files** (`git grep -nE '(dt_)?timezone\.utc' 40f590e -- 'src/backend/*.py' ':!src/backend/tests' ':!src/backend/core/time.py'`): 9 `datetime.now(…utc)` calls in 7 files (`core/auth.py:73,144`; `core/security.py:136`; `core/token_revocation.py:51`; `api/export.py:949,1005`; `api/model_settings.py:332`; alias `dt_timezone.utc` at `api/gamification.py:148`, `modules/badge_evaluator.py:84`) and 3 aware conversions (`core/auth.py:207`, `api/medications.py:84`, `modules/badge_evaluator.py:54`). One is persisted into a naive column: `modules/badge_evaluator.py:84` → `earned_at` (`:101`, `:157-163`) → `EarnedBadge.earned_at` `DateTime` (`models/gamification.py:64-68`), a C-TIME-1 violation (by reading, not by test; matrix TIME-03). `Session.is_expired` (`core/auth.py:73`) must keep comparing aware-to-aware: swapping in `core.time.utcnow` there would raise TypeError against `expires_at` (`core/auth.py:144,207`).
 - **On violation:** replace with `core.time.utcnow`.
-- **Owner:** Engineering.
+- **Owner:** Engineering. The aware sites in `core/auth.py` and `core/security.py` are auth code, so ask first.
 
 **C-TIME-2 · PROPOSED.**
 - **Rule:** A CI lint (plan 05 Task 5) MUST fail on any `datetime.utcnow` outside allow-listed test literals.
@@ -324,16 +339,18 @@ This contract turns the repo's invariants into rules a reviewer can check. Curre
 - **Rule:** Every route that touches documents, observations or profile data MUST write an audit row via `core/audit.py` (`create_audit_log` `:198` and its wrappers), without PHI.
 - **Enforced at:** `tests/test_observations_audit.py` (HTTP), `tests/test_audit_phi_minimization.py`.
 - **Verify:** for each new route, a test asserts that the audit row exists.
-- **Status today:** documents 13/13 and observations 6/6. Profiles 9/13: missing on `GET /` (`api/profiles.py:241`), `GET /me` (`:416`), `POST /test/reset` (`:477`), `GET /{profile_id}` (`:943`) (matrix AUD-02).
+- **Status today:** documents 13/13 and observations 6/6. Profiles 9/13: missing on `GET /` (`api/profiles.py:241`), `GET /me` (`:416`), `POST /test/reset` (`:477`), `GET /{profile_id}` (`:943`) (matrix AUD-02). **Interpretations 0/7** (`api/interpretations.py:323,383,508,565,615,640,673`; 6 read or write observation-derived data, W-7 F-3; matrix AUD-06).
 - **On violation:** add the audit call.
 - **Owner:** Engineering.
+- **Planned by:** W-11a (profiles); interpretations are **unowned** → W-7 if AUD-INTERP (W-7 OG-3) is signed, else W-11a.
 
-**C-AUDIT-2 · OWNER-GATED.**
-- **Rule:** An audit-retention window or cap for `audit_logs` (plus any log sink the owner configures; no product code configures a file handler today, so the "`logs/asclexis.log` echo" in plan 08 is UNVERIFIED). HIPAA applicability is conditional on the operator and contracts and must not be asserted.
+**C-AUDIT-2 · OWNER-GATED.** D10 frames it (HIPAA-aligned design posture, not legal status).
+- **Rule:** An audit-retention window or cap for `audit_logs` (plus any log sink the owner configures). No product code configures a log sink, and INFO audit echoes are dropped after startup (root WARN via `alembic.ini:45-47`), so the `logs/asclexis.log` claim (`data-privacy.md:33`) is false, not UNVERIFIED (matrix AUD-05). HIPAA applicability is conditional on the operator and contracts and must not be asserted.
 - **Enforced at:** —.
 - **Verify:** —.
 - **On violation:** —.
 - **Owner:** Owner / legal (plan 08 brief 4).
+- **Planned by:** P08 (brief 4); W-11b O-C3-4 for sink visibility.
 
 ## 13. Verification gates (the meta-contract)
 
@@ -342,9 +359,11 @@ This contract turns the repo's invariants into rules a reviewer can check. Curre
   - A verification claim MUST carry the command and its actual output.
   - A test count MUST be the *collected* count measured on the tree the claim is about, with interpreter and environment named.
   - A number MUST NOT be carried forward from another ref or date.
+  - A pass-count sentence changes only with a pass count measured in a named environment. It is never derived.
 - **Enforced at:** AGENT.md Definition of Done; review.
 - **Verify:**
   - Baseline 2026-09-27: `1245 tests collected` at `40f590e`.
+  - Measured 2026-09-27 (Win Py 3.13.7, scratch archives): main 1245 · A 1248 · B 1288 · A+B merge-tree 1291. B `AGENT.md:76` (1269) is stale.
   - Working command in this WSL checkout: `cd src/backend && /mnt/c/Python313/python.exe -B -m pytest tests/ --collect-only -q -p no:cacheprovider`.
   - `python` is absent, and `/home/danny/venvs/healthcentral-backend` lacks SQLAlchemy. CI uses 3.11.
 - **On violation:** retract the number.
@@ -380,7 +399,7 @@ When two sources disagree, the rule is: code is evidence of current behaviour, a
 | Topic | Conflicting sources | Decision in this pass | Rationale | Depends on | Approval authority |
 |---|---|---|---|---|---|
 | FK enforcement approval | Review F-02 says unapproved; plan 06 says approved | **Sequence and blast radius approved; delete semantics owner-gated** (explicit D5 stop) | `backlog-closure-plan.md` §14 d3 (branch A, `fe31e78`). The pre-decision question asked only about tolerating orphan-write failures; approval of CASCADE / SET NULL is inferred | P1 merge brings the record to main | Owner |
-| `.claude/agents/` | Research 02 said ADOPT the five agents; plan 03 recommends B (fix docs) | **Neither; owner-gated** | §21 Q2 "Not sure"; plan 03 STOP gate | owner answer | Owner |
+| `.claude/agents/` | Research 02 said ADOPT the five agents; plan 03 recommends B (fix docs) | **D1 decided 2026-09-27: A, all 5 agents** (hooks not licensed) | `owner-decisions-2026-09-27.md:17-18` (replaces §21 Q2 "Not sure") | W-1 plan; P1-DRIFT | Owner |
 | Serena memories | Plan 04 recommended DELETE; audit says decide; research 02 proposes a freshness gate | **Blocked; owner chooses** | deletion of tracked files is not authorized | — | Owner |
 | HC-M11 | Plan 08 treats it as gated; branch A §14 d2 records it approved | **Approved for build behind a default-off flag only**; production behaviour change is gated | scoped approval text | P1 merge | Owner |
 | Export redaction scope | `data-privacy.md:173` says all non-backup exports; code redacts only 3 of 5 | **Owner-gated**; the doc claim is flagged false until decided | patient-directed vs third-party exports | — | Owner |

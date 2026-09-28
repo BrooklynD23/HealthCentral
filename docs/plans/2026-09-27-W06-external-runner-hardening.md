@@ -41,7 +41,7 @@ How each clause maps to work:
 4. Removing or weakening the production block (`core/external_runner.py:170-198` at B@7b2ff1f), the `is_available()` gate (`:126-136`) or `validate_startup` (`core/config.py:227-262` at B@7b2ff1f).
 5. Any edit to the API-key encryption helpers `_get_profile_encryption_manager` / `_decrypt_or_migrate_api_key` (`core/external_runner.py:27-92`), or to `get_runner_for_request` (`:328-369`).
 6. A new outbound destination, provider or HTTP client. The two existing URLs (`:267`, `:300`) stay the only ones.
-7. Editing `CLAUDE.md`, `docs/compliance/data-privacy.md`, `skills/asclexis-guardrails/SKILL.md`, the capstone matrix or the contract. Those are W-10 / P4 / docs work.
+7. Editing `CLAUDE.md`, `docs/compliance/data-privacy.md`, `skills/asclexis-guardrails/SKILL.md`, the capstone matrix or the contract. Those are W-10 / P4 / docs work. The one exception is the collected-count slots in `CLAUDE.md` and `AGENT.md`, and only if program gate SLOT-RULE is signed (§4.3 carve-out).
 8. Routing the external runner through `ModelRunner`. D12 keeps it as a named exception.
 9. A warning anywhere other than the Settings "External API" card, such as `ExplainAssistant.tsx`. That is owner question Q3.
 
@@ -158,7 +158,7 @@ Row 5 applies in dev today as well: the `:236` condition does not check `app_env
 | `src/backend/core/audit.py`, `src/backend/models/audit.py` | privacy-critical; no allowlist change needed |
 | `src/backend/core/config.py` | no new config. Shared with P4 (comment edit at main@40f590e:109 = B@7b2ff1f:108) and possibly W-8 |
 | `src/backend/api/assistant.py`, `src/backend/api/interpretations.py`, `src/backend/modules/rag.py` | callers; shared with W-4 and W-5 |
-| `CLAUDE.md` | owned by W-10 |
+| `CLAUDE.md` | owned by W-10. Only exception: the collected-count slots, if SLOT-RULE is signed (§4.3 carve-out) |
 | `docs/compliance/data-privacy.md`, `skills/asclexis-guardrails/SKILL.md`, `docs/capstone-report/*` | docs owned elsewhere (§12 lists the claims they need to update) |
 
 ### 4.3 Shared-file ordering
@@ -172,8 +172,12 @@ No two phases edit one file at the same time (program ground rules).
 | `src/backend/api/model_settings.py` | P1 (B) → **W-6 → P5** | P5 swaps `datetime.utcnow` at B@7b2ff1f:660 and :876. Recommended: W-6 merges before P5 starts, because W-6 is small. Otherwise W-6 waits for P5 to merge |
 | `src/backend/core/external_runner.py` | W-6 only | W-7/G-B3's import-boundary test (HC-LLMB-001) may allowlist this path. That is a read, not an edit |
 | `src/backend/tests/test_redaction.py` | W-6 only | If W-2 adds tests here, W-2 goes after W-6 |
-| `CLAUDE.md` | W-10 only | W-6 never edits it |
+| `CLAUDE.md` | W-10 only (invariant text); every collection-changing phase (collected-count slots) | W-6 never edits CLAUDE.md text. Count-slot carve-out below, owner-gated by SLOT-RULE |
 | `core/config.py` | P1 → P4 (comment) → W-8 | W-6 does not touch it |
+
+**Count-slot carve-out (3a B-4; owner-gated by program gate SLOT-RULE, unsigned).**
+- If SLOT-RULE is **signed**: commits 1–3 (the backend-test commits: +4, +8, +5 collected) each also update the collected-count slots, and only those: `CLAUDE.md` "**N backend tests collected.**" and "if it differs from N", and `AGENT.md` "N collected". N is the collected count measured just before that commit. Add `CLAUDE.md AGENT.md` to that commit's `git add`, its expected `--cached` list and its pathspec, as W-2 does. Never touch a pass-count slot ("all N pass", "N pass in CI", "N-1 without …"). Merges on these two lines are serial; the second PR re-measures.
+- If SLOT-RULE is **unsigned**: W-6 does not touch either file. The PR body states "collected-count slots stale by +17 (SLOT-RULE unsigned)" for the orchestrator.
 
 ## 5. Dependencies
 
@@ -182,7 +186,7 @@ No two phases edit one file at the same time (program ground rules).
 | **P1** merged (A + B on main) | hard | `SettingsPage.tsx`, `modelSettings.ts`, `api/model_settings.py` and `core/audit.py` change on B. Every line number here is labelled with its ref |
 | **D9** — `~/venvs/asclexis-311/bin/python` built from `src/backend/requirements.txt` | hard | phase-gate interpreter. It does not exist yet (Wave 0). Stop if it is absent; never substitute another interpreter silently |
 | **D12** | hard, given | scope in §1 |
-| **W-10** governance commit | soft for the code, hard for "D12 done" | W-6's code can merge without it. D12 and LOCAL-04 are **not** reported closed until CLAUDE.md names the exception (§11 Q2) |
+| **W-10** governance commit | soft for the code, hard for "D12 done" | W-6's code can merge without it. D12 and LOCAL-04 are **not** reported closed until CLAUDE.md names the exception (§11 Q2 → GOV-BG, W-10 §10) |
 | P5 | ordering only | shares `api/model_settings.py` (§4.3) |
 | P6 (FK pragma ON) | awareness | After P6, `audit_logs.profile_id` must reference an existing `profiles.id`. HC-EXT-002d seeds a profile, so it holds on both sides of P6 |
 | Downstream: **G-B3 / W-7** | W-6 unblocks it | The program says D12 blocks G-B3. The boundary test may allowlist `core/external_runner.py` only after D12 plus W-10 |
@@ -430,6 +434,7 @@ Expected: all pass. That includes `4 passed` for HC-EXT-001 and every `TestExter
 
 ```bash
 cd "${WT:?export WT per Task 0 Step 1}"
+# SLOT-RULE signed only (§4.3 carve-out): update the collected-count slots first, then add CLAUDE.md AGENT.md to git add, the expected list and the pathspec
 git add src/backend/core/external_runner.py src/backend/tests/test_external_runner_hardening.py
 git diff --cached --name-only    # expect exactly those 2 paths
 git commit -m "fix(external-runner): make strict redaction unconditional outside break-glass (D12)" -m "Removes the dev bypass at core/external_runner.py:201: without break-glass the prompt is always redacted at policy 'strict'. HC-EXT-001. Owner decision D12, docs/capstone-report/owner-decisions-2026-09-27.md." -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- src/backend/core/external_runner.py src/backend/tests/test_external_runner_hardening.py
@@ -748,6 +753,7 @@ Expected: all pass. HC-EXT 001 + 002 group = 4 + 4 + 1 + 2 + 1 = 12 passed. `tes
 
 ```bash
 cd "${WT:?export WT per Task 0 Step 1}"
+# SLOT-RULE signed only (§4.3 carve-out): update the collected-count slots first, then add CLAUDE.md AGENT.md to git add, the expected list and the pathspec
 git add src/backend/core/external_runner.py src/backend/tests/test_external_runner_hardening.py src/backend/tests/test_redaction.py
 git diff --cached --name-only    # expect exactly those 3 paths
 git commit -m "fix(external-runner): audit break-glass before dispatch and fail closed (D12)" -m "Break-glass now writes a PHI-free AuditLog row (event security.external_api.break_glass; details trigger/decision/redaction_count only) before any prompt leaves, and the call is refused if the row cannot be written. HC-EXT-002/002b/002c/002d. test_redaction.py: one existing test gains an audit-sink patch and one assertion; no assertion removed." -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- src/backend/core/external_runner.py src/backend/tests/test_external_runner_hardening.py src/backend/tests/test_redaction.py
@@ -886,6 +892,7 @@ Expected: all pass (HC-EXT total 17), and `ok`. An import cycle here is **STOP (
 
 ```bash
 cd "${WT:?export WT per Task 0 Step 1}"
+# SLOT-RULE signed only (§4.3 carve-out): update the collected-count slots first, then add CLAUDE.md AGENT.md to git add, the expected list and the pathspec
 git add src/backend/api/model_settings.py src/backend/tests/test_external_runner_hardening.py
 git diff --cached --name-only    # expect exactly those 2 paths
 git commit -m "feat(model-settings): report break-glass redaction state to the UI (D12)" -m "ExternalApiSettingsResponse gains read-only redaction_break_glass, computed from core.external_runner.redaction_bypass_active so the warning cannot drift from the runner. HC-EXT-004/004b over HTTP." -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- src/backend/api/model_settings.py src/backend/tests/test_external_runner_hardening.py
@@ -1059,7 +1066,7 @@ cd "${WT:?export WT per Task 0 Step 1}"/src/backend && find . -name __pycache__ 
 ~/venvs/asclexis-311/bin/python -B -m pytest tests/ -p no:cacheprovider -q 2>&1 | tail -15; echo "full-suite exit=${PIPESTATUS[0]}"
 ```
 
-Expected: collected = `START_COLLECTED + 17`. The 17 are HC-EXT-001 ×4, 002 ×4, 002b, 002c ×2, 002d, 004 ×4, 004b. Failures ⊆ `START_FAILURES`, each named. `full-suite exit` is 0 exactly when that set is empty.
+Expected: collected = `START_COLLECTED + 17`. The 17 are HC-EXT-001 ×4, 002 ×4, 002b, 002c ×2, 002d, 004 ×4, 004b. If SLOT-RULE is signed, this equals the figure commit 3 wrote into the collected-count slots. Failures ⊆ `START_FAILURES`, each named. `full-suite exit` is 0 exactly when that set is empty.
 
 - [ ] **Step 2: Scope proofs** (each must print what is stated):
 
@@ -1067,9 +1074,11 @@ Expected: collected = `START_COLLECTED + 17`. The 17 are HC-EXT-001 ×4, 002 ×4
 cd "${WT:?export WT per Task 0 Step 1}"
 S=$(git merge-base HEAD origin/main)    # the Task 0 start commit; check it equals the sha recorded in Task 0 Step 1
 git diff --name-only $S..HEAD
-# expect exactly the 8 owned paths in §4.1
-git diff $S..HEAD -- src/backend/modules/ src/backend/core/audit.py src/backend/core/config.py src/backend/core/auth.py src/backend/models/ CLAUDE.md | wc -l
+# expect exactly the 8 owned paths in §4.1, plus CLAUDE.md and AGENT.md only if SLOT-RULE is signed
+git diff $S..HEAD -- src/backend/modules/ src/backend/core/audit.py src/backend/core/config.py src/backend/core/auth.py src/backend/models/ | wc -l
 # expect 0
+git diff -U0 $S..HEAD -- CLAUDE.md AGENT.md | grep -E '^[-+][^-+]'
+# SLOT-RULE unsigned: expect no output. Signed: only the collected-count slot lines, differing only in digits
 git diff -U0 $S..HEAD -- src/backend/core/external_runner.py | grep '^@@'
 # every hunk starts after the encryption helpers (old line > 92) and before get_runner_for_request (old line < 328)
 git diff $S..HEAD -- src/backend src/frontend/src | grep -E '^\+.*(https?://|import httpx|import requests|import socket|aiohttp)' | wc -l
@@ -1133,7 +1142,7 @@ If `--check` reports stale: regenerate **only** in a clean tree, with the owner'
 | # | Condition |
 |---|---|
 | S1 | The owner does not confirm Q1 (break-glass keeps its current meaning in every `app_env`). |
-| S2 | Any need to edit `modules/redaction.py`, `core/audit.py` (including its allowlists), `core/config.py`, `core/auth.py` or `CLAUDE.md`. |
+| S2 | Any need to edit `modules/redaction.py`, `core/audit.py` (including its allowlists), `core/config.py`, `core/auth.py`, or `CLAUDE.md` beyond the SLOT-RULE collected-count slots. |
 | S3 | Any hunk in `core/external_runner.py:1-92` (encryption helpers) or `:328-369` (`get_runner_for_request`), or any new provider, URL or HTTP client. |
 | S4 | Any new config field, env var, request flag or per-profile toggle for break-glass. |
 | S5 | `tests/test_redaction.py` needs more than the Task 2 Step 4 change, or any existing assertion would have to change or go. |
@@ -1150,11 +1159,12 @@ If `--check` reports stale: regenerate **only** in a clean tree, with the owner'
 
 | # | Question | Plan's default | Sign-off |
 |---|---|---|---|
-| Q1 | D12 says "keep break-glass". This plan keeps its **current meaning**: `EXTERNAL_API_REDACTION_BREAK_GLASS=true` lets the configured weaker/no redaction apply, in any `app_env` (as today, §3.2 row 5). It is now fail-closed on an audit row. Confirm; or say break-glass should work in production only. That narrower option is also within D12, but it changes the flag's reach | keep current meaning | ☐ owner: ____ date: ____ |
-| Q2 | W-10 names the external runner as a ModelRunner exception. Should W-10 also name **audited break-glass** as the one exception to `CLAUDE.md:60` ("Redaction before anything leaves")? Otherwise break-glass still contradicts that line as written | yes, raise with W-10 | ☐ owner: ____ date: ____ |
+| Q1 · **BG-REACH** | D12 says "keep break-glass". This plan keeps its **current meaning**: `EXTERNAL_API_REDACTION_BREAK_GLASS=true` lets the configured weaker/no redaction apply, in any `app_env` (as today, §3.2 row 5). It is now fail-closed on an audit row. Confirm; or say break-glass should work in production only. That narrower option is also within D12, but it changes the flag's reach | keep current meaning | ☐ owner: ____ date: ____ |
+| Q2 · **GOV-BG** | W-10 names the external runner as a ModelRunner exception. Should W-10 also name **audited break-glass** as the one exception to `CLAUDE.md:60` ("Redaction before anything leaves")? Otherwise break-glass still contradicts that line as written. **Merged with W-10 Q2 into one gate, GOV-BG (3a M-3); sign it in the W-10 plan §10, not here** | yes (include) | see W-10 §10 |
 | Q3 | The warning shows only in the Settings External API card. Should the chat page (`ExplainAssistant.tsx:276-290` at B@7b2ff1f, where the external model is named) also show it? | Settings only (D12 minimum) | ☐ owner: ____ date: ____ |
-| Q4 | Approve the edit to the ask-first-adjacent `core/external_runner.py` (§3.8), plus the one-test change in `tests/test_redaction.py`, as covered by D12 | covered | ☐ owner: ____ date: ____ |
+| Q4 | Approve the edit to the ask-first-adjacent `core/external_runner.py` (§3.8), plus the one-test change in `tests/test_redaction.py`, and the response-model field in `api/model_settings.py:208-213` plus its one import (`:22-24`), all outside the encryption handler (PUT `save_external_api_settings` `:719-757`, `encryption_manager.encrypt(` at `:745`, B@7b2ff1f), as covered by D12 | covered | ☐ owner: ____ date: ____ |
 | Q5 | Warning copy (Task 4 Step 3) | as written | ☐ owner: ____ date: ____ |
+| SLOT-RULE | Program gate (3a §5.4): every collection-changing commit updates the collected-count slots. Signed → the §4.3 carve-out applies to commits 1–3 | recommend yes | program owner gate (not signed here) |
 | — | PR merge | — | ☐ owner: ____ date: ____ |
 
 ## 12. Recurring-failures recheck
@@ -1179,6 +1189,6 @@ If `--check` reports stale: regenerate **only** in a clean tree, with the owner'
 | 3 | `feat(model-settings): report break-glass redaction state to the UI (D12)` | `src/backend/api/model_settings.py`, `src/backend/tests/test_external_runner_hardening.py` |
 | 4 | `feat(settings): warn when break-glass weakens external API redaction (D12)` | the 4 frontend paths in §4.1 |
 
-Each commit: `git add <paths>` → `git diff --cached --name-only` equals the listed paths → `git commit … -- <paths>`. No `docs:` commit is in this plan: the CLAUDE.md amendment is W-10's.
+Each commit: `git add <paths>` → `git diff --cached --name-only` equals the listed paths → `git commit … -- <paths>`. If SLOT-RULE is signed, commits 1–3 also list `CLAUDE.md` and `AGENT.md` (collected-count slots only, §4.3). No `docs:` commit is in this plan: the CLAUDE.md amendment is W-10's.
 
 Back to: [implementation program](../capstone-report/implementation-program.md) · [owner decisions](../capstone-report/owner-decisions-2026-09-27.md) · [recurring failures](../agentic/recurring-failures.md)

@@ -138,7 +138,7 @@ If the owner rejects the default form, stop before Task 5. The alternatives are 
 | `.github/workflows/ci.yml` | modify: explicit fetch step in `backend-tests` and `e2e-tests` | 4 |
 | `src/backend/modules/rag.py` | modify: embed the query only after rows exist, and wrap the error (Task 5); model-name filter (Task 7, gated) | 5, 7 |
 | `src/backend/api/documents.py` | modify: embed before deleting chunks on reprocess | 6 |
-| `src/backend/tests/test_embedding_bundle.py` | create (HC-EMB-001..004c) | 2, 3, 4 |
+| `src/backend/tests/test_embedding_bundle.py` | create (HC-EMB-001..004e) | 2, 3, 4 |
 | `src/backend/tests/test_embedding_fail_closed_paths.py` | create (HC-EMB-005..008) | 5, 6, 7 |
 | `AGENT.md`, `CLAUDE.md` (baseline sentences only), `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/specs-compliance-matrix.md`, `docs/capstone-report/architecture-overview.md`, `docs/capstone-report/claims-ledger.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/architecture/performance-scalability-review.md` | modify | 8 |
 
@@ -161,24 +161,25 @@ Rule: no two plans edit a shared file at the same time (program, "Shared files a
 
 | File | Order |
 |---|---|
-| `core/config.py` | P1 (B) → P4 (comment at `:109`) → W-6 (if it edits config) → **W-8** |
+| `core/config.py` | P1 (B) → S-1 (+4 lines after `debug`, `:28` B@7b2ff1f) → P4 (comment at `:109`) → W-6 (if it edits config) → **W-8**. S-1 shifts W-8's anchors by +4; re-anchor by grep |
 | `scripts/download_models.py` | P1 (B) → **W-8** |
 | `api/documents.py` | P1 (A) → P5 (Task 2: `utcnow`) → **W-8** |
-| `modules/rag.py` | P5 (if touched) → W-3 (`:322-328`) → W-5 (`:120-132`) → W-4 (if touched) → **W-8**. Distinct hunks, but serialize |
+| `modules/rag.py` | W-5 (`:123-140`) → W-3 (`:323-332`, `:549-553`) → **W-8** (W-4 does not edit rag.py). W-3 and W-8 both edit the `_search_vectors_async` statement (`:549-553` B@7b2ff1f): a real hunk dependency, so serialize |
 | `.gitignore` | P1 (B) → P3/W-1 (`!.claude/agents/`) → **W-8** |
-| `ci.yml` | P1 → P5 (time lint) → G-B4 / W-4 (eval gate) → **W-8**, never concurrent |
-| `config/.env.example` | P4 Task 3 (removes `VECTOR_STORE_TYPE`) → **W-8** |
+| `ci.yml` | P1 → P5 (time lint) → W-4 (eval gate) → W-11a PR-3 (G-B4) → **W-8**, never concurrent (canonical order, 3a B-3) |
+| `docs/architecture/ci-and-quality-gates.md` | P4 N6 → W-11a PR-3 (Task 9) → **W-8** (`:58`) → P4 F4 (canonical order, 3a B-3) |
+| `config/.env.example` | P1 → S-1 (`:15-19`) → P4 Task 3 (removes `VECTOR_STORE_TYPE`) → **W-8**. S-1 shifts anchors below `:14` by +5; re-anchor by grep |
 | `CLAUDE.md` / `AGENT.md` baseline lines | P1 → P4 → W-10 → **W-8** |
 | capstone matrix / contract rows | any W, serialized |
 
-**Hard prerequisites:** P1, P4 and P5 merged. The other rows are soft: rebase onto whichever of them merged first, and re-verify line numbers.
+**Hard prerequisites:** P1, P4 and P5 merged; also W-3 (shared `_search_vectors_async` statement in `rag.py`) and W-11a PR-3 (`ci.yml`, `ci-and-quality-gates.md`), per 3a B-2/B-3. The other rows are soft: rebase onto whichever of them merged first, and re-verify line numbers.
 
 **Hazard for P5 and later plans:** P5 Task 1 runs `git add src/backend/models/`. The model directory lives inside that package directory (`models_path="models/"` resolves under `src/backend`), so Task 2's `.gitignore` line is what keeps model files out of such directory adds.
 
 ## Dependencies
 
 - **Phases:** P1 (B brings `download_models.py`; A brings `documents.py`), P4, P5 (see order above). Downstream: G-C4 consumes `EMBEDDING_MODEL_PATH`.
-- **Decisions:** D8 and D8-delivery (approved), D9 (3.11 venv; stop if absent), Q-FC and Q-HASH (this plan, unsigned).
+- **Decisions:** D8 and D8-delivery (approved), D9 (3.11 venv; stop if absent), Q-FC and Q-HASH (this plan, unsigned), EMB-REV (this plan, unsigned), VERIFIED-FALLBACK (Q-FC + W-3 O-1, unsigned).
 
 ---
 
@@ -223,8 +224,9 @@ Rule: no two plans edit a shared file at the same time (program, "Shared files a
   git grep -c "VECTOR_STORE_TYPE" HEAD -- config/.env.example                   # expect no output (P4 Task 3 landed)
   git ls-files docs/capstone-report/owner-decisions-2026-09-27.md               # expect the path (P0-B landed)
   git grep -n "HC-EMB\|hc_emb" HEAD -- src/backend/tests | wc -l               # expect 0 (no ID collision)
+  git grep -n "HC-VER-001" HEAD -- src/backend/tests | head -1                  # expect a hit (W-3 landed)
   ```
-  If any expectation fails, **stop**: a prerequisite phase has not landed.
+  If any expectation fails, **stop**: a prerequisite phase has not landed. W-11a PR-3 has no reliable grep marker: record its merge sha from the PR page, or stop.
 - [ ] **Step 3: Re-locate the anchors** on this tree and record them:
   ```bash
   cd /mnt/c/Users/DangT/Documents/GitHub/hc-w08
@@ -1296,7 +1298,7 @@ async def test_hc_emb_008_vector_search_ignores_vectors_from_another_model(profi
     - remove "the implicit embedding download (C-LOCAL-2)" from the exceptions;
     - add `scripts/download_models.py` to the model-download allow-list;
     - set the file count to the Step 3 result.
-  - Matrix LOCAL-03: fill Implementation, Tests and Gate with the paths and HC-EMB IDs. Set Status per the matrix Status table (`enforced` only if the CI job fails on a violation). Recount the scorecard line.
+  - Matrix LOCAL-03: fill Implementation, Tests and Gate with the paths and HC-EMB IDs. Set Status per the matrix Status table (`enforced` only if the CI job fails on a violation). Do not recount the scorecard line; it belongs to the orchestrator (3a M-2), so tell the orchestrator the row changed.
   - `architecture-overview.md`:
     - `:62`: replace the `ST -. "HTTPS model fetch" .-> HF` edge with a dashed `download_models.py embedding` script edge;
     - `:69`: sentence;
@@ -1350,7 +1352,7 @@ async def test_hc_emb_008_vector_search_ignores_vectors_from_another_model(profi
 4. Any edit would touch an ask-first file, `api/assistant.py`, `api/interpretations.py`, `requirements.txt`, or an existing test.
 5. Gate-env failures ⊄ START failures, or the model-absent failure list leaves `test_rag_pipeline.py` / `test_embedding_bundle.py`.
 6. Anyone proposes committing model files, adding git-lfs, fetching at runtime, or setting `HF_HUB_OFFLINE` process-wide. None of these is licensed.
-7. Q-FC unsigned: the PR stays open. Q-HASH unsigned: Task 7 is not started.
+7. Q-FC, VERIFIED-FALLBACK or EMB-REV unsigned: the PR stays open. Q-HASH unsigned: Task 7 is not started.
 8. Any urge to lower the 0.7 bar or skip HC-EMB-002. Neither is allowed (C-SAFE-4).
 
 ## Rollback
@@ -1374,6 +1376,8 @@ async def test_hc_emb_008_vector_search_ignores_vectors_from_another_model(profi
 
   `[ ] Approved  [ ] Changed to: ________  Owner: ________  Date: ________`
 
+  **Coupled gate VERIFIED-FALLBACK (3a M-8):** decide Q-FC together with W-3 O-1. The legacy-chat row sends the patient to the knowledge fallback, whose `_fetch_latest_obs` has no `user_verified` filter (`api/assistant.py:1329-1347` B@7b2ff1f), so it can cite unverified values, against D4, unless O-1 is signed. Recommended: O-1 = yes, signed before W-8 merges. Per 3a §3 its sign-off line lives in the W-3 plan; this plan only cites it.
+
   The grounded-interpretation sentence above is copied verbatim into `QFC_APPROVED_DETAIL` in `tests/test_embedding_fail_closed_paths.py`, where HC-EMB-006c asserts it. If the owner changes the wording, update both the product constant and that literal from the signed line, in the same commit. The PR cannot merge until this line is signed.
 - **Q-HASH**, Task 7: exclude hash-fallback vectors from legacy vector search until reprocessed.
 
@@ -1381,6 +1385,9 @@ async def test_hc_emb_008_vector_search_ignores_vectors_from_another_model(profi
 - **Q-OFFLINE**, confirm the interpretation: "HF offline" means a per-call offline load of a local path, not a process-wide `HF_HUB_OFFLINE`, which would disable the sanctioned GGUF download.
 
   `[ ] Confirmed  Owner: ________  Date: ________`
+- **EMB-REV** (3a M-6), the pinned embedding model and revision: `all-MiniLM-L6-v2@1110a243fdf4706b3f48f1d95db1a4f5529b4d41` (repo `sentence-transformers/all-MiniLM-L6-v2`; see Global Constraints). `owner-decisions-2026-09-27.md:46` leaves the revision pin owner-gated "in the W-8 plan", and W-11b S-C4-5 bundles whatever this line selects. Must be signed before W-8 merges.
+
+  `[ ] Approved  [ ] Changed to: ________  Owner: ________  Date: ________`
 - **Merge:** `[ ] Merged  Owner: ________  Date: ________`
 
 ## Recurring-failures recheck

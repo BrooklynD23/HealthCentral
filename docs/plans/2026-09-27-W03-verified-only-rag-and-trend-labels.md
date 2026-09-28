@@ -61,7 +61,7 @@ Owner decision **D4**, [owner-decisions-2026-09-27.md](../capstone-report/owner-
 2. Any edit to the agent path, the golden set, eval thresholds or `scripts/agent_eval_gate.py`.
 3. Any edit to `faithfulness.py`, `verifier_agent.py`, `interpret_safety.py`, `redaction.py`, `core/auth.py`.
 4. The legacy prompt text (`main@40f590e` `modules/rag.py:123-140`). **W-5** owns it.
-5. Abstention behaviour or patient-facing message wording, including the insufficient-context text at `modules/rag.py:1236-1245`. **W-4** owns it; see O-4.
+5. Abstention behaviour or patient-facing message wording, including the insufficient-context text at `modules/rag.py:1236-1245`. **W-4** owns abstention behaviour; new wording for that text is the program owner item MSG-UNVERIFIED; see O-4.
 6. Any other change to `api/assistant.py`: the agent branch, W-4's abstention helper, the care-task and med-change fallbacks, and wording. Task 7's single `WHERE` clause becomes licensed only once O-1 is signed "yes".
 7. The observation value embedded in the interpretations question (`api/interpretations.py:427-432`). Owner question O-3; this plan makes no change.
 8. A new data model: no `Chunk.verified` column, no migration, and no verify button for documents with zero observations (O-5 follow-up).
@@ -167,19 +167,19 @@ Each ID below was confirmed by grep on 2026-09-27.
 | **W-10** governance commit landed | it edits `CLAUDE.md`; this plan edits only the baseline lines of `CLAUDE.md`/`AGENT.md` afterwards (program overlap row "each phase writes its own measured count; never edit concurrently") |
 | **D4** | approval (§1) |
 | **D9** | 3.11 venv |
-| **W-4** merged | W-4 adds a helper to `api/assistant.py` (orchestrator-set order **P1 → W-4 → W-3** on that file). It may also touch `modules/rag.py` |
+| **W-4** merged | W-4 adds a helper to `api/assistant.py` (orchestrator-set order **P1 → W-4 → W-3** on that file). W-4 does not edit `modules/rag.py` (W-4 §4 shared-file table) |
 | **O-5** signed | before Task 3 only |
 | **O-1** signed "yes" | before Task 7 only (opt-in) |
 
 **Shared-file order (the orchestrator confirms):**
 - `api/observations.py`: **P5 → W-3**.
 - `api/assistant.py`: **P1 → W-4 → W-3** (Task 7), as set by the orchestrator.
-- `modules/rag.py`: **W-5 and W-4 before W-3**, serialized and never concurrent.
+- `modules/rag.py`: **W-5 → W-3 → W-8**, serialized and never concurrent (canonical order, Wave-3 integration B-2). W-4 does not edit this file.
   - The hunks are disjoint: W-5 edits the prompt at `:123-140`; W-3 edits `:323-332` and `:549-553`.
   - There is no functional coupling. The W-4 author reports that W-4's legacy eval gate fakes retrieval, so W-3's filters cannot flip it.
-  - W-3 goes last on both shared files only so that one phase finishes each file.
+  - W-3 goes after W-5 on `rag.py` and after W-4 on `api/assistant.py`, so one phase finishes each file at a time. W-8 follows W-3 on `rag.py`: both edit the `_search_vectors_async` statement (`:549-553`).
 - `CLAUDE.md` / `AGENT.md`: **W-10 → W-3**, collected-count slot only, and never concurrent with any other phase's baseline edit.
-- `src/frontend/src/services/types.ts`: W-6 (break-glass UI warning) may also edit this file. Serialize if so.
+- `src/frontend/src/services/types.ts`: no other 2026-09-27 plan edits this file (W-6 edits `services/modelSettings.ts`, not `types.ts`).
 
 ## 6. Tasks
 
@@ -1309,7 +1309,7 @@ Stop and ask the owner when:
 2. Task 3 is reached and O-5 is unsigned. Or Task 7 is reached and O-1 is not signed "yes" (skip it, do not ask twice). Or Task 7 is reached and W-4 has not merged; never edit `api/assistant.py` concurrently with W-4.
 3. An existing test goes red after Task 2 or 3. Classify it first (§6 Task 2 Step 6). Never change an assertion to make it pass without the owner's knowledge in the PR.
 4. The eval-gate outputs differ (Task 8 Step 2).
-5. P5, W-10, W-4 or W-5 has not landed; or `modules/rag.py`, `api/observations.py`, `api/assistant.py`, `CLAUDE.md` or `AGENT.md` is being edited by another phase.
+5. P5, W-10, W-4 or W-5 has not landed (W-4 for `api/assistant.py`; W-5 for `modules/rag.py`); or `modules/rag.py`, `api/observations.py`, `api/assistant.py`, `CLAUDE.md` or `AGENT.md` is being edited by another phase.
 6. A line anchor from Task 0 Step 5 does not match the code this plan describes (the code moved).
 7. Any failure not explained by this plan's own change.
 8. Anything needs a threshold changed.
@@ -1327,10 +1327,10 @@ Stop and ask the owner when:
 | # | Question | Default in this plan | Sign-off |
 |---|---|---|---|
 | O-5 | Chunks have no verification state. Apply the agent's R-5 rule (`Document.status == "verified"`) to legacy vector retrieval? Effect: documents with zero observations (visit notes, imaging, pathology) are unreachable by legacy chat, because the UI cannot verify them (`VerificationWorkbench.tsx:523-527`). A verify affordance for them would be a separate, new feature. | Task 3 **blocked** until signed | `O-5 approved: ____________ (owner, date)` |
-| O-1 | The no-LLM knowledge fallback cites the latest observation with `[cite:N]`, unfiltered (`B@7b2ff1f` `api/assistant.py:1329-1347`). Does D4's "legacy RAG" include it? The case for yes is in §3.7(a). | Task 7 **skipped** unless signed "yes" (opt-in) | `O-1 yes/no: ____________ (owner, date)` |
+| O-1 | The no-LLM knowledge fallback cites the latest observation with `[cite:N]`, unfiltered (`B@7b2ff1f` `api/assistant.py:1329-1347`). Does D4's "legacy RAG" include it? The case for yes is in §3.7(a). Canonical gate **VERIFIED-FALLBACK** (owner-gated): decided together with W-8 Q-FC (legacy-chat row), because W-8's fail-closed default routes legacy chat to this fallback; proposed default O-1 = yes, signed before W-8 merges. | Task 7 **skipped** unless signed "yes" (opt-in) | `O-1 yes/no: ____________ (owner, date)` |
 | O-2 | Does D4's trend marking cover the LabInterpreter chart (`InterpretedTrendChart.tsx`), which plots the same endpoint? | Task 6 **runs** (marking is what D4 licenses) | `O-2 veto (skip Task 6): ____________` |
-| O-3 | The interpretations route puts the observation's own value into the question (`api/interpretations.py:427-432`). For an unverified observation, the value still reaches the model; after W-3 the context holds only *other*, verified values. Leave it, or route a fix through W-7 (it sits beside `interpret_safety.py`)? | no change here | `O-3 decision: ____________` |
-| O-4 | With only unverified data, legacy chat now answers "I don't have enough information… Please make sure you have uploaded relevant documents." (`modules/rag.py:1236-1245`). That misleads a patient whose document *is* uploaded but unverified. Should W-4 reword it? | no change here (W-4 owns templates) | `O-4 decision: ____________` |
+| O-3 | The interpretations route puts the observation's own value into the question (`api/interpretations.py:427-432`). For an unverified observation, the value still reaches the model; after W-3 the context holds only *other*, verified values. Leave it, or route a fix through W-7 (it sits beside `interpret_safety.py`)? Program owner item **INTERP-UNVERIFIED** (no W-7 gate covers it). | no change here | `O-3 decision: ____________` |
+| O-4 | With only unverified data, legacy chat now answers "I don't have enough information… Please make sure you have uploaded relevant documents." (`modules/rag.py:1236-1245`). That misleads a patient whose document *is* uploaded but unverified. Should W-4 reword it? Program owner item **MSG-UNVERIFIED**: W-4 licenses no new wording and has no gate for it, so new wording needs its own licence. | no change here | `O-4 decision: ____________` |
 | Merge | W-3 PR | — | `Merged by owner: ____________` |
 
 ## 11. For the docs owners (reference only; not edited here)

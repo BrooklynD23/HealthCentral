@@ -5,6 +5,7 @@
 **Refresh Trigger:** P1 merges (re-verify every `B@`/`A@`/`M@` anchor below); P2, P3/W-1, W-2, W-3, W-4, W-5, W-6, W-7, W-8 or W-10 merges (each unlocks or changes a task here); the owner signs plan 08 Brief 2; OpenWiki content is generated (G-C2)
 **Status:** PROPOSED — not executed
 **Review status:** 4 Codex rounds; round-4 MAJORs fixed after the last round, not re-reviewed (owner acceptance required).
+**Size:** 25 `Task` headings holding 33 task units (0–4, 5R, 6–16, N1–N10, F1–F6), measured `grep -cE '^#+ Task'` → 25 (3b minor 8; supersedes the ledger's unmeasured "30 tasks").
 **Prerequisites:** P0-B and P1 merged to `origin/main`; the 2026-09-27 plan set (`docs/plans/2026-09-27-*.md`, this file included) committed on main via an owner-approved docs commit (P0-B's approved text covers only `audit/` + `docs/capstone-report/` + `docs/INDEX.md`, not these plans); plus, for P4-core, P2 and P3/W-1 merged and the D9 venv `~/venvs/asclexis-311` built (§5). Before P1 lands, Task 0 Step 2's ancestry check fails: that is the intended stop, not a defect.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to run this plan task by task. Steps use checkbox (`- [ ]`) syntax.
@@ -166,10 +167,10 @@ Each premise was re-grepped on `M@86606d0` on 2026-09-27. "Holds" means the stal
 | `docs/features/00_features_index.md` | P2 (Task 6) → **P4-core Task 4** → **N8** |
 | `docs/architecture/README.md` | P2 (`:121-124`) → **P4-core N4** → F3/F5 |
 | `docs/architecture/pipelines.md` | **P4-core N1–N3** → N8 → F1, F2, F4 (any order, serial) |
-| `docs/architecture/ci-and-quality-gates.md` | **P4-core N6** → W-8 (`:58`) → F4 (W-4 job row) |
+| `docs/architecture/ci-and-quality-gates.md` | **P4-core N6** → W-11a Task 9 (PR-3) → W-8 (`:58`) → F4 (W-4 job row). Canonical order (3a B-3), same as `ci.yml`: W-4 → W-11a PR-3 → W-8 |
 | `docs/agentic/evals.md` | **P4-core Task 1** → W-4 (its "after P4" row) |
 | `docs/user/faq.md` | **P4 Task 7** (`:44-47`) and W-5 (`:108-110`): disjoint, serial |
-| `config/.env.example`, `src/backend/core/config.py` | P1 (B) → **P4-core** → W-8 |
+| `config/.env.example`, `src/backend/core/config.py` | P1 (B) → S-1 (if S1-A signed; +4 lines after `debug` in `config.py`, +5 after `:14` in `.env.example`) → **P4-core** → W-8. Re-anchor N7 and OG-4 by grep (3a m-11) |
 | `docs/compliance/data-privacy.md` | P1 (A) → W-10 → W-10b. **P4 does not edit it**; the program's "P1 → P4 → G-A1" is superseded |
 | `docs/INDEX.md`, `docs/_link_graph.json` | P0-B → every docs phase regenerates on its own clean tree |
 
@@ -1152,7 +1153,7 @@ This file will add a 10th orphan until the index is regenerated. These are P0-B/
 **Owner-gated items found (unsigned):**
 
 - [ ] **OG-1.** Add `/memories` to `.serena/.gitignore` so regenerated Serena memories are not committed again. D2's text does not cover it. Approve: ______ Date: ______
-- [ ] **OG-2.** CSV / JSON / doctor-summary exports include unverified rows, and D4 does not cover exports. P4 only documents this. Decide or accept: ______ Date: ______
+- [ ] **OG-2 (canonical owner item D4-EXPORTS; merges W-2 finding 4 and W-3 §1 #10).** CSV / JSON / doctor-summary exports include unverified rows, and D4 does not cover exports. P4 only documents this. Decide or accept: ______ Date: ______
 - [ ] **OG-4 (Task 3).** Approve removing the dead `VECTOR_STORE_TYPE` lines (the `# Vector store type` comment and `VECTOR_STORE_TYPE=sqlite-vss`) from `config/.env.example`, keeping `EMBEDDING_DIMENSIONS=384`. Approve: ______ Date: ______
 - [ ] **OG-5 (Task 10).** Approve docstring-only edits to `src/backend/api/__init__.py` and `src/backend/modules/agent/__init__.py` with the text in Task 10. Approve: ______ Date: ______
 - [ ] **OG-6 (Task 14).** Approve deleting `scripts/download_models.py` (the root copy; `src/backend/scripts/download_models.py` stays). Approve: ______ Date: ______
@@ -1176,7 +1177,7 @@ git commit -m "docs(<scope>): <summary>" -- <same explicit paths>
 
 **Owner sign-offs (unsigned):**
 - [ ] P4-core PR merged by owner: ______ Date: ______
-- [ ] N9: plan 08 Brief 2 signed (prerequisite): ______ Date: ______
+- [ ] N9: plan 08 Brief 2 signed (prerequisite; canonical gate **P8-B2-ORDER**, signed on P08's S-2 line): ______ Date: ______
 - [ ] Each deferred PR (N8, N10, F1–F6) merged by owner: ______
 
 **Rollback:**
@@ -1213,7 +1214,7 @@ git commit -m "docs(<scope>): <summary>" -- <same explicit paths>
 8. `settings.ollama_base_url` is not used to build the provider (`core/llm/factory.py:51`). See OG-3.
 9. `pipelines.md:44-45` also mis-states highlights, care-task candidates and medication reconciliation as reading only verified data. They read unreviewed entities and drop rejected ones.
 10. `docs/architecture/README.md:94-97` calls the Hugging Face download the "only" outbound connection. The implicit embedding fetch and the opt-in cloud runner also exist.
-11. **Ownership (resolved by the orchestrator):** `CLAUDE.md:62` (D11) is never P4's; if W-10's Q1 is unsigned it stays unchanged as an open owner item. The W-10 plan (§1.3, `:52`) still says the row "goes to P4" and needs that text updated.
+11. **Ownership (resolved by the orchestrator):** `CLAUDE.md:62` (D11) is never P4's; if W-10's Q1 is unsigned it stays unchanged as an open owner item. ~~The W-10 plan (§1.3, `:52`) still says the row "goes to P4" and needs that text updated.~~ **Superseded (3a m-13, re-checked 2026-09-28):** W-10 §1.3 and its Q1/GOV-D11 row now say "It does not go to P4"; no W-10 edit is needed.
 
 ## 15. Execution record
 

@@ -1,6 +1,6 @@
 # Capstone Report Knowledge Base
 
-**Last Updated:** 2026-09-27
+**Last Updated:** 2026-09-28
 
 Knowledge base for the CS4610 capstone report. It tracks the distance between the project's original goal, the repository's verified state, and the claims the report makes. Everything here is evidence-linked. A claim without a `file:line`, commit hash, or command output is marked UNVERIFIED, not asserted.
 
@@ -26,6 +26,29 @@ Knowledge base for the CS4610 capstone report. It tracks the distance between th
 | Next-agent handoff: [`handoff-2026-09-27-execution.md`](../../audit/2026-09-25/handoff-2026-09-27-execution.md) | Paste-ready brief to start execution at P0-B |
 | [research/](research/) | Technology scouting. 01–03 carry proposed integration contracts with sourced verdicts; 04 is a literature map (`CITE`, not contracts). |
 | Review follow-up: [`2026-09-27-followup.md`](../../audit/2026-09-25/review/2026-09-27-followup.md) | Disposition of all 17 independent-review findings (F-01…F-17) plus new findings from the re-check |
+
+### 2026-09-27 plan set (`docs/plans/`)
+
+Proposed plans for the program's W-items, amendments and new findings. None is executed; each carries its own owner gates.
+
+| Plan | Purpose |
+|---|---|
+| [P04 amendment](../plans/2026-09-27-P04-doc-drift-sweep-amendment.md) | Runs audit plan 04's doc-drift sweep on the post-P1 tree, corrects tasks the branches overtook, and adds uncovered drift |
+| [P08 amendment](../plans/2026-09-27-P08-gated-packet-hipaa-aligned-amendment.md) | Gated-items packet under the HIPAA-aligned posture (W-9, D10) |
+| [S-1](../plans/2026-09-27-S01-sql-echo-phi-leak.md) | SQL echo PHI leak fix (new HIGH finding; gates SQL-ECHO / S1-A / S1-B) |
+| [W-1](../plans/2026-09-27-W01-harness-agents-branch-a.md) | Commit the five named subagents (D1, Branch A) |
+| [W-2](../plans/2026-09-27-W02-doctor-summary-redaction.md) | Strict redaction of the doctor summary (D3) |
+| [W-3](../plans/2026-09-27-W03-verified-only-rag-and-trend-labels.md) | Verified-only legacy RAG and labelled unverified trend points (D4) |
+| [W-4](../plans/2026-09-27-W04-legacy-abstain-and-eval-gate.md) | Legacy RAG abstains on invalid answers, plus a CI eval gate (G-B5) |
+| [W-5](../plans/2026-09-27-W05-citation-marker-prompt.md) | Align the legacy prompt's citation-marker instruction (D11) |
+| [W-6](../plans/2026-09-27-W06-external-runner-hardening.md) | External runner: unconditional redaction, audited break-glass (D12) |
+| [W-7](../plans/2026-09-27-W07-tiered-interpretation-via-modelrunner.md) | Tiered interpretation routed through ModelRunner (D7) |
+| [W-8](../plans/2026-09-27-W08-bundled-embedding-model.md) | Bundled embedding model, offline load, fail closed (D8) |
+| [W-10](../plans/2026-09-27-W10-governance-invariant-amendments.md) | Governance commit: invariant amendments for D3, D4, D12 |
+| [W-11a](../plans/2026-09-27-W11a-test-and-gate-hardening.md) | Test and gate hardening (G-B1, G-B2, G-B4, G-B6) |
+| [W-11b](../plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md) | Roadmap items G-C1…G-C4 |
+| [Nightly doc-drift routine](../plans/2026-09-27-nightly-doc-drift-routine-spec.md) | Specification for a scheduled doc-drift check |
+| [Senior report showcase](../plans/2026-09-27-senior-report-showcase-plan.md) | CS4610 senior report stakeholder showcase update plan |
 
 ## Maintenance rules
 

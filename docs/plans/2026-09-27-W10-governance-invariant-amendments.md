@@ -11,7 +11,11 @@
 3. Variant I needs the W-item PR's red-first and break-it evidence.
 4. If Q1 is unsigned, `CLAUDE.md:62` stays unchanged as an open owner item.
 
-**Review status:** 3 Codex rounds. Round-3 findings were fixed after the last round; the owner decides whether there is a round 4.
+**Review status:** 4 Codex rounds (round 4 final; no round 5). The round-4 MAJOR was fixed after the last round and was not re-reviewed (owner acceptance required).
+**Revision:** r4 + Wave 6, 2026-09-28:
+1. Codex r4: merge status of W-2/W-3/W-6 now comes from the item's PR (`gh pr view` + `merge-base --is-ancestor`), not from a test-ID grep. A merged item with missing or renamed tests gets U, never P (Task 1 Steps 2-3, S6).
+2. 3a M-3: the break-glass clause is owner-gated again as **GOV-BG** (merges W-6 §11 Q2 and this plan's Q2). D12 names the external runner as a *ModelRunner* exception (Consequence #1); calling break-glass a bypass of "Redaction before anything leaves" is an inference. Unsigned, C-2 and DP-4 quote D12's conditions without calling break-glass a bypass (§1.2, Task 4, §10).
+3. Q1 is registered as **GOV-D11**.
 **Revision:** r3, 2026-09-27, round-3 findings:
 1. The route inventory prints **mounted** paths: the `main.py` prefix, then the `api/__init__.py` `include_router` prefix, then any `APIRouter(prefix=)`, then the decorator path (§3.5, Task 1 Step 4).
 2. Q2 is no longer a gate. D12's text licenses naming audited break-glass, so the clause is unconditional, the alternate blocks are removed, and C-2 quotes D12 verbatim.
@@ -50,15 +54,15 @@ Consequence #1, verbatim: "**Governance edits are now approved:** amend `CLAUDE.
 | Hunk | File | Licensed by | In by default? |
 |---|---|---|---|
 | C-1 | `CLAUDE.md` §3 ModelRunner rule | D12 "documented ModelRunner exception … Amend CLAUDE.md to name the exception" | yes |
-| C-2 | `CLAUDE.md` invariant "Redaction before anything leaves" | D3 "amend CLAUDE.md … to name them as deliberate exceptions" and "Doctor summary … redact it (strict)". D12 "make strict redaction unconditional … keep break-glass only with audit + UI warning" | yes, including the break-glass clause (r3: no longer gated; D12's own text licenses it. This also answers W-6 §11 Q2) |
-| C-3 | `CLAUDE.md` invariant "No medical advice" | D11 "document [YOUR_RESULTS:N]/[REFERENCE:N] as context labels" | **no: conditional on Q1** |
+| C-2 | `CLAUDE.md` invariant "Redaction before anything leaves" | D3 "amend CLAUDE.md … to name them as deliberate exceptions" and "Doctor summary … redact it (strict)". D12 "make strict redaction unconditional … keep break-glass only with audit + UI warning" | yes. The break-glass-as-only-bypass clause only if **GOV-BG** is signed; unsigned, C-2 quotes D12's conditions instead (Wave 6, 3a M-3; GOV-BG also answers W-6 §11 Q2) |
+| C-3 | `CLAUDE.md` invariant "No medical advice" | D11 "document [YOUR_RESULTS:N]/[REFERENCE:N] as context labels" | **no: conditional on Q1 (GOV-D11)** |
 | C-4 | `CLAUDE.md` invariant "Local-first" | none. D12 licenses naming the *ModelRunner* exception only | **no: owner-gated, Q3** |
 | DP-1 | `data-privacy.md` Data Portability | D3 | yes |
 | DP-2 | `data-privacy.md` backup paragraph (`:173-178`) | D3 | yes |
 | DP-3 | `data-privacy.md` new section "Unverified Extracted Values" | D4 "Docs updated to say so" | yes |
-| DP-4 | `data-privacy.md` Optional External API redaction bullet | D12 "documented … make strict redaction unconditional … break-glass only with audit + UI warning". The orchestrator (2026-09-27) assigned this line to W-10 | yes |
+| DP-4 | `data-privacy.md` Optional External API redaction bullet | D12 "documented … make strict redaction unconditional … break-glass only with audit + UI warning". The orchestrator (2026-09-27) assigned this line to W-10 | yes; the break-glass-as-only-bypass wording only if GOV-BG is signed |
 
-**Decision on break-glass (C-2, DP-4). Settled by D12's text; not an owner gate (r3).** D12 reads: "make strict redaction unconditional (remove the dev bypass; keep break-glass only with audit + UI warning). Amend CLAUDE.md to name the exception." That text itself keeps break-glass and sets its two conditions, so naming audited break-glass is licensed as written. Without the clause, `CLAUDE.md:60` as written would forbid a bypass the owner chose to keep, which is recurring failure #8. The clause is worded strictly inside D12:
+**Decision on break-glass (C-2, DP-4). Owner gate GOV-BG (Wave 6, 3a M-3), default "include".** The r3 reasoning below is the recommendation, not a licence. Consequence #1 reads D12 as "the external runner as a named ModelRunner exception"; naming break-glass as a bypass of "Redaction before anything leaves" goes one step further, and anything wider than the verbatim text is owner-gated. If GOV-BG is unsigned, C-2 and DP-4 quote D12's conditions ("make strict redaction unconditional (remove the dev bypass; keep break-glass only with audit + UI warning)") and do not call break-glass a bypass or an exception. *r3 reasoning:* D12 reads: "make strict redaction unconditional (remove the dev bypass; keep break-glass only with audit + UI warning). Amend CLAUDE.md to name the exception." That text itself keeps break-glass and sets its two conditions, so naming audited break-glass is licensed as written. Without the clause, `CLAUDE.md:60` as written would forbid a bypass the owner chose to keep, which is recurring failure #8. The clause is worded strictly inside D12:
 - it restates D12's two conditions and quotes D12 verbatim;
 - it names break-glass as the only bypass;
 - it adds nothing about which `app_env` break-glass applies in. That question (W-6 §11 Q1) stays open and belongs to W-6.
@@ -89,7 +93,7 @@ Consequence #1, verbatim: "**Governance edits are now approved:** amend `CLAUDE.
 | ID | Where | Quoted heading / row (verified by grep 2026-09-27) | Effect of W-10 |
 |---|---|---|---|
 | C-REDACT-1 | [contract](../capstone-report/architecture-engineering-contract.md) §6 | "**C-REDACT-1 · BINDING (ask-first).** … Backups are the single documented exception." "Until D3 is answered, CSV/JSON/doctor summary violate `CLAUDE.md:60` as written." | CSV/JSON become named exceptions. The doctor summary stays under the rule |
-| C-REDACT-2 | contract §6 | "**C-REDACT-2 · BINDING.** The external runner MUST apply strict redaction before any network call, unconditionally (`CLAUDE.md:60`)." | break-glass named as the only bypass, with its conditions |
+| C-REDACT-2 | contract §6 | "**C-REDACT-2 · BINDING.** The external runner MUST apply strict redaction before any network call, unconditionally (`CLAUDE.md:60`)." | break-glass named as the only bypass, with its conditions, if GOV-BG is signed; otherwise D12's conditions quoted verbatim |
 | C-LLM-1 | contract §7 | "**C-LLM-1 · BINDING.** All LLM calls MUST go through the `ModelRunner` facade (`CLAUDE.md:25`)." Deviation 2: "Whether it is an allowed exception is **OWNER-GATED**." | the external runner becomes the named exception |
 | C-VERIFY-2 | contract §4 | "**C-VERIFY-2 · OWNER-GATED.** Which consumers MUST read verified rows only." | D4 recorded in `data-privacy.md` (DP-3) |
 | C-SAFE-5 | contract §5 | "**C-SAFE-5 · PROPOSED.** One citation-marker vocabulary across docs, prompt and validator." | only if Q1 is signed (C-3) |
@@ -226,6 +230,16 @@ INDEX identical (P, I, U): True;  link graph identical: True;  DOC-007 errors: 0
 BREAK a: W10-A9 FAIL + INDEX/graph differ;  BREAK b: W10-A6 FAIL
 routes_inv r3 (plan copy) at B: 14 lines; "feedback.py:306 POST /api/v1/feedback/export" present: 1; UNMOUNTED: 0
 ```
+
+Wave 6 dry run, 2026-09-28 (GOV-BG blocks). A scratch script extracted the Task 2 script and the C-1, C-2, DP-1…DP-4 Before/After blocks from this file, applied them with an exactly-once match to main@40f590e and to B@7b2ff1f `CLAUDE.md` + A@692fdf3 `data-privacy.md`, and ran the assertions with `--links=4,0`. No repo file was written.
+
+```text
+RED (main, unpatched): 3/9 with and without --govbg
+GREEN, GOV-BG signed (--govbg), P / U / I, main and B+A: 9/9 each, exit 0
+GREEN, GOV-BG unsigned (no flag), P / U / I, main and B+A: 9/9 each, exit 0
+Wrong flag for the text applied (12 runs): exit 1, "FAIL W10-A3: C-2/DP-4 break-glass wording does not match --govbg", 8/9
+```
+The index/link-graph rebuild was not re-run for the GOV-BG-unsigned blocks: **UNMEASURED**. They add no `](`, and W10-A9 passed on all 12 trees.
 
 Two things were **not** run and are **UNMEASURED**: `python3 scripts/docs_lint.py` and `generate_docs_index.py --check` as whole-repo commands on a real post-P1 tree, because this checkout is dirty and P1 has not happened. To measure, run Task 4 Step 5 in the executor's clean worktree. The dry run shows the two files contribute nothing new to either gate: identical index and graph content, and 0 DOC-007 errors.
 
@@ -369,15 +383,32 @@ If either docs gate fails on the start tree, stop (S4): W-10 must not land on a 
 
 **Files:** none modified in the repo. Outputs: `$W10_SCRATCH/routes_inv.py`, the `W10_ARGS` line in the env file, and a "variant table" for the PR body.
 
-- [ ] **Step 1: Read the confirmation boxes Q1, Q3 and Q4 in §10** (Q2 is no longer a gate as of r3)
+- [ ] **Step 1: Read the confirmation boxes Q1 (GOV-D11), Q2 (GOV-BG), Q3 and Q4 in §10** (Q2 is a gate again as of Wave 6, 3a M-3)
 
 | Q | If signed | If unsigned |
 |---|---|---|
 | Q1 (D11 → C-3) | apply C-3 | skip C-3. `CLAUDE.md:62` stays unchanged; list it in the PR as an open owner item (not P4) |
+| Q2 (GOV-BG → C-2 clause, DP-4) | use the GOV-BG-signed C-2 and DP-4 text | use the GOV-BG-unsigned C-2 and DP-4 text (quotes D12; no "only bypass" wording) |
 | Q3 (C-4 local-first) | apply C-4 | skip C-4 (default) |
 | Q4 (order) | as §5 | if the owner says "land after W-2/W-3/W-6", wait, then use variant I throughout (only where Step 3's criteria hold) |
 
-- [ ] **Step 2: Measure whether W-2, W-3 and W-6 have merged**
+- [ ] **Step 2: Measure whether W-2, W-3 and W-6 code has merged, independently of test IDs** (r4)
+
+A missing or renamed test ID does not prove the code is unmerged, so merge status comes from the item's PR, not from a test grep.
+
+```bash
+set -o pipefail
+source "$HOME/.cache/asclexis-w10/w10.env"
+# <PR#> = that item's PR number, from the orchestrator's merge record or the PR page. Run once per item (W-2, W-3, W-6).
+gh pr view <PR#> --json number,state,mergeCommit -q '[.number,.state,.mergeCommit.oid] | @tsv'
+git -C "$WT" merge-base --is-ancestor <mergeCommit oid> origin/main && echo "merged-in-main" || echo "NOT-in-main"
+```
+
+- State `MERGED` and `merged-in-main` → **code merged** → Step 3 (the result is I or U, never P).
+- No PR for the item, a state other than `MERGED`, or `NOT-in-main` → **code not merged** → variant **P** for that item.
+- If the orchestrator has no merge record and no PR can be found, stop and ask the orchestrator (S6). Never infer "not merged" from a missing test ID.
+
+- [ ] **Step 3: For each merged item, collect the four pieces of evidence that variant I requires**
 
 ```bash
 set -o pipefail
@@ -385,16 +416,8 @@ source "$HOME/.cache/asclexis-w10/w10.env"
 git -C "$WT" grep -n "HC-EXPR-001" origin/main -- src/backend/tests | head -3   # W-2
 git -C "$WT" grep -n "HC-VER-001"  origin/main -- src/backend/tests | head -3   # W-3
 git -C "$WT" grep -n "HC-EXT-001"  origin/main -- src/backend/tests | head -3   # W-6
-```
-
-Zero hits → variant **P** for that item. Hits → Step 3.
-
-- [ ] **Step 3: For each item with hits, collect the four pieces of evidence that variant I requires**
-
-```bash
-set -o pipefail
-source "$HOME/.cache/asclexis-w10/w10.env"
-# <files> = the test files Step 2's grep printed for that item, relative to src/backend; <PR#> = that item's merged PR
+# Zero hits for a merged item = criterion 1 fails -> variant U (not P).
+# <files> = the test files the grep above printed for that item, relative to src/backend; <PR#> = that item's merged PR from Step 2
 (cd "$WT/src/backend" && "$PY" -m pytest <files> -p no:cacheprovider -q 2>&1 | tail -3)
 python3 "$W10_SCRATCH/rc_check.py" "$WT/src/backend/<HTTP test file>" <HTTP test ID>   # W-2 HC-EXPR-003 · W-3 HC-VER-002 · W-6 HC-EXT-004
 gh pr view <PR#> --json number,state,mergeCommit -q '[.number,.state,.mergeCommit.oid] | @tsv'
@@ -409,8 +432,8 @@ Variant **I** is allowed for an item only when **all four** hold. Record each on
 4. **HTTP test.** The named HTTP test itself calls `route_client`: W-2 HC-EXPR-003, W-3 HC-VER-002, W-6 HC-EXT-004. "Itself" means inside its own function body, or through a same-file fixture in its arguments. A `route_client` call somewhere else in the same file does not count. `rc_check.py` must exit 0 and print an `OK` line with the call's `file:line`. Paste that line into the variant table as evidence. Exit 1 (`MISS`) or 2 (`NO-TEST`) means criterion 4 fails.
 
 If any of the four is missing:
-- **Code not merged:** use variant **P** ("owner-approved, not yet implemented").
-- **Code merged:** use variant **U** ("code merged in `<sha>`; conformance unverified"). The Task 4 blocks give U explicitly. P's "Today …" sentence would be false for merged code, and "not yet implemented" would be false too.
+- **Code not merged (Step 2):** use variant **P** ("owner-approved, not yet implemented").
+- **Code merged (Step 2):** use variant **U** ("code merged in `<sha>`; conformance unverified"), including when the item's test IDs are missing or renamed. The Task 4 blocks give U explicitly. P's "Today …" sentence would be false for merged code, and "not yet implemented" would be false too.
 
 In both cases, name the missing evidence in the PR and raise S6. Never write I on test IDs alone.
 
@@ -549,9 +572,10 @@ Expected: the 14 routes of §3.5, matched by method + **mounted** path + functio
 ```bash
 set -o pipefail
 source "$HOME/.cache/asclexis-w10/w10.env"
-Q1=unsigned; Q3=unsigned   # EDIT: change a value to "signed" only if its §10 box is signed
+Q1=unsigned; GOVBG=unsigned; Q3=unsigned   # EDIT: change a value to "signed" only if its §10 box is signed (GOVBG = Q2)
 A=""
 if [ "$Q1" = signed ]; then A="$A --c3"; fi
+if [ "$GOVBG" = signed ]; then A="$A --govbg"; fi
 if [ "$Q3" = signed ]; then A="$A --c4"; fi
 echo "export W10_ARGS=\"$A\"" >> "$HOME/.cache/asclexis-w10/w10.env"
 source "$HOME/.cache/asclexis-w10/w10.env"; echo "W10_ARGS=[$W10_ARGS]"
@@ -562,7 +586,7 @@ The defaults are the conservative, all-unsigned state. Paste the printed line in
 - [ ] **Step 6: Write the variant table** (paste into the PR body)
 
 ```text
-Q1=<signed|unsigned>  Q3=<…>  Q4=<…>   W10_ARGS=[…]
+Q1=<signed|unsigned>  GOVBG=<…>  Q3=<…>  Q4=<…>   W10_ARGS=[…]
 W-2: <P|U|I> <PR#/sha or -> evidence 1-4: <y/n y/n y/n y/n>  rc_check: <OK file:line | MISS | NO-TEST>   → DP-1, DP-2
 W-3: <P|U|I> <PR#/sha or -> evidence 1-4: <…>  rc_check: <…>   → DP-3
 W-6: <P|U|I> <PR#/sha or -> evidence 1-4: <…>  rc_check: <…>   → DP-4
@@ -590,6 +614,7 @@ import sys
 from pathlib import Path
 
 C3 = "--c3" in sys.argv          # passed when Q1 is signed
+GOVBG = "--govbg" in sys.argv    # passed when GOV-BG (Q2) is signed
 C4 = "--c4" in sys.argv          # passed when Q3 is signed
 
 ROOT = Path(os.environ["WT"])
@@ -612,8 +637,12 @@ check("W10-A1", "One named exception, owner decision D12 (2026-09-27): the opt-i
 check("W10-A2", "the CSV and JSON exports are the patient's own data export and stay full-fidelity, like backups" in fc
       and "The doctor summary goes to a third party and must be redacted at `strict`." in fc
       and REC in fc, "C-2 D3 text missing")
-# W10-A3: C-2 external-runner clause (D12), unconditional since r3
-check("W10-A3", "break-glass is the only bypass, and only with an audit record and a UI warning (D12: \"keep break-glass only with audit + UI warning\")" in fc, "C-2 break-glass clause missing")
+# W10-A3: C-2 and DP-4 external-runner wording (D12) matches GOV-BG (Wave 6: gated again)
+D12Q = "\"make strict redaction unconditional (remove the dev bypass; keep break-glass only with audit + UI warning)\""
+bypass_c = "break-glass is the only bypass, and only with an audit record and a UI warning (D12: \"keep break-glass only with audit + UI warning\")" in fc
+bypass_p = any(k in fp for k in ("with break-glass as the only bypass", "Break-glass is the only bypass"))
+check("W10-A3", (bypass_c and bypass_p) if GOVBG else (not bypass_c and not bypass_p and D12Q in fc and D12Q in fp),
+      "C-2/DP-4 break-glass wording does not match --govbg")
 # W10-A4: old D11 wording gone iff C-3 applied
 old62 = "Outputs are educational, grounded, cited (`[REFERENCE:N]` / `[YOUR_RESULTS:N]`)."
 check("W10-A4", (old62 not in fc and "are context labels, not citation markers (owner decision D11, 2026-09-27)" in fc) if C3 else (old62 in fc), "C-3 state does not match --c3")
@@ -709,9 +738,13 @@ Before:
 ```text
 - **Redaction before anything leaves.** Any path that writes user text to exportable files or external runners must pass through `modules/redaction.py` first.
 ```
-After:
+After, **GOV-BG signed**:
 ```text
 - **Redaction before anything leaves.** Any path that writes user text to exportable files or external runners must pass through `modules/redaction.py` first. Named exceptions, owner decision D3 (2026-09-27): the CSV and JSON exports are the patient's own data export and stay full-fidelity, like backups (BKUP-UX-001). The doctor summary goes to a third party and must be redacted at `strict`. The opt-in external runner must apply `strict` redaction on every call (owner decision D12); break-glass is the only bypass, and only with an audit record and a UI warning (D12: "keep break-glass only with audit + UI warning"). Record: `docs/capstone-report/owner-decisions-2026-09-27.md`. Code conformance is tracked in `docs/capstone-report/specs-compliance-matrix.md` rows PRIV-04 and LOCAL-04.
+```
+After, **GOV-BG unsigned** (default until signed; quotes D12 and does not call break-glass a bypass):
+```text
+- **Redaction before anything leaves.** Any path that writes user text to exportable files or external runners must pass through `modules/redaction.py` first. Named exceptions, owner decision D3 (2026-09-27): the CSV and JSON exports are the patient's own data export and stay full-fidelity, like backups (BKUP-UX-001). The doctor summary goes to a third party and must be redacted at `strict`. The opt-in external runner must apply `strict` redaction on every call (owner decision D12: "make strict redaction unconditional (remove the dev bypass; keep break-glass only with audit + UI warning)"). Record: `docs/capstone-report/owner-decisions-2026-09-27.md`. Code conformance is tracked in `docs/capstone-report/specs-compliance-matrix.md` rows PRIV-04 and LOCAL-04.
 ```
 Wording checks against the licence:
 - "like backups" is D3's own words, and backups are already a documented exception (matrix PRIV-05 "tested (documented exception)"; C-REDACT-1). No new exception is created.
@@ -918,7 +951,7 @@ Before:
 ```text
 - PHI redaction applied to API prompts per `modules/redaction.py` policy
 ```
-After, variant **P** (W-6 not merged):
+After, variant **P** (W-6 not merged), GOV-BG signed:
 ```text
 - PHI redaction: owner decision D12 (2026-09-27) requires `strict` redaction
   through `modules/redaction.py` on every external call, with break-glass as
@@ -927,7 +960,7 @@ After, variant **P** (W-6 not merged):
   disabled or non-strict redaction setting still reaches the provider
   (`core/external_runner.py`). Tracked as W-6 (matrix LOCAL-04).
 ```
-After, variant **U** (W-6 merged; variant-I evidence incomplete):
+After, variant **U** (W-6 merged; variant-I evidence incomplete), GOV-BG signed:
 ```text
 - PHI redaction: owner decision D12 (2026-09-27) requires `strict` redaction
   through `modules/redaction.py` on every external call, with break-glass as
@@ -935,13 +968,43 @@ After, variant **U** (W-6 merged; variant-I evidence incomplete):
   code merged in `<W-6 sha>`; **conformance unverified** until W-6's red-first,
   break-it and HTTP-test evidence is recorded (matrix LOCAL-04).
 ```
-After, variant **I** (W-6 merged; first re-read W-6's merged diff and confirm that both conditions hold as written):
+After, variant **I** (W-6 merged; first re-read W-6's merged diff and confirm that both conditions hold as written), GOV-BG signed:
 ```text
 - PHI redaction: `strict` through `modules/redaction.py` on every external
   call (owner decision D12, 2026-09-27; implemented in `<W-6 sha>`).
   Break-glass is the only bypass, and it is allowed only with an audit record
   and a UI warning.
 ```
+**If GOV-BG is unsigned**, use these blocks instead of the three above. They quote D12 and do not call break-glass a bypass.
+
+After, variant **P**, GOV-BG unsigned:
+```text
+- PHI redaction: owner decision D12 (2026-09-27) requires `strict` redaction
+  through `modules/redaction.py` on every external call. D12: "make strict
+  redaction unconditional (remove the dev bypass; keep break-glass only with
+  audit + UI warning)". Status: owner-approved, **not yet implemented**.
+  Today, outside production, a disabled or non-strict redaction setting
+  still reaches the provider (`core/external_runner.py`). Tracked as W-6
+  (matrix LOCAL-04).
+```
+After, variant **U**, GOV-BG unsigned:
+```text
+- PHI redaction: owner decision D12 (2026-09-27) requires `strict` redaction
+  through `modules/redaction.py` on every external call. D12: "make strict
+  redaction unconditional (remove the dev bypass; keep break-glass only with
+  audit + UI warning)". Status: code merged in `<W-6 sha>`; **conformance
+  unverified** until W-6's red-first, break-it and HTTP-test evidence is
+  recorded (matrix LOCAL-04).
+```
+After, variant **I**, GOV-BG unsigned (same diff re-read as above):
+```text
+- PHI redaction: `strict` through `modules/redaction.py` on every external
+  call (owner decision D12, 2026-09-27; implemented in `<W-6 sha>`). D12:
+  "make strict redaction unconditional (remove the dev bypass; keep
+  break-glass only with audit + UI warning)".
+```
+
+W10-A3 checks the choice in both files (`--govbg` is in `W10_ARGS` only when GOV-BG is signed).
 - [ ] **Step 5: GREEN**
 
 ```bash
@@ -1038,7 +1101,8 @@ CLAUDE.md
 - C-1 (D12): core/external_runner.py named as the one ModelRunner exception.
 - C-2 (D3, D12): CSV/JSON named as deliberate redaction exceptions; doctor
   summary must be strict-redacted; external runner strict on every call,
-  break-glass only with audit record + UI warning.
+  break-glass only with audit record + UI warning (GOV-BG <signed|unsigned>:
+  signed names it the only bypass; unsigned quotes D12 verbatim).
 - C-3 (D11, owner-confirmed Q1): [cite:N] is the validated legacy marker;
   [YOUR_RESULTS:N]/[REFERENCE:N] are context labels.
   (If Q1 is unsigned, delete these two lines and add instead:
@@ -1104,7 +1168,7 @@ Run once after the last of W-2/W-3/W-6 merges. Skip it if Task 1 already chose I
 | S3 | A Before anchor matches 0 or more than 1 time, because another phase changed it | orchestrator: re-sequence; never merge texts by guess |
 | S4 | `docs_lint.py` or `generate_docs_index.py --check` fails on the **start** tree | orchestrator (not W-10's to fix) |
 | S5 | The AST export-route inventory (Task 1 Step 4) prints a route that is not classified in §3.5, or a new `include_router` mount | owner: third-party, patient-own, or not export-shaped? Classify from code; DP-2 must cover it before commit |
-| S6 | A W-item has merged but any of the four variant-I criteria (Task 1 Step 3) is missing, or W-6's code does not match "audit record + UI warning" | orchestrator; use variant U ("code merged in `<sha>`; conformance unverified"), never I |
+| S6 | A W-item's merge status cannot be established from its PR (Task 1 Step 2), or it has merged but any of the four variant-I criteria (Task 1 Step 3) is missing, or W-6's code does not match "audit record + UI warning" | orchestrator; use variant U ("code merged in `<sha>`; conformance unverified"), never I |
 | S7 | `git diff --cached --name-only` shows anything besides the 2 files | unstage and investigate; never `git reset` shared work |
 | S8 | Any pytest failure not in the Task 0 start set | stop; a docs change should not cause one, so find out why |
 
@@ -1118,8 +1182,8 @@ Run once after the last of W-2/W-3/W-6 merges. Skip it if Task 1 already chose I
 
 | Q | Question | Plan default / recommendation | Sign-off |
 |---|---|---|---|
-| Q1 | Include D11 hunk C-3 (`CLAUDE.md:62`) in this governance commit? The handoff scopes W-10 to D3/D12. W-5 §6 recommends that W-10 absorb it | **recommend include** (§1.3). If unsigned, skip; `:62` stays unchanged as an open owner item. It does not go to P4 | ☐ owner/orchestrator: ____ date: ____ |
-| Q2 | *(r3: not a gate.)* Naming audited break-glass in `CLAUDE.md:60` (C-2) and `data-privacy.md` (DP-4) is licensed by D12's text "keep break-glass only with audit + UI warning … Amend CLAUDE.md to name the exception". This also answers W-6 §11 Q2 | included unconditionally, worded within D12 | n/a (licensed by D12, 2026-09-27) |
+| Q1 · **GOV-D11** | Include D11 hunk C-3 (`CLAUDE.md:62`) in this governance commit? The handoff scopes W-10 to D3/D12. W-5 §6 recommends that W-10 absorb it | **recommend include** (§1.3). If unsigned, skip; `:62` stays unchanged as an open owner item. It does not go to P4 | ☐ owner/orchestrator: ____ date: ____ |
+| Q2 · **GOV-BG** | *(Wave 6, 3a M-3: a gate again; r3 had called it "not a gate".)* Name audited break-glass as the only bypass of "Redaction before anything leaves" in `CLAUDE.md:60` (C-2) and `data-privacy.md` (DP-4)? D12 says "keep break-glass only with audit + UI warning", but Consequence #1 names the runner only as a *ModelRunner* exception, so the bypass wording is an inference. This one gate also answers W-6 §11 Q2 | **recommend include**. If unsigned, C-2 and DP-4 quote D12's conditions verbatim and do not call break-glass a bypass (Task 4) | ☐ owner: ____ date: ____ |
 | Q3 | Also name the external runner as an owner-approved exception to **Local-first** (`CLAUDE.md:59`, hunk C-4)? D12's text licenses only the ModelRunner exception | **default skip** (owner-gated). Leaving `:59` unqualified keeps a known contradiction; the owner decides | ☐ owner: ____ date: ____ |
 | Q4 | Land W-10 in the handoff §3 slot (after P4, before W-2/W-3/W-6), with P variants and a W-10b flip later? The alternative is to wait for all three and use I variants | **recommend the §3 slot** (§5) | ☐ orchestrator: ____ date: ____ |
 | Q5 | `CLAUDE.md` C-2 says "like backups (BKUP-UX-001)": D3's own phrase, citing an existing documented exception (PRIV-05). Confirm this is not read as a new exception | recommend keep | ☐ owner: ____ date: ____ |

@@ -67,3 +67,16 @@ Pending on resume:
 2. Apply integration edits myself: implementation-program.md (graph from 3a, W-plan table, fix :69/:195 data-privacy routing, P0-B2 plan-set commit gate), specs-compliance-matrix.md (3b §2.1 + 11 new rows §3, recount by script), contract (3b §2.2), overview :185/:188, owner-decisions :46 size, handoff §5 S-1 row, capstone README + link all new plans (DOC-011).
 3. Run: python3 scripts/docs_lint.py; generate_docs_index.py --check (stale due to owner INDEX.md edits — don't regenerate without consent); relative-link check.
 4. Unowned: PRIV-10 rl_exports erase (needs new plan, ask-first), GATE-14 eval hang, TIME-03, KEY-08, AUD-06 (W-7 OG-3).
+
+## Wave 6 — integration pass (2026-09-28)
+- Snapshot: branch docs/p0b-plan-set, commit 5d56557 (plans + capstone + audit; wave3 repo-copy dirs excluded, untracked). Not pushed. P0-B / P0-B2 NOT signed by owner.
+- Dispatched 6 file-disjoint opus agents; rules in wave6/SHARED-RULES.md; reports land in wave6/<id>.md:
+  6A program+owner-decisions · 6B matrix+contract+overview+claims · 6C W01-W05 · 6D W06-W10 (+W10 r4 response) · 6E W11a/b,P04,P08,S01,RTN (+W11a r4, S01 r3, RTN r1 responses) · 6F audit plans 01/05/06/07 + handoff §5 + capstone README.
+- RESUME POINT if cut off: read wave6/*.md; any agent without a report file = rerun it; then docs_lint + link check + verifier pass + commit.
+- Wave 6 DONE (all 6 reports in wave6/). docs_lint rc=0; relative-link check 37 docs → 1 broken (pre-existing plans/04 → openwiki/README.md, untouched); generate_docs_index --check rc=1 (stale, owner consent needed).
+- Codex final rounds closed: W10 r4, W11a r4, S01 r3 (PASS), RTN r1. New owner Q: RTN Q6 (routine push capability; default do-not-enable).
+- Matrix recount: 73 rows = 4 enforced · 18 tested · 4 implemented · 15 partial · 20 gap · 9 contradicted · 2 owner-gated · 1 unknown.
+- NEW FINDING (6B, by reading): aware now at modules/badge_evaluator.py:84 → earned_at (:101) → EarnedBadge naive DateTime column (models/gamification.py:64-68), reached via api/medications.py:1000. TIME-03 → contradicted. 3b minor-1 corrected: 12 lines / 8 files (both `timezone.utc` + `dt_timezone.utc` forms).
+- PRIV-10 settled: default path src/backend/rl_exports NOT ignored (check-ignore rc=1); only data/rl_exports + src/backend/data/rl_exports match .gitignore:74.
+- Owner items raised: P0-B2 scope incl. 16th file (senior-report-showcase-plan); api/profiles.py:328 display_name at INFO (S01 excludes; auth-adjacent).
+- Next: Wave 7 verifier (cross-file consistency + queued fixes), then commit.

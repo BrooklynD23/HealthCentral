@@ -79,7 +79,7 @@ Consequence 5 (`:46`), verbatim:
 2. Asserting or denying HIPAA applicability, or writing any legal conclusion (F-08).
 3. Encrypting the master DB, moving audit rows into vaults, or editing `core/database.py`, `core/audit.py`, `models/audit.py` or `scripts/backup.py`.
 4. Changing the 2026-07-27 purge-on-erase decision (`docs/compliance/data-privacy.md:144-156` @A692fdf3). Brief 4 may *ask*. It may not assume.
-5. Editing `docs/compliance/hipaa-controls.md` or `docs/compliance/data-privacy.md`. P4, W-10 and G-A1 own those. The packet may propose wording for them.
+5. Editing `docs/compliance/hipaa-controls.md` or `docs/compliance/data-privacy.md`. P4 (N9, `hipaa-controls.md:169`) owns the first; W-10 and W-10b own the second (G-A1/W-2 treats it as read-only; 3a m-10). The packet may propose wording for them.
 6. Editing code comments that carry compliance claims (`core/audit.py:4,215`, `models/audit.py:4,24`, `migrations/master/env.py:6`, `migrations/master/versions/001_initial_schema.py:9`, all @B7b2ff1f). Flag them only.
 7. Any edit to `feature_list.json` (HC-M11 row or new rows).
 8. Fixing the debug SQL-echo finding (F-P8-3 below). Report it; do not fix it in this phase.
@@ -119,7 +119,7 @@ Line numbers in the matrix and contract cite main. The post-P1 equivalents are i
 **Shared-file ordering**
 - `docs/features/TASK_LIST.md` is appended by most phases' Definition of Done. Edit it **only in Task 7**, on a fresh `origin/main`. If another phase's open PR also edits it, rebase after that PR merges. Never edit it concurrently (program, "Shared files are ordered…", `:69`).
 - `docs/compliance/hipaa-controls.md`: P4 edits `:169` **only after Brief 2 is signed**. P8 must therefore reach owner sign-off on Brief 2 **before** P4's `:169` task. This conflicts with the handoff §3 order (`:96`, "… P7 reset → P8 packet"), which puts P8 after P4. The resolution needs the orchestrator/owner: either run P8 (at least Brief 2) right after P1, as the program graph allows (`:49`, "P1 --> P8"), or have P4 skip its `:169` task and leave it open. Sign-off line S-2 below.
-- `docs/compliance/data-privacy.md` (P1 → P4 → W-10 → G-A1) is read-only here. Brief 4 may propose wording for `:33` and `:61` (@A692fdf3) and route it to whichever of those phases is current.
+- `docs/compliance/data-privacy.md` (P1 → W-10 → W-10b; P4 and G-A1 do not edit it, 3a m-10) is read-only here. Brief 4 may propose wording for `:33` and `:61` (@A692fdf3) and route it to whichever of those phases is current.
 
 ## Dependencies
 
@@ -148,7 +148,7 @@ Method: `git diff --stat 40f590e 7b2ff1f|692fdf3 -- <evidence files>`.
 | R8 | `hipaa-controls.md:168-171` (T2, T3, T4) | Unchanged at A/B: `:168` MFA "Planned for server mode", `:169` "Manual via password change", `:171` "Scheduled for post-launch" | Cite @main=post-P1 |
 | R9 | `TASK_LIST.md` HIPAA note "~line 549" (global) | `:692` @A692fdf3 (`:549` @main). Session Notes heading `:153` @A | Cite @A |
 | R10 | Security gate fails open "on main (P1 — fix on unmerged branch)" (T4) | Stale after P1. `scripts/security_gate.py:58,84` @B catch `FileNotFoundError`/`JSONDecodeError` and treat them as gate failure (docstring `:49` "exit 2") | Brief 3 lists it as a **verify fail-closed** row, not a known open hole |
-| R11 | `/export/questions` unredacted `source_quote` "(quote-leak fix on unmerged branch1)" (T4) | A's P1 fix `45ac889` clears care-task quotes on document delete. It does **not** redact `/export/questions`: `api/export.py:115,126` @main is unchanged by A/B | Keep as an open surface; cross-reference W-2 O-4 |
+| R11 | `/export/questions` unredacted `source_quote` "(quote-leak fix on unmerged branch1)" (T4) | A's P1 fix `45ac889` clears care-task quotes on document delete. It does **not** redact `/export/questions`: `api/export.py:115,126` @main is unchanged by A/B | Keep as an open surface; cross-reference W-2 O-4 (canonical owner item **EXPORT-QUESTIONS**) |
 | R12 | HC-M11 "gated" (T6) | Approved for build behind a default-off flag: `backlog-closure-plan.md:359-382` (§12) and `:403` (§14 d2) @A692fdf3, commit `fe31e78`. On main after P1 | Task 6 rewritten |
 | R13 | `download_models.py` is GGUF-only (T6) | Still true @B7b2ff1f. The new `verify` subcommand filters `.gguf` (`:223-246`) | Cite @B; note W-8 |
 | R14 | Faithfulness/verifier anchors (T6) | Unchanged: `faithfulness.py:95-121,134,191` and `verifier_agent.py:88,223,304`. Config `:145-151` @B (`:146-152` @main). `modules/agent/guardrails/guard.py:27,32` @B imports only `FaithfulnessConfig` (the threshold), and `modules/agent/eval/scorer.py` @B has no faithfulness/verifier reference | Cite @B; answers plan 08 T6 gap (b) provisionally, and the executor re-checks |
@@ -235,7 +235,7 @@ C=$(grep -oE "Baseline: \*\*[0-9]+" CLAUDE.md | grep -oE "[0-9]+"); A=$(grep -oE
 echo "CLAUDE=$C AGENT=$A"
 ```
 
-Expected: exactly one number from each file, `C == A`, and both equal the `N tests collected` from Step 3. If the numbers disagree with each other, or with Step 3, or a grep finds no line: **STOP** and report "baseline lines not reconciled by P1" with the three numbers. This phase does not edit `CLAUDE.md`/`AGENT.md` (Global Constraints). A non-zero `pytest-exit` is expected when the start tree has failures; the names are the baseline. No number is carried from another ref.
+Expected: exactly one number from each file, `C == A`, and both equal the `N tests collected` from Step 3. If the numbers disagree with each other, or with Step 3, or a grep finds no line: **STOP** and report "baseline lines not reconciled by P1" with the three numbers (or by the last collection-changing phase, under the proposed program rule **SLOT-RULE**, 3a B-4). This phase does not edit `CLAUDE.md`/`AGENT.md` (Global Constraints). A non-zero `pytest-exit` is expected when the start tree has failures; the names are the baseline. No number is carried from another ref.
 
 - [ ] **Step 4: Record the docs gates**
 
@@ -319,7 +319,7 @@ This brief must be signed before P4 edits `docs/compliance/hipaa-controls.md:169
 
 - [ ] **Step 1:** Run plan 08 Task 4 Steps 1–4 as written, with these deltas:
   - **R10:** the security gate is a "verify fail-closed" row. Evidence command: `python3 scripts/security_gate.py --bandit /nonexistent.json --pip-audit /nonexistent.json; echo $?` → non-zero (program P1 step 7). Run it and paste the output.
-  - **R11:** `/export/questions` `source_quote` stays an open surface; cross-reference W-2 O-4.
+  - **R11:** `/export/questions` `source_quote` stays an open surface; cross-reference W-2 O-4 (canonical owner item **EXPORT-QUESTIONS**).
   - Add F-P8-3 (debug SQL echo) as a surface row: "debug-mode stderr carries bound parameters".
 - [ ] **Step 2: Commit** (path-scoped): `docs: pen-test scope decision brief`.
 
@@ -632,8 +632,8 @@ Docs only.
 ## Owner sign-offs (unsigned)
 
 - S-1: The packet's per-brief lines (7) are the owner's. This plan records none of them.
-- S-2 (ordering): "Run P8 Brief 2 to signature before P4's `hipaa-controls.md:169` task, or have P4 skip that task." Owner/orchestrator: ☐ P8-first ☐ P4 skips `:169` — notes/date: ____
-- S-3 (routing F-P8-3): "Debug SQL echo prints bound parameters (PRIV-06). Open a separate owner-gated fix?" ☐ yes ☐ no ☐ defer — notes/date: ____
+- S-2 (ordering; canonical gate **P8-B2-ORDER**, shared with P04's N9 prerequisite): "Run P8 Brief 2 to signature before P4's `hipaa-controls.md:169` task, or have P4 skip that task." Owner/orchestrator: ☐ P8-first ☐ P4 skips `:169` — notes/date: ____
+- S-3 (routing F-P8-3; canonical gate **SQL-ECHO**, together with S-1's S1-A/S1-B; the S-1 plan `2026-09-27-S01-sql-echo-phi-leak.md` now exists, so "yes" routes to S-1): "Debug SQL echo prints bound parameters (PRIV-06). Open a separate owner-gated fix?" ☐ yes ☐ no ☐ defer — notes/date: ____
 
 ## Commit plan
 

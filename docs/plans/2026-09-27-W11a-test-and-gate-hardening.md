@@ -4,7 +4,7 @@
 **Owner:** repository owner
 **Refresh Trigger:** P1, P4, P5, P7 or W-4 merges (re-verify every `main@40f590e` / `B@7b2ff1f` line reference on the tree that exists then); an owner answer to OG-1, OG-2, Q-AUD-LIST, Q-RUFF or Q-COV; any edit to `src/backend/api/profiles.py`, `src/backend/tests/support/routes.py`, `src/backend/core/profile_database.py`, `src/backend/core/migrations.py` or `.github/workflows/ci.yml`.
 **Status:** PROPOSED — not executed
-**Review status:** 3 Codex rounds; round-3 findings fixed after the last round (owner decides on round 4).
+**Review status:** 4 Codex rounds (final; no round 5). Round-4 findings (1 BLOCKER, 2 MAJOR) fixed after the last round, not re-reviewed (owner acceptance required); see `audit/2026-09-25/swarm-2026-09-27/reviews/W11a-r4-response.md`.
 **Prerequisites:** P0-B and P1 merged to `origin/main`. Also: P5 + P7 (PR-1), P4 + P5 + W-4 (PR-3), the D9 venv `~/venvs/asclexis-311` (all backend steps). Before P1 lands, Task 0 Step 2's ancestry check fails; that STOP is intended, not a defect.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Also load `test-driven-development` and, for Task 3, `asclexis-backend` (SQLCipher vault, dual Alembic chains).
@@ -16,7 +16,7 @@
 | PR | Gap | Kind | Earliest start |
 |---|---|---|---|
 | PR-1 | G-B1 | tests (Task 1) + owner-gated route edit (Task 2) | after P7 |
-| PR-2 | G-B2 | tests only, encryption area (owner confirmation OG-2) | after P1 |
+| PR-2 | G-B2 | tests only, encryption area (OG-2 signed before any Task 3 step) | after P1 |
 | PR-3 | G-B4 | test + CI config | after P5 and W-4 |
 | PR-4 | G-B6 | DOCS only | after P1 (and P0-B) |
 
@@ -93,10 +93,10 @@ The records that come closest, quoted verbatim so nobody reads them as covering 
 **Does NOT license (owner-gated; each has an unsigned line in §11):**
 - **OG-1:** any edit to `src/backend/api/profiles.py`, including adding audit calls (Task 2). The program says "auth-adjacent: tests only unless the owner approves route edits"; D13 does not cover audit calls.
 - **Q-AUD-LIST:** auditing the unauthenticated `GET /profiles/` (no actor, NULL `profile_id`), versus documenting it as an exemption.
-- **OG-2:** committing the encryption-area test (Task 3). It touches no encryption code, but the program's G-B2 stop gate says "encryption: ask first".
+- **OG-2:** writing, running or committing the encryption-area test (Task 3). It touches no encryption code, but the program's G-B2 stop gate says "encryption: ask first".
 - **Q-RUFF:** which ruff rules gate CI. Fixing the 561 current findings would touch all four safety modules plus `core/auth.py`, `core/security.py` and `core/profile_database.py` (§4 measurement).
 - **Q-COV:** any coverage *threshold*. This plan adds a report only.
-- **OG-3:** pushing a deliberately failing "seed" branch to prove a gate in real CI.
+- **OG-3 (canonical CI-SEED):** pushing a deliberately failing "seed" branch to prove a gate in real CI.
 - Any edit to `core/auth.py`, `core/audit.py` (including registering new `ALLOWED_ACTIONS` strings), `core/profile_database.py`, `core/security.py`, `core/migrations.py`, `core/sqlcipher_driver.py`, `tests/conftest.py`, `src/backend/requirements.txt`, `src/frontend/package.json`, `eslint.config.js` or `pyproject.toml`.
 - Auditing *denied* guard attempts (a `core/auth.py` change).
 - Fixing N-03, where `/test/reset` echoes `{exc}` in its 500 detail (`api/profiles.py:528-531`, main@40f590e). It is recorded, not fixed.
@@ -144,7 +144,7 @@ The records that come closest, quoted verbatim so nobody reads them as covering 
 - `src/backend/tests/support/master_db.py`: file-backed master DB helpers for route tests.
 - `src/backend/tests/test_profile_route_guards.py`: HC-PGUARD.
 - `src/backend/tests/test_profile_route_audit.py`: HC-PAUD (OG-1 only).
-- `src/backend/tests/security/test_vault_ciphertext.py`: HC-KEYCT (OG-2 before commit).
+- `src/backend/tests/security/test_vault_ciphertext.py`: HC-KEYCT (OG-2 signed before it is written).
 - `src/backend/tests/test_migration_heads.py`: HC-MIGHEAD.
 
 **Modify:**
@@ -178,24 +178,24 @@ The records that come closest, quoted verbatim so nobody reads them as covering 
 | `src/backend/api/profiles.py` | P5 (D13 swaps) → P7 (reset tuple) → **W-11a Task 2** | Task 2 edits the reset route P7 just rewrote. Re-read it first |
 | `src/backend/tests/support/routes.py` | **P7 edits first → W-11a edits after P7 merges** (owned-after-P7). W-2 / W-3 only read it | Task 1 Step 1b adds opt-in `real_auth`, default `False`, on top of P7's `route_client(…, profile_name=…, profile_db=…)` (plan 07 line 74). Existing callers are unchanged. If P7 has not merged, **STOP** |
 | `.github/workflows/ci.yml` | P1 → P5 (step in `docs-lint`) → W-4 (`legacy-evals` job) → **W-11a Tasks 6–8** | W-7 does not edit it. If W-4 has not merged, see stop gate 9 |
-| `docs/architecture/ci-and-quality-gates.md` | P4 (divergence fix) → W-8 (`:58`) → **W-11a Task 9** | Whichever of W-8/W-11a lands second rebases |
+| `docs/architecture/ci-and-quality-gates.md` | P4 → **W-11a Task 9** → W-8 (`:58`) | Canonical order (3a B-3), same as `ci.yml`: W-4 → W-11a PR-3 → W-8. W-8 rebases on PR-3 |
 | `docs/capstone-report/*.md` | W-1 (claims H5/H6), W-8 (several rows), other W plans' status rows | Row-scoped edits only; rebase and re-read the row before each docs commit |
 | `CLAUDE.md` / `AGENT.md` baseline sentences | every PRODUCT phase, serially | Write only this PR's measured END collected count |
-| `docs/features/TASK_LIST.md` | append-only; P8 also edits | Append at the end of "Session Notes" |
+| `docs/features/TASK_LIST.md` | add-only; P8 also edits | Add each note at the top of `## Session Notes` (newest first, as P08 does; 3a m-9) |
 
 ## 4. Dependencies and measured context
 
 | Dependency | Needed by | Why |
 |---|---|---|
 | P0-B | all | the capstone docs and this plan are on `main` |
-| D9 venv | all backend measurement | `~/venvs/asclexis-311/bin/python`. **Not built yet**, and **no `python3.11` exists on this WSL machine** (`/usr/bin` has 3.12 only, measured 2026-09-27). The handoff says to report that and ask |
+| D9 venv | all backend measurement | `~/venvs/asclexis-311/bin/python`. **Not built yet.** `/usr/bin` has 3.12 only, but `uv python list --only-installed` shows a uv-managed `cpython-3.11.16` at `/home/danny/.local/share/uv/python/cpython-3.11-linux-x86_64-gnu/bin/python3.11` (runs: `Python 3.11.16`; re-measured 2026-09-28). Using it as the D9 interpreter (`uv venv -p 3.11 ~/venvs/asclexis-311`) is owner gate **D9-SRC** (proposed, unsigned) |
 | P1 | all | post-P1 tree, the `B@7b2ff1f` `ci.yml` / `core/audit.py` |
 | P4 | PR-3 docs | P4 fixes the `ci-and-quality-gates.md:19,45` "build" claim first |
 | P5 | PR-1, PR-3 | `api/profiles.py` utcnow hunks (D13) and the `ci.yml` time-source step |
 | P7 | PR-1 | reset tuple (`_SYNTHETIC_RESET_MODELS`) and `route_client(profile_name=, profile_db=)` |
 | W-4 | PR-3 | the `legacy-evals` job lands in `ci.yml` first |
 | OG-1, Q-AUD-LIST | Task 2 | route edit in an auth-adjacent file |
-| OG-2 | Task 3 commit | encryption area |
+| OG-2 | all of Task 3 (write, run, commit) | encryption area |
 | Q-RUFF | Task 7 | ruff baseline |
 
 **Measured 2026-09-27, by this author, read-only.** These are context for Task 0, not targets.
@@ -1088,11 +1088,11 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- src/backend/api/prof
 
 ---
 
-## Task 3 (PR-2, G-B2): on-disk ciphertext test with encryption required — OWNER CONFIRMATION (OG-2) before commit
+## Task 3 (PR-2, G-B2): on-disk ciphertext test with encryption required — OWNER CONFIRMATION (OG-2) before any step
 
 **Is owner approval needed?** This task edits no encryption code; it adds one test file. CLAUDE.md §1 gates *touching* auth/encryption files, which this does not. The program's G-B2 row does say "encryption: ask first", so this plan treats it conservatively:
-- write and run the test freely;
-- **commit only after OG-2 is signed.**
+- **do not create, run or commit the test until OG-2 is signed** (Codex W11a r4 BLOCKER: G-B2 says "ask first", not "ask before commit");
+- once OG-2 is signed, every step below applies as written.
 
 **Files:**
 - Create: `src/backend/tests/security/test_vault_ciphertext.py`
@@ -1315,7 +1315,7 @@ If the Windows interpreter cannot import the backend at all, record `UNMEASURED`
   ```
   Leave every pass-count sentence ("all N pass", "N pass in CI, N−1 without an embedding model") unchanged unless a pass count was measured in this PR in a named environment (interpreter + embedding model present/absent). Otherwise flag it in the PR. Never write a collected number into a pass-count slot.
 
-- [ ] **Step 6: STOP for OG-2**, then commit.
+- [ ] **Step 6: Re-check that OG-2 is signed**, then commit.
 ```bash
 set -o pipefail; WT=/mnt/c/Users/DangT/Documents/GitHub/hc-w11a-gb2; cd "$WT"
 git add src/backend/tests/security/test_vault_ciphertext.py CLAUDE.md AGENT.md
@@ -1719,7 +1719,7 @@ Expected: "Docs lint passed." and exit 0. If the index is stale, run `python3 sc
 | PR-1 | `specs-compliance-matrix.md` ISO-02, AUD-02; contract C-ISO-1 and C-AUDIT-1 "Status today"/"Enforced at" |
 | PR-2 | matrix KEY-02; contract C-KEY-1 |
 | PR-3 | matrix MIG-02, GATE-03 (build/eslint part), GATE-07; contract C-MIG-2 and C-API-3 "Enforced at"; plus `docs/architecture/ci-and-quality-gates.md` from Task 9 |
-| all | append one `docs/features/TASK_LIST.md` Session Note. `CLAUDE.md`/`AGENT.md` collected counts are already updated by the test commits; a pass-count sentence changes only with a measured pass count |
+| all | add one `docs/features/TASK_LIST.md` Session Note at the top of `## Session Notes` (newest first). `CLAUDE.md`/`AGENT.md` collected counts are already updated by the test commits; a pass-count sentence changes only with a measured pass count |
 
 Do **not** change any contract's Class (PROPOSED → BINDING is the owner's call). Only the "Enforced at" / "Status today" fields and the matrix Tests/Gate/Status cells change.
 
@@ -1753,13 +1753,17 @@ Also: failures ⊆ START failures, each named; `boot ok`.
 ```bash
 set -o pipefail; WT=/mnt/c/Users/DangT/Documents/GitHub/hc-w11a-gb1; cd "$WT"   # gb2 / gb4 for the other PRs
 python3 scripts/docs_lint.py && python3 scripts/generate_docs_index.py --check; echo "exit=$?"
-git add docs/capstone-report/specs-compliance-matrix.md docs/capstone-report/architecture-engineering-contract.md docs/features/TASK_LIST.md
-# CLAUDE.md AGENT.md only if a measured pass-count sentence changed (Step 2)
-# PR-3 also: docs/architecture/ci-and-quality-gates.md; any PR: docs/INDEX.md docs/_link_graph.json if regenerated
-git diff --cached --name-only   # must list only the files above
+PR=PR-1   # PR-1 / PR-2 / PR-3
+PATHS="docs/capstone-report/specs-compliance-matrix.md docs/capstone-report/architecture-engineering-contract.md docs/features/TASK_LIST.md"
+[ "$PR" = PR-3 ] && PATHS="$PATHS docs/architecture/ci-and-quality-gates.md"   # Task 9's edit
+# conditional: CLAUDE.md / AGENT.md (measured pass-count sentence, Step 2) and the index files (if Task 9 Step 2 or the lint above regenerated them)
+PATHS="$PATHS $(git diff --name-only -- CLAUDE.md AGENT.md docs/INDEX.md docs/_link_graph.json | tr '\n' ' ')"
+git add -- $PATHS
+diff <(git diff --cached --name-only | sort) <(printf '%s\n' $PATHS | sort) || { echo "STOP: staged list differs from PATHS"; exit 1; }
 git commit -m "docs: record <rows> status and the measured baseline after W-11a <gap>
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- <the same explicit paths>
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- $PATHS
+git status --short   # must print nothing: no docs edit left uncommitted
 ```
 
 - [ ] **Step 4: Push and open the PR.** The body follows handoff §6:
@@ -1811,6 +1815,7 @@ npx playwright test --list | Select-Object -Last 1
 ```
 Expected shape: `Total: N tests in M files`. Linux context from 2026-09-27: vitest listed 179/31 on the A+B tree; Playwright chromium 30/6, all projects 35/7.
 - A Windows figure that differs is the finding, not an error.
+- Sequencing (3b minor 7): W-11b G-C3b adds one Playwright test (`E2E-HEALTH-001`, `e2e/health-smoke.spec.ts`). If G-C3b has merged, expect the chromium list +1 (28 → 29 on a main-based tree, 30 → 31 on A+B). If G-C3b merges after PR-4, the figure PR-4 writes goes stale by 1; say so in the PR-4 body so G-C3b updates it.
 - If `vitest run` exits non-zero, record the failing tests verbatim and do not fix them here.
 
 - [ ] **Step 2: Playwright run** (records a pass count; environment-dependent, recurring-failures #4).
@@ -1831,7 +1836,7 @@ On Windows the e2e backend (`e2e/support/start-backend.mjs`) needs a Python with
   - **matrix GATE-03:** replace "the 155-test figure is unverified" with "vitest {VITEST_LISTED} listed, {VITEST_PASSED} passed (Windows, <date>)". If PR-3 has merged, also drop "no `npm run build`, no eslint in CI".
   - **matrix GATE-06:** replace "25-test figure unverified; not run this pass" with the chromium listed count and the run result or blocker.
   - **matrix "Unrun checks" row `:165`:** replace it with the measured status, or delete it if both figures were measured.
-  - **TASK_LIST.md:** append a Session Note with the commands and outputs. Leave `:794` (dated history) untouched.
+  - **TASK_LIST.md:** add a Session Note at the top of `## Session Notes` (newest first) with the commands and outputs. Leave `:794` (dated history) untouched.
   - **`audit/repository-audit-dashboard.html:255`:** mark it as a dated snapshot and point to the measured figures, without rewriting the snapshot's other numbers. Replace the note's text with:
     `Snapshot 2026-09-25 (pre-reconciliation, unmeasured): ~1,245 collected backend, 155 vitest, 25 Playwright. Measured {DATE}: vitest {VITEST_LISTED} listed, Playwright chromium {PW_LISTED} listed; see docs/capstone-report/claims-ledger.md H2.`
     Keep the `<div class="bar-note">…</div>` element and its class.
@@ -1846,11 +1851,14 @@ On Windows the e2e backend (`e2e/support/start-backend.mjs`) needs a Python with
 ```bash
 set -o pipefail; WT=/mnt/c/Users/DangT/Documents/GitHub/hc-w11a-gb6; cd "$WT"
 python3 scripts/docs_lint.py && python3 scripts/generate_docs_index.py --check; echo "exit=$?"
-git add docs/capstone-report/claims-ledger.md docs/capstone-report/architecture-overview.md docs/capstone-report/specs-compliance-matrix.md docs/features/TASK_LIST.md audit/repository-audit-dashboard.html
-git diff --cached --name-only   # exactly these 5 (+ docs/INDEX.md docs/_link_graph.json if regenerated)
+PATHS="docs/capstone-report/claims-ledger.md docs/capstone-report/architecture-overview.md docs/capstone-report/specs-compliance-matrix.md docs/features/TASK_LIST.md audit/repository-audit-dashboard.html"
+PATHS="$PATHS $(git diff --name-only -- docs/INDEX.md docs/_link_graph.json | tr '\n' ' ')"   # only if regenerated
+git add -- $PATHS
+diff <(git diff --cached --name-only | sort) <(printf '%s\n' $PATHS | sort) || { echo "STOP: staged list differs from PATHS"; exit 1; }
 git commit -m "docs: replace the unmeasured 155 vitest / 25 Playwright figures with measured counts
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- docs/capstone-report/claims-ledger.md docs/capstone-report/architecture-overview.md docs/capstone-report/specs-compliance-matrix.md docs/features/TASK_LIST.md audit/repository-audit-dashboard.html
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- $PATHS
+git status --short   # must print nothing
 ```
 Then push, open the PR (handoff §6 format) and **STOP** for merge.
 
@@ -1881,13 +1889,14 @@ Then push, open the PR (handoff §6 format) and **STOP** for merge.
 | Whether `sqlcipher3` imports on the CI runner | the first PR-2 CI run; HC-KEYCT-001 fails there if not |
 | The D9 venv's START counts | Task 0 Step 5 |
 | eslint on Windows | optional: `npm run lint` in the Task 11 PowerShell session |
+| `scripts/agent_eval_gate.py` exit on Linux (GATE-14, **flagged, unowned; not a W-11a task**) | Measured 2026-09-27 on Win Py 3.13.7: prints "Agent eval gate: PASS", then does not exit (`timeout 420` → `rc=124`; `audit/2026-09-25/swarm-2026-09-27/wave3/evalgate.out`). Optional read-only check in the Task 5 scratch copy (it holds only `src/`, so first `git -C "$WT" archive HEAD scripts | tar -x -C /tmp/w11a-gb4`): `cd /tmp/w11a-gb4 && HF_HUB_OFFLINE=1 timeout 600 ~/venvs/asclexis-311/bin/python scripts/agent_eval_gate.py; echo "rc=$?"`. Record rc; if 124, report it to the owner as a CI-hang finding. No fix here: the script is W-4's file (docstring edit) and the cause is undiagnosed |
 
 ## 8. Stop gates (stop and ask the owner)
 
 1. Task 0 Step 2 is not `post-P1-ok`, or a dependency check in Step 3 fails.
-2. The D9 venv is missing, or `python3.11` is unavailable to build it.
+2. The D9 venv is missing, or `python3.11` is unavailable to build it, or it would be built from the uv-managed 3.11.16 while D9-SRC is unsigned.
 3. OG-1 unsigned → skip Task 2 (PR-1 ships tests only). Q-AUD-LIST unanswered → implement the 3 authenticated routes only if OG-1 is signed; leave `GET /` and say so.
-4. OG-2 unsigned → Task 3 stays uncommitted.
+4. OG-2 unsigned → skip Task 3 entirely (no file written, nothing run); PR-2 does not start.
 5. Q-RUFF unanswered → skip Task 7.
 6. `import sqlcipher3` fails in the Linux D9 venv: requirements/CI parity is broken.
 7. HC-KEYCT-001 fails its ciphertext assertion in a correctly configured Linux venv. This is a real encryption finding: security response protocol, owner report, no code edits.
@@ -1934,7 +1943,7 @@ Then push, open the PR (handoff §6 format) and **STOP** for merge.
   - **(b)** exempt it and document the exemption in C-AUDIT-1/AUD-02.
   
   Choice: ____ Signed: ____________ Date: ________
-- [ ] **OG-2 (encryption area, test only).** I confirm that adding `tests/security/test_vault_ciphertext.py`, which edits no encryption code and does not change `tests/conftest.py`, may be committed. I accept that in CI it fails, rather than skips, when `sqlcipher3` is missing. Signed: ____________ Date: ________
+- [ ] **OG-2 (encryption area, test only).** I confirm that `tests/security/test_vault_ciphertext.py`, which edits no encryption code and does not change `tests/conftest.py`, may be written, run and committed. I accept that in CI it fails, rather than skips, when `sqlcipher3` is missing. Signed: ____________ Date: ________
 - [ ] **Q-RUFF.** Choose one:
   - **(a)** gate CI on `ruff check --select E9,F63,F7,F82` with ruff pinned to 0.15.10 (0 findings today). The configured F/I/W set (561 findings post-P1) stays advisory. Recommended.
   - **(b)** a separate cleanup of all 561 findings first. It touches 154 files, including `interpret_safety.py`, `redaction.py`, `faithfulness.py`, `verifier_agent.py`, `core/auth.py`, `core/security.py` and `core/profile_database.py`, each needing its own approval.
@@ -1942,7 +1951,7 @@ Then push, open the PR (handoff §6 format) and **STOP** for merge.
   
   Choice: ____ Signed: ____________ Date: ________
 - [ ] **Q-COV.** Coverage stays report-only. A threshold, if any, is set after the first measured TOTAL (Task 5 Step 4): ____% or "none". Signed: ____________ Date: ________
-- [ ] **OG-3 (optional).** I allow a throwaway draft PR carrying seeded violations, to show each new CI gate failing in GitHub Actions. It is closed unmerged. Signed: ____________ Date: ________
+- [ ] **OG-3 (optional; canonical program gate CI-SEED, shared with W-4's seed PR).** I allow a throwaway draft PR carrying seeded violations, to show each new CI gate failing in GitHub Actions. It is closed unmerged. Signed: ____________ Date: ________
 - [ ] **Merge, per PR.** PR-1 ____ PR-2 ____ PR-3 ____ PR-4 ____ (owner merges; "Humans merge", program ground rule 6).
 
 ## 12. Commit plan (summary)

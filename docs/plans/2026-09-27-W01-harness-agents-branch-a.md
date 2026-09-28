@@ -61,7 +61,7 @@ Those are HC-AGENTS-001…007, which are collected in the backend suite. HC-AGEN
 | Kind | ID | Verified text (grep, 2026-09-27) |
 |---|---|---|
 | Handoff §5 | W-1 | `audit/…/handoff-2026-09-27-execution.md:138`: "`.claude/agents/` with the 5 names in `docs/agentic/harness.md:25-28`. 4 are read-only (`tools: Read, Grep, Glob`). `windows-bootstrap-engineer` gets a bounded write scope declared in frontmatter. `.gitignore` gets `!.claude/agents/`. Drop no other claim silently \| GATE-09 \| (1) `git check-ignore .claude/agents/x.md` → not ignored. (2) Each file's frontmatter parses, and the 4 scanners list no write tools. (3) `scripts/harness_drift_check.py` (from branch B) exits 0 \| 5 files committed; drift check exit 0; harness/roadmap claims true" |
-| Program phase | P3 | `pkg implementation-program.md:169`: "## P3 — Phantom-layer decision (plan 03) · OWNER → DOCS or CONFIG". Acceptance at `:180`: "zero doc references to non-existent agents or hooks (drift check exits 0), and the claims ledger H5/H6 are updated." |
+| Program phase | P3 | `pkg implementation-program.md:169`: "## P3 — Phantom-layer decision (plan 03) · OWNER → DOCS or CONFIG". Acceptance at `:181`: "zero doc references to non-existent agents or hooks (drift check exits 0), and the claims ledger H5/H6 are updated." |
 | Matrix row | GATE-09 | `pkg specs-compliance-matrix.md:143`: "\| GATE-09 \| Agent/hook harness claims match committed artifacts \| `docs/agentic/harness.md:25-28` \| `.claude/agents/` absent; `.gitignore:44` blocks it; no repo hooks \| none on main … \| **contradicted** \| **owner-gated** (plan 03, §21 Q2 "Not sure") \|" |
 | Matrix row | GATED-06 | `pkg specs-compliance-matrix.md:156`: "\| GATED-06 \| `.claude/agents/` + hooks (A vs B) \| "Not sure" (§21 Q2) \| absent at every level \| plan 03 \|" (stale since D1; see Task 6) |
 | Contract | C-GATE-1 | `pkg architecture-engineering-contract.md:340` "**C-GATE-1 · BINDING.**": measured counts, with interpreter named. |
@@ -172,6 +172,7 @@ These are the failure modes no automated test here exercises, most likely first:
 ### Dependencies
 
 - **P0-B** is landed: the `docs/capstone-report/` package is committed, so ledger edits have a tracked base.
+- **P0-B2** is landed (owner gate P0-B2): this plan file is committed on main, because Tasks 0–8 record results in its "Execution record" section and a fresh worktree from `origin/main` has no untracked plan file. Task 0 Step 1 checks it.
 - **D9:** `~/venvs/asclexis-311` exists, and `import yaml` works in it. PyYAML comes transitively through `huggingface-hub` and `uvicorn[standard]`; it is not named in `requirements.txt`.
 - **P1** is merged to main. It brings `B@7b2ff1f` (`harness_drift_check.py`, corrected harness/roadmap, the CS4610 README) and `A@692fdf3`.
 - **D1 and D1-scope** are decided (quoted above).
@@ -196,9 +197,10 @@ git -C "$REPO" fetch origin
 git -C "$REPO" worktree add "$WT" -b feat/w01-harness-agents origin/main
 cd "$WT"
 git merge-base --is-ancestor 7b2ff1f HEAD && git merge-base --is-ancestor 692fdf3 HEAD && echo post-P1-ok
+git ls-files docs/plans/2026-09-27-W01-*.md
 ```
 
-Expected: `post-P1-ok`. If it is not printed, **STOP**, because P1 has not landed.
+Expected: `post-P1-ok`, then `docs/plans/2026-09-27-W01-harness-agents-branch-a.md`. If `post-P1-ok` is not printed, **STOP**, because P1 has not landed. If the `ls-files` line is empty, **STOP**: P0-B2 (plan set committed) has not landed, and this plan's Execution record has no tracked file.
 
 - [ ] **Step 2: Interpreter and baseline suite**
 
@@ -236,7 +238,7 @@ Expected:
 
 **STOP gate: `drift` is non-zero before any W-1 change.** Report the output to the orchestrator and stop. Do **not** edit `scripts/harness_drift_check.py` or its tests; weakening a check to pass is forbidden (CLAUDE.md §3), and D1 does not license checker edits. Do not reword another phase's doc to make it pass either. A clean drift check on the merged tree is P1 acceptance, and the orchestrator has added it there.
 
-Known risk for P1, measured 2026-09-27: B's checker over B's tree exits 0. With `A@692fdf3`'s `recurring-failures.md` swapped in, it exits 1 with one error, `missing path '/profiles/'`. The token is `` `GET /profiles/` `` in A's SEC-RECOV-002 bullet (`A@692fdf3 docs/agentic/recurring-failures.md:33`), which plan 01 keeps ("Union — keep ALL four additions"). If P1 lands without resolving it, this gate fires.
+Known risk for P1, measured 2026-09-27: B's checker over B's tree exits 0. With `A@692fdf3`'s `recurring-failures.md` swapped in, it exits 1 with one error, `missing path '/profiles/'`. The token is `` `GET /profiles/` `` in A's SEC-RECOV-002 bullet (`A@692fdf3 docs/agentic/recurring-failures.md:33`), which plan 01 keeps ("Union — keep ALL four additions"). If P1 lands without resolving it (owner gate P1-DRIFT), this gate fires.
 
 - [ ] **Step 4: Verify the text this plan replaces is still what it quotes**
 
@@ -740,7 +742,7 @@ Expected: every line starts `ok`. Any `MISSING` means you must **fix the body** 
 - Consumes: `IMPLEMENTER_TOOLS`, `IMPLEMENTER_WRITE_SCOPE`, `IMPLEMENTER_MODEL`, `IMPLEMENTER_LIMIT_LINE`, `DISPATCH_LINE`, the ask-first paragraph (Task 2).
 
 **Proposed write scope:** exactly `dev.ps1` and `dev.bat`.
-- `dev.bat` is the double-click wrapper that runs `powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0dev.ps1"` (`B@7b2ff1f dev.bat:16`).
+- `dev.bat` is the double-click wrapper that runs `powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0dev.ps1"` (`B@7b2ff1f dev.bat:17`).
 - `dev.ps1` is the bootstrap (855 lines at B; winget Python 3.11 install at `:361-368`).
 
 Excluded on purpose:

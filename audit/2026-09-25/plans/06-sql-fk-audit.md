@@ -12,6 +12,10 @@
 > - **F-15:** the pragma hook wording is corrected in Global Constraints ("once per new physical DBAPI connection").
 > - **Baseline:** "1245" is main@`40f590e`. Measure the count on the post-plan-05 tree before Task 1 and use that number.
 
+> **Wave-3 integration banner (2026-09-28)** — sources: `audit/2026-09-25/swarm-2026-09-27/wave3/3a-integration.md` B-4, M-5 (re-checked against `40f590e` before this banner was written).
+> 1. **Collected-count slots (3a B-4; owner-gated SLOT-RULE).** Tasks 1, 2 and 3 add test files (`test_fk_audit.py`, `test_fk_migration_013.py`, the HC-FK pragma tests), and no commit here stages `CLAUDE.md`/`AGENT.md`. If the owner signs SLOT-RULE: every commit that changes the collected count also updates the collected slots in `CLAUDE.md` and `AGENT.md`, in the same commit, with the number measured on that commit's tree. Collected slots only; pass sentences are left as they are and flagged in the PR. Without the rule, a later phase that checks the slots (W-2, S-1, P08 Task 0) STOPs on a stale figure.
+> 2. **Task 2 breaks two existing assertions (3a M-5, from W-11b F-4).** `src/backend/tests/test_care_tasks.py:809` and `:825` both assert `== "012_pinboards"` (`git show 40f590e:src/backend/tests/test_care_tasks.py | sed -n 800,828p`). Migration `013` moves the profile head, so Task 2 must update both literals to `"013_fk_cascade_alignment"` in its own commit. G-C1 (W-11b) later moves them to `014`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make SQLite actually enforce the foreign keys the schema already declares — detect pre-existing orphans first, realign the four constraints that would break live code paths, then set `PRAGMA foreign_keys=ON` on every application-owned connection (master + per-profile vault).
@@ -247,6 +251,7 @@ SQLite cannot `ALTER` a constraint; the chain already uses `op.batch_alter_table
 - Create: `src/backend/migrations/profile/versions/013_fk_cascade_alignment.py` (`down_revision = "012_pinboards"`)
 - Modify: `src/backend/models/document_category.py:22,38` (add `ondelete="CASCADE"`), `src/backend/models/care_plan_task.py:38-43` (add `ondelete="SET NULL"` ×2)
 - Test: `src/backend/tests/test_fk_migration_013.py`
+- Modify: `src/backend/tests/test_care_tasks.py:809,825` — head literal `"012_pinboards"` → `"013_fk_cascade_alignment"` (Wave-3 banner item 2)
 
 **Interfaces:**
 - Produces: migrated vaults whose `PRAGMA foreign_key_list(document_category)` / `(document_entity)` report `on_delete=CASCADE`; `(care_plan_task)` reports `SET NULL` on both columns. Model and DDL stay in agreement (the audit §1 invariant).
