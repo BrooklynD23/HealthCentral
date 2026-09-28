@@ -1,0 +1,4 @@
+R4 (codex, FINAL) dispositions — fixed after the last round; open for owner acceptance:
+1. [MAJOR] break-it claims removing the handler's vault commit reddens HC-EXPA-001, but the dependency commits on exit (profile_database.py:74-83 @main) -> ACCEPTED: remove the claimed red result for that break; if the transaction-order guarantee matters, test it directly (e.g. assert the row is visible to a fresh session before the response returns, or override the dependency to skip its final commit for that break), else drop the break.
+2. [MAJOR] `D=docs/plans/<YYYY-MM-DD>-packaging-decision.md` placeholder -> ACCEPTED: `D="docs/plans/$(date +%F)-packaging-decision.md"`.
+Update review-status line: "4 Codex rounds; round-4 MAJORs fixed after the last round, not re-reviewed (owner acceptance required)."

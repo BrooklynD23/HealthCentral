@@ -1,0 +1,6 @@
+R1 (codex) dispositions:
+1. [BLOCKER] worktree from origin/main lacks P0-B package -> REJECTED as a defect (intended STOP until P0-B/P1 merge). Fix wording: explicit "Prerequisites: P0-B and P1 merged to origin/main".
+2. [MAJOR] D8 delivery settled -> ACCEPTED: cite owner decision D8-delivery (2026-09-27, "Script + offline load": interim download_models.py fetch into a local models dir; HF offline at runtime; fails closed if absent; installer bundles it later (G-C4); no weights in git) and point to W-8.
+3. [MAJOR] failures ⊆ start with no end run -> ACCEPTED: either run the suite at END and compare failure names, or mark that acceptance line UNMEASURED (docs-only phase).
+4. [MAJOR] uvicorn relative --app-dir -> ACCEPTED: absolute app dir + full launch/probe commands.
+5. [MAJOR] pre-merge rollback leaves remote PR/branch -> ACCEPTED: gh pr close --delete-branch.

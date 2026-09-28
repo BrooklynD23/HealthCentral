@@ -482,6 +482,46 @@ This is mostly a safety document. The largest brand risk for this product is not
 
 Links to: `docs/plans/2026-07-07-rename-audit-and-shortlist.md`
 
+## `docs/capstone-report/00-original-goal.md`
+
+**The Original Goal — Restated**
+
+For the capstone report's introduction and evaluation sections. Two coupled goals — the product is the substrate; the research is the thesis.
+
+Links to: `docs/capstone-report/README.md`, `docs/capstone-report/claims-ledger.md`, `docs/capstone-report/report-outline.md`
+
+## `docs/capstone-report/README.md`
+
+**Capstone Report Knowledge Base**
+
+Knowledge base for the CS4610 capstone report — tracking the distance between the project's original goal, the repository's verified state, and the claims the report makes. Everything here is…
+
+Links to: `audit/2026-09-25/Devin-Audit-report.md`, `docs/capstone-report/00-original-goal.md`, `docs/capstone-report/claims-ledger.md`, `docs/capstone-report/report-outline.md`, `docs/capstone-report/research`
+
+## `docs/capstone-report/claims-ledger.md`
+
+**Claims Ledger — Report Claims ↔ Repo Evidence**
+
+Every load-bearing claim destined for the capstone report, its evidence, and its verdict. Rule: **no claim ships without a row here.** Verdicts: `VERIFIED` (checked in code/git), `AUDIT-VERIFIED`…
+
+Links to: `docs/capstone-report/README.md`
+
+## `docs/capstone-report/report-outline.md`
+
+**Capstone Report Outline — Evidence-Mapped**
+
+Working outline. Each section names the artifacts that back it — the report is an assembly of verifiable evidence, not narrative invention. Item status: ✅ ready · 🔶 needs work · ⬜ pending.
+
+Links to: `audit/2026-09-25/asclexis-showcase.html`, `docs/capstone-report/00-original-goal.md`, `docs/capstone-report/README.md`, `docs/capstone-report/research`
+
+## `docs/capstone-report/research/README.md`
+
+**Research Scouting — Index**
+
+Technology-scouting documents for the capstone report's Related Work section and the project's roadmap. Each document evaluates a cluster of technologies and ends every entry with:
+
+Links to: `docs/capstone-report/README.md`
+
 ## `docs/compliance/README.md`
 
 **Compliance Documentation**
