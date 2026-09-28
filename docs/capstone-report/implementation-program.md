@@ -1,6 +1,6 @@
 # Asclexis — Implementation Program
 
-**Last Updated:** 2026-09-28 (Wave-3a program deltas integrated: graph, shared-file order, P0-B2, ground rule 8, W-plans table, program owner items; nothing signed)
+**Last Updated:** 2026-09-28 (owner signed P0-B2, D9-SRC, P1-DRIFT, SLOT-RULE, P7-ROUTE, SQL-ECHO S1-A+S1-B; all other gates unchanged)
 **Status:** PLAN ONLY. Nothing in this program has been executed, merged, or committed. It replaces the "pending" implementation-program entry in the capstone README and supersedes the sequencing in audit §22–§23 wherever they differ.
 
 This program orders the eight audit plans (`audit/2026-09-25/plans/01`–`08`) and the gaps found on 2026-09-27 that no plan covers. It includes the independent review's corrections ([follow-up](../../audit/2026-09-25/review/2026-09-27-followup.md)). The rules it must preserve are in [architecture-engineering-contract.md](architecture-engineering-contract.md). The gaps it closes are in [specs-compliance-matrix.md](specs-compliance-matrix.md).
@@ -38,7 +38,7 @@ This program orders the eight audit plans (`audit/2026-09-25/plans/01`–`08`) a
    - Pass-count sentences change only with a pass count measured in a named environment (interpreter, plus embedding model present or absent).
    - This applies to plans 05, 06 and 07 (banners) and to W-6 (count-slot carve-out).
    - Development may run in parallel; merges are serial on these two lines, and the second PR re-measures.
-   - *(Owner-gated: SLOT-RULE. Proposed, not signed.)*
+   - *(SLOT-RULE: owner-approved 2026-09-28, [owner-decisions](owner-decisions-2026-09-27.md).)*
 
 ## Dependency graph
 
@@ -47,8 +47,8 @@ flowchart TD
   P0A["P0-A DOCS<br/>package corrections (done)"] --> P0B["P0-B OWNER (approved)<br/>commit audit/ + capstone-report/ + INDEX"]
   P0A --> P0C["P0-C OWNER (done)<br/>D1–D13, G-B5, D8-delivery recorded"]
   P0A -.-> P0D["P0-D DOCS<br/>D3/D4 brief — moot? (gate P0-D-MOOT)"]
-  P0B <-->|"same PR (B-1)"| P0B2["P0-B2 OWNER (gated)<br/>commit the 2026-09-27 plan set"]
-  D9["D9 OWNER (approved)<br/>3.11 venv; python3.11 not on PATH,<br/>uv CPython 3.11.16 present (gate D9-SRC)"]
+  P0B <-->|"same PR (B-1)"| P0B2["P0-B2 OWNER (approved)<br/>commit the 2026-09-27 plan set"]
+  D9["D9 OWNER (approved)<br/>3.11 venv; python3.11 not on PATH,<br/>uv CPython 3.11.16 (D9-SRC approved)"]
   P0B --> P1["P1 PRODUCT<br/>land A + B (plan 01)<br/>+ drift-token reword (gate P1-DRIFT)"]
   P0C --> P1
   D9 --> P1
@@ -193,7 +193,7 @@ Integrated from the Wave-3a audit §2 ([3a-integration.md](../../audit/2026-09-2
 - **Acceptance:** `generate_docs_index.py --check` exits 0; `docs_lint.py` prints "Docs lint passed."
 - **State (2026-09-28):** owner-approved ("Commit on a docs branch", [owner-decisions-2026-09-27.md](owner-decisions-2026-09-27.md)), not yet executed as approved. A local snapshot branch `docs/p0b-plan-set` (commit `5d56557`, not pushed, not merged) now holds the `audit/` + `docs/capstone-report/` package, `docs/INDEX.md` as it stood, and all 16 `docs/plans/2026-09-27-*.md` files. The plan files are outside P0-B's approved scope; they wait on P0-B2. The index has not been regenerated there. The snapshot stays pending until the owner signs P0-B's execution and P0-B2.
 
-**P0-B2 · OWNER · owner-gated.**
+**P0-B2 · OWNER · owner-approved 2026-09-28 ("All 16, push + open PR"; showcase plan included, unaudited, labelled).**
 - **Outcome:** the 15 `docs/plans/2026-09-27-*.md` files audited in Wave 3 (W01–W08, W10, W11a, W11b, P04, P08, S01, nightly spec) are committed **in the same PR as P0-B**, and the index is regenerated there. A 16th file, `2026-09-27-senior-report-showcase-plan.md`, is also in the snapshot but was not in the Wave-3 audit scope; the owner includes or excludes it explicitly.
 - **Why:** `owner-decisions-2026-09-27.md:46` links the W-8 plan, so P0-B alone fails DOC-007. P4, S-1, W-1, W-2 and W-5 edit their own plan file, and W-11b names the committed plan set as a prerequisite.
 - **Acceptance:** in a clean worktree, `docs_lint.py` prints "Docs lint passed." and `generate_docs_index.py --check` exits 0. Measured 2026-09-28 on `docs/p0b-plan-set` before this pass linked the plans: 7 DOC-011 orphans.
@@ -209,7 +209,7 @@ Integrated from the Wave-3a audit §2 ([3a-integration.md](../../audit/2026-09-2
 - **Acceptance:** each surface is cited `path:line`, and the options are neutral.
 - **Superseded? (gate P0-D-MOOT, owner-gated):** D3 and D4 are decided, so W-2 S-5 proposes that this brief is moot. Until the owner answers, P0-D stays listed and nothing is written.
 
-**D9 · OWNER · owner-approved; source owner-gated (D9-SRC).**
+**D9 · OWNER · owner-approved; source owner-approved 2026-09-28 (D9-SRC: uv CPython 3.11.16).**
 - `python3.11` is not on PATH (`/usr/bin/python3.12` only; re-checked 2026-09-28).
 - A uv-managed CPython 3.11.16 exists: `uv python list --only-installed` → `/home/danny/.local/share/uv/python/cpython-3.11-linux-x86_64-gnu/bin/python3.11`.
 - Proposed command: `uv venv -p 3.11 ~/venvs/asclexis-311 && uv pip install -p ~/venvs/asclexis-311 -r src/backend/requirements.txt`.
@@ -241,7 +241,7 @@ Integrated from the Wave-3a audit §2 ([3a-integration.md](../../audit/2026-09-2
   - `grep -n "faithfulness_score=1.0" src/backend/api/assistant.py` → none.
   - `SettingsPage.tsx` mounts both `RecoveryCodeCard` and `TierCapabilities`.
   - The baseline lines in `CLAUDE.md` and `AGENT.md` show the measured merged count.
-  - `python3 scripts/harness_drift_check.py` exits 0 on the resolved merge. Gate P1-DRIFT (owner-gated): measured risk is drift=1 from A's `recurring-failures.md:33` token `` `GET /profiles/` ``; the fix is a reword inside the already-conflicted file.
+  - `python3 scripts/harness_drift_check.py` exits 0 on the resolved merge. Gate P1-DRIFT (owner-approved 2026-09-28): measured risk is drift=1 from A's `recurring-failures.md:33` token `` `GET /profiles/` ``; the fix is a reword inside the already-conflicted file.
   - Plan 01 Task 4 writes the collected number only, never "N-1" into a pass slot (ground rule 8).
 - **Rollback:** `git revert -m 1 <merge>` per branch; no schema to unwind. The `llama-cpp-python==0.3.35` pin may need `pip install -r requirements.txt` after a revert.
 - **Sign-off:** owner merges ("as-is", §21 Q3).
@@ -359,7 +359,7 @@ P3 is now **W-1** ([W01 plan](../plans/2026-09-27-W01-harness-agents-branch-a.md
 
 - **Outcome:** `/profiles/test/reset` wipes every profile table, child-first, with a coverage test.
 - **Owned files:** `api/profiles.py` (the reset tuple only), `tests/support/routes.py`, the new `tests/test_profile_test_reset.py`.
-- **Depends on:** P6 (FK state known); gate **P7-ROUTE** (owner-gated, proposed default yes): P7 edits the `/profiles/test/reset` route (`api/profiles.py:498-532`, imports `:52-72`) in a file that also holds login, unlock, change-password and recovery.
+- **Depends on:** P6 (FK state known); gate **P7-ROUTE** (owner-approved 2026-09-28): P7 edits the `/profiles/test/reset` route (`api/profiles.py:498-532`, imports `:52-72`) in a file that also holds login, unlock, change-password and recovery.
 - **Stop gate:** decide the treatment of the FTS `search_records*` tables (N-02) before writing the coverage assertion.
 - **Verification:** HC-RESET tests over HTTP (`route_client`); full suite.
 - **Acceptance:** collected = P7-start + 7; the coverage test fails when a model is removed from the tuple (break it on purpose).
@@ -407,7 +407,7 @@ Integrated from Wave-3a §5.5. All rows are **proposed**; nothing here is starte
 
 | ID | Kind | Plan | Depends on (hard; *soft*) | Stop gates (owner) | Measured acceptance | Sign-off |
 |---|---|---|---|---|---|---|
-| S-1 | PRODUCT | [S01 SQL-echo PHI leak](../plans/2026-09-27-S01-sql-echo-phi-leak.md) | P1, P0-B2, D9; before P6; *before P2, P4* | SQL-ECHO (S1-A Task 2, S1-B Task 3); no D-decision covers S-1 | collected = start + 3 (+1 with S1-B); break-it table green→red; probe sentinels 0 on the end tree | owner: S1-A, S1-B, merge |
+| S-1 | PRODUCT | [S01 SQL-echo PHI leak](../plans/2026-09-27-S01-sql-echo-phi-leak.md) | P1, P0-B2, D9; before P6; *before P2, P4* | SQL-ECHO (S1-A Task 2, S1-B Task 3): owner-approved 2026-09-28 (S1-A + S1-B) | collected = start + 3 (+1 with S1-B); break-it table green→red; probe sentinels 0 on the end tree | owner: S1-A, S1-B, merge |
 | W-1 (= P3) | PRODUCT + DOCS | [W01 harness agents](../plans/2026-09-27-W01-harness-agents-branch-a.md) | P1 (+P1-DRIFT), P0-B2, D9, D1 (approved) | OG-3 (Task 9); OG-1/2/4/5 optional | 5 files in `git ls-files .claude/agents`; drift check 0; collected = start + 7 (+8) | owner merge (D1) |
 | P4-core | DOCS | [P04 drift-sweep amendment](../plans/2026-09-27-P04-doc-drift-sweep-amendment.md) | P0-B2, D9, P1, P2, W-1; *S-1* | OG-4/5/6 per commit; S1–S9; OG-2 = D4-EXPORTS (exports carry unverified rows; D4 does not cover exports; P4 documents only) | Task 16 greps empty; lint + index pass; collected = start | none beyond D2/D3 |
 | P4-deferred | DOCS | same (N8–N10, F1–F6) | per trigger: W-5, P8 Brief 2, W-6, W-3, W-2+W-10, W-7, W-4, W-8 | N9 needs P8-B2-ORDER | per task | owner merge per PR |
@@ -451,7 +451,7 @@ Findings that no plan covers, registered so they are not lost. They are **owner 
 
 Also unowned per 3b §3, not in the ledger's list: GATE-12 (no general guard stops tests opening the developer's real master DB; S-1 covers only its own tests; 3b proposes W-11a). Also unowned: the PRIV-06 remainder, `api/profiles.py:328` logs the profile display name at INFO (main = B; suppressed today only because root is WARN after Alembic's `fileConfig`). S-1 excludes it (S01 `:134`); `api/profiles.py` is auth-adjacent, so the owner decides between an S-1 addendum (3b's proposal) and leaving it.
 
-**Program-level owner gates** (canonical IDs from 3a §3; all *owner-gated*, none signed): P0-B2, D9-SRC, P1-DRIFT, SLOT-RULE (ground rule 8), W4-EXPEDITE (optional), P7-ROUTE, CI-SEED (one approval for throwaway draft PRs, closed unmerged), P0-D-MOOT.
+**Program-level owner gates** (canonical IDs from 3a §3). *Owner-approved 2026-09-28:* P0-B2, D9-SRC, P1-DRIFT, SLOT-RULE (ground rule 8), P7-ROUTE, SQL-ECHO (S1-A + S1-B). *Still owner-gated:* W4-EXPEDITE (optional), CI-SEED (one approval for throwaway draft PRs, closed unmerged), P0-D-MOOT.
 
 ## Plan overlaps and conflicts
 

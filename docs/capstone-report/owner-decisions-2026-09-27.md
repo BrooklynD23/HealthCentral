@@ -1,6 +1,6 @@
 # Owner Decisions — 2026-09-27
 
-**Last Updated:** 2026-09-28 (Consequence #4: model size measured, revision gate named EMB-REV; no new approval)
+**Last Updated:** 2026-09-28 (six gate answers from the owner in chat: P0-B2, D9-SRC, P1-DRIFT, SLOT-RULE, P7-ROUTE, SQL-ECHO; earlier: Consequence #4 size measured, EMB-REV named)
 **Recorded by:** Claude orchestrator. Each answer was selected by the repository owner in the Claude Code chat on 2026-09-27, in reply to multiple-choice questions. Each option carried the description quoted below.
 **Scope rule:** each approval licenses exactly the option text shown. Anything wider is still owner-gated. This record answers D1–D13 in [implementation-program.md](implementation-program.md#owner-decision-intake-p0-c), P0-B, two follow-ups, and the D8-delivery follow-up (answered later on 2026-09-27).
 
@@ -25,6 +25,12 @@
 | D11 | Citation-marker vocabulary | **Docs match code** | "Keep [cite:N] as the validated marker; document [YOUR_RESULTS:N]/[REFERENCE:N] as context labels; remove the contradictory prompt line. … no validator edit." | yes |
 | D8-delivery | How the D8 model reaches the machine before an installer exists (Consequence #4) | **Script + offline load** | "Interim: `src/backend/scripts/download_models.py` fetches it once into a local models dir; runtime loads that path with HF offline and fails closed if absent. Installer bundles it later (G-C4). No weights in git." Asked and answered later the same day, in the planning session. | n/a (no option was marked recommended) |
 | G-B5 | Low-faithfulness legacy answers | **Abstain + add eval gate** | "If is_valid=False, return the abstention/knowledge-fallback template instead of the answer, and add a CI eval gate for the legacy path. Threshold stays 0.6 (never lowered)." | yes |
+| P0-B2 | Plan-set scope of the P0-B PR (answered 2026-09-28) | **All 16, push + open PR** | "Push docs/p0b-plan-set and open a PR with all 16 plans, capstone-report and audit/. Showcase plan included as-is (unaudited, labelled)." | yes |
+| D9-SRC | D9 interpreter source (answered 2026-09-28) | **Yes, use uv 3.11.16** | "`uv venv -p 3.11 ~/venvs/asclexis-311` from src/backend/requirements.txt. Unblocks every PRODUCT phase gate." | yes |
+| P1-DRIFT | Drift-check token in P1 merge (answered 2026-09-28) | **Signed** | "During the merge, reword `GET /profiles/` in recurring-failures.md:33 so harness_drift_check.py exits 0; add that to P1 acceptance." | yes |
+| SLOT-RULE | Collected-count slots (answered 2026-09-28) | **Signed** | "Every commit that changes the collected test count updates the CLAUDE.md/AGENT.md collected slots in the same commit. Without it W-2, S-1, P08 STOP." | yes |
+| P7-ROUTE | Plan 07 route edit (answered 2026-09-28) | **Signed** | "Approve plan 07's edit to the test-only /profiles/test/reset route in api/profiles.py (prod → 404)." | yes |
+| SQL-ECHO | S-1 fixes (answered 2026-09-28) | **S1-A + S1-B** | "A: new sql_echo flag default False (decoupled from debug). B: hide_parameters=True so even when echo is on, values are masked." Both touch ask-first `core/profile_database.py` (1 line) — licensed by this answer. | yes |
 
 ## Earlier owner records still in force
 
