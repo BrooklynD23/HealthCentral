@@ -153,7 +153,7 @@ Every ID below was verified by `grep -n` on 2026-09-27. Lines refer to the untra
 | ID | Location | Quoted |
 |---|---|---|
 | W-11 | [handoff](../../audit/2026-09-25/handoff-2026-09-27-execution.md):148 | "\| W-11 \| remaining gaps \| G-B1 …, G-B2 …, G-B4 …, G-C1…C4 per the program table \| per the program \| per the program G-table \| per the program \|" |
-| G-C1…G-C5 | [program](../capstone-report/implementation-program.md):288-292 | the gap-table rows quoted in Approval scope |
+| G-C1…G-C5 | [program](../capstone-report/implementation-program.md):398-402 | the gap-table rows quoted in Approval scope |
 | **G-C1** | | |
 | PRIV-08 | [matrix](../capstone-report/specs-compliance-matrix.md):91 | "Export artifacts survive a restart \| audit §11 P1-3 \| module-level dicts in `api/export.py` (REPORTED) \| — \| — \| **unknown** (not re-checked)" |
 | ISO-01 | matrix:49 | "Profile data only via `ProfileDbSession`, never master `get_db()`" |
@@ -251,7 +251,7 @@ Every ID below was verified by `grep -n` on 2026-09-27. Lines refer to the untra
 | File | Order | Evidence |
 |---|---|---|
 | `api/export.py` | P5 → W-2 → **G-C1** | W-2 plan `:92` "`api/export.py` \| **W-2** → G-C1 \| … It should persist already-redacted summaries. Never concurrent" |
-| `api/profiles.py` | P5 → P7 → {G-B1, **G-C1**}; never concurrent | program `:69` "`api/profiles.py` (P5 → P7 → G-B1)". G-C1 edits only P7's tuple |
+| `api/profiles.py` | P5 → P7 → {G-B1, **G-C1**}; never concurrent | program `:137` "`api/profiles.py`: P5 → P7 → {W-11a PR-1, G-C1}" (W-11a PR-1 = G-B1). G-C1 edits only P7's tuple |
 | `migrations/profile/versions/` | P6 (`013`) → **G-C1** (`014`) | plan 06 Task 2 creates `013_fk_cascade_alignment` with `down_revision = "012_pinboards"` |
 | `tests/test_care_tasks.py` head literal | P6 → **G-C1** | the literal pins the head at `:809`, `:825`. Plan 06 does not mention it (finding F-4) |
 | `tests/test_visit_prep_packet.py`, `tests/test_fhir_export.py` | P5, W-2 → **G-C1** | W-2 plan lists both as neighbours; plan 05 only runs `test_fhir_export.py` (`05:338`; the file already uses `core.time.utcnow`), it does not edit it (3a m-4) |

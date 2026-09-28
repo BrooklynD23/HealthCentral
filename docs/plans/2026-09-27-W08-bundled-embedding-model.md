@@ -83,7 +83,7 @@ What the two texts license together:
 |---|---|---|
 | Handoff | W-8 ([handoff §5](../../audit/2026-09-25/handoff-2026-09-27-execution.md)) | "The embedding model ships with the app and loads from a local path, with HF offline at runtime. **Open:** delivery before an installer exists." Test: "HC-EMB-001: with the network blocked and an empty HF cache, the embedding module loads from the bundled path or fails closed. It must not silently use the fallback." Acceptance: "test green with the socket blocked" |
 | Program | G-A3 ([program](../capstone-report/implementation-program.md), gap table) | "Local-only embedding load (LOCAL-03) · D8 · … the embedding module either loads from the configured local path or fails closed. It must not silently use the fallback." |
-| Program | D8 row | "**DECIDED: bundle the model** (not the recommendation; delivery mechanism open)". This plan's Task 0 records the delivery answer |
+| Program | D8 row | "**DECIDED: bundle the model** (not the recommendation; delivery: D8-delivery decided, script + offline load; revision pin EMB-REV unsigned)". This plan's Task 0 records the delivery answer |
 | Contract | C-LOCAL-2 · PROPOSED ([contract §1](../capstone-report/architecture-engineering-contract.md)) | "The embedding model MUST load from a local path or cache and MUST NOT download implicitly at query time." |
 | Contract | C-LOCAL-1 · BINDING | Its "Known exceptions" list includes "the implicit embedding download (C-LOCAL-2)", which this plan removes |
 | Contract | C-SAFE-4 · BINDING | Covers "the 0.7 embedding-similarity assertion in `test_api_rag_index_002b`" |
@@ -161,7 +161,7 @@ Rule: no two plans edit a shared file at the same time (program, "Shared files a
 
 | File | Order |
 |---|---|
-| `core/config.py` | P1 (B) → S-1 (+4 lines after `debug`, `:28` B@7b2ff1f) → P4 (comment at `:109`) → W-6 (if it edits config) → **W-8**. S-1 shifts W-8's anchors by +4; re-anchor by grep |
+| `core/config.py` | P1 (B) → S-1 (+4 lines after `debug`, `:28` B@7b2ff1f) → P4 (comment at `:109`) → **W-8** (W-6 does not edit it, W-6 §4.2). S-1 shifts W-8's anchors by +4; re-anchor by grep |
 | `scripts/download_models.py` | P1 (B) → **W-8** |
 | `api/documents.py` | P1 (A) → P5 (Task 2: `utcnow`) → **W-8** |
 | `modules/rag.py` | W-5 (`:123-140`) → W-3 (`:323-332`, `:549-553`) → **W-8** (W-4 does not edit rag.py). W-3 and W-8 both edit the `_search_vectors_async` statement (`:549-553` B@7b2ff1f): a real hunk dependency, so serialize |

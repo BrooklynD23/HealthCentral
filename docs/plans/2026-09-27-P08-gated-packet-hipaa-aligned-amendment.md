@@ -21,7 +21,7 @@
 
 **Tech Stack:** Markdown, `git`, `grep`/`awk`, `python3 scripts/docs_lint.py`, and the D9 3.11 venv (`~/venvs/asclexis-311/bin/python`). The venv is used for the start/end measurement and the log-sink probe only.
 
-**Spec:** [handoff §5 row W-9](../../audit/2026-09-25/handoff-2026-09-27-execution.md) and [program P8](../capstone-report/implementation-program.md) (`:261-271`).
+**Spec:** [handoff §5 row W-9](../../audit/2026-09-25/handoff-2026-09-27-execution.md) and [program P8](../capstone-report/implementation-program.md) (`:369-381`).
 
 ## Global Constraints
 
@@ -96,7 +96,7 @@ Consequence 5 (`:46`), verbatim:
 | KEY-05, KEY-06 | same `:62`, `:63` | DEK rotation **gap**, doc overstates; MFA **owner-gated** |
 | PRIV-06 | same `:89` | "No PHI in logs or audit rows … **partial**" (F-P8-3 adds evidence) |
 | GATED-01…05 | same `:151-155` | the five packet items; GATED-05 "approved for build behind a default-off flag" |
-| P8 | [program](../capstone-report/implementation-program.md) `:261-271` | owned files; stop gates "No legal status asserted (F-08)", "six-year rule is scoped to 45 CFR 164.316 documentation", "HC-M11's existing flag-only approval is cited, not re-asked" |
+| P8 | [program](../capstone-report/implementation-program.md) `:369-381` | owned files; stop gates "No legal status asserted (F-08)", "six-year rule is scoped to 45 CFR 164.316 documentation", "HC-M11's existing flag-only approval is cited, not re-asked" |
 | P4 dependency | same `:196` | "**Added:** `hipaa-controls.md:169` ("key rotation") wording, after plan 08 brief 2 is signed." |
 | G-C5 | same `:292` | "HC-M11 cross-encoder behind a default-off flag \| P8 brief 5; P1" |
 | W-9 | [handoff §5](../../audit/2026-09-25/handoff-2026-09-27-execution.md) `:146` | "Plan 08 brief 4 designs retention as if HIPAA applied … C-AUDIT-2 / AUD-03, AUD-04 \| docs only: packet review checklist \| brief signed by the owner" |

@@ -84,7 +84,7 @@ Dashed edges are network or conditional paths. The only default-on outbound path
 | Exports | `api/export.py`, `modules/export.py`, `modules/fhir_export.py`, `api/feedback.py` + `modules/rl_dataset.py` | vault → CSV/JSON/summary/visit-prep/FHIR/JSONL | redaction on RL, FHIR, visit-prep, pinboard; **not** on CSV/JSON/doctor summary (§8); export artifacts held in process-memory dicts `api/export.py:44,47,50` (`_summary_store`, `_packet_store`, `_fhir_store`; `api/pinboards.py:13,495` also writes `_packet_store`), lost on restart (matrix PRIV-08 `gap`; W-11b measured a 404 after restart) | redaction | wired, partly tested |
 | Backup / restore | `api/backup.py`, `scripts/backup.py`, `modules/backup_scheduler.py` | vault → archive; archive → vault | unredacted by design (`docs/compliance/data-privacy.md:173-178`); raw `sqlite3` (bypasses SQLAlchemy listeners) | master `backup_schedules` | wired, HTTP-tested (`tests/test_backup_routes.py`) |
 | Notifications | `modules/notification_scheduler.py`, `api/notifications.py` | schedule → reminder | vault | — | implemented, **not wired** (`:559` has no production caller) |
-| Audit trail | `core/audit.py` | event → `audit_logs` row + logger echo | master DB (unencrypted); also logged at INFO via the logger (`core/audit.py:254-261`); no product code configures a file sink, so plan 08's `logs/asclexis.log` claim is UNVERIFIED | — | wired; 4 profile routes unaudited (matrix §7, AUD-02) |
+| Audit trail | `core/audit.py` | event → `audit_logs` row + logger echo | master DB (unencrypted); also logged at INFO via the logger (`core/audit.py:254-261`); no product code configures a file sink (`log_file_path` only creates the directory, `core/database.py:87`), so plan 08's `logs/asclexis.log` claim is false (matrix AUD-05) | — | wired; 4 profile routes unaudited (matrix §7, AUD-02) |
 
 ## 4. Data architecture
 
@@ -111,7 +111,7 @@ Dashed edges are network or conditional paths. The only default-on outbound path
 | Legacy RAG retrieval | **no** (labels verified rows only) | `modules/rag.py:323-331,433,549-552` |
 | CSV / JSON / doctor summary | **no** | `api/export.py:130-150` |
 
-Whether trends must exclude unverified rows is a **spec question** (PRD `docs/Local_First_Medical_Results_Companion_PRD_v0_1.md` requires verification of OCR numerics; `docs/architecture/pipelines.md:53-56` says downstream surfaces consume the verified set) — recorded as owner-gated in the matrix, not decided here.
+Whether trends must exclude unverified rows is a **spec question** (PRD `docs/Local_First_Medical_Results_Companion_PRD_v0_1.md` requires verification of OCR numerics; `docs/architecture/pipelines.md:53-56` says downstream surfaces consume the verified set). D4 decided it 2026-09-27 (`owner-decisions-2026-09-27.md:16`): trends may show unverified points, visibly marked; legacy RAG cites verified values only (W-3, proposed).
 
 ## 6. Assistant path
 
@@ -167,7 +167,7 @@ One workflow, `.github/workflows/ci.yml` (push to `main` and `Security-Revamp-*`
 | docs-lint | `docs_lint.py`, `generate_docs_index.py --check`, `feature_list_lint.py` | `:10-28` |
 | backend-tests | SQLCipher install, `scripts/run-backend-tests.sh -q` | `:30-48`; **1245 collected** at `40f590e` (measured 2026-09-27) |
 | frontend-tests | `npm ci`, `tsc --noEmit`, `vitest run` | `:50-73`; no `npm run build`, no eslint |
-| security-scan | bandit / pip-audit (`|| true`) → `security_gate.py` | `:75-110`; gate **fails open** on missing/malformed reports (`scripts/security_gate.py:49-51,76-78`) — fix on branch B |
+| security-scan | bandit / pip-audit (`\|\| true`) → `security_gate.py` | `:75-110`; gate **fails open** on missing/malformed reports (`scripts/security_gate.py:49-51,76-78`) — fix on branch B |
 | agent-evals | `scripts/agent_eval_gate.py` over 74 golden cases, == 1.0 / == 0 bars | `:112-130`; agent path only |
 | e2e-tests | Playwright chromium, needs FE+BE | `:132-168` |
 
@@ -196,13 +196,13 @@ These are documentation defects to fix in the doc-drift phase (P4 of the program
 | Memory-route audit logging, answer-cache fingerprint | branch B `2c98ae6` | same | `api/memory.py`, `core/audit.py`, `modules/agent/cache.py` |
 | Phi-4-mini mid tier; `llama-cpp-python==0.3.35` pin | branch B `3c77eec`, `3eb9e9d` | same | model tiers, `requirements.txt` |
 | Recovery-code card; correlations via endpoint; care-task quote cleared on document delete | branch A `692fdf3`, `45ac889` | same | frontend Settings, `api/documents.py` |
-| Wire notification scheduler (session-scoped, `skipped_locked`) | plan 02 | owner-approved in principle (§21 Q1, agent-recorded) | `main.py`, `core/auth.py`, `modules/notification_scheduler.py` |
-| FK enforcement: P14/P15 CASCADE, P16/P17 SET NULL, pragma on both engines | plan 06; owner record `fe31e78` (branch A) | blast radius owner-approved (agent-recorded, branch-only); delete semantics **owner-gated** (D5) | profile migration 013, `core/database.py`, `core/profile_database.py` |
+| Wire notification scheduler (session-scoped, `skipped_locked`) | plan 02 | owner-approved (§21 Q1, agent-recorded; D6 approves the `core/auth.py` hooks) | `main.py`, `core/auth.py`, `modules/notification_scheduler.py` |
+| FK enforcement: P14/P15 CASCADE, P16/P17 SET NULL, pragma on both engines | plan 06; owner record `fe31e78` (branch A) | blast radius owner-approved (agent-recorded, branch-only); delete semantics **D5 decided 2026-09-27** (approve all four; orphan report still reviewed) | profile migration 013, `core/database.py`, `core/profile_database.py` |
 | `datetime.utcnow` → `core.time.utcnow` + lint | plan 05 | proposed (invariant already binding) | 30 product files |
 | HC-M11 NLI cross-encoder behind default-off flag | backlog plan §14 decision 2 (branch A) | owner-approved *for building behind a flag only* | ask-first files — production behaviour change is owner-gated |
-| `.claude/agents/` layer vs doc correction | plan 03 | **owner-gated** (§21 Q2 "Not sure") | `.gitignore`, `docs/agentic/` |
+| `.claude/agents/` layer vs doc correction | plan 03 → W-1 | **D1 decided 2026-09-27: A, all 5 agents** (hooks not licensed) | `.gitignore`, `docs/agentic/` |
 | Desktop packaging (HC-M08) | audit §21 Q4 "Both" | proposed; decision spike first | new |
-| Export redaction scope, verification-gate scope | this pass (matrix PRIV-04, SAFE-02) | **owner-gated** | `modules/export.py`, `api/observations.py`, `modules/rag.py` |
+| Export redaction scope, verification-gate scope | this pass (matrix PRIV-04, SAFE-02) | **D3 + D4 decided 2026-09-27** (W-2, W-3 proposed) | `modules/export.py`, `api/observations.py`, `modules/rag.py` |
 
 ## 14. Unknowns
 

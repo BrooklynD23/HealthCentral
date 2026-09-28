@@ -58,7 +58,7 @@
 | Matrix | GATE-05 | "Agent behavioural eval gate … **tested** (agent path only; see SAFE-04)" (`:139`) |
 | Matrix | SAFE-07 | thresholds never lowered; "0.6 in `rag.py:862`" (`:76`) |
 | Handoff | §5 W-4 | "On the legacy path, `is_valid=False` returns the existing abstention/knowledge-fallback template, not the answer. Add a CI eval gate for the legacy path; the 0.6 threshold is unchanged … HC-LEG-001 … HC-LEG-002 … the new CI job fails on the seed and passes on main" |
-| Program | G-B5 | "Eval gate for the legacy RAG path … The gate fails on a seeded uncited answer" (`implementation-program.md:286`) |
+| Program | G-B5 | "Eval gate for the legacy RAG path … The gate fails on a seeded uncited answer" (`implementation-program.md:396`) |
 
 **New test IDs:** HC-LEG-001, HC-LEG-002 (from the handoff), plus HC-LEG-003 (the gate passes on the shipped set), HC-LEG-004 (the 0.6 boundary is served; a **baseline-green characterization test**, green on the start tree and excluded from the red-first list) and HC-LEG-005 (each golden case validates exactly as measured). On 2026-09-27, `git grep -n -i 'HC-LEG\|hc_leg\|legacy_eval'` returned 0 hits at main@40f590e, B@7b2ff1f and A@692fdf3. Task 1 re-checks.
 

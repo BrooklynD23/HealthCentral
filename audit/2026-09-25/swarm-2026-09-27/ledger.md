@@ -80,3 +80,8 @@ Pending on resume:
 - PRIV-10 settled: default path src/backend/rl_exports NOT ignored (check-ignore rc=1); only data/rl_exports + src/backend/data/rl_exports match .gitignore:74.
 - Owner items raised: P0-B2 scope incl. 16th file (senior-report-showcase-plan); api/profiles.py:328 display_name at INFO (S01 excludes; auth-adjacent).
 - Next: Wave 7 verifier (cross-file consistency + queued fixes), then commit.
+
+## Wave 7 — verifier (2026-09-28)
+- 7 queued: 5 fixed, HC-VER no-op (selectors anchored, 0 collisions), openwiki link left (quoted AGENT.md text; target exists). Sweep: 14 inconsistencies fixed (config.py/ci.yml orders in W06/W07/W08/W11a, "62 rows" → 73, stale owner-gated text after D2/D4/D5/D6/D8, 5 broken GFM rows). New program owner items: LOCAL-07 (W-10 addendum proposed), PRIV-06 display-name log.
+- docs_lint rc=0; links 283 checked / 1 broken (openwiki, intentional); GFM cell check clean.
+- STATE: plan set integrated and consistent. Execution NOT started. Blocked on owner gates — see wave7-verifier.md §4.

@@ -37,7 +37,7 @@ Anchors for files that neither A nor B changes are labelled `main@40f590e`. They
 
 ## 1. Approval scope
 
-This phase is `DOCS` (program ground rule 1). Its mandate is the program's P4 row (`implementation-program.md:185-203`). These owner decisions set what the docs may say, verbatim from [owner-decisions-2026-09-27.md](../capstone-report/owner-decisions-2026-09-27.md):
+This phase is `DOCS` (program ground rule 1). Its mandate is the program's P4 row (`implementation-program.md:292-310`). These owner decisions set what the docs may say, verbatim from [owner-decisions-2026-09-27.md](../capstone-report/owner-decisions-2026-09-27.md):
 
 | # | Owner's choice | Option text (verbatim) | Used by |
 |---|---|---|---|
@@ -54,10 +54,10 @@ D8 is the goal (no download ever needed at runtime); D8-delivery is the interim 
 
 **Does NOT license:**
 1. Any edit to `CLAUDE.md` invariant text (`:25`, `:57-63` at main; `:62` "No medical advice" included). W-10 owns it. P4 may touch only the test-baseline count line, and only with a count P4 measured itself (Task 0).
-2. Any edit to `docs/compliance/data-privacy.md`. Orchestrator ruling, 2026-09-27: the D3/D4 wording (`:173-174` and the D4 passages) and the stale break-glass bullet (`main@40f590e:200` = `M@86606d0:217`) belong to **W-10**. The program's P4 bullet at `implementation-program.md:195` has **moved to W-10**.
+2. Any edit to `docs/compliance/data-privacy.md`. Orchestrator ruling, 2026-09-27: the D3/D4 wording (`:173-174` and the D4 passages) and the stale break-glass bullet (`main@40f590e:200` = `M@86606d0:217`) belong to **W-10**. The program's P4 bullet at `implementation-program.md:302` has **moved to W-10**.
 3. Describing any W-item as implemented before its PR merges. The wording is "approved, not yet implemented (W-n)" until the matching F-task runs.
-4. Any product behaviour change, or any non-docs action without its own approval. P4 is `DOCS`, and the program's P4 sign-off is "none beyond D2/D3 (docs only)" (`implementation-program.md:204`). The only non-markdown actions P4 takes by default are:
-   - the `core/config.py` comment (N7; listed as comment-only in the program's P4 owned files, `:198`);
+4. Any product behaviour change, or any non-docs action without its own approval. P4 is `DOCS`, and the program's P4 sign-off is "none beyond D2/D3 (docs only)" (`implementation-program.md:311`). The only non-markdown actions P4 takes by default are:
+   - the `core/config.py` comment (N7; listed as comment-only in the program's P4 owned files, `:305`);
    - `git rm` of the 7 `.serena/memories/*.md` files (Task 12; licensed by D2).
 
    Three plan-04 actions are **owner-gated** and run only if their sign-off line in §12 is signed, each as its own commit:
@@ -190,7 +190,7 @@ D2, D3, D4, D11 are decided and need nothing further.
 | Task | Runs after | Why |
 |---|---|---|
 | N8 D11 docs | W-5 merged | W-5 §7: "Before P4's D11 doc task, which consumes §6" |
-| N9 hipaa `:169` | plan 08 Brief 2 **signed** (owner) | program `:196`; P08 amendment Task 3 |
+| N9 hipaa `:169` | plan 08 Brief 2 **signed** (owner) | program `:303`; P08 amendment Task 3 |
 | N10 guardrails SKILL | W-6 merged | orchestrator ruling |
 | F1 D4 flip | W-3 merged | trends labelling and legacy RAG verified-only become true |
 | F2 D3 flip | W-2 merged **and** W-10 merged | doctor summary redacted; CSV/JSON named exceptions |
@@ -1206,7 +1206,7 @@ git commit -m "docs(<scope>): <summary>" -- <same explicit paths>
 
 1. `architecture-overview.md:185` (§12 row 6) lists 3 `core/` → `modules/` imports. There are 5 at main@40f590e: `core/document_crypto.py:65` and `core/llm/llama_cpp_provider.py:122` are missing.
 2. `architecture-overview.md:188` says the divergences are fixed in "the doc-drift phase (P3 of the program)". It is P4.
-3. `implementation-program.md:195` gives P4 the `data-privacy.md:173-174` wording. The orchestrator ruling moves it to W-10. The program's shared-file order "`docs/compliance/data-privacy.md` (P1 → P4 → G-A1)" is superseded: P4 does not edit that file.
+3. `implementation-program.md:195` (@5d56557) gave P4 the `data-privacy.md:173-174` wording; `:302` now records the move to W-10. The orchestrator ruling moves it to W-10. The program's shared-file order "`docs/compliance/data-privacy.md` (P1 → P4 → G-A1)" is superseded: P4 does not edit that file.
 4. Plan 04 Task 5 would regress A's `3bb4d0d` rescope of `INGEST-FHIR-001`. Plan 04 Task 7's FAQ text is false after A (the `RecoveryCodeCard`; `POST /profiles/{id}/recovery-code` "Generate (or replace)"). Plan 04 Task 10's stdlib-only paragraph is false (`modules/agent` imports SQLAlchemy and backend modules).
 5. `A@692fdf3 TASK_LIST.md:59,256` dates HC-M23 to 2026-07-30. The code is `15b152c` 2026-07-17, and it first reached main in `f10e70e` 2026-07-24.
 6. `B@7b2ff1f AGENT.md:76` says "1269 collected", while B's own commit message measured 1288 (`CLAUDE.md` updated, `AGENT.md` not). P1's conflict resolution must write the merged measured count in both.

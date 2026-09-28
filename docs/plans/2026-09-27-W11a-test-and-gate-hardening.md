@@ -177,7 +177,7 @@ The records that come closest, quoted verbatim so nobody reads them as covering 
 |---|---|---|
 | `src/backend/api/profiles.py` | P5 (D13 swaps) → P7 (reset tuple) → **W-11a Task 2** | Task 2 edits the reset route P7 just rewrote. Re-read it first |
 | `src/backend/tests/support/routes.py` | **P7 edits first → W-11a edits after P7 merges** (owned-after-P7). W-2 / W-3 only read it | Task 1 Step 1b adds opt-in `real_auth`, default `False`, on top of P7's `route_client(…, profile_name=…, profile_db=…)` (plan 07 line 74). Existing callers are unchanged. If P7 has not merged, **STOP** |
-| `.github/workflows/ci.yml` | P1 → P5 (step in `docs-lint`) → W-4 (`legacy-evals` job) → **W-11a Tasks 6–8** | W-7 does not edit it. If W-4 has not merged, see stop gate 9 |
+| `.github/workflows/ci.yml` | P1 → P5 (step in `docs-lint`) → W-4 (`legacy-evals` job) → **W-11a Tasks 6–8** → W-8 | W-7 does not edit it. If W-4 has not merged, see stop gate 9 |
 | `docs/architecture/ci-and-quality-gates.md` | P4 → **W-11a Task 9** → W-8 (`:58`) | Canonical order (3a B-3), same as `ci.yml`: W-4 → W-11a PR-3 → W-8. W-8 rebases on PR-3 |
 | `docs/capstone-report/*.md` | W-1 (claims H5/H6), W-8 (several rows), other W plans' status rows | Row-scoped edits only; rebase and re-read the row before each docs commit |
 | `CLAUDE.md` / `AGENT.md` baseline sentences | every PRODUCT phase, serially | Write only this PR's measured END collected count |
@@ -1889,7 +1889,7 @@ Then push, open the PR (handoff §6 format) and **STOP** for merge.
 | Whether `sqlcipher3` imports on the CI runner | the first PR-2 CI run; HC-KEYCT-001 fails there if not |
 | The D9 venv's START counts | Task 0 Step 5 |
 | eslint on Windows | optional: `npm run lint` in the Task 11 PowerShell session |
-| `scripts/agent_eval_gate.py` exit on Linux (GATE-14, **flagged, unowned; not a W-11a task**) | Measured 2026-09-27 on Win Py 3.13.7: prints "Agent eval gate: PASS", then does not exit (`timeout 420` → `rc=124`; `audit/2026-09-25/swarm-2026-09-27/wave3/evalgate.out`). Optional read-only check in the Task 5 scratch copy (it holds only `src/`, so first `git -C "$WT" archive HEAD scripts | tar -x -C /tmp/w11a-gb4`): `cd /tmp/w11a-gb4 && HF_HUB_OFFLINE=1 timeout 600 ~/venvs/asclexis-311/bin/python scripts/agent_eval_gate.py; echo "rc=$?"`. Record rc; if 124, report it to the owner as a CI-hang finding. No fix here: the script is W-4's file (docstring edit) and the cause is undiagnosed |
+| `scripts/agent_eval_gate.py` exit on Linux (GATE-14, **flagged, unowned; not a W-11a task**) | Measured 2026-09-27 on Win Py 3.13.7: prints "Agent eval gate: PASS", then does not exit (`timeout 420` → `rc=124`; `audit/2026-09-25/swarm-2026-09-27/wave3/evalgate.out`). Optional read-only check in the Task 5 scratch copy (it holds only `src/`, so first `git -C "$WT" archive HEAD scripts \| tar -x -C /tmp/w11a-gb4`): `cd /tmp/w11a-gb4 && HF_HUB_OFFLINE=1 timeout 600 ~/venvs/asclexis-311/bin/python scripts/agent_eval_gate.py; echo "rc=$?"`. Record rc; if 124, report it to the owner as a CI-hang finding. No fix here: the script is W-4's file (docstring edit) and the cause is undiagnosed |
 
 ## 8. Stop gates (stop and ask the owner)
 

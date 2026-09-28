@@ -173,7 +173,7 @@ No two phases edit one file at the same time (program ground rules).
 | `src/backend/core/external_runner.py` | W-6 only | W-7/G-B3's import-boundary test (HC-LLMB-001) may allowlist this path. That is a read, not an edit |
 | `src/backend/tests/test_redaction.py` | W-6 only | If W-2 adds tests here, W-2 goes after W-6 |
 | `CLAUDE.md` | W-10 only (invariant text); every collection-changing phase (collected-count slots) | W-6 never edits CLAUDE.md text. Count-slot carve-out below, owner-gated by SLOT-RULE |
-| `core/config.py` | P1 → P4 (comment) → W-8 | W-6 does not touch it |
+| `core/config.py` | P1 → S-1 → P4 (N7 comment) → W-8 (program canonical order) | W-6 does not touch it |
 
 **Count-slot carve-out (3a B-4; owner-gated by program gate SLOT-RULE, unsigned).**
 - If SLOT-RULE is **signed**: commits 1–3 (the backend-test commits: +4, +8, +5 collected) each also update the collected-count slots, and only those: `CLAUDE.md` "**N backend tests collected.**" and "if it differs from N", and `AGENT.md` "N collected". N is the collected count measured just before that commit. Add `CLAUDE.md AGENT.md` to that commit's `git add`, its expected `--cached` list and its pathspec, as W-2 does. Never touch a pass-count slot ("all N pass", "N pass in CI", "N-1 without …"). Merges on these two lines are serial; the second PR re-measures.

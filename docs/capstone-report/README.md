@@ -20,7 +20,7 @@ Knowledge base for the CS4610 capstone report. It tracks the distance between th
 | [report-outline.md](report-outline.md) | Capstone structure; each section mapped to the evidence that backs it |
 | [architecture-overview.md](architecture-overview.md) | Verified current architecture (process, data, document/assistant paths, model/network boundary, exports, jobs, migrations, CI) kept separate from proposed change; integration diagram; divergences from `docs/architecture/` |
 | [architecture-engineering-contract.md](architecture-engineering-contract.md) | Testable MUST / MUST NOT contracts, each classed `BINDING`, `PROPOSED` or `OWNER-GATED`, with enforcement, verification command, failure response and owner |
-| [specs-compliance-matrix.md](specs-compliance-matrix.md) | Requirement → source → implementation → tests → gate → status. 62 rows; only 4 `enforced` |
+| [specs-compliance-matrix.md](specs-compliance-matrix.md) | Requirement → source → implementation → tests → gate → status. 73 rows (recounted 2026-09-28); only 4 `enforced` |
 | [implementation-program.md](implementation-program.md) | Dependency-ordered phases over the 8 audit plans plus uncovered gaps, with stop gates, measured acceptance, rollback and owner sign-offs. Plan only; not executed. |
 | [owner-decisions-2026-09-27.md](owner-decisions-2026-09-27.md) | Owner answers to P0-B, D1–D13 and G-B5 (2026-09-27), with the exact option text each licenses |
 | Next-agent handoff: [`handoff-2026-09-27-execution.md`](../../audit/2026-09-25/handoff-2026-09-27-execution.md) | Paste-ready brief to start execution at P0-B |

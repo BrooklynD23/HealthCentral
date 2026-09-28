@@ -153,7 +153,7 @@ Known, not tested: on its first call per process, `get_active_tier` may run sync
 | `src/backend/api/interpretations.py` | P5 plan 05 Task 3 (`:559` utcnow). W-4 and W-6 list it read-only (W-4 §4 "W-4 does **not** edit it (OQ-3)"; W-6 §4.2), so neither edits it | P5 → **W-7** |
 | `src/backend/tests/support/routes.py` | P7, then G-B1 (edit) | W-7 only **reads** it; run after P7 and re-read the signature |
 | `CLAUDE.md`, `AGENT.md` baseline lines | P1, P2, P4, P5, W-10 governance commit, every PRODUCT phase | never concurrent; each writes its own measured count |
-| `.github/workflows/ci.yml` | P1 → P5 → G-B3/G-B4 (W-11a) | **W-7 does not edit it.** If the owner later wants a dedicated boundary job, it goes after P5 and before W-11a, in its own plan |
+| `.github/workflows/ci.yml` | P1 → P5 → W-4 → W-11a PR-3 (G-B4) → W-8 (program canonical order) | **W-7 does not edit it.** If the owner later wants a dedicated boundary job, it needs its own plan and its own slot in that order |
 | `src/backend/tests/test_llm_import_boundary.py` (new) | none. W-6 §4.1 does not list it. The C-LLM-2 remainder (HTTP-client imports outside `core/llm/`, with an `external_runner` allowance, D12) is **unowned**: a program item (3a m-8) | **W-7** creates it; any later extension needs an owner first |
 | `docs/capstone-report/specs-compliance-matrix.md`, `architecture-engineering-contract.md` | many W-plans | **not edited here.** The PR body lists the LLM-02/03 status changes for the serialized docs pass |
 

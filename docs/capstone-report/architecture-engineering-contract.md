@@ -27,7 +27,7 @@ This contract turns the repo's invariants into rules a reviewer can check. Curre
 - **Rule:** Product code MUST NOT make network calls (`CLAUDE.md:59`). Ollama MUST stay localhost-only.
 - **Known exceptions, not approved by this contract:**
   - user-triggered model downloads, the product's stated "only sanctioned network call";
-  - the opt-in external runner (documented in `skills/asclexis-guardrails`; owner-gated, see C-LLM-1 and C-REDACT-2);
+  - the opt-in external runner (documented in `skills/asclexis-guardrails`; owner-approved D12 "Keep, harden" as a named ModelRunner exception, `owner-decisions-2026-09-27.md:22`, not yet in CLAUDE.md; see C-LLM-1 and C-REDACT-2);
   - the implicit embedding download (C-LOCAL-2).
 
   A new outbound destination needs owner approval.
@@ -48,7 +48,7 @@ This contract turns the repo's invariants into rules a reviewer can check. Curre
 - **Enforced at:** none.
 - **Verify:** a test that sets `HF_HUB_OFFLINE=1` and asserts `EmbeddingModule` fails closed or loads from the local path (planned: W-8 HC-EMB-001/002, with sockets blocked and an empty `HF_HOME`).
 - **On violation:** —.
-- **Owner:** Owner decides whether implicit first-use download is acceptable.
+- **Owner:** Project owner. Decided: D8 "Bundle the model" + D8-delivery "Script + offline load" (`owner-decisions-2026-09-27.md:21,26`), so implicit download is not accepted; the exact model revision is gate EMB-REV (unsigned).
 - **Planned by:** W-8.
 
 **C-LOCAL-3 · PROPOSED** (source: `docs/compliance/data-privacy.md:53`).
@@ -195,7 +195,7 @@ This contract turns the repo's invariants into rules a reviewer can check. Curre
 
 **C-REDACT-2 · BINDING.**
 - **Rule:** The external runner MUST apply strict redaction before any network call, unconditionally (`CLAUDE.md:60`).
-- **Known exceptions in code (OWNER-GATED, not approved here):**
+- **Known exceptions in code (D12 decided, `owner-decisions-2026-09-27.md:22`: remove the dev bypass; keep break-glass only with audit + UI warning. Neither is done today; planned by W-6):**
   - outside production, `redaction_enabled=False` skips redaction (`core/external_runner.py:201`);
   - in production, break-glass bypasses the block (`:172`).
 - **Enforced at:** `core/external_runner.py:166-236`; `tests/test_redaction.py::TestExternalRunnerIntegration`; `tests/test_config_validation.py`.
@@ -280,7 +280,7 @@ This contract turns the repo's invariants into rules a reviewer can check. Curre
 - **On violation:** —.
 - **Owner:** Engineering.
 
-**C-MIG-3 · OWNER-GATED for delete semantics** (the pragma listener sits in `core/profile_database.py` beside the SQLCipher key hook, so ask first). The owner approved the blast radius on 2026-09-08 (agent-recorded, branch-only). Delete-effect approval is inferred, so it is required explicitly at program P6 (D5).
+**C-MIG-3 · PROPOSED** (owner-approved D5; the pragma listener sits in `core/profile_database.py` beside the SQLCipher key hook, so ask first). The owner approved the blast radius on 2026-09-08 (agent-recorded, branch-only). D5 decided 2026-09-27 ("Approve all four", `owner-decisions-2026-09-27.md:14`): P14/P15 CASCADE, P16/P17 SET NULL, pragma ON for both engines; the owner still reviews the orphan report before migration.
 - **Rule:** `PRAGMA foreign_keys=ON` MUST be set once per new physical DBAPI connection on the master engine and the profile engine, after profile migration 013 realigns P14/P15 → CASCADE and P16/P17 → SET NULL. Migration engines and `scripts/backup.py` raw `sqlite3` connections MUST stay pragma-OFF. A constraint MUST NOT be relaxed to get a green suite.
 - **Enforced at:** — (plan 06).
 - **Verify:** plan 06 tests on ≥2 distinct connections per engine.
@@ -323,7 +323,7 @@ This contract turns the repo's invariants into rules a reviewer can check. Curre
 - **On violation:** stop.
 - **Owner:** Engineering.
 
-**C-SCHED-2 · OWNER-GATED.** "Wire it up" is on record (§21 Q1, agent-recorded), but the scope and the `core/auth.py` hooks are not approved (D6).
+**C-SCHED-2 · PROPOSED** (owner-approved D6). "Wire it up" is on record (§21 Q1, agent-recorded); D6 decided 2026-09-27 ("Approve as planned", `owner-decisions-2026-09-27.md:13`): two `core/auth.py` hooks, session-scoped reminders only, quiet hours unenforced.
 - **Rule:** The notification scheduler MUST follow C-SCHED-1:
   - session-scoped registration at vault open/close;
   - no reminder content, medication names or schedules in the master DB or logs;
@@ -398,14 +398,14 @@ When two sources disagree, the rule is: code is evidence of current behaviour, a
 
 | Topic | Conflicting sources | Decision in this pass | Rationale | Depends on | Approval authority |
 |---|---|---|---|---|---|
-| FK enforcement approval | Review F-02 says unapproved; plan 06 says approved | **Sequence and blast radius approved; delete semantics owner-gated** (explicit D5 stop) | `backlog-closure-plan.md` §14 d3 (branch A, `fe31e78`). The pre-decision question asked only about tolerating orphan-write failures; approval of CASCADE / SET NULL is inferred | P1 merge brings the record to main | Owner |
+| FK enforcement approval | Review F-02 says unapproved; plan 06 says approved | **Sequence and blast radius approved; D5 decided 2026-09-27: approve all four + pragma** (`owner-decisions-2026-09-27.md:14`; orphan report still reviewed before migration) | `backlog-closure-plan.md` §14 d3 (branch A, `fe31e78`). The pre-decision question asked only about tolerating orphan-write failures; approval of CASCADE / SET NULL is inferred | P1 merge brings the record to main | Owner |
 | `.claude/agents/` | Research 02 said ADOPT the five agents; plan 03 recommends B (fix docs) | **D1 decided 2026-09-27: A, all 5 agents** (hooks not licensed) | `owner-decisions-2026-09-27.md:17-18` (replaces §21 Q2 "Not sure") | W-1 plan; P1-DRIFT | Owner |
-| Serena memories | Plan 04 recommended DELETE; audit says decide; research 02 proposes a freshness gate | **Blocked; owner chooses** | deletion of tracked files is not authorized | — | Owner |
+| Serena memories | Plan 04 recommended DELETE; audit says decide; research 02 proposes a freshness gate | **D2 decided 2026-09-27: delete** ("git rm the 7 stale memory files", `owner-decisions-2026-09-27.md:19`) | the D2 option text licenses the deletion | P4 | Owner |
 | HC-M11 | Plan 08 treats it as gated; branch A §14 d2 records it approved | **Approved for build behind a default-off flag only**; production behaviour change is gated | scoped approval text | P1 merge | Owner |
-| Export redaction scope | `data-privacy.md:173` says all non-backup exports; code redacts only 3 of 5 | **Owner-gated**; the doc claim is flagged false until decided | patient-directed vs third-party exports | — | Owner |
-| Verified-only consumers | `pipelines.md` says the verified set; code serves unverified to trends and RAG | **Owner-gated** | product/UX decision with safety impact | — | Owner |
-| HIPAA status | Plan 08 said "not a covered entity" | **Conditional; legal review** | depends on operator and contracts | — | Owner / legal |
-| External runner vs ModelRunner | `CLAUDE.md:25` says all LLM calls; `core/external_runner.py` is a separate opt-in runner | **Owner-gated deviation**, recorded rather than approved | cloud path documented in `skills/asclexis-guardrails` | — | Owner |
+| Export redaction scope | `data-privacy.md:173` says all non-backup exports; code redacts only 3 of 5 | **D3 decided 2026-09-27: redact the doctor summary; CSV/JSON are named exceptions** (`owner-decisions-2026-09-27.md:15`) | patient-directed vs third-party exports | W-2 (code), W-10 (docs) | Owner |
+| Verified-only consumers | `pipelines.md` says the verified set; code serves unverified to trends and RAG | **D4 decided 2026-09-27: trends label unverified points; legacy RAG verified-only** (`owner-decisions-2026-09-27.md:16`) | product/UX decision with safety impact | W-3 | Owner |
+| HIPAA status | Plan 08 said "not a covered entity" | **D10 decided 2026-09-27: treat as HIPAA-aligned** (design posture, never a legal status; `owner-decisions-2026-09-27.md:24`) | legal status still depends on operator and contracts | P08 | Owner / legal |
+| External runner vs ModelRunner | `CLAUDE.md:25` says all LLM calls; `core/external_runner.py` is a separate opt-in runner | **D12 decided 2026-09-27: keep, harden** (named ModelRunner exception; unconditional strict redaction; break-glass only with audit + UI warning; `owner-decisions-2026-09-27.md:22`) | cloud path documented in `skills/asclexis-guardrails` | W-6, W-10 (GOV-BG) | Owner |
 | Laya adoption | Research 01 said it runs on "all tiers" | **Test candidate only** | vendor-reported numbers | local eval | Owner |
 
 Back to index: [README.md](README.md)

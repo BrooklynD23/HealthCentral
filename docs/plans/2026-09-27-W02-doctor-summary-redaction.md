@@ -89,7 +89,7 @@ This plan implements the first sentence and pins the "keep full-fidelity" half w
 | PRIV-04 | [specs-compliance-matrix.md](../capstone-report/specs-compliance-matrix.md) `:87` | "Every non-backup export is redacted … **CSV, JSON and doctor summary** (text/html/pdf) do not call redaction … **contradicted** \| **owner-gated**" |
 | PRIV-02, PRIV-03, PRIV-01 | same file `:85`, `:86`, `:84` | FHIR, visit-prep/pinboard and RL export: redacted and **tested**. They must stay green and untouched |
 | GATED-08 | same file `:158` | "Export-redaction and verified-only scope … PRIV-04, SAFE-02 … new: program P0-D" |
-| G-A1 | [implementation-program.md](../capstone-report/implementation-program.md) `:279` | "Export redaction for CSV/JSON/doctor summary, or scope the doc (PRIV-04) … `modules/redaction.py` is ask-first" |
+| G-A1 | [implementation-program.md](../capstone-report/implementation-program.md) `:389` | "Export redaction for CSV/JSON/doctor summary, or scope the doc (PRIV-04) … `modules/redaction.py` is ask-first" |
 | W-2 | [handoff §5](../../audit/2026-09-25/handoff-2026-09-27-execution.md) `:139` | "The doctor summary (text/html/pdf) passes strict `RedactionEngine` before render … HC-EXPR-001 … HC-EXPR-002 … HC-EXPR-003 … 3 new tests; failures ⊆ start" |
 
 **Proposed matrix change** (for the PR description only; not edited here):
@@ -136,7 +136,7 @@ This plan implements the first sentence and pins the "keep full-fidelity" half w
 
 | File | Order | Why |
 |---|---|---|
-| `modules/export.py` | P5 → **W-2** | Program `:69`: "`modules/export.py` and `api/observations.py` (P5 → G-A)". Plan 05 Task 10 edits `:164`, `:352` |
+| `modules/export.py` | P5 → **W-2** | Program `:143`: "`modules/export.py`: P5 → W-2.". Plan 05 Task 10 edits `:164`, `:352` |
 | `api/export.py` | **W-2** → G-C1 | G-C1 (PRIV-08) persists the export stores; it should persist already-redacted summaries. Never concurrent |
 | `CLAUDE.md` (wording), `data-privacy.md` | W-10 → **W-2** | W-2 edits no wording. HC-EXPR-002 pins CSV/JSON as unredacted, which is only lawful once W-10 names them as exceptions |
 | `CLAUDE.md` / `AGENT.md` collected-count slots | every phase, never concurrent (program overlap table: "Each phase writes its own measured count") | W-2 writes N0+2, then N0+8, each in the commit that changes collection. Pass slots are left alone and flagged in the PR |
@@ -152,7 +152,7 @@ This plan implements the first sentence and pins the "keep full-fidelity" half w
 | P1 | branches A and B on main | `git merge-base --is-ancestor 7b2ff1f HEAD && git merge-base --is-ancestor 692fdf3 HEAD` |
 | P4, then the W-10 governance commit | handoff §3 `:96`: "P4 doc drift … → **governance commit** (§5) → P5". The CSV/JSON exception must already be in `CLAUDE.md` | `grep -nE "CSV\|JSON" "$WT/CLAUDE.md"` shows the D3 exception wording |
 | P5 | shares `modules/export.py` | `! grep -q "datetime.utcnow" "$WT/src/backend/modules/export.py"` |
-| P0-D | the program graph (`:59`) lists P0-D → G-A | **Not found:** there is no D3/D4 brief in `docs/plans/` (`ls`, 2026-09-27). D3 is already decided; the orchestrator confirms P0-D is moot for W-2 (sign-off S-5; canonical gate P0-D-MOOT) |
+| P0-D | the program graph (`:120`) lists P0-D ⇢ W-2 ("superseded?") | **Not found:** there is no D3/D4 brief in `docs/plans/` (`ls`, 2026-09-27). D3 is already decided; the orchestrator confirms P0-D is moot for W-2 (sign-off S-5; canonical gate P0-D-MOOT) |
 
 ---
 
@@ -1459,8 +1459,8 @@ Before every commit, `git diff --cached --name-only` must list exactly the paths
 ## Found while planning (out of W-2 scope; for the orchestrator)
 
 1. **The text format is rendered in the route, not the module.** The contract cites `modules/export.py:82,223,267,290,358` for the doctor summary, but the text download is built in `api/export.py:551-604` (main@40f590e). A fix confined to the renderers in `modules/export.py` would have missed it; this plan redacts at the store instead.
-2. **The P0-D brief is absent**, although the program graph (`:59`) lists it as a G-A input (sign-off S-5).
-3. **Two plans claim the same wording.** P4 (program `:195`) and W-10 (handoff `:147`) both claim the D3 wording in `data-privacy.md:173-174`; one owner is needed.
+2. **The P0-D brief is absent**, although the program graph (`:120`) lists it as a W-2 input (sign-off S-5).
+3. **Two plans claim the same wording.** P4 (program `:195` @5d56557; now `:302` "Moved to W-10") and W-10 (handoff `:147`) both claim the D3 wording in `data-privacy.md:173-174`; one owner is needed.
 4. **The doctor summary includes unverified observations.** `api/export.py:130-174` has no `user_verified` filter, while visit-prep excludes them. D4 covers trends and legacy RAG only, so this is not addressed here.
 5. **WeasyPrint without Pango returns the wrong status.** `render_pdf_summary` catches only `ImportError` (`modules/export.py:371-377`), but WeasyPrint installed without Pango raises `OSError`, which surfaces as HTTP 500 rather than 501. The real-PDF test's fixture probes `write_pdf()` before the request and skips on either error, or fails under `HC_REQUIRE_WEASYPRINT=1`. The product's 500-vs-501 handling (`modules/export.py:371-380`) stays out of scope.
 6. **Branch B's count lines disagree with each other.** `CLAUDE.md:30` says 1288 collected, while `AGENT.md:76` says 1269 (B@7b2ff1f, `git show`). P1 must reconcile this, and Task 0 Step 6 stops if the start collected figure ≠ N0.

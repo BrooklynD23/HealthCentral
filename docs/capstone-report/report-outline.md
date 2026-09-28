@@ -25,7 +25,7 @@ Working outline. Each section names the artifacts that back it — the report is
 
 - Citation contract, interpret_safety suite, abstention/escalation, redaction gate
 - Vault model, DEK sealing, recovery codes, ordered crypto-erase
-- Evidence: [architecture-engineering-contract.md](architecture-engineering-contract.md) (the rules) + [specs-compliance-matrix.md](specs-compliance-matrix.md) (4 of 62 rows `enforced`) ✅; audit §4, §11 as context
+- Evidence: [architecture-engineering-contract.md](architecture-engineering-contract.md) (the rules) + [specs-compliance-matrix.md](specs-compliance-matrix.md) (4 of 73 rows `enforced`, recounted 2026-09-28) ✅; audit §4, §11 as context
 - Must-own gaps: `consistency_score=1.0` placeholder (HC-M11); the agent path's hard-coded `faithfulness_score=1.0` on main (fix unmerged); CSV/JSON/doctor-summary exports unredacted despite `data-privacy.md:173`; trends and legacy RAG read unverified data; export-store ephemerality ✅
 
 ## 4. Methodology — the developer→orchestrator shift
