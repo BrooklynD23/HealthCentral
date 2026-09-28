@@ -85,3 +85,9 @@ Pending on resume:
 - 7 queued: 5 fixed, HC-VER no-op (selectors anchored, 0 collisions), openwiki link left (quoted AGENT.md text; target exists). Sweep: 14 inconsistencies fixed (config.py/ci.yml orders in W06/W07/W08/W11a, "62 rows" → 73, stale owner-gated text after D2/D4/D5/D6/D8, 5 broken GFM rows). New program owner items: LOCAL-07 (W-10 addendum proposed), PRIV-06 display-name log.
 - docs_lint rc=0; links 283 checked / 1 broken (openwiki, intentional); GFM cell check clean.
 - STATE: plan set integrated and consistent. Execution NOT started. Blocked on owner gates — see wave7-verifier.md §4.
+
+## Owner sign-offs + PR (2026-09-28)
+- OWNER (chat, 2026-09-28): P0-B2 "All 16, push + open PR"; D9-SRC yes (uv 3.11.16); P1-DRIFT, SLOT-RULE, P7-ROUTE signed; SQL-ECHO S1-A + S1-B. Recorded in owner-decisions (commit b115357).
+- PR #19 opened: docs/p0b-plan-set → main. Before merge: regenerate INDEX.md + _link_graph.json (generate_docs_index --check rc=1).
+- Stakeholder artifact: https://claude.ai/artifact/DzJ89t8zJo4tPf7NjzctxV (private; execution waves 0–8 derived as earliest-start levels of the program graph).
+- NEXT: merge PR #19 (Wave 0) → build D9 venv → P1 (merge B then A) in a worktree.
