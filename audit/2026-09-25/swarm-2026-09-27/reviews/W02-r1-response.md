@@ -1,0 +1,3 @@
+R1 (codex) findings and orchestrator dispositions:
+1. [BLOCKER] Task 2 can ship while O-3 (underscore-joined PHI missed by strict mode) is unsigned -> ACCEPTED as a pre-MERGE gate (conservative; health app). Fix: O-3 disposition (accept documented residual gap, or separately approve a redaction.py change) is a required signed sign-off before the PR merges; plan/PR text must not claim "PHI-free" beyond the tested shapes; add an xfail(strict=True) or documented known-gap test for the underscore shape so the gap is visible, not hidden.
+2. [MAJOR] HC-EXPR-003 asserts a mocked log_export_event, not persisted rows -> ACCEPTED. Fix: assert real audit rows (query the audit table used by existing HTTP audit tests; find the pattern, e.g. HC-AUD tests) for generate + download.

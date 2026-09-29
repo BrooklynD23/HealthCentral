@@ -1,0 +1,3 @@
+ERROR: docs/agentic/recurring-failures.md:33: missing path '/profiles/'
+
+Harness drift check failed with 1 error(s).
