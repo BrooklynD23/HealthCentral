@@ -21,9 +21,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from api.documents import router as documents_router
 from api import documents as documents_api
-from core.auth import Session
+from core.auth import Session, get_profile_db_session
 from models import CarePlanTask, Document
 from modules.ingest import ImportResult
+from tests.support.routes import route_client
 import modules
 
 
@@ -737,6 +738,66 @@ async def test_HC_CAREQ_003_delete_document_leaves_other_documents_tasks_alone(
     kept = result.scalars().one()
     assert kept.source_quote == "Book eye exam"
     assert kept.source_document_id == survivor.id
+
+
+@pytest.mark.asyncio
+async def test_HC_CAREQ_004_delete_document_over_http_clears_care_task_quote(
+    entity_profile_db, monkeypatch, tmp_path
+):
+    """P1-CAREQ-HTTP. HC-CAREQ-001..003 above call `delete_document` directly
+    as a plain function with `log_document_event` monkeypatched out — that
+    cannot see a broken `Depends(...)` and never exercises the real audit
+    write (CLAUDE.md: "a test that calls a route function directly cannot
+    see a broken Depends(...)"). Drive the same DELETE over HTTP through
+    `route_client` with a real in-memory profile DB and a recording master
+    DB, so the FastAPI dependency graph and the CARE-QUOTE-001 audit path
+    both run for real."""
+    # Nothing should be written under the repo or a real data dir: point the
+    # vault path the route touches at pytest's tmp_path.
+    monkeypatch.setattr(
+        type(documents_api.settings), "app_data_path", property(lambda self: tmp_path)
+    )
+
+    profile_id = "profile-a"  # matches route_client's default session profile_id
+    document = _pin_cleanup_document(profile_id)
+    task = _care_task(document.id)
+    entity_profile_db.add(document)
+    entity_profile_db.add(task)
+    await entity_profile_db.commit()
+
+    master = _FakeMasterDb()
+    ctx = route_client(
+        documents_router, "/documents", profile_id=profile_id, master_db=master
+    )
+    client = ctx.__enter__()
+
+    async def _override_profile_db():
+        return entity_profile_db
+
+    client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+    try:
+        resp = client.delete(f"/documents/{document.id}")
+        assert 200 <= resp.status_code < 300, resp.text
+    finally:
+        ctx.__exit__(None, None, None)
+
+    result = await entity_profile_db.execute(select(CarePlanTask))
+    tasks = result.scalars().all()
+    assert len(tasks) == 1, "the follow-up itself must survive the document"
+    kept = tasks[0]
+    assert kept.source_document_id is None
+    assert kept.source_entity_id is None
+    assert kept.source_quote is None, "verbatim clinician text outlived the deleted document"
+    assert kept.title == "Repeat CBC"
+    assert kept.status == "open"
+    assert kept.user_note == "ask about the iron result"
+
+    audit_rows = [o for o in master.added if type(o).__name__ == "AuditLog"]
+    assert audit_rows, "DELETE /documents/{id} over HTTP wrote no AuditLog row"
+    row = audit_rows[0]
+    assert row.event_type == "document.delete"
+    assert row.entity_type == "document"
+    assert row.entity_id == document.id
 
 
 @pytest.mark.asyncio
