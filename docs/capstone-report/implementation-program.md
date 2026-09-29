@@ -1,6 +1,6 @@
 # Asclexis — Implementation Program
 
-**Last Updated:** 2026-09-29 (P0-B merged as PR #19; owner signed P1-PR1-MERGE. 2026-09-28: owner signed P0-B2, D9-SRC, P1-DRIFT, SLOT-RULE, P7-ROUTE, SQL-ECHO S1-A+S1-B; all other gates unchanged)
+**Last Updated:** 2026-09-29 (P0-B merged as PR #19; owner signed P1-PR1-MERGE, P1-SLOTS, P1-CAREQ-HTTP, S-CACHE, MEM-AUDIT-CAT; new phase S-CACHE. 2026-09-28: owner signed P0-B2, D9-SRC, P1-DRIFT, SLOT-RULE, P7-ROUTE, SQL-ECHO S1-A+S1-B; all other gates unchanged)
 **Status:** PLAN ONLY. Nothing in this program has been executed, merged, or committed. It replaces the "pending" implementation-program entry in the capstone README and supersedes the sequencing in audit §22–§23 wherever they differ.
 
 This program orders the eight audit plans (`audit/2026-09-25/plans/01`–`08`) and the gaps found on 2026-09-27 that no plan covers. It includes the independent review's corrections ([follow-up](../../audit/2026-09-25/review/2026-09-27-followup.md)). The rules it must preserve are in [architecture-engineering-contract.md](architecture-engineering-contract.md). The gaps it closes are in [specs-compliance-matrix.md](specs-compliance-matrix.md).
@@ -452,7 +452,7 @@ Findings that no plan covers, registered so they are not lost. They are **owner 
 
 Also unowned per 3b §3, not in the ledger's list: GATE-12 (no general guard stops tests opening the developer's real master DB; S-1 covers only its own tests; 3b proposes W-11a). Also unowned: the PRIV-06 remainder, `api/profiles.py:328` logs the profile display name at INFO (main = B; suppressed today only because root is WARN after Alembic's `fileConfig`). S-1 excludes it (S01 `:134`); `api/profiles.py` is auth-adjacent, so the owner decides between an S-1 addendum (3b's proposal) and leaving it.
 
-**Program-level owner gates** (canonical IDs from 3a §3). *Owner-approved 2026-09-28:* P0-B2, D9-SRC, P1-DRIFT, SLOT-RULE (ground rule 8), P7-ROUTE, SQL-ECHO (S1-A + S1-B). *2026-09-29:* P1-PR1-MERGE (PR #1 opens from a merge branch; only the two generated files are regenerated). *Still owner-gated:* W4-EXPEDITE (optional), CI-SEED (one approval for throwaway draft PRs, closed unmerged), P0-D-MOOT.
+**Program-level owner gates** (canonical IDs from 3a §3). *Owner-approved 2026-09-28:* P0-B2, D9-SRC, P1-DRIFT, SLOT-RULE (ground rule 8), P7-ROUTE, SQL-ECHO (S1-A + S1-B). *2026-09-29:* P1-PR1-MERGE (PR #1 opens from a merge branch; only the two generated files are regenerated), P1-SLOTS, P1-CAREQ-HTTP, S-CACHE + MEM-AUDIT-CAT (new phase S-CACHE, [plan](../plans/2026-09-29-S02-agent-cache-profile-isolation.md), Wave 1 after PR #1). *Still owner-gated:* W4-EXPEDITE (optional), CI-SEED (one approval for throwaway draft PRs, closed unmerged), P0-D-MOOT.
 
 ## Plan overlaps and conflicts
 

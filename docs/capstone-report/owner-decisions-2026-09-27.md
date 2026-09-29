@@ -1,6 +1,6 @@
 # Owner Decisions — 2026-09-27
 
-**Last Updated:** 2026-09-29 (P1-PR1-MERGE answered in chat; 2026-09-28: six gate answers from the owner in chat: P0-B2, D9-SRC, P1-DRIFT, SLOT-RULE, P7-ROUTE, SQL-ECHO; earlier: Consequence #4 size measured, EMB-REV named)
+**Last Updated:** 2026-09-29 (P1-PR1-MERGE, S-CACHE, MEM-AUDIT-CAT, P1-SLOTS, P1-CAREQ-HTTP answered in chat; 2026-09-28: six gate answers from the owner in chat: P0-B2, D9-SRC, P1-DRIFT, SLOT-RULE, P7-ROUTE, SQL-ECHO; earlier: Consequence #4 size measured, EMB-REV named)
 **Recorded by:** Claude orchestrator. Each answer was selected by the repository owner in the Claude Code chat on 2026-09-27, in reply to multiple-choice questions. Each option carried the description quoted below.
 **Scope rule:** each approval licenses exactly the option text shown. Anything wider is still owner-gated. This record answers D1–D13 in [implementation-program.md](implementation-program.md#owner-decision-intake-p0-c), P0-B, two follow-ups, and the D8-delivery follow-up (answered later on 2026-09-27).
 
@@ -32,6 +32,10 @@
 | P7-ROUTE | Plan 07 route edit (answered 2026-09-28) | **Signed** | "Approve plan 07's edit to the test-only /profiles/test/reset route in api/profiles.py (prod → 404)." | yes |
 | SQL-ECHO | S-1 fixes (answered 2026-09-28) | **S1-A + S1-B** | "A: new sql_echo flag default False (decoupled from debug). B: hide_parameters=True so even when echo is on, values are masked." Both touch ask-first `core/profile_database.py` (1 line) — licensed by this answer. | yes |
 | P1-PR1-MERGE | How P1 opens PR #1 now that main moved past `40f590e` and branch B conflicts on `docs/INDEX.md` + `docs/_link_graph.json` (answered 2026-09-29) | **Merge branch** | "L1 creates merge/healthcentral-agentic-research-r1n54x from B, merges origin/main, regenerates only INDEX.md + _link_graph.json with the repo scripts (plan 01's own rule for these files), opens PR #1 from that branch. B's content otherwise unchanged." | yes |
+| S-CACHE | Agent answer-cache cross-profile leak, live on main (CacheKey has no profile ID; found by Codex P01 r1, verified by L0) (answered 2026-09-29) | **New phase S-CACHE** | "Own PR in Wave 1, opened after PR #1 merges (B rewrites cache.py): add profile_id to CacheKey and pass it at the call site; add a two-profile regression test through route_client that fails before the fix. security-reviewer + Codex diff review." | yes |
+| MEM-AUDIT-CAT | Branch B memory audit puts user-typed `category` into master-DB audit details (answered 2026-09-29) | **Drop category** | "In S-CACHE's PR: remove `category` from the memory audit details (keep value_length); add a test that a PHI-like category ('HIV') never reaches the audit row. api/memory.py only; core/audit.py untouched." | yes |
+| P1-SLOTS | Collected-count slots on the P1 PR #1 merge branch (answered 2026-09-29) | **Yes, slots too** | "One extra docs commit on the PR #1 merge branch sets the CLAUDE.md and AGENT.md collected slots to the measured B+main count. PR #2 does the same in its merge commit (no MEASURED_PENDING follow-up)." | yes |
+| P1-CAREQ-HTTP | HTTP test for DELETE /documents in P1 PR #2 (answered 2026-09-29) | **Add in PR #2** | "One new route_client test on the PR #2 merge branch: DELETE the document over HTTP, assert 2xx, care task kept with provenance+quote nulled, audit row written. Count slots updated for +1." | yes |
 
 ## Earlier owner records still in force
 
