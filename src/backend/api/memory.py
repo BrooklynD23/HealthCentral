@@ -132,7 +132,7 @@ async def create_memory_item(
         event="create",
         profile_id=profile_id,
         item_id=item.id,
-        details={"category": data.category, "value_length": len(data.value)},
+        details={"value_length": len(data.value)},
     )
 
     return MemoryItemResponse.from_model(item)
@@ -162,7 +162,7 @@ async def list_memory_items(
         event="list",
         profile_id=profile_id,
         item_id="all",
-        details={"count": len(items), "category": category},
+        details={"count": len(items)},
     )
 
     return [MemoryItemResponse.from_model(item) for item in items]

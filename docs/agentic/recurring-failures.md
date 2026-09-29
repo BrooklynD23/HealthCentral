@@ -38,12 +38,31 @@ scanners with `|| true`, so a scanner that crashes leaves no exit code and no
 usable report. Every step is green and nothing was scanned. A gate that cannot
 distinguish "clean" from "did not run" is not a gate.
 
+A 2026-09-29 instance in the agent answer cache (S-CACHE). `modules/agent/cache.py`
+keyed `CacheKey` on `(normalized_question, profile_version)` — no profile id — and
+`_cache` was a module-level dict shared by every profile in the process. The
+existing tests in `tests/test_hc_a1_agent_verification.py` seeded the cache
+directly with `_seed_cache(question, terminal)`, without a profile id, under
+the fixed fingerprint a fresh empty profile computes (`"o:0:|d:0:"`); a request
+from any other profile with the same empty fingerprint then hit that seeded
+entry. The leak — a shared cache entry serving across profiles — *was the
+tested behaviour*, so the suite stayed green while any two empty (or otherwise
+evidence-identical) profiles could receive each other's cached answers.
+`tests/test_agent_cache_isolation.py::test_hc_cache_iso_001_two_profiles_never_share_cached_answer`
+drives two real profiles through `route_client` with a call-counting stub and
+caught it: profile B's response carried profile A's cached text and the stub
+ran only once instead of twice.
+
 **Recheck:** ask what your test would *fail to notice*. Then break the code on
 purpose and confirm the test goes red. For any gate that parses a report another
 step produced, delete the report and confirm the gate goes RED, not green —
 absent evidence must never read as absence of findings. A test that has never failed proves
 nothing. Route tests asserting auth, path scoping, or status codes go through
-HTTP — use `src/backend/tests/support/routes.py::route_client`.
+HTTP — use `src/backend/tests/support/routes.py::route_client`. When a test seeds
+shared state (a cache, a module-level dict) by hand, check whether the seed
+itself omits the exact dimension (tenant/profile id) the test is meant to prove
+is isolated — a hand-seeded test can pass by construction instead of by
+correctness.
 
 ---
 
