@@ -39,6 +39,7 @@ This program orders the eight audit plans (`audit/2026-09-25/plans/01`–`08`) a
    - This applies to plans 05, 06 and 07 (banners) and to W-6 (count-slot carve-out).
    - Development may run in parallel; merges are serial on these two lines, and the second PR re-measures.
    - *(SLOT-RULE: owner-approved 2026-09-28, [owner-decisions](owner-decisions-2026-09-27.md).)*
+9. **Execution runs through the 3-tier orchestration** in [docs/agentic/orchestration.md](../agentic/orchestration.md): L0 program orchestrator (Opus), one L1 wave orchestrator per wave (Opus), L2 implementers (`sonnet`) and reviewers (Opus), and Codex for architectural plans and diffs. Owner direction, 2026-09-28. Handoff: [handoff-2026-09-28-execution-orchestrator.md](../../audit/2026-09-25/handoff-2026-09-28-execution-orchestrator.md).
 
 ## Dependency graph
 

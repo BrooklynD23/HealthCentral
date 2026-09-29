@@ -91,3 +91,10 @@ Pending on resume:
 - PR #19 opened: docs/p0b-plan-set → main. Before merge: regenerate INDEX.md + _link_graph.json (generate_docs_index --check rc=1).
 - Stakeholder artifact: https://claude.ai/artifact/DzJ89t8zJo4tPf7NjzctxV (private; execution waves 0–8 derived as earliest-start levels of the program graph).
 - NEXT: merge PR #19 (Wave 0) → build D9 venv → P1 (merge B then A) in a worktree.
+
+## Dependency fix + execution handoff (2026-09-28)
+- CI on PR #19 failed: SQLAlchemy 2.1.1 (PyPI 2026-09-25) moved greenlet behind [asyncio]; unbounded pin → every backend import failed. Fix PR #20 `sqlalchemy[asyncio]>=2.0.25,<2.1` merged by owner → main 5289cca. PR #20 CI: Backend 1245 passed; Agent Eval Gate pass; E2E Smoke fails (runner disk full, Errno 28) — also failed on main 2026-09-07 → new owner item CI-DISK.
+- PR #19 rebased onto 5289cca (force-with-lease).
+- Owner direction: execution via 3-tier orchestration — L0 program (Opus) → L1 per-wave orchestrator (Opus subagent) → L2 implementers (sonnet) + reviewers (Opus); Codex for architectural plan/diff reviews. Nesting depth 2 measured (general-purpose subagent has Agent; no Workflow tool in subagents).
+- Written: docs/agentic/orchestration.md (process), audit/2026-09-25/handoff-2026-09-28-execution-orchestrator.md (prompt, state, waves+gates, briefs), program ground rule 9, plan 01 banner item 5 (keep the pin).
+- RESUME POINT: owner merges PR #19 (Wave 0) → next session pastes handoff §1 → build D9 venv → Wave 1 (P1).
