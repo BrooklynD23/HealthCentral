@@ -32,7 +32,7 @@
 |---|---|
 | `src/backend/modules/agent/cache.py` | Add `profile_id: str` to `CacheKey` (required field, no default); update the module docstring and `get_cached` docstring to say the key is profile-scoped. |
 | `src/backend/api/assistant.py` | Pass `profile_id=profile_id` in the `CacheKey(...)` call inside `_serve_via_agent` (`:694`). Nothing else. |
-| `src/backend/api/memory.py` | Remove the `"category"` entry from the `details` dicts at `:135` and `:165`. Keep `value_length` and `count`. Do not change the request/response models or the update route's field-name list (`:251`, names only). |
+| `src/backend/api/memory.py` | Remove the `"category"` entry from the `details` dicts at `:135` and `:165`. Keep passing `value_length` and `count` (owner text). Note: `value_length` is not in `ALLOWED_DETAIL_KEYS`, so `_scrub_details` already drops it (L1 measured, 2026-09-29); do not add it to the allowlist. Do not change the request/response models or the update route's field-name list (`:251`, names only). |
 | `src/backend/tests/test_agent_cache_isolation.py` (new) | HC-CACHE-ISO-001 (HTTP), HC-CACHE-ISO-002 (unit). |
 | `src/backend/tests/test_memory_audit.py` | HC-MEM-AUDIT-007 (create), HC-MEM-AUDIT-008 (list). |
 | `src/backend/tests/agent/test_s5_cutover_cache.py` | Add `profile_id=` to every `CacheKey(...)`; the missing-field test (`:16`) also asserts `profile_id` is required. |
@@ -46,16 +46,23 @@
 
 ### Task 0 — Preconditions (STOP on any failure)
 
+Start directory: the canonical repo root. Every later block names its own start directory; `W=/mnt/c/Users/DangT/Documents/GitHub/hc-s-cache` below.
+
 ```bash
+set -o pipefail
 git fetch origin
 git ls-files docs/plans/2026-09-29-S02-agent-cache-profile-isolation.md   # non-empty
 git merge-base --is-ancestor origin/claude/healthcentral-agentic-research-r1n54x origin/main && echo "B on main"
 git worktree add ../hc-s-cache -b fix/s-cache-profile-isolation origin/main
-cd ../hc-s-cache/src/backend
+W=/mnt/c/Users/DangT/Documents/GitHub/hc-s-cache
+cd "$W/src/backend"
 export HF_HUB_OFFLINE=1
 find . -name __pycache__ -type d -exec rm -rf {} +
-~/venvs/asclexis-311/bin/python -m pytest tests/ --collect-only -q -p no:cacheprovider | tail -1   # record START
+~/venvs/asclexis-311/bin/python -m pytest tests/ --collect-only -q -p no:cacheprovider > /tmp/s-cache-start-collect.out; echo "rc=$?"; tail -1 /tmp/s-cache-start-collect.out   # START collected
+~/venvs/asclexis-311/bin/python -m pytest tests/ -p no:cacheprovider -q -rf > /tmp/s-cache-start-run.out; echo "rc=$?"; tail -3 /tmp/s-cache-start-run.out; grep '^FAILED' /tmp/s-cache-start-run.out   # START failure set
 ```
+
+Record with the output: interpreter (`~/venvs/asclexis-311/bin/python --version` → 3.11.16), OS (WSL2 Linux), the commands above, START collected, START pass line, and the START `FAILED` list (expected empty).
 
 If B is not yet on main, the phase may be *prepared* on a branch cut from the PR #1 merge branch, but it must be rebased onto `origin/main` after PR #1 merges, and Task 0 re-run, before the PR opens.
 
@@ -72,13 +79,14 @@ Run it before the fix and paste the FAIL (expected: B receives A's text and the 
 
 ### Task 2 — HC-CACHE-ISO-002: the key itself is profile-scoped (RED first)
 
-Unit test: `CacheKey(normalized_question="q", profile_version="v", profile_id="a") != CacheKey(..., profile_id="b")`, and `put_cached` under `a` then `get_cached` under `b` returns `None`. Before the fix this fails with a pydantic validation error on the unknown field (a frozen model with no `profile_id`); paste it.
+Unit test: `CacheKey(normalized_question="q", profile_version="v", profile_id="a") != CacheKey(..., profile_id="b")`, and `put_cached` under `a` then `get_cached` under `b` returns `None`. Before the fix, pydantic's default `extra="ignore"` silently drops the unknown `profile_id` (B's `CacheKey` sets only `frozen=True`, `cache.py:31-36 @B`), so both keys compare equal and the `!=` / `get_cached(...) is None` assertions FAIL (an `AssertionError`, not a `ValidationError`); paste that failure.
 
 ### Task 3 — Fix the cache (GREEN)
 
-Edit `cache.py` and `assistant.py` as in the file table. Update `test_s5_cutover_cache.py` and `test_hc_a1_agent_verification.py` to pass `profile_id`. Run:
+Edit `cache.py` and `assistant.py` as in the file table. Update `test_s5_cutover_cache.py` and `test_hc_a1_agent_verification.py` to pass `profile_id`. Run from `$W/src/backend` with `HF_HUB_OFFLINE=1`:
 
 ```bash
+set -o pipefail
 ~/venvs/asclexis-311/bin/python -m pytest tests/test_agent_cache_isolation.py tests/agent/test_s5_cutover_cache.py tests/test_hc_a1_agent_verification.py -p no:cacheprovider -q
 ```
 
@@ -95,21 +103,28 @@ Paste the FAIL, remove `"category"` from the two `details` dicts in `api/memory.
 
 ### Task 5 — Slots, recurring failures, commit
 
-1. `pytest tests/ --collect-only -q | tail -1` → END. Expected END = START + 4 (ISO-001, ISO-002, MEM-AUDIT-007, MEM-AUDIT-008). Any other delta: STOP.
-2. Write END into the `CLAUDE.md` and `AGENT.md` collected slots (numbers only; leave the pass sentences).
-3. Add the recurring-failures entry.
-4. Commits (explicit pathspecs; `fix(agent):` for the cache, `fix(memory):` for the audit, `docs:` for recurring-failures). The commit that adds the tests updates the slots.
+Commits, in this order, each measured before it is made (from `$W/src/backend`: `set -o pipefail; ~/venvs/asclexis-311/bin/python -m pytest tests/ --collect-only -q -p no:cacheprovider | tail -1`, checking rc=0):
+
+1. `fix(agent): scope answer-cache key by profile` — `cache.py`, `assistant.py`, the two updated test files, the new `test_agent_cache_isolation.py`, and the `CLAUDE.md` + `AGENT.md` collected slots set to the measured START + 2.
+2. `fix(memory): keep user-typed category out of memory audit details` — `api/memory.py`, `test_memory_audit.py`, and both slots set to the measured START + 4 (= END). Any other delta at either step: STOP.
+3. `docs: record shared-cache-without-tenant in recurring failures` — `docs/agentic/recurring-failures.md` only.
+
+Slots: numbers only; leave the pass sentences. Explicit pathspecs.
+
+**Ordering with P1 PR #2:** merge order is PR #1 → S-CACHE → PR #2 (plan 01 banner item 6h). Both edit the collected slots. If `origin/main` moves before this PR merges, rebase onto it, re-run Task 0's collect and Task 6, and rewrite the slots to the new measured numbers.
 
 ### Task 6 — Verification (L1 runs it and pastes output)
 
 ```bash
-cd ../hc-s-cache/src/backend && export HF_HUB_OFFLINE=1
+set -o pipefail
+W=/mnt/c/Users/DangT/Documents/GitHub/hc-s-cache
+cd "$W/src/backend" && export HF_HUB_OFFLINE=1
 find . -name __pycache__ -type d -exec rm -rf {} +
-~/venvs/asclexis-311/bin/python -m pytest tests/ -p no:cacheprovider -q | tail -3     # collected = END; failures ⊆ start failures
-~/venvs/asclexis-311/bin/python -c "from main import app"
-cd ../.. && git status --short                                                          # only this phase's files
-find . -name "*.db" -newer CLAUDE.md -not -path "./node_modules/*"                      # expect no output
-python3 scripts/docs_lint.py && python3 scripts/generate_docs_index.py --check && python3 scripts/harness_drift_check.py
+~/venvs/asclexis-311/bin/python -m pytest tests/ -p no:cacheprovider -q -rf > /tmp/s-cache-end-run.out; echo "rc=$?"; tail -3 /tmp/s-cache-end-run.out; grep '^FAILED' /tmp/s-cache-end-run.out   # collected = END; FAILED set ⊆ START FAILED set
+~/venvs/asclexis-311/bin/python -c "from main import app"; echo "boot rc=$?"
+cd "$W" && git status --short                                                           # only this phase's files
+find "$W" -name "*.db" -newer "$W/CLAUDE.md" -not -path "*/node_modules/*"              # expect no output
+cd "$W" && python3 scripts/docs_lint.py && python3 scripts/generate_docs_index.py --check && python3 scripts/harness_drift_check.py; echo "docs rc=$?"
 ```
 
 Then `security-reviewer` + `code-reviewer`, and the Codex diff review:
@@ -130,3 +145,4 @@ One PR; `git revert <merge sha>` restores the prior behaviour. The cache is in-p
 
 - Memory `category` values already written to master-DB audit rows by B's code between PR #1 and this PR: none on a fresh install; a dev DB that ran B's code may hold some. Report, do not purge.
 - Evicting per-profile cache entries on profile delete or logout (the key now isolates; eviction is a separate retention question).
+- Cache staleness from sources outside the fingerprint: 3 agent tools read unverified data (care tasks, timeline, medication changes) that `_profile_version` does not cover (security-reviewer on PR #21, 2026-09-29). Owner item CACHE-STALE; the profile key does not change it.
