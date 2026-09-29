@@ -694,6 +694,7 @@ async def _serve_via_agent(
     cache_key = CacheKey(
         normalized_question=normalize_question(question),
         profile_version=profile_version,
+        profile_id=profile_id,
     )
 
     cached = get_cached(cache_key)
