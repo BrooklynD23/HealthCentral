@@ -45,6 +45,25 @@ skills; `skills/` (no dot) holds this project's **domain** skills. Invoke by nam
 | `asclexis-guardrails` | The guard node, advice classifier, abstention/escalation templates, groundedness and claim-to-source mapping, confidence thresholds, or the PHI redaction gate before any opt-in external LLM call |
 | `asclexis-evals` | Golden eval cases, synthetic vault states, the four scoring axes (groundedness, citation accuracy, abstention correctness, advice leakage), or the CI workflow that gates PRs on agent behavior |
 
+The `.claude/skills/` directory also vendors
+[mattpocock/skills](https://github.com/mattpocock/skills)' engineering set
+(18 skills, MIT). The ones that fill a genuine gap here:
+
+| Skill | Reach for it when |
+|---|---|
+| `improve-codebase-architecture` | Scanning for deepening opportunities across a module or the whole repo, then working through the one you pick |
+| `codebase-design` | Designing or improving a module's interface, deciding where a seam goes, making code more testable |
+| `domain-modeling` | Working on codebase terminology, a CONTEXT.md, or recording an ADR |
+| `wayfinder` | Navigating an area of the codebase you don't know yet |
+| `triage` / `to-tickets` / `to-spec` | Turning a plan or a pile of findings into independently-grabbable work items |
+| `prototype` | Sanity-checking whether a state model or UI shape feels right, throwaway |
+
+Four of that set overlap with the superpowers skills above (`tdd`,
+`diagnosing-bugs`, `code-review`, and the `to-spec`/`to-tickets` pair).
+**Prefer the superpowers skill by default** — CLAUDE.md and the definition of
+done below are written against its vocabulary. The disambiguation table is in
+[`.claude/skills/README.md`](.claude/skills/README.md).
+
 Each skill's full description is the `description:` front matter in its own
 `SKILL.md`. For where the two directories come from and why they are separate,
 see [`.claude/skills/README.md`](.claude/skills/README.md) and
@@ -54,11 +73,12 @@ see [`.claude/skills/README.md`](.claude/skills/README.md) and
 
 ```powershell
 .\dev.ps1                                  # full stack, auto-selects free ports
-cd src/backend; python -m pytest tests/ -p no:cacheprovider -q   # backend tests (1248 collected; 1248 pass in CI, 1247 without an embedding model)
+cd src/backend; python -m pytest tests/ -p no:cacheprovider -q   # backend tests (1295 collected; 1269 pass in CI, 1268 without an embedding model)
 cd src/frontend; npm run dev               # frontend only
 cd src/frontend; npx tsc --noEmit; npm run build; npx vitest run
 cd src/frontend; npx playwright test       # e2e
-cd src/backend; python scripts/download_models.py list   # GGUF tiers + ollama pull tags (Gemma 4)
+cd src/backend; python scripts/download_models.py list     # GGUF tiers + ollama pull tags
+cd src/backend; python scripts/download_models.py verify   # check every tier repo exists on HuggingFace (needs network)
 ```
 
 Known env-only failure: `test_api_rag_index_002b` needs a real embedding model, so it fails locally and passes in CI. WSL/9p mounts: clear `__pycache__` before pytest (stale bytecode causes phantom results); `node_modules` may be unusable — run frontend toolchain on Windows.

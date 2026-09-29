@@ -37,6 +37,7 @@ from modules.model_selector import (
     ModelSelector,
     DownloadProgress,
     get_model_selector,
+    get_tier_capabilities,
     TIER_MODEL_CONFIG,
 )
 
@@ -156,6 +157,12 @@ class TierStatusResponse(BaseModel):
     downloaded: bool
     requirements: dict
     can_run: bool
+    capabilities: dict = Field(default_factory=dict)
+    """What this tier can do (context size, multimodal, tool calling).
+
+    Disclosure only — no feature is refused on these. See
+    modules.model_selector.get_tier_capabilities.
+    """
 
 
 class ModelSettingsResponse(BaseModel):
@@ -378,6 +385,7 @@ async def get_model_settings(
             downloaded=selector.is_model_available(tier),
             requirements=TIER_REQUIREMENTS.get(tier, {}),
             can_run=can_run_tier(hardware, tier),
+            capabilities=get_tier_capabilities(tier),
         )
 
     # Add template tier
@@ -391,6 +399,7 @@ async def get_model_settings(
         downloaded=True,
         requirements={},
         can_run=True,
+        capabilities=get_tier_capabilities("template"),
     )
 
     ocr_pref = user_ocr_preference_enabled(user_settings)
@@ -543,6 +552,7 @@ async def list_tiers(
             downloaded=selector.is_model_available(tier),
             requirements=TIER_REQUIREMENTS.get(tier, {}),
             can_run=can_run_tier(hardware, tier),
+            capabilities=get_tier_capabilities(tier),
         ))
 
     # Add template tier
@@ -556,6 +566,7 @@ async def list_tiers(
         downloaded=True,
         requirements={},
         can_run=True,
+        capabilities=get_tier_capabilities("template"),
     ))
 
     return TiersListResponse(

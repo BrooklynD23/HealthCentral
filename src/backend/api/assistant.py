@@ -29,6 +29,7 @@ from core.auth import RequireAuth, ProfileDbSession
 from core.time import utcnow
 from models.chat_session import ChatSession, ChatTurn
 from models.model_settings import UserModelSettings
+from models.document import Document
 from models.observation import Observation
 from modules.rag import RAGModule, VerificationConfig, ModelUnavailableError
 from modules.faithfulness import FaithfulnessConfig
@@ -549,19 +550,50 @@ async def _get_user_model_settings(
     return result.scalar_one_or_none()
 
 
-async def _profile_version(profile_id: str, profile_db: AsyncSession) -> int:
-    """Cache version source (S5-2): the count of verified observations for
-    this profile. PRD §10 Q4: profile_version increments on any observation
-    verify, so a new verify always produces a different CacheKey and thus a
-    guaranteed cache miss — never a stale answer for changed data.
+async def _profile_version(profile_id: str, profile_db: AsyncSession) -> str:
+    """Cache version source (S5-2): a fingerprint of the evidence this profile's
+    agent can ground an answer in.
+
+    PRD §10 Q4 requires that changed data can never serve a cached answer. The
+    original derivation was a COUNT of verified observations, and a count is not
+    a version: it decreases on delete, so deleting one verified observation and
+    verifying a different one returned the count — and therefore the CacheKey —
+    to a value the cache had already seen, serving an answer about data that no
+    longer existed (HC-CACHE-VER-001).
+
+    Two sources are fingerprinted because two feed the agent's tools: verified
+    observations (``query_observations``, ``compute_trend``) and verified
+    documents (``retrieve_chunks``, which filters on
+    ``Document.status == "verified"``). Each contributes a count paired with the
+    latest ``verified_at``, so the value changes on a verify, on a delete, and on
+    the delete-then-verify sequence that collides on count alone.
+
+    Memory items are deliberately excluded: no agent tool reads them
+    (``modules/agent/tools/`` has no memory tool), so they cannot change an
+    agent answer. Add them here if that ever stops being true.
+
+    Residual: two evidence sets could collide only by sharing both counts and
+    both microsecond ``verified_at`` maxima — a delete and a verify landing on
+    the identical timestamp with compensating counts. Fingerprinting the full id
+    set would close it exactly, at the cost of fetching every row per request.
     """
-    result = await profile_db.execute(
-        select(func.count(Observation.id)).where(
+    obs_result = await profile_db.execute(
+        select(func.count(Observation.id), func.max(Observation.verified_at)).where(
             Observation.profile_id == profile_id,
             Observation.user_verified == True,  # noqa: E712
         )
     )
-    return result.scalar() or 0
+    obs_count, obs_latest = obs_result.one()
+
+    doc_result = await profile_db.execute(
+        select(func.count(Document.id), func.max(Document.verified_at)).where(
+            Document.profile_id == profile_id,
+            Document.status == "verified",
+        )
+    )
+    doc_count, doc_latest = doc_result.one()
+
+    return f"o:{obs_count or 0}:{obs_latest or ''}|d:{doc_count or 0}:{doc_latest or ''}"
 
 
 def _agent_terminal_to_response_parts(
@@ -569,10 +601,27 @@ def _agent_terminal_to_response_parts(
 ) -> tuple[list[ResponseSegment], VerificationInfo]:
     """Map an AgentTerminal onto the ChatResponse's segments/verification
     shape (ChatResponse schema itself is unchanged — no breaking client
-    changes). One segment carries the terminal's text; "answer" terminals
-    are grounded (every sentence in them already carries a citation per
-    draft/guard's contract) so verification reports them as such, while
-    abstain/escalate are fixed-template, zero-claim terminals.
+    changes). One segment carries the terminal's text.
+
+    VerificationInfo (A1, roadmap 2026-09-10) is derived from the guard's
+    ``surviving_count``/``dropped_count`` — real ``groundedness.map_sentences``
+    output, carried onto the terminal by ``guardrails/guard.py`` — never from
+    invented constants. ``total_claims``/``verified_claims``/``failed_claims``
+    count DRAFT SENTENCES that did/didn't survive groundedness mapping, not
+    citations: a trend summary can legitimately carry more citations than
+    sentences, so a citation count would misreport what was actually checked.
+    ``faithfulness_score`` is the surviving/total sentence ratio — a real
+    measurement, not the ``modules/faithfulness.py`` score (that module is not
+    called here; ``summary`` says "agent:groundedness", never implying it
+    ran). ``authority_score`` has no real computation on this path (no source-
+    authority scorer runs in the agent flow), so it stays at its honest
+    default of 0.0 rather than an invented value.
+
+    When a terminal carries no counts at all — the pre-model advice-gate
+    escalate, or an entry read back from the semantic cache/a terminal built
+    outside the guard node — no verifier ran, and ``enabled=False`` is the
+    honest value; the frontend already branches on ``enabled`` and shows
+    nothing in that case.
     """
     def _to_api_citation(c) -> Citation:
         """Map an agent citation onto the API shape (CITE-SRC-001).
@@ -605,17 +654,25 @@ def _agent_terminal_to_response_parts(
         ResponseSegment(segment_type=segment_type, content=terminal.text, citations=citations)
     ]
 
-    is_answer = terminal.terminal == "answer"
-    verification = VerificationInfo(
-        enabled=True,
-        total_claims=len(citations) if is_answer else 0,
-        verified_claims=len(citations) if is_answer else 0,
-        failed_claims=0,
-        faithfulness_score=1.0 if is_answer else 0.0,
-        authority_score=1.0 if is_answer else 0.0,
-        summary=f"agent:{terminal.terminal}",
-        issues=[],
-    )
+    surviving = terminal.surviving_count
+    dropped = terminal.dropped_count
+    if surviving is None or dropped is None:
+        # No groundedness mapping ran for this terminal — report honestly
+        # that no verifier ran, rather than inventing a score.
+        verification = VerificationInfo()
+    else:
+        total = surviving + dropped
+        faithfulness_score = round(surviving / total, 3) if total > 0 else 0.0
+        verification = VerificationInfo(
+            enabled=True,
+            total_claims=total,
+            verified_claims=surviving,
+            failed_claims=dropped,
+            faithfulness_score=faithfulness_score,
+            authority_score=0.0,
+            summary=f"agent:groundedness:{terminal.terminal}",
+            issues=[],
+        )
     return segments, verification
 
 
@@ -637,6 +694,7 @@ async def _serve_via_agent(
     cache_key = CacheKey(
         normalized_question=normalize_question(question),
         profile_version=profile_version,
+        profile_id=profile_id,
     )
 
     cached = get_cached(cache_key)

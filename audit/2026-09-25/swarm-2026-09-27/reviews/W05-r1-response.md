@@ -1,0 +1,3 @@
+R1 (codex) findings and orchestrator dispositions:
+1. [BLOCKER] break-it edits rag.py outside owned lines and claim_extractor.py -> PARTIALLY ACCEPTED, downgraded to MINOR. Temporary, reverted, never-staged break-it edits are the repo's required verification (recurring-failures #1) and ship nothing, so D11 scope is not exceeded. Still: Step 7 (claim_extractor) -> use a test-local monkeypatch of CITATION_PATTERN instead of editing the file; Step 6 -> monkeypatch if the header is reachable, else keep the temporary edit with the `git diff` guard already present.
+2. [MAJOR] relative `cd ../hc-w05/src/backend` after Task 0 left the shell in backend -> ACCEPTED. Fix: define WT (absolute worktree path) in Task 0; every block uses `cd "$WT/src/backend"`.

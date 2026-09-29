@@ -15,10 +15,15 @@ def test_s5_2_cache_key_requires_profile_version():
     with pytest.raises(ValidationError):
         CacheKey(normalized_question="why is my ldl 138?")  # missing profile_version
 
+    # S-CACHE: profile_id is required too, so two profiles can never collide
+    # on the same key (HC-CACHE-ISO-001/002).
+    with pytest.raises(ValidationError):
+        CacheKey(normalized_question="why is my ldl 138?", profile_version="v1")  # missing profile_id
+
 
 def test_s5_2_cache_key_distinguishes_versions():
-    a = CacheKey(normalized_question="q", profile_version=1)
-    b = CacheKey(normalized_question="q", profile_version=2)
+    a = CacheKey(normalized_question="q", profile_version="v1", profile_id="p1")
+    b = CacheKey(normalized_question="q", profile_version="v2", profile_id="p1")
     assert a != b  # new verified data (version bump) is a different key
 
 
@@ -125,7 +130,7 @@ def test_s5_2_cache_hit_and_invalidation():
         normalized = normalize_question(question)
         assert normalized == "why is my ldl 138?"
 
-        key_v1 = CacheKey(normalized_question=normalized, profile_version=1)
+        key_v1 = CacheKey(normalized_question=normalized, profile_version="v1", profile_id="p1")
         terminal = AgentTerminal(
             terminal="answer", text="Your LDL was 138 mg/dL.", citations=[], run_id="run-1"
         )
@@ -140,7 +145,7 @@ def test_s5_2_cache_hit_and_invalidation():
 
         # New verified data lands -> profile_version bumps to 2 -> different
         # key -> miss, even though the question text is identical.
-        key_v2 = CacheKey(normalized_question=normalized, profile_version=2)
+        key_v2 = CacheKey(normalized_question=normalized, profile_version="v2", profile_id="p1")
         assert get_cached(key_v2) is None
 
         # The old version's entry is untouched (still a hit under v1).

@@ -131,3 +131,7 @@ src/frontend/playwright-report/
 
 # Subagent-driven-development execution ledger (local scratch)
 .superpowers/
+
+# LibreOffice lock files
+.~lock.*#
+~$*

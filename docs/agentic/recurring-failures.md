@@ -30,20 +30,50 @@ The most expensive pattern in this repo's history, twice over.
   It passed against deliberately broken code.
 - 2026-09-08, `SEC-RECOV-002`: a unit test mocked `has_recovery_code` onto the
   response of `GET /profiles/{id}`. The backend returns that field on
-  `ProfileListResponse` (`GET /profiles/`) and **never** on `ProfileResponse`
+  `ProfileListResponse` (the list route, `GET /profiles`) and **never** on `ProfileResponse`
   (`api/profiles.py:132-152`). Six green tests therefore certified a component
   that could never reach its "replace" state, because the flag it branched on
   was always undefined in production. The mock was not a simplification of the
   API — it was a different API. Caught only by an e2e run against the real
   backend, which rendered the wrong half of the component.
 
+A 2026-09-09 instance in the one place it hurts most — the security gate itself.
+`scripts/security_gate.py:44-51` and `:71-78` catch `FileNotFoundError,
+json.JSONDecodeError` on the bandit and pip-audit reports, print a WARNING, and
+`return []`. The gate reads an empty list as *zero findings*, not as *the scan
+did not happen*. `.github/workflows/ci.yml:92,95` compound it by running both
+scanners with `|| true`, so a scanner that crashes leaves no exit code and no
+usable report. Every step is green and nothing was scanned. A gate that cannot
+distinguish "clean" from "did not run" is not a gate.
+
+A 2026-09-29 instance in the agent answer cache (S-CACHE). `modules/agent/cache.py`
+keyed `CacheKey` on `(normalized_question, profile_version)` — no profile id — and
+`_cache` was a module-level dict shared by every profile in the process. The
+existing tests in `tests/test_hc_a1_agent_verification.py` seeded the cache
+directly with `_seed_cache(question, terminal)`, without a profile id, under
+the fixed fingerprint a fresh empty profile computes (`"o:0:|d:0:"`); a request
+from any other profile with the same empty fingerprint then hit that seeded
+entry. The leak — a shared cache entry serving across profiles — *was the
+tested behaviour*, so the suite stayed green while any two empty (or otherwise
+evidence-identical) profiles could receive each other's cached answers.
+`tests/test_agent_cache_isolation.py::test_hc_cache_iso_001_two_profiles_never_share_cached_answer`
+drives two real profiles through `route_client` with a call-counting stub and
+caught it: profile B's response carried profile A's cached text and the stub
+ran only once instead of twice.
+
 **Recheck:** ask what your test would *fail to notice*. Then break the code on
-purpose and confirm the test goes red. A test that has never failed proves
+purpose and confirm the test goes red. For any gate that parses a report another
+step produced, delete the report and confirm the gate goes RED, not green —
+absent evidence must never read as absence of findings. A test that has never failed proves
 nothing. Route tests asserting auth, path scoping, or status codes go through
-HTTP — use `src/backend/tests/support/routes.py::route_client`. And for any
-hand-written mock of a backend response, open the response model and confirm
-the field is on *that* endpoint: a mock is an assertion about the API, and an
-unchecked one turns the suite green against a contract that does not exist.
+HTTP — use `src/backend/tests/support/routes.py::route_client`. When a test seeds
+shared state (a cache, a module-level dict) by hand, check whether the seed
+itself omits the exact dimension (tenant/profile id) the test is meant to prove
+is isolated — a hand-seeded test can pass by construction instead of by
+correctness. And for any hand-written mock of a backend response, open the
+response model and confirm the field is on *that* endpoint: a mock is an
+assertion about the API, and an unchecked one turns the suite green against a
+contract that does not exist.
 
 ---
 
@@ -189,11 +219,27 @@ audit built on it re-reported the ticket at full scope. A row is written once
 and read many times; nothing re-checks its opening clause when adjacent work
 lands.
 
+A 2026-09-08 near-miss in the same shape, caught at implementation: a research
+track recommended routing `api/memory.py`'s `value` through
+`sanitize_untrusted_field` before persisting, to neutralize prompt injection.
+The *risk* was real; the *layer* was wrong twice over. `modules/rag.py::_retrieve_memory_context`
+already filters injection-bearing memory items at compose time — and it fails
+closed on the whole item, which is safer than scrubbing a string. Worse,
+`sanitize_untrusted_field` applies **strict PHI redaction**, so writing through
+it would have silently and irreversibly corrupted memory items a patient
+deliberately saved into their own encrypted vault. The invariant is "redaction
+before anything *leaves*"; a write into the per-profile vault is PHI arriving,
+not leaving. Two of the eight tracks had flagged the memory route, which made
+the recommendation look corroborated — convergence is evidence the *area*
+matters, not that the *proposed fix* is right.
+
 **Recheck:** a written decision is evidence about what someone believed, not
 proof that it was true. When a doc gives a *reason*, check the reason. When a
 ticket asserts an *absence* ("no X exists", "zero Y today"), grep for X before
 planning against it — absence claims age faster than anything else in a tracker.
-An agent's report — including a reviewer's — is a lead, not a finding.
+An agent's report — including a reviewer's — is a lead, not a finding. Before
+applying a defensive transform, check whether the defense already exists
+somewhere better, and ask what the transform destroys when it fires.
 
 ---
 

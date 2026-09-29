@@ -140,3 +140,103 @@ async def test_s3_4_low_confidence_abstains_not_hedged():
     assert "may" not in terminal.text.lower()
     assert "might" not in terminal.text.lower()
     assert terminal.citations == []
+
+
+# --- live: A1 — the guard must plumb real surviving/dropped SENTENCE counts
+# onto the terminal it returns, so api/assistant.py can derive an honest
+# VerificationInfo instead of hardcoded constants (roadmap 2026-09-10, A1).
+
+@pytest.mark.asyncio
+async def test_a1_guard_answer_terminal_carries_real_mapping_counts():
+    """A fully-grounded answer carries surviving_count == len(sentences) and
+    dropped_count == 0 — both traceable to the real ``map_sentences`` call,
+    not invented."""
+    terminal = await guard(
+        question="What was my LDL?",
+        draft_sentences=["Your verified LDL result was 138.0 mg/dL."],
+        citations=[Citation(source_type="document", source_id="obs-ldl-1", locator="obs-ldl-1")],
+        confidence=1.0,
+        run_id="run-answer",
+        profile_id="profile-1",
+    )
+
+    assert terminal.terminal == "answer"
+    assert terminal.surviving_count == 1
+    assert terminal.dropped_count == 0
+
+
+@pytest.mark.asyncio
+async def test_a1_guard_partial_grounding_answer_carries_nonzero_dropped_count():
+    """Mixed grounding (golden case ``mixed-partial-grounding`` shape): one
+    grounded sentence survives, one ungrounded sentence is dropped, and the
+    guard still answers with the survivor — but the terminal must report the
+    real drop, not zero."""
+    terminal = await guard(
+        question="How has my LDL and kidney function changed?",
+        draft_sentences=[
+            "Your verified LDL result was 138.0 mg/dL.",
+            "Your kidney function markers are abnormal.",  # no citation backs this
+        ],
+        citations=[Citation(source_type="document", source_id="obs-ldl-1", locator="obs-ldl-1")],
+        confidence=1.0,
+        run_id="run-partial",
+        profile_id="profile-1",
+    )
+
+    assert terminal.terminal == "answer"
+    assert terminal.surviving_count == 1
+    assert terminal.dropped_count == 1
+
+
+@pytest.mark.asyncio
+async def test_a1_guard_groundedness_abstain_carries_real_dropped_count():
+    """Zero survivors (gate 2, groundedness) -> abstain, but the terminal
+    still reports how many sentences were actually dropped."""
+    terminal = await guard(
+        question="How has my LDL changed?",
+        draft_sentences=["An injected claim with no real source."],
+        citations=[],
+        run_id="run-abstain-groundedness",
+        profile_id="profile-1",
+    )
+
+    assert terminal.terminal == "abstain"
+    assert terminal.surviving_count == 0
+    assert terminal.dropped_count == 1
+
+
+@pytest.mark.asyncio
+async def test_a1_guard_confidence_abstain_carries_real_mapping_counts():
+    """Below-threshold confidence (gate 3) still reports the real
+    surviving/dropped counts from the mapping that ran before the threshold
+    check, not zeros."""
+    terminal = await guard(
+        question="How has my LDL changed?",
+        draft_sentences=["Your verified LDL result was 138.0 mg/dL."],
+        citations=[Citation(source_type="document", source_id="obs-ldl-1", locator="obs-ldl-1")],
+        confidence=0.1,  # below CONFIDENCE_THRESHOLD
+        run_id="run-abstain-confidence",
+        profile_id="profile-1",
+    )
+
+    assert terminal.terminal == "abstain"
+    assert terminal.surviving_count == 1
+    assert terminal.dropped_count == 0
+
+
+@pytest.mark.asyncio
+async def test_a1_guard_advice_escalate_carries_no_mapping_counts():
+    """The advice gate (gate 1) fires before any groundedness mapping runs,
+    so the escalate terminal must carry no surviving/dropped counts at all
+    (None, not zero) — there is nothing real to report yet."""
+    terminal = await guard(
+        question="Should I stop my statin?",
+        draft_sentences=["Should I stop taking my statin?"],
+        citations=[],
+        run_id="run-escalate",
+        profile_id="profile-1",
+    )
+
+    assert terminal.terminal == "escalate"
+    assert terminal.surviving_count is None
+    assert terminal.dropped_count is None

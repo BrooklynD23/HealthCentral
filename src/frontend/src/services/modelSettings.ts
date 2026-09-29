@@ -28,6 +28,15 @@ export interface HardwareInfo {
   detection_timestamp: string;
 }
 
+export interface TierCapabilityFlags {
+  context_size: number;
+  multimodal: boolean;
+  function_calling: boolean;
+  /** Derived from function_calling — a tier that cannot call tools cannot
+   *  drive the assistant's plan/act/reflect loop. Disclosure only. */
+  agentic_capable: boolean;
+}
+
 export interface TierStatus {
   tier: string;
   name: string;
@@ -37,6 +46,8 @@ export interface TierStatus {
   downloaded: boolean;
   requirements: Record<string, unknown>;
   can_run: boolean;
+  /** Optional: older backends omit it. */
+  capabilities?: TierCapabilityFlags;
 }
 
 export interface ModelSettings {

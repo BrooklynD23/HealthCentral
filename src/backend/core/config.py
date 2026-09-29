@@ -86,7 +86,6 @@ class Settings(BaseSettings):
     # Local AI models
     models_path: str = "models/"
     default_chat_model: str = "phi-3-mini"
-    default_embeddings_model: str = "bge-small-en-v1.5"
     chat_context_size: int = 4096
     inference_threads: int = 0
 

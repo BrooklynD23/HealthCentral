@@ -22,10 +22,9 @@ Every unit of agent work follows the same cycle:
 
 ## Subagent rules
 
-Subagent definitions live in `.claude/agents/`. Use them to keep exploration noise out of the main context:
+No subagent definitions are checked into this repo — there is no agents directory under `.claude/` — every subagent dispatch here is ad hoc, used to keep exploration noise out of the main context:
 
-- **Read-only scanners on cheap models** (`docs-consistency-scanner`, `dependency-policy-auditor`, `agentic-roadmap-researcher`, `verification-engineer`) for repo survey, contradiction hunting, dependency evidence, and idea generation. They return evidence, not edits.
-- **Specialist implementers on stronger models** (`windows-bootstrap-engineer`) only when the task is isolated and the patch surface is well-bounded.
+- **Read-only scanners** for repo survey, contradiction hunting, dependency evidence, and idea generation. They return evidence, not edits.
 - **Implementation stays in the orchestrator** unless files are clearly independent. Subagent output is input evidence — the orchestrator re-verifies anything load-bearing before acting on it.
 - Subagents never touch the safety-critical modules (`modules/interpret_safety.py`, `modules/redaction.py`, `modules/faithfulness.py`, `modules/verifier_agent.py`) or auth/encryption code.
 

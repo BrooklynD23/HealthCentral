@@ -112,6 +112,14 @@ Practical plan for Model Context Protocol servers and local tools that support t
 
 Links to: `docs/agentic/evals.md`, `docs/agentic/harness.md`
 
+## `docs/agentic/orchestration.md`
+
+**Workflow Orchestration — Execution Program**
+
+**Model policy.** Implementation runs on the `sonnet` alias; reviews and orchestration run on `opus`. The owner set this on 2026-09-28 for this program, and it overrides the user-level "Opus for…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `audit/2026-09-25/handoff-2026-09-28-execution-orchestrator.md`, `audit/2026-09-25/swarm-2026-09-27/ledger.md`, `audit/2026-09-25/swarm-2026-09-27/reviews/W04-r1-prompt.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`
+
 ## `docs/agentic/progress.md`
 
 **Agent Progress Log**
@@ -132,7 +140,7 @@ Mistakes this codebase has actually produced, with the evidence that exposed eac
 
 Why this project exists as an agentic-engineering exercise, and what "done well" looks like. The working loop is in harness.md; verification is in evals.md; the live task inventory is…
 
-Links to: `docs/agentic/evals.md`, `docs/agentic/harness.md`, `docs/agentic/mcp-tools.md`, `docs/agentic/progress.md`, `docs/compliance/README.md`, `docs/compliance/ai-safety.md`, `feature_list.json`
+Links to: `docs/agentic/evals.md`, `docs/agentic/harness.md`, `docs/agentic/mcp-tools.md`, `docs/agentic/progress.md`, `docs/compliance/README.md`, `docs/compliance/ai-safety.md`, `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/01-codebase-audit.md`, `docs/research/2026-09-08/02-inference-serving.md`, `docs/research/2026-09-08/03-agentic-loops.md`, `docs/research/2026-09-08/04-mcp-interop.md`, `docs/research/2026-09-08/05-models-voice.md`, `docs/research/2026-09-08/06-competitive-landscape.md`, `docs/research/2026-09-08/07-data-control.md`, `docs/research/2026-09-08/08-frontend.md`, `docs/research/2026-09-08/09-roadmap.md`, `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`, `docs/research/2026-09-08/PLAN.md`, `feature_list.json`
 
 ## `docs/agile/AGILE_PLAN.md`
 
@@ -482,6 +490,118 @@ This is mostly a safety document. The largest brand risk for this product is not
 
 Links to: `docs/plans/2026-07-07-rename-audit-and-shortlist.md`
 
+## `docs/capstone-report/00-original-goal.md`
+
+**The Original Goal — Restated**
+
+For the capstone report's introduction and evaluation sections. Two coupled goals — the product is the substrate; the research is the thesis.
+
+Links to: `docs/capstone-report/README.md`, `docs/capstone-report/architecture-overview.md`, `docs/capstone-report/claims-ledger.md`, `docs/capstone-report/report-outline.md`, `docs/capstone-report/specs-compliance-matrix.md`
+
+## `docs/capstone-report/README.md`
+
+**Capstone Report Knowledge Base**
+
+Knowledge base for the CS4610 capstone report. It tracks the distance between the project's original goal, the repository's verified state, and the claims the report makes. Everything here is…
+
+Links to: `audit/2026-09-25/Devin-Audit-report.md`, `audit/2026-09-25/handoff-2026-09-27-execution.md`, `audit/2026-09-25/review/2026-09-27-followup.md`, `docs/capstone-report/00-original-goal.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/architecture-overview.md`, `docs/capstone-report/claims-ledger.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/report-outline.md`, `docs/capstone-report/research`, `docs/capstone-report/specs-compliance-matrix.md`, `docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md`, `docs/plans/2026-09-27-P08-gated-packet-hipaa-aligned-amendment.md`, `docs/plans/2026-09-27-S01-sql-echo-phi-leak.md`, `docs/plans/2026-09-27-W01-harness-agents-branch-a.md`, `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`, `docs/plans/2026-09-27-W03-verified-only-rag-and-trend-labels.md`, `docs/plans/2026-09-27-W04-legacy-abstain-and-eval-gate.md`, `docs/plans/2026-09-27-W05-citation-marker-prompt.md`, `docs/plans/2026-09-27-W06-external-runner-hardening.md`, `docs/plans/2026-09-27-W07-tiered-interpretation-via-modelrunner.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-27-W10-governance-invariant-amendments.md`, `docs/plans/2026-09-27-W11a-test-and-gate-hardening.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`, `docs/plans/2026-09-27-nightly-doc-drift-routine-spec.md`, `docs/plans/2026-09-27-senior-report-showcase-plan.md`
+
+## `docs/capstone-report/architecture-engineering-contract.md`
+
+**Asclexis — Architecture & Engineering Contract**
+
+This contract turns the repo's invariants into rules a reviewer can check. Current compliance for each rule is tracked in specs-compliance-matrix.md. The system being governed is described in…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/capstone-report/README.md`, `docs/capstone-report/architecture-overview.md`, `docs/capstone-report/specs-compliance-matrix.md`
+
+## `docs/capstone-report/architecture-overview.md`
+
+**Asclexis — Architecture & Integration Overview**
+
+This document separates **verified current architecture** (§1–§11) from **proposed change** (§13). Every current-state statement carries `path:line` evidence from the 2026-09-27 re-check…
+
+Links to: `docs/architecture/README.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/specs-compliance-matrix.md`
+
+## `docs/capstone-report/claims-ledger.md`
+
+**Claims Ledger — Report Claims ↔ Repo Evidence**
+
+Every load-bearing claim headed for the capstone report, with its evidence and its verdict. Rule: **no claim ships without a row here.**
+
+Links to: `audit/2026-09-25/review/2026-09-27-followup.md`, `docs/capstone-report/README.md`
+
+## `docs/capstone-report/implementation-program.md`
+
+**Asclexis — Implementation Program**
+
+This program orders the eight audit plans (`audit/2026-09-25/plans/01`–`08`) and the gaps found on 2026-09-27 that no plan covers. It includes the independent review's corrections (follow-up). The…
+
+Links to: `audit/2026-09-25/handoff-2026-09-28-execution-orchestrator.md`, `audit/2026-09-25/review/2026-09-27-followup.md`, `audit/2026-09-25/swarm-2026-09-27/wave3/3a-integration.md`, `audit/2026-09-25/swarm-2026-09-27/wave3/3b-evidence.md`, `docs/agentic/orchestration.md`, `docs/agentic/recurring-failures.md`, `docs/capstone-report/README.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/architecture-overview.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/specs-compliance-matrix.md`, `docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md`, `docs/plans/2026-09-27-P08-gated-packet-hipaa-aligned-amendment.md`, `docs/plans/2026-09-27-S01-sql-echo-phi-leak.md`, `docs/plans/2026-09-27-W01-harness-agents-branch-a.md`, `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`, `docs/plans/2026-09-27-W03-verified-only-rag-and-trend-labels.md`, `docs/plans/2026-09-27-W04-legacy-abstain-and-eval-gate.md`, `docs/plans/2026-09-27-W05-citation-marker-prompt.md`, `docs/plans/2026-09-27-W06-external-runner-hardening.md`, `docs/plans/2026-09-27-W07-tiered-interpretation-via-modelrunner.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-27-W10-governance-invariant-amendments.md`, `docs/plans/2026-09-27-W11a-test-and-gate-hardening.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`, `docs/plans/2026-09-27-nightly-doc-drift-routine-spec.md`, `docs/plans/2026-09-27-senior-report-showcase-plan.md`, `docs/plans/2026-09-29-S02-agent-cache-profile-isolation.md`
+
+## `docs/capstone-report/owner-decisions-2026-09-27.md`
+
+**Owner Decisions — 2026-09-27**
+
+1. **Governance edits are now approved:** amend `CLAUDE.md` (D3: CSV/JSON as named exceptions; D12: the external runner as a named ModelRunner exception) and `docs/compliance/data-privacy.md` (D3,…
+
+Links to: `docs/capstone-report/README.md`, `docs/capstone-report/implementation-program.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`
+
+## `docs/capstone-report/report-outline.md`
+
+**Capstone Report Outline — Evidence-Mapped**
+
+Working outline. Each section names the artifacts that back it — the report is an assembly of verifiable evidence, not narrative invention. Item status: ✅ ready · 🔶 needs work · ⬜ pending.
+
+Links to: `audit/2026-09-25/asclexis-showcase.html`, `audit/2026-09-25/review/2026-09-27-followup.md`, `docs/capstone-report/00-original-goal.md`, `docs/capstone-report/README.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/architecture-overview.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/research`, `docs/capstone-report/research/04-papers-evals.md`, `docs/capstone-report/specs-compliance-matrix.md`
+
+## `docs/capstone-report/research/01-agentic-swe-tools.md`
+
+**Research 01 — Agentic Software-Engineering Tools**
+
+Scouting survey for the capstone report's Related Work section (outline §7) and the project roadmap. Scope: commercial agentic coders, open-source counterparts, and — the point of the exercise —…
+
+Links to: `audit/2026-09-25/review/2026-09-27-followup.md`, `docs/capstone-report/README.md`
+
+## `docs/capstone-report/research/02-harness-techniques.md`
+
+**Research Scouting 02 — Agentic Harness & Context-Engineering Techniques**
+
+Scout of current practice in agentic-SWE harnesses: context layering, lifecycle enforcement, memory, orchestration, session handoff, and CI eval gating. Each entry ends with a **Proposed contract**…
+
+Links to: `audit/2026-09-25/plans/03-phantom-layer.md`, `audit/2026-09-25/review/2026-09-27-followup.md`, `docs/capstone-report/README.md`, `docs/capstone-report/research/README.md`
+
+## `docs/capstone-report/research/03-rag-local-llm.md`
+
+**Research 03 — RAG, Grounded Generation & Local-LLM Advances**
+
+Scouting pass over the 2023–2026 grounded-generation and local-LLM literature, mapped onto Asclexis's assistant path (`modules/agent` graph: plan→act→reflect→draft→guard, `MAX_STEPS=5`, 8 read-only…
+
+Links to: `docs/capstone-report/README.md`, `docs/capstone-report/research/README.md`
+
+## `docs/capstone-report/research/04-papers-evals.md`
+
+**04 — Papers & Eval Frameworks: Scholarly Evidence Base**
+
+Scouting for capstone §6 (evaluation), §7 (related work), and the methodology claims in §4–5. Every entry was located via web search on 2026-09-25; venue claims come from the indexed…
+
+Links to: `audit/2026-09-25/review/2026-09-27-followup.md`, `docs/capstone-report/README.md`
+
+## `docs/capstone-report/research/README.md`
+
+**Research Scouting — Index**
+
+Technology-scouting documents for the capstone report's Related Work section and the project's roadmap.
+
+Links to: `docs/capstone-report/README.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/research/01-agentic-swe-tools.md`, `docs/capstone-report/research/02-harness-techniques.md`, `docs/capstone-report/research/03-rag-local-llm.md`, `docs/capstone-report/research/04-papers-evals.md`
+
+## `docs/capstone-report/specs-compliance-matrix.md`
+
+**Asclexis — Specs & Compliance Matrix**
+
+Each row maps one requirement to:
+
+Links to: `docs/capstone-report/README.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/architecture-overview.md`, `docs/capstone-report/implementation-program.md`
+
 ## `docs/compliance/README.md`
 
 **Compliance Documentation**
@@ -604,7 +724,7 @@ The default tier for all installations. Optimized for speed and low resource usa
 
 ## `docs/model_tiers/tier2_mid.md`
 
-**Tier 2: Mid (Phi-3-mini-4k-instruct)**
+**Tier 2: Mid (Phi-4-mini-instruct)**
 
 Balanced tier offering improved quality while maintaining reasonable resource usage.
 
@@ -678,6 +798,150 @@ The `SQL-FK-001` ticket says the pragma cannot be flipped until "a written audit
 
 Links to: `AGENT.md`, `CLAUDE.md`, `docs/features/TASK_LIST.md`, `docs/plans/2026-09-08-backlog-closure-plan.md`
 
+## `docs/plans/2026-09-10-implementation-roadmap.md`
+
+**Implementation roadmap — accepted 2026-09-10**
+
+Derived from the Fable 5.1 consultation (`docs/research/2026-09-08/13-consultation.md`), which worked the ~113 candidate rows the ten Sonnet tracks produced and kept 19. This document turns that…
+
+Links to: `docs/research/2026-09-08/09-roadmap.md`, `docs/research/2026-09-08/13-consultation.md`
+
+## `docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md`
+
+**P4 — Doc-Drift Sweep, Extended: Amendment to Plan 04**
+
+- **P4-core.** One docs PR in the program's P4 slot. - **P4-deferred.** Small follow-up `docs:` commits (F1–F6, N8, N9, N10). Each one runs only after its named trigger merges.
+
+Links to: `CLAUDE.md`, `audit/2026-09-25/handoff-2026-09-27-execution.md`, `audit/2026-09-25/plans/04-doc-drift-sweep.md`, `docs/agentic/recurring-failures.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/architecture-overview.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/specs-compliance-matrix.md`, `docs/plans/2026-09-27-P08-gated-packet-hipaa-aligned-amendment.md`, `docs/plans/2026-09-27-W01-harness-agents-branch-a.md`, `docs/plans/2026-09-27-W03-verified-only-rag-and-trend-labels.md`, `docs/plans/2026-09-27-W05-citation-marker-prompt.md`, `docs/plans/2026-09-27-W06-external-runner-hardening.md`, `docs/plans/2026-09-27-W10-governance-invariant-amendments.md`
+
+## `docs/plans/2026-09-27-P08-gated-packet-hipaa-aligned-amendment.md`
+
+**P8 Amendment: Gated-Items Decision Packet Under the HIPAA-Aligned Posture (W-9, D10)**
+
+**What this is.** An amendment to plan 08, not a copy. Read plan 08 **and its 2026-09-27 banner** first. This file says which of its 7 tasks run as written and which change. It re-verifies plan 08's…
+
+Links to: `audit/2026-09-25/handoff-2026-09-27-execution.md`, `audit/2026-09-25/plans/08-gated-items-review-packet.md`, `audit/2026-09-25/review/2026-09-27-followup.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/specs-compliance-matrix.md`
+
+## `docs/plans/2026-09-27-S01-sql-echo-phi-leak.md`
+
+**S-1 SQL Echo PHI Leak — Implementation Plan**
+
+- a change to `src/backend/core/config.py`, `src/backend/core/database.py`, `src/backend/core/profile_database.py`, `config/.env.example` or `src/backend/tests/support/routes.py`; - P6 (FK pragma…
+
+Links to: `audit/2026-09-25/handoff-2026-09-27-execution.md`, `audit/2026-09-25/plans/06-sql-fk-audit.md`, `docs/agentic/recurring-failures.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/specs-compliance-matrix.md`, `docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md`, `docs/plans/2026-09-27-P08-gated-packet-hipaa-aligned-amendment.md`
+
+## `docs/plans/2026-09-27-W01-harness-agents-branch-a.md`
+
+**W-1 — Commit the Five Named Subagents (Plan 03, Branch A) Implementation Plan**
+
+- the `.gitignore` un-ignore, and that it stays narrow; - the file set; - frontmatter parsing; - the tool lists and the declared scope; - body/frontmatter consistency, including the patient-data…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `audit/2026-09-25/handoff-2026-09-27-execution.md`, `audit/2026-09-25/plans/01-merge-branches.md`, `audit/2026-09-25/plans/03-phantom-layer.md`, `audit/2026-09-25/plans/04-doc-drift-sweep.md`, `docs/agentic/harness.md`, `docs/agentic/recurring-failures.md`, `docs/agentic/roadmap.md`, `docs/capstone-report/claims-ledger.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/specs-compliance-matrix.md`
+
+## `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`
+
+**W-2 Doctor-Summary Redaction (D3) Implementation Plan**
+
+- a change to `src/backend/modules/export.py`, `src/backend/api/export.py`, `src/backend/modules/redaction.py` or `src/backend/tests/support/routes.py`; - the W-10 governance commit landing; - an…
+
+Links to: `audit/2026-09-25/handoff-2026-09-27-execution.md`, `docs/agentic/recurring-failures.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/specs-compliance-matrix.md`
+
+## `docs/plans/2026-09-27-W03-verified-only-rag-and-trend-labels.md`
+
+**W-3: Verified-only legacy RAG and labelled unverified trend points (D4)**
+
+- `modules/rag.py` retrieves only verified observations; - the no-LLM knowledge fallback reads only verified observations, **only if O-1 is signed "yes"** (Task 7, opt-in); - `modules/rag.py`…
+
+Links to: `audit/2026-09-25/handoff-2026-09-27-execution.md`, `docs/agentic/recurring-failures.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/specs-compliance-matrix.md`
+
+## `docs/plans/2026-09-27-W04-legacy-abstain-and-eval-gate.md`
+
+**W-4 Legacy RAG Abstain and Eval Gate Implementation Plan**
+
+---
+
+Links to: `audit/2026-09-25/handoff-2026-09-27-execution.md`, `docs/agentic/recurring-failures.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/specs-compliance-matrix.md`
+
+## `docs/plans/2026-09-27-W05-citation-marker-prompt.md`
+
+**W-5 Citation-Marker Prompt Alignment (D11) Implementation Plan**
+
+Post-review consistency edit 2026-09-27 (baseline-sentence rule); not re-reviewed.
+
+Links to: `audit/2026-09-25/handoff-2026-09-27-execution.md`, `docs/agentic/recurring-failures.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/specs-compliance-matrix.md`
+
+## `docs/plans/2026-09-27-W06-external-runner-hardening.md`
+
+**W-6 External Runner Hardening Implementation Plan**
+
+---
+
+Links to: `audit/2026-09-25/handoff-2026-09-27-execution.md`, `docs/agentic/recurring-failures.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/specs-compliance-matrix.md`
+
+## `docs/plans/2026-09-27-W07-tiered-interpretation-via-modelrunner.md`
+
+**W-7 Tiered Interpretation via ModelRunner Implementation Plan**
+
+Post-review consistency edit 2026-09-27 (baseline-sentence rule); not re-reviewed.
+
+Links to: `audit/2026-09-25/handoff-2026-09-27-execution.md`, `docs/agentic/recurring-failures.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/specs-compliance-matrix.md`
+
+## `docs/plans/2026-09-27-W08-bundled-embedding-model.md`
+
+**W-8 Bundled Embedding Model (D8) Implementation Plan**
+
+- `modules/embeddings.py` resolves one configured directory (`EMBEDDING_MODEL_PATH`). It loads that directory with `SentenceTransformer(<dir>, local_files_only=True)`. If the model is missing or…
+
+Links to: `audit/2026-09-25/handoff-2026-09-27-execution.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/specs-compliance-matrix.md`
+
+## `docs/plans/2026-09-27-W10-governance-invariant-amendments.md`
+
+**W-10 Governance Commit: Invariant Amendments for D3, D4 and D12**
+
+1. The export inventory is now an AST scan that handles multiline decorators, and it now finds `POST /feedback/export` (§3.5, Task 1 Step 4). 2. Every assertion run uses one `W10_ARGS`. 3. Variant I…
+
+Links to: `audit/2026-09-25/handoff-2026-09-27-execution.md`, `docs/agentic/recurring-failures.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/specs-compliance-matrix.md`, `docs/plans/2026-09-27-W03-verified-only-rag-and-trend-labels.md`, `docs/plans/2026-09-27-W05-citation-marker-prompt.md`
+
+## `docs/plans/2026-09-27-W11a-test-and-gate-hardening.md`
+
+**W-11a Test and Gate Hardening (G-B1, G-B2, G-B4, G-B6) Implementation Plan**
+
+- **Guard tests** drive `api/profiles.py` through `route_client` against a real, file-backed master DB. The DB is read back through a separate connection, so a test sees only committed rows. -…
+
+Links to: `audit/2026-09-25/handoff-2026-09-27-execution.md`, `docs/agentic/recurring-failures.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/specs-compliance-matrix.md`
+
+## `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`
+
+**W-11b Roadmap Items G-C1…G-C4 Implementation Plan**
+
+- G-C1: P5, W-2, P6, P7 and S-C1-1. - G-C2: P4 Task 13, the owner's generation run and S-C2-1. - G-C3a: P4, W-4 and S-C3-1. - G-C3b: P2 and S-C3-1. - G-C4: nothing beyond P1; it reads W-8 if W-8 has…
+
+Links to: `audit/2026-09-25/Devin-Audit-report.md`, `audit/2026-09-25/handoff-2026-09-27-execution.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/specs-compliance-matrix.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`
+
+## `docs/plans/2026-09-27-nightly-doc-drift-routine-spec.md`
+
+**Nightly Doc-Drift Routine — Specification**
+
+**Plan-set scope:** this spec is the 15th `docs/plans/2026-09-27-*.md` file and is in **P0-B2** scope (the owner-gated docs commit of the plan set). Until P0-B2 is signed and merged it is untracked…
+
+Links to: `docs/agentic/recurring-failures.md`, `docs/capstone-report/implementation-program.md`
+
+## `docs/plans/2026-09-27-senior-report-showcase-plan.md`
+
+**CS4610 Senior Report — Stakeholder Showcase Update Plan**
+
+**Ref labels.** `main@40f590e` = main at the planning date. `B@7b2ff1f` = `origin/claude/healthcentral-agentic-research-r1n54x`. `A@692fdf3` = `origin/claude/asclexis-repo-audit-349pjq`.…
+
+Links to: `audit/2026-09-25/asclexis-showcase.html`, `docs/capstone-report/00-original-goal.md`, `docs/capstone-report/README.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/architecture-overview.md`, `docs/capstone-report/claims-ledger.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/report-outline.md`, `docs/capstone-report/specs-compliance-matrix.md`, `docs/plans/2026-09-27-S01-sql-echo-phi-leak.md`
+
+## `docs/plans/2026-09-29-S02-agent-cache-profile-isolation.md`
+
+**S-CACHE — Agent Answer Cache Profile Isolation + Memory-Audit Category Drop**
+
+1. The agent answer cache can never serve one profile's answer to another profile. 2. The user-typed memory `category` never reaches an audit row in the unencrypted master DB.
+
+Links to: `audit/2026-09-29/reviews/P01-r1-codex.txt`, `audit/2026-09-29/reviews/P01-r1-response.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`
+
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
 **Project Structure Setup**
@@ -741,6 +1005,152 @@ Links to: `docs/agile/RELEASE_CHECKLIST.md`
 **Phase 7 — LoRA Distillation (stretch)**
 
 Distill the big model's good grounded-refusal behavior into a small local LoRA adapter so the offline default is smaller and **just as safe** — gated by the same golden set, never weaker on any axis.
+
+## `docs/research/2026-09-08/00-brief.md`
+
+**Shared research brief — Asclexis agentic expansion (2026-09-08)**
+
+Every track document in this directory was produced against this brief. Read it before reading any track. It records **verified repo state** (commands and file paths given, run 2026-09-08 on branch…
+
+Links to: `docs/research/2026-09-08/STATUS.md`
+
+## `docs/research/2026-09-08/01-codebase-audit.md`
+
+**Track 1 — Codebase capability audit**
+
+All paths are relative to `src/backend/` unless stated otherwise. Line numbers verified 2026-09-08 by direct file read, not by memory or by trusting docstrings.
+
+Links to: `docs/research/2026-09-08/STATUS.md`
+
+## `docs/research/2026-09-08/02-inference-serving.md`
+
+**Track 2: Local inference and serving infrastructure**
+
+Read `00-brief.md` first for verified repo state and binding constraints. This document does not restate that premise except where it needed correction — see the note on §4.
+
+Links to: `docs/research/2026-09-08/STATUS.md`, `src/backend/core/config.py`, `src/backend/core/llm/factory.py`, `src/backend/core/llm/llama_cpp_provider.py`, `src/backend/core/llm/ollama_provider.py`, `src/backend/modules/agent/cache.py`, `src/backend/modules/agent/guardrails/classifier.py`, `src/backend/modules/agent/guardrails/groundedness.py`, `src/backend/modules/agent/nodes/draft.py`, `src/backend/modules/agent/nodes/plan.py`, `src/backend/modules/agent/nodes/reflect.py`, `src/backend/modules/agent/state.py`, `src/backend/modules/agent/tools/base.py`, `src/backend/modules/agent/tools/registry.py`, `src/backend/modules/model_selector.py`, `src/backend/modules/rag.py`
+
+## `docs/research/2026-09-08/03-agentic-loops.md`
+
+**Track 3 — Agentic loop engineering**
+
+Research for the Asclexis (formerly HealthCentral) local-first health app. Read `00-brief.md` first — it records the verified repo state this track builds on and the constraints that bind every…
+
+Links to: `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/STATUS.md`
+
+## `docs/research/2026-09-08/04-mcp-interop.md`
+
+**Track 4 — Model Context Protocol & Health-Data Interoperability**
+
+Researched 2026-09-08. Knowledge cutoff May 2026; anything about the world after that carries a fetched URL or is marked `[UNVERIFIED]`, per the brief (`00-brief.md` §4). Repo claims carry a…
+
+Links to: `docs/research/2026-09-08/00-brief.md`
+
+## `docs/research/2026-09-08/05-models-voice.md`
+
+**Track 5 — Open-Weight Models, the NVIDIA Local Stack, and Voice**
+
+Research date: 2026-09-08. Model knowledge cutoff: May 2026 — everything below about releases after that date is either backed by a fetched/searched source (cited inline) or marked `[UNVERIFIED]`.…
+
+Links to: `docs/research/2026-09-08/STATUS.md`
+
+## `docs/research/2026-09-08/06-competitive-landscape.md`
+
+**Track 6 — Competitive and adjacent-landscape research**
+
+Research date: 2026-09-08. Model knowledge cutoff: May 2026 — everything below about post-cutoff events is sourced to a fetched URL or explicitly marked `[UNVERIFIED]`. This track is read-only on…
+
+## `docs/research/2026-09-08/07-data-control.md`
+
+**Track 7 — Data science, user data control, and compliance**
+
+Research for the Asclexis (formerly HealthCentral) agentic-expansion effort. Produced 2026-09-08 against `00-brief.md`. Read-only on source; this file is the only write. Every repo claim below…
+
+Links to: `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/STATUS.md`
+
+## `docs/research/2026-09-08/08-frontend.md`
+
+**Track 8 — Frontend refactor: motion, agent-trace UI, and design system**
+
+this document is the only write. Verified 2026-09-08 against branch `claude/healthcentral-agentic-research-r1n54x`. See `00-brief.md` for the shared baseline and constraints this track inherits.
+
+Links to: `docs/research/2026-09-08/00-brief.md`
+
+## `docs/research/2026-09-08/09-roadmap.md`
+
+**Synthesis — sequenced roadmap**
+
+Merges the eight tracks into one dependency-ordered plan. Written after the tracks returned, against `00-brief.md` and the execution record in `PLAN.md` §9.
+
+Links to: `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`, `docs/research/2026-09-08/PLAN.md`, `docs/research/2026-09-08/STATUS.md`
+
+## `docs/research/2026-09-08/10-demonstration-artifact.md`
+
+**Track 10 — The repo as a demonstration artifact**
+
+repo-structure only — no product code touched, no real patient data anywhere.
+
+## `docs/research/2026-09-08/11-harness-engineering.md`
+
+**Track 10 — Harness and loop engineering**
+
+files and feedback loops that keep an AI agent on task while it builds Asclexis. Not the product's own agent loop (that is Track 3, `03-agentic-loops.md`, and the `modules/agent/` graph audited in…
+
+Links to: `docs/research/2026-09-08/STATUS.md`
+
+## `docs/research/2026-09-08/13-consultation.md`
+
+**13 — Consultation: what to integrate, in what order, and what to drop**
+
+Written 2026-09-09 against the ten tracks (`01`-`08`, `10`, `11`), the synthesis in `09-roadmap.md`, and `STATUS.md`. Every repo claim below was re-verified in this session with `grep`/`sed` on…
+
+Links to: `docs/research/2026-09-08/09-roadmap.md`, `docs/research/2026-09-08/STATUS.md`
+
+## `docs/research/2026-09-08/CONSULT-PROMPT.md`
+
+**Consultation prompt — what to actually integrate**
+
+For **Claude Fable 5.1** (`claude-fable-5-1`). **4,390 characters** — everything between the fences is the prompt.
+
+Links to: `docs/research/2026-09-08/GOAL-PROMPT.md`, `docs/research/2026-09-08/INDUSTRY-PROMPT.md`
+
+## `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`
+
+**Frontier-model architecture audit — prompt pack**
+
+A ready-to-run brief for handing Asclexis to a frontier model (**Claude Fable 5.1** or **GPT-6 Astra**) for an independent architecture audit and roadmap.
+
+## `docs/research/2026-09-08/GOAL-PROMPT.md`
+
+**`/goal` prompt — frontier architecture audit**
+
+A single-turn brief for a higher-reasoning model to audit the whole research corpus and produce the architecture plan. **3,464 characters** — everything between the fences is the prompt; nothing…
+
+Links to: `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`
+
+## `docs/research/2026-09-08/INDUSTRY-PROMPT.md`
+
+**Industry-shift prompt — what to integrate next**
+
+A research brief for **Claude Fable 5.1** (`claude-fable-5-1`) exploring what agentic engineering has changed since the CS4610 reports were written, and what this project should adopt. **4,227…
+
+Links to: `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`, `docs/research/2026-09-08/GOAL-PROMPT.md`
+
+## `docs/research/2026-09-08/PLAN.md`
+
+**Research plan — from process-agentic to product-agentic**
+
+---
+
+Links to: `CLAUDE.md`, `docs/agentic/harness.md`, `docs/agentic/mcp-tools.md`, `docs/agentic/recurring-failures.md`, `docs/research/2026-09-08/00-brief.md`
+
+## `docs/research/2026-09-08/STATUS.md`
+
+**Status — what has shipped since the tracks were written**
+
+**Read this before acting on any recommendation in this directory.**
+
+Links to: `docs/agentic/recurring-failures.md`, `docs/plans/2026-09-10-implementation-roadmap.md`, `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/09-roadmap.md`, `docs/research/2026-09-08/10-demonstration-artifact.md`, `docs/research/2026-09-08/11-harness-engineering.md`, `docs/research/2026-09-08/13-consultation.md`, `docs/research/2026-09-08/CONSULT-PROMPT.md`, `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`, `docs/research/2026-09-08/GOAL-PROMPT.md`, `docs/research/2026-09-08/INDUSTRY-PROMPT.md`
 
 ## `docs/roles/00_roles_index.md`
 

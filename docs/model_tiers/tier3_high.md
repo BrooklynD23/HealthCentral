@@ -80,7 +80,7 @@ The exact GGUF filename is discovered at download time using `huggingface_hub.li
 ## Fallback Behavior
 
 If BioMistral-7B isn't available or fails, the system falls back to:
-1. Tier 2 (Phi-3-mini) if downloaded
+1. Tier 2 (Phi-4-mini) if downloaded
 2. Tier 1 (Qwen2.5-0.5B) if downloaded
 3. Template-based interpretation
 
