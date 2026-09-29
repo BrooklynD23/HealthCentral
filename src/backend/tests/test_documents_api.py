@@ -740,6 +740,21 @@ async def test_HC_CAREQ_003_delete_document_leaves_other_documents_tasks_alone(
     assert kept.source_document_id == survivor.id
 
 
+class _CommitTrackingMasterDb(_FakeMasterDb):
+    """`_FakeMasterDb` records adds but not commits, so a route that adds an
+    AuditLog row and then silently skips `await master_db.commit()` is
+    invisible to a plain "was a row added" assertion (review loop 1,
+    mutation M3 survived). Record how many rows existed at each commit call
+    so a test can assert a specific row was actually committed."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.commit_snapshots: list[int] = []
+
+    async def commit(self) -> None:
+        self.commit_snapshots.append(len(self.added))
+
+
 @pytest.mark.asyncio
 async def test_HC_CAREQ_004_delete_document_over_http_clears_care_task_quote(
     entity_profile_db, monkeypatch, tmp_path
@@ -765,21 +780,22 @@ async def test_HC_CAREQ_004_delete_document_over_http_clears_care_task_quote(
     entity_profile_db.add(task)
     await entity_profile_db.commit()
 
-    master = _FakeMasterDb()
-    ctx = route_client(
+    master = _CommitTrackingMasterDb()
+    with route_client(
         documents_router, "/documents", profile_id=profile_id, master_db=master
-    )
-    client = ctx.__enter__()
+    ) as client:
 
-    async def _override_profile_db():
-        return entity_profile_db
+        async def _override_profile_db():
+            return entity_profile_db
 
-    client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
-    try:
+        client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
         resp = client.delete(f"/documents/{document.id}")
         assert 200 <= resp.status_code < 300, resp.text
-    finally:
-        ctx.__exit__(None, None, None)
+
+    # entity_profile_db has expire_on_commit=False, so without this the
+    # select below would return the identity-mapped Python object rather
+    # than what the route actually committed to the database.
+    entity_profile_db.expire_all()
 
     result = await entity_profile_db.execute(select(CarePlanTask))
     tasks = result.scalars().all()
@@ -792,12 +808,32 @@ async def test_HC_CAREQ_004_delete_document_over_http_clears_care_task_quote(
     assert kept.status == "open"
     assert kept.user_note == "ask about the iron result"
 
-    audit_rows = [o for o in master.added if type(o).__name__ == "AuditLog"]
-    assert audit_rows, "DELETE /documents/{id} over HTTP wrote no AuditLog row"
-    row = audit_rows[0]
+    audit_rows_with_index = [
+        (i, o) for i, o in enumerate(master.added) if type(o).__name__ == "AuditLog"
+    ]
+    assert audit_rows_with_index, "DELETE /documents/{id} over HTTP wrote no AuditLog row"
+    audit_index, row = audit_rows_with_index[0]
     assert row.event_type == "document.delete"
     assert row.entity_type == "document"
     assert row.entity_id == document.id
+    assert row.profile_id == profile_id
+
+    # AUDIT-PHI-001 / core/audit.py log_document_event docstring: "filename
+    # is accepted for call-site compatibility and is never persisted" — the
+    # real filename ("cleanup.pdf", set by _pin_cleanup_document) must not
+    # appear anywhere in the committed row.
+    row_blob = " ".join(str(getattr(row, c.name)) for c in row.__table__.columns)
+    assert document.source not in row_blob, f"filename leaked into audit row: {row_blob}"
+
+    # The route must have committed the master DB, and specifically after
+    # the AuditLog row was added — not merely `.add()`-ed and left pending.
+    assert len(master.commit_snapshots) == 1, (
+        f"expected exactly one master DB commit, got {master.commit_snapshots}"
+    )
+    assert master.commit_snapshots[0] > audit_index, (
+        "AuditLog row was added but the master DB commit that should follow "
+        "it never happened"
+    )
 
 
 @pytest.mark.asyncio
