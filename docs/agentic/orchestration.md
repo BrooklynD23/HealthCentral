@@ -60,7 +60,7 @@ Codex reviews the decisions that are expensive to reverse. The phases below are 
 | W-7 | new LLM route through ModelRunner, beside `interpret_safety` |
 | W-10 | governance invariants in `CLAUDE.md` / `data-privacy.md` |
 
-- **Plan review (before the wave):** `codex exec -s read-only -C <repo> -o <out>.txt "$(cat <prompt>.md)"`. The prompt template is the proven one at [`reviews/W04-r1-prompt.md`](../../audit/2026-09-25/swarm-2026-09-27/reviews/W04-r1-prompt.md). Its output contract is `VERDICT: PASS | REVISE` plus one `[BLOCKER|MAJOR|MINOR]` line per finding.
+- **Plan review (before the wave):** `codex exec -s read-only -C <repo> -o <out>.txt "$(cat <prompt>.md)"`. The prompt template is the proven one at [`audit/2026-09-25/swarm-2026-09-27/reviews/W04-r1-prompt.md`](../../audit/2026-09-25/swarm-2026-09-27/reviews/W04-r1-prompt.md). Its output contract is `VERDICT: PASS | REVISE` plus one `[BLOCKER|MAJOR|MINOR]` line per finding.
 - **Rounds:** at most 2 per plan amendment. Store the prompt, output and response under `audit/<date>/reviews/`.
 - **Diff review (before the PR opens):** the `adversarial-review` command in §3 step 7.
 - **Not for:** docs-only phases (P4, P8, W-11a PR-4, G-C4), except where the owner asks.
