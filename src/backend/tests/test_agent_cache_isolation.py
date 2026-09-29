@@ -24,7 +24,6 @@ import uuid
 from unittest.mock import patch
 
 import pytest
-import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import StaticPool
 
@@ -32,7 +31,12 @@ import api.assistant as A
 from api.assistant import router as assistant_router
 from core.auth import get_profile_db_session
 from core.profile_database import ProfileDatabaseBase
-from models import chat_session, document, model_settings, observation  # noqa: F401  register tables
+from models import (  # noqa: F401  register tables
+    chat_session,
+    document,
+    model_settings,
+    observation,
+)
 from modules.agent.cache import CacheKey, clear_cache, get_cached, put_cached
 from modules.agent.schemas import AgentTerminal
 from tests.support.routes import route_client

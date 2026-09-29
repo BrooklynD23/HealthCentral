@@ -185,7 +185,12 @@ async def test_hc_mem_audit_007_create_category_never_reaches_audit_details(prof
         for row in rows:
             details = getattr(row, "details_json", "") or ""
             assert "category" not in details, f"category key leaked into audit row: {details}"
-            assert "HIV" not in details, f"category value leaked into audit row: {details}"
+            # Plan Task 4: "HIV" must appear nowhere in the serialized row,
+            # not just in details_json — check every column.
+            row_blob = " ".join(
+                str(getattr(row, c.name)) for c in row.__table__.columns
+            )
+            assert "HIV" not in row_blob, f"category value leaked into audit row: {row_blob}"
     finally:
         ctx.__exit__(None, None, None)
 
@@ -205,6 +210,11 @@ async def test_hc_mem_audit_008_list_category_filter_never_reaches_audit_details
         for row in rows:
             details = getattr(row, "details_json", "") or ""
             assert "category" not in details, f"category key leaked into audit row: {details}"
-            assert "HIV" not in details, f"category value leaked into audit row: {details}"
+            # Plan Task 4: "HIV" must appear nowhere in the serialized row,
+            # not just in details_json — check every column.
+            row_blob = " ".join(
+                str(getattr(row, c.name)) for c in row.__table__.columns
+            )
+            assert "HIV" not in row_blob, f"category value leaked into audit row: {row_blob}"
     finally:
         ctx.__exit__(None, None, None)
