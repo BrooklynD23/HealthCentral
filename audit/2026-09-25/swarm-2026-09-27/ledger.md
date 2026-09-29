@@ -98,3 +98,12 @@ Pending on resume:
 - Owner direction: execution via 3-tier orchestration — L0 program (Opus) → L1 per-wave orchestrator (Opus subagent) → L2 implementers (sonnet) + reviewers (Opus); Codex for architectural plan/diff reviews. Nesting depth 2 measured (general-purpose subagent has Agent; no Workflow tool in subagents).
 - Written: docs/agentic/orchestration.md (process), audit/2026-09-25/handoff-2026-09-28-execution-orchestrator.md (prompt, state, waves+gates, briefs), program ground rule 9, plan 01 banner item 5 (keep the pin).
 - RESUME POINT: owner merges PR #19 (Wave 0) → next session pastes handoff §1 → build D9 venv → Wave 1 (P1).
+
+## Execution — L0 session start (2026-09-29)
+- SYNC: origin/main = `36b2ff2` (PR #19 merged 2026-09-29T05:08:16Z → **Wave 0 / P0-B DONE**).
+- D9 venv built: `uv venv -p 3.11 ~/venvs/asclexis-311` + requirements from origin/main → `Python 3.11.16`; sqlalchemy 2.0.54, greenlet 3.5.6, sqlcipher3 import OK, llama-cpp-python 0.3.35.
+- BASELINE (clean worktree `../hc-baseline` @ `36b2ff2`, `HF_HUB_OFFLINE=1`, `pytest tests/ -p no:cacheprovider -q`): **1245 collected; 1245 passed, 58 warnings in 135.74s**. `git status --short` clean after the run. (`test_api_rag_index_002b` passed offline: the embedding model is in the local HF cache.)
+- P1 RE-DERIVATION (plan 01 Task 1 Step 2 STOP condition hit: main moved past `40f590e`): A 5 ahead / B 19 ahead, both fork at `40f590e`, tips unchanged (`692fdf3`, `7b2ff1f`). Files changed on main since `40f590e` ∩ A = {INDEX.md, _link_graph.json}; ∩ B = {INDEX.md, _link_graph.json, requirements.txt}. `git merge-tree origin/main B` → CONFLICT in `docs/INDEX.md`, `docs/_link_graph.json`; requirements.txt auto-merges with line 27 `sqlalchemy[asyncio]>=2.0.25,<2.1` kept.
+- OWNER (chat, 2026-09-29): P1-PR1-MERGE = "Merge branch" (recorded in owner-decisions + program register).
+- Codex plan review P1 r1 started (`audit/2026-09-29/reviews/P01-r1-*`); plan 01 had no prior Codex review.
+- RESUME POINT: wait for Codex P01 r1 → write P01-r1-response.md → dispatch Wave 1 L1 (P1) with base `36b2ff2`, gates P1-DRIFT, SLOT-RULE, D9-SRC, P1-PR1-MERGE, "Merge both branches as-is".

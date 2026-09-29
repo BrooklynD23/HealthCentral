@@ -1,6 +1,6 @@
 # Owner Decisions — 2026-09-27
 
-**Last Updated:** 2026-09-28 (six gate answers from the owner in chat: P0-B2, D9-SRC, P1-DRIFT, SLOT-RULE, P7-ROUTE, SQL-ECHO; earlier: Consequence #4 size measured, EMB-REV named)
+**Last Updated:** 2026-09-29 (P1-PR1-MERGE answered in chat; 2026-09-28: six gate answers from the owner in chat: P0-B2, D9-SRC, P1-DRIFT, SLOT-RULE, P7-ROUTE, SQL-ECHO; earlier: Consequence #4 size measured, EMB-REV named)
 **Recorded by:** Claude orchestrator. Each answer was selected by the repository owner in the Claude Code chat on 2026-09-27, in reply to multiple-choice questions. Each option carried the description quoted below.
 **Scope rule:** each approval licenses exactly the option text shown. Anything wider is still owner-gated. This record answers D1–D13 in [implementation-program.md](implementation-program.md#owner-decision-intake-p0-c), P0-B, two follow-ups, and the D8-delivery follow-up (answered later on 2026-09-27).
 
@@ -31,6 +31,7 @@
 | SLOT-RULE | Collected-count slots (answered 2026-09-28) | **Signed** | "Every commit that changes the collected test count updates the CLAUDE.md/AGENT.md collected slots in the same commit. Without it W-2, S-1, P08 STOP." | yes |
 | P7-ROUTE | Plan 07 route edit (answered 2026-09-28) | **Signed** | "Approve plan 07's edit to the test-only /profiles/test/reset route in api/profiles.py (prod → 404)." | yes |
 | SQL-ECHO | S-1 fixes (answered 2026-09-28) | **S1-A + S1-B** | "A: new sql_echo flag default False (decoupled from debug). B: hide_parameters=True so even when echo is on, values are masked." Both touch ask-first `core/profile_database.py` (1 line) — licensed by this answer. | yes |
+| P1-PR1-MERGE | How P1 opens PR #1 now that main moved past `40f590e` and branch B conflicts on `docs/INDEX.md` + `docs/_link_graph.json` (answered 2026-09-29) | **Merge branch** | "L1 creates merge/healthcentral-agentic-research-r1n54x from B, merges origin/main, regenerates only INDEX.md + _link_graph.json with the repo scripts (plan 01's own rule for these files), opens PR #1 from that branch. B's content otherwise unchanged." | yes |
 
 ## Earlier owner records still in force
 
