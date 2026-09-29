@@ -128,3 +128,6 @@ Pending on resume:
 - `gh` here has no `--json` on `gh pr checks`; monitors use tab output.
 - AGENT-PASS-LINE extended to `CLAUDE.md:31`.
 - RESUME POINT: PR #23 CI → hand to owner. Then L1 builds P1 PR #2 (branch A).
+- Wave 1 L1 #1 handed back (report `audit/2026-09-25/waves/wave-1.md`, committed by L0). PR #23 all 5 required checks green; E2E Smoke = CI-DISK (job 109523705510). L1 facts: eval gate rc=0 on Linux/Py 3.11 (GATE-14 hang did not reproduce there); system python3 3.12 lacks deps → use the venv.
+- New owner items registered: MODEL-PIN, AUDIT-KEYS-DROPPED, CACHE-HIT-AUDIT (plus SECGATE-SHAPE also ignores bandit `errors[]` / pip-audit `skip_reason`).
+- RESUME POINT: owner merges PR #23 → L1 #2 builds P1 PR #2 per wave-1.md RESUME POINT (worktree ../hc-p1-a, branch merge/asclexis-repo-audit-349pjq).
