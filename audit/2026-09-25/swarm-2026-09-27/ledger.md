@@ -115,3 +115,10 @@ Pending on resume:
 - L0 VERIFIED PR #21 in `../hc-l0-verify` @ `14f7812`: `1288 tests collected`; slots CLAUDE.md:30 + AGENT.md:76 = 1288; requirements.txt:27 pin kept; diff vs B = main's files + AGENT.md slot only. Reproduced SECGATE-SHAPE (`{}`/`{}` → PASS exit 0).
 - Codex S02 r1: REVISE 5 MAJOR, all accepted → plan amended (`S02-r1-response.md`). New owner items registered: SECGATE-SHAPE, CACHE-STALE, AGENT-PASS-LINE.
 - RESUME POINT: PR #21 CI pending → hand to owner when green. Open this docs PR (docs/exec-wave1-ledger) and ask the owner to merge it before S-CACHE Task 0. L1 is polling PR #21.
+
+## Wave 1 progress (2026-09-29, later)
+- OWNER merged PR #21 (P1 PR #1, B + main) 16:22:50Z → `9b9958c`, then PR #22 (docs) 16:23:03Z → `77aaf20`.
+- L0 checked main @ `77aaf20`: `generate_docs_index.py --check` fresh; `docs_lint.py` pass; `harness_drift_check.py` exit 0; slots CLAUDE.md:30 / AGENT.md:76 = 1288.
+- CI on `36b2ff2`: Backend, Frontend, Security, Docs Lint, Agent Eval = success; E2E Smoke failed with `OSError: [Errno 28] No space left on device` during pip install (CI-DISK, already recorded). CI on `9b9958c` / `77aaf20` in progress at time of writing.
+- Owner question "parallel orchestrators ahead of prerequisites" not answered (tool call rejected, owner said "continue") → process stays serial per orchestration.md §2.
+- RESUME POINT: L1 starts S-CACHE on `77aaf20` (S02 on main). Then PR #2 (branch A). L0 verifies each PR in `../hc-l0-verify`.
