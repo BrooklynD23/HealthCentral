@@ -1,0 +1,3 @@
+R3 (codex) dispositions — POST-ROUND-3 fixes (review budget exhausted; escalated to owner for optional round 4):
+1. [MAJOR] a transient snapshot_download error leaves this run's .partial, blocking the next run -> ACCEPTED: wrap the fetch; on any exception remove the .partial only if this run created it, then re-raise; add a test where the fake downloader raises: this run's partial is removed, a pre-existing partial is preserved (existing HC-EMB-004d).
+Add a line near the top: "Review status: 3 Codex rounds; round-3 MAJOR fixed after the last round, not re-reviewed (owner may request round 4)."

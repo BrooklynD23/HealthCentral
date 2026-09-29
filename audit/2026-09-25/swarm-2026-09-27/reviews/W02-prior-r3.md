@@ -1,0 +1,6 @@
+R1 (codex) findings and orchestrator dispositions:
+1. [BLOCKER] Task 2 can ship while O-3 (underscore-joined PHI missed by strict mode) is unsigned -> ACCEPTED as a pre-MERGE gate (conservative; health app). Fix: O-3 disposition (accept documented residual gap, or separately approve a redaction.py change) is a required signed sign-off before the PR merges; plan/PR text must not claim "PHI-free" beyond the tested shapes; add an xfail(strict=True) or documented known-gap test for the underscore shape so the gap is visible, not hidden.
+2. [MAJOR] HC-EXPR-003 asserts a mocked log_export_event, not persisted rows -> ACCEPTED. Fix: assert real audit rows (query the audit table used by existing HTTP audit tests; find the pattern, e.g. HC-AUD tests) for generate + download.
+R2 (codex) dispositions:
+1. [MAJOR] real-PDF test skips only on import failure; Pango OSError from write_pdf() errors instead -> ACCEPTED. Fix: a fixture probes `weasyprint.HTML(string="<p>x</p>").write_pdf()` before the request and skips on ImportError/OSError with the reason; the product's 500-vs-501 handling (export.py:371-380) stays out of scope (already logged). CI must not silently skip: if CI is expected to have WeasyPrint, add HC_REQUIRE_WEASYPRINT=1 → fail instead of skip; otherwise state CI skips it and mark PDF-render coverage UNMEASURED in CI.
+Also apply reviews/GLOBAL-rules.md.

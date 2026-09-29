@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Asclexis — Repository Audit Dashboard</title>
+<style>
+  :root{
+    --bg:#0f172a; --card:#1e293b; --card2:#16202f; --border:#334155;
+    --text:#e2e8f0; --muted:#94a3b8; --faint:#64748b;
+    --green:#22c55e; --amber:#f59e0b; --red:#ef4444; --orange:#f97316;
+    --yellow:#eab308; --gray:#64748b; --blue:#38bdf8; --teal:#2dd4bf;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--bg);color:var(--text);
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    line-height:1.45;padding:24px 16px 48px;
+  }
+  .wrap{max-width:1180px;margin:0 auto}
+  header.top{
+    background:linear-gradient(135deg,#1e293b 0%,#0f172a 100%);
+    border:1px solid var(--border);border-radius:14px;padding:24px 28px;margin-bottom:24px;
+  }
+  h1{font-size:1.75rem;letter-spacing:-.02em}
+  .sub{color:var(--muted);margin-top:6px;font-size:.95rem}
+  .pill{
+    display:inline-block;margin-top:12px;padding:5px 14px;border-radius:999px;
+    background:rgba(56,189,248,.12);border:1px solid rgba(56,189,248,.45);
+    color:var(--blue);font-size:.78rem;font-weight:700;letter-spacing:.06em;
+  }
+  section{margin-bottom:28px}
+  h2{
+    font-size:1.15rem;margin-bottom:12px;display:flex;align-items:center;gap:10px;
+  }
+  h2 .n{
+    background:var(--blue);color:#082f49;font-size:.72rem;font-weight:800;
+    border-radius:7px;padding:2px 8px;letter-spacing:.05em;
+  }
+  .grid{display:grid;gap:14px}
+  .grid.cols2{grid-template-columns:repeat(auto-fit,minmax(430px,1fr))}
+  .card{
+    background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;
+  }
+  /* progress rows */
+  .bar-row{padding:10px 0;border-bottom:1px solid rgba(51,65,85,.55)}
+  .bar-row:last-child{border-bottom:none;padding-bottom:2px}
+  .bar-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .bar-label{font-weight:600;font-size:.92rem;flex:1;min-width:180px}
+  .bar-pct{font-variant-numeric:tabular-nums;font-weight:800;font-size:.95rem;min-width:44px;text-align:right}
+  .bar{
+    height:9px;background:#0b1220;border-radius:6px;margin-top:7px;overflow:hidden;
+    border:1px solid rgba(51,65,85,.8);
+  }
+  .bar-fill{height:100%;border-radius:6px}
+  .f-green{background:linear-gradient(90deg,#16a34a,var(--green))}
+  .f-amber{background:linear-gradient(90deg,#d97706,var(--amber))}
+  .f-red{background:linear-gradient(90deg,#dc2626,var(--red))}
+  .f-gray{background:var(--gray)}
+  .f-blue{background:linear-gradient(90deg,#0284c7,var(--blue))}
+  .bar-note{color:var(--muted);font-size:.8rem;margin-top:5px}
+  /* chips */
+  .chip{
+    font-size:.66rem;font-weight:800;letter-spacing:.07em;padding:3px 9px;
+    border-radius:999px;border:1px solid transparent;white-space:nowrap;
+  }
+  .c-impl{background:rgba(34,197,94,.14);color:var(--green);border-color:rgba(34,197,94,.45)}
+  .c-part{background:rgba(245,158,11,.14);color:var(--amber);border-color:rgba(245,158,11,.45)}
+  .c-broken{background:rgba(239,68,68,.14);color:var(--red);border-color:rgba(239,68,68,.45)}
+  .c-plan{background:rgba(100,116,139,.18);color:#94a3b8;border-color:rgba(100,116,139,.5)}
+  /* severity badges */
+  .sev{
+    display:inline-block;font-size:.68rem;font-weight:800;letter-spacing:.05em;
+    padding:2px 9px;border-radius:6px;white-space:nowrap;
+  }
+  .s-p0{background:rgba(239,68,68,.2);color:#fca5a5;border:1px solid rgba(239,68,68,.6)}
+  .s-p1{background:rgba(249,115,22,.18);color:#fdba74;border:1px solid rgba(249,115,22,.55)}
+  .s-p2{background:rgba(234,179,8,.15);color:#fde047;border:1px solid rgba(234,179,8,.5)}
+  .s-p3{background:rgba(100,116,139,.2);color:#cbd5e1;border:1px solid rgba(100,116,139,.55)}
+  .sev-count{color:var(--muted);font-size:.8rem;font-weight:600;margin-left:6px}
+  .finding{
+    display:flex;gap:10px;padding:8px 0;border-bottom:1px solid rgba(51,65,85,.5);
+    font-size:.86rem;align-items:flex-start;
+  }
+  .finding:last-child{border-bottom:none}
+  .finding .idx{color:var(--faint);font-weight:700;min-width:18px;text-align:right;font-variant-numeric:tabular-nums}
+  .finding b{color:var(--text)}
+  .finding code{
+    color:var(--teal);background:rgba(45,212,191,.08);padding:0 5px;border-radius:4px;
+    font-size:.78rem;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  .finding.hidden{display:none}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .fbtn{
+    background:var(--card2);color:var(--muted);border:1px solid var(--border);
+    border-radius:8px;padding:5px 13px;font-size:.78rem;font-weight:700;cursor:pointer;
+  }
+  .fbtn.on{background:rgba(56,189,248,.15);color:var(--blue);border-color:rgba(56,189,248,.5)}
+  /* tables */
+  table{width:100%;border-collapse:collapse;font-size:.85rem}
+  th{
+    text-align:left;color:var(--muted);font-size:.7rem;text-transform:uppercase;
+    letter-spacing:.08em;padding:8px 10px;border-bottom:1px solid var(--border);
+  }
+  td{padding:9px 10px;border-bottom:1px solid rgba(51,65,85,.5);vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  td code, .tcode{
+    color:var(--teal);font-size:.78rem;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  .cls{
+    display:inline-block;font-size:.64rem;font-weight:800;letter-spacing:.05em;
+    padding:3px 9px;border-radius:6px;white-space:nowrap;
+  }
+  .cls-stale{background:rgba(239,68,68,.15);color:#fca5a5;border:1px solid rgba(239,68,68,.5)}
+  .cls-contra{background:rgba(249,115,22,.15);color:#fdba74;border:1px solid rgba(249,115,22,.5)}
+  .cls-ahead{background:rgba(56,189,248,.13);color:#7dd3fc;border:1px solid rgba(56,189,248,.45)}
+  .cls-behind{background:rgba(34,197,94,.13);color:#86efac;border:1px solid rgba(34,197,94,.45)}
+  .cls-part{background:rgba(234,179,8,.15);color:#fde047;border:1px solid rgba(234,179,8,.5)}
+  /* timeline */
+  .timeline{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px}
+  .era{
+    min-width:200px;flex:1;background:var(--card);border:1px solid var(--border);
+    border-radius:12px;padding:14px;position:relative;
+  }
+  .era::before{
+    content:"";position:absolute;top:0;left:14px;right:14px;height:3px;
+    border-radius:0 0 4px 4px;background:var(--blue);opacity:.7;
+  }
+  .era .when{color:var(--blue);font-size:.72rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+  .era .what{font-size:.82rem;margin-top:6px;color:var(--text)}
+  .cadence{
+    margin-top:12px;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.3);
+    border-radius:10px;padding:10px 14px;font-size:.85rem;color:var(--text);
+  }
+  /* maturity segments */
+  .seg{display:inline-flex;gap:4px;margin-top:7px}
+  .seg i{
+    width:38px;height:9px;border-radius:4px;background:#0b1220;
+    border:1px solid rgba(51,65,85,.8);
+  }
+  .seg i.on4{background:var(--green);border-color:var(--green)}
+  .seg i.on3{background:var(--teal);border-color:var(--teal)}
+  .seg i.on2{background:var(--amber);border-color:var(--amber)}
+  .seg i.on1{background:var(--orange);border-color:var(--orange)}
+  .lvl{font-weight:800;font-variant-numeric:tabular-nums;min-width:30px;text-align:right}
+  .l4{color:var(--green)}.l3{color:var(--teal)}.l2{color:var(--amber)}.l1{color:var(--orange)}.l0{color:var(--faint)}
+  .rank{font-weight:800;color:var(--blue);font-size:1rem;text-align:center}
+  .vre{
+    display:inline-block;font-size:.66rem;font-weight:800;padding:2px 9px;border-radius:6px;
+    letter-spacing:.05em;white-space:nowrap;
+  }
+  .v-hi{background:rgba(34,197,94,.15);color:#86efac}
+  .v-md{background:rgba(234,179,8,.15);color:#fde047}
+  .v-lo{background:rgba(100,116,139,.2);color:#cbd5e1}
+  .v-risk{background:rgba(239,68,68,.15);color:#fca5a5}
+  footer{
+    color:var(--faint);font-size:.8rem;text-align:center;margin-top:32px;
+    border-top:1px solid var(--border);padding-top:18px;
+  }
+  .hint{color:var(--faint);font-size:.72rem;font-style:italic;margin-bottom:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>Asclexis — Repository Audit Dashboard</h1>
+  <div class="sub">6-agent audit &middot; 2026-09-25 &middot; main @ <span class="tcode">40f590e</span> &middot; 355 commits &middot; 67% agent-authored</div>
+  <span class="pill">ACTIVE DEVELOPMENT — POST-COURSE RESEARCH PHASE</span>
+</header>
+
+<!-- ============ FEATURE COMPLETENESS ============ -->
+<section>
+  <h2><span class="n">1</span>Feature Completeness <span class="sev-count">(% = implemented + wired)</span></h2>
+  <div class="hint">Hover a row for the key evidence path.</div>
+  <div class="grid cols2">
+    <div class="card">
+      <div class="bar-row" title="src/backend/modules/ingest · modules/extract* · api/documents.py">
+        <div class="bar-head"><span class="bar-label">Document import → extract → verify pipeline</span><span class="chip c-impl">IMPLEMENTED</span><span class="bar-pct">95%</span></div>
+        <div class="bar"><div class="bar-fill f-green" style="width:95%"></div></div>
+        <div class="bar-note">End-to-end: pdf/OCR/FHIR/CSV, spans, human-in-loop.</div>
+      </div>
+      <div class="bar-row" title="src/backend/api/assistant.py · modules/rag · modules/agent">
+        <div class="bar-head"><span class="bar-label">Assistant chat + RAG + citations</span><span class="chip c-impl">IMPLEMENTED</span><span class="bar-pct">90%</span></div>
+        <div class="bar"><div class="bar-fill f-green" style="width:90%"></div></div>
+        <div class="bar-note">Dual path agent/RAG, guardrails, validate_response.</div>
+      </div>
+      <div class="bar-row" title="src/backend/modules/agent/ (graph runner, tool registry)">
+        <div class="bar-head"><span class="bar-label">Governed agent graph (plan/act/reflect/guard, 8 tools)</span><span class="chip c-impl">IMPLEMENTED</span><span class="bar-pct">85%</span></div>
+        <div class="bar"><div class="bar-fill f-green" style="width:85%"></div></div>
+        <div class="bar-note">2 registered tools unreachable; default-off flag.</div>
+      </div>
+      <div class="bar-row" title="src/backend/api/backup.py · scripts/backup.py · modules/backup_scheduler">
+        <div class="bar-head"><span class="bar-label">Backup/restore + scheduler</span><span class="chip c-impl">IMPLEMENTED</span><span class="bar-pct">90%</span></div>
+        <div class="bar"><div class="bar-fill f-green" style="width:90%"></div></div>
+        <div class="bar-note">8 routes, lifespan scheduler, restore-phrase gate.</div>
+      </div>
+      <div class="bar-row" title="src/backend/api/profiles.py">
+        <div class="bar-head"><span class="bar-label">Profile lifecycle + crypto-erase + recovery codes</span><span class="chip c-impl">IMPLEMENTED</span><span class="bar-pct">80%</span></div>
+        <div class="bar"><div class="bar-fill f-green" style="width:80%"></div></div>
+        <div class="bar-note">Backend done; recovery-code UI for existing profiles missing on main (fix on unmerged branch).</div>
+      </div>
+      <div class="bar-row" title="src/backend/modules/rl_dataset · api/feedback.py">
+        <div class="bar-head"><span class="bar-label">Feedback → RL dataset export (strict redaction)</span><span class="chip c-impl">IMPLEMENTED</span><span class="bar-pct">100%</span></div>
+        <div class="bar"><div class="bar-fill f-green" style="width:100%"></div></div>
+        <div class="bar-note">DPO pairs, SFT, GRPO reward JSONL; redaction mandatory.</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="bar-row" title="src/backend/api/observations.py · frontend TrendsDashboard">
+        <div class="bar-head"><span class="bar-label">Trends / timeline / search / care-tasks / pinboards / med-reconcile / FHIR export</span><span class="chip c-impl">IMPLEMENTED</span><span class="bar-pct">90%</span></div>
+        <div class="bar"><div class="bar-fill f-green" style="width:90%"></div></div>
+        <div class="bar-note">Correlations endpoint unwired on main; fix on branch.</div>
+      </div>
+      <div class="bar-row" title="modules/notifications — start_notification_scheduler() has zero callers">
+        <div class="bar-head"><span class="bar-label">Notifications / reminder engine</span><span class="chip c-part">PARTIAL</span><span class="bar-pct">45%</span></div>
+        <div class="bar"><div class="bar-fill f-amber" style="width:45%"></div></div>
+        <div class="bar-note">Scheduler &amp; profile-session registration never started — reminders cannot fire.</div>
+      </div>
+      <div class="bar-row" title="modules/gamification (badges, streaks, adherence)">
+        <div class="bar-head"><span class="bar-label">Gamification (badges / streaks / adherence)</span><span class="chip c-impl">IMPLEMENTED</span><span class="bar-pct">90%</span></div>
+        <div class="bar"><div class="bar-fill f-green" style="width:90%"></div></div>
+        <div class="bar-note">Wired through profile-scoped routes.</div>
+      </div>
+      <div class="bar-row" title="docs/plans — HC-M08a-d pending; no Tauri/PyInstaller config">
+        <div class="bar-head"><span class="bar-label">Desktop packaging (Tauri / PyInstaller)</span><span class="chip c-plan">PLANNED ONLY</span><span class="bar-pct">0%</span></div>
+        <div class="bar"><div class="bar-fill f-gray" style="width:2%"></div></div>
+        <div class="bar-note">HC-M08a–d pending; "desktop app" is aspirational.</div>
+      </div>
+      <div class="bar-row" title="core/monitoring — HC-M07 pending">
+        <div class="bar-head"><span class="bar-label">Observability (metrics / correlation IDs)</span><span class="chip c-part">PARTIAL</span><span class="bar-pct">60%</span></div>
+        <div class="bar"><div class="bar-fill f-amber" style="width:60%"></div></div>
+        <div class="bar-note">HC-M07 pending.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CATEGORY HEALTH ============ -->
+<section>
+  <h2><span class="n">2</span>Category Health</h2>
+  <div class="card">
+    <div class="bar-row" title="src/backend/ — FastAPI + SQLAlchemy + dual Alembic">
+      <div class="bar-head"><span class="bar-label">Backend implementation</span><span class="bar-pct">90%</span></div>
+      <div class="bar"><div class="bar-fill f-green" style="width:90%"></div></div>
+    </div>
+    <div class="bar-row" title="src/frontend/ — React + Vite + TS">
+      <div class="bar-head"><span class="bar-label">Frontend implementation</span><span class="bar-pct">85%</span></div>
+      <div class="bar"><div class="bar-fill f-green" style="width:85%"></div></div>
+    </div>
+    <div class="bar-row" title="tests/ · vitest · e2e/ · tests/support/routes.py">
+      <div class="bar-head"><span class="bar-label">Test coverage breadth</span><span class="bar-pct">85%</span></div>
+      <div class="bar"><div class="bar-fill f-green" style="width:85%"></div></div>
+      <div class="bar-note">~1,245 collected backend, 155 vitest, 25 Playwright; route_client harness.</div>
+    </div>
+    <div class="bar-row" title=".github/workflows — incl. agent-eval gate">
+      <div class="bar-head"><span class="bar-label">CI gates</span><span class="bar-pct">80%</span></div>
+      <div class="bar"><div class="bar-fill f-green" style="width:80%"></div></div>
+      <div class="bar-note">6 jobs incl. 74-case agent-eval gate.</div>
+    </div>
+    <div class="bar-row" title="docs/ — drift findings in section 4">
+      <div class="bar-head"><span class="bar-label">Documentation accuracy</span><span class="bar-pct">55%</span></div>
+      <div class="bar"><div class="bar-fill f-amber" style="width:55%"></div></div>
+      <div class="bar-note">Heavy drift: stale numbers, phantom refs, unreconciled trackers.</div>
+    </div>
+    <div class="bar-row" title="scripts/security_gate.py — fails OPEN on main">
+      <div class="bar-head"><span class="bar-label">Security posture</span><span class="bar-pct">65%</span></div>
+      <div class="bar"><div class="bar-fill f-amber" style="width:65%"></div></div>
+      <div class="bar-note">CI security gate fails OPEN on main; fix on unmerged branch; S06-SEC-004/005 unresolved.</div>
+    </div>
+    <div class="bar-row" title=".claude/skills · AGENT.md/CLAUDE.md · .serena">
+      <div class="bar-head"><span class="bar-label">Agent harness maturity</span><span class="bar-pct">75%</span></div>
+      <div class="bar"><div class="bar-fill f-blue" style="width:75%"></div></div>
+      <div class="bar-note">Strong docs/skills/gates; phantom .claude/agents layer; stale serena memories.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FINDINGS BY SEVERITY ============ -->
+<section>
+  <h2><span class="n">3</span>Findings by Severity</h2>
+  <div class="filters">
+    <button class="fbtn on" data-f="all">All (19)</button>
+    <button class="fbtn" data-f="p1">P1 (4)</button>
+    <button class="fbtn" data-f="p2">P2 (7)</button>
+    <button class="fbtn" data-f="p3">P3 (8)</button>
+  </div>
+  <div class="card">
+    <div class="finding"><span class="sev s-p0">P0</span><span><b>0 confirmed.</b> No build-breaking or data-loss findings.</span></div>
+
+    <div class="finding" data-sev="p1"><span class="sev s-p1">P1</span><span class="idx">1</span><span><b>Security gate fails OPEN on main</b> — bandit/pip-audit parse errors → "zero findings" → green CI for a scan that never ran (<code>scripts/security_gate.py</code>; fix on unmerged branch <code>claude/healthcentral-agentic-research-r1n54x</code> @ <code>934a842</code>).</span></div>
+    <div class="finding" data-sev="p1"><span class="sev s-p1">P1</span><span class="idx">2</span><span><b>Notification scheduler never started</b> — zero production callers for <code>start_notification_scheduler()</code>/<code>register_profile_session()</code>; reminders dead (<code>main.py</code> lifespan only wires backup_scheduler).</span></div>
+    <div class="finding" data-sev="p1"><span class="sev s-p1">P1</span><span class="idx">3</span><span><b>Second LLM path bypasses ModelRunner facade</b> — <code>modules/model_selector.py</code> imports llama_cpp directly; <code>interpret.py</code> uses it (violates CLAUDE.md invariant).</span></div>
+    <div class="finding" data-sev="p1"><span class="sev s-p1">P1</span><span class="idx">4</span><span><b>In-memory export stores</b> — <code>api/export.py</code> module-level dicts; downloads 404 after restart; pinboards imports private <code>_packet_store</code>.</span></div>
+
+    <div class="finding" data-sev="p2"><span class="sev s-p2">P2</span><span class="idx">1</span><span>SEC-RECOV-001: no UI path on main (branch fix exists).</span></div>
+    <div class="finding" data-sev="p2"><span class="sev s-p2">P2</span><span class="idx">2</span><span>MED-CORR-001 endpoint unwired + implementations disagree on <code>verified_only</code>.</span></div>
+    <div class="finding" data-sev="p2"><span class="sev s-p2">P2</span><span class="idx">3</span><span>Doctor-summary export unredacted (siblings redact).</span></div>
+    <div class="finding" data-sev="p2"><span class="sev s-p2">P2</span><span class="idx">4</span><span><code>/profiles/test/reset</code> delete list stale — misses ChatSession/CarePlanTask/Pinboard*.</span></div>
+    <div class="finding" data-sev="p2"><span class="sev s-p2">P2</span><span class="idx">5</span><span>FK cascades inert on SQLite (SQL-FK-001; PRAGMA foreign_keys never set).</span></div>
+    <div class="finding" data-sev="p2"><span class="sev s-p2">P2</span><span class="idx">6</span><span>Ingest reads full upload into memory before size check.</span></div>
+    <div class="finding" data-sev="p2"><span class="sev s-p2">P2</span><span class="idx">7</span><span>Faithfulness 100% rule-based; <code>consistency_score</code> hardcoded 1.0 (HC-M11 gated).</span></div>
+
+    <div class="finding" data-sev="p3"><span class="sev s-p3">P3</span><span class="idx">1</span><span><code>datetime.utcnow()</code> vs <code>core.time.utcnow</code> violations (2 sites).</span></div>
+    <div class="finding" data-sev="p3"><span class="sev s-p3">P3</span><span class="idx">2</span><span>Dead modules: <code>analytics.py</code> + <code>verify.py</code>.</span></div>
+    <div class="finding" data-sev="p3"><span class="sev s-p3">P3</span><span class="idx">3</span><span>Unreachable agent tools: <code>retrieve_chunks</code>/<code>lookup_reference</code>.</span></div>
+    <div class="finding" data-sev="p3"><span class="sev s-p3">P3</span><span class="idx">4</span><span>Stale <code>agent/__init__.py</code> "SCAFFOLD ONLY" docstring.</span></div>
+    <div class="finding" data-sev="p3"><span class="sev s-p3">P3</span><span class="idx">5</span><span>services/pages barrels incomplete.</span></div>
+    <div class="finding" data-sev="p3"><span class="sev s-p3">P3</span><span class="idx">6</span><span>Duplicate <code>scripts/download_models.py</code> (stale vs canonical).</span></div>
+    <div class="finding" data-sev="p3"><span class="sev s-p3">P3</span><span class="idx">7</span><span>Audit retention unbounded.</span></div>
+    <div class="finding" data-sev="p3"><span class="sev s-p3">P3</span><span class="idx">8</span><span>CS4610 Office lock files committed.</span></div>
+  </div>
+</section>
+
+<!-- ============ DOCS VS CODE ============ -->
+<section>
+  <h2><span class="n">4</span>Documentation vs Code</h2>
+  <div class="card" style="overflow-x:auto">
+    <table>
+      <thead><tr><th>Area</th><th>Docs say</th><th>Code says</th><th>Class</th></tr></thead>
+      <tbody>
+        <tr><td>Test baseline</td><td>evals.md "~620 tests, 4 axes"</td><td>1,245 collected, 6-axis CI gate</td><td><span class="cls cls-stale">STALE DOCUMENT</span></td></tr>
+        <tr><td><span class="tcode">.claude/agents/</span></td><td>harness.md + roadmap cite 5 subagents</td><td>absent; <span class="tcode">.gitignore:44</span> blocks it</td><td><span class="cls cls-contra">CONTRADICTORY</span></td></tr>
+        <tr><td><span class="tcode">openwiki/</span></td><td>"generated repo map"</td><td>README-only stub, never generated</td><td><span class="cls cls-ahead">DOCS AHEAD</span></td></tr>
+        <tr><td>Notifications</td><td>features index "implemented"</td><td>scheduler never wired</td><td><span class="cls cls-part">IMPL. PARTIAL</span></td></tr>
+        <tr><td>FAISS / vector store</td><td>README lists FAISS stack</td><td>removed 2026-07-01; linear cosine scan</td><td><span class="cls cls-stale">STALE DOCUMENT</span></td></tr>
+        <tr><td>INGEST-FHIR-001</td><td>tracker OPEN</td><td>HC-M23 shipped</td><td><span class="cls cls-stale">STALE (tracker rot)</span></td></tr>
+        <tr><td>INGEST-F category filter</td><td>"deferred"</td><td>param + test live</td><td><span class="cls cls-behind">DOCS BEHIND CODE</span></td></tr>
+        <tr><td>RL export redaction</td><td>spec doc: standard level</td><td>code forces strict</td><td><span class="cls cls-stale">STALE DOCUMENT</span></td></tr>
+        <tr><td>S06-SEC-003</td><td>"CONFIRMED STILL OPEN"</td><td>fixed; TASK_LIST DONE</td><td><span class="cls cls-contra">CONTRADICTORY</span></td></tr>
+        <tr><td>Desktop app</td><td>"desktop app" everywhere</td><td>local web app, zero packaging</td><td><span class="cls cls-ahead">DOCS AHEAD</span></td></tr>
+        <tr><td><span class="tcode">.serena</span> memories</td><td>context for agents</td><td>frozen Jan-2026 (pre-models/, pre-Alembic)</td><td><span class="cls cls-stale">STALE DOCUMENT</span></td></tr>
+        <tr><td>Serena protected-files</td><td>mirrors CLAUDE.md</td><td>omits <span class="tcode">redaction.py</span></td><td><span class="cls cls-contra">CONTRADICTORY</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ TIMELINE ============ -->
+<section>
+  <h2><span class="n">5</span>Development Timeline</h2>
+  <div class="timeline">
+    <div class="era"><div class="when">Dec 2025</div><div class="what">Import begins — repo initialized.</div></div>
+    <div class="era"><div class="when">Jan–Feb 2026</div><div class="what">Human build: SQLCipher vaults, dual Alembic, CI.</div></div>
+    <div class="era"><div class="when">Mar–May 2026</div><div class="what">Quiet + CS4610 deliverables (May 15).</div></div>
+    <div class="era"><div class="when">Jun 11–13</div><div class="what">Agentic pivot: CLAUDE.md/AGENT.md authored, LLM provider layer.</div></div>
+    <div class="era"><div class="when">Jun 23–Jul 31</div><div class="what">Agent factory: 96% Claude commits; HC-M12–24 via parallel orchestration; .claude/skills vendored; backup-defect storm Jul 30–31.</div></div>
+    <div class="era"><div class="when">Aug 1–4</div><div class="what">Asclexis rename + truth-telling (recurring-failures.md).</div></div>
+    <div class="era"><div class="when">Sep 7–10</div><div class="what">Backlog close + 2 unmerged research branches.</div></div>
+  </div>
+  <div class="cadence">Commit cadence: <b>July = 55% of all commits</b>; peak week <b>68 commits</b>.</div>
+</section>
+
+<!-- ============ AGENTIC-SWE MATURITY ============ -->
+<section>
+  <h2><span class="n">6</span>Agentic-SWE Maturity <span class="sev-count">L0 absent → L4 strongly harnessed</span></h2>
+  <div class="grid cols2">
+    <div class="card">
+      <div class="bar-row" title="CLAUDE.md + AGENT.md + skills + scoped rules">
+        <div class="bar-head"><span class="bar-label">Context engineering</span><span class="lvl l4">L4</span></div>
+        <div class="seg"><i class="on4"></i><i class="on4"></i><i class="on4"></i><i class="on4"></i></div>
+      </div>
+      <div class="bar-row" title=".claude/agents cited but absent (.gitignore:44)">
+        <div class="bar-head"><span class="bar-label">Agent specialization</span><span class="lvl l1">L1</span></div>
+        <div class="seg"><i class="on1"></i><i></i><i></i><i></i></div>
+        <div class="bar-note">Phantom layer — claims exceed reality.</div>
+      </div>
+      <div class="bar-row" title="feature_list.json — machine-checked ledger">
+        <div class="bar-head"><span class="bar-label">Task decomposition</span><span class="lvl l3">L3</span></div>
+        <div class="seg"><i class="on3"></i><i class="on3"></i><i class="on3"></i><i></i></div>
+      </div>
+      <div class="bar-row" title="18 skills: 14 vendored (.claude/skills) + 4 domain (skills/)">
+        <div class="bar-head"><span class="bar-label">Reusable skills</span><span class="lvl l4">L4</span></div>
+        <div class="seg"><i class="on4"></i><i class="on4"></i><i class="on4"></i><i class="on4"></i></div>
+        <div class="bar-note">18 skills: 14 vendored + 4 domain.</div>
+      </div>
+      <div class="bar-row" title="67% agent-authored commits; owner decisions documented">
+        <div class="bar-head"><span class="bar-label">Human → agent delegation</span><span class="lvl l4">L4</span></div>
+        <div class="seg"><i class="on4"></i><i class="on4"></i><i class="on4"></i><i class="on4"></i></div>
+        <div class="bar-note">67% agent-authored commits, documented owner decisions.</div>
+      </div>
+      <div class="bar-row" title="July parallel orchestration waves">
+        <div class="bar-head"><span class="bar-label">Agent → agent delegation</span><span class="lvl l2">L2</span></div>
+        <div class="seg"><i class="on2"></i><i class="on2"></i><i></i><i></i></div>
+        <div class="bar-note">Orchestrated waves in July; no persistent agent defs.</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="bar-row" title="tests/support/routes.py · eval gate · docs lint">
+        <div class="bar-head"><span class="bar-label">Verification / testing</span><span class="lvl l4">L4</span></div>
+        <div class="seg"><i class="on4"></i><i class="on4"></i><i class="on4"></i><i class="on4"></i></div>
+        <div class="bar-note">HTTP-level route tests, eval gate, docs lint.</div>
+      </div>
+      <div class="bar-row" title="INDEX / link-graph / roles docs; openwiki stub">
+        <div class="bar-head"><span class="bar-label">Repo discoverability</span><span class="lvl l3">L3</span></div>
+        <div class="seg"><i class="on3"></i><i class="on3"></i><i class="on3"></i><i></i></div>
+        <div class="bar-note">INDEX/link-graph/roles docs; openwiki stub.</div>
+      </div>
+      <div class="bar-row" title="invariants + protected files + eval gates; no hooks; fail-open gate">
+        <div class="bar-head"><span class="bar-label">Guardrails</span><span class="lvl l3">L3</span></div>
+        <div class="seg"><i class="on3"></i><i class="on3"></i><i class="on3"></i><i></i></div>
+        <div class="bar-note">Invariants + protected files + eval gates; no hooks; fail-open gate.</div>
+      </div>
+      <div class="bar-row" title="docs/plans archive — PRDs/plans/specs">
+        <div class="bar-head"><span class="bar-label">Specification quality</span><span class="lvl l3">L3</span></div>
+        <div class="seg"><i class="on3"></i><i class="on3"></i><i class="on3"></i><i></i></div>
+        <div class="bar-note">PRDs/plans/specs archived properly; some stale.</div>
+      </div>
+      <div class="bar-row" title="adversarial multi-model review; cross-vendor Codex reviews">
+        <div class="bar-head"><span class="bar-label">Code-review workflow</span><span class="lvl l3">L3</span></div>
+        <div class="seg"><i class="on3"></i><i class="on3"></i><i class="on3"></i><i></i></div>
+        <div class="bar-note">Adversarial multi-model review documented; cross-vendor Codex reviews.</div>
+      </div>
+      <div class="bar-row" title="progress.md · recurring-failures.md · implementation-log/">
+        <div class="bar-head"><span class="bar-label">Observability of agent work</span><span class="lvl l4">L4</span></div>
+        <div class="seg"><i class="on4"></i><i class="on4"></i><i class="on4"></i><i class="on4"></i></div>
+        <div class="bar-note">progress.md command-output logs, recurring-failures memory, implementation-log.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ NEXT WORKSTREAMS ============ -->
+<section>
+  <h2><span class="n">7</span>Recommended Next Workstreams</h2>
+  <div class="card" style="overflow-x:auto">
+    <table>
+      <thead><tr><th style="width:36px">#</th><th>Workstream</th><th>Value</th><th>Risk addressed</th><th>Effort</th></tr></thead>
+      <tbody>
+        <tr><td class="rank">1</td><td><b>Merge/land the 2 unmerged branches</b> — security-gate fix + SEC-RECOV-001/MED-CORR wiring.</td><td><span class="vre v-hi">HIGH</span></td><td><span class="vre v-risk">HIGH</span></td><td><span class="vre v-lo">LOW</span></td></tr>
+        <tr><td class="rank">2</td><td><b>Decide notification scheduler fate</b> — wire it or remove it (dead feature currently shipped).</td><td><span class="vre v-hi">HIGH</span></td><td><span class="vre v-risk">HIGH</span></td><td><span class="vre v-md">MED</span></td></tr>
+        <tr><td class="rank">3</td><td><b>Reconcile trackers &amp; stale docs</b> — evals.md numbers, INGEST-FHIR-001, .claude/agents claim (repo's own failure modes #3/#8).</td><td><span class="vre v-md">MED</span></td><td><span class="vre v-md">MED</span></td><td><span class="vre v-md">MED</span></td></tr>
+        <tr><td class="rank">4</td><td><b>Retire or wrap <span class="tcode">model_selector</span> behind ModelRunner</b> — invariant enforcement.</td><td><span class="vre v-md">MED</span></td><td><span class="vre v-risk">HIGH</span></td><td><span class="vre v-lo">LOW</span></td></tr>
+        <tr><td class="rank">5</td><td><b>HC-M06 extraction eval card</b> (flagship data-science artifact) <b>+ HC-M08 packaging spike</b>.</td><td><span class="vre v-md">MED</span></td><td><span class="vre v-lo">LOW</span></td><td><span class="vre v-hi">HIGH</span></td></tr>
+        <tr><td class="rank">6</td><td><b>Unbounded audit retention + export-store persistence</b> — data-integrity hardening.</td><td><span class="vre v-md">MED</span></td><td><span class="vre v-md">MED</span></td><td><span class="vre v-md">MED</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<footer>
+  Generated by a 6-agent audit (product recon, source audit, docs audit, history, harness, reconciliation).
+  Evidence: file paths, commit hashes, and CI definitions in the accompanying report.
+</footer>
+
+</div>
+<script>
+(function(){
+  var btns=document.querySelectorAll('.fbtn');
+  btns.forEach(function(b){
+    b.addEventListener('click',function(){
+      btns.forEach(function(x){x.classList.remove('on')});
+      b.classList.add('on');
+      var f=b.getAttribute('data-f');
+      document.querySelectorAll('.finding[data-sev]').forEach(function(r){
+        r.classList.toggle('hidden', f!=='all' && r.getAttribute('data-sev')!==f);
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>
