@@ -22,6 +22,7 @@ import argparse
 import json
 import sys
 from datetime import date, datetime
+from typing import Sequence
 
 # Accepted findings keyed by advisory id (CVE / GHSA / PYSEC) or bandit test id.
 # Matching is done against the finding's id AND its aliases, so either the CVE
@@ -41,14 +42,21 @@ WAIVERS: dict[str, dict[str, str]] = {
 }
 
 
+class ReportError(Exception):
+    """A scan report is missing or cannot be parsed as JSON.
+
+    Absent evidence must never read as absence of findings — callers must
+    treat this as a gate failure (exit 2), not as zero findings.
+    """
+
+
 def check_bandit(report_path: str) -> list[dict]:
     """Parse bandit JSON report and return high/critical findings."""
     try:
         with open(report_path) as f:
             data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError) as e:
-        print(f"WARNING: Could not parse bandit report '{report_path}': {e}")
-        return []
+        raise ReportError(f"Could not parse bandit report '{report_path}': {e}") from e
 
     results = data.get("results", [])
     findings = []
@@ -74,8 +82,7 @@ def check_pip_audit(report_path: str) -> list[dict]:
         with open(report_path) as f:
             data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError) as e:
-        print(f"WARNING: Could not parse pip-audit report '{report_path}': {e}")
-        return []
+        raise ReportError(f"Could not parse pip-audit report '{report_path}': {e}") from e
 
     # pip-audit JSON format: {"dependencies": [...]} or bare list
     deps = data if isinstance(data, list) else data.get("dependencies", [])
@@ -128,7 +135,7 @@ def _describe(finding: dict) -> str:
     )
 
 
-def main() -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Security scan gate for CI")
     parser.add_argument(
         "--bandit",
@@ -140,11 +147,15 @@ def main() -> int:
         default="pip-audit-report.json",
         help="pip-audit JSON report path",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     all_findings: list[dict] = []
-    all_findings.extend(check_bandit(args.bandit))
-    all_findings.extend(check_pip_audit(args.pip_audit))
+    try:
+        all_findings.extend(check_bandit(args.bandit))
+        all_findings.extend(check_pip_audit(args.pip_audit))
+    except ReportError as e:
+        print(f"ERROR: {e}")
+        return 2
 
     today = date.today()
     active: list[dict] = []

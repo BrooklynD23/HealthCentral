@@ -29,8 +29,19 @@ The most expensive pattern in this repo's history, twice over.
   which resolves on the first tick before the component has rendered anything.
   It passed against deliberately broken code.
 
+A 2026-09-09 instance in the one place it hurts most — the security gate itself.
+`scripts/security_gate.py:44-51` and `:71-78` catch `FileNotFoundError,
+json.JSONDecodeError` on the bandit and pip-audit reports, print a WARNING, and
+`return []`. The gate reads an empty list as *zero findings*, not as *the scan
+did not happen*. `.github/workflows/ci.yml:92,95` compound it by running both
+scanners with `|| true`, so a scanner that crashes leaves no exit code and no
+usable report. Every step is green and nothing was scanned. A gate that cannot
+distinguish "clean" from "did not run" is not a gate.
+
 **Recheck:** ask what your test would *fail to notice*. Then break the code on
-purpose and confirm the test goes red. A test that has never failed proves
+purpose and confirm the test goes red. For any gate that parses a report another
+step produced, delete the report and confirm the gate goes RED, not green —
+absent evidence must never read as absence of findings. A test that has never failed proves
 nothing. Route tests asserting auth, path scoping, or status codes go through
 HTTP — use `src/backend/tests/support/routes.py::route_client`.
 
@@ -143,6 +154,22 @@ backups on disk after profile deletion. That line was written about a different,
 older backup location. The same review asserted an FK cascade removed a row;
 `PRAGMA foreign_keys` is set nowhere in the codebase, so it is inert on SQLite.
 
+A 2026-09-08 near-miss in the same shape, caught at implementation: a research
+track recommended routing `api/memory.py`'s `value` through
+`sanitize_untrusted_field` before persisting, to neutralize prompt injection.
+The *risk* was real; the *layer* was wrong twice over. `modules/rag.py::_retrieve_memory_context`
+already filters injection-bearing memory items at compose time — and it fails
+closed on the whole item, which is safer than scrubbing a string. Worse,
+`sanitize_untrusted_field` applies **strict PHI redaction**, so writing through
+it would have silently and irreversibly corrupted memory items a patient
+deliberately saved into their own encrypted vault. The invariant is "redaction
+before anything *leaves*"; a write into the per-profile vault is PHI arriving,
+not leaving. Two of the eight tracks had flagged the memory route, which made
+the recommendation look corroborated — convergence is evidence the *area*
+matters, not that the *proposed fix* is right.
+
 **Recheck:** a written decision is evidence about what someone believed, not
 proof that it was true. When a doc gives a *reason*, check the reason. An
-agent's report — including a reviewer's — is a lead, not a finding.
+agent's report — including a reviewer's — is a lead, not a finding. Before
+applying a defensive transform, check whether the defense already exists
+somewhere better, and ask what the transform destroys when it fires.

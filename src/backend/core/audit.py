@@ -60,6 +60,9 @@ ALLOWED_ACTIONS: frozenset[str] = frozenset({
     # backup (BKUP-UX-001)
     "Viewed backups", "Created backup", "Verified backup", "Restored from backup",
     "Pruned backups", "Updated backup schedule",
+    # assistant memory store (ASSIST-MEM-001)
+    "Viewed memory items", "Viewed memory item", "Created memory item",
+    "Updated memory item", "Deleted memory item",
 })
 
 # Keys whose *string* values may survive (still subject to _ENUM_VALUE_RE).
@@ -382,6 +385,38 @@ async def log_care_task_event(
         profile_id=profile_id,
         entity_type="care_task",
         entity_id=task_id,
+        details=details,
+    )
+
+
+async def log_memory_event(
+    db: AsyncSession,
+    event: str,
+    profile_id: str,
+    item_id: str,
+    details: Optional[dict[str, Any]] = None,
+) -> "AuditLog":
+    """Log an assistant memory-store event (ASSIST-MEM-001).
+
+    Memory items are user-authored profile data in the per-profile vault, so
+    every route touching them audits (CLAUDE.md hard invariant). Callers pass
+    only handle- and count-shaped ``details``: the item's ``value`` is PHI and
+    audit rows live in the unencrypted master DB (AUDIT-PHI-001).
+    """
+    action_map = {
+        "list": "Viewed memory items",
+        "view": "Viewed memory item",
+        "create": "Created memory item",
+        "update": "Updated memory item",
+        "delete": "Deleted memory item",
+    }
+    return await create_audit_log(
+        db=db,
+        event_type=f"memory.{event}",
+        action=action_map.get(event, f"Memory item {event}"),
+        profile_id=profile_id,
+        entity_type="memory_item",
+        entity_id=item_id,
         details=details,
     )
 

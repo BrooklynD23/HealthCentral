@@ -140,7 +140,7 @@ Mistakes this codebase has actually produced, with the evidence that exposed eac
 
 Why this project exists as an agentic-engineering exercise, and what "done well" looks like. The working loop is in harness.md; verification is in evals.md; the live task inventory is…
 
-Links to: `docs/agentic/evals.md`, `docs/agentic/harness.md`, `docs/agentic/mcp-tools.md`, `docs/agentic/progress.md`, `docs/compliance/README.md`, `docs/compliance/ai-safety.md`, `feature_list.json`
+Links to: `docs/agentic/evals.md`, `docs/agentic/harness.md`, `docs/agentic/mcp-tools.md`, `docs/agentic/progress.md`, `docs/compliance/README.md`, `docs/compliance/ai-safety.md`, `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/01-codebase-audit.md`, `docs/research/2026-09-08/02-inference-serving.md`, `docs/research/2026-09-08/03-agentic-loops.md`, `docs/research/2026-09-08/04-mcp-interop.md`, `docs/research/2026-09-08/05-models-voice.md`, `docs/research/2026-09-08/06-competitive-landscape.md`, `docs/research/2026-09-08/07-data-control.md`, `docs/research/2026-09-08/08-frontend.md`, `docs/research/2026-09-08/09-roadmap.md`, `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`, `docs/research/2026-09-08/PLAN.md`, `feature_list.json`
 
 ## `docs/agile/AGILE_PLAN.md`
 
@@ -724,7 +724,7 @@ The default tier for all installations. Optimized for speed and low resource usa
 
 ## `docs/model_tiers/tier2_mid.md`
 
-**Tier 2: Mid (Phi-3-mini-4k-instruct)**
+**Tier 2: Mid (Phi-4-mini-instruct)**
 
 Balanced tier offering improved quality while maintaining reasonable resource usage.
 
@@ -781,6 +781,14 @@ Owner decision (2026-07-07): rename the product — "HealthCentral" collides wit
 ---
 
 Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/harness.md`, `feature_list.json`
+
+## `docs/plans/2026-09-10-implementation-roadmap.md`
+
+**Implementation roadmap — accepted 2026-09-10**
+
+Derived from the Fable 5.1 consultation (`docs/research/2026-09-08/13-consultation.md`), which worked the ~113 candidate rows the ten Sonnet tracks produced and kept 19. This document turns that…
+
+Links to: `docs/research/2026-09-08/09-roadmap.md`, `docs/research/2026-09-08/13-consultation.md`
 
 ## `docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md`
 
@@ -973,6 +981,152 @@ Links to: `docs/agile/RELEASE_CHECKLIST.md`
 **Phase 7 — LoRA Distillation (stretch)**
 
 Distill the big model's good grounded-refusal behavior into a small local LoRA adapter so the offline default is smaller and **just as safe** — gated by the same golden set, never weaker on any axis.
+
+## `docs/research/2026-09-08/00-brief.md`
+
+**Shared research brief — Asclexis agentic expansion (2026-09-08)**
+
+Every track document in this directory was produced against this brief. Read it before reading any track. It records **verified repo state** (commands and file paths given, run 2026-09-08 on branch…
+
+Links to: `docs/research/2026-09-08/STATUS.md`
+
+## `docs/research/2026-09-08/01-codebase-audit.md`
+
+**Track 1 — Codebase capability audit**
+
+All paths are relative to `src/backend/` unless stated otherwise. Line numbers verified 2026-09-08 by direct file read, not by memory or by trusting docstrings.
+
+Links to: `docs/research/2026-09-08/STATUS.md`
+
+## `docs/research/2026-09-08/02-inference-serving.md`
+
+**Track 2: Local inference and serving infrastructure**
+
+Read `00-brief.md` first for verified repo state and binding constraints. This document does not restate that premise except where it needed correction — see the note on §4.
+
+Links to: `docs/research/2026-09-08/STATUS.md`, `src/backend/core/config.py`, `src/backend/core/llm/factory.py`, `src/backend/core/llm/llama_cpp_provider.py`, `src/backend/core/llm/ollama_provider.py`, `src/backend/modules/agent/cache.py`, `src/backend/modules/agent/guardrails/classifier.py`, `src/backend/modules/agent/guardrails/groundedness.py`, `src/backend/modules/agent/nodes/draft.py`, `src/backend/modules/agent/nodes/plan.py`, `src/backend/modules/agent/nodes/reflect.py`, `src/backend/modules/agent/state.py`, `src/backend/modules/agent/tools/base.py`, `src/backend/modules/agent/tools/registry.py`, `src/backend/modules/model_selector.py`, `src/backend/modules/rag.py`
+
+## `docs/research/2026-09-08/03-agentic-loops.md`
+
+**Track 3 — Agentic loop engineering**
+
+Research for the Asclexis (formerly HealthCentral) local-first health app. Read `00-brief.md` first — it records the verified repo state this track builds on and the constraints that bind every…
+
+Links to: `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/STATUS.md`
+
+## `docs/research/2026-09-08/04-mcp-interop.md`
+
+**Track 4 — Model Context Protocol & Health-Data Interoperability**
+
+Researched 2026-09-08. Knowledge cutoff May 2026; anything about the world after that carries a fetched URL or is marked `[UNVERIFIED]`, per the brief (`00-brief.md` §4). Repo claims carry a…
+
+Links to: `docs/research/2026-09-08/00-brief.md`
+
+## `docs/research/2026-09-08/05-models-voice.md`
+
+**Track 5 — Open-Weight Models, the NVIDIA Local Stack, and Voice**
+
+Research date: 2026-09-08. Model knowledge cutoff: May 2026 — everything below about releases after that date is either backed by a fetched/searched source (cited inline) or marked `[UNVERIFIED]`.…
+
+Links to: `docs/research/2026-09-08/STATUS.md`
+
+## `docs/research/2026-09-08/06-competitive-landscape.md`
+
+**Track 6 — Competitive and adjacent-landscape research**
+
+Research date: 2026-09-08. Model knowledge cutoff: May 2026 — everything below about post-cutoff events is sourced to a fetched URL or explicitly marked `[UNVERIFIED]`. This track is read-only on…
+
+## `docs/research/2026-09-08/07-data-control.md`
+
+**Track 7 — Data science, user data control, and compliance**
+
+Research for the Asclexis (formerly HealthCentral) agentic-expansion effort. Produced 2026-09-08 against `00-brief.md`. Read-only on source; this file is the only write. Every repo claim below…
+
+Links to: `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/STATUS.md`
+
+## `docs/research/2026-09-08/08-frontend.md`
+
+**Track 8 — Frontend refactor: motion, agent-trace UI, and design system**
+
+this document is the only write. Verified 2026-09-08 against branch `claude/healthcentral-agentic-research-r1n54x`. See `00-brief.md` for the shared baseline and constraints this track inherits.
+
+Links to: `docs/research/2026-09-08/00-brief.md`
+
+## `docs/research/2026-09-08/09-roadmap.md`
+
+**Synthesis — sequenced roadmap**
+
+Merges the eight tracks into one dependency-ordered plan. Written after the tracks returned, against `00-brief.md` and the execution record in `PLAN.md` §9.
+
+Links to: `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`, `docs/research/2026-09-08/PLAN.md`, `docs/research/2026-09-08/STATUS.md`
+
+## `docs/research/2026-09-08/10-demonstration-artifact.md`
+
+**Track 10 — The repo as a demonstration artifact**
+
+repo-structure only — no product code touched, no real patient data anywhere.
+
+## `docs/research/2026-09-08/11-harness-engineering.md`
+
+**Track 10 — Harness and loop engineering**
+
+files and feedback loops that keep an AI agent on task while it builds Asclexis. Not the product's own agent loop (that is Track 3, `03-agentic-loops.md`, and the `modules/agent/` graph audited in…
+
+Links to: `docs/research/2026-09-08/STATUS.md`
+
+## `docs/research/2026-09-08/13-consultation.md`
+
+**13 — Consultation: what to integrate, in what order, and what to drop**
+
+Written 2026-09-09 against the ten tracks (`01`-`08`, `10`, `11`), the synthesis in `09-roadmap.md`, and `STATUS.md`. Every repo claim below was re-verified in this session with `grep`/`sed` on…
+
+Links to: `docs/research/2026-09-08/09-roadmap.md`, `docs/research/2026-09-08/STATUS.md`
+
+## `docs/research/2026-09-08/CONSULT-PROMPT.md`
+
+**Consultation prompt — what to actually integrate**
+
+For **Claude Fable 5.1** (`claude-fable-5-1`). **4,390 characters** — everything between the fences is the prompt.
+
+Links to: `docs/research/2026-09-08/GOAL-PROMPT.md`, `docs/research/2026-09-08/INDUSTRY-PROMPT.md`
+
+## `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`
+
+**Frontier-model architecture audit — prompt pack**
+
+A ready-to-run brief for handing Asclexis to a frontier model (**Claude Fable 5.1** or **GPT-6 Astra**) for an independent architecture audit and roadmap.
+
+## `docs/research/2026-09-08/GOAL-PROMPT.md`
+
+**`/goal` prompt — frontier architecture audit**
+
+A single-turn brief for a higher-reasoning model to audit the whole research corpus and produce the architecture plan. **3,464 characters** — everything between the fences is the prompt; nothing…
+
+Links to: `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`
+
+## `docs/research/2026-09-08/INDUSTRY-PROMPT.md`
+
+**Industry-shift prompt — what to integrate next**
+
+A research brief for **Claude Fable 5.1** (`claude-fable-5-1`) exploring what agentic engineering has changed since the CS4610 reports were written, and what this project should adopt. **4,227…
+
+Links to: `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`, `docs/research/2026-09-08/GOAL-PROMPT.md`
+
+## `docs/research/2026-09-08/PLAN.md`
+
+**Research plan — from process-agentic to product-agentic**
+
+---
+
+Links to: `CLAUDE.md`, `docs/agentic/harness.md`, `docs/agentic/mcp-tools.md`, `docs/agentic/recurring-failures.md`, `docs/research/2026-09-08/00-brief.md`
+
+## `docs/research/2026-09-08/STATUS.md`
+
+**Status — what has shipped since the tracks were written**
+
+**Read this before acting on any recommendation in this directory.**
+
+Links to: `docs/agentic/recurring-failures.md`, `docs/plans/2026-09-10-implementation-roadmap.md`, `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/09-roadmap.md`, `docs/research/2026-09-08/10-demonstration-artifact.md`, `docs/research/2026-09-08/11-harness-engineering.md`, `docs/research/2026-09-08/13-consultation.md`, `docs/research/2026-09-08/CONSULT-PROMPT.md`, `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`, `docs/research/2026-09-08/GOAL-PROMPT.md`, `docs/research/2026-09-08/INDUSTRY-PROMPT.md`
 
 ## `docs/roles/00_roles_index.md`
 

@@ -2,17 +2,19 @@
 
 Why this project exists as an agentic-engineering exercise, and what "done well" looks like. The working loop is in [harness.md](harness.md); verification is in [evals.md](evals.md); the live task inventory is [feature_list.json](../../feature_list.json).
 
+The 2026-09-08 research pass on making the *product* agentic (not just the process that builds it) is planned in [../research/2026-09-08/PLAN.md](../research/2026-09-08/PLAN.md), with verified repo state and binding constraints in [../research/2026-09-08/00-brief.md](../research/2026-09-08/00-brief.md).
+
 ## Goals
 
 1. **Production-grade product engineering** on a real, safety-sensitive domain: local-first health data organization, trend visualization, and source-grounded explanation — explicitly *not* diagnosis, treatment, or dosing (see [ai-safety.md](../compliance/ai-safety.md)).
-2. **Modern agentic workflow as a first-class skill**: orchestrator + scoped subagents (`.claude/agents/`), evidence-gated progress, CI eval gates, and MCP/tool discipline. Industry usage research (Anthropic, 2026) shows the division of labor settling as humans making planning decisions and agents making execution decisions, with work shifting toward deployment, operation, and documentation — this repo is built to practice exactly that split.
+2. **Modern agentic workflow as a first-class skill**: orchestrator + ad hoc scoped subagents (see [harness.md](harness.md#subagent-rules)), evidence-gated progress, CI eval gates, and MCP/tool discipline. Industry usage research (Anthropic, 2026) shows the division of labor settling as humans making planning decisions and agents making execution decisions, with work shifting toward deployment, operation, and documentation — this repo is built to practice exactly that split.
 3. **Data Science rigor**: measurable extraction quality, golden-set evals with tracked metrics, data-quality tests, and eval cards rather than anecdotes.
 
 ## Why this is portfolio-relevant
 
 | Skill signal | Repo artifact |
 |--------------|---------------|
-| Agent orchestration | `.claude/agents/`, [harness.md](harness.md) |
+| Agent orchestration | ad hoc subagent dispatch, [harness.md](harness.md) |
 | Harness engineering | [feature_list.json](../../feature_list.json), [progress.md](progress.md), CI eval gates (`scripts/agent_eval_gate.py`) |
 | Data Science | extraction golden sets and eval cards (planned: HC-M06), RL dataset export pipeline |
 | SWE production readiness | CI (tests, type-check, e2e, security gate), release checklist, observability baseline (planned: HC-M07/M08) |
@@ -36,6 +38,37 @@ Next (ordered; details and verification in `feature_list.json`):
 8. **Narrow agent tools (HC-M09)** — credential-free script tools per [mcp-tools.md](mcp-tools.md).
 
 Two findings from the earlier subagent survey were verified first-hand on 2026-07-07: (1) RL dataset export used `standard` rather than `strict` redaction (`modules/rl_dataset.py` hardcoded it; DOB/address were never scrubbed from training exports) — **confirmed and fixed** as part of milestone 4's PHI-leakage work (ticket RL-REDACT-001 in `docs/features/TASK_LIST.md`, now closed); (2) production faithfulness scoring is 100% rule-based — `modules/faithfulness.py` falls back to regex pseudo-entailment, `consistency_score` is hardcoded, and `verifier_agent.py`'s `use_llm_entailment` flag routes to a stub — **confirmed**, tracked as HC-M11 (NLI cross-encoder wiring, own approval required since it touches two ask-before-touching files).
+
+## Next-phase research (2026-09-08)
+
+An eight-track research pass on making the *product* agentic — not just the
+process that built it — lives in [`docs/research/2026-09-08/`](../research/2026-09-08/PLAN.md).
+Start with the [plan](../research/2026-09-08/PLAN.md) (thesis, delegation model,
+verification protocol, execution record) and the
+[shared brief](../research/2026-09-08/00-brief.md) (verified repo state and the
+seven gaps the tracks target).
+
+Its headline finding corrects a premise this roadmap implies: the agent graph is
+**entirely LLM-free today** — `plan` is keyword matching, `draft` emits f-string
+templates, `guard` emits fixed strings, and no node calls `ModelRunner`. Tracks:
+[codebase audit](../research/2026-09-08/01-codebase-audit.md),
+[inference & serving](../research/2026-09-08/02-inference-serving.md),
+[agentic loops](../research/2026-09-08/03-agentic-loops.md),
+[MCP & interop](../research/2026-09-08/04-mcp-interop.md),
+[models & voice](../research/2026-09-08/05-models-voice.md),
+[competitive landscape](../research/2026-09-08/06-competitive-landscape.md),
+[data control](../research/2026-09-08/07-data-control.md),
+[frontend](../research/2026-09-08/08-frontend.md).
+
+Synthesis and next step: the sequenced
+[roadmap](../research/2026-09-08/09-roadmap.md) (five waves, plus an explicit
+"do not build" list), and the
+[frontier-audit prompt pack](../research/2026-09-08/FRONTIER-AUDIT-PROMPT.md)
+for handing the whole thing to Claude Fable 5.1 or GPT-6 Astra for an
+independent review.
+
+Research only — nothing here is verified by running it, and no track's
+recommendation has been accepted as work.
 
 ## Brand risk (flagged for owner decision)
 

@@ -647,6 +647,22 @@ class TestModelRegistry:
         assert cfg["ollama_tag"] == "gemma4:12b"
         assert cfg["context_size"] >= 32768
 
+    def test_mid_tier_is_phi4_mini(self):
+        """HC-TIER-001: the mid tier runs Phi-4-mini, not Phi-3-mini.
+
+        Phi-3-mini-4k caps at a 4K context, which is too small to hold
+        retrieved chunks plus a tool menu plus a question. Phi-4-mini is the
+        same size class and MIT-licensed, with a far larger context. Requires
+        llama-cpp-python >= 0.3.35 — Phi-4-mini postdates the 0.3.2 wheel the
+        project pinned before this change.
+        """
+        from modules.model_selector import TIER_MODEL_CONFIG
+        cfg = TIER_MODEL_CONFIG["mid"]
+        assert "phi-4-mini" in cfg["repo"].lower(), cfg["repo"]
+        assert cfg["context_size"] > 4096, (
+            "the whole point of the swap is escaping Phi-3-mini's 4K window"
+        )
+
     def test_legacy_tiers_still_present(self):
         from modules.model_selector import TIER_MODEL_CONFIG
         for tier in ("low", "mid", "high"):

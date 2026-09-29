@@ -108,6 +108,11 @@ async def guard(
             break
 
     if gate_fired == "advice":
+        # No groundedness mapping has run yet at this gate, so there is no
+        # surviving/dropped SENTENCE count to report (A1) — leave both None
+        # (AgentTerminal's default) rather than reusing dropped_for_advice,
+        # which counts sentences discarded for being advice-seeking, not for
+        # lacking a source handle.
         terminal = AgentTerminal(
             terminal="escalate", text=ESCALATE_TEMPLATE, citations=[], run_id=run_id
         )
@@ -129,7 +134,12 @@ async def guard(
     if not mapping.surviving:
         gate_fired = "groundedness"
         terminal = AgentTerminal(
-            terminal="abstain", text=ABSTAIN_TEMPLATE, citations=[], run_id=run_id
+            terminal="abstain",
+            text=ABSTAIN_TEMPLATE,
+            citations=[],
+            run_id=run_id,
+            surviving_count=0,
+            dropped_count=len(mapping.dropped),
         )
         await _emit_guard_audit(
             run_id=run_id,
@@ -153,7 +163,12 @@ async def guard(
     if effective_confidence < CONFIDENCE_THRESHOLD:
         gate_fired = "confidence"
         terminal = AgentTerminal(
-            terminal="abstain", text=ABSTAIN_TEMPLATE, citations=[], run_id=run_id
+            terminal="abstain",
+            text=ABSTAIN_TEMPLATE,
+            citations=[],
+            run_id=run_id,
+            surviving_count=len(mapping.surviving),
+            dropped_count=len(mapping.dropped),
         )
         await _emit_guard_audit(
             run_id=run_id,
@@ -173,6 +188,8 @@ async def guard(
         text=" ".join(mapping.surviving),
         citations=mapping.citations,
         run_id=run_id,
+        surviving_count=len(mapping.surviving),
+        dropped_count=len(mapping.dropped),
     )
     await _emit_guard_audit(
         run_id=run_id,

@@ -3,6 +3,9 @@ Memory store CRUD API endpoints.
 
 ASSIST-MEM-001: Per-profile persistent memory items for the assistant.
 All endpoints require authentication and enforce profile isolation.
+Every route writes an audit row to the master DB (CLAUDE.md hard invariant:
+memory items are profile data). Audit details stay handle- and count-shaped —
+the item's ``value`` is PHI and audit rows live in the unencrypted master DB.
 """
 
 import logging
@@ -10,12 +13,15 @@ import re
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.audit import audit_and_commit, log_memory_event
 from core.auth import RequireAuth, ProfileDbSession
 from core.config import settings
+from core.database import get_db
 from models.memory_item import MemoryItem
 
 logger = logging.getLogger(__name__)
@@ -90,6 +96,7 @@ async def create_memory_item(
     data: MemoryItemCreate,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Create a new memory item for the authenticated profile."""
     profile_id = session.profile_id
@@ -119,6 +126,15 @@ async def create_memory_item(
     await profile_db.commit()
     await profile_db.refresh(item)
 
+    await audit_and_commit(
+        master_db,
+        log_memory_event,
+        event="create",
+        profile_id=profile_id,
+        item_id=item.id,
+        details={"category": data.category, "value_length": len(data.value)},
+    )
+
     return MemoryItemResponse.from_model(item)
 
 
@@ -127,6 +143,7 @@ async def list_memory_items(
     session: RequireAuth,
     category: Optional[str] = Query(None, description="Filter by category"),
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """List memory items for the authenticated profile."""
     profile_id = session.profile_id
@@ -139,6 +156,15 @@ async def list_memory_items(
     result = await profile_db.execute(query)
     items = result.scalars().all()
 
+    await audit_and_commit(
+        master_db,
+        log_memory_event,
+        event="list",
+        profile_id=profile_id,
+        item_id="all",
+        details={"count": len(items), "category": category},
+    )
+
     return [MemoryItemResponse.from_model(item) for item in items]
 
 
@@ -147,6 +173,7 @@ async def get_memory_item(
     item_id: str,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Get a specific memory item by ID."""
     _validate_uuid(item_id, "item_id")
@@ -166,6 +193,14 @@ async def get_memory_item(
             detail="Memory item not found",
         )
 
+    await audit_and_commit(
+        master_db,
+        log_memory_event,
+        event="view",
+        profile_id=profile_id,
+        item_id=item_id,
+    )
+
     return MemoryItemResponse.from_model(item)
 
 
@@ -175,6 +210,7 @@ async def update_memory_item(
     data: MemoryItemUpdate,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Update a memory item."""
     _validate_uuid(item_id, "item_id")
@@ -204,6 +240,20 @@ async def update_memory_item(
     await profile_db.commit()
     await profile_db.refresh(item)
 
+    await audit_and_commit(
+        master_db,
+        log_memory_event,
+        event="update",
+        profile_id=profile_id,
+        item_id=item_id,
+        details={
+            "fields": sorted(
+                f for f in ("key", "value", "category")
+                if getattr(data, f) is not None
+            )
+        },
+    )
+
     return MemoryItemResponse.from_model(item)
 
 
@@ -212,6 +262,7 @@ async def delete_memory_item(
     item_id: str,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Delete a memory item."""
     _validate_uuid(item_id, "item_id")
@@ -233,3 +284,11 @@ async def delete_memory_item(
 
     await profile_db.delete(item)
     await profile_db.commit()
+
+    await audit_and_commit(
+        master_db,
+        log_memory_event,
+        event="delete",
+        profile_id=profile_id,
+        item_id=item_id,
+    )

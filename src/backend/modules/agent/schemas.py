@@ -34,9 +34,28 @@ class AgentTerminal(BaseModel):
 
     For ``abstain``/``escalate`` the ``text`` is a FIXED template constant from
     ``guardrails/templates.py`` — never model-generated prose.
+
+    ``surviving_count``/``dropped_count`` (A1, roadmap 2026-09-10) are the
+    guard node's ``groundedness.map_sentences`` counts: how many DRAFT
+    SENTENCES were backed by a real source handle (survived) versus had none
+    and were dropped before the user ever saw them. They are sentence
+    counts, not citation counts — ``map_sentences`` can legitimately emit
+    MORE citations than sentences (a trend summary cites every point it
+    summarizes), so counting citations over- or under-states what actually
+    got verified. They are ``None`` whenever no mapping ran for this
+    terminal — the pre-model advice-gate escalate, any terminal ``graph.py``
+    builds outside the guard node, or a terminal read back out of the
+    semantic cache/a log that predates this field — and optional with a
+    default so those old/short-circuited terminals keep validating.
+    Downstream (``api/assistant.py::_agent_terminal_to_response_parts``),
+    ``None`` is the honest signal that no verifier ran: it must report
+    ``VerificationInfo(enabled=False)``, never a guessed or carried-over
+    score.
     """
 
     terminal: Literal["answer", "abstain", "escalate"]
     text: str
     citations: list[Citation] = Field(default_factory=list)
     run_id: str
+    surviving_count: int | None = None
+    dropped_count: int | None = None

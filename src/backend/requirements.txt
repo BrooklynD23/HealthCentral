@@ -49,7 +49,27 @@ pdf2image>=1.17.0
 # =============================================================================
 # Local AI / Embeddings
 # =============================================================================
-llama-cpp-python>=0.2.0
+# Pinned exactly. Raised 0.3.2 -> 0.3.35 on 2026-09-09 because the mid tier
+# moved to Phi-4-mini and 0.3.2 could not have loaded it.
+#
+# 0.3.2 was released 2024-11-16 and vendors a llama.cpp of that date. Verified
+# against the upstream changelog and source:
+#   - 0.3.35 (2026-08-17) vendors ggml-org/llama.cpp@4df29be4f, whose
+#     src/llama-arch.cpp declares gemma4, gemma4-assistant, gemma3n, qwen3 and
+#     phi3. The 0.3.2 tree could declare none of them.
+#   - Phi-4-mini loads under the existing `phi3` architecture (llama.cpp has no
+#     separate `phi4` arch), but the model postdates the 0.3.2 wheel.
+#   - The constrained-decoding hook the agent's future LLM planner needs exists
+#     in BOTH versions: ChatCompletionRequestResponseFormat carries
+#     `schema: NotRequired[JsonType]`, routed through
+#     LlamaGrammar.from_json_schema. Raising the pin does not put it at risk.
+#
+# NOT verified here: this wheel has not been built or run in this environment
+# (it is a compiled package and the sandbox cannot build it). Treat the first
+# local run as the real test — load one model per configured tier before
+# trusting this line. A llama.cpp bump changes GGUF compatibility, quantization
+# support and chat-template detection at once, so this is a re-test, not a bump.
+llama-cpp-python==0.3.35
 sentence-transformers>=2.2.0
 numpy>=1.26.0
 

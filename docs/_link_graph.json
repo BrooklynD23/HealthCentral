@@ -24,6 +24,7 @@
       "docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md",
       "docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md",
       "docs/plans/2026-09-27-W01-harness-agents-branch-a.md",
+      "docs/research/2026-09-08/PLAN.md",
       "AGENT.md"
     ],
     "CONTRIBUTING.md": [
@@ -141,11 +142,13 @@
       "docs/agentic/mcp-tools.md",
       "docs/agentic/roadmap.md",
       "docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md",
-      "docs/plans/2026-09-27-W01-harness-agents-branch-a.md"
+      "docs/plans/2026-09-27-W01-harness-agents-branch-a.md",
+      "docs/research/2026-09-08/PLAN.md"
     ],
     "docs/agentic/mcp-tools.md": [
       "docs/agentic/harness.md",
-      "docs/agentic/roadmap.md"
+      "docs/agentic/roadmap.md",
+      "docs/research/2026-09-08/PLAN.md"
     ],
     "docs/agentic/orchestration.md": [
       "docs/capstone-report/implementation-program.md"
@@ -168,6 +171,8 @@
       "docs/plans/2026-09-27-W10-governance-invariant-amendments.md",
       "docs/plans/2026-09-27-W11a-test-and-gate-hardening.md",
       "docs/plans/2026-09-27-nightly-doc-drift-routine-spec.md",
+      "docs/research/2026-09-08/PLAN.md",
+      "docs/research/2026-09-08/STATUS.md",
       "AGENT.md",
       "CLAUDE.md"
     ],
@@ -626,6 +631,9 @@
     "docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md": [
       "docs/00_architecture_plans_index.md"
     ],
+    "docs/plans/2026-09-10-implementation-roadmap.md": [
+      "docs/research/2026-09-08/STATUS.md"
+    ],
     "docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md": [
       "docs/capstone-report/README.md",
       "docs/capstone-report/implementation-program.md",
@@ -739,6 +747,90 @@
       "docs/agile/sprints/SPRINT_7.md",
       "README.md"
     ],
+    "docs/research/2026-09-08/00-brief.md": [
+      "docs/agentic/roadmap.md",
+      "docs/research/2026-09-08/03-agentic-loops.md",
+      "docs/research/2026-09-08/04-mcp-interop.md",
+      "docs/research/2026-09-08/07-data-control.md",
+      "docs/research/2026-09-08/08-frontend.md",
+      "docs/research/2026-09-08/09-roadmap.md",
+      "docs/research/2026-09-08/PLAN.md",
+      "docs/research/2026-09-08/STATUS.md"
+    ],
+    "docs/research/2026-09-08/01-codebase-audit.md": [
+      "docs/agentic/roadmap.md"
+    ],
+    "docs/research/2026-09-08/02-inference-serving.md": [
+      "docs/agentic/roadmap.md"
+    ],
+    "docs/research/2026-09-08/03-agentic-loops.md": [
+      "docs/agentic/roadmap.md"
+    ],
+    "docs/research/2026-09-08/04-mcp-interop.md": [
+      "docs/agentic/roadmap.md"
+    ],
+    "docs/research/2026-09-08/05-models-voice.md": [
+      "docs/agentic/roadmap.md"
+    ],
+    "docs/research/2026-09-08/06-competitive-landscape.md": [
+      "docs/agentic/roadmap.md"
+    ],
+    "docs/research/2026-09-08/07-data-control.md": [
+      "docs/agentic/roadmap.md"
+    ],
+    "docs/research/2026-09-08/08-frontend.md": [
+      "docs/agentic/roadmap.md"
+    ],
+    "docs/research/2026-09-08/09-roadmap.md": [
+      "docs/agentic/roadmap.md",
+      "docs/plans/2026-09-10-implementation-roadmap.md",
+      "docs/research/2026-09-08/13-consultation.md",
+      "docs/research/2026-09-08/STATUS.md"
+    ],
+    "docs/research/2026-09-08/10-demonstration-artifact.md": [
+      "docs/research/2026-09-08/STATUS.md"
+    ],
+    "docs/research/2026-09-08/11-harness-engineering.md": [
+      "docs/research/2026-09-08/STATUS.md"
+    ],
+    "docs/research/2026-09-08/13-consultation.md": [
+      "docs/plans/2026-09-10-implementation-roadmap.md",
+      "docs/research/2026-09-08/STATUS.md"
+    ],
+    "docs/research/2026-09-08/CONSULT-PROMPT.md": [
+      "docs/research/2026-09-08/STATUS.md"
+    ],
+    "docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md": [
+      "docs/agentic/roadmap.md",
+      "docs/research/2026-09-08/09-roadmap.md",
+      "docs/research/2026-09-08/GOAL-PROMPT.md",
+      "docs/research/2026-09-08/INDUSTRY-PROMPT.md",
+      "docs/research/2026-09-08/STATUS.md"
+    ],
+    "docs/research/2026-09-08/GOAL-PROMPT.md": [
+      "docs/research/2026-09-08/CONSULT-PROMPT.md",
+      "docs/research/2026-09-08/INDUSTRY-PROMPT.md",
+      "docs/research/2026-09-08/STATUS.md"
+    ],
+    "docs/research/2026-09-08/INDUSTRY-PROMPT.md": [
+      "docs/research/2026-09-08/CONSULT-PROMPT.md",
+      "docs/research/2026-09-08/STATUS.md"
+    ],
+    "docs/research/2026-09-08/PLAN.md": [
+      "docs/agentic/roadmap.md",
+      "docs/research/2026-09-08/09-roadmap.md"
+    ],
+    "docs/research/2026-09-08/STATUS.md": [
+      "docs/research/2026-09-08/00-brief.md",
+      "docs/research/2026-09-08/01-codebase-audit.md",
+      "docs/research/2026-09-08/02-inference-serving.md",
+      "docs/research/2026-09-08/03-agentic-loops.md",
+      "docs/research/2026-09-08/05-models-voice.md",
+      "docs/research/2026-09-08/07-data-control.md",
+      "docs/research/2026-09-08/09-roadmap.md",
+      "docs/research/2026-09-08/11-harness-engineering.md",
+      "docs/research/2026-09-08/13-consultation.md"
+    ],
     "docs/roles/00_roles_index.md": [
       "docs/00_architecture_plans_index.md",
       "AGENT.md"
@@ -847,14 +939,57 @@
     "src/backend/api/observations.py": [
       "docs/plans/2026-05-15-cursor-lab-workflow-plan.md"
     ],
+    "src/backend/core/config.py": [
+      "docs/research/2026-09-08/02-inference-serving.md"
+    ],
+    "src/backend/core/llm/factory.py": [
+      "docs/research/2026-09-08/02-inference-serving.md"
+    ],
+    "src/backend/core/llm/llama_cpp_provider.py": [
+      "docs/research/2026-09-08/02-inference-serving.md"
+    ],
+    "src/backend/core/llm/ollama_provider.py": [
+      "docs/research/2026-09-08/02-inference-serving.md"
+    ],
+    "src/backend/modules/agent/cache.py": [
+      "docs/research/2026-09-08/02-inference-serving.md"
+    ],
+    "src/backend/modules/agent/guardrails/classifier.py": [
+      "docs/research/2026-09-08/02-inference-serving.md"
+    ],
+    "src/backend/modules/agent/guardrails/groundedness.py": [
+      "docs/research/2026-09-08/02-inference-serving.md"
+    ],
+    "src/backend/modules/agent/nodes/draft.py": [
+      "docs/research/2026-09-08/02-inference-serving.md"
+    ],
+    "src/backend/modules/agent/nodes/plan.py": [
+      "docs/research/2026-09-08/02-inference-serving.md"
+    ],
+    "src/backend/modules/agent/nodes/reflect.py": [
+      "docs/research/2026-09-08/02-inference-serving.md"
+    ],
+    "src/backend/modules/agent/state.py": [
+      "docs/research/2026-09-08/02-inference-serving.md"
+    ],
+    "src/backend/modules/agent/tools/base.py": [
+      "docs/research/2026-09-08/02-inference-serving.md"
+    ],
+    "src/backend/modules/agent/tools/registry.py": [
+      "docs/research/2026-09-08/02-inference-serving.md"
+    ],
     "src/backend/modules/export.py": [
       "docs/plans/2026-05-15-cursor-lab-workflow-plan.md"
     ],
     "src/backend/modules/interpret.py": [
       "docs/plans/2026-05-15-cursor-lab-workflow-plan.md"
     ],
+    "src/backend/modules/model_selector.py": [
+      "docs/research/2026-09-08/02-inference-serving.md"
+    ],
     "src/backend/modules/rag.py": [
-      "docs/plans/2026-05-15-cursor-lab-workflow-plan.md"
+      "docs/plans/2026-05-15-cursor-lab-workflow-plan.md",
+      "docs/research/2026-09-08/02-inference-serving.md"
     ],
     "src/frontend/README.md": [
       "docs/roles/frontend.md"
@@ -1029,10 +1164,22 @@
       "docs/agentic/harness.md",
       "docs/agentic/evals.md",
       "feature_list.json",
+      "docs/research/2026-09-08/PLAN.md",
+      "docs/research/2026-09-08/00-brief.md",
       "docs/compliance/ai-safety.md",
       "docs/agentic/progress.md",
       "docs/compliance/README.md",
-      "docs/agentic/mcp-tools.md"
+      "docs/agentic/mcp-tools.md",
+      "docs/research/2026-09-08/01-codebase-audit.md",
+      "docs/research/2026-09-08/02-inference-serving.md",
+      "docs/research/2026-09-08/03-agentic-loops.md",
+      "docs/research/2026-09-08/04-mcp-interop.md",
+      "docs/research/2026-09-08/05-models-voice.md",
+      "docs/research/2026-09-08/06-competitive-landscape.md",
+      "docs/research/2026-09-08/07-data-control.md",
+      "docs/research/2026-09-08/08-frontend.md",
+      "docs/research/2026-09-08/09-roadmap.md",
+      "docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md"
     ],
     "docs/agile/GROUNDING.md": [
       "docs/archive/agile/EXPLORATION_SUMMARY.md",
@@ -1361,6 +1508,10 @@
       "feature_list.json",
       "docs/agentic/harness.md"
     ],
+    "docs/plans/2026-09-10-implementation-roadmap.md": [
+      "docs/research/2026-09-08/13-consultation.md",
+      "docs/research/2026-09-08/09-roadmap.md"
+    ],
     "docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md": [
       "audit/2026-09-25/plans/04-doc-drift-sweep.md",
       "docs/capstone-report/implementation-program.md",
@@ -1519,6 +1670,91 @@
     ],
     "docs/prd/PRD_agent_overhaul.md": [
       "docs/agile/RELEASE_CHECKLIST.md"
+    ],
+    "docs/research/2026-09-08/00-brief.md": [
+      "docs/research/2026-09-08/STATUS.md"
+    ],
+    "docs/research/2026-09-08/01-codebase-audit.md": [
+      "docs/research/2026-09-08/STATUS.md"
+    ],
+    "docs/research/2026-09-08/02-inference-serving.md": [
+      "docs/research/2026-09-08/STATUS.md",
+      "src/backend/modules/agent/nodes/plan.py",
+      "src/backend/modules/agent/guardrails/classifier.py",
+      "src/backend/modules/agent/guardrails/groundedness.py",
+      "src/backend/core/llm/factory.py",
+      "src/backend/modules/model_selector.py",
+      "src/backend/core/llm/llama_cpp_provider.py",
+      "src/backend/core/llm/ollama_provider.py",
+      "src/backend/modules/agent/tools/base.py",
+      "src/backend/modules/agent/tools/registry.py",
+      "src/backend/modules/rag.py",
+      "src/backend/modules/agent/cache.py",
+      "src/backend/modules/agent/state.py",
+      "src/backend/modules/agent/nodes/reflect.py",
+      "src/backend/modules/agent/nodes/draft.py",
+      "src/backend/core/config.py"
+    ],
+    "docs/research/2026-09-08/03-agentic-loops.md": [
+      "docs/research/2026-09-08/STATUS.md",
+      "docs/research/2026-09-08/00-brief.md"
+    ],
+    "docs/research/2026-09-08/04-mcp-interop.md": [
+      "docs/research/2026-09-08/00-brief.md"
+    ],
+    "docs/research/2026-09-08/05-models-voice.md": [
+      "docs/research/2026-09-08/STATUS.md"
+    ],
+    "docs/research/2026-09-08/07-data-control.md": [
+      "docs/research/2026-09-08/STATUS.md",
+      "docs/research/2026-09-08/00-brief.md"
+    ],
+    "docs/research/2026-09-08/08-frontend.md": [
+      "docs/research/2026-09-08/00-brief.md"
+    ],
+    "docs/research/2026-09-08/09-roadmap.md": [
+      "docs/research/2026-09-08/00-brief.md",
+      "docs/research/2026-09-08/PLAN.md",
+      "docs/research/2026-09-08/STATUS.md",
+      "docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md"
+    ],
+    "docs/research/2026-09-08/11-harness-engineering.md": [
+      "docs/research/2026-09-08/STATUS.md"
+    ],
+    "docs/research/2026-09-08/13-consultation.md": [
+      "docs/research/2026-09-08/09-roadmap.md",
+      "docs/research/2026-09-08/STATUS.md"
+    ],
+    "docs/research/2026-09-08/CONSULT-PROMPT.md": [
+      "docs/research/2026-09-08/GOAL-PROMPT.md",
+      "docs/research/2026-09-08/INDUSTRY-PROMPT.md"
+    ],
+    "docs/research/2026-09-08/GOAL-PROMPT.md": [
+      "docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md"
+    ],
+    "docs/research/2026-09-08/INDUSTRY-PROMPT.md": [
+      "docs/research/2026-09-08/GOAL-PROMPT.md",
+      "docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md"
+    ],
+    "docs/research/2026-09-08/PLAN.md": [
+      "docs/research/2026-09-08/00-brief.md",
+      "docs/agentic/harness.md",
+      "docs/agentic/mcp-tools.md",
+      "CLAUDE.md",
+      "docs/agentic/recurring-failures.md"
+    ],
+    "docs/research/2026-09-08/STATUS.md": [
+      "docs/research/2026-09-08/00-brief.md",
+      "docs/agentic/recurring-failures.md",
+      "docs/research/2026-09-08/13-consultation.md",
+      "docs/plans/2026-09-10-implementation-roadmap.md",
+      "docs/research/2026-09-08/09-roadmap.md",
+      "docs/research/2026-09-08/CONSULT-PROMPT.md",
+      "docs/research/2026-09-08/GOAL-PROMPT.md",
+      "docs/research/2026-09-08/INDUSTRY-PROMPT.md",
+      "docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md",
+      "docs/research/2026-09-08/10-demonstration-artifact.md",
+      "docs/research/2026-09-08/11-harness-engineering.md"
     ],
     "docs/roles/00_roles_index.md": [
       "docs/architecture/README.md",
