@@ -122,3 +122,9 @@ Pending on resume:
 - CI on `36b2ff2`: Backend, Frontend, Security, Docs Lint, Agent Eval = success; E2E Smoke failed with `OSError: [Errno 28] No space left on device` during pip install (CI-DISK, already recorded). CI on `9b9958c` / `77aaf20` in progress at time of writing.
 - Owner question "parallel orchestrators ahead of prerequisites" not answered (tool call rejected, owner said "continue") → process stays serial per orchestration.md §2.
 - RESUME POINT: L1 starts S-CACHE on `77aaf20` (S02 on main). Then PR #2 (branch A). L0 verifies each PR in `../hc-l0-verify`.
+- PR #23 (S-CACHE, head `3c53510`, base `77aaf20`) opened by L1. L1: START 1288 (`1288 passed`, FAILED empty) → END 1292 (`1292 passed, 52 warnings in 117.50s`, FAILED empty); slots 1290 @ `14df9e7`, 1292 @ `7435def`; RED shown for 4 new tests; code-reviewer APPROVE (2 MINOR fixed), security-reviewer APPROVE, Codex "No material findings".
+- L0 VERIFIED PR #23 in `../hc-l0-verify` @ `3c53510`: diff = exactly the S02 file table (10 files); `1292 tests collected`; 4 touched test files `18 passed`; break-it (delete `profile_id=profile_id,` at `api/assistant.py:697` only) → `FAILED test_hc_cache_iso_001_two_profiles_never_share_cached_answer` (via ValidationError → legacy fallback), restored; tree + *.db clean.
+- L0 note: my first break-it sed hit the wrong `profile_id=` line (chat_sessions NOT NULL) — discarded, redone on line 697 only.
+- `gh` here has no `--json` on `gh pr checks`; monitors use tab output.
+- AGENT-PASS-LINE extended to `CLAUDE.md:31`.
+- RESUME POINT: PR #23 CI → hand to owner. Then L1 builds P1 PR #2 (branch A).
