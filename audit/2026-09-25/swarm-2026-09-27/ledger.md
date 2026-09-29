@@ -131,3 +131,4 @@ Pending on resume:
 - Wave 1 L1 #1 handed back (report `audit/2026-09-25/waves/wave-1.md`, committed by L0). PR #23 all 5 required checks green; E2E Smoke = CI-DISK (job 109523705510). L1 facts: eval gate rc=0 on Linux/Py 3.11 (GATE-14 hang did not reproduce there); system python3 3.12 lacks deps → use the venv.
 - New owner items registered: MODEL-PIN, AUDIT-KEYS-DROPPED, CACHE-HIT-AUDIT (plus SECGATE-SHAPE also ignores bandit `errors[]` / pip-audit `skip_reason`).
 - RESUME POINT: owner merges PR #23 → L1 #2 builds P1 PR #2 per wave-1.md RESUME POINT (worktree ../hc-p1-a, branch merge/asclexis-repo-audit-349pjq).
+- OWNER merged PR #23 (S-CACHE) 2026-09-29T17:58:47Z → main `b50a7da`. Cross-profile answer-cache leak closed on main. L1 #2 told to start P1 PR #2 on `b50a7da`.
