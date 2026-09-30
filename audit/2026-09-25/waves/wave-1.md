@@ -146,3 +146,117 @@ Not started (needs #23 merged). Preview only, read-only: `git merge-tree --write
 3. Resolve the files per plan 01 Task 3 plus banner 6(b). Apply the P1-DRIFT reword of `GET /profiles/` at recurring-failures.md:33. Keep the S-CACHE §1 entry.
 4. Add the P1-CAREQ-HTTP `route_client` DELETE test. Measure collected, then write it into both slots in the merge commit. Expected is about 1292 + 3 + 1, but only the measured count goes in.
 5. Run Task 6 without `-k`, then the reviews, then Codex, then open PR #2.
+
+---
+
+## Phase 3 — P1 PR #2 (branch A), L1 run 2026-09-29
+
+**Status:** PR #24 is OPEN at head `d116931`. The 5 required checks pass. E2E Smoke fails on CI-DISK. I polled for 3 h (11:42 → 14:52) and it was **not merged**, so Task 7 and Task 8 Steps 1-4 have **not run**.
+
+| Item | Value |
+|---|---|
+| PR | https://github.com/BrooklynD23/HealthCentral/pull/24 |
+| Branch / head | `merge/asclexis-repo-audit-349pjq` @ `d116931` (from A `692fdf3` + `git merge --no-commit origin/main`) |
+| Base | `origin/main` @ `b50a7da` (= `77aaf20` + #23 merge; #23 merged 17:58:47Z) |
+| Worktree | `/mnt/c/Users/DangT/Documents/GitHub/hc-p1-a` (clean) |
+| Plan | `audit/2026-09-25/plans/01-merge-branches.md`: Tasks 3-6, banner items 1-6 |
+| Gates used | Merge-as-is (§21 Q3); P1-DRIFT; SLOT-RULE; P1-SLOTS; P1-CAREQ-HTTP; D9-SRC |
+| Collected | main START **1292** → resolved merge **1295** → END **1296** (delta +4 = CAREQ-001..003 + 004) |
+
+### Pre-checks
+```
+gh pr view 23 --json state                  -> MERGED (poll 10:43 → 11:02)
+git rev-parse origin/main                   -> b50a7da6ee98a1df4d83b4e9fdb83a0296e16e96
+merge-base --is-ancestor 3c53510|14f7812|9b9958c origin/main -> all on main
+origin/claude/asclexis-repo-audit-349pjq    -> 692fdf3; merge-base with main 40f590e
+gh auth status                              -> BrooklynD23, scopes repo, workflow
+../hc-p1-a, branch merge/asclexis-*         -> none existed beforehand (nothing stale)
+git merge --no-commit origin/main           -> CONFLICT: AGENT.md, CLAUDE.md, docs/INDEX.md, docs/_link_graph.json, docs/agentic/recurring-failures.md; SettingsPage.tsx auto-merged
+```
+
+### START (main b50a7da; detached scratch worktree, since removed)
+| Check | Output |
+|---|---|
+| `pytest tests/ --collect-only -q` | `1292 tests collected in 2.84s` rc=0 |
+| `pytest tests/ -p no:cacheprovider -q -rf` | `1292 passed, 65 warnings in 76.17s` rc=0; FAILED list empty |
+| `git status --short`; `find -name "*.db" -newer CLAUDE.md` | both empty |
+
+### Resolution (merge commit `f5750b9`)
+1. `CLAUDE.md` / `AGENT.md`: took `--theirs` (main). Slots 1292 → **1295**, measured on the resolved tree before the commit. Pass sentences unchanged (AGENT-PASS-LINE).
+2. `recurring-failures.md`: union.
+   - Mode 1 recheck = main's S-CACHE seed sentence + A's mock sentence.
+   - Mode 8 = A's INGEST-FHIR "third instance" + main's memory-sanitize near-miss, with the rechecks combined.
+   - A's §9 kept.
+   - P1-DRIFT: `(`GET /profiles/`)` → `(the list route, `GET /profiles`)`.
+   - Paragraph check: every paragraph of main and A is present verbatim except the 3 intentionally combined or reworded ones.
+3. `INDEX.md` / `_link_graph.json`: `--theirs`, then `generate_docs_index.py` (1305 lines) + `docs_lint.py --link-graph`; `--check` → fresh.
+4. `SettingsPage.tsx`: `RecoveryCodeCard` import :31, mount :884; `TierCapabilities` import :33, mount :533.
+5. `requirements.txt:27` `sqlalchemy[asyncio]>=2.0.25,<2.1`; `:72` `llama-cpp-python==0.3.35`.
+
+### Commits
+| sha | subject | slots |
+|---|---|---|
+| `f5750b9` | Merge origin/main into claude/asclexis-repo-audit-349pjq | 1295 |
+| `91fccd0` | test(documents): prove CARE-QUOTE-001 over HTTP with a route_client DELETE | 1296 |
+| `d116931` | test(documents): assert HC-CAREQ-004 audit row is committed (review loop 1) | — |
+
+### HC-CAREQ-004 (implementer sonnet; RED before GREEN)
+- Loop 0, mutation "CARE-QUOTE-001 block removed" → `AssertionError: assert '<doc-id>' is None` → restored → `1 passed`.
+- Loop 1, mutation "`master_db.commit()` removed" → `expected exactly one master DB commit, got []` → restored → PASS. `api/documents.py` ends unchanged.
+- Reviewer mutations at `d116931`, all correct:
+  - These go red: M1 (no CARE-QUOTE block), M2 (no audit call), M3 (no commit), M5 (`Depends(get_db)`), M6 (commit moved before the audit add).
+  - These stay green, as they should: M4 (`synchronize_session=False`), M7 (filename scrubbed by `_scrub_details`).
+
+### END measured acceptance (L1 ran in hc-p1-a at d116931; pipefail)
+| Check | Output |
+|---|---|
+| `pytest tests/ --collect-only -q` | `1296 tests collected in 12.70s` rc=0 |
+| `pytest tests/ -p no:cacheprovider -q -rf` | `1296 passed, 46 warnings in 116.23s (0:01:56)` rc=0; FAILED list empty (⊆ START empty) |
+| `python -c "from main import app"` | rc=0 |
+| `test_documents_api.py -k "CAREQ or ENT_03"` | `6 passed, 9 deselected` |
+| `test_security_gate.py test_memory_audit.py test_medication_correlations.py` (no `-k`) | `26 passed` |
+| security_gate: missing / malformed / clean | `ERROR: Could not parse bandit report …` exit=2 / exit=2 / `Security gate: PASS …` exit=0; `no report files modified` |
+| `timeout 600 venv agent_eval_gate.py` (at 91fccd0; only the test file changed after) | `All 74 golden cases passed.` / `Agent eval gate: PASS` rc=0 |
+| docs_lint / index --check / feature_list / hygiene / drift (no pipes) | 0 / 0 / 0 / 0 / **0** (`Harness drift check passed.`) |
+| Frontend on Windows: `npm ci; npx tsc --noEmit; npx vitest run` | rc 0 / 0 / 0; `Test Files 31 passed (31)`, `Tests 179 passed (179)` |
+| `git status --short`; `find $W -name "*.db" -newer $W/CLAUDE.md` | both empty after every run |
+| `gh pr checks 24` at open | 5 pending |
+| `gh pr checks 24` at 14:52 | Agent Eval Gate pass 9m25s; Backend Tests pass 10m16s; Documentation Lint pass 6s; Frontend Tests pass 1m23s; Security Scan pass 8m51s; E2E Smoke fail 9m6s: `[Errno 28] No space left on device` in "Install backend dependencies" (CI-DISK, job 109566187890) |
+
+### Reviews
+| Reviewer | Verdict | Notes |
+|---|---|---|
+| code-reviewer (opus) | APPROVE (loop 1) | Same 21 files as a plain A+main merge; only the 5 conflicted files differ from merge-tree; union lossless; SLOT-RULE met |
+| security-reviewer (opus) | CHANGES, 1 MAJOR (doc, out of scope) | CARE-QUOTE UPDATE is scoped to the profile DB and to this document; audit kept; recovery code is state-only, no storage/URL/log writes |
+| Codex adversarial-review | needs-attention, 2 medium | (1) CAREQ-004 audit commit not proven → **fixed** `d116931`; (2) recovery-code mutation cache → flagged |
+
+### Open findings (not fixed; outside P1 file scope; all flagged in the PR body)
+**Needs an owner decision**
+1. **[MAJOR] `docs/compliance/data-privacy.md:185`** (A text) says "Observations and chunks are removed with it (ORM cascade)".
+   - Cause: `Observation.interpretation` has no cascade (`models/observation.py:106-108`), and `lab_interpretations.observation_id` is NOT NULL (`models/interpretation.py:50-55`). Deleting a document with an interpreted observation therefore raises an IntegrityError / 500.
+   - Effect: `doc_path.unlink()` (`api/documents.py:1874-1875`) runs before the commit. The file is destroyed, but the row, the entity quotes and the care-task quote survive, and no audit row is written. The reviewer reproduced this; L1 confirmed the model and column definitions.
+   - This bug predates the branch. `docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md:59` has the same wrong claim.
+   - Needs: a doc gate, plus a ticket for the cascade fix and for moving the unlink after the commit.
+2. AGENT-PASS-LINE: `CLAUDE.md:31` "all 1288 pass" and `AGENT.md:76` "1269 pass in CI, 1268 without", next to 1296 collected.
+3. `CLAUDE.md:50` "Eight failure modes", but recurring-failures.md now has 9 sections. Needs a governance-text gate.
+4. `RecoveryCodeCard.tsx:48-52` + `services/profiles.ts:264-273`: TanStack mutation cache holds `{profileId, password}` and `recovery_code` in memory until gcTime (5 min). No persister exists. The component comment says otherwise. Fix: `gcTime: 0` or `reset()`.
+
+**Follow-ups (MINOR)**
+1. `MedicationDetail.tsx:366`: false "No lab results" while loading or on error.
+2. `RecoveryCodeCard.tsx:43`: the replace warning is hidden while `useProfiles` loads. Also, a wrong-password 401 logs the user out (`services/api.ts:66-68`).
+3. `types.ts:614`: `CorrelationContext` is dead.
+4. `e2e/recovery-code.spec.ts:35-39`: no storage assertion.
+5. The data-privacy "Known gap" paragraph leaves out FTS `search_records`, the page-image cache (300 s) and `chat_turns`.
+
+### Post-merge (Task 7 + Task 8 Steps 1-4)
+**NOT RUN.** PR #24 was still OPEN when the 3 h poll ended (last check 14:52:58, `{"mergedAt":null,"state":"OPEN"}`). `../hc-p1-post` was not created.
+
+**RESUME POINT (next L1):**
+1. `gh pr view 24 --json state` → MERGED, then `git fetch origin`.
+2. `git worktree add --detach ../hc-p1-post origin/main`.
+3. Run plan 01 Task 7 Steps 1-3 and Task 8 Steps 1-4 there:
+   - Use the venv and `HF_HUB_OFFLINE=1`.
+   - Expect `1296 tests collected` and both slots at 1296.
+   - Expect poison proofs 2/2/0 and drift 0.
+   - Frontend: `RecoveryCodeCard.test.tsx` on Windows.
+4. Task 8 Step 5 is for L0.

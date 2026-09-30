@@ -1,6 +1,6 @@
 # Owner Decisions — 2026-09-27
 
-**Last Updated:** 2026-09-29 (P1-PR1-MERGE, S-CACHE, MEM-AUDIT-CAT, P1-SLOTS, P1-CAREQ-HTTP answered in chat; 2026-09-28: six gate answers from the owner in chat: P0-B2, D9-SRC, P1-DRIFT, SLOT-RULE, P7-ROUTE, SQL-ECHO; earlier: Consequence #4 size measured, EMB-REV named)
+**Last Updated:** 2026-09-29 (P1-PR1-MERGE, S-CACHE, MEM-AUDIT-CAT, P1-SLOTS, P1-CAREQ-HTTP, W6-Q4, BG-REACH, OG-2, OG-3 answered in chat; 2026-09-28: six gate answers from the owner in chat: P0-B2, D9-SRC, P1-DRIFT, SLOT-RULE, P7-ROUTE, SQL-ECHO; earlier: Consequence #4 size measured, EMB-REV named)
 **Recorded by:** Claude orchestrator. Each answer was selected by the repository owner in the Claude Code chat on 2026-09-27, in reply to multiple-choice questions. Each option carried the description quoted below.
 **Scope rule:** each approval licenses exactly the option text shown. Anything wider is still owner-gated. This record answers D1–D13 in [implementation-program.md](implementation-program.md#owner-decision-intake-p0-c), P0-B, two follow-ups, and the D8-delivery follow-up (answered later on 2026-09-27).
 
@@ -36,6 +36,10 @@
 | MEM-AUDIT-CAT | Branch B memory audit puts user-typed `category` into master-DB audit details (answered 2026-09-29) | **Drop category** | "In S-CACHE's PR: remove `category` from the memory audit details (keep value_length); add a test that a PHI-like category ('HIV') never reaches the audit row. api/memory.py only; core/audit.py untouched." | yes |
 | P1-SLOTS | Collected-count slots on the P1 PR #1 merge branch (answered 2026-09-29) | **Yes, slots too** | "One extra docs commit on the PR #1 merge branch sets the CLAUDE.md and AGENT.md collected slots to the measured B+main count. PR #2 does the same in its merge commit (no MEASURED_PENDING follow-up)." | yes |
 | P1-CAREQ-HTTP | HTTP test for DELETE /documents in P1 PR #2 (answered 2026-09-29) | **Add in PR #2** | "One new route_client test on the PR #2 merge branch: DELETE the document over HTTP, assert 2xx, care task kept with provenance+quote nulled, audit row written. Count slots updated for +1." | yes |
+| W6-Q4 | W-6 Q4: ask-first-adjacent edits (answered 2026-09-29) | **Covered** | "Approve the edit to the ask-first-adjacent `core/external_runner.py` (§3.8), plus the one-test change in `tests/test_redaction.py`, and the response-model field in `api/model_settings.py:208-213` plus its one import (`:22-24`), all outside the encryption handler (PUT `save_external_api_settings` `:719-757`, `encryption_manager.encrypt(` at `:745`, B@7b2ff1f), as covered by D12 — plan default: the edits listed above are approved as covered by D12. W-6 can start." | yes |
+| BG-REACH | W-6 Q1: break-glass reach (answered 2026-09-29) | **Keep current meaning** | "Plan default: break-glass works in any app_env, now fail-closed on an audit row. (`EXTERNAL_API_REDACTION_BREAK_GLASS=true` lets the configured weaker/no redaction apply, in any `app_env` (as today).)" | yes |
+| OG-2 | W-11a Task 3 encryption-area test (answered 2026-09-29) | **Approve** | "Task 3 runs in W-11a PR-2 (Wave 2): tests only, no encryption code touched. (Writing, running and committing `src/backend/tests/security/test_vault_ciphertext.py`, HC-KEYCT, on-disk ciphertext with encryption required.)" | yes |
+| OG-3 | W-1 Task 9 (answered 2026-09-29) | **Approve Task 9** | "The drift check becomes a collected test (+1) and gates CI backend-tests. (Move HC-AGENTS-008 into the collected backend suite, so CI `backend-tests` fails when harness.md stops naming an agent by full path or when a `docs/agentic` path does not resolve. No `ci.yml` step is added.)" | yes |
 
 ## Earlier owner records still in force
 
