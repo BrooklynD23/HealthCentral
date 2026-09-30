@@ -145,3 +145,4 @@ Pending on resume:
 - PR #25 (CI-DISK, head `1abb4ef`, base `b50a7da`) opened by L1 #3. L0 VERIFIED: diff = ci.yml (+3 CPU torch lines at backend/eval/e2e jobs) + plan CI01 + 2 generated index files; pip-audit job (`ci.yml:116-117` @1abb4ef) unchanged. `gh pr checks 25`: all 6 pass incl. **E2E Smoke** (first green since ≥2026-09-07). E2E job 110113890519: `Running 28 tests using 1 worker` → `3 skipped`, `25 passed (1.2m)`; 0 lines mentioning nvidia; no Errno 28.
 - Reviewer LOW (new owner item TORCH-PIN): CI torch is unpinned and nothing asserts `+cpu`; a future torch without a CPU wheel for the resolved version would silently fall back to CUDA from PyPI.
 - RESUME POINT: owner merges #25 → L1 #3 merges main into #24, re-verifies, E2E runs on #24 → owner merges #24.
+- OWNER merged PR #25 (CI-DISK) 2026-09-30T22:14:10Z → main `19f85b0`. L1 #3 told to start Phase B (refresh #24).
