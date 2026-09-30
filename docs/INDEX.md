@@ -544,7 +544,7 @@ Links to: `audit/2026-09-25/handoff-2026-09-28-execution-orchestrator.md`, `audi
 
 1. **Governance edits are now approved:** amend `CLAUDE.md` (D3: CSV/JSON as named exceptions; D12: the external runner as a named ModelRunner exception) and `docs/compliance/data-privacy.md` (D3,…
 
-Links to: `docs/capstone-report/README.md`, `docs/capstone-report/implementation-program.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`
+Links to: `docs/capstone-report/README.md`, `docs/capstone-report/implementation-program.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md`
 
 ## `docs/capstone-report/report-outline.md`
 
@@ -925,6 +925,14 @@ Links to: `audit/2026-09-25/asclexis-showcase.html`, `docs/capstone-report/00-or
 1. The agent answer cache can never serve one profile's answer to another profile. 2. The user-typed memory `category` never reaches an audit row in the unencrypted master DB.
 
 Links to: `audit/2026-09-29/reviews/P01-r1-codex.txt`, `audit/2026-09-29/reviews/P01-r1-response.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`
+
+## `docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md`
+
+**CI-DISK — CPU-only torch in CI test jobs**
+
+E2E Smoke fails on every run since at least 2026-09-07 with `ERROR: Could not install packages due to an OSError: [Errno 28] No space left on device` during `pip install -r…
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`
 
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 

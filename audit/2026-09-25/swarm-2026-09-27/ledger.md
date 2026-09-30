@@ -137,3 +137,8 @@ Pending on resume:
 - L0 VERIFIED PR #24 in `../hc-l0-verify` @ `d116931`: `1296 tests collected`; CLAUDE.md:30 + AGENT.md:76 = 1296; pin kept; `harness_drift_check.py` exit 0; `-k CAREQ` → `4 passed, 11 deselected`; tree + *.db clean. Confirmed DOC-DELETE-INTERP by reading `models/observation.py:106-108`, `models/interpretation.py:50-55`, `api/documents.py:1875/1879`.
 - New owner items: DOC-DELETE-INTERP (security + data loss), RECOVERY-CODE-CACHE (security), CLAUDE-FAILURE-COUNT.
 - RESUME POINT: owner merges PR #24 → L1 runs plan 01 Task 7 + Task 8 Steps 1-4 on merged main (`../hc-p1-post`) → L0 Task 8 Step 5 (TASK_LIST session note) + Wave 1 close → Wave 2 (P2, S-1, W-1 incl. Task 9, W-5, W-6, P8, G-C4, W-11a PR-2).
+
+## Wave 1 — CI-DISK fix (2026-09-30)
+- Owner: "Smoke test failed". L0 checked: PR #24 E2E job 109566187890 = `[Errno 28] No space left on device` in pip install; main `b50a7da`, `77aaf20` same. Cause: default PyPI torch 2.14.0 (CUDA) via sentence-transformers → ~15 `nvidia_*_cu13` wheels + triton, after npm ci + Playwright.
+- OWNER (chat, 2026-09-30): CI-DISK-FIX "Fix now, CPU torch" (verbatim in owner-decisions). L0 narrowed to the 3 test jobs (`ci.yml:48,165,200`); pip-audit job `:115` unchanged (a `+cpu` wheel may escape pip-audit; SECGATE-SHAPE). Plan `docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md`.
+- RESUME POINT: L1 opens the CI-DISK PR (branch ci/cpu-torch-ci-disk) → owner merges → L1 merges main into #24's branch, re-verifies, E2E runs for real → owner merges #24 → post-merge checks → Wave 2.
