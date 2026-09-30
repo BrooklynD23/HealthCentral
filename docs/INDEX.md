@@ -926,6 +926,14 @@ Links to: `audit/2026-09-25/asclexis-showcase.html`, `docs/capstone-report/00-or
 
 Links to: `audit/2026-09-29/reviews/P01-r1-codex.txt`, `audit/2026-09-29/reviews/P01-r1-response.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`
 
+## `docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md`
+
+**CI-DISK — CPU-only torch in CI test jobs**
+
+E2E Smoke fails on every run since at least 2026-09-07 with `ERROR: Could not install packages due to an OSError: [Errno 28] No space left on device` during `pip install -r…
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`
+
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
 **Project Structure Setup**
