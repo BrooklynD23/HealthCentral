@@ -146,3 +146,6 @@ Pending on resume:
 - Reviewer LOW (new owner item TORCH-PIN): CI torch is unpinned and nothing asserts `+cpu`; a future torch without a CPU wheel for the resolved version would silently fall back to CUDA from PyPI.
 - RESUME POINT: owner merges #25 → L1 #3 merges main into #24, re-verifies, E2E runs on #24 → owner merges #24.
 - OWNER merged PR #25 (CI-DISK) 2026-09-30T22:14:10Z → main `19f85b0`. L1 #3 told to start Phase B (refresh #24).
+- PR #24 refreshed by L1 #3: head `31574fb` = merge of main `19f85b0`, 0 conflicts, normal push. L1: `1296 tests collected`; `1296 passed, 58 warnings in 283.99s`, FAILED empty; tree + *.db clean; docs gates 0.
+- L0 VERIFIED: `git diff d116931 31574fb` = exactly PR #25's 4 files (ci.yml, plan CI01, 2 index files); CLAUDE.md:30 = 1296; `gh pr checks 24` all 6 pass incl. E2E; E2E job 110129907034 `Running 30 tests` → `3 skipped`, `27 passed (1.8m)` (main: 28 → 25 passed; #24 adds 2 specs, both pass).
+- RESUME POINT: owner merges #24 → L1 #3 runs plan 01 Task 7 + Task 8 Steps 1-4 in ../hc-p1-post → L0 Task 8 Step 5 + Wave 1 close.
