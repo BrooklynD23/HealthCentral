@@ -89,6 +89,10 @@ export function RecoverProfile() {
                   recovery code can only be created while you can still sign in,
                   so there is no way to unlock a profile without its password.
                 </p>
+                <p className="text-sm text-ink-secondary">
+                  If you can still sign in to a profile, create one now under
+                  Settings → Recovery code, before you need it.
+                </p>
                 <Link to="/setup" className="text-sm underline">
                   Back
                 </Link>

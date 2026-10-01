@@ -21,9 +21,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from api.documents import router as documents_router
 from api import documents as documents_api
-from core.auth import Session
-from models import Document
+from core.auth import Session, get_profile_db_session
+from models import CarePlanTask, Document
 from modules.ingest import ImportResult
+from tests.support.routes import route_client
 import modules
 
 
@@ -621,6 +622,218 @@ async def test_HC_ENT_030_delete_document_removes_entities_and_categories(
         select(DocumentCategory).where(DocumentCategory.doc_id == document.id)
     )
     assert remaining_categories.scalars().all() == []
+
+
+def _care_task(
+    doc_id: str,
+    entity_id: str | None = None,
+    *,
+    quote: str = "Repeat CBC in 4 weeks",
+) -> CarePlanTask:
+    return CarePlanTask(
+        id=str(uuid.uuid4()),
+        title="Repeat CBC",
+        status="open",
+        source_document_id=doc_id,
+        source_entity_id=entity_id,
+        source_quote=quote,
+        user_note="ask about the iron result",
+    )
+
+
+@pytest.mark.asyncio
+async def test_HC_CAREQ_001_delete_document_clears_care_task_quote_and_provenance(
+    entity_profile_db, monkeypatch
+):
+    """CARE-QUOTE-001. `source_quote` is verbatim clinician text, held to the
+    same standard as the entity quotes deleted directly above: it must not
+    outlive the document it was taken from.
+
+    The task itself survives — a follow-up the patient still has to do does not
+    stop being real because they deleted the PDF — but its provenance and its
+    verbatim text go with the document."""
+    profile_id = str(uuid.uuid4())
+    document = _pin_cleanup_document(profile_id)
+    entity = _entity_row(document.id, quote="Repeat CBC in 4 weeks")
+    entity_profile_db.add(document)
+    entity_profile_db.add(entity)
+    entity_profile_db.add(_care_task(document.id, entity.id))
+    await entity_profile_db.commit()
+    monkeypatch.setattr(documents_api, "log_document_event", AsyncMock())
+
+    await documents_api.delete_document(
+        document.id,
+        _real_db_session(profile_id),
+        entity_profile_db,
+        AsyncMock(),
+    )
+
+    result = await entity_profile_db.execute(select(CarePlanTask))
+    tasks = result.scalars().all()
+
+    assert len(tasks) == 1, "the follow-up itself must survive the document"
+    task = tasks[0]
+    assert task.source_quote is None, (
+        "verbatim clinician text outlived the deleted document"
+    )
+    assert task.source_document_id is None
+    assert task.source_entity_id is None
+
+
+@pytest.mark.asyncio
+async def test_HC_CAREQ_002_delete_document_preserves_the_rest_of_the_task(
+    entity_profile_db, monkeypatch
+):
+    """The cleanup is surgical: only provenance and the verbatim quote are
+    cleared. Title, status and the user's own note are the patient's data, not
+    the document's, and must be untouched."""
+    profile_id = str(uuid.uuid4())
+    document = _pin_cleanup_document(profile_id)
+    entity_profile_db.add(document)
+    entity_profile_db.add(_care_task(document.id))
+    await entity_profile_db.commit()
+    monkeypatch.setattr(documents_api, "log_document_event", AsyncMock())
+
+    await documents_api.delete_document(
+        document.id,
+        _real_db_session(profile_id),
+        entity_profile_db,
+        AsyncMock(),
+    )
+
+    result = await entity_profile_db.execute(select(CarePlanTask))
+    task = result.scalars().one()
+    assert task.title == "Repeat CBC"
+    assert task.status == "open"
+    assert task.user_note == "ask about the iron result"
+
+
+@pytest.mark.asyncio
+async def test_HC_CAREQ_003_delete_document_leaves_other_documents_tasks_alone(
+    entity_profile_db, monkeypatch
+):
+    """Scoping guard. The clearing UPDATE must key on the document being
+    deleted — a broad `UPDATE care_plan_task SET source_quote=NULL` would pass
+    HC-CAREQ-001 while silently stripping every other document's tasks."""
+    profile_id = str(uuid.uuid4())
+    doomed = _pin_cleanup_document(profile_id)
+    survivor = _pin_cleanup_document(profile_id)
+    entity_profile_db.add(doomed)
+    entity_profile_db.add(survivor)
+    entity_profile_db.add(_care_task(doomed.id))
+    entity_profile_db.add(_care_task(survivor.id, quote="Book eye exam"))
+    await entity_profile_db.commit()
+    monkeypatch.setattr(documents_api, "log_document_event", AsyncMock())
+
+    await documents_api.delete_document(
+        doomed.id,
+        _real_db_session(profile_id),
+        entity_profile_db,
+        AsyncMock(),
+    )
+
+    result = await entity_profile_db.execute(
+        select(CarePlanTask).where(CarePlanTask.source_document_id == survivor.id)
+    )
+    kept = result.scalars().one()
+    assert kept.source_quote == "Book eye exam"
+    assert kept.source_document_id == survivor.id
+
+
+class _CommitTrackingMasterDb(_FakeMasterDb):
+    """`_FakeMasterDb` records adds but not commits, so a route that adds an
+    AuditLog row and then silently skips `await master_db.commit()` is
+    invisible to a plain "was a row added" assertion (review loop 1,
+    mutation M3 survived). Record how many rows existed at each commit call
+    so a test can assert a specific row was actually committed."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.commit_snapshots: list[int] = []
+
+    async def commit(self) -> None:
+        self.commit_snapshots.append(len(self.added))
+
+
+@pytest.mark.asyncio
+async def test_HC_CAREQ_004_delete_document_over_http_clears_care_task_quote(
+    entity_profile_db, monkeypatch, tmp_path
+):
+    """P1-CAREQ-HTTP. HC-CAREQ-001..003 above call `delete_document` directly
+    as a plain function with `log_document_event` monkeypatched out — that
+    cannot see a broken `Depends(...)` and never exercises the real audit
+    write (CLAUDE.md: "a test that calls a route function directly cannot
+    see a broken Depends(...)"). Drive the same DELETE over HTTP through
+    `route_client` with a real in-memory profile DB and a recording master
+    DB, so the FastAPI dependency graph and the CARE-QUOTE-001 audit path
+    both run for real."""
+    # Nothing should be written under the repo or a real data dir: point the
+    # vault path the route touches at pytest's tmp_path.
+    monkeypatch.setattr(
+        type(documents_api.settings), "app_data_path", property(lambda self: tmp_path)
+    )
+
+    profile_id = "profile-a"  # matches route_client's default session profile_id
+    document = _pin_cleanup_document(profile_id)
+    task = _care_task(document.id)
+    entity_profile_db.add(document)
+    entity_profile_db.add(task)
+    await entity_profile_db.commit()
+
+    master = _CommitTrackingMasterDb()
+    with route_client(
+        documents_router, "/documents", profile_id=profile_id, master_db=master
+    ) as client:
+
+        async def _override_profile_db():
+            return entity_profile_db
+
+        client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+        resp = client.delete(f"/documents/{document.id}")
+        assert 200 <= resp.status_code < 300, resp.text
+
+    # entity_profile_db has expire_on_commit=False, so without this the
+    # select below would return the identity-mapped Python object rather
+    # than what the route actually committed to the database.
+    entity_profile_db.expire_all()
+
+    result = await entity_profile_db.execute(select(CarePlanTask))
+    tasks = result.scalars().all()
+    assert len(tasks) == 1, "the follow-up itself must survive the document"
+    kept = tasks[0]
+    assert kept.source_document_id is None
+    assert kept.source_entity_id is None
+    assert kept.source_quote is None, "verbatim clinician text outlived the deleted document"
+    assert kept.title == "Repeat CBC"
+    assert kept.status == "open"
+    assert kept.user_note == "ask about the iron result"
+
+    audit_rows_with_index = [
+        (i, o) for i, o in enumerate(master.added) if type(o).__name__ == "AuditLog"
+    ]
+    assert audit_rows_with_index, "DELETE /documents/{id} over HTTP wrote no AuditLog row"
+    audit_index, row = audit_rows_with_index[0]
+    assert row.event_type == "document.delete"
+    assert row.entity_type == "document"
+    assert row.entity_id == document.id
+    assert row.profile_id == profile_id
+
+    # AUDIT-PHI-001 / core/audit.py log_document_event docstring: "filename
+    # is accepted for call-site compatibility and is never persisted" — the
+    # real filename ("cleanup.pdf", set by _pin_cleanup_document) must not
+    # appear anywhere in the committed row.
+    row_blob = " ".join(str(getattr(row, c.name)) for c in row.__table__.columns)
+    assert document.source not in row_blob, f"filename leaked into audit row: {row_blob}"
+
+    # The route must have committed the master DB, and specifically after
+    # the AuditLog row was added — not merely `.add()`-ed and left pending.
+    assert len(master.commit_snapshots) == 1, (
+        f"expected exactly one master DB commit, got {master.commit_snapshots}"
+    )
+    assert master.commit_snapshots[0] > audit_index, (
+        "AuditLog row was added but the master DB commit that should follow "
+        "it never happened"
+    )
 
 
 @pytest.mark.asyncio

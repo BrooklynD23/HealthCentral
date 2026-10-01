@@ -165,3 +165,56 @@ async def test_hc_mem_audit_006_audit_row_carries_no_memory_value(profile_db):
         )
     finally:
         ctx.__exit__(None, None, None)
+
+
+@pytest.mark.asyncio
+async def test_hc_mem_audit_007_create_category_never_reaches_audit_details(profile_db):
+    """MEM-AUDIT-CAT: the user-typed `category` (free text, MemoryItemCreate,
+    `api/memory.py:55`) must never reach an audit row's details, even a
+    PHI-like value like "HIV" that would otherwise pass the allowlist's
+    `_ENUM_VALUE_RE` shape check (core/audit.py `STRING_DETAIL_KEYS`)."""
+    master = _RecordingMasterDb()
+    ctx, client = _client(master, profile_db)
+    try:
+        resp = client.post(
+            "/memory/", json={"key": "diagnosis", "value": "see chart", "category": "HIV"}
+        )
+        assert resp.status_code == 201, resp.text
+        rows = master.audit_rows()
+        assert rows, "POST /memory/ wrote no AuditLog row"
+        for row in rows:
+            details = getattr(row, "details_json", "") or ""
+            assert "category" not in details, f"category key leaked into audit row: {details}"
+            # Plan Task 4: "HIV" must appear nowhere in the serialized row,
+            # not just in details_json — check every column.
+            row_blob = " ".join(
+                str(getattr(row, c.name)) for c in row.__table__.columns
+            )
+            assert "HIV" not in row_blob, f"category value leaked into audit row: {row_blob}"
+    finally:
+        ctx.__exit__(None, None, None)
+
+
+@pytest.mark.asyncio
+async def test_hc_mem_audit_008_list_category_filter_never_reaches_audit_details(profile_db):
+    """Same as 007, for the `?category=` query filter on GET /memory/
+    (`api/memory.py:165`)."""
+    await _seed_item(profile_db)
+    master = _RecordingMasterDb()
+    ctx, client = _client(master, profile_db)
+    try:
+        resp = client.get("/memory/", params={"category": "HIV"})
+        assert resp.status_code == 200, resp.text
+        rows = master.audit_rows()
+        assert rows, "GET /memory/ wrote no AuditLog row"
+        for row in rows:
+            details = getattr(row, "details_json", "") or ""
+            assert "category" not in details, f"category key leaked into audit row: {details}"
+            # Plan Task 4: "HIV" must appear nowhere in the serialized row,
+            # not just in details_json — check every column.
+            row_blob = " ".join(
+                str(getattr(row, c.name)) for c in row.__table__.columns
+            )
+            assert "HIV" not in row_blob, f"category value leaked into audit row: {row_blob}"
+    finally:
+        ctx.__exit__(None, None, None)

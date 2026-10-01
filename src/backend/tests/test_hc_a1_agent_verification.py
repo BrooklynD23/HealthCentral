@@ -71,10 +71,11 @@ def _client(profile_id, profile_db):
 EMPTY_PROFILE_VERSION = "o:0:|d:0:"  # _profile_version's fingerprint for a profile with no rows
 
 
-def _seed_cache(question: str, terminal: AgentTerminal) -> None:
+def _seed_cache(question: str, terminal: AgentTerminal, profile_id: str) -> None:
     key = CacheKey(
         normalized_question=normalize_question(question),
         profile_version=EMPTY_PROFILE_VERSION,
+        profile_id=profile_id,
     )
     put_cached(key, terminal)
 
@@ -97,7 +98,7 @@ async def test_hc_a1_verify_001_partial_grounding_never_reports_perfect_score(pr
     )
     clear_cache()
     try:
-        _seed_cache(question, terminal)
+        _seed_cache(question, terminal, profile_id)
         ctx, client = _client(profile_id, profile_db)
         try:
             resp = client.post("/assistant/chat", json={"question": question})
@@ -140,7 +141,7 @@ async def test_hc_a1_verify_002_fully_grounded_answer_reports_real_perfect_score
     )
     clear_cache()
     try:
-        _seed_cache(question, terminal)
+        _seed_cache(question, terminal, profile_id)
         ctx, client = _client(profile_id, profile_db)
         try:
             resp = client.post("/assistant/chat", json={"question": question})
@@ -180,7 +181,7 @@ async def test_hc_a1_verify_003_terminal_with_no_counts_disables_verification(pr
 
     clear_cache()
     try:
-        _seed_cache(question, terminal)
+        _seed_cache(question, terminal, profile_id)
         ctx, client = _client(profile_id, profile_db)
         try:
             resp = client.post("/assistant/chat", json={"question": question})
