@@ -110,10 +110,11 @@ The assistant can store facts for later use:
 
 #### Understanding Citations
 
-When the assistant answers your question, it cites its sources:
+When the assistant answers your question, it lists its sources under **Sources**, below the answer, and may mark a sentence with a number such as [1]:
 
-- **[YOUR_RESULTS:N]** — Your own measured lab values from imported documents (latest result, normal range, and trend direction shown under "Report Facts")
-- **[REFERENCE:N]** — General medical knowledge from the reference library, shown under "General Info"
+- **Your Results** (or the result's name) — your own measured lab values from imported documents (latest result, normal range, and trend direction, used under "Report Facts")
+- **Your Document** (or the document's name) — a passage from a document you imported
+- **Reference** (or the reference's name) — general medical knowledge from the reference library, used under "General Info"
 
 This means you can verify answers against your actual data and trusted medical sources.
 

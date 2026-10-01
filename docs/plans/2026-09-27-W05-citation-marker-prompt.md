@@ -864,17 +864,17 @@ Never `git add -A` or `git add .`. Branch `fix/w05-citation-marker-prompt`, one 
 
 | Item | Value |
 |---|---|
-| Interpreter (`--version`) | |
-| `<START>` sha | |
-| START collected / failing node IDs | |
-| START baseline figures in `CLAUDE.md`/`AGENT.md` (line: value) | |
-| `S` → `E` written in commit 1 | |
-| START targeted RAG line | |
-| START agent_eval_gate exit | |
-| HC-CIT RED output (3 lines) | |
-| Break-it 1/2/3 results | |
-| END collected / failing node IDs | |
-| END targeted RAG line | |
-| docs_lint / index --check | |
-| Frontend tsc / vitest (Windows) or UNMEASURED + reason | |
-| Line-number drift vs this plan (if any) | |
+| Interpreter (`--version`) | Python 3.11.16 (`~/venvs/asclexis-311/bin/python`) |
+| `<START>` sha | `8064244` |
+| START collected / failing node IDs | 1296 collected (collect-exit=0); 1296 passed, 0 failed (pytest-exit=0) |
+| START baseline figures in `CLAUDE.md`/`AGENT.md` (line: value) | `CLAUDE.md:30` "1296 backend tests collected", `:35` "differs from 1296"; `AGENT.md:76` "1296 collected" |
+| `S` → `E` written in commit 1 | 1296 -> 1299 |
+| START targeted RAG line | `180 passed, 9 warnings in 167.13s` (pytest-exit=0), 10-file targeted set |
+| START agent_eval_gate exit | 0 (`All 74 golden cases passed`; captured before the rag.py edit, re-confirmed after the fix with an identical PASS, since generation is canned and does not depend on prompt wording) |
+| HC-CIT RED output (3 lines) | `AssertionError: SYSTEM_PROMPT must carry exactly one citation-format instruction, naming [cite:N]; found 4: [...]`; `AssertionError: prompt sent to the model carries 4 citation-format instructions: [...]`; `AssertionError: prompt instructs markers the validator/claim extractor do not parse: ['[REFERENCE:1]', '[YOUR_RESULTS:1]']`. `3 failed`, pytest-exit=1 |
+| Break-it 1/2/3 results | 1/3 (re-add "cite" at `:133`): `3 failed`, pytest-exit=1, `['[YOUR_RESULTS:1]']` not_counted — matched plan. 2/3 (SESSION HISTORY literal at `:672`): **not executed** — the Edit was denied by the harness's security classifier ("Security Weaken"); no workaround attempted per policy; file unmodified (verified via `git diff --stat`). 3/3 (`ClaimExtractor.CITATION_PATTERN` monkeypatch, no file edit): `HC-CIT-001/002 still pass`, `HC-CIT-003 RED as expected: ... ['[cite:1]']`, `breakit-exit=0`, `claim_extractor untouched` — matched plan exactly |
+| END collected / failing node IDs | 1299 collected (collect-exit=0); see Task 3 for full-suite END run |
+| END targeted RAG line | 180 passed (post-fix, pre-commit re-run), pytest-exit=0 |
+| docs_lint / index --check | `Docs lint passed.` (lint-exit=0); `docs/INDEX.md and docs/_link_graph.json are fresh.` (exit=0) |
+| Frontend tsc / vitest (Windows) or UNMEASURED + reason | UNMEASURED — this is a WSL session with no frontend tooling invoked; no frontend files changed by this plan |
+| Line-number drift vs this plan (if any) | None. `rag.py:123,126,128,133,134,819` and `claim_extractor.py:92` matched `main@40f590e` exactly. `rag.py:672` SESSION HISTORY literal matched exactly. Doc line numbers matched plan predictions exactly (`ai-safety.md:20`, `faq.md:106-112`, `workflows.md:111-118`, `01_lab...:195-216`) |
