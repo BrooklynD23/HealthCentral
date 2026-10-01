@@ -54,6 +54,14 @@ class SchedulerState(str, Enum):
     PAUSED = "paused"
 
 
+class ProfileVaultLockedError(RuntimeError):
+    """A registered session factory found the profile vault locked.
+
+    Routine, not an error: locking is how a session ends. The scheduler
+    records it as `skipped_locked` rather than a failure.
+    """
+
+
 @dataclass
 class ScheduleCheck:
     """Result of checking a schedule for notification need."""
@@ -542,6 +550,30 @@ class NotificationScheduler:
         total_minutes = base.hour * 60 + base.minute + offset_minutes
         total_minutes = max(0, min(1439, total_minutes))  # Clamp to 00:00-23:59
         return time(hour=total_minutes // 60, minute=total_minutes % 60)
+
+
+def profile_session_factory(
+    profile_id: str,
+) -> Callable[[], Awaitable[AsyncSession]]:
+    """Build a session factory bound to the profile's live vault connection.
+
+    The connection is resolved per call, not captured at registration: a
+    vault locked between registration and the next pass raises
+    ProfileVaultLockedError, which the scheduler records honestly instead of
+    serving stale access.
+    """
+
+    async def _factory() -> AsyncSession:
+        from core.profile_database import get_profile_db_manager
+
+        connection = get_profile_db_manager().get_connection(profile_id)
+        if connection is None:
+            raise ProfileVaultLockedError(
+                f"profile {profile_id} vault is locked"
+            )
+        return connection.get_session()
+
+    return _factory
 
 
 # Global instance

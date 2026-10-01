@@ -381,7 +381,6 @@ async def open_profile_database_on_login(
     try:
         connection = await db_manager.open_profile_database(profile_id, password)
         logger.info(f"Opened profile database for {profile_id}")
-        return connection
     except KeySealingError as e:
         logger.error(f"Failed to unseal encryption key for {profile_id}: {e}")
         raise HTTPException(
@@ -401,6 +400,26 @@ async def open_profile_database_on_login(
             detail="Failed to open profile database",
         )
 
+    # Medication reminders can only be served while this vault is open —
+    # register a session factory so the notification scheduler sees the
+    # profile. Fail-soft: a broken scheduler must never break login.
+    try:
+        from modules.notification_scheduler import (
+            get_notification_scheduler,
+            profile_session_factory,
+        )
+
+        get_notification_scheduler().register_profile_session(
+            profile_id, profile_session_factory(profile_id)
+        )
+    except Exception:
+        logger.warning(
+            "Could not register profile with notification scheduler",
+            exc_info=True,
+        )
+
+    return connection
+
 
 async def close_profile_database_on_logout(profile_id: str) -> None:
     """
@@ -414,6 +433,19 @@ async def close_profile_database_on_logout(profile_id: str) -> None:
     Args:
         profile_id: The profile's UUID
     """
+    # Unregister first: the scheduler stops serving this profile before the
+    # connection and key disappear. Fail-soft — a broken scheduler must never
+    # block logout/lock.
+    try:
+        from modules.notification_scheduler import get_notification_scheduler
+
+        get_notification_scheduler().unregister_profile_session(profile_id)
+    except Exception:
+        logger.debug(
+            "Could not unregister profile from notification scheduler",
+            exc_info=True,
+        )
+
     db_manager = get_profile_db_manager()
     await db_manager.close_profile_database(profile_id)
     logger.info(f"Closed profile database for {profile_id}")
