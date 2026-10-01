@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -627,6 +627,14 @@ describe('ExplainAssistant', () => {
       renderWithProviders(<ExplainAssistant />);
 
       await screen.findByText('Local model');
+      // 'Local model' also renders while the external-api query is pending, so
+      // prove that query was issued and its result flushed into a render first.
+      await waitFor(() => {
+        expect(vi.mocked(api.apiGet)).toHaveBeenCalledWith('/settings/model/external-api');
+      });
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 0));
+      });
       expect(screen.queryByText(/privacy protection override is on/i)).toBeNull();
     });
   });
