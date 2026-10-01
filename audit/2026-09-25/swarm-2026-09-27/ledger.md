@@ -157,4 +157,4 @@ Pending on resume:
 - Main CI `19f85b0`: all 6 jobs success (first fully green main incl. E2E Smoke). `ee7c358` in progress at handoff.
 - NOT YET DONE for Wave 1: plan 01 Task 7 Steps 1-3 + Task 8 Steps 1-4 on merged main (expect 1296 collected in both slots, poison 2/2/0, drift 0); Task 8 Step 5 TASK_LIST note; specs-compliance-matrix recount + rows touched by P1/S-CACHE/CI-DISK; program state labels; Delivery Map artifact republish.
 - Owner direction 2026-10-01: next orchestrator updates documentation and runs Wave 2 phases in parallel (orchestration.md §2: phases inside one wave may run at once; merges stay serial on shared files and count slots).
-- RESUME POINT: see the handoff message of 2026-10-01 (copied into `audit/2026-09-25/handoff-2026-10-01-wave2.md` by the next orchestrator if absent). Start: merge this docs PR → post-merge P1 checks → Wave 2 L1s.
+- RESUME POINT: `audit/2026-09-25/handoff-2026-10-01-wave2.md` (paste its §1 into a fresh session). Start: merge this docs PR → post-merge P1 checks → Wave 2 L1s.
