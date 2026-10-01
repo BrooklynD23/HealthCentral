@@ -65,6 +65,7 @@ def _assert_vault_ciphertext(vault_dir: Path, canary: str) -> None:
 
 @pytest.fixture
 def vault_dir(tmp_path, monkeypatch) -> Path:
+    monkeypatch.setattr(aiosqlite.core, "sqlite3", aiosqlite.core.sqlite3)  # restore at teardown: open_profile_database patches it globally
     monkeypatch.setattr(type(settings), "app_data_path", property(lambda self: tmp_path))
     monkeypatch.setattr(settings, "database_encryption_required", True)
     vault = tmp_path / "vaults" / PROFILE
