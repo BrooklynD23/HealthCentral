@@ -92,6 +92,23 @@ async def _decrypt_or_migrate_api_key(
     return plaintext_key
 
 
+def redaction_bypass_active() -> bool:
+    """D12 (owner, 2026-09-27): is break-glass currently weakening redaction?
+
+    True only when EXTERNAL_API_REDACTION_BREAK_GLASS is set AND the configured
+    redaction is weaker than strict. Without break-glass, the external runner
+    always applies strict redaction, whatever REDACTION_ENABLED /
+    REDACTION_POLICY_LEVEL say. Also read by GET /settings/model/external-api
+    so the UI can warn (one predicate, so the warning cannot drift from the
+    runner).
+    """
+    if getattr(settings, "external_api_redaction_break_glass", False) is not True:
+        return False
+    enabled = getattr(settings, "redaction_enabled", False) is True
+    level = getattr(settings, "redaction_policy_level", "strict")
+    return (not enabled) or level != "strict"
+
+
 class ExternalModelRunner:
     """
     External API model runner implementing the same interface as ModelRunner.
@@ -197,6 +214,13 @@ class ExternalModelRunner:
                     model_name=self._model,
                 )
 
+        # D12 (owner, 2026-09-27): strict redaction is unconditional. The only
+        # exception is break-glass, which is audited and shown in the UI.
+        bypass = redaction_bypass_active()
+        if not bypass:
+            redaction_enabled = True
+            policy_level = "strict"
+
         redacted_count: Optional[int] = None
         if redaction_enabled:
             from modules.redaction import RedactionEngine, VALID_POLICY_LEVELS
@@ -233,7 +257,7 @@ class ExternalModelRunner:
             "redaction_redacted_count": redacted_count,
             "redaction_break_glass": break_glass,
         }
-        if break_glass and (not redaction_enabled or policy_level != "strict"):
+        if bypass:
             logger.warning("SECURITY_AUDIT: %s", json.dumps(audit_data, default=str))
         else:
             logger.info("SECURITY_AUDIT: %s", json.dumps(audit_data, default=str))
