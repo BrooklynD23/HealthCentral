@@ -215,3 +215,26 @@ def test_hc_agents_007_body_states_its_real_tools() -> None:
             if rule not in body:
                 problems.append(f"{name}: body lacks {rule!r}")
     assert problems == []
+
+
+def _load_drift_check():
+    script = REPO_ROOT / "scripts" / "harness_drift_check.py"
+    spec = importlib.util.spec_from_file_location("harness_drift_check_agents", script)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_hc_agents_008_harness_docs_name_every_agent_and_have_no_drift(capsys) -> None:
+    """HC-AGENTS-008 (handoff W-1 test 3; in the suite by owner sign-off OG-3).
+    harness.md must name each agent by its full path: the drift check skips
+    bare names, so only a full path makes it verify that each file exists.
+    Then the drift check must pass on the real repo. It checks disk, not git:
+    HC-AGENTS-003 is what proves the files are tracked."""
+    harness = (REPO_ROOT / "docs" / "agentic" / "harness.md").read_text(encoding="utf-8")
+    unnamed = [name for name in ALL_AGENTS if f"`.claude/agents/{name}.md`" not in harness]
+    assert unnamed == [], f"harness.md does not name by full path: {unnamed}"
+    exit_code = _load_drift_check().main(["--repo-root", str(REPO_ROOT)])
+    assert exit_code == 0, capsys.readouterr().out
