@@ -182,7 +182,119 @@ Owner decision: ☐ approve ☐ reject ☐ defer — notes/date: ____
 `docs/compliance/pentest-checklist.md` (or an `audit/…` location) holding the layer→control→attack→evidence table; one new pytest file, `tests/security/test_pentest_surface.py`, for the automatable rows (auth isolation, rate-limit enforcement, body cap, headers present, `/docs` gated by debug), all through `tests/support/routes.py::route_client`; a findings table appended to this packet. This brief distinguishes "assessment" from "attestation": A+B is a self-assessment; only C produces a third-party pen-test report.
 
 ## Brief 4 — Audit Retention
-_(pending)_
+
+Audit retention and audit-data protection here are designed as if HIPAA applied (owner choice, 2026-09-27).
+This is a design posture, not a statement of legal status; applicability depends on the operator,
+its contracts and data flows, which are for owner/legal review.
+
+Regulatory text used (read 2026-09-27 via the Cornell LII mirror of 45 CFR; the official eCFR/HHS
+text was not re-read — citation to verify by legal/owner):
+- 164.316(b)(1): "(i) Maintain the policies and procedures implemented to comply with this subpart in
+  written (which may be electronic) form; and (ii) If an action, activity or assessment is required by
+  this subpart to be documented, maintain a written (which may be electronic) record…"
+- 164.316(b)(2)(i) Time limit (Required): "Retain the documentation required by paragraph (b)(1) of this section for 6 years from the date of its creation or the date when it last was in effect, whichever is later."
+- 164.312(b) Audit controls (standard): "Implement hardware, software, and/or procedural mechanisms that
+  record and examine activity in information systems that contain or use electronic protected health information."
+  The text read states no retention period for the activity records themselves.
+- 164.312(a)(2)(iv) Encryption and decryption (Addressable): "Implement a mechanism to encrypt and decrypt
+  electronic protected health information."
+- 164.308(a)(1)(ii)(D) Information system activity review (Required): "Implement procedures to regularly
+  review records of information system activity, such as audit logs, access reports, and security incident
+  tracking reports."
+
+The six-year period attaches to the documentation in 164.316(b)(1). It is not, by that text, a period for keeping every audit-log row. Treating rows the same way would be an extra owner choice.
+
+### Step 1: log-sink measurement (`TestClient`)
+
+Interpreter: `~/venvs/asclexis-311/bin/python` 3.11.16. Start SHA: `8064244` (worktree HEAD at measurement). Run 2026-10-01:
+
+```
+debug: True | create status: 201
+core.audit INFO enabled: False
+AUDIT: records reaching core.audit handlers: 0
+root level: WARNING root handlers: ['StreamHandler']
+FileHandlers: []
+INSERT INTO audit_logs echoed: 1 | display name echoed: True
+logs/asclexis.log exists: False
+```
+
+No FileHandler appears anywhere in the logger hierarchy. `logs/asclexis.log` does not exist after a profile-create request. `data-privacy.md:33` @A692fdf3 ("Audit logs | Master DB + log file") therefore overstates — there is no log-file sink in the default configuration.
+
+### Step 1b: log-sink measurement (`uvicorn` CLI, real server)
+
+Same interpreter, start SHA `8064244`, run 2026-10-01:
+
+```
+create=201
+log file: absent
+AUDIT lines on stderr: 0
+audit INSERT echoed on stderr: 2
+display name on stderr: 1
+```
+
+Confirms Step 1: no file sink; `core.audit` never echoes "AUDIT:" lines to stderr by itself; but the SQLAlchemy `echo=True` debug path does print `INSERT INTO audit_logs` (twice — once for the profile row, once for the audit row) including the plaintext display name, to stderr (F-P8-3).
+
+### Step 2: current-state table
+
+| Anchor (post-P1, re-verified @start8064244) | Proves |
+|---|---|
+| `models/audit.py:20-68` @start8064244 (`timestamp` default `:60-62`) | `audit_logs` sits on the master `Base` (plaintext DB) |
+| `core/config.py:179-184` @start8064244 | master URL is plain `sqlite+aiosqlite` (AUD-04) |
+| `core/audit.py:23-32` @start8064244 | design note: rows live in the unencrypted master; "Phase B (encrypting the master DB) is explicitly out of scope and gated" |
+| `core/audit.py:36-112` @start8064244 | AUDIT-PHI-001 allowlist minimizes content (`audit_rows_purged` key at `:100`) |
+| `core/audit.py:257-265` @start8064244 + Step 1/1b output | the INFO echo exists in code; measured sinks show it never reaches a file, and the `core.audit` logger is not at INFO level by default (0 "AUDIT:" lines observed) |
+| `core/database.py:46`, `core/profile_database.py:308`, `core/config.py:28` @start8064244 + Step 1/1b output | debug SQL echo of bound parameters, including the display name (F-P8-3) |
+| `api/profiles.py:890-900,909,935` @start8064244 | profile delete sweeps backups, purges `audit_logs` rows for that profile, writes the anonymized tombstone with `audit_rows_purged` |
+| `scripts/backup.py:75,236-240,243,658-673` @start8064244 | backups carry a plaintext, profile-scoped master copy including audit rows; 30-day default prune |
+| `ls src/backend/api/` + `git grep -n "AuditLog" -- src/backend/api` (run 2026-10-01) | only `api/profiles.py` references `AuditLog` — no audit-read route exists, so there is no patient-visible history to lose |
+| `docs/compliance/data-privacy.md:33,61,144-156` @A692fdf3 (not re-opened for line drift this pass; cited per plan) | "Indefinite"; "Master DB + log file"; the 2026-07-27 purge decision |
+| `docs/compliance/hipaa-controls.md:49-52` @start8064244 (checked against code, not repeated as fact) | the doc's "Structured JSON … correlation IDs" and "append-only" claims — the audit log is written via `models/audit.py`'s SQLAlchemy columns (not free-form JSON lines) and there is no code-enforced append-only guarantee beyond the one purge path above; the doc overstates relative to what the code does |
+
+### Step 4: three decision parts
+
+**4a: Security Rule documentation (six years, under the posture).**
+What counts as documentation: `docs/compliance/*.md`, this packet and its signed ledger, dated owner-decision records, the Session Notes that record them, and any future risk analysis or activity-review record.
+- **A.** Git history on the owner's canonical remote is the store. Add a documentation register listing each document and its six-year horizon ("6 years from creation or last in effect"). Docs only. S.
+- **B.** A plus an exported archive (signed tag or release) per year. S.
+- **C.** Do nothing.
+- Risk to name: force-push or repo deletion defeats A.
+- Recommend A.
+
+**4b: Audit-log rows.**
+Rows are unbounded today (AUD-03), except for purge-on-erase.
+- **A.** Six-year rolling window, chosen to mirror 4a by owner choice and not required by the text above. Purge-on-erase unchanged. S–M.
+- **B.** Shorter window (owner fills in days), as data minimization. S–M.
+- **C.** Unbounded, documented. S.
+- **D.** Revisit the 2026-07-27 purge-on-erase: keep rows after erase for the window.
+
+**D contradicts the 2026-07-27 decision** (`data-privacy.md:150-153` @A692fdf3, which rejected "retaining the full audit trail for HIPAA-style accountability"). D10 does not by itself reverse it, because D10 licenses design posture and is silent on erase.
+
+Note: if the owner adopts an activity-review procedure (164.308(a)(1)(ii)(D) text above), the *records of those reviews* fall under 4a, and the rows they summarise do not.
+Recommend A with purge-on-erase kept, and the anonymized tombstone kept as the deletion record.
+
+**4c: Audit data at rest (AUD-04).**
+- **A.** Document the current state: plaintext master, minimized rows, the measured sinks from Step 1/1b. S.
+- **B.** Encrypt the master DB (SQLCipher with an install key sealed by DPAPI). L. **Ask-first** (encryption, `core/database.py`), and it must preserve pre-login audit events (failed logins happen before any vault is open).
+- **C.** Move profile-linked rows into each vault. L. **Ask-first.** Breaks pre-unlock events and changes crypto-erase semantics.
+- **D.** Stop plaintext echo surfaces: the `core/audit.py:257-265` echo and debug SQL echo (F-P8-3). S–M.
+- **E.** Encrypt the master copy inside backups. M. **Ask-first** (backup + keys).
+Recommend A now, plus a separate owner decision on D. B, C and E each need their own plan and an explicit ask-first yes.
+
+**Implementation sketch** (recommended options only; prose, no code):
+- 4a: docs-only register.
+- 4b: a `modules/audit_retention.py`-style sweep over the master `get_db()` (never `ProfileDbSession`). Delete rows with `timestamp < utcnow() - window` (naive UTC, `core.time.utcnow`), excluding NULL-profile tombstones. Handle the NULL row explicitly. The sweep writes one audit row using the existing `audit_rows_purged` key. HTTP tests via `tests/support/routes.py::route_client` for any new route. A test inserts aged, fresh and NULL-profile rows and asserts which survive. Break it on purpose: flip the comparison and watch the test go red.
+- State plainly: **this brief implements nothing; a signed 4b needs its own `writing-plans` plan.**
+
+### Step 5: owner questions
+
+Q4a: "Approve keeping Security Rule documentation (list above) for 6 years from creation or last in effect, stored as git history plus a register (option A)?"
+Owner decision: ☐ approve ☐ reject ☐ defer — notes/date: ____
+
+Q4b: "Approve an audit-row window of ☐ 6 years ☐ ____ days ☐ unbounded, **keeping** the 2026-07-27 purge-on-erase (tombstone kept)? If you want rows kept after erase, say so explicitly; that reverses the 2026-07-27 decision."
+Owner decision: ☐ approve ☐ reject ☐ defer — notes/date: ____
+
+Q4c: "Approve documenting the current at-rest state now (A), and commissioning a plan for D (stop plaintext echo surfaces)? B, C and E would each come back as their own ask-first brief."
+Owner decision: ☐ approve ☐ reject ☐ defer — notes/date: ____
 
 ## Brief 5 — HC-M11 NLI Faithfulness
 _(pending)_
