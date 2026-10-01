@@ -231,3 +231,75 @@ async def test_hc_ext_002d_break_glass_row_persists_in_real_master_schema(tmp_pa
     assert result.finish_reason == "stop"
     assert [r.event_type for r in rows] == ["security.external_api.break_glass"]
     assert rows[0].profile_id == PROFILE
+
+
+# ---------------------------------------------------------------------------
+# HC-EXT-004 — the frontend can learn break-glass state (for the UI warning).
+# Through HTTP (recurring-failures #1): a direct call cannot see Depends(...).
+# ---------------------------------------------------------------------------
+
+def _get_external_api(user_row):
+    from api.model_settings import router as ms_router
+    from core.auth import get_profile_db_session
+    from tests.support.routes import route_client
+
+    with patch("api.model_settings._get_user_settings", AsyncMock(return_value=user_row)):
+        with route_client(ms_router, "/settings/model", profile_id=PROFILE) as client:
+            async def _profile_db():
+                return MagicMock()
+            client.app.dependency_overrides[get_profile_db_session] = _profile_db
+            return client.get("/settings/model/external-api")
+
+
+@pytest.mark.parametrize(
+    "break_glass,enabled,level,expected",
+    [
+        (True, False, "strict", True),
+        (True, True, "standard", True),
+        (True, True, "strict", False),
+        (False, False, "standard", False),
+    ],
+)
+def test_hc_ext_004_external_api_settings_reports_break_glass(break_glass, enabled, level, expected):
+    with patch("core.external_runner.settings") as s:
+        _set(s, env="development", enabled=enabled, level=level, break_glass=break_glass)
+        resp = _get_external_api(user_row=None)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["redaction_break_glass"] is expected
+
+
+def test_hc_ext_004b_put_response_reports_break_glass_too():
+    """The PUT handler (api/model_settings.py:719-757 @B) builds its own
+    ExternalApiSettingsResponse; it must not report a stale False."""
+    from api.model_settings import router as ms_router
+    from core.auth import get_profile_db_session, get_profile_encryption_manager
+    from tests.support.routes import route_client
+
+    row = MagicMock(use_external_api=False, external_api_provider="",
+                    external_api_key_encrypted="gAAAAAxyz")
+    profile_db = AsyncMock()  # the handler awaits profile_db.commit()
+
+    with patch("core.external_runner.settings") as s, \
+         patch("api.model_settings._get_or_create_user_settings", AsyncMock(return_value=row)):
+        _set(s, env="production", enabled=False, level="strict", break_glass=True)
+        with route_client(ms_router, "/settings/model", profile_id=PROFILE) as client:
+            async def _profile_db():
+                return profile_db
+
+            async def _enc():
+                return MagicMock()
+
+            client.app.dependency_overrides[get_profile_db_session] = _profile_db
+            client.app.dependency_overrides[get_profile_encryption_manager] = _enc
+            resp = client.put(
+                "/settings/model/external-api",
+                json={"use_external_api": True, "provider": "openai", "api_key": "",
+                      "consent_acknowledged": True},
+            )
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["use_external_api"] is True
+    assert body["redaction_break_glass"] is True
+    assert "gAAAAAxyz" not in resp.text
+    profile_db.commit.assert_awaited_once()
