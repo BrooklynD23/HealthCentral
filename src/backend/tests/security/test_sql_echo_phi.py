@@ -231,3 +231,28 @@ def test_hc_sqlecho_003_sql_echo_is_decoupled_from_debug(monkeypatch):
     monkeypatch.setenv("SQL_ECHO", "true")
     assert Settings(app_env="development").sql_echo is True
     assert core_db.engine.sync_engine.echo is False  # master engine built from sql_echo
+
+
+@pytest.mark.asyncio
+async def test_hc_sqlecho_004_opt_in_echo_still_hides_parameters(data_root, monkeypatch):
+    """A developer who sets SQL_ECHO=true sees SQL text, never bound values."""
+    monkeypatch.setattr(settings, "debug", True)
+    monkeypatch.setattr(settings, "sql_echo", True)
+    mgr = get_profile_db_manager()
+    pid = str(uuid.uuid4())
+    _make_vault(data_root, pid)
+
+    conn = await mgr.open_profile_database(pid, PASSWORD)
+    cap = _Capture()
+    sa_logger = logging.getLogger("sqlalchemy.engine")
+    sa_logger.addHandler(cap)
+    try:
+        await _seed_vault(conn, pid)
+    finally:
+        sa_logger.removeHandler(cap)
+        await mgr.close_profile_database(pid)
+
+    assert "INSERT INTO observations" in cap.text, "echo is off; this test proves nothing"
+    _assert_absent(cap.text, [SENT_ANALYTE, repr(SENT_VALUE), SENT_DOCTEXT, SENT_CHAT])
+    # The master engine is built at import; its flag is checked structurally.
+    assert core_db.engine.sync_engine.hide_parameters is True

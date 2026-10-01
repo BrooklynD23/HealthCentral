@@ -44,6 +44,7 @@ class Base(DeclarativeBase):
 engine = create_async_engine(
     settings.database_url,
     echo=settings.sql_echo,
+    hide_parameters=True,  # never log bound values, even with SQL_ECHO=true (S-1)
     future=True,
 )
 
