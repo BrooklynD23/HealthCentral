@@ -305,7 +305,7 @@ class PerProfileDatabaseManager:
 
             engine = create_async_engine(
                 database_url,
-                echo=settings.debug,
+                echo=settings.sql_echo,
                 future=True,
             )
 
