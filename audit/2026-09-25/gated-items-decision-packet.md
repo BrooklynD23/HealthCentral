@@ -297,7 +297,80 @@ Q4c: "Approve documenting the current at-rest state now (A), and commissioning a
 Owner decision: ☐ approve ☐ reject ☐ defer — notes/date: ____
 
 ## Brief 5 — HC-M11 NLI Faithfulness
-_(pending)_
+
+**Ask-first surface:** implementing HC-M11 touches `modules/faithfulness.py` and `modules/verifier_agent.py` (CLAUDE.md §1). This brief proposes; it changes no code.
+
+### Current state
+
+| Anchor | Proves |
+|---|---|
+| `modules/faithfulness.py:95-121` @start8064244 | `score_claim(..., entailment_scores=None, ...)` accepts pre-computed NLI scores but no production caller feeds it; falls back to `_calculate_pseudo_entailment` |
+| `modules/faithfulness.py:134` @start8064244 | `consistency_score = 1.0  # Default to 1.0 if not checking consistency` — a disclosed placeholder |
+| `modules/faithfulness.py:191` @start8064244 | `_calculate_pseudo_entailment` — lexical entity coverage, the current production path |
+| `modules/verifier_agent.py:88` @start8064244 | `use_llm_entailment: bool = False` |
+| `modules/verifier_agent.py:223-226` @start8064244 | dispatch: `use_llm_entailment` routes to `_check_entailment_llm` or `_check_entailment_rules` |
+| `modules/verifier_agent.py:304-317` @start8064244 | `_check_entailment_llm` is a stub that calls `_check_entailment_rules` — flipping the flag today changes nothing |
+| `core/config.py:145-151` @start8064244 | verification settings; `:151` comment cites `docs/plans/2026-06-30-tech-upgrade-survey-9-areas.md` Area 1 for planned NLI wiring |
+| `modules/agent/guardrails/guard.py:27,32` @start8064244 | imports only `FaithfulnessConfig` (the threshold) from `modules.faithfulness` — no entailment-scoring reference |
+| `modules/agent/eval/scorer.py` @start8064244 (`git grep -n "faithfulness\|verifier" modules/agent/eval/scorer.py`, run 2026-10-01) | zero hits — the 74-case eval gate does not currently consume faithfulness/verifier output, so wiring NLI with the flag off would not change the eval gate's behavior |
+| `scripts/download_models.py:223-246` @start8064244 | `verify_repo` filters strictly on `.gguf` files; a cross-encoder artifact is not GGUF, so this script cannot distribute it today (gap (a)) |
+| `git log --oneline origin/main -- src/backend/scripts/download_models.py` (run 2026-10-01) | most recent commit `f8ca137` "add `download_models.py verify` for tier repo verification"; **W-8 has not landed** — `grep embedding_model_path src/backend/core/config.py` returns no hits on the start tree |
+| `modules/model_integrity.py:42` @start8064244 | `config/model_manifest.json` is the existing pin location (MODEL-INT-001) |
+| `feature_list.json` HC-M11 row (`:140-151`, run 2026-10-01; status `pending`) | names the candidate model, the GGUF-distribution blocker, and the three verification steps, quoted below |
+
+### What is already approved
+
+`docs/plans/2026-09-08-backlog-closure-plan.md:403` @A692fdf3 (§14 row 2, commit `fe31e78`, 2026-09-08), verbatim:
+
+> "| 2 | `HC-M11` approval (§12) | **Approved, scheduled after band A** | Building the cross-encoder behind a flag that defaults off, in two ask-before-touching files. **Not** changing production scoring behaviour, thresholds, or anything else in those files. Its model-distribution prerequisite is still unbuilt. |"
+
+`docs/plans/2026-09-08-backlog-closure-plan.md:365-368` @A692fdf3 (§12, "Read the approval narrowly…"), verbatim:
+
+> "Read the approval narrowly. It licenses *building* the scorer behind a flag that defaults off — it is not authorisation to change what production faithfulness scoring does, to alter a threshold, or to touch anything else in those two files. Any of that is a fresh ask."
+
+That record already covers:
+- building the scorer behind a default-off flag in `faithfulness.py` and `verifier_agent.py`;
+- that a model-distribution prerequisite "comes first" (`:370-373` @A692fdf3). The record names the prerequisite but does **not** choose how the NLI model is distributed. That is Q5b;
+- pinning in `config/model_manifest.json` (`:381-382` @A692fdf3, "MODEL-INT-001").
+
+HC-M11's ledger status stays `pending` (not built). That is not the same as unapproved.
+
+Model choices that stay local-first: `cross-encoder/nli-deberta-v3-xsmall` (~22M params — tracker candidate) vs `nli-deberta-v3-small`/`base` (better accuracy, more RAM) vs ONNX/quantized variants. All run offline via `sentence-transformers` `CrossEncoder` once downloaded. The download itself is the one sanctioned network path (PHI never leaves; the model pull does), which is exactly what needs owner sign-off in Q5b.
+
+### Options
+
+| Option | Effort | Risk | Value |
+|---|---|---|---|
+| A — Implement as spec'd (small model, flag default off) | M | New HF dependency + one-time download | Regex stays the floor; adds a semantic signal when enabled |
+| B — Larger model variant (`small`/`base`) | M–L | More RAM/latency | Better accuracy if ever enabled |
+| C — Defer (keep placeholder + docs honest) | S | None | No new surface |
+| D — Alternative without a new model dep (prompt the existing local LLM for entailment via `ModelRunner`) | M | Slower; inside the LLM-trust boundary the verifier exists to check | Weaker signal, no new download |
+
+### Decision questions
+
+**Q5a — production-behaviour change.** "The build behind a default-off flag is already approved (2026-09-08). Separately, approve any **production-behaviour change**: the flag defaulting on, or NLI scores changing production faithfulness outcomes. ☐ not now (keep default off; bring back eval evidence from G-C5) ☐ approve enabling after G-C5 shows `<criterion the owner writes>` ☐ reject. Thresholds are not in scope; 0.6 is never lowered."
+
+Owner decision: ☐ approve ☐ reject ☐ defer — notes/date: ____
+
+Recommend "not now".
+
+**Q5b — NLI-model distribution.** "How may the NLI cross-encoder reach the machine? D8/D8-delivery covered the embedding model only. ☐ one-time fetch by `src/backend/scripts/download_models.py` into a local models dir, HF offline at runtime, fail closed if absent (W-8's mechanism, extended to this model — W-8 has not landed on the start tree) ☐ bundled with the installer when one exists (G-C4) ☐ other: ____. Model weights are not committed to git without a separate yes."
+
+Options table:
+
+| Option | Model | Licence | Artifact size | Manifest pin | PHI exposure |
+|---|---|---|---|---|---|
+| One-time fetch (recommended) | `cross-encoder/nli-deberta-v3-xsmall` (tracker candidate) | MIT per `feature_list.json`'s HC-M11 row text — **UNVERIFIED this pass**; re-verify on the model card at execution | UNMEASURED unless downloaded and measured with `du -sh` | `config/model_manifest.json` (MODEL-INT-001) | only the one-time model fetch touches the network; PHI never leaves |
+| Installer-bundled | same | same (UNVERIFIED) | UNMEASURED | same | none at runtime; bundling is a build-time step |
+| Other | owner-specified | owner to state | owner to state | same | owner to state |
+
+Owner decision: ☐ approve ☐ reject ☐ defer — notes/date: ____
+
+Recommend the one-time fetch (fewest new mechanisms, matches D8-delivery's pattern). The owner still chooses; D8 does not decide it — D8 and D8-delivery cover the embedding model only, not HC-M11's NLI cross-encoder.
+
+### Implementation sketch (option A only, no code here)
+
+Lazy `CrossEncoder` load from a local path (HF-offline guarantee at inference, `HF_HUB_OFFLINE=1`), feeding `entailment_scores` into `score_claim`, wiring `_check_entailment_llm` to the real NLI call behind `use_llm_entailment`, extending `download_models.py` with a named non-GGUF entry plus an integrity check reusing `modules/model_integrity.py`. Tests = the three tracker verification steps verbatim: (1) a synthetic contradicted claim scores below threshold with the flag on where regex-only scoring passed it; (2) with the flag off (default), all existing faithfulness/verifier tests pass unchanged; (3) an offline test proves no network access at inference time. Cost honesty: ~90 MB-class artifact (by analogy to the measured embedding-model snapshot, `owner-decisions-2026-09-27.md` consequence 4 — not the same model, not independently measured here), CPU-fine at ~22M params for per-response scoring; the sketch should cap NLI calls (for example, only for claims regex leaves neutral).
 
 ## Sign-off ledger
 | # | Item | Decision | Date | Notes |
