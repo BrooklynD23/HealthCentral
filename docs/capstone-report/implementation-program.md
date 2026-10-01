@@ -1,6 +1,6 @@
 # Asclexis — Implementation Program
 
-**Last Updated:** 2026-09-29 (P0-B merged as PR #19; owner signed P1-PR1-MERGE, P1-SLOTS, P1-CAREQ-HTTP, S-CACHE, MEM-AUDIT-CAT; new phase S-CACHE. 2026-09-28: owner signed P0-B2, D9-SRC, P1-DRIFT, SLOT-RULE, P7-ROUTE, SQL-ECHO S1-A+S1-B; all other gates unchanged)
+**Last Updated:** 2026-10-01 (Waves 0-1 done: P0-B/P0-B2 #19, P1 #21 + #24, S-CACHE #23, CI-DISK #25; Wave 2 dispatched; owner signed W6-Q3, W6-Q5. 2026-09-29: P0-B merged as PR #19; owner signed P1-PR1-MERGE, P1-SLOTS, P1-CAREQ-HTTP, S-CACHE, MEM-AUDIT-CAT; new phase S-CACHE. 2026-09-28: owner signed P0-B2, D9-SRC, P1-DRIFT, SLOT-RULE, P7-ROUTE, SQL-ECHO S1-A+S1-B; all other gates unchanged)
 **Status:** PLAN ONLY. Nothing in this program has been executed, merged, or committed. It replaces the "pending" implementation-program entry in the capstone README and supersedes the sequencing in audit §22–§23 wherever they differ.
 
 This program orders the eight audit plans (`audit/2026-09-25/plans/01`–`08`) and the gaps found on 2026-09-27 that no plan covers. It includes the independent review's corrections ([follow-up](../../audit/2026-09-25/review/2026-09-27-followup.md)). The rules it must preserve are in [architecture-engineering-contract.md](architecture-engineering-contract.md). The gaps it closes are in [specs-compliance-matrix.md](specs-compliance-matrix.md).
@@ -45,12 +45,12 @@ This program orders the eight audit plans (`audit/2026-09-25/plans/01`–`08`) a
 
 ```mermaid
 flowchart TD
-  P0A["P0-A DOCS<br/>package corrections (done)"] --> P0B["P0-B OWNER (approved)<br/>commit audit/ + capstone-report/ + INDEX"]
+  P0A["P0-A DOCS<br/>package corrections (done)"] --> P0B["P0-B OWNER (done, PR #19)<br/>commit audit/ + capstone-report/ + INDEX"]
   P0A --> P0C["P0-C OWNER (done)<br/>D1–D13, G-B5, D8-delivery recorded"]
   P0A -.-> P0D["P0-D DOCS<br/>D3/D4 brief — moot? (gate P0-D-MOOT)"]
-  P0B <-->|"same PR (B-1)"| P0B2["P0-B2 OWNER (approved)<br/>commit the 2026-09-27 plan set"]
+  P0B <-->|"same PR (B-1)"| P0B2["P0-B2 OWNER (done, PR #19)<br/>commit the 2026-09-27 plan set"]
   D9["D9 OWNER (approved)<br/>3.11 venv; python3.11 not on PATH,<br/>uv CPython 3.11.16 (D9-SRC approved)"]
-  P0B --> P1["P1 PRODUCT<br/>land A + B (plan 01)<br/>+ drift-token reword (gate P1-DRIFT)"]
+  P0B --> P1["P1 PRODUCT (done, PRs #21 + #24)<br/>land A + B (plan 01)<br/>+ drift-token reword (gate P1-DRIFT)"]
   P0C --> P1
   D9 --> P1
   P1 --> S1["S-1 PRODUCT (gates S1-A/S1-B)<br/>SQL-echo PHI leak"]
@@ -130,7 +130,9 @@ flowchart TD
 
 Integrated from the Wave-3a audit §2 ([3a-integration.md](../../audit/2026-09-25/swarm-2026-09-27/wave3/3a-integration.md)); edge reasons are in its §2.1. Every node is *proposed*. Solid edge = hard dependency (a shared file, or a required upstream artifact); dashed edge = preferred sequence with no shared-file conflict. Node classes: `appr` = owner-approved decision, `gate` = owner-gated, `crit` = on the critical path.
 
-**Critical path (proposed):** P0-B + P0-B2 (one PR) → P1 → P2 → P4 → P5 → W-4 → W-3 → W-8 → P4-deferred F5. W-4 → W-11a PR-3 → W-8 is equally long, and P5 → P6 → P7 → G-C1 is one PR shorter. W-10 runs beside P5 (they share no file). The owner gates on the path are P0-B2, D9-SRC, P1-DRIFT, OQ-1, OQ-5, O-5 (skippable), Q-OFFLINE, VERIFIED-FALLBACK and EMB-REV. The audit order (branches → scheduler → phantom → drift → utcnow → FK → reset → gated) is kept, with two changes: P8 moves earlier, because it is docs-only, and the new G-phases are added.
+**Program state (2026-10-01):** done = P0-B + P0-B2 (PR #19), P1 (PRs #21, #24), S-CACHE (PR #23), CI-DISK (PR #25). Wave 2 in flight: S-1, W-6, W-1, W-5, W-11a PR-2, P2, P8, G-C4. Ledger: [`ledger.md`](../../audit/2026-09-25/swarm-2026-09-27/ledger.md).
+
+**Critical path (proposed):** ~~P0-B + P0-B2 (one PR) → P1~~ (done) → P2 → P4 → P5 → W-4 → W-3 → W-8 → P4-deferred F5. W-4 → W-11a PR-3 → W-8 is equally long, and P5 → P6 → P7 → G-C1 is one PR shorter. W-10 runs beside P5 (they share no file). The owner gates on the path are P0-B2, D9-SRC, P1-DRIFT, OQ-1, OQ-5, O-5 (skippable), Q-OFFLINE, VERIFIED-FALLBACK and EMB-REV. The audit order (branches → scheduler → phantom → drift → utcnow → FK → reset → gated) is kept, with two changes: P8 moves earlier, because it is docs-only, and the new G-phases are added.
 
 **Shared files are ordered as follows (proposed; supersedes the earlier list).** No two open PRs edit the same file. The PR that merges second rebases and re-measures.
 - `CLAUDE.md` invariant text (`:25`, `:59-62`): P1 → P4 → **W-10**. No other phase edits it.
@@ -192,7 +194,8 @@ Integrated from the Wave-3a audit §2 ([3a-integration.md](../../audit/2026-09-2
 - **Outcome:** the owner decides what happens to the uncommitted `docs/INDEX.md` / `.serena/project.yml` edits and to the untracked package: commit on a docs branch, or keep local. Then run `python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py --link-graph` so the index covers the new capstone docs.
 - **Stop gate:** do not regenerate over uncommitted owner edits without consent.
 - **Acceptance:** `generate_docs_index.py --check` exits 0; `docs_lint.py` prints "Docs lint passed."
-- **State (2026-09-28):** owner-approved ("Commit on a docs branch", [owner-decisions-2026-09-27.md](owner-decisions-2026-09-27.md)), not yet executed as approved. A local snapshot branch `docs/p0b-plan-set` (commit `5d56557`, not pushed, not merged) now holds the `audit/` + `docs/capstone-report/` package, `docs/INDEX.md` as it stood, and all 16 `docs/plans/2026-09-27-*.md` files. The plan files are outside P0-B's approved scope; they wait on P0-B2. The index has not been regenerated there. The snapshot stays pending until the owner signs P0-B's execution and P0-B2.
+- **State (2026-10-01): done** — merged as PR #19 (2026-09-28, with P0-B2); index regenerated there.
+- **State (2026-09-28, superseded):** owner-approved ("Commit on a docs branch", [owner-decisions-2026-09-27.md](owner-decisions-2026-09-27.md)), not yet executed as approved. A local snapshot branch `docs/p0b-plan-set` (commit `5d56557`, not pushed, not merged) now holds the `audit/` + `docs/capstone-report/` package, `docs/INDEX.md` as it stood, and all 16 `docs/plans/2026-09-27-*.md` files. The plan files are outside P0-B's approved scope; they wait on P0-B2. The index has not been regenerated there. The snapshot stays pending until the owner signs P0-B's execution and P0-B2.
 
 **P0-B2 · OWNER · owner-approved 2026-09-28 ("All 16, push + open PR"; showcase plan included, unaudited, labelled).**
 - **Outcome:** the 15 `docs/plans/2026-09-27-*.md` files audited in Wave 3 (W01–W08, W10, W11a, W11b, P04, P08, S01, nightly spec) are committed **in the same PR as P0-B**, and the index is regenerated there. A 16th file, `2026-09-27-senior-report-showcase-plan.md`, is also in the snapshot but was not in the Wave-3 audit scope; the owner includes or excludes it explicitly.
@@ -246,6 +249,7 @@ Integrated from the Wave-3a audit §2 ([3a-integration.md](../../audit/2026-09-2
   - Plan 01 Task 4 writes the collected number only, never "N-1" into a pass slot (ground rule 8).
 - **Rollback:** `git revert -m 1 <merge>` per branch; no schema to unwind. The `llama-cpp-python==0.3.35` pin may need `pip install -r requirements.txt` after a revert.
 - **Sign-off:** owner merges ("as-is", §21 Q3).
+- **State (2026-10-01): done** — PR #21 (branch B, 2026-09-29) and PR #24 (branch A + CAREQ HTTP test, 2026-10-01). Post-merge checks on `8064244`: 1296 collected in both slots, security-gate poison proofs exit 2/2/0, docs gates incl. `harness_drift_check.py` exit 0 (ledger 2026-10-01).
 
 ## P2 — Notification scheduler (plan 02) · PRODUCT
 
@@ -408,6 +412,8 @@ Integrated from Wave-3a §5.5. All rows are **proposed**; nothing here is starte
 
 | ID | Kind | Plan | Depends on (hard; *soft*) | Stop gates (owner) | Measured acceptance | Sign-off |
 |---|---|---|---|---|---|---|
+| S-CACHE | PRODUCT (security) | [S02 agent-cache profile isolation](../plans/2026-09-29-S02-agent-cache-profile-isolation.md) | P1 PR #1 | S-CACHE, MEM-AUDIT-CAT (signed 2026-09-29) | 1288 → 1292 collected | **done: PR #23** (2026-09-29) |
+| CI-DISK | CI | [CI01 CPU torch](../plans/2026-09-30-CI01-cpu-torch-ci-disk.md) | — | CI-DISK-FIX (signed 2026-09-30) | E2E Smoke green, no Errno 28 | **done: PR #25** (2026-09-30) |
 | S-1 | PRODUCT | [S01 SQL-echo PHI leak](../plans/2026-09-27-S01-sql-echo-phi-leak.md) | P1, P0-B2, D9; before P6; *before P2, P4* | SQL-ECHO (S1-A Task 2, S1-B Task 3): owner-approved 2026-09-28 (S1-A + S1-B) | collected = start + 3 (+1 with S1-B); break-it table green→red; probe sentinels 0 on the end tree | owner: S1-A, S1-B, merge |
 | W-1 (= P3) | PRODUCT + DOCS | [W01 harness agents](../plans/2026-09-27-W01-harness-agents-branch-a.md) | P1 (+P1-DRIFT), P0-B2, D9, D1 (approved) | OG-3 (Task 9); OG-1/2/4/5 optional | 5 files in `git ls-files .claude/agents`; drift check 0; collected = start + 7 (+8) | owner merge (D1) |
 | P4-core | DOCS | [P04 drift-sweep amendment](../plans/2026-09-27-P04-doc-drift-sweep-amendment.md) | P0-B2, D9, P1, P2, W-1; *S-1* | OG-4/5/6 per commit; S1–S9; OG-2 = D4-EXPORTS (exports carry unverified rows; D4 does not cover exports; P4 documents only) | Task 16 greps empty; lint + index pass; collected = start | none beyond D2/D3 |
@@ -458,10 +464,11 @@ Findings that no plan covers, registered so they are not lost. They are **owner 
 | DOC-DELETE-INTERP (security + data loss, 2026-09-29) | Deleting a document whose observation has a `LabInterpretation` raises IntegrityError (HTTP 500): `Observation.interpretation` has no ORM cascade and `lab_interpretations.observation_id` is NOT NULL. `doc_path.unlink()` runs before the commit, so the encrypted file is destroyed while the document row, entity quotes and care-task quote survive, with no audit row. `data-privacy.md:185` ("ORM cascade") and `sql-fk-001-foreign-key-audit.md:59` claim otherwise | `models/observation.py:106-108`, `models/interpretation.py:50-55`, `api/documents.py:1875` vs `:1879` @ PR #24 head `d116931`; reproduced by security-reviewer | no (docs gate for data-privacy.md) | owner decision; fix ORM cascade + unlink after commit + HTTP test; neighbour of P6 |
 | RECOVERY-CODE-CACHE (security, 2026-09-29) | `RecoveryCodeCard.tsx:48-52`: the TanStack mutation cache keeps `{profileId, password}` and the `recovery_code` in memory for up to 5 min, contrary to the component comment. Fix: `gcTime: 0` or `reset()` | Codex on PR #24 | no | owner decision; small frontend fix |
 | CLAUDE-FAILURE-COUNT (2026-09-29) | `CLAUDE.md:50` says "Eight failure modes"; `recurring-failures.md` now has 9 sections | PR #24 head `d116931` | governance text | W-10 or owner |
+| TORCH-PIN (2026-09-30) | CI torch (`ci.yml` CPU index, 3 test jobs) is unpinned and nothing asserts `+cpu`; a torch release without a CPU wheel for the resolved version would silently fall back to CUDA wheels from PyPI and re-open CI-DISK | PR #25 reviewer (LOW), ledger 2026-09-30 | no | owner decision; small CI phase |
 
 Also unowned per 3b §3, not in the ledger's list: GATE-12 (no general guard stops tests opening the developer's real master DB; S-1 covers only its own tests; 3b proposes W-11a). Also unowned: the PRIV-06 remainder, `api/profiles.py:328` logs the profile display name at INFO (main = B; suppressed today only because root is WARN after Alembic's `fileConfig`). S-1 excludes it (S01 `:134`); `api/profiles.py` is auth-adjacent, so the owner decides between an S-1 addendum (3b's proposal) and leaving it.
 
-**Program-level owner gates** (canonical IDs from 3a §3). *Owner-approved 2026-09-28:* P0-B2, D9-SRC, P1-DRIFT, SLOT-RULE (ground rule 8), P7-ROUTE, SQL-ECHO (S1-A + S1-B). *2026-09-29:* P1-PR1-MERGE (PR #1 opens from a merge branch; only the two generated files are regenerated), P1-SLOTS, P1-CAREQ-HTTP, W6-Q4, BG-REACH (W-6), OG-2 (W-11a PR-2), OG-3 (W-1 Task 9), S-CACHE + MEM-AUDIT-CAT (new phase S-CACHE, [plan](../plans/2026-09-29-S02-agent-cache-profile-isolation.md), Wave 1 after PR #1). *Still owner-gated:* W4-EXPEDITE (optional), CI-SEED (one approval for throwaway draft PRs, closed unmerged), P0-D-MOOT.
+**Program-level owner gates** (canonical IDs from 3a §3). *Owner-approved 2026-09-28:* P0-B2, D9-SRC, P1-DRIFT, SLOT-RULE (ground rule 8), P7-ROUTE, SQL-ECHO (S1-A + S1-B). *2026-09-29:* P1-PR1-MERGE (PR #1 opens from a merge branch; only the two generated files are regenerated), P1-SLOTS, P1-CAREQ-HTTP, W6-Q4, BG-REACH (W-6), OG-2 (W-11a PR-2), OG-3 (W-1 Task 9), S-CACHE + MEM-AUDIT-CAT (new phase S-CACHE, [plan](../plans/2026-09-29-S02-agent-cache-profile-isolation.md), Wave 1 after PR #1). *2026-09-30:* CI-DISK-FIX. *2026-10-01:* W6-Q3 (warning on Settings + chat page), W6-Q5 (copy as written). *Still owner-gated:* W4-EXPEDITE (optional), CI-SEED (one approval for throwaway draft PRs, closed unmerged), P0-D-MOOT.
 
 ## Plan overlaps and conflicts
 
