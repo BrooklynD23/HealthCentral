@@ -31,6 +31,7 @@ import { BackupCard } from '@/components/settings/BackupCard';
 import { RecoveryCodeCard } from '@/components/settings/RecoveryCodeCard';
 import { DangerZone } from '@/components/settings/DangerZone';
 import { TierCapabilities } from '@/components/settings/TierCapabilities';
+import { ExternalApiBreakGlassWarning } from '@/components/settings/ExternalApiBreakGlassWarning';
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import {
@@ -676,6 +677,8 @@ export function SettingsPage() {
                 Optionally use an external AI provider for higher quality responses.
                 Your data will be sent to the provider's servers.
               </p>
+
+              <ExternalApiBreakGlassWarning active={externalApiData?.redaction_break_glass} />
 
               <button
                 onClick={handleExternalApiToggle}

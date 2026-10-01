@@ -216,6 +216,8 @@ export interface ExternalApiSettings {
   provider: string;
   model: string;
   api_key_configured: boolean;
+  /** D12: true while break-glass is weakening redaction. Absent on older backends. */
+  redaction_break_glass?: boolean;
 }
 
 export interface ExternalApiSettingsSave {
