@@ -58,6 +58,10 @@ HISTORICAL_DOCS = [
     "docs/plans/implementation-log/2026-06-11_agent-overhaul-plan.md",
     "docs/plans/implementation-log/2026-06-11_breakage-map.md",
     "docs/plans/implementation-log/2026-06-11_verification-report.md",
+    "audit/2026-09-25/handoff-2026-09-27-execution.md",
+    "audit/2026-09-25/handoff-prompt-claude-orchestrator.md",
+    "audit/2026-09-25/handoff-prompt-review-agent.md",
+    "audit/2026-09-25/review/HIGH-REASONING-GOAL-PROMPT.md",
 ]
 
 # DOC-010: files whose "Canonical Doc Order" list must be textually identical
