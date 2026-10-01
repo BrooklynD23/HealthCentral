@@ -151,3 +151,10 @@ Pending on resume:
 - RESUME POINT: owner merges #24 → L1 #3 runs plan 01 Task 7 + Task 8 Steps 1-4 in ../hc-p1-post → L0 Task 8 Step 5 + Wave 1 close.
 - L1 #3 handed back (wave-1.md Phase 4 + 5 committed by L0). PR #24 still OPEN at 03:39Z after a 3 h poll (host suspended 00:36Z→03:35Z). Plan 01 Task 7 + Task 8 Steps 1-4 NOT run; `../hc-p1-post` not created. Record-only: CI01 plan line refs are pre-change (now ci.yml :50/:169/:205/:117); 3 Playwright specs skipped on both main and #24 (dot reporter does not name them).
 - RESUME POINT: owner merges PR #24 → L0 spawns a fresh L1 for plan 01 Task 7 Steps 1-3 + Task 8 Steps 1-4 in `../hc-p1-post` (detached origin/main) → L0 Task 8 Step 5 (TASK_LIST note, `git add docs/features/TASK_LIST.md`) + Wave 1 close (artifact, docs PR) → Wave 2.
+
+## Wave 1 merged — handoff (2026-10-01)
+- OWNER merged PR #24 (P1 PR #2, branch A) 2026-10-01T15:54:14Z → main `ee7c358`. Wave 1 PRs all merged: #21 (B), #22 (docs), #23 (S-CACHE), #25 (CI-DISK), #24 (A).
+- Main CI `19f85b0`: all 6 jobs success (first fully green main incl. E2E Smoke). `ee7c358` in progress at handoff.
+- NOT YET DONE for Wave 1: plan 01 Task 7 Steps 1-3 + Task 8 Steps 1-4 on merged main (expect 1296 collected in both slots, poison 2/2/0, drift 0); Task 8 Step 5 TASK_LIST note; specs-compliance-matrix recount + rows touched by P1/S-CACHE/CI-DISK; program state labels; Delivery Map artifact republish.
+- Owner direction 2026-10-01: next orchestrator updates documentation and runs Wave 2 phases in parallel (orchestration.md §2: phases inside one wave may run at once; merges stay serial on shared files and count slots).
+- RESUME POINT: see the handoff message of 2026-10-01 (copied into `audit/2026-09-25/handoff-2026-10-01-wave2.md` by the next orchestrator if absent). Start: merge this docs PR → post-merge P1 checks → Wave 2 L1s.
