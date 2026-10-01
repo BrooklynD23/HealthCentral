@@ -23,7 +23,7 @@ Scope: this is the G-C4 group of [W-11b roadmap items G-C1…G-C4](2026-09-27-W1
 - **(B) PyInstaller + Tauri.** A Rust-based desktop shell wraps the backend and a separately served frontend.
 - **(C) PyInstaller + Electron.** A Chromium-based desktop shell wraps the backend and frontend.
 
-Branch A §13 "Prepared recommendation: portable folder first" is an input to this record, not a conclusion of it.
+Branch A §13 "Prepared recommendation: portable folder first" (`docs/plans/2026-09-08-backlog-closure-plan.md:389`) is an input to this record, not a conclusion of it.
 
 ## Criteria matrix
 
@@ -33,12 +33,12 @@ All facts below measured on `main@8064244` (the start SHA of this worktree, `doc
 |---|---|---|---|---|
 | SQLCipher native bundling | Must bundle `sqlcipher3-binary` wheel as-is | Same bundling need, plus Rust shell | Same bundling need, plus Electron | `src/backend/requirements.txt:32` `sqlcipher3-binary>=0.5.0` @start8064244 |
 | llama-cpp native bundling | Must bundle `llama-cpp-python` wheel (CPU build) | Same | Same | `src/backend/requirements.txt:72` `llama-cpp-python==0.3.35` @start8064244 |
-| torch footprint | 1.2 GB installed (`sentence-transformers` pulls it in) | Same | Same | Task C4.1 Step 1, this worktree, D9 venv: `du -sh $SP/torch` → `1.2G` |
-| WeasyPrint native GTK stack on Windows | Needed if PDF export runs in-process; GTK is not bundled by any of A/B/C automatically | Same | Same | `src/backend/requirements.txt:128` `weasyprint>=60.0` @start8064244 |
-| Code signing (SmartScreen; cost; owner) | Needed for any installer/launcher to avoid SmartScreen warnings | Needed | Needed | S-C4-3 (owner, unsigned) |
-| Total size | Smallest: no second runtime embedded | Larger: + Rust/WebView2 runtime | Largest: + full Chromium/Electron runtime | qualitative, from component list above |
-| Update and uninstall path | Simplest: replace folder contents | Needs platform installer tooling (Tauri bundler) | Needs platform installer tooling (Electron builder) | qualitative |
-| **Data directory** | Needs an absolute per-user directory; today `app_data_path` is CWD-relative | Same requirement | Same requirement | `src/backend/core/config.py:159-163` @start8064244: `app_mode == "local"` returns `Path("data")`, relative to the process working directory |
+| torch footprint | D9 venv (`~/venvs/asclexis-311/bin/python`), CUDA 13.0 build; torch 1.2G excludes `nvidia/*` (3.2G) and `triton` (895M); CPU-build footprint UNMEASURED | Same | Same | measured 2026-10-01, see "Measured component sizes" below (`du -sh`); `2.14.0+cu130` is a CUDA build. CPU-build footprint UNMEASURED; to measure: install the CPU torch wheel in a scratch venv and `du -sh` its `torch/` |
+| WeasyPrint native GTK stack on Windows | Needed if PDF export runs in-process; absent on the Windows 3.13 install per W-2 plan fact 8; GTK "not bundled by any of A/B/C automatically" is an unmeasured judgement | Same | Same | `src/backend/requirements.txt:128` `weasyprint>=60.0` @start8064244; [W-2 plan](2026-09-27-W02-doctor-summary-redaction.md):188 ("WeasyPrint is not installed under Windows 3.13.7") |
+| Code signing (SmartScreen; cost; owner) | SmartScreen need: unmeasured judgement; cost: UNMEASURED (owner, S-C4-3) | Same | Same | S-C4-3 (owner, unsigned); no evidence collected for SmartScreen behaviour or signing cost |
+| Total size | Smallest: no second runtime embedded (unmeasured judgement) | Larger: + Rust/WebView2 runtime (unmeasured judgement) | Largest: + full Chromium/Electron runtime (unmeasured judgement) | unmeasured judgement; shell sizes UNMEASURED, no shell installed |
+| Update and uninstall path | Simplest: replace folder contents (unmeasured judgement) | Needs platform installer tooling (Tauri bundler) (unmeasured judgement) | Needs platform installer tooling (Electron builder) (unmeasured judgement) | unmeasured judgement; no installer built or tried |
+| **Data directory** | Needs an absolute per-user directory, a later product change touching the vault, backup and delete-sweep paths; today `app_data_path` is CWD-relative | Same requirement | Same requirement | `src/backend/core/config.py:159-163` @start8064244: `app_mode == "local"` returns `Path("data")`, relative to the process working directory |
 | **Source-relative paths the bundle must carry or re-point** | All three options face the same three paths | same | same | `src/backend/api/feedback.py:66` (`rl_exports` default, relative to `Path(__file__).resolve().parents[1]`); `src/backend/core/migrations.py:31,46` (`alembic.ini` + `migrations/` resolved relative to `Path(__file__).parent.parent`); `src/backend/modules/model_integrity.py:42` (repo-root `config/model_manifest.json`, resolved `Path(__file__).resolve().parent.parent.parent.parent`) — all @start8064244 |
 | **Origin / CORS** | Same-origin; no CORS change needed | New origin (Tauri webview); needs a C-LOCAL-3 change | New origin (Electron renderer); needs a C-LOCAL-3 change | `src/backend/main.py:101` @start8064244: local mode allows only `http://localhost:3000` and `http://127.0.0.1:3000` |
 | **Bind host** | 127.0.0.1, unchanged | 127.0.0.1, unchanged | 127.0.0.1, unchanged | `src/backend/main.py:166-167` @start8064244: `host = "127.0.0.1" if settings.app_mode == "local" else settings.host`; `dev.ps1:719` @start8064244 passes `--host 127.0.0.1` for local dev |
@@ -46,36 +46,34 @@ All facts below measured on `main@8064244` (the start SHA of this worktree, `doc
 | GGUF delivery | Stays a user-triggered download in all three options | same | same | C-LOCAL-1's sanctioned call; D8 covers only the embedding model, not GGUF tiers |
 | No `StaticFiles` mount today | n/a — (A) would add one | n/a | n/a | `docs/capstone-report/architecture-overview.md:21` @start8064244: "No `StaticFiles`/`app.mount` in the backend; no desktop shell"; confirmed empty by `grep -rn "StaticFiles\|app.mount" src/backend/main.py` on this worktree |
 
-### Measured component sizes (Task C4.1 Step 1, D9 venv, this worktree)
+### Measured component sizes (D9 venv `~/venvs/asclexis-311/bin/python`, re-measured 2026-10-01)
 
 ```
-$ SP=$("$PY" -c "import site; print(site.getsitepackages()[0])")
-$ du -sh "$SP"/torch "$SP"/llama_cpp "$SP"/sqlcipher3* "$SP"/sentence_transformers "$SP"/transformers "$SP"
-1.2G	.../site-packages/torch
-21M	.../site-packages/llama_cpp
-2.0M	.../site-packages/sqlcipher3
-32K	.../site-packages/sqlcipher3_binary-0.6.0.dist-info
-7.0M	.../site-packages/sqlcipher3_binary.libs
-5.6M	.../site-packages/sentence_transformers
-62M	.../site-packages/transformers
-4.7G	.../site-packages                        (whole site-packages tree)
-
-$ "$PY" -c "import torch; print(torch.__version__)"
-2.14.0+cu130
+$ SP=~/venvs/asclexis-311/lib/python3.11/site-packages
+$ du -sh $SP/torch $SP/nvidia $SP/triton
+1.2G	/home/danny/venvs/asclexis-311/lib/python3.11/site-packages/torch
+3.2G	/home/danny/venvs/asclexis-311/lib/python3.11/site-packages/nvidia
+895M	/home/danny/venvs/asclexis-311/lib/python3.11/site-packages/triton
+$ du -sh $SP
+5.9G	/home/danny/venvs/asclexis-311/lib/python3.11/site-packages
 ```
+
+`torch/` 1.2G excludes `nvidia/*` and `triton`, which a CUDA build pulls in (`2.14.0+cu130`, CUDA 13.0). CPU-build footprint is UNMEASURED. The earlier measurement in the first draft of this record (2026-10-01, earlier the same day) showed whole site-packages = 4.7G, plus `llama_cpp` 21M, `sqlcipher3` 2.0M, `sqlcipher3_binary.libs` 7.0M, `sentence_transformers` 5.6M, `transformers` 62M, torch 1.2G; today's 5.9G differs, so the venv drifted between the two runs. Today's figure replaces the 4.7G figure; the smaller components were not re-measured today (UNMEASURED today). The torch version `2.14.0+cu130` comes from the earlier run (`"$PY" -c "import torch; print(torch.__version__)"`); it was not re-run today.
 
 ### Frontend build size (Windows PowerShell, this worktree, `src/frontend`)
 
 ```
 > npm ci
 added 433 packages, and audited 434 packages in 19s
-21 vulnerabilities (2 low, 4 moderate, 14 high, 1 critical) — pre-existing npm audit findings, not introduced by this record
 > npm run build
 ✓ 2480 modules transformed.
 ✓ built in 51.61s
 > '{0:N0} bytes' -f (Get-ChildItem dist -Recurse | Measure-Object Length -Sum).Sum
 6,339,068 bytes
 ```
+
+`npm ci` also reported 21 vulnerabilities (2 low, 4 moderate, 14 high, 1 critical). These are pre-existing npm audit findings in `src/frontend`, not introduced by this record and out of its scope.
+
 The build emits a warning that `dist/assets/index-CJUCxuZL.js` (540.89 kB) and `dist/assets/LineChart-CboYgZGt.js` (357.79 kB) exceed the 500 kB chunk-size guidance. That is a pre-existing frontend finding, not acted on by this record.
 
 After the build, `git -C <worktree> status --short` showed nothing beyond this record's own files; `src/frontend/node_modules` and `src/frontend/dist` are git-ignored (`.gitignore:58`, `:65`), confirmed with `git check-ignore -v`.
@@ -83,43 +81,68 @@ After the build, `git -C <worktree> status --short` showed nothing beyond this r
 ### GGUF tier labels (not measurements)
 
 ```
-$ python scripts/download_models.py list
-Hardware detected: RAM=12.4GB, CPU=6 cores, Disk=102.4GB free, GPU=No, Recommended tier=gemma4-e4b
-  low (Qwen2.5 0.5B): RAM 8GB, Disk 1GB
-  gemma4-e2b: RAM 8GB, Disk 2GB [PLACEHOLDER URL - verify before use]
-  gemma4-e4b: RAM 12GB, Disk 4GB [PLACEHOLDER URL - verify before use]
-  mid (Phi-4-mini): RAM 16GB, Disk 3GB
-  gemma4-12b: RAM 16GB, Disk 8GB [PLACEHOLDER URL - verify before use]
-  high (BioMistral-7B): RAM 32GB, Disk 5GB
+$ cd src/backend && python scripts/download_models.py list 2>&1   # 2026-10-01, ~/venvs/asclexis-311/bin/python, HF_HUB_OFFLINE=1
+INFO  Hardware detected: RAM=12.4GB, CPU=6 cores, Disk=117.7GB free, GPU=No, Recommended tier=gemma4-e4b
+
+Available model tiers:
+  Detected hardware: 12 GB RAM, 118 GB disk free
+  Recommended tier: gemma4-e4b
+
+  Tier: low  (Qwen2.5 0.5B)
+    RAM: 8 GB   Disk: 1 GB   [not downloaded]
+    CPU-only, fast, lightweight.
+
+  Tier: gemma4-e2b  (Gemma 4 E2B edge, ~1.5 GB Q4)
+    RAM: 8 GB   Disk: 2 GB   [not downloaded] [PLACEHOLDER URL - verify before use]
+    Ollama: ollama pull gemma4:e2b
+    Multimodal, 256K ctx, Apache 2.0. Edge/phone-class hardware.
+
+  Tier: gemma4-e4b  (Gemma 4 E4B edge, ~2.8 GB Q4)
+    RAM: 12 GB   Disk: 4 GB   [not downloaded] [PLACEHOLDER URL - verify before use]
+    Ollama: ollama pull gemma4:e4b
+    Multimodal, 256K ctx, Apache 2.0. Good mid-range laptop default.
+
+  Tier: mid  (Phi-4-mini)
+    RAM: 16 GB   Disk: 3 GB   [not downloaded]
+    Balanced quality, 16K ctx. Needs llama-cpp-python >= 0.3.35.
+
+  Tier: gemma4-12b  (Gemma 4 12B, ~7-8 GB Q4)
+    RAM: 16 GB   Disk: 8 GB   [not downloaded] [PLACEHOLDER URL - verify before use]
+    Ollama: ollama pull gemma4:12b
+    Multimodal, 256K ctx, Apache 2.0. Recommended for 16+ GB RAM.
+
+  Tier: high  (BioMistral-7B)
+    RAM: 32 GB   Disk: 5 GB   [not downloaded]
+    Medical-specialised, best accuracy.
 ```
-These are labels in the script (`src/backend/scripts/download_models.py` @start8064244, lines ~77/85/99), not measured download sizes. GGUF tiers stay user-triggered downloads under D8/C-LOCAL-1; they are not part of what the installer bundles.
+Run from `src/backend` (a different repo-root `scripts/download_models.py` also exists). The labels come from `src/backend/scripts/download_models.py:77,85,99 @start8064244`; they are not measured download sizes. GGUF tiers stay user-triggered downloads under D8/C-LOCAL-1; they are not part of what the installer bundles.
 
 ## How the installer bundles the embedding model (D8 + D8-delivery)
 
 - **Status of the fetch mechanism depends on W-8, which has not landed.** `grep -n "embedding_model_path" src/backend/core/config.py` on this worktree (`main@8064244`) printed nothing. `grep -n "embedding" src/backend/scripts/download_models.py` also printed nothing — the script currently lists only GGUF/Ollama commands. This mechanism is therefore labelled **"proposed (W-8, not on main)"**, exactly as the W-11b plan requires. If W-8 lands before S-C4-1, the build step would run `download_models.py embedding` on the build machine, network used at build time only, never at runtime (per the W-8 plan's own scope) — but that remains proposed, not implemented.
-- **Which model: a PROPOSAL, owner-gated as S-C4-5.** D8 approves only "the small embedding model" ([owner-decisions-2026-09-27.md:21](../capstone-report/owner-decisions-2026-09-27.md)). It names no model, revision, hash, or file set. The candidate is the [W-8 plan](2026-09-27-W08-bundled-embedding-model.md)'s own proposal (`:34`, measured facts table): `sentence-transformers/all-MiniLM-L6-v2`, revision `1110a243fdf4706b3f48f1d95db1a4f5529b4d41`, 11 files, 91,578,415 bytes, `model.safetensors` sha256 `53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db`. These values are written here as **"proposed (W-8), pending S-C4-5 / EMB-REV"**, never as the installer's actual contents — EMB-REV (the revision pin) is not signed (`owner-decisions-2026-09-27.md:62`, consequence note 4). If S-C4-5 names a different model or revision, the size and hash are re-measured, never carried over from this record.
+- **Which model: a PROPOSAL, owner-gated as S-C4-5.** D8 approves only "the small embedding model" ([owner-decisions-2026-09-27.md:21](../capstone-report/owner-decisions-2026-09-27.md)). It names no model, revision, hash, or file set. The candidate is the [W-8 plan](2026-09-27-W08-bundled-embedding-model.md)'s own proposal (`:31-34`: repo, revision `:32`, sha256 `:33`, size `:34`; revision also pinned in the evidence row `:103`): `sentence-transformers/all-MiniLM-L6-v2`, revision `1110a243fdf4706b3f48f1d95db1a4f5529b4d41`, 11 files, 91,578,415 bytes, `model.safetensors` sha256 `53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db`. These values are written here as **"proposed (W-8), pending S-C4-5 / EMB-REV"**, never as the installer's actual contents — EMB-REV (the revision pin) is not signed (`owner-decisions-2026-09-27.md:62`, consequence note 4). If S-C4-5 names a different model or revision, the size and hash are re-measured, never carried over from this record.
 - **Licence facts, measured this session (Task C4.1 Step 2, network read, `HF_HUB_OFFLINE` unset for this one command only):**
   ```
   sentence-transformers/all-MiniLM-L6-v2 1110a243fdf4706b3f48f1d95db1a4f5529b4d41 LICENSE/NOTICE files: []
   sentence-transformers/all-MiniLM-L6-v2 1110a243fdf4706b3f48f1d95db1a4f5529b4d41 front matter: ['base_model:', 'license: apache-2.0']
   base_model: UNMEASURED (not declared in the card front matter, or the first read failed)
   ```
-  The model card declares `license: apache-2.0` and ships no `LICENSE`/`NOTICE` file in the repo listing. The `base_model:` front-matter key is present but empty, so the base model's own licence is **UNMEASURED** — the card does not name a base model to look up. Which licence and notice files the installer must carry, and on what terms, is **S-C4-4 (owner, unsigned)**. This record does not mandate any.
+  The model card declares `license: apache-2.0` and ships no `LICENSE`/`NOTICE` file in the repo listing. The `base_model:` key is present; its value was not captured by the inline parser (possibly a YAML list). Base-model identity and licence: **UNMEASURED** (feeds S-C4-4). Which licence and notice files the installer must carry, and on what terms, is **S-C4-4 (owner, unsigned)**. This record does not mandate any.
 - The (proposed) launcher would set `EMBEDDING_MODEL_PATH` to an **absolute** path inside the install directory, because the W-8 plan resolves relative paths against `Path(__file__)`, which a PyInstaller one-file build relocates to a temporary extraction directory.
 - The (proposed) build step would verify the sha256 of the bundled weights; runtime failure stays fail-closed, per the W-8 plan.
 - No weights are committed to git by this record or by W-8's own scope.
-- Acceptance for a later HC-M08b/c would be: re-run HC-EMB-002 against the packaged app with the network blocked.
-- **Not licensed by D8:** GGUF tiers, and HC-M11's future cross-encoder weights. Branch A §14 d2: "Its model-distribution prerequisite is still unbuilt." D8 covers only "the small embedding model." This record states that bundling either one would need its own owner decision; it does not decide against bundling them, and it does not license HC-M11 code or weights (out of scope per the W-11b plan, G-C5).
+- Acceptance for a later HC-M08b/c would be: re-run HC-EMB-002 against the packaged app with the network blocked ([W-8 plan](2026-09-27-W08-bundled-embedding-model.md):78; the W-11b plan's `:72` citation of it is wrong, `:72` is a scope exclusion).
+- **Not licensed by D8:** GGUF tiers, and HC-M11's future cross-encoder weights. Branch A §14 d2 (`docs/plans/2026-09-08-backlog-closure-plan.md:403`): "Its model-distribution prerequisite is still unbuilt." D8 covers only "the small embedding model." This record states that bundling either one would need its own owner decision; it does not decide against bundling them, and it does not license HC-M11 code or weights (out of scope per the W-11b plan, G-C5).
 
 ## Recommendation
 
 **Recommended: Option (A), portable folder plus launcher**, same-origin `StaticFiles` serving — consistent with branch A §13's prepared recommendation, now cross-checked against this session's measurements.
 
 Rationale:
-1. SQLCipher and llama-cpp native bundling is required under every option; (A) adds no second native runtime (no Rust/WebView2, no Chromium) on top of that baseline, keeping total size and update/uninstall surface smallest.
+1. SQLCipher and llama-cpp native bundling is required under every option; (A) adds no second native runtime (no Rust/WebView2, no Chromium) on top of that baseline, which is expected (unmeasured judgement; shell sizes and installer behaviour UNMEASURED) to keep total size and update/uninstall surface smallest.
 2. (A) needs no CORS change (same-origin), so it does not touch the `main.py:101` localhost allow-list or C-LOCAL-3. (B) and (C) both require widening the origin, which is a C-LOCAL-3 change needing its own review.
 3. (A) requires no new desktop-shell toolchain (Tauri or Electron build pipeline) to learn and maintain, lowering the review and maintenance burden for a small team.
-4. None of the three criteria that are genuinely option-dependent (native bundling, data directory, source-relative paths) favor (B) or (C) over (A); they are identical across all three options as measured above.
+4. The three option-independent criteria (native bundling, data directory, source-relative paths) do not favor (B) or (C) over (A); they are identical across all three options as measured above.
 
 Consequences for a later HC-M08b/c/d, regardless of which option the owner picks:
 - `app_data_path` (`core/config.py:159-163`) must change from CWD-relative `Path("data")` to an absolute per-user directory (S-C4-2).
