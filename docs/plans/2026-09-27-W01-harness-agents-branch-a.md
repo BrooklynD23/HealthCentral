@@ -1454,20 +1454,42 @@ Never `git add -A`, `git add .`, or `git add .claude/`. Every message ends with 
 
 *(The executor fills this in. It is the dated log AGENT.md's definition of done requires; no `TASK_LIST.md` entry, to avoid colliding with P4 Task 16.)*
 
-- Worktree / HEAD:
-- Interpreter (`--version`), `git --version`, PyYAML version:
-- START_COLLECTED / START_FAILURES:
-- Task 0 Step 3 drift output:
-- Task 0 Step 5 quoted doc sentences (F1–F6):
-- HC-AGENTS-008 gate output: RED (Task 5 Step 1), GREEN (Task 5 Step 5, Task 8 Step 2):
-- Task 7 Step 1 `phi_gate_exit` (must be 0), Step 1b seven `-> exit=1` lines plus `after_cleanup_exit=0` and `find_error_exit=1`, Step 6 output:
-- OG-3 signed? Task 9 ran? C4 SHA:
-- Pass-count wording in CLAUDE.md/AGENT.md: re-measured (environment) or flagged in the PR:
-- Red outputs (per test ID):
-- Task 4 Step 4 honesty review (a/b/c per agent):
-- Task 7 transcripts:
-- END collected / failures; gate outputs:
-- PR URL:
+Executed 2026-10-01. A first implementer committed C1-C3 and died (host out of memory) before recording evidence. A second pass re-established the evidence without rewriting history. Path substitution: hc-w01 became hc-w1, branch feat/w1-harness-agents.
+
+- Worktree / HEAD: `/mnt/c/Users/DangT/Documents/GitHub/hc-w1`, branch `feat/w1-harness-agents`. Base 8064244. Commits: C1 9345cc3, C2 7643c94, C3 dde5ea4, C4 54ea75f.
+- Interpreter, git, PyYAML: Python 3.11.16 (`~/venvs/asclexis-311`), git 2.43.0, PyYAML 6.0.3. `HF_HUB_OFFLINE=1`.
+- START_COLLECTED / START_FAILURES: 1296 collected at base (from the C1 diff of CLAUDE.md/AGENT.md). The full suite was not run in this pass, by instruction (L1 runs it once at the end). START_FAILURES not measured.
+- Commit file lists vs plan: C1 = the 5 agent files, `.gitignore`, the test file, `CLAUDE.md`, `AGENT.md` (9). C2 = `harness.md`, `roadmap.md` (2). C3 = `CS4610_Report_Demo/README.md`, `claims-ledger.md` (2). The matrix and contract were deliberately not edited (another PR is editing the matrix).
+- Task 0 Step 3 drift output (on the final tree): `Harness drift check passed.` drift=0; `Docs lint passed.` lint=0; `docs/INDEX.md and docs/_link_graph.json are fresh.` index=0; `git check-ignore --no-index` on `.claude/agents/x.md` exits 1 (not ignored) and `.claude/settings.local.json` exits 0 (still ignored). `git log --all -- .claude/agents` lists only 9345cc3. AST parse of `dev.ps1` through `powershell.exe`: `0`. Every path named in the bodies exists.
+- Task 0 Step 5 (docs read 2026-10-01 through WebFetch, which summarises with a small model; quotes are as returned):
+  - F1: "Only `name` and `description` are required." and the `tools` row accepts "a comma-separated string such as `Read, Grep, Bash` or a YAML list."
+  - F2: "Inherits every tool available to subagents if omitted."
+  - F3: no verbatim "For conditional rules, use hooks instead" found. Nearest text: "A `disallowedTools` entry with a specifier, such as `Bash(git push *)`, still removes the whole tool from the subagent, not only the matching commands." and "For more dynamic control over tool usage, use `PreToolUse` hooks to validate operations before they execute." Substance holds: no path-scoped allow in `tools`. The page now also points to `permissions.deny` in settings (relevant to OG-5, not to F3).
+  - F4: "Claude Code ignores a field it doesn't recognize without reporting an error."
+  - F5: the phrase "can include write operations" was not found. Nearest: Bash, PowerShell, Edit, Write and NotebookEdit are listed together as built-in tools, and Explore/Plan are described as "read-only tools; Write and Edit are denied". Substance holds (Bash/PowerShell can write); the plan's verbatim quote is stale wording.
+  - F6: "These hooks only run while that specific subagent is active and are cleaned up when it finishes."
+  - Verdict: F2/F4 verbatim; F3/F5 wording differs, substance unchanged, so no STOP. Flagged in the PR.
+- HC-AGENTS-008 gate: RED (scratch copy, verification-engineer path changed in harness.md): `unnamed: verification-engineer`, `unnamed=1`, `ERROR: docs/agentic/harness.md:27: missing path '.claude/agents/verifier.md'`, `Harness drift check failed with 1 error(s).`, `drift=1`. GREEN (scratch and real tree): `unnamed=0`, `Harness drift check passed.`, `drift=0`. The first implementer's Task 5 Step 1 RED (`unnamed=5`) was not preserved. This is a break-based RED, not that exact one.
+- Red outputs (scratch copy of HEAD, `git archive` + `git init`, `--noconftest`; baseline `7 passed`):
+  - 001: remove `!.claude/agents/` gives `still ignored by .gitignore: [all 5 names]`, 1 failed, 6 passed.
+  - 002: change to `!.claude/*` gives `un-ignore is too wide; now trackable: ['.claude/settings.json', '.claude/settings.local.json', '.claude/hooks/pre_tool_use.sh']`.
+  - 003: extra `scratch.md` gives red (`'scratch.md' != 'verification-engineer.md'`).
+  - 004: BOM in one file gives `line 1 must be exactly '---' (no BOM)`; 004, 005, 007 fail.
+  - 005: `Write` added to verification-engineer gives `tools [...'Write'] != [...]`; 005 and 007 fail, 2 failed, 5 passed.
+  - 006: `src/backend/modules/redaction.py` added to `write_scope` gives `['dev.ps1', ..., 'redaction.py'] == ['dev.ps1', 'dev.bat']` red.
+  - 007: ask-first line removed from dependency-policy-auditor gives `ask-first list lacks src/backend/modules/interpret_safety.py` (7 items).
+  - Restored: `7 passed`.
+- Task 4 Step 4 honesty review (a / b / c): all five bodies answer no / yes / no.
+  - (a) no body claims an action its tools forbid. verification-engineer's "run on the tree that was claimed" describes checking evidence. The implementer's "run dev.bat" and the AST command are for the orchestrator or a human.
+  - (b) every named path exists (Task 0 check plus `dev.bat`, `feature_list.json`).
+  - (c) all five contain "That check is the boundary: Claude Code does not limit which paths Read can open", and the implementer states that `write_scope` is not enforced.
+- Task 7 (smoke worktree hc-w1-smoke at HEAD dde5ea4): Step 1 `phi_gate_exit=0`, then `5` agent files. Step 1b: `data -> exit=1`, `src/backend/data -> exit=1`, `probe.db -> exit=1`, `src/probe.db-wal -> exit=1`, `src/backend/probe.db-shm -> exit=1`, `.env -> exit=1`, `src/backend/.env -> exit=1`, `after_cleanup_exit=0`, `find_error_exit=1`. Step 6: `phi_gate_exit=0`, `git status --porcelain --ignored --untracked-files=all` printed nothing, worktree removed and no longer listed.
+- Task 7 Steps 2-5 (agents load in `/agents`; scanner cannot write; implementer cannot create or run; review rule on README.md): UNMEASURED, owner manual step (needs interactive /agents session).
+- OG-3 signed? Yes (verbatim text in the task brief: "The drift check becomes a collected test (+1) and gates CI backend-tests."). Task 9 ran. C4 54ea75f. Break proof in disposable hc-w1-break worktree: `AssertionError: harness.md does not name by full path: ['verification-engineer']`, 1 failed, 7 deselected; worktree removed. With the real tree, 8 passed. Collected 1303 to 1304.
+- Pass-count wording in CLAUDE.md/AGENT.md ("all 1288 pass", "1269 pass in CI, 1268 without an embedding model"): not re-measured, flagged in the PR. Only collected-count slots were changed (CLAUDE.md 2 places, AGENT.md 1 place).
+- END gates (final tree, before this record): drift=0, lint=0, index=0, `Repo hygiene passed.` hygiene=0, five agents each `ignore=1`, 5 tracked files in `.claude/agents`, 0 frontend files changed. Targeted `tests/test_claude_agent_definitions.py tests/test_harness_drift_check.py`: 12 passed. `--collect-only`: 1304 tests collected.
+- END full suite and failures: L1 fills at PR time.
+- PR URL: L1 fills at PR time.
 
 ---
 
