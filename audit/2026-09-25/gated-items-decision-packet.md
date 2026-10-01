@@ -68,7 +68,62 @@ Owner decision: ☐ approve ☐ reject ☐ defer — notes/date: ____
 A new dependency `require_fresh_auth(max_age)` checking a new `auth_time` JWT claim, or a password re-verify endpoint, placed in front of the destructive routes (profile delete, restore, recovery-code issuance, export routes) plus a frontend confirmation dialog. Test plan: `tests/support/routes.py::route_client` HTTP-level tests asserting 401 without recent auth. No ask-first file is edited without a separate yes; this brief proposes only.
 
 ## Brief 2 — Key Rotation
-_(pending)_
+
+**Ask-first surface:** options B and C touch `core/profile_database.py`, `core/security.py`, `core/document_crypto.py` and `api/profiles.py` (encryption). Brief only; no code.
+
+### Current state
+
+| Anchor | Proves |
+|---|---|
+| `api/profiles.py:1072` @start8064244 (`change_password` def; the decorator sits at `:1071`) | unseals `key.bin` with the current password |
+| `api/profiles.py:1094-1106` @start8064244 | re-seals the **same** DEK under the new password (`unseal_key_with_dpapi` then `seal_key_with_dpapi`) |
+| `api/profiles.py:1146-1147` @start8064244 | writes the re-sealed `key.bin`/`key.method` — the SQLCipher key itself never changes |
+| `core/profile_database.py:349` @start8064244 | `PRAGMA key = "x'{hex_key}'"` — `vault.db` is keyed by the raw 32-byte DEK (raw-key mode) |
+| `core/profile_database.py:153` @start8064244 | `key.recovery.bin` is a second sealed copy of the same DEK (SEC-RECOV-001) |
+| `core/profile_database.py:183-205` @start8064244, comment at `:192` | `get_profile_key_paths` enumerates all sealed-key artifacts; comment: "If DEK rotation is ever implemented, it must reseal every copy listed here" |
+| `core/document_crypto.py:19-37` @start8064244 | stored documents are encrypted with the same DEK (`connection._encryption_key`); true rotation must re-encrypt every document, not just the vault |
+| `grep -rnE "rekey\|sqlcipher_export" src/backend` (run 2026-10-01) | zero hits outside this brief's prose — **no rekey support exists today** |
+| `tests/test_profile_recovery.py:210` @start8064244 | test comment: "Simulate change_password: re-seal only the primary copy" |
+| `api/profiles.py:730-739` @start8064244 | recovery already rotates the one-time code on use — the existing re-seal machinery this brief would reuse |
+| `docs/compliance/hipaa-controls.md:169` @start8064244 | "Key rotation \| Medium \| Manual via password change" — **this overstates**: at the DEK level, a password change does not rotate the key, it only re-seals the same key under a new wrapper |
+| `scripts/backup.py:75,236-240` @start8064244 | a backup copies the master DB (plaintext, scoped to the profile via `_scope_master_to_profile`, `scripts/backup.py:243-262` @start8064244) plus `vaults/<id>/{key.bin,key.method,key.recovery.bin,key.recovery.method}` verbatim (sealed, opaque blobs) |
+| `scripts/backup.py:658-673` @start8064244 | default prune window is 30 days (`retention_days: int = 30`); `retention_days=0` means never-prune, not "prune everything" |
+
+Old backups keep the old DEK's sealed copies until pruned (default 30 days, `scripts/backup.py:658-673` @start8064244) or swept on profile delete. Rotating the DEK does not retro-protect anything already backed up under the old key.
+
+### Decision framing
+
+Against the attacker model "copied the `data/` directory": rotating the DEK limits exposure of a *stolen sealed-key + later-learned password* combination and satisfies "rotation exists" as a control, but old backups remain a permanent decryption path for old DEKs unless a purge/rotate policy for backups is included.
+
+### Options
+
+| Option | Effort | Risk | Value |
+|---|---|---|---|
+| A — Keep re-seal-only; fix the docs | S | None | Honest, but "key rotation" stays unimplemented |
+| B — True DEK rotation as a guarded maintenance op | M–L | Highest blast radius of the five items: re-encrypts every document, forces a new recovery code, touches `core/document_crypto.py`/`core/profile_database.py`/`core/security.py` | Makes the control real |
+| C — Split vault-DB DEK from document DEK first | L | Migration + dual seals | Only worth it if rotation becomes routine |
+| D — JWT-secret rotation only | S | Cheap, orthogonal | A real but narrow "rotation" (invalidates all sessions) |
+
+### Recommendation
+
+**B**, with A's doc fix folded in — B is the only option that makes "key rotation" true. The owner must see explicitly: it re-encrypts every stored document file, forces issuance of a new recovery code, and must re-run the full profile-delete + recovery test suite.
+
+### Owner decision
+
+"Approve true DEK rotation (option B) as a future guarded maintenance operation, with the `hipaa-controls.md` wording corrected in the meantime (option A), or reject/defer?"
+
+Owner decision: ☐ approve ☐ reject ☐ defer — notes/date: ____
+
+### Implementation sketch (B only, no code here)
+
+A new `modules/key_rotation.py` (or extension of `profile_database.py`) with `rotate_profile_dek(profile_id)`, used by a new authenticated route; reuse `_atomic_write` (`api/profiles.py:535,727-728` @start8064244), `seal_key_with_dpapi`, and `_issue_recovery_code`. Requires the vault already open. Test plan: a new pytest file asserting post-rotation — old password fails, vault opens, documents decrypt, new recovery code works, old recovery code fails, `get_profile_key_paths` still covers all artifacts — plus a note that old backups remain decryptable by the old DEK.
+
+### Downstream: hipaa-controls.md:169
+This brief must be signed before P4 edits `docs/compliance/hipaa-controls.md:169` @main40f590e (unchanged by A/B; re-verified @start8064244)
+(program P4, "after plan 08 brief 2 is signed"). P4 applies the row matching the signed option:
+- If A (docs only) or reject/defer: `| Key rotation | Medium | Not implemented. A password change re-seals the existing data key under the new password; the database and document key itself does not change. |`
+- If B or C approved: `| Key rotation | Medium | Owner-approved <date>, not yet implemented (plan: <link>). Until it ships, a password change re-seals the existing data key only. |`
+- If D only: A's row, plus `| Session-secret rotation | Low | <as implemented> |`
 
 ## Brief 3 — Penetration-Test Scope
 _(pending)_
