@@ -548,8 +548,10 @@ class NotificationScheduler:
         self._notifications_sent_this_hour += 1
 
         logger.info(
-            f"Sent {check_result.priority.value} notification for "
-            f"{check_result.medication_name} ({check_result.schedule_label})"
+            "Sent %s reminder for medication %s (schedule %s)",
+            check_result.priority.value,
+            check_result.medication_id,
+            check_result.schedule_id,
         )
 
     def _time_in_window(

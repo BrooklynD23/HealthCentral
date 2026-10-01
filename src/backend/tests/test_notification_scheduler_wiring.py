@@ -218,3 +218,78 @@ def test_hc_nsw_006_lifespan_starts_and_stops_scheduler(monkeypatch):
 
     started.assert_awaited_once()
     stopped.assert_awaited_once()
+
+
+def test_hc_nsw_009_no_phi_in_logs_or_master_schema(tmp_path, monkeypatch, caplog):
+    """The send path must not write the medication name to logs, and the
+    reminder tables must live only on the per-profile (encrypted) base."""
+    # Model-level isolation invariant — reminder data never enters master.
+    for model in (
+        Medication,
+        MedicationSchedule,
+        DoseTaken,
+        AdherencePattern,
+        ReminderLog,
+    ):
+        assert issubclass(model, ProfileDatabaseBase)
+
+    provider = MockProvider()
+    scheduler = NotificationScheduler(
+        notification_service=NotificationService(providers=[provider])
+    )
+    monkeypatch.setattr(
+        ns_module,
+        "get_pattern_learner",
+        lambda: SimpleNamespace(
+            calculate_streak=AsyncMock(
+                return_value=SimpleNamespace(current_streak=0, longest_streak=0)
+            )
+        ),
+    )
+
+    db_path = tmp_path / "vault.db"
+    engine = create_async_engine(f"sqlite+aiosqlite:///{db_path}")
+    profile_id = "profile-1"
+    med_id = str(uuid.uuid4())
+    sched_id = str(uuid.uuid4())
+
+    async def scenario():
+        async with engine.begin() as conn:
+            await conn.run_sync(ProfileDatabaseBase.metadata.create_all)
+        session_maker = async_sessionmaker(
+            engine, class_=AsyncSession, expire_on_commit=False
+        )
+        now = datetime.utcnow()
+        async with session_maker() as db:
+            db.add(
+                Medication(
+                    id=med_id,
+                    profile_id=profile_id,
+                    name="Metformin",
+                    is_active=True,
+                    reminder_enabled=True,
+                )
+            )
+            db.add(
+                MedicationSchedule(
+                    id=sched_id,
+                    medication_id=med_id,
+                    schedule_label="morning",
+                    target_time=now.time(),
+                    is_active=True,
+                    reminder_offset_minutes=15,
+                )
+            )
+            await db.commit()
+
+        async def factory():
+            return session_maker()
+
+        scheduler._profile_sessions[profile_id] = factory
+        await scheduler._check_all_schedules()
+
+    caplog.set_level(logging.INFO)
+    run(scenario())
+
+    assert len(provider.sent_notifications) == 1
+    assert "Metformin" not in caplog.text
