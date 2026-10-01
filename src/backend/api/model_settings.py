@@ -21,6 +21,7 @@ from sqlalchemy import select
 
 from core.auth import RequireAuth, ProfileDbSession, ProfileEncryptionManager
 from core.config import user_ocr_preference_enabled, compute_ocr_effective
+from core.external_runner import redaction_bypass_active
 from core.profile_database import get_profile_db_manager
 from models import UserModelSettings
 from modules.agent.settings import is_agent_enabled
@@ -211,6 +212,9 @@ class ExternalApiSettingsResponse(BaseModel):
     provider: str
     model: str
     api_key_configured: bool
+    # D12: true while EXTERNAL_API_REDACTION_BREAK_GLASS is weakening redaction.
+    # Read-only; computed on every construction so GET and PUT cannot disagree.
+    redaction_break_glass: bool = Field(default_factory=redaction_bypass_active)
 
 
 class TimezoneResponse(BaseModel):
