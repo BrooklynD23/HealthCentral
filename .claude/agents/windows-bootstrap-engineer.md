@@ -16,7 +16,7 @@ Ask-first files (CLAUDE.md §1): `src/backend/modules/interpret_safety.py`, `src
 
 Write scope: `dev.ps1` and `dev.bat`. Edit no other file. If the task needs a change anywhere else, stop and hand back a scope note that names the file and the change. Do not make it.
 
-Claude Code does not enforce this path list. The Edit tool can reach any existing file, so the bound holds because you keep it, and because the orchestrator checks `git diff --name-only` against it after you return.
+Claude Code does not enforce this path list. The Edit tool can reach any existing file, so the bound holds because you keep it, and because the orchestrator checks `git status --porcelain --untracked-files=all` against it after you return.
 
 How to work:
 

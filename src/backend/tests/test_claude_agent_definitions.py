@@ -1,5 +1,5 @@
-"""HC-AGENTS-001..007 — the five checked-in Claude Code subagent definitions.
-(HC-AGENTS-008 is a manual gate; it is appended here only after owner sign-off OG-3.)
+"""HC-AGENTS-001..008 — the five checked-in Claude Code subagent definitions.
+(HC-AGENTS-008, the drift gate, is in the suite by owner sign-off OG-3.)
 
 Owner decisions D1 / D1-scope (docs/capstone-report/owner-decisions-2026-09-27.md):
 author all five subagents named in docs/agentic/harness.md, un-ignore
@@ -9,7 +9,7 @@ windows-bootstrap-engineer, has Edit plus a declared write scope.
 These tests pin the *declaration*. Claude Code enforces the `tools` allowlist
 at runtime. It does not enforce `write_scope`: unknown frontmatter keys are
 ignored. That bound holds through the agent's instructions and the
-orchestrator's `git diff --name-only` review (docs/agentic/harness.md).
+orchestrator's `git status --porcelain --untracked-files=all` review (docs/agentic/harness.md).
 """
 
 from __future__ import annotations
@@ -77,8 +77,8 @@ def test_hc_agents_002_unignore_stays_narrow() -> None:
 
 READ_ONLY_TOOLS = {"Read", "Grep", "Glob"}
 IMPLEMENTER_TOOLS = {"Read", "Grep", "Glob", "Edit"}
-# Write-capable per the Claude Code sub-agents docs (Bash/PowerShell "can include
-# write operations"). MultiEdit is listed defensively for older clients.
+# Write-capable per the Claude Code sub-agents docs (Bash/PowerShell can run
+# write operations). MultiEdit is listed defensively for older clients.
 WRITE_CAPABLE_TOOLS = {"Write", "Edit", "MultiEdit", "NotebookEdit", "Bash", "PowerShell"}
 IMPLEMENTER_WRITE_SCOPE = ["dev.ps1", "dev.bat"]
 ALLOWED_KEYS = {"name", "description", "tools", "model", "write_scope"}
