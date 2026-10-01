@@ -260,3 +260,123 @@ git merge --no-commit origin/main           -> CONFLICT: AGENT.md, CLAUDE.md, do
    - Expect poison proofs 2/2/0 and drift 0.
    - Frontend: `RecoveryCodeCard.test.tsx` on Windows.
 4. Task 8 Step 5 is for L0.
+
+---
+
+## Phase 4 — CI-DISK (L1 run 2026-09-30)
+
+| Item | Value |
+|---|---|
+| PR | https://github.com/BrooklynD23/HealthCentral/pull/25 |
+| Branch / head | `ci/cpu-torch-ci-disk` @ `1abb4ef` (base `origin/main` `b50a7da`) |
+| Worktree | `/mnt/c/Users/DangT/Documents/GitHub/hc-ci-disk` |
+| Plan | `docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md` (brought in from `origin/docs/exec-wave1-ledger-2`) |
+| Gate used | CI-DISK-FIX + L0 scope note (security job `ci.yml:115` unchanged) |
+| Collected delta | 0 (no tests, no product code) |
+
+### Commits
+| Commit | What |
+|---|---|
+| `973e9fc` | plan + regenerated `docs/INDEX.md` (1297 lines) + `docs/_link_graph.json` |
+| `1abb4ef` | `ci.yml`: `pip install torch --index-url https://download.pytorch.org/whl/cpu` before `pip install -r` in backend-tests (`:48`), agent-evals (`:165`), e2e-tests (`:200`). `:115` untouched |
+
+### Task 2 local proof (scratch venv in scratchpad, CPython 3.11.16)
+```
+uv pip install torch --index-url https://download.pytorch.org/whl/cpu   -> + torch==2.14.1+cpu
+uv pip install -r src/backend/requirements.txt                          -> OK (tail: + zopfli==0.4.3)
+uv pip list | grep -ci nvidia                                           -> 0
+python -c "import torch, sentence_transformers; print(torch.__version__)" -> 2.14.1+cpu
+```
+Docs gates: `docs_lint.py` → `Docs lint passed.` (rc 0); `generate_docs_index.py --check` → `docs/INDEX.md and docs/_link_graph.json are fresh.` (rc 0). `yaml.safe_load(ci.yml)` OK. `git diff --stat origin/main..HEAD` → 4 files (ci.yml, INDEX.md, _link_graph.json, plan).
+
+### Review
+code-reviewer (opus): **APPROVE**, 0 CRITICAL/HIGH/MEDIUM, 2 LOW (not fixed, out of plan scope):
+1. LOW `ci.yml:49,168,204`: torch is unpinned and nothing checks after install that the `+cpu` build survived. A future dependency upper bound on torch could bring the CUDA wheel back without warning. Optional follow-up needs an owner answer: add `python -c "import torch,sys; sys.exit(0 if '+cpu' in torch.__version__ else 1)"` after the requirements install.
+2. LOW plan line refs are pre-change (`:48/:165/:200/:115` are now `:50/:169/:205/:117`). Record only.
+
+### PR CI (run 36781121769, head `1abb4ef`) — `gh pr checks 25`
+```
+Agent Eval Gate      pass  6m40s  job 110111341389
+Backend Tests        pass  7m17s  job 110111341271
+Documentation Lint   pass  7s     job 110111340883
+E2E Smoke Tests      pass  7m51s  job 110113890519
+Frontend Tests       pass  47s    job 110111341320
+Security Scan        pass  8m21s  job 110111341220
+```
+E2E Smoke evidence (`gh api repos/BrooklynD23/HealthCentral/actions/jobs/110113890519/logs`, 3897 lines, `grep -c nvidia` → 0):
+```
+L521  Downloading torch-2.14.1%2Bcpu-cp311-cp311-manylinux_2_28_x86_64.whl (196.2 MB)
+L536  Successfully installed ... torch-2.14.1+cpu typing-extensions-4.16.0
+L654  Requirement already satisfied: torch>=2.2 in ... (from sentence-transformers>=2.2.0->-r src/backend/requirements.txt (line 73)) (2.14.1+cpu)
+L899  Successfully installed Mako-1.4.3 PyJWT-2.15.1 ...        (Install backend dependencies done; no Errno 28)
+L900  ##[group]Run npx playwright test --project chromium
+L1173 Running 28 tests using 1 worker
+L3873   3 skipped
+L3874   25 passed (1.2m)
+```
+Main's specs pass under Playwright (28 run: 25 pass, 3 skipped). The dot reporter does not name the 3 skipped specs. This is the baseline for #24's E2E.
+
+**Merged:** #25 MERGED 2026-09-30T22:14:10Z → `origin/main` @ `19f85b0` (verified with `gh pr view 25 --json state,mergedAt,mergeCommit`).
+
+---
+
+## Phase 5 — refresh P1 PR #2 (#24) onto CI-DISK main (L1 run 2026-09-30)
+
+| Item | Value |
+|---|---|
+| PR | https://github.com/BrooklynD23/HealthCentral/pull/24 |
+| Branch / head | `merge/asclexis-repo-audit-349pjq`: `d116931` → **`31574fb`** (normal push, no force) |
+| Worktree | `/mnt/c/Users/DangT/Documents/GitHub/hc-p1-a` |
+| Incoming | `973e9fc`, `1abb4ef`, `19f85b0` (CI-DISK only) |
+
+### Step 1 — merge (not rebase)
+```
+git merge-tree --write-tree --name-only HEAD origin/main -> 5f375f6…, rc 0, no conflicted files
+git merge --no-edit origin/main                          -> 31574fb; 4 files (ci.yml, INDEX.md, _link_graph.json, CI01 plan), no conflicts
+generate_docs_index.py --check                           -> docs/INDEX.md and docs/_link_graph.json are fresh.  (no regeneration needed)
+```
+
+### Step 2 — measured (venv Py 3.11.16, `HF_HUB_OFFLINE=1`, `__pycache__` cleared, pipefail)
+| Check | Output |
+|---|---|
+| `pytest tests/ --collect-only -q` | `1296 tests collected in 77.03s (0:01:17)` |
+| `pytest tests/ -q -rf` | `1296 passed, 58 warnings in 283.99s (0:04:43)`; rc 0; FAILED list empty |
+| `git status --short` | empty (0 lines) |
+| new `*.db` (untracked or ignored) | none |
+| `docs_lint.py` | `Docs lint passed.` rc 0 |
+| `generate_docs_index.py --check` | fresh, rc 0 |
+| `harness_drift_check.py` | `Harness drift check passed.` rc 0 |
+
+### Step 3 — PR CI (run 36785890938, head_sha `31574fb…`) — `gh pr checks 24`
+```
+Agent Eval Gate      pass  8m15s   job 110127076591
+Backend Tests        pass  9m2s    job 110127076558
+Documentation Lint   pass  8s      job 110127076592
+E2E Smoke Tests      pass  11m15s  job 110129907034
+Frontend Tests       pass  1m23s   job 110127076552
+Security Scan        pass  9m8s    job 110127076229
+```
+E2E Smoke evidence (`gh api …/actions/jobs/110129907034/logs`, 4233 lines, `grep -c nvidia` → 0):
+```
+L572  Successfully installed ... torch-2.14.1+cpu typing-extensions-4.16.0
+L937  Successfully installed Mako-1.4.3 PyJWT-2.15.1 ...        (no Errno 28)
+L938  ##[group]Run npx playwright test --project chromium
+L1211 Running 30 tests using 1 worker
+L4209   3 skipped
+L4210   27 passed (1.8m)
+```
+Compared with main's baseline (#25 run: 28 tests, 25 pass, 3 skip), #24 adds 2 Playwright tests and both pass. There are 0 failing specs, so no systematic-debugging was needed.
+
+### Step 4 — merge wait (timed out, NOT merged)
+- Polled `gh pr view 24 --json state,mergedAt` every ~9 min from 22:50Z. Every poll returned `OPEN`. The last two polls returned at 00:36:03Z and then 03:35:53Z: the host likely suspended between them.
+- Final check 03:39:12Z: `OPEN - 31574fb…`; `origin/main` still `19f85b0`; `hc-p1-a` tree clean (0 lines).
+- The 3 h window has passed, so **plan 01 Task 7 Steps 1-3 and Task 8 Steps 1-4 were NOT run**, and `../hc-p1-post` was not created.
+
+### RESUME POINT (Phase 5)
+1. Owner merges #24 (head `31574fb`; 6/6 checks green; E2E 30 run, 27 pass, 3 skip).
+2. Then `git fetch origin && git worktree add --detach ../hc-p1-post origin/main` and run plan 01 Task 7 Steps 1-3 and Task 8 Steps 1-4 with `~/venvs/asclexis-311` and `HF_HUB_OFFLINE=1`. Expect 1296 collected in both slots, poison proofs 2/2/0, drift 0. Run the frontend `RecoveryCodeCard.test.tsx` through `powershell.exe`. Task 8 Step 5 is for L0.
+
+### Open findings (not fixed)
+1. LOW (#25 review): CI torch is unpinned, with no `+cpu` assertion after install. A future dependency bound could bring the CUDA wheel back without warning. Needs an owner answer.
+2. Record: the CI01 plan's line refs are pre-change (`:48/:165/:200/:115` → `:50/:169/:205/:117`).
+3. Record: main and #24 each skip 3 Playwright specs. The dot reporter does not name them. They are the same count on both sides, so they are not introduced by #24.
