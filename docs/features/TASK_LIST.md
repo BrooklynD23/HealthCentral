@@ -152,6 +152,29 @@ On the first of each month, review all canonical docs for freshness:
 
 ## Session Notes
 
+### 2026-10-01 - Wave 1 merged: branches A and B, S-CACHE, CI-DISK
+
+Plan 01 (P1) is done. Branch B landed as PR #21 and branch A as PR #24 (with
+the HC-CAREQ HTTP test for `DELETE /documents`). Two phases were added during
+the wave: S-CACHE (PR #23) puts the profile id in the agent answer-cache key,
+closing a cross-profile leak that was live on main, and drops the user-typed
+`category` from the memory audit; CI-DISK (PR #25) installs CPU-only torch in
+the CI test jobs, so E2E Smoke runs green in CI again.
+
+**Measured on merged main `8064244` (D9 venv, Python 3.11.16, `HF_HUB_OFFLINE=1`):**
+`1296 tests collected`, matching `CLAUDE.md` and `AGENT.md`; full suite
+`1296 passed, 55 warnings in 426.07s`; `from main import app` boots. Security
+gate poison proofs: missing reports exit 2, malformed JSON exit 2, clean
+reports exit 0. `docs_lint`, `generate_docs_index --check`, `feature_list_lint`,
+`repo_hygiene_check` and `harness_drift_check` all exit 0. Windows vitest
+`RecoveryCodeCard.test.tsx`: 6 passed.
+
+*Still deliberately open:* the `POST /export/questions` unredacted quote and the
+SQL-FK-001 pragma flip (plan 06). New owner items from the wave (SECGATE-SHAPE,
+CACHE-STALE, CACHE-HIT-AUDIT, AUDIT-KEYS-DROPPED, DOC-DELETE-INTERP,
+RECOVERY-CODE-CACHE, TORCH-PIN, AGENT-PASS-LINE) are registered in the
+implementation program's "Program owner items" table.
+
 ### 2026-09-08 - Band A frontend pair shipped (MED-CORR-002, SEC-RECOV-002)
 
 Both backends had been complete and unreachable. They are now wired, and both

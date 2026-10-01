@@ -1,6 +1,6 @@
 # Owner Decisions — 2026-09-27
 
-**Last Updated:** 2026-09-29 (P1-PR1-MERGE, S-CACHE, MEM-AUDIT-CAT, P1-SLOTS, P1-CAREQ-HTTP, W6-Q4, BG-REACH, OG-2, OG-3 answered in chat; 2026-09-30: CI-DISK-FIX; 2026-09-28: six gate answers from the owner in chat: P0-B2, D9-SRC, P1-DRIFT, SLOT-RULE, P7-ROUTE, SQL-ECHO; earlier: Consequence #4 size measured, EMB-REV named)
+**Last Updated:** 2026-10-01 (W6-Q3, W6-Q5 answered in chat; 2026-09-29: P1-PR1-MERGE, S-CACHE, MEM-AUDIT-CAT, P1-SLOTS, P1-CAREQ-HTTP, W6-Q4, BG-REACH, OG-2, OG-3 answered in chat; 2026-09-30: CI-DISK-FIX; 2026-09-28: six gate answers from the owner in chat: P0-B2, D9-SRC, P1-DRIFT, SLOT-RULE, P7-ROUTE, SQL-ECHO; earlier: Consequence #4 size measured, EMB-REV named)
 **Recorded by:** Claude orchestrator. Each answer was selected by the repository owner in the Claude Code chat on 2026-09-27, in reply to multiple-choice questions. Each option carried the description quoted below.
 **Scope rule:** each approval licenses exactly the option text shown. Anything wider is still owner-gated. This record answers D1–D13 in [implementation-program.md](implementation-program.md#owner-decision-intake-p0-c), P0-B, two follow-ups, and the D8-delivery follow-up (answered later on 2026-09-27).
 
@@ -41,6 +41,8 @@
 | OG-2 | W-11a Task 3 encryption-area test (answered 2026-09-29) | **Approve** | "Task 3 runs in W-11a PR-2 (Wave 2): tests only, no encryption code touched. (Writing, running and committing `src/backend/tests/security/test_vault_ciphertext.py`, HC-KEYCT, on-disk ciphertext with encryption required.)" | yes |
 | OG-3 | W-1 Task 9 (answered 2026-09-29) | **Approve Task 9** | "The drift check becomes a collected test (+1) and gates CI backend-tests. (Move HC-AGENTS-008 into the collected backend suite, so CI `backend-tests` fails when harness.md stops naming an agent by full path or when a `docs/agentic` path does not resolve. No `ci.yml` step is added.)" | yes |
 | CI-DISK-FIX | Fix E2E Smoke "No space left on device" before merging PR #24 (answered 2026-09-30) | **Fix now, CPU torch** | "Small PR, .github/workflows/ci.yml only: in every job that runs `pip install -r src/backend/requirements.txt`, first `pip install torch --index-url https://download.pytorch.org/whl/cpu`. No product code. L1 proves E2E Smoke reaches the Playwright step; then #24 rebases and its E2E runs for real. Merge order: CI-DISK → #24." L0 applies it to the 3 test jobs only and leaves the pip-audit job unchanged (see [plan CI01](../plans/2026-09-30-CI01-cpu-torch-ci-disk.md) scope note). | yes |
+| W6-Q3 | W-6 Q3: break-glass warning placement (answered 2026-10-01) | **Settings + chat page** | "Also render the warning on the assistant chat page. Extra component wiring + test in W-6." (Plan default was "Settings only (D12 minimum)".) | **no** (Settings only was recommended) |
+| W6-Q5 | W-6 Q5: break-glass warning copy, Task 4 Step 3 (answered 2026-10-01) | **As written** | "Use the plan's copy verbatim." ("Privacy protection override is on. This installation is set to send external AI requests with reduced or no redaction, so names, birth dates and record numbers may leave this device. Each such request is recorded in the audit log.") | yes |
 
 ## Earlier owner records still in force
 
