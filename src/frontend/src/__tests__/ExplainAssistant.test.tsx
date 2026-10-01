@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -576,6 +576,66 @@ describe('ExplainAssistant', () => {
       await waitFor(() => {
         expect(suggestedQuestion).not.toBeDisabled();
       });
+    });
+  });
+
+  describe('HC-EXT-005: break-glass warning on the chat page', () => {
+    function mockExternalApi(external: Record<string, unknown>) {
+      vi.mocked(api.apiGet).mockImplementation(async (url) => {
+        if (url === '/settings/model/external-api') {
+          return {
+            use_external_api: true,
+            provider: 'openai',
+            model: 'gpt-x',
+            api_key_configured: true,
+            ...external,
+          };
+        }
+        if (url === '/observations/') {
+          return mockObservations;
+        }
+        return [];
+      });
+    }
+
+    it('HC-EXT-005 shows the alert while the external API is on and break-glass is active', async () => {
+      mockExternalApi({ redaction_break_glass: true });
+      renderWithProviders(<ExplainAssistant />);
+
+      const warning = await screen.findByText(/privacy protection override is on/i);
+      expect(warning.closest('[role="alert"]')).not.toBeNull();
+    });
+
+    it('HC-EXT-005b shows no alert when break-glass is off', async () => {
+      mockExternalApi({ redaction_break_glass: false });
+      renderWithProviders(<ExplainAssistant />);
+
+      await screen.findByText('openai \u00b7 gpt-x');
+      expect(screen.queryByText(/privacy protection override is on/i)).toBeNull();
+    });
+
+    it('HC-EXT-005c shows no alert when an older backend sends no flag', async () => {
+      mockExternalApi({});
+      renderWithProviders(<ExplainAssistant />);
+
+      await screen.findByText('openai \u00b7 gpt-x');
+      expect(screen.queryByText(/privacy protection override is on/i)).toBeNull();
+    });
+
+    it('HC-EXT-005d shows no alert when the external API is off, even if the flag is true', async () => {
+      mockExternalApi({ use_external_api: false, redaction_break_glass: true });
+      renderWithProviders(<ExplainAssistant />);
+
+      await screen.findByText('Local model');
+      // 'Local model' also renders while the external-api query is pending, so
+      // prove that query was issued and its result flushed into a render first.
+      await waitFor(() => {
+        expect(vi.mocked(api.apiGet)).toHaveBeenCalledWith('/settings/model/external-api');
+      });
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 0));
+      });
+      expect(screen.queryByText(/privacy protection override is on/i)).toBeNull();
     });
   });
 });

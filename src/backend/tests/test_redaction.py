@@ -385,7 +385,8 @@ class TestExternalRunnerIntegration:
             )
 
         caplog.set_level(logging.WARNING)
-        with patch.object(runner, "_call_openai", side_effect=mock_call_openai):
+        with patch.object(runner, "_call_openai", side_effect=mock_call_openai), \
+             patch("core.external_runner._record_break_glass_audit", new=AsyncMock()) as audit_sink:
             with patch("core.external_runner.settings") as mock_settings:
                 mock_settings.app_env = "production"
                 mock_settings.external_api_redaction_break_glass = True
@@ -395,3 +396,4 @@ class TestExternalRunnerIntegration:
 
         assert captured_prompts == [original_prompt]
         assert any("SECURITY_AUDIT:" in r.message for r in caplog.records)
+        audit_sink.assert_awaited_once()  # D12: break-glass only with audit
