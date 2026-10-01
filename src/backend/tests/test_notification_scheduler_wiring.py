@@ -128,3 +128,41 @@ def test_hc_nsw_003b_factory_yields_live_session(monkeypatch):
             return db
 
     assert run(go()) is not None
+
+
+def test_hc_nsw_004_pass_records_skipped_locked():
+    """A factory whose vault locked mid-session is counted, not error-logged."""
+    scheduler = make_scheduler()
+
+    async def locked_factory():
+        raise ProfileVaultLockedError("profile-locked vault is locked")
+
+    scheduler._profile_sessions["profile-locked"] = locked_factory
+
+    run(scheduler._check_all_schedules())
+
+    assert scheduler._last_pass_results == {"profile-locked": "skipped_locked"}
+    assert scheduler.last_pass_skipped_locked == 1
+
+
+def test_hc_nsw_005_status_endpoint_reports_skipped_locked(monkeypatch):
+    """GET /notifications/scheduler/status exposes skipped_locked over HTTP."""
+    from api.notifications import router as notifications_router
+    from tests.support.routes import route_client
+
+    scheduler = make_scheduler()
+    scheduler._last_pass_results = {
+        "a": "skipped_locked",
+        "b": "checked",
+        "c": "skipped_locked",
+    }
+    monkeypatch.setattr(ns_module, "_notification_scheduler", scheduler)
+
+    with route_client(notifications_router, "/notifications") as client:
+        resp = client.get("/notifications/scheduler/status")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "stopped"
+    assert body["skipped_locked"] == 2
+    assert body["registered_profiles"] == 0

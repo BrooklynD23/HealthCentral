@@ -143,6 +143,11 @@ class NotificationScheduler:
         self._notifications_sent_this_hour: int = 0
         self._hour_start: Optional[datetime] = None
 
+        # Outcome of the most recent pass, per registered profile
+        # ("checked" | "skipped_locked" | "error"). In-memory only — never
+        # persisted, so no profile data leaves the vault lifecycle.
+        self._last_pass_results: dict[str, str] = {}
+
     @property
     def state(self) -> SchedulerState:
         """Current scheduler state."""
@@ -152,6 +157,15 @@ class NotificationScheduler:
     def is_running(self) -> bool:
         """Check if scheduler is actively running."""
         return self._state == SchedulerState.RUNNING
+
+    @property
+    def last_pass_skipped_locked(self) -> int:
+        """Registered profiles skipped on the last pass because the vault
+        was locked — the honest counterpart of backup_scheduler's
+        skipped_locked."""
+        return sum(
+            1 for r in self._last_pass_results.values() if r == "skipped_locked"
+        )
 
     def register_profile_session(
         self,
@@ -243,12 +257,23 @@ class NotificationScheduler:
             logger.warning("Hourly notification limit reached")
             return
 
+        outcomes: dict[str, str] = {}
         for profile_id, session_factory in list(self._profile_sessions.items()):
             try:
                 async with await session_factory() as db:
                     await self._check_profile_schedules(profile_id, db)
+                outcomes[profile_id] = "checked"
+            except ProfileVaultLockedError:
+                # Routine: the vault was locked between registration and this
+                # pass. Record it honestly; do not alarm the error log.
+                outcomes[profile_id] = "skipped_locked"
+                logger.debug(
+                    "Skipped locked profile %s during reminder pass", profile_id
+                )
             except Exception as e:
+                outcomes[profile_id] = "error"
                 logger.error(f"Error checking profile {profile_id}: {e}")
+        self._last_pass_results = outcomes
 
     async def _check_profile_schedules(
         self,
