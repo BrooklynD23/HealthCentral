@@ -41,6 +41,9 @@
       "docs/capstone-report/README.md",
       "docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md"
     ],
+    "audit/2026-09-25/README.md": [
+      "docs/agentic/orchestration.md"
+    ],
     "audit/2026-09-25/asclexis-showcase.html": [
       "docs/capstone-report/report-outline.md",
       "docs/plans/2026-09-27-senior-report-showcase-plan.md"
@@ -65,6 +68,9 @@
     "audit/2026-09-25/handoff-2026-09-28-execution-orchestrator.md": [
       "docs/agentic/orchestration.md",
       "docs/capstone-report/implementation-program.md"
+    ],
+    "audit/2026-09-25/handoff-2026-10-01-wave2.md": [
+      "docs/agentic/orchestration.md"
     ],
     "audit/2026-09-25/plans/01-merge-branches.md": [
       "docs/plans/2026-09-27-W01-harness-agents-branch-a.md"
@@ -94,7 +100,8 @@
       "docs/plans/2026-09-27-P08-gated-packet-hipaa-aligned-amendment.md"
     ],
     "audit/2026-09-25/swarm-2026-09-27/ledger.md": [
-      "docs/agentic/orchestration.md"
+      "docs/agentic/orchestration.md",
+      "docs/capstone-report/implementation-program.md"
     ],
     "audit/2026-09-25/swarm-2026-09-27/reviews/W04-r1-prompt.md": [
       "docs/agentic/orchestration.md"
@@ -742,6 +749,7 @@
       "docs/capstone-report/implementation-program.md"
     ],
     "docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md": [
+      "docs/capstone-report/implementation-program.md",
       "docs/capstone-report/owner-decisions-2026-09-27.md"
     ],
     "docs/plans/implementation-log": [
@@ -1186,7 +1194,9 @@
       "docs/capstone-report/implementation-program.md",
       "CLAUDE.md",
       "AGENT.md",
+      "audit/2026-09-25/handoff-2026-10-01-wave2.md",
       "audit/2026-09-25/handoff-2026-09-28-execution-orchestrator.md",
+      "audit/2026-09-25/README.md",
       "audit/2026-09-25/swarm-2026-09-27/ledger.md",
       "docs/capstone-report/owner-decisions-2026-09-27.md",
       "audit/2026-09-25/swarm-2026-09-27/reviews/W04-r1-prompt.md"
@@ -1416,9 +1426,12 @@
       "docs/agentic/orchestration.md",
       "audit/2026-09-25/handoff-2026-09-28-execution-orchestrator.md",
       "audit/2026-09-25/swarm-2026-09-27/wave3/3a-integration.md",
+      "audit/2026-09-25/swarm-2026-09-27/ledger.md",
       "docs/plans/2026-09-27-W01-harness-agents-branch-a.md",
       "docs/capstone-report/architecture-overview.md",
       "docs/plans/2026-09-27-P08-gated-packet-hipaa-aligned-amendment.md",
+      "docs/plans/2026-09-29-S02-agent-cache-profile-isolation.md",
+      "docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md",
       "docs/plans/2026-09-27-S01-sql-echo-phi-leak.md",
       "docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md",
       "docs/plans/2026-09-27-W10-governance-invariant-amendments.md",
@@ -1434,7 +1447,6 @@
       "docs/plans/2026-09-27-nightly-doc-drift-routine-spec.md",
       "docs/plans/2026-09-27-senior-report-showcase-plan.md",
       "audit/2026-09-25/swarm-2026-09-27/wave3/3b-evidence.md",
-      "docs/plans/2026-09-29-S02-agent-cache-profile-isolation.md",
       "docs/capstone-report/README.md"
     ],
     "docs/capstone-report/owner-decisions-2026-09-27.md": [
