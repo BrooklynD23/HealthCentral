@@ -293,3 +293,136 @@ def test_hc_nsw_009_no_phi_in_logs_or_master_schema(tmp_path, monkeypatch, caplo
 
     assert len(provider.sent_notifications) == 1
     assert "Metformin" not in caplog.text
+
+
+def _seed_due_medication(db, profile_id, med_id, sched_id):
+    """Insert an active medication with a schedule due right now."""
+    now = datetime.utcnow()
+    db.add(
+        Medication(
+            id=med_id,
+            profile_id=profile_id,
+            name="Metformin",
+            is_active=True,
+            reminder_enabled=True,
+        )
+    )
+    db.add(
+        MedicationSchedule(
+            id=sched_id,
+            medication_id=med_id,
+            schedule_label="morning",
+            target_time=now.time(),
+            is_active=True,
+            reminder_offset_minutes=15,
+        )
+    )
+
+
+def _stub_pattern_learner(monkeypatch):
+    """Isolate the scheduler from adherence_patterns internals."""
+    monkeypatch.setattr(
+        ns_module,
+        "get_pattern_learner",
+        lambda: SimpleNamespace(
+            calculate_streak=AsyncMock(
+                return_value=SimpleNamespace(current_streak=0, longest_streak=0)
+            )
+        ),
+    )
+
+
+def test_hc_nsw_007_fires_reminder_for_unlocked_profile(tmp_path, monkeypatch):
+    """A due schedule on a registered (unlocked) profile produces one toast
+    and one ReminderLog row in the profile vault."""
+    provider = MockProvider()
+    scheduler = NotificationScheduler(
+        notification_service=NotificationService(providers=[provider])
+    )
+    _stub_pattern_learner(monkeypatch)
+
+    db_path = tmp_path / "vault.db"
+    engine = create_async_engine(f"sqlite+aiosqlite:///{db_path}")
+    profile_id = "profile-1"
+    med_id = str(uuid.uuid4())
+    sched_id = str(uuid.uuid4())
+
+    async def scenario():
+        async with engine.begin() as conn:
+            await conn.run_sync(ProfileDatabaseBase.metadata.create_all)
+        session_maker = async_sessionmaker(
+            engine, class_=AsyncSession, expire_on_commit=False
+        )
+        async with session_maker() as db:
+            _seed_due_medication(db, profile_id, med_id, sched_id)
+            await db.commit()
+
+        async def factory():
+            return session_maker()
+
+        scheduler._profile_sessions[profile_id] = factory
+        await scheduler._check_all_schedules()
+
+        async with session_maker() as db:
+            rows = (
+                (await db.execute(select(ReminderLog))).scalars().all()
+            )
+        return rows
+
+    rows = run(scenario())
+
+    assert len(provider.sent_notifications) == 1
+    payload = provider.sent_notifications[0]
+    assert payload.medication_id == med_id
+    assert "Metformin" in payload.body or "Metformin" in payload.title
+    assert len(rows) == 1
+    from modules.message_generator import ReminderPriority
+
+    assert rows[0].reminder_type == ReminderPriority.INITIAL.value
+    assert rows[0].profile_id == profile_id
+    assert scheduler._last_pass_results == {profile_id: "checked"}
+
+
+def test_hc_nsw_008_second_pass_does_not_resend(tmp_path, monkeypatch):
+    """Dedup/idempotency: ReminderLog rows already written today suppress a
+    duplicate initial reminder on the next pass."""
+    provider = MockProvider()
+    scheduler = NotificationScheduler(
+        notification_service=NotificationService(providers=[provider])
+    )
+    _stub_pattern_learner(monkeypatch)
+
+    db_path = tmp_path / "vault.db"
+    engine = create_async_engine(f"sqlite+aiosqlite:///{db_path}")
+    profile_id = "profile-1"
+
+    async def scenario():
+        async with engine.begin() as conn:
+            await conn.run_sync(ProfileDatabaseBase.metadata.create_all)
+        session_maker = async_sessionmaker(
+            engine, class_=AsyncSession, expire_on_commit=False
+        )
+        async with session_maker() as db:
+            _seed_due_medication(
+                db, profile_id, str(uuid.uuid4()), str(uuid.uuid4())
+            )
+            await db.commit()
+
+        async def factory():
+            return session_maker()
+
+        scheduler._profile_sessions[profile_id] = factory
+        await scheduler._check_all_schedules()
+        await scheduler._check_all_schedules()
+
+        async with session_maker() as db:
+            count = len(
+                (await db.execute(select(ReminderLog))).scalars().all()
+            )
+        return count
+
+    count = run(scenario())
+
+    assert count == 1
+    assert len(provider.sent_notifications) == 1
+    assert scheduler._notifications_sent_this_hour == 1
