@@ -115,3 +115,46 @@ Pending on resume:
 - L0 VERIFIED PR #21 in `../hc-l0-verify` @ `14f7812`: `1288 tests collected`; slots CLAUDE.md:30 + AGENT.md:76 = 1288; requirements.txt:27 pin kept; diff vs B = main's files + AGENT.md slot only. Reproduced SECGATE-SHAPE (`{}`/`{}` → PASS exit 0).
 - Codex S02 r1: REVISE 5 MAJOR, all accepted → plan amended (`S02-r1-response.md`). New owner items registered: SECGATE-SHAPE, CACHE-STALE, AGENT-PASS-LINE.
 - RESUME POINT: PR #21 CI pending → hand to owner when green. Open this docs PR (docs/exec-wave1-ledger) and ask the owner to merge it before S-CACHE Task 0. L1 is polling PR #21.
+
+## Wave 1 progress (2026-09-29, later)
+- OWNER merged PR #21 (P1 PR #1, B + main) 16:22:50Z → `9b9958c`, then PR #22 (docs) 16:23:03Z → `77aaf20`.
+- L0 checked main @ `77aaf20`: `generate_docs_index.py --check` fresh; `docs_lint.py` pass; `harness_drift_check.py` exit 0; slots CLAUDE.md:30 / AGENT.md:76 = 1288.
+- CI on `36b2ff2`: Backend, Frontend, Security, Docs Lint, Agent Eval = success; E2E Smoke failed with `OSError: [Errno 28] No space left on device` during pip install (CI-DISK, already recorded). CI on `9b9958c` / `77aaf20` in progress at time of writing.
+- Owner question "parallel orchestrators ahead of prerequisites" not answered (tool call rejected, owner said "continue") → process stays serial per orchestration.md §2.
+- RESUME POINT: L1 starts S-CACHE on `77aaf20` (S02 on main). Then PR #2 (branch A). L0 verifies each PR in `../hc-l0-verify`.
+- PR #23 (S-CACHE, head `3c53510`, base `77aaf20`) opened by L1. L1: START 1288 (`1288 passed`, FAILED empty) → END 1292 (`1292 passed, 52 warnings in 117.50s`, FAILED empty); slots 1290 @ `14df9e7`, 1292 @ `7435def`; RED shown for 4 new tests; code-reviewer APPROVE (2 MINOR fixed), security-reviewer APPROVE, Codex "No material findings".
+- L0 VERIFIED PR #23 in `../hc-l0-verify` @ `3c53510`: diff = exactly the S02 file table (10 files); `1292 tests collected`; 4 touched test files `18 passed`; break-it (delete `profile_id=profile_id,` at `api/assistant.py:697` only) → `FAILED test_hc_cache_iso_001_two_profiles_never_share_cached_answer` (via ValidationError → legacy fallback), restored; tree + *.db clean.
+- L0 note: my first break-it sed hit the wrong `profile_id=` line (chat_sessions NOT NULL) — discarded, redone on line 697 only.
+- `gh` here has no `--json` on `gh pr checks`; monitors use tab output.
+- AGENT-PASS-LINE extended to `CLAUDE.md:31`.
+- RESUME POINT: PR #23 CI → hand to owner. Then L1 builds P1 PR #2 (branch A).
+- Wave 1 L1 #1 handed back (report `audit/2026-09-25/waves/wave-1.md`, committed by L0). PR #23 all 5 required checks green; E2E Smoke = CI-DISK (job 109523705510). L1 facts: eval gate rc=0 on Linux/Py 3.11 (GATE-14 hang did not reproduce there); system python3 3.12 lacks deps → use the venv.
+- New owner items registered: MODEL-PIN, AUDIT-KEYS-DROPPED, CACHE-HIT-AUDIT (plus SECGATE-SHAPE also ignores bandit `errors[]` / pip-audit `skip_reason`).
+- RESUME POINT: owner merges PR #23 → L1 #2 builds P1 PR #2 per wave-1.md RESUME POINT (worktree ../hc-p1-a, branch merge/asclexis-repo-audit-349pjq).
+- OWNER merged PR #23 (S-CACHE) 2026-09-29T17:58:47Z → main `b50a7da`. Cross-profile answer-cache leak closed on main. L1 #2 told to start P1 PR #2 on `b50a7da`.
+- OWNER (chat, 2026-09-29): W6-Q4 "Covered"; BG-REACH "Keep current meaning"; OG-2 "Approve"; OG-3 "Approve Task 9". Recorded in owner-decisions + program register.
+- PR #24 (P1 PR #2, branch A, head `d116931`, base `b50a7da`) opened by L1 #2: 1292 → 1295 (merge `f5750b9`) → 1296 (`91fccd0`); `1296 passed, 46 warnings in 116.23s`, FAILED empty; poison 2/2/0; eval PASS; docs gates 0 incl. drift; FE Windows 31 files / 179 passed. code-reviewer APPROVE; Codex 2 medium (1 fixed); security-reviewer CHANGES (1 MAJOR, pre-existing, out of scope → DOC-DELETE-INTERP). CI 5/5 required pass; E2E = CI-DISK.
+- L0 VERIFIED PR #24 in `../hc-l0-verify` @ `d116931`: `1296 tests collected`; CLAUDE.md:30 + AGENT.md:76 = 1296; pin kept; `harness_drift_check.py` exit 0; `-k CAREQ` → `4 passed, 11 deselected`; tree + *.db clean. Confirmed DOC-DELETE-INTERP by reading `models/observation.py:106-108`, `models/interpretation.py:50-55`, `api/documents.py:1875/1879`.
+- New owner items: DOC-DELETE-INTERP (security + data loss), RECOVERY-CODE-CACHE (security), CLAUDE-FAILURE-COUNT.
+- RESUME POINT: owner merges PR #24 → L1 runs plan 01 Task 7 + Task 8 Steps 1-4 on merged main (`../hc-p1-post`) → L0 Task 8 Step 5 (TASK_LIST session note) + Wave 1 close → Wave 2 (P2, S-1, W-1 incl. Task 9, W-5, W-6, P8, G-C4, W-11a PR-2).
+
+## Wave 1 — CI-DISK fix (2026-09-30)
+- Owner: "Smoke test failed". L0 checked: PR #24 E2E job 109566187890 = `[Errno 28] No space left on device` in pip install; main `b50a7da`, `77aaf20` same. Cause: default PyPI torch 2.14.0 (CUDA) via sentence-transformers → ~15 `nvidia_*_cu13` wheels + triton, after npm ci + Playwright.
+- OWNER (chat, 2026-09-30): CI-DISK-FIX "Fix now, CPU torch" (verbatim in owner-decisions). L0 narrowed to the 3 test jobs (`ci.yml:48,165,200`); pip-audit job `:115` unchanged (a `+cpu` wheel may escape pip-audit; SECGATE-SHAPE). Plan `docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md`.
+- RESUME POINT: L1 opens the CI-DISK PR (branch ci/cpu-torch-ci-disk) → owner merges → L1 merges main into #24's branch, re-verifies, E2E runs for real → owner merges #24 → post-merge checks → Wave 2.
+- PR #25 (CI-DISK, head `1abb4ef`, base `b50a7da`) opened by L1 #3. L0 VERIFIED: diff = ci.yml (+3 CPU torch lines at backend/eval/e2e jobs) + plan CI01 + 2 generated index files; pip-audit job (`ci.yml:116-117` @1abb4ef) unchanged. `gh pr checks 25`: all 6 pass incl. **E2E Smoke** (first green since ≥2026-09-07). E2E job 110113890519: `Running 28 tests using 1 worker` → `3 skipped`, `25 passed (1.2m)`; 0 lines mentioning nvidia; no Errno 28.
+- Reviewer LOW (new owner item TORCH-PIN): CI torch is unpinned and nothing asserts `+cpu`; a future torch without a CPU wheel for the resolved version would silently fall back to CUDA from PyPI.
+- RESUME POINT: owner merges #25 → L1 #3 merges main into #24, re-verifies, E2E runs on #24 → owner merges #24.
+- OWNER merged PR #25 (CI-DISK) 2026-09-30T22:14:10Z → main `19f85b0`. L1 #3 told to start Phase B (refresh #24).
+- PR #24 refreshed by L1 #3: head `31574fb` = merge of main `19f85b0`, 0 conflicts, normal push. L1: `1296 tests collected`; `1296 passed, 58 warnings in 283.99s`, FAILED empty; tree + *.db clean; docs gates 0.
+- L0 VERIFIED: `git diff d116931 31574fb` = exactly PR #25's 4 files (ci.yml, plan CI01, 2 index files); CLAUDE.md:30 = 1296; `gh pr checks 24` all 6 pass incl. E2E; E2E job 110129907034 `Running 30 tests` → `3 skipped`, `27 passed (1.8m)` (main: 28 → 25 passed; #24 adds 2 specs, both pass).
+- RESUME POINT: owner merges #24 → L1 #3 runs plan 01 Task 7 + Task 8 Steps 1-4 in ../hc-p1-post → L0 Task 8 Step 5 + Wave 1 close.
+- L1 #3 handed back (wave-1.md Phase 4 + 5 committed by L0). PR #24 still OPEN at 03:39Z after a 3 h poll (host suspended 00:36Z→03:35Z). Plan 01 Task 7 + Task 8 Steps 1-4 NOT run; `../hc-p1-post` not created. Record-only: CI01 plan line refs are pre-change (now ci.yml :50/:169/:205/:117); 3 Playwright specs skipped on both main and #24 (dot reporter does not name them).
+- RESUME POINT: owner merges PR #24 → L0 spawns a fresh L1 for plan 01 Task 7 Steps 1-3 + Task 8 Steps 1-4 in `../hc-p1-post` (detached origin/main) → L0 Task 8 Step 5 (TASK_LIST note, `git add docs/features/TASK_LIST.md`) + Wave 1 close (artifact, docs PR) → Wave 2.
+
+## Wave 1 merged — handoff (2026-10-01)
+- OWNER merged PR #24 (P1 PR #2, branch A) 2026-10-01T15:54:14Z → main `ee7c358`. Wave 1 PRs all merged: #21 (B), #22 (docs), #23 (S-CACHE), #25 (CI-DISK), #24 (A).
+- Main CI `19f85b0`: all 6 jobs success (first fully green main incl. E2E Smoke). `ee7c358` in progress at handoff.
+- NOT YET DONE for Wave 1: plan 01 Task 7 Steps 1-3 + Task 8 Steps 1-4 on merged main (expect 1296 collected in both slots, poison 2/2/0, drift 0); Task 8 Step 5 TASK_LIST note; specs-compliance-matrix recount + rows touched by P1/S-CACHE/CI-DISK; program state labels; Delivery Map artifact republish.
+- Owner direction 2026-10-01: next orchestrator updates documentation and runs Wave 2 phases in parallel (orchestration.md §2: phases inside one wave may run at once; merges stay serial on shared files and count slots).
+- RESUME POINT: `audit/2026-09-25/handoff-2026-10-01-wave2.md` (paste its §1 into a fresh session). Start: merge this docs PR → post-merge P1 checks → Wave 2 L1s.

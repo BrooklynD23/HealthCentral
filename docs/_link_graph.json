@@ -741,6 +741,9 @@
     "docs/plans/2026-09-29-S02-agent-cache-profile-isolation.md": [
       "docs/capstone-report/implementation-program.md"
     ],
+    "docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md": [
+      "docs/capstone-report/owner-decisions-2026-09-27.md"
+    ],
     "docs/plans/implementation-log": [
       "docs/00_architecture_plans_index.md"
     ],
@@ -1436,6 +1439,7 @@
     ],
     "docs/capstone-report/owner-decisions-2026-09-27.md": [
       "docs/capstone-report/implementation-program.md",
+      "docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md",
       "docs/plans/2026-09-27-W08-bundled-embedding-model.md",
       "docs/capstone-report/README.md"
     ],
