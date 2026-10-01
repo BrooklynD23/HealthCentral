@@ -170,8 +170,9 @@ Deliberate scope decisions:
 - **Quiet hours remain unenforced** — stored per-medication, not yet read by
   the scheduler. Pre-existing gap, unchanged by this work.
 - **`datetime.utcnow()` migration deferred** to its own workstream (plan 05);
-  this plan's new code uses `core.time.utcnow` where new timestamps were
-  needed, but left the scheduler's existing naive-UTC comparisons alone.
+  this plan added no new production timestamps; the new tests use
+  `datetime.utcnow()` as the plan specifies, consistent with the scheduler's
+  existing naive-UTC comparisons, which were left alone.
 - Removed a PHI leak found while wiring: the send-path log line included the
   medication name at INFO; it now logs only medication/schedule uuids.
 
