@@ -706,7 +706,7 @@ Links to: `docs/00_architecture_plans_index.md`
 
 ---
 
-Links to: `docs/agentic/recurring-failures.md`, `docs/plans/2026-07-02-architect-review-proposal-tickets.md`, `docs/plans/2026-09-08-backlog-closure-plan.md`, `docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md`
+Links to: `audit/2026-09-25/gated-items-decision-packet.md`, `docs/agentic/recurring-failures.md`, `docs/plans/2026-07-02-architect-review-proposal-tickets.md`, `docs/plans/2026-09-08-backlog-closure-plan.md`, `docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md`
 
 ## `docs/model_tiers/README.md`
 
