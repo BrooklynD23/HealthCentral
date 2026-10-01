@@ -34,9 +34,9 @@ recommended option only. Sign the ledger at the bottom (or per-brief).
 | `core/config.py:53` @start8064244 | `jwt_revocation_enabled: bool = True` (logout can invalidate JWTs locally) |
 | `core/config.py:56-63` @start8064244 | existing brute-force controls: auth 10 attempts/60s, recovery 5 attempts/900s |
 | `docs/compliance/hipaa-controls.md:168` @start8064244 | "Multi-factor authentication \| Medium \| Planned for server mode" |
-| `docs/plans/2026-07-02-architect-review-proposal-tickets.md:46` (cited, not re-opened this pass) | prior review already deferred MFA |
+| `docs/plans/2026-07-02-architect-review-proposal-tickets.md:46` @main (cited, not re-opened this pass) | prior review already deferred MFA |
 
-Grep run 2026-10-01 on the start tree: `grep -rniE "totp|webauthn|otp|two.factor|multi.factor" --include="*.py" src/backend | grep -v test` → zero product-code hits (one unrelated match in `modules/agent/graph.py:4`, the word "approves", not a factor mechanism).
+Grep run 2026-10-01 on the start tree: `grep -rniE "totp|webauthn|otp|two.factor|multi.factor" --include="*.py" src/backend | grep -v test` → zero product-code hits (one unrelated match in `modules/agent/graph.py:4` @start8064244, the word "approves", not a factor mechanism).
 
 The password is also the DEK-unseal secret: login both authenticates and opens the vault (`core/auth.py:361-402` @start8064244). A second factor added only at login does not protect the vault file at rest — DPAPI sealing already binds the sealed DEK to the Windows user account (`core/security.py` DPAPI sealing path; `config.py:51` @start8064244).
 
@@ -118,7 +118,7 @@ Owner decision: ☐ approve ☐ reject ☐ defer — notes/date: ____
 
 A new `modules/key_rotation.py` (or extension of `profile_database.py`) with `rotate_profile_dek(profile_id)`, used by a new authenticated route; reuse `_atomic_write` (`api/profiles.py:535,727-728` @start8064244), `seal_key_with_dpapi`, and `_issue_recovery_code`. Requires the vault already open. Test plan: a new pytest file asserting post-rotation — old password fails, vault opens, documents decrypt, new recovery code works, old recovery code fails, `get_profile_key_paths` still covers all artifacts — plus a note that old backups remain decryptable by the old DEK.
 
-### Downstream: hipaa-controls.md:169
+### Downstream: hipaa-controls.md:169 @main40f590e
 This brief must be signed before P4 edits `docs/compliance/hipaa-controls.md:169` @main40f590e (unchanged by A/B; re-verified @start8064244)
 (program P4, "after plan 08 brief 2 is signed"). P4 applies the row matching the signed option:
 - If A (docs only) or reject/defer: `| Key rotation | Medium | Not implemented. A password change re-seals the existing data key under the new password; the database and document key itself does not change. |`
@@ -153,7 +153,7 @@ This is a **verify fail-closed** row, not a known open hole: the gate already fa
 
 **R11 — `/export/questions` `source_quote`:** unchanged by P1. Stays an open surface; cross-reference **EXPORT-QUESTIONS** (W-2 O-4).
 
-**F-P8-3 — debug SQL echo:** in the default development config (`debug=True`), `core/database.py:46` and `core/profile_database.py:308` set `echo=settings.debug`, so SQLAlchemy logs every statement with bound parameters to stderr, including profile-vault writes. Production forces `debug` off (`core/config.py:155-156`). Listed here as a surface row; see Brief 4 Step 1 for the measured probe output. Not fixed in this phase (owner-gated separately; **SQL-ECHO** is already owner-signed 2026-09-28 and its implementation, `docs/plans/2026-09-27-S01-sql-echo-phi-leak.md`, is in progress on a separate branch not yet merged at this packet's start tree).
+**F-P8-3 — debug SQL echo:** in the default development config (`debug=True`), `core/database.py:46` @start8064244 and `core/profile_database.py:308` @start8064244 set `echo=settings.debug`, so SQLAlchemy logs every statement with bound parameters to stderr, including profile-vault writes. Production forces `debug` off (`core/config.py:155-156` @start8064244). Listed here as a surface row; see Brief 4 Step 1 for the measured probe output. Not fixed in this phase (owner-gated separately; **SQL-ECHO** is already owner-signed 2026-09-28 and its implementation, `docs/plans/2026-09-27-S01-sql-echo-phi-leak.md` @start8064244 (tracked, unmerged), is in progress on a separate branch not yet merged at this packet's start tree).
 
 ### Decision framing
 
@@ -236,6 +236,8 @@ Confirms Step 1: no file sink; `core.audit` never echoes "AUDIT:" lines to stder
 
 ### Step 2: current-state table
 
+This brief answers contract row **C-AUDIT-2** (`docs/capstone-report/architecture-engineering-contract.md:347` @start8064244, OWNER-GATED: "D10 frames it (HIPAA-aligned design posture, not legal status)" — line moved from `:331` cited at main40f590e) and matrix rows **AUD-03** (retention) and **AUD-04** (at-rest protection), both re-verified against code rather than repeated as fact.
+
 | Anchor (post-P1, re-verified @start8064244) | Proves |
 |---|---|
 | `models/audit.py:20-68` @start8064244 (`timestamp` default `:60-62`) | `audit_logs` sits on the master `Base` (plaintext DB) |
@@ -276,7 +278,7 @@ Recommend A with purge-on-erase kept, and the anonymized tombstone kept as the d
 - **A.** Document the current state: plaintext master, minimized rows, the measured sinks from Step 1/1b. S.
 - **B.** Encrypt the master DB (SQLCipher with an install key sealed by DPAPI). L. **Ask-first** (encryption, `core/database.py`), and it must preserve pre-login audit events (failed logins happen before any vault is open).
 - **C.** Move profile-linked rows into each vault. L. **Ask-first.** Breaks pre-unlock events and changes crypto-erase semantics.
-- **D.** Stop plaintext echo surfaces: the `core/audit.py:257-265` echo and debug SQL echo (F-P8-3). S–M.
+- **D.** Stop plaintext echo surfaces: the `core/audit.py:257-265` @start8064244 echo and debug SQL echo (F-P8-3). S–M.
 - **E.** Encrypt the master copy inside backups. M. **Ask-first** (backup + keys).
 Recommend A now, plus a separate owner decision on D. B, C and E each need their own plan and an explicit ask-first yes.
 
@@ -376,7 +378,7 @@ Lazy `CrossEncoder` load from a local path (HF-offline guarantee at inference, `
 | # | Item | Decision | Date | Notes |
 |---|---|---|---|---|
 | 1 | MFA | ☐ approve ☐ reject ☐ defer | | |
-| 2 | Key rotation (gates P4 `hipaa-controls.md:169`) | ☐ approve ☐ reject ☐ defer | | |
+| 2 | Key rotation (gates P4 `hipaa-controls.md:169` @main40f590e) | ☐ approve ☐ reject ☐ defer | | |
 | 3 | Pen-test scope | ☐ approve ☐ reject ☐ defer | | |
 | 4a | Security Rule documentation retention | ☐ approve ☐ reject ☐ defer | | |
 | 4b | Audit-row window + purge-on-erase | ☐ approve ☐ reject ☐ defer | | |

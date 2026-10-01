@@ -1,7 +1,7 @@
 # HealthCentral Remaining Work Task List
 
 **Version:** 0.5.0
-**Last Updated:** 2026-09-08
+**Last Updated:** 2026-10-01
 **Owner:** Project Lead
 **Refresh Trigger:** Task completed or new task identified
 **Scope:** Active remaining work only (implementation baseline already shipped)
@@ -151,6 +151,10 @@ On the first of each month, review all canonical docs for freshness:
 ---
 
 ## Session Notes
+
+### 2026-10-01 - Gated-items decision packet prepared (P8 / W-9, D10)
+
+Prepared [the gated-items decision packet](../../audit/2026-09-25/gated-items-decision-packet.md): five owner briefs (MFA, key rotation, pen-test scope, audit retention, HC-M11), all **unsigned**. Brief 4 is designed as if HIPAA applied (owner choice, 2026-09-27); it proposes options and implements nothing. Brief 5 cites the 2026-09-08 flag-only HC-M11 approval and asks two things only: production behaviour and how the NLI model is distributed (D8 covers the embedding model only). Brief 2 must be signed before P4 edits `hipaa-controls.md:169`. Findings routed: debug SQL echo prints bound parameters (PRIV-06); no `logs/asclexis.log` sink in the default config.
 
 ### 2026-09-08 - Band A frontend pair shipped (MED-CORR-002, SEC-RECOV-002)
 
