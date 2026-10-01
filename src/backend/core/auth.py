@@ -433,13 +433,16 @@ async def close_profile_database_on_logout(profile_id: str) -> None:
     Args:
         profile_id: The profile's UUID
     """
-    # Unregister first: the scheduler stops serving this profile before the
-    # connection and key disappear. Fail-soft — a broken scheduler must never
+    # Unregister first and wait for any in-flight reminder pass: the scheduler
+    # stops serving this profile before the connection and key disappear.
+    # Fail-soft — a broken scheduler must never
     # block logout/lock.
     try:
         from modules.notification_scheduler import get_notification_scheduler
 
-        get_notification_scheduler().unregister_profile_session(profile_id)
+        await get_notification_scheduler().unregister_profile_session_and_wait(
+            profile_id
+        )
     except Exception:
         logger.debug(
             "Could not unregister profile from notification scheduler",

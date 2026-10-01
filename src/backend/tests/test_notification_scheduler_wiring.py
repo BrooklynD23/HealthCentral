@@ -426,3 +426,96 @@ def test_hc_nsw_008_second_pass_does_not_resend(tmp_path, monkeypatch):
     assert count == 1
     assert len(provider.sent_notifications) == 1
     assert scheduler._notifications_sent_this_hour == 1
+
+
+# ---------------------------------------------------------------------------
+# HC-NSW-010 — close waits for an in-flight pass (owner gate P2-INFLIGHT)
+# ---------------------------------------------------------------------------
+
+_NSW010_PASSWORD = "CorrectHorse1"
+
+
+def _nsw010_make_vault(root: Path, profile_id: str) -> Path:
+    """Seal a generated key into vaults/<pid>/ (real key files, no mocks)."""
+    from core.security import generate_encryption_key, seal_key_with_dpapi
+
+    vault = root / "vaults" / profile_id
+    vault.mkdir(parents=True)
+    sealed, method = seal_key_with_dpapi(
+        generate_encryption_key(),
+        fallback_password=_NSW010_PASSWORD,
+        force_password=True,
+    )
+    (vault / "key.bin").write_bytes(sealed)
+    (vault / "key.method").write_text(method)
+    return vault
+
+
+def test_hc_nsw_010_close_waits_for_inflight_pass_and_vault_not_recreated(
+    tmp_path, monkeypatch
+):
+    """A pass in flight during lock must finish before the engine is disposed.
+
+    Otherwise its next query checks out a fresh connection, the engine's
+    `connect` listener re-runs PRAGMA key, and an erased vault file is
+    recreated.
+    """
+    import core.auth as auth_module
+    from sqlalchemy import text
+    from core.config import settings
+    from core.profile_database import get_profile_db_manager
+
+    monkeypatch.setattr(
+        type(settings), "app_data_path", property(lambda self: tmp_path)
+    )
+    pid = str(uuid.uuid4())
+    vault_file = _nsw010_make_vault(tmp_path, pid) / "vault.db"
+
+    scheduler = make_scheduler()
+    monkeypatch.setattr(ns_module, "_notification_scheduler", scheduler)
+
+    in_pass = asyncio.Event()
+    release = asyncio.Event()
+
+    async def fake_check(profile_id, db):
+        await db.execute(text("SELECT 1"))
+        # End the txn so the connection returns to the pool, as a real pass
+        # does between queries; the next query must check out a fresh one.
+        await db.commit()
+        in_pass.set()
+        await release.wait()
+        await db.execute(text("SELECT count(*) FROM sqlite_master"))
+        await db.commit()
+
+    monkeypatch.setattr(scheduler, "_check_profile_schedules", fake_check)
+
+    async def scenario():
+        await auth_module.open_profile_database_on_login(pid, _NSW010_PASSWORD)
+        try:
+            assert pid in scheduler._profile_sessions
+            pass_task = asyncio.create_task(scheduler._check_all_schedules())
+            await in_pass.wait()
+            close_task = asyncio.create_task(
+                auth_module.close_profile_database_on_logout(pid)
+            )
+            await asyncio.wait({close_task}, timeout=0.5)
+            closed_early = close_task.done()
+            if closed_early:
+                # Simulated crypto-erase right after the (premature) close.
+                vault_file.unlink(missing_ok=True)
+            release.set()
+            await pass_task
+            await close_task
+            if not closed_early:
+                vault_file.unlink(missing_ok=True)
+            return closed_early
+        finally:
+            release.set()
+            await get_profile_db_manager().close_profile_database(pid)
+
+    closed_early = run(scenario())
+
+    assert not vault_file.exists(), "vault file recreated after close + erase"
+    assert not closed_early, "close returned while a reminder pass was in flight"
+    assert scheduler._last_pass_results == {pid: "checked"}
+    assert pid not in scheduler._profile_sessions

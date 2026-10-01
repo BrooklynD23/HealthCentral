@@ -137,6 +137,9 @@ class NotificationScheduler:
         self._task: Optional[asyncio.Task] = None
         self._db_session_factory: Optional[Callable[[], AsyncSession]] = None
         self._profile_sessions: dict[str, Callable[[], Awaitable[AsyncSession]]] = {}
+        # One lock per profile, held for the whole reminder pass so a vault
+        # close can wait for an in-flight pass (P2-INFLIGHT).
+        self._profile_locks: dict[str, asyncio.Lock] = {}
 
         # Tracking
         self._last_check_time: Optional[datetime] = None
@@ -186,6 +189,26 @@ class NotificationScheduler:
         """Remove a profile's session registration."""
         self._profile_sessions.pop(profile_id, None)
         logger.debug(f"Unregistered profile session for {profile_id}")
+
+    def _profile_lock(self, profile_id: str) -> asyncio.Lock:
+        """Return the profile's pass lock, creating it lazily."""
+        lock = self._profile_locks.get(profile_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._profile_locks[profile_id] = lock
+        return lock
+
+    async def unregister_profile_session_and_wait(self, profile_id: str) -> None:
+        """Unregister a profile, then wait for any in-flight pass to finish.
+
+        Pops the session first (no new pass can start), then waits on the
+        profile lock so the caller can safely dispose the vault engine.
+        """
+        self._profile_sessions.pop(profile_id, None)
+        async with self._profile_lock(profile_id):
+            pass
+        self._profile_locks.pop(profile_id, None)
+        logger.debug(f"Unregistered profile session for {profile_id} (drained)")
 
     async def start(self):
         """Start the notification scheduler."""
@@ -259,20 +282,26 @@ class NotificationScheduler:
 
         outcomes: dict[str, str] = {}
         for profile_id, session_factory in list(self._profile_sessions.items()):
-            try:
-                async with await session_factory() as db:
-                    await self._check_profile_schedules(profile_id, db)
-                outcomes[profile_id] = "checked"
-            except ProfileVaultLockedError:
-                # Routine: the vault was locked between registration and this
-                # pass. Record it honestly; do not alarm the error log.
-                outcomes[profile_id] = "skipped_locked"
-                logger.debug(
-                    "Skipped locked profile %s during reminder pass", profile_id
-                )
-            except Exception as e:
-                outcomes[profile_id] = "error"
-                logger.error(f"Error checking profile {profile_id}: {e}")
+            async with self._profile_lock(profile_id):
+                if profile_id not in self._profile_sessions:
+                    # Unregistered while waiting for the lock.
+                    outcomes[profile_id] = "skipped_locked"
+                    continue
+                try:
+                    async with await session_factory() as db:
+                        await self._check_profile_schedules(profile_id, db)
+                    outcomes[profile_id] = "checked"
+                except ProfileVaultLockedError:
+                    # Routine: the vault was locked between registration and
+                    # this pass. Record it honestly; do not alarm the error log.
+                    outcomes[profile_id] = "skipped_locked"
+                    logger.debug(
+                        "Skipped locked profile %s during reminder pass",
+                        profile_id,
+                    )
+                except Exception as e:
+                    outcomes[profile_id] = "error"
+                    logger.error(f"Error checking profile {profile_id}: {e}")
         self._last_pass_results = outcomes
 
     async def _check_profile_schedules(
