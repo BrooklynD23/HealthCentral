@@ -28,6 +28,7 @@ import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useAuthStore } from '@/stores/authStore';
 import { useAnalyteList, useModelSettings, useExternalApiSettings } from '@/services';
 import { useObservations } from '@/services/observations';
+import { ExternalApiBreakGlassWarning } from '@/components/settings/ExternalApiBreakGlassWarning';
 import {
   DOCUMENT_CATEGORIES,
   useSendMessage,
@@ -468,6 +469,12 @@ export function ExplainAssistant() {
                 <Settings className="w-3.5 h-3.5" />
                 Settings
               </Button>
+            </div>
+          )}
+
+          {externalApi?.use_external_api === true && externalApi.redaction_break_glass === true && (
+            <div className="mx-6 mt-4">
+              <ExternalApiBreakGlassWarning active />
             </div>
           )}
 
