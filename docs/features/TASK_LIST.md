@@ -1,7 +1,7 @@
 # HealthCentral Remaining Work Task List
 
 **Version:** 0.5.0
-**Last Updated:** 2026-07-27
+**Last Updated:** 2026-09-08
 **Owner:** Project Lead
 **Refresh Trigger:** Task completed or new task identified
 **Scope:** Active remaining work only (implementation baseline already shipped)
@@ -49,14 +49,14 @@ check enforces the three stay identical.
 
 | Item ID | Scope | Priority | Ticket Detail | Primary File Targets | Status |
 |---------|-------|----------|----------------|----------------------|--------|
-| `MED-CORR-001` | `GET /medications/{id}/correlations` backend endpoint — currently only a frontend heuristic (`src/frontend/src/utils/correlation.ts`) exists; no backend route. Discovered via a 2026-07 doc-accuracy audit: `docs/plans/roadmap_gap_closure.md` had marked this "✅ COMPLETE" though the endpoint was never built. | P2 | Full ticket (goal, deliverables, acceptance criteria, TDD plan) at `docs/plans/roadmap_gap_closure.md:235` | `src/backend/api/medications.py`, `src/backend/models/`, `src/backend/tests/` (new test module) | [~] PARTIAL (2026-07-30) — endpoint built and tested (HC-MCORR-001..010), but **unwired**: `TrendsDashboard.tsx` and `MedicationDetail.tsx` both still use `utils/correlation.ts`, and the two implementations disagree on the `verified_only` default. The stated goal — one definition of the rule — is not yet met. Wiring tracked as follow-up. |
+| `MED-CORR-001` | `GET /medications/{id}/correlations` backend endpoint — currently only a frontend heuristic (`src/frontend/src/utils/correlation.ts`) exists; no backend route. Discovered via a 2026-07 doc-accuracy audit: `docs/plans/roadmap_gap_closure.md` had marked this "✅ COMPLETE" though the endpoint was never built. | P2 | Full ticket (goal, deliverables, acceptance criteria, TDD plan) at `docs/plans/roadmap_gap_closure.md:235` | `src/backend/api/medications.py`, `src/backend/models/`, `src/backend/tests/` (new test module) | [~] PARTIAL (2026-07-30) — endpoint built and tested (HC-MCORR-001..010), but **unwired**: `TrendsDashboard.tsx` and `MedicationDetail.tsx` both still use `utils/correlation.ts`, and the two implementations disagree on the `verified_only` default. The stated goal — one definition of the rule — is not yet met. Wiring completed 2026-09-08 by `MED-CORR-002`: both pages resolved, the duplicate implementation deleted, and the `verified_only` disagreement settled in the backend's favour. |
 | `RL-REDACT-001` | RL dataset export (`POST /feedback/export`) hardcoded `RedactionEngine(policy_level="standard")` — DOB/addresses/MRNs were not removed from exported DPO/GRPO/SFT training data. **Resolved 2026-07-07 (HC-M05 PR):** export now forces `policy_level="strict"` unconditionally (no configuration knob — an export cannot be made less redacted), and two additive strict-only rules were added to `modules/redaction.py` (owner-approved): context-labeled `mrn` and slash/dash `numeric_date` (ISO-8601 collection timestamps deliberately preserved — they are the longitudinal clinical signal). Regression tests: `test_rl_feedback.py::TestRedactionOnExport` (DOB/address/MRN scrubbed, ISO dates kept — the DOB test is the downgrade tripwire) and `test_redaction.py` policy-matrix rows. **Recorded deferral:** lab-value and medication-name redaction remain out of scope — values are the RL training signal itself, and medication names need a curated dictionary; tracked as a follow-up decision, not silently dropped. | P1 | Resolved in HC-M05 | `src/backend/modules/rl_dataset.py`, `src/backend/modules/redaction.py`, `src/backend/tests/test_rl_feedback.py`, `src/backend/tests/test_redaction.py` | [x] DONE (2026-07-07) |
 | `S06-SEC-003` | **Re-verified 2026-07-27 and found already resolved — this row was stale.** `security/input_validator.py:24` defines a dedicated `_BodyTooLargeError`, raised at `:129` and caught at `:108`, sending a clean 413 on both the `Content-Length` path (`:92`) and the streaming path (`:110`). Regression tests already existed at `tests/security/test_input_validator.py:93,107`. No code change was needed. Original text: Streaming request-body size enforcement raises a bare `ValueError` (`src/backend/security/input_validator.py:101-104`) with no global exception handler converting it to a 413 — confirmed still open via 2026-07 re-verification (S06-SEC-001 and S06-SEC-002 in the same review doc were found resolved/mitigated and corrected in place). Oversized streaming requests may 500 instead of cleanly rejecting. | P2 | Full finding + fix options at `docs/compliance/security-review-sprint06.md` (S06-SEC-003 section) | `src/backend/security/input_validator.py`, `src/backend/main.py` (exception handler registration) | [x] DONE (2026-07-27) — verified already fixed; tracker row was stale |
 | `DOC-API-001` | `PATCH /settings/model/agent` existed in code with no entry in `docs/api/endpoints.md` — already fixed in this session (added at `docs/api/endpoints.md:166`). Listed here only as a closed-loop record; no further action. | P4 | N/A | `docs/api/endpoints.md` | [x] DONE (2026-07-01) |
 | `E2E-MED-001` | `MedicationDetail` page (`/medications/:medicationId`) has zero Playwright e2e coverage — route exists and works, just untested end-to-end. All other pages have at least one covering spec. | P3 | None yet — needs a new or extended spec under `src/frontend/e2e/` | `src/frontend/e2e/` (new spec or extend `ui-full-verification.spec.ts`), `src/frontend/src/pages/MedicationDetail.tsx` | [x] DONE (2026-07-27) — `src/frontend/e2e/medication-detail.spec.ts` added (E2E-MED-001..003) |
-| `SEC-RECOV-001` | Recovery key for profile encryption — a forgotten password is currently permanent, unrecoverable loss of the profile's entire health record (DEK is sealed by password only, `core/profile_database.py`; no recovery path exists). Generate a one-time recovery code at profile creation that seals a second DEK copy. **GATED (auth/encryption) — design sign-off required before any code.** | P1 | Full ticket at [`docs/plans/2026-07-02-architect-review-proposal-tickets.md`](../plans/2026-07-02-architect-review-proposal-tickets.md#sec-recov-001--recovery-key-for-profile-encryption) | `src/backend/core/security.py`, `src/backend/core/profile_database.py`, `src/backend/api/profiles.py`, frontend ProfileSetup/unlock | [~] PARTIAL (2026-07-30) — backend complete and tested (HC-RECOV-001..024); recovery code seals a second DEK copy, always password-derived. **Frontend incomplete:** `useIssueRecoveryCode` has zero callers, so codes are issued only at profile creation and a pre-existing profile can never obtain one. `RecoverProfile.tsx` is honest about this — it says a recovery code "can only be created while you can still sign in" — but there is no signed-in surface that creates one, so that instruction cannot be followed. Settings entry point tracked as follow-up. |
+| `SEC-RECOV-001` | Recovery key for profile encryption — a forgotten password is currently permanent, unrecoverable loss of the profile's entire health record (DEK is sealed by password only, `core/profile_database.py`; no recovery path exists). Generate a one-time recovery code at profile creation that seals a second DEK copy. **GATED (auth/encryption) — design sign-off required before any code.** | P1 | Full ticket at [`docs/plans/2026-07-02-architect-review-proposal-tickets.md`](../plans/2026-07-02-architect-review-proposal-tickets.md#sec-recov-001--recovery-key-for-profile-encryption) | `src/backend/core/security.py`, `src/backend/core/profile_database.py`, `src/backend/api/profiles.py`, frontend ProfileSetup/unlock | [~] PARTIAL (2026-07-30) — backend complete and tested (HC-RECOV-001..024); recovery code seals a second DEK copy, always password-derived. **Frontend incomplete:** `useIssueRecoveryCode` has zero callers, so codes are issued only at profile creation and a pre-existing profile can never obtain one. `RecoverProfile.tsx` is honest about this — it says a recovery code "can only be created while you can still sign in" — but there is no signed-in surface that creates one, so that instruction cannot be followed. Settings entry point shipped 2026-09-08 by `SEC-RECOV-002`: `RecoveryCodeCard` issues codes for pre-existing profiles, so `RecoverProfile`'s instruction can now be followed. |
 | `BKUP-UX-001` | User-facing scheduled backup & restore — `scripts/backup.py` (Sprint 06 OPS-002) is a developer CLI no patient will run; device loss currently destroys the whole record. Surface backup/verify/restore in SettingsPage with scheduling via the existing asyncio-scheduler pattern. Restore/key edge cases flagged for review. | P2 | Full ticket at [`docs/plans/2026-07-02-architect-review-proposal-tickets.md`](../plans/2026-07-02-architect-review-proposal-tickets.md#bkup-ux-001--user-facing-scheduled-backup--restore) | `src/backend/scripts/backup.py`, new backup routes, `src/frontend/src/pages/SettingsPage.tsx` | [x] DONE (2026-07-28) — backup correctness fixed (vault DBs were never discovered; key files were never included), plus the full Settings UI: create/verify/download-as-zip/restore/prune and a master-DB-backed schedule with a lifespan scheduler. Tests HC-BKUP-001..025 |
-| `INGEST-FHIR-001` | FHIR R4 structured import (lab `Observation`/`DiagnosticReport` bundles) — zero structured ingest exists today; everything goes PDF/image → OCR → regex. Portal FHIR exports (Cures Act) give exact values/units/ranges/LOINC codes with no OCR errors. Deterministic stdlib-JSON parsing, no new dependency, imports stay unverified until workbench review. | P2 | Full ticket at [`docs/plans/2026-07-02-architect-review-proposal-tickets.md`](../plans/2026-07-02-architect-review-proposal-tickets.md#ingest-fhir-001--fhir-r4-structured-import-lab-observations-first) | `src/backend/modules/extract_fhir.py` (new), `modules/ingest.py`, `modules/normalize.py`/`glossary.py` (LOINC map) | [ ] OPEN |
+| `INGEST-FHIR-001` | FHIR R4 structured import (lab `Observation`/`DiagnosticReport` bundles). **Premise partly overtaken: HC-M23 shipped `modules/import_structured.py` (FHIR R4 Bundle + lab CSV) on 2026-07-30, so "zero structured ingest" is no longer true.** Verified remaining gap (2026-09-08): `DiagnosticReport` resources are not handled (`import_structured.py:365-390` covers `Observation`/`MedicationStatement`/`Condition` only), and LOINC codes are discarded — `_map_fhir_observation` identifies analytes from `code.text`, so `code.coding` is dropped though `normalize.py:129` already has a `loinc_code` field. Portal FHIR exports (Cures Act) give exact values/units/ranges/LOINC codes with no OCR errors. Deterministic stdlib-JSON parsing, no new dependency, imports stay unverified until workbench review. | P2 | Full ticket at [`docs/plans/2026-07-02-architect-review-proposal-tickets.md`](../plans/2026-07-02-architect-review-proposal-tickets.md#ingest-fhir-001--fhir-r4-structured-import-lab-observations-first); rescoped remainder at [`2026-09-08-backlog-closure-plan.md`](../plans/2026-09-08-backlog-closure-plan.md) §5 | `src/backend/modules/extract_fhir.py` (new), `modules/ingest.py`, `modules/normalize.py`/`glossary.py` (LOINC map) | [ ] OPEN |
 | `NORM-UNIT-001` | Unit normalization/conversion — `normalize.py`'s docstring promises "Unit preservation and conversion" but no conversion exists; TrendsDashboard assumes one unit per analyte, so cross-lab unit mixes (mg/dL vs mmol/L) silently corrupt or fragment trend lines. Table-driven per-analyte conversion at trend-read time; originals never mutated. Step 0: audit actual mixed-unit behavior. **Step-0 audit found the bug is data-corruption grade, not just fragmentation: the trend summary's change-% was computed across incompatible units (94 mg/dL → 5.22 mmol/L read as a ~-94% drop). Implemented 2026-07-03.** | P2 | Full ticket at [`docs/plans/2026-07-02-architect-review-proposal-tickets.md`](../plans/2026-07-02-architect-review-proposal-tickets.md#norm-unit-001--unit-normalization--conversion-for-cross-lab-comparability) | `src/backend/modules/normalize.py`, `src/backend/api/observations.py`, `src/frontend/src/pages/TrendsDashboard.tsx` | [x] DONE (2026-07-03) |
 | `PROF-DEL-001` | Profile deletion & data lifecycle — no `DELETE /profiles/{id}` route exists (every sub-entity is deletable; the profile is immortal), though `core/audit.py`'s event conventions already list `profile.delete`. Ordered crypto-erase sequence (keys first) + export-before-erase. **DECISION FIRST: audit-row retention (retain vs. anonymized tombstone) is a compliance call — scope with user before coding.** | P2 | Full ticket at [`docs/plans/2026-07-02-architect-review-proposal-tickets.md`](../plans/2026-07-02-architect-review-proposal-tickets.md#prof-del-001--profile-deletion--data-lifecycle-right-to-erase) | `src/backend/api/profiles.py`, `core/profile_database.py`, `modules/export.py`, `docs/compliance/data-privacy.md` | [x] DONE (2026-07-27) — `DELETE /profiles/{id}` with ordered crypto-erase; audit rows purged + anonymized tombstone (owner decision). Tests HC-PDEL-001..014 |
 | `RAG-INJ-001` | Injection-filter retrieved chunks — `rag.py` screened history and memory items through `PROMPT_INJECTION_PATTERNS` but composed document/reference chunk text into prompts unfiltered. **Resolved 2026-07-07 (HC-M05 PR):** `compose_prompt` now routes reference/user-document chunk text through `_sanitize_chunk_text` (neutralize-don't-drop: matching spans replaced with `[UNTRUSTED-INSTRUCTION-REMOVED]`, benign prose and grounding preserved, warning logged); the agent path got the parallel fix — `draft`/`replay` scrub observation `analyte`/`unit` fields via `guardrails/redaction_gate.sanitize_untrusted_field` (same imported pattern list, so surfaces can't drift). Guarded by the HC-M05 eval corpus: 16 injection/phi-bait golden cases + `injection_resistance`/`phi_leakage` CI axes + the `score_injection_compose_case` end-to-end probe in `scripts/agent_eval_gate.py`. | P2 | Resolved in HC-M05 | `src/backend/modules/rag.py`, `src/backend/modules/agent/nodes/draft.py`, `src/backend/modules/agent/guardrails/redaction_gate.py`, `src/backend/modules/agent/eval/scorer.py` | [x] DONE (2026-07-07) |
@@ -64,8 +64,12 @@ check enforces the three stay identical.
 | `AUDIT-PHI-001` | Audit-log PHI minimization — audit rows (free-text `action`, arbitrary `details` JSON) land in the unencrypted master DB, the one place patient-linked data escapes SQLCipher; the 2026-07 GET-route audit expansion increased that volume. Phase A: inventory call sites, allowlist-scrub `details` inside `create_audit_log` (single choke point). Phase B (master-DB encryption) explicitly out of scope/gated. | P2 | Full ticket at [`docs/plans/2026-07-02-architect-review-proposal-tickets.md`](../plans/2026-07-02-architect-review-proposal-tickets.md#audit-phi-001--audit-log-phi-minimization-in-the-unencrypted-master-db) | `src/backend/core/audit.py`, `api/` call sites, `docs/compliance/hipaa-controls.md` | [x] DONE (2026-07-27) — Phase A allowlist scrubber in `create_audit_log` + call-site fixes. Phase B still out of scope/gated. Tests HC-AUD-001..008 |
 | `MODEL-INT-001` | Model-artifact integrity manifest — `download_models.py`/`model_selector.py` have zero checksum handling (and Gemma4 URLs are still `PLACEHOLDER`); a silently swapped model artifact silently invalidates every tuned guardrail threshold and golden eval. Checked-in SHA256 manifest, verify at download and at `llama_cpp` load (hash cached by path+mtime+size). Foundation for the shared model-distribution infra the findings report wants. | P3 | Full ticket at [`docs/plans/2026-07-02-architect-review-proposal-tickets.md`](../plans/2026-07-02-architect-review-proposal-tickets.md#model-int-001--model-artifact-integrity-manifest-sha256-pin--verify-on-load) | `scripts/download_models.py`, `src/backend/modules/model_selector.py`, `src/backend/core/llm/`, `config/model_manifest.json` (new) | [x] DONE (2026-07-27) — `config/model_manifest.json` + `modules/model_integrity.py`, checked at load. Unpinned tiers report UNPINNED rather than passing. Tests HC-MINT-001..011 |
 
-| `SQL-FK-001` | `PRAGMA foreign_keys` is enabled **nowhere** in the codebase (zero hits across all `.py`), so every `ondelete="CASCADE"` declared on a model is inert on SQLite. Two features have already had to work around it by deleting children explicitly — `delete_document` (entities/categories, 2026-07-16) and `delete_profile` (`backup_schedules`, 2026-07-29) — which means the next FK someone adds will silently not cascade either. Turning the pragma on is a repo-wide behaviour change affecting every relationship, so it needs its own pass: audit every FK, decide cascade vs. restrict per relationship, and expect previously-tolerated orphan writes to start failing. | P2 | None yet — needs a written audit of every FK before flipping anything | `src/backend/core/database.py`, `src/backend/core/profile_database.py`, all `models/` | [ ] OPEN |
-| `CITE-AGENT-001` | Agent-path citations carry no page number. `modules/agent/nodes/draft.py:102` builds `locator` from the row id, not a page, because the agent *tools* never return `source_page`/`source_bbox_json` — so an answer produced through the agent path yields citation chips that deep-link to the row but cannot highlight the region, while the RAG path can. Not a regression (the agent path never had it); an enhancement that needs the tool return shapes widened first. | P3 | None yet | `src/backend/modules/agent/tools/`, `src/backend/modules/agent/nodes/draft.py`, `src/backend/api/assistant.py` | [ ] OPEN |
+| `SQL-FK-001` | `PRAGMA foreign_keys` is enabled **nowhere** in the codebase (zero hits across all `.py`), so every `ondelete="CASCADE"` declared on a model is inert on SQLite. Two features have already had to work around it by deleting children explicitly — `delete_document` (entities/categories, 2026-07-16) and `delete_profile` (`backup_schedules`, 2026-07-29) — which means the next FK someone adds will silently not cascade either. Turning the pragma on is a repo-wide behaviour change affecting every relationship, so it needs its own pass: audit every FK, decide cascade vs. restrict per relationship, and expect previously-tolerated orphan writes to start failing. | P2 | Audit delivered 2026-09-08: [`docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md`](../plans/2026-09-08-sql-fk-001-foreign-key-audit.md) (all 20 FKs, decision each). Sequence at [`2026-09-08-backlog-closure-plan.md`](../plans/2026-09-08-backlog-closure-plan.md) §3. **Owner approved the full sequence 2026-09-08**: fix the four mismatched constraints, then flip the pragma, fixing orphan-write failures as the suite surfaces them (never by relaxing a constraint). Still ordered behind `CARE-QUOTE-001` — with the pragma on and `care_plan_task` left at NO ACTION, document deletion raises `IntegrityError`. | `src/backend/core/database.py`, `src/backend/core/profile_database.py`, all `models/` | [ ] OPEN |
+| `CITE-AGENT-001` | Agent-path citations carry no page number. `modules/agent/nodes/draft.py:102` builds `locator` from the row id, not a page, because the agent *tools* never return `source_page`/`source_bbox_json` — so an answer produced through the agent path yields citation chips that deep-link to the row but cannot highlight the region, while the RAG path can. Not a regression (the agent path never had it); an enhancement that needs the tool return shapes widened first. | P3 | Plan at [`2026-09-08-backlog-closure-plan.md`](../plans/2026-09-08-backlog-closure-plan.md) §8 | `src/backend/modules/agent/tools/`, `src/backend/modules/agent/nodes/draft.py`, `src/backend/api/assistant.py` | [ ] OPEN |
+| `MED-CORR-002` | Wire the shipped correlations endpoint into the UI. `MED-CORR-001`'s stated goal was **one** definition of the medication/observation overlap rule; two still exist and they disagree — the backend defaults to `verified_only=True` (`api/medications.py:463`, "an unverified extraction is not a fact to correlate against") while `utils/correlation.ts` has no verified filter, so the app currently shows the looser answer. Verified 2026-09-08: the service layer is already done (`services/medications.ts:141,350`, exported via the barrel); only `TrendsDashboard.tsx:33,198` and `MedicationDetail.tsx:42` are unwired. | P1 | Plan at [`2026-09-08-backlog-closure-plan.md`](../plans/2026-09-08-backlog-closure-plan.md) §4.1 | `src/frontend/src/pages/TrendsDashboard.tsx`, `src/frontend/src/pages/MedicationDetail.tsx`, `src/frontend/src/pages/MedicationDetail.tsx`, `src/frontend/src/utils/correlation.ts`, `src/frontend/src/__tests__/MedicationCorrelations.test.tsx` | [x] DONE (2026-09-08) — `MedicationDetail` now reads `useMedicationCorrelations`; `findObservationsDuringMedication` and the dead `buildCorrelationContext` are deleted. Tests FE-MCORR-001..004 (003 observed failing first: the unverified result *was* being rendered). **Scope correction:** `TrendsDashboard`'s `findActiveMedications` was NOT replaced — it asks the inverse question ("which medications were active when this result was collected") and no endpoint serves that direction. It filters medications, not observations, so `verified_only` has nothing to apply to. `correlation.ts` now holds that one function and documents why. |
+| `SEC-RECOV-002` | Recovery-code entry point in Settings — the follow-up `SEC-RECOV-001` was left PARTIAL on. `RecoverProfile.tsx` tells the user a recovery code "can only be created while you can still sign in", and no signed-in surface creates one, so the instruction cannot be followed and pre-existing profiles can never obtain a code. Verified 2026-09-08: `issueRecoveryCode` (`services/profiles.ts:60`) and `useIssueRecoveryCode` (`:264`) exist and are exported (`services/index.ts:59`); no page imports either. `has_recovery_code` is already on the profile response (`api/profiles.py:138,149`) to drive Create-vs-Replace wording. | P1 | Plan at [`2026-09-08-backlog-closure-plan.md`](../plans/2026-09-08-backlog-closure-plan.md) §4.2 | `src/frontend/src/components/settings/RecoveryCodeCard.tsx`, `src/frontend/src/pages/SettingsPage.tsx`, `src/frontend/e2e/recovery-code.spec.ts`, `src/frontend/src/pages/RecoverProfile.tsx` | [x] DONE (2026-09-08) — new `RecoveryCodeCard` mounted in Settings above `BackupCard`. Create vs Replace wording from `has_recovery_code`; code shown once, held only in component state, password dropped after issue. Tests FE-RECOV-001..006 + E2E-RECOV-001..002. `RecoverProfile`'s copy now names where to create one, so its instruction is followable. |
+| `CARE-QUOTE-001` | **Verbatim clinician text outlives the document it came from.** `delete_document` explicitly deletes `DocumentEntity`/`DocumentCategory` rows with the reason stated in code — entity quotes are "verbatim document text" that must not "outlive the document into exports or pins" (`api/documents.py:1846-1851`). `CarePlanTask.source_quote` is the same class of data (`models/care_plan_task.py:45`, "Verbatim clinician wording the task was derived from") and **nothing deletes it** — there is no `delete(CarePlanTask)` anywhere in `api/`. Found 2026-09-08 while auditing `SQL-FK-001`; it is a live retention defect independent of the pragma, and also the blocker for it (with FKs on, `DELETE FROM documents` raises for any document that produced a task). **Decided 2026-09-08 (owner): keep the task, null `source_document_id`/`source_entity_id`, clear `source_quote`.** The data-lifecycle gate (same class as `PROF-DEL-001`) is cleared — the decision covers derived verbatim text specifically, not derived data generally. | P1 | Plan at [`2026-09-08-backlog-closure-plan.md`](../plans/2026-09-08-backlog-closure-plan.md) §3.1; constraint detail at [`2026-09-08-sql-fk-001-foreign-key-audit.md`](../plans/2026-09-08-sql-fk-001-foreign-key-audit.md) §4.2 | `src/backend/api/documents.py`, `src/backend/tests/test_documents_api.py`, `docs/compliance/data-privacy.md` | [x] DONE (2026-09-08) — `delete_document` now nulls provenance and clears `source_quote` for tasks derived from the deleted document. Tests HC-CAREQ-001..003 (001 observed failing first). **Deliberately not mirrored into reprocess** — the document still exists there, and `get_care_task_candidates` keys duplicate detection on `(source_document_id, source_quote)`, so clearing it would resurface accepted tasks. No model or migration change was needed; the FK constraint change stays with `SQL-FK-001`. |
+| `FEEDBACK-SNAP-001` | `response_feedback.prompt_snapshot` stores "the fully-composed prompt (with retrieved context) at the time of inference" (`models/response_feedback.py:74-78`) — retrieved context is document chunk text, so the column holds verbatim document text that document deletion does not clear. Found 2026-09-08 by `CARE-QUOTE-001`'s sweep. **Not the same fix:** `response_feedback` has no `doc_id`, so a targeted UPDATE has nothing to key on; the rows stay inside the encrypted vault; and RL export already forces strict redaction (`RL-REDACT-001`). Clearing snapshots retroactively also degrades the RL dataset they exist for — so this needs a decision (provenance column vs. retention window vs. documented acceptance), not a mechanic. | P3 | Analysis and options at [`2026-09-08-backlog-closure-plan.md`](../plans/2026-09-08-backlog-closure-plan.md) §15 | `src/backend/models/response_feedback.py`, `src/backend/api/feedback.py`, `docs/compliance/data-privacy.md` | [ ] OPEN |
 
 ---
 
@@ -147,6 +151,145 @@ On the first of each month, review all canonical docs for freshness:
 ---
 
 ## Session Notes
+
+### 2026-09-08 - Band A frontend pair shipped (MED-CORR-002, SEC-RECOV-002)
+
+Both backends had been complete and unreachable. They are now wired, and both
+tickets closed with one correction each to what the plan assumed.
+
+**MED-CORR-002.** `MedicationDetail` reads `useMedicationCorrelations`;
+`findObservationsDuringMedication` and the never-called
+`buildCorrelationContext` are deleted. FE-MCORR-003 was observed failing first
+and is the ticket's whole point: the unverified LDL result *was* being rendered,
+because the heuristic had no verified filter and the endpoint does. The page
+also now surfaces `excluded_undated_count` rather than dropping it.
+
+*Scope correction:* the plan said to convert `TrendsDashboard` too. It should
+not be. `findActiveMedications` answers the inverse question — which medications
+were active when this result was collected — and the endpoint is keyed by
+medication, so serving that direction would cost one request per medication. It
+filters medications, not observations, so the `verified_only` disagreement that
+motivated the ticket cannot arise there. `correlation.ts` now holds that one
+function and says why.
+
+**SEC-RECOV-002.** New `RecoveryCodeCard` in Settings, above `BackupCard`.
+Create-vs-Replace wording from `has_recovery_code`; the code is shown once, held
+only in component state, and the password is dropped from state after issue
+(FE-RECOV-005 verified by temporarily removing the line and watching it go red).
+`RecoverProfile`'s copy now names where to create one, so the instruction it has
+always given is finally followable.
+
+**The e2e paid for itself on the first run.** `has_recovery_code` is on
+`ProfileListResponse` (`GET /profiles/`), never on `ProfileResponse`
+(`GET /profiles/{id}`). The component read it from `useProfile`, and the unit
+test passed regardless — because it had mocked the field onto the single-profile
+response, a shape the backend never returns. Six green tests certified a
+component that could never reach its "replace" state. Recorded in
+[recurring-failures.md §1](../agentic/recurring-failures.md), with the general
+rule: a mock is an assertion about the API, so check the response model.
+
+**Verification** (frontend toolchain stood up this session — `npm install`, and
+Playwright via the documented `HC_E2E_CHROMIUM_PATH=/opt/pw-browsers/chromium`
+override for the r1194/r1208 mismatch):
+
+- `npx tsc --noEmit` clean
+- `npx vitest run` → **174 passed** (165 baseline + 10 new − 1 removed case)
+- `npm run lint` → 0 errors, 5 warnings, all pre-existing in
+  `hooks/useSpeechRecognition.ts` and present on HEAD
+- `npx playwright test --project=chromium` → **27 passed, 3 skipped**
+- backend `pytest` → 1247 passed, 1 documented env-only failure (unchanged)
+
+
+### 2026-09-08 - CARE-QUOTE-001 shipped
+
+`delete_document` now clears the provenance and the verbatim `source_quote` of
+care-plan tasks derived from the deleted document, keeping the task itself.
+Owner decision, taken before implementation: a follow-up the patient still has
+to do does not stop being real because they deleted the PDF, but the clinician's
+verbatim wording has no right to outlive its source.
+
+Tests `HC-CAREQ-001..003` in `tests/test_documents_api.py`, alongside
+`HC-ENT-030`, which enforces the identical rule for entity quotes. HC-CAREQ-001
+was observed failing first, reporting the live defect in its own words:
+`AssertionError: verbatim clinician text outlived the deleted document`.
+HC-CAREQ-003 exists because the obvious wrong implementation — an unscoped
+`UPDATE care_plan_task` — passes HC-CAREQ-001 while stripping every other
+document's tasks.
+
+**The plan's own instruction was wrong, and reading the consumer caught it.** It
+said to mirror the clearing into the reprocess path. Reprocess keeps the
+document, so the retention rationale does not apply there, and
+`get_care_task_candidates` keys duplicate detection on
+`(source_document_id, source_quote)` — clearing either would resurface every
+already-accepted task as a fresh candidate on each reprocess. Recorded in
+[recurring-failures.md §2](../agentic/recurring-failures.md) as the one instance
+of that mode caught before it shipped.
+
+**The T3 sweep found a third table, not fixed here.**
+`response_feedback.prompt_snapshot` holds the fully-composed prompt including
+retrieved document text, with no `doc_id` to target and no cleanup on document
+deletion. Different mechanism, and the fix is a design decision rather than a
+mechanic, so it is tracked as `FEEDBACK-SNAP-001` with options written up rather
+than folded into this change. The gap is now stated in
+`docs/compliance/data-privacy.md` instead of being undocumented.
+
+**Verification:** `python -m pytest tests/ -p no:cacheprovider -q` →
+**1248 collected, 1247 passed, 1 failed**, the failure being the documented
+env-only `test_api_rag_index_002b`. Baseline moved 1245 → 1248 in `CLAUDE.md`
+and `AGENT.md` in the same commit, as `CLAUDE.md` requires. `python -c "from
+main import app"` boots. docs_lint, the regenerated docs index and link graph,
+and feature_list_lint all pass. Frontend checks not run — no frontend file was
+touched.
+
+
+### 2026-09-08 - Backlog audit verified and planned
+
+An external repository audit listed the partial features, open tickets and
+pending milestones. Every claim in it was re-checked against the tree before
+being planned; the verification table is §1 of
+[`docs/plans/2026-09-08-backlog-closure-plan.md`](../plans/2026-09-08-backlog-closure-plan.md).
+Most claims held. Two did not, and two things the audit never mentioned turned
+up while checking the ones that did:
+
+- **`INGEST-FHIR-001`'s premise was stale.** The row said "zero structured
+  ingest exists today"; HC-M23 shipped `modules/import_structured.py` (FHIR R4
+  Bundle + lab CSV) on 2026-07-30. The row is corrected above and the real gap
+  is now specific: `DiagnosticReport` is unhandled, and LOINC codes are
+  discarded because `_map_fhir_observation` reads `code.text` only.
+- **`MED-CORR-001`'s gap is narrower than reported.** The frontend service and
+  React Query hook already exist; only the two pages are unwired. The wiring
+  ticket says so rather than re-deriving it.
+- **`CARE-QUOTE-001` (new, P1).** `CarePlanTask.source_quote` holds verbatim
+  clinician text and nothing deletes it when the source document is deleted —
+  while `delete_document` deletes `DocumentEntity` rows for precisely that
+  reason. A live retention defect, found only because `SQL-FK-001`'s audit
+  forced a read of every parent/child delete path.
+- **An orphan class the FK pragma would close for free.** `api/documents.py:867`
+  deletes chunks with a core `delete()` statement, which bypasses the ORM
+  cascade the surrounding code relies on, leaving `embeddings` rows behind.
+
+`SQL-FK-001` was blocked on "a written audit of every FK before flipping
+anything". That audit now exists — all 20 constraints, master and profile, with
+a decision and a rationale each — at
+[`docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md`](../plans/2026-09-08-sql-fk-001-foreign-key-audit.md).
+It found the models and the migration DDL agree everywhere, so flipping the
+pragma activates exactly what is declared; four constraints need changing first.
+
+**Verification:** documentation-only change; no product code touched. The
+backend environment was stood up later in the same session (everything in
+`requirements.txt` except `llama-cpp-python` and `sentence-transformers`), so
+the baseline is now **measured, not restated**: `python -m pytest tests/ -p
+no:cacheprovider -q` collects **1245** and reports **1244 passed, 1 failed** —
+the failure being `test_api_rag_index_002b`, the documented env-only embedding
+case, which is expected without `sentence-transformers` installed. This matches
+`AGENT.md`'s stated baseline exactly.
+
+That run also caught a regression this session's own docs commit had shipped:
+`docs/INDEX.md` and `docs/_link_graph.json` were stale, failing
+`test_docs_lint.py::test_docs_index_check_passes_on_real_repo`, even though
+`scripts/docs_lint.py` — the command the docs actually name — passed. Both
+regenerated; recorded as a second instance of
+[recurring-failures.md §5](../agentic/recurring-failures.md).
 
 ### 2026-07-30 - Pre-merge audit corrections
 

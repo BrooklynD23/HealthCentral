@@ -1,18 +1,29 @@
 /**
- * Medication–Observation Correlation Utility (UX-001)
+ * Medication overlay for a selected observation (UX-001).
  *
- * Heuristic: A medication is "active during" an observation when:
+ * The temporal overlap rule is:
  *   med.started_at <= obs.collected_at AND
  *   (med.ended_at IS NULL OR med.ended_at >= obs.collected_at)
  *
- * This is a frontend-only temporal overlay — no backend changes needed.
+ * MED-CORR-002 note on where this rule lives. The *observation-listing*
+ * direction — "which results fall inside this medication's window" — is owned
+ * by the backend (`GET /medications/{id}/correlations`, MED-CORR-001), and
+ * MedicationDetail consumes it directly. That is the direction where a second
+ * implementation could drift on something that matters: the endpoint returns
+ * verified observations only, and the removed frontend copy did not.
+ *
+ * What remains here is the *inverse* projection — "which medications were
+ * active when this result was collected" — which TrendsDashboard needs for the
+ * chart overlay and which no endpoint serves. It filters medications, not
+ * observations, so the verified-only rule has nothing to apply to. If a
+ * `GET /observations/{id}/medications` endpoint ever exists, this should go the
+ * same way `findObservationsDuringMedication` did.
  */
 
 import type {
   Medication,
   Observation,
   MedicationOverlayPeriod,
-  CorrelationContext,
 } from '@/services/types';
 
 /**
@@ -59,38 +70,4 @@ export function findActiveMedications(
       return true;
     })
     .map(toOverlayPeriod);
-}
-
-/**
- * Build correlation context for an observation.
- */
-export function buildCorrelationContext(
-  observation: Observation,
-  medications: Medication[]
-): CorrelationContext {
-  return {
-    observation,
-    activeMedications: findActiveMedications(observation, medications),
-  };
-}
-
-/**
- * Find observations that fall within a medication's active period.
- */
-export function findObservationsDuringMedication(
-  medication: Medication,
-  observations: Observation[]
-): Observation[] {
-  const startDate = new Date(medication.started_at).getTime();
-  const endDate = medication.ended_at
-    ? new Date(medication.ended_at).getTime()
-    : null;
-
-  return observations.filter((obs) => {
-    if (!obs.collected_at) return false;
-    const obsDate = new Date(obs.collected_at).getTime();
-    if (obsDate < startDate) return false;
-    if (endDate !== null && obsDate > endDate) return false;
-    return true;
-  });
 }

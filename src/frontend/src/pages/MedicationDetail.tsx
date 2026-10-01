@@ -36,10 +36,8 @@ import {
   useDeleteSchedule,
   useDeleteMedication,
   useLearnPatterns,
+  useMedicationCorrelations,
 } from '@/services/medications';
-import { useObservations } from '@/services/observations';
-import { useAuthStore } from '@/stores/authStore';
-import { findObservationsDuringMedication } from '@/utils/correlation';
 import { FlaskConical } from 'lucide-react';
 import type { ScheduleCreate, DoseLog } from '@/services/types';
 
@@ -74,17 +72,12 @@ export function MedicationDetail() {
 
   const { data: doses } = useDoses(medicationId);
 
-  const { profileId } = useAuthStore();
-
-  // Fetch observations for correlation
-  const { data: allObservations } = useObservations({
-    profile_id: profileId || '',
-  });
-
-  // Find lab results during this medication's active period
-  const relatedObservations = medication
-    ? findObservationsDuringMedication(medication, allObservations ?? [])
-    : [];
+  // MED-CORR-002: the backend owns the overlap rule (MED-CORR-001). It defaults
+  // to verified observations only — an unverified extraction is not a fact to
+  // correlate against — which the old frontend heuristic did not do.
+  const { data: correlations } = useMedicationCorrelations(medicationId);
+  const relatedObservations = correlations?.observations ?? [];
+  const excludedUndatedCount = correlations?.excluded_undated_count ?? 0;
 
   const logDose = useLogDose();
   const createSchedule = useCreateSchedule();
@@ -381,10 +374,10 @@ export function MedicationDetail() {
                       key={obs.id}
                       href={`/trends?analyte=${obs.analyte_canonical}`}
                       className="flex items-center justify-between py-2.5 hover:bg-surface-muted/50 -mx-2 px-2 rounded-lg transition-colors"
-                      aria-label={`View ${obs.analyte_raw} trend`}
+                      aria-label={`View ${obs.analyte_canonical} trend`}
                     >
                       <div>
-                        <p className="text-sm font-medium text-ink">{obs.analyte_raw}</p>
+                        <p className="text-sm font-medium text-ink">{obs.analyte_canonical}</p>
                         <p className="text-xs text-ink-tertiary">
                           {obs.collected_at
                             ? new Date(obs.collected_at).toLocaleDateString()
@@ -405,6 +398,17 @@ export function MedicationDetail() {
                     </p>
                   )}
                 </div>
+              )}
+              {excludedUndatedCount > 0 && (
+                <p
+                  className="text-xs text-ink-tertiary pt-3"
+                  data-testid="related-labs-undated"
+                >
+                  {excludedUndatedCount} undated result
+                  {excludedUndatedCount === 1 ? ' is' : 's are'} not shown — a
+                  result with no collection date cannot be placed in this
+                  medication's window.
+                </p>
               )}
             </CardContent>
           </Card>

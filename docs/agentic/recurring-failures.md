@@ -28,6 +28,14 @@ The most expensive pattern in this repo's history, twice over.
 - A frontend test used `waitFor(() => expect(...).not.toBeInTheDocument())`,
   which resolves on the first tick before the component has rendered anything.
   It passed against deliberately broken code.
+- 2026-09-08, `SEC-RECOV-002`: a unit test mocked `has_recovery_code` onto the
+  response of `GET /profiles/{id}`. The backend returns that field on
+  `ProfileListResponse` (the list route, `GET /profiles`) and **never** on `ProfileResponse`
+  (`api/profiles.py:132-152`). Six green tests therefore certified a component
+  that could never reach its "replace" state, because the flag it branched on
+  was always undefined in production. The mock was not a simplification of the
+  API — it was a different API. Caught only by an e2e run against the real
+  backend, which rendered the wrong half of the component.
 
 A 2026-09-09 instance in the one place it hurts most — the security gate itself.
 `scripts/security_gate.py:44-51` and `:71-78` catch `FileNotFoundError,
@@ -62,7 +70,10 @@ HTTP — use `src/backend/tests/support/routes.py::route_client`. When a test se
 shared state (a cache, a module-level dict) by hand, check whether the seed
 itself omits the exact dimension (tenant/profile id) the test is meant to prove
 is isolated — a hand-seeded test can pass by construction instead of by
-correctness.
+correctness. And for any hand-written mock of a backend response, open the
+response model and confirm the field is on *that* endpoint: a mock is an
+assertion about the API, and an unchecked one turns the suite green against a
+contract that does not exist.
 
 ---
 
@@ -79,9 +90,22 @@ statement or data-loss path somewhere adjacent:
   `--profile-id`, which `main()` never forwarded. The remediation instruction
   was a dead end.
 
+Caught in advance once, 2026-09-08, which is the only reason it is not a fourth
+bullet above. `CARE-QUOTE-001`'s own written plan said to clear
+`care_plan_task.source_quote` on document delete **and to mirror that into the
+reprocess path**. Mirroring it would have broken duplicate detection:
+`get_care_task_candidates` keys "already accepted" on
+`(source_document_id, source_quote)` (`api/care_tasks.py:182-199`), so a cleared
+quote resurfaces every accepted task as a fresh candidate on each reprocess. The
+plan was written from the delete path alone; the reprocess path had a second,
+unrelated reason to need that column. Reading the consumer before editing the
+producer is what caught it.
+
 **Recheck:** after fixing anything in a multi-step flow, re-walk the *whole*
 round trip — create → verify → download → restore → prune — not just the diff.
-Ask what every other caller of the thing you changed now believes.
+Ask what every other caller of the thing you changed now believes. Before
+clearing or nulling a column, grep for every reader of it — a column that looks
+like dead provenance to one path is often a key to another.
 
 ---
 
@@ -125,10 +149,24 @@ vary — collected counts over pass counts.
 reported **stale** on the same commit. A concurrent subagent held ~37 files
 modified, so the working tree was not HEAD.
 
+A second instance, 2026-09-08, with a different cause: a docs-only commit added
+two plan docs, ran `python3 scripts/docs_lint.py` — the command `CLAUDE.md` and
+`AGENT.md` both name — and got "Docs lint passed." The commit shipped stale
+`docs/INDEX.md` and `docs/_link_graph.json` anyway, and
+`tests/test_docs_lint.py::test_docs_index_check_passes_on_real_repo` failed on the
+next full run. `docs_lint.py` does not check whether the generated index is
+current; only the pytest suite does. The documented command and the actual gate
+were two different things, and the passing one was the one that got run.
+
 **Recheck:** when anything else is editing the tree, verify commit-level gates in
 a throwaway `git worktree` detached at HEAD, not in place. Related: parallel
 agents running `git add` sweep each other's staged work — commit with explicit
 pathspecs (`git commit -m … -- <paths>`), and never `git reset` to clean up.
+And for **any** docs change, `scripts/docs_lint.py` passing is not sufficient —
+run `python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py
+--link-graph`, or run the backend suite, which is the only place the freshness of
+those two generated files is actually asserted. A docs-only diff is not a reason
+to skip the suite; it is the case where the relevant check is least obvious.
 
 ---
 
@@ -173,6 +211,14 @@ backups on disk after profile deletion. That line was written about a different,
 older backup location. The same review asserted an FK cascade removed a row;
 `PRAGMA foreign_keys` is set nowhere in the codebase, so it is inert on SQLite.
 
+A third instance, 2026-09-08: the `INGEST-FHIR-001` tracker row opened with
+"zero structured ingest exists today; everything goes PDF/image → OCR → regex."
+HC-M23 shipped `modules/import_structured.py` — FHIR R4 Bundle and lab CSV
+parsing — on 2026-07-30. The row's premise had been false for weeks, and an
+audit built on it re-reported the ticket at full scope. A row is written once
+and read many times; nothing re-checks its opening clause when adjacent work
+lands.
+
 A 2026-09-08 near-miss in the same shape, caught at implementation: a research
 track recommended routing `api/memory.py`'s `value` through
 `sanitize_untrusted_field` before persisting, to neutralize prompt injection.
@@ -188,7 +234,40 @@ the recommendation look corroborated — convergence is evidence the *area*
 matters, not that the *proposed fix* is right.
 
 **Recheck:** a written decision is evidence about what someone believed, not
-proof that it was true. When a doc gives a *reason*, check the reason. An
-agent's report — including a reviewer's — is a lead, not a finding. Before
+proof that it was true. When a doc gives a *reason*, check the reason. When a
+ticket asserts an *absence* ("no X exists", "zero Y today"), grep for X before
+planning against it — absence claims age faster than anything else in a tracker.
+An agent's report — including a reviewer's — is a lead, not a finding. Before
 applying a defensive transform, check whether the defense already exists
 somewhere better, and ask what the transform destroys when it fires.
+
+---
+
+## 9. An invariant enforced at one site, not across its class
+
+`delete_document` deletes `DocumentEntity` rows and states the rule in a comment:
+entity quotes are "verbatim document text" and must not "outlive the document
+into exports or pins" (`api/documents.py:1846-1851`). That is a rule about a
+*class* of data, enforced at exactly one table.
+
+`CarePlanTask.source_quote` — "Verbatim clinician wording the task was derived
+from" (`models/care_plan_task.py:45`) — is the same class, added later by HC-M15,
+and nothing deletes it. There is no `delete(CarePlanTask)` anywhere in `api/`. A
+patient who deletes a visit note still has its verbatim text in the tasks table.
+Found 2026-09-08, and only because `SQL-FK-001`'s audit forced a read of every
+parent/child delete path; no test failed, and nothing in the tracker pointed at
+it.
+
+The same shape appears in cleanup that rides on ORM cascade: `Chunk.embedding`
+declares `cascade="all, delete-orphan"`, so deleting a document through the ORM
+reaches embeddings — but the re-embed path uses a core `delete(Chunk)` statement
+(`api/documents.py:867`), which bypasses ORM cascade, and no `delete(Embedding)`
+exists to cover it. One path honours the rule, the adjacent one does not.
+
+**Recheck:** when a comment or doc justifies a deletion with a reason that names
+a *category* ("verbatim document text", "credential material", "anything
+exportable"), find every table in that category and confirm each has a delete
+path — `grep -rn "quote\|verbatim" src/backend/models/` — rather than trusting
+that the rule spread on its own. New features inherit schemas, not invariants.
+And where cleanup depends on ORM cascade, `grep -n "delete(" src/backend/api/*.py`
+finds the core statements that silently skip it.
