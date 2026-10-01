@@ -126,7 +126,60 @@ This brief must be signed before P4 edits `docs/compliance/hipaa-controls.md:169
 - If D only: A's row, plus `| Session-secret rotation | Low | <as implemented> |`
 
 ## Brief 3 — Penetration-Test Scope
-_(pending)_
+
+### Current state
+
+| Anchor | Proves |
+|---|---|
+| `main.py:109-147` @start8064244 | 7-layer middleware (Starlette: last-added is outermost). Request flow: CORS → CorrelationId → SecurityHeaders → RateLimit → InputValidation → SecurityAuditMiddleware → Timing → Routes |
+| `main.py:111-114` @start8064244 | `SecurityAuditMiddleware(log_to_db=settings.audit_security_events_to_db)` — DB logging default off (`config.py:79`) |
+| `main.py:167` @start8064244 | uvicorn binds `127.0.0.1` in local mode; `settings.host` only in server mode |
+| `main.py:93-94` @start8064244 | `/docs`/`/redoc` exposed only when `settings.debug` (`config.py:28` default `True`; forced off in production, `config.py:155-156`) |
+| `main.py:153,155` @start8064244 | `/health` is public (no prefix); `/api/v1/monitoring/metrics` sits under the authenticated API prefix |
+| `ls src/backend/api/*.py` (run 2026-10-01, excl. `__init__.py`) | 18 routers under `/api/v1` |
+| `core/config.py:67-68,75` @start8064244 | rate limit 100 req/60s; body cap 10,485,760 bytes (10 MB) |
+| `security/rate_limit_middleware.py`, `input_validator.py`, `security_headers.py`, `audit_middleware.py` @start8064244 | each implements exactly one ASGI middleware class; rate limiting uses a sliding-window counter keyed by client IP (`_extract_client_ip`), input validation enforces the body-size cap, headers middleware sets response headers, audit middleware captures the response for logging |
+| `scripts/security_gate.py:58,84` @start8064244 | `check_bandit`/`check_pip_audit` raise `ReportError` on `FileNotFoundError`/`JSONDecodeError`, which the gate treats as exit 2 (fail-closed) |
+| `api/export.py:115,126` @start8064244 | `/export/questions`'s `source_quote` field is emitted unredacted — an open surface (canonical owner item **EXPORT-QUESTIONS**, cross-referenced to W-2 O-4) |
+| `core/database.py:46`, `core/profile_database.py:308`, `core/config.py:28` @start8064244 | both SQLAlchemy engines set `echo=settings.debug`; in the default dev config this echoes every statement with bound parameters to stderr (F-P8-3) |
+
+**R10 — security gate, measured 2026-10-01:**
+```
+$ python3 scripts/security_gate.py --bandit /nonexistent.json --pip-audit /nonexistent.json; echo $?
+ERROR: Could not parse bandit report '/nonexistent.json': [Errno 2] No such file or directory: '/nonexistent.json'
+2
+```
+This is a **verify fail-closed** row, not a known open hole: the gate already fails closed on a missing/unparseable report (post-P1).
+
+**R11 — `/export/questions` `source_quote`:** unchanged by P1. Stays an open surface; cross-reference **EXPORT-QUESTIONS** (W-2 O-4).
+
+**F-P8-3 — debug SQL echo:** in the default development config (`debug=True`), `core/database.py:46` and `core/profile_database.py:308` set `echo=settings.debug`, so SQLAlchemy logs every statement with bound parameters to stderr, including profile-vault writes. Production forces `debug` off (`core/config.py:155-156`). Listed here as a surface row; see Brief 4 Step 1 for the measured probe output. Not fixed in this phase (owner-gated separately; **SQL-ECHO** is already owner-signed 2026-09-28 and its implementation, `docs/plans/2026-09-27-S01-sql-echo-phi-leak.md`, is in progress on a separate branch not yet merged at this packet's start tree).
+
+### Decision framing
+
+The assessment surface: auth/session (JWT forgery, revocation, rate limits), per-profile isolation (bypass attempts tested through `route_client`, never direct handler calls — recurring-failure #4), input validation (oversized bodies, path traversal, FTS injection), middleware ordering (can a request reach a route without passing rate limiting?), CORS (non-localhost origin), `debug` surfaces (`/docs`), and the audit-report P2 items above (R10, R11, F-P8-3).
+
+### Options
+
+| Option | Effort | Risk | Value |
+|---|---|---|---|
+| A — Scoped self-assessment checklist, executed via `route_client` pytest cases | M | Self-assessed, not independently verified | Repeatable, stays in-repo, dogfoods the harness |
+| B — Local automated tooling (ZAP baseline, `scripts/security_gate.py`, `pip-audit`/`npm audit`) | S–M | Produces scanner output, not judgment | Pair with A |
+| C — External/professional pen test | L / cost | Arguably disproportionate for a localhost single-user app | Only option that satisfies "penetration testing" as compliance-speak |
+
+### Recommendation
+
+**A + B** now; **C** deferred unless the product is distributed to other users (server mode / packaged release). Evidence delivered to the owner would be the completed checklist, a findings register, and any new tests that moved from failing to passing.
+
+### Owner decision
+
+"Approve a self-assessment (checklist + automated tooling, options A+B) now, deferring an external/professional pen test (option C) until server mode or packaged distribution?"
+
+Owner decision: ☐ approve ☐ reject ☐ defer — notes/date: ____
+
+### Implementation sketch (A+B only, no code here)
+
+`docs/compliance/pentest-checklist.md` (or an `audit/…` location) holding the layer→control→attack→evidence table; one new pytest file, `tests/security/test_pentest_surface.py`, for the automatable rows (auth isolation, rate-limit enforcement, body cap, headers present, `/docs` gated by debug), all through `tests/support/routes.py::route_client`; a findings table appended to this packet. This brief distinguishes "assessment" from "attestation": A+B is a self-assessment; only C produces a third-party pen-test report.
 
 ## Brief 4 — Audit Retention
 _(pending)_
