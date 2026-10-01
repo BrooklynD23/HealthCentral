@@ -166,3 +166,55 @@ def test_hc_nsw_005_status_endpoint_reports_skipped_locked(monkeypatch):
     assert body["state"] == "stopped"
     assert body["skipped_locked"] == 2
     assert body["registered_profiles"] == 0
+
+
+def test_hc_nsw_006_lifespan_starts_and_stops_scheduler(monkeypatch):
+    """main.lifespan starts the notification scheduler on boot and stops it
+    on shutdown — same fail-soft contract as the backup scheduler."""
+    import main as main_module
+    from fastapi import FastAPI
+
+    started = AsyncMock()
+    stopped = AsyncMock()
+    # Imported lazily inside lifespan — patch at the source modules.
+    monkeypatch.setattr(
+        ns_module, "start_notification_scheduler", started
+    )
+    monkeypatch.setattr(
+        ns_module, "stop_notification_scheduler", stopped
+    )
+    monkeypatch.setattr(
+        "modules.backup_scheduler.start_backup_scheduler", AsyncMock()
+    )
+    monkeypatch.setattr(
+        "modules.backup_scheduler.stop_backup_scheduler", AsyncMock()
+    )
+    monkeypatch.setattr(main_module, "init_database", AsyncMock())
+    monkeypatch.setattr(main_module, "close_database", AsyncMock())
+    monkeypatch.setattr(
+        main_module, "run_master_migrations_async", AsyncMock()
+    )
+    monkeypatch.setattr(
+        "core.db_migration.migrate_master_db_filename", MagicMock()
+    )
+    monkeypatch.setattr(
+        "scripts.seed_knowledge_base.seed_all", AsyncMock(return_value={})
+    )
+    # Replace the settings object wholesale — instance may be immutable.
+    monkeypatch.setattr(
+        main_module,
+        "settings",
+        SimpleNamespace(
+            validate_startup=lambda: [], app_data_path="/tmp/hc-nsw-test"
+        ),
+    )
+
+    async def drive():
+        async with main_module.lifespan(FastAPI()):
+            started.assert_awaited_once()
+            stopped.assert_not_awaited()
+
+    run(drive())
+
+    started.assert_awaited_once()
+    stopped.assert_awaited_once()
