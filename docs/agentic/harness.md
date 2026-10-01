@@ -22,9 +22,25 @@ Every unit of agent work follows the same cycle:
 
 ## Subagent rules
 
-No subagent definitions are checked into this repo — there is no agents directory under `.claude/` — every subagent dispatch here is ad hoc, used to keep exploration noise out of the main context:
+Five subagent definitions are checked in under `.claude/agents/`. They were written new on 2026-10-01 by owner decision D1 (2026-09-27). Before that, the directory did not exist and this section said so. Use them to keep exploration noise out of the main context. Ad hoc dispatch without a definition is still allowed and follows the same rules.
 
-- **Read-only scanners** for repo survey, contradiction hunting, dependency evidence, and idea generation. They return evidence, not edits.
+- **Read-only scanners on the `haiku` model:** `.claude/agents/docs-consistency-scanner.md` (contradiction hunting), `.claude/agents/dependency-policy-auditor.md` (dependency evidence), `.claude/agents/agentic-roadmap-researcher.md` (idea generation from the repo's own backlog and research notes) and `.claude/agents/verification-engineer.md` (reviews verification output that someone else ran). Each lists only `Read`, `Grep` and `Glob` in its `tools` field, which Claude Code enforces, so it cannot edit files, run commands or reach the network. They return evidence, not edits.
+- **One bounded implementer on the `opus` model:** `.claude/agents/windows-bootstrap-engineer.md`, for changes that live entirely in `dev.ps1` and `dev.bat`. Its tools are `Read`, `Grep`, `Glob` and `Edit`, so it cannot create files or run commands. Its frontmatter declares `write_scope` as those two files. Claude Code does not enforce that key. The bound holds through the agent's instructions and through the orchestrator, who runs `git diff --name-only` after every dispatch and rejects any path outside those two files. `src/backend/tests/test_claude_agent_definitions.py` pins every tool list and the declared scope.
+- **Where they run:** dispatch any of the five only from a fresh source-only worktree, and only after the patient-data gate below exits 0. Run it from this repository's checkout:
+
+  ```bash
+  set -o pipefail
+  AGENT_WT="$(git rev-parse --show-toplevel)-agent"   # sibling directory; must not exist yet
+  git worktree add --detach "$AGENT_WT" HEAD
+  phi_gate() {
+    local root="$1" hits
+    hits=$(find "$root" -path "$root/.git" -prune -o \( -path "$root/data" -o -path "$root/src/backend/data" -o -name '*.db' -o -name '*.db-wal' -o -name '*.db-shm' -o -name '.env' \) -print) || { echo "phi_gate: find failed" >&2; return 1; }
+    test -z "$hits" || { printf '%s\n' "$hits"; return 1; }
+  }
+  phi_gate "$AGENT_WT"; echo "phi_gate_exit=$?"
+  ```
+
+  Dispatch only on `phi_gate_exit=0`, starting Claude Code inside that worktree. The gate exits 1 and prints each match when it finds a `data` or `src/backend/data` directory, or a `*.db`, `*.db-wal`, `*.db-shm` or `.env` file anywhere in the worktree. It also exits 1 if `find` itself fails. Local patient data is gitignored, so a fresh worktree holds none of it. That gate is the boundary. Claude Code does not limit which paths `Read` opens, so a checkout that holds patient data is never a place to dispatch these agents. Afterwards, remove the worktree with `git worktree remove --force "$AGENT_WT"`.
 - **Implementation stays in the orchestrator** unless files are clearly independent. Subagent output is input evidence — the orchestrator re-verifies anything load-bearing before acting on it.
 - Subagents never touch the safety-critical modules (`modules/interpret_safety.py`, `modules/redaction.py`, `modules/faithfulness.py`, `modules/verifier_agent.py`) or auth/encryption code.
 
