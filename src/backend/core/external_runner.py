@@ -92,6 +92,58 @@ async def _decrypt_or_migrate_api_key(
     return plaintext_key
 
 
+def redaction_bypass_active() -> bool:
+    """D12 (owner, 2026-09-27): is break-glass currently weakening redaction?
+
+    True only when EXTERNAL_API_REDACTION_BREAK_GLASS is set AND the configured
+    redaction is weaker than strict. Without break-glass, the external runner
+    always applies strict redaction, whatever REDACTION_ENABLED /
+    REDACTION_POLICY_LEVEL say. Also read by GET /settings/model/external-api
+    so the UI can warn (one predicate, so the warning cannot drift from the
+    runner).
+    """
+    if getattr(settings, "external_api_redaction_break_glass", False) is not True:
+        return False
+    enabled = getattr(settings, "redaction_enabled", False) is True
+    level = getattr(settings, "redaction_policy_level", "strict")
+    return (not enabled) or level != "strict"
+
+
+BREAK_GLASS_AUDIT_EVENT = "security.external_api.break_glass"
+
+
+async def _record_break_glass_audit(
+    *,
+    profile_id: Optional[str],
+    decision: str,
+    redaction_count: Optional[int],
+) -> None:
+    """Write the D12 break-glass audit row to the master DB, or raise.
+
+    Only static strings, the profile UUID and a count are written: never the
+    prompt, provider, model or key (AUDIT-PHI-001; audit rows live in the
+    unencrypted master DB). action == event_type is the sanctioned
+    no-warning path through core.audit._scrub_action (HC-AUD-010).
+    """
+    from .audit import create_audit_log
+    from .database import async_session_maker
+
+    async with async_session_maker() as db:
+        await create_audit_log(
+            db=db,
+            event_type=BREAK_GLASS_AUDIT_EVENT,
+            action=BREAK_GLASS_AUDIT_EVENT,
+            profile_id=profile_id,
+            entity_type="external_api",
+            details={
+                "trigger": "break_glass",
+                "decision": decision,
+                "redaction_count": redaction_count,
+            },
+        )
+        await db.commit()
+
+
 class ExternalModelRunner:
     """
     External API model runner implementing the same interface as ModelRunner.
@@ -197,6 +249,13 @@ class ExternalModelRunner:
                     model_name=self._model,
                 )
 
+        # D12 (owner, 2026-09-27): strict redaction is unconditional. The only
+        # exception is break-glass, which is audited and shown in the UI.
+        bypass = redaction_bypass_active()
+        if not bypass:
+            redaction_enabled = True
+            policy_level = "strict"
+
         redacted_count: Optional[int] = None
         if redaction_enabled:
             from modules.redaction import RedactionEngine, VALID_POLICY_LEVELS
@@ -233,8 +292,29 @@ class ExternalModelRunner:
             "redaction_redacted_count": redacted_count,
             "redaction_break_glass": break_glass,
         }
-        if break_glass and (not redaction_enabled or policy_level != "strict"):
+        if bypass:
             logger.warning("SECURITY_AUDIT: %s", json.dumps(audit_data, default=str))
+            try:
+                await _record_break_glass_audit(
+                    profile_id=self._profile_id,
+                    decision="unredacted" if not redaction_enabled else "non_strict",
+                    redaction_count=redacted_count,
+                )
+            except Exception as exc:
+                logger.error(
+                    "External API call blocked: break-glass audit row could not be written",
+                    extra={
+                        "provider": self._provider,
+                        "profile_id": self._profile_id,
+                        "error_type": type(exc).__name__,
+                    },
+                )
+                return InferenceResult(
+                    text="External API error: break-glass audit could not be recorded",
+                    tokens_generated=0,
+                    finish_reason="error",
+                    model_name=self._model,
+                )
         else:
             logger.info("SECURITY_AUDIT: %s", json.dumps(audit_data, default=str))
 

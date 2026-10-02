@@ -26,7 +26,11 @@ class Settings(BaseSettings):
     app_mode: Literal["local", "server"] = "local"
     app_env: Literal["development", "production"] = "development"
     debug: bool = True
-    
+    # SQL statement logging. Separate from `debug` on purpose (S-1): echo printed
+    # every bound parameter (lab values, chat text, names) to stderr. Opt in with
+    # SQL_ECHO=true.
+    sql_echo: bool = False
+
     # Server configuration
     host: str = "127.0.0.1"
     port: int = 8000

@@ -105,9 +105,10 @@ in grounded context until you correct or verify them.
 
 ### What do the [Your Results] / [Reference] labels mean in assistant answers?
 
-The assistant cites two types of sources:
-- **[YOUR_RESULTS:N]** — Your own lab values from imported documents, including your latest result, normal range, and whether the value is trending up or down
-- **[REFERENCE:N]** — General medical knowledge from a trusted reference library
+The assistant lists the sources behind an answer under **Sources**, below the answer. Where it marks a specific sentence, it uses a number in square brackets, such as [1]. Each source shows its title (for example "Your LDL Result" or "Medical Reference: LDL") or, when it has no title, one of these labels:
+- **Your Results** — your own lab values from imported documents, including your latest result, normal range, and whether the value is trending up or down
+- **Your Document** — a passage from a document you imported
+- **Reference** — general medical knowledge from a trusted reference library
 
 This dual-source approach means you can verify clinical facts against your actual measurements and cross-check general information against medical sources.
 
