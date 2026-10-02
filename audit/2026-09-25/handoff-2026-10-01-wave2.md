@@ -1,5 +1,7 @@
 # Handoff — L0 Orchestrator, Wave 1 close + Wave 2 (2026-10-01)
 
+> **Historical Reference (2026-10-02):** superseded; not an active tracker, retained for history. Waves 1-2 closed from it (PRs #27-#35). Current entry point: [handoff-2026-10-02-wave3.md](handoff-2026-10-02-wave3.md).
+
 Paste §1 into a fresh Claude Code session at the repo root (Opus 5.5, high effort). Process: [docs/agentic/orchestration.md](../../docs/agentic/orchestration.md). Templates (L1/L2 briefs, Codex): [handoff-2026-09-28 §4-§7](handoff-2026-09-28-execution-orchestrator.md).
 
 ## 1. Prompt

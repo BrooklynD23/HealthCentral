@@ -62,6 +62,7 @@ HISTORICAL_DOCS = [
     "audit/2026-09-25/handoff-prompt-claude-orchestrator.md",
     "audit/2026-09-25/handoff-prompt-review-agent.md",
     "audit/2026-09-25/review/HIGH-REASONING-GOAL-PROMPT.md",
+    "audit/2026-09-25/handoff-2026-10-01-wave2.md",
 ]
 
 # DOC-010: files whose "Canonical Doc Order" list must be textually identical

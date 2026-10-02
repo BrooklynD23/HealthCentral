@@ -1,7 +1,7 @@
 # HealthCentral Remaining Work Task List
 
 **Version:** 0.5.0
-**Last Updated:** 2026-10-01
+**Last Updated:** 2026-10-02
 **Owner:** Project Lead
 **Refresh Trigger:** Task completed or new task identified
 **Scope:** Active remaining work only (implementation baseline already shipped)
@@ -151,6 +151,32 @@ On the first of each month, review all canonical docs for freshness:
 ---
 
 ## Session Notes
+
+### 2026-10-02 - Wave 2 merged: S-1, W-6, W-11a PR-2, W-5, W-1, P2, P8, G-C4
+
+Eight PRs merged one at a time (#29, #32, #33, #34, #35, #31, #30, #28).
+Main is `f5d829b` with `1346 tests collected` (1296 at the start of the wave).
+
+- **S-1 (#29):** SQL echo no longer prints patient data. `sql_echo` is off by
+  default and decoupled from `debug`; both runtime engines set
+  `hide_parameters=True`.
+- **W-6 (#32):** the opt-in cloud runner always redacts strictly unless
+  audited break-glass is on; a failed audit write refuses the call; the
+  warning shows on Settings and on the chat page (owner W6-Q3).
+- **W-11a PR-2 (#33):** a test proves the profile vault is ciphertext on disk.
+- **W-5 (#34):** the legacy prompt carries one citation instruction, `[cite:N]`.
+- **W-1 (#35):** the five subagents in `.claude/agents/` are committed; the
+  harness drift check is now a collected test.
+- **P2 (#31):** the medication-reminder scheduler starts with the app and
+  serves a profile only while its vault is unlocked; closing a vault waits for
+  an in-flight pass (owner P2-INFLIGHT).
+- **P8 (#30), G-C4 (#28):** decision documents; their owner lines are unsigned.
+
+L0 re-ran one acceptance check and one break-it per code PR at the PR head
+before each merge; details in `audit/2026-09-25/waves/wave-2.md`. Still open
+for the owner: the W-1 `/agents` smoke, the P8 and G-C4 sign-off lines, and the
+new owner items (NPM-AUDIT, BG-WARN-STALE and others) in the implementation
+program.
 
 ### 2026-10-01 - Gated-items decision packet prepared (P8 / W-9, D10)
 

@@ -1,6 +1,6 @@
 # Handoff — Execution Orchestrator (2026-09-28)
 
-> **Status 2026-10-01 — §1-§3 superseded** by [handoff-2026-10-01-wave2.md](handoff-2026-10-01-wave2.md) (state, waves and gates). **§4-§7 (L1/L2/reviewer briefs, Codex commands) remain the current templates**; §8 lessons continue in the 2026-10-01 handoff §5.
+> **Status 2026-10-02 — §1-§3 superseded** by [handoff-2026-10-02-wave3.md](handoff-2026-10-02-wave3.md) (state, waves and gates). **§4-§7 (L1/L2/reviewer briefs, Codex commands) remain the current templates**; §8 lessons continue in the 2026-10-01 handoff §5 and the 2026-10-02 handoff §4.
 
 Paste the block in §1 into a fresh Claude Code session at the repo root, running Opus 5.5 at high effort. The process it follows is [docs/agentic/orchestration.md](../../docs/agentic/orchestration.md). This file carries the state and the templates.
 
