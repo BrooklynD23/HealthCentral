@@ -950,6 +950,14 @@ E2E Smoke fails on every run since at least 2026-09-07 with `ERROR: Could not in
 
 Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`
 
+## `docs/plans/2026-10-01-packaging-decision.md`
+
+**HC-M08a Packaging Decision Record**
+
+This record answers HC-M08a (`feature_list.json:94-96`): "Decision doc exists, passes docs lint, and names a chosen path with rationale." It presents options and measured inputs and makes a labelled…
+
+Links to: `audit/2026-09-25/Devin-Audit-report.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`
+
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
 **Project Structure Setup**
