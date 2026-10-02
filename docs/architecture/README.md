@@ -118,10 +118,18 @@ flowchart LR
     LOOP -.->|"holds the loop<br/>during generation"| LLAMA
 ```
 
-The only background task the app actually starts is the **backup scheduler**
-(BKUP-UX-001). `notification_scheduler` exists in the codebase but is
-deliberately not wired into the lifespan — worth knowing before assuming
-reminders fire on their own.
+Two background tasks start with the app: the **backup scheduler**
+(BKUP-UX-001) and the **medication-reminder notification scheduler**
+(Phase 3). Both share the locked-vault constraint — a background task
+cannot open a profile's SQLCipher vault without the user's password — so
+both are session-scoped: backups due while locked are recorded
+`skipped_locked`, and reminders only fire while the profile is unlocked.
+The scheduler registers a per-profile session factory at vault open
+(`core/auth.py::open_profile_database_on_login`) and unregisters at close;
+`GET /notifications/scheduler/status` reports how many registered profiles
+were skipped because they locked mid-session. Reminder content lives only
+in the per-profile vault — nothing reminder-related is written to the
+master DB.
 
 The dotted edge is a real constraint, not a stylistic choice: llama.cpp
 inference is CPU-bound and in-process, so a long generation occupies the worker.

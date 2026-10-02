@@ -152,6 +152,36 @@ On the first of each month, review all canonical docs for freshness:
 
 ## Session Notes
 
+### 2026-10-01 - Notification scheduler wired into lifespan (audit 2026-09-25 plan 02)
+
+`modules/notification_scheduler.py` was fully unit-tested but never started —
+nothing called it from `main.py` or `core/auth.py`. Wired it exactly like
+`modules/backup_scheduler.py`: `start_notification_scheduler()` /
+`stop_notification_scheduler()` in the lifespan, and two small hooks in
+`open_profile_database_on_login` / `close_profile_database_on_logout` that
+register/unregister a per-profile session factory on vault unlock/lock.
+
+Deliberate scope decisions:
+- **Session-scoped reminders only.** A background task cannot open a locked
+  SQLCipher vault, so reminders fire only while the profile is unlocked;
+  profiles skipped mid-pass are recorded honestly as `skipped_locked`
+  (`NotificationScheduler._last_pass_results`, exposed on
+  `GET /notifications/scheduler/status`), not as errors.
+- **Quiet hours remain unenforced** — stored per-medication, not yet read by
+  the scheduler. Pre-existing gap, unchanged by this work.
+- **`datetime.utcnow()` migration deferred** to its own workstream (plan 05);
+  this plan added no new production timestamps; the new tests use
+  `datetime.utcnow()` as the plan specifies, consistent with the scheduler's
+  existing naive-UTC comparisons, which were left alone.
+- Removed a PHI leak found while wiring: the send-path log line included the
+  medication name at INFO; it now logs only medication/schedule uuids.
+
+Docs corrected: `docs/architecture/README.md` no longer says the scheduler is
+"deliberately not wired"; `docs/features/00_features_index.md`'s notifications
+line now states the unlock-only delivery scope and the quiet-hours gap. Added
+recurring-failures.md mode 10 ("A fully unit-tested feature that was never
+started").
+
 ### 2026-10-01 - Wave 1 merged: branches A and B, S-CACHE, CI-DISK
 
 Plan 01 (P1) is done. Branch B landed as PR #21 and branch A as PR #24 (with

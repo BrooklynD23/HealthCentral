@@ -271,3 +271,25 @@ path — `grep -rn "quote\|verbatim" src/backend/models/` — rather than trusti
 that the rule spread on its own. New features inherit schemas, not invariants.
 And where cleanup depends on ORM cascade, `grep -n "delete(" src/backend/api/*.py`
 finds the core statements that silently skip it.
+
+---
+
+## 10. A fully unit-tested feature that was never started
+
+`modules/notification_scheduler.py` had complete unit coverage for schedule
+evaluation, message generation, and delivery — every function green — but
+nothing called `start_notification_scheduler()` from `main.py`, and nothing
+registered a profile's session with it from `core/auth.py`. The feature was
+dead on every boot for months (audit 2026-09-25 §11.2). A 100% green suite at
+the function level is silent about whether the function is ever reached in
+production; "tested" and "wired" are different claims, and only the second
+one matters to a user. The backup scheduler had already made the identical
+start/stop/register/unregister wiring shape once (`modules/backup_scheduler.py`),
+which is exactly why it was missed here — a sibling module's wiring being
+correct creates no evidence about this one's.
+
+**Recheck:** for any background task or scheduler, grep for its start/stop
+functions outside its own test file (`grep -rn "start_<name>\|stop_<name>" src/backend/main.py`)
+before trusting its unit tests as a completeness signal. A module that is
+fully testable in isolation is not evidence it is reachable from `main.py` or
+any other entry point — check the call site, not just the callee.

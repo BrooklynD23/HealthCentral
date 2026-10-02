@@ -23,7 +23,7 @@ This folder contains feature architecture references and the active remaining-wo
 - **Core features**: Auth, import, extraction, verification, trends, export, assistant, interpretations — all implemented.
 - **Lab Interpreter**: Backend and frontend implemented with knowledge base, batch interpretation, panel interpretation.
 - **Medication Coach**: Medications, schedules, dose logging, adherence stats, pattern learning — all implemented.
-- **Notifications**: Settings, history, scheduler, test notifications — all implemented.
+- **Notifications**: Settings, history, scheduler, test notifications — all implemented. Reminders are delivered as OS toasts only while the profile vault is unlocked; locked profiles are not served, and a profile whose vault locks before a pass reaches it is recorded as `skipped_locked`. Quiet-hours settings are stored per-medication but not yet enforced by the scheduler (pre-existing gap).
 - **Sprint 05 (Frontend Quality)**: 188 frontend tests, accessibility (axe-core), responsive layout, visualization interactions, E2E workflows.
 - **Sprint 06 (Platform Ops)**: Security middleware, monitoring/metrics, backup/restore, API/user/compliance documentation.
 - Lab-to-medication correlation UX implemented (MedicationOverlay component, TrendsDashboard integration).

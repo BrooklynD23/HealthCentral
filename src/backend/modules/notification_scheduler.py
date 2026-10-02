@@ -54,6 +54,14 @@ class SchedulerState(str, Enum):
     PAUSED = "paused"
 
 
+class ProfileVaultLockedError(RuntimeError):
+    """A registered session factory found the profile vault locked.
+
+    Routine, not an error: locking is how a session ends. The scheduler
+    records it as `skipped_locked` rather than a failure.
+    """
+
+
 @dataclass
 class ScheduleCheck:
     """Result of checking a schedule for notification need."""
@@ -129,11 +137,19 @@ class NotificationScheduler:
         self._task: Optional[asyncio.Task] = None
         self._db_session_factory: Optional[Callable[[], AsyncSession]] = None
         self._profile_sessions: dict[str, Callable[[], Awaitable[AsyncSession]]] = {}
+        # One lock per profile, held for the whole reminder pass so a vault
+        # close can wait for an in-flight pass (P2-INFLIGHT).
+        self._profile_locks: dict[str, asyncio.Lock] = {}
 
         # Tracking
         self._last_check_time: Optional[datetime] = None
         self._notifications_sent_this_hour: int = 0
         self._hour_start: Optional[datetime] = None
+
+        # Outcome of the most recent pass, per registered profile
+        # ("checked" | "skipped_locked" | "error"). In-memory only — never
+        # persisted, so no profile data leaves the vault lifecycle.
+        self._last_pass_results: dict[str, str] = {}
 
     @property
     def state(self) -> SchedulerState:
@@ -144,6 +160,15 @@ class NotificationScheduler:
     def is_running(self) -> bool:
         """Check if scheduler is actively running."""
         return self._state == SchedulerState.RUNNING
+
+    @property
+    def last_pass_skipped_locked(self) -> int:
+        """Registered profiles skipped on the last pass because the vault
+        was locked — the honest counterpart of backup_scheduler's
+        skipped_locked."""
+        return sum(
+            1 for r in self._last_pass_results.values() if r == "skipped_locked"
+        )
 
     def register_profile_session(
         self,
@@ -164,6 +189,26 @@ class NotificationScheduler:
         """Remove a profile's session registration."""
         self._profile_sessions.pop(profile_id, None)
         logger.debug(f"Unregistered profile session for {profile_id}")
+
+    def _profile_lock(self, profile_id: str) -> asyncio.Lock:
+        """Return the profile's pass lock, creating it lazily."""
+        lock = self._profile_locks.get(profile_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._profile_locks[profile_id] = lock
+        return lock
+
+    async def unregister_profile_session_and_wait(self, profile_id: str) -> None:
+        """Unregister a profile, then wait for any in-flight pass to finish.
+
+        Pops the session first (no new pass can start), then waits on the
+        profile lock so the caller can safely dispose the vault engine.
+        """
+        self._profile_sessions.pop(profile_id, None)
+        async with self._profile_lock(profile_id):
+            pass
+        self._profile_locks.pop(profile_id, None)
+        logger.debug(f"Unregistered profile session for {profile_id} (drained)")
 
     async def start(self):
         """Start the notification scheduler."""
@@ -235,12 +280,29 @@ class NotificationScheduler:
             logger.warning("Hourly notification limit reached")
             return
 
+        outcomes: dict[str, str] = {}
         for profile_id, session_factory in list(self._profile_sessions.items()):
-            try:
-                async with await session_factory() as db:
-                    await self._check_profile_schedules(profile_id, db)
-            except Exception as e:
-                logger.error(f"Error checking profile {profile_id}: {e}")
+            async with self._profile_lock(profile_id):
+                if profile_id not in self._profile_sessions:
+                    # Unregistered while waiting for the lock.
+                    outcomes[profile_id] = "skipped_locked"
+                    continue
+                try:
+                    async with await session_factory() as db:
+                        await self._check_profile_schedules(profile_id, db)
+                    outcomes[profile_id] = "checked"
+                except ProfileVaultLockedError:
+                    # Routine: the vault was locked between registration and
+                    # this pass. Record it honestly; do not alarm the error log.
+                    outcomes[profile_id] = "skipped_locked"
+                    logger.debug(
+                        "Skipped locked profile %s during reminder pass",
+                        profile_id,
+                    )
+                except Exception as e:
+                    outcomes[profile_id] = "error"
+                    logger.error(f"Error checking profile {profile_id}: {e}")
+        self._last_pass_results = outcomes
 
     async def _check_profile_schedules(
         self,
@@ -515,8 +577,10 @@ class NotificationScheduler:
         self._notifications_sent_this_hour += 1
 
         logger.info(
-            f"Sent {check_result.priority.value} notification for "
-            f"{check_result.medication_name} ({check_result.schedule_label})"
+            "Sent %s reminder for medication %s (schedule %s)",
+            check_result.priority.value,
+            check_result.medication_id,
+            check_result.schedule_id,
         )
 
     def _time_in_window(
@@ -542,6 +606,30 @@ class NotificationScheduler:
         total_minutes = base.hour * 60 + base.minute + offset_minutes
         total_minutes = max(0, min(1439, total_minutes))  # Clamp to 00:00-23:59
         return time(hour=total_minutes // 60, minute=total_minutes % 60)
+
+
+def profile_session_factory(
+    profile_id: str,
+) -> Callable[[], Awaitable[AsyncSession]]:
+    """Build a session factory bound to the profile's live vault connection.
+
+    The connection is resolved per call, not captured at registration: a
+    vault locked between registration and the next pass raises
+    ProfileVaultLockedError, which the scheduler records honestly instead of
+    serving stale access.
+    """
+
+    async def _factory() -> AsyncSession:
+        from core.profile_database import get_profile_db_manager
+
+        connection = get_profile_db_manager().get_connection(profile_id)
+        if connection is None:
+            raise ProfileVaultLockedError(
+                f"profile {profile_id} vault is locked"
+            )
+        return connection.get_session()
+
+    return _factory
 
 
 # Global instance

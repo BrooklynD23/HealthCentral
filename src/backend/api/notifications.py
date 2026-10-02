@@ -134,6 +134,7 @@ class SchedulerStatusResponse(BaseModel):
     state: str
     active_platform: Optional[str] = None
     registered_profiles: int
+    skipped_locked: int
     notifications_sent_this_hour: int
     last_check: Optional[str] = None
 
@@ -506,6 +507,7 @@ async def get_scheduler_status(
         state=scheduler.state.value,
         active_platform=service.active_platform.value if service.active_platform else None,
         registered_profiles=len(scheduler._profile_sessions),
+        skipped_locked=scheduler.last_pass_skipped_locked,
         notifications_sent_this_hour=scheduler._notifications_sent_this_hour,
         last_check=scheduler._last_check_time.isoformat() if scheduler._last_check_time else None,
     )
