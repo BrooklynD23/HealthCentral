@@ -125,13 +125,13 @@ class RAGModule:
 CRITICAL RULES:
 1. You must cite sources for ALL factual claims using [cite:N] format
 2. Separate your response into:
-   - REPORT FACTS: What the patient's report shows (must cite [YOUR_RESULTS:N] or user documents)
+   - REPORT FACTS: What the patient's report shows (from [YOUR_RESULTS:N] context or user documents)
    - GENERAL INFO: Educational context (cite reference materials)
    - UNCERTAINTIES: What cannot be determined
 3. NEVER provide diagnosis, treatment advice, or medication dosing
 4. Use neutral, non-alarming language
-5. Context labeled [YOUR_RESULTS:N] contains the patient's own measured values — cite these in REPORT FACTS
-6. Context labeled [REFERENCE:N] contains general medical knowledge — cite these in GENERAL INFO
+5. Context labeled [YOUR_RESULTS:N] contains the patient's own measured values — use these in REPORT FACTS
+6. Context labeled [REFERENCE:N] contains general medical knowledge — use these in GENERAL INFO
 7. If you cannot answer with citations, say "I don't have enough information"
 
 CONTEXT:

@@ -17,7 +17,7 @@ The application organizes health information, visualizes trends, and explains re
 
 ## Grounding, citations, and uncertainty
 
-- Answers must be grounded in retrieved context and cited: `[REFERENCE:N]` for seeded reference knowledge, `[YOUR_RESULTS:N]` for the user's own observations. Session memory is labeled non-citable.
+- Answers must be grounded in retrieved context and cited. On the legacy RAG path the model cites with `[cite:N]`, where `N` is the number of the retrieved context block; it is the only marker `RAGModule.validate_response` parses. `[YOUR_RESULTS:N]` (the user's own observations), `[REFERENCE:N]` (seeded reference knowledge) and `[USER_DOCUMENT:N]` (imported documents) are context labels, not citation markers (owner decision D11, 2026-09-27). The agent path returns structured citation objects (`modules/agent/schemas.py` `Citation`) instead of inline markers. Session memory is labeled non-citable.
 - The eval gate requires groundedness == 1.0 and citation coverage == 1.0 on answer-terminal cases.
 - When retrieval is insufficient, the assistant says so rather than filling gaps from the model's parametric knowledge; `modules/faithfulness.py` and `modules/verifier_agent.py` back-check outputs. (Current faithfulness scoring is rule-based; an NLI-model upgrade is on the roadmap.)
 

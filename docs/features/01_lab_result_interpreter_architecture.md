@@ -194,24 +194,28 @@ Provider/model selection is configurable via `GET`/`PUT /api/v1/settings/model/p
 
 ### Biomarker Grounding
 
-The assistant RAG pipeline grounds biomarker-related responses in **two independent citation layers**:
+The assistant RAG pipeline grounds biomarker-related responses in **two kinds of retrieved context**. Each context block reaches the model under a numbered context label:
 
-**Patient's Own Results `[YOUR_RESULTS:N]`:**
+**Patient's Own Results — context label `[YOUR_RESULTS:N]`:**
 - Latest measured value for the biomarker
 - Normal reference range (sex-specific if applicable)
 - Trend direction over time (improving/stable/worsening)
 - Extracted from patient's observation history
 
-**General Reference Knowledge `[REFERENCE:N]`:**
+**General Reference Knowledge — context label `[REFERENCE:N]`:**
 - Auto-seeded at startup via `seed_knowledge_base.py` if empty
 - Clinical significance of the biomarker
 - Common causes of abnormality
 - General management principles
 - Sourced from `biomarker_knowledge` table
 
+Chunks from the patient's imported documents are labelled `[USER_DOCUMENT:N]`. Context labels tell the model where a block came from; they are not citation markers.
+
+**Citations:** the model cites every factual claim with `[cite:N]`. `validate_response` in `src/backend/modules/rag.py` maps `[cite:N]` to the N-th retrieved context block. `[cite:N]` is the only marker that `validate_response` and the claim extractor (`src/backend/modules/claim_extractor.py`) parse, so a context label copied into an answer does not count as a citation. The chat UI renders `[cite:N]` as `[N]` and lists the cited sources under the answer. This vocabulary follows owner decision D11 (2026-09-27, `docs/capstone-report/owner-decisions-2026-09-27.md`).
+
 **Response Structure:**
-- "Report Facts" section cites `[YOUR_RESULTS:N]` exclusively (patient's personal data context)
-- "General Info" section cites `[REFERENCE:N]` exclusively (reference KB context)
+- "Report Facts" section draws on the patient's own results and documents (`[YOUR_RESULTS:N]` / `[USER_DOCUMENT:N]` context), cited with `[cite:N]`
+- "General Info" section draws on reference knowledge (`[REFERENCE:N]` context), cited with `[cite:N]`
 - This separation maintains the education-only framing and ensures no medical advice is provided
 - All outputs include disclaimers directing user to healthcare provider
 

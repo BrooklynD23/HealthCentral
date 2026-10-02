@@ -1136,4 +1136,72 @@ Rules for every commit:
 
 ## Execution record
 
-_Empty until executed. Task 5 fills in: START, CIPHER0, N0/F0/S0/ENV0, the RED output, the break-it table, the probe counts (start, end, end-echo), N2 and the end failures._
+Executed 2026-10-01 by L1-A (Wave 2). Plan checkboxes under "Owner sign-offs" are intentionally unticked: agents do not record approvals.
+
+### Setup and gate
+
+| Item | Value |
+|---|---|
+| Worktree / branch | `../hc-s1`, `fix/s1-sql-echo-phi-leak` |
+| START | `8064244` (origin/main) |
+| Interpreter | `~/venvs/asclexis-311`, Python 3.11.16, WSL2 Linux |
+| CIPHER0 | sqlcipher3 present |
+| ENV0 | `HF_HUB_OFFLINE=1` |
+| Gate | `owner-decisions-2026-09-27.md` SQL-ECHO = S1-A + S1-B (signed 2026-09-28): "A: new sql_echo flag default False (decoupled from debug). B: hide_parameters=True so even when echo is on, values are masked." |
+
+### Baseline and end
+
+| Item | Value |
+|---|---|
+| N0 (collected, start) | 1296 |
+| F0 / S0 (full-suite start run) | not recorded: the run was lost when the host ran out of memory (2026-10-01); immaterial because END has 0 failures |
+| N end (collected) | 1300 |
+| Full suite END | `1300 passed, 54 warnings in 275.00s`, pytest-exit=0 |
+| Embedding model | available in this env: `test_api_rag_index_002b` passed |
+| Boot | `boot-ok` |
+| Docs lint | passed |
+
+### Commits
+
+| SHA | Subject | Count slots |
+|---|---|---|
+| `016e672` | `fix(db): decouple SQL echo from DEBUG` (A) | 1296 -> 1299 |
+| `f1ab1b5` | `fix(db): hide bound SQL parameters` (B) | 1299 -> 1300 |
+
+### Whole-app probe counts
+
+| Probe | debug / sql_echo | create | vault echo / hide_parameters | verify | sentinels | parameters hidden | engine-lines |
+|---|---|---|---|---|---|---|---|
+| start (`out-start`) | True / ABSENT | 201 | True / False | 200 | S1PROBE_NAME=1, `$2b$`=1, S1PROBE_ANALYTE=1, 731.0419=2, S1PROBE_NOTE=1 | 0 | 156 |
+| end, default (`out-end`) | True / False | 201 | False / True | 200 | all 0 | 0 | 0 |
+| end, `SQL_ECHO=true` (`out-end-echo`) | n/a | n/a | True / True | n/a | all 0 | 69 | 156 |
+
+### Break-it table (disposable worktree `~/s01-break`, removed)
+
+| Row | Break | Result |
+|---|---|---|
+| BI-1 | `sql_echo` default True | 001 and 003 red (`assert True is False`); 2 failed, 2 passed. 001 fails via its `engine.echo` assert, stronger than the plan's "003 only" |
+| BI-2 | vault without `hide_parameters` | 004 red; PHI list `['S1ECHO_ANALYTE_hba1c', '731.0419', 'S1ECHO_DOCTEXT HIV-1 RNA detected', 'S1ECHO_CHAT is my result dangerous']` |
+| BI-3 | master without `hide_parameters` | 004 red: `assert False is True` |
+| BI-4 | master `echo=settings.debug` | 003 red: `assert True is False` |
+| BI-5 | vault `echo=settings.debug` | 001 red: `assert True is False` |
+| BI-6 | three product files at origin/main, tests kept | 4 failed: 001 and 002 PHI lists incl. `['S1ECHO_NAME Jane Doe', '$2b$', 'S1ECHO_NOTE_VIA_HTTP']`; 003 and 004 `AttributeError` on `sql_echo` |
+| BI-7 | `DEBUG=false` | 002 precondition `AssertionError` |
+
+All 7 rows red.
+
+### Task 4 checks
+
+| Step | Result |
+|---|---|
+| Step 2 | 4 passed; master-untouched (absent) |
+| Step 3 | no-param-parsers; `settings.debug` only at `llama_cpp_provider.py:136`, `main.py:93`, `main.py:94`, `main.py:173`; read-only-unchanged |
+| `grep echo=settings.debug` in product code | 0 hits (one hit in the new test's docstring only) |
+
+### Reviews
+
+| Reviewer | Verdict | Findings |
+|---|---|---|
+| code-reviewer (opus) | APPROVE; 0 blocker, 0 major | 3 minor: (1) `config.py` whitespace-only blank line replaced, so the plan's "+4 lines" is actually -1/+5; (2) stale pass-count slots `CLAUDE.md:31` "all 1288 pass" and `AGENT.md:76` "1269 pass in CI, 1268 without" left unchanged per plan; (3) 001/003 can fail loudly if a developer `.env` sets `SQL_ECHO=true` |
+| security-reviewer (opus) | APPROVE | 4 LOW: (1) 8 migration engines lack `hide_parameters` but bind no PHI; (2) no production force-off of `SQL_ECHO`; (3) 002/003 env fragility; (4) 002 cannot see master `hide_parameters` removal, 004 covers it |
+| Codex adversarial diff review | approve | no material findings |
