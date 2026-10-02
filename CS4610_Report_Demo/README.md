@@ -19,8 +19,12 @@ Claims checked against the repo and found **not evidenced**:
   see `docs/agentic/harness.md`.
 - **Named subagent definitions under `.claude/agents/`** (`docs-consistency-scanner`,
   `dependency-policy-auditor`, etc.) — implied throughout both documents.
-  That directory does not exist; subagent dispatch in this repo is ad hoc,
-  not named, reusable configs.
+  When the reports were written that directory did not exist, and subagent
+  dispatch was ad hoc. On 2026-10-01 the five named definitions were written new
+  and committed by owner decision (D1, 2026-09-27). They were not recovered
+  from anywhere, and they do not make the reports' description true
+  retroactively: four are read-only scanners, and the one implementer's write
+  scope is declared, not enforced by Claude Code. See `docs/agentic/harness.md`.
 - **An overnight "Ralph-style" RAG parameter sweep** (chunk size, embedding
   model, reranker on/off) producing a Pareto frontier — Final Report §7.3.
   There is no reranker in `modules/rag.py` to have been swept, and no sweep
