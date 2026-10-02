@@ -1,6 +1,6 @@
 # Asclexis — Architecture & Engineering Contract
 
-**Last Updated:** 2026-09-28
+**Last Updated:** 2026-10-02 (Wave 2 rows: C-KEY-1, C-SAFE-5, C-REDACT-2, C-REDACT-3, C-SCHED-2, `.claude/agents/`; evidence main @ `f5d829b`)
 **Authority:** [`CLAUDE.md`](../../CLAUDE.md) and [`AGENT.md`](../../AGENT.md) override this file. It restates their invariants as testable contracts. A rule is `BINDING` only when CLAUDE.md or AGENT.md states it. Rules drawn from other repo documents (compliance docs, API README) or inferred by this pass are `PROPOSED`, with the source cited. *(Corrected 2026-09-27 after the contracts review: an earlier draft labelled six such rules BINDING and narrowed two CLAUDE.md invariants; see the follow-up §Validation.)*
 
 This contract turns the repo's invariants into rules a reviewer can check. Current compliance for each rule is tracked in [specs-compliance-matrix.md](specs-compliance-matrix.md). The system being governed is described in [architecture-overview.md](architecture-overview.md).
@@ -41,7 +41,7 @@ This contract turns the repo's invariants into rules a reviewer can check. Curre
 - **Status today:** partial. `modules/embeddings.py:56` fetches from Hugging Face implicitly. Observed 2026-09-27 17:05 PDT during a local full-suite run (11 files, 91,578,415 B), and relied on by CI (`ci.yml:30-48` has no model step) (matrix LOCAL-03, LOCAL-06).
 - **On violation:** stop; remove the call or route it through an approved path.
 - **Owner:** Project owner.
-- **Planned by:** W-8, W-6.
+- **Planned by:** W-8 (W-6 done, PR #32; it did not change the network surface).
 
 **C-LOCAL-2 · PROPOSED** (owner-approved D8 + D8-delivery, `owner-decisions-2026-09-27.md:21,26`; not yet in CLAUDE.md).
 - **Rule:** The embedding model MUST load from a local path or cache and MUST NOT download implicitly at query time. Downloads happen only through the user-triggered model manager. Interim delivery (D8-delivery): the model is fetched once by `src/backend/scripts/download_models.py` into a local models dir; runtime loads that path with HF offline and fails closed if it is absent.
@@ -85,11 +85,13 @@ This contract turns the repo's invariants into rules a reviewer can check. Curre
   - `core/profile_database.py:315-356` sets `PRAGMA key` and fails closed on the cipher check.
   - `core/security.py:323` (sealing) and `api/profiles.py:546-589` (recovery copy).
   - `database_encryption_required=True` default (`core/config.py:40`).
-- **Verify:** `pytest tests/security/test_key_sealing_baseline.py tests/test_profile_recovery.py`.
-- **Status today:** partial: tested, but the backend suite sets `DATABASE_ENCRYPTION_REQUIRED=false` (`tests/conftest.py:57`), so no pytest proves on-disk ciphertext (matrix KEY-02). **Native Windows dev vaults are unencrypted:** `sqlcipher3-binary` has no cp313 `win_amd64` wheel (`pip download … --only-binary=:all:` → "No matching distribution"), so `dev.ps1:471-500` installs without it and `:586-593` flips `DATABASE_ENCRYPTION_REQUIRED=false`; `dev.ps1:578` writes `=false` in the fallback `.env` even when SQLCipher is present (matrix KEY-08).
+  - `tests/security/test_vault_ciphertext.py` HC-KEYCT-001…005 (backend-tests CI job; PR #33): on-disk ciphertext, reopen with key, plaintext negative control, fail-closed without `sqlcipher3`; fails in CI when `sqlcipher3` is missing.
+  - `tests/test_notification_scheduler_wiring.py` HC-NSW-010 (PR #31): a background reminder pass cannot reopen a vault after close + erase (matrix KEY-09).
+- **Verify:** `HC_REQUIRE_SQLCIPHER=1 pytest tests/security/test_vault_ciphertext.py tests/security/test_key_sealing_baseline.py tests/test_profile_recovery.py`.
+- **Status today:** partial: on-disk ciphertext is now tested (matrix KEY-02 `tested`, PR #33), but the rest of the backend suite still sets `DATABASE_ENCRYPTION_REQUIRED=false` (`tests/conftest.py:57`), and the sidecar scan is vacuous in rollback-journal mode (VAULT-SIDECAR). **Native Windows dev vaults are unencrypted:** `sqlcipher3-binary` has no cp313 `win_amd64` wheel (`pip download … --only-binary=:all:` → "No matching distribution"), so `dev.ps1:471-500` installs without it and `:586-593` flips `DATABASE_ENCRYPTION_REQUIRED=false`; `dev.ps1:578` writes `=false` in the fallback `.env` even when SQLCipher is present (matrix KEY-08).
 - **On violation:** stop; CLAUDE.md requires asking before any auth or encryption change.
 - **Owner:** Project owner.
-- **Planned by:** W-11a (KEY-02 test); the Windows posture is unowned → owner item (G-C4 packaging must ship SQLCipher).
+- **Planned by:** — (W-11a PR-2 KEY-02 test done, PR #33); VAULT-SIDECAR open; the Windows posture is unowned → owner item (G-C4 packaging must ship SQLCipher; decision record PR #28, S-C4-1 unsigned).
 
 **C-KEY-2 · BINDING (ask-first).**
 - **Rule:** Profile deletion MUST crypto-erase in this order:
@@ -175,12 +177,12 @@ This contract turns the repo's invariants into rules a reviewer can check. Curre
 - **Rule:** One citation-marker vocabulary across docs, prompt and validator.
   - Today `CLAUDE.md` and the docs name `[YOUR_RESULTS:N]`/`[REFERENCE:N]`.
   - The legacy validator accepts `[cite:N]`.
-  - The legacy prompt instructs both (`modules/rag.py:123-140`; contradictory lines `:128`, `:133`, `:134`).
-- **Enforced at:** none.
-- **Verify:** —.
+  - The legacy prompt instructs only `[cite:N]` since W-5 (PR #34): `modules/rag.py:126`; `:128,133,134` are context labels. `CLAUDE.md:62` still names `[REFERENCE:N]`/`[YOUR_RESULTS:N]` (GOV-D11).
+- **Enforced at:** `tests/test_rag_citation_prompt.py` HC-CIT-001…003 (CI `backend-tests`).
+- **Verify:** `pytest tests/test_rag_citation_prompt.py`.
 - **On violation:** —.
 - **Owner:** Owner. The prompt lives beside ask-first modules, so ask first. D11 decided; `CLAUDE.md:62` changes only if W-10 Q1 (GOV-D11) is signed.
-- **Planned by:** W-5, W-10, P04 N8.
+- **Planned by:** W-10, P04 N8 (W-5 done, PR #34). Matrix SAFE-08 stays `partial` until `CLAUDE.md:62` changes.
 
 ## 6. Redaction before anything leaves
 
@@ -195,24 +197,22 @@ This contract turns the repo's invariants into rules a reviewer can check. Curre
 
 **C-REDACT-2 · BINDING.**
 - **Rule:** The external runner MUST apply strict redaction before any network call, unconditionally (`CLAUDE.md:60`).
-- **Known exceptions in code (D12 decided, `owner-decisions-2026-09-27.md:22`: remove the dev bypass; keep break-glass only with audit + UI warning. Neither is done today; planned by W-6):**
-  - outside production, `redaction_enabled=False` skips redaction (`core/external_runner.py:201`);
-  - in production, break-glass bypasses the block (`:172`).
-- **Enforced at:** `core/external_runner.py:166-236`; `tests/test_redaction.py::TestExternalRunnerIntegration`; `tests/test_config_validation.py`.
-- **Verify:** `pytest tests/test_redaction.py -k ExternalRunner`.
-- **Status today:** partial. Default `redaction_enabled=True` (`core/config.py:135`), but the bypasses at `core/external_runner.py:201` (dev) and `:172` (production break-glass) exist, main = B. The payload is the whole composed prompt (`modules/rag.py:1256-1268`), not only the question (`data-privacy.md:196-197` @main is false; matrix LOCAL-04, LOCAL-07).
+- **Known exception in code (D12 decided, `owner-decisions-2026-09-27.md:22`; done by W-6, PR #32):** the dev bypass is removed; break-glass (`redaction_bypass_active`, `core/external_runner.py:95-109`) is the only path to weaker redaction, and it is audited before dispatch and fail-closed (`:295-317`) with a UI warning on Settings and the chat page.
+- **Enforced at:** `core/external_runner.py:252-257` (strict forced outside break-glass); `tests/test_external_runner_hardening.py` HC-EXT-001…004b; `tests/test_redaction.py::TestExternalRunnerIntegration`; vitest HC-EXT-003/005 (CI `frontend-tests`).
+- **Verify:** `pytest tests/test_external_runner_hardening.py tests/test_redaction.py -k "hc_ext or ExternalRunner"`.
+- **Status today:** partial. Code matches D12, but `CLAUDE.md:60` is still unconditional and does not name the break-glass exception (GOV-BG, W-10); an unknown or stale flag hides the UI warning (BG-WARN-STALE, owner kept the plan 2026-10-01). The payload is still the whole composed prompt (`modules/rag.py:1257,1267-1268`), not only the question (`data-privacy.md:213` is false; matrix LOCAL-04, LOCAL-07).
 - **On violation:** stop.
 - **Owner:** Project owner. D12 decided: unconditional strict; break-glass only with audit + UI warning.
-- **Planned by:** W-6, W-10.
+- **Planned by:** W-10 (W-6 done, PR #32).
 
 **C-REDACT-3 · PROPOSED** (source: `docs/compliance/hipaa-controls.md:53`).
 - **Rule:** Logs and audit rows MUST NOT contain PHI (medication names, values, document text); use UUIDs.
-- **Enforced at:** `tests/test_audit_phi_minimization.py` (HC-AUD-001…010b); none for SQLAlchemy loggers (HC-AUD-007 caplogs `core.audit` only).
-- **Verify:** `pytest tests/test_audit_phi_minimization.py`.
-- **Status today:** **violated in the default dev config.** Both engines set `echo=settings.debug` (`core/database.py:46`, `core/profile_database.py:308`) with `debug=True` (`core/config.py:28`) and no `hide_parameters`, so bound PHI goes to stderr (S-01 probe; matrix PRIV-06, PRIV-09). `medication_name` at INFO (`modules/notification_scheduler.py:517-520`, VERIFIED) and `display_name` at INFO (`api/profiles.py:328`) are masked only by root WARN.
+- **Enforced at:** `tests/test_audit_phi_minimization.py` (HC-AUD-001…010b); `tests/security/test_sql_echo_phi.py` HC-SQLECHO-001…004 (PR #29: runtime engines echo only on `SQL_ECHO=true` and always with `hide_parameters=True`, `core/database.py:46-47`, `core/profile_database.py:308-309`); `tests/test_notification_scheduler_wiring.py` HC-NSW-009 (PR #31: no medication name in reminder logs or the master schema).
+- **Verify:** `pytest tests/test_audit_phi_minimization.py tests/security/test_sql_echo_phi.py tests/test_notification_scheduler_wiring.py`.
+- **Status today:** partial (matrix PRIV-06, PRIV-09 `partial`). Fixed: SQL echo of bound values (S-1) and the reminder log line (P2, `modules/notification_scheduler.py:579-584` logs ids). Open: `display_name` at INFO (`api/profiles.py:328`), masked only by root WARN; the migration engines have no `hide_parameters` and there is no production force-off for `SQL_ECHO` (MIGRATION-ECHO).
 - **On violation:** stop.
 - **Owner:** Project owner.
-- **Planned by:** S-1 (SQL-ECHO), audit plan 02.
+- **Planned by:** — (S-1 done, PR #29; audit plan 02 done, PR #31). `profiles.py:328` and MIGRATION-ECHO unowned.
 
 ## 7. Inference boundary
 
@@ -222,10 +222,10 @@ This contract turns the repo's invariants into rules a reviewer can check. Curre
 - **Verify:** `grep -rnE "import llama_cpp|from llama_cpp" src/backend --include=*.py | grep -v /tests/` should return only `core/llm/llama_cpp_provider.py:36`.
 - **Status today:** two deviations.
   1. **Dormant:** `modules/model_selector.py:438` @main (`:456` after P1), reachable only via `interpret_with_model` (0 callers) (matrix LLM-02).
-  2. **Live, opt-in:** `ExternalModelRunner` (`core/external_runner.py:95`, `httpx` at `:263,296`) is a standalone runner that `api/assistant.py` and `api/interpretations.py` pass into `rag.query`. It does not go through `ModelRunner`. It is an owner-approved exception (D12), pending W-10's CLAUDE.md amendment.
+  2. **Live, opt-in:** `ExternalModelRunner` (`core/external_runner.py:147` @`f5d829b`, `httpx` at `:345,378`; moved by W-6) is a standalone runner that `api/assistant.py` and `api/interpretations.py` pass into `rag.query`. It does not go through `ModelRunner`. It is an owner-approved exception (D12), pending W-10's CLAUDE.md amendment.
 - **On violation:** stop; never extend the dormant path.
 - **Owner:** Engineering.
-- **Planned by:** W-7, W-6, W-10.
+- **Planned by:** W-7, W-10 (W-6 done, PR #32).
 
 **C-LLM-2 · PROPOSED.**
 - **Rule:** An automated boundary check (a pytest scanning imports, or a ruff banned-API rule run in CI) MUST fail on a new `llama_cpp`/`ollama`/HTTP-client import outside `core/llm/` (plus `core/external_runner.py` only if the owner accepts that deviation).
@@ -328,8 +328,9 @@ This contract turns the repo's invariants into rules a reviewer can check. Curre
   - session-scoped registration at vault open/close;
   - no reminder content, medication names or schedules in the master DB or logs;
   - naive-UTC comparisons (C-TIME-1).
-- **Enforced at:** — (plan 02).
-- **Verify:** plan 02 HC-NSW tests.
+- **Enforced at:** `tests/test_notification_scheduler_wiring.py` HC-NSW-001…010 (PR #31, CI `backend-tests`): register/unregister hooks (`core/auth.py:412,443`), `skipped_locked` (`modules/notification_scheduler.py:288,297`), lifespan start/stop (`src/backend/main.py:75-82`), no PHI in logs or master schema (009), close waits for an in-flight pass (010, P2-INFLIGHT).
+- **Verify:** `pytest tests/test_notification_scheduler_wiring.py tests/test_phase3_notifications.py`.
+- **Status today:** tested (matrix PROD-02, KEY-09). Open LOWs: SCHED-STATUS-GLOBAL, SCHED-DRAIN-UNBOUNDED, TOAST-MED-NAMES.
 - **On violation:** stop.
 - **Owner:** Owner re-confirms scope (session-scoped only; quiet hours unenforced) at P2 sign-off.
 
@@ -399,13 +400,13 @@ When two sources disagree, the rule is: code is evidence of current behaviour, a
 | Topic | Conflicting sources | Decision in this pass | Rationale | Depends on | Approval authority |
 |---|---|---|---|---|---|
 | FK enforcement approval | Review F-02 says unapproved; plan 06 says approved | **Sequence and blast radius approved; D5 decided 2026-09-27: approve all four + pragma** (`owner-decisions-2026-09-27.md:14`; orphan report still reviewed before migration) | `backlog-closure-plan.md` §14 d3 (branch A, `fe31e78`). The pre-decision question asked only about tolerating orphan-write failures; approval of CASCADE / SET NULL is inferred | P1 merge brings the record to main | Owner |
-| `.claude/agents/` | Research 02 said ADOPT the five agents; plan 03 recommends B (fix docs) | **D1 decided 2026-09-27: A, all 5 agents** (hooks not licensed) | `owner-decisions-2026-09-27.md:17-18` (replaces §21 Q2 "Not sure") | W-1 plan; P1-DRIFT | Owner |
+| `.claude/agents/` | Research 02 said ADOPT the five agents; plan 03 recommends B (fix docs) | **Decided: A, all 5 (owner, 2026-09-27, D1/D1-scope)**; committed at `9345cc3` (PR #35); hooks not licensed | `owner-decisions-2026-09-27.md:17-18` (replaces §21 Q2 "Not sure"); HC-AGENTS-001…008 (matrix GATE-09 `tested`) | W-1 done (PR #35); W1-SMOKE and W-1 OG-1/2/4/5 open | Owner |
 | Serena memories | Plan 04 recommended DELETE; audit says decide; research 02 proposes a freshness gate | **D2 decided 2026-09-27: delete** ("git rm the 7 stale memory files", `owner-decisions-2026-09-27.md:19`) | the D2 option text licenses the deletion | P4 | Owner |
 | HC-M11 | Plan 08 treats it as gated; branch A §14 d2 records it approved | **Approved for build behind a default-off flag only**; production behaviour change is gated | scoped approval text | P1 merge | Owner |
 | Export redaction scope | `data-privacy.md:173` says all non-backup exports; code redacts only 3 of 5 | **D3 decided 2026-09-27: redact the doctor summary; CSV/JSON are named exceptions** (`owner-decisions-2026-09-27.md:15`) | patient-directed vs third-party exports | W-2 (code), W-10 (docs) | Owner |
 | Verified-only consumers | `pipelines.md` says the verified set; code serves unverified to trends and RAG | **D4 decided 2026-09-27: trends label unverified points; legacy RAG verified-only** (`owner-decisions-2026-09-27.md:16`) | product/UX decision with safety impact | W-3 | Owner |
 | HIPAA status | Plan 08 said "not a covered entity" | **D10 decided 2026-09-27: treat as HIPAA-aligned** (design posture, never a legal status; `owner-decisions-2026-09-27.md:24`) | legal status still depends on operator and contracts | P08 | Owner / legal |
-| External runner vs ModelRunner | `CLAUDE.md:25` says all LLM calls; `core/external_runner.py` is a separate opt-in runner | **D12 decided 2026-09-27: keep, harden** (named ModelRunner exception; unconditional strict redaction; break-glass only with audit + UI warning; `owner-decisions-2026-09-27.md:22`) | cloud path documented in `skills/asclexis-guardrails` | W-6, W-10 (GOV-BG) | Owner |
+| External runner vs ModelRunner | `CLAUDE.md:25` says all LLM calls; `core/external_runner.py` is a separate opt-in runner | **D12 decided 2026-09-27: keep, harden** (named ModelRunner exception; unconditional strict redaction; break-glass only with audit + UI warning; `owner-decisions-2026-09-27.md:22`) | cloud path documented in `skills/asclexis-guardrails` | W-10 (GOV-BG); W-6 done (PR #32) | Owner |
 | Laya adoption | Research 01 said it runs on "all tiers" | **Test candidate only** | vendor-reported numbers | local eval | Owner |
 
 Back to index: [README.md](README.md)

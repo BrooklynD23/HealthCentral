@@ -1,6 +1,6 @@
 # Handoff Prompt — Claude Orchestrator (CS4610 capstone planning)
 
-> **Historical Reference (2026-10-01):** superseded; not an active tracker, retained for history. Current entry point: [handoff-2026-10-01-wave2.md](handoff-2026-10-01-wave2.md).
+> **Historical Reference (2026-10-01):** superseded; not an active tracker, retained for history. Current entry point: [handoff-2026-10-02-wave3.md](handoff-2026-10-02-wave3.md).
 
 > **Execution handoff (2026-09-28):** the next orchestrator uses [handoff-2026-09-28-execution-orchestrator.md](handoff-2026-09-28-execution-orchestrator.md) and the process in [docs/agentic/orchestration.md](../../docs/agentic/orchestration.md). This file is kept for provenance.
 

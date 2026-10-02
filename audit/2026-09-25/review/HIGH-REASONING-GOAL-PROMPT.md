@@ -1,6 +1,6 @@
 # High-Reasoning Goal Prompt — Asclexis Plan and Contract Recovery
 
-> **Historical Reference (2026-10-01):** superseded; not an active tracker, retained for history. The recovery it asked for produced the capstone package in `docs/capstone-report/` and the 2026-09-27 plan set. Current entry point: [../handoff-2026-10-01-wave2.md](../handoff-2026-10-01-wave2.md).
+> **Historical Reference (2026-10-01):** superseded; not an active tracker, retained for history. The recovery it asked for produced the capstone package in `docs/capstone-report/` and the 2026-09-27 plan set. Current entry point: [../handoff-2026-10-02-wave3.md](../handoff-2026-10-02-wave3.md).
 
 **Use:** Start a fresh session with the highest-reasoning agent available, invoke its `/goal` (or equivalent project-planning slash command), and paste the goal block below. The repository has a prior `/goal` handoff at `audit/2026-09-25/handoff-prompt-claude-orchestrator.md`; this prompt supersedes its planning scope where the two differ.
 

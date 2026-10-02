@@ -1,7 +1,7 @@
 # Asclexis — Implementation Program
 
-**Last Updated:** 2026-10-01 (Waves 0-1 done: P0-B/P0-B2 #19, P1 #21 + #24, S-CACHE #23, CI-DISK #25; Wave 2 dispatched; owner signed W6-Q3, W6-Q5. 2026-09-29: P0-B merged as PR #19; owner signed P1-PR1-MERGE, P1-SLOTS, P1-CAREQ-HTTP, S-CACHE, MEM-AUDIT-CAT; new phase S-CACHE. 2026-09-28: owner signed P0-B2, D9-SRC, P1-DRIFT, SLOT-RULE, P7-ROUTE, SQL-ECHO S1-A+S1-B; all other gates unchanged)
-**Status:** PLAN ONLY. Nothing in this program has been executed, merged, or committed. It replaces the "pending" implementation-program entry in the capstone README and supersedes the sequencing in audit §22–§23 wherever they differ.
+**Last Updated:** 2026-10-02 (Waves 0-2 done: Wave 2 = S-1 #29, W-6 #32, W-11a PR-2 #33, W-5 #34, W-1 #35, P2 #31, P8 #30, G-C4 #28; owner decided P2-INFLIGHT and W6-STALE-WARN 2026-10-01; 10 new owner items. 2026-10-01: Waves 0-1 done: P0-B/P0-B2 #19, P1 #21 + #24, S-CACHE #23, CI-DISK #25; Wave 2 dispatched; owner signed W6-Q3, W6-Q5. 2026-09-29: P0-B merged as PR #19; owner signed P1-PR1-MERGE, P1-SLOTS, P1-CAREQ-HTTP, S-CACHE, MEM-AUDIT-CAT; new phase S-CACHE. 2026-09-28: owner signed P0-B2, D9-SRC, P1-DRIFT, SLOT-RULE, P7-ROUTE, SQL-ECHO S1-A+S1-B; all other gates unchanged)
+**Status:** IN EXECUTION. Waves 0-2 are merged (PRs #19, #21-#35; main `f5d829b`, 2026-10-02); phases not marked done are still proposed. Execution state lives in the [ledger](../../audit/2026-09-25/swarm-2026-09-27/ledger.md). It replaces the "pending" implementation-program entry in the capstone README and supersedes the sequencing in audit §22–§23 wherever they differ.
 
 This program orders the eight audit plans (`audit/2026-09-25/plans/01`–`08`) and the gaps found on 2026-09-27 that no plan covers. It includes the independent review's corrections ([follow-up](../../audit/2026-09-25/review/2026-09-27-followup.md)). The rules it must preserve are in [architecture-engineering-contract.md](architecture-engineering-contract.md). The gaps it closes are in [specs-compliance-matrix.md](specs-compliance-matrix.md).
 
@@ -53,15 +53,15 @@ flowchart TD
   P0B --> P1["P1 PRODUCT (done, PRs #21 + #24)<br/>land A + B (plan 01)<br/>+ drift-token reword (gate P1-DRIFT)"]
   P0C --> P1
   D9 --> P1
-  P1 --> S1["S-1 PRODUCT (gates S1-A/S1-B)<br/>SQL-echo PHI leak"]
+  P1 --> S1["S-1 PRODUCT (done, PR #29)<br/>SQL-echo PHI leak"]
   P0B2 --> S1
-  P1 --> P2["P2 PRODUCT<br/>scheduler (plan 02, D6)"]
-  P1 --> W1["P3 = W-1 PRODUCT<br/>five subagents (D1)"]
+  P1 --> P2["P2 PRODUCT (done, PR #31)<br/>scheduler (plan 02, D6)"]
+  P1 --> W1["P3 = W-1 PRODUCT (done, PR #35)<br/>five subagents (D1)"]
   P0B2 --> W1
-  P1 --> P8["P8 = W-9 DOCS→OWNER<br/>gated-items packet (D10)"]
-  P1 --> W5["W-5 PRODUCT (D11)<br/>citation prompt"]
+  P1 --> P8["P8 = W-9 DOCS→OWNER (done, PR #30)<br/>gated-items packet (D10)"]
+  P1 --> W5["W-5 PRODUCT (D11) (done, PR #34)<br/>citation prompt"]
   P0B2 --> W5
-  P1 --> W6["W-6 PRODUCT · G-B3 (D12 half)<br/>external-runner hardening"]
+  P1 --> W6["W-6 PRODUCT · G-B3 (D12 half) (done, PR #32)<br/>external-runner hardening"]
   P2 --> P4["P4 DOCS<br/>drift sweep, core"]
   W1 --> P4
   P0B2 --> P4
@@ -87,7 +87,7 @@ flowchart TD
   P5 --> W7["W-7 PRODUCT · G-B3 (D7 half)<br/>tiered interpretation"]
   P7 --> W7
   P7 --> WA1["W-11a PR-1 · G-B1<br/>profile-route guards (+audit OG-1)"]
-  P1 --> WA2["W-11a PR-2 · G-B2<br/>vault ciphertext test (OG-2)"]
+  P1 --> WA2["W-11a PR-2 · G-B2 (done, PR #33)<br/>vault ciphertext test (OG-2)"]
   W4 --> WA3["W-11a PR-3 · G-B4<br/>migration heads + CI gates"]
   P1 --> WA4["W-11a PR-4 · G-B6<br/>frontend counts (docs)"]
   W1 --> WA4
@@ -101,7 +101,7 @@ flowchart TD
   P4 --> GC2["W-11b G-C2 OWNER→PRODUCT (S-C2-1)<br/>OpenWiki"]
   W4 --> GC3a["W-11b G-C3a (S-C3-1)<br/>HC-M06 eval card"]
   P2 --> GC3b["W-11b G-C3b (S-C3-1)<br/>HC-M07 observability"]
-  P1 --> GC4["W-11b G-C4 DOCS→OWNER<br/>packaging decision"]
+  P1 --> GC4["W-11b G-C4 DOCS→OWNER (record done, PR #28)<br/>packaging decision"]
   W8 -.-> GC4
   P8 --> GC5["G-C5 PRODUCT<br/>HC-M11 flag-off"]
   W2 --> W10b["W-10b DOCS<br/>privacy status flip"]
@@ -130,9 +130,9 @@ flowchart TD
 
 Integrated from the Wave-3a audit §2 ([3a-integration.md](../../audit/2026-09-25/swarm-2026-09-27/wave3/3a-integration.md)); edge reasons are in its §2.1. Every node is *proposed*. Solid edge = hard dependency (a shared file, or a required upstream artifact); dashed edge = preferred sequence with no shared-file conflict. Node classes: `appr` = owner-approved decision, `gate` = owner-gated, `crit` = on the critical path.
 
-**Program state (2026-10-01):** done = P0-B + P0-B2 (PR #19), P1 (PRs #21, #24), S-CACHE (PR #23), CI-DISK (PR #25). Wave 2 in flight: S-1, W-6, W-1, W-5, W-11a PR-2, P2, P8, G-C4. Ledger: [`ledger.md`](../../audit/2026-09-25/swarm-2026-09-27/ledger.md).
+**Program state (2026-10-02):** Waves 0-2 done. Wave 0-1: P0-B + P0-B2 (PR #19), P1 (PRs #21, #24), S-CACHE (PR #23), CI-DISK (PR #25). Wave 2 (main @ `f5d829b`, `1346 tests collected`, every PR 6/6 CI green): S-1 (#29), W-6 (#32), W-11a PR-2 (#33), W-5 (#34), W-1 = P3 (#35), P2 (#31), P8 = W-9 (#30), G-C4 decision record (#28; S-C4-1…5 unsigned). Next = Wave 3: P4-core and W-11a PR-4, plus G-C3b if S-C3-3 is signed. Ledger: [`ledger.md`](../../audit/2026-09-25/swarm-2026-09-27/ledger.md).
 
-**Critical path (proposed):** ~~P0-B + P0-B2 (one PR) → P1~~ (done) → P2 → P4 → P5 → W-4 → W-3 → W-8 → P4-deferred F5. W-4 → W-11a PR-3 → W-8 is equally long, and P5 → P6 → P7 → G-C1 is one PR shorter. W-10 runs beside P5 (they share no file). The owner gates on the path are P0-B2, D9-SRC, P1-DRIFT, OQ-1, OQ-5, O-5 (skippable), Q-OFFLINE, VERIFIED-FALLBACK and EMB-REV. The audit order (branches → scheduler → phantom → drift → utcnow → FK → reset → gated) is kept, with two changes: P8 moves earlier, because it is docs-only, and the new G-phases are added.
+**Critical path (proposed):** ~~P0-B + P0-B2 (one PR) → P1 → P2~~ (done) → P4 → P5 → W-4 → W-3 → W-8 → P4-deferred F5. W-4 → W-11a PR-3 → W-8 is equally long, and P5 → P6 → P7 → G-C1 is one PR shorter. W-10 runs beside P5 (they share no file). The owner gates on the path are P0-B2, D9-SRC, P1-DRIFT, OQ-1, OQ-5, O-5 (skippable), Q-OFFLINE, VERIFIED-FALLBACK and EMB-REV. The audit order (branches → scheduler → phantom → drift → utcnow → FK → reset → gated) is kept, with two changes: P8 moves earlier, because it is docs-only, and the new G-phases are added.
 
 **Shared files are ordered as follows (proposed; supersedes the earlier list).** No two open PRs edit the same file. The PR that merges second rebases and re-measures.
 - `CLAUDE.md` invariant text (`:25`, `:59-62`): P1 → P4 → **W-10**. No other phase edits it.
@@ -275,6 +275,7 @@ Integrated from the Wave-3a audit §2 ([3a-integration.md](../../audit/2026-09-2
   - A test proves no reminder fires for a locked vault and that `skipped_locked` increments.
 - **Rollback:** revert the PR. The scheduler becomes inert again, with no data written to master.
 - **Sign-off:** owner (D6 and merge).
+- **State (2026-10-02): done** — PR #31 (merged `cff3827`). Collected 1335 → 1346 (+11, HC-NSW-001…010); P2-INFLIGHT fix `4775e59` (owner-approved 2026-10-01); L0 break-it (drain wait dropped) → HC-NSW-010 FAILED; CI 6/6. Open LOWs: SCHED-STATUS-GLOBAL, SCHED-DRAIN-UNBOUNDED, TOAST-MED-NAMES.
 
 ## P3 — Phantom-layer decision (plan 03) · OWNER → DOCS or CONFIG
 
@@ -293,6 +294,7 @@ P3 is now **W-1** ([W01 plan](../plans/2026-09-27-W01-harness-agents-branch-a.md
 - **Acceptance:** zero doc references to non-existent agents or hooks (drift check exits 0), and the claims ledger H5/H6 are updated.
 - **Rollback:** revert.
 - **Sign-off:** owner (D1).
+- **State (2026-10-02): done as W-1** — PR #35 (merged `cbabed1`): 5 agents committed at `9345cc3`, HC-AGENTS-001…008, drift check 0. Open: W1-SMOKE.
 
 ## P4 — Documentation drift sweep (plan 04, extended) · DOCS
 
@@ -384,6 +386,7 @@ P8 = W-9: [P08 amendment](../plans/2026-09-27-P08-gated-packet-hipaa-aligned-ame
   - HC-M11's existing flag-only approval is cited, not re-asked.
 - **Acceptance:** each brief has evidence, options, a recommendation, and an **unsigned** sign-off line.
 - **Sign-off:** owner, per brief.
+- **State (2026-10-02): done** — PR #30 (merged `242f7a0`). The `Owner decision:` lines and the sign-off ledger in `audit/2026-09-25/gated-items-decision-packet.md` are unfilled; P8-B2-ORDER still applies to P4.
 
 ## Gap phases with no existing plan
 
@@ -395,47 +398,47 @@ Each needs its own `writing-plans` plan before execution. As of 2026-09-27 every
 | G-A2 | PRODUCT or DOCS | Verified-only filtering for trends and legacy RAG, or labelled display plus a doc fix (SAFE-02) | D4 | `modules/rag.py` sits beside ask-first safety modules | A test proves an unverified observation is excluded or labelled on each surface | W-3 |
 | G-A3 | PRODUCT | Local-only embedding load (LOCAL-03) | D8 | — | With the network blocked and an empty HF cache, the embedding module either loads from the configured local path or fails closed. It must not silently use the fallback. | W-8 |
 | G-B1 | PRODUCT | HTTP tests for `require_profile_access` on profile routes; audit rows for the 4 unaudited profile routes (ISO-02, AUD-02) | P7 (shares `api/profiles.py` and `tests/support/routes.py`) | auth-adjacent: tests only unless the owner approves route edits | Tests go red when the guard is removed; each of the 4 routes writes an audit row, asserted over HTTP | W-11a PR-1 |
-| G-B2 | PRODUCT | On-disk ciphertext test with encryption required (KEY-02) | P1 | encryption: ask first | A test fails if the vault header reads `SQLite format 3` | W-11a PR-2 |
-| G-B3 | PRODUCT | Inference-boundary check; resolve the dormant `model_selector` path (LLM-02/03) | D7, D12 | — | The boundary test fails on a seeded `import llama_cpp` in `modules/` | W-6 (D12) + W-7 (D7) |
+| G-B2 | PRODUCT | On-disk ciphertext test with encryption required (KEY-02) | P1 | encryption: ask first | A test fails if the vault header reads `SQLite format 3` | W-11a PR-2 (done, PR #33) |
+| G-B3 | PRODUCT | Inference-boundary check; resolve the dormant `model_selector` path (LLM-02/03) | D7, D12 | — | The boundary test fails on a seeded `import llama_cpp` in `modules/` | W-6 (D12, done PR #32) + W-7 (D7) |
 | G-B4 | PRODUCT | Single-head migration test (MIG-02); CI `npm run build`, eslint, ruff; coverage report (GATE-07) | P5 (shares `ci.yml`) | — | Each new gate fails on a seeded violation | W-11a PR-3 |
 | G-B5 | PRODUCT (**priority raised**: low-faithfulness legacy answers reach patients today) | Eval gate for the legacy RAG path, plus an owner decision on whether `is_valid=False` must abstain (SAFE-04) | P1; owner, because the abstain behaviour sits beside ask-first files | ask-first files are read-only | The gate fails on a seeded uncited answer | W-4 |
 | G-B6 | DOCS | Measure the frontend counts (vitest, Playwright) on Windows and replace the 155/25 claims. Measured on main `40f590e` (static count and W-11a's Linux listing): vitest **165 tests / 28 files**; Playwright chromium **28 listed / 5 files**. "25" was a pass count (`TASK_LIST.md:794`: "Playwright 25 passed / 3 conditional skips"). Windows run UNMEASURED | P1 | — | Command output recorded | W-11a PR-4 |
 | G-C1 | PRODUCT | Persist export artifacts across restarts (PRIV-08; audit §16 #7) | P1 | — | A download succeeds after a restart | W-11b |
 | G-C2 | OWNER→PRODUCT | OpenWiki generation: the owner generates locally and a session reviews the diff (branch A §14 d4) | P1 | — | `openwiki/` contains generated pages | W-11b |
 | G-C3 | PRODUCT | HC-M06 extraction eval card; HC-M07 observability baseline | P1 | — | Per their `feature_list.json` verification steps | W-11b (G-C3a, G-C3b) |
-| G-C4 | DOCS→OWNER | HC-M08a packaging decision spike (portable folder vs PyInstaller+Tauri/Electron) | P1 | a decision doc before any build | A decision record names the chosen path | W-11b |
+| G-C4 | DOCS→OWNER | HC-M08a packaging decision spike (portable folder vs PyInstaller+Tauri/Electron) | P1 | a decision doc before any build | A decision record names the chosen path | W-11b (record done, PR #28; path unsigned, S-C4-1) |
 | G-C5 | PRODUCT | HC-M11 cross-encoder behind a default-off flag | P8 brief 5; P1 | ask-first files; no production scoring change | Flag off ⇒ eval output byte-identical to before | none yet |
 
 ## W-plans (2026-09-27)
 
-Integrated from Wave-3a §5.5. All rows are **proposed**; nothing here is started, merged or signed. "Approved scope" quotes an existing owner decision in [owner-decisions-2026-09-27.md](owner-decisions-2026-09-27.md); stop gates are unsigned lines, named by their canonical IDs (3a §3). Every plan file below needs P0-B2 before it is on main.
+Integrated from Wave-3a §5.5. Rows are **proposed** unless their Sign-off cell says "done: PR #N"; Waves 0-2 rows marked done are merged. "Approved scope" quotes an existing owner decision in [owner-decisions-2026-09-27.md](owner-decisions-2026-09-27.md); stop gates are unsigned lines, named by their canonical IDs (3a §3). Every plan file below needs P0-B2 before it is on main.
 
 | ID | Kind | Plan | Depends on (hard; *soft*) | Stop gates (owner) | Measured acceptance | Sign-off |
 |---|---|---|---|---|---|---|
 | S-CACHE | PRODUCT (security) | [S02 agent-cache profile isolation](../plans/2026-09-29-S02-agent-cache-profile-isolation.md) | P1 PR #1 | S-CACHE, MEM-AUDIT-CAT (signed 2026-09-29) | 1288 → 1292 collected | **done: PR #23** (2026-09-29) |
 | CI-DISK | CI | [CI01 CPU torch](../plans/2026-09-30-CI01-cpu-torch-ci-disk.md) | — | CI-DISK-FIX (signed 2026-09-30) | E2E Smoke green, no Errno 28 | **done: PR #25** (2026-09-30) |
-| S-1 | PRODUCT | [S01 SQL-echo PHI leak](../plans/2026-09-27-S01-sql-echo-phi-leak.md) | P1, P0-B2, D9; before P6; *before P2, P4* | SQL-ECHO (S1-A Task 2, S1-B Task 3): owner-approved 2026-09-28 (S1-A + S1-B) | collected = start + 3 (+1 with S1-B); break-it table green→red; probe sentinels 0 on the end tree | owner: S1-A, S1-B, merge |
-| W-1 (= P3) | PRODUCT + DOCS | [W01 harness agents](../plans/2026-09-27-W01-harness-agents-branch-a.md) | P1 (+P1-DRIFT), P0-B2, D9, D1 (approved) | OG-3 (Task 9); OG-1/2/4/5 optional | 5 files in `git ls-files .claude/agents`; drift check 0; collected = start + 7 (+8) | owner merge (D1) |
+| S-1 | PRODUCT | [S01 SQL-echo PHI leak](../plans/2026-09-27-S01-sql-echo-phi-leak.md) | P1, P0-B2, D9; before P6; *before P2, P4* | SQL-ECHO (S1-A Task 2, S1-B Task 3): owner-approved 2026-09-28 (S1-A + S1-B) | collected = start + 3 (+1 with S1-B); break-it table green→red; probe sentinels 0 on the end tree | **done: PR #29** (2026-10-01) |
+| W-1 (= P3) | PRODUCT + DOCS | [W01 harness agents](../plans/2026-09-27-W01-harness-agents-branch-a.md) | P1 (+P1-DRIFT), P0-B2, D9, D1 (approved) | OG-3 (Task 9); OG-1/2/4/5 optional | 5 files in `git ls-files .claude/agents`; drift check 0; collected = start + 7 (+8) | **done: PR #35** (2026-10-02); W1-SMOKE open |
 | P4-core | DOCS | [P04 drift-sweep amendment](../plans/2026-09-27-P04-doc-drift-sweep-amendment.md) | P0-B2, D9, P1, P2, W-1; *S-1* | OG-4/5/6 per commit; S1–S9; OG-2 = D4-EXPORTS (exports carry unverified rows; D4 does not cover exports; P4 documents only) | Task 16 greps empty; lint + index pass; collected = start | none beyond D2/D3 |
 | P4-deferred | DOCS | same (N8–N10, F1–F6) | per trigger: W-5, P8 Brief 2, W-6, W-3, W-2+W-10, W-7, W-4, W-8 | N9 needs P8-B2-ORDER | per task | owner merge per PR |
-| P8 (= W-9) | DOCS → OWNER | [P08 gated packet, HIPAA-aligned](../plans/2026-09-27-P08-gated-packet-hipaa-aligned-amendment.md) | P0-B, P1, D9 (approved scope: D10) | per-brief lines (unsigned); P8-B2-ORDER; SQL-ECHO (its S-3) | each brief has evidence, options, a recommendation and an **unsigned** sign-off line | owner, per brief |
+| P8 (= W-9) | DOCS → OWNER | [P08 gated packet, HIPAA-aligned](../plans/2026-09-27-P08-gated-packet-hipaa-aligned-amendment.md) | P0-B, P1, D9 (approved scope: D10) | per-brief lines (unsigned); P8-B2-ORDER; SQL-ECHO (its S-3) | each brief has evidence, options, a recommendation and an **unsigned** sign-off line | **done: PR #30** (2026-10-02); briefs unsigned |
 | W-10 | DOCS (governance) | [W10 governance amendments](../plans/2026-09-27-W10-governance-invariant-amendments.md) | P0-B, P1, P4 | GOV-D11 (C-3), GOV-BG (C-2 clause; proposed default "include"; the break-glass "only bypass" wording enters C-2 and DP-4 only once signed; unsigned, both quote D12; W-6 Q2 points here), Q3 (C-4), Q4 (slot) | exactly 2 files; `w10_assert.py` 9/9; lint + index 0; collected unchanged | owner merge |
 | W-10b | DOCS | same, Task 6 | W-2, W-3, W-6, W-10 | S6 (variant I needs 4 evidence items) | 1 file; lint + index 0 | owner merge |
 | W-2 (G-A1) | PRODUCT | [W02 doctor-summary redaction](../plans/2026-09-27-W02-doctor-summary-redaction.md) | P0-B2, P1, P4, W-10, P5, D9 (approved scope: D3) | S-2/O-2 (Task 3), S-3/O-3 (pre-merge), P0-D-MOOT, EXPORT-QUESTIONS | 8 items; collected = start + 8; 1 xfail; `redaction.py` diff empty | owner S-3, S-6 |
 | W-3 (G-A2) | PRODUCT | [W03 verified-only RAG + trend labels](../plans/2026-09-27-W03-verified-only-rag-and-trend-labels.md) | P1, P5, W-10, W-4, W-5, D9 (approved scope: D4) | O-5 (Task 3), O-1 (Task 7, VERIFIED-FALLBACK), O-2 veto | collected = start + 5 (−1 per skipped task); agent golden set IDENTICAL; vitest + 8 | owner merge |
 | W-4 (G-B5) | PRODUCT | [W04 legacy abstain + eval gate](../plans/2026-09-27-W04-legacy-abstain-and-eval-gate.md) | P0-B, P1, **P4, P5** (3a M-1), D9; *W-5* (approved scope: G-B5) | OQ-1 (Task 2), OQ-5 + OQ-2 (pre-merge), CI-SEED; optional W4-EXPEDITE | `legacy-evals` fails on the seed, passes on main; 0.6 unchanged | owner PR acceptance |
-| W-5 | PRODUCT + DOCS | [W05 citation-marker prompt](../plans/2026-09-27-W05-citation-marker-prompt.md) | P0-B2, P1, D9 (approved scope: D11) | GOV-D11 (for W-10); N-mapping (optional) | 3 red → green; collected = start + 3 | owner merge |
-| W-6 (G-B3, D12 half) | PRODUCT | [W06 external-runner hardening](../plans/2026-09-27-W06-external-runner-hardening.md) | P1, D9; *W-10*; *before P5* (approved scope: D12) | BG-REACH (Q1), Q4 (+ `api/model_settings.py`), Q3/Q5 pre-merge, SLOT-RULE carve-out | collected = start + 17; `test_redaction.py` green; hunks outside `:1-92`, `:328-369` | owner merge |
+| W-5 | PRODUCT + DOCS | [W05 citation-marker prompt](../plans/2026-09-27-W05-citation-marker-prompt.md) | P0-B2, P1, D9 (approved scope: D11) | GOV-D11 (for W-10); N-mapping (optional) | 3 red → green; collected = start + 3 | **done: PR #34** (2026-10-02) |
+| W-6 (G-B3, D12 half) | PRODUCT | [W06 external-runner hardening](../plans/2026-09-27-W06-external-runner-hardening.md) | P1, D9; *W-10*; *before P5* (approved scope: D12) | BG-REACH (Q1), Q4 (+ `api/model_settings.py`), Q3/Q5 pre-merge, SLOT-RULE carve-out | collected = start + 17; `test_redaction.py` green; hunks outside `:1-92`, `:328-369` | **done: PR #32** (2026-10-01); BG-WARN-STALE open |
 | W-7 (G-B3, D7 half) | PRODUCT | [W07 tiered interpretation via ModelRunner](../plans/2026-09-27-W07-tiered-interpretation-via-modelrunner.md) | P1, P5, P7, D9 (approved scope: D7) | none pre-execution; OG-1/2/3 not licensed (OG-3 = AUD-INTERP) | collected = start + 23; only `core/llm/llama_cpp_provider.py` imports `llama_cpp` | owner merge |
 | W-8 (G-A3) | PRODUCT | [W08 bundled embedding model](../plans/2026-09-27-W08-bundled-embedding-model.md) | P1, P4, P5, W-1, W-3, W-11a PR-3, D9 (approved scope: D8 + D8-delivery) | Q-OFFLINE (Task 2), Q-HASH (Task 7), Q-FC + VERIFIED-FALLBACK + EMB-REV (pre-merge) | 13 (+1) new tests; socket-blocked HC-EMB-001/002 green; no weights in git | owner merge |
 | W-11a PR-1 (G-B1) | PRODUCT | [W11a test + gate hardening](../plans/2026-09-27-W11a-test-and-gate-hardening.md) | P5, P7, D9 | OG-1 + Q-AUD-LIST (Task 2) | collected = start + 15 (21/22 with Task 2) | owner merge |
-| W-11a PR-2 (G-B2) | PRODUCT (tests) | same | P1, D9 | OG-2 (commit) | 7 passed on Linux with `HC_REQUIRE_SQLCIPHER=1` | owner merge |
+| W-11a PR-2 (G-B2) | PRODUCT (tests) | same | P1, D9 | OG-2 (commit) | 7 passed on Linux with `HC_REQUIRE_SQLCIPHER=1` | **done: PR #33** (2026-10-01); VAULT-SIDECAR open |
 | W-11a PR-3 (G-B4) | PRODUCT (CI) | same | P4, P5, W-4, D9 | Q-RUFF (Task 7), Q-COV, CI-SEED | each gate fails on a seeded violation; collected = start + 5 | owner merge |
 | W-11a PR-4 (G-B6) | DOCS | same | P0-B, P1, W-1 | — | Windows vitest/Playwright outputs pasted | owner merge |
 | G-C1 | PRODUCT | [W11b roadmap items G-C1…G-C4](../plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md) | P0-B2, P5, W-2, P6, P7, D9 | S-C1-1 (all), S-C1-2 | 16 items; download 200 after restart; migration `014` linear | owner |
 | G-C2 | OWNER → PRODUCT | same | P4 (Task 13), owner run | S-C2-1, S-C2-2 (pre-merge), S-C2-3 | `openwiki/` generated; lint + index 0 | owner |
 | G-C3a / G-C3b | PRODUCT | same | P4 + W-4 / P2; D9 | S-C3-1, S-C3-2 / S-C3-3 | 5 items + eval card / HC-OBSV + E2E-HEALTH | owner |
-| G-C4 | DOCS → OWNER | same | P1; *W-8* | S-C4-1…5 (S-C4-5 = EMB-REV) | decision record; no build | owner |
+| G-C4 | DOCS → OWNER | same | P1; *W-8* | S-C4-1…5 (S-C4-5 = EMB-REV) | decision record; no build | **done: PR #28** (2026-10-02); S-C4-1…5 unsigned |
 | G-C5 | PRODUCT | none yet | P8 Brief 5, P1 | HC-M11 flag-only (branch A §14 d2) | flag off ⇒ eval output byte-identical | owner |
 | RTN | OWNER (routine config; no repo edit) | [nightly doc-drift routine spec](../plans/2026-09-27-nightly-doc-drift-routine-spec.md) | P0-B + P0-B2 on `origin/main` (the cloud routine checks out `origin/main`); P1 for `harness_drift_check.py` | spec §9 confirmation (unsigned), incl. RTN Q6 (if the push probe shows the session can push; proposed default: do not enable) | routine not created until §9 is signed; read-only runs | owner (§9) |
 | SHOWCASE | DOCS + demo | [senior-report showcase plan](../plans/2026-09-27-senior-report-showcase-plan.md) | P0-B, P0-B2, P1; W-1 Task 6 before its Task 5 (per its own header) | not audited in Wave 3a/3b; P0-B2 must name it explicitly | per its own plan | owner |
@@ -463,12 +466,21 @@ Findings that no plan covers, registered so they are not lost. They are **owner 
 | CACHE-HIT-AUDIT (2026-09-29) | A cache hit in `_serve_via_agent` returns without writing an audit row; `test_hc_a1` `verify_003` also passes on main (cannot fail) | L1 wave-1 report (S-CACHE reviews) | no | owner decision; pairs with CACHE-STALE |
 | DOC-DELETE-INTERP (security + data loss, 2026-09-29) | Deleting a document whose observation has a `LabInterpretation` raises IntegrityError (HTTP 500): `Observation.interpretation` has no ORM cascade and `lab_interpretations.observation_id` is NOT NULL. `doc_path.unlink()` runs before the commit, so the encrypted file is destroyed while the document row, entity quotes and care-task quote survive, with no audit row. `data-privacy.md:185` ("ORM cascade") and `sql-fk-001-foreign-key-audit.md:59` claim otherwise | `models/observation.py:106-108`, `models/interpretation.py:50-55`, `api/documents.py:1875` vs `:1879` @ PR #24 head `d116931`; reproduced by security-reviewer | no (docs gate for data-privacy.md) | owner decision; fix ORM cascade + unlink after commit + HTTP test; neighbour of P6 |
 | RECOVERY-CODE-CACHE (security, 2026-09-29) | `RecoveryCodeCard.tsx:48-52`: the TanStack mutation cache keeps `{profileId, password}` and the `recovery_code` in memory for up to 5 min, contrary to the component comment. Fix: `gcTime: 0` or `reset()` | Codex on PR #24 | no | owner decision; small frontend fix |
-| CLAUDE-FAILURE-COUNT (2026-09-29) | `CLAUDE.md:50` says "Eight failure modes"; `recurring-failures.md` now has 9 sections | PR #24 head `d116931` | governance text | W-10 or owner |
+| CLAUDE-FAILURE-COUNT (2026-09-29; updated 2026-10-02) | `CLAUDE.md:50` says "Eight failure modes"; `recurring-failures.md` now has 10 sections (§10 "A fully unit-tested feature that was never started", `:277`) | `grep -n '^## ' docs/agentic/recurring-failures.md` @ `f5d829b` → 10 headings (`:17`…`:277`) | governance text | W-10 or owner |
 | TORCH-PIN (2026-09-30) | CI torch (`ci.yml` CPU index, 3 test jobs) is unpinned and nothing asserts `+cpu`; a torch release without a CPU wheel for the resolved version would silently fall back to CUDA wheels from PyPI and re-open CI-DISK | PR #25 reviewer (LOW), ledger 2026-09-30 | no | owner decision; small CI phase |
+| NPM-AUDIT (security, 2026-10-01) | `npm audit` in `src/frontend` reports 21 vulnerabilities: 1 critical, 14 high. Pre-existing; no ticket | wave-2-L1-D G-C4 open finding 1 (measured on `8064244`) | no | owner decision; schedule a dependency-upgrade phase (Wave 3 gate list) |
+| BG-WARN-STALE (W-6, 2026-10-01) | The break-glass warning is absent while the flag is unknown or stale (query error, an older backend without the field, 30 s `staleTime`); HC-EXT-003c pins "absent → no warning". Codex [high] = security LOW-3. Owner chose "Keep plan, register item" (W6-STALE-WARN): the flag changes only with env + restart, and the server-side audit and refusal still apply | `src/frontend/src/pages/ExplainAssistant.tsx:475`, `pages/SettingsPage.tsx:681`; `ExternalApiBreakGlassWarning.test.tsx:28`; wave-2-L1-B open finding 1 | no | owner item; a follow-up may block or warn on unknown status |
+| DOC-OVERCLAIM (2026-10-01) | Compliance docs overstate the code: `docs/compliance/data-privacy.md:33` "Master DB + log file" (no product log sink; matrix AUD-05); `docs/compliance/hipaa-controls.md:49` "correlation IDs" (`models/audit.py` has no correlation-id column); `hipaa-controls.md:52` "append-only" vs the `delete(AuditLog)` at `api/profiles.py:908-910` | lines re-read on main `f5d829b`; P8 F-P8-2 (wave-2-L1-D) | no (`data-privacy.md` edits belong to W-10) | P4 (`hipaa-controls.md`) / W-10 (`data-privacy.md`) |
+| SCHED-STATUS-GLOBAL (P2 LOW, 2026-10-01) | `/notifications/scheduler/status` reports global `registered_profiles` / `skipped_locked`, so any profile learns how many others are unlocked | `api/notifications.py:492-509` (`len(scheduler._profile_sessions)` at `:509`); P2 security LOW | no | owner decision; scope the counts to the caller |
+| SCHED-DRAIN-UNBOUNDED (P2 LOW, 2026-10-01) | The P2-INFLIGHT drain waits with no upper bound; any future timeout must not dispose the engine early. Also: a lock entry can be re-created per drained profile (bounded), and a `CancelledError` at the await would skip the vault close (unreachable today: no `BaseHTTPMiddleware`). Separately, auto-lock is not server-enforced, so reminders keep firing after JWT expiry | `modules/notification_scheduler.py:201-210`; `core/auth.py:443`; P2 security re-review LOW 1-3 | yes (`core/auth.py`) | owner decision |
+| TOAST-MED-NAMES (P2 LOW, 2026-10-01) | Medication names appear in OS toasts and on the lock screen | `modules/notification_scheduler.py:535` (`medication_name`) → `:552` (`title`); P2 security LOW 4 | no, but patient-facing | owner decision ("private reminders" mode?) |
+| MIGRATION-ECHO (S-1 LOW, 2026-10-01) | The migration engines lack `hide_parameters` (they bind no PHI today and do not echo; `sqlalchemy.engine` is held at WARN by `alembic.ini:50-53`); there is no production force-off for `SQL_ECHO` (`model_post_init` forces only `debug`) | `core/migrations.py:134,255,257,368,406,408`; `migrations/master/env.py:90`; `migrations/profile/env.py:153,159`; `core/config.py:157-160`; S-1 security LOW (counted 8 engines); matrix PRIV-09 | yes (`core/profile_database.py` neighbourhood; migrations) | owner decision; small S-1 follow-up |
+| VAULT-SIDECAR (W-11a MEDIUM, 2026-10-01) | The `vault.db*` sidecar canary scan is vacuous: the vault runs in rollback-journal mode (`journal_mode=delete`), so the glob only ever sees `vault.db`; the canary and "not a database" checks have no negative control of their own; `vaults/<id>/docs/` is not covered | `src/backend/tests/security/test_vault_ciphertext.py:54`; wave-2-L1-C W-11a open findings 1-3; matrix KEY-02 | yes (encryption tests) | owner decision; W-11a follow-up |
+| W1-SMOKE (W-1, 2026-10-02) | The owner's manual `/agents` smoke (W-1 Task 7 Steps 2–5) is pending. "Cannot create files" is unverified: `Edit` may create a file when `old_string` is empty (→ W-1 OG-1, PreToolUse write-scope hook). Also HC-AGENTS-001/002 give a misleading message on git rc 128 | `docs/agentic/harness.md:28` ("cannot create files"); wave-2-L1-C W-1 open findings 1, 3; matrix GATE-09 | no | owner manual step; then OG-1 if `Edit` creates files |
 
 Also unowned per 3b §3, not in the ledger's list: GATE-12 (no general guard stops tests opening the developer's real master DB; S-1 covers only its own tests; 3b proposes W-11a). Also unowned: the PRIV-06 remainder, `api/profiles.py:328` logs the profile display name at INFO (main = B; suppressed today only because root is WARN after Alembic's `fileConfig`). S-1 excludes it (S01 `:134`); `api/profiles.py` is auth-adjacent, so the owner decides between an S-1 addendum (3b's proposal) and leaving it.
 
-**Program-level owner gates** (canonical IDs from 3a §3). *Owner-approved 2026-09-28:* P0-B2, D9-SRC, P1-DRIFT, SLOT-RULE (ground rule 8), P7-ROUTE, SQL-ECHO (S1-A + S1-B). *2026-09-29:* P1-PR1-MERGE (PR #1 opens from a merge branch; only the two generated files are regenerated), P1-SLOTS, P1-CAREQ-HTTP, W6-Q4, BG-REACH (W-6), OG-2 (W-11a PR-2), OG-3 (W-1 Task 9), S-CACHE + MEM-AUDIT-CAT (new phase S-CACHE, [plan](../plans/2026-09-29-S02-agent-cache-profile-isolation.md), Wave 1 after PR #1). *2026-09-30:* CI-DISK-FIX. *2026-10-01:* W6-Q3 (warning on Settings + chat page), W6-Q5 (copy as written). *Still owner-gated:* W4-EXPEDITE (optional), CI-SEED (one approval for throwaway draft PRs, closed unmerged), P0-D-MOOT.
+**Program-level owner gates** (canonical IDs from 3a §3). *Owner-approved 2026-09-28:* P0-B2, D9-SRC, P1-DRIFT, SLOT-RULE (ground rule 8), P7-ROUTE, SQL-ECHO (S1-A + S1-B). *2026-09-29:* P1-PR1-MERGE (PR #1 opens from a merge branch; only the two generated files are regenerated), P1-SLOTS, P1-CAREQ-HTTP, W6-Q4, BG-REACH (W-6), OG-2 (W-11a PR-2), OG-3 (W-1 Task 9), S-CACHE + MEM-AUDIT-CAT (new phase S-CACHE, [plan](../plans/2026-09-29-S02-agent-cache-profile-isolation.md), Wave 1 after PR #1). *2026-09-30:* CI-DISK-FIX. *2026-10-01:* W6-Q3 (warning on Settings + chat page), W6-Q5 (copy as written), P2-INFLIGHT (approve fix in P2: per-profile lock + awaited unregister in the `core/auth.py` close hook + regression test), W6-STALE-WARN (keep plan; registered as owner item BG-WARN-STALE). *Still owner-gated:* W4-EXPEDITE (optional), CI-SEED (one approval for throwaway draft PRs, closed unmerged), P0-D-MOOT.
 
 ## Plan overlaps and conflicts
 

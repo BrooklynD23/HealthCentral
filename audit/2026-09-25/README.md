@@ -1,15 +1,15 @@
 # Audit 2026-09-25 — Start Here
 
-**Last Updated:** 2026-10-01
+**Last Updated:** 2026-10-02
 **Purpose:** one index for this folder, so the next session opens the current handoff and not a superseded one.
 
 ## Current (read these)
 
 | File | What it is |
 |---|---|
-| [handoff-2026-10-01-wave2.md](handoff-2026-10-01-wave2.md) | Current L0 handoff: Wave 1 close + Wave 2 phases, gates, merge order, lessons |
+| [handoff-2026-10-02-wave3.md](handoff-2026-10-02-wave3.md) | Current L0 handoff: Wave 2 close state, Wave 3 phases and gates, lessons |
 | [swarm-2026-09-27/ledger.md](swarm-2026-09-27/ledger.md) | Append-only execution ledger; its last **RESUME POINT** says what to do next |
-| [waves/](waves/) | L1 wave reports (`wave-1.md`, `wave-2-L1-*.md`) |
+| [waves/](waves/) | Wave reports: `wave-1.md`, `wave-2.md` (L0 summary) + `wave-2-L1-*.md`, `wave-2-L0-notes.md` |
 | [handoff-2026-09-28-execution-orchestrator.md](handoff-2026-09-28-execution-orchestrator.md) §4-§7 | L1 / L2 / reviewer brief templates and Codex commands (its §1-§3 are superseded) |
 | [plans/](plans/) | Audit plans 01-08 (program phases P1-P8) |
 | [swarm-2026-09-27/reviews/](swarm-2026-09-27/reviews/) | Codex plan reviews and responses |
@@ -32,5 +32,6 @@ Process: [docs/agentic/orchestration.md](../../docs/agentic/orchestration.md). P
 | [handoff-prompt-review-agent.md](handoff-prompt-review-agent.md) | `review/` (review done) |
 | [review/HIGH-REASONING-GOAL-PROMPT.md](review/HIGH-REASONING-GOAL-PROMPT.md) | the capstone package |
 | [handoff-2026-09-27-execution.md](handoff-2026-09-27-execution.md) | handoff-2026-09-28, then handoff-2026-10-01 |
+| [handoff-2026-10-01-wave2.md](handoff-2026-10-01-wave2.md) | handoff-2026-10-02-wave3 |
 
 When a new handoff is written: add it to **Current**, move the previous one to **Superseded** with a banner, and add it to `HISTORICAL_DOCS`.

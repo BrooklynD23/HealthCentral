@@ -1,6 +1,6 @@
 # Handoff — Execution Start (2026-09-27)
 
-> **Historical Reference (2026-10-01):** superseded; not an active tracker, retained for history. Waves 0-1 executed from this plan set (PRs #19, #21-#26). The current entry point is [handoff-2026-10-01-wave2.md](handoff-2026-10-01-wave2.md); state lives in the [ledger](swarm-2026-09-27/ledger.md). Not an active tracker.
+> **Historical Reference (2026-10-01):** superseded; not an active tracker, retained for history. Waves 0-1 executed from this plan set (PRs #19, #21-#26). The current entry point is [handoff-2026-10-02-wave3.md](handoff-2026-10-02-wave3.md); state lives in the [ledger](swarm-2026-09-27/ledger.md). Not an active tracker.
 
 **For:** the next orchestrator/implementer session on Asclexis / HealthCentral.
 **From:** the 2026-09-27 reconciliation pass. Planning and docs only: nothing was merged, committed or implemented.

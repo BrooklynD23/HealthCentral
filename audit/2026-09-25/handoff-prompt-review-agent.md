@@ -1,6 +1,6 @@
 # Handoff Prompt — Critical Review of Asclexis Planning & Research Package
 
-> **Historical Reference (2026-10-01):** superseded; not an active tracker, retained for history. The review it requested is done: [review/Asclexis-Package-Review.md](review/Asclexis-Package-Review.md) and [review/2026-09-27-followup.md](review/2026-09-27-followup.md). Current entry point: [handoff-2026-10-01-wave2.md](handoff-2026-10-01-wave2.md).
+> **Historical Reference (2026-10-01):** superseded; not an active tracker, retained for history. The review it requested is done: [review/Asclexis-Package-Review.md](review/Asclexis-Package-Review.md) and [review/2026-09-27-followup.md](review/2026-09-27-followup.md). Current entry point: [handoff-2026-10-02-wave3.md](handoff-2026-10-02-wave3.md).
 
 Paste into a fresh high-reasoning agent session (Opus-class or equivalent —
 this task rewards skepticism and verification rigor over speed).
