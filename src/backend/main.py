@@ -72,7 +72,24 @@ async def lifespan(app: FastAPI):
     except Exception as _sched_exc:
         logger.warning("Backup scheduler not started: %s", _sched_exc)
 
+    # Medication reminders. Same fail-soft contract as the backup scheduler:
+    # a scheduler that cannot start must not stop the app from booting.
+    # The scheduler only serves profiles whose vault is currently unlocked —
+    # locked vaults are honestly reported as skipped_locked, never opened
+    # without the user's password (see modules/notification_scheduler.py).
+    try:
+        from modules.notification_scheduler import start_notification_scheduler
+        await start_notification_scheduler()
+    except Exception as _notif_exc:
+        logger.warning("Notification scheduler not started: %s", _notif_exc)
+
     yield
+
+    try:
+        from modules.notification_scheduler import stop_notification_scheduler
+        await stop_notification_scheduler()
+    except Exception as _notif_exc:  # pragma: no cover - shutdown best effort
+        logger.warning("Notification scheduler shutdown issue: %s", _notif_exc)
 
     try:
         from modules.backup_scheduler import stop_backup_scheduler

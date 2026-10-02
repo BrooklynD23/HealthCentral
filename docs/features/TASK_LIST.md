@@ -156,6 +156,59 @@ On the first of each month, review all canonical docs for freshness:
 
 Prepared [the gated-items decision packet](../../audit/2026-09-25/gated-items-decision-packet.md): five owner briefs (MFA, key rotation, pen-test scope, audit retention, HC-M11), all **unsigned**. Brief 4 is designed as if HIPAA applied (owner choice, 2026-09-27); it proposes options and implements nothing. Brief 5 cites the 2026-09-08 flag-only HC-M11 approval and asks two things only: production behaviour and how the NLI model is distributed (D8 covers the embedding model only). Brief 2 must be signed before P4 edits `hipaa-controls.md:169`. Findings routed: debug SQL echo prints bound parameters (PRIV-06); no `logs/asclexis.log` sink in the default config.
 
+### 2026-10-01 - Notification scheduler wired into lifespan (audit 2026-09-25 plan 02)
+
+`modules/notification_scheduler.py` was fully unit-tested but never started —
+nothing called it from `main.py` or `core/auth.py`. Wired it exactly like
+`modules/backup_scheduler.py`: `start_notification_scheduler()` /
+`stop_notification_scheduler()` in the lifespan, and two small hooks in
+`open_profile_database_on_login` / `close_profile_database_on_logout` that
+register/unregister a per-profile session factory on vault unlock/lock.
+
+Deliberate scope decisions:
+- **Session-scoped reminders only.** A background task cannot open a locked
+  SQLCipher vault, so reminders fire only while the profile is unlocked;
+  profiles skipped mid-pass are recorded honestly as `skipped_locked`
+  (`NotificationScheduler._last_pass_results`, exposed on
+  `GET /notifications/scheduler/status`), not as errors.
+- **Quiet hours remain unenforced** — stored per-medication, not yet read by
+  the scheduler. Pre-existing gap, unchanged by this work.
+- **`datetime.utcnow()` migration deferred** to its own workstream (plan 05);
+  this plan added no new production timestamps; the new tests use
+  `datetime.utcnow()` as the plan specifies, consistent with the scheduler's
+  existing naive-UTC comparisons, which were left alone.
+- Removed a PHI leak found while wiring: the send-path log line included the
+  medication name at INFO; it now logs only medication/schedule uuids.
+
+Docs corrected: `docs/architecture/README.md` no longer says the scheduler is
+"deliberately not wired"; `docs/features/00_features_index.md`'s notifications
+line now states the unlock-only delivery scope and the quiet-hours gap. Added
+recurring-failures.md mode 10 ("A fully unit-tested feature that was never
+started").
+
+### 2026-10-01 - Wave 1 merged: branches A and B, S-CACHE, CI-DISK
+
+Plan 01 (P1) is done. Branch B landed as PR #21 and branch A as PR #24 (with
+the HC-CAREQ HTTP test for `DELETE /documents`). Two phases were added during
+the wave: S-CACHE (PR #23) puts the profile id in the agent answer-cache key,
+closing a cross-profile leak that was live on main, and drops the user-typed
+`category` from the memory audit; CI-DISK (PR #25) installs CPU-only torch in
+the CI test jobs, so E2E Smoke runs green in CI again.
+
+**Measured on merged main `8064244` (D9 venv, Python 3.11.16, `HF_HUB_OFFLINE=1`):**
+`1296 tests collected`, matching `CLAUDE.md` and `AGENT.md`; full suite
+`1296 passed, 55 warnings in 426.07s`; `from main import app` boots. Security
+gate poison proofs: missing reports exit 2, malformed JSON exit 2, clean
+reports exit 0. `docs_lint`, `generate_docs_index --check`, `feature_list_lint`,
+`repo_hygiene_check` and `harness_drift_check` all exit 0. Windows vitest
+`RecoveryCodeCard.test.tsx`: 6 passed.
+
+*Still deliberately open:* the `POST /export/questions` unredacted quote and the
+SQL-FK-001 pragma flip (plan 06). New owner items from the wave (SECGATE-SHAPE,
+CACHE-STALE, CACHE-HIT-AUDIT, AUDIT-KEYS-DROPPED, DOC-DELETE-INTERP,
+RECOVERY-CODE-CACHE, TORCH-PIN, AGENT-PASS-LINE) are registered in the
+implementation program's "Program owner items" table.
+
 ### 2026-09-08 - Band A frontend pair shipped (MED-CORR-002, SEC-RECOV-002)
 
 Both backends had been complete and unreachable. They are now wired, and both

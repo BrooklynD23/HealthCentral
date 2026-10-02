@@ -1,5 +1,7 @@
 # Handoff Prompt — Claude Orchestrator (CS4610 capstone planning)
 
+> **Historical Reference (2026-10-01):** superseded; not an active tracker, retained for history. Current entry point: [handoff-2026-10-01-wave2.md](handoff-2026-10-01-wave2.md).
+
 > **Execution handoff (2026-09-28):** the next orchestrator uses [handoff-2026-09-28-execution-orchestrator.md](handoff-2026-09-28-execution-orchestrator.md) and the process in [docs/agentic/orchestration.md](../../docs/agentic/orchestration.md). This file is kept for provenance.
 
 > **Status 2026-09-27 — superseded for planning scope.** Its deliverables A (specs/compliance matrix), B (implementation program) and C (gap analysis) were produced as [`docs/capstone-report/specs-compliance-matrix.md`](../../docs/capstone-report/specs-compliance-matrix.md) and [`implementation-program.md`](../../docs/capstone-report/implementation-program.md) under the later goal prompt [`review/HIGH-REASONING-GOAL-PROMPT.md`](review/HIGH-REASONING-GOAL-PROMPT.md). Two statements inside the prompt block were wrong, and both are corrected inline: the "40-item doc-drift table" (review F-12) and the unconditional "Baseline: 1245" (review F-06). The prompt's other instruction, "expected test-count deltas", is replaced by *measured* baselines. See [`review/2026-09-27-followup.md`](review/2026-09-27-followup.md).
