@@ -1,6 +1,6 @@
 # Architecture Diagrams
 
-**Last Updated:** 2026-07-28
+**Last Updated:** 2026-10-04
 **Owner:** Project Lead
 **Refresh Trigger:** A new router, module, database, migration chain, or CI job is added or removed
 
@@ -47,7 +47,7 @@ graph TB
             API["18 routers under /api/v1"]
             MOD["modules/ — feature logic"]
             CORE["core/ — config, auth, db, time, llm"]
-            MR["ModelRunner facade<br/><i>the only LLM entry point</i>"]
+            MR["ModelRunner facade<br/><i>entry point for local inference</i>"]
         end
 
         subgraph storage["Storage"]
@@ -91,10 +91,32 @@ privacy posture, and it is why
 contain — the audit log is the one patient-linked dataset living outside the
 encryption boundary.
 
-The dashed Hugging Face edge is the **only** outbound connection in the
-product, and it is never on a request path — it happens when a user chooses to
-download a model in Settings. `OllamaProvider` is pinned to localhost by
-design; see [`CLAUDE.md`](../../CLAUDE.md) hard invariants.
+The dashed Hugging Face edge is a model download the user chooses in Settings.
+It is not the only outbound path in code today:
+
+- **Embedding model, first use.** `modules/embeddings.py` builds
+  `SentenceTransformer(name)` with no offline flag, so the first embedding call
+  can fetch the model from Hugging Face. Owner decision D8 (2026-09-27): no
+  runtime download. Interim delivery (D8-delivery): `download_models.py`
+  fetches the model once into a local models dir, and the runtime loads that
+  path with Hugging Face offline and fails closed if it is absent; an
+  installer bundles it later (G-C4). **Approved, not yet implemented** (work
+  item W-8).
+- **Opt-in cloud LLM.** `core/external_runner.py` can call OpenAI or Anthropic
+  when the user enables the external API (off by default). It does not go
+  through `ModelRunner`. Owner decision D12 (2026-09-27) keeps it as a
+  documented exception. Strict redaction is now unconditional; break-glass
+  (`EXTERNAL_API_REDACTION_BREAK_GLASS`) is the only way to weaken it, writes
+  an audit record, and shows a warning in Settings and on the assistant chat
+  page (work item W-6). Naming the exception in `CLAUDE.md` is **approved, not
+  yet implemented** (work item W-10).
+
+`ModelRunner` is the entry point for local inference. One dormant path bypasses
+it: `modules/model_selector.py` imports `llama_cpp` directly, and its only
+caller, `interpret_with_model`, is never called. Owner decision D7 routes it
+through `ModelRunner` (work item W-7, not yet implemented). `OllamaProvider` is
+pinned to localhost by design; see [`CLAUDE.md`](../../CLAUDE.md) hard
+invariants. All decisions: [owner-decisions-2026-09-27.md](../capstone-report/owner-decisions-2026-09-27.md).
 
 ## Process topology
 
