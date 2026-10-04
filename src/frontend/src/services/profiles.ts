@@ -119,6 +119,9 @@ export function useCreateProfile() {
 
   return useMutation({
     mutationFn: createProfile,
+    // Variables carry the password (and recovery code); drop the mutation
+    // from the cache as soon as nothing observes it (RCC-2).
+    gcTime: 0,
     onSuccess: (data: ProfileCreateResponse) => {
       // Store token in auth store
       setAuth({
@@ -222,6 +225,9 @@ export function useDeleteProfile() {
       profileId: string;
       data: ProfileDeleteRequest;
     }) => deleteProfile(profileId, data),
+    // Variables carry the password (and recovery code); drop the mutation
+    // from the cache as soon as nothing observes it (RCC-2).
+    gcTime: 0,
     onSuccess: () => {
       // The session now points at a profile that no longer exists.
       clearAuth();
@@ -246,6 +252,9 @@ export function useRecoverProfile() {
       profileId: string;
       data: ProfileRecoverRequest;
     }) => recoverProfile(profileId, data),
+    // Variables carry the password (and recovery code); drop the mutation
+    // from the cache as soon as nothing observes it (RCC-2).
+    gcTime: 0,
     onSuccess: (response) => {
       setAuth({
         token: response.access_token,
