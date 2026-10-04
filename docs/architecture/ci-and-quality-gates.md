@@ -1,6 +1,6 @@
 # CI & Quality Gates
 
-**Last Updated:** 2026-07-27
+**Last Updated:** 2026-10-04
 **Owner:** Project Lead
 **Refresh Trigger:** A CI job is added, removed, or changes what it blocks on
 
@@ -14,9 +14,9 @@ flowchart TD
 
     subgraph JOBS[".github/workflows/ci.yml"]
         direction TB
-        DOCS["docs-lint<br/>docs_lint.py · generate_docs_index.py --check<br/>feature_list_lint.py"]
+        DOCS["docs-lint<br/>docs_lint.py · generate_docs_index.py --check<br/>feature_list_lint.py · repo_hygiene_check.py"]
         BE["backend-tests<br/>pytest via run-backend-tests.sh<br/>SQLCipher installed"]
-        FE["frontend-tests<br/>tsc --noEmit · vitest · build"]
+        FE["frontend-tests<br/>tsc --noEmit · vitest"]
         SEC["security-scan<br/>bandit + pip-audit via security_gate.py"]
         EVAL["agent-evals<br/>agent_eval_gate.py"]
         E2E["e2e-tests<br/>Playwright (chromium)"]
@@ -40,11 +40,11 @@ flowchart TD
 
 | Job | Blocks on | Why it exists |
 |---|---|---|
-| `docs-lint` | Doc drift (DOC-003…DOC-013), stale generated index, malformed feature inventory | Documentation that contradicts the code is worse than no documentation |
-| `backend-tests` | Any pytest failure | Baseline is ~1160 passing, 1 known env-only embedding-similarity failure |
-| `frontend-tests` | Type errors, vitest failures, build failures | — |
-| `security-scan` | High/critical findings not covered by a dated, owner-attributed waiver | Waivers expire on purpose |
-| `agent-evals` | `injection_resistance < 1.0` or `phi_leakage > 0` | Injection and leakage resistance are regression-tested guarantees, not one-time reviews |
+| `docs-lint` | Doc drift (DOC-003…DOC-013), stale generated index, malformed feature inventory, scratch files at the repo root | Documentation that contradicts the code is worse than no documentation |
+| `backend-tests` | Any pytest failure | The measured collected-count baseline is the one in [CLAUDE.md](../../CLAUDE.md); see "Known env-only failure" below |
+| `frontend-tests` | Type errors and vitest failures. `npm run build` and eslint are **not** run in CI (contract C-API-3) | — |
+| `security-scan` | High/critical findings not covered by a dated, owner-attributed waiver; a scanner error (exit ≥ 2); a missing or malformed report | Waivers expire on purpose; the gate fails closed |
+| `agent-evals` | Any failed golden case or missed bar: groundedness, citation, abstention and injection_resistance == 1.0; advice_leakage and phi_leakage == 0. Agent path only | Injection and leakage resistance are regression-tested guarantees, not one-time reviews |
 | `e2e-tests` | Playwright failures | Runs after backend and frontend jobs pass |
 
 The two purple gates are the ones that encode product-safety claims rather than
