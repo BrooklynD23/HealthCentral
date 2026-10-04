@@ -162,3 +162,92 @@ Each has exactly 1 consumer before and after: `vitest`, which moves 4.0.16 → 4
 - Worktrees left in place: `../hc-rcc`, `../hc-npm`, `../hc-w11a-pr4`.
 
 Next action: owner reviews #37 first. Its body explains the `profiles.ts` placement.
+
+---
+
+# Wave 3 L1-B, round 2 (2026-10-04): RCC-2 and the NPM-MAJORS plans
+
+Owner answers from L0, recorded on `docs/wave3-close`:
+- **NPM-AMEND-1:** accepted. #38 is unchanged.
+- **RCC-2:** "New phase now".
+- **NPM-MAJORS:** "Plan now".
+
+Both new PRs are open with CI 6/6 green, and reviews are addressed. Nothing is merged and no gates were signed. `origin/main` is still at `90c502a`.
+
+| Item | PR | Branch | Head | CI | Backend count | vitest |
+|---|---|---|---|---|---|---|
+| RCC-2 | https://github.com/BrooklynD23/HealthCentral/pull/42 | fix/rcc2-secret-retention | `dd8edb6` | 6/6 | +0 (1346) | 188 → 193 (+5) |
+| NPM-MAJORS plans (docs only) | https://github.com/BrooklynD23/HealthCentral/pull/43 | docs/npm-majors-plans | `22de642` | 6/6 | +0 | +0 |
+
+**Merge order:** #37 → #42 (#42 is stacked on #37) → #38 → #39 → #43. #37, #38, #42 and #43 all touch `docs/INDEX.md` and `docs/_link_graph.json`. After each merge, refresh the next PR (L0 has said it will ask).
+
+## RCC-2 (#42)
+
+- **Plan:** `docs/plans/2026-10-04-RCC2-secret-retention.md` (`c26ac11`).
+- **Base:** #37's head `7113db5`, because #37 was not merged. The PR body says so. After #37 merges: merge main and re-run the checks.
+
+**The fix, in 3 hooks:**
+- `useCreateProfile`, `useRecoverProfile` and `useDeleteProfile` each get `gcTime: 0`.
+- Each caller calls `reset()` after `mutateAsync` settles: on success and in `catch` for create and recover; in `catch` only for delete, because success already runs `queryClient.clear()`.
+- Page state is cleared: `ProfileSetup` `setPassword('')`; `RecoverProfile` `setCode('')` and `setNewPassword('')`.
+
+**Tests:**
+- New helper `__tests__/support/secretRetention.ts` with `cachedMutationsContaining`, `watchCacheFor` and `reactStateContains`. The last one walks the committed fiber tree; its limits are documented in the code.
+- FE-RCC2-001 to FE-RCC2-005, each with a positive control.
+
+| Check (Windows) | Output |
+|---|---|
+| RED before the fix | `Tests 5 failed \| 5 passed (10)`. All 5 FE-RCC2 tests fail with `expected 1 to be +0` |
+| GREEN | `Tests 10 passed (10)` |
+| tsc / lint / build | `tsc=0`; `lint=0` (0 errors); `build=0` |
+| Full vitest | `Test Files 34 passed (34)`, `Tests 193 passed (193)` (base `7113db5`: 32 / 188) |
+| Break-it | 11 of 11 fix lines each turn their target test red when removed. The 3 state lines fail with `expected true to be false`. See the table in the PR body |
+| Flake | 1 of about 20 runs timed out on `findByTestId` at the default 1 s, because ProfileSetup has 2 artificial 500 ms delays. Fixed with a 5 s wait in `4448ec9` and `dd8edb6`. 5 of 5 later runs passed |
+
+**Reviews:**
+- **code-reviewer:** APPROVE with 5 MINOR. 4 fixed in `dd8edb6`; 1 is out of scope.
+- **security-reviewer:** APPROVE, 0 findings in scope.
+
+**Commit trailers:** `145fe77` and `f2677e2` carry `Co-Authored-By: Claude Sonnet 5.5`, the implementer's real model, not the brief's Opus 5.5 line. I left them as they are; I did not rewrite history on a pushed branch.
+
+## NPM-MAJORS plans (#43, docs only, not approved for execution)
+
+**Plans:**
+- `docs/plans/2026-10-04-NPM-MAJORS-tailwind4.md` names **2 majors**: tailwindcss 3 → 4 and tailwind-merge 2 → 3, because `cn()` depends on tailwind-merge.
+- `docs/plans/2026-10-04-NPM-MAJORS-react-router7.md`: react-router-dom 6 → 7.18.
+
+**Tailwind 4, the key finding (the reviewer's BLOCKER, verified):**
+- `globals.css:7-10` and `:16-19` define `--color-surface/ink/accent` and `--radius-*` in `@layer base`. Tailwind 4 uses the same variable names, so v4 would render the app's main colours transparent and enlarge the radii.
+- 0 consumers (`grep var(--(color|radius)` → 0), so the plan deletes them first.
+
+**Tailwind 4, the rest of the scope:**
+- Renames: `outline-none` 42, bare `rounded` 133, `flex-shrink/grow` 23, `shadow-sm` 5, `backdrop-blur-sm` 5.
+- Default changes: border colour 107, placeholder 29, `hover:` 78.
+- Browser floor.
+- Screenshot check on 9 routes plus a modal, including a body-background check.
+
+**React Router 7 scope:**
+- Declarative mode, so the data-router breaking changes do not apply.
+- `v7_startTransition` changes the Suspense fallback across 12 lazy routes.
+- Order of work: future flags on v6 first, then bump to v7.
+- 2 test mocks to move: `useNavigate` in ProfileSetup and `useParams` in MedicationCorrelations.
+- The open-redirect test compares `URL.origin` and must be RED on 6.30.6.
+
+**Review:** code-reviewer returned CHANGES: 1 BLOCKER, 4 MAJOR (3 planned tests could not fail, wrong mock files) and 10 MINOR. Fixed in `5d5bead`, then APPROVE. The re-review's commit-message nit is fixed in `22de642`.
+
+**Docs checks:** `Docs lint passed.` and `fresh`.
+
+## New open findings (owner items, not fixed)
+
+1. **MAJOR, RCC-3 candidate:** `useRestoreBackup` (`services/backup.ts:173`, `BackupCard.tsx:113`). `RestoreRequest.password` stays in the mutation cache after a failed restore. It is the 5th hook carrying a password; the other 4 are now fixed (recurring-failures §9).
+2. **MEDIUM, wrong secret signs the user out:**
+   - A wrong recovery code (`api/profiles.py:713`) or a wrong delete password (`:826`) returns 401.
+   - `services/api.ts:63-69` then clears auth and redirects to `/setup`, so the user never sees the error message.
+   - FE-RCC2-004 and FE-RCC2-005 mock `@/services/api`, so they cannot see this path. The same path is also reachable from the settings card in #37.
+3. **LOW, unfixed hooks with no callers:** `useLogin` and `useUnlockProfile` (`profiles.ts:138,156`) still lack the RCC pattern. They have 0 callers.
+4. **LOW:** the access token persists in `localStorage` (`stores/authStore.ts:73`).
+5. **Seen while reviewing the plans:** `SettingsPage.tsx:954` navigates to a server-supplied `a.url` after checking only `startsWith('/')`, which lets `/\x` and `//x` through. Today the backend sends the literal `/settings` (`environment_diagnostics.py:244`).
+
+**Worktrees left in place:** `../hc-rcc2`, `../hc-npm-majors`, plus the 3 from round 1.
+
+Next action: the owner merges #37, then L1 merges main into #42 and re-runs `npx vitest run` from Windows.
