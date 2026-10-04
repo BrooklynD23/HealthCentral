@@ -1,6 +1,6 @@
 # API Endpoints
 
-**Last Updated:** 2026-07-29
+**Last Updated:** 2026-10-04
 **Owner:** Platform maintainers
 **Refresh Trigger:** Mounted backend route added, removed, renamed, or auth requirement changed
 **Status:** Source of truth for the live mounted backend API
