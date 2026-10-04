@@ -5,7 +5,7 @@
 
 ## Gates answered (2026-10-04, chat; recorded in owner-decisions-2026-09-27.md)
 
-S-C3-3 signed; W3-SEC-SCHED (DOC-DELETE-INTERP, RECOVERY-CODE-CACHE); NPM-AUDIT-SCHED (plan now, run now; no `--force`); OG-4, OG-5, OG-6 approved.
+S-C3-1 and S-C3-3 signed (S-C3-1 asked separately: the handoff missed it, W11b `:1543`); W3-SEC-SCHED (DOC-DELETE-INTERP, RECOVERY-CODE-CACHE); NPM-AUDIT-SCHED (plan now, run now; no `--force`); OG-4, OG-5, OG-6 approved.
 
 ## Dispatch (≤2 code L1s; full backend suites under flock)
 
@@ -20,3 +20,4 @@ S-C3-3 signed; W3-SEC-SCHED (DOC-DELETE-INTERP, RECOVERY-CODE-CACHE); NPM-AUDIT-
 1. DOC-DELETE-INTERP 2. RECOVERY-CODE-CACHE 3. NPM-AUDIT 4. G-C3b 5. W-11a PR-4 6. P4-core
 
 ## Log
+- 2026-10-04: dispatched L1-A (DDI → G-C3b), L1-B (RCC → NPM → W-11a PR-4), L1-C (P4-core) on 90c502a. S-C3-1 signed after dispatch; L1-A told.
