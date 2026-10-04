@@ -26,3 +26,7 @@ S-C3-1 and S-C3-3 signed (S-C3-1 asked separately: the handoff missed it, W11b `
   - #38 NPM @93def9e: package.json unchanged; Windows `npm audit` → 7 (2 moderate, 5 high); CI 6/6 incl. E2E.
   - #39 W-11a PR-4 @85f0948: inventory grep (path-anchored exclusions) → only ledger H2 quoting "155/25" as CONTRADICTED history; CI 6/6. H2 cell still says "1,245 backend collected" → close-out item.
   - #37 and #38 both regenerate docs/INDEX.md + _link_graph.json (L1-B said disjoint; wrong): second to merge needs merge-main + regen.
+- 2026-10-04: L1-C done. #40 P4-core @cd17e2b: 30 files = plan list (endpoints.md via Task 11 else-branch; correlations row matches `api/medications.py:452-461`, verified_only default True); docs_lint rc=0; index --check fresh; `.env.example` VECTOR_STORE_TYPE count 0; root `scripts/download_models.py` gone; CI 6/6. Docs-only: no break-it.
+- SAFE-CHAT confirmed by L0 (`rag.py:836-838`, `assistant.py:869-901`, chat UI ignores is_valid); owner chose "Fix now, abstain"; queued to L1-A after DDI, before G-C3b.
+- RCC-2 + NPM-MAJORS plans dispatched to L1-B.
+- Merge plan now: #37 → (#38 refresh) → #39 → (#40 refresh) ; DDI / SAFE-CHAT / G-C3b / RCC-2 as they land. #37, #38, #40 all touch docs/INDEX.md: each later one refreshes.
