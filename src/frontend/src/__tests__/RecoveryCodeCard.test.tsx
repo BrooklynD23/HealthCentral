@@ -220,7 +220,14 @@ describe('SEC-RECOV-002: recovery code entry point', () => {
     await waitFor(() => {
       expect(cachedMutationsContaining(queryClient, 'wrongpassword1')).toBe(0);
     });
-    // The user can try again: the mutation is idle, not stuck pending.
-    expect(screen.getByRole('button', { name: /create recovery code/i })).toBeEnabled();
+
+    vi.mocked(api.apiPost).mockResolvedValueOnce({ recovery_code: CODE, replaced_existing: false });
+    // The user can try again after a failure: a new mutation, and it is cleared too.
+    await userEvent.click(screen.getByRole('button', { name: /create recovery code/i }));
+    expect(await screen.findByTestId('recovery-code-value')).toHaveTextContent(CODE);
+    await waitFor(() => {
+      expect(cachedMutationsContaining(queryClient, CODE)).toBe(0);
+      expect(cachedMutationsContaining(queryClient, 'wrongpassword1')).toBe(0);
+    });
   });
 });
