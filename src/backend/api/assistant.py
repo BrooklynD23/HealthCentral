@@ -41,6 +41,8 @@ from modules.agent.cache import (
 )
 from modules.agent.graph import RunContext, new_run_id, run_agent
 from modules.agent.schemas import AgentTerminal
+from core.audit import audit_and_commit, create_audit_log
+from modules.agent.guardrails.templates import ESCALATE_TEMPLATE
 from modules.agent.settings import is_agent_enabled
 
 logger = logging.getLogger(__name__)
@@ -868,6 +870,26 @@ async def chat(
             insufficient_reasons = result.insufficient_reasons
             is_valid = result.is_valid
             validation_errors = result.validation_errors
+            # SAFE-CHAT (owner decision 2026-10-04): a prohibited-pattern match
+            # must never be returned or persisted. Replace the answer with the
+            # fixed escalation template the agent guard uses for advice, drop
+            # verification detail (it carries claim text from the answer), and
+            # audit fail-closed before the turn is written. No answer or
+            # question text reaches the audit row.
+            if result.prohibited_advice:
+                segments = [ResponseSegment(segment_type="uncertainty", content=ESCALATE_TEMPLATE)]
+                full_response = ESCALATE_TEMPLATE
+                verification = VerificationInfo()
+                await audit_and_commit(
+                    db,
+                    create_audit_log,
+                    event_type="assistant.prohibited_blocked",
+                    action="assistant.prohibited_blocked",
+                    profile_id=session.profile_id,
+                    entity_type="chat_session",
+                    entity_id=chat_session.id,
+                    details={"reason": "prohibited_pattern", "decision": "escalate"},
+                )
 
         # --- Persist user + assistant turn (identical on both paths) ---
         assistant_turn_id = await _append_turns(
