@@ -17,7 +17,7 @@ Local-first, privacy-first desktop app: patients import lab PDFs/medical documen
 - **Frontend** `src/frontend/` — React + Vite + TS, Tailwind, React Query, Zustand.
   - `src/pages/` (TrendsDashboard, ExplainAssistant, VerificationWorkbench, SettingsPage…), `src/services/` (API client + hooks; export everything through `services/index.ts` barrel), `e2e/` Playwright
 - **Docs** `docs/` — start at [`docs/00_architecture_plans_index.md`](docs/00_architecture_plans_index.md) (canonical order) or [`docs/roles/00_roles_index.md`](docs/roles/00_roles_index.md) (domain-based "which doc for X"); `docs/plans/` (active + historical plans/decisions log, incl. `implementation-log/` for point-in-time notes). Skills live in `.claude/skills/` and `skills/` — see [Skills](#skills) below.
-- **Generated repo map** [`openwiki/`](openwiki/README.md) — OpenWiki-generated navigation for coding agents (where code lives, how files connect). Advisory only: it never overrides CLAUDE.md, this file, or `docs/`. See `openwiki/README.md` for regeneration commands and review rules.
+- **Generated repo map** [`openwiki/`](openwiki/README.md) — reserved home for OpenWiki-generated navigation for coding agents (**not yet generated**; README-only stub). Advisory only once generated: it never overrides CLAUDE.md, this file, or `docs/`. See `openwiki/README.md` for regeneration commands and review rules.
 
 ## Skills
 
