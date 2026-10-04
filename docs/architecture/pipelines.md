@@ -1,6 +1,6 @@
 # Pipelines: Documents, Assistant, Safety
 
-**Last Updated:** 2026-07-27
+**Last Updated:** 2026-10-04
 **Owner:** Project Lead
 **Refresh Trigger:** An extractor, agent tool, guardrail, or export surface is added or removed
 
@@ -38,12 +38,13 @@ flowchart TD
     STORE --> VERIFY["VerificationWorkbench<br/><b>human in the loop</b>"]
     VERIFY --> VERIFIED[("verified data")]
 
-    VERIFIED --> TRENDS["trends"]
-    VERIFIED --> TL["timeline"]
-    VERIFIED --> HL["highlights"]
-    VERIFIED --> TASKS["care-task candidates"]
-    VERIFIED --> RECON["medication reconciliation"]
-    VERIFIED --> EXPORT["exports: doctor summary · visit prep · FHIR · CSV/JSON"]
+    VERIFIED --> VONLY["verified only: agent tools · FHIR ·<br/>visit prep · pinboards · medications (default)"]
+    STORE -.->|"labelled pending"| TL["timeline"]
+    STORE -.->|"unreviewed labelled, rejected dropped"| HL["highlights"]
+    STORE -.->|"rejected dropped"| TASKS["care-task candidates"]
+    STORE -.->|"rejected dropped"| RECON["medication reconciliation"]
+    STORE -.->|"unverified included, unlabelled (D4 approved, W-3 pending)"| TRENDS["trends"]
+    STORE -.->|"unverified included (outside D4)"| EXPU["exports: doctor summary · CSV/JSON"]
 
     style VERIFY fill:#e65100,stroke:#ff9800,color:#fff
     style STORE fill:#1b5e20,stroke:#66bb6a,color:#fff
@@ -52,9 +53,20 @@ flowchart TD
 **Everything lands unverified.** That is the load-bearing property of this
 diagram: extraction is a suggestion, not a fact, until a human confirms it.
 Structured imports are no exception — a FHIR bundle is more accurate than OCR
-but still arrives unverified. Downstream surfaces consume the *verified* set;
-where they surface unverified rows (the timeline), they label them as pending
-rather than presenting them as history.
+but still arrives unverified. Surfaces differ in what they do with unverified
+rows:
+
+- **Verified only:** agent tools, FHIR export, visit prep, pinboards, and
+  medications (unless the caller passes `verified_only=false`).
+- **Shown with a label:** the timeline (pending) and highlights (unreviewed).
+  Rows the user rejected are dropped from highlights, care-task candidates and
+  medication reconciliation.
+- **Included without a label:** trends and the legacy (non-agent) RAG path.
+  Owner decision [D4](../capstone-report/owner-decisions-2026-09-27.md)
+  (2026-09-27) approved the change: trends may show unverified points only
+  when visibly marked "unverified", and legacy RAG cites verified values only.
+  **Approved, not yet implemented** (work item W-3).
+- **Included, outside D4:** CSV / JSON exports and the doctor summary.
 
 Reprocessing is rejected for `lab_csv` / `fhir_bundle` documents: there is no
 document text to rebuild from, so re-extraction would delete entities and
@@ -92,8 +104,7 @@ flowchart TD
         T8["query_timeline"]
     end
 
-    RAGONLY --> MR
-    DRAFT --> MR["ModelRunner"]
+    RAGONLY --> MR["ModelRunner"]
     MR --> PROV{"provider"}
     PROV -->|default| LC["llama.cpp"]
     PROV -->|configured| OL["Ollama, localhost"]
@@ -107,15 +118,17 @@ flowchart TD
         G4["guard — abstain / template"]
     end
 
-    GUARD --> SAFE["interpret_safety<br/>faithfulness · verifier_agent"]
+    GUARD --> AOUT["agent answer<br/>template-composed, every sentence cited"]
+    GUARD -->|"ungrounded or advice-bait"| ABSTAIN["abstain / escalate<br/>fixed templates"]
+    MR --> SAFE["legacy-path checks: validate_response ·<br/>verifier_agent · faithfulness · interpret_safety patterns"]
     SAFE --> OUT["cited answer<br/>[REFERENCE:N] / [YOUR_RESULTS:N]"]
-    SAFE -->|"fails"| ABSTAIN["abstain with reason"]
+    SAFE -.->|"faithfulness below 0.6: is_valid=false,<br/>answer still served (W-4 pending)"| OUT
 
     style GUARD fill:#4a148c,stroke:#ba68c8,color:#fff
     style FB fill:#e65100,stroke:#ff9800,color:#fff
 ```
 
-Three things this diagram is asserting:
+Four things this diagram is asserting:
 
 1. **Tools are read-only.** The agent can query the record; it cannot mutate it.
 2. **The no-LLM fallback is a supported path**, not a degraded accident. Every
@@ -125,6 +138,11 @@ Three things this diagram is asserting:
    instructions"), so they pass through the injection filter before reaching a
    prompt. That is why `redaction_gate` sits inside the loop rather than at the
    end.
+4. **Only the legacy path calls a model.** The agent's `draft` node composes
+   answers from templates over tool output; it makes no LLM call. The legacy
+   safety modules (`interpret_safety`, `faithfulness`, `verifier_agent`) run on
+   the legacy path only. The agent guard reuses just the 0.6 confidence cutoff
+   from `modules/faithfulness.py` and abstains below it.
 
 ## Safety & privacy control-flow
 
@@ -161,7 +179,7 @@ flowchart LR
 
     subgraph files["Anything leaving the app"]
         RED["<b>modules/redaction</b>"]
-        EXP["exports · FHIR · visit-prep · RL dataset"]
+        EXP["redacted exports:<br/>RL dataset · FHIR · visit prep · pinboards"]
     end
 
     AUDIT["core/audit<br/>allowlist scrub"]
@@ -178,7 +196,14 @@ flowchart LR
     style MASTER fill:#b71c1c,stroke:#ef5350,color:#fff
 ```
 
-The purple nodes are the mandatory chokepoints. Redaction is unconditional on
-the export path — including the RL dataset export, which forces
-`policy_level="strict"` with no configuration knob, because an export must not
-be made *less* redacted by configuration.
+The purple nodes are the mandatory chokepoints. On the export path, redaction
+runs on the RL dataset export (forced `policy_level="strict"` with no
+configuration knob, because an export must not be made *less* redacted by
+configuration) and on FHIR, visit-prep and pinboard exports. It does **not** run
+on CSV / JSON exports, the doctor summary, or backups. Backups are deliberately
+unredacted: a redacted backup cannot be restored. For the other three, owner
+decision [D3](../capstone-report/owner-decisions-2026-09-27.md) (2026-09-27)
+applies: the doctor summary is to be strictly redacted (**approved, not yet
+implemented**, work item W-2), and CSV / JSON stay full-fidelity as the
+patient's own data, to be named as deliberate exceptions in `CLAUDE.md` and
+`docs/compliance/data-privacy.md` (work item W-10).
