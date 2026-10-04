@@ -5,7 +5,7 @@
 **Refresh Trigger:** any commit to `src/backend/api/interpretations.py`, `src/backend/modules/rag.py::validate_response` / `ValidatedResponse`, `src/backend/core/audit.py` or `modules/agent/guardrails/templates.py` before this plan runs; SAFE-CHAT PR #44 merging (its `rag.py` hunk is identical — see Global Constraints).
 **Prerequisites:** `origin/main` contains `90c502a`. D9 venv `~/venvs/asclexis-311`.
 **Status:** PROPOSED — not executed. Wave 3, L1-A, phase 4.
-**Review:** Codex plan r1 REVISE (1 BLOCKER, 3 MAJOR, 1 MINOR): all accepted and fixed (`audit/2026-09-25/reviews/SAFEINTERP-r1-response.md`).
+**Review:** Codex plan r1 REVISE (1 BLOCKER, 3 MAJOR, 1 MINOR): all accepted and fixed. Plan r2 REVISE (1 BLOCKER, 2 MAJOR): BLOCKER rejected with evidence, MAJORs partly accepted (`SAFEINTERP-r1-response.md`, `SAFEINTERP-r2-response.md`). Review loop 1 added HC-SAFEINTERP-007 and strengthened 003 (11 tests total).
 
 > **For agentic workers:** REQUIRED SUB-SKILL: use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans`. Steps use checkbox (`- [ ]`) syntax.
 
@@ -14,7 +14,7 @@
 **Architecture:**
 - **A. Flag.** `ValidatedResponse.prohibited_advice` in `modules/rag.py` — **byte-identical** to SAFE-CHAT `f5961e7`'s hunk, so whichever of #44 / this PR merges second merges cleanly (Task 3 Step 5 checks it with `git merge-tree`).
 - **B. Grounded route.** `interpretation.grounded` is written **right after `interpret_observation` succeeds and before `rag.query`**, because that call may already have written a `LabInterpretation` (`modules/interpret.py:278-279`) and `rag.query` can still end in 501 (`ModelUnavailableError`). After the response parts are built, if `rag_result.prohibited_advice`: replace `grounded_segments`, `full_response`, `verification`, and write `interpretation.prohibited_blocked` (`{reason: prohibited_pattern, decision: escalate}`).
-- **Error exits.** 404/403 exits happen before any profile data is returned or written (they compare the requested observation's ownership); they are recorded per request by `SecurityAuditMiddleware` (`security/audit_middleware.py:60-75`) and get no interpretation audit row. Every exit **after** a profile write or a returned profile read is audited.
+- **Error exits.** 404/403 exits happen before any profile data is returned or written (they compare the requested observation's ownership); like `GET /documents/{id}` (`api/documents.py:1127` raises 404 before its audit at `:1134`), they get no audit row. (`SecurityAuditMiddleware` logs only mutating methods, `security/audit_middleware.py:38-42`; GET denials are not logged anywhere — reported as owner item AUDIT-DENIALS.) Every exit **after** a profile write or a returned profile read is audited.
 - **C. Audit.** One private helper `_audit_interpretation` in `api/interpretations.py` calling `core.audit.audit_and_commit(create_audit_log, …)` with `action == event_type` (silent path in `_scrub_action`, `core/audit.py:173-192`) — `core/audit.py` is not edited. Routes and events:
 
 | Route | Event | entity | details |
@@ -112,7 +112,7 @@ KB fields scanned 60 matching a prohibited pattern 7
 
 | File | Action | Task |
 |---|---|---|
-| `src/backend/tests/test_safe_interp_grounded.py` | create (HC-SAFEINTERP-001…006; 10 collected) | 1 |
+| `src/backend/tests/test_safe_interp_grounded.py` | create (HC-SAFEINTERP-001…006, 10 collected; loop 1 adds 007 → 11) | 1 |
 | `src/backend/modules/rag.py` | modify (identical to #44) | 2 |
 | `src/backend/api/interpretations.py` | modify (imports, helper, 6 routes; `master_db` dependency added to `get_interpretation` and `get_recent_interpretations`) | 2 |
 | `CLAUDE.md`, `AGENT.md` | collected slots | 2 |
@@ -292,7 +292,7 @@ async def test_hc_safeinterp_001_prohibited_grounded_answer_replaced_and_audited
         assert row.profile_id == PROFILE_ID
         blob = _row_blob(row)
         assert MARKER not in blob and "Explain my lab result" not in blob
-        assert "LDL" not in blob and ANALYTE not in json.dumps(row.details_json or "")
+        assert ANALYTE not in blob.lower()
     blocked = next(r for r in rows if r.event_type == "interpretation.prohibited_blocked")
     assert json.loads(blocked.details_json) == {
         "reason": "prohibited_pattern", "decision": "escalate",
@@ -315,16 +315,23 @@ async def test_hc_safeinterp_002_clean_grounded_answer_untouched(dbs):
 async def test_hc_safeinterp_003_grounded_audit_failure_fails_closed(dbs):
     profile_db, master_db, obs_id = dbs
 
-    async def _failing_commit():
-        raise RuntimeError("simulated master DB failure")
+    real_commit = master_db.commit
+    calls = {"n": 0}
+
+    async def _fail_second_commit():
+        calls["n"] += 1
+        if calls["n"] >= 2:
+            raise RuntimeError("simulated master DB failure")
+        await real_commit()
 
     # No handler catches it, so TestClient re-raises the server error (in
     # production: HTTP 500). Either way nothing is returned to the client.
     with patch.object(I, "get_rag_module", return_value=_rag(PROHIBITED_ANSWER)), \
-         patch.object(master_db, "commit", _failing_commit), \
+         patch.object(master_db, "commit", _fail_second_commit), \
          pytest.raises(RuntimeError, match="simulated master DB failure"):
         _call(profile_db, master_db, "POST",
               f"/interpretations/observations/{obs_id}/interpret-grounded")
+    assert calls["n"] == 2
 
 
 @pytest.mark.asyncio
@@ -356,7 +363,7 @@ async def test_hc_safeinterp_004_profile_data_routes_write_audit_row(dbs, route)
     assert [r.event_type for r in rows] == [event_type], [r.event_type for r in rows]
     assert rows[0].profile_id == PROFILE_ID
     blob = _row_blob(rows[0])
-    assert "LDL" not in blob and "lipid" not in blob.lower()
+    assert ANALYTE not in blob.lower() and "lipid" not in blob.lower()
 
 
 @pytest.mark.asyncio
@@ -389,6 +396,20 @@ async def test_hc_safeinterp_006_model_unavailable_after_write_still_audited(dbs
     assert len(stored) == 1
     rows = await _audit_rows(master_db)
     assert [r.event_type for r in rows] == ["interpretation.grounded"]
+
+
+@pytest.mark.asyncio
+async def test_hc_safeinterp_007_batch_audit_records_ids_and_partial_failure(dbs):
+    profile_db, master_db, obs_id = dbs
+    missing = str(uuid.uuid4())
+    resp = _call(profile_db, master_db, "POST", "/interpretations/batch",
+                 json={"observation_ids": [obs_id, missing]})
+    assert resp.status_code == 200, resp.text
+    rows = await _audit_rows(master_db)
+    assert [r.event_type for r in rows] == ["interpretation.batch_generate"]
+    assert json.loads(rows[0].details_json) == {
+        "observation_ids": [obs_id], "count": 1, "skipped_count": 1,
+    }
 ```
 
 - [ ] **Step 2: RED**
@@ -547,8 +568,8 @@ WT=/mnt/c/Users/DangT/Documents/GitHub/hc-safeinterp; PY="$HOME/venvs/asclexis-3
 BK=/mnt/c/Users/DangT/Documents/GitHub/hc-safeinterp-break; [ ! -e "$BK" ] || { echo "BK exists"; exit 1; }
 git -C "$WT" worktree add --detach "$BK" HEAD && [ "$(git -C "$BK" rev-parse HEAD)" = "$(git -C "$WT" rev-parse HEAD)" ] && cd "$BK/src/backend"
 grep -n 'if rag_result.prohibited_advice:\|verification = GroundedVerificationResponse()\|master_db, "view"\|master_db, "batch_generate"\|master_db, "grounded"' api/interpretations.py
-# apply ONE break at the printed lines, then:
-$PY -m pytest tests/test_safe_interp_grounded.py -p no:cacheprovider -q -rf | grep -E "^FAILED|passed|failed"
+# apply ONE break at the printed lines, then (expected failures must not abort the block):
+$PY -m pytest tests/test_safe_interp_grounded.py -p no:cacheprovider -q -rf | grep -E "^FAILED|passed|failed" || true
 git -C "$BK" checkout -- . && git -C "$BK" status --short
 # after the last break:
 cd / && git -C "$WT" worktree remove --force "$BK"
@@ -577,4 +598,21 @@ Any HC-SAFEINTERP test passes at RED; an edit in a read-only file; collected ≠
 
 ## Execution record
 
-_(filled in by Task 3)_
+Executed 2026-10-04 by Wave 3 L1-A (L2 `sonnet` for Tasks 1-2 and loop 1; L1 for Tasks 0 and 3). D9 venv, Python 3.11.16, `HF_HUB_OFFLINE=1`. START failure set on `90c502a` on this host: empty (full suites for DDI, SAFE-CHAT and G-C3b on the same base each finished with 0 failures).
+
+| Step | Result |
+|---|---|
+| Task 0 | `ANCESTOR-OK`, `TRIGGER-PATHS-UNCHANGED`, grep rc=1; plan commit `f202414` |
+| RED | `10 failed` |
+| GREEN | `121 passed`, rc=0; fix commit `02c644a` (diff identical to the pre-validated probe) |
+| Count | `1356` at `02c644a`; loop 1 `d68e92e` adds 007 → `1357 tests collected` (+11 from 1346) |
+| Full suite at `02c644a` | `1356 passed`, rc=0, `FAILURES-SUBSET-OK` |
+| Full suite at `d68e92e` | `1357 passed, 58 warnings in 155.94s`, rc=0, `FAILURES-SUBSET-OK`; `boot ok` |
+| Scope | `SCOPE-OK` (interpret_safety, interpret, redaction, faithfulness, verifier_agent, core, modules/agent, frontend unchanged) |
+| rag.py vs #44 | `RAG-HUNK-IDENTICAL`; `git merge-tree` with `origin/fix/safe-chat-legacy-abstain` conflicts only in `AGENT.md`, `CLAUDE.md`, `docs/INDEX.md` (count slots / index) |
+| Break-its at `d68e92e` (disposable worktree) | BI-1 block removed → 001, 003; BI-2 verification reset removed → 001; BI-3 view audit removed → 004[view], 005; BI-4 batch audit removed → 004[batch], 007; BI-5 grounded audit moved after the response build → 006; BI-6 block audit wrapped in `try/except: pass` → 003; restored `11 passed` |
+| Adjacent | 6 files `122 passed` |
+
+**Reviews.** code-reviewer (opus) APPROVE, 3 MINOR (2 fixed in loop 1; `viewed_at` committed before the view audit is noted). security-reviewer (opus) APPROVE, 2 MEDIUM + 4 LOW (test 003 depth and lowercase analyte fixed in loop 1; embedded template `interpretation` text and pattern false positives → PROHIBITED-PARAPHRASE; denials unaudited → AUDIT-DENIALS; `RuntimeError` from `rag.query` unmapped 500, pre-existing; `validation_errors` cosmetic, same as #44).
+
+**Codex diff** (`SAFEINTERP-diff-codex.txt`): needs-attention, 1 high — audit commits after the profile write (`viewed_at`, `interpret_observation`). **Rejected for this PR:** master and profile DBs cannot share a transaction; every write route in the repo audits after its profile commit (e.g. `delete_document`, DDI-AUDIT-ORDER). Generalised into owner item **AUDIT-ORDER** (one design for all routes).
