@@ -958,6 +958,22 @@ This record answers HC-M08a (`feature_list.json:94-96`): "Decision doc exists, p
 
 Links to: `audit/2026-09-25/Devin-Audit-report.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`
 
+## `docs/plans/2026-10-04-NPM-MAJORS-react-router7.md`
+
+**NPM-MAJORS (b) — React Router 6 → 7 Migration Plan**
+
+1. On v6, turn on the 2 future flags that apply to a declarative-mode app. This is a separate, small commit, and it proves the behaviour change before the major. 2. Bump to v7 while keeping the…
+
+Links to: `docs/plans/2026-10-04-NPM-MAJORS-tailwind4.md`
+
+## `docs/plans/2026-10-04-NPM-MAJORS-tailwind4.md`
+
+**NPM-MAJORS (a) — Tailwind CSS 3 → 4 Migration Plan**
+
+- moves `tailwind.config.js` into CSS `@theme`; - swaps `@tailwind` directives for `@import "tailwindcss"`; - moves the PostCSS plugin to `@tailwindcss/postcss`; - renames the utilities whose…
+
+Links to: `docs/plans/2026-10-04-NPM-MAJORS-react-router7.md`
+
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
 **Project Structure Setup**
