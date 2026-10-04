@@ -30,3 +30,10 @@ S-C3-1 and S-C3-3 signed (S-C3-1 asked separately: the handoff missed it, W11b `
 - SAFE-CHAT confirmed by L0 (`rag.py:836-838`, `assistant.py:869-901`, chat UI ignores is_valid); owner chose "Fix now, abstain"; queued to L1-A after DDI, before G-C3b.
 - RCC-2 + NPM-MAJORS plans dispatched to L1-B.
 - Merge plan now: #37 → (#38 refresh) → #39 → (#40 refresh) ; DDI / SAFE-CHAT / G-C3b / RCC-2 as they land. #37, #38, #40 all touch docs/INDEX.md: each later one refreshes.
+- 2026-10-04: L1-A done (#41 DDI, #44 SAFE-CHAT, #45 G-C3b); L1-B round 2 done (#42 RCC-2 stacked on #37, #43 NPM-MAJORS plans). All CI 6/6. L0 verification (../hc-l0-verify, D9 venv, flock):
+  - #41 @ce5b692: `-k HC_DDI` 4 passed; break-it delete `observation.py:114` cascade → 2 failed; collected 1350 = CLAUDE:30 = AGENT:76.
+  - #44 @e188567: `test_safe_chat_prohibited.py` 5 passed; break-it `assistant.py:879` → `if False:` → 2 failed; collected 1351 = slots. Diff read: ESCALATE_TEMPLATE replaces segments + full_response, verification cleared, audit row details carry no text.
+  - #45 @ba22622: correlation + audit middleware 15 passed; break-it delete `main.py:106` install call → 1 failed; collected 1350 = slots.
+  - #42 @dd8edb6 (Windows): 4 files 18 passed; break-it delete first `gcTime: 0` (`profiles.ts:125`, useCreateProfile) → FE-RCC2-001/002 failed; restored.
+  - #43 @22de642: plans only, both marked "not approved for execution"; no src change.
+  - L1-A's permission layer blocked ticking S-C3-1/S-C3-3; L0 ticked them on docs/wave3-close from the owner's own chat answers (b7c3d42).
