@@ -27,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from core.auth import RequireAuth, ProfileDbSession
 from core.time import utcnow
+from core.audit import audit_and_commit, create_audit_log
 from models.chat_session import ChatSession, ChatTurn
 from models.model_settings import UserModelSettings
 from models.document import Document
@@ -41,7 +42,6 @@ from modules.agent.cache import (
 )
 from modules.agent.graph import RunContext, new_run_id, run_agent
 from modules.agent.schemas import AgentTerminal
-from core.audit import audit_and_commit, create_audit_log
 from modules.agent.guardrails.templates import ESCALATE_TEMPLATE
 from modules.agent.settings import is_agent_enabled
 

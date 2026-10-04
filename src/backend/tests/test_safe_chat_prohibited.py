@@ -139,6 +139,7 @@ async def test_hc_safechat_001_prohibited_answer_replaced_persisted_and_audited(
     assert MARKER not in json.dumps(body), "prohibited answer text reached the client"
     assert body["full_response"] == ESCALATE_TEMPLATE
     assert [s["content"] for s in body["segments"]] == [ESCALATE_TEMPLATE]
+    assert body["segments"][0]["citations"] == []
     assert body["verification"]["issues"] == []
     assert body["is_valid"] is False
     assistant_turns = [t for t in turns if t.role == "assistant"]
