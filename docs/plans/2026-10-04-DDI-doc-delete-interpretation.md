@@ -474,4 +474,26 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- docs/plans/2026-10-0
 
 ## Execution record
 
-_(filled in by Task 3)_
+Executed 2026-10-04 by Wave 3 L1-A (L2 implementer `sonnet` for Tasks 1-2; L1 for Task 0 and Task 3). D9 venv, `HF_HUB_OFFLINE=1`.
+
+| Step | Command | Result |
+|---|---|---|
+| Task 0 Step 1 | ancestry + trigger-path diff vs `90c502a` | `ANCESTOR-OK`, `TRIGGER-PATHS-UNCHANGED` (origin/main = `90c502a`) |
+| Task 0 Step 3 | plan commit | `6d76498` |
+| Task 1 Step 2 RED | `pytest tests/test_documents_api.py -k HC_DDI -q -rf` | `4 failed, 15 deselected` (001/004 `IntegrityError … lab_interpretations.observation_id`; 002 `encrypted file destroyed although the commit failed`; 003 `PermissionError`) |
+| Task 2 Step 3 GREEN | `pytest tests/test_documents_api.py -q` | `19 passed`, rc=0 |
+| Task 2 Step 4 | `pytest tests/ --collect-only -q` | before `1346 tests collected`; after `1350 tests collected` |
+| Task 2 Step 5 | fix commit | `73ae541` |
+| Task 3 Step 1 | full suite under flock | `1350 passed, 67 warnings in 724.08s`, `pytest rc=0`, `FAILURES-SUBSET-OK` (`test_api_rag_index_002b` passed in this environment) |
+| Task 3 Step 2 | boot | `boot ok` |
+| Task 3 Step 3 | scope | `SCOPE-OK`; `git status --short` empty |
+| Task 3 Step 4 BI-1 | `cascade="all, delete"` line (`models/observation.py:114`) deleted | 001, 004 FAIL; 2 passed |
+| Task 3 Step 4 BI-2 | unlink block moved above `profile_db.delete` | 002 FAIL; 3 passed |
+| Task 3 Step 4 BI-3 | `try/except OSError` removed | 003 FAIL; 3 passed |
+| restore | `git checkout -- .` (detached break worktree, removed after) | `4 passed` |
+
+**Docs truth value (Task 3 Step 6, no edit):**
+- `docs/compliance/data-privacy.md:185` "Observations and chunks are removed with it (ORM cascade)" — was true for observations and chunks before and after; the claim it was cited for (that derived interpretation rows go too) is now true through `Observation.interpretation`. Not edited (owner-gated, W-10).
+- `docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md:56` (P1, ORM cascade works today) — true. `:59` (P4 `lab_interpretations` "Observation delete cascades") describes behaviour "once pragma is ON"; still conditional on P6, and now also true through the ORM. Not edited.
+
+**Reviews:** code-reviewer (opus) APPROVE, 3 MINOR; security-reviewer (opus) APPROVE, 1 LOW introduced (orphan ciphertext after a failed post-commit unlink, swept only by profile delete), 4 MEDIUM + 2 LOW pre-existing. Codex diff review (`audit/2026-09-25/reviews/DDI-diff-codex.txt`): needs-attention, 2 high + 1 medium, all pre-existing and outside W3-SEC-SCHED (reprocess orphans = Out of scope 1; panel = Out of scope 2; audit-after-delete ordering = new owner item DDI-AUDIT-ORDER). No code change from any review.
