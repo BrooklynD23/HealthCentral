@@ -147,7 +147,7 @@ async def test_hc_safeinterp_001_prohibited_grounded_answer_replaced_and_audited
         assert row.profile_id == PROFILE_ID
         blob = _row_blob(row)
         assert MARKER not in blob and "Explain my lab result" not in blob
-        assert "LDL" not in blob and ANALYTE not in json.dumps(row.details_json or "")
+        assert ANALYTE not in blob.lower()
     blocked = next(r for r in rows if r.event_type == "interpretation.prohibited_blocked")
     assert json.loads(blocked.details_json) == {
         "reason": "prohibited_pattern", "decision": "escalate",
@@ -170,16 +170,23 @@ async def test_hc_safeinterp_002_clean_grounded_answer_untouched(dbs):
 async def test_hc_safeinterp_003_grounded_audit_failure_fails_closed(dbs):
     profile_db, master_db, obs_id = dbs
 
-    async def _failing_commit():
-        raise RuntimeError("simulated master DB failure")
+    real_commit = master_db.commit
+    calls = {"n": 0}
+
+    async def _fail_second_commit():
+        calls["n"] += 1
+        if calls["n"] >= 2:
+            raise RuntimeError("simulated master DB failure")
+        await real_commit()
 
     # No handler catches it, so TestClient re-raises the server error (in
     # production: HTTP 500). Either way nothing is returned to the client.
     with patch.object(I, "get_rag_module", return_value=_rag(PROHIBITED_ANSWER)), \
-         patch.object(master_db, "commit", _failing_commit), \
+         patch.object(master_db, "commit", _fail_second_commit), \
          pytest.raises(RuntimeError, match="simulated master DB failure"):
         _call(profile_db, master_db, "POST",
               f"/interpretations/observations/{obs_id}/interpret-grounded")
+    assert calls["n"] == 2
 
 
 @pytest.mark.asyncio
@@ -211,7 +218,7 @@ async def test_hc_safeinterp_004_profile_data_routes_write_audit_row(dbs, route)
     assert [r.event_type for r in rows] == [event_type], [r.event_type for r in rows]
     assert rows[0].profile_id == PROFILE_ID
     blob = _row_blob(rows[0])
-    assert "LDL" not in blob and "lipid" not in blob.lower()
+    assert ANALYTE not in blob.lower() and "lipid" not in blob.lower()
 
 
 @pytest.mark.asyncio
@@ -244,3 +251,17 @@ async def test_hc_safeinterp_006_model_unavailable_after_write_still_audited(dbs
     assert len(stored) == 1
     rows = await _audit_rows(master_db)
     assert [r.event_type for r in rows] == ["interpretation.grounded"]
+
+
+@pytest.mark.asyncio
+async def test_hc_safeinterp_007_batch_audit_records_ids_and_partial_failure(dbs):
+    profile_db, master_db, obs_id = dbs
+    missing = str(uuid.uuid4())
+    resp = _call(profile_db, master_db, "POST", "/interpretations/batch",
+                 json={"observation_ids": [obs_id, missing]})
+    assert resp.status_code == 200, resp.text
+    rows = await _audit_rows(master_db)
+    assert [r.event_type for r in rows] == ["interpretation.batch_generate"]
+    assert json.loads(rows[0].details_json) == {
+        "observation_ids": [obs_id], "count": 1, "skipped_count": 1,
+    }
