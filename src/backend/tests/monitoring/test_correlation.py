@@ -199,6 +199,7 @@ async def _log_inside_and_outside_request(correlation_id: str) -> list[logging.L
 
 @pytest.mark.asyncio
 async def test_hc_obsv_001_log_record_carries_request_correlation_id(restore_logging_state):
+    logging.setLogRecordFactory(logging.LogRecord)
     from core.logging_setup import install_correlation_logging
     install_correlation_logging()
     cid = str(uuid.uuid4())
@@ -211,6 +212,7 @@ async def test_hc_obsv_001_log_record_carries_request_correlation_id(restore_log
 async def test_hc_obsv_002_correlation_survives_alembic_logging_reset(restore_logging_state):
     """alembic.ini fileConfig runs at startup and on every vault open
     (migrations/*/env.py); it replaces root handlers and their filters."""
+    logging.setLogRecordFactory(logging.LogRecord)
     from core.logging_setup import install_correlation_logging
     install_correlation_logging()
     logging.config.fileConfig(ALEMBIC_INI, disable_existing_loggers=False)
