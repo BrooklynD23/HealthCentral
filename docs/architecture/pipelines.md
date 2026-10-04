@@ -38,7 +38,7 @@ flowchart TD
     STORE --> VERIFY["VerificationWorkbench<br/><b>human in the loop</b>"]
     VERIFY --> VERIFIED[("verified data")]
 
-    VERIFIED --> VONLY["verified only: agent tools · FHIR ·<br/>visit prep · pinboards · medications (default)"]
+    VERIFIED --> VONLY["verified only: FHIR · visit prep · pinboards · medications (default)<br/>agent answers (values from verified rows only;<br/>pending rows reported as a count)"]
     STORE -.->|"labelled pending"| TL["timeline"]
     STORE -.->|"unreviewed labelled, rejected dropped"| HL["highlights"]
     STORE -.->|"rejected dropped"| TASKS["care-task candidates"]
@@ -56,8 +56,10 @@ Structured imports are no exception — a FHIR bundle is more accurate than OCR
 but still arrives unverified. Surfaces differ in what they do with unverified
 rows:
 
-- **Verified only:** agent tools, FHIR export, visit prep, pinboards, and
-  medications (unless the caller passes `verified_only=false`).
+- **Verified only:** FHIR export, visit prep, pinboards, and medications
+  (unless the caller passes `verified_only=false`).
+- **Agent answers:** values come from verified rows only; pending rows are
+  reported as a count.
 - **Shown with a label:** the timeline (pending) and highlights (unreviewed).
   Rows the user rejected are dropped from highlights, care-task candidates and
   medication reconciliation.
@@ -119,10 +121,10 @@ flowchart TD
     end
 
     GUARD --> AOUT["agent answer<br/>template-composed, every sentence cited"]
-    GUARD -->|"ungrounded or advice-bait"| ABSTAIN["abstain / escalate<br/>fixed templates"]
+    GUARD -->|"ungrounded, low confidence, or advice-bait"| ABSTAIN["abstain / escalate<br/>fixed templates"]
     MR --> SAFE["legacy-path checks: validate_response ·<br/>verifier_agent · faithfulness · interpret_safety patterns"]
     SAFE --> OUT["cited answer<br/>[REFERENCE:N] / [YOUR_RESULTS:N]"]
-    SAFE -.->|"faithfulness below 0.6: is_valid=false,<br/>answer still served (W-4 pending)"| OUT
+    SAFE -.->|"any check fails (prohibited-advice match, missing citations, faithfulness < 0.6):<br/>is_valid=false, answer still served (W-4 pending)"| OUT
 
     style GUARD fill:#4a148c,stroke:#ba68c8,color:#fff
     style FB fill:#e65100,stroke:#ff9800,color:#fff
@@ -203,7 +205,7 @@ configuration) and on FHIR, visit-prep and pinboard exports. It does **not** run
 on CSV / JSON exports, the doctor summary, or backups. Backups are deliberately
 unredacted: a redacted backup cannot be restored. For the other three, owner
 decision [D3](../capstone-report/owner-decisions-2026-09-27.md) (2026-09-27)
-applies: the doctor summary is to be strictly redacted (**approved, not yet
-implemented**, work item W-2), and CSV / JSON stay full-fidelity as the
+applies: the doctor summary is to be strictly redacted
+(**approved, not yet implemented**, work item W-2), and CSV / JSON stay full-fidelity as the
 patient's own data, to be named as deliberate exceptions in `CLAUDE.md` and
 `docs/compliance/data-privacy.md` (work item W-10).
