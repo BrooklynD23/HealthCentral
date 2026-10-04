@@ -18,9 +18,11 @@
       "CLAUDE.md"
     ],
     "CLAUDE.md": [
+      "docs/agentic/evals.md",
       "docs/agentic/harness.md",
       "docs/agentic/orchestration.md",
       "docs/architecture/README.md",
+      "docs/architecture/ci-and-quality-gates.md",
       "docs/capstone-report/architecture-engineering-contract.md",
       "docs/compliance/ai-safety.md",
       "docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md",
@@ -467,6 +469,8 @@
     ],
     "docs/capstone-report/owner-decisions-2026-09-27.md": [
       "docs/agentic/orchestration.md",
+      "docs/architecture/README.md",
+      "docs/architecture/pipelines.md",
       "docs/capstone-report/README.md",
       "docs/capstone-report/implementation-program.md",
       "docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md",
@@ -1184,7 +1188,8 @@
       "docs/api/endpoints.md"
     ],
     "docs/agentic/evals.md": [
-      "feature_list.json"
+      "feature_list.json",
+      "CLAUDE.md"
     ],
     "docs/agentic/harness.md": [
       "CLAUDE.md",
@@ -1260,13 +1265,15 @@
       "CLAUDE.md",
       "AGENT.md",
       "docs/00_architecture_plans_index.md",
-      "docs/compliance/hipaa-controls.md"
+      "docs/compliance/hipaa-controls.md",
+      "docs/capstone-report/owner-decisions-2026-09-27.md"
     ],
     "docs/architecture/backend.md": [
       "docs/architecture/README.md"
     ],
     "docs/architecture/ci-and-quality-gates.md": [
-      "docs/architecture/README.md"
+      "docs/architecture/README.md",
+      "CLAUDE.md"
     ],
     "docs/architecture/frontend.md": [
       "docs/architecture/README.md"
@@ -1275,7 +1282,8 @@
       "docs/architecture/README.md"
     ],
     "docs/architecture/pipelines.md": [
-      "docs/architecture/README.md"
+      "docs/architecture/README.md",
+      "docs/capstone-report/owner-decisions-2026-09-27.md"
     ],
     "docs/archive/README.md": [
       "docs/features/TASK_LIST.md"

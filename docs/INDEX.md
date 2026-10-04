@@ -94,7 +94,7 @@ Local-first application for patients to import medical documents, extract struct
 
 What "verified" means in this repo. Every task in feature_list.json names its verification steps; this file catalogs the evaluation categories and the concrete commands behind them.
 
-Links to: `feature_list.json`
+Links to: `CLAUDE.md`, `feature_list.json`
 
 ## `docs/agentic/harness.md`
 
@@ -208,7 +208,7 @@ cd src/backend python main.py
 
 Hand-authored mermaid diagrams of the running system, kept here so the whole structure can be reviewed in one place. Mermaid rather than image files on purpose: diagrams render on GitHub, and they…
 
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/00_architecture_plans_index.md`, `docs/architecture/backend.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/architecture/frontend.md`, `docs/architecture/performance-scalability-review.md`, `docs/architecture/pipelines.md`, `docs/compliance/hipaa-controls.md`
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/00_architecture_plans_index.md`, `docs/architecture/backend.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/architecture/frontend.md`, `docs/architecture/performance-scalability-review.md`, `docs/architecture/pipelines.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/compliance/hipaa-controls.md`
 
 ## `docs/architecture/backend.md`
 
@@ -224,7 +224,7 @@ Links to: `docs/architecture/README.md`
 
 Part of the architecture diagram set.
 
-Links to: `docs/architecture/README.md`
+Links to: `CLAUDE.md`, `docs/architecture/README.md`
 
 ## `docs/architecture/frontend.md`
 
@@ -248,7 +248,7 @@ Links to: `docs/architecture/README.md`
 
 Part of the architecture diagram set.
 
-Links to: `docs/architecture/README.md`
+Links to: `docs/architecture/README.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`
 
 ## `docs/archive/README.md`
 

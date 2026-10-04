@@ -152,6 +152,26 @@ On the first of each month, review all canonical docs for freshness:
 
 ## Session Notes
 
+### 2026-10-04 - P4-core doc-drift sweep (plan 04 as amended)
+
+Docs-only branch `docs/p4-doc-drift`; no tests added. Plan:
+`docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md`.
+
+- **Landed:** Task 1 (`evals.md`), 2 (README), 3 (OG-4: dead `VECTOR_STORE_TYPE`
+  lines out of `config/.env.example`), 5R, 6, 7, 8, 9, 10 (OG-5 docstrings),
+  11, 12 (7 `.serena` memories deleted), 13, 14 (OG-6: root
+  `download_models.py` removed), N1-N7.
+- **Task 5 dropped, 5R applied:** `INGEST-FHIR-001` stays `[ ] OPEN` (its remaining
+  gap is real); only the HC-M23 code date was corrected to 2026-07-17.
+- **Task 4:** done by P2 (`4aa8e03`, `aae90ec`); no edit here.
+- **Task 11:** 130 route decorators vs 131 doc rows hid one genuinely missing row,
+  `GET /medications/{id}/correlations`; added to `docs/api/endpoints.md`.
+- **Task 15:** `.claude/agents/` checks pass after W-1; no edit (DONE-N/A).
+- **Deferred, with trigger:** N8 (W-5 merged: trigger hit), N10 (W-6 merged:
+  trigger hit), N9 (needs a signed plan 08 Brief 2: not hit), F1 (W-3), F2 (W-2
+  and W-10), F3 (W-7), F4 (W-4), F5 (W-8), F6 (W-10; the W-6 half already
+  landed in N4/N5 wording). Each runs as its own PR after its trigger.
+
 ### 2026-10-02 - Wave 2 merged: S-1, W-6, W-11a PR-2, W-5, W-1, P2, P8, G-C4
 
 Eight PRs merged one at a time (#29, #32, #33, #34, #35, #31, #30, #28).
