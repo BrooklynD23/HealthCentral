@@ -43,7 +43,7 @@ skills; `skills/` (no dot) holds this project's **domain** skills. Invoke by nam
 | `asclexis-backend` | Backend routes, feature modules under `src/backend/modules/`, SQLAlchemy models, Pydantic schemas, the SQLCipher per-profile vault, the dual Alembic chains, security/monitoring middleware, LLMOps (semantic cache, model tiers, llama.cpp serving, timing/token tracking), or the proof bundle |
 | `asclexis-agent` | Anything under `src/backend/modules/agent/` — the graph runner, plan/act/reflect/draft nodes, the tool registry, read-only tools over the profile vault, the step budget, audit hooks, or wiring the agent into the `/assistant/` route |
 | `asclexis-guardrails` | The guard node, advice classifier, abstention/escalation templates, groundedness and claim-to-source mapping, confidence thresholds, or the PHI redaction gate before any opt-in external LLM call |
-| `asclexis-evals` | Golden eval cases, synthetic vault states, the four scoring axes (groundedness, citation accuracy, abstention correctness, advice leakage), or the CI workflow that gates PRs on agent behavior |
+| `asclexis-evals` | Golden eval cases, synthetic vault states, the six scoring axes (groundedness, citation accuracy, abstention correctness, advice leakage, injection resistance, PHI leakage), or the CI workflow that gates PRs on agent behavior |
 
 The `.claude/skills/` directory also vendors
 [mattpocock/skills](https://github.com/mattpocock/skills)' engineering set

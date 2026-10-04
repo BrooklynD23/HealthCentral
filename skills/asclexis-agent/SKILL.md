@@ -35,8 +35,9 @@ unless the client explicitly approves it (local-first footprint stays clean).
 Every tool registers with a Pydantic input AND output schema in
 `modules/agent/tools/`. Malformed args fail validation and are NEVER executed —
 this is the first guardrail layer, not an afterthought. Current read-only tools:
-`query_observations`, `compute_trend`, `retrieve_chunks`, `lookup_reference`,
-`check_verification`. New tools must be read-only and profile-scoped to the
+`query_observations`, `compute_trend`, `check_verification`, `lookup_reference`,
+`retrieve_chunks`, `query_care_tasks`, `query_medication_changes`,
+`query_timeline`. New tools must be read-only and profile-scoped to the
 unlocked vault session.
 
 ## Step budget & replay
