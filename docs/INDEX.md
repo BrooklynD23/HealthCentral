@@ -966,6 +966,14 @@ Links to: `audit/2026-09-25/Devin-Audit-report.md`, `docs/capstone-report/owner-
 
 Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`
 
+## `docs/plans/2026-10-04-RCC2-secret-retention.md`
+
+**RCC-2 — Password and Recovery-Code Retention in Create, Recover and Delete Implementation Plan**
+
+- Owner gate RCC-2 (2026-10-04), verbatim: "Plan RCC-2 with the same fix (gcTime 0 + reset) and tests in all 3 hooks, plus clearing component state. One PR." - L0 scope note (2026-10-04):…
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-04-RCC-recovery-code-cache.md`
+
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
 **Project Structure Setup**
