@@ -958,6 +958,12 @@ This record answers HC-M08a (`feature_list.json:94-96`): "Decision doc exists, p
 
 Links to: `audit/2026-09-25/Devin-Audit-report.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`
 
+## `docs/plans/2026-10-04-PROHIBITED-PARAPHRASE.md`
+
+**PROHIBITED-PARAPHRASE — Measured Prohibited-Pattern Coverage — Plan**
+
+`PROHIBITED_PATTERNS` (`modules/interpret_safety.py:49-68` @`90c502a`) has three consumers:
+
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
 **Project Structure Setup**
