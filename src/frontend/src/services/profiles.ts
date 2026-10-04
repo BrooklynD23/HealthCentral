@@ -119,7 +119,8 @@ export function useCreateProfile() {
 
   return useMutation({
     mutationFn: createProfile,
-    // Variables carry the password (and recovery code); drop the mutation
+    // Variables hold the password; the result holds the recovery code and
+    // token. Drop the mutation
     // from the cache as soon as nothing observes it (RCC-2).
     gcTime: 0,
     onSuccess: (data: ProfileCreateResponse) => {
@@ -225,7 +226,7 @@ export function useDeleteProfile() {
       profileId: string;
       data: ProfileDeleteRequest;
     }) => deleteProfile(profileId, data),
-    // Variables carry the password (and recovery code); drop the mutation
+    // Variables hold the password. Drop the mutation
     // from the cache as soon as nothing observes it (RCC-2).
     gcTime: 0,
     onSuccess: () => {
@@ -252,7 +253,8 @@ export function useRecoverProfile() {
       profileId: string;
       data: ProfileRecoverRequest;
     }) => recoverProfile(profileId, data),
-    // Variables carry the password (and recovery code); drop the mutation
+    // Variables hold the old recovery code and new password; the result holds
+    // the rotated code and token. Drop the mutation
     // from the cache as soon as nothing observes it (RCC-2).
     gcTime: 0,
     onSuccess: (response) => {

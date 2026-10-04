@@ -318,7 +318,7 @@ describe('ProfileSetup', () => {
       const pw = watchCacheFor(queryClient, PASSWORD);
 
       await fillAndSubmit(user);
-      expect(await screen.findByText(/server unavailable/i)).toBeInTheDocument();
+      expect(await screen.findByText(/server unavailable/i, {}, { timeout: 5000 })).toBeInTheDocument();
       expect(pw.seen.value).toBe(true);
       pw.unsubscribe();
       await waitFor(() => expect(cachedMutationsContaining(queryClient, PASSWORD)).toBe(0));

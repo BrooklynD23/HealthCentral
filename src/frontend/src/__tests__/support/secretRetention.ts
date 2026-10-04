@@ -31,7 +31,10 @@ export function cachedMutationsContaining(queryClient: QueryClient, needle: stri
  * Positive control: records whether the cache ever held `needle`, so a
  * "nothing cached" assertion cannot pass because nothing was ever cached.
  */
-export function watchCacheFor(queryClient: QueryClient, needle: string) {
+export function watchCacheFor(
+  queryClient: QueryClient,
+  needle: string
+): { seen: { value: boolean }; unsubscribe: () => void } {
   const seen = { value: false };
   const unsubscribe = queryClient.getMutationCache().subscribe((event) => {
     const m = event.mutation;
@@ -47,6 +50,9 @@ const HOOK_FIBER_TAGS = new Set([0, 11, 15]); // FunctionComponent, ForwardRef, 
  * True if any hook state in the committed React tree under `container`
  * contains `needle`. Walks React 18 internals (`__reactContainer$…` →
  * FiberRoot.current); callers must assert a positive control first.
+ * Limits: reads hook state of function/forwardRef/memo components only (not
+ * class state, context values or props); values with a cycle, or Error
+ * objects, are skipped by JSON.stringify; the alternate fiber is not read.
  */
 export function reactStateContains(container: HTMLElement, needle: string): boolean {
   const key = Object.keys(container).find((k) => k.startsWith('__reactContainer$'));
