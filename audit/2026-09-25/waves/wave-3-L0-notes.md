@@ -38,3 +38,6 @@ S-C3-1 and S-C3-3 signed (S-C3-1 asked separately: the handoff missed it, W11b `
   - #43 @22de642: plans only, both marked "not approved for execution"; no src change.
   - L1-A's permission layer blocked ticking S-C3-1/S-C3-3; L0 ticked them on docs/wave3-close from the owner's own chat answers (b7c3d42).
 - 2026-10-04: #46 RCC-3 @57c3760 (stacked on #42): 6 files = plan; Windows `BackupRestoreFlow.test.tsx` 4 passed; break-it delete `backup.ts:181` gcTime → FE-RCC3-001 failed; restored; CI 6/6. Stack: #37 → #42 → #46.
+- 2026-10-04: L1-A round 3 done. #48 SAFE-INTERP-GROUNDED @0ac0e48: 14 files = plan; `test_safe_interp_grounded.py` 11 passed; break-it `interpretations.py:542` → `if False:` → 2 failed; collected 1357 = slots; CI 6/6. #47 PROHIBITED-PARAPHRASE plan @58148d3: plan + INDEX only, "not approved for execution", interpret_safety.py untouched; CI 6/6.
+- New owner items to register at close: AUDIT-ORDER (subsumes DDI-AUDIT-ORDER), AUDIT-DENIALS, SAFE-INTERP-EMBEDDED, RAG-RUNTIME-500, PARA-1 (sign-off on #47), AUTH-401-LOGOUT, REPROCESS-INTERP-ORPHAN, PANEL-INTERP-STALE, dev.ps1 install/dev-server items, AGENT-PASS-LINE, implementer Sonnet trailers on 145fe77 f2677e2 02c644a d68e92e (left as-is).
+- Merge order (12 PRs): #37 → #41 → #44 → #48 → #42 → #46 → #38 → #45 → #39 → #47 → #43 → #40. Each after #37 refreshes against main.

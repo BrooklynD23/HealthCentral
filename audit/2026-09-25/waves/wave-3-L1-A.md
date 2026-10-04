@@ -1,6 +1,6 @@
 # Wave 3 — L1-A report (backend)
 
-Status: all 3 phases done. PRs #41 (DDI), #44 (SAFE-CHAT) and #45 (G-C3b) are open, and CI passes 6/6 on each. None is merged.
+Status: all 5 phases done. PRs #41 (DDI), #44 (SAFE-CHAT), #45 (G-C3b), #48 (SAFE-INTERP-GROUNDED) and #47 (PARAPHRASE plan) are open, and CI passes 6/6 on each. None is merged.
 
 ## Phase 1 — DOC-DELETE-INTERP
 
@@ -206,3 +206,95 @@ W3-SEC-SCHED, SAFE-CHAT, S-C3-1 and S-C3-3, all as relayed by L0. No gate was si
    - CORRELATION-NORMALISE
 
 Worktrees left in place: `../hc-ddi`, `../hc-safechat`, `../hc-gc3b`. The break and probe worktrees were removed.
+
+## Phase 4 — SAFE-INTERP-GROUNDED
+
+PR **https://github.com/BrooklynD23/HealthCentral/pull/48** · branch `fix/safe-interp-grounded` · head `0ac0e48` · base `main` @ `90c502a` · worktree `../hc-safeinterp`
+
+Commits:
+1. `f202414` docs: plan + Codex plan review r1
+2. `02c644a` fix, from the L2 sonnet implementer
+3. `d68e92e` review loop 1 (tests)
+4. `0ac0e48` docs: execution record + Codex plan review r2 + Codex diff review
+
+Fix:
+- On a prohibited match, `interpret-grounded` returns `ESCALATE_TEMPLATE`.
+- 6 interpretation routes now write fail-closed, text-free audit rows.
+- The `rag.py` hunk is byte-identical to #44.
+
+### Commands and outputs
+| Check | Output |
+|---|---|
+| RED / GREEN | `10 failed` / `121 passed` |
+| collected | `1357` (**+11**) |
+| full suite at d68e92e (flock) | `1357 passed`, rc=0, `FAILURES-SUBSET-OK`; `boot ok`; `SCOPE-OK` |
+| `rag.py` vs #44 | `RAG-HUNK-IDENTICAL`; merge-tree conflicts only in `AGENT.md`, `CLAUDE.md`, `docs/INDEX.md` |
+| break-its BI-1…BI-6 | each red as predicted; restored `11 passed` |
+| CI `gh pr checks 48` | all 6 pass |
+
+### Codex
+- Plan r1, REVISE (1 BLOCKER, 3 MAJOR, 1 MINOR): all accepted. The real gap was the 501-after-write exit, which had no audit row. Fixed by writing the `grounded` audit before `rag.query`, plus test 006.
+- Plan r2, REVISE:
+  - BLOCKER (audit 404/403 exits) rejected: the repo audits on success only (`api/documents.py:1127` vs `:1134`).
+  - Its evidence was right that `SecurityAuditMiddleware` skips GET; the plan's false sentence is corrected.
+- Diff, 1 high (audit committed after the profile write): rejected for this PR. It is the 2-DB ordering problem shared by every write route, so it becomes owner item AUDIT-ORDER.
+
+### Reviewers
+- code-reviewer (opus): APPROVE.
+- security-reviewer (opus): APPROVE.
+- Loop 1 fixed 3 test gaps: the second-audit fail-closed path, the batch details, and the lowercase analyte check.
+
+### Findings
+- **Persisted interpretations:** L0's rule that the persisted interpretation must hold the template is already true for model output. The grounded answer is never persisted. The persisted `LabInterpretation` is template/KB text, and no route calls `interpret_with_model`.
+- **KB text vs patterns:** 7 of 60 seeded KB fields match a prohibited pattern (6 on "certain", 1 on "you have a cut"), with the scan command in the plan. So swapping persisted template text would replace correct reference text.
+
+### Owner items (new)
+1. **AUDIT-ORDER**: audit rows are written after profile commits on every write route, with no way to commit both together. Subsumes DDI-AUDIT-ORDER.
+2. **AUDIT-DENIALS**: GET 404/403 denials are not audited or logged anywhere.
+3. **SAFE-INTERP-EMBEDDED**: the blocked response still embeds the template `interpretation` text. Covered by PARAPHRASE false positives.
+4. **RAG-RUNTIME-500**: `RuntimeError` from `rag.query` is unmapped (pre-existing).
+
+Note: the implementer used the trailer `Co-Authored-By: Claude Sonnet 5.5` on `02c644a` and `d68e92e`, following its own attribution reminder. Left as is.
+
+## Phase 5 — PROHIBITED-PARAPHRASE (plan only)
+
+PR **https://github.com/BrooklynD23/HealthCentral/pull/47** · branch `docs/prohibited-paraphrase-plan` · head `58148d3` · worktree `../hc-paraphrase` · CI 6/6 pass. Marked **NOT APPROVED FOR EXECUTION**. `interpret_safety.py` is untouched, and sign-off PARA-1 is unsigned.
+
+Measured with read-only scripts (embedded in the plan), on `90c502a`:
+
+| Pattern set | Must-block caught | Must-allow false positives |
+|---|---|---|
+| Current | **13/42** | **13/77** (all 3 agent draft templates, 7 KB fields, "Certain medications…") |
+| Candidate | **37/42** (in-sample) | **0/77** |
+
+- **Bugs found:**
+  - `you have \w+` is too broad.
+  - Bare "certain" matches.
+  - `100%\b` can never match.
+- `test_interpret_safety_adversarial.py` with the candidates monkeypatched in: `8 passed`.
+- Variant A2 was rejected: +4 catches but +6 false positives.
+- **Limits:** the corpus is author-written and the figures are in-sample. A held-out set is required at execution, with a recall floor set in PARA-1. Real model output is UNMEASURED.
+- Checks: `tests/test_docs_lint.py` → `7 passed`; collected unchanged at `1346`.
+
+## Updated merge order and count slots (5 PRs)
+
+Each was measured alone on `90c502a`:
+
+| PR | Collected | Delta |
+|---|---|---|
+| #41 | 1350 | +4 |
+| #44 | 1351 | +5 |
+| #45 | 1350 | +4 |
+| #48 | 1357 | +11 |
+| #47 | 1346 | 0 |
+
+Combined, the predicted total is 1346 + 24 = **1370** (not yet measured).
+
+Suggested order:
+1. #41
+2. #44
+3. #48. Its `rag.py` hunk matches #44's, so after #44 it merges cleanly apart from the slots.
+4. #45
+5. #47 (docs; any time)
+
+Each later PR merges `origin/main`, re-measures, rewrites the slots and regenerates the index.
