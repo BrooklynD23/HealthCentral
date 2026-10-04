@@ -32,6 +32,7 @@ Counts come from `grep -E` over `src/frontend/src` (`*.ts`, `*.tsx`, `*.css`). B
 
 | Area | Where | v4 change that applies | Count |
 |---|---|---|---|
+| **CSS variable collision** | `globals.css:7-10` (`--color-surface`, `--color-surface-elevated`, `--color-ink`, `--color-accent` as bare RGB triplets such as `250 250 248`) and `:16-19` (`--radius-sm/md/lg/xl` = 8/12/16/24px), inside `@layer base` `:root` | v4 generates its theme as CSS variables with these **same names** (`--color-*`, `--radius-*`). The `base` layer wins over `theme`, so `bg-surface`, `text-ink`, `bg-accent/20` (and `body`, `:49`) would resolve to an invalid colour (transparent), and `rounded-md/lg/xl` (169 hits, 43 files) would move from 6/8/12px to 12/16/24px. `grep -rn 'var(--\(color\|radius\)' src` → **0 consumers**, so the 8 lines are dead in v3 and can be deleted. (`--font-*` is read at `:27,56,62`; `--shadow-*` values equal the config: harmless) | 8 lines |
 | Directives | `src/styles/globals.css:1-3` | `@tailwind base/components/utilities` → `@import "tailwindcss"` | 1 file |
 | Custom CSS layers | `globals.css:5` `@layer base`, `:74` `@layer components` (`.glass-card` with `@apply`, `.subtle-noise`, `.stagger-animation`), `:122` `@layer utilities` (`min-h-target`, `min-w-target`, `animation-delay-*`) | Custom utilities belong in `@utility` blocks. No variant-prefixed use was found (`grep '[a-z-]+:(min-h-target\|…)'` → 0) | 1 file, 2 consumer files |
 | JS config | `tailwind.config.js` | Not loaded automatically in v4: becomes `@theme` (colors `surface/ink/accent/status/dark`, fonts, `fontSize`, `spacing 18/88/128`, `borderRadius xl/2xl/3xl`, `boxShadow soft/card/elevated/focus`, 6 animations and keyframes), or is kept through `@config` | 1 file |
@@ -44,7 +45,8 @@ Counts come from `grep -E` over `src/frontend/src` (`*.ts`, `*.tsx`, `*.css`). B
 | bare `border` (default colour) | 38 files | Default border colour goes from `gray-200` to `currentColor`. Many sites pair it with a colour class (for example `Input.tsx:43` `border-black/[0.08]`); a bare one changes colour | 107 |
 | `ring-*` | 23 files | 0 bare `ring` (the default width moves from 3px to 1px), so explicit widths are unaffected. Ring colour default changes; sites use explicit `ring-accent` etc. | 107 |
 | `space-x/y-*`, `divide-*` | 35 / 7 files | The selector moves from `> * + *` to `> :not(:last-child)`. Spacing can differ with inline or hidden children | 150 / 16 |
-| `placeholder*` | 5 files | Default placeholder colour changes to the current text colour at 50% | 6 |
+| Placeholders | inputs with a `placeholder` attribute and **no** `placeholder:` class (`grep placeholder` → 29 hits, 16 files; the 5 files / 6 hits with `placeholder:` classes are the unaffected ones) | Default placeholder colour changes to the current text colour at 50% | 29 |
+| `hover:` | 27 files | v4 applies `hover:` only under `@media (hover: hover)`: touch devices lose tap-hover styles | 78 |
 | buttons | all `<button>` | v4 sets `cursor: default`. `components/ui/Button.tsx` gets `cursor-pointer` if the owner wants the old look | — |
 | Not present | — | `*-opacity-*` 0, `overflow-ellipsis` 0, `theme(` 0, `[--var]` arbitrary 0, `!` important prefix 0 in class strings | 0 |
 
@@ -54,6 +56,7 @@ Counts come from `grep -E` over `src/frontend/src` (`*.ts`, `*.tsx`, `*.css`). B
 
 ## Review Focus
 
+0. **Transparent colours from the variable collision** (scope row 1). Task 2 Step 0 deletes the 8 dead variables; Task 3 checks the `body` background is `#FAFAF8`, not transparent.
 1. **Silent visual drift.** vitest (jsdom) and tsc never see CSS, so a wrong rename passes both. Screenshots (Task 3) are the only signal; the reviewer compares them pair by pair.
 2. **`cn()` merge conflicts.** `tailwind-merge` 2 does not know `shadow-xs` or `outline-hidden`, so it can drop a class or keep 2 conflicting ones. Task 2 upgrades it in the same PR, and Task 3 checks a `Button` variant override.
 3. **Bare `border` colour.** 107 sites. Either keep the v3 default with the upgrade tool's compatibility base rule, or audit each site. The plan keeps the compatibility rule (smaller diff) and records it.
@@ -79,7 +82,7 @@ for p in 'shadow-sm\b' 'backdrop-blur-sm\b' 'outline-none' 'flex-(shrink|grow)' 
 
 Record the output. This is the "before" column for Task 2 Step 4.
 
-- [ ] **Step 4: "Before" screenshots.** Use a throwaway Playwright script outside the repo, or `e2e/support/start-backend.mjs` plus `page.screenshot`, against the CI e2e environment or a Linux box with SQLCipher. Never use an unencrypted Windows run as evidence (recurring-failures §4). Capture 1280×800 full-page shots of these routes: `/setup`, `/inbox`, `/trends`, `/verify`, `/explain`, `/medications`, `/settings`, `/timeline`, `/search`, plus one open modal (`DoseLoggingModal`). Store them outside the repo (`../tw4-shots/before/`).
+- [ ] **Step 4: "Before" screenshots.** Use a throwaway Playwright script outside the repo, or `e2e/support/start-backend.mjs` plus `page.screenshot`, against the CI e2e environment or a Linux box with SQLCipher. Never use an unencrypted Windows run as evidence (SQLCipher has no Windows wheel; see the W-11a PR-4 measurement). On Linux set `HC_E2E_CHROMIUM_PATH` (recurring-failures §4). Capture 1280×800 full-page shots of these routes: `/setup`, `/inbox`, `/trends`, `/verify`, `/explain`, `/medications`, `/settings`, `/timeline`, `/search`, plus one open modal (`DoseLoggingModal`). Store them outside the repo (`../tw4-shots/before/`). Include one computed-style check per shot: `getComputedStyle(document.body).backgroundColor` must be `rgb(250, 250, 248)`.
 
 ### Task 1: Run the upgrade tool
 
@@ -89,10 +92,12 @@ Record the output. This is the "before" column for Task 2 Step 4.
 
 ### Task 2: Complete what the tool leaves
 
+- [ ] **Step 0: Delete the colliding variables.** Re-run `grep -rn 'var(--\(color\|radius\)' src` (expect 0 lines), then delete `globals.css:7-10` and `:16-19` (keep `--font-*` and `--shadow-*`). If the grep is non-zero, STOP: a consumer exists and needs its own decision.
 - [ ] **Step 1: `tailwind-merge` 3.** `npm install tailwind-merge@^3` (Windows). This is a named major in the approval. `utils/cn.ts` keeps its API (`twMerge(clsx(inputs))`).
 - [ ] **Step 2: Border and button defaults.** If the tool did not add them, add v4's documented compatibility rules to `globals.css` under `@layer base`:
   - `*, ::after, ::before, ::backdrop, ::file-selector-button { border-color: var(--color-gray-200, currentColor); }`
   - `button:not(:disabled), [role="button"]:not(:disabled) { cursor: pointer; }`
+  - `input::placeholder, textarea::placeholder { color: var(--color-gray-400); }`
 - [ ] **Step 3: Custom utilities.** Turn `globals.css` `@layer utilities { .min-h-target … }` into one `@utility min-h-target { … }` block per class, and the same for `min-w-target` and `animation-delay-*`.
 - [ ] **Step 4: Re-run Task 0 Step 3.** Expected after the migration: `shadow-sm`, `backdrop-blur-sm`, `outline-none`, `flex-shrink|grow` and the old-meaning bare `rounded` are 0, or appear only under their v4 meaning, with each remaining hit explained in the PR body.
 - [ ] **Step 5: Checks** (Windows): `npx tsc --noEmit`, `npm run lint`, `npm run build`, `npx vitest run`, `npm audit`. Paste each. Expected: all rc 0; vitest count equals the Task 0 baseline; `npm audit` no longer lists `braces`, `micromatch`, `chokidar`, `fast-glob` or `tailwindcss`.
@@ -104,7 +109,7 @@ Record the output. This is the "before" column for Task 2 Step 4.
 
 - [ ] **Step 1.** Capture the "after" screenshots with the same routes, viewport and environment as Task 0 Step 4.
 - [ ] **Step 2.** Diff each pair, for example with `npx pixelmatch` or ImageMagick `compare -metric AE` run outside the repo. Record per-route pixel deltas in the PR body, and attach the pairs whose delta is above 0.5% of the pixels.
-- [ ] **Step 3.** Check the `cn()` merge: in a vitest run, `cn('shadow-xs', 'shadow-card')` must return `'shadow-card'`. Add this as a test in `src/__tests__/cn.test.ts` (new, 1 test) during Task 2, and observe it failing on tailwind-merge 2 before the upgrade.
+- [ ] **Step 3.** Check the `cn()` merge: in a vitest run, `cn('outline-none', 'outline-hidden')` must return `'outline-hidden'` (tailwind-merge 2 reads `outline-hidden` as a colour and keeps both; 3 knows it as an outline style). Do **not** use a custom shadow such as `shadow-card`: tailwind-merge files it as a shadow *colour*, so it never merges with a size class in either version (already true today for `shadow-sm` + `shadow-card`). Add this as a test in `src/__tests__/cn.test.ts` (new, 1 test) during Task 2, paste it RED on tailwind-merge 2 and GREEN on 3.
 - [ ] **Step 4.** Reviews: `code-reviewer` plus a reviewer who opens the screenshot pairs. CI 6/6 (E2E Smoke included).
 
 ## Stop gates
@@ -116,7 +121,7 @@ Record the output. This is the "before" column for Task 2 Step 4.
 
 ## Rollback
 
-One PR: `git revert <merge sha>`, then `npm ci`. No data, schema or API change.
+One PR: `git revert -m 1 <merge sha>` (the repo merges with merge commits), then `npm ci`. No data, schema or API change.
 
 ## Out of scope
 
