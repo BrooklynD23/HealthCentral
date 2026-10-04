@@ -21,3 +21,8 @@ S-C3-1 and S-C3-3 signed (S-C3-1 asked separately: the handoff missed it, W11b `
 
 ## Log
 - 2026-10-04: dispatched L1-A (DDI → G-C3b), L1-B (RCC → NPM → W-11a PR-4), L1-C (P4-core) on 90c502a. S-C3-1 signed after dispatch; L1-A told.
+- 2026-10-04: L1-B done. L0 verification:
+  - #37 RCC @7113db5: 6 files = plan; Windows `vitest run RecoveryCodeCard.test.tsx` 8 passed; break-it delete `profiles.ts:272` (gcTime) → FE-RECOV-007/008 FAILED, restored; CI 6/6.
+  - #38 NPM @93def9e: package.json unchanged; Windows `npm audit` → 7 (2 moderate, 5 high); CI 6/6 incl. E2E.
+  - #39 W-11a PR-4 @85f0948: inventory grep (path-anchored exclusions) → only ledger H2 quoting "155/25" as CONTRADICTED history; CI 6/6. H2 cell still says "1,245 backend collected" → close-out item.
+  - #37 and #38 both regenerate docs/INDEX.md + _link_graph.json (L1-B said disjoint; wrong): second to merge needs merge-main + regen.

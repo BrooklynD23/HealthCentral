@@ -1,0 +1,164 @@
+# Wave 3 — L1-B (frontend) report, 2026-10-04
+
+All 3 phases have an open PR, CI 6/6 green, and reviews addressed. Nothing is merged. No gates were signed.
+
+**Merge order:** #37 → #38 → #39. They touch disjoint files, so any order merges cleanly. #39's vitest figure (186) is pinned to `90c502a` and is correct in any order. #38 also passes on its own.
+
+| Phase | PR | Branch | Head | CI | Backend collected delta | vitest delta |
+|---|---|---|---|---|---|---|
+| RECOVERY-CODE-CACHE | https://github.com/BrooklynD23/HealthCentral/pull/37 | fix/rcc-recovery-code-cache | `7113db5` | 6/6 pass | 0 (1346) | +2 (186 → 188) |
+| NPM-AUDIT | https://github.com/BrooklynD23/HealthCentral/pull/38 | fix/npm-audit | `93def9e` | 6/6 pass (E2E Smoke pass) | 0 | 0 |
+| W-11a PR-4 (G-B6) | https://github.com/BrooklynD23/HealthCentral/pull/39 | docs/w11a-pr4-frontend-counts | `85f0948` | 6/6 pass | 0 | 0 |
+
+- **Base:** `origin/main` @ `90c502a` for all 3. Main did not move during the wave.
+- **Environment:** frontend commands ran on Windows through `powershell.exe` (node v22.20.0, npm 11.6.2).
+- **Gates used:** W3-SEC-SCHED (RCC) and NPM-AUDIT-SCHED, both verbatim from owner-decisions. W-11a PR-4 needed no gate.
+
+## 1. RECOVERY-CODE-CACHE (PR #37)
+
+**Plan:** `docs/plans/2026-10-04-RCC-recovery-code-cache.md`, committed first on the branch (`821ffa8`).
+
+**The fix needs 2 lines.** I read the TanStack source (query-core 5.90.14):
+- `reset()` alone leaves the detached mutation in the cache for the default 5-minute gcTime.
+- `gcTime: 0` alone keeps the mutation while the card is mounted, because `optionalRemove` skips mutations that still have observers.
+
+So both are applied:
+- `onSettled: () => issueRecoveryCode.reset()` in `components/settings/RecoveryCodeCard.tsx:66`
+- `gcTime: 0` in `services/profiles.ts:272` (`useIssueRecoveryCode`)
+
+**Placement flag for the owner:** the gate says "in `RecoveryCodeCard.tsx`". `gcTime` is a `useMutation` option and can only live in the hook. The change there is 1 line. The hook has 1 caller, and the file is not ask-first. Both reviewers judged the placement justified.
+
+**Tests added:** FE-RECOV-007 (success) and FE-RECOV-008 (error, then retry). Each has a `MutationCache.subscribe` positive control that shows the secret was in the cache before the negative `waitFor`.
+
+| Check (Windows) | Output |
+|---|---|
+| RED before the fix | `Tests 2 failed \| 6 passed (8)`. 007 and 008 fail with `AssertionError: expected 1 to be +0` |
+| `npx tsc --noEmit` | `tsc=0` |
+| `npm run lint` | `0 errors, 5 warnings` (pre-existing, in `useSpeechRecognition.ts`), `lint=0` |
+| `npm run build` | `✓ built`, `build=0` |
+| `npx vitest run` on base `90c502a` | `Test Files 32 passed (32)`, `Tests 186 passed (186)` |
+| `npx vitest run` on head `7113db5` | `Test Files 32 passed (32)`, `Tests 188 passed (188)` |
+| Break-it: `sed -i '66d' RecoveryCodeCard.tsx` (removes the `reset()` line) | `Tests 2 failed \| 6 passed (8)` (007 and 008) |
+| Break-it: `sed -i '272d' profiles.ts` (removes the `gcTime` line) | `Tests 2 failed \| 6 passed (8)` (007 and 008) |
+| After the break-it runs | restored with `git checkout --`; `git status --short` is clean |
+
+**Reviews:**
+- **code-reviewer:** returned 1 MINOR. The FE-RECOV-008 `toBeEnabled` check could not fail. The implementer replaced it with a real retry in `7113db5`. Re-review: APPROVE.
+- **security-reviewer:** APPROVE, with 0 in-scope findings.
+
+## 2. NPM-AUDIT (PR #38)
+
+**Plan:** `docs/plans/2026-10-04-NPM-audit-fix.md` (`0b18508`) plus Amendment 1 (`d982643`). The lockfile commit is `93def9e`. `package.json` is unchanged. `--force` was never used.
+
+| `npm audit` (Windows) | total | critical | high | moderate | low |
+|---|---|---|---|---|---|
+| Before (`90c502a`) | 26 | 1 | 19 | 4 | 2 |
+| After (clean `npm ci` from the new lockfile) | 7 | 0 | 5 | 2 | 0 |
+
+The 2026-10-01 program figure of 21 was measured on `8064244`. New advisories account for the difference.
+
+**Left, each needing a semver-major.** These come back to the owner and were not fixed:
+
+| Severity | Packages | Major needed |
+|---|---|---|
+| high | tailwindcss, braces, chokidar, micromatch, fast-glob (GHSA-vfj7-8cjw-p6xm; fast-glob is only affected through micromatch) | `tailwindcss@4.3.3` |
+| moderate | react-router, react-router-dom 6.30.6 (GHSA-wrjc-x8rr-h8h6, GHSA-337j-9hxr-rhxg) | `react-router-dom@7.18.4` |
+
+The security reviewer rated all 7 LOW and not reachable today:
+- The tailwind chain runs only at build time.
+- Every route target is built in code with a literal `/`.
+- The app uses a declarative `BrowserRouter`, with no SSR.
+
+**The plan's stop gate tripped, and I cleared it with Amendment 1.** Task 1's guard reported `major changes: 2`:
+- `es-module-lexer` 1.7.0 → 2.3.2
+- `std-env` 3.10.0 → 4.3.0
+
+Each has exactly 1 consumer before and after: `vitest`, which moves 4.0.16 → 4.1.11, a minor. That makes them vitest's own declared internals, not a major upgrade of anything `package.json` names. The code-reviewer confirmed the sole-consumer claim at every depth of the lockfile. **The owner may veto this reading.** If so, revert `93def9e`.
+
+**Direct dependencies moved, all within their major:**
+- vite 7.3.0 → 7.3.6
+- vitest 4.0.16 → 4.1.11
+- postcss 8.5.6 → 8.5.28
+- react-router-dom 6.30.2 → 6.30.6
+
+| Check (Windows, clean `npm ci`) | Output |
+|---|---|
+| tsc / lint / build | `tsc=0`, `lint=0` (0 errors), `build=0` (L1 re-ran all 3) |
+| `npx vitest run` | `Test Files 32 passed (32)`, `Tests 186 passed (186)` (L1 re-ran) |
+| Versions | `vitest/4.1.11`, `vite/7.3.6` |
+| Lockfile | `lockfileVersion` stays 3. 106 entries added or changed, all on `registry.npmjs.org` with sha512 integrity. Linux natives present. 0 new install scripts |
+| E2E | CI "E2E Smoke Tests": pass |
+
+**Reviews:**
+- **code-reviewer:** APPROVE, with 4 MINOR. The 2 that need follow-up work are under open findings below.
+- **security-reviewer:** APPROVE, with 0 CRITICAL and 0 HIGH.
+
+## 3. W-11a PR-4, G-B6 (PR #39)
+
+**Task 0:**
+- Worktree `hc-w11a-pr4` at `90c502a`.
+- `post-P1-ok`, `p0b-ok`.
+- START collected `1346 tests collected`, `pytest exit=0`. Run with `HF_HUB_OFFLINE=1`, under flock, Py 3.11.16.
+- I skipped the full backend run. This is a docs-only PR, and the CI Backend Tests job ran the suite (pass).
+
+**Measured on main@90c502a, Windows 11** (vitest 4.0.16, Playwright 1.58.1):
+
+| Measurement | Result |
+|---|---|
+| vitest | 186 listed / 186 passed / 0 failed, in 32 files |
+| Playwright `--list --project chromium` | `Total: 30 tests in 6 files` (L1 re-ran: same) |
+| Playwright `--list`, all projects | `Total: 35 tests in 7 files` (L1 re-ran: same) |
+| Local Playwright run | **UNMEASURED on Windows.** The backend fails to start: `RuntimeError: SQLCipher required but not available` (`core/database.py:78`). I deliberately did not set `DATABASE_ENCRYPTION_REQUIRED=false`. |
+
+**Files changed:**
+- `docs/capstone-report/claims-ledger.md` (H2)
+- `docs/capstone-report/architecture-overview.md` (§14)
+- `docs/capstone-report/specs-compliance-matrix.md` (GATE-03, GATE-06, and the local-run row)
+- `docs/features/TASK_LIST.md` (new Session Note)
+- `audit/repository-audit-dashboard.html` (`:255`)
+
+**Grep and docs checks:**
+- The plan's inventory grep prints no lines.
+- A raw grep finds 3 hits for the old figures, all dated or historical.
+- `docs_lint`: pass. `generate_docs_index --check`: fresh.
+
+**Review:** code-reviewer returned CHANGES with 1 MAJOR. The H2 claim cell had not been replaced, and the plan's grep filter hid it, because a line that mentions `TASK_LIST.md` is excluded (a §1/§5-style blind spot in the plan's own check). Fixed in `85f0948`, along with 3 MINOR. Re-review: APPROVE.
+
+**Deviations:**
+- The plan's line numbers had moved.
+- The live claims had already been reworded to 165/28 and 179/31. I replaced them where they now are.
+- The GATE-03 "no build/eslint in CI" text stays, because PR-3 (G-B4) is not merged.
+
+## Open findings (not fixed; owner items)
+
+**Must decide now:**
+1. **NPM residual, 7 advisories, majors only:** Tailwind 3 → 4 clears 5 high. react-router 6 → 7 clears 2 moderate. Each needs its own migration phase.
+2. **NPM transitive majors:** es-module-lexer 2.x and std-env 4.x arrive through vitest 4.1.11. Accept Amendment 1's reading, or veto it.
+3. **HIGH, RCC pattern elsewhere:** the same 5-minute mutation-cache retention exists in 2 more places:
+   - `useCreateProfile` (`services/profiles.ts:120`, `pages/ProfileSetup.tsx:136`): password in; recovery code and token out.
+   - `useRecoverProfile` (`:241`, `pages/RecoverProfile.tsx:45-49`).
+
+   Medium items in the same area:
+   - `RecoverProfile.tsx:32-33` and `ProfileSetup.tsx:92` never clear the secret state.
+   - `useDeleteProfile` (`:217`) keeps the password after a failed delete.
+4. **MEDIUM, `dev.ps1:627-635`:** the launcher installs only when `node_modules` is missing, so existing installs keep vite 7.3.0 and ws 8.19.0 after #38 merges.
+5. **MEDIUM, `dev.ps1:281-282`:** the product frontend runs on the Vite dev server. Every Vite dev-server CVE is therefore a runtime CVE on patient machines.
+
+**Later:**
+- LOW: a wrong password on the settings recovery card returns 401 (`api/profiles.py:611`). `services/api.ts:65-68` then signs the user out instead of showing "Incorrect password".
+- LOW: if the user leaves Settings while issuing a code, the backend replaces the code but the new code is never shown. Pre-existing.
+- LOW:
+  - `package.json` `engines.node >=22` is below vite 7's `>=22.12`.
+  - CI never runs `npm run build` or lint. That is PR-3's G-B4 scope.
+  - rollup 4.64.0 adds the optional `@napi-rs/lzma-linux-x64-gnu`. It is upstream metadata and the integrity matches.
+- Close-out: `docs/capstone-report/implementation-program.md:405` (G-B6 row) still reads 165/28 @`40f590e`. Fix it in the Wave-3 ledger close-out.
+- Nit: specs-compliance-matrix `:181` reads "Measured … UNMEASURED". "Attempted" would be clearer.
+
+## Process notes
+
+- Plans were written with the superpowers writing-plans skill. No Codex review, per the brief.
+- 3 implementers (sonnet) and 6 reviewer runs (opus: 4 code-reviewer, 2 security-reviewer), 1 L2 batch at a time.
+- `gh pr create` worked, so no PATCH was needed.
+- Worktrees left in place: `../hc-rcc`, `../hc-npm`, `../hc-w11a-pr4`.
+
+Next action: owner reviews #37 first. Its body explains the `profiles.ts` placement.
