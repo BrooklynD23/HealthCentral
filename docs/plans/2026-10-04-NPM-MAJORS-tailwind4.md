@@ -103,7 +103,7 @@ Record the output. This is the "before" column for Task 2 Step 4.
 - [ ] **Step 5: Checks** (Windows): `npx tsc --noEmit`, `npm run lint`, `npm run build`, `npx vitest run`, `npm audit`. Paste each. Expected: all rc 0; vitest count equals the Task 0 baseline; `npm audit` no longer lists `braces`, `micromatch`, `chokidar`, `fast-glob` or `tailwindcss`.
 - [ ] **Step 6: Commit** in 2 commits, with explicit pathspecs taken from `git status --short`:
   1. `feat(frontend): migrate to Tailwind CSS 4 with the official upgrade tool`
-  2. `fix(frontend): tailwind-merge 3, v3 border/cursor defaults, @utility blocks`
+  2. `fix(frontend): tailwind-merge 3, drop colliding :root vars, v3 border/cursor/placeholder defaults, @utility blocks`
 
 ### Task 3: Visual verification (blocks the PR)
 
