@@ -974,6 +974,14 @@ Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-repor
 
 Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-04-RCC-recovery-code-cache.md`
 
+## `docs/plans/2026-10-04-RCC3-restore-backup.md`
+
+**RCC-3 — Restore Password Out of the Mutation Cache Implementation Plan**
+
+- Owner gate RCC-3 (2026-10-04), verbatim: "Same small fix as RCC-2, done by L1-B." L0 scope note: "useRestoreBackup (services/backup.ts:173, BackupCard.tsx:113) — gcTime 0 + reset() on settle,…
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-04-RCC-recovery-code-cache.md`, `docs/plans/2026-10-04-RCC2-secret-retention.md`
+
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
 **Project Structure Setup**
