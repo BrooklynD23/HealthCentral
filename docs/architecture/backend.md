@@ -1,6 +1,6 @@
 # Backend Structure
 
-**Last Updated:** 2026-07-28
+**Last Updated:** 2026-10-04
 **Owner:** Project Lead
 **Refresh Trigger:** Middleware order changes, a router is added/removed, or a migration chain gains a head
 
@@ -83,18 +83,31 @@ flowchart TD
 
     api --> modules --> core
     modules --> SAFE
-    api -.->|"never directly"| C3
+    api -.->|"provider switch only, no generation"| C3
 
     style SAFE fill:#4a148c,stroke:#ba68c8,color:#fff
 ```
 
 Rules this diagram encodes:
 
-- Dependencies point **downward only**. `core/` never imports from `modules/`
-  or `api/`.
-- Feature code reaches the LLM **only** through `ModelRunner` → `llm/factory`.
-  Importing `llama_cpp` or calling Ollama directly from a router is a
-  violation, which is why that edge is drawn dotted and labelled.
+- Dependencies point **downward** by design: `api/` → `modules/` → `core/`.
+  Six `core/` modules import from `modules/` today, all inside functions:
+  `core/auth.py` (`modules.notification_scheduler`), `core/config.py`
+  (`modules.redaction`), `core/external_runner.py` (`modules.redaction`),
+  `core/model_runner.py` (`modules.model_selector`), `core/document_crypto.py`
+  (`modules.ingest`) and `core/llm/llama_cpp_provider.py`
+  (`modules.model_integrity`). None imports from `api/`. New `core/` →
+  `modules/` imports should not be added.
+- Feature code reaches local inference through `ModelRunner` → `llm/factory`.
+  Importing `llama_cpp` or calling Ollama directly from feature code is a
+  violation. Known deviations: the dormant `llama_cpp` import in
+  `modules/model_selector.py` (owner decision D7: route it through
+  `ModelRunner`, work item W-7, not yet implemented) and the opt-in cloud runner
+  `core/external_runner.py` (owner decision D12: a documented exception; its
+  redaction hardening landed in W-6, and naming it in `CLAUDE.md` is work item
+  W-10, not yet implemented). `api/model_settings.py` calls `llm/factory`
+  directly only to inspect and switch the provider; it generates no text. That
+  is the dotted edge.
 - The safety modules are called *by* feature code but are not a layer feature
   code may reshape — they are on CLAUDE.md's ask-first list.
 
