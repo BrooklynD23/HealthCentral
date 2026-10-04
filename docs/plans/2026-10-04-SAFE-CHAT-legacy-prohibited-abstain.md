@@ -433,4 +433,22 @@ cd / && git -C "$WT" worktree remove --force "$BK" && git -C "$WT" status --shor
 
 ## Execution record
 
-_(filled in by Task 3)_
+Executed 2026-10-04 by Wave 3 L1-A (L2 implementer `sonnet` for Tasks 1-2 and review loop 1; L1 for Tasks 0 and 3). D9 venv, `HF_HUB_OFFLINE=1`.
+
+| Step | Result |
+|---|---|
+| Task 0 | `ANCESTOR-OK`, `TRIGGER-PATHS-UNCHANGED`, grep rc=1 (no collision); plan commit `ba5a2e0` |
+| Task 1 RED | `2 failed, 3 passed` (001, 004 FAIL) |
+| Task 2 GREEN | 4 files: `59 passed`, rc=0; fix commit `f5961e7` |
+| Count | `1351 tests collected` (L1 re-measured; +5 from 1346). Slots `CLAUDE.md:30,:35`, `AGENT.md:76` |
+| Review loop 1 | `45c15a9`: `core.audit` import regrouped; 001 asserts `citations == []` (code-reviewer MINOR-1/2) |
+| Full suite at `f5961e7` (flock) | `1351 passed, 63 warnings in 171.23s`, rc=0, `FAILURES-SUBSET-OK` |
+| Re-check at `45c15a9` | collect `1351`; safe-chat + chat_sessions + cache isolation + audit + `tests/agent`: `142 passed`; `boot ok` |
+| Scope | `SCOPE-OK` (ask-first modules, `core/`, `modules/agent/`, `src/frontend` unchanged) |
+| BI-1 block removed | 001, 004 FAIL |
+| BI-2 `verification = VerificationInfo()` removed (`api/assistant.py:882`) | 001 FAIL |
+| BI-3 block moved after the turn commit | 001, 004 FAIL |
+| BI-4 `prohibited_advice = True` removed (`modules/rag.py:842`) | 001, 004 FAIL |
+| restore | `5 passed`; break worktree removed |
+
+**Reviews.** code-reviewer (opus) APPROVE, 4 MINOR (2 fixed in loop 1; `validation_errors` vs reset verification is cosmetic; test double has no rollback model) plus the template question for the owner. security-reviewer (opus) APPROVE; 2 HIGH, 1 MEDIUM, 2 LOW pre-existing, 1 LOW introduced (cosmetic `validation_errors`). Codex plan r1 REVISE (5 MAJOR, procedural; dispositions in `SAFECHAT-r1-response.md`). Codex diff (`SAFECHAT-diff-codex.txt`) needs-attention, 1 high: the no-model knowledge fallback is not gated. **Rejected for this PR:** that fallback returns fixed seeded reference text, not a model answer (`api/assistant.py:1380`, `scripts/seed_knowledge_base.py:376`); the match ("when you have a cut") is a pattern false positive, and replacing reference text widens the decision. Reported as owner item SAFE-CHAT-FALLBACK.
