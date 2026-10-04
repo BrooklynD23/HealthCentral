@@ -108,8 +108,8 @@ It is not the only outbound path in code today:
   documented exception. Strict redaction is now unconditional; break-glass
   (`EXTERNAL_API_REDACTION_BREAK_GLASS`) is the only way to weaken it, writes
   an audit record, and shows a warning in Settings and on the assistant chat
-  page (work item W-6). Naming the exception in `CLAUDE.md` is **approved, not
-  yet implemented** (work item W-10).
+  page (work item W-6). Naming the exception in `CLAUDE.md` is
+  **approved, not yet implemented** (work item W-10).
 
 `ModelRunner` is the entry point for local inference. One dormant path bypasses
 it: `modules/model_selector.py` imports `llama_cpp` directly, and its only
