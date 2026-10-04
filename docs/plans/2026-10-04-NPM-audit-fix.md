@@ -40,6 +40,15 @@
 
 Prediction: 4 of 26 (tailwindcss, braces, chokidar, micromatch; all high) stay, each needing Tailwind 3 → 4. That is an owner decision, not part of this phase.
 
+**Amendment 1 (L1, 2026-10-04, measured by the Task 1 run).** The prediction was wrong. `npm audit fix` leaves **7 (2 moderate, 5 high)**, all needing a semver-major the gate forbids here:
+
+| Severity | Package | Needs |
+|---|---|---|
+| high | tailwindcss, braces, chokidar, micromatch, **fast-glob** | `tailwindcss@4.3.3` (major) |
+| moderate | **react-router, react-router-dom** (now 6.30.6; GHSA-wrjc-x8rr-h8h6, GHSA-337j-9hxr-rhxg) | `react-router-dom@7.18.4` (major) |
+
+Task 1 Step 3 also printed `major changes: 2`: `es-module-lexer` 1.7.0 → 2.3.2 and `std-env` 3.10.0 → 4.3.0. Each has exactly one consumer in the lockfile before and after, `vitest` (4.0.16 `^1.7.0` / `^3.10.0` → 4.1.11 `^2.0.0` / `^4.0.0-rc.1`), and `vitest` itself moves 4.0.16 → 4.1.11, a minor. These are vitest's own declared internals, not a major upgrade of anything `package.json` names, so they are **reported, not a stop**. The rule in Step 3 is therefore: a major change stops the phase if the package is in `package.json`, or if any consumer of it moved by a major, or if it has a consumer outside the package that pulled it. Task 2's full tsc/lint/build/vitest run on a clean `npm ci` is the evidence the vitest minor is not breaking here; E2E Smoke in CI is the rest.
+
 Frontend baseline at `90c502a` (L1, Windows, 2026-10-04): vitest **32 files, 186 tests passed**.
 
 ## Files (the complete list)
@@ -56,7 +65,7 @@ Frontend baseline at `90c502a` (L1, Windows, 2026-10-04): vitest **32 files, 186
 1. **A hidden major bump.** `npm audit fix` without `--force` should not cross a major, but a caret range can move a transitive dependency's major. Task 1 Step 3 diffs every `package.json` range and every top-level direct version in the lockfile against its old major.
 2. **Linux CI binaries dropped from the lockfile.** The lockfile is regenerated on Windows; CI runs Linux. Task 1 Step 4 checks the Linux optional natives (`@rollup/rollup-linux-x64-gnu`, `@esbuild/linux-x64`) are still recorded.
 3. **Tooling behaviour change inside a minor.** vite/vitest/rollup minors can change test or build behaviour. Task 2 runs tsc, lint, build and the full vitest suite; E2E Smoke runs in CI.
-4. **The count that does not go down.** If the after-count is not 4 (the major-only set), the plan's model is wrong: report the difference package by package.
+4. **The count that does not go down.** If the after-count is not 7 (the major-only set, Amendment 1), the plan's model is wrong: report the difference package by package.
 5. **`npm ci` from the committed lockfile.** A lockfile that only works with the `node_modules` it was produced in is useless. Task 2 Step 1 deletes `node_modules` and runs `npm ci` before the checks.
 
 ---
@@ -105,7 +114,7 @@ git show HEAD:src/frontend/package-lock.json > /tmp/claude-1000/npm-lock-before.
 powershell.exe -NoProfile -Command "cd C:\Users\DangT\Documents\GitHub\hc-npm\src\frontend; npm audit fix 2>&1 | Select-Object -Last 15; npm audit 2>&1 | Select-Object -Last 40"
 ```
 
-Paste both outputs. Expected: `4 high severity vulnerabilities` remain, all on the tailwindcss chain, with "fix available via `npm audit fix --force`" and "Will install tailwindcss@4.x, which is a breaking change".
+Paste both outputs. Expected (Amendment 1): `7 vulnerabilities (2 moderate, 5 high)` remain, all needing a major (tailwindcss chain, react-router-dom), with "fix available via `npm audit fix --force`" and "Will install tailwindcss@4.x, which is a breaking change".
 
 - [ ] **Step 3: No major crossed**
 
@@ -138,7 +147,7 @@ print('major changes:', bad)
 EOF
 ```
 
-Expected: `major changes: 0`. Any major change: STOP and report it (owner gate: "Any breaking major upgrade comes back to you").
+Expected: `major changes: 0`, or only majors that pass Amendment 1's rule (sole consumer is a package that moved by minor/patch). Any other major change: STOP and report it (owner gate: "Any breaking major upgrade comes back to you").
 
 - [ ] **Step 4: Linux natives still in the lockfile**
 
