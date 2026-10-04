@@ -37,3 +37,4 @@ S-C3-1 and S-C3-3 signed (S-C3-1 asked separately: the handoff missed it, W11b `
   - #42 @dd8edb6 (Windows): 4 files 18 passed; break-it delete first `gcTime: 0` (`profiles.ts:125`, useCreateProfile) → FE-RCC2-001/002 failed; restored.
   - #43 @22de642: plans only, both marked "not approved for execution"; no src change.
   - L1-A's permission layer blocked ticking S-C3-1/S-C3-3; L0 ticked them on docs/wave3-close from the owner's own chat answers (b7c3d42).
+- 2026-10-04: #46 RCC-3 @57c3760 (stacked on #42): 6 files = plan; Windows `BackupRestoreFlow.test.tsx` 4 passed; break-it delete `backup.ts:181` gcTime → FE-RCC3-001 failed; restored; CI 6/6. Stack: #37 → #42 → #46.

@@ -251,3 +251,58 @@ Both new PRs are open with CI 6/6 green, and reviews are addressed. Nothing is m
 **Worktrees left in place:** `../hc-rcc2`, `../hc-npm-majors`, plus the 3 from round 1.
 
 Next action: the owner merges #37, then L1 merges main into #42 and re-runs `npx vitest run` from Windows.
+
+---
+
+# Wave 3, L1-B round 3 (2026-10-04): RCC-3
+
+RCC-3 is done. https://github.com/BrooklynD23/HealthCentral/pull/46 is open at head `57c3760`. CI passed 6/6, both reviews returned APPROVE, and the review findings are addressed. Nothing is merged and no gates were signed.
+
+- **Owner gate RCC-3, verbatim:** "Same small fix as RCC-2, done by L1-B."
+- **Deferred by the owner and untouched here:** AUTH-401-LOGOUT and `useLogin`/`useUnlockProfile`. `services/api.ts` is unchanged.
+- **Plan:** `docs/plans/2026-10-04-RCC3-restore-backup.md` (`993f286`).
+- **Base:** #42's head `dd8edb6`, because #37 and #42 are not merged. The PR body says so.
+- **Merge order:** #37 → #42 → #46.
+
+## Change
+
+| File | Change |
+|---|---|
+| `services/backup.ts` `useRestoreBackup` | `gcTime: 0` |
+| `components/settings/BackupCard.tsx` `handleRestore` | Calls `reset()` once `mutateAsync` resolves, and again in `catch` |
+
+The component already cleared the password on success and when the restore target changes. After a failure it keeps the password so the user can retry, the same as RCC and RCC-2.
+
+**Tests:**
+- **FE-RCC3-001** covers a failure followed by a retry. It checks the cache, with positive controls on the cache watch and on the retry's call arguments.
+- **FE-RCC3-002** covers success. It checks React state, with a `reactStateContains` positive control. This test is needed because `queryClient.clear()` already empties the cache on success, so a cache test there could not fail.
+
+## Measured on Windows
+
+| Check | Output |
+|---|---|
+| RED | `Tests 2 failed \| 2 passed (4)`: FE-RCC3-001 fails with `expected 1 to be +0`, FE-RCC3-002 with `expected true to be false` |
+| GREEN | `Tests 4 passed (4)` |
+| tsc / lint / build | `tsc=0`, `lint=0` (0 errors), `build=0` |
+| Full vitest | `Tests 195 passed (195)` at head `57c3760` (base `dd8edb6`: 193) |
+| Break-it, `backup.ts:181` (`gcTime`) | red (001) |
+| Break-it, `BackupCard.tsx:119` (reset after resolve) | red (002) |
+| Break-it, `BackupCard.tsx:128` (reset in `catch`) | red (001) |
+| After break-it | Restored; `git status` clean |
+| Docs gates | Docs gates pass |
+
+**Collected delta:**
+
+| Suite | Before | After |
+|---|---|---|
+| Backend | 1346 | 1346 (+0) |
+| vitest | 193 | 195 (+2) |
+
+## Reviews
+
+- **code-reviewer:** APPROVE. Its 2 MINOR findings (the retry-leg positive control and a comment on the scope of the state control) are fixed in `57c3760`.
+- **security-reviewer:** APPROVE, with 0 CRITICAL, HIGH or MEDIUM findings. It confirmed that the only password-carrying mutations without the fix are now `useLogin`/`useUnlockProfile`, which have 0 callers and which the owner said to leave.
+
+Worktree `../hc-rcc3` is left in place.
+
+Next action: the owner merges #37, then #42, then #46. After each merge, L1 merges main into the next PR and re-runs `npx vitest run` on Windows.
