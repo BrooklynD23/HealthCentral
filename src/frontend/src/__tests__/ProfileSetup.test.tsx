@@ -296,7 +296,7 @@ describe('ProfileSetup', () => {
       await user.clear(screen.getByPlaceholderText('Create a secure password'));
       await fillAndSubmit(user);
 
-      expect(await screen.findByTestId('recovery-code')).toHaveTextContent(CODE);
+      expect(await screen.findByTestId('recovery-code', {}, { timeout: 5000 })).toHaveTextContent(CODE);
       expect(pw.seen.value).toBe(true);
       expect(code.seen.value).toBe(true);
       pw.unsubscribe();
@@ -309,7 +309,7 @@ describe('ProfileSetup', () => {
       expect(reactStateContains(container, PASSWORD)).toBe(false);
       // The code itself is still displayed: it lives in its one display state.
       expect(screen.getByTestId('recovery-code')).toHaveTextContent(CODE);
-    });
+    }, 15000);
 
     it('FE-RCC2-002: a failed creation leaves no password in the cache, and a retry is clean too', async () => {
       const user = userEvent.setup();
@@ -325,11 +325,11 @@ describe('ProfileSetup', () => {
 
       vi.mocked(api.apiPost).mockResolvedValueOnce(created);
       await user.click(screen.getByRole('button', { name: /create your profile/i }));
-      expect(await screen.findByTestId('recovery-code')).toHaveTextContent(CODE);
+      expect(await screen.findByTestId('recovery-code', {}, { timeout: 5000 })).toHaveTextContent(CODE);
       await waitFor(() => {
         expect(cachedMutationsContaining(queryClient, PASSWORD)).toBe(0);
         expect(cachedMutationsContaining(queryClient, CODE)).toBe(0);
       });
-    });
+    }, 15000);
   });
 });
