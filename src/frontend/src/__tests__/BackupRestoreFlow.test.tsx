@@ -154,6 +154,7 @@ describe('FE-BKUP: restore flow', () => {
     vi.mocked(api.apiPost).mockRejectedValueOnce(new Error('Incorrect password'));
     await user.click(screen.getByRole('button', { name: /restore this backup/i }));
     await waitFor(() => expect(api.apiPost).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(api.apiPost).mock.calls[1][1]).toMatchObject({ password: 'WrongHorse1' });
     await waitFor(() => expect(cachedMutationsContaining(queryClient, 'WrongHorse1')).toBe(0));
   });
 
@@ -163,7 +164,8 @@ describe('FE-BKUP: restore flow', () => {
     const { container } = renderCard();
 
     await fillRestoreForm(user, 'CorrectHorse1');
-    expect(reactStateContains(container, 'CorrectHorse1')).toBe(true); // positive control
+    // Positive control: the typed password is visible in hook state (useState here; the mutation snapshot is covered by break-it row 3).
+    expect(reactStateContains(container, 'CorrectHorse1')).toBe(true);
     await user.click(screen.getByRole('button', { name: /restore this backup/i }));
 
     await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(false));
