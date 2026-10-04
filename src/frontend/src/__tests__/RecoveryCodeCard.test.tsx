@@ -41,11 +41,42 @@ function renderCard() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return render(
+  const utils = render(
     <QueryClientProvider client={queryClient}>
       <RecoveryCodeCard />
     </QueryClientProvider>
   );
+  return { ...utils, queryClient };
+}
+
+/**
+ * How many mutations in this client's cache still carry `needle` in their
+ * variables or their result. The recovery code seals a second copy of the
+ * DEK; the password unlocks the first. Neither may outlive the request.
+ */
+function cachedMutationsContaining(queryClient: QueryClient, needle: string): number {
+  return queryClient
+    .getMutationCache()
+    .getAll()
+    .filter((m) =>
+      JSON.stringify({ v: m.state.variables, d: m.state.data }).includes(needle)
+    ).length;
+}
+
+/**
+ * Positive control: records whether the cache ever held `needle`. Without it,
+ * a "nothing cached" assertion would also pass if the mutation never reached
+ * this client at all.
+ */
+function watchCacheFor(queryClient: QueryClient, needle: string) {
+  const seen = { value: false };
+  const unsubscribe = queryClient.getMutationCache().subscribe((event) => {
+    const m = event.mutation;
+    if (m && JSON.stringify({ v: m.state.variables, d: m.state.data }).includes(needle)) {
+      seen.value = true;
+    }
+  });
+  return { seen, unsubscribe };
 }
 
 /**
@@ -147,5 +178,49 @@ describe('SEC-RECOV-002: recovery code entry point', () => {
     // A profile that already has a code gets Replace wording, not Create.
     expect(await screen.findByRole('button', { name: /replace recovery code/i })).toBeInTheDocument();
     expect(screen.getByTestId('recovery-code-replace-warning')).toBeInTheDocument();
+  });
+
+  it('FE-RECOV-007: the mutation cache keeps neither the password nor the code after success', async () => {
+    mockProfile(false);
+    const { queryClient } = renderCard();
+    const password = watchCacheFor(queryClient, 'hunter2hunter2');
+    const code = watchCacheFor(queryClient, CODE);
+
+    await userEvent.type(await screen.findByLabelText(/password/i), 'hunter2hunter2');
+    await userEvent.click(screen.getByRole('button', { name: /create recovery code/i }));
+    expect(await screen.findByTestId('recovery-code-value')).toHaveTextContent(CODE);
+
+    // The cache did hold both, so the assertions below can fail.
+    expect(password.seen.value).toBe(true);
+    expect(code.seen.value).toBe(true);
+    password.unsubscribe();
+    code.unsubscribe();
+
+    await waitFor(() => {
+      expect(cachedMutationsContaining(queryClient, 'hunter2hunter2')).toBe(0);
+      expect(cachedMutationsContaining(queryClient, CODE)).toBe(0);
+    });
+    // The code is still on screen: it lives in component state, not the cache.
+    expect(screen.getByTestId('recovery-code-value')).toHaveTextContent(CODE);
+  });
+
+  it('FE-RECOV-008: the mutation cache drops the password after a failed attempt', async () => {
+    mockProfile(false);
+    vi.mocked(api.apiPost).mockRejectedValue(new Error('Incorrect password'));
+    const { queryClient } = renderCard();
+    const password = watchCacheFor(queryClient, 'wrongpassword1');
+
+    await userEvent.type(await screen.findByLabelText(/password/i), 'wrongpassword1');
+    await userEvent.click(screen.getByRole('button', { name: /create recovery code/i }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/incorrect password/i);
+
+    expect(password.seen.value).toBe(true);
+    password.unsubscribe();
+
+    await waitFor(() => {
+      expect(cachedMutationsContaining(queryClient, 'wrongpassword1')).toBe(0);
+    });
+    // The user can try again: the mutation is idle, not stuck pending.
+    expect(screen.getByRole('button', { name: /create recovery code/i })).toBeEnabled();
   });
 });
