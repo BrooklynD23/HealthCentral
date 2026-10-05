@@ -978,6 +978,12 @@ Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-repor
 
 - **A. A typed flag, not a string match.** `ValidatedResponse` (`modules/rag.py:102-111`) gets `prohibited_advice: bool = False`. `validate_response` sets it where it already appends "Response…
 
+## `docs/plans/2026-10-04-SAFE-INTERP-grounded.md`
+
+**SAFE-INTERP-GROUNDED — Escalate Prohibited Grounded Answers, Audit Interpretation Routes — Implementation Plan**
+
+- **A. Flag.** `ValidatedResponse.prohibited_advice` in `modules/rag.py` — **byte-identical** to SAFE-CHAT `f5961e7`'s hunk, so whichever of #44 / this PR merges second merges cleanly (Task 3 Step 5…
+
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
 **Project Structure Setup**
