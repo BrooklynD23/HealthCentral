@@ -964,6 +964,14 @@ Links to: `audit/2026-09-25/Devin-Audit-report.md`, `docs/capstone-report/owner-
 
 - **A. ORM cascade.** `Observation.interpretation` gets `cascade="all, delete"`. The existing `Document.observations` cascade (`models/document.py:73-77`, `"all, delete-orphan"`) then reaches the…
 
+## `docs/plans/2026-10-04-RCC-recovery-code-cache.md`
+
+**RCC — Recovery Code Out of the TanStack Mutation Cache Implementation Plan**
+
+- Owner gate W3-SEC-SCHED (2026-10-04), verbatim: "RECOVERY-CODE-CACHE: `gcTime: 0` or `reset()` in `RecoveryCodeCard.tsx`." - Frontend only. No backend file, no auth/encryption backend code, no…
+
+Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`
+
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
 **Project Structure Setup**
