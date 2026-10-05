@@ -48,3 +48,4 @@ S-C3-1 and S-C3-3 signed (S-C3-1 asked separately: the handoff missed it, W11b `
 - 2026-10-05: owner merged #44 → main 0bad019 (1355). #48 conflicts AGENT.md, CLAUDE.md, INDEX; refresh sent to L1-A (expect 1366).
 - 2026-10-05: #48 refreshed → 6e18a72; L0: MERGEABLE CLEAN, CLAUDE/AGENT diff 3 lines (1366), rag.py no diff, index fresh, SAFE-INTERP+SAFE-CHAT 16 passed, collected 1366, CI 6/6. Handed to owner.
 - 2026-10-05: owner merged #48 → main ee5721d (1366). Refresh of #42 sent to L1-B (conflict: INDEX only). #46, #38 also conflict on INDEX (+_link_graph for #38).
+- 2026-10-05: #42 refreshed → 0d4fe42; L0: MERGEABLE CLEAN, 11 files, index fresh, Windows RCC/RCC2 4 files 18 passed, CI 6/6. Handed to owner.

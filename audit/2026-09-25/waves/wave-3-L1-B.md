@@ -306,3 +306,29 @@ The component already cleared the password on success and when the restore targe
 Worktree `../hc-rcc3` is left in place.
 
 Next action: the owner merges #37, then #42, then #46. After each merge, L1 merges main into the next PR and re-runs `npx vitest run` on Windows.
+
+---
+
+# Wave 3 L1-B, refresh of #42 (2026-10-05)
+
+PR #42 is refreshed onto `origin/main` `ee5721d` (after #37, #41, #44 and #48 merged). New head: `0d4fe42`. CI passes 6/6 and GitHub reports it `MERGEABLE`. I have not merged it.
+
+**How the merge was done:**
+- `git merge origin/main` (not a rebase).
+- The only conflict was `docs/INDEX.md`. I resolved it by regenerating with `~/venvs/asclexis-311/bin/python scripts/generate_docs_index.py` and `docs_lint.py --link-graph`.
+- I committed the merge with explicit pathspecs.
+
+**Checks:**
+
+| Check | Result |
+|---|---|
+| `generate_docs_index.py --check` | `fresh` |
+| `docs_lint.py` | `Docs lint passed.` |
+| `git diff origin/main -- CLAUDE.md AGENT.md` | 0 lines, so #42 changes no counts |
+| `git diff --name-only origin/main...HEAD` | Only the 11 RCC-2 files: plan, INDEX, link graph, 4 test files, 4 source files |
+| Windows `npm ci` | `ci=0` |
+| `tsc` / `lint` / `build` | `tsc=0`, `lint=0` (0 errors, 5 warnings that were already there), `build=0` |
+| `npx vitest run` | `Test Files 34 passed (34)`, `Tests 193 passed (193)`, `vitest=0` |
+| CI on `0d4fe42` | Agent Eval Gate, Backend Tests, Documentation Lint, E2E Smoke Tests, Frontend Tests, Security Scan: all pass |
+
+Next action: after #42 merges, refresh #46 (`../hc-rcc3`) the same way. Then refresh #38, one PR at a time.
