@@ -1,0 +1,58 @@
+[codex] Starting Codex task thread.
+[codex] Thread ready (01a1075c-6331-7523-b59f-fb0b2c8e426a).
+[codex] Turn started (01a1075c-84e0-70d1-8c2e-1b1dc3209620).
+[codex] Assistant message captured: Step 1 of 3: checking the review instructions and branch diff; then I’ll return only evidence...
+[codex] Running command: /bin/bash -lc 'git status --short && git diff --stat origin/main...HEAD && git diff -- src/ba...
+[codex] Running command: /bin/bash -lc 'cat /home/danny/.codex/skills/code-review/SKILL.md'
+[codex] Running command: /bin/bash -lc 'rg -n "Asclexis adversarial|W-2|route_client|DOC-DELETE|document delete" /home...
+[codex] Command completed: /bin/bash -lc 'rg -n "Asclexis adversarial|W-2|route_client|DOC-DELETE|document delete" /home... (exit 0)
+[codex] Command completed: /bin/bash -lc 'cat /home/danny/.codex/skills/code-review/SKILL.md' (exit 0)
+[codex] Command completed: /bin/bash -lc 'git status --short && git diff --stat origin/main...HEAD && git diff -- src/ba... (exit 0)
+[codex] Running command: /bin/bash -lc 'git status --short; git rev-parse origin/main; git log origin/main..HEAD --one...
+[codex] Running command: /bin/bash -lc 'pwd && git status --short && git rev-parse origin/main && git log origin/main....
+[codex] Command completed: /bin/bash -lc 'git status --short; git rev-parse origin/main; git log origin/main..HEAD --one... (exit 0)
+[codex] Command completed: /bin/bash -lc 'pwd && git status --short && git rev-parse origin/main && git log origin/main.... (exit 0)
+[codex] Running command: /bin/bash -lc 'git diff origin/main...HEAD -- src/backend/api/documents.py src/backend/models...
+[codex] Command completed: /bin/bash -lc 'git diff origin/main...HEAD -- src/backend/api/documents.py src/backend/models... (exit 0)
+[codex] Running command: /bin/bash -lc "nl -ba src/backend/api/documents.py | sed -n '1750,1935p'; rg -n \"def log_doc...
+[codex] Command completed: /bin/bash -lc "nl -ba src/backend/api/documents.py | sed -n '1750,1935p'; rg -n \"def log_doc... (exit 0)
+[codex] Assistant message captured: Step 2 of 3: the core sequence is profile-row commit → file unlink → master audit commit. I’m...
+[codex] Running command: /bin/bash -lc "nl -ba src/backend/core/audit.py | sed -n '285,345p'; nl -ba src/backend/model...
+[codex] Command completed: /bin/bash -lc "nl -ba src/backend/core/audit.py | sed -n '285,345p'; nl -ba src/backend/model... (exit 0)
+[codex] Running command: /bin/bash -lc "nl -ba src/backend/core/audit.py | sed -n '1,145p'; nl -ba src/backend/core/au...
+[codex] Command completed: /bin/bash -lc "nl -ba src/backend/core/audit.py | sed -n '1,145p'; nl -ba src/backend/core/au... (exit 0)
+[codex] Running command: /bin/bash -lc "nl -ba src/backend/api/documents.py | sed -n '600,655p'; nl -ba src/backend/ap...
+[codex] Command completed: /bin/bash -lc "nl -ba src/backend/api/documents.py | sed -n '600,655p'; nl -ba src/backend/ap... (exit 0)
+[codex] Running command: /bin/bash -lc "rg -n \"delete\\(Observation\\)|delete\\(.*Observation|session.delete\\(.*obse...
+[codex] Command completed: /bin/bash -lc "rg -n \"delete\\(Observation\\)|delete\\(.*Observation|session.delete\\(.*obse... (exit 0)
+[codex] Running command: /bin/bash -lc "nl -ba src/backend/models/interpretation.py | sed -n '125,220p'; rg -n \"selec...
+[codex] Command completed: /bin/bash -lc "nl -ba src/backend/models/interpretation.py | sed -n '125,220p'; rg -n \"selec... (exit 0)
+[codex] Running command: /bin/bash -lc "nl -ba /home/danny/.codex/memories/MEMORY.md | sed -n '80,112p'; nl -ba /home/...
+[codex] Command completed: /bin/bash -lc "nl -ba /home/danny/.codex/memories/MEMORY.md | sed -n '80,112p'; nl -ba /home/... (exit 0)
+[codex] Running command: /bin/bash -lc "nl -ba src/backend/api/interpretations.py | sed -n '619,695p'; rg -n \"include...
+[codex] Command completed: /bin/bash -lc "nl -ba src/backend/api/interpretations.py | sed -n '619,695p'; rg -n \"include... (exit 0)
+[codex] Running command: /bin/bash -lc "nl -ba src/backend/modules/interpret.py | sed -n '325,445p'"
+[codex] Command completed: /bin/bash -lc "nl -ba src/backend/modules/interpret.py | sed -n '325,445p'" (exit 0)
+[codex] Assistant message captured: Step 2 of 3: I found a lifecycle gap in reprocessing and an audit failure window. Independent...
+[codex] Assistant message captured: {"verdict":"needs-attention","summary":"Do not ship: reprocessing and document deletion can l...
+[codex] Turn completion inferred after the main thread finished and subagent work drained.
+# Codex Adversarial Review
+
+Target: branch diff against origin/main
+Verdict: needs-attention
+
+Do not ship: reprocessing and document deletion can leave stale interpretations, and an audit failure can follow irreversible file deletion.
+
+Findings:
+- [high] Reprocessing still leaves LabInterpretation orphans (src/backend/api/documents.py:627-630)
+  The new cascade applies to ORM deletes, but `refresh_existing` uses bulk `delete(Observation)` here, bypassing it. With SQLite foreign-key enforcement off, the old interpretations survive after their observations are replaced; `GET /interpretations/recent` filters only by profile, so stale clinical text remains retrievable. Delete matching interpretations before the bulk delete or use ORM deletes.
+  Recommendation: Remove interpretations for the affected observation IDs in the reprocess transaction, or replace the bulk delete with ORM deletes.
+- [high] Audit commit can fail after the file is irreversibly unlinked (src/backend/api/documents.py:1883-1901)
+  The file is unlinked before `log_document_event` and `master_db.commit()`. If audit creation or commit fails, the profile rows and file are already gone without a durable audit row. The request errors, and a retry finds no document to delete or audit. This leaves the deletion permanently unaudited.
+  Recommendation: Require a durable audit commit before unlinking, and add idempotent recovery for failures between the profile-DB commit and audit commit.
+- [medium] Panel interpretations retain references to deleted observations (src/backend/api/documents.py:1871-1874)
+  Document deletion removes observations and their related `LabInterpretation` rows, but `PanelInterpretation.observation_ids_json` is not an ORM relationship or foreign key. A panel summary can therefore survive with deleted observation IDs and stale values; panel regeneration can return that stored row. Delete or rebuild panel interpretations that reference observations being removed.
+  Recommendation: Find panel interpretations whose observation ID lists intersect the document's observations and remove or recompute them in the same profile transaction; this needs no schema change.
+
+Next steps:
+- Fix the interpretation cleanup gaps and audit failure ordering, then request another diff review.

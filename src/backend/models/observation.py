@@ -104,7 +104,14 @@ class Observation(ProfileDatabaseBase):
         "Document", back_populates="observations"
     )
     interpretation: Mapped[Optional["LabInterpretation"]] = relationship(
-        "LabInterpretation", back_populates="observation", uselist=False
+        "LabInterpretation",
+        back_populates="observation",
+        uselist=False,
+        # DOC-DELETE-INTERP: lab_interpretations.observation_id is NOT NULL and
+        # SQLite FK enforcement is off, so the DB-level ondelete is inert. Without
+        # this the ORM nulls the FK on observation delete -> IntegrityError.
+        # Not delete-orphan: modules/interpret.py creates rows by FK alone.
+        cascade="all, delete",
     )
 
     def __repr__(self) -> str:
