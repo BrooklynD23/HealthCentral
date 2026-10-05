@@ -267,6 +267,9 @@ export function useIssueRecoveryCode() {
   return useMutation({
     mutationFn: ({ profileId, password }: { profileId: string; password: string }) =>
       issueRecoveryCode(profileId, password),
+    // The variables hold the password and the result holds the recovery code:
+    // drop the mutation from the cache as soon as nothing observes it.
+    gcTime: 0,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
     },
