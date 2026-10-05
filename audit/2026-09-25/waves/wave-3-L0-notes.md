@@ -44,3 +44,4 @@ S-C3-1 and S-C3-3 signed (S-C3-1 asked separately: the handoff missed it, W11b `
 - 2026-10-04: owner merged #37 → main 1674880. #41 conflicts only in docs/INDEX.md; refresh sent to L1-A.
 - 2026-10-04: #41 refreshed → a39b43e (merge of 1674880); L0: MERGEABLE CLEAN, index --check fresh, HC_DDI 4 passed, CI 6/6. Handed to owner.
 - 2026-10-04: owner merged #41 → main 421c441 (collected 1350). #44 conflicts: AGENT.md, CLAUDE.md, docs/INDEX.md; refresh sent to L1-A (expect 1355).
+- 2026-10-04: #44 refreshed → e650582; L0: MERGEABLE CLEAN, slots 1350→1355 only, index fresh, SAFE-CHAT 5 passed, collected 1355, CI 6/6. Handed to owner.
