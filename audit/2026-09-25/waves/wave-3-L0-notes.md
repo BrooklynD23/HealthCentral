@@ -50,3 +50,4 @@ S-C3-1 and S-C3-3 signed (S-C3-1 asked separately: the handoff missed it, W11b `
 - 2026-10-05: owner merged #48 → main ee5721d (1366). Refresh of #42 sent to L1-B (conflict: INDEX only). #46, #38 also conflict on INDEX (+_link_graph for #38).
 - 2026-10-05: #42 refreshed → 0d4fe42; L0: MERGEABLE CLEAN, 11 files, index fresh, Windows RCC/RCC2 4 files 18 passed, CI 6/6. Handed to owner.
 - 2026-10-05: owner merged #42 → main f2dd8f3. Refresh of #46 sent to L1-B.
+- 2026-10-05: #46 refreshed → 3710ccf (parents 57c3760 + f2dd8f3); classifier timed out during the refresh, so L0 also diffed source vs the verified 57c3760: 0 lines; 6 files; index fresh; Windows BackupRestoreFlow 4 passed; CI 6/6. Handed to owner.

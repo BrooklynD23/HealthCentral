@@ -332,3 +332,28 @@ PR #42 is refreshed onto `origin/main` `ee5721d` (after #37, #41, #44 and #48 me
 | CI on `0d4fe42` | Agent Eval Gate, Backend Tests, Documentation Lint, E2E Smoke Tests, Frontend Tests, Security Scan: all pass |
 
 Next action: after #42 merges, refresh #46 (`../hc-rcc3`) the same way. Then refresh #38, one PR at a time.
+
+---
+
+# Wave 3 L1-B, refresh of #46 (2026-10-05)
+
+#46 is refreshed onto `origin/main` `f2dd8f3` (the #42 merge). The new head is `3710ccf`, CI is 6/6 green, and GitHub reports it MERGEABLE. I did not merge it.
+
+**How the merge was done:**
+- `git merge origin/main`, no rebase.
+- The only conflict was `docs/INDEX.md`. I regenerated it with `generate_docs_index.py` and `docs_lint.py --link-graph`, then committed the merge with explicit pathspecs.
+
+**Checks:**
+
+| Check | Result |
+|---|---|
+| `generate_docs_index.py --check` | fresh |
+| `docs_lint` | passed |
+| `git diff origin/main -- CLAUDE.md AGENT.md` | 0 lines |
+| `git diff --name-only origin/main...HEAD` | 6 RCC-3 files: plan, INDEX, link graph, `BackupRestoreFlow.test.tsx`, `BackupCard.tsx`, `backup.ts` |
+| Windows `npm ci` | `ci=0` |
+| `tsc` / `lint` / `build` | `tsc=0`, `lint=0` (0 errors), `build=0` |
+| `npx vitest run` | `Test Files 34 passed (34)`, `Tests 195 passed (195)` |
+| CI on `3710ccf` | Agent Eval Gate, Backend Tests, Documentation Lint, E2E Smoke Tests, Frontend Tests, Security Scan: all pass |
+
+Next action: after #46 merges, refresh #38 (`../hc-npm`) the same way.
