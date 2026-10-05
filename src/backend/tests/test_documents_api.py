@@ -886,3 +886,215 @@ async def test_HC_ENT_031_reprocess_reapplies_rejections_by_quote(
     )).scalars().all()
     by_quote = {row.quote: row.verified_by_user for row in rows}
     assert by_quote == {"Stop aspirin": False, "Repeat CBC": None}
+
+
+# ---------------------------------------------------------------------------
+# DOC-DELETE-INTERP (plan docs/plans/2026-10-04-DDI-doc-delete-interpretation.md)
+# ---------------------------------------------------------------------------
+
+from sqlalchemy import func  # noqa: E402
+from sqlalchemy.exc import OperationalError  # noqa: E402
+
+from models import LabInterpretation, Observation  # noqa: E402
+
+
+def _ddi_observation(profile_id: str, doc_id: str) -> Observation:
+    return Observation(
+        id=str(uuid.uuid4()),
+        profile_id=profile_id,
+        doc_id=doc_id,
+        analyte_canonical="hemoglobin",
+        analyte_raw="Hgb",
+        value=14.2,
+    )
+
+
+def _ddi_interpretation(profile_id: str, observation_id: str) -> LabInterpretation:
+    # Built by FK only, exactly as modules/interpret.py:254 and :1010 do.
+    return LabInterpretation(
+        id=str(uuid.uuid4()),
+        profile_id=profile_id,
+        observation_id=observation_id,
+        interpretation_text="DDI interpretation text",
+        severity_level="normal",
+        citations_json="[]",
+        model_id="template",
+        model_tier="template",
+        confidence_score=0.85,
+    )
+
+
+def _ddi_vault_file(tmp_path: Path, profile_id: str, document_id: str) -> Path:
+    docs = tmp_path / "vaults" / profile_id / "docs"
+    docs.mkdir(parents=True, exist_ok=True)
+    path = docs / f"{document_id}.bin"
+    path.write_bytes(b"ciphertext")
+    return path
+
+
+async def _ddi_count(db, model, *where) -> int:
+    stmt = select(func.count()).select_from(model)
+    for clause in where:
+        stmt = stmt.where(clause)
+    return (await db.execute(stmt)).scalar_one()
+
+
+def _ddi_delete_over_http(profile_db, master, document_id: str, profile_id: str):
+    with route_client(
+        documents_router, "/documents", profile_id=profile_id, master_db=master
+    ) as client:
+
+        async def _override_profile_db():
+            return profile_db
+
+        client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+        return client.delete(f"/documents/{document_id}")
+
+
+@pytest.mark.asyncio
+async def test_HC_DDI_001_delete_document_with_interpretation_over_http(
+    entity_profile_db, monkeypatch, tmp_path
+):
+    """HC-DDI-001. A document whose observation has a LabInterpretation must
+    delete over HTTP: 2xx, document/observation/interpretation rows gone, the
+    encrypted file gone, one committed document.delete audit row. Another
+    document's interpretation must survive."""
+    monkeypatch.setattr(
+        type(documents_api.settings), "app_data_path", property(lambda self: tmp_path)
+    )
+    profile_id = "profile-a"
+    document = _pin_cleanup_document(profile_id)
+    other = _pin_cleanup_document(profile_id)
+    obs = _ddi_observation(profile_id, document.id)
+    other_obs = _ddi_observation(profile_id, other.id)
+    entity_profile_db.add_all([document, other, obs, other_obs])
+    await entity_profile_db.commit()
+    entity_profile_db.add_all([
+        _ddi_interpretation(profile_id, obs.id),
+        _ddi_interpretation(profile_id, other_obs.id),
+    ])
+    await entity_profile_db.commit()
+    # Plain strings: after expire_all() an ORM attribute read would lazy-load
+    # synchronously and raise MissingGreenlet under AsyncSession.
+    doc_id, obs_id, other_obs_id = document.id, obs.id, other_obs.id
+    vault_file = _ddi_vault_file(tmp_path, profile_id, doc_id)
+
+    master = _CommitTrackingMasterDb()
+    resp = _ddi_delete_over_http(entity_profile_db, master, doc_id, profile_id)
+    assert 200 <= resp.status_code < 300, resp.text
+
+    entity_profile_db.expire_all()
+    assert await _ddi_count(entity_profile_db, Document, Document.id == doc_id) == 0
+    assert await _ddi_count(entity_profile_db, Observation, Observation.doc_id == doc_id) == 0
+    assert await _ddi_count(
+        entity_profile_db, LabInterpretation, LabInterpretation.observation_id == obs_id
+    ) == 0, "interpretation outlived its observation"
+    assert await _ddi_count(
+        entity_profile_db, LabInterpretation, LabInterpretation.observation_id == other_obs_id
+    ) == 1, "another document's interpretation was deleted"
+    assert not vault_file.exists(), "encrypted file survived a successful delete"
+
+    audit = [o for o in master.added if type(o).__name__ == "AuditLog"]
+    assert len(audit) == 1 and audit[0].event_type == "document.delete"
+    assert audit[0].entity_id == doc_id
+    assert master.commit_snapshots and master.commit_snapshots[-1] >= 1
+
+
+@pytest.mark.asyncio
+async def test_HC_DDI_002_failed_commit_keeps_encrypted_file(
+    entity_profile_db, monkeypatch, tmp_path
+):
+    """HC-DDI-002. If the profile-DB commit fails, the encrypted file must
+    still be on disk, the document row must survive, and no audit row may be
+    written. Today the file is unlinked before the commit."""
+    monkeypatch.setattr(
+        type(documents_api.settings), "app_data_path", property(lambda self: tmp_path)
+    )
+    profile_id = "profile-a"
+    document = _pin_cleanup_document(profile_id)
+    entity_profile_db.add(document)
+    await entity_profile_db.commit()
+    doc_id = document.id  # plain string; rollback() expires the ORM object
+    vault_file = _ddi_vault_file(tmp_path, profile_id, doc_id)
+
+    async def _failing_commit():
+        raise OperationalError("COMMIT", {}, Exception("simulated disk I/O error"))
+
+    monkeypatch.setattr(entity_profile_db, "commit", _failing_commit)
+    master = _CommitTrackingMasterDb()
+    with pytest.raises(OperationalError):
+        _ddi_delete_over_http(entity_profile_db, master, doc_id, profile_id)
+
+    monkeypatch.undo()  # restores commit and app_data_path
+    await entity_profile_db.rollback()
+    assert vault_file.exists(), "encrypted file destroyed although the commit failed"
+    assert await _ddi_count(entity_profile_db, Document, Document.id == doc_id) == 1
+    assert not [o for o in master.added if type(o).__name__ == "AuditLog"]
+
+
+@pytest.mark.asyncio
+async def test_HC_DDI_003_unlink_failure_after_commit_still_audits(
+    entity_profile_db, monkeypatch, tmp_path
+):
+    """HC-DDI-003. If the rows are committed but the file cannot be removed
+    (Windows lock, permissions), the request still succeeds, the audit row is
+    written, and the log line carries neither the path nor the filename."""
+    monkeypatch.setattr(
+        type(documents_api.settings), "app_data_path", property(lambda self: tmp_path)
+    )
+    profile_id = "profile-a"
+    document = _pin_cleanup_document(profile_id)
+    entity_profile_db.add(document)
+    await entity_profile_db.commit()
+    doc_id, doc_source = document.id, document.source  # plain strings (expire_all below)
+    vault_file = _ddi_vault_file(tmp_path, profile_id, doc_id)
+
+    def _locked_unlink(self, *args, **kwargs):
+        raise PermissionError(13, "locked", str(self))
+
+    monkeypatch.setattr(Path, "unlink", _locked_unlink)
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        documents_api.logger, "warning",
+        lambda msg, *a, **k: warnings.append(msg % a if a else msg),
+    )
+    master = _CommitTrackingMasterDb()
+    resp = _ddi_delete_over_http(entity_profile_db, master, doc_id, profile_id)
+    assert 200 <= resp.status_code < 300, resp.text
+
+    entity_profile_db.expire_all()
+    assert await _ddi_count(entity_profile_db, Document, Document.id == doc_id) == 0
+    assert vault_file.exists()  # unlink was blocked
+    audit = [o for o in master.added if type(o).__name__ == "AuditLog"]
+    assert len(audit) == 1 and audit[0].event_type == "document.delete"
+    assert warnings, "a failed unlink after commit must be logged"
+    joined = " ".join(warnings)
+    assert str(tmp_path) not in joined and doc_source not in joined
+
+
+@pytest.mark.asyncio
+async def test_HC_DDI_004_interpretation_created_by_fk_still_flushes(entity_profile_db):
+    """HC-DDI-004. modules/interpret.py builds LabInterpretation with
+    observation_id only. The cascade added for DDI must not make such an
+    object an orphan on flush."""
+    profile_id = "profile-a"
+    document = _pin_cleanup_document(profile_id)
+    obs = _ddi_observation(profile_id, document.id)
+    entity_profile_db.add_all([document, obs])
+    await entity_profile_db.commit()
+    obs_id = obs.id  # plain string (expire_all below)
+    entity_profile_db.add(_ddi_interpretation(profile_id, obs_id))
+    await entity_profile_db.commit()
+    entity_profile_db.expire_all()
+    assert await _ddi_count(
+        entity_profile_db, LabInterpretation, LabInterpretation.observation_id == obs_id
+    ) == 1
+    # And the ORM delete of the observation now reaches it.
+    loaded = (await entity_profile_db.execute(
+        select(Observation).where(Observation.id == obs_id)
+    )).scalar_one()
+    await entity_profile_db.delete(loaded)
+    await entity_profile_db.commit()
+    assert await _ddi_count(
+        entity_profile_db, LabInterpretation, LabInterpretation.observation_id == obs_id
+    ) == 0
