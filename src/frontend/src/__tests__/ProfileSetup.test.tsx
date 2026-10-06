@@ -17,6 +17,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ProfileSetup } from '@/pages/ProfileSetup';
 import * as api from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
+import {
+  cachedMutationsContaining,
+  watchCacheFor,
+  reactStateContains,
+} from './support/secretRetention';
 
 // Mock the API module
 vi.mock('@/services/api', () => ({
@@ -52,11 +57,14 @@ function renderWithProviders(component: React.ReactNode) {
     },
   });
 
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>{component}</BrowserRouter>
-    </QueryClientProvider>
-  );
+  return {
+    ...render(
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>{component}</BrowserRouter>
+      </QueryClientProvider>
+    ),
+    queryClient,
+  };
 }
 
 describe('ProfileSetup', () => {
@@ -256,5 +264,72 @@ describe('ProfileSetup', () => {
       expect(authState.token).toBeNull();
       expect(authState.isAuthenticated).toBe(false);
     });
+  });
+
+  describe('RCC-2: no password or recovery code left behind', () => {
+    const PASSWORD = 'SecurePass123';
+    const CODE = 'H4K2-9QMR-7TXB-3VWZ-5CDF-8GHJ-2NPS-6KTV';
+    const created = {
+      access_token: 'test-jwt-token-123',
+      token_type: 'bearer',
+      expires_in: 3600,
+      profile_id: 'profile-uuid-123',
+      profile_name: 'My Health Profile',
+      recovery_code: CODE,
+    };
+
+    async function fillAndSubmit(user: ReturnType<typeof userEvent.setup>) {
+      await user.type(screen.getByLabelText('Profile Name'), 'My Health Profile');
+      await user.type(screen.getByPlaceholderText('Create a secure password'), PASSWORD);
+      await user.click(screen.getByRole('button', { name: /create your profile/i }));
+    }
+
+    it('FE-RCC2-001: after creation neither the cache nor page state keeps the password or code', async () => {
+      const user = userEvent.setup();
+      vi.mocked(api.apiPost).mockResolvedValueOnce(created);
+      const { queryClient, container } = renderWithProviders(<ProfileSetup />);
+      const pw = watchCacheFor(queryClient, PASSWORD);
+      const code = watchCacheFor(queryClient, CODE);
+
+      await user.type(screen.getByPlaceholderText('Create a secure password'), PASSWORD);
+      expect(reactStateContains(container, PASSWORD)).toBe(true); // positive control
+      await user.clear(screen.getByPlaceholderText('Create a secure password'));
+      await fillAndSubmit(user);
+
+      expect(await screen.findByTestId('recovery-code', {}, { timeout: 5000 })).toHaveTextContent(CODE);
+      expect(pw.seen.value).toBe(true);
+      expect(code.seen.value).toBe(true);
+      pw.unsubscribe();
+      code.unsubscribe();
+
+      await waitFor(() => {
+        expect(cachedMutationsContaining(queryClient, PASSWORD)).toBe(0);
+        expect(cachedMutationsContaining(queryClient, CODE)).toBe(0);
+      });
+      expect(reactStateContains(container, PASSWORD)).toBe(false);
+      // The code itself is still displayed: it lives in its one display state.
+      expect(screen.getByTestId('recovery-code')).toHaveTextContent(CODE);
+    }, 15000);
+
+    it('FE-RCC2-002: a failed creation leaves no password in the cache, and a retry is clean too', async () => {
+      const user = userEvent.setup();
+      vi.mocked(api.apiPost).mockRejectedValueOnce(new Error('Server unavailable'));
+      const { queryClient } = renderWithProviders(<ProfileSetup />);
+      const pw = watchCacheFor(queryClient, PASSWORD);
+
+      await fillAndSubmit(user);
+      expect(await screen.findByText(/server unavailable/i, {}, { timeout: 5000 })).toBeInTheDocument();
+      expect(pw.seen.value).toBe(true);
+      pw.unsubscribe();
+      await waitFor(() => expect(cachedMutationsContaining(queryClient, PASSWORD)).toBe(0));
+
+      vi.mocked(api.apiPost).mockResolvedValueOnce(created);
+      await user.click(screen.getByRole('button', { name: /create your profile/i }));
+      expect(await screen.findByTestId('recovery-code', {}, { timeout: 5000 })).toHaveTextContent(CODE);
+      await waitFor(() => {
+        expect(cachedMutationsContaining(queryClient, PASSWORD)).toBe(0);
+        expect(cachedMutationsContaining(queryClient, CODE)).toBe(0);
+      });
+    }, 15000);
   });
 });

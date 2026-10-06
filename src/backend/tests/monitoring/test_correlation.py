@@ -1,7 +1,10 @@
 """Tests for CorrelationIdMiddleware."""
 
 import json
+import logging
+import logging.config
 import uuid
+from pathlib import Path
 
 import pytest
 from monitoring.correlation import CorrelationIdMiddleware, get_correlation_id
@@ -152,3 +155,75 @@ async def test_different_requests_different_ids():
         await mw(make_scope(), make_receive, capture)
 
     assert len(set(ids)) == 3
+
+
+ALEMBIC_INI = Path(__file__).resolve().parents[2] / "alembic.ini"
+
+
+@pytest.fixture
+def restore_logging_state():
+    root = logging.getLogger()
+    factory, handlers, level = logging.getLogRecordFactory(), root.handlers[:], root.level
+    yield
+    logging.setLogRecordFactory(factory)
+    root.handlers[:] = handlers
+    root.setLevel(level)
+
+
+async def _log_inside_and_outside_request(correlation_id: str) -> list[logging.LogRecord]:
+    records: list[logging.LogRecord] = []
+
+    class _ListHandler(logging.Handler):
+        def emit(self, record):
+            records.append(record)
+
+    log = logging.getLogger("hc.obsv.test")
+    handler = _ListHandler(level=logging.DEBUG)
+    log.addHandler(handler)
+    log.setLevel(logging.DEBUG)
+    log.propagate = False
+    try:
+        async def app(scope, receive, send):
+            log.warning("inside request")
+            await send({"type": "http.response.start", "status": 200, "headers": []})
+            await send({"type": "http.response.body", "body": b"ok"})
+
+        scope = make_scope([(b"x-correlation-id", correlation_id.encode())])
+        await CorrelationIdMiddleware(app)(scope, make_receive, ResponseCapture())
+        log.warning("outside request")
+    finally:
+        log.removeHandler(handler)
+        log.propagate = True
+    return records
+
+
+@pytest.mark.asyncio
+async def test_hc_obsv_001_log_record_carries_request_correlation_id(restore_logging_state):
+    logging.setLogRecordFactory(logging.LogRecord)
+    from core.logging_setup import install_correlation_logging
+    install_correlation_logging()
+    cid = str(uuid.uuid4())
+    inside, outside = await _log_inside_and_outside_request(cid)
+    assert inside.correlation_id == cid
+    assert outside.correlation_id == "-"
+
+
+@pytest.mark.asyncio
+async def test_hc_obsv_002_correlation_survives_alembic_logging_reset(restore_logging_state):
+    """alembic.ini fileConfig runs at startup and on every vault open
+    (migrations/*/env.py); it replaces root handlers and their filters."""
+    logging.setLogRecordFactory(logging.LogRecord)
+    from core.logging_setup import install_correlation_logging
+    install_correlation_logging()
+    logging.config.fileConfig(ALEMBIC_INI, disable_existing_loggers=False)
+    cid = str(uuid.uuid4())
+    inside, _ = await _log_inside_and_outside_request(cid)
+    assert inside.correlation_id == cid
+
+
+def test_hc_obsv_004_create_app_installs_correlation_logging(restore_logging_state):
+    import main
+    logging.setLogRecordFactory(logging.LogRecord)
+    main.create_app()
+    record = logging.getLogRecordFactory()("x", logging.INFO, __file__, 1, "m", None, None)
+    assert getattr(record, "correlation_id", None) == "-"

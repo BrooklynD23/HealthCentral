@@ -2,6 +2,8 @@
 
 import json
 import logging
+import uuid
+
 import pytest
 from security.audit_middleware import SecurityAuditMiddleware
 
@@ -124,3 +126,22 @@ async def test_log_includes_path_and_method(caplog):
     data = json.loads(audit_msgs[0].replace("SECURITY_AUDIT: ", ""))
     assert data["method"] == "DELETE"
     assert data["path"] == "/api/v1/profiles/123"
+
+
+@pytest.mark.asyncio
+async def test_hc_obsv_003_audit_payload_carries_correlation_id(caplog):
+    from monitoring.correlation import CorrelationIdMiddleware
+    app = CorrelationIdMiddleware(SecurityAuditMiddleware(passthrough_app))  # main.py order: CorrelationId wraps Audit
+    cid = str(uuid.uuid4())
+    good = make_scope(method="POST", path="/api/v1/documents")
+    good["headers"] = [(b"x-correlation-id", cid.encode())]
+    hostile = make_scope(method="POST", path="/api/v1/documents")
+    hostile["headers"] = [(b"x-correlation-id", b"evil\nSECURITY_AUDIT: forged")]
+    with caplog.at_level(logging.INFO, logger="security.audit_middleware"):
+        await app(good, make_receive, ResponseCapture())
+        await app(hostile, make_receive, ResponseCapture())
+    payloads = [json.loads(r.getMessage().split("SECURITY_AUDIT: ", 1)[1])
+                for r in caplog.records if r.getMessage().startswith("SECURITY_AUDIT: ")]
+    assert payloads[0]["correlation_id"] == cid
+    assert payloads[1]["correlation_id"] != "evil\nSECURITY_AUDIT: forged"
+    uuid.UUID(payloads[1]["correlation_id"])  # regenerated (monitoring/correlation.py:48-53)
