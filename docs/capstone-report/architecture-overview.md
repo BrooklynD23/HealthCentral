@@ -208,6 +208,6 @@ These are documentation defects to fix in the doc-drift phase (P4 of the program
 
 - How a built SPA is served outside dev (no static mount, no shell).
 - Which CI checks are merge-required (branch protection not in repo).
-- Frontend pass counts (not run; `vitest run` stalls under WSL on `/mnt/c`). Listed counts @main: vitest 165 tests / 28 files, Playwright chromium 28 tests / 5 files; the old "155 / 25" were pass counts (`docs/features/TASK_LIST.md:794`; matrix GATE-03, GATE-06).
+- Local Playwright pass count: UNMEASURED on Windows (e2e backend start fails: `RuntimeError: SQLCipher required but not available`, `core/database.py:78`; no sqlcipher3 wheel on Windows, and `DATABASE_ENCRYPTION_REQUIRED=false` was deliberately not set). Known facts (measured on main@90c502a, Windows, 2026-10-04): vitest 186 listed / 186 passed in 32 files; Playwright chromium 30 listed in 6 files. The old "155 / 25" were historical pass counts (`docs/features/TASK_LIST.md`; matrix GATE-03, GATE-06); open PR #37 adds 2 vitest tests (unmerged; not measured here).
 - Backend **pass** counts on any ref (only collection was measured, Python 3.13.7 on Windows vs CI 3.11).
 - Runtime behaviour of backup `skipped_locked` and agent cache hit rates (not executed).

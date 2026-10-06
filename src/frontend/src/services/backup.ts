@@ -176,6 +176,9 @@ export function useRestoreBackup() {
   return useMutation({
     mutationFn: ({ backupId, data }: { backupId: string; data: RestoreRequest }) =>
       restoreBackup(backupId, data),
+    // Variables hold the profile password. Drop the mutation from the cache
+    // as soon as nothing observes it (RCC-3).
+    gcTime: 0,
     onSuccess: () => {
       // The vault underneath every cached query has just been replaced.
       queryClient.clear();

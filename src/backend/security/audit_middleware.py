@@ -12,6 +12,8 @@ import logging
 import time
 from typing import Callable
 
+from monitoring.correlation import get_correlation_id
+
 logger = logging.getLogger(__name__)
 
 # HTTP methods considered mutating
@@ -64,6 +66,7 @@ class SecurityAuditMiddleware:
                 "client_ip": client_ip,
                 "status": response_status,
                 "duration_ms": duration_ms,
+                "correlation_id": get_correlation_id(),
             }
 
             # Classify event type
