@@ -264,13 +264,22 @@ reaches embeddings — but the re-embed path uses a core `delete(Chunk)` stateme
 (`api/documents.py:867`), which bypasses ORM cascade, and no `delete(Embedding)`
 exists to cover it. One path honours the rule, the adjacent one does not.
 
+It also appears when the cascade stops one level short. The `Document →
+Observation` ORM cascade did not reach `LabInterpretation` (NOT NULL FK, inert
+`ondelete`), which turned every delete of an interpreted document into an
+IntegrityError after the file had already been unlinked; found by security
+review on PR #24, fixed by DDI (PR #41). The reprocess path's core
+`delete(Observation)` (`api/documents.py:629`) still bypasses that cascade
+(owner item REPROCESS-INTERP-ORPHAN).
+
 **Recheck:** when a comment or doc justifies a deletion with a reason that names
 a *category* ("verbatim document text", "credential material", "anything
 exportable"), find every table in that category and confirm each has a delete
 path — `grep -rn "quote\|verbatim" src/backend/models/` — rather than trusting
 that the rule spread on its own. New features inherit schemas, not invariants.
 And where cleanup depends on ORM cascade, `grep -n "delete(" src/backend/api/*.py`
-finds the core statements that silently skip it.
+finds the core statements that silently skip it. When a parent's ORM cascade is
+relied on, walk every grandchild with a NOT NULL FK.
 
 ---
 
