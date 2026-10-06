@@ -114,6 +114,9 @@ export function BackupCard() {
         backupId: restoringId,
         data: { password, confirmation_phrase: phrase },
       });
+      // RCC-3: detach the mutation so neither the cache nor the hook's
+      // result keeps the password.
+      restoreBackup.reset();
       setMessage(
         `Restored ${result.files_restored} file(s). ` +
           `${result.safety_copy_count} safety copy/copies of the replaced files were kept.`
@@ -122,6 +125,7 @@ export function BackupCard() {
       setPassword('');
       setPhrase('');
     } catch (err) {
+      restoreBackup.reset();
       // The server's message distinguishes a clean failure from a partial one,
       // so prefer it. The fallback must not claim nothing changed — that is
       // exactly the false reassurance this fix removes.

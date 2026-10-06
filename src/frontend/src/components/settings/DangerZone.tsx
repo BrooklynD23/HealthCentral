@@ -71,6 +71,8 @@ export function DangerZone() {
       });
       navigate('/');
     } catch (err) {
+      // RCC-2: a failed delete must not leave the password in the cache.
+      deleteProfile.reset();
       setError(
         err instanceof Error ? err.message : 'Deletion failed. Nothing was removed.'
       );

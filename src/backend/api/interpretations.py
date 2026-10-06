@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
 from core.auth import RequireAuth, Session, ProfileDbSession
+from core.audit import audit_and_commit, create_audit_log
 from models import (
     Observation,
     LabInterpretation,
@@ -29,8 +30,36 @@ from models import (
 from modules import get_interpret_module
 from modules.rag import ModelUnavailableError
 from api.assistant import get_rag_module
+from modules.agent.guardrails.templates import ESCALATE_TEMPLATE
 
 logger = logging.getLogger(__name__)
+
+
+async def _audit_interpretation(
+    master_db: AsyncSession,
+    event: str,
+    profile_id: str,
+    entity_type: Optional[str] = None,
+    entity_id: Optional[str] = None,
+    details: Optional[dict] = None,
+) -> None:
+    """Fail-closed audit row for an interpretation route (CLAUDE.md: audit
+    logging on every route that touches observations or profile data).
+
+    Ids, counts and enums only: never the analyte, panel name, question or
+    any interpretation text (AUDIT-PHI-001; core.audit scrubs details too).
+    """
+    event_type = f"interpretation.{event}"
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type=event_type,
+        action=event_type,
+        profile_id=profile_id,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        details=details,
+    )
 
 router = APIRouter()
 
@@ -377,6 +406,10 @@ async def generate_interpretation(
         )
 
     logger.info(f"Generated interpretation for observation {observation_id}")
+    await _audit_interpretation(
+        master_db, "generate", session.profile_id,
+        entity_type="observation", entity_id=observation_id,
+    )
     return InterpretationResponse.from_model(interp_result.interpretation)
 
 
@@ -422,6 +455,13 @@ async def generate_grounded_interpretation(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=interp_result.error_message or "Failed to generate interpretation",
         )
+
+    # The interpretation may already be written (modules/interpret.py commits
+    # it), and rag.query below can still end in 501: audit now, fail-closed.
+    await _audit_interpretation(
+        master_db, "grounded", session.profile_id,
+        entity_type="observation", entity_id=observation_id,
+    )
 
     rag = get_rag_module()
     question = (
@@ -493,6 +533,24 @@ async def generate_grounded_interpretation(
         issues=rag_result.verification.claims_with_issues,
     )
 
+    # SAFE-INTERP-GROUNDED (owner decision 2026-10-04): a prohibited-pattern
+    # match must never reach the client. Replace the grounded answer with the
+    # fixed escalation template (same as /assistant/chat, SAFE-CHAT) and drop
+    # verification detail, which carries claim text from the answer. The
+    # grounded answer is not persisted anywhere; audit fail-closed before
+    # returning, with no answer or question text.
+    if rag_result.prohibited_advice:
+        grounded_segments = [
+            GroundedSegmentResponse(segment_type="uncertainty", content=ESCALATE_TEMPLATE, citations=[])
+        ]
+        full_response = ESCALATE_TEMPLATE
+        verification = GroundedVerificationResponse()
+        await _audit_interpretation(
+            master_db, "prohibited_blocked", session.profile_id,
+            entity_type="observation", entity_id=observation_id,
+            details={"reason": "prohibited_pattern", "decision": "escalate"},
+        )
+
     return GroundedInterpretationResponse(
         interpretation=InterpretationResponse.from_model(interp_result.interpretation),
         grounded_segments=grounded_segments,
@@ -513,6 +571,7 @@ async def get_interpretation(
     observation_id: str,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     Get existing interpretation for an observation.
@@ -559,6 +618,10 @@ async def get_interpretation(
         interpretation.viewed_at = datetime.utcnow()
         await profile_db.commit()
 
+    await _audit_interpretation(
+        master_db, "view", session.profile_id,
+        entity_type="observation", entity_id=observation_id,
+    )
     return InterpretationResponse.from_model(interpretation)
 
 
@@ -609,6 +672,11 @@ async def generate_panel_interpretation(
         )
 
     logger.info(f"Generated panel interpretation for {panel_name}")
+    # The panel name is clinical content: record the interpretation id only.
+    await _audit_interpretation(
+        master_db, "panel_generate", session.profile_id,
+        entity_type="panel_interpretation", entity_id=result.interpretation.id,
+    )
     return PanelInterpretationResponse.from_model(result.interpretation)
 
 
@@ -621,6 +689,7 @@ async def get_recent_interpretations(
     limit: int = Query(10, ge=1, le=50, description="Max results"),
     include_panels: bool = Query(False, description="Include panel interpretations"),
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     Get recent interpretations for the authenticated profile.
@@ -634,6 +703,10 @@ async def get_recent_interpretations(
     )
     interpretations = result.scalars().all()
 
+    await _audit_interpretation(
+        master_db, "list_recent", session.profile_id,
+        details={"count": len(interpretations), "limit": limit},
+    )
     return [InterpretationResponse.from_model(i) for i in interpretations]
 
 
@@ -737,4 +810,12 @@ async def batch_generate_interpretations(
         f"Batch interpretation: {len(successful)} successful, {len(failed)} failed"
     )
 
+    await _audit_interpretation(
+        master_db, "batch_generate", session.profile_id,
+        details={
+            "observation_ids": successful,
+            "count": len(successful),
+            "skipped_count": len(failed),
+        },
+    )
     return BatchInterpretResponse(successful=successful, failed=failed)

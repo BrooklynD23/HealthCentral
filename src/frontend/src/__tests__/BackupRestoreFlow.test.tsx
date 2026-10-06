@@ -16,6 +16,11 @@ import { BackupCard } from '@/components/settings/BackupCard';
 import { RESTORE_NOTICE_KEY, BACKUP_RESTORE_CONFIRMATION } from '@/services/backup';
 import * as api from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
+import {
+  cachedMutationsContaining,
+  watchCacheFor,
+  reactStateContains,
+} from './support/secretRetention';
 
 vi.mock('@/services/api', () => ({
   apiGet: vi.fn(),
@@ -34,13 +39,14 @@ function renderCard() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return render(
+  const utils = render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
         <BackupCard />
       </MemoryRouter>
     </QueryClientProvider>
   );
+  return { ...utils, queryClient };
 }
 
 describe('FE-BKUP: restore flow', () => {
@@ -119,5 +125,50 @@ describe('FE-BKUP: restore flow', () => {
 
     // The reason has to outlive the page, or the sign-out reads as data loss.
     expect(window.sessionStorage.getItem(RESTORE_NOTICE_KEY)).toMatch(/restored from a backup/i);
+  });
+
+  async function fillRestoreForm(user: ReturnType<typeof userEvent.setup>, password: string) {
+    const buttons = await screen.findAllByRole('button', { name: /restore…/i });
+    await user.click(buttons[0]);
+    await user.type(screen.getByLabelText(/confirm your password/i), password);
+    await user.type(
+      screen.getByPlaceholderText(BACKUP_RESTORE_CONFIRMATION),
+      BACKUP_RESTORE_CONFIRMATION
+    );
+  }
+
+  it('FE-RCC3-001: a failed restore leaves no password in the mutation cache, and a retry is clean too', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.apiPost).mockRejectedValueOnce(new Error('Incorrect password'));
+    const { queryClient } = renderCard();
+    const pw = watchCacheFor(queryClient, 'WrongHorse1');
+
+    await fillRestoreForm(user, 'WrongHorse1');
+    await user.click(screen.getByRole('button', { name: /restore this backup/i }));
+    expect(await screen.findByText(/incorrect password/i)).toBeInTheDocument();
+    expect(pw.seen.value).toBe(true); // positive control
+    pw.unsubscribe();
+    await waitFor(() => expect(cachedMutationsContaining(queryClient, 'WrongHorse1')).toBe(0));
+
+    // The typed password stays in the field for a retry; the retry is cleaned up too.
+    vi.mocked(api.apiPost).mockRejectedValueOnce(new Error('Incorrect password'));
+    await user.click(screen.getByRole('button', { name: /restore this backup/i }));
+    await waitFor(() => expect(api.apiPost).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(api.apiPost).mock.calls[1][1]).toMatchObject({ password: 'WrongHorse1' });
+    await waitFor(() => expect(cachedMutationsContaining(queryClient, 'WrongHorse1')).toBe(0));
+  });
+
+  it('FE-RCC3-002: after a successful restore no React state keeps the password', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.apiPost).mockResolvedValueOnce({ files_restored: 5, safety_copy_count: 5 });
+    const { container } = renderCard();
+
+    await fillRestoreForm(user, 'CorrectHorse1');
+    // Positive control: the typed password is visible in hook state (useState here; the mutation snapshot is covered by break-it row 3).
+    expect(reactStateContains(container, 'CorrectHorse1')).toBe(true);
+    await user.click(screen.getByRole('button', { name: /restore this backup/i }));
+
+    await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(false));
+    await waitFor(() => expect(reactStateContains(container, 'CorrectHorse1')).toBe(false));
   });
 });
