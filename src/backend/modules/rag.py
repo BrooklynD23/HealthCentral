@@ -109,6 +109,8 @@ class ValidatedResponse:
     insufficient_reasons: list[str] = field(default_factory=list)
     # Phase 4: Verification metadata
     verification: VerificationMetadata = field(default_factory=VerificationMetadata)
+    # SAFE-CHAT: True when a PROHIBITED_PATTERNS match fired in validate_response.
+    prohibited_advice: bool = False
 
 
 class RAGModule:
@@ -811,6 +813,7 @@ I was unable to fully process your question within the time limit. Please try as
         - (Phase 4) Claims are verified against sources
         """
         errors = []
+        prohibited_advice = False
 
         # Parse response into segments
         segments = self._parse_response_segments(response)
@@ -836,6 +839,7 @@ I was unable to fully process your question within the time limit. Please try as
         for pattern in self._compiled_prohibited_patterns:
             if pattern.search(response):
                 errors.append("Response contains prohibited medical advice")
+                prohibited_advice = True
                 break
 
         # Build validated segments with citations
@@ -869,6 +873,7 @@ I was unable to fully process your question within the time limit. Please try as
             is_valid=len(errors) == 0,
             validation_errors=errors,
             verification=verification_metadata,
+            prohibited_advice=prohibited_advice,
         )
 
     def _build_validated_segments(

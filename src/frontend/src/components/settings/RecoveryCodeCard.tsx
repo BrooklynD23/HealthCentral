@@ -11,6 +11,8 @@
  * exactly once, held only in component state, and never written to the query
  * cache, a store, or localStorage — anywhere the app could read it back, an
  * attacker with the same access could too, which would defeat sealing it.
+ * The mutation that fetched it is reset once it settles and has gcTime 0, so
+ * the TanStack mutation cache does not keep the code or the password either.
  */
 
 import { useState } from 'react';
@@ -59,6 +61,9 @@ export function RecoveryCodeCard() {
               ? err.message
               : 'Could not create a recovery code.'
           ),
+        // Detach from the mutation so its gcTime of 0 removes it, with the
+        // password in its variables and the code in its data, from the cache.
+        onSettled: () => issueRecoveryCode.reset(),
       }
     );
   };
