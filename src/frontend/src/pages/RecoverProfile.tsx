@@ -46,8 +46,13 @@ export function RecoverProfile() {
         profileId,
         data: { recovery_code: code, new_password: newPassword },
       });
+      // RCC-2: the old code and the new password have done their job.
+      recover.reset();
+      setCode('');
+      setNewPassword('');
       setRotatedCode(result.recovery_code);
     } catch (err) {
+      recover.reset();
       setError(
         err instanceof Error ? err.message : 'That recovery code is not valid.'
       );

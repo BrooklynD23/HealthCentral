@@ -137,6 +137,10 @@ export function ProfileSetup() {
         display_name: displayName.trim() || 'My Health Profile',
         password,
       });
+      // RCC-2: the password has done its job. Detach the mutation (gcTime 0
+      // then removes it, with the password and code) and clear the field.
+      createProfile.reset();
+      setPassword('');
 
       setStep(2);
       await new Promise((r) => setTimeout(r, 500));
@@ -146,6 +150,7 @@ export function ProfileSetup() {
       setRecoveryCode(created.recovery_code);
       setIsCreating(false);
     } catch (err) {
+      createProfile.reset();
       const raw = err instanceof Error ? err.message : String(err);
       const timedOut =
         raw.toLowerCase().includes('aborted') ||
