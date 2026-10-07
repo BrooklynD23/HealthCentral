@@ -1946,9 +1946,9 @@ Push and open the PR. **STOP**: the owner signs S-C4-1 in the record.
 - [ ] **S-C2-1** — The owner runs `openwiki --init` in a clean worktree and accepts sending tracked repository source to the chosen LLM API (O-C2-1). Signed: ________ Date: ______
 - [ ] **S-C2-2** — Tool-made edits to `CLAUDE.md` / `AGENT.md` / new `AGENTS.md`: reject (default) / accept as listed: ________. Signed: ________ Date: ______
 - [ ] **S-C2-3** — After generation, reword the `openwiki/` referrer lines at `AGENT.md:20` and `docs/00_architecture_plans_index.md:58` to "generated, advisory" (Task C2.3 Step 2). Signed: ________ Date: ______
-- [ ] **S-C3-1** — G-C3 go for the minimal scope above: the HC-M06 golden set, scoring and eval card per proposals M06-1…M06-6; the HC-M07 audit-payload key and the /health e2e smoke. The HC-M07 mechanism itself is S-C3-3. Signed: ________ Date: ______
+- [x] **S-C3-1** — G-C3 go for the minimal scope above: the HC-M06 golden set, scoring and eval card per proposals M06-1…M06-6; the HC-M07 audit-payload key and the /health e2e smoke. The HC-M07 mechanism itself is S-C3-3. Signed: Owner, chat 2026-10-04 (owner-decisions row S-C3-1) Date: 2026-10-04
 - [ ] **S-C3-2** — HC-M06 threshold rule: measured − 0.05, floored, never lowered (or: ________). Signed: ________ Date: ______
-- [ ] **S-C3-3** — HC-M07 deviations from the ledger text: a record factory instead of a handler Filter, installed in `create_app()` rather than the lifespan; `"-"` outside a request; no JSON formatter; no level or handler change. Signed: ________ Date: ______
+- [x] **S-C3-3** — HC-M07 deviations from the ledger text: a record factory instead of a handler Filter, installed in `create_app()` rather than the lifespan; `"-"` outside a request; no JSON formatter; no level or handler change. Signed: Owner, chat 2026-10-04 (owner-decisions row S-C3-3) Date: 2026-10-04
 - [ ] **S-C4-1…5** — carried inside the packaging decision record (Task C4.2). S-C4-5 selects the embedding model and revision that the installer bundles. D8 approves only "the small embedding model", so until S-C4-5 is signed the revision, hash and file set are a proposal.
 - [ ] **F-1 follow-up** — open a new item for `rl_exports/` erase and ignore: yes / no. Signed: ________ Date: ______
 

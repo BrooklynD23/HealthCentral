@@ -119,6 +119,9 @@
     "audit/2026-09-25/swarm-2026-09-27/wave3/3b-evidence.md": [
       "docs/capstone-report/implementation-program.md"
     ],
+    "audit/2026-09-25/waves/wave-3.md": [
+      "docs/capstone-report/implementation-program.md"
+    ],
     "audit/2026-09-29/reviews/P01-r1-codex.txt": [
       "docs/plans/2026-09-29-S02-agent-cache-profile-isolation.md"
     ],
@@ -494,6 +497,7 @@
       "docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md",
       "docs/plans/2026-10-01-packaging-decision.md",
       "docs/plans/2026-10-04-NPM-audit-fix.md",
+      "docs/plans/2026-10-04-PROHIBITED-PARAPHRASE.md",
       "docs/plans/2026-10-04-RCC-recovery-code-cache.md",
       "docs/plans/2026-10-04-RCC2-secret-retention.md",
       "docs/plans/2026-10-04-RCC3-restore-backup.md"
@@ -771,18 +775,40 @@
       "docs/capstone-report/implementation-program.md",
       "docs/capstone-report/owner-decisions-2026-09-27.md"
     ],
+    "docs/plans/2026-10-04-DDI-doc-delete-interpretation.md": [
+      "docs/capstone-report/implementation-program.md"
+    ],
     "docs/plans/2026-10-04-NPM-MAJORS-react-router7.md": [
+      "docs/capstone-report/implementation-program.md",
       "docs/plans/2026-10-04-NPM-MAJORS-tailwind4.md"
     ],
     "docs/plans/2026-10-04-NPM-MAJORS-tailwind4.md": [
+      "docs/capstone-report/implementation-program.md",
       "docs/plans/2026-10-04-NPM-MAJORS-react-router7.md"
     ],
+    "docs/plans/2026-10-04-NPM-audit-fix.md": [
+      "docs/capstone-report/implementation-program.md"
+    ],
+    "docs/plans/2026-10-04-PROHIBITED-PARAPHRASE.md": [
+      "docs/capstone-report/implementation-program.md"
+    ],
     "docs/plans/2026-10-04-RCC-recovery-code-cache.md": [
+      "docs/capstone-report/implementation-program.md",
       "docs/plans/2026-10-04-RCC2-secret-retention.md",
       "docs/plans/2026-10-04-RCC3-restore-backup.md"
     ],
     "docs/plans/2026-10-04-RCC2-secret-retention.md": [
+      "docs/capstone-report/implementation-program.md",
       "docs/plans/2026-10-04-RCC3-restore-backup.md"
+    ],
+    "docs/plans/2026-10-04-RCC3-restore-backup.md": [
+      "docs/capstone-report/implementation-program.md"
+    ],
+    "docs/plans/2026-10-04-SAFE-CHAT-legacy-prohibited-abstain.md": [
+      "docs/capstone-report/implementation-program.md"
+    ],
+    "docs/plans/2026-10-04-SAFE-INTERP-grounded.md": [
+      "docs/capstone-report/implementation-program.md"
     ],
     "docs/plans/implementation-log": [
       "docs/00_architecture_plans_index.md"
@@ -1464,11 +1490,22 @@
       "docs/agentic/orchestration.md",
       "audit/2026-09-25/handoff-2026-09-28-execution-orchestrator.md",
       "audit/2026-09-25/swarm-2026-09-27/wave3/3a-integration.md",
+      "audit/2026-09-25/waves/wave-3.md",
       "docs/plans/2026-09-27-W01-harness-agents-branch-a.md",
       "docs/capstone-report/architecture-overview.md",
       "docs/plans/2026-09-27-P08-gated-packet-hipaa-aligned-amendment.md",
       "docs/plans/2026-09-29-S02-agent-cache-profile-isolation.md",
       "docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md",
+      "docs/plans/2026-10-04-DDI-doc-delete-interpretation.md",
+      "docs/plans/2026-10-04-RCC-recovery-code-cache.md",
+      "docs/plans/2026-10-04-RCC2-secret-retention.md",
+      "docs/plans/2026-10-04-RCC3-restore-backup.md",
+      "docs/plans/2026-10-04-SAFE-CHAT-legacy-prohibited-abstain.md",
+      "docs/plans/2026-10-04-SAFE-INTERP-grounded.md",
+      "docs/plans/2026-10-04-NPM-audit-fix.md",
+      "docs/plans/2026-10-04-PROHIBITED-PARAPHRASE.md",
+      "docs/plans/2026-10-04-NPM-MAJORS-tailwind4.md",
+      "docs/plans/2026-10-04-NPM-MAJORS-react-router7.md",
       "docs/plans/2026-09-27-S01-sql-echo-phi-leak.md",
       "docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md",
       "docs/plans/2026-09-27-W10-governance-invariant-amendments.md",
@@ -1791,6 +1828,9 @@
     "docs/plans/2026-10-04-NPM-audit-fix.md": [
       "docs/capstone-report/owner-decisions-2026-09-27.md",
       "docs/capstone-report/implementation-program.md"
+    ],
+    "docs/plans/2026-10-04-PROHIBITED-PARAPHRASE.md": [
+      "docs/capstone-report/owner-decisions-2026-09-27.md"
     ],
     "docs/plans/2026-10-04-RCC-recovery-code-cache.md": [
       "docs/capstone-report/owner-decisions-2026-09-27.md",

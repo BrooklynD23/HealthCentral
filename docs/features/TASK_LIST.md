@@ -1,7 +1,7 @@
 # HealthCentral Remaining Work Task List
 
 **Version:** 0.5.0
-**Last Updated:** 2026-10-04
+**Last Updated:** 2026-10-07
 **Owner:** Project Lead
 **Refresh Trigger:** Task completed or new task identified
 **Scope:** Active remaining work only (implementation baseline already shipped)
@@ -151,6 +151,16 @@ On the first of each month, review all canonical docs for freshness:
 ---
 
 ## Session Notes
+
+### 2026-10-07 - Wave 3 merged: RCC ×3, DOC-DELETE-INTERP, SAFE-CHAT, SAFE-INTERP-GROUNDED, NPM-AUDIT, G-C3b, W-11a PR-4, P4-core
+
+12 PRs merged serially (#37, #41, #44, #48, #42, #46, #38, #45, #39, #47, #43, #40); main `6b4dd84`.
+
+- Backend: `1370 tests collected` (1346 → 1370: DDI +4, SAFE-CHAT +5, SAFE-INTERP-GROUNDED +11, G-C3b +4).
+- Frontend (Windows, main@6b4dd84): vitest 195 passed in 34 files; Playwright chromium 31 listed in 7 files.
+- Plans merged but not approved for execution: PROHIBITED-PARAPHRASE (#47, gate PARA-1), NPM-MAJORS (#43).
+- `npm audit`: 26 → 7 on 2026-10-04, 10 on 2026-10-06 (new advisories; NPM-AUDIT-DRIFT).
+- Report: `audit/2026-09-25/waves/wave-3.md`. New owner items are in `docs/capstone-report/implementation-program.md`.
 
 ### 2026-10-04 - Frontend counts measured on Windows (W-11a PR-4, G-B6)
 
