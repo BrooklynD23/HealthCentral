@@ -23,6 +23,15 @@
 
 **Main after Wave 3 (`6b4dd84`):** `1370 tests collected` = `CLAUDE.md:30` = `AGENT.md:76` (L0 collect-only at the #40 head; the merge commit adds nothing). Post-merge gate output is in the L0 notes (2026-10-07 entry).
 
+## Compliance matrix after Wave 3
+
+Counted by `audit/2026-09-25/swarm-2026-09-27/wave3/scorecard_count.py` (it reproduces the published 76-row figure on `origin/main`): **78 rows** = 3 enforced · 31 tested · 5 implemented · 16 partial · 16 gap · 4 contradicted · 2 owner-gated · 1 unknown.
+
+- PRIV-07 partial → tested (#41); AUD-06 gap → tested (#48); GATE-13 contradicted → implemented (#40).
+- **SAFE-05 enforced → partial** (lowered, not raised): the 11 prohibited patterns miss paraphrases. L0 ran 5 must-block sentences from the #47 plan against them on `6b4dd84`: 0 of 5 matched. No gate measures what the list misses. PARA-1 is the fix path.
+- New rows: AUD-08 (correlation IDs on log records, tested, #45) and GATE-15 (`npm audit` clean and gated, gap).
+- Frontend counts re-measured by L0 on Windows at `6b4dd84`: vitest 195 passed in 34 files; Playwright chromium 31 listed in 7 files.
+
 ## Owner gates used
 
 Signed 2026-10-04 (owner-decisions): S-C3-1, S-C3-3, W3-SEC-SCHED, NPM-AUDIT-SCHED, NPM-AMEND-1, RCC-2, RCC-3, SAFE-CHAT ("Fix now, abstain") + SAFE-CHAT-TPL (ESCALATE_TEMPLATE), SAFE-INTERP-GROUNDED, OG-4 / OG-5 / OG-6 (P4), NPM-MAJORS ("Plan now"), PROHIBITED-PARAPHRASE ("Plan now, edit later"), AUTH-401-LOGOUT ("Register, later").
@@ -43,6 +52,6 @@ Signed 2026-10-04 (owner-decisions): S-C3-1, S-C3-3, W3-SEC-SCHED, NPM-AUDIT-SCH
 
 ## New owner items
 
-Registered in the program's "Program owner items" table: AUDIT-ORDER (subsumes DDI-AUDIT-ORDER), AUDIT-DENIALS, AUTH-401-LOGOUT, PARA-1, NPM-MAJORS, NPM-AUDIT-DRIFT, SAFE-INTERP-EMBEDDED, RAG-RUNTIME-500, REPROCESS-INTERP-ORPHAN, PANEL-INTERP-STALE, SAFE-CHAT-AGENT / -FALLBACK / -HISTORY, DDI-ORPHAN-BIN, CORRELATION-NORMALISE, DEV-PS1-INSTALL, DEV-SERVER-RUNTIME, E2E-MASTER-CORRUPT. Closed: DOC-DELETE-INTERP (#41), RECOVERY-CODE-CACHE (#37, #42, #46), NPM-AUDIT (#38).
+Registered in the program's "Program owner items" table: AUDIT-ORDER (subsumes DDI-AUDIT-ORDER), AUDIT-DENIALS, AUTH-401-LOGOUT, PARA-1, NPM-MAJORS, NPM-AUDIT-DRIFT, SAFE-INTERP-EMBEDDED, RAG-RUNTIME-500, REPROCESS-INTERP-ORPHAN, PANEL-INTERP-STALE, SAFE-CHAT-AGENT / -FALLBACK / -HISTORY, DDI-ORPHAN-BIN, CORRELATION-NORMALISE, DEV-PS1-INSTALL, DEV-SERVER-RUNTIME, E2E-MASTER-CORRUPT, DOC-PIPELINES-PROHIBITED. Closed: DOC-DELETE-INTERP (#41), RECOVERY-CODE-CACHE (#37, #42, #46), NPM-AUDIT (#38).
 
 Not registered as rows (LOW, in [wave-3-L1-B.md](wave-3-L1-B.md)): `useLogin` / `useUnlockProfile` lack the RCC pattern (0 callers); the access token persists in `localStorage`; `SettingsPage.tsx` navigates to a server-supplied path after a `startsWith('/')` check only; `engines.node >=22` is below vite 7's `>=22.12`.
