@@ -152,6 +152,18 @@ On the first of each month, review all canonical docs for freshness:
 
 ## Session Notes
 
+### 2026-10-04 - Frontend counts measured on Windows (W-11a PR-4, G-B6)
+
+Measured on main@90c502a, Windows 11 (NT 10.0.26200), node v22.20.0, vitest 4.0.16, Playwright 1.58.1, from `src/frontend` after `npm ci`:
+
+- `npx vitest list --json=...`: 186 tests in 32 files.
+- `npx vitest run --reporter=json`: total 186 / passed 186 / failed 0 / skipped 0; exit 0.
+- `npx playwright test --list --project chromium`: `Total: 30 tests in 6 files`; all projects: `Total: 35 tests in 7 files`.
+- `npx playwright test --project chromium`: not run. UNMEASURED on Windows (e2e backend start fails: `RuntimeError: SQLCipher required but not available`, `core/database.py:78`; no sqlcipher3 wheel on Windows, and `DATABASE_ENCRYPTION_REQUIRED=false` was deliberately not set).
+- CI's `E2E Smoke Tests` job is the CI e2e result; this note does not replace it.
+- RCC PR #37 adds 2 vitest tests (188), so 186 is the figure at main@90c502a.
+- Replaced the unmeasured 155 / 25 claims in `docs/capstone-report/` (claims-ledger H2, architecture-overview section 14, matrix GATE-03, GATE-06, Playwright local pass count row).
+
 ### 2026-10-04 - P4-core doc-drift sweep (plan 04 as amended)
 
 Docs-only branch `docs/p4-doc-drift`; no tests added. Plan:

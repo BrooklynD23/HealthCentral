@@ -1988,5 +1988,5 @@ Every commit follows the same routine: `git add -- <paths>`, then `git diff --ca
 | C1 | | | | | | | |
 | C2 | | | n/a (docs) | n/a | Task C2.2 outputs | | |
 | C3a | | | | | | | |
-| C3b | | | | | | | |
+| C3b | `90c502a` (worktree `../hc-gc3b`, supersedes `HealthCentral-gc3b`) | D9 venv, Python 3.11.16, WSL2 Linux, `HF_HUB_OFFLINE=1` | 1346 / none | monitoring `-k hc_obsv`: `3 failed` (001/002 `ModuleNotFoundError: core.logging_setup`, 004 `assert None == '-'`); audit: `1 failed` (`KeyError: 'correlation_id'`) | mode (b) disposable worktree at `564eb41`: Break A (root-handler `Filter`) → 001, 002, 004 red; Break B (`create_app` call removed, `main.py:106`) → 004 red; audit `"correlation_id": ""` → 003 red; restored `4 passed`. At `5e22907` (loop 1 adds a factory reset to 001/002): no-op install with `main` imported first → 001, 002, 004 red | 1350 (+4) / full suite at `564eb41` `1350 passed`, rc=0; `boot ok`; Playwright E2E-HEALTH-001 **UNMEASURED locally** (WSL), CI `e2e-tests` | see PR |
 | C4 | | | | n/a | n/a | | |

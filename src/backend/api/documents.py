@@ -1868,15 +1868,27 @@ async def delete_document(
         .values(source_document_id=None, source_entity_id=None, source_quote=None)
     )
 
-    # Delete document file
-    vault_path = Path(settings.app_data_path) / "vaults" / profile_id / "docs"
-    doc_path = vault_path / f"{document_id}.bin"
-    if doc_path.exists():
-        doc_path.unlink()
-
-    # Delete document record from profile database (cascades to observations, chunks)
+    # Delete document record from profile database (cascades to observations,
+    # their interpretations, and chunks)
     await profile_db.delete(document)
     await profile_db.commit()
+
+    # DOC-DELETE-INTERP: remove the encrypted file only after the rows are
+    # committed. A failed commit must never leave a document row whose file
+    # is already gone. A failed unlink here leaves only ciphertext under the
+    # profile's own vault (swept by profile deletion); log it without the path
+    # and still write the audit row below.
+    vault_path = Path(settings.app_data_path) / "vaults" / profile_id / "docs"
+    doc_path = vault_path / f"{document_id}.bin"
+    try:
+        if doc_path.exists():
+            doc_path.unlink()
+    except OSError as exc:
+        logger.warning(
+            "Document %s deleted but its encrypted file could not be removed: %s",
+            document_id,
+            type(exc).__name__,
+        )
 
     # Create audit log in master database
     await log_document_event(
