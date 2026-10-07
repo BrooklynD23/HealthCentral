@@ -17,7 +17,7 @@ Local-first, privacy-first desktop app: patients import lab PDFs/medical documen
 - **Frontend** `src/frontend/` — React + Vite + TS, Tailwind, React Query, Zustand.
   - `src/pages/` (TrendsDashboard, ExplainAssistant, VerificationWorkbench, SettingsPage…), `src/services/` (API client + hooks; export everything through `services/index.ts` barrel), `e2e/` Playwright
 - **Docs** `docs/` — start at [`docs/00_architecture_plans_index.md`](docs/00_architecture_plans_index.md) (canonical order) or [`docs/roles/00_roles_index.md`](docs/roles/00_roles_index.md) (domain-based "which doc for X"); `docs/plans/` (active + historical plans/decisions log, incl. `implementation-log/` for point-in-time notes). Skills live in `.claude/skills/` and `skills/` — see [Skills](#skills) below.
-- **Generated repo map** [`openwiki/`](openwiki/README.md) — OpenWiki-generated navigation for coding agents (where code lives, how files connect). Advisory only: it never overrides CLAUDE.md, this file, or `docs/`. See `openwiki/README.md` for regeneration commands and review rules.
+- **Generated repo map** [`openwiki/`](openwiki/README.md) — reserved home for a repo-navigation layer that OpenWiki would generate for coding agents (**not yet generated**; README-only stub). Advisory only once generated: it never overrides CLAUDE.md, this file, or `docs/`. See `openwiki/README.md` for regeneration commands and review rules.
 
 ## Skills
 
@@ -43,7 +43,7 @@ skills; `skills/` (no dot) holds this project's **domain** skills. Invoke by nam
 | `asclexis-backend` | Backend routes, feature modules under `src/backend/modules/`, SQLAlchemy models, Pydantic schemas, the SQLCipher per-profile vault, the dual Alembic chains, security/monitoring middleware, LLMOps (semantic cache, model tiers, llama.cpp serving, timing/token tracking), or the proof bundle |
 | `asclexis-agent` | Anything under `src/backend/modules/agent/` — the graph runner, plan/act/reflect/draft nodes, the tool registry, read-only tools over the profile vault, the step budget, audit hooks, or wiring the agent into the `/assistant/` route |
 | `asclexis-guardrails` | The guard node, advice classifier, abstention/escalation templates, groundedness and claim-to-source mapping, confidence thresholds, or the PHI redaction gate before any opt-in external LLM call |
-| `asclexis-evals` | Golden eval cases, synthetic vault states, the four scoring axes (groundedness, citation accuracy, abstention correctness, advice leakage), or the CI workflow that gates PRs on agent behavior |
+| `asclexis-evals` | Golden eval cases, synthetic vault states, the six scoring axes (groundedness, citation accuracy, abstention correctness, advice leakage, injection resistance, PHI leakage), or the CI workflow that gates PRs on agent behavior |
 
 The `.claude/skills/` directory also vendors
 [mattpocock/skills](https://github.com/mattpocock/skills)' engineering set

@@ -6,7 +6,7 @@ What "verified" means in this repo. Every task in [feature_list.json](../../feat
 
 | Category | What it protects | Where it runs |
 |----------|------------------|---------------|
-| Unit tests | Backend module behavior (~620 pytest tests) | `src/backend/tests/`, CI `backend-tests` |
+| Unit tests | Backend module behavior (measured collected count: the baseline line in [CLAUDE.md](../../CLAUDE.md)) | `src/backend/tests/`, CI `backend-tests` |
 | Integration tests | Route → module → per-profile DB flows | same pytest suite (API-level tests) |
 | E2E tests | Real user flows in a browser | `src/frontend/e2e/` Playwright, CI `e2e-tests` |
 | Doc consistency | Stale docs, broken links, generated-index drift | `scripts/docs_lint.py`, `scripts/generate_docs_index.py --check`, CI `docs-lint` |
@@ -17,8 +17,8 @@ What "verified" means in this repo. Every task in [feature_list.json](../../feat
 
 ## Concrete evals
 
-1. **Agent safety gate** — `python3 scripts/agent_eval_gate.py` scores a golden set on four axes and fails CI on any regression: groundedness == 1.0, citation coverage == 1.0, abstention == 1.0 on abstain/escalate cases, and zero advice leakage on advice-bait cases.
-2. **Backend regression suite** — `bash scripts/run-backend-tests.sh -q` (CI) or `cd src/backend && python -m pytest tests/ -p no:cacheprovider -q` (local). Baseline: ~620 pass, 1 known env-only embedding-similarity failure that must not be "fixed" by lowering its 0.7 threshold.
+1. **Agent safety gate** — `python3 scripts/agent_eval_gate.py` scores the 74-case golden set (`tests/agent/golden/`) on six axes and fails CI on any regression: groundedness == 1.0, citation coverage == 1.0, abstention == 1.0 on abstain/escalate cases, zero advice leakage on advice-bait cases, injection_resistance == 1.0 on injection cases (HC-M05), and zero phi_leakage on phi-bait cases (HC-M05). The R-14 composed-then-dropped and HC-M05 injection-compose end-to-end checks must also pass.
+2. **Backend regression suite** — `bash scripts/run-backend-tests.sh -q` (CI) or `cd src/backend && python -m pytest tests/ -p no:cacheprovider -q` (local). The collected-count baseline lives in one place, the baseline line in [CLAUDE.md](../../CLAUDE.md); each phase measures and updates it. Where no embedding model is available, `test_api_rag_index_002b` fails on embedding similarity — a known environment-only failure that must not be "fixed" by lowering its 0.7 threshold.
 3. **Docs freshness gate** — `python3 scripts/docs_lint.py` (link integrity, staleness rules) plus `python3 scripts/generate_docs_index.py --check` (fails if `docs/INDEX.md` / link graph drift from sources).
 4. **Type and unit gate for the frontend** — `cd src/frontend && npx tsc --noEmit && npx vitest run`; e2e smoke via `npx playwright test --project chromium`.
 5. **Security gate** — CI runs Bandit + pip-audit and fails on high/critical via `python3 scripts/security_gate.py` (waivers need an owner and expiry).

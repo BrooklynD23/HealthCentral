@@ -94,7 +94,7 @@ Local-first application for patients to import medical documents, extract struct
 
 What "verified" means in this repo. Every task in feature_list.json names its verification steps; this file catalogs the evaluation categories and the concrete commands behind them.
 
-Links to: `feature_list.json`
+Links to: `CLAUDE.md`, `feature_list.json`
 
 ## `docs/agentic/harness.md`
 
@@ -208,7 +208,7 @@ cd src/backend python main.py
 
 Hand-authored mermaid diagrams of the running system, kept here so the whole structure can be reviewed in one place. Mermaid rather than image files on purpose: diagrams render on GitHub, and they…
 
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/00_architecture_plans_index.md`, `docs/architecture/backend.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/architecture/frontend.md`, `docs/architecture/performance-scalability-review.md`, `docs/architecture/pipelines.md`, `docs/compliance/hipaa-controls.md`
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/00_architecture_plans_index.md`, `docs/architecture/backend.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/architecture/frontend.md`, `docs/architecture/performance-scalability-review.md`, `docs/architecture/pipelines.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/compliance/hipaa-controls.md`
 
 ## `docs/architecture/backend.md`
 
@@ -224,7 +224,7 @@ Links to: `docs/architecture/README.md`
 
 Part of the architecture diagram set.
 
-Links to: `docs/architecture/README.md`
+Links to: `CLAUDE.md`, `docs/architecture/README.md`
 
 ## `docs/architecture/frontend.md`
 
@@ -248,7 +248,7 @@ Links to: `docs/architecture/README.md`
 
 Part of the architecture diagram set.
 
-Links to: `docs/architecture/README.md`
+Links to: `docs/architecture/README.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`
 
 ## `docs/archive/README.md`
 
@@ -964,6 +964,22 @@ Links to: `audit/2026-09-25/Devin-Audit-report.md`, `docs/capstone-report/owner-
 
 - **A. ORM cascade.** `Observation.interpretation` gets `cascade="all, delete"`. The existing `Document.observations` cascade (`models/document.py:73-77`, `"all, delete-orphan"`) then reaches the…
 
+## `docs/plans/2026-10-04-NPM-MAJORS-react-router7.md`
+
+**NPM-MAJORS (b) — React Router 6 → 7 Migration Plan**
+
+1. On v6, turn on the 2 future flags that apply to a declarative-mode app. This is a separate, small commit, and it proves the behaviour change before the major. 2. Bump to v7 while keeping the…
+
+Links to: `docs/plans/2026-10-04-NPM-MAJORS-tailwind4.md`
+
+## `docs/plans/2026-10-04-NPM-MAJORS-tailwind4.md`
+
+**NPM-MAJORS (a) — Tailwind CSS 3 → 4 Migration Plan**
+
+- moves `tailwind.config.js` into CSS `@theme`; - swaps `@tailwind` directives for `@import "tailwindcss"`; - moves the PostCSS plugin to `@tailwindcss/postcss`; - renames the utilities whose…
+
+Links to: `docs/plans/2026-10-04-NPM-MAJORS-react-router7.md`
+
 ## `docs/plans/2026-10-04-NPM-audit-fix.md`
 
 **NPM-AUDIT — Non-Breaking `npm audit fix` for the Frontend Implementation Plan**
@@ -971,6 +987,12 @@ Links to: `audit/2026-09-25/Devin-Audit-report.md`, `docs/capstone-report/owner-
 - Owner gate NPM-AUDIT-SCHED (2026-10-04), verbatim: "L1 measures, runs `npm audit fix` without --force, then Windows vitest + E2E. Any breaking major upgrade comes back to you." - Never `npm audit…
 
 Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`
+
+## `docs/plans/2026-10-04-PROHIBITED-PARAPHRASE.md`
+
+**PROHIBITED-PARAPHRASE — Measured Prohibited-Pattern Coverage — Plan**
+
+`PROHIBITED_PATTERNS` (`modules/interpret_safety.py:49-68` @`90c502a`) has three consumers:
 
 ## `docs/plans/2026-10-04-RCC-recovery-code-cache.md`
 

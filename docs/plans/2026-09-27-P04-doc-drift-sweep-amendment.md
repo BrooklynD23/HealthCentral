@@ -1154,9 +1154,9 @@ This file will add a 10th orphan until the index is regenerated. These are P0-B/
 
 - [ ] **OG-1.** Add `/memories` to `.serena/.gitignore` so regenerated Serena memories are not committed again. D2's text does not cover it. Approve: ______ Date: ______
 - [ ] **OG-2 (canonical owner item D4-EXPORTS; merges W-2 finding 4 and W-3 §1 #10).** CSV / JSON / doctor-summary exports include unverified rows, and D4 does not cover exports. P4 only documents this. Decide or accept: ______ Date: ______
-- [ ] **OG-4 (Task 3).** Approve removing the dead `VECTOR_STORE_TYPE` lines (the `# Vector store type` comment and `VECTOR_STORE_TYPE=sqlite-vss`) from `config/.env.example`, keeping `EMBEDDING_DIMENSIONS=384`. Approve: ______ Date: ______
-- [ ] **OG-5 (Task 10).** Approve docstring-only edits to `src/backend/api/__init__.py` and `src/backend/modules/agent/__init__.py` with the text in Task 10. Approve: ______ Date: ______
-- [ ] **OG-6 (Task 14).** Approve deleting `scripts/download_models.py` (the root copy; `src/backend/scripts/download_models.py` stays). Approve: ______ Date: ______
+- [x] **OG-4 (Task 3).** Approve removing the dead `VECTOR_STORE_TYPE` lines (the `# Vector store type` comment and `VECTOR_STORE_TYPE=sqlite-vss`) from `config/.env.example`, keeping `EMBEDDING_DIMENSIONS=384`. Approve: Owner, chat 2026-10-04 (owner-decisions row OG-4 / OG-5 / OG-6)
+- [x] **OG-5 (Task 10).** Approve docstring-only edits to `src/backend/api/__init__.py` and `src/backend/modules/agent/__init__.py` with the text in Task 10. Approve: Owner, chat 2026-10-04 (owner-decisions row OG-4 / OG-5 / OG-6)
+- [x] **OG-6 (Task 14).** Approve deleting `scripts/download_models.py` (the root copy; `src/backend/scripts/download_models.py` stays). Approve: Owner, chat 2026-10-04 (owner-decisions row OG-4 / OG-5 / OG-6)
 - [ ] **OG-3.** `settings.ollama_base_url` is never passed to `OllamaProvider` (`core/llm/factory.py:51`), but `AGENT.md` Configuration presents `OLLAMA_BASE_URL` as a setting. P4 corrects only the code comment (N7). Wire it or document it as unused: ______ Date: ______
 
 ## 13. Commit plan
@@ -1222,13 +1222,13 @@ git commit -m "docs(<scope>): <summary>" -- <same explicit paths>
 
 | Item | Value |
 |---|---|
-| Interpreter / OS | |
-| Start: collected / failures | |
-| End: collected / failures | |
-| Task 4 outcome (DONE-by-P2 sha, or edited) | |
-| Task 11 outcome | |
-| Task 15 outcome | |
-| Mermaid parse | |
-| Deferred tasks outstanding | |
+| Interpreter / OS | Python 3.11.16 (`~/venvs/asclexis-311`), WSL2 Linux 6.6.87.2, `HF_HUB_OFFLINE=1` |
+| Start: collected / failures | 1346 collected / none (1346 passed, pytest exit 0, cached embedding model present); measured by L1 on 90c502a |
+| End: collected / failures | 1346 collected / none (1346 passed, pytest exit 0, HF_HUB_OFFLINE=1, cached embedding model present); measured by L1 at 50d4bbe; equals START_COLLECTED |
+| Task 4 outcome (DONE-by-P2 sha, or edited) | DONE by P2: `4aa8e03`, `aae90ec` (`00_features_index.md:26` carries the wired-scheduler text plus the skipped_locked and quiet-hours caveats); no edit |
+| Task 11 outcome | 130 `@router` decorators in `api/*.py`, 131 doc method rows (the 2 non-`api/` rows are `/health` and `/monitoring/metrics`). The prefix diff found one undocumented route, `GET /medications/{medication_id}/correlations`; the row was added to `docs/api/endpoints.md` |
+| Task 15 outcome | DONE-N/A: `harness.md` and `roadmap.md` cite `.claude/agents/`, `harness_drift_check.py` passed, 5 tracked agent files |
+| Mermaid parse | exit 0 on Windows, @mermaid-js/mermaid-cli@11 via npx, run by L1 at 50d4bbe: pipelines.md 3 charts, architecture/README.md 2, backend.md 4, ci-and-quality-gates.md 1 |
+| Deferred tasks outstanding | N8 (trigger hit: W-5 merged), N10 (trigger hit: W-6 merged), N9 (Brief 2 unsigned), F1 (W-3), F2 (W-2 + W-10), F3 (W-7), F4 (W-4), F5 (W-8), F6 (W-10; W-6 half already worded in N4/N5). `not yet implemented` still open for W-2, W-3, W-4, W-7, W-8, W-10 |
 
 Related: [plan 04](../../audit/2026-09-25/plans/04-doc-drift-sweep.md) · [program](../capstone-report/implementation-program.md) · [contract](../capstone-report/architecture-engineering-contract.md) · [matrix](../capstone-report/specs-compliance-matrix.md) · [recurring failures](../agentic/recurring-failures.md) · [W-1](2026-09-27-W01-harness-agents-branch-a.md) · [W-3](2026-09-27-W03-verified-only-rag-and-trend-labels.md) · [W-5](2026-09-27-W05-citation-marker-prompt.md) · [W-6](2026-09-27-W06-external-runner-hardening.md) · [W-10](2026-09-27-W10-governance-invariant-amendments.md)

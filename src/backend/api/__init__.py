@@ -1,16 +1,25 @@
 """
-API routes for HealthCentral backend.
+API routes for the Asclexis backend.
 
-Organized by domain:
-- documents: Import, list, view documents
+Organized by domain (all mounted under /api/v1 by main.py):
+- profiles: Profile management, sessions, recovery codes
+- documents: Import, list, view, reprocess documents (PDF/image + CSV/FHIR)
 - observations: Lab values and verification
 - interpretations: AI-powered lab result interpretations
 - medications: Medication management and adherence tracking
 - notifications: Medication reminder notifications
-- assistant: RAG-powered chat
-- export: Summary and data export
-- profiles: Profile management
-- model_settings: Hardware detection and model tier selection (Phase 0.3)
+- assistant: RAG/agent-powered chat
+- export: Summary, FHIR R4, and data export
+- model_settings: Model tiers, downloads, external API config, voice
+- memory: Persistent assistant memory per profile
+- gamification: Badges and streaks
+- care_tasks: Open follow-up / care task listing
+- timeline: Record timeline events
+- med_reconcile: Medication mention reconciliation suggestions
+- pinboards: Saved comparison/pinboard views
+- search: Document/record search
+- backup: Per-profile backup create/verify/download/restore/prune
+- feedback: Per-turn thumbs/corrections for RL dataset export
 """
 
 from fastapi import APIRouter

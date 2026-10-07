@@ -43,9 +43,16 @@ derive the encryption key. The master database stores only profile metadata
 
 ### What happens if I forget my password?
 
-There is no password recovery mechanism. If you forget your password, your
-encrypted vault cannot be opened. This is by design for security. **Keep backups
-of your data** using the backup utility.
+When you create a profile, Asclexis shows a **one-time recovery code**. Store it
+somewhere safe. While you can still sign in, you can create a new code (or a
+first one, for a profile made before recovery codes existed) under **Settings →
+Recovery code**. It asks for your password, and it replaces any earlier code.
+
+If you forget your password, the recovery code is the only way back in: choose
+**Use your recovery code** on the profile setup screen. Without a code the vault cannot
+be opened. The password derives the encryption key, so there is no backdoor by
+design. **Keep backups of your data** using the backup utility, and keep your
+recovery code with them.
 
 ### Is HealthCentral HIPAA compliant?
 
