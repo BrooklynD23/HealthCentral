@@ -994,6 +994,8 @@ Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-repor
 
 `PROHIBITED_PATTERNS` (`modules/interpret_safety.py:49-68` @`90c502a`) has three consumers:
 
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`
+
 ## `docs/plans/2026-10-04-RCC-recovery-code-cache.md`
 
 **RCC — Recovery Code Out of the TanStack Mutation Cache Implementation Plan**
