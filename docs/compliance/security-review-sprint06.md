@@ -8,6 +8,8 @@ This report is **findings + remediation plan only**. It intentionally **does not
 
 > **Status update (2026-07-01):** Re-verified against current code during a doc-accuracy audit. **S06-SEC-001 is RESOLVED** (auth now enforced). **S06-SEC-002 is PARTIALLY MITIGATED** (bounded limit now applied, no longer unlimited — see finding for what's still unverified). **S06-SEC-003 is CONFIRMED STILL OPEN** (the `ValueError`-to-500 gap is real as of this pass). CI's `bandit`/`pip-audit` still run with `continue-on-error: true` per `.github/workflows/ci.yml` — unchanged.
 
+> **Status update (2026-10-04):** Re-verified during the P4 doc-drift sweep. **S06-SEC-003 is RESOLVED**: oversized request bodies get a clean 413 via `_send_error` in `src/backend/security/input_validator.py`. **S06-SEC-004 is RESOLVED**: `src/backend/scripts/backup.py::_validate_manifest_path` rejects absolute and `..` manifest paths and resolves within the intended base before verify and restore. The 2026-07-01 line's CI remark is also stale: `.github/workflows/ci.yml` has no `continue-on-error`, the bandit and pip-audit steps fail on a scanner error (exit code ≥ 2), and `scripts/security_gate.py` fails closed on a missing or malformed report. The finding bodies below are the original Sprint-06 record.
+
 ## Executive summary
 
 Sprint 06 adds valuable security middleware, monitoring, and backup tooling, but it also introduces a few high-impact security risks:

@@ -109,7 +109,9 @@ class Settings(BaseSettings):
     #   ollama:     Ollama model tag, e.g. "gemma4:12b", "gemma4:e4b", "gemma4:26b"
     llm_model: str = ""
 
-    # Ollama base URL (must be localhost — non-local URLs are rejected at startup)
+    # Ollama base URL. Must be localhost. validate_startup does not check it; the
+    # model-settings API asserts it via _assert_localhost. core/llm/factory.py does
+    # not pass it to OllamaProvider, which uses its own 127.0.0.1:11434 default.
     ollama_base_url: str = "http://127.0.0.1:11434"
     
     # Vector store

@@ -1,6 +1,6 @@
 # API Endpoints
 
-**Last Updated:** 2026-07-29
+**Last Updated:** 2026-10-04
 **Owner:** Platform maintainers
 **Refresh Trigger:** Mounted backend route added, removed, renamed, or auth requirement changed
 **Status:** Source of truth for the live mounted backend API
@@ -118,6 +118,7 @@ Auth-required endpoints need `Authorization: Bearer <token>`.
 | GET | `/medications/{medication_id}/doses` | Yes | List dose history |
 | GET | `/medications/{medication_id}/stats` | Yes | Get adherence statistics |
 | POST | `/medications/{medication_id}/learn-patterns` | Yes | Run adaptive reminder pattern learning |
+| GET | `/medications/{medication_id}/correlations` | Yes | List observations collected during the medication's active window (MED-CORR-001); verified observations only by default (`verified_only=false` to include unverified), optional `analyte` filter, and a count of undated observations excluded |
 
 ## Gamification
 

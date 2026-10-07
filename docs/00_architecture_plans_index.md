@@ -1,6 +1,6 @@
 # HealthCentral Documentation Index (Current)
 
-**Last Updated:** 2026-09-08
+**Last Updated:** 2026-10-04
 **Owner:** Project Lead
 **Refresh Trigger:** New doc added or doc archived
 
@@ -60,8 +60,9 @@ from the generated map (DOC-011).
 
 ## Generated Navigation (Advisory — Not Authoritative)
 
-- [`openwiki/README.md`](../openwiki/README.md) — OpenWiki-generated repo map for coding agents
-  (code location, file relationships). Advisory only: if it conflicts with this index, `CLAUDE.md`,
+- [`openwiki/README.md`](../openwiki/README.md) — reserved home for an OpenWiki-generated
+  repo map for coding agents (**not yet generated**; README-only stub with regeneration
+  instructions). Advisory when generated: if it conflicts with this index, `CLAUDE.md`,
   `AGENT.md`, or `docs/roles/00_roles_index.md`, the hand-maintained docs win.
 
 ## Planning (Current)

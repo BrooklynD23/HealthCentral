@@ -176,7 +176,7 @@ Treat local helper state separately from shared project changes so dirty-worktre
 
 - **Ignore category:** `.bg-shell/` and `.wsl-pytest-venv/` are local-only directories used for shell state and WSL verification bootstrap. They belong in `.gitignore`, not in commits.
 - **Clean-up category:** ad-hoc root files such as `PLAN.md`, `HANDOFF-*.md`, and generated local reports like `*_report*.md` should be removed or relocated before review. They are intentionally not broadly ignored because they can look like real project docs.
-- **Document category:** when contributor guidance changes, update `README.md`, `CONTRIBUTING.md`, and `.gsd/KNOWLEDGE.md` together so future audits interpret local-only artifacts consistently.
+- **Document category:** when contributor guidance changes, update `README.md` and `CONTRIBUTING.md` together so future audits interpret local-only artifacts consistently.
 
 #### Lightweight pre-merge checklist
 

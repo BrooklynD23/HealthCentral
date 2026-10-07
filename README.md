@@ -199,7 +199,7 @@ sequenceDiagram
 - **Backend**: Python 3.11+ with FastAPI
 - **Database**: SQLite master DB plus per-profile SQLCipher vault DBs
 - **Document Vault**: AES-GCM encrypted files under per-profile vault directories
-- **Vector/Retrieval**: FAISS/vector embeddings plus local curated reference content
+- **Vector/Retrieval**: Per-profile embedding blobs scanned with a linear cosine-similarity pass (no external vector index — deliberately simple at single-user corpus size), plus local curated reference content
 - **Local LLM**: llama-cpp-python with GGUF models
 - **Optional External LLMs**: OpenAI/Anthropic-compatible runners behind opt-in model settings and redaction checks
 - **Embeddings**: sentence-transformers models such as bge/e5 tiers
@@ -491,8 +491,10 @@ npm run dev
 ## Agent Overhaul — planning package
 
 The `agent-overhaul` workstream promotes the single-shot `/assistant/` RAG explainer
-into a read-only, governed plan→act→reflect agent (behind the `agent_enabled` flag,
-default OFF). Planning artifacts and code scaffolds live alongside the code:
+into a read-only, governed plan→act→reflect agent. **The agent is shipped and is the
+default chat path** (`agent_enabled` defaults to True — `modules/agent/settings.py`);
+the flag remains only as a per-profile kill switch back to single-shot RAG. Planning
+artifacts live alongside the code:
 
 - **PRD:** [docs/prd/PRD_agent_overhaul.md](docs/prd/PRD_agent_overhaul.md)
 - **Agile plan / cadence:** [AGILE_PLAN](docs/agile/AGILE_PLAN.md) ·
@@ -513,8 +515,9 @@ default OFF). Planning artifacts and code scaffolds live alongside the code:
 | [asclexis-evals](skills/asclexis-evals/SKILL.md) | E3 Evals | [P6](docs/archive/prd-phases/PHASE_6_evals_ci.md) | [S6](docs/archive/agile-sprints/SPRINT_6.md) | R3 |
 | — (uses evals + backend) | E6 Fine-tuning (stretch) | [P7](docs/prd/phases/PHASE_7_lora_stretch.md) | [S7](docs/agile/sprints/SPRINT_7.md) | R3 |
 
-Code scaffolds (stubs, flag OFF) live under `src/backend/modules/agent/`; eval/test
-scaffolds and golden fixtures under `src/backend/tests/agent/`.
+The agent implementation lives under `src/backend/modules/agent/` (graph runner,
+plan/act/reflect/draft nodes, tool registry, guardrails); the eval harness and 74
+golden fixtures under `src/backend/tests/agent/`, gated by `scripts/agent_eval_gate.py`.
 
 ## API Overview
 
@@ -533,6 +536,13 @@ Asclexis exposes a REST API via FastAPI at `http://localhost:8000/api/v1`. Inter
 | **Notifications** | `/notifications/` | Reminder settings, history, test sends, scheduler status, interaction logging |
 | **Export** | `/export/` | CSV/JSON export, doctor summary, discussion questions, verified-only redacted FHIR R4 bundle export/download (HC-M22) |
 | **Model Settings** | `/settings/model` | Model tier selection, downloads, external API config, timezone, and voice preferences |
+| **Care Tasks** | `/care-tasks/` | List persisted care-plan tasks, derive candidates from a document, accept a candidate into a task, update task status |
+| **Timeline** | `/timeline/` | Chronological view of the profile's record (observations, classified documents, medication starts/stops), derived on read |
+| **Med Reconciliation** | `/med-reconciliation/` | Compare a document's medication mentions against the medication list (read-only; never changes the list) |
+| **Pinboards** | `/pinboards/` | Create and manage pinboards and their items; generate a visit-prep packet from a pinboard |
+| **Search** | `/search/` | Bounded local search over documents, extracted entities, and observations |
+| **Backup** | `/backup/` | Create, list, verify, download, restore, and prune per-profile backups; backup schedule |
+| **Feedback** | `/feedback/` | Per-turn rating/correction feedback, aggregate stats, redacted preference-dataset export |
 | **Monitoring** | `/health`, `/monitoring/` | Health check and authenticated metrics dashboard |
 
 Exact path-level API **source of truth**: [docs/api/endpoints.md](docs/api/endpoints.md).
