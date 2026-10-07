@@ -958,6 +958,12 @@ This record answers HC-M08a (`feature_list.json:94-96`): "Decision doc exists, p
 
 Links to: `audit/2026-09-25/Devin-Audit-report.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`
 
+## `docs/plans/2026-10-04-DDI-doc-delete-interpretation.md`
+
+**DDI — Document Delete With an Interpretation — Implementation Plan**
+
+- **A. ORM cascade.** `Observation.interpretation` gets `cascade="all, delete"`. The existing `Document.observations` cascade (`models/document.py:73-77`, `"all, delete-orphan"`) then reaches the…
+
 ## `docs/plans/2026-10-04-NPM-MAJORS-react-router7.md`
 
 **NPM-MAJORS (b) — React Router 6 → 7 Migration Plan**
@@ -973,6 +979,56 @@ Links to: `docs/plans/2026-10-04-NPM-MAJORS-tailwind4.md`
 - moves `tailwind.config.js` into CSS `@theme`; - swaps `@tailwind` directives for `@import "tailwindcss"`; - moves the PostCSS plugin to `@tailwindcss/postcss`; - renames the utilities whose…
 
 Links to: `docs/plans/2026-10-04-NPM-MAJORS-react-router7.md`
+
+## `docs/plans/2026-10-04-NPM-audit-fix.md`
+
+**NPM-AUDIT — Non-Breaking `npm audit fix` for the Frontend Implementation Plan**
+
+- Owner gate NPM-AUDIT-SCHED (2026-10-04), verbatim: "L1 measures, runs `npm audit fix` without --force, then Windows vitest + E2E. Any breaking major upgrade comes back to you." - Never `npm audit…
+
+Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`
+
+## `docs/plans/2026-10-04-PROHIBITED-PARAPHRASE.md`
+
+**PROHIBITED-PARAPHRASE — Measured Prohibited-Pattern Coverage — Plan**
+
+`PROHIBITED_PATTERNS` (`modules/interpret_safety.py:49-68` @`90c502a`) has three consumers:
+
+## `docs/plans/2026-10-04-RCC-recovery-code-cache.md`
+
+**RCC — Recovery Code Out of the TanStack Mutation Cache Implementation Plan**
+
+- Owner gate W3-SEC-SCHED (2026-10-04), verbatim: "RECOVERY-CODE-CACHE: `gcTime: 0` or `reset()` in `RecoveryCodeCard.tsx`." - Frontend only. No backend file, no auth/encryption backend code, no…
+
+Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`
+
+## `docs/plans/2026-10-04-RCC2-secret-retention.md`
+
+**RCC-2 — Password and Recovery-Code Retention in Create, Recover and Delete Implementation Plan**
+
+- Owner gate RCC-2 (2026-10-04), verbatim: "Plan RCC-2 with the same fix (gcTime 0 + reset) and tests in all 3 hooks, plus clearing component state. One PR." - L0 scope note (2026-10-04):…
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-04-RCC-recovery-code-cache.md`
+
+## `docs/plans/2026-10-04-RCC3-restore-backup.md`
+
+**RCC-3 — Restore Password Out of the Mutation Cache Implementation Plan**
+
+- Owner gate RCC-3 (2026-10-04), verbatim: "Same small fix as RCC-2, done by L1-B." L0 scope note: "useRestoreBackup (services/backup.ts:173, BackupCard.tsx:113) — gcTime 0 + reset() on settle,…
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-04-RCC-recovery-code-cache.md`, `docs/plans/2026-10-04-RCC2-secret-retention.md`
+
+## `docs/plans/2026-10-04-SAFE-CHAT-legacy-prohibited-abstain.md`
+
+**SAFE-CHAT — Legacy Chat Path Replaces a Prohibited Answer — Implementation Plan**
+
+- **A. A typed flag, not a string match.** `ValidatedResponse` (`modules/rag.py:102-111`) gets `prohibited_advice: bool = False`. `validate_response` sets it where it already appends "Response…
+
+## `docs/plans/2026-10-04-SAFE-INTERP-grounded.md`
+
+**SAFE-INTERP-GROUNDED — Escalate Prohibited Grounded Answers, Audit Interpretation Routes — Implementation Plan**
+
+- **A. Flag.** `ValidatedResponse.prohibited_advice` in `modules/rag.py` — **byte-identical** to SAFE-CHAT `f5961e7`'s hunk, so whichever of #44 / this PR merges second merges cleanly (Task 3 Step 5…
 
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
