@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from core.feedback_constants import VALID_TAGS
+from core.time import utcnow
 from modules.redaction import RedactionEngine
 
 logger = logging.getLogger(__name__)
@@ -255,7 +256,7 @@ def export_rl_datasets(
 
     metadata = {
         "schema_version": SCHEMA_VERSION,
-        "exported_at": datetime.utcnow().isoformat() + "Z",
+        "exported_at": utcnow().isoformat() + "Z",
         "total_feedback_records": len(records),
         "dpo_pairs": len(dpo_rows),
         "sft_positives": len(sft_rows),

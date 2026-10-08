@@ -14,12 +14,12 @@ import logging
 from pathlib import Path
 from typing import Optional, BinaryIO
 from dataclasses import dataclass
-from datetime import datetime
 import uuid
 import io
 
 from core.config import settings
 from core.security import DocumentEncryption
+from core.time import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -317,7 +317,7 @@ class IngestModule:
         metadata = {
             "original_filename": filename,
             "source": source,
-            "imported_at": datetime.utcnow().isoformat(),
+            "imported_at": utcnow().isoformat(),
             "file_size": len(file_data),
             "encrypted": was_encrypted,
         }
