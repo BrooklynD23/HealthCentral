@@ -8,6 +8,8 @@ import re
 from datetime import datetime, time, timedelta
 from types import SimpleNamespace
 
+import pytest
+
 from core.time import UTC, utcfromtimestamp, utcnow
 
 NAIVE_ISO = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{6})?$")
@@ -60,3 +62,44 @@ def test_hc_time_005_profile_responses_serialize_naive_iso():
     assert NAIVE_ISO.match(body.last_accessed_at), body.last_accessed_at
     # Same shape the deprecated helper produced: no offset, no "Z".
     assert NAIVE_ISO.match(datetime(2026, 1, 1, 12, 0, 0, 123456).isoformat())
+
+
+class _RecordingDb:
+    def __init__(self):
+        self.added = []
+
+    def add(self, obj):
+        self.added.append(obj)
+
+
+@pytest.mark.asyncio
+async def test_hc_time_006_badge_earned_at_is_naive_utc():
+    # TIME-03 (owner row P5-SCOPE): the badge timestamp is persisted to a naive
+    # DateTime column, so it must be naive UTC like every other timestamp.
+    from models.gamification import EarnedBadge
+    from modules.badge_evaluator import evaluate_badges_after_dose
+
+    dose = SimpleNamespace(
+        medication_id="m1",
+        taken_at=utcnow(),
+        schedule_id=None,
+        variance_minutes=None,
+        was_skipped=False,
+    )
+    db = _RecordingDb()
+    results = await evaluate_badges_after_dose(
+        profile_id="p1",
+        medication_id="m1",
+        doses_for_medication=[dose],
+        all_profile_doses=[dose],
+        timezone="UTC",
+        existing_badge_keys=set(),
+        db=db,
+    )
+    assert "first-log" in [r.badge_id for r in results]
+    assert all(r.earned_at.tzinfo is None for r in results)
+    recorded = [o for o in db.added if isinstance(o, EarnedBadge)]
+    assert recorded
+    for badge in recorded:
+        assert badge.earned_at.tzinfo is None
+        assert abs((utcnow() - badge.earned_at).total_seconds()) < 2
