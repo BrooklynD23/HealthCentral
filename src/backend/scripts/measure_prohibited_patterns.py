@@ -1,8 +1,8 @@
 """Read-only measurement of prohibited-pattern lists. Writes nothing.
 
 Run from src/backend:  python scripts/measure_prohibited_patterns.py [--verbose]
-Exit code is always 0 (measurement, not a gate). Never import from product
-code paths; this script is not imported by anything.
+Exit code is always 0 (measurement, not a gate). Imports the live pattern list and
+product templates read-only; nothing in product code imports this script.
 """
 
 import argparse
@@ -76,15 +76,14 @@ def first_hit(lst: Compiled, text: str) -> tuple[str, str] | None:
     return None
 
 
-def build_sets(final: bool) -> tuple[dict[str, list[Item]], dict[str, list[Item]]]:
+def build_sets(sealed: list[str]) -> tuple[dict[str, list[Item]], dict[str, list[Item]]]:
     ins_b, ins_a = _split("in_sample")
     dev_b, dev_a = _split("held_out_dev")
     nr = [(i["group"], i["text"]) for i in _read("must_not_regress")["items"]]
     block = {"in_sample": ins_b, "must_not_regress": nr, "held_out_dev": dev_b}
     allow = {"in_sample": ins_a, "product": product_texts(), "held_out_dev": dev_a}
-    if final:
-        fb, fa = _split("held_out_final")
-        block["held_out_final"], allow["held_out_final"] = fb, fa
+    for name in sealed:
+        block[name], allow[name] = _split(name)
     return block, allow
 
 
@@ -126,20 +125,23 @@ def report_list(name: str, r: dict[str, Any], verbose: bool) -> None:
         print("   " + ", ".join(f"{k} {bad[k]}/{tot[k]}" for k in sorted(tot)))
         if verbose:
             for k, t, (pid, sub) in fp:
-                print(f"   FP [{pid}] {sub!r}: {t[:100]!r}")
+                print(f"   FP [{pid}] {sub!r}: {t!r}")
 
 
 def _verbose_block(hits: list[Any], regress: list[str]) -> None:
     for k, t, h in hits:
-        print(f"   {'HIT ' + h[0] + ' ' + repr(h[1]) if h else 'MISS'} [{k}]: {t}")
+        print(f"   {'HIT ' + h[0] + ' ' + repr(h[1]) if h else 'MISS'} [{k}]: {t!r}")
     for t in regress:
-        print(f"   REGRESSION: {t}")
+        print(f"   REGRESSION: {t!r}")
 
 
 def report_markdown(res: dict[str, Any]) -> None:
     first = next(iter(res.values()))
     bs, als = list(first["block"]), list(first["allow"])
-    head = ["list"] + [f"{s} recall | regr" for s in bs] + [f"{s} FP" for s in als]
+    head = ["list"]
+    for s in bs:
+        head += [f"{s} recall", f"{s} regr"]
+    head += [f"{s} FP" for s in als]
     print("\n| " + " | ".join(head) + " |")
     print("|" + "---|" * len(head))
     for ln, r in res.items():
@@ -147,7 +149,7 @@ def report_markdown(res: dict[str, Any]) -> None:
         for s in bs:
             d = r["block"][s]
             n = sum(1 for *_, h in d["hits"] if h)
-            cells.append(f"{_pct(n, len(d['hits']))} | {len(d['regress'])}")
+            cells += [_pct(n, len(d["hits"])), str(len(d["regress"]))]
         for s in als:
             n = sum(1 for *_, h in r["allow"][s] if h)
             cells.append(_pct(n, len(r["allow"][s])))
@@ -157,16 +159,19 @@ def report_markdown(res: dict[str, Any]) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--final", action="store_true")
+    ap.add_argument("--final2", action="store_true")
     ap.add_argument("--verbose", action="store_true")
     ap.add_argument("--list", action="append", dest="names")
     ap.add_argument("--markdown", action="store_true")
     a = ap.parse_args()
-    if a.final:
-        print("INCLUDING SEALED held_out_final SPLIT")
+    sealed = [n for n, on in (("held_out_final", a.final),
+                              ("held_out_final2", a.final2)) if on]
+    for n in sealed:
+        print(f"INCLUDING SEALED {n} SPLIT")
     lists = load_lists()
     if a.names:
         lists = {k: v for k, v in lists.items() if k == "current" or k in a.names}
-    block, allow = build_sets(a.final)
+    block, allow = build_sets(sealed)
     res = evaluate(lists, block, allow)
     if a.markdown:
         report_markdown(res)
