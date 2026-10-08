@@ -28,9 +28,11 @@
 | Why not npm's own `node_modules\.package-lock.json`? | Not used | It is npm's private format (no root entry, extra fields), not a copy of `package-lock.json`, so a content comparison needs a parser, and its timestamp has the problem above. |
 | Where does the marker live? | Inside `node_modules` | Deleting `node_modules` deletes the marker, so the two cannot disagree. `node_modules/` is git-ignored (`.gitignore:59`). |
 | Marker missing, `node_modules` present | Install once | This is every existing install on the day this merges: the tree is unverified. It is how the NPM-AUDIT fixes reach existing installs. Cost: one reinstall per machine. |
-| `npm ci` or `npm install`? | `npm ci`, for all three cases (first time, incomplete, lockfile changed) | `npm ci` installs exactly the committed lockfile and never rewrites it. `npm install` may rewrite `package-lock.json` on a patient machine, which would then differ from the repository and from the stored hash. `npm ci` removes `node_modules` first. A failed run can still leave a partial tree (measured in Task 3 (d): 288 package folders, no Vite), but never a marker, so the script stops with exit 1 and the next run reports `incomplete` or `lockfile-changed` and installs again. A partial tree is never launched. CI already runs `npm ci` on every PR (`ci.yml` frontend jobs), so the lockfile is known to be in sync with `package.json`. |
-| Install failure | Check npm's exit code, print the last lines of npm's output, stop with exit 1. The marker is written only after exit code 0 **and** Vite is present | Today the exit code is ignored and only Vite's presence is checked. With a reinstall over an existing tree that check would pass on the old Vite. |
+| `npm ci` or `npm install`? | `npm ci`, for all three cases (first time, incomplete, lockfile changed) | `npm ci` installs exactly the committed lockfile and never rewrites it. `npm install` may rewrite `package-lock.json` on a patient machine, which would then differ from the repository and from the stored hash. `npm ci` removes `node_modules` first. A failed run can still leave a partial tree (measured in Task 3 (d): 288 package folders, no Vite), but never a marker (the old one is deleted before npm starts), so the script stops with exit 1 and the next run reports `incomplete` or `lockfile-changed` and installs again. A partial tree is never launched. CI already runs `npm ci` on every PR (`ci.yml` frontend jobs), so the lockfile is known to be in sync with `package.json`. |
+| Install failure | The old marker is deleted before npm starts. Check npm's exit code, print the last lines of npm's output, stop with exit 1. The marker is written only after exit code 0 **and** Vite is present | Today the exit code is ignored and only Vite's presence is checked. With a reinstall over an existing tree that check would pass on the old Vite. |
 | How is npm called? | Through the npm **application** (`npm.cmd`, or `npm.exe`), resolved with `Get-Command npm -CommandType Application`, never through `& npm` | Measured 2026-10-08 (Windows PowerShell 5.1.26100, npm 11.6.2): PowerShell resolves `npm` to the shim `npm.ps1` first, and that shim rebuilds its arguments from the statement text by cutting off `InvocationName.Length` characters. Called as `& npm ci`, the invocation name is `&`, so npm receives `pm ci` and prints `Unknown command: "pm"`, exit 1. The line on `main` today, `& npm install 2>&1 \| Out-Null` (`dev.ps1:635`), fails the same way: in an empty project it exits 1 and creates nothing. So a first-time install through `dev.ps1` is already broken with this npm; the old code then prints "npm install succeeded but Vite was not found". `& npm --version` (`:429`) works only because npm answers `--version` whatever the command is. The first version of this plan copied `& npm`; the stubbed check cases could not see it and the first real run did (Task 3). |
+| Marker cannot be written (read-only folder, file locked) | One warning; the app starts, because the tree is correct. The next start reinstalls | Refusing to launch a correct tree would be the wrong failure. |
+| Paths | `-LiteralPath` in the three functions | A folder name with `[` `]` is a wildcard pattern to `-Path`; measured in review: a valid tree in `Asclexis [1]` read as `missing` and reinstalled on every run. |
 | `package-lock.json` missing | The decision returns "install"; `npm ci` then fails with its own message and the script stops | An incomplete download. No guess is made. |
 
 Cost accepted: `npm ci` needs the registry (or npm's cache). A machine that is offline on the first run after a lockfile change gets a clear error and does not launch; before this change it launched on the stale packages. That is the behaviour the gate asks for.
@@ -40,10 +42,10 @@ Cost accepted: `npm ci` needs the registry (or npm's cache). A machine that is o
 | File | Change |
 |---|---|
 | `dev.ps1` | STEP 5 only: three functions plus the rewritten install block |
-| `scripts/check_dev_ps1_install.ps1` | New. Self-contained check script (no Pester). Loads the two functions out of `dev.ps1` with the PowerShell parser, so it tests the shipped code without running the launcher. The install cases call a real stub `.cmd` process, and two cases call the real npm with `--version` |
+| `scripts/check_dev_ps1_install.ps1` | New. Self-contained check script (no Pester). Loads the three functions out of `dev.ps1` with the PowerShell parser, so it tests the shipped code without running the launcher. The install cases call a real stub `.cmd` process, and two cases call the real npm with `--version` |
 | `docs/plans/2026-10-08-DEV-PS1-install-on-lockfile-change.md` | This plan |
 | `docs/INDEX.md`, `docs/_link_graph.json` | Regenerated for the new plan |
-| `audit/2026-09-25/waves/wave-4-L1-B.md` | L1 wave report |
+| `audit/2026-09-25/waves/wave-4-L1-B.md` | L1 wave report (added in the last commit before the PR) |
 
 Prior art checked: `grep -rn "dev.ps1" src/backend/tests scripts tests .github` returns two hits at `777adf5`, neither a test of the launcher: `src/backend/tests/test_claude_agent_definitions.py:83` (an agent's write scope) and `scripts/harness_drift_check.py:44` (a filename allowlist). No existing test pattern, so the check script is new.
 
@@ -91,14 +93,14 @@ if (-not (Test-Path $nodeModulesDir) -or -not (Test-Path $viteBin) -or -not (Tes
 function Get-FrontendInstallReason {
     param([string]$FrontendDir)
     $modules = Join-Path $FrontendDir "node_modules"
-    if (-not (Test-Path $modules)) { return "missing" }
-    if (-not (Test-Path (Join-Path $modules ".bin\vite.cmd")) -or
-        -not (Test-Path (Join-Path $modules "vite\bin\vite.js"))) { return "incomplete" }
+    if (-not (Test-Path -LiteralPath $modules)) { return "missing" }
+    if (-not (Test-Path -LiteralPath (Join-Path $modules ".bin\vite.cmd")) -or
+        -not (Test-Path -LiteralPath (Join-Path $modules "vite\bin\vite.js"))) { return "incomplete" }
     $lockFile = Join-Path $FrontendDir "package-lock.json"
     $marker   = Join-Path $modules ".asclexis-lockfile.sha256"
-    if (-not (Test-Path $lockFile) -or -not (Test-Path $marker)) { return "lockfile-changed" }
-    $current  = (Get-FileHash -Path $lockFile -Algorithm SHA256).Hash
-    $recorded = ([string](Get-Content -Path $marker -TotalCount 1)).Trim()
+    if (-not (Test-Path -LiteralPath $lockFile) -or -not (Test-Path -LiteralPath $marker)) { return "lockfile-changed" }
+    $current  = (Get-FileHash -LiteralPath $lockFile -Algorithm SHA256).Hash
+    $recorded = "$(Get-Content -LiteralPath $marker -TotalCount 1)".Trim()
     if ($current -ne $recorded) { return "lockfile-changed" }
     return ""
 }
@@ -116,15 +118,18 @@ function Get-NpmApplicationPath {
 # Runs `npm ci` and records the lockfile hash only when it succeeded and Vite is present.
 # Returns $true on success. On failure prints why and returns $false; nothing is recorded.
 function Install-FrontendDependencies {
-    param([string]$FrontendDir, [string]$NpmCommand = "")
+    param([string]$FrontendDir)
     $modules = Join-Path $FrontendDir "node_modules"
-    if ($NpmCommand -eq "") { $NpmCommand = Get-NpmApplicationPath }
+    $marker  = Join-Path $modules ".asclexis-lockfile.sha256"
+    # The old record goes first: a failed or interrupted install must never look current.
+    Remove-Item -LiteralPath $marker -Force -ErrorAction SilentlyContinue
+    $npmCommand = Get-NpmApplicationPath
     $npmExit = 1
     $npmOutput = "npm was not found on PATH."
-    if ($NpmCommand -ne "") {
-        Push-Location $FrontendDir
+    if ($npmCommand -ne "") {
+        Push-Location -LiteralPath $FrontendDir
         try {
-            $npmOutput = & $NpmCommand ci 2>&1
+            $npmOutput = & $npmCommand ci 2>&1
             $npmExit = $LASTEXITCODE
         } catch {
             $npmOutput = $_.Exception.Message
@@ -138,14 +143,19 @@ function Install-FrontendDependencies {
         Write-Err "Check your internet connection, close other Asclexis windows, and run again."
         return $false
     }
-    if (-not (Test-Path (Join-Path $modules ".bin\vite.cmd")) -or
-        -not (Test-Path (Join-Path $modules "vite\bin\vite.js"))) {
+    if (-not (Test-Path -LiteralPath (Join-Path $modules ".bin\vite.cmd")) -or
+        -not (Test-Path -LiteralPath (Join-Path $modules "vite\bin\vite.js"))) {
         Write-Err "npm install succeeded but Vite was not found."
         Write-Err "Try deleting src\frontend\node_modules and running again."
         return $false
     }
-    $hash = (Get-FileHash -Path (Join-Path $FrontendDir "package-lock.json") -Algorithm SHA256).Hash
-    Set-Content -Path (Join-Path $modules ".asclexis-lockfile.sha256") -Value $hash -Encoding ASCII
+    try {
+        $hash = (Get-FileHash -LiteralPath (Join-Path $FrontendDir "package-lock.json") -Algorithm SHA256).Hash
+        Set-Content -LiteralPath $marker -Value $hash -Encoding ASCII -ErrorAction Stop
+    } catch {
+        # The tree itself is correct, so the app may start; only the record is missing.
+        Write-Warn "Could not record the installed version; the next start will reinstall frontend dependencies."
+    }
     return $true
 }
 
@@ -196,22 +206,33 @@ The `Remove-Item $nodeModulesDir` of the incomplete case goes: `npm ci` removes 
     | 6 | case 4, then the lockfile's mtime set one day back and one day forward, content unchanged | `` (skip) both times |
     | 7 | Vite files and marker present, `package-lock.json` deleted | `lockfile-changed` |
 
-  - Install cases. `npm` is replaced by a stub **`.cmd` file** the check script writes into its temp folder and passes as `-NpmCommand` (so no network and no real install, but a real child process and a real `$LASTEXITCODE`; a PowerShell function stub hid the `& npm` defect above):
+  - Install cases. `npm` is replaced by a stub file named **`npm.cmd`** in a temp folder that the check script puts first on `$env:PATH` for the duration of the case (restored in `finally`). `Install-FrontendDependencies` is called exactly as the launcher calls it, with `-FrontendDir` only, so the case covers the lookup the launcher really uses: no network and no real install, but a real child process and a real `$LASTEXITCODE`. Two earlier versions hid a defect here: a PowerShell function stub hid the `& npm` shim defect, and a stub passed through a test-only `-NpmCommand` parameter left the real lookup uncovered (code review 2026-10-08: reverting the lookup to `"npm"` stayed 14/14). `dev.ps1` has no test-only parameter.
 
-    | # | Stub `npm ci` | Expected |
+    | # | Stub `npm.cmd` first on PATH | Expected |
     |---|---|---|
-    | 8 | exit code 1, Vite files already present from an old tree | returns `$false`; marker **not** written (the case today's code gets wrong) |
+    | 8 | exit code 1; Vite files and a marker equal to the lockfile hash already present | returns `$false`; marker **gone** (the old record must not survive a failed install) |
     | 9 | exit code 0, creates the Vite files | returns `$true`; marker equals the lockfile hash; `Get-FrontendInstallReason` then returns `` |
-    | 10 | exit code 0, creates nothing | returns `$false`; marker not written |
-    | 11 | `-NpmCommand` = a path that does not exist, Vite files already present | returns `$false`; marker not written (a command that cannot start must not read a stale `$LASTEXITCODE`) |
+    | 10 | exit code 0, creates nothing | returns `$false`; no marker |
+    | 11 | no stub; `$env:PATH` reduced to `%SystemRoot%\System32` (no npm anywhere); Vite files present; `cmd /c exit 0` run first so a stale exit code 0 would show | returns `$false`; no marker |
     | 12 | stub records its arguments | the stub received exactly `ci` |
+    | 13 | exit code 0, creates the Vite files, and writes a line to stderr | returns `$true`; marker written (npm warns on stderr on healthy installs) |
+    | 14 | stub `npm.cmd` on PATH, and an extensionless file `npm` plus an `npm.ps1` in a folder **before** it | `Get-NpmApplicationPath` returns the stub `npm.cmd`, and the stub received `ci` |
+    | 15 | exit code 0, creates the Vite files; the folder is named `Asclexis [1] test` (space and brackets) | returns `$true`; `Get-FrontendInstallReason` then returns `` |
 
-  - npm resolution cases (real npm, `--version` only, no network):
+  - Decision edge case:
+
+    | # | Tree | Expected |
+    |---|---|---|
+    | 16 | Vite files present, marker is an empty file | `lockfile-changed`, and nothing is written to the error stream |
+
+  - npm resolution cases (the real npm, no network, no install):
 
     | # | Check | Expected |
     |---|---|---|
-    | 13 | `Get-NpmApplicationPath` | a path that exists, extension `.cmd` or `.exe` (not `.ps1`, not extensionless) |
-    | 14 | `& (Get-NpmApplicationPath) --version` called from a script file | exit code 0, output is a version number |
+    | 17 | `Get-NpmApplicationPath` with the unmodified PATH | a path that exists, extension `.cmd` or `.exe` |
+    | 18 | `& (Get-NpmApplicationPath) ci --help` called from the script file | exit code 0 and output containing `npm ci` (through the `npm.ps1` shim this is exit 1, `Unknown command: "pm"`; `--version` would pass either way) |
+
+  - The check script sets `$ErrorActionPreference = "Continue"`, the launcher's own setting (`dev.ps1:19`), so the functions run as they do in production.
 
   - Prints one `PASS` / `FAIL` line per case and a last line `checks: <passed>/<total>`; exits `0` only when all pass, else `1`.
   - Optional switch `-Live <frontendDir>`: runs the real decision and, when it says so, the real `Install-FrontendDependencies` (real `npm ci`) against that directory, and prints the reason, the result and the marker. This is the manual-acceptance entry point; it starts no server.
@@ -235,14 +256,14 @@ Expected: `check=1`, with the failures naming the two functions as not found in 
 
 ```bash
 powershell.exe -NoProfile -Command "\$e = \$null; [void][System.Management.Automation.Language.Parser]::ParseFile('C:\Users\DangT\Documents\GitHub\hc-devps1\dev.ps1', [ref]\$null, [ref]\$e); \$e.Count"   # expect 0
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'C:\Users\DangT\Documents\GitHub\hc-devps1\scripts\check_dev_ps1_install.ps1'; echo "check=$?"   # expect checks: 14/14, check=0
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'C:\Users\DangT\Documents\GitHub\hc-devps1\scripts\check_dev_ps1_install.ps1'; echo "check=$?"   # expect checks: 18/18, check=0
 ```
 
-- [ ] **Step 3. Break-it (must go red, then be restored).** In `Get-FrontendInstallReason` change `-ne $recorded` to `-eq $recorded`; run the check script: expect `check=1` with cases 4, 5 and 6 failing. Restore; `git diff --stat` shows only the intended change; run again: `check=0`. Second break-it: in `Install-FrontendDependencies` delete the `if ($npmExit -ne 0) { ... }` block: expect cases 8 and 11 to fail. Restore. Third break-it: in `Get-NpmApplicationPath` return the literal `"npm"`: expect case 13 to fail. Restore.
+- [ ] **Step 3. Break-it (must go red, then be restored).** In `Get-FrontendInstallReason` change `-ne $recorded` to `-eq $recorded`; run the check script: expect `check=1` with cases 4, 5 and 6 failing. Restore; `git diff --stat` shows only the intended change; run again: `check=0`. Second break-it: in `Install-FrontendDependencies` delete the `if ($npmExit -ne 0) { ... }` block: expect cases 8 and 11 to fail. Restore. Third: change `$npmCommand = Get-NpmApplicationPath` to `$npmCommand = "npm"` (the shim defect): expect at least cases 9, 12 and 14 to fail. Restore. Fourth: delete the `Remove-Item -LiteralPath $marker` line: expect case 8 to fail. Restore. Fifth: change the initial `$npmExit = 1` to `0`: expect case 11 to fail. Restore.
 - [ ] **Step 4. Scope check.**
 
 ```bash
-git diff origin/main -- dev.ps1 | grep '^@@'         # every hunk inside STEP 5 (lines 617-700)
+git diff origin/main -- dev.ps1 | grep '^@@'         # exactly one hunk, starting at line 623; then: sed -n '617,620p;/STEP 6/p' dev.ps1 shows STEP 5 above it and STEP 6 below it
 LC_ALL=C grep -nP '[^\x00-\x7F]' dev.ps1 scripts/check_dev_ps1_install.ps1; echo "nonascii=$?"   # expect nonascii=1 (none)
 git status --short                                   # only dev.ps1 (and nothing under src/)
 ```
@@ -256,7 +277,7 @@ In worktree `hc-devps1`, which has no `src/frontend/node_modules` yet. One heavy
 - [ ] (a) Fresh tree: `-Live` prints reason `missing`, runs `npm ci`, result `True`, marker = SHA-256 of `package-lock.json`.
 - [ ] (b) Again: reason `` (skip), no npm run. Record the elapsed time.
 - [ ] (c) Lockfile state changed without editing the tracked file: overwrite the **marker** with a wrong hash (this is exactly what a changed lockfile looks like to the decision; `package-lock.json` stays byte-identical so `git status` stays clean): reason `lockfile-changed`, `npm ci` runs, marker restored to the real hash.
-- [ ] (d) Failure path, real npm: run `-Live` with the registry unreachable for that process only (`$env:npm_config_registry='http://127.0.0.1:9'` and `$env:npm_config_offline` unset, `npm_config_cache` pointed at an empty temp folder) after invalidating the marker: result `False`, the error lines print, the marker is absent, and a following `Get-FrontendInstallReason` says `missing` or `lockfile-changed` (not ``). Then run (a) again to leave a working tree.
+- [ ] (d) Failure path, real npm: run `-Live` with the registry unreachable for that process only (`$env:npm_config_registry='http://127.0.0.1:9'` and `$env:npm_config_offline` unset, `npm_config_cache` pointed at an empty temp folder) after invalidating the marker: result `False`, the error lines print, the marker is absent, and a following `Get-FrontendInstallReason` says `missing`, `incomplete` or `lockfile-changed` (not ``). Then run (a) again to leave a working tree.
 - [ ] `git status --short` after all four: no tracked file changed.
 
 ```bash
