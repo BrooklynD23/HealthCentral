@@ -243,7 +243,7 @@ The `Remove-Item $nodeModulesDir` of the incomplete case goes: `npm ci` removes 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'C:\Users\DangT\Documents\GitHub\hc-devps1\scripts\check_dev_ps1_install.ps1'; echo "check=$?"
 ```
 
-Expected: `check=1`, with the failures naming the two functions as not found in `dev.ps1`. Paste the output. A pass here means the script cannot fail: fix the script, not the expectation.
+Expected: `check=1`, with the failures naming the functions not found in `dev.ps1` (first round), or the cases the current `dev.ps1` does not satisfy (later rounds). Paste the output. A pass here means the script cannot fail: fix the script, not the expectation.
 
 - [ ] **Step 3. Commit** `test(dev): check script for dev.ps1 frontend install decision` (pathspec `scripts/check_dev_ps1_install.ps1`).
 
@@ -259,7 +259,7 @@ powershell.exe -NoProfile -Command "\$e = \$null; [void][System.Management.Autom
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'C:\Users\DangT\Documents\GitHub\hc-devps1\scripts\check_dev_ps1_install.ps1'; echo "check=$?"   # expect checks: 18/18, check=0
 ```
 
-- [ ] **Step 3. Break-it (must go red, then be restored).** In `Get-FrontendInstallReason` change `-ne $recorded` to `-eq $recorded`; run the check script: expect `check=1` with cases 4, 5 and 6 failing. Restore; `git diff --stat` shows only the intended change; run again: `check=0`. Second break-it: in `Install-FrontendDependencies` delete the `if ($npmExit -ne 0) { ... }` block: expect cases 8 and 11 to fail. Restore. Third: change `$npmCommand = Get-NpmApplicationPath` to `$npmCommand = "npm"` (the shim defect): expect at least cases 9, 12 and 14 to fail. Restore. Fourth: delete the `Remove-Item -LiteralPath $marker` line: expect case 8 to fail. Restore. Fifth: change the initial `$npmExit = 1` to `0`: expect case 11 to fail. Restore.
+- [ ] **Step 3. Break-it (must go red, then be restored).** In `Get-FrontendInstallReason` change `-ne $recorded` to `-eq $recorded`; run the check script: expect `check=1` with cases 4, 5 and 6 failing. Restore; `git diff --stat` shows only the intended change; run again: `check=0`. Second break-it: in `Install-FrontendDependencies` delete the `if ($npmExit -ne 0) { ... }` block: expect cases 8 and 11 to fail. Restore. Third: change `$npmCommand = Get-NpmApplicationPath` to `$npmCommand = "npm"` (the shim defect): expect case 14 to fail (`shimRan=True`). Cases 9 and 12 stay green under this mutation, because their stub folder holds no `npm.ps1` and PowerShell then resolves `npm` to the stub `npm.cmd`; case 14 is the one built to see it. Restore. Fourth: delete the `Remove-Item -LiteralPath $marker` line: expect case 8 to fail. Restore. Fifth: change the initial `$npmExit = 1` to `0`: expect case 11 to fail. Restore.
 - [ ] **Step 4. Scope check.**
 
 ```bash
