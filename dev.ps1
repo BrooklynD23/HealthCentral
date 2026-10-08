@@ -659,8 +659,19 @@ function Install-FrontendDependencies {
     param([string]$FrontendDir)
     $modules = Join-Path $FrontendDir "node_modules"
     $marker  = Join-Path $modules ".asclexis-lockfile.sha256"
+    # npm ci empties node_modules. If node_modules is a link, that would empty the folder it points to.
+    $modulesItem = Get-Item -LiteralPath $modules -Force -ErrorAction SilentlyContinue
+    if ($modulesItem -and ($modulesItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+        Write-Err "src\frontend\node_modules is a link to another folder. Nothing was changed."
+        Write-Err "Remove the link (not the folder it points to) and run again."
+        return $false
+    }
     # The old record goes first: a failed or interrupted install must never look current.
     Remove-Item -LiteralPath $marker -Force -ErrorAction SilentlyContinue
+    # Hash the lockfile npm is about to install, not the one on disk when npm has finished.
+    $lockHash = ""
+    $lockFile = Join-Path $FrontendDir "package-lock.json"
+    if (Test-Path -LiteralPath $lockFile) { $lockHash = (Get-FileHash -LiteralPath $lockFile -Algorithm SHA256).Hash }
     $npmCommand = Get-NpmApplicationPath
     $npmExit = 1
     $npmOutput = "npm was not found on PATH."
@@ -688,8 +699,7 @@ function Install-FrontendDependencies {
         return $false
     }
     try {
-        $hash = (Get-FileHash -LiteralPath (Join-Path $FrontendDir "package-lock.json") -Algorithm SHA256).Hash
-        Set-Content -LiteralPath $marker -Value $hash -Encoding ASCII -ErrorAction Stop
+        Set-Content -LiteralPath $marker -Value $lockHash -Encoding ASCII -ErrorAction Stop
     } catch {
         # The tree itself is correct, so the app may start; only the record is missing.
         Write-Warn "Could not record the installed version; the next start will reinstall frontend dependencies."
