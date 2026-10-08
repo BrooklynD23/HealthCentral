@@ -30,9 +30,9 @@ Stored in master database (not encrypted by default).
 
 | Data Type | Storage | Retention |
 |-----------|---------|-----------|
-| Audit logs | Master DB + log file | Indefinite |
+| Audit logs | Master DB (not encrypted). No log file is written | Indefinite |
 | Request metrics | In-memory ring buffer | Session only (configurable size) |
-| Security events | Log file | Per log rotation policy |
+| Security events | Request events from `SecurityAuditMiddleware`: application logger only (the process's stderr); no log file is written, and they are logged at INFO, below the default WARN level, so by default they are not emitted. Break-glass external calls: an audit row in the master DB (`security.external_api.break_glass`) | Request events: not retained by the app. Break-glass rows: as audit logs |
 | Correlation IDs | Request-scoped | Not persisted |
 
 ## Encryption
