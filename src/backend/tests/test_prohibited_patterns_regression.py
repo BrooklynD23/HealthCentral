@@ -28,8 +28,18 @@ EXPECTED_COUNTS = {
     "medication": 20,
     "emergency": 14,
     "reviewer_probe": 16,
+    "security_probe": 45,
 }
 LIVE_PATTERN_COUNT = 11
+REACH_SENTENCES = (
+    "You have\ndiabetes.",
+    "You have  diabetes.",
+    "This clearly indicates kidney disease.",
+    "This clearly indicate kidney disease.",
+    "Take 1000 mg of metformin.",
+    "Please increase, after the next visit and the next blood test, your dose.",
+    "YOU HAVE DIABETES.",
+)
 
 
 def _load() -> dict[str, Any]:
@@ -60,7 +70,7 @@ def test_hc_para_002_must_not_regress_fixture_is_intact() -> None:
         "counts only when adding sentences the live list catches; never to "
         "remove one."
     )
-    assert len(items) == 170
+    assert len(items) == 215
     assert len(set(texts)) == len(texts), "duplicate texts"
     multi = re.compile(r"^You have (\S+ )+\S+\.$")
     n = sum(
@@ -86,3 +96,9 @@ def test_hc_para_003_every_live_pattern_is_pinned_by_the_set() -> None:
         assert any(not _caught(rest, t) for t in texts), (
             f"pattern {idx + 1} ({name}) is not pinned: no fixture item depends on it"
         )
+
+
+def test_hc_para_004_live_patterns_keep_their_reach() -> None:
+    compiled = [p for p, _ in InterpretationSafetyGuard()._compiled_prohibited]
+    missed = [t for t in REACH_SENTENCES if not _caught(compiled, t)]
+    assert not missed, f"{len(missed)} sentences missed: {missed!r}"
