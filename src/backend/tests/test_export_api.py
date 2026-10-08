@@ -22,6 +22,7 @@ import json
 # Add backend to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from core.time import utcnow
 from modules.export import ExportModule, DoctorSummary, QuestionPrompt
 
 
@@ -320,7 +321,7 @@ class TestSummaryDownload:
         summary = DoctorSummary(
             summary_id=str(uuid.uuid4()),
             profile_id=str(uuid.uuid4()),
-            generated_at=datetime.utcnow(),
+            generated_at=utcnow(),
             date_range_start=None,
             date_range_end=None,
             key_findings=["Test finding"],
@@ -343,7 +344,7 @@ class TestSummaryDownload:
         summary = DoctorSummary(
             summary_id=str(uuid.uuid4()),
             profile_id=str(uuid.uuid4()),
-            generated_at=datetime.utcnow(),
+            generated_at=utcnow(),
             date_range_start=datetime(2024, 1, 1),
             date_range_end=datetime(2024, 1, 31),
             key_findings=[

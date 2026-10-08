@@ -11,7 +11,6 @@ import logging
 import sys
 import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -25,6 +24,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 import modules.notification_scheduler as ns_module
+from core.time import utcnow
 from modules.notification_scheduler import (
     NotificationScheduler,
     ProfileVaultLockedError,
@@ -259,7 +259,7 @@ def test_hc_nsw_009_no_phi_in_logs_or_master_schema(tmp_path, monkeypatch, caplo
         session_maker = async_sessionmaker(
             engine, class_=AsyncSession, expire_on_commit=False
         )
-        now = datetime.utcnow()
+        now = utcnow()
         async with session_maker() as db:
             db.add(
                 Medication(
@@ -297,7 +297,7 @@ def test_hc_nsw_009_no_phi_in_logs_or_master_schema(tmp_path, monkeypatch, caplo
 
 def _seed_due_medication(db, profile_id, med_id, sched_id):
     """Insert an active medication with a schedule due right now."""
-    now = datetime.utcnow()
+    now = utcnow()
     db.add(
         Medication(
             id=med_id,
