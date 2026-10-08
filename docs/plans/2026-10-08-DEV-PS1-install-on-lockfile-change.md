@@ -15,7 +15,7 @@
 - Owner gate DEV-PS1-FIRST (2026-10-07), verbatim: "A small PR before Tailwind 4 (owner item DEV-PS1-INSTALL): dev.ps1 reinstalls when package-lock.json is newer than node_modules. Tailwind 4 refuses to start until it is merged. Also makes the npm audit fixes actually reach existing installs."
 - Edit **only** STEP 5 of `dev.ps1` (`:617-648` at `777adf5`). Do not touch the backend half, the SQLCipher handling (`:471-500`, `:586-593`), the port step, or how Vite is launched (`:728`).
 - `dev.ps1` stays one self-contained ASCII file: no dot-sourced helper, no non-ASCII character (Windows PowerShell 5.1 reads a BOM-less file as ANSI).
-- No network call other than the npm registry the script already uses. No user data is deleted: the only directory removed is `src/frontend/node_modules`.
+- No network call other than the npm registry the script already uses. No user data is deleted: the only directory emptied is `src/frontend/node_modules`, and only when it is a real directory (a link is refused).
 - Keep the three existing messages: "Installing frontend dependencies (first-time setup) ...", "node_modules exists but looks incomplete. Reinstalling ...", "Frontend dependencies already installed", and the two Vite-not-found error lines.
 - Backend collected count stays **1370**; no backend file changes, so `CLAUDE.md` / `AGENT.md` do not change.
 - Stage with explicit pathspecs. Never `git add -A`.
@@ -33,6 +33,8 @@
 | How is npm called? | Through the npm **application** (`npm.cmd`, or `npm.exe`), resolved with `Get-Command npm -CommandType Application`, never through `& npm` | Measured 2026-10-08 (Windows PowerShell 5.1.26100, npm 11.6.2): PowerShell resolves `npm` to the shim `npm.ps1` first, and that shim rebuilds its arguments from the statement text by cutting off `InvocationName.Length` characters. Called as `& npm ci`, the invocation name is `&`, so npm receives `pm ci` and prints `Unknown command: "pm"`, exit 1. The line on `main` today, `& npm install 2>&1 \| Out-Null` (`dev.ps1:635`), fails the same way: in an empty project it exits 1 and creates nothing. So a first-time install through `dev.ps1` is already broken with this npm; the old code then prints "npm install succeeded but Vite was not found". `& npm --version` (`:429`) works only because npm answers `--version` whatever the command is. The first version of this plan copied `& npm`; the stubbed check cases could not see it and the first real run did (Task 3). |
 | Marker cannot be written (read-only folder, file locked) | One warning; the app starts, because the tree is correct. The next start reinstalls | Refusing to launch a correct tree would be the wrong failure. |
 | Paths | `-LiteralPath` in the three functions | A folder name with `[` `]` is a wildcard pattern to `-Path`; measured in review: a valid tree in `Asclexis [1]` read as `missing` and reinstalled on every run. |
+| `node_modules` is a junction or symlink | Refuse: print why, change nothing, exit 1 | Security review 2026-10-08, measured: `npm ci` empties the **target** of a top-level junction (`precious.txt survives=False`), where main's `Remove-Item -Recurse` removed only the link. This change makes every existing install reinstall once, so the guard is needed for "no user data is deleted" to hold. |
+| When is the hash taken? | Before npm runs | If the lockfile changes during the install (a `git pull`), the marker must describe what was installed, so the next start reinstalls. |
 | `package-lock.json` missing | The decision returns "install"; `npm ci` then fails with its own message and the script stops | An incomplete download. No guess is made. |
 
 Cost accepted: `npm ci` needs the registry (or npm's cache). A machine that is offline on the first run after a lockfile change gets a clear error and does not launch; before this change it launched on the stale packages. That is the behaviour the gate asks for.
@@ -121,8 +123,19 @@ function Install-FrontendDependencies {
     param([string]$FrontendDir)
     $modules = Join-Path $FrontendDir "node_modules"
     $marker  = Join-Path $modules ".asclexis-lockfile.sha256"
+    # npm ci empties node_modules. If node_modules is a link, that would empty the folder it points to.
+    $modulesItem = Get-Item -LiteralPath $modules -Force -ErrorAction SilentlyContinue
+    if ($modulesItem -and ($modulesItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+        Write-Err "src\frontend\node_modules is a link to another folder. Nothing was changed."
+        Write-Err "Remove the link (not the folder it points to) and run again."
+        return $false
+    }
     # The old record goes first: a failed or interrupted install must never look current.
     Remove-Item -LiteralPath $marker -Force -ErrorAction SilentlyContinue
+    # Hash the lockfile npm is about to install, not the one on disk when npm has finished.
+    $lockHash = ""
+    $lockFile = Join-Path $FrontendDir "package-lock.json"
+    if (Test-Path -LiteralPath $lockFile) { $lockHash = (Get-FileHash -LiteralPath $lockFile -Algorithm SHA256).Hash }
     $npmCommand = Get-NpmApplicationPath
     $npmExit = 1
     $npmOutput = "npm was not found on PATH."
@@ -150,8 +163,7 @@ function Install-FrontendDependencies {
         return $false
     }
     try {
-        $hash = (Get-FileHash -LiteralPath (Join-Path $FrontendDir "package-lock.json") -Algorithm SHA256).Hash
-        Set-Content -LiteralPath $marker -Value $hash -Encoding ASCII -ErrorAction Stop
+        Set-Content -LiteralPath $marker -Value $lockHash -Encoding ASCII -ErrorAction Stop
     } catch {
         # The tree itself is correct, so the app may start; only the record is missing.
         Write-Warn "Could not record the installed version; the next start will reinstall frontend dependencies."
@@ -219,6 +231,9 @@ The `Remove-Item $nodeModulesDir` of the incomplete case goes: `npm ci` removes 
     | 14 | stub `npm.cmd` on PATH, and an extensionless file `npm` plus an `npm.ps1` in a folder **before** it | `Get-NpmApplicationPath` returns the stub `npm.cmd`, and the stub received `ci` |
     | 15 | exit code 0, creates the Vite files; the folder is named `Asclexis [1] test` (space and brackets) | returns `$true`; `Get-FrontendInstallReason` then returns `` |
 
+    | 19 | exit code 0 and creates the Vite files, but `node_modules` is a **junction** to another temp folder holding `precious.txt`; the stub also writes a `ran.txt` | returns `$false`; `precious.txt` still exists; the junction still exists; the stub did **not** run (no `ran.txt`); no marker in the target |
+    | 20 | exit code 0, creates the Vite files, and appends a byte to `package-lock.json` while it runs (a `git pull` during the install) | returns `$true`; the marker equals the hash of the lockfile as it was **before** npm ran; `Get-FrontendInstallReason` then returns `lockfile-changed` |
+
   - Decision edge case:
 
     | # | Tree | Expected |
@@ -256,10 +271,10 @@ Expected: `check=1`, with the failures naming the functions not found in `dev.ps
 
 ```bash
 powershell.exe -NoProfile -Command "\$e = \$null; [void][System.Management.Automation.Language.Parser]::ParseFile('C:\Users\DangT\Documents\GitHub\hc-devps1\dev.ps1', [ref]\$null, [ref]\$e); \$e.Count"   # expect 0
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'C:\Users\DangT\Documents\GitHub\hc-devps1\scripts\check_dev_ps1_install.ps1'; echo "check=$?"   # expect checks: 18/18, check=0
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'C:\Users\DangT\Documents\GitHub\hc-devps1\scripts\check_dev_ps1_install.ps1'; echo "check=$?"   # expect checks: 20/20, check=0
 ```
 
-- [ ] **Step 3. Break-it (must go red, then be restored).** In `Get-FrontendInstallReason` change `-ne $recorded` to `-eq $recorded`; run the check script: expect `check=1` with cases 4, 5 and 6 failing. Restore; `git diff --stat` shows only the intended change; run again: `check=0`. Second break-it: in `Install-FrontendDependencies` delete the `if ($npmExit -ne 0) { ... }` block: expect cases 8 and 11 to fail. Restore. Third: change `$npmCommand = Get-NpmApplicationPath` to `$npmCommand = "npm"` (the shim defect): expect case 14 to fail (`shimRan=True`). Cases 9 and 12 stay green under this mutation, because their stub folder holds no `npm.ps1` and PowerShell then resolves `npm` to the stub `npm.cmd`; case 14 is the one built to see it. Restore. Fourth: delete the `Remove-Item -LiteralPath $marker` line: expect case 8 to fail. Restore. Fifth: change the initial `$npmExit = 1` to `0`: expect case 11 to fail. Restore.
+- [ ] **Step 3. Break-it (must go red, then be restored).** In `Get-FrontendInstallReason` change `-ne $recorded` to `-eq $recorded`; run the check script: expect `check=1` with cases 4, 5 and 6 failing. Restore; `git diff --stat` shows only the intended change; run again: `check=0`. Second break-it: in `Install-FrontendDependencies` delete the `if ($npmExit -ne 0) { ... }` block: expect cases 8 and 11 to fail. Restore. Third: change `$npmCommand = Get-NpmApplicationPath` to `$npmCommand = "npm"` (the shim defect): expect case 14 to fail (`shimRan=True`). Cases 9 and 12 stay green under this mutation, because their stub folder holds no `npm.ps1` and PowerShell then resolves `npm` to the stub `npm.cmd`; case 14 is the one built to see it. Restore. Fourth: delete the `Remove-Item -LiteralPath $marker` line: expect case 8 to fail. Restore. Fifth: change the initial `$npmExit = 1` to `0`: expect case 11 to fail. Restore. Sixth: delete the reparse-point `if` block: expect case 19 to fail (the stub runs). Restore. Seventh: move the `$lockHash` computation to just before `Set-Content`: expect case 20 to fail. Restore.
 - [ ] **Step 4. Scope check.**
 
 ```bash
