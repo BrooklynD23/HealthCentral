@@ -631,14 +631,14 @@ $nodeModulesDir = Join-Path $FRONTEND_DIR "node_modules"
 function Get-FrontendInstallReason {
     param([string]$FrontendDir)
     $modules = Join-Path $FrontendDir "node_modules"
-    if (-not (Test-Path $modules)) { return "missing" }
-    if (-not (Test-Path (Join-Path $modules ".bin\vite.cmd")) -or
-        -not (Test-Path (Join-Path $modules "vite\bin\vite.js"))) { return "incomplete" }
+    if (-not (Test-Path -LiteralPath $modules)) { return "missing" }
+    if (-not (Test-Path -LiteralPath (Join-Path $modules ".bin\vite.cmd")) -or
+        -not (Test-Path -LiteralPath (Join-Path $modules "vite\bin\vite.js"))) { return "incomplete" }
     $lockFile = Join-Path $FrontendDir "package-lock.json"
     $marker   = Join-Path $modules ".asclexis-lockfile.sha256"
-    if (-not (Test-Path $lockFile) -or -not (Test-Path $marker)) { return "lockfile-changed" }
-    $current  = (Get-FileHash -Path $lockFile -Algorithm SHA256).Hash
-    $recorded = ([string](Get-Content -Path $marker -TotalCount 1)).Trim()
+    if (-not (Test-Path -LiteralPath $lockFile) -or -not (Test-Path -LiteralPath $marker)) { return "lockfile-changed" }
+    $current  = (Get-FileHash -LiteralPath $lockFile -Algorithm SHA256).Hash
+    $recorded = "$(Get-Content -LiteralPath $marker -TotalCount 1)".Trim()
     if ($current -ne $recorded) { return "lockfile-changed" }
     return ""
 }
@@ -656,15 +656,18 @@ function Get-NpmApplicationPath {
 # Runs `npm ci` and records the lockfile hash only when it succeeded and Vite is present.
 # Returns $true on success. On failure prints why and returns $false; nothing is recorded.
 function Install-FrontendDependencies {
-    param([string]$FrontendDir, [string]$NpmCommand = "")
+    param([string]$FrontendDir)
     $modules = Join-Path $FrontendDir "node_modules"
-    if ($NpmCommand -eq "") { $NpmCommand = Get-NpmApplicationPath }
+    $marker  = Join-Path $modules ".asclexis-lockfile.sha256"
+    # The old record goes first: a failed or interrupted install must never look current.
+    Remove-Item -LiteralPath $marker -Force -ErrorAction SilentlyContinue
+    $npmCommand = Get-NpmApplicationPath
     $npmExit = 1
     $npmOutput = "npm was not found on PATH."
-    if ($NpmCommand -ne "") {
-        Push-Location $FrontendDir
+    if ($npmCommand -ne "") {
+        Push-Location -LiteralPath $FrontendDir
         try {
-            $npmOutput = & $NpmCommand ci 2>&1
+            $npmOutput = & $npmCommand ci 2>&1
             $npmExit = $LASTEXITCODE
         } catch {
             $npmOutput = $_.Exception.Message
@@ -678,14 +681,19 @@ function Install-FrontendDependencies {
         Write-Err "Check your internet connection, close other Asclexis windows, and run again."
         return $false
     }
-    if (-not (Test-Path (Join-Path $modules ".bin\vite.cmd")) -or
-        -not (Test-Path (Join-Path $modules "vite\bin\vite.js"))) {
+    if (-not (Test-Path -LiteralPath (Join-Path $modules ".bin\vite.cmd")) -or
+        -not (Test-Path -LiteralPath (Join-Path $modules "vite\bin\vite.js"))) {
         Write-Err "npm install succeeded but Vite was not found."
         Write-Err "Try deleting src\frontend\node_modules and running again."
         return $false
     }
-    $hash = (Get-FileHash -Path (Join-Path $FrontendDir "package-lock.json") -Algorithm SHA256).Hash
-    Set-Content -Path (Join-Path $modules ".asclexis-lockfile.sha256") -Value $hash -Encoding ASCII
+    try {
+        $hash = (Get-FileHash -LiteralPath (Join-Path $FrontendDir "package-lock.json") -Algorithm SHA256).Hash
+        Set-Content -LiteralPath $marker -Value $hash -Encoding ASCII -ErrorAction Stop
+    } catch {
+        # The tree itself is correct, so the app may start; only the record is missing.
+        Write-Warn "Could not record the installed version; the next start will reinstall frontend dependencies."
+    }
     return $true
 }
 
