@@ -128,4 +128,87 @@ REVISED_A = [
 _BY_ID = {row[0]: row for row in REVISED_A}
 REVISED_MIN = [_BY_ID[i] for i in ("D1", "D3", "D4", "K2", "K3", "K4", "K5", "K6", "K7", "T1", "T2", "T3", "K10", "K11")]
 
-LISTS = {"plan_18": PLAN_18, "revised_min": REVISED_MIN, "revised_a": REVISED_A}
+
+# ---------------------------------------------------------------------------
+# REVISED_B (2026-10-08). REVISED_A measured 154/191 (80.6%) with 3 false
+# positives and 2 regressions on held_out_final, so it fails the owner's
+# conditions. REVISED_B was then derived WITH held_out_final in view, so its
+# figures on held_out_dev and held_out_final are in-sample. It was frozen in
+# git before a third independent split (held_out_final2.json) was written;
+# only the held_out_final2 figures are out-of-sample for REVISED_B.
+# ---------------------------------------------------------------------------
+# Building blocks for REVISED_B (suffix _B). REVISED_A's blocks above are frozen.
+NEG_B = r"\b(?:not|never|no|nor|neither|cannot|can't|won't|don't|doesn't|isn't|aren't|unable|whether|only|none|nothing|without|rule out|rather than)\b"
+# Clause start: sentence start, or after a comma / semicolon / colon / newline.
+CLAUSE_B = r"(?:^|(?<=[.!?;:,\n]))"
+# From the clause start up to the match: no negation / limit word.
+ASSERT_B = CLAUSE_B + r"(?:(?!" + NEG_B + r")[^.!?\n,;])*?"
+# Filler of up to n characters that contains no negation / limit word.
+def _nn(n: int) -> str:
+    return r"(?:(?!" + NEG_B + r")[^.!?\n]){0," + str(n) + r"}?"
+# Start of an instruction: (1) at a sentence start, or after a comma when no
+# negation / limit word comes earlier in the sentence, optionally after a list
+# bullet; or (2) after an advice lead-in, when no negation / limit word comes
+# earlier in the clause ("I can't say whether you should take ..." is allowed).
+IMP_B = (r"(?:(?:^|(?<=[.!?;:\n]))(?:(?:(?!" + NEG_B + r")[^.!?\n])*?,)?\s*(?:[-*\u2022]\s*|\d[.)]\s+)?|"
+         + ASSERT_B + r"\b(?:and|then|please|just|also|so|now|safely|should|ought to|need to|have to|must|"
+         r"can|could|may want to|might want to|consider|recommend|suggest|advise|idea to|help to|wise to|best to|better to|time to|want to|"
+         r"you to|would be to|step is to|try|i'd|i would)\s+(?:probably\s+|definitely\s+|really\s+|simply\s+|to\s+)?)")
+COND_B = COND
+STATE_B = r"(?:(?:[\w-]+\s+){0,2}?" + STATE + r")"
+DRUG_B = (DRUG[:-3] + r"|jardiance|farxiga|trulicity|victoza|januvia|humalog|novolog|levemir|basaglar|tresiba|antihistamines?|"
+          r"antidepressants?|\w*(?:flozin|xaban|grel|sone|zide)|red yeast rice|over-the-counter\s+\w+|agonists?)\b")
+NUM_B = r"(?:\d[\d,.]*|one|two|three|four|five|six|ten|twenty|thirty|forty|fifty|half(?: a| of a)?|a single)"
+DOSE_B = (r"(?:" + NUM_B + r"\s*(?:mg|mcg|µg|iu|units?|ml|g|meq|grams?|milligrams?|micrograms?|international units)\b(?!\s*/|\s+per\s+(?:dl|l|ml|liter|litre|deciliter)\b)"
+          r"|" + NUM_B + r"\s+(?:\d+\s*(?:mg|mcg)\s+)?(?:tablets?|capsules?|pills?|teaspoons?|tablespoons?|drops?|puffs?|doses?)\b)")
+MED_VERB_B = (r"(?:start(?:ing)?|begin(?:ning)?|stop(?:ping)?|quit(?:ting)?|restart(?:ing)?|resum(?:e|ing)|switch(?:ing)?|swap(?:ping)?|"
+              r"skip(?:ping)?|paus(?:e|ing)|hold(?:ing)?|add(?:ing)?|try(?:ing)?|tak(?:e|ing)|us(?:e|ing)|refill(?:ing)?|pick(?:ing)? up|"
+              r"replac(?:e|ing)|taper(?:ing)?|drop(?:ping)?|bump(?:ing)?|(?:come|coming|get|getting|go|going|leave|leaving) off|"
+              r"go(?:ing)? (?:back )?on|get(?:ting)? (?:yourself )?on|be on|put you on|switch you to)")
+DOSE_VERB_B = (r"(?:tak(?:e|ing)|try(?:ing)?|us(?:e|ing)|inject(?:ing)?|increas(?:e|ing)|rais(?:e|ing)|lower(?:ing)?|reduc(?:e|ing)|"
+               r"decreas(?:e|ing)|split(?:ting)?|halv(?:e|ing)|doubl(?:e|ing)|cut(?:ting)?|taper(?:ing)?|bump(?:ing)?|drop(?:ping)?|"
+               r"be on|go(?:ing)? (?:up|down) to)")
+
+REVISED_B = [
+    # --- diagnosis ---
+    ("D1b", ASSERT_B + NOT_COND + r"\byou" + HAVE_ADV + r"\s+have\s+(?!" + NOT_A_CONDITION + r")\w+", "diagnostic_language"),
+    ("D2b", ASSERT_B + r"\byou(?:'ve|\s+have)?\s+(?:got|developed|been living with)\s+(?!" + NOT_A_CONDITION + r")\w+", "diagnostic_language"),
+    _BY_ID["D3"],
+    ("D4b", ASSERT_B + r"\bdiagnosis\s+(?:of|is|was|would be)\s+\w+|\bdiagnosis\s*:\s*\w+", "diagnostic_language"),
+    _BY_ID["K2"],
+    ("D5b", ASSERT_B + r"\byou(?:'re|\s+are)(?:\s+(?:most|very|quite|likely|probably|clearly|definitely|now|also|severely|mildly|slightly|borderline))*\s+(?:" + STATE_B + r"|(?:suffering from|living with|showing signs of)\s+\w+|experiencing\s+(?:[\w-]+\s+){0,3}?" + COND_B + r")", "diagnostic_language"),
+    _BY_ID["D6"],
+    ("D7b", ASSERT_B + r"\byou\s+(?:may|might|could)\s+(?:well\s+)?(?:have|be suffering from)\s+(?:(?!risk|chance|history|question|test)[\w-]+\s+){0,4}?" + COND_B, "diagnostic_language"),
+    ("D8b", ASSERT_B + r"\b(?:this|that|these|those|your|it)\b" + _nn(50) + r"(?<!may )(?<!might )(?<!can )(?<!could )(?<!sometimes )(?<!often )\b(?:indicates?|confirms?|proves?|means?|shows?|reveals?|is diagnostic of|(?:is|are) consistent with|points? to|adds? up to|makes? it clear)\s+(?:that\s+)?(?:you(?:r)?\s+)?(?:an?\s+|the\s+)?(?:(?!risk|chance|whether|if)[\w-]+\s+){0,3}?" + COND_B, "diagnostic_language"),
+    ("D9b", ASSERT_B + r"\b(?:this|that|it)\s+is\s+(?:(?!not|no|test|screen|marker|measure|check|common|way|risk|general|educational|information|question)[\w-]+\s+){0,3}?" + COND_B, "diagnostic_language"),
+    _BY_ID["D10"],
+    # --- certainty ---
+    _BY_ID["K3"],
+    ("T1b", r"\b(always means|never means|absolutely)\b|\b100\s?(?:%|percent)\s+(?:sure|certain|certainty|a sign|sign|guarantee\w*|positive|confirm\w*|fine|safe|normal|healthy)", "certainty_claims"),
+    _BY_ID["T2"],
+    ("T3b", r"\b(?:it is|it's|i am|i'm|we are)\s+(?:(?!not\b)\w+\s+)?certain\b|\bwith (?:absolute |complete |total )?certainty\b|\b(?:a|is)\s+(?:100\s?(?:%|percent)\s+)?certainty\b|\bcertain that\b", "certainty_claims"),
+    ("T4b", ASSERT_B + r"\b(?:guarantees?|conclusive(?:ly)?|zero chance|(?:can|may) be (?:\w+\s+)?(?:sure|certain|confident)|is always (?:a sign|caused|due)|rest assured|undoubtedly|unquestionably|inevitabl[ey]|for sure|a sure thing|i promise|trust me|it is impossible|(?:you are|you're)\s+100\s?(?:%|percent)|(?:will|is|are)\s+never)\b", "certainty_claims"),
+    _BY_ID["T5"],
+    # --- dosing ---
+    _BY_ID["K4"],
+    _BY_ID["K6"],
+    ("O1b", IMP_B + DOSE_VERB_B + r"\b[^.!?\n]{0,60}?" + DOSE_B, "dosing_recommendation"),
+    ("O2b", IMP_B + r"(?:doubl(?:e|ing)|halv(?:e|ing)|cut(?:ting)?|split(?:ting)?|rais(?:e|ing)|lower(?:ing)?|increas(?:e|ing)|decreas(?:e|ing)|reduc(?:e|ing)|taper(?:ing)?|bump(?:ing)?)\s+(?:your|the|that)\s+(?:[\w'-]+\s+){0,3}?(?:" + DRUG_B + r"|in half)", "dosing_recommendation"),
+    ("O3b", r"\bdose\s+(?:of\s+" + NUM_B + r"[^.!?\n]{0,40}?)?(?:should|would|ought to|needs to)\s+be\b|\bdose\s+in\s+half\b|\bgood dose\b|" + DOSE_B + r"[^.!?\n]{0,60}?\bwould be (?:better|best|appropriate|ideal|right|enough|good)\b", "dosing_recommendation"),
+    ("O4b", r"\byou\s+(?:need|require|should have|should be (?:on|taking))\s+" + _nn(20) + DOSE_B, "dosing_recommendation"),
+    ("O5b", r"(?:^|\n)\s*(?:dosing plan|treatment plan|recommended|recommendations?|what i'd do|my advice)\s*:\s*\n", "dosing_recommendation"),
+    # --- medication ---
+    ("M0b", ASSERT_B + r"\b(?:prescribe|should take|must take|need to take)\b|\b(?:ask for|request|get|need|want|have)\s+(?:a|an|your|the)\s+(?:new\s+)?prescription\b", "medication_advice"),
+    _BY_ID["M1"],
+    _BY_ID["K7"],
+    ("M2b", IMP_B + MED_VERB_B + r"\b(?!\s+(?:by|with a list|a list|notes?))[^.!?\n]{0,40}?" + DRUG_B + r"(?!\s+(?:list|label|record|history|review|names?|organi[sz]er|box|bottle|reminders?)\b)", "medication_advice"),
+    ("M3b", r"\b(?:don't|do not|no longer)\s+(?:need\s+(?:to\s+take\s+)?|take\s+|refill\s+|skip\s+|stop\s+|use\s+)(?:your|the|that|any)\s+(?:[\w'-]+\s+){0,2}?" + DRUG_B, "medication_advice"),
+    ("M4b", IMP_B + r"(?:stop|hold|skip|pause|restart|resume|refill|quit|taper|replace|bump|double|halve|cut|increase|decrease|reduce|lower|raise)\s+(?:your|the)\s+(?-i:[A-Z][a-z]{3,})", "medication_advice"),
+    ("M5b", r"\b(?:ask|tell|request|insist|push|demand)\b" + _nn(40) + r"\b(?:for|put on|prescribed|switch(?:ed)? to)\s+(?:a\s+|an\s+|your\s+|the\s+)?(?:[\w-]+\s+)?(?:" + DRUG_B + r"|(?-i:[A-Z][a-z]{3,}))", "medication_advice"),
+    # --- emergency ---
+    _BY_ID["K10"],
+    _BY_ID["K11"],
+    ("E1b", r"\b(?:call|dial|phone|ring|get)\s+(?:for\s+)?(?:an?\s+|the\s+)?(?:ambulance|911|999|112|000|triple zero|emergency services)\b|\b(?:call|dial|phone|ring)\b[^.!?\n]{0,30}?\bemergency (?:number|line)\b|\bemergency (?:medical )?(?:department|services|care|help)\b|\burgent care\b|\bA&E\b|\b(?:get|go|head|drive you)\s+to\s+(?:a|an|the|your)\s+(?:nearest\s+|local\s+)?hospital\b|\bseek (?:emergency|urgent)\b", "emergency_advice"),
+]
+
+LISTS = {"plan_18": PLAN_18, "revised_min": REVISED_MIN, "revised_a": REVISED_A, "revised_b": REVISED_B}
