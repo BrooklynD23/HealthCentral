@@ -21,7 +21,7 @@
 3. Variant I needs the W-item PR's red-first and break-it evidence.
 4. If Q1 is unsigned, `CLAUDE.md:62` stays unchanged as an open owner item.
 
-**Review status:** 4 Codex rounds on the original plan (the round-4 MAJOR was fixed after the last round and was not re-reviewed). r5 amendment set: Codex round 5 (2026-10-08, `gpt-6-luna`, xhigh configured) REVISE with 1 BLOCKER, 3 MAJOR, 1 MINOR, all accepted and applied; round 6 (same model): REVISE with 5 MAJOR, all accepted and applied after the last allowed round, so those five fixes were not re-reviewed by a plan round (the Codex diff review covers the result). Records: `audit/2026-09-25/swarm-2026-09-27/reviews/W10-r5-*`, `W10-r6-*`.
+**Review status:** 4 Codex rounds on the original plan (the round-4 MAJOR was fixed after the last round and was not re-reviewed). r5 amendment set: Codex round 5 (2026-10-08, `gpt-6-luna`, xhigh configured) REVISE with 1 BLOCKER, 3 MAJOR, 1 MINOR, all accepted and applied; round 6 (same model): REVISE with 5 MAJOR, all accepted and applied after the last allowed round, so those five fixes were not re-reviewed by a plan round (the Codex diff review covers the result). Agent reviews of the applied branch (2026-10-08, code-reviewer and security-reviewer, both CHANGES) corrected three fold-in After blocks: DP-5, DP-6 row 2 and HC-1; both approved in round 2, and two round-2 wording nits in DP-5 (title/page "where known"; "numeric dates written day-first or month-first") were applied after the Codex diff review (verdict: approve). Records: `audit/2026-09-25/swarm-2026-09-27/reviews/W10-r5-*`, `W10-r6-*`.
 **Revision:** r4 + Wave 6, 2026-09-28:
 1. Codex r4: merge status of W-2/W-3/W-6 now comes from the item's PR (`gh pr view` + `merge-base --is-ancestor`), not from a test-ID grep. A merged item with missing or renamed tests gets U, never P (Task 1 Steps 2-3, S6).
 2. 3a M-3: the break-glass clause is owner-gated again as **GOV-BG** (merges W-6 §11 Q2 and this plan's Q2). D12 names the external runner as a *ModelRunner* exception (Consequence #1); calling break-glass a bypass of "Redaction before anything leaves" is an inference. Unsigned, C-2 and DP-4 quote D12's conditions without calling break-glass a bypass (§1.2, Task 4, §10).
@@ -309,6 +309,11 @@ routes_inv: 14 lines, all classified in §3.5: y
 | No log file is written | no `FileHandler` / `basicConfig` / `dictConfig` in product code (`grep -rn` over `src/backend`, tests and `scripts/` excluded → only `alembic.ini:61` `StreamHandler`, `args = (sys.stderr,)`); `core/config.py:130` `log_file_path` is only used to `mkdir` its directory (`core/database.py:88-89`) |
 | `SecurityAuditMiddleware` lines are below the default level | `security/audit_middleware.py:78` `logger.info(…)`; root level WARN (`alembic.ini:45-47`); measured: `logging.getLogger("security.audit_middleware").getEffectiveLevel()` → `WARNING` after `main.create_app()` |
 | The audit table has no correlation-ID column | `models/audit.py:31-63`: `id`, `profile_id`, `event_type`, `action`, `entity_type`, `entity_id`, `details_json` (SQL `Text`, `:55`; `core/audit.py` writes serialized JSON into it), `client_info`, `timestamp` |
+| The correlation ID is returned to the client (code review, 2026-10-08) | `monitoring/correlation.py:61-67` appends the `X-Correlation-ID` header on `http.response.start`; header name `core/config.py:88` |
+| The break-glass security event is a master-DB audit row (code review) | `core/external_runner.py:112` `BREAK_GLASS_AUDIT_EVENT`, `:115-144` `create_audit_log` + commit, `:295-317` |
+| `strict` is pattern-based and misses unlabelled identifiers (security review) | `modules/redaction.py:59-128`: `ssn` needs dashes (`:61`); `name_context` needs a `patient` / `name` / `mr` / `mrs` / `ms` / `dr` prefix (`:82-89`); `dob` needs a label and a slash/dash numeric date (`:91-98`); `address` needs an abbreviated suffix (`:100-106`); `mrn` needs a label (`:115-121`). The rules can also hit clinical text by accident (a 10-digit number matches `phone`), so the doc says "has no rule for", not "never removes" |
+| Context labels carry the document title and page | `modules/rag.py:636-647` |
+| Break-glass is an installation setting | `core/config.py:143` `external_api_redaction_break_glass: bool = False` (environment setting; no user-facing route sets it) |
 | The security-audit log payload carries the correlation ID | `security/audit_middleware.py:69` (PR #45); log records get `record.correlation_id` (`core/logging_setup.py:18-29`); the console format does not print it (`alembic.ini:67`) |
 | Audit rows are deleted on profile delete | `api/profiles.py:908-910` `delete(AuditLog).where(AuditLog.profile_id == profile_id)`; inserts happen in `core/audit.py:243-252`; no `TRIGGER` in `migrations/` |
 | A whole-install restore replaces the master DB (Codex r6) | `scripts/backup.py:505-521` (docstring: with `profile_id` None the master is replaced wholesale), copy loop `:570-599` (the master DB is skipped only when `profile_id` is set, `:573-574`), CLI `:763-774`. The API restore route is profile-scoped and holds the master back (`api/backup.py:364`, `:440`) |
@@ -1207,17 +1212,21 @@ ext = fp.split("### Optional External API")[1].split("### No Analytics")[0] if "
 check("W10-F1", "Only the specific query text is sent to the external provider" not in fp
       and "Full health records are never transmitted" not in fp
       and "- What is sent: the whole prompt the assistant composes for that request, not only the question." in ext
-      and "- Unless break-glass is active (see the PHI redaction bullet below), the prompt is redacted at `strict` before it is sent." in ext
-      and "so health information in the prompt does reach the provider. The prompt is built from the context retrieved for that request, not from an export of the whole vault." in ext,
+      and "- Unless break-glass is active (see the PHI redaction bullet below), the prompt is redacted at `strict` before it is sent (`core/external_runner.py`)." in ext
+      and "Under break-glass, which is an installation setting and not a patient choice, it is sent with reduced or no redaction." in ext
+      and "It has no rule for anything else:" in ext and "It does not remove lab values" not in ext
+      and "Health information in the prompt therefore reaches the provider, and identifying text can too. The prompt is built from the context retrieved for that request, not from an export of the whole vault." in ext,
       "DP-5 text wrong")
 # W10-F2 (DOC-OVERCLAIM, data-privacy): no log-file claim in the Tier 3 table
 check("W10-F2", "Master DB + log file" not in priv and "| Security events | Log file |" not in priv
       and "| Audit logs | Master DB (not encrypted). No log file is written | Indefinite |" in priv
-      and "| Security events | Application logger only, to the process's stderr; no log file is written. The request lines from `SecurityAuditMiddleware` are logged at INFO, below the default WARN level, so by default they are not emitted | Not retained by the app |" in priv,
+      and "| Security events | Request events from `SecurityAuditMiddleware`: application logger only (the process's stderr); no log file is written, and they are logged at INFO, below the default WARN level, so by default they are not emitted. Break-glass external calls: an audit row in the master DB (`security.external_api.break_glass`) | Request events: not retained by the app. Break-glass rows: as audit logs |" in priv,
       "DP-6 text wrong")
+check("W10-F2n", "| Not retained by the app |" not in priv and "Application logger only, to the process's stderr" not in priv
+      and "no operator-visible output" not in fh, "a sentence the reviewers found false is back (security-event retention, or the correlation ID being invisible)")
 # W10-F3 (DOC-OVERCLAIM, hipaa :49): no correlation-ID claim for audit rows
 check("W10-F3", "Structured JSON with timestamps and correlation IDs" not in fh
-      and "| Log format | Audit rows are database rows (`models/audit.py`): typed columns with a timestamp, plus a text `details_json` column that holds serialized JSON. They have no correlation-ID column. The `SecurityAuditMiddleware` log line is a JSON payload that carries the request correlation ID; it is logged at INFO, below the default WARN level, so by default the ID appears in no operator-visible output |" in hipaa,
+      and "| Log format | Audit rows are database rows (`models/audit.py`): typed columns with a timestamp, plus a text `details_json` column that holds serialized JSON. They have no correlation-ID column. The `SecurityAuditMiddleware` log line is a JSON payload that carries the request correlation ID; it is logged at INFO, below the default WARN level, so by default the ID appears in no log output. The ID is also returned to the client in the `X-Correlation-ID` response header |" in hipaa,
       "HC-1 text wrong")
 # W10-F4 (DOC-OVERCLAIM, hipaa :52): no append-only claim
 check("W10-F4", "Audit log entries are append-only" not in fh
@@ -1244,7 +1253,7 @@ check("W10-F7", slot(claude) == slot(base("CLAUDE.md")) and len(slot(claude)) ==
 
 for f in fails:
     print("FAIL", f)
-print(f"{7 - len(fails)}/7 fold-in assertions pass")
+print(f"{8 - len(fails)}/8 fold-in assertions pass")
 sys.exit(1 if fails else 0)
 ```
 
@@ -1262,7 +1271,7 @@ echo "export W10_HLINKS=$HL" >> "$HOME/.cache/asclexis-w10/w10.env"; echo "W10_H
 python3 "$W10_SCRATCH/w10_foldin_assert.py" --hlinks="$HL"; echo "foldin exit=$?"
 ```
 
-Expected RED, run after the governance commit and before Step 2: `FAIL W10-F1`, `F2`, `F3`, `F4`, `F6`; `2/7 fold-in assertions pass`; exit 1. F5 and F7 pass on the unpatched files.
+Expected RED, run after the governance commit and before Step 2: `FAIL W10-F1`, `F2`, `F3`, `F4`, `F6`; `3/8 fold-in assertions pass`; exit 1. F2n, F5 and F7 pass on the unpatched files (F5 accepts an unedited `hipaa-controls.md` on purpose; F3 and F4 are the checks that the edit happened). These are transcription checks: they prove the landed text equals the reviewed text, not that the text is true. Truth is the §3.6 evidence table plus the reviews.
 
 - [ ] **Step 2: Fold-in 1, LOCAL-07 (hunk DP-5). Replace the first two bullets under "Optional External API"**
 
@@ -1276,20 +1285,26 @@ After:
 - What is sent: the whole prompt the assistant composes for that request, not
   only the question. The prompt holds the assistant's instructions, the context
   retrieved for the question (summaries of the patient's own results, passages
-  from their documents, and reference text) and the question. In assistant
-  chat it also holds earlier turns of the chat session and, when memory is
-  switched on, saved memory items (`modules/rag.py`, `compose_prompt` and
-  `query`). Two features can use the external provider: assistant chat when it
-  answers through the legacy RAG path, and the grounded interpretation of a
-  single result.
+  from their documents with the document's title and, where known, page
+  number, and reference text) and the question. In assistant chat it also holds earlier
+  turns of the chat session and, when memory is switched on, saved memory
+  items (`modules/rag.py`, `compose_prompt` and `query`). Two features can use
+  the external provider: assistant chat when it answers through the legacy RAG
+  path, and the grounded interpretation of a single result.
 - Unless break-glass is active (see the PHI redaction bullet below), the
-  prompt is redacted at `strict` before it is sent. `strict` redaction removes
-  the identifier patterns it has rules for: SSNs, emails, phone numbers,
-  context-prefixed names, dates of birth, street addresses, MRNs and slash/dash
-  numeric dates. It does not remove lab values, analyte names,
-  document passages or ISO-8601 dates, so health information in the prompt does
-  reach the provider. The prompt is built from the context retrieved for that
-  request, not from an export of the whole vault.
+  prompt is redacted at `strict` before it is sent (`core/external_runner.py`).
+  Under break-glass, which is an installation setting and not a patient
+  choice, it is sent with reduced or no redaction. `strict` redaction is
+  pattern-based. It removes text that matches its rules: dashed SSNs, emails,
+  phone numbers, names that follow a label such as "Patient" or "Dr", labelled
+  dates of birth and other numeric dates written day-first or month-first with
+  slashes or dashes, street addresses with an abbreviated suffix such as "St"
+  or "Ave", and labelled MRNs. It has no rule for anything else: for example names with no such
+  label, dates written in words or as ISO-8601, lab values, analyte names,
+  document titles and document passages. Health information in the prompt
+  therefore reaches the provider, and identifying text can too. The prompt is
+  built from the context retrieved for that request, not from an export of the
+  whole vault.
 ```
 
 Commit: `git -C "$WT" add -- docs/compliance/data-privacy.md` → `git diff --cached --name-only` prints that 1 path → `docs(privacy): state what the external provider receives (LOCAL-07)`.
@@ -1308,7 +1323,7 @@ After:
 | Audit logs | Master DB (not encrypted). No log file is written | Indefinite |
 ```
 ```text
-| Security events | Application logger only, to the process's stderr; no log file is written. The request lines from `SecurityAuditMiddleware` are logged at INFO, below the default WARN level, so by default they are not emitted | Not retained by the app |
+| Security events | Request events from `SecurityAuditMiddleware`: application logger only (the process's stderr); no log file is written, and they are logged at INFO, below the default WARN level, so by default they are not emitted. Break-glass external calls: an audit row in the master DB (`security.external_api.break_glass`) | Request events: not retained by the app. Break-glass rows: as audit logs |
 ```
 
 HC-1, `hipaa-controls.md:49`. Before:
@@ -1317,7 +1332,7 @@ HC-1, `hipaa-controls.md:49`. Before:
 ```
 After:
 ```text
-| Log format | Audit rows are database rows (`models/audit.py`): typed columns with a timestamp, plus a text `details_json` column that holds serialized JSON. They have no correlation-ID column. The `SecurityAuditMiddleware` log line is a JSON payload that carries the request correlation ID; it is logged at INFO, below the default WARN level, so by default the ID appears in no operator-visible output |
+| Log format | Audit rows are database rows (`models/audit.py`): typed columns with a timestamp, plus a text `details_json` column that holds serialized JSON. They have no correlation-ID column. The `SecurityAuditMiddleware` log line is a JSON payload that carries the request correlation ID; it is logged at INFO, below the default WARN level, so by default the ID appears in no log output. The ID is also returned to the client in the `X-Correlation-ID` response header |
 ```
 
 HC-2, `hipaa-controls.md:52`. Before:
@@ -1353,7 +1368,7 @@ Commit: `git -C "$WT" add -- CLAUDE.md` → 1 path → `docs: CLAUDE.md states t
 ```bash
 set -euo pipefail   # Codex r5: -e, so the first failing gate stops the block; "ALL GREEN" prints only if every gate passed
 source "$HOME/.cache/asclexis-w10/w10.env"
-python3 "$W10_SCRATCH/w10_foldin_assert.py" --hlinks="$W10_HLINKS"      # expect 7/7
+python3 "$W10_SCRATCH/w10_foldin_assert.py" --hlinks="$W10_HLINKS"      # expect 8/8
 python3 "$W10_SCRATCH/w10_assert.py" $W10_ARGS --links="$W10_LINKS"      # still 12/12
 python3 "$WT/scripts/docs_lint.py"
 python3 "$WT/scripts/generate_docs_index.py" --check
