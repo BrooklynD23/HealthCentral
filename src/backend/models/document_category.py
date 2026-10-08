@@ -11,6 +11,7 @@ from sqlalchemy import String, Text, Float, Integer, DateTime, ForeignKey, Boole
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.profile_database import ProfileDatabaseBase
+from core.time import utcnow
 
 
 class DocumentCategory(ProfileDatabaseBase):
@@ -23,7 +24,7 @@ class DocumentCategory(ProfileDatabaseBase):
     category: Mapped[str] = mapped_column(Text, nullable=False)
     confidence: Mapped[float] = mapped_column(Float, nullable=False)
     classified_by: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
 
     def __repr__(self) -> str:
         return f"<DocumentCategory(doc_id={self.doc_id}, category={self.category})>"
@@ -49,7 +50,7 @@ class DocumentEntity(ProfileDatabaseBase):
     # null = unreviewed, True = verified, False = rejected
     verified_by_user: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     extraction_version: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
 
     def __repr__(self) -> str:
         return f"<DocumentEntity(doc_id={self.doc_id}, type={self.entity_type})>"

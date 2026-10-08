@@ -12,6 +12,7 @@ from sqlalchemy import String, DateTime, Text, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
+from core.time import utcnow
 
 if TYPE_CHECKING:
     from .profile import Profile
@@ -59,7 +60,7 @@ class AuditLog(Base):
 
     # Timestamp (indexed for queries)
     timestamp: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False, index=True
+        DateTime, default=utcnow, nullable=False, index=True
     )
 
     # Relationship
