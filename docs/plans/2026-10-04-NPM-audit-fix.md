@@ -196,3 +196,93 @@ One PR; `git revert <merge sha>` restores the old lockfile. Then `npm ci`.
 ## Out of scope (owner decision)
 
 - Tailwind 3 → 4 (`tailwindcss@4.3.3`): clears tailwindcss, braces, chokidar, micromatch (4 high). Tailwind 4 changes config format (`tailwind.config.js` → CSS `@theme`) and the PostCSS plugin; a migration phase of its own.
+
+## Amendment 2 (NPM-AUDIT-2) — L1-B, 2026-10-08
+
+A second run of this plan, as phase NPM-AUDIT-2 (owner item NPM-AUDIT-DRIFT). Tasks 0-3 above are reused; where this section and the text above disagree, this section wins for NPM-AUDIT-2. The record of the first run (PR #38) above is unchanged.
+
+**Gates (verbatim, [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md)):**
+
+- NPM-MAJORS-RUN (2026-10-07): "NPM-AUDIT-2, then React Router 7, then Tailwind 4, each as its own PR."
+- FE-SEQ (2026-10-07): "NPM-AUDIT-2 runs from the existing plan plus Amendment 2; … any other transitive major bump (dev/test-only or not) comes back to you before it lands."
+- MAJORS-TIED (2026-10-07): pre-approves only packages tied to an **approved major**. NPM-AUDIT-2 has no approved major, so it pre-approves nothing here.
+
+**Base and names.** `origin/main` = `777adf5`; dependency PR #38 (`c4d407e`) is an ancestor (`git merge-base --is-ancestor c4d407e origin/main` → 0). Worktree `../hc-npm-audit-2`, branch `fix/npm-audit-2`. Do not reuse `../hc-npm`.
+
+**Baseline (L1-B measured, Windows, node v22.20.0, npm 11.6.2, `777adf5`, after a clean `npm ci`, 2026-10-08).** vitest: **34 files, 195 tests passed**, exit code 0. Backend collected count stays **1370**; no backend file changes. `npm audit`: **10 (4 moderate, 6 high)**, exit code 1. Per package, from `npm audit --json` (`fixAvailable`):
+
+| Severity | Package | Direct | Fix per npm |
+|---|---|---|---|
+| high | fast-glob | no | **non-major** (`fixAvailable: true`) |
+| high | source-map-js | no | **non-major** (`fixAvailable: true`; GHSA-68fv-2mgg-jv7q) |
+| moderate | postcss-nested | no | **non-major** (`fixAvailable: true`) |
+| high | tailwindcss | yes | `tailwindcss@4.3.3`, semver-major |
+| high | braces, chokidar, micromatch | no | via `tailwindcss@4.3.3`, semver-major |
+| moderate | postcss-selector-parser | no | via `tailwindcss@4.3.3`, semver-major |
+| moderate | react-router-dom | yes | `react-router-dom@7.18.4`, semver-major |
+| moderate | react-router | no | via `react-router-dom@7.18.4`, semver-major |
+
+**Scope.** The three rows npm marks non-major on the day of the run. This table is a dated measurement, not a target: advisories move daily on a byte-identical lockfile (7 → 10 between 2026-10-04 and 2026-10-06). The implementer re-reads `npm audit --json` before the fix and reports before/after **per package and severity**, not as a total. `fast-glob` and `postcss-nested` are flagged through their dependency chain (`micromatch`, `postcss-selector-parser`), so npm may report them fixable and still leave them listed; that is reported, not forced.
+
+**Rules that replace the ones above for this run.**
+
+1. `npm audit fix` without `--force`, from Windows. `src/frontend/package.json` must not change at all (no manual edit, `engines` included). Only `src/frontend/package-lock.json` changes. If `package.json` changes, STOP.
+2. **Majors (replaces Amendment 1's rule and Task 1 Step 3).** Any package whose major version changes, in either direction, at any nesting depth, STOPS the phase and goes back to the owner with the list. A `0.x` minor change counts as a major. So does a package added at a path with a major that name did not have before. Amendment 1's "sole consumer moved by a minor" exception does **not** apply.
+3. **Exit codes.** After each of `npx tsc --noEmit`, `npm run lint`, `npm run build`, `npx vitest run`, print the numeric exit code and record it. Inside a bash double-quoted string write `\$LASTEXITCODE`; an unescaped `$LASTEXITCODE` is expanded to empty by bash and the check cannot fail. A non-zero code stops the phase.
+4. **Lockfile diff (the measurement for rule 2).** Python 3 (`python3` in WSL), every key of `packages`, nested paths included:
+
+```bash
+git show origin/main:src/frontend/package-lock.json > "$TMP/lock-main.json"
+python3 "$TMP/lockdiff.py" "$TMP/lock-main.json" src/frontend/package-lock.json; echo "lockdiff=$?"
+```
+
+`lockdiff.py` (kept outside the repo; this is its whole logic):
+
+```python
+import json, sys
+def parts(v): return (v or "").split("-")[0].split("+")[0].split(".")
+def flag(o, n):
+    o, n = parts(o), parts(n)
+    if o[0] != n[0]: return "MAJOR"
+    if o[0] == "0" and o[1:2] != n[1:2]: return "BREAKING-0.x"
+    return ""
+old = json.load(open(sys.argv[1], encoding="utf-8"))["packages"]; old.pop("", None)
+new = json.load(open(sys.argv[2], encoding="utf-8"))["packages"]; new.pop("", None)
+name = lambda k: k.rsplit("node_modules/", 1)[-1]
+added, removed = sorted(set(new) - set(old)), sorted(set(old) - set(new))
+changed = sorted(k for k in set(old) & set(new) if old[k].get("version") != new[k].get("version"))
+stops = 0
+print(f"ADDED ({len(added)})");   [print(" ", k, new[k].get("version")) for k in added]
+print(f"REMOVED ({len(removed)})"); [print(" ", k, old[k].get("version")) for k in removed]
+print(f"VERSION-CHANGED ({len(changed)})")
+for k in changed:
+    f = flag(old[k].get("version"), new[k].get("version")); stops += bool(f)
+    print(" ", k, old[k].get("version"), "->", new[k].get("version"), f)
+majors = {}
+for k, v in old.items(): majors.setdefault(name(k), set()).add(parts(v.get("version"))[0])
+for k in added:  # a name arriving at a new path with a major it did not have
+    had = majors.get(name(k))
+    if had is None: print("  NEW-NAME", k, new[k].get("version"))
+    elif parts(new[k].get("version"))[0] not in had: stops += 1; print("  MAJOR", k, new[k].get("version"), sorted(had))
+scripts = lambda p: {k for k, v in p.items() if v.get("hasInstallScript")}
+print("hasInstallScript GAINED:", sorted(scripts(new) - scripts(old)))
+for k in added + changed:  # source shape: npm registry + sha512 only
+    v = new[k]
+    if not (v.get("resolved") or "").startswith("https://registry.npmjs.org/") or not (v.get("integrity") or "").startswith("sha512-"):
+        stops += 1; print("  BAD-SOURCE", k, v.get("resolved"), v.get("integrity"))
+print("STOP-FLAGS:", stops); sys.exit(1 if stops else 0)
+```
+
+Expected: `STOP-FLAGS: 0`, `lockdiff=0`, `hasInstallScript GAINED: []` (baseline holders: `esbuild`, `fsevents`, `playwright/node_modules/fsevents`). Self-check run on 2026-10-08: `origin/main` against itself prints 0 added, 0 removed, 0 changed over 485 keys. A `NEW-NAME` line is a package the tree did not have under any version: it is listed in the PR body and is a security-review item. The full output goes in the PR body.
+
+5. **Acceptance (L1 runs it, Windows).**
+
+```bash
+powershell.exe -NoProfile -Command "cd C:\Users\DangT\Documents\GitHub\hc-npm-audit-2\src\frontend; Remove-Item -Recurse -Force node_modules; npm ci 2>&1 | Select-Object -Last 4; echo npmci=\$LASTEXITCODE; npx tsc --noEmit; echo tsc=\$LASTEXITCODE; npm run lint; echo lint=\$LASTEXITCODE; npm run build 2>&1 | Select-Object -Last 6; echo build=\$LASTEXITCODE; npx vitest run 2>&1 | Select-Object -Last 8; echo vitest=\$LASTEXITCODE"
+```
+
+Expected: `npmci=0 tsc=0 lint=0 build=0 vitest=0`, vitest 34 files / 195 tests. `git diff --name-only origin/main...HEAD` lists only `src/frontend/package-lock.json`, this plan, `docs/INDEX.md`, `docs/_link_graph.json` and the wave report. E2E evidence is CI's "E2E Smoke Tests" job on the PR; Playwright is not run locally (no SQLCipher wheel on Windows).
+
+6. **No break-it.** The change is lockfile-only and adds no test, so there is no assertion to invert. The evidence that the fix did something is the per-package audit list before and after.
+
+**Not in this phase.** `engines.node` (`>=22` against vite's `>=22.12.0`): a `package.json` edit, so it is reported, not made. Existing installs do not pick this lockfile up until DEV-PS1-INSTALL lands (owner row DEV-PS1-FIRST; its own plan and PR). Rollback is unchanged: `git revert`, then reinstall.
