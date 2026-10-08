@@ -73,6 +73,16 @@ Users can export their data at any time:
 | JSON | `GET /export/json` | All observations |
 | Doctor Summary | `POST /export/doctor-summary` | Formatted clinical report |
 
+**Redaction scope, owner decision D3 (2026-09-27).** Record:
+`docs/capstone-report/owner-decisions-2026-09-27.md`.
+- **CSV and JSON are deliberate exceptions to redaction.** They are the
+  patient's own data export, so they stay full-fidelity, like backups.
+- **The doctor summary must be redacted at the `strict` policy level,** because
+  it goes to a third party. Status: owner-approved, **not yet implemented**.
+  Today the summary and its text, HTML and PDF downloads are produced without
+  redaction. Tracked as W-2 in
+  `docs/capstone-report/implementation-program.md` (matrix PRIV-04).
+
 ## Reinforcement Learning Dataset Export
 
 Users can opt-in to feedback collection on assistant chat responses (thumbs up/down, optional corrections). This feedback enables local RL dataset generation for future model fine-tuning:
@@ -170,12 +180,16 @@ hand if the intent is a complete erase. The delete flow offers "back up and
 download" as its first step precisely so this is a deliberate choice rather than
 a leftover.
 
-**Backup archives are deliberately not redacted** (BKUP-UX-001). Every other
-export path passes through `modules/redaction.py` because it produces something
-destined for a third party. A backup is the opposite: the user's own
-full-fidelity record, going to their own machine, and a redacted backup cannot
-be restored. This is the one export-shaped path that is intentionally
-unredacted.
+**Backup archives are deliberately not redacted** (BKUP-UX-001). A backup is
+the user's own full-fidelity record, going to their own machine, and a redacted
+backup cannot be restored. The CSV and JSON exports are deliberately not
+redacted on the same grounds: they are the patient's own data export (owner
+decision D3, 2026-09-27; see Data Portability). These three are the
+export-shaped paths that are intentionally unredacted. The exports built for a
+third party pass through `modules/redaction.py` at `strict`: the visit-prep
+packet, the pinboard export, the FHIR bundle and the RL dataset. Under D3 the
+doctor summary must join them; that is owner-approved but not yet implemented
+(W-2).
 
 ### Document Deletion
 
@@ -201,6 +215,16 @@ inside the encrypted per-profile vault, and RL dataset export forces strict
 redaction over it (RL-REDACT-001), but it is not erased when a source document
 is. Tracked as `FEEDBACK-SNAP-001`.
 
+## Unverified Extracted Values
+
+Values extracted from an imported document are stored as unverified until the
+user confirms them. Owner decision D4 (2026-09-27): trends may show unverified
+points, but each must be visibly marked "unverified"; the legacy assistant
+(RAG) path cites verified values only, matching the agent path. Status:
+owner-approved, **not yet implemented**. Today the trends response carries no
+verification flag and legacy RAG retrieval does not filter on it. Tracked as
+W-3 in `docs/capstone-report/implementation-program.md` (matrix SAFE-02).
+
 ## Third-Party Data Sharing
 
 ### Default (Local Mode)
@@ -214,7 +238,11 @@ When enabled by user opt-in:
 - Full health records are never transmitted
 - API key stored locally (never logged or transmitted elsewhere)
 - Provider: OpenAI or Anthropic (user choice)
-- PHI redaction applied to API prompts per `modules/redaction.py` policy
+- PHI redaction: owner decision D12 (2026-09-27) requires `strict` redaction
+  through `modules/redaction.py` on every external call, with break-glass as
+  the only bypass, allowed only with an audit record and a UI warning. Status:
+  code merged in `2f0cb6f` (W-6); **conformance unverified** (matrix
+  LOCAL-04).
 
 ### No Analytics or Telemetry
 
