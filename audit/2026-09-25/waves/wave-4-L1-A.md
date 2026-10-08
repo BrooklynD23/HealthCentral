@@ -245,6 +245,7 @@ A last commit (L1) carries the plan's execution record, the session note and thi
 | break-it: `modules.badge_evaluator.utcnow` patched to an aware clock, in-process | `FAILED …test_hc_time_006…`, `FAILED …test_hc_time_007…`, `2 failed, 6 deselected`, rc=1 |
 | collect-only | `1377 tests collected` |
 | full suite under flock at `d4b70dd` | `1377 passed, 66 warnings in 226.47s (0:03:46)`, rc=0 |
+| full suite under flock at `3ccf9b1` (after the lint hardening and the docs commit) | `1377 passed, 54 warnings in 237.91s (0:03:57)`, rc=0 (no thread warnings this time) |
 | `python -c "from main import app; print('boot ok')"` | `boot ok` |
 | `timeout 600 python scripts/agent_eval_gate.py; echo rc=$?` (GATE-14) | `All 74 golden cases passed.` `Agent eval gate: PASS` `rc=0` (it exited by itself on Linux 3.11) |
 | frontend on Windows, `npm ci; npx vitest run`, before any code change (at `f12db77`) | `Test Files 34 passed (34)`, `Tests 195 passed (195)` |
