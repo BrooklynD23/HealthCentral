@@ -4,7 +4,7 @@
 # never runs. Windows PowerShell 5.1 compatible. Temp files live under the system temp
 # folder only; nothing is written inside the repository.
 #
-#   check_dev_ps1_install.ps1                 run the 20 cases (npm is a stub npm.cmd on PATH)
+#   check_dev_ps1_install.ps1                 run the 22 cases (npm is a stub npm.cmd on PATH)
 #   check_dev_ps1_install.ps1 -Live <dir>     real decision + real `npm ci` against <dir>
 param([string]$Live = "")
 
@@ -290,14 +290,18 @@ try {
         $script:junctions += $link
         [void](cmd /c mklink /J "$link" "$(Join-Path $target 'node_modules')" 2>&1)
         # the target's own node_modules holds the Vite files; the link must see them too
-        $isLink = [bool]((Get-Item -LiteralPath $link -Force).Attributes -band [System.IO.FileAttributes]::ReparsePoint)
+        $isLink = ((Get-Item -LiteralPath $link -Force).LinkType -eq 'Junction')
         Set-Content -LiteralPath (Join-Path (Join-Path $target "node_modules") "precious.txt") -Value "keep" -Encoding ASCII
+        # an old record in the target must survive: the refusal comes before the marker is removed
+        $seedPath = Join-Path (Join-Path $target "node_modules") ".asclexis-lockfile.sha256"
+        Set-Content -LiteralPath $seedPath -Value "SEEDED-OLD-RECORD" -Encoding ASCII
         Invoke-WithPath "$stubRan;$realPath" { $script:res19 = [bool](Install-FrontendDependencies -FrontendDir $r 6>$null) }
         $keep = Test-Path -LiteralPath (Join-Path (Join-Path $target "node_modules") "precious.txt")
         $linkOk = Test-Path -LiteralPath $link
         $ran = Test-Path -LiteralPath (Join-Path $stubRan "ran.txt")
-        $mk = Test-Path -LiteralPath (Join-Path (Join-Path $target "node_modules") ".asclexis-lockfile.sha256")
-        Report $n ($isLink -and (-not $script:res19) -and $keep -and $linkOk -and (-not $ran) -and (-not $mk)) "isLink=$isLink result=$($script:res19) precious=$keep link=$linkOk npmRan=$ran markerInTarget=$mk"
+        $seedKept = $false
+        if (Test-Path -LiteralPath $seedPath) { $seedKept = ("$(Get-Content -LiteralPath $seedPath -TotalCount 1)".Trim() -eq "SEEDED-OLD-RECORD") }
+        Report $n ($isLink -and (-not $script:res19) -and $keep -and $linkOk -and (-not $ran) -and $seedKept) "isLink=$isLink result=$($script:res19) precious=$keep link=$linkOk npmRan=$ran seedKept=$seedKept"
     }
 
     # ---- 20: lockfile changes while npm runs ----
@@ -310,6 +314,38 @@ try {
         $rec = Read-Marker $r
         $after = [string](Get-FrontendInstallReason -FrontendDir $r)
         Report $n ($script:res20 -and ($rec -eq $before) -and ($after -eq "lockfile-changed")) "result=$($script:res20) markerIsBefore=$($rec -eq $before) reasonAfter=[$after]"
+    }
+
+    # ---- 21: the marker cannot be written -> still true, no error record ----
+    $n = "21 marker cannot be written -> true (one output), no error shown, then lockfile-changed"
+    Run-Case $n {
+        $stubBlock = New-NpmStub "stub-block" 0 $true $false @('mkdir node_modules\.asclexis-lockfile.sha256 2>nul')
+        $r = Join-Path $base "c21"; New-Tree $r $false $true
+        # 2>&1 puts any error that reaches the user into the output: there must be exactly one object, $true.
+        # ($Error.Count cannot be used: a caught exception and a silent Remove-Item of a missing file both add to it.)
+        Invoke-WithPath "$stubBlock;$realPath" { $script:out21 = @(Install-FrontendDependencies -FrontendDir $r 2>&1 6>$null) }
+        $errs = @($script:out21 | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }).Count
+        $after = [string](Get-FrontendInstallReason -FrontendDir $r)
+        $single = ($script:out21.Count -eq 1) -and ($script:out21[0] -eq $true)
+        Report $n ($single -and ($errs -eq 0) -and ($after -eq "lockfile-changed")) "outputs=$($script:out21.Count) errors=$errs reasonAfter=[$after]"
+    }
+
+    # ---- 22: the frontend folder does not exist -> never run npm in the current folder ----
+    $n = "22 missing frontend folder -> false, npm not run in the current folder"
+    Run-Case $n {
+        $stubRan2 = New-NpmStub "stub-ran2" 0 $true $false @('echo x> "%~dp0ran.txt"')
+        $cwd = Join-Path $base "c22-cwd"; New-Dir $cwd
+        $missing = Join-Path $base "c22-does-not-exist"
+        $saved = (Get-Location).Path
+        try {
+            Set-Location -LiteralPath $cwd
+            Invoke-WithPath "$stubRan2;$realPath" { $script:res22 = [bool](Install-FrontendDependencies -FrontendDir $missing 6>$null) }
+        } finally {
+            Set-Location -LiteralPath $saved
+        }
+        $ran = Test-Path -LiteralPath (Join-Path $stubRan2 "ran.txt")
+        $nm = Test-Path -LiteralPath (Join-Path $cwd "node_modules")
+        Report $n ((-not $script:res22) -and (-not $ran) -and (-not $nm)) "result=$($script:res22) npmRan=$ran nodeModulesInCwd=$nm"
     }
 
     # ---- 16: empty marker ----
@@ -351,5 +387,5 @@ finally {
 }
 
 Write-Host "checks: $($script:passed)/$($script:total)"
-if ($script:total -eq 20 -and $script:passed -eq 20 -and $hasReason -and $hasInstall -and $hasNpmPath) { exit 0 }
+if ($script:total -eq 22 -and $script:passed -eq 22 -and $hasReason -and $hasInstall -and $hasNpmPath) { exit 0 }
 exit 1
