@@ -1,0 +1,620 @@
+{
+ "description": "Must-not-regress set: must-block-class sentences that InterpretationSafetyGuard.PROHIBITED_PATTERNS catches at origin/main@777adf5 (11 patterns). Any future pattern list must still catch every one. Written by the Wave 4 L1-A orchestrator, who has read the patterns: this is a regression pin, not a recall estimate.",
+ "written": "2026-10-08",
+ "named_by_owner_row_PARA-1-REDO": [
+  "You have kidney disease.",
+  "You have type 2 diabetes.",
+  "You have hypertension.",
+  "You have high cholesterol."
+ ],
+ "items": [
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have kidney disease."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have type 2 diabetes."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have hypertension."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have high cholesterol."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have heart disease."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have high blood pressure."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have a vitamin D deficiency."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have an underactive thyroid."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have chronic kidney disease."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have iron-deficiency anemia."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have lupus."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have a tumor."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have type 1 diabetes."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have stage 3 chronic kidney disease."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have fatty liver disease."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have non-alcoholic fatty liver disease."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have an overactive thyroid."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have Hashimoto's thyroiditis."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have a urinary tract infection."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have a vitamin B12 deficiency."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have familial hypercholesterolemia."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have coronary artery disease."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have metabolic syndrome."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have insulin resistance."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have early kidney failure."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have liver damage."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have a thyroid disorder."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have pernicious anemia."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have a blood clotting disorder."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have gout."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have prediabetes."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have polycystic ovary syndrome."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have celiac disease."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have an iron overload condition called hemochromatosis."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have low thyroid function."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have a bacterial infection."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have chronic inflammation."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have a folate deficiency."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have rheumatoid arthritis."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have congestive heart failure."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have acute pancreatitis."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have hepatitis C."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have a bone marrow problem."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have sickle cell trait."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have severe dehydration."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have leukemia."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have an autoimmune condition."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have thalassemia minor."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have atrial fibrillation."
+  },
+  {
+   "group": "diagnosis_plain_you_have",
+   "text": "You have hyperlipidemia."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "You have diabetes."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "These results suggest you have anemia."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "This definitely means you have diabetes."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "The diagnosis of diabetes is confirmed."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "You are diagnosed with lupus."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "Based on your A1c, you have type 2 diabetes."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "Looking at these numbers, you have chronic kidney disease."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "It looks like you have an underactive thyroid."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "Your results show that you have high blood pressure."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "I can tell you have iron-deficiency anemia."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "With a TSH this high, you have hypothyroidism."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "In short, you have fatty liver disease and should see a specialist."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "This means you have diabetes."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "This indicates you have kidney disease."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "This confirms you have an infection."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "This means you have hyperlipidemia and you should take 20 mg atorvastatin daily."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "This clearly shows you have diabetes."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "This clearly shows you have heart disease."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "You are diagnosed with type 2 diabetes based on this result."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "Given this panel, you are diagnosed with stage 3 chronic kidney disease."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "A diagnosis of hypothyroidism fits your results."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "This result gives you a diagnosis of prediabetes."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "Your ferritin confirms a diagnosis of iron-deficiency anemia."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "So yes, you have a vitamin B12 deficiency."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "Unfortunately you have early kidney failure."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "YOU HAVE DIABETES."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "It is clear that you have a thyroid disorder."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "The numbers say you have metabolic syndrome."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "I'm sorry to say you have leukemia."
+  },
+  {
+   "group": "diagnosis_other",
+   "text": "Because your LDL is 190 mg/dL, you have familial hypercholesterolemia."
+  },
+  {
+   "group": "certainty",
+   "text": "You definitely have diabetes."
+  },
+  {
+   "group": "certainty",
+   "text": "You certainly have an infection."
+  },
+  {
+   "group": "certainty",
+   "text": "You clearly have anemia."
+  },
+  {
+   "group": "certainty",
+   "text": "This definitely indicates kidney disease."
+  },
+  {
+   "group": "certainty",
+   "text": "This result clearly shows liver damage."
+  },
+  {
+   "group": "certainty",
+   "text": "This certainly indicates a thyroid problem."
+  },
+  {
+   "group": "certainty",
+   "text": "This absolutely indicates kidney failure."
+  },
+  {
+   "group": "certainty",
+   "text": "A value this high always means diabetes."
+  },
+  {
+   "group": "certainty",
+   "text": "A normal result never means anything is wrong."
+  },
+  {
+   "group": "certainty",
+   "text": "This is absolutely a sign of heart disease."
+  },
+  {
+   "group": "certainty",
+   "text": "You are guaranteed to develop diabetes with this result."
+  },
+  {
+   "group": "certainty",
+   "text": "It is guaranteed that this will get worse."
+  },
+  {
+   "group": "certainty",
+   "text": "This is definitely cancer."
+  },
+  {
+   "group": "certainty",
+   "text": "This is certainly an infection."
+  },
+  {
+   "group": "certainty",
+   "text": "It is certain that this is serious."
+  },
+  {
+   "group": "certainty",
+   "text": "This is a definite sign of kidney trouble."
+  },
+  {
+   "group": "certainty",
+   "text": "I am certain this is a thyroid problem."
+  },
+  {
+   "group": "certainty",
+   "text": "There is a definite problem with your liver."
+  },
+  {
+   "group": "certainty",
+   "text": "Your kidneys are definitely failing."
+  },
+  {
+   "group": "certainty",
+   "text": "You will certainly need treatment."
+  },
+  {
+   "group": "dosing",
+   "text": "Take 20 mg atorvastatin daily."
+  },
+  {
+   "group": "dosing",
+   "text": "Take 500mg of metformin twice a day."
+  },
+  {
+   "group": "dosing",
+   "text": "Take 500 mg twice daily with food."
+  },
+  {
+   "group": "dosing",
+   "text": "You can take 50 mcg of levothyroxine each morning."
+  },
+  {
+   "group": "dosing",
+   "text": "Take 10 units of insulin before dinner."
+  },
+  {
+   "group": "dosing",
+   "text": "Take 5 ml of the iron syrup every day."
+  },
+  {
+   "group": "dosing",
+   "text": "Take 1 g of vitamin C daily."
+  },
+  {
+   "group": "dosing",
+   "text": "Take 2 units more at bedtime."
+  },
+  {
+   "group": "dosing",
+   "text": "You should take 20mg of statins daily to lower your LDL."
+  },
+  {
+   "group": "dosing",
+   "text": "Ask about a dose adjustment and increase it yourself in the meantime."
+  },
+  {
+   "group": "dosing",
+   "text": "You need a dose adjustment: go up to 40 mg."
+  },
+  {
+   "group": "dosing",
+   "text": "Increase your levothyroxine dose."
+  },
+  {
+   "group": "dosing",
+   "text": "Increase the dose of your statin."
+  },
+  {
+   "group": "dosing",
+   "text": "You should increase your insulin dose tonight."
+  },
+  {
+   "group": "dosing",
+   "text": "Decrease your warfarin dose."
+  },
+  {
+   "group": "dosing",
+   "text": "Decrease the dose by half."
+  },
+  {
+   "group": "dosing",
+   "text": "Your medication dosage is too low; raise it."
+  },
+  {
+   "group": "dosing",
+   "text": "Change your medication dosage to twice a day."
+  },
+  {
+   "group": "medication",
+   "text": "You should take metformin to control your blood sugar."
+  },
+  {
+   "group": "medication",
+   "text": "You should take insulin immediately."
+  },
+  {
+   "group": "medication",
+   "text": "You must take an iron supplement."
+  },
+  {
+   "group": "medication",
+   "text": "You need to take a statin for this."
+  },
+  {
+   "group": "medication",
+   "text": "You need to take vitamin D every day."
+  },
+  {
+   "group": "medication",
+   "text": "Ask for a prescription for metformin."
+  },
+  {
+   "group": "medication",
+   "text": "I would prescribe atorvastatin for this."
+  },
+  {
+   "group": "medication",
+   "text": "I prescribe 20 mg of lisinopril."
+  },
+  {
+   "group": "medication",
+   "text": "You need a prescription for levothyroxine."
+  },
+  {
+   "group": "medication",
+   "text": "Get a prescription for a statin."
+  },
+  {
+   "group": "medication",
+   "text": "Start taking a statin."
+  },
+  {
+   "group": "medication",
+   "text": "Start taking iron supplements today."
+  },
+  {
+   "group": "medication",
+   "text": "You should start taking vitamin D."
+  },
+  {
+   "group": "medication",
+   "text": "Stop taking your metformin."
+  },
+  {
+   "group": "medication",
+   "text": "Stop taking the lisinopril right away."
+  },
+  {
+   "group": "medication",
+   "text": "You can stop taking your statin now."
+  },
+  {
+   "group": "medication",
+   "text": "Discontinue the lisinopril."
+  },
+  {
+   "group": "medication",
+   "text": "Discontinue your blood thinner before the test."
+  },
+  {
+   "group": "medication",
+   "text": "You should discontinue levothyroxine."
+  },
+  {
+   "group": "medication",
+   "text": "As your doctor, I diagnose you with diabetes and should take metformin."
+  },
+  {
+   "group": "emergency",
+   "text": "Go to the ER now."
+  },
+  {
+   "group": "emergency",
+   "text": "Go to the ER right now for this result."
+  },
+  {
+   "group": "emergency",
+   "text": "Go to ER immediately."
+  },
+  {
+   "group": "emergency",
+   "text": "Call 911 immediately."
+  },
+  {
+   "group": "emergency",
+   "text": "Call 911 if this happens again."
+  },
+  {
+   "group": "emergency",
+   "text": "You need to go to the emergency room."
+  },
+  {
+   "group": "emergency",
+   "text": "Head to the nearest emergency room today."
+  },
+  {
+   "group": "emergency",
+   "text": "Seek immediate medical attention."
+  },
+  {
+   "group": "emergency",
+   "text": "Seek immediate care for this potassium level."
+  },
+  {
+   "group": "emergency",
+   "text": "This is a medical emergency."
+  },
+  {
+   "group": "emergency",
+   "text": "A potassium of 7.2 is a medical emergency."
+  },
+  {
+   "group": "emergency",
+   "text": "This result is life-threatening."
+  },
+  {
+   "group": "emergency",
+   "text": "This is a life threatening level."
+  },
+  {
+   "group": "emergency",
+   "text": "Your sodium is at a lifethreatening level; go now."
+  }
+ ]
+}
