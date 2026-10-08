@@ -661,7 +661,7 @@ function Install-FrontendDependencies {
     $marker  = Join-Path $modules ".asclexis-lockfile.sha256"
     # npm ci empties node_modules. If node_modules is a link, that would empty the folder it points to.
     $modulesItem = Get-Item -LiteralPath $modules -Force -ErrorAction SilentlyContinue
-    if ($modulesItem -and ($modulesItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+    if ($modulesItem -and $modulesItem.LinkType) {
         Write-Err "src\frontend\node_modules is a link to another folder. Nothing was changed."
         Write-Err "Remove the link (not the folder it points to) and run again."
         return $false
@@ -676,15 +676,18 @@ function Install-FrontendDependencies {
     $npmExit = 1
     $npmOutput = "npm was not found on PATH."
     if ($npmCommand -ne "") {
-        Push-Location -LiteralPath $FrontendDir
+        $pushed = $false
         try {
+            # Stop: if the folder cannot be entered, npm must not run in whatever folder we are in.
+            Push-Location -LiteralPath $FrontendDir -ErrorAction Stop
+            $pushed = $true
             $npmOutput = & $npmCommand ci 2>&1
             $npmExit = $LASTEXITCODE
         } catch {
             $npmOutput = $_.Exception.Message
             $npmExit = 1
         }
-        Pop-Location
+        if ($pushed) { Pop-Location }
     }
     if ($npmExit -ne 0) {
         Write-Err "npm ci failed (exit code $npmExit). Frontend dependencies are not installed."
