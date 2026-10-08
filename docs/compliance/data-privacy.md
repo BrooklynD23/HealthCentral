@@ -234,8 +234,29 @@ No data leaves the device. All AI processing uses local models.
 ### Optional External API
 
 When enabled by user opt-in:
-- Only the specific query text is sent to the external provider
-- Full health records are never transmitted
+- What is sent: the whole prompt the assistant composes for that request, not
+  only the question. The prompt holds the assistant's instructions, the context
+  retrieved for the question (summaries of the patient's own results, passages
+  from their documents with the document's title and, where known, page
+  number, and reference text) and the question. In assistant chat it also holds earlier
+  turns of the chat session and, when memory is switched on, saved memory
+  items (`modules/rag.py`, `compose_prompt` and `query`). Two features can use
+  the external provider: assistant chat when it answers through the legacy RAG
+  path, and the grounded interpretation of a single result.
+- Unless break-glass is active (see the PHI redaction bullet below), the
+  prompt is redacted at `strict` before it is sent (`core/external_runner.py`).
+  Under break-glass, which is an installation setting and not a patient
+  choice, it is sent with reduced or no redaction. `strict` redaction is
+  pattern-based. It removes text that matches its rules: dashed SSNs, emails,
+  phone numbers, names that follow a label such as "Patient" or "Dr", labelled
+  dates of birth and other numeric dates written day-first or month-first with
+  slashes or dashes, street addresses with an abbreviated suffix such as "St"
+  or "Ave", and labelled MRNs. It has no rule for anything else: for example names with no such
+  label, dates written in words or as ISO-8601, lab values, analyte names,
+  document titles and document passages. Health information in the prompt
+  therefore reaches the provider, and identifying text can too. The prompt is
+  built from the context retrieved for that request, not from an export of the
+  whole vault.
 - API key stored locally (never logged or transmitted elsewhere)
 - Provider: OpenAI or Anthropic (user choice)
 - PHI redaction: owner decision D12 (2026-09-27) requires `strict` redaction
