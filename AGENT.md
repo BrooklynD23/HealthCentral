@@ -73,7 +73,7 @@ see [`.claude/skills/README.md`](.claude/skills/README.md) and
 
 ```powershell
 .\dev.ps1                                  # full stack, auto-selects free ports
-cd src/backend; python -m pytest tests/ -p no:cacheprovider -q   # backend tests (1370 collected; 1269 pass in CI, 1268 without an embedding model)
+cd src/backend; python -m pytest tests/ -p no:cacheprovider -q   # backend tests (1374 collected; 1269 pass in CI, 1268 without an embedding model)
 cd src/frontend; npm run dev               # frontend only
 cd src/frontend; npx tsc --noEmit; npm run build; npx vitest run
 cd src/frontend; npx playwright test       # e2e
