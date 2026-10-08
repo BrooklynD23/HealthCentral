@@ -643,15 +643,35 @@ function Get-FrontendInstallReason {
     return ""
 }
 
+# Path of the npm application (npm.cmd / npm.exe), or "" when there is none.
+# Not "& npm": PowerShell resolves that to the npm.ps1 shim, which drops the first
+# character of its arguments when it is called through "&" (npm 11: `Unknown command: "pm"`).
+function Get-NpmApplicationPath {
+    $app = Get-Command npm -CommandType Application -ErrorAction SilentlyContinue |
+        Where-Object { $_.Extension -in '.cmd', '.exe' } | Select-Object -First 1
+    if ($app) { return $app.Source }
+    return ""
+}
+
 # Runs `npm ci` and records the lockfile hash only when it succeeded and Vite is present.
 # Returns $true on success. On failure prints why and returns $false; nothing is recorded.
 function Install-FrontendDependencies {
-    param([string]$FrontendDir)
+    param([string]$FrontendDir, [string]$NpmCommand = "")
     $modules = Join-Path $FrontendDir "node_modules"
-    Push-Location $FrontendDir
-    $npmOutput = & npm ci 2>&1
-    $npmExit = $LASTEXITCODE
-    Pop-Location
+    if ($NpmCommand -eq "") { $NpmCommand = Get-NpmApplicationPath }
+    $npmExit = 1
+    $npmOutput = "npm was not found on PATH."
+    if ($NpmCommand -ne "") {
+        Push-Location $FrontendDir
+        try {
+            $npmOutput = & $NpmCommand ci 2>&1
+            $npmExit = $LASTEXITCODE
+        } catch {
+            $npmOutput = $_.Exception.Message
+            $npmExit = 1
+        }
+        Pop-Location
+    }
     if ($npmExit -ne 0) {
         Write-Err "npm ci failed (exit code $npmExit). Frontend dependencies are not installed."
         $npmOutput | Select-Object -Last 15 | ForEach-Object { Write-Host "      $_" }
