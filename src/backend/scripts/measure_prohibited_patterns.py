@@ -21,6 +21,8 @@ KB_FIELDS = (
     "description", "clinical_significance", "normal_interpretation",
     "high_interpretation", "low_interpretation",
 )
+WRAP = ("Here is a summary of your results. ",
+        " Please discuss this with your clinician.")
 Compiled = list[tuple[str, re.Pattern[str]]]
 Item = tuple[str, str]  # (label, text)
 
@@ -41,6 +43,7 @@ def load_lists() -> dict[str, Compiled]:
 
     cur = [(f"C{n}", p) for n, (p, _) in enumerate(G.PROHIBITED_PATTERNS, 1)]
     out = {"current": _compile(cur)}
+    sys.dont_write_bytecode = True  # keep exec_module from writing __pycache__
     cand = _load_module("candidates", FIX / "candidates.py")
     lists = getattr(cand, "LISTS", {"plan_18": getattr(cand, "PLAN_18", [])})
     for name, rows in lists.items():
@@ -76,14 +79,36 @@ def first_hit(lst: Compiled, text: str) -> tuple[str, str] | None:
     return None
 
 
-def build_sets(sealed: list[str]) -> tuple[dict[str, list[Item]], dict[str, list[Item]]]:
+def _dedupe(name: str, seen: set[str], block: list[Item],
+            allow: list[Item]) -> tuple[list[Item], list[Item]]:
+    quoted = set(_read(name).get("quoted_in_author_report", []))
+    drop = seen | quoted
+    kb = [x for x in block if x[1] not in drop]
+    ka = [x for x in allow if x[1] not in drop]
+    print(f"dedupe {name}: dropped {len(block) - len(kb)} must-block, "
+          f"{len(allow) - len(ka)} must-allow")
+    return kb, ka
+
+
+def build_sets(sealed: list[str], dedupe: bool = False, wrap: bool = False,
+               ) -> tuple[dict[str, list[Item]], dict[str, list[Item]]]:
     ins_b, ins_a = _split("in_sample")
     dev_b, dev_a = _split("held_out_dev")
     nr = [(i["group"], i["text"]) for i in _read("must_not_regress")["items"]]
     block = {"in_sample": ins_b, "must_not_regress": nr, "held_out_dev": dev_b}
     allow = {"in_sample": ins_a, "product": product_texts(), "held_out_dev": dev_a}
+    seen = {t for d in (block, allow) for v in d.values() for _, t in v}
     for name in sealed:
-        block[name], allow[name] = _split(name)
+        b, a = _split(name)
+        if dedupe:
+            b, a = _dedupe(name, seen, b, a)
+        block[name], allow[name] = b, a
+        seen |= {t for _, t in _split(name)[0] + _split(name)[1]}
+    if dedupe and not sealed:
+        print("dedupe: no sealed split loaded, nothing to do")
+    if wrap:
+        block = {k: [(c, WRAP[0] + t + WRAP[1]) for c, t in v] for k, v in block.items()}
+        allow = {k: [(c, WRAP[0] + t + WRAP[1]) for c, t in v] for k, v in allow.items()}
     return block, allow
 
 
@@ -163,15 +188,19 @@ def main() -> int:
     ap.add_argument("--verbose", action="store_true")
     ap.add_argument("--list", action="append", dest="names")
     ap.add_argument("--markdown", action="store_true")
+    ap.add_argument("--dedupe", action="store_true")
+    ap.add_argument("--wrap", action="store_true")
     a = ap.parse_args()
     sealed = [n for n, on in (("held_out_final", a.final),
                               ("held_out_final2", a.final2)) if on]
     for n in sealed:
         print(f"INCLUDING SEALED {n} SPLIT")
+    if a.wrap:
+        print("TEXTS ARE WRAPPED in a summary sentence and a clinician sentence")
     lists = load_lists()
     if a.names:
         lists = {k: v for k, v in lists.items() if k == "current" or k in a.names}
-    block, allow = build_sets(sealed)
+    block, allow = build_sets(sealed, a.dedupe, a.wrap)
     res = evaluate(lists, block, allow)
     if a.markdown:
         report_markdown(res)

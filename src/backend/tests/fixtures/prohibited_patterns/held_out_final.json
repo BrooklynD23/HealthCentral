@@ -1508,5 +1508,28 @@
       "kind": "general_wellness",
       "text": "If you move or change clinics, you can request that your records be transferred."
     }
+  ],
+  "quoted_in_author_report": [
+    "You are vitamin D deficient.",
+    "Your thyroid is underactive.",
+    "This is cirrhosis; your albumin and platelet trend leave little doubt that you have it.",
+    "Skip tonight's dose and then take 5 mg of warfarin tomorrow.",
+    "Since your INR is 4.1, hold one dose and then drop to 4 mg a day.",
+    "Ask your doctor for Ozempic.",
+    "You need to be on a blood thinner.",
+    "With an LDL like that, you should be on a statin.",
+    "Tell your doctor you want to be put on Synthroid.",
+    "Request a prescription for allopurinol at your next visit.",
+    "Insist on being prescribed a PCSK9 inhibitor.",
+    "Have someone drive you to the hospital immediately.",
+    "Go to the ER.\nBring your medication list.",
+    "According to your medication list, you take atorvastatin 20 mg at bedtime.",
+    "Please talk with your doctor before making any change to your medicines.",
+    "Ask your clinic how they prefer to be reached with questions between visits.",
+    "I can't say you are 100% in the clear, and I can't say you aren't; that is beyond what your record can show.",
+    "None of this means you are diabetic; that determination is your clinician's to make.",
+    "Your HDL cholesterol is in a healthy range. This is associated with lower cardiovascular risk, though other factors also matter.",
+    "Regular physical activity, sleep and a balanced diet are widely recommended for general heart health.",
+    "Health agencies advise that not smoking and limiting alcohol support long-term health for most adults."
   ]
 }
