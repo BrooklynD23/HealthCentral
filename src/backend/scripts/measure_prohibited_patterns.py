@@ -5,11 +5,15 @@ Exit code is always 0 (measurement, not a gate). Imports the live pattern list a
 product templates read-only; nothing in product code imports this script.
 """
 
+import sys
+
+sys.dont_write_bytecode = True  # before any import that could write __pycache__
+
 import argparse
 import importlib.util
 import json
 import re
-import sys
+import time
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -43,7 +47,6 @@ def load_lists() -> dict[str, Compiled]:
 
     cur = [(f"C{n}", p) for n, (p, _) in enumerate(G.PROHIBITED_PATTERNS, 1)]
     out = {"current": _compile(cur)}
-    sys.dont_write_bytecode = True  # keep exec_module from writing __pycache__
     cand = _load_module("candidates", FIX / "candidates.py")
     lists = getattr(cand, "LISTS", {"plan_18": getattr(cand, "PLAN_18", [])})
     for name, rows in lists.items():
@@ -181,6 +184,23 @@ def report_markdown(res: dict[str, Any]) -> None:
         print("| " + " | ".join(cells) + " |")
 
 
+def report_timing(lists: dict[str, Compiled]) -> None:
+    texts = {
+        "colons-1250": ("it: " * 2000)[:1250],
+        "colons-2500": ("it: " * 2000)[:2500],
+        "labtable-2500": ("LDL: 130 mg/dL  HDL: 50 mg/dL  " * 200)[:2500],
+    }
+    print("seconds for one whole-list pass:")
+    for ln, lst in lists.items():
+        cells = []
+        for label, text in texts.items():
+            t0 = time.perf_counter()
+            for _, rx in lst:
+                rx.search(text)
+            cells.append(f"{label} {time.perf_counter() - t0:.2f}")
+        print(f"  {ln}: " + ", ".join(cells))
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--final", action="store_true")
@@ -189,6 +209,7 @@ def main() -> int:
     ap.add_argument("--list", action="append", dest="names")
     ap.add_argument("--markdown", action="store_true")
     ap.add_argument("--dedupe", action="store_true")
+    ap.add_argument("--timing", action="store_true")
     ap.add_argument("--wrap", action="store_true")
     a = ap.parse_args()
     sealed = [n for n, on in (("held_out_final", a.final),
@@ -200,6 +221,9 @@ def main() -> int:
     lists = load_lists()
     if a.names:
         lists = {k: v for k, v in lists.items() if k == "current" or k in a.names}
+    if a.timing:
+        report_timing(lists)
+        return 0
     block, allow = build_sets(sealed, a.dedupe, a.wrap)
     res = evaluate(lists, block, allow)
     if a.markdown:
