@@ -227,7 +227,7 @@ A second run of this plan, as phase NPM-AUDIT-2 (item NPM-AUDIT-DRIFT in [implem
 **Rules that replace the ones above for this run.**
 
 1. `npm audit fix` without `--force`, from Windows. `src/frontend/package.json` must not change at all (no manual edit, `engines` included). Only `src/frontend/package-lock.json` changes. If `package.json` changes, STOP.
-2. **Majors (replaces Amendment 1's rule and Task 1 Step 3).** Any package whose major version changes, in either direction, at any nesting depth, STOPS the phase and goes back to the owner with the list. "Major" means the semver breaking line: the first component, or for `0.x` the minor, or for `0.0.x` the patch. These also stop, because each can move a consumer to another major or bring in unreviewed code: a package name the tree did not have; a path added or removed for a name that has, or gains, more than one breaking line in the tree; an entry whose version is unchanged but whose `resolved`, `integrity`, `name` or `hasInstallScript` differs; a new `hasInstallScript`; any entry not on `https://registry.npmjs.org/` with `sha512` integrity; a changed root entry. Amendment 1's "sole consumer moved by a minor" exception does **not** apply.
+2. **Majors (replaces Amendment 1's rule and Task 1 Step 3).** Any package whose major version changes, in either direction, at any nesting depth, STOPS the phase and goes back to the owner with the list. "Major" means the semver breaking line: the first component, or for `0.x` the minor, or for `0.0.x` the patch. These also stop, because each can move a consumer to another major or bring in unreviewed code: a package name the tree did not have; a path added or removed for a name that has, or gains, more than one breaking line in the tree; a version that goes down; a changed entry where anything other than `version`, `resolved` and `integrity` differs (`bin`, `name`, `dependencies`, `dev`, `hasInstallScript`, …), or where those differ without a version change; a new `hasInstallScript`; any entry whose `resolved` is not exactly the `registry.npmjs.org` tarball of its own name and version, or whose integrity is not `sha512`; a changed root entry or any top-level key beside `packages`. The rule is deliberately stricter than a routine bump needs (a real patch release may change its `dependencies`): for this phase every such case is read by a person before it lands. Amendment 1's "sole consumer moved by a minor" exception does **not** apply.
 3. **Exit codes.** After each of `npm ci`, `npx tsc --noEmit`, `npm run lint`, `npm run build`, `npx vitest run`, print the numeric exit code and record it. Inside a bash double-quoted string write `\$LASTEXITCODE`; an unescaped `$LASTEXITCODE` is expanded to empty by bash and the check cannot fail. A non-zero code stops the phase: the acceptance line in rule 5 accumulates the codes and exits non-zero itself, so the result does not depend on someone reading five numbers.
 4. **Lockfile diff (the measurement for rule 2).** Python 3 (`python3` in WSL). It compares every key of `packages`, nested paths included, and every field of each entry. The script is the block below; it is not a tracked file (this phase's file list has no room for one), so extract it from this plan and run that:
 
@@ -235,7 +235,9 @@ A second run of this plan, as phase NPM-AUDIT-2 (item NPM-AUDIT-DRIFT in [implem
 TMP=$(mktemp -d)
 awk '/^```python$/{f=1;next} /^```$/{f=0} f' docs/plans/2026-10-04-NPM-audit-fix.md > "$TMP/lockdiff.py"
 git show origin/main:src/frontend/package-lock.json > "$TMP/lock-main.json"
-python3 "$TMP/lockdiff.py" "$TMP/lock-main.json" src/frontend/package-lock.json; echo "lockdiff=$?"
+git show HEAD:src/frontend/package-lock.json > "$TMP/lock-head.json"   # the committed blob, not the working tree
+sha256sum "$TMP/lockdiff.py"
+python3 "$TMP/lockdiff.py" "$TMP/lock-main.json" "$TMP/lock-head.json"; echo "lockdiff=$?"
 ```
 
 ```python
@@ -246,8 +248,17 @@ def line(v):  # the semver "breaking line": 3.x.x -> "3", 0.4.x -> "0.4", 0.0.7 
     return p[0] if p[0] != "0" else ("0." + p[1] if p[1] != "0" else "0.0." + p[2])
 
 def load(path):
-    pk = json.load(open(path, encoding="utf-8"))["packages"]
-    return pk.pop("", {}), pk
+    doc = json.load(open(path, encoding="utf-8"))
+    pk = doc.pop("packages")
+    return (doc, pk.pop("", {})), pk
+
+def key(v):  # sortable version, numeric parts only; enough to see a downgrade
+    return [int(x) if x.isdigit() else 0 for x in (v or "").split("-")[0].split("+")[0].split(".")]
+
+def source_ok(k, v):  # the registry tarball of exactly this name and version, sha512
+    nm = k.rsplit("node_modules/", 1)[-1]
+    want = f"https://registry.npmjs.org/{nm}/-/{nm.split('/')[-1]}-{v.get('version')}.tgz"
+    return v.get("resolved") == want and (v.get("integrity") or "").startswith("sha512-") and "name" not in v
 
 def lines(pk):  # package name -> set of breaking lines present anywhere in the tree
     out = {}
@@ -258,7 +269,7 @@ def lines(pk):  # package name -> set of breaking lines present anywhere in the 
 (old_root, old), (new_root, new) = load(sys.argv[1]), load(sys.argv[2])
 stops = []
 if old_root != new_root:
-    stops.append("ROOT-ENTRY-CHANGED (package.json ranges, engines or name)")
+    stops.append("ROOT-OR-TOP-LEVEL-CHANGED (package.json ranges, engines, name, lockfileVersion or a key beside packages)")
 added, removed = sorted(set(new) - set(old)), sorted(set(old) - set(new))
 changed = sorted(k for k in set(old) & set(new) if old[k] != new[k])
 ol, nl = lines(old), lines(new)
@@ -278,8 +289,10 @@ for k in changed:
     print(f"  {k} {o.get('version')} -> {n.get('version')} fields={fields}{' MAJOR' if major else ''}")
     if major:
         stops.append(f"MAJOR {k} {o.get('version')} -> {n.get('version')}")
-    if o.get("version") == n.get("version") and set(fields) & {"resolved", "integrity", "name", "hasInstallScript"}:
-        stops.append(f"SAME-VERSION-DIFFERENT-CONTENT {k} fields={fields}")
+    if key(n.get("version")) < key(o.get("version")):
+        stops.append(f"DOWNGRADE {k} {o.get('version')} -> {n.get('version')}")
+    if o.get("version") == n.get("version") or set(fields) - {"version", "resolved", "integrity"}:
+        stops.append(f"UNEXPECTED-FIELDS {k} fields={fields}")
 for k in added + removed:  # a path that appears or disappears can move a consumer to another major
     nm = k.rsplit("node_modules/", 1)[-1]
     if nm not in ol:
@@ -292,18 +305,18 @@ print(f"hasInstallScript: old={sorted(scripts(old))}")
 print(f"hasInstallScript GAINED: {gained}")
 stops += [f"INSTALL-SCRIPT-GAINED {k}" for k in gained]
 bad = 0
-for k, v in sorted(new.items()):  # every entry, changed or not: npm registry + sha512 only
-    if not (v.get("resolved") or "").startswith("https://registry.npmjs.org/") or not (v.get("integrity") or "").startswith("sha512-"):
+for k, v in sorted(new.items()):  # every entry, changed or not
+    if not source_ok(k, v):
         bad += 1
         stops.append(f"BAD-SOURCE {k} resolved={v.get('resolved')} integrity={v.get('integrity')}")
-print(f"source shape: {len(new) - bad}/{len(new)} entries on https://registry.npmjs.org/ with sha512 integrity")
+print(f"source shape: {len(new) - bad}/{len(new)} entries are the registry.npmjs.org tarball of their own name and version, sha512")
 print(f"STOP-FLAGS: {len(stops)}")
 for s in stops:
     print(f"  STOP {s}")
 sys.exit(1 if stops else 0)
 ```
 
-Expected: `STOP-FLAGS: 0`, `lockdiff=0`, `hasInstallScript GAINED: []` (baseline holders: `esbuild`, `fsevents`, `playwright/node_modules/fsevents`). The full output goes in the PR body. The script was itself tested to fail (L1-B, 2026-10-08, 14 cases against copies of the `origin/main` lockfile): it exits 0 on the identical file, on a patch bump, and on a nested copy added at the same line; it exits 1 on a major up, a major down, a `0.x` minor bump, a swapped `resolved`, a swapped `integrity`, a `sha1` integrity, a gained install script, a new package name, a nested copy added at another `0.x` minor, a nested copy removed for a name with two majors, and a changed root entry. A first version of this script (code review, 2026-10-08) saw only entries whose `version` changed and did not count a gained install script; it is replaced by the one above.
+Expected: `STOP-FLAGS: 0`, `lockdiff=0`, `hasInstallScript GAINED: []` (baseline holders: `esbuild`, `fsevents`, `playwright/node_modules/fsevents`). The full output and the script's sha256 go in the PR body. The script was itself tested to fail (L1-B, 2026-10-08, 24 mutated copies of the `origin/main` lockfile, 24 as expected). Exit 0: the identical file; a clean patch bump (plain and scoped name); a nested copy added at the same line. Exit 1: major up; major down; downgrade inside a line; `0.x` minor bump; `resolved` or `integrity` swapped at the same version; `sha1` integrity; `resolved` pointing at another package on the registry; a `?query` on `resolved`; a bump that gains `bin`, `name`, `dependencies` or an install script, or loses `dev`; a new package name; a nested copy added at another `0.x` minor or resolving to another package; a nested copy removed for a name with two majors; a changed root entry; `lockfileVersion` 1 with a legacy `dependencies` block. Two review rounds on 2026-10-08 shaped it: the first version saw only entries whose `version` changed and did not count a gained install script (code review); the second checked the registry host by prefix only and allowed downgrades and extra fields (security review). **What it still cannot see:** whether an `integrity` value is the one the registry publishes, who published the version, and what the new code does. Those are the security reviewer's steps for every changed entry (packument `dist.integrity`, tarball hash, publisher continuity, install scripts, source diff), not this script's.
 
 5. **Acceptance (L1 runs it, Windows).**
 
