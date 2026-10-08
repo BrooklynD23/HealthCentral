@@ -30,6 +30,7 @@
 | Marker missing, `node_modules` present | Install once | This is every existing install on the day this merges: the tree is unverified. It is how the NPM-AUDIT fixes reach existing installs. Cost: one reinstall per machine. |
 | `npm ci` or `npm install`? | `npm ci`, for all three cases (first time, incomplete, lockfile changed) | `npm ci` installs exactly the committed lockfile and never rewrites it. `npm install` may rewrite `package-lock.json` on a patient machine, which would then differ from the repository and from the stored hash. `npm ci` removes `node_modules` first, so a failed run leaves no half-installed tree: the next run sees no `node_modules` and installs again. CI already runs `npm ci` on every PR (`ci.yml` frontend jobs), so the lockfile is known to be in sync with `package.json`. |
 | Install failure | Check npm's exit code, print the last lines of npm's output, stop with exit 1. The marker is written only after exit code 0 **and** Vite is present | Today the exit code is ignored and only Vite's presence is checked. With a reinstall over an existing tree that check would pass on the old Vite. |
+| How is npm called? | Through the npm **application** (`npm.cmd`, or `npm.exe`), resolved with `Get-Command npm -CommandType Application`, never through `& npm` | Measured 2026-10-08 (Windows PowerShell 5.1.26100, npm 11.6.2): PowerShell resolves `npm` to the shim `npm.ps1` first, and that shim rebuilds its arguments from the statement text by cutting off `InvocationName.Length` characters. Called as `& npm ci`, the invocation name is `&`, so npm receives `pm ci` and prints `Unknown command: "pm"`, exit 1. The line on `main` today, `& npm install 2>&1 \| Out-Null` (`dev.ps1:635`), fails the same way: in an empty project it exits 1 and creates nothing. So a first-time install through `dev.ps1` is already broken with this npm; the old code then prints "npm install succeeded but Vite was not found". `& npm --version` (`:429`) works only because npm answers `--version` whatever the command is. The first version of this plan copied `& npm`; the stubbed check cases could not see it and the first real run did (Task 3). |
 | `package-lock.json` missing | The decision returns "install"; `npm ci` then fails with its own message and the script stops | An incomplete download. No guess is made. |
 
 Cost accepted: `npm ci` needs the registry (or npm's cache). A machine that is offline on the first run after a lockfile change gets a clear error and does not launch; before this change it launched on the stale packages. That is the behaviour the gate asks for.
@@ -38,13 +39,13 @@ Cost accepted: `npm ci` needs the registry (or npm's cache). A machine that is o
 
 | File | Change |
 |---|---|
-| `dev.ps1` | STEP 5 only: two functions plus the rewritten install block |
-| `scripts/check_dev_ps1_install.ps1` | New. Self-contained check script (no Pester). Loads the two functions out of `dev.ps1` with the PowerShell parser, so it tests the shipped code without running the launcher |
+| `dev.ps1` | STEP 5 only: three functions plus the rewritten install block |
+| `scripts/check_dev_ps1_install.ps1` | New. Self-contained check script (no Pester). Loads the two functions out of `dev.ps1` with the PowerShell parser, so it tests the shipped code without running the launcher. The install cases call a real stub `.cmd` process, and two cases call the real npm with `--version` |
 | `docs/plans/2026-10-08-DEV-PS1-install-on-lockfile-change.md` | This plan |
 | `docs/INDEX.md`, `docs/_link_graph.json` | Regenerated for the new plan |
 | `audit/2026-09-25/waves/wave-4-L1-B.md` | L1 wave report |
 
-Prior art checked: `grep -rn "dev.ps1" src/backend/tests scripts tests .github` returns nothing at `777adf5`. No existing test pattern for the launcher, so the check script is new.
+Prior art checked: `grep -rn "dev.ps1" src/backend/tests scripts tests .github` returns two hits at `777adf5`, neither a test of the launcher: `src/backend/tests/test_claude_agent_definitions.py:83` (an agent's write scope) and `scripts/harness_drift_check.py:44` (a filename allowlist). No existing test pattern, so the check script is new.
 
 ## Before / After
 
@@ -102,15 +103,35 @@ function Get-FrontendInstallReason {
     return ""
 }
 
+# Path of the npm application (npm.cmd / npm.exe), or "" when there is none.
+# Not "& npm": PowerShell resolves that to the npm.ps1 shim, which drops the first
+# character of its arguments when it is called through "&" (npm 11: `Unknown command: "pm"`).
+function Get-NpmApplicationPath {
+    $app = Get-Command npm -CommandType Application -ErrorAction SilentlyContinue |
+        Where-Object { $_.Extension -in '.cmd', '.exe' } | Select-Object -First 1
+    if ($app) { return $app.Source }
+    return ""
+}
+
 # Runs `npm ci` and records the lockfile hash only when it succeeded and Vite is present.
 # Returns $true on success. On failure prints why and returns $false; nothing is recorded.
 function Install-FrontendDependencies {
-    param([string]$FrontendDir)
+    param([string]$FrontendDir, [string]$NpmCommand = "")
     $modules = Join-Path $FrontendDir "node_modules"
-    Push-Location $FrontendDir
-    $npmOutput = & npm ci 2>&1
-    $npmExit = $LASTEXITCODE
-    Pop-Location
+    if ($NpmCommand -eq "") { $NpmCommand = Get-NpmApplicationPath }
+    $npmExit = 1
+    $npmOutput = "npm was not found on PATH."
+    if ($NpmCommand -ne "") {
+        Push-Location $FrontendDir
+        try {
+            $npmOutput = & $NpmCommand ci 2>&1
+            $npmExit = $LASTEXITCODE
+        } catch {
+            $npmOutput = $_.Exception.Message
+            $npmExit = 1
+        }
+        Pop-Location
+    }
     if ($npmExit -ne 0) {
         Write-Err "npm ci failed (exit code $npmExit). Frontend dependencies are not installed."
         $npmOutput | Select-Object -Last 15 | ForEach-Object { Write-Host "      $_" }
@@ -153,7 +174,7 @@ The `Remove-Item $nodeModulesDir` of the incomplete case goes: `npm ci` removes 
 
 - [ ] `git -C ../hc-devps1 rev-parse --abbrev-ref HEAD` → `fix/dev-ps1-install`; `git merge-base --is-ancestor 777adf5 HEAD; echo $?` → `0`.
 - [ ] `grep -n 'DEV-PS1-FIRST' docs/capstone-report/owner-decisions-2026-09-27.md` → one row, signed.
-- [ ] `grep -rn "dev.ps1" src/backend/tests scripts tests .github 2>/dev/null` → empty (no prior test pattern).
+- [ ] `grep -rn "dev.ps1" src/backend/tests scripts tests .github 2>/dev/null` → the two hits named under Files, nothing else.
 - [ ] `grep -n 'viteBin\|viteScript\|nodeModulesDir' dev.ps1` → outside STEP 5 only `$viteScript` at `:731` and `:843` (measured 2026-10-08). Anything else: STOP.
 
 ### Task 1: Check script first (RED)
@@ -161,7 +182,7 @@ The `Remove-Item $nodeModulesDir` of the incomplete case goes: `npm ci` removes 
 **Files:** create `scripts/check_dev_ps1_install.ps1`.
 
 - [ ] **Step 1.** Write the script. It takes no dependency and never runs `dev.ps1`:
-  - Loads `Get-FrontendInstallReason` and `Install-FrontendDependencies` from `dev.ps1` with `[System.Management.Automation.Language.Parser]::ParseFile`, finds each `FunctionDefinitionAst` by name and defines it in the script scope. A function that is not found is a **failed check with its own message**, not a crash and not a skip.
+  - Loads `Get-FrontendInstallReason`, `Get-NpmApplicationPath` and `Install-FrontendDependencies` from `dev.ps1` with `[System.Management.Automation.Language.Parser]::ParseFile`, finds each `FunctionDefinitionAst` by name and defines it in the script scope. A function that is not found is a **failed check with its own message**, not a crash and not a skip.
   - Builds each case in a fresh directory under `[System.IO.Path]::GetTempPath()` and removes it afterwards. It never touches the repository's `src/frontend`.
   - Decision cases (no npm involved):
 
@@ -175,13 +196,22 @@ The `Remove-Item $nodeModulesDir` of the incomplete case goes: `npm ci` removes 
     | 6 | case 4, then the lockfile's mtime set one day back and one day forward, content unchanged | `` (skip) both times |
     | 7 | Vite files and marker present, `package-lock.json` deleted | `lockfile-changed` |
 
-  - Install cases, with `npm` replaced by a stub function defined in the check script (so no network and no real install):
+  - Install cases. `npm` is replaced by a stub **`.cmd` file** the check script writes into its temp folder and passes as `-NpmCommand` (so no network and no real install, but a real child process and a real `$LASTEXITCODE`; a PowerShell function stub hid the `& npm` defect above):
 
     | # | Stub `npm ci` | Expected |
     |---|---|---|
     | 8 | exit code 1, Vite files already present from an old tree | returns `$false`; marker **not** written (the case today's code gets wrong) |
     | 9 | exit code 0, creates the Vite files | returns `$true`; marker equals the lockfile hash; `Get-FrontendInstallReason` then returns `` |
     | 10 | exit code 0, creates nothing | returns `$false`; marker not written |
+    | 11 | `-NpmCommand` = a path that does not exist, Vite files already present | returns `$false`; marker not written (a command that cannot start must not read a stale `$LASTEXITCODE`) |
+    | 12 | stub records its arguments | the stub received exactly `ci` |
+
+  - npm resolution cases (real npm, `--version` only, no network):
+
+    | # | Check | Expected |
+    |---|---|---|
+    | 13 | `Get-NpmApplicationPath` | a path that exists, extension `.cmd` or `.exe` (not `.ps1`, not extensionless) |
+    | 14 | `& (Get-NpmApplicationPath) --version` called from a script file | exit code 0, output is a version number |
 
   - Prints one `PASS` / `FAIL` line per case and a last line `checks: <passed>/<total>`; exits `0` only when all pass, else `1`.
   - Optional switch `-Live <frontendDir>`: runs the real decision and, when it says so, the real `Install-FrontendDependencies` (real `npm ci`) against that directory, and prints the reason, the result and the marker. This is the manual-acceptance entry point; it starts no server.
@@ -205,10 +235,10 @@ Expected: `check=1`, with the failures naming the two functions as not found in 
 
 ```bash
 powershell.exe -NoProfile -Command "\$e = \$null; [void][System.Management.Automation.Language.Parser]::ParseFile('C:\Users\DangT\Documents\GitHub\hc-devps1\dev.ps1', [ref]\$null, [ref]\$e); \$e.Count"   # expect 0
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'C:\Users\DangT\Documents\GitHub\hc-devps1\scripts\check_dev_ps1_install.ps1'; echo "check=$?"   # expect checks: 10/10, check=0
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'C:\Users\DangT\Documents\GitHub\hc-devps1\scripts\check_dev_ps1_install.ps1'; echo "check=$?"   # expect checks: 14/14, check=0
 ```
 
-- [ ] **Step 3. Break-it (must go red, then be restored).** In `Get-FrontendInstallReason` change `-ne $recorded` to `-eq $recorded`; run the check script: expect `check=1` with cases 4, 5 and 6 failing. Restore; `git diff --stat` shows only the intended change; run again: `check=0`. Second break-it: in `Install-FrontendDependencies` delete the `if ($npmExit -ne 0) { ... }` block: expect case 8 to fail. Restore.
+- [ ] **Step 3. Break-it (must go red, then be restored).** In `Get-FrontendInstallReason` change `-ne $recorded` to `-eq $recorded`; run the check script: expect `check=1` with cases 4, 5 and 6 failing. Restore; `git diff --stat` shows only the intended change; run again: `check=0`. Second break-it: in `Install-FrontendDependencies` delete the `if ($npmExit -ne 0) { ... }` block: expect cases 8 and 11 to fail. Restore. Third break-it: in `Get-NpmApplicationPath` return the literal `"npm"`: expect case 13 to fail. Restore.
 - [ ] **Step 4. Scope check.**
 
 ```bash
