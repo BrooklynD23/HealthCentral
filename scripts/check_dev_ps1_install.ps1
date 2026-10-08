@@ -4,7 +4,7 @@
 # never runs. Windows PowerShell 5.1 compatible. Temp files live under the system temp
 # folder only; nothing is written inside the repository.
 #
-#   check_dev_ps1_install.ps1                 run the 18 cases (npm is a stub npm.cmd on PATH)
+#   check_dev_ps1_install.ps1                 run the 20 cases (npm is a stub npm.cmd on PATH)
 #   check_dev_ps1_install.ps1 -Live <dir>     real decision + real `npm ci` against <dir>
 param([string]$Live = "")
 
@@ -104,7 +104,7 @@ if ($Live -ne "") {
 $base = Join-Path ([System.IO.Path]::GetTempPath()) ("asclexis-check-" + [guid]::NewGuid().ToString("N"))
 New-Dir $base
 function New-NpmStub {
-    param([string]$Name, [int]$Code, [bool]$CreateVite, [bool]$Stderr)
+    param([string]$Name, [int]$Code, [bool]$CreateVite, [bool]$Stderr, [string[]]$Extra = @())
     $dir = Join-Path $base $Name
     New-Dir $dir
     $lines = @("@echo off", "echo %* > ""%~dp0args.txt""")
@@ -115,6 +115,7 @@ function New-NpmStub {
         $lines += "echo rem> node_modules\.bin\vite.cmd"
         $lines += "echo //> node_modules\vite\bin\vite.js"
     }
+    $lines += $Extra
     $lines += "exit /b $Code"
     Set-Content -LiteralPath (Join-Path $dir "npm.cmd") -Value $lines -Encoding ASCII
     return $dir
@@ -138,6 +139,7 @@ function Invoke-WithPath {
     }
 }
 
+$script:junctions = @()
 function Run-Case {
     param([string]$Name, [scriptblock]$Body)
     try { & $Body } catch { Report $Name $false "threw: $($_.Exception.Message)" }
@@ -275,6 +277,41 @@ try {
         Report $n ($script:res15 -and ($after -eq "")) "result=$($script:res15) reasonAfter=[$after]"
     }
 
+    # ---- 19: node_modules is a junction -> refuse, touch nothing ----
+    $n = "19 node_modules is a junction -> false, target untouched, npm not run"
+    Run-Case $n {
+        $stubRan = New-NpmStub "stub-ran" 0 $true $false @('echo x> "%~dp0ran.txt"')
+        $r = Join-Path $base "c19"; New-Dir $r
+        Set-Content -LiteralPath (Join-Path $r "package-lock.json") -Value '{"lockfileVersion":3}' -Encoding ASCII
+        $target = Join-Path $base "c19-target"; New-Tree $target $true $false
+        Set-Content -LiteralPath (Join-Path $target "precious.txt") -Value "keep" -Encoding ASCII
+        $link = Join-Path $r "node_modules"
+        [void](Remove-Item -LiteralPath $link -Recurse -Force -ErrorAction SilentlyContinue)
+        $script:junctions += $link
+        [void](cmd /c mklink /J "$link" "$(Join-Path $target 'node_modules')" 2>&1)
+        # the target's own node_modules holds the Vite files; the link must see them too
+        $isLink = [bool]((Get-Item -LiteralPath $link -Force).Attributes -band [System.IO.FileAttributes]::ReparsePoint)
+        Set-Content -LiteralPath (Join-Path (Join-Path $target "node_modules") "precious.txt") -Value "keep" -Encoding ASCII
+        Invoke-WithPath "$stubRan;$realPath" { $script:res19 = [bool](Install-FrontendDependencies -FrontendDir $r 6>$null) }
+        $keep = Test-Path -LiteralPath (Join-Path (Join-Path $target "node_modules") "precious.txt")
+        $linkOk = Test-Path -LiteralPath $link
+        $ran = Test-Path -LiteralPath (Join-Path $stubRan "ran.txt")
+        $mk = Test-Path -LiteralPath (Join-Path (Join-Path $target "node_modules") ".asclexis-lockfile.sha256")
+        Report $n ($isLink -and (-not $script:res19) -and $keep -and $linkOk -and (-not $ran) -and (-not $mk)) "isLink=$isLink result=$($script:res19) precious=$keep link=$linkOk npmRan=$ran markerInTarget=$mk"
+    }
+
+    # ---- 20: lockfile changes while npm runs ----
+    $n = "20 lockfile changed mid-install -> true, marker = hash before npm, then lockfile-changed"
+    Run-Case $n {
+        $stubMid = New-NpmStub "stub-mid" 0 $true $false @('>>package-lock.json echo x')
+        $r = Join-Path $base "c20"; New-Tree $r $false $true
+        $before = Get-LockHash $r
+        Invoke-WithPath "$stubMid;$realPath" { $script:res20 = [bool](Install-FrontendDependencies -FrontendDir $r 6>$null) }
+        $rec = Read-Marker $r
+        $after = [string](Get-FrontendInstallReason -FrontendDir $r)
+        Report $n ($script:res20 -and ($rec -eq $before) -and ($after -eq "lockfile-changed")) "result=$($script:res20) markerIsBefore=$($rec -eq $before) reasonAfter=[$after]"
+    }
+
     # ---- 16: empty marker ----
     $n = "16 empty marker -> lockfile-changed, no error record"
     Run-Case $n {
@@ -308,9 +345,11 @@ try {
 }
 finally {
     Set-Location ([System.IO.Path]::GetTempPath())
+    # rmdir without /s removes only the link, never the target; must precede the recursive delete.
+    foreach ($j in $script:junctions) { if (Test-Path -LiteralPath $j) { cmd /c rmdir "$j" | Out-Null } }
     Remove-Item -LiteralPath $base -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 Write-Host "checks: $($script:passed)/$($script:total)"
-if ($script:total -eq 18 -and $script:passed -eq 18 -and $hasReason -and $hasInstall -and $hasNpmPath) { exit 0 }
+if ($script:total -eq 20 -and $script:passed -eq 20 -and $hasReason -and $hasInstall -and $hasNpmPath) { exit 0 }
 exit 1
