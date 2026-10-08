@@ -148,7 +148,7 @@ Changes to existing entries:
 
 ## Owner sign-off (unsigned)
 
-- [x] **PARA-1:** approve the exact candidate list in `candidates.py` above (R1, K2-K7, R8, R9, K10, K11, A1, A2b, A3-A7) as the new `InterpretationSafetyGuard.PROHIBITED_PATTERNS`. Accept the 5 listed misses, and set a held-out recall floor of **85** %. Signed: **owner, answered in chat** (recorded by L0 in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md), row PARA-1: "Sign, floor 85%", with 0 false alarms on the must-allow set, or stop and return to the owner) Date: **2026-10-07**
+- [ ] **PARA-1 (re-opened 2026-10-07, owner-decisions row PARA-1-REDO: "Measure first". The list below regresses on plain diagnoses such as "You have type 2 diabetes."; no edit to `interpret_safety.py` until a revised list, measured on a held-out corpus and a must-not-regress set, is signed):** approve the exact candidate list in `candidates.py` above (R1, K2-K7, R8, R9, K10, K11, A1, A2b, A3-A7) as the new `InterpretationSafetyGuard.PROHIBITED_PATTERNS`. Accept the 5 listed misses, and set a held-out recall floor of **85** %. Signed: **owner, answered in chat** (recorded by L0 in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md), row PARA-1: "Sign, floor 85%", with 0 false alarms on the must-allow set, or stop and return to the owner) Date: **2026-10-07**
 - [ ] **PARA-2** (optional): also apply the patterns to the agent draft path (SAFE-CHAT-AGENT). Not part of PARA-1.
 
 ## Files (for the execution phase, after PARA-1)
