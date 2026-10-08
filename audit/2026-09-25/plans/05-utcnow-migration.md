@@ -467,7 +467,7 @@ git commit -m "fix(gamification): store and return the badge timestamp as naive 
 - Create: `scripts/time_source_lint.py` (repo-root `scripts/`, alongside `docs_lint.py`/`feature_list_lint.py` — NOT `src/backend/scripts/`)
 - Modify: `.github/workflows/ci.yml` — add one step to the `docs-lint` job after the `Repo hygiene check` step (`ci.yml:30-31`). That job already has Python and zero install steps — the right home for a stdlib gate.
 
-Design choices (state in review; revised 2026-10-08): the gate is an **AST scan** for attribute references `datetime.utcnow` / `datetime.utcfromtimestamp` (also `datetime.datetime.utcnow`). It has no trailing-call requirement, so it also catches `default=datetime.utcnow` reference-form reintroduction; `utcfromtimestamp` is the same deprecation class and `core.time.utcfromtimestamp` exists. An AST scan ignores comments and docstrings, so the docstring at `src/backend/core/time.py:18` (which names the deprecated helper) is not a violation and `core/time.py` needs no exclusion. Scan root is `src/backend/` **excluding** `tests/` and `__pycache__` (matched on the path relative to the scan root, so the name of a parent directory cannot switch the scan off) — bandit already excludes tests in this CI file, and `test_profile_recovery.py:344,350` legitimately contains the literal string in a source assertion. A file that does not parse is reported as a violation. Known limit: an aliased import (`from datetime import datetime as dt; dt.utcnow()`) is not seen. Ruff was rejected as the gate mechanism: it is configured (`pyproject.toml` `select = ["F","I","W"]`) but **ungated** (audit §13), and enabling `DTZ` would also flag the out-of-scope `datetime.now()` sites in `gamification.py`/`source_authority.py`.
+Design choices (state in review; revised 2026-10-08): the gate is an **AST scan** for attribute references `datetime.utcnow` / `datetime.utcfromtimestamp` (also `datetime.datetime.utcnow`). It has no trailing-call requirement, so it also catches `default=datetime.utcnow` reference-form reintroduction; `utcfromtimestamp` is the same deprecation class and `core.time.utcfromtimestamp` exists. An AST scan ignores comments and docstrings, so the docstring at `src/backend/core/time.py:18` (which names the deprecated helper) is not a violation and `core/time.py` needs no exclusion. Scan root is `src/backend/` **excluding** `tests/` and `__pycache__` (only the top-level `src/backend/tests/` is excluded; `__pycache__` at any depth; the name of a parent directory cannot switch the scan off) — bandit already excludes tests in this CI file, and `test_profile_recovery.py:344,350` legitimately contains the literal string in a source assertion. A file that does not parse is reported as a violation. The script exits 1 when the scan root is missing or when it scanned no file, so it cannot pass without checking anything (security review, 2026-10-08; the listing below is the committed script). Known limit: an aliased import (`from datetime import datetime as dt; dt.utcnow()`) is not seen. Ruff was rejected as the gate mechanism: it is configured (`pyproject.toml` `select = ["F","I","W"]`) but **ungated** (audit §13), and enabling `DTZ` would also flag the out-of-scope `datetime.now()` sites in `gamification.py`/`source_authority.py`.
 
 - [ ] **Step 1: Write the script**
 
@@ -525,17 +525,32 @@ def _violations_in(path: Path) -> list[str]:
     ]
 
 
-def find_violations() -> list[str]:
+def _is_excluded(path: Path) -> bool:
+    """Skip the top-level tests/ dir and __pycache__ at any depth."""
+    parts = path.relative_to(SCAN_ROOT).parts
+    return parts[0] == "tests" or "__pycache__" in parts
+
+
+def find_violations() -> tuple[list[str], int]:
+    """Return (violations, number of files scanned)."""
     violations: list[str] = []
+    scanned = 0
     for path in sorted(SCAN_ROOT.rglob("*.py")):
-        if EXCLUDE_DIR_NAMES & set(path.relative_to(SCAN_ROOT).parts):
+        if _is_excluded(path):
             continue
+        scanned += 1
         violations.extend(sorted(set(_violations_in(path))))
-    return violations
+    return violations, scanned
 
 
 def main() -> int:
-    violations = find_violations()
+    if not SCAN_ROOT.is_dir():
+        print(f"time_source_lint ERROR: scan root {SCAN_ROOT} is not a directory.")
+        return 1
+    violations, scanned = find_violations()
+    if scanned == 0:
+        print(f"time_source_lint ERROR: scanned 0 .py files under {SCAN_ROOT}.")
+        return 1
     if violations:
         print("Deprecated datetime timestamp helpers found "
               "(use core.time.utcnow / core.time.utcfromtimestamp):")
@@ -543,7 +558,7 @@ def main() -> int:
             print(f"  {line}")
         return 1
     print("time_source_lint passed: no datetime.utcnow/utcfromtimestamp "
-          "in src/backend product code.")
+          f"in {scanned} src/backend product files.")
     return 0
 
 
@@ -590,7 +605,7 @@ Note for reviewers: running the gate mid-migration doubles as a progress checkli
 - [ ] **Step 2:** three greps, each with its exact expected output:
   - `grep -rn "datetime\.utcnow" src/backend --include="*.py" | grep -v "src/backend/tests/" | wc -l` → **0** (was 101).
   - `grep -rn "datetime\.utcfromtimestamp" src/backend --include="*.py" | grep -v "src/backend/tests/"` → **exactly one line**, the docstring at `src/backend/core/time.py:18`. It is prose, not a call; the AST lint does not report it.
-  - `grep -rn "datetime\.utcnow" src/backend/tests --include="*.py"` → **exactly two lines**, `tests/test_profile_recovery.py:344` and `:350` (string literals in a source assertion).
+  - `grep -rn "datetime\.utcnow" src/backend/tests --include="*.py"` → **exactly three lines**: `tests/test_profile_recovery.py:344` and `:350` (string literals in a source assertion) and `tests/test_time_source.py:4` (the docstring of the Task 0 test, which names the migration). Corrected 2026-10-08 after execution: the first amendment said two and forgot the docstring this plan itself adds.
 - [ ] **Step 3:** `python3 scripts/time_source_lint.py` → exit 0.
 - [ ] **Step 4:** `cd src/backend && HF_HUB_OFFLINE=1 flock /tmp/claude-1000/hc-pytest.lock ~/venvs/asclexis-311/bin/python -m pytest tests/ -p no:cacheprovider -q` → **the start-of-plan collected count plus any tests this plan added** (corrected 2026-09-27; was "1245 collected"), no new failures (env-only `test_api_rag_index_002b` failure is pre-existing and not yours).
 - [ ] **Step 5:** `cd src/backend && python -c "from main import app"` → boots clean. Then, from the repo root, `timeout 600 python3 scripts/agent_eval_gate.py; echo "rc=$?"`: record the verdict and the exit code (GATE-14; this plan edits three files under `modules/agent/`).
@@ -605,3 +620,13 @@ Note for reviewers: running the gate mid-migration doubles as a progress checkli
 - The other aware sites: `core/auth.py:73,144,207`, `core/security.py:136`, `core/token_revocation.py:51` (auth, ask-first; token expiry compares aware with aware), `api/export.py:949,1005`, `api/model_settings.py:343`, `api/medications.py:84`. If a task seems to need one of them, STOP and report.
 - `modules/source_authority.py:216` — `datetime.now().year` uses local time, not UTC.
 - `core/time.py` itself — defines the helpers; not a violation. Its docstring at `:18` names the deprecated helper in prose; the AST lint ignores it.
+
+## Execution record (2026-10-08, Wave 4 L1-A)
+
+Executed on `fix/p5-utcnow-migration` from `origin/main@777adf5`; Tasks 0-13 by an L2 implementer, Task 14 by the L1 orchestrator. Commands and outputs are in [`waves/wave-4-L1-A.md`](../waves/wave-4-L1-A.md).
+
+- Product lines with `datetime.utcnow`: 101 → 0. Lint: clean tree exit 0 (173 files scanned); seeded file exit 1; one reverted swap (`models/audit.py`) exit 1; an empty scan root exit 1.
+- Collected: 1370 → 1377 (+7: HC-TIME-001…007). Full suite: `1377 passed`.
+- One response string changed, as accepted under P5-SCOPE: the dose-log `earned_at`.
+- `api/profiles.py`: 7 changed lines (6 swaps, 1 deleted import).
+- Deviation from the plan text: Task 14 Step 2's third grep prints three lines, not two (corrected above).
