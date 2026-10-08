@@ -21,7 +21,7 @@
 3. Variant I needs the W-item PR's red-first and break-it evidence.
 4. If Q1 is unsigned, `CLAUDE.md:62` stays unchanged as an open owner item.
 
-**Review status:** 4 Codex rounds (round 4 final; no round 5). The round-4 MAJOR was fixed after the last round and was not re-reviewed (owner acceptance required).
+**Review status:** 4 Codex rounds on the original plan (the round-4 MAJOR was fixed after the last round and was not re-reviewed). r5 amendment set: Codex round 5 (2026-10-08, `gpt-6-luna`, xhigh configured) REVISE with 1 BLOCKER, 3 MAJOR, 1 MINOR, all accepted and applied; round 6 re-reviews them. Records: `audit/2026-09-25/swarm-2026-09-27/reviews/W10-r5-*`, `W10-r6-*`.
 **Revision:** r4 + Wave 6, 2026-09-28:
 1. Codex r4: merge status of W-2/W-3/W-6 now comes from the item's PR (`gh pr view` + `merge-base --is-ancestor`), not from a test-ID grep. A merged item with missing or renamed tests gets U, never P (Task 1 Steps 2-3, S6).
 2. 3a M-3: the break-glass clause is owner-gated again as **GOV-BG** (merges W-6 §11 Q2 and this plan's Q2). D12 names the external runner as a *ModelRunner* exception (Consequence #1); calling break-glass a bypass of "Redaction before anything leaves" is an inference. Unsigned, C-2 and DP-4 quote D12's conditions without calling break-glass a bypass (§1.2, Task 4, §10).
@@ -308,7 +308,7 @@ routes_inv: 14 lines, all classified in §3.5: y
 | What `strict` removes | `modules/redaction.py:56-128`, 8 rules at `strict`: `ssn`, `email`, `phone`, `name_context`, `dob`, `address`, `mrn`, `numeric_date`; the comment at `:108-113` says ISO-8601 dates are deliberately not matched. No rule matches lab values or analyte names |
 | No log file is written | no `FileHandler` / `basicConfig` / `dictConfig` in product code (`grep -rn` over `src/backend`, tests and `scripts/` excluded → only `alembic.ini:61` `StreamHandler`, `args = (sys.stderr,)`); `core/config.py:130` `log_file_path` is only used to `mkdir` its directory (`core/database.py:88-89`) |
 | `SecurityAuditMiddleware` lines are below the default level | `security/audit_middleware.py:78` `logger.info(…)`; root level WARN (`alembic.ini:45-47`); measured: `logging.getLogger("security.audit_middleware").getEffectiveLevel()` → `WARNING` after `main.create_app()` |
-| The audit table has no correlation-ID column | `models/audit.py:31-63`: `id`, `profile_id`, `event_type`, `action`, `entity_type`, `entity_id`, `details_json`, `client_info`, `timestamp` |
+| The audit table has no correlation-ID column | `models/audit.py:31-63`: `id`, `profile_id`, `event_type`, `action`, `entity_type`, `entity_id`, `details_json` (SQL `Text`, `:55`; `core/audit.py` writes serialized JSON into it), `client_info`, `timestamp` |
 | The security-audit log payload carries the correlation ID | `security/audit_middleware.py:69` (PR #45); log records get `record.correlation_id` (`core/logging_setup.py:18-29`); the console format does not print it (`alembic.ini:67`) |
 | Audit rows are deleted on profile delete | `api/profiles.py:908-910` `delete(AuditLog).where(AuditLog.profile_id == profile_id)`; the only other writer is the insert in `core/audit.py:243-252` (`grep -rn AuditLog` over product code); no `TRIGGER` in `migrations/` |
 | The failure-mode count | `grep -cE '^## [0-9]+\. ' docs/agentic/recurring-failures.md` → `10` |
@@ -394,8 +394,13 @@ export PY="$HOME/venvs/asclexis-311/bin/python"
 EOF
 source "$HOME/.cache/asclexis-w10/w10.env"
 git -C "$MAIN" fetch origin
-git -C "$MAIN" worktree add "$WT" -b docs/w10-governance-amendments origin/main
-git -C "$WT" status --short   # expect: empty
+# r5 (Codex r5 BLOCKER): the worktree may already exist (the L1 creates it before Task 0). Reuse it; add it only if absent.
+if git -C "$WT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  git -C "$WT" branch --show-current   # expect: docs/w10-governance-amendments
+else
+  git -C "$MAIN" worktree add "$WT" -b docs/w10-governance-amendments origin/main
+fi
+git -C "$WT" status --short   # expect: empty (or only this plan's own r5 files)
 ```
 
 If the D9 venv does not exist yet, set `PY=/mnt/c/Python313/python.exe` in the env file. Record `UNMEASURED: D9 venv absent` and the interpreter in the PR.
@@ -445,8 +450,9 @@ python3 "$WT/scripts/docs_lint.py"; echo "docs_lint exit=$?"
 python3 "$WT/scripts/generate_docs_index.py" --check; echo "index_check exit=$?"
 "$PY" --version
 # r5: collect-only instead of the full suite (docs-only diff; 12 GB host). The full suite is reported as skipped.
-(cd "$WT/src/backend" && HF_HUB_OFFLINE=1 "$PY" -m pytest tests/ -p no:cacheprovider --collect-only -q 2>&1 | tail -1)
-(cd "$WT/src/backend" && HF_HUB_OFFLINE=1 "$PY" -m pytest tests/test_docs_lint.py -p no:cacheprovider -q 2>&1 | tail -3)
+# Codex r5: keep the full output in a file and print the pytest exit code, so `tail` cannot hide a failure
+(cd "$WT/src/backend" && HF_HUB_OFFLINE=1 "$PY" -m pytest tests/ -p no:cacheprovider --collect-only -q > "$W10_SCRATCH/collect.out" 2>&1; echo "collect exit=$?"; tail -1 "$W10_SCRATCH/collect.out")
+(cd "$WT/src/backend" && HF_HUB_OFFLINE=1 "$PY" -m pytest tests/test_docs_lint.py -p no:cacheprovider -q > "$W10_SCRATCH/docs_lint_tests.out" 2>&1; echo "pytest exit=$?"; tail -3 "$W10_SCRATCH/docs_lint_tests.out")
 ```
 
 Expected:
@@ -719,8 +725,10 @@ check("W10-A2", "the CSV and JSON exports are the patient's own data export and 
 # W10-A3: C-2 and DP-4 external-runner wording (D12) matches GOV-BG (Wave 6: gated again)
 D12Q = "\"make strict redaction unconditional (remove the dev bypass; keep break-glass only with audit + UI warning)\""
 bypass_c = "break-glass is the only bypass, and only with an audit record and a UI warning (D12: \"keep break-glass only with audit + UI warning\")" in fc
-bypass_p = any(k in fp for k in ("with break-glass as the only bypass", "Break-glass is the only bypass"))
-check("W10-A3", (bypass_c and bypass_p) if GOVBG else (not bypass_c and not bypass_p and D12Q in fc and D12Q in fp),
+dp4 = fp.split("### Optional External API")[1].split("### No Analytics")[0]  # Codex r5: look only inside the DP-4 subsection, and require both conditions
+bypass_p = (("with break-glass as the only bypass, allowed only with an audit record and a UI warning" in dp4)
+            or ("Break-glass is the only bypass, and it is allowed only with an audit record and a UI warning" in dp4))
+check("W10-A3", (bypass_c and bypass_p) if GOVBG else (not bypass_c and "only bypass" not in dp4 and D12Q in fc and D12Q in fp),
       "C-2/DP-4 break-glass wording does not match --govbg")
 # W10-A4: old D11 wording gone iff C-3 applied
 old62 = "Outputs are educational, grounded, cited (`[REFERENCE:N]` / `[YOUR_RESULTS:N]`)."
@@ -862,7 +870,7 @@ python3 "$W10_SCRATCH/w10_assert.py" $W10_ARGS --links="$W10_LINKS"; echo "asser
 git -C "$WT" diff --stat
 ```
 
-Expected: `assert exit=1` with only W10-A6, A7 and A8 failing, for any `W10_ARGS`. r5 correction: with GOV-BG signed, W10-A3 also still fails here, because it checks DP-4 as well as C-2 (`5/9`); it turns green in Task 4. `git diff --stat` shows `CLAUDE.md` only, with 2-4 lines changed (one per applied hunk).
+Expected (r5, `W10_ARGS=" --c3 --govbg"`): `assert exit=1` with W10-A3, A6, A7 and A8 failing (`5/9`). A3 checks DP-4 as well as C-2, so it turns green only in Task 4. `git diff --stat` shows `CLAUDE.md` only, with 2-4 lines changed (one per applied hunk).
 
 ---
 
@@ -1171,12 +1179,17 @@ check("W10-F1", "Only the specific query text is sent to the external provider" 
       and "so health information in the prompt does reach the provider" in fp, "DP-5 text wrong")
 # W10-F2 (DOC-OVERCLAIM, data-privacy): no log-file claim in the Tier 3 table
 check("W10-F2", "Master DB + log file" not in priv and "| Security events | Log file |" not in priv
-      and "| Audit logs | Master DB (not encrypted). No log file is written |" in priv, "DP-6 text wrong")
+      and "| Audit logs | Master DB (not encrypted). No log file is written | Indefinite |" in priv
+      and "| Security events | Application logger only, to the process's stderr; no log file is written. The request lines from `SecurityAuditMiddleware` are logged at INFO, below the default WARN level, so by default they are not emitted | Not retained by the app |" in priv,
+      "DP-6 text wrong")
 # W10-F3 (DOC-OVERCLAIM, hipaa :49): no correlation-ID claim for audit rows
 check("W10-F3", "Structured JSON with timestamps and correlation IDs" not in fh
-      and "They have no correlation-ID column" in fh, "HC-1 text wrong")
+      and "a text `details_json` column that holds serialized JSON. They have no correlation-ID column." in fh
+      and "so by default the ID appears in no operator-visible output |" in fh, "HC-1 text wrong")
 # W10-F4 (DOC-OVERCLAIM, hipaa :52): no append-only claim
-check("W10-F4", "Audit log entries are append-only" not in fh and "| Immutability | Not append-only." in fh, "HC-2 text wrong")
+check("W10-F4", "Audit log entries are append-only" not in fh
+      and "| Immutability | Not append-only. Application code only inserts audit rows, with one exception: deleting a profile deletes that profile's audit rows and keeps one anonymized tombstone (PROF-DEL-001, `api/profiles.py`). The database does not enforce immutability |" in hipaa,
+      "HC-2 text wrong")
 # W10-F5: hipaa-controls.md differs from origin/main in exactly 2 lines, and the Key rotation row (:169) is unchanged
 b = base("docs/compliance/hipaa-controls.md").splitlines()
 h = hipaa.splitlines()
@@ -1270,7 +1283,7 @@ HC-1, `hipaa-controls.md:49`. Before:
 ```
 After:
 ```text
-| Log format | Audit rows are database rows (`models/audit.py`): typed columns with a timestamp, plus a JSON `details_json` field. They have no correlation-ID column. The `SecurityAuditMiddleware` log line is a JSON payload that carries the request correlation ID; it is logged at INFO, below the default WARN level, so by default the ID appears in no operator-visible output |
+| Log format | Audit rows are database rows (`models/audit.py`): typed columns with a timestamp, plus a text `details_json` column that holds serialized JSON. They have no correlation-ID column. The `SecurityAuditMiddleware` log line is a JSON payload that carries the request correlation ID; it is logged at INFO, below the default WARN level, so by default the ID appears in no operator-visible output |
 ```
 
 HC-2, `hipaa-controls.md:52`. Before:
@@ -1304,13 +1317,17 @@ Commit: `git -C "$WT" add -- CLAUDE.md` → 1 path → `docs: CLAUDE.md states t
 - [ ] **Step 5: GREEN and the gates, after the third fold-in commit**
 
 ```bash
-set -o pipefail
+set -euo pipefail   # Codex r5: -e, so the first failing gate stops the block; "ALL GREEN" prints only if every gate passed
 source "$HOME/.cache/asclexis-w10/w10.env"
-python3 "$W10_SCRATCH/w10_foldin_assert.py" --hlinks="$W10_HLINKS"; echo "foldin exit=$?"      # expect 7/7
-python3 "$W10_SCRATCH/w10_assert.py" $W10_ARGS --links="$W10_LINKS"; echo "assert exit=$?"      # still 9/9
-python3 "$WT/scripts/docs_lint.py"; python3 "$WT/scripts/generate_docs_index.py" --check
-python3 "$WT/scripts/harness_drift_check.py"; python3 "$WT/scripts/repo_hygiene_check.py"; python3 "$WT/scripts/feature_list_lint.py"
+python3 "$W10_SCRATCH/w10_foldin_assert.py" --hlinks="$W10_HLINKS"      # expect 7/7
+python3 "$W10_SCRATCH/w10_assert.py" $W10_ARGS --links="$W10_LINKS"      # still 9/9
+python3 "$WT/scripts/docs_lint.py"
+python3 "$WT/scripts/generate_docs_index.py" --check
+python3 "$WT/scripts/harness_drift_check.py"
+python3 "$WT/scripts/repo_hygiene_check.py"
+python3 "$WT/scripts/feature_list_lint.py"
 git -C "$WT" diff --stat origin/main -- docs/compliance/hipaa-controls.md   # expect 2 insertions, 2 deletions
+echo "ALL GREEN"
 ```
 
 Break-it for the fold-ins (recurring failure #1): append the old sentence `Full health records are never transmitted` to a scratch copy of `data-privacy.md` in the worktree, run the script (expect `FAIL W10-F1`), restore by `cp` + `cmp` as in Task 4 Step 6.
@@ -1329,8 +1346,9 @@ Break-it for the fold-ins (recurring failure #1): append the old sentence `Full 
 set -o pipefail
 source "$HOME/.cache/asclexis-w10/w10.env"
 # r5: collect-only, as in Task 0 Step 4
-(cd "$WT/src/backend" && HF_HUB_OFFLINE=1 "$PY" -m pytest tests/ -p no:cacheprovider --collect-only -q 2>&1 | tail -1)
-(cd "$WT/src/backend" && HF_HUB_OFFLINE=1 "$PY" -m pytest tests/test_docs_lint.py -p no:cacheprovider -q 2>&1 | tail -3)
+# Codex r5: keep the full output in a file and print the pytest exit code, so `tail` cannot hide a failure
+(cd "$WT/src/backend" && HF_HUB_OFFLINE=1 "$PY" -m pytest tests/ -p no:cacheprovider --collect-only -q > "$W10_SCRATCH/collect.out" 2>&1; echo "collect exit=$?"; tail -1 "$W10_SCRATCH/collect.out")
+(cd "$WT/src/backend" && HF_HUB_OFFLINE=1 "$PY" -m pytest tests/test_docs_lint.py -p no:cacheprovider -q > "$W10_SCRATCH/docs_lint_tests.out" 2>&1; echo "pytest exit=$?"; tail -3 "$W10_SCRATCH/docs_lint_tests.out")
 git -C "$WT" diff --name-only    # expect exactly the 2 files
 git -C "$WT" status --short      # expect exactly the 2 files, " M"
 ```
