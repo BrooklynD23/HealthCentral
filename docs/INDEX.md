@@ -898,7 +898,7 @@ Links to: `audit/2026-09-25/handoff-2026-09-27-execution.md`, `docs/capstone-rep
 
 **W-10 Governance Commit: Invariant Amendments for D3, D4 and D12**
 
-1. **Gates as answered.** GOV-D11 (Q1) and GOV-BG (Q2) are signed, Q3 is skipped, Q4 and Q5 are answered (§10 cites the owner-decisions rows). `W10_ARGS` is ` --c3 --govbg` (Task 1 Step 5). Hunk C-4…
+1. **Gates as answered.** GOV-D11 (Q1) and GOV-BG (Q2) are signed, Q3 is skipped, Q4 and Q5 are answered (§10 cites the owner-decisions rows). `W10_ARGS` is ` --c3 --govbg --variants=P,P,U:2f0cb6f`…
 
 Links to: `audit/2026-09-25/handoff-2026-09-27-execution.md`, `docs/agentic/recurring-failures.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/specs-compliance-matrix.md`, `docs/plans/2026-09-27-W03-verified-only-rag-and-trend-labels.md`, `docs/plans/2026-09-27-W05-citation-marker-prompt.md`
 

@@ -6,7 +6,7 @@
 **Status:** IN EXECUTION — Wave 4, branch `docs/w10-governance-amendments` (r5 amendments below)
 **Prerequisites:** P0-B and P1 merged to `origin/main`; P4 merged, or a written orchestrator waiver. If Task 0 Step 2 fails before P1 lands, that is the intended STOP, not a plan defect.
 **Revision:** r5, 2026-10-08, execution amendments (measured on `origin/main` `777adf5`). Where an older paragraph conflicts with an r5 line, r5 wins.
-1. **Gates as answered.** GOV-D11 (Q1) and GOV-BG (Q2) are signed, Q3 is skipped, Q4 and Q5 are answered (§10 cites the owner-decisions rows). `W10_ARGS` is ` --c3 --govbg` (Task 1 Step 5). Hunk C-4 is not applied.
+1. **Gates as answered.** GOV-D11 (Q1) and GOV-BG (Q2) are signed, Q3 is skipped, Q4 and Q5 are answered (§10 cites the owner-decisions rows). `W10_ARGS` is ` --c3 --govbg --variants=P,P,U:2f0cb6f` (Task 1 Step 5). Hunk C-4 is not applied.
 2. **W-6 is merged** (PR #32, `2f0cb6f`). DP-4 uses variant **U**, as the owner's W-10-REST answer says ("merged; conformance unverified"). The DP-4 variant-P blocks and the §3.2 row "Dev bypass exists today" are superseded: they describe code that no longer exists.
 3. **Three fold-ins are in scope**, each as its own commit after the governance commit, in the same PR (owner rows W-10-REST and W10-HIPAA): LOCAL-07, DOC-OVERCLAIM (this adds `docs/compliance/hipaa-controls.md` lines `:49` and `:52`; `:169` stays untouched) and CLAUDE-FAILURE-COUNT. Hunks, evidence and assertions: Task 4b.
 4. **Commit rule.** The old rule "one commit, two files" becomes: commit 1 plan amendments; commit 2 the governance commit, exactly `CLAUDE.md` + `docs/compliance/data-privacy.md` (Consequence #1 still holds for it); commits 3-5 one per fold-in; then review records and the wave report (§13).
@@ -21,7 +21,7 @@
 3. Variant I needs the W-item PR's red-first and break-it evidence.
 4. If Q1 is unsigned, `CLAUDE.md:62` stays unchanged as an open owner item.
 
-**Review status:** 4 Codex rounds on the original plan (the round-4 MAJOR was fixed after the last round and was not re-reviewed). r5 amendment set: Codex round 5 (2026-10-08, `gpt-6-luna`, xhigh configured) REVISE with 1 BLOCKER, 3 MAJOR, 1 MINOR, all accepted and applied; round 6 re-reviews them. Records: `audit/2026-09-25/swarm-2026-09-27/reviews/W10-r5-*`, `W10-r6-*`.
+**Review status:** 4 Codex rounds on the original plan (the round-4 MAJOR was fixed after the last round and was not re-reviewed). r5 amendment set: Codex round 5 (2026-10-08, `gpt-6-luna`, xhigh configured) REVISE with 1 BLOCKER, 3 MAJOR, 1 MINOR, all accepted and applied; round 6 (same model): REVISE with 5 MAJOR, all accepted and applied after the last allowed round, so those five fixes were not re-reviewed by a plan round (the Codex diff review covers the result). Records: `audit/2026-09-25/swarm-2026-09-27/reviews/W10-r5-*`, `W10-r6-*`.
 **Revision:** r4 + Wave 6, 2026-09-28:
 1. Codex r4: merge status of W-2/W-3/W-6 now comes from the item's PR (`gh pr view` + `merge-base --is-ancestor`), not from a test-ID grep. A merged item with missing or renamed tests gets U, never P (Task 1 Steps 2-3, S6).
 2. 3a M-3: the break-glass clause is owner-gated again as **GOV-BG** (merges W-6 §11 Q2 and this plan's Q2). D12 names the external runner as a *ModelRunner* exception (Consequence #1); calling break-glass a bypass of "Redaction before anything leaves" is an inference. Unsigned, C-2 and DP-4 quote D12's conditions without calling break-glass a bypass (§1.2, Task 4, §10).
@@ -310,7 +310,8 @@ routes_inv: 14 lines, all classified in §3.5: y
 | `SecurityAuditMiddleware` lines are below the default level | `security/audit_middleware.py:78` `logger.info(…)`; root level WARN (`alembic.ini:45-47`); measured: `logging.getLogger("security.audit_middleware").getEffectiveLevel()` → `WARNING` after `main.create_app()` |
 | The audit table has no correlation-ID column | `models/audit.py:31-63`: `id`, `profile_id`, `event_type`, `action`, `entity_type`, `entity_id`, `details_json` (SQL `Text`, `:55`; `core/audit.py` writes serialized JSON into it), `client_info`, `timestamp` |
 | The security-audit log payload carries the correlation ID | `security/audit_middleware.py:69` (PR #45); log records get `record.correlation_id` (`core/logging_setup.py:18-29`); the console format does not print it (`alembic.ini:67`) |
-| Audit rows are deleted on profile delete | `api/profiles.py:908-910` `delete(AuditLog).where(AuditLog.profile_id == profile_id)`; the only other writer is the insert in `core/audit.py:243-252` (`grep -rn AuditLog` over product code); no `TRIGGER` in `migrations/` |
+| Audit rows are deleted on profile delete | `api/profiles.py:908-910` `delete(AuditLog).where(AuditLog.profile_id == profile_id)`; inserts happen in `core/audit.py:243-252`; no `TRIGGER` in `migrations/` |
+| A whole-install restore replaces the master DB (Codex r6) | `scripts/backup.py:505-521` (docstring: with `profile_id` None the master is replaced wholesale), copy loop `:570-599` (the master DB is skipped only when `profile_id` is set, `:573-574`), CLI `:763-774`. The API restore route is profile-scoped and holds the master back (`api/backup.py:364`, `:440`) |
 | The failure-mode count | `grep -cE '^## [0-9]+\. ' docs/agentic/recurring-failures.md` → `10` |
 
 ## 4. Files
@@ -503,7 +504,8 @@ git -C "$WT" grep -n "HC-VER-001"  origin/main -- src/backend/tests | head -3   
 git -C "$WT" grep -n "HC-EXT-001"  origin/main -- src/backend/tests | head -3   # W-6
 # Zero hits for a merged item = criterion 1 fails -> variant U (not P).
 # <files> = the test files the grep above printed for that item, relative to src/backend; <PR#> = that item's merged PR from Step 2
-(cd "$WT/src/backend" && "$PY" -m pytest <files> -p no:cacheprovider -q 2>&1 | tail -3)
+# Codex r6: keep the full output and print the exit code; a non-zero exit means criterion 1 fails
+(cd "$WT/src/backend" && HF_HUB_OFFLINE=1 "$PY" -m pytest <files> -p no:cacheprovider -q > "$W10_SCRATCH/item_tests.out" 2>&1; echo "pytest exit=$?"; tail -3 "$W10_SCRATCH/item_tests.out")
 python3 "$W10_SCRATCH/rc_check.py" "$WT/src/backend/<HTTP test file>" <HTTP test ID>   # W-2 HC-EXPR-003 · W-3 HC-VER-002 · W-6 HC-EXT-004
 gh pr view <PR#> --json number,state,mergeCommit -q '[.number,.state,.mergeCommit.oid] | @tsv'
 gh pr view <PR#> --json body -q .body > "$W10_SCRATCH/pr-<PR#>-body.md"
@@ -662,11 +664,12 @@ A=""
 if [ "$Q1" = signed ]; then A="$A --c3"; fi
 if [ "$GOVBG" = signed ]; then A="$A --govbg"; fi
 if [ "$Q3" = signed ]; then A="$A --c4"; fi
+A="$A --variants=P,P,U:2f0cb6f"   # Codex r6: <W-2>,<W-3>,<W-6>[:<short sha>] from Task 1 Steps 2-3 (r5 measured: P, P, U at 2f0cb6f)
 echo "export W10_ARGS=\"$A\"" >> "$HOME/.cache/asclexis-w10/w10.env"
 source "$HOME/.cache/asclexis-w10/w10.env"; echo "W10_ARGS=[$W10_ARGS]"
 ```
 
-r5: the values above are the answered state, not a default; the expected line is `W10_ARGS=[ --c3 --govbg]`. Paste the printed line into the variant table.
+r5: the values above are the answered state, not a default; the expected line is `W10_ARGS=[ --c3 --govbg --variants=P,P,U:2f0cb6f]`. Paste the printed line into the variant table.
 
 - [ ] **Step 6: Write the variant table** (paste into the PR body)
 
@@ -701,6 +704,25 @@ from pathlib import Path
 C3 = "--c3" in sys.argv          # passed when Q1 is signed
 GOVBG = "--govbg" in sys.argv    # passed when GOV-BG (Q2) is signed
 C4 = "--c4" in sys.argv          # passed when Q3 is signed
+# Codex r6: --variants=<W-2>,<W-3>,<W-6>[:<sha>] binds A6/A7/A8 to the measured variants, e.g. --variants=P,P,U:2f0cb6f
+_v = [a for a in sys.argv if a.startswith("--variants=")]
+V2, V3, V6 = (_v[0].split("=")[1].split(",") if _v else ["", "", ""])
+
+
+def status_ok(text, variant):
+    """True when `text` carries exactly the status wording of `variant` (P, U:<sha> or I:<sha>)."""
+    kind, _, sha = variant.partition(":")
+    low = text.lower()
+    has_p = "not yet implemented" in low
+    has_u = "conformance unverified" in low
+    has_i = "implemented in `" in low
+    if kind == "P":
+        return has_p and not has_u and not has_i
+    if kind == "U":
+        return has_u and not has_p and not has_i and bool(sha) and f"code merged in `{sha}`" in low
+    if kind == "I":
+        return has_i and not has_p and not has_u and bool(sha) and f"implemented in `{sha}`" in low
+    return False
 
 ROOT = Path(os.environ["WT"])
 claude = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
@@ -744,6 +766,14 @@ check("W10-A6", "Every other export path passes through" not in fp
       and any(k in fp.split("## Reinforcement Learning Dataset Export")[0].lower()
               for k in ("not yet implemented", "conformance unverified", "implemented in `")),
       "DP-1/DP-2 text wrong")
+_sec = lambda a, b: fp.split(a)[1].split(b)[0] if a in fp and b in fp.split(a)[1] else ""
+check("W10-A6v", status_ok(_sec("**Redaction scope, owner decision D3", "## Reinforcement Learning Dataset Export"), V2)
+      and (V2 != "P" or "that is owner-approved but not yet implemented (W-2)" in fp),
+      f"DP-1/DP-2 status does not match --variants W-2={V2!r}")
+check("W10-A7v", status_ok(_sec("## Unverified Extracted Values", "## Third-Party Data Sharing"), V3),
+      f"DP-3 status does not match --variants W-3={V3!r}")
+check("W10-A8v", status_ok(_sec("- PHI redaction:", "### No Analytics"), V6),
+      f"DP-4 status does not match --variants W-6={V6!r}")
 # W10-A7: DP-3 (D4) present with a status line
 check("W10-A7", "## Unverified Extracted Values" in priv and "visibly marked \"unverified\"" in fp
       and "cites verified values only, matching the agent path" in fp, "DP-3 text missing")
@@ -762,7 +792,7 @@ else:
 
 for f in fails:
     print("FAIL", f)
-print(f"{9 - len(fails)}/9 assertions pass")
+print(f"{12 - len(fails)}/12 assertions pass")
 sys.exit(1 if fails else 0)
 ```
 
@@ -798,7 +828,7 @@ Expected: `assert exit=1`.
 - W10-A1, A2, A3, A6, A7 and A8 fail under every flag combination.
 - W10-A4 also fails when `W10_ARGS` contains `--c3`.
 - W10-A5 and A9 pass.
-- The count is therefore `2/9 assertions pass` with `--c3`, and `3/9` without it. r5: `W10_ARGS` holds `--c3`, so expect `2/9` (measured 2026-10-08).
+- The count is therefore `2/9 assertions pass` with `--c3`, and `3/9` without it. r5 (after Codex r6 added A6v, A7v, A8v, which are red on the unpatched tree): expect `2/12` with the r5 `W10_ARGS`. Wherever an older paragraph says `9/9`, read `12/12`.
 
 *What this cannot notice:* whether the prose is accurate about code. That is covered by Task 1 Steps 2-4 and §3.2/§3.5, which the reviewer re-verifies.
 
@@ -870,7 +900,7 @@ python3 "$W10_SCRATCH/w10_assert.py" $W10_ARGS --links="$W10_LINKS"; echo "asser
 git -C "$WT" diff --stat
 ```
 
-Expected (r5, `W10_ARGS=" --c3 --govbg"`): `assert exit=1` with W10-A3, A6, A7 and A8 failing (`5/9`). A3 checks DP-4 as well as C-2, so it turns green only in Task 4. `git diff --stat` shows `CLAUDE.md` only, with 2-4 lines changed (one per applied hunk).
+Expected (r5 `W10_ARGS`): `assert exit=1` with W10-A3, A6, A6v, A7, A7v, A8 and A8v failing (`5/12`). A3 checks DP-4 as well as C-2, so it turns green only in Task 4. `git diff --stat` shows `CLAUDE.md` only, with 2-4 lines changed (one per applied hunk).
 
 ---
 
@@ -1173,10 +1203,13 @@ def check(aid, ok, msg):
         fails.append(f"{aid}: {msg}")
 
 # W10-F1 (LOCAL-07): the two false bullets are gone; the composed prompt is named
+ext = fp.split("### Optional External API")[1].split("### No Analytics")[0] if "### Optional External API" in fp else ""  # Codex r6: DP-5 must sit in this subsection
 check("W10-F1", "Only the specific query text is sent to the external provider" not in fp
       and "Full health records are never transmitted" not in fp
-      and "the whole prompt the assistant composes for that request, not only the question" in fp
-      and "so health information in the prompt does reach the provider" in fp, "DP-5 text wrong")
+      and "- What is sent: the whole prompt the assistant composes for that request, not only the question." in ext
+      and "- Unless break-glass is active (see the PHI redaction bullet below), the prompt is redacted at `strict` before it is sent." in ext
+      and "so health information in the prompt does reach the provider. The prompt is built from the context retrieved for that request, not from an export of the whole vault." in ext,
+      "DP-5 text wrong")
 # W10-F2 (DOC-OVERCLAIM, data-privacy): no log-file claim in the Tier 3 table
 check("W10-F2", "Master DB + log file" not in priv and "| Security events | Log file |" not in priv
       and "| Audit logs | Master DB (not encrypted). No log file is written | Indefinite |" in priv
@@ -1184,11 +1217,11 @@ check("W10-F2", "Master DB + log file" not in priv and "| Security events | Log 
       "DP-6 text wrong")
 # W10-F3 (DOC-OVERCLAIM, hipaa :49): no correlation-ID claim for audit rows
 check("W10-F3", "Structured JSON with timestamps and correlation IDs" not in fh
-      and "a text `details_json` column that holds serialized JSON. They have no correlation-ID column." in fh
-      and "so by default the ID appears in no operator-visible output |" in fh, "HC-1 text wrong")
+      and "| Log format | Audit rows are database rows (`models/audit.py`): typed columns with a timestamp, plus a text `details_json` column that holds serialized JSON. They have no correlation-ID column. The `SecurityAuditMiddleware` log line is a JSON payload that carries the request correlation ID; it is logged at INFO, below the default WARN level, so by default the ID appears in no operator-visible output |" in hipaa,
+      "HC-1 text wrong")
 # W10-F4 (DOC-OVERCLAIM, hipaa :52): no append-only claim
 check("W10-F4", "Audit log entries are append-only" not in fh
-      and "| Immutability | Not append-only. Application code only inserts audit rows, with one exception: deleting a profile deletes that profile's audit rows and keeps one anonymized tombstone (PROF-DEL-001, `api/profiles.py`). The database does not enforce immutability |" in hipaa,
+      and "| Immutability | Not append-only. Deleting a profile deletes that profile's audit rows and keeps one anonymized tombstone (PROF-DEL-001, `api/profiles.py`). A whole-install restore with the backup CLI (`scripts/backup.py`, run without `--profile-id`) replaces the master database file, audit rows included. The database does not enforce immutability |" in hipaa,
       "HC-2 text wrong")
 # W10-F5: hipaa-controls.md differs from origin/main in exactly 2 lines, and the Key rotation row (:169) is unchanged
 b = base("docs/compliance/hipaa-controls.md").splitlines()
@@ -1249,10 +1282,11 @@ After:
   `query`). Two features can use the external provider: assistant chat when it
   answers through the legacy RAG path, and the grounded interpretation of a
   single result.
-- The prompt is redacted before it is sent (see the PHI redaction bullet
-  below). `strict` redaction removes the identifier patterns it has rules for:
-  SSNs, emails, phone numbers, context-prefixed names, dates of birth, street
-  addresses, MRNs and slash/dash numeric dates. It does not remove lab values, analyte names,
+- Unless break-glass is active (see the PHI redaction bullet below), the
+  prompt is redacted at `strict` before it is sent. `strict` redaction removes
+  the identifier patterns it has rules for: SSNs, emails, phone numbers,
+  context-prefixed names, dates of birth, street addresses, MRNs and slash/dash
+  numeric dates. It does not remove lab values, analyte names,
   document passages or ISO-8601 dates, so health information in the prompt does
   reach the provider. The prompt is built from the context retrieved for that
   request, not from an export of the whole vault.
@@ -1292,7 +1326,7 @@ HC-2, `hipaa-controls.md:52`. Before:
 ```
 After:
 ```text
-| Immutability | Not append-only. Application code only inserts audit rows, with one exception: deleting a profile deletes that profile's audit rows and keeps one anonymized tombstone (PROF-DEL-001, `api/profiles.py`). The database does not enforce immutability |
+| Immutability | Not append-only. Deleting a profile deletes that profile's audit rows and keeps one anonymized tombstone (PROF-DEL-001, `api/profiles.py`). A whole-install restore with the backup CLI (`scripts/backup.py`, run without `--profile-id`) replaces the master database file, audit rows included. The database does not enforce immutability |
 ```
 
 Do not touch any other line of `hipaa-controls.md`. `:169` ("Key rotation … Manual via password change") stays as it is (owner row W10-HIPAA). `:50-51` and `data-privacy.md:47` are reported, not edited (§1.4 #8).
@@ -1320,7 +1354,7 @@ Commit: `git -C "$WT" add -- CLAUDE.md` → 1 path → `docs: CLAUDE.md states t
 set -euo pipefail   # Codex r5: -e, so the first failing gate stops the block; "ALL GREEN" prints only if every gate passed
 source "$HOME/.cache/asclexis-w10/w10.env"
 python3 "$W10_SCRATCH/w10_foldin_assert.py" --hlinks="$W10_HLINKS"      # expect 7/7
-python3 "$W10_SCRATCH/w10_assert.py" $W10_ARGS --links="$W10_LINKS"      # still 9/9
+python3 "$W10_SCRATCH/w10_assert.py" $W10_ARGS --links="$W10_LINKS"      # still 12/12
 python3 "$WT/scripts/docs_lint.py"
 python3 "$WT/scripts/generate_docs_index.py" --check
 python3 "$WT/scripts/harness_drift_check.py"
