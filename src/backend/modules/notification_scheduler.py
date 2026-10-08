@@ -22,6 +22,7 @@ from typing import Optional, Callable, Awaitable
 from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.time import utcnow
 from models import (
     Medication,
     MedicationSchedule,
@@ -257,7 +258,7 @@ class NotificationScheduler:
             try:
                 if self._state == SchedulerState.RUNNING:
                     await self._check_all_schedules()
-                    self._last_check_time = datetime.utcnow()
+                    self._last_check_time = utcnow()
 
                 await asyncio.sleep(self.config.check_interval_seconds)
 
@@ -270,7 +271,7 @@ class NotificationScheduler:
     async def _check_all_schedules(self):
         """Check all registered profiles for pending notifications."""
         # Reset hourly counter if needed
-        now = datetime.utcnow()
+        now = utcnow()
         if self._hour_start is None or (now - self._hour_start).total_seconds() >= 3600:
             self._hour_start = now
             self._notifications_sent_this_hour = 0
@@ -310,7 +311,7 @@ class NotificationScheduler:
         db: AsyncSession,
     ):
         """Check schedules for a single profile."""
-        now = datetime.utcnow()
+        now = utcnow()
         current_time = now.time()
         today = now.date()
         current_weekday = now.weekday()
@@ -503,7 +504,7 @@ class NotificationScheduler:
         db: AsyncSession,
     ) -> int:
         """Count reminders sent today for this schedule."""
-        today_start = datetime.combine(datetime.utcnow().date(), time(0, 0))
+        today_start = datetime.combine(utcnow().date(), time(0, 0))
 
         result = await db.execute(
             select(ReminderLog).where(
@@ -530,7 +531,7 @@ class NotificationScheduler:
         )
 
         # Build message context
-        now = datetime.utcnow()
+        now = utcnow()
         context = MessageContext(
             medication_name=check_result.medication_name,
             schedule_label=check_result.schedule_label,
