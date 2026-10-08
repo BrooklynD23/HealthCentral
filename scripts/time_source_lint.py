@@ -51,17 +51,32 @@ def _violations_in(path: Path) -> list[str]:
     ]
 
 
-def find_violations() -> list[str]:
+def _is_excluded(path: Path) -> bool:
+    """Skip the top-level tests/ dir and __pycache__ at any depth."""
+    parts = path.relative_to(SCAN_ROOT).parts
+    return parts[0] == "tests" or "__pycache__" in parts
+
+
+def find_violations() -> tuple[list[str], int]:
+    """Return (violations, number of files scanned)."""
     violations: list[str] = []
+    scanned = 0
     for path in sorted(SCAN_ROOT.rglob("*.py")):
-        if EXCLUDE_DIR_NAMES & set(path.relative_to(SCAN_ROOT).parts):
+        if _is_excluded(path):
             continue
+        scanned += 1
         violations.extend(sorted(set(_violations_in(path))))
-    return violations
+    return violations, scanned
 
 
 def main() -> int:
-    violations = find_violations()
+    if not SCAN_ROOT.is_dir():
+        print(f"time_source_lint ERROR: scan root {SCAN_ROOT} is not a directory.")
+        return 1
+    violations, scanned = find_violations()
+    if scanned == 0:
+        print(f"time_source_lint ERROR: scanned 0 .py files under {SCAN_ROOT}.")
+        return 1
     if violations:
         print("Deprecated datetime timestamp helpers found "
               "(use core.time.utcnow / core.time.utcfromtimestamp):")
@@ -69,7 +84,7 @@ def main() -> int:
             print(f"  {line}")
         return 1
     print("time_source_lint passed: no datetime.utcnow/utcfromtimestamp "
-          "in src/backend product code.")
+          f"in {scanned} src/backend product files.")
     return 0
 
 
