@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from core.auth import RequireAuth, Session, ProfileDbSession
 from core.audit import audit_and_commit, create_audit_log
+from core.time import utcnow
 from models import (
     Observation,
     LabInterpretation,
@@ -615,7 +616,7 @@ async def get_interpretation(
 
     # Mark as viewed
     if not interpretation.viewed_at:
-        interpretation.viewed_at = datetime.utcnow()
+        interpretation.viewed_at = utcnow()
         await profile_db.commit()
 
     await _audit_interpretation(

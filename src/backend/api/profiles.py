@@ -10,7 +10,6 @@ import uuid
 import logging
 import shutil
 from pathlib import Path
-from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -308,9 +307,9 @@ async def create_profile(
         password_hash=password_hash,
         password_salt=base64.b64encode(password_salt).decode("ascii"),
         is_locked=False,  # Start unlocked after creation
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
-        last_accessed_at=datetime.utcnow(),
+        created_at=utcnow(),
+        updated_at=utcnow(),
+        last_accessed_at=utcnow(),
     )
 
     db.add(profile)
@@ -388,7 +387,7 @@ async def login(
 
     # Update profile state
     profile.is_locked = False
-    profile.last_accessed_at = datetime.utcnow()
+    profile.last_accessed_at = utcnow()
 
     # Create audit log
     await log_profile_event(
@@ -1049,7 +1048,7 @@ async def unlock_profile(
     auth_rate_limiter.reset(rate_key)
 
     profile.is_locked = False
-    profile.last_accessed_at = datetime.utcnow()
+    profile.last_accessed_at = utcnow()
 
     await log_profile_event(
         db=db,
@@ -1150,7 +1149,7 @@ async def change_password(
     new_salt = generate_salt()
     profile.password_hash = hash_password(password_data.new_password)
     profile.password_salt = base64.b64encode(new_salt).decode("ascii")
-    profile.updated_at = datetime.utcnow()
+    profile.updated_at = utcnow()
 
     await log_profile_event(
         db=db,

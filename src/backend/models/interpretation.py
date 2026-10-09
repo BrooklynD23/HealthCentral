@@ -17,6 +17,7 @@ from sqlalchemy import String, Float, Boolean, Integer, DateTime, Text, ForeignK
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.profile_database import ProfileDatabaseBase
+from core.time import utcnow
 
 if TYPE_CHECKING:
     from .observation import Observation
@@ -107,10 +108,10 @@ class LabInterpretation(ProfileDatabaseBase):
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
+        DateTime, default=utcnow, nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        DateTime, default=utcnow, onupdate=utcnow, nullable=False
     )
 
     # Relationships
@@ -190,10 +191,10 @@ class PanelInterpretation(ProfileDatabaseBase):
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
+        DateTime, default=utcnow, nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        DateTime, default=utcnow, onupdate=utcnow, nullable=False
     )
 
     def __repr__(self) -> str:

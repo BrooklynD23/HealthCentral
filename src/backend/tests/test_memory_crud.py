@@ -7,7 +7,6 @@ Covers: create, list, get, update, delete, auth enforcement, cross-profile denia
 import uuid
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime
 
 from pydantic import ValidationError
 
@@ -17,6 +16,7 @@ from api.memory import (
     MemoryItemResponse,
     _validate_uuid,
 )
+from core.time import utcnow
 from models.memory_item import MemoryItem
 
 
@@ -63,7 +63,7 @@ class TestMemoryItemUpdate:
 
 class TestMemoryItemResponse:
     def test_from_model(self):
-        now = datetime.utcnow()
+        now = utcnow()
         mock_item = MagicMock()
         mock_item.id = "item-1"
         mock_item.profile_id = "profile-1"

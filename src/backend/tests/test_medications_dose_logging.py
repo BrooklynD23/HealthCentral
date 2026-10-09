@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import sys
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -103,3 +104,43 @@ async def test_log_dose_returns_badges_in_response():
     assert [badge.badge_id for badge in response.newly_earned_badges] == ["first-log"]
     assert profile_db.commit_calls == 2
     assert profile_db.rollback_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_hc_time_007_dose_log_badge_string_has_no_offset():
+    # TIME-03 (owner row P5-SCOPE): BadgeInfo.earned_at in the dose-log response
+    # is naive ISO (same shape gamification.py:102 already returns).
+    profile_id = str(uuid.uuid4())
+    medication_id = str(uuid.uuid4())
+    medication = Medication(
+        id=medication_id,
+        profile_id=profile_id,
+        name="Aspirin",
+        frequency="once_daily",
+        dosage_amount=81.0,
+        dosage_unit="mg",
+    )
+    settings = UserModelSettings(profile_id=profile_id, timezone="UTC")
+    profile_db = _FakeProfileDb(medication, settings)
+    session = Session(
+        profile_id=profile_id,
+        profile_name="Test",
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+    )
+
+    response = await log_dose(
+        medication_id=medication_id,
+        dose=DoseLog(
+            taken_at=datetime(2026, 3, 4, 8, 0, tzinfo=timezone.utc),
+            log_method="manual",
+        ),
+        session=session,
+        schedule_id=None,
+        profile_db=profile_db,
+    )
+
+    assert response.newly_earned_badges
+    pattern = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{6})?$")
+    assert pattern.match(response.newly_earned_badges[0].earned_at), (
+        response.newly_earned_badges[0].earned_at
+    )

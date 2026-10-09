@@ -152,6 +152,17 @@ On the first of each month, review all canonical docs for freshness:
 
 ## Session Notes
 
+### 2026-10-08 - P5: `datetime.utcnow` → `core.time.utcnow` (PR open, not merged)
+
+Branch `fix/p5-utcnow-migration` from main `777adf5`; plan `audit/2026-09-25/plans/05-utcnow-migration.md` (amended first; owner rows D13, P5-SCOPE, P5-IMPORT).
+
+- 101 product lines in 30 files swapped; 18 test lines in 7 files. `grep -rn "datetime\.utcnow" src/backend --include="*.py" | grep -v "src/backend/tests/" | wc -l` → `0`.
+- TIME-03: `modules/badge_evaluator.py:84` now uses `utcnow()`. The dose-log `earned_at` string no longer ends in `+00:00`; no frontend code reads that field.
+- New gate: `scripts/time_source_lint.py` (AST scan), a step in the `docs-lint` CI job.
+- Backend: `1377 tests collected` on this branch (1370 → 1377: HC-TIME-001…007); full suite `1377 passed`.
+- Recurring-failures re-read: no listed mode recurred in the code. Mode 6 (documented commands nobody ran) had three instances in the plan before execution (an invalid YAML step name, a lint that failed its own clean tree, a seeded-gate command with placeholder paths); all were fixed in the plan amendment before any code changed.
+- Report: `audit/2026-09-25/waves/wave-4-L1-A.md` (on the branch).
+
 ### 2026-10-07 - Wave 3 merged: RCC ×3, DOC-DELETE-INTERP, SAFE-CHAT, SAFE-INTERP-GROUNDED, NPM-AUDIT, G-C3b, W-11a PR-4, P4-core
 
 12 PRs merged serially (#37, #41, #44, #48, #42, #46, #38, #45, #39, #47, #43, #40); main `6b4dd84`.

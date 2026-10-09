@@ -17,6 +17,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional, Callable
 
+from core.time import utcnow
+
 logger = logging.getLogger(__name__)
 
 
@@ -171,7 +173,7 @@ class WindowsToastProvider(NotificationProvider):
                 success=True,
                 status=DeliveryStatus.SENT,
                 platform=self.platform,
-                delivered_at=datetime.utcnow(),
+                delivered_at=utcnow(),
                 native_id=payload.id,
             )
 
@@ -279,7 +281,7 @@ class PlyerProvider(NotificationProvider):
                 success=True,
                 status=DeliveryStatus.SENT,
                 platform=self.platform,
-                delivered_at=datetime.utcnow(),
+                delivered_at=utcnow(),
                 native_id=payload.id,
             )
 
@@ -356,7 +358,7 @@ class DesktopNotifierProvider(NotificationProvider):
                 success=True,
                 status=DeliveryStatus.SENT,
                 platform=self.platform,
-                delivered_at=datetime.utcnow(),
+                delivered_at=utcnow(),
                 native_id=str(native_id) if native_id is not None else payload.id,
             )
 
@@ -415,7 +417,7 @@ class MockProvider(NotificationProvider):
             success=True,
             status=DeliveryStatus.DELIVERED,
             platform=self.platform,
-            delivered_at=datetime.utcnow(),
+            delivered_at=utcnow(),
             native_id=payload.id,
         )
 

@@ -18,6 +18,7 @@ from sqlalchemy import String, Float, Integer, DateTime, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.database import Base
+from core.time import utcnow
 
 
 class BiomarkerKnowledge(Base):
@@ -89,17 +90,17 @@ class BiomarkerKnowledge(Base):
 
     # Curation metadata
     last_reviewed: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
+        DateTime, default=utcnow, nullable=False
     )
     reviewed_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
+        DateTime, default=utcnow, nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        DateTime, default=utcnow, onupdate=utcnow, nullable=False
     )
 
     def __repr__(self) -> str:
@@ -171,10 +172,10 @@ class InterventionMapping(Base):
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
+        DateTime, default=utcnow, nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        DateTime, default=utcnow, onupdate=utcnow, nullable=False
     )
 
     def __repr__(self) -> str:
@@ -239,10 +240,10 @@ class BiomarkerRelationship(Base):
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
+        DateTime, default=utcnow, nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        DateTime, default=utcnow, onupdate=utcnow, nullable=False
     )
 
     def __repr__(self) -> str:
