@@ -110,9 +110,6 @@
       "docs/capstone-report/README.md",
       "docs/capstone-report/implementation-program.md"
     ],
-    "audit/2026-09-25/swarm-2026-09-27/reviews/W04-r1-prompt.md": [
-      "docs/agentic/orchestration.md"
-    ],
     "audit/2026-09-25/swarm-2026-09-27/wave3/3a-integration.md": [
       "docs/capstone-report/implementation-program.md"
     ],
@@ -127,12 +124,6 @@
     ],
     "audit/2026-09-25/waves/wave-3.md": [
       "docs/capstone-report/implementation-program.md"
-    ],
-    "audit/2026-09-29/reviews/P01-r1-codex.txt": [
-      "docs/plans/2026-09-29-S02-agent-cache-profile-isolation.md"
-    ],
-    "audit/2026-09-29/reviews/P01-r1-response.md": [
-      "docs/plans/2026-09-29-S02-agent-cache-profile-isolation.md"
     ],
     "docs/00_architecture_plans_index.md": [
       "docs/architecture/README.md",
@@ -185,7 +176,8 @@
       "docs/research/2026-09-08/PLAN.md"
     ],
     "docs/agentic/orchestration.md": [
-      "docs/capstone-report/implementation-program.md"
+      "docs/capstone-report/implementation-program.md",
+      "docs/reviews/README.md"
     ],
     "docs/agentic/progress.md": [
       "docs/agentic/harness.md",
@@ -778,7 +770,8 @@
       "docs/capstone-report/implementation-program.md"
     ],
     "docs/plans/2026-09-29-S02-agent-cache-profile-isolation.md": [
-      "docs/capstone-report/implementation-program.md"
+      "docs/capstone-report/implementation-program.md",
+      "docs/reviews/2026-09-29/P01-r1-response.md"
     ],
     "docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md": [
       "docs/capstone-report/implementation-program.md",
@@ -939,6 +932,554 @@
       "docs/research/2026-09-08/09-roadmap.md",
       "docs/research/2026-09-08/11-harness-engineering.md",
       "docs/research/2026-09-08/13-consultation.md"
+    ],
+    "docs/reviews/2026-09-25/DDI-diff-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-25/DDI-r1-codex.txt": [
+      "docs/reviews/2026-09-25/DDI-r1-response.md",
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-25/DDI-r1-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-25/DDI-r1-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-25/DDI-r2-codex.txt": [
+      "docs/reviews/2026-09-25/DDI-r2-response.md",
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-25/DDI-r2-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-25/DDI-r2-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-25/SAFECHAT-diff-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-25/SAFECHAT-r1-codex.txt": [
+      "docs/reviews/2026-09-25/SAFECHAT-r1-response.md",
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-25/SAFECHAT-r1-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-25/SAFECHAT-r1-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-25/SAFEINTERP-diff-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-25/SAFEINTERP-r1-codex.txt": [
+      "docs/reviews/2026-09-25/SAFEINTERP-r1-response.md",
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-25/SAFEINTERP-r1-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-25/SAFEINTERP-r1-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-25/SAFEINTERP-r2-codex.txt": [
+      "docs/reviews/2026-09-25/SAFEINTERP-r2-response.md",
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-25/SAFEINTERP-r2-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-25/SAFEINTERP-r2-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/P04-r1-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/P04-r1-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/P04-r1-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/P04-r2-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/P04-r2-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/P04-r2-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/P04-r3-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/P04-r3-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/P04-r3-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/P04-r4-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/P04-r4-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/P04-r4-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/P08-r1-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/P08-r1-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/P08-r1-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/P08-r2-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/P08-r2-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/P08-r2-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/P08-r3-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/P08-r3-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/P08-r3-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/P08-r4-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/P08-r4-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/P08-r4-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/RTN-r1-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/RTN-r1-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/RTN-r1-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/S01-r1-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/S01-r1-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/S01-r1-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/S01-r2-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/S01-r2-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/S01-r2-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/S01-r3-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/S01-r3-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/S01-r3-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W01-r1-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W01-r1-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W01-r1-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W01-r2-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W01-r2-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W01-r2-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W01-r3-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W01-r3-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W01-r3-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W01-r4-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W01-r4-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W01-r4-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W02-r1-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W02-r1-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W02-r1-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W02-r2-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W02-r2-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W02-r2-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W02-r3-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W02-r3-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W02-r3-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W02-r4-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W02-r4-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W02-r4-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W03-r1-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W03-r1-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W03-r1-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W03-r2-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W03-r2-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W03-r2-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W03-r3-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W03-r3-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W03-r3-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W03-r4-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W03-r4-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W03-r4-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W04-r1-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W04-r1-prompt.md": [
+      "docs/agentic/orchestration.md",
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W04-r1-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W04-r2-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W04-r2-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W04-r2-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W04-r3-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W04-r3-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W04-r3-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W04-r4-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W04-r4-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W05-r1-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W05-r1-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W05-r1-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W05-r2-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W05-r2-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W06-r1-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W06-r1-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W06-r1-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W06-r2-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W06-r2-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W06-r2-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W06-r3-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W06-r3-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W07-r1-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W07-r1-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W07-r1-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W07-r2-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W07-r2-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W08-r1-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W08-r1-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W08-r1-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W08-r2-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W08-r2-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W08-r2-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W08-r3-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W08-r3-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W08-r3-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W08-r4-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W08-r4-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W08-r4-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W10-diff-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W10-r1-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W10-r1-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W10-r1-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W10-r2-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W10-r2-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W10-r2-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W10-r3-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W10-r3-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W10-r3-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W10-r4-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W10-r4-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W10-r4-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W10-r5-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W10-r5-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W10-r5-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W10-r6-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W10-r6-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W10-r6-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W11a-r1-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W11a-r1-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W11a-r1-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W11a-r2-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W11a-r2-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W11a-r2-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W11a-r3-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W11a-r3-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W11a-r3-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W11a-r4-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W11a-r4-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W11a-r4-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W11b-r1-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W11b-r1-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W11b-r1-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W11b-r2-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W11b-r2-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W11b-r2-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W11b-r3-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W11b-r3-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W11b-r3-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W11b-r4-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W11b-r4-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/W11b-r4-response.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-29/P01-r1-codex.txt": [
+      "docs/plans/2026-09-29-S02-agent-cache-profile-isolation.md",
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-29/P01-r1-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-29/P01-r1-response.md": [
+      "docs/plans/2026-09-29-S02-agent-cache-profile-isolation.md",
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-29/S02-r1-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-29/S02-r1-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-29/S02-r1-response.md": [
+      "docs/reviews/README.md"
     ],
     "docs/roles/00_roles_index.md": [
       "docs/00_architecture_plans_index.md",
@@ -1268,7 +1809,7 @@
       "audit/2026-09-25/README.md",
       "audit/2026-09-25/swarm-2026-09-27/ledger.md",
       "docs/capstone-report/owner-decisions-2026-09-27.md",
-      "audit/2026-09-25/swarm-2026-09-27/reviews/W04-r1-prompt.md"
+      "docs/reviews/2026-09-27-swarm/W04-r1-prompt.md"
     ],
     "docs/agentic/progress.md": [
       "docs/brand/brand-guidelines.md",
@@ -1816,8 +2357,8 @@
     ],
     "docs/plans/2026-09-29-S02-agent-cache-profile-isolation.md": [
       "docs/capstone-report/owner-decisions-2026-09-27.md",
-      "audit/2026-09-29/reviews/P01-r1-codex.txt",
-      "audit/2026-09-29/reviews/P01-r1-response.md"
+      "docs/reviews/2026-09-29/P01-r1-codex.txt",
+      "docs/reviews/2026-09-29/P01-r1-response.md"
     ],
     "docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md": [
       "docs/capstone-report/owner-decisions-2026-09-27.md"
@@ -1957,6 +2498,207 @@
       "docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md",
       "docs/research/2026-09-08/10-demonstration-artifact.md",
       "docs/research/2026-09-08/11-harness-engineering.md"
+    ],
+    "docs/reviews/2026-09-25/DDI-r1-response.md": [
+      "docs/reviews/2026-09-25/DDI-r1-codex.txt"
+    ],
+    "docs/reviews/2026-09-25/DDI-r2-response.md": [
+      "docs/reviews/2026-09-25/DDI-r2-codex.txt"
+    ],
+    "docs/reviews/2026-09-25/SAFECHAT-r1-response.md": [
+      "docs/reviews/2026-09-25/SAFECHAT-r1-codex.txt"
+    ],
+    "docs/reviews/2026-09-25/SAFEINTERP-r1-response.md": [
+      "docs/reviews/2026-09-25/SAFEINTERP-r1-codex.txt"
+    ],
+    "docs/reviews/2026-09-25/SAFEINTERP-r2-response.md": [
+      "docs/reviews/2026-09-25/SAFEINTERP-r2-codex.txt"
+    ],
+    "docs/reviews/2026-09-29/P01-r1-response.md": [
+      "docs/plans/2026-09-29-S02-agent-cache-profile-isolation.md"
+    ],
+    "docs/reviews/README.md": [
+      "docs/agentic/orchestration.md",
+      "docs/reviews/2026-09-25/DDI-diff-codex.txt",
+      "docs/reviews/2026-09-25/DDI-r1-codex.txt",
+      "docs/reviews/2026-09-25/DDI-r1-prompt.md",
+      "docs/reviews/2026-09-25/DDI-r1-response.md",
+      "docs/reviews/2026-09-25/DDI-r2-codex.txt",
+      "docs/reviews/2026-09-25/DDI-r2-prompt.md",
+      "docs/reviews/2026-09-25/DDI-r2-response.md",
+      "docs/reviews/2026-09-25/SAFECHAT-diff-codex.txt",
+      "docs/reviews/2026-09-25/SAFECHAT-r1-codex.txt",
+      "docs/reviews/2026-09-25/SAFECHAT-r1-prompt.md",
+      "docs/reviews/2026-09-25/SAFECHAT-r1-response.md",
+      "docs/reviews/2026-09-25/SAFEINTERP-diff-codex.txt",
+      "docs/reviews/2026-09-25/SAFEINTERP-r1-codex.txt",
+      "docs/reviews/2026-09-25/SAFEINTERP-r1-prompt.md",
+      "docs/reviews/2026-09-25/SAFEINTERP-r1-response.md",
+      "docs/reviews/2026-09-25/SAFEINTERP-r2-codex.txt",
+      "docs/reviews/2026-09-25/SAFEINTERP-r2-prompt.md",
+      "docs/reviews/2026-09-25/SAFEINTERP-r2-response.md",
+      "docs/reviews/2026-09-27-swarm/P04-r1-codex.txt",
+      "docs/reviews/2026-09-27-swarm/P04-r1-prompt.md",
+      "docs/reviews/2026-09-27-swarm/P04-r1-response.md",
+      "docs/reviews/2026-09-27-swarm/P04-r2-codex.txt",
+      "docs/reviews/2026-09-27-swarm/P04-r2-prompt.md",
+      "docs/reviews/2026-09-27-swarm/P04-r2-response.md",
+      "docs/reviews/2026-09-27-swarm/P04-r3-codex.txt",
+      "docs/reviews/2026-09-27-swarm/P04-r3-prompt.md",
+      "docs/reviews/2026-09-27-swarm/P04-r3-response.md",
+      "docs/reviews/2026-09-27-swarm/P04-r4-codex.txt",
+      "docs/reviews/2026-09-27-swarm/P04-r4-prompt.md",
+      "docs/reviews/2026-09-27-swarm/P04-r4-response.md",
+      "docs/reviews/2026-09-27-swarm/P08-r1-codex.txt",
+      "docs/reviews/2026-09-27-swarm/P08-r1-prompt.md",
+      "docs/reviews/2026-09-27-swarm/P08-r1-response.md",
+      "docs/reviews/2026-09-27-swarm/P08-r2-codex.txt",
+      "docs/reviews/2026-09-27-swarm/P08-r2-prompt.md",
+      "docs/reviews/2026-09-27-swarm/P08-r2-response.md",
+      "docs/reviews/2026-09-27-swarm/P08-r3-codex.txt",
+      "docs/reviews/2026-09-27-swarm/P08-r3-prompt.md",
+      "docs/reviews/2026-09-27-swarm/P08-r3-response.md",
+      "docs/reviews/2026-09-27-swarm/P08-r4-codex.txt",
+      "docs/reviews/2026-09-27-swarm/P08-r4-prompt.md",
+      "docs/reviews/2026-09-27-swarm/P08-r4-response.md",
+      "docs/reviews/2026-09-27-swarm/RTN-r1-codex.txt",
+      "docs/reviews/2026-09-27-swarm/RTN-r1-prompt.md",
+      "docs/reviews/2026-09-27-swarm/RTN-r1-response.md",
+      "docs/reviews/2026-09-27-swarm/S01-r1-codex.txt",
+      "docs/reviews/2026-09-27-swarm/S01-r1-prompt.md",
+      "docs/reviews/2026-09-27-swarm/S01-r1-response.md",
+      "docs/reviews/2026-09-27-swarm/S01-r2-codex.txt",
+      "docs/reviews/2026-09-27-swarm/S01-r2-prompt.md",
+      "docs/reviews/2026-09-27-swarm/S01-r2-response.md",
+      "docs/reviews/2026-09-27-swarm/S01-r3-codex.txt",
+      "docs/reviews/2026-09-27-swarm/S01-r3-prompt.md",
+      "docs/reviews/2026-09-27-swarm/S01-r3-response.md",
+      "docs/reviews/2026-09-27-swarm/W01-r1-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W01-r1-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W01-r1-response.md",
+      "docs/reviews/2026-09-27-swarm/W01-r2-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W01-r2-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W01-r2-response.md",
+      "docs/reviews/2026-09-27-swarm/W01-r3-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W01-r3-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W01-r3-response.md",
+      "docs/reviews/2026-09-27-swarm/W01-r4-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W01-r4-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W01-r4-response.md",
+      "docs/reviews/2026-09-27-swarm/W02-r1-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W02-r1-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W02-r1-response.md",
+      "docs/reviews/2026-09-27-swarm/W02-r2-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W02-r2-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W02-r2-response.md",
+      "docs/reviews/2026-09-27-swarm/W02-r3-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W02-r3-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W02-r3-response.md",
+      "docs/reviews/2026-09-27-swarm/W02-r4-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W02-r4-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W02-r4-response.md",
+      "docs/reviews/2026-09-27-swarm/W03-r1-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W03-r1-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W03-r1-response.md",
+      "docs/reviews/2026-09-27-swarm/W03-r2-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W03-r2-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W03-r2-response.md",
+      "docs/reviews/2026-09-27-swarm/W03-r3-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W03-r3-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W03-r3-response.md",
+      "docs/reviews/2026-09-27-swarm/W03-r4-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W03-r4-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W03-r4-response.md",
+      "docs/reviews/2026-09-27-swarm/W04-r1-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W04-r1-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W04-r1-response.md",
+      "docs/reviews/2026-09-27-swarm/W04-r2-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W04-r2-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W04-r2-response.md",
+      "docs/reviews/2026-09-27-swarm/W04-r3-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W04-r3-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W04-r3-response.md",
+      "docs/reviews/2026-09-27-swarm/W04-r4-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W04-r4-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W05-r1-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W05-r1-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W05-r1-response.md",
+      "docs/reviews/2026-09-27-swarm/W05-r2-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W05-r2-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W06-r1-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W06-r1-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W06-r1-response.md",
+      "docs/reviews/2026-09-27-swarm/W06-r2-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W06-r2-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W06-r2-response.md",
+      "docs/reviews/2026-09-27-swarm/W06-r3-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W06-r3-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W07-r1-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W07-r1-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W07-r1-response.md",
+      "docs/reviews/2026-09-27-swarm/W07-r2-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W07-r2-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W08-r1-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W08-r1-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W08-r1-response.md",
+      "docs/reviews/2026-09-27-swarm/W08-r2-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W08-r2-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W08-r2-response.md",
+      "docs/reviews/2026-09-27-swarm/W08-r3-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W08-r3-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W08-r3-response.md",
+      "docs/reviews/2026-09-27-swarm/W08-r4-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W08-r4-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W08-r4-response.md",
+      "docs/reviews/2026-09-27-swarm/W10-diff-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W10-r1-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W10-r1-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W10-r1-response.md",
+      "docs/reviews/2026-09-27-swarm/W10-r2-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W10-r2-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W10-r2-response.md",
+      "docs/reviews/2026-09-27-swarm/W10-r3-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W10-r3-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W10-r3-response.md",
+      "docs/reviews/2026-09-27-swarm/W10-r4-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W10-r4-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W10-r4-response.md",
+      "docs/reviews/2026-09-27-swarm/W10-r5-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W10-r5-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W10-r5-response.md",
+      "docs/reviews/2026-09-27-swarm/W10-r6-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W10-r6-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W10-r6-response.md",
+      "docs/reviews/2026-09-27-swarm/W11a-r1-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W11a-r1-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W11a-r1-response.md",
+      "docs/reviews/2026-09-27-swarm/W11a-r2-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W11a-r2-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W11a-r2-response.md",
+      "docs/reviews/2026-09-27-swarm/W11a-r3-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W11a-r3-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W11a-r3-response.md",
+      "docs/reviews/2026-09-27-swarm/W11a-r4-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W11a-r4-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W11a-r4-response.md",
+      "docs/reviews/2026-09-27-swarm/W11b-r1-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W11b-r1-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W11b-r1-response.md",
+      "docs/reviews/2026-09-27-swarm/W11b-r2-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W11b-r2-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W11b-r2-response.md",
+      "docs/reviews/2026-09-27-swarm/W11b-r3-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W11b-r3-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W11b-r3-response.md",
+      "docs/reviews/2026-09-27-swarm/W11b-r4-codex.txt",
+      "docs/reviews/2026-09-27-swarm/W11b-r4-prompt.md",
+      "docs/reviews/2026-09-27-swarm/W11b-r4-response.md",
+      "docs/reviews/2026-09-29/P01-r1-codex.txt",
+      "docs/reviews/2026-09-29/P01-r1-prompt.md",
+      "docs/reviews/2026-09-29/P01-r1-response.md",
+      "docs/reviews/2026-09-29/S02-r1-codex.txt",
+      "docs/reviews/2026-09-29/S02-r1-prompt.md",
+      "docs/reviews/2026-09-29/S02-r1-response.md"
     ],
     "docs/roles/00_roles_index.md": [
       "docs/architecture/README.md",
