@@ -36,7 +36,9 @@ No agent is running.
 
 PARA-R2-BOUND, AO-BRIEF4, W10-HIPAA-52, C2-CLOSURE, OQ-1 (ABSTAIN_TEMPLATE), O-2 (ISO-8601), EMB-REV (pin approved), Q-OFFLINE (per call), PARA-1-R3 (**Stop using patterns**), BG-WARN-INTERP (fix in a small PR), RESET-AUDIT-OWNER (W-11a PR-1), RR7-Q1 (keep -dom), RR7-Q2 (Playwright spec, done in #57), RR7-Q4 (separate owner item), AO-DESIGN (D), AO-FAIL (fail closed), AO-SCOPE (irreversible set), AD-DENIALS (cross-profile 403s only).
 
-Still unasked: **AO-ASKFIRST** (per-file approval: `core/audit.py` helper for option D, `core/auth.py:278-286` for D-B) and **approval of the AUDIT-ORDER plan for execution**; `engines.node` `>=22` vs vite `>=22.12.0` (RR7 pack Q3); W-4 OQ-2 / OQ-5 / CI-SEED; W-2 S-3/O-3, P0-D-MOOT, EXPORT-QUESTIONS; AGENT-PASS-LINE (`CLAUDE.md:31` "1288 pass", `AGENT.md:76` "1269 / 1268" are stale).
+Answered 2026-10-09 via L0 AskUserQuestion (rows on `docs/wave4-close`): **RR7-Q3** "Raise to >=22.12.0", **AGENT-PASS-LINE** "Drop pass counts", **PONYTAIL-CLEANUP** "Yes, plus codex.txt + branches", **NEXT-CODE-L1** "W-4 first" (fixes ship in separate PRs).
+
+Still unasked: **AO-ASKFIRST** (per-file approval: `core/audit.py` helper for option D, `core/auth.py:278-286` for D-B) and **approval of the AUDIT-ORDER plan for execution**; W-4 OQ-2 / OQ-5 / CI-SEED; W-2 S-3/O-3, P0-D-MOOT, EXPORT-QUESTIONS. (`engines.node` = RR7-Q3 and AGENT-PASS-LINE: answered above; `CLAUDE.md:31` "1288 pass" and `AGENT.md:76` "1269 / 1268" stay stale until their PR.)
 
 ## 4. Next steps, in order
 
@@ -61,7 +63,7 @@ Still unasked: **AO-ASKFIRST** (per-file approval: `core/audit.py` helper for op
 6. RR7-Q4 `SettingsPage.tsx:952-954` `startsWith('/')` admits `//x`; check `cookie` / `set-cookie-parser` stay out of the client bundle.
 7. From the earlier lists: BG-WARN-INTERP (being fixed), remaining compliance-doc overclaims (`data-privacy.md:33,:47,:61`, `hipaa-controls.md:50-51,:83-88`, `docs/compliance/README.md:14-18`, `models/audit.py:4,:25`), `dev.ps1` items, `AchievementsWidget.tsx:45` local-time parse, the time lint's aliased-import gap, feedback `_emit_audit` fail-open (`feedback.py:40-57`).
 
-**Ponytail over-engineering audit** (owner-requested 2026-10-09; report was in the old scratchpad, now gone). Verified highlights, offered to the owner as one cleanup PR, not yet answered: 8 unused dependencies (backend `pypdf`, `numpy`, `python-dateutil`, `aiofiles`; frontend `@radix-ui/react-dialog`, `react-tabs`, `react-tooltip`, `date-fns`: 0 imports, L0 re-grepped); dead files `src/backend/scripts/model_manager.py`, `scripts/detect_hardware.py`, `useSpeechRecognition.ts`, `CategoryBadge.tsx`; committed junk `.vite/`, `.bg-shell/manifest.json`, empty root `package-lock.json`; 64 raw `audit/**/*-codex.txt` (20 inbound links); 26 merged local branches without a worktree. Re-run `/ponytail:ponytail-audit` if the owner wants the full table.
+**Ponytail over-engineering audit** (owner-requested 2026-10-09; report was in the old scratchpad, now gone). Verified highlights, offered to the owner as one cleanup PR; **answered 2026-10-09: "Yes, plus codex.txt + branches"** (PONYTAIL-CLEANUP; separate PR): 8 unused dependencies (backend `pypdf`, `numpy`, `python-dateutil`, `aiofiles`; frontend `@radix-ui/react-dialog`, `react-tabs`, `react-tooltip`, `date-fns`: 0 imports, L0 re-grepped); dead files `src/backend/scripts/model_manager.py`, `scripts/detect_hardware.py`, `useSpeechRecognition.ts`, `CategoryBadge.tsx`; committed junk `.vite/`, `.bg-shell/manifest.json`, empty root `package-lock.json`; 64 raw `audit/**/*-codex.txt` (20 inbound links); 26 merged local branches without a worktree. Re-run `/ponytail:ponytail-audit` if the owner wants the full table.
 
 ## 6. Environment changes this session
 
