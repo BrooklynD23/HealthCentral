@@ -970,7 +970,7 @@ Links to: `audit/2026-09-25/Devin-Audit-report.md`, `docs/capstone-report/owner-
 
 1. On v6, turn on the 2 future flags that apply to a declarative-mode app. This is a separate, small commit, and it proves the behaviour change before the major. 2. Bump to v7 while keeping the…
 
-Links to: `docs/plans/2026-10-04-NPM-MAJORS-tailwind4.md`
+Links to: `audit/2026-09-25/waves/scaffold/REACT-ROUTER-7.md`, `audit/2026-09-25/waves/scaffold/REVIEWS-2026-10-07.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-04-NPM-MAJORS-tailwind4.md`, `docs/plans/2026-10-04-NPM-audit-fix.md`
 
 ## `docs/plans/2026-10-04-NPM-MAJORS-tailwind4.md`
 
