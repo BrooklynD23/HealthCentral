@@ -43,7 +43,7 @@ describe('RCC-2: DangerZone secret retention', () => {
     });
     render(
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <MemoryRouter>
           <DangerZone />
         </MemoryRouter>
       </QueryClientProvider>

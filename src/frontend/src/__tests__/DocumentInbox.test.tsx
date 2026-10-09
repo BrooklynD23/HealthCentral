@@ -53,7 +53,7 @@ describe('DocumentInbox Phase C warnings and confidence', () => {
   });
 
   it('HC-CONF-004: displays a document 0.0 confidence as low, not missing', () => {
-    render(<BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><DocumentInbox /></BrowserRouter>);
+    render(<BrowserRouter><DocumentInbox /></BrowserRouter>);
 
     expect(screen.getByText(/0%.*low.*lowest extraction confidence/i)).toBeInTheDocument();
     expect(screen.queryByText(/extraction confidence unavailable/i)).not.toBeInTheDocument();
@@ -84,7 +84,7 @@ describe('DocumentInbox Phase C warnings and confidence', () => {
       },
     });
 
-    render(<BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><DocumentInbox /></BrowserRouter>);
+    render(<BrowserRouter><DocumentInbox /></BrowserRouter>);
     await user.upload(
       screen.getByLabelText(/upload medical documents/i),
       new File(['%PDF-1.4'], 'new-copy.pdf', { type: 'application/pdf' })
@@ -128,7 +128,7 @@ describe('DocumentInbox Phase C warnings and confidence', () => {
       .mockResolvedValueOnce(importResponse('new-a', 'copy-a.pdf', 'prior-a.pdf'))
       .mockResolvedValueOnce(importResponse('new-b', 'copy-b.pdf', 'prior-b.pdf'));
 
-    render(<BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><DocumentInbox /></BrowserRouter>);
+    render(<BrowserRouter><DocumentInbox /></BrowserRouter>);
     await user.upload(
       screen.getByLabelText(/upload medical documents/i),
       [
@@ -176,7 +176,7 @@ describe('DocumentInbox Phase C warnings and confidence', () => {
       },
     });
 
-    render(<BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><DocumentInbox /></BrowserRouter>);
+    render(<BrowserRouter><DocumentInbox /></BrowserRouter>);
     await user.upload(
       screen.getByLabelText(/upload medical documents/i),
       new File(['Analyte,Value\nGlucose,100\n'], 'labs.csv', { type: 'text/csv' })

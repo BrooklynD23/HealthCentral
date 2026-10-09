@@ -6,6 +6,8 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
+import { BrowserRouter, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import App from '@/App';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -33,6 +35,7 @@ vi.mock('@/services/api', () => ({
 describe('Routing', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    window.history.replaceState({}, '', '/');
   });
 
   it('HC-ROUTE-001: unknown path redirects to /inbox without Future Flag warnings', async () => {
@@ -50,5 +53,38 @@ describe('Routing', () => {
     await waitFor(() => expect(window.location.pathname).toBe('/inbox'));
     const flagWarnings = warn.mock.calls.filter((c) => /Future Flag/.test(String(c[0])));
     expect(flagWarnings).toEqual([]);
+  });
+
+  it('HC-ROUTE-002: navigate() with a backslash target never pushes another origin (GHSA-wrjc-x8rr-h8h6)', async () => {
+    const pushSpy = vi.spyOn(window.history, 'pushState');
+    let caught: unknown;
+
+    function Go() {
+      const navigate = useNavigate();
+      useEffect(() => {
+        try {
+          navigate('/\\evil.example');
+        } catch (e) {
+          caught = e;
+        }
+      }, [navigate]);
+      return null;
+    }
+
+    render(
+      <BrowserRouter>
+        <Go />
+      </BrowserRouter>
+    );
+
+    // Either the router refuses (throws) or it pushes; one of the two must happen.
+    await waitFor(() => expect(caught !== undefined || pushSpy.mock.calls.length > 0).toBe(true));
+    for (const c of pushSpy.mock.calls) {
+      console.log('PUSHED=' + JSON.stringify(c[2]));
+      expect(new URL(String(c[2]), 'http://localhost/').origin).toBe('http://localhost');
+    }
+    if (caught !== undefined) {
+      expect(String(caught)).toMatch(/External navigation is not allowed/);
+    }
   });
 });

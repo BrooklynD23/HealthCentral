@@ -47,7 +47,7 @@ describe('SearchPage', () => {
 
   it('FE-SRCH-UI-002 searches the URL query and labels unverified results', () => {
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={['/search?q=migraine']}>
+      <MemoryRouter initialEntries={['/search?q=migraine']}>
         <SearchPage />
       </MemoryRouter>
     );
@@ -64,7 +64,7 @@ describe('SearchPage', () => {
   it('FE-SRCH-UI-003 submits the compact header search to the search route', async () => {
     const user = userEvent.setup();
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={['/inbox']}>
+      <MemoryRouter initialEntries={['/inbox']}>
         <Routes>
           <Route
             path="*"
