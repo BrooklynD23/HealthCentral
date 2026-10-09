@@ -22,7 +22,7 @@ Verdict key: READY = hard deps on `origin/main` and every needed gate signed; GA
 | [G-C5](G-C5.md) | GATED | P8 Brief 5 Q5a/Q5b unfilled; no plan yet | EVAL (`scripts/agent_eval_gate.py` neighbourhood) | 6+ |
 | [RTN](RTN.md) | GATED | spec §9 unsigned, Q6 | none (cloud routine config) | owner |
 | [SHOWCASE](SHOWCASE.md) | GATED | O-1…O-7 unsigned; plan unaudited; refresh triggers fired | DOCS/demo | owner |
-| [W-4](W-4.md) | BLOCKED | P5. After P5: OQ-1, OQ-2, OQ-5, CI-SEED unsigned | ASSISTANT (`api/assistant.py`, `ci.yml`, new `tests/legacy_eval/`) | 5 |
+| [W-4](W-4.md) | GATED (amended 2026-10-09, §4) | OQ-5 before dispatch; OQ-2 (pre-merge), CI-SEED (Task 5 Step 2) unsigned. P5 merged, OQ-1 signed | ASSISTANT (`api/assistant.py`, `ci.yml`, new `tests/legacy_eval/`) | 5 |
 | [W-2](W-2.md) | BLOCKED | P5, W-10. After: S-2/O-2, S-3/O-3, P0-D-MOOT, EXPORT-QUESTIONS | EXPORT (`api/export.py`, `modules/export.py`, `ExportPage.tsx`) | 5 |
 | [P6](P6.md) | BLOCKED | P5. D5 signed (`:14`); orphan-report review by design; `core/profile_database.py` listener (D5 names pragma, not file) | DB (`core/database.py`, `core/profile_database.py`, migration 013, `models/*`, `test_care_tasks.py`) | 5 |
 | [P7](P7.md) | BLOCKED | P6. P7-ROUTE signed (`:32`); N-02 FTS decision; reset-route audit row owner (P7 vs W-11a PR-1) | PROFILES (`api/profiles.py` reset tuple, `tests/support/routes.py`) | 6 |
