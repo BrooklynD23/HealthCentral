@@ -5,7 +5,7 @@
 **Status:** PROPOSED — plan only, not approved for execution. Nothing in this plan is implemented. No owner question below is signed.
 **Base measured:** `origin/main` @ `98bd3c7` (P5 `utcnow` swaps merged, PR #54). Every `file:line` below was re-read at this base on 2026-10-09 unless marked UNMEASURED. The readiness pack (`audit/2026-09-25/waves/scaffold/AUDIT-ORDER.md`) was measured at `6b4dd84`; its line numbers are superseded by this file.
 **Refresh trigger:** any commit to `src/backend/core/audit.py`, `src/backend/models/audit.py`, `src/backend/core/database.py::get_db`, `src/backend/core/profile_database.py::get_session`, or any route in the §3 route table before an option is approved. Brief 4 (audit retention) being signed.
-**Review:** none yet. L0 runs the Codex plan review (focus: failure atomicity across two databases, fail-open paths, PHI in any new audit or outbox column, migration order vs P6 and G-C1).
+**Review:** Codex round 1 REVISE (5 MAJOR), all 5 accepted after verification at `98bd3c7` and applied in this revision; dispositions in `audit/2026-09-25/swarm-2026-09-27/reviews/AUDIT-ORDER-r1-response.md`. At most one more round.
 
 > **For agentic workers:** this file is a decision document. Do not execute any part of it until the owner signs AO-DESIGN, AO-FAIL, AO-SCOPE, AD-DENIALS and AO-ASKFIRST below. When an option is signed, a follow-up revision of this plan turns it into tasks with `- [ ]` steps (format precedent: [DDI plan](2026-10-04-DDI-doc-delete-interpretation.md)).
 
@@ -113,9 +113,17 @@ Method: AST walk of every `@router.{post,put,patch,delete,get}` handler in `src/
 | 26 | `POST /{backup_id}/restore` (`backup.py`) | `:364` | no profile-DB session; vault and sealed keys overwritten on disk by `backup_script.restore` `:442` | partial: `audit_and_commit` `:452` before the 500; success: `:480` | files → master | via safety copies (`:462-473`); the master profile-row re-apply inside `scripts/backup.py` is partly read (`scripts/backup.py:60`), not walked |
 | 27 | `DELETE /{profile_id}` (`profiles.py`) | `:773` | no profile-DB session; sealed key unlinked `:865`, vault `rmtree` `:882`, backups `rmtree` `:899` | `delete(AuditLog)` `:907-909`; `create_audit_log` `:927`; commit `:936` | files → master | **no** |
 
+| 28 | `POST /chat` agent mode (`assistant.py`) | `:730` | `:902` (turns) | `_serve_via_agent` `:681` passes `audit_db=db` (`:715`) into `run_agent` (`:717`); each node calls `emit_audit_event` → `create_audit_log` **add only** (`modules/agent/audit.py:49`, `:76-84`); no explicit commit, so the rows persist only through `get_db` commit-on-exit (`core/database.py:116`) after the handler returns | profile `:902` → master on dependency exit | turns appended |
+| 29 | `GET /{pinboard_id}/items` (`pinboards.py`) | `:322` | `_prune_stale_items` `:333-335` deletes stale pins (`:202-206`) and commits `:207` | `audit_and_commit` `:336-339` (event `view`) | profile → master | **no** (pruned pins are gone) |
+| 30 | `POST /{pinboard_id}/export` (`pinboards.py`) | `:383` | `_prune_stale_items` `:396-398` → commit `:207` | `audit_and_commit` `:496-501` (event `export`) | profile → master | **no** (pruned pins are gone) |
+
+Rows 29-30 were missed in revision 1 because the commit sits in a helper (`_prune_stale_items`, `pinboards.py:155-208`); row 28 because the audit write is `add`-only inside `modules/agent/`. Both follow the same profile-then-master order. Row 29 is a GET that mutates patient data, so the middleware does not log it either (`security/audit_middleware.py:42`).
+
 Not in the table: `POST /test/reset` (`profiles.py:477`, profile commit `:523`, `rmtree` `:520`) — synthetic E2E profiles only (`:491`), no audit row.
 
-**Irreversible set (rows 2, 5, 10 hard, 13, 16, 19/20/23 on regenerate, 27):** these are the routes where a missing audit row cannot be reconstructed from the remaining data.
+**Irreversible set (rows 2, 5, 10 hard, 13, 16, 19/20/23 on regenerate, 26, 27, 29, 30):** these are the routes where a missing audit row cannot be reconstructed from the remaining data. By method: `DELETE` (5, 10, 13, 16, 27), `POST` (2, 19, 20, 23, 26, 30) and `GET` (29). A guard that enumerates only `@router.delete` misses 7 of these 12 rows.
+
+**Single-transaction routes** (one profile commit across the handler and the helpers it calls, as walked): 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 21, 24, 29, 30 (for 29/30 the one commit is inside `_prune_stale_items`, `pinboards.py:207`, and happens only when a pin is pruned). **Multi-transaction routes:** 1 (`:476`, then helper commits), 2 (helper commits, then `:1227`), 19/20 (`modules/interpret.py:279` commits inside the module; any later handler work is a second transaction), 22 (`modules/interpret.py:445`), 23 (one commit per observation), 25/28 (`:902`; `:942` on fallback). Rows 26 and 27 have no profile-DB transaction (file operations).
 
 ### 3.1 Write routes that commit profile data and write no audit row at all
 
@@ -161,6 +169,8 @@ Medication updates, schedules and doses are patient data under the CLAUDE.md "au
 | `HC-OBS-AUDIT-001` `tests/test_observations_audit.py:74` | no (direct call) | read route fails closed when the master commit raises (`:86`, `:94-102`) | write routes; a broken `Depends(...)` |
 | `tests/test_memory_audit.py`, `test_backup_routes.py`, `test_safe_chat_prohibited.py`, `test_safe_interp_grounded.py`, `test_external_runner_hardening.py` | use `route_client` (grep) | audit rows on their routes (per-test assertions not walked: UNMEASURED) | grep finds no master-commit failure injection on any write route |
 
+`route_client` overrides `require_auth` and `get_db` only (`tests/support/routes.py:54-55`); it does **not** override the vault session. HTTP tests that need a real profile DB add `client.app.dependency_overrides[get_profile_db_session] = …` themselves (`tests/test_documents_api.py:24`, `:792`, `:951`). Its `get_db` override returns the session directly (`tests/support/routes.py:51-52`), so `get_db`'s commit-on-exit (`core/database.py:116`) never runs under `route_client`: a test cannot see a row that only persists through that path (row 28).
+
 Grep for commit-failure injection across `tests/` (`commit.*side_effect`, `OperationalError`, `disk I/O`): 4 hits — `test_document_import_classification.py:424`, `test_documents_api.py:1022`, `test_observations_audit.py:86`, `test_pinboards.py:288`. None fails the **master** commit on a **write** route. Every option below therefore adds that test first (recurring-failures §1).
 
 ---
@@ -185,35 +195,44 @@ Cases: **(a)** the audit write fails (first write for A/A2/D, the only write for
 - **Mechanism:** commit an audit row with `status='started'` in the master DB before the profile commit; after the profile commit, set `status='completed'` and commit.
 - **Ask-first edits:** `core/audit.py`: `create_audit_log` (new `status` argument), new helper `begin_audit` / `complete_audit` beside `audit_and_commit`. `models/audit.py`: `AuditLog` gains `status` column. Route call sites in the scoped routes (§3).
 - **Migration:** master `003_audit_status` with `down_revision = "002_backup_schedules"`; no profile migration.
-- **PHI:** `status` is an enum (`started|completed`); written only through `create_audit_log`, so `_scrub_details` still applies. No new free-text field. The row exists earlier, not with more content.
+- **PHI:** the `status` column is **not** covered by `_scrub_details` (that function only filters `details`, `core/audit.py:240`). It must be validated separately: `create_audit_log` accepts `status` only from a frozen set `{"started", "completed"}` and raises `ValueError` otherwise (a programming error, pinned by HC-AUD-ORD-004), plus a DB `CHECK (status IN ('started','completed'))` in migration `003`. Every other column follows the PHI rule for master-DB columns below.
 - **Gain:** a failed or interrupted change is visible as `started`; no relay; one database.
 - **Downside:** schema change on the shared audit table (overlaps W-2's `models/audit.py` edits); every scoped route gets two master commits (two write locks per request); a `started` row is ambiguous in case (c); rows are updated in place, which reads against "append-only" (DOC-OVERCLAIM `:480`).
-- **Tests (through `route_client`, real in-memory master session):** HC-AUD-ORD-001 master commit fails after profile commit → today RED (change, no row), after fix: request 500, change absent. HC-AUD-ORD-002 profile commit fails → `started` row present, no `completed`. HC-AUD-ORD-003 happy path → one row, `completed`. HC-AUD-ORD-004 intent row carries no non-allowlisted detail (PHI). HC-AUD-ORD-005 migration up/down on the master chain.
-- **Break-it:** revert the route to profile-first → HC-AUD-ORD-001 must fail; drop `_scrub_details` from the new helper → HC-AUD-ORD-004 must fail.
+- **Tests** (through `route_client` with a real in-memory master session passed as `master_db`, and a real in-memory vault session installed with `client.app.dependency_overrides[get_profile_db_session]`, as `tests/test_documents_api.py:792` and `:951` do):
+  - HC-AUD-ORD-001a **intent commit fails** (first master commit raises). Assert: response 500; vault unchanged (target row present; for row 5 the `.bin` file still on disk); master holds no row for the entity.
+  - HC-AUD-ORD-001b **completion commit fails** (second master commit raises, after the profile commit). Assert: response 500; vault change **durable** (row gone; for row 5 the file unlinked); master holds exactly one row with status `started` and none with `completed`. This is the residual window every intent option keeps; the test pins it so it stays visible.
+  - HC-AUD-ORD-001c **today's behaviour**, RED before the fix: the single master commit raises after the profile commit → change durable, master holds no row. Replaced by 001a/001b in the fix commit.
+  - HC-AUD-ORD-002 profile commit fails → `started` row present, no `completed`, vault unchanged.
+  - HC-AUD-ORD-003 happy path → one `completed` row (A) / one `started` + one `completed` row (A2).
+  - HC-AUD-ORD-004 status outside the allowed set → `ValueError`; the intent row carries no non-allowlisted detail.
+  - HC-AUD-ORD-005 migration up/down on the master chain; the `CHECK` constraint rejects another value.
+- **Break-it:** revert the route to profile-first → HC-AUD-ORD-001a must fail (the change happens although the intent commit failed); drop `_scrub_details` from the new helper → HC-AUD-ORD-004 must fail.
 - **Rollback:** revert the PR; downgrade `003` (column dropped; `started` rows lose their status).
-- **Effort:** M (helper + migration + ~8 call sites for the irreversible set; L for all 27 rows).
+- **Effort:** M (helper + migration + ~12 call sites for the irreversible set; L for all 30 rows).
 
 ### Option A2 — intent as two append-only rows, no schema change
 
 - **Mechanism:** before the change, `audit_and_commit(... details={"status": "started"})`; after the profile commit, a second row with `details={"status": "completed"}`. Uses the existing `status` key (`core/audit.py:70`) and the existing fail-closed helper (`:474-487`).
 - **Ask-first edits:** none in `core/audit.py` if call sites pass `details`; optional thin helper there (`audit_intent`) for readability. Route call sites only.
 - **Migration:** none.
-- **PHI:** none new; both rows go through `create_audit_log`.
+- **PHI:** no new column; `status` travels in `details`, where `_scrub_details` keeps any value matching `_ENUM_VALUE_RE` (`core/audit.py:112`, `:142`). That regex admits other short tokens too, so call sites pass only the constants `started` / `completed` and HC-AUD-ORD-004 asserts no other value reaches `details_json`. Other columns follow the PHI rule below.
 - **Gain:** smallest change; append-only preserved; no migration ordering against P6/G-C1; `backup.py:452-461` already uses `details.status` this way (precedent).
 - **Downside:** two rows per scoped request (master DB growth); pairing is by `entity_id` + `event_type` + time, with no explicit link; a reader query must handle unpaired `started` rows; the `completed` commit can itself fail, leaving the same ambiguity as A in case (c).
-- **Tests:** HC-AUD-ORD-001..004 as A (status read from `details_json`); no migration test.
+- **Tests:** HC-AUD-ORD-001a/001b/001c and 002-004 as A (status read from `details_json`); no migration test.
 - **Break-it / rollback:** as A, without the downgrade.
 - **Effort:** S for the irreversible set.
 
 ### Option B — outbox in the vault
 
 - **Mechanism:** write the audit record into a new vault table inside the same profile transaction as the change; a relay copies it to `audit_logs` and marks it relayed.
+- **Applicability rule:** B is atomic only for a transaction that contains its own outbox row, so it is limited to the **single-transaction routes** in §3. A multi-transaction route (rows 1, 2, 19/20, 22, 23) would need an outbox row inside **every** intermediate commit: edits in `_run_extraction_pipeline` (`documents.py:592`, `:621`, `:688`, `:702`), `_run_structured_import_pipeline` (`:812`), `_classify_and_extract_entities` (`:1016`), `modules/interpret.py:279` and `:445`. This plan does **not** propose that; under B those routes use A2. Rows 29/30 are single-transaction but the outbox row must be written inside `_prune_stale_items` (`pinboards.py:155-208`), not in the handler.
+- **Outbox fields (complete list):** `id` (UUID4, generated), `created_at` (`core.time.utcnow`), `event_type` (static string), `action` (static string), `entity_type` (static string), `entity_id` (the record's UUID), `details_json` (already scrubbed by `_scrub_details` at write time), `relayed_at` (nullable). No `profile_id` column (the vault is per profile; the relay supplies the session's id). No `client_info` (the relay writes the constant default). The relay re-validates every field with the PHI rule below before the master write.
 - **Ask-first edits:** `core/audit.py` (outbox writer and relay, both through `_scrub_details`); `core/profile_database.py` or the login path in `core/auth.py` if the relay runs on unlock (auth/encryption file, ask-first under CLAUDE.md §1); new `models/` table.
 - **Migration:** profile `015_audit_outbox`, `down_revision` = the head after P6 (`013`) and G-C1 (`014`); P7 must add the table to the test-reset tuple (`api/profiles.py:498-515`).
 - **PHI:** the outbox lives inside the encrypted vault, so PHI exposure is lower than A; the copy to master still goes through `_scrub_details`.
-- **Gain:** the change and its audit record are atomic in one SQLite transaction; case (c) is covered.
-- **Downside:** largest change; a locked vault (d) delays rows until next unlock; **profile delete (row 27) and restore (row 26) cannot use it** (the vault is destroyed or replaced), so they need A/A2 anyway; a new relay is a new background path (recurring-failures §10, "never started"); read routes keep `audit_and_commit`, so two audit paths coexist.
-- **Tests:** HC-AUD-ORD-010 change + outbox row in one transaction; HC-AUD-ORD-011 relay copies and marks; HC-AUD-ORD-012 relay is idempotent; HC-AUD-ORD-013 locked vault defers; HC-AUD-ORD-014 PHI scrub on relay; HC-AUD-ORD-015 relay is started on unlock (HTTP, not a unit call).
+- **Gain:** for single-transaction routes, the change and its audit record are atomic in one SQLite transaction; case (c) is covered for those routes only.
+- **Downside:** largest change; multi-transaction routes need A2 anyway (applicability rule), so B never stands alone; a locked vault (d) delays rows until next unlock; **profile delete (row 27) and restore (row 26) cannot use it** (the vault is destroyed or replaced), so they need A/A2 anyway; a new relay is a new background path (recurring-failures §10, "never started"); read routes keep `audit_and_commit`, so two audit paths coexist.
+- **Tests:** HC-AUD-ORD-010 change + outbox row in one transaction (profile commit fails → neither present); HC-AUD-ORD-016 relay rejects an outbox row whose field fails the PHI rule; HC-AUD-ORD-011 relay copies and marks; HC-AUD-ORD-012 relay is idempotent; HC-AUD-ORD-013 locked vault defers; HC-AUD-ORD-014 PHI scrub on relay; HC-AUD-ORD-015 relay is started on unlock (HTTP, not a unit call).
 - **Break-it:** commit the outbox row in a separate transaction → HC-AUD-ORD-010 fails; skip the relay start → HC-AUD-ORD-015 fails.
 - **Rollback:** revert; downgrade `015` (unrelayed rows lost: relay first).
 - **Effort:** L.
@@ -232,12 +251,41 @@ Cases: **(a)** the audit write fails (first write for A/A2/D, the only write for
 
 ### Option D — hybrid: A2 on the irreversible set, C on the rest (recommended)
 
-- **Scope:** rows 2, 5, 10 (hard delete), 13, 16, 19/20/23 (regenerate), 26, 27 get A2; every other row in §3 gets C.
+- **Scope:** rows 2, 5, 10 (hard delete), 13, 16, 19/20/23 (regenerate), 26, 27, 29, 30 get A2; every other row in §3 gets C, except feedback row 24 (see the feedback section below).
 - **Row 27 note:** the `started` row carries `profile_id`, so `delete(AuditLog)` at `profiles.py:907-909` purges it in the same transaction on success; if the commit at `:936` fails, the purge rolls back and the `started` row survives. This depends on today's retention (AO-BRIEF4); Brief 4 may change it.
 - **Gain:** closes the window where the data cannot be reconstructed; no migration; smallest surface for the ask-first file.
-- **Downside:** two behaviours to explain; reversible routes keep the window; a later route must be classified correctly or it silently gets C (recurring-failures §9). Mitigation: a test that enumerates `DELETE` handlers and fails on one not in the A2 list.
-- **Tests:** HC-AUD-ORD-001..004 per irreversible route (parametrised over the route list), HC-AUD-ORD-020, HC-AUD-ORD-030 route-class guard (every `@router.delete` handler is in the A2 list or an explicit exclusion).
+- **Downside:** two behaviours to explain; reversible routes keep the window; a later route must be classified correctly or it silently gets C (recurring-failures §9). Mitigation: HC-AUD-ORD-030 enumerates **every** handler in `api/*.py` regardless of HTTP method and fails on any handler that commits a vault session (directly, or through a helper named in the test) and is not in an explicit table mapping it to `A2`, `C` or `excluded (reason)`.
+- **Tests:** HC-AUD-ORD-001..004 per irreversible route (parametrised over the route list), HC-AUD-ORD-020, HC-AUD-ORD-030 route-class guard over all methods, seeded with the 30 rows of §3 and the routes of §3.1; break-it: add a dummy `POST` handler that commits the vault and is not in the table → the guard must fail.
 - **Effort:** S-M.
+
+### PHI rule for every column written to the master DB
+
+`create_audit_log` scrubs `action` (`core/audit.py:239`) and `details` (`:240`) only; `profile_id`, `entity_type`, `entity_id` and `client_info` are written as passed (`:243-251`). Today's callers pass server-generated values, but every new path (intent helper, outbox relay, denial row) must validate each column before the row is built. Proposed rule, inside `create_audit_log` so every path inherits it (ask-first, AO-ASKFIRST):
+
+| Column | Allowed value | On violation |
+|---|---|---|
+| `event_type` | matches `_ENUM_VALUE_RE` (`:112`), ≤ 50 chars (`models/audit.py:48`) | replaced with `"unknown"`, counted in `_scrubbed` |
+| `action` | `ALLOWED_ACTIONS` or `event_type` (existing `_scrub_action`) | existing behaviour |
+| `profile_id`, `entity_id` | UUID shape, ≤ 36 chars (`models/audit.py:53`), or `None` | set to `None`, counted in `_scrubbed` |
+| `entity_type` | matches `_ENUM_VALUE_RE`, ≤ 50 chars (`models/audit.py:52`) | set to `None` |
+| `client_info` | the constant default (`core/audit.py:209`) | replaced with the default |
+| `status` (option A only) | `{"started", "completed"}` | `ValueError` (programming error) |
+| `details_json` | existing `_scrub_details` | existing behaviour |
+
+Never raise on a scrubbed field except `status`: a raise in `create_audit_log` would 500 every read route (`core/audit.py:125-126`). Test: HC-AUD-ORD-006, one case per column. Whether a non-UUID id should be dropped or raise is part of the `core/audit.py` line in AO-ASKFIRST.
+
+### Feedback route (row 24) under each AO-SCOPE option
+
+`_emit_audit` (`feedback.py:40-57`) opens its own master session (`:44`), commits (`:54`) and swallows every exception (`:56-57`). Wrapping it in A2 or C changes nothing while that `except Exception: pass` stays: the failure is never seen.
+
+| AO-SCOPE | Row 24 treatment |
+|---|---|
+| A (all routes) | included: use the injected `master_db` and the chosen option's helper; remove the silent `except`, so a failure follows AO-FAIL. HC-AUD-ORD-050: master commit fails → response follows AO-FAIL, not 200 |
+| B (irreversible set, recommended) | **excluded** (feedback is reversible); stays fail-open; listed as a known gap in §11 |
+| C (documents and observations) | excluded, as B |
+| D (B + unaudited writes) | included, as A |
+
+Removing the `except` is a behaviour change on a user-facing route (feedback would fail when the master DB fails). It is listed so the owner sees it, not assumed.
 
 ### AUDIT-DENIALS options
 
@@ -273,8 +321,8 @@ Same file (`core/audit.py:89-109`). Not folded in: it is an allowlist change wit
    - A. Yes, fail closed, as view routes already do (`core/audit.py:479-484`) **(recommended)**. Gain: no unaudited irreversible change. Downside: a master-DB fault (E2E-MASTER-CORRUPT) blocks deletes until fixed.
    - B. Proceed and log an ERROR. Gain: deletes keep working when the master DB is broken. Downside: same window as today on exactly the failure that matters.
 3. **AO-SCOPE** — UNSIGNED. "Which routes?"
-   - A. All 27 rows in §3. Gain: one rule. Downside: largest diff; reversible routes gain little.
-   - B. Irreversible set only (rows 2, 5, 10, 13, 16, 19/20/23, 26, 27) **(recommended first PR)**. Gain: small, highest value. Downside: needs a route-class guard test.
+   - A. All 30 rows in §3, including feedback row 24 (its silent `except` removed). Gain: one rule. Downside: largest diff; reversible routes gain little.
+   - B. Irreversible set only (rows 2, 5, 10, 13, 16, 19/20/23, 26, 27, 29, 30) **(recommended first PR)**. Gain: small, highest value. Downside: needs a route-class guard over every HTTP method; feedback (row 24) stays fail-open.
    - C. Documents and observations only (rows 1-6). Gain: matches the original finding. Downside: leaves memory, pinboard, medication and profile deletes out.
    - D. B plus the unaudited writes in §3.1. Gain: closes the CLAUDE.md audit invariant too. Downside: new audit rows on settings routes; bigger PR.
 4. **AD-DENIALS** — UNSIGNED. "Denied requests (403 across profiles, 404 on someone else's ID) leave no audit row. What do you want?"
@@ -311,12 +359,12 @@ Same file (`core/audit.py:89-109`). Not folded in: it is an allowlist change wit
 
 | § | Mode | Applied here |
 |---|---|---|
-| 1 | green suite that could not have failed | §5: no test fails the master commit on a write route; every option starts with HC-AUD-ORD-001 RED |
+| 1 | green suite that could not have failed | §5: no test fails the master commit on a write route; every option starts with HC-AUD-ORD-001c RED; `route_client` cannot see `get_db` commit-on-exit (§5) |
 | 2 | fix that creates the next bug one layer over | intent rows and outbox rows are new PHI surfaces and new failure points; each option lists them |
 | 3 | figures asserted, not measured | every line re-read at `98bd3c7`; UNMEASURED where not |
 | 4 | environment-dependent results | master-commit failure is simulated, not reproduced; E2E-MASTER-CORRUPT cause UNMEASURED |
 | 8 | stale guidance as authority | pack lines superseded; register row `:488` corrected in §4 |
-| 9 | invariant at one site, not its class | §3 covers 27 routes, not just `delete_document`; option D adds a route-class guard (HC-AUD-ORD-030) |
+| 9 | invariant at one site, not its class | §3 covers 30 routes (rows 28-30 added after Codex r1: helper commits and add-only audits), not just `delete_document`; option D adds a route-class guard (HC-AUD-ORD-030) |
 | 10 | unit-tested feature never started | option B's relay needs an HTTP test that it starts (HC-AUD-ORD-015) |
 
 §5-§7 (contaminated tree, unrun commands, SQL three-valued logic): no new instance found; a query for unpaired `started` rows (A2/D) must not use `NOT IN` over a nullable column (§7).
@@ -333,4 +381,4 @@ UNMEASURED:
 5. The master profile-row re-apply inside `scripts/backup.py::restore` (`:507`), beyond the docstring at `:60`.
 6. Per-site logging of every 404 raise site.
 
-Out of scope (reported, not fixed): the fail-open `_emit_audit` in `feedback.py:40-57` (a write route that swallows audit errors) — options C and D bring it under the same rule only if AO-SCOPE includes row 24; the unused `log_to_db` flag (`security/audit_middleware.py:31-33`); AUDIT-KEYS-DROPPED; DDI-ORPHAN-BIN.
+Out of scope (reported, not fixed): the fail-open `_emit_audit` in `feedback.py:40-57` (a write route that swallows audit errors) — under AO-SCOPE B or C it stays fail-open; under A or D its silent `except` is removed (§6, feedback section); the unused `log_to_db` flag (`security/audit_middleware.py:31-33`); AUDIT-KEYS-DROPPED; DDI-ORPHAN-BIN.
