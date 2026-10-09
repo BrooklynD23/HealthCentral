@@ -1,0 +1,13 @@
+VERDICT: REVISE
+[BLOCKER] docs/plans/2026-09-27-W10-governance-invariant-amendments.md:391 — Task 0 tries to add a worktree at the current `hc-w10` path and check out its already-used `docs/w10-governance-amendments` branch. Git will refuse; the plan stops before measurement. — evidence: Task 0 invokes `git worktree add "$WT" -b docs/w10-governance-amendments origin/main` at :397; the provided workspace is already that worktree and branch — fix: reuse the current clean worktree and remove the `worktree add` command, or update the path and branch throughout the plan.
+
+[MAJOR] docs/plans/2026-09-27-W10-governance-invariant-amendments.md:1311 — The green gates can fail and the block can still finish successfully: `set -o pipefail` does not stop later commands, and the final successful `git diff` masks earlier failures. Task 0 and Task 5 also pipe pytest output through `tail`, losing failure details. — evidence: :1306-1313 and :1332-1335 — fix: use `set -euo pipefail` for green gates and capture complete pytest output before displaying summaries.
+
+[MAJOR] docs/plans/2026-09-27-W10-governance-invariant-amendments.md:1273 — The audit model declares `details_json` as SQL `Text`; calling it a “JSON field” can imply a JSON-typed column. The code serializes JSON into that text column. — evidence: `src/backend/models/audit.py:55`; `src/backend/core/audit.py:249` — fix: say “a text `details_json` column containing serialized JSON.”
+
+[MAJOR] docs/plans/2026-09-27-W10-governance-invariant-amendments.md:723 — The assertions can pass with inaccurate wording: W10-A3 accepts a “break-glass as the only bypass” substring anywhere in the privacy file without requiring DP-4’s audit and UI-warning conditions; W10-F2 does not assert the replacement Security events row. — evidence: W10-A3 at plan :721-724; W10-F2 at :1172-1174; required audit-before-dispatch behavior at `src/backend/core/external_runner.py:298-317` — fix: check the DP-4 subsection for the full signed conditions, and assert the expected Security events row.
+
+[MINOR] docs/plans/2026-09-27-W10-governance-invariant-amendments.md:865 — The partial-GREEN expectation first says only A6–A8 fail “for any W10_ARGS,” then says signed GOV-BG also leaves A3 failing. With the specified flags, four assertions fail and five pass. — evidence: W10-A3 logic at plan :721-724 and the conflicting expectation at :865 — fix: remove the stale “only A6, A7 and A8” clause and state the signed-flag result directly.
+
+MODEL / EFFORT: GPT-6 / HIGH
+
