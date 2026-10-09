@@ -116,7 +116,7 @@ KB fields scanned 60 matching a prohibited pattern 7
 | `src/backend/modules/rag.py` | modify (identical to #44) | 2 |
 | `src/backend/api/interpretations.py` | modify (imports, helper, 6 routes; `master_db` dependency added to `get_interpretation` and `get_recent_interpretations`) | 2 |
 | `CLAUDE.md`, `AGENT.md` | collected slots | 2 |
-| this plan, `docs/INDEX.md`, `docs/_link_graph.json`, `audit/2026-09-25/reviews/SAFEINTERP-*` | docs | 0, 3 |
+| this plan, `docs/INDEX.md`, `docs/_link_graph.json`, `docs/reviews/2026-09-25/SAFEINTERP-*` | docs | 0, 3 |
 
 ---
 
@@ -134,7 +134,7 @@ rc=0; git grep -n -i "safeinterp\|interpretation.prohibited_blocked" -- src || r
 ```bash
 WT=/mnt/c/Users/DangT/Documents/GitHub/hc-safeinterp; PY="$HOME/venvs/asclexis-311/bin/python"; export HF_HUB_OFFLINE=1; set -euo pipefail; LOG=/tmp/claude-1000/safeinterp-logs; mkdir -p "$LOG"
 cd "$WT" && python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py --link-graph \
- && P="docs/plans/2026-10-04-SAFE-INTERP-grounded.md docs/INDEX.md docs/_link_graph.json audit/2026-09-25/reviews/SAFEINTERP-r1-prompt.md audit/2026-09-25/reviews/SAFEINTERP-r1-codex.txt audit/2026-09-25/reviews/SAFEINTERP-r1-response.md" \
+ && P="docs/plans/2026-10-04-SAFE-INTERP-grounded.md docs/INDEX.md docs/_link_graph.json docs/reviews/2026-09-25/SAFEINTERP-r1-prompt.md docs/reviews/2026-09-25/SAFEINTERP-r1-codex.txt docs/reviews/2026-09-25/SAFEINTERP-r1-response.md" \
  && git add -- $P && git diff --cached --name-only && git commit -m "docs(safe-interp): plan" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" -- $P
 ```
 

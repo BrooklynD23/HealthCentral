@@ -5,7 +5,7 @@
 **Refresh Trigger:** a new docs gate script lands, a baseline sentence changes shape, or the routine's run log shows a check that cannot run
 **Status:** PROPOSED — not created. The routine is created only after the owner confirms this spec (§9).
 **Plan-set scope:** this spec is the 15th `docs/plans/2026-09-27-*.md` file and is in **P0-B2** scope (the owner-gated docs commit of the plan set). Until P0-B2 is signed and merged it is untracked on `main`; linking it from the program is the orchestrator's edit (3a m-12, DOC-011).
-**Review status:** 1 Codex round (RTN r1: 1 BLOCKER, 3 MAJOR), all fixed after the round, not re-reviewed (owner acceptance required); see `audit/2026-09-25/swarm-2026-09-27/reviews/RTN-r1-response.md`.
+**Review status:** 1 Codex round (RTN r1: 1 BLOCKER, 3 MAJOR), all fixed after the round, not re-reviewed (owner acceptance required); see `docs/reviews/2026-09-27-swarm/RTN-r1-response.md`.
 
 A read-only job that runs every night at 00:00 America/Los_Angeles. It runs the repository's docs gates, greps the docs' claims against the code, and writes a dated drift report with proposed fixes. It never commits, pushes, opens a PR or edits a tracked file.
 

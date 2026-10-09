@@ -5,7 +5,7 @@
 **Refresh Trigger:** any commit to `src/backend/api/documents.py::delete_document`, `src/backend/models/observation.py` or `src/backend/models/interpretation.py` before this plan runs; P6 (FK pragma listeners) landing first.
 **Prerequisites:** `origin/main` contains `90c502a` (Waves 0-2 merged). D9 venv `~/venvs/asclexis-311` exists.
 **Status:** PROPOSED — not executed. Wave 3, L1-A, phase 1.
-**Review:** Codex round 1 REVISE (2 BLOCKER, 3 MAJOR); round 2 REVISE (1 BLOCKER, 8 MAJOR, 1 MINOR). All round-2 findings resolved in this text except one rejection (merge vs rebase); dispositions in `audit/2026-09-25/reviews/DDI-r1-response.md` and `DDI-r2-response.md`. Round 2 was the last round allowed.
+**Review:** Codex round 1 REVISE (2 BLOCKER, 3 MAJOR); round 2 REVISE (1 BLOCKER, 8 MAJOR, 1 MINOR). All round-2 findings resolved in this text except one rejection (merge vs rebase); dispositions in `docs/reviews/2026-09-25/DDI-r1-response.md` and `DDI-r2-response.md`. Round 2 was the last round allowed.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task by task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -81,7 +81,7 @@ Covered by **W3-SEC-SCHED** (quoted in Spec): ORM cascade, unlink after commit, 
 | `CLAUDE.md`, `AGENT.md` | modify | collected-count slots `CLAUDE.md:30,:35`, `AGENT.md:76` | 2 |
 | `docs/plans/2026-10-04-DDI-doc-delete-interpretation.md` (this file) | modify | "Execution record" only | 3 |
 | `docs/INDEX.md`, `docs/_link_graph.json` | regenerate | generator output only | 0, 3 |
-| `audit/2026-09-25/reviews/DDI-r<N>-{prompt,codex,response}.md` | create | Codex review records | 0 |
+| `docs/reviews/2026-09-25/DDI-r<N>-{prompt,codex,response}.md` | create | Codex review records | 0 |
 
 Read-only and asserted unchanged in Task 3: `src/backend/migrations/`, `src/backend/models/interpretation.py`, `src/backend/models/document.py`, `src/backend/core/`, `src/backend/modules/`, `docs/compliance/`.
 
@@ -101,9 +101,9 @@ Expected: `ANCESTOR-OK` and `TRIGGER-PATHS-UNCHANGED`. `core/database.py` / `cor
 ```bash
 WT=/mnt/c/Users/DangT/Documents/GitHub/hc-ddi; PY="$HOME/venvs/asclexis-311/bin/python"; export HF_HUB_OFFLINE=1; set -euo pipefail; LOG=/tmp/claude-1000/ddi-logs; mkdir -p "$LOG"
 cd "$WT" && python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py --link-graph \
-  && git add -- docs/plans/2026-10-04-DDI-doc-delete-interpretation.md audit/2026-09-25/reviews/DDI-r1-prompt.md audit/2026-09-25/reviews/DDI-r1-codex.txt audit/2026-09-25/reviews/DDI-r1-response.md \
-  && git add -- audit/2026-09-25/reviews/DDI-r2-prompt.md audit/2026-09-25/reviews/DDI-r2-codex.txt audit/2026-09-25/reviews/DDI-r2-response.md \
-  && git commit -m "docs(ddi): plan for document delete with an interpretation" -- docs/plans/2026-10-04-DDI-doc-delete-interpretation.md docs/INDEX.md docs/_link_graph.json audit/2026-09-25/reviews/DDI-r1-prompt.md audit/2026-09-25/reviews/DDI-r1-codex.txt audit/2026-09-25/reviews/DDI-r1-response.md audit/2026-09-25/reviews/DDI-r2-prompt.md audit/2026-09-25/reviews/DDI-r2-codex.txt audit/2026-09-25/reviews/DDI-r2-response.md
+  && git add -- docs/plans/2026-10-04-DDI-doc-delete-interpretation.md docs/reviews/2026-09-25/DDI-r1-prompt.md docs/reviews/2026-09-25/DDI-r1-codex.txt docs/reviews/2026-09-25/DDI-r1-response.md \
+  && git add -- docs/reviews/2026-09-25/DDI-r2-prompt.md docs/reviews/2026-09-25/DDI-r2-codex.txt docs/reviews/2026-09-25/DDI-r2-response.md \
+  && git commit -m "docs(ddi): plan for document delete with an interpretation" -- docs/plans/2026-10-04-DDI-doc-delete-interpretation.md docs/INDEX.md docs/_link_graph.json docs/reviews/2026-09-25/DDI-r1-prompt.md docs/reviews/2026-09-25/DDI-r1-codex.txt docs/reviews/2026-09-25/DDI-r1-response.md docs/reviews/2026-09-25/DDI-r2-prompt.md docs/reviews/2026-09-25/DDI-r2-codex.txt docs/reviews/2026-09-25/DDI-r2-response.md
 ```
 - [ ] **Step 4:** `git -C "$WT" ls-files docs/plans/2026-10-04-DDI-*.md` prints the plan path. Empty → STOP.
 
@@ -496,4 +496,4 @@ Executed 2026-10-04 by Wave 3 L1-A (L2 implementer `sonnet` for Tasks 1-2; L1 fo
 - `docs/compliance/data-privacy.md:185` "Observations and chunks are removed with it (ORM cascade)" — was true for observations and chunks before and after; the claim it was cited for (that derived interpretation rows go too) is now true through `Observation.interpretation`. Not edited (owner-gated, W-10).
 - `docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md:56` (P1, ORM cascade works today) — true. `:59` (P4 `lab_interpretations` "Observation delete cascades") describes behaviour "once pragma is ON"; still conditional on P6, and now also true through the ORM. Not edited.
 
-**Reviews:** code-reviewer (opus) APPROVE, 3 MINOR; security-reviewer (opus) APPROVE, 1 LOW introduced (orphan ciphertext after a failed post-commit unlink, swept only by profile delete), 4 MEDIUM + 2 LOW pre-existing. Codex diff review (`audit/2026-09-25/reviews/DDI-diff-codex.txt`): needs-attention, 2 high + 1 medium, all pre-existing and outside W3-SEC-SCHED (reprocess orphans = Out of scope 1; panel = Out of scope 2; audit-after-delete ordering = new owner item DDI-AUDIT-ORDER). No code change from any review.
+**Reviews:** code-reviewer (opus) APPROVE, 3 MINOR; security-reviewer (opus) APPROVE, 1 LOW introduced (orphan ciphertext after a failed post-commit unlink, swept only by profile delete), 4 MEDIUM + 2 LOW pre-existing. Codex diff review (`docs/reviews/2026-09-25/DDI-diff-codex.txt`): needs-attention, 2 high + 1 medium, all pre-existing and outside W3-SEC-SCHED (reprocess orphans = Out of scope 1; panel = Out of scope 2; audit-after-delete ordering = new owner item DDI-AUDIT-ORDER). No code change from any review.
