@@ -1040,6 +1040,14 @@ Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026
 
 Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`
 
+## `docs/plans/2026-10-09-AUDIT-ORDER.md`
+
+**AUDIT-ORDER + AUDIT-DENIALS — Audit Write Order and Denied-Request Auditing — Plan**
+
+---
+
+Links to: `docs/plans/2026-10-04-DDI-doc-delete-interpretation.md`
+
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
 **Project Structure Setup**

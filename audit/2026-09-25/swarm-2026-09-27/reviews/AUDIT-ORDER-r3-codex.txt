@@ -1,0 +1,9 @@
+VERDICT REVISE
+
+[BLOCKER] docs/plans/2026-10-09-AUDIT-ORDER.md:277 — HC-AUD-ORD-003 is specified for every irreversible route as expecting `started` + `completed`, but row 27 explicitly has no separate `completed` row; its tombstone is the completion marker. Evidence: docs/plans/2026-10-09-AUDIT-ORDER.md:223,274. — Exclude row 27 from that generic assertion and specify its success expectation through HC-AUD-ORD-007.
+
+[MINOR] docs/plans/2026-10-09-AUDIT-ORDER.md:435 — This risk says only Option C leaves multi-transaction partial states unaudited; approved D also uses C on non-irreversible multi-transaction routes, including rows 1 and 22. The risk is accepted by the approved scope, but its boundary is incomplete. Evidence: docs/plans/2026-10-09-AUDIT-ORDER.md:185-195,272. — State that it applies to C branches, including D’s non-irreversible routes.
+
+[MINOR] docs/plans/2026-10-09-AUDIT-ORDER.md:246 — The Option B relay match rule is insufficient for idempotency: matching those four fields can accept a conflicting row with different `action` or `details_json`, then mark the outbox row relayed. It does not affect D, which does not use the relay. Evidence: docs/plans/2026-10-09-AUDIT-ORDER.md:246-247. — Compare the full persisted audit payload before treating a primary-key conflict as relayed.
+
+MODEL / EFFORT: GPT-6 / effort unavailable in runtime metadata.
