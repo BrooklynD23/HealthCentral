@@ -1,0 +1,10 @@
+VERDICT: REVISE
+
+[BLOCKER] audit/2026-09-25/waves/scaffold/W-4.md:98 — OQ-1 is called signed, but the cited owner-decisions `:83` is a P1 decision; the plan still has OQ-1 unchecked at `:1378`, and the compliance matrix says it blocks Task 2 at `:80`. SAFE-CHAT-TPL `:52` supports escalation for prohibited advice and G-B5 `:27` supports abstention for invalid answers, but the claimed OQ-1 sign-off is not recorded. Evidence: owner-decisions `:3` says it was last updated 2026-10-07. — fix: record OQ-1 with its actual owner/date and correct reference, then reconcile the plan and matrix gates before marking dispatch ready.
+
+[BLOCKER] audit/2026-09-25/waves/scaffold/W-4.md:176 — A6’s gate can pass while invalid model text remains in `full_response` and the persisted turn: it classifies abstention/escalation from `segments`, while the persistence check only compares stored text to `full_response`. Evidence: plan `:984` detects abstention from segments and `:988` checks only equality with `full_response`; HC-LEG-006 asserts segments and that same equality at amendment `:142` and `:146`. — fix: require `full_response` to equal the exact expected abstention/escalation text and check the original model output is absent from the response and persisted content.
+
+[MINOR] audit/2026-09-25/waves/scaffold/W-4.md:111 — “valid → the answer” is too broad: `rag.query` returns `is_valid=True` with an uncertainty response when no chunks are found. Evidence: `src/backend/modules/rag.py:1241` and `:1247`. — fix: say “valid → preserve the existing validated response.”
+
+[MINOR] audit/2026-09-25/waves/scaffold/W-4.md:165 — The default `AsyncMock` does not faithfully mock the audit DB’s synchronous `add`: `create_audit_log` calls `db.add()` without awaiting it, so the mock may emit an unawaited-coroutine warning and records no row. Evidence: `src/backend/tests/support/routes.py:41`; `src/backend/core/audit.py:252`; `src/backend/core/audit.py:485`. — fix: give the harness a synchronous `add` stub; HC-SAFECHAT-001 remains the real audit-row assertion.
+
