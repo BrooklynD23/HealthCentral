@@ -970,7 +970,7 @@ Links to: `audit/2026-09-25/Devin-Audit-report.md`, `docs/capstone-report/owner-
 
 1. On v6, turn on the 2 future flags that apply to a declarative-mode app. This is a separate, small commit, and it proves the behaviour change before the major. 2. Bump to v7 while keeping the…
 
-Links to: `docs/plans/2026-10-04-NPM-MAJORS-tailwind4.md`
+Links to: `audit/2026-09-25/waves/scaffold/REACT-ROUTER-7.md`, `audit/2026-09-25/waves/scaffold/REVIEWS-2026-10-07.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-04-NPM-MAJORS-tailwind4.md`, `docs/plans/2026-10-04-NPM-audit-fix.md`
 
 ## `docs/plans/2026-10-04-NPM-MAJORS-tailwind4.md`
 
@@ -1031,6 +1031,14 @@ Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026
 **SAFE-INTERP-GROUNDED — Escalate Prohibited Grounded Answers, Audit Interpretation Routes — Implementation Plan**
 
 - **A. Flag.** `ValidatedResponse.prohibited_advice` in `modules/rag.py` — **byte-identical** to SAFE-CHAT `f5961e7`'s hunk, so whichever of #44 / this PR merges second merges cleanly (Task 3 Step 5…
+
+## `docs/plans/2026-10-08-DEV-PS1-install-on-lockfile-change.md`
+
+**DEV-PS1-INSTALL — `dev.ps1` Reinstalls Frontend Dependencies When the Lockfile Changed**
+
+- Owner gate DEV-PS1-FIRST (2026-10-07), verbatim: "A small PR before Tailwind 4 (owner item DEV-PS1-INSTALL): dev.ps1 reinstalls when package-lock.json is newer than node_modules. Tailwind 4…
+
+Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`
 
 ## `docs/plans/2026-10-09-AUDIT-ORDER.md`
 

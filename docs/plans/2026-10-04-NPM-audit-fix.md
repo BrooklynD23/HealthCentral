@@ -196,3 +196,137 @@ One PR; `git revert <merge sha>` restores the old lockfile. Then `npm ci`.
 ## Out of scope (owner decision)
 
 - Tailwind 3 → 4 (`tailwindcss@4.3.3`): clears tailwindcss, braces, chokidar, micromatch (4 high). Tailwind 4 changes config format (`tailwind.config.js` → CSS `@theme`) and the PostCSS plugin; a migration phase of its own.
+
+## Amendment 2 (NPM-AUDIT-2) — L1-B, 2026-10-08
+
+A second run of this plan, as phase NPM-AUDIT-2 (item NPM-AUDIT-DRIFT in [implementation-program.md](../capstone-report/implementation-program.md), scheduled by the NPM-MAJORS-RUN row below). Tasks 0-3 above are reused; where this section and the text above disagree, this section wins for NPM-AUDIT-2. The record of the first run (PR #38) above is unchanged.
+
+**Gates ([owner-decisions](../capstone-report/owner-decisions-2026-09-27.md); quoted text is the owner's, cut to the part that binds this phase):**
+
+- NPM-MAJORS-RUN (2026-10-07): "NPM-AUDIT-2, then React Router 7, then Tailwind 4, each as its own PR."
+- FE-SEQ (2026-10-07): "NPM-AUDIT-2 runs from the existing plan plus Amendment 2; … any other transitive major bump (dev/test-only or not) comes back to you before it lands."
+- MAJORS-TIED (2026-10-07): "Pre-approve only (a) new packages pulled in by an approved major and (b) major bumps of packages whose sole consumer is that approved major. … Any other major still stops and comes back to you." NPM-AUDIT-2 has no approved major, so nothing is pre-approved here.
+
+**Base and names.** `origin/main` = `777adf5`; dependency PR #38 (`c4d407e`) is an ancestor (`git merge-base --is-ancestor c4d407e origin/main` → 0). Worktree `../hc-npm-audit-2`, branch `fix/npm-audit-2`. Do not reuse `../hc-npm`.
+
+**Baseline (L1-B measured, Windows, node v22.20.0, npm 11.6.2, `777adf5`, after a clean `npm ci`, 2026-10-08).** vitest: **34 files, 195 tests passed**, exit code 0. Backend collected count stays **1370**; no backend file changes. `npm audit`: **10 (4 moderate, 6 high)**, exit code 1. Per package, from `npm audit --json` (`fixAvailable`):
+
+| Severity | Package | Direct | Fix per npm |
+|---|---|---|---|
+| high | fast-glob | no | **non-major** (`fixAvailable: true`) |
+| high | source-map-js | no | **non-major** (`fixAvailable: true`; GHSA-68fv-2mgg-jv7q) |
+| moderate | postcss-nested | no | **non-major** (`fixAvailable: true`) |
+| high | tailwindcss | yes | `tailwindcss@4.3.3`, semver-major |
+| high | braces, chokidar, micromatch | no | via `tailwindcss@4.3.3`, semver-major |
+| moderate | postcss-selector-parser | no | via `tailwindcss@4.3.3`, semver-major |
+| moderate | react-router-dom | yes | `react-router-dom@7.18.4`, semver-major |
+| moderate | react-router | no | via `react-router-dom@7.18.4`, semver-major |
+
+**Scope.** The three rows npm marks non-major on the day of the run. This table is a dated measurement, not a target: advisories move daily on a byte-identical lockfile (7 → 10 between 2026-10-04 and 2026-10-06). The implementer re-reads `npm audit --json` before the fix and reports before/after **per package and severity**, not as a total. `fast-glob` and `postcss-nested` are flagged through their dependency chain (`micromatch`, `postcss-selector-parser`), so npm may report them fixable and still leave them listed; that is reported, not forced.
+
+**Rules that replace the ones above for this run.**
+
+1. `npm audit fix` without `--force`, from Windows. `src/frontend/package.json` must not change at all (no manual edit, `engines` included). Only `src/frontend/package-lock.json` changes. If `package.json` changes, STOP.
+2. **Majors (replaces Amendment 1's rule and Task 1 Step 3).** Any package whose major version changes, in either direction, at any nesting depth, STOPS the phase and goes back to the owner with the list. "Major" means the semver breaking line: the first component, or for `0.x` the minor, or for `0.0.x` the patch. These also stop, because each can move a consumer to another major or bring in unreviewed code: a package name the tree did not have, or loses entirely; a path added or removed for a name that has, or gains, more than one breaking line in the tree; a version that goes down, or moves to or between prereleases; a changed entry where anything other than `version`, `resolved` and `integrity` differs (`bin`, `name`, `dependencies`, `dev`, `hasInstallScript`, …), or where those differ without a version change; a new `hasInstallScript`; any entry whose `resolved` is not exactly the `registry.npmjs.org` tarball of its own name and version, or whose integrity is not `sha512`; a changed root entry or any top-level key beside `packages`. The rule is deliberately stricter than a routine bump needs (a real patch release may change its `dependencies`): for this phase every such case is read by a person before it lands. Amendment 1's "sole consumer moved by a minor" exception does **not** apply.
+3. **Exit codes.** After each of `npm ci`, `npx tsc --noEmit`, `npm run lint`, `npm run build`, `npx vitest run`, print the numeric exit code and record it. Inside a bash double-quoted string write `\$LASTEXITCODE`; an unescaped `$LASTEXITCODE` is expanded to empty by bash and the check cannot fail. A non-zero code stops the phase: the acceptance line in rule 5 accumulates the codes and exits non-zero itself, so the result does not depend on someone reading five numbers.
+4. **Lockfile diff (the measurement for rule 2).** Python 3 (`python3` in WSL). It compares every key of `packages`, nested paths included, and every field of each entry. The script is the block below; it is not a tracked file (this phase's file list has no room for one), so extract it from this plan and run that:
+
+```bash
+TMP=$(mktemp -d)
+tr -d '\r' < docs/plans/2026-10-04-NPM-audit-fix.md | awk '/^```python$/{f=1;next} /^```$/{f=0} f' > "$TMP/lockdiff.py"
+test -s "$TMP/lockdiff.py" || { echo "lockdiff.py is empty: extraction failed"; exit 1; }
+git show origin/main:src/frontend/package-lock.json > "$TMP/lock-main.json"
+git show HEAD:src/frontend/package-lock.json > "$TMP/lock-head.json"   # the committed blob, not the working tree
+sha256sum "$TMP/lockdiff.py"
+python3 "$TMP/lockdiff.py" "$TMP/lock-main.json" "$TMP/lock-head.json"; echo "lockdiff=$?"
+```
+
+```python
+import json, sys
+
+def line(v):  # the semver "breaking line": 3.x.x -> "3", 0.4.x -> "0.4", 0.0.7 -> "0.0.7"
+    p = ((v or "").split("-")[0].split("+")[0].split(".") + ["", ""])[:3]
+    return p[0] if p[0] != "0" else ("0." + p[1] if p[1] != "0" else "0.0." + p[2])
+
+def load(path):
+    doc = json.load(open(path, encoding="utf-8"))
+    pk = doc.pop("packages")
+    return (doc, pk.pop("", {})), pk
+
+def key(v):  # sortable version, numeric parts only; enough to see a downgrade
+    return [int(x) if x.isdigit() else 0 for x in (v or "").split("-")[0].split("+")[0].split(".")]
+
+def source_ok(k, v):  # the registry tarball of exactly this name and version, sha512
+    nm = k.rsplit("node_modules/", 1)[-1]
+    want = f"https://registry.npmjs.org/{nm}/-/{nm.split('/')[-1]}-{v.get('version')}.tgz"
+    return v.get("resolved") == want and (v.get("integrity") or "").startswith("sha512-") and "name" not in v
+
+def lines(pk):  # package name -> set of breaking lines present anywhere in the tree
+    out = {}
+    for k, v in pk.items():
+        out.setdefault(k.rsplit("node_modules/", 1)[-1], set()).add(line(v.get("version")))
+    return out
+
+(old_root, old), (new_root, new) = load(sys.argv[1]), load(sys.argv[2])
+stops = []
+if old_root != new_root:
+    stops.append("ROOT-OR-TOP-LEVEL-CHANGED (package.json ranges, engines, name, lockfileVersion or a key beside packages)")
+added, removed = sorted(set(new) - set(old)), sorted(set(old) - set(new))
+changed = sorted(k for k in set(old) & set(new) if old[k] != new[k])
+ol, nl = lines(old), lines(new)
+
+print(f"packages keys: old={len(old)} new={len(new)}")
+print(f"ADDED ({len(added)})")
+for k in added:
+    print(f"  {k} {new[k].get('version')}")
+print(f"REMOVED ({len(removed)})")
+for k in removed:
+    print(f"  {k} {old[k].get('version')}")
+print(f"CHANGED, any field ({len(changed)})")
+for k in changed:
+    o, n = old[k], new[k]
+    fields = sorted(f for f in set(o) | set(n) if o.get(f) != n.get(f))
+    major = line(o.get("version")) != line(n.get("version"))
+    print(f"  {k} {o.get('version')} -> {n.get('version')} fields={fields}{' MAJOR' if major else ''}")
+    if major:
+        stops.append(f"MAJOR {k} {o.get('version')} -> {n.get('version')}")
+    if o.get("version") != n.get("version") and (key(n.get("version")) <= key(o.get("version")) or "-" in (n.get("version") or "")):
+        stops.append(f"DOWNGRADE-OR-PRERELEASE {k} {o.get('version')} -> {n.get('version')}")
+    if o.get("version") == n.get("version") or set(fields) - {"version", "resolved", "integrity"}:
+        stops.append(f"UNEXPECTED-FIELDS {k} fields={fields}")
+for k in added + removed:  # a path that appears or disappears can move a consumer to another major
+    nm = k.rsplit("node_modules/", 1)[-1]
+    if nm not in ol:
+        stops.append(f"NEW-NAME {k} {new[k].get('version')}")
+    elif ol.get(nm) != nl.get(nm) or len(ol.get(nm, set()) | nl.get(nm, set())) > 1:
+        stops.append(f"MAJOR-RESOLUTION {k}: lines before={sorted(ol.get(nm, []))} after={sorted(nl.get(nm, []))}")
+scripts = lambda pk: {k for k, v in pk.items() if v.get("hasInstallScript")}
+gained = sorted(scripts(new) - scripts(old))
+print(f"hasInstallScript: old={sorted(scripts(old))}")
+print(f"hasInstallScript GAINED: {gained}")
+stops += [f"INSTALL-SCRIPT-GAINED {k}" for k in gained]
+bad = 0
+for k, v in sorted(new.items()):  # every entry, changed or not
+    if not source_ok(k, v):
+        bad += 1
+        stops.append(f"BAD-SOURCE {k} resolved={v.get('resolved')} integrity={v.get('integrity')}")
+print(f"source shape: {len(new) - bad}/{len(new)} entries are the registry.npmjs.org tarball of their own name and version, sha512")
+print(f"STOP-FLAGS: {len(stops)}")
+for s in stops:
+    print(f"  STOP {s}")
+sys.exit(1 if stops else 0)
+```
+
+Expected: `STOP-FLAGS: 0`, `lockdiff=0`, `hasInstallScript GAINED: []` (baseline holders: `esbuild`, `fsevents`, `playwright/node_modules/fsevents`). The full output and the script's sha256 go in the PR body. The script was itself tested to fail (L1-B, 2026-10-08, 27 mutated copies of the `origin/main` lockfile, 27 as expected). Exit 0: the identical file; a clean patch bump (plain and scoped name); a nested copy added at the same line. Exit 1: major up; major down; downgrade inside a line; a prerelease moving back, a release moving to a prerelease of itself or of the next patch; `0.x` minor bump; `resolved` or `integrity` swapped at the same version; `sha1` integrity; `resolved` pointing at another package on the registry; a `?query` on `resolved`; a bump that gains `bin`, `name`, `dependencies` or an install script, or loses `dev`; a new package name; a nested copy added at another `0.x` minor or resolving to another package; a nested copy removed for a name with two majors; a changed root entry; `lockfileVersion` 1 with a legacy `dependencies` block. Two review rounds on 2026-10-08 shaped it: the first version saw only entries whose `version` changed and did not count a gained install script (code review); the second checked the registry host by prefix only and allowed downgrades and extra fields (security review). **What it still cannot see:** whether an `integrity` value is the one the registry publishes, who published the version, and what the new code does. Those are the security reviewer's steps for every changed entry (packument `dist.integrity`, tarball hash, publisher continuity, install scripts, source diff), not this script's.
+
+5. **Acceptance (L1 runs it, Windows).**
+
+```bash
+powershell.exe -NoProfile -Command "cd C:\Users\DangT\Documents\GitHub\hc-npm-audit-2\src\frontend; \$f = 0; Remove-Item -Recurse -Force node_modules; npm ci 2>&1 | Select-Object -Last 4; echo npmci=\$LASTEXITCODE; if (\$LASTEXITCODE -ne 0) { \$f = 1 }; npx tsc --noEmit; echo tsc=\$LASTEXITCODE; if (\$LASTEXITCODE -ne 0) { \$f = 1 }; npm run lint; echo lint=\$LASTEXITCODE; if (\$LASTEXITCODE -ne 0) { \$f = 1 }; npm run build 2>&1 | Select-Object -Last 6; echo build=\$LASTEXITCODE; if (\$LASTEXITCODE -ne 0) { \$f = 1 }; npx vitest run 2>&1 | Select-Object -Last 8; echo vitest=\$LASTEXITCODE; if (\$LASTEXITCODE -ne 0) { \$f = 1 }; echo failed=\$f; exit \$f"; echo "acceptance=$?"
+```
+
+Expected: `npmci=0 tsc=0 lint=0 build=0 vitest=0`, `failed=0`, `acceptance=0`, vitest 34 files / 195 tests. `$LASTEXITCODE` read after `2>&1 | Select-Object` is still the native command's code (measured on Windows PowerShell 5.1). `git diff --name-only origin/main...HEAD` lists only `src/frontend/package-lock.json`, this plan and the wave report (`docs/INDEX.md` and `docs/_link_graph.json` are regenerated by script and come out unchanged, because no document is added). E2E evidence is CI's "E2E Smoke Tests" job on the PR; Playwright is not run locally (no SQLCipher wheel on Windows).
+
+6. **No break-it.** The change is lockfile-only and adds no test, so there is no assertion to invert. The evidence that the fix did something is the per-package audit list before and after.
+
+**Not in this phase.** `engines.node` (`>=22` against vite's `>=22.12.0`): a `package.json` edit, so it is reported, not made. Existing installs do not pick this lockfile up until DEV-PS1-INSTALL lands (owner row DEV-PS1-FIRST; its own plan and PR). Rollback is unchanged: `git revert`, then reinstall.
