@@ -38,7 +38,9 @@ PARA-R2-BOUND, AO-BRIEF4, W10-HIPAA-52, C2-CLOSURE, OQ-1 (ABSTAIN_TEMPLATE), O-2
 
 Answered 2026-10-09 via L0 AskUserQuestion (rows on `docs/wave4-close`): **RR7-Q3** "Raise to >=22.12.0", **AGENT-PASS-LINE** "Drop pass counts", **PONYTAIL-CLEANUP** "Yes, plus codex.txt + branches", **NEXT-CODE-L1** "W-4 first" (fixes ship in separate PRs).
 
-Still unasked: **AO-ASKFIRST** (per-file approval: `core/audit.py` helper for option D, `core/auth.py:278-286` for D-B) and **approval of the AUDIT-ORDER plan for execution**; W-4 OQ-2 / OQ-5 / CI-SEED; W-2 S-3/O-3, P0-D-MOOT, EXPORT-QUESTIONS. (`engines.node` = RR7-Q3 and AGENT-PASS-LINE: answered above; `CLAUDE.md:31` "1288 pass" and `AGENT.md:76` "1269 / 1268" stay stale until their PR.)
+Also answered 2026-10-09 (L0 AskUserQuestion): **AO-ASKFIRST** both files "Approve" (`core/audit.py` helper, `core/auth.py:278-286`), **AO-PLAN-APPROVAL** "Approve, re-review first" (one more Codex pass on the post-round-2 fixes before the L1 starts), W-4 **OQ-5** "A: clear it", **OQ-2** "A: keep G-B5 + 20-q count", **CI-SEED** "Yes", **PARA-R3-Q1** "C: local answer judge".
+
+Still unasked: W-2 S-3/O-3, P0-D-MOOT, EXPORT-QUESTIONS. (`engines.node` = RR7-Q3 and AGENT-PASS-LINE: answered above; `CLAUDE.md:31` "1288 pass" and `AGENT.md:76` "1269 / 1268" stay stale until their PR.)
 
 ## 4. Next steps, in order
 
