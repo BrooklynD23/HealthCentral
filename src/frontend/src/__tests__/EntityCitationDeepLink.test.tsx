@@ -83,7 +83,7 @@ function renderAt(path: string, options: { navTargets?: string[] } = {}) {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[path]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[path]}>
         {options.navTargets && <CitationNav targets={options.navTargets} />}
         <VerificationWorkbench />
       </MemoryRouter>
