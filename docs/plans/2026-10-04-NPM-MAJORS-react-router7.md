@@ -132,8 +132,10 @@ Applied as the first commit on `fix/react-router-7` (base `origin/main` = `f428a
 **E2E (RR7-Q2).** `e2e/routing.spec.ts`, 2 tests, run by CI's "E2E Smoke Tests" job:
 
 1. Authenticated `goto('/no-such-page')` lands on `/inbox`.
-2. Lazy navigation never shows an empty `<main>`: a `MutationObserver` on `<main>` records any moment with no element children and no text; `/inbox` → `/trends` (new Suspense boundary, `RouteFallback` expected) and `/trends` → `/timeline` (reused boundary; old page held under `startTransition`) by sidebar click; each leg ends on its page heading.
+2. Lazy navigation never shows an empty `<main>`: a `MutationObserver` on `<main>` records any moment its text content is empty (`AppLayout` keeps a keyed `PageTransition` element inside `<main>`, so an element-count check could not fail); `/inbox` → `/trends` → `/timeline` by sidebar click. Each route has its own `lazyRoute` Suspense, so `RouteFallback` (sr-only "Loading page...") is expected on both legs; each leg ends on its page heading.
 
 Break-it (L1 runs it once and pastes it): make `lazyRoute`'s fallback `null` in `App.tsx` → test 2 fails; restore. Playwright listed count: chromium baseline + 2.
 
 **Task 4.** The manual lazy-page check is replaced by the spec above.
+
+**Task 2 Step 4 (open-redirect test) changed during execution.** The `<Link>` href-origin test is RED on both 6.30.6 and 7.18.4: v7 deliberately renders a `to` matching `/^[\\/]{2}/` as a plain external anchor (`parseToInfo`), like `<Link to="https://…">`. The advisory's fix is in navigation: v7 `useNavigate` rejects a cross-origin target with `External navigation is not allowed` before any `pushState`. `HC-ROUTE-002` therefore calls `navigate('/\\evil.example')` and asserts that either it throws that error or every `pushState` URL is same-origin (and that one of the two happens). Measured: RED on 6.30.6 (pushed `/\evil.example`, origin `http://evil.example`), GREEN on 7.18.4. Consequence for RR7-Q4: on v7 a server-supplied `//host` or `/\host` that passes `SettingsPage.tsx:952-954`'s `startsWith('/')` renders an off-origin anchor; that stays with the separate owner item.
