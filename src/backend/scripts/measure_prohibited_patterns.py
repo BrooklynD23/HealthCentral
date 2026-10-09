@@ -58,10 +58,18 @@ def _read(name: str) -> dict[str, Any]:
     return json.loads((FIX / f"{name}.json").read_text(encoding="utf-8"))
 
 
-def _split(name: str) -> tuple[list[Item], list[Item]]:
-    d = _read(name)
+def _split_items(d: dict[str, Any]) -> tuple[list[Item], list[Item]]:
     return ([(x["category"], x["text"]) for x in d["must_block"]],
             [(x["kind"], x["text"]) for x in d["must_allow"]])
+
+
+def _split(name: str) -> tuple[list[Item], list[Item]]:
+    return _split_items(_read(name))
+
+
+def _split_path(path: str) -> tuple[dict[str, Any], list[Item], list[Item]]:
+    d = json.loads(Path(path).read_text(encoding="utf-8"))
+    return (d, *_split_items(d))
 
 
 def product_texts() -> list[Item]:
@@ -83,8 +91,10 @@ def first_hit(lst: Compiled, text: str) -> tuple[str, str] | None:
 
 
 def _dedupe(name: str, seen: set[str], block: list[Item],
-            allow: list[Item]) -> tuple[list[Item], list[Item]]:
-    quoted = set(_read(name).get("quoted_in_author_report", []))
+            allow: list[Item], data: dict[str, Any] | None = None,
+            ) -> tuple[list[Item], list[Item]]:
+    d = data if data is not None else _read(name)
+    quoted = set(d.get("quoted_in_author_report", []))
     drop = seen | quoted
     kb = [x for x in block if x[1] not in drop]
     ka = [x for x in allow if x[1] not in drop]
@@ -93,7 +103,8 @@ def _dedupe(name: str, seen: set[str], block: list[Item],
     return kb, ka
 
 
-def build_sets(sealed: list[str], dedupe: bool = False, wrap: bool = False,
+def build_sets(sealed: list[tuple[str, str | None]], dedupe: bool = False,
+               wrap: bool = False,
                ) -> tuple[dict[str, list[Item]], dict[str, list[Item]]]:
     ins_b, ins_a = _split("in_sample")
     dev_b, dev_a = _split("held_out_dev")
@@ -101,12 +112,16 @@ def build_sets(sealed: list[str], dedupe: bool = False, wrap: bool = False,
     block = {"in_sample": ins_b, "must_not_regress": nr, "held_out_dev": dev_b}
     allow = {"in_sample": ins_a, "product": product_texts(), "held_out_dev": dev_a}
     seen = {t for d in (block, allow) for v in d.values() for _, t in v}
-    for name in sealed:
-        b, a = _split(name)
+    for name, path in sealed:
+        if path is None:
+            data = _read(name)
+            b, a = _split_items(data)
+        else:
+            data, b, a = _split_path(path)
         if dedupe:
-            b, a = _dedupe(name, seen, b, a)
+            b, a = _dedupe(name, seen, b, a, data)
         block[name], allow[name] = b, a
-        seen |= {t for _, t in _split(name)[0] + _split(name)[1]}
+        seen |= {t for _, t in b + a}
     if dedupe and not sealed:
         print("dedupe: no sealed split loaded, nothing to do")
     if wrap:
@@ -189,6 +204,8 @@ def report_timing(lists: dict[str, Compiled]) -> None:
         "colons-1250": ("it: " * 2000)[:1250],
         "colons-2500": ("it: " * 2000)[:2500],
         "labtable-2500": ("LDL: 130 mg/dL  HDL: 50 mg/dL  " * 200)[:2500],
+        "colons-5000": ("it: " * 3000)[:5000],
+        "labtable-5000": ("LDL: 130 mg/dL  HDL: 50 mg/dL  " * 200)[:5000],
     }
     print("seconds for one whole-list pass:")
     for ln, lst in lists.items():
@@ -205,6 +222,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--final", action="store_true")
     ap.add_argument("--final2", action="store_true")
+    ap.add_argument("--final3", metavar="PATH", default=None)
     ap.add_argument("--verbose", action="store_true")
     ap.add_argument("--list", action="append", dest="names")
     ap.add_argument("--markdown", action="store_true")
@@ -212,9 +230,11 @@ def main() -> int:
     ap.add_argument("--timing", action="store_true")
     ap.add_argument("--wrap", action="store_true")
     a = ap.parse_args()
-    sealed = [n for n, on in (("held_out_final", a.final),
-                              ("held_out_final2", a.final2)) if on]
-    for n in sealed:
+    sealed = [(n, None) for n, on in (("held_out_final", a.final),
+                                      ("held_out_final2", a.final2)) if on]
+    if a.final3:
+        sealed.append(("held_out_final3", a.final3))
+    for n, _ in sealed:
         print(f"INCLUDING SEALED {n} SPLIT")
     if a.wrap:
         print("TEXTS ARE WRAPPED in a summary sentence and a clinician sentence")
