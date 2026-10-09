@@ -1,6 +1,6 @@
 # Wave 4 — L1-D: React Router 7
 
-**PR:** PR_URL_PLACEHOLDER (branch `fix/react-router-7`, base `origin/main` = `f428a99`). Not merged.
+**PR:** https://github.com/BrooklynD23/HealthCentral/pull/57 (branch `fix/react-router-7`, base `origin/main` = `f428a99`). Not merged.
 **Plan:** [2026-10-04-NPM-MAJORS-react-router7.md](../../../docs/plans/2026-10-04-NPM-MAJORS-react-router7.md) Tasks 0, 1, 2, 4 plus Amendment 1 (Task 3 out).
 **Result:** `react-router-dom` 6.30.6 → 7.18.4. `npm audit` 9 → 7; `react-router` and `react-router-dom` no longer listed. vitest 195/34 → 197/35. Playwright chromium list 31/7 → 33/8. Backend not touched (collected delta 0, suite not run).
 
