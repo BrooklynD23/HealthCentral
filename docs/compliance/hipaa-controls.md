@@ -46,10 +46,10 @@ requirements under 45 CFR 164.312.
 |-------------|----------------|
 | Audit logging | `core/audit.py` logs all significant operations |
 | Event types | Profile, document, observation, export, auth events |
-| Log format | Structured JSON with timestamps and correlation IDs |
+| Log format | Audit rows are database rows (`models/audit.py`): typed columns with a timestamp, plus a text `details_json` column that holds serialized JSON. They have no correlation-ID column. The `SecurityAuditMiddleware` log line is a JSON payload that carries the request correlation ID; it is logged at INFO, below the default WARN level, so by default the ID appears in no log output. The ID is also returned to the client in the `X-Correlation-ID` response header |
 | Security audit | `SecurityAuditMiddleware` emits application-log entries for mutating requests |
 | Log persistence | Database audit log for core audit events; application logger for security middleware entries |
-| Immutability | Audit log entries are append-only |
+| Immutability | Not append-only. Deleting a profile deletes that profile's audit rows and keeps one anonymized tombstone (PROF-DEL-001, `api/profiles.py`). A whole-install restore with the backup CLI (`scripts/backup.py`, run without `--profile-id`) replaces the master database file, audit rows included. The database does not enforce immutability |
 | PHI minimization | `core/audit.py` allowlist-scrubs every row before write (AUDIT-PHI-001, see below) |
 
 ### PHI Minimization in Audit Rows (AUDIT-PHI-001)
