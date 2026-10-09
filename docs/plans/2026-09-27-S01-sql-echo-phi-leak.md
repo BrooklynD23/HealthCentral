@@ -12,7 +12,7 @@
 **Status:** PROPOSED — not executed. Nothing in this plan is implemented, wired or tested on any branch.
 - S-1 is a **new HIGH security finding** with **no owner decision yet**.
 - The whole plan is **owner-gated**: sign-offs S1-A (Task 2) and S1-B (Task 3) are **unsigned**. Program register: both sit under canonical gate **SQL-ECHO** (with P08 S-3, answered by "yes → S-1"; 3a §3.2). S1-A includes the one-line edit in the ask-first `core/profile_database.py`; no agent may sign it.
-- Review status: 3 Codex rounds; round 3 = PASS, no findings (`audit/2026-09-25/swarm-2026-09-27/reviews/S01-r3-response.md`).
+- Review status: 3 Codex rounds; round 3 = PASS, no findings (`docs/reviews/2026-09-27-swarm/S01-r3-response.md`).
 - Task 1 (write the failing tests, observe RED) may run before the gate. Nothing is committed before the gate.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task by task. Steps use checkbox (`- [ ]`) syntax for tracking.

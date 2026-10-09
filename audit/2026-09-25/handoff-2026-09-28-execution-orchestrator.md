@@ -163,9 +163,9 @@ Output style: follow ~/.claude/rules/common/subagent-output.md (i-have-adhd)
 ## 7. Codex review (architectural phases)
 
 1. **Plan review (read-only, before the wave):**
-   - Copy [`reviews/W04-r1-prompt.md`](swarm-2026-09-27/reviews/W04-r1-prompt.md).
+   - Copy [`docs/reviews/2026-09-27-swarm/W04-r1-prompt.md`](../../docs/reviews/2026-09-27-swarm/W04-r1-prompt.md).
    - Change `PLAN UNDER REVIEW`, `ROUND` and the refs line to current `origin/main`.
-   - Run: `codex exec -s read-only -C /mnt/c/Users/DangT/Documents/GitHub/HealthCentral -o audit/<date>/reviews/<ID>-r<N>-codex.txt "$(cat audit/<date>/reviews/<ID>-r<N>-prompt.md)"`
+   - Run: `codex exec -s read-only -C /mnt/c/Users/DangT/Documents/GitHub/HealthCentral -o docs/reviews/<date>/<ID>-r<N>-codex.txt "$(cat docs/reviews/<date>/<ID>-r<N>-prompt.md)"`
    - Write `<ID>-r<N>-response.md`: each finding marked accepted+fixed or rejected, with evidence.
    - At most 2 rounds per amendment.
 2. **Diff review (before the PR opens):** from the worktree, run `node ~/.claude/plugins/cache/openai-codex/codex/1.0.4/scripts/codex-companion.mjs adversarial-review --wait --base origin/main "<focus: the invariant this phase must not break>"`.

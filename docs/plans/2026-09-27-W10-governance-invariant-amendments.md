@@ -13,7 +13,7 @@
 5. **Moved anchors.** Every Before block still matches exactly once (§3.6). The code line numbers in §3.2 are refreshed for W-5 (PR #34) and W-6 (PR #32).
 6. **Trackers.** The DP-1 and DP-3 variant-P blocks now cite `docs/capstone-report/implementation-program.md`; the handoff they cited is superseded.
 7. **Measurement.** The two full-suite runs become a collect-only run plus `tests/test_docs_lint.py` (a docs-only diff on the 12 GB host); the full suite is reported as skipped.
-8. **Codex review.** This amended plan is reviewed by Codex before the hunks are applied (owner row W-10-REST: "Codex reviews the plan before it runs"). Records: `audit/2026-09-25/swarm-2026-09-27/reviews/W10-r5-*`.
+8. **Codex review.** This amended plan is reviewed by Codex before the hunks are applied (owner row W-10-REST: "Codex reviews the plan before it runs"). Records: `docs/reviews/2026-09-27-swarm/W10-r5-*`.
 
 **Revision:** r1, 2026-09-27, after the Codex review verdict REVISE:
 1. The export inventory is now an AST scan that handles multiline decorators, and it now finds `POST /feedback/export` (§3.5, Task 1 Step 4).
@@ -21,7 +21,7 @@
 3. Variant I needs the W-item PR's red-first and break-it evidence.
 4. If Q1 is unsigned, `CLAUDE.md:62` stays unchanged as an open owner item.
 
-**Review status:** 4 Codex rounds on the original plan (the round-4 MAJOR was fixed after the last round and was not re-reviewed). r5 amendment set: Codex round 5 (2026-10-08, `gpt-6-luna`, xhigh configured) REVISE with 1 BLOCKER, 3 MAJOR, 1 MINOR, all accepted and applied; round 6 (same model): REVISE with 5 MAJOR, all accepted and applied after the last allowed round, so those five fixes were not re-reviewed by a plan round (the Codex diff review covers the result). Agent reviews of the applied branch (2026-10-08, code-reviewer and security-reviewer, both CHANGES) corrected three fold-in After blocks: DP-5, DP-6 row 2 and HC-1; both approved in round 2, and two round-2 wording nits in DP-5 (title/page "where known"; "numeric dates written day-first or month-first") were applied after the Codex diff review (verdict: approve). Records: `audit/2026-09-25/swarm-2026-09-27/reviews/W10-r5-*`, `W10-r6-*`.
+**Review status:** 4 Codex rounds on the original plan (the round-4 MAJOR was fixed after the last round and was not re-reviewed). r5 amendment set: Codex round 5 (2026-10-08, `gpt-6-luna`, xhigh configured) REVISE with 1 BLOCKER, 3 MAJOR, 1 MINOR, all accepted and applied; round 6 (same model): REVISE with 5 MAJOR, all accepted and applied after the last allowed round, so those five fixes were not re-reviewed by a plan round (the Codex diff review covers the result). Agent reviews of the applied branch (2026-10-08, code-reviewer and security-reviewer, both CHANGES) corrected three fold-in After blocks: DP-5, DP-6 row 2 and HC-1; both approved in round 2, and two round-2 wording nits in DP-5 (title/page "where known"; "numeric dates written day-first or month-first") were applied after the Codex diff review (verdict: approve). Records: `docs/reviews/2026-09-27-swarm/W10-r5-*`, `W10-r6-*`.
 **Revision:** r4 + Wave 6, 2026-09-28:
 1. Codex r4: merge status of W-2/W-3/W-6 now comes from the item's PR (`gh pr view` + `merge-base --is-ancestor`), not from a test-ID grep. A merged item with missing or renamed tests gets U, never P (Task 1 Steps 2-3, S6).
 2. 3a M-3: the break-glass clause is owner-gated again as **GOV-BG** (merges W-6 §11 Q2 and this plan's Q2). D12 names the external runner as a *ModelRunner* exception (Consequence #1); calling break-glass a bypass of "Redaction before anything leaves" is an inference. Unsigned, C-2 and DP-4 quote D12's conditions without calling break-glass a bypass (§1.2, Task 4, §10).
@@ -325,7 +325,7 @@ routes_inv: 14 lines, all classified in §3.5: y
 - `CLAUDE.md`: hunks C-1, C-2, C-3 (r5: Q1 signed; C-4 not applied, Q3 skipped); fold-in hunk C-5
 - `docs/compliance/data-privacy.md`: hunks DP-1, DP-2, DP-3, DP-4; fold-in hunks DP-5, DP-6
 - `docs/compliance/hipaa-controls.md` (r5): fold-in hunks HC-1 (`:49`) and HC-2 (`:52`) only
-- This plan file (r5 amendment commit), `audit/2026-09-25/swarm-2026-09-27/reviews/W10-r5-*` and `audit/2026-09-25/waves/wave-4-L1-C.md` (records, their own commits)
+- This plan file (r5 amendment commit), `docs/reviews/2026-09-27-swarm/W10-r5-*` and `audit/2026-09-25/waves/wave-4-L1-C.md` (records, their own commits)
 
 **Read-only (must show zero diff):** everything else. In particular:
 - ask-first files (`modules/interpret_safety.py`, `modules/redaction.py`, `modules/faithfulness.py`, `modules/verifier_agent.py`, `core/auth.py`, anything auth/encryption);
@@ -1575,5 +1575,5 @@ The PR merge box stays open. Original table (as written before the answers):
 | Fold-in 1 (LOCAL-07) | `docs/compliance/data-privacy.md` | `docs(privacy):` | `w10_foldin_assert.py` F1 |
 | Fold-in 2 (DOC-OVERCLAIM) | `docs/compliance/data-privacy.md docs/compliance/hipaa-controls.md` | `docs(compliance):` | F2, F3, F4, F5 |
 | Fold-in 3 (CLAUDE-FAILURE-COUNT) | `CLAUDE.md` | `docs:` | F6, F7; then all gates of Task 4b Step 5 |
-| Records | `audit/2026-09-25/swarm-2026-09-27/reviews/W10-r5-*`, `audit/2026-09-25/waves/wave-4-L1-C.md` | `docs:` | `repo_hygiene_check.py` |
+| Records | `docs/reviews/2026-09-27-swarm/W10-r5-*`, `audit/2026-09-25/waves/wave-4-L1-C.md` | `docs:` | `repo_hygiene_check.py` |
 | W-10b (deferred) | `docs/compliance/data-privacy.md` | `docs(privacy):` | same gates; 1 path |

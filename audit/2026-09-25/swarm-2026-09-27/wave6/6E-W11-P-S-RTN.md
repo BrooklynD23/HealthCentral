@@ -47,9 +47,9 @@ Done: 3 Codex rounds closed (W11a r4, S01 r3, RTN r1), 6 plans edited, `python3 
 4. `docs/plans/2026-09-27-P08-gated-packet-hipaa-aligned-amendment.md`
 5. `docs/plans/2026-09-27-S01-sql-echo-phi-leak.md`
 6. `docs/plans/2026-09-27-nightly-doc-drift-routine-spec.md`
-7. NEW `audit/2026-09-25/swarm-2026-09-27/reviews/W11a-r4-response.md`
-8. NEW `audit/2026-09-25/swarm-2026-09-27/reviews/S01-r3-response.md`
-9. NEW `audit/2026-09-25/swarm-2026-09-27/reviews/RTN-r1-response.md`
+7. NEW `docs/reviews/2026-09-27-swarm/W11a-r4-response.md`
+8. NEW `docs/reviews/2026-09-27-swarm/S01-r3-response.md`
+9. NEW `docs/reviews/2026-09-27-swarm/RTN-r1-response.md`
 10. NEW this report
 
 ## 3. Owner gates surfaced (all unsigned)
