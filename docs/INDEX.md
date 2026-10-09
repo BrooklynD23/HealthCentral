@@ -1032,6 +1032,14 @@ Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026
 
 - **A. Flag.** `ValidatedResponse.prohibited_advice` in `modules/rag.py` — **byte-identical** to SAFE-CHAT `f5961e7`'s hunk, so whichever of #44 / this PR merges second merges cleanly (Task 3 Step 5…
 
+## `docs/plans/2026-10-09-AUDIT-ORDER.md`
+
+**AUDIT-ORDER + AUDIT-DENIALS — Audit Write Order and Denied-Request Auditing — Plan**
+
+---
+
+Links to: `docs/plans/2026-10-04-DDI-doc-delete-interpretation.md`
+
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
 **Project Structure Setup**
