@@ -1,0 +1,13 @@
+VERDICT REVISE
+
+[MAJOR] `docs/plans/2026-10-09-AUDIT-ORDER.md:189` — the failure matrix treats profile work as one transaction, but later failures on multi-commit routes can leave earlier changes durable; under C, those partial changes may have no audit row. Evidence: plan `:126`; `src/backend/api/documents.py:476,592`; `src/backend/modules/interpret.py:279`. — Describe the state at each commit boundary for multi-transaction routes.
+
+[MAJOR] `docs/plans/2026-10-09-AUDIT-ORDER.md:254` — row 28 is assigned C, but agent audits are only added to the session and rely on `get_db` to commit after the handler. The planned `route_client` override bypasses that commit path, and the unbounded FastAPI requirement permits versions that run default dependency cleanup after sending the response, so C’s error log and 500 are not assured. Evidence: `src/backend/modules/agent/audit.py:76`; `src/backend/api/assistant.py:902`; `src/backend/core/database.py:113-119`; `src/backend/tests/support/routes.py:51-55`; `src/backend/requirements.txt:19`; [FastAPI dependency lifecycle docs](https://fastapi.tiangolo.com/tutorial/dependencies/dependencies-with-yield/). — Give row 28 an explicit, tested commit-error path or classify it separately.
+
+[MAJOR] `docs/plans/2026-10-09-AUDIT-ORDER.md:227` — Option B’s relay commits to the master DB and then marks the vault row relayed; a crash between commits can duplicate the audit row on retry. The plan names an idempotency test but specifies no stable master-side key. Evidence: plan `:235`; `src/backend/models/audit.py:35-36`; `src/backend/core/audit.py:243-252`. — Reuse the outbox UUID as the master row ID or define another unique source key, and test failure between commits.
+
+[MAJOR] `docs/plans/2026-10-09-AUDIT-ORDER.md:299` — D-B says denial rows store the requested ID but “never the owner’s profile ID”; for `require_profile_access`, the requested path ID is the target profile ID on a cross-profile denial. Evidence: plan `:295`; `src/backend/core/auth.py:270,278-285`. — Omit the target profile ID from those rows or narrow D-B to export-download denials.
+
+[MAJOR] `docs/plans/2026-10-09-AUDIT-ORDER.md:257` — HC-AUD-ORD-030 only detects commits through helpers named in the test, so a new route calling a new helper that commits the vault can escape the guard; the break-it case tests only a direct handler commit. Evidence: plan `:258`; `src/backend/api/documents.py:592` shows an existing helper commit. — Make the guard trace reachable helper calls and add a helper-based break-it case.
+
+MODEL / EFFORT: GPT-6 / effort not exposed by runtime.

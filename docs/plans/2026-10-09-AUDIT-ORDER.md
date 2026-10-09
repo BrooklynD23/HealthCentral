@@ -5,7 +5,7 @@
 **Status:** PROPOSED — plan only, not approved for execution. Nothing in this plan is implemented. No owner question below is signed.
 **Base measured:** `origin/main` @ `98bd3c7` (P5 `utcnow` swaps merged, PR #54). Every `file:line` below was re-read at this base on 2026-10-09 unless marked UNMEASURED. The readiness pack (`audit/2026-09-25/waves/scaffold/AUDIT-ORDER.md`) was measured at `6b4dd84`; its line numbers are superseded by this file.
 **Refresh trigger:** any commit to `src/backend/core/audit.py`, `src/backend/models/audit.py`, `src/backend/core/database.py::get_db`, `src/backend/core/profile_database.py::get_session`, or any route in the §3 route table before an option is approved. Brief 4 (audit retention) being signed.
-**Review:** Codex round 1 REVISE (5 MAJOR), all 5 accepted after verification at `98bd3c7` and applied in this revision; dispositions in `audit/2026-09-25/swarm-2026-09-27/reviews/AUDIT-ORDER-r1-response.md`. At most one more round.
+**Review:** Codex round 1 REVISE (5 MAJOR), round 2 REVISE (5 MAJOR, final round). All 10 accepted after verification at `98bd3c7` and applied; dispositions in `audit/2026-09-25/swarm-2026-09-27/reviews/AUDIT-ORDER-r1-response.md` and `AUDIT-ORDER-r2-response.md`. Round-2 changes were not re-reviewed by Codex: see [§12 Residual review risk](#12-residual-review-risk).
 
 > **For agentic workers:** this file is a decision document. Do not execute any part of it until the owner signs AO-DESIGN, AO-FAIL, AO-SCOPE, AD-DENIALS and AO-ASKFIRST below. When an option is signed, a follow-up revision of this plan turns it into tasks with `- [ ]` steps (format precedent: [DDI plan](2026-10-04-DDI-doc-delete-interpretation.md)).
 
@@ -76,6 +76,8 @@ Pack lines `:458/:491/:494/:506` moved by +1. Order confirmed: profile → maste
 **Consequence (measured on the two routes, then on every route in §3):** the two databases commit separately, profile first, with nothing linking them. If the master commit raises, `get_db` rolls back the audit row (`core/database.py:117-119`), the request returns 500, and the patient-data change stays.
 
 **Hidden second commit path:** because `get_db` commits on exit (`core/database.py:116`), an audit row that is only `add`-ed is still persisted when the handler returns normally. An option that "forgets" the explicit commit still writes the row; one that raises after `add` loses it. Every option below must say which path it relies on.
+
+**That exit commit runs after the response is sent** (measured in the installed FastAPI 0.141.1, D9 venv: `fastapi/routing.py:140-147`, where `await response(scope, receive, send)` at `:145` runs inside the request-scoped exit stack, so dependency cleanup follows it). `requirements.txt:19` pins only `fastapi>=0.109.0`, so the timing is not fixed by the repo. Consequence: a failure of the exit commit cannot turn into a 500; the client already has its 2xx. The same holds for the vault session's exit commit (`core/profile_database.py:80`). **Rule for every option:** an audit row must be committed explicitly inside the handler; no option may rely on commit-on-exit. Row 28 is the one measured route that does today.
 
 ---
 
@@ -179,6 +181,21 @@ Grep for commit-failure injection across `tests/` (`commit.*side_effect`, `Opera
 
 All options keep every existing check: `_scrub_action` / `_scrub_details` stay the only way into `audit_logs`; `audit_and_commit` stays fail-closed; no threshold or validation is relaxed. None gives true atomicity across two SQLite files; each moves or narrows the window (pack finding 1, recurring-failures §2).
 
+### Commit boundaries on multi-transaction routes
+
+The matrix below treats the patient-data change as one transaction. That holds only for the single-transaction routes (§3). For multi-transaction routes, a failure after an intermediate commit leaves that earlier work durable:
+
+| Row | Boundaries, in order | Failure after boundary k leaves | Under C (or today) | Under A / A2 (intent before boundary 1) |
+|---|---|---|---|---|
+| 1 import | file `:442` → `:476` (document row) → helper commits `:592`/`:621`/`:688`/`:702` or `:812` → `:1016` → master `:554` | file + document row (+ observations, + entities) up to k | durable partial import, **no audit row** | `started` row, no `completed`: the partial import is attributable |
+| 2 reprocess | helper commits (as row 1) → `:1227` → master `:1242`; entity/category deletes `:1195-1196` land with the first helper commit | prior entities/categories gone, new extraction partial | durable partial reprocess, no row | `started` row, no `completed` |
+| 19/20 interpret | `modules/interpret.py:279` (old row deleted `:276` on regenerate) → master `:53` via `:410`/`:462` | new interpretation, old one gone | no row | `started` row, no `completed` |
+| 22 panel | `modules/interpret.py:445` → master `:677` | new panel interpretation | no row | as above |
+| 23 batch | `:279` once per observation → one master row `:814` | the first k observations reinterpreted | no row for any of them | one `started` row whose `observation_ids` lists the batch request; which observations completed is read from the vault |
+| 25/28 chat | `:902` turns (`:942` fallback) → master (row 28: exit commit after the response) | turns appended | no row; under row 28 not even a 500 | `started`/`completed` around `:902` |
+
+Under A/A2 the intent row precedes **every** boundary, so any partial state is covered by one unfinished intent. Under C a partial state on these routes has no audit row; C's ERROR log fires only if the failure is in the master commit, not for an earlier failure that leaves partial work. Option B does not apply to these rows (applicability rule).
+
 ### Failure injection on paper
 
 Cases: **(a)** the audit write fails (first write for A/A2/D, the only write for C); **(b)** the patient-data change fails; **(c)** the process dies between the two commits; **(d)** the vault is locked or closed.
@@ -226,13 +243,14 @@ Cases: **(a)** the audit write fails (first write for A/A2/D, the only write for
 
 - **Mechanism:** write the audit record into a new vault table inside the same profile transaction as the change; a relay copies it to `audit_logs` and marks it relayed.
 - **Applicability rule:** B is atomic only for a transaction that contains its own outbox row, so it is limited to the **single-transaction routes** in §3. A multi-transaction route (rows 1, 2, 19/20, 22, 23) would need an outbox row inside **every** intermediate commit: edits in `_run_extraction_pipeline` (`documents.py:592`, `:621`, `:688`, `:702`), `_run_structured_import_pipeline` (`:812`), `_classify_and_extract_entities` (`:1016`), `modules/interpret.py:279` and `:445`. This plan does **not** propose that; under B those routes use A2. Rows 29/30 are single-transaction but the outbox row must be written inside `_prune_stale_items` (`pinboards.py:155-208`), not in the handler.
-- **Outbox fields (complete list):** `id` (UUID4, generated), `created_at` (`core.time.utcnow`), `event_type` (static string), `action` (static string), `entity_type` (static string), `entity_id` (the record's UUID), `details_json` (already scrubbed by `_scrub_details` at write time), `relayed_at` (nullable). No `profile_id` column (the vault is per profile; the relay supplies the session's id). No `client_info` (the relay writes the constant default). The relay re-validates every field with the PHI rule below before the master write.
+- **Idempotent relay:** the master row reuses the outbox UUID as its primary key (`AuditLog.id`, `String(36)` primary key, `models/audit.py:35-37`; today it defaults to a fresh `uuid4`). The relay inserts with that id and treats a primary-key conflict as "already relayed", then sets `relayed_at` in the vault. A crash between the master commit and the vault update therefore yields at most one master row on retry. This needs `create_audit_log` (or a relay-only sibling) to accept an explicit `id`, validated as UUID shape by the PHI rule.
+- **Outbox fields (complete list):** `id` (UUID4, generated; becomes the master `audit_logs.id`), `created_at` (`core.time.utcnow`), `event_type` (static string), `action` (static string), `entity_type` (static string), `entity_id` (the record's UUID), `details_json` (already scrubbed by `_scrub_details` at write time), `relayed_at` (nullable). No `profile_id` column (the vault is per profile; the relay supplies the session's id). No `client_info` (the relay writes the constant default). The relay re-validates every field with the PHI rule below before the master write.
 - **Ask-first edits:** `core/audit.py` (outbox writer and relay, both through `_scrub_details`); `core/profile_database.py` or the login path in `core/auth.py` if the relay runs on unlock (auth/encryption file, ask-first under CLAUDE.md §1); new `models/` table.
 - **Migration:** profile `015_audit_outbox`, `down_revision` = the head after P6 (`013`) and G-C1 (`014`); P7 must add the table to the test-reset tuple (`api/profiles.py:498-515`).
 - **PHI:** the outbox lives inside the encrypted vault, so PHI exposure is lower than A; the copy to master still goes through `_scrub_details`.
 - **Gain:** for single-transaction routes, the change and its audit record are atomic in one SQLite transaction; case (c) is covered for those routes only.
 - **Downside:** largest change; multi-transaction routes need A2 anyway (applicability rule), so B never stands alone; a locked vault (d) delays rows until next unlock; **profile delete (row 27) and restore (row 26) cannot use it** (the vault is destroyed or replaced), so they need A/A2 anyway; a new relay is a new background path (recurring-failures §10, "never started"); read routes keep `audit_and_commit`, so two audit paths coexist.
-- **Tests:** HC-AUD-ORD-010 change + outbox row in one transaction (profile commit fails → neither present); HC-AUD-ORD-016 relay rejects an outbox row whose field fails the PHI rule; HC-AUD-ORD-011 relay copies and marks; HC-AUD-ORD-012 relay is idempotent; HC-AUD-ORD-013 locked vault defers; HC-AUD-ORD-014 PHI scrub on relay; HC-AUD-ORD-015 relay is started on unlock (HTTP, not a unit call).
+- **Tests:** HC-AUD-ORD-010 change + outbox row in one transaction (profile commit fails → neither present); HC-AUD-ORD-016 relay rejects an outbox row whose field fails the PHI rule; HC-AUD-ORD-011 relay copies and marks; HC-AUD-ORD-012 crash between the master commit and the vault `relayed_at` update (inject a failure on the vault commit), then rerun the relay → exactly one master row with the outbox id; HC-AUD-ORD-013 locked vault defers; HC-AUD-ORD-014 PHI scrub on relay; HC-AUD-ORD-015 relay is started on unlock (HTTP, not a unit call).
 - **Break-it:** commit the outbox row in a separate transaction → HC-AUD-ORD-010 fails; skip the relay start → HC-AUD-ORD-015 fails.
 - **Rollback:** revert; downgrade `015` (unrelayed rows lost: relay first).
 - **Effort:** L.
@@ -251,11 +269,12 @@ Cases: **(a)** the audit write fails (first write for A/A2/D, the only write for
 
 ### Option D — hybrid: A2 on the irreversible set, C on the rest (recommended)
 
-- **Scope:** rows 2, 5, 10 (hard delete), 13, 16, 19/20/23 (regenerate), 26, 27, 29, 30 get A2; every other row in §3 gets C, except feedback row 24 (see the feedback section below).
+- **Scope:** rows 2, 5, 10 (hard delete), 13, 16, 19/20/23 (regenerate), 26, 27, 29, 30 get A2; every other row in §3 gets C, except feedback row 24 (see the feedback section below) and agent chat row 28.
+- **Row 28 (agent chat):** classified separately. Under every option the handler gets an explicit master commit after `run_agent` returns and before the response is built (today the rows reach the master DB only through the after-response exit commit, see §2.3). With that commit, a master failure follows AO-FAIL like any other route. Test HC-AUD-ORD-060 (through `route_client` with a real master session whose `commit` raises, plus the vault override): agent mode on, master commit fails → response is not 2xx and no turn is reported as audited. Without the explicit commit this test cannot fail, because `route_client`'s `get_db` override (`tests/support/routes.py:51-52`) has no exit commit at all.
 - **Row 27 note:** the `started` row carries `profile_id`, so `delete(AuditLog)` at `profiles.py:907-909` purges it in the same transaction on success; if the commit at `:936` fails, the purge rolls back and the `started` row survives. This depends on today's retention (AO-BRIEF4); Brief 4 may change it.
 - **Gain:** closes the window where the data cannot be reconstructed; no migration; smallest surface for the ask-first file.
-- **Downside:** two behaviours to explain; reversible routes keep the window; a later route must be classified correctly or it silently gets C (recurring-failures §9). Mitigation: HC-AUD-ORD-030 enumerates **every** handler in `api/*.py` regardless of HTTP method and fails on any handler that commits a vault session (directly, or through a helper named in the test) and is not in an explicit table mapping it to `A2`, `C` or `excluded (reason)`.
-- **Tests:** HC-AUD-ORD-001..004 per irreversible route (parametrised over the route list), HC-AUD-ORD-020, HC-AUD-ORD-030 route-class guard over all methods, seeded with the 30 rows of §3 and the routes of §3.1; break-it: add a dummy `POST` handler that commits the vault and is not in the table → the guard must fail.
+- **Downside:** two behaviours to explain; reversible routes keep the window; a later route must be classified correctly or it silently gets C (recurring-failures §9). Mitigation: HC-AUD-ORD-030 enumerates **every** handler in `api/*.py` regardless of HTTP method, builds a static call graph over `src/backend/{api,core,modules}` (AST, resolving direct calls and `module.function` / `self.method` calls by name), and fails on any handler from which a `.commit()` on a session is reachable and that is not in an explicit table mapping it to `A2`, `C` or `excluded (reason)`. Calls it cannot resolve statically (session factories such as `assistant.py:707-709`, `getattr`, injected callables) are listed in the test as named exclusions, so a new one fails the guard until someone classifies it.
+- **Tests:** HC-AUD-ORD-001..004 per irreversible route (parametrised over the route list), HC-AUD-ORD-020, HC-AUD-ORD-030 route-class guard over all methods, seeded with the 30 rows of §3 and the routes of §3.1; break-it 1: add a dummy `POST` handler that commits the vault and is not in the table → the guard must fail; break-it 2: add a dummy handler that calls a **new** helper in `modules/` which commits → the guard must fail; break-it 3: add an unresolvable call (a callable passed in as an argument) → the guard must fail until it is listed.
 - **Effort:** S-M.
 
 ### PHI rule for every column written to the master DB
@@ -292,11 +311,13 @@ Removing the `except` is a behaviour change on a user-facing route (feedback wou
 | Option | Edits (ask-first) | Gain | Downside |
 |---|---|---|---|
 | D-A audit row for every 403/404 on patient-data routes | each raise site or an exception handler; `core/auth.py:278-286` | complete trail | grows the unencrypted master DB; any authenticated caller can fill it (rate limit is per IP, `security/rate_limit_middleware.py:81-97`); needs a per-profile cap; 404s are mostly typos, so noise |
-| D-B audit row for reachable cross-profile 403s only (export downloads `export.py:507`, `:847`, `:1274`, and `require_profile_access` `core/auth.py:278`) | `api/export.py` (3 sites); `core/auth.py:278-286` | covers the denials that can actually be another patient's data; small | 404 probing stays unaudited; `core/auth.py` is ask-first (auth) |
+| D-B audit row for reachable cross-profile 403s only (export downloads `export.py:507`, `:847`, `:1274`, and `require_profile_access` `core/auth.py:278`; for the latter the row omits the target profile id) | `api/export.py` (3 sites); `core/auth.py:278-286` | covers the denials that can actually be another patient's data; small | 404 probing stays unaudited; `core/auth.py` is ask-first (auth) |
 | D-C log line only: add WARNING lines (no profile IDs beyond the caller's) to the silent 403 sites and the export 403s | `api/*.py` raise sites only | no new audit rows; no DoS surface | a log line is not an audit record (no product log sink) |
 | D-D leave as is and document | none | no change | the register row stays open |
 
-PHI for D-A/D-B: denial rows carry `entity_type`, the requested id and the caller's `profile_id`; never the owner's profile id (pack finding 5: today's WARNING at `core/auth.py:279-282` prints both). Tests: HC-AUD-ORD-040 export download by another profile → 403 and one denial row through `route_client`; HC-AUD-ORD-041 cap enforced; HC-AUD-ORD-042 denial row holds no second profile id.
+PHI for D-A/D-B: denial rows carry the **caller's** `profile_id` (from the session) and `entity_type`; never another profile's id (pack finding 5: today's WARNING at `core/auth.py:279-282` prints both).
+- Export-download denials: `entity_type` = `summary` / `packet` / `export`, `entity_id` = the requested artifact id (`export.py:498`, `:840`, `:1267`), which is not a profile id.
+- `require_profile_access` denials: the requested path value **is** the target profile id (`core/auth.py:270`, compared at `:278`). The row stores `entity_type="profile"`, `entity_id=None`, and no detail derived from the path; the fact recorded is "caller X was denied a profile route", not which profile it targeted. Tests: HC-AUD-ORD-040 export download by another profile → 403 and one denial row through `route_client`; HC-AUD-ORD-041 cap enforced; HC-AUD-ORD-042 denial row holds no second profile id: for a `require_profile_access` denial, assert the target id appears in no column and not in `details_json`.
 
 ### AUDIT-KEYS-DROPPED (`implementation-program.md:472`)
 
@@ -382,3 +403,16 @@ UNMEASURED:
 6. Per-site logging of every 404 raise site.
 
 Out of scope (reported, not fixed): the fail-open `_emit_audit` in `feedback.py:40-57` (a write route that swallows audit errors) — under AO-SCOPE B or C it stays fail-open; under A or D its silent `except` is removed (§6, feedback section); the unused `log_to_db` flag (`security/audit_middleware.py:31-33`); AUDIT-KEYS-DROPPED; DDI-ORPHAN-BIN.
+
+---
+
+## 12. Residual review risk
+
+Codex round 2 was the last round allowed; its fixes above were not re-reviewed. Items not fully resolved:
+
+1. **HC-AUD-ORD-030 is a static guard.** It cannot see commits reached through dynamic dispatch (agent tools through `db_session_factory`, `assistant.py:707-709`; `getattr`; callables passed as arguments). Mitigation is the named-exclusion list, which fails closed on a new unresolved call, but a commit hidden inside an already-excluded dynamic path stays invisible.
+2. **Commit timing depends on the FastAPI version.** The after-response exit commit was measured on 0.141.1 only; `requirements.txt:19` allows any `>=0.109.0`. The plan removes reliance on exit commits instead of pinning FastAPI (a `requirements.txt` edit is out of scope here).
+3. **Option C leaves multi-transaction partial states unaudited** (§6 commit-boundaries table). This is a property of C, stated, not fixed; only A/A2 cover it.
+4. **The intent window stays open in case (c) under A/A2** (HC-AUD-ORD-001b): a `started` row without `completed` does not say whether the change landed. A reader must check the vault.
+5. **Option B's idempotent relay needs `create_audit_log` to accept an explicit `id`.** That is an extra `core/audit.py` change, part of the AO-ASKFIRST line for B.
+
