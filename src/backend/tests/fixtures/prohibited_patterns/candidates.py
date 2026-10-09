@@ -211,4 +211,224 @@ REVISED_B = [
     ("E1b", r"\b(?:call|dial|phone|ring|get)\s+(?:for\s+)?(?:an?\s+|the\s+)?(?:ambulance|911|999|112|000|triple zero|emergency services)\b|\b(?:call|dial|phone|ring)\b[^.!?\n]{0,30}?\bemergency (?:number|line)\b|\bemergency (?:medical )?(?:department|services|care|help)\b|\burgent care\b|\bA&E\b|\b(?:get|go|head|drive you)\s+to\s+(?:a|an|the|your)\s+(?:nearest\s+|local\s+)?hospital\b|\bseek (?:emergency|urgent)\b", "emergency_advice"),
 ]
 
-LISTS = {"plan_18": PLAN_18, "revised_min": REVISED_MIN, "revised_a": REVISED_A, "revised_b": REVISED_B}
+# ---------------------------------------------------------------------------
+# UNION_R2 (round 2, 2026-10-09, owner row PARA-1-R2 "One more round").
+# Construction rule: the 11 live patterns from interpret_safety.py copied
+# character for character (ids K1..K11 — K<n> is live pattern n, kept as the
+# third element of each tuple exactly as compiled there), PLUS additive
+# patterns only (ids U-*). 0 of the 215 must-not-regress catches can be lost
+# by construction. Derived on in_sample, held_out_dev, must_not_regress and
+# the must-allow/product sets ONLY; frozen in git before the fourth held-out
+# split (to be loaded later via --final3) is written by an independent author.
+# Every added pattern is linear-time: keyword-anchored, gaps bounded by
+# {0,4} words or {0,60} chars, no nested quantifiers, no unbounded .*, and no
+# clause-start scanning (the revised_b timing failure mode).
+# ---------------------------------------------------------------------------
+# Condition words: suffix forms + an explicit list; excludes diagnosis/prognosis etc.
+COND_R2 = (r"(?:(?!diagnosis|prognosis|analysis|basis|emphasis|metabolism|mechanism|organism)"
+           r"\w*(?:itis|osis|emia|aemia|uria|pathy|oma|ism|penia|philia|megaly)|"
+           r"disease|disorder|deficiency|failure|syndrome|cancer|diabetes|pre-?diabetes|infection|"
+           r"damage|injury|an[ae]?emia|hypertension|hypotension|high blood pressure|high cholesterol|"
+           r"thyroid|resistance|bleeding|tumou?r|lupus|gout|arthritis|hepatitis|leuk[ae]?emia|"
+           r"overload|dehydration|insufficiency|fatty liver|stroke|heart attack|clot|sepsis|"
+           r"malnutrition|obesity|condition)\b")
+
+# Adjective states after "you are/you're"
+STATE_R2 = (r"(?:pre-?diabetic|diabetic|an[ae]mic|hypothyroid|hyperthyroid|dehydrated|deficient|"
+            r"malnourished|septic|jaundiced|obese|hypertensive|insulin[- ]resistant|"
+            r"immunocompromised)\b")
+
+# Drug words: suffix forms + brand/generic list + generic nouns
+DRUG_R2 = (r"(?:\w*(?:statin|pril|sartan|olol|formin|oxine|farin|parin|gliptin|gliflozin|glutide|"
+           r"dipine|azole|mycin|cillin|cycline|floxacin|prazole|tidine|semide|thiazide|lactone|mab|"
+           r"flozin|xaban|grel|sone|zide)|insulin|aspirin|ibuprofen|acetaminophen|paracetamol|"
+           r"lipitor|crestor|zocor|synthroid|glucophage|ozempic|lantus|coumadin|eliquis|xarelto|"
+           r"lasix|plavix|ezetimibe|allopurinol|prednisone|jardiance|farxiga|trulicity|victoza|"
+           r"januvia|humalog|novolog|levemir|basaglar|tresiba|levothyroxine|metformin|lisinopril|"
+           r"atorvastatin|rosuvastatin|warfarin|losartan|ferrous|iron|vitamin\s+\w+|b12|folic acid|"
+           r"folate|magnesium|potassium|calcium|zinc|fish oil|omega-3|probiotics?|antibiotics?|"
+           r"anticoagulants?|blood thinners?|supplements?|medications?|medicines?|meds|pills?|"
+           r"tablets?|capsules?|doses?|injections?|drugs?|steroids?|diuretics?|beta[- ]?blockers?|"
+           r"ace inhibitors?|inhibitors?|antihistamines?|antidepressants?|red yeast rice|"
+           r"over-the-counter\s+\w+|agonists?)\b")
+
+NUM_R2 = (r"(?:\d[\d,.]*|one|two|three|four|five|six|seven|eight|nine|ten|twenty|thirty|forty|"
+          r"fifty|half(?:\s+a|\s+of\s+a)?|a single)")
+UNIT_R2 = (r"(?:mg|mcg|µg|iu|units?|ml|g|meq|grams?|milligrams?|micrograms?|millilit(?:er|re)s?)\b"
+           r"(?!\s*/|\s+per\s+(?:d?l|ml|liter|litre|deciliter)\b)")
+COUNTN_R2 = r"(?:tablets?|capsules?|pills?|teaspoons?|tablespoons?|drops?|puffs?|doses?|sprays?|patches?)"
+DOSE_R2 = (r"(?:" + NUM_R2 + r"\s*" + UNIT_R2 + r"|" + NUM_R2 +
+           r"\s+(?:\d[\d,.]*\s*(?:mg|mcg|g)\s+)?" + COUNTN_R2 + r"\b)")
+
+# Word immediately before a med verb that makes it a description, not advice
+# ("keep taking", "are taking", "is listed as taken" handled by "taken" not being a verb).
+_MEDPRE_R2 = (r"(?<!\bkeep )(?<!\bkeeps )(?<!\bcontinue )(?<!\bcontinues )(?<!\bcontinued )"
+              r"(?<!\bcurrently )(?<!\bbeen )(?<!\bis )(?<!\bare )(?<!\bwas )(?<!\bwere )"
+              r"(?<!\bam )(?<!\bas )(?<!\bon )(?<!\bof )(?<!\byou're )(?<!\bthey're )(?<!\bwe're )")
+
+# Trailing context that means the drug word is app data, not a recommendation
+# ("add your medications to your profile", "a medication from the Medications page").
+_MEDTAIL_R2 = (r"(?!\s+(?:(?:in|on|from|into|to|inside|via|within)\s+(?:the\s+|your\s+|this\s+|my\s+)?)?"
+               r"(?:app|application|profile|records?|lists?|pages?|tabs?|sections?|trackers?|charts?|"
+               r"library|calendar|journals?|logs?|notes?|organizers?|organisers?|cabinet|vault|device|"
+               r"reminders?|entries|entry|history|review|feature|settings|screens?|dashboard|"
+               r"medications?\s+(?:page|list|section|tab)|meds?\s+(?:page|list|section|tab)|"
+               r"health\s+(?:record|app|app[s]?))\b)")
+
+UNION_R2 = [
+    # --- live list, copied character for character from
+    #     modules/interpret_safety.py InterpretationSafetyGuard.PROHIBITED_PATTERNS ---
+    ("K1", r"\b(you have|you are diagnosed with|diagnosis of)\s+\w+", "diagnostic_language"),
+    ("K2", r"\b(this (means|indicates|confirms) you have)\b", "diagnostic_language"),
+    ("K3", r"\b(definitely|certainly|clearly) (have|indicates?|shows?)\b", "certainty_claims"),
+    ("K4", r"\btake\s+\d+\s*(mg|mcg|g|ml|units?)\b", "dosing_recommendation"),
+    ("K5", r"\b(prescribe|prescription|should take|must take|need to take)\b", "medication_advice"),
+    ("K6", r"\b(medication dosage|dose adjustment|increase.*dose|decrease.*dose)\b", "dosing_recommendation"),
+    ("K7", r"\b(start taking|stop taking|discontinue)\s+\w+", "medication_advice"),
+    ("K8", r"\b(always means|never means|100%|absolutely)\b", "certainty_claims"),
+    ("K9", r"\b(guaranteed|definite(ly)?|certain(ly)?)\b", "certainty_claims"),
+    ("K10", r"\b(call 911|go to (the )?ER|emergency room|seek immediate)\b", "emergency_advice"),
+    ("K11", r"\b(medical emergency|life.?threatening)\b", "emergency_advice"),
+    # --- additions ---
+    # "you <adverb> have <cond>": you likely/probably/may have diabetes
+    ("U-D1", r"\byou\s+(?:(?:most|very)\s+)?(?:likely|probably|possibly|clearly|definitely|"
+             r"may|might|could|appear\s+to|seem\s+to)\s+(?:well\s+)?have\s+"
+             r"(?:an?\s+|the\s+)?(?:[\w'-]+\s+){0,4}?" + COND_R2, "diagnostic_language"),
+    # "you've got/developed <cond>", "you have been diagnosed/living with"
+    ("U-D2", r"\byou(?:'ve|\s+have)\s+(?:got|developed|been\s+(?:diagnosed|living)\s+with)\s+"
+             r"(?:an?\s+|the\s+)?(?:[\w'-]+\s+){0,4}?" + COND_R2, "diagnostic_language"),
+    # "you are/you're <state-adj>" or "you are in <stage> kidney failure"
+    ("U-D3", r"\byou(?:'re|\s+are)\s+(?:(?:most|very|quite|likely|probably|clearly|definitely|"
+             r"now|also|still|severely|mildly|slightly|borderline|already|currently|simply)\s+)*"
+             r"(?:" + STATE_R2 +
+             r"|in\s+(?:[\w'-]+\s+){0,2}(?:kidney|renal|liver|heart|organ|respiratory|cardiac)"
+             r"\s+failure\b)", "diagnostic_language"),
+    # "you (may be/are/'re) suffering from <cond>" / "you suffer from <cond>"
+    ("U-D4", r"\byou(?:'re)?(?:\s+(?:are|may|might|could|must|be|probably|likely|currently|also|"
+             r"still|clearly|definitely))*\s+suffer(?:ing)?\s+from\s+(?:an?\s+|the\s+)?"
+             r"(?:[\w'-]+\s+){0,4}?" + COND_R2, "diagnostic_language"),
+    # "your kidneys/liver/thyroid/heart are failing/damaged/underactive";
+    # "indicates your thyroid is underactive" is KB boilerplate, not advice
+    ("U-D5", r"(?<!\bindicates )(?<!\bindicate )"
+             r"\byour\s+(?:kidneys?|liver|thyroid|heart|pancreas|bone\s+marrow|lungs?|"
+             r"immune\s+system)\s+(?:is|are|may\s+be|could\s+be|seems?|seems?\s+to\s+be|"
+             r"appears?|appears?\s+to\s+be)\s+"
+             r"(?:(?:probably|likely|slowly|already|also|still|now|severely|mildly|slightly|"
+             r"clearly|definitely)\s+)*"
+             r"(?:failing|damaged|underactive|overactive|diseased|shutting\s+down|inflamed|"
+             r"enlarged|compromised|weak|struggling)\b", "diagnostic_language"),
+    # "<verb> (that) you have/are/'ve got <cond|state>": means/shows/indicates/proves/suggests...
+    ("U-D6a", r"\b(?:means?|indicates?|confirms?|shows?|proves?|reveals?|suggests?|points?\s+to|"
+              r"adds?\s+up\s+to|tells?\s+(?:me|us)|is\s+consistent\s+with|are\s+consistent\s+with|"
+              r"is\s+diagnostic\s+of|is\s+a\s+sign\s+of)\s+(?:that\s+)?you\s+"
+              r"(?:(?:probably|likely|most\s+likely|also|still|now)\s+)?"
+              r"(?:have|'ve\s+(?:got|developed)|are|'re|developed)\s+"
+              r"(?:(?:likely|probably|severely|mildly|slightly|borderline)\s+)?"
+              r"(?:an?\s+|the\s+)?(?:[\w'-]+\s+){0,4}?(?:" + COND_R2 + r"|" + STATE_R2 + r")",
+     "diagnostic_language"),
+    # "<subject> <verb> <up to 4 words> <cond>": subject is a demonstrative,
+    # "your ...", or "the <result-noun>" — a bare analyte subject ("Low
+    # hemoglobin indicates anemia") is KB anatomy text, not user diagnosis.
+    # Verb blocked after may/might/can/could/sometimes/often/not/never/cannot
+    # and before or|whether|if|and|no|not (hedged text, "confirm or rule out").
+    ("U-D6b", r"\b(?:this|that|it|these|those|they|your(?:\s+[\w'-]+){0,3}?|"
+              r"the\s+(?:results?|numbers|values?|labs?|levels?|findings?|pattern|picture|"
+              r"combination|readings?|tests?|data|trend|workup))\s+"
+              r"(?:[\w'-]+\s+){0,3}?"
+              r"(?<!\bmay )(?<!\bmight )(?<!\bcan )(?<!\bcould )(?<!\bsometimes )(?<!\boften )"
+              r"(?<!\bnot )(?<!\bnever )(?<!\bcannot )(?<!\bcan't )"
+              r"(?:means?|indicates?|confirms?|proves?|reveals?|suggests?|points?\s+to|"
+              r"adds?\s+up\s+to|is\s+consistent\s+with|are\s+consistent\s+with|"
+              r"is\s+diagnostic\s+of)\s+"
+              r"(?!\s+(?:or|whether|if|and|no|not)\b)(?:that\s+)?(?:[\w'-]+\s+){0,4}?" + COND_R2,
+     "diagnostic_language"),
+    # "this is <cond|state>": This is hypothyroidism. Tail guard keeps app nouns.
+    ("U-D7", r"\b(?:this|that|it)\s+is\s+(?:(?!not\b|no\b)[\w'-]+\s+){0,3}?"
+             r"(?:" + COND_R2 + r"|" + STATE_R2 + r")"
+             r"(?!\s+(?:app|application|tool|feature|page|section|test|education|educational|"
+             r"class|course|module|tracker|tracking|material|week|month|day|awareness|part|"
+             r"step|screen|check|measure|marker|device)\b)", "diagnostic_language"),
+    # "Diagnosis: <word>" (headers and bullets)
+    ("U-D8", r"\bdiagnosis\s*:\s*\w+", "diagnostic_language"),
+
+    # --- dosing ---
+    # "take/try/use/inject/swallow <up to 4 words> <dose>"
+    ("U-O1", r"\b(?:take|taking|try|trying|use|using|inject|injecting|swallow)\s+"
+             r"(?:an?\s+|the\s+)?(?:[\w'-]+\s+){0,4}?" + DOSE_R2, "dosing_recommendation"),
+    # "<change-verb> (your/the/that/my) <up to 4 words> (dose|dosage|in half|<dose>)"
+    ("U-O2", r"\b(?:increase|increasing|reduce|reducing|lower|lowering|raise|raising|decrease|"
+             r"decreasing|double|doubling|halve|halving|cut|cutting|split|splitting|taper|"
+             r"tapering|bump|bumping|drop|dropping)\s+(?:your\s+|the\s+|that\s+|my\s+)?"
+             r"(?:[\w'-]+\s+){0,4}?(?:dose\b|dosage\b|in\s+half\b|" + DOSE_R2 + r")",
+     "dosing_recommendation"),
+    # "dose (of NUM ...)? should|would|... be" / "good dose" / "dose in half"
+    ("U-O3", r"\bdose\s+(?:of\s+" + NUM_R2 + r"[^.!?\n]{0,40}?)?"
+             r"(?:should|would|could|might|needs?\s+to|ought\s+to|must)\s+be\b|"
+             r"\b(?:your\s+[\w'-]+|the)\s+dose\s+(?:should|would|needs?\s+to|must|could|"
+             r"ought\s+to)\s+be\b|\bgood\s+dose\b|\bdose\s+in\s+half\b", "dosing_recommendation"),
+    # "you should/must/need to (safely)? (be on|take|try|use) ... <dose>"
+    ("U-O4", r"\byou\s+(?:should|must|need\s+to|ought\s+to|have\s+to|could|can)\s+"
+             r"(?:safely\s+)?(?:be\s+on|take|try|use)\s+(?:an?\s+|the\s+)?"
+             r"(?:[\w'-]+\s+){0,4}?" + DOSE_R2, "dosing_recommendation"),
+
+    # --- medication ---
+    # "<med-verb> (your/the/a/my/that) <up to 4 words> <drug>" with benign-prefix
+    # lookbehind (keep/are/is/... taking) and app-noun tail guard.
+    ("U-M1", _MEDPRE_R2 +
+             r"\b(?:start(?:ing)?|begin(?:ning)?|stop(?:ping)?|quit(?:ting)?|restart(?:ing)?|"
+             r"resum(?:e|ing)|switch(?:ing)?|swap(?:ping)?|skip(?:ping)?|paus(?:e|ing)|"
+             r"hold(?:ing)?|add(?:ing)?|drop(?:ping)?|discontinu(?:e|ing)|try(?:ing)?|"
+             r"tak(?:e|ing)|refill(?:ing)?|pick(?:ing)?\s+up|com(?:e|ing)\s+off|"
+             r"go(?:ing)?\s+(?:back\s+)?on|get(?:ting)?\s+(?:yourself\s+)?on|be\s+on|"
+             r"put\s+you\s+on|place\s+you\s+on|switch\s+you\s+to|wean\s+off)\s+"
+             r"(?:your\s+|the\s+|an?\s+|my\s+|that\s+|yourself\s+)?(?:[\w'-]+\s+){0,4}?"
+             r"" + DRUG_R2 + _MEDTAIL_R2, "medication_advice"),
+    # "don't / do not / no longer (need to)? (take|refill|skip|stop|use) your ... <drug>"
+    ("U-M3", r"\b(?:don't|do\s+not|no\s+longer)\s+"
+             r"(?:need\s+(?:to\s+take\s+)?|take\s+|refill\s+|skip\s+|stop\s+|use\s+)"
+             r"(?:your|the|that|any)\s+(?:[\w'-]+\s+){0,2}?" + DRUG_R2, "medication_advice"),
+
+    # --- certainty ---
+    # "100% sure/certain/a sign/normal/..." (also "100 percent")
+    ("U-T1", r"\b100\s?(?:%|percent)\s+(?:sure|certain|certainty|a\s+sign|sign|guarantee\w*|"
+             r"positive|confirm\w*|fine|safe|normal|healthy|accurate|correct|right)\b",
+     "certainty_claims"),
+    # fixed certainty phrases
+    ("U-T2", r"\b(?:no\s+doubt|without\s+(?:a\s+|any\s+)?(?:doubt|question)|no\s+question|"
+             r"beyond\s+(?:any\s+|a\s+)?doubt|zero\s+chance|no\s+(?:chance|possibility|way)\s+"
+             r"(?:that|this|it)|never\s+worry|rest\s+assured|for\s+sure|i\s+promise(?:\s+you)?|"
+             r"i\s+can\s+promise|it\s+is\s+impossible)\b", "certainty_claims"),
+    # "guarantee(s/d)" unless negated just before ("do not guarantee", "no guarantee")
+    ("U-T3", r"(?<!\bnot )(?<!\bnever )(?<!\bno )(?<!\bcannot )(?<!\bcan't )(?<!\bdon't )"
+             r"(?<!\bdoesn't )(?<!\bwon't )(?<!\bunable to )(?<!\bwithout )(?<!\bfar from )"
+             r"\bguarantee[sd]?\b", "certainty_claims"),
+    # "you can be sure/certain/confident", "with (absolute)? certainty", "conclusive"
+    ("U-T4", r"\byou\s+can\s+be\s+(?:sure|certain|confident)\b|\bwe\s+(?:can|are)\s+"
+             r"(?:sure|certain|confident)\b|\bwith\s+(?:absolute\s+|complete\s+|total\s+|"
+             r"full\s+)?certainty\b|(?<!\bnot )(?<!\bnever )(?<!\bin )\bconclusive(?:ly)?\b|"
+             r"\bcertain\s+that\b", "certainty_claims"),
+    # "(definitely|certainly|...) (means|develops|caused|will|is|are|have)"
+    ("U-T5", r"\b(?:definitely|certainly|clearly|absolutely|undoubtedly|unquestionably)\s+"
+             r"(?:means?|indicates?|shows?|confirms?|proves?|have|has|is|are|was|will|"
+             r"caused?|causes?|develop\w*|leads?|lead)\b", "certainty_claims"),
+    # "is always a sign/symptom/...", "inevitable/inevitably", "cure your X"
+    ("U-T6", r"\b(?:is|are)\s+always\s+(?:a\s+|the\s+)?(?:sign|caused|due|symptom|marker|"
+             r"indicator|result|proof|evidence)\b|\binevitabl(?:e|y)\b|"
+             r"\bcures?\s+(?:your|the|this|these|that|it)\b", "certainty_claims"),
+
+    # --- emergency ---
+    # "call/dial/phone/ring (an|the|your local|for an)? ambulance/911/999/112/000/..."
+    ("U-E1", r"\b(?:call|dial|phone|ring)\s+(?:an?\s+|the\s+|your\s+local\s+|for\s+an?\s+)?"
+             r"(?:ambulance|911|999|112|000|triple\s+zero|emergency\s+(?:services|number|line))\b",
+     "emergency_advice"),
+    # "emergency department/services/care/help/number/line/room", "urgent care", "A&E"
+    ("U-E2", r"\b(?:emergency\s+(?:medical\s+)?(?:department|services|care|help|number|line|"
+             r"room)|urgent\s+care|A&E)\b", "emergency_advice"),
+    # "get/go/head/drive (you)/rush/walk to (a|the|your|nearest) hospital"
+    ("U-E3", r"\b(?:get|go|head|drive|rush|walk)\s+(?:(?:yourself|you)\s+)?(?:over\s+)?to\s+"
+             r"(?:a|an|the|your)\s+(?:nearest\s+|local\s+|nearby\s+|closest\s+)?hospital\b",
+     "emergency_advice"),
+]
+
+LISTS = {"plan_18": PLAN_18, "revised_min": REVISED_MIN, "revised_a": REVISED_A,
+         "revised_b": REVISED_B, "union_r2": UNION_R2}
