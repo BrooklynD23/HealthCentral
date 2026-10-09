@@ -78,9 +78,9 @@ that failed.
 Two 2026-10-09 instances in the React Router 7 tests (PR #57). The plan's
 empty-page check for lazy navigation recorded "any moment with no element
 children and no text" in `<main>`. `AppLayout` keeps a keyed `PageTransition`
-element inside `<main>` (`components/layout/AppLayout.tsx:18-25`), so `<main>`
+element inside `<main>` (`src/frontend/src/components/layout/AppLayout.tsx:18-25`), so `<main>`
 always has an element child and that check could not fail. The spec as
-written (`e2e/routing.spec.ts`, E2E-ROUTE-002) tests text content instead, and
+written (`src/frontend/e2e/routing.spec.ts`, E2E-ROUTE-002) tests text content instead, and
 the break-it (`lazyRoute` fallback → `null`) turned it red at `:59`; the plan
 text was corrected in `512218b`. Separately, the "no Future Flag warning" half
 of HC-ROUTE-001 could not fail once v7 was installed, because v7 prints no
