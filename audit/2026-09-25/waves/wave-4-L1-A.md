@@ -2,13 +2,15 @@
 
 **Last Updated:** 2026-10-08
 
-Status: Phase 1 (PROHIBITED-PARAPHRASE, measure-only) is done and its PR is open. **No measured pattern list meets the owner's three conditions, and none of the revised lists is offered for signing** (lost catches; quadratic regex run time found by the security review). `src/backend/modules/interpret_safety.py` is not edited. Phase 2 (P5) is reported in the copy of this file on the P5 branch.
+Status: both phases are done and both PRs are open; neither is merged. Phase 1 (PROHIBITED-PARAPHRASE, measure-only, PR #51): **no measured pattern list meets the owner's three conditions, and none of the revised lists is offered for signing**; `src/backend/modules/interpret_safety.py` is not edited. Phase 2 (P5): 101 product lines migrated to `core.time.utcnow`, the badge timestamp converted (TIME-03), a CI lint added; both reviewers approve.
+
+This copy (on the P5 branch) contains both phases. The copy on the Phase 1 branch contains Phase 1 only: when the second of the two PRs merges, resolve the add/add conflict on this file by taking this copy.
 
 "L1" = run by the L1 orchestrator. "agent" = reported by a sub-agent; where L1 re-ran it, the row says so.
 
 ## Phase 1 — PROHIBITED-PARAPHRASE, measure-only
 
-PR: see the PR that carries this file · branch `test/prohibited-paraphrase-measure` · base `origin/main@777adf5` · worktree `../hc-para-measure`
+PR **https://github.com/BrooklynD23/HealthCentral/pull/51** · branch `test/prohibited-paraphrase-measure` · head `3d0d663` · base `origin/main@777adf5` · worktree `../hc-para-measure`
 
 Plan: [`docs/plans/2026-10-04-PROHIBITED-PARAPHRASE.md`](../../../docs/plans/2026-10-04-PROHIBITED-PARAPHRASE.md) (section "Measure-first results").
 
@@ -50,7 +52,7 @@ Plan: [`docs/plans/2026-10-04-PROHIBITED-PARAPHRASE.md`](../../../docs/plans/202
 | 13 | `edebe88` test(safety): measurement script gains --timing; no bytecode written | L2 |
 | 14 | `7b61c4a` docs(safety): security-review corrections; no revised list is offered for signing | L1 |
 
-A last commit updates this report.
+15: `3d0d663` docs: Wave 4 L1-A report, Phase 1 after the security review (L1).
 
 ### Measured tables (L1, `HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python scripts/measure_prohibited_patterns.py --final --final2 --markdown`, from `src/backend`)
 
@@ -157,11 +159,143 @@ Both reviewers re-ran the measurement and found 0 mismatches against the plan's 
 > - **B. Stop trying to do this with patterns.** Keep the live list as a floor and move the recall problem to another layer (PARA-2, the agent draft path, or a classifier step). That needs its own plan.
 > - **C. No pattern edit, no further work.** The live list stays at 35.6 % to 40.8 % held-out recall, with false positives on 7 of the product's own 62 texts.
 
-### Merge-order notes
+## Phase 2 — P5, `datetime.utcnow` → `core.time.utcnow`
 
-- `CLAUDE.md:30`, `:35` and `AGENT.md:76`: this PR writes 1374. P5 (same L1) writes 1377 from the same base; the true number after both merge is 1381. Every other open collection-changing PR (P5 from this L1, and the other L1's phases) must merge `origin/main`, re-measure and rewrite the slots after this merges, or this PR does so if it merges second.
-- `docs/INDEX.md`, `docs/_link_graph.json`: regenerated here; regenerate again after any other docs PR merges first.
-- `docs/plans/2026-10-04-PROHIBITED-PARAPHRASE.md`: no other open work edits it (PR #49 is merged).
-- No product file is touched, so there is no code overlap with P5 or any other phase.
+PR **https://github.com/BrooklynD23/HealthCentral/pull/54** · branch `fix/p5-utcnow-migration` · base `origin/main@777adf5` · worktree `../hc-p5`
 
-Next action: the owner answers PARA-1 (A, B or C).
+Plan: [`audit/2026-09-25/plans/05-utcnow-migration.md`](../plans/05-utcnow-migration.md) (amended in the first commit; execution record at its end).
+
+### Gates used
+
+| Gate | Row | Use |
+|---|---|---|
+| D13 | `docs/capstone-report/owner-decisions-2026-09-27.md:23` | the 6 swap lines in the auth file `api/profiles.py` |
+| P5-SCOPE ("Include TIME-03") | `:67` | `modules/badge_evaluator.py:84` → `utcnow()`; the dose-log `earned_at` string changes |
+| P5-IMPORT ("Yes, remove it") | `:74` | deletion of `from datetime import datetime` at `api/profiles.py:13` |
+| SLOT-RULE | `:31` | collected slots rewritten in the two commits that added tests |
+| CI-SEED | unsigned | not used: the lint's red state is proved locally only |
+
+### Task 0 (L1)
+
+| Check | Output |
+|---|---|
+| `git merge-base --is-ancestor <c> origin/main` for `cff3827` (P2), `6b4dd84` (P4-core), `2f0cb6f` (W-6), `7b2ff1f`, `692fdf3` (P1) | `0` each |
+| `git ls-files audit/2026-09-25/plans/05-utcnow-migration.md` | the path |
+| `ls scripts \| grep -c time_source_lint` (not already done) | `0` |
+| product lines / files with `datetime.utcnow` | `101` / `30` (the plan's enumeration, file by file) |
+| test lines | 20 in 8 files (18 in 7 files plus 2 string literals in `test_profile_recovery.py`) |
+| collected at base | `1370 tests collected` |
+| `grep -n "datetime" src/backend/api/profiles.py` at base | line 13 and the 6 swap lines only, so P5-IMPORT applies |
+
+### Plan amendments (commit `f12db77`, L1; each verified against the code first)
+
+| # | Amendment | Evidence |
+|---|---|---|
+| 1 | TIME-03 into scope as Task 12b; the "serialization unchanged" constraint now names the one accepted change | owner row P5-SCOPE; `api/medications.py:285` |
+| 2 | Import rule matches P5-IMPORT; the six files whose `datetime` import becomes unused are named | `grep -n datetime` on each |
+| 3 | The lint is an AST scan | the plan's line-regex matched the docstring at `src/backend/core/time.py:18`; the AST version, run on the unmigrated tree, reported 101 lines in 30 files and nothing in `core/time.py` |
+| 4 | CI step name quoted; placed after `Repo hygiene check` | unquoted `Lint: …` is a YAML mapping error; `ci.yml:30-31` |
+| 5 | Seeded-gate command uses real paths | the old one `cd /tmp` then used repo-relative paths and a `<repo>` placeholder |
+| 6 | Moved line numbers; Task 1 = 13 files; Task 12 = 7 files / 18 sites | re-measured at `777adf5` |
+| 7 | HC-TIME-005 added (D13: "tests must show identical serialization") | no test in the first version looked at a response |
+| 8 | Task 14 Step 2 third grep: three lines, not two (corrected after execution) | `tests/test_time_source.py:4` is a docstring the plan itself adds |
+
+### Commits
+
+| # | Commit | Author |
+|---|---|---|
+| 1 | `f12db77` docs(p5): amend the utcnow plan for P5-SCOPE, P5-IMPORT and the Codex plan review | L1 |
+| 2 | `9e6bea3` test(time): pin naive-UTC semantics of core.time.utcnow | L2 (Sonnet) |
+| 3 | `2fdd5f1` fix(models): use core.time.utcnow for all column defaults | L2 |
+| 4 | `950a821` fix(api): use core.time.utcnow in documents routes | L2 |
+| 5 | `b2a4e8c` fix(api): use core.time.utcnow for verification timestamps | L2 |
+| 6 | `2c47f22` fix(api): use core.time.utcnow in notification routes | L2 |
+| 7 | `da0d383` fix(api): finish core.time.utcnow migration in profiles/model_settings | L2 |
+| 8 | `bdce42f` fix(modules): use core.time.utcnow in notification scheduler | L2 |
+| 9 | `55e9be1` fix(modules): use core.time.utcnow in adherence patterns | L2 |
+| 10 | `48eeb72` fix(modules): use core.time.utcnow in platform notifications | L2 |
+| 11 | `09a640f` fix(agent): use core.time.utcnow for step timestamps and trend cutoff | L2 |
+| 12 | `f00e69f` fix(modules): use core.time.utcnow at export/ingest serialization sites | L2 |
+| 13 | `7b00902` fix(modules): use core.time.utcnow in hardware detection and model selector | L2 |
+| 14 | `2d1b279` test: use core.time.utcnow in remaining test helpers | L2 |
+| 15 | `1a7b33e` fix(gamification): store and return the badge timestamp as naive UTC | L2 |
+| 16 | `d4b70dd` ci: gate src/backend on core.time.utcnow helper | L2 |
+
+| 17 | `41dcb35` ci: time-source lint fails when it scanned nothing; exclude only top-level tests | L2 |
+
+A last commit (L1) carries the plan's execution record, the session note and this report.
+
+### Commands and outputs (L1 unless marked; D9 venv Python 3.11.16, `HF_HUB_OFFLINE=1`)
+
+| Check | Output |
+|---|---|
+| `grep -rn "datetime\.utcnow" src/backend --include="*.py" \| grep -v "src/backend/tests/" \| wc -l` | `0` (was `101`) |
+| `grep -rn "datetime\.utcfromtimestamp" src/backend --include="*.py" \| grep -v "src/backend/tests/"` | one line: the docstring at `src/backend/core/time.py:18` |
+| `grep -rn "datetime\.utcnow" src/backend/tests --include="*.py"` | three lines: `test_profile_recovery.py:344`, `:350` (literals), `test_time_source.py:4` (docstring) |
+| `python3 scripts/time_source_lint.py; echo exit=$?` on the clean tree (at `d4b70dd`) | `time_source_lint passed: no datetime.utcnow/utcfromtimestamp in src/backend product code.` `exit=0` |
+| the same at `41dcb35` | `time_source_lint passed: no datetime.utcnow/utcfromtimestamp in 173 src/backend product files.` `exit=0`; seeded probe → `exit=1` (L1); a probe under `src/backend/modules/tests/` → `exit=1`, an empty scan root → `time_source_lint ERROR: scanned 0 .py files …` `exit=1` (L2, agent) |
+| at `d4b70dd`, with `src/backend/_planted_lint_probe.py` seeded (`x = datetime.utcnow()`) | `src/backend/_planted_lint_probe.py:2: x = datetime.utcnow()` `exit=1`; probe removed |
+| break-it: `models/audit.py` swap reverted | `src/backend/models/audit.py:63: DateTime, default=datetime.utcnow, nullable=False, index=True` `exit=1`; restored → `exit=0` |
+| `python -c "import yaml; …ci.yml… ['docs-lint']['steps']"` | `[None, 'Set up Python', 'Run docs lint', 'Check generated docs freshness', 'Lint feature inventory', 'Repo hygiene check', 'Lint: deprecated datetime helpers banned in backend']` |
+| every changed line that is not a pure `datetime.utcnow` → `utcnow` swap (script over `git diff -U0`) | only: 29 added `from core.time import utcnow`; 6 deleted `from datetime import datetime` (the named files); `badge_evaluator.py:84`; blank lines beside the import in 5 files; the new tests. 120 pure swap lines |
+| `git diff origin/main...HEAD -- src/backend/api/profiles.py` | 7 changed lines: 6 swaps (3 in `create_profile`, `login`, `unlock_profile`, `change_password`) and the deleted import |
+| ruff `F401,F811,F821` and `I` on the changed files, head vs base | 35 vs 35 and 44 vs 44; no new finding |
+| `pytest tests/test_time_source.py tests/test_medications_dose_logging.py -p no:cacheprovider -q` | `8 passed in 7.23s` |
+| Task 12b RED (L2, agent) | `2 failed, 6 passed`; HC-TIME-007: `AssertionError: 2026-10-08T22:13:57.693517+00:00` |
+| break-it: `modules.badge_evaluator.utcnow` patched to an aware clock, in-process | `FAILED …test_hc_time_006…`, `FAILED …test_hc_time_007…`, `2 failed, 6 deselected`, rc=1 |
+| collect-only | `1377 tests collected` |
+| full suite under flock at `d4b70dd` | `1377 passed, 66 warnings in 226.47s (0:03:46)`, rc=0 |
+| full suite under flock at `3ccf9b1` (after the lint hardening and the docs commit) | `1377 passed, 54 warnings in 237.91s (0:03:57)`, rc=0 (no thread warnings this time) |
+| `python -c "from main import app; print('boot ok')"` | `boot ok` |
+| `timeout 600 python scripts/agent_eval_gate.py; echo rc=$?` (GATE-14) | `All 74 golden cases passed.` `Agent eval gate: PASS` `rc=0` (it exited by itself on Linux 3.11) |
+| frontend on Windows, `npm ci; npx vitest run`, before any code change (at `f12db77`) | `Test Files 34 passed (34)`, `Tests 195 passed (195)` |
+| frontend on Windows at `d4b70dd`, 4 full runs | runs 1 and 2: `1 failed \| 194 passed` (FE-BKUP-001 in `BackupRestoreFlow.test.tsx`, while two review agents were running tests); that file alone: `4 passed`; run 4: `34 passed (34)`, `195 passed (195)`. Run 3's summary line was not captured. No frontend file is in the diff (`git diff origin/main...HEAD --name-only \| grep -c src/frontend` → `0`) |
+
+The 66 warnings (base runs: 54): 12 `PytestUnhandledThreadExceptionWarning` (aiosqlite "Event loop is closed") in `tests/agent/test_s5_cutover_cache.py`. L1 ran `tests/agent/` three times per tree: the P5 tree printed 14, 14 and 4 such lines; a tree with `origin/main` product code printed 0, 0 and 14. So the warning also occurs without this diff; it is teardown timing, not P5.
+
+Collected-count delta: **1370 → 1377 (+7)**: HC-TIME-001…005 (`9e6bea3`, slots → 1375) and HC-TIME-006, 007 (`1a7b33e`, slots → 1377).
+
+### TIME-03 trace (L1, before the change; both reviewers re-derived it)
+
+| Reader / writer of the badge timestamp | Effect of the naive value |
+|---|---|
+| `_to_local_date(now, tz)`, `badge_evaluator.py:86` | none: a naive value is read as UTC (`:53-54`) |
+| `EarnedBadge.earned_at`, naive `DateTime` (`models/gamification.py:64-68`, migration `003:70`) | stored text identical (the reviewers checked: both forms store `2026-03-04 08:00:00.123456`) |
+| `BadgeInfo.from_result`, `api/medications.py:285` | **the accepted change:** `…123456+00:00` → `…123456` |
+| `api/gamification.py:102` | unchanged; it already returned the naive form read back from the database |
+| comparisons with another datetime | none |
+| frontend | `BadgeInfo.earned_at` (`services/types.ts:454`) has no reader; `BadgeToast.tsx` shows icon and name; `AchievementsWidget.tsx:43,45` reads `BadgeStatus` from `/gamification/badges` |
+
+### Reviews
+
+| Reviewer | Verdict | What was fixed |
+|---|---|---|
+| code-reviewer (Opus) at `d4b70dd` | APPROVE; 0 critical, 0 high, 0 medium, 4 low | L1 (lint misses aliased imports) recorded as a known limit in the plan; L2 (HC-TIME-001…005 pass before and after) stated in the PR; L3, L4 no change |
+| security-reviewer (Opus) at `d4b70dd` | APPROVE; 0 critical, 0 high, 0 medium, 3 low. Auth diff is exactly 7 lines; no swapped value feeds a security decision (lockout uses `time.time()`, token revocation `session.expires_at.timestamp()`); no aware/naive pairing; export formats byte-identical; no log line added | L1 (lint passes when it scanned nothing) and L2 (`tests` excluded at any depth) fixed in a follow-up commit; L3 (aliases) recorded as a known limit |
+
+### Findings not fixed (owner items)
+
+| # | Finding | Evidence |
+|---|---|---|
+| 1 | `AchievementsWidget.tsx:45` parses an offset-less timestamp with `new Date(...)`, which browsers read as local time; a badge earned near midnight UTC can show the neighbouring day. Pre-existing; not changed by P5 | `src/frontend/src/components/medication-coach/AchievementsWidget.tsx:45`; `api/gamification.py:102` |
+| 2 | The other aware-datetime sites stay as they are (TIME-03 remainder) | `core/auth.py:73,144,207`, `core/security.py:136`, `core/token_revocation.py:51`, `api/export.py:949,1005`, `api/model_settings.py:344`, `api/gamification.py:148`, `api/medications.py:84` |
+| 3 | The lint does not see an aliased import (`from datetime import datetime as dt; dt.utcnow()`) or `getattr` | both reviews; no such alias exists in product code today |
+| 4 | HC-TIME-001…005 pass before and after the migration; a missed swap is caught by the lint only. HC-TIME-005 (the D13 serialization evidence) pins `ProfileResponse.from_model`, not the HTTP routes | plan Task 0; both reviews |
+| 5 | `docs/architecture/ci-and-quality-gates.md:17` does not list the new `docs-lint` step | W-11a PR-3 Task 9 owns that file |
+| 6 | Pass-count sentences are stale: `CLAUDE.md:31` "all 1288 pass", `AGENT.md:76` "1269 pass in CI"; this machine: 1377 passed | AGENT-PASS-LINE; the slot rule covers the collected number only |
+| 7 | FE-BKUP-001 (`src/frontend/src/__tests__/BackupRestoreFlow.test.tsx`) failed in 2 of 4 full vitest runs on a loaded machine and passes alone | frontend row above |
+| 8 | `tests/agent/test_s5_cutover_cache.py` intermittently prints aiosqlite "Event loop is closed" thread warnings in longer runs, with and without this diff | warnings paragraph above |
+| 9 | The lint's red state in real CI is unproved (CI-SEED unsigned) | local proof only |
+| 10 | The commit subject of `1a7b33e` says "store … as naive UTC"; the stored value did not change, only the in-memory value and the response string | reviewers' SQLite check |
+
+### Merge-order notes (both phases)
+
+- **Count slots** (`CLAUDE.md:30`, `:35`, `AGENT.md:76`): Phase 1 writes 1374, P5 writes 1377, both from 1370. Whichever merges second merges `origin/main`, re-measures and rewrites: the number after both is **1381** (1370 + 4 + 7), to be measured, not assumed. Any PR from the other L1 that changes collection shifts this again.
+- **This report file**: add/add conflict between the two branches; take the P5 copy.
+- **`docs/features/TASK_LIST.md`**: P5 adds a Session Note at the top; other open PRs that add one conflict there (keep both, newest first).
+- **`docs/INDEX.md`, `docs/_link_graph.json`**: regenerated on each branch; regenerate after the second merge.
+- **`.github/workflows/ci.yml`**: P5 appends one step to `docs-lint`; order P5 → W-4 → W-11a PR-3 → W-8 (pack §5).
+- **Product files P5 touches that later phases also edit** (P5 first): `api/profiles.py` (P7, W-11a PR-1, G-C1), `modules/export.py` (W-2), `api/observations.py` (W-3), `api/interpretations.py`, `modules/model_selector.py` (W-7), `api/documents.py` (W-8), `models/document_category.py` (P6).
+- Phase 1 touches no product file, so the two PRs do not overlap in code and can merge in either order.
+
+Next action: the owner answers PARA-1 on PR #51, and reviews the 7-line `api/profiles.py` diff on PR #54.

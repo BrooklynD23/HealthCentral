@@ -29,6 +29,7 @@ from core.config import settings, user_ocr_preference_enabled, compute_ocr_effec
 from core.audit import log_document_event, audit_and_commit
 from core.auth import RequireAuth, Session, ProfileDbSession
 from core.document_crypto import get_decrypted_document, get_profile_encryption_key
+from core.time import utcnow
 from models import (
     CarePlanTask,
     Chunk,
@@ -468,7 +469,7 @@ async def import_document(
         status="pending",
         page_count=import_result.page_count,
         metadata_json=json.dumps(import_result.metadata),
-        imported_at=datetime.utcnow(),
+        imported_at=utcnow(),
     )
 
     profile_db.add(document)
@@ -667,7 +668,7 @@ async def _run_extraction_pipeline(
         observations_extracted = len(extraction_result.observations)
         needs_verification = _compute_needs_verification(extraction_result.observations)
         document.status = "parsed"
-        document.parsed_at = datetime.utcnow()
+        document.parsed_at = utcnow()
         document.verified_at = None
 
         try:
@@ -805,7 +806,7 @@ async def _run_structured_import_pipeline(
     document.collection_date = min(valid_dates) if valid_dates else None
 
     document.status = "parsed"
-    document.parsed_at = datetime.utcnow()
+    document.parsed_at = utcnow()
     document.verified_at = None
 
     await profile_db.commit()
@@ -1270,7 +1271,7 @@ async def verify_document(
         select(Observation).where(Observation.doc_id == document_id)
     )
     observations = result.scalars().all()
-    now = datetime.utcnow()
+    now = utcnow()
     for obs in observations:
         obs.user_verified = True
         obs.verified_at = now

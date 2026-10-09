@@ -15,6 +15,7 @@ from sqlalchemy import String, Integer, DateTime, Text, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.profile_database import ProfileDatabaseBase
+from core.time import utcnow
 
 if TYPE_CHECKING:
     from .document import Document
@@ -67,7 +68,7 @@ class Chunk(ProfileDatabaseBase):
 
     # Processing timestamp
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
+        DateTime, default=utcnow, nullable=False
     )
 
     # Relationships

@@ -12,6 +12,7 @@ from sqlalchemy import String, Boolean, DateTime, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.profile_database import ProfileDatabaseBase
+from core.time import utcnow
 
 
 class UserModelSettings(ProfileDatabaseBase):
@@ -139,13 +140,13 @@ class UserModelSettings(ProfileDatabaseBase):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utcnow,
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utcnow,
+        onupdate=utcnow,
     )
 
     def __repr__(self) -> str:

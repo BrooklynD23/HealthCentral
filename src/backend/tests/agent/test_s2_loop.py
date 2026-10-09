@@ -7,13 +7,14 @@ from datetime import datetime
 
 import pytest
 
+from core.time import utcnow
 from modules.agent.state import MAX_STEPS, RunLog, RunStep
 from tests.agent.conftest import load_golden_cases, seed_document, seed_observation
 from tests.agent.eval_harness import run_golden_case
 
 
 def _act_step(i: int) -> RunStep:
-    return RunStep(step_index=i, node="act", timestamp=datetime.utcnow())
+    return RunStep(step_index=i, node="act", timestamp=utcnow())
 
 
 # --- live: budget accounting on the run log (FR-6) --------------------------

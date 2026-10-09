@@ -8,6 +8,8 @@ from typing import ClassVar, Literal
 from pydantic import Field
 from sqlalchemy import select
 
+from core.time import utcnow
+
 from ..audit import AgentAuditEvent, emit_audit_event
 from ..state import ToolContext
 from .base import ToolInput, ToolOutput
@@ -57,7 +59,7 @@ class ComputeTrendTool:
             Observation.analyte_canonical.ilike(args.analyte),
         )
         if args.window_days is not None:
-            cutoff = datetime.utcnow() - timedelta(days=args.window_days)
+            cutoff = utcnow() - timedelta(days=args.window_days)
             stmt = stmt.where(Observation.collected_at >= cutoff)
         stmt = stmt.order_by(Observation.collected_at.asc())
 

@@ -17,6 +17,7 @@ from sqlalchemy import String, Float, Boolean, Integer, DateTime, Time, Text, Fo
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.profile_database import ProfileDatabaseBase
+from core.time import utcnow
 
 
 class Medication(ProfileDatabaseBase):
@@ -70,16 +71,16 @@ class Medication(ProfileDatabaseBase):
 
     # Medication lifecycle dates
     started_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
+        DateTime, default=utcnow, nullable=False
     )
     ended_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
+        DateTime, default=utcnow, nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        DateTime, default=utcnow, onupdate=utcnow, nullable=False
     )
 
     # Relationships
@@ -149,10 +150,10 @@ class MedicationSchedule(ProfileDatabaseBase):
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
+        DateTime, default=utcnow, nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        DateTime, default=utcnow, onupdate=utcnow, nullable=False
     )
 
     # Relationships
@@ -226,7 +227,7 @@ class DoseTaken(ProfileDatabaseBase):
 
     # When the log entry was created (may differ from taken_at for retroactive logging)
     logged_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
+        DateTime, default=utcnow, nullable=False
     )
 
     # Relationships
@@ -298,7 +299,7 @@ class AdherencePattern(ProfileDatabaseBase):
 
     # When this pattern was last calculated
     learned_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
+        DateTime, default=utcnow, nullable=False
     )
 
     # Pattern validity period (should be recalculated after this date)
@@ -366,7 +367,7 @@ class ReminderLog(ProfileDatabaseBase):
 
     # When the reminder was sent
     sent_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False, index=True
+        DateTime, default=utcnow, nullable=False, index=True
     )
 
     # Delivery method
@@ -384,7 +385,7 @@ class ReminderLog(ProfileDatabaseBase):
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
+        DateTime, default=utcnow, nullable=False
     )
 
     def __repr__(self) -> str:

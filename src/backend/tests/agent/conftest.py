@@ -25,6 +25,8 @@ import pytest_asyncio
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
+from core.time import utcnow
+
 GOLDEN_DIR = Path(__file__).parent / "golden"
 
 
@@ -92,7 +94,7 @@ async def seed_document(
                 content_hash="hash",
                 doc_type="lab_pdf",
                 status="verified",
-                imported_at=datetime.utcnow(),
+                imported_at=utcnow(),
                 collection_date=collection_date,
             )
         )
@@ -126,7 +128,7 @@ async def seed_observation(
                 analyte_raw=analyte,
                 value=value,
                 unit=unit,
-                collected_at=collected_at or datetime.utcnow(),
+                collected_at=collected_at or utcnow(),
                 user_verified=verified,
             )
         )
@@ -190,8 +192,8 @@ async def seed_care_task(
                 due_date=due_date,
                 source_document_id=source_document_id,
                 source_quote=source_quote,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow(),
+                created_at=utcnow(),
+                updated_at=utcnow(),
             )
         )
         await session.commit()
@@ -222,7 +224,7 @@ async def seed_medication_change_entity(
                 confidence=0.9,
                 quote=quote,
                 verified_by_user=verified_by_user,
-                created_at=datetime.utcnow(),
+                created_at=utcnow(),
             )
         )
         await session.commit()

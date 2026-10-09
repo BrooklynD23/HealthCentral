@@ -10,6 +10,7 @@ from sqlalchemy import String, Text, Integer, DateTime, ForeignKey, UniqueConstr
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.profile_database import ProfileDatabaseBase
+from core.time import utcnow
 
 
 class BadgeDefinition(ProfileDatabaseBase):
@@ -64,7 +65,7 @@ class EarnedBadge(ProfileDatabaseBase):
     earned_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utcnow,
     )
 
     def __repr__(self) -> str:

@@ -15,6 +15,7 @@ from sqlalchemy import String, DateTime, Text, ForeignKey, LargeBinary
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.profile_database import ProfileDatabaseBase
+from core.time import utcnow
 
 if TYPE_CHECKING:
     from .chunk import Chunk
@@ -60,7 +61,7 @@ class Embedding(ProfileDatabaseBase):
 
     # Processing timestamp
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
+        DateTime, default=utcnow, nullable=False
     )
 
     # Relationship
