@@ -27,9 +27,8 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
 ## 4. Loop toward verifiable success criteria
 
 - Write or extend a test first, then make it pass. Tests live in `src/backend/tests/` (pytest, `HC-XXX-NNN` naming) and `src/frontend` (vitest + Playwright e2e).
-- Baseline: **1381 backend tests collected.** Where a real embedding model is
-  installed (CI) all 1288 pass; without one, `test_api_rag_index_002b` fails on
-  embedding similarity. That failure is environmental — it is not yours, and you
+- Baseline: **1381 backend tests collected.** Without a real embedding
+  model installed, `test_api_rag_index_002b` fails on embedding similarity. That failure is environmental — it is not yours, and you
   must not "fix" it by lowering the 0.7 threshold. Judge yourself on the
   **collected** count, which does not vary by environment: if it differs from
   1381, this line is stale — update it in the same commit rather than working
@@ -57,7 +56,7 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
 - **Target Python 3.11+.** Do not use Python 3.12+ only syntax or APIs unless the project explicitly raises the minimum version. Use `core.time.utcnow` as the single timestamp helper.
 - **Per-profile data isolation.** Patient data lives in per-profile SQLCipher DBs via `ProfileDbSession`. Never query profile data through the master `get_db()`.
 - **Local-first.** No network calls in product code paths. Ollama provider is localhost-only by design — keep it that way.
-- **Redaction before anything leaves.** Any path that writes user text to exportable files or external runners must pass through `modules/redaction.py` first. Named exceptions, owner decision D3 (2026-09-27): the CSV and JSON exports are the patient's own data export and stay full-fidelity, like backups (BKUP-UX-001). The doctor summary goes to a third party and must be redacted at `strict`. The opt-in external runner must apply `strict` redaction on every call (owner decision D12); break-glass is the only bypass, and only with an audit record and a UI warning (D12: "keep break-glass only with audit + UI warning"). Record: `docs/capstone-report/owner-decisions-2026-09-27.md`. Code conformance is tracked in `docs/capstone-report/specs-compliance-matrix.md` rows PRIV-04 and LOCAL-04.
+- **Redaction before anything leaves.** Any path that writes user text to exportable files or external runners must pass through `modules/redaction.py` first. Named exceptions, owner decision D3 (2026-09-27): only `GET /export/csv` and `GET /export/json` are exempt (the patient's own data export, full-fidelity, like backups (BKUP-UX-001)); no other export is exempt. The doctor summary goes to a third party and must be redacted at `strict`. The opt-in external runner must apply `strict` redaction on every call (owner decision D12); break-glass is the only bypass, and only with an audit record and a UI warning (D12: "keep break-glass only with audit + UI warning"). Record: `docs/capstone-report/owner-decisions-2026-09-27.md`. Code conformance is tracked in `docs/capstone-report/specs-compliance-matrix.md` rows PRIV-04 and LOCAL-04.
 - **Audit logging** on every route that touches documents, observations, or profile data.
 - **No medical advice.** Outputs are educational, grounded, and cited. On the legacy RAG path `[cite:N]` is the validated citation marker (`modules/rag.py`, `RAGModule.validate_response`); `[YOUR_RESULTS:N]` / `[REFERENCE:N]` are context labels, not citation markers (owner decision D11, 2026-09-27). `interpret_safety` prohibited patterns (diagnosis, dosing) must keep passing.
 - **Dual migrations.** Master DB and per-profile DB have separate Alembic chains (`migrations/master/`, `migrations/profile/`). New profile tables = new profile migration, linear `down_revision`.
