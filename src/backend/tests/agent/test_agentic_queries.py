@@ -14,6 +14,7 @@ from datetime import date, datetime
 import pytest
 from pydantic import ValidationError
 
+from core.time import utcnow
 from modules.agent.state import RunLog, RunStep
 from modules.agent.tools import registry
 from tests.agent.conftest import (
@@ -31,7 +32,7 @@ def _act_step(tool_name: str, output: dict, index: int = 0) -> RunStep:
         step_index=index,
         node="act",
         payload={"tool_name": tool_name, "output": output},
-        timestamp=datetime.utcnow(),
+        timestamp=utcnow(),
     )
 
 

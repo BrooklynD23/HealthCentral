@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from core.audit import audit_and_commit, log_observation_event
 from core.auth import RequireAuth, Session, ProfileDbSession
+from core.time import utcnow
 from models import Document, Observation
 from modules.normalize import (
     canonical_unit_for,
@@ -456,7 +457,7 @@ async def verify_observation(
 
     # Mark as verified
     observation.user_verified = True
-    observation.verified_at = datetime.utcnow()
+    observation.verified_at = utcnow()
     observation.version += 1
 
     # Recalculate abnormal status
@@ -486,7 +487,7 @@ async def verify_observation(
         document = doc_result.scalar_one_or_none()
         if document is not None and document.status != "verified":
             document.status = "verified"
-            document.verified_at = datetime.utcnow()
+            document.verified_at = utcnow()
 
     await profile_db.commit()
 

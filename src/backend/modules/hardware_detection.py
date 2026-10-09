@@ -20,6 +20,8 @@ from typing import Optional, Tuple
 
 import psutil
 
+from core.time import utcnow
+
 logger = logging.getLogger(__name__)
 
 
@@ -200,7 +202,7 @@ class HardwareProfile:
     max_supported_tier: str = "low"
 
     # Metadata
-    detection_timestamp: datetime = field(default_factory=datetime.utcnow)
+    detection_timestamp: datetime = field(default_factory=utcnow)
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON storage."""
@@ -225,7 +227,7 @@ class HardwareProfile:
         if isinstance(timestamp, str):
             timestamp = datetime.fromisoformat(timestamp)
         elif timestamp is None:
-            timestamp = datetime.utcnow()
+            timestamp = utcnow()
 
         return cls(
             ram_total_gb=data.get("ram_total_gb", 0),
@@ -301,7 +303,7 @@ def detect_hardware(models_path: Optional[str] = None) -> HardwareProfile:
         gpu_name=gpu_name,
         recommended_tier=recommended_tier,
         max_supported_tier=recommended_tier,
-        detection_timestamp=datetime.utcnow(),
+        detection_timestamp=utcnow(),
     )
 
     logger.info(

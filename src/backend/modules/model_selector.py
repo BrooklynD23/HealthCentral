@@ -21,6 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
+from core.time import utcnow
 from models import UserModelSettings
 from .hardware_detection import (
     HardwareProfile,
@@ -281,15 +282,15 @@ class ModelSelector:
 
         if settings_row:
             settings_row.preferred_tier = tier
-            settings_row.updated_at = datetime.utcnow()
+            settings_row.updated_at = utcnow()
         else:
             settings_row = UserModelSettings(
                 id=str(uuid.uuid4()),
                 profile_id=profile_id,
                 preferred_tier=tier,
                 auto_detect_enabled=True,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow(),
+                created_at=utcnow(),
+                updated_at=utcnow(),
             )
             db.add(settings_row)
 
@@ -319,8 +320,8 @@ class ModelSelector:
 
         if settings_row:
             settings_row.last_hardware_json = json.dumps(hardware.to_dict())
-            settings_row.last_detection_at = datetime.utcnow()
-            settings_row.updated_at = datetime.utcnow()
+            settings_row.last_detection_at = utcnow()
+            settings_row.updated_at = utcnow()
         else:
             settings_row = UserModelSettings(
                 id=str(uuid.uuid4()),
@@ -328,9 +329,9 @@ class ModelSelector:
                 preferred_tier="low",
                 auto_detect_enabled=True,
                 last_hardware_json=json.dumps(hardware.to_dict()),
-                last_detection_at=datetime.utcnow(),
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow(),
+                last_detection_at=utcnow(),
+                created_at=utcnow(),
+                updated_at=utcnow(),
             )
             db.add(settings_row)
 
@@ -692,7 +693,7 @@ class ModelSelector:
             progress = DownloadProgress(
                 tier=tier,
                 status="downloading",
-                started_at=datetime.utcnow(),
+                started_at=utcnow(),
             )
             await self.update_download_progress(profile_id, tier, progress, db)
             await db.commit()
@@ -702,7 +703,7 @@ class ModelSelector:
 
             if profile_id and db:
                 progress.status = "completed" if result else "failed"
-                progress.completed_at = datetime.utcnow()
+                progress.completed_at = utcnow()
                 progress.path = str(result) if result else None
                 await self.update_download_progress(profile_id, tier, progress, db)
                 await db.commit()
@@ -715,7 +716,7 @@ class ModelSelector:
                     tier=tier,
                     status="failed",
                     error=str(e),
-                    completed_at=datetime.utcnow(),
+                    completed_at=utcnow(),
                 )
                 await self.update_download_progress(profile_id, tier, progress, db)
                 await db.commit()
@@ -802,8 +803,8 @@ class ModelSelector:
                 id=str(uuid.uuid4()),
                 profile_id=profile_id,
                 preferred_tier="low",
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow(),
+                created_at=utcnow(),
+                updated_at=utcnow(),
             )
             db.add(settings_row)
 
@@ -815,7 +816,7 @@ class ModelSelector:
         # Update tier progress
         state[tier] = progress.to_dict()
         settings_row.download_state_json = json.dumps(state)
-        settings_row.updated_at = datetime.utcnow()
+        settings_row.updated_at = utcnow()
 
         await db.flush()
 

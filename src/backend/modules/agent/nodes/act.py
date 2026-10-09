@@ -14,9 +14,9 @@ for which tools self-emit.
 
 from __future__ import annotations
 
-from datetime import datetime
-
 from pydantic import BaseModel
+
+from core.time import utcnow
 
 from ..state import MAX_STEPS, RunLog, RunStep, ToolContext
 from ..tools import registry
@@ -54,7 +54,7 @@ async def act(tool_name: str, tool_args: dict, run_log: RunLog, ctx: ToolContext
             step_index=len(run_log.steps),
             node="act",
             payload={"tool_name": tool_name, "output": output_dict},
-            timestamp=datetime.utcnow(),
+            timestamp=utcnow(),
         )
     )
 

@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from core.audit import log_document_event
 from core.auth import RequireAuth, Session, ProfileDbSession
+from core.time import utcnow
 from models import (
     Medication,
     MedicationSchedule,
@@ -452,7 +453,7 @@ async def send_test_medication_notification(
     streak = await pattern_learner.calculate_streak(medication_id, profile_db)
 
     # Generate message
-    now = datetime.utcnow()
+    now = utcnow()
     context = MessageContext(
         medication_name=medication.name,
         schedule_label="test",
@@ -550,7 +551,7 @@ async def record_reminder_interaction(
 
     reminder.was_interacted = True
     reminder.interaction_type = interaction_type
-    reminder.interacted_at = datetime.utcnow()
+    reminder.interacted_at = utcnow()
 
     if interaction_type == "snoozed" and snooze_minutes:
         reminder.snooze_minutes = snooze_minutes
@@ -611,7 +612,7 @@ async def _calculate_notification_stats(
     db: AsyncSession,
 ) -> dict:
     """Calculate notification statistics."""
-    now = datetime.utcnow()
+    now = utcnow()
     seven_days_ago = now - timedelta(days=7)
     thirty_days_ago = now - timedelta(days=30)
 

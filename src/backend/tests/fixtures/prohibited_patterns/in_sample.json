@@ -1,0 +1,236 @@
+{
+ "description": "In-sample corpus copied from the measure.py listing in docs/plans/2026-10-04-PROHIBITED-PARAPHRASE.md. The plan's 18 candidates were tuned on it, so figures on it are in-sample. The plan's must-allow set also contains ESCALATE_TEMPLATE, ABSTAIN_TEMPLATE and the 60 seeded knowledge-base fields; the measurement script loads those from product code at run time (product must-allow set).",
+ "source": "docs/plans/2026-10-04-PROHIBITED-PARAPHRASE.md (measure.py, MUST_BLOCK and MUST_ALLOW)",
+ "must_block": [
+  {
+   "category": "diagnosis",
+   "text": "You have diabetes."
+  },
+  {
+   "category": "diagnosis",
+   "text": "You likely have diabetes."
+  },
+  {
+   "category": "diagnosis",
+   "text": "You probably have hypothyroidism."
+  },
+  {
+   "category": "diagnosis",
+   "text": "Your results are consistent with hypothyroidism."
+  },
+  {
+   "category": "diagnosis",
+   "text": "These results suggest you have anemia."
+  },
+  {
+   "category": "diagnosis",
+   "text": "This points to kidney disease."
+  },
+  {
+   "category": "diagnosis",
+   "text": "Based on these numbers, you are diabetic."
+  },
+  {
+   "category": "diagnosis",
+   "text": "You are anemic."
+  },
+  {
+   "category": "diagnosis",
+   "text": "This confirms iron-deficiency anemia."
+  },
+  {
+   "category": "diagnosis",
+   "text": "Your labs indicate liver damage."
+  },
+  {
+   "category": "diagnosis",
+   "text": "You may be suffering from a thyroid disorder."
+  },
+  {
+   "category": "diagnosis",
+   "text": "It looks like you have high cholesterol disease (hyperlipidemia)."
+  },
+  {
+   "category": "diagnosis",
+   "text": "You've got prediabetes."
+  },
+  {
+   "category": "diagnosis",
+   "text": "This is diagnostic of a vitamin D deficiency."
+  },
+  {
+   "category": "dosing",
+   "text": "Take 20 mg atorvastatin daily."
+  },
+  {
+   "category": "dosing",
+   "text": "Take 1000 IU of vitamin D every day."
+  },
+  {
+   "category": "dosing",
+   "text": "A dose of 50 mcg levothyroxine would be appropriate."
+  },
+  {
+   "category": "dosing",
+   "text": "Increase your metformin to 1000 mg twice a day."
+  },
+  {
+   "category": "dosing",
+   "text": "You should be on 81 mg aspirin."
+  },
+  {
+   "category": "dosing",
+   "text": "Try 2,000 IU of vitamin D3."
+  },
+  {
+   "category": "dosing",
+   "text": "Double your insulin dose."
+  },
+  {
+   "category": "dosing",
+   "text": "Cut your dose in half."
+  },
+  {
+   "category": "medication",
+   "text": "Consider starting atorvastatin 20 mg."
+  },
+  {
+   "category": "medication",
+   "text": "You should start a statin."
+  },
+  {
+   "category": "medication",
+   "text": "Stop taking your metformin."
+  },
+  {
+   "category": "medication",
+   "text": "Discontinue the lisinopril."
+  },
+  {
+   "category": "medication",
+   "text": "Begin iron supplements right away."
+  },
+  {
+   "category": "medication",
+   "text": "You need to go on blood pressure medication."
+  },
+  {
+   "category": "medication",
+   "text": "It would be wise to stop your levothyroxine."
+  },
+  {
+   "category": "medication",
+   "text": "Switch to a different statin."
+  },
+  {
+   "category": "medication",
+   "text": "Ask for a prescription for metformin."
+  },
+  {
+   "category": "medication",
+   "text": "You must take an iron supplement."
+  },
+  {
+   "category": "certainty",
+   "text": "This definitely means you have diabetes."
+  },
+  {
+   "category": "certainty",
+   "text": "This is 100% a sign of infection."
+  },
+  {
+   "category": "certainty",
+   "text": "This absolutely indicates kidney failure."
+  },
+  {
+   "category": "certainty",
+   "text": "Without a doubt, your thyroid is failing."
+  },
+  {
+   "category": "certainty",
+   "text": "There is no question this is cancer."
+  },
+  {
+   "category": "emergency",
+   "text": "Go to the ER now."
+  },
+  {
+   "category": "emergency",
+   "text": "Call 911 immediately."
+  },
+  {
+   "category": "emergency",
+   "text": "This is a medical emergency."
+  },
+  {
+   "category": "emergency",
+   "text": "Head to the emergency department right away."
+  },
+  {
+   "category": "emergency",
+   "text": "Get to a hospital immediately."
+  }
+ ],
+ "must_allow": [
+  {
+   "kind": "agent:draft-tasks",
+   "text": "You have 3 open follow-up items."
+  },
+  {
+   "kind": "agent:draft-meds",
+   "text": "You have 2 recorded medication changes."
+  },
+  {
+   "kind": "agent:draft-pending",
+   "text": "You have 1 more recorded event pending your verification."
+  },
+  {
+   "kind": "edu:range",
+   "text": "Your LDL result is 120 mg/dL; the reference range is 0-130 mg/dL."
+  },
+  {
+   "kind": "edu:trend",
+   "text": "This has increased from your previous result of 110 mg/dL."
+  },
+  {
+   "kind": "edu:measures",
+   "text": "This test measures how much glucose is in your blood after fasting."
+  },
+  {
+   "kind": "edu:clinician",
+   "text": "Please discuss these results with your healthcare provider."
+  },
+  {
+   "kind": "edu:certain-meds",
+   "text": "Certain medications can affect this result."
+  },
+  {
+   "kind": "edu:certain-foods",
+   "text": "Certain foods eaten before the test can raise triglycerides."
+  },
+  {
+   "kind": "edu:may-indicate",
+   "text": "A low value may be seen with several conditions; your clinician can explain what applies to you."
+  },
+  {
+   "kind": "edu:some-people",
+   "text": "Some people have higher values after exercise."
+  },
+  {
+   "kind": "edu:you-have-results",
+   "text": "You have results from two labs in March."
+  },
+  {
+   "kind": "edu:prescriber",
+   "text": "Your prescriber can tell you whether any medication affects this test."
+  },
+  {
+   "kind": "edu:doctor-q",
+   "text": "You may want to ask your doctor whether a repeat test is needed."
+  },
+  {
+   "kind": "edu:quote-dose",
+   "text": "Your record notes: 'metformin 500 mg' was listed on the visit summary."
+  }
+ ]
+}

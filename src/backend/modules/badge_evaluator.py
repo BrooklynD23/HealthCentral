@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.time import utcnow
 from models.gamification import EarnedBadge
 from modules.streak_engine import compute_streak, detect_comeback_gap
 
@@ -81,7 +82,7 @@ async def evaluate_badges_after_dose(
     Returns:
         List of newly earned badges.
     """
-    now = datetime.now(dt_timezone.utc)
+    now = utcnow()
     tz = ZoneInfo(timezone)
     today = as_of_date or _to_local_date(now, tz)
     newly_earned: list[BadgeEvalResult] = []

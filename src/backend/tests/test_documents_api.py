@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from api.documents import router as documents_router
 from api import documents as documents_api
 from core.auth import Session, get_profile_db_session
+from core.time import utcnow
 from models import CarePlanTask, Document
 from modules.ingest import ImportResult
 from tests.support.routes import route_client
@@ -114,7 +115,7 @@ async def test_HC_DUP_006_duplicate_returns_201_with_warning(monkeypatch):
         status="parsed",
         page_count=1,
         metadata_json="{}",
-        imported_at=datetime.utcnow(),
+        imported_at=utcnow(),
     )
     profile_db = _FakeProfileDb(existing_doc=existing_doc, obs_count=2)
 
@@ -279,7 +280,7 @@ async def test_hc_documents_101_get_document_creates_view_audit_log():
         status="parsed",
         page_count=1,
         metadata_json="{}",
-        imported_at=datetime.utcnow(),
+        imported_at=utcnow(),
     )
     profile_db = _FakeSingleDocProfileDb(document)
     master_db = _FakeMasterDb()
@@ -322,7 +323,7 @@ async def test_hc_documents_103_get_document_fails_closed_on_audit_failure():
         status="parsed",
         page_count=1,
         metadata_json="{}",
-        imported_at=datetime.utcnow(),
+        imported_at=utcnow(),
     )
     profile_db = _FakeSingleDocProfileDb(document)
     master_db = _FailingMasterDb()
@@ -360,7 +361,7 @@ async def test_hc_documents_104_list_documents_fails_closed_on_audit_failure(mon
         status="parsed",
         page_count=1,
         metadata_json="{}",
-        imported_at=datetime.utcnow(),
+        imported_at=utcnow(),
     )
 
     class _FakeListProfileDb:
@@ -410,7 +411,7 @@ async def test_hc_documents_102_list_documents_creates_view_audit_log(monkeypatc
         status="parsed",
         page_count=1,
         metadata_json="{}",
-        imported_at=datetime.utcnow(),
+        imported_at=utcnow(),
     )
 
     class _FakeListProfileDb:
@@ -455,7 +456,7 @@ def _pin_cleanup_document(profile_id: str, *, doc_type: str = "visit_note_pdf") 
         status="parsed",
         page_count=1,
         metadata_json="{}",
-        imported_at=datetime.utcnow(),
+        imported_at=utcnow(),
     )
 
 

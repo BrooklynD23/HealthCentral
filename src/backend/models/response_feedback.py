@@ -14,6 +14,7 @@ from sqlalchemy import String, Text, DateTime, ForeignKey, Integer, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.profile_database import ProfileDatabaseBase
+from core.time import utcnow
 
 
 class ResponseFeedback(ProfileDatabaseBase):
@@ -98,12 +99,12 @@ class ResponseFeedback(ProfileDatabaseBase):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utcnow,
     )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utcnow,
+        onupdate=utcnow,
     )
