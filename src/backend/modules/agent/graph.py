@@ -45,8 +45,9 @@ import time
 import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Any
+
+from core.time import utcnow
 
 from .guardrails.classifier import classify_advice
 from .guardrails.guard import guard as run_guard
@@ -125,7 +126,7 @@ def _record_plan_step(run_log: RunLog, ctx: ToolContext, decision) -> None:
                 "tool_name": decision.tool_name,
                 "abstain_reason": decision.abstain_reason,
             },
-            timestamp=datetime.utcnow(),
+            timestamp=utcnow(),
         )
     )
 
@@ -136,7 +137,7 @@ def _record_reflect_step(run_log: RunLog, ctx: ToolContext, decision) -> None:
             step_index=ctx.step_index,
             node="reflect",
             payload={"decision": decision.decision, "remaining_budget": decision.remaining_budget},
-            timestamp=datetime.utcnow(),
+            timestamp=utcnow(),
         )
     )
 

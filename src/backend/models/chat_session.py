@@ -13,6 +13,7 @@ from sqlalchemy import String, Text, DateTime, ForeignKey, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.profile_database import ProfileDatabaseBase
+from core.time import utcnow
 
 
 class ChatSession(ProfileDatabaseBase):
@@ -46,14 +47,14 @@ class ChatSession(ProfileDatabaseBase):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utcnow,
     )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utcnow,
+        onupdate=utcnow,
     )
 
     # Relationship to turns (lazy loaded to avoid N+1 in list endpoints)
@@ -115,7 +116,7 @@ class ChatTurn(ProfileDatabaseBase):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utcnow,
     )
 
     session: Mapped["ChatSession"] = relationship(

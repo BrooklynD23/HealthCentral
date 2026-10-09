@@ -23,6 +23,7 @@ from core.auth import RequireAuth, ProfileDbSession, ProfileEncryptionManager
 from core.config import user_ocr_preference_enabled, compute_ocr_effective
 from core.external_runner import redaction_bypass_active
 from core.profile_database import get_profile_db_manager
+from core.time import utcnow
 from models import UserModelSettings
 from modules.agent.settings import is_agent_enabled
 from modules.environment_diagnostics import build_environment_diagnostics
@@ -661,7 +662,7 @@ async def start_model_download(
         tier=tier,
         status="pending",
         progress=0.0,
-        started_at=datetime.utcnow(),
+        started_at=utcnow(),
     )
     await selector.update_download_progress(
         profile_id=session.profile_id,
@@ -877,7 +878,7 @@ async def _write_download_status(
                 tier=tier,
                 status=download_status,
                 progress=progress_pct,
-                started_at=datetime.utcnow(),
+                started_at=utcnow(),
                 error=error,
             )
             await selector.update_download_progress(

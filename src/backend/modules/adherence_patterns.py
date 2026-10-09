@@ -18,6 +18,7 @@ from typing import Optional
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.time import utcnow
 from models import (
     Medication,
     MedicationSchedule,
@@ -191,7 +192,7 @@ class PatternLearner:
         Uses mean ± 1.5 standard deviations to capture ~86% of typical doses.
         """
         # Get recent non-skipped doses
-        cutoff = datetime.utcnow() - timedelta(days=days_lookback)
+        cutoff = utcnow() - timedelta(days=days_lookback)
 
         query = select(DoseTaken).where(
             and_(
@@ -263,7 +264,7 @@ class PatternLearner:
 
         Returns pattern only if there's a meaningful difference.
         """
-        cutoff = datetime.utcnow() - timedelta(days=days_lookback)
+        cutoff = utcnow() - timedelta(days=days_lookback)
 
         query = select(DoseTaken).where(
             and_(
@@ -329,7 +330,7 @@ class PatternLearner:
 
         Returns list of days with miss rates above average.
         """
-        cutoff = datetime.utcnow() - timedelta(days=days_lookback)
+        cutoff = utcnow() - timedelta(days=days_lookback)
 
         # Get all doses (taken and skipped)
         result = await db.execute(
@@ -427,7 +428,7 @@ class PatternLearner:
                 current = 1
 
         # Calculate current streak (counting backwards from today)
-        today = datetime.utcnow().date()
+        today = utcnow().date()
         current_streak = 0
         check_date = today
 
@@ -530,7 +531,7 @@ class PatternLearner:
                 }),
                 confidence=tw.confidence,
                 sample_size=tw.sample_size,
-                valid_until=datetime.utcnow() + timedelta(days=14),
+                valid_until=utcnow() + timedelta(days=14),
             )
             db.add(pattern)
             created_ids.append(pattern.id)
@@ -552,7 +553,7 @@ class PatternLearner:
                     }),
                     confidence=wp.confidence,
                     sample_size=wp.weekday_sample_size,
-                    valid_until=datetime.utcnow() + timedelta(days=14),
+                    valid_until=utcnow() + timedelta(days=14),
                 )
                 db.add(weekday_pattern)
                 created_ids.append(weekday_pattern.id)
@@ -570,7 +571,7 @@ class PatternLearner:
                     }),
                     confidence=wp.confidence,
                     sample_size=wp.weekend_sample_size,
-                    valid_until=datetime.utcnow() + timedelta(days=14),
+                    valid_until=utcnow() + timedelta(days=14),
                 )
                 db.add(weekend_pattern)
                 created_ids.append(weekend_pattern.id)
@@ -591,7 +592,7 @@ class PatternLearner:
                     }),
                     confidence=md.confidence,
                     sample_size=md.total_opportunities,
-                    valid_until=datetime.utcnow() + timedelta(days=14),
+                    valid_until=utcnow() + timedelta(days=14),
                 )
                 db.add(pattern)
                 created_ids.append(pattern.id)

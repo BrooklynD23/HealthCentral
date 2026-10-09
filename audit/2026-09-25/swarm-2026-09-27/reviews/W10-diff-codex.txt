@@ -1,0 +1,11 @@
+# Codex Adversarial Review
+
+Target: branch diff against origin/main
+Verdict: approve
+
+Approve: no material blocker found. The reviewed claims match the inspected code and signed decisions; the protected lines are unchanged.
+
+No material findings.
+
+Next steps:
+- Proceed with the docs-only merge.
