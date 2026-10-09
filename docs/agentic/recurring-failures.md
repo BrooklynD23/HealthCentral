@@ -61,6 +61,33 @@ drives two real profiles through `route_client` with a call-counting stub and
 caught it: profile B's response carried profile A's cached text and the stub
 ran only once instead of twice.
 
+A 2026-10-08 instance in a launcher (DEV-PS1-INSTALL, PR #55). The first
+version of the branch called `& npm ci` in `dev.ps1` STEP 5, and ten green
+cases of `scripts/check_dev_ps1_install.ps1` passed, because the check puts a
+stub `npm.cmd` first on PATH. The real call was broken: under Windows
+PowerShell 5.1 with npm 11.6.2, `npm` resolves to the `npm.ps1` shim, which
+cuts `InvocationName.Length` characters off the statement; through `&` that
+is one character, so npm receives `pm ci` and exits 1 (`Unknown command:
+"pm"`). `main`'s own `& npm install` (`dev.ps1:635` before #55) had the same
+bug, so a first-time launch could not install. The first real `npm` run found
+it; the merged fix calls the npm application found by
+`Get-Command npm -CommandType Application` (`dev.ps1:646-650`), not the shim
+(`wave-4-L1-B.md`, "Finding on `main`"). The stub replaced exactly the layer
+that failed.
+
+Two 2026-10-09 instances in the React Router 7 tests (PR #57). The plan's
+empty-page check for lazy navigation recorded "any moment with no element
+children and no text" in `<main>`. `AppLayout` keeps a keyed `PageTransition`
+element inside `<main>` (`components/layout/AppLayout.tsx:18-25`), so `<main>`
+always has an element child and that check could not fail. The spec as
+written (`e2e/routing.spec.ts`, E2E-ROUTE-002) tests text content instead, and
+the break-it (`lazyRoute` fallback → `null`) turned it red at `:59`; the plan
+text was corrected in `512218b`. Separately, the "no Future Flag warning" half
+of HC-ROUTE-001 could not fail once v7 was installed, because v7 prints no
+such warning; code review caught it and it was removed in `e754b5d`
+(`wave-4-L1-D.md`). An assertion that stays true after an upgrade checks
+nothing after that upgrade.
+
 **Recheck:** ask what your test would *fail to notice*. Then break the code on
 purpose and confirm the test goes red. For any gate that parses a report another
 step produced, delete the report and confirm the gate goes RED, not green —
@@ -73,7 +100,10 @@ is isolated — a hand-seeded test can pass by construction instead of by
 correctness. And for any hand-written mock of a backend response, open the
 response model and confirm the field is on *that* endpoint: a mock is an
 assertion about the API, and an unchecked one turns the suite green against a
-contract that does not exist.
+contract that does not exist. When a check stubs an external tool (`npm`,
+`git`, a scanner), run the real call at least once and paste its output; for
+a DOM-shape assertion, confirm against the real layout that the shape it
+looks for can occur at all.
 
 ---
 
