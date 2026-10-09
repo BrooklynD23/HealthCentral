@@ -119,6 +119,12 @@
     "audit/2026-09-25/swarm-2026-09-27/wave3/3b-evidence.md": [
       "docs/capstone-report/implementation-program.md"
     ],
+    "audit/2026-09-25/waves/scaffold/REACT-ROUTER-7.md": [
+      "docs/plans/2026-10-04-NPM-MAJORS-react-router7.md"
+    ],
+    "audit/2026-09-25/waves/scaffold/REVIEWS-2026-10-07.md": [
+      "docs/plans/2026-10-04-NPM-MAJORS-react-router7.md"
+    ],
     "audit/2026-09-25/waves/wave-3.md": [
       "docs/capstone-report/implementation-program.md"
     ],
@@ -497,6 +503,7 @@
       "docs/plans/2026-09-29-S02-agent-cache-profile-isolation.md",
       "docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md",
       "docs/plans/2026-10-01-packaging-decision.md",
+      "docs/plans/2026-10-04-NPM-MAJORS-react-router7.md",
       "docs/plans/2026-10-04-NPM-audit-fix.md",
       "docs/plans/2026-10-04-PROHIBITED-PARAPHRASE.md",
       "docs/plans/2026-10-04-RCC-recovery-code-cache.md",
@@ -789,7 +796,8 @@
       "docs/plans/2026-10-04-NPM-MAJORS-react-router7.md"
     ],
     "docs/plans/2026-10-04-NPM-audit-fix.md": [
-      "docs/capstone-report/implementation-program.md"
+      "docs/capstone-report/implementation-program.md",
+      "docs/plans/2026-10-04-NPM-MAJORS-react-router7.md"
     ],
     "docs/plans/2026-10-04-PROHIBITED-PARAPHRASE.md": [
       "docs/capstone-report/implementation-program.md"
@@ -1822,7 +1830,11 @@
       "docs/plans/2026-09-27-W02-doctor-summary-redaction.md"
     ],
     "docs/plans/2026-10-04-NPM-MAJORS-react-router7.md": [
-      "docs/plans/2026-10-04-NPM-MAJORS-tailwind4.md"
+      "docs/plans/2026-10-04-NPM-MAJORS-tailwind4.md",
+      "audit/2026-09-25/waves/scaffold/REACT-ROUTER-7.md",
+      "audit/2026-09-25/waves/scaffold/REVIEWS-2026-10-07.md",
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/plans/2026-10-04-NPM-audit-fix.md"
     ],
     "docs/plans/2026-10-04-NPM-MAJORS-tailwind4.md": [
       "docs/plans/2026-10-04-NPM-MAJORS-react-router7.md"

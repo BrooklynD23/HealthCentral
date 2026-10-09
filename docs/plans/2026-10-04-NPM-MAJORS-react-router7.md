@@ -102,3 +102,40 @@ Task 2 is one commit: `git revert <sha>` it to return to v6 with the flags still
 
 - Moving to data routers (`createBrowserRouter`, loaders) or framework mode.
 - Tailwind 4 (its own plan: [2026-10-04-NPM-MAJORS-tailwind4.md](2026-10-04-NPM-MAJORS-tailwind4.md)).
+
+## Amendment 1 (execution) — L1-D, 2026-10-09
+
+Applied as the first commit on `fix/react-router-7` (base `origin/main` = `f428a99`). Where this section and the text above disagree, this section wins. Sources: readiness pack [REACT-ROUTER-7.md](../../audit/2026-09-25/waves/scaffold/REACT-ROUTER-7.md) §4, Fable review [REVIEWS-2026-10-07.md](../../audit/2026-09-25/waves/scaffold/REVIEWS-2026-10-07.md) §1, and the owner answers below.
+
+**Status.** Approved. Gate NPM-MAJORS-RUN ([owner-decisions](../capstone-report/owner-decisions-2026-09-27.md) row NPM-MAJORS-RUN, 2026-10-07): "This approves both NPM-MAJORS plans for execution". The "not approved" header above is stale. Preconditions: NPM-AUDIT #38 (`93def9e`, `c4d407e`) and NPM-AUDIT-2 #52 (`f428a99`) are on `origin/main`. Worktree `../hc-rr7`, branch `fix/react-router-7`.
+
+**Owner answers (chat 2026-10-09; recorded on branch `docs/wave4-close` commit `1349d94`, not yet on `main`).**
+
+- RR7-Q1 "No, keep -dom": **Task 3 is out.** No import moves from `react-router-dom`.
+- RR7-Q2 "Add a Playwright spec": "One spec for unknown-path redirect and lazy navigation, run in CI every time." New file `src/frontend/e2e/routing.spec.ts` (see "E2E" below).
+- RR7-Q4 "Separate owner item": `SettingsPage.tsx:952-954` is **not** touched in this PR; it is listed as an open item in the report.
+- Unsigned: `engines.node` `>=22` vs vite's `>=22.12.0`. `package.json` `engines` does not change. If it blocks a step, STOP.
+
+**Corrected counts (measured at `f428a99`).** 32 files under `src` import `react-router-dom` (15 tests, 17 non-test); `e2e` imports it 0 times. **3** files `vi.mock('react-router-dom', …)`: `MedicationCorrelations.test.tsx`, `ProfileSetup.test.tsx`, `RecoverProfile.test.tsx`. All 3 keep working because Task 3 is out; Task 1-2 must leave them intercepting (no import path changes). Task 1 Step 2 edits **11** test files (`Accessibility`, `BackupRestoreFlow`, `DangerZone`, `DocumentInbox`, `EntityCitationDeepLink`, `ExportPage`, `NotificationSettingsPage`, `ProfileSetup`, `RecoverProfile`, `SearchPage`, `VerificationWorkbench`); 4 already pass both flags. E2E: 8 spec files; CI runs `--project chromium`.
+
+**Exit codes.** Every bash-quoted PowerShell one-liner writes `\$LASTEXITCODE` (with the backslash; unescaped, bash expands it to empty). Paste the numeric code after each of `npm ci`, `tsc`, `lint`, `build`, `vitest`. The commands in Task 0 Step 2 already escape it; the readiness-pack brief did not.
+
+**Expected vitest totals (absolute, from the Task 0 baseline).** Task 0: **195 tests in 34 files** (L1-D, Windows, node v22.20.0, npm 11.6.2, `f428a99`, clean `npm ci`; exit codes npmci/tsc/lint/build/vitest all 0; Future Flag lines 44; `npm audit` 9 = 4 moderate + 5 high, including `react-router` and `react-router-dom` moderate; Playwright `--list` 31 tests in 7 files for chromium, 36 in 8 for all projects). After Task 1: **196 / 35**. After Task 2 Step 4: **197 / 35**. Any other number, or any failure, STOPS.
+
+**Lockfile diff.** After Task 2, run the nested-aware diff from [NPM-audit-fix Amendment 2](2026-10-04-NPM-audit-fix.md) rule 4 (Python 3, `python3` in WSL; extract the script from that plan as its rule 4 shows, compare `origin/main` against the committed `HEAD` lockfile) over every `packages` key: added, removed, changed, major-moved. Paste the full output and the script's sha256 in the PR body. That script exits 1 on any new name or major; here the expected flags are classified against MAJORS-TIED (owner-decisions, 2026-10-07: "Pre-approve only (a) new packages pulled in by an approved major and (b) major bumps of packages whose sole consumer is that approved major … Any other major still stops"):
+
+- `react-router-dom` 6 → 7: the approved major.
+- `react-router` 6 → 7: allowed by (b) only if its sole consumer in the lockfile is `react-router-dom`.
+- `@remix-run/router` removed; new names (`cookie`, `set-cookie-parser`, or others): allowed by (a) only if `react-router` is their sole dependent in the new lockfile.
+- Any other flag (a major or new name not tied to the approved major, a changed root other than the `react-router-dom` range, a gained install script, a bad source): STOP and report.
+
+**E2E (RR7-Q2).** `e2e/routing.spec.ts`, 2 tests, run by CI's "E2E Smoke Tests" job:
+
+1. Authenticated `goto('/no-such-page')` lands on `/inbox`.
+2. Lazy navigation never shows an empty `<main>`: a `MutationObserver` on `<main>` records any moment its text content is empty (`AppLayout` keeps a keyed `PageTransition` element inside `<main>`, so an element-count check could not fail); `/inbox` → `/trends` → `/timeline` by sidebar click. Each route has its own `lazyRoute` Suspense, so `RouteFallback` (sr-only "Loading page...") is expected on both legs; each leg ends on its page heading.
+
+Break-it (L1 runs it once and pastes it): make `lazyRoute`'s fallback `null` in `App.tsx` → test 2 fails; restore. Playwright listed count: chromium baseline + 2.
+
+**Task 4.** The manual lazy-page check is replaced by the spec above.
+
+**Task 2 Step 4 (open-redirect test) changed during execution.** The `<Link>` href-origin test is RED on both 6.30.6 and 7.18.4: v7 deliberately renders a `to` matching `/^[\\/]{2}/` as a plain external anchor (`parseToInfo`), like `<Link to="https://…">`. The advisory's fix is in navigation: v7 `useNavigate` rejects a cross-origin target with `External navigation is not allowed` before any `pushState`. `HC-ROUTE-002` therefore calls `navigate('/\\evil.example')` and asserts that either it throws that error or every `pushState` URL is same-origin (and that one of the two happens). Measured: RED on 6.30.6 (pushed `/\evil.example`, origin `http://evil.example`), GREEN on 7.18.4. Consequence for RR7-Q4: on v7 a server-supplied `//host` or `/\host` that passes `SettingsPage.tsx:952-954`'s `startsWith('/')` renders an off-origin anchor; that stays with the separate owner item.
