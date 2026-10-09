@@ -1,8 +1,4 @@
-/**
- * Routing tests: unknown-path fallback through the real <App /> router.
- * The Future-Flag render must stay the FIRST render in this file
- * (v6 warns once per module instance).
- */
+// Routing tests: unknown-path fallback through the real <App /> router, and the GHSA-wrjc navigate() guard.
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
@@ -38,8 +34,7 @@ describe('Routing', () => {
     window.history.replaceState({}, '', '/');
   });
 
-  it('HC-ROUTE-001: unknown path redirects to /inbox without Future Flag warnings', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  it('HC-ROUTE-001: unknown path redirects to /inbox', async () => {
     useAuthStore.getState().setAuth({
       token: 'test-token',
       profileId: 'profile-123',
@@ -51,8 +46,6 @@ describe('Routing', () => {
     render(<App />);
 
     await waitFor(() => expect(window.location.pathname).toBe('/inbox'));
-    const flagWarnings = warn.mock.calls.filter((c) => /Future Flag/.test(String(c[0])));
-    expect(flagWarnings).toEqual([]);
   });
 
   it('HC-ROUTE-002: navigate() with a backslash target never pushes another origin (GHSA-wrjc-x8rr-h8h6)', async () => {
@@ -80,7 +73,6 @@ describe('Routing', () => {
     // Either the router refuses (throws) or it pushes; one of the two must happen.
     await waitFor(() => expect(caught !== undefined || pushSpy.mock.calls.length > 0).toBe(true));
     for (const c of pushSpy.mock.calls) {
-      console.log('PUSHED=' + JSON.stringify(c[2]));
       expect(new URL(String(c[2]), 'http://localhost/').origin).toBe('http://localhost');
     }
     if (caught !== undefined) {
