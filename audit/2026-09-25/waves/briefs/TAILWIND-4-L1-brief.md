@@ -1,4 +1,4 @@
-**REVIEWED, NOT DISPATCHED — waits on owner questions O-1, O-4 (O-2, O-3 have defaults; §7)** — L1 brief for Tailwind 4 (frontend sequence, phase 3 of 3)
+**DISPATCH-READY (reviewed, not dispatched; owner answers TW4-O1..O4 recorded 2026-10-09)** — L1 brief for Tailwind 4 (frontend sequence, phase 3 of 3)
 
 # Tailwind 4 — L1 brief
 
@@ -31,16 +31,23 @@ Built from [../scaffold/TAILWIND-4.md](../scaffold/TAILWIND-4.md), the Tailwind 
 - `:72` MAJORS-TIED: "Pre-approve only (a) new packages pulled in by an approved major and (b) major bumps of packages whose sole consumer is that approved major. Every such package is listed in the PR body from a lockfile diff. Any other major still stops and comes back to you."
 - `:73` TW4-VISUAL: "New Playwright checks, run in CI on seeded data, assert computed styles that Tailwind 4 changes by default (card border colour, input placeholder colour, button cursor, 44px touch target). Plus before/after screenshots of the 10 routes from CI artifacts for you to eyeball. No pixel threshold."
 
-Unsigned, and the L1 does not decide them: §7 owner questions. The screenshot look is the owner's call at PR time; the L1 never accepts a visual delta.
+Answers to this brief's §7 questions (2026-10-09, L0 AskUserQuestion; rows `TW4-O1`..`TW4-O4` in owner-decisions on `docs/wave4-close`, PR #60 — the L1's Task 0 greps `origin/main` for them, so PR #60 must be merged first):
+
+- TW4-O1 **Yes, add the step**: "One CI step uploads Playwright screenshots. Downside: a CI file edit inside a frontend PR."
+- TW4-O4 **Yes, tied**: "jiti 2 ships in the Tailwind PR. Downside: an optional-peer consumer could load jiti 2 unexpectedly; the lockfile script prints each consumer to check."
+- TW4-O2 **Real seeding everywhere**: "Most faithful. Downside: open-ended setup work per route." Bounded in §4.7.
+- TW4-O3 **Yes**: "Doc matches the code at merge; brand guidelines are a follow-up."
+
+Nothing is left unsigned except the owner's look at the screenshots. The screenshot look is the owner's call at PR time; the L1 never accepts a visual delta.
 
 ## 3. What changed from the scaffold brief (scaffold §6.1)
 
 1. Gates Q1 (`tailwind-merge` 3), Q2 (browser floor), Q4 (`dev.ps1`) are signed; Q3 (where screenshots come from) is answered by TW4-VISUAL: CI artifacts.
 2. The 0.5% pixel threshold and the local "before/after" capture are gone (TW4-VISUAL: "No pixel threshold"). Evidence = computed-style Playwright asserts in CI + CI screenshot artifacts.
-3. The file list grows by: one new Playwright spec, one `ci.yml` upload step (TW4-VISUAL "from CI artifacts"; see owner question O-1), the README + user docs browser floor (TW4-BROWSERS), `src/frontend/README.md:179`.
+3. The file list grows by: one new Playwright spec, one `ci.yml` upload step (TW4-VISUAL "from CI artifacts", TW4-O1), the README + user docs browser floor (TW4-BROWSERS), `src/frontend/README.md:179`.
 4. Break-its move into the commit sequence: the upgrade-tool commit is pushed alone, and CI must go **red** on the style asserts before the fix commit makes it green (§4.3).
 5. `$LASTEXITCODE` is escaped (`\$LASTEXITCODE`) in every bash-quoted PowerShell line (REVIEWS §1 item 1).
-6. A nested-aware lockfile diff over every `packages` key, with each changed package's consumers, is mandatory; `jiti` 1 → 2 is held for O-4 (REVIEWS §1 items 2, 3; MAJORS-TIED).
+6. A nested-aware lockfile diff over every `packages` key, with each changed package's consumers, is mandatory; `jiti` 1 → 2 is tied (b) per TW4-O4 (REVIEWS §1 items 2, 3; MAJORS-TIED).
 7. The Codex **plan** review is done (this PR); the L1 runs only the Codex **diff** review.
 
 ## 4. Plan amendments (L1 commits these to the plan file as commit 0)
@@ -65,21 +72,21 @@ Plan: `docs/plans/2026-10-04-NPM-MAJORS-tailwind4.md`. Amend, do not rewrite:
 |---|---|---|
 | `docs/plans/2026-10-04-NPM-MAJORS-tailwind4.md` | §4 amendments | this review |
 | `src/frontend/e2e/tailwind4-styles.spec.ts` | **new**: computed-style asserts + screenshots | TW4-VISUAL |
-| `.github/workflows/ci.yml` | one `actions/upload-artifact@v4` step in `e2e-tests` after `:210`, `if: always()`, `path: src/frontend/test-results/tw4-shots/**` (workspace-relative; pattern `ci.yml:142`; `.gitignore:130` already ignores `src/frontend/test-results/`) | TW4-VISUAL "from CI artifacts" (O-1) |
-| `src/frontend/package.json`, `package-lock.json` | tailwindcss `^4`, `@tailwindcss/postcss` added, autoprefixer removed, tailwind-merge `^3` | `:64`, `:69`, `:72` (+ O-4 for jiti) |
+| `.github/workflows/ci.yml` | one `actions/upload-artifact@v4` step in `e2e-tests` after `:210`, `if: always()`, `path: src/frontend/test-results/tw4-shots/**` (workspace-relative; pattern `ci.yml:142`; `.gitignore:130` already ignores `src/frontend/test-results/`) | TW4-VISUAL, TW4-O1 |
+| `src/frontend/package.json`, `package-lock.json` | tailwindcss `^4`, `@tailwindcss/postcss` added, autoprefixer removed, tailwind-merge `^3` | `:64`, `:69`, `:72`, TW4-O4 (jiti) |
 | `src/frontend/postcss.config.js`, `tailwind.config.js`, `src/styles/globals.css`, `index.html` (only if renamed) | plan Tasks 1-2 | `:64` |
 | component / page `.tsx` | class renames only (upper bound 58 files) | `:64` |
 | `src/frontend/src/__tests__/cn.test.ts` | **new**, 1 test | plan Task 3 Step 3 |
 | `README.md` (Prerequisites, `:316`) and `docs/user/getting-started.md` (Prerequisites, `:3`) | one line each: Safari 16.4+, Chrome 111+, Firefox 128+ | TW4-BROWSERS |
-| `src/frontend/README.md:179` | "Implement in `tailwind.config.js`" → the `@theme` block in `src/styles/globals.css`. **Only if O-3 = A**; otherwise untouched | O-3 |
+| `src/frontend/README.md:179` | "Implement in `tailwind.config.js`" → the `@theme` block in `src/styles/globals.css` | TW4-O3 |
 | `audit/2026-09-25/waves/wave-4-L1-B.md` | L1's phase-3 report section (L1 writes it, not L2) | orchestration §3 |
 
-Not touched: any backend file, `dev.ps1`, `docs/brand/brand-guidelines.md` (`:5`, `:121` go stale: O-3).
+Not touched: any backend file, `dev.ps1`, `docs/brand/brand-guidelines.md` (`:5`, `:121` go stale; follow-up per TW4-O3).
 
 ### 4.2 The style spec (`e2e/tailwind4-styles.spec.ts`)
 
 - Auth state per route: `/setup` and `/recover` unauthenticated (fresh context, no stored session); all others through `openAuthenticatedPage` (`e2e/support/auth.ts:90`). If `/setup` redirects because the E2E profile exists, screenshot what it shows and say so.
-- Data for the screenshot set: per O-2. Default until answered: the reset E2E profile (empty states) plus the open modal, stated in the PR body as "empty-state shots". The asserts below need no data.
+- Data for the screenshot set: real seeding through the backend's own write routes, per §4.7 (TW4-O2). The asserts below need no data.
 - Each assert targets an element that relies on the **default** and carries **no explicit class for that property**. Cite its `file:line` in the spec. Not valid: `Card.tsx:10`, `Input.tsx:36-43` (`border-black/[0.08]`), any input with a `placeholder:` class (`TopBar.tsx:31`, `ExplainAssistant.tsx:722,799`, `ExportPage.tsx:472`, `DoseLoggingModal.tsx:188`), `Button.tsx:10` for focus (own `focus-visible:outline-none`).
 - Asserts (expected values are the Tailwind 3 output; the spec must pass on Tailwind 3 first):
   1. border colour: the recovery-code input `#recover-code` (`RecoverProfile.tsx:136-143`, bare `border`, unauthenticated, no fixtures) → `borderTopColor` = `rgb(229, 231, 235)`;
@@ -131,7 +138,7 @@ for k in sorted((set(a) | set(b)) - {''}):
 PY
 ```
 
-Classify every ADDED and MAJOR line under MAJORS-TIED: (a) pulled in by tailwindcss / `@tailwindcss/*` / tailwind-merge; (b) major bump whose sole consumer is one of them. Anything else STOPS. **jiti**: expected top-level 1.21.7 → 2.x, hard dependency only of `@tailwindcss/node`, optional peer of eslint, vite, postcss-load-config. Its class is O-4; until O-4 is answered it is a stop.
+Classify every ADDED and MAJOR line under MAJORS-TIED: (a) pulled in by tailwindcss / `@tailwindcss/*` / tailwind-merge; (b) major bump whose sole consumer is one of them. Anything else STOPS. **jiti**: expected top-level 1.21.7 → 2.x, hard dependency only of `@tailwindcss/node`, optional peer of eslint, vite, postcss-load-config. Owner: tied (b) (TW4-O4) — list it in the PR body with its consumer line. Any other optional-peer major still stops.
 
 Linux natives: the lock must hold `@tailwindcss/oxide-linux-x64-gnu` and `lightningcss-linux-x64-gnu` next to the win32 entries, and still hold `@rollup/rollup-linux-x64-gnu` and `@esbuild/linux-x64`. Missing → stop before pushing commit 2 (CI `npm ci` is the first place it breaks).
 
@@ -142,6 +149,42 @@ In a scratch dir outside the repo, install `tm2@npm:tailwind-merge@2.6.0` and `t
 ### 4.6 Token inventory (Codex)
 
 Before/after table in the PR body, one row per `tailwind.config.js` token: `fontSize` xs-4xl (size and line height), `spacing` 18/88/128, `borderRadius` xl/2xl/3xl, `boxShadow` soft/card/elevated/focus, the 6 animations and keyframes, `transitionDuration` 250/350, the colour groups `surface/ink/accent/status/dark`. Columns: v3 value (config), v4 value (the generated `@theme` line), consumer count (grep), and whether the value appears in the built CSS (`npm run build`, grep `dist/assets/*.css`). Any value that changed: stop. `dark-*` colour classes (e.g. `bg-dark-surface`) are checked separately from the `dark:` variant.
+
+### 4.7 Real seeding per screenshot route (TW4-O2)
+
+Rule: every screenshot route gets its data from the running backend's own write routes, in the spec's `beforeAll`, through Playwright `request` with the token from `ensureE2EProfile` (`e2e/support/auth.ts:19`). **No `page.route` anywhere in the spec** (`grep -c 'page.route' e2e/tailwind4-styles.spec.ts` → `0`, pasted). No new backend route, no direct DB write, no new backend file.
+
+Seed set (measured 2026-10-09; one seed serves several routes):
+
+| Seed | Mechanism (real route) | Content |
+|---|---|---|
+| S1 lab CSV, 2 imports | `POST /api/v1/documents/` multipart (`api/documents.py:402`); `.csv` → `lab_csv` (`modules/ingest.py:158-159`); parsed by `parse_lab_csv` without OCR or a model (`api/documents.py:710-739`); header format per `tests/test_structured_import.py:69-71` | `Date,Analyte,Value,Unit,Reference Low,Reference High,Flag`; Glucose and Hemoglobin A1c at 3 dates each, one value flagged `H`. Two files, different content (imports dedupe by content hash, `document-import.spec.ts:89-93`) |
+| S2 verify part of S1 | `GET /api/v1/observations/` (`api/observations.py:285`), then `POST /api/v1/observations/{id}/verify` (`:381`) for the Glucose rows only | structured imports land `user_verified=False` (`api/documents.py:722`, `:759`); Hemoglobin A1c stays unverified for `/verify` |
+| S3 medication | `POST /api/v1/medications/` (`api/medications.py:310`; body `MedicationCreate`, `:91-104`: `name`, `dosage_amount`, `dosage_unit`, `frequency`) + `POST /{id}/schedules` (`:675`) | one active medication with a once-daily schedule |
+| S4 assistant | `POST /api/v1/assistant/sessions` (`api/assistant.py:394`) + one `POST /api/v1/assistant/chat` (`:729`) | one real question; the real answer (CI has no model: expect the insufficient-context or abstain text, as `assistant.spec.ts` E2E-RAG-001 shows) is what the shot shows |
+
+| Route | Auth | Seeds it shows |
+|---|---|---|
+| `/setup` | none | no profile data by design |
+| `/recover` | none | no profile data by design |
+| `/inbox` (+ dark) | yes | S1 documents |
+| `/verify` | yes | S1 Hemoglobin A1c (unverified) |
+| `/trends` | yes | S2 Glucose (3 verified, dated points) |
+| `/timeline` | yes | S1/S2 observations, S3 medication |
+| `/search?q=Glucose` | yes | S1 (local search over the profile DB, `api/search.py:1`, `:55`) |
+| `/medications` + `DoseLoggingModal` | yes | S3; open the modal via the quick-log button (`MedicationCoach.tsx:241-243`) |
+| `/explain` | yes | S4 session and real response |
+| `/settings` | yes | profile settings only; no seed needed |
+
+Ordering: the spec runs after `global-setup.ts:12-13` resets the profile, and `workers: 1` (`playwright.config.ts:56`) runs files one at a time, so no other spec resets mid-file. If another spec already seeded the same CSV, the dedupe returns the existing document: assert on content, not counts.
+
+**Stop rule:** if a route's seed does not render (the route shows its empty state after its seed call returned 2xx), or a seed call fails, or a route turns out to need data no write route can create: STOP, report the route, the call, its status and body. Do not fall back to `page.route`, do not skip the route, do not add a backend route.
+
+**Effort estimate (L1-lead, not measured):** spec with seeding ~150-200 lines, about 2-3 h of L2 time; each CI round trip ~25-40 min (E2E waits on backend tests, `ci.yml:180`). Sequence §4.3 needs 4 pushes, so plan for 2-4 h of CI wall time; the whole phase about one working day if no stop fires.
+
+### 4.8 Merge order vs PR #64
+
+PR #64 (`chore/ponytail-cleanup`, open) edits `src/frontend/package.json`, `src/frontend/package-lock.json` and the root `package-lock.json`. If #64 merges first: rebase `feat/tailwind4` on `origin/main`, **regenerate** `src/frontend/package-lock.json` on Windows (`npm install` from the rebased `package.json`; never resolve lockfile conflicts by hand), re-run §4.4 against the new base, and re-run the Windows acceptance. If Tailwind 4 merges first, #64 does the same. The PONYTAIL removals (`@radix-ui/react-dialog`, `react-tabs`, `react-tooltip`, `date-fns`) are not in this phase's package list; a rebase must not re-add them.
 
 ## 5. The brief
 
@@ -157,9 +200,10 @@ Base: origin/main @ <sha at dispatch>. Confirm merged with
 (c4d407e), NPM-AUDIT-2 #52 (f428a99), DEV-PS1 #55 (87accae), React Router 7
 #57 (eb7de28). Any
 non-zero: STOP.
-Signed gates: brief §2 (owner-decisions :64, :69, :70, :71, :72, :73),
-verbatim. Unsigned: brief §7. If an owner question there is still open
-when you reach the step it governs, STOP that step and report.
+Signed gates: brief §2 (owner-decisions :64, :69, :70, :71, :72, :73 and
+TW4-O1..TW4-O4), verbatim. If `grep -c 'TW4-O' docs/capstone-report/
+owner-decisions-2026-09-27.md` on origin/main is not 4 (PR #60 unmerged):
+STOP.
 Architectural: no (orchestration §5). Owner-directed reviews: the Codex
 plan review and the Fable brief review are DONE (brief §6). You run the
 Codex diff review before marking the PR ready (handoff §7.2), focus:
@@ -193,15 +237,16 @@ Expected: vitest 197/35 -> 198/36 (use your measured baseline +1/+1);
 Playwright chromium 33 -> 33 + N (N = tests in the new spec); backend
 collected 1381, delta 0, suite not run; npm audit no longer lists braces,
 micromatch, chokidar, fast-glob or tailwindcss (measure; report what stays).
-Visual evidence: brief §4.2-§4.3 only. CI red at commit 2 on the named
+Visual evidence: brief §4.2-§4.3 and §4.7 (real seeding, stop rule) only. CI red at commit 2 on the named
 asserts is required; CI green at commit 3; before/after artifacts linked
 in the PR body; no pixel threshold; you do not judge the look.
 PR body: gates used; lockfile diff with MAJORS-TIED class per line; the
 red-at-#2 list; artifact links; grep table; the hover-only-on-hover-media
 and browser-floor notes; rollback: `git revert -m 1 <merge>` then
 dev.ps1 reinstalls on the lockfile hash change (#55) in both directions.
-Merge-order notes: PONYTAIL-CLEANUP and the RR7-Q3 engines PR also edit
-package.json / package-lock.json; BG-WARN-INTERP edits the Lab Interpreter
+Merge-order notes: PR #64 (PONYTAIL-CLEANUP) and the RR7-Q3 engines PR
+also edit package.json / package-lock.json: brief §4.8 (rebase, regenerate
+the lockfile on Windows, re-run §4.4 and acceptance); BG-WARN-INTERP edits the Lab Interpreter
 page; W-3 / W-2 cite line ranges in TrendsDashboard, InterpretedTrendChart,
 ExportPage. Whoever lands second rebases and re-runs the lockfile diff.
 Write audit/2026-09-25/waves/wave-4-L1-B.md (append a phase-3 section).
@@ -220,7 +265,8 @@ npx / vitest commands run from Windows through powershell.exe, never from
 WSL; in any bash-quoted PowerShell line write \$LASTEXITCODE.
 Order (L1 pushes between steps; you do not push):
  1. Write e2e/tailwind4-styles.spec.ts per brief §4.2 and the ci.yml
-    upload step, on Tailwind 3. Use the target elements brief §4.2 names;
+    upload step, on Tailwind 3, with the real seeding of brief §4.7 (no
+    page.route; obey its stop rule). Use the target elements brief §4.2 names;
     for each assert cite file:line and show it has no explicit class for
     that property. Run `npx playwright test --list --project chromium`
     (Windows) and paste the count: tsc does not check e2e/.
@@ -243,8 +289,7 @@ Order (L1 pushes between steps; you do not push):
     fix(frontend): tailwind-merge 3, drop colliding :root vars, v3 border/cursor/placeholder defaults, @utility blocks
  5. One line each in README.md Prerequisites and
     docs/user/getting-started.md Prerequisites: "Browser: Safari 16.4+,
-    Chrome 111+, Firefox 128+"; only if brief §7 O-3 = A, fix
-    src/frontend/README.md:179 to name the @theme block in
+    Chrome 111+, Firefox 128+"; fix src/frontend/README.md:179 to name the @theme block in
     src/styles/globals.css.
     Commit: docs: Tailwind 4 browser floor and token source
 Explicit pathspecs from `git status --short` (never `git add -A`); each
@@ -256,8 +301,9 @@ Stop and report, without working around it, if: the tool touches a file
 outside src/frontend; a dependency other than tailwindcss,
 @tailwindcss/postcss, autoprefixer or tailwind-merge moves in package.json;
 the lockfile diff (brief §4.4) shows a major or new package outside
-MAJORS-TIED (top-level jiti 1 -> 2 stops unless brief §7 O-4 is
-answered "tied"); the Linux native
+MAJORS-TIED (top-level jiti 1 -> 2 is tied per TW4-O4: list it; any
+other optional-peer major stops); a §4.7 seed fails or does not render;
+the Linux native
 packages are missing; `grep -rn 'var(--\(color\|radius\)' src` is
 non-zero; tsc, lint, build or vitest fails; the vitest count is not
 baseline + 1; a Task 2 Step 4 count is non-zero and you cannot explain
@@ -278,18 +324,18 @@ Codex: `gpt-6-luna`, effort `high` (owner order "6.1 sol" first: `gpt-6.1-sol` r
 
 | # | Reviewer | Sev | Finding | Disposition |
 |---|---|---|---|---|
-| C1 | Codex | BLOCKER | `page.route` fixtures are not "seeded data" | **Owner (O-2).** Asserts no longer need data (F4); data only affects the screenshot set |
+| C1 | Codex | BLOCKER | `page.route` fixtures are not "seeded data" | **Owner: TW4-O2 real seeding everywhere**; bounded in §4.7 with a stop rule |
 | C2 | Codex | MAJOR | 44px check cannot show a Tailwind default change | **Accepted:** kept (owner named it), relabelled app-specific, not counted as a break-it (§4.2 item 4, §4.3 row 2) |
 | C3 | Codex | MAJOR | No value checks for config tokens | **Accepted:** §4.6 token inventory |
 | C4 | Codex | MAJOR | Grep loop omits ring / shadow / blur forms | **Accepted:** §4 amendment 5 |
 | C5 | Codex | MAJOR | `cn()` check has no parser, misses cva combinations and dynamic args | **Accepted:** §4.5 (TS compiler API, cartesian product, non-literal count reported) |
 | C6 | Codex | MAJOR | Lockfile script cannot prove "sole consumer" | **Accepted:** script prints consumers incl. optional peers (§4.4) |
-| C7 | Codex | MAJOR | `wave-4-L1-B.md` outside the file list; README `:179` unsigned | **Accepted:** report added to §4.1; `:179` made conditional on O-3 |
+| C7 | Codex | MAJOR | `wave-4-L1-B.md` outside the file list; README `:179` unsigned | **Accepted:** report added to §4.1; `:179` in scope per TW4-O3 |
 | F1 | Fable | MAJOR | Compat rules via `var(--color-gray-*)` serialise as oklch; asserts 1-2 stay red | **Accepted:** hex literals (§4 amendment 7, L2 step 4) |
 | F2 | Fable | MAJOR | Assert 6 cannot go green on v4 (`outline-hidden` = `outline-style: none`); Button has own outline class | **Accepted:** either-or outline check + ring, Sidebar NavLink target. Corrects the L1-lead's own draft |
-| F3 | Fable | MAJOR | jiti stop will fire mid-phase | **Owner (O-4)**, asked before dispatch |
+| F3 | Fable | MAJOR | jiti stop will fire mid-phase | **Owner: TW4-O4 tied (b)** |
 | F4 | Fable | MAJOR | "Pick by grep" leaves the only valid targets to Sonnet | **Accepted:** `RecoverProfile.tsx:136-143` named, `/recover` added, invalid targets listed |
-| F5 | Fable | MAJOR | Fixtures per route are unbounded work | **Owner (O-2)**, same question as C1; default = empty-state shots |
+| F5 | Fable | MAJOR | Fixtures per route are unbounded work | **Owner: TW4-O2**; §4.7 enumerates routes, mechanism, effort, stop rule |
 | F6 | Fable | MINOR | `rounded-lg` and `text-ink` also red at #2 | **Accepted** (§4.3 row 2) |
 | F7 | Fable | MINOR | upload-artifact path is workspace-relative | **Accepted** (§4.1) |
 | F8 | Fable | MINOR | `tsc` does not check `e2e/` | **Accepted:** `playwright test --list` in L2 step 1 |
@@ -301,26 +347,10 @@ L1-lead addition (not from a reviewer): classes written only in the spec file wo
 
 Rejected: none. Fable's "verified no-issue" list (duplicate `slideUp` identical; fontSize / spacing / radius convert 1:1; no `darkMode` key; 0 bare `ring`; audit expectation holds) is recorded so the L1 does not re-open it.
 
-## 7. Owner questions (open; the L1 stops at the step each governs unless a default is stated)
+## 7. Owner questions — answered 2026-10-09
 
-**O-1. TW4-VISUAL says "from CI artifacts", and CI has no upload step today. Does that row cover adding one `actions/upload-artifact@v4` step to `ci.yml`?** Governs commit 1.
-- A. **(recommended)** Yes, covered by TW4-VISUAL; one step, `if: always()`.
-- B. No: screenshots are taken another way (name it).
-
-**O-2. TW4-VISUAL says "on seeded data". The style asserts now target elements that need no data. The screenshot set does: with the reset E2E profile, `/trends`, `/verify`, `/timeline`, `/search`, `/medications`, `/explain` show empty states. What data must the shots carry?** Governs commit 1; if unanswered at dispatch, the L1 uses B and labels the shots "empty-state".
-- A. **(recommended)** Real API seeding where a create route exists (`POST /medications/`, `api/medications.py:310`, plus schedules / doses); `page.route` fixtures for observations, which have no create route (they come only from document import); remaining routes empty-state, labelled as such.
-- B. Empty-state shots plus the open modal are enough for your look.
-- C. `page.route` fixtures for every listed route.
-
-**O-3. The phase deletes or empties `tailwind.config.js`. `src/frontend/README.md:179` ("Implement in `tailwind.config.js`") and `docs/brand/brand-guidelines.md:5,:121` then point at a file that no longer holds the tokens. Fix in this PR?**
-- A. **(recommended)** Fix `src/frontend/README.md:179` in the docs commit; brand guidelines as a follow-up docs PR.
-- B. Both in this PR.
-- C. Neither: follow-up.
-
-**O-4. Tailwind 4 moves top-level `jiti` from 1.21.7 to 2.x. After the upgrade its only hard consumer is `@tailwindcss/node` (part of the approved major); eslint, vite and postcss-load-config list it as an optional peer only, and none of them loads it here (JS eslint config; vite bundles its config with esbuild). Is that MAJORS-TIED (b)?** Governs Task 2 Step 5.
-- A. **(recommended)** Yes, tied (b): list it in the PR body.
-- B. No: stop, and the phase waits for a separate decision.
+O-1 → TW4-O1 "Yes, add the step"; O-2 → TW4-O2 "Real seeding everywhere" (bounded in §4.7); O-3 → TW4-O3 "Yes"; O-4 → TW4-O4 "Yes, tied". Verbatim text in §2. The question wording as asked is in the owner-decisions rows.
 
 ## 8. Dispatch readiness
 
-**Not dispatch-ready until O-1 and O-4 are answered.** O-2 and O-3 have safe defaults (empty-state shots; the L2 skips `:179`), but the owner should answer O-2 first if the screenshots are to show real content. Every reviewer finding is applied or routed to those questions. After the answers: record them in owner-decisions, paste them into §2, fill `<sha at dispatch>`, dispatch.
+**Dispatch-ready.** Every reviewer finding is applied or answered by the owner. Before dispatch: (1) PR #60 merged, so the TW4-O rows are on `origin/main`; (2) this PR (#63) merged; (3) fill `<sha at dispatch>`; (4) decide #64 order (§4.8). No other code L1 on the 12 GB host while this runs.
