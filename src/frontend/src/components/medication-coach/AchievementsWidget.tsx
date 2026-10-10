@@ -17,6 +17,12 @@ const ICON_MAP: Record<string, string> = {
   heart: '❤️',
 };
 
+// Backend emits naive UTC ISO strings (no offset); JS would parse them as local time.
+function parseUtc(iso: string): Date {
+  const time = iso.split('T')[1];
+  return new Date(time && !/(Z|[+-]\d{2}(:?\d{2})?)$/i.test(time) ? `${iso}Z` : iso);
+}
+
 function BadgeCard({ badge }: { badge: BadgeStatus }) {
   return (
     <div
@@ -42,7 +48,7 @@ function BadgeCard({ badge }: { badge: BadgeStatus }) {
       </p>
       {badge.earned && badge.earned_at && (
         <p className="text-[9px] text-ink-tertiary font-medium">
-          {new Date(badge.earned_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+          {parseUtc(badge.earned_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
         </p>
       )}
     </div>
