@@ -1040,6 +1040,18 @@ Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026
 
 Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`
 
+## `docs/plans/2026-10-10-rsi-audit-handoff-prompt.md`
+
+**Handoff Prompt — RSI-Loop Research Audit & MMR Adversarial Review**
+
+A 10-agent research sweep produced `docs/plans/2026-10-10-rsi-loop-applicability-report.md`, mapping Recursive Self-Improvement (RSI) loops (rsi-loop's Observe→Analyze→Fix→Verify, Dream-RSI,…
+
+## `docs/plans/2026-10-10-rsi-loop-applicability-report.md`
+
+**RSI-Loop Applicability Research Report**
+
+Asclexis is already ~3/4 of an RSI loop. Mapped onto rsi-loop's Observe→Analyze→Fix→Verify:
+
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
 **Project Structure Setup**
