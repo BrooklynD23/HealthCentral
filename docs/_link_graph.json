@@ -128,6 +128,9 @@
     "audit/2026-09-25/waves/wave-3.md": [
       "docs/capstone-report/implementation-program.md"
     ],
+    "audit/2026-09-25/waves/wave-4.md": [
+      "docs/capstone-report/implementation-program.md"
+    ],
     "audit/2026-09-29/reviews/P01-r1-codex.txt": [
       "docs/plans/2026-09-29-S02-agent-cache-profile-isolation.md"
     ],
@@ -1500,6 +1503,7 @@
       "docs/agentic/orchestration.md",
       "audit/2026-09-25/handoff-2026-09-28-execution-orchestrator.md",
       "audit/2026-09-25/swarm-2026-09-27/wave3/3a-integration.md",
+      "audit/2026-09-25/waves/wave-4.md",
       "audit/2026-09-25/waves/wave-3.md",
       "docs/plans/2026-09-27-W01-harness-agents-branch-a.md",
       "docs/capstone-report/architecture-overview.md",
