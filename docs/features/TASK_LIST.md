@@ -152,6 +152,16 @@ On the first of each month, review all canonical docs for freshness:
 
 ## Session Notes
 
+### 2026-10-10 - RSI-loop research docs + session-log hook (PR #68, not merged)
+
+Branch `docs/rsi-loop-research` from main `eb7de28`; owner row HOOKS-COMMIT.
+
+- Docs: `docs/plans/2026-10-10-rsi-loop-applicability-report.md` + `docs/plans/2026-10-10-rsi-audit-handoff-prompt.md`, re-based on main (first draft was measured 339 commits behind; stale `notification_scheduler` finding dropped).
+- Hook: `.claude/hooks/session_log.py` + committed `.claude/settings.json` (PostToolUse / PostToolUseFailure / SessionEnd, async). Metadata only; writes git-ignored `.claude/logs/session-log.jsonl`. `.gitignore` un-ignores `settings.json` and `hooks/` only.
+- Backend: `1388 tests collected` (1381 → 1388: `tests/test_session_log_hook.py`, observed failing at collection before the script existed).
+- Recurring-failures re-read: §8 RL-export bug in the report is an open instance of mode 1, to be recorded in `recurring-failures.md` by its fix PR; the hook's settings test guards against a phantom gate (command path that does not exist).
+- Not covered: PreToolUse safety-module / Bash guards from `02-harness-techniques.md` §2.1 (not approved).
+
 ### 2026-10-08 - P5: `datetime.utcnow` → `core.time.utcnow` (PR open, not merged)
 
 Branch `fix/p5-utcnow-migration` from main `777adf5`; plan `audit/2026-09-25/plans/05-utcnow-migration.md` (amended first; owner rows D13, P5-SCOPE, P5-IMPORT).
