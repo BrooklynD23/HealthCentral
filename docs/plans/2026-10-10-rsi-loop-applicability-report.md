@@ -81,7 +81,7 @@ The repo already runs a *manual* O→A→F→V loop: session notes/progress.md =
 
 | Rank | Proposal | Notes |
 |---|---|---|
-| 1 | **Session-log hook** — PostToolUse/SessionEnd hook appending `tool_name, file_path, session_id, exit codes, test red/green counts` to `docs/agentic/session-log.jsonl` | ~60-line script; already specced in `docs/capstone-report/research/02-harness-techniques.md:75`. **Blocked: `.claude/settings.json` isn't committed** (`.gitignore` + owner Q2 "Not sure" in `audit/2026-09-25/Devin-Audit-report.md:332`) — needs user decision |
+| 1 | **Session-log hook** — PostToolUse/SessionEnd hook appending `tool_name, file_path, session_id, exit codes, test red/green counts` to `.claude/logs/session-log.jsonl` (git-ignored, so the hook never dirties a tree — failure mode #5) | **Shipped** (owner HOOKS-COMMIT, 2026-10-10): `.claude/hooks/session_log.py` + committed `.claude/settings.json`, metadata only (no file content, command text or output), tests `tests/test_session_log_hook.py` |
 | 2 | **Evidence-required lint** — `feature_list_lint.py`: `completed` requires non-empty `evidence` field | Already specced (`02-harness-techniques.md:155`); turns "no claim without a command" into a gate |
 | 3 | **Weekly failure-miner routine** — read-only job grepping session-log for test-fail→fix→refail loops and ask-first-file touches → proposes `recurring-failures.md` entries | Reuses the doc-drift routine chassis (`docs/plans/2026-09-27-nightly-doc-drift-routine-spec.md`); proposes, never applies |
 | 4 | **Recurrence counter** — `last_seen:` field per recurring-failures entry; miner bumps it → per-subsystem health score as lint-able markdown | The Verify leg for *process* fixes — currently nothing checks a failure mode stopped recurring |
@@ -138,7 +138,7 @@ Two honest caveats:
 3. **Data-health score endpoint** (§4 #1) — the patient-facing "health score" that makes RSI visible.
 4. **Persist eval scores** — `ScoreReport.model_dump_json()` → JSONL or master table → per-subsystem trend = the Verify substrate everything else needs (feeds pending backlog item HC-M07).
 5. **Extend `04_self_improvement_loop.md`** into the canonical RSI spec: absorb §3 gaps, cross-link §4 proposals as new tickets (candidate HC items; correction-analytics isn't ticketed yet).
-6. **Owner decision needed:** commit `.claude/settings.json` + the session-log hook? (§5 #1 — currently owner-gated "Not sure".)
+6. **Session-log hook** (§5 #1) — shipped 2026-10-10 (owner HOOKS-COMMIT).
 7. **Fit with the execution program** (`audit/2026-09-25/handoff-2026-09-28-execution-orchestrator.md` §3; W-3, W-7, W-8 not yet merged):
    - Export-bug fix: plan now; serial with the RL-EXPORTS plan.
    - Telemetry: plan now; merge after W-7 (shares `core/model_runner.py`).
