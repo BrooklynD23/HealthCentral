@@ -6,7 +6,7 @@ in the user's stored IANA timezone.
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, timedelta, timezone
 from typing import Protocol
 from zoneinfo import ZoneInfo
 
@@ -25,6 +25,8 @@ def _dose_dates(doses: list[HasTakenAt], tz_name: str) -> set[date]:
         if not dose.was_skipped:
             dt = dose.taken_at
             if hasattr(dt, 'astimezone'):
+                if dt.tzinfo is None:  # stored naive UTC; don't read as machine-local
+                    dt = dt.replace(tzinfo=timezone.utc)
                 dt = dt.astimezone(tz)
             dates.add(dt.date() if hasattr(dt, 'date') else dt)
     return dates
