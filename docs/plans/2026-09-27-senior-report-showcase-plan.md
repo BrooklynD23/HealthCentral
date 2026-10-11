@@ -807,7 +807,7 @@ sys.exit(1 if p.errors else 0)
 
 ### Task 8 (owner-gated O-4): Package the review evidence
 
-**Files:** Create `audit/2026-09-27/reviews/reviewer-log.tsv`; option B also the `*-codex.txt` outputs, `review.sh`, `review-prompt-template.md`
+**Files:** Create `docs/reviews/reviewer-log.tsv`; option B also the `*-codex.txt` outputs, `review.sh`, `review-prompt-template.md`
 
 - [ ] **Step 1:** Only if O-4 is signed. Copy from the orchestrator scratchpad (`reviews/`) the files the signed option names. Grep them for patient data first: `grep -l -i -E "ssn|date of birth|mrn|[0-9]{3}-[0-9]{2}-[0-9]{4}" <files>` → none (they review plans; STOP if a hit is real data).
 - [ ] **Step 2:** Update M6's evidence to the packaged path and its verdict to `CASE-STUDY` (drop "REPORTED until O-4").
@@ -861,7 +861,7 @@ A claim is upgraded only after its phase is merged **and** the named evidence is
 | O-1 | Publish the ledger-gated copy at `docs/capstone-report/asclexis-showcase-{FREEZE_DATE}.html`; the 2026-09-25 page stays byte-identical | yes | ☐ ______ date ______ |
 | O-2 | Add the §8 scope-note text to `CS4610_Report_Demo/README.md` (Edits 1–4, 6) | yes | ☐ ______ |
 | O-3 | Demo clone only: set `DEBUG=false` in the untracked `src/backend/.env`, plus `HF_HUB_OFFLINE=1` and Wi-Fi off during the demo | yes (the safe default without it: hidden backend window, browser-only sharing) | ☐ ______ |
-| O-4 | Package review evidence into `audit/2026-09-27/reviews/`: (A) `reviewer-log.tsv` only, or (B) the TSV + Codex outputs + `review.sh` + prompt template | B (makes M6 reproducible; avoids repeating audit addendum A-5) | ☐ A ☐ B ☐ neither |
+| O-4 | Package review evidence into `docs/reviews/`: (A) `reviewer-log.tsv` only, or (B) the TSV + Codex outputs + `review.sh` + prompt template | B (makes M6 reproducible; avoids repeating audit addendum A-5) | ☐ A ☐ B ☐ neither |
 | O-5 | Add outline §6a (2026-09-27 reconciliation) with the `CASE-STUDY` verdict only | yes | ☐ ______ |
 | O-6 | Claim freeze passed (§10) for the showcase on ______ | — | ☐ ______ |
 | O-7 | Add the submission-date inconsistency note (§8 Edit 5) | owner's call | ☐ yes ☐ no |
@@ -877,7 +877,7 @@ Worktree `/mnt/c/Users/DangT/Documents/GitHub/hc-report`, branch `docs/senior-re
 | C3 | Task 4 | `docs: show both external-runner callers in the integration diagram` | `docs/capstone-report/architecture-overview.md` |
 | C4 | Task 5 (O-2) | `docs: add coursework scope notes for claims found false on re-check` | `CS4610_Report_Demo/README.md` |
 | C5 | Task 7 (O-1) | `docs: add the ledger-gated showcase copy` | `docs/capstone-report/asclexis-showcase-{FREEZE_DATE}.html` |
-| C6 | Task 8 (O-4) | `docs: package the 2026-09-27 review log as case-study evidence` | the files O-4 names under `audit/2026-09-27/reviews/` + `docs/capstone-report/claims-ledger.md` |
+| C6 | Task 8 (O-4) | `docs: package the 2026-09-27 review log as case-study evidence` | the files O-4 names under `docs/reviews/` + `docs/capstone-report/claims-ledger.md` |
 | C7 | Task 10 | `docs: record the showcase claim freeze` | `docs/plans/2026-09-27-senior-report-showcase-plan.md` |
 
 Example (C1):
