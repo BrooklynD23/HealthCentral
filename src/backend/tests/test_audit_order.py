@@ -31,10 +31,17 @@ from core.database import Base
 from core.profile_database import ProfileDatabaseBase
 from models import Document, DocumentEntity, LabInterpretation, Medication, Observation
 from models.pinboard import PinboardItem
+import api.backup as backup_api
 import api.documents as documents_api
+import api.profiles as profiles_api
 import api.interpretations as interp_api
 from api.interpretations import router as interp_router
 from modules.rag import ModelUnavailableError
+from models import Profile
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
+from scripts.backup import RestoreResult
 from models.audit import AuditLog
 from models.memory_item import MemoryItem
 from models.pinboard import Pinboard
@@ -634,3 +641,157 @@ async def test_hc_aud_ord_003_prune_happy(kind, master, vault, pins):
     assert [_status(r) for r in rows][:2] == ["started", "completed"]
     assert {r.event_type for r in rows[:2]} == {"pinboard.item_remove"}
     assert _details(rows[0])["count"] == 1
+
+
+# --- T4: row 26 backup restore, row 27 profile delete ------------------------
+
+
+async def _seed_profile(master) -> None:
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    master.add(Profile(
+        id=PROFILE, display_name="Jane Doe", encryption_key_id="k", is_locked=False,
+        created_at=now, updated_at=now,
+    ))
+    await master.commit()
+    master.commits = 0
+
+
+@dataclass
+class Restore:
+    restore: MagicMock
+    close: AsyncMock
+
+
+@pytest_asyncio.fixture
+async def restore_env(master, tmp_path, monkeypatch):
+    await _seed_profile(master)
+    restore = MagicMock(return_value=RestoreResult(
+        success=True, partial=False, files_restored=3, safety_copies=[],
+    ))
+    close = AsyncMock()
+    monkeypatch.setattr(backup_api, "authenticate_profile",
+                        AsyncMock(return_value=SimpleNamespace(id=PROFILE)))
+    monkeypatch.setattr(backup_api, "close_profile_database_on_logout", close)
+    monkeypatch.setattr(backup_api, "_resolve_backup_dir", lambda pid, bid: tmp_path)
+    monkeypatch.setattr(backup_api.backup_script, "verify", lambda p: SimpleNamespace(valid=True))
+    monkeypatch.setattr(backup_api.backup_script, "restore", restore)
+    return Restore(restore, close)
+
+
+def _restore(master):
+    with route_client(
+        backup_api.router, "/backup", profile_id=PROFILE, master_db=master,
+        raise_server_exceptions=False,
+    ) as client:
+        return client.post("/backup/backup_20261009_123456/restore", json={
+            "password": "CorrectHorse1",
+            "confirmation_phrase": backup_api.BACKUP_RESTORE_CONFIRMATION,
+        })
+
+
+@pytest.mark.asyncio
+async def test_hc_aud_ord_001a_restore_intent_fails(master, restore_env):
+    master.fail_on = 1
+    assert _restore(master).status_code == 500
+    restore_env.restore.assert_not_called()
+    restore_env.close.assert_not_called()
+    assert await _rows(master) == []
+
+
+@pytest.mark.asyncio
+async def test_hc_aud_ord_001b_restore_completion_fails(master, restore_env):
+    master.fail_on = 2
+    assert _restore(master).status_code == 500
+    restore_env.restore.assert_called_once()
+    assert [_status(r) for r in await _rows(master)] == ["started"]
+
+
+@pytest.mark.asyncio
+async def test_hc_aud_ord_002_restore_file_operation_fails(master, restore_env):
+    restore_env.restore.side_effect = RuntimeError("disk gone")
+    assert _restore(master).status_code == 500
+    assert [_status(r) for r in await _rows(master)] == ["started"]
+
+
+@pytest.mark.asyncio
+async def test_hc_aud_ord_003_restore_happy(master, restore_env):
+    assert _restore(master).status_code == 200
+    rows = await _rows(master)
+    assert [_status(r) for r in rows] == ["started", "completed"]
+    assert rows[0].entity_id == rows[1].entity_id == "backup_20261009_123456"
+    assert _details(rows[1])["count"] == 3
+
+
+@dataclass
+class Erase:
+    vault: Path
+    keys: list[Path]
+
+
+@pytest_asyncio.fixture
+async def erase_env(master, tmp_path, monkeypatch):
+    await _seed_profile(master)
+    monkeypatch.setattr(type(profiles_api.settings), "app_data_path",
+                        property(lambda self: tmp_path))
+    vault = tmp_path / "vaults" / PROFILE
+    (vault / "docs").mkdir(parents=True)
+    keys = [vault / "key.bin", vault / "key.method"]
+    for k in keys:
+        k.write_bytes(b"sealed")
+    (vault / "vault.db").write_bytes(b"enc")
+    monkeypatch.setattr(profiles_api, "authenticate_profile",
+                        AsyncMock(return_value=SimpleNamespace(id=PROFILE)))
+    monkeypatch.setattr(profiles_api, "close_profile_database_on_logout", AsyncMock())
+    monkeypatch.setattr(profiles_api, "revoke_jwt_token", MagicMock())
+    return Erase(vault, keys)
+
+
+def _delete_profile(master):
+    with route_client(
+        profiles_api.router, "/profiles", profile_id=PROFILE, master_db=master,
+        raise_server_exceptions=False,
+    ) as client:
+        return client.request("DELETE", f"/profiles/{PROFILE}", json={
+            "password": "CorrectHorse1",
+            "confirmation_phrase": profiles_api.PROFILE_DELETE_CONFIRMATION,
+            "export_acknowledged": True,
+        })
+
+
+async def _profile_present(master) -> bool:
+    master.expire_all()
+    return (await master.execute(select(Profile.id))).first() is not None
+
+
+@pytest.mark.asyncio
+async def test_hc_aud_ord_001a_profile_delete_intent_fails(master, erase_env):
+    master.fail_on = 1
+    assert _delete_profile(master).status_code == 500
+    assert all(k.exists() for k in erase_env.keys) and erase_env.vault.exists()
+    assert await _profile_present(master)
+    assert await _rows(master) == []
+
+
+@pytest.mark.asyncio
+async def test_hc_aud_ord_002_profile_delete_vault_sweep_fails(
+    master, erase_env, monkeypatch
+):
+    def _boom(path, *a, **k):
+        raise RuntimeError("rmtree exploded")  # not OSError: swallowed by design
+
+    monkeypatch.setattr(profiles_api.shutil, "rmtree", _boom)
+    assert _delete_profile(master).status_code == 500
+    rows = await _rows(master)
+    assert [(_status(r), r.profile_id) for r in rows] == [("started", PROFILE)]
+    assert not any(r.event_type == "profile.delete" and r.profile_id is None for r in rows)
+
+
+@pytest.mark.asyncio
+async def test_hc_aud_ord_007_profile_delete_leaves_no_trace_of_id(master, erase_env):
+    assert _delete_profile(master).status_code == 204
+    rows = await _rows(master)
+    assert len(rows) == 1 and rows[0].event_type == "profile.delete"
+    assert rows[0].profile_id is None
+    blob = " ".join(str(getattr(rows[0], c.name)) for c in rows[0].__table__.columns)
+    assert PROFILE not in blob
+    assert not erase_env.vault.exists()
