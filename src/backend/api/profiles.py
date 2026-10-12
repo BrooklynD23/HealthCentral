@@ -788,18 +788,21 @@ async def delete_profile(
        cryptographic erase; after this point the vault is unreadable even if
        the database file survives
     4. sweep the whole vault directory (db, WAL/SHM sidecars, encrypted documents)
-    5. purge the profile's audit rows, delete the master row, write one
+    5. sweep the profile's backups and its RL dataset exports
+       (``rl_exports/profile_{id}/``)
+    6. purge the profile's audit rows, delete the master row, write one
        anonymized tombstone
 
     What this does **not** claim: overwriting the bytes on disk. SSD
     wear-levelling makes that guarantee false, so the honest claim — and the
     one the UI makes — is file deletion plus key destruction.
 
-    Export-before-erase is handled in the UI: the export routes stream
-    downloads rather than writing files server-side, so the client performs the
-    export and sets ``export_acknowledged``. Building a second, server-side
-    export path that drops a PHI file somewhere with no delivery channel would
-    be worse than the problem it solves.
+    Export-before-erase is handled in the UI: the data export routes stream
+    downloads, so the client performs the export and sets
+    ``export_acknowledged``. The RL dataset export (POST /feedback/export) is
+    the exception: it writes per-profile JSONL server-side under
+    ``rl_exports/profile_{id}/``, so this route removes that directory as a
+    step after the backups sweep.
     """
     profile = await _load_profile_for_delete(profile_id, db)
     if profile is None:
@@ -900,6 +903,21 @@ async def delete_profile(
     except OSError:
         logger.warning(
             "Backup directory could not be fully removed after key destruction; "
+            "residual files remain",
+        )
+
+    # --- Step 5b: sweep the RL dataset exports ------------------------------
+    # POST /feedback/export writes per-profile JSONL server-side; those files
+    # are derived from this profile's feedback and must not outlive it.
+    from api.feedback import _DEFAULT_EXPORT_DIR
+
+    rl_export_path = _DEFAULT_EXPORT_DIR / f"profile_{profile_id}"
+    try:
+        if rl_export_path.exists():
+            shutil.rmtree(rl_export_path)
+    except OSError:
+        logger.error(
+            "RL export directory could not be removed after key destruction; "
             "residual files remain",
         )
 
