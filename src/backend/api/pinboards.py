@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.documents import validate_uuid, verify_document_access
 from api.export import _compute_trends, _packet_store
-from core.audit import audit_and_commit, log_pinboard_event
+from core.audit import audit_and_commit, audit_intent, log_pinboard_event
 from core.auth import ProfileDbSession, RequireAuth
 from core.database import get_db
 from core.time import utcnow
@@ -268,11 +268,16 @@ async def delete_pinboard(
     master_db: AsyncSession = Depends(get_db),
 ):
     board = await _board_or_404(profile_db, pinboard_id)
+    # AUDIT-ORDER D: intent committed before the irreversible delete.
+    await audit_intent(
+        master_db, "started", log_pinboard_event, event="delete",
+        profile_id=session.profile_id, pinboard_id=pinboard_id,
+    )
     await profile_db.delete(board)
     await profile_db.commit()
-    await audit_and_commit(
-        master_db, log_pinboard_event, event="delete", profile_id=session.profile_id,
-        pinboard_id=pinboard_id,
+    await audit_intent(
+        master_db, "completed", log_pinboard_event, event="delete",
+        profile_id=session.profile_id, pinboard_id=pinboard_id,
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

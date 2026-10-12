@@ -26,7 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
 from core.config import settings, user_ocr_preference_enabled, compute_ocr_effective
-from core.audit import log_document_event, audit_and_commit
+from core.audit import log_document_event, audit_and_commit, audit_intent
 from core.auth import RequireAuth, Session, ProfileDbSession
 from core.document_crypto import get_decrypted_document, get_profile_encryption_key
 from core.time import utcnow
@@ -1842,6 +1842,13 @@ async def delete_document(
     profile_id = document.profile_id
     filename = document.source
 
+    # AUDIT-ORDER D: committed before the first vault mutation; if this write
+    # fails the request fails and nothing is deleted.
+    await audit_intent(
+        master_db, "started", log_document_event,
+        event="delete", profile_id=profile_id, document_id=document_id,
+    )
+
     await _prune_document_pin_targets(
         profile_db, document_id, include_document=True
     )
@@ -1891,12 +1898,8 @@ async def delete_document(
             type(exc).__name__,
         )
 
-    # Create audit log in master database
-    await log_document_event(
-        db=master_db,
-        event="delete",
-        profile_id=profile_id,
-        document_id=document_id,
+    await audit_intent(
+        master_db, "completed", log_document_event,
+        event="delete", profile_id=profile_id, document_id=document_id,
         filename=filename,
     )
-    await master_db.commit()

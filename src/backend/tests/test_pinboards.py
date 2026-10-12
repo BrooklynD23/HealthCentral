@@ -129,7 +129,7 @@ async def test_hc_pin_001_create_rename_list_delete_are_profile_scoped_and_audit
     await delete_pinboard(board.id, _session(), profile_db, master_db)
     assert profile_db.commit.await_count == 3
     assert profile_db.delete.await_count == 1
-    assert audit.await_count == 4
+    assert audit.await_count == 5  # delete writes a started + completed pair
     assert {call.kwargs["event"] for call in audit.await_args_list} == {
         "create", "view", "update", "delete"
     }
