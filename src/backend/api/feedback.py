@@ -194,15 +194,16 @@ async def _preceding_user_prompt(
     )).scalar_one_or_none()
     if assistant is None:
         return None
-    user = (await profile_db.execute(
+    users = (await profile_db.execute(
         select(ChatTurn).where(
             ChatTurn.session_id == assistant.session_id,
             ChatTurn.profile_id == profile_id,
             ChatTurn.turn_index == assistant.turn_index - 1,
             ChatTurn.role == "user",
         )
-    )).scalar_one_or_none()
-    return user.content if user else None
+    )).scalars().all()
+    # turn_index has no unique constraint; ambiguous = no snapshot, never a 500.
+    return users[0].content if len(users) == 1 else None
 
 
 # ---------------------------------------------------------------------------

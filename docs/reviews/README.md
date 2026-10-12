@@ -7,7 +7,7 @@ Every Codex plan review (`<ID>-rN-*`) and adversarial diff review (`<ID>-diff-co
 - `2026-09-25/` — DDI, SAFE-CHAT, SAFE-INTERP (Wave 3 PR reviews).
 - `2026-09-27-swarm/` — the 2026-09-27 plan set; also holds `GLOBAL-rules.md`, `POSTPASS-baseline.md`, `*-prior-rN.md` and `reviewer-log.tsv`.
 - `2026-09-29/` — P01 and S02.
-- `2026-10-12/` — AUDIT-ORDER execution diff (Codex, code review, security review).
+- `2026-10-12/` — AUDIT-ORDER execution diff (Codex, code review, security review); RL-EXPORT-EMPTY diff (code review).
 
 New reviews go in `docs/reviews/<date>/<ID>-r<N>-{prompt.md,codex.txt,response.md}`; add a row here. Process: [../agentic/orchestration.md](../agentic/orchestration.md).
 
@@ -86,3 +86,4 @@ Verdict is the reviewer's last `VERDICT:` line (plan reviews: PASS / REVISE; dif
 | 2026-09-29 | P01 | r1 | REVISE | 2026-09-29 | [codex](2026-09-29/P01-r1-codex.txt) [prompt](2026-09-29/P01-r1-prompt.md) [response](2026-09-29/P01-r1-response.md) |
 | 2026-09-29 | S02 | r1 | REVISE | 2026-09-29 | [codex](2026-09-29/S02-r1-codex.txt) [prompt](2026-09-29/S02-r1-prompt.md) [response](2026-09-29/S02-r1-response.md) |
 | 2026-10-12 | AUDIT-ORDER | diff | needs-attention | 2026-10-12 | [codex](2026-10-12/AUDIT-ORDER-diff-codex.txt) [prompt](2026-10-12/AUDIT-ORDER-diff-prompt.md) [response](2026-10-12/AUDIT-ORDER-diff-response.md) [code review](2026-10-12/AUDIT-ORDER-diff-codereview.md) [security review](2026-10-12/AUDIT-ORDER-diff-secrev.md) |
+| 2026-10-12 | RL-EXPORT-EMPTY | diff | needs-attention | 2026-10-12 | [code review](2026-10-12/RL-EXPORT-EMPTY-diff-codereview.md) [response](2026-10-12/RL-EXPORT-EMPTY-diff-response.md) |

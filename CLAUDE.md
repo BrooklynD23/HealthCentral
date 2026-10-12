@@ -27,11 +27,11 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
 ## 4. Loop toward verifiable success criteria
 
 - Write or extend a test first, then make it pass. Tests live in `src/backend/tests/` (pytest, `HC-XXX-NNN` naming) and `src/frontend` (vitest + Playwright e2e).
-- Baseline: **1468 backend tests collected.** Without a real embedding
+- Baseline: **1469 backend tests collected.** Without a real embedding
   model installed, `test_api_rag_index_002b` fails on embedding similarity. That failure is environmental — it is not yours, and you
   must not "fix" it by lowering the 0.7 threshold. Judge yourself on the
   **collected** count, which does not vary by environment: if it differs from
-  1468, this line is stale — update it in the same commit rather than working
+  1469, this line is stale — update it in the same commit rather than working
   around it.
 - **Run verification; never assert it.** Report the command and its actual
   output. "Tests pass" without the output is not a result. If a check was

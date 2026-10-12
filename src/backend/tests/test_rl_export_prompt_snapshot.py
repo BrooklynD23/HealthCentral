@@ -28,7 +28,9 @@ import api.feedback as feedback_api
 from core.auth import get_profile_db_session
 from core.profile_database import ProfileDatabaseBase
 from models import chat_session, response_feedback  # noqa: F401  register tables
+from core.time import utcnow
 from models.chat_session import ChatSession, ChatTurn
+from models.response_feedback import ResponseFeedback
 from tests.support.routes import route_client
 
 PROFILE = "11111111-1111-1111-1111-111111111111"
@@ -115,8 +117,9 @@ async def test_hc_rlexp_001_export_uses_the_user_turn_right_before_the_rated_ans
 @pytest.mark.asyncio
 async def test_hc_rlexp_002_answer_without_own_preceding_user_turn_is_skipped(tmp_path):
     """Orphan answers are accepted (no 500) and skipped on export. Decoys: the
-    turn before is another profile's user turn, or an assistant turn; a valid
-    pair in a third session must still export, exactly once."""
+    turn before is another profile's user turn or an assistant turn; the rated
+    turn belongs to another profile or is a user turn; two user turns share the
+    preceding index. A valid pair in its own session must export exactly once."""
     db, engine = await _profile_db()
     try:
         foreign_sid, foreign_ids = await _seed(db, [
@@ -127,6 +130,23 @@ async def test_hc_rlexp_002_answer_without_own_preceding_user_turn_is_skipped(tm
             (PROFILE, "assistant", "PRIOR ASSISTANT TEXT"),
             (PROFILE, "assistant", "orphan answer 2"),
         ])
+        foreign_answer_sid, foreign_answer_ids = await _seed(db, [
+            (PROFILE, "user", "QUESTION BEFORE FOREIGN ANSWER"),
+            (OTHER_PROFILE, "assistant", "other profile answer"),
+        ])
+        user_rated_sid, user_rated_ids = await _seed(db, [
+            (PROFILE, "user", "QUESTION BEFORE A QUESTION"),
+            (PROFILE, "user", "rated user turn"),
+        ])
+        dup_sid, dup_ids = await _seed(db, [
+            (PROFILE, "user", "DUPLICATE INDEX A"),
+            (PROFILE, "assistant", "dup answer"),
+        ])
+        db.add(ChatTurn(
+            id=str(uuid.uuid4()), session_id=dup_sid, profile_id=PROFILE,
+            turn_index=0, role="user", content="DUPLICATE INDEX B",
+        ))
+        await db.commit()
         valid_sid, valid_ids = await _seed(db, [
             (PROFILE, "user", "VALID QUESTION"),
             (PROFILE, "assistant", "valid answer"),
@@ -134,13 +154,43 @@ async def test_hc_rlexp_002_answer_without_own_preceding_user_turn_is_skipped(tm
         rated, exported = _rate_and_export(db, tmp_path, [
             (foreign_sid, foreign_ids[1]),
             (role_sid, role_ids[1]),
+            (foreign_answer_sid, foreign_answer_ids[1]),
+            (user_rated_sid, user_rated_ids[1]),
+            (dup_sid, dup_ids[1]),
             (valid_sid, valid_ids[1]),
         ])
     finally:
         await db.close()
         await engine.dispose()
 
-    assert [r.status_code for r in rated] == [200, 200, 200], [r.text for r in rated]
+    assert [r.status_code for r in rated] == [200] * 6, [r.text for r in rated]
     assert exported.status_code == 200, exported.text
     assert exported.json()["grpo_rewards_count"] == 1, exported.json()
     assert _grpo_prompts(tmp_path) == ["VALID QUESTION"]
+
+
+@pytest.mark.asyncio
+async def test_hc_rlexp_003_rerating_a_row_stored_without_prompt_backfills_it(tmp_path):
+    """Rows written before the fix have prompt_snapshot NULL; re-rating one
+    must fill it from the preceding user turn so it reaches the export."""
+    db, engine = await _profile_db()
+    try:
+        session_id, ids = await _seed(db, [
+            (PROFILE, "user", "OLD QUESTION"),
+            (PROFILE, "assistant", "old answer"),
+        ])
+        db.add(ResponseFeedback(
+            id=str(uuid.uuid4()), profile_id=PROFILE, session_id=session_id,
+            turn_id=ids[1], rating=-1, prompt_snapshot=None, response_text="old answer",
+            created_at=utcnow(), updated_at=utcnow(),
+        ))
+        await db.commit()
+        rated, exported = _rate_and_export(db, tmp_path, [(session_id, ids[1])])
+    finally:
+        await db.close()
+        await engine.dispose()
+
+    assert rated[0].status_code == 200, rated[0].text
+    assert exported.status_code == 200, exported.text
+    assert exported.json()["grpo_rewards_count"] == 1, exported.json()
+    assert _grpo_prompts(tmp_path) == ["OLD QUESTION"]
