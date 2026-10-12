@@ -66,7 +66,7 @@ function SuggestionCard({
   const showReview = matchedMedication !== null;
 
   return (
-    <div className="flex items-start justify-between gap-4 p-4 rounded-xl border border-black/[0.06] bg-surface-muted">
+    <div className="flex items-start justify-between gap-4 p-4 rounded-xl border border-black/6 bg-surface-muted">
       <div className="min-w-0">
         <p className="text-xs font-medium uppercase tracking-wide text-ink-tertiary">
           {SUGGESTION_LABELS[suggestion.suggestion_type]}
@@ -148,7 +148,7 @@ function MedReconcilePanel({
         </label>
         <select
           id="med-reconcile-doc-select"
-          className="w-full max-w-md px-3 py-2 rounded-xl border border-black/[0.1] bg-white text-sm text-ink focus-visible:ring-2 focus-visible:ring-accent"
+          className="w-full max-w-md px-3 py-2 rounded-xl border border-black/10 bg-white text-sm text-ink focus-visible:ring-2 focus-visible:ring-accent"
           value={selectedDocId}
           onChange={(event) => setSelectedDocId(event.target.value)}
         >
@@ -253,10 +253,10 @@ export function MedicationCoach() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="space-y-2">
-            <div className="h-8 w-48 bg-black/[0.05] animate-pulse rounded-lg" />
-            <div className="h-4 w-64 bg-black/[0.05] animate-pulse rounded-lg" />
+            <div className="h-8 w-48 bg-black/5 animate-pulse rounded-lg" />
+            <div className="h-4 w-64 bg-black/5 animate-pulse rounded-lg" />
           </div>
-          <div className="h-10 w-32 bg-black/[0.05] animate-pulse rounded-xl" />
+          <div className="h-10 w-32 bg-black/5 animate-pulse rounded-xl" />
         </div>
         <ListSkeleton count={4} />
       </div>

@@ -131,9 +131,9 @@ export function MedicationForm({
                 value={dosageUnit}
                 onChange={(e) => setDosageUnit(e.target.value)}
                 className={cn(
-                  'flex h-[44px] w-full rounded-xl border border-black/[0.08] bg-surface-elevated',
+                  'flex h-[44px] w-full rounded-xl border border-black/8 bg-surface-elevated',
                   'px-3 py-2 text-sm text-ink',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2'
+                  'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2'
                 )}
               >
                 <option value="mg">mg</option>
@@ -153,9 +153,9 @@ export function MedicationForm({
                 value={dosageForm}
                 onChange={(e) => setDosageForm(e.target.value)}
                 className={cn(
-                  'flex h-[44px] w-full rounded-xl border border-black/[0.08] bg-surface-elevated',
+                  'flex h-[44px] w-full rounded-xl border border-black/8 bg-surface-elevated',
                   'px-3 py-2 text-sm text-ink',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2'
+                  'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2'
                 )}
               >
                 {dosageForms.map((form) => (
@@ -177,9 +177,9 @@ export function MedicationForm({
               value={frequency}
               onChange={(e) => setFrequency(e.target.value)}
               className={cn(
-                'flex h-[44px] w-full rounded-xl border border-black/[0.08] bg-surface-elevated',
+                'flex h-[44px] w-full rounded-xl border border-black/8 bg-surface-elevated',
                 'px-3 py-2 text-sm text-ink',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2'
+                'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2'
               )}
             >
               {frequencies.map((freq) => (
@@ -202,9 +202,9 @@ export function MedicationForm({
               placeholder="e.g. Take with food"
               rows={2}
               className={cn(
-                'flex w-full rounded-xl border border-black/[0.08] bg-surface-elevated',
+                'flex w-full rounded-xl border border-black/8 bg-surface-elevated',
                 'px-3 py-2 text-sm text-ink',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
+                'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
                 'resize-none'
               )}
             />
@@ -216,7 +216,7 @@ export function MedicationForm({
               type="checkbox"
               checked={reminderEnabled}
               onChange={(e) => setReminderEnabled(e.target.checked)}
-              className="w-4 h-4 rounded border-black/20 text-accent focus:ring-accent"
+              className="w-4 h-4 rounded-sm border-black/20 text-accent focus:ring-accent"
             />
             <span className="text-sm text-ink">Enable reminders</span>
           </label>

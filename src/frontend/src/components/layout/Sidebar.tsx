@@ -38,10 +38,10 @@ export function Sidebar() {
   const prefersReducedMotion = useReducedMotion();
 
   return (
-    <aside className="fixed left-0 top-0 bottom-0 w-64 bg-white/60 backdrop-blur-xl border-r border-black/[0.06] flex flex-col">
-      <div className="p-6 border-b border-black/[0.04]">
+    <aside className="fixed left-0 top-0 bottom-0 w-64 bg-white/60 backdrop-blur-xl border-r border-black/6 flex flex-col">
+      <div className="p-6 border-b border-black/4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent to-accent/80 flex items-center justify-center shadow-soft">
+          <div className="w-10 h-10 rounded-xl bg-linear-to-br from-accent to-accent/80 flex items-center justify-center shadow-soft">
             <Heart className="w-5 h-5 text-white" strokeWidth={2.5} />
           </div>
           <div>
@@ -68,7 +68,7 @@ export function Sidebar() {
                   'min-h-target focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
                   linkActive || isActive
                     ? 'text-accent'
-                    : 'text-ink-secondary hover:text-ink hover:bg-black/[0.03]'
+                    : 'text-ink-secondary hover:text-ink hover:bg-black/3'
                 )
               }
             >
@@ -86,7 +86,7 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="p-4 border-t border-black/[0.04]">
+      <div className="p-4 border-t border-black/4">
         <div className="px-4 py-3 rounded-xl bg-surface-muted">
           <p className="text-xs text-ink-tertiary">
             All data stored locally

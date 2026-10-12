@@ -132,12 +132,12 @@ export function PanelInterpretationDashboard({
                       transition={{ delay: i * 0.05 }}
                       className={cn(
                         'flex items-start gap-3 p-3 rounded-xl',
-                        'bg-surface-elevated border border-black/[0.04]'
+                        'bg-surface-elevated border border-black/4'
                       )}
                     >
                       <Badge
                         variant={statusVariant[insight.status] ?? 'default'}
-                        className="flex-shrink-0 mt-0.5"
+                        className="shrink-0 mt-0.5"
                       >
                         {insight.status}
                       </Badge>
@@ -164,7 +164,7 @@ export function PanelInterpretationDashboard({
           <DisclaimerBanner />
 
           {/* Meta */}
-          <div className="flex items-center gap-3 text-xs text-ink-tertiary pt-2 border-t border-black/[0.04]">
+          <div className="flex items-center gap-3 text-xs text-ink-tertiary pt-2 border-t border-black/4">
             <span>
               Collected: {new Date(interpretation.collected_at).toLocaleDateString()}
             </span>

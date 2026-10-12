@@ -36,12 +36,12 @@ export function CitationTooltip({ citation, index }: CitationTooltipProps) {
           className={cn(
             'absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2',
             'w-64 p-3 rounded-xl',
-            'bg-white border border-black/[0.08] shadow-elevated',
+            'bg-white border border-black/8 shadow-elevated',
             'text-sm text-ink animate-in fade-in-0 zoom-in-95'
           )}
         >
           <div className="flex items-start gap-2">
-            <BookOpen className="w-4 h-4 text-ink-tertiary flex-shrink-0 mt-0.5" />
+            <BookOpen className="w-4 h-4 text-ink-tertiary shrink-0 mt-0.5" />
             <div>
               <p className="text-xs font-medium text-ink-secondary uppercase tracking-wider mb-1">
                 {citation.type.replace('_', ' ')}
@@ -49,7 +49,7 @@ export function CitationTooltip({ citation, index }: CitationTooltipProps) {
               <p className="text-sm text-ink leading-relaxed">{citation.text}</p>
             </div>
           </div>
-          <div className="absolute left-1/2 -translate-x-1/2 -bottom-1.5 w-3 h-3 bg-white border-r border-b border-black/[0.08] rotate-45" />
+          <div className="absolute left-1/2 -translate-x-1/2 -bottom-1.5 w-3 h-3 bg-white border-r border-b border-black/8 rotate-45" />
         </div>
       )}
     </span>

@@ -15,7 +15,7 @@ export function DisclaimerBanner({ className }: DisclaimerBannerProps) {
         className
       )}
     >
-      <ShieldAlert className="w-5 h-5 text-status-caution flex-shrink-0 mt-0.5" />
+      <ShieldAlert className="w-5 h-5 text-status-caution shrink-0 mt-0.5" />
       <div>
         <p className="text-sm font-medium text-ink">
           For informational purposes only

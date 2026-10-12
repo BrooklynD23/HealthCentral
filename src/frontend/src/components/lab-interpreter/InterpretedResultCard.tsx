@@ -124,7 +124,7 @@ export function InterpretedResultCard({
           {interpretation.requires_physician_review &&
             interpretation.physician_review_reason && (
               <div className="flex items-start gap-2 p-3 rounded-xl bg-status-attention-subtle border border-status-attention/20">
-                <AlertTriangle className="w-4 h-4 text-status-attention flex-shrink-0 mt-0.5" />
+                <AlertTriangle className="w-4 h-4 text-status-attention shrink-0 mt-0.5" />
                 <p className="text-sm text-ink">
                   {interpretation.physician_review_reason}
                 </p>
@@ -140,7 +140,7 @@ export function InterpretedResultCard({
                 className={cn(
                   'flex items-center gap-1.5 text-sm font-medium text-accent',
                   'hover:text-accent-hover transition-colors',
-                  'focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 rounded'
+                  'focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 rounded-sm'
                 )}
               >
                 {expanded ? (
@@ -160,7 +160,7 @@ export function InterpretedResultCard({
           <DisclaimerBanner />
 
           {/* Footer */}
-          <div className="flex items-center justify-between pt-2 border-t border-black/[0.04]">
+          <div className="flex items-center justify-between pt-2 border-t border-black/4">
             <div className="flex items-center gap-3 text-xs text-ink-tertiary">
               <span>Model: {interpretation.model_tier}</span>
               <span>

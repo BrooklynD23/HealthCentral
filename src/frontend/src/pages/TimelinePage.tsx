@@ -162,7 +162,7 @@ export function TimelinePage() {
               <select
                 value={eventType}
                 onChange={(e) => setEventType(e.target.value as TimelineEventType | '')}
-                className="w-full rounded-xl border border-black/[0.08] bg-white px-3 py-2 text-sm text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                className="w-full rounded-xl border border-black/8 bg-white px-3 py-2 text-sm text-ink focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
               >
                 {EVENT_TYPE_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>

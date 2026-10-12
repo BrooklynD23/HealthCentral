@@ -42,7 +42,7 @@ export function BadgeToast({ badge, onDismiss }: BadgeToastProps) {
           exit={prefersReducedMotion ? { opacity: 0, scale: 0.95 } : { opacity: 0, y: -20, scale: 0.9 }}
           transition={{ type: 'spring', damping: 20, stiffness: 300 }}
           className={cn(
-            'fixed top-4 right-4 z-[60] flex items-center gap-4',
+            'fixed top-4 right-4 z-60 flex items-center gap-4',
             'rounded-2xl bg-white p-4 shadow-elevated',
             'border border-accent/20 min-w-[300px]'
           )}
@@ -61,7 +61,7 @@ export function BadgeToast({ badge, onDismiss }: BadgeToastProps) {
           </div>
           <button
             onClick={onDismiss}
-            className="h-8 w-8 flex items-center justify-center rounded-lg text-ink-tertiary hover:text-ink hover:bg-black/[0.04] transition-colors"
+            className="h-8 w-8 flex items-center justify-center rounded-lg text-ink-tertiary hover:text-ink hover:bg-black/4 transition-colors"
             aria-label="Dismiss"
           >
             <X className="w-4 h-4" />

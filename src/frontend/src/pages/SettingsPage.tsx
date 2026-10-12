@@ -214,7 +214,7 @@ export function SettingsPage() {
         <StaggerItem className="lg:col-span-2 space-y-6">
           {/* Timezone */}
           <Card>
-            <CardHeader className="border-b border-black/[0.04]">
+            <CardHeader className="border-b border-black/4">
               <CardTitle className="flex items-center gap-3">
                 <Clock className="w-5 h-5 text-ink-secondary" />
                 Timezone
@@ -227,7 +227,7 @@ export function SettingsPage() {
               <select
                 value={timezoneData?.timezone ?? 'UTC'}
                 onChange={(e) => saveTimezone.mutate(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-surface-muted text-sm text-ink border border-black/[0.06] focus:outline-none focus:ring-2 focus:ring-accent transition-all"
+                className="w-full px-3 py-2 rounded-xl bg-surface-muted text-sm text-ink border border-black/6 focus:outline-hidden focus:ring-2 focus:ring-accent transition-all"
               >
                 {COMMON_TIMEZONES.map((tz) => (
                   <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
@@ -238,7 +238,7 @@ export function SettingsPage() {
 
           {/* Voice Logging */}
           <Card>
-            <CardHeader className="border-b border-black/[0.04]">
+            <CardHeader className="border-b border-black/4">
               <CardTitle className="flex items-center gap-3">
                 <Mic className="w-5 h-5 text-ink-secondary" />
                 Voice Logging
@@ -270,7 +270,7 @@ export function SettingsPage() {
                 </span>
                 <div className={cn(
                   'w-10 h-6 rounded-full relative transition-colors duration-300',
-                  voiceData?.voice_logging_enabled ? 'bg-accent' : 'bg-black/[0.12]'
+                  voiceData?.voice_logging_enabled ? 'bg-accent' : 'bg-black/12'
                 )}>
                   <div className={cn(
                     'absolute w-4 h-4 rounded-full bg-white top-1 transition-transform duration-300',
@@ -283,7 +283,7 @@ export function SettingsPage() {
 
           {/* Document import / OCR */}
           <Card>
-            <CardHeader className="border-b border-black/[0.04]">
+            <CardHeader className="border-b border-black/4">
               <CardTitle className="flex items-center gap-3">
                 <FileText className="w-5 h-5 text-ink-secondary" />
                 Document import (OCR)
@@ -292,7 +292,7 @@ export function SettingsPage() {
             <CardContent className="p-6 space-y-3">
               <p className="text-sm text-ink-secondary">
                 Extract text from scanned PDFs and lab images using Tesseract. Your preference applies to this profile;
-                the server must also allow OCR (<code className="text-xs bg-surface-muted px-1 rounded">OCR_ENABLED</code>).
+                the server must also allow OCR (<code className="text-xs bg-surface-muted px-1 rounded-sm">OCR_ENABLED</code>).
               </p>
               <button
                 type="button"
@@ -319,7 +319,7 @@ export function SettingsPage() {
                 <div
                   className={cn(
                     'w-10 h-6 rounded-full relative transition-colors duration-300',
-                    settings?.ocr_preference_enabled ? 'bg-accent' : 'bg-black/[0.12]'
+                    settings?.ocr_preference_enabled ? 'bg-accent' : 'bg-black/12'
                   )}
                 >
                   <div
@@ -356,7 +356,7 @@ export function SettingsPage() {
 
           {/* Environment & tools */}
           <Card>
-            <CardHeader className="border-b border-black/[0.04]">
+            <CardHeader className="border-b border-black/4">
               <CardTitle className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-3">
                   <Wrench className="w-5 h-5 text-ink-secondary" />
@@ -365,7 +365,7 @@ export function SettingsPage() {
                 <Button
                   variant="secondary"
                   size="sm"
-                  className="gap-1.5 border-black/[0.06]"
+                  className="gap-1.5 border-black/6"
                   onClick={() => recheckDiagnostics.mutate()}
                   disabled={recheckDiagnostics.isPending || diagnosticsLoading}
                 >
@@ -388,7 +388,7 @@ export function SettingsPage() {
                 (diagnostics?.components ?? []).map((c) => (
                   <div
                     key={c.id}
-                    className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-surface-muted border border-black/[0.04]"
+                    className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-surface-muted border border-black/4"
                   >
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-ink truncate">{c.label}</p>
@@ -426,7 +426,7 @@ export function SettingsPage() {
 
           {/* Hardware Info */}
           <Card>
-            <CardHeader className="border-b border-black/[0.04]">
+            <CardHeader className="border-b border-black/4">
               <CardTitle className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <Cpu className="w-5 h-5 text-ink-secondary" />
@@ -435,7 +435,7 @@ export function SettingsPage() {
                 <Button
                   variant="secondary"
                   size="sm"
-                  className="gap-1.5 border-black/[0.06]"
+                  className="gap-1.5 border-black/6"
                   onClick={handleDetectHardware}
                   disabled={detectHardware.isPending}
                 >
@@ -451,20 +451,20 @@ export function SettingsPage() {
             <CardContent className="p-6">
               {settings?.hardware_info ? (
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="rounded-xl bg-surface-muted p-4 border border-black/[0.02]">
+                  <div className="rounded-xl bg-surface-muted p-4 border border-black/2">
                     <p className="text-xs text-ink-tertiary mb-1 font-medium uppercase tracking-wider">RAM</p>
                     <p className="text-sm font-bold text-ink">{settings.hardware_info.ram_total_gb.toFixed(1)} GB</p>
                   </div>
-                  <div className="rounded-xl bg-surface-muted p-4 border border-black/[0.02]">
+                  <div className="rounded-xl bg-surface-muted p-4 border border-black/2">
                     <p className="text-xs text-ink-tertiary mb-1 font-medium uppercase tracking-wider">CPU</p>
                     <p className="text-sm font-bold text-ink">{settings.hardware_info.cpu_cores} cores</p>
                     <p className="text-[10px] text-ink-tertiary truncate font-medium">{settings.hardware_info.cpu_name || 'Unknown'}</p>
                   </div>
-                  <div className="rounded-xl bg-surface-muted p-4 border border-black/[0.02]">
+                  <div className="rounded-xl bg-surface-muted p-4 border border-black/2">
                     <p className="text-xs text-ink-tertiary mb-1 font-medium uppercase tracking-wider">Disk Free</p>
                     <p className="text-sm font-bold text-ink">{settings.hardware_info.disk_free_gb.toFixed(1)} GB</p>
                   </div>
-                  <div className="rounded-xl bg-surface-muted p-4 border border-black/[0.02]">
+                  <div className="rounded-xl bg-surface-muted p-4 border border-black/2">
                     <p className="text-xs text-ink-tertiary mb-1 font-medium uppercase tracking-wider">GPU</p>
                     <p className="text-sm font-bold text-ink">
                       {settings.hardware_info.gpu_name || 'Not detected'}
@@ -481,7 +481,7 @@ export function SettingsPage() {
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-12 border-2 border-dashed border-black/[0.04] rounded-2xl">
+                <div className="text-center py-12 border-2 border-dashed border-black/4 rounded-2xl">
                   <Cpu className="w-10 h-10 text-ink-tertiary mx-auto mb-3 opacity-50" />
                   <p className="text-sm text-ink-secondary max-w-[240px] mx-auto">
                     Run hardware detection to see recommended model settings.
@@ -493,7 +493,7 @@ export function SettingsPage() {
 
           {/* Model Tier Selection */}
           <Card>
-            <CardHeader className="border-b border-black/[0.04]">
+            <CardHeader className="border-b border-black/4">
               <CardTitle className="flex items-center gap-3">
                 <HardDrive className="w-5 h-5 text-ink-secondary" />
                 Model Tier
@@ -513,8 +513,8 @@ export function SettingsPage() {
                     className={cn(
                       'flex items-center justify-between px-4 py-4 rounded-xl border transition-all duration-300',
                       isSelected
-                        ? 'border-accent bg-accent-subtle shadow-sm'
-                        : 'border-black/[0.06] hover:border-black/[0.12] hover:bg-black/[0.01]'
+                        ? 'border-accent bg-accent-subtle shadow-xs'
+                        : 'border-black/6 hover:border-black/12 hover:bg-black/1'
                     )}
                   >
                     <div className="flex items-center gap-3">
@@ -544,7 +544,7 @@ export function SettingsPage() {
                         <Button
                           variant="secondary"
                           size="sm"
-                          className="gap-1.5 h-8 border-black/[0.06] text-xs font-bold"
+                          className="gap-1.5 h-8 border-black/6 text-xs font-bold"
                           onClick={() => handleStartDownload(tier.tier)}
                           disabled={isDownloading}
                         >
@@ -573,7 +573,7 @@ export function SettingsPage() {
                   </div>
                 );
               }) ?? (
-                <div className="text-center py-12 border-2 border-dashed border-black/[0.04] rounded-2xl">
+                <div className="text-center py-12 border-2 border-dashed border-black/4 rounded-2xl">
                   <p className="text-sm text-ink-secondary">
                     Run hardware detection first to see available tiers.
                   </p>
@@ -595,7 +595,7 @@ export function SettingsPage() {
                       initial={{ opacity: 0, height: 0, marginTop: 0 }}
                       animate={{ opacity: 1, height: 'auto', marginTop: 12 }}
                       exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                      className="rounded-xl bg-surface-muted p-4 border border-black/[0.04] overflow-hidden"
+                      className="rounded-xl bg-surface-muted p-4 border border-black/4 overflow-hidden"
                     >
                       <div className="flex items-center justify-between mb-2">
                         <p className="text-sm font-bold text-ink capitalize flex items-center gap-2">
@@ -604,7 +604,7 @@ export function SettingsPage() {
                         </p>
                         <p className="text-xs font-bold text-accent">{label}</p>
                       </div>
-                      <div className="w-full bg-black/[0.06] rounded-full h-2 overflow-hidden">
+                      <div className="w-full bg-black/6 rounded-full h-2 overflow-hidden">
                         {isIndeterminate ? (
                           <div className="h-2 w-1/3 bg-accent rounded-full animate-shimmer" />
                         ) : (
@@ -637,25 +637,25 @@ export function SettingsPage() {
               <CardTitle className="text-base">Current Status</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted border border-black/[0.02]">
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted border border-black/2">
                 <span className="text-sm text-ink-secondary">Active Tier</span>
                 <Badge variant="verified" className="capitalize font-bold">
                   {settings?.current_tier || 'none'}
                 </Badge>
               </div>
-              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted border border-black/[0.02]">
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted border border-black/2">
                 <span className="text-sm text-ink-secondary">Preferred</span>
                 <span className="text-sm font-bold text-ink capitalize">
                   {settings?.preferred_tier || 'auto'}
                 </span>
               </div>
-              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted border border-black/[0.02]">
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted border border-black/2">
                 <span className="text-sm text-ink-secondary">External API</span>
                 <Badge variant={externalEnabled ? 'verified' : 'default'} className="font-bold">
                   {externalEnabled ? 'Enabled' : 'Off'}
                 </Badge>
               </div>
-              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted border border-black/[0.02]">
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted border border-black/2">
                 <span className="text-sm text-ink-secondary">OCR (profile)</span>
                 <Badge variant={settings?.ocr_effective ? 'verified' : 'attention'} className="font-bold">
                   {settings?.ocr_effective ? 'Ready' : 'Blocked'}
@@ -698,7 +698,7 @@ export function SettingsPage() {
                 </span>
                 <div className={cn(
                   'w-10 h-6 rounded-full relative transition-colors duration-300',
-                  externalEnabled ? 'bg-accent' : 'bg-black/[0.12]'
+                  externalEnabled ? 'bg-accent' : 'bg-black/12'
                 )}>
                   <div className={cn(
                     'absolute w-4 h-4 rounded-full bg-white top-1 transition-transform duration-300',
@@ -720,7 +720,7 @@ export function SettingsPage() {
                       <select
                         value={externalProvider}
                         onChange={(e) => setExternalProvider(e.target.value)}
-                        className="w-full px-3 py-2.5 h-11 rounded-xl bg-surface-elevated text-sm text-ink border border-black/[0.08] focus:outline-none focus:ring-2 focus:ring-accent transition-all"
+                        className="w-full px-3 py-2.5 h-11 rounded-xl bg-surface-elevated text-sm text-ink border border-black/8 focus:outline-hidden focus:ring-2 focus:ring-accent transition-all"
                       >
                         <option value="">Select provider</option>
                         <option value="openai">OpenAI</option>
@@ -734,7 +734,7 @@ export function SettingsPage() {
                         value={externalKey}
                         onChange={(e) => setExternalKey(e.target.value)}
                         placeholder="sk-..."
-                        className="w-full px-3 py-2.5 h-11 rounded-xl bg-surface-elevated text-sm text-ink border border-black/[0.08] focus:outline-none focus:ring-2 focus:ring-accent transition-all"
+                        className="w-full px-3 py-2.5 h-11 rounded-xl bg-surface-elevated text-sm text-ink border border-black/8 focus:outline-hidden focus:ring-2 focus:ring-accent transition-all"
                       />
                     </div>
                     <div>
@@ -744,7 +744,7 @@ export function SettingsPage() {
                         value={externalModel}
                         onChange={(e) => setExternalModel(e.target.value)}
                         placeholder="e.g. gpt-4o, claude-sonnet"
-                        className="w-full px-3 py-2.5 h-11 rounded-xl bg-surface-elevated text-sm text-ink border border-black/[0.08] focus:outline-none focus:ring-2 focus:ring-accent transition-all"
+                        className="w-full px-3 py-2.5 h-11 rounded-xl bg-surface-elevated text-sm text-ink border border-black/8 focus:outline-hidden focus:ring-2 focus:ring-accent transition-all"
                       />
                     </div>
                   </motion.div>
@@ -833,7 +833,7 @@ export function SettingsPage() {
             <motion.div
               initial="initial" animate="animate" exit="exit"
               variants={backdropVariants}
-              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              className="absolute inset-0 bg-black/40 backdrop-blur-xs"
               onClick={() => setShowExportDialog(false)}
             />
             <motion.div
@@ -902,7 +902,7 @@ export function SettingsPage() {
               animate="animate"
               exit="exit"
               variants={backdropVariants}
-              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              className="absolute inset-0 bg-black/40 backdrop-blur-xs"
               onClick={() => setDiagToolId(null)}
               aria-hidden
             />
@@ -912,7 +912,7 @@ export function SettingsPage() {
               exit="exit"
               variants={modalVariants}
               transition={{ type: prefersReducedMotion ? 'tween' : 'spring', duration: prefersReducedMotion ? 0.15 : undefined }}
-              className="relative w-full max-w-md rounded-2xl bg-surface-elevated border border-black/[0.08] shadow-xl p-6 max-h-[85vh] overflow-y-auto"
+              className="relative w-full max-w-md rounded-2xl bg-surface-elevated border border-black/8 shadow-xl p-6 max-h-[85vh] overflow-y-auto"
               role="dialog"
               aria-labelledby="diag-tool-title"
             >
@@ -927,12 +927,12 @@ export function SettingsPage() {
                   focusedDiag.fix_actions.map((a, i) => (
                     <div
                       key={`${a.label}-${i}`}
-                      className="rounded-xl border border-black/[0.06] p-3 bg-surface-muted"
+                      className="rounded-xl border border-black/6 p-3 bg-surface-muted"
                     >
                       <p className="text-xs font-bold text-ink-tertiary uppercase tracking-wide">{a.label}</p>
                       {a.type === 'copy_command' && a.command && (
                         <div className="mt-2 flex items-start gap-2">
-                          <code className="text-[11px] flex-1 break-all bg-surface-elevated rounded-lg px-2 py-1.5 border border-black/[0.06]">
+                          <code className="text-[11px] flex-1 break-all bg-surface-elevated rounded-lg px-2 py-1.5 border border-black/6">
                             {a.command}
                           </code>
                           <Button
@@ -999,7 +999,7 @@ export function SettingsPage() {
               animate="animate"
               exit="exit"
               variants={backdropVariants}
-              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              className="absolute inset-0 bg-black/40 backdrop-blur-xs"
               onClick={() => setShowConsentDialog(false)}
               aria-hidden
             />
@@ -1010,7 +1010,7 @@ export function SettingsPage() {
               variants={prefersReducedMotion ? backdropVariants : modalVariants}
               className="relative z-10 w-full max-w-md"
             >
-              <Card className="shadow-elevated border-black/[0.08] overflow-hidden">
+              <Card className="shadow-elevated border-black/8 overflow-hidden">
                 <div className="p-6">
                   <div className="flex items-center gap-4 mb-6">
                     <div className="w-12 h-12 rounded-2xl bg-status-critical-subtle flex items-center justify-center border border-status-critical/10">

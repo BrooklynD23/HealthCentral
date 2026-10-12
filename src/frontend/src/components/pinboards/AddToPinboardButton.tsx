@@ -43,7 +43,7 @@ export function AddToPinboardButton({
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content
-          className="z-[100] min-w-[12rem] rounded-xl border border-black/[0.08] bg-white p-1 shadow-lg"
+          className="z-100 min-w-48 rounded-xl border border-black/8 bg-white p-1 shadow-lg"
           sideOffset={8}
           align="end"
         >
@@ -54,7 +54,7 @@ export function AddToPinboardButton({
           ) : pinboards.map((pinboard) => (
             <DropdownMenu.Item
               key={pinboard.id}
-              className="cursor-pointer rounded-lg px-3 py-2 text-sm outline-none hover:bg-surface-muted focus:bg-surface-muted"
+              className="cursor-pointer rounded-lg px-3 py-2 text-sm outline-hidden hover:bg-surface-muted focus:bg-surface-muted"
               onSelect={() => void addTo(pinboard.id)}
             >
               {pinboard.name}

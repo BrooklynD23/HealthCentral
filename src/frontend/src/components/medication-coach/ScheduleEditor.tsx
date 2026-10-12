@@ -73,7 +73,7 @@ export function ScheduleEditor({
             key={schedule.id}
             className={cn(
               'flex items-center justify-between p-3 rounded-xl',
-              'bg-surface-elevated border border-black/[0.04]'
+              'bg-surface-elevated border border-black/4'
             )}
           >
             <div className="flex items-center gap-3">
@@ -125,9 +125,9 @@ export function ScheduleEditor({
                     if (preset) setNewTime(preset.defaultTime);
                   }}
                   className={cn(
-                    'flex h-[36px] w-full rounded-lg border border-black/[0.08] bg-white',
+                    'flex h-[36px] w-full rounded-lg border border-black/8 bg-white',
                     'px-2 py-1 text-sm text-ink',
-                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent'
+                    'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent'
                   )}
                 >
                   {scheduleLabels.map((s) => (
@@ -144,9 +144,9 @@ export function ScheduleEditor({
                   value={newTime}
                   onChange={(e) => setNewTime(e.target.value)}
                   className={cn(
-                    'flex h-[36px] w-full rounded-lg border border-black/[0.08] bg-white',
+                    'flex h-[36px] w-full rounded-lg border border-black/8 bg-white',
                     'px-2 py-1 text-sm text-ink',
-                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent'
+                    'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent'
                   )}
                 />
               </div>
