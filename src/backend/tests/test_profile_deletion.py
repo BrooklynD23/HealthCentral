@@ -443,3 +443,90 @@ async def test_hc_pdel_018_successful_reauth_resets_the_rate_limiter(vaults):
         )
     finally:
         auth_rate_limiter.reset(key)
+
+
+# ---------------------------------------------------------------------------
+# HC-PDEL-019/020 — RL export sweep (POST /feedback/export writes server-side)
+# ---------------------------------------------------------------------------
+
+def _seed_rl_exports(tmp_path, monkeypatch) -> Path:
+    import api.feedback as feedback_api
+
+    root = tmp_path / "rl_exports"
+    monkeypatch.setattr(feedback_api, "_DEFAULT_EXPORT_DIR", root)
+    for pid in ("profile-a", "profile-b"):
+        (root / f"profile_{pid}").mkdir(parents=True)
+        (root / f"profile_{pid}" / "grpo_rewards.jsonl").write_text("{}\n")
+    return root
+
+
+def _http_delete():
+    from tests.support.routes import route_client
+
+    db = _FakeMasterDb()
+    profile = SimpleNamespace(id="profile-a", display_name="Jane Doe")
+    patches = (
+        patch.object(profiles_api, "_load_profile_for_delete", AsyncMock(return_value=profile)),
+        patch.object(profiles_api, "authenticate_profile", AsyncMock(return_value=profile)),
+        patch.object(profiles_api, "close_profile_database_on_logout", AsyncMock()),
+        patch.object(profiles_api, "revoke_jwt_token", MagicMock()),
+    )
+    for p in patches:
+        p.start()
+    try:
+        with route_client(
+            profiles_api.router, "/profiles", profile_id="profile-a", master_db=db
+        ) as client:
+            response = client.request(
+                "DELETE",
+                "/profiles/profile-a",
+                json={
+                    "password": "CorrectHorse1",
+                    "confirmation_phrase": PROFILE_DELETE_CONFIRMATION,
+                    "export_acknowledged": True,
+                },
+            )
+    finally:
+        for p in patches:
+            p.stop()
+    return response, db
+
+
+def test_hc_pdel_019_delete_removes_only_this_profiles_rl_exports(vaults, tmp_path, monkeypatch):
+    root = _seed_rl_exports(tmp_path, monkeypatch)
+
+    response, _ = _http_delete()
+
+    assert response.status_code == 204, response.text
+    assert not (root / "profile_profile-a").exists()
+    assert (root / "profile_profile-b" / "grpo_rewards.jsonl").exists()
+    assert not vaults.a.exists()
+
+
+def test_hc_pdel_020_rl_export_sweep_failure_is_logged_not_raised(
+    vaults, tmp_path, monkeypatch, caplog
+):
+    import logging
+
+    root = _seed_rl_exports(tmp_path, monkeypatch)
+    real_rmtree = profiles_api.shutil.rmtree
+
+    def flaky_rmtree(path, *a, **kw):
+        if Path(path) == root / "profile_profile-a":
+            raise PermissionError("locked")
+        return real_rmtree(path, *a, **kw)
+
+    monkeypatch.setattr(profiles_api.shutil, "rmtree", flaky_rmtree)
+
+    with caplog.at_level(logging.ERROR, logger="api.profiles"):
+        response, db = _http_delete()
+
+    assert response.status_code == 204, response.text
+    assert not (vaults.a / "key.bin").exists()
+    assert not (vaults.a / "key.method").exists()
+    assert any("DELETE FROM profiles" in s for s in db.executed)
+    records = [r for r in caplog.records if r.levelno == logging.ERROR and "RL export" in r.getMessage()]
+    assert records
+    for r in records:
+        assert "profile-a" not in r.getMessage()
+        assert str(root) not in r.getMessage()

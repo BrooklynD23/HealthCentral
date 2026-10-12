@@ -1,0 +1,13 @@
+VERDICT REVISE
+
+[MAJOR] `docs/plans/2026-10-09-AUDIT-ORDER.md:84` — the “every route” inventory misses agent-mode chat audits and two pinboard routes whose helper can commit stale-item deletions before auditing; the DELETE-only guard also misses irreversible POST routes. Evidence: `assistant.py:715-717,902`, `modules/agent/audit.py:76-84`, `database.py:113-119`, `pinboards.py:207,333-338,396-398,496-501`, plan `:238-239`. — Add those paths and commit orders, then guard the full classified route set.
+
+[MAJOR] `docs/plans/2026-10-09-AUDIT-ORDER.md:336` — the recommended AO-SCOPE B excludes feedback row 24, and C/D do not fix it even if included: `_emit_audit` swallows every exception. Evidence: plan `:235,277,336`; `feedback.py:40-57,237-248`. — State that feedback remains excluded, or include it and make audit failures observable and fail according to the chosen policy.
+
+[MAJOR] `docs/plans/2026-10-09-AUDIT-ORDER.md:191` — HC-AUD-ORD-001 says the master commit fails *after* the profile commit, but under A/A2 that is the completion write: the change remains durable and the `started` row remains. “Change absent” only fits failure of the initial intent commit. The sketch also omits the profile-session override needed with `route_client`. Evidence: plan `:185,198`; `tests/support/routes.py:41-55`; `core/auth.py:332-339`. — Specify the profile override and separate intent-commit failure from completion-commit failure, asserting each resulting DB state.
+
+[MAJOR] `docs/plans/2026-10-09-AUDIT-ORDER.md:214` — Option B’s atomicity claim does not hold across routes with earlier profile commits: reprocess and interpretation helpers commit before the route’s final work, so a later outbox transaction cannot make those earlier changes atomic. Evidence: plan `:89,106`; `documents.py:592,621,688,702,812`; `modules/interpret.py:272-279`. — Restrict B to single-transaction routes or specify how every intermediate mutation transaction writes its outbox row.
+
+[MAJOR] `docs/plans/2026-10-09-AUDIT-ORDER.md:188` — the PHI claim for A is inaccurate: a new `status` column is separate from `_scrub_details`; B also leaves its outbox fields unspecified, while `create_audit_log` scrubs only action and details, not fields such as `entity_id` or `client_info`. Evidence: plan `:188,210-213`; `core/audit.py:237-252`. — Define and constrain the status values, enumerate outbox fields, and specify validation for every field copied into the unencrypted master DB.
+
+MODEL / EFFORT: GPT-6 / effort not exposed by runtime

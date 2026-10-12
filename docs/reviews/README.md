@@ -22,6 +22,10 @@ Verdict is the reviewer's last `VERDICT:` line (plan reviews: PASS / REVISE; dif
 | 2026-09-25 | SAFEINTERP | diff | needs-attention | 2026-10-04 | [codex](2026-09-25/SAFEINTERP-diff-codex.txt)  |
 | 2026-09-25 | SAFEINTERP | r1 | REVISE | 2026-10-04 | [codex](2026-09-25/SAFEINTERP-r1-codex.txt) [prompt](2026-09-25/SAFEINTERP-r1-prompt.md) [response](2026-09-25/SAFEINTERP-r1-response.md) |
 | 2026-09-25 | SAFEINTERP | r2 | REVISE | 2026-10-04 | [codex](2026-09-25/SAFEINTERP-r2-codex.txt) [prompt](2026-09-25/SAFEINTERP-r2-prompt.md) [response](2026-09-25/SAFEINTERP-r2-response.md) |
+| 2026-09-27-swarm | AUDIT-ORDER | r1 | REVISE | 2026-10-09 | [codex](2026-09-27-swarm/AUDIT-ORDER-r1-codex.txt) [prompt](2026-09-27-swarm/AUDIT-ORDER-r1-prompt.md) [response](2026-09-27-swarm/AUDIT-ORDER-r1-response.md) |
+| 2026-09-27-swarm | AUDIT-ORDER | r2 | REVISE | 2026-10-09 | [codex](2026-09-27-swarm/AUDIT-ORDER-r2-codex.txt) [prompt](2026-09-27-swarm/AUDIT-ORDER-r2-prompt.md) [response](2026-09-27-swarm/AUDIT-ORDER-r2-response.md) |
+| 2026-09-27-swarm | AUDIT-ORDER | r3 | REVISE | 2026-10-09 | [codex](2026-09-27-swarm/AUDIT-ORDER-r3-codex.txt) [prompt](2026-09-27-swarm/AUDIT-ORDER-r3-prompt.md) [response](2026-09-27-swarm/AUDIT-ORDER-r3-response.md) |
+| 2026-09-27-swarm | AUDIT-ORDER | secrev | CHANGES | 2026-10-09 | [response](2026-09-27-swarm/AUDIT-ORDER-secrev-response.md) |
 | 2026-09-27-swarm | P04 | r1 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/P04-r1-codex.txt) [prompt](2026-09-27-swarm/P04-r1-prompt.md) [response](2026-09-27-swarm/P04-r1-response.md) |
 | 2026-09-27-swarm | P04 | r2 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/P04-r2-codex.txt) [prompt](2026-09-27-swarm/P04-r2-prompt.md) [response](2026-09-27-swarm/P04-r2-response.md) |
 | 2026-09-27-swarm | P04 | r3 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/P04-r3-codex.txt) [prompt](2026-09-27-swarm/P04-r3-prompt.md) [response](2026-09-27-swarm/P04-r3-response.md) |
