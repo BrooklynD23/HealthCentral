@@ -12,7 +12,7 @@
 | [waves/](waves/) | Wave reports: `wave-1.md`, `wave-2.md` (L0 summary) + `wave-2-L1-*.md`, `wave-2-L0-notes.md` |
 | [handoff-2026-09-28-execution-orchestrator.md](handoff-2026-09-28-execution-orchestrator.md) §4-§7 | L1 / L2 / reviewer brief templates and Codex commands (its §1-§3 are superseded) |
 | [plans/](plans/) | Audit plans 01-08 (program phases P1-P8) |
-| [swarm-2026-09-27/reviews/](swarm-2026-09-27/reviews/) | Codex plan reviews and responses |
+| [docs/reviews/](../../docs/reviews/README.md) | Codex plan/diff reviews, prompts and responses (moved to docs/reviews/ on 2026-10-09) |
 
 Process: [docs/agentic/orchestration.md](../../docs/agentic/orchestration.md). Program, gates and owner items: [docs/capstone-report/implementation-program.md](../../docs/capstone-report/implementation-program.md), [owner-decisions-2026-09-27.md](../../docs/capstone-report/owner-decisions-2026-09-27.md).
 

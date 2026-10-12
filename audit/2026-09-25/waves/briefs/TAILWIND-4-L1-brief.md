@@ -4,7 +4,7 @@
 
 **Last Updated:** 2026-10-09
 
-Built from [../scaffold/TAILWIND-4.md](../scaffold/TAILWIND-4.md), the Tailwind items of [../scaffold/REVIEWS-2026-10-07.md](../scaffold/REVIEWS-2026-10-07.md) §1, the signed owner rows below, and the templates in [../../handoff-2026-09-28-execution-orchestrator.md](../../handoff-2026-09-28-execution-orchestrator.md) §4-§7. Pre-dispatch reviews: Codex plan review ([../../swarm-2026-09-27/reviews/TAILWIND-4-codex.txt](../../swarm-2026-09-27/reviews/TAILWIND-4-codex.txt)) and Fable 5.1 adversarial review ([../../swarm-2026-09-27/reviews/TAILWIND-4-fable.md](../../swarm-2026-09-27/reviews/TAILWIND-4-fable.md)); the disposition of every finding is in §6.
+Built from [../scaffold/TAILWIND-4.md](../scaffold/TAILWIND-4.md), the Tailwind items of [../scaffold/REVIEWS-2026-10-07.md](../scaffold/REVIEWS-2026-10-07.md) §1, the signed owner rows below, and the templates in [../../handoff-2026-09-28-execution-orchestrator.md](../../handoff-2026-09-28-execution-orchestrator.md) §4-§7. Pre-dispatch reviews: Codex plan review ([docs/reviews/2026-09-27-swarm/TAILWIND-4-codex.txt](../../../../docs/reviews/2026-09-27-swarm/TAILWIND-4-codex.txt)) and Fable 5.1 adversarial review ([docs/reviews/2026-09-27-swarm/TAILWIND-4-fable.md](../../../../docs/reviews/2026-09-27-swarm/TAILWIND-4-fable.md)); the disposition of every finding is in §6.
 
 ## 1. State on `origin/main` = `eb7de28` (measured 2026-10-09, read only)
 
@@ -320,7 +320,7 @@ Output style: follow ~/.claude/rules/common/subagent-output.md (i-have-adhd)
 
 ## 6. Review dispositions
 
-Codex: `gpt-6-luna`, effort `high` (owner order "6.1 sol" first: `gpt-6.1-sol` returned HTTP 400 "not supported when using Codex with a ChatGPT account"), `-s read-only`, verdict **REVISE**. Fable 5.1: verdict **GO WITH AMENDMENTS**. Raw outputs: [TAILWIND-4-codex.txt](../../swarm-2026-09-27/reviews/TAILWIND-4-codex.txt), [TAILWIND-4-fable.md](../../swarm-2026-09-27/reviews/TAILWIND-4-fable.md). L1-lead spot-checked `RecoverProfile.tsx:136-143`, `Button.tsx:10`, `Sidebar.tsx:66-68` and ran the §4.4 script against a synthetic lock (jiti 1→2 line printed with its 5 consumers).
+Codex: `gpt-6-luna`, effort `high` (owner order "6.1 sol" first: `gpt-6.1-sol` returned HTTP 400 "not supported when using Codex with a ChatGPT account"), `-s read-only`, verdict **REVISE**. Fable 5.1: verdict **GO WITH AMENDMENTS**. Raw outputs: [TAILWIND-4-codex.txt](../../../../docs/reviews/2026-09-27-swarm/TAILWIND-4-codex.txt), [TAILWIND-4-fable.md](../../../../docs/reviews/2026-09-27-swarm/TAILWIND-4-fable.md). L1-lead spot-checked `RecoverProfile.tsx:136-143`, `Button.tsx:10`, `Sidebar.tsx:66-68` and ran the §4.4 script against a synthetic lock (jiti 1→2 line printed with its 5 consumers).
 
 | # | Reviewer | Sev | Finding | Disposition |
 |---|---|---|---|---|
