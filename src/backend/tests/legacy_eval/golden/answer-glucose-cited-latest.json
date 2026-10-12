@@ -1,0 +1,3 @@
+{"id": "answer-glucose-cited-latest", "question": "What was my latest glucose?", "chunk_set": "glucose", "expect": "answer",
+ "why": "Every report fact cited, claims verified, faithfulness 0.932: must be served (guards against over-abstention).",
+ "model_output": "REPORT FACTS:\nGlucose: 95 mg/dL (reference range 70-100 mg/dL) [cite:1].\n\nUNCERTAINTIES:\nReference ranges can vary between laboratories."}

@@ -1,0 +1,3 @@
+{"id": "abstain-hallucinated-value", "question": "What was my glucose?", "chunk_set": "glucose", "expect": "abstain",
+ "why": "Value not in the source; faithfulness 0.058 < 0.6.",
+ "model_output": "REPORT FACTS:\nYour glucose was 182 mg/dL [cite:1]."}
