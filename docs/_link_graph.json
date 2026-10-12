@@ -116,6 +116,9 @@
     "audit/2026-09-25/swarm-2026-09-27/wave3/3b-evidence.md": [
       "docs/capstone-report/implementation-program.md"
     ],
+    "audit/2026-09-25/waves/briefs/TAILWIND-4-L1-brief.md": [
+      "docs/reviews/2026-09-27-swarm/TAILWIND-4-fable.md"
+    ],
     "audit/2026-09-25/waves/scaffold/REACT-ROUTER-7.md": [
       "docs/plans/2026-10-04-NPM-MAJORS-react-router7.md"
     ],
@@ -123,6 +126,9 @@
       "docs/plans/2026-10-04-NPM-MAJORS-react-router7.md"
     ],
     "audit/2026-09-25/waves/wave-3.md": [
+      "docs/capstone-report/implementation-program.md"
+    ],
+    "audit/2026-09-25/waves/wave-4.md": [
       "docs/capstone-report/implementation-program.md"
     ],
     "docs/00_architecture_plans_index.md": [
@@ -1100,6 +1106,15 @@
     "docs/reviews/2026-09-27-swarm/S01-r3-response.md": [
       "docs/reviews/README.md"
     ],
+    "docs/reviews/2026-09-27-swarm/TAILWIND-4-codex-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/TAILWIND-4-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/TAILWIND-4-fable.md": [
+      "docs/reviews/README.md"
+    ],
     "docs/reviews/2026-09-27-swarm/W01-r1-codex.txt": [
       "docs/reviews/README.md"
     ],
@@ -2041,6 +2056,7 @@
       "docs/agentic/orchestration.md",
       "audit/2026-09-25/handoff-2026-09-28-execution-orchestrator.md",
       "audit/2026-09-25/swarm-2026-09-27/wave3/3a-integration.md",
+      "audit/2026-09-25/waves/wave-4.md",
       "audit/2026-09-25/waves/wave-3.md",
       "docs/plans/2026-09-27-W01-harness-agents-branch-a.md",
       "docs/capstone-report/architecture-overview.md",
@@ -2514,6 +2530,9 @@
     "docs/reviews/2026-09-25/SAFEINTERP-r2-response.md": [
       "docs/reviews/2026-09-25/SAFEINTERP-r2-codex.txt"
     ],
+    "docs/reviews/2026-09-27-swarm/TAILWIND-4-fable.md": [
+      "audit/2026-09-25/waves/briefs/TAILWIND-4-L1-brief.md"
+    ],
     "docs/reviews/2026-09-29/P01-r1-response.md": [
       "docs/plans/2026-09-29-S02-agent-cache-profile-isolation.md"
     ],
@@ -2573,6 +2592,9 @@
       "docs/reviews/2026-09-27-swarm/S01-r3-codex.txt",
       "docs/reviews/2026-09-27-swarm/S01-r3-prompt.md",
       "docs/reviews/2026-09-27-swarm/S01-r3-response.md",
+      "docs/reviews/2026-09-27-swarm/TAILWIND-4-codex.txt",
+      "docs/reviews/2026-09-27-swarm/TAILWIND-4-codex-prompt.md",
+      "docs/reviews/2026-09-27-swarm/TAILWIND-4-fable.md",
       "docs/reviews/2026-09-27-swarm/W01-r1-codex.txt",
       "docs/reviews/2026-09-27-swarm/W01-r1-prompt.md",
       "docs/reviews/2026-09-27-swarm/W01-r1-response.md",

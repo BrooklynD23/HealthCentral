@@ -387,18 +387,18 @@ if (-not $pythonCmd) {
 }
 
 # -- Node.js --
-Write-Status "Looking for Node.js 22+ ..."
+Write-Status "Looking for Node.js 22.12+ ..."
 $nodeOk = $false
 $nodeExe = $null
 try {
     $nodeVersion = & node --version 2>&1
-    if ($nodeVersion -match "v(\d+)\.") {
-        if ([int]$Matches[1] -ge 22) {
+    if ($nodeVersion -match "v(\d+\.\d+\.\d+)") {
+        if ([version]$Matches[1] -ge [version]"22.12.0") {
             Write-Ok "Found Node.js $nodeVersion"
             $nodeExe = (Get-Command node -ErrorAction Stop).Source
             $nodeOk = $true
         } else {
-            Write-Err "Found Node.js $nodeVersion - version 22+ is required; this version is too old and will not be used."
+            Write-Err "Found Node.js $nodeVersion - version 22.12+ is required; this version is too old and will not be used."
         }
     }
 } catch { }
@@ -415,7 +415,7 @@ if ($nodeOk) {
     }
 }
 if (-not $nodeOk) {
-    Write-Err "Node.js 22+ is required but not found."
+    Write-Err "Node.js 22.12+ is required but not found."
     Write-Host ""
     Write-Host "    Download it from:  https://nodejs.org  (Node.js 24 LTS recommended)" -ForegroundColor White
     Write-Host ""

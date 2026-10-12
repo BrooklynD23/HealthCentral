@@ -1,9 +1,9 @@
 # Wave 4 — L1-B report (frontend sequence)
 
 **Date:** 2026-10-08. **L1:** L1-B (Opus). **Base:** `origin/main` = `777adf5`.
-This dispatch has two phases, each its own worktree, branch and PR. This file is committed on both branches; each copy holds its own phase. The copy on `fix/npm-audit-2` (PR #52) holds Phase 1. Whichever PR merges second keeps both sections.
+This dispatch had two phases, each its own worktree, branch and PR: Phase 1 NPM-AUDIT-2 (PR #52, merged 2026-10-09 → `f428a99`) and Phase 2 DEV-PS1-INSTALL (PR #55, merged 2026-10-09 → `87accae`). The file was committed on both branches, each copy holding its own phase; #55 merged second and kept both sections. Both merge-order notes are under one heading at the end.
 
-Legend: **[L1]** = L1-B ran the command and read the output. **[L2]** = the implementer agent (Sonnet) reported it. **[R]** = a reviewer agent (Opus) reported it.
+Legend: **[L1]** = L1-B ran the command and read the output. **[L2]** = an implementer agent (Sonnet) reported it. **[R]** = a reviewer agent (Opus) reported it.
 
 ## Phase 2 — DEV-PS1-INSTALL
 
@@ -161,9 +161,31 @@ Docs gates [L1]: `python3 scripts/generate_docs_index.py` → 0; `python3 script
 - `LinkType` for a directory symlink or a volume mount point (creating either needs administrator rights here).
 - CI does not run the check script (CI is Linux; wiring it in touches `ci.yml`, outside this phase).
 
-This dispatch has two phases, each its own worktree, branch and PR. This file is committed on both branches; each copy holds its own phase. Whichever PR merges second takes both sections (and refreshes `docs/INDEX.md`, see Merge order).
+### Reviews
 
-Legend: **[L1]** = L1-B ran the command and read the output. **[L2]** = an implementer agent (Sonnet) reported it. **[R]** = a reviewer agent (Opus) reported it.
+| Reviewer | Verdict | What changed because of it |
+|---|---|---|
+| code-reviewer, round 1 [R] (at `400bc44`) | REQUEST CHANGES, 1 major | The check stayed 14/14 with the npm lookup reverted to `"npm"` (a test-only `-NpmCommand` parameter hid it). Parameter removed; stub on PATH. Also: old marker survived a failed install; `[ ]` in a folder name read as a wildcard; empty marker raised an error; check script ran under `Stop` |
+| security-reviewer [R] (at `dc79200`) | APPROVE (0 critical, 0 high, 1 medium, 4 low) | Medium: `npm ci` empties the **target** of a junctioned `node_modules`; main's `Remove-Item` removed only the link. Guard added. Low: hash taken after npm → now before |
+| code-reviewer, round 2 [R] (at `c499759`) | REQUEST CHANGES, 1 major | The guard tested the `ReparsePoint` attribute, which OneDrive-synced plain folders carry (4 of 4 sampled): installs under a synced Documents would have been refused. Now `LinkType`. Also: a missing frontend folder let `npm ci` run in the caller's folder |
+| code-reviewer, round 3 [R] (at `8e35d0a`) | **APPROVE** (0 blocker, 0 major, 3 minor) | Plan wording fixed; two minors left as findings 2 and 4 below |
+
+The security reviewer saw `dc79200`, not the final head. Its two fixes and the round-2 changes were reviewed by the code reviewer in rounds 2 and 3 (junction, `New-Item` junction, dangling junction: refused; 6 of 6 OneDrive folders: not refused).
+
+### Findings not fixed (owner items)
+
+| # | Finding | Evidence | Note |
+|---|---|---|---|
+| 1 | `dev.ps1:429` still calls `& npm --version` through the `npm.ps1` shim; `dev.ps1:781` resolves npm unfiltered | L1 probe; security review L4 | outside STEP 5. Works today only because of how npm treats `--version` |
+| 2 | No check case fails if the link test reverts to the `ReparsePoint` attribute | round-3 review: mutant 22/22 | needs a non-link folder with that attribute; only OneDrive provides one here |
+| 3 | A marker path that is a directory prints one raw access-denied line (`dev.ps1` `Get-Content` in `Get-FrontendInstallReason`); result is still `lockfile-changed` | L2, check case 21 output | corner case; safe direction |
+| 4 | First start after merge says "Frontend dependencies changed since the last install" on every existing install, though nothing changed | round-3 review M3 | wording only |
+| 5 | `npm.cmd` without a sibling `node.exe` finds `node` in the current folder first | security review L1 (`planted ran=True`) | needs write access to `src/frontend`, which already means code execution via `vite.config.ts` |
+| 6 | npm's last 15 output lines are printed unmasked on failure (could show a proxy URL with credentials from the user's own `.npmrc`) | security review L2 | user's own console only |
+| 7 | An offline machine cannot start after a lockfile change (before: it started on stale packages) | plan, "Cost accepted"; acceptance (d) | the behaviour DEV-PS1-FIRST asks for; worth a line in the user docs when Tailwind 4 ships |
+| 8 | The backend half may have the same gap for `requirements.txt` | not read in this phase (UNMEASURED) | — |
+| 9 | CI does not run `scripts/check_dev_ps1_install.ps1` | `.github/workflows/ci.yml` | GitHub's Windows runners could; outside this phase |
+| 10 | DEV-SERVER-RUNTIME unchanged: the product frontend is still served by the Vite dev server | `implementation-program.md:501` | packaging (G-C4) |
 
 ## Phase 1 — NPM-AUDIT-2
 
@@ -264,13 +286,6 @@ E2E: not run locally (no SQLCipher wheel on Windows). CI "E2E Smoke Tests" on th
 
 | Reviewer | Verdict | What changed because of it |
 |---|---|---|
-| code-reviewer, round 1 [R] (at `400bc44`) | REQUEST CHANGES, 1 major | The check stayed 14/14 with the npm lookup reverted to `"npm"` (a test-only `-NpmCommand` parameter hid it). Parameter removed; stub on PATH. Also: old marker survived a failed install; `[ ]` in a folder name read as a wildcard; empty marker raised an error; check script ran under `Stop` |
-| security-reviewer [R] (at `dc79200`) | APPROVE (0 critical, 0 high, 1 medium, 4 low) | Medium: `npm ci` empties the **target** of a junctioned `node_modules`; main's `Remove-Item` removed only the link. Guard added. Low: hash taken after npm → now before |
-| code-reviewer, round 2 [R] (at `c499759`) | REQUEST CHANGES, 1 major | The guard tested the `ReparsePoint` attribute, which OneDrive-synced plain folders carry (4 of 4 sampled): installs under a synced Documents would have been refused. Now `LinkType`. Also: a missing frontend folder let `npm ci` run in the caller's folder |
-| code-reviewer, round 3 [R] (at `8e35d0a`) | **APPROVE** (0 blocker, 0 major, 3 minor) | Plan wording fixed; two minors left as findings 2 and 4 below |
-
-The security reviewer saw `dc79200`, not the final head. Its two fixes and the round-2 changes were reviewed by the code reviewer in rounds 2 and 3 (junction, `New-Item` junction, dangling junction: refused; 6 of 6 OneDrive folders: not refused).
-
 | code-reviewer, round 1 [R] | REQUEST CHANGES (0 blocker, 3 major, 2 minor) — lockfile change clean and in scope | Amendment 2's first diff script saw only entries whose `version` changed, did not count a gained install script, and missed `0.x` on added paths; the acceptance line could not exit non-zero; `$TMP` undefined. All fixed in `28c1e38` |
 | security-reviewer [R] | APPROVE the lockfile (0 critical, 0 high). 5 medium on the gate script | `resolved` checked by host prefix only; downgrades; extra fields on a bumped entry; top-level keys. Fixed in `8af03f3`. Integrity-versus-registry stays a reviewer step (named in Amendment 2) |
 | code-reviewer, round 2 [R] | APPROVE (all 9 earlier items closed; 4 minor) | Prerelease moves, empty extraction on CRLF, two wording gaps. Fixed in this commit |
@@ -281,25 +296,6 @@ Security reviewer's checks of `source-map-js@1.2.2` [R]: lockfile integrity equa
 
 | # | Finding | Evidence | Note |
 |---|---|---|---|
-| 1 | `dev.ps1:429` still calls `& npm --version` through the `npm.ps1` shim; `dev.ps1:781` resolves npm unfiltered | L1 probe; security review L4 | outside STEP 5. Works today only because of how npm treats `--version` |
-| 2 | No check case fails if the link test reverts to the `ReparsePoint` attribute | round-3 review: mutant 22/22 | needs a non-link folder with that attribute; only OneDrive provides one here |
-| 3 | A marker path that is a directory prints one raw access-denied line (`dev.ps1` `Get-Content` in `Get-FrontendInstallReason`); result is still `lockfile-changed` | L2, check case 21 output | corner case; safe direction |
-| 4 | First start after merge says "Frontend dependencies changed since the last install" on every existing install, though nothing changed | round-3 review M3 | wording only |
-| 5 | `npm.cmd` without a sibling `node.exe` finds `node` in the current folder first | security review L1 (`planted ran=True`) | needs write access to `src/frontend`, which already means code execution via `vite.config.ts` |
-| 6 | npm's last 15 output lines are printed unmasked on failure (could show a proxy URL with credentials from the user's own `.npmrc`) | security review L2 | user's own console only |
-| 7 | An offline machine cannot start after a lockfile change (before: it started on stale packages) | plan, "Cost accepted"; acceptance (d) | the behaviour DEV-PS1-FIRST asks for; worth a line in the user docs when Tailwind 4 ships |
-| 8 | The backend half may have the same gap for `requirements.txt` | not read in this phase (UNMEASURED) | — |
-| 9 | CI does not run `scripts/check_dev_ps1_install.ps1` | `.github/workflows/ci.yml` | GitHub's Windows runners could; outside this phase |
-| 10 | DEV-SERVER-RUNTIME unchanged: the product frontend is still served by the Vite dev server | `implementation-program.md:501` | packaging (G-C4) |
-
-### Merge order
-
-1. No dependency between this PR and NPM-AUDIT-2 (PR #52). Disjoint files, except this report (same path on both branches, different content: the second to merge keeps both sections) and `docs/INDEX.md` / `docs/_link_graph.json` (changed only here; if another docs PR merges first, regenerate with `python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py --link-graph`).
-2. Tailwind 4 waits for this PR (gate DEV-PS1-FIRST). React Router 7 waits for PR #52 only.
-3. Effect on merge day: every existing install reinstalls once on its next start (no marker yet), about 1 to 1.5 minutes here with a warm npm cache. That is also when PR #52's `source-map-js` fix reaches it.
-
-Rollback: `git revert <merge sha>`. The marker file left in `node_modules` is inert. Note that reverting restores `& npm install`, which does not work with npm 11.6.2 under Windows PowerShell 5.1 (see the finding on `main`).
-
 | 1 | 9 advisories remain; all need Tailwind 4 or React Router 7 | table above | the next two phases of this sequence |
 | 2 | Existing installs do not get 1.2.2: `dev.ps1` installs only when `node_modules` or Vite is missing | `dev.ps1:626-635` @`777adf5` | Phase 2 of this dispatch (DEV-PS1-INSTALL) |
 | 3 | `engines.node` is `>=22`; vite 7.3.6 needs `>=22.12.0` | `src/frontend/package.json:6-8` | a `package.json` edit; not made (pack Q4 unanswered) |
@@ -308,7 +304,19 @@ Rollback: `git revert <merge sha>`. The marker file left in `node_modules` is in
 | 6 | The lockfile-diff script exists only inside the plan document. A PR could weaken it and pass it in one diff | security review LOW 6 | mitigated here by the sha256 in the PR body; a tracked `scripts/` file is outside this phase's file list. Worth doing before React Router 7 reuses it |
 | 7 | `npm audit` counts move daily on a byte-identical lockfile | 7 → 10 between 2026-10-04 and 2026-10-06 | the figures here are true for 2026-10-08 only |
 
-### Merge order
+## Merge order
+
+Written before either PR merged; actual order was #52 then #55 (L0 notes, 2026-10-09).
+
+**Phase 2 — DEV-PS1-INSTALL (PR #55)**
+
+1. No dependency between this PR and NPM-AUDIT-2 (PR #52). Disjoint files, except this report (same path on both branches, different content: the second to merge keeps both sections) and `docs/INDEX.md` / `docs/_link_graph.json` (changed only here; if another docs PR merges first, regenerate with `python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py --link-graph`).
+2. Tailwind 4 waits for this PR (gate DEV-PS1-FIRST). React Router 7 waits for PR #52 only.
+3. Effect on merge day: every existing install reinstalls once on its next start (no marker yet), about 1 to 1.5 minutes here with a warm npm cache. That is also when PR #52's `source-map-js` fix reaches it.
+
+Rollback: `git revert <merge sha>`. The marker file left in `node_modules` is inert. Note that reverting restores `& npm install`, which does not work with npm 11.6.2 under Windows PowerShell 5.1 (see the finding on `main`).
+
+**Phase 1 — NPM-AUDIT-2 (PR #52)**
 
 1. NPM-AUDIT-2 has no dependency on DEV-PS1-INSTALL; either can merge first. The files are disjoint except this report and (for DEV-PS1-INSTALL only) `docs/INDEX.md` / `docs/_link_graph.json`.
 2. This branch does not change `docs/INDEX.md`. DEV-PS1-INSTALL does (new plan file). If NPM-AUDIT-2 merges second, no index refresh is needed for it; the second PR to merge resolves this report file by keeping both phase sections.

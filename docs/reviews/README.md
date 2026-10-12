@@ -1,6 +1,6 @@
 # Codex Review Archive
 
-**Last Updated:** 2026-10-09
+**Last Updated:** 2026-10-11
 
 Every Codex plan review (`<ID>-rN-*`) and adversarial diff review (`<ID>-diff-codex.txt`), kept next to its prompt (`*-prompt.md`) and the author's response (`*-response.md`). Files were moved here byte-identical from `audit/2026-09-25/reviews/`, `audit/2026-09-25/swarm-2026-09-27/reviews/` and `audit/2026-09-29/reviews/` on 2026-10-09.
 
@@ -34,6 +34,8 @@ Verdict is the reviewer's last `VERDICT:` line (plan reviews: PASS / REVISE; dif
 | 2026-09-27-swarm | S01 | r1 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/S01-r1-codex.txt) [prompt](2026-09-27-swarm/S01-r1-prompt.md) [response](2026-09-27-swarm/S01-r1-response.md) |
 | 2026-09-27-swarm | S01 | r2 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/S01-r2-codex.txt) [prompt](2026-09-27-swarm/S01-r2-prompt.md) [response](2026-09-27-swarm/S01-r2-response.md) |
 | 2026-09-27-swarm | S01 | r3 | PASS | 2026-09-28 | [codex](2026-09-27-swarm/S01-r3-codex.txt) [prompt](2026-09-27-swarm/S01-r3-prompt.md) [response](2026-09-27-swarm/S01-r3-response.md) |
+| 2026-09-27-swarm | TAILWIND-4 (L1 brief) | r1 | REVISE | 2026-10-09 | [codex](2026-09-27-swarm/TAILWIND-4-codex.txt) [prompt](2026-09-27-swarm/TAILWIND-4-codex-prompt.md) |
+| 2026-09-27-swarm | TAILWIND-4 (L1 brief), Fable 5.1 review, not Codex | r1 | GO WITH AMENDMENTS | 2026-10-09 | [fable](2026-09-27-swarm/TAILWIND-4-fable.md) |
 | 2026-09-27-swarm | W01 | r1 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W01-r1-codex.txt) [prompt](2026-09-27-swarm/W01-r1-prompt.md) [response](2026-09-27-swarm/W01-r1-response.md) |
 | 2026-09-27-swarm | W01 | r2 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W01-r2-codex.txt) [prompt](2026-09-27-swarm/W01-r2-prompt.md) [response](2026-09-27-swarm/W01-r2-response.md) |
 | 2026-09-27-swarm | W01 | r3 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W01-r3-codex.txt) [prompt](2026-09-27-swarm/W01-r3-prompt.md) [response](2026-09-27-swarm/W01-r3-response.md) |
