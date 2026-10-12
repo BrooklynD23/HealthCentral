@@ -168,10 +168,10 @@ brief below. (The `architect` agent type has no Write tool, so it cannot create
 the file; use it only as a second read-only opinion if you want one.)
 Step 2: Codex plan review, read-only (handoff §7; owner direction 2026-10-07:
 model "6.1 sol", fallback "6-luna" at high effort; confirm the IDs with `codex`
-first). Prompt from reviews/W04-r1-prompt.md. Focus: failure atomicity across two
+first). Prompt from docs/reviews/2026-09-27-swarm/W04-r1-prompt.md. Focus: failure atomicity across two
 databases; fail-open paths; PHI in any new audit or outbox column; migration
 order vs P6 and G-C1. At most 2 rounds. Store prompt, output and response under
-audit/2026-09-25/swarm-2026-09-27/reviews/AUDIT-ORDER-r<N>-*. Verify each finding
+docs/reviews/2026-09-27-swarm/AUDIT-ORDER-r<N>-*. Verify each finding
 against the code before the author applies it.
 Step 3: reviewers: code-reviewer (opus) for plan quality and security-reviewer
 (opus), because the subject is audit integrity and an auth file.

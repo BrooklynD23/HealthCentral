@@ -43,7 +43,7 @@ Fix: `Observation.interpretation` gets `cascade="all, delete"`. `delete_document
 | Plan r2 (last) | REVISE, 1 BLOCKER + 8 MAJOR + 1 MINOR | 9 accepted and fixed. 1 rejected: rebase vs merge, because `orchestration.md:24` says merge |
 | Diff | needs-attention, 2 high + 1 medium | All 3 checked against the code: none was introduced by this diff, and all are outside W3-SEC-SCHED. Recorded as owner items below |
 
-Records: `audit/2026-09-25/reviews/DDI-r1-*`, `DDI-r2-*` and `DDI-diff-codex.txt` on the PR branch.
+Records: `docs/reviews/2026-09-25/DDI-r1-*`, `DDI-r2-*` and `DDI-diff-codex.txt` on the PR branch.
 
 ### Reviewers
 - code-reviewer (opus): APPROVE, 3 MINOR. No change needed: residue is not audited, there is 1 lazy SELECT per observation, and mid-file imports.

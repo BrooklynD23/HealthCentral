@@ -3,6 +3,8 @@
 from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
 
+import time
+
 import pytest
 
 from modules.streak_engine import compute_streak, compute_longest_streak, detect_comeback_gap
@@ -95,3 +97,30 @@ class TestDetectComebackGap:
             _make_dose("2026-03-04T08:00:00+00:00"),
         ]
         assert detect_comeback_gap(doses, "UTC") is True
+
+
+@pytest.fixture
+def machine_tz(monkeypatch):
+    """Set machine-local TZ; restore on teardown so other tests are unaffected."""
+    def _set(name):
+        monkeypatch.setenv("TZ", name)
+        time.tzset()
+    yield _set
+    monkeypatch.undo()
+    time.tzset()
+
+
+@pytest.mark.skipif(not hasattr(time, "tzset"), reason="time.tzset is POSIX-only")
+class TestNaiveUtcTakenAt:
+    """DoseTaken.taken_at is stored naive UTC; must not be read as machine-local."""
+
+    def test_naive_utc_ignores_machine_tz(self, machine_tz):
+        machine_tz("America/New_York")
+        doses = [_make_dose("2026-03-04T22:00:00")]  # naive UTC
+        assert compute_streak(doses, "UTC", date(2026, 3, 4)) == 1
+
+    def test_naive_utc_converted_to_profile_tz_across_dst(self, machine_tz):
+        machine_tz("America/New_York")
+        # 2026-03-08 07:30 UTC == 2026-03-07 23:30 PST (LA DST starts 10:00 UTC)
+        doses = [_make_dose("2026-03-08T07:30:00")]
+        assert compute_streak(doses, "America/Los_Angeles", date(2026, 3, 7)) == 1
