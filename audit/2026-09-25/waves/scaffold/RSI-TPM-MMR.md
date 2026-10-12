@@ -24,7 +24,7 @@ Owner answered RSI-Q1…Q4 on 2026-10-10 (rows recorded on PR #60; not on `origi
 |---|---|---|---|---|---|---|
 | RL-EXPORTS (PR-1) | PRODUCT (security, ask-first delete path) | git-ignore `src/backend/rl_exports/`; remove `rl_exports/profile_{id}/` in `DELETE /profiles/{id}`; fix the false docstring `api/profiles.py:799-803` | #60 merged (RSI-Q2 row) | RSI-Q2 **answered: RL-EXPORTS first**, read as the licence for this sweep. Stop if the change has to reorder the crypto-erase steps (C-KEY-2) | §3 task list PR-1 | **READY after #60** |
 | RL-EXPORT-EMPTY (PR-2) | PRODUCT (bug) | `upsert_feedback` fills `prompt_snapshot` from the preceding user `ChatTurn` | **PR-1 merged**; *W-4, W-3* (share `api/assistant.py`; PR-2 should not need it) | RSI-Q1 **answered: server copies prior turn** | §3 task list PR-2 | **READY after PR-1** (serial) |
-| RSI-AUDIT | DOCS (review) | #68 handoff Phase A + Phase B (MMR), `VERDICT: PASS\|REVISE` | **#68 merged** | none (read-only) | verdict file under `audit/2026-09-25/swarm-2026-09-27/reviews/` | BLOCKED: #68 |
+| RSI-AUDIT | DOCS (review) | #68 handoff Phase A + Phase B (MMR), `VERDICT: PASS\|REVISE` | **#68 merged** | none (read-only) | verdict file `docs/reviews/<date>/RSI-AUDIT-r<N>-{prompt.md,codex.txt,response.md}` + a row in `docs/reviews/README.md` | BLOCKED: #68 |
 | RSI-TEL | PRODUCT | `record_llm_call` in existing `monitoring/metrics.py` (`MetricsCollector`); hooks in `ModelRunner` + `ExternalModelRunner`; counters for agent runs, cache hit/miss, abstain; `GET /settings/model/telemetry` (`RequireAuth`, counts only) | **W-7** (shares `core/model_runner.py`); keeps W-6 fail-closed `external_runner.py` | RSI-Q3 **answered**; open: `metrics_enabled` gate in or out (handoff B1) | HTTP route test; counters move on a stubbed call; no network call | BLOCKED: W-7 |
 | RSI-TEL-UI | PRODUCT (frontend) | `useLlmTelemetry` + `LlmTelemetryCard.tsx`; headline = agent runs, cache hits, abstain rate; TPM/RPM shown for legacy LLM calls only (RSI-Q3) | RSI-TEL | none | vitest incl. the "agent path: 0 LLM calls" state | BLOCKED: RSI-TEL |
 | RSI-MMR | PRODUCT | Memory gauge (RSS/VRAM) + passive diversity@k over retrieved chunks; "unavailable" without embeddings (RSI-Q4) | RSI-TEL-UI; **W-8**; **RSI-AUDIT PASS** | RSI-Q4 **answered: passive metric** | retrieval order and agent golden set (74) identical | BLOCKED: W-8, RSI-AUDIT |
@@ -36,6 +36,8 @@ Hard deps not on `origin/main` today: W-7, W-3, W-8, W-4 (`git log origin/main -
 ## 3. RL-EXPORT-EMPTY evidence (verified on `origin/main` `eb7de28`)
 
 **Verdict: CONFIRMED.** No production path writes `prompt_snapshot`.
+
+Re-checked at `origin/main` `a4b62b2` (2026-10-12): every line cited below is unchanged. #76 (chat-restore race) edited `ExplainAssistant.tsx`, but not the feedback payload (`:209`, `:230` still send no prompt). #75 (medication routes 500) is outside the RL path.
 
 | Step | Location | What happens |
 |---|---|---|

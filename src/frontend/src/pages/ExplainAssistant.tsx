@@ -131,7 +131,7 @@ export function ExplainAssistant() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Load the most recent session on mount (ASSIST-HIST-001)
-  const { data: sessionsData } = useChatSessions();
+  const { data: sessionsData, isFetched: sessionsFetched } = useChatSessions();
   const mostRecentSessionId = sessionsData?.sessions?.[0]?.session_id ?? null;
   const { data: sessionHistory, isLoading: historyLoading } = useChatSessionHistory(
     !sessionLoaded && !currentSessionId ? mostRecentSessionId : null,
@@ -139,7 +139,7 @@ export function ExplainAssistant() {
 
   // When session history loads, populate messages from DB
   useEffect(() => {
-    if (sessionLoaded || historyLoading) return;
+    if (sessionLoaded || historyLoading || !sessionsFetched) return;
     if (!mostRecentSessionId) {
       setSessionLoaded(true);
       return;
@@ -160,7 +160,7 @@ export function ExplainAssistant() {
     if (restored.length > 0) {
       setMessages(restored);
     }
-  }, [sessionHistory, historyLoading, mostRecentSessionId, sessionLoaded]);
+  }, [sessionHistory, historyLoading, mostRecentSessionId, sessionLoaded, sessionsFetched]);
 
   const startNewConversation = useCallback(() => {
     setCurrentSessionId(null);

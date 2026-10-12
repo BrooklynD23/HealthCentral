@@ -136,3 +136,9 @@ src/frontend/playwright-report/
 # LibreOffice lock files
 .~lock.*#
 ~$*
+
+# Vite cache
+.vite/
+
+# Root stub lockfile (no root package.json)
+/package-lock.json

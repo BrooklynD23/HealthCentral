@@ -1,7 +1,7 @@
 # S-CACHE — Agent Answer Cache Profile Isolation + Memory-Audit Category Drop
 
 **Status:** owner-approved 2026-09-29 (gates S-CACHE, MEM-AUDIT-CAT in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md)). Wave 1, after P1 PR #1.
-**Source:** Codex plan review of plan 01, round 1 ([`audit/2026-09-29/reviews/P01-r1-codex.txt`](../../audit/2026-09-29/reviews/P01-r1-codex.txt), BLOCKER 1 and 2), verified by L0 against the code ([`P01-r1-response.md`](../../audit/2026-09-29/reviews/P01-r1-response.md)).
+**Source:** Codex plan review of plan 01, round 1 ([`docs/reviews/2026-09-29/P01-r1-codex.txt`](../reviews/2026-09-29/P01-r1-codex.txt), BLOCKER 1 and 2), verified by L0 against the code ([`P01-r1-response.md`](../reviews/2026-09-29/P01-r1-response.md)).
 **Architectural:** yes (per-profile isolation, PHI in the master DB). Codex diff review + `security-reviewer` required.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:test-driven-development. Every new test is observed FAILING before the fix.
