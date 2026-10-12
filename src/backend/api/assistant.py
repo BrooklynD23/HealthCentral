@@ -860,7 +860,6 @@ async def chat(
             )
 
             # G-B5: an invalid legacy answer is replaced by the fixed abstention.
-            result = _legacy_serve_or_abstain(result)
 
             # Build full response text
             full_response = "\n\n".join(
