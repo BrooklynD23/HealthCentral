@@ -81,7 +81,7 @@ async def _profile_db():
     return AsyncSession(engine, expire_on_commit=False), engine
 
 
-def _rag(answer: str):
+def _rag(answer: str, verification: VerificationMetadata | None = None):
     with patch("modules.rag.get_model_runner") as runner, patch("modules.rag.EmbeddingsModule"):
         runner.return_value = MagicMock(is_available=MagicMock(return_value=True))
         from modules.rag import RAGModule
@@ -95,7 +95,7 @@ def _rag(answer: str):
     ])
     rag._generate_with_runner = AsyncMock(return_value=answer)
     # Verification output carrying the answer's own claim text: a leak vector.
-    rag._run_verification_pipeline = MagicMock(return_value=VerificationMetadata(
+    rag._run_verification_pipeline = MagicMock(return_value=verification or VerificationMetadata(
         verification_enabled=True, total_claims=1, verified_claims=0, failed_claims=1,
         claims_with_issues=[f"you have hyperlipidemia {MARKER}"],
         faithfulness_score=0.9, authority_score=0.5, verification_summary="stub",
@@ -103,11 +103,13 @@ def _rag(answer: str):
     return rag
 
 
-async def _post_chat(answer: str, master) -> tuple[object, list[ChatTurn]]:
+async def _post_chat(
+    answer: str, master, verification: VerificationMetadata | None = None
+) -> tuple[object, list[ChatTurn]]:
     profile_id = "profile-a"  # route_client's default session
     profile_db, engine = await _profile_db()
     try:
-        with patch.object(A, "get_rag_module", return_value=_rag(answer)), \
+        with patch.object(A, "get_rag_module", return_value=_rag(answer, verification)), \
              patch.object(A, "is_agent_enabled", return_value=False):
             with route_client(
                 assistant_router, "/assistant", profile_id=profile_id, master_db=master
@@ -159,8 +161,15 @@ async def test_hc_safechat_001_prohibited_answer_replaced_persisted_and_audited(
 @pytest.mark.asyncio
 async def test_hc_safechat_002_clean_answer_untouched_and_not_audited():
     master = _RecordingMasterDb()
-    resp, turns = await _post_chat(CLEAN_ANSWER, master)
+    # G-B5: a failed claim makes the answer invalid and it abstains, so this test needs a verified stub.
+    verified = VerificationMetadata(
+        verification_enabled=True, total_claims=1, verified_claims=1, failed_claims=0,
+        claims_with_issues=[], faithfulness_score=0.9, authority_score=0.5,
+        verification_summary="stub",
+    )
+    resp, turns = await _post_chat(CLEAN_ANSWER, master, verified)
     assert resp.status_code == 200, resp.text
+    assert resp.json()["is_valid"] is True
     assert CLEAN_MARKER in resp.json()["full_response"]
     assert any(CLEAN_MARKER in t.content for t in turns if t.role == "assistant")
     assert _audit_rows(master) == []
