@@ -100,6 +100,14 @@ layer that failed. It was found by the E2E seeding step of PR #74 (CI run
 through `route_client` with an in-memory aiosqlite session, and all four went
 red with MissingGreenlet before the fix.
 
+A 2026-10-12 instance in agent chat (AUDIT-ORDER row 28). The agent's audit
+rows were only `add`-ed; they reached the master DB through `get_db`'s
+commit-on-exit, which FastAPI runs *after* the response is sent. No test could
+see that: `route_client`'s `get_db` override returns the session directly, so
+the exit commit never runs under test, and a failed exit commit could never turn
+into a 500. `tests/test_audit_order.py` HC-AUD-ORD-060 went red on both cases
+(200 instead of 5xx; `assert 0 == 1` rows) until `chat` committed explicitly.
+
 **Recheck:** ask what your test would *fail to notice*. Then break the code on
 purpose and confirm the test goes red. For any gate that parses a report another
 step produced, delete the report and confirm the gate goes RED, not green —

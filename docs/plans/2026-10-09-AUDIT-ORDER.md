@@ -456,12 +456,14 @@ Codex round 3 (2026-10-09) re-reviewed the round-2 and security-review fixes; it
 
 ### Tasks
 
-- [ ] **T0** — this revision, docs only, first commit.
-- [ ] **T1** — `core/audit.py`: `audit_intent(db, status, log_fn, **kwargs)`; `status` must be in `{"started", "completed"}` else `ValueError`; commits through `audit_and_commit` (fail closed). Test HC-AUD-ORD-004 (bad status raises, `details_json` holds only `started`/`completed`). Own commit (§6 AUDIT-KEYS-DROPPED note).
-- [ ] **T2** — rows 5, 10 (hard), 13, 16: `started` before the first vault mutation, `completed` after it. RED first: HC-AUD-ORD-001a through `route_client` with a real in-memory master and vault. Then 001b, 002, 003. Row 10 soft branch: ERROR log + re-raise (HC-AUD-ORD-020).
-- [ ] **T3** — rows 2, 19, 20, 23, 29, 30 (branch-level as decisions 4 and 6; rows 29/30 inside `_prune_stale_items`). HC-AUD-ORD-001a/001b/002/003 per row.
-- [ ] **T4** — rows 26, 27: `started` before the file operations; HC-AUD-ORD-002 injects the failure into `backup_script.restore` / the vault `rmtree`; row 27 skips 003 and gets HC-AUD-ORD-007.
-- [ ] **T5** — row 28: explicit master commit after the agent run, outside the agent fallback `try`; HC-AUD-ORD-060.
-- [ ] **T6** — AD-DENIALS B: `core/denial_audit.py` (cap 20 per caller per 10 min, `denial.suppressed` row), export sites `export.py:507`, `:847`, `:1274`, `core/auth.py:278-286` (WARNING without the target id). HC-AUD-ORD-040/041/042.
-- [ ] **T7** — HC-AUD-ORD-030 route-class guard (all methods, static call graph over `api/`, `core/`, `modules/`, named exclusions) with its 3 break-its.
-- [ ] **T8** — full suite under `flock`, collected count slots, code + security review, Codex diff review, PR.
+- [x] **T0** — this revision, docs only, first commit.
+- [x] **T1** — `core/audit.py`: `audit_intent(db, status, log_fn, **kwargs)`; `status` must be in `{"started", "completed"}` else `ValueError`; commits through `audit_and_commit` (fail closed). Test HC-AUD-ORD-004 (bad status raises, `details_json` holds only `started`/`completed`). Own commit (§6 AUDIT-KEYS-DROPPED note).
+- [x] **T2** — rows 5, 10 (hard), 13, 16: `started` before the first vault mutation, `completed` after it. RED first: HC-AUD-ORD-001a through `route_client` with a real in-memory master and vault. Then 001b, 002, 003. Row 10 soft branch: ERROR log + re-raise (HC-AUD-ORD-020).
+- [x] **T3** — rows 2, 19, 20, 23, 29, 30 (branch-level as decisions 4 and 6; rows 29/30 inside `_prune_stale_items`). HC-AUD-ORD-001a/001b/002/003 per row.
+- [x] **T4** — rows 26, 27: `started` before the file operations; HC-AUD-ORD-002 injects the failure into `backup_script.restore` / the vault `rmtree`; row 27 skips 003 and gets HC-AUD-ORD-007.
+- [x] **T5** — row 28: explicit master commit after the agent run, outside the agent fallback `try`; HC-AUD-ORD-060.
+- [x] **T6** — AD-DENIALS B: `core/denial_audit.py` (cap 20 per caller per 10 min, `denial.suppressed` row), export sites `export.py:507`, `:847`, `:1274`, `core/auth.py:278-286` (WARNING without the target id). HC-AUD-ORD-040/041/042.
+- [x] **T7** — HC-AUD-ORD-030 route-class guard (all methods, static call graph over `api/`, `core/`, `modules/`, named exclusions) with its 3 break-its.
+- [x] **T8** — full suite under `flock`, collected count slots, code + security review, Codex diff review, PR.
+
+**Execution status (2026-10-12):** T0-T8 done on `fix/audit-order` (PR not merged). Collected 1392 → 1466. Batch row 23: a vault commit failure inside the per-item loop is absorbed per item (pre-existing design), so the request still ends with a `completed` row whose `observation_ids` lists only successes. §12 status: items 1 and 7 hold (static guard; dynamic sites now include def references passed as arguments); item 2 removed for row 28 (explicit commit); items 3, 4, 6 accepted as stated; item 5 n/a (B not chosen); item 8 holds, and the window is fixed, not rolling (`core/denial_audit.py` comment). Reviews: `../reviews/2026-10-12/AUDIT-ORDER-diff-response.md`.

@@ -190,6 +190,9 @@ def test_hc_aud_ord_030_every_committing_handler_is_classified():
 
 
 def test_hc_aud_ord_030_a2_handlers_reach_audit_intent():
+    """Presence only, not order (Codex diff review MINOR 1). That `started` is
+    committed before the first mutation is pinned per route by the HTTP tests
+    HC-AUD-ORD-001a in tests/test_audit_order.py, which fail if it moves after."""
     for k, v in CLASSIFICATION.items():
         if v == "A2":
             assert _G.reaches(_REACH[k], "audit_intent"), f"{k} is A2 but never calls audit_intent"
