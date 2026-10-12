@@ -858,7 +858,7 @@ Links to: `audit/2026-09-25/handoff-2026-09-27-execution.md`, `docs/agentic/recu
 
 **W-4 Legacy RAG Abstain and Eval Gate Implementation Plan**
 
----
+**Measured 2026-10-11 on origin/main 4cb7470:** collected 1381 (`START_COLLECTED`); `scripts/agent_eval_gate.py` PASS (74 cases); the §3 probe output is identical on Python 3.11.16. Branch:…
 
 Links to: `audit/2026-09-25/handoff-2026-09-27-execution.md`, `docs/agentic/recurring-failures.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/specs-compliance-matrix.md`
 
