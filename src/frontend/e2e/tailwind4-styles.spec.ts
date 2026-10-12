@@ -129,7 +129,7 @@ test.describe('Tailwind 4 style guard', () => {
     }
   });
 
-  test('TW4-RECOVER: default border, placeholder, button cursor (unauthenticated)', async ({ page }) => {
+  test('TW4-RECOVER: default border and placeholder (unauthenticated)', async ({ page }) => {
     await page.goto('/recover');
     // Target: RecoverProfile.tsx:136-143, bare border utility, no border colour or placeholder class.
     const input = page.locator('#recover-code');
@@ -138,9 +138,6 @@ test.describe('Tailwind 4 style guard', () => {
     expect(await input.evaluate((el) => getComputedStyle(el, '::placeholder').color)).toBe(
       'rgb(156, 163, 175)'
     );
-    // Target: submit Button (RecoverProfile.tsx:171-177; Button.tsx:7-13 has no cursor class).
-    const submit = page.getByRole('button', { name: /unlock my records/i });
-    expect(await submit.evaluate((el) => getComputedStyle(el).cursor)).toBe('pointer');
     await shot(page, 'recover');
   });
 
@@ -167,6 +164,13 @@ test.describe('Tailwind 4 style guard', () => {
     );
     const heading = page.locator('aside h1').first();
     expect(await heading.evaluate((el) => getComputedStyle(el).color)).toBe('rgb(31, 31, 31)');
+
+    // Cursor: TopBar.tsx:68-78 Button (`h-10 w-10 rounded-xl border-black/[0.06]` + Button.tsx cva) has
+    // no cursor-* class and no ancestor in TopBar/layout carries one; enabled, so preflight gives pointer.
+    const btn = page.getByRole('button', { name: 'Profile and settings' });
+    await expect(btn).toBeEnabled();
+    expect(await btn.evaluate((el) => getComputedStyle(el.parentElement!).cursor)).toBe('auto');
+    expect(await btn.evaluate((el) => getComputedStyle(el).cursor)).toBe('pointer');
 
     // Focus ring relies on the global focus-visible rule (globals.css:65-67); the NavLink
     // (Sidebar.tsx:62-68) carries no outline class of its own.
