@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-10-09
 **Owner:** repository owner
-**Status:** PROPOSED — plan only, not approved for execution. Nothing in this plan is implemented. No owner question below is signed.
+**Status:** APPROVED for execution by the owner (2026-10-09, AO-PLAN-APPROVAL "Approve, re-review first"; the re-review is Codex round 3, applied at `f6621c2`). Nothing in this plan is implemented yet. Signed: AO-DESIGN D, AO-FAIL A, AO-SCOPE B, AD-DENIALS B, AO-ASKFIRST `core/audit.py` and `core/auth.py:278-286`. Record: `docs/capstone-report/owner-decisions-2026-09-27.md` (rows on `docs/wave4-close`, PR #60). Recorded by L0, which received the answers directly from the owner.
 **Base measured:** `origin/main` @ `98bd3c7` (P5 `utcnow` swaps merged, PR #54). Every `file:line` below was re-read at this base on 2026-10-09 unless marked UNMEASURED. The readiness pack (`audit/2026-09-25/waves/scaffold/AUDIT-ORDER.md`) was measured at `6b4dd84`; its line numbers are superseded by this file.
 **Refresh trigger:** any commit to `src/backend/core/audit.py`, `src/backend/models/audit.py`, `src/backend/core/database.py::get_db`, `src/backend/core/profile_database.py::get_session`, or any route in the §3 route table before an option is approved. Brief 4 (audit retention) being signed.
 **Review:** Codex round 1 REVISE (5 MAJOR), round 2 REVISE (5 MAJOR, final round). All 10 accepted after verification at `98bd3c7` and applied; dispositions in `audit/2026-09-25/swarm-2026-09-27/reviews/AUDIT-ORDER-r1-response.md` and `AUDIT-ORDER-r2-response.md`. Security review (security-reviewer) at `d696c5d`: CHANGES (2 HIGH, 4 MEDIUM, 4 LOW), applied; dispositions in `AUDIT-ORDER-secrev-response.md`. Codex round 3 (owner-approved re-review of the round-2 and security-review changes, gpt-6-luna high, because gpt-6.1-sol returned 400): REVISE, 1 BLOCKER, 2 MINOR. All 3 accepted and fixed; dispositions in `AUDIT-ORDER-r3-response.md`. See [§12 Residual review risk](#12-residual-review-risk).
@@ -351,27 +351,27 @@ Same file (`core/audit.py:89-109`). Not folded in: it is an allowlist change wit
 
 ---
 
-## 8. Owner questions (UNSIGNED)
+## 8. Owner questions (signed 2026-10-09)
 
-1. **AO-DESIGN** — UNSIGNED. "On write routes the audit row is saved after your data change, in a different database. If saving the audit row fails, the change stays with no record. Which design?"
+1. **AO-DESIGN** — SIGNED 2026-10-09: **D**. "On write routes the audit row is saved after your data change, in a different database. If saving the audit row fails, the change stays with no record. Which design?"
    - A. Intent row with a status column. Gain: unfinished changes are visible. Downside: master migration, edits `models/audit.py` and `core/audit.py`, rows updated in place.
    - B. Outbox in the patient vault. Gain: change and record commit together. Downside: largest change, new relay, profile vault migration, cannot cover profile delete or restore.
    - C. Accept and document, ERROR log on failure. Gain: smallest. Downside: an irreversible delete can still leave no audit row.
    - D. Two-row intent (started/completed) on irreversible routes, C on the rest **(recommended)**. Gain: no migration, closes the irreversible window. Downside: two behaviours; reversible routes keep the window; twice the rows on those routes.
-2. **AO-FAIL** — UNSIGNED. "If the audit row cannot be saved *before* the change, should the request fail and change nothing?"
+2. **AO-FAIL** — SIGNED 2026-10-09: **A** (fail closed). "If the audit row cannot be saved *before* the change, should the request fail and change nothing?"
    - A. Yes, fail closed, as view routes already do (`core/audit.py:479-484`) **(recommended)**. Gain: no unaudited irreversible change. Downside: a master-DB fault (E2E-MASTER-CORRUPT) blocks deletes until fixed, **including profile erase**: while the master DB cannot commit, a patient cannot delete their profile (right to erasure). Today erase already needs a master commit (`profiles.py:936`), so this keeps that dependency; it does not add a new one.
    - B. Proceed and log an ERROR. Gain: deletes keep working when the master DB is broken. Downside: same window as today on exactly the failure that matters.
-3. **AO-SCOPE** — UNSIGNED. "Which routes?"
+3. **AO-SCOPE** — SIGNED 2026-10-09: **B** (irreversible set). "Which routes?"
    - A. All 30 rows in §3, including feedback row 24 (its silent `except` removed). Gain: one rule. Downside: largest diff; reversible routes gain little.
    - B. Irreversible set only (rows 2, 5, 10, 13, 16, 19/20/23, 26, 27, 29, 30) **(recommended first PR)**. Gain: small, highest value. Downside: needs a route-class guard over every HTTP method; feedback (row 24) stays fail-open.
    - C. Documents and observations only (rows 1-6). Gain: matches the original finding. Downside: leaves memory, pinboard, medication and profile deletes out.
    - D. B plus the unaudited writes in §3.1. Gain: closes the CLAUDE.md audit invariant too. Downside: new audit rows on settings routes; bigger PR.
-4. **AD-DENIALS** — UNSIGNED. "Denied requests (403 across profiles, 404 on someone else's ID) leave no audit row. What do you want?"
+4. **AD-DENIALS** — SIGNED 2026-10-09: **B** (cross-profile 403s only). "Denied requests (403 across profiles, 404 on someone else's ID) leave no audit row. What do you want?"
    - A. Audit row for every 403/404 on patient-data routes. Gain: complete. Downside: master DB growth, fill attack, needs a cap.
    - B. Audit row for reachable cross-profile 403s only (export downloads, profile routes) **(recommended)**. Gain: small, targeted. Downside: 404 probing unaudited; edits `core/auth.py`.
    - C. Log line only at the silent 403 sites. Gain: no new rows. Downside: not an audit record.
    - D. Leave as is and document. Gain: no change. Downside: the register row stays open.
-5. **AO-ASKFIRST** — UNSIGNED. "The chosen option edits these files. Approve each by name?" One line per file, signed separately:
+5. **AO-ASKFIRST** — SIGNED 2026-10-09 for `core/audit.py` (D: `audit_intent` helper only) and `core/auth.py:278-286` (AD-DENIALS B): "Approve (Recommended)" on each. The `models/audit.py` and vault-model lines do not apply to D and stay unapproved. "The chosen option edits these files. Approve each by name?" One line per file, signed separately:
    - `core/audit.py` — A: `create_audit_log` + new begin/complete helpers; A2/D: optional `audit_intent` helper only; B: outbox writer + relay; C: optional ERROR helper.
    - `models/audit.py` + master migration `003` — A only.
    - new vault model + profile migration `015` + reset tuple (`api/profiles.py:498-515`) — B only.
