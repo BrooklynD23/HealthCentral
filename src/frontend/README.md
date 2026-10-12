@@ -176,31 +176,21 @@ npm install @fontsource-variable/fraunces @fontsource-variable/source-sans-3 @fo
 ### Color Palette
 **AVOID**: Purple gradients, generic blue healthcare palettes, pure white backgrounds.
 
-**Implement in `tailwind.config.js`:**
-```js
-colors: {
-  surface: {
-    DEFAULT: '#FAFAF8',  // Warm off-white, NOT pure white
-    elevated: '#FFFFFF',
-    muted: '#F5F5F3',
-  },
-  ink: {
-    DEFAULT: '#1F1F1F',  // Rich near-black
-    secondary: '#6B6B6B',
-    tertiary: '#9A9A9A',
-  },
-  accent: {
-    DEFAULT: '#2D7D6F',  // Deep teal (signature color)
-    subtle: '#E8F4F2',
-    hover: '#256B5F',
-  },
-  status: {
-    caution: '#D4A574',    // Warm amber (not alarming)
-    attention: '#C9857A',  // Soft coral
-    verified: '#7BA387',   // Sage green
-    info: '#6B8CAE',       // Muted blue
-  }
-}
+**Implement in the `@theme` block in `src/styles/globals.css`:**
+```css
+--color-surface: #fafaf8;
+--color-surface-elevated: #ffffff;
+--color-surface-muted: #f5f5f3;
+--color-ink: #1f1f1f;
+--color-ink-secondary: #6b6b6b;
+--color-ink-tertiary: #9a9a9a;
+--color-accent: #2d7d6f;
+--color-accent-subtle: #e8f4f2;
+--color-accent-hover: #256b5f;
+--color-status-caution: #d4a574;
+--color-status-attention: #c9857a;
+--color-status-verified: #7ba387;
+--color-status-info: #6b8cae;
 ```
 
 ### Motion & Animation

@@ -316,6 +316,7 @@ Migrations run automatically:
 ### Prerequisites
 - Python 3.11+
 - Node.js 22.12+ (for frontend; Node.js 24 LTS recommended)
+- Browser: Safari 16.4+, Chrome 111+, Firefox 128+
 
 ### Quick Start (Recommended)
 
