@@ -74,6 +74,7 @@ src-tauri/target/
 # Local data (SENSITIVE - never commit)
 data/
 profiles/
+src/backend/rl_exports/
 *.db
 *.db-journal
 *.db-shm
