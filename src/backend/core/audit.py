@@ -487,6 +487,28 @@ async def audit_and_commit(
     return entry
 
 
+INTENT_STATUSES: frozenset[str] = frozenset({"started", "completed"})
+
+
+async def audit_intent(
+    db: AsyncSession,
+    status: str,
+    log_fn: Any,
+    **log_kwargs: Any,
+) -> "AuditLog":
+    """AUDIT-ORDER D (A2): commit one half of a started/completed pair, fail closed.
+
+    ``started`` is committed before an irreversible change, so a failed audit
+    write stops the change (AO-FAIL A); ``completed`` is committed after it.
+    Two append-only rows, no schema change. ``status`` overrides any caller
+    ``details["status"]``; details still pass the ``create_audit_log`` allowlist.
+    """
+    if status not in INTENT_STATUSES:
+        raise ValueError(f"audit intent status must be one of {sorted(INTENT_STATUSES)}")
+    details = {**(log_kwargs.pop("details", None) or {}), "status": status}
+    return await audit_and_commit(db, log_fn, details=details, **log_kwargs)
+
+
 async def log_auth_event(
     db: AsyncSession,
     event: str,
