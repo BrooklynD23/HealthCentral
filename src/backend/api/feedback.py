@@ -34,6 +34,7 @@ from core.audit import create_audit_log
 from core.database import get_db
 from core.feedback_constants import VALID_TAGS
 from core.time import utcnow
+from models.chat_session import ChatTurn
 from models.response_feedback import ResponseFeedback
 
 
@@ -175,6 +176,35 @@ async def _get_feedback_for_turn(
     return result.scalar_one_or_none()
 
 
+async def _preceding_user_prompt(
+    turn_id: str,
+    profile_id: str,
+    profile_db: AsyncSession,
+) -> Optional[str]:
+    """Text of the user turn right before assistant turn `turn_id` (RL-EXPORT-EMPTY).
+
+    Same session, same profile, `turn_index - 1`, role "user"; None otherwise.
+    """
+    assistant = (await profile_db.execute(
+        select(ChatTurn).where(
+            ChatTurn.id == turn_id,
+            ChatTurn.profile_id == profile_id,
+            ChatTurn.role == "assistant",
+        )
+    )).scalar_one_or_none()
+    if assistant is None:
+        return None
+    user = (await profile_db.execute(
+        select(ChatTurn).where(
+            ChatTurn.session_id == assistant.session_id,
+            ChatTurn.profile_id == profile_id,
+            ChatTurn.turn_index == assistant.turn_index - 1,
+            ChatTurn.role == "user",
+        )
+    )).scalar_one_or_none()
+    return user.content if user else None
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -201,13 +231,17 @@ async def upsert_feedback(
     now = utcnow()
 
     existing = await _get_feedback_for_turn(turn_id, profile_id, profile_db)
+    prompt_snapshot = body.prompt_snapshot
+    # Turns are immutable, so a snapshot already stored on this row stays valid.
+    if prompt_snapshot is None and (existing is None or existing.prompt_snapshot is None):
+        prompt_snapshot = await _preceding_user_prompt(turn_id, profile_id, profile_db)
 
     if existing:
         existing.rating = body.rating
         existing.correction_text = body.correction_text
         existing.feedback_tags = body.feedback_tags
-        if body.prompt_snapshot is not None:
-            existing.prompt_snapshot = body.prompt_snapshot
+        if prompt_snapshot is not None:
+            existing.prompt_snapshot = prompt_snapshot
         if body.response_text is not None:
             existing.response_text = body.response_text
         if body.model_name is not None:
@@ -225,7 +259,7 @@ async def upsert_feedback(
             rating=body.rating,
             correction_text=body.correction_text,
             feedback_tags=body.feedback_tags,
-            prompt_snapshot=body.prompt_snapshot,
+            prompt_snapshot=prompt_snapshot,
             response_text=body.response_text,
             model_name=body.model_name,
             provider=body.provider,
