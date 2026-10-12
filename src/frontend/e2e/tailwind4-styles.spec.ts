@@ -107,14 +107,15 @@ async function seed(request: APIRequestContext) {
   });
   await expectOk(sessionResponse, 'create assistant session');
   const { session_id } = (await sessionResponse.json()) as { session_id: string };
-  await expectOk(
-    await request.post(`${E2E_API_URL}/assistant/chat`, {
-      headers,
-      data: { question: QUESTION, session_id },
-      timeout: 120_000,
-    }),
-    'assistant chat'
-  );
+  const chatResponse = await request.post(`${E2E_API_URL}/assistant/chat`, {
+    headers,
+    data: { question: QUESTION, session_id },
+    timeout: 120_000,
+  });
+  await expectOk(chatResponse, 'assistant chat');
+  const chat = (await chatResponse.json()) as { turn_id?: string; session_id?: string };
+  expect(chat.turn_id, 'assistant chat persisted a turn').toBeTruthy();
+  expect(chat.session_id).toBe(session_id);
 }
 
 test.describe('Tailwind 4 style guard', () => {
@@ -209,7 +210,10 @@ test.describe('Tailwind 4 style guard', () => {
 
   test('TW4-TIMELINE: /timeline screenshot', async ({ page, request }) => {
     await openAuthenticatedPage(page, request, '/timeline');
-    await expect(page.getByText(/glucose/i).first()).toBeVisible({ timeout: 15000 });
+    // Timeline never renders analyte names: labs are "Lab results (N analytes)"
+    // (timeline.py:113), meds are "Started medication: <name>" (timeline.py:209).
+    await expect(page.getByText(/Lab results \(/).first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(MED_NAME).first()).toBeVisible({ timeout: 15000 });
     await shot(page, 'timeline');
   });
 
@@ -221,6 +225,8 @@ test.describe('Tailwind 4 style guard', () => {
 
   test('TW4-EXPLAIN: /explain screenshot', async ({ page, request }) => {
     await openAuthenticatedPage(page, request, '/explain');
+    await page.waitForLoadState('networkidle');
+    await shot(page, 'explain-before-assert');
     await expect(page.getByText(/TW4 style check/i).first()).toBeVisible({ timeout: 15000 });
     await shot(page, 'explain');
   });
@@ -239,7 +245,7 @@ test.describe('Tailwind 4 style guard', () => {
     await shot(page, 'medications');
 
     await page.getByRole('button', { name: /^log$/i }).first().click();
-    const dialogTitle = page.getByText('Log Dose');
+    const dialogTitle = page.getByRole('heading', { name: 'Log Dose' });
     await expect(dialogTitle).toBeVisible();
 
     // Target: modal close button, explicit radius utility at DoseLoggingModal.tsx:100.
