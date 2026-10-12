@@ -277,9 +277,11 @@ def require_profile_access(profile_id_param: str = "profile_id"):
 
         if session.profile_id != profile_id:
             logger.warning(
-                f"Profile access denied: session profile {session.profile_id} "
-                f"attempted to access {profile_id}"
+                "Profile access denied for session profile %s", session.profile_id
             )
+            from .denial_audit import audit_denial  # local: avoids an import cycle
+
+            await audit_denial(session.profile_id, "profile")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied to this profile",

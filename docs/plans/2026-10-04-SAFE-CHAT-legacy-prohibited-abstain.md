@@ -5,7 +5,7 @@
 **Refresh Trigger:** any commit to `src/backend/api/assistant.py::chat`, `src/backend/modules/rag.py::validate_response` / `ValidatedResponse`, or `src/backend/modules/agent/guardrails/templates.py` before this plan runs.
 **Prerequisites:** `origin/main` contains `90c502a`. D9 venv `~/venvs/asclexis-311` exists.
 **Status:** PROPOSED — not executed. Wave 3, L1-A, phase 2 (worked after DOC-DELETE-INTERP, before G-C3b; L0 work order, not a merge dependency: the two PRs share only the count slots and `docs/INDEX.md` / `docs/_link_graph.json`).
-**Review:** Codex plan r1 REVISE (5 MAJOR): 4 accepted and fixed, 1 partly rejected (`audit/2026-09-25/reviews/SAFECHAT-r1-response.md`).
+**Review:** Codex plan r1 REVISE (5 MAJOR): 4 accepted and fixed, 1 partly rejected (`docs/reviews/2026-09-25/SAFECHAT-r1-response.md`).
 
 > **For agentic workers:** REQUIRED SUB-SKILL: use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task by task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -84,7 +84,7 @@ Covered: legacy `/assistant/chat` replacement before persist/return, audit row, 
 | `CLAUDE.md`, `AGENT.md` | modify | collected-count slots | 2 |
 | this plan | modify | Execution record | 3 |
 | `docs/INDEX.md`, `docs/_link_graph.json` | regenerate | generator output | 0, 3 |
-| `audit/2026-09-25/reviews/SAFECHAT-*` | create | Codex records | 0, 3 |
+| `docs/reviews/2026-09-25/SAFECHAT-*` | create | Codex records | 0, 3 |
 
 ---
 
@@ -102,7 +102,7 @@ rc=0; git grep -n -i "safechat\|SAFE-CHAT\|prohibited_advice" -- src || rc=$?
 ```
 Expected: `ANCESTOR-OK`, `TRIGGER-PATHS-UNCHANGED`, `NO-COLLISION`. Any other line exits nonzero → STOP.
 - [ ] **Step 2:** SAFE-CHAT recorded verbatim in owner-decisions (L0 branch). Missing → STOP.
-- [ ] **Step 3:** Codex plan review (≤2 rounds, `audit/2026-09-25/reviews/SAFECHAT-r<N>-{prompt.md,codex.txt,response.md}`), then commit plan + exact review paths + regenerated index (`git add --` the new files first, then `git commit … -- <exact paths>`), gated on `python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py --link-graph`.
+- [ ] **Step 3:** Codex plan review (≤2 rounds, `docs/reviews/2026-09-25/SAFECHAT-r<N>-{prompt.md,codex.txt,response.md}`), then commit plan + exact review paths + regenerated index (`git add --` the new files first, then `git commit … -- <exact paths>`), gated on `python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py --link-graph`.
 
 ### Task 1: Failing tests (RED)
 

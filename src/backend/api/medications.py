@@ -19,9 +19,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from core.database import get_db
-from core.audit import audit_and_commit, log_document_event
+from core.audit import audit_and_commit, audit_intent, log_document_event
 from core.auth import RequireAuth, Session, ProfileDbSession
 from core.time import utcnow
 from models import (
@@ -343,6 +344,7 @@ async def create_medication(
     profile_db.add(med)
     await profile_db.commit()
     await profile_db.refresh(med)
+    await profile_db.refresh(med, attribute_names=["schedules"])
 
     # Audit log
     await log_document_event(
@@ -373,7 +375,7 @@ async def list_medications(
 
     Returns all medications or only active ones based on filter.
     """
-    query = select(Medication).where(
+    query = select(Medication).options(selectinload(Medication.schedules)).where(
         Medication.profile_id == session.profile_id
     )
 
@@ -401,7 +403,9 @@ async def get_medication(
     validate_uuid(medication_id, "medication_id")
 
     result = await profile_db.execute(
-        select(Medication).where(Medication.id == medication_id)
+        select(Medication)
+        .options(selectinload(Medication.schedules))
+        .where(Medication.id == medication_id)
     )
     medication = result.scalar_one_or_none()
 
@@ -608,6 +612,7 @@ async def update_medication(
 
     await profile_db.commit()
     await profile_db.refresh(medication)
+    await profile_db.refresh(medication, attribute_names=["schedules"])
 
     logger.info(f"Updated medication {medication_id}")
     return MedicationResponse.from_model(medication)
@@ -645,26 +650,39 @@ async def delete_medication(
 
     verify_medication_access(medication, session)
 
+    # AUDIT-PHI-001: drug names are clinical content; medication_id is the handle.
+    audit_kwargs = dict(
+        profile_id=session.profile_id, document_id=medication_id,
+    )
     if hard_delete:
-        await profile_db.delete(medication)
         event_type = "medication_delete"
+        # AUDIT-ORDER D: intent committed before the irreversible delete.
+        await audit_intent(
+            master_db, "started", log_document_event, event=event_type, **audit_kwargs
+        )
+        await profile_db.delete(medication)
+        await profile_db.commit()
+        await audit_intent(
+            master_db, "completed", log_document_event, event=event_type, **audit_kwargs
+        )
     else:
+        # AUDIT-ORDER C: reversible, so audit follows the change; a failed audit
+        # commit is logged (ids only) and re-raised.
+        event_type = "medication_deactivate"
         medication.is_active = False
         medication.ended_at = utcnow()
-        event_type = "medication_deactivate"
-
-    await profile_db.commit()
-
-    # Audit log
-    await log_document_event(
-        db=master_db,
-        event=event_type,
-        profile_id=session.profile_id,
-        document_id=medication_id,
-        # AUDIT-PHI-001: drug names are clinical content; medication_id is the handle.
-        details=None,
-    )
-    await master_db.commit()
+        await profile_db.commit()
+        await log_document_event(
+            db=master_db, event=event_type, details=None, **audit_kwargs
+        )
+        try:
+            await master_db.commit()
+        except Exception:
+            logger.error(
+                "AUDIT-ORDER: audit commit failed after change (event=%s, entity=%s)",
+                event_type, medication_id,
+            )
+            raise
 
     logger.info(f"{'Deleted' if hard_delete else 'Deactivated'} medication {medication_id}")
 

@@ -1,0 +1,9 @@
+One MINOR finding: `test_audit_order_guard.py` verifies reachability, not ordering.
+
+| Severity | File:line | Finding | Fix |
+|---|---|---|---|
+| MINOR | [test_audit_order_guard.py](/mnt/c/Users/DangT/Documents/GitHub/hc-ao-exec/src/backend/tests/test_audit_order_guard.py:192) | The A2 guard passes if a handler calls `audit_intent` after its mutation. Its synthetic break-it cases do not test order. The route-level tests use HTTP through `route_client` and inject audit failures to check the routes they exercise, but the guard alone gives false confidence about ordering. | Add an ordering check or break-it case that fails when a scoped mutation can happen before the `started` commit. |
+
+The scoped routes’ `started` rows precede their first irreversible mutations; I found no PHI or out-of-scope edits. Denial auditing preserves 403 responses, and the route-level failure-injection tests exercise HTTP paths. Tests were not run.
+
+VERDICT: needs-attention

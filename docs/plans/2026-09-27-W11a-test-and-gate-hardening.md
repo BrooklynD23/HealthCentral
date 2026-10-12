@@ -4,7 +4,7 @@
 **Owner:** repository owner
 **Refresh Trigger:** P1, P4, P5, P7 or W-4 merges (re-verify every `main@40f590e` / `B@7b2ff1f` line reference on the tree that exists then); an owner answer to OG-1, OG-2, Q-AUD-LIST, Q-RUFF or Q-COV; any edit to `src/backend/api/profiles.py`, `src/backend/tests/support/routes.py`, `src/backend/core/profile_database.py`, `src/backend/core/migrations.py` or `.github/workflows/ci.yml`.
 **Status:** PROPOSED — not executed
-**Review status:** 4 Codex rounds (final; no round 5). Round-4 findings (1 BLOCKER, 2 MAJOR) fixed after the last round, not re-reviewed (owner acceptance required); see `audit/2026-09-25/swarm-2026-09-27/reviews/W11a-r4-response.md`.
+**Review status:** 4 Codex rounds (final; no round 5). Round-4 findings (1 BLOCKER, 2 MAJOR) fixed after the last round, not re-reviewed (owner acceptance required); see `docs/reviews/2026-09-27-swarm/W11a-r4-response.md`.
 **Prerequisites:** P0-B and P1 merged to `origin/main`. Also: P5 + P7 (PR-1), P4 + P5 + W-4 (PR-3), the D9 venv `~/venvs/asclexis-311` (all backend steps). Before P1 lands, Task 0 Step 2's ancestry check fails; that STOP is intended, not a defect.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Also load `test-driven-development` and, for Task 3, `asclexis-backend` (SQLCipher vault, dual Alembic chains).
