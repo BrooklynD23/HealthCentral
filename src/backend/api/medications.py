@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from core.database import get_db
 from core.audit import audit_and_commit, log_document_event
@@ -343,6 +344,7 @@ async def create_medication(
     profile_db.add(med)
     await profile_db.commit()
     await profile_db.refresh(med)
+    await profile_db.refresh(med, attribute_names=["schedules"])
 
     # Audit log
     await log_document_event(
@@ -373,7 +375,7 @@ async def list_medications(
 
     Returns all medications or only active ones based on filter.
     """
-    query = select(Medication).where(
+    query = select(Medication).options(selectinload(Medication.schedules)).where(
         Medication.profile_id == session.profile_id
     )
 
@@ -401,7 +403,9 @@ async def get_medication(
     validate_uuid(medication_id, "medication_id")
 
     result = await profile_db.execute(
-        select(Medication).where(Medication.id == medication_id)
+        select(Medication)
+        .options(selectinload(Medication.schedules))
+        .where(Medication.id == medication_id)
     )
     medication = result.scalar_one_or_none()
 
@@ -608,6 +612,7 @@ async def update_medication(
 
     await profile_db.commit()
     await profile_db.refresh(medication)
+    await profile_db.refresh(medication, attribute_names=["schedules"])
 
     logger.info(f"Updated medication {medication_id}")
     return MedicationResponse.from_model(medication)

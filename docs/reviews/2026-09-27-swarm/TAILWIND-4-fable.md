@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-10-09
 
-Reviewer: `Agent` `model: "fable"`, read-only, given the brief, plan, scaffold, owner rows and code paths (not the L1-lead's conclusions). Reviewed tree: `docs/tailwind-4-brief` = `origin/main` `eb7de28` + the draft brief. Line numbers refer to the draft, before the amendments. Dispositions: [TAILWIND-4-L1-brief.md §6](../../waves/briefs/TAILWIND-4-L1-brief.md). Output verbatim below.
+Reviewer: `Agent` `model: "fable"`, read-only, given the brief, plan, scaffold, owner rows and code paths (not the L1-lead's conclusions). Reviewed tree: `docs/tailwind-4-brief` = `origin/main` `eb7de28` + the draft brief. Line numbers refer to the draft, before the amendments. Dispositions: [TAILWIND-4-L1-brief.md §6](../../../audit/2026-09-25/waves/briefs/TAILWIND-4-L1-brief.md). Output verbatim below.
 
 ```
 VERDICT: GO WITH AMENDMENTS

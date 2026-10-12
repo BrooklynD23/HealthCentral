@@ -88,6 +88,18 @@ such warning; code review caught it and it was removed in `e754b5d`
 (`wave-4-L1-D.md`). An assertion that stays true after an upgrade checks
 nothing after that upgrade.
 
+A 2026-10-11 instance in the medication routes. The create route (POST /medications/)
+committed the row and its audit entry, then returned 500: `MedicationResponse.from_model`
+reads `med.schedules`, a default lazy-load relationship, and an async session
+cannot lazy-load (`sqlalchemy.exc.MissingGreenlet`). The update, list and get
+routes failed the same way. No medication test went through HTTP
+with a real session. `tests/test_medications_dose_logging.py` uses a
+`_FakeProfileDb` whose `refresh` is a no-op, so the fake replaced exactly the
+layer that failed. It was found by the E2E seeding step of PR #74 (CI run
+38197253929). `tests/test_medications_routes_http.py` drives all four routes
+through `route_client` with an in-memory aiosqlite session, and all four went
+red with MissingGreenlet before the fix.
+
 **Recheck:** ask what your test would *fail to notice*. Then break the code on
 purpose and confirm the test goes red. For any gate that parses a report another
 step produced, delete the report and confirm the gate goes RED, not green —
