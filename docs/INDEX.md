@@ -2250,7 +2250,7 @@ Links to: `docs/compliance/disaster-recovery.md`, `docs/compliance/hipaa-control
 
 **Getting Started**
 
-- Python 3.11 or later - Node.js 22 or later (Node.js 24 LTS recommended) - SQLCipher library (`libsqlcipher-dev` on Ubuntu/Debian)
+- Python 3.11 or later - Node.js 22 or later (Node.js 24 LTS recommended) - Browser: Safari 16.4+, Chrome 111+, Firefox 128+ - SQLCipher library (`libsqlcipher-dev` on Ubuntu/Debian)
 
 Links to: `docs/user/workflows.md`
 
