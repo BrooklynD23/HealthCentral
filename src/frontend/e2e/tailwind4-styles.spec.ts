@@ -166,7 +166,7 @@ test.describe('Tailwind 4 style guard', () => {
     const heading = page.locator('aside h1').first();
     expect(await heading.evaluate((el) => getComputedStyle(el).color)).toBe('rgb(31, 31, 31)');
 
-    // Cursor: TopBar.tsx:68-78 Button (`h-10 w-10 rounded-xl border-black/[0.06]` + Button.tsx cva) has
+    // Cursor: TopBar.tsx:68-78 Button (`h-10 w-10 rounded-xl` + border opacity class + Button.tsx cva) has
     // no cursor-* class and no ancestor in TopBar/layout carries one; enabled, so preflight gives pointer.
     const btn = page.getByRole('button', { name: 'Profile and settings' });
     await expect(btn).toBeEnabled();
@@ -175,7 +175,10 @@ test.describe('Tailwind 4 style guard', () => {
 
     // Focus ring relies on the global focus-visible rule (globals.css:65-67); the NavLink
     // (Sidebar.tsx:62-68) carries no outline class of its own.
-    await nav.focus();
+    for (let i = 0; i < 40 && !(await nav.evaluate((el) => el === document.activeElement)); i++) {
+      await page.keyboard.press('Tab');
+    }
+    await expect(nav).toBeFocused();
     const ring = await nav.evaluate((el) => {
       const s = getComputedStyle(el);
       return { boxShadow: s.boxShadow, outlineStyle: s.outlineStyle, outlineColor: s.outlineColor };

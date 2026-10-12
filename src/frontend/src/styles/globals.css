@@ -151,6 +151,13 @@
   textarea::placeholder {
     color: #9ca3af;
   }
+
+  /* v4 preflight makes form controls transparent; v3 kept the browser default. */
+  input:where(:not([type='button'], [type='reset'], [type='submit'])),
+  select,
+  textarea {
+    background-color: revert;
+  }
 }
 
 @utility text-balance {

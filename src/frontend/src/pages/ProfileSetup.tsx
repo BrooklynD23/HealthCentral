@@ -200,7 +200,7 @@ export function ProfileSetup() {
     <div className="min-h-screen bg-surface flex items-center justify-center p-6">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-1/4 -right-1/4 w-1/2 h-1/2 bg-accent/5 rounded-full blur-3xl" />
-        <div className="absolute -bottom-1/4 -left-1/4 w-1/2 h-1/2 bg-accent/3 rounded-full blur-3xl" />
+        <div className="absolute -bottom-1/4 -left-1/4 w-1/2 h-1/2 rounded-full blur-3xl" />
       </div>
 
       <motion.div
@@ -324,7 +324,7 @@ export function ProfileSetup() {
 
                 {/* SEC-RECOV-001: the way back in for an existing profile
                     whose password has been forgotten. */}
-                <p className="mt-4 text-center text-sm text-ink-secondary">
+                <p className="text-center text-sm text-ink-secondary">
                   Already have a profile and forgot the password?{' '}
                   <Link to="/recover" className="underline">
                     Use your recovery code

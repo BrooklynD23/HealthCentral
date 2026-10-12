@@ -236,7 +236,7 @@ export function CareTasksPage() {
       <Card>
         <CardHeader>
           <CardTitle>Suggested from your documents</CardTitle>
-          <p className="text-sm text-ink-secondary mt-1">
+          <p className="text-sm text-ink-secondary">
             Pick a document to see follow-up instructions found in it. Nothing
             is added to your checklist until you accept it.
           </p>

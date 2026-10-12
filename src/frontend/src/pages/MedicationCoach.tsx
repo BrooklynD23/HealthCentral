@@ -133,7 +133,7 @@ function MedReconcilePanel({
           <FileSearch className="w-5 h-5" />
           Compare with a document
         </CardTitle>
-        <p className="text-sm text-ink-secondary mt-1">
+        <p className="text-sm text-ink-secondary">
           Pick a visit note or discharge summary to see where its medication
           lines differ from your list. Nothing changes unless you review and
           save an entry yourself.

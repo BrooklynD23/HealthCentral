@@ -149,7 +149,7 @@ export function DoseLoggingModal({
                   exit={{ opacity: 0, height: 0 }}
                   className="space-y-2 overflow-hidden"
                 >
-                  <label className="text-sm font-medium text-ink">Reason</label>
+                  <label className="inline-block text-sm font-medium text-ink">Reason</label>
                   <div className="flex flex-wrap gap-2">
                     {skipReasons.map((reason) => (
                       <button
@@ -174,7 +174,7 @@ export function DoseLoggingModal({
 
             {/* Notes */}
             <div className="space-y-1.5">
-              <label htmlFor="dose-notes" className="text-sm font-medium text-ink">
+              <label htmlFor="dose-notes" className="inline-block text-sm font-medium text-ink">
                 Notes (optional)
               </label>
               <textarea

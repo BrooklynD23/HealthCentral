@@ -116,7 +116,7 @@ export function ScheduleEditor({
           <div className="p-3 rounded-xl bg-accent-subtle border border-accent/10 space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className="text-xs font-medium text-ink">Label</label>
+                <label className="inline-block text-xs font-medium text-ink">Label</label>
                 <select
                   value={newLabel}
                   onChange={(e) => {
@@ -138,7 +138,7 @@ export function ScheduleEditor({
                 </select>
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-medium text-ink">Time</label>
+                <label className="inline-block text-xs font-medium text-ink">Time</label>
                 <input
                   type="time"
                   value={newTime}

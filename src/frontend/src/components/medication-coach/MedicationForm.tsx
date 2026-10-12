@@ -81,7 +81,7 @@ export function MedicationForm({
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Name */}
           <div className="space-y-1.5">
-            <label htmlFor="med-name" className="text-sm font-medium text-ink">
+            <label htmlFor="med-name" className="inline-block text-sm font-medium text-ink">
               Medication Name *
             </label>
             <Input
@@ -95,7 +95,7 @@ export function MedicationForm({
 
           {/* Generic Name */}
           <div className="space-y-1.5">
-            <label htmlFor="med-generic" className="text-sm font-medium text-ink">
+            <label htmlFor="med-generic" className="inline-block text-sm font-medium text-ink">
               Generic Name
             </label>
             <Input
@@ -109,7 +109,7 @@ export function MedicationForm({
           {/* Dosage Row */}
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5">
-              <label htmlFor="med-amount" className="text-sm font-medium text-ink">
+              <label htmlFor="med-amount" className="inline-block text-sm font-medium text-ink">
                 Amount
               </label>
               <Input
@@ -123,7 +123,7 @@ export function MedicationForm({
               />
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="med-unit" className="text-sm font-medium text-ink">
+              <label htmlFor="med-unit" className="inline-block text-sm font-medium text-ink">
                 Unit
               </label>
               <select
@@ -145,7 +145,7 @@ export function MedicationForm({
               </select>
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="med-form" className="text-sm font-medium text-ink">
+              <label htmlFor="med-form" className="inline-block text-sm font-medium text-ink">
                 Form
               </label>
               <select
@@ -169,7 +169,7 @@ export function MedicationForm({
 
           {/* Frequency */}
           <div className="space-y-1.5">
-            <label htmlFor="med-frequency" className="text-sm font-medium text-ink">
+            <label htmlFor="med-frequency" className="inline-block text-sm font-medium text-ink">
               Frequency
             </label>
             <select
@@ -192,7 +192,7 @@ export function MedicationForm({
 
           {/* Instructions */}
           <div className="space-y-1.5">
-            <label htmlFor="med-instructions" className="text-sm font-medium text-ink">
+            <label htmlFor="med-instructions" className="inline-block text-sm font-medium text-ink">
               Instructions
             </label>
             <textarea
