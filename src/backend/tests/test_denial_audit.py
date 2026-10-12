@@ -143,3 +143,21 @@ async def test_hc_aud_ord_040b_profile_route_denial(maker, monkeypatch, caplog):
     assert row.event_type == "denial.cross_profile" and row.profile_id == CALLER
     assert row.entity_type == "profile" and row.entity_id is None
     assert OTHER not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_hc_aud_ord_041b_failed_write_does_not_use_a_cap_slot(maker, monkeypatch):
+    real = denial_audit.create_audit_log
+
+    async def _boom(*a, **k):
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr(denial_audit, "create_audit_log", _boom)
+    async with maker() as s:
+        for _ in range(denial_audit.DENIAL_CAP + 5):
+            await denial_audit.audit_denial(CALLER, "profile", s)
+    assert denial_audit._state[CALLER][1] == 0
+    monkeypatch.setattr(denial_audit, "create_audit_log", real)
+    async with maker() as s:
+        await denial_audit.audit_denial(CALLER, "profile", s)
+    assert len(await _rows(maker)) == 1

@@ -74,6 +74,8 @@ async def _audit_interpretation(
         raise
 
 
+# ponytail: check-then-act window (a row may appear/vanish between this read and
+# the module call); accepted for a single-user local app.
 async def _has_interpretation(profile_db: AsyncSession, observation_id: str) -> bool:
     """True if a LabInterpretation exists (regenerate then deletes it irreversibly)."""
     res = await profile_db.execute(

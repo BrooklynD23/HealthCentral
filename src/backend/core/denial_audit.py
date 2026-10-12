@@ -25,7 +25,9 @@ DENIAL_WINDOW_SECONDS = 600
 monotonic = _time.monotonic  # module-level name so tests can move the clock
 
 # caller profile_id -> [window_start, written, suppressed]
-# ponytail: in-process counter resets on restart (plan §12 item 8); persist if abuse matters.
+# ponytail: in-process counter, fixed 10-minute window (not rolling). A final
+# burst's suppressed count is written only on the caller's next denial after the
+# window ends, and is lost on restart (plan §12 item 8). Persist if abuse matters.
 _state: dict[str, list] = {}
 
 
@@ -38,18 +40,29 @@ async def _write(db: AsyncSession, event_type: str, caller: str,
 
 
 async def _audit(db: AsyncSession, caller: str, entity_type: str) -> None:
+    # All counter updates happen before the first await, so concurrent denials
+    # cannot overshoot the cap.
     now = monotonic()
     window = _state.get(caller)
+    flush = 0
     if window is None or now - window[0] >= DENIAL_WINDOW_SECONDS:
-        if window is not None and window[2] > 0:
-            await _write(db, "denial.suppressed", caller, None, {"count": window[2]})
+        flush = window[2] if window else 0
         window = _state[caller] = [now, 0, 0]
-    if window[1] < DENIAL_CAP:
-        window[1] += 1
-        await _write(db, "denial.cross_profile", caller, entity_type)
+    write = window[1] < DENIAL_CAP
+    if write:
+        window[1] += 1  # reserved; given back below if the write fails
     else:
         window[2] += 1
-    await db.commit()
+    try:
+        if flush:
+            await _write(db, "denial.suppressed", caller, None, {"count": flush})
+        if write:
+            await _write(db, "denial.cross_profile", caller, entity_type)
+        await db.commit()
+    except Exception:
+        if write:
+            window[1] -= 1  # a failed write must not use a cap slot
+        raise
 
 
 async def audit_denial(
