@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -20,6 +21,7 @@ from api.gamification import (
 )
 from core.auth import Session
 from models import UserModelSettings
+from tests.support.routes import route_client
 
 
 class _ScalarResult:
@@ -104,3 +106,39 @@ async def test_get_streaks_returns_profile_summary():
     assert response.longest_streak_days == 3
     assert response.timezone == "UTC"
     assert response.as_of_date == "2026-03-04"
+
+
+@pytest.mark.skipif(not hasattr(time, "tzset"), reason="time.tzset is POSIX-only")
+def test_get_streaks_http_naive_utc_on_non_utc_machine(monkeypatch):
+    """DoseTaken.taken_at is naive UTC; machine-local TZ must not shift the day."""
+    import api.gamification as gamification_api
+    from core.auth import get_profile_db_session
+
+    monkeypatch.setenv("TZ", "America/New_York")
+    time.tzset()
+    try:
+        settings = UserModelSettings(profile_id="profile-a", timezone="UTC")
+        doses = [
+            _StreakDose(datetime(2026, 3, 2, 22, 0)),
+            _StreakDose(datetime(2026, 3, 3, 22, 0)),
+            _StreakDose(datetime(2026, 3, 4, 22, 0)),
+        ]
+
+        class _FrozenDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return datetime(2026, 3, 4, 23, 30, tzinfo=tz or timezone.utc)
+
+        async def _profile_db():
+            return _StreakProfileDb(settings, doses)
+
+        monkeypatch.setattr(gamification_api, "datetime", _FrozenDateTime)
+        with route_client(gamification_api.router, "/gamification") as client:
+            client.app.dependency_overrides[get_profile_db_session] = _profile_db
+            response = client.get("/gamification/streaks")
+    finally:
+        monkeypatch.undo()
+        time.tzset()
+
+    assert response.status_code == 200
+    assert response.json()["current_streak_days"] == 3
