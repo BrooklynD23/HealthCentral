@@ -31,6 +31,7 @@ from core.database import Base
 from core.profile_database import ProfileDatabaseBase
 from models import Document, DocumentEntity, LabInterpretation, Medication, Observation
 from models.pinboard import PinboardItem
+import api.assistant as assistant_api
 import api.backup as backup_api
 import api.documents as documents_api
 import api.profiles as profiles_api
@@ -38,6 +39,10 @@ import api.interpretations as interp_api
 from api.interpretations import router as interp_router
 from modules.rag import ModelUnavailableError
 from models import Profile
+from models.chat_session import ChatTurn
+from api.assistant import ResponseSegment, VerificationInfo
+from api.assistant import router as assistant_router
+from core.audit import create_audit_log
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -795,3 +800,43 @@ async def test_hc_aud_ord_007_profile_delete_leaves_no_trace_of_id(master, erase
     blob = " ".join(str(getattr(rows[0], c.name)) for c in rows[0].__table__.columns)
     assert PROFILE not in blob
     assert not erase_env.vault.exists()
+
+
+# --- T5: row 28 agent chat ----------------------------------------------------
+
+
+async def _agent_stub(question, profile_id, profile_db, db):
+    await create_audit_log(
+        db=db, event_type="agent.run", action="agent.run", profile_id=profile_id,
+        entity_type="agent_run", entity_id=str(uuid.uuid4()),
+    )
+    return [ResponseSegment(segment_type="facts", content="ok")], "ok", VerificationInfo()
+
+
+def _chat(master, vault):
+    with patch.object(assistant_api, "get_rag_module", return_value=MagicMock()), \
+            patch.object(assistant_api, "is_agent_enabled", return_value=True), \
+            patch.object(assistant_api, "_serve_via_agent", _agent_stub):
+        return _call(assistant_router, "/assistant", master, vault, "POST",
+                     "/assistant/chat", json={"question": "what is my ldl?", "use_memory": False})
+
+
+async def _turn_count(vault) -> int:
+    vault.expire_all()
+    return len((await vault.execute(select(ChatTurn.id))).all())
+
+
+@pytest.mark.asyncio
+async def test_hc_aud_ord_060_agent_audit_commit_fails_fails_request(master, vault):
+    master.fail_on = 1
+    resp = _chat(master, vault)
+    assert resp.status_code >= 500, resp.text
+    assert await _turn_count(vault) == 0
+
+
+@pytest.mark.asyncio
+async def test_hc_aud_ord_060_agent_audit_rows_committed_explicitly(master, vault):
+    resp = _chat(master, vault)
+    assert resp.status_code == 200, resp.text
+    assert master.commits == 1, "agent audit rows were left to the after-response commit"
+    assert [r.event_type for r in await _rows(master)] == ["agent.run"]
