@@ -36,6 +36,7 @@ Verdict is the reviewer's last `VERDICT:` line (plan reviews: PASS / REVISE; dif
 | 2026-09-27-swarm | S01 | r3 | PASS | 2026-09-28 | [codex](2026-09-27-swarm/S01-r3-codex.txt) [prompt](2026-09-27-swarm/S01-r3-prompt.md) [response](2026-09-27-swarm/S01-r3-response.md) |
 | 2026-09-27-swarm | TAILWIND-4 (L1 brief) | r1 | REVISE | 2026-10-09 | [codex](2026-09-27-swarm/TAILWIND-4-codex.txt) [prompt](2026-09-27-swarm/TAILWIND-4-codex-prompt.md) |
 | 2026-09-27-swarm | TAILWIND-4 (L1 brief), Fable 5.1 review, not Codex | r1 | GO WITH AMENDMENTS | 2026-10-09 | [fable](2026-09-27-swarm/TAILWIND-4-fable.md) |
+| 2026-09-27-swarm | TAILWIND-4 | diff, gpt-6-luna high (gpt-6.1-sol returned 400) | needs-attention | 2026-10-12 | [codex](2026-09-27-swarm/TAILWIND-4-diff-codex.txt) [prompt](2026-09-27-swarm/TAILWIND-4-diff-prompt.md) [response](2026-09-27-swarm/TAILWIND-4-diff-response.md) |
 | 2026-09-27-swarm | W01 | r1 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W01-r1-codex.txt) [prompt](2026-09-27-swarm/W01-r1-prompt.md) [response](2026-09-27-swarm/W01-r1-response.md) |
 | 2026-09-27-swarm | W01 | r2 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W01-r2-codex.txt) [prompt](2026-09-27-swarm/W01-r2-prompt.md) [response](2026-09-27-swarm/W01-r2-response.md) |
 | 2026-09-27-swarm | W01 | r3 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W01-r3-codex.txt) [prompt](2026-09-27-swarm/W01-r3-prompt.md) [response](2026-09-27-swarm/W01-r3-response.md) |
