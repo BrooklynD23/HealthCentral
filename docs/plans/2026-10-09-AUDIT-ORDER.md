@@ -439,3 +439,29 @@ Codex round 3 (2026-10-09) re-reviewed the round-2 and security-review fixes; it
 7. **Vault exit-commit reliance** is now part of HC-AUD-ORD-030's checks, but only for writes the static call graph can see (same limit as item 1).
 8. **Denial cap is in process.** The counter resets on restart, so a caller can exceed 20 rows per window across restarts. Accepted for a local single-process app; not re-reviewed.
 
+
+---
+
+## 13. Execution tasks (signed options D, AO-FAIL A, AO-SCOPE B, AD-DENIALS B)
+
+**Revision 2026-10-12** (execution L1, branch `fix/audit-order`). Lines re-measured at `origin/main` @ `767c13c` (after #75 and #77). Moved sites: medication delete handler `medications.py:625` (profile commit `:661`, master commit `:672`); profile delete handler `profiles.py:773` (sealed-key unlink `:868`, vault `rmtree` `:885`, Step 5b RL-exports sweep `:909-922`, `delete(AuditLog)` `:926`, tombstone `:945`, commit `:954`); agent run `assistant.py:717`. Every other §3 line for the scoped rows is unchanged. Collected baseline at `767c13c`: **1392**.
+
+**Execution decisions (stated, not silent):**
+1. `audit_intent` is the only addition to `core/audit.py` (AO-ASKFIRST line). The §6 PHI column rule inside `create_audit_log` (HC-AUD-ORD-006) needs a `create_audit_log` edit, which the signed line does not cover: **not executed**. The new rows pass only server-generated values (validated path ids, the session id, constants).
+2. The denial writer and its cap cannot live in `core/audit.py` (same reason), so they go in a new module `core/denial_audit.py`, called from the 3 export sites and from `core/auth.py:278-286`.
+3. C's ERROR log is added on the C branches of the scoped routes (row 10 soft delete, rows 19/20/23 first generation, via `_audit_interpretation`). The reversible rows outside AO-SCOPE B are classified `C` in the HC-AUD-ORD-030 table with no code change: their window is accepted and documented, as AO-SCOPE B accepts.
+4. Row 2 (reprocess): today's audit row carries the document status under `details.status`. The intent pair needs that key, so the `completed` row carries `status="completed"` and the document status (still in the vault) leaves the audit row. No allowlist change (AUDIT-KEYS-DROPPED stays separate).
+5. Row 26 (restore): the existing `partial` row stays the outcome marker of a partial restore; a clean failure leaves an unpaired `started` row.
+6. Rows 19/20: the irreversible branch is decided inside `modules/interpret.py:272-276`. The handler checks for an existing `LabInterpretation` before calling the module and writes `started` only when `force_regenerate` and one exists; `modules/interpret.py` is not edited.
+
+### Tasks
+
+- [ ] **T0** — this revision, docs only, first commit.
+- [ ] **T1** — `core/audit.py`: `audit_intent(db, status, log_fn, **kwargs)`; `status` must be in `{"started", "completed"}` else `ValueError`; commits through `audit_and_commit` (fail closed). Test HC-AUD-ORD-004 (bad status raises, `details_json` holds only `started`/`completed`). Own commit (§6 AUDIT-KEYS-DROPPED note).
+- [ ] **T2** — rows 5, 10 (hard), 13, 16: `started` before the first vault mutation, `completed` after it. RED first: HC-AUD-ORD-001a through `route_client` with a real in-memory master and vault. Then 001b, 002, 003. Row 10 soft branch: ERROR log + re-raise (HC-AUD-ORD-020).
+- [ ] **T3** — rows 2, 19, 20, 23, 29, 30 (branch-level as decisions 4 and 6; rows 29/30 inside `_prune_stale_items`). HC-AUD-ORD-001a/001b/002/003 per row.
+- [ ] **T4** — rows 26, 27: `started` before the file operations; HC-AUD-ORD-002 injects the failure into `backup_script.restore` / the vault `rmtree`; row 27 skips 003 and gets HC-AUD-ORD-007.
+- [ ] **T5** — row 28: explicit master commit after the agent run, outside the agent fallback `try`; HC-AUD-ORD-060.
+- [ ] **T6** — AD-DENIALS B: `core/denial_audit.py` (cap 20 per caller per 10 min, `denial.suppressed` row), export sites `export.py:507`, `:847`, `:1274`, `core/auth.py:278-286` (WARNING without the target id). HC-AUD-ORD-040/041/042.
+- [ ] **T7** — HC-AUD-ORD-030 route-class guard (all methods, static call graph over `api/`, `core/`, `modules/`, named exclusions) with its 3 break-its.
+- [ ] **T8** — full suite under `flock`, collected count slots, code + security review, Codex diff review, PR.
