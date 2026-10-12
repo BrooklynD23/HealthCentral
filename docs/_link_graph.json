@@ -1545,6 +1545,12 @@
     "docs/reviews/2026-10-12/AUDIT-ORDER-diff-secrev.md": [
       "docs/reviews/README.md"
     ],
+    "docs/reviews/2026-10-12/RL-EXPORT-EMPTY-diff-codereview.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-10-12/RL-EXPORT-EMPTY-diff-response.md": [
+      "docs/reviews/README.md"
+    ],
     "docs/roles/00_roles_index.md": [
       "docs/00_architecture_plans_index.md",
       "AGENT.md"
@@ -2788,7 +2794,9 @@
       "docs/reviews/2026-10-12/AUDIT-ORDER-diff-prompt.md",
       "docs/reviews/2026-10-12/AUDIT-ORDER-diff-response.md",
       "docs/reviews/2026-10-12/AUDIT-ORDER-diff-codereview.md",
-      "docs/reviews/2026-10-12/AUDIT-ORDER-diff-secrev.md"
+      "docs/reviews/2026-10-12/AUDIT-ORDER-diff-secrev.md",
+      "docs/reviews/2026-10-12/RL-EXPORT-EMPTY-diff-codereview.md",
+      "docs/reviews/2026-10-12/RL-EXPORT-EMPTY-diff-response.md"
     ],
     "docs/roles/00_roles_index.md": [
       "docs/architecture/README.md",
