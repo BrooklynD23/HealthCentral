@@ -142,6 +142,20 @@ test.describe('Tailwind 4 style guard', () => {
     await shot(page, 'recover');
   });
 
+  test('TW4-FOCUS: global focus ring box-shadow (unauthenticated)', async ({ page }) => {
+    await page.goto('/recover');
+    // Target: RecoverProfile.tsx:136-143 (`w-full rounded-md border px-3 py-2 text-sm font-mono`): no
+    // ring, shadow or outline class, so its focus box-shadow comes only from globals.css:288-290.
+    // Own test so an earlier failing assert cannot mask it.
+    const input = page.locator('#recover-code');
+    await expect(input).toBeVisible({ timeout: 15000 });
+    for (let i = 0; i < 40 && !(await input.evaluate((el) => el === document.activeElement)); i++) {
+      await page.keyboard.press('Tab');
+    }
+    await expect(input).toBeFocused();
+    expect(await input.evaluate((el) => getComputedStyle(el).boxShadow)).not.toBe('none');
+  });
+
   test('TW4-SETUP: /setup screenshot (unauthenticated)', async ({ page }) => {
     await page.goto('/setup');
     await page.waitForLoadState('networkidle');
@@ -166,21 +180,24 @@ test.describe('Tailwind 4 style guard', () => {
     const heading = page.locator('aside h1').first();
     expect(await heading.evaluate((el) => getComputedStyle(el).color)).toBe('rgb(31, 31, 31)');
 
-    // Cursor: TopBar.tsx:68-78 Button (`h-10 w-10 rounded-xl border-black/[0.06]` + Button.tsx cva) has
+    // Cursor: TopBar.tsx:68-78 Button (`h-10 w-10 rounded-xl` + border opacity class + Button.tsx cva) has
     // no cursor-* class and no ancestor in TopBar/layout carries one; enabled, so preflight gives pointer.
     const btn = page.getByRole('button', { name: 'Profile and settings' });
     await expect(btn).toBeEnabled();
     expect(await btn.evaluate((el) => getComputedStyle(el.parentElement!).cursor)).toBe('auto');
     expect(await btn.evaluate((el) => getComputedStyle(el).cursor)).toBe('pointer');
 
-    // Focus ring relies on the global focus-visible rule (globals.css:65-67); the NavLink
-    // (Sidebar.tsx:62-68) carries no outline class of its own.
-    await nav.focus();
+    // Focus outline half: the global focus-visible rule (globals.css:288-290) hides the outline; the
+    // NavLink (Sidebar.tsx:62-68) carries no outline class of its own. Its own focus-visible:ring-*
+    // classes mean it cannot check the global ring; TW4-FOCUS does that.
+    for (let i = 0; i < 40 && !(await nav.evaluate((el) => el === document.activeElement)); i++) {
+      await page.keyboard.press('Tab');
+    }
+    await expect(nav).toBeFocused();
     const ring = await nav.evaluate((el) => {
       const s = getComputedStyle(el);
-      return { boxShadow: s.boxShadow, outlineStyle: s.outlineStyle, outlineColor: s.outlineColor };
+      return { outlineStyle: s.outlineStyle, outlineColor: s.outlineColor };
     });
-    expect(ring.boxShadow).not.toBe('none');
     expect(ring.outlineStyle === 'none' || ring.outlineColor === 'rgba(0, 0, 0, 0)').toBeTruthy();
 
     await nav.blur();
