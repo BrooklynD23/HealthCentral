@@ -731,6 +731,7 @@ async def test_hc_aud_ord_003_restore_happy(master, restore_env):
 class Erase:
     vault: Path
     keys: list[Path]
+    revoke: MagicMock
 
 
 @pytest_asyncio.fixture
@@ -747,8 +748,9 @@ async def erase_env(master, tmp_path, monkeypatch):
     monkeypatch.setattr(profiles_api, "authenticate_profile",
                         AsyncMock(return_value=SimpleNamespace(id=PROFILE)))
     monkeypatch.setattr(profiles_api, "close_profile_database_on_logout", AsyncMock())
-    monkeypatch.setattr(profiles_api, "revoke_jwt_token", MagicMock())
-    return Erase(vault, keys)
+    revoke = MagicMock()
+    monkeypatch.setattr(profiles_api, "revoke_jwt_token", revoke)
+    return Erase(vault, keys, revoke)
 
 
 def _delete_profile(master):
@@ -773,6 +775,7 @@ async def test_hc_aud_ord_001a_profile_delete_intent_fails(master, erase_env):
     master.fail_on = 1
     assert _delete_profile(master).status_code == 500
     assert all(k.exists() for k in erase_env.keys) and erase_env.vault.exists()
+    erase_env.revoke.assert_not_called()
     assert await _profile_present(master)
     assert await _rows(master) == []
 
@@ -840,3 +843,47 @@ async def test_hc_aud_ord_060_agent_audit_rows_committed_explicitly(master, vaul
     assert resp.status_code == 200, resp.text
     assert master.commits == 1, "agent audit rows were left to the after-response commit"
     assert [r.event_type for r in await _rows(master)] == ["agent.run"]
+
+
+@pytest.mark.asyncio
+async def test_hc_aud_ord_001b_batch_completion_fails(master, vault):
+    i = await _seed_obs(vault, True)
+    master.fail_on = 2
+    with patch.object(interp_api, "get_interpret_module", return_value=StubInterpret()):
+        resp = _call(
+            interp_router, "/interpretations", master, vault, "POST", "/interpretations/batch",
+            json={"observation_ids": [i.obs_id], "force_regenerate": True},
+        )
+    assert resp.status_code == 500
+    ids = await _interp_ids(vault, i.obs_id)
+    assert len(ids) == 1 and i.old_id not in ids
+    assert [_status(r) for r in await _rows(master)] == ["started"]
+
+
+@pytest.mark.asyncio
+async def test_hc_aud_ord_002_batch_vault_commit_fails(master, vault, monkeypatch):
+    i = await _seed_obs(vault, True)
+    _fail_vault_commit(vault, monkeypatch)
+    with patch.object(interp_api, "get_interpret_module", return_value=StubInterpret()):
+        resp = _call(
+            interp_router, "/interpretations", master, vault, "POST", "/interpretations/batch",
+            json={"observation_ids": [i.obs_id], "force_regenerate": True},
+        )
+    monkeypatch.undo()
+    # The batch loop absorbs per-item failures: the item is reported failed.
+    assert resp.status_code == 200
+    assert [f["observation_id"] for f in resp.json()["failed"]] == [i.obs_id]
+    assert await _interp_ids(vault, i.obs_id) == {i.old_id}
+    assert _status((await _rows(master))[0]) == "started"
+
+
+@pytest.mark.asyncio
+async def test_hc_aud_ord_restore_partial_writes_partial_after_started(master, restore_env):
+    restore_env.restore.return_value = RestoreResult(
+        success=False, partial=True, files_restored=3, safety_copies=[Path("a.bak")],
+        error="boom",
+    )
+    assert _restore(master).status_code == 500
+    rows = await _rows(master)
+    assert [_status(r) for r in rows] == ["started", "partial"]
+    assert "completed" not in [_status(r) for r in rows]

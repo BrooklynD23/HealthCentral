@@ -46,12 +46,12 @@ def _own_nodes(fn: ast.AST):
 
 
 class Graph:
-    def __init__(self) -> None:
+    def __init__(self, backend: Path = BACKEND, roots: tuple[str, ...] = ROOTS) -> None:
         self.by_name: dict[str, list[Fn]] = defaultdict(list)
         self.all: list[Fn] = []
-        for root in ROOTS:
-            for path in sorted((BACKEND / root).rglob("*.py")):
-                rel = path.relative_to(BACKEND).as_posix()
+        for root in roots:
+            for path in sorted((backend / root).rglob("*.py")):
+                rel = path.relative_to(backend).as_posix()
                 for fn in _walk_defs(ast.parse(path.read_text(encoding="utf-8")), rel):
                     self.by_name[fn[2].name].append(fn)
                     self.all.append(fn)
@@ -113,10 +113,58 @@ class Graph:
                     dyn = f.attr.endswith(DYNAMIC_SUFFIXES) and f.attr not in self.by_name
                 if dyn:
                     sites.add(f"{fn[0]}::{fn[1]}::{ast.unparse(f)}")
+                # A def passed as an argument is called somewhere we cannot see.
+                # Skipped: FastAPI Depends(), the log_fn pattern (one named
+                # exclusion on audit_and_commit), locals/params that merely share
+                # a def's name, and attribute refs other than self.<def>.
+                if self.callee_name(c) in {"Depends", "audit_and_commit", "audit_intent"}:
+                    continue
+                for v in list(c.args) + [k.value for k in c.keywords]:
+                    if isinstance(v, ast.Name):
+                        ref = v.id
+                    elif isinstance(v, ast.Attribute) and isinstance(v.value, ast.Name) \
+                            and v.value.id in {"self", "cls"}:
+                        ref = v.attr
+                    else:
+                        continue
+                    if ref in self.by_name and ref not in (params | assigned) \
+                            and ref != self.callee_name(c):
+                        sites.add(f"{fn[0]}::{fn[1]}::{ast.unparse(f)}({ref})")
         return sites
 
+    def _commits_on(self, fn: Fn, var: str, seen: set) -> bool:
+        """fn calls `<var>.commit()`, or passes `var` to a def that does."""
+        if (fn[0], fn[1], var) in seen:
+            return False
+        seen.add((fn[0], fn[1], var))
+        for c in self.calls(fn):
+            f = c.func
+            if (isinstance(f, ast.Attribute) and f.attr == "commit"
+                    and isinstance(f.value, ast.Name) and f.value.id == var):
+                return True
+            for pos, v in enumerate(c.args):
+                if isinstance(v, ast.Name) and v.id == var:
+                    if self._passes(c, pos, None, seen):
+                        return True
+            for k in c.keywords:
+                if isinstance(k.value, ast.Name) and k.value.id == var:
+                    if self._passes(c, None, k.arg, seen):
+                        return True
+        return False
+
+    def _passes(self, call: ast.Call, pos, kw, seen) -> bool:
+        for tgt in self.by_name.get(self.callee_name(call) or "", []):
+            a = tgt[2].args
+            names = [x.arg for x in a.posonlyargs + a.args]
+            if isinstance(call.func, ast.Attribute) and names[:1] in (["self"], ["cls"]):
+                names = names[1:]
+            param = kw if kw else (names[pos] if pos is not None and pos < len(names) else None)
+            if param and self._commits_on(tgt, param, seen):
+                return True
+        return False
+
     def unscoped_vault_writes(self, h: Fn) -> bool:
-        """Handler writes the vault session directly but reaches no commit."""
+        """Handler writes the vault session directly but nothing commits `profile_db`."""
         a = h[2].args
         if "profile_db" not in {x.arg for x in a.args + a.kwonlyargs}:
             return False
@@ -125,9 +173,9 @@ class Graph:
             if not (isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name)
                     and f.value.id == "profile_db"):
                 continue
-            if f.attr in {"add", "delete"}:
-                return not self.commits(self.reachable(h))
-            if f.attr == "execute" and c.args and isinstance(c.args[0], ast.Call) \
-                    and self.callee_name(c.args[0]) in {"insert", "update", "delete"}:
-                return not self.commits(self.reachable(h))
+            writes = f.attr in {"add", "delete"} or (
+                f.attr == "execute" and c.args and isinstance(c.args[0], ast.Call)
+                and self.callee_name(c.args[0]) in {"insert", "update", "delete"})
+            if writes:
+                return not self._commits_on(h, "profile_db", set())
         return False

@@ -139,12 +139,44 @@ NAMED_DYNAMIC_EXCLUSIONS: dict[str, str] = {
         "OS toast API; no session",
     "modules/platform_notifications.py::WindowsToastProvider.send::self._toast_module['xml']":
         "OS toast API; no session",
+    "api/assistant.py::_serve_via_agent::RunContext(_db_session_factory)":
+        "hands the request's profile_db to the agent as a factory; see RunContext.db_session",
+    "api/model_settings.py::_make_progress_tqdm._ProgressTqdm.update::_set_live_progress(key)":
+        "in-memory progress dict update; no session",
+    "api/model_settings.py::start_model_download::background_tasks.add_task(_download_model_task)":
+        "background download task; settings write is part of start_model_download (C)",
+    "api/observations.py::get_panel_snapshots::snapshots.sort(sort_snap)":
+        "sort key function; no session",
+    "core/migrations.py::run_profile_migration_async::asyncio.to_thread(run_profile_migration)":
+        "alembic runner in a thread; own connection, schema only",
+    "modules/platform_notifications.py::DesktopNotifierProvider.send::DeliveryResult(platform)":
+        "dataclass field named like a def; no call",
+    "modules/platform_notifications.py::MockProvider.send::DeliveryResult(platform)":
+        "dataclass field named like a def; no call",
+    "modules/platform_notifications.py::PlyerProvider.send::DeliveryResult(platform)":
+        "dataclass field named like a def; no call",
+    "modules/platform_notifications.py::WindowsToastProvider.send::DeliveryResult(platform)":
+        "dataclass field named like a def; no call",
+    "modules/recommend.py::RecommendationEngine._sort_recommendations::sorted(sort_key)":
+        "sort key function; no session",
+    "modules/redaction.py::RedactionEngine.redact::RedactionMetadataEntry(start)":
+        "dataclass field named like a def; no call",
 }
 
+
+
+def _scan(g: Graph):
+    hs = g.handlers()
+    reach = {f"{h[0]}::{h[1]}": g.reachable(h) for h in hs}
+    committing = {k for k, r in reach.items() if g.commits(r)}
+    dyn = set()
+    for r in reach.values():  # every handler, committing or not
+        dyn |= g.dynamic_sites(r)
+    return hs, reach, committing, dyn
+
+
 _G = Graph()
-_HANDLERS = _G.handlers()
-_REACH = {f"{h[0]}::{h[1]}": _G.reachable(h) for h in _HANDLERS}
-_COMMITTING = {k for k, r in _REACH.items() if _G.commits(r)}
+_HANDLERS, _REACH, _COMMITTING, _DYN = _scan(_G)
 
 
 def test_hc_aud_ord_030_every_committing_handler_is_classified():
@@ -164,17 +196,71 @@ def test_hc_aud_ord_030_a2_handlers_reach_audit_intent():
 
 
 def test_hc_aud_ord_030_dynamic_calls_are_named():
-    found = set()
-    for k in _COMMITTING:
-        found |= _G.dynamic_sites(_REACH[k])
-    unlisted = sorted(found - set(NAMED_DYNAMIC_EXCLUSIONS))
-    stale = sorted(set(NAMED_DYNAMIC_EXCLUSIONS) - found)
+    unlisted = sorted(_DYN - set(NAMED_DYNAMIC_EXCLUSIONS))
+    stale = sorted(set(NAMED_DYNAMIC_EXCLUSIONS) - _DYN)
     assert not unlisted, f"unlisted dynamic call sites: {unlisted}"
     assert not stale, f"stale dynamic exclusions: {stale}"
 
 
 def test_hc_aud_ord_030_vault_writes_rely_on_a_reachable_commit():
-    """Section 12 item 7: a direct profile_db write with no reachable commit
-    depends on the vault exit commit, which runs after the response."""
+    """Section 12 item 7: a direct profile_db write with no commit on the vault
+    session depends on the vault exit commit, which runs after the response."""
     bad = [f"{h[0]}::{h[1]}" for h in _HANDLERS if _G.unscoped_vault_writes(h)]
-    assert not bad, f"handlers writing profile_db with no reachable commit: {bad}"
+    assert not bad, f"handlers writing profile_db with no commit on it: {bad}"
+
+
+# --- break-its: the guard must catch each of these in a synthetic tree ------
+
+
+def _overlay(tmp_path, handler_src: str, helper_src: str | None = None):
+    (tmp_path / "api").mkdir()
+    (tmp_path / "modules").mkdir()
+    (tmp_path / "api" / "zz.py").write_text(
+        "from fastapi import APIRouter\nrouter = APIRouter()\n" + handler_src)
+    if helper_src:
+        (tmp_path / "modules" / "zz_helper.py").write_text(helper_src)
+    return _scan(Graph(tmp_path, ("api", "core", "modules")))
+
+
+def test_hc_aud_ord_030_break_it_new_committing_handler(tmp_path):
+    _, _, committing, _ = _overlay(tmp_path, (
+        '@router.post("/zz")\nasync def zz(profile_db=None):\n'
+        "    profile_db.add(1)\n    await profile_db.commit()\n"))
+    assert committing - set(CLASSIFICATION) == {"api/zz.py::zz"}
+
+
+def test_hc_aud_ord_030_break_it_commit_through_new_module_helper(tmp_path):
+    _, _, committing, _ = _overlay(
+        tmp_path,
+        '@router.post("/zz")\nasync def zz(db=None):\n    await zz_commit(db)\n',
+        "async def zz_commit(db):\n    await db.commit()\n")
+    assert committing - set(CLASSIFICATION) == {"api/zz.py::zz"}
+
+
+def test_hc_aud_ord_030_break_it_injected_callable(tmp_path):
+    _, _, _, dyn = _overlay(tmp_path, (
+        '@router.post("/zz")\nasync def zz(cb=None):\n    await cb()\n'))
+    assert dyn - set(NAMED_DYNAMIC_EXCLUSIONS) == {"api/zz.py::zz::cb"}
+
+
+def test_hc_aud_ord_030_break_it_def_passed_as_argument(tmp_path):
+    _, _, _, dyn = _overlay(tmp_path, (
+        "def work():\n    pass\n"
+        '@router.post("/zz")\nasync def zz(loop=None):\n    await loop.run_in_executor(None, work)\n'))
+    assert dyn - set(NAMED_DYNAMIC_EXCLUSIONS) == {"api/zz.py::zz::loop.run_in_executor(work)"}
+
+
+def test_hc_aud_ord_030_break_it_vault_write_without_commit(tmp_path):
+    hs, *_ = _overlay(tmp_path, (
+        '@router.post("/zz")\nasync def zz(profile_db=None):\n    profile_db.add(1)\n'))
+    g = Graph(tmp_path, ("api",))
+    assert [h[1] for h in g.handlers() if g.unscoped_vault_writes(h)] == ["zz"]
+
+
+def test_hc_aud_ord_030_vault_commit_must_be_on_profile_db(tmp_path):
+    """A master-db commit does not count for a vault write (CR-2)."""
+    _overlay(tmp_path, (
+        '@router.post("/zz")\nasync def zz(profile_db=None, master_db=None):\n'
+        "    profile_db.add(1)\n    await master_db.commit()\n"))
+    g = Graph(tmp_path, ("api",))
+    assert [h[1] for h in g.handlers() if g.unscoped_vault_writes(h)] == ["zz"]
