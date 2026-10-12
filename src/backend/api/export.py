@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from core.auth import RequireAuth, ProfileDbSession
 from core.audit import audit_and_commit, log_export_event
+from core.denial_audit import audit_denial
 from models import CarePlanTask, Document, Medication, Observation, Profile
 from models.document_category import DocumentCategory, DocumentEntity
 from modules.export import ExportModule
@@ -505,6 +506,7 @@ async def download_summary(
 
     # Verify ownership
     if summary_data["profile_id"] != session.profile_id:
+        await audit_denial(session.profile_id, "summary", master_db)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied to this summary"
@@ -845,6 +847,7 @@ async def download_visit_prep(
         )
 
     if packet["profile_id"] != session.profile_id:
+        await audit_denial(session.profile_id, "packet", master_db)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied to this packet",
@@ -1272,6 +1275,7 @@ async def download_fhir_export(
         )
 
     if stored["profile_id"] != session.profile_id:
+        await audit_denial(session.profile_id, "export", master_db)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied to this export",
