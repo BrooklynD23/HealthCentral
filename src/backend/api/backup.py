@@ -32,7 +32,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.audit import audit_and_commit, create_audit_log, log_export_event
+from core.audit import audit_and_commit, audit_intent, create_audit_log, log_export_event
 from core.auth import (
     RequireAuth,
     authenticate_profile,
@@ -433,6 +433,17 @@ async def restore_backup(
             detail="This backup failed verification and was not restored.",
         )
 
+    # AUDIT-ORDER D: intent committed before any file is touched; if this
+    # write fails nothing is closed or overwritten.
+    restore_audit = dict(
+        event_type="backup.restore",
+        action="Restored from backup",
+        profile_id=session.profile_id,
+        entity_type="backup",
+        entity_id=backup_id,
+    )
+    await audit_intent(master_db, "started", create_audit_log, **restore_audit)
+
     # Release file handles and clear the in-memory key before overwriting.
     await close_profile_database_on_logout(session.profile_id)
 
@@ -477,15 +488,9 @@ async def restore_backup(
             detail="Restore failed; nothing was changed and safety copies remain.",
         )
 
-    await audit_and_commit(
-        master_db,
-        create_audit_log,
-        event_type="backup.restore",
-        action="Restored from backup",
-        profile_id=session.profile_id,
-        entity_type="backup",
-        entity_id=backup_id,
-        details={"count": result.files_restored},
+    await audit_intent(
+        master_db, "completed", create_audit_log,
+        details={"count": result.files_restored}, **restore_audit,
     )
 
     return RestoreResponse(

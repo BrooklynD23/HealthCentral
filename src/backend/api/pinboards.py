@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.documents import validate_uuid, verify_document_access
 from api.export import _compute_trends, _packet_store
-from core.audit import audit_and_commit, log_pinboard_event
+from core.audit import audit_and_commit, audit_intent, log_pinboard_event
 from core.auth import ProfileDbSession, RequireAuth
 from core.database import get_db
 from core.time import utcnow
@@ -156,6 +156,8 @@ async def _prune_stale_items(
     profile_db: AsyncSession,
     items: list[PinboardItem],
     profile_id: str,
+    master_db: AsyncSession,
+    pinboard_id: str,
 ) -> list[PinboardItem]:
     """Remove polymorphic pins whose profile-scoped target no longer exists."""
     ids_by_type = {
@@ -201,10 +203,17 @@ async def _prune_stale_items(
     ]
     if len(valid_items) != len(items):
         valid_ids = {item.id for item in valid_items}
-        for item in items:
-            if item.id not in valid_ids:
-                await profile_db.delete(item)
+        stale = [item for item in items if item.id not in valid_ids]
+        # AUDIT-ORDER D: intent committed before the irreversible prune.
+        intent = dict(
+            event="item_remove", profile_id=profile_id, pinboard_id=pinboard_id,
+            details={"reason": "stale", "count": len(stale)},
+        )
+        await audit_intent(master_db, "started", log_pinboard_event, **intent)
+        for item in stale:
+            await profile_db.delete(item)
         await profile_db.commit()
+        await audit_intent(master_db, "completed", log_pinboard_event, **intent)
     return valid_items
 
 
@@ -268,11 +277,16 @@ async def delete_pinboard(
     master_db: AsyncSession = Depends(get_db),
 ):
     board = await _board_or_404(profile_db, pinboard_id)
+    # AUDIT-ORDER D: intent committed before the irreversible delete.
+    await audit_intent(
+        master_db, "started", log_pinboard_event, event="delete",
+        profile_id=session.profile_id, pinboard_id=pinboard_id,
+    )
     await profile_db.delete(board)
     await profile_db.commit()
-    await audit_and_commit(
-        master_db, log_pinboard_event, event="delete", profile_id=session.profile_id,
-        pinboard_id=pinboard_id,
+    await audit_intent(
+        master_db, "completed", log_pinboard_event, event="delete",
+        profile_id=session.profile_id, pinboard_id=pinboard_id,
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -331,7 +345,8 @@ async def list_pinboard_items(
         .order_by(PinboardItem.created_at.desc())
     )
     items = await _prune_stale_items(
-        profile_db, list(result.scalars().all()), session.profile_id
+        profile_db, list(result.scalars().all()), session.profile_id,
+        master_db, board.id,
     )
     await audit_and_commit(
         master_db, log_pinboard_event, event="view", profile_id=session.profile_id,
@@ -394,7 +409,8 @@ async def export_pinboard_packet(
         select(PinboardItem).where(PinboardItem.pinboard_id == board.id)
     )
     items = await _prune_stale_items(
-        profile_db, list(item_result.scalars().all()), session.profile_id
+        profile_db, list(item_result.scalars().all()), session.profile_id,
+        master_db, board.id,
     )
     ids_by_type = {
         item_type: [item.item_id for item in items if item.item_type == item_type]

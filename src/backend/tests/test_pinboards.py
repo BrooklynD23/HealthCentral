@@ -129,7 +129,7 @@ async def test_hc_pin_001_create_rename_list_delete_are_profile_scoped_and_audit
     await delete_pinboard(board.id, _session(), profile_db, master_db)
     assert profile_db.commit.await_count == 3
     assert profile_db.delete.await_count == 1
-    assert audit.await_count == 4
+    assert audit.await_count == 5  # delete writes a started + completed pair
     assert {call.kwargs["event"] for call in audit.await_args_list} == {
         "create", "view", "update", "delete"
     }
@@ -163,7 +163,7 @@ async def test_hc_pin_002_add_list_remove_and_duplicate_conflict(monkeypatch):
     monkeypatch.setattr("api.pinboards.log_pinboard_event", audit)
     monkeypatch.setattr(
         "api.pinboards._prune_stale_items",
-        AsyncMock(side_effect=lambda _db, items, _profile_id: items),
+        AsyncMock(side_effect=lambda _db, items, _profile_id, *_a: items),
     )
     master_db = AsyncMock()
 
@@ -248,7 +248,7 @@ async def test_hc_pin_005_export_excludes_unverified_and_invokes_existing_redact
     monkeypatch.setattr("api.pinboards.log_pinboard_event", audit)
     monkeypatch.setattr(
         "api.pinboards._prune_stale_items",
-        AsyncMock(side_effect=lambda _db, current_items, _profile_id: current_items),
+        AsyncMock(side_effect=lambda _db, current_items, _profile_id, *_a: current_items),
     )
 
     response = await export_pinboard_packet(
@@ -330,7 +330,7 @@ async def test_hc_pin_008_export_excludes_unverified_source_documents(monkeypatc
     monkeypatch.setattr("api.pinboards.log_pinboard_event", AsyncMock())
     monkeypatch.setattr(
         "api.pinboards._prune_stale_items",
-        AsyncMock(side_effect=lambda _db, current_items, _profile_id: current_items),
+        AsyncMock(side_effect=lambda _db, current_items, _profile_id, *_a: current_items),
     )
 
     response = await export_pinboard_packet(
@@ -435,7 +435,7 @@ async def test_hc_pin_013_export_renders_selected_verified_normal_observation(
     monkeypatch.setattr("api.pinboards.log_pinboard_event", AsyncMock())
     monkeypatch.setattr(
         "api.pinboards._prune_stale_items",
-        AsyncMock(side_effect=lambda _db, current_items, _profile_id: current_items),
+        AsyncMock(side_effect=lambda _db, current_items, _profile_id, *_a: current_items),
     )
 
     response = await export_pinboard_packet(

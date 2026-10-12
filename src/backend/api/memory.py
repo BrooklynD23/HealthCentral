@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.audit import audit_and_commit, log_memory_event
+from core.audit import audit_and_commit, audit_intent, log_memory_event
 from core.auth import RequireAuth, ProfileDbSession
 from core.config import settings
 from core.database import get_db
@@ -282,13 +282,15 @@ async def delete_memory_item(
             detail="Memory item not found",
         )
 
+    # AUDIT-ORDER D: intent committed before the irreversible delete.
+    await audit_intent(
+        master_db, "started", log_memory_event,
+        event="delete", profile_id=profile_id, item_id=item_id,
+    )
     await profile_db.delete(item)
     await profile_db.commit()
 
-    await audit_and_commit(
-        master_db,
-        log_memory_event,
-        event="delete",
-        profile_id=profile_id,
-        item_id=item_id,
+    await audit_intent(
+        master_db, "completed", log_memory_event,
+        event="delete", profile_id=profile_id, item_id=item_id,
     )
