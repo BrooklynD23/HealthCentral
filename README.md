@@ -4,6 +4,8 @@
 
 A privacy-first desktop application for patients to import medical documents, extract structured information with user verification, visualize trends, and generate grounded explanations with citations.
 
+> **Research and educational open-source project. Not professional medical or legal advice, not a medical device, and not for emergencies.** See [Disclaimer](#disclaimer).
+
 ## Overview
 
 Asclexis helps patients:
@@ -561,3 +563,9 @@ See [docs/features/TASK_LIST.md](docs/features/TASK_LIST.md) for the active rema
 ## Disclaimer
 
 This application is for informational and educational purposes only. It does not provide medical advice, diagnosis, or treatment recommendations. Always consult with qualified healthcare professionals for medical concerns.
+
+- **Research and educational project.** Asclexis is open-source software for people curious about their own health and fitness records who want to track them in one place and build personal software on top of them. It is a research study, not a clinical product.
+- **Not professional medical or legal advice.** Nothing it shows, summarizes, or exports is medical advice or legal advice. Talk to a qualified professional before acting on anything it displays.
+- **Not a medical device.** It is not cleared or approved by any regulator, and it is not intended to diagnose, treat, cure, monitor, or prevent any disease or condition.
+- **Not for diagnosis, treatment, or emergencies.** Do not use it to make treatment decisions. In an emergency, contact your local emergency number.
+- **Your data, your risk.** You run it on your own device, with your own data, at your own risk. The software is provided as is, without warranty of any kind.
