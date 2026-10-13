@@ -94,24 +94,31 @@ describe('gamification hooks', () => {
 
   it('logging a dose invalidates the profile streak', async () => {
     vi.mocked(api.apiPost).mockResolvedValue({ dose: {}, newly_earned_badges: [] });
-    const { queryClient, wrapper } = setup();
-    const spy = vi.spyOn(queryClient, 'invalidateQueries');
-    const { result } = renderHook(() => useLogDose(), { wrapper });
+    vi.mocked(api.apiGet).mockImplementation(async (path: string) =>
+      path === '/gamification/streaks' ? streak(3) : { badges: [] });
+    const { wrapper } = setup();
+    // Mount the real hooks so their real keys must prefix-match the invalidation.
+    const { result } = renderHook(
+      () => ({ s: useStreaks(), b: useBadges(), log: useLogDose() }), { wrapper });
+    await waitFor(() => expect(result.current.s.data && result.current.b.data).toBeTruthy());
+    expect(api.apiGet).toHaveBeenCalledTimes(2);
     await act(async () => {
-      await result.current.mutateAsync({ medicationId: 'm1', data: {} as never });
+      await result.current.log.mutateAsync({ medicationId: 'm1', data: {} as never });
     });
-    expect(spy).toHaveBeenCalledWith({ queryKey: ['gamification', 'streaks'] });
-    expect(spy).toHaveBeenCalledWith({ queryKey: ['gamification', 'badges'] });
+    await waitFor(() => expect(api.apiGet).toHaveBeenCalledTimes(4));
+    expect(vi.mocked(api.apiGet).mock.calls.slice(2).map((c) => c[0]).sort())
+      .toEqual(['/gamification/badges', '/gamification/streaks']);
   });
 
   it('saving a time zone invalidates the streak (day boundaries and UTC hint change)', async () => {
     vi.mocked(api.apiPut).mockResolvedValue({ timezone: 'Europe/Berlin' });
-    const { queryClient, wrapper } = setup();
-    const spy = vi.spyOn(queryClient, 'invalidateQueries');
-    const { result } = renderHook(() => useSaveTimezone(), { wrapper });
+    vi.mocked(api.apiGet).mockResolvedValue(streak(3));
+    const { wrapper } = setup();
+    const { result } = renderHook(() => ({ s: useStreaks(), save: useSaveTimezone() }), { wrapper });
+    await waitFor(() => expect(result.current.s.data).toBeTruthy());
     await act(async () => {
-      await result.current.mutateAsync('Europe/Berlin');
+      await result.current.save.mutateAsync('Europe/Berlin');
     });
-    expect(spy).toHaveBeenCalledWith({ queryKey: ['gamification', 'streaks'] });
+    await waitFor(() => expect(api.apiGet).toHaveBeenCalledTimes(2));
   });
 });

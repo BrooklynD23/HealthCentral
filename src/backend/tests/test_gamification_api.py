@@ -338,6 +338,7 @@ async def test_hc_gam_http_011_engagement_uses_profile_timezone_across_dst(gam_d
         datetime(2026, 2, 21, 5, 30),  # Feb 21 00:30 EST: in (week 4)
         datetime(2026, 3, 9, 3, 30),   # Mar 8 23:30 EDT: week 2
         datetime(2026, 3, 21, 1, 0),   # Mar 20 21:00 EDT: as_of, week 1
+        datetime(2026, 3, 20, 4, 30),  # Mar 20 00:30 EDT: same day; fixed EST would read Mar 19
     ])
     monkeypatch.setattr(gamification_api, "datetime", _FrozenAfterDst)
     response, _ = _get("/gamification/streaks", gam_db)
