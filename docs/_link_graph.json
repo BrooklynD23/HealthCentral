@@ -15,6 +15,7 @@
       "docs/plans/2026-09-08-backlog-closure-plan.md",
       "docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md",
       "docs/plans/2026-09-27-W01-harness-agents-branch-a.md",
+      "docs/research/2026-10-12/05-mvp-roadmap-tests.md",
       "CLAUDE.md"
     ],
     "CLAUDE.md": [
@@ -683,7 +684,8 @@
       "docs/brand/brand-guidelines.md"
     ],
     "docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md": [
-      "docs/00_architecture_plans_index.md"
+      "docs/00_architecture_plans_index.md",
+      "docs/research/2026-10-12/02-implementation-map.md"
     ],
     "docs/plans/2026-09-08-backlog-closure-plan.md": [
       "docs/00_architecture_plans_index.md",
@@ -786,6 +788,9 @@
       "docs/capstone-report/implementation-program.md",
       "docs/capstone-report/owner-decisions-2026-09-27.md"
     ],
+    "docs/plans/2026-10-01-packaging-decision.md": [
+      "docs/research/2026-10-12/00-README.md"
+    ],
     "docs/plans/2026-10-04-DDI-doc-delete-interpretation.md": [
       "docs/capstone-report/implementation-program.md",
       "docs/plans/2026-10-09-AUDIT-ORDER.md"
@@ -867,7 +872,8 @@
       "docs/research/2026-09-08/08-frontend.md",
       "docs/research/2026-09-08/09-roadmap.md",
       "docs/research/2026-09-08/PLAN.md",
-      "docs/research/2026-09-08/STATUS.md"
+      "docs/research/2026-09-08/STATUS.md",
+      "docs/research/2026-10-12/00-README.md"
     ],
     "docs/research/2026-09-08/01-codebase-audit.md": [
       "docs/agentic/roadmap.md"
@@ -879,7 +885,8 @@
       "docs/agentic/roadmap.md"
     ],
     "docs/research/2026-09-08/04-mcp-interop.md": [
-      "docs/agentic/roadmap.md"
+      "docs/agentic/roadmap.md",
+      "docs/research/2026-10-12/02-implementation-map.md"
     ],
     "docs/research/2026-09-08/05-models-voice.md": [
       "docs/agentic/roadmap.md"
@@ -942,6 +949,38 @@
       "docs/research/2026-09-08/09-roadmap.md",
       "docs/research/2026-09-08/11-harness-engineering.md",
       "docs/research/2026-09-08/13-consultation.md"
+    ],
+    "docs/research/2026-10-12/00-README.md": [
+      "docs/research/2026-10-12/01-vendor-matrix.md",
+      "docs/research/2026-10-12/02-implementation-map.md",
+      "docs/research/2026-10-12/03-architecture-contracts.md",
+      "docs/research/2026-10-12/04-safety-privacy.md",
+      "docs/research/2026-10-12/05-mvp-roadmap-tests.md",
+      "docs/research/2026-10-12/06-decisions-go-nogo.md"
+    ],
+    "docs/research/2026-10-12/01-vendor-matrix.md": [
+      "docs/research/2026-10-12/00-README.md",
+      "docs/research/2026-10-12/04-safety-privacy.md"
+    ],
+    "docs/research/2026-10-12/02-implementation-map.md": [
+      "docs/research/2026-10-12/00-README.md",
+      "docs/research/2026-10-12/01-vendor-matrix.md",
+      "docs/research/2026-10-12/03-architecture-contracts.md"
+    ],
+    "docs/research/2026-10-12/03-architecture-contracts.md": [
+      "docs/research/2026-10-12/00-README.md",
+      "docs/research/2026-10-12/06-decisions-go-nogo.md"
+    ],
+    "docs/research/2026-10-12/04-safety-privacy.md": [
+      "docs/research/2026-10-12/00-README.md",
+      "docs/research/2026-10-12/06-decisions-go-nogo.md"
+    ],
+    "docs/research/2026-10-12/05-mvp-roadmap-tests.md": [
+      "docs/research/2026-10-12/00-README.md"
+    ],
+    "docs/research/2026-10-12/06-decisions-go-nogo.md": [
+      "docs/research/2026-10-12/00-README.md",
+      "docs/research/2026-10-12/05-mvp-roadmap-tests.md"
     ],
     "docs/reviews/2026-09-25/DDI-diff-codex.txt": [
       "docs/reviews/README.md"
@@ -2574,6 +2613,43 @@
       "docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md",
       "docs/research/2026-09-08/10-demonstration-artifact.md",
       "docs/research/2026-09-08/11-harness-engineering.md"
+    ],
+    "docs/research/2026-10-12/00-README.md": [
+      "docs/research/2026-10-12/06-decisions-go-nogo.md",
+      "docs/research/2026-10-12/03-architecture-contracts.md",
+      "docs/research/2026-10-12/04-safety-privacy.md",
+      "docs/research/2026-10-12/02-implementation-map.md",
+      "docs/research/2026-10-12/01-vendor-matrix.md",
+      "docs/research/2026-10-12/05-mvp-roadmap-tests.md",
+      "docs/plans/2026-10-01-packaging-decision.md",
+      "docs/research/2026-09-08/00-brief.md"
+    ],
+    "docs/research/2026-10-12/01-vendor-matrix.md": [
+      "docs/research/2026-10-12/00-README.md",
+      "docs/research/2026-10-12/02-implementation-map.md"
+    ],
+    "docs/research/2026-10-12/02-implementation-map.md": [
+      "docs/research/2026-10-12/00-README.md",
+      "docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md",
+      "docs/research/2026-09-08/04-mcp-interop.md"
+    ],
+    "docs/research/2026-10-12/03-architecture-contracts.md": [
+      "docs/research/2026-10-12/00-README.md",
+      "docs/research/2026-10-12/02-implementation-map.md"
+    ],
+    "docs/research/2026-10-12/04-safety-privacy.md": [
+      "docs/research/2026-10-12/01-vendor-matrix.md",
+      "docs/research/2026-10-12/00-README.md"
+    ],
+    "docs/research/2026-10-12/05-mvp-roadmap-tests.md": [
+      "docs/research/2026-10-12/06-decisions-go-nogo.md",
+      "docs/research/2026-10-12/00-README.md",
+      "AGENT.md"
+    ],
+    "docs/research/2026-10-12/06-decisions-go-nogo.md": [
+      "docs/research/2026-10-12/00-README.md",
+      "docs/research/2026-10-12/03-architecture-contracts.md",
+      "docs/research/2026-10-12/04-safety-privacy.md"
     ],
     "docs/reviews/2026-09-25/DDI-r1-response.md": [
       "docs/reviews/2026-09-25/DDI-r1-codex.txt"
