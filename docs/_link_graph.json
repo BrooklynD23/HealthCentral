@@ -1545,6 +1545,13 @@
     "docs/reviews/2026-10-12/AUDIT-ORDER-diff-secrev.md": [
       "docs/reviews/README.md"
     ],
+    "docs/reviews/2026-10-12/GAM2-T1-diff-codereview.md": [
+      "docs/reviews/2026-10-12/GAM2-T1-diff-response.md",
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-10-12/GAM2-T1-diff-response.md": [
+      "docs/reviews/README.md"
+    ],
     "docs/reviews/2026-10-12/RL-EXPORT-EMPTY-diff-codereview.md": [
       "docs/reviews/README.md"
     ],
@@ -2595,6 +2602,9 @@
     "docs/reviews/2026-09-29/P01-r1-response.md": [
       "docs/plans/2026-09-29-S02-agent-cache-profile-isolation.md"
     ],
+    "docs/reviews/2026-10-12/GAM2-T1-diff-response.md": [
+      "docs/reviews/2026-10-12/GAM2-T1-diff-codereview.md"
+    ],
     "docs/reviews/README.md": [
       "docs/agentic/orchestration.md",
       "docs/reviews/2026-09-25/DDI-diff-codex.txt",
@@ -2795,6 +2805,8 @@
       "docs/reviews/2026-10-12/AUDIT-ORDER-diff-response.md",
       "docs/reviews/2026-10-12/AUDIT-ORDER-diff-codereview.md",
       "docs/reviews/2026-10-12/AUDIT-ORDER-diff-secrev.md",
+      "docs/reviews/2026-10-12/GAM2-T1-diff-codereview.md",
+      "docs/reviews/2026-10-12/GAM2-T1-diff-response.md",
       "docs/reviews/2026-10-12/RL-EXPORT-EMPTY-diff-codereview.md",
       "docs/reviews/2026-10-12/RL-EXPORT-EMPTY-diff-response.md"
     ],

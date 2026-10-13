@@ -54,6 +54,8 @@ CLASSIFICATION: dict[str, str] = {
     "api/export.py::download_fhir_export": "excluded: read route, audit_and_commit only",
     "api/feedback.py::upsert_feedback": "C",
     "api/feedback.py::export_dataset": "excluded: writes export files; master audit only",
+    "api/gamification.py::list_badges": "excluded: read route, audit_and_commit only",
+    "api/gamification.py::get_streaks": "excluded: read route, audit_and_commit only",
     "api/interpretations.py::generate_interpretation": "A2",
     "api/interpretations.py::generate_grounded_interpretation": "A2",
     "api/interpretations.py::get_interpretation": "C",  # row 21: GET sets viewed_at in the vault
