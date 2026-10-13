@@ -20,10 +20,12 @@ import logging
 import shutil
 import sqlite3
 import sys
+import threading
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from core.sqlcipher_driver import get_sqlcipher_module
 from core.time import utcnow
 
 logger = logging.getLogger(__name__)
@@ -165,15 +167,19 @@ def _compute_sha256(file_path: Path) -> str:
     return h.hexdigest()
 
 
-def _backup_sqlite(source: Path, dest: Path) -> str:
+def _backup_sqlite(source: Path, dest: Path, sqlite_module=sqlite3) -> str:
     """
     Backup a SQLite database using the backup() API.
+
+    ``sqlite_module`` must be the library the app opens ``source`` with
+    (owner decision BKUP-MIX): a second SQLite copy in this process does not
+    see the app's locks and can roll back a live vault write's journal.
 
     Returns the backup method used ('sqlite_backup' or 'file_copy').
     """
     try:
-        src_conn = sqlite3.connect(str(source))
-        dst_conn = sqlite3.connect(str(dest))
+        src_conn = sqlite_module.connect(str(source))
+        dst_conn = sqlite_module.connect(str(dest))
         src_conn.backup(dst_conn)
         dst_conn.close()
         src_conn.close()
@@ -292,7 +298,23 @@ def _scope_master_to_profile(master_copy: Path, profile_id: str) -> None:
         conn.close()
 
 
+# Callers run backup() off the event loop (BKUP-MIX), so two can overlap; the
+# 1-second backup dir name would then be shared. ponytail: one process-wide
+# lock, per-profile locks if concurrent backups ever matter.
+_BACKUP_LOCK = threading.Lock()
+
+
 def backup(
+    data_dir: Path,
+    backup_dir: Path,
+    profile_id: str | None = None,
+) -> BackupResult:
+    """Create a timestamped backup of all databases, one at a time."""
+    with _BACKUP_LOCK:
+        return _backup_unlocked(data_dir, backup_dir, profile_id)
+
+
+def _backup_unlocked(
     data_dir: Path,
     backup_dir: Path,
     profile_id: str | None = None,
@@ -341,7 +363,9 @@ def backup(
         dest_file = dest_dir / rel_path
         dest_file.parent.mkdir(parents=True, exist_ok=True)
 
-        method = _backup_sqlite(db_path, dest_file)
+        # Vaults are opened in-process through sqlcipher3, the master through stdlib.
+        module = sqlite3 if db_path.name in MASTER_DB_NAMES else get_sqlcipher_module()
+        method = _backup_sqlite(db_path, dest_file, module)
         if method == "file_copy":
             backup_method = "file_copy"
 

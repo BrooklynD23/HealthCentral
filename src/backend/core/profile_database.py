@@ -292,11 +292,26 @@ class PerProfileDatabaseManager:
             db_path = self._get_profile_db_path(profile_id)
             db_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Patch aiosqlite to use sqlcipher3 if available
+            # sqlcipher3 for THIS engine only (owner decision SQLITE-MIX). Never
+            # patch aiosqlite.core.sqlite3 globally: the master engine would then
+            # mix stdlib and sqlcipher3 connections on one file, two SQLite
+            # copies whose locks do not see each other -> corrupted master DB.
+            engine_kwargs = {}
             if is_sqlcipher_available():
-                import aiosqlite.core
-                aiosqlite.core.sqlite3 = get_sqlcipher_module()
-                logger.debug("Patched aiosqlite to use sqlcipher3")
+                import aiosqlite
+
+                sqlcipher_module = get_sqlcipher_module()
+
+                async def _sqlcipher_connect():
+                    # aiosqlite internal constructor (pinned <0.23 in
+                    # requirements.txt); mirrors aiosqlite.connect().
+                    conn = aiosqlite.Connection(
+                        lambda: sqlcipher_module.connect(str(db_path)), 64
+                    )
+                    conn._thread.daemon = True  # as SQLAlchemy does for aiosqlite.connect
+                    return await conn
+
+                engine_kwargs["async_creator"] = _sqlcipher_connect
 
             # Create async engine
             # Note: SQLCipher requires setting the key via PRAGMA before any operations
@@ -308,6 +323,7 @@ class PerProfileDatabaseManager:
                 echo=settings.sql_echo,
                 hide_parameters=True,  # never log bound values, even with SQL_ECHO=true (S-1)
                 future=True,
+                **engine_kwargs,
             )
 
             # Register event to set encryption key on every new connection

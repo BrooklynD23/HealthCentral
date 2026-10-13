@@ -20,6 +20,7 @@ session first, and relies on the safety copies `scripts/backup.py` already
 makes.
 """
 
+import asyncio
 import logging
 import zipfile
 from io import BytesIO
@@ -253,8 +254,12 @@ async def create_backup(
     root = _profile_backup_root(session.profile_id)
     root.mkdir(parents=True, exist_ok=True)
 
-    result = backup_script.backup(
-        data_dir=_data_dir(), backup_dir=root, profile_id=session.profile_id
+    # Off the event loop (BKUP-MIX): the vault open waits for a live write's
+    # lock to clear, and that writer needs the loop to commit. (An encrypted
+    # vault then falls back to a plain file copy, as before this change.)
+    result = await asyncio.to_thread(
+        backup_script.backup,
+        data_dir=_data_dir(), backup_dir=root, profile_id=session.profile_id,
     )
     if not result.success:
         raise HTTPException(
