@@ -349,6 +349,21 @@ If a port is busy, use the resolved URLs printed by `dev.ps1` / `dev.bat`.
 
 Press `Ctrl+C` to stop both servers.
 
+### Quick Start on WSL/Linux (`dev.sh`)
+
+Clone into your Linux home (for example `~/HealthCentral`), **not** under `/mnt/c`: the Windows mount is slow, file watching is unreliable, and Windows and Linux cannot share the venv or `node_modules`. `dev.sh` refuses to run from `/mnt/*` unless `HC_ALLOW_WINDOWS_MOUNT=1` is set.
+
+```bash
+git clone <repo-url> ~/HealthCentral && cd ~/HealthCentral
+./dev.sh
+```
+
+It does the same steps as `dev.ps1`, with these differences:
+- Uses its own venv at `src/backend/.venv-linux` (never the Windows `src/backend/venv`).
+- Never installs system packages; it prints an `apt`/`brew`/`nvm` hint when Python 3.11+, Node.js 22.12+, npm, `tesseract` or `pdftoppm` is missing.
+- Picks the next free port when 8000/3000 are busy, but does not stop the process holding them.
+- Binds both servers to `127.0.0.1`, writes `logs/dev-backend.log` and `logs/dev-frontend.log`, does not open a browser and does not restart a crashed server.
+
 ### Supported Local Verification Bootstrap (WSL/Linux)
 
 Use the WSL/Linux bootstrap path below to create the verifier environment that the repo-root proof bundle expects. Run every command from the repository root.
