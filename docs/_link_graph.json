@@ -1552,6 +1552,13 @@
     "docs/reviews/2026-10-12/GAM2-T1-diff-response.md": [
       "docs/reviews/README.md"
     ],
+    "docs/reviews/2026-10-12/GAM2-T24-diff-codereview.md": [
+      "docs/reviews/2026-10-12/GAM2-T24-diff-response.md",
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-10-12/GAM2-T24-diff-response.md": [
+      "docs/reviews/README.md"
+    ],
     "docs/roles/00_roles_index.md": [
       "docs/00_architecture_plans_index.md",
       "AGENT.md"
@@ -2599,6 +2606,9 @@
     "docs/reviews/2026-10-12/GAM2-T1-diff-response.md": [
       "docs/reviews/2026-10-12/GAM2-T1-diff-codereview.md"
     ],
+    "docs/reviews/2026-10-12/GAM2-T24-diff-response.md": [
+      "docs/reviews/2026-10-12/GAM2-T24-diff-codereview.md"
+    ],
     "docs/reviews/README.md": [
       "docs/agentic/orchestration.md",
       "docs/reviews/2026-09-25/DDI-diff-codex.txt",
@@ -2800,7 +2810,9 @@
       "docs/reviews/2026-10-12/AUDIT-ORDER-diff-codereview.md",
       "docs/reviews/2026-10-12/AUDIT-ORDER-diff-secrev.md",
       "docs/reviews/2026-10-12/GAM2-T1-diff-codereview.md",
-      "docs/reviews/2026-10-12/GAM2-T1-diff-response.md"
+      "docs/reviews/2026-10-12/GAM2-T1-diff-response.md",
+      "docs/reviews/2026-10-12/GAM2-T24-diff-codereview.md",
+      "docs/reviews/2026-10-12/GAM2-T24-diff-response.md"
     ],
     "docs/roles/00_roles_index.md": [
       "docs/architecture/README.md",
