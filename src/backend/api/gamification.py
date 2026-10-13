@@ -22,7 +22,7 @@ from core.audit import audit_and_commit, create_audit_log
 from core.auth import ProfileDbSession, RequireAuth
 from core.database import get_db
 from models import BadgeDefinition, DoseTaken, EarnedBadge, Medication, UserModelSettings
-from modules.streak_engine import compute_longest_streak, compute_streak
+from modules.streak_engine import compute_engagement, compute_longest_streak, compute_streak
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +52,9 @@ class StreakResponse(BaseModel):
     longest_streak_days: int
     timezone: str
     as_of_date: str
+    # Engagement measure A (owner Q1): derived on read, nothing new stored.
+    active_days_last_28: int
+    weeks_with_log_last_4: int
 
 
 def _profile_timezone_name(settings: Optional[UserModelSettings]) -> str:
@@ -170,12 +173,15 @@ async def get_streaks(
 
     now = datetime.now(dt_timezone.utc)
     as_of_date = now.astimezone(ZoneInfo(timezone_name)).date()
+    active_days, active_weeks = compute_engagement(doses, timezone_name, as_of_date)
 
     response = StreakResponse(
         current_streak_days=compute_streak(doses, timezone_name, as_of_date),
         longest_streak_days=compute_longest_streak(doses, timezone_name),
         timezone=timezone_name,
         as_of_date=as_of_date.isoformat(),
+        active_days_last_28=active_days,
+        weeks_with_log_last_4=active_weeks,
     )
     await _audit_view(master_db, "gamification.streaks.view", profile_id)
     return response

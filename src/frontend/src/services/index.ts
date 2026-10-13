@@ -306,7 +306,7 @@ export {
 export type { MemoryItem, MemoryItemCreate, MemoryItemUpdate } from './types';
 
 // Gamification hooks
-export { useBadges } from './gamification';
+export { useBadges, useStreaks } from './gamification';
 
 export type {
   BadgeInfo,
