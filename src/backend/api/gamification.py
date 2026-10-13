@@ -1,20 +1,26 @@
 """Gamification API — badge listing and settings.
 
 GET /gamification/badges — list all badge definitions with earned status.
+GET /gamification/streaks — profile-level streak summary.
+Both reads write a view audit row to the master DB, fail-closed.
 """
 
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone as dt_timezone
+from datetime import datetime
+from datetime import timezone as dt_timezone
 from typing import Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.auth import RequireAuth, ProfileDbSession
+from core.audit import audit_and_commit, create_audit_log
+from core.auth import ProfileDbSession, RequireAuth
+from core.database import get_db
 from models import BadgeDefinition, DoseTaken, EarnedBadge, Medication, UserModelSettings
 from modules.streak_engine import compute_longest_streak, compute_streak
 
@@ -59,6 +65,18 @@ def _profile_timezone_name(settings: Optional[UserModelSettings]) -> str:
     return timezone_name
 
 
+async def _audit_view(master_db: AsyncSession, event_type: str, profile_id: str) -> None:
+    """Mandatory view audit row (CLAUDE.md invariant); fail-closed via audit_and_commit."""
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type=event_type,
+        action=event_type,
+        profile_id=profile_id,
+        entity_type="gamification",
+    )
+
+
 @router.get(
     "/badges",
     response_model=BadgeListResponse,
@@ -66,6 +84,7 @@ def _profile_timezone_name(settings: Optional[UserModelSettings]) -> str:
 async def list_badges(
     session: RequireAuth,
     profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """List all badge definitions with earned status for current profile."""
     profile_id = session.profile_id
@@ -114,6 +133,7 @@ async def list_badges(
                 medication_id=None,
             ))
 
+    await _audit_view(master_db, "gamification.badges.view", profile_id)
     return BadgeListResponse(badges=badges)
 
 
@@ -124,6 +144,7 @@ async def list_badges(
 async def get_streaks(
     session: RequireAuth,
     profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Return current and longest streaks across all logged medications."""
     profile_id = session.profile_id
@@ -140,6 +161,8 @@ async def get_streaks(
         .where(
             Medication.profile_id == profile_id,
             DoseTaken.was_skipped.is_(False),
+            # Q2: a dose logged after its medication ended never counts.
+            or_(Medication.ended_at.is_(None), DoseTaken.taken_at <= Medication.ended_at),
         )
         .order_by(DoseTaken.taken_at.desc())
     )
@@ -148,9 +171,11 @@ async def get_streaks(
     now = datetime.now(dt_timezone.utc)
     as_of_date = now.astimezone(ZoneInfo(timezone_name)).date()
 
-    return StreakResponse(
+    response = StreakResponse(
         current_streak_days=compute_streak(doses, timezone_name, as_of_date),
         longest_streak_days=compute_longest_streak(doses, timezone_name),
         timezone=timezone_name,
         as_of_date=as_of_date.isoformat(),
     )
+    await _audit_view(master_db, "gamification.streaks.view", profile_id)
+    return response
