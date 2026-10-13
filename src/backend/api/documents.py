@@ -26,7 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
 from core.config import settings, user_ocr_preference_enabled, compute_ocr_effective
-from core.audit import log_document_event, audit_and_commit
+from core.audit import log_document_event, audit_and_commit, audit_intent
 from core.auth import RequireAuth, Session, ProfileDbSession
 from core.document_crypto import get_decrypted_document, get_profile_encryption_key
 from core.time import utcnow
@@ -1177,6 +1177,13 @@ async def reprocess_document(
             ),
         )
 
+    # AUDIT-ORDER D: intent committed before the first vault mutation.
+    await audit_intent(
+        master_db, "started", log_document_event,
+        event="parse", profile_id=session.profile_id, document_id=document_id,
+        details={"action": "reprocess", "llm_assist": llm_assist},
+    )
+
     # A user's rejection of an extraction is a safety decision; remember the
     # rejected (entity_type, quote) pairs so re-extraction of the same span
     # under a new UUID does not resurface it as unreviewed.
@@ -1226,20 +1233,16 @@ async def reprocess_document(
     # early (for example, empty text or an unknown category).
     await profile_db.commit()
 
-    await log_document_event(
-        db=master_db,
-        event="parse",
-        profile_id=session.profile_id,
-        document_id=document_id,
+    await audit_intent(
+        master_db, "completed", log_document_event,
+        event="parse", profile_id=session.profile_id, document_id=document_id,
         filename=document.source,
         details={
             "action": "reprocess",
-            "status": document.status,
             "observations_extracted": observations_extracted,
             "llm_assist": llm_assist,
         },
     )
-    await master_db.commit()
 
     return DocumentImportResponse(
         document=DocumentResponse.from_model(document),
@@ -1842,6 +1845,13 @@ async def delete_document(
     profile_id = document.profile_id
     filename = document.source
 
+    # AUDIT-ORDER D: committed before the first vault mutation; if this write
+    # fails the request fails and nothing is deleted.
+    await audit_intent(
+        master_db, "started", log_document_event,
+        event="delete", profile_id=profile_id, document_id=document_id,
+    )
+
     await _prune_document_pin_targets(
         profile_db, document_id, include_document=True
     )
@@ -1891,12 +1901,8 @@ async def delete_document(
             type(exc).__name__,
         )
 
-    # Create audit log in master database
-    await log_document_event(
-        db=master_db,
-        event="delete",
-        profile_id=profile_id,
-        document_id=document_id,
+    await audit_intent(
+        master_db, "completed", log_document_event,
+        event="delete", profile_id=profile_id, document_id=document_id,
         filename=filename,
     )
-    await master_db.commit()

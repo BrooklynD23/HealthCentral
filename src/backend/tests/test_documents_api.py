@@ -828,8 +828,9 @@ async def test_HC_CAREQ_004_delete_document_over_http_clears_care_task_quote(
 
     # The route must have committed the master DB, and specifically after
     # the AuditLog row was added — not merely `.add()`-ed and left pending.
-    assert len(master.commit_snapshots) == 1, (
-        f"expected exactly one master DB commit, got {master.commit_snapshots}"
+    # AUDIT-ORDER D: one commit per intent row (started, completed).
+    assert len(master.commit_snapshots) == 2, (
+        f"expected two master DB commits (started, completed), got {master.commit_snapshots}"
     )
     assert master.commit_snapshots[0] > audit_index, (
         "AuditLog row was added but the master DB commit that should follow "
@@ -996,7 +997,7 @@ async def test_HC_DDI_001_delete_document_with_interpretation_over_http(
     assert not vault_file.exists(), "encrypted file survived a successful delete"
 
     audit = [o for o in master.added if type(o).__name__ == "AuditLog"]
-    assert len(audit) == 1 and audit[0].event_type == "document.delete"
+    assert len(audit) == 2 and {a.event_type for a in audit} == {"document.delete"}
     assert audit[0].entity_id == doc_id
     assert master.commit_snapshots and master.commit_snapshots[-1] >= 1
 
@@ -1030,7 +1031,9 @@ async def test_HC_DDI_002_failed_commit_keeps_encrypted_file(
     await entity_profile_db.rollback()
     assert vault_file.exists(), "encrypted file destroyed although the commit failed"
     assert await _ddi_count(entity_profile_db, Document, Document.id == doc_id) == 1
-    assert not [o for o in master.added if type(o).__name__ == "AuditLog"]
+    # AUDIT-ORDER D: the started row precedes the vault change; no completed row.
+    audit = [o for o in master.added if type(o).__name__ == "AuditLog"]
+    assert len(audit) == 1 and '"started"' in audit[0].details_json
 
 
 @pytest.mark.asyncio
@@ -1067,7 +1070,7 @@ async def test_HC_DDI_003_unlink_failure_after_commit_still_audits(
     assert await _ddi_count(entity_profile_db, Document, Document.id == doc_id) == 0
     assert vault_file.exists()  # unlink was blocked
     audit = [o for o in master.added if type(o).__name__ == "AuditLog"]
-    assert len(audit) == 1 and audit[0].event_type == "document.delete"
+    assert len(audit) == 2 and {a.event_type for a in audit} == {"document.delete"}
     assert warnings, "a failed unlink after commit must be logged"
     joined = " ".join(warnings)
     assert str(tmp_path) not in joined and doc_source not in joined

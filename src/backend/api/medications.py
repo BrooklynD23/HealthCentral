@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from core.database import get_db
-from core.audit import audit_and_commit, log_document_event
+from core.audit import audit_and_commit, audit_intent, log_document_event
 from core.auth import RequireAuth, Session, ProfileDbSession
 from core.time import utcnow
 from models import (
@@ -650,26 +650,39 @@ async def delete_medication(
 
     verify_medication_access(medication, session)
 
+    # AUDIT-PHI-001: drug names are clinical content; medication_id is the handle.
+    audit_kwargs = dict(
+        profile_id=session.profile_id, document_id=medication_id,
+    )
     if hard_delete:
-        await profile_db.delete(medication)
         event_type = "medication_delete"
+        # AUDIT-ORDER D: intent committed before the irreversible delete.
+        await audit_intent(
+            master_db, "started", log_document_event, event=event_type, **audit_kwargs
+        )
+        await profile_db.delete(medication)
+        await profile_db.commit()
+        await audit_intent(
+            master_db, "completed", log_document_event, event=event_type, **audit_kwargs
+        )
     else:
+        # AUDIT-ORDER C: reversible, so audit follows the change; a failed audit
+        # commit is logged (ids only) and re-raised.
+        event_type = "medication_deactivate"
         medication.is_active = False
         medication.ended_at = utcnow()
-        event_type = "medication_deactivate"
-
-    await profile_db.commit()
-
-    # Audit log
-    await log_document_event(
-        db=master_db,
-        event=event_type,
-        profile_id=session.profile_id,
-        document_id=medication_id,
-        # AUDIT-PHI-001: drug names are clinical content; medication_id is the handle.
-        details=None,
-    )
-    await master_db.commit()
+        await profile_db.commit()
+        await log_document_event(
+            db=master_db, event=event_type, details=None, **audit_kwargs
+        )
+        try:
+            await master_db.commit()
+        except Exception:
+            logger.error(
+                "AUDIT-ORDER: audit commit failed after change (event=%s, entity=%s)",
+                event_type, medication_id,
+            )
+            raise
 
     logger.info(f"{'Deleted' if hard_delete else 'Deactivated'} medication {medication_id}")
 

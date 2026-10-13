@@ -29,6 +29,7 @@ def route_client(
     prefix: str,
     profile_id: str = "profile-a",
     master_db: Optional[object] = None,
+    raise_server_exceptions: bool = True,
 ) -> Iterator[TestClient]:
     """Yield a TestClient for `router` with auth and the master DB overridden.
 
@@ -54,5 +55,5 @@ def route_client(
     app.dependency_overrides[require_auth] = _override_auth
     app.dependency_overrides[get_db] = _override_master_db
 
-    with TestClient(app) as client:
+    with TestClient(app, raise_server_exceptions=raise_server_exceptions) as client:
         yield client

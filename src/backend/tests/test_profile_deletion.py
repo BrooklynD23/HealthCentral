@@ -282,7 +282,12 @@ async def test_hc_pdel_009_audit_rows_purged_and_tombstone_written(vaults):
     assert any("DELETE FROM audit_logs" in s for s in db.executed), \
         "the profile's audit rows must be purged (owner decision 2026-07-27)"
 
-    tombstones = [r for r in db.added if getattr(r, "event_type", None) == "profile.delete"]
+    # AUDIT-ORDER D: the earlier `started` row carries profile_id and is purged
+    # with the profile's other rows; the tombstone is the anonymized one.
+    tombstones = [
+        r for r in db.added
+        if getattr(r, "event_type", None) == "profile.delete" and r.profile_id is None
+    ]
     assert len(tombstones) == 1
     assert json.loads(tombstones[0].details_json)["audit_rows_purged"] == 4
 
@@ -292,7 +297,7 @@ async def test_hc_pdel_010_tombstone_carries_no_profile_identifier(vaults):
     """'Anonymized' means the tombstone records that a deletion happened, not
     whose. A retained profile id would be a linkage handle back to the person."""
     _, db = await _delete()
-    tombstone = next(r for r in db.added if r.event_type == "profile.delete")
+    tombstone = [r for r in db.added if r.event_type == "profile.delete"][-1]
 
     assert tombstone.profile_id is None
     assert tombstone.entity_id is None
@@ -307,7 +312,7 @@ async def test_hc_pdel_011_tombstone_written_after_profile_row_is_deleted(vaults
     cascade, so the tombstone must be inserted with profile_id=None and only
     after the profile row is gone."""
     _, db = await _delete()
-    tombstone = next(r for r in db.added if r.event_type == "profile.delete")
+    tombstone = [r for r in db.added if r.event_type == "profile.delete"][-1]
     assert tombstone.profile_id is None
     assert db.executed  # the deletes ran
 

@@ -47,7 +47,7 @@ from core.auth import (
     close_profile_database_on_logout,
     ProfileDbSession,
 )
-from core.audit import create_audit_log, log_profile_event
+from core.audit import audit_intent, create_audit_log, log_profile_event
 from models import (
     AdherencePattern,
     AuditLog,
@@ -849,6 +849,15 @@ async def delete_profile(
                 "with export_acknowledged set."
             ),
         )
+
+    # AUDIT-ORDER D: intent committed before anything irreversible (token
+    # revoke, key destruction). The tombstone is the completion marker; this
+    # row carries profile_id, so Step 6's audit purge removes it on success.
+    await audit_intent(
+        db, "started", create_audit_log,
+        event_type="profile.delete", action="Deleted profile",
+        profile_id=profile_id, entity_type="profile", entity_id=profile_id,
+    )
 
     # A live token must not keep pointing at a profile that no longer exists.
     if session.token_jti:

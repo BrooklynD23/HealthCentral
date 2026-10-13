@@ -395,7 +395,7 @@ export function DocumentInbox() {
                     </Badge>
                   )}
 
-                  <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity">
+                  <div className="flex items-center gap-1 sm:[@media(hover:hover)]:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100 sm:transition-opacity">
                     <AddToPinboardButton items={[{ item_type: 'document', item_id: doc.id }]} />
                     <Button
                       type="button"

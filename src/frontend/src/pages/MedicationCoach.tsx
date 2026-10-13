@@ -190,8 +190,8 @@ export function MedicationCoach() {
   const [prefillName, setPrefillName] = useState<string | null>(null);
   const [editingMed, setEditingMed] = useState<Medication | null>(null);
   const [loggingMed, setLoggingMed] = useState<Medication | null>(null);
-  const [earnedBadge, setEarnedBadge] = useState<BadgeInfo | null>(null);
-  const dismissBadge = useCallback(() => setEarnedBadge(null), []);
+  const [badgeQueue, setBadgeQueue] = useState<BadgeInfo[]>([]);
+  const dismissBadge = useCallback(() => setBadgeQueue((q) => q.slice(1)), []);
 
   const {
     data: medications,
@@ -362,7 +362,7 @@ export function MedicationCoach() {
       <AchievementsWidget />
 
       {/* Badge Toast */}
-      <BadgeToast badge={earnedBadge} onDismiss={dismissBadge} />
+      <BadgeToast badge={badgeQueue[0] ?? null} onDismiss={dismissBadge} />
 
       {/* Dose Logging Modal */}
       {loggingMed && (
@@ -376,7 +376,7 @@ export function MedicationCoach() {
                   setLoggingMed(null);
                   const badges = response?.newly_earned_badges;
                   if (badges && badges.length > 0) {
-                    setEarnedBadge(badges[0]);
+                    setBadgeQueue((q) => [...q, ...badges]);
                   }
                 },
               }
