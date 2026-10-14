@@ -12,11 +12,11 @@ import logging
 import re
 import uuid
 from datetime import date, datetime, time, timedelta, timezone as dt_timezone
-from typing import Annotated, Optional
+from typing import Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -24,7 +24,7 @@ from sqlalchemy.orm import selectinload
 from core.database import get_db
 from core.audit import audit_and_commit, audit_intent, log_document_event
 from core.auth import RequireAuth, Session, ProfileDbSession
-from core.time import to_naive_utc, utcnow
+from core.time import NaiveUtcDatetime, utcnow
 from models import (
     Medication,
     MedicationSchedule,
@@ -84,10 +84,6 @@ def _local_date_for_timezone(value: datetime, timezone_name: str) -> date:
     if timestamp.tzinfo is None:
         timestamp = timestamp.replace(tzinfo=dt_timezone.utc)
     return timestamp.astimezone(ZoneInfo(timezone_name)).date()
-
-
-# Client datetimes are stored naive UTC (SQLite drops tzinfo) - MED-UTC.
-NaiveUtcDatetime = Annotated[datetime, AfterValidator(to_naive_utc)]
 
 
 # Request/Response Models
