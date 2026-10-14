@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-10-13
 **Owner:** repository owner
-**Status:** PROPOSED — not executed (code waits for program M0, WEAR-01/02/04/05 merged, ; WEAR-D1, WEAR-D4, WEAR-D6 answered 2026-10-14)
+**Status:** PROPOSED — not executed (code waits for program M0, WEAR-01/02/04/05 merged; WEAR-D1, WEAR-D4, WEAR-D6 answered 2026-10-14)
 **Base measured:** `origin/main` @ 8234990
 **Refresh trigger:** WEAR-01, 02, 04 or 05 merge (re-read their real function names, Task 0); any edit to `security/input_validator.py`, `core/audit.py`, `core/config.py` or `main.py` lifespan; owner answers D4 or D6.
 **Program:** [00-program](2026-10-13-wearables-00-program.md) (A1, A2, A5b, A9, A10, A12, A13; R4, R6)

@@ -1735,12 +1735,29 @@
       "docs/reviews/2026-10-13/WEAR-RESEARCH-codex.md",
       "docs/reviews/README.md"
     ],
+    "docs/reviews/2026-10-14/WEAR-PLANS-D1D8-opus-adversarial.md": [
+      "docs/reviews/2026-10-14/WEAR-PLANS-D1D8-opus-response.md",
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-10-14/WEAR-PLANS-D1D8-opus-response.md": [
+      "docs/plans/2026-10-13-wearables-00-program.md",
+      "docs/reviews/2026-10-14/WEAR-PLANS-D1D8-opus-adversarial.md",
+      "docs/reviews/2026-10-14/WEAR-PLANS-D1D8-opus-review.md",
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-10-14/WEAR-PLANS-D1D8-opus-review.md": [
+      "docs/reviews/2026-10-14/WEAR-PLANS-D1D8-opus-response.md",
+      "docs/reviews/README.md"
+    ],
     "docs/reviews/2026-10-14/WEAR-PLANS-r3-codex.md": [
+      "docs/reviews/2026-10-14/WEAR-PLANS-D1D8-opus-response.md",
+      "docs/reviews/2026-10-14/WEAR-PLANS-D1D8-opus-review.md",
       "docs/reviews/2026-10-14/WEAR-PLANS-r3-response.md",
       "docs/reviews/README.md"
     ],
     "docs/reviews/2026-10-14/WEAR-PLANS-r3-response.md": [
       "docs/plans/2026-10-13-wearables-00-program.md",
+      "docs/reviews/2026-10-14/WEAR-PLANS-D1D8-opus-review.md",
       "docs/reviews/2026-10-14/WEAR-PLANS-r3-codex.md",
       "docs/reviews/README.md"
     ],
@@ -2673,6 +2690,7 @@
       "docs/plans/2026-10-04-DDI-doc-delete-interpretation.md"
     ],
     "docs/plans/2026-10-13-wearables-00-program.md": [
+      "docs/reviews/2026-10-14/WEAR-PLANS-D1D8-opus-response.md",
       "docs/reviews/2026-10-14/WEAR-PLANS-r3-response.md",
       "docs/reviews/2026-10-13/WEAR-PLANS-r1-response.md",
       "docs/reviews/2026-10-13/WEAR-PLANS-r2-response.md",
@@ -2951,6 +2969,19 @@
     "docs/reviews/2026-10-13/WEAR-RESEARCH-response.md": [
       "docs/reviews/2026-10-13/WEAR-RESEARCH-codex.md"
     ],
+    "docs/reviews/2026-10-14/WEAR-PLANS-D1D8-opus-adversarial.md": [
+      "docs/reviews/2026-10-14/WEAR-PLANS-D1D8-opus-response.md"
+    ],
+    "docs/reviews/2026-10-14/WEAR-PLANS-D1D8-opus-response.md": [
+      "docs/reviews/2026-10-14/WEAR-PLANS-D1D8-opus-review.md",
+      "docs/reviews/2026-10-14/WEAR-PLANS-D1D8-opus-adversarial.md",
+      "docs/reviews/2026-10-14/WEAR-PLANS-r3-codex.md"
+    ],
+    "docs/reviews/2026-10-14/WEAR-PLANS-D1D8-opus-review.md": [
+      "docs/reviews/2026-10-14/WEAR-PLANS-r3-codex.md",
+      "docs/reviews/2026-10-14/WEAR-PLANS-r3-response.md",
+      "docs/reviews/2026-10-14/WEAR-PLANS-D1D8-opus-response.md"
+    ],
     "docs/reviews/2026-10-14/WEAR-PLANS-r3-codex.md": [
       "docs/reviews/2026-10-14/WEAR-PLANS-r3-response.md"
     ],
@@ -3172,7 +3203,10 @@
       "docs/reviews/2026-10-13/WEAR-PLANS-r2-codex.md",
       "docs/reviews/2026-10-13/WEAR-PLANS-r2-response.md",
       "docs/reviews/2026-10-14/WEAR-PLANS-r3-codex.md",
-      "docs/reviews/2026-10-14/WEAR-PLANS-r3-response.md"
+      "docs/reviews/2026-10-14/WEAR-PLANS-r3-response.md",
+      "docs/reviews/2026-10-14/WEAR-PLANS-D1D8-opus-review.md",
+      "docs/reviews/2026-10-14/WEAR-PLANS-D1D8-opus-response.md",
+      "docs/reviews/2026-10-14/WEAR-PLANS-D1D8-opus-adversarial.md"
     ],
     "docs/roles/00_roles_index.md": [
       "docs/architecture/README.md",

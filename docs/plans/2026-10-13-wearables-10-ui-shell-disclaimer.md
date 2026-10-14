@@ -2,12 +2,12 @@
 
 **Last Updated:** 2026-10-13
 **Owner:** repository owner
-**Status:** PROPOSED — not executed (code waits for program M0, WEAR-01 merged, ; §Copy approved by WEAR-D8 (owner, 2026-10-14; commit `c53ba44`, PR #92): "Approve drafts as written (Recommended)", incl. G1-G4).
+**Status:** PROPOSED — not executed (code waits for program M0, WEAR-01 merged; §Copy approved by WEAR-D8 (owner, 2026-10-14; commit `c53ba44`, PR #92): "Approve drafts as written (Recommended)", incl. G1-G4).
 **Base measured:** `origin/main` @ `8234990` (frontend files re-read in worktree `hc-wear-plans` @ `a985390`; no frontend file differs from the base).
-**Refresh trigger:** WEAR-01 changes the shape of `GET /wearables/status`; D6 is answered "(a)"; OD-8 (legal read) lands; any edit to `App.tsx`, `components/layout/Sidebar.tsx` or `services/index.ts` merges first.
+**Refresh trigger:** WEAR-01 changes the shape of `GET /wearables/status`; the owner reverses WEAR-D6 (b); OD-8 (legal read) lands; any edit to `App.tsx`, `components/layout/Sidebar.tsx` or `services/index.ts` merges first.
 **Program:** [`2026-10-13-wearables-00-program.md`](2026-10-13-wearables-00-program.md) (§3 flag, §6 row WEAR-10, §9 D6 and D8).
 **Depends on:** WEAR-01 (`GET /wearables/status`). Wave WC, parallel with WEAR-07 (disjoint: this plan is frontend only).
-**Owner decisions it depends on:** **D8** (copy approval, builds the §Copy drafts below); **D6** default (b) (temp-file sentence is the (b) wording; if the owner picks (a), C7 changes and this plan is refreshed).
+**Owner decisions it depends on:** **D8** (copy approval, builds the §Copy drafts below); **D6 (b), signed** (owner, 2026-10-14; temp-file sentence is the (b) wording; if the owner ever reverses it, C6/C7 change and this plan is refreshed; Opus D1D8 R11).
 **Size target:** S, about 250 lines of diff (about 90 service and component, 60 page, 100 tests).
 
 > For agentic workers: use superpowers:test-driven-development and superpowers:subagent-driven-development. Frontend only: no backend skill needed. Frontend checks run **on Windows only** (vitest stalls on `/mnt/c/` under WSL, program §10 OW-W4). Nothing in this file has been run.
@@ -88,7 +88,7 @@ D8: the owner approves or edits every string below before merge. All strings liv
 | C3 | Disclaimer heading | `Research and education tool` |
 | C4 | Disclaimer body (persistent, top of page) | `This is not medical or legal advice. Wearable numbers come from a consumer device and are not clinical measurements. Talk to your healthcare provider about your health.` |
 | C5 | Intended-use line (under the banner) | `Intended use: personal record-keeping, research and education. It is built for people who are curious about their own health and want their records in one place.` |
-| C6 | Privacy line 1 (D6 default (b) wording, exact) | `The export file is processed by your HealthCentral app and deleted after import.` |
+| C6 | Privacy line 1 (WEAR-D6 (b) signed wording, exact) | `The export file is processed by your HealthCentral app and deleted after import.` |
 | C7 | Privacy line 2 | `Only daily summaries are kept: resting heart rate, minutes asleep and step count. The file is uploaded to the HealthCentral backend this app is connected to (in the standard setup, this computer). HealthCentral sends nothing to Apple, Garmin or any other online service.` (Codex plans N5, R2-2: the backend URL is configurable via `VITE_API_URL` (`services/api.ts:17-20`), so the copy discloses the upload instead of denying it) | |
 | C8 | Export steps heading | `Export from an iPhone` |
 | C9 | Export step 1 | `Open the Health app and tap your profile picture.` |
@@ -104,7 +104,7 @@ D8: the owner approves or edits every string below before merge. All strings liv
 | C15 | Temporary placeholder (removed by WEAR-07b) | `Imports and daily summaries will appear here.` |
 
 Notes for the owner
-- C6 is the exact D6 (b) sentence. If D6 becomes (a), C6 is replaced by a sentence that names the system temporary folder.
+- C6 is the exact signed D6 (b) sentence (Opus D1D8 R11). If the owner reverses D6 to (a), C6 is replaced by a sentence that names the system temporary folder.
 - G1-G4 are approved now so D8 is asked once. They render only when the constant `GARMIN_EXPORT_READY` in `wearablesCopy.ts` is `true`; it ships as `false` and C12 shows instead. WEAR-12 flips the constant and has no other frontend change. G2-G3 are INFERRED from Garmin's account pages; OM-2 / OW-W3 confirms them.
 - C9-C11 are INFERRED from Apple's Health app wording. OM-1 / OW-W0 should confirm them on a real phone.
 - C4 and C5 state use and a limit. They make no device-classification statement; the legal read stays open as OD-8.

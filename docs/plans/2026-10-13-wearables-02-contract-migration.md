@@ -79,8 +79,8 @@ INFERRED: the migration number. Task 0 reads the real head; this plan writes `0N
 | `src/backend/api/profiles.py` | edit | import 3 models; add to reset tuple (children first) | +6 |
 | `src/backend/core/audit.py` | edit | actions, string keys, count keys | +12 |
 | `src/backend/tests/test_wearables_contract.py` | new | HC-WRB-201..206 | +90 |
-| `src/backend/tests/test_wearables_schema.py` | new | HC-WRB-207..211 | +110 |
-| `src/backend/tests/test_wearables_guard.py` | new | HC-WRB-212..215 | +70 |
+| `src/backend/tests/test_wearables_schema.py` | new | HC-WRB-207..211, 217 | +120 |
+| `src/backend/tests/test_wearables_guard.py` | new | HC-WRB-212..216 | +70 |
 | 3 existing test files | edit | head literals | +4 / -4 |
 | `CLAUDE.md`, `AGENT.md` | edit | collected-count slots | +2 |
 
@@ -171,7 +171,7 @@ Plus helper `log_wearable_event(db, event, profile_id, details)` in `core/audit.
 | GAM2 task 2b | unnumbered; "whichever lands second renumbers" | `docs/capstone-report/owner-decisions-2026-09-27.md:134` |
 | WEAR-02 | head + 1 at merge | this plan |
 
-Rules: Task 0 reads the head on `origin/main` the same day; the file name and `revision` use the next free number; `down_revision` is the real head; the chain stays linear. If another migration merges while this PR is open, rebase, renumber file, `revision`, `down_revision`, the 3 head literals and `HC-WRB-208`, then re-run the round-trip test. The wearable tables do not depend on P6 (explicit deletes), so there is no ordering constraint, only the renumber.
+Rules: Task 0 reads the head on `origin/main` the same day; the file name and `revision` use the next free number; `down_revision` is the real head; the chain stays linear. If another migration merges while this PR is open, rebase, renumber file, `revision`, `down_revision`, the 3 head literals and `HC-WRB-208`, then re-run the round-trip test. Recommended order and the owner confirmation (OW-W13) are in the program A11 migration ledger; G-C1 and AUDIT-ORDER hard-code their numbers, so if this migration lands first those plans need a refresh (Opus D1D8 A9). The wearable tables do not depend on P6 (explicit deletes), so there is no ordering constraint, only the renumber.
 
 ## 7. TDD test list
 
@@ -186,7 +186,7 @@ Test IDs `HC-WRB-2NN`. Route tests go through HTTP; isolation and absence tests 
 | HC-WRB-205 | contract | with `source_name="Jane's Apple Watch"` and `value=-5` in the input, no returned error string contains `Jane`, `Apple` or `5` beyond the row index (assert `all(re.fullmatch(r"row \d+: [a-z_]+|[a-z_]+", e) for e in errors)`) | module missing |
 | HC-WRB-206 | contract | AST of `contract.py` imports only names in `sys.stdlib_module_names` (A8) | module missing |
 | HC-WRB-207 | schema | `ProfileDatabaseBase.metadata.create_all` on in-memory aiosqlite creates the 3 tables; inserting a second (`import_id`, `metric`, `local_date`) raises `IntegrityError`; a second (`profile_id`, `content_hash`) raises `IntegrityError`; same hash for profile B succeeds | models missing |
-| HC-WRB-208 | schema | on a real tmp vault (pattern `test_care_tasks.py:795-826`): upgrade to head creates the 3 tables and `get_profile_current_revision` equals `0NN_wearables`; downgrade to the previous head removes them; upgrade again restores them | migration missing |
+| HC-WRB-208 | schema | on a real tmp vault (pattern `test_care_tasks.py:795-826`): upgrade to head creates the 3 tables and `get_profile_current_revision` equals `0NN_wearables`; downgrade to the `down_revision` **read from the migration file** (not a hard-coded name; Opus D1D8 A9) removes them; upgrade again restores them | migration missing |
 | HC-WRB-209 | schema | after migration upgrade, `PRAGMA table_info` column names equal `Model.__table__.columns.keys()` for each of the 3 tables (model and migration cannot drift) | migration missing |
 | HC-WRB-210 | schema | reset: insert import, metric rows and review rows for a profile; override `require_auth` with a session named `Playwright E2E x`; `POST /profiles/test/reset` via `route_client(profiles_router, "/profiles")` returns 204; `select count()` on each of the 3 tables is `0`. Order matters: with the tuple order reversed this fails on a foreign-key-enabled connection (see break B3) | models not in tuple: rows remain (assert on counts, not on a 204 alone) |
 | HC-WRB-211 | schema | `models` package exports `WearableImport`, `WearableDailyMetric`, `WearableMetricReview`; `core.profile_database` import list includes `wearable` (source check of `:409-417` region) | missing |
@@ -195,6 +195,7 @@ Test IDs `HC-WRB-2NN`. Route tests go through HTTP; isolation and absence tests 
 | HC-WRB-214 | guard | static import guard: for each file in the watch list, `find_wearable_imports(source) == allowed[file]`, where `allowed = {"api/export.py": set(), ...}` and every other file maps to `set()`. Detects `import models.wearable`, `from models.wearable import X`, `from models import WearableImport` (any of the 3 names), `from . import wearable`, and `from models import *`. Self-test in the same file: a literal source string that imports the model makes the checker return a non-empty set (the guard can fail) | module absent |
 | HC-WRB-215 | guard | watch list is exactly `api/observations.py`, `modules/rag.py`, `modules/timeline.py`, `api/export.py`; each file exists (a rename must fail the test, not silently shrink it) | file list absent |
 | HC-WRB-216 | guard | `log_wearable_event` with a poisoned details dict writes a row whose scrubbed details keep only the reserved keys; **and** HC-AUD-004 (`tests/test_audit_phi_minimization.py:140-185`) gains a `log_wearable_event` row whose 4 events all map to registered actions | helper missing / unregistered action |
+| HC-WRB-217 | schema | single Alembic head (Opus D1D8 A9): `len(ScriptDirectory.from_config(<profile alembic cfg>).get_heads()) == 1`, config built through `core.migrations._get_alembic_config("profile")` (`core/migrations.py:44,297`); red when two branches each add a head | no head test |
 
 Research mapping: covers research HC-WRB-014 in part (schema and cross-profile uniqueness in HC-WRB-207; the HTTP isolation half is WEAR-06/07); supports HC-WRB-015 (count). WEAR-09 later changes `allowed["api/export.py"]` to `{"WearableDailyMetric", "WearableMetricReview", "WearableImport"}`-only-for-the-packet-path: it must edit the allow-list in the same PR and add a second test that `_fetch_observations` source does not mention the wearable names. That edit is WEAR-09's, not this plan's.
 
@@ -211,7 +212,7 @@ Research mapping: covers research HC-WRB-014 in part (schema and cross-profile u
 
 ### Task 1 — RED
 
-- [ ] 1.1 Write the 3 test files (HC-WRB-201..215). Build `contract` fixtures as small dict literals; build the reset fixture with the `vault` pattern (`test_audit_order.py:88-98`).
+- [ ] 1.1 Write the 3 test files (HC-WRB-201..217). Build `contract` fixtures as small dict literals; build the reset fixture with the `vault` pattern (`test_audit_order.py:88-98`).
 - [ ] 1.2 Run: `cd src/backend && HF_HUB_OFFLINE=1 python -m pytest tests/test_wearables_contract.py tests/test_wearables_schema.py tests/test_wearables_guard.py -p no:cacheprovider -q`
 - [ ] 1.3 Expect failures listed in the RED column (`ModuleNotFoundError`, `ImportError`, missing tables, `_scrubbed` key). Paste the summary line into the PR. 215 minus tests that already pass (none expected).
 
@@ -227,7 +228,7 @@ Research mapping: covers research HC-WRB-014 in part (schema and cross-profile u
 - [ ] 3.3 `migrations/profile/versions/0NN_wearables.py` mirroring `012_pinboards.py`; `downgrade` drops indexes, then reviews, metrics, imports (children first).
 - [ ] 3.4 Update the head literals: `test_care_tasks.py:809,825`, `test_profile_migrations_sqlcipher_fallback.py:41`, `test_source_spans.py:313` (the comment at `:310` mentions 012; refresh it). Do not edit the downgrade targets.
 - [ ] 3.5 `api/profiles.py`: add the 3 names to the `from models import (` block and to the reset tuple **before** `Embedding` (reviews, metrics, imports in that order; children before parents).
-- [ ] 3.6 Run `tests/test_wearables_schema.py`: expect 5 passed; then the 3 edited existing files unchanged except literals.
+- [ ] 3.6 Run `tests/test_wearables_schema.py`: expect 6 passed (207-211, 217); then the 3 edited existing files unchanged except literals.
 
 ### Task 4 — GREEN: audit vocabulary and guard
 
@@ -239,7 +240,7 @@ Research mapping: covers research HC-WRB-014 in part (schema and cross-profile u
 
 - [ ] 5.1 `cd src/backend && flock /tmp/claude-1000/hc-pytest.lock env HF_HUB_OFFLINE=1 python -m pytest tests/ -p no:cacheprovider -q`
 - [ ] 5.2 Only `test_api_rag_index_002b` may fail (`CLAUDE.md:30-33`).
-- [ ] 5.3 Collected = N + 16 (HC-WRB-201..216; parametrized cases may raise the pytest count above 16, so state the exact number from `--collect-only`). Update `CLAUDE.md:30` and `AGENT.md:76` in the same commit (SLOT-RULE). Read `docs/agentic/recurring-failures.md` before claiming done. `git diff --stat` must show `modules/redaction.py`, `modules/interpret_safety.py` untouched.
+- [ ] 5.3 Collected = N + 17 (HC-WRB-201..217; parametrized cases may raise the pytest count above 17, so state the exact number from `--collect-only`). Update `CLAUDE.md:30` and `AGENT.md:76` in the same commit (SLOT-RULE). Read `docs/agentic/recurring-failures.md` before claiming done. `git diff --stat` must show `modules/redaction.py`, `modules/interpret_safety.py` untouched.
 
 ## 9. Mutation and break checks
 
@@ -273,7 +274,7 @@ Revert the PR. For a database that already ran the migration, `alembic downgrade
 - **Recurring-failures #1.** HC-WRB-214 reads source text. It proves no import statement, not that a view or raw SQL never joins the table, and not that a new file (not on the watch list) reads it. The watch list is explicit on purpose; a new reader of observations must be added by whoever adds it. The self-test inside HC-WRB-214 shows the checker can fail.
 - **Recurring-failures #9.** Explicit child deletes are a class rule: reset (here), delete import (WEAR-07), profile delete (the vault file goes away). This plan covers reset only. WEAR-07 must test its own delete.
 - **Recurring-failures #2.** Reserving audit keys makes the scrubber keep them, but no route writes them yet; whether WEAR-06/07 pass only counts is their test.
-- **Recurring-failures #4.** The count N + 16 is relative; parametrized cases change the exact figure.
+- **Recurring-failures #4.** The count N + 17 is relative; parametrized cases change the exact figure.
 - **Recurring-failures #10.** Models exist but nothing starts them: dead until WEAR-06.
 - The validator proves shape, not truth. A well-formed row from a wrong parser passes (WEAR-03..05 own correctness; OM-1 owns real formats).
 - The Alembic test runs with `database_encryption_required=False`; SQLCipher behaviour on a real vault is not exercised here.

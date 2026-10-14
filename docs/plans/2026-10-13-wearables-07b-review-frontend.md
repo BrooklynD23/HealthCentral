@@ -7,7 +7,7 @@
 **Refresh trigger:** WEAR-06 or WEAR-07 change a route path, body or response field; WEAR-10 changes `wearablesCopy.ts` or the page shell; D6 or D8 answers change the copy; any edit to `services/api.ts`, `services/index.ts` or `App.tsx` merges first.
 **Program:** [`2026-10-13-wearables-00-program.md`](2026-10-13-wearables-00-program.md) (§4 A4, A5, A5b; §6 row WEAR-07b).
 **Depends on:** WEAR-07 (list, summary, review, delete routes) and WEAR-10 (page shell, `services/wearables.ts`, `wearablesCopy.ts`, barrel edit). Wave WC, serial after WEAR-07 and WEAR-10.
-**Owner decisions it depends on:** D8 (copy), WEAR-D3 = 14 days (only as the backend's `below_minimum_days` flag; the number is not hard-coded in the UI), D1 default (b) (no stored ZIP, so no download link anywhere).
+**Owner decisions it depends on:** D8 (copy), WEAR-D3 = 14 days (only as the backend's `below_minimum_days` flag; the number is not hard-coded in the UI), D1 (b) signed (no stored ZIP, so no download link anywhere).
 **Size target:** M, about 350 lines of diff (about 170 code, 180 tests).
 
 > For agentic workers: use superpowers:test-driven-development and superpowers:subagent-driven-development. Frontend only. Frontend checks run **on Windows only** (vitest stalls on `/mnt/c/` under WSL). Nothing in this file has been run.

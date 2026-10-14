@@ -2,12 +2,12 @@
 
 **Last Updated:** 2026-10-13
 **Owner:** repository owner
-**Status:** PROPOSED — not executed (code waits for program M0 and WEAR-06 and WEAR-09 merged; this is docs only).
+**Status:** PROPOSED — not executed (code waits for program M0 and WEAR-06, WEAR-09a-metrics, WEAR-13 and WEAR-15a merged; this is docs only; Opus D1D8 R7).
 **Base measured:** `origin/main` @ `8234990`; program file @ `a985390`.
 **Refresh trigger:** any WEAR-01/06/07/08/09 route, field or copy change after this plan; an answer to D1, D6 or D7; a new profile migration; any edit to `docs/api/endpoints.md`, `docs/compliance/data-privacy.md` or `docs/features/TASK_LIST.md`.
 **Program:** [00-program](2026-10-13-wearables-00-program.md) (§10 owner queue, A2, A12, D1, D6, D7).
-**Depends on:** WEAR-06 (import route, temp file, audit), WEAR-09 (packet fields). Amended 2026-10-14 after WEAR-D2/D5/D7: also document the symptom-journal routes and table (WEAR-15), the journal preview route and its free-text-names warning (WEAR-09), the `/export/json?include_wearables=true` block (WEAR-13), and — only if 11b ships — the `garmin-fit-sdk` dependency and its licence row `WEAR-FIT-LIC` in `docs/compliance/data-privacy.md`. WEAR-07/08 routes are documented only if mounted by then; never list a route as "coming". Document what `grep` finds mounted (Task 0).
-**Owner decisions:** D1 (b) raw ZIP not kept, D6 (b) app-owned temp file, D7 (b) not in patient export. The docs state whatever is signed; the defaults are drafted here.
+**Depends on:** WEAR-06 (import route, temp file, audit), WEAR-09a-metrics (packet fields), WEAR-13 (`include_wearables` JSON block), WEAR-15a (journal routes) — the same dependency set as the program and tickets. Amended 2026-10-14 after WEAR-D2/D5/D7: also document the symptom-journal routes and table (WEAR-15), the journal preview route and its free-text-names warning (WEAR-09a-journal, only if merged: it waits on the OW-W9 owner row, so the default is not to document it), the `/export/json?include_wearables=true` block (WEAR-13), and — only if 11b ships — the `garmin-fit-sdk` dependency and its licence row `WEAR-FIT-LIC` in `docs/compliance/data-privacy.md`. WEAR-07/08 routes are documented only if mounted by then; never list a route as "coming". Document what `grep` finds mounted (Task 0).
+**Owner decisions:** D1 (b) raw ZIP not kept, D6 (b) app-owned temp file, WEAR-D7 (a) signed (wearable rows in the patient's `/export/json`). The docs state what is signed and merged (Opus D1D8 R7).
 **Size target:** S, ~200 lines of diff, one L1 PR, no code and no tests added (collected count unchanged).
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development (or executing-plans). Steps use `- [ ]`. Docs only: no product code, no `CLAUDE.md` or `AGENT.md` edit (no count slot moves because no test is added).
@@ -18,7 +18,7 @@
 - Add a "Wearables" section to `docs/api/endpoints.md` and update the visit-prep row.
 - Add `docs/api/wearable-summary.md` (the `wearable-summary` v1 schema) and link it from `docs/api/README.md`.
 - Add a "Wearable data" section to `docs/compliance/data-privacy.md`.
-- Add owner rows OW-W0..OW-W6 to `docs/features/TASK_LIST.md` and fix the stale wearables rows there.
+- Add owner rows OW-W0..OW-W13 to `docs/features/TASK_LIST.md` and fix the stale wearables rows there.
 - Regenerate `docs/INDEX.md`.
 
 **This plan does NOT license:**
@@ -53,7 +53,7 @@
 | `docs/api/wearable-summary.md` | new | Schema doc, one JSON example, field table, rejection rules | 70 |
 | `docs/api/README.md` | edit | Index row, router-group row, router count | 6 |
 | `docs/compliance/data-privacy.md` | edit | Tier 1 rows, new "Wearable data" section | 45 |
-| `docs/features/TASK_LIST.md` | edit | OW-W0..W6 rows; fix `:97`, `:100`; `Last Updated` | 20 |
+| `docs/features/TASK_LIST.md` | edit | OW-W0..W13 rows; fix `:97`, `:100`; `Last Updated` | 20 |
 | `docs/architecture/backend.md`, `docs/architecture/README.md`, `docs/capstone-report/architecture-overview.md` | edit (count only) | Keep the router count equal to the measured one | 3 |
 | `docs/INDEX.md` | regenerated | Output of `generate_docs_index.py` | generated |
 
@@ -64,21 +64,21 @@ None. `docs/` only.
 ## 5. Content contract (what each doc must say)
 
 **endpoints.md "Wearables"** (one table, columns as the file's others; routes read from `src/backend/api/wearables.py` at Task 0, expected set):
-`GET /wearables/status` (auth, never 404: `{enabled}`), `POST /wearables/imports` (raw body `Content-Type: application/zip`, size cap `wearables_max_import_mb`, 404 when off, 409 duplicate hash, 413 oversize, 400 hostile, 422 invalid summary), `GET /wearables/imports`, `GET /wearables/imports/{id}/summary`, `PUT /wearables/imports/{id}/review`, `DELETE /wearables/imports/{id}`, `GET /wearables/metrics`. Intro line: every route except `status` returns 404 unless `WEARABLES_ENABLED=true`. Visit-prep row gains: "optional `include_wearables` and up to 5 `symptom_notes` (not stored); reviewed and included metrics only". Raw bytes are the body, so the table says so (A4 amendment).
+`GET /wearables/status` (auth, never 404: `{enabled}`), `POST /wearables/imports` (raw body `Content-Type: application/zip`, size cap `wearables_max_import_mb`, 404 when off, 409 duplicate hash, 413 oversize, 400 hostile, 422 invalid summary), `GET /wearables/imports`, `GET /wearables/imports/{id}/summary`, `PUT /wearables/imports/{id}/review`, `DELETE /wearables/imports/{id}`, `GET /wearables/metrics`. Intro line: every route except `status` returns 404 unless `WEARABLES_ENABLED=true`. Visit-prep row gains: "optional `include_wearables` (reviewed and included metrics only); the journal fields `journal_entry_ids` / `journal_preview_id` and the preview route only if 09a-journal is merged". Raw bytes are the body, so the table says so (A4 amendment).
 
 **wearable-summary.md:** schema id `hc.wearable-summary`, version `1.0`; field table (source_vendor, metric enum of 3, local_date ISO, value, unit fixed per metric, utc_offset_minutes, tz_changed, n_records, device_class closed enum, source_name capped and never printed in the packet, duplicate_sources); one daily value per (metric, date) with the A5 semantics in plain words; counts-only `skipped`; unknown major version rejected; "internal format today, no plugin repo (WEAR-OD2)". One JSON example with 3 rows that must validate against WEAR-02's `validate_summary` (check HC-WRB-1405).
 
-**data-privacy.md "Wearable data"** (drafted from D1/D6/D7 defaults; edit to match what is signed and merged):
+**data-privacy.md "Wearable data"** (drafted from the signed D1/D6/D7; edit to match what is merged):
 - Tier 1 rows: wearable imports, daily metrics, metric reviews, in the profile vault DB, AES-256 (SQLCipher).
 - Not stored: the uploaded ZIP (D1 b), raw samples, heart-rate series, workout routes, ECG.
-- While parsing: the upload is streamed to `app_data_path/tmp/` as a plaintext file, deleted in `finally`, with a startup sweep for leftovers after a crash (D6 b). If the owner signs D6 (a), say instead that it sits in the OS temp folder.
+- While parsing: the upload is streamed to `app_data_path/tmp/` as a plaintext file, deleted in `finally`, with a startup sweep for leftovers after a crash (D6 b).
 - Deletion: deleting an import deletes its metric rows and review rows explicitly, then the import (SQLite foreign keys are not enforced, A2). Profile deletion removes the whole vault. The synthetic reset clears the three tables.
 - Exports: only reviewed and included metrics, as a closed device class, can enter the visit-prep packet; they pass the strict redaction pass; symptom-journal entries reach the packet only by per-entry selection after a server-issued strict-redacted preview (WEAR-09, WEAR-15). Wearable daily rows are in `GET /export/json?include_wearables=true` as a versioned `wearable_daily_metrics` block (WEAR-D7 (a), WEAR-13; D3 full-fidelity route); not in `GET /export/csv`. Journal entries are not in `/export/json` unless the owner decides OW-W10.
 - Audit: counts plus the opaque `import_id` and the `vendor` enum (as `document_id` is logged for documents today); never filenames, device names, values or dates.
 - Not used by: trends, RAG, timeline, doctor summary, any model. No network call.
 - Wording: "patient-recorded, not clinically verified". No classification claim.
 
-**TASK_LIST.md:** add OW-W0..OW-W6 under "Needs the owner" exactly as program §10 words them. Fix `:97` (package is merged, #87). Replace the `:100` row "OM-2 / OM-3 — Garmin … and Samsung": keep OM-2 (Garmin, now tracked as OW-W3) and drop Samsung with "dropped: out of scope" per research 06 `:55`. Point the OM-1 row (`:99`) at OW-W0 so the two do not drift. Bump `Last Updated` (`:4`). Keep the existing `Owner` and `Refresh Trigger` fields (docs_lint rule 5).
+**TASK_LIST.md:** add OW-W0..OW-W13 under "Needs the owner" exactly as program §10 words them. Fix `:97` (package is merged, #87). Replace the `:100` row "OM-2 / OM-3 — Garmin … and Samsung": keep OM-2 (Garmin, now tracked as OW-W3) and drop Samsung with "dropped: out of scope" per research 06 `:55`. Point the OM-1 row (`:99`) at OW-W0 so the two do not drift. Bump `Last Updated` (`:4`). Keep the existing `Owner` and `Refresh Trigger` fields (docs_lint rule 5).
 
 **Router count:** measure with `grep -c include_router src/backend/api/__init__.py` after WEAR-01 and set all four docs to the same number with the counting rule written once in `docs/api/README.md` (WEAR-01 adds a status router and a gated router on one prefix, so "routers" and "prefixes" differ).
 
@@ -94,13 +94,13 @@ These are command checks, not pytest. Collected count unchanged. "RED" means the
 | HC-WRB-1404 | route-inventory one-liner (Task 3) | every path in the Wearables table matches an `@router`/`@status_router` decorator in `api/wearables.py` and the reverse | table absent |
 | HC-WRB-1405 | `python3 -I` script extracts the JSON block from `wearable-summary.md` and calls `modules.wearables.contract.validate_summary` | returns `[]` | example absent |
 | HC-WRB-1406 | `grep -n "wearables-" docs/compliance/data-privacy.md` equals the temp-name prefix constant in `api/wearables.py` | same string | privacy section absent |
-| HC-WRB-1407 | `grep -c "OW-W[0-6]" docs/features/TASK_LIST.md` | 7 distinct ids; no active row mentions Samsung | rows absent |
+| HC-WRB-1407 | `grep -o "OW-W\(1[0-3]\|[0-9]\)" docs/features/TASK_LIST.md \| sort -u \| wc -l` | 14 distinct ids (OW-W0..OW-W13); no active row mentions Samsung | rows absent |
 | HC-WRB-1408 | `grep -n "Eighteen\|18 routers" docs/api/README.md docs/architecture/*.md docs/capstone-report/architecture-overview.md` | the four files carry the one measured number | WEAR-01 changed the count |
 
 ## 7. Tasks
 
 ### Task 0 — gates
-- [ ] `git merge-base --is-ancestor <WEAR-06 sha> origin/main` and the same for WEAR-09; STOP if either fails.
+- [ ] `git merge-base --is-ancestor <WEAR-06 sha> origin/main` and the same for WEAR-09a-metrics, WEAR-13 and WEAR-15a; STOP if either fails.
 - [ ] Confirm D1, D6, D7 answers (or that the defaults stand). Note them in the PR body.
 - [ ] Read the merged tree, not the plans: `grep -n "@router\.\|@status_router\." src/backend/api/wearables.py`, `grep -n "wearables-" src/backend/api/wearables.py`, `grep -n "wearables_max_import_mb" src/backend/core/config.py`, `sed -n` the `VisitPrepRequest` block in `api/export.py`. Paste the route list into the PR.
 - [ ] Baseline: `python3 scripts/docs_lint.py; echo $?` and `python3 scripts/generate_docs_index.py --check; echo $?`. Both must be clean before you start; if not, STOP (not yours).
@@ -153,5 +153,5 @@ Revert the PR. Docs only; no data, no migration. If CI `--check` goes red after 
 
 ## 12. Owner / model-machine items
 
-- **OW-W0 to OW-W6** — this plan adds the seven rows to the TASK_LIST "Needs the owner" list (program §10). It does not complete any of them.
+- **OW-W0 to OW-W13** — this plan adds the fourteen rows to the TASK_LIST "Needs the owner" list (program §10). It does not complete any of them.
 - **OW-W5** — D1, D6, D7 answers feed Task 0.

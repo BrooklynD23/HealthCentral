@@ -9,7 +9,7 @@ Every Codex plan review (`<ID>-rN-*`) and adversarial diff review (`<ID>-diff-co
 - `2026-09-29/` — P01 and S02.
 - `2026-10-12/` — AUDIT-ORDER execution diff (Codex, code review, security review); GAM2-T1 diff (code review); MED-UTC diff (code review).
 - `2026-10-13/` — SQLITE-MIX diff (security review); WEAR-RESEARCH (Codex review of the #87 research package), WEAR-00 program (Fable 5.1), WEAR-PLANS r1-r2 (Codex review of the wearables plan set).
-- `2026-10-14/` — WEAR-PLANS r3 (Codex review after the owner answered WEAR-D1..D8).
+- `2026-10-14/` — WEAR-PLANS r3 (Codex review after the owner answered WEAR-D1..D8); WEAR-PLANS D1D8 Opus review + Opus adversarial (Opus substituting for Codex per owner instruction 2026-10-14).
 
 New reviews go in `docs/reviews/<date>/<ID>-r<N>-{prompt.md,codex.txt,response.md}`; add a row here. Process: [../agentic/orchestration.md](../agentic/orchestration.md).
 
@@ -96,3 +96,5 @@ Verdict is the reviewer's last `VERDICT:` line (plan reviews: PASS / REVISE; dif
 | 2026-10-13 | WEAR-PLANS | r1 | needs-attention | 2026-10-13 | [codex](2026-10-13/WEAR-PLANS-r1-codex.md) [response](2026-10-13/WEAR-PLANS-r1-response.md) |
 | 2026-10-13 | WEAR-PLANS | r2 | needs-attention | 2026-10-13 | [codex](2026-10-13/WEAR-PLANS-r2-codex.md) [response](2026-10-13/WEAR-PLANS-r2-response.md) |
 | 2026-10-14 | WEAR-PLANS | r3 | needs-attention | 2026-10-14 | [codex](2026-10-14/WEAR-PLANS-r3-codex.md) [response](2026-10-14/WEAR-PLANS-r3-response.md) |
+| 2026-10-14 | WEAR-PLANS D1D8, Opus review substituting for Codex (owner instruction 2026-10-14), not Codex | review | needs-attention | 2026-10-14 | [opus](2026-10-14/WEAR-PLANS-D1D8-opus-review.md) [response](2026-10-14/WEAR-PLANS-D1D8-opus-response.md) |
+| 2026-10-14 | WEAR-PLANS D1D8, Opus adversarial substituting for Codex (owner instruction 2026-10-14), not Codex | adv | needs-attention | 2026-10-14 | [opus](2026-10-14/WEAR-PLANS-D1D8-opus-adversarial.md) [response](2026-10-14/WEAR-PLANS-D1D8-opus-response.md) |

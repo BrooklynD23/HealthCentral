@@ -2,13 +2,13 @@
 
 **Last Updated:** 2026-10-13
 **Owner:** repository owner
-**Status:** PROPOSED — not executed. In the MVP (wave WD, before milestone M4) after **WEAR-D7** (owner, 2026-10-14; commit `c53ba44`, PR #92): **"(a) Add to /export/json now"**. Code waits for program M0 and WEAR-09a.
+**Status:** PROPOSED — not executed. In the MVP (wave WD, before milestone M4) after **WEAR-D7** (owner, 2026-10-14; commit `c53ba44`, PR #92): **"(a) Add to /export/json now"**. Code waits for program M0, WEAR-09a-metrics and WEAR-10 (`useWearablesStatus`; Opus D1D8 R4).
 **Base measured:** `origin/main` @ 8234990
-**Refresh trigger:** WEAR-09 merges (shared `api/export.py`); any edit to `api/export.py` or `modules/export.py`; WEAR-02 changes the table contract.
+**Refresh trigger:** WEAR-09a-metrics merges (shared `api/export.py`); any edit to `api/export.py` or `modules/export.py`; WEAR-02 changes the table contract.
 **Program:** [00-program](2026-10-13-wearables-00-program.md) (A3, D7, milestone M4)
-**Depends on:** WEAR-02 (tables, static guard), WEAR-09 (also edits `api/export.py`; serialise after it).
+**Depends on:** WEAR-02 (tables, static guard), WEAR-09a-metrics (also edits `api/export.py`; serialise after it), WEAR-10 (`useWearablesStatus`, for the small frontend change).
 **Owner decisions it depends on:** **WEAR-D7** (owner, 2026-10-14; commit `c53ba44`, PR #92): **"(a) Add to /export/json now"** — resolved. This plan builds exactly that: add a block to `GET /export/json`. It does not build a new route.
-**Size target:** ~150 lines of non-test diff, one L1 PR.
+**Size target:** ~170 lines of non-test diff (about 150 backend, 20 frontend), one L1 PR.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:test-driven-development, with superpowers:subagent-driven-development. Domain skill: `asclexis-backend`.
 
@@ -18,11 +18,12 @@
 - `GET /export/json?include_wearables=true` returns an object with the existing observations and a `wearable_daily_metrics` block (`schema_version: "wdm-1"`).
 - The block is the profile's own imports, daily rows and review state, full fidelity.
 - Flag off + `include_wearables=true` → 400.
+- **Frontend (Opus D1D8 R4):** `useExportJSON` in `src/frontend/src/services/export.ts:257-259` reads `useWearablesStatus()` and, when `enabled` is true, `exportJSON` (`:133-141`) adds `include_wearables=true` to the params it passes to `apiGet('/export/json', params)`, so the patient's normal JSON export carries the wearable rows with no new control. When the status is off, loading or errored, the request is byte-for-byte today's. `ExportPage.tsx` is not edited (`exportJSON.mutate(undefined)` at `:128` is unchanged). The default backend response stays a bare list for every other caller.
 
 **Does NOT:**
 - Add a route. Touch `GET /export/csv`, FHIR export, visit prep or the doctor summary.
 - Change the default `GET /export/json` response (still a bare JSON list).
-- Edit `_fetch_observations`, `modules/redaction.py`, or `ExportPage.tsx`.
+- Edit `_fetch_observations`, `modules/redaction.py`, or `ExportPage.tsx` (only `services/export.ts` changes on the frontend).
 - Make any other export exempt from redaction. If the owner wants a separate wearable export route, it must pass `modules/redaction.py` at `strict` (CLAUDE.md "Redaction before anything leaves": only `/export/csv` and `/export/json` are exempt, owner decision D3). That is a new owner decision, not this plan.
 
 ## 2. Evidence
@@ -50,7 +51,9 @@ Finding: the response of `/export/json` is a bare list today. Adding a top-level
 |---|---|---|---|
 | `src/backend/api/export.py` | edit | `include_wearables` query param on `/json`; `_fetch_wearable_block()` helper placed after `_fetch_observations` | +70 |
 | `tests/test_wearables_export.py` | new | tests below | +190 |
-| `tests/test_wearables_import_guard.py` (WEAR-02's guard) | edit | allow `models.wearable` in `api/export.py` (already allowed by WEAR-09 for the packet path); add an AST check that `_fetch_observations` has no wearable names | +20 |
+| `tests/test_wearables_import_guard.py` (WEAR-02's guard) | edit | allow `models.wearable` in `api/export.py` (already allowed by WEAR-09a-metrics for the packet path); add an AST check that `_fetch_observations` has no wearable names | +20 |
+| `src/frontend/src/services/export.ts` | edit | `useExportJSON` reads `useWearablesStatus`; `exportJSON` sends `include_wearables=true` when enabled | +10 |
+| `src/frontend/src/__tests__/ExportJsonWearables.test.tsx` | new | HC-WRB-13F01..03 (Windows run, OW-W4) | +60 |
 
 The DB helper lives in `api/export.py` and not in `modules/wearables/`, because the parsers there stay stdlib-only (program A8).
 
@@ -107,23 +110,33 @@ IDs `HC-WRB-13NN`, file `tests/test_wearables_export.py`, through `route_client(
 
 Collected = start + 12 (1301 is new but green before the change; it still adds to the count). Update CLAUDE.md and AGENT.md count slots in the same commit (SLOT-RULE).
 
+Frontend (`ExportJsonWearables.test.tsx`, Windows run, OW-W4; backend count unaffected), 3 tests (Opus D1D8 R4):
+
+| ID | Assertion | RED reason |
+|---|---|---|
+| HC-WRB-13F01 | `useWearablesStatus` mocked `enabled: true`; `useExportJSON().mutate(undefined)` calls `apiGet('/export/json', {include_wearables: 'true'})` | param not sent |
+| HC-WRB-13F02 | status `enabled: false`, loading and error: `apiGet` params contain no `include_wearables` key (identical to today) | n/a (guards regressions) |
+| HC-WRB-13F03 | Existing `ExportPage.test.tsx` stays green (no `ExportPage.tsx` edit) | n/a (guards regressions) |
+
 ## 7. Tasks
 
 ### Task 0 — gates
 - [ ] Row WEAR-D7 is on `origin/main` (PR #92 merged). If not: STOP.
-- [ ] `git merge-base --is-ancestor <WEAR-02 commit> origin/main` and `<WEAR-09 commit> origin/main`. STOP if either fails (shared file `api/export.py`).
-- [ ] Plan file present. Re-read `api/export.py:963-1015` on the new base; the line numbers above may have moved after WEAR-09.
-- [ ] Confirm the owner accepts the opt-in query parameter and object envelope (Question 1 in the report). If the owner wants the object always, add a deprecation step for list consumers first; that is a larger plan.
+- [ ] `git merge-base --is-ancestor <WEAR-02 commit> origin/main` and `<WEAR-09a-metrics commit> origin/main`. STOP if either fails (shared file `api/export.py`).
+- [ ] Plan file present. Re-read `api/export.py:963-1015` on the new base; the line numbers above may have moved after WEAR-09a-metrics.
+- [ ] The opt-in query parameter and object envelope are the signed WEAR-D7 (a) design (the default list response stays for other callers); no owner follow-up. If the owner later wants the object always, that is a larger plan with a deprecation step for list consumers. `git merge-base --is-ancestor <WEAR-10 commit> origin/main` (`useWearablesStatus` exists); STOP if not.
 
 ### Task 1 — RED
 - [ ] Write `tests/test_wearables_export.py` and the guard additions.
 - [ ] Run: `cd src/backend && HF_HUB_OFFLINE=1 python -m pytest tests/test_wearables_export.py tests/test_wearables_import_guard.py -p no:cacheprovider -q`
 - [ ] Paste output. Expected: 11 failures; 1301 passes (characterization).
+- [ ] Write 13F01-13F03; `npx vitest run src/__tests__/ExportJsonWearables.test.tsx` on Windows: 13F01 fails (parameter not sent); otherwise open under OW-W4.
 
 ### Task 2 — GREEN
 - [ ] Add `include_wearables: bool = Query(False)` to `export_json`. When false: path unchanged. When true: flag off → `HTTPException(400)`; else `_fetch_wearable_block(profile_db, profile_id, from_date, to_date)` and return `json.dumps({"observations": <list>, "wearable_daily_metrics": block}, indent=2)`. Reuse the module's own list (call `export_json` and `json.loads` it, or restructure minimally; no duplicate datetime handling).
 - [ ] Pass `details={"observation_count": n, "count": wearable_rows}` to the existing `audit_and_commit`.
 - [ ] Update the WEAR-02 guard allow-list (the file name is INFERRED; re-read in Task 0).
+- [ ] `services/export.ts`: `useExportJSON` calls `useWearablesStatus()`; `exportJSON(filters, includeWearables)` sets `params.include_wearables = 'true'` only when `includeWearables`. Run `npx tsc --noEmit`, `npx eslint`, the new vitest file and `ExportPage.test.tsx` on Windows.
 
 ### Task 3 — verify
 - [ ] Targeted run, then the full suite: `cd src/backend && flock /tmp/claude-1000/hc-pytest.lock env HF_HUB_OFFLINE=1 python -m pytest -p no:cacheprovider -q`. Collected = start + 12.
@@ -135,7 +148,7 @@ Collected = start + 12 (1301 is new but green before the change; it still adds t
 1. Remove the `profile_id` filter in `_fetch_wearable_block` → HC-WRB-1304 red.
 2. Make the response an object even without the parameter → HC-WRB-1301 red.
 3. Delete the flag check → HC-WRB-1305 red.
-4. Reference a wearable model inside `_fetch_observations` → HC-WRB-1311 red. After each: revert; `git diff` empty.
+4. Reference a wearable model inside `_fetch_observations` → HC-WRB-1311 red. Send `include_wearables` regardless of status in `services/export.ts` → 13F02 red. After each: revert; `git diff` empty.
 
 ## 9. Acceptance criteria
 
@@ -154,8 +167,8 @@ Revert the PR. The default response never changed, so no consumer is affected. N
 - **#9:** "no other export includes wearable data" is guarded for `/csv`, the router paths and `_fetch_observations`. A future route that reads the tables is caught only by the WEAR-02 import guard, which checks imports, not queries.
 - **#10:** only `/json` is exercised on `main.app`.
 - Whether any downstream tool can read the `wdm-1` block is not tested (no consumer exists). Large profiles (3 metrics x several years x many imports) are built in memory; no size test is planned.
-- No UI exists for the parameter. A patient reaches it only by URL until a follow-up adds a checkbox.
+- The UI sends the parameter automatically when the feature is on (13F01); there is no checkbox. 13F01-13F03 are Windows-only (OW-W4) and mock the hook, so they cannot see that the real `/wearables/status` call returns `enabled`.
 
 ## 12. Owner / model-machine items
 
-Owner follow-up: confirm the opt-in `?include_wearables=true` envelope (the default `/export/json` response stays a bare list, `modules/export.py:267-288`, `tests/test_export_api.py:144-149`). Symptom-journal entries are not in this block; whether they join `/export/json` is an open owner follow-up (WEAR-15).
+The opt-in `?include_wearables=true` envelope is part of the signed WEAR-D7 (a) design (the default `/export/json` response stays a bare list, `modules/export.py:267-288`, `tests/test_export_api.py:144-149`); there is no owner follow-up for it. **OW-W4** — 13F01-13F03 vitest on Windows. Symptom-journal entries are not in this block; whether they join `/export/json` is an open owner follow-up (WEAR-15).
