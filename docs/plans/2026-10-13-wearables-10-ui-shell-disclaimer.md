@@ -84,12 +84,12 @@ D8: the owner approves or edits every string below before merge. All strings liv
 | ID | Where | String (verbatim) |
 |---|---|---|
 | C1 | Sidebar label, page `<h1>` | `Wearables` |
-| C2 | Page subtitle | `Your own watch and phone records, kept on this computer.` |
+| C2 | Page subtitle | `Your own watch and phone records, kept in your HealthCentral data.` |
 | C3 | Disclaimer heading | `Research and education tool` |
 | C4 | Disclaimer body (persistent, top of page) | `This is not medical or legal advice. Wearable numbers come from a consumer device and are not clinical measurements. Talk to your healthcare provider about your health.` |
 | C5 | Intended-use line (under the banner) | `Intended use: personal record-keeping, research and education. It is built for people who are curious about their own health and want their records in one place.` |
 | C6 | Privacy line 1 (D6 default (b) wording, exact) | `The export file is processed by your HealthCentral app and deleted after import.` |
-| C7 | Privacy line 2 | `Only daily summaries are kept: resting heart rate, minutes asleep and step count. Importing sends nothing to Apple, Garmin or any other online service.` (Codex plans N5: the backend URL is configurable via `VITE_API_URL`, so the copy does not claim "this computer") | |
+| C7 | Privacy line 2 | `Only daily summaries are kept: resting heart rate, minutes asleep and step count. The file is uploaded to the HealthCentral backend this app is connected to (in the standard setup, this computer). HealthCentral sends nothing to Apple, Garmin or any other online service.` (Codex plans N5, R2-2: the backend URL is configurable via `VITE_API_URL` (`services/api.ts:17-20`), so the copy discloses the upload instead of denying it) | |
 | C8 | Export steps heading | `Export from an iPhone` |
 | C9 | Export step 1 | `Open the Health app and tap your profile picture.` |
 | C10 | Export step 2 | `Tap Export All Health Data, then Export.` |

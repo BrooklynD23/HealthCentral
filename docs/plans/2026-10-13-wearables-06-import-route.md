@@ -18,7 +18,7 @@
 - `POST /api/v1/wearables/imports`: the client sends the Apple Health ZIP as the raw request body (`Content-Type: application/zip`). No multipart.
 - Stream the body to `app_data_path/tmp/wearables-<uuid>.zip` in chunks, hashing SHA-256 while writing. Delete the file in `finally`.
 - Refuse a duplicate `content_hash` for this profile (409 with the existing import id). Parse, aggregate, validate, write the import + daily rows + review stubs in one transaction.
-- Audit with counts only. Add the per-prefix size limit in `security/input_validator.py` (OWNER GATE D4). Add the startup sweep of stale temp files.
+- Audit with counts plus the opaque `import_id` and `vendor` enum (program M2). Add the per-prefix size limit in `security/input_validator.py` (OWNER GATE D4). Add the startup sweep of stale temp files.
 
 **Does NOT:**
 - Read, list, review or delete imports (WEAR-07). Detect Garmin (WEAR-12). Touch the frontend (WEAR-07b/10).
@@ -136,8 +136,9 @@ IDs `HC-WRB-6NN`. Files: `R` = `tests/test_wearables_import_route.py` (via `rout
 | HC-WRB-617 | L | flag on: `PUT /api/v1/wearables/imports/x/review` with 11 MB → 413; `POST /api/v1/documents/import` limit unchanged (51 MB → 413) | `startswith` too wide |
 | HC-WRB-618 | L | `sweep_stale_uploads(tmp)` deletes `wearables-*.zip`, leaves other files and subdirs | no sweep |
 | HC-WRB-619 | L | `main.lifespan` calls the sweep (patch `init_database`, migrations, sweep recorder; fail-soft if sweep raises) | not wired |
+| HC-WRB-620 | R | two same-profile uploads of the same synthetic export fired concurrently (two threads released by one `threading.Barrier`, each with its own `route_client` request): status codes are exactly `{201, 409}`, never 500; profile DB holds one import | second request 500 (`IntegrityError` unhandled) |
 
-Collected count = start + 19. Update the CLAUDE.md and AGENT.md count slots in the same commit (SLOT-RULE).
+Collected count = start + 20. Update the CLAUDE.md and AGENT.md count slots in the same commit (SLOT-RULE).
 
 ## 8. Tasks
 
@@ -181,7 +182,7 @@ Collected count = start + 19. Update the CLAUDE.md and AGENT.md count slots in t
 ## 10. Acceptance criteria (each seen, not asserted)
 
 - RED output pasted (Task 1), then GREEN output for the two files showing 19 passed.
-- Full-suite output with collected count = start + 19.
+- Full-suite output with collected count = start + 20.
 - `git diff --stat origin/main...HEAD` lists only the files in section 3.
 - Break checks 1-4 each show the named test failing.
 - Owner-signed D4 diff present in the PR description verbatim.

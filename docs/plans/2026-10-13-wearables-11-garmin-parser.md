@@ -111,6 +111,7 @@ Fixtures are built in a helper from a `LAYOUT` dict whose values come from §3. 
 | HC-WRB-1114 | AST check: `garmin.py` imports only stdlib (+ `modules.wearables.*`); no `models`, `core.database`, `llama_cpp` | absent |
 | HC-WRB-1115 | Unknown timestamp format → `timestamp_invalid` skip, row not guessed | absent |
 | HC-WRB-1116 | TZ env patched to `Pacific/Kiritimati` and `America/Los_Angeles`: identical records (host tz never used) | absent |
+| HC-WRB-1117 | valid synthetic Garmin export generated at the production default caps (members just under `max_json_member_bytes`): consuming the yielded records keeps `tracemalloc` peak < 256 MB (ceiling recorded at Task 0 from OM-2 sizes) | records collected into a list or `json.loads` on an uncapped member → peak over ceiling |
 
 Covers research HC-WRB-001 (partly), 005, 006 for the Garmin path. Tests 1108/1109/1110/1111 are the key hostile set.
 
@@ -139,7 +140,7 @@ Covers research HC-WRB-001 (partly), 005, 006 for the Garmin path. Tests 1108/11
 ## 10. Acceptance criteria
 
 - Target file: 16 passed, command and output pasted.
-- Full suite: collected count = start + 16, output pasted; failures limited to the known embedding test, named.
+- Full suite: collected count = start + 17, output pasted; failures limited to the known embedding test, named.
 - `git diff --stat` shows only the §4 files plus count slots.
 - §3 last column filled from OM-2 in the same PR.
 

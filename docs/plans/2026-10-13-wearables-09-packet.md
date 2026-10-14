@@ -2,12 +2,12 @@
 
 **Last Updated:** 2026-10-13
 **Owner:** repository owner
-**Status:** PROPOSED — not executed (code waits for program M0, WEAR-02 and WEAR-07 merged, and owner decisions D2, D3, D8).
+**Status:** PROPOSED — not executed (code waits for program M0, WEAR-02 and WEAR-07 merged, and owner decisions D3, D8; D2 only if notes are built).
 **Base measured:** `origin/main` @ `8234990`; program file @ `a985390`.
 **Refresh trigger:** any edit to `api/export.py`, `modules/export.py`, `api/pinboards.py`, `core/audit.py` or `ExportPage.tsx`; WEAR-02, 05, 07, 08 or 10 merge (their names and signatures are assumed below); D2, D3 or D8 answered.
 **Program:** [00-program](2026-10-13-wearables-00-program.md) (A3, A4, A5b, A7, A12, A13; risks R3, R7, R8).
 **Depends on:** WEAR-02 (tables, audit vocabulary, static guard), WEAR-05 (`describe()`), WEAR-07 (review state exists), WEAR-08 (owns `modules/wearables/select.py::select_current`; orchestrator decision, this plan reuses it and never re-implements selection), WEAR-10 (`useWearablesStatus`, 09b only). The program table lists 07 only; the orchestrator adds 08 (Question 1).
-**Owner decisions:** D2 default (a): up to 5 dated notes in the request, not persisted. D3 default 7 days. D8: approve the §Copy table below.
+**Owner decisions:** D2 default **(c): no symptom notes** (program D2; Codex plans ADV-1, R2-1). Notes are built only if the owner signs D2 (a) in writing, accepting that strict redaction does not catch natural-language names; a name-capable sanitizer would touch ask-first `modules/redaction.py` and is a separate owner decision. D3 default 7 days. D8: approve the §Copy table below.
 **Size target:** two PRs. **09a backend** ~245 lines of source plus ~400 of tests. **09b frontend** ~120 lines of source plus ~110 of tests. Together they pass 400 lines, so the frontend is a separate section (WEAR-09b) in this file and a separate PR. 09b starts only after 09a and WEAR-10 merge.
 
 > **For agentic workers:** REQUIRED SUB-SKILLS: superpowers:test-driven-development and superpowers:subagent-driven-development. Backend work also loads domain skill `asclexis-backend`. Steps use `- [ ]`.

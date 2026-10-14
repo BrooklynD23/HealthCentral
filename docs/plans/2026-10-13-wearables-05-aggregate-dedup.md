@@ -109,8 +109,9 @@ File: `src/backend/tests/test_wearables_aggregate.py`. Fixtures are built with `
 | HC-WRB-515 | Every row has exactly the 11 keys of section 5 in order; `value` is `float`; `unit` equals `CANON_UNIT[metric]`; `local_date` parses with `date.fromisoformat`; `n_records` >= 1; `duplicate_sources` >= 0 | module missing |
 | HC-WRB-516 | Determinism: a mixed fixture (all three metrics, 3 sources, 5 days) shuffled with `random.Random(0)` twenty times gives identical `build_summary` output | module missing |
 | HC-WRB-517 | AST guard: imports in `aggregate.py` are stdlib plus `modules.wearables.*` only (A8) | file missing |
+| HC-WRB-518 | two identical step records (same `source_name`, `start`, `end`, `value`) plus one distinct record from the same source on one day: daily value = one duplicate + the distinct one; `skipped["duplicate_record"] == 1` | duplicates summed (value too high) |
 
-Expected new tests: 17 functions. Collected = Task 0 baseline + 17 (use `--collect-only -q` if parametrised).
+Expected new tests: 18 functions. Collected = Task 0 baseline + 18 (use `--collect-only -q` if parametrised).
 
 ## 7. Tasks
 
@@ -122,7 +123,7 @@ Expected new tests: 17 functions. Collected = Task 0 baseline + 17 (use `--colle
 - [ ] If OM-1 is in: record answers on exact duplicate records and sleep overlaps (section 11) and adjust HC-WRB-501/505 fixtures to the real shapes.
 
 ### Task 1 — RED
-- [ ] Write the test file with HC-WRB-501..517. Run: `cd src/backend && HF_HUB_OFFLINE=1 python -m pytest tests/test_wearables_aggregate.py -p no:cacheprovider -q`.
+- [ ] Write the test file with HC-WRB-501..518. Run: `cd src/backend && HF_HUB_OFFLINE=1 python -m pytest tests/test_wearables_aggregate.py -p no:cacheprovider -q`.
 - [ ] Expect `ModuleNotFoundError: No module named 'modules.wearables.aggregate'` for all 17. Paste the first lines.
 
 ### Task 2 — GREEN
@@ -152,7 +153,7 @@ Revert each with `git checkout -- src/backend/modules/wearables/aggregate.py`; `
 
 1. `test_wearables_aggregate.py`: 17 passed (output pasted).
 2. HC-WRB-512 peak memory number printed once and the ceiling written.
-3. Collected = baseline + 17; slots updated; only the known environmental failure in the full suite.
+3. Collected = baseline + 18; slots updated; only the known environmental failure in the full suite.
 4. B1..B6 each flipped the named tests; clean `git diff --stat` after reverts.
 5. Rows from the HC-WRB-401 fixture (WEAR-04) pass `validate_summary` once WEAR-02 is merged (checked in WEAR-06, not here; note the result in the WEAR-06 PR).
 

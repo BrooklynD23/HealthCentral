@@ -78,7 +78,7 @@ Summary per metric: `{metric, days_with_data, median, p25, p75, min, max, unit, 
 
 Delete: `204`. Order: reviews → metrics → import (explicit; `PRAGMA foreign_keys` is off). Audit `count` = metric rows deleted.
 
-Audit: `view` events for list and summary (the reserved "metrics view" action), `review`, `delete`. `details` ⊆ `import_id, vendor, metric, metrics_reviewed, metrics_included, count, days_covered`.
+Audit: `view` events for list and summary (the reserved "metrics view" action), `review`, `delete`. `details` ⊆ `import_id, vendor, metrics_reviewed, metrics_included, count, days_covered`.
 
 ## 6. TDD test list
 
@@ -111,7 +111,7 @@ Collected = start + 17. Update CLAUDE.md and AGENT.md count slots in the same co
 ### Task 0 — gates
 - [ ] `git merge-base --is-ancestor <WEAR-06 merge commit> origin/main`. STOP if not.
 - [ ] Plan file present. D3 default (7) is the only decision used; no gate beyond WEAR-06.
-- [ ] Re-read WEAR-06's merged code: review-stub creation, response shapes, helper names. Confirm WEAR-02 reserved the view/review/delete actions and the `import_id`/`vendor`/`metric` string keys (`core/audit.py:36`, `:69`). If not, STOP and fix WEAR-02 first.
+- [ ] Re-read WEAR-06's merged code: review-stub creation, response shapes, helper names. Confirm WEAR-02 reserved the view/review/delete actions and the `import_id`/`vendor` string keys (no `metric`: Codex plans R2-6, audit minimisation) (`core/audit.py:36`, `:69`). If not, STOP and fix WEAR-02 first.
 - [ ] Confirm `describe()` signature and method (inclusive quantiles or nearest rank); HC-WRB-703 numbers must use the same method.
 
 ### Task 1 — RED

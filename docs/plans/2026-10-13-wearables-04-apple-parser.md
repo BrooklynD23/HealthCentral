@@ -159,8 +159,9 @@ Research IDs covered: HC-WRB-001 (partly: parser level, daily rows are WEAR-05),
 | HC-WRB-420 | `fp` contract: `io.BytesIO`, a real file, and `tempfile.SpooledTemporaryFile` all work; a wrapper that raises on size-less `read()` is never tripped | module missing |
 | HC-WRB-421 | `records_read` counts `Record` elements only; `Workout`, `ActivitySummary` and a `Correlation` (its nested `Record` too) count under `element_not_record`; iterating `records()` twice raises `RuntimeError` | module missing |
 | HC-WRB-422 | AST guard: `apple.py` and `_zipguard.py` import only stdlib modules and `modules.wearables.*` siblings (A8) | files missing |
+| HC-WRB-423 | valid synthetic export streamed through `parse_apple_export` at the **production default** caps: `tracemalloc` peak < 128 MB | whole-member read or records collected → peak over ceiling |
 
-Expected new tests: 6 + 16 = 22 functions (count `--collect-only` items if parametrised). Collected = Task 0 baseline + that number; update both slots.
+Expected new tests: 6 + 17 = 23 functions (count `--collect-only` items if parametrised). Collected = Task 0 baseline + that number; update both slots.
 
 ## 7. Tasks
 
@@ -202,7 +203,7 @@ Revert with `git checkout -- <file>`; `git diff --stat` guard each time. Record 
 
 1. Guard file: 6 pass. Parser file: 16 pass. Output pasted.
 2. Peak memory numbers for HC-WRB-408, 410, 416, 418 printed once (`-s` with a debug print removed before commit) and the ceilings written into the tests.
-3. Full suite: collected = baseline + 22 (or the printed item count); only the known environmental failure.
+3. Full suite: collected = baseline + 23 (or the printed item count); only the known environmental failure.
 4. B1..B5 each flipped the named tests; `git diff --stat` clean after reverting.
 5. Both new modules import only stdlib (HC-WRB-422 green).
 
