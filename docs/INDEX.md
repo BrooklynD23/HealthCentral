@@ -1258,6 +1258,62 @@ Links to: `CLAUDE.md`, `docs/agentic/harness.md`, `docs/agentic/mcp-tools.md`, `
 
 Links to: `docs/agentic/recurring-failures.md`, `docs/plans/2026-09-10-implementation-roadmap.md`, `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/09-roadmap.md`, `docs/research/2026-09-08/10-demonstration-artifact.md`, `docs/research/2026-09-08/11-harness-engineering.md`, `docs/research/2026-09-08/13-consultation.md`, `docs/research/2026-09-08/CONSULT-PROMPT.md`, `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`, `docs/research/2026-09-08/GOAL-PROMPT.md`, `docs/research/2026-09-08/INDUSTRY-PROMPT.md`
 
+## `docs/research/2026-10-12/00-README.md`
+
+**Wearable evidence integration — feasibility package (2026-10-12)**
+
+Quoted verbatim from the owner-decisions rows held by L0:
+
+Links to: `docs/plans/2026-10-01-packaging-decision.md`, `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-10-12/01-vendor-matrix.md`, `docs/research/2026-10-12/02-implementation-map.md`, `docs/research/2026-10-12/03-architecture-contracts.md`, `docs/research/2026-10-12/04-safety-privacy.md`, `docs/research/2026-10-12/05-mvp-roadmap-tests.md`, `docs/research/2026-10-12/06-decisions-go-nogo.md`
+
+## `docs/research/2026-10-12/01-vendor-matrix.md`
+
+**01 — Vendor/API capability and licensing matrix**
+
+**Verdict per vendor**
+
+Links to: `docs/research/2026-10-12/00-README.md`, `docs/research/2026-10-12/02-implementation-map.md`
+
+## `docs/research/2026-10-12/02-implementation-map.md`
+
+**02 — Existing implementation map (file-level evidence)**
+
+There is **no wearable code** in the repo. Every seam is lab-oriented. The closest prior art is HC-M23 structured import (CSV + FHIR) and HC-M18 visit-prep packet. Wearables were explicitly deferred…
+
+Links to: `docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md`, `docs/research/2026-09-08/04-mcp-interop.md`, `docs/research/2026-10-12/00-README.md`
+
+## `docs/research/2026-10-12/03-architecture-contracts.md`
+
+**03 — Proposed architecture and data contracts**
+
+One row per (source document, metric, local calendar date).
+
+Links to: `docs/research/2026-10-12/00-README.md`, `docs/research/2026-10-12/02-implementation-map.md`
+
+## `docs/research/2026-10-12/04-safety-privacy.md`
+
+**04 — Privacy, security and clinical-safety assessment**
+
+The packet is **patient-recorded context**, not clinical measurement. It reports what a consumer device recorded, how much it recorded, and where the data came from. It never interprets, thresholds,…
+
+Links to: `docs/research/2026-10-12/00-README.md`, `docs/research/2026-10-12/01-vendor-matrix.md`
+
+## `docs/research/2026-10-12/05-mvp-roadmap-tests.md`
+
+**05 — Minimum vertical slice, roadmap, acceptance tests, validation study**
+
+**Source (slice 1):** Apple Health "Export All Health Data" ZIP only. Garmin follows as slice 2 (roadmap item 10).
+
+Links to: `AGENT.md`, `docs/research/2026-10-12/00-README.md`, `docs/research/2026-10-12/06-decisions-go-nogo.md`
+
+## `docs/research/2026-10-12/06-decisions-go-nogo.md`
+
+**06 — Unresolved questions, owner decisions, go/no-go, task queue**
+
+**Top open for L0:** OD-3, OD-4, OD-6, OD-8, and whether OM-4/OM-5 are still required.
+
+Links to: `docs/research/2026-10-12/00-README.md`, `docs/research/2026-10-12/03-architecture-contracts.md`, `docs/research/2026-10-12/04-safety-privacy.md`
+
 ## `docs/reviews/2026-09-25/DDI-r1-prompt.md`
 
 **(untitled)**
