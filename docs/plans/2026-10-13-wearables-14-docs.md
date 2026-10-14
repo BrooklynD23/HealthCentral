@@ -6,7 +6,7 @@
 **Base measured:** `origin/main` @ `8234990`; program file @ `a985390`.
 **Refresh trigger:** any WEAR-01/06/07/08/09 route, field or copy change after this plan; an answer to D1, D6 or D7; a new profile migration; any edit to `docs/api/endpoints.md`, `docs/compliance/data-privacy.md` or `docs/features/TASK_LIST.md`.
 **Program:** [00-program](2026-10-13-wearables-00-program.md) (§10 owner queue, A2, A12, D1, D6, D7).
-**Depends on:** WEAR-06 (import route, temp file, audit), WEAR-09 (packet fields). WEAR-07/08 routes are documented only if mounted by then; never list a route as "coming". Document what `grep` finds mounted (Task 0).
+**Depends on:** WEAR-06 (import route, temp file, audit), WEAR-09 (packet fields). Amended 2026-10-14 after WEAR-D2/D5/D7: also document the symptom-journal routes and table (WEAR-15), the journal preview route and its free-text-names warning (WEAR-09), the `/export/json?include_wearables=true` block (WEAR-13), and — only if 11b ships — the `garmin-fit-sdk` dependency and its licence row `WEAR-FIT-LIC` in `docs/compliance/data-privacy.md`. WEAR-07/08 routes are documented only if mounted by then; never list a route as "coming". Document what `grep` finds mounted (Task 0).
 **Owner decisions:** D1 (b) raw ZIP not kept, D6 (b) app-owned temp file, D7 (b) not in patient export. The docs state whatever is signed; the defaults are drafted here.
 **Size target:** S, ~200 lines of diff, one L1 PR, no code and no tests added (collected count unchanged).
 

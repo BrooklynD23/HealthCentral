@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-10-13
 **Owner:** repository owner
-**Status:** PROPOSED — not executed (code waits for program M0, WEAR-01 merged, and owner decision D8 signed on the §Copy table).
+**Status:** PROPOSED — not executed (code waits for program M0, WEAR-01 merged, ; §Copy approved by WEAR-D8 (owner, 2026-10-14; commit `c53ba44`, PR #92): "Approve drafts as written (Recommended)", incl. G1-G4).
 **Base measured:** `origin/main` @ `8234990` (frontend files re-read in worktree `hc-wear-plans` @ `a985390`; no frontend file differs from the base).
 **Refresh trigger:** WEAR-01 changes the shape of `GET /wearables/status`; D6 is answered "(a)"; OD-8 (legal read) lands; any edit to `App.tsx`, `components/layout/Sidebar.tsx` or `services/index.ts` merges first.
 **Program:** [`2026-10-13-wearables-00-program.md`](2026-10-13-wearables-00-program.md) (§3 flag, §6 row WEAR-10, §9 D6 and D8).
@@ -135,7 +135,7 @@ framer-motion: the Sidebar renders `motion.div` only for the active route, but t
 
 ## Tasks
 
-- [ ] **Task 0 — gates.** `git merge-base --is-ancestor <WEAR-01 merge commit> origin/main` returns 0; D8 row signed in `docs/capstone-report/owner-decisions-*.md`; this plan file present; `curl`/read of WEAR-01's merged `api/wearables.py` confirms the status body is `{"enabled": bool}`. If any fails, stop. Record the frontend test baseline on Windows: `cd src/frontend && npx vitest run` (paste the totals line).
+- [ ] **Task 0 — gates.** `git merge-base --is-ancestor <WEAR-01 merge commit> origin/main` returns 0; WEAR-D8 row (approved as written) on `origin/main` in `docs/capstone-report/owner-decisions-*.md`; this plan file present; `curl`/read of WEAR-01's merged `api/wearables.py` confirms the status body is `{"enabled": bool}`. If any fails, stop. Record the frontend test baseline on Windows: `cd src/frontend && npx vitest run` (paste the totals line).
 - [ ] **RED.** Create `__tests__/WearablesShell.test.tsx` (HC-WRB-1001..1007) importing the not-yet-existing modules. Run on Windows: `cd src/frontend && npx vitest run src/__tests__/WearablesShell.test.tsx`. Expected: suite fails on unresolved imports; after stubbing empty modules, 1003, 1004 (positive half), 1006, 1007 fail on assertions. Paste both outputs.
 - [ ] **GREEN 1.** `services/wearables.ts` (hook, `retry: false` on the query so a 404/500 settles fast), barrel export. 1001 passes.
 - [ ] **GREEN 2.** `wearablesCopy.ts` (including `GARMIN_EXPORT_READY = false`), `WearablesDisclaimer.tsx`, `WearablesPage.tsx`; copy exactly as §Copy. 1005, 1006 pass.
@@ -179,7 +179,7 @@ Revert the PR. Flag default is off, so no user sees the page before the revert; 
 ## Owner / model-machine items
 
 - **OW-W4** — run vitest and Playwright for this plan on Windows.
-- **OW-W5** — answer D8 (approve §Copy) and D6.
+- None: WEAR-D8 and WEAR-D6 answered 2026-10-14. Any change to an approved string needs the owner again.
 - **OW-W0** — confirm C9-C11 against the real iPhone.
 - **OW-W3** — confirm G2-G3 against the real Garmin account pages (with OM-2).
 - No model-machine items.

@@ -7,7 +7,7 @@
 **Refresh trigger:** any profile migration merges (P6 `013`, G-C1 `014`, AUDIT-ORDER `015`, GAM2 2b); any edit to `core/audit.py`, `core/profile_database.py`, `models/__init__.py`, `api/profiles.py`; the owner answers D1; OM-1 notes change a metric or unit.
 **Program:** [00-program](2026-10-13-wearables-00-program.md) A2, A3, A5, A5b, A8, A11, A12
 **Depends on:** program M0. Runs parallel to WEAR-01 and WEAR-03 (disjoint files except `core/config.py`, which this plan does not touch).
-**Owner decisions it depends on:** D1 recommended default (b): keep only SHA-256 and extracted rows, so there is no raw-ZIP column and no vault path column.
+**Owner decisions it depends on (resolved):** WEAR-D1 (owner, 2026-10-14; commit `c53ba44`, PR #92): "(b) Hash + extracted rows only (Recommended)" — no raw-ZIP column, no vault path column. WEAR-D4 (owner, 2026-10-14; commit `c53ba44`, PR #92): "(a) Per-path cap; approve both diffs as planned (Recommended)" — the `core/audit.py` vocabulary + `log_wearable_event` diff in this plan is approved **exactly as written**; any deviation during implementation needs a new owner question.
 **Size target:** M, about 350 lines of diff (about 150 product, 200 test). If the audit vocabulary plus models push past 400, split the audit part into WEAR-02b and say so in the PR.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:test-driven-development, then superpowers:subagent-driven-development. Domain skill for backend work: `asclexis-backend`. Steps use `- [ ]` checkboxes.
@@ -194,6 +194,7 @@ Test IDs `HC-WRB-2NN`. Route tests go through HTTP; isolation and absence tests 
 | HC-WRB-213 | guard | same call plus `filename`, `source_name`, `value`, `local_date`, and `vendor="Jane's Apple Watch"` (has spaces): the 4 extra keys dropped, the spaced vendor dropped, counts kept; `_scrub_action` keeps all 4 new action strings | keys/actions missing |
 | HC-WRB-214 | guard | static import guard: for each file in the watch list, `find_wearable_imports(source) == allowed[file]`, where `allowed = {"api/export.py": set(), ...}` and every other file maps to `set()`. Detects `import models.wearable`, `from models.wearable import X`, `from models import WearableImport` (any of the 3 names), `from . import wearable`, and `from models import *`. Self-test in the same file: a literal source string that imports the model makes the checker return a non-empty set (the guard can fail) | module absent |
 | HC-WRB-215 | guard | watch list is exactly `api/observations.py`, `modules/rag.py`, `modules/timeline.py`, `api/export.py`; each file exists (a rename must fail the test, not silently shrink it) | file list absent |
+| HC-WRB-216 | guard | `log_wearable_event` with a poisoned details dict writes a row whose scrubbed details keep only the reserved keys; **and** HC-AUD-004 (`tests/test_audit_phi_minimization.py:140-185`) gains a `log_wearable_event` row whose 4 events all map to registered actions | helper missing / unregistered action |
 
 Research mapping: covers research HC-WRB-014 in part (schema and cross-profile uniqueness in HC-WRB-207; the HTTP isolation half is WEAR-06/07); supports HC-WRB-015 (count). WEAR-09 later changes `allowed["api/export.py"]` to `{"WearableDailyMetric", "WearableMetricReview", "WearableImport"}`-only-for-the-packet-path: it must edit the allow-list in the same PR and add a second test that `_fetch_observations` source does not mention the wearable names. That edit is WEAR-09's, not this plan's.
 
@@ -204,7 +205,7 @@ Research mapping: covers research HC-WRB-014 in part (schema and cross-profile u
 - [ ] 0.1 `git fetch origin && git merge-base --is-ancestor 8234990 origin/main`. Exit 0.
 - [ ] 0.2 Program M0 met; plan set approved; `docs/plans/2026-10-13-wearables-02-contract-migration.md` on the branch.
 - [ ] 0.3 Read the head: `ls src/backend/migrations/profile/versions | sort | tail -3` and `grep -n "^revision\|^down_revision" ` on the newest file. Choose `0NN = head + 1`. Write it at the top of the PR description. If any of 013/014/015 is open, check whether it renumbered.
-- [ ] 0.4 D1 is answered (b) or unanswered (build (b)); if the owner chose (a), STOP: this plan has no raw-file column and the vault path is ask-first territory.
+- [ ] 0.4 Rows WEAR-D1 and WEAR-D4 are on `origin/main` (PR #92). The `core/audit.py` diff written matches this plan exactly; any difference → STOP and ask the owner.
 - [ ] 0.5 `git grep -n "wearable" src/backend` is empty apart from WEAR-01 files. Start count N: `python -m pytest tests/ --collect-only -q -p no:cacheprovider | tail -1`.
 - [ ] 0.6 Branch `feat/wear-02-contract-migration`.
 
@@ -280,4 +281,4 @@ Revert the PR. For a database that already ran the migration, `alembic downgrade
 
 ## 13. Owner and model-machine items
 
-None new. D1 (OW-W5) must be answered before Task 0.4 passes; OW-W0 (OM-1 notes) may change enum values or units before merge.
+None new. WEAR-D1 and WEAR-D4 are answered (2026-10-14); OW-W0 (OM-1 notes) may change enum values or units before merge.

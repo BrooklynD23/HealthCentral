@@ -7,7 +7,7 @@
 **Refresh trigger:** WEAR-06 merges (re-read the review-stub rule and the gated router); WEAR-02 changes the audit vocabulary; owner answers D3.
 **Program:** [00-program](2026-10-13-wearables-00-program.md) (A2, A4, A5, A5b, A12)
 **Depends on:** WEAR-06 (imports + review stubs exist), WEAR-05 (`describe()`), WEAR-02 (models, audit vocabulary).
-**Owner decisions it builds:** D3 (minimum 7 days, display flag only).
+**Owner decisions it builds:** D3 resolved — WEAR-D3 (owner, 2026-10-14): 14 days (display flag only).
 **Size target:** ~330 lines of non-test diff, one L1 PR.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:test-driven-development, with superpowers:subagent-driven-development. Domain skill: `asclexis-backend`.
@@ -50,7 +50,7 @@
 |---|---|---|---|
 | `src/backend/api/wearables.py` | edit | four routes + Pydantic bodies | +190 |
 | `src/backend/modules/wearables/summary.py` | new | pure `summarize_metric(rows) -> dict` using `describe()` | +50 |
-| `src/backend/core/config.py` | edit | `wearables_min_days: int = 7` (D3) | +1 |
+| `src/backend/core/config.py` | edit | `wearables_min_days: int = 14` (WEAR-D3) | +1 |
 | `tests/test_wearables_review.py` | new | tests below | +330 |
 
 ## 4. Ask-first files touched
@@ -74,7 +74,7 @@ Rules:
 
 Summary per metric: `{metric, days_with_data, median, p25, p75, min, max, unit, device_classes[], days_with_duplicate_sources, days_with_tz_change, below_minimum_days, reviewed, include_in_packet, patient_reviewed_at}`. Import-level: `{import_id, first_local_date, last_local_date, records_read, records_skipped, skipped: {reason: count}}`. No `mean`, no `average`, no `source_name`.
 
-`below_minimum_days` = `days_with_data < settings.wearables_min_days` (7). It is a display flag only; nothing is hidden here.
+`below_minimum_days` = `days_with_data < settings.wearables_min_days` (14). It is a display flag only; nothing is hidden here.
 
 Delete: `204`. Order: reviews → metrics → import (explicit; `PRAGMA foreign_keys` is off). Audit `count` = metric rows deleted.
 
@@ -90,7 +90,7 @@ IDs `HC-WRB-7NN`, file `tests/test_wearables_review.py`, all through `route_clie
 | HC-WRB-702 | A has 2 imports, B has 1; list as B returns exactly B's id (compare returned ids to seeded ids) | route absent |
 | HC-WRB-703 | seeded values for one metric → `median`, `p25`, `p75`, `min`, `max`, `days_with_data` equal hand-computed numbers; response JSON has no key `mean` or `average` (F1) | route absent |
 | HC-WRB-704 | `device_classes` ⊆ closed enum; the string of a seeded `source_name` ("Jane's Apple Watch") is absent from the summary body | route absent |
-| HC-WRB-705 | 6 days → `below_minimum_days` true; 7 days → false (boundary) | no flag |
+| HC-WRB-705 | 13 days → `below_minimum_days` true; 14 days → false (boundary) | no flag |
 | HC-WRB-706 | summary of another profile's id → 404, body holds no value or date | route absent |
 | HC-WRB-707 | PUT reviewed+include → row has `patient_reviewed_at` not NULL and `include_in_packet` True (read back from DB) | route absent |
 | HC-WRB-708 | PUT include without reviewed → 422; DB row unchanged | no rule |
@@ -110,7 +110,7 @@ Collected = start + 17. Update CLAUDE.md and AGENT.md count slots in the same co
 
 ### Task 0 — gates
 - [ ] `git merge-base --is-ancestor <WEAR-06 merge commit> origin/main`. STOP if not.
-- [ ] Plan file present. D3 default (7) is the only decision used; no gate beyond WEAR-06.
+- [ ] Plan file present. WEAR-D3 (14) is the only decision used; no gate beyond WEAR-06.
 - [ ] Re-read WEAR-06's merged code: review-stub creation, response shapes, helper names. Confirm WEAR-02 reserved the view/review/delete actions and the `import_id`/`vendor` string keys (no `metric`: Codex plans R2-6, audit minimisation) (`core/audit.py:36`, `:69`). If not, STOP and fix WEAR-02 first.
 - [ ] Confirm `describe()` signature and method (inclusive quantiles or nearest rank); HC-WRB-703 numbers must use the same method.
 

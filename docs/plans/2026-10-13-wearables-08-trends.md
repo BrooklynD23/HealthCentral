@@ -2,12 +2,12 @@
 
 **Last Updated:** 2026-10-13
 **Owner:** repository owner
-**Status:** PROPOSED — not executed (code waits for program M0, WEAR-07 and WEAR-10 merged, D3 and D8 answered).
+**Status:** PROPOSED — not executed (code waits for program M0, WEAR-07 and WEAR-10 merged, D3 and D8 answered; NOTE: WEAR-D8 (owner, 2026-10-14; commit `c53ba44`, PR #92) approved the drafts in plans 10 and 09 only — this plan's strings still need owner copy approval, OW-W8).
 **Base measured:** `origin/main` @ `8234990` (files re-read in worktree `hc-wear-plans` @ `a985390`).
 **Refresh trigger:** WEAR-05 changes `describe()`; WEAR-07 changes the review state names; WEAR-02 changes the audit vocabulary or the model fields; D3 is answered with a number other than 7; any edit to `api/__init__.py`, `services/index.ts` or `App.tsx` merges first.
 **Program:** [`2026-10-13-wearables-00-program.md`](2026-10-13-wearables-00-program.md) (§4 A3, A4, A5, A5b; §5 M3; §6 row WEAR-08).
-**Depends on:** WEAR-07 (reviewed rows exist; it adds `wearables_min_days: int = 7` to `core/config.py`, which this plan reuses and does not re-add) **and** WEAR-10 (page shell, hook file, copy file), per amendment 6. Also uses WEAR-02 (models, audit vocabulary, static guard) and WEAR-05 (`describe()`).
-**Owner decisions it depends on:** **D3** default 7 minimum days; **D8** copy (§Copy P-strings).
+**Depends on:** WEAR-07 (reviewed rows exist; it adds `wearables_min_days: int = 14` to `core/config.py`, which this plan reuses and does not re-add) **and** WEAR-10 (page shell, hook file, copy file), per amendment 6. Also uses WEAR-02 (models, audit vocabulary, static guard) and WEAR-05 (`describe()`).
+**Owner decisions it depends on:** **D3** resolved — WEAR-D3 (owner, 2026-10-14): 14 days, coverage line kept; **D8** copy (§Copy P-strings).
 **Size target:** M. Honest estimate **about 600 lines** (backend about 130 code and 300 tests; frontend about 170 code and 200 tests), above the ~400 line L1 target. Recommended: two PRs, **08-backend** (Tasks 1-4) then **08-frontend** (Tasks 5-7). See Questions.
 
 > For agentic workers: use superpowers:test-driven-development and superpowers:subagent-driven-development; domain skill `asclexis-backend` for the backend part. Backend tests run in WSL or Windows. **Frontend checks (tsc, vitest, Playwright) run on Windows only**: vitest stalls on `/mnt/c/` under WSL (OW-W4). Nothing in this file has been run.
@@ -81,7 +81,7 @@ Reads WEAR-02 tables `wearable_daily_metrics`, `wearable_metric_reviews`, `weara
 | `from`, `to` | ISO dates, inclusive. Both optional. Default `to` = latest eligible `local_date` for the metric; default `from` = `to` − 89 days. `from` > `to` or window > 1830 days → 422. No host clock is used. |
 
 Response:
-- `metric`, `unit`, `from`, `to`, `window_days` (M), `days_with_data` (N), `min_days` (= `settings.wearables_min_days`, default 7), `latest_date` (or null)
+- `metric`, `unit`, `from`, `to`, `window_days` (M), `days_with_data` (N), `min_days` (= `settings.wearables_min_days`, WEAR-D3 = 14), `latest_date` (or null)
 - `suppression`: `null`, `"no_reviewed_data"` (N = 0) or `"below_minimum_days"` (0 < N < `min_days`)
 - `summary`: `{median, p25, p75, min, max}` from `describe()` (WEAR-05), or null when suppressed
 - `points`: `[{local_date, value, tz_changed, device_class}]`, or `[]` when suppressed
@@ -122,7 +122,7 @@ Backend: pytest, `src/backend/tests/test_wearables_select.py` (801-804) and `tes
 | HC-WRB-806 | import with 10 days, review row absent: `days_with_data` 0, `suppression` `no_reviewed_data`, `points == []`; after setting `patient_reviewed_at` the 10 values appear | route missing |
 | HC-WRB-807 | reviewed import A (days 1-10) and newer reviewed import B (days 5-14, different values): days 5-10 show B's values; delete B's metrics, reviews, then import (children first, A5b / amendment 3) and A's values for days 5-10 return | route missing |
 | HC-WRB-808 | profile B's request returns `days_with_data` 0 and no value from A's sentinel fixtures (A: 61.0, B: 58.0); also, rows with a foreign `profile_id` seeded into the same DB are not returned | route missing |
-| HC-WRB-809 | boundary: 6 days → `below_minimum_days`, `summary` null, `points == []`; 7 days → not suppressed | route missing |
+| HC-WRB-809 | boundary: 13 days → `below_minimum_days`, `summary` null, `points == []`; 14 days → not suppressed | route missing |
 | HC-WRB-810 | 30-day window, 12 days with data: `window_days` 30, `days_with_data` 12; rows dated `from` and `to` included, one day outside each excluded | route missing |
 | HC-WRB-811 | outlier fixture [49,50,50,51,51,52,90]: median 51, min 49, max 90, p25/p75 equal `describe()` output; adding the outlier does not move the median; response JSON has none of the keys `mean`, `average`, `avg` at any depth | route missing |
 | HC-WRB-812 | 422 for unknown `metric`, missing `metric`, `from` > `to`, window of 1831 days | route missing |
@@ -196,6 +196,6 @@ Revert the PR(s). The route disappears (404 as when the flag is off); no migrati
 ## Owner / model-machine items
 
 - **OW-W4** — vitest and Playwright on Windows.
-- **OW-W5** — answer D3 and D8.
+- **OW-W8** — owner copy approval for this plan's strings (WEAR-D8 named only plans 10 and 09).
 - **OW-W1** — dogfood the panel on the real export.
 - No model-machine items.

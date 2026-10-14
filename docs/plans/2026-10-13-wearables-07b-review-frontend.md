@@ -2,12 +2,12 @@
 
 **Last Updated:** 2026-10-13
 **Owner:** repository owner
-**Status:** PROPOSED — not executed (code waits for program M0, WEAR-07 and WEAR-10 merged, D8 signed on the §Copy table).
+**Status:** PROPOSED — not executed (code waits for program M0, WEAR-07 and WEAR-10 merged, D8 signed on the §Copy table; NOTE: WEAR-D8 (owner, 2026-10-14; commit `c53ba44`, PR #92) approved the drafts in plans 10 and 09 only — this plan's strings still need owner copy approval, OW-W8).
 **Base measured:** `origin/main` @ `8234990` (files re-read in worktree `hc-wear-plans` @ `a985390`).
 **Refresh trigger:** WEAR-06 or WEAR-07 change a route path, body or response field; WEAR-10 changes `wearablesCopy.ts` or the page shell; D6 or D8 answers change the copy; any edit to `services/api.ts`, `services/index.ts` or `App.tsx` merges first.
 **Program:** [`2026-10-13-wearables-00-program.md`](2026-10-13-wearables-00-program.md) (§4 A4, A5, A5b; §6 row WEAR-07b).
 **Depends on:** WEAR-07 (list, summary, review, delete routes) and WEAR-10 (page shell, `services/wearables.ts`, `wearablesCopy.ts`, barrel edit). Wave WC, serial after WEAR-07 and WEAR-10.
-**Owner decisions it depends on:** D8 (copy), D3 default 7 (only as the backend's `below_minimum_days` flag; the number is not hard-coded in the UI), D1 default (b) (no stored ZIP, so no download link anywhere).
+**Owner decisions it depends on:** D8 (copy), WEAR-D3 = 14 days (only as the backend's `below_minimum_days` flag; the number is not hard-coded in the UI), D1 default (b) (no stored ZIP, so no download link anywhere).
 **Size target:** M, about 350 lines of diff (about 170 code, 180 tests).
 
 > For agentic workers: use superpowers:test-driven-development and superpowers:subagent-driven-development. Frontend only. Frontend checks run **on Windows only** (vitest stalls on `/mnt/c/` under WSL). Nothing in this file has been run.
@@ -184,6 +184,6 @@ Revert the PR. The shell from WEAR-10 remains (with its placeholder). Backend da
 ## Owner / model-machine items
 
 - **OW-W4** — run vitest and Playwright for this plan on Windows.
-- **OW-W5** — answer D8 (R-table).
+- **OW-W8** — owner copy approval for this plan's strings (WEAR-D8 named only plans 10 and 09).
 - **OW-W1** — dogfood the screen with the real export.
 - No model-machine items.

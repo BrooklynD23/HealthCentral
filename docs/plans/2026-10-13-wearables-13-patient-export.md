@@ -2,12 +2,12 @@
 
 **Last Updated:** 2026-10-13
 **Owner:** repository owner
-**Status:** PROPOSED — not executed. Gated on owner decision D7. Recommended default is (b) "not in MVP": with that answer this plan stays unexecuted.
+**Status:** PROPOSED — not executed. In the MVP (wave WD, before milestone M4) after **WEAR-D7** (owner, 2026-10-14; commit `c53ba44`, PR #92): **"(a) Add to /export/json now"**. Code waits for program M0 and WEAR-09a.
 **Base measured:** `origin/main` @ 8234990
-**Refresh trigger:** owner answers D7; WEAR-09 merges (shared `api/export.py`); any edit to `api/export.py` or `modules/export.py`; WEAR-02 changes the table contract.
-**Program:** [00-program](2026-10-13-wearables-00-program.md) (A3, D7, milestone M6)
+**Refresh trigger:** WEAR-09 merges (shared `api/export.py`); any edit to `api/export.py` or `modules/export.py`; WEAR-02 changes the table contract.
+**Program:** [00-program](2026-10-13-wearables-00-program.md) (A3, D7, milestone M4)
 **Depends on:** WEAR-02 (tables, static guard), WEAR-09 (also edits `api/export.py`; serialise after it).
-**Owner decisions it depends on:** D7. This plan builds option (a) only: add a block to `GET /export/json`. It does not build a new route.
+**Owner decisions it depends on:** **WEAR-D7** (owner, 2026-10-14; commit `c53ba44`, PR #92): **"(a) Add to /export/json now"** — resolved. This plan builds exactly that: add a block to `GET /export/json`. It does not build a new route.
 **Size target:** ~150 lines of non-test diff, one L1 PR.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:test-driven-development, with superpowers:subagent-driven-development. Domain skill: `asclexis-backend`.
@@ -110,7 +110,7 @@ Collected = start + 12 (1301 is new but green before the change; it still adds t
 ## 7. Tasks
 
 ### Task 0 — gates
-- [ ] D7 answered **(a)** in the owner-decisions file. If (b) or unanswered: STOP; this plan is not licensed.
+- [ ] Row WEAR-D7 is on `origin/main` (PR #92 merged). If not: STOP.
 - [ ] `git merge-base --is-ancestor <WEAR-02 commit> origin/main` and `<WEAR-09 commit> origin/main`. STOP if either fails (shared file `api/export.py`).
 - [ ] Plan file present. Re-read `api/export.py:963-1015` on the new base; the line numbers above may have moved after WEAR-09.
 - [ ] Confirm the owner accepts the opt-in query parameter and object envelope (Question 1 in the report). If the owner wants the object always, add a deprecation step for list consumers first; that is a larger plan.
@@ -158,4 +158,4 @@ Revert the PR. The default response never changed, so no consumer is affected. N
 
 ## 12. Owner / model-machine items
 
-OW-W5: answer D7. If (a), the owner also confirms the opt-in parameter. None else.
+Owner follow-up: confirm the opt-in `?include_wearables=true` envelope (the default `/export/json` response stays a bare list, `modules/export.py:267-288`, `tests/test_export_api.py:144-149`). Symptom-journal entries are not in this block; whether they join `/export/json` is an open owner follow-up (WEAR-15).

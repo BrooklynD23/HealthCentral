@@ -2,12 +2,24 @@
 
 **Last Updated:** 2026-10-13
 **Owner:** repository owner
-**Status:** PROPOSED — not executed. Code waits for program M0, M4 (Apple slice done), **OM-2 notes committed** and **D5 answered**.
+**Status:** PROPOSED — not executed. Code waits for program M0, M4 (Apple slice done) and **OM-2 notes committed**; 11b also waits for the **FIT licence read (OW-W7)**. D5 is resolved (WEAR-D5, below).
 **Base measured:** `origin/main` @ `8234990`. Product-code lines below were re-read on the planning tree (`a985390`, docs-only ahead of the base) on 2026-10-13.
 **Refresh trigger:** OM-2 notes land (fill the table in §3); WEAR-03/04/05 merge (record shape may differ from §6); D5 answer changes; any edit to `modules/wearables/`.
 **Program:** [`2026-10-13-wearables-00-program.md`](2026-10-13-wearables-00-program.md) (A8, A9, R2, wave WE).
 **Depends on:** WEAR-03 (`timeparse.py`), WEAR-04 (`apple.py`: guard helpers and normalized-record shape), WEAR-05 (`aggregate.py`). All three are PLANNED, not existing. Gate: OM-2.
-**Owner decisions it depends on:** **D5** default (a): JSON wellness files only, stdlib, **no FIT**, no new dependency. FIT licence ("internal business use") is OM-7 / OD-8 and stays open; this plan does not touch it.
+**Owner decisions it depends on:** **WEAR-D5** (owner, 2026-10-14; commit `c53ba44`, PR #92): **"(b) garmin-fit-sdk after licence read"** — not the recommendation. See §0. **WEAR-D4** does not cover `requirements.txt`; the dependency pin is listed for owner sight in 11b.
+
+## 0. Amendment after WEAR-D5 (2026-10-14) — supersedes conflicting text below
+
+The plan now ships as two PRs from this file:
+
+- **11a — JSON parser (unchanged from the text below).** JSON stays the path for every in-scope metric that OM-2 shows in JSON. FIT members are still counted `fit_not_supported` in 11a.
+- **11b — FIT path for metrics absent from JSON.** Only for an in-scope metric (resting HR, sleep, steps) that OM-2 shows exists **only** in FIT files. If OM-2 shows all three in JSON, 11b is not built and FIT stays counted-and-skipped.
+  - **Gate:** OW-W7 licence read done and recorded as an owner-decisions row (`WEAR-FIT-LIC`) saying an open-source, pip-installed dependency on `garmin-fit-sdk` is acceptable. A "no" stops 11b; 11a stands alone.
+  - **Dependency:** add `garmin-fit-sdk==<exact version>` to `src/backend/requirements.txt`, pinned with `==` (never a range), the version chosen at Task 0 from PyPI, at least two weeks old, and recorded with its licence file hash in the PR. One new file imports it: `modules/wearables/garmin_fit.py`. Program A8 (stdlib-only parsers) gets this one named exception; an AST guard (HC-WRB-1118) asserts no other module imports `garmin_fit_sdk`.
+  - **Local-only:** decode from bytes already read through `_zipguard.py` caps (per-member FIT byte cap, default 64 MiB, sized from OM-2). HC-WRB-1119 monkeypatches `socket.socket` and `socket.create_connection` to raise during a full FIT parse and asserts the parse still succeeds (no network). HC-WRB-1120 asserts FIT-derived records use the same normalized record shape and `device_class="garmin_device"`.
+  - **Same rules:** WEAR-03 offsets/local dates (FIT timestamps are UTC seconds since 1989-12-31 plus a local-time offset field where present — INFERRED, OM-2 confirms); WEAR-05 aggregation; no FIT field outside the 3 metrics is read or stored.
+  - **Owner sight:** the exact `requirements.txt` line is shown in the 11b PR body for the owner; it is a new dependency, not an ask-first file.
 **Size target:** M, ~400 diff lines (parser ~180, tests ~220).
 
 > For agentic workers: use superpowers:test-driven-development and superpowers:subagent-driven-development; domain skill `asclexis-backend`. RED first, log the failure.
@@ -21,10 +33,10 @@ Does:
 - Count FIT members as skipped `fit_not_supported`; count every out-of-scope file as `metric_not_in_scope`. Neither is opened.
 
 Does NOT:
-- No FIT decoding, no `garmin-fit-sdk`, no new dependency (D5 b/c are separate plans).
+- 11a: no FIT decoding, no new dependency. FIT decoding is 11b only (§0).
 - No stress, HRV, SpO2, Body Battery, respiration, heart-rate samples (program non-goals; F5).
 - No route, DB, aggregation or vendor detection (WEAR-12 / WEAR-05).
-- No guessing a layout. If OM-2 does not show all three metrics as JSON, STOP and ask (D5 "revisit only if OM-2 shows the 3 metrics are FIT-only").
+- No guessing a layout. A metric that OM-2 shows only in FIT goes to 11b (§0), not into the JSON parser.
 - No claim that any real Garmin export matches the fixtures (R2, program §11).
 
 ## 2. Evidence
@@ -112,6 +124,9 @@ Fixtures are built in a helper from a `LAYOUT` dict whose values come from §3. 
 | HC-WRB-1115 | Unknown timestamp format → `timestamp_invalid` skip, row not guessed | absent |
 | HC-WRB-1116 | TZ env patched to `Pacific/Kiritimati` and `America/Los_Angeles`: identical records (host tz never used) | absent |
 | HC-WRB-1117 | valid synthetic Garmin export generated at the production default caps (members just under `max_json_member_bytes`): consuming the yielded records keeps `tracemalloc` peak < 256 MB (ceiling recorded at Task 0 from OM-2 sizes) | records collected into a list or `json.loads` on an uncapped member → peak over ceiling |
+| HC-WRB-1118 | (11b) AST scan of `src/backend`: only `modules/wearables/garmin_fit.py` imports `garmin_fit_sdk` | second importer added |
+| HC-WRB-1119 | (11b) `socket.socket` and `socket.create_connection` patched to raise; a synthetic FIT member decodes to records without error (local-only) | SDK call opens a socket |
+| HC-WRB-1120 | (11b) FIT-derived records have exactly the WEAR-03 record keys, `device_class="garmin_device"`, and only in-scope metrics; a FIT member above the byte cap is refused before decode | shape mismatch / uncapped read |
 
 Covers research HC-WRB-001 (partly), 005, 006 for the Garmin path. Tests 1108/1109/1110/1111 are the key hostile set.
 
@@ -120,7 +135,7 @@ Covers research HC-WRB-001 (partly), 005, 006 for the Garmin path. Tests 1108/11
 - [ ] **Task 0 (gate, STOP if any fails)**
   1. `git fetch origin && git merge-base --is-ancestor <WEAR-04 merge commit> origin/main`; same for WEAR-03, WEAR-05.
   2. Find the committed OM-2 notes: `git grep -n -i "OM-2" -- docs | grep -v "wearables-1[12]\|wearables-00\|research/2026-10-12\|reviews/"`. **If no OM-2 notes document (with §3 items answered) exists in the repo, STOP.** Report "OM-2 notes absent" to the orchestrator and write no code. `TASK_LIST.md:100` is a queue row, not notes.
-  3. Confirm D5 is answered (a) in the owner decisions file. If the owner picked (b)/(c), STOP: this plan does not cover them.
+  3. Confirm row WEAR-D5 is on `origin/main` (PR #92). 11a proceeds; 11b additionally needs row `WEAR-FIT-LIC` (OW-W7).
   4. Copy the OM-2 answers into §3's last column in this file (same PR). If any metric is FIT-only, STOP and ask.
   5. Read `modules/wearables/apple.py` and `aggregate.py`; align §6 shape. Record the real signatures here.
   6. Baseline: `cd src/backend && python -m pytest --collect-only -q | tail -1`; note the count.
@@ -140,7 +155,7 @@ Covers research HC-WRB-001 (partly), 005, 006 for the Garmin path. Tests 1108/11
 ## 10. Acceptance criteria
 
 - Target file: 16 passed, command and output pasted.
-- Full suite: collected count = start + 17, output pasted; failures limited to the known embedding test, named.
+- Full suite: collected count = start + 17 for 11a; 11b adds 3 (HC-WRB-1118..1120), output pasted; failures limited to the known embedding test, named.
 - `git diff --stat` shows only the §4 files plus count slots.
 - §3 last column filled from OM-2 in the same PR.
 
@@ -159,5 +174,5 @@ Delete `garmin.py` and its test file; nothing imports them until WEAR-12. Revert
 ## 13. Owner / model-machine items
 
 - **OW-W3** (OM-2): blocks this plan. Note `docs/features/TASK_LIST.md:100` still bundles OM-2 with the dropped Samsung OM-3; WEAR-14 or the orchestrator should split it.
-- **OW-W5**: D5 answer.
-- OM-7 legal read (FIT licence) stays open; not needed for the JSON-only path but needed before public distribution.
+- **OW-W7** (new, owner): FIT licence read — read the FIT Protocol License (`https://github.com/garmin/fit-python-sdk/blob/main/LICENSE.txt`, research 01 §2) and answer: may this open-source project declare `garmin-fit-sdk` as a pip dependency and be distributed with it? Record the answer as owner-decisions row `WEAR-FIT-LIC`. Blocks 11b only.
+- OM-7 / OD-8 wider legal read (FDA wording, FTC HBNR) stays open before public distribution.

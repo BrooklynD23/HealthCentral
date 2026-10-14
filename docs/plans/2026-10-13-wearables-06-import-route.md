@@ -2,12 +2,12 @@
 
 **Last Updated:** 2026-10-13
 **Owner:** repository owner
-**Status:** PROPOSED — not executed (code waits for program M0, WEAR-01/02/04/05 merged, and owner gates D4 + D6 signed)
+**Status:** PROPOSED — not executed (code waits for program M0, WEAR-01/02/04/05 merged, ; WEAR-D1, WEAR-D4, WEAR-D6 answered 2026-10-14)
 **Base measured:** `origin/main` @ 8234990
 **Refresh trigger:** WEAR-01, 02, 04 or 05 merge (re-read their real function names, Task 0); any edit to `security/input_validator.py`, `core/audit.py`, `core/config.py` or `main.py` lifespan; owner answers D4 or D6.
 **Program:** [00-program](2026-10-13-wearables-00-program.md) (A1, A2, A5b, A9, A10, A12, A13; R4, R6)
 **Depends on:** WEAR-01 (flag + routers), WEAR-02 (models, `validate_summary`, audit vocabulary), WEAR-04 (Apple parser), WEAR-05 (aggregate).
-**Owner decisions it builds:** D1 (b) no raw ZIP kept; D4 (a) per-prefix cap, placeholder 500 MB; D6 (b) app-owned temp file.
+**Owner decisions it builds (resolved (owner, 2026-10-14; commit `c53ba44`, PR #92)):** WEAR-D1 "(b) Hash + extracted rows only (Recommended)"; WEAR-D4 "(a) Per-path cap; approve both diffs as planned (Recommended)" — the §5 `security/input_validator.py` diff is approved **exactly as written**, any deviation needs a new owner question; cap placeholder 500 MB until OM-1; WEAR-D6 "(b) App-owned temp + cleanup (Recommended)".
 **Size target:** ~380 lines of non-test diff, one L1 PR.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:test-driven-development, with superpowers:subagent-driven-development. Domain skill: `asclexis-backend`.
@@ -144,7 +144,7 @@ Collected count = start + 20. Update the CLAUDE.md and AGENT.md count slots in t
 
 ### Task 0 — gates and re-reads
 - [ ] `git fetch origin && git merge-base --is-ancestor <WEAR-01,02,04,05 merge commits> origin/main` — all four. STOP if not.
-- [ ] Owner decisions D4 (a) and D6 (b) signed in `owner-decisions-2026-09-27.md` (or its successor). STOP if not. Section 5 diff signed.
+- [ ] Rows WEAR-D4 and WEAR-D6 are on `origin/main` (PR #92). The diff written to `security/input_validator.py` is byte-for-byte §5 (except the cap value set from OM-1); any other difference → STOP and ask the owner.
 - [ ] `ls docs/plans/2026-10-13-wearables-06-import-route.md` present.
 - [ ] Read the real names: gated router, parser entry point and its refusal exception, aggregate entry point, `validate_summary`, wearable log function, reserved audit actions and keys. Replace every INFERRED name in this plan's commit message, not by guessing.
 - [ ] `git diff --stat` empty on `modules/redaction.py`, `core/auth.py`, `core/security.py`.
@@ -201,4 +201,4 @@ Revert the PR. No migration is added here, so the schema is unchanged. Imported 
 
 ## 13. Owner / model-machine items
 
-OW-W0 (OM-1 notes size the 500 MB placeholder), OW-W2 (200 MB perf smoke), OW-W5 (D4 diff + D6 answers). No model-machine item.
+OW-W0 (OM-1 notes size the 500 MB placeholder), OW-W2 (200 MB perf smoke), (D4, D6 answered 2026-10-14). No model-machine item.
