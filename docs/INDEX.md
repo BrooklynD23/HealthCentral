@@ -1048,6 +1048,142 @@ Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-repor
 
 Links to: `docs/plans/2026-10-04-DDI-doc-delete-interpretation.md`
 
+## `docs/plans/2026-10-13-wearables-00-program.md`
+
+**WEAR — Apple Watch + Garmin Wearable Module — Program Plan**
+
+Owner rows, quoted verbatim from `owner-decisions-2026-09-27.md` lines 148-150. They are direction, not approval of any plan below.
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-13-wearables-01-flag-router.md`, `docs/plans/2026-10-13-wearables-02-contract-migration.md`, `docs/plans/2026-10-13-wearables-03-time-units.md`, `docs/plans/2026-10-13-wearables-04-apple-parser.md`, `docs/plans/2026-10-13-wearables-05-aggregate-dedup.md`, `docs/plans/2026-10-13-wearables-06-import-route.md`, `docs/plans/2026-10-13-wearables-07-review-backend.md`, `docs/plans/2026-10-13-wearables-07b-review-frontend.md`, `docs/plans/2026-10-13-wearables-08-trends.md`, `docs/plans/2026-10-13-wearables-09-packet.md`, `docs/plans/2026-10-13-wearables-10-ui-shell-disclaimer.md`, `docs/plans/2026-10-13-wearables-11-garmin-parser.md`, `docs/plans/2026-10-13-wearables-12-garmin-wiring.md`, `docs/plans/2026-10-13-wearables-13-patient-export.md`, `docs/plans/2026-10-13-wearables-14-docs.md`, `docs/plans/2026-10-13-wearables-tickets.md`, `docs/research/2026-10-12/00-README.md`, `docs/reviews/2026-10-13`, `docs/reviews/2026-10-13/WEAR-00-program-fable-response.md`, `docs/reviews/2026-10-13/WEAR-00-program-fable.md`, `docs/reviews/2026-10-13/WEAR-RESEARCH-codex.md`, `docs/reviews/2026-10-13/WEAR-RESEARCH-response.md`
+
+## `docs/plans/2026-10-13-wearables-01-flag-router.md`
+
+**WEAR-01 — Feature Flag, Status Route and Router Skeleton — Implementation Plan**
+
+- Add `wearables_enabled: bool = False` to `Settings`. - Add `api/wearables.py` with two routers on the same prefix: `status_router` (ungated, `GET /status`) and `router` (gated by…
+
+Links to: `docs/plans/2026-10-13-wearables-00-program.md`
+
+## `docs/plans/2026-10-13-wearables-02-contract-migration.md`
+
+**WEAR-02 — Data Contract, Profile Migration and Shared Registries — Implementation Plan**
+
+- Add `models/wearable.py` (3 models), register them, add one profile migration. - Add pure `modules/wearables/contract.py::validate_summary`. - Reserve the whole audit vocabulary for the wearables…
+
+Links to: `docs/plans/2026-10-13-wearables-00-program.md`
+
+## `docs/plans/2026-10-13-wearables-03-time-units.md`
+
+**WEAR-03 — Timestamp, Offset and Unit Normalization — Implementation Plan**
+
+**Goal.** Two tiny pure modules that every parser and the aggregator share: `timeparse.py` turns a vendor timestamp string into a timezone-aware `datetime` that keeps the record's own offset, and…
+
+Links to: `docs/plans/2026-10-13-wearables-00-program.md`
+
+## `docs/plans/2026-10-13-wearables-04-apple-parser.md`
+
+**WEAR-04 — Apple Export Parser (Streaming, Guarded) — Implementation Plan**
+
+**Goal.** Take a binary file object holding an Apple Health export ZIP and yield normalized records for three metrics (resting heart rate, sleep asleep intervals, steps), counting everything else as…
+
+Links to: `docs/plans/2026-10-13-wearables-00-program.md`
+
+## `docs/plans/2026-10-13-wearables-05-aggregate-dedup.md`
+
+**WEAR-05 — Daily Aggregation, Dedup and Multi-Device Overlap — Implementation Plan**
+
+**Goal.** One pure module turns a stream of normalized records into `wearable-summary` v1 rows (one value per vendor, metric and local day) and offers `describe(values)` for the read-time…
+
+Links to: `docs/plans/2026-10-13-wearables-00-program.md`
+
+## `docs/plans/2026-10-13-wearables-06-import-route.md`
+
+**WEAR-06 — Import Route, Persistence, Audit, Size Cap — Implementation Plan**
+
+- `POST /api/v1/wearables/imports`: the client sends the Apple Health ZIP as the raw request body (`Content-Type: application/zip`). No multipart. - Stream the body to…
+
+Links to: `docs/plans/2026-10-13-wearables-00-program.md`
+
+## `docs/plans/2026-10-13-wearables-07-review-backend.md`
+
+**WEAR-07 — Review Queue and Delete Import (Backend) — Implementation Plan**
+
+- `GET /wearables/imports` — this profile's imports, newest first, with review state per metric. - `GET /wearables/imports/{id}/summary` — per metric: days with data, median / p25 / p75 / min / max,…
+
+Links to: `docs/plans/2026-10-13-wearables-00-program.md`
+
+## `docs/plans/2026-10-13-wearables-07b-review-frontend.md`
+
+**WEAR-07b — Review screen — frontend — Implementation Plan**
+
+**Does license** - Upload control (`accept=".zip"`), import list, per-import review table with two toggles per metric, delete-import control. - Hooks in `services/wearables.ts` for list, summary,…
+
+Links to: `docs/plans/2026-10-13-wearables-00-program.md`
+
+## `docs/plans/2026-10-13-wearables-08-trends.md`
+
+**WEAR-08 — Descriptive trends (backend route + frontend panel) — Implementation Plan**
+
+**Does license** - `modules/wearables/select.py::select_current(rows)` — the single A5b read-time selection function. WEAR-08 creates it; WEAR-09 and WEAR-12 reuse it (WEAR-12 changes only the…
+
+Links to: `docs/plans/2026-10-13-wearables-00-program.md`
+
+## `docs/plans/2026-10-13-wearables-09-packet.md`
+
+**WEAR-09 — Visit-Prep Packet Section + Symptom Notes — Implementation Plan**
+
+- Add `include_wearables: bool = False` and `symptom_notes: list[SymptomNote]` (max 5) to `VisitPrepRequest`. - Add a pure renderer `modules/wearables/packet_section.py` that turns reviewed +…
+
+Links to: `docs/plans/2026-10-13-wearables-00-program.md`
+
+## `docs/plans/2026-10-13-wearables-10-ui-shell-disclaimer.md`
+
+**WEAR-10 — Wearables page shell, nav gating, disclaimer copy — Implementation Plan**
+
+**Does license** - `services/wearables.ts` with `useWearablesStatus()` and its barrel export. - A `/wearables` route in `App.tsx` and a Sidebar entry shown only when the status says enabled. - A…
+
+Links to: `docs/plans/2026-10-13-wearables-00-program.md`
+
+## `docs/plans/2026-10-13-wearables-11-garmin-parser.md`
+
+**WEAR-11 — Garmin Export Parser (JSON only) — Implementation Plan**
+
+Does: - Add `src/backend/modules/wearables/garmin.py`, a pure stdlib parser: ZIP in (binary file object), normalized records out, same shape as `apple.py`. - Apply the A9 guards to ZIP and JSON…
+
+Links to: `docs/plans/2026-10-13-wearables-00-program.md`
+
+## `docs/plans/2026-10-13-wearables-12-garmin-wiring.md`
+
+**WEAR-12 — Garmin Wiring + Cross-Vendor Overlap — Implementation Plan**
+
+Does: - Add pure `modules/wearables/detect.py`: `detect_vendor(names) -> "apple" | "garmin" | None | "ambiguous"` from ZIP member names. - In `POST /wearables/imports`, after the temp file is…
+
+Links to: `docs/plans/2026-10-13-wearables-00-program.md`
+
+## `docs/plans/2026-10-13-wearables-13-patient-export.md`
+
+**WEAR-13 — Patient Export of Wearable Rows — Implementation Plan**
+
+- `GET /export/json?include_wearables=true` returns an object with the existing observations and a `wearable_daily_metrics` block (`schema_version: "wdm-1"`). - The block is the profile's own…
+
+Links to: `docs/plans/2026-10-13-wearables-00-program.md`
+
+## `docs/plans/2026-10-13-wearables-14-docs.md`
+
+**WEAR-14 — Docs: API, Privacy, Schema, Task List — Implementation Plan**
+
+- Add a "Wearables" section to `docs/api/endpoints.md` and update the visit-prep row. - Add `docs/api/wearable-summary.md` (the `wearable-summary` v1 schema) and link it from `docs/api/README.md`. -…
+
+Links to: `docs/plans/2026-10-13-wearables-00-program.md`
+
+## `docs/plans/2026-10-13-wearables-tickets.md`
+
+**WEAR — Wearables Module Tickets**
+
+One ticket = one L1 PR (target ≤ ~400 lines of source diff, tests excluded); WEAR-04, WEAR-08 and WEAR-09 are one plan each, two PRs. "Ask-first?" means a file on the CLAUDE.md §1 list is touched;…
+
+Links to: `docs/plans/2026-10-13-wearables-00-program.md`, `docs/plans/2026-10-13-wearables-01-flag-router.md`, `docs/plans/2026-10-13-wearables-02-contract-migration.md`, `docs/plans/2026-10-13-wearables-03-time-units.md`, `docs/plans/2026-10-13-wearables-04-apple-parser.md`, `docs/plans/2026-10-13-wearables-05-aggregate-dedup.md`, `docs/plans/2026-10-13-wearables-06-import-route.md`, `docs/plans/2026-10-13-wearables-07-review-backend.md`, `docs/plans/2026-10-13-wearables-07b-review-frontend.md`, `docs/plans/2026-10-13-wearables-08-trends.md`, `docs/plans/2026-10-13-wearables-09-packet.md`, `docs/plans/2026-10-13-wearables-10-ui-shell-disclaimer.md`, `docs/plans/2026-10-13-wearables-11-garmin-parser.md`, `docs/plans/2026-10-13-wearables-12-garmin-wiring.md`, `docs/plans/2026-10-13-wearables-13-patient-export.md`, `docs/plans/2026-10-13-wearables-14-docs.md`
+
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
 **Project Structure Setup**
@@ -1264,7 +1400,7 @@ Links to: `docs/agentic/recurring-failures.md`, `docs/plans/2026-09-10-implement
 
 Quoted verbatim from the owner-decisions rows held by L0:
 
-Links to: `docs/plans/2026-10-01-packaging-decision.md`, `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-10-12/01-vendor-matrix.md`, `docs/research/2026-10-12/02-implementation-map.md`, `docs/research/2026-10-12/03-architecture-contracts.md`, `docs/research/2026-10-12/04-safety-privacy.md`, `docs/research/2026-10-12/05-mvp-roadmap-tests.md`, `docs/research/2026-10-12/06-decisions-go-nogo.md`
+Links to: `docs/plans/2026-10-01-packaging-decision.md`, `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-10-12/01-vendor-matrix.md`, `docs/research/2026-10-12/02-implementation-map.md`, `docs/research/2026-10-12/03-architecture-contracts.md`, `docs/research/2026-10-12/04-safety-privacy.md`, `docs/research/2026-10-12/05-mvp-roadmap-tests.md`, `docs/research/2026-10-12/06-decisions-go-nogo.md`, `docs/reviews/2026-10-13/WEAR-RESEARCH-response.md`
 
 ## `docs/research/2026-10-12/01-vendor-matrix.md`
 
@@ -1296,7 +1432,7 @@ Links to: `docs/research/2026-10-12/00-README.md`, `docs/research/2026-10-12/02-
 
 The packet is **patient-recorded context**, not clinical measurement. It reports what a consumer device recorded, how much it recorded, and where the data came from. It never interprets, thresholds,…
 
-Links to: `docs/research/2026-10-12/00-README.md`, `docs/research/2026-10-12/01-vendor-matrix.md`
+Links to: `docs/research/2026-10-12/00-README.md`, `docs/research/2026-10-12/01-vendor-matrix.md`, `docs/reviews/2026-10-13/WEAR-RESEARCH-response.md`
 
 ## `docs/research/2026-10-12/05-mvp-roadmap-tests.md`
 
@@ -2283,6 +2419,38 @@ No code changes came out of this review.
 **SQLITE-MIX diff — security review**
 
 Reviewer: security-reviewer subagent (Opus 5.5), read-only, 2026-10-13. Reviewed the diff before the M2 fix and comment correction (see the response file).
+
+## `docs/reviews/2026-10-13/WEAR-00-program-fable-response.md`
+
+**WEAR-00 program plan — response to the Fable review (round 1)**
+
+12 of 12 accepted. No re-run: the next review of this file is the Codex review of the plan set.
+
+Links to: `docs/reviews/2026-10-13/WEAR-00-program-fable.md`
+
+## `docs/reviews/2026-10-13/WEAR-00-program-fable.md`
+
+**WEAR-00 program plan — Fable adversarial review (round 1)**
+
+Reviewer: `Agent` `model: "fable"`, read-only, given the program plan, CLAUDE.md, AGENT.md, orchestration, recurring-failures, owner rows 130-150, the research package and its Codex response.…
+
+Links to: `docs/reviews/2026-10-13/WEAR-00-program-fable-response.md`
+
+## `docs/reviews/2026-10-13/WEAR-RESEARCH-codex.md`
+
+**WEAR-RESEARCH — Codex review of the wearables research package (#87)**
+
+Both outputs below are verbatim stdout+stderr of the commands.
+
+Links to: `docs/reviews/2026-10-13/WEAR-RESEARCH-response.md`
+
+## `docs/reviews/2026-10-13/WEAR-RESEARCH-response.md`
+
+**WEAR-RESEARCH — response to the Codex review**
+
+**Rule applied (L0):** carry accepted findings into the plans; edit the merged research files only where a finding shows a statement is factually wrong, in one separate, labelled commit.
+
+Links to: `docs/reviews/2026-10-13/WEAR-RESEARCH-codex.md`
 
 ## `docs/reviews/README.md`
 
