@@ -842,6 +842,13 @@ async def chat(
                 )
                 agent_failed = True
 
+            # AUDIT-ORDER row 28: agent audit rows were only persisted by
+            # get_db's after-response exit commit. Commit explicitly, outside
+            # the try above so a failure fails the request instead of falling
+            # back to the legacy path.
+            if not agent_failed:
+                await db.commit()
+
         if not use_agent or agent_failed:
             result = await rag.query(
                 question=request.question,

@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
 from core.auth import RequireAuth, Session, ProfileDbSession
-from core.audit import audit_and_commit, create_audit_log
+from core.audit import audit_and_commit, audit_intent, create_audit_log
 from core.time import utcnow
 from models import (
     Observation,
@@ -43,6 +43,7 @@ async def _audit_interpretation(
     entity_type: Optional[str] = None,
     entity_id: Optional[str] = None,
     details: Optional[dict] = None,
+    intent: Optional[str] = None,
 ) -> None:
     """Fail-closed audit row for an interpretation route (CLAUDE.md: audit
     logging on every route that touches observations or profile data).
@@ -51,9 +52,7 @@ async def _audit_interpretation(
     any interpretation text (AUDIT-PHI-001; core.audit scrubs details too).
     """
     event_type = f"interpretation.{event}"
-    await audit_and_commit(
-        master_db,
-        create_audit_log,
+    kwargs = dict(
         event_type=event_type,
         action=event_type,
         profile_id=profile_id,
@@ -61,6 +60,30 @@ async def _audit_interpretation(
         entity_id=entity_id,
         details=details,
     )
+    try:
+        if intent:
+            await audit_intent(master_db, intent, create_audit_log, **kwargs)
+        else:
+            await audit_and_commit(master_db, create_audit_log, **kwargs)
+    except Exception:
+        # AUDIT-ORDER C: ids only, never PHI.
+        logger.error(
+            "AUDIT-ORDER: audit commit failed (event=%s, entity=%s)",
+            event_type, entity_id,
+        )
+        raise
+
+
+# ponytail: check-then-act window (a row may appear/vanish between this read and
+# the module call); accepted for a single-user local app.
+async def _has_interpretation(profile_db: AsyncSession, observation_id: str) -> bool:
+    """True if a LabInterpretation exists (regenerate then deletes it irreversibly)."""
+    res = await profile_db.execute(
+        select(LabInterpretation.id)
+        .where(LabInterpretation.observation_id == observation_id)
+        .limit(1)
+    )
+    return res.first() is not None
 
 router = APIRouter()
 
@@ -391,6 +414,14 @@ async def generate_interpretation(
             detail="Access denied to this observation"
         )
 
+    # AUDIT-ORDER D: regenerate over an existing interpretation is irreversible.
+    started = force_regenerate and await _has_interpretation(profile_db, observation_id)
+    if started:
+        await _audit_interpretation(
+            master_db, "generate", session.profile_id,
+            entity_type="observation", entity_id=observation_id, intent="started",
+        )
+
     # Generate interpretation
     interpret_module = get_interpret_module()
     interp_result = await interpret_module.interpret_observation(
@@ -410,6 +441,7 @@ async def generate_interpretation(
     await _audit_interpretation(
         master_db, "generate", session.profile_id,
         entity_type="observation", entity_id=observation_id,
+        intent="completed" if started else None,
     )
     return InterpretationResponse.from_model(interp_result.interpretation)
 
@@ -444,6 +476,13 @@ async def generate_grounded_interpretation(
             detail="Access denied to this observation",
         )
 
+    started = force_regenerate and await _has_interpretation(profile_db, observation_id)
+    if started:
+        await _audit_interpretation(
+            master_db, "grounded", session.profile_id,
+            entity_type="observation", entity_id=observation_id, intent="started",
+        )
+
     interpret_module = get_interpret_module()
     interp_result = await interpret_module.interpret_observation(
         observation_id=observation_id,
@@ -462,6 +501,7 @@ async def generate_grounded_interpretation(
     await _audit_interpretation(
         master_db, "grounded", session.profile_id,
         entity_type="observation", entity_id=observation_id,
+        intent="completed" if started else None,
     )
 
     rag = get_rag_module()
@@ -767,6 +807,27 @@ async def batch_generate_interpretations(
 
     interpret_module = get_interpret_module()
 
+    # AUDIT-ORDER D: only UUID-shaped ids that already have an interpretation
+    # (regenerate deletes it) reach the audit row.
+    started = False
+    if request.force_regenerate:
+        candidates = [i for i in request.observation_ids if UUID_PATTERN.match(i)]
+        if candidates:
+            res = await profile_db.execute(
+                select(LabInterpretation.observation_id).where(
+                    LabInterpretation.observation_id.in_(candidates)
+                )
+            )
+            existing = set(res.scalars().all())
+            at_risk = [i for i in candidates if i in existing]
+            if at_risk:
+                started = True
+                await _audit_interpretation(
+                    master_db, "batch_generate", session.profile_id,
+                    details={"observation_ids": at_risk, "count": len(at_risk)},
+                    intent="started",
+                )
+
     for obs_id in request.observation_ids:
         try:
             validate_uuid(obs_id, "observation_id")
@@ -818,5 +879,6 @@ async def batch_generate_interpretations(
             "count": len(successful),
             "skipped_count": len(failed),
         },
+        intent="completed" if started else None,
     )
     return BatchInterpretResponse(successful=successful, failed=failed)

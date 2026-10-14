@@ -22,6 +22,7 @@ from fastapi import HTTPException
 
 import api.backup as backup_api
 from core.auth import Session
+from core.sqlcipher_driver import get_sqlcipher_module
 from modules.backup_scheduler import ScheduleRunOutcome, is_due, run_due_backups
 
 
@@ -43,7 +44,9 @@ def data_dir(tmp_path, monkeypatch):
     for pid in ("profile-a", "profile-b"):
         vault = tmp_path / "vaults" / pid
         vault.mkdir(parents=True)
-        conn = sqlite3.connect(vault / "vault.db")
+        # Written with the library the app opens vaults with (BKUP-MIX), so a
+        # byte-for-byte restore check compares like with like.
+        conn = get_sqlcipher_module().connect(str(vault / "vault.db"))
         conn.execute("CREATE TABLE observations (id TEXT)")
         conn.commit()
         conn.close()

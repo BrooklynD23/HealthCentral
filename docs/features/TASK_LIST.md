@@ -1,7 +1,7 @@
 # HealthCentral Remaining Work Task List
 
 **Version:** 0.5.0
-**Last Updated:** 2026-10-07
+**Last Updated:** 2026-10-12
 **Owner:** Project Lead
 **Refresh Trigger:** Task completed or new task identified
 **Scope:** Active remaining work only (implementation baseline already shipped)
@@ -70,6 +70,37 @@ check enforces the three stay identical.
 | `SEC-RECOV-002` | Recovery-code entry point in Settings — the follow-up `SEC-RECOV-001` was left PARTIAL on. `RecoverProfile.tsx` tells the user a recovery code "can only be created while you can still sign in", and no signed-in surface creates one, so the instruction cannot be followed and pre-existing profiles can never obtain a code. Verified 2026-09-08: `issueRecoveryCode` (`services/profiles.ts:60`) and `useIssueRecoveryCode` (`:264`) exist and are exported (`services/index.ts:59`); no page imports either. `has_recovery_code` is already on the profile response (`api/profiles.py:138,149`) to drive Create-vs-Replace wording. | P1 | Plan at [`2026-09-08-backlog-closure-plan.md`](../plans/2026-09-08-backlog-closure-plan.md) §4.2 | `src/frontend/src/components/settings/RecoveryCodeCard.tsx`, `src/frontend/src/pages/SettingsPage.tsx`, `src/frontend/e2e/recovery-code.spec.ts`, `src/frontend/src/pages/RecoverProfile.tsx` | [x] DONE (2026-09-08) — new `RecoveryCodeCard` mounted in Settings above `BackupCard`. Create vs Replace wording from `has_recovery_code`; code shown once, held only in component state, password dropped after issue. Tests FE-RECOV-001..006 + E2E-RECOV-001..002. `RecoverProfile`'s copy now names where to create one, so its instruction is followable. |
 | `CARE-QUOTE-001` | **Verbatim clinician text outlives the document it came from.** `delete_document` explicitly deletes `DocumentEntity`/`DocumentCategory` rows with the reason stated in code — entity quotes are "verbatim document text" that must not "outlive the document into exports or pins" (`api/documents.py:1846-1851`). `CarePlanTask.source_quote` is the same class of data (`models/care_plan_task.py:45`, "Verbatim clinician wording the task was derived from") and **nothing deletes it** — there is no `delete(CarePlanTask)` anywhere in `api/`. Found 2026-09-08 while auditing `SQL-FK-001`; it is a live retention defect independent of the pragma, and also the blocker for it (with FKs on, `DELETE FROM documents` raises for any document that produced a task). **Decided 2026-09-08 (owner): keep the task, null `source_document_id`/`source_entity_id`, clear `source_quote`.** The data-lifecycle gate (same class as `PROF-DEL-001`) is cleared — the decision covers derived verbatim text specifically, not derived data generally. | P1 | Plan at [`2026-09-08-backlog-closure-plan.md`](../plans/2026-09-08-backlog-closure-plan.md) §3.1; constraint detail at [`2026-09-08-sql-fk-001-foreign-key-audit.md`](../plans/2026-09-08-sql-fk-001-foreign-key-audit.md) §4.2 | `src/backend/api/documents.py`, `src/backend/tests/test_documents_api.py`, `docs/compliance/data-privacy.md` | [x] DONE (2026-09-08) — `delete_document` now nulls provenance and clears `source_quote` for tasks derived from the deleted document. Tests HC-CAREQ-001..003 (001 observed failing first). **Deliberately not mirrored into reprocess** — the document still exists there, and `get_care_task_candidates` keys duplicate detection on `(source_document_id, source_quote)`, so clearing it would resurface accepted tasks. No model or migration change was needed; the FK constraint change stays with `SQL-FK-001`. |
 | `FEEDBACK-SNAP-001` | `response_feedback.prompt_snapshot` stores "the fully-composed prompt (with retrieved context) at the time of inference" (`models/response_feedback.py:74-78`) — retrieved context is document chunk text, so the column holds verbatim document text that document deletion does not clear. Found 2026-09-08 by `CARE-QUOTE-001`'s sweep. **Not the same fix:** `response_feedback` has no `doc_id`, so a targeted UPDATE has nothing to key on; the rows stay inside the encrypted vault; and RL export already forces strict redaction (`RL-REDACT-001`). Clearing snapshots retroactively also degrades the RL dataset they exist for — so this needs a decision (provenance column vs. retention window vs. documented acceptance), not a mechanic. | P3 | Analysis and options at [`2026-09-08-backlog-closure-plan.md`](../plans/2026-09-08-backlog-closure-plan.md) §15 | `src/backend/models/response_feedback.py`, `src/backend/api/feedback.py`, `docs/compliance/data-privacy.md` | [ ] OPEN |
+
+---
+
+## Owner and Model-Machine Queue
+
+Work that cannot run in the agent environment. The dev box has no local model (no Ollama, no `.gguf` weights, no real embedding model), so model-dependent checks wait for a session on a machine that can run models. Tick an item and add the evidence (command, output line, PR link) when done. Added 2026-10-12.
+
+### Needs a model-capable machine
+
+- [ ] **MM-1 — W-4 20-question real-model abstention count (#72).** Owner decisions W4-OQ-2, W4-20Q-HOST. Steps: PR #72 comment 6116808120. Paste the RESULT line on #72; #72 then needs a merge from main and a collected-count re-measure.
+- [ ] **MM-2 — PARA-1-R3 §6 real-model judge measurement.** `src/backend/scripts/measure_prohibited_patterns.py` `--judge` mode with `HF_HUB_OFFLINE=1` and a real GGUF (`audit/2026-09-25/waves/scaffold/PARA-1-R3.md` §6). Blocked on OW-3 (sealed set S5) and on the PARA-1-R3 implementation PR.
+- [ ] **MM-3 — Full backend suite with a real embedding model.** `test_api_rag_index_002b` passes only with one installed (CLAUDE.md §4). Run the collected count and full suite; record both lines.
+- [ ] **MM-4 — Real-app smoke with a local model.** Boot via `dev.bat` on Windows and `dev.sh` on WSL/Linux (once its PR lands); exercise chat, RAG answer with citations, lab interpretation, and the Medication Coach achievements widget (#84). Record what was clicked and what was seen.
+
+### Needs the owner (no model required)
+
+- [ ] **OW-1 — Commit and push the owner-decisions rows** in worktree `hc-owner-rows` (the permission classifier blocked the agent's commit).
+- [ ] **OW-2 — Tailwind 4 screenshot review (#74, TW4-SHOTS).** Compare artifacts 11731333573 (before) and 11789723472 (after, run 38347403971); post the verdict on #74.
+- [ ] **OW-3 — Write sealed set S5** for PARA-1-R3 (plan Q6); freeze judge prompt, parser and tier list first.
+- [ ] **OW-4 — G-C2 tool run.** Run the plan's Task C2.1 block per `audit/2026-09-25/waves/scaffold/G-C2.md:97`; a session reviews the diff.
+- [ ] **OW-5 — Merge queue.** #82 and #84 (whichever merges second needs a merge from main and a collected re-measure), #74 after OW-2, #72 after MM-1, then close #61 (PR61-CLOSE); #68 merges last.
+
+### Wearables evidence gate (owner; no model required)
+
+From the wearable feasibility package (`docs/research/2026-10-12/`, branch `docs/wearable-feasibility`, not yet merged). Recommendation there: defer until this gate passes.
+
+- [ ] **OM-1 — Apple Health export once.** Record ZIP size, members, `<Record` types, one record's attributes, one ECG CSV header. Do not commit the export.
+- [ ] **OM-2 / OM-3 — Garmin Connect "Export Your Data" and Samsung "Download personal data" once each.** Record layout, turnaround, timezone fields.
+- [ ] **OM-4 / OM-5 — 3-5 clinician and 3-5 patient conversations.** Would they use it, which metrics, how much time.
+- [ ] **OM-6 / OM-7 — Answer OD-1..OD-8; legal read** on FDA general-wellness wording, the FTC Health Breach Notification Rule, and the Garmin FIT licence.
+- [ ] **OM-8 — Read the full FDA January 2026 general-wellness guidance** (https://www.fda.gov/media/90652/download) and confirm the descriptive-summary position.
 
 ---
 
