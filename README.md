@@ -4,6 +4,8 @@
 
 A privacy-first desktop application for patients to import medical documents, extract structured information with user verification, visualize trends, and generate grounded explanations with citations.
 
+> **Research and educational open-source project. Not professional medical or legal advice, not a medical device, and not for emergencies.** See [Disclaimer](#disclaimer).
+
 ## Overview
 
 Asclexis helps patients:
@@ -350,6 +352,21 @@ If a port is busy, use the resolved URLs printed by `dev.ps1` / `dev.bat`.
 
 Press `Ctrl+C` to stop both servers.
 
+### Quick Start on WSL/Linux (`dev.sh`)
+
+Clone into your Linux home (for example `~/HealthCentral`), **not** under `/mnt/c`: the Windows mount is slow, file watching is unreliable, and Windows and Linux cannot share the venv or `node_modules`. `dev.sh` refuses to run from `/mnt/*` unless `HC_ALLOW_WINDOWS_MOUNT=1` is set.
+
+```bash
+git clone <repo-url> ~/HealthCentral && cd ~/HealthCentral
+./dev.sh
+```
+
+It does the same steps as `dev.ps1`, with these differences:
+- Uses its own venv at `src/backend/.venv-linux` (never the Windows `src/backend/venv`).
+- Never installs system packages; it prints an `apt`/`brew`/`nvm` hint when Python 3.11+, Node.js 22.12+, npm, `tesseract` or `pdftoppm` is missing.
+- Picks the next free port when 8000/3000 are busy, but does not stop the process holding them.
+- Binds both servers to `127.0.0.1`, writes `logs/dev-backend.log` and `logs/dev-frontend.log`, does not open a browser and does not restart a crashed server.
+
 ### Supported Local Verification Bootstrap (WSL/Linux)
 
 Use the WSL/Linux bootstrap path below to create the verifier environment that the repo-root proof bundle expects. Run every command from the repository root.
@@ -562,3 +579,9 @@ See [docs/features/TASK_LIST.md](docs/features/TASK_LIST.md) for the active rema
 ## Disclaimer
 
 This application is for informational and educational purposes only. It does not provide medical advice, diagnosis, or treatment recommendations. Always consult with qualified healthcare professionals for medical concerns.
+
+- **Research and educational project.** Asclexis is open-source software for people curious about their own health and fitness records who want to track them in one place and build personal software on top of them. It is a research study, not a clinical product.
+- **Not professional medical or legal advice.** Nothing it shows, summarizes, or exports is medical advice or legal advice. Talk to a qualified professional before acting on anything it displays.
+- **Not a medical device.** It is not cleared or approved by any regulator, and it is not intended to diagnose, treat, cure, monitor, or prevent any disease or condition.
+- **Not for diagnosis, treatment, or emergencies.** Do not use it to make treatment decisions. In an emergency, contact your local emergency number.
+- **Your data, your risk.** You run it on your own device, with your own data, at your own risk. The software is provided as is, without warranty of any kind.
