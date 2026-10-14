@@ -2204,6 +2204,18 @@ Reviewer: code-reviewer subagent (Opus 5.5), verdict approve. Review: GAM2-T1-di
 
 Links to: `docs/reviews/2026-10-12/GAM2-T1-diff-codereview.md`
 
+## `docs/reviews/2026-10-13/BKUP-TORN-response.md`
+
+**BKUP-TORN diff — author response to security review**
+
+(no summary — see file)
+
+## `docs/reviews/2026-10-13/BKUP-TORN-secrev.md`
+
+**BKUP-TORN diff — security review**
+
+Reviewer: security-reviewer subagent (Opus 5.5), read-only, 2026-10-13. Reviewed the first version of the fix (snapshotter built from a captured engine), before the finding 1 fix (see the response…
+
 ## `docs/reviews/2026-10-13/SQLITE-MIX-diff-response.md`
 
 **SQLITE-MIX diff — author response to security review**
