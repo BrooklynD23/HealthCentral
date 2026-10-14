@@ -96,12 +96,15 @@ The mutable counters live inside `AppleParse` only (streaming needs them); nothi
 
 | Field | Default | Note |
 |---|---|---|
+| `max_central_directory_bytes` | 16 MiB | size and offset read from the end-of-central-directory record **before** `zipfile.ZipFile` is built; larger → refuse (Codex plans ADV-2) |
 | `max_members` | 20000 | workout-route and ECG folders can hold thousands of files (INFERRED) |
 | `max_member_bytes` | 8 GiB | uncompressed bytes **actually read** per member |
 | `max_total_bytes` | 8 GiB | across all members read (only `export.xml` is read) |
 | `max_ratio` | 100 | bytes read / physical archive size; physical size from `fp.seek(0, 2)` |
 | `prolog_bytes` | 262144 | prolog must end (first real start tag) inside this |
 | `max_token_bytes` | 65536 | longest run of bytes between two `<` |
+
+All defaults are placeholders until OM-1 gives real sizes; Task 0 replaces them with measured export size × 4. A memory test (HC-WRB-423) runs a valid synthetic export through the parser **at the production defaults** and asserts tracemalloc peak < 128 MB; parse time on a multi-GB export is OW-W2 (Windows perf smoke).
 | `max_depth` | 32 | element nesting |
 | `chunk_bytes` | 65536 | read size |
 

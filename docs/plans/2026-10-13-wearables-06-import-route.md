@@ -155,7 +155,7 @@ Collected count = start + 19. Update the CLAUDE.md and AGENT.md count slots in t
 
 ### Task 2 — GREEN: upload helper and route
 - [ ] `modules/wearables/upload.py`: `async stream_body_to_temp(request, tmp_dir, max_bytes) -> (path, sha256_hex, size)`. Loop `request.stream()`, write, update hash, raise `HTTPException(413)` past `max_bytes`. Create `tmp_dir` with `mkdir(parents=True, exist_ok=True)`.
-- [ ] `api/wearables.py`: `POST /imports` reads content-type (415), calls the helper, checks empty (400), checks `content_hash` for `profile_id` (409), runs parser + aggregate in `asyncio.to_thread` (CPU work must not block the loop), calls `validate_summary` (422), builds ORM rows, `profile_db.add_all` + `flush`, then `audit_and_commit(master_db, ...)`, then `profile_db.commit()`. `try/finally` unlinks the temp file. Roll back the profile session on any exception.
+- [ ] `api/wearables.py`: `POST /imports` reads content-type (415), calls the helper, checks empty (400), checks `content_hash` for `profile_id` (409); on `IntegrityError` from the unique `(profile_id, content_hash)` at flush, rolls back, re-reads the existing import and returns the same 409 (Codex plans ADV-5; test HC-WRB-620 fires two same-profile uploads concurrently and expects one 201 and one 409, never 500), runs parser + aggregate in `asyncio.to_thread` (CPU work must not block the loop), calls `validate_summary` (422), builds ORM rows, `profile_db.add_all` + `flush`, then `audit_and_commit(master_db, ...)`, then `profile_db.commit()`. `try/finally` unlinks the temp file. Roll back the profile session on any exception.
 - [ ] Add `wearables_max_import_mb: int = 500` to `core/config.py`.
 - [ ] Run the route file; HC-WRB-601..612 green.
 

@@ -21,7 +21,7 @@ One ticket = one L1 PR (target ≤ ~400 lines of source diff, tests excluded); W
 | WEAR-07b | Review screen (frontend) | [07b](2026-10-13-wearables-07b-review-frontend.md) | WC | 07, 10 | M | No | — | Windows |
 | WEAR-08a | Trends route + shared `select.py` (backend) | [08](2026-10-13-wearables-08-trends.md) | WC | 07 | M | No | D3 | No |
 | WEAR-08b | "Wearable (patient-recorded)" panel (frontend) | [08](2026-10-13-wearables-08-trends.md) | WC | 08a, 10 | M | No | D8 | Windows |
-| WEAR-09a | Visit-prep wearable section + symptom notes (backend) | [09](2026-10-13-wearables-09-packet.md) | WD | 07, 08a (`select.py`) | M | No (calls strict redaction; `modules/redaction.py` not edited) | D2, D3, D8 | No |
+| WEAR-09a | Visit-prep wearable section + symptom notes (backend) | [09](2026-10-13-wearables-09-packet.md) | WD | 07, 08a (`select.py`) | M | No (calls strict redaction; `modules/redaction.py` not edited) | D3, D8 (D2 only if notes are built) | No |
 | WEAR-09b | ExportPage wearable option + notes inputs | [09](2026-10-13-wearables-09-packet.md) | WD | 09a, 10 | S | No | D8 | Windows |
 | WEAR-14 | Docs: API routes, privacy, `wearable-summary` v1 schema, task list | [14](2026-10-13-wearables-14-docs.md) | WD | 06, 09 | S | No | — | No |
 | WEAR-11 | Garmin export parser (JSON, no FIT SDK) | [11](2026-10-13-wearables-11-garmin-parser.md) | WE | 03, 05, M4 | M | No | OM-2 (OW-W3); D5 | No |

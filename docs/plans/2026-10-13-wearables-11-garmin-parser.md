@@ -83,7 +83,7 @@ None. (`security/input_validator.py` is WEAR-06's D4 gate, not here.)
 
 ## 6. Data contract
 
-Output (planned shape, **Task 0 re-reads `apple.py` and matches it exactly**): `ParseResult(records: list[dict], records_read: int, skipped: dict[str,int])`. Each record dict (INFERRED from the WEAR-04 plan): `metric` in `{resting_heart_rate, sleep_asleep_minutes, step_count}`-source kinds, `start` / `end` aware `datetime` (own offset kept), `value`, `unit`, `source_vendor="garmin"`, `device_class="garmin_device"`, `source_name` capped (`_MAX_FIELD_LEN` pattern, 255 for the column).
+Output (planned shape, **Task 0 re-reads `apple.py` and matches it exactly**): `ParseResult(records: Iterator[dict], records_read: int, skipped: dict[str,int])` — records are **yielded**, never collected into a list (Codex plans N2). Each JSON member is read through a byte counter and refused above `max_json_member_bytes` (default 64 MiB, sized from OM-2) **before** `json.loads`; test HC-WRB-1117 measures tracemalloc peak on a valid export at the production default caps. Each record dict (INFERRED from the WEAR-04 plan): `metric` in `{resting_heart_rate, sleep_asleep_minutes, step_count}`-source kinds, `start` / `end` aware `datetime` (own offset kept), `value`, `unit`, `source_vendor="garmin"`, `device_class="garmin_device"`, `source_name` capped (`_MAX_FIELD_LEN` pattern, 255 for the column).
 
 Skip reasons added by this plan (closed set, counts only): `fit_not_supported`, `metric_not_in_scope`, `json_invalid`, `json_too_deep`, `value_invalid`, `timestamp_invalid`, `unit_unsupported` (WEAR-03 name). Refusals (raise `ParseError`, route maps to 400): too many members, member or total too large, unsafe member name, ZIP unreadable.
 

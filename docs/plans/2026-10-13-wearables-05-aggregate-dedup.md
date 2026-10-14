@@ -66,7 +66,7 @@ None.
 | `source_vendor` | from the record |
 | `metric` | one of the three |
 | `local_date` | ISO date. Steps and resting HR: `local_date(start)`. Sleep: `local_date(end)` (wake date) |
-| `value` | float. Steps: sum of the selected source's `value`. Resting HR: `value` of the record with the latest `utc_instant(start)` (ties: the later one in input order). Sleep: minutes in the **union** of that source's intervals for that date, merged on UTC instants |
+| `value` | float. Steps: sum of the selected source's `value`, after collapsing exact duplicates (same `source_name`, `start`, `end`, `value`: counted once, skip reason `duplicate_record`; test HC-WRB-518, Codex plans N1; OM-1 confirms whether they occur). Resting HR: `value` of the record with the latest `utc_instant(start)` (ties: the later one in input order). Sleep: minutes in the **union** of that source's intervals for that date, merged on UTC instants |
 | `unit` | `CANON_UNIT[metric]` |
 | `utc_offset_minutes` | offset of the latest record of the selected source that day (steps/RHR: by `start`; sleep: by `end`) |
 | `tz_changed` | `True` if the selected source's records that day show more than one UTC offset (sleep: start and end offsets of every interval are both counted, so a night that crosses a DST change is flagged) |

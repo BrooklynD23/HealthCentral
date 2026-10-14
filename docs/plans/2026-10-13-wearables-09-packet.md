@@ -15,7 +15,7 @@
 ## 1. Scope
 
 **This plan does:**
-- Add `include_wearables: bool = False` and `symptom_notes: list[SymptomNote]` (max 5) to `VisitPrepRequest`.
+- Add `include_wearables: bool = False` to `VisitPrepRequest`. **Symptom notes (`symptom_notes`, everything about them below, copy C21-C24, and their tests) are built only if the owner signs D2 = (a); the program default is D2 = (c), not built** (Codex plans ADV-1: strict redaction does not catch natural-language names).
 - Add a pure renderer `modules/wearables/packet_section.py` that turns reviewed + included rows into a markdown section, and a second section for the patient's own notes.
 - Insert both sections inside `compose_visit_prep_packet`, before the strict redaction loop, so the whole text is redacted.
 - Add one small frontend option on the existing visit-prep card (09b).
@@ -232,7 +232,7 @@ Revert the PR. Request fields are additive and default off. No migration, no new
 - **#1 green suite that could not fail.** The existing route tests call `generate_visit_prep` as a plain function (`test_visit_prep_packet.py:295,325`). This plan's route tests go through `route_client`, and 918 reads the real app's schema. They still cannot see a broken `Depends` on a route they do not mount.
 - **#10 never started / unwired.** 911 and 921 prove compose is wired in the route; the UI option (09b) is proven only by its own tests plus the owner dogfood (OW-W1).
 - **#9 invariant at one site.** The "no wearable data outside the packet path" rule is guarded by AST on 4 named files, not on files added later.
-- Free-text names in symptom notes: strict redaction needs a label word (`redaction.py:81-88`), so "my wife Jane gets headaches" passes. C24 warns; D2 accepts it. Only the owner can decide on a note scrubber.
+- Free-text names in symptom notes: strict redaction needs a label word (`redaction.py:81-88`), so "my wife Jane gets headaches" passes. That is why D2 defaults to (c) and notes are not built unless the owner signs (a) accepting it. Only the owner can decide on a note scrubber (ask-first file).
 - Whether the wording satisfies FDA general-wellness or FTC HBNR (OD-8, legal). No tool here can see that.
 - No test was run while drafting this plan.
 

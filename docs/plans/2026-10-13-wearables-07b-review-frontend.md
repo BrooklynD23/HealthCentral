@@ -91,13 +91,13 @@ Added to `wearablesCopy.ts` and approved under D8 with WEAR-10's table. None use
 | ID | Where | String (verbatim) |
 |---|---|---|
 | R1 | Upload heading | `Import an export file` |
-| R2 | File input label | `Apple Health export (.zip)` |
+| R2 | File input label | `Wearable export (.zip)` |
 | R3 | Import button | `Import` |
 | R4 | Busy status | `Importing. Large files can take a few minutes.` |
 | R5 | Success | `Imported {days} days of data from {records} records. {skipped} records were skipped.` |
 | R6 | 409 | `This file was already imported.` |
 | R7 | 413 | `This file is larger than the size limit.` |
-| R8 | 400 / 422 | `This file could not be read as an Apple Health export.` |
+| R8 | 400 / 422 | `This file could not be read as a supported wearable export.` |
 | R9 | any other failure | `The import did not finish. Nothing was saved.` |
 | R10 | non-.zip chosen | `Choose a .zip file.` |
 | R11 | List heading / empty | `Imports` / `No imports yet.` |

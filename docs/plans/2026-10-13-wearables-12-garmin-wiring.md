@@ -20,7 +20,7 @@ Does:
 - Define and implement the cross-vendor read rule (§5) in the one shared selection function, and update the WEAR-08 / WEAR-09 read-path tests.
 
 Does NOT:
-- No frontend change. The upload control already takes a ZIP (WEAR-07b); Garmin export instructions are WEAR-10 §Copy, which needs D8 approval, so it is a follow-up owner item.
+- No frontend change beyond flipping `GARMIN_EXPORT_READY` (WEAR-10). The upload control already takes a ZIP and its copy is vendor-neutral (WEAR-07b R2/R8, Codex plans N3); Garmin export instructions are WEAR-10 §Copy G1-G4, approved once under D8.
 - No schema or migration change: `source_vendor` already allows `garmin` (WEAR-02 contract).
 - No change to Apple parsing, to the size cap (D4), or to temp-file handling (D6).
 - No summing across vendors, ever.
