@@ -73,7 +73,7 @@ None. `docs/` only.
 - Not stored: the uploaded ZIP (D1 b), raw samples, heart-rate series, workout routes, ECG.
 - While parsing: the upload is streamed to `app_data_path/tmp/` as a plaintext file, deleted in `finally`, with a startup sweep for leftovers after a crash (D6 b). If the owner signs D6 (a), say instead that it sits in the OS temp folder.
 - Deletion: deleting an import deletes its metric rows and review rows explicitly, then the import (SQLite foreign keys are not enforced, A2). Profile deletion removes the whole vault. The synthetic reset clears the three tables.
-- Exports: only reviewed and included metrics, as a closed device class, can enter the visit-prep packet; they pass the strict redaction pass; symptom notes are not stored. Not in `GET /export/csv` or `/json` (D7 b).
+- Exports: only reviewed and included metrics, as a closed device class, can enter the visit-prep packet; they pass the strict redaction pass; symptom-journal entries reach the packet only by per-entry selection after a server-issued strict-redacted preview (WEAR-09, WEAR-15). Wearable daily rows are in `GET /export/json?include_wearables=true` as a versioned `wearable_daily_metrics` block (WEAR-D7 (a), WEAR-13; D3 full-fidelity route); not in `GET /export/csv`. Journal entries are not in `/export/json` unless the owner decides OW-W10.
 - Audit: counts plus the opaque `import_id` and the `vendor` enum (as `document_id` is logged for documents today); never filenames, device names, values or dates.
 - Not used by: trends, RAG, timeline, doctor summary, any model. No network call.
 - Wording: "patient-recorded, not clinically verified". No classification claim.
