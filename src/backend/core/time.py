@@ -19,3 +19,14 @@ def utcfromtimestamp(timestamp: float) -> datetime:
     directly against ``utcnow()`` and against stored timestamps.
     """
     return datetime.fromtimestamp(timestamp, UTC).replace(tzinfo=None)
+
+
+def to_naive_utc(value: datetime) -> datetime:
+    """Normalise a datetime to the naive-UTC storage form.
+
+    Aware values are converted to UTC; naive values are already UTC by
+    convention and are returned unchanged.
+    """
+    if value.tzinfo is None:
+        return value
+    return value.astimezone(UTC).replace(tzinfo=None)

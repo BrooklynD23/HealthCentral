@@ -1552,6 +1552,12 @@
     "docs/reviews/2026-10-12/GAM2-T1-diff-response.md": [
       "docs/reviews/README.md"
     ],
+    "docs/reviews/2026-10-12/MED-UTC-diff-codereview.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-10-12/MED-UTC-diff-response.md": [
+      "docs/reviews/README.md"
+    ],
     "docs/reviews/2026-10-13/SQLITE-MIX-diff-response.md": [
       "docs/reviews/README.md"
     ],
@@ -2807,6 +2813,8 @@
       "docs/reviews/2026-10-12/AUDIT-ORDER-diff-secrev.md",
       "docs/reviews/2026-10-12/GAM2-T1-diff-codereview.md",
       "docs/reviews/2026-10-12/GAM2-T1-diff-response.md",
+      "docs/reviews/2026-10-12/MED-UTC-diff-codereview.md",
+      "docs/reviews/2026-10-12/MED-UTC-diff-response.md",
       "docs/reviews/2026-10-13/SQLITE-MIX-diff-secrev.md",
       "docs/reviews/2026-10-13/SQLITE-MIX-diff-response.md"
     ],
