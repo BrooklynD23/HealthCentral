@@ -12,11 +12,11 @@ import logging
 import re
 import uuid
 from datetime import date, datetime, time, timedelta, timezone as dt_timezone
-from typing import Optional
+from typing import Annotated, Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -24,7 +24,7 @@ from sqlalchemy.orm import selectinload
 from core.database import get_db
 from core.audit import audit_and_commit, audit_intent, log_document_event
 from core.auth import RequireAuth, Session, ProfileDbSession
-from core.time import utcnow
+from core.time import to_naive_utc, utcnow
 from models import (
     Medication,
     MedicationSchedule,
@@ -86,6 +86,10 @@ def _local_date_for_timezone(value: datetime, timezone_name: str) -> date:
     return timestamp.astimezone(ZoneInfo(timezone_name)).date()
 
 
+# Client datetimes are stored naive UTC (SQLite drops tzinfo) - MED-UTC.
+NaiveUtcDatetime = Annotated[datetime, AfterValidator(to_naive_utc)]
+
+
 # Request/Response Models
 
 
@@ -99,7 +103,7 @@ class MedicationCreate(BaseModel):
     frequency: str = Field("once_daily", pattern="^(once_daily|twice_daily|three_times_daily|four_times_daily|every_other_day|weekly|as_needed|custom)$")
     instructions: Optional[str] = None
     reminder_enabled: bool = False
-    started_at: Optional[datetime] = None
+    started_at: Optional[NaiveUtcDatetime] = None
     metadata: Optional[dict] = None
 
 
@@ -114,7 +118,7 @@ class MedicationUpdate(BaseModel):
     instructions: Optional[str] = None
     reminder_enabled: Optional[bool] = None
     is_active: Optional[bool] = None
-    ended_at: Optional[datetime] = None
+    ended_at: Optional[NaiveUtcDatetime] = None
     metadata: Optional[dict] = None
 
 
@@ -138,7 +142,7 @@ class ScheduleUpdate(BaseModel):
 
 class DoseLog(BaseModel):
     """Request to log a dose."""
-    taken_at: datetime
+    taken_at: NaiveUtcDatetime
     log_method: str = Field("manual", pattern="^(manual|notification_tap|voice|quick_log|bulk_log)$")
     dosage_amount: Optional[float] = None
     dosage_unit: Optional[str] = None
@@ -1054,8 +1058,8 @@ async def log_dose(
 async def list_doses(
     medication_id: str,
     session: RequireAuth,
-    from_date: Optional[datetime] = Query(None, description="Start date"),
-    to_date: Optional[datetime] = Query(None, description="End date"),
+    from_date: Optional[NaiveUtcDatetime] = Query(None, description="Start date"),
+    to_date: Optional[NaiveUtcDatetime] = Query(None, description="End date"),
     limit: int = Query(30, ge=1, le=100),
     profile_db: ProfileDbSession = None,
 ):
