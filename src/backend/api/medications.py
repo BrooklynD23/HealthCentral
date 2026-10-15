@@ -950,10 +950,19 @@ async def log_dose(
         )
         schedule = sched_result.scalar_one_or_none()
         if schedule:
-            # Calculate minutes from midnight for comparison
+            # taken_at is naive UTC; target_time is local wall-clock (DOSE-VAR).
+            settings_result = await profile_db.execute(
+                select(UserModelSettings).where(
+                    UserModelSettings.profile_id == session.profile_id
+                )
+            )
+            local_taken = dose.taken_at.replace(tzinfo=dt_timezone.utc).astimezone(
+                ZoneInfo(_profile_timezone_name(settings_result.scalar_one_or_none()))
+            )
             target_minutes = schedule.target_time.hour * 60 + schedule.target_time.minute
-            actual_minutes = dose.taken_at.hour * 60 + dose.taken_at.minute
-            variance_minutes = actual_minutes - target_minutes
+            actual_minutes = local_taken.hour * 60 + local_taken.minute
+            # Nearest daily occurrence of the target: result in [-720, 720).
+            variance_minutes = (actual_minutes - target_minutes + 720) % 1440 - 720
 
     dose_record = DoseTaken(
         id=str(uuid.uuid4()),
