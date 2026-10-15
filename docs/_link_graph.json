@@ -1603,6 +1603,12 @@
     "docs/reviews/2026-10-13/SQLITE-MIX-diff-secrev.md": [
       "docs/reviews/README.md"
     ],
+    "docs/reviews/2026-10-13/UTC-SWEEP-diff-codereview.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-10-13/UTC-SWEEP-diff-response.md": [
+      "docs/reviews/README.md"
+    ],
     "docs/reviews/2026-10-14/DOSE-VAR-diff-codereview.md": [
       "docs/reviews/README.md"
     ],
@@ -2899,6 +2905,8 @@
       "docs/reviews/2026-10-12/MED-UTC-diff-response.md",
       "docs/reviews/2026-10-13/SQLITE-MIX-diff-secrev.md",
       "docs/reviews/2026-10-13/SQLITE-MIX-diff-response.md",
+      "docs/reviews/2026-10-13/UTC-SWEEP-diff-codereview.md",
+      "docs/reviews/2026-10-13/UTC-SWEEP-diff-response.md",
       "docs/reviews/2026-10-14/DOSE-VAR-diff-codereview.md",
       "docs/reviews/2026-10-14/DOSE-VAR-diff-response.md"
     ],
