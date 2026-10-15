@@ -2308,6 +2308,18 @@ Reviewer: code-reviewer subagent (Opus 5.5), 2026-10-14. Diff: `log_dose` varian
 
 (no summary — see file)
 
+## `docs/reviews/2026-10-15/SCHED-OWNER-diff-codereview.md`
+
+**SCHED-OWNER diff code review**
+
+Reviewer: code-reviewer subagent (Opus 5.5), 2026-10-15. Diff: `_schedule_for_medication` guard in `src/backend/api/medications.py` used by `log_dose` and `learn_patterns`; HTTP tests…
+
+## `docs/reviews/2026-10-15/SCHED-OWNER-diff-response.md`
+
+**SCHED-OWNER diff review response**
+
+(no summary — see file)
+
 ## `docs/reviews/README.md`
 
 **Codex Review Archive**
