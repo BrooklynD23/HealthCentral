@@ -1,6 +1,6 @@
 # Codex Review Archive
 
-**Last Updated:** 2026-10-13
+**Last Updated:** 2026-10-14
 
 Every Codex plan review (`<ID>-rN-*`) and adversarial diff review (`<ID>-diff-codex.txt`), kept next to its prompt (`*-prompt.md`) and the author's response (`*-response.md`). Files were moved here byte-identical from `audit/2026-09-25/reviews/`, `audit/2026-09-25/swarm-2026-09-27/reviews/` and `audit/2026-09-29/reviews/` on 2026-10-09.
 
@@ -9,6 +9,7 @@ Every Codex plan review (`<ID>-rN-*`) and adversarial diff review (`<ID>-diff-co
 - `2026-09-29/` — P01 and S02.
 - `2026-10-12/` — AUDIT-ORDER execution diff (Codex, code review, security review); GAM2-T1 diff (code review); MED-UTC diff (code review).
 - `2026-10-13/` — SQLITE-MIX diff (security review).
+- `2026-10-14/` — DOSE-VAR diff (code review).
 
 New reviews go in `docs/reviews/<date>/<ID>-r<N>-{prompt.md,codex.txt,response.md}`; add a row here. Process: [../agentic/orchestration.md](../agentic/orchestration.md).
 
@@ -90,3 +91,4 @@ Verdict is the reviewer's last `VERDICT:` line (plan reviews: PASS / REVISE; dif
 | 2026-10-12 | GAM2-T1 | diff | approve | 2026-10-12 | [code review](2026-10-12/GAM2-T1-diff-codereview.md) [response](2026-10-12/GAM2-T1-diff-response.md) |
 | 2026-10-12 | MED-UTC | diff | approve | 2026-10-12 | [code review](2026-10-12/MED-UTC-diff-codereview.md) [response](2026-10-12/MED-UTC-diff-response.md) |
 | 2026-10-13 | SQLITE-MIX | diff | approve-with-nits | 2026-10-13 | [security review](2026-10-13/SQLITE-MIX-diff-secrev.md) [response](2026-10-13/SQLITE-MIX-diff-response.md) |
+| 2026-10-14 | DOSE-VAR | diff | approve | 2026-10-14 | [code review](2026-10-14/DOSE-VAR-diff-codereview.md) [response](2026-10-14/DOSE-VAR-diff-response.md) |
