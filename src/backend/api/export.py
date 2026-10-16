@@ -25,6 +25,7 @@ from core.database import get_db
 from core.auth import RequireAuth, ProfileDbSession
 from core.audit import audit_and_commit, log_export_event
 from core.denial_audit import audit_denial
+from core.time import NaiveUtcDatetime
 from models import CarePlanTask, Document, Medication, Observation, Profile
 from models.document_category import DocumentCategory, DocumentEntity
 from modules.export import ExportModule
@@ -75,8 +76,8 @@ class SummaryRequest(BaseModel):
     """Request model for generating doctor summary."""
 
     # Time range
-    from_date: Optional[datetime] = None
-    to_date: Optional[datetime] = None
+    from_date: Optional[NaiveUtcDatetime] = None
+    to_date: Optional[NaiveUtcDatetime] = None
 
     # Content options
     include_all_values: bool = False  # vs only abnormal/changed
@@ -609,8 +610,8 @@ async def download_summary(
 @router.post("/questions", response_model=list[QuestionItem])
 async def generate_questions(
     session: RequireAuth,
-    from_date: Optional[datetime] = Query(None, description="Start date"),
-    to_date: Optional[datetime] = Query(None, description="End date"),
+    from_date: Optional[NaiveUtcDatetime] = Query(None, description="Start date"),
+    to_date: Optional[NaiveUtcDatetime] = Query(None, description="End date"),
     profile_db: ProfileDbSession = None,
     master_db: AsyncSession = Depends(get_db),
 ):
@@ -672,8 +673,8 @@ class VisitPrepRequest(BaseModel):
     """
 
     reason_for_visit: Optional[str] = None
-    from_date: Optional[datetime] = None
-    to_date: Optional[datetime] = None
+    from_date: Optional[NaiveUtcDatetime] = None
+    to_date: Optional[NaiveUtcDatetime] = None
 
     # Section include flags
     include_medications: bool = True
@@ -908,8 +909,8 @@ async def download_visit_prep(
 async def export_csv(
     session: RequireAuth,
     analytes: Optional[str] = Query(None, description="Comma-separated analyte filter"),
-    from_date: Optional[datetime] = Query(None, description="Start date"),
-    to_date: Optional[datetime] = Query(None, description="End date"),
+    from_date: Optional[NaiveUtcDatetime] = Query(None, description="Start date"),
+    to_date: Optional[NaiveUtcDatetime] = Query(None, description="End date"),
     profile_db: ProfileDbSession = None,
     master_db: AsyncSession = Depends(get_db),
 ):
@@ -964,8 +965,8 @@ async def export_csv(
 async def export_json(
     session: RequireAuth,
     analytes: Optional[str] = Query(None, description="Comma-separated analyte filter"),
-    from_date: Optional[datetime] = Query(None, description="Start date"),
-    to_date: Optional[datetime] = Query(None, description="End date"),
+    from_date: Optional[NaiveUtcDatetime] = Query(None, description="Start date"),
+    to_date: Optional[NaiveUtcDatetime] = Query(None, description="End date"),
     profile_db: ProfileDbSession = None,
     master_db: AsyncSession = Depends(get_db),
 ):
