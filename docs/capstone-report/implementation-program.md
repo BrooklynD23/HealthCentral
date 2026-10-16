@@ -34,11 +34,9 @@ This program orders the eight audit plans (`audit/2026-09-25/plans/01`–`08`) a
    - anything auth or encryption, **including `core/auth.py`**.
 6. **Humans merge.** Every `PRODUCT` phase ends at a PR and stops for the owner's merge.
 7. **Re-read [`docs/agentic/recurring-failures.md`](../agentic/recurring-failures.md) before claiming any phase done**, and re-walk whole flows, not diffs (#2).
-8. **Collected-count slots move with collection.** Any commit that changes the collected backend count also updates, in that same commit, only the collected numbers in `CLAUDE.md` ("**N backend tests collected.**", "if it differs from N") and in `AGENT.md` ("N collected").
+8. **Collected-count slots and the docs index move in a post-merge batch.** PRs never edit the collected numbers in `CLAUDE.md` / `AGENT.md`, `docs/INDEX.md`, `docs/_link_graph.json` or the `docs/reviews/README.md` table. Each PR pastes its measured collected line and delta in its body. After merges, the orchestrator opens one `docs:` PR from fresh `origin/main` that re-measures, rewrites the slots, regenerates the index and appends the review rows. CI regenerates the index before docs lint.
    - Pass-count sentences change only with a pass count measured in a named environment (interpreter, plus embedding model present or absent).
-   - This applies to plans 05, 06 and 07 (banners) and to W-6 (count-slot carve-out).
-   - Development may run in parallel; merges are serial on these two lines, and the second PR re-measures.
-   - *(SLOT-RULE: owner-approved 2026-09-28, [owner-decisions](owner-decisions-2026-09-27.md).)*
+   - *(SLOT-RULE-2: owner-approved 2026-10-16, superseding SLOT-RULE of 2026-09-28; [owner-decisions](owner-decisions-2026-09-27.md).)*
 9. **Execution runs through the 3-tier orchestration** in [docs/agentic/orchestration.md](../agentic/orchestration.md): L0 program orchestrator (Opus), one L1 wave orchestrator per wave (Opus), L2 implementers (`sonnet`) and reviewers (Opus), and Codex for architectural plans and diffs. Owner direction, 2026-09-28. Handoff: [handoff-2026-09-28-execution-orchestrator.md](../../audit/2026-09-25/handoff-2026-09-28-execution-orchestrator.md).
 
 ## Dependency graph
