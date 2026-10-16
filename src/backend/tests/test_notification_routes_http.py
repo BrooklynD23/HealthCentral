@@ -29,6 +29,8 @@ async def test_hc_streak_tz_003_test_notification_streak_uses_profile_zone(profi
 
     def _generate(context):
         seen["streak"] = context.current_streak
+        seen["hour"] = context.hour_of_day
+        seen["weekend"] = context.is_weekend
         return message
 
     monkeypatch.setattr(
@@ -48,3 +50,6 @@ async def test_hc_streak_tz_003_test_notification_streak_uses_profile_zone(profi
         resp = client.post(f"/notifications/test/{med_id}")
     assert resp.status_code == 200, resp.text
     assert seen["streak"] == 3
+    # Local 17:00 Thursday; UTC would give hour 1.
+    assert seen["hour"] == 17
+    assert seen["weekend"] is False
