@@ -184,9 +184,88 @@ class TestNumericDateRedaction:
 
 
 # ---------------------------------------------------------------------------
-# Policy levels
+# Underscore-joined identifiers (E-1a / W-2 O-3, strict only)
 # ---------------------------------------------------------------------------
 
+UNDERSCORE_PHI = [
+    ("patient_name:_jane_doe", "jane"),
+    ("dob:_01/02/1980", "01/02/1980"),
+    ("mrn:_a12345", "a12345"),
+    ("patient_name_jane_doe", "jane"),
+    ("date_of_birth:_1/2/80", "1/2/80"),
+    ("medical_record_number:_44-ab-9921", "44-ab-9921"),
+    ("full_name:_jane_doe", "jane"),
+    ("PATIENT_NAME:_JANE_DOE", "JANE"),
+    ("patient_name:_josé_álvarez", "álvarez"),
+]
+
+ANALYTE_LIKE = [
+    "vitamin_d", "ldl_cholesterol", "hemoglobin_a1c", "25_hydroxy_vitamin_d",
+    "t4_free", "glucose_fasting", "ms_afp", "mrna_level",
+    "name_of_test", "patient_count_3", "hba1c_2025-05-01",
+]
+
+
+class TestUnderscoreJoinedRedaction:
+    @pytest.mark.parametrize("text,secret", UNDERSCORE_PHI)
+    def test_hc_redact_001_underscore_labelled_shapes_redacted_strict(self, text, secret):
+        """HC-REDACT-001: labelled underscore-joined name/DOB/MRN are redacted."""
+        result = _engine("strict").redact(text)
+        assert secret not in result.text
+        assert "[ID-REDACTED]" in result.text
+
+    def test_hc_redact_002_underscore_numeric_date_redacted_strict(self):
+        """HC-REDACT-002: an unlabelled d/m/y date after '_' is redacted."""
+        result = _engine("strict").redact("admitted_03/15/1985")
+        assert "03/15/1985" not in result.text
+        assert "[DATE-REDACTED]" in result.text
+
+    def test_hc_redact_003_rendered_summary_line_keeps_value_and_markup(self):
+        """HC-REDACT-003: only the identifier goes; value, ISO date and tags stay."""
+        line = "• patient_name:_jane_doe: 1.0  (ref: 0.0-0.5) [H] - 2024-03-15"
+        assert _engine("strict").redact(line).text == (
+            "• [ID-REDACTED]: 1.0  (ref: 0.0-0.5) [H] - 2024-03-15"
+        )
+        html = "<td>mrn:_a12345</td>"
+        assert _engine("strict").redact(html).text == "<td>[ID-REDACTED]</td>"
+
+    @pytest.mark.parametrize("name", ANALYTE_LIKE)
+    def test_hc_redact_004_analyte_like_tokens_not_redacted_strict(self, name):
+        """HC-REDACT-004: no over-redaction of analyte-shaped tokens."""
+        result = _engine("strict").redact(name)
+        assert result.text == name
+        assert result.redacted_count == 0
+
+    def test_hc_redact_005_all_known_analyte_names_unchanged_strict(self):
+        """HC-REDACT-005: every known canonical name and synonym, underscore form."""
+        from modules.normalize import NormalizeModule
+
+        names = set()
+        for canonical, synonyms in NormalizeModule.ANALYTE_SYNONYMS.items():
+            names.add(canonical)
+            names.update(synonyms)
+        assert len(names) >= 100  # the list loaded; an empty loop proves nothing
+        hits = [n for n in sorted(names)
+                if _engine("strict").redact(n.replace(" ", "_")).redacted_count]
+        assert hits == []
+
+    def test_hc_redact_006_underscore_rules_strict_only(self):
+        """HC-REDACT-006: standard and minimal are unchanged."""
+        text = "patient_name:_jane_doe mrn:_a12345 admitted_03/15/1985"
+        for level in ("standard", "minimal"):
+            assert _engine(level).redact(text).text == text
+
+    def test_hc_redact_007_underscore_email_still_fully_redacted(self):
+        """HC-REDACT-007: underscore in an email local part is not split."""
+        result = _engine("strict").redact("contact jane_doe@example.com")
+        assert "jane" not in result.text
+        assert "[EMAIL-REDACTED]" in result.text
+
+
+
+# ---------------------------------------------------------------------------
+# Policy levels
+# ---------------------------------------------------------------------------
 class TestPolicyLevels:
     def test_strict_catches_all(self):
         text = (
