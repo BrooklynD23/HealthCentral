@@ -322,6 +322,18 @@ review on PR #24, fixed by DDI (PR #41). The reprocess path's core
 `delete(Observation)` (`api/documents.py:629`) still bypasses that cascade
 (owner item REPROCESS-INTERP-ORPHAN).
 
+It appears for time too. `taken_at` is stored naive UTC, and `streak_engine`
+buckets it on the profile's wall clock, but `modules/adherence_patterns.py`
+bucketed the same column by UTC hour, weekday and date, so a Los Angeles
+patient's 08:00 dose was learned as 15:00/16:00 (ADHERE-TZ, 2026-10-14). The
+streak helpers and `calculate_streak` callers (STREAK-TZ, D-1 PR #104), the
+gamification streak (D-3 PR #109) and the scheduler clock with learned windows
+(SCHED-TZ, D-2 PR #115, profile migration `013_adaptive_windows_local`) now use
+the profile's local date and time (2026-10-16). One hit remains:
+`modules/export.py:454` dates the doctor summary with the UTC `today` (queue row
+EXPORT-TODAY-TZ). Recheck: `grep -rnE
+"taken_at\.(hour|date\(\)|weekday)|utcnow\(\)\.(date|time)\(\)" src/backend`.
+
 **Recheck:** when a comment or doc justifies a deletion with a reason that names
 a *category* ("verbatim document text", "credential material", "anything
 exportable"), find every table in that category and confirm each has a delete

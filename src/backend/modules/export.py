@@ -200,7 +200,7 @@ class ExportModule:
         """Format abnormal values section."""
         lines = []
         for obs in sorted(observations, key=lambda x: x.get("collected_at", datetime.min), reverse=True):
-            date_str = obs.get("collected_at", "").strftime("%m/%d/%Y") if obs.get("collected_at") else "Unknown date"
+            date_str = obs.get("collected_at", "").strftime("%Y-%m-%d") if obs.get("collected_at") else "Unknown date"
             lines.append(
                 f"• {obs['analyte_canonical']}: {obs['value']} {obs.get('unit', '')} "
                 f"(ref: {obs.get('ref_low', '?')}-{obs.get('ref_high', '?')}) "
@@ -219,6 +219,55 @@ class ExportModule:
                     f"({trend.get('delta_percent', 0):.1f}% change from prior)"
                 )
         return "\n".join(lines) if lines else "No notable trends identified."
+
+    def redact_summary_data(self, summary_data: dict) -> dict:
+        """Return a strict-redacted copy of a doctor summary (owner decision D3).
+
+        D3 (2026-09-27): the doctor summary goes to a third party, so every
+        user-derived text field passes through modules/redaction.py at the
+        strict policy BEFORE it is stored or rendered. text, html and pdf all
+        render from the stored dict. CSV/JSON (export_csv/export_json) are
+        deliberately NOT redacted: they are the patient's own full-fidelity
+        export. Strict is pattern-based: underscore-joined identifiers are not
+        matched (owner-gated gap O-3). The input dict is not mutated.
+        """
+        from modules.redaction import RedactionEngine
+
+        engine = RedactionEngine(policy_level="strict")
+        redaction_count = 0
+
+        def _redact(value: object) -> object:
+            nonlocal redaction_count
+            if not isinstance(value, str) or not value:
+                return value
+            result = engine.redact(value)
+            redaction_count += result.redacted_count
+            return result.text
+
+        key_findings = [_redact(f) for f in summary_data.get("key_findings", [])]
+        sections = [
+            {**s, "title": _redact(s.get("title", "")), "content": _redact(s.get("content", ""))}
+            for s in summary_data.get("sections", [])
+        ]
+        questions = [
+            {
+                **q,
+                "question": _redact(q.get("question")),
+                "context": _redact(q.get("context")),
+                "source_quote": _redact(q.get("source_quote")),
+                "related_analytes": [_redact(a) for a in q.get("related_analytes") or []],
+            }
+            if isinstance(q, dict)
+            else _redact(q)
+            for q in summary_data.get("questions", [])
+        ]
+        return {
+            **summary_data,
+            "key_findings": key_findings,
+            "sections": sections,
+            "questions": questions,
+            "redaction_count": redaction_count,
+        }
     
     def export_csv(
         self,

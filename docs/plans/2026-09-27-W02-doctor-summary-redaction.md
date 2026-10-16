@@ -1467,3 +1467,25 @@ Before every commit, `git diff --cached --name-only` must list exactly the paths
 7. **CI never renders a real PDF under a hard requirement.** CI does not set `HC_REQUIRE_WEASYPRINT=1` or install Pango. Whoever next owns `ci.yml` (G-B4) decides whether it should; until then, CI PDF-render coverage is UNMEASURED.
 
 Back to: [implementation program](../capstone-report/implementation-program.md) · [owner decisions](../capstone-report/owner-decisions-2026-09-27.md) · [handoff §5](../../audit/2026-09-25/handoff-2026-09-27-execution.md)
+
+## Execution record
+
+Executed 2026-10-16 on branch `fix/e-1-doctor-summary-redaction` (PR #106), base `origin/main` d6475cf, Python 3.11.16 (`~/venvs/asclexis-311`), WSL2. Every pytest ran through `scripts/pyslot.sh` with `HF_HUB_OFFLINE=1`. Lane E section 2.1 corrections 1-9 applied.
+
+**Start measurement.** N0 = 1604 collected (collect-only; equals `CLAUDE.md:30` and `AGENT.md:76`, so no slot stop). WP0 = `weasyprint-renders`; pypdf 6.19.0. F0/S0 were not measured at start. X0 = 0 (the only xfail under `tests/` is the new O-3 test). ENV0 = py3.11.16, embedding model present.
+
+**Anchors on this tree.** `api/export.py`: store `:448`, `doctor_summary` audit `:455`, `key_findings=summary.key_findings` `:478`, `download_summary` `:485`, `export_csv` `:909`, `export_json` `:965`. `modules/export.py`: `_format_trends` `:211`, date format `:203`.
+
+**Skipped by design.** Plan Task 0 Step 1 (claim replaces it); Task 1 Step 5 and Task 2 Step 7 slot edits (SLOT-RULE-2); Task 3 branch (b); Task 5 Step 5 merge (S-3/S-6, E-1a). O-2 = (a) ISO-8601, signed.
+
+**Deviation.** The autouse fixture clears `core.denial_audit._state`; the `core.database.async_session_maker` patch (bound to the test master DB) lives in `master_audit_db`, because only that fixture owns a master engine.
+
+**RED evidence.**
+- HC-EXPR-002 (GREEN-first; RED from break): CSV redacted in a disposable tree gives `1 failed, 1 passed`, `FAILED ...test_hc_expr_002_csv_json_unchanged_byte_for_byte[csv]`, `pytest-exit=1`.
+- HC-EXPR-001/003 before the product change: `5 failed, 2 passed, 1 xfailed`: 001 text/html/pdf `assert 'Jane' not in ...`, real-PDF `assert 'Jane' not in 'Asclexis\nK...'` (WeasyPrint renders here), 003 `assert 'Jane' not in '["glucose: ...A12345 (H)"]'`. After: `7 passed, 1 xfailed`; with `HC_REQUIRE_WEASYPRINT=1` the real-PDF test `1 passed`.
+- Break-its (each in a fresh disposable worktree, `$WT` status empty after): B1 5 failed (`'Jane' not in`); B2 5 failed (`'01/02/1980' not in`); B3 003 `assert 1 == 2`; B4 003 `assert 200 == 403`; B5 `[XPASS(strict)] O-3 known gap` on the known-gap test.
+- Task 3 Step 2: `3 failed` on `assert '2024-03-15' in ...`; after the change `26 passed, 1 xfailed` (redaction file plus `test_export_api.py`); Step 6 break gives `3 failed` on `assert '2024-03-15' in`.
+
+**End measurement (implementer).** `git diff --name-only origin/main...HEAD` lists `api/export.py`, `modules/export.py`, `tests/test_export_redaction.py` (plus this plan). `redaction.py`, `routes.py`, `core/audit.py`, `models/audit.py`, `data-privacy.md`, `src/frontend`, `CLAUDE.md`, `AGENT.md`: diff exit 0. Shared renderers untouched. `from main import app` prints `ok`. HC-EXPR-003 asserts 2 `export.create` rows and 1 `denial.cross_profile` row (`entity_type == "summary"`, `entity_id is None`, no `summary_id`). Full-suite figures (collected expected 1612, failures subset of F0, xfailed X0+1) are measured by the verification runner. Real-PDF coverage in CI is UNMEASURED until a CI log shows PASSED. Frontend: `UNMEASURED: vitest stalls under WSL on /mnt/c; no frontend diff`.
+
+**Review round 1 follow-up.** Redaction now also covers section `title`; the O-3 xfail carries `raises=_GapOpen` (raised only on the PHI check); imports moved to the top block; `master_audit_db` closes the session and disposes the async engine. Runner figures: 1612 collected = N0 + 8 (delta +8 vs slot 1604, slots unwritten); 1611 passed, 0 failed, 0 skipped, 1 xfailed; ENV1 = py3.11.16 with the embedding model present (002b passed).

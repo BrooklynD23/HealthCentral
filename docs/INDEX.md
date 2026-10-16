@@ -1048,6 +1048,84 @@ Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-repor
 
 Links to: `docs/plans/2026-10-04-DDI-doc-delete-interpretation.md`
 
+## `docs/plans/2026-10-15-build-program/RUNBOOK.md`
+
+**Build Program 2026-10-15 — Multi-Runtime Runbook**
+
+One item loop that **Claude Code, Codex CLI and Devin** run against the same queue, with GitHub as the only lock. It extends the tier model in orchestration.md §1–§5 and does not repeat it.…
+
+Links to: `.claude/workflows/build-item.js`, `.claude/workflows/build-wave.js`, `AGENT.md`, `CLAUDE.md`, `docs/agentic/orchestration.md`, `docs/agentic/recurring-failures.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/reviews/2026-10-15/build-program-codex.md`
+
+## `docs/plans/2026-10-15-build-program/contracts.md`
+
+**Build Program 2026-10-15 — Cross-Lane Contracts**
+
+Inputs: lane docs A, B, C, D, E, F and their peer-review sections. Execution order lives in queue.md.
+
+Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md`, `docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`, `docs/plans/2026-10-15-build-program/queue.md`
+
+## `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`
+
+**Lane A — RAG + assistant: build-program design**
+
+Read-only design. No product file was edited. Existing merged plans are not rewritten; this file gives a **delta** for each (W-3, W-8) and a compact design for items with no plan.
+
+Links to: `audit/2026-09-25/waves/scaffold/G-C5.md`, `audit/2026-09-25/waves/wave-3-L1-A.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W03-verified-only-rag-and-trend-labels.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-10-15-build-program/contracts.md`
+
+## `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`
+
+**Lane B — Interpretation and Eval**
+
+**Collected-count slot on main:** `CLAUDE.md:30` and `:34` read **1574**; `AGENT.md:76` reads 1574. The orchestrator's "1501" is the slot on PR #95's branch, not main. Every count-changing PR in…
+
+Links to: `audit/2026-09-25/waves/scaffold/G-C3a.md`, `audit/2026-09-25/waves/scaffold/PARA-1-R3.md`, `audit/2026-09-25/waves/scaffold/W-7.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W07-tiered-interpretation-via-modelrunner.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`, `docs/plans/2026-10-15-build-program/contracts.md`
+
+## `docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md`
+
+**Lane C: Schema and Data Lifecycle (Build Program 2026-10-15)**
+
+Lane C owns the profile schema chain, FK enforcement, the test-reset tuple, export persistence, backup robustness and two small evidence/audit fixes. It also publishes the profile-migration…
+
+Links to: `audit/2026-09-25/plans/06-sql-fk-audit.md`, `audit/2026-09-25/plans/07-test-reset-tables.md`, `audit/2026-09-25/waves/scaffold/G-C1.md`, `audit/2026-09-25/waves/scaffold/GAMIFICATION-V2.md`, `audit/2026-09-25/waves/scaffold/P6.md`, `audit/2026-09-25/waves/scaffold/P7.md`, `audit/2026-09-25/waves/wave-2-L1-C.md`, `docs/capstone-report/implementation-program.md`, `docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/reviews/2026-10-13/BKUP-TORN-response.md`, `docs/reviews/2026-10-13/SQLITE-MIX-diff-response.md`
+
+## `docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md`
+
+**Lane D — Time Zones, Medications, Gamification — Build Design**
+
+---
+
+## `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`
+
+**Lane E — Privacy, Gates, CI — Build Design**
+
+---
+
+Links to: `audit/2026-09-25/waves/briefs/TAILWIND-4-L1-brief.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W01-harness-agents-branch-a.md`, `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`, `docs/plans/2026-09-27-W11a-test-and-gate-hardening.md`, `docs/plans/2026-10-09-AUDIT-ORDER.md`
+
+## `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`
+
+**Lane F — Docs, Owner Queue, Wearables Consumer Map — Build Design**
+
+**Prior art reused, not repeated:** readiness packs P4-deferred, W-10b, G-C2, RTN, SHOWCASE (all measured 2026-10-07 @ `6b4dd84`). Their L1/L2 briefs stay usable once the deltas below are applied.
+
+Links to: `audit/2026-09-25/waves/scaffold/G-C2.md`, `audit/2026-09-25/waves/scaffold/P4-deferred.md`, `audit/2026-09-25/waves/scaffold/RTN.md`, `audit/2026-09-25/waves/scaffold/SHOWCASE.md`, `audit/2026-09-25/waves/scaffold/W-10b.md`, `docs/agentic/recurring-failures.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/features/TASK_LIST.md`, `docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md`, `docs/plans/2026-09-27-W10-governance-invariant-amendments.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`, `docs/plans/2026-09-27-nightly-doc-drift-routine-spec.md`, `docs/plans/2026-09-27-senior-report-showcase-plan.md`
+
+## `docs/plans/2026-10-15-build-program/queue.md`
+
+**Build Program 2026-10-15 — Execution Queue**
+
+Rules: contracts.md §b (shared files), §c (migrations), §d (count slots). Path shorthand: `be/` = `src/backend/`, `fe/` = `src/frontend/src/`; "slots" = the `CLAUDE.md` / `AGENT.md` collected-count…
+
+Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`
+
+## `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`
+
+**E-1a: Strict Redaction for Underscore-Joined Identifiers (O-3)**
+
+Strict `RedactionEngine` matches the underscore-joined labelled shapes that unknown analytes are stored in, without redacting normal analyte names. Standard and minimal levels do not change.
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-15-build-program/queue.md`
+
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
 **Project Structure Setup**
@@ -2260,6 +2338,20 @@ Reviewer: code-reviewer subagent (Opus 5.5), verdict approve. Review: GAM2-T1-di
 
 Links to: `docs/reviews/2026-10-12/GAM2-T1-diff-codereview.md`
 
+## `docs/reviews/2026-10-12/GAM2-T24-diff-codereview.md`
+
+**GAM2-T24 diff code review: commit 7c1c6c4 (base 4884d38)**
+
+Scope reviewed: `git diff 4884d38..7c1c6c4`, 15 files, +333/-21. Plan: `audit/2026-09-25/waves/scaffold/GAMIFICATION-V2.md` §2a items 1-5, §2b design A, tasks 2 and 4. I ran no test suites, as…
+
+## `docs/reviews/2026-10-12/GAM2-T24-diff-response.md`
+
+**GAM2-T24 diff — author response to code review**
+
+Reviewer: code-reviewer subagent (Opus 5.5), verdict approve. Review: GAM2-T24-diff-codereview.md.
+
+Links to: `docs/reviews/2026-10-12/GAM2-T24-diff-codereview.md`
+
 ## `docs/reviews/2026-10-12/MED-UTC-diff-codereview.md`
 
 **MED-UTC diff code review**
@@ -2271,6 +2363,30 @@ Reviewer: code-reviewer subagent (Opus 5.5), read-only, 2026-10-12. Scope: uncom
 **MED-UTC diff review response**
 
 No code changes came out of this review.
+
+## `docs/reviews/2026-10-12/RL-EXPORT-EMPTY-diff-codereview.md`
+
+**RL-EXPORT-EMPTY diff code review (2026-10-12)**
+
+Reviewer: code-reviewer subagent (Opus 5.5), read-only, on commit `b80d032` (branch `fix/rl-export-prompt-snapshot`, PR #82). Pytest was not run by the reviewer; test evidence came from the author.
+
+## `docs/reviews/2026-10-12/RL-EXPORT-EMPTY-diff-response.md`
+
+**RL-EXPORT-EMPTY diff review — author response (2026-10-12)**
+
+Evidence (src/backend, `flock /tmp/claude-1000/hc-pytest.lock ~/venvs/asclexis-311/bin/python -m pytest ...`): - New tests on `origin/main` feedback.py: `3 failed` (`assert 0 == 1` each). - 8…
+
+## `docs/reviews/2026-10-13/BKUP-TORN-response.md`
+
+**BKUP-TORN diff — author response to security review**
+
+(no summary — see file)
+
+## `docs/reviews/2026-10-13/BKUP-TORN-secrev.md`
+
+**BKUP-TORN diff — security review**
+
+Reviewer: security-reviewer subagent (Opus 5.5), read-only, 2026-10-13. Reviewed the first version of the fix (snapshotter built from a captured engine), before the finding 1 fix (see the response…
 
 ## `docs/reviews/2026-10-13/SQLITE-MIX-diff-response.md`
 
@@ -2284,13 +2400,117 @@ No code changes came out of this review.
 
 Reviewer: security-reviewer subagent (Opus 5.5), read-only, 2026-10-13. Reviewed the diff before the M2 fix and comment correction (see the response file).
 
+## `docs/reviews/2026-10-13/UTC-SWEEP-diff-codereview.md`
+
+**UTC-SWEEP diff code review**
+
+Reviewer: code-reviewer subagent (Opus 5.5), read-only, 2026-10-13. Diff: `fix/utc-sweep` against `origin/main` f853308.
+
+## `docs/reviews/2026-10-13/UTC-SWEEP-diff-response.md`
+
+**UTC-SWEEP diff review response**
+
+No code changes came out of this review.
+
+## `docs/reviews/2026-10-14/ADHERE-TZ-diff-response.md`
+
+**ADHERE-TZ diff — author response to code review**
+
+Blind spots: scheduler and notifications-streak gaps are the SCHED-TZ/STREAK-TZ follow-ups; others accepted for this PR.
+
+## `docs/reviews/2026-10-14/ADHERE-TZ-diff-review.md`
+
+**ADHERE-TZ diff — code review**
+
+Reviewer: code-reviewer subagent (Opus 5.5), read-only, 2026-10-14. Reviewed the diff before the HIGH-1 response (see the response file). Read the diff and tests; did not run the suite.
+
+## `docs/reviews/2026-10-14/ASSIST-UTC-diff-codereview.md`
+
+**ASSIST-UTC diff — code review**
+
+Reviewer: code-reviewer subagent (Opus 5.5), read-only, 2026-10-14. Verdict: **approve**. No CRITICAL or HIGH findings; 1 MEDIUM and 4 LOW, of which the MEDIUM and one LOW are out-of-scope leads.
+
+## `docs/reviews/2026-10-14/ASSIST-UTC-diff-response.md`
+
+**ASSIST-UTC diff — author response to code review**
+
+(no summary — see file)
+
+## `docs/reviews/2026-10-14/DOSE-VAR-diff-codereview.md`
+
+**DOSE-VAR diff code review**
+
+Reviewer: code-reviewer subagent (Opus 5.5), 2026-10-14. Diff: `log_dose` variance computed in the profile time zone (`src/backend/api/medications.py`), HTTP test `test_hc_med_http_011`.
+
+## `docs/reviews/2026-10-14/DOSE-VAR-diff-response.md`
+
+**DOSE-VAR diff review response**
+
+(no summary — see file)
+
+## `docs/reviews/2026-10-15/SCHED-OWNER-diff-codereview.md`
+
+**SCHED-OWNER diff code review**
+
+Reviewer: code-reviewer subagent (Opus 5.5), 2026-10-15. Diff: `_schedule_for_medication` guard in `src/backend/api/medications.py` used by `log_dose` and `learn_patterns`; HTTP tests…
+
+## `docs/reviews/2026-10-15/SCHED-OWNER-diff-response.md`
+
+**SCHED-OWNER diff review response**
+
+(no summary — see file)
+
+## `docs/reviews/2026-10-15/build-program-codex.md`
+
+**Build-program Codex adversarial review (2026-10-15)**
+
+Reviewer: Codex CLI (`codex exec -s read-only`), driven by an Opus 5.5 L1, 2026-10-15. Targets: contracts.md, queue.md, RUNBOOK.md, `.claude/workflows/build-item.js`. Base `origin/main` @ `3b2236c`.…
+
+Links to: `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`
+
+## `docs/reviews/2026-10-16/D2-r1-response.md`
+
+**D-2 rev 2 Plan — Codex Round 1 Response**
+
+Run: `codex exec -s read-only -C <worktree> -o /tmp/claude-1000/d2-codex.txt ... </dev/null` (exit 0, under the 900 s timeout). Verdict: **REVISE**. Findings: 1 BLOCKER, 3 MAJOR, 1 MINOR. Output:…
+
+Links to: `docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md`
+
+## `docs/reviews/2026-10-16/E1a-r1-prompt.md`
+
+**(untitled)**
+
+(no summary — see file)
+
+## `docs/reviews/2026-10-16/E1a-r1-response.md`
+
+**E-1a Plan — Codex Round 1 Response**
+
+Run: `codex exec -s read-only` (the first attempt timed out at 900 s waiting on stdin, `rc=124`; the rerun used `</dev/null`). Verdict: **REVISE**. Findings: 1 BLOCKER, 4 MAJOR, 0 MINOR. Prompt:…
+
+Links to: `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`, `docs/reviews/2026-10-16/E1a-r1-prompt.md`
+
+## `docs/reviews/2026-10-16/E1a-r2-prompt.md`
+
+**(untitled)**
+
+(no summary — see file)
+
+## `docs/reviews/2026-10-16/E1a-r2-response.md`
+
+**E-1a Plan — Codex Round 2 Response (rev 3)**
+
+Run: `codex exec -s read-only -C <hc-e-1a> -o /tmp/claude-1000/e1a-r2-codex.txt "<prompt>" </dev/null` (exit 0). Verdict: **REVISE**. Findings: 0 BLOCKER, 6 MAJOR, 1 MINOR. Prompt: E1a-r2-prompt.md;…
+
+Links to: `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`, `docs/reviews/2026-10-16/E1a-r2-prompt.md`
+
 ## `docs/reviews/README.md`
 
 **Codex Review Archive**
 
 Every Codex plan review (`<ID>-rN-*`) and adversarial diff review (`<ID>-diff-codex.txt`), kept next to its prompt (`*-prompt.md`) and the author's response (`*-response.md`). Files were moved here…
 
-Links to: `docs/agentic/orchestration.md`, `docs/reviews/2026-09-25/DDI-diff-codex.txt`, `docs/reviews/2026-09-25/DDI-r1-codex.txt`, `docs/reviews/2026-09-25/DDI-r1-prompt.md`, `docs/reviews/2026-09-25/DDI-r1-response.md`, `docs/reviews/2026-09-25/DDI-r2-codex.txt`, `docs/reviews/2026-09-25/DDI-r2-prompt.md`, `docs/reviews/2026-09-25/DDI-r2-response.md`, `docs/reviews/2026-09-25/SAFECHAT-diff-codex.txt`, `docs/reviews/2026-09-25/SAFECHAT-r1-codex.txt`, `docs/reviews/2026-09-25/SAFECHAT-r1-prompt.md`, `docs/reviews/2026-09-25/SAFECHAT-r1-response.md`, `docs/reviews/2026-09-25/SAFEINTERP-diff-codex.txt`, `docs/reviews/2026-09-25/SAFEINTERP-r1-codex.txt`, `docs/reviews/2026-09-25/SAFEINTERP-r1-prompt.md`, `docs/reviews/2026-09-25/SAFEINTERP-r1-response.md`, `docs/reviews/2026-09-25/SAFEINTERP-r2-codex.txt`, `docs/reviews/2026-09-25/SAFEINTERP-r2-prompt.md`, `docs/reviews/2026-09-25/SAFEINTERP-r2-response.md`, `docs/reviews/2026-09-27-swarm/AUDIT-ORDER-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/AUDIT-ORDER-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/AUDIT-ORDER-r1-response.md`, `docs/reviews/2026-09-27-swarm/AUDIT-ORDER-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/AUDIT-ORDER-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/AUDIT-ORDER-r2-response.md`, `docs/reviews/2026-09-27-swarm/AUDIT-ORDER-r3-codex.txt`, `docs/reviews/2026-09-27-swarm/AUDIT-ORDER-r3-prompt.md`, `docs/reviews/2026-09-27-swarm/AUDIT-ORDER-r3-response.md`, `docs/reviews/2026-09-27-swarm/AUDIT-ORDER-secrev-response.md`, `docs/reviews/2026-09-27-swarm/P04-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/P04-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/P04-r1-response.md`, `docs/reviews/2026-09-27-swarm/P04-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/P04-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/P04-r2-response.md`, `docs/reviews/2026-09-27-swarm/P04-r3-codex.txt`, `docs/reviews/2026-09-27-swarm/P04-r3-prompt.md`, `docs/reviews/2026-09-27-swarm/P04-r3-response.md`, `docs/reviews/2026-09-27-swarm/P04-r4-codex.txt`, `docs/reviews/2026-09-27-swarm/P04-r4-prompt.md`, `docs/reviews/2026-09-27-swarm/P04-r4-response.md`, `docs/reviews/2026-09-27-swarm/P08-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/P08-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/P08-r1-response.md`, `docs/reviews/2026-09-27-swarm/P08-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/P08-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/P08-r2-response.md`, `docs/reviews/2026-09-27-swarm/P08-r3-codex.txt`, `docs/reviews/2026-09-27-swarm/P08-r3-prompt.md`, `docs/reviews/2026-09-27-swarm/P08-r3-response.md`, `docs/reviews/2026-09-27-swarm/P08-r4-codex.txt`, `docs/reviews/2026-09-27-swarm/P08-r4-prompt.md`, `docs/reviews/2026-09-27-swarm/P08-r4-response.md`, `docs/reviews/2026-09-27-swarm/RTN-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/RTN-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/RTN-r1-response.md`, `docs/reviews/2026-09-27-swarm/S01-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/S01-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/S01-r1-response.md`, `docs/reviews/2026-09-27-swarm/S01-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/S01-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/S01-r2-response.md`, `docs/reviews/2026-09-27-swarm/S01-r3-codex.txt`, `docs/reviews/2026-09-27-swarm/S01-r3-prompt.md`, `docs/reviews/2026-09-27-swarm/S01-r3-response.md`, `docs/reviews/2026-09-27-swarm/TAILWIND-4-codex-prompt.md`, `docs/reviews/2026-09-27-swarm/TAILWIND-4-codex.txt`, `docs/reviews/2026-09-27-swarm/TAILWIND-4-fable.md`, `docs/reviews/2026-09-27-swarm/W01-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/W01-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/W01-r1-response.md`, `docs/reviews/2026-09-27-swarm/W01-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/W01-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/W01-r2-response.md`, `docs/reviews/2026-09-27-swarm/W01-r3-codex.txt`, `docs/reviews/2026-09-27-swarm/W01-r3-prompt.md`, `docs/reviews/2026-09-27-swarm/W01-r3-response.md`, `docs/reviews/2026-09-27-swarm/W01-r4-codex.txt`, `docs/reviews/2026-09-27-swarm/W01-r4-prompt.md`, `docs/reviews/2026-09-27-swarm/W01-r4-response.md`, `docs/reviews/2026-09-27-swarm/W02-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/W02-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/W02-r1-response.md`, `docs/reviews/2026-09-27-swarm/W02-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/W02-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/W02-r2-response.md`, `docs/reviews/2026-09-27-swarm/W02-r3-codex.txt`, `docs/reviews/2026-09-27-swarm/W02-r3-prompt.md`, `docs/reviews/2026-09-27-swarm/W02-r3-response.md`, `docs/reviews/2026-09-27-swarm/W02-r4-codex.txt`, `docs/reviews/2026-09-27-swarm/W02-r4-prompt.md`, `docs/reviews/2026-09-27-swarm/W02-r4-response.md`, `docs/reviews/2026-09-27-swarm/W03-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/W03-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/W03-r1-response.md`, `docs/reviews/2026-09-27-swarm/W03-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/W03-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/W03-r2-response.md`, `docs/reviews/2026-09-27-swarm/W03-r3-codex.txt`, `docs/reviews/2026-09-27-swarm/W03-r3-prompt.md`, `docs/reviews/2026-09-27-swarm/W03-r3-response.md`, `docs/reviews/2026-09-27-swarm/W03-r4-codex.txt`, `docs/reviews/2026-09-27-swarm/W03-r4-prompt.md`, `docs/reviews/2026-09-27-swarm/W03-r4-response.md`, `docs/reviews/2026-09-27-swarm/W04-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/W04-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/W04-r1-response.md`, `docs/reviews/2026-09-27-swarm/W04-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/W04-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/W04-r2-response.md`, `docs/reviews/2026-09-27-swarm/W04-r3-codex.txt`, `docs/reviews/2026-09-27-swarm/W04-r3-prompt.md`, `docs/reviews/2026-09-27-swarm/W04-r3-response.md`, `docs/reviews/2026-09-27-swarm/W04-r4-codex.txt`, `docs/reviews/2026-09-27-swarm/W04-r4-prompt.md`, `docs/reviews/2026-09-27-swarm/W05-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/W05-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/W05-r1-response.md`, `docs/reviews/2026-09-27-swarm/W05-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/W05-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/W06-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/W06-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/W06-r1-response.md`, `docs/reviews/2026-09-27-swarm/W06-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/W06-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/W06-r2-response.md`, `docs/reviews/2026-09-27-swarm/W06-r3-codex.txt`, `docs/reviews/2026-09-27-swarm/W06-r3-prompt.md`, `docs/reviews/2026-09-27-swarm/W07-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/W07-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/W07-r1-response.md`, `docs/reviews/2026-09-27-swarm/W07-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/W07-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/W08-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/W08-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/W08-r1-response.md`, `docs/reviews/2026-09-27-swarm/W08-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/W08-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/W08-r2-response.md`, `docs/reviews/2026-09-27-swarm/W08-r3-codex.txt`, `docs/reviews/2026-09-27-swarm/W08-r3-prompt.md`, `docs/reviews/2026-09-27-swarm/W08-r3-response.md`, `docs/reviews/2026-09-27-swarm/W08-r4-codex.txt`, `docs/reviews/2026-09-27-swarm/W08-r4-prompt.md`, `docs/reviews/2026-09-27-swarm/W08-r4-response.md`, `docs/reviews/2026-09-27-swarm/W10-diff-codex.txt`, `docs/reviews/2026-09-27-swarm/W10-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/W10-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/W10-r1-response.md`, `docs/reviews/2026-09-27-swarm/W10-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/W10-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/W10-r2-response.md`, `docs/reviews/2026-09-27-swarm/W10-r3-codex.txt`, `docs/reviews/2026-09-27-swarm/W10-r3-prompt.md`, `docs/reviews/2026-09-27-swarm/W10-r3-response.md`, `docs/reviews/2026-09-27-swarm/W10-r4-codex.txt`, `docs/reviews/2026-09-27-swarm/W10-r4-prompt.md`, `docs/reviews/2026-09-27-swarm/W10-r4-response.md`, `docs/reviews/2026-09-27-swarm/W10-r5-codex.txt`, `docs/reviews/2026-09-27-swarm/W10-r5-prompt.md`, `docs/reviews/2026-09-27-swarm/W10-r5-response.md`, `docs/reviews/2026-09-27-swarm/W10-r6-codex.txt`, `docs/reviews/2026-09-27-swarm/W10-r6-prompt.md`, `docs/reviews/2026-09-27-swarm/W10-r6-response.md`, `docs/reviews/2026-09-27-swarm/W11a-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/W11a-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/W11a-r1-response.md`, `docs/reviews/2026-09-27-swarm/W11a-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/W11a-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/W11a-r2-response.md`, `docs/reviews/2026-09-27-swarm/W11a-r3-codex.txt`, `docs/reviews/2026-09-27-swarm/W11a-r3-prompt.md`, `docs/reviews/2026-09-27-swarm/W11a-r3-response.md`, `docs/reviews/2026-09-27-swarm/W11a-r4-codex.txt`, `docs/reviews/2026-09-27-swarm/W11a-r4-prompt.md`, `docs/reviews/2026-09-27-swarm/W11a-r4-response.md`, `docs/reviews/2026-09-27-swarm/W11b-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/W11b-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/W11b-r1-response.md`, `docs/reviews/2026-09-27-swarm/W11b-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/W11b-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/W11b-r2-response.md`, `docs/reviews/2026-09-27-swarm/W11b-r3-codex.txt`, `docs/reviews/2026-09-27-swarm/W11b-r3-prompt.md`, `docs/reviews/2026-09-27-swarm/W11b-r3-response.md`, `docs/reviews/2026-09-27-swarm/W11b-r4-codex.txt`, `docs/reviews/2026-09-27-swarm/W11b-r4-prompt.md`, `docs/reviews/2026-09-27-swarm/W11b-r4-response.md`, `docs/reviews/2026-09-29/P01-r1-codex.txt`, `docs/reviews/2026-09-29/P01-r1-prompt.md`, `docs/reviews/2026-09-29/P01-r1-response.md`, `docs/reviews/2026-09-29/S02-r1-codex.txt`, `docs/reviews/2026-09-29/S02-r1-prompt.md`, `docs/reviews/2026-09-29/S02-r1-response.md`, `docs/reviews/2026-10-12/AUDIT-ORDER-diff-codereview.md`, `docs/reviews/2026-10-12/AUDIT-ORDER-diff-codex.txt`, `docs/reviews/2026-10-12/AUDIT-ORDER-diff-prompt.md`, `docs/reviews/2026-10-12/AUDIT-ORDER-diff-response.md`, `docs/reviews/2026-10-12/AUDIT-ORDER-diff-secrev.md`, `docs/reviews/2026-10-12/GAM2-T1-diff-codereview.md`, `docs/reviews/2026-10-12/GAM2-T1-diff-response.md`, `docs/reviews/2026-10-12/MED-UTC-diff-codereview.md`, `docs/reviews/2026-10-12/MED-UTC-diff-response.md`, `docs/reviews/2026-10-13/SQLITE-MIX-diff-response.md`, `docs/reviews/2026-10-13/SQLITE-MIX-diff-secrev.md`
+Links to: `docs/agentic/orchestration.md`, `docs/reviews/2026-09-25/DDI-diff-codex.txt`, `docs/reviews/2026-09-25/DDI-r1-codex.txt`, `docs/reviews/2026-09-25/DDI-r1-prompt.md`, `docs/reviews/2026-09-25/DDI-r1-response.md`, `docs/reviews/2026-09-25/DDI-r2-codex.txt`, `docs/reviews/2026-09-25/DDI-r2-prompt.md`, `docs/reviews/2026-09-25/DDI-r2-response.md`, `docs/reviews/2026-09-25/SAFECHAT-diff-codex.txt`, `docs/reviews/2026-09-25/SAFECHAT-r1-codex.txt`, `docs/reviews/2026-09-25/SAFECHAT-r1-prompt.md`, `docs/reviews/2026-09-25/SAFECHAT-r1-response.md`, `docs/reviews/2026-09-25/SAFEINTERP-diff-codex.txt`, `docs/reviews/2026-09-25/SAFEINTERP-r1-codex.txt`, `docs/reviews/2026-09-25/SAFEINTERP-r1-prompt.md`, `docs/reviews/2026-09-25/SAFEINTERP-r1-response.md`, `docs/reviews/2026-09-25/SAFEINTERP-r2-codex.txt`, `docs/reviews/2026-09-25/SAFEINTERP-r2-prompt.md`, `docs/reviews/2026-09-25/SAFEINTERP-r2-response.md`, `docs/reviews/2026-09-27-swarm/AUDIT-ORDER-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/AUDIT-ORDER-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/AUDIT-ORDER-r1-response.md`, `docs/reviews/2026-09-27-swarm/AUDIT-ORDER-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/AUDIT-ORDER-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/AUDIT-ORDER-r2-response.md`, `docs/reviews/2026-09-27-swarm/AUDIT-ORDER-r3-codex.txt`, `docs/reviews/2026-09-27-swarm/AUDIT-ORDER-r3-prompt.md`, `docs/reviews/2026-09-27-swarm/AUDIT-ORDER-r3-response.md`, `docs/reviews/2026-09-27-swarm/AUDIT-ORDER-secrev-response.md`, `docs/reviews/2026-09-27-swarm/P04-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/P04-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/P04-r1-response.md`, `docs/reviews/2026-09-27-swarm/P04-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/P04-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/P04-r2-response.md`, `docs/reviews/2026-09-27-swarm/P04-r3-codex.txt`, `docs/reviews/2026-09-27-swarm/P04-r3-prompt.md`, `docs/reviews/2026-09-27-swarm/P04-r3-response.md`, `docs/reviews/2026-09-27-swarm/P04-r4-codex.txt`, `docs/reviews/2026-09-27-swarm/P04-r4-prompt.md`, `docs/reviews/2026-09-27-swarm/P04-r4-response.md`, `docs/reviews/2026-09-27-swarm/P08-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/P08-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/P08-r1-response.md`, `docs/reviews/2026-09-27-swarm/P08-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/P08-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/P08-r2-response.md`, `docs/reviews/2026-09-27-swarm/P08-r3-codex.txt`, `docs/reviews/2026-09-27-swarm/P08-r3-prompt.md`, `docs/reviews/2026-09-27-swarm/P08-r3-response.md`, `docs/reviews/2026-09-27-swarm/P08-r4-codex.txt`, `docs/reviews/2026-09-27-swarm/P08-r4-prompt.md`, `docs/reviews/2026-09-27-swarm/P08-r4-response.md`, `docs/reviews/2026-09-27-swarm/RTN-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/RTN-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/RTN-r1-response.md`, `docs/reviews/2026-09-27-swarm/S01-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/S01-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/S01-r1-response.md`, `docs/reviews/2026-09-27-swarm/S01-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/S01-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/S01-r2-response.md`, `docs/reviews/2026-09-27-swarm/S01-r3-codex.txt`, `docs/reviews/2026-09-27-swarm/S01-r3-prompt.md`, `docs/reviews/2026-09-27-swarm/S01-r3-response.md`, `docs/reviews/2026-09-27-swarm/TAILWIND-4-codex-prompt.md`, `docs/reviews/2026-09-27-swarm/TAILWIND-4-codex.txt`, `docs/reviews/2026-09-27-swarm/TAILWIND-4-fable.md`, `docs/reviews/2026-09-27-swarm/W01-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/W01-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/W01-r1-response.md`, `docs/reviews/2026-09-27-swarm/W01-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/W01-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/W01-r2-response.md`, `docs/reviews/2026-09-27-swarm/W01-r3-codex.txt`, `docs/reviews/2026-09-27-swarm/W01-r3-prompt.md`, `docs/reviews/2026-09-27-swarm/W01-r3-response.md`, `docs/reviews/2026-09-27-swarm/W01-r4-codex.txt`, `docs/reviews/2026-09-27-swarm/W01-r4-prompt.md`, `docs/reviews/2026-09-27-swarm/W01-r4-response.md`, `docs/reviews/2026-09-27-swarm/W02-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/W02-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/W02-r1-response.md`, `docs/reviews/2026-09-27-swarm/W02-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/W02-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/W02-r2-response.md`, `docs/reviews/2026-09-27-swarm/W02-r3-codex.txt`, `docs/reviews/2026-09-27-swarm/W02-r3-prompt.md`, `docs/reviews/2026-09-27-swarm/W02-r3-response.md`, `docs/reviews/2026-09-27-swarm/W02-r4-codex.txt`, `docs/reviews/2026-09-27-swarm/W02-r4-prompt.md`, `docs/reviews/2026-09-27-swarm/W02-r4-response.md`, `docs/reviews/2026-09-27-swarm/W03-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/W03-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/W03-r1-response.md`, `docs/reviews/2026-09-27-swarm/W03-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/W03-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/W03-r2-response.md`, `docs/reviews/2026-09-27-swarm/W03-r3-codex.txt`, `docs/reviews/2026-09-27-swarm/W03-r3-prompt.md`, `docs/reviews/2026-09-27-swarm/W03-r3-response.md`, `docs/reviews/2026-09-27-swarm/W03-r4-codex.txt`, `docs/reviews/2026-09-27-swarm/W03-r4-prompt.md`, `docs/reviews/2026-09-27-swarm/W03-r4-response.md`, `docs/reviews/2026-09-27-swarm/W04-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/W04-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/W04-r1-response.md`, `docs/reviews/2026-09-27-swarm/W04-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/W04-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/W04-r2-response.md`, `docs/reviews/2026-09-27-swarm/W04-r3-codex.txt`, `docs/reviews/2026-09-27-swarm/W04-r3-prompt.md`, `docs/reviews/2026-09-27-swarm/W04-r3-response.md`, `docs/reviews/2026-09-27-swarm/W04-r4-codex.txt`, `docs/reviews/2026-09-27-swarm/W04-r4-prompt.md`, `docs/reviews/2026-09-27-swarm/W05-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/W05-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/W05-r1-response.md`, `docs/reviews/2026-09-27-swarm/W05-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/W05-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/W06-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/W06-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/W06-r1-response.md`, `docs/reviews/2026-09-27-swarm/W06-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/W06-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/W06-r2-response.md`, `docs/reviews/2026-09-27-swarm/W06-r3-codex.txt`, `docs/reviews/2026-09-27-swarm/W06-r3-prompt.md`, `docs/reviews/2026-09-27-swarm/W07-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/W07-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/W07-r1-response.md`, `docs/reviews/2026-09-27-swarm/W07-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/W07-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/W08-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/W08-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/W08-r1-response.md`, `docs/reviews/2026-09-27-swarm/W08-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/W08-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/W08-r2-response.md`, `docs/reviews/2026-09-27-swarm/W08-r3-codex.txt`, `docs/reviews/2026-09-27-swarm/W08-r3-prompt.md`, `docs/reviews/2026-09-27-swarm/W08-r3-response.md`, `docs/reviews/2026-09-27-swarm/W08-r4-codex.txt`, `docs/reviews/2026-09-27-swarm/W08-r4-prompt.md`, `docs/reviews/2026-09-27-swarm/W08-r4-response.md`, `docs/reviews/2026-09-27-swarm/W10-diff-codex.txt`, `docs/reviews/2026-09-27-swarm/W10-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/W10-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/W10-r1-response.md`, `docs/reviews/2026-09-27-swarm/W10-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/W10-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/W10-r2-response.md`, `docs/reviews/2026-09-27-swarm/W10-r3-codex.txt`, `docs/reviews/2026-09-27-swarm/W10-r3-prompt.md`, `docs/reviews/2026-09-27-swarm/W10-r3-response.md`, `docs/reviews/2026-09-27-swarm/W10-r4-codex.txt`, `docs/reviews/2026-09-27-swarm/W10-r4-prompt.md`, `docs/reviews/2026-09-27-swarm/W10-r4-response.md`, `docs/reviews/2026-09-27-swarm/W10-r5-codex.txt`, `docs/reviews/2026-09-27-swarm/W10-r5-prompt.md`, `docs/reviews/2026-09-27-swarm/W10-r5-response.md`, `docs/reviews/2026-09-27-swarm/W10-r6-codex.txt`, `docs/reviews/2026-09-27-swarm/W10-r6-prompt.md`, `docs/reviews/2026-09-27-swarm/W10-r6-response.md`, `docs/reviews/2026-09-27-swarm/W11a-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/W11a-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/W11a-r1-response.md`, `docs/reviews/2026-09-27-swarm/W11a-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/W11a-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/W11a-r2-response.md`, `docs/reviews/2026-09-27-swarm/W11a-r3-codex.txt`, `docs/reviews/2026-09-27-swarm/W11a-r3-prompt.md`, `docs/reviews/2026-09-27-swarm/W11a-r3-response.md`, `docs/reviews/2026-09-27-swarm/W11a-r4-codex.txt`, `docs/reviews/2026-09-27-swarm/W11a-r4-prompt.md`, `docs/reviews/2026-09-27-swarm/W11a-r4-response.md`, `docs/reviews/2026-09-27-swarm/W11b-r1-codex.txt`, `docs/reviews/2026-09-27-swarm/W11b-r1-prompt.md`, `docs/reviews/2026-09-27-swarm/W11b-r1-response.md`, `docs/reviews/2026-09-27-swarm/W11b-r2-codex.txt`, `docs/reviews/2026-09-27-swarm/W11b-r2-prompt.md`, `docs/reviews/2026-09-27-swarm/W11b-r2-response.md`, `docs/reviews/2026-09-27-swarm/W11b-r3-codex.txt`, `docs/reviews/2026-09-27-swarm/W11b-r3-prompt.md`, `docs/reviews/2026-09-27-swarm/W11b-r3-response.md`, `docs/reviews/2026-09-27-swarm/W11b-r4-codex.txt`, `docs/reviews/2026-09-27-swarm/W11b-r4-prompt.md`, `docs/reviews/2026-09-27-swarm/W11b-r4-response.md`, `docs/reviews/2026-09-29/P01-r1-codex.txt`, `docs/reviews/2026-09-29/P01-r1-prompt.md`, `docs/reviews/2026-09-29/P01-r1-response.md`, `docs/reviews/2026-09-29/S02-r1-codex.txt`, `docs/reviews/2026-09-29/S02-r1-prompt.md`, `docs/reviews/2026-09-29/S02-r1-response.md`, `docs/reviews/2026-10-12/AUDIT-ORDER-diff-codereview.md`, `docs/reviews/2026-10-12/AUDIT-ORDER-diff-codex.txt`, `docs/reviews/2026-10-12/AUDIT-ORDER-diff-prompt.md`, `docs/reviews/2026-10-12/AUDIT-ORDER-diff-response.md`, `docs/reviews/2026-10-12/AUDIT-ORDER-diff-secrev.md`, `docs/reviews/2026-10-12/GAM2-T1-diff-codereview.md`, `docs/reviews/2026-10-12/GAM2-T1-diff-response.md`, `docs/reviews/2026-10-12/GAM2-T24-diff-codereview.md`, `docs/reviews/2026-10-12/GAM2-T24-diff-response.md`, `docs/reviews/2026-10-12/MED-UTC-diff-codereview.md`, `docs/reviews/2026-10-12/MED-UTC-diff-response.md`, `docs/reviews/2026-10-12/RL-EXPORT-EMPTY-diff-codereview.md`, `docs/reviews/2026-10-12/RL-EXPORT-EMPTY-diff-response.md`, `docs/reviews/2026-10-13/SQLITE-MIX-diff-response.md`, `docs/reviews/2026-10-13/SQLITE-MIX-diff-secrev.md`, `docs/reviews/2026-10-13/UTC-SWEEP-diff-codereview.md`, `docs/reviews/2026-10-13/UTC-SWEEP-diff-response.md`, `docs/reviews/2026-10-14/ASSIST-UTC-diff-codereview.md`, `docs/reviews/2026-10-14/ASSIST-UTC-diff-response.md`, `docs/reviews/2026-10-14/DOSE-VAR-diff-codereview.md`, `docs/reviews/2026-10-14/DOSE-VAR-diff-response.md`, `docs/reviews/2026-10-15/SCHED-OWNER-diff-codereview.md`, `docs/reviews/2026-10-15/SCHED-OWNER-diff-response.md`, `docs/reviews/2026-10-15/build-program-codex.md`, `docs/reviews/2026-10-16/E1a-r1-codex.txt`, `docs/reviews/2026-10-16/E1a-r1-prompt.md`, `docs/reviews/2026-10-16/E1a-r1-response.md`
 
 ## `docs/roles/00_roles_index.md`
 

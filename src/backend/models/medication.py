@@ -136,6 +136,8 @@ class MedicationSchedule(ProfileDatabaseBase):
     # If null, use target_time ± default tolerance
     adaptive_window_start: Mapped[Optional[time]] = mapped_column(Time, nullable=True)
     adaptive_window_end: Mapped[Optional[time]] = mapped_column(Time, nullable=True)
+    # IANA zone the stored window was learned in; NULL = not yet re-learned (D-2)
+    adaptive_window_tz: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
 
     # Minutes before target_time to send first reminder
     reminder_offset_minutes: Mapped[int] = mapped_column(Integer, default=15, nullable=False)
