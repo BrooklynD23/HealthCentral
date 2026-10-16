@@ -191,7 +191,7 @@ Run from ${plan.worktree}, every pytest through the ABSOLUTE pyslot path shown i
    "$(git rev-parse --show-toplevel)/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest <files> -p no:cacheprovider -q   (cwd src/backend)
 2. Collection: same prefix with tests/ --collect-only -q; copy the final line into collected_line.
 3. Full backend suite: same prefix with tests/ -q.
-4. These plan acceptance commands, skipping any that build, install or edit (npm build, pip install, writes): ${spec.acceptance_commands.join(' ;; ') || 'none listed'}.
+4. These plan acceptance commands, skipping any that build, install or edit (npm build, pip install, writes) AND any that belong to these tasks, which were deliberately not built this run (gated): ${(plan.skipped_tasks || []).join(', ') || 'none'}. List each skipped command with the reason SKIPPED-GATED; it does not count against all_passed: ${spec.acceptance_commands.join(' ;; ') || 'none listed'}.
 5. python3 scripts/docs_lint.py (cwd worktree root).
 Frontend vitest stalls under WSL on /mnt/c: record it as skipped with that reason, never retry.
 \`test_api_rag_index_002b\` failing without an embedding model is environmental: list it in failures prefixed "ENV:" and do not count it against all_passed.

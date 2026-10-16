@@ -32,6 +32,17 @@ Totals: 51 items. 7 ready now (E-1, E-3, D-0, C-PMIG, E-7, F-3, and B-3 for the 
 - **E-1a:** rev 3 approved (qualifier words, `#` / `no.` separators); merge if the diff matches rev 3. E-1 merges after E-1a.
 - **Done:** D-1 (#104), D-3 (#109), E-7 (#103), F-3 (#102). Collected 1613 on `527bc22`.
 
+
+**Status 2026-10-16 (second batch)** (owner row P6-ORPHAN):
+- **Merged:** E-1a (#108), E-1 / W-2 (#106), B-2 (#112), C-P6 Task 1 orphan-audit tool (#113), RAG-RUNTIME-500 (#114), D-2 (#115, profile migration `013_adaptive_windows_local`), B-6 (#116). Collected 1683 on `33f42eb`.
+- **C-P6 Tasks 2-5:** wait for the owner's real-vault orphan counts (P6-ORPHAN). The FK migration takes the next free revision, `014`.
+- **New rows (not yet planned):**
+  - **E-1b** (ask-first `modules/redaction.py`): strict misses a parenthesised qualifier (`mrn_(hospital):_…`), `#` / `no.` after a bare label (`patient_#:_…`), and `-` as separator (`mrn_-_…`). Needs a plan and an owner yes.
+  - **REDACT-EMAIL-REDOS** (ask-first `modules/redaction.py`): the existing `email` rule is quadratic; `"mrn"+"._"*20000` takes 0.81 s. Needs a plan and an owner yes.
+  - **MED-STREAK-GRACE:** the per-medication streak (`api/medications.py:1244`, `modules/adherence_patterns.py:441-449`) still resets each morning and disagrees with the gamification widget (D-3 follow-up). Needs an owner ruling (lane-D Q2).
+  - **AUDIT-MISSING-MED:** pre-existing missing audit calls at `api/medications.py:1105` and `api/notifications.py:416` (D-1 follow-up; CLAUDE.md audit-logging invariant).
+  - **EXPORT-TODAY-TZ:** `modules/export.py:454` dates the doctor summary with the UTC `today`.
+
 ---
 
 ## Wave 6 — start now
