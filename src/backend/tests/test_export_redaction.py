@@ -5,8 +5,9 @@ modules/redaction.py before it is stored or rendered, in every download format
 (text, html, pdf). CSV and JSON are the patient's own full-fidelity export and
 stay byte-for-byte unredacted (named exceptions, W-10).
 
-Scope of the claim: labelled name/DOB/MRN in free-text fields. Underscore-joined
-identifiers are a known, owner-gated gap (O-3), pinned by a strict xfail.
+Scope of the claim: labelled multi-word name, M/D/Y DOB and MRN in free-text
+fields. Not covered by strict: ISO/textual DOB, single-token names, underscore-
+joined identifiers (O-3, owner-gated, pinned by a strict xfail).
 
 Every test drives FastAPI's dependency graph through
 tests/support/routes.py::route_client (recurring-failures #1).
