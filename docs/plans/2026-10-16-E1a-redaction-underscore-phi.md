@@ -147,6 +147,13 @@ Strict stays pattern-based. After E-1a it still does **not** match:
 6. A value continues across `:`/`#`/`,` only when `_` follows; other punctuation ends it: `name:_jane_(doe)` keeps `(doe)`, `name:_doe;_jane` keeps `;_jane`.
 7. Free text the existing spaced rules already miss (see W-2 `:1042`).
 
+Found by the PR #108 rev 3 security review (each closing needs a new owner ask; candidate E-1b):
+
+8. A parenthesised qualifier between label and separator: `mrn_(hospital):_1234567`, `patient_name_(legal):_jane_doe` stay in clear text.
+9. `#` or `no.` before the colon on bare labels: `patient_#:_98765`, `patient_no.:_98765`, `name_#:_jane` stay in clear text.
+10. `-`, `=` or `;` as the label separator: `mrn_-_1234567`, `patient_name_-_jane_doe` stay in clear text.
+11. Whitespace other than U+0020 (normalize.py replaces only spaces): `patient_name:_jane\xa0doe` → `[ID-REDACTED]\xa0doe`; `patient_name:\tjane` unchanged.
+
 ## Ordering with E-1 (read before scheduling)
 
 The owner said the fix lands **before W-2 merges** (`owner-decisions:176`; queue `:23`: "E-1 merge now waits on a new item E-1a"). So E-1a must **not** wait for E-1 to merge, or E-1 and E-1a block each other.
