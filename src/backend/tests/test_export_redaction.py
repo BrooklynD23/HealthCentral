@@ -308,7 +308,7 @@ def _download_summary(client: TestClient, fmt: str) -> tuple[str, bytes]:
 def test_hc_expr_001_doctor_summary_has_no_phi(
     fmt: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """HC-EXPR-001: labelled name, DOB and MRN are absent from every format."""
+    """HC-EXPR-001: labelled multi-word name, M/D/Y DOB and MRN are absent from every format."""
     if fmt == "pdf":
         _install_capturing_weasyprint(monkeypatch)
     with _export_client() as client:
