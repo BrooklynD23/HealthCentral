@@ -200,7 +200,7 @@ class ExportModule:
         """Format abnormal values section."""
         lines = []
         for obs in sorted(observations, key=lambda x: x.get("collected_at", datetime.min), reverse=True):
-            date_str = obs.get("collected_at", "").strftime("%m/%d/%Y") if obs.get("collected_at") else "Unknown date"
+            date_str = obs.get("collected_at", "").strftime("%Y-%m-%d") if obs.get("collected_at") else "Unknown date"
             lines.append(
                 f"• {obs['analyte_canonical']}: {obs['value']} {obs.get('unit', '')} "
                 f"(ref: {obs.get('ref_low', '?')}-{obs.get('ref_high', '?')}) "

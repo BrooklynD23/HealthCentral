@@ -321,6 +321,10 @@ def test_hc_expr_001_doctor_summary_has_no_phi(
         assert token in body
     for clinical in ("glucose", "250.0", "potassium", "6.1", "hemoglobin", "sodium", "mg/dL"):
         assert clinical in body
+    # O-2 (a): collection dates render ISO-8601, which strict numeric_date
+    # does not match (the visit-prep packet already does this, HC-PKT-004).
+    assert "2024-03-15" in body
+    assert "[DATE-REDACTED]" not in body
 
 
 @pytest.fixture
