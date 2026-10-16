@@ -1048,6 +1048,76 @@ Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-repor
 
 Links to: `docs/plans/2026-10-04-DDI-doc-delete-interpretation.md`
 
+## `docs/plans/2026-10-15-build-program/RUNBOOK.md`
+
+**Build Program 2026-10-15 — Multi-Runtime Runbook**
+
+One item loop that **Claude Code, Codex CLI and Devin** run against the same queue, with GitHub as the only lock. It extends the tier model in orchestration.md §1–§5 and does not repeat it.…
+
+Links to: `.claude/workflows/build-item.js`, `.claude/workflows/build-wave.js`, `AGENT.md`, `CLAUDE.md`, `docs/agentic/orchestration.md`, `docs/agentic/recurring-failures.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/reviews/2026-10-15/build-program-codex.md`
+
+## `docs/plans/2026-10-15-build-program/contracts.md`
+
+**Build Program 2026-10-15 — Cross-Lane Contracts**
+
+Inputs: lane docs A, B, C, D, E, F and their peer-review sections. Execution order lives in queue.md.
+
+Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md`, `docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`, `docs/plans/2026-10-15-build-program/queue.md`
+
+## `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`
+
+**Lane A — RAG + assistant: build-program design**
+
+Read-only design. No product file was edited. Existing merged plans are not rewritten; this file gives a **delta** for each (W-3, W-8) and a compact design for items with no plan.
+
+Links to: `audit/2026-09-25/waves/scaffold/G-C5.md`, `audit/2026-09-25/waves/wave-3-L1-A.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W03-verified-only-rag-and-trend-labels.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-10-15-build-program/contracts.md`
+
+## `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`
+
+**Lane B — Interpretation and Eval**
+
+**Collected-count slot on main:** `CLAUDE.md:30` and `:34` read **1574**; `AGENT.md:76` reads 1574. The orchestrator's "1501" is the slot on PR #95's branch, not main. Every count-changing PR in…
+
+Links to: `audit/2026-09-25/waves/scaffold/G-C3a.md`, `audit/2026-09-25/waves/scaffold/PARA-1-R3.md`, `audit/2026-09-25/waves/scaffold/W-7.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W07-tiered-interpretation-via-modelrunner.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`, `docs/plans/2026-10-15-build-program/contracts.md`
+
+## `docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md`
+
+**Lane C: Schema and Data Lifecycle (Build Program 2026-10-15)**
+
+Lane C owns the profile schema chain, FK enforcement, the test-reset tuple, export persistence, backup robustness and two small evidence/audit fixes. It also publishes the profile-migration…
+
+Links to: `audit/2026-09-25/plans/06-sql-fk-audit.md`, `audit/2026-09-25/plans/07-test-reset-tables.md`, `audit/2026-09-25/waves/scaffold/G-C1.md`, `audit/2026-09-25/waves/scaffold/GAMIFICATION-V2.md`, `audit/2026-09-25/waves/scaffold/P6.md`, `audit/2026-09-25/waves/scaffold/P7.md`, `audit/2026-09-25/waves/wave-2-L1-C.md`, `docs/capstone-report/implementation-program.md`, `docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/reviews/2026-10-13/BKUP-TORN-response.md`, `docs/reviews/2026-10-13/SQLITE-MIX-diff-response.md`
+
+## `docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md`
+
+**Lane D — Time Zones, Medications, Gamification — Build Design**
+
+---
+
+## `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`
+
+**Lane E — Privacy, Gates, CI — Build Design**
+
+---
+
+Links to: `audit/2026-09-25/waves/briefs/TAILWIND-4-L1-brief.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W01-harness-agents-branch-a.md`, `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`, `docs/plans/2026-09-27-W11a-test-and-gate-hardening.md`, `docs/plans/2026-10-09-AUDIT-ORDER.md`
+
+## `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`
+
+**Lane F — Docs, Owner Queue, Wearables Consumer Map — Build Design**
+
+**Prior art reused, not repeated:** readiness packs P4-deferred, W-10b, G-C2, RTN, SHOWCASE (all measured 2026-10-07 @ `6b4dd84`). Their L1/L2 briefs stay usable once the deltas below are applied.
+
+Links to: `audit/2026-09-25/waves/scaffold/G-C2.md`, `audit/2026-09-25/waves/scaffold/P4-deferred.md`, `audit/2026-09-25/waves/scaffold/RTN.md`, `audit/2026-09-25/waves/scaffold/SHOWCASE.md`, `audit/2026-09-25/waves/scaffold/W-10b.md`, `docs/agentic/recurring-failures.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/features/TASK_LIST.md`, `docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md`, `docs/plans/2026-09-27-W10-governance-invariant-amendments.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`, `docs/plans/2026-09-27-nightly-doc-drift-routine-spec.md`, `docs/plans/2026-09-27-senior-report-showcase-plan.md`
+
+## `docs/plans/2026-10-15-build-program/queue.md`
+
+**Build Program 2026-10-15 — Execution Queue**
+
+Rules: contracts.md §b (shared files), §c (migrations), §d (count slots). Path shorthand: `be/` = `src/backend/`, `fe/` = `src/frontend/src/`; "slots" = the `CLAUDE.md` / `AGENT.md` collected-count…
+
+Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`
+
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
 **Project Structure Setup**
@@ -2381,6 +2451,14 @@ Reviewer: code-reviewer subagent (Opus 5.5), 2026-10-15. Diff: `_schedule_for_me
 **SCHED-OWNER diff review response**
 
 (no summary — see file)
+
+## `docs/reviews/2026-10-15/build-program-codex.md`
+
+**Build-program Codex adversarial review (2026-10-15)**
+
+Reviewer: Codex CLI (`codex exec -s read-only`), driven by an Opus 5.5 L1, 2026-10-15. Targets: contracts.md, queue.md, RUNBOOK.md, `.claude/workflows/build-item.js`. Base `origin/main` @ `3b2236c`.…
+
+Links to: `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`
 
 ## `docs/reviews/README.md`
 
