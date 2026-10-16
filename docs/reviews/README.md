@@ -11,7 +11,7 @@ Every Codex plan review (`<ID>-rN-*`) and adversarial diff review (`<ID>-diff-co
 - `2026-10-13/` — SQLITE-MIX diff (security review); UTC-SWEEP diff (code review).
 - `2026-10-14/` — DOSE-VAR diff (code review); ASSIST-UTC diff (code review).
 
-New reviews go in `docs/reviews/<date>/<ID>-r<N>-{prompt.md,codex.txt,response.md}`; add a row here. Process: [../agentic/orchestration.md](../agentic/orchestration.md).
+New reviews go in `docs/reviews/<date>/<ID>-r<N>-{prompt.md,codex.txt,response.md}`. PRs add review files only; the orchestrator adds the row here in the post-merge batch (SLOT-RULE-2). Process: [../agentic/orchestration.md](../agentic/orchestration.md).
 
 Verdict is the reviewer's last `VERDICT:` line (plan reviews: PASS / REVISE; diff reviews: approve / needs-attention). Date is the commit date the output was first added.
 
