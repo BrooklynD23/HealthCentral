@@ -74,6 +74,7 @@ An item is eligible only if ALL hold (cite evidence in why):
 4. No open PR already claims it (head branch matches ^[a-z]+/<id-lower>- or title has "[claim:" + id).
 5. None of its files is in an open non-draft PR's file list (contracts.md §b rule 1; count slots, docs/INDEX.md, docs/_link_graph.json are never in an item's list under SLOT-RULE-2 — drop them from files).
 Priority: unblocks the most downstream rows first, then smaller est hours.
+A row marked "runs alone" (e.g. E-3a, repo-wide) is returned ALONE in eligible (and every other eligible row goes to not_eligible with reason "waits for <id>, runs alone"), or put in not_eligible if any open PR edits Python; never mix it with other items.
 Put every other considered row in not_eligible with the one blocking reason.
 ${STYLE}`,
   { label: 'select', phase: 'Select', model: 'opus', effort: 'high', schema: SELECT_SCHEMA },
