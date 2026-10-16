@@ -326,10 +326,12 @@ It appears for time too. `taken_at` is stored naive UTC, and `streak_engine`
 buckets it on the profile's wall clock, but `modules/adherence_patterns.py`
 bucketed the same column by UTC hour, weekday and date, so a Los Angeles
 patient's 08:00 dose was learned as 15:00/16:00 (ADHERE-TZ, 2026-10-14). The
-UTC `taken_at.date()` streak helpers in `api/medications.py`, the UTC
-`calculate_streak` callers in notifications (STREAK-TZ) and the scheduler's UTC
-`now.time()` (SCHED-TZ) are still open; learned adaptive windows stay UTC until
-SCHED-TZ lands, because the scheduler reads them in UTC. Recheck: `grep -rnE
+streak helpers and `calculate_streak` callers (STREAK-TZ, D-1 PR #104), the
+gamification streak (D-3 PR #109) and the scheduler clock with learned windows
+(SCHED-TZ, D-2 PR #115, profile migration `013_adaptive_windows_local`) now use
+the profile's local date and time (2026-10-16). One hit remains:
+`modules/export.py:454` dates the doctor summary with the UTC `today` (queue row
+EXPORT-TODAY-TZ). Recheck: `grep -rnE
 "taken_at\.(hour|date\(\)|weekday)|utcnow\(\)\.(date|time)\(\)" src/backend`.
 
 **Recheck:** when a comment or doc justifies a deletion with a reason that names
