@@ -585,7 +585,8 @@
       "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md",
       "docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md",
       "docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md",
-      "docs/plans/2026-10-15-build-program/queue.md"
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md"
     ],
     "docs/capstone-report/report-outline.md": [
       "docs/capstone-report/00-original-goal.md",
@@ -803,7 +804,8 @@
       "docs/capstone-report/README.md",
       "docs/capstone-report/implementation-program.md",
       "docs/plans/2026-10-01-packaging-decision.md",
-      "docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md"
+      "docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md",
+      "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md"
     ],
     "docs/plans/2026-09-27-W03-verified-only-rag-and-trend-labels.md": [
       "docs/capstone-report/README.md",
@@ -944,7 +946,8 @@
       "docs/plans/2026-10-15-build-program/contracts.md"
     ],
     "docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md": [
-      "docs/plans/2026-10-15-build-program/contracts.md"
+      "docs/plans/2026-10-15-build-program/contracts.md",
+      "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md"
     ],
     "docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md": [
       "docs/plans/2026-10-15-build-program/contracts.md"
@@ -952,7 +955,12 @@
     "docs/plans/2026-10-15-build-program/queue.md": [
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
       "docs/plans/2026-10-15-build-program/contracts.md",
+      "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md",
       "docs/reviews/2026-10-15/build-program-codex.md"
+    ],
+    "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md": [
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/reviews/2026-10-16/E1a-r1-response.md"
     ],
     "docs/plans/implementation-log": [
       "docs/00_architecture_plans_index.md"
@@ -1766,6 +1774,9 @@
     ],
     "docs/reviews/2026-10-15/build-program-codex.md": [
       "docs/plans/2026-10-15-build-program/RUNBOOK.md"
+    ],
+    "docs/reviews/2026-10-16/E1a-r1-prompt.md": [
+      "docs/reviews/2026-10-16/E1a-r1-response.md"
     ],
     "docs/roles/00_roles_index.md": [
       "docs/00_architecture_plans_index.md",
@@ -2779,7 +2790,14 @@
     "docs/plans/2026-10-15-build-program/queue.md": [
       "docs/capstone-report/owner-decisions-2026-09-27.md",
       "docs/plans/2026-10-15-build-program/contracts.md",
+      "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md",
       "docs/capstone-report/implementation-program.md"
+    ],
+    "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md": [
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-09-27-W02-doctor-summary-redaction.md",
+      "docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md",
+      "docs/capstone-report/owner-decisions-2026-09-27.md"
     ],
     "docs/plans/implementation-log/README.md": [
       "docs/plans/implementation-log/2024-12-28_project-structure-setup.md",
@@ -2944,6 +2962,10 @@
       "docs/plans/2026-10-15-build-program/contracts.md",
       "docs/plans/2026-10-15-build-program/queue.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md"
+    ],
+    "docs/reviews/2026-10-16/E1a-r1-response.md": [
+      "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md",
+      "docs/reviews/2026-10-16/E1a-r1-prompt.md"
     ],
     "docs/reviews/README.md": [
       "docs/agentic/orchestration.md",

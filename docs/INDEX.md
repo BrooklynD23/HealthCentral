@@ -1116,7 +1116,15 @@ Links to: `audit/2026-09-25/waves/scaffold/G-C2.md`, `audit/2026-09-25/waves/sca
 
 Rules: contracts.md §b (shared files), §c (migrations), §d (count slots). Path shorthand: `be/` = `src/backend/`, `fe/` = `src/frontend/src/`; "slots" = the `CLAUDE.md` / `AGENT.md` collected-count…
 
-Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`
+Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`
+
+## `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`
+
+**E-1a: Strict Redaction for Underscore-Joined Identifiers (O-3)**
+
+Strict `RedactionEngine` matches the underscore-joined labelled shapes that unknown analytes are stored in, without redacting normal analyte names. Standard and minimal levels do not change.
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-15-build-program/queue.md`
 
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
@@ -2459,6 +2467,20 @@ Reviewer: code-reviewer subagent (Opus 5.5), 2026-10-15. Diff: `_schedule_for_me
 Reviewer: Codex CLI (`codex exec -s read-only`), driven by an Opus 5.5 L1, 2026-10-15. Targets: contracts.md, queue.md, RUNBOOK.md, `.claude/workflows/build-item.js`. Base `origin/main` @ `3b2236c`.…
 
 Links to: `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`
+
+## `docs/reviews/2026-10-16/E1a-r1-prompt.md`
+
+**(untitled)**
+
+(no summary — see file)
+
+## `docs/reviews/2026-10-16/E1a-r1-response.md`
+
+**E-1a Plan — Codex Round 1 Response**
+
+Run: `codex exec -s read-only` (the first attempt timed out at 900 s waiting on stdin, `rc=124`; the rerun used `</dev/null`). Verdict: **REVISE**. Findings: 1 BLOCKER, 4 MAJOR, 0 MINOR. Prompt:…
+
+Links to: `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`, `docs/reviews/2026-10-16/E1a-r1-prompt.md`
 
 ## `docs/reviews/README.md`
 
