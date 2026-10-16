@@ -1,6 +1,6 @@
 # Build Program 2026-10-15 — Execution Queue
 
-**Last Updated:** 2026-10-16 (E-1a spec and ordering)
+**Last Updated:** 2026-10-16 (D-2 rev 2: Q1 answered; E-1a spec and ordering)
 **Owner:** repository owner
 **Status:** PROPOSED (L0 contracts reconciler). This is the single execution queue for lanes A–F. **No owner approval is recorded here**; every gate keeps its state in [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md).
 **Refresh Trigger:** any item below changing status; any merge of #95, #97, #99, #82, #84, #74, #72, #94 or #68; any owner answer to a gate listed here; any edit to [contracts.md](contracts.md).
@@ -56,7 +56,7 @@ The B-3 Codex plan review (R-22) also runs in Wave 6. It is a review, not a code
 
 | id | lane | kind | depends_on | owner gates | ask-first | files | est h | runtime | status |
 |---|---|---|---|---|---|---|---|---|---|
-| D-2 | D | PRODUCT (code) | D-1, #97, C-PMIG | Q1 (re-learn = clear windows) | — | `be/modules/notification_scheduler.py`, `be/modules/adherence_patterns.py`, `be/api/medications.py`, `be/migrations/profile/versions/NNN_adaptive_windows_local.py`, `be/tests/test_notification_scheduler_wiring.py`, `be/tests/test_adherence_patterns_tz_http.py`, head literal (`be/tests/test_care_tasks.py`, `be/tests/test_profile_migrations_sqlcipher_fallback.py`, `be/tests/test_source_spans.py`, or `be/tests/support/migrations.py` after C-P6), slots | 5 | claude | blocked: D-1; owner Q1 |
+| D-2 | D | PRODUCT (code) | D-1 (#104 merged), #97, C-PMIG | Q1 answered 2026-10-16: re-learn automatically (lane D §D-2 rev 2) | — (no `core/auth.py` edit; re-learn runs in the existing scheduler pass) | `be/models/medication.py`, `be/migrations/profile/versions/NNN_adaptive_windows_local.py`, `be/modules/notification_scheduler.py`, `be/modules/adherence_patterns.py`, `be/api/medications.py`, `be/tests/test_notification_scheduler_wiring.py`, `be/tests/test_adherence_patterns_tz_http.py`, head literal (`be/tests/test_care_tasks.py`, `be/tests/test_profile_migrations_sqlcipher_fallback.py`, `be/tests/test_source_spans.py`, or `be/tests/support/migrations.py` after C-P6), slots | 7 | claude | ready |
 | D-3 | D | PRODUCT (code) | #84, D-1 | — | — | `be/api/gamification.py`, `be/tests/test_gamification_api.py`, slots | 1 | any | blocked: #84, D-1 |
 | E-5 | E | OWNER (measure, no slot) | E-4 | NPM-AUDIT-CI (default: do not add) | — | `docs/capstone-report/implementation-program.md` (own row) | 1 | any | blocked: E-4 |
 | F-11 | F | OWNER (`gh pr close 61`, no `--delete-branch`) | #72 merged | PR61-CLOSE answered | — | — | 0.1 | any | blocked: #72 (needs MM-1) |
@@ -155,7 +155,7 @@ C-GC1, E-2 and B-5 all edit `be/tests/test_audit_order_guard.py`, and C-GC1 and 
 | 1 (now) | S-3/O-3 + S-6 (one question), Q-RUFF, CI-SEED, R-5 parked-draft veto | E-1 merge; E-3 Tasks 7 and 8.4; B-3 draft rule |
 | 2 | P4D-PIPELINES-127, P4D-N10-WORDING, BGS-1 (TW4-SHOTS is already answered, `owner-decisions:140`: the owner compares the screenshots; E-4 waits on that action, not a question) | E-4 → E-5, B-1, W-3 Task 5; F-1 commit 2; F-2 |
 | 3 (safety rulings) | IBF-1 + SCF-RULING (one question, R-1), IUV-1 (= W-3 O-3, R-7), RR500-MAP, PR3-TIER + PR3-S5N | B-2, SAFE-CHAT-FALLBACK, B-6, RAG-RUNTIME-500, B-3/B-4 |
-| 4 | D-2 Q1, GAM2B-PATH, AAD-ROW (+ scope), CORRELATION-NORMALISE | D-2, C-GAM2B, ASSIST-AGENT-DATES, D-4 |
+| 4 | ~~D-2 Q1~~ (answered 2026-10-16), GAM2B-PATH, AAD-ROW (+ scope), CORRELATION-NORMALISE | D-2, C-GAM2B, ASSIST-AGENT-DATES, D-4 |
 | 5 | BKUP-FOLLOWUPS, VAULT-SIDECAR, DUP-AUDIT-KEY, SCA-RULING + SCH-RULING | C-BKUP, C-VAULTSC, C-DUPAUD, SAFE-CHAT-AGENT/HISTORY |
 | 6 | P6-Q1, P6-Q3, P6-Q4 + P6-Q5, N-02 | C-P6 Task 1 → P6-ORPHAN → C-P7 |
 | 7 | O-5, O-1 (= VERIFIED-FALLBACK), O-2 veto, Q-FC + Q-HASH | W-3, W-8 |

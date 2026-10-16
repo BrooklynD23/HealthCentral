@@ -99,7 +99,7 @@ This extends "Shared files are ordered as follows" in [implementation-program.md
 
 | Slug | Item | Kind | Expected position (illustrative, from [queue.md](queue.md)) |
 |---|---|---|---|
-| `adaptive_windows_local` | D-2 | data-only (`UPDATE … = NULL`), downgrade no-op | likely first → `013` |
+| `adaptive_windows_local` | D-2 | column `medication_schedules.adaptive_window_tz` (nullable, re-learn marker) + `UPDATE … windows = NULL`; downgrade drops the column (lane D §D-2 rev 2) | likely first → `013` |
 | `streaks_hidden` | C-GAM2B | column | Wave 9 pool |
 | `fk_cascade_alignment` | C-P6 | batch rebuild, FK actions per D5 | Wave 10 |
 | `export_artifacts` | C-GC1 | new table (+ RESET-APPEND, `PROFILE_CHECKS` row) | Wave 14 |
