@@ -11,9 +11,8 @@ import json
 import logging
 import re
 import uuid
-from datetime import date, datetime, time, timedelta, timezone as dt_timezone
+from datetime import time, timedelta
 from typing import Optional
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
@@ -24,7 +23,7 @@ from sqlalchemy.orm import selectinload
 from core.database import get_db
 from core.audit import audit_and_commit, audit_intent, log_document_event
 from core.auth import RequireAuth, Session, ProfileDbSession
-from core.time import NaiveUtcDatetime, utcnow
+from core.time import NaiveUtcDatetime, profile_timezone_name, safe_zone_name, to_local, utcnow
 from models import (
     Medication,
     MedicationSchedule,
@@ -35,6 +34,7 @@ from models import (
     UserModelSettings,
     EarnedBadge,
 )
+from modules.streak_engine import compute_longest_streak, compute_streak
 from modules.badge_evaluator import BadgeEvalResult, evaluate_badges_after_dose
 
 logger = logging.getLogger(__name__)
@@ -84,25 +84,6 @@ async def _schedule_for_medication(
             detail="schedule_id does not belong to this medication",
         )
     return schedule
-
-
-def _profile_timezone_name(settings: Optional[UserModelSettings]) -> str:
-    """Return a safe IANA timezone string for the profile."""
-    timezone_name = settings.timezone if settings and settings.timezone else "UTC"
-    try:
-        ZoneInfo(timezone_name)
-    except ZoneInfoNotFoundError:
-        logger.warning("Invalid profile timezone '%s'; falling back to UTC", timezone_name)
-        return "UTC"
-    return timezone_name
-
-
-def _local_date_for_timezone(value: datetime, timezone_name: str) -> date:
-    """Convert a timestamp to a local date in the profile timezone."""
-    timestamp = value
-    if timestamp.tzinfo is None:
-        timestamp = timestamp.replace(tzinfo=dt_timezone.utc)
-    return timestamp.astimezone(ZoneInfo(timezone_name)).date()
 
 
 # Request/Response Models
@@ -972,8 +953,9 @@ async def log_dose(
                     UserModelSettings.profile_id == session.profile_id
                 )
             )
-            local_taken = dose.taken_at.replace(tzinfo=dt_timezone.utc).astimezone(
-                ZoneInfo(_profile_timezone_name(settings_result.scalar_one_or_none()))
+            settings = settings_result.scalar_one_or_none()
+            local_taken = to_local(
+                dose.taken_at, safe_zone_name(settings.timezone if settings else None)
             )
             target_minutes = schedule.target_time.hour * 60 + schedule.target_time.minute
             actual_minutes = local_taken.hour * 60 + local_taken.minute
@@ -1008,7 +990,9 @@ async def log_dose(
                 )
             )
             profile_settings = settings_result.scalar_one_or_none()
-            profile_timezone = _profile_timezone_name(profile_settings)
+            profile_timezone = safe_zone_name(
+                profile_settings.timezone if profile_settings else None
+            )
 
             med_doses_result = await profile_db.execute(
                 select(DoseTaken).where(
@@ -1048,10 +1032,7 @@ async def log_dose(
                 timezone=profile_timezone,
                 existing_badge_keys=existing_badge_keys,
                 db=profile_db,
-                as_of_date=_local_date_for_timezone(
-                    dose_record.taken_at,
-                    profile_timezone,
-                ),
+                as_of_date=to_local(dose_record.taken_at, profile_timezone).date(),
             )
             if badge_results:
                 await profile_db.commit()
@@ -1234,8 +1215,9 @@ async def get_adherence_stats(
     adherence_30d = taken_30d / max(total_30d, expected_30d, 1)
 
     # Calculate streak (simplified)
-    current_streak = await _calculate_current_streak(medication_id, profile_db)
-    longest_streak = await _calculate_longest_streak(medication_id, profile_db)
+    tz = await profile_timezone_name(profile_db, session.profile_id)
+    current_streak = await _calculate_current_streak(medication_id, profile_db, tz)
+    longest_streak = await _calculate_longest_streak(medication_id, profile_db, tz)
 
     return AdherenceStats(
         medication_id=medication_id,
@@ -1249,7 +1231,7 @@ async def get_adherence_stats(
     )
 
 
-async def _calculate_current_streak(medication_id: str, db: AsyncSession) -> int:
+async def _calculate_current_streak(medication_id: str, db: AsyncSession, tz: str) -> int:
     """Calculate current consecutive days with dose taken."""
     result = await db.execute(
         select(DoseTaken).where(
@@ -1259,28 +1241,10 @@ async def _calculate_current_streak(medication_id: str, db: AsyncSession) -> int
     )
     doses = result.scalars().all()
 
-    if not doses:
-        return 0
-
-    streak = 0
-    today = utcnow().date()
-    current_date = today
-
-    # Group doses by date
-    doses_by_date = {}
-    for dose in doses:
-        dose_date = dose.taken_at.date()
-        doses_by_date[dose_date] = True
-
-    # Count consecutive days backwards
-    while current_date in doses_by_date:
-        streak += 1
-        current_date -= timedelta(days=1)
-
-    return streak
+    return compute_streak(list(doses), tz, to_local(utcnow(), tz).date())
 
 
-async def _calculate_longest_streak(medication_id: str, db: AsyncSession) -> int:
+async def _calculate_longest_streak(medication_id: str, db: AsyncSession, tz: str) -> int:
     """Calculate longest consecutive days with dose taken."""
     result = await db.execute(
         select(DoseTaken).where(
@@ -1290,26 +1254,7 @@ async def _calculate_longest_streak(medication_id: str, db: AsyncSession) -> int
     )
     doses = result.scalars().all()
 
-    if not doses:
-        return 0
-
-    # Get unique dates
-    dates = sorted(set(dose.taken_at.date() for dose in doses))
-
-    if not dates:
-        return 0
-
-    longest = 1
-    current = 1
-
-    for i in range(1, len(dates)):
-        if (dates[i] - dates[i-1]).days == 1:
-            current += 1
-            longest = max(longest, current)
-        else:
-            current = 1
-
-    return longest
+    return compute_longest_streak(list(doses), tz)
 
 
 # Pattern Learning Endpoint
@@ -1372,7 +1317,8 @@ async def learn_patterns(
     settings_result = await profile_db.execute(
         select(UserModelSettings).where(UserModelSettings.profile_id == session.profile_id)
     )
-    tz_name = _profile_timezone_name(settings_result.scalar_one_or_none())
+    settings = settings_result.scalar_one_or_none()
+    tz_name = safe_zone_name(settings.timezone if settings else None)
 
     # Learn patterns
     learner = get_pattern_learner()
