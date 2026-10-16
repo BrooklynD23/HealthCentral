@@ -504,10 +504,15 @@ async def generate_grounded_interpretation(
     )
 
     rag = get_rag_module()
+    # IUV-1: an unverified (possibly mis-extracted) value must not reach the model.
+    shown = (
+        f"{observation.value if observation.value is not None else observation.value_text} "
+        if observation.user_verified
+        else ""
+    )
     question = (
         f"Explain my lab result for {observation.analyte_raw} "
-        f"({observation.value if observation.value is not None else observation.value_text} "
-        f"{observation.unit or ''}) and what it may indicate. "
+        f"({shown}{observation.unit or ''}) and what it may indicate. "
         "Use my report details first, then general context."
     )
 
