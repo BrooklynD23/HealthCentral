@@ -38,6 +38,7 @@ from models import (
     Medication,
     MedicationSchedule,
     ReminderLog,
+    UserModelSettings,
 )
 
 
@@ -519,3 +520,40 @@ def test_hc_nsw_010_close_waits_for_inflight_pass_and_vault_not_recreated(
     assert not closed_early, "close returned while a reminder pass was in flight"
     assert scheduler._last_pass_results == {pid: "checked"}
     assert pid not in scheduler._profile_sessions
+
+
+def test_hc_streak_tz_004_scheduler_passes_profile_zone_to_calculate_streak(tmp_path, monkeypatch):
+    """One scheduler pass awaits calculate_streak with the profile's zone."""
+    provider = MockProvider()
+    scheduler = NotificationScheduler(
+        notification_service=NotificationService(providers=[provider])
+    )
+    spy = AsyncMock(return_value=SimpleNamespace(current_streak=0, longest_streak=0))
+    monkeypatch.setattr(
+        ns_module, "get_pattern_learner", lambda: SimpleNamespace(calculate_streak=spy)
+    )
+
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'vault.db'}")
+    profile_id = "profile-1"
+
+    async def scenario():
+        async with engine.begin() as conn:
+            await conn.run_sync(ProfileDatabaseBase.metadata.create_all)
+        session_maker = async_sessionmaker(
+            engine, class_=AsyncSession, expire_on_commit=False
+        )
+        async with session_maker() as db:
+            _seed_due_medication(db, profile_id, str(uuid.uuid4()), str(uuid.uuid4()))
+            db.add(UserModelSettings(profile_id=profile_id, timezone="America/Los_Angeles"))
+            await db.commit()
+
+        async def factory():
+            return session_maker()
+
+        scheduler._profile_sessions[profile_id] = factory
+        await scheduler._check_all_schedules()
+
+    run(scenario())
+
+    assert spy.await_count == 1
+    assert spy.await_args.kwargs["tz_name"] == "America/Los_Angeles"

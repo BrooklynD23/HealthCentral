@@ -375,3 +375,60 @@ async def test_hc_med_http_015_learn_patterns_other_medications_schedule_rejecte
     assert leaked == 0
     assert own.status_code == 200, own.text
     assert unscoped.status_code == 200, unscoped.text
+
+
+# --- STREAK-TZ: streaks bucket by the profile's local date ------------------
+
+LA = "America/Los_Angeles"
+
+
+async def _seed_la_doses(db: AsyncSession, utc_times: list[datetime]) -> str:
+    db.add(UserModelSettings(profile_id=PROFILE, timezone=LA))
+    await db.commit()
+    med_id = await _seed(db)
+    for taken in utc_times:
+        db.add(DoseTaken(
+            id=str(uuid.uuid4()), medication_id=med_id, taken_at=taken, was_skipped=False, logged_at=taken, log_method="manual",
+        ))
+    await db.commit()
+    return med_id
+
+
+def _freeze_utcnow(monkeypatch, moment: datetime):
+    import api.medications as med_api
+
+    monkeypatch.setattr(med_api, "utcnow", lambda: moment)
+
+
+@pytest.mark.asyncio
+async def test_hc_streak_tz_001_current_streak_uses_profile_local_date(profile_db, monkeypatch):
+    # 09:00 PST Jan 13-15 == 17:00Z. Now = Jan 16 01:00Z == Jan 15 17:00 PST.
+    # UTC logic sees today=Jan 16 with no dose -> 0; local logic -> 3.
+    med_id = await _seed_la_doses(
+        profile_db, [datetime(2026, 1, d, 17, 0) for d in (13, 14, 15)]
+    )
+    _freeze_utcnow(monkeypatch, datetime(2026, 1, 16, 1, 0))
+    ctx, client = _client(profile_db)
+    try:
+        resp = client.get(f"/medications/{med_id}/stats")
+    finally:
+        ctx.__exit__(None, None, None)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["current_streak_days"] == 3
+
+
+@pytest.mark.asyncio
+async def test_hc_streak_tz_002_longest_streak_uses_profile_local_date(profile_db):
+    # Local days Jan 13, 14, 15 (16:30, 09:00, 16:30 PST). In UTC the same doses
+    # fall on Jan 14, 14, 16 -> longest 1; bucketed locally -> 3.
+    med_id = await _seed_la_doses(
+        profile_db,
+        [datetime(2026, 1, 14, 0, 30), datetime(2026, 1, 14, 17, 0), datetime(2026, 1, 16, 0, 30)],
+    )
+    ctx, client = _client(profile_db)
+    try:
+        resp = client.get(f"/medications/{med_id}/stats")
+    finally:
+        ctx.__exit__(None, None, None)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["longest_streak_days"] == 3
