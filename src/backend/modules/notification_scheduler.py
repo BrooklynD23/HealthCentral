@@ -141,6 +141,8 @@ class NotificationScheduler:
         # One lock per profile, held for the whole reminder pass so a vault
         # close can wait for an in-flight pass (P2-INFLIGHT).
         self._profile_locks: dict[str, asyncio.Lock] = {}
+        # Profiles whose adaptive-window re-learn was tried since last unlock.
+        self._relearn_attempted: set[str] = set()
 
         # Tracking
         self._last_check_time: Optional[datetime] = None
@@ -189,6 +191,7 @@ class NotificationScheduler:
     def unregister_profile_session(self, profile_id: str):
         """Remove a profile's session registration."""
         self._profile_sessions.pop(profile_id, None)
+        self._relearn_attempted.discard(profile_id)
         logger.debug(f"Unregistered profile session for {profile_id}")
 
     def _profile_lock(self, profile_id: str) -> asyncio.Lock:
@@ -206,6 +209,7 @@ class NotificationScheduler:
         profile lock so the caller can safely dispose the vault engine.
         """
         self._profile_sessions.pop(profile_id, None)
+        self._relearn_attempted.discard(profile_id)
         async with self._profile_lock(profile_id):
             pass
         self._profile_locks.pop(profile_id, None)
@@ -317,6 +321,8 @@ class NotificationScheduler:
         today = local_now.date()
         current_weekday = local_now.weekday()
 
+        await self._relearn_windows_once(profile_id, tz, db)
+
         # Get all active medications with reminders enabled
         result = await db.execute(
             select(Medication).where(
@@ -371,6 +377,25 @@ class NotificationScheduler:
                         tz=tz,
                         db=db,
                     )
+
+    async def _relearn_windows_once(
+        self, profile_id: str, tz: str, db: AsyncSession
+    ) -> None:
+        """Re-learn unmarked adaptive windows once per unlock (fail-soft)."""
+        if profile_id in self._relearn_attempted:
+            return
+        self._relearn_attempted.add(profile_id)
+        try:
+            await get_pattern_learner().relearn_unmarked_windows(profile_id, db, tz)
+        except Exception as exc:
+            await db.rollback()
+            # Class name only: messages can carry bound parameters / PHI.
+            logger.warning(
+                "Adaptive-window re-learn failed for profile %s (%s); "
+                "retrying on next unlock",
+                profile_id,
+                type(exc).__name__,
+            )
 
     def _schedule_applies_today(
         self,

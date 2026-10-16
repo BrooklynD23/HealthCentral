@@ -787,3 +787,165 @@ def test_hc_sched_tz_005_migration_clears_windows_and_round_trips(tmp_path, monk
 
     command.upgrade(config, "head")
     assert migrations.get_profile_current_revision(vault, key) == rev
+
+
+# ---------------------------------------------------------------------------
+# HC-SCHED-TZ rev 2 — automatic re-learn of unmarked adaptive windows (D-2)
+# ---------------------------------------------------------------------------
+
+_RELEARN_NOW = datetime(2026, 1, 15, 16, 0)  # 08:00 PST
+
+
+async def _tz_add_doses(sm, med_id, sched_id, n=10):
+    """n daily doses at 08:00 PST (16:00Z) ending the day before _RELEARN_NOW."""
+    async with sm() as db:
+        for d in range(15 - n, 15):
+            db.add(DoseTaken(
+                id=str(uuid.uuid4()), medication_id=med_id, schedule_id=sched_id,
+                taken_at=datetime(2026, 1, d, 16, 0), log_method="manual",
+                was_skipped=False,
+            ))
+        await db.commit()
+
+
+async def _tz_schedule_row(sm, sched_id):
+    async with sm() as db:
+        return (
+            await db.execute(select(MedicationSchedule).where(MedicationSchedule.id == sched_id))
+        ).scalar_one()
+
+
+def _spy_relearn(monkeypatch):
+    """Wrap the real learner's relearn method; record awaits and results."""
+    from modules.adherence_patterns import get_pattern_learner
+
+    learner = get_pattern_learner()
+    orig = learner.relearn_unmarked_windows
+    results: list = []
+
+    async def wrapped(*args, **kwargs):
+        results.append(await orig(*args, **kwargs))
+        return results[-1]
+
+    monkeypatch.setattr(learner, "relearn_unmarked_windows", wrapped)
+    return results
+
+
+async def _unlock_cycle(scheduler):
+    factory = scheduler._profile_sessions[_TZ_PID]
+    await scheduler.unregister_profile_session_and_wait(_TZ_PID)
+    scheduler.register_profile_session(_TZ_PID, factory)
+
+
+def test_hc_sched_tz_006_pass_relearns_window_in_local_frame(tmp_path, monkeypatch):
+    async def scenario():
+        scheduler, _, sm = await _tz_setup(tmp_path, monkeypatch, _LA, _RELEARN_NOW, stub=False)
+        med_id, sched_id = await _tz_add_schedule(sm, time(8, 0))
+        await _tz_add_doses(sm, med_id, sched_id)
+        await scheduler._check_all_schedules()
+        return await _tz_schedule_row(sm, sched_id)
+
+    row = run(scenario())
+    assert row.adaptive_window_start <= time(8, 0) <= row.adaptive_window_end
+    assert row.adaptive_window_tz == _LA
+
+
+def test_hc_sched_tz_007_relearn_runs_once_per_unlock(tmp_path, monkeypatch):
+    async def scenario():
+        scheduler, _, sm = await _tz_setup(tmp_path, monkeypatch, _LA, _RELEARN_NOW, stub=False)
+        results = _spy_relearn(monkeypatch)
+        med_id, sched_id = await _tz_add_schedule(sm, time(8, 0))
+        await _tz_add_doses(sm, med_id, sched_id)
+        await scheduler._check_all_schedules()
+        await scheduler._check_all_schedules()
+        after_two = list(results)
+        await _unlock_cycle(scheduler)
+        await scheduler._check_all_schedules()
+        return after_two, results
+
+    after_two, results = run(scenario())
+    assert after_two == [1]
+    assert results == [1, 0]
+
+
+def test_hc_sched_tz_008_relearn_failure_is_fail_soft_and_retried_on_unlock(
+    tmp_path, monkeypatch, caplog
+):
+    from modules.adherence_patterns import get_pattern_learner
+
+    async def scenario():
+        scheduler, provider, sm = await _tz_setup(
+            tmp_path, monkeypatch, _LA, _RELEARN_NOW, stub=False
+        )
+        learner = get_pattern_learner()
+        boom = AsyncMock(side_effect=RuntimeError("Metformin"))
+        monkeypatch.setattr(learner, "relearn_unmarked_windows", boom)
+        med_id, sched_id = await _tz_add_schedule(sm, time(8, 0))
+        await _tz_add_doses(sm, med_id, sched_id)
+        await scheduler._check_all_schedules()
+        sent_after_fail = len(provider.sent_notifications)
+        failed_row = await _tz_schedule_row(sm, sched_id)
+        await scheduler._check_all_schedules()
+        awaits_same_session = boom.await_count
+        monkeypatch.undo()  # real learner again (and real clock: re-freeze below)
+        monkeypatch.setattr(ns_module, "utcnow", lambda: _RELEARN_NOW)
+        monkeypatch.setattr(_ap_module, "utcnow", lambda: _RELEARN_NOW)
+        await _unlock_cycle(scheduler)
+        await scheduler._check_all_schedules()
+        return (
+            sent_after_fail, failed_row.adaptive_window_tz, awaits_same_session,
+            await _tz_schedule_row(sm, sched_id),
+        )
+
+    caplog.set_level(logging.WARNING)
+    sent, marker, awaits, healed = run(scenario())
+    assert sent == 1  # reminder still fires on target_time +/- tolerance
+    assert marker is None
+    assert awaits == 1
+    assert "Metformin" not in caplog.text
+    assert healed.adaptive_window_tz == _LA
+
+
+def test_hc_sched_tz_009_inactive_and_low_sample_schedules_are_marked(tmp_path, monkeypatch):
+    async def scenario():
+        scheduler, _, sm = await _tz_setup(tmp_path, monkeypatch, _LA, _RELEARN_NOW, stub=False)
+        med_id, inactive_id = await _tz_add_schedule(sm, time(8, 0), active=False)
+        _, few_id = await _tz_add_schedule(sm, time(9, 0), med_id=med_id)
+        await _tz_add_doses(sm, med_id, few_id, n=3)  # < MIN_SAMPLES_FOR_PATTERN
+        await scheduler._check_all_schedules()
+        return await _tz_schedule_row(sm, inactive_id), await _tz_schedule_row(sm, few_id)
+
+    for row in run(scenario()):
+        assert row.adaptive_window_tz == _LA
+        assert row.adaptive_window_start is None
+        assert row.adaptive_window_end is None
+
+
+def test_hc_sched_tz_010_concurrent_passes_relearn_once(tmp_path, monkeypatch):
+    async def scenario():
+        scheduler, _, sm = await _tz_setup(tmp_path, monkeypatch, _LA, _RELEARN_NOW, stub=False)
+        results = _spy_relearn(monkeypatch)
+        med_id, sched_id = await _tz_add_schedule(sm, time(8, 0))
+        await _tz_add_doses(sm, med_id, sched_id)
+        await asyncio.gather(scheduler._check_all_schedules(), scheduler._check_all_schedules())
+        return results
+
+    assert run(scenario()) == [1]
+
+
+def test_hc_sched_tz_011_marked_sibling_schedule_is_left_alone(tmp_path, monkeypatch):
+    async def scenario():
+        scheduler, _, sm = await _tz_setup(tmp_path, monkeypatch, _LA, _RELEARN_NOW, stub=False)
+        med_id, a_id = await _tz_add_schedule(
+            sm, time(16, 0), window=(time(16, 0), time(17, 0)), marker="UTC"
+        )
+        _, b_id = await _tz_add_schedule(sm, time(8, 0), med_id=med_id)
+        await _tz_add_doses(sm, med_id, b_id)
+        await scheduler._check_all_schedules()
+        return await _tz_schedule_row(sm, a_id), await _tz_schedule_row(sm, b_id)
+
+    a, b = run(scenario())
+    assert (a.adaptive_window_start, a.adaptive_window_end) == (time(16, 0), time(17, 0))
+    assert a.adaptive_window_tz == "UTC"
+    assert b.adaptive_window_start <= time(8, 0) <= b.adaptive_window_end
+    assert b.adaptive_window_tz == _LA
