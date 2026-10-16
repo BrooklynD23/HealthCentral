@@ -265,3 +265,30 @@ async def test_hc_safeinterp_007_batch_audit_records_ids_and_partial_failure(dbs
     assert json.loads(rows[0].details_json) == {
         "observation_ids": [obs_id], "count": 1, "skipped_count": 1,
     }
+
+
+@pytest.mark.asyncio
+async def test_hc_sie_001_blocked_grounded_interpretation_is_persisted_template(dbs):
+    """HC-SIE-001: IBF-1 (owner 2026-10-16), lane-B section B-2 option (a).
+
+    On a blocked grounded answer, `interpretation` carries only the persisted
+    template text (served identically by GET .../interpretation), never model prose.
+    """
+    profile_db, master_db, obs_id = dbs
+    with patch.object(I, "get_rag_module", return_value=_rag(PROHIBITED_ANSWER)):
+        resp = _call(profile_db, master_db, "POST",
+                     f"/interpretations/observations/{obs_id}/interpret-grounded")
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["full_response"] == ESCALATE_TEMPLATE
+    profile_db.expire_all()
+    stored = (await profile_db.execute(
+        select(LabInterpretation).where(LabInterpretation.observation_id == obs_id)
+    )).scalars().one()
+    assert body["interpretation"]["interpretation_text"] == stored.interpretation_text
+    blob = json.dumps(body["interpretation"])
+    assert MARKER not in blob and PROHIBITED_ANSWER not in blob
+    got = _call(profile_db, master_db, "GET",
+                f"/interpretations/observations/{obs_id}/interpretation")
+    assert got.status_code == 200, got.text
+    assert got.json()["interpretation_text"] == stored.interpretation_text
