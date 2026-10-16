@@ -254,6 +254,24 @@ async def test_hc_safeinterp_006_model_unavailable_after_write_still_audited(dbs
 
 
 @pytest.mark.asyncio
+async def test_hc_rag_runtime_001_inference_failure_maps_to_503(dbs):
+    """RAG-RUNTIME-500 / I-16: RuntimeError from rag.query -> 503, fixed detail, no exception text."""
+    profile_db, master_db, obs_id = dbs
+    rag = _rag(CLEAN_ANSWER)
+    rag._generate_with_runner = AsyncMock(
+        side_effect=RuntimeError("Failed to generate response: boom"))
+    with patch.object(I, "get_rag_module", return_value=rag):
+        resp = _call(profile_db, master_db, "POST",
+                     f"/interpretations/observations/{obs_id}/interpret-grounded")
+    assert resp.status_code == 503, resp.text
+    assert resp.json()["detail"] == (
+        "The explanation could not be generated right now. Please try again.")
+    assert "boom" not in resp.text and "Failed to generate" not in resp.text
+    rows = await _audit_rows(master_db)
+    assert [r.event_type for r in rows] == ["interpretation.grounded"]
+
+
+@pytest.mark.asyncio
 async def test_hc_safeinterp_007_batch_audit_records_ids_and_partial_failure(dbs):
     profile_db, master_db, obs_id = dbs
     missing = str(uuid.uuid4())

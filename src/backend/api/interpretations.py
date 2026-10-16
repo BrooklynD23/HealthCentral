@@ -535,6 +535,15 @@ async def generate_grounded_interpretation(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail=str(exc),
         )
+    except RuntimeError:
+        logger.exception(
+            "Grounded interpretation inference failed",
+            extra={"profile_id": session.profile_id},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="The explanation could not be generated right now. Please try again.",
+        )
 
     grounded_segments: list[GroundedSegmentResponse] = []
     for seg in rag_result.segments:
