@@ -8,10 +8,10 @@ Both reads write a view audit row to the master DB, fail-closed.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from datetime import timezone as dt_timezone
 from typing import Optional
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel
@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.audit import audit_and_commit, create_audit_log
 from core.auth import ProfileDbSession, RequireAuth
 from core.database import get_db
+from core.time import safe_zone_name
 from models import BadgeDefinition, DoseTaken, EarnedBadge, Medication, UserModelSettings
 from modules.streak_engine import compute_engagement, compute_longest_streak, compute_streak
 
@@ -55,17 +56,6 @@ class StreakResponse(BaseModel):
     # Engagement measure A (owner Q1): derived on read, nothing new stored.
     active_days_last_28: int
     weeks_with_log_last_4: int
-
-
-def _profile_timezone_name(settings: Optional[UserModelSettings]) -> str:
-    """Return a valid profile timezone or UTC if persisted data is invalid."""
-    timezone_name = settings.timezone if settings and settings.timezone else "UTC"
-    try:
-        ZoneInfo(timezone_name)
-    except ZoneInfoNotFoundError:
-        logger.warning("Invalid profile timezone '%s'; falling back to UTC", timezone_name)
-        return "UTC"
-    return timezone_name
 
 
 async def _audit_view(master_db: AsyncSession, event_type: str, profile_id: str) -> None:
@@ -156,7 +146,7 @@ async def get_streaks(
         select(UserModelSettings).where(UserModelSettings.profile_id == profile_id)
     )
     profile_settings = settings_result.scalar_one_or_none()
-    timezone_name = _profile_timezone_name(profile_settings)
+    timezone_name = safe_zone_name(profile_settings.timezone if profile_settings else None)
 
     doses_result = await profile_db.execute(
         select(DoseTaken)
@@ -176,7 +166,9 @@ async def get_streaks(
     active_days, active_weeks = compute_engagement(doses, timezone_name, as_of_date)
 
     response = StreakResponse(
-        current_streak_days=compute_streak(doses, timezone_name, as_of_date),
+        # GAM2-STREAK0 (owner :145): streak counts through yesterday; compute_streak is 0 iff as_of_date has no dose.
+        current_streak_days=compute_streak(doses, timezone_name, as_of_date)
+        or compute_streak(doses, timezone_name, as_of_date - timedelta(days=1)),
         longest_streak_days=compute_longest_streak(doses, timezone_name),
         timezone=timezone_name,
         as_of_date=as_of_date.isoformat(),
