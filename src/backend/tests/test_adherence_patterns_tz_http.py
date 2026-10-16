@@ -53,12 +53,11 @@ async def test_hc_adhere_tz_001_morning_across_dst_is_local_morning(profile_db, 
     assert body["time_window"]["avg_time"] == "08:00"
     assert body["time_window"]["window_start"] == "08:00"
     assert body["time_window"]["window_end"] == "08:00"
-    # The stored adaptive window stays in the scheduler's UTC frame (15:00Z and
-    # 16:00Z doses) until the scheduler reads local time (SCHED-TZ).
+    # SCHED-TZ: the stored adaptive window is in the profile-local frame.
     assert body["schedules_updated"] == 1
     await profile_db.refresh(sched)
-    assert sched.adaptive_window_start < time(15, 0)
-    assert sched.adaptive_window_end > time(16, 0)
+    assert sched.adaptive_window_start <= time(8, 0) <= sched.adaptive_window_end
+    assert sched.adaptive_window_tz == LA
 
 
 @pytest.mark.asyncio
