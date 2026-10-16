@@ -31,8 +31,8 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
   model installed, `test_api_rag_index_002b` fails on embedding similarity. That failure is environmental — it is not yours, and you
   must not "fix" it by lowering the 0.7 threshold. Judge yourself on the
   **collected** count, which does not vary by environment: if it differs from
-  1604, this line is stale — update it in the same commit rather than working
-  around it.
+  1604, the line may lag merges: PRs never edit it; the orchestrator updates
+  it in a post-merge batch (SLOT-RULE-2). Report your measured count and delta.
 - **Run verification; never assert it.** Report the command and its actual
   output. "Tests pass" without the output is not a result. If a check was
   skipped, say which and why.
