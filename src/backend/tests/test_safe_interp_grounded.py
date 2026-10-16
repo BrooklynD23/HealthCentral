@@ -166,6 +166,37 @@ async def test_hc_safeinterp_002_clean_grounded_answer_untouched(dbs):
     assert [r.event_type for r in rows] == ["interpretation.grounded"]
 
 
+async def _grounded_question(dbs, *, verified: bool) -> str:
+    """POST interpret-grounded with value=123.4; return the question sent to rag.query."""
+    profile_db, master_db, obs_id = dbs
+    obs = await profile_db.get(Observation, obs_id)
+    obs.value = 123.4
+    obs.user_verified = verified
+    await profile_db.commit()
+    rag = _rag(CLEAN_ANSWER)
+    spy = AsyncMock(wraps=rag.query)
+    rag.query = spy
+    with patch.object(I, "get_rag_module", return_value=rag):
+        resp = _call(profile_db, master_db, "POST",
+                     f"/interpretations/observations/{obs_id}/interpret-grounded")
+    assert resp.status_code == 201, resp.text
+    return spy.call_args.kwargs["question"]
+
+
+@pytest.mark.asyncio
+async def test_hc_iuv_001_unverified_value_omitted_from_question(dbs):
+    question = await _grounded_question(dbs, verified=False)
+    assert "123.4" not in question
+    assert "LDL Cholesterol" in question
+    assert "mg/dL" in question
+
+
+@pytest.mark.asyncio
+async def test_hc_iuv_002_verified_value_in_question(dbs):
+    question = await _grounded_question(dbs, verified=True)
+    assert "123.4" in question
+
+
 @pytest.mark.asyncio
 async def test_hc_safeinterp_003_grounded_audit_failure_fails_closed(dbs):
     profile_db, master_db, obs_id = dbs
