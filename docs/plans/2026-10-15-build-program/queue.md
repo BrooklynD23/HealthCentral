@@ -10,7 +10,7 @@ Rules: [contracts.md](contracts.md) §b (shared files), §c (migrations), §d (c
 
 **Scheduling rules**
 
-1. **Code slots:** at most 2 code items run at once on the 12 GB box (box-wide, all lanes). Full suites run under `flock /tmp/claude-1000/hc-pytest.lock`. A slot frees when the item's PR is open: a PR that only waits on an owner gate or a merge holds no slot.
+1. **Code slots:** at most 3 code items run at once on the 12 GB box (box-wide, all lanes; `build-wave` default `max`), with every pytest run, focused or full, serialised by `flock`. Full suites run under `flock /tmp/claude-1000/hc-pytest.lock`. A slot frees when the item's PR is open: a PR that only waits on an owner gate or a merge holds no slot.
 2. **No shared files:** two items that run at the same time never share a file (slots, `docs/INDEX.md` and `docs/_link_graph.json` excepted).
 3. **Waves are dependency layers**, not dates. An item may start in an earlier wave if its dependencies are merged, its execution gates are answered, a slot is free and rules 1–2 hold.
 4. **No-slot items** (docs, owner merges, PR landings with no pytest) run beside code items, subject to rule 2.
