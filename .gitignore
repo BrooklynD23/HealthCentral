@@ -28,6 +28,7 @@ venv/
 ENV/
 env/
 .venv/
+.venv-linux/
 
 # Developer-local helpers (ignore these so routine dirty-worktree checks stay focused)
 # The repo_hygiene_check guard intentionally handles root scratch markdown/report files

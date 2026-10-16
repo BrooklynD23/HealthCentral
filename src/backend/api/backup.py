@@ -20,6 +20,7 @@ session first, and relies on the safety copies `scripts/backup.py` already
 makes.
 """
 
+import asyncio
 import logging
 import zipfile
 from io import BytesIO
@@ -253,8 +254,12 @@ async def create_backup(
     root = _profile_backup_root(session.profile_id)
     root.mkdir(parents=True, exist_ok=True)
 
-    result = backup_script.backup(
-        data_dir=_data_dir(), backup_dir=root, profile_id=session.profile_id
+    # Off the event loop (BKUP-MIX): file I/O and lock waits must not stall it.
+    # The vault is snapshotted through its keyed engine (BKUP-TORN).
+    result = await asyncio.to_thread(
+        backup_script.backup,
+        data_dir=_data_dir(), backup_dir=root, profile_id=session.profile_id,
+        snapshot_vault=backup_script.keyed_snapshotter(session.profile_id),
     )
     if not result.success:
         raise HTTPException(

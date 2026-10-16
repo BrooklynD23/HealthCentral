@@ -14,16 +14,21 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import asyncio
 import hashlib
 import json
 import logging
 import shutil
 import sqlite3
 import sys
+import threading
+from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Callable
 
+from core.sqlcipher_driver import get_sqlcipher_module
 from core.time import utcnow
 
 logger = logging.getLogger(__name__)
@@ -165,18 +170,20 @@ def _compute_sha256(file_path: Path) -> str:
     return h.hexdigest()
 
 
-def _backup_sqlite(source: Path, dest: Path) -> str:
+def _backup_sqlite(source: Path, dest: Path, sqlite_module=sqlite3) -> str:
     """
     Backup a SQLite database using the backup() API.
+
+    ``sqlite_module`` must be the library the app opens ``source`` with
+    (owner decision BKUP-MIX): a second SQLite copy in this process does not
+    see the app's locks and can roll back a live vault write's journal.
 
     Returns the backup method used ('sqlite_backup' or 'file_copy').
     """
     try:
-        src_conn = sqlite3.connect(str(source))
-        dst_conn = sqlite3.connect(str(dest))
-        src_conn.backup(dst_conn)
-        dst_conn.close()
-        src_conn.close()
+        with closing(sqlite_module.connect(str(source))) as src_conn, \
+                closing(sqlite_module.connect(str(dest))) as dst_conn:
+            src_conn.backup(dst_conn)
         return "sqlite_backup"
     except Exception as e:
         logger.warning(
@@ -185,6 +192,56 @@ def _backup_sqlite(source: Path, dest: Path) -> str:
         )
         shutil.copy2(source, dest)
         return "file_copy"
+
+
+# Bounds the backup thread's wait on the event loop; it holds _BACKUP_LOCK.
+SNAPSHOT_TIMEOUT_S = 600
+
+
+def keyed_snapshotter(profile_id: str) -> Callable[[Path], bool]:
+    """Snapshot a vault through its open, keyed engine (BKUP-TORN).
+
+    A keyless open of an encrypted vault fails, and the plain file copy it fell
+    back to could interleave with a commit and store a torn backup. `VACUUM
+    INTO` on a pool connection the engine already keyed runs inside one read
+    transaction, and SQLCipher encrypts the output with the same key and cipher
+    settings, so restore's file copy is unchanged. No key is read here.
+
+    The profile's connection is looked up when the snapshot runs, not when this
+    is built: after logout/lock the old engine would re-key a fresh connection
+    and keep vault access alive. Returns False when the profile is not open,
+    and the caller takes the keyless path (no app writer can be active then).
+
+    Call from the event loop that owns the profile engine; the returned
+    function is for the backup worker thread.
+    """
+    from core.profile_database import get_profile_db_manager
+
+    loop = asyncio.get_running_loop()
+    manager = get_profile_db_manager()
+
+    async def _snapshot(dest: Path) -> bool:
+        live = manager.get_connection(profile_id)
+        if live is None:
+            return False
+        async with live.engine.connect() as conn:
+            await conn.exec_driver_sql("VACUUM INTO ?", (str(dest),))
+            if manager.get_connection(profile_id) is not live:
+                # Closed mid-snapshot: do not hand a keyed connection back to
+                # a disposed pool, where nothing would ever close it.
+                await conn.invalidate()
+        return True
+
+    def snapshot(dest: Path) -> bool:
+        dest.unlink(missing_ok=True)  # VACUUM INTO refuses an existing file
+        future = asyncio.run_coroutine_threadsafe(_snapshot(dest), loop)
+        try:
+            return future.result(timeout=SNAPSHOT_TIMEOUT_S)
+        except TimeoutError:
+            future.cancel()
+            raise
+
+    return snapshot
 
 
 def _discover_databases(data_dir: Path) -> list[Path]:
@@ -292,10 +349,33 @@ def _scope_master_to_profile(master_copy: Path, profile_id: str) -> None:
         conn.close()
 
 
+# Callers run backup() off the event loop (BKUP-MIX), so two can overlap; the
+# 1-second backup dir name would then be shared. ponytail: one process-wide
+# lock, per-profile locks if concurrent backups ever matter.
+_BACKUP_LOCK = threading.Lock()
+
+
 def backup(
     data_dir: Path,
     backup_dir: Path,
     profile_id: str | None = None,
+    snapshot_vault: Callable[[Path], bool] | None = None,
+) -> BackupResult:
+    """Create a timestamped backup of all databases, one at a time.
+
+    `snapshot_vault` (from `keyed_snapshotter`) copies the scoped profile's
+    vault; without it, or when it returns False (CLI, locked vault), the
+    keyless path below is used.
+    """
+    with _BACKUP_LOCK:
+        return _backup_unlocked(data_dir, backup_dir, profile_id, snapshot_vault)
+
+
+def _backup_unlocked(
+    data_dir: Path,
+    backup_dir: Path,
+    profile_id: str | None = None,
+    snapshot_vault: Callable[[Path], bool] | None = None,
 ) -> BackupResult:
     """
     Create a timestamped backup of all databases.
@@ -341,7 +421,13 @@ def backup(
         dest_file = dest_dir / rel_path
         dest_file.parent.mkdir(parents=True, exist_ok=True)
 
-        method = _backup_sqlite(db_path, dest_file)
+        is_scoped_vault = profile_id and db_path == data_dir / "vaults" / profile_id / "vault.db"
+        if snapshot_vault and is_scoped_vault and snapshot_vault(dest_file):
+            method = "keyed_snapshot"
+        else:
+            # Vaults are opened in-process through sqlcipher3, the master through stdlib.
+            module = sqlite3 if db_path.name in MASTER_DB_NAMES else get_sqlcipher_module()
+            method = _backup_sqlite(db_path, dest_file, module)
         if method == "file_copy":
             backup_method = "file_copy"
 
