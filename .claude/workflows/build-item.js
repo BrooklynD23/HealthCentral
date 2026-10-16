@@ -226,12 +226,12 @@ ${STYLE}`,
 phase('Verify')
 return await agent(
   `You are L1 (Opus) closing build-program item ${ID}: ${where}. Follow ${RUNBOOK} §6 and §7 exactly.
-1. git merge origin/main in the worktree (final merge). On conflict in docs/INDEX.md or docs/_link_graph.json regenerate with scripts/generate_docs_index.py; on any other conflict stop and report.
-2. Run §6 steps 1-6 yourself and keep every command with its output. Plan acceptance commands: ${spec.acceptance_commands.join(' ;; ') || 'see plan'}. If the collected count moved, write it into all 3 slots in one commit. If anything fails, stop: keep draft, comment the output on the PR, retitle it "[blocked:claude] ${ID} <keep the current slug>" (${RUNBOOK} §8), and return FAILED.
+1. Merge origin/main into the worktree only if the PR has a real code conflict or code dependency (contracts.md §d step 4). Never edit docs/INDEX.md, docs/_link_graph.json, the count slots or the docs/reviews/README.md table; on any conflict in your own files stop and report.
+2. Run §6 steps 1-6 yourself and keep every command with its output. Plan acceptance commands: ${spec.acceptance_commands.join(' ;; ') || 'see plan'}. Paste the measured collected line and its delta into the PR body; never write the count slots (SLOT-RULE-2). If anything fails, stop: keep draft, comment the output on the PR, retitle it "[blocked:claude] ${ID} <keep the current slug>" (${RUNBOOK} §8), and return FAILED.
 3. ${spec.architectural ? `Architectural item: run the Codex adversarial review (§10.2 codex-companion adversarial-review) from the worktree. A BLOCKER means: keep draft, comment it, retitle it "[blocked:claude] ${ID} <keep the current slug>", return BLOCKED.` : 'Not architectural: no Codex review.'}
 4. Push. Write the PR body with every §6 table section (gates quoted: ${(plan.gates_quoted || []).join(' | ') || 'none'}; skipped tasks: ${(plan.skipped_tasks || []).join(', ') || 'none'}; start count: ${plan.start_count || 'see Task 0'}; implementer claude sonnet; reviewer claude opus, final verdict PASS). Use gh pr edit ${plan.pr_number} --body-file.
 5. Retitle to "<type>(<scope>): <summary> (${ID})" to release the slot. Run gh pr ready ${plan.pr_number} only if no merge-only gate is unanswered and the item is not a parked draft (contracts.md §b rule 2). Re-read the row's owner gates against owner-decisions yourself first; an empty gates list from Task 0 is not evidence that none apply.
-6. Stop. Never merge, never add the merge-token label.
+6. Stop. Never merge, never push to main.
 Return: first line PR URL + READY | DRAFT (why) | FAILED | BLOCKED; then the final count line and the full test command output tail.
 ${STYLE}`,
   { label: `verify+PR ${ID}`, phase: 'Verify', model: 'opus', effort: 'high' },

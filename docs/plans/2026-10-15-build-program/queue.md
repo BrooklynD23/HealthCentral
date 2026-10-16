@@ -14,7 +14,7 @@ Rules: [contracts.md](contracts.md) §b (shared files), §c (migrations), §d (c
 2. **No shared files:** two items that run at the same time never share a file (slots, `docs/INDEX.md` and `docs/_link_graph.json` excepted).
 3. **Waves are dependency layers**, not dates. An item may start in an earlier wave if its dependencies are merged, its execution gates are answered, a slot is free and rules 1–2 hold.
 4. **No-slot items** (docs, owner merges, PR landings with no pytest) run beside code items, subject to rule 2.
-5. Merges stay serial and go through the count-slot merge token (contracts §d). Humans merge.
+5. Humans merge, in any order that respects real code dependencies. Slots and the index are updated by L0's post-merge batch (contracts §d, SLOT-RULE-2).
 
 Totals: 51 items. 7 ready now (E-1, E-3, D-0, C-PMIG, E-7, F-3, and B-3 for the next free slot). Waves 6–14 plus a docs tail.
 
@@ -32,7 +32,7 @@ Totals: 51 items. 7 ready now (E-1, E-3, D-0, C-PMIG, E-7, F-3, and B-3 for the 
 |---|---|---|---|---|---|---|---|---|---|
 | E-1 | E | PRODUCT (code slot 1) | — | S-3/O-3, S-6 (merge only); O-2 signed | `be/modules/redaction.py` (**called only**, never edited) | `be/tests/test_export_redaction.py`, `be/modules/export.py`, `be/api/export.py`, `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`, slots | 6 | claude | **ready** (merge blocked: S-3, S-6) |
 | E-3 | E | PRODUCT (code slot 2) | — | Q-RUFF (Task 7), CI-SEED (Task 8 Step 4), Q-COV (threshold only) | — | `.github/workflows/ci.yml`, `be/tests/test_migration_heads.py`, `docs/architecture/ci-and-quality-gates.md`, `docs/features/TASK_LIST.md` (own row), slots | 5 | any | **ready** (Tasks 7 and 8.4 blocked: Q-RUFF, CI-SEED) |
-| D-0 | D | OWNER (no slot) | — | owner merges #95 → #97 → #99 → #82 → #84 | — | slots, `docs/INDEX.md`, `docs/_link_graph.json`, `docs/reviews/README.md` | 2 | claude | **ready** (each merge goes through the §d token) |
+| D-0 | D | OWNER (no slot) | — | owner merges #95 → #97 → #99 → #82 → #84 | — | slots, `docs/INDEX.md`, `docs/_link_graph.json`, `docs/reviews/README.md` | 2 | claude | **done** 2026-10-16 (#95, #97, #99, #82, #84 merged; main `d64c3fb`, 1604 collected) |
 | C-PMIG | C | DOCS (no slot) | — | OW-W13 (optional, R-13) | — | `docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md` | 0.5 | any | **ready** (lands with this build-program docs commit) |
 | E-7 | E | DOCS (no slot) | — | — | — | `docs/plans/2026-10-09-AUDIT-ORDER.md`, `docs/capstone-report/implementation-program.md` (`:488-489` only) | 0.5 | any | **ready** |
 | F-3 | F | DOCS (no slot) | — | — | — | `docs/architecture/README.md`, `docs/architecture/backend.md` | 0.5 | any | **ready** |

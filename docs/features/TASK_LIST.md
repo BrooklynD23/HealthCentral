@@ -183,6 +183,15 @@ On the first of each month, review all canonical docs for freshness:
 
 ## Session Notes
 
+### 2026-10-12 - GAMIFICATION-V2 tasks 2 + 4 (PR open, not merged)
+
+Branch `feat/gamification-v2-t24` from main `4884d38`; plan `audit/2026-09-25/waves/scaffold/GAMIFICATION-V2.md`.
+
+- Task 4: `GET /gamification/streaks` gains `active_days_last_28` and `weeks_with_log_last_4`, derived on read from `DoseTaken` (`modules/streak_engine.py::compute_engagement`). Nothing new stored, no migration. Weeks are four 7-day blocks counted back from `as_of_date`. Measures logging, not retention (plan risk 2). The Q2 ended-medication rule shipped in #83 and is not re-implemented.
+- Task 2: `useStreaks()`; badge and streak query keys carry the profile id; dose log and time-zone save invalidate the streak; profile `StreakDisplay` ("All medications") in `AchievementsWidget`; UTC hint linking to Settings; neutral zero-streak copy. Task 2b (hide toggle, profile migration) not done.
+- Backend: `1480 tests collected` (1477 → 1480); full suite `1480 passed`. Frontend: touched vitest files green on Windows; full vitest left to CI.
+- Recurring-failures re-read: no listed mode recurred. #10: `AchievementsWidget` is mounted at `pages/MedicationCoach.tsx:362`.
+
 ### 2026-10-08 - P5: `datetime.utcnow` → `core.time.utcnow` (PR open, not merged)
 
 Branch `fix/p5-utcnow-migration` from main `777adf5`; plan `audit/2026-09-25/plans/05-utcnow-migration.md` (amended first; owner rows D13, P5-SCOPE, P5-IMPORT).

@@ -128,21 +128,18 @@ OW-W13 (owner order confirmation) is **not** needed for numbering; see R-13.
 
 ## d. Count-slot merge protocol
 
-Ground rule 8 / SLOT-RULE (`owner-decisions-2026-09-27.md:31`, signed). Baseline **1574** at `3b2236c`.
+SLOT-RULE-2 (owner, 2026-10-16) supersedes ground rule 8 / SLOT-RULE (`owner-decisions-2026-09-27.md:31`). Baseline **1604** at `d64c3fb`.
 
-1. **Slots:** `CLAUDE.md:30` and `:34`, and `AGENT.md:76`. All three always carry the same number.
-2. **Measure, never predict.** A PR that changes the collected count runs this after its **final** merge of `origin/main`, in its own worktree:
+1. **PRs never edit** the slots (`CLAUDE.md` "**N backend tests collected.**" and "if it differs from N", `AGENT.md` "N collected"), `docs/INDEX.md`, `docs/_link_graph.json`, or the table in `docs/reviews/README.md`. A PR adds its own review files only.
+2. **Measure, never predict.** Each PR still measures collection on its head and pastes the line, with its delta from the slot, into the PR body:
    ```bash
    cd src/backend && flock /tmp/claude-1000/hc-pytest.lock env HF_HUB_OFFLINE=1 \
      ~/venvs/asclexis-311/bin/python -m pytest tests/ --collect-only -q -p no:cacheprovider | tail -1
    ```
-   It writes that number into all 3 slots in the same commit and pastes the line into the PR body. Predicted chains, such as D-0's 1574→…→1604 and F-10's "+7", are illustrations only.
-3. **Merge token.** L0 hands out one token at a time. The owner merges the measured PR before any other count-moving PR merges. If another one merges first, the PR merges main again and re-measures.
-4. **Slot conflicts:** never pick a side; recount (step 2).
-5. **Docs-only PRs** do not touch the slots.
-6. **No lane waits for D-0 to count.** E-1 and E-3 start now; each PR measures at its start (to catch a stale slot) and again at its final merge (R-17).
-7. **#68 (F-10) merges last** in the current open-PR set, measured by step 2.
-8. **Stale-slot stop:** if a start measurement on clean `origin/main` differs from the slot, the item stops and reports to L0. It does not fix another PR's slot inside its own diff.
+3. **Post-merge batch (L0).** After one or more merges, L0 opens one `docs:` PR from fresh `origin/main` that re-measures with step 2, writes the number into all 3 slots, regenerates the index (`python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py --link-graph`), and appends the review rows for the merged PRs. Nothing else goes in that PR.
+4. **No merge sync for slots.** A PR merges main in only for a real code conflict or a real code dependency, never for slots or the index.
+5. **CI** regenerates the index in its own workspace before `docs_lint.py`, so a PR that adds a doc passes DOC-011 without committing the index (SLOT-RULE-2 PR).
+6. **Stale slot is expected between batches.** An item that measures a start count different from the slot reports the delta and carries on; it never fixes the slot.
 
 ---
 

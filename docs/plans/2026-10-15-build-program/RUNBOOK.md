@@ -37,7 +37,7 @@ One item loop that **Claude Code, Codex CLI and Devin** run against the same [qu
 | 5 | **Review** (another runtime or session) | `VERDICT: PASS`, at most 3 rounds | §5 |
 | 6 | **Measured acceptance** after the final `git merge origin/main` | output pasted, not paraphrased | §6 |
 | 7 | **PR** body filled, title changed from `[claim:…]` to a conventional title, `gh pr ready` unless a merge gate or the parked-draft rule holds it | slot released | §6 |
-| 8 | **Stop.** Humans merge. L0 hands out the merge token | — | §7 |
+| 8 | **Stop.** Humans merge. L0 runs the post-merge batch | — | §7 |
 
 "Item" = one queue row. One item = one worktree = one branch = one PR. `<id>` is the queue ID in lower case (`E-1` → `e-1`, `RAG-RUNTIME-500` → `rag-runtime-500`).
 
@@ -135,7 +135,7 @@ Run in the worktree after the **final** `git merge origin/main`. Paste every com
      ~/venvs/asclexis-311/bin/python -m pytest tests/ -p no:cacheprovider -q
    ```
    The only allowed failure is the environmental `test_api_rag_index_002b` ([CLAUDE.md](../../../CLAUDE.md) §4). Devin's VM has no flock file; it runs the same command without `flock`.
-3. The collected count, measured with [contracts.md](contracts.md) §d step 2. If it moved, write the number into all 3 slots in one commit.
+3. The collected count, measured with [contracts.md](contracts.md) §d step 2, pasted with its delta. Do not write the slots.
 4. `cd src/backend && ~/venvs/asclexis-311/bin/python -c "from main import app"`.
 5. The frontend, when touched: `npx tsc --noEmit`. `vitest` stalls on `/mnt/c`, so run it from Windows or CI, or record it as skipped with that reason.
 6. `git status --short` shows only the item's files.
@@ -160,15 +160,14 @@ Then retitle, which releases the slot (§3): `gh pr edit <n> --title "<type>(<sc
 
 ## 7. Count slots and merge sync
 
-[contracts.md](contracts.md) §d governs. How a runtime applies it:
+[contracts.md](contracts.md) §d governs (SLOT-RULE-2, owner 2026-10-16). How a runtime applies it:
 
-1. **Merge token = the `merge-token` PR label.** Only L0 adds or removes it, on one PR at a time. Before the first grant, L0 runs `gh label create merge-token` once. The owner merges the labelled PR before any other count-moving PR.
-2. **After every merge to `main`,** each open count-moving PR is stale. Before L0 grants it the token, its claimer (or a runtime L0 assigns) runs merge sync: `git merge origin/main`, re-run §6 steps 1–3, write the slots, push, and paste the new output into a PR comment.
-3. **Slot conflicts:** never pick a side; recount (§d step 4).
-4. **`docs/INDEX.md`, `docs/_link_graph.json`:** on conflict, regenerate with `python3 scripts/generate_docs_index.py`. Never hand-merge.
-5. **Migrations:** number at the final rebase per [contracts.md](contracts.md) §c, and run both §c checks in the PR body.
-6. **After an owner merge from Windows,** run `git worktree list`. Windows `gh pr merge` can drop WSL worktree metadata; repair it with `git worktree repair <path>`.
-7. **#68 (F-10) merges last** in the current open-PR set (§d step 7).
+1. **Never edit** the count slots, `docs/INDEX.md`, `docs/_link_graph.json` or the `docs/reviews/README.md` table. Paste the measured collected line and its delta into the PR body instead.
+2. **No merge token, no sync chain.** Merge `origin/main` into a PR only for a real code conflict or code dependency.
+3. **After merges,** L0 opens the post-merge batch PR (§d step 3): slots, index, review rows. Nothing else.
+4. **Migrations:** number at the final rebase per [contracts.md](contracts.md) §c, and run both §c checks in the PR body.
+5. **After an owner merge from Windows,** run `git worktree list`. Windows `gh pr merge` can drop WSL worktree metadata; repair it with `git worktree repair <path>`.
+6. **Main is protected** (MAIN-PROTECT): PR required, CI green, no direct or force push. Never try to bypass it.
 
 ---
 
@@ -187,10 +186,10 @@ Then retitle, which releases the slot (§3): `gh pr edit <n> --title "<type>(<sc
 
 ## 9. Never (every runtime)
 
-1. Merge a PR, add or remove `merge-token`, or close another runtime's PR.
+1. Merge a PR, or close another runtime's PR.
 2. Sign a gate, record an owner answer, or tick an owner box. Only answers the owner gave are recorded, and only by L0, verbatim.
 3. Edit an ask-first file ([CLAUDE.md](../../../CLAUDE.md) §1: `interpret_safety`, `redaction`, `faithfulness`, `verifier_agent`, auth/encryption, `core/auth.py`) without a signed gate that names that exact edit.
-4. Edit outside the row's file list, edit a merged migration, or hand-merge `docs/INDEX.md`.
+4. Edit outside the row's file list, edit a merged migration, or edit `docs/INDEX.md`, `docs/_link_graph.json` or the count slots.
 5. Weaken a test, a threshold or a validation; add a blanket judge bypass (R-2).
 6. Stage with `git add -A`, force-push, or push to a branch you did not claim.
 7. Run a full backend suite outside `flock`, or outside the item's worktree.

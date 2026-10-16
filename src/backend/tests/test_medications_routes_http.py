@@ -2,7 +2,7 @@
 which must be loaded eagerly under async SQLAlchemy (else MissingGreenlet/500)."""
 
 import uuid
-from datetime import datetime, time, timezone
+from datetime import datetime, time, timedelta, timezone
 
 import pytest
 import pytest_asyncio
@@ -13,7 +13,7 @@ import api.gamification as gamification_api
 from api.medications import router as med_router
 from core.auth import get_profile_db_session
 from core.profile_database import ProfileDatabaseBase
-from models import DoseTaken, Medication, MedicationSchedule, UserModelSettings
+from models import AdherencePattern, DoseTaken, Medication, MedicationSchedule, UserModelSettings
 from tests.support.routes import route_client
 
 PROFILE = "profile-a"
@@ -273,3 +273,105 @@ async def test_hc_med_http_011_dose_variance_in_profile_timezone(
         ctx.__exit__(None, None, None)
     dose = (await profile_db.execute(select(DoseTaken))).scalar_one()
     assert dose.variance_minutes == variance
+
+
+# SCHED-OWNER: a schedule_id must belong to the medication in the path.
+async def _seed_two_with_schedules(db: AsyncSession) -> tuple[str, str, str, str]:
+    """Two medications in one profile, one schedule each: (med_a, sched_a, med_b, sched_b)."""
+    med_a = await _seed(db, with_schedule=True)
+    med_b = await _seed(db, with_schedule=True)
+    rows = (await db.execute(select(MedicationSchedule))).scalars().all()
+    sched = {s.medication_id: s.id for s in rows}
+    return med_a, sched[med_a], med_b, sched[med_b]
+
+
+async def _dose_count(db: AsyncSession) -> int:
+    return (await db.execute(select(func.count()).select_from(DoseTaken))).scalar_one()
+
+
+@pytest.mark.asyncio
+async def test_hc_med_http_012_log_dose_other_medications_schedule_rejected(profile_db):
+    med_a, _, _, sched_b = await _seed_two_with_schedules(profile_db)
+    ctx, client = _client(profile_db)
+    try:
+        resp = client.post(
+            f"/medications/{med_a}/doses",
+            params={"schedule_id": sched_b},
+            json={"taken_at": "2026-07-15T08:05:00Z"},
+        )
+    finally:
+        ctx.__exit__(None, None, None)
+    assert resp.status_code == 422, resp.text
+    assert "does not belong" in resp.json()["detail"]
+    assert await _dose_count(profile_db) == 0
+
+
+@pytest.mark.asyncio
+async def test_hc_med_http_013_log_dose_own_schedule_and_no_schedule_unchanged(profile_db):
+    med_a, sched_a, _, _ = await _seed_two_with_schedules(profile_db)
+    ctx, client = _client(profile_db)
+    try:
+        own = client.post(
+            f"/medications/{med_a}/doses",
+            params={"schedule_id": sched_a},
+            json={"taken_at": "2026-07-15T08:05:00Z"},
+        )
+        none = client.post(f"/medications/{med_a}/doses", json={"taken_at": "2026-07-15T09:00:00Z"})
+    finally:
+        ctx.__exit__(None, None, None)
+    assert own.status_code == 201, own.text
+    assert own.json()["dose"]["schedule_id"] == sched_a
+    assert own.json()["dose"]["variance_minutes"] == 5
+    assert none.status_code == 201, none.text
+    assert none.json()["dose"]["schedule_id"] is None
+    assert none.json()["dose"]["variance_minutes"] is None
+    assert await _dose_count(profile_db) == 2
+
+
+@pytest.mark.asyncio
+async def test_hc_med_http_014_log_dose_unknown_schedule_keeps_main_behaviour(profile_db):
+    # Pins pre-SCHED-OWNER behaviour: SQLite FKs are off, so an unknown id is
+    # stored as-is with no variance. Not a 500; changing it is out of scope.
+    med_a, _, _, _ = await _seed_two_with_schedules(profile_db)
+    unknown = str(uuid.uuid4())
+    ctx, client = _client(profile_db)
+    try:
+        resp = client.post(
+            f"/medications/{med_a}/doses",
+            params={"schedule_id": unknown},
+            json={"taken_at": "2026-07-15T08:05:00Z"},
+        )
+    finally:
+        ctx.__exit__(None, None, None)
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["dose"]["variance_minutes"] is None
+
+
+@pytest.mark.asyncio
+async def test_hc_med_http_015_learn_patterns_other_medications_schedule_rejected(profile_db):
+    med_a, sched_a, _, sched_b = await _seed_two_with_schedules(profile_db)
+    # 7 recent doses on A tagged with B's schedule: enough for the learner to
+    # write a time_window row tagged sched_b if the guard were missing.
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    for day in range(1, 8):
+        taken = (now - timedelta(days=day)).replace(hour=8, minute=0, second=0, microsecond=0)
+        profile_db.add(DoseTaken(
+            id=str(uuid.uuid4()), medication_id=med_a, schedule_id=sched_b, taken_at=taken,
+            log_method="manual", was_skipped=False, logged_at=taken,
+        ))
+    await profile_db.commit()
+    ctx, client = _client(profile_db)
+    try:
+        foreign = client.post(f"/medications/{med_a}/learn-patterns", params={"schedule_id": sched_b})
+        leaked = (await profile_db.execute(
+            select(func.count()).select_from(AdherencePattern).where(AdherencePattern.schedule_id == sched_b)
+        )).scalar_one()
+        own = client.post(f"/medications/{med_a}/learn-patterns", params={"schedule_id": sched_a})
+        unscoped = client.post(f"/medications/{med_a}/learn-patterns")
+    finally:
+        ctx.__exit__(None, None, None)
+    assert foreign.status_code == 422, foreign.text
+    assert "does not belong" in foreign.json()["detail"]
+    assert leaked == 0
+    assert own.status_code == 200, own.text
+    assert unscoped.status_code == 200, unscoped.text
