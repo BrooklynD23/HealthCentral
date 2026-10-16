@@ -1,6 +1,6 @@
 # Lane D — Time Zones, Medications, Gamification — Build Design
 
-**Last Updated:** 2026-10-15
+**Last Updated:** 2026-10-16 (D-2 rev 2, owner Q1)
 **Owner:** repository owner
 **Refresh Trigger:** any merge of #95, #97, #99, #82 or #84; any commit to `src/backend/core/time.py`, `src/backend/modules/notification_scheduler.py`, `src/backend/modules/adherence_patterns.py`, `src/backend/modules/streak_engine.py`, `src/backend/api/medications.py`, `src/backend/api/gamification.py`, `src/backend/api/notifications.py`, `src/backend/monitoring/correlation.py`; a new profile migration after `012_pinboards`.
 **Status:** DESIGN. Nothing here is implemented. Owner answers cited below are quoted from `docs/capstone-report/owner-decisions-2026-09-27.md`; this file records no new approval.
@@ -158,6 +158,75 @@ Freeze time with `monkeypatch.setattr(<module>, "utcnow", ...)` as #97's tests d
 
 **Rollback:** revert the PR. The migration's cleared windows stay cleared (they were in the wrong frame); the user re-learns.
 
+### D-2 rev 2 — automatic re-learn (owner Q1, 2026-10-16)
+
+**Owner answer (Q1, 2026-10-16):** "Re-learn automatically" — "Re-learn every schedule on first unlock (per-profile startup job while the vault is unlocked). No user action, but more code and a startup cost." This section **replaces step 6** of D-2 above and adds to its tests. Steps 1–5 (local clock, local day bounds, local `is_weekend`/`hour_of_day`, `tz_name` into `update_adaptive_windows`) stay as written.
+
+**Base re-measured:** `origin/main` @ `527bc22` (2026-10-16, after D-1 #104 and D-3 #109). Profile head still `012_pinboards`; `tests/support/migrations.py` does not exist yet (C-P6 not merged), so the 4 head literals apply.
+
+#### Trace
+
+| Piece | Where (main @`527bc22`) | Fact that shapes the design |
+|---|---|---|
+| Learner | `modules/adherence_patterns.py::update_adaptive_windows` `:459-504` | Already takes `tz_name` (D-1). Learns **active** schedules only (`:474-475`) and writes a window **only when confident** (`:491`); otherwise the old window stays. Commits only if something changed (`:501`). |
+| Learner core | `learn_time_window` `:188-261` | One `DoseTaken` query per schedule, 30-day lookback (`:202`), buckets by `to_local(taken_at, tz_name)` (`:227`). |
+| Route | `api/medications.py::learn_patterns` `:1277`; window update `:1341-1346` | Computes `tz_name` (`:1321`) but does **not** pass it to `update_adaptive_windows` (comment "Stays UTC on purpose"). Rev 1 step 5 fixes this. |
+| Storage | `models/medication.py::MedicationSchedule` `:137-138` | `adaptive_window_start/end` are `Time`, nullable; NULL means `target_time ± default_window_tolerance_minutes` (`notification_scheduler.py:427-434`). No profile-level key/value table exists in the profile DB. |
+| Scheduler pass | `notification_scheduler.py::_check_all_schedules` `:271-306` | One pass every 60 s (`:263`) per registered profile, **inside the per-profile `asyncio.Lock`** (`:286`, P2-INFLIGHT), with its own try/except per profile (`:291-305`). |
+| Unlock hook | `core/auth.py::open_profile_database_on_login` `:405-420` | Already registers the profile with the scheduler on unlock (D6), fail-soft. Close hook `:438-450` awaits `unregister_profile_session_and_wait`. |
+| Migration on open | `core/profile_database.py:382-384` | Profile migrations run when the vault opens, so the new column exists before the first scheduler pass. |
+
+#### Design (smallest correct version)
+
+1. **Marker = one nullable column, per schedule:** `MedicationSchedule.adaptive_window_tz: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)` — the zone the stored window was learned in. NULL = "not yet re-learned in local time". Per-schedule rather than per-profile because the profile DB has no key/value table and `user_model_settings` may have no row for the profile; a per-schedule column needs no new table, no FK and no RESET-APPEND. "Per-profile marker" is then "no schedule of this profile has `adaptive_window_tz IS NULL`".
+2. **Migration still marks windows stale: yes.** `NNN_adaptive_windows_local` (C-PMIG, contracts §c: `NNN` = profile head on `origin/main` at final merge of main + 1; today that is `013`, `down_revision = "012_pinboards"`). Upgrade: `op.add_column("medication_schedules", sa.Column("adaptive_window_tz", sa.String(64), nullable=True))` then `UPDATE medication_schedules SET adaptive_window_start = NULL, adaptive_window_end = NULL`. Downgrade: `UPDATE medication_schedules SET adaptive_window_start = NULL, adaptive_window_end = NULL`, then `op.drop_column(...)` (via `batch_alter_table`). Clearing again on downgrade matters: after a re-learn the windows are local-frame, and the pre-D-2 scheduler would read them as UTC (Codex r1 #1). Original UTC-frame values are not restored (cannot be rebuilt; docstring says so). Why still clear: between upgrade and the first successful re-learn the scheduler must not read UTC-frame windows as local; clearing makes the fail-soft fallback (`target_time ± tolerance`, `:427-434`) automatic with **zero** scheduler code, and the UI (`ScheduleEditor.tsx:90-92`) stops showing wrong-frame windows.
+3. **Learner method** (`modules/adherence_patterns.py`, ~15 lines): `PatternLearner.relearn_unmarked_windows(profile_id, db, tz_name) -> int`. Loads the `MedicationSchedule` rows joined to `Medication` where `Medication.profile_id == profile_id` and `adaptive_window_tz IS NULL` (active **and** inactive). For each row only: `pattern = await self.learn_time_window(row.medication_id, row.id, db, tz_name=tz_name)` (reuse; no new learning code); if `pattern and pattern.confidence >= self.CONFIDENCE_THRESHOLD`, set both window columns; always set `row.adaptive_window_tz = tz_name`. **One `commit` at the end**, so a failure part-way leaves nothing half-done. It does **not** call `update_adaptive_windows`: that method rewrites every active schedule of the medication (`:470-479`), so one new unmarked schedule would re-learn its already-marked siblings (Codex r1 #3). Marking every loaded row — including inactive and low-confidence schedules — is what makes it run once; otherwise those rows would be retried every unlock. Returns the number of rows marked. `update_adaptive_windows` also sets `schedule.adaptive_window_tz = tz_name` on each window it writes (1 line), so a manual "Learn patterns" records its frame too.
+4. **Trigger = the existing scheduler pass, not `core/auth.py`.** In `_check_profile_schedules`, right after rev 1 step 1 computes `tz`, call `await self._relearn_windows_once(profile_id, tz, db)` before the medication query, so this same pass already uses the fresh windows. `_relearn_windows_once` (scheduler, ~15 lines):
+   - returns at once if `profile_id in self._relearn_attempted` (a `set[str]`); else adds it, then calls the learner method;
+   - on any `Exception`: `await db.rollback()`, `logger.warning("Adaptive-window re-learn failed for profile %s (%s); retrying on next unlock", profile_id, type(exc).__name__)` — class name only, no `exc_info`, no message (SQLAlchemy messages carry bound parameters; S01) and **no medication names** (P2 rule) — and returns; the reminder pass continues on `target_time ± tolerance`;
+   - `unregister_profile_session` and `unregister_profile_session_and_wait` also `self._relearn_attempted.discard(profile_id)`, so a failed attempt retries on the **next unlock**, not every 60 s (no log spam). A successful attempt persists its marker, so later unlocks cost one probe query that returns 0 rows.
+5. **Concurrency.** Same profile unlocked twice (two tabs, two logins): `register_profile_session` just replaces the dict entry; the single scheduler runs passes under the per-profile lock (`:286`), and the attempted-set is checked inside that lock, so the job runs once. Re-learn racing a manual `POST /medications/{id}/learn-patterns`: both compute the same windows from the same doses in the same zone; last write wins with identical values. Different profiles use different vault files. Cross-process: the app runs one uvicorn process (`dev.ps1:799,905` and `main.py:188` pass no `--workers`), so one scheduler serves a vault. A second process would recompute identical values from identical inputs and commit them in one transaction each, so the result is the same; no durable claim row (YAGNI; add one only if multi-worker serving is ever supported) (Codex r1 #4).
+6. **`core/auth.py`: not touched.** The D6 registration hook already runs on every unlock and the scheduler pass is the "per-profile startup job while the vault is unlocked". No D2-AUTH gate is needed. Cost: the re-learn happens on the first pass after unlock (≤ `check_interval_seconds` = 60 s later), not inside the login request. Exception: while the global hourly cap (`max_notifications_per_hour` = 10) is reached, `_check_all_schedules` returns before visiting any profile (`:279-282`), so the re-learn waits for the hourly reset (≤ 1 h). Accepted, not changed: during that wait no reminder is sent anyway and windows fall back to `target_time ± tolerance`, which rev 1 step 1 makes correct (Codex r1 #2, documented rather than moving the cap check).
+7. **Not done (YAGNI):** re-learn when the user later changes time zone (`adaptive_window_tz != tz`). The stored zone makes it a one-condition change; see Q5. No API or UI field for `adaptive_window_tz`.
+
+**Startup-cost bound:** off the login path (login latency +0). Once per profile, on the first pass after unlock: 1 query loading the unmarked schedules + 1 `DoseTaken` query per schedule + 1 commit — S + 1 queries for S schedules (21 for 10 medications × 2 schedules). Each `DoseTaken` query loads every non-skipped dose of that schedule in the last 30 days with `.all()` (`:202-216`): about 30 rows at one dose a day; rows logged more often scale it linearly, with no cap (Codex r1 #5). It holds the profile lock, so it delays that pass's reminders by the same amount. After success: 1 probe per unlock, 0 per pass.
+
+#### Test-first (RED each before the change; adds to rev 1's `sched_tz_001`–`_004`, replaces `_005`)
+
+Harness: `tests/test_notification_scheduler_wiring.py` nsw_007 (tmp vault, `MockProvider`, freeze `ns_module.utcnow`). Tests that need the real learner do **not** call `_stub_pattern_learner`; the stub tests stay as they are (the stub has no `relearn_unmarked_windows`, so they also exercise the fail-soft path; they must stay green).
+
+| Test | File | Asserts |
+|---|---|---|
+| `test_hc_sched_tz_005` (replaces rev 1) | `tests/test_notification_scheduler_wiring.py` | migration found by slug (`glob("*_adaptive_windows_local.py")`, exactly 1); upgrade → downgrade → upgrade on a seeded tmp vault (pattern `tests/test_care_tasks.py:795-826`, downgrade target from the file's `down_revision`); after upgrade both window columns are NULL, `adaptive_window_tz` exists and is NULL, `target_time` unchanged; then set local windows + marker (as a re-learn would) and downgrade → both window columns NULL and the column gone |
+| `test_hc_sched_tz_006` | same | LA profile, schedule with `adaptive_window_tz = NULL`, 10 doses at 08:00 PST (16:00Z); one pass → `adaptive_window_start <= time(8,0) <= adaptive_window_end` and `adaptive_window_tz == "America/Los_Angeles"` |
+| `test_hc_sched_tz_007` | same | runs once: spy on `relearn_unmarked_windows`; two passes → awaited once; after `unregister_profile_session_and_wait` + re-register, a third pass probes and marks nothing (returns 0) |
+| `test_hc_sched_tz_008` | same | fail-soft: learner `relearn_unmarked_windows` raises `RuntimeError("Metformin")`; the pass still sends 1 reminder at `target_time` (fallback window), marker stays NULL, `"Metformin" not in caplog.text`; second pass in the same session does not retry; after unlock cycle with a working learner → marker set |
+| `test_hc_sched_tz_009` | same | inactive schedule and a schedule with < `MIN_SAMPLES_FOR_PATTERN` doses both end with `adaptive_window_tz` set and windows NULL |
+| `test_hc_sched_tz_010` | same | two concurrent `_check_all_schedules()` via `asyncio.gather` → learner awaited once |
+| `test_hc_sched_tz_011` | same | one medication, schedule A marked `UTC` with window 16:00–17:00, schedule B unmarked; LA profile; one pass → A's window and marker unchanged, B learned in LA and marked |
+| update `test_hc_adhere_tz_001` | `tests/test_adherence_patterns_tz_http.py` (HTTP, existing `_client`) | after `POST /medications/{id}/learn-patterns`, window holds `time(8,0)` (local frame) and `adaptive_window_tz == LA` — intended change licensed by SCHED-TZ, not a weakening |
+
+The only route touched is `learn-patterns`, covered over HTTP above. Login is not changed, so no new login test; existing auth route tests must stay green.
+
+#### Files
+
+`be/models/medication.py` (1 column), `be/migrations/profile/versions/NNN_adaptive_windows_local.py` (new), `be/modules/adherence_patterns.py`, `be/modules/notification_scheduler.py`, `be/api/medications.py` (rev 1 step 5), `be/tests/test_notification_scheduler_wiring.py`, `be/tests/test_adherence_patterns_tz_http.py`, head literals (`be/tests/test_care_tasks.py:809,825`, `be/tests/test_profile_migrations_sqlcipher_fallback.py:41`, `be/tests/test_source_spans.py:313`; or `be/tests/support/migrations.py::PROFILE_HEAD` if C-P6 lands first), count slots. Not touched: `core/auth.py`, any ask-first file.
+
+#### Acceptance
+
+```bash
+cd "$(git rev-parse --show-toplevel)/src/backend"
+"$(git rev-parse --show-toplevel)/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest tests/ -k "sched_tz or nsw or adhere_tz or phase3 or care_tasks or sqlcipher_fallback or source_spans" -q
+grep -h "^down_revision" migrations/profile/versions/*.py | sort | uniq -d    # prints nothing
+~/venvs/asclexis-311/bin/python -c "from alembic.script import ScriptDirectory; from core.migrations import _get_alembic_config as c; print(ScriptDirectory.from_config(c('profile')).get_heads())"   # exactly one head
+python3 ../../scripts/time_source_lint.py    # exit 0
+"$(git rev-parse --show-toplevel)/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest tests/ --collect-only -q | tail -1   # previous + 11 (sched_tz_001–011) → write to slots
+```
+
+Full backend suite under `flock /tmp/claude-1000/hc-pytest.lock` before merge; `nsw_007/008` and UTC-profile tests unchanged.
+
+**Rollback (forward-only for the migration):** do **not** `git revert` the whole PR. Vaults upgrade on open (`core/migrations.py:171,330` `command.upgrade(config, "head")`); a vault already at `NNN_adaptive_windows_local` opened by a build without that file fails with an unknown-revision error, and unlock returns 500 (`core/auth.py:397-402`). Instead revert only the code (`notification_scheduler.py`, `adherence_patterns.py`, `api/medications.py`, the model column may stay) and add a new head migration `NNN+1_clear_adaptive_windows` that sets both window columns to NULL, so the pre-D-2 UTC scheduler never reads a local-frame window as UTC; it falls back to `target_time ± tolerance`. The extra nullable `adaptive_window_tz` column is harmless to old code. The file's own `downgrade()` (clear windows, drop column) is for dev/test round trips (`_005`). Users can press "Learn patterns". No data other than learned windows is changed. (Rev 1's "revert the PR" had the same hazard; this replaces it.)
+
 ### D-3 — GAM2-STREAK0
 
 **Owner answer (`:145`):** "Count through yesterday (Recommended)": "Streak stays at N until the day ends with no dose; separate small PR after #84 merges."
@@ -227,15 +296,16 @@ Existing `test_hc_gam_http_002/003/007/008/009` keep their values (checked: none
 | Ask-first files | none: no item touches `interpret_safety`, `redaction`, `faithfulness`, `verifier_agent`, `core/auth.py` or encryption code | — |
 | PR merges | D-0: #95, #97, #99, #82, #84 in that order | owner merges each |
 | CORRELATION-NORMALISE go | D-4 | **not given**; owner item, "none is approved" |
-| Re-learn method (Q1) | D-2 step 6 clears stored windows | owner wording "one-time re-learn" does not say how; confirm before D-2 dispatch |
+| Re-learn method (Q1) | D-2 | **answered 2026-10-16: "Re-learn automatically"** — see D-2 rev 2 (no `core/auth.py` edit) |
 | Grace scope (Q2) | D-3 applies only to `GET /gamification/streaks` | default as written unless the owner widens it |
 
 ## 7. Open questions
 
-1. **Q1 (D-2):** "One-time re-learn": the default is a migration that clears stored windows, so reminders use `target_time ± tolerance` until the user presses "Learn patterns". The other option is to re-learn automatically for every schedule in the migration or on first unlock. That needs the learner inside a migration, or a per-profile startup job while the vault is unlocked. Recommendation: clear.
+1. **Q1 (D-2):** "One-time re-learn": the default is a migration that clears stored windows, so reminders use `target_time ± tolerance` until the user presses "Learn patterns". The other option is to re-learn automatically for every schedule in the migration or on first unlock. That needs the learner inside a migration, or a per-profile startup job while the vault is unlocked. Recommendation: clear. **Answered 2026-10-16: re-learn automatically on first unlock → D-2 rev 2.**
 2. **Q2 (D-1/D-3):** should "count through yesterday" also apply to `/medications/{id}/stats` and to the streak in reminder messages? A reminder fires only when today's dose is not yet logged, so under today's rule it always reports the streak as 0. Default: gamification route only (the owner's literal scope). Widening it later is the same one-line `or` at 2 more call sites.
 3. **Q3 (D-2, out of scope):** quiet hours are stored (`api/notifications.py:73-74,247-248`) but `notification_scheduler.py` never reads them. Register as a separate item?
 4. **Q4 (D-2 edge):** a `target_time` that does not exist on a spring-forward day (02:00–02:59 local) gets no reminder that day. This matches the clamp behaviour of `_offset_time` (`:605-610`). Accept as is?
+5. **Q5 (D-2 rev 2, not asked yet):** re-learn windows automatically when the user later changes time zone? `adaptive_window_tz` makes it a one-condition change (`IS NULL OR != tz`). Default: no (owner asked for a one-time re-learn).
 
 ---
 

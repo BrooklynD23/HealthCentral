@@ -943,7 +943,8 @@
       "docs/plans/2026-10-15-build-program/contracts.md"
     ],
     "docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md": [
-      "docs/plans/2026-10-15-build-program/contracts.md"
+      "docs/plans/2026-10-15-build-program/contracts.md",
+      "docs/reviews/2026-10-16/D2-r1-response.md"
     ],
     "docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md": [
       "docs/plans/2026-10-15-build-program/contracts.md",
@@ -2980,6 +2981,9 @@
       "docs/plans/2026-10-15-build-program/contracts.md",
       "docs/plans/2026-10-15-build-program/queue.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md"
+    ],
+    "docs/reviews/2026-10-16/D2-r1-response.md": [
+      "docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md"
     ],
     "docs/reviews/2026-10-16/E1a-r1-response.md": [
       "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md",
