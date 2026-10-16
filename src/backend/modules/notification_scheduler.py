@@ -22,7 +22,7 @@ from typing import Optional, Callable, Awaitable
 from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.time import utcnow
+from core.time import profile_timezone_name, utcnow
 from models import (
     Medication,
     MedicationSchedule,
@@ -527,7 +527,9 @@ class NotificationScheduler:
         # Get streak data for context
         pattern_learner = get_pattern_learner()
         streak = await pattern_learner.calculate_streak(
-            check_result.medication_id, db
+            check_result.medication_id,
+            db,
+            tz_name=await profile_timezone_name(db, profile_id),
         )
 
         # Build message context
