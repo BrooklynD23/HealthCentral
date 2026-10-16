@@ -1472,7 +1472,7 @@ Back to: [implementation program](../capstone-report/implementation-program.md) 
 
 Executed 2026-10-16 on branch `fix/e-1-doctor-summary-redaction` (PR #106), base `origin/main` d6475cf, Python 3.11.16 (`~/venvs/asclexis-311`), WSL2. Every pytest ran through `scripts/pyslot.sh` with `HF_HUB_OFFLINE=1`. Lane E section 2.1 corrections 1-9 applied.
 
-**Start measurement.** N0 = 1604 collected (collect-only; equals `CLAUDE.md:30` and `AGENT.md:76`, so no slot stop). WP0 = `weasyprint-renders`; pypdf 6.19.0. F0/S0/X0/ENV0 are taken from the full-suite run by the verification runner, not by the implementer.
+**Start measurement.** N0 = 1604 collected (collect-only; equals `CLAUDE.md:30` and `AGENT.md:76`, so no slot stop). WP0 = `weasyprint-renders`; pypdf 6.19.0. F0/S0 were not measured at start. X0 = 0 (the only xfail under `tests/` is the new O-3 test). ENV0 = py3.11.16, embedding model present.
 
 **Anchors on this tree.** `api/export.py`: store `:448`, `doctor_summary` audit `:455`, `key_findings=summary.key_findings` `:478`, `download_summary` `:485`, `export_csv` `:909`, `export_json` `:965`. `modules/export.py`: `_format_trends` `:211`, date format `:203`.
 
@@ -1487,3 +1487,5 @@ Executed 2026-10-16 on branch `fix/e-1-doctor-summary-redaction` (PR #106), base
 - Task 3 Step 2: `3 failed` on `assert '2024-03-15' in ...`; after the change `26 passed, 1 xfailed` (redaction file plus `test_export_api.py`); Step 6 break gives `3 failed` on `assert '2024-03-15' in`.
 
 **End measurement (implementer).** `git diff --name-only origin/main...HEAD` lists `api/export.py`, `modules/export.py`, `tests/test_export_redaction.py` (plus this plan and the regenerated index). `redaction.py`, `routes.py`, `core/audit.py`, `models/audit.py`, `data-privacy.md`, `src/frontend`, `CLAUDE.md`, `AGENT.md`: diff exit 0. Shared renderers untouched. `from main import app` prints `ok`. HC-EXPR-003 asserts 2 `export.create` rows and 1 `denial.cross_profile` row (`entity_type == "summary"`, `entity_id is None`, no `summary_id`). Full-suite figures (collected expected 1612, failures subset of F0, xfailed X0+1) are measured by the verification runner. Real-PDF coverage in CI is UNMEASURED until a CI log shows PASSED. Frontend: `UNMEASURED: vitest stalls under WSL on /mnt/c; no frontend diff`.
+
+**Review round 1 follow-up.** Redaction now also covers section `title`; the O-3 xfail carries `raises=_GapOpen` (raised only on the PHI check); imports moved to the top block; `master_audit_db` closes the session and disposes the async engine. Runner figures: 1612 collected = N0 + 8 (delta +8 vs slot 1604, slots unwritten); 1611 passed, 0 failed, 0 skipped, 1 xfailed; ENV1 = py3.11.16 with the embedding model present (002b passed).
