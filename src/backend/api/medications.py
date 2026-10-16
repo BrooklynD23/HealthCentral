@@ -1350,12 +1350,19 @@ async def learn_patterns(
 
     verify_medication_access(medication, session)
 
+    # taken_at is naive UTC; bucket by the profile's wall clock (ADHERE-TZ).
+    settings_result = await profile_db.execute(
+        select(UserModelSettings).where(UserModelSettings.profile_id == session.profile_id)
+    )
+    tz_name = _profile_timezone_name(settings_result.scalar_one_or_none())
+
     # Learn patterns
     learner = get_pattern_learner()
     patterns = await learner.learn_all_patterns(
         medication_id=medication_id,
         schedule_id=schedule_id,
         db=profile_db,
+        tz_name=tz_name,
     )
 
     # Save patterns to database
@@ -1367,6 +1374,8 @@ async def learn_patterns(
     )
 
     # Update adaptive windows
+    # Stays UTC on purpose: notification_scheduler compares these windows with
+    # UTC now.time(). Local windows wait for that fix (follow-up SCHED-TZ).
     schedules_updated = await learner.update_adaptive_windows(
         medication_id=medication_id,
         db=profile_db,

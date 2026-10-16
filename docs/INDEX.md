@@ -2308,6 +2308,18 @@ Reviewer: code-reviewer subagent (Opus 5.5), read-only, 2026-10-13. Diff: `fix/u
 
 No code changes came out of this review.
 
+## `docs/reviews/2026-10-14/ADHERE-TZ-diff-response.md`
+
+**ADHERE-TZ diff — author response to code review**
+
+Blind spots: scheduler and notifications-streak gaps are the SCHED-TZ/STREAK-TZ follow-ups; others accepted for this PR.
+
+## `docs/reviews/2026-10-14/ADHERE-TZ-diff-review.md`
+
+**ADHERE-TZ diff — code review**
+
+Reviewer: code-reviewer subagent (Opus 5.5), read-only, 2026-10-14. Reviewed the diff before the HIGH-1 response (see the response file). Read the diff and tests; did not run the suite.
+
 ## `docs/reviews/2026-10-14/ASSIST-UTC-diff-codereview.md`
 
 **ASSIST-UTC diff — code review**
