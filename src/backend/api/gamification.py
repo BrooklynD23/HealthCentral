@@ -166,6 +166,7 @@ async def get_streaks(
     active_days, active_weeks = compute_engagement(doses, timezone_name, as_of_date)
 
     response = StreakResponse(
+        # GAM2-STREAK0 (owner :145): streak counts through yesterday; compute_streak is 0 iff as_of_date has no dose.
         current_streak_days=compute_streak(doses, timezone_name, as_of_date)
         or compute_streak(doses, timezone_name, as_of_date - timedelta(days=1)),
         longest_streak_days=compute_longest_streak(doses, timezone_name),
