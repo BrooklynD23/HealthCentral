@@ -200,12 +200,25 @@ UNDERSCORE_PHI = [
     ("patient:_jane_doe", "jane"),
     ("birth_date:_01/02/1980", "01/02/1980"),
     ("medical_record_no:_a12345", "a12345"),
+    # rev 3: label + qualifier word, '#'/'.' separators, value punctuation
+    ("mrn_number:_12345678", "12345678"),
+    ("mrn_no.:_12345678", "12345678"),
+    ("mrn_id:_a1234567", "a1234567"),
+    ("patient_name_first:_jane", "jane"),
+    ("mrn_#_12345", "12345"),
+    ("mrn#:_12345", "12345"),
+    ("medical_record_no.:_44-ab", "44-ab"),
+    ("medical_record_#:_991234", "991234"),
+    ("patient_id:_98765", "98765"),
+    ("name:_mary_o'brien", "brien"),
+    ("name:_doe,_jane", "jane"),
 ]
 
 ANALYTE_LIKE = [
     "vitamin_d", "ldl_cholesterol", "hemoglobin_a1c", "25_hydroxy_vitamin_d",
     "t4_free", "glucose_fasting", "ms_afp", "mrna_level",
     "name_of_test", "patient_count_3", "hba1c_2025-05-01",
+    "dobutamine_level", "medical_records_count",
 ]
 
 
@@ -216,6 +229,8 @@ class TestUnderscoreJoinedRedaction:
         result = _engine("strict").redact(text)
         assert secret not in result.text
         assert "[ID-REDACTED]" in result.text
+        # rev 3: the whole labelled value goes; only full_name keeps a prefix
+        assert result.text.removeprefix("full_") == "[ID-REDACTED]"
 
     def test_hc_redact_002_underscore_numeric_date_redacted_strict(self):
         """HC-REDACT-002: an unlabelled d/m/y date after '_' is redacted."""
@@ -263,6 +278,16 @@ class TestUnderscoreJoinedRedaction:
         result = _engine("strict").redact("contact jane_doe@example.com")
         assert "jane" not in result.text
         assert "[EMAIL-REDACTED]" in result.text
+
+    def test_hc_redact_008_long_underscore_run_is_linear_time(self):
+        """HC-REDACT-008: a long '_' run after a label does not backtrack quadratically."""
+        import time
+
+        text = "dob" + "_" * 50000 + "!"
+        start = time.perf_counter()
+        result = _engine("strict").redact(text)
+        assert time.perf_counter() - start < 1.0  # rev 2 rule: 7.9 s
+        assert result.text == text
 
 
 # ---------------------------------------------------------------------------
