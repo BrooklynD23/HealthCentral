@@ -133,7 +133,7 @@ SLOT-RULE-2 (owner, 2026-10-16) supersedes ground rule 8 / SLOT-RULE (`owner-dec
 1. **PRs never edit** the slots (`CLAUDE.md` "**N backend tests collected.**" and "if it differs from N", `AGENT.md` "N collected"), `docs/INDEX.md`, `docs/_link_graph.json`, or the table in `docs/reviews/README.md`. A PR adds its own review files only.
 2. **Measure, never predict.** Each PR still measures collection on its head and pastes the line, with its delta from the slot, into the PR body:
    ```bash
-   cd src/backend && flock /tmp/claude-1000/hc-pytest.lock env HF_HUB_OFFLINE=1 \
+   cd src/backend && "$(git rev-parse --show-toplevel)/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 \
      ~/venvs/asclexis-311/bin/python -m pytest tests/ --collect-only -q -p no:cacheprovider | tail -1
    ```
 3. **Post-merge batch (L0).** After one or more merges, L0 opens one `docs:` PR from fresh `origin/main` that re-measures with step 2, writes the number into all 3 slots, regenerates the index (`python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py --link-graph`), and appends the review rows for the merged PRs. Nothing else goes in that PR.

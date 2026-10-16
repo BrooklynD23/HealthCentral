@@ -1,19 +1,20 @@
 export const meta = {
   name: 'build-wave',
-  description: 'Run every build-program queue item that is eligible now, in parallel: haiku gathers state, opus selects a file-disjoint set, each item runs build-item',
-  whenToUse: 'L0 after merges or owner answers. args {max?: 3, ids?: ["D-1","E-3a"]}. Re-run after the next merges to pick up deferred items.',
+  description: 'Select every build-program queue item eligible now (haiku scan, opus select, file-disjoint pick); L0 then starts one build-item workflow per id',
+  whenToUse: 'L0 after merges or owner answers. args {max?: 12, ids?: ["D-1"], nested?: false}. Returns picked ids; L0 starts one background build-item workflow per id (each workflow gets its own agent cap). nested=true runs them inside this workflow instead.',
   phases: [
     { title: 'Scan', detail: 'haiku reads queue, open PRs, merged PRs, owner decisions', model: 'haiku' },
     { title: 'Select', detail: 'opus picks the eligible, file-disjoint set', model: 'opus' },
-    { title: 'Build', detail: 'one build-item run per selected item, at most max at once' },
+    { title: 'Build', detail: 'only with nested=true: build-item per picked id inside this workflow' },
   ],
 }
 
 // Runbook: docs/plans/2026-10-15-build-program/RUNBOOK.md. Per-item loop: .claude/workflows/build-item.js.
 const STYLE = 'Output style: follow ~/.claude/rules/common/subagent-output.md (i-have-adhd)'
 const QUEUE = 'docs/plans/2026-10-15-build-program/queue.md'
-// ponytail: 3 items at once on the 12 GB box; every pytest run is serialised by flock, so raise only with more RAM.
-const MAX = Math.max(1, Math.min(6, (args && args.max) || 3))
+// ponytail: 12 items default (owner cap 30 agents; an item uses 1-2 at a time). pytest load is bounded by scripts/pyslot.sh, not here.
+const MAX = Math.max(1, Math.min(15, (args && args.max) || 12))
+const NESTED = !!(args && args.nested)
 const ONLY = (args && Array.isArray(args.ids)) ? args.ids : null
 
 const SCAN_SCHEMA = {
@@ -88,13 +89,25 @@ const deferred = []
 for (const it of [...sel.eligible].sort((a, b) => a.priority - b.priority)) {
   const clash = it.files.find((f) => taken.has(f))
   if (clash) { deferred.push(`${it.id}: shares ${clash} with a picked item`); continue }
+  if (picked.length >= MAX) { deferred.push(`${it.id}: over max ${MAX}`); continue }
   it.files.forEach((f) => taken.add(f))
   picked.push(it.id)
 }
 log(`picked ${picked.length}: ${picked.join(', ') || 'none'}; deferred ${deferred.length}; not eligible ${sel.not_eligible.length}`)
 deferred.forEach((d) => log(`deferred ${d}`))
 
+if (!NESTED) {
+  return {
+    main_sha: scan.main_sha,
+    picked,
+    deferred,
+    not_eligible: sel.not_eligible,
+    next: `L0: start one background Workflow build-item per id, all in one message: ${picked.map((id) => `{"id": "${id}"}`).join(', ') || 'none'}`,
+  }
+}
+
 phase('Build')
+// Nested mode shares this workflow's agent cap (min(16, CPUs - 2)); separate runs scale further.
 // Semaphore: at most MAX build-item runs at once; the rest queue in priority order.
 let running = 0
 const waiters = []

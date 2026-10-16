@@ -19,7 +19,7 @@ One item loop that **Claude Code, Codex CLI and Devin** run against the same [qu
 | Implementer (L2) | `model: "sonnet"`, any item | items with runtime `codex` or `any` | items with runtime `devin` or `any` |
 | Reviewer | `model: "opus"` (`code-reviewer`; plus `security-reviewer` on redaction, auth, encryption, export, logging, external runner) | adversarial reviewer, `-s read-only` | no |
 | Explore / search / web search | `model: "haiku"`, read-only | no | research only (`ask_wiki_question`, no repo writes) |
-| Test runner (runs suites, never writes tests) | `model: "haiku"`, read-only, every pytest under `flock` | no | no |
+| Test runner (runs suites, never writes tests) | `model: "haiku"`, read-only, every pytest through `scripts/pyslot.sh` | no | no |
 
 1. **Runtime column.** The queue's `runtime` column picks who may implement: `claude` = Claude Code only; `codex` / `devin` = that runtime, or another one only after L0 edits the queue row; `any` = any of the three. `(model machine)` items (B-4, B-7, B-9) are owner work and are never claimed.
 2. **Reviewer rule.** The reviewer is never the same runtime **and** session as the implementer. A fresh Opus session may review a Sonnet implementer. A Codex or Devin implementation gets a Claude Code Opus review, or a Codex review of a Devin implementation. A Devin session never reviews.
@@ -51,7 +51,7 @@ No new infrastructure: a branch name is the lock, a PR title is the slot.
 | Thing | Rule |
 |---|---|
 | **Lock** | an open PR whose head branch matches `^[a-z]+/<id>-`. The trailing hyphen keeps `f-1-` apart from `f-10-`. One pair still overlaps: `g-c5-` also matches `g-c5-plan-…`, so a G-C5 slug never starts with `plan`, and a G-C5 lock check ignores a `g-c5-plan-` branch. |
-| **Slot** | an open PR titled `[claim:<runtime>] <ID> <slug>` holds one code slot. Queue rule 1 caps slot holders at **3** across all runtimes. No-slot items (DOCS, OWNER landings) use `[claim:<runtime>:noslot] <ID> <slug>`. |
+| **Slot** | an open PR titled `[claim:<runtime>] <ID> <slug>` holds one code slot. Queue rule 1 caps slot holders at **12** across all runtimes. No-slot items (DOCS, OWNER landings) use `[claim:<runtime>:noslot] <ID> <slug>`. |
 | **Runtime tag** | `claude`, `codex` or `devin`. |
 | **Heartbeat** | any push to the branch or any PR comment. |
 | **Stale** | a `[claim:` PR with no heartbeat for **24 h**. Only L0 releases it: L0 comments `stale claim released` and closes the PR **without** deleting the branch, so the work can be salvaged. A runtime never closes another runtime's PR. |
@@ -72,10 +72,10 @@ LOCK=$(gh pr list --state open --limit 200 --json number,headRefName \
   --jq ".[] | select(.headRefName | test(\"^[a-z]+/${id}-\")) | .number")
 [ -z "$LOCK" ] || { echo "locked by PR $LOCK"; exit 1; }
 
-# 2. slot check (code rows only): must print 0, 1 or 2
+# 2. slot check (code rows only): must print 11 or less
 SLOTS=$(gh pr list --state open --limit 200 --json title \
   --jq '[.[] | select(.title | startswith("[claim:") and (contains(":noslot]") | not))] | length')
-[ -n "$NOSLOT" ] || [ "$SLOTS" -le 2 ] || { echo "no free slot ($SLOTS held)"; exit 1; }
+[ -n "$NOSLOT" ] || [ "$SLOTS" -le 11 ] || { echo "no free slot ($SLOTS held)"; exit 1; }
 
 # 3. claim (the push fails if the branch already exists on origin, which aborts the claim)
 BR="$TYPE/$id-$SLUG"; WT="$(dirname "$REPO")/hc-$id"
@@ -91,7 +91,7 @@ item: docs/plans/2026-10-15-build-program/queue.md ($ID)"
 trap - ERR
 
 # 4. race re-check: step 1 must now print only your PR number, and (code rows)
-#    step 2 must print 3 or less; otherwise apply the Race row above
+#    step 2 must print 12 or less; otherwise apply the Race row above
 ```
 
 ---
@@ -132,7 +132,7 @@ Run in the worktree after the **final** `git merge origin/main`. Paste every com
 1. The plan's acceptance commands, plus the RED → GREEN output for each new test id.
 2. The full backend suite, run in the worktree only:
    ```bash
-   cd src/backend && flock /tmp/claude-1000/hc-pytest.lock env HF_HUB_OFFLINE=1 \
+   cd src/backend && "$(git rev-parse --show-toplevel)/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 \
      ~/venvs/asclexis-311/bin/python -m pytest tests/ -p no:cacheprovider -q
    ```
    The only allowed failure is the environmental `test_api_rag_index_002b` ([CLAUDE.md](../../../CLAUDE.md) §4). Devin's VM has no flock file; it runs the same command without `flock`.
@@ -193,7 +193,7 @@ Then retitle, which releases the slot (§3): `gh pr edit <n> --title "<type>(<sc
 4. Edit outside the row's file list, edit a merged migration, or edit `docs/INDEX.md`, `docs/_link_graph.json` or the count slots.
 5. Weaken a test, a threshold or a validation; add a blanket judge bypass (R-2).
 6. Stage with `git add -A`, force-push, or push to a branch you did not claim.
-7. Run a full backend suite outside `flock`, or outside the item's worktree.
+7. Run any pytest outside `scripts/pyslot.sh` (3 machine-wide slots), or outside the item's worktree.
 8. Claim a `(model machine)` or OWNER row.
 
 ---
@@ -204,14 +204,16 @@ Then retitle, which releases the slot (§3): `gh pr edit <n> --title "<type>(<sc
 
 Two workflows, explicit models throughout:
 
-- [`.claude/workflows/build-wave.js`](../../../.claude/workflows/build-wave.js) runs **every item eligible now, in parallel**. Haiku scans the queue, open PRs and owner decisions. Opus selects items whose dependencies are merged, whose execution gates are answered, and which no open PR claims. The script picks a file-disjoint set and runs `build-item` for each, at most `max` at once (default 3; every pytest is serialised by `flock`, so the 12 GB box holds). Deferred items are logged with the reason; re-run after the next merges.
+- [`.claude/workflows/build-wave.js`](../../../.claude/workflows/build-wave.js) **selects** every item eligible now: Haiku scans the queue, open PRs and owner decisions; Opus checks dependencies merged, execution gates answered, no claim; the script keeps a file-disjoint set of at most `max` (default 12) and returns it. L0 then starts **one `build-item` Workflow per id, all in one message, in the background**. The Workflow tool caps each workflow at `min(16, CPUs - 2)` concurrent agents (4 on this 6-vCPU WSL), so separate runs are what reach the owner's 30-agent cap; one item uses 1-2 agents at a time. `{"nested": true}` instead runs the items inside build-wave (capped at 4 agents). Every pytest goes through `scripts/pyslot.sh` (3 machine-wide slots; `PYSLOTS` overrides). Deferred items are logged with the reason; re-run after the next merges.
 - [`.claude/workflows/build-item.js`](../../../.claude/workflows/build-item.js) runs one item: haiku explore, opus Task 0 + claim, sonnet implement test-first (writes tests, runs only its focused files), **haiku runs the full suite and acceptance** (failures go back to sonnet, at most 3 fixes), opus review (at most 3 rounds, haiku re-runs tests after each fix), opus verify + PR.
 
 Paste into the main Claude Code session (L0, Opus):
 
 ```text
-Run the Workflow `build-wave` with args {"max": 3}. It follows
-docs/plans/2026-10-15-build-program/RUNBOOK.md. When it returns, re-run one
+Run the Workflow `build-wave` with args {"max": 12}. When it returns its picked
+ids, start one background Workflow `build-item` per id, all in one message
+(args {"id": "<id>"}). Follow docs/plans/2026-10-15-build-program/RUNBOOK.md.
+When each returns, re-run one
 acceptance command from each PR yourself (orchestration.md §2 step 5), compare
 the output, and report each PR link, its verdict and its count line, plus the
 deferred and not-eligible lists.
@@ -261,7 +263,7 @@ Use the reviewer prompt in §10.4.
 
 ### 10.3 Devin
 
-Devin runs in its own VM, so it never holds the box's `flock`. **Until L0 records otherwise, a Devin code item still counts toward the 2-slot cap.** The cap also limits how many rebases and merge syncs run at once.
+Devin runs in its own VM, so it never holds the box's pytest slots. **Until L0 records otherwise, a Devin code item still counts toward the 2-slot cap.** The cap also limits how many rebases and merge syncs run at once.
 
 1. The launcher claims the item with `RT=devin` (§3).
 2. L0 starts the session with `devin_session_create` (Devin MCP), or the owner pastes the prompt into Devin web.

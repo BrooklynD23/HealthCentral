@@ -178,7 +178,7 @@ ${plan.brief}
 ${findings
     ? `Review round ${round}/${MAX_ROUNDS} returned REVISE. Findings:\n${findings.join('\n')}\nVerify each against the code before changing anything (receiving-code-review). Fix BLOCKER and MAJOR; push back with evidence on a finding that is wrong.`
     : 'Execute the brief test-first: write each new test, run it and capture RED output, then implement to GREEN.'}
-Rules: edit only the brief's files; stage explicit paths (never git add -A); commit as the plan lists; never edit an ask-first file unless the brief names its signed gate; never weaken a test, threshold or validation. You write the tests; you run ONLY the focused test files you touch (for RED/GREEN), always as "flock /tmp/claude-1000/hc-pytest.lock env HF_HUB_OFFLINE=1 <venv python> -m pytest <file>". A Haiku runner runs the full suite and acceptance; do not run it yourself. Push to ${plan.branch} when done. If something blocks you, status=stopped with the reason; do not work around it.
+Rules: edit only the brief's files; stage explicit paths (never git add -A); commit as the plan lists; never edit an ask-first file unless the brief names its signed gate; never weaken a test, threshold or validation. You write the tests; you run ONLY the focused test files you touch (for RED/GREEN), always as ""$(git rev-parse --show-toplevel)/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 <venv python> -m pytest <file>". A Haiku runner runs the full suite and acceptance; do not run it yourself. Push to ${plan.branch} when done. If something blocks you, status=stopped with the reason; do not work around it.
 ${STYLE}`,
   { label: `implement ${ID}${round ? ` r${round}` : ''}`, phase: 'Implement', model: 'sonnet', schema: IMPL_SCHEMA },
 )
@@ -186,9 +186,9 @@ ${STYLE}`,
 // Haiku runs tests only: it never writes or edits tests or code.
 const runTests = (round) => agent(
   `Test runner for build-program item ${ID}, round ${round}: ${where}. Read-only: never edit, create, commit or push any file.
-Run from ${plan.worktree}, every pytest under the lock (12 GB box):
+Run from ${plan.worktree}, every pytest through scripts/pyslot.sh (3 machine-wide pytest slots):
 1. Focused: the test files in this list, if any: ${JSON.stringify((impl && impl.files_changed || []).filter((f) => /tests?\//.test(f)))}.
-   flock /tmp/claude-1000/hc-pytest.lock env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest <files> -p no:cacheprovider -q   (cwd src/backend)
+   "$(git rev-parse --show-toplevel)/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest <files> -p no:cacheprovider -q   (cwd src/backend)
 2. Collection: same prefix with tests/ --collect-only -q; copy the final line into collected_line.
 3. Full backend suite: same prefix with tests/ -q.
 4. These plan acceptance commands, skipping any that build, install or edit (npm build, pip install, writes): ${spec.acceptance_commands.join(' ;; ') || 'none listed'}.
