@@ -10,6 +10,8 @@ Every Codex plan review (`<ID>-rN-*`) and adversarial diff review (`<ID>-diff-co
 - `2026-10-12/` — AUDIT-ORDER execution diff (Codex, code review, security review); GAM2-T1 and GAM2-T24 diffs (code review); MED-UTC diff (code review); RL-EXPORT-EMPTY diff (code review).
 - `2026-10-13/` — SQLITE-MIX diff (security review); UTC-SWEEP diff (code review).
 - `2026-10-14/` — DOSE-VAR diff (code review); ASSIST-UTC diff (code review).
+- `2026-10-15/` — SCHED-OWNER diff (code review); build-program plan set (Codex).
+- `2026-10-16/` — E1a r1 (Codex).
 
 New reviews go in `docs/reviews/<date>/<ID>-r<N>-{prompt.md,codex.txt,response.md}`. PRs add review files only; the orchestrator adds the row here in the post-merge batch (SLOT-RULE-2). Process: [../agentic/orchestration.md](../agentic/orchestration.md).
 
@@ -96,3 +98,6 @@ Verdict is the reviewer's last `VERDICT:` line (plan reviews: PASS / REVISE; dif
 | 2026-10-13 | UTC-SWEEP | diff | approve-with-nits | 2026-10-13 | [code review](2026-10-13/UTC-SWEEP-diff-codereview.md) [response](2026-10-13/UTC-SWEEP-diff-response.md) |
 | 2026-10-14 | DOSE-VAR | diff | approve | 2026-10-14 | [code review](2026-10-14/DOSE-VAR-diff-codereview.md) [response](2026-10-14/DOSE-VAR-diff-response.md) |
 | 2026-10-14 | ASSIST-UTC | diff | approve | 2026-10-14 | [code review](2026-10-14/ASSIST-UTC-diff-codereview.md) [response](2026-10-14/ASSIST-UTC-diff-response.md) |
+| 2026-10-15 | SCHED-OWNER | diff | approve | 2026-10-15 | [code review](2026-10-15/SCHED-OWNER-diff-codereview.md) [response](2026-10-15/SCHED-OWNER-diff-response.md) |
+| 2026-10-15 | BUILD-PROGRAM | r1 | REVISE | 2026-10-15 | [codex](2026-10-15/build-program-codex.md) |
+| 2026-10-16 | E1a | r1 | REVISE | 2026-10-16 | [codex](2026-10-16/E1a-r1-codex.txt) [prompt](2026-10-16/E1a-r1-prompt.md) [response](2026-10-16/E1a-r1-response.md) |

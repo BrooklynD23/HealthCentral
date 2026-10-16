@@ -229,6 +229,7 @@ Test run (Haiku, verbatim):
 ${testEvidence()}
 Diff: git -C ${plan.worktree} diff origin/main...HEAD.
 Check in order: (1) spec compliance and file list, (2) quality, (3) every mode in docs/agentic/recurring-failures.md: route tests via route_client, say what each new test would fail to notice. Flag any ask-first edit without a signed gate naming it, and any weakened test or threshold.
+The PR title and body are written in the Verify stage AFTER review: never raise findings about them; list what the body must say under a "for the PR body" heading in your comment instead.
 Return verdict PASS or REVISE and findings as "[BLOCKER|MAJOR|MINOR] file:line — issue — fix". Then post them as a PR comment headed "review round ${round}/${MAX_ROUNDS} (claude, opus ${lens})" with: gh pr comment ${plan.pr_number} --body-file <tmpfile under /tmp/claude-1000>.
 ${STYLE}`
 

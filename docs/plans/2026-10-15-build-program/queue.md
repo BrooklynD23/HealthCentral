@@ -24,6 +24,14 @@ Totals: 51 items. 7 ready now (E-1, E-3, D-0, C-PMIG, E-7, F-3, and B-3 for the 
 - **E-3:** Task 7 uses ruff's full default ruleset, so a cleanup item **E-3a** (repo-wide ruff fixes, many files, runs alone) lands before Task 7. Task 8 Step 4 CI seed is allowed (`seed/<gate>`, no PR, deleted after).
 - **MM-1, MM-2, MM-4:** run later on the owner's RTX 3080 machine. B-7, B-4 and B-9 stay needs-model-machine.
 
+
+**Owner answers 2026-10-16** ([owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md) rows E1A-BUILD, MERGE-AUTH, E1A-REV3, D2-Q1, IBF-1 + SCF-RULING, IUV-1, AAD-ROW, P6-Q1 (+Q4, Q5), P6-Q3, RR500-MAP, SCA-RULING + SCH-RULING):
+- **Closed, no code:** SAFE-CHAT-AGENT, SAFE-CHAT-FALLBACK, SAFE-CHAT-HISTORY (option A).
+- **Now ready:** B-2 (pin test HC-SIE-001 only), B-6 (option b: omit the unverified value), RAG-RUNTIME-500 (503 + fixed sentence), ASSIST-AGENT-DATES (all four filters), C-P6 (seeded dev vault for Task 1; listener edit in `core/profile_database.py` licensed). B-2, B-6 and RAG-RUNTIME-500 still never run together (shared `api/interpretations.py`).
+- **D-2:** owner chose automatic re-learn; blocked until its plan delta (D-2 rev 2) merges.
+- **E-1a:** rev 3 approved (qualifier words, `#` / `no.` separators); merge if the diff matches rev 3. E-1 merges after E-1a.
+- **Done:** D-1 (#104), D-3 (#109), E-7 (#103), F-3 (#102). Collected 1613 on `527bc22`.
+
 ---
 
 ## Wave 6 — start now
