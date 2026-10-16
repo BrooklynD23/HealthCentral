@@ -1,6 +1,9 @@
 """Time helpers that preserve the project's naive-UTC storage semantics."""
 
 from datetime import datetime, timezone
+from typing import Annotated
+
+from pydantic import AfterValidator
 
 # Python 3.10 compatibility: datetime.UTC was added in 3.11.
 UTC = timezone.utc
@@ -30,3 +33,7 @@ def to_naive_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value
     return value.astimezone(UTC).replace(tzinfo=None)
+
+
+# Client datetimes are stored naive UTC (SQLite drops tzinfo) - MED-UTC, UTC-SWEEP.
+NaiveUtcDatetime = Annotated[datetime, AfterValidator(to_naive_utc)]

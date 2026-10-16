@@ -9,6 +9,7 @@ Handles:
 - Dual-agent verification (Phase 4)
 """
 
+from datetime import datetime
 from typing import Optional
 from dataclasses import dataclass, field
 import re
@@ -16,6 +17,7 @@ import logging
 
 from core.model_runner import get_model_runner, InferenceConfig
 from core.config import settings
+from core.time import to_naive_utc
 
 
 class ModelUnavailableError(Exception):
@@ -43,6 +45,18 @@ from .faithfulness import (
     FaithfulnessConfig,
 )
 from .interpret_safety import InterpretationSafetyGuard
+
+
+def _parse_filter_date(value: str) -> Optional[datetime]:
+    """Parse a chat date filter to naive UTC; None if malformed (filter skipped).
+
+    ASSIST-UTC: aware values are converted, naive values are UTC by convention.
+    OverflowError covers offsets that push 0001-01-01/9999-12-31 out of range.
+    """
+    try:
+        return to_naive_utc(datetime.fromisoformat(value))
+    except (ValueError, TypeError, OverflowError):
+        return None
 
 
 @dataclass
@@ -304,7 +318,6 @@ USER QUESTION: {question}"""
         )
         from sqlalchemy import select
         from models.observation import Observation
-        from datetime import datetime
 
         normalizer = NormalizeModule()
 
@@ -334,18 +347,12 @@ USER QUESTION: {question}"""
                 )
 
                 # Apply date range filters when provided
-                if from_date:
-                    try:
-                        from_dt = datetime.fromisoformat(from_date)
-                        stmt = stmt.where(Observation.collected_at >= from_dt)
-                    except (ValueError, TypeError):
-                        pass
-                if to_date:
-                    try:
-                        to_dt = datetime.fromisoformat(to_date)
-                        stmt = stmt.where(Observation.collected_at <= to_dt)
-                    except (ValueError, TypeError):
-                        pass
+                from_dt = _parse_filter_date(from_date) if from_date else None
+                if from_dt is not None:
+                    stmt = stmt.where(Observation.collected_at >= from_dt)
+                to_dt = _parse_filter_date(to_date) if to_date else None
+                if to_dt is not None:
+                    stmt = stmt.where(Observation.collected_at <= to_dt)
 
                 result = await profile_db.execute(stmt)
                 rows = result.scalars().all()
@@ -542,7 +549,6 @@ USER QUESTION: {question}"""
         """
         from sqlalchemy import select
         from models import Chunk, DocumentCategory, Embedding, Document, Observation
-        from datetime import datetime
 
         # Embed the query
         query_vector = self._embedder.embed_text(query)
@@ -555,19 +561,13 @@ USER QUESTION: {question}"""
         )
 
         # Apply date filters on Document.collection_date
-        if from_date:
-            try:
-                from_dt = datetime.fromisoformat(from_date)
-                stmt = stmt.where(Document.collection_date >= from_dt)
-            except (ValueError, TypeError):
-                pass
+        from_dt = _parse_filter_date(from_date) if from_date else None
+        if from_dt is not None:
+            stmt = stmt.where(Document.collection_date >= from_dt)
 
-        if to_date:
-            try:
-                to_dt = datetime.fromisoformat(to_date)
-                stmt = stmt.where(Document.collection_date <= to_dt)
-            except (ValueError, TypeError):
-                pass
+        to_dt = _parse_filter_date(to_date) if to_date else None
+        if to_dt is not None:
+            stmt = stmt.where(Document.collection_date <= to_dt)
 
         # Apply analyte filter: only include documents that contain matching observations
         if selected_analytes:

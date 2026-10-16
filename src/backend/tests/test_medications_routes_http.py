@@ -13,7 +13,7 @@ import api.gamification as gamification_api
 from api.medications import router as med_router
 from core.auth import get_profile_db_session
 from core.profile_database import ProfileDatabaseBase
-from models import DoseTaken, Medication, MedicationSchedule
+from models import DoseTaken, Medication, MedicationSchedule, UserModelSettings
 from tests.support.routes import route_client
 
 PROFILE = "profile-a"
@@ -221,3 +221,55 @@ async def test_hc_med_http_010_offset_ended_at_cutoff_in_streaks(profile_db, mon
         resp = gclient.get("/gamification/streaks")
     assert resp.status_code == 200, resp.text
     assert resp.json()["current_streak_days"] == 1
+
+
+# DOSE-VAR: variance compares the dose's wall-clock time in the profile time
+# zone (UserModelSettings.timezone) with the schedule's local target_time,
+# against the nearest daily occurrence of that target.
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("tz", "target", "sent", "variance"),
+    [
+        ("America/Los_Angeles", time(8, 0), "2026-01-15T16:05:00Z", 5),  # PST 08:05
+        ("America/Los_Angeles", time(8, 0), "2026-07-15T15:05:00Z", 5),  # PDT 08:05
+        # DST starts 2026-03-08: same UTC instant is 07:05 PST the day before.
+        ("America/Los_Angeles", time(8, 0), "2026-03-07T15:05:00Z", -55),
+        ("America/Los_Angeles", time(8, 0), "2026-03-08T15:05:00Z", 5),
+        ("UTC", time(8, 0), "2026-07-15T08:05:00Z", 5),  # UTC profile unchanged
+        # Near midnight: 23:50 target, dose 00:05 local next day = 15 late.
+        ("America/Los_Angeles", time(23, 50), "2026-07-16T07:05:00Z", 15),
+        # 00:10 target, dose 23:55 local the day before = 15 early.
+        ("America/Los_Angeles", time(0, 10), "2026-07-16T06:55:00Z", -15),
+        # DST ends 2026-11-01: both 01:30 PDT (08:30Z) and 01:30 PST (09:30Z) are on time.
+        ("America/Los_Angeles", time(1, 30), "2026-11-01T08:30:00Z", 0),
+        ("America/Los_Angeles", time(1, 30), "2026-11-01T09:30:00Z", 0),
+        # Offset input: 10:05+02:00 == 08:05Z, UTC profile.
+        ("UTC", time(8, 0), "2026-07-15T10:05:00+02:00", 5),
+        # Invalid stored zone falls back to UTC.
+        ("Not/AZone", time(8, 0), "2026-07-15T08:05:00Z", 5),
+    ],
+)
+async def test_hc_med_http_011_dose_variance_in_profile_timezone(
+    profile_db, tz, target, sent, variance
+):
+    med_id = await _seed(profile_db)
+    schedule_id = str(uuid.uuid4())
+    profile_db.add(MedicationSchedule(
+        id=schedule_id, medication_id=med_id, schedule_label="s",
+        target_time=target, reminder_offset_minutes=15, is_active=True,
+    ))
+    profile_db.add(UserModelSettings(profile_id=PROFILE, timezone=tz))
+    await profile_db.commit()
+    ctx, client = _client(profile_db)
+    try:
+        resp = client.post(
+            f"/medications/{med_id}/doses",
+            params={"schedule_id": schedule_id},
+            json={"taken_at": sent},
+        )
+        assert resp.status_code == 201, resp.text
+        assert resp.json()["dose"]["variance_minutes"] == variance
+    finally:
+        ctx.__exit__(None, None, None)
+    dose = (await profile_db.execute(select(DoseTaken))).scalar_one()
+    assert dose.variance_minutes == variance
