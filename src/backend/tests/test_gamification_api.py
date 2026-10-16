@@ -202,6 +202,34 @@ async def test_hc_gam_http_002_streaks_summary(gam_db, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_hc_gam_http_013_streak_counts_through_yesterday(gam_db, monkeypatch):
+    await _seed_med(gam_db, PROFILE_A, [1, 2, 3])
+    monkeypatch.setattr(gamification_api, "datetime", _FrozenNow)
+    response, _ = _get("/gamification/streaks", gam_db)
+    assert response.status_code == 200, response.text
+    assert response.json()["current_streak_days"] == 3
+
+
+@pytest.mark.asyncio
+async def test_hc_gam_http_014_full_missed_day_ends_streak(gam_db, monkeypatch):
+    await _seed_med(gam_db, PROFILE_A, [1, 2])
+    monkeypatch.setattr(gamification_api, "datetime", _FrozenNow)
+    response, _ = _get("/gamification/streaks", gam_db)
+    assert response.status_code == 200, response.text
+    assert response.json()["current_streak_days"] == 0
+
+
+@pytest.mark.asyncio
+async def test_hc_gam_http_015_streak_through_yesterday_in_profile_zone(gam_db, monkeypatch):
+    gam_db.add(UserModelSettings(profile_id=PROFILE_A, timezone="America/New_York"))
+    await _seed_doses(gam_db, PROFILE_A, [datetime(2026, 3, d, 17, 0) for d in (1, 2, 3)])  # local noon EST
+    monkeypatch.setattr(gamification_api, "datetime", _FrozenNow)  # Mar 4 07:00 EST
+    response, _ = _get("/gamification/streaks", gam_db)
+    assert response.status_code == 200, response.text
+    assert response.json()["current_streak_days"] == 3
+
+
+@pytest.mark.asyncio
 async def test_hc_gam_http_003_streaks_isolated_by_profile(gam_db, monkeypatch):
     await _seed_med(gam_db, PROFILE_A, [4])
     await _seed_med(gam_db, PROFILE_B, [1, 2, 3])

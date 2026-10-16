@@ -104,8 +104,8 @@ Rules this diagram encodes:
   `modules/model_selector.py` (owner decision D7: route it through
   `ModelRunner`, work item W-7, not yet implemented) and the opt-in cloud runner
   `core/external_runner.py` (owner decision D12: a documented exception; its
-  redaction hardening landed in W-6, and naming it in `CLAUDE.md` is work item
-  W-10, not yet implemented). `api/model_settings.py` calls `llm/factory`
+  redaction hardening landed in W-6, and `CLAUDE.md` names it).
+  `api/model_settings.py` calls `llm/factory`
   directly only to inspect and switch the provider; it generates no text. That
   is the dotted edge.
 - The safety modules are called *by* feature code but are not a layer feature

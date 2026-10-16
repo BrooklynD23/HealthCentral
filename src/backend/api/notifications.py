@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from core.audit import log_document_event
 from core.auth import RequireAuth, Session, ProfileDbSession
-from core.time import NaiveUtcDatetime, utcnow
+from core.time import NaiveUtcDatetime, profile_timezone_name, to_local, utcnow
 from models import (
     Medication,
     MedicationSchedule,
@@ -450,10 +450,11 @@ async def send_test_medication_notification(
 
     # Get streak data
     pattern_learner = get_pattern_learner()
-    streak = await pattern_learner.calculate_streak(medication_id, profile_db)
+    tz = await profile_timezone_name(profile_db, session.profile_id)
+    streak = await pattern_learner.calculate_streak(medication_id, profile_db, tz_name=tz)
 
     # Generate message
-    now = utcnow()
+    now = to_local(utcnow(), tz)
     context = MessageContext(
         medication_name=medication.name,
         schedule_label="test",

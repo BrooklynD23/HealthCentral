@@ -11,15 +11,14 @@ import json
 import logging
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, time, timedelta, timezone
+from datetime import datetime, time, timedelta
 from statistics import mean, stdev
 from typing import Optional
-from zoneinfo import ZoneInfo
 
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.time import utcnow
+from core.time import to_local, utcnow
 from .streak_engine import _dose_dates
 from models import (
     Medication,
@@ -29,11 +28,6 @@ from models import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _local(value: datetime, tz_name: str) -> datetime:
-    """Stored naive-UTC timestamp -> profile wall clock (ADHERE-TZ)."""
-    return value.replace(tzinfo=timezone.utc).astimezone(ZoneInfo(tz_name))
 
 
 @dataclass
@@ -230,7 +224,7 @@ class PatternLearner:
         # Convert to minutes since midnight
         minutes_list = []
         for dose in doses:
-            local = _local(dose.taken_at, tz_name)
+            local = to_local(dose.taken_at, tz_name)
             minutes = local.hour * 60 + local.minute
             minutes_list.append(minutes)
 
@@ -300,7 +294,7 @@ class PatternLearner:
         weekend_minutes = []
 
         for dose in doses:
-            local = _local(dose.taken_at, tz_name)
+            local = to_local(dose.taken_at, tz_name)
             minutes = local.hour * 60 + local.minute
             # Python weekday: Monday=0, Sunday=6
             if local.weekday() < 5:
@@ -367,7 +361,7 @@ class PatternLearner:
         day_counts = {i: {"taken": 0, "skipped": 0} for i in range(7)}
 
         for dose in doses:
-            day = _local(dose.taken_at, tz_name).weekday()
+            day = to_local(dose.taken_at, tz_name).weekday()
             if dose.was_skipped:
                 day_counts[day]["skipped"] += 1
             else:
@@ -446,7 +440,7 @@ class PatternLearner:
                 current = 1
 
         # Calculate current streak (counting backwards from today)
-        today = _local(utcnow(), tz_name).date()
+        today = to_local(utcnow(), tz_name).date()
         current_streak = 0
         check_date = today
 

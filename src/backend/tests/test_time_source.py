@@ -103,3 +103,29 @@ async def test_hc_time_006_badge_earned_at_is_naive_utc():
     for badge in recorded:
         assert badge.earned_at.tzinfo is None
         assert abs((utcnow() - badge.earned_at).total_seconds()) < 2
+
+
+def test_hc_time_007_local_day_bounds_dst_day_is_23h():
+    from datetime import date
+
+    from core.time import local_day_bounds_utc
+
+    start, end = local_day_bounds_utc(date(2026, 3, 8), "America/Los_Angeles")
+    assert start == datetime(2026, 3, 8, 8, 0)
+    assert end - start == timedelta(hours=23)
+    assert start.tzinfo is None and end.tzinfo is None
+    s2, e2 = local_day_bounds_utc(date(2026, 11, 1), "America/Los_Angeles")
+    assert e2 - s2 == timedelta(hours=25)
+
+
+def test_hc_time_008_safe_zone_name_falls_back_to_utc(caplog):
+    from core.time import safe_zone_name
+
+    assert safe_zone_name("Mars/Olympus") == "UTC"
+    assert safe_zone_name("") == "UTC"
+    assert safe_zone_name(None) == "UTC"
+    assert safe_zone_name("America/Los_Angeles") == "America/Los_Angeles"
+    assert safe_zone_name("../../etc/passwd") == "UTC"  # ValueError branch
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert len(warnings) >= 1
+    assert all("Mars" not in r.getMessage() and "passwd" not in r.getMessage() for r in warnings)
