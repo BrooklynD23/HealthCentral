@@ -18,6 +18,12 @@ Rules: [contracts.md](contracts.md) §b (shared files), §c (migrations), §d (c
 
 Totals: 51 items. 7 ready now (E-1, E-3, D-0, C-PMIG, E-7, F-3, and B-3 for the next free slot). Waves 6–14 plus a docs tail.
 
+
+**Owner answers 2026-10-15** ([owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md) rows MM-HOST, S-3 + S-6, Q-RUFF, CI-SEED):
+- **E-1:** merge now waits on a new item **E-1a** (close O-3 in `be/modules/redaction.py` for underscore-joined identifiers; ask-first: its diff needs its own owner yes). E-1 may still be built to PR.
+- **E-3:** Task 7 uses ruff's full default ruleset, so a cleanup item **E-3a** (repo-wide ruff fixes, many files, runs alone) lands before Task 7. Task 8 Step 4 CI seed is allowed (`seed/<gate>`, no PR, deleted after).
+- **MM-1, MM-2, MM-4:** run later on the owner's RTX 3080 machine. B-7, B-4 and B-9 stay needs-model-machine.
+
 ---
 
 ## Wave 6 — start now
