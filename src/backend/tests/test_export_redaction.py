@@ -14,6 +14,7 @@ tests/support/routes.py::route_client (recurring-failures #1).
 
 from __future__ import annotations
 
+import asyncio
 import io
 import json
 import os
@@ -27,9 +28,17 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, event, insert, select
+from sqlalchemy.engine import Engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 import api.export as export_api
+from core import denial_audit
 from core.auth import get_profile_db_session
+from core.database import Base
+from models.audit import AuditLog
+from models.profile import Profile
 from tests.support.routes import route_client
 
 PROFILE_A = "profile-a"
@@ -255,16 +264,6 @@ def test_hc_expr_002_csv_json_unchanged_byte_for_byte(path: str, baseline: bytes
         assert phi.encode() in body
 
 
-from sqlalchemy import create_engine, event, insert, select  # noqa: E402
-from sqlalchemy.engine import Engine  # noqa: E402
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine  # noqa: E402
-from sqlalchemy.pool import NullPool  # noqa: E402
-
-from core import denial_audit  # noqa: E402
-from core.database import Base  # noqa: E402
-from models.audit import AuditLog  # noqa: E402
-from models.profile import Profile  # noqa: E402
-
 # Underscore-joined identifiers: the storage shape of unknown analytes
 # (modules/normalize.py fallback). Strict redaction does not match it (O-3).
 GAP_ROWS = (
@@ -357,7 +356,12 @@ def test_hc_expr_001_real_pdf_extracted_text_has_no_phi(weasyprint_renders: None
         assert phi not in text
 
 
+class _GapOpen(AssertionError):
+    """Raised only when PHI is still present (the O-3 gap); other failures stay real."""
+
+
 @pytest.mark.xfail(
+    raises=_GapOpen,
     strict=True,
     reason=(
         "O-3 known gap: strict RedactionEngine does not match underscore-joined "
@@ -371,7 +375,8 @@ def test_hc_expr_001_known_gap_underscore_phi() -> None:
         _summary_id, raw = _download_summary(client, "text")
     body = raw.decode("utf-8").lower()
     for phi in ("jane", "01/02/1980", "a12345"):
-        assert phi not in body
+        if phi in body:
+            raise _GapOpen(f"{phi!r} still present: O-3 gap open")
 
 
 @pytest.fixture(autouse=True)
@@ -416,6 +421,8 @@ def master_audit_db(tmp_path, monkeypatch) -> Iterator[tuple[AsyncSession, Engin
     try:
         yield session, sync_engine
     finally:
+        asyncio.run(session.close())
+        asyncio.run(async_engine.dispose())
         sync_engine.dispose()
 
 

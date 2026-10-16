@@ -246,7 +246,7 @@ class ExportModule:
 
         key_findings = [_redact(f) for f in summary_data.get("key_findings", [])]
         sections = [
-            {**s, "content": _redact(s.get("content", ""))}
+            {**s, "title": _redact(s.get("title", "")), "content": _redact(s.get("content", ""))}
             for s in summary_data.get("sections", [])
         ]
         questions = [
