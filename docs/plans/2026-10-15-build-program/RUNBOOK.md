@@ -163,9 +163,9 @@ Then retitle, which releases the slot (§3): `gh pr edit <n> --title "<type>(<sc
 
 [contracts.md](contracts.md) §d governs (SLOT-RULE-2, owner 2026-10-16). How a runtime applies it:
 
-1. **Never edit** the count slots, `docs/INDEX.md`, `docs/_link_graph.json` or the `docs/reviews/README.md` table. Paste the measured collected line and its delta into the PR body instead.
-2. **No merge token, no sync chain.** Merge `origin/main` into a PR only for a real code conflict or code dependency.
-3. **After merges,** L0 opens the post-merge batch PR (§d step 3): slots, index, review rows. Nothing else.
+1. **Never edit** the count slots or the `docs/reviews/README.md` table; paste the measured collected line and its delta into the PR body instead. **Do regenerate** `docs/INDEX.md` and `docs/_link_graph.json` before the final push (SLOT-RULE-2a): `python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py --link-graph`.
+2. **No merge token, no sync chain.** Merge `origin/main` into a PR only for a real code conflict, a code dependency, or an index conflict (resolve by regenerating).
+3. **After merges,** L0 opens the post-merge batch PR (§d step 3): count slots and review rows. Nothing else.
 4. **Migrations:** number at the final rebase per [contracts.md](contracts.md) §c, and run both §c checks in the PR body.
 5. **After an owner merge from Windows,** run `git worktree list`. Windows `gh pr merge` can drop WSL worktree metadata; repair it with `git worktree repair <path>`.
 6. **Main is protected** (MAIN-PROTECT): PR required, CI green, no direct or force push. Never try to bypass it.
@@ -190,7 +190,7 @@ Then retitle, which releases the slot (§3): `gh pr edit <n> --title "<type>(<sc
 1. Merge a PR, or close another runtime's PR.
 2. Sign a gate, record an owner answer, or tick an owner box. Only answers the owner gave are recorded, and only by L0, verbatim.
 3. Edit an ask-first file ([CLAUDE.md](../../../CLAUDE.md) §1: `interpret_safety`, `redaction`, `faithfulness`, `verifier_agent`, auth/encryption, `core/auth.py`) without a signed gate that names that exact edit.
-4. Edit outside the row's file list, edit a merged migration, or edit `docs/INDEX.md`, `docs/_link_graph.json` or the count slots.
+4. Edit outside the row's file list, edit a merged migration, edit the count slots, or hand-merge `docs/INDEX.md` / `docs/_link_graph.json`.
 5. Weaken a test, a threshold or a validation; add a blanket judge bypass (R-2).
 6. Stage with `git add -A`, force-push, or push to a branch you did not claim.
 7. Run any pytest outside `scripts/pyslot.sh` (3 machine-wide slots), or outside the item's worktree.

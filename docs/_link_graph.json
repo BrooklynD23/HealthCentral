@@ -6,6 +6,9 @@
     ".claude/workflows/build-item.js": [
       "docs/plans/2026-10-15-build-program/RUNBOOK.md"
     ],
+    ".claude/workflows/build-wave.js": [
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md"
+    ],
     ".github/workflows/ci.yml": [
       "docs/roles/devops-and-ci.md"
     ],
@@ -2701,6 +2704,7 @@
       "CLAUDE.md",
       "AGENT.md",
       "docs/agentic/recurring-failures.md",
+      ".claude/workflows/build-wave.js",
       ".claude/workflows/build-item.js"
     ],
     "docs/plans/2026-10-15-build-program/contracts.md": [

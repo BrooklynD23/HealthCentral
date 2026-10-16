@@ -1054,7 +1054,7 @@ Links to: `docs/plans/2026-10-04-DDI-doc-delete-interpretation.md`
 
 One item loop that **Claude Code, Codex CLI and Devin** run against the same queue, with GitHub as the only lock. It extends the tier model in orchestration.md §1–§5 and does not repeat it.…
 
-Links to: `.claude/workflows/build-item.js`, `AGENT.md`, `CLAUDE.md`, `docs/agentic/orchestration.md`, `docs/agentic/recurring-failures.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/reviews/2026-10-15/build-program-codex.md`
+Links to: `.claude/workflows/build-item.js`, `.claude/workflows/build-wave.js`, `AGENT.md`, `CLAUDE.md`, `docs/agentic/orchestration.md`, `docs/agentic/recurring-failures.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/reviews/2026-10-15/build-program-codex.md`
 
 ## `docs/plans/2026-10-15-build-program/contracts.md`
 

@@ -44,7 +44,7 @@
 - **Run suites in the phase worktree only.** Tests that touch the master engine can write to the developer's real master DB (S-1 finding). After a run, `git status --short` must show only the phase's files.
 - **Frontend:** `vitest` stalls under WSL on `/mnt/c`. Run frontend checks from Windows, or record them as skipped with the reason.
 - **Staging:** explicit pathspecs only; never `git add -A`.
-- **Counts:** ground rule 8 (SLOT-RULE-2). PRs never edit the `CLAUDE.md` / `AGENT.md` collected slots or the docs index; the orchestrator updates them in one post-merge batch PR.
+- **Counts:** ground rule 8 (SLOT-RULE-2). PRs never edit the `CLAUDE.md` / `AGENT.md` collected slots (the orchestrator updates them in one post-merge batch PR) but do regenerate the docs index (SLOT-RULE-2a).
 - **Ask-first files** (CLAUDE.md §1) need a signed gate naming that exact edit, even inside an approved phase.
 - **Dependencies:** `src/backend/requirements.txt:27` pins `sqlalchemy[asyncio]>=2.0.25,<2.1` (PR #20). SQLAlchemy 2.1 no longer installs `greenlet` by default. Do not unpin it inside another phase.
 
