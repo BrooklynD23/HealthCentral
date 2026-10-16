@@ -705,3 +705,85 @@ def test_hc_sched_tz_004_weekday_is_local(tmp_path, monkeypatch):
     """Friday 20:00 PST is Saturday 04:00Z; days_of_week [4] still applies."""
     now = datetime(2026, 1, 10, 4, 0)
     assert _sent_after(tmp_path, monkeypatch, _LA, now, time(20, 0), days=[4]) == 1
+
+
+def _raw_insert(con, table, **vals):
+    """Insert a row, filling any other NOT NULL column without a default."""
+    cols = con.execute(f"PRAGMA table_info({table})").fetchall()
+    for _cid, name, ctype, notnull, default, _pk in cols:
+        if name not in vals and notnull and default is None:
+            vals[name] = 0 if "INT" in ctype.upper() or "BOOL" in ctype.upper() else "x"
+    names = ", ".join(vals)
+    marks = ", ".join("?" for _ in vals)
+    con.execute(f"INSERT INTO {table} ({names}) VALUES ({marks})", tuple(vals.values()))
+
+
+def test_hc_sched_tz_005_migration_clears_windows_and_round_trips(tmp_path, monkeypatch):
+    """Migration found by slug: stale UTC windows cleared, marker column added,
+    downgrade clears local windows again and drops the column."""
+    import re
+    import sqlite3
+
+    from alembic import command
+
+    import core.sqlcipher_driver as driver
+    from core import migrations
+    from core.config import settings
+
+    monkeypatch.setattr(settings, "database_encryption_required", False)
+    monkeypatch.setattr(driver, "SQLCIPHER_AVAILABLE", False)  # plain sqlite vault
+
+    versions = Path(__file__).parent.parent / "migrations/profile/versions"
+    files = list(versions.glob("*_adaptive_windows_local.py"))
+    assert len(files) == 1
+    text = files[0].read_text()
+    down = re.search(r'^down_revision[^=]*=\s*"([^"]+)"', text, re.M).group(1)
+    rev = re.search(r'^revision[^=]*=\s*"([^"]+)"', text, re.M).group(1)
+
+    vault, key = tmp_path / "vault.db", b"0" * 32
+    migrations.run_profile_migration(vault, key)
+    config = migrations._get_alembic_config("profile")
+    config.attributes["vault_path"] = vault
+    config.attributes["encryption_key"] = key
+
+    command.downgrade(config, down)
+    con = sqlite3.connect(vault)
+    _raw_insert(con, "medications", id="m1", profile_id="p", name="Metformin")
+    _raw_insert(
+        con, "medication_schedules", id="s1", medication_id="m1",
+        schedule_label="morning", target_time="08:00:00",
+        adaptive_window_start="16:00:00", adaptive_window_end="17:00:00",
+    )
+    con.commit()
+    con.close()
+
+    def row():
+        c = sqlite3.connect(vault)
+        try:
+            cols = [r[1] for r in c.execute("PRAGMA table_info(medication_schedules)")]
+            q = "SELECT target_time, adaptive_window_start, adaptive_window_end"
+            q += ", adaptive_window_tz" if "adaptive_window_tz" in cols else ""
+            return cols, c.execute(q + " FROM medication_schedules").fetchone()
+        finally:
+            c.close()
+
+    command.upgrade(config, "head")
+    assert migrations.get_profile_current_revision(vault, key) == rev
+    cols, r = row()
+    assert "adaptive_window_tz" in cols
+    assert r == ("08:00:00", None, None, None)
+
+    con = sqlite3.connect(vault)
+    con.execute(
+        "UPDATE medication_schedules SET adaptive_window_start='08:00:00',"
+        " adaptive_window_end='08:30:00', adaptive_window_tz='America/Los_Angeles'"
+    )
+    con.commit()
+    con.close()
+    command.downgrade(config, down)
+    cols, r = row()
+    assert "adaptive_window_tz" not in cols
+    assert r == ("08:00:00", None, None)
+
+    command.upgrade(config, "head")
+    assert migrations.get_profile_current_revision(vault, key) == rev
