@@ -504,7 +504,8 @@ async def generate_grounded_interpretation(
     )
 
     rag = get_rag_module()
-    # IUV-1: an unverified (possibly mis-extracted) value must not reach the model.
+    # IUV-1: an unverified (possibly mis-extracted) value is kept out of the question.
+    # It can still reach the model through the RAG context until W-3 (I-13) lands.
     shown = (
         f"{observation.value if observation.value is not None else observation.value_text} "
         if observation.user_verified
