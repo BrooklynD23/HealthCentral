@@ -125,6 +125,31 @@ _RULES: tuple[RedactionRule, ...] = (
         replacement="[DATE-REDACTED]",
         policy_levels=frozenset({"strict"}),
     ),
+    # E-1a (O-3, strict only, additive): underscore-joined labelled identifiers,
+    # the shape unknown analytes are stored in (normalize.py: spaces -> "_").
+    # Specific labels may omit the colon; bare "patient"/"name" need one, so
+    # analyte-like tokens such as "name_of_test" or "patient_count_3" survive.
+    # Rev 3: a value may run on across ":_", "#_" or ",_" (qualifier words such
+    # as "mrn_number:_123" or "name:_doe,_jane"), specific labels take "#"/"."
+    # separators like the spaced mrn rule, and the separator is unambiguous so
+    # a long "_" run cannot backtrack quadratically.
+    RedactionRule(
+        name="underscore_labelled_id",
+        pattern=re.compile(
+            r"(?i)(?<![^\W_])"
+            r"(?:(?:patient_name|dob|date_of_birth|birth_?date|mrn|medical_record)(?:_*[:#.]+)?"
+            r"|(?:patient|name)(?:_[^\W_]+)?_*:)"
+            r"_+[^\W_][\w/.'\u2019\-]*(?:[:#,]_+[^\W_][\w/.'\u2019\-]*)*"
+        ),
+        replacement="[ID-REDACTED]",
+        policy_levels=frozenset({"strict"}),
+    ),
+    RedactionRule(
+        name="underscore_numeric_date",
+        pattern=re.compile(r"(?<=_)\d{1,2}[/-]\d{1,2}[/-]\d{2,4}(?!\d)"),
+        replacement="[DATE-REDACTED]",
+        policy_levels=frozenset({"strict"}),
+    ),
 )
 
 # Valid policy levels
