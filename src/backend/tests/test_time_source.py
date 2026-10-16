@@ -125,4 +125,7 @@ def test_hc_time_008_safe_zone_name_falls_back_to_utc(caplog):
     assert safe_zone_name("") == "UTC"
     assert safe_zone_name(None) == "UTC"
     assert safe_zone_name("America/Los_Angeles") == "America/Los_Angeles"
-    assert "Mars" not in caplog.text
+    assert safe_zone_name("../../etc/passwd") == "UTC"  # ValueError branch
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert len(warnings) >= 1
+    assert all("Mars" not in r.getMessage() and "passwd" not in r.getMessage() for r in warnings)
