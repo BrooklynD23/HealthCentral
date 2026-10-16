@@ -67,6 +67,25 @@ def verify_medication_access(medication: Medication, session: Session) -> None:
         )
 
 
+async def _schedule_for_medication(
+    profile_db: AsyncSession, schedule_id: str, medication_id: str
+) -> Optional[MedicationSchedule]:
+    """Load a schedule; 422 if it belongs to another medication (SCHED-OWNER).
+
+    An unknown schedule_id returns None (pre-existing behaviour, kept).
+    """
+    result = await profile_db.execute(
+        select(MedicationSchedule).where(MedicationSchedule.id == schedule_id)
+    )
+    schedule = result.scalar_one_or_none()
+    if schedule is not None and schedule.medication_id != medication_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="schedule_id does not belong to this medication",
+        )
+    return schedule
+
+
 def _profile_timezone_name(settings: Optional[UserModelSettings]) -> str:
     """Return a safe IANA timezone string for the profile."""
     timezone_name = settings.timezone if settings and settings.timezone else "UTC"
@@ -945,10 +964,7 @@ async def log_dose(
     # Calculate variance if schedule provided
     variance_minutes = None
     if schedule_id:
-        sched_result = await profile_db.execute(
-            select(MedicationSchedule).where(MedicationSchedule.id == schedule_id)
-        )
-        schedule = sched_result.scalar_one_or_none()
+        schedule = await _schedule_for_medication(profile_db, schedule_id, medication_id)
         if schedule:
             # taken_at is naive UTC; target_time is local wall-clock (DOSE-VAR).
             settings_result = await profile_db.execute(
@@ -1349,6 +1365,8 @@ async def learn_patterns(
         )
 
     verify_medication_access(medication, session)
+    if schedule_id:
+        await _schedule_for_medication(profile_db, schedule_id, medication_id)
 
     # taken_at is naive UTC; bucket by the profile's wall clock (ADHERE-TZ).
     settings_result = await profile_db.execute(
