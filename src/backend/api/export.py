@@ -445,6 +445,10 @@ async def generate_doctor_summary(
         "critical_count": summary.critical_count,
         "questions": [q.model_dump() for q in questions],
     }
+    # D3 (2026-09-27): the doctor summary goes to a third party. Strict
+    # redaction runs BEFORE it is stored, so the preview below and every
+    # download format (text/html/pdf render from the store) are redacted.
+    summary_data = export_module.redact_summary_data(summary_data)
     _summary_store[summary.summary_id] = summary_data
 
     # Create audit log
@@ -458,6 +462,7 @@ async def generate_doctor_summary(
             "format": request.format,
             "observation_count": summary.total_observations,
             "question_count": len(questions),
+            "redaction_count": summary_data["redaction_count"],
         },
     )
 
@@ -475,7 +480,7 @@ async def generate_doctor_summary(
         profile_id=profile_id,
         generated_at=summary.generated_at.isoformat(),
         format=request.format,
-        key_findings=summary.key_findings,
+        key_findings=summary_data["key_findings"],
         abnormal_count=summary.abnormal_count,
         date_range=date_range,
     )
