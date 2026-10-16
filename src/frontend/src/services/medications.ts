@@ -303,6 +303,9 @@ export function useLogDose() {
       queryClient.invalidateQueries({
         queryKey: ['gamification', 'badges'],
       });
+      queryClient.invalidateQueries({
+        queryKey: ['gamification', 'streaks'],
+      });
     },
   });
 }

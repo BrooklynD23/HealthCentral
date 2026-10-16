@@ -1591,6 +1591,13 @@
     "docs/reviews/2026-10-12/GAM2-T1-diff-response.md": [
       "docs/reviews/README.md"
     ],
+    "docs/reviews/2026-10-12/GAM2-T24-diff-codereview.md": [
+      "docs/reviews/2026-10-12/GAM2-T24-diff-response.md",
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-10-12/GAM2-T24-diff-response.md": [
+      "docs/reviews/README.md"
+    ],
     "docs/reviews/2026-10-12/MED-UTC-diff-codereview.md": [
       "docs/reviews/README.md"
     ],
@@ -2711,6 +2718,9 @@
     "docs/reviews/2026-10-12/GAM2-T1-diff-response.md": [
       "docs/reviews/2026-10-12/GAM2-T1-diff-codereview.md"
     ],
+    "docs/reviews/2026-10-12/GAM2-T24-diff-response.md": [
+      "docs/reviews/2026-10-12/GAM2-T24-diff-codereview.md"
+    ],
     "docs/reviews/README.md": [
       "docs/agentic/orchestration.md",
       "docs/reviews/2026-09-25/DDI-diff-codex.txt",
@@ -2915,6 +2925,8 @@
       "docs/reviews/2026-10-12/GAM2-T1-diff-response.md",
       "docs/reviews/2026-10-12/MED-UTC-diff-codereview.md",
       "docs/reviews/2026-10-12/MED-UTC-diff-response.md",
+      "docs/reviews/2026-10-12/GAM2-T24-diff-codereview.md",
+      "docs/reviews/2026-10-12/GAM2-T24-diff-response.md",
       "docs/reviews/2026-10-12/RL-EXPORT-EMPTY-diff-codereview.md",
       "docs/reviews/2026-10-12/RL-EXPORT-EMPTY-diff-response.md",
       "docs/reviews/2026-10-13/SQLITE-MIX-diff-secrev.md",

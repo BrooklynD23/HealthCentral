@@ -288,6 +288,8 @@ export function useSaveTimezone() {
     mutationFn: (timezone: string) => saveTimezone(timezone),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings', 'timezone'] });
+      // Streak days are bucketed in the profile time zone.
+      queryClient.invalidateQueries({ queryKey: ['gamification', 'streaks'] });
     },
   });
 }
