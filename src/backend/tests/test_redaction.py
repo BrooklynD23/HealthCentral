@@ -197,6 +197,9 @@ UNDERSCORE_PHI = [
     ("full_name:_jane_doe", "jane"),
     ("PATIENT_NAME:_JANE_DOE", "JANE"),
     ("patient_name:_josé_álvarez", "álvarez"),
+    ("patient:_jane_doe", "jane"),
+    ("birth_date:_01/02/1980", "01/02/1980"),
+    ("medical_record_no:_a12345", "a12345"),
 ]
 
 ANALYTE_LIKE = [
@@ -262,10 +265,10 @@ class TestUnderscoreJoinedRedaction:
         assert "[EMAIL-REDACTED]" in result.text
 
 
-
 # ---------------------------------------------------------------------------
 # Policy levels
 # ---------------------------------------------------------------------------
+
 class TestPolicyLevels:
     def test_strict_catches_all(self):
         text = (
