@@ -6,8 +6,9 @@ modules/redaction.py before it is stored or rendered, in every download format
 stay byte-for-byte unredacted (named exceptions, W-10).
 
 Scope of the claim: labelled multi-word name, M/D/Y DOB and MRN in free-text
-fields. Not covered by strict: ISO/textual DOB, single-token names, underscore-
-joined identifiers (O-3, owner-gated, pinned by a strict xfail).
+fields, plus underscore-joined labelled name/DOB/MRN (O-3, closed by E-1a).
+Not covered by strict: ISO/textual DOB, single-token names, and the E-1b shapes
+(parenthesised qualifier, '#'/'no.' after a bare label, '-' separator).
 
 Every test drives FastAPI's dependency graph through
 tests/support/routes.py::route_client (recurring-failures #1).
@@ -357,27 +358,14 @@ def test_hc_expr_001_real_pdf_extracted_text_has_no_phi(weasyprint_renders: None
         assert phi not in text
 
 
-class _GapOpen(AssertionError):
-    """Raised only when PHI is still present (the O-3 gap); other failures stay real."""
-
-
-@pytest.mark.xfail(
-    raises=_GapOpen,
-    strict=True,
-    reason=(
-        "O-3 known gap: strict RedactionEngine does not match underscore-joined "
-        "identifiers (unknown-analyte storage shape). Owner sign-off S-3. "
-        "XPASS means redaction changed: update S-3 and remove this marker."
-    ),
-)
-def test_hc_expr_001_known_gap_underscore_phi() -> None:
-    """HC-EXPR-001 (known gap, visible not hidden): expected to fail today."""
+def test_hc_expr_001_underscore_phi_redacted() -> None:
+    """HC-EXPR-001 (O-3 closed by E-1a): underscore-joined labelled PHI, the
+    unknown-analyte storage shape, is redacted in the doctor summary."""
     with _export_client(rows=GAP_ROWS) as client:
         _summary_id, raw = _download_summary(client, "text")
     body = raw.decode("utf-8").lower()
     for phi in ("jane", "01/02/1980", "a12345"):
-        if phi in body:
-            raise _GapOpen(f"{phi!r} still present: O-3 gap open")
+        assert phi not in body, f"{phi!r} still present: O-3 regression"
 
 
 @pytest.fixture(autouse=True)
