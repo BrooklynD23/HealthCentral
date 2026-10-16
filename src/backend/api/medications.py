@@ -1338,11 +1338,10 @@ async def learn_patterns(
     )
 
     # Update adaptive windows
-    # Stays UTC on purpose: notification_scheduler compares these windows with
-    # UTC now.time(). Local windows wait for that fix (follow-up SCHED-TZ).
     schedules_updated = await learner.update_adaptive_windows(
         medication_id=medication_id,
         db=profile_db,
+        tz_name=tz_name,
     )
 
     # Format response

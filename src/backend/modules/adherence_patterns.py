@@ -491,6 +491,7 @@ class PatternLearner:
             if pattern and pattern.confidence >= self.CONFIDENCE_THRESHOLD:
                 schedule.adaptive_window_start = pattern.window_start
                 schedule.adaptive_window_end = pattern.window_end
+                schedule.adaptive_window_tz = tz_name
                 updated_count += 1
 
                 logger.info(
@@ -502,6 +503,42 @@ class PatternLearner:
             await db.commit()
 
         return updated_count
+
+    async def relearn_unmarked_windows(
+        self,
+        profile_id: str,
+        db: AsyncSession,
+        tz_name: str,
+    ) -> int:
+        """Re-learn windows of schedules not yet learned in local time (D-2).
+
+        Covers active and inactive schedules whose ``adaptive_window_tz`` is
+        NULL. A window is written only when confident; the marker is always
+        set so each schedule is handled once. Single commit. Returns the
+        number of schedules marked.
+        """
+        result = await db.execute(
+            select(MedicationSchedule)
+            .join(Medication, Medication.id == MedicationSchedule.medication_id)
+            .where(
+                and_(
+                    Medication.profile_id == profile_id,
+                    MedicationSchedule.adaptive_window_tz.is_(None),
+                )
+            )
+        )
+        rows = result.scalars().all()
+        for row in rows:
+            pattern = await self.learn_time_window(
+                row.medication_id, row.id, db, tz_name=tz_name
+            )
+            if pattern and pattern.confidence >= self.CONFIDENCE_THRESHOLD:
+                row.adaptive_window_start = pattern.window_start
+                row.adaptive_window_end = pattern.window_end
+            row.adaptive_window_tz = tz_name
+        if rows:
+            await db.commit()
+        return len(rows)
 
     async def save_patterns(
         self,
