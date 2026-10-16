@@ -20,8 +20,8 @@ const MAX_ROUNDS = 3
 
 const ID = args && typeof args.id === 'string' ? args.id.trim() : ''
 // The id ends up in shell commands and branch names: accept queue-ID shape only.
-if (!/^[A-Z][A-Z0-9]*(-[A-Z0-9]+)*$/.test(ID)) {
-  throw new Error(`args.id must be a queue ID like "E-1" or "RAG-RUNTIME-500"; got ${JSON.stringify(args)}`)
+if (!/^[A-Z][A-Za-z0-9]*(-[A-Za-z0-9]+)*$/.test(ID)) {
+  throw new Error(`args.id must be a queue ID like "E-1", "E-1a" or "RAG-RUNTIME-500"; got ${JSON.stringify(args)}`)
 }
 
 const EXPLORE_SCHEMA = {

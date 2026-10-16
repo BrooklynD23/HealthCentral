@@ -1,6 +1,6 @@
 # Build Program 2026-10-15 — Execution Queue
 
-**Last Updated:** 2026-10-15
+**Last Updated:** 2026-10-16 (E-1a spec and ordering)
 **Owner:** repository owner
 **Status:** PROPOSED (L0 contracts reconciler). This is the single execution queue for lanes A–F. **No owner approval is recorded here**; every gate keeps its state in [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md).
 **Refresh Trigger:** any item below changing status; any merge of #95, #97, #99, #82, #84, #74, #72, #94 or #68; any owner answer to a gate listed here; any edit to [contracts.md](contracts.md).
@@ -30,9 +30,9 @@ Totals: 51 items. 7 ready now (E-1, E-3, D-0, C-PMIG, E-7, F-3, and B-3 for the 
 
 | id | lane | kind | depends_on | owner gates | ask-first | files | est h | runtime | status |
 |---|---|---|---|---|---|---|---|---|---|
-| E-1 | E | PRODUCT (code slot 1) | — | S-3/O-3, S-6 (merge only); O-2 signed | `be/modules/redaction.py` (**called only**, never edited) | `be/tests/test_export_redaction.py`, `be/modules/export.py`, `be/api/export.py`, `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`, slots | 6 | claude | **ready** (merge blocked: S-3, S-6) |
+| E-1 | E | PRODUCT (code slot 1) | — | S-3/O-3, S-6 (merge only); O-2 signed | `be/modules/redaction.py` (**called only**, never edited) | `be/tests/test_export_redaction.py`, `be/modules/export.py`, `be/api/export.py`, `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`, slots | 6 | claude | **ready** (merge blocked: S-3, S-6, E-1a merged; on rebase over E-1a, remove the O-3 strict xfail per [E-1a plan](../2026-10-16-E1a-redaction-underscore-phi.md) Task 4) |
 | E-3 | E | PRODUCT (code slot 2) | — | Q-RUFF (Task 7), CI-SEED (Task 8 Step 4), Q-COV (threshold only) | — | `.github/workflows/ci.yml`, `be/tests/test_migration_heads.py`, `docs/architecture/ci-and-quality-gates.md`, `docs/features/TASK_LIST.md` (own row), slots | 5 | any | **ready** (Tasks 7 and 8.4 blocked: Q-RUFF, CI-SEED) |
-| E-1a | E | PRODUCT (code) | — | S-3 answered "Close the gap first"; the `redaction.py` diff needs its own owner yes before merge | `be/modules/redaction.py` (**edited**) | `be/modules/redaction.py`, `be/tests/test_export_redaction.py` (drop the O-3 strict xfail), `be/tests/test_redaction.py` | 3 | claude | **ready** (build to draft PR; merge needs owner yes on the diff) |
+| E-1a | E | PRODUCT (code) | — (not E-1: E-1's merge waits on E-1a, queue `:23`; the O-3 xfail is removed by whichever PR merges second, see spec §Ordering) | S-3 answered "Close the gap first"; the `redaction.py` diff needs its own owner yes before merge | `be/modules/redaction.py` (**edited**) | `be/modules/redaction.py`, `be/tests/test_redaction.py`, slots; `be/tests/test_export_redaction.py` only if E-1 merged first | 3 | claude | **ready** (build to draft PR; merge needs owner yes on the diff). Spec: [E-1a plan](../2026-10-16-E1a-redaction-underscore-phi.md); acceptance: its §Acceptance rows 1–8 |
 | E-3a | E | PRODUCT (code, **runs alone**) | — | Q-RUFF answered "Full default ruleset" | none edited (ruff fixes in ask-first files are excluded and listed for the owner) | repo-wide Python under `src/backend/` and `scripts/`, plus `pyproject.toml` / `ruff.toml` | 4 | claude | **ready**; no other code item in the same run |
 | D-0 | D | OWNER (no slot) | — | owner merges #95 → #97 → #99 → #82 → #84 | — | slots, `docs/INDEX.md`, `docs/_link_graph.json`, `docs/reviews/README.md` | 2 | claude | **done** 2026-10-16 (#95, #97, #99, #82, #84 merged; main `d64c3fb`, 1604 collected) |
 | C-PMIG | C | DOCS (no slot) | — | OW-W13 (optional, R-13) | — | `docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md` | 0.5 | any | **ready** (lands with this build-program docs commit) |
