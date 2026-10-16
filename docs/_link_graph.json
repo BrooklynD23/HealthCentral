@@ -1609,6 +1609,12 @@
     "docs/reviews/2026-10-13/UTC-SWEEP-diff-response.md": [
       "docs/reviews/README.md"
     ],
+    "docs/reviews/2026-10-14/ASSIST-UTC-diff-codereview.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-10-14/ASSIST-UTC-diff-response.md": [
+      "docs/reviews/README.md"
+    ],
     "docs/reviews/2026-10-14/DOSE-VAR-diff-codereview.md": [
       "docs/reviews/README.md"
     ],
@@ -2908,7 +2914,9 @@
       "docs/reviews/2026-10-13/UTC-SWEEP-diff-codereview.md",
       "docs/reviews/2026-10-13/UTC-SWEEP-diff-response.md",
       "docs/reviews/2026-10-14/DOSE-VAR-diff-codereview.md",
-      "docs/reviews/2026-10-14/DOSE-VAR-diff-response.md"
+      "docs/reviews/2026-10-14/DOSE-VAR-diff-response.md",
+      "docs/reviews/2026-10-14/ASSIST-UTC-diff-codereview.md",
+      "docs/reviews/2026-10-14/ASSIST-UTC-diff-response.md"
     ],
     "docs/roles/00_roles_index.md": [
       "docs/architecture/README.md",
