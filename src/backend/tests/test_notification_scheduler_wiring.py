@@ -557,3 +557,148 @@ def test_hc_streak_tz_004_scheduler_passes_profile_zone_to_calculate_streak(tmp_
 
     assert spy.await_count == 1
     assert spy.await_args.kwargs["tz_name"] == "America/Los_Angeles"
+
+
+# ---------------------------------------------------------------------------
+# HC-SCHED-TZ — scheduler reads the profile-local clock (D-2)
+# ---------------------------------------------------------------------------
+
+import modules.adherence_patterns as _ap_module  # noqa: E402
+from datetime import date, datetime, time  # noqa: E402
+
+_TZ_PID = "profile-tz"
+_LA = "America/Los_Angeles"
+
+
+async def _tz_setup(tmp_path, monkeypatch, tz, now, stub=True):
+    """Tmp vault + scheduler with frozen UTC clock and a profile time zone."""
+    monkeypatch.setattr(ns_module, "utcnow", lambda: now)
+    monkeypatch.setattr(_ap_module, "utcnow", lambda: now)
+    if stub:
+        _stub_pattern_learner(monkeypatch)
+    provider = MockProvider()
+    scheduler = NotificationScheduler(
+        notification_service=NotificationService(providers=[provider])
+    )
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'vault.db'}")
+    async with engine.begin() as conn:
+        await conn.run_sync(ProfileDatabaseBase.metadata.create_all)
+    sm = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with sm() as db:
+        db.add(UserModelSettings(profile_id=_TZ_PID, timezone=tz))
+        await db.commit()
+
+    async def factory():
+        return sm()
+
+    scheduler._profile_sessions[_TZ_PID] = factory
+    return scheduler, provider, sm
+
+
+async def _tz_add_schedule(
+    sm, target, *, med_id=None, days=None, active=True, window=None, marker=None
+):
+    """Add a medication (or reuse med_id) plus one schedule; returns ids."""
+    med_id = med_id or str(uuid.uuid4())
+    sched_id = str(uuid.uuid4())
+    async with sm() as db:
+        if not (await db.execute(select(Medication).where(Medication.id == med_id))).first():
+            db.add(
+                Medication(
+                    id=med_id, profile_id=_TZ_PID, name="Metformin",
+                    is_active=True, reminder_enabled=True,
+                )
+            )
+            await db.flush()
+        db.add(
+            MedicationSchedule(
+                id=sched_id, medication_id=med_id, schedule_label="morning",
+                target_time=target, is_active=active, reminder_offset_minutes=15,
+                days_of_week_json=None if days is None else str(days),
+                adaptive_window_start=window[0] if window else None,
+                adaptive_window_end=window[1] if window else None,
+                **({"adaptive_window_tz": marker} if marker else {}),
+            )
+        )
+        await db.commit()
+    return med_id, sched_id
+
+
+def _sent_after(tmp_path, monkeypatch, tz, now, target, **kw):
+    async def scenario():
+        scheduler, provider, sm = await _tz_setup(tmp_path, monkeypatch, tz, now)
+        await _tz_add_schedule(sm, target, **kw)
+        await scheduler._check_all_schedules()
+        return len(provider.sent_notifications)
+
+    return run(scenario())
+
+
+@pytest.mark.parametrize(
+    "now,expected",
+    [(datetime(2026, 1, 5, 16, 0), 1), (datetime(2026, 1, 5, 8, 0), 0)],
+)
+def test_hc_sched_tz_001_reminder_fires_at_local_target(
+    tmp_path, monkeypatch, now, expected
+):
+    """08:00 target in LA fires at 16:00Z (08:00 PST), not at 08:00Z."""
+    assert _sent_after(tmp_path, monkeypatch, _LA, now, time(8, 0)) == expected
+
+
+def test_hc_sched_tz_002_dose_found_inside_local_day(tmp_path, monkeypatch):
+    """A 20:00 PST dose (04:00Z next day) belongs to the local day."""
+    now = datetime(2026, 1, 6, 4, 10)  # 20:10 PST Jan 5
+
+    async def scenario():
+        scheduler, provider, sm = await _tz_setup(tmp_path, monkeypatch, _LA, now)
+        med_id, sched_id = await _tz_add_schedule(sm, time(20, 15))
+        async with sm() as db:
+            db.add(DoseTaken(
+                id=str(uuid.uuid4()), medication_id=med_id, schedule_id=sched_id,
+                taken_at=datetime(2026, 1, 6, 4, 0), log_method="manual",
+                was_skipped=False,
+            ))
+            await db.commit()
+        await scheduler._check_all_schedules()
+        async with sm() as db:
+            taken = await scheduler._check_dose_taken_today(
+                med_id, sched_id, date(2026, 1, 5), _LA, db
+            )
+        return len(provider.sent_notifications), taken
+
+    sent, taken = run(scenario())
+    assert sent == 0
+    assert taken is True
+
+
+def test_hc_sched_tz_003_yesterday_local_reminders_do_not_count(tmp_path, monkeypatch):
+    """3 logs at 23:30 PST yesterday (07:30Z today) are outside today's cap."""
+    now = datetime(2026, 1, 6, 16, 0)  # 08:00 PST Jan 6
+
+    async def scenario():
+        scheduler, provider, sm = await _tz_setup(tmp_path, monkeypatch, _LA, now)
+        med_id, sched_id = await _tz_add_schedule(sm, time(8, 0))
+        async with sm() as db:
+            for _ in range(3):
+                db.add(ReminderLog(
+                    id=str(uuid.uuid4()), profile_id=_TZ_PID, medication_id=med_id,
+                    schedule_id=sched_id, reminder_type="initial",
+                    message_tone="friendly", message="x",
+                    sent_at=datetime(2026, 1, 6, 7, 30), delivery_method="notification",
+                ))
+            await db.commit()
+            counted = await scheduler._count_reminders_today(
+                med_id, sched_id, date(2026, 1, 6), _LA, db
+            )
+        await scheduler._check_all_schedules()
+        return counted, len(provider.sent_notifications)
+
+    counted, sent = run(scenario())
+    assert counted == 0
+    assert sent == 1
+
+
+def test_hc_sched_tz_004_weekday_is_local(tmp_path, monkeypatch):
+    """Friday 20:00 PST is Saturday 04:00Z; days_of_week [4] still applies."""
+    now = datetime(2026, 1, 10, 4, 0)
+    assert _sent_after(tmp_path, monkeypatch, _LA, now, time(20, 0), days=[4]) == 1
