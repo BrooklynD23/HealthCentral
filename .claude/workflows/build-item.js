@@ -186,7 +186,7 @@ ${STYLE}`,
 // Haiku runs tests only: it never writes or edits tests or code.
 const runTests = (round) => agent(
   `Test runner for build-program item ${ID}, round ${round}: ${where}. Read-only: never edit, create, commit or push any file.
-Run from ${plan.worktree}, every pytest through scripts/pyslot.sh (3 machine-wide pytest slots):
+Run from ${plan.worktree}, every pytest through the ABSOLUTE pyslot path shown in step 1 (3 machine-wide pytest slots); a relative scripts/pyslot.sh does not exist under src/backend. Paste the exact command you ran:
 1. Focused: the test files in this list, if any: ${JSON.stringify((impl && impl.files_changed || []).filter((f) => /tests?\//.test(f)))}.
    "$(git rev-parse --show-toplevel)/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest <files> -p no:cacheprovider -q   (cwd src/backend)
 2. Collection: same prefix with tests/ --collect-only -q; copy the final line into collected_line.
@@ -280,7 +280,8 @@ return await agent(
 3. ${spec.architectural ? `Architectural item: run the Codex adversarial review (§10.2 codex-companion adversarial-review) from the worktree. A BLOCKER means: keep draft, comment it, retitle it "[blocked:claude] ${ID} <keep the current slug>", return BLOCKED.` : 'Not architectural: no Codex review.'}
 4. Push. Write the PR body with every §6 table section (gates quoted: ${(plan.gates_quoted || []).join(' | ') || 'none'}; skipped tasks: ${(plan.skipped_tasks || []).join(', ') || 'none'}; start count: ${plan.start_count || 'see Task 0'}; implementer claude sonnet; reviewer claude opus, final verdict PASS). Use gh pr edit ${plan.pr_number} --body-file.
 5. Retitle to "<type>(<scope>): <summary> (${ID})" to release the slot. Run gh pr ready ${plan.pr_number} only if no merge-only gate is unanswered and the item is not a parked draft (contracts.md §b rule 2). Re-read the row's owner gates against owner-decisions yourself first; an empty gates list from Task 0 is not evidence that none apply.
-6. Stop. Never merge, never push to main.
+6. If gh pr edit fails with the "Projects (classic) is being deprecated" GraphQL error, use gh api -X PATCH repos/{owner}/{repo}/pulls/${plan.pr_number} -f title=... -F body=@<file> instead.
+7. Stop. Never merge, never push to main.
 Return: first line PR URL + READY | DRAFT (why) | FAILED | BLOCKED; then the final count line and the full test command output tail.
 ${STYLE}`,
   { label: `verify+PR ${ID}`, phase: 'Verify', model: 'opus', effort: 'high' },
