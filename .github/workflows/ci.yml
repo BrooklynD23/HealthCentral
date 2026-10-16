@@ -18,15 +18,13 @@ jobs:
         with:
           python-version: '3.11'
 
-      # SLOT-RULE-2: PRs do not commit docs/INDEX.md; regenerate it here so DOC-011 sees new docs.
-      - name: Regenerate docs index
-        run: python3 scripts/generate_docs_index.py
+      # SLOT-RULE-2: PRs do not commit docs/INDEX.md or docs/_link_graph.json; regenerate both here
+      # (DOC-011 sees new docs). Freshness on main is the orchestrator's post-merge batch, not a PR gate.
+      - name: Regenerate docs index and link graph
+        run: python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py --link-graph
 
       - name: Run docs lint
         run: python3 scripts/docs_lint.py
-
-      - name: Check generated docs freshness
-        run: python3 scripts/generate_docs_index.py --check
 
       - name: Lint feature inventory
         run: python3 scripts/feature_list_lint.py
