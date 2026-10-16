@@ -1,6 +1,6 @@
 # E-1a: Strict Redaction for Underscore-Joined Identifiers (O-3)
 
-**Last Updated:** 2026-10-16
+**Last Updated:** 2026-10-16 (rev 2: Codex r1 applied)
 **Owner:** repository owner
 **Status:** PROPOSED (L1 planner). No owner approval is recorded here. `src/backend/modules/redaction.py` is ask-first (`CLAUDE.md` §1); the diff this plan produces needs the owner's own yes before merge (see [Owner gate](#owner-gate)).
 **Refresh Trigger:** any commit to `src/backend/modules/redaction.py`, `src/backend/tests/test_redaction.py`, `src/backend/modules/normalize.py` (`ANALYTE_SYNONYMS` or the unknown-analyte branch) or `src/backend/modules/export.py` (`_format_abnormal_values`); E-1 merging; an owner answer that changes S-3 + S-6.
@@ -35,10 +35,10 @@ Append to `_RULES` after `numeric_date`:
     RedactionRule(
         name="underscore_labelled_id",
         pattern=re.compile(
-            r"(?i)(?<![a-z0-9])"
+            r"(?i)(?<![^\W_])"
             r"(?:(?:patient_name|dob|date_of_birth|birth_?date|mrn|medical_record_(?:number|no))_*:?"
             r"|(?:patient|name)_*:)"
-            r"_+[a-z0-9][a-z0-9_/.\-]*"
+            r"_+[^\W_][\w/.\-]*"
         ),
         replacement="[ID-REDACTED]",
         policy_levels=frozenset({"strict"}),
@@ -54,8 +54,8 @@ Append to `_RULES` after `numeric_date`:
 Design notes:
 
 1. **Label, then at least one `_`.** The rule only fires on the underscore shape. Spaced shapes stay with the existing rules.
-2. **Value stops at `:`, `<`, whitespace.** In `• patient_name:_jane_doe: 1.0 ...` it consumes `jane_doe` and keeps `: 1.0`; in HTML `<td>patient_name:_jane_doe</td>` the tags survive.
-3. **Leading `(?<![a-z0-9])` admits `_`.** `full_name:_jane_doe` becomes `full_[ID-REDACTED]`.
+2. **Value is Unicode-aware and stops at `:`, `<`, whitespace.** `\w` matches accented letters, so `patient_name:_josé_álvarez` is fully replaced (an ASCII-only class left `é_álvarez`; Codex r1). In `• patient_name:_jane_doe: 1.0 ...` it consumes `jane_doe` and keeps `: 1.0`; in HTML `<td>patient_name:_jane_doe</td>` the tags survive.
+3. **Leading `(?<![^\W_])` (no letter or digit before) admits `_`.** `full_name:_jane_doe` becomes `full_[ID-REDACTED]`.
 4. **ISO dates are untouched.** `underscore_numeric_date` is `d{1,2}`-first, like `numeric_date`, so `hba1c_2025-05-01` and `2024-03-15` never match (`redaction.py:110-113`).
 5. **Email is unaffected.** `jane_doe@example.com` is still fully replaced by `email`, which runs first.
 
@@ -74,7 +74,7 @@ The two rules above were passed as `RedactionEngine("strict", rules=_RULES + new
 132 names; FP: []      # every NormalizeModule.ANALYTE_SYNONYMS key and synonym, underscore form
 ```
 
-The Task 1 test code was also run against the unmodified engine and the prototype (scratchpad copy, rules patched in): **10 failed, 14 passed** before, **24 passed** after. Both Task 3 mutants failed HC-REDACT-004 as specified (`name_of_test`, `patient_count_3`; `hba1c_2025-05-01`).
+The Task 1 test code was also run against the unmodified engine and the prototype (scratchpad copy, rules patched in): **11 failed, 14 passed** before, **25 passed** after (r1 revision, with the Unicode case). Both Task 3 mutants failed HC-REDACT-004 as specified (`name_of_test`, `patient_count_3`; `hba1c_2025-05-01`).
 
 A first draft let bare `patient_`/`name_` match without a colon. It redacted `name_of_test` and `patient_count_3`. That is why bare labels need `:`, and why HC-REDACT-004 pins both strings.
 
@@ -109,13 +109,17 @@ The owner said the fix lands **before W-2 merges** (`owner-decisions:176`; queue
 
 ## Tasks
 
-Work from `WT=$(git rev-parse --show-toplevel)`, `cd "$WT/src/backend"`. Every pytest call is `PYT='"$WT/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest'` with `-p no:cacheprovider`.
+Work from `WT=$(git rev-parse --show-toplevel)`, `cd "$WT/src/backend"`. Every pytest call goes through this shell function (define it once per shell):
+
+```bash
+pyt() { "$WT/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 "$HOME/venvs/asclexis-311/bin/python" -m pytest -p no:cacheprovider "$@"; }
+```
 
 ### Task 0: Start measurement
 
 1. `git fetch origin && git merge-base --is-ancestor origin/main HEAD` (fresh branch from `origin/main`).
-2. Collected count N0: `"$WT/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest tests/ --collect-only -q -p no:cacheprovider | tail -1`. Compare with the `CLAUDE.md` slot. A mismatch is reported, not "fixed".
-3. Safety baseline (the suites in Acceptance row 3) on unmodified code. Record pass/fail counts.
+2. Collected count N0: `pyt tests/ --collect-only -q | tail -1`. Compare with the `CLAUDE.md` slot. A mismatch is reported, never fixed (SLOT-RULE-2, `contracts.md:131-142`).
+3. Baseline on unmodified code: run the Acceptance row 3, row 4 and row 6 commands and record pass/fail/skip counts and every failing test id. Rows 3, 4 and 6 compare against these.
 
 ### Task 1: RED tests in `src/backend/tests/test_redaction.py`
 
@@ -135,6 +139,7 @@ UNDERSCORE_PHI = [
     ("medical_record_number:_44-ab-9921", "44-ab-9921"),
     ("full_name:_jane_doe", "jane"),
     ("PATIENT_NAME:_JANE_DOE", "JANE"),
+    ("patient_name:_josé_álvarez", "álvarez"),
 ]
 
 ANALYTE_LIKE = [
@@ -200,11 +205,11 @@ class TestUnderscoreJoinedRedaction:
         assert "[EMAIL-REDACTED]" in result.text
 ```
 
-Run `$PYT tests/test_redaction.py -q -rfE`. **RED expectation:** 10 failed (001 ×8, 002, 003), the rest passed. 004–007 are guards that pass before and after; Task 3 proves they can fail.
+Run `pyt tests/test_redaction.py -q -rfE`. **RED expectation:** 11 failed (001 ×9, 002, 003), the rest passed. 004–007 are guards that pass before and after; Task 3 proves they can fail.
 
 ### Task 2: GREEN — edit `src/backend/modules/redaction.py`
 
-Append the two rules from [Design](#design-two-additive-strict-only-rules) after `numeric_date` (`:122-127`). No other line changes. Run `$PYT tests/test_redaction.py -q`: 0 failed.
+Append the two rules from [Design](#design-two-additive-strict-only-rules) after `numeric_date` (`:122-127`). No other line changes. Run `pyt tests/test_redaction.py -q`: 0 failed.
 
 ### Task 3: Prove the guards can fail (not committed)
 
@@ -218,12 +223,12 @@ In `src/backend/tests/test_export_redaction.py`:
 
 1. Delete the `@pytest.mark.xfail(strict=True, reason="O-3 known gap ...")` decorator above `test_hc_expr_001_known_gap_underscore_phi` (W-2 plan `:831-838`).
 2. Rename the test to `test_hc_expr_001_underscore_phi_redacted` and its docstring to `"""HC-EXPR-001 (underscore shape): closed by E-1a."""`. Keep `GAP_ROWS` and the three asserts unchanged.
-3. Run `$PYT tests/test_export_redaction.py -q -rsxX`. Expected: **0 xfailed, 0 xpassed**, 0 failed. Before step 1 the same run must show `XPASS(strict)` for that test — that is the proof the fix reached the export path.
+3. Run `pyt tests/test_export_redaction.py -q -rsxX`. Expected: **0 xfailed, 0 xpassed**, 0 failed. Before step 1 the same run must show `XPASS(strict)` for that test — that is the proof the fix reached the export path.
 
-### Task 5: Docs and slots
+### Task 5: Docs and collected count
 
 1. `redaction.py` module docstring: no change. The rule comment above is the only prose in code.
-2. Count slots: E-1a adds 24 collected tests (001 ×8, 002, 003, 004 ×11, 005, 006, 007). Write N0 + 24 only if a fresh `--collect-only` after the final `origin/main` merge shows it (lane E §4 item 3); otherwise write the measured number.
+2. E-1a adds 25 collected tests (001 ×9, 002, 003, 004 ×11, 005, 006, 007). The PR **never edits** the `CLAUDE.md`/`AGENT.md` slots (SLOT-RULE-2, `contracts.md:133`). It pastes the measured `--collect-only` line on its head and the delta from the slot into the PR body; L0's post-merge batch updates the slots.
 3. Do not edit `docs/capstone-report/specs-compliance-matrix.md` here (other items own it). Hand the PRIV-04 gap-column wording below to L0's post-merge batch.
 
 ## Doc claims
@@ -237,30 +242,31 @@ Never write "PHI-free", "all PHI" or "fully redacted". The allowed claim, for th
 | File | Change |
 |---|---|
 | `src/backend/modules/redaction.py` | +2 rules appended to `_RULES` (ask-first) |
-| `src/backend/tests/test_redaction.py` | +1 class, 7 test functions, 24 collected |
+| `src/backend/tests/test_redaction.py` | +1 class, 7 test functions, 25 collected |
 | `src/backend/tests/test_export_redaction.py` | Task 4, **only** under ordering (B) |
-| `CLAUDE.md`, `AGENT.md` count slots | Task 5 step 2 |
+| `docs/INDEX.md`, `docs/_link_graph.json` | regenerated only if a doc changes (SLOT-RULE-2a) |
 
 ## Acceptance
 
 | # | Check | Command (from `src/backend`) | Expected |
 |---|---|---|---|
-| 1 | RED recorded | `$PYT tests/test_redaction.py -q -rfE` before Task 2 | 10 failed, all in `TestUnderscoreJoinedRedaction` 001–003 |
-| 2 | GREEN | `$PYT tests/test_redaction.py -q` | 0 failed |
-| 3 | Safety suites | `$PYT tests/test_redaction.py tests/test_interpret_safety_adversarial.py tests/test_phase4_ai_safety.py tests/agent/test_s3_guardrails.py -q` | 0 failed; counts equal Task 0 baseline plus 24 |
-| 4 | Other strict callers | `$PYT tests/test_fhir_export.py tests/test_visit_prep_packet.py tests/test_rl_feedback.py tests/test_rl_export_prompt_snapshot.py tests/test_external_runner_hardening.py tests/agent/test_s4_phi_gate.py tests/agent/test_s6_evals.py -q` | same pass/fail as Task 0 (strict is also used by `fhir_export.py:58`, `export.py:637`, `rl_dataset.py`, `external_runner.py:279` and the eval PHI scorer `agent/eval/scorer.py:186`) |
+| 1 | RED recorded | `pyt tests/test_redaction.py -q -rfE` before Task 2 | 11 failed, all in `TestUnderscoreJoinedRedaction` 001–003 |
+| 2 | GREEN | `pyt tests/test_redaction.py -q` | 0 failed |
+| 3 | Safety suites | `pyt tests/test_redaction.py tests/test_interpret_safety_adversarial.py tests/test_phase4_ai_safety.py tests/agent/test_s3_guardrails.py -q` | 0 failed; counts equal the Task 0 baseline plus 25 passed |
+| 4 | Other strict callers | `pyt tests/test_fhir_export.py tests/test_visit_prep_packet.py tests/test_rl_feedback.py tests/test_rl_export_prompt_snapshot.py tests/test_external_runner_hardening.py tests/agent/test_s4_phi_gate.py tests/agent/test_s6_evals.py -q` | same pass/fail as Task 0 (strict is also used by `fhir_export.py:58`, `export.py:637`, `rl_dataset.py`, `external_runner.py:279` and the eval PHI scorer `agent/eval/scorer.py:186`) |
 | 5 | Guards can fail | Task 3 | both mutants fail HC-REDACT-004; outputs in PR body |
-| 6 | Full suite | `$PYT tests/ -q` | failures ⊆ Task 0 failures, each named |
-| 7 | Collected | `--collect-only` (Task 0 step 2) | N0 + 24 |
-| 8 | Export path (Task 4) | `$PYT tests/test_export_redaction.py -q -rsxX` | after Task 4: 0 xfailed, 0 xpassed |
+| 6 | Full suite | `pyt tests/ -q` | failures ⊆ Task 0 failures, each named |
+| 7 | Collected | `--collect-only` (Task 0 step 2) | N0 + 25, pasted in the PR body (no slot edit) |
+| 8 | Export path (Task 4) | `pyt tests/test_export_redaction.py -q -rsxX` | after Task 4: 0 xfailed, 0 xpassed |
 
 Report each command with its actual tail output. A skipped check is named with its reason.
 
 ## Owner gate
 
 - `modules/redaction.py` is ask-first (`CLAUDE.md` §1). S-3 answered "Close the gap first" approves the **work**, not the diff: "That edit needs your yes on its own diff."
+- **Editing vs merging.** CLAUDE.md §1 says ask before touching the file. The owner's row-176 answer is the ask for the *edit*: "Fix redaction.py for underscore-joined identifiers". Before Task 2 the implementer quotes that row in the PR body as the authority to edit. The edit is limited to the two rules in this plan, and anything beyond them needs a new ask. The *merge* needs a second yes on the exact final diff (Codex r1 MAJOR, partly accepted; see `docs/reviews/2026-10-16/E1a-r1-response.md`).
 - The PR opens and **stays draft** until the owner replies yes on the exact `redaction.py` diff. L0 records that yes as a new owner-decisions row (for example `E1A-DIFF`) before anyone marks the PR ready or merges it.
-- Owner question: "May E-1a merge this `redaction.py` diff — two strict-only rules that redact underscore-joined labelled name/DOB/MRN values (`patient_name:_jane_doe` → `[ID-REDACTED]`) and `d/m/y` dates after `_`, leaving titled and unlabelled shapes as a stated residual gap?"
+- Owner question: "May E-1a merge this `redaction.py` diff — two strict-only rules that redact underscore-joined labelled name/DOB/MRN values (`patient_name:_jane_doe` and accented names such as `patient_name:_josé_álvarez` → `[ID-REDACTED]`) and `d/m/y` dates after `_`, leaving titled and unlabelled shapes as a stated residual gap?"
 
 ## Rollback
 

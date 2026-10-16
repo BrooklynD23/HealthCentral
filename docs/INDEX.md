@@ -2468,6 +2468,20 @@ Reviewer: Codex CLI (`codex exec -s read-only`), driven by an Opus 5.5 L1, 2026-
 
 Links to: `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`
 
+## `docs/reviews/2026-10-16/E1a-r1-prompt.md`
+
+**(untitled)**
+
+(no summary — see file)
+
+## `docs/reviews/2026-10-16/E1a-r1-response.md`
+
+**E-1a Plan — Codex Round 1 Response**
+
+Run: `codex exec -s read-only` (the first attempt timed out at 900 s waiting on stdin, `rc=124`; the rerun used `</dev/null`). Verdict: **REVISE**. Findings: 1 BLOCKER, 4 MAJOR, 0 MINOR. Prompt:…
+
+Links to: `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`, `docs/reviews/2026-10-16/E1a-r1-prompt.md`
+
 ## `docs/reviews/README.md`
 
 **Codex Review Archive**
