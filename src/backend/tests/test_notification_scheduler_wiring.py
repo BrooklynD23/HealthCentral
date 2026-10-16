@@ -24,7 +24,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 import modules.notification_scheduler as ns_module
-from core.time import utcnow
+from core.time import to_local, utcnow
 from modules.notification_scheduler import (
     NotificationScheduler,
     ProfileVaultLockedError,
@@ -296,9 +296,9 @@ def test_hc_nsw_009_no_phi_in_logs_or_master_schema(tmp_path, monkeypatch, caplo
     assert "Metformin" not in caplog.text
 
 
-def _seed_due_medication(db, profile_id, med_id, sched_id):
-    """Insert an active medication with a schedule due right now."""
-    now = utcnow()
+def _seed_due_medication(db, profile_id, med_id, sched_id, tz="UTC"):
+    """Insert an active medication with a schedule due right now (in tz)."""
+    now = to_local(utcnow(), tz)
     db.add(
         Medication(
             id=med_id,
@@ -313,7 +313,7 @@ def _seed_due_medication(db, profile_id, med_id, sched_id):
             id=sched_id,
             medication_id=med_id,
             schedule_label="morning",
-            target_time=now.time(),
+            target_time=now.time().replace(tzinfo=None),
             is_active=True,
             reminder_offset_minutes=15,
         )
@@ -543,7 +543,10 @@ def test_hc_streak_tz_004_scheduler_passes_profile_zone_to_calculate_streak(tmp_
             engine, class_=AsyncSession, expire_on_commit=False
         )
         async with session_maker() as db:
-            _seed_due_medication(db, profile_id, str(uuid.uuid4()), str(uuid.uuid4()))
+            _seed_due_medication(
+                db, profile_id, str(uuid.uuid4()), str(uuid.uuid4()),
+                tz="America/Los_Angeles",
+            )
             db.add(UserModelSettings(profile_id=profile_id, timezone="America/Los_Angeles"))
             await db.commit()
 
