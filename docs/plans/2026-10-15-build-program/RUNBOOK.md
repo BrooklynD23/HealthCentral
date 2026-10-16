@@ -46,6 +46,8 @@ One item loop that **Claude Code, Codex CLI and Devin** run against the same [qu
 
 ## 3. Claim protocol (GitHub is the lock)
 
+Run the claim block below as a script file (`bash /tmp/claude-1000/claim-<id>.sh`), not pasted inline: inline, `set -e` did not stop after a failed `git push` (E-1a, 2026-10-16). If `gh pr edit` fails with the "Projects (classic) is being deprecated" GraphQL error, use `gh api -X PATCH repos/{owner}/{repo}/pulls/<n> -f title=... -F body=@<file>`.
+
 No new infrastructure: a branch name is the lock, a PR title is the slot.
 
 | Thing | Rule |
