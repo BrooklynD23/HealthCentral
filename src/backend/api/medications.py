@@ -24,7 +24,7 @@ from sqlalchemy.orm import selectinload
 from core.database import get_db
 from core.audit import audit_and_commit, audit_intent, log_document_event
 from core.auth import RequireAuth, Session, ProfileDbSession
-from core.time import utcnow
+from core.time import NaiveUtcDatetime, utcnow
 from models import (
     Medication,
     MedicationSchedule,
@@ -67,6 +67,25 @@ def verify_medication_access(medication: Medication, session: Session) -> None:
         )
 
 
+async def _schedule_for_medication(
+    profile_db: AsyncSession, schedule_id: str, medication_id: str
+) -> Optional[MedicationSchedule]:
+    """Load a schedule; 422 if it belongs to another medication (SCHED-OWNER).
+
+    An unknown schedule_id returns None (pre-existing behaviour, kept).
+    """
+    result = await profile_db.execute(
+        select(MedicationSchedule).where(MedicationSchedule.id == schedule_id)
+    )
+    schedule = result.scalar_one_or_none()
+    if schedule is not None and schedule.medication_id != medication_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="schedule_id does not belong to this medication",
+        )
+    return schedule
+
+
 def _profile_timezone_name(settings: Optional[UserModelSettings]) -> str:
     """Return a safe IANA timezone string for the profile."""
     timezone_name = settings.timezone if settings and settings.timezone else "UTC"
@@ -99,7 +118,7 @@ class MedicationCreate(BaseModel):
     frequency: str = Field("once_daily", pattern="^(once_daily|twice_daily|three_times_daily|four_times_daily|every_other_day|weekly|as_needed|custom)$")
     instructions: Optional[str] = None
     reminder_enabled: bool = False
-    started_at: Optional[datetime] = None
+    started_at: Optional[NaiveUtcDatetime] = None
     metadata: Optional[dict] = None
 
 
@@ -114,7 +133,7 @@ class MedicationUpdate(BaseModel):
     instructions: Optional[str] = None
     reminder_enabled: Optional[bool] = None
     is_active: Optional[bool] = None
-    ended_at: Optional[datetime] = None
+    ended_at: Optional[NaiveUtcDatetime] = None
     metadata: Optional[dict] = None
 
 
@@ -138,7 +157,7 @@ class ScheduleUpdate(BaseModel):
 
 class DoseLog(BaseModel):
     """Request to log a dose."""
-    taken_at: datetime
+    taken_at: NaiveUtcDatetime
     log_method: str = Field("manual", pattern="^(manual|notification_tap|voice|quick_log|bulk_log)$")
     dosage_amount: Optional[float] = None
     dosage_unit: Optional[str] = None
@@ -945,15 +964,21 @@ async def log_dose(
     # Calculate variance if schedule provided
     variance_minutes = None
     if schedule_id:
-        sched_result = await profile_db.execute(
-            select(MedicationSchedule).where(MedicationSchedule.id == schedule_id)
-        )
-        schedule = sched_result.scalar_one_or_none()
+        schedule = await _schedule_for_medication(profile_db, schedule_id, medication_id)
         if schedule:
-            # Calculate minutes from midnight for comparison
+            # taken_at is naive UTC; target_time is local wall-clock (DOSE-VAR).
+            settings_result = await profile_db.execute(
+                select(UserModelSettings).where(
+                    UserModelSettings.profile_id == session.profile_id
+                )
+            )
+            local_taken = dose.taken_at.replace(tzinfo=dt_timezone.utc).astimezone(
+                ZoneInfo(_profile_timezone_name(settings_result.scalar_one_or_none()))
+            )
             target_minutes = schedule.target_time.hour * 60 + schedule.target_time.minute
-            actual_minutes = dose.taken_at.hour * 60 + dose.taken_at.minute
-            variance_minutes = actual_minutes - target_minutes
+            actual_minutes = local_taken.hour * 60 + local_taken.minute
+            # Nearest daily occurrence of the target: result in [-720, 720).
+            variance_minutes = (actual_minutes - target_minutes + 720) % 1440 - 720
 
     dose_record = DoseTaken(
         id=str(uuid.uuid4()),
@@ -1054,8 +1079,8 @@ async def log_dose(
 async def list_doses(
     medication_id: str,
     session: RequireAuth,
-    from_date: Optional[datetime] = Query(None, description="Start date"),
-    to_date: Optional[datetime] = Query(None, description="End date"),
+    from_date: Optional[NaiveUtcDatetime] = Query(None, description="Start date"),
+    to_date: Optional[NaiveUtcDatetime] = Query(None, description="End date"),
     limit: int = Query(30, ge=1, le=100),
     profile_db: ProfileDbSession = None,
 ):
@@ -1340,6 +1365,14 @@ async def learn_patterns(
         )
 
     verify_medication_access(medication, session)
+    if schedule_id:
+        await _schedule_for_medication(profile_db, schedule_id, medication_id)
+
+    # taken_at is naive UTC; bucket by the profile's wall clock (ADHERE-TZ).
+    settings_result = await profile_db.execute(
+        select(UserModelSettings).where(UserModelSettings.profile_id == session.profile_id)
+    )
+    tz_name = _profile_timezone_name(settings_result.scalar_one_or_none())
 
     # Learn patterns
     learner = get_pattern_learner()
@@ -1347,6 +1380,7 @@ async def learn_patterns(
         medication_id=medication_id,
         schedule_id=schedule_id,
         db=profile_db,
+        tz_name=tz_name,
     )
 
     # Save patterns to database
@@ -1358,6 +1392,8 @@ async def learn_patterns(
     )
 
     # Update adaptive windows
+    # Stays UTC on purpose: notification_scheduler compares these windows with
+    # UTC now.time(). Local windows wait for that fix (follow-up SCHED-TZ).
     schedules_updated = await learner.update_adaptive_windows(
         medication_id=medication_id,
         db=profile_db,

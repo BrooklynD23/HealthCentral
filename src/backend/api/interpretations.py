@@ -11,7 +11,6 @@ import json
 import logging
 import re
 from typing import Optional
-from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
@@ -21,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from core.auth import RequireAuth, Session, ProfileDbSession
 from core.audit import audit_and_commit, audit_intent, create_audit_log
-from core.time import utcnow
+from core.time import NaiveUtcDatetime, utcnow
 from models import (
     Observation,
     LabInterpretation,
@@ -673,7 +672,7 @@ async def get_interpretation(
 )
 async def generate_panel_interpretation(
     panel_name: str,
-    collected_at: datetime,
+    collected_at: NaiveUtcDatetime,
     session: RequireAuth,
     force_regenerate: bool = Query(False, description="Force regeneration"),
     profile_db: ProfileDbSession = None,

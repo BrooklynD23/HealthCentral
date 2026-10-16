@@ -13,7 +13,7 @@ import logging
 import re
 from collections import defaultdict
 from typing import Optional
-from datetime import date, datetime
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from core.audit import audit_and_commit, log_observation_event
 from core.auth import RequireAuth, Session, ProfileDbSession
-from core.time import utcnow
+from core.time import NaiveUtcDatetime, utcnow
 from models import Document, Observation
 from modules.normalize import (
     canonical_unit_for,
@@ -150,7 +150,7 @@ class ObservationVerify(BaseModel):
     unit: Optional[str] = None
     ref_low: Optional[float] = None
     ref_high: Optional[float] = None
-    collected_at: Optional[datetime] = None
+    collected_at: Optional[NaiveUtcDatetime] = None
     notes: Optional[str] = None
 
 
@@ -287,8 +287,8 @@ async def list_observations(
     session: RequireAuth,
     analyte: Optional[str] = Query(None, description="Filter by analyte"),
     doc_id: Optional[str] = Query(None, description="Filter by source document ID"),
-    from_date: Optional[datetime] = Query(None, description="Start date"),
-    to_date: Optional[datetime] = Query(None, description="End date"),
+    from_date: Optional[NaiveUtcDatetime] = Query(None, description="Start date"),
+    to_date: Optional[NaiveUtcDatetime] = Query(None, description="End date"),
     abnormal_only: bool = Query(False, description="Only show abnormal values"),
     needs_verification: bool = Query(False, description="Only show unverified"),
     profile_db: ProfileDbSession = None,
@@ -513,8 +513,8 @@ async def verify_observation(
 async def get_analyte_trend(
     analyte: str,
     session: RequireAuth,
-    from_date: Optional[datetime] = Query(None, description="Start date"),
-    to_date: Optional[datetime] = Query(None, description="End date"),
+    from_date: Optional[NaiveUtcDatetime] = Query(None, description="Start date"),
+    to_date: Optional[NaiveUtcDatetime] = Query(None, description="End date"),
     profile_db: ProfileDbSession = None,
     master_db: AsyncSession = Depends(get_db),
 ):
@@ -740,7 +740,7 @@ async def get_analyte_trend(
 async def get_panel(
     panel_id: str,
     session: RequireAuth,
-    collection_date: Optional[datetime] = Query(None, description="Specific collection date"),
+    collection_date: Optional[NaiveUtcDatetime] = Query(None, description="Specific collection date"),
     profile_db: ProfileDbSession = None,
     master_db: AsyncSession = Depends(get_db),
 ):
