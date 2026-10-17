@@ -8,8 +8,8 @@ Every Codex plan review (`<ID>-rN-*`) and adversarial diff review (`<ID>-diff-co
 - `2026-09-27-swarm/` — the 2026-09-27 plan set; also holds `GLOBAL-rules.md`, `POSTPASS-baseline.md`, `*-prior-rN.md` and `reviewer-log.tsv`.
 - `2026-09-29/` — P01 and S02.
 - `2026-10-12/` — AUDIT-ORDER execution diff (Codex, code review, security review); GAM2-T1 and GAM2-T24 diffs (code review); MED-UTC diff (code review); RL-EXPORT-EMPTY diff (code review).
-- `2026-10-13/` — SQLITE-MIX diff (security review); UTC-SWEEP diff (code review).
-- `2026-10-14/` — DOSE-VAR diff (code review); ASSIST-UTC diff (code review).
+- `2026-10-13/` — SQLITE-MIX diff (security review); UTC-SWEEP diff (code review); WEAR-RESEARCH (Codex review of the #87 research package), WEAR-00 program (Fable 5.1), WEAR-PLANS r1-r2 (Codex review of the wearables plan set).
+- `2026-10-14/` — DOSE-VAR diff (code review); ASSIST-UTC diff (code review); WEAR-PLANS r3 (Codex review after the owner answered WEAR-D1..D8); WEAR-PLANS D1D8 Opus review + Opus adversarial (Opus substituting for Codex per owner instruction 2026-10-14).
 - `2026-10-15/` — SCHED-OWNER diff (code review); build-program plan set (Codex).
 - `2026-10-16/` — E1a r1 (Codex).
 
@@ -97,8 +97,15 @@ Verdict is the reviewer's last `VERDICT:` line (plan reviews: PASS / REVISE; dif
 | 2026-10-12 | RL-EXPORT-EMPTY | diff | needs-attention | 2026-10-12 | [code review](2026-10-12/RL-EXPORT-EMPTY-diff-codereview.md) [response](2026-10-12/RL-EXPORT-EMPTY-diff-response.md) |
 | 2026-10-13 | SQLITE-MIX | diff | approve-with-nits | 2026-10-13 | [security review](2026-10-13/SQLITE-MIX-diff-secrev.md) [response](2026-10-13/SQLITE-MIX-diff-response.md) |
 | 2026-10-13 | UTC-SWEEP | diff | approve-with-nits | 2026-10-13 | [code review](2026-10-13/UTC-SWEEP-diff-codereview.md) [response](2026-10-13/UTC-SWEEP-diff-response.md) |
+| 2026-10-13 | WEAR-RESEARCH | review+adv | needs-attention | 2026-10-13 | [codex](2026-10-13/WEAR-RESEARCH-codex.md) [response](2026-10-13/WEAR-RESEARCH-response.md) |
+| 2026-10-13 | WEAR-00 program, Fable 5.1 review, not Codex | r1 | GO WITH AMENDMENTS | 2026-10-13 | [fable](2026-10-13/WEAR-00-program-fable.md) [response](2026-10-13/WEAR-00-program-fable-response.md) |
+| 2026-10-13 | WEAR-PLANS | r1 | needs-attention | 2026-10-13 | [codex](2026-10-13/WEAR-PLANS-r1-codex.md) [response](2026-10-13/WEAR-PLANS-r1-response.md) |
+| 2026-10-13 | WEAR-PLANS | r2 | needs-attention | 2026-10-13 | [codex](2026-10-13/WEAR-PLANS-r2-codex.md) [response](2026-10-13/WEAR-PLANS-r2-response.md) |
 | 2026-10-14 | DOSE-VAR | diff | approve | 2026-10-14 | [code review](2026-10-14/DOSE-VAR-diff-codereview.md) [response](2026-10-14/DOSE-VAR-diff-response.md) |
 | 2026-10-14 | ASSIST-UTC | diff | approve | 2026-10-14 | [code review](2026-10-14/ASSIST-UTC-diff-codereview.md) [response](2026-10-14/ASSIST-UTC-diff-response.md) |
+| 2026-10-14 | WEAR-PLANS | r3 | needs-attention | 2026-10-14 | [codex](2026-10-14/WEAR-PLANS-r3-codex.md) [response](2026-10-14/WEAR-PLANS-r3-response.md) |
+| 2026-10-14 | WEAR-PLANS D1D8, Opus review substituting for Codex (owner instruction 2026-10-14), not Codex | review | needs-attention | 2026-10-14 | [opus](2026-10-14/WEAR-PLANS-D1D8-opus-review.md) [response](2026-10-14/WEAR-PLANS-D1D8-opus-response.md) |
+| 2026-10-14 | WEAR-PLANS D1D8, Opus adversarial substituting for Codex (owner instruction 2026-10-14), not Codex | adv | needs-attention | 2026-10-14 | [opus](2026-10-14/WEAR-PLANS-D1D8-opus-adversarial.md) [response](2026-10-14/WEAR-PLANS-D1D8-opus-response.md) |
 | 2026-10-15 | SCHED-OWNER | diff | approve | 2026-10-15 | [code review](2026-10-15/SCHED-OWNER-diff-codereview.md) [response](2026-10-15/SCHED-OWNER-diff-response.md) |
 | 2026-10-15 | BUILD-PROGRAM | r1 | REVISE | 2026-10-15 | [codex](2026-10-15/build-program-codex.md) |
 | 2026-10-16 | E1a | r1 | REVISE | 2026-10-16 | [codex](2026-10-16/E1a-r1-codex.txt) [prompt](2026-10-16/E1a-r1-prompt.md) [response](2026-10-16/E1a-r1-response.md) |

@@ -18,7 +18,9 @@ user, so a patient-facing tool cannot rely on them (S,
 **Framing does not relax controls.** Per owner direction WEAR-OD1
 (2026-10-13), HealthCentral is an open-source, personal, research and
 educational tool for individuals curious about their own health and fitness
-records — not professional medical or legal advice and not a medical device.
+records — not professional medical or legal advice. Medical-device status is
+not settled by this framing; it stays with OD-8 / OM-7 / OM-8 (corrected after
+Codex review 2026-10-13, see [response](../../reviews/2026-10-13/WEAR-RESEARCH-response.md), finding C3).
 That framing is a disclaimer, not a waiver: every control in §3 and §4
 (provenance, strict redaction, `ProfileDbSession` isolation, audit, no
 thresholds or alerts, no medical advice, hostile-file guards) applies
@@ -47,7 +49,7 @@ unchanged. Scope is Apple and Garmin; Samsung rows below are reference only.
 | F5 | Motion-affected readings | Use device-computed resting HR only, not raw HR samples | Parser ignores `HeartRate` samples; only `RestingHeartRate` contributes |
 | F6 | Proprietary stress misread | Stress, Body Battery, SpO₂ not on the metric allowlist | Fixture with stress/SpO₂ records → skipped count, no rows |
 | F7 | LLM hallucination / causal claims | Section is template-rendered, no ModelRunner call; symptom notes printed beside, never joined to, metrics; banned-phrase screen ("caused", "due to", "indicates", "diagnos", "normal", "abnormal") | Render test asserts no ModelRunner call and no banned phrase; existing `interpret_safety` prohibited patterns still pass |
-| F8 | Unintended disclosure via exports | Section excluded unless metric `include_in_packet` and `patient_reviewed_at` set; strict redaction pass; `confirm=true` | HTTP test via `route_client`: unreviewed metrics absent; `source_name` "Jane's Apple Watch" redacted |
+| F8 | Unintended disclosure via exports | Section excluded unless metric `include_in_packet` and `patient_reviewed_at` set; strict redaction pass; `confirm=true` | HTTP test via `route_client`: unreviewed metrics absent; packet never contains `source_name` (e.g. "Jane's Apple Watch") — strict `name_context` (`modules/redaction.py:82-88`) needs a label and two name tokens, so it would not catch it; a closed device class is printed instead (corrected, finding ADV-2) |
 | F9 | Cross-profile leakage | `ProfileDbSession` only; no master-DB query; profile_id from session | HTTP test: profile B cannot list or packet profile A's rows (404/empty); grep guard that the new module imports no `get_db` |
 | F10 | Inaccessible source attachments | Packet table is real text (no chart-only content); chart has a data-table twin; WCAG 2.2 AA ([W3C](https://www.w3.org/TR/2023/REC-WCAG22-20231005/), V by URL) | vitest + axe on review screen; packet markdown has a table per metric |
 | F11 | Scope creep into diagnosis | Closed metric enum; no thresholds or alerts; banned-phrase screen; flag default-off | Test that the enum is exactly the MVP set; config test that `wearables_enabled` defaults False |
@@ -60,8 +62,10 @@ unchanged. Scope is Apple and Garmin; Samsung rows below are reference only.
 1. **Local-first holds.** No vendor API, no network; patient moves the file.
 2. **Redaction.** The packet path already applies strict redaction
    (`modules/export.py:637`). No change to `modules/redaction.py` is proposed.
-3. **Patient export.** A wearable CSV is the patient's own data (D3
-   full-fidelity exception) and must carry `schema_version`.
+3. **Patient export.** D3 exempts only `GET /export/csv` and `GET /export/json`
+   (CLAUDE.md: "no other export is exempt"). A new wearable export route is
+   **not** exempt and needs redaction unless the owner extends D3; any wearable
+   export must carry `schema_version` (corrected after Codex review 2026-10-13, see [response](../../reviews/2026-10-13/WEAR-RESEARCH-response.md), finding ADV-1).
 4. **HIPAA / FTC.** A consumer-only app is likely outside HIPAA (S, HHS
    summaries); the FTC Health Breach Notification Rule may apply to a
    multi-source health app (V rule page; 2024 amendment details S). Owner
