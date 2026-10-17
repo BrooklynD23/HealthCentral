@@ -224,6 +224,8 @@ Output style: follow ~/.claude/rules/common/subagent-output.md (i-have-adhd)
 
 **Whole queue:** [`.claude/workflows/build-program.js`](../../../.claude/workflows/build-program.js) loops waves until nothing is eligible: `build-wave` selects, each picked id runs `build-item` (the per-item sub-orchestrator: Opus Task 0, review and verify; Sonnet implements; Haiku explores and runs tests), a Haiku triage reads each result, and an Opus unblocker turns a Task 0 plan gap whose gates are already answered into a plan delta, then re-runs the item once (the ASSIST-AGENT-DATES / #119 pattern). Once per run, Haiku searches each "New rows (not yet planned)" bullet and one Opus planner writes their plan sections and queue rows in a single docs PR. Owner gates are never inferred: blocked items come back as `owner_questions`. `auto_merge` (default off) lets an Opus merger merge green, approved, non-ask-first PRs and run the post-merge batch, and only with a current owner row that authorises agent merges; with it off the run stops after one wave for the owner to merge. Args `{"max_waves": 4, "max": 12, "plan_new": true, "auto_merge": false}`.
 
+[`.claude/workflows/rsi-loop.js`](../../../.claude/workflows/rsi-loop.js) (RSI-4) mines the `.claude/logs/rsi/` failure logs and proposes at most 3 rule/replay/doc edits to the `asclexis-rsi` mod. Deterministic allow-list gate plus `claude plugin test`; survivors get a PR the owner merges (never agent-merged). Args `{since?, run_id?, dry_run?}`; run it standalone or as the last stage of `build-program`.
+
 One item only: run `build-item` with `{"id": "E-1"}`. Without the Workflow tool, L0 runs the same loop by hand with the L1/L2 tiers in [orchestration.md](../../agentic/orchestration.md) §1 and §3.
 
 ### 10.2 Codex CLI
