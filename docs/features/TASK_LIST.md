@@ -98,10 +98,10 @@ Work that cannot run in the agent environment. The dev box has no local model (n
 ### Needs the owner (no model required)
 
 - [ ] **OW-1 — Commit and push the owner-decisions rows** in worktree `hc-owner-rows` (the permission classifier blocked the agent's commit).
-- [ ] **OW-2 — Tailwind 4 screenshot review (#74, TW4-SHOTS).** Compare artifacts 11731333573 (before) and 11789723472 (after, run 38347403971); post the verdict on #74.
+- [x] **OW-2 — Tailwind 4 screenshot review (#74, TW4-SHOTS).** Compare artifacts 11731333573 (before) and 11789723472 (after, run 38347403971); post the verdict on #74.
 - [ ] **OW-3 — Write sealed set S5** for PARA-1-R3 (plan Q6); freeze judge prompt, parser and tier list first.
 - [ ] **OW-4 — G-C2 tool run.** Run the plan's Task C2.1 block per `audit/2026-09-25/waves/scaffold/G-C2.md:97`; a session reviews the diff.
-- [ ] **OW-5 — Merge queue.** #82 and #84 (whichever merges second needs a merge from main and a collected re-measure), #74 after OW-2, #72 after MM-1, then close #61 (PR61-CLOSE); #68 merges last.
+- [x] **OW-5 — Merge queue.** #82 and #84 (whichever merges second needs a merge from main and a collected re-measure), #74 after OW-2, #72 after MM-1, then close #61 (PR61-CLOSE); #68 merges last. *(Done 2026-10-17: #74 `fcc86d9`, #72 `cfc1e50`, #61 closed, #68 `3536cc6`.)*
 
 ### Wearables evidence gate (owner; no model required)
 
