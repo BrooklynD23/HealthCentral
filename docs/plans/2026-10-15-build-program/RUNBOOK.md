@@ -222,6 +222,8 @@ deferred and not-eligible lists.
 Output style: follow ~/.claude/rules/common/subagent-output.md (i-have-adhd)
 ```
 
+[`.claude/workflows/rsi-loop.js`](../../../.claude/workflows/rsi-loop.js) (RSI-4) mines the `.claude/logs/rsi/` failure logs and proposes at most 3 rule/replay/doc edits to the `asclexis-rsi` mod. Deterministic allow-list gate plus `claude plugin test`; survivors get a PR the owner merges (never agent-merged). Args `{since?, run_id?, dry_run?}`; run it standalone or as the last stage of `build-program`.
+
 One item only: run `build-item` with `{"id": "E-1"}`. Without the Workflow tool, L0 runs the same loop by hand with the L1/L2 tiers in [orchestration.md](../../agentic/orchestration.md) §1 and §3.
 
 ### 10.2 Codex CLI
