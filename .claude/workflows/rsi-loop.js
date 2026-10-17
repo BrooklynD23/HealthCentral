@@ -60,6 +60,20 @@ function gateDiff(paths) {
   }
   return { ok: violations.length === 0, violations }
 }
+// Additions only: deleting lines from the rule table or replay set would weaken a guard.
+// numstat rows are "<added>\t<deleted>\t<path>"; binary files show "-".
+function gateNumstat(text) {
+  const violations = []
+  const rows = String(text || '').split('\n').map((l) => l.trim()).filter(Boolean)
+  if (!rows.length) return { ok: false, violations: ['empty numstat'] }
+  for (const row of rows) {
+    const [add, del, ...rest] = row.split(/\s+/)
+    const p = rest.join(' ')
+    if (![`${MOD}/hooks/rules.ts`, `${MOD}/replay/cases.json`].includes(p)) continue
+    if (del === '-' || add === '-' || !/^\d+$/.test(del) || Number(del) > 0) violations.push(`${p}: ${del} deleted line(s); additions only`)
+  }
+  return { ok: violations.length === 0, violations }
+}
 const namesOf = (text) => String(text || '').split('\n').map((s) => s.trim()).filter(Boolean)
 
 // ---------------------------------------------------------------------------
@@ -118,10 +132,11 @@ const VALIDATE_SCHEMA = {
   type: 'object',
   properties: {
     diff_names: { type: 'string', description: 'verbatim stdout of: git diff --name-only origin/main...HEAD, run in the worktree' },
+    numstat: { type: 'string', description: 'verbatim stdout of: git diff --numstat origin/main...HEAD, run in the worktree' },
     validate_exit: { type: 'integer' }, validate_tail: { type: 'string' },
     test_exit: { type: 'integer' }, test_tail: { type: 'string' },
   },
-  required: ['diff_names', 'validate_exit', 'validate_tail', 'test_exit', 'test_tail'],
+  required: ['diff_names', 'numstat', 'validate_exit', 'validate_tail', 'test_exit', 'test_tail'],
 }
 const PUBLISH_SCHEMA = {
   type: 'object',
@@ -185,7 +200,7 @@ Rules:
 - You may edit ONLY: ${ALLOW.join(', ')}. Nothing else, ever. If the mod files do not exist at origin/main yet, stop (status=stopped, stop_reason).
 - Each new rule in rules.ts must follow the rule-table shape and ship with at least one positive and one negative ("pass") case in cases.json (ids unique). A recurring-failures.md row needs the evidence and a specific recheck, like the existing rows.
 - Never weaken an existing rule or case. Never touch tests, scripts/, .github/, thresholds or ask-first files.
-- Commit (\`feat(harness): rsi candidate ${id}: <what>\`, ending with a Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com> line). Do not push. \`.claude/*\` is git-ignored: use \`git add -f <explicit paths>\`, never \`git add -A\`.
+- Commit (\`feat(harness): rsi candidate ${id}: <what>\`, ending with a Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com> line). Do not push. \`.claude/*\` is git-ignored: use \`git add -f <explicit paths>\`, never \`git add -A\`.
 - Return diff_names / diff_stat as the verbatim stdout of \`git diff --name-only origin/main...HEAD\` and \`git diff --stat origin/main...HEAD\`, and worktree as \`pwd\`.
 ${STYLE}`,
       { label: `propose ${id}`, phase: 'Propose', model: 'sonnet', isolation: 'worktree', schema: PROPOSE_SCHEMA },
@@ -199,7 +214,7 @@ ${STYLE}`,
     if (!pre.ok) return { ...base, accepted: false, reason: `gate(diff): ${pre.violations.join('; ')}`, diff_stat: prop.diff_stat }
     const v = await agent(
       `In the worktree ${prop.worktree} (cd there; do not edit anything, do not commit):
-1. \`git diff --name-only origin/main...HEAD\` -> diff_names, verbatim.
+1. \`git diff --name-only origin/main...HEAD\` -> diff_names, verbatim. Also \`git diff --numstat origin/main...HEAD\` -> numstat, verbatim.
 2. \`claude plugin validate ${MOD}\` -> validate_exit and last 20 lines.
 3. \`claude plugin test ${MOD}\` (runs replay/cases.json) -> test_exit and last 30 lines.
 Report real exit codes. Do not retry or fix a failure.
@@ -209,6 +224,8 @@ ${STYLE}`,
     if (!v) return { ...base, accepted: false, reason: 'gate: validator agent failed', diff_stat: prop.diff_stat }
     const post = gateDiff(namesOf(v.diff_names))
     if (!post.ok) return { ...base, accepted: false, reason: `gate(diff, recheck): ${post.violations.join('; ')}`, diff_stat: prop.diff_stat }
+    const ns = gateNumstat(v.numstat)
+    if (!ns.ok) return { ...base, accepted: false, reason: `gate(numstat): ${ns.violations.join('; ')}`, diff_stat: prop.diff_stat }
     if (v.validate_exit !== 0) return { ...base, accepted: false, reason: `claude plugin validate exit ${v.validate_exit}`, diff_stat: prop.diff_stat, gate_output: v.validate_tail }
     if (v.test_exit !== 0) return { ...base, accepted: false, reason: `claude plugin test (replay) exit ${v.test_exit}`, diff_stat: prop.diff_stat, gate_output: v.test_tail }
     return { ...base, accepted: true, worktree: prop.worktree, branch: prop.branch || `rsi/${id}`, summary: prop.summary, diff_stat: prop.diff_stat, diff_names: v.diff_names, validate_tail: v.validate_tail, test_tail: v.test_tail }
@@ -232,7 +249,7 @@ const published = await agent(
   `Housekeeping for rsi-loop run ${RUN_ID}. Main checkout = ${mined.main_checkout}. Metadata only.
 1. Write this JSON (pretty-printed) to ${mined.main_checkout}/.claude/logs/rsi/summary-${RUN_ID}.json, adding after_failure_rate_by_tool = metrics.failure_rate_by_tool and before = metrics.previous_failure_rate_by_tool (the "after" is only a baseline until the next run measures the effect of any merged promotion):\n${JSON.stringify(summary)}
 2. Append ONE line per rejected candidate to ${mined.main_checkout}/.claude/logs/rsi/archive.jsonl ({id, reason, diff_stat, run_id:"${RUN_ID}"}); these files are local and git-ignored. Rejected: ${JSON.stringify(rejected)}
-3. ${DRY_RUN || !accepted.length ? 'Create NO pull requests (' + (DRY_RUN ? 'dry_run=true' : 'no survivors') + '). prs=[].' : `For each survivor below: in its worktree \`git push -u origin <branch>\` (never force) and open a READY PR with \`gh pr create\` titled \`rsi: <summary> (RSI-4)\`. Body: the reflection (went wrong + smallest change), the gate output (diff names, validate tail, replay-test tail), the diff stat, then "Owner merges (RSI promotion; never agent-merged)." and the line "🤖 Generated with [Claude Code](https://claude.com/claude-code)". Do NOT merge, do not enable auto-merge. Survivors:\n${JSON.stringify(accepted)}`}
+3. ${DRY_RUN || !accepted.length ? 'Create NO pull requests (' + (DRY_RUN ? 'dry_run=true' : 'no survivors') + '). prs=[].' : `For each survivor below: in its worktree \`git push -u origin <branch>\` (never force) and open a READY PR with \`gh pr create\` titled \`rsi: <summary> (RSI-4)\`. Body: the reflection (went wrong + smallest change), the gate output (diff names, validate tail, replay-test tail), the diff stat, then "CI on this PR is the second half of the gate (replay set + CI): the owner merges only on green. Owner merges (RSI promotion; never agent-merged)." and the line "🤖 Generated with [Claude Code](https://claude.com/claude-code)". Do NOT merge, do not enable auto-merge. Survivors:\n${JSON.stringify(accepted)}`}
 Return PR urls, the summary path, archive path and number archived.
 ${STYLE}`,
   { label: 'publish + archive', phase: 'Publish', model: 'sonnet', schema: PUBLISH_SCHEMA },
