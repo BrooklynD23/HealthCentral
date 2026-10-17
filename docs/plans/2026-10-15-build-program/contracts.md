@@ -1,6 +1,6 @@
 # Build Program 2026-10-15 — Cross-Lane Contracts
 
-**Last Updated:** 2026-10-15
+**Last Updated:** 2026-10-17 (I-23 E-3a ruff pin)
 **Owner:** repository owner
 **Status:** PROPOSED (L0 contracts reconciler). Binding on lanes A–F once the owner or L0 adopts this build program. **No owner approval is recorded here.** Every gate named below keeps the state it has in [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md). Rulings marked **OWNER** need an owner answer; the rest are L0 rulings.
 **Refresh Trigger:** any merge of #95, #97, #99, #82, #84, #74, #72, #94 or #68; any lane-doc edit; a merge of any item named in §a; a new file under `src/backend/migrations/*/versions/`; an owner answer to a gate in §e.
@@ -40,6 +40,7 @@ A consumer codes against the signature in this table, never against a lane doc's
 | I-20 | C-GC1 | `models.export_artifact.ExportArtifact(id, kind, profile_id, payload_json, created_at)`; `EXPORT_ARTIFACT_KINDS`; `api.export._save_artifact` / `_load_artifact` (keyword-only) | WEAR export paths (#94) | `be/tests/test_export_artifact_persistence.py` |
 | I-21 | lane F | Variant-I evidence: W-2 HC-EXPR-003 and W-3 HC-VER-002 call `route_client` inside their own test body; the merged PR body pastes red-first output per new test id and ≥ 1 break-it run. Otherwise `data-privacy.md` stays U | E-1, W-3 PR bodies → F-6 | F-6 reviewer check |
 | I-22 | lane F | F-trigger commands F1–F5 (lane F §3 item 3); all return 0 hits on `3b2236c` | each provider runs its trigger after merge and tells lane F | the grep itself |
+| I-23 | E-3a | Ruff **0.17.1**; `src/backend/pyproject.toml` `[tool.ruff.lint] select = ["F", "I", "W"]` unchanged. After E-3a, `ruff check .` in `src/backend` reports findings **only** in the 16 excluded files of lane E §2.3a (52 at `8d72047`) | E-3 Task 7 (CI pin and ruleset; how the gate treats the residual files waits on Q-RUFF-RESIDUAL, lane E §6) | `ruff check . --no-cache` output in the E-3a PR body (no pytest pin) |
 
 ---
 

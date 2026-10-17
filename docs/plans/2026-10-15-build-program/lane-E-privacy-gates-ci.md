@@ -1,6 +1,6 @@
 # Lane E — Privacy, Gates, CI — Build Design
 
-**Last Updated:** 2026-10-15
+**Last Updated:** 2026-10-17 (E-3a plan delta §2.3a, L0 after PR #130 Task 0 stop)
 **Owner:** repository owner
 **Status:** DESIGN — nothing here is implemented. Owner answers are quoted from [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md); this file records no new approval. Every "default" or "recommended" is the lane designer's, not the owner's.
 **Refresh Trigger:** any merge of #74, #72, #84 or a P6/P7 PR; an owner answer to S-3, S-6, OG-1, Q-AUD-LIST, Q-RUFF, Q-COV, CI-SEED, NPM-AUDIT-CI or W1-SMOKE-RUN; any commit to `.github/workflows/ci.yml`, `src/backend/api/export.py`, `src/backend/modules/export.py`, `src/backend/modules/redaction.py`, `src/backend/api/profiles.py`, `src/backend/core/auth.py`, `src/backend/core/denial_audit.py` or `src/backend/tests/support/routes.py`.
@@ -19,6 +19,7 @@
 | E-1 | W-2 doctor-summary strict redaction (D3) | [W02 plan](../2026-09-27-W02-doctor-summary-redaction.md); program `:435` | yes → delta §2.1 | P0-B2, P1, P4, W-10, P5, D9: all done | ready to execute; **merge** blocked on S-3 + S-6 |
 | E-2 | W-11a PR-1: HTTP guard tests on profile routes (+ OG-1 audit rows) | [W11a plan](../2026-09-27-W11a-test-and-gate-hardening.md) Tasks 1–2; program `:442` | yes → delta §2.2 | P7 (→ P6), not on main | blocked-on-item |
 | E-3 | W-11a PR-3: migration-head test, CI eslint + build, ruff, coverage report | W11a plan Tasks 4–10; program `:444` | yes → delta §2.3 | P4, P5 done; W-4 dependency dropped (§2.3) | ready (Task 7 only after Q-RUFF) |
+| E-3a | Repo-wide ruff cleanup before E-3 Task 7 (Q-RUFF) | owner-decisions Q-RUFF (`:178`); W11a plan Task 7 option (b) (`:1587`), Q-RUFF option (b) (`:1949`); queue E-3a row | yes → §2.3a | — (runs alone) | ready |
 | E-4 | Tailwind 4 landing (#74) | #74 body; [TW4 brief](../../../audit/2026-09-25/waves/briefs/TAILWIND-4-L1-brief.md); owner rows `:64-73,:108-111,:138-140` | yes (brief + PR) → landing steps §2.4 | E-3 (recommended first), owner TW4-SHOTS | blocked-on-owner |
 | E-5 | NPM-AUDIT-DRIFT: the 7 remaining advisories | program `:493` (closed row; "the remaining 7 need Tailwind 4"), `:427` | no (closed row) → §2.5 | E-4 merged | blocked-on-PR |
 | E-6 | W1-SMOKE: owner `/agents` runtime smoke | program `:487`; [W01 plan](../2026-09-27-W01-harness-agents-branch-a.md) Task 7 | yes → §2.6 | — | blocked-on-owner |
@@ -93,6 +94,80 @@ Graph: `E-3 → E-4 → E-5`; `P6 → P7 → E-2`; E-1, E-6, E-7 independent. E-
 
 **Order inside the lane:** land E-3 before E-4 if #74 is still waiting on TW4-SHOTS, so #74's final refresh is the first Tailwind 4 head built and linted in Linux CI (#74 body: "CI has no build step: the Windows build is the only build evidence").
 
+### 2.3a E-3a — ruff cleanup (Q-RUFF), plan delta 2026-10-17
+
+**Why this section exists:** PR #130 Task 0 stopped (check 1: no plan; plus three open points: ruleset, ruff version, unsafe fixes). This section is the plan. Measured on `chore/e-3a-ruff-cleanup` @ `8d72047` (= `origin/main` `5f46752` + claim), `~/venvs/asclexis-311/bin/ruff` **0.17.1**, `cd src/backend`.
+
+**Ruleset (what the owner signed).** Q-RUFF (`owner-decisions:178`) answered **"Full default ruleset"**, consequence "needs a cleanup PR first, which touches many files". The only options the owner was shown are the W11a plan's: (a) hard errors `E9,F63,F7,F82`; (b) "a separate cleanup of all 561 findings first" (`2026-09-27-W11a-test-and-gate-hardening.md:1949`), and 561 is the **configured** set in `src/backend/pyproject.toml` (`select = ["F", "I", "W"]`, W11a `:210`). So the signed scope is **the configured F/I/W set**: 578 findings on 0.17.1. Ruff's built-in default (1873 findings, 52 codes incl. `UP045`, `B008`, `BLE001`) was never offered, and fixing it would exceed what was signed. It is out of scope. If the owner meant it, a follow-up item covers the extra rules; this cleanup does not conflict, because the built-in set also contains `F` and `I`. No `pyproject.toml` / `ruff.toml` change: the rule list stays as it is.
+
+**Ruff version:** pin **0.17.1**. That is the version installed on the box (`importlib.metadata.version("ruff")` → `0.17.1` in `~/venvs/asclexis-311`); 0.15.10 is no longer installed. Every count below and every acceptance command uses this binary. E-3 Task 7 must pin the same version in CI (contracts I-23).
+
+**Path scope:** every `*.py` under `src/backend/`, including `src/backend/scripts/`, minus the excluded files below. Repo-root `scripts/` is **out of scope**: it has no ruff config, and under F/I/W it has 1 finding (`scripts/docs_lint.py` I001), which the owner's set does not cover. The queue row's "`scripts/`" means `src/backend/scripts/`.
+
+**Excluded files: never edited, findings listed for the owner (52 findings, 16 files).** These are the CLAUDE.md §1 ask-first modules, plus every file with auth or encryption logic (CLAUDE.md §1: "anything auth/encryption"). The second group was found by grepping the files that have findings for key derivation, sealing, Fernet/AES, `PRAGMA key`, password hashing and token creation:
+
+| File | Findings | Why excluded |
+|---|---|---|
+| `modules/interpret_safety.py` | 2 (I001, F541) | ask-first |
+| `modules/redaction.py` | 2 (I001, F401) | ask-first |
+| `modules/faithfulness.py` | 2 (I001, F841) | ask-first |
+| `modules/verifier_agent.py` | 1 (I001) | ask-first |
+| `core/auth.py` | 3 (I001, F401, F841) | auth |
+| `core/security.py` | 10 (8 W293, I001, F401 `win32crypt` availability probe) | encryption |
+| `core/profile_database.py` | 12 (10 F401, 2 I001) | SQLCipher; `:410-416` F401s are **side-effect model registrations** (`models.document` … `models.model_settings`), so removing them would break the profile schema |
+| `security/__init__.py` | 1 (I001) | security package |
+| `core/database.py` | 1 (W293) | SQLCipher engine |
+| `core/migrations.py` | 1 (F401) | `PRAGMA key` |
+| `migrations/profile/env.py` | 1 (I001) | `PRAGMA key` |
+| `api/profiles.py` | 3 (I001, 2 F401 of `core.auth` names) | login, unlock, recovery, change-password routes |
+| `api/model_settings.py` | 7 (4 F401, 3 I001) | Fernet-encrypts API keys (`:749-750`) |
+| `core/external_runner.py` | 3 (I001) | decrypts the API key; D12 redaction path |
+| `modules/ingest.py` | 1 (I001) | document encrypt/decrypt (`:190`, `:226`) |
+| `scripts/migrate.py` | 2 (I001, F401) | unseals the encryption key (`:37`, `:82`) |
+
+**In scope: 526 findings in 174 files (92 product, 82 test).** By rule and fix safety: I001 235 (safe), F401 131 (safe), W293 116 (safe) + 14 (unsafe), F841 2 (safe) + 15 (unsafe), F811 7 (no auto-fix), F541 6 (safe).
+
+**Unsafe-fix policy: `--unsafe-fixes` is never run on the tree.** Auto-fix uses ruff's safe fixes only, rule by rule, with the excluded files passed to `--extend-exclude`. Each remaining finding is handled by hand:
+
+1. **W293 unsafe (14):** all 14 are inside docstrings (`modules/analytics.py:64,82,85,163,207,243`, `modules/export.py:74,94,279,323`, `modules/extract.py:68`, `modules/normalize.py:135,259,262`). Before fixing, confirm each one is a docstring, not a prompt, SQL or expected-output literal. Then run `--unsafe-fixes --select W293` on those four files only. The W293 commit must be whitespace-only: `git diff -w HEAD~1 HEAD` is empty.
+2. **F401 (131, all ruff-safe):** an unused import can still matter, either as a side effect (model registration, as in `core/profile_database.py`) or as a re-export. Before the fix, run the AST scan below. It lists every `from X import name` in the repo where `X.name` is a flagged unused import, plus a `git grep` for the dotted `X.name` (`mock.patch` strings). On `8d72047` it finds **0 hits**, and none of the 131 sits in an `__init__.py`, a `conftest.py`, a `try/except ImportError` block, or a `models`/`migrations` registration. If main moved and the scan finds a hit, keep that import with `# noqa: F401  # re-exported by <file>`. Never delete it.
+3. **F841 (17), by hand, never via `--unsafe-fixes`.** Drop the binding and **keep any call on the right-hand side**: `result = await self._notification_service.send(payload)` → `await …send(payload)` (`modules/notification_scheduler.py:599`); `list_parser = subparsers.add_parser(...)` → the bare call (`scripts/model_manager.py:246`); `except Exception as e` → `except Exception` (`api/assistant.py:1017`, `modules/embeddings.py:66`). Pure dead locals are deleted: `modules/notification_scheduler.py:470` `window_start_minutes`, `modules/agent/tools/retrieve_chunks.py:98` `query_lower`. Both of those are listed in the PR body as **possible latent bugs**: a value was computed and never used. Behaviour stays unchanged, and the cleanup does not fix them. The 11 test F841s (`tests/agent/test_s2_loop.py:125`, `tests/security/test_input_validator.py:178`, `tests/security/test_security_remediation.py:346`, `tests/test_chat_sessions.py:498,540,570`, `tests/test_llm_provider_layer.py:489`, `tests/test_rag_category_filter.py:201,227`, `tests/test_rl_feedback.py:226,680`) get the same treatment: keep the call, drop the name, **add no assertion** (an assertion changes what the test proves). Each one goes in the PR body as "possible missing assertion".
+4. **F811 (7):** the pytest fixture-import pattern. `from tests.test_medications_routes_http import ..., profile_db  # noqa: F401`, and then `profile_db` used as a test parameter (`tests/test_adherence_patterns_tz_http.py:46,64,81,93,106,113`, `tests/test_notification_routes_http.py:18`). Removing the import breaks fixture lookup. Fix: add `# noqa: F811` on each of the 7 parameter lines. Do not change `per-file-ignores`.
+
+**Commits** (one rule family each, so each diff can be reviewed by its own check):
+
+| # | Message | Command (cwd `src/backend`, `R=~/venvs/asclexis-311/bin/ruff`, `X=<the 16 excluded paths, comma-joined>`) | Commit check |
+|---|---|---|---|
+| 1 | `chore(lint): strip whitespace-only blank lines (ruff W293)` | `$R check . --no-cache --fix --select W293 --extend-exclude "$X"`, then the 4-file `--unsafe-fixes` run (policy 1) | `git diff -w HEAD~1 HEAD` empty |
+| 2 | `chore(lint): sort imports and drop placeholder-less f-strings (ruff I001, F541)` | `$R check . --no-cache --fix --select I001,F541 --extend-exclude "$X"` | `$R check . --select I001,F541 --extend-exclude "$X"` passes |
+| 3 | `chore(lint): remove unused imports (ruff F401)` | AST scan (below) = 0 hits, then `$R check . --no-cache --fix --select F401 --extend-exclude "$X"` | `python -c "import main"` exit 0 |
+| 4 | `chore(lint): unused locals and fixture-import redefinitions (ruff F841, F811)` | by hand, policies 3–4 | `$R check . --select F841,F811 --extend-exclude "$X"` passes |
+
+`X` literally: `modules/interpret_safety.py,modules/redaction.py,modules/faithfulness.py,modules/verifier_agent.py,core/auth.py,core/security.py,core/profile_database.py,security/__init__.py,core/database.py,core/migrations.py,migrations/profile/env.py,api/profiles.py,api/model_settings.py,core/external_runner.py,modules/ingest.py,scripts/migrate.py`. Check: `$R check . --no-cache --extend-exclude "$X" --statistics` → `Found 526 errors.` on `8d72047`.
+
+AST re-export scan (run in commit 3, from the worktree root; `f401.json` = `$R check . --no-cache --select F401 --output-format json` in `src/backend`): for each finding, map the file to its dotted module and the import to its last name. Then `ast.walk` every `git ls-files '*.py'` and print any `ImportFrom` where `module == <that module>` and an alias name matches, plus `git grep -nE '<module>\.<name>\b'`. Paste the output (expected: none) into the PR body.
+
+**Tests:** **no new test ids.** The cleanup is behaviour-neutral, and its RED/GREEN check is the ruff command itself (RED today: 526 in-scope findings). CI gating is E-3 Task 7's job, not a pytest. **Expected collected delta: 0.** A non-zero delta means the cleanup has deleted or shadowed a test (an F811/F401 fixture slip), so stop and fix it.
+
+**Acceptance** (paste each command and its output into the PR body):
+
+1. `$R --version` → `ruff 0.17.1`; `$R check . --no-cache --output-format concise` → every finding path is in the excluded table, and the count equals the excluded findings re-measured at the final merge of main (52 at `8d72047`). In-scope findings: 0.
+2. `$R check . --no-cache --select E9,F63,F7,F82` → `All checks passed!`.
+3. `git diff --name-only origin/main...HEAD` lists only `src/backend/**/*.py` files and no excluded file (`grep -xFf` against the excluded list is empty). No `pyproject.toml`, `ruff.toml`, `requirements*.txt` or non-Python file.
+4. Collected count through `scripts/pyslot.sh … --collect-only -q` equals the Task 0 start count (1721 at Task 0, `issuecomment-6243032805`; re-measure after merging main).
+5. The full backend suite has the **same failure set** as the start tree: run it once at Task 0 and once at the end. Only the environmental `test_api_rag_index_002b` may fail, and only if it also fails at the start.
+6. `python -m compileall -q src/backend` exit 0, and `cd src/backend && python -c "import main"` exit 0 (catches a removed import that some code path still needs at import time).
+7. `git diff origin/main...HEAD -- src/backend/migrations` contains only I001 reorderings (the Alembic chains are unchanged; `migrations/profile/env.py` is excluded).
+8. CI green on all jobs, including `agent-evals` (golden set unchanged).
+
+**What these checks would not notice:** an import used only through `importlib`/`getattr` with a computed name. The AST scan and the grep cover literal names. The suite and `import main` cover the import graph. A computed-name use is not covered; the PR body says so.
+
+**PR body also lists:** the 52 residual findings by file (the table above, re-measured), the 2 possible latent bugs, and the 11 possible missing assertions.
+
+**Runs alone** (queue): no other code item runs at the same time, because the diff touches 174 files. Before pushing, merge `origin/main` and re-run acceptance 1–4. If main moved, re-run the cleanup commands rather than resolving lint conflicts by hand.
+
+**Consequence for E-3 Task 7 (not this item):** under Q-RUFF, Task 7 gates on the configured F/I/W set with ruff 0.17.1, not on `E9,F63,F7,F82` with 0.15.10 (§3 item 2 predates the answer). The 52 residual findings in excluded files would fail that gate. Task 7 therefore waits on owner question **Q-RUFF-RESIDUAL** (§6).
+
 ### 2.4 E-4 — Tailwind 4 (#74) landing steps
 
 State: draft, head `9a87785`, CI 6/6 green at that head, `mergeable: CONFLICTING`. `git merge-tree --write-tree origin/main origin/feat/tailwind4` → one conflict, `docs/INDEX.md` (generated).
@@ -166,7 +241,7 @@ Source: program `:487`. W-1 Task 7 Steps 2–5 are a manual runtime smoke. The o
 | O-2 | E-1 Task 3 | **signed** 2026-10-08: "ISO-8601 dates" |
 | OG-1 (edit `api/profiles.py`, auth-adjacent) + Q-AUD-LIST | E-2 Task 2 | **unsigned**. RESET-AUDIT-OWNER (`:89`) assigns the reset audit to PR-1 but is not OG-1 |
 | `core/auth.py`, `core/audit.py` | E-2, E-3 | not edited by any lane-E item |
-| Q-RUFF | E-3 Task 7 | **unsigned**; recommended (a) hard-error rules only (0 findings today) |
+| Q-RUFF | E-3a, E-3 Task 7 | **answered** 2026-10-15 "Full default ruleset" = cleanup first (option (b)); read as the configured F/I/W set (§2.3a). E-3a ready; Task 7 also waits on Q-RUFF-RESIDUAL |
 | Q-COV | E-3 | unsigned; only a threshold needs it; report-only proceeds |
 | CI-SEED (W-11a OG-3) | E-3 Task 8 Step 4 | unsigned; W4-CI-SEED (`:106`) does not cover it |
 | TW4-SHOTS + #74 merge | E-4 | owner compares screenshots (`:140`); owner merges |
@@ -180,6 +255,7 @@ Source: program `:487`. W-1 Task 7 Steps 2–5 are a manual runtime smoke. The o
 3. **Q-E3 (GATE-12):** #78 made every cross-profile 403 on a `require_profile_access` route write through `core.database.async_session_maker`. A route test that forgets the patch writes to `src/backend/data/asclexis.db` if it exists. A conftest-level autouse patch would close this for all tests, but `tests/conftest.py` is read-only for W-11a (plan §1). Register as a GATE-12 follow-up?
 4. **Q-E4 (E-5):** if `npm audit` on merged main is still > 0, does each remaining advisory need its own owner row (FE-SEQ reading), or one row for the batch?
 5. **Q-E5 (E-6):** may an L1 in a fresh Claude Code session inside the smoke worktree run W-1 Task 7 instead of the owner (W1-SMOKE-RUN)?
+6. **Q-RUFF-RESIDUAL (E-3 Task 7, after E-3a):** after E-3a, 52 F/I/W findings remain in 16 ask-first, auth or encryption files (§2.3a table). Should the CI ruff gate (i) exclude those 16 files until a per-file approved cleanup, (ii) wait for that cleanup, or (iii) gate on hard errors (`E9,F63,F7,F82`) and keep F/I/W advisory? Asked by L0. It does not block E-3a.
 
 ## 7. Peer review (2026-10-15)
 

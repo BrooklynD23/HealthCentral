@@ -1280,7 +1280,7 @@ Links to: `audit/2026-09-25/waves/scaffold/G-C2.md`, `audit/2026-09-25/waves/sca
 
 Rules: contracts.md §b (shared files), §c (migrations), §d (count slots). Path shorthand: `be/` = `src/backend/`, `fe/` = `src/frontend/src/`; "slots" = the `CLAUDE.md` / `AGENT.md` collected-count…
 
-Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`, `docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md`, `docs/plans/2026-10-17-rsi-track2-eval-harness-plan.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`
+Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`, `docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md`, `docs/plans/2026-10-17-rsi-track2-eval-harness-plan.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`
 
 ## `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`
 
