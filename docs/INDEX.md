@@ -1556,6 +1556,46 @@ Links to: `AGENT.md`, `docs/research/2026-10-12/00-README.md`, `docs/research/20
 
 Links to: `docs/research/2026-10-12/00-README.md`, `docs/research/2026-10-12/03-architecture-contracts.md`, `docs/research/2026-10-12/04-safety-privacy.md`
 
+## `docs/research/2026-10-17-rsi-opt-in-data/00-README.md`
+
+**RSI with opt-in user data: research package (2026-10-17)**
+
+That gives three uses of one opt-in dataset:
+
+Links to: `CLAUDE.md`, `docs/research/2026-10-17-rsi-opt-in-data/01-rsi-self-improving-agents.md`, `docs/research/2026-10-17-rsi-opt-in-data/02-private-synthetic-health-data.md`, `docs/research/2026-10-17-rsi-opt-in-data/03-small-model-citation-finetuning.md`, `docs/research/2026-10-17-rsi-opt-in-data/04-rsi-harness-engineering.md`
+
+## `docs/research/2026-10-17-rsi-opt-in-data/01-rsi-self-improving-agents.md`
+
+**01: Recursive self-improvement for LLM agents (2026-10-17)**
+
+Haiku 5.5 web sweep, 2026-10-17. Markers: **[V]** fetched, **[S]** search snippet only, **[U]** unverified. Synthesis: 00-README.md.
+
+Links to: `docs/research/2026-10-17-rsi-opt-in-data/00-README.md`
+
+## `docs/research/2026-10-17-rsi-opt-in-data/02-private-synthetic-health-data.md`
+
+**02: Opt-in health data to fine-tuning and synthetic seeds without PHI leakage (2026-10-17)**
+
+Haiku 5.5 web sweep, 2026-10-17. Markers: **[V]** fetched, **[S]** search snippet only, **[U]** unverified. Synthesis: 00-README.md.
+
+Links to: `docs/research/2026-10-17-rsi-opt-in-data/00-README.md`
+
+## `docs/research/2026-10-17-rsi-opt-in-data/03-small-model-citation-finetuning.md`
+
+**03: Small local models and citation-faithful medical QA (2026-10-17)**
+
+Haiku 5.5 web sweep, 2026-10-17. Markers: **[V]** fetched, **[S]** search snippet only, **[U]** unverified. Synthesis: 00-README.md.
+
+Links to: `docs/research/2026-10-17-rsi-opt-in-data/00-README.md`
+
+## `docs/research/2026-10-17-rsi-opt-in-data/04-rsi-harness-engineering.md`
+
+**04: RSI-enabled harness engineering (2026-10-17)**
+
+Haiku 5.5 web sweep, 2026-10-17. Markers: **[V]** fetched, **[S]** search snippet only, **[U]** unverified. Synthesis: 00-README.md. Relevance letters: **S** = the session-log hook (#68), **G** =…
+
+Links to: `docs/research/2026-10-17-rsi-opt-in-data/00-README.md`, `docs/research/2026-10-17-rsi-opt-in-data/01-rsi-self-improving-agents.md`
+
 ## `docs/reviews/2026-09-25/DDI-r1-prompt.md`
 
 **(untitled)**
