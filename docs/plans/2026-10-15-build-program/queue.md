@@ -43,6 +43,18 @@ Totals: 51 items. 7 ready now (E-1, E-3, D-0, C-PMIG, E-7, F-3, and B-3 for the 
   - **AUDIT-MISSING-MED:** pre-existing missing audit calls at `api/medications.py:1105` and `api/notifications.py:416` (D-1 follow-up; CLAUDE.md audit-logging invariant).
   - **EXPORT-TODAY-TZ:** `modules/export.py:454` dates the doctor summary with the UTC `today`.
 
+**Status 2026-10-16 (third batch)** (owner rows MM1-RERUN, MERGE-72; TASK_LIST MM-1, MM-3, MM-4):
+- **Merged:** W-4 legacy abstain (#72, `cfc1e50`) after MM-1. #61 closed, branch kept (PR61-CLOSE). Collected 1690 on `cfc1e50` (MM-3: `1690 passed` with a real embedding model).
+- **Model host:** the owner's RTX 3080 WSL box now runs Ollama 0.40.5 with `gemma4:e4b`, `llama3.1:8b`, `qwen3:8b`, `gemma3:12b` (MM-HOST). Needs-model-machine items (B-7, B-4, B-9) can run there; MM-2 stays blocked on OW-3.
+- **New rows (not yet planned):**
+  - **LEGACY-CITE-PROMPT** (owner yes, MERGE-72): tighten `RAGModule.SYSTEM_PROMPT` (`be/modules/rag.py:125`): show a `[cite:N]` example on a REPORT FACTS line and forbid references outside the context. G-B5 stays unchanged. Acceptance: re-run the MM-1 script on the four local models and post the counts (MM-1: 15-20/20 abstained, 11-20/20 `Report facts section missing citations`).
+  - **CHAT-FACT-ROUTING:** the agent chat answers deterministically without the model. `Is my LDL cholesterol high?` / `Explain my cholesterol results.` abstain with LDL/HDL verified; open questions dump every fact with raw analyte ids and ISO timestamps (MM-4).
+  - **INTERP-RENDER:** the interpretation card shows raw `**` markdown and `[KB:uuid]` / `[INT:uuid]` markers, the gauge axis goes negative (`-29.7`), and the footer says `Model: template` after a 19.3 s Ollama call (MM-4).
+  - **INTERP-ADVICE-WORDING** (owner review; no-medical-advice invariant): template text `Lifestyle changes and possibly medication may help reduce this risk.` (MM-4).
+  - **LOCAL-HF-HUB** (local-first invariant): backend startup logs `You are sending unauthenticated requests to the HF Hub`; embeddings load without `HF_HUB_OFFLINE` (MM-4).
+  - **DEV-SH-CC:** `dev.sh` dies when `llama-cpp-python` cannot compile (no C compiler); its pip fallback only drops SQLCipher. Check for a compiler up front or skip it when `LLM_PROVIDER=ollama` (MM-4).
+  - **EXTRACT-FORMATS:** the text-PDF parser reads only `Analyte: value unit (range)` lines; a column-layout report gave `0 values extracted`; `mIU/L` is not in the unit list (MM-4).
+
 ---
 
 ## Wave 6 — start now
