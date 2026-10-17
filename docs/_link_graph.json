@@ -6,6 +6,9 @@
     ".claude/workflows/build-item.js": [
       "docs/plans/2026-10-15-build-program/RUNBOOK.md"
     ],
+    ".claude/workflows/build-program.js": [
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md"
+    ],
     ".claude/workflows/build-wave.js": [
       "docs/plans/2026-10-15-build-program/RUNBOOK.md"
     ],
@@ -25,6 +28,7 @@
       "docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md",
       "docs/plans/2026-09-27-W01-harness-agents-branch-a.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-17-session-handoff.md",
       "docs/research/2026-10-12/05-mvp-roadmap-tests.md",
       "CLAUDE.md"
     ],
@@ -42,7 +46,9 @@
       "docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md",
       "docs/plans/2026-09-27-W01-harness-agents-branch-a.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-17-session-handoff.md",
       "docs/research/2026-09-08/PLAN.md",
+      "docs/research/2026-10-17-rsi-opt-in-data/00-README.md",
       "AGENT.md"
     ],
     "CONTRIBUTING.md": [
@@ -557,6 +563,7 @@
       "docs/architecture/pipelines.md",
       "docs/capstone-report/README.md",
       "docs/capstone-report/implementation-program.md",
+      "docs/capstone-report/rsi-in-development-and-application.md",
       "docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md",
       "docs/plans/2026-09-27-P08-gated-packet-hipaa-aligned-amendment.md",
       "docs/plans/2026-09-27-S01-sql-echo-phi-leak.md",
@@ -590,7 +597,8 @@
       "docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md",
       "docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md",
       "docs/plans/2026-10-15-build-program/queue.md",
-      "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md"
+      "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md",
+      "docs/plans/2026-10-17-session-handoff.md"
     ],
     "docs/capstone-report/report-outline.md": [
       "docs/capstone-report/00-original-goal.md",
@@ -617,6 +625,9 @@
     "docs/capstone-report/research/README.md": [
       "docs/capstone-report/research/02-harness-techniques.md",
       "docs/capstone-report/research/03-rag-local-llm.md"
+    ],
+    "docs/capstone-report/rsi-in-development-and-application.md": [
+      "docs/capstone-report/README.md"
     ],
     "docs/capstone-report/specs-compliance-matrix.md": [
       "docs/capstone-report/00-original-goal.md",
@@ -1014,6 +1025,7 @@
       "docs/plans/2026-10-13-wearables-tickets.md"
     ],
     "docs/plans/2026-10-15-build-program/RUNBOOK.md": [
+      "docs/plans/2026-10-17-session-handoff.md",
       "docs/reviews/2026-10-15/build-program-codex.md"
     ],
     "docs/plans/2026-10-15-build-program/contracts.md": [
@@ -1209,6 +1221,25 @@
     "docs/research/2026-10-12/06-decisions-go-nogo.md": [
       "docs/research/2026-10-12/00-README.md",
       "docs/research/2026-10-12/05-mvp-roadmap-tests.md"
+    ],
+    "docs/research/2026-10-17-rsi-opt-in-data/00-README.md": [
+      "docs/research/2026-10-17-rsi-opt-in-data/01-rsi-self-improving-agents.md",
+      "docs/research/2026-10-17-rsi-opt-in-data/02-private-synthetic-health-data.md",
+      "docs/research/2026-10-17-rsi-opt-in-data/03-small-model-citation-finetuning.md",
+      "docs/research/2026-10-17-rsi-opt-in-data/04-rsi-harness-engineering.md"
+    ],
+    "docs/research/2026-10-17-rsi-opt-in-data/01-rsi-self-improving-agents.md": [
+      "docs/research/2026-10-17-rsi-opt-in-data/00-README.md",
+      "docs/research/2026-10-17-rsi-opt-in-data/04-rsi-harness-engineering.md"
+    ],
+    "docs/research/2026-10-17-rsi-opt-in-data/02-private-synthetic-health-data.md": [
+      "docs/research/2026-10-17-rsi-opt-in-data/00-README.md"
+    ],
+    "docs/research/2026-10-17-rsi-opt-in-data/03-small-model-citation-finetuning.md": [
+      "docs/research/2026-10-17-rsi-opt-in-data/00-README.md"
+    ],
+    "docs/research/2026-10-17-rsi-opt-in-data/04-rsi-harness-engineering.md": [
+      "docs/research/2026-10-17-rsi-opt-in-data/00-README.md"
     ],
     "docs/reviews/2026-09-25/DDI-diff-codex.txt": [
       "docs/reviews/README.md"
@@ -2479,6 +2510,7 @@
       "docs/capstone-report/specs-compliance-matrix.md",
       "docs/capstone-report/implementation-program.md",
       "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/capstone-report/rsi-in-development-and-application.md",
       "audit/2026-09-25/handoff-2026-09-27-execution.md",
       "docs/capstone-report/research",
       "audit/2026-09-25/review/2026-09-27-followup.md",
@@ -2605,6 +2637,9 @@
       "docs/capstone-report/research/03-rag-local-llm.md",
       "docs/capstone-report/research/04-papers-evals.md",
       "docs/capstone-report/README.md"
+    ],
+    "docs/capstone-report/rsi-in-development-and-application.md": [
+      "docs/capstone-report/owner-decisions-2026-09-27.md"
     ],
     "docs/capstone-report/specs-compliance-matrix.md": [
       "docs/capstone-report/architecture-engineering-contract.md",
@@ -3004,6 +3039,7 @@
       "docs/agentic/recurring-failures.md",
       ".claude/workflows/build-wave.js",
       ".claude/workflows/build-item.js",
+      ".claude/workflows/build-program.js",
       ".claude/workflows/rsi-loop.js"
     ],
     "docs/plans/2026-10-15-build-program/contracts.md": [
@@ -3085,6 +3121,12 @@
       "docs/plans/2026-10-15-build-program/queue.md",
       "docs/plans/2026-09-27-W02-doctor-summary-redaction.md",
       "docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md",
+      "docs/capstone-report/owner-decisions-2026-09-27.md"
+    ],
+    "docs/plans/2026-10-17-session-handoff.md": [
+      "CLAUDE.md",
+      "AGENT.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
       "docs/capstone-report/owner-decisions-2026-09-27.md"
     ],
     "docs/plans/implementation-log/README.md": [
@@ -3220,6 +3262,26 @@
       "docs/research/2026-10-12/00-README.md",
       "docs/research/2026-10-12/03-architecture-contracts.md",
       "docs/research/2026-10-12/04-safety-privacy.md"
+    ],
+    "docs/research/2026-10-17-rsi-opt-in-data/00-README.md": [
+      "CLAUDE.md",
+      "docs/research/2026-10-17-rsi-opt-in-data/01-rsi-self-improving-agents.md",
+      "docs/research/2026-10-17-rsi-opt-in-data/02-private-synthetic-health-data.md",
+      "docs/research/2026-10-17-rsi-opt-in-data/03-small-model-citation-finetuning.md",
+      "docs/research/2026-10-17-rsi-opt-in-data/04-rsi-harness-engineering.md"
+    ],
+    "docs/research/2026-10-17-rsi-opt-in-data/01-rsi-self-improving-agents.md": [
+      "docs/research/2026-10-17-rsi-opt-in-data/00-README.md"
+    ],
+    "docs/research/2026-10-17-rsi-opt-in-data/02-private-synthetic-health-data.md": [
+      "docs/research/2026-10-17-rsi-opt-in-data/00-README.md"
+    ],
+    "docs/research/2026-10-17-rsi-opt-in-data/03-small-model-citation-finetuning.md": [
+      "docs/research/2026-10-17-rsi-opt-in-data/00-README.md"
+    ],
+    "docs/research/2026-10-17-rsi-opt-in-data/04-rsi-harness-engineering.md": [
+      "docs/research/2026-10-17-rsi-opt-in-data/00-README.md",
+      "docs/research/2026-10-17-rsi-opt-in-data/01-rsi-self-improving-agents.md"
     ],
     "docs/reviews/2026-09-25/DDI-r1-response.md": [
       "docs/reviews/2026-09-25/DDI-r1-codex.txt"

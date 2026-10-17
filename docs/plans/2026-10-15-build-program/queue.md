@@ -43,6 +43,10 @@ Totals: 51 items. 7 ready now (E-1, E-3, D-0, C-PMIG, E-7, F-3, and B-3 for the 
   - **AUDIT-MISSING-MED:** pre-existing missing audit calls at `api/medications.py:1105` and `api/notifications.py:416` (D-1 follow-up; CLAUDE.md audit-logging invariant).
   - **EXPORT-TODAY-TZ:** `modules/export.py:454` dates the doctor summary with the UTC `today`.
 
+**Status 2026-10-17 (fourth batch)** (owner rows M0, AUTO-MERGE, PR68-SYNC; TASK_LIST OW-2, OW-5):
+- **Merged:** ASSIST-AGENT-DATES (#119, `d80a153`), post-merge batch (#120), wearables plans (#94, `87101f6`, = M0), Tailwind 4 (#74, `fcc86d9`, E-4 done), RSI-loop research + session-log hook (#68, `3536cc6`). Collected **1721** on `3536cc6`.
+- **F-10:** landing. #68 is merged; this batch writes the slots (1714 → 1721).
+
 **Status 2026-10-16 (third batch)** (owner rows MM1-RERUN, MERGE-72; TASK_LIST MM-1, MM-3, MM-4):
 - **Merged:** W-4 legacy abstain (#72, `cfc1e50`) after MM-1. #61 closed, branch kept (PR61-CLOSE). Collected 1690 on `cfc1e50` (MM-3: `1690 passed` with a real embedding model).
 - **Model host:** the owner's RTX 3080 WSL box now runs Ollama 0.40.5 with `gemma4:e4b`, `llama3.1:8b`, `qwen3:8b`, `gemma3:12b` (MM-HOST). Needs-model-machine items (B-7, B-4, B-9) can run there; MM-2 stays blocked on OW-3.
@@ -78,7 +82,7 @@ The B-3 Codex plan review (R-22) also runs in Wave 6. It is a review, not a code
 |---|---|---|---|---|---|---|---|---|---|
 | B-3 | B | PRODUCT (code) | Codex review of §B-3; rebases on #72, #95, W-3, W-8, G-C5, RAG-RUNTIME-500, B-2, B-6 as they land (parked draft, R-5) | PR3-TIER, PR3-S5N (the tasks they govern are skipped until answered, RUNBOOK §4 step 3); merge only after B-4 signed | — | `be/modules/agent/guardrails/advice_judge.py`, `be/modules/rag.py`, `be/api/assistant.py`, `be/api/interpretations.py`, `be/scripts/measure_prohibited_patterns.py`, `be/tests/test_advice_judge.py`, `be/tests/test_rag_pipeline.py`, `be/tests/test_safe_chat_prohibited.py`, `be/tests/test_safe_interp_grounded.py`, `be/tests/test_assist_utc_http.py` (after #95), `be/tests/legacy_eval/harness.py` (after #72), slots | 8 | claude | **ready** for the next free slot; draft until B-4 |
 | D-1 | D | PRODUCT (code) | #97, #99 (D-0) | — | — | `be/core/time.py` (append after `:27`), `be/api/medications.py`, `be/api/notifications.py`, `be/modules/notification_scheduler.py`, `be/modules/adherence_patterns.py`, `be/tests/test_time_source.py`, `be/tests/test_medications_routes_http.py`, `be/tests/test_notification_routes_http.py`, `be/tests/test_notification_scheduler_wiring.py`, slots | 4 | claude | blocked: #97, #99 not merged |
-| E-4 | E | PRODUCT (landing #74, no slot) | E-3 merged | TW4-SHOTS, #74 merge | — | `docs/INDEX.md`, `docs/_link_graph.json`, `.github/workflows/ci.yml`, `src/frontend/package.json`, `src/frontend/package-lock.json` | 3 | claude | blocked: E-3 (`ci.yml`), TW4-SHOTS |
+| E-4 | E | PRODUCT (landing #74, no slot) | E-3 merged | TW4-SHOTS, #74 merge | — | `docs/INDEX.md`, `docs/_link_graph.json`, `.github/workflows/ci.yml`, `src/frontend/package.json`, `src/frontend/package-lock.json` | 3 | claude | **done** 2026-10-17 (#74, `fcc86d9`, after TW4-SHOTS; moved no tests) |
 | F-1 | F | DOCS (no slot) | E-3 merged (`TASK_LIST.md`) | P4D-PIPELINES-127 (commit 2 only) | — | `docs/architecture/pipelines.md`, `docs/features/00_features_index.md`, `docs/features/04_self_improvement_loop.md`, `docs/features/TASK_LIST.md` (`:63` only) | 1 | any | blocked: E-3 running on `TASK_LIST.md` (commit 1 has no gate) |
 | F-2 | F | DOCS (no slot) | — | P4D-N10-WORDING | — | `skills/asclexis-guardrails/SKILL.md` | 0.5 | claude | blocked: owner P4D-N10-WORDING |
 | G-C5-PLAN | A | DOCS (no slot) | — | Q5b, GC5-PLAN, GC5-MODEL | plan covers `be/modules/verifier_agent.py` | `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md` (or a new plan file) | 3 | claude | blocked: owner Q5b, GC5-PLAN |
@@ -90,7 +94,7 @@ The B-3 Codex plan review (R-22) also runs in Wave 6. It is a review, not a code
 | D-2 | D | PRODUCT (code) | D-1 (#104 merged), #97, C-PMIG | Q1 answered 2026-10-16: re-learn automatically (lane D §D-2 rev 2) | — (no `core/auth.py` edit; re-learn runs in the existing scheduler pass) | `be/models/medication.py`, `be/migrations/profile/versions/NNN_adaptive_windows_local.py`, `be/modules/notification_scheduler.py`, `be/modules/adherence_patterns.py`, `be/api/medications.py`, `be/tests/test_notification_scheduler_wiring.py`, `be/tests/test_adherence_patterns_tz_http.py`, head literal (`be/tests/test_care_tasks.py`, `be/tests/test_profile_migrations_sqlcipher_fallback.py`, `be/tests/test_source_spans.py`, or `be/tests/support/migrations.py` after C-P6), slots | 7 | claude | ready |
 | D-3 | D | PRODUCT (code) | #84, D-1 | — | — | `be/api/gamification.py`, `be/tests/test_gamification_api.py`, slots | 1 | any | blocked: #84, D-1 |
 | E-5 | E | OWNER (measure, no slot) | E-4 | NPM-AUDIT-CI (default: do not add) | — | `docs/capstone-report/implementation-program.md` (own row) | 1 | any | blocked: E-4 |
-| F-11 | F | OWNER (`gh pr close 61`, no `--delete-branch`) | #72 merged | PR61-CLOSE answered | — | — | 0.1 | any | blocked: #72 (needs MM-1) |
+| F-11 | F | OWNER (`gh pr close 61`, no `--delete-branch`) | #72 merged | PR61-CLOSE answered | — | — | 0.1 | any | **done** 2026-10-16 (#61 closed, branch kept) |
 
 D-2 and D-3 share no file, so they may hold both slots.
 
@@ -159,7 +163,7 @@ C-GC1, E-2 and B-5 all edit `be/tests/test_audit_order_guard.py`, and C-GC1 and 
 |---|---|---|---|---|---|---|---|---|---|
 | F-5 | F | DOCS | F-1, F-3; one PR per trigger: F1 ← W-3, F2 ← E-1, F3 ← B-5, F4 ← #72, F5 ← W-8 (contracts I-22) | — | — | `docs/architecture/pipelines.md`, `docs/architecture/README.md`, `docs/architecture/backend.md`, `docs/architecture/ci-and-quality-gates.md` | 2.5 | any | blocked: each trigger returns 0 hits today |
 | F-6 | F | DOCS | E-1, W-3 merged with Variant-I PR bodies (I-21) | W10B-RC, W10B-SPLIT, W10B-D4-EXTRAS, S6 stop gate | — | `docs/compliance/data-privacy.md` | 1.5 | claude | blocked: E-1, W-3; owner W10B-* |
-| F-13 | F | DOCS | #94 merged, F-1 | — | — | `docs/features/TASK_LIST.md` (own `OW-W*` subsection + OM-1/OM-2/OW-W5 notes only) | 0.5 | any | blocked: #94 |
+| F-13 | F | DOCS | #94 merged, F-1 | — | — | `docs/features/TASK_LIST.md` (own `OW-W*` subsection + OM-1/OM-2/OW-W5 notes only) | 0.5 | any | blocked: F-1 (#94 merged `87101f6`) |
 | F-9 | F | DOCS + demo | F-10, W-8 (`claims-ledger.md`) | SHOW-DATE, SHOW-AUDIT, O-1…O-7 | — | `docs/plans/2026-09-27-senior-report-showcase-plan.md`, `docs/capstone-report/claims-ledger.md`, `CS4610_Report_Demo/README.md`, `docs/reviews/reviewer-log.tsv` | 8 | claude | blocked: F-10, W-8; owner SHOW-DATE, SHOW-AUDIT |
 
 ---
@@ -170,14 +174,14 @@ C-GC1, E-2 and B-5 all edit `be/tests/test_audit_order_guard.py`, and C-GC1 and 
 
 | id | lane | what | depends_on | gates | unblocks | runtime | status |
 |---|---|---|---|---|---|---|---|
-| B-7 (MM-1) | B | W-4 20-question real-model count on #72 | — | W4-20Q-HOST answered (owner runs it) | #72 merge → W-3, W-8, B-8, G-C5, F-11, F-5 F4, F-10 | any (model machine) | needs-model-machine |
+| B-7 (MM-1) | B | W-4 20-question real-model count on #72 | — | W4-20Q-HOST answered (owner runs it) | #72 merge → W-3, W-8, B-8, G-C5, F-11, F-5 F4, F-10 | any (model machine) | **done** 2026-10-16 (MM-1; #72 merged `cfc1e50`) |
 | B-4 (OW-3 → MM-2) | B | sealed set S5, judge measurement, owner signs numbers | B-3 PR head frozen as a draft | OW-3, sign-off on 2s / 90% / 5% / tier-2 | B-3 merge → B-5 → F-5 F3 | any (model machine) | blocked: B-3 draft; owner OW-3 |
 | B-9 (MM-3, MM-4) | B | full suite with an embedding model; real-app smoke | B-3 (MM-4 judge check); **not** F-13 (R-11) | — | evidence only | any (model machine) | needs-model-machine |
 | E-6 | E | W-1 `/agents` runtime smoke | F-10 only for the optional test edit | W1-SMOKE-RUN | `docs/agentic/harness.md` claim; optional `be/tests/test_claude_agent_definitions.py` fix | claude | blocked: owner W1-SMOKE-RUN |
 | F-4 | F | `docs/compliance/hipaa-controls.md:169` key-rotation row | — | P8-B2-ORDER | — | any | blocked: owner |
 | F-7 | F | G-C2 OpenWiki run + review (`openwiki/README.md`, `AGENT.md`, `docs/00_architecture_plans_index.md`, `docs/INDEX.md`, `docs/_link_graph.json`) | — | G-C2-DEFER in force; S-C2-1…3, GC2-CLAUDE-66, OW-4 | OpenWiki navigation | claude | blocked: owner |
 | F-8 | F | RTN nightly doc-drift routine (`docs/plans/2026-09-27-nightly-doc-drift-routine-spec.md`) | — | RTN §9 Q1–Q6 | routine creation | claude | blocked: owner |
-| F-12 | F | wearables (#94) consumer map; no code | #94 merged | M0, OW-W0, OW-W3, OW-W6…OW-W13, RESET-APPEND | all WEAR code waves | claude | blocked: owner M0, #94 merge |
+| F-12 | F | wearables (#94) consumer map; no code | #94 merged | M0, OW-W0, OW-W3, OW-W6…OW-W13, RESET-APPEND | all WEAR code waves | claude | blocked: OW-W0, OW-W3, OW-W6…OW-W13 (M0 = #94 merge, answered; #94 merged `87101f6`) |
 
 ### Owner questions, grouped for asking (at most 4 per prompt, orchestration §2 step 3)
 
