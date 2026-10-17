@@ -14,5 +14,5 @@ export default [
   {"id": "venv-husk-neg-summary", "rule": "venv-husk", "tool": "Bash", "input": {"command": "src/backend/.venv/bin/pytest -q tests/"}, "failed": false, "error_text": "12 passed in 1.2s", "expect": "pass"},
   {"id": "venv-husk-neg-good-venv", "rule": "venv-husk", "tool": "Bash", "input": {"command": "~/venvs/asclexis-311/bin/pytest -q"}, "failed": false, "error_text": "", "expect": "pass"},
   {"id": "llama-cpp-no-compiler-pos", "rule": "llama-cpp-no-compiler", "tool": "Bash", "input": {"command": "pip install llama-cpp-python"}, "error_text": "CMake Error: No CMAKE_C_COMPILER could be found.", "expect": "hint"},
-  {"id": "llama-cpp-no-compiler-neg", "rule": "llama-cpp-no-compiler", "tool": "Bash", "input": {"command": "pip install llama-cpp-python"}, "error_text": "ERROR: No matching distribution found", "expect": "pass"}
+  {"id": "llama-cpp-no-compiler-neg", "rule": "llama-cpp-no-compiler", "tool": "Bash", "input": {"command": "pip install llama-cpp-python"}, "error_text": "ERROR: No matching distribution found", "expect": "pass"},
 ]
