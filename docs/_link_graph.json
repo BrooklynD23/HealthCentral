@@ -554,6 +554,7 @@
       "docs/architecture/pipelines.md",
       "docs/capstone-report/README.md",
       "docs/capstone-report/implementation-program.md",
+      "docs/capstone-report/rsi-in-development-and-application.md",
       "docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md",
       "docs/plans/2026-09-27-P08-gated-packet-hipaa-aligned-amendment.md",
       "docs/plans/2026-09-27-S01-sql-echo-phi-leak.md",
@@ -614,6 +615,9 @@
     "docs/capstone-report/research/README.md": [
       "docs/capstone-report/research/02-harness-techniques.md",
       "docs/capstone-report/research/03-rag-local-llm.md"
+    ],
+    "docs/capstone-report/rsi-in-development-and-application.md": [
+      "docs/capstone-report/README.md"
     ],
     "docs/capstone-report/specs-compliance-matrix.md": [
       "docs/capstone-report/00-original-goal.md",
@@ -2476,6 +2480,7 @@
       "docs/capstone-report/specs-compliance-matrix.md",
       "docs/capstone-report/implementation-program.md",
       "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/capstone-report/rsi-in-development-and-application.md",
       "audit/2026-09-25/handoff-2026-09-27-execution.md",
       "docs/capstone-report/research",
       "audit/2026-09-25/review/2026-09-27-followup.md",
@@ -2602,6 +2607,9 @@
       "docs/capstone-report/research/03-rag-local-llm.md",
       "docs/capstone-report/research/04-papers-evals.md",
       "docs/capstone-report/README.md"
+    ],
+    "docs/capstone-report/rsi-in-development-and-application.md": [
+      "docs/capstone-report/owner-decisions-2026-09-27.md"
     ],
     "docs/capstone-report/specs-compliance-matrix.md": [
       "docs/capstone-report/architecture-engineering-contract.md",
