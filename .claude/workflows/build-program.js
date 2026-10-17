@@ -1,13 +1,14 @@
 export const meta = {
   name: 'build-program',
   description: 'Drive queue.md to done: waves of build-item sub-orchestrators, an Opus unblocker for plan gaps, an Opus planner for unplanned rows, optional owner-authorised merges',
-  whenToUse: 'L0 after merges or owner answers, to keep the queue moving without hand-starting each item. args {max_waves?: 4, max?: 12, plan_new?: true, auto_merge?: false}. auto_merge=true only with a current owner row that authorises agent merges.',
+  whenToUse: 'L0 after merges or owner answers, to keep the queue moving without hand-starting each item. args {max_waves?: 4, max?: 12, plan_new?: true, auto_merge?: false, rsi?: true, run_id?: string}. auto_merge=true only with a current owner row that authorises agent merges.',
   phases: [
     { title: 'Select', detail: 'build-wave picks the eligible, file-disjoint set' },
     { title: 'Build', detail: 'one build-item per id: haiku explore, opus Task 0, sonnet implement, haiku tests, opus review + verify' },
     { title: 'Unblock', detail: 'opus sub-orchestrator turns a Task 0 plan gap (gates answered) into a plan delta, then the item re-runs once', model: 'opus' },
     { title: 'Plan', detail: 'haiku search per unplanned row, then one opus planner writes plan sections + queue rows in one docs PR' },
     { title: 'Merge', detail: 'only with auto_merge: opus merges green, approved, non-ask-first PRs and runs the post-merge batch', model: 'opus' },
+    { title: 'RSI', detail: 'rsi-loop after every run (RSI-BUILD): mine, reflect, propose, gate, PR; its PRs are owner-merged' },
   ],
 }
 
@@ -22,6 +23,7 @@ const MAX_WAVES = Math.max(1, Math.min(8, (args && args.max_waves) || 4))
 const MAX = Math.max(1, Math.min(15, (args && args.max) || 12))
 const PLAN_NEW = !(args && args.plan_new === false)
 const AUTO_MERGE = !!(args && args.auto_merge)
+const RSI = !(args && args.rsi === false)
 
 const TRIAGE_SCHEMA = {
   type: 'object',
@@ -169,8 +171,18 @@ ${STYLE}`,
   if (!AUTO_MERGE) { log('auto_merge off: stopping after this wave; the owner merges, then re-run'); break }
 }
 
+// RSI-BUILD (owner 2026-10-17): rsi-loop runs as the last stage of every run. It never merges;
+// a failure here is reported and does not fail the build run.
+let rsi = null
+if (RSI) {
+  phase('RSI')
+  rsi = await workflow('rsi-loop', { run_id: (args && args.run_id) || 'build-program' })
+    .catch((e) => ({ error: `rsi-loop: ${e && e.message}` }))
+}
+
 return {
   report,
+  rsi,
   owner_questions: [...new Set(ownerQuestions)],
   next: AUTO_MERGE
     ? 'Answer owner_questions, then re-run build-program.'
