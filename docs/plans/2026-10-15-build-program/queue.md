@@ -1,6 +1,6 @@
 # Build Program 2026-10-15 — Execution Queue
 
-**Last Updated:** 2026-10-16 (D-2 rev 2: Q1 answered; E-1a spec and ordering)
+**Last Updated:** 2026-10-17 (RSI app track: RSI-T2-EVAL, LEGACY-CITE-PROMPT, RSI1-DONATE planned)
 **Owner:** repository owner
 **Status:** PROPOSED (L0 contracts reconciler). This is the single execution queue for lanes A–F. **No owner approval is recorded here**; every gate keeps its state in [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md).
 **Refresh Trigger:** any item below changing status; any merge of #95, #97, #99, #82, #84, #74, #72, #94 or #68; any owner answer to a gate listed here; any edit to [contracts.md](contracts.md).
@@ -51,7 +51,7 @@ Totals: 51 items. 7 ready now (E-1, E-3, D-0, C-PMIG, E-7, F-3, and B-3 for the 
 - **Merged:** W-4 legacy abstain (#72, `cfc1e50`) after MM-1. #61 closed, branch kept (PR61-CLOSE). Collected 1690 on `cfc1e50` (MM-3: `1690 passed` with a real embedding model).
 - **Model host:** the owner's RTX 3080 WSL box now runs Ollama 0.40.5 with `gemma4:e4b`, `llama3.1:8b`, `qwen3:8b`, `gemma3:12b` (MM-HOST). Needs-model-machine items (B-7, B-4, B-9) can run there; MM-2 stays blocked on OW-3.
 - **New rows (not yet planned):**
-  - **LEGACY-CITE-PROMPT** (owner yes, MERGE-72): tighten `RAGModule.SYSTEM_PROMPT` (`be/modules/rag.py:125`): show a `[cite:N]` example on a REPORT FACTS line and forbid references outside the context. G-B5 stays unchanged. Acceptance: re-run the MM-1 script on the four local models and post the counts (MM-1: 15-20/20 abstained, 11-20/20 `Report facts section missing citations`).
+  - **LEGACY-CITE-PROMPT** (owner yes, MERGE-72; approach RSI-3, 2026-10-17): now planned as constrained decoding with the gate unchanged. See the row in [RSI app track](#rsi-app-track-rsi-1-rsi-3-rsi-4) and its [plan](../2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md). (`SYSTEM_PROMPT` is now at `be/modules/rag.py:139`.)
   - **CHAT-FACT-ROUTING:** the agent chat answers deterministically without the model. `Is my LDL cholesterol high?` / `Explain my cholesterol results.` abstain with LDL/HDL verified; open questions dump every fact with raw analyte ids and ISO timestamps (MM-4).
   - **INTERP-RENDER:** the interpretation card shows raw `**` markdown and `[KB:uuid]` / `[INT:uuid]` markers, the gauge axis goes negative (`-29.7`), and the footer says `Model: template` after a 19.3 s Ollama call (MM-4).
   - **INTERP-ADVICE-WORDING** (owner review; no-medical-advice invariant): template text `Lifestyle changes and possibly medication may help reduce this risk.` (MM-4).
@@ -157,6 +157,16 @@ The second slot takes any Wave 9 leftover that shares no file with B-5 (so not R
 
 C-GC1, E-2 and B-5 all edit `be/tests/test_audit_order_guard.py`, and C-GC1 and E-2 also share `be/api/profiles.py`, so each gets its own wave (R-9). If B-5 is ready first, B-5 and C-GC1 swap waves; they still never run together.
 
+## RSI app track (RSI-1, RSI-3, RSI-4)
+
+Handoff 2026-10-17 §2 item 4. Owner rows RSI-1, RSI-2, RSI-3, RSI-4 and RSI-BUILD (2026-10-17) land with #123. Until #123 merges, Task 0 reads them from `origin/docs/handoff-2026-10-17`. Order: RSI-T2-EVAL → LEGACY-CITE-PROMPT. RSI1-DONATE is independent and file-disjoint from both. The DON-* gates are open and asked in the [plan](../2026-10-17-rsi1-opt-in-donation-pipeline-plan.md#open-owner-gates-exact-wording-ready-to-ask-none-inferred).
+
+| id | lane | kind | depends_on | owner gates | ask-first | files | est h | runtime | status |
+|---|---|---|---|---|---|---|---|---|---|
+| RSI-T2-EVAL | A | PRODUCT (eval script; code slot) | — | RSI-4 answered (#123); OW-3 only for a later `--sealed` S5 run | none edited (`be/tests/legacy_eval/harness.py` imported read-only) | `be/scripts/legacy_cite_eval.py`, `be/tests/fixtures/legacy_cite_eval/questions_v1.json`, `be/tests/test_legacy_cite_eval.py` | 3 | claude (Task 6 real-model run: owner / model machine, no pytest running) | **ready** (plan: [RSI-T2-EVAL](../2026-10-17-rsi-track2-eval-harness-plan.md)); real-model numbers needs-model-machine |
+| LEGACY-CITE-PROMPT | A | PRODUCT (code) | RSI-T2-EVAL merged and its `main` baseline posted; never beside W-3, W-8, G-C5 or B-3 (`be/modules/rag.py`, contracts §b) | MERGE-72, RSI-3, D11 answered; **LCP-ACCEPT** (merge rule) open; LCP-HEADERLESS open (follow-up row only) | none edited: `be/modules/faithfulness.py`, `be/modules/verifier_agent.py`, `be/modules/interpret_safety.py`, `be/modules/redaction.py`, `be/core/external_runner.py` must show an empty diff | `be/core/model_runner.py`, `be/core/llm/ollama_provider.py`, `be/core/llm/llama_cpp_provider.py`, `be/modules/rag.py`, `be/tests/test_llm_structured_output.py`, `be/tests/test_rag_structured_cite.py` | 5 | claude (Task 0 step 4 and Task 5: model machine) | blocked: RSI-T2-EVAL; merge: owner LCP-ACCEPT (plan: [LEGACY-CITE-PROMPT](../2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md)) |
+| RSI1-DONATE | E | PRODUCT (3 PRs: PR-1 schema + consent + UI, PR-2 collect + second detector + recall, PR-3 leak eval + manifest + synthetic) | C-PMIG; reset-tuple append only after C-P7; `fe/pages/SettingsPage.tsx` after C-GAM2B and B-1 (contracts §b); never beside another profile-migration PR at its final rebase (§c) | RSI-1, RSI-2, RESET-APPEND answered (#123); **open:** DON-PURPOSES, DON-REVOKE, DON-COPY (PR-1); DON-SOURCE, DON-DETECTOR, DON-RECALL, DON-SRC-DELETE, DON-RLEXPORT (PR-2); DON-CANARY, DON-MIX, DON-SYNTH, DON-FT-SCOPE, DON-FILE-EXPORT (PR-3) | `be/modules/redaction.py` (**called only**, never edited); `be/api/profiles.py` (reset tuple, after C-P7) | `be/migrations/profile/versions/NNN_data_donation.py`, `be/models/data_donation.py`, `be/models/__init__.py`, `be/modules/data_donation.py`, `be/modules/phi_second_pass.py`, `be/modules/rl_dataset.py` (only if helpers need renaming), `be/api/donation.py`, `be/api/__init__.py`, `be/scripts/measure_phi_recall.py`, `be/tests/fixtures/phi_recall/corpus_v1.json`, `be/tests/test_data_donation.py`, `be/tests/test_donation_routes_http.py`, `be/tests/test_phi_second_pass.py`, `be/tests/test_audit_order_guard.py` (own rows), head literal (`be/tests/test_care_tasks.py`, `be/tests/test_profile_migrations_sqlcipher_fallback.py`, `be/tests/test_source_spans.py`, or `be/tests/support/migrations.py` after C-P6), `be/api/profiles.py` (after C-P7), `fe/components/settings/DataDonationCard.tsx`, `fe/services/donation.ts`, `fe/pages/SettingsPage.tsx`, `fe/__tests__/DataDonationCard.test.tsx`, `docs/compliance/data-privacy.md` (own section) | 14 | claude (+ Codex security review) | blocked: owner DON-* gates (plan: [RSI1-DONATE](../2026-10-17-rsi1-opt-in-donation-pipeline-plan.md)) |
+
 ## Docs tail (no slot; fires on triggers)
 
 | id | lane | kind | depends_on | owner gates | ask-first | files | est h | runtime | status |
@@ -196,6 +206,7 @@ C-GC1, E-2 and B-5 all edit `be/tests/test_audit_order_guard.py`, and C-GC1 and 
 | 7 | O-5, O-1 (= VERIFIED-FALLBACK), O-2 veto, Q-FC + Q-HASH | W-3, W-8 |
 | 8 | OG-1, Q-AUD-LIST, S-C1-1 + S-C1-2, RESET-APPEND | E-2, C-GC1, WEAR reset rows |
 | 9 | Q5b + GC5-PLAN + GC5-MODEL, Q5a, W7-SPILL, S-C3-2 + GC3A-LEDGER | G-C5-PLAN → G-C5; B-5; B-8 |
+| 10 (RSI, 4 prompts of ≤ 4) | (a) DON-PURPOSES, DON-REVOKE, DON-COPY, DON-SRC-DELETE; (b) DON-SOURCE, DON-DETECTOR, DON-RECALL, DON-RLEXPORT; (c) DON-CANARY, DON-MIX, DON-SYNTH, DON-FT-SCOPE; (d) DON-FILE-EXPORT, LCP-ACCEPT, LCP-HEADERLESS | RSI1-DONATE PR-1/2/3; LEGACY-CITE-PROMPT merge; LCP-HEADERLESS follow-up row |
 | later | GC5-ASKFIRST (after the plan exists), P6-ORPHAN (after the Task 1 report), NPM-AUDIT-CI, W1-SMOKE-RUN, P8-B2-ORDER, W10B-*, RTN §9, SHOW-*, M0 + OW-W*, OW-W13 (optional, R-13), GATE-12 conftest item (contracts §e owner list 5) | E-5, E-6, F-4, F-6, F-8, F-9, F-12 |
 
 Back to: [contracts](contracts.md) · [implementation program](../../capstone-report/implementation-program.md)
