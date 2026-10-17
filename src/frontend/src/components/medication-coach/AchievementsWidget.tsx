@@ -2,10 +2,12 @@
  * AchievementsWidget — displays earned and unearned badges in a grid.
  */
 
+import { Link } from 'react-router-dom';
 import { Award, Lock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, StaggerGroup, StaggerItem } from '@/components/ui';
 import { cn } from '@/utils/cn';
-import { useBadges } from '@/services';
+import { useBadges, useStreaks } from '@/services';
+import { StreakDisplay } from './StreakDisplay';
 import type { BadgeStatus } from '@/services/types';
 
 const ICON_MAP: Record<string, string> = {
@@ -16,6 +18,12 @@ const ICON_MAP: Record<string, string> = {
   shield: '🛡️',
   heart: '❤️',
 };
+
+// Backend emits naive UTC ISO strings (no offset); JS would parse them as local time.
+function parseUtc(iso: string): Date {
+  const time = iso.split('T')[1];
+  return new Date(time && !/(Z|[+-]\d{2}(:?\d{2})?)$/i.test(time) ? `${iso}Z` : iso);
+}
 
 function BadgeCard({ badge }: { badge: BadgeStatus }) {
   return (
@@ -42,7 +50,7 @@ function BadgeCard({ badge }: { badge: BadgeStatus }) {
       </p>
       {badge.earned && badge.earned_at && (
         <p className="text-[9px] text-ink-tertiary font-medium">
-          {new Date(badge.earned_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+          {parseUtc(badge.earned_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
         </p>
       )}
     </div>
@@ -51,6 +59,7 @@ function BadgeCard({ badge }: { badge: BadgeStatus }) {
 
 export function AchievementsWidget() {
   const { data, isLoading } = useBadges();
+  const { data: streaks } = useStreaks();
 
   if (isLoading || !data) return null;
 
@@ -70,6 +79,21 @@ export function AchievementsWidget() {
         </CardTitle>
       </CardHeader>
       <CardContent>
+        {streaks && (
+          <div className="mb-4 space-y-2">
+            <p className="text-xs font-medium text-ink-secondary">All medications</p>
+            <StreakDisplay
+              currentStreak={streaks.current_streak_days}
+              longestStreak={streaks.longest_streak_days}
+            />
+            {streaks.timezone === 'UTC' && (
+              <p className="text-xs text-ink-tertiary">
+                Streak days are counted in UTC. Set your time zone in{' '}
+                <Link to="/settings" className="text-accent underline">Settings</Link>.
+              </p>
+            )}
+          </div>
+        )}
         <StaggerGroup className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
           {data.badges.map((badge) => (
             <StaggerItem key={`${badge.id}-${badge.medication_id ?? ''}`}>

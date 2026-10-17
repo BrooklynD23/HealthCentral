@@ -24,6 +24,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from core.auth import RequireAuth, ProfileDbSession
 from core.audit import audit_and_commit, log_export_event
+from core.denial_audit import audit_denial
+from core.time import NaiveUtcDatetime
 from models import CarePlanTask, Document, Medication, Observation, Profile
 from models.document_category import DocumentCategory, DocumentEntity
 from modules.export import ExportModule
@@ -74,8 +76,8 @@ class SummaryRequest(BaseModel):
     """Request model for generating doctor summary."""
 
     # Time range
-    from_date: Optional[datetime] = None
-    to_date: Optional[datetime] = None
+    from_date: Optional[NaiveUtcDatetime] = None
+    to_date: Optional[NaiveUtcDatetime] = None
 
     # Content options
     include_all_values: bool = False  # vs only abnormal/changed
@@ -443,6 +445,10 @@ async def generate_doctor_summary(
         "critical_count": summary.critical_count,
         "questions": [q.model_dump() for q in questions],
     }
+    # D3 (2026-09-27): the doctor summary goes to a third party. Strict
+    # redaction runs BEFORE it is stored, so the preview below and every
+    # download format (text/html/pdf render from the store) are redacted.
+    summary_data = export_module.redact_summary_data(summary_data)
     _summary_store[summary.summary_id] = summary_data
 
     # Create audit log
@@ -456,6 +462,7 @@ async def generate_doctor_summary(
             "format": request.format,
             "observation_count": summary.total_observations,
             "question_count": len(questions),
+            "redaction_count": summary_data["redaction_count"],
         },
     )
 
@@ -473,7 +480,7 @@ async def generate_doctor_summary(
         profile_id=profile_id,
         generated_at=summary.generated_at.isoformat(),
         format=request.format,
-        key_findings=summary.key_findings,
+        key_findings=summary_data["key_findings"],
         abnormal_count=summary.abnormal_count,
         date_range=date_range,
     )
@@ -505,6 +512,7 @@ async def download_summary(
 
     # Verify ownership
     if summary_data["profile_id"] != session.profile_id:
+        await audit_denial(session.profile_id, "summary", master_db)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied to this summary"
@@ -607,8 +615,8 @@ async def download_summary(
 @router.post("/questions", response_model=list[QuestionItem])
 async def generate_questions(
     session: RequireAuth,
-    from_date: Optional[datetime] = Query(None, description="Start date"),
-    to_date: Optional[datetime] = Query(None, description="End date"),
+    from_date: Optional[NaiveUtcDatetime] = Query(None, description="Start date"),
+    to_date: Optional[NaiveUtcDatetime] = Query(None, description="End date"),
     profile_db: ProfileDbSession = None,
     master_db: AsyncSession = Depends(get_db),
 ):
@@ -670,8 +678,8 @@ class VisitPrepRequest(BaseModel):
     """
 
     reason_for_visit: Optional[str] = None
-    from_date: Optional[datetime] = None
-    to_date: Optional[datetime] = None
+    from_date: Optional[NaiveUtcDatetime] = None
+    to_date: Optional[NaiveUtcDatetime] = None
 
     # Section include flags
     include_medications: bool = True
@@ -845,6 +853,7 @@ async def download_visit_prep(
         )
 
     if packet["profile_id"] != session.profile_id:
+        await audit_denial(session.profile_id, "packet", master_db)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied to this packet",
@@ -905,8 +914,8 @@ async def download_visit_prep(
 async def export_csv(
     session: RequireAuth,
     analytes: Optional[str] = Query(None, description="Comma-separated analyte filter"),
-    from_date: Optional[datetime] = Query(None, description="Start date"),
-    to_date: Optional[datetime] = Query(None, description="End date"),
+    from_date: Optional[NaiveUtcDatetime] = Query(None, description="Start date"),
+    to_date: Optional[NaiveUtcDatetime] = Query(None, description="End date"),
     profile_db: ProfileDbSession = None,
     master_db: AsyncSession = Depends(get_db),
 ):
@@ -961,8 +970,8 @@ async def export_csv(
 async def export_json(
     session: RequireAuth,
     analytes: Optional[str] = Query(None, description="Comma-separated analyte filter"),
-    from_date: Optional[datetime] = Query(None, description="Start date"),
-    to_date: Optional[datetime] = Query(None, description="End date"),
+    from_date: Optional[NaiveUtcDatetime] = Query(None, description="Start date"),
+    to_date: Optional[NaiveUtcDatetime] = Query(None, description="End date"),
     profile_db: ProfileDbSession = None,
     master_db: AsyncSession = Depends(get_db),
 ):
@@ -1272,6 +1281,7 @@ async def download_fhir_export(
         )
 
     if stored["profile_id"] != session.profile_id:
+        await audit_denial(session.profile_id, "export", master_db)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied to this export",

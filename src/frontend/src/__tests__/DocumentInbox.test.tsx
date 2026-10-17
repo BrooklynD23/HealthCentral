@@ -189,3 +189,46 @@ describe('DocumentInbox Phase C warnings and confidence', () => {
     });
   });
 });
+
+// TW4-HOVER-TOUCH: jsdom does not evaluate media queries, so this is a class
+// contract. Row actions may only be hidden behind a hover-capable media gate,
+// and must reveal on keyboard focus.
+describe('DocumentInbox row actions on touch and keyboard', () => {
+  beforeEach(() => {
+    useAuthStore.getState().setAuth({
+      token: 'test-token',
+      profileId: 'profile-123',
+      profileName: 'Test Profile',
+    });
+  });
+
+  const actionsContainer = () => {
+    const view = screen.getByRole('button', { name: 'View document' });
+    const more = screen.getByRole('button', { name: 'More options' });
+    let el = view.parentElement;
+    while (el && !el.contains(more)) el = el.parentElement;
+    if (!el) throw new Error('row actions container not found');
+    return el;
+  };
+
+  it('FE-TW4-HOVER-001: hides row actions only on hover-capable devices', () => {
+    render(<BrowserRouter><DocumentInbox /></BrowserRouter>);
+
+    const hidingTokens = actionsContainer().className.split(/\s+/)
+      .filter((t) => /(^|:)(opacity-0|invisible)$/.test(t));
+    const ungated = hidingTokens.filter((t) => !t.includes('[@media(hover:hover)]'));
+    expect(ungated).toEqual([]);
+  });
+
+  it('FE-TW4-HOVER-002: reveals row actions when a keyboard user focuses into them', async () => {
+    const user = userEvent.setup();
+    render(<BrowserRouter><DocumentInbox /></BrowserRouter>);
+
+    const container = actionsContainer();
+    expect(container.className.split(/\s+/)).toContain('focus-within:opacity-100');
+    for (let i = 0; i < 50 && !container.contains(document.activeElement); i++) {
+      await user.tab();
+    }
+    expect(container).toContainElement(document.activeElement as HTMLElement);
+  });
+});

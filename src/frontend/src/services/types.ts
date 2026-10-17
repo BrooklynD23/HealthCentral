@@ -474,6 +474,15 @@ export interface BadgeListResponse {
   badges: BadgeStatus[];
 }
 
+export interface StreakResponse {
+  current_streak_days: number;
+  longest_streak_days: number;
+  timezone: string;
+  as_of_date: string;
+  active_days_last_28: number;
+  weeks_with_log_last_4: number;
+}
+
 export interface LearnPatternsResponse {
   patterns_created: number;
   schedules_updated: number;

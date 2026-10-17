@@ -73,3 +73,19 @@ def test_main_reports_file_level_failures(tmp_path: Path, capsys) -> None:
     assert "HANDOFF-TEAM.md" in captured.out
     assert "PLAN.md" in captured.out
     assert "Repo hygiene failed" in captured.out
+
+
+def test_rl_exports_dir_is_gitignored() -> None:
+    """RL exports hold per-profile feedback data and must never be committed."""
+    import shutil
+    import subprocess
+
+    import pytest
+
+    if shutil.which("git") is None:
+        pytest.skip("git not on PATH")
+    result = subprocess.run(
+        ["git", "check-ignore", "-q", "--no-index", "src/backend/rl_exports/profile_x/a.jsonl"],
+        cwd=Path(__file__).resolve().parents[3],
+    )
+    assert result.returncode == 0

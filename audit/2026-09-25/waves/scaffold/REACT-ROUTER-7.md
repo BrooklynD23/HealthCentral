@@ -162,7 +162,7 @@ Architectural: not in orchestration §5. Owner-directed for this phase
 anyway (ledger 2026-10-07): (1) Codex PLAN review before Task 1, model
 "6.1 sol", fallback "6-luna" at high effort (confirm the IDs with `codex`
 first), handoff §7 procedure, at most 2 rounds, outputs under
-audit/2026-09-25/reviews/RR7-r<N>-*; verify each finding against the code
+docs/reviews/2026-09-25/RR7-r<N>-*; verify each finding against the code
 and commit accepted plan amendments as the first commit on the branch;
 (2) L0 has run a Fable adversarial review of this brief (findings: <path>).
 Also run the Codex diff review before the PR opens (handoff §7.2), focus:

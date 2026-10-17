@@ -44,7 +44,7 @@
 - **Run suites in the phase worktree only.** Tests that touch the master engine can write to the developer's real master DB (S-1 finding). After a run, `git status --short` must show only the phase's files.
 - **Frontend:** `vitest` stalls under WSL on `/mnt/c`. Run frontend checks from Windows, or record them as skipped with the reason.
 - **Staging:** explicit pathspecs only; never `git add -A`.
-- **Counts:** ground rule 8 (SLOT-RULE). A commit that changes the collected backend count updates the `CLAUDE.md` / `AGENT.md` collected slots in the same commit.
+- **Counts:** ground rule 8 (SLOT-RULE-2). PRs never edit the `CLAUDE.md` / `AGENT.md` collected slots (the orchestrator updates them in one post-merge batch PR) but do regenerate the docs index (SLOT-RULE-2a).
 - **Ask-first files** (CLAUDE.md §1) need a signed gate naming that exact edit, even inside an approved phase.
 - **Dependencies:** `src/backend/requirements.txt:27` pins `sqlalchemy[asyncio]>=2.0.25,<2.1` (PR #20). SQLAlchemy 2.1 no longer installs `greenlet` by default. Do not unpin it inside another phase.
 
@@ -60,8 +60,8 @@ Codex reviews the decisions that are expensive to reverse. The phases below are 
 | W-7 | new LLM route through ModelRunner, beside `interpret_safety` |
 | W-10 | governance invariants in `CLAUDE.md` / `data-privacy.md` |
 
-- **Plan review (before the wave):** `codex exec -s read-only -C <repo> -o <out>.txt "$(cat <prompt>.md)"`. The prompt template is the proven one at [`audit/2026-09-25/swarm-2026-09-27/reviews/W04-r1-prompt.md`](../../audit/2026-09-25/swarm-2026-09-27/reviews/W04-r1-prompt.md). Its output contract is `VERDICT: PASS | REVISE` plus one `[BLOCKER|MAJOR|MINOR]` line per finding.
-- **Rounds:** at most 2 per plan amendment. Store the prompt, output and response under `audit/<date>/reviews/`.
+- **Plan review (before the wave):** `codex exec -s read-only -C <repo> -o <out>.txt "$(cat <prompt>.md)"`. The prompt template is the proven one at [`docs/reviews/2026-09-27-swarm/W04-r1-prompt.md`](../reviews/2026-09-27-swarm/W04-r1-prompt.md). Its output contract is `VERDICT: PASS | REVISE` plus one `[BLOCKER|MAJOR|MINOR]` line per finding.
+- **Rounds:** at most 2 per plan amendment. Store the prompt, output and response under `docs/reviews/<date>/`. Index: `docs/reviews/README.md`.
 - **Diff review (before the PR opens):** the `adversarial-review` command in §3 step 7.
 - **Not for:** docs-only phases (P4, P8, W-11a PR-4, G-C4), except where the owner asks.
 

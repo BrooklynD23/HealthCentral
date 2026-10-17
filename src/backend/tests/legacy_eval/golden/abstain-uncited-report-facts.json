@@ -1,0 +1,3 @@
+{"id": "abstain-uncited-report-facts", "question": "What was my glucose?", "chunk_set": "glucose", "expect": "abstain",
+ "why": "No [cite:N] anywhere. Faithfulness is 0.831, so only the citation rule catches it.",
+ "model_output": "REPORT FACTS:\nYour glucose result was 95 mg/dL, within the reference range of 70-100 mg/dL.\n\nGENERAL INFO:\nGlucose is the primary source of energy for the body's cells."}

@@ -19,6 +19,8 @@ import {
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useObservations, useTrend } from '@/services/observations';
+import { useExternalApiSettings } from '@/services';
+import { ExternalApiBreakGlassWarning } from '@/components/settings/ExternalApiBreakGlassWarning';
 import {
   useInterpretation,
   useGenerateGroundedInterpretation,
@@ -79,6 +81,8 @@ export function LabInterpreter() {
     effectiveObservation?.analyte_canonical,
     profileId || ''
   );
+
+  const { data: externalApi } = useExternalApiSettings();
 
   const generateInterpretation = useGenerateGroundedInterpretation();
   const generatePanelInterp = useGeneratePanelInterpretation();
@@ -186,6 +190,10 @@ export function LabInterpreter() {
           </Badge>
         )}
       </div>
+
+      {externalApi?.use_external_api === true && externalApi.redaction_break_glass === true && (
+        <ExternalApiBreakGlassWarning active />
+      )}
 
       {/* Panel Tabs */}
       <div className="flex gap-2">

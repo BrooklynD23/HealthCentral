@@ -29,12 +29,17 @@ export function StreakDisplay({
             )}
           />
         </div>
-        <div>
-          <p className="text-2xl font-display font-semibold text-ink">
-            {currentStreak}
-          </p>
-          <p className="text-xs text-ink-secondary">Day streak</p>
-        </div>
+        {currentStreak > 0 ? (
+          <div>
+            <p className="text-2xl font-display font-semibold text-ink">
+              {currentStreak}
+            </p>
+            <p className="text-xs text-ink-secondary">Day streak</p>
+          </div>
+        ) : (
+          // Neutral on a broken streak: no "0", no loss framing (GAMIFICATION-V2 risk 1).
+          <p className="text-sm text-ink-secondary">New streak starts today</p>
+        )}
       </div>
 
       {/* Longest Streak */}

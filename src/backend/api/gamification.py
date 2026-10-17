@@ -1,22 +1,29 @@
 """Gamification API — badge listing and settings.
 
 GET /gamification/badges — list all badge definitions with earned status.
+GET /gamification/streaks — profile-level streak summary.
+Both reads write a view audit row to the master DB, fail-closed.
 """
 
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone as dt_timezone
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
 from typing import Optional
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.auth import RequireAuth, ProfileDbSession
+from core.audit import audit_and_commit, create_audit_log
+from core.auth import ProfileDbSession, RequireAuth
+from core.database import get_db
+from core.time import safe_zone_name
 from models import BadgeDefinition, DoseTaken, EarnedBadge, Medication, UserModelSettings
-from modules.streak_engine import compute_longest_streak, compute_streak
+from modules.streak_engine import compute_engagement, compute_longest_streak, compute_streak
 
 logger = logging.getLogger(__name__)
 
@@ -46,17 +53,21 @@ class StreakResponse(BaseModel):
     longest_streak_days: int
     timezone: str
     as_of_date: str
+    # Engagement measure A (owner Q1): derived on read, nothing new stored.
+    active_days_last_28: int
+    weeks_with_log_last_4: int
 
 
-def _profile_timezone_name(settings: Optional[UserModelSettings]) -> str:
-    """Return a valid profile timezone or UTC if persisted data is invalid."""
-    timezone_name = settings.timezone if settings and settings.timezone else "UTC"
-    try:
-        ZoneInfo(timezone_name)
-    except ZoneInfoNotFoundError:
-        logger.warning("Invalid profile timezone '%s'; falling back to UTC", timezone_name)
-        return "UTC"
-    return timezone_name
+async def _audit_view(master_db: AsyncSession, event_type: str, profile_id: str) -> None:
+    """Mandatory view audit row (CLAUDE.md invariant); fail-closed via audit_and_commit."""
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type=event_type,
+        action=event_type,
+        profile_id=profile_id,
+        entity_type="gamification",
+    )
 
 
 @router.get(
@@ -66,6 +77,7 @@ def _profile_timezone_name(settings: Optional[UserModelSettings]) -> str:
 async def list_badges(
     session: RequireAuth,
     profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """List all badge definitions with earned status for current profile."""
     profile_id = session.profile_id
@@ -114,6 +126,7 @@ async def list_badges(
                 medication_id=None,
             ))
 
+    await _audit_view(master_db, "gamification.badges.view", profile_id)
     return BadgeListResponse(badges=badges)
 
 
@@ -124,6 +137,7 @@ async def list_badges(
 async def get_streaks(
     session: RequireAuth,
     profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Return current and longest streaks across all logged medications."""
     profile_id = session.profile_id
@@ -132,7 +146,7 @@ async def get_streaks(
         select(UserModelSettings).where(UserModelSettings.profile_id == profile_id)
     )
     profile_settings = settings_result.scalar_one_or_none()
-    timezone_name = _profile_timezone_name(profile_settings)
+    timezone_name = safe_zone_name(profile_settings.timezone if profile_settings else None)
 
     doses_result = await profile_db.execute(
         select(DoseTaken)
@@ -140,6 +154,8 @@ async def get_streaks(
         .where(
             Medication.profile_id == profile_id,
             DoseTaken.was_skipped.is_(False),
+            # Q2: a dose logged after its medication ended never counts.
+            or_(Medication.ended_at.is_(None), DoseTaken.taken_at <= Medication.ended_at),
         )
         .order_by(DoseTaken.taken_at.desc())
     )
@@ -147,10 +163,17 @@ async def get_streaks(
 
     now = datetime.now(dt_timezone.utc)
     as_of_date = now.astimezone(ZoneInfo(timezone_name)).date()
+    active_days, active_weeks = compute_engagement(doses, timezone_name, as_of_date)
 
-    return StreakResponse(
-        current_streak_days=compute_streak(doses, timezone_name, as_of_date),
+    response = StreakResponse(
+        # GAM2-STREAK0 (owner :145): streak counts through yesterday; compute_streak is 0 iff as_of_date has no dose.
+        current_streak_days=compute_streak(doses, timezone_name, as_of_date)
+        or compute_streak(doses, timezone_name, as_of_date - timedelta(days=1)),
         longest_streak_days=compute_longest_streak(doses, timezone_name),
         timezone=timezone_name,
         as_of_date=as_of_date.isoformat(),
+        active_days_last_28=active_days,
+        weeks_with_log_last_4=active_weeks,
     )
+    await _audit_view(master_db, "gamification.streaks.view", profile_id)
+    return response

@@ -6,7 +6,7 @@ in the user's stored IANA timezone.
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, timedelta, timezone
 from typing import Protocol
 from zoneinfo import ZoneInfo
 
@@ -25,6 +25,8 @@ def _dose_dates(doses: list[HasTakenAt], tz_name: str) -> set[date]:
         if not dose.was_skipped:
             dt = dose.taken_at
             if hasattr(dt, 'astimezone'):
+                if dt.tzinfo is None:  # stored naive UTC; don't read as machine-local
+                    dt = dt.replace(tzinfo=timezone.utc)
                 dt = dt.astimezone(tz)
             dates.add(dt.date() if hasattr(dt, 'date') else dt)
     return dates
@@ -62,6 +64,17 @@ def compute_longest_streak(doses: list[HasTakenAt], tz_name: str) -> int:
             current = 1
 
     return longest
+
+
+def compute_engagement(doses: list[HasTakenAt], tz_name: str, as_of_date: date) -> tuple[int, int]:
+    """Active days and active 7-day weeks in the 28 days ending on as_of_date.
+
+    Weeks are counted back from as_of_date, not calendar weeks. This measures
+    logging, which is also the adherence signal; it is not app retention.
+    """
+    ages = {(as_of_date - d).days for d in _dose_dates(doses, tz_name)}
+    ages = {age for age in ages if 0 <= age < 28}
+    return len(ages), len({age // 7 for age in ages})
 
 
 def detect_comeback_gap(doses: list[HasTakenAt], tz_name: str) -> bool:

@@ -7,7 +7,7 @@ Inputs (read these):
 - audit/2026-09-25/swarm-2026-09-27/ledger.md — orchestrator ledger + RESUME POINT
 - audit/2026-09-25/swarm-2026-09-27/wave3/3a-integration.md — collision/order audit (5 BLOCKER, 12 MAJOR, 13 MINOR) + §3 gate register + §5 program deltas
 - audit/2026-09-25/swarm-2026-09-27/wave3/3b-evidence.md — evidence/number audit (10 MAJOR, 12 MINOR) + §2 matrix/contract deltas + §3 new rows
-- audit/2026-09-25/swarm-2026-09-27/reviews/ — Codex review archive (<ID>-rN-codex.txt = reviewer output, <ID>-rN-response.md = author response)
+- docs/reviews/2026-09-27-swarm/ (index: docs/reviews/README.md) — Codex review archive (<ID>-rN-codex.txt = reviewer output, <ID>-rN-response.md = author response)
 
 Rules:
 1. DOCS ONLY. Never edit product code, tests, CI, CLAUDE.md, AGENT.md, docs/INDEX.md, docs/agentic/*. Never regenerate INDEX.md.

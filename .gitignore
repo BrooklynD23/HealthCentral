@@ -28,6 +28,7 @@ venv/
 ENV/
 env/
 .venv/
+.venv-linux/
 
 # Developer-local helpers (ignore these so routine dirty-worktree checks stay focused)
 # The repo_hygiene_check guard intentionally handles root scratch markdown/report files
@@ -48,6 +49,7 @@ env/
 !.claude/hooks/
 .claude/hooks/*
 !.claude/hooks/session_log.py
+!.claude/workflows/
 *.swp
 *.swo
 *~
@@ -78,6 +80,7 @@ src-tauri/target/
 # Local data (SENSITIVE - never commit)
 data/
 profiles/
+src/backend/rl_exports/
 *.db
 *.db-journal
 *.db-shm
@@ -140,3 +143,9 @@ src/frontend/playwright-report/
 # LibreOffice lock files
 .~lock.*#
 ~$*
+
+# Vite cache
+.vite/
+
+# Root stub lockfile (no root package.json)
+/package-lock.json

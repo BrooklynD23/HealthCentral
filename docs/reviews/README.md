@@ -1,0 +1,110 @@
+# Codex Review Archive
+
+**Last Updated:** 2026-10-14
+
+Every Codex plan review (`<ID>-rN-*`) and adversarial diff review (`<ID>-diff-codex.txt`), kept next to its prompt (`*-prompt.md`) and the author's response (`*-response.md`). Files were moved here byte-identical from `audit/2026-09-25/reviews/`, `audit/2026-09-25/swarm-2026-09-27/reviews/` and `audit/2026-09-29/reviews/` on 2026-10-09.
+
+- `2026-09-25/` — DDI, SAFE-CHAT, SAFE-INTERP (Wave 3 PR reviews).
+- `2026-09-27-swarm/` — the 2026-09-27 plan set; also holds `GLOBAL-rules.md`, `POSTPASS-baseline.md`, `*-prior-rN.md` and `reviewer-log.tsv`.
+- `2026-09-29/` — P01 and S02.
+- `2026-10-12/` — AUDIT-ORDER execution diff (Codex, code review, security review); GAM2-T1 and GAM2-T24 diffs (code review); MED-UTC diff (code review); RL-EXPORT-EMPTY diff (code review).
+- `2026-10-13/` — SQLITE-MIX diff (security review); UTC-SWEEP diff (code review); WEAR-RESEARCH (Codex review of the #87 research package), WEAR-00 program (Fable 5.1), WEAR-PLANS r1-r2 (Codex review of the wearables plan set).
+- `2026-10-14/` — DOSE-VAR diff (code review); ASSIST-UTC diff (code review); WEAR-PLANS r3 (Codex review after the owner answered WEAR-D1..D8); WEAR-PLANS D1D8 Opus review + Opus adversarial (Opus substituting for Codex per owner instruction 2026-10-14).
+- `2026-10-15/` — SCHED-OWNER diff (code review); build-program plan set (Codex).
+- `2026-10-16/` — E1a r1 (Codex).
+
+New reviews go in `docs/reviews/<date>/<ID>-r<N>-{prompt.md,codex.txt,response.md}`. PRs add review files only; the orchestrator adds the row here in the post-merge batch (SLOT-RULE-2). Process: [../agentic/orchestration.md](../agentic/orchestration.md).
+
+Verdict is the reviewer's last `VERDICT:` line (plan reviews: PASS / REVISE; diff reviews: approve / needs-attention). Date is the commit date the output was first added.
+
+| Folder | Plan | Round | Verdict | Date | Files |
+|---|---|---|---|---|---|
+| 2026-09-25 | DDI | diff | needs-attention | 2026-10-04 | [codex](2026-09-25/DDI-diff-codex.txt)  |
+| 2026-09-25 | DDI | r1 | REVISE | 2026-10-04 | [codex](2026-09-25/DDI-r1-codex.txt) [prompt](2026-09-25/DDI-r1-prompt.md) [response](2026-09-25/DDI-r1-response.md) |
+| 2026-09-25 | DDI | r2 | REVISE | 2026-10-04 | [codex](2026-09-25/DDI-r2-codex.txt) [prompt](2026-09-25/DDI-r2-prompt.md) [response](2026-09-25/DDI-r2-response.md) |
+| 2026-09-25 | SAFECHAT | diff | needs-attention | 2026-10-04 | [codex](2026-09-25/SAFECHAT-diff-codex.txt)  |
+| 2026-09-25 | SAFECHAT | r1 | REVISE | 2026-10-04 | [codex](2026-09-25/SAFECHAT-r1-codex.txt) [prompt](2026-09-25/SAFECHAT-r1-prompt.md) [response](2026-09-25/SAFECHAT-r1-response.md) |
+| 2026-09-25 | SAFEINTERP | diff | needs-attention | 2026-10-04 | [codex](2026-09-25/SAFEINTERP-diff-codex.txt)  |
+| 2026-09-25 | SAFEINTERP | r1 | REVISE | 2026-10-04 | [codex](2026-09-25/SAFEINTERP-r1-codex.txt) [prompt](2026-09-25/SAFEINTERP-r1-prompt.md) [response](2026-09-25/SAFEINTERP-r1-response.md) |
+| 2026-09-25 | SAFEINTERP | r2 | REVISE | 2026-10-04 | [codex](2026-09-25/SAFEINTERP-r2-codex.txt) [prompt](2026-09-25/SAFEINTERP-r2-prompt.md) [response](2026-09-25/SAFEINTERP-r2-response.md) |
+| 2026-09-27-swarm | AUDIT-ORDER | r1 | REVISE | 2026-10-09 | [codex](2026-09-27-swarm/AUDIT-ORDER-r1-codex.txt) [prompt](2026-09-27-swarm/AUDIT-ORDER-r1-prompt.md) [response](2026-09-27-swarm/AUDIT-ORDER-r1-response.md) |
+| 2026-09-27-swarm | AUDIT-ORDER | r2 | REVISE | 2026-10-09 | [codex](2026-09-27-swarm/AUDIT-ORDER-r2-codex.txt) [prompt](2026-09-27-swarm/AUDIT-ORDER-r2-prompt.md) [response](2026-09-27-swarm/AUDIT-ORDER-r2-response.md) |
+| 2026-09-27-swarm | AUDIT-ORDER | r3 | REVISE | 2026-10-09 | [codex](2026-09-27-swarm/AUDIT-ORDER-r3-codex.txt) [prompt](2026-09-27-swarm/AUDIT-ORDER-r3-prompt.md) [response](2026-09-27-swarm/AUDIT-ORDER-r3-response.md) |
+| 2026-09-27-swarm | AUDIT-ORDER | secrev | CHANGES | 2026-10-09 | [response](2026-09-27-swarm/AUDIT-ORDER-secrev-response.md) |
+| 2026-09-27-swarm | P04 | r1 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/P04-r1-codex.txt) [prompt](2026-09-27-swarm/P04-r1-prompt.md) [response](2026-09-27-swarm/P04-r1-response.md) |
+| 2026-09-27-swarm | P04 | r2 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/P04-r2-codex.txt) [prompt](2026-09-27-swarm/P04-r2-prompt.md) [response](2026-09-27-swarm/P04-r2-response.md) |
+| 2026-09-27-swarm | P04 | r3 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/P04-r3-codex.txt) [prompt](2026-09-27-swarm/P04-r3-prompt.md) [response](2026-09-27-swarm/P04-r3-response.md) |
+| 2026-09-27-swarm | P04 | r4 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/P04-r4-codex.txt) [prompt](2026-09-27-swarm/P04-r4-prompt.md) [response](2026-09-27-swarm/P04-r4-response.md) |
+| 2026-09-27-swarm | P08 | r1 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/P08-r1-codex.txt) [prompt](2026-09-27-swarm/P08-r1-prompt.md) [response](2026-09-27-swarm/P08-r1-response.md) |
+| 2026-09-27-swarm | P08 | r2 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/P08-r2-codex.txt) [prompt](2026-09-27-swarm/P08-r2-prompt.md) [response](2026-09-27-swarm/P08-r2-response.md) |
+| 2026-09-27-swarm | P08 | r3 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/P08-r3-codex.txt) [prompt](2026-09-27-swarm/P08-r3-prompt.md) [response](2026-09-27-swarm/P08-r3-response.md) |
+| 2026-09-27-swarm | P08 | r4 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/P08-r4-codex.txt) [prompt](2026-09-27-swarm/P08-r4-prompt.md) [response](2026-09-27-swarm/P08-r4-response.md) |
+| 2026-09-27-swarm | RTN | r1 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/RTN-r1-codex.txt) [prompt](2026-09-27-swarm/RTN-r1-prompt.md) [response](2026-09-27-swarm/RTN-r1-response.md) |
+| 2026-09-27-swarm | S01 | r1 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/S01-r1-codex.txt) [prompt](2026-09-27-swarm/S01-r1-prompt.md) [response](2026-09-27-swarm/S01-r1-response.md) |
+| 2026-09-27-swarm | S01 | r2 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/S01-r2-codex.txt) [prompt](2026-09-27-swarm/S01-r2-prompt.md) [response](2026-09-27-swarm/S01-r2-response.md) |
+| 2026-09-27-swarm | S01 | r3 | PASS | 2026-09-28 | [codex](2026-09-27-swarm/S01-r3-codex.txt) [prompt](2026-09-27-swarm/S01-r3-prompt.md) [response](2026-09-27-swarm/S01-r3-response.md) |
+| 2026-09-27-swarm | TAILWIND-4 (L1 brief) | r1 | REVISE | 2026-10-09 | [codex](2026-09-27-swarm/TAILWIND-4-codex.txt) [prompt](2026-09-27-swarm/TAILWIND-4-codex-prompt.md) |
+| 2026-09-27-swarm | TAILWIND-4 (L1 brief), Fable 5.1 review, not Codex | r1 | GO WITH AMENDMENTS | 2026-10-09 | [fable](2026-09-27-swarm/TAILWIND-4-fable.md) |
+| 2026-09-27-swarm | W01 | r1 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W01-r1-codex.txt) [prompt](2026-09-27-swarm/W01-r1-prompt.md) [response](2026-09-27-swarm/W01-r1-response.md) |
+| 2026-09-27-swarm | W01 | r2 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W01-r2-codex.txt) [prompt](2026-09-27-swarm/W01-r2-prompt.md) [response](2026-09-27-swarm/W01-r2-response.md) |
+| 2026-09-27-swarm | W01 | r3 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W01-r3-codex.txt) [prompt](2026-09-27-swarm/W01-r3-prompt.md) [response](2026-09-27-swarm/W01-r3-response.md) |
+| 2026-09-27-swarm | W01 | r4 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W01-r4-codex.txt) [prompt](2026-09-27-swarm/W01-r4-prompt.md) [response](2026-09-27-swarm/W01-r4-response.md) |
+| 2026-09-27-swarm | W02 | r1 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W02-r1-codex.txt) [prompt](2026-09-27-swarm/W02-r1-prompt.md) [response](2026-09-27-swarm/W02-r1-response.md) |
+| 2026-09-27-swarm | W02 | r2 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W02-r2-codex.txt) [prompt](2026-09-27-swarm/W02-r2-prompt.md) [response](2026-09-27-swarm/W02-r2-response.md) |
+| 2026-09-27-swarm | W02 | r3 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W02-r3-codex.txt) [prompt](2026-09-27-swarm/W02-r3-prompt.md) [response](2026-09-27-swarm/W02-r3-response.md) |
+| 2026-09-27-swarm | W02 | r4 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W02-r4-codex.txt) [prompt](2026-09-27-swarm/W02-r4-prompt.md) [response](2026-09-27-swarm/W02-r4-response.md) |
+| 2026-09-27-swarm | W03 | r1 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W03-r1-codex.txt) [prompt](2026-09-27-swarm/W03-r1-prompt.md) [response](2026-09-27-swarm/W03-r1-response.md) |
+| 2026-09-27-swarm | W03 | r2 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W03-r2-codex.txt) [prompt](2026-09-27-swarm/W03-r2-prompt.md) [response](2026-09-27-swarm/W03-r2-response.md) |
+| 2026-09-27-swarm | W03 | r3 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W03-r3-codex.txt) [prompt](2026-09-27-swarm/W03-r3-prompt.md) [response](2026-09-27-swarm/W03-r3-response.md) |
+| 2026-09-27-swarm | W03 | r4 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W03-r4-codex.txt) [prompt](2026-09-27-swarm/W03-r4-prompt.md) [response](2026-09-27-swarm/W03-r4-response.md) |
+| 2026-09-27-swarm | W04 | r1 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W04-r1-codex.txt) [prompt](2026-09-27-swarm/W04-r1-prompt.md) [response](2026-09-27-swarm/W04-r1-response.md) |
+| 2026-09-27-swarm | W04 | r2 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W04-r2-codex.txt) [prompt](2026-09-27-swarm/W04-r2-prompt.md) [response](2026-09-27-swarm/W04-r2-response.md) |
+| 2026-09-27-swarm | W04 | r3 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W04-r3-codex.txt) [prompt](2026-09-27-swarm/W04-r3-prompt.md) [response](2026-09-27-swarm/W04-r3-response.md) |
+| 2026-09-27-swarm | W04 | r4 | PASS | 2026-09-28 | [codex](2026-09-27-swarm/W04-r4-codex.txt) [prompt](2026-09-27-swarm/W04-r4-prompt.md) |
+| 2026-09-27-swarm | W05 | r1 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W05-r1-codex.txt) [prompt](2026-09-27-swarm/W05-r1-prompt.md) [response](2026-09-27-swarm/W05-r1-response.md) |
+| 2026-09-27-swarm | W05 | r2 | PASS | 2026-09-28 | [codex](2026-09-27-swarm/W05-r2-codex.txt) [prompt](2026-09-27-swarm/W05-r2-prompt.md) |
+| 2026-09-27-swarm | W06 | r1 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W06-r1-codex.txt) [prompt](2026-09-27-swarm/W06-r1-prompt.md) [response](2026-09-27-swarm/W06-r1-response.md) |
+| 2026-09-27-swarm | W06 | r2 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W06-r2-codex.txt) [prompt](2026-09-27-swarm/W06-r2-prompt.md) [response](2026-09-27-swarm/W06-r2-response.md) |
+| 2026-09-27-swarm | W06 | r3 | PASS | 2026-09-28 | [codex](2026-09-27-swarm/W06-r3-codex.txt) [prompt](2026-09-27-swarm/W06-r3-prompt.md) |
+| 2026-09-27-swarm | W07 | r1 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W07-r1-codex.txt) [prompt](2026-09-27-swarm/W07-r1-prompt.md) [response](2026-09-27-swarm/W07-r1-response.md) |
+| 2026-09-27-swarm | W07 | r2 | PASS | 2026-09-28 | [codex](2026-09-27-swarm/W07-r2-codex.txt) [prompt](2026-09-27-swarm/W07-r2-prompt.md) |
+| 2026-09-27-swarm | W08 | r1 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W08-r1-codex.txt) [prompt](2026-09-27-swarm/W08-r1-prompt.md) [response](2026-09-27-swarm/W08-r1-response.md) |
+| 2026-09-27-swarm | W08 | r2 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W08-r2-codex.txt) [prompt](2026-09-27-swarm/W08-r2-prompt.md) [response](2026-09-27-swarm/W08-r2-response.md) |
+| 2026-09-27-swarm | W08 | r3 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W08-r3-codex.txt) [prompt](2026-09-27-swarm/W08-r3-prompt.md) [response](2026-09-27-swarm/W08-r3-response.md) |
+| 2026-09-27-swarm | W08 | r4 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W08-r4-codex.txt) [prompt](2026-09-27-swarm/W08-r4-prompt.md) [response](2026-09-27-swarm/W08-r4-response.md) |
+| 2026-09-27-swarm | W10 | diff | approve | 2026-10-08 | [codex](2026-09-27-swarm/W10-diff-codex.txt)  |
+| 2026-09-27-swarm | W10 | r1 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W10-r1-codex.txt) [prompt](2026-09-27-swarm/W10-r1-prompt.md) [response](2026-09-27-swarm/W10-r1-response.md) |
+| 2026-09-27-swarm | W10 | r2 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W10-r2-codex.txt) [prompt](2026-09-27-swarm/W10-r2-prompt.md) [response](2026-09-27-swarm/W10-r2-response.md) |
+| 2026-09-27-swarm | W10 | r3 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W10-r3-codex.txt) [prompt](2026-09-27-swarm/W10-r3-prompt.md) [response](2026-09-27-swarm/W10-r3-response.md) |
+| 2026-09-27-swarm | W10 | r4 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W10-r4-codex.txt) [prompt](2026-09-27-swarm/W10-r4-prompt.md) [response](2026-09-27-swarm/W10-r4-response.md) |
+| 2026-09-27-swarm | W10 | r5 | REVISE | 2026-10-08 | [codex](2026-09-27-swarm/W10-r5-codex.txt) [prompt](2026-09-27-swarm/W10-r5-prompt.md) [response](2026-09-27-swarm/W10-r5-response.md) |
+| 2026-09-27-swarm | W10 | r6 | REVISE | 2026-10-08 | [codex](2026-09-27-swarm/W10-r6-codex.txt) [prompt](2026-09-27-swarm/W10-r6-prompt.md) [response](2026-09-27-swarm/W10-r6-response.md) |
+| 2026-09-27-swarm | W11a | r1 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W11a-r1-codex.txt) [prompt](2026-09-27-swarm/W11a-r1-prompt.md) [response](2026-09-27-swarm/W11a-r1-response.md) |
+| 2026-09-27-swarm | W11a | r2 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W11a-r2-codex.txt) [prompt](2026-09-27-swarm/W11a-r2-prompt.md) [response](2026-09-27-swarm/W11a-r2-response.md) |
+| 2026-09-27-swarm | W11a | r3 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W11a-r3-codex.txt) [prompt](2026-09-27-swarm/W11a-r3-prompt.md) [response](2026-09-27-swarm/W11a-r3-response.md) |
+| 2026-09-27-swarm | W11a | r4 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W11a-r4-codex.txt) [prompt](2026-09-27-swarm/W11a-r4-prompt.md) [response](2026-09-27-swarm/W11a-r4-response.md) |
+| 2026-09-27-swarm | W11b | r1 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W11b-r1-codex.txt) [prompt](2026-09-27-swarm/W11b-r1-prompt.md) [response](2026-09-27-swarm/W11b-r1-response.md) |
+| 2026-09-27-swarm | W11b | r2 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W11b-r2-codex.txt) [prompt](2026-09-27-swarm/W11b-r2-prompt.md) [response](2026-09-27-swarm/W11b-r2-response.md) |
+| 2026-09-27-swarm | W11b | r3 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W11b-r3-codex.txt) [prompt](2026-09-27-swarm/W11b-r3-prompt.md) [response](2026-09-27-swarm/W11b-r3-response.md) |
+| 2026-09-27-swarm | W11b | r4 | REVISE | 2026-09-28 | [codex](2026-09-27-swarm/W11b-r4-codex.txt) [prompt](2026-09-27-swarm/W11b-r4-prompt.md) [response](2026-09-27-swarm/W11b-r4-response.md) |
+| 2026-09-29 | P01 | r1 | REVISE | 2026-09-29 | [codex](2026-09-29/P01-r1-codex.txt) [prompt](2026-09-29/P01-r1-prompt.md) [response](2026-09-29/P01-r1-response.md) |
+| 2026-09-29 | S02 | r1 | REVISE | 2026-09-29 | [codex](2026-09-29/S02-r1-codex.txt) [prompt](2026-09-29/S02-r1-prompt.md) [response](2026-09-29/S02-r1-response.md) |
+| 2026-10-12 | AUDIT-ORDER | diff | needs-attention | 2026-10-12 | [codex](2026-10-12/AUDIT-ORDER-diff-codex.txt) [prompt](2026-10-12/AUDIT-ORDER-diff-prompt.md) [response](2026-10-12/AUDIT-ORDER-diff-response.md) [code review](2026-10-12/AUDIT-ORDER-diff-codereview.md) [security review](2026-10-12/AUDIT-ORDER-diff-secrev.md) |
+| 2026-10-12 | GAM2-T1 | diff | approve | 2026-10-12 | [code review](2026-10-12/GAM2-T1-diff-codereview.md) [response](2026-10-12/GAM2-T1-diff-response.md) |
+| 2026-10-12 | MED-UTC | diff | approve | 2026-10-12 | [code review](2026-10-12/MED-UTC-diff-codereview.md) [response](2026-10-12/MED-UTC-diff-response.md) |
+| 2026-10-12 | GAM2-T24 | diff | approve | 2026-10-12 | [code review](2026-10-12/GAM2-T24-diff-codereview.md) [response](2026-10-12/GAM2-T24-diff-response.md) |
+| 2026-10-12 | RL-EXPORT-EMPTY | diff | needs-attention | 2026-10-12 | [code review](2026-10-12/RL-EXPORT-EMPTY-diff-codereview.md) [response](2026-10-12/RL-EXPORT-EMPTY-diff-response.md) |
+| 2026-10-13 | SQLITE-MIX | diff | approve-with-nits | 2026-10-13 | [security review](2026-10-13/SQLITE-MIX-diff-secrev.md) [response](2026-10-13/SQLITE-MIX-diff-response.md) |
+| 2026-10-13 | UTC-SWEEP | diff | approve-with-nits | 2026-10-13 | [code review](2026-10-13/UTC-SWEEP-diff-codereview.md) [response](2026-10-13/UTC-SWEEP-diff-response.md) |
+| 2026-10-13 | WEAR-RESEARCH | review+adv | needs-attention | 2026-10-13 | [codex](2026-10-13/WEAR-RESEARCH-codex.md) [response](2026-10-13/WEAR-RESEARCH-response.md) |
+| 2026-10-13 | WEAR-00 program, Fable 5.1 review, not Codex | r1 | GO WITH AMENDMENTS | 2026-10-13 | [fable](2026-10-13/WEAR-00-program-fable.md) [response](2026-10-13/WEAR-00-program-fable-response.md) |
+| 2026-10-13 | WEAR-PLANS | r1 | needs-attention | 2026-10-13 | [codex](2026-10-13/WEAR-PLANS-r1-codex.md) [response](2026-10-13/WEAR-PLANS-r1-response.md) |
+| 2026-10-13 | WEAR-PLANS | r2 | needs-attention | 2026-10-13 | [codex](2026-10-13/WEAR-PLANS-r2-codex.md) [response](2026-10-13/WEAR-PLANS-r2-response.md) |
+| 2026-10-14 | DOSE-VAR | diff | approve | 2026-10-14 | [code review](2026-10-14/DOSE-VAR-diff-codereview.md) [response](2026-10-14/DOSE-VAR-diff-response.md) |
+| 2026-10-14 | ASSIST-UTC | diff | approve | 2026-10-14 | [code review](2026-10-14/ASSIST-UTC-diff-codereview.md) [response](2026-10-14/ASSIST-UTC-diff-response.md) |
+| 2026-10-14 | WEAR-PLANS | r3 | needs-attention | 2026-10-14 | [codex](2026-10-14/WEAR-PLANS-r3-codex.md) [response](2026-10-14/WEAR-PLANS-r3-response.md) |
+| 2026-10-14 | WEAR-PLANS D1D8, Opus review substituting for Codex (owner instruction 2026-10-14), not Codex | review | needs-attention | 2026-10-14 | [opus](2026-10-14/WEAR-PLANS-D1D8-opus-review.md) [response](2026-10-14/WEAR-PLANS-D1D8-opus-response.md) |
+| 2026-10-14 | WEAR-PLANS D1D8, Opus adversarial substituting for Codex (owner instruction 2026-10-14), not Codex | adv | needs-attention | 2026-10-14 | [opus](2026-10-14/WEAR-PLANS-D1D8-opus-adversarial.md) [response](2026-10-14/WEAR-PLANS-D1D8-opus-response.md) |
+| 2026-10-15 | SCHED-OWNER | diff | approve | 2026-10-15 | [code review](2026-10-15/SCHED-OWNER-diff-codereview.md) [response](2026-10-15/SCHED-OWNER-diff-response.md) |
+| 2026-10-15 | BUILD-PROGRAM | r1 | REVISE | 2026-10-15 | [codex](2026-10-15/build-program-codex.md) |
+| 2026-10-16 | E1a | r1 | REVISE | 2026-10-16 | [codex](2026-10-16/E1a-r1-codex.txt) [prompt](2026-10-16/E1a-r1-prompt.md) [response](2026-10-16/E1a-r1-response.md) |

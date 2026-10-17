@@ -1,7 +1,7 @@
 # HealthCentral Remaining Work Task List
 
 **Version:** 0.5.0
-**Last Updated:** 2026-10-07
+**Last Updated:** 2026-10-12
 **Owner:** Project Lead
 **Refresh Trigger:** Task completed or new task identified
 **Scope:** Active remaining work only (implementation baseline already shipped)
@@ -70,6 +70,48 @@ check enforces the three stay identical.
 | `SEC-RECOV-002` | Recovery-code entry point in Settings — the follow-up `SEC-RECOV-001` was left PARTIAL on. `RecoverProfile.tsx` tells the user a recovery code "can only be created while you can still sign in", and no signed-in surface creates one, so the instruction cannot be followed and pre-existing profiles can never obtain a code. Verified 2026-09-08: `issueRecoveryCode` (`services/profiles.ts:60`) and `useIssueRecoveryCode` (`:264`) exist and are exported (`services/index.ts:59`); no page imports either. `has_recovery_code` is already on the profile response (`api/profiles.py:138,149`) to drive Create-vs-Replace wording. | P1 | Plan at [`2026-09-08-backlog-closure-plan.md`](../plans/2026-09-08-backlog-closure-plan.md) §4.2 | `src/frontend/src/components/settings/RecoveryCodeCard.tsx`, `src/frontend/src/pages/SettingsPage.tsx`, `src/frontend/e2e/recovery-code.spec.ts`, `src/frontend/src/pages/RecoverProfile.tsx` | [x] DONE (2026-09-08) — new `RecoveryCodeCard` mounted in Settings above `BackupCard`. Create vs Replace wording from `has_recovery_code`; code shown once, held only in component state, password dropped after issue. Tests FE-RECOV-001..006 + E2E-RECOV-001..002. `RecoverProfile`'s copy now names where to create one, so its instruction is followable. |
 | `CARE-QUOTE-001` | **Verbatim clinician text outlives the document it came from.** `delete_document` explicitly deletes `DocumentEntity`/`DocumentCategory` rows with the reason stated in code — entity quotes are "verbatim document text" that must not "outlive the document into exports or pins" (`api/documents.py:1846-1851`). `CarePlanTask.source_quote` is the same class of data (`models/care_plan_task.py:45`, "Verbatim clinician wording the task was derived from") and **nothing deletes it** — there is no `delete(CarePlanTask)` anywhere in `api/`. Found 2026-09-08 while auditing `SQL-FK-001`; it is a live retention defect independent of the pragma, and also the blocker for it (with FKs on, `DELETE FROM documents` raises for any document that produced a task). **Decided 2026-09-08 (owner): keep the task, null `source_document_id`/`source_entity_id`, clear `source_quote`.** The data-lifecycle gate (same class as `PROF-DEL-001`) is cleared — the decision covers derived verbatim text specifically, not derived data generally. | P1 | Plan at [`2026-09-08-backlog-closure-plan.md`](../plans/2026-09-08-backlog-closure-plan.md) §3.1; constraint detail at [`2026-09-08-sql-fk-001-foreign-key-audit.md`](../plans/2026-09-08-sql-fk-001-foreign-key-audit.md) §4.2 | `src/backend/api/documents.py`, `src/backend/tests/test_documents_api.py`, `docs/compliance/data-privacy.md` | [x] DONE (2026-09-08) — `delete_document` now nulls provenance and clears `source_quote` for tasks derived from the deleted document. Tests HC-CAREQ-001..003 (001 observed failing first). **Deliberately not mirrored into reprocess** — the document still exists there, and `get_care_task_candidates` keys duplicate detection on `(source_document_id, source_quote)`, so clearing it would resurface accepted tasks. No model or migration change was needed; the FK constraint change stays with `SQL-FK-001`. |
 | `FEEDBACK-SNAP-001` | `response_feedback.prompt_snapshot` stores "the fully-composed prompt (with retrieved context) at the time of inference" (`models/response_feedback.py:74-78`) — retrieved context is document chunk text, so the column holds verbatim document text that document deletion does not clear. Found 2026-09-08 by `CARE-QUOTE-001`'s sweep. **Not the same fix:** `response_feedback` has no `doc_id`, so a targeted UPDATE has nothing to key on; the rows stay inside the encrypted vault; and RL export already forces strict redaction (`RL-REDACT-001`). Clearing snapshots retroactively also degrades the RL dataset they exist for — so this needs a decision (provenance column vs. retention window vs. documented acceptance), not a mechanic. | P3 | Analysis and options at [`2026-09-08-backlog-closure-plan.md`](../plans/2026-09-08-backlog-closure-plan.md) §15 | `src/backend/models/response_feedback.py`, `src/backend/api/feedback.py`, `docs/compliance/data-privacy.md` | [ ] OPEN |
+
+---
+
+## Owner and Model-Machine Queue
+
+Work that cannot run in the agent environment. The dev box has no local model (no Ollama, no `.gguf` weights, no real embedding model), so model-dependent checks wait for a session on a machine that can run models. Tick an item and add the evidence (command, output line, PR link) when done. Added 2026-10-12.
+
+### Needs a model-capable machine
+
+- [x] **MM-1 — W-4 20-question real-model abstention count (#72).** Owner decisions W4-OQ-2, W4-20Q-HOST. Steps: PR #72 comment 6116808120. Paste the RESULT line on #72; #72 then needs a merge from main and a collected-count re-measure.
+  - Done 2026-10-16 on the owner's NVIDIA GeForce RTX 3080 (WSL2, Ollama 0.40.5 on localhost, `gemma4:e4b` id `dc35e8d9c606`, 100% GPU), fresh clone of `fix/w4-legacy-abstain` at `18661db`, uv CPython 3.11.17. Command: `LLM_PROVIDER=ollama LLM_MODEL=gemma4:e4b TEST_MODE=1 HF_HUB_OFFLINE=1 venv/bin/python w4_20q_count.py` → `W-4 20-q RESULT: 20/20 abstained, 0/20 escalated, 0/20 answered, 0/20 no-model fallback`. [Comment 6226130965](https://github.com/BrooklynD23/HealthCentral/pull/72#issuecomment-6226130965).
+  - Owner re-run (MM1-RERUN), same script: `llama3.1:8b` 20/20 abstained; `qwen3:8b` 15/20 abstained, 2 escalated, 3 answered; `gemma3:12b` 19/20 abstained, 1 escalated. Raw responses show the abstentions are correct: REPORT FACTS carries no `[cite:N]`, and GENERAL INFO cites invented ADA/AHA references. [Comment 6228253080](https://github.com/BrooklynD23/HealthCentral/pull/72#issuecomment-6228253080). Follow-up: queue row LEGACY-CITE-PROMPT (MERGE-72).
+  - #72 merged 2026-10-16 as `cfc1e50` (7/7 CI green); #61 closed, branch kept (PR61-CLOSE).
+- [ ] **MM-2 — PARA-1-R3 §6 real-model judge measurement.** `src/backend/scripts/measure_prohibited_patterns.py` `--judge` mode with `HF_HUB_OFFLINE=1` and a real GGUF (`audit/2026-09-25/waves/scaffold/PARA-1-R3.md` §6). Blocked on OW-3 (sealed set S5) and on the PARA-1-R3 implementation PR.
+- [x] **MM-3 — Full backend suite with a real embedding model.** `test_api_rag_index_002b` passes only with one installed (CLAUDE.md §4). Run the collected count and full suite; record both lines.
+  - Done 2026-10-16 on main `cfc1e50`, RTX 3080 box (WSL2, uv CPython 3.11.17, `sentence-transformers/all-MiniLM-L6-v2` from the local HF cache, `embedding model dims: 384`). `HF_HUB_OFFLINE=1 python -m pytest tests/ -p no:cacheprovider -q --collect-only` → `1690 tests collected in 10.24s`. Full suite → `1690 passed, 142 warnings in 220.35s (0:03:40)`, including `test_rag_pipeline.py::TestEmbeddingsPipeline::test_api_rag_index_002b_similar_text_yields_similar_embeddings PASSED`.
+- [x] **MM-4 — Real-app smoke with a local model.** Boot via `dev.bat` on Windows and `dev.sh` on WSL/Linux (once its PR lands); exercise chat, RAG answer with citations, lab interpretation, and the Medication Coach achievements widget (#84). Record what was clicked and what was seen.
+  - Done 2026-10-16 via `./dev.sh` on WSL2 (fresh clone of main `cfc1e50` in `~`, RTX 3080, `.env` `LLM_PROVIDER=ollama`, `LLM_MODEL=gemma4:e4b`). `dev.bat` was not run (no Windows-side Ollama). Fresh profile, synthetic lab PDF only, no real vault. Driven headless with Playwright (Chromium 1200).
+  - **Boot:** first run died in `pip install` (`llama-cpp-python` builds from source: `Could not find the compiler specified in the environment variable CC`) until the owner ran `sudo apt install build-essential`; then `Servers are ready!` on :8000 / :3000. Backend log shows `You are sending unauthenticated requests to the HF Hub` at startup.
+  - **Setup → Inbox → Verify:** profile creation, recovery code and redirect to `/inbox` worked. A column-layout PDF imported with `0 values extracted · status parsed`; the parser reads only `Analyte: value unit (range)` lines. The re-laid-out PDF gave `5 values extracted`; Verification Workbench listed Glucose 95, HbA1c 5.4, HDL 52, Hemoglobin 13.1, LDL 128 (red) with source preview; **Mark Document Verified** succeeded.
+  - **Chat (`/explain`, agent on):** every answer took 1.6-2.1 s with no Ollama call. `What was my latest glucose?` → `Your verified glucose result was 95.0 mg/dL (collected 2026-01-10T00:00:00).` with `Sources: [1] Your Document`, `1/1 claims verified (100% faithfulness)`. `Is my LDL cholesterol high?` and `Explain my cholesterol results.` → `There isn't enough verified information in your record to explain this yet. …` although LDL/HDL were verified. `What does my hemoglobin A1c result mean?` and `What questions should I ask my doctor?` → all five facts listed with raw ids (`ldl_cholesterol`, `hba1c`) and raw ISO timestamps.
+  - **Lab interpretation (`/interpret`, LDL):** **Generate Interpretation** → `POST …/interpret-grounded` 201; Ollama logged one `POST /api/chat` (19.3 s), yet the card footer reads `Model: template`. The card renders raw `**` markdown and `[KB:uuid]` / `[INT:uuid]` markers, the range gauge axis runs `-29.7` to `128.7`, and the template text says `Lifestyle changes and possibly medication may help reduce this risk.`
+  - **Achievements (`/medications`):** widget showed `0/8`, `New streak starts today`, eight locked badges, `Streak days are counted in UTC`. **Add Medication** (Synthetic Vitamin D, 1000 mg tablet, once daily) → 201; **Log** → **Log as Taken** → `POST …/doses` 201; after reload `1/8`, `1 Day streak`, `1 Best streak`, **First Log** earned (`Oct 16`; API `earned_at 2026-10-17T06:24:38` UTC). No console errors.
+  - Follow-ups: queue rows DEV-SH-CC, CHAT-FACT-ROUTING, INTERP-RENDER, INTERP-ADVICE-WORDING, LOCAL-HF-HUB, EXTRACT-FORMATS.
+
+### Needs the owner (no model required)
+
+- [ ] **OW-1 — Commit and push the owner-decisions rows** in worktree `hc-owner-rows` (the permission classifier blocked the agent's commit).
+- [ ] **OW-2 — Tailwind 4 screenshot review (#74, TW4-SHOTS).** Compare artifacts 11731333573 (before) and 11789723472 (after, run 38347403971); post the verdict on #74.
+- [ ] **OW-3 — Write sealed set S5** for PARA-1-R3 (plan Q6); freeze judge prompt, parser and tier list first.
+- [ ] **OW-4 — G-C2 tool run.** Run the plan's Task C2.1 block per `audit/2026-09-25/waves/scaffold/G-C2.md:97`; a session reviews the diff.
+- [ ] **OW-5 — Merge queue.** #82 and #84 (whichever merges second needs a merge from main and a collected re-measure), #74 after OW-2, #72 after MM-1, then close #61 (PR61-CLOSE); #68 merges last.
+
+### Wearables evidence gate (owner; no model required)
+
+From the wearable feasibility package (`docs/research/2026-10-12/`, branch `docs/wearable-feasibility`, not yet merged). Recommendation there: defer until this gate passes.
+
+- [ ] **OM-1 — Apple Health export once.** Record ZIP size, members, `<Record` types, one record's attributes, one ECG CSV header. Do not commit the export.
+- [ ] **OM-2 / OM-3 — Garmin Connect "Export Your Data" and Samsung "Download personal data" once each.** Record layout, turnaround, timezone fields.
+- [ ] **OM-4 / OM-5 — 3-5 clinician and 3-5 patient conversations.** Would they use it, which metrics, how much time.
+- [ ] **OM-6 / OM-7 — Answer OD-1..OD-8; legal read** on FDA general-wellness wording, the FTC Health Breach Notification Rule, and the Garmin FIT licence.
+- [ ] **OM-8 — Read the full FDA January 2026 general-wellness guidance** (https://www.fda.gov/media/90652/download) and confirm the descriptive-summary position.
 
 ---
 
@@ -161,6 +203,15 @@ Branch `docs/rsi-loop-research` from main `eb7de28`; owner row HOOKS-COMMIT.
 - Backend: `1388 tests collected` (1381 → 1388: `tests/test_session_log_hook.py`, observed failing at collection before the script existed).
 - Recurring-failures re-read: §8 RL-export bug in the report is an open instance of mode 1, to be recorded in `recurring-failures.md` by its fix PR; the hook's settings test guards against a phantom gate (command path that does not exist).
 - Not covered: PreToolUse safety-module / Bash guards from `02-harness-techniques.md` §2.1 (not approved).
+
+### 2026-10-12 - GAMIFICATION-V2 tasks 2 + 4 (PR open, not merged)
+
+Branch `feat/gamification-v2-t24` from main `4884d38`; plan `audit/2026-09-25/waves/scaffold/GAMIFICATION-V2.md`.
+
+- Task 4: `GET /gamification/streaks` gains `active_days_last_28` and `weeks_with_log_last_4`, derived on read from `DoseTaken` (`modules/streak_engine.py::compute_engagement`). Nothing new stored, no migration. Weeks are four 7-day blocks counted back from `as_of_date`. Measures logging, not retention (plan risk 2). The Q2 ended-medication rule shipped in #83 and is not re-implemented.
+- Task 2: `useStreaks()`; badge and streak query keys carry the profile id; dose log and time-zone save invalidate the streak; profile `StreakDisplay` ("All medications") in `AchievementsWidget`; UTC hint linking to Settings; neutral zero-streak copy. Task 2b (hide toggle, profile migration) not done.
+- Backend: `1480 tests collected` (1477 → 1480); full suite `1480 passed`. Frontend: touched vitest files green on Windows; full vitest left to CI.
+- Recurring-failures re-read: no listed mode recurred. #10: `AchievementsWidget` is mounted at `pages/MedicationCoach.tsx:362`.
 
 ### 2026-10-08 - P5: `datetime.utcnow` → `core.time.utcnow` (PR open, not merged)
 
