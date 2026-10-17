@@ -19,7 +19,7 @@ Read-only design. No product file was edited. Existing merged plans are not rewr
 | SAFE-CHAT-AGENT | OWNER (→ PRODUCT if B) | program owner item `:498` (a); [wave-3-L1-A](../../../audit/2026-09-25/waves/wave-3-L1-A.md) "Other paths" 2 | none | blocked-on-owner | SCA-RULING |
 | SAFE-CHAT-FALLBACK | OWNER | `:498` (b); wave-3-L1-A Codex diff row | none | blocked-on-owner | SCF-RULING |
 | SAFE-CHAT-HISTORY | OWNER | `:498` (c); wave-3-L1-A "Other paths" 5 | none | blocked-on-owner | SCH-RULING |
-| ASSIST-AGENT-DATES | PRODUCT | #95 body "Scope note"; `docs/reviews/2026-10-14/ASSIST-UTC-diff-codereview.md` (on `fix/assistant-utc`) MEDIUM row | none | blocked-on-owner | AAD-ROW (not yet asked); #95 (provides the parser) |
+| ASSIST-AGENT-DATES | PRODUCT | #95 body "Scope note"; `docs/reviews/2026-10-14/ASSIST-UTC-diff-codereview.md` (on `fix/assistant-utc`) MEDIUM row | none | ready | AAD-ROW + AAD-SEMANTICS answered; #95 merged (provides the parser) |
 | RAG-RUNTIME-500 | PRODUCT | program owner item `:495`; wave-3-L1-A Phase 4 owner item 4 | none | blocked-on-owner | RR500-MAP; serial with W-7 on `api/interpretations.py` |
 
 Collected-count note: the lane baseline is **1574** (`CLAUDE.md:30`, `AGENT.md:76` on `3b2236c`; confirmed by L0 in the peer-review round). 1501 was #95's own branch value. Not re-measured here (no pytest on this box). Ground rule 8 (SLOT-RULE): every lane-A PR runs `--collect-only` **after its final rebase** onto `origin/main` and writes the measured number into both slots in the same commit. It never adds its own delta to a number copied from a doc. Lane D's D-0 chain (#95 → #97 → #99 → #82 → #84) runs first, so lane-A PRs start from whatever D-0 measured.
@@ -138,27 +138,57 @@ If B: RED test `tests/agent/test_guard_prohibited_floor.py::test_hc_sca_001` (a 
 
 ## ASSIST-AGENT-DATES — agent path ignores chat date filters
 
-**Fact (live impact):** `ExplainAssistant.tsx:176-177,320-321` shows date inputs and sends `from_date`/`to_date`. Agent mode is the default (`modules/agent/settings.py:19`), and `_serve_via_agent(question, profile_id, profile_db, db)` (`api/assistant.py:681-721`) takes no filters. So by default the dates are dropped; only the legacy call passes them (`:827-828`). #95 fixes parsing on the legacy path only. The semantic cache key has no filter fields (`cache.py:36-41`), so a filtered and an unfiltered ask of the same question share one entry. The agent also ignores `selected_analytes`, `selected_panel` and `document_category` (same class, recurring-failures #9; see open question 2).
+**Fact (live impact):** `ExplainAssistant.tsx:176-177,320-321` shows date inputs and sends `from_date`/`to_date`. Agent mode is the default (`modules/agent/settings.py:19`), and `_serve_via_agent(question, profile_id, profile_db, db)` (`api/assistant.py:681-721`) takes no filters. So by default the dates are dropped; only the legacy call passes them (`:827-828`). #95 fixes parsing on the legacy path only. The semantic cache key has no filter fields (`cache.py:36-41`), so a filtered and an unfiltered ask of the same question share one entry. The agent also ignores `selected_analytes`, `selected_panel` and `document_category` (same class, recurring-failures #9), and the no-model fallback's `_fetch_latest_obs` (`api/assistant.py:1393`) ignores dates.
 
-**Design (filter parity with legacy: `Observation.collected_at` and `Document.collection_date`, the same 2 columns `rag.py` filters):**
+**Scope (owner AAD-ROW 2026-10-16, AAD-SEMANTICS 2026-10-17):** all four filters in the agent path plus the fallback's date window, one PR. `query_timeline`, `query_care_tasks`, `query_medication_changes` stay unfiltered (no legacy equivalent). AAD-SEMANTICS answer **ADD**: a selection adds to what the question asks about; it never hides it. Per filter:
+
+| Filter | Legacy | Agent (this PR) |
+|---|---|---|
+| `from_date`/`to_date` | narrow `Observation.collected_at` (`rag.py:350-355`) and `Document.collection_date` (`:564-570`) | narrow the same 2 columns in `query_observations`, `compute_trend`, `retrieve_chunks` (both its text-match and its no-match fallback). NULL `collected_at` excluded when a bound is set (recurring-failures #7) |
+| `selected_analytes` | **added** to the question's analytes for observation context (`rag.py:325-329`); **narrow** chunks to docs that have those analytes (`:572-579`) | `query_observations` with a planned `analyte`: rows of that analyte **OR** a selected analyte (case-insensitive), the asked analyte ordered first so the `limit` can never cut it. With no planned `analyte` the tool already returns every verified row, so "add" is a no-op there. `retrieve_chunks`: legacy narrowing |
+| `selected_panel` | resolved by `NormalizeModule.get_panel_analytes` and merged into the analytes (`rag.py:1217-1223`) | the same resolution, then treated exactly as `selected_analytes`. An unknown panel resolves to nothing (no effect, no cache split) |
+| `document_category` | narrows chunks via `DocumentCategory.category` (`rag.py:581-588`) | `retrieve_chunks`: the same narrowing. Nothing to add for observations |
+| fallback `_fetch_latest_obs` | — | latest observation **within** the window (same `_parse_filter_date` bounds) |
+
+Planner guard (`modules/agent/nodes/plan.py`, ~3 lines): the turn-2 `check_verification` follow-up fires when `query_observations` returned no row **of the asked analyte**, not "no rows at all". Without it, a selection would turn today's "value not yet verified" abstain for the asked analyte into an answer about a different analyte (the selection would hide what the question asks about). With no selection the two conditions are identical, so the golden set is unaffected.
+
+**Not done, owner question AAD-TREND-ADD (PR body):** on a trend question the planner calls only `compute_trend` for the asked analyte. Adding the selected analytes there needs the planner (signature `(question, run_log)`) to see the selection and plan an extra `query_observations` call, which appends other analytes' values to a trend answer. That is a patient-visible change this plan does not justify, so trend answers get dates only. The asked analyte is never hidden.
+
+`retrieve_chunks` is registered but today's deterministic planner never plans it, so its filters (dates, analytes, category) have no patient-visible effect yet; they are asserted at the tool.
+
+**Design.** One frozen filter object instead of loose params (contracts I-18):
 
 | File | Hunk |
 |---|---|
-| `src/backend/api/assistant.py` | `_serve_via_agent(..., from_date: str \| None = None, to_date: str \| None = None)`; parse once with #95's `modules.rag._parse_filter_date`, so malformed input is ignored as on legacy and no new 422s; pass both to `CacheKey` and `RunContext`; call site `:793` passes `request.from_date`/`request.to_date` |
-| `src/backend/modules/agent/graph.py:79-92` | `RunContext` gains `from_dt: datetime \| None = None`, `to_dt: datetime \| None = None` |
-| `src/backend/modules/agent/cache.py:36-41` | `CacheKey` gains `from_date: str \| None = None`, `to_date: str \| None = None` (normalized ISO) |
-| `src/backend/modules/agent/tools/query_observations.py:56-59`, `compute_trend.py:57-63` | `if (b := getattr(ctx, "from_dt", None)) is not None: stmt = stmt.where(Observation.collected_at >= b)`; same for `to_dt` with `<=` |
-| `src/backend/modules/agent/tools/retrieve_chunks.py:70-74` | the same bounds on `Document.collection_date` in `base_stmt` (the no-match fallback inherits them) |
+| `src/backend/modules/agent/state.py` | `ChatFilters(BaseModel, frozen)`: `from_dt: datetime \| None`, `to_dt: datetime \| None` (naive UTC), `analytes: tuple[str, ...] = ()` (lowercased, deduplicated, sorted; selected ∪ panel), `category: str \| None`. All default empty |
+| `src/backend/api/assistant.py` | `_chat_filters(request) -> ChatFilters` (parse once with `modules.rag._parse_filter_date`: malformed ⇒ ignored, no new 422s; panel via `get_panel_analytes`); `_serve_via_agent(question, profile_id, profile_db, db, filters: ChatFilters \| None = None)` passes it to `CacheKey` and `RunContext`; call site passes `_chat_filters(request)`; `_fetch_latest_obs` gets the window |
+| `src/backend/modules/agent/graph.py` | `RunContext.filters: ChatFilters = field(default_factory=ChatFilters)` |
+| `src/backend/modules/agent/cache.py` | `CacheKey.filters: ChatFilters = ChatFilters()` — an empty filter equals the default, so unfiltered keys are unchanged |
+| `src/backend/modules/agent/tools/query_observations.py`, `compute_trend.py`, `retrieve_chunks.py` | read `getattr(ctx, "filters", None)` (ToolContext is a Protocol; test contexts may lack it) and apply the rows above |
+| `src/backend/modules/agent/nodes/plan.py` | the planner guard above |
 
-Rejected: routing date-filtered requests to legacy. It is 1 line, but it moves patients onto the model-prose path, needs a local model, and the no-model fallback ignores dates too.
+Rejected: routing filtered requests to legacy. It is 1 line, but it moves patients onto the model-prose path, needs a local model, and the no-model fallback ignores dates too.
 
-**Test-first:** `src/backend/tests/test_assist_agent_dates_http.py`, through `route_client` with the real `run_agent` against a real in-memory profile DB (#95's `test_assist_utc_http.py` fixture pattern):
-1. RED `HC-AAD-001`: 2 verified observations, 2026-01 and 2026-06; `from_date=2026-03-01` → only the June id is cited.
-2. RED `HC-AAD-002`: the same question with and without dates → different citations (cache-key split).
-3. `HC-AAD-003`: a `+05:00` bound behaves as in #95; a malformed bound is ignored (200, row included).
-4. `HC-AAD-004`: a document chunk outside the window is not retrieved.
+**Test-first:** `src/backend/tests/test_assist_agent_dates_http.py`. Route tests go through `route_client` with the real `run_agent` against a real in-memory profile DB, asserting on the **cited observation ids**, so a filter that reached only the cache key and not the tool query still fails. Seed: verified glucose 2026-01-15 (`obs-g-jan`) and 2026-06-15 00:00 UTC (`obs-g-jun`), verified potassium and ferritin 2026-06, unverified `LDL`; two verified documents (2026-01 `lab`, 2026-06 `imaging`) with one chunk each. "RED" = fails on `aed9d50` with only the `ChatFilters` type added (no wiring).
 
-**Acceptance:** 4 new tests pass; `scripts/agent_eval_gate.py` golden set IDENTICAL (defaults None ⇒ unchanged keys and queries); `tests/test_assistant_cache_version.py` unchanged. Recurring-failures #7: NULL `collected_at` rows are excluded when a bound is set, the same as legacy. **Rollback:** revert. All new fields default to None.
+| Id | Assertion | RED on main? |
+|---|---|---|
+| HC-AAD-001 | `from_date=2026-03-01`, "what is my glucose?" → cited == {`obs-g-jun`} | yes |
+| HC-AAD-002 | same question unfiltered then with `from_date` → {jan, jun} then {jun} (cache split by dates) | yes |
+| HC-AAD-003 ×4 | `+05:00` bounds: `from 04:30+05:00` → {jun}; `from 05:30+05:00` → {}; `to 04:30+05:00` → {jan}; malformed both → {jan, jun}, 200 | yes ×3; malformed case passes today (pins "ignored") |
+| HC-AAD-004 | `retrieve_chunks` with `from_dt=2026-03-01` → only `doc-jun`, on the text-match path and on the no-match fallback | yes |
+| HC-AAD-005 | trend question, `to_date=2026-03-01` → `compute_trend` cites {`obs-g-jan`} | yes |
+| HC-AAD-006 | `selected_analytes=["Potassium"]` → cited == {g-jan, g-jun, k-jun} (added, glucose kept) | yes |
+| HC-AAD-007 | `selected_panel="iron"` → cited == {g-jan, g-jun, fe-jun} | yes |
+| HC-AAD-008 | "what is my ldl?" (LDL unverified) with `selected_analytes=["potassium"]` → same abstain text as without the selection, no citations | no: a guard for the planner change; fails against an ADD without it (break-it run in the PR body) |
+| HC-AAD-009 | `retrieve_chunks` with `category="lab"` → only `doc-jan`, both paths | yes |
+| HC-AAD-010 | `retrieve_chunks` with `analytes=("potassium",)` → only `doc-jun` | yes |
+| HC-AAD-011 ×5 | cache key: for each of `from_date`, `to_date`, `selected_analytes`, `selected_panel`, `document_category`, a request differing only in that filter looks up a different `CacheKey` and does not return a sentinel planted under the unfiltered key | yes ×5 |
+| HC-AAD-012 | no-model fallback (`ModelUnavailableError`), `to_date=2026-03-01` → the cited latest glucose is `obs-g-jan`, not `obs-g-jun` | yes |
+
+**Expected collected delta: +19** (12 functions; 003 has 4 cases, 011 has 5).
+
+**Acceptance:** 19 new tests pass; `scripts/agent_eval_gate.py` golden set IDENTICAL (empty filters ⇒ unchanged keys and queries); `scripts/legacy_eval_gate.py` unchanged; `tests/test_assistant_cache_version.py` and `tests/test_audit_order_guard.py` pass (add a `NAMED_DYNAMIC_EXCLUSIONS` row only if the new call in `_serve_via_agent` is unresolved). **Rollback:** revert. All new fields default to empty.
 
 ## RAG-RUNTIME-500 — inference failure on the grounded interpretation route
 
@@ -177,8 +207,8 @@ Never put `str(exc)` in the detail; it carries provider error text. About 6 line
 
 ## Provides
 
-1. `modules.agent.graph.RunContext.from_dt` / `.to_dt: datetime | None = None` (naive UTC), read by agent tools via `getattr(ctx, "from_dt", None)` (ASSIST-AGENT-DATES).
-2. `modules.agent.cache.CacheKey.from_date` / `.to_date: str | None = None`; `api.assistant._serve_via_agent(question, profile_id, profile_db, db, from_date=None, to_date=None)` (ASSIST-AGENT-DATES).
+1. `modules.agent.state.ChatFilters` (frozen: `from_dt`, `to_dt` naive UTC, `analytes: tuple[str, ...]`, `category`); `modules.agent.graph.RunContext.filters: ChatFilters`, read by agent tools via `getattr(ctx, "filters", None)` (ASSIST-AGENT-DATES).
+2. `modules.agent.cache.CacheKey.filters: ChatFilters = ChatFilters()`; `api.assistant._serve_via_agent(question, profile_id, profile_db, db, filters: ChatFilters | None = None)` (ASSIST-AGENT-DATES).
 3. `api.observations.TrendPoint.user_verified: bool = False`; frontend `TrendPoint.user_verified?: boolean` in `src/frontend/src/services/types.ts`; `UNVERIFIED_LABEL`, `TrendPointDot`, `UnverifiedTrendNote` in `src/frontend/src/components/TrendVerificationMarkers.tsx` (W-3 Tasks 1, 4).
 4. Legacy RAG reads only `Observation.user_verified == True` (W-3 Task 2), and `Document.status == "verified"` chunks if O-5 is signed (Task 3).
 5. `modules.embeddings.EmbeddingModelUnavailableError(RuntimeError)`, the offline local loader, `core.config.settings.embedding_model_path`, `download_models.py embedding`, `modules.rag.EMBEDDING_UNAVAILABLE_MESSAGE` (W-8). Also, from G-C5: `settings.use_llm_entailment` reaches `VerificationConfig` via `get_rag_module`, and `rag.py` calls `verify_all_claims(claims, self.verifier.config)`. The grounded route returns HTTP 503 with a fixed detail on `RuntimeError` (RAG-RUNTIME-500).
@@ -207,7 +237,7 @@ Never put `str(exc)` in the detail; it carries provider error text. About 6 line
 | SCA-RULING | SAFE-CHAT-AGENT | A accept / B pattern floor in `guard.py` | not asked |
 | SCF-RULING | SAFE-CHAT-FALLBACK | A accept / B screen / C reword seed (ask together with lane B IBF-1; same 7 seed fields) | not asked |
 | SCH-RULING | SAFE-CHAT-HISTORY | A new answers only / B read-time mask | not asked |
-| AAD-ROW | ASSIST-AGENT-DATES | fix the agent path with the design above? dates only, or all four filters? | candidate row from #95, not asked |
+| AAD-ROW, AAD-SEMANTICS | ASSIST-AGENT-DATES | scope; narrow or add? | answered 2026-10-16 (all four filters) and 2026-10-17 (ADD). AAD-TREND-ADD open (trend answers) |
 | RR500-MAP | RAG-RUNTIME-500 | 503 + fixed sentence (proposed: "The explanation could not be generated right now. Please try again.") | not asked |
 
 Ask-first files touched by this lane: only `modules/verifier_agent.py` (G-C5). `interpret_safety.py`, `redaction.py`, `faithfulness.py`, `core/auth.py` and auth/encryption code stay read-only. SAFE-CHAT-AGENT option B only imports `PROHIBITED_PATTERNS`.
@@ -215,8 +245,8 @@ Ask-first files touched by this lane: only `modules/verifier_agent.py` (G-C5). `
 ## Open questions
 
 1. ~~Collected count baseline~~: resolved by L0. The baseline is 1574, re-measured per PR after its final rebase (ground rule 8).
-2. ASSIST-AGENT-DATES scope: the agent also drops `selected_analytes`, `selected_panel` and `document_category`, and the no-model fallback's `_fetch_latest_obs` ignores dates. Fix them in the same PR (same class), or keep this PR to dates?
-3. Should agent tools without a legacy equivalent (`query_timeline`, `query_care_tasks`, `query_medication_changes`) honour the date window too? The design defaults to no, for parity with legacy.
+2. ~~ASSIST-AGENT-DATES scope~~: resolved by owner AAD-ROW (all four filters plus the fallback window) and AAD-SEMANTICS (ADD).
+3. ~~Tools without a legacy equivalent~~: resolved by AAD-ROW: they stay unfiltered.
 4. G-C5: with the flag on and the model absent, fall back to rules (designed; never weaker than today) or fail closed (mark claims unverified, so every legacy answer abstains)? Should the faithfulness score also be fed in v1? Is a cross-encoder outside the ModelRunner rule (not an LLM, like embeddings)?
 5. ~~W-3 vs #74~~: #74 is first (lane E E-4 is closer to merge). W-3 Task 5 rebases onto it and re-reads `chartData` and `Line`.
 
