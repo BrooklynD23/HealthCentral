@@ -1280,7 +1280,7 @@ Links to: `audit/2026-09-25/waves/scaffold/G-C2.md`, `audit/2026-09-25/waves/sca
 
 Rules: contracts.md §b (shared files), §c (migrations), §d (count slots). Path shorthand: `be/` = `src/backend/`, `fe/` = `src/frontend/src/`; "slots" = the `CLAUDE.md` / `AGENT.md` collected-count…
 
-Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`
+Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`, `docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md`, `docs/plans/2026-10-17-rsi-track2-eval-harness-plan.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`
 
 ## `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`
 
@@ -1289,6 +1289,30 @@ Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-repor
 Strict `RedactionEngine` matches the underscore-joined labelled shapes that unknown analytes are stored in, without redacting normal analyte names. Standard and minimal levels do not change.
 
 Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-15-build-program/queue.md`
+
+## `docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md`
+
+**LEGACY-CITE-PROMPT: Constrained Decoding for Legacy RAG Citations (RSI-3) — Implementation Plan**
+
+Small local models skip `[cite:N]` in REPORT FACTS and invent outside references. MM-1 shows 15-20/20 legacy answers abstained, with 11-20/20 failing on `Report facts section missing citations`.…
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-17-rsi-track2-eval-harness-plan.md`
+
+## `docs/plans/2026-10-17-rsi-track2-eval-harness-plan.md`
+
+**RSI-T2-EVAL: Track-2 Eval Harness (Legacy Cite Eval) — Implementation Plan**
+
+Turn the throw-away MM-1 count script into a committed, tested eval harness for the legacy RAG chat path. Run it on the four local Ollama models and get two headline metrics per model: **abstain…
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md`
+
+## `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`
+
+**RSI1-DONATE: Opt-In Local Data Donation Pipeline (RSI-1 / RSI-2) — Implementation Plan**
+
+A patient can opt in, **per purpose and revocably**, to donate a copy of their own chat data for improving local models. Every donated record: 1. is redacted locally at `strict` by **calling**…
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`
 
 ## `docs/plans/2026-10-17-session-handoff.md`
 
