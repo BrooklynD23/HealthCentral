@@ -81,7 +81,7 @@ export function MedicationForm({
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Name */}
           <div className="space-y-1.5">
-            <label htmlFor="med-name" className="text-sm font-medium text-ink">
+            <label htmlFor="med-name" className="inline-block text-sm font-medium text-ink">
               Medication Name *
             </label>
             <Input
@@ -95,7 +95,7 @@ export function MedicationForm({
 
           {/* Generic Name */}
           <div className="space-y-1.5">
-            <label htmlFor="med-generic" className="text-sm font-medium text-ink">
+            <label htmlFor="med-generic" className="inline-block text-sm font-medium text-ink">
               Generic Name
             </label>
             <Input
@@ -109,7 +109,7 @@ export function MedicationForm({
           {/* Dosage Row */}
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5">
-              <label htmlFor="med-amount" className="text-sm font-medium text-ink">
+              <label htmlFor="med-amount" className="inline-block text-sm font-medium text-ink">
                 Amount
               </label>
               <Input
@@ -123,7 +123,7 @@ export function MedicationForm({
               />
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="med-unit" className="text-sm font-medium text-ink">
+              <label htmlFor="med-unit" className="inline-block text-sm font-medium text-ink">
                 Unit
               </label>
               <select
@@ -131,9 +131,9 @@ export function MedicationForm({
                 value={dosageUnit}
                 onChange={(e) => setDosageUnit(e.target.value)}
                 className={cn(
-                  'flex h-[44px] w-full rounded-xl border border-black/[0.08] bg-surface-elevated',
+                  'flex h-[44px] w-full rounded-xl border border-black/8 bg-surface-elevated',
                   'px-3 py-2 text-sm text-ink',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2'
+                  'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2'
                 )}
               >
                 <option value="mg">mg</option>
@@ -145,7 +145,7 @@ export function MedicationForm({
               </select>
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="med-form" className="text-sm font-medium text-ink">
+              <label htmlFor="med-form" className="inline-block text-sm font-medium text-ink">
                 Form
               </label>
               <select
@@ -153,9 +153,9 @@ export function MedicationForm({
                 value={dosageForm}
                 onChange={(e) => setDosageForm(e.target.value)}
                 className={cn(
-                  'flex h-[44px] w-full rounded-xl border border-black/[0.08] bg-surface-elevated',
+                  'flex h-[44px] w-full rounded-xl border border-black/8 bg-surface-elevated',
                   'px-3 py-2 text-sm text-ink',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2'
+                  'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2'
                 )}
               >
                 {dosageForms.map((form) => (
@@ -169,7 +169,7 @@ export function MedicationForm({
 
           {/* Frequency */}
           <div className="space-y-1.5">
-            <label htmlFor="med-frequency" className="text-sm font-medium text-ink">
+            <label htmlFor="med-frequency" className="inline-block text-sm font-medium text-ink">
               Frequency
             </label>
             <select
@@ -177,9 +177,9 @@ export function MedicationForm({
               value={frequency}
               onChange={(e) => setFrequency(e.target.value)}
               className={cn(
-                'flex h-[44px] w-full rounded-xl border border-black/[0.08] bg-surface-elevated',
+                'flex h-[44px] w-full rounded-xl border border-black/8 bg-surface-elevated',
                 'px-3 py-2 text-sm text-ink',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2'
+                'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2'
               )}
             >
               {frequencies.map((freq) => (
@@ -192,7 +192,7 @@ export function MedicationForm({
 
           {/* Instructions */}
           <div className="space-y-1.5">
-            <label htmlFor="med-instructions" className="text-sm font-medium text-ink">
+            <label htmlFor="med-instructions" className="inline-block text-sm font-medium text-ink">
               Instructions
             </label>
             <textarea
@@ -202,9 +202,9 @@ export function MedicationForm({
               placeholder="e.g. Take with food"
               rows={2}
               className={cn(
-                'flex w-full rounded-xl border border-black/[0.08] bg-surface-elevated',
+                'flex w-full rounded-xl border border-black/8 bg-surface-elevated',
                 'px-3 py-2 text-sm text-ink',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
+                'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
                 'resize-none'
               )}
             />
@@ -216,7 +216,7 @@ export function MedicationForm({
               type="checkbox"
               checked={reminderEnabled}
               onChange={(e) => setReminderEnabled(e.target.checked)}
-              className="w-4 h-4 rounded border-black/20 text-accent focus:ring-accent"
+              className="w-4 h-4 rounded-sm border-black/20 text-accent focus:ring-accent"
             />
             <span className="text-sm text-ink">Enable reminders</span>
           </label>

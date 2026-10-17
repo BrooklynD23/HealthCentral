@@ -131,7 +131,7 @@ export const PageImageOverlay: FC<PageImageOverlayProps> = ({
             src={imageSrc ?? undefined}
             alt={`Page ${pageNumber} of document`}
             className={cn(
-              'w-full h-auto rounded border border-black/[0.06]',
+              'w-full h-auto rounded-sm border border-black/6',
               !imageLoaded && 'opacity-0'
             )}
             onLoad={handleImageLoad}
@@ -140,13 +140,13 @@ export const PageImageOverlay: FC<PageImageOverlayProps> = ({
 
           {/* Loading placeholder */}
           {!imageLoaded && (
-            <div className="w-full h-48 bg-surface-muted rounded animate-pulse" />
+            <div className="w-full h-48 bg-surface-muted rounded-sm animate-pulse" />
           )}
 
           {/* Bounding box highlight overlay */}
           {imageLoaded && overlayStyle && (
             <div
-              className="absolute border-2 border-accent bg-accent/10 rounded-sm pointer-events-none"
+              className="absolute border-2 border-accent bg-accent/10 rounded-xs pointer-events-none"
               style={{
                 left: `${overlayStyle.left}px`,
                 top: `${overlayStyle.top}px`,

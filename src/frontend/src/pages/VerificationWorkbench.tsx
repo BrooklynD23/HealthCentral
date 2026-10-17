@@ -444,7 +444,7 @@ export function VerificationWorkbench() {
                 There are no lab values waiting in the verification queue. These imports still need
                 follow-up (OCR, extraction, or document-level review).
               </p>
-              <ul className="divide-y divide-black/[0.06] rounded-xl border border-black/[0.06] bg-surface-muted/30">
+              <ul className="divide-y divide-black/6 rounded-xl border border-black/6 bg-surface-muted/30">
                 {attentionDocuments.map((doc) => (
                   <li key={doc.id} className="p-4 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between gap-3">
                     <div className="min-w-0">
@@ -557,7 +557,7 @@ export function VerificationWorkbench() {
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-2">
           <Card>
-            <CardHeader className="border-b border-black/[0.04]">
+            <CardHeader className="border-b border-black/4">
               <CardTitle className="flex items-center gap-3">
                 <FileText className="w-5 h-5 text-ink-secondary" />
                 Lab Results
@@ -567,7 +567,7 @@ export function VerificationWorkbench() {
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b border-black/[0.04] bg-surface-muted/50">
+                    <tr className="border-b border-black/4 bg-surface-muted/50">
                       <th className="text-left text-xs font-medium text-ink-secondary uppercase tracking-wide px-4 py-3">
                         Test Name
                       </th>
@@ -594,7 +594,7 @@ export function VerificationWorkbench() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.05 }}
                         className={cn(
-                          'border-b border-black/[0.04] transition-colors cursor-pointer',
+                          'border-b border-black/4 transition-colors cursor-pointer',
                           selectedRow === observation.id
                             ? 'bg-accent-subtle'
                             : 'hover:bg-surface-muted/50'
@@ -716,11 +716,11 @@ export function VerificationWorkbench() {
             </CardHeader>
             <CardContent>
               {loadingSource ? (
-                <div className="aspect-[3/4] rounded-xl bg-surface-muted flex items-center justify-center">
+                <div className="aspect-3/4 rounded-xl bg-surface-muted flex items-center justify-center">
                   <Loader2 className="w-8 h-8 animate-spin text-accent" />
                 </div>
               ) : sourcePages.length > 0 ? (
-                <div className="aspect-[3/4] rounded-xl bg-surface-muted p-4 overflow-auto">
+                <div className="aspect-3/4 rounded-xl bg-surface-muted p-4 overflow-auto">
                   {sourcePages.map((page) => (
                     <div key={page.page_number} className="mb-4">
                       <p className="text-xs font-medium text-ink-secondary mb-2">
@@ -733,7 +733,7 @@ export function VerificationWorkbench() {
                   ))}
                 </div>
               ) : (
-                <div className="aspect-[3/4] rounded-xl bg-surface-muted flex items-center justify-center">
+                <div className="aspect-3/4 rounded-xl bg-surface-muted flex items-center justify-center">
                   <div className="text-center p-6">
                     <FileText className="w-12 h-12 text-ink-tertiary mx-auto mb-3" />
                     <p className="text-sm text-ink-secondary">
@@ -755,7 +755,7 @@ export function VerificationWorkbench() {
           <Card className="bg-status-info-subtle border-status-info/20">
             <CardContent className="p-4">
               <div className="flex gap-3">
-                <Info className="w-5 h-5 text-status-info flex-shrink-0 mt-0.5" />
+                <Info className="w-5 h-5 text-status-info shrink-0 mt-0.5" />
                 <div>
                   <h4 className="font-medium text-ink text-sm mb-1">
                     Verification Tips
@@ -800,7 +800,7 @@ export function VerificationWorkbench() {
                     type="text"
                     value={editValue}
                     onChange={(e) => setEditValue(e.target.value)}
-                    className="flex-1 px-3 py-2 border border-black/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                    className="flex-1 px-3 py-2 border border-black/10 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-accent"
                     autoFocus
                   />
                   <span className="px-3 py-2 bg-surface-muted rounded-lg text-ink-secondary">

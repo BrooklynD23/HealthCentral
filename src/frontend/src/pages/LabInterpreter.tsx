@@ -206,10 +206,10 @@ export function LabInterpreter() {
             }}
             className={cn(
               'px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200',
-              'focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2',
+              'focus:outline-hidden focus:ring-2 focus:ring-accent focus:ring-offset-2',
               activePanel === panel.id
                 ? 'bg-accent text-white shadow-soft'
-                : 'bg-surface-elevated border border-black/[0.06] text-ink-secondary hover:bg-surface-muted'
+                : 'bg-surface-elevated border border-black/6 text-ink-secondary hover:bg-surface-muted'
             )}
           >
             {panel.label}
@@ -306,7 +306,7 @@ export function LabInterpreter() {
               <CardTitle className="text-base">Lab Results</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="divide-y divide-black/[0.04]">
+              <div className="divide-y divide-black/4">
                 {analyteList.map((obs, index) => (
                   <motion.button
                     key={obs.analyte_canonical}
@@ -316,7 +316,7 @@ export function LabInterpreter() {
                     onClick={() => setSelectedObservation(obs)}
                     className={cn(
                       'w-full flex items-center justify-between p-4 text-left transition-colors',
-                      'hover:bg-surface-muted/50 focus:outline-none focus:bg-accent-subtle',
+                      'hover:bg-surface-muted/50 focus:outline-hidden focus:bg-accent-subtle',
                       effectiveObservation?.analyte_canonical === obs.analyte_canonical &&
                         'bg-accent-subtle'
                     )}

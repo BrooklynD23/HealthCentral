@@ -36,11 +36,11 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             'flex h-11 w-full rounded-xl border bg-white px-4 py-2',
             'text-ink placeholder:text-ink-tertiary',
             'transition-colors duration-200',
-            'focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent',
+            'focus:outline-hidden focus:ring-2 focus:ring-accent/20 focus:border-accent',
             'disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-surface-muted',
             error
               ? 'border-status-critical focus:ring-status-critical/20 focus:border-status-critical'
-              : 'border-black/[0.08]',
+              : 'border-black/8',
             className
           )}
           ref={ref}

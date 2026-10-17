@@ -169,7 +169,7 @@ export const MemoryManager: FC = () => {
                 value={formKey}
                 onChange={(e) => setFormKey(e.target.value)}
                 placeholder="e.g., allergy, preference"
-                className="w-full px-3 py-2 text-sm border border-black/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                className="w-full px-3 py-2 text-sm border border-black/10 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-accent"
                 maxLength={255}
               />
             </div>
@@ -179,7 +179,7 @@ export const MemoryManager: FC = () => {
                 value={formValue}
                 onChange={(e) => setFormValue(e.target.value)}
                 placeholder="Enter memory content..."
-                className="w-full px-3 py-2 text-sm border border-black/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent resize-none"
+                className="w-full px-3 py-2 text-sm border border-black/10 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-accent resize-none"
                 rows={3}
                 maxLength={10000}
               />
@@ -189,7 +189,7 @@ export const MemoryManager: FC = () => {
               <select
                 value={formCategory}
                 onChange={(e) => setFormCategory(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-black/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent bg-white"
+                className="w-full px-3 py-2 text-sm border border-black/10 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-accent bg-white"
               >
                 <option value="">None</option>
                 {CATEGORIES.map((cat) => (
@@ -253,14 +253,14 @@ export const MemoryManager: FC = () => {
                         </Badge>
                       )}
                     </div>
-                    <p className="text-sm text-ink-secondary whitespace-pre-wrap break-words">
+                    <p className="text-sm text-ink-secondary whitespace-pre-wrap wrap-break-word">
                       {item.value}
                     </p>
                     <p className="text-xs text-ink-tertiary mt-1">
                       Updated {new Date(item.updated_at).toLocaleDateString()}
                     </p>
                   </div>
-                  <div className="flex items-center gap-1 flex-shrink-0">
+                  <div className="flex items-center gap-1 shrink-0">
                     <Button
                       variant="ghost"
                       size="icon"

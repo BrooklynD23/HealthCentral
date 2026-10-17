@@ -271,7 +271,7 @@ export function NotificationSettings() {
       <StaggerGroup className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <StaggerItem className="lg:col-span-2 space-y-6">
           <Card>
-            <CardHeader className="border-b border-black/[0.04]">
+            <CardHeader className="border-b border-black/4">
               <CardTitle className="flex items-center gap-2">
                 <Bell className="w-5 h-5 text-ink-secondary" />
                 Per-Medication Settings
@@ -281,7 +281,7 @@ export function NotificationSettings() {
               <label className="block text-sm font-medium text-ink">
                 Medication
                 <select
-                  className="mt-1.5 h-11 w-full rounded-xl border border-black/[0.08] bg-white px-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent transition-all"
+                  className="mt-1.5 h-11 w-full rounded-xl border border-black/8 bg-white px-3 text-sm text-ink focus:outline-hidden focus:ring-2 focus:ring-accent focus:border-accent transition-all"
                   value={selectedMedicationId}
                   onChange={(e) => handleMedicationChange(e.target.value)}
                 >
@@ -312,7 +312,7 @@ export function NotificationSettings() {
               ) : (
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <label className="flex items-center justify-between rounded-xl border border-black/[0.08] p-3 hover:bg-surface-muted transition-colors cursor-pointer group">
+                    <label className="flex items-center justify-between rounded-xl border border-black/8 p-3 hover:bg-surface-muted transition-colors cursor-pointer group">
                       <span className="text-sm text-ink">Reminders enabled</span>
                       <input
                         type="checkbox"
@@ -321,11 +321,11 @@ export function NotificationSettings() {
                           ...prev,
                           enabled: e.target.checked,
                         }))}
-                        className="h-4 w-4 accent-accent rounded"
+                        className="h-4 w-4 accent-accent rounded-sm"
                       />
                     </label>
 
-                    <label className="flex items-center justify-between rounded-xl border border-black/[0.08] p-3 hover:bg-surface-muted transition-colors cursor-pointer group">
+                    <label className="flex items-center justify-between rounded-xl border border-black/8 p-3 hover:bg-surface-muted transition-colors cursor-pointer group">
                       <span className="text-sm text-ink">Weekend reminders</span>
                       <input
                         type="checkbox"
@@ -334,11 +334,11 @@ export function NotificationSettings() {
                           ...prev,
                           weekendEnabled: e.target.checked,
                         }))}
-                        className="h-4 w-4 accent-accent rounded"
+                        className="h-4 w-4 accent-accent rounded-sm"
                       />
                     </label>
 
-                    <label className="flex items-center justify-between rounded-xl border border-black/[0.08] p-3 hover:bg-surface-muted transition-colors cursor-pointer group">
+                    <label className="flex items-center justify-between rounded-xl border border-black/8 p-3 hover:bg-surface-muted transition-colors cursor-pointer group">
                       <span className="text-sm text-ink">Celebration messages</span>
                       <input
                         type="checkbox"
@@ -347,7 +347,7 @@ export function NotificationSettings() {
                           ...prev,
                           celebrationEnabled: e.target.checked,
                         }))}
-                        className="h-4 w-4 accent-accent rounded"
+                        className="h-4 w-4 accent-accent rounded-sm"
                       />
                     </label>
                   </div>
@@ -434,7 +434,7 @@ export function NotificationSettings() {
                       variant="secondary"
                       disabled={!selectedMedicationId || sendMedicationTest.isPending}
                       onClick={() => selectedMedicationId && sendMedicationTest.mutate(selectedMedicationId)}
-                      className="gap-2 border-black/[0.06]"
+                      className="gap-2 border-black/6"
                     >
                       {sendMedicationTest.isPending ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -456,7 +456,7 @@ export function NotificationSettings() {
           </Card>
 
           <Card>
-            <CardHeader className="border-b border-black/[0.04]">
+            <CardHeader className="border-b border-black/4">
               <CardTitle className="flex items-center gap-2">
                 <Activity className="w-5 h-5 text-ink-secondary" />
                 Notification History
@@ -489,14 +489,14 @@ export function NotificationSettings() {
                   Unable to load notification history.
                 </p>
               ) : !historyQuery.data || historyQuery.data.reminders.length === 0 ? (
-                <div className="py-10 text-center border-2 border-dashed border-black/[0.04] rounded-2xl">
+                <div className="py-10 text-center border-2 border-dashed border-black/4 rounded-2xl">
                   <p className="text-sm text-ink-secondary">
                     No reminder history for the selected filters.
                   </p>
                 </div>
               ) : (
                 <>
-                  <div className="overflow-x-auto rounded-xl border border-black/[0.04]">
+                  <div className="overflow-x-auto rounded-xl border border-black/4">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="text-left text-ink-tertiary bg-surface-muted">
@@ -507,9 +507,9 @@ export function NotificationSettings() {
                           <th className="py-3 px-4 font-medium">Status</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-black/[0.04]">
+                      <tbody className="divide-y divide-black/4">
                         {historyQuery.data.reminders.map((reminder) => (
-                          <tr key={reminder.id} className="hover:bg-black/[0.01] transition-colors">
+                          <tr key={reminder.id} className="hover:bg-black/1 transition-colors">
                             <td className="py-3 px-4 text-ink-secondary whitespace-nowrap">
                               {new Date(reminder.sent_at).toLocaleString()}
                             </td>

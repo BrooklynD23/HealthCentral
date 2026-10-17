@@ -418,7 +418,7 @@ export function ExplainAssistant() {
     <div className="h-[calc(100vh-10rem)] flex gap-6">
       <div className="flex-1 flex flex-col">
         <Card className="flex-1 flex flex-col overflow-hidden">
-          <CardHeader className="border-b border-black/[0.04] flex-shrink-0">
+          <CardHeader className="border-b border-black/4 shrink-0">
             <CardTitle className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-accent-subtle flex items-center justify-center">
@@ -442,7 +442,7 @@ export function ExplainAssistant() {
                 <Badge variant="info" className="gap-1.5 max-w-[min(20rem,55vw)]" title={activeModelSummary}>
                 <FileText className="w-3 h-3 shrink-0" />
                 {modelSettingsLoading ? (
-                  <span className="inline-block h-3.5 w-28 bg-white/50 animate-pulse rounded" aria-hidden />
+                  <span className="inline-block h-3.5 w-28 bg-white/50 animate-pulse rounded-sm" aria-hidden />
                 ) : (
                   <span className="truncate">{activeModelSummary}</span>
                 )}
@@ -453,7 +453,7 @@ export function ExplainAssistant() {
 
           {modelUnavailable && (
             <div className="mx-6 mt-4 flex items-center gap-3 px-4 py-3 rounded-xl bg-status-caution-subtle border border-status-caution/20">
-              <Settings className="w-5 h-5 text-status-caution flex-shrink-0" />
+              <Settings className="w-5 h-5 text-status-caution shrink-0" />
               <div className="flex-1">
                 <p className="text-sm font-medium text-ink">No AI model configured</p>
                 <p className="text-xs text-ink-secondary">
@@ -464,7 +464,7 @@ export function ExplainAssistant() {
                 variant="secondary"
                 size="sm"
                 onClick={() => navigate('/settings')}
-                className="gap-1.5 flex-shrink-0"
+                className="gap-1.5 shrink-0"
               >
                 <Settings className="w-3.5 h-3.5" />
                 Settings
@@ -480,7 +480,7 @@ export function ExplainAssistant() {
 
           {(observationPool?.some((obs) => !obs.user_verified) ?? false) && (
             <div className="mx-6 mt-4 flex items-center gap-3 px-4 py-3 rounded-xl bg-status-caution-subtle border border-status-caution/20">
-              <AlertCircle className="w-5 h-5 text-status-caution flex-shrink-0" />
+              <AlertCircle className="w-5 h-5 text-status-caution shrink-0" />
               <p className="text-xs text-ink-secondary">
                 Some values are still unverified. Answers stay grounded, but confirm key numbers in Verify for highest confidence.
               </p>
@@ -554,7 +554,7 @@ export function ExplainAssistant() {
                     </div>
 
                     {message.citations && message.citations.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-black/[0.08]">
+                      <div className="mt-3 pt-3 border-t border-black/8">
                         <p className="text-xs text-ink-secondary mb-2">Sources:</p>
                         <div className="flex flex-wrap gap-2">
                           {message.citations.map((citation, i) => {
@@ -612,7 +612,7 @@ export function ExplainAssistant() {
                     )}
 
                     {message.verification && message.verification.enabled && (
-                      <div className="mt-3 pt-3 border-t border-black/[0.08]">
+                      <div className="mt-3 pt-3 border-t border-black/8">
                         <div className="flex items-center gap-2 text-xs">
                           <CheckCircle2 className="w-3 h-3 text-status-success" />
                           <span className="text-ink-secondary">
@@ -644,7 +644,7 @@ export function ExplainAssistant() {
                     {message.role === 'assistant' && !message.error && (() => {
                       const fs = getFeedbackState(message.id);
                       return (
-                        <div className="mt-3 pt-2 border-t border-black/[0.06]">
+                        <div className="mt-3 pt-2 border-t border-black/6">
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-ink-tertiary mr-1">Was this helpful?</span>
                             <button
@@ -719,7 +719,7 @@ export function ExplainAssistant() {
                                     onChange={(e) => updateFeedbackState(message.id, { correction: e.target.value })}
                                     placeholder="Optional: write a better answer…"
                                     rows={3}
-                                    className="w-full text-xs px-2 py-1.5 rounded-lg bg-white/80 border border-black/10 text-ink placeholder:text-ink-tertiary focus:outline-none focus:ring-2 focus:ring-accent resize-none"
+                                    className="w-full text-xs px-2 py-1.5 rounded-lg bg-white/80 border border-black/10 text-ink placeholder:text-ink-tertiary focus:outline-hidden focus:ring-2 focus:ring-accent resize-none"
                                   />
                                   <Button
                                     size="sm"
@@ -763,7 +763,7 @@ export function ExplainAssistant() {
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="border-t border-black/[0.04] p-4 flex-shrink-0">
+          <div className="border-t border-black/4 p-4 shrink-0">
             <div className="flex flex-wrap items-center gap-2 mb-3">
               <span className="text-xs font-medium text-ink-tertiary flex items-center gap-1">
                 <History className="w-3 h-3" />
@@ -797,7 +797,7 @@ export function ExplainAssistant() {
                   'flex-1 px-4 py-3 rounded-xl',
                   'bg-surface-muted border-0',
                   'text-sm text-ink placeholder:text-ink-tertiary',
-                  'focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2'
+                  'focus:outline-hidden focus:ring-2 focus:ring-accent focus:ring-offset-2'
                 )}
                 disabled={sendMessage.isPending}
               />
@@ -830,14 +830,14 @@ export function ExplainAssistant() {
                   type="date"
                   value={fromDate}
                   onChange={(e) => setFromDate(e.target.value)}
-                  className="flex-1 px-2 py-1.5 rounded-lg bg-surface-muted text-xs text-ink border border-black/[0.06] focus:outline-none focus:ring-2 focus:ring-accent"
+                  className="flex-1 px-2 py-1.5 rounded-lg bg-surface-muted text-xs text-ink border border-black/6 focus:outline-hidden focus:ring-2 focus:ring-accent"
                 />
                 <span className="text-xs text-ink-tertiary">to</span>
                 <input
                   type="date"
                   value={toDate}
                   onChange={(e) => setToDate(e.target.value)}
-                  className="flex-1 px-2 py-1.5 rounded-lg bg-surface-muted text-xs text-ink border border-black/[0.06] focus:outline-none focus:ring-2 focus:ring-accent"
+                  className="flex-1 px-2 py-1.5 rounded-lg bg-surface-muted text-xs text-ink border border-black/6 focus:outline-hidden focus:ring-2 focus:ring-accent"
                 />
               </div>
             </div>
@@ -849,7 +849,7 @@ export function ExplainAssistant() {
                 id="document-category-select"
                 value={selectedDocumentCategory}
                 onChange={(e) => setSelectedDocumentCategory(e.target.value as DocumentCategoryFilterValue)}
-                className="w-full px-2 py-1.5 rounded-lg bg-surface-muted text-xs text-ink border border-black/[0.06] focus:outline-none focus:ring-2 focus:ring-accent"
+                className="w-full px-2 py-1.5 rounded-lg bg-surface-muted text-xs text-ink border border-black/6 focus:outline-hidden focus:ring-2 focus:ring-accent"
               >
                 <option value="">All documents</option>
                 {DOCUMENT_CATEGORIES.map((category) => (
@@ -900,7 +900,7 @@ export function ExplainAssistant() {
                 id="panel-select"
                 value={selectedPanel}
                 onChange={(e) => setSelectedPanel(e.target.value)}
-                className="w-full px-2 py-1.5 rounded-lg bg-surface-muted text-xs text-ink border border-black/[0.06] focus:outline-none focus:ring-2 focus:ring-accent"
+                className="w-full px-2 py-1.5 rounded-lg bg-surface-muted text-xs text-ink border border-black/6 focus:outline-hidden focus:ring-2 focus:ring-accent"
               >
                 <option value="">All panels</option>
                 <option value="Lipid Panel">Lipid Panel</option>
@@ -959,7 +959,7 @@ export function ExplainAssistant() {
         <Card className="bg-status-caution-subtle border-status-caution/20">
           <CardContent className="p-4">
             <div className="flex gap-3">
-              <AlertCircle className="w-5 h-5 text-status-caution flex-shrink-0" />
+              <AlertCircle className="w-5 h-5 text-status-caution shrink-0" />
               <div>
                 <p className="text-sm font-medium text-ink mb-1">Important</p>
                 <p className="text-xs text-ink-secondary leading-relaxed">

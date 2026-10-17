@@ -236,3 +236,11 @@ jobs:
         run: npx playwright test --project chromium
         env:
           CI: true
+
+      - name: Upload Tailwind style screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tw4-shots
+          path: src/frontend/test-results/tw4-shots/**
+          if-no-files-found: warn

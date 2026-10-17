@@ -70,7 +70,7 @@ function CandidateCard({
   isAccepting: boolean;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 p-4 rounded-xl border border-black/[0.06] bg-surface-muted">
+    <div className="flex items-start justify-between gap-4 p-4 rounded-xl border border-black/6 bg-surface-muted">
       <div className="min-w-0">
         <p className="font-medium text-ink">{candidate.title}</p>
         {candidate.due_date && (
@@ -110,7 +110,7 @@ function TaskCard({
 }) {
   const isClosed = task.status === 'done' || task.status === 'ignored';
   return (
-    <div className="flex items-start justify-between gap-4 p-4 rounded-xl border border-black/[0.06] bg-white/60">
+    <div className="flex items-start justify-between gap-4 p-4 rounded-xl border border-black/6 bg-white/60">
       <div className="min-w-0">
         <p className={isClosed ? 'font-medium text-ink-secondary line-through' : 'font-medium text-ink'}>
           {task.title}
@@ -195,8 +195,8 @@ export function CareTasksPage() {
     return (
       <div className="space-y-6">
         <div className="space-y-2">
-          <div className="h-8 w-48 bg-black/[0.05] animate-pulse rounded-lg" />
-          <div className="h-4 w-64 bg-black/[0.05] animate-pulse rounded-lg" />
+          <div className="h-8 w-48 bg-black/5 animate-pulse rounded-lg" />
+          <div className="h-4 w-64 bg-black/5 animate-pulse rounded-lg" />
         </div>
         <ListSkeleton count={4} />
       </div>
@@ -236,7 +236,7 @@ export function CareTasksPage() {
       <Card>
         <CardHeader>
           <CardTitle>Suggested from your documents</CardTitle>
-          <p className="text-sm text-ink-secondary mt-1">
+          <p className="text-sm text-ink-secondary">
             Pick a document to see follow-up instructions found in it. Nothing
             is added to your checklist until you accept it.
           </p>
@@ -247,7 +247,7 @@ export function CareTasksPage() {
           </label>
           <select
             id="care-task-doc-select"
-            className="w-full max-w-md px-3 py-2 rounded-xl border border-black/[0.1] bg-white text-sm text-ink focus-visible:ring-2 focus-visible:ring-accent"
+            className="w-full max-w-md px-3 py-2 rounded-xl border border-black/10 bg-white text-sm text-ink focus-visible:ring-2 focus-visible:ring-accent"
             value={selectedDocId}
             onChange={(event) => setSelectedDocId(event.target.value)}
           >

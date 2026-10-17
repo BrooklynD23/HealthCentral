@@ -59,7 +59,7 @@ export function MedicationCard({
             {/* Icon */}
             <div
               className={cn(
-                'w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0',
+                'w-10 h-10 rounded-xl flex items-center justify-center shrink-0',
                 medication.is_active
                   ? 'bg-accent-subtle'
                   : 'bg-surface-muted'
@@ -118,7 +118,7 @@ export function MedicationCard({
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex items-center gap-2 shrink-0">
               <Button
                 variant="primary"
                 size="sm"

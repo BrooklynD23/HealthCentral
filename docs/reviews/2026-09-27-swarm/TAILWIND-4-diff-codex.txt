@@ -1,0 +1,7 @@
+VERDICT: needs-attention
+
+[MAJOR] `src/frontend/e2e/tailwind4-styles.spec.ts:176` — the focus-ring assertion targets a link with explicit `focus-visible:ring-*` classes, so it can pass even if the global focus rule fails. Evidence: `src/frontend/src/components/layout/Sidebar.tsx:68`, `src/frontend/src/styles/globals.css:281-282`. — use a focusable target without ring classes.
+
+[MINOR] `src/frontend/e2e/tailwind4-styles.spec.ts:155` — the touch-target assertion uses `min-h-target`; the collision checks use `bg-surface`, `text-ink`, and `rounded-lg`. These explicit classes conflict with the requested no-explicit-class condition. Evidence: `src/frontend/src/components/layout/Sidebar.tsx:68`, `src/frontend/src/styles/globals.css:265`, `src/frontend/src/components/layout/Sidebar.tsx:48`, `src/frontend/src/components/medication-coach/DoseLoggingModal.tsx:100`. — retarget those assertions to elements without classes for the asserted properties, or separate them as explicit utility/token checks.
+
+MODEL / EFFORT: GPT-6 / default

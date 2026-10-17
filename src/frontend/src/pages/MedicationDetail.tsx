@@ -288,7 +288,7 @@ export function MedicationDetail() {
                   No doses logged yet. Log your first dose to start tracking.
                 </p>
               ) : (
-                <div className="divide-y divide-black/[0.04]">
+                <div className="divide-y divide-black/4">
                   {doses.map((dose, i) => (
                     <motion.div
                       key={dose.id}
@@ -368,7 +368,7 @@ export function MedicationDetail() {
                   No lab results collected during this medication period.
                 </p>
               ) : (
-                <div className="divide-y divide-black/[0.04]" data-testid="related-labs-list">
+                <div className="divide-y divide-black/4" data-testid="related-labs-list">
                   {relatedObservations.slice(0, 8).map((obs) => (
                     <a
                       key={obs.id}

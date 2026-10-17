@@ -200,7 +200,7 @@ export function ProfileSetup() {
     <div className="min-h-screen bg-surface flex items-center justify-center p-6">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-1/4 -right-1/4 w-1/2 h-1/2 bg-accent/5 rounded-full blur-3xl" />
-        <div className="absolute -bottom-1/4 -left-1/4 w-1/2 h-1/2 bg-accent/3 rounded-full blur-3xl" />
+        <div className="absolute -bottom-1/4 -left-1/4 w-1/2 h-1/2 rounded-full blur-3xl" />
       </div>
 
       <motion.div
@@ -221,7 +221,7 @@ export function ProfileSetup() {
         )}
 
         <motion.div variants={itemVariants} className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-accent to-accent/80 shadow-card mb-6">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-linear-to-br from-accent to-accent/80 shadow-card mb-6">
             <Heart className="w-8 h-8 text-white" strokeWidth={2} />
           </div>
           <h1 className="font-display text-3xl font-semibold text-ink tracking-tight mb-3">
@@ -246,7 +246,7 @@ export function ProfileSetup() {
                     transition={{ delay: 0.3 + index * 0.1 }}
                     className="flex items-start gap-4"
                   >
-                    <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-accent-subtle flex items-center justify-center">
+                    <div className="shrink-0 w-10 h-10 rounded-xl bg-accent-subtle flex items-center justify-center">
                       <feature.icon className="w-5 h-5 text-accent" />
                     </div>
                     <div>
@@ -324,7 +324,7 @@ export function ProfileSetup() {
 
                 {/* SEC-RECOV-001: the way back in for an existing profile
                     whose password has been forgotten. */}
-                <p className="mt-4 text-center text-sm text-ink-secondary">
+                <p className="text-center text-sm text-ink-secondary">
                   Already have a profile and forgot the password?{' '}
                   <Link to="/recover" className="underline">
                     Use your recovery code
@@ -376,7 +376,7 @@ export function ProfileSetup() {
 
           {error && (
             <div className="mt-4 p-4 bg-status-critical/10 border border-status-critical/20 rounded-xl flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-status-critical flex-shrink-0 mt-0.5" />
+              <AlertCircle className="w-5 h-5 text-status-critical shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-medium text-status-critical">
                   Failed to create profile

@@ -171,7 +171,7 @@ export function DocumentInbox() {
           'border-2 border-dashed transition-all duration-200',
           isDragging
             ? 'border-accent bg-accent-subtle/50'
-            : 'border-black/[0.08] hover:border-accent/50'
+            : 'border-black/8 hover:border-accent/50'
         )}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -340,7 +340,7 @@ export function DocumentInbox() {
               variants={containerVariants}
               initial="hidden"
               animate="show"
-              className="divide-y divide-black/[0.04]"
+              className="divide-y divide-black/4"
             >
               {documents.map((doc) => (
                 <motion.div
@@ -348,7 +348,7 @@ export function DocumentInbox() {
                   variants={itemVariants}
                   className="flex items-center gap-4 p-4 hover:bg-surface-muted/50 transition-colors group"
                 >
-                  <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-surface-muted flex items-center justify-center">
+                  <div className="shrink-0 w-10 h-10 rounded-xl bg-surface-muted flex items-center justify-center">
                     <FileText className="w-5 h-5 text-ink-secondary" />
                   </div>
 
@@ -419,19 +419,19 @@ export function DocumentInbox() {
                       </DropdownMenu.Trigger>
                       <DropdownMenu.Portal>
                         <DropdownMenu.Content
-                          className="min-w-[12rem] rounded-xl border border-black/[0.08] bg-white p-1 shadow-lg z-[100]"
+                          className="min-w-48 rounded-xl border border-black/8 bg-white p-1 shadow-lg z-100"
                           sideOffset={8}
                           align="end"
                         >
                           <DropdownMenu.Item
-                            className="rounded-lg px-3 py-2 text-sm outline-none cursor-pointer hover:bg-surface-muted focus:bg-surface-muted"
+                            className="rounded-lg px-3 py-2 text-sm outline-hidden cursor-pointer hover:bg-surface-muted focus:bg-surface-muted"
                             onSelect={() => navigate(`/verify?doc=${doc.id}&mode=all`)}
                           >
                             Review extracted values
                           </DropdownMenu.Item>
                           {(doc.status === 'pending_ocr' || doc.status === 'extraction_failed' || doc.status === 'parsed') && (
                             <DropdownMenu.Item
-                              className="rounded-lg px-3 py-2 text-sm outline-none cursor-pointer hover:bg-surface-muted focus:bg-surface-muted"
+                              className="rounded-lg px-3 py-2 text-sm outline-hidden cursor-pointer hover:bg-surface-muted focus:bg-surface-muted"
                               onSelect={() => handleReprocessDocument(doc)}
                             >
                               <span className="inline-flex items-center gap-2">
@@ -441,7 +441,7 @@ export function DocumentInbox() {
                             </DropdownMenu.Item>
                           )}
                           <DropdownMenu.Item
-                            className="rounded-lg px-3 py-2 text-sm outline-none cursor-pointer text-status-critical hover:bg-status-critical/10 focus:bg-status-critical/10"
+                            className="rounded-lg px-3 py-2 text-sm outline-hidden cursor-pointer text-status-critical hover:bg-status-critical/10 focus:bg-status-critical/10"
                             onSelect={() => handleDeleteDocument(doc)}
                           >
                             Delete…
@@ -469,7 +469,7 @@ export function DocumentInbox() {
             className="w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-elevated"
             onClick={(e) => e.stopPropagation()}
           >
-            <CardHeader className="flex flex-row items-center justify-between flex-shrink-0 border-b border-black/[0.04]">
+            <CardHeader className="flex flex-row items-center justify-between shrink-0 border-b border-black/4">
               <CardTitle id="document-preview-title" className="text-lg">
                 Document preview
               </CardTitle>

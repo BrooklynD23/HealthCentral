@@ -1,9 +1,68 @@
 # Wave 4 — L1-B report (frontend sequence)
 
 **Date:** 2026-10-08. **L1:** L1-B (Opus). **Base:** `origin/main` = `777adf5`.
-This dispatch had two phases, each its own worktree, branch and PR: Phase 1 NPM-AUDIT-2 (PR #52, merged 2026-10-09 → `f428a99`) and Phase 2 DEV-PS1-INSTALL (PR #55, merged 2026-10-09 → `87accae`). The file was committed on both branches, each copy holding its own phase; #55 merged second and kept both sections. Both merge-order notes are under one heading at the end.
+This dispatch had three phases (Phase 3, Tailwind 4, PR #74, added 2026-10-12), each its own worktree, branch and PR: Phase 1 NPM-AUDIT-2 (PR #52, merged 2026-10-09 → `f428a99`) and Phase 2 DEV-PS1-INSTALL (PR #55, merged 2026-10-09 → `87accae`). The file was committed on both branches, each copy holding its own phase; #55 merged second and kept both sections. Both merge-order notes are under one heading at the end.
 
 Legend: **[L1]** = L1-B ran the command and read the output. **[L2]** = an implementer agent (Sonnet) reported it. **[R]** = a reviewer agent (Opus) reported it.
+
+## Phase 3 — Tailwind 4
+
+| | |
+|---|---|
+| Branch / worktree | `feat/tailwind4` / `../hc-tw4` |
+| PR | #74 (draft until the owner looks at the screenshot pairs) |
+| Brief | `audit/2026-09-25/waves/briefs/TAILWIND-4-L1-brief.md` |
+| Gates | owner-decisions `:64` NPM-MAJORS-RUN, `:69` FE-SEQ, `:70` DEV-PS1-FIRST, `:71` TW4-BROWSERS, `:72` MAJORS-TIED, `:73` TW4-VISUAL, `:108-111` TW4-O1..O4 |
+| L1 | the first L1 was cut off by a session restart after pushing `8a79b73`; a second L1 (Opus) finished CI evidence, acceptance, reviews and the PR body |
+
+### Push sequence and CI (brief §4.3) [L1]
+
+| # | Head | Content | CI run | Result | tw4-shots artifact |
+|---|---|---|---|---|---|
+| 1 | `5ffef58`, `0b41f46`, `81fd287`, `878c634` | spec on Tailwind 3 (+ selector fixes, + main merges) | 38197253929, 38202157008, 38203336815 | red: spec selector fixes, then TW4-EXPLAIN on the main chat-restore race (fixed on main by #76) | — |
+| 1' | `3ea57fb` | merge `origin/main` `a4b62b2` (#75, #76) into the v3 spec | 38215359803 | **green**, 6/6 jobs; E2E 41 passed, 3 skipped (none TW4): all 11 TW4 tests incl. TW4-EXPLAIN with the restored user turn | **before**: 11731333573 (13 PNGs) |
+| 2 | `6ce787a` | upgrade-tool output alone | 38216544512 | **red** (E2E only) — see below | 11733345535 (10 PNGs; 3 failed tests wrote none) |
+| 3 | `ab222b7` | tailwind-merge 3, `:root` collision fix, v3 defaults, `@utility`, `cn.test.ts` | 38217745428 | **green**, 6/6 jobs; E2E 41 passed, 3 skipped | **after**: 11732643486 (13 PNGs) |
+| 4 | `8a79b73` | docs: browser floor, token source | 38219032382 | red: Documentation Lint + Backend Tests, both `docs/INDEX.md is stale` (`test_docs_index_check_passes_on_real_repo`, 1 failed / 1388 passed) | — |
+| 5 | final head (below) | `docs/INDEX.md` regenerated, review records, this report | see PR body | — |
+
+Red at #2 (each failed the same way on 3 attempts):
+
+| Assert | Expected (v3) | Received (v4 tool output) | Test |
+|---|---|---|---|
+| border colour `#recover-code` | `rgb(229, 231, 235)` | `oklch(0.928 0.006 264.531)` | TW4-RECOVER (`spec:138`) |
+| body background | `rgb(250, 250, 248)` | `rgba(0, 0, 0, 0)` | TW4-INBOX (`spec:163`) |
+| `rounded-lg` modal close button | `8px` | `16px` | TW4-MEDS (`spec:253`) |
+
+Never red in any run, because each sits after a failing hard assert in the same test (masked, not passing): placeholder colour (after border, TW4-RECOVER), `text-ink` and button cursor (after body background, TW4-INBOX). Argued from the tool diff at `6ce787a` `globals.css`: no placeholder rule (v4 preflight uses `currentcolor` at 50%), no cursor rule (v4 preflight `cursor: default`), and `:root --color-ink: 31 31 31` at `:230` overrides the `@theme --color-ink: #1f1f1f` at `:13` (same mechanism that turned the body transparent). Not CI-proven red. Touch target and focus ring were not expected red and were not.
+
+### Acceptance (Windows, at `3116064`; frontend tree identical to `ab222b7`) [L1]
+
+`ci=0 audit=0 tsc=0 lint=0 build=0 vitest=0 list=0`; `npm audit`: found 0 vulnerabilities; vitest 204 passed / 38 files (main 203 / 37, +1 / +1 = `cn.test.ts`); `playwright test --list --project chromium`: 44 tests in 9 files (33 + 11 TW4).
+
+### Evidence [L1]
+
+1. Lockfile §4.4: 51 REMOVED (Tailwind 3 chain, autoprefixer), ADDED only `@tailwindcss/*`, `lightningcss*`, `detect-libc`, `enhanced-resolve`, `graceful-fs`, `tapable` (all (a)); MAJOR `tailwindcss` 3→4, `tailwind-merge` 2→3 (approved by name), `jiti` 1.21.7→2.7.0 used by `@tailwindcss/node`, `eslint?`, `vite?` (tied (b), TW4-O4). Linux natives present (4/4). 453/453 registry.npmjs.org + sha512.
+2. `cn()` drift §4.5: 909 inputs, 1 differing (`outline-none outline-hidden` → `outline-hidden`, the v4 rename, from `cn.test.ts`), 30 non-literal `cn(` args not covered.
+3. Tokens §4.6: every `tailwind.config.js` value equals its `@theme` line; spacing 18/88/128 come from v4's `--spacing: .25rem` scale (4.5/22/32rem). Unused tokens (0 consumers) are absent from the built CSS in v4 as in v3.
+4. Grep loop (plan Task 0 Step 3) base vs head in the PR body.
+
+### Reviews [R]
+
+| Reviewer | Verdict | Accepted (fixed in `fix(frontend): restore Tailwind 3 spacing, form-control background and focus check`) | Rejected / deferred, with reason |
+|---|---|---|---|
+| code-reviewer (Opus) | needs-attention; 3 of 13 screenshot pairs had layout deltas, 1 more a background change | HIGH `space-y` v4 selector change: removed child `mt-*` that v3 ignored (`ProfileSetup.tsx:327`, `MedicationCoach.tsx:136`, `CareTasksPage.tsx:239`); `inline-block` on the first-child inline `<label>` in a `space-y` block (`DoseLoggingModal.tsx:152,177`, `MedicationForm.tsx` ×7, `ScheduleEditor.tsx:119,141`). L1 AST scan (`space.cjs`, scratch) over every `space-x/y` parent incl. `CardHeader` and conditional children: 16 hits before, 2 after (`App.tsx:92` `sr-only` span, invisible; `SettingsPage.tsx:382` `mb-2` = gap, no delta), 81 children not statically resolvable. MEDIUM form-control background: `background-color: revert` compat rule for non-button `input`, `select`, `textarea` in `globals.css`. LOW `bg-accent/3` (`ProfileSetup.tsx:203`): removed, v3 generated no rule for it. LOW stale `border-black/[0.06]` spec comment (spec-only class under v4 scanning). LOW focus assert now keyboard-focuses the NavLink (Tab loop) as §4.2 item 6 says | MEDIUM `hover:` only under `(hover: hover)` (`DocumentInbox.tsx:398` row actions hidden on touch ≥640px): PR-body note as brief §5 requires; restoring needs `@custom-variant hover` app-wide, an owner call. LOW unused `@utility` blocks / `slideUp` in `@theme`: 0 consumers, no rendering effect. LOW duplicate `:root --font-*`/`--shadow-*`: values identical (brief §4 item 4 only requires identical values) |
+| security-reviewer (Opus) | approve | — | LOW `retention-days` on the upload step: screenshots hold synthetic seed data only; step matches brief §4.1 as written |
+| Codex `gpt-6-luna` high (`gpt-6.1-sol` HTTP 400) | needs-attention | — | MAJOR focus-ring target has own `focus-visible:ring-*` (ring half masked; outline half valid): target fixed by brief §4.2 item 6, raised to L0. MINOR explicit-class targets for touch/collision guards: by design (§4.2 items 4-5). [response](../../../docs/reviews/2026-09-27-swarm/TAILWIND-4-diff-response.md) |
+
+### Gaps vs brief
+
+1. The fix commit after the reviews changes rendering again, so the **after** screenshots to judge are from the final-head CI run, not `ab222b7`.
+2. Placeholder, cursor and `text-ink` were never observed red in CI (masked by an earlier hard assert in the same test); argued from the tool diff only.
+3. Local Windows `npm ci` / `npm audit` ran at `3116064`; the later fix commit changes no package files (tsc/lint/build/vitest/list re-run on it).
+4. Browser floor verified in Chromium only (`playwright.config.ts:68-79`).
+5. Worktree admin dirs under `HealthCentral/.git/worktrees/` had been removed during this run (all `hc-*` worktrees affected, cause not identified); L1 recreated only `hc-tw4`'s (`gitdir`, `HEAD`, `commondir`, then `git reset -q`, index only).
+
 
 ## Phase 2 — DEV-PS1-INSTALL
 

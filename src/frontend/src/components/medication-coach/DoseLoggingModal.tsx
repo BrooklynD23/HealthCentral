@@ -76,7 +76,7 @@ export function DoseLoggingModal({
         animate="animate"
         exit="exit"
         variants={backdropVariants}
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/40 backdrop-blur-xs"
         onClick={onClose}
         aria-hidden
       />
@@ -89,7 +89,7 @@ export function DoseLoggingModal({
         variants={prefersReducedMotion ? backdropVariants : modalVariants}
         className="relative z-10 w-full max-w-md"
       >
-        <Card className="shadow-elevated border-black/[0.08]">
+        <Card className="shadow-elevated border-black/8">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg">Log Dose</CardTitle>
             <Button
@@ -115,9 +115,9 @@ export function DoseLoggingModal({
                 onClick={() => setMode('taken')}
                 className={cn(
                   'flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all relative',
-                  'focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2',
+                  'focus:outline-hidden focus:ring-2 focus:ring-accent focus:ring-offset-2',
                   mode === 'taken'
-                    ? 'bg-white text-status-verified shadow-sm'
+                    ? 'bg-white text-status-verified shadow-xs'
                     : 'text-ink-secondary hover:text-ink'
                 )}
               >
@@ -129,9 +129,9 @@ export function DoseLoggingModal({
                 onClick={() => setMode('skipped')}
                 className={cn(
                   'flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all relative',
-                  'focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2',
+                  'focus:outline-hidden focus:ring-2 focus:ring-accent focus:ring-offset-2',
                   mode === 'skipped'
-                    ? 'bg-white text-status-caution shadow-sm'
+                    ? 'bg-white text-status-caution shadow-xs'
                     : 'text-ink-secondary hover:text-ink'
                 )}
               >
@@ -149,7 +149,7 @@ export function DoseLoggingModal({
                   exit={{ opacity: 0, height: 0 }}
                   className="space-y-2 overflow-hidden"
                 >
-                  <label className="text-sm font-medium text-ink">Reason</label>
+                  <label className="inline-block text-sm font-medium text-ink">Reason</label>
                   <div className="flex flex-wrap gap-2">
                     {skipReasons.map((reason) => (
                       <button
@@ -158,10 +158,10 @@ export function DoseLoggingModal({
                         onClick={() => setSkipReason(reason.value)}
                         className={cn(
                           'px-3 py-1.5 rounded-full text-xs font-medium transition-all',
-                          'focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1',
+                          'focus:outline-hidden focus:ring-2 focus:ring-accent focus:ring-offset-1',
                           skipReason === reason.value
-                            ? 'bg-status-caution text-white shadow-sm'
-                            : 'bg-surface-sunken text-ink-secondary hover:bg-black/[0.08]'
+                            ? 'bg-status-caution text-white shadow-xs'
+                            : 'bg-surface-sunken text-ink-secondary hover:bg-black/8'
                         )}
                       >
                         {reason.label}
@@ -174,7 +174,7 @@ export function DoseLoggingModal({
 
             {/* Notes */}
             <div className="space-y-1.5">
-              <label htmlFor="dose-notes" className="text-sm font-medium text-ink">
+              <label htmlFor="dose-notes" className="inline-block text-sm font-medium text-ink">
                 Notes (optional)
               </label>
               <textarea
@@ -184,9 +184,9 @@ export function DoseLoggingModal({
                 placeholder="Any notes about this dose..."
                 rows={2}
                 className={cn(
-                  'flex w-full rounded-xl border border-black/[0.08] bg-surface-elevated',
+                  'flex w-full rounded-xl border border-black/8 bg-surface-elevated',
                   'px-3 py-2 text-sm text-ink placeholder:text-ink-tertiary',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-0 focus:border-accent',
+                  'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-0 focus:border-accent',
                   'resize-none transition-all'
                 )}
               />

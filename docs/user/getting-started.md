@@ -4,6 +4,7 @@
 
 - Python 3.11 or later
 - Node.js 22 or later (Node.js 24 LTS recommended)
+- Browser: Safari 16.4+, Chrome 111+, Firefox 128+
 - SQLCipher library (`libsqlcipher-dev` on Ubuntu/Debian)
 
 ## Installation

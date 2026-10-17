@@ -138,7 +138,7 @@ export function SearchPage() {
               <select
                 value={category}
                 onChange={(event) => setCategory(event.target.value)}
-                className="h-10 w-full rounded-xl border border-black/[0.08] bg-white px-3 text-sm text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                className="h-10 w-full rounded-xl border border-black/8 bg-white px-3 text-sm text-ink focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
               >
                 {CATEGORY_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
@@ -150,7 +150,7 @@ export function SearchPage() {
               <select
                 value={highlightType}
                 onChange={(event) => setHighlightType(event.target.value as HighlightType | '')}
-                className="h-10 w-full rounded-xl border border-black/[0.08] bg-white px-3 text-sm text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                className="h-10 w-full rounded-xl border border-black/8 bg-white px-3 text-sm text-ink focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <option value="">All highlights</option>
                 {Object.entries(HIGHLIGHT_LABELS).map(([value, label]) => (
