@@ -133,7 +133,7 @@ export function PinboardsPage() {
               </CardHeader>
               <CardContent>
                 {items.length === 0 ? <p className="text-sm text-ink-secondary">No pinned items yet.</p> : (
-                  <ul className="divide-y divide-black/[0.05]">
+                  <ul className="divide-y divide-black/5">
                     {items.map((item) => <li key={item.id} className="flex items-center justify-between py-3">
                       <div><p className="text-sm font-medium text-ink">{ITEM_LABELS[item.item_type]}</p>
                         <p className="font-mono text-xs text-ink-tertiary">{item.item_id}</p></div>

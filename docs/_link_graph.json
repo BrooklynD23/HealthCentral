@@ -1410,6 +1410,15 @@
     "docs/reviews/2026-09-27-swarm/TAILWIND-4-codex.txt": [
       "docs/reviews/README.md"
     ],
+    "docs/reviews/2026-09-27-swarm/TAILWIND-4-diff-codex.txt": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/TAILWIND-4-diff-prompt.md": [
+      "docs/reviews/README.md"
+    ],
+    "docs/reviews/2026-09-27-swarm/TAILWIND-4-diff-response.md": [
+      "docs/reviews/README.md"
+    ],
     "docs/reviews/2026-09-27-swarm/TAILWIND-4-fable.md": [
       "docs/reviews/README.md"
     ],
@@ -3363,6 +3372,9 @@
       "docs/reviews/2026-09-27-swarm/TAILWIND-4-codex.txt",
       "docs/reviews/2026-09-27-swarm/TAILWIND-4-codex-prompt.md",
       "docs/reviews/2026-09-27-swarm/TAILWIND-4-fable.md",
+      "docs/reviews/2026-09-27-swarm/TAILWIND-4-diff-codex.txt",
+      "docs/reviews/2026-09-27-swarm/TAILWIND-4-diff-prompt.md",
+      "docs/reviews/2026-09-27-swarm/TAILWIND-4-diff-response.md",
       "docs/reviews/2026-09-27-swarm/W01-r1-codex.txt",
       "docs/reviews/2026-09-27-swarm/W01-r1-prompt.md",
       "docs/reviews/2026-09-27-swarm/W01-r1-response.md",

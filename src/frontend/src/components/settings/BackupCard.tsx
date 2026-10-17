@@ -229,7 +229,7 @@ export function BackupCard() {
               {backups.map((backup) => (
                 <li
                   key={backup.backup_id}
-                  className="rounded-md border border-black/[0.08] p-3"
+                  className="rounded-md border border-black/8 p-3"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>

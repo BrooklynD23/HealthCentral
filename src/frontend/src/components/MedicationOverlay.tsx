@@ -31,7 +31,7 @@ export function MedicationOverlay({ medications, className }: MedicationOverlayP
           <a
             key={med.medicationId}
             href={`/medications/${med.medicationId}`}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-subtle text-accent text-sm font-medium hover:bg-accent/10 transition-colors focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-subtle text-accent text-sm font-medium hover:bg-accent/10 transition-colors focus:outline-hidden focus:ring-2 focus:ring-accent focus:ring-offset-2"
             aria-label={`View ${med.medicationName} details`}
           >
             <Pill className="w-3.5 h-3.5" />

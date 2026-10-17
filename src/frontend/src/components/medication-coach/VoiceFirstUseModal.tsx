@@ -14,8 +14,8 @@ interface VoiceFirstUseModalProps {
 
 export function VoiceFirstUseModal({ onAccept, onDecline }: VoiceFirstUseModalProps) {
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" aria-hidden />
+    <div className="fixed inset-0 z-70 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-xs" aria-hidden />
       <Card className="relative z-10 w-full max-w-sm shadow-elevated">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">

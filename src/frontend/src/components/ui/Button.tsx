@@ -7,9 +7,9 @@ const buttonVariants = cva(
   [
     'inline-flex items-center justify-center gap-2 font-medium',
     'rounded-xl transition-all duration-200 ease-in-out',
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
+    'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
     'disabled:pointer-events-none disabled:opacity-50',
-    'min-h-[44px] min-w-[44px] active:scale-[0.98]',
+    'min-h-target min-w-target active:scale-[0.98]',
   ],
   {
     variants: {
@@ -20,13 +20,13 @@ const buttonVariants = cva(
           'active:translate-y-0 active:shadow-soft',
         ],
         secondary: [
-          'bg-surface-elevated border border-black/[0.08] text-ink shadow-soft',
+          'bg-surface-elevated border border-black/8 text-ink shadow-soft',
           'hover:bg-surface-muted hover:shadow-card hover:-translate-y-0.5',
           'active:translate-y-0 active:shadow-soft',
         ],
         ghost: [
           'text-ink-secondary',
-          'hover:bg-black/[0.04] hover:text-ink',
+          'hover:bg-black/4 hover:text-ink',
         ],
         danger: [
           'bg-status-attention text-white shadow-soft',

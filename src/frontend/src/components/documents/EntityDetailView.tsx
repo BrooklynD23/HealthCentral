@@ -84,7 +84,7 @@ export function EntityDetailView({
       <CardContent>
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-black/[0.06]">
+            <tr className="border-b border-black/6">
               <th className="text-left py-2 text-ink-tertiary font-medium">Field</th>
               <th className="text-left py-2 text-ink-tertiary font-medium">Value</th>
               {onSetVerification && (
@@ -101,7 +101,7 @@ export function EntityDetailView({
                   key={entity.id}
                   id={`entity-row-${entity.id}`}
                   className={cn(
-                    'border-b border-black/[0.04]',
+                    'border-b border-black/4',
                     isLowConfidence && 'border-dashed border-status-caution/30',
                     highlightEntityId === entity.id && 'bg-accent/10'
                   )}
@@ -117,13 +117,13 @@ export function EntityDetailView({
                       )}
                     </span>
                   </td>
-                  <td className="py-2 text-ink break-words max-w-xs align-top">
+                  <td className="py-2 text-ink wrap-break-word max-w-xs align-top">
                     {entity.entity_value}
                     <div className="mt-1">
                       <ExtractionConfidenceBadge confidence={entity.confidence} />
                     </div>
                     {entity.quote && (
-                      <p className="mt-1 text-xs text-ink-secondary font-mono italic break-words">
+                      <p className="mt-1 text-xs text-ink-secondary font-mono italic wrap-break-word">
                         &ldquo;{entity.quote}&rdquo;
                       </p>
                     )}

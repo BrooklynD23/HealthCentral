@@ -31,7 +31,7 @@ function BadgeCard({ badge }: { badge: BadgeStatus }) {
       className={cn(
         'flex flex-col items-center gap-1.5 rounded-xl p-3 text-center transition-all duration-300',
         badge.earned
-          ? 'bg-accent/5 border border-accent/20 shadow-sm hover:shadow-md hover:-translate-y-0.5'
+          ? 'bg-accent/5 border border-accent/20 shadow-xs hover:shadow-md hover:-translate-y-0.5'
           : 'bg-surface-muted border border-transparent opacity-40 grayscale'
       )}
     >
