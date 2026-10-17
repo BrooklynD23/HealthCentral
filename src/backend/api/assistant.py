@@ -40,6 +40,7 @@ from modules.rag import (
     ValidatedResponse,
     ResponseSegment as RagResponseSegment,
     VerificationMetadata,
+    _parse_filter_date,
 )
 from modules.faithfulness import FaithfulnessConfig
 from modules.agent.cache import (
@@ -50,6 +51,7 @@ from modules.agent.cache import (
 )
 from modules.agent.graph import RunContext, new_run_id, run_agent
 from modules.agent.schemas import AgentTerminal
+from modules.agent.state import ChatFilters
 from modules.agent.guardrails.templates import ABSTAIN_TEMPLATE, ESCALATE_TEMPLATE
 from modules.agent.settings import is_agent_enabled
 
@@ -709,11 +711,31 @@ def _agent_terminal_to_response_parts(
     return segments, verification
 
 
+def _chat_filters(request: ChatRequest) -> ChatFilters:
+    """The request's filters as the agent applies them (ASSIST-AGENT-DATES,
+    owner AAD-ROW + AAD-SEMANTICS). Dates parse as on legacy (malformed is
+    ignored, no 422); the panel resolves to analytes as legacy ``rag.query``
+    does, then joins ``selected_analytes``. Normalized so equal selections
+    give equal cache keys."""
+    from modules.normalize import NormalizeModule
+
+    analytes = {a.strip().lower() for a in request.selected_analytes or [] if a and a.strip()}
+    if request.selected_panel:
+        analytes.update(a.lower() for a in NormalizeModule().get_panel_analytes(request.selected_panel))
+    return ChatFilters(
+        from_dt=_parse_filter_date(request.from_date) if request.from_date else None,
+        to_dt=_parse_filter_date(request.to_date) if request.to_date else None,
+        analytes=tuple(sorted(analytes)),
+        category=request.document_category,
+    )
+
+
 async def _serve_via_agent(
     question: str,
     profile_id: str,
     profile_db: AsyncSession,
     db: AsyncSession,
+    filters: ChatFilters | None = None,
 ) -> tuple[list[ResponseSegment], str, VerificationInfo]:
     """Run the agent graph for ``question`` and return (segments,
     full_response, verification) — the same shapes the legacy rag.query path
@@ -722,12 +744,17 @@ async def _serve_via_agent(
     Consults the semantic cache (S5-2) first: a hit short-circuits the run
     entirely. PHI: nothing here logs the raw question; only the run_id and
     handle/count-shaped audit details cross into logging (audit.py contract).
+
+    ``filters`` (ASSIST-AGENT-DATES) reach both the tools (via ``RunContext``)
+    and the cache key, so a filtered ask never replays an unfiltered answer.
     """
+    filters = filters or ChatFilters()
     profile_version = await _profile_version(profile_id, profile_db)
     cache_key = CacheKey(
         normalized_question=normalize_question(question),
         profile_version=profile_version,
         profile_id=profile_id,
+        filters=filters,
     )
 
     cached = get_cached(cache_key)
@@ -744,6 +771,7 @@ async def _serve_via_agent(
         run_id=new_run_id(),
         db_session_factory=_db_session_factory,
         audit_db=db,
+        filters=filters,
     )
     terminal = await run_agent(question, ctx)
 
@@ -826,6 +854,7 @@ async def chat(
                     profile_id=session.profile_id,
                     profile_db=profile_db,
                     db=db,
+                    filters=_chat_filters(request),
                 )
                 insufficient_context = False
                 insufficient_reasons: list[str] = []
@@ -1389,22 +1418,29 @@ async def _build_knowledge_fallback(
         found_analytes.extend(request.selected_analytes)
     found_analytes = list(set(found_analytes))
 
-    # Pull latest observation for each analyte so fallback is user-grounded
+    # Pull latest observation for each analyte so fallback is user-grounded.
+    # ASSIST-AGENT-DATES (owner AAD-ROW): "latest" means latest inside the
+    # chat date window, with the same parsing as legacy (malformed ignored).
+    from_dt = _parse_filter_date(request.from_date) if request.from_date else None
+    to_dt = _parse_filter_date(request.to_date) if request.to_date else None
+
     async def _fetch_latest_obs(analyte: str):
         if profile_db is None:
             return None
         try:
             from sqlalchemy import select
             from models.observation import Observation
+            stmt = select(Observation).where(
+                Observation.profile_id == profile_id,
+                Observation.analyte_canonical == analyte,
+                Observation.value.isnot(None),
+            )
+            if from_dt is not None:
+                stmt = stmt.where(Observation.collected_at >= from_dt)
+            if to_dt is not None:
+                stmt = stmt.where(Observation.collected_at <= to_dt)
             result = await profile_db.execute(
-                select(Observation)
-                .where(
-                    Observation.profile_id == profile_id,
-                    Observation.analyte_canonical == analyte,
-                    Observation.value.isnot(None),
-                )
-                .order_by(Observation.collected_at.desc().nullslast())
-                .limit(1)
+                stmt.order_by(Observation.collected_at.desc().nullslast()).limit(1)
             )
             return result.scalar_one_or_none()
         except Exception:

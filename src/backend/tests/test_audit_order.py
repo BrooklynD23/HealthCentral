@@ -808,7 +808,7 @@ async def test_hc_aud_ord_007_profile_delete_leaves_no_trace_of_id(master, erase
 # --- T5: row 28 agent chat ----------------------------------------------------
 
 
-async def _agent_stub(question, profile_id, profile_db, db):
+async def _agent_stub(question, profile_id, profile_db, db, filters=None):
     await create_audit_log(
         db=db, event_type="agent.run", action="agent.run", profile_id=profile_id,
         entity_type="agent_run", entity_id=str(uuid.uuid4()),
