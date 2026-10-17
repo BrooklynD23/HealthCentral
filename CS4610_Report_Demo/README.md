@@ -10,7 +10,9 @@ Claims checked against the repo and found **not evidenced**:
 
 - **A `PreToolUse` hook ("AgentShield") that scans tool calls for PHI and
   blocks network-bound calls** — Final Report §7.2, Technical Companion §4.6.
-  No hook mechanism and no `.claude/settings.json` exist in this repo at all.
+  No `PreToolUse` hook exists in this repo. The only committed hook (since
+  2026-10-10, owner HOOKS-COMMIT) is a metadata-only `PostToolUse`/`SessionEnd`
+  session logger (`.claude/hooks/session_log.py`) that scans nothing and blocks nothing.
   "AgentShield" appears nowhere in the code — only in these documents and in
   the research notes that recorded the gap. The real, evidenced mechanism for
   the invariant this claim describes is

@@ -1048,6 +1048,18 @@ Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-repor
 
 Links to: `docs/plans/2026-10-04-DDI-doc-delete-interpretation.md`
 
+## `docs/plans/2026-10-10-rsi-audit-handoff-prompt.md`
+
+**Handoff Prompt — RSI-Loop Research Audit & MMR Adversarial Review**
+
+A 10-agent research sweep produced `docs/plans/2026-10-10-rsi-loop-applicability-report.md`, mapping Recursive Self-Improvement (RSI) loops (rsi-loop's Observe→Analyze→Fix→Verify, Dream-RSI,…
+
+## `docs/plans/2026-10-10-rsi-loop-applicability-report.md`
+
+**RSI-Loop Applicability Research Report**
+
+Asclexis is already ~3/4 of an RSI loop. Mapped onto rsi-loop's Observe→Analyze→Fix→Verify:
+
 ## `docs/plans/2026-10-13-wearables-00-program.md`
 
 **WEAR — Apple Watch + Garmin Wearable Module — Program Plan**

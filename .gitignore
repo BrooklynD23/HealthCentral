@@ -45,6 +45,10 @@ env/
 .claude/*
 !.claude/skills/
 !.claude/agents/
+!.claude/settings.json
+!.claude/hooks/
+.claude/hooks/*
+!.claude/hooks/session_log.py
 !.claude/workflows/
 *.swp
 *.swo

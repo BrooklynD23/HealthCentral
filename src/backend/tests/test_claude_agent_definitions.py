@@ -60,12 +60,14 @@ def test_hc_agents_001_agent_files_are_not_gitignored() -> None:
 
 def test_hc_agents_002_unignore_stays_narrow() -> None:
     """HC-AGENTS-002. Only .claude/agents/ (beside the existing .claude/skills/)
-    is un-ignored. Settings and hooks stay ignored: D1 licenses no hook, and
-    CS4610_Report_Demo/README.md states no .claude/settings.json exists."""
+    is un-ignored, plus exactly one hook: owner HOOKS-COMMIT (2026-10-10)
+    licenses .claude/settings.json and .claude/hooks/session_log.py and no
+    other hook. Local settings and every other hook file stay ignored."""
     must_stay_ignored = [
-        ".claude/settings.json",
         ".claude/settings.local.json",
         ".claude/hooks/pre_tool_use.sh",
+        ".claude/hooks/other_hook.py",
+        ".claude/logs/session-log.jsonl",
     ]
     exposed = [
         rel
@@ -73,6 +75,11 @@ def test_hc_agents_002_unignore_stays_narrow() -> None:
         if _git("check-ignore", "--no-index", "-q", rel).returncode != 0
     ]
     assert exposed == [], f"un-ignore is too wide; now trackable: {exposed}"
+    licensed = [".claude/settings.json", ".claude/hooks/session_log.py"]
+    still_ignored = [
+        rel for rel in licensed if _git("check-ignore", "--no-index", "-q", rel).returncode != 1
+    ]
+    assert still_ignored == [], f"licensed hook files still ignored: {still_ignored}"
 
 
 READ_ONLY_TOOLS = {"Read", "Grep", "Glob"}
