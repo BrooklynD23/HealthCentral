@@ -1,0 +1,1 @@
+{ "name": "asclexis-rsi", "version": "0.1.0", "author": { "name": "Asclexis" }, "description": "RSI Track 1: metadata-only tool-call telemetry, /rsi scoreboard, and guard/hint rules mined from past failures." }
