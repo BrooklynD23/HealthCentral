@@ -504,7 +504,7 @@ Links to: `docs/capstone-report/README.md`, `docs/capstone-report/architecture-o
 
 Knowledge base for the CS4610 capstone report. It tracks the distance between the project's original goal, the repository's verified state, and the claims the report makes. Everything here is…
 
-Links to: `audit/2026-09-25/Devin-Audit-report.md`, `audit/2026-09-25/handoff-2026-09-27-execution.md`, `audit/2026-09-25/review/2026-09-27-followup.md`, `audit/2026-09-25/swarm-2026-09-27/ledger.md`, `docs/capstone-report/00-original-goal.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/architecture-overview.md`, `docs/capstone-report/claims-ledger.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/report-outline.md`, `docs/capstone-report/research`, `docs/capstone-report/specs-compliance-matrix.md`, `docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md`, `docs/plans/2026-09-27-P08-gated-packet-hipaa-aligned-amendment.md`, `docs/plans/2026-09-27-S01-sql-echo-phi-leak.md`, `docs/plans/2026-09-27-W01-harness-agents-branch-a.md`, `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`, `docs/plans/2026-09-27-W03-verified-only-rag-and-trend-labels.md`, `docs/plans/2026-09-27-W04-legacy-abstain-and-eval-gate.md`, `docs/plans/2026-09-27-W05-citation-marker-prompt.md`, `docs/plans/2026-09-27-W06-external-runner-hardening.md`, `docs/plans/2026-09-27-W07-tiered-interpretation-via-modelrunner.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-27-W10-governance-invariant-amendments.md`, `docs/plans/2026-09-27-W11a-test-and-gate-hardening.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`, `docs/plans/2026-09-27-nightly-doc-drift-routine-spec.md`, `docs/plans/2026-09-27-senior-report-showcase-plan.md`
+Links to: `audit/2026-09-25/Devin-Audit-report.md`, `audit/2026-09-25/handoff-2026-09-27-execution.md`, `audit/2026-09-25/review/2026-09-27-followup.md`, `audit/2026-09-25/swarm-2026-09-27/ledger.md`, `docs/capstone-report/00-original-goal.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/architecture-overview.md`, `docs/capstone-report/claims-ledger.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/report-outline.md`, `docs/capstone-report/research`, `docs/capstone-report/rsi-in-development-and-application.md`, `docs/capstone-report/specs-compliance-matrix.md`, `docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md`, `docs/plans/2026-09-27-P08-gated-packet-hipaa-aligned-amendment.md`, `docs/plans/2026-09-27-S01-sql-echo-phi-leak.md`, `docs/plans/2026-09-27-W01-harness-agents-branch-a.md`, `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`, `docs/plans/2026-09-27-W03-verified-only-rag-and-trend-labels.md`, `docs/plans/2026-09-27-W04-legacy-abstain-and-eval-gate.md`, `docs/plans/2026-09-27-W05-citation-marker-prompt.md`, `docs/plans/2026-09-27-W06-external-runner-hardening.md`, `docs/plans/2026-09-27-W07-tiered-interpretation-via-modelrunner.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-27-W10-governance-invariant-amendments.md`, `docs/plans/2026-09-27-W11a-test-and-gate-hardening.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`, `docs/plans/2026-09-27-nightly-doc-drift-routine-spec.md`, `docs/plans/2026-09-27-senior-report-showcase-plan.md`
 
 ## `docs/capstone-report/architecture-engineering-contract.md`
 
@@ -593,6 +593,14 @@ Links to: `audit/2026-09-25/review/2026-09-27-followup.md`, `docs/capstone-repor
 Technology-scouting documents for the capstone report's Related Work section and the project's roadmap.
 
 Links to: `docs/capstone-report/README.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/research/01-agentic-swe-tools.md`, `docs/capstone-report/research/02-harness-techniques.md`, `docs/capstone-report/research/03-rag-local-llm.md`, `docs/capstone-report/research/04-papers-evals.md`
+
+## `docs/capstone-report/rsi-in-development-and-application.md`
+
+**RSI in Development and in the Application**
+
+Capstone report section. Status labels are strict: nothing here is described as merged unless the source says so. The research package it cites is in PR #122…
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`
 
 ## `docs/capstone-report/specs-compliance-matrix.md`
 
@@ -1210,7 +1218,7 @@ Links to: `docs/plans/2026-10-13-wearables-00-program.md`, `docs/plans/2026-10-1
 
 One item loop that **Claude Code, Codex CLI and Devin** run against the same queue, with GitHub as the only lock. It extends the tier model in orchestration.md §1–§5 and does not repeat it.…
 
-Links to: `.claude/workflows/build-item.js`, `.claude/workflows/build-wave.js`, `AGENT.md`, `CLAUDE.md`, `docs/agentic/orchestration.md`, `docs/agentic/recurring-failures.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/reviews/2026-10-15/build-program-codex.md`
+Links to: `.claude/workflows/build-item.js`, `.claude/workflows/build-program.js`, `.claude/workflows/build-wave.js`, `AGENT.md`, `CLAUDE.md`, `docs/agentic/orchestration.md`, `docs/agentic/recurring-failures.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/reviews/2026-10-15/build-program-codex.md`
 
 ## `docs/plans/2026-10-15-build-program/contracts.md`
 
@@ -1305,6 +1313,14 @@ Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026
 A patient can opt in, **per purpose and revocably**, to donate a copy of their own chat data for improving local models. Every donated record: 1. is redacted locally at `strict` by **calling**…
 
 Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`
+
+## `docs/plans/2026-10-17-session-handoff.md`
+
+**Session handoff: 2026-10-16 → 2026-10-17 (L0, Opus 5.5)**
+
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. Owner answers quoted here are recorded in owner-decisions (rows dated 2026-10-17). Verify every fact below with `git`/`gh` before…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`
 
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
@@ -1571,6 +1587,46 @@ Links to: `AGENT.md`, `docs/research/2026-10-12/00-README.md`, `docs/research/20
 **Top open for L0:** OD-3, OD-4, OD-6, OD-8, and whether OM-4/OM-5 are still required.
 
 Links to: `docs/research/2026-10-12/00-README.md`, `docs/research/2026-10-12/03-architecture-contracts.md`, `docs/research/2026-10-12/04-safety-privacy.md`
+
+## `docs/research/2026-10-17-rsi-opt-in-data/00-README.md`
+
+**RSI with opt-in user data: research package (2026-10-17)**
+
+That gives three uses of one opt-in dataset:
+
+Links to: `CLAUDE.md`, `docs/research/2026-10-17-rsi-opt-in-data/01-rsi-self-improving-agents.md`, `docs/research/2026-10-17-rsi-opt-in-data/02-private-synthetic-health-data.md`, `docs/research/2026-10-17-rsi-opt-in-data/03-small-model-citation-finetuning.md`, `docs/research/2026-10-17-rsi-opt-in-data/04-rsi-harness-engineering.md`
+
+## `docs/research/2026-10-17-rsi-opt-in-data/01-rsi-self-improving-agents.md`
+
+**01: Recursive self-improvement for LLM agents (2026-10-17)**
+
+Haiku 5.5 web sweep, 2026-10-17. Markers: **[V]** fetched, **[S]** search snippet only, **[U]** unverified. Synthesis: 00-README.md.
+
+Links to: `docs/research/2026-10-17-rsi-opt-in-data/00-README.md`
+
+## `docs/research/2026-10-17-rsi-opt-in-data/02-private-synthetic-health-data.md`
+
+**02: Opt-in health data to fine-tuning and synthetic seeds without PHI leakage (2026-10-17)**
+
+Haiku 5.5 web sweep, 2026-10-17. Markers: **[V]** fetched, **[S]** search snippet only, **[U]** unverified. Synthesis: 00-README.md.
+
+Links to: `docs/research/2026-10-17-rsi-opt-in-data/00-README.md`
+
+## `docs/research/2026-10-17-rsi-opt-in-data/03-small-model-citation-finetuning.md`
+
+**03: Small local models and citation-faithful medical QA (2026-10-17)**
+
+Haiku 5.5 web sweep, 2026-10-17. Markers: **[V]** fetched, **[S]** search snippet only, **[U]** unverified. Synthesis: 00-README.md.
+
+Links to: `docs/research/2026-10-17-rsi-opt-in-data/00-README.md`
+
+## `docs/research/2026-10-17-rsi-opt-in-data/04-rsi-harness-engineering.md`
+
+**04: RSI-enabled harness engineering (2026-10-17)**
+
+Haiku 5.5 web sweep, 2026-10-17. Markers: **[V]** fetched, **[S]** search snippet only, **[U]** unverified. Synthesis: 00-README.md. Relevance letters: **S** = the session-log hook (#68), **G** =…
+
+Links to: `docs/research/2026-10-17-rsi-opt-in-data/00-README.md`, `docs/research/2026-10-17-rsi-opt-in-data/01-rsi-self-improving-agents.md`
 
 ## `docs/reviews/2026-09-25/DDI-r1-prompt.md`
 

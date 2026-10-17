@@ -1,6 +1,6 @@
 # Capstone Report Knowledge Base
 
-**Last Updated:** 2026-10-02
+**Last Updated:** 2026-10-17
 
 Knowledge base for the CS4610 capstone report. It tracks the distance between the project's original goal, the repository's verified state, and the claims the report makes. Everything here is evidence-linked. A claim without a `file:line`, commit hash, or command output is marked UNVERIFIED, not asserted.
 
@@ -23,6 +23,7 @@ Knowledge base for the CS4610 capstone report. It tracks the distance between th
 | [specs-compliance-matrix.md](specs-compliance-matrix.md) | Requirement → source → implementation → tests → gate → status. 73 rows (recounted 2026-09-28); only 4 `enforced` |
 | [implementation-program.md](implementation-program.md) | Dependency-ordered phases over the 8 audit plans plus uncovered gaps, with stop gates, measured acceptance, rollback and owner sign-offs. In execution: Waves 0-2 merged (2026-10-02). |
 | [owner-decisions-2026-09-27.md](owner-decisions-2026-09-27.md) | Owner answers to P0-B, D1–D13 and G-B5 (2026-09-27), with the exact option text each licenses |
+| [rsi-in-development-and-application.md](rsi-in-development-and-application.md) | RSI section: Track 1 dev harness (in review), Track 2 application (planned), gates, MM-1 baselines, results to be filled |
 | Next-agent handoff: [`handoff-2026-09-27-execution.md`](../../audit/2026-09-25/handoff-2026-09-27-execution.md) | Paste-ready brief to start execution at P0-B |
 | [research/](research/) | Technology scouting. 01–03 carry proposed integration contracts with sourced verdicts; 04 is a literature map (`CITE`, not contracts). |
 | Review follow-up: [`2026-09-27-followup.md`](../../audit/2026-09-25/review/2026-09-27-followup.md) | Disposition of all 17 independent-review findings (F-01…F-17) plus new findings from the re-check |
