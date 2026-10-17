@@ -28,7 +28,7 @@ if (!/^[A-Za-z0-9._-]{1,40}$/.test(RUN_ID)) throw new Error(`args.run_id must ma
 // matching a deny pattern is called out separately so the archive says why.
 const ALLOW = [
   `${MOD}/hooks/rules.ts`,
-  `${MOD}/replay/cases.json`,
+  `${MOD}/replay/cases.ts`,
   'docs/agentic/recurring-failures.md',
 ]
 const DENY = [
@@ -69,7 +69,7 @@ function gateNumstat(text) {
   for (const row of rows) {
     const [add, del, ...rest] = row.split(/\s+/)
     const p = rest.join(' ')
-    if (![`${MOD}/hooks/rules.ts`, `${MOD}/replay/cases.json`].includes(p)) continue
+    if (![`${MOD}/hooks/rules.ts`, `${MOD}/replay/cases.ts`].includes(p)) continue
     if (del === '-' || add === '-' || !/^\d+$/.test(del) || Number(del) > 0) violations.push(`${p}: ${del} deleted line(s); additions only`)
   }
   return { ok: violations.length === 0, violations }
@@ -107,7 +107,7 @@ const REFLECT_SCHEMA = {
     cluster: { type: 'string', description: 'tool/error_class' },
     went_wrong: { type: 'string' },
     smallest_change: { type: 'string', description: 'the one rule, replay case pair, or recurring-failures.md row that would have prevented it' },
-    target_file: { type: 'string', enum: [`${MOD}/hooks/rules.ts`, `${MOD}/replay/cases.json`, 'docs/agentic/recurring-failures.md'] },
+    target_file: { type: 'string', enum: [`${MOD}/hooks/rules.ts`, `${MOD}/replay/cases.ts`, 'docs/agentic/recurring-failures.md'] },
     worth_proposing: { type: 'boolean' },
     already_covered_by: { type: 'string', description: 'existing rule id if one already covers it, else empty' },
   }, required: ['cluster', 'went_wrong', 'smallest_change', 'target_file', 'worth_proposing'] } } },
@@ -174,7 +174,7 @@ if (clusters.length > topClusters.length) log(`not reflected on: ${clusters.slic
 // ---------------------------------------------------------------------------
 phase('Reflect')
 const reflected = await agent(
-  `GEPA-style reflection. For each cluster below, write in natural language: what went wrong (grounded only in the metadata given), and the SMALLEST change that would have prevented it: one rule in ${MOD}/hooks/rules.ts (data-only entry: id, tool, when, match, action deny|hint, message, source), or a row in docs/agentic/recurring-failures.md (read it first; do not duplicate an existing failure mode). Every new rule needs one positive and one negative replay case in ${MOD}/replay/cases.json.
+  `GEPA-style reflection. For each cluster below, write in natural language: what went wrong (grounded only in the metadata given), and the SMALLEST change that would have prevented it: one rule in ${MOD}/hooks/rules.ts (data-only entry: id, tool, when, match, action deny|hint, message, source, errorClass; optional after-only command, onSuccess, absent), or a row in docs/agentic/recurring-failures.md (read it first; do not duplicate an existing failure mode). Every new rule needs one positive and one negative replay case in ${MOD}/replay/cases.ts.
 Set worth_proposing=false if an existing rule already covers it (already_covered_by = its id: ${JSON.stringify(mined.existing_rule_ids)}), if it is a one-off, or if the only fix would touch tests, gate scripts, thresholds, or ask-first safety/privacy/auth code (those are never proposed). Be conservative: this is a health app.
 Clusters:\n${JSON.stringify(topClusters, null, 1)}
 ${STYLE}`,
@@ -198,7 +198,7 @@ Setup: \`git fetch origin && git checkout -B rsi/${id} origin/main\` (if you are
 Reflection to implement:\n${JSON.stringify(refl, null, 1)}
 Rules:
 - You may edit ONLY: ${ALLOW.join(', ')}. Nothing else, ever. If the mod files do not exist at origin/main yet, stop (status=stopped, stop_reason).
-- Each new rule in rules.ts must follow the rule-table shape and ship with at least one positive and one negative ("pass") case in cases.json (ids unique). A recurring-failures.md row needs the evidence and a specific recheck, like the existing rows.
+- Each new rule in rules.ts must follow the rule-table shape (see the Rule type in rules.ts: id, tool, when, match, action, message, source, errorClass; optional after-only 'command' = regex the command must also match, 'onSuccess' = also fire when the call did not fail, 'absent' = regex that must NOT occur in output) and ship with at least one positive and one negative ("pass") case in replay/cases.ts (ids unique). A recurring-failures.md row needs the evidence and a specific recheck, like the existing rows.
 - Never weaken an existing rule or case. Never touch tests, scripts/, .github/, thresholds or ask-first files.
 - Commit (\`feat(harness): rsi candidate ${id}: <what>\`, ending with a Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com> line). Do not push. \`.claude/*\` is git-ignored: use \`git add -f <explicit paths>\`, never \`git add -A\`.
 - Return diff_names / diff_stat as the verbatim stdout of \`git diff --name-only origin/main...HEAD\` and \`git diff --stat origin/main...HEAD\`, and worktree as \`pwd\`.
@@ -216,7 +216,7 @@ ${STYLE}`,
       `In the worktree ${prop.worktree} (cd there; do not edit anything, do not commit):
 1. \`git diff --name-only origin/main...HEAD\` -> diff_names, verbatim. Also \`git diff --numstat origin/main...HEAD\` -> numstat, verbatim.
 2. \`claude plugin validate ${MOD}\` -> validate_exit and last 20 lines.
-3. \`claude plugin test ${MOD}\` (runs replay/cases.json) -> test_exit and last 30 lines.
+3. \`claude plugin test ${MOD}\` (runs replay/cases.ts) -> test_exit and last 30 lines.
 Report real exit codes. Do not retry or fix a failure.
 ${STYLE}`,
       { label: `gate ${id}`, phase: 'Gate', model: 'haiku', effort: 'low', schema: VALIDATE_SCHEMA },
