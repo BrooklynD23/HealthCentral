@@ -150,7 +150,7 @@ If B: RED test `tests/agent/test_guard_prohibited_floor.py::test_hc_sca_001` (a 
 | `document_category` | narrows chunks via `DocumentCategory.category` (`rag.py:581-588`) | `retrieve_chunks`: the same narrowing. Nothing to add for observations |
 | fallback `_fetch_latest_obs` | — | latest observation **within** the window (same `_parse_filter_date` bounds) |
 
-Planner guard (`modules/agent/nodes/plan.py`, ~3 lines): the turn-2 `check_verification` follow-up fires when `query_observations` returned no row **of the asked analyte**, not "no rows at all". Without it, a selection would turn today's "value not yet verified" abstain for the asked analyte into an answer about a different analyte (the selection would hide what the question asks about). With no selection the two conditions are identical, so the golden set is unaffected.
+Asked-analyte rule (in `query_observations`, not the planner): when a selection is present but the result holds **no row of the asked analyte**, the tool returns no rows, exactly as without a selection. Reason: `reflect` drafts as soon as any act returned rows (`nodes/reflect.py::_has_grounding`), so selected-analyte rows alone would skip the planner's `check_verification` follow-up and turn today's "value not yet verified" abstain for the asked analyte into an answer about a different analyte. A planner-only guard is dead code for that reason (found by HC-AAD-008 during build). Cost: when the asked analyte has no verified in-window row, the selection adds nothing, which is today's behaviour; the conservative choice for a safety signal. Owner question AAD-ABSENT-ADD (PR body) asks whether to go further.
 
 **Not done, owner question AAD-TREND-ADD (PR body):** on a trend question the planner calls only `compute_trend` for the asked analyte. Adding the selected analytes there needs the planner (signature `(question, run_log)`) to see the selection and plan an extra `query_observations` call, which appends other analytes' values to a trend answer. That is a patient-visible change this plan does not justify, so trend answers get dates only. The asked analyte is never hidden.
 
@@ -165,7 +165,6 @@ Planner guard (`modules/agent/nodes/plan.py`, ~3 lines): the turn-2 `check_verif
 | `src/backend/modules/agent/graph.py` | `RunContext.filters: ChatFilters = field(default_factory=ChatFilters)` |
 | `src/backend/modules/agent/cache.py` | `CacheKey.filters: ChatFilters = ChatFilters()` — an empty filter equals the default, so unfiltered keys are unchanged |
 | `src/backend/modules/agent/tools/query_observations.py`, `compute_trend.py`, `retrieve_chunks.py` | read `getattr(ctx, "filters", None)` (ToolContext is a Protocol; test contexts may lack it) and apply the rows above |
-| `src/backend/modules/agent/nodes/plan.py` | the planner guard above |
 
 Rejected: routing filtered requests to legacy. It is 1 line, but it moves patients onto the model-prose path, needs a local model, and the no-model fallback ignores dates too.
 
@@ -180,7 +179,7 @@ Rejected: routing filtered requests to legacy. It is 1 line, but it moves patien
 | HC-AAD-005 | trend question, `to_date=2026-03-01` → `compute_trend` cites {`obs-g-jan`} | yes |
 | HC-AAD-006 | `selected_analytes=["Potassium"]` → cited == {g-jan, g-jun, k-jun} (added, glucose kept) | yes |
 | HC-AAD-007 | `selected_panel="iron"` → cited == {g-jan, g-jun, fe-jun} | yes |
-| HC-AAD-008 | "what is my ldl?" (LDL unverified) with `selected_analytes=["potassium"]` → same abstain text as without the selection, no citations | no: a guard for the planner change; fails against an ADD without it (break-it run in the PR body) |
+| HC-AAD-008 | "what is my ldl?" (LDL unverified) with `selected_analytes=["potassium"]` → same abstain text as without the selection, no citations | no: a guard for the asked-analyte rule; fails against an ADD without it (break-it run in the PR body) |
 | HC-AAD-009 | `retrieve_chunks` with `category="lab"` → only `doc-jan`, both paths | yes |
 | HC-AAD-010 | `retrieve_chunks` with `analytes=("potassium",)` → only `doc-jun` | yes |
 | HC-AAD-011 ×5 | cache key: for each of `from_date`, `to_date`, `selected_analytes`, `selected_panel`, `document_category`, a request differing only in that filter looks up a different `CacheKey` and does not return a sentinel planted under the unfiltered key | yes ×5 |
@@ -188,7 +187,7 @@ Rejected: routing filtered requests to legacy. It is 1 line, but it moves patien
 
 **Expected collected delta: +19** (12 functions; 003 has 4 cases, 011 has 5).
 
-**Acceptance:** 19 new tests pass; `scripts/agent_eval_gate.py` golden set IDENTICAL (empty filters ⇒ unchanged keys and queries); `scripts/legacy_eval_gate.py` unchanged; `tests/test_assistant_cache_version.py` and `tests/test_audit_order_guard.py` pass (add a `NAMED_DYNAMIC_EXCLUSIONS` row only if the new call in `_serve_via_agent` is unresolved). **Rollback:** revert. All new fields default to empty.
+**Acceptance:** 19 new tests pass; `scripts/agent_eval_gate.py` golden set IDENTICAL (empty filters ⇒ unchanged keys and queries); `scripts/legacy_eval_gate.py` unchanged; `tests/test_assistant_cache_version.py` and `tests/test_audit_order_guard.py` pass; `tests/test_audit_order.py::_agent_stub` (a stand-in for `_serve_via_agent`) gains `filters=None` (add a `NAMED_DYNAMIC_EXCLUSIONS` row only if the new call in `_serve_via_agent` is unresolved). **Rollback:** revert. All new fields default to empty.
 
 ## RAG-RUNTIME-500 — inference failure on the grounded interpretation route
 
