@@ -32,8 +32,4 @@ claude plugin test .claude/mods/asclexis-rsi
 Type-check with `tsc` using a tsconfig that includes the engine's `claude-code.d.ts` plus `hooks/`, `rsi.test.ts`, `replay/cases.ts`.
 
 ## Rules and replay set
-Each rule needs at least one positive and one `pass` case in `replay/cases.json` (`{id, rule, tool, input, error_text?, failed?, expect: deny|hint|pass}`; `failed` defaults to "error_text is present"). The test environment cannot import JSON, so `replay/cases.ts` is a verbatim copy; regenerate after editing:
-```
-(echo "// Verbatim copy of cases.json (the test environment cannot import JSON). Regenerate:"; echo "//   (echo '// ...'; echo \"export default \$(cat replay/cases.json)\") — see README."; echo "export default $(cat replay/cases.json)") > replay/cases.ts
-```
-`rsi-loop` proposals may edit only `hooks/rules.ts`, the replay set, and `docs/agentic/recurring-failures.md`.
+Each rule needs at least one positive and one `pass` case in `replay/cases.ts` (the single source; `{id, rule, tool, input, error_text?, failed?, expect: deny|hint|pass}`; `failed` defaults to "error_text is present"). `rsi-loop` proposals may edit only `hooks/rules.ts`, `replay/cases.ts`, and `docs/agentic/recurring-failures.md`.

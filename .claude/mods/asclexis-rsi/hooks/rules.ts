@@ -1,5 +1,5 @@
 // Data-only guard/hint table (RSI contract). `rsi-loop` proposals may edit ONLY this file,
-// replay/cases.json and docs/agentic/recurring-failures.md.
+// replay/cases.ts and docs/agentic/recurring-failures.md.
 // Fields: id, tool, when (before|after), match (regex source; before: over the command,
 // after: over the error/output text), action (deny|hint), message, source, errorClass.
 // Optional after-only refinements: `command` (regex the command must also match),
@@ -23,7 +23,7 @@ export const RULES: readonly Rule[] = [
     id: 'pkill-self',
     tool: 'Bash',
     when: 'before',
-    match: String.raw`\bpkill\s+(?:-[A-Za-z0-9]+\s+)*-[A-Za-z]*f[A-Za-z]*\b`,
+    match: String.raw`\bpkill\s+(?:-[A-Za-z0-9]+\s+)*(?:-[A-Za-z]*f[A-Za-z]*|--full)\b`,
     action: 'deny',
     message:
       '`pkill -f` can match this shell itself and kill it (exit 144). Stop by port instead: `lsof -ti:PORT -sTCP:LISTEN | xargs kill`.',
