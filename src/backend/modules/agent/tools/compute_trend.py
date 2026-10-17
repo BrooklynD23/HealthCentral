@@ -11,7 +11,7 @@ from sqlalchemy import select
 from core.time import utcnow
 
 from ..audit import AgentAuditEvent, emit_audit_event
-from ..state import ToolContext
+from ..state import ChatFilters, ToolContext
 from .base import ToolInput, ToolOutput
 
 
@@ -61,6 +61,12 @@ class ComputeTrendTool:
         if args.window_days is not None:
             cutoff = utcnow() - timedelta(days=args.window_days)
             stmt = stmt.where(Observation.collected_at >= cutoff)
+        # ASSIST-AGENT-DATES (owner AAD-ROW): the chat date window narrows.
+        filters = getattr(ctx, "filters", None) or ChatFilters()
+        if filters.from_dt is not None:
+            stmt = stmt.where(Observation.collected_at >= filters.from_dt)
+        if filters.to_dt is not None:
+            stmt = stmt.where(Observation.collected_at <= filters.to_dt)
         stmt = stmt.order_by(Observation.collected_at.asc())
 
         async with ctx.db_session() as session:

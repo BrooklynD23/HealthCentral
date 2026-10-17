@@ -31,6 +31,7 @@ import threading
 from pydantic import BaseModel, ConfigDict
 
 from .schemas import AgentTerminal
+from .state import ChatFilters
 
 
 class CacheKey(BaseModel):
@@ -39,6 +40,7 @@ class CacheKey(BaseModel):
     normalized_question: str
     profile_version: str
     profile_id: str
+    filters: ChatFilters = ChatFilters()
 
 
 def normalize_question(question: str) -> str:
