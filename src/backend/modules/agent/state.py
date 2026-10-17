@@ -11,12 +11,31 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Protocol
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .audit import AgentNode
 from .schemas import AgentTerminal
 
 MAX_STEPS = 5  # hard cap on tool (``act``) calls per question
+
+
+class ChatFilters(BaseModel):
+    """The chat request's context filters, as the agent tools apply them
+    (ASSIST-AGENT-DATES, contracts I-18; owner rows AAD-ROW, AAD-SEMANTICS).
+
+    ``from_dt``/``to_dt`` are naive UTC (parsed by ``modules.rag._parse_filter_date``;
+    a malformed bound is ``None``, i.e. ignored as on legacy). ``analytes`` is
+    ``selected_analytes`` plus the members of ``selected_panel``, lowercased,
+    deduplicated and sorted, so equal selections give equal cache keys.
+    Frozen and hashable: it is part of ``cache.CacheKey``.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    from_dt: datetime | None = None
+    to_dt: datetime | None = None
+    analytes: tuple[str, ...] = ()
+    category: str | None = None
 
 
 class ToolContext(Protocol):

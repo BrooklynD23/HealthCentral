@@ -11,7 +11,6 @@ import json
 import logging
 import re
 from typing import Optional
-from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
@@ -21,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from core.auth import RequireAuth, Session, ProfileDbSession
 from core.audit import audit_and_commit, audit_intent, create_audit_log
-from core.time import utcnow
+from core.time import NaiveUtcDatetime, utcnow
 from models import (
     Observation,
     LabInterpretation,
@@ -505,10 +504,16 @@ async def generate_grounded_interpretation(
     )
 
     rag = get_rag_module()
+    # IUV-1: an unverified (possibly mis-extracted) value is kept out of the question.
+    # It can still reach the model through the RAG context until W-3 (I-13) lands.
+    shown = (
+        f"{observation.value if observation.value is not None else observation.value_text} "
+        if observation.user_verified
+        else ""
+    )
     question = (
         f"Explain my lab result for {observation.analyte_raw} "
-        f"({observation.value if observation.value is not None else observation.value_text} "
-        f"{observation.unit or ''}) and what it may indicate. "
+        f"({shown}{observation.unit or ''}) and what it may indicate. "
         "Use my report details first, then general context."
     )
 
@@ -535,6 +540,15 @@ async def generate_grounded_interpretation(
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail=str(exc),
+        )
+    except RuntimeError:
+        logger.exception(
+            "Grounded interpretation inference failed",
+            extra={"profile_id": session.profile_id},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="The explanation could not be generated right now. Please try again.",
         )
 
     grounded_segments: list[GroundedSegmentResponse] = []
@@ -673,7 +687,7 @@ async def get_interpretation(
 )
 async def generate_panel_interpretation(
     panel_name: str,
-    collected_at: datetime,
+    collected_at: NaiveUtcDatetime,
     session: RequireAuth,
     force_regenerate: bool = Query(False, description="Force regeneration"),
     profile_db: ProfileDbSession = None,

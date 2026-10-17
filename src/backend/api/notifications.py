@@ -12,7 +12,7 @@ import logging
 import re
 import uuid
 from typing import Optional
-from datetime import datetime, time, timedelta
+from datetime import time, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from core.audit import log_document_event
 from core.auth import RequireAuth, Session, ProfileDbSession
-from core.time import utcnow
+from core.time import NaiveUtcDatetime, profile_timezone_name, to_local, utcnow
 from models import (
     Medication,
     MedicationSchedule,
@@ -293,8 +293,8 @@ async def update_notification_settings(
 async def get_notification_history(
     session: RequireAuth,
     medication_id: Optional[str] = Query(None, description="Filter by medication"),
-    from_date: Optional[datetime] = Query(None, description="Start date"),
-    to_date: Optional[datetime] = Query(None, description="End date"),
+    from_date: Optional[NaiveUtcDatetime] = Query(None, description="Start date"),
+    to_date: Optional[NaiveUtcDatetime] = Query(None, description="End date"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     profile_db: ProfileDbSession = None,
@@ -450,10 +450,11 @@ async def send_test_medication_notification(
 
     # Get streak data
     pattern_learner = get_pattern_learner()
-    streak = await pattern_learner.calculate_streak(medication_id, profile_db)
+    tz = await profile_timezone_name(profile_db, session.profile_id)
+    streak = await pattern_learner.calculate_streak(medication_id, profile_db, tz_name=tz)
 
     # Generate message
-    now = utcnow()
+    now = to_local(utcnow(), tz)
     context = MessageContext(
         medication_name=medication.name,
         schedule_label="test",

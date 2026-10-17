@@ -18,7 +18,8 @@ from typing import Optional
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.time import utcnow
+from core.time import to_local, utcnow
+from .streak_engine import _dose_dates
 from models import (
     Medication,
     MedicationSchedule,
@@ -130,6 +131,7 @@ class PatternLearner:
         medication_id: str,
         schedule_id: Optional[str],
         db: AsyncSession,
+        tz_name: str = "UTC",
     ) -> dict:
         """
         Learn all patterns for a medication schedule.
@@ -149,6 +151,7 @@ class PatternLearner:
             medication_id=medication_id,
             schedule_id=schedule_id,
             db=db,
+            tz_name=tz_name,
         )
         if time_window:
             patterns["time_window"] = time_window
@@ -158,6 +161,7 @@ class PatternLearner:
             medication_id=medication_id,
             schedule_id=schedule_id,
             db=db,
+            tz_name=tz_name,
         )
         if weekday_pattern:
             patterns["weekday_pattern"] = weekday_pattern
@@ -166,6 +170,7 @@ class PatternLearner:
         missed_days = await self.learn_missed_day_pattern(
             medication_id=medication_id,
             db=db,
+            tz_name=tz_name,
         )
         if missed_days:
             patterns["missed_days"] = missed_days
@@ -174,6 +179,7 @@ class PatternLearner:
         streak = await self.calculate_streak(
             medication_id=medication_id,
             db=db,
+            tz_name=tz_name,
         )
         patterns["streak"] = streak
 
@@ -185,6 +191,7 @@ class PatternLearner:
         schedule_id: Optional[str],
         db: AsyncSession,
         days_lookback: int = 30,
+        tz_name: str = "UTC",
     ) -> Optional[TimeWindowPattern]:
         """
         Learn the typical time window for taking a medication.
@@ -217,7 +224,8 @@ class PatternLearner:
         # Convert to minutes since midnight
         minutes_list = []
         for dose in doses:
-            minutes = dose.taken_at.hour * 60 + dose.taken_at.minute
+            local = to_local(dose.taken_at, tz_name)
+            minutes = local.hour * 60 + local.minute
             minutes_list.append(minutes)
 
         # Remove outliers
@@ -258,6 +266,7 @@ class PatternLearner:
         schedule_id: Optional[str],
         db: AsyncSession,
         days_lookback: int = 60,
+        tz_name: str = "UTC",
     ) -> Optional[WeekdayPattern]:
         """
         Learn if weekday and weekend patterns differ.
@@ -285,9 +294,10 @@ class PatternLearner:
         weekend_minutes = []
 
         for dose in doses:
-            minutes = dose.taken_at.hour * 60 + dose.taken_at.minute
+            local = to_local(dose.taken_at, tz_name)
+            minutes = local.hour * 60 + local.minute
             # Python weekday: Monday=0, Sunday=6
-            if dose.taken_at.weekday() < 5:
+            if local.weekday() < 5:
                 weekday_minutes.append(minutes)
             else:
                 weekend_minutes.append(minutes)
@@ -324,6 +334,7 @@ class PatternLearner:
         medication_id: str,
         db: AsyncSession,
         days_lookback: int = 60,
+        tz_name: str = "UTC",
     ) -> Optional[list[MissedDayPattern]]:
         """
         Learn which days of the week have higher miss rates.
@@ -350,7 +361,7 @@ class PatternLearner:
         day_counts = {i: {"taken": 0, "skipped": 0} for i in range(7)}
 
         for dose in doses:
-            day = dose.taken_at.weekday()
+            day = to_local(dose.taken_at, tz_name).weekday()
             if dose.was_skipped:
                 day_counts[day]["skipped"] += 1
             else:
@@ -386,6 +397,7 @@ class PatternLearner:
         self,
         medication_id: str,
         db: AsyncSession,
+        tz_name: str = "UTC",
     ) -> StreakData:
         """
         Calculate current and longest adherence streaks.
@@ -409,7 +421,7 @@ class PatternLearner:
             )
 
         # Get unique dates
-        dates = sorted(set(dose.taken_at.date() for dose in doses))
+        dates = sorted(_dose_dates(doses, tz_name))
         total_adherent_days = len(dates)
 
         # Calculate longest streak
@@ -428,7 +440,7 @@ class PatternLearner:
                 current = 1
 
         # Calculate current streak (counting backwards from today)
-        today = utcnow().date()
+        today = to_local(utcnow(), tz_name).date()
         current_streak = 0
         check_date = today
 
@@ -448,6 +460,7 @@ class PatternLearner:
         self,
         medication_id: str,
         db: AsyncSession,
+        tz_name: str = "UTC",
     ) -> int:
         """
         Update adaptive windows for all schedules of a medication.
@@ -472,11 +485,13 @@ class PatternLearner:
                 medication_id=medication_id,
                 schedule_id=schedule.id,
                 db=db,
+                tz_name=tz_name,
             )
 
             if pattern and pattern.confidence >= self.CONFIDENCE_THRESHOLD:
                 schedule.adaptive_window_start = pattern.window_start
                 schedule.adaptive_window_end = pattern.window_end
+                schedule.adaptive_window_tz = tz_name
                 updated_count += 1
 
                 logger.info(
@@ -488,6 +503,42 @@ class PatternLearner:
             await db.commit()
 
         return updated_count
+
+    async def relearn_unmarked_windows(
+        self,
+        profile_id: str,
+        db: AsyncSession,
+        tz_name: str,
+    ) -> int:
+        """Re-learn windows of schedules not yet learned in local time (D-2).
+
+        Covers active and inactive schedules whose ``adaptive_window_tz`` is
+        NULL. A window is written only when confident; the marker is always
+        set so each schedule is handled once. Single commit. Returns the
+        number of schedules marked.
+        """
+        result = await db.execute(
+            select(MedicationSchedule)
+            .join(Medication, Medication.id == MedicationSchedule.medication_id)
+            .where(
+                and_(
+                    Medication.profile_id == profile_id,
+                    MedicationSchedule.adaptive_window_tz.is_(None),
+                )
+            )
+        )
+        rows = result.scalars().all()
+        for row in rows:
+            pattern = await self.learn_time_window(
+                row.medication_id, row.id, db, tz_name=tz_name
+            )
+            if pattern and pattern.confidence >= self.CONFIDENCE_THRESHOLD:
+                row.adaptive_window_start = pattern.window_start
+                row.adaptive_window_end = pattern.window_end
+            row.adaptive_window_tz = tz_name
+        if rows:
+            await db.commit()
+        return len(rows)
 
     async def save_patterns(
         self,

@@ -128,12 +128,14 @@ async def run_due_backups(now: Optional[datetime] = None) -> list[ScheduleRunOut
                 backup_dir = data_dir / "backups" / schedule.profile_id
                 backup_dir.mkdir(parents=True, exist_ok=True)
 
-                # Off the event loop (BKUP-MIX), as in api/backup.py.
+                # Off the event loop (BKUP-MIX); vault via its keyed engine
+                # (BKUP-TORN), as in api/backup.py.
                 outcome = await asyncio.to_thread(
                     backup_script.backup,
                     data_dir=data_dir,
                     backup_dir=backup_dir,
                     profile_id=schedule.profile_id,
+                    snapshot_vault=backup_script.keyed_snapshotter(schedule.profile_id),
                 )
                 schedule.last_run_at = now
                 schedule.last_result = "success" if outcome.success else "failed"

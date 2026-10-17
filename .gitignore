@@ -45,6 +45,7 @@ env/
 .claude/*
 !.claude/skills/
 !.claude/agents/
+!.claude/workflows/
 *.swp
 *.swo
 *~

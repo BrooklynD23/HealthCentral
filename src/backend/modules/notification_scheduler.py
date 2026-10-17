@@ -22,7 +22,7 @@ from typing import Optional, Callable, Awaitable
 from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.time import utcnow
+from core.time import local_day_bounds_utc, profile_timezone_name, to_local, utcnow
 from models import (
     Medication,
     MedicationSchedule,
@@ -141,6 +141,8 @@ class NotificationScheduler:
         # One lock per profile, held for the whole reminder pass so a vault
         # close can wait for an in-flight pass (P2-INFLIGHT).
         self._profile_locks: dict[str, asyncio.Lock] = {}
+        # Profiles whose adaptive-window re-learn was tried since last unlock.
+        self._relearn_attempted: set[str] = set()
 
         # Tracking
         self._last_check_time: Optional[datetime] = None
@@ -189,6 +191,7 @@ class NotificationScheduler:
     def unregister_profile_session(self, profile_id: str):
         """Remove a profile's session registration."""
         self._profile_sessions.pop(profile_id, None)
+        self._relearn_attempted.discard(profile_id)
         logger.debug(f"Unregistered profile session for {profile_id}")
 
     def _profile_lock(self, profile_id: str) -> asyncio.Lock:
@@ -206,6 +209,7 @@ class NotificationScheduler:
         profile lock so the caller can safely dispose the vault engine.
         """
         self._profile_sessions.pop(profile_id, None)
+        self._relearn_attempted.discard(profile_id)
         async with self._profile_lock(profile_id):
             pass
         self._profile_locks.pop(profile_id, None)
@@ -311,10 +315,13 @@ class NotificationScheduler:
         db: AsyncSession,
     ):
         """Check schedules for a single profile."""
-        now = utcnow()
-        current_time = now.time()
-        today = now.date()
-        current_weekday = now.weekday()
+        tz = await profile_timezone_name(db, profile_id)
+        local_now = to_local(utcnow(), tz)
+        current_time = local_now.time().replace(tzinfo=None)
+        today = local_now.date()
+        current_weekday = local_now.weekday()
+
+        await self._relearn_windows_once(profile_id, tz, db)
 
         # Get all active medications with reminders enabled
         result = await db.execute(
@@ -347,7 +354,7 @@ class NotificationScheduler:
 
                 # Check if dose already taken today for this schedule
                 dose_taken = await self._check_dose_taken_today(
-                    medication.id, schedule.id, today, db
+                    medication.id, schedule.id, today, tz, db
                 )
                 if dose_taken:
                     continue
@@ -358,6 +365,8 @@ class NotificationScheduler:
                     schedule=schedule,
                     current_time=current_time,
                     profile_id=profile_id,
+                    today=today,
+                    tz=tz,
                     db=db,
                 )
 
@@ -365,8 +374,28 @@ class NotificationScheduler:
                     await self._send_notification(
                         check_result=check_result,
                         profile_id=profile_id,
+                        tz=tz,
                         db=db,
                     )
+
+    async def _relearn_windows_once(
+        self, profile_id: str, tz: str, db: AsyncSession
+    ) -> None:
+        """Re-learn unmarked adaptive windows once per unlock (fail-soft)."""
+        if profile_id in self._relearn_attempted:
+            return
+        self._relearn_attempted.add(profile_id)
+        try:
+            await get_pattern_learner().relearn_unmarked_windows(profile_id, db, tz)
+        except Exception as exc:
+            await db.rollback()
+            # Class name only: messages can carry bound parameters / PHI.
+            logger.warning(
+                "Adaptive-window re-learn failed for profile %s (%s); "
+                "retrying on next unlock",
+                profile_id,
+                type(exc).__name__,
+            )
 
     def _schedule_applies_today(
         self,
@@ -388,11 +417,11 @@ class NotificationScheduler:
         medication_id: str,
         schedule_id: str,
         today,
+        tz: str,
         db: AsyncSession,
     ) -> bool:
-        """Check if dose was already taken today for this schedule."""
-        today_start = datetime.combine(today, time(0, 0))
-        today_end = datetime.combine(today, time(23, 59, 59))
+        """Check if dose was already taken today (profile-local day)."""
+        today_start, today_end = local_day_bounds_utc(today, tz)
 
         result = await db.execute(
             select(DoseTaken).where(
@@ -400,7 +429,7 @@ class NotificationScheduler:
                     DoseTaken.medication_id == medication_id,
                     DoseTaken.schedule_id == schedule_id,
                     DoseTaken.taken_at >= today_start,
-                    DoseTaken.taken_at <= today_end,
+                    DoseTaken.taken_at < today_end,
                     DoseTaken.was_skipped == False,
                 )
             ).limit(1)
@@ -413,6 +442,8 @@ class NotificationScheduler:
         schedule: MedicationSchedule,
         current_time: time,
         profile_id: str,
+        today,
+        tz: str,
         db: AsyncSession,
     ) -> ScheduleCheck:
         """
@@ -443,7 +474,7 @@ class NotificationScheduler:
 
         # Count today's reminders for this schedule
         reminders_today = await self._count_reminders_today(
-            medication.id, schedule.id, db
+            medication.id, schedule.id, today, tz, db
         )
 
         # Base check result
@@ -501,10 +532,12 @@ class NotificationScheduler:
         self,
         medication_id: str,
         schedule_id: str,
+        today,
+        tz: str,
         db: AsyncSession,
     ) -> int:
-        """Count reminders sent today for this schedule."""
-        today_start = datetime.combine(utcnow().date(), time(0, 0))
+        """Count reminders sent today (profile-local day) for this schedule."""
+        today_start, today_end = local_day_bounds_utc(today, tz)
 
         result = await db.execute(
             select(ReminderLog).where(
@@ -512,6 +545,7 @@ class NotificationScheduler:
                     ReminderLog.medication_id == medication_id,
                     ReminderLog.schedule_id == schedule_id,
                     ReminderLog.sent_at >= today_start,
+                    ReminderLog.sent_at < today_end,
                 )
             )
         )
@@ -521,25 +555,29 @@ class NotificationScheduler:
         self,
         check_result: ScheduleCheck,
         profile_id: str,
+        tz: str,
         db: AsyncSession,
     ):
         """Send notification and log it."""
         # Get streak data for context
         pattern_learner = get_pattern_learner()
         streak = await pattern_learner.calculate_streak(
-            check_result.medication_id, db
+            check_result.medication_id,
+            db,
+            tz_name=tz,
         )
 
         # Build message context
         now = utcnow()
+        local_now = to_local(now, tz)
         context = MessageContext(
             medication_name=check_result.medication_name,
             schedule_label=check_result.schedule_label,
             current_streak=streak.current_streak,
             longest_streak=streak.longest_streak,
             priority=check_result.priority,
-            is_weekend=now.weekday() >= 5,
-            hour_of_day=now.hour,
+            is_weekend=local_now.weekday() >= 5,
+            hour_of_day=local_now.hour,
             previous_reminders_today=check_result.reminders_sent_today,
         )
 

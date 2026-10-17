@@ -1,0 +1,3 @@
+{"id": "abstain-invalid-citation-id", "question": "What was my glucose?", "chunk_set": "glucose", "expect": "abstain",
+ "why": "Cites a chunk that was never retrieved ([cite:9]).",
+ "model_output": "REPORT FACTS:\nYour glucose was 95 mg/dL [cite:9]."}

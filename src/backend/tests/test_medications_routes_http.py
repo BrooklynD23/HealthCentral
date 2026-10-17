@@ -2,7 +2,7 @@
 which must be loaded eagerly under async SQLAlchemy (else MissingGreenlet/500)."""
 
 import uuid
-from datetime import datetime, time, timezone
+from datetime import datetime, time, timedelta, timezone
 
 import pytest
 import pytest_asyncio
@@ -13,7 +13,7 @@ import api.gamification as gamification_api
 from api.medications import router as med_router
 from core.auth import get_profile_db_session
 from core.profile_database import ProfileDatabaseBase
-from models import DoseTaken, Medication, MedicationSchedule
+from models import AdherencePattern, DoseTaken, Medication, MedicationSchedule, UserModelSettings
 from tests.support.routes import route_client
 
 PROFILE = "profile-a"
@@ -221,3 +221,214 @@ async def test_hc_med_http_010_offset_ended_at_cutoff_in_streaks(profile_db, mon
         resp = gclient.get("/gamification/streaks")
     assert resp.status_code == 200, resp.text
     assert resp.json()["current_streak_days"] == 1
+
+
+# DOSE-VAR: variance compares the dose's wall-clock time in the profile time
+# zone (UserModelSettings.timezone) with the schedule's local target_time,
+# against the nearest daily occurrence of that target.
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("tz", "target", "sent", "variance"),
+    [
+        ("America/Los_Angeles", time(8, 0), "2026-01-15T16:05:00Z", 5),  # PST 08:05
+        ("America/Los_Angeles", time(8, 0), "2026-07-15T15:05:00Z", 5),  # PDT 08:05
+        # DST starts 2026-03-08: same UTC instant is 07:05 PST the day before.
+        ("America/Los_Angeles", time(8, 0), "2026-03-07T15:05:00Z", -55),
+        ("America/Los_Angeles", time(8, 0), "2026-03-08T15:05:00Z", 5),
+        ("UTC", time(8, 0), "2026-07-15T08:05:00Z", 5),  # UTC profile unchanged
+        # Near midnight: 23:50 target, dose 00:05 local next day = 15 late.
+        ("America/Los_Angeles", time(23, 50), "2026-07-16T07:05:00Z", 15),
+        # 00:10 target, dose 23:55 local the day before = 15 early.
+        ("America/Los_Angeles", time(0, 10), "2026-07-16T06:55:00Z", -15),
+        # DST ends 2026-11-01: both 01:30 PDT (08:30Z) and 01:30 PST (09:30Z) are on time.
+        ("America/Los_Angeles", time(1, 30), "2026-11-01T08:30:00Z", 0),
+        ("America/Los_Angeles", time(1, 30), "2026-11-01T09:30:00Z", 0),
+        # Offset input: 10:05+02:00 == 08:05Z, UTC profile.
+        ("UTC", time(8, 0), "2026-07-15T10:05:00+02:00", 5),
+        # Invalid stored zone falls back to UTC.
+        ("Not/AZone", time(8, 0), "2026-07-15T08:05:00Z", 5),
+    ],
+)
+async def test_hc_med_http_011_dose_variance_in_profile_timezone(
+    profile_db, tz, target, sent, variance
+):
+    med_id = await _seed(profile_db)
+    schedule_id = str(uuid.uuid4())
+    profile_db.add(MedicationSchedule(
+        id=schedule_id, medication_id=med_id, schedule_label="s",
+        target_time=target, reminder_offset_minutes=15, is_active=True,
+    ))
+    profile_db.add(UserModelSettings(profile_id=PROFILE, timezone=tz))
+    await profile_db.commit()
+    ctx, client = _client(profile_db)
+    try:
+        resp = client.post(
+            f"/medications/{med_id}/doses",
+            params={"schedule_id": schedule_id},
+            json={"taken_at": sent},
+        )
+        assert resp.status_code == 201, resp.text
+        assert resp.json()["dose"]["variance_minutes"] == variance
+    finally:
+        ctx.__exit__(None, None, None)
+    dose = (await profile_db.execute(select(DoseTaken))).scalar_one()
+    assert dose.variance_minutes == variance
+
+
+# SCHED-OWNER: a schedule_id must belong to the medication in the path.
+async def _seed_two_with_schedules(db: AsyncSession) -> tuple[str, str, str, str]:
+    """Two medications in one profile, one schedule each: (med_a, sched_a, med_b, sched_b)."""
+    med_a = await _seed(db, with_schedule=True)
+    med_b = await _seed(db, with_schedule=True)
+    rows = (await db.execute(select(MedicationSchedule))).scalars().all()
+    sched = {s.medication_id: s.id for s in rows}
+    return med_a, sched[med_a], med_b, sched[med_b]
+
+
+async def _dose_count(db: AsyncSession) -> int:
+    return (await db.execute(select(func.count()).select_from(DoseTaken))).scalar_one()
+
+
+@pytest.mark.asyncio
+async def test_hc_med_http_012_log_dose_other_medications_schedule_rejected(profile_db):
+    med_a, _, _, sched_b = await _seed_two_with_schedules(profile_db)
+    ctx, client = _client(profile_db)
+    try:
+        resp = client.post(
+            f"/medications/{med_a}/doses",
+            params={"schedule_id": sched_b},
+            json={"taken_at": "2026-07-15T08:05:00Z"},
+        )
+    finally:
+        ctx.__exit__(None, None, None)
+    assert resp.status_code == 422, resp.text
+    assert "does not belong" in resp.json()["detail"]
+    assert await _dose_count(profile_db) == 0
+
+
+@pytest.mark.asyncio
+async def test_hc_med_http_013_log_dose_own_schedule_and_no_schedule_unchanged(profile_db):
+    med_a, sched_a, _, _ = await _seed_two_with_schedules(profile_db)
+    ctx, client = _client(profile_db)
+    try:
+        own = client.post(
+            f"/medications/{med_a}/doses",
+            params={"schedule_id": sched_a},
+            json={"taken_at": "2026-07-15T08:05:00Z"},
+        )
+        none = client.post(f"/medications/{med_a}/doses", json={"taken_at": "2026-07-15T09:00:00Z"})
+    finally:
+        ctx.__exit__(None, None, None)
+    assert own.status_code == 201, own.text
+    assert own.json()["dose"]["schedule_id"] == sched_a
+    assert own.json()["dose"]["variance_minutes"] == 5
+    assert none.status_code == 201, none.text
+    assert none.json()["dose"]["schedule_id"] is None
+    assert none.json()["dose"]["variance_minutes"] is None
+    assert await _dose_count(profile_db) == 2
+
+
+@pytest.mark.asyncio
+async def test_hc_med_http_014_log_dose_unknown_schedule_keeps_main_behaviour(profile_db):
+    # Pins pre-SCHED-OWNER behaviour: SQLite FKs are off, so an unknown id is
+    # stored as-is with no variance. Not a 500; changing it is out of scope.
+    med_a, _, _, _ = await _seed_two_with_schedules(profile_db)
+    unknown = str(uuid.uuid4())
+    ctx, client = _client(profile_db)
+    try:
+        resp = client.post(
+            f"/medications/{med_a}/doses",
+            params={"schedule_id": unknown},
+            json={"taken_at": "2026-07-15T08:05:00Z"},
+        )
+    finally:
+        ctx.__exit__(None, None, None)
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["dose"]["variance_minutes"] is None
+
+
+@pytest.mark.asyncio
+async def test_hc_med_http_015_learn_patterns_other_medications_schedule_rejected(profile_db):
+    med_a, sched_a, _, sched_b = await _seed_two_with_schedules(profile_db)
+    # 7 recent doses on A tagged with B's schedule: enough for the learner to
+    # write a time_window row tagged sched_b if the guard were missing.
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    for day in range(1, 8):
+        taken = (now - timedelta(days=day)).replace(hour=8, minute=0, second=0, microsecond=0)
+        profile_db.add(DoseTaken(
+            id=str(uuid.uuid4()), medication_id=med_a, schedule_id=sched_b, taken_at=taken,
+            log_method="manual", was_skipped=False, logged_at=taken,
+        ))
+    await profile_db.commit()
+    ctx, client = _client(profile_db)
+    try:
+        foreign = client.post(f"/medications/{med_a}/learn-patterns", params={"schedule_id": sched_b})
+        leaked = (await profile_db.execute(
+            select(func.count()).select_from(AdherencePattern).where(AdherencePattern.schedule_id == sched_b)
+        )).scalar_one()
+        own = client.post(f"/medications/{med_a}/learn-patterns", params={"schedule_id": sched_a})
+        unscoped = client.post(f"/medications/{med_a}/learn-patterns")
+    finally:
+        ctx.__exit__(None, None, None)
+    assert foreign.status_code == 422, foreign.text
+    assert "does not belong" in foreign.json()["detail"]
+    assert leaked == 0
+    assert own.status_code == 200, own.text
+    assert unscoped.status_code == 200, unscoped.text
+
+
+# --- STREAK-TZ: streaks bucket by the profile's local date ------------------
+
+LA = "America/Los_Angeles"
+
+
+async def _seed_la_doses(db: AsyncSession, utc_times: list[datetime]) -> str:
+    db.add(UserModelSettings(profile_id=PROFILE, timezone=LA))
+    await db.commit()
+    med_id = await _seed(db)
+    for taken in utc_times:
+        db.add(DoseTaken(
+            id=str(uuid.uuid4()), medication_id=med_id, taken_at=taken, was_skipped=False, logged_at=taken, log_method="manual",
+        ))
+    await db.commit()
+    return med_id
+
+
+def _freeze_utcnow(monkeypatch, moment: datetime):
+    import api.medications as med_api
+
+    monkeypatch.setattr(med_api, "utcnow", lambda: moment)
+
+
+@pytest.mark.asyncio
+async def test_hc_streak_tz_001_current_streak_uses_profile_local_date(profile_db, monkeypatch):
+    # 09:00 PST Jan 13-15 == 17:00Z. Now = Jan 16 01:00Z == Jan 15 17:00 PST.
+    # UTC logic sees today=Jan 16 with no dose -> 0; local logic -> 3.
+    med_id = await _seed_la_doses(
+        profile_db, [datetime(2026, 1, d, 17, 0) for d in (13, 14, 15)]
+    )
+    _freeze_utcnow(monkeypatch, datetime(2026, 1, 16, 1, 0))
+    ctx, client = _client(profile_db)
+    try:
+        resp = client.get(f"/medications/{med_id}/stats")
+    finally:
+        ctx.__exit__(None, None, None)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["current_streak_days"] == 3
+
+
+@pytest.mark.asyncio
+async def test_hc_streak_tz_002_longest_streak_uses_profile_local_date(profile_db):
+    # Local days Jan 13, 14, 15 (16:30, 09:00, 16:30 PST). In UTC the same doses
+    # fall on Jan 14, 14, 16 -> longest 1; bucketed locally -> 3.
+    med_id = await _seed_la_doses(
+        profile_db,
+        [datetime(2026, 1, 14, 0, 30), datetime(2026, 1, 14, 17, 0), datetime(2026, 1, 16, 0, 30)],
+    )
+    ctx, client = _client(profile_db)
+    try:
+        resp = client.get(f"/medications/{med_id}/stats")
+    finally:
+        ctx.__exit__(None, None, None)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["longest_streak_days"] == 3

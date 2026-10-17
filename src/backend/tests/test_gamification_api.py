@@ -197,7 +197,36 @@ async def test_hc_gam_http_002_streaks_summary(gam_db, monkeypatch):
     assert response.json() == {
         "current_streak_days": 3, "longest_streak_days": 3,
         "timezone": "UTC", "as_of_date": "2026-03-04",
+        "active_days_last_28": 3, "weeks_with_log_last_4": 1,
     }
+
+
+@pytest.mark.asyncio
+async def test_hc_gam_http_013_streak_counts_through_yesterday(gam_db, monkeypatch):
+    await _seed_med(gam_db, PROFILE_A, [1, 2, 3])
+    monkeypatch.setattr(gamification_api, "datetime", _FrozenNow)
+    response, _ = _get("/gamification/streaks", gam_db)
+    assert response.status_code == 200, response.text
+    assert response.json()["current_streak_days"] == 3
+
+
+@pytest.mark.asyncio
+async def test_hc_gam_http_014_full_missed_day_ends_streak(gam_db, monkeypatch):
+    await _seed_med(gam_db, PROFILE_A, [1, 2])
+    monkeypatch.setattr(gamification_api, "datetime", _FrozenNow)
+    response, _ = _get("/gamification/streaks", gam_db)
+    assert response.status_code == 200, response.text
+    assert response.json()["current_streak_days"] == 0
+
+
+@pytest.mark.asyncio
+async def test_hc_gam_http_015_streak_through_yesterday_in_profile_zone(gam_db, monkeypatch):
+    gam_db.add(UserModelSettings(profile_id=PROFILE_A, timezone="America/New_York"))
+    await _seed_doses(gam_db, PROFILE_A, [datetime(2026, 3, d, 17, 0) for d in (1, 2, 3)])  # local noon EST
+    monkeypatch.setattr(gamification_api, "datetime", _FrozenNow)  # Mar 4 07:00 EST
+    response, _ = _get("/gamification/streaks", gam_db)
+    assert response.status_code == 200, response.text
+    assert response.json()["current_streak_days"] == 3
 
 
 @pytest.mark.asyncio
@@ -281,3 +310,76 @@ async def test_hc_gam_http_009_dose_at_ended_at_counts(gam_db, monkeypatch):
     response, _ = _get("/gamification/streaks", gam_db)
     assert response.status_code == 200, response.text
     assert response.json()["current_streak_days"] == 2
+
+
+# --- Engagement measure A (GAMIFICATION-V2 task 4) ---------------------------
+# Derived on read from DoseTaken; window = the 28 profile-local days ending on
+# as_of_date, split into four 7-day weeks counted back from as_of_date.
+
+
+async def _seed_doses(db, profile_id, taken_ats, skipped=()) -> None:
+    med = Medication(
+        id=str(uuid.uuid4()), profile_id=profile_id, name="Med",
+        frequency="once_daily", is_active=True, reminder_enabled=False,
+    )
+    db.add(med)
+    for taken_at in [*taken_ats, *skipped]:
+        db.add(DoseTaken(
+            id=str(uuid.uuid4()), medication_id=med.id, taken_at=taken_at,
+            log_method="manual", was_skipped=taken_at in skipped,
+        ))
+    await db.commit()
+
+
+@pytest.mark.asyncio
+async def test_hc_gam_http_010_engagement_window_edges(gam_db, monkeypatch):
+    # as_of Mar 4 (UTC) -> window Feb 5..Mar 4.
+    await _seed_doses(gam_db, PROFILE_A, [
+        datetime(2026, 2, 4, 8, 0),    # day 29: out
+        datetime(2026, 2, 5, 8, 0),    # day 28: in (week 4)
+        datetime(2026, 2, 25, 8, 0),   # day 8: week 2
+        datetime(2026, 2, 26, 8, 0),   # day 7: week 1
+        datetime(2026, 3, 4, 8, 0),    # as_of: in (week 1)
+        datetime(2026, 3, 4, 9, 0),    # same day: counted once
+        datetime(2026, 3, 5, 8, 0),    # after as_of: out
+    ], skipped=[datetime(2026, 3, 1, 8, 0)])  # skipped: out
+    await _seed_doses(gam_db, PROFILE_B, [datetime(2026, 2, 27, 8, 0)])  # other profile
+    monkeypatch.setattr(gamification_api, "datetime", _FrozenNow)
+    response, _ = _get("/gamification/streaks", gam_db)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert (body["active_days_last_28"], body["weeks_with_log_last_4"]) == (4, 3)
+
+
+class _FrozenAfterDst(datetime):
+    @classmethod
+    def now(cls, tz=None):
+        return datetime(2026, 3, 21, 2, 0, tzinfo=tz or timezone.utc)  # Mar 20 22:00 EDT
+
+
+@pytest.mark.asyncio
+async def test_hc_gam_http_011_engagement_uses_profile_timezone_across_dst(gam_db, monkeypatch):
+    # New York, as_of Mar 20 (EDT) -> window Feb 21..Mar 20 spans the Mar 8 DST switch.
+    gam_db.add(UserModelSettings(profile_id=PROFILE_A, timezone="America/New_York"))
+    await _seed_doses(gam_db, PROFILE_A, [
+        datetime(2026, 2, 21, 4, 30),  # Feb 20 23:30 EST: out
+        datetime(2026, 2, 21, 5, 30),  # Feb 21 00:30 EST: in (week 4)
+        datetime(2026, 3, 9, 3, 30),   # Mar 8 23:30 EDT: week 2
+        datetime(2026, 3, 21, 1, 0),   # Mar 20 21:00 EDT: as_of, week 1
+        datetime(2026, 3, 20, 4, 30),  # Mar 20 00:30 EDT: same day; fixed EST would read Mar 19
+    ])
+    monkeypatch.setattr(gamification_api, "datetime", _FrozenAfterDst)
+    response, _ = _get("/gamification/streaks", gam_db)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["as_of_date"] == "2026-03-20"
+    assert (body["active_days_last_28"], body["weeks_with_log_last_4"]) == (3, 3)
+
+
+@pytest.mark.asyncio
+async def test_hc_gam_http_012_engagement_zero_without_doses(gam_db, monkeypatch):
+    monkeypatch.setattr(gamification_api, "datetime", _FrozenNow)
+    response, _ = _get("/gamification/streaks", gam_db)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert (body["active_days_last_28"], body["weeks_with_log_last_4"]) == (0, 0)
