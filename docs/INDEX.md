@@ -1270,6 +1270,14 @@ Strict `RedactionEngine` matches the underscore-joined labelled shapes that unkn
 
 Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-15-build-program/queue.md`
 
+## `docs/plans/2026-10-17-session-handoff.md`
+
+**Session handoff: 2026-10-16 → 2026-10-17 (L0, Opus 5.5)**
+
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. Owner answers quoted here are recorded in owner-decisions (rows dated 2026-10-17). Verify every fact below with `git`/`gh` before…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`
+
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
 **Project Structure Setup**
