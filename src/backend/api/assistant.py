@@ -14,6 +14,7 @@ Agent Overhaul S5-1: POST /chat serves via the agent graph when
   explicitly off. Session/turn persistence is identical on both paths.
 """
 
+from dataclasses import replace
 import logging
 import uuid
 from contextlib import asynccontextmanager
@@ -32,7 +33,14 @@ from models.chat_session import ChatSession, ChatTurn
 from models.model_settings import UserModelSettings
 from models.document import Document
 from models.observation import Observation
-from modules.rag import RAGModule, VerificationConfig, ModelUnavailableError
+from modules.rag import (
+    RAGModule,
+    VerificationConfig,
+    ModelUnavailableError,
+    ValidatedResponse,
+    ResponseSegment as RagResponseSegment,
+    VerificationMetadata,
+)
 from modules.faithfulness import FaithfulnessConfig
 from modules.agent.cache import (
     CacheKey,
@@ -42,7 +50,7 @@ from modules.agent.cache import (
 )
 from modules.agent.graph import RunContext, new_run_id, run_agent
 from modules.agent.schemas import AgentTerminal
-from modules.agent.guardrails.templates import ESCALATE_TEMPLATE
+from modules.agent.guardrails.templates import ABSTAIN_TEMPLATE, ESCALATE_TEMPLATE
 from modules.agent.settings import is_agent_enabled
 
 logger = logging.getLogger(__name__)
@@ -216,6 +224,29 @@ def get_rag_module() -> RAGModule:
             ),
         )
     return _rag_module
+
+
+def _legacy_serve_or_abstain(result: ValidatedResponse) -> ValidatedResponse:
+    """G-B5 (owner decision 2026-09-27): never serve a legacy answer that failed
+    validation. Any is_valid=False result (missing or invalid citations,
+    prohibited advice, an unverified claim, or faithfulness below the unchanged
+    0.6 threshold) has its segments replaced by the fixed ABSTAIN_TEMPLATE, the
+    same constant the agent path abstains with. is_valid and validation_errors
+    are kept so the payload still says why; verification is cleared
+    (VerificationMetadata()) as SAFE-CHAT does, so no footer claims a check on
+    text the patient does not see (owner W4-OQ-5 = A). Returns a new object.
+
+    Runs before the SAFE-CHAT branch. `prohibited_advice` is kept, so SAFE-CHAT
+    still replaces a prohibited answer with `ESCALATE_TEMPLATE`; this helper only
+    guarantees the answer is withheld if that branch is ever removed.
+    """
+    if result.is_valid:
+        return result
+    return replace(
+        result,
+        segments=[RagResponseSegment(segment_type="uncertainty", content=ABSTAIN_TEMPLATE, citations=[])],
+        verification=VerificationMetadata(),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -834,6 +865,9 @@ async def chat(
                 use_memory=inject_memory,
                 category=request.document_category,
             )
+
+            # G-B5: an invalid legacy answer is replaced by the fixed abstention.
+            result = _legacy_serve_or_abstain(result)
 
             # Build full response text
             full_response = "\n\n".join(

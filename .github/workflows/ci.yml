@@ -176,6 +176,28 @@ jobs:
       - name: Agent eval gate (fail on advice leakage / ungrounded answers)
         run: python3 scripts/agent_eval_gate.py
 
+  legacy-evals:
+    name: Legacy RAG Eval Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install SQLCipher
+        run: sudo apt-get update && sudo apt-get install -y libsqlcipher-dev
+
+      - name: Install dependencies
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r src/backend/requirements.txt
+
+      - name: Legacy RAG eval gate (fail when an invalid legacy answer is served)
+        run: python3 scripts/legacy_eval_gate.py
+
   e2e-tests:
     name: E2E Smoke Tests
     runs-on: ubuntu-latest
