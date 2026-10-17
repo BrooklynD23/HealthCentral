@@ -357,10 +357,13 @@ async def test_hc_bkup_024_one_profiles_failure_does_not_stop_the_others(data_di
 
     real_backup = __import__("scripts.backup", fromlist=["backup"]).backup
 
-    def flaky(*, data_dir, backup_dir, profile_id):
+    def flaky(*, data_dir, backup_dir, profile_id, snapshot_vault=None):
         if profile_id == "profile-b":
             raise OSError("disk full")
-        return real_backup(data_dir=data_dir, backup_dir=backup_dir, profile_id=profile_id)
+        return real_backup(
+            data_dir=data_dir, backup_dir=backup_dir, profile_id=profile_id,
+            snapshot_vault=snapshot_vault,
+        )
 
     with patch("core.database.async_session_maker", return_value=db), \
          patch("modules.backup_scheduler._is_profile_unlocked", return_value=True), \

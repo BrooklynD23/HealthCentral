@@ -12,10 +12,10 @@ import logging
 from typing import ClassVar
 
 from pydantic import Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from ..audit import AgentAuditEvent, emit_audit_event
-from ..state import ToolContext
+from ..state import ChatFilters, ToolContext
 from .base import ToolInput, ToolOutput
 
 logger = logging.getLogger(__name__)
@@ -66,12 +66,34 @@ class RetrieveChunksTool:
         """
         from models.chunk import Chunk
         from models.document import Document
+        from models.document_category import DocumentCategory
+        from models.observation import Observation
 
         base_stmt = (
             select(Chunk, Document)
             .join(Document, Chunk.doc_id == Document.id)
             .where(Document.status == "verified")
         )
+        # ASSIST-AGENT-DATES (owner AAD-ROW + AAD-SEMANTICS): the chat filters
+        # narrow chunks exactly as legacy ``rag.py`` ``_search_vectors_async``
+        # does. Applied to ``base_stmt``, so the no-match fallback inherits them.
+        filters = getattr(ctx, "filters", None) or ChatFilters()
+        if filters.from_dt is not None:
+            base_stmt = base_stmt.where(Document.collection_date >= filters.from_dt)
+        if filters.to_dt is not None:
+            base_stmt = base_stmt.where(Document.collection_date <= filters.to_dt)
+        if filters.analytes:
+            base_stmt = base_stmt.where(Document.id.in_(
+                select(Observation.doc_id)
+                .where(func.lower(Observation.analyte_canonical).in_(filters.analytes))
+                .distinct()
+            ))
+        if filters.category:
+            base_stmt = base_stmt.where(Document.id.in_(
+                select(DocumentCategory.doc_id)
+                .where(DocumentCategory.category == filters.category)
+                .distinct()
+            ))
 
         query_lower = args.query.lower()
         match_stmt = base_stmt.where(Chunk.text.ilike(f"%{args.query}%")).limit(args.k)

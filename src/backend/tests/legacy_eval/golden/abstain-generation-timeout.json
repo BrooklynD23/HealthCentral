@@ -1,0 +1,3 @@
+{"id": "abstain-generation-timeout", "question": "What was my glucose?", "chunk_set": "glucose", "expect": "abstain",
+ "why": "The fake runner reports finish_reason=timeout; the REAL _generate_with_runner timeout branch (rag.py:1297-1299) returns its own text, which validates as is_valid=False; the literal G-B5 text abstains (owner W4-OQ-2 = A).",
+ "model_output": "", "finish_reason": "timeout"}

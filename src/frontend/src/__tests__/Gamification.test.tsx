@@ -1,10 +1,10 @@
 /**
  * Gamification: badge toast queue, achievements dates (naive UTC), streak display.
  */
-import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
-import type { BadgeInfo, BadgeStatus } from '@/services/types';
+import type { BadgeInfo, BadgeStatus, StreakResponse } from '@/services/types';
 
 vi.mock('framer-motion', () => {
   const MOTION_PROPS = new Set([
@@ -24,8 +24,10 @@ vi.mock('framer-motion', () => {
 });
 
 const badgesData: { badges: BadgeStatus[] } = { badges: [] };
+let streaksData: StreakResponse | undefined;
 vi.mock('@/services', () => ({
   useBadges: () => ({ data: badgesData, isLoading: false }),
+  useStreaks: () => ({ data: streaksData }),
   useDocuments: () => ({ data: [] }),
   useMedReconciliation: () => ({ data: [], isLoading: false }),
 }));
@@ -91,6 +93,54 @@ describe('StreakDisplay', () => {
     render(<StreakDisplay currentStreak={3} longestStreak={12} />);
     expect(screen.getByText('3')).toBeInTheDocument();
     expect(screen.getByText('12')).toBeInTheDocument();
+  });
+
+  it('broken streak uses neutral copy, not "0 Day streak"', () => {
+    const { container } = render(<StreakDisplay currentStreak={0} longestStreak={5} />);
+    expect(screen.getByText('New streak starts today')).toBeInTheDocument();
+    expect(screen.queryByText('Day streak')).toBeNull();
+    expect(screen.queryByText('0')).toBeNull();
+    expect(container.innerHTML).not.toContain('status-caution');
+  });
+});
+
+describe('AchievementsWidget profile streak', () => {
+  const streaks = (over: Partial<StreakResponse>): StreakResponse => ({
+    current_streak_days: 4, longest_streak_days: 11, timezone: 'UTC', as_of_date: '2026-03-04',
+    active_days_last_28: 4, weeks_with_log_last_4: 1, ...over,
+  });
+  const renderWidget = () => render(<BrowserRouter><AchievementsWidget /></BrowserRouter>);
+  afterEach(() => { streaksData = undefined; });
+
+  it('shows the all-medications streak above the badges', () => {
+    badgesData.badges = [status({ name: 'Locked One' })];
+    streaksData = streaks({ timezone: 'America/New_York' });
+    renderWidget();
+    expect(screen.getByText('All medications')).toBeInTheDocument();
+    expect(screen.getByText('4')).toBeInTheDocument();
+    expect(screen.getByText('11')).toBeInTheDocument();
+    expect(screen.getByText('Locked One')).toBeInTheDocument();
+  });
+
+  it('shows the UTC hint with a Settings link only when the timezone is UTC', () => {
+    badgesData.badges = [];
+    streaksData = streaks({ timezone: 'UTC' });
+    const { unmount } = renderWidget();
+    expect(screen.getByText(/Streak days are counted in UTC/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Settings/ })).toHaveAttribute('href', '/settings');
+    unmount();
+
+    streaksData = streaks({ timezone: 'Europe/Berlin' });
+    renderWidget();
+    expect(screen.queryByText(/Streak days are counted in UTC/)).toBeNull();
+  });
+
+  it('still shows badges while the streak has not loaded', () => {
+    badgesData.badges = [status({ name: 'Locked One' })];
+    streaksData = undefined;
+    renderWidget();
+    expect(screen.getByText('Locked One')).toBeInTheDocument();
+    expect(screen.queryByText('All medications')).toBeNull();
   });
 });
 

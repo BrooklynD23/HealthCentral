@@ -44,7 +44,7 @@ from __future__ import annotations
 import time
 import uuid
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from core.time import utcnow
@@ -58,7 +58,7 @@ from .nodes.draft import draft
 from .nodes.plan import plan
 from .nodes.reflect import reflect
 from .schemas import AgentTerminal
-from .state import MAX_STEPS, RunLog, RunStep, ToolContext
+from .state import MAX_STEPS, ChatFilters, RunLog, RunStep, ToolContext
 
 
 @contextmanager
@@ -90,6 +90,7 @@ class RunContext:
     db_session_factory: Any  # callable -> async context manager yielding an AsyncSession
     audit_db: Any = None
     step_index: int = 0
+    filters: ChatFilters = field(default_factory=ChatFilters)
 
     def db_session(self) -> Any:
         return self.db_session_factory()
