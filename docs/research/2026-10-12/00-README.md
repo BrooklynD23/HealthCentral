@@ -32,7 +32,9 @@ What changed in this package as a result:
    reference and not acted on.
 2. **Framing:** an open-source, personal, research and educational tool for
    individuals curious about their own health and fitness records. It is not
-   professional medical or legal advice and not a medical device. The framing
+   professional medical or legal advice. Whether it is a medical device is
+   not settled here: that stays with OD-8 / OM-7 / OM-8 (corrected after
+   Codex review 2026-10-13, see [response](../../reviews/2026-10-13/WEAR-RESEARCH-response.md), finding C3). The framing
    **relaxes no control**: every safety, privacy, provenance, redaction,
    profile-isolation and no-medical-advice control in
    [03](03-architecture-contracts.md) and [04](04-safety-privacy.md) stays.
@@ -46,9 +48,9 @@ What changed in this package as a result:
 **Technically feasible; pursued by owner direction (WEAR-OD1), gated on real
 export files.** A file-based, descriptive-statistics slice — Apple first,
 Garmin second — fits the existing structured-import and visit-prep paths
-without a mobile app, live sync, vendor cloud API, or a model. Before any code:
-(1) a real Apple export (OM-1) and a real Garmin export (OM-2) inspected end
-to end. Whether (2) direct patient or clinician demand (OM-4/OM-5) is still
+without a mobile app, live sync, vendor cloud API, or a model. Before each slice's code:
+(1) a real Apple export (OM-1) inspected end to end before the Apple slice, and
+a real Garmin export (OM-2) before the Garmin slice (corrected after Codex review 2026-10-13, see [response](../../reviews/2026-10-13/WEAR-RESEARCH-response.md), finding C4). Whether (2) direct patient or clinician demand (OM-4/OM-5) is still
 required under the personal open-source framing is **open — owner to
 confirm**. The 2026-07-10 roadmap deferral of wearables is superseded for this
 scope by WEAR-OD1.

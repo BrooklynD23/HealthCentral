@@ -64,7 +64,7 @@ Steps 3 and 4 can run in parallel. Steps 2-9 need no model-capable machine
 | HC-WRB-009 | Packet omits metrics not reviewed or not included |
 | HC-WRB-010 | Packet section contains median, IQR, n, days-with-data, device, and the "not a clinical measurement" line; contains none of the banned phrases |
 | HC-WRB-011 | Packet generation makes no ModelRunner call |
-| HC-WRB-012 | `source_name` containing a personal name is redacted in the packet |
+| HC-WRB-012 | A `source_name` containing a personal name never appears in the packet (a closed device class is printed instead; corrected, finding ADV-2) |
 | HC-WRB-013 | Metric with fewer than the minimum days is suppressed with a reason |
 | HC-WRB-014 | Import, review and packet each write one audit row with counts only |
 | HC-WRB-015 | Backend collected-test count rises by exactly the new tests; existing `interpret_safety` and redaction suites unchanged and passing |

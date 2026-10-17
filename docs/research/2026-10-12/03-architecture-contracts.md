@@ -20,7 +20,7 @@
 | Trends | `TrendsDashboard` over observations | Separate "Wearable (patient-recorded)" panel; never on the lab chart | Recharts components |
 | Symptoms | none | Up to 5 dated free-text notes in `VisitPrepRequest`; not persisted (owner decision OD-4) | `reason_for_visit` precedent |
 | Packet | `compose_visit_prep_packet` sections | New optional section "Wearable measurements (patient-recorded, not clinically verified)", template-rendered, no LLM | Strict redaction at `:637`, `confirm=true`, audit |
-| Patient export | CSV/JSON of observations | Add a `wearable_daily_metrics` CSV with schema version column | D3 full-fidelity exception |
+| Patient export | CSV/JSON of observations | Add a `wearable_daily_metrics` CSV with schema version column | D3 covers only `GET /export/csv` and `GET /export/json`; a new route needs redaction or an owner decision (corrected, finding ADV-1) |
 | Flag | none | `wearables_enabled: bool = False` in `core/config.py` | Existing boolean-flag pattern |
 
 ## 2. Data contract — `WearableDailyMetric` v1
@@ -88,7 +88,7 @@ them with a counted reason.
 | Vault | The full export ZIP (contains every Health record, including clinical records and locations) is stored encrypted like any import. Owner decision OD-3: keep the raw ZIP, or keep only a hash plus the extracted rows. |
 | Backups | New table and vault file ride existing unredacted backups (by design). |
 | Audit | New events (`wearable.import`, `wearable.review`) need keys added to `core/audit.py:89` `ALLOWED_DETAIL_KEYS`; counts only, no values. |
-| Redaction | Packet section goes through the existing strict pass. `source_name` can hold a person's name ("Jane's Apple Watch"): the redaction test must cover it. |
+| Redaction | Packet section goes through the existing strict pass. `source_name` can hold a person's name ("Jane's Apple Watch"), which strict `name_context` (`modules/redaction.py:82-88`) does not match; the packet must not render `source_name` at all (corrected, finding ADV-2). |
 | Regulatory | Descriptive, no thresholds, no alerts, no disease words → stays in general-wellness territory per secondary summaries of FDA's January 2026 guidance ([FDA page](https://www.fda.gov/regulatory-information/search-fda-guidance-documents/general-wellness-policy-low-risk-devices), date V; content S). Legal read is an owner task. |
 | FTC HBNR | A consumer health app drawing from multiple sources may be a "vendor of personal health records" ([FTC rule page](https://www.ftc.gov/legal-library/browse/rules/health-breach-notification-rule), V). Local-only storage lowers breach surface but does not remove the question. |
 
