@@ -42,6 +42,7 @@ from modules.agent.cache import clear_cache
 from modules.agent.graph import RunContext
 from modules.agent.schemas import AgentTerminal
 from modules.agent.state import ChatFilters
+from modules.agent.tools.query_observations import QueryObservationsInput, QueryObservationsTool
 from modules.agent.tools.retrieve_chunks import RetrieveChunksInput, RetrieveChunksTool
 from modules.knowledge_loader import BiomarkerInfo
 from modules.rag import ModelUnavailableError
@@ -146,6 +147,9 @@ BOUND_CASES = [
     ("plus5_from_excludes", {"from_date": "2026-06-15T05:30:00+05:00"}, set()),
     ("plus5_to_excludes", {"to_date": "2026-06-15T04:30:00+05:00"}, {"obs-g-jan"}),
     ("malformed_ignored", {"from_date": "not-a-date", "to_date": "2026-13-45"}, {"obs-g-jan", "obs-g-jun"}),
+    # Bounds exactly at the stored instant are inclusive (legacy >= / <=).
+    ("from_equal_includes", {"from_date": "2026-06-15T00:00:00"}, {"obs-g-jun"}),
+    ("to_equal_includes", {"to_date": "2026-06-15T00:00:00"}, {"obs-g-jan", "obs-g-jun"}),
 ]
 
 
@@ -175,12 +179,16 @@ async def test_hc_aad_004_retrieve_chunks_honours_the_date_window(profile_db):
     # Text match path and the no-match fallback path both inherit the window.
     assert await _chunk_docs(profile_db, "AADMARK", window) == {"doc-jun"}
     assert await _chunk_docs(profile_db, "no-such-text", window) == {"doc-jun"}
+    upto = ChatFilters(to_dt=datetime(2026, 3, 1))
+    assert await _chunk_docs(profile_db, "AADMARK", upto) == {"doc-jan"}
+    assert await _chunk_docs(profile_db, "no-such-text", upto) == {"doc-jan"}
 
 
 @pytest.mark.asyncio
-async def test_hc_aad_005_compute_trend_honours_the_date_window(profile_db):
-    body = _post(profile_db, {"question": TREND_Q, "to_date": "2026-03-01"})
-    assert _cited(body) == {"obs-g-jan"}
+@pytest.mark.parametrize("bound,expected", [("to_date", {"obs-g-jan"}), ("from_date", {"obs-g-jun"})])
+async def test_hc_aad_005_compute_trend_honours_the_date_window(profile_db, bound, expected):
+    body = _post(profile_db, {"question": TREND_Q, bound: "2026-03-01"})
+    assert _cited(body) == expected
 
 
 @pytest.mark.asyncio
@@ -266,5 +274,34 @@ async def test_hc_aad_012_fallback_latest_observation_honours_the_date_window(pr
          patch("modules.knowledge_loader.get_knowledge_loader", return_value=loader):
         unfiltered = _post(profile_db, {"question": GLUCOSE_Q}, agent=False)
         filtered = _post(profile_db, {"question": GLUCOSE_Q, "to_date": "2026-03-01"}, agent=False)
+        after_all = _post(profile_db, {"question": GLUCOSE_Q, "from_date": "2026-07-01"}, agent=False)
     assert _cited(unfiltered) == {"obs-g-jun"}
     assert _cited(filtered) == {"obs-g-jan"}
+    assert _cited(after_all) == set()
+
+
+@pytest.mark.asyncio
+async def test_hc_aad_013_limit_never_cuts_the_asked_analyte(profile_db):
+    """Natural row order puts glucose first; asking potassium with glucose
+    selected and limit=1 must still return the asked potassium row."""
+    out = await QueryObservationsTool().run(
+        QueryObservationsInput(analyte="potassium", limit=1),
+        _ctx(profile_db, ChatFilters(analytes=("glucose",))),
+    )
+    assert [r.observation_id for r in out.rows] == ["obs-k-jun"]
+
+
+@pytest.mark.asyncio
+async def test_hc_aad_014_null_dated_selected_row_does_not_break_the_agent(profile_db):
+    """A verified selected-analyte row with no collected_at must not crash the
+    agent tool (ObservationRow.collected_at is required) and push the request
+    onto the legacy fallback."""
+    profile_db.add(Observation(
+        id="obs-k-null", profile_id=PROFILE, doc_id="doc-jun", analyte_canonical="potassium",
+        analyte_raw="potassium", value=4.0, unit="u", collected_at=None,
+        user_verified=True, verified_at=JUN,
+    ))
+    await profile_db.commit()
+    body = _post(profile_db, {"question": GLUCOSE_Q, "selected_analytes": ["potassium"]})
+    assert body["verification"]["summary"].startswith("agent:"), body["verification"]
+    assert _cited(body) == {"obs-g-jan", "obs-g-jun", "obs-k-jun"}

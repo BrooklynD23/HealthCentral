@@ -56,17 +56,24 @@ class QueryObservationsTool:
         # ASSIST-AGENT-DATES (owner AAD-ROW + AAD-SEMANTICS): dates narrow;
         # selected analytes are ADDED to the asked analyte, never replace it.
         filters = getattr(ctx, "filters", None) or ChatFilters()
-        stmt = select(Observation).where(Observation.user_verified == True)  # noqa: E712
-        if args.analyte:
-            asked = Observation.analyte_canonical.ilike(args.analyte)
-            if filters.analytes:
-                stmt = stmt.where(
-                    or_(asked, func.lower(Observation.analyte_canonical).in_(filters.analytes))
-                )
-                # The asked analyte's rows first, so the limit can never cut them.
-                stmt = stmt.order_by(case((asked, 0), else_=1))
-            else:
-                stmt = stmt.where(asked)
+        adding = bool(args.analyte and filters.analytes)
+        asked = Observation.analyte_canonical.ilike(args.analyte) if args.analyte else None
+        # With a selection, each row carries whether it is of the ASKED analyte,
+        # computed by the same predicate that selects it (one matcher).
+        stmt = select(Observation, asked.label("is_asked")) if adding else select(Observation)
+        stmt = stmt.where(Observation.user_verified == True)  # noqa: E712
+        if adding:
+            stmt = stmt.where(or_(
+                asked,
+                # Selected rows need a date: ObservationRow.collected_at is
+                # required, so a NULL-dated selected row must not join.
+                func.lower(Observation.analyte_canonical).in_(filters.analytes)
+                & Observation.collected_at.isnot(None),
+            ))
+            # The asked analyte's rows first, so the limit can never cut them.
+            stmt = stmt.order_by(case((asked, 0), else_=1))
+        elif asked is not None:
+            stmt = stmt.where(asked)
         if filters.from_dt is not None:
             stmt = stmt.where(Observation.collected_at >= filters.from_dt)
         if filters.to_dt is not None:
@@ -75,11 +82,14 @@ class QueryObservationsTool:
 
         async with ctx.db_session() as session:
             result = await session.execute(stmt)
-            obs_rows = result.scalars().all()
+            if adding:
+                fetched = result.all()
+                obs_rows = [r[0] for r in fetched]
+                has_asked = any(r.is_asked for r in fetched)
+            else:
+                obs_rows = result.scalars().all()
 
-        if args.analyte and filters.analytes and not any(
-            row.analyte_canonical.lower() == args.analyte.lower() for row in obs_rows
-        ):
+        if adding and not has_asked:
             # Nothing of the ASKED analyte: return nothing, as without a
             # selection, so the planner still runs check_verification and a
             # "value not yet verified" abstain is never replaced by an answer

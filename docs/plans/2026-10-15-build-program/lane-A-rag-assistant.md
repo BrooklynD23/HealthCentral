@@ -174,20 +174,22 @@ Rejected: routing filtered requests to legacy. It is 1 line, but it moves patien
 |---|---|---|
 | HC-AAD-001 | `from_date=2026-03-01`, "what is my glucose?" → cited == {`obs-g-jun`} | yes |
 | HC-AAD-002 | same question unfiltered then with `from_date` → {jan, jun} then {jun} (cache split by dates) | yes |
-| HC-AAD-003 ×4 | `+05:00` bounds: `from 04:30+05:00` → {jun}; `from 05:30+05:00` → {}; `to 04:30+05:00` → {jan}; malformed both → {jan, jun}, 200 | yes ×3; malformed case passes today (pins "ignored") |
-| HC-AAD-004 | `retrieve_chunks` with `from_dt=2026-03-01` → only `doc-jun`, on the text-match path and on the no-match fallback | yes |
-| HC-AAD-005 | trend question, `to_date=2026-03-01` → `compute_trend` cites {`obs-g-jan`} | yes |
+| HC-AAD-003 ×6 | `+05:00` bounds: `from 04:30+05:00` → {jun}; `from 05:30+05:00` → {}; `to 04:30+05:00` → {jan}; malformed both → {jan, jun}, 200; bound equal to the stored instant is inclusive (`from` → {jun}, `to` → {jan, jun}) | yes ×4; malformed and `to`-equal pass today (pin "ignored" / inclusive) |
+| HC-AAD-004 | `retrieve_chunks` with `from_dt=2026-03-01` → only `doc-jun`, and `to_dt=2026-03-01` → only `doc-jan`, on the text-match path and on the no-match fallback | yes |
+| HC-AAD-005 ×2 | trend question: `to_date=2026-03-01` → `compute_trend` cites {`obs-g-jan`}; `from_date=2026-03-01` → {`obs-g-jun`} | yes ×2 |
 | HC-AAD-006 | `selected_analytes=["Potassium"]` → cited == {g-jan, g-jun, k-jun} (added, glucose kept) | yes |
 | HC-AAD-007 | `selected_panel="iron"` → cited == {g-jan, g-jun, fe-jun} | yes |
 | HC-AAD-008 | "what is my ldl?" (LDL unverified) with `selected_analytes=["potassium"]` → same abstain text as without the selection, no citations | no: a guard for the asked-analyte rule; fails against an ADD without it (break-it run in the PR body) |
 | HC-AAD-009 | `retrieve_chunks` with `category="lab"` → only `doc-jan`, both paths | yes |
 | HC-AAD-010 | `retrieve_chunks` with `analytes=("potassium",)` → only `doc-jun` | yes |
 | HC-AAD-011 ×5 | cache key: for each of `from_date`, `to_date`, `selected_analytes`, `selected_panel`, `document_category`, a request differing only in that filter looks up a different `CacheKey` and does not return a sentinel planted under the unfiltered key | yes ×5 |
-| HC-AAD-012 | no-model fallback (`ModelUnavailableError`), `to_date=2026-03-01` → the cited latest glucose is `obs-g-jan`, not `obs-g-jun` | yes |
+| HC-AAD-012 | no-model fallback (`ModelUnavailableError`), `to_date=2026-03-01` → the cited latest glucose is `obs-g-jan`, not `obs-g-jun`; `from_date=2026-07-01` → none cited | yes |
+| HC-AAD-013 | `query_observations(analyte="potassium", limit=1)` with glucose selected → returns `obs-k-jun` (asked rows ordered first; natural order puts glucose first) | yes (no filters on main) |
+| HC-AAD-014 | a verified selected potassium row with NULL `collected_at` → the request stays on the agent path (`agent:` summary) and cites {g-jan, g-jun, k-jun} | yes |
 
-**Expected collected delta: +19** (12 functions; 003 has 4 cases, 011 has 5).
+**Expected collected delta: +24** (14 functions; 003 has 6 cases, 005 has 2, 011 has 5). Raised from +19 after review round 1 (untested predicates, limit ordering, NULL `collected_at` on a selected row).
 
-**Acceptance:** 19 new tests pass; `scripts/agent_eval_gate.py` golden set IDENTICAL (empty filters ⇒ unchanged keys and queries); `scripts/legacy_eval_gate.py` unchanged; `tests/test_assistant_cache_version.py` and `tests/test_audit_order_guard.py` pass; `tests/test_audit_order.py::_agent_stub` (a stand-in for `_serve_via_agent`) gains `filters=None` (add a `NAMED_DYNAMIC_EXCLUSIONS` row only if the new call in `_serve_via_agent` is unresolved). **Rollback:** revert. All new fields default to empty.
+**Acceptance:** 24 new tests pass; `scripts/agent_eval_gate.py` golden set IDENTICAL (empty filters ⇒ unchanged keys and queries); `scripts/legacy_eval_gate.py` unchanged; `tests/test_assistant_cache_version.py` and `tests/test_audit_order_guard.py` pass; `tests/test_audit_order.py::_agent_stub` (a stand-in for `_serve_via_agent`) gains `filters=None` (add a `NAMED_DYNAMIC_EXCLUSIONS` row only if the new call in `_serve_via_agent` is unresolved). **Rollback:** revert. All new fields default to empty.
 
 ## RAG-RUNTIME-500 — inference failure on the grounded interpretation route
 
