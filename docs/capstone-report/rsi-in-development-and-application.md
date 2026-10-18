@@ -73,12 +73,25 @@ Build order set by the owner (RSI-BUILD): mod first, then the workflow, then the
 
 ## 6. Results
 
-To be filled as runs land. No RSI-loop run and no Track-2 evaluation has produced a result yet.
+**Status (2026-10-18).** Track-1 mod merged (#127). The `rsi-loop` workflow is merged (#126, #129) but has not been run: no RSI logs existed before the mod was loaded, so it needs a session started with the mod. The Track-2 evaluation harness is merged (#150) and has produced the baseline below. No constrained-decoding change, leak evaluation or detector-recall measurement exists yet.
+
+**Track-2 baseline (legacy chat citation, before any prompt change).** Measured by `scripts/legacy_cite_eval.py` on the owner's RTX 3080 host through Ollama, one run per model, n=20 questions, exit 0 in 11 m 7 s, with no pytest running. Questions file `questions_v1.json`, sha256 `ecb906035db228f1af9fc2d5698fe9bf9cf0e34bbd88296b5719a8a41c0d990e`. Source: PR #150 comment 6247765961; raw output on the host at `~/asclexis-evals/t2e-2e91ea2/`.
+
+| Model | Abstained | Cited | Uncited | Escalated | Abstain rate | Cited-answer rate |
+|---|---|---|---|---|---|---|
+| `gemma4:e4b` | 19/20 | 0/20 | 0/20 | 1/20 | 0.95 | 0.00 |
+| `llama3.1:8b` | 17/20 | 0/20 | 0/20 | 3/20 | 0.85 | 0.00 |
+| `qwen3:8b` | 15/20 | 1/20 | 4/20 | 0/20 | 0.75 | 0.05 |
+| `gemma3:12b` | 20/20 | 0/20 | 0/20 | 0/20 | 1.00 | 0.00 |
+
+Against MM-1 (section 5), abstentions plus escalations agree within 2 of 20 for every model. `qwen3:8b` is the only model that produced an uncited answer (4/20) or a cite-value mismatch (1). This is the baseline `LEGACY-CITE-PROMPT` (constrained decoding) will be compared against. With one run per model and n=20 the table shows no ranking.
+
+Results still to come:
 
 | Result | Source of the number |
 |---|---|
 | Track-1 before and after per-tool failure rate, retries, tokens per item | `.claude/logs/rsi/` scoreboard (`/rsi`) and the `rsi-loop` workflow measure stage, per run |
-| Track-2 abstain rate and cited-answer rate on four models, before and after constrained decoding | The generalised MM-1 evaluation script; PR bodies carry the counts |
+| Track-2 abstain rate and cited-answer rate on four models, after constrained decoding (the "before" is the table above) | `scripts/legacy_cite_eval.py`; PR bodies carry the counts |
 | Leak evaluation (canary recovery) | The RSI-1 leak-eval run; any recovered canary is a blocking result |
 | PHI-detector recall | Measurement on the project's synthetic vaults |
 | Rejected-candidate archive | The `rsi-loop` archive |

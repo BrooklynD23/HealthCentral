@@ -382,3 +382,11 @@ functions outside its own test file (`grep -rn "start_<name>\|stop_<name>" src/b
 before trusting its unit tests as a completeness signal. A module that is
 fully testable in isolation is not evidence it is reachable from `main.py` or
 any other entry point — check the call site, not just the callee.
+
+---
+
+## 11. Harness rule text broader than the plan it summarises
+
+The queue row for E-3a, written by the orchestrator, told implementers to run `ruff format` as part of the cleanup. The approved plan allowed only safe `ruff check --fix` changes and excluded the ask-first files (`modules/redaction.py`, `modules/interpret_safety.py`, `modules/faithfulness.py`, `modules/verifier_agent.py`) and merged migrations. `ruff format` rewrites whole files, so following the row would have edited ask-first files. The E-3a implementer did not follow it: it skipped the step, flagged the conflict between queue row `:71` and plan section 2.3a in its PR #142 report, and waited for a ruling; the ruling and the row correction ("never `ruff format`") landed in #147. The row text was the orchestrator's own paraphrase, broader than the plan, and nothing but the implementer's habit of re-reading the plan stood between it and an ask-first edit. A one-line instruction in a queue row reads as authority and was never checked against the plan it summarised.
+
+**Recheck:** when writing or following a queue-row instruction that names a command, compare it with the plan section it cites: `grep -n "<command>" docs/plans/<plan>.md`. If the plan does not name the command, do not run it. For any bulk-edit command (`ruff format`, `--fix`, codemods), run it on a scratch branch and list `git diff --stat` against the ask-first file list before committing.
