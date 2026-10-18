@@ -359,6 +359,20 @@ class ExtractModule:
         re.IGNORECASE | re.MULTILINE
     )
 
+    # Column layout: "Analyte Value [Flag] Unit [Range] [Flag]" (whitespace-separated,
+    # unit required, range bare: a-b, <a or >a). Tried after the two patterns above.
+    _FLAG_ALT = r"HH|LL|HIGH|LOW|ABNORMAL|CRITICAL|H|L"
+    COLUMN_LINE_PATTERN = re.compile(
+        r"^([A-Za-z][A-Za-z0-9\s,\-]*?)\s+"  # Analyte name
+        r"(\d+\.?\d*)\s+"  # Value
+        r"(?:(" + _FLAG_ALT + r")\s+)?"  # Flag before unit
+        r"(" + _UNIT_ALT + r")"  # Required unit
+        r"(?:\s+(?:(\d+\.?\d*)\s*[-–]\s*(\d+\.?\d*)|<\s*(\d+\.?\d*)|>\s*(\d+\.?\d*)))?"  # Range
+        r"(?:\s+(" + _FLAG_ALT + r"))?"  # Flag after range
+        r"\s*$",
+        re.IGNORECASE
+    )
+
     def _extract_from_text(
         self,
         text: str,
@@ -401,9 +415,18 @@ class ExtractModule:
             match = self.ALT_LINE_PATTERN.match(line)
 
         if not match:
-            return None
-
-        groups = match.groups()
+            col = self.COLUMN_LINE_PATTERN.match(line)
+            if not col:
+                return None
+            name, val, flag_a, col_unit, lo, hi, lt, gt, flag_b = col.groups()
+            # Normalise to the (analyte, value, unit, ref_low, ref_high, flag) shape.
+            if lt:
+                lo, hi = None, lt
+            elif gt:
+                lo, hi = gt, None
+            groups = (name, val, col_unit, lo, hi, flag_a or flag_b)
+        else:
+            groups = match.groups()
         analyte = groups[0].strip() if groups[0] else None
         value_str = groups[1] if len(groups) > 1 else None
         unit = groups[2] if len(groups) > 2 else None
