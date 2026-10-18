@@ -22,6 +22,7 @@ import shutil
 import sqlite3
 import sys
 import threading
+import time
 from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -170,6 +171,13 @@ def _compute_sha256(file_path: Path) -> str:
     return h.hexdigest()
 
 
+BACKUP_BUSY_TIMEOUT_S = 600
+
+
+class BackupBusyTimeout(Exception):
+    """The source stayed locked past BACKUP_BUSY_TIMEOUT_S."""
+
+
 def _backup_sqlite(source: Path, dest: Path, sqlite_module=sqlite3) -> str:
     """
     Backup a SQLite database using the backup() API.
@@ -180,11 +188,24 @@ def _backup_sqlite(source: Path, dest: Path, sqlite_module=sqlite3) -> str:
 
     Returns the backup method used ('sqlite_backup' or 'file_copy').
     """
+    # timeout=1: each busy wait is short so the deadline below is checked often
+    # (the default 5 s wait would overshoot a small deadline).
+    deadline = time.monotonic() + BACKUP_BUSY_TIMEOUT_S
+
+    def _progress(status, remaining, total):
+        if time.monotonic() > deadline:
+            raise BackupBusyTimeout(
+                f"SQLite backup of {source} still busy after {BACKUP_BUSY_TIMEOUT_S}s"
+            )
+
     try:
-        with closing(sqlite_module.connect(str(source))) as src_conn, \
+        with closing(sqlite_module.connect(str(source), timeout=1)) as src_conn, \
                 closing(sqlite_module.connect(str(dest))) as dst_conn:
-            src_conn.backup(dst_conn)
+            src_conn.backup(dst_conn, progress=_progress)
         return "sqlite_backup"
+    except BackupBusyTimeout:
+        # Never fall back to a file copy here: that stores a torn copy.
+        raise
     except Exception as e:
         logger.warning(
             "SQLite backup API failed for %s, falling back to file copy: %s",
@@ -552,6 +573,7 @@ def verify(backup_path: Path) -> VerifyResult:
     )
 
 
+# PRAGMA foreign_keys stays OFF here: restore deletes then re-inserts the profile row (SQL-FK-001).
 def _reapply_profile_row(backup_master: Path, live_master: Path, profile_id: str) -> bool:
     """Copy one profile's row from a backed-up master DB into the live one.
 
