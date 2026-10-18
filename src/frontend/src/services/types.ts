@@ -201,6 +201,9 @@ export interface TrendPoint {
   // (NORM-UNIT-001); both null when no conversion happened.
   original_value?: number | null;
   original_unit?: string | null;
+  // D4 (owner, 2026-09-27): unverified points may be charted but must be marked.
+  // Optional (I-13): a missing flag is read as unverified (`=== true`).
+  user_verified?: boolean;
 }
 
 export interface TrendData {

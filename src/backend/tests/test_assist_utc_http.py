@@ -89,6 +89,7 @@ async def _seeded_profile_db():
         id="obs-1", profile_id=PROFILE, doc_id="doc-1",
         analyte_canonical="ldl_cholesterol", analyte_raw="LDL",
         value=137.25, unit="mg/dL", collected_at=STORED_AT,
+        user_verified=True,  # D4/O-5: legacy chat reads verified rows only
     ))
     await db.commit()
     return db, engine

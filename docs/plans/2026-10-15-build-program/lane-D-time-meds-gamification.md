@@ -18,7 +18,7 @@
 | D-1 | STREAK-TZ + the profile time-zone helper (§2) | owner row STREAK-TZ (`owner-decisions-2026-09-27.md:174`) | no | #97, #99 merged | blocked-on-PR |
 | D-2 | SCHED-TZ: scheduler on profile-local now/today; adaptive windows stored local | owner row SCHED-TZ (`:173`); #97 comment at `api/medications.py` learn_patterns (after #97) | no | D-1, #97 | blocked-on-item |
 | D-3 | GAM2-STREAK0: ongoing streak counts through yesterday | owner row GAM2-STREAK0 (`:145`); #84 review LOW-3 (`docs/reviews/2026-10-12/GAM2-T24-diff-codereview.md:76-79` on `feat/gamification-v2-t24`) | no | #84, D-1 | blocked-on-PR |
-| D-4 | CORRELATION-NORMALISE: canonical form of an inbound correlation ID | `implementation-program.md:500`; `audit/2026-09-25/waves/wave-3-L1-A.md:176` | no | — | blocked-on-owner |
+| D-4 | CORRELATION-NORMALISE: canonical form of an inbound correlation ID | `implementation-program.md:500`; `audit/2026-09-25/waves/wave-3-L1-A.md:176` | no | — | done (#138) |
 | MED-STREAK-GRACE | per-medication and reminder streaks count through yesterday (Q2) | queue status 2026-10-16 second batch | [§3](#med-streak-grace--the-per-medication-streak-still-resets-each-morning-owner-ruling--q2) | D-3 (merged #109) | blocked-on-owner (MSG-SCOPE) |
 | AUDIT-MISSING-MED | audit rows on `GET /medications/{id}/stats` and `POST /notifications/test/{id}` | queue status 2026-10-16 second batch; CLAUDE.md audit invariant | [§3](#audit-missing-med--two-profile-data-routes-write-no-audit-row) | D-1 (merged #104); rebase after #130 | ready |
 | EXPORT-TODAY-TZ | export questions window and generated-on dates use the profile-local day | queue status 2026-10-16 second batch; recurring-failures #9 | [§3](#export-today-tz--export-dates-use-the-utc-calendar-day) | D-1 helpers (merged) | ready |
@@ -398,7 +398,7 @@ Defaults stay `utcnow().date()`, so module-level callers and tests are unchanged
 |---|---|---|
 | Ask-first files | none: no item touches `interpret_safety`, `redaction`, `faithfulness`, `verifier_agent`, `core/auth.py` or encryption code | — |
 | PR merges | D-0: #95, #97, #99, #82, #84 in that order | owner merges each |
-| CORRELATION-NORMALISE go | D-4 | **not given**; owner item, "none is approved" |
+| CORRELATION-NORMALISE go | D-4 | **given** |
 | Re-learn method (Q1) | D-2 | **answered 2026-10-16: "Re-learn automatically"** — see D-2 rev 2 (no `core/auth.py` edit) |
 | Grace scope (Q2) = **MSG-SCOPE** | D-3 applies only to `GET /gamification/streaks`; MED-STREAK-GRACE asks whether to widen it | not asked; options in §3 MED-STREAK-GRACE (planned 2026-10-17) |
 

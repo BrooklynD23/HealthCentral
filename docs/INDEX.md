@@ -88,13 +88,19 @@ This board is a repo-aligned, test-first execution plan. It is meant to be used 
 
 Local-first application for patients to import medical documents, extract structured information with user verification, visualize trends, and generate grounded explanations and clinician-ready…
 
+## `docs/agentic/eval-cards/extraction.md`
+
+**Extraction Eval Card (HC-M06)**
+
+What it measures: precision/recall of `ExtractModule.extract_from_pdf` on a synthetic, fictional golden set (`src/backend/tests/fixtures/extraction_golden/manifest.json`) for three fields: analyte,…
+
 ## `docs/agentic/evals.md`
 
 **Evaluation Harness**
 
 What "verified" means in this repo. Every task in feature_list.json names its verification steps; this file catalogs the evaluation categories and the concrete commands behind them.
 
-Links to: `CLAUDE.md`, `feature_list.json`
+Links to: `CLAUDE.md`, `docs/agentic/eval-cards/extraction.md`, `feature_list.json`
 
 ## `docs/agentic/harness.md`
 

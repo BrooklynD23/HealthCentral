@@ -234,6 +234,9 @@
     "docs/Local_First_Medical_Results_Companion_PRD_v0_1.md": [
       "docs/roles/product-and-prd.md"
     ],
+    "docs/agentic/eval-cards/extraction.md": [
+      "docs/agentic/evals.md"
+    ],
     "docs/agentic/evals.md": [
       "docs/agentic/harness.md",
       "docs/agentic/mcp-tools.md",
@@ -2325,7 +2328,8 @@
     ],
     "docs/agentic/evals.md": [
       "feature_list.json",
-      "CLAUDE.md"
+      "CLAUDE.md",
+      "docs/agentic/eval-cards/extraction.md"
     ],
     "docs/agentic/harness.md": [
       "CLAUDE.md",

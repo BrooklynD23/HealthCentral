@@ -10,7 +10,7 @@
 
 | ID | Item | Kind | Source | Readiness | Depends on |
 |---|---|---|---|---|---|
-| B-1 | BG-WARN-STALE | PRODUCT (frontend) | [program](../../capstone-report/implementation-program.md) owner-item row BG-WARN-STALE; owner W6-STALE-WARN (`owner-decisions:47`) | blocked-on-owner (BGS-1) | #74 merged (same 3 pages) |
+| B-1 | BG-WARN-STALE | PRODUCT (frontend) | [program](../../capstone-report/implementation-program.md) owner-item row BG-WARN-STALE; owner W6-STALE-WARN (`owner-decisions:47`) | ready (BGS-1 answered (a), `owner-decisions:207`) | #74 merged (same 3 pages) |
 | B-2 | SAFE-INTERP-EMBEDDED (+ W-7 prohibited-draft fallback) | PRODUCT (test) or DOCS (close) | `wave-3-L1-A.md:249,254`; W-7 pack Q1 | blocked-on-owner (IBF-1) | — |
 | B-3 | PARA-1-R3 implementation: `advice_judge` | PRODUCT (safety) | [PARA-1-R3 plan](../../../audit/2026-09-25/waves/scaffold/PARA-1-R3.md) (PR #62); PARA-R3-Q1, Q2Q3, Q4Q5, Q6, Q7, Q8 (`owner-decisions:107,117-120,124`) | ready to code; merge blocked on B-4 | Codex review of §B-3 below; #72 if it merges first (harness) |
 | B-4 | OW-3 sealed set S5 → MM-2 judge measurement → owner signs numbers | OWNER + model machine | `TASK_LIST.md:83,91` | blocked-on-owner, then needs-model-machine | B-3 PR head frozen |
@@ -28,20 +28,22 @@ Order: B-1, B-2 and B-6 are owner questions that can be asked now. B-3 codes in 
 
 **Goal.** When the external-API status is unknown (query error, or `use_external_api === true` with no `redaction_break_glass` field), the page says so. Today it shows nothing.
 
-**Main today.** The component renders only when `active === true` (`src/frontend/src/components/settings/ExternalApiBreakGlassWarning.tsx:15-16`). Callers: `pages/ExplainAssistant.tsx:475-477`, `pages/LabInterpreter.tsx:194-195` (BG-WARN-INTERP, PR #59), `pages/SettingsPage.tsx:681`. Hook `useExternalApiSettings` has `staleTime: 30_000` (`services/modelSettings.ts:242-247`). HC-EXT-003c pins "absent flag → nothing" (`__tests__/ExternalApiBreakGlassWarning.test.tsx:28`).
+**Main today.** The component renders only when `active === true` (`src/frontend/src/components/settings/ExternalApiBreakGlassWarning.tsx:15-16`). Callers: `pages/ExplainAssistant.tsx:475-477`, `pages/LabInterpreter.tsx:194-195` (BG-WARN-INTERP, PR #59), `pages/SettingsPage.tsx:681`. Hook `useExternalApiSettings` has `staleTime: 30_000` (`services/modelSettings.ts:242-247`). HC-EXT-003c pins "absent flag → nothing" (`__tests__/ExternalApiBreakGlassWarning.test.tsx:28`). HC-EXT-005c pins the same at page level on the chat page: with `use_external_api: true` and no flag it asserts `queryByText(/privacy protection override is on/i)` is null (`__tests__/ExplainAssistant.test.tsx:617-623`). The BGS-1 copy contains that phrase, so the notice this item adds for exactly that case fails it.
 
 **Design (option a).**
 1. Component gains `unknown?: boolean`. `active === true` wins; else `unknown === true` renders a `role="status"` notice with owner-approved copy (BGS-1); else nothing. HC-EXT-003c stays green unchanged.
 2. Each of the 3 pages passes `unknown={isError || (data?.use_external_api === true && data.redaction_break_glass === undefined)}` from the same hook call it already makes.
 3. Server side unchanged: audit and refusal already apply (W6-STALE-WARN).
 
-**Test first.** `HC-EXT-003d` (component, `unknown` → status text, no alert); `HC-EXT-003e` (LabInterpreter with the hook mocked to `isError: true` → notice present). Absence asserted synchronously (recurring-failures #1). Observe both RED, then GREEN.
+**Test first.** `HC-EXT-003d` (component, `unknown` → status text, no alert); `HC-EXT-003e` (LabInterpreter with the hook mocked to `isError: true` → notice present); `HC-EXT-003f` (component, `active` and `unknown` both true → only the alert, no status; pins Design 1 "`active === true` wins"). `HC-EXT-005c` keeps its id and setup (external API on, no flag) and changes its assertion: the `role="status"` notice with the BGS-1 copy is present, and `queryByRole('alert')` is null. Absence asserted synchronously (recurring-failures #1). Observe all four RED, then GREEN.
 
-**Acceptance.** `cd src/frontend && npx tsc --noEmit && npx vitest run src/__tests__/ExternalApiBreakGlassWarning.test.tsx src/__tests__/LabInterpreter*.test.tsx`; full vitest in CI (WSL stall rule). Backend collected unchanged.
+**Plan delta (2026-10-17, PR #134 Task 0 block).** Run 1 stopped because the formula in Design 2 fails HC-EXT-005c, and that test file was not on the file list. The formula is the signed scope: the Goal and BGS-1 (a) both name the "external API on, no flag" case, and the copy is owner-approved, so neither changes. HC-EXT-005c pinned the pre-BGS-1 page behaviour that this item exists to change. Its guarantee (no alert on an older backend) is kept and asserted by role instead of a substring the new copy shares; the new positive check makes it stricter. Only that one test changes in `ExplainAssistant.test.tsx`. HC-EXT-005, 005b and 005d stay unchanged: `unknown` is false in each. Measured on the run-1 working tree (formula applied, not committed): `npx vitest run` over ExternalApiBreakGlassWarning, LabInterpreter, ExplainAssistant, ExplainAssistantHistoryRestore, CitationDeepLink, Accessibility and ModelSettingsService → `Tests  1 failed | 57 passed (58)`; the one failure is HC-EXT-005c. Expected delta: backend collected **0**; frontend vitest **+3** (003d, 003e, 003f; 005c is rewritten, not added).
+
+**Acceptance.** `cd src/frontend && npx tsc --noEmit && npx vitest run src/__tests__/ExternalApiBreakGlassWarning.test.tsx src/__tests__/LabInterpreter*.test.tsx src/__tests__/ExplainAssistant.test.tsx`; full vitest in CI (WSL stall rule). Backend collected unchanged.
 
 **Rollback.** Revert the one commit; no data or schema.
 
-**Files.** `src/frontend/src/components/settings/ExternalApiBreakGlassWarning.tsx`, `src/frontend/src/pages/{ExplainAssistant,LabInterpreter,SettingsPage}.tsx`, `src/frontend/src/__tests__/ExternalApiBreakGlassWarning.test.tsx`. Rebase after #74 (Tailwind 4 edits all 3 pages, class-only).
+**Files.** `src/frontend/src/components/settings/ExternalApiBreakGlassWarning.tsx`, `src/frontend/src/pages/{ExplainAssistant,LabInterpreter,SettingsPage}.tsx`, `src/frontend/src/__tests__/ExternalApiBreakGlassWarning.test.tsx`, `src/frontend/src/__tests__/ExplainAssistant.test.tsx` (HC-EXT-005c only; plan delta 2026-10-17). Rebase after #74 (Tailwind 4 edits all 3 pages, class-only).
 
 ## B-2 SAFE-INTERP-EMBEDDED (decided together with W-7's fallback)
 
@@ -159,7 +161,7 @@ The W11b plan's Group G-C3a stands. Delta on main `3b2236c`:
 | Fact | Then (pack 2026-10-07) | Now |
 |---|---|---|
 | S-C3-1 on main | absent | **signed**, `owner-decisions:48` |
-| S-C3-2 threshold rule | unsigned | **unsigned** (`W11b:1950`); Task C3a.2 Step 3 STOPs |
+| S-C3-2 threshold rule | signed | **signed** |
 | W-4 | no PR | PR #72 open; adds "Concrete evals" item **8** (`evals.md:27` on its branch). G-C3a appends item **9**, not 8 |
 | `ci.yml` backend job runs `run-backend-tests.sh` | `:53` | `:56` |
 | `ExtractModule` anchors `extract_from_pdf :114`, `parser_version :91`, `_normalize_date_str :662`, `_extract_from_table :195`, `analyte_raw :35`, `collected_at :44` | — | MATCH |
