@@ -78,9 +78,17 @@ jobs:
         working-directory: src/frontend
         run: npx tsc --noEmit
 
+      - name: Lint (eslint)
+        working-directory: src/frontend
+        run: npm run lint
+
       - name: Run tests
         working-directory: src/frontend
         run: npx vitest run
+
+      - name: Production build
+        working-directory: src/frontend
+        run: npm run build
 
   security-scan:
     name: Security Scan
