@@ -8,6 +8,8 @@
 # Windows mount is slow, file watching is unreliable, and Windows and Linux
 # cannot share the venv or node_modules. Set HC_ALLOW_WINDOWS_MOUNT=1 to override.
 # Set HC_SKIP_OCR_SETUP=1 to leave OCR_ENABLED in src/backend/.env untouched.
+# Set HC_DEV_STOP_AFTER_DEPS=1 to exit 0 right after the Python dependency step
+# (test hook; nothing after pip runs).
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -88,6 +90,8 @@ fi
 ok "Found Node.js $NODE_VERSION"
 command -v npm >/dev/null 2>&1 || die "npm is required but not found (it ships with Node.js)."
 ok "Found npm v$(npm --version)"
+# A C compiler is needed to build llama-cpp-python from source (checked in STEP 3).
+COMPILER="$(command -v cc || command -v gcc || command -v clang || true)"
 echo ""
 
 # --- STEP 2: venv -------------------------------------------------------------
@@ -103,17 +107,39 @@ else
 fi
 
 # --- STEP 3: pip, with dev.ps1's SQLCipher fallback ---------------------------
+# Provider: $LLM_PROVIDER, else last LLM_PROVIDER= in src/backend/.env, else .env.example.
+PROVIDER="${LLM_PROVIDER:-}"
+if [ -z "$PROVIDER" ]; then
+  for f in "$ENV_FILE" "$ENV_EXAMPLE"; do
+    if [ -f "$f" ]; then
+      PROVIDER="$(grep -E '^[[:space:]]*LLM_PROVIDER[[:space:]]*=' "$f" | tail -n 1 | cut -d= -f2- | tr -d "\"'\r" | tr -d '[:space:]' || true)"
+      [ -z "$PROVIDER" ] || break
+    fi
+  done
+fi
+REQ_FILE="$BACKEND_DIR/requirements.txt"
+NOCC_FILTERED=""
+if [ -z "$COMPILER" ]; then
+  if [ "$PROVIDER" = "ollama" ]; then
+    warn "llama-cpp-python skipped: no C compiler; LLM_PROVIDER=ollama does not need it"
+    NOCC_FILTERED="$(mktemp)"
+    grep -vi '^[[:space:]]*llama-cpp-python' "$REQ_FILE" >"$NOCC_FILTERED" || true
+    REQ_FILE="$NOCC_FILTERED"
+  else
+    die "No C compiler found; llama-cpp-python (LLM_PROVIDER=${PROVIDER:-unset}) must be built from source. Fix: install a C compiler (Debian/Ubuntu: sudo apt install build-essential), or set LLM_PROVIDER=ollama"
+  fi
+fi
 status "Installing Python dependencies (log: logs/dev-pip.log) ..."
 "$VENV_PY" -m pip install --upgrade pip --quiet >/dev/null 2>&1 || true
 SQLCIPHER_AVAILABLE=1
 PIP_LOG="$LOG_DIR/dev-pip.log"
-if ! "$VENV_PY" -m pip install -r "$BACKEND_DIR/requirements.txt" >"$PIP_LOG" 2>&1; then
+if ! "$VENV_PY" -m pip install -r "$REQ_FILE" >"$PIP_LOG" 2>&1; then
   if grep -qi sqlcipher "$PIP_LOG"; then
     warn "SQLCipher could not be installed (Debian/Ubuntu: sudo apt install libsqlcipher-dev, then re-run)."
     status "Installing remaining dependencies without SQLCipher ..."
     SQLCIPHER_AVAILABLE=0
     FILTERED="$(mktemp)"
-    grep -vi sqlcipher "$BACKEND_DIR/requirements.txt" >"$FILTERED" || true
+    grep -vi sqlcipher "$REQ_FILE" >"$FILTERED" || true
     "$VENV_PY" -m pip install -r "$FILTERED" --quiet >>"$PIP_LOG" 2>&1 || { rm -f "$FILTERED"; tail -n 15 "$PIP_LOG" >&2; die "pip install failed. See $PIP_LOG"; }
     rm -f "$FILTERED"
     ok "Python dependencies installed (without SQLCipher)"
@@ -124,6 +150,8 @@ if ! "$VENV_PY" -m pip install -r "$BACKEND_DIR/requirements.txt" >"$PIP_LOG" 2>
 else
   ok "Python dependencies installed"
 fi
+[ -z "$NOCC_FILTERED" ] || rm -f "$NOCC_FILTERED"
+[ "${HC_DEV_STOP_AFTER_DEPS:-}" != "1" ] || { status "HC_DEV_STOP_AFTER_DEPS=1 set; stopping after dependencies."; exit 0; }
 
 # --- STEP 3b: OCR tools (detect only; no system installs) --------------------
 TESSERACT_OK=0
