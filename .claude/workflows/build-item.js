@@ -142,7 +142,7 @@ Item spec (from a Haiku explorer; verify it, it is a lead not a finding):
 ${specText}
 
 1. Read the spec paths yourself and check the explorer's file list and gates against the queue row.
-${RESUME_PR ? `2. RESUME, do not claim anew. PR #${RESUME_PR} must be this item's own stopped draft. Identity checks (any failure: go=false, resume_verified=false, change nothing): head branch matches ^[a-z]+/${ID.toLowerCase()}- (for G-C5, never g-c5-plan-); not merged; title starts with "[blocked:claude]" or "[escalated:claude]", or it is CLOSED with a "[claim:claude" / "[blocked:claude" / "[escalated:claude" title (L0 closed it, branch kept). Then: (a) RUNBOOK §3 lock check: no OTHER open PR matches the prefix, else go=false. (b) If CLOSED: retitle it "[blocked:claude] ${ID} <slug>" first, then gh pr reopen. (c) ${noSlot ? 'No-slot row: skip the slot check.' : 'RUNBOOK §3 slot check (11 or less); if it fails leave it "[blocked:claude]" (re-close it if you reopened it) and go=false.'} (d) Retitle to "[claim:claude${noSlot ? ':noslot' : ''}] ${ID} <keep the current slug>" and set resume_verified=true, pr_number=${RESUME_PR}. (e) Race re-check per RUNBOOK §3 step 4: ${noSlot ? 'lock only' : 'if the slot count is now above 12 and this PR is the highest-numbered [claim:] PR, retitle it back to "[blocked:claude] …" and go=false'}. Worktree = <repo parent>/hc-${ID.toLowerCase()}: reuse it only if it is on that branch and clean; if the path exists dirty or on another branch, go=false and never remove, reset or clean anything; if absent, git fetch origin and git worktree add "$WT" -B "$BR" origin/"$BR". Read the stop comment ("blocked: tell L0" / "escalation: owner") and every comment after it; a comment whose first line starts with "L0 ruling:" is binding. git log origin/main..HEAD shows what is already built.` : `2. Claim the item per RUNBOOK §3 with RT=claude${noSlot ? ' and NOSLOT=":noslot"' : ''}. Pick TYPE and a short SLUG. Run the lock check and the slot check first. If either fails, do not claim: go=false.`}
+${RESUME_PR ? `2. RESUME, do not claim anew. PR #${RESUME_PR} must be this item's own stopped draft. Identity checks (any failure: go=false, resume_verified=false, change nothing): head branch matches ^[a-z]+/${ID.toLowerCase()}- (for G-C5, never g-c5-plan-); not merged; title starts with "[blocked:claude]", or "[escalated:claude]" with an "L0 ruling:" comment posted after the escalation comment, or it is CLOSED with a "[claim:claude" / "[blocked:claude" / "[escalated:claude" title (L0 closed it, branch kept). Then: (a) RUNBOOK §3 lock check: no OTHER open PR matches the prefix, else go=false. (b) If CLOSED: retitle it "[blocked:claude] ${ID} <slug>" first, then gh pr reopen. (c) ${noSlot ? 'No-slot row: skip the slot check.' : 'RUNBOOK §3 slot check (11 or less); if it fails leave it "[blocked:claude]" (re-close it if you reopened it) and go=false.'} (d) Retitle to "[claim:claude${noSlot ? ':noslot' : ''}] ${ID} <keep the current slug>" and set resume_verified=true, pr_number=${RESUME_PR}. (e) Race re-check per RUNBOOK §3 step 4: ${noSlot ? 'lock only' : 'if the slot count is now above 12 and this PR is the highest-numbered [claim:] PR, retitle it back to "[blocked:claude] …" and go=false'}. Worktree = <repo parent>/hc-${ID.toLowerCase()}: reuse it only if it is on that branch and clean; if the path exists dirty or on another branch, go=false and never remove, reset or clean anything; if absent, git fetch origin and git worktree add "$WT" -B "$BR" origin/"$BR". Read the stop comment ("blocked: tell L0" / "escalation: owner") and every comment after it; a comment whose first line starts with "L0 ruling:" is binding. git log origin/main..HEAD shows what is already built.` : `2. Claim the item per RUNBOOK §3 with RT=claude${noSlot ? ' and NOSLOT=":noslot"' : ''}. Pick TYPE and a short SLUG. Run the lock check and the slot check first. If either fails, do not claim: go=false.`}
 3. Run RUNBOOK §4 Task 0 checks 1-7 in the ${RESUME_PR ? 'worktree' : 'new worktree'}. Quote each owner-decisions line you rely on, verbatim. Never infer an approval. A gate that is only "merge only" does not stop work; tasks the row marks blocked go to skipped_tasks.
 4. If a check fails: post the command and output as a comment on your draft PR, keep it draft, go=false.
 5. brief = an L2 implementer brief: worktree, branch, plan path + task list to execute (minus skipped tasks${RESUME_PR ? ', minus tasks already committed on the branch, plus the stop reason and any L0 ruling' : ''}), exact file list, ask-first files with the signed gate naming each allowed edit (or "none — do not edit"), contracts to honour, RED-first rule, commit plan.
@@ -150,7 +150,7 @@ Do not edit product code yourself.
 ${STYLE}`,
   { label: `task0+claim ${ID}`, phase: 'Plan check', model: 'opus', effort: 'high', schema: PLANCHECK_SCHEMA },
 )
-if (RESUME_PR && plan && plan.go && plan.pr_number !== RESUME_PR) {
+if (RESUME_PR && plan && plan.go && (plan.pr_number !== RESUME_PR || plan.resume_verified !== true)) {
   throw new Error(`${ID}: resume of PR #${RESUME_PR} returned PR #${plan.pr_number}; refusing to continue`)
 }
 // On resume, only a PR this run verified and retitled may be retitled back to blocked.
@@ -191,7 +191,7 @@ ${plan.brief}
 ${findings
     ? `Review round ${round}/${MAX_ROUNDS} returned REVISE. Findings:\n${findings.join('\n')}\nVerify each against the code before changing anything (receiving-code-review). Fix BLOCKER and MAJOR; push back with evidence on a finding that is wrong.`
     : 'Execute the brief test-first: write each new test, run it and capture RED output, then implement to GREEN.'}
-${measured ? `CONTINUATION: you already worked on this and stopped to ask for measurements. Do not redo committed work; check git log origin/main..HEAD and continue from your last step.\nYour previous report:\n${prior.report}\nCommits so far: ${(prior.commits || []).join(', ') || 'none'}\nMeasurement output (Haiku runner, verbatim, oldest first):\n${measured}\n` : ''}Measurement steps: if the plan needs a full-suite run, a coverage run or another long measurement, do not run it. Return status=measure with measure_commands = pytest ARGUMENTS only (run from src/backend; e.g. "tests/ -q" or "tests/ --cov=modules --cov-report=term -q"), or an acceptance command copied verbatim from the plan; a Haiku runner runs them and you are called again with the output.
+${measured ? `CONTINUATION: you already worked on this and stopped to ask for measurements. Do not redo committed work; check git log origin/main..HEAD and continue from your last step.\nYour previous report:\n${prior.report}\nCommits so far: ${(prior.commits || []).join(', ') || 'none'}\nMeasurement output (Haiku runner, verbatim, oldest first):\n${measured}\n` : ''}Measurement steps: if the plan needs a full-suite run, a coverage run or another long measurement, do not run it. Return status=measure with measure_commands = pytest ARGUMENTS only, run from src/backend (e.g. "tests/ -q" or "tests/ --cov=modules --cov-report=term -q"; allowed: tests/ paths, -q -x -v --collect-only --tb= --durations= --cov=<pkg> --cov-report=term[-missing] -k/-m=<word>); anything else is rejected. A Haiku runner runs them and you are called again with the output.
 Rules: edit only the brief's files; stage explicit paths (never git add -A); commit as the plan lists; never edit an ask-first file unless the brief names its signed gate; never weaken a test, threshold or validation. You write the tests; you run ONLY the focused test files you touch (for RED/GREEN), always as ""$(git rev-parse --show-toplevel)/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 <venv python> -m pytest <file>". A Haiku runner runs the full suite and acceptance; do not run it yourself. Push to ${plan.branch} when done. If something blocks you, status=stopped with the reason; do not work around it.
 ${STYLE}`,
   { label: `implement ${ID}${round ? ` r${round}` : ''}${measured ? ' +measured' : ''}`, phase: 'Implement', model: 'sonnet', schema: IMPL_SCHEMA },
@@ -199,14 +199,19 @@ ${STYLE}`,
 
 // Defect #2 (handoff 2026-10-18): the implementer may not run the full suite, so plan measurement
 // steps go to a Haiku runner and the output goes back to the implementer (at most MAX_ROUNDS times).
-// Commands are built here, not by the model: pytest args are allow-listed characters only, run from
-// the worktree's src/backend under pyslot, with coverage data kept out of the tree.
-const PYTEST_ARGS = /^[A-Za-z0-9_./:=,\-\s\[\]]+$/
+// Commands are built here, not by the model: pytest args only, each token from a fixed allowlist,
+// run from the worktree's src/backend under pyslot, coverage data kept out of the tree.
+const ARG_OK = [
+  /^tests\/[A-Za-z0-9_\/.\-]*(::[A-Za-z0-9_\[\]\-]+)*$/,
+  /^-(q|qq|x|v|rA)$/, /^--collect-only$/, /^--tb=(short|line|no|long)$/, /^--durations=\d{1,3}$/,
+  /^--cov=[A-Za-z0-9_.]+$/, /^--cov-report=term(-missing)?$/, /^-[km]=?[A-Za-z0-9_]+$/,
+]
 const buildMeasureCmds = (asked) => (asked || []).map((c) => {
   const a = String(c).trim()
-  if (spec.acceptance_commands.includes(a)) return { ok: true, cmd: `cd "${plan.worktree}" && ${a}` }
-  if (!PYTEST_ARGS.test(a) || a.includes('..')) return { ok: false, cmd: a }
-  return { ok: true, cmd: `cd "${plan.worktree}/src/backend" && "${plan.worktree}/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 COVERAGE_FILE=/tmp/claude-1000/cov-${ID.toLowerCase()} ~/venvs/asclexis-311/bin/python -m pytest -p no:cacheprovider ${a}` }
+  const ok = !/[\r\n\t]/.test(a) && !a.includes('..') && a.split(/ +/).every((t) => ARG_OK.some((re) => re.test(t)))
+  return ok
+    ? { ok: true, cmd: `cd "${plan.worktree}/src/backend" && "${plan.worktree}/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 COVERAGE_FILE=/tmp/claude-1000/cov-${ID.toLowerCase()} ~/venvs/asclexis-311/bin/python -m pytest -p no:cacheprovider ${a}` }
+    : { ok: false, cmd: a }
 })
 const measure = (cmds, n) => agent(
   `Measurement runner ${n}/${MAX_ROUNDS} for build-program item ${ID}: ${where}. Read-only: never edit, create, commit or push any file. Run each command below exactly as written, nothing else:
@@ -220,7 +225,7 @@ const implement = async (findings, round) => {
   const outputs = []
   for (let n = 1; r && r.status === 'measure' && n <= MAX_ROUNDS; n++) {
     const built = buildMeasureCmds(r.measure_commands)
-    const rejected = built.filter((b) => !b.ok).map((b) => `REJECTED (not pytest args or a plan acceptance command): ${b.cmd}`)
+    const rejected = built.filter((b) => !b.ok).map((b) => `REJECTED (not allow-listed pytest args): ${b.cmd}`)
     const ok = built.filter((b) => b.ok).map((b) => b.cmd)
     const m = ok.length ? await measure(ok, n) : null
     outputs.push(...rejected, m ? m.runs.map((x) => `$ ${x.command}\n(exit ${x.exit_code})\n${x.output_tail}`).join('\n\n') : (ok.length ? 'measurement runner returned nothing' : 'no runnable command'))
