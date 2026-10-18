@@ -165,7 +165,7 @@ VALID_POLICY_LEVELS = frozenset({"strict", "standard", "minimal"})
 # ---------------------------------------------------------------------------
 
 _WORD_BOUNDARY = re.compile(r"\b")
-# Must mirror the email rule local-part class [A-Za-z0-9._%+-] (pinned by HC-REDACT-012).
+# Must mirror the email rule local-part class [A-Za-z0-9._%+-] (pinned by HC-REDACT-012b).
 _LOCAL_CHARS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._%+-")
 
 

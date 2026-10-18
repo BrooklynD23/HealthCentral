@@ -309,6 +309,16 @@ class TestUnderscoreJoinedRedaction:
         assert time.perf_counter() - start < 1.0
         assert result.text == text
 
+    def test_hc_redact_010b_email_rule_linear_time_with_at(self):
+        """HC-REDACT-010b: the anchored branch (input containing '@') is linear and redacts."""
+        import time
+
+        text = "a." * 60000 + " jane@x.com"
+        start = time.perf_counter()
+        result = _engine("strict").redact(text)
+        assert time.perf_counter() - start < 1.0
+        assert result.text == "a." * 60000 + " [EMAIL-REDACTED]"
+
     def test_hc_redact_011_email_anchor_output_identical_to_unanchored(self):
         """HC-REDACT-011: anchored email rule gives the same text, count and spans."""
         old_email = RedactionRule(
