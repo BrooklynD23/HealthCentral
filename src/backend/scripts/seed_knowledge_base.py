@@ -919,7 +919,7 @@ if __name__ == "__main__":
     results = asyncio.run(seed_all())
 
     print("=" * 50)
-    print(f"Seeding complete!")
+    print("Seeding complete!")
     print(f"  Biomarkers added: {results['biomarkers']}")
     print(f"  Interventions added: {results['interventions']}")
     print(f"  Relationships added: {results['relationships']}")

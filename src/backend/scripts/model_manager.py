@@ -91,7 +91,7 @@ def cmd_download(args):
     config = TIER_MODEL_CONFIG[tier]
     repo = config["repo"]
 
-    print(f"\n[Downloading Model]")
+    print("\n[Downloading Model]")
     print(f"  Tier:  {tier}")
     print(f"  Repo:  {repo}")
 
@@ -138,7 +138,7 @@ def cmd_download(args):
             local_dir_use_symlinks=False,
         )
 
-        print(f"\n[Download Complete]")
+        print("\n[Download Complete]")
         print(f"  Path: {local_path}")
 
         # Verify
@@ -176,10 +176,10 @@ def cmd_switch(args):
 
     # Note: This only prints the intended action
     # Actual preference saving requires database access via API
-    print(f"\n[Tier Switch]")
+    print("\n[Tier Switch]")
     print(f"  New tier: {tier}")
-    print(f"\n  Note: To persist this preference, use the API:")
-    print(f"    POST /api/v1/settings/model/tier")
+    print("\n  Note: To persist this preference, use the API:")
+    print("    POST /api/v1/settings/model/tier")
     print(f'    {{"tier": "{tier}"}}')
 
     info = get_tier_display_info(tier)
