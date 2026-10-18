@@ -171,7 +171,11 @@ export function InterpretedResultCard({
           {/* Footer */}
           <div className="flex items-center justify-between pt-2 border-t border-black/4">
             <div className="flex items-center gap-3 text-xs text-ink-tertiary">
-              <span>Model: {interpretation.model_tier}</span>
+              <span>
+                {interpretation.model_tier === 'template'
+                  ? 'Source: knowledge-base template'
+                  : `Source: local model (${interpretation.model_tier})`}
+              </span>
               <span>
                 {new Date(interpretation.created_at).toLocaleDateString()}
               </span>

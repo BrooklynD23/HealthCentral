@@ -141,4 +141,18 @@ describe('InterpretedResultCard', () => {
     );
     expect(screen.getByText('-8.0')).toBeInTheDocument();
   });
+
+  it('HC-IRC-006: footer shows a plain source label, not "Model:"', () => {
+    const { container, rerender } = render(
+      <InterpretedResultCard interpretation={makeInterpretation({ model_tier: 'template' })} />
+    );
+    expect(screen.getByText('Source: knowledge-base template')).toBeInTheDocument();
+    expect(container.textContent ?? '').not.toContain('Model:');
+
+    rerender(
+      <InterpretedResultCard interpretation={makeInterpretation({ model_tier: 'local' })} />
+    );
+    expect(screen.getByText('Source: local model (local)')).toBeInTheDocument();
+    expect(container.textContent ?? '').not.toContain('Model:');
+  });
 });
