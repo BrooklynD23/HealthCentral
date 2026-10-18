@@ -203,3 +203,27 @@ async def test_hc_emb_007_reprocess_keeps_chunks_when_embedding_unavailable(prof
     profile_db.expunge_all()
     ids = (await profile_db.execute(select(Chunk.id).where(Chunk.doc_id == doc.id))).scalars().all()
     assert ids == ["chunk-1"], "reprocess deleted the previous chunks although no replacement embeddings could be made"
+
+
+@pytest.mark.asyncio
+async def test_hc_emb_008_vector_search_ignores_vectors_from_another_model(profile_db):
+    from modules.embeddings import EmbeddingsModule
+    from modules.rag import RAGModule
+
+    class _FixedEmbedder(EmbeddingsModule):
+        def embed_text(self, text):
+            return UNIT
+
+    doc = _document()
+    profile_db.add_all([
+        doc,
+        Chunk(id="chunk-real", doc_id=doc.id, chunk_index=0, text="LDL 128 mg/dL"),
+        Chunk(id="chunk-hash", doc_id=doc.id, chunk_index=1, text="LDL 128 mg/dL"),
+        Embedding(chunk_id="chunk-real", model_name="all-MiniLM-L6-v2", vector_blob=BLOB, dimensions=384),
+        Embedding(chunk_id="chunk-hash", model_name="hash-fallback", vector_blob=BLOB, dimensions=384),
+    ])
+    await profile_db.commit()
+    rag = RAGModule(enable_verification=False)
+    rag._embedder = _FixedEmbedder()
+    results = await rag._search_vectors_async(query="LDL", profile_id=doc.profile_id, profile_db=profile_db)
+    assert [chunk["chunk_id"] for chunk, _ in results] == ["chunk-real"]
