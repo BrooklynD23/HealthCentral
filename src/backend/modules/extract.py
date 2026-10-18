@@ -154,14 +154,16 @@ class ExtractModule:
                 tables = page.extract_tables() or []
 
                 # Process tables for lab values
+                page_table_count = 0
                 for table in tables:
                     table_obs = self._extract_from_table(
                         table, page_num, document_id
                     )
+                    page_table_count += len(table_obs)
                     observations.extend(table_obs)
 
-                # If no tables, try text extraction
-                if not tables:
+                # If this page's tables gave no observations, try text extraction
+                if page_table_count == 0:
                     text_obs = self._extract_from_text(
                         text, page_num, document_id
                     )
