@@ -63,6 +63,13 @@ class ExtractionResult:
     extracted_text: Optional[str] = None
 
 
+# Shared unit alternation. Longer alternatives precede their prefixes.
+_UNIT_ALT = (
+    r"mIU/L|[uµμ]IU/mL|ng/dL|[uµμ]g/dL|nmol/L|pmol/L|[uµμ]mol/L|"
+    r"mg/dL|g/dL|mmol/L|mEq/L|U/L|IU/L|ng/mL|pg/mL|%|fL|K/uL|M/uL|cells/uL"
+)
+
+
 class ExtractModule:
     """
     Document extraction service.
@@ -73,7 +80,7 @@ class ExtractModule:
 
     # Common lab value patterns
     VALUE_PATTERN = re.compile(
-        r"(\d+\.?\d*)\s*(mg/dL|g/dL|mmol/L|mEq/L|U/L|IU/L|ng/mL|pg/mL|%|fL|K/uL|M/uL|cells/uL)?",
+        r"(\d+\.?\d*)\s*(" + _UNIT_ALT + r")?",
         re.IGNORECASE
     )
 
@@ -334,7 +341,7 @@ class ExtractModule:
     LINE_PATTERN = re.compile(
         r"^([A-Za-z][A-Za-z0-9\s,\-]+?):\s*"  # Analyte name ending with colon
         r"(\d+\.?\d*)\s*"  # Numeric value
-        r"(mg/dL|g/dL|mmol/L|mEq/L|U/L|IU/L|ng/mL|pg/mL|%|fL|K/uL|M/uL|cells/uL)?"  # Unit
+        r"(" + _UNIT_ALT + r")?"  # Unit
         r"(?:\s*\((?:Normal:|Ref:?)?\s*([<>]?\d+\.?\d*)\s*[-–]?\s*(\d+\.?\d*)?\))?"  # Reference range
         r"(?:\s*(H|L|HH|LL|HIGH|LOW|ABNORMAL|CRITICAL))?"  # Flag
         r"\s*$",
@@ -345,7 +352,7 @@ class ExtractModule:
     ALT_LINE_PATTERN = re.compile(
         r"^([A-Za-z][A-Za-z0-9\s,\-]+?)\s+"  # Analyte name
         r"(\d+\.?\d*)\s*"  # Value
-        r"(mg/dL|g/dL|mmol/L|mEq/L|U/L|IU/L|ng/mL|pg/mL|%|fL|K/uL|M/uL|cells/uL)\s*"  # Required unit
+        r"(" + _UNIT_ALT + r")\s*"  # Required unit
         r"(?:\(([<>]?\d+\.?\d*)\s*[-–]?\s*(\d+\.?\d*)?\))?"  # Reference range
         r"(?:\s*(H|L|HH|LL|HIGH|LOW|ABNORMAL|CRITICAL))?"  # Flag
         r"\s*$",
