@@ -683,6 +683,7 @@ class TestEdgeCases:
         assert r1.sft_path != r2.sft_path
 
         content_a = Path(r1.sft_path).read_text()
+        Path(r2.sft_path).read_text()  # profile B export must exist and be readable
         assert "prof-AAA" not in content_a or True  # profile ids not in content anyway
         assert r1.sft_positives_count == 1
         assert r2.sft_positives_count == 1

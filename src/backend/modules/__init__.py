@@ -33,8 +33,6 @@ from .adherence_patterns import (
     get_pattern_learner,
 )
 from .analytics import AnalyticsModule
-
-# Phase 4: AI Safety modules
 from .claim_extractor import ClaimExtractionResult, ClaimExtractor, ExtractedClaim
 from .export import ExportModule
 from .extract import ExtractModule
@@ -43,8 +41,6 @@ from .faithfulness import (
     FaithfulnessScorer,
     FaithfulnessScores,
 )
-
-# Phase 0.3: Hardware Detection and Model Selection modules
 from .hardware_detection import (
     TIER_ORDER,
     TIER_REQUIREMENTS,
@@ -55,8 +51,6 @@ from .hardware_detection import (
     get_tier_display_info,
 )
 from .ingest import IngestModule
-
-# Phase 1: Lab Interpretation modules
 from .interpret import (
     InterpretationContext,
     InterpretationResult,
@@ -76,8 +70,6 @@ from .knowledge_loader import (
     RelationshipInfo,
     get_knowledge_loader,
 )
-
-# Phase 3: Smart Notifications modules
 from .message_generator import (
     GeneratedMessage,
     MessageContext,

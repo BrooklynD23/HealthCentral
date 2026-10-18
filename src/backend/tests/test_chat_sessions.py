@@ -491,14 +491,6 @@ class TestMemoryInjectionInRAG:
 
         rag._retrieve_memory_context = _spy
 
-        from modules.rag import RetrievedChunk
-        _ = [
-            RetrievedChunk(
-                chunk_id="c1", source_type="reference",
-                doc_id=None, doc_title="Ref", page=None,
-                text="context", relevance_score=0.9,
-            )
-        ]
         # Directly call the internal path without going through the full pipeline
         # Simulate what query() does: only call _retrieve_memory_context if use_memory
         use_memory = False
@@ -517,8 +509,6 @@ class TestMemoryInjectionInRAG:
 class TestConfigDefault:
     def test_assistant_memory_enabled_default_is_true(self):
         # Import fresh settings (not the live singleton, which may differ)
-
-
         # Re-instantiate settings with defaults
         from core.config import Settings
         fresh = Settings()

@@ -14,35 +14,19 @@ Model Organization:
 # Master database models
 from .audit import AuditLog
 from .backup_schedule import BackupSchedule
-
-# Care-plan tasks (per-profile, HC-M15)
 from .care_plan_task import CarePlanTask
-
-# Chat session persistence (per-profile, ASSIST-HIST-001)
 from .chat_session import ChatSession, ChatTurn
 from .chunk import Chunk
-
-# Per-profile database models
 from .document import Document
-
-# Document classification (per-profile, INGEST-EPIC-001)
 from .document_category import DocumentCategory, DocumentEntity
 from .embedding import Embedding
-
-# Gamification (per-profile, GAM-001)
 from .gamification import BadgeDefinition, EarnedBadge
-
-# Lab interpretation models (per-profile)
 from .interpretation import LabInterpretation, PanelInterpretation
-
-# Knowledge base models (master database - reference data)
 from .knowledge_base import (
     BiomarkerKnowledge,
     BiomarkerRelationship,
     InterventionMapping,
 )
-
-# Medication adherence models (per-profile)
 from .medication import (
     AdherencePattern,
     DoseTaken,
@@ -50,15 +34,9 @@ from .medication import (
     MedicationSchedule,
     ReminderLog,
 )
-
-# Memory store (per-profile, ASSIST-MEM-001)
 from .memory_item import MemoryItem
-
-# Model settings (per-profile, Phase 0.3)
 from .model_settings import UserModelSettings
 from .observation import Observation
-
-# User-curated record collections (per-profile, HC-M20)
 from .pinboard import Pinboard, PinboardItem
 from .profile import Profile
 

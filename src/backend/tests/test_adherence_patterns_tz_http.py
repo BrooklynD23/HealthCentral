@@ -12,7 +12,7 @@ from sqlalchemy import select
 
 import modules.adherence_patterns as adherence_patterns
 from models import DoseTaken, MedicationSchedule, UserModelSettings
-from tests.test_medications_routes_http import _client, _seed, profile_db  # noqa: F401, F811
+from tests.test_medications_routes_http import _client, _seed, profile_db  # noqa: F401
 
 LA = "America/Los_Angeles"
 

@@ -17,12 +17,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
-# Confidence threshold (story S3-3/S3-4; PRD §10 Q2 leaves the exact value
-# open). Reuses modules.faithfulness.FaithfulnessConfig.min_overall_score —
-# the existing "below this, flag as unfaithful" cutoff already used elsewhere
-# in the codebase — rather than inventing a second, divergent threshold.
-# Below this value the guard abstains; it never hedges. Flagged here for
-# reconciliation if a different sprint later wants a guard-specific value.
 from modules.faithfulness import FaithfulnessConfig
 
 from ..audit import AgentAuditEvent, emit_audit_event
@@ -31,6 +25,12 @@ from .classifier import classify_advice
 from .groundedness import map_sentences
 from .templates import ABSTAIN_TEMPLATE, ESCALATE_TEMPLATE
 
+# Confidence threshold (story S3-3/S3-4; PRD §10 Q2 leaves the exact value
+# open). Reuses modules.faithfulness.FaithfulnessConfig.min_overall_score —
+# the existing "below this, flag as unfaithful" cutoff already used elsewhere
+# in the codebase — rather than inventing a second, divergent threshold.
+# Below this value the guard abstains; it never hedges. Flagged here for
+# reconciliation if a different sprint later wants a guard-specific value.
 CONFIDENCE_THRESHOLD = FaithfulnessConfig().min_overall_score  # 0.6
 
 
