@@ -261,7 +261,9 @@ When enabled by user opt-in:
   Break-glass is the only bypass, and it is allowed only with an audit record
   and a UI warning. The warning shows in Settings and on the chat page
   (`2f0cb6f`) and on the interpretation page (`eaad770`). Tests: backend
-  HC-EXT-001…004b; vitest HC-EXT-003, HC-EXT-005.
+  HC-EXT-001, HC-EXT-002…002d, HC-EXT-004 and HC-EXT-004b; vitest HC-EXT-003
+  (the warning component), HC-EXT-005 (chat page) and HC-EXT-006
+  (interpretation page). The Settings page has no page-level warning test.
 
 ### No Analytics or Telemetry
 
