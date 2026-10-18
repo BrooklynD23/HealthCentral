@@ -16,19 +16,19 @@ analyte, unit, collection date. Thresholds live in the test and are never lowere
   "parser_version": "0.1.0",
   "fields": {
     "analyte": {
-      "tp": 26,
+      "tp": 28,
       "fp": 0,
-      "fn": 2
+      "fn": 0
     },
     "unit": {
-      "tp": 26,
+      "tp": 28,
       "fp": 0,
-      "fn": 2
+      "fn": 0
     },
     "date": {
-      "tp": 26,
+      "tp": 28,
       "fp": 0,
-      "fn": 2
+      "fn": 0
     }
   }
 }
@@ -40,6 +40,7 @@ analyte, unit, collection date. Thresholds live in the test and are never lowere
 | Date | Dataset | Parser | analyte tp/fp/fn | unit tp/fp/fn | date tp/fp/fn | Interpreter | Command |
 |---|---|---|---|---|---|---|---|
 | 2026-10-17 | 2026.10-v1 | 0.1.0 | 26/0/2 | 26/0/2 | 26/0/2 | Python 3.11.17 | `python -m pytest tests/test_extraction_golden.py -q` |
+| 2026-10-18 | 2026.10-v1 | 0.1.0 | 28/0/0 | 28/0/0 | 28/0/0 | Python 3.11.17 | `python -m pytest tests/test_extraction_golden.py -q` |
 
 ## Not covered
 
