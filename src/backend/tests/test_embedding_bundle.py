@@ -109,3 +109,94 @@ def test_hc_emb_003_product_code_never_enables_hash_fallback():
                 ):
                     offenders.append(f"{rel}:{node.lineno}")
     assert offenders == [], f"product code enables the hash fallback: {offenders}"
+
+
+import hashlib
+
+sys.path.insert(0, str(BACKEND_DIR / "scripts"))
+import download_models  # noqa: E402
+from modules import embeddings as emb  # noqa: E402
+
+
+def _fake_snapshot(payload: bytes, calls: list):
+    def _fake(*, repo_id, revision, local_dir, allow_patterns):
+        calls.append({"repo_id": repo_id, "revision": revision, "allow_patterns": list(allow_patterns)})
+        root = Path(local_dir)
+        for name in allow_patterns:
+            path = root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(payload if name == "model.safetensors" else b"{}")
+        return str(root)
+    return _fake
+
+
+def test_hc_emb_004a_fetch_rejects_checksum_mismatch(tmp_path, monkeypatch):
+    monkeypatch.setattr("huggingface_hub.snapshot_download", _fake_snapshot(b"not the pinned weights", []))
+    target = tmp_path / "embeddings" / "all-MiniLM-L6-v2"
+    with pytest.raises(SystemExit) as info:
+        download_models.cmd_embedding(target)
+    assert info.value.code == 1
+    assert not target.exists()
+    assert not target.with_name(target.name + ".partial").exists()
+
+
+def test_hc_emb_004b_fetch_installs_pinned_files_only(tmp_path, monkeypatch):
+    payload = b"pinned-weights-stand-in"
+    monkeypatch.setattr(emb, "EMBEDDING_WEIGHTS_SHA256", hashlib.sha256(payload).hexdigest())
+    calls: list = []
+    monkeypatch.setattr("huggingface_hub.snapshot_download", _fake_snapshot(payload, calls))
+    target = tmp_path / "embeddings" / "all-MiniLM-L6-v2"
+    download_models.cmd_embedding(target)
+    assert calls == [{
+        "repo_id": emb.EMBEDDING_REPO_ID,
+        "revision": emb.EMBEDDING_REVISION,
+        "allow_patterns": list(emb.EMBEDDING_FILES),
+    }]
+    installed = sorted(p.relative_to(target).as_posix() for p in target.rglob("*") if p.is_file())
+    assert installed == sorted(emb.EMBEDDING_FILES)
+    assert not target.with_name(target.name + ".partial").exists()
+
+
+def test_hc_emb_004c_existing_incomplete_target_is_never_deleted(tmp_path, monkeypatch):
+    calls: list = []
+    monkeypatch.setattr("huggingface_hub.snapshot_download", _fake_snapshot(b"x", calls))
+    target = tmp_path / "embeddings" / "all-MiniLM-L6-v2"
+    target.mkdir(parents=True)
+    keep = target / "user-file.txt"
+    keep.write_text("do not delete")
+    with pytest.raises(SystemExit) as info:
+        download_models.cmd_embedding(target)
+    assert info.value.code == 1
+    assert keep.read_text() == "do not delete"
+    assert calls == []
+
+
+def test_hc_emb_004d_existing_partial_is_never_deleted(tmp_path, monkeypatch):
+    calls: list = []
+    monkeypatch.setattr("huggingface_hub.snapshot_download", _fake_snapshot(b"x", calls))
+    target = tmp_path / "embeddings" / "all-MiniLM-L6-v2"
+    partial = target.with_name(target.name + ".partial")
+    partial.mkdir(parents=True)
+    keep = partial / "someone-elses-file.bin"
+    keep.write_bytes(b"do not delete")
+    with pytest.raises(SystemExit) as info:
+        download_models.cmd_embedding(target)
+    assert info.value.code == 1
+    assert keep.read_bytes() == b"do not delete"
+    assert not target.exists()
+    assert calls == []
+
+
+def test_hc_emb_004e_failed_fetch_removes_only_this_runs_partial(tmp_path, monkeypatch):
+    def _failing_download(*, repo_id, revision, local_dir, allow_patterns):
+        (Path(local_dir) / "config.json").write_bytes(b"{}")  # a half-written fetch
+        raise OSError("simulated network drop")
+
+    monkeypatch.setattr("huggingface_hub.snapshot_download", _failing_download)
+    target = tmp_path / "embeddings" / "all-MiniLM-L6-v2"
+    partial = target.with_name(target.name + ".partial")
+    with pytest.raises(OSError, match="simulated network drop"):
+        download_models.cmd_embedding(target)
+    assert not partial.exists(), "a failed fetch left its .partial behind and would block the next run"
+    assert not target.exists()
+    # The pre-existing-.partial case (never deleted) is HC-EMB-004d.

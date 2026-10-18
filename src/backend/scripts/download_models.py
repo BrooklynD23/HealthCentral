@@ -17,6 +17,9 @@ Usage:
     # Pull a model via Ollama instead of direct GGUF download
     python scripts/download_models.py ollama --tag gemma4:12b
 
+    # One-time fetch of the embedding model; the backend loads it offline
+    python scripts/download_models.py embedding
+
 This script is the canonical reference for Gemma 4 GGUF download URLs.
 
 PLACEHOLDER NOTICE
@@ -43,7 +46,9 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import hashlib
 import logging
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -303,6 +308,78 @@ def cmd_ollama(tag: str) -> None:
         sys.exit(exc.returncode)
 
 
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as fh:
+        for block in iter(lambda: fh.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _embedding_complete(directory: Path) -> bool:
+    from modules.embeddings import EMBEDDING_FILES, EMBEDDING_WEIGHTS_SHA256
+
+    if not all((directory / name).is_file() for name in EMBEDDING_FILES):
+        return False
+    return _sha256(directory / "model.safetensors") == EMBEDDING_WEIGHTS_SHA256
+
+
+def cmd_embedding(target: Optional[Path] = None) -> None:
+    """Fetch the pinned embedding model once. The only network step for it.
+
+    The backend never downloads it: modules/embeddings.py loads this directory
+    offline and fails closed when it is absent (owner decision D8-delivery,
+    2026-09-27). Never deletes a directory it did not create in this run.
+    """
+    from huggingface_hub import snapshot_download
+    from modules.embeddings import (
+        EMBEDDING_FILES,
+        EMBEDDING_REPO_ID,
+        EMBEDDING_REVISION,
+        resolve_embedding_model_dir,
+    )
+
+    target = Path(target) if target is not None else resolve_embedding_model_dir()
+    if target.exists():
+        if _embedding_complete(target):
+            print(f"Embedding model already installed: {target}")
+            return
+        print(f"ERROR: {target} exists but is not a complete, verified embedding model.")
+        print("Remove it yourself and re-run; this script never deletes an existing directory.")
+        sys.exit(1)
+
+    partial = target.with_name(target.name + ".partial")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        partial.mkdir()  # exclusive: this run owns `partial` only if it created it
+    except FileExistsError:
+        print(f"ERROR: {partial} already exists (an interrupted or concurrent fetch?).")
+        print("Remove it yourself and re-run; this script never deletes a directory it did not create.")
+        sys.exit(1)
+    print(f"Fetching {EMBEDDING_REPO_ID}@{EMBEDDING_REVISION[:12]} ({len(EMBEDDING_FILES)} files) ...")
+    try:
+        snapshot_download(
+            repo_id=EMBEDDING_REPO_ID,
+            revision=EMBEDDING_REVISION,
+            local_dir=str(partial),
+            allow_patterns=list(EMBEDDING_FILES),
+        )
+    except BaseException:
+        # Network error, interrupt, anything: remove only the `partial` this run
+        # created (exclusive mkdir above) so the next run is not blocked, then re-raise.
+        shutil.rmtree(partial, ignore_errors=True)
+        raise
+
+    if not _embedding_complete(partial):
+        shutil.rmtree(partial, ignore_errors=True)  # created by this run (exclusive mkdir above)
+        print("ERROR: fetched embedding model is incomplete or its weights checksum does not match.")
+        print("Nothing was installed.")
+        sys.exit(1)
+
+    partial.rename(target)
+    print(f"Embedding model installed: {target}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Download GGUF models for Asclexis",
@@ -328,6 +405,8 @@ def main() -> None:
     ol = sub.add_parser("ollama", help="Pull a model via Ollama")
     ol.add_argument("--tag", required=True, help="Ollama model tag, e.g. gemma4:12b")
 
+    sub.add_parser("embedding", help="Fetch the pinned embedding model once (the backend loads it offline)")
+
     args = parser.parse_args()
 
     if args.command == "list":
@@ -340,6 +419,8 @@ def main() -> None:
         cmd_verify()
     elif args.command == "ollama":
         cmd_ollama(args.tag)
+    elif args.command == "embedding":
+        cmd_embedding()
 
 
 if __name__ == "__main__":
