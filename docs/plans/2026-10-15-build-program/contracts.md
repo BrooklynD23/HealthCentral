@@ -109,7 +109,7 @@ This extends "Shared files are ordered as follows" in [implementation-program.md
 
 Every migration PR, data-only ones included:
 1. Names its file and `revision` `NNN_<slug>` at its final rebase; `down_revision` = head on `origin/main`; docstring `Revision ID:`/`Revises:` match.
-2. Updates the head literal in the same PR (4 literals before C-P6; `PROFILE_HEAD` after).
+2. Updates the head literal in the same PR (4 literals before C-P6; `PROFILE_HEAD` after). D-2 also left a derived head pin: `be/tests/test_notification_scheduler_wiring.py` HC-SCHED-TZ-005 asserts the current revision equals D-2's own `revision`. The first migration after D-2 (C-GAM2B, PR #146) changes that test to compare against `ScriptDirectory.get_current_head()`; later PRs do not edit it (lane C §2.3 plan delta 2026-10-17).
 3. Passes both checks before merge:
    ```bash
    cd src/backend
