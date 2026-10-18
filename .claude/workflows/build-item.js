@@ -240,7 +240,7 @@ for (let round = 1; round <= MAX_ROUNDS; round++) {
   const lenses = [{ lens: 'spec + quality + recurring failures', agentType: 'code-reviewer' }]
   if (spec.security_sensitive) lenses.push({ lens: 'security: PHI leaks, redaction, auth, audit logging', agentType: 'security-reviewer' })
   const reviews = (await parallel(lenses.map((l) => () => agent(reviewPrompt(round, l.lens), {
-    label: `review ${ID} r${round} ${l.agentType}`, phase: 'Review', model: 'opus', effort: 'high', agentType: l.agentType, schema: REVIEW_SCHEMA,
+    label: `review ${ID} r${round} ${l.agentType}`, phase: 'Review', model: 'opus', effort: 'high', agentType: 'general-purpose', schema: REVIEW_SCHEMA, // code-reviewer / security-reviewer types are not installed in every session (D-4 #138 stop, 2026-10-17); the lens text carries the role
   })))).filter(Boolean)
   if (reviews.length !== lenses.length) {
     return await block(`review round ${round}: a reviewer returned nothing; re-run review, do not treat as PASS`)
