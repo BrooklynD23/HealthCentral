@@ -23,7 +23,6 @@ Phase 1 Lab Interpretation modules:
 - knowledge_loader: Knowledge base data access
 """
 
-# Phase 2: Medication Adherence modules
 from .adherence_patterns import (
     MissedDayPattern,
     PatternLearner,

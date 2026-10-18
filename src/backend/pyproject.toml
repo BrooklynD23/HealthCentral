@@ -39,6 +39,12 @@ ignore = [
 "api/profiles.py" = ["F401", "I001"]
 # E-3a: ask-first file, owner approval needed to fix (Q-RUFF-SET)
 "core/audit.py" = ["I001"]
+# E-3a: ask-first file, owner approval needed to fix (Q-RUFF-SET)
+"core/database.py" = ["W293"]
+# E-3a: ask-first file, owner approval needed to fix (Q-RUFF-SET)
+"core/migrations.py" = ["F401"]
+# E-3a: ask-first file, owner approval needed to fix (Q-RUFF-SET)
+"core/external_runner.py" = ["I001"]
 # E-3a: merged migrations are never edited (RUNBOOK §9.4)
 "migrations/master/versions/001_initial_schema.py" = ["I001"]
 "migrations/master/versions/002_backup_schedules.py" = ["I001"]

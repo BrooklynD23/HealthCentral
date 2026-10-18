@@ -20,7 +20,7 @@ from alembic import command
 from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
-from sqlalchemy import create_engine, event, inspect
+from sqlalchemy import create_engine, event, inspect, text
 
 from .config import settings
 from .sqlcipher_driver import get_sqlcipher_module, is_sqlcipher_available

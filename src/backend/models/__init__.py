@@ -11,7 +11,6 @@ Model Organization:
   Medication, MedicationSchedule, DoseTaken, AdherencePattern, ReminderLog
 """
 
-# Master database models
 from .audit import AuditLog
 from .backup_schedule import BackupSchedule
 from .care_plan_task import CarePlanTask
