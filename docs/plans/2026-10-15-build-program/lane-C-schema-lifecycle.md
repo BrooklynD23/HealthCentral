@@ -18,8 +18,8 @@ Lane C owns the profile schema chain, FK enforcement, the test-reset tuple, expo
 | C-GAM2B | Gamification v2 task 2b: `streaks_hidden` + settings pair + migration | PRODUCT | [GAMIFICATION-V2 §2b](../../../audit/2026-09-25/waves/scaffold/GAMIFICATION-V2.md), GAM2-PLAN-APPROVAL | blocked-on-PR (#84) | #84; C-PMIG | GAM2-PLAN-APPROVAL signed; GAM2B-PATH unasked |
 | C-GC1 | Export artifacts survive restart | PRODUCT | [W11b G-C1](../2026-09-27-W11b-roadmap-items-gc1-gc4.md) Tasks C1.0-C1.5, [G-C1 pack](../../../audit/2026-09-25/waves/scaffold/G-C1.md) | blocked-on-owner | W-2, C-P6, C-P7 | S-C1-1, S-C1-2 unasked |
 | C-BKUP | Backup: failed run leaves orphan folder; L1 busy-wait deadline | PRODUCT | [BKUP-TORN response](../../reviews/2026-10-13/BKUP-TORN-response.md) row 3; [SQLITE-MIX response](../../reviews/2026-10-13/SQLITE-MIX-diff-response.md) L1 | blocked-on-owner | none | BKUP-FOLLOWUPS unasked |
-| C-VAULTSC | VAULT-SIDECAR: make the ciphertext scan non-vacuous | PRODUCT (tests) | [implementation program](../../capstone-report/implementation-program.md) owner item VAULT-SIDECAR; [wave-2-L1-C](../../../audit/2026-09-25/waves/wave-2-L1-C.md) findings 1-3 | blocked-on-owner | none | VAULT-SIDECAR unasked |
-| C-DUPAUD | Import audit row drops `duplicate_warning` | PRODUCT | `api/documents.py:537` vs `core/audit.py:69-75,103` (orchestrator cited `:540`) | blocked-on-owner | none | DUP-AUDIT-KEY unasked |
+| C-VAULTSC | VAULT-SIDECAR: make the ciphertext scan non-vacuous | PRODUCT (tests) | [implementation program](../../capstone-report/implementation-program.md) owner item VAULT-SIDECAR; [wave-2-L1-C](../../../audit/2026-09-25/waves/wave-2-L1-C.md) findings 1-3 | blocked-on-owner | none | VAULT-SIDECAR signed |
+| C-DUPAUD | Import audit row drops `duplicate_warning` | PRODUCT | `api/documents.py:537` vs `core/audit.py:69-75,103` (orchestrator cited `:540`) | blocked-on-owner | none | DUP-AUDIT-KEY signed |
 
 Ordering on shared files:
 
@@ -277,8 +277,8 @@ Ask-first files touched: `core/profile_database.py`, `core/migrations.py` (C-P6)
 | GAM2B-PATH | Accept `/settings/model/gamification` (real router prefix) instead of `/settings/gamification` | accept | unasked |
 | S-C1-1, S-C1-2 | G-C1 go + vault-table storage; one-sentence `delete_profile` docstring | as in G-C1 pack Q1/Q4 | unasked |
 | BKUP-FOLLOWUPS | Fix both deferred backup findings in one PR, with a 600 s busy deadline | approve, 600 s | unasked |
-| VAULT-SIDECAR | Edit the encryption test file (tests only) as in §2.6 | approve | unasked |
-| DUP-AUDIT-KEY | Add `duplicate_warning` to `STRING_DETAIL_KEYS` in `core/audit.py` | (b) | unasked |
+| VAULT-SIDECAR | Edit the encryption test file (tests only) as in §2.6 | approve | signed |
+| DUP-AUDIT-KEY | Add `duplicate_warning` to `STRING_DETAIL_KEYS` in `core/audit.py` | (b) | signed |
 | OW-W13 | Confirm profile-migration merge order (C-PMIG table) | confirm | unasked (wearables tickets) |
 
 Signed and relied on: D5 (`owner-decisions-2026-09-27.md:14`), P7-ROUTE (`:32`), RESET-AUDIT-OWNER (`:89`), GAM2-PLAN-APPROVAL (`:134`), SLOT-RULE (`:31`).
