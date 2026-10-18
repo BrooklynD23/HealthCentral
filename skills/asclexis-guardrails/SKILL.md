@@ -60,5 +60,7 @@ decision appears in the audit log.
 ## Never
 
 Generate escalation/abstention prose · let an unmapped claim survive · hedge below
-threshold · run the advice gate only once · bypass redaction for any reason ·
-treat abstain/escalate as failures.
+threshold · run the advice gate only once · bypass redaction, except through the
+external runner's owner-approved break-glass (D12, 2026-09-27: "keep break-glass
+only with audit + UI warning") · add any new bypass · treat abstain/escalate as
+failures.
