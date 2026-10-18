@@ -624,6 +624,7 @@ describe('ExplainAssistant', () => {
         "Could not confirm this installation's privacy settings. If the privacy protection override is on, external AI requests may leave this device with reduced redaction."
       );
       expect(screen.queryByRole('alert')).toBeNull();
+      expect(screen.queryByText(/reduced or no redaction/i)).toBeNull();
     });
 
     it('HC-EXT-005d shows no alert when the external API is off, even if the flag is true', async () => {
