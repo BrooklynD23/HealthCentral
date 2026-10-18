@@ -1,6 +1,6 @@
 # Lane D — Time Zones, Medications, Gamification — Build Design
 
-**Last Updated:** 2026-10-17 (MED-STREAK-GRACE, AUDIT-MISSING-MED, EXPORT-TODAY-TZ planned); 2026-10-16 (D-2 rev 2, owner Q1)
+**Last Updated:** 2026-10-18 (AUDIT-NOTIF-ALL planned); 2026-10-17 (MED-STREAK-GRACE, AUDIT-MISSING-MED, EXPORT-TODAY-TZ planned); 2026-10-16 (D-2 rev 2, owner Q1)
 **Owner:** repository owner
 **Refresh Trigger:** any merge of #95, #97, #99, #82 or #84; any commit to `src/backend/core/time.py`, `src/backend/modules/notification_scheduler.py`, `src/backend/modules/adherence_patterns.py`, `src/backend/modules/streak_engine.py`, `src/backend/api/medications.py`, `src/backend/api/gamification.py`, `src/backend/api/notifications.py`, `src/backend/monitoring/correlation.py`; a new profile migration after `012_pinboards`.
 **Status:** DESIGN. Nothing here is implemented. Owner answers cited below are quoted from `docs/capstone-report/owner-decisions-2026-09-27.md`; this file records no new approval.
@@ -22,6 +22,7 @@
 | MED-STREAK-GRACE | per-medication and reminder streaks count through yesterday (Q2) | queue status 2026-10-16 second batch | [§3](#med-streak-grace--the-per-medication-streak-still-resets-each-morning-owner-ruling--q2) | D-3 (merged #109) | blocked-on-owner (MSG-SCOPE) |
 | AUDIT-MISSING-MED | audit rows on `GET /medications/{id}/stats` and `POST /notifications/test/{id}` | queue status 2026-10-16 second batch; CLAUDE.md audit invariant | [§3](#audit-missing-med--two-profile-data-routes-write-no-audit-row) | D-1 (merged #104); rebase after #130 | ready |
 | EXPORT-TODAY-TZ | export questions window and generated-on dates use the profile-local day | queue status 2026-10-16 second batch; recurring-failures #9 | [§3](#export-today-tz--export-dates-use-the-utc-calendar-day) | D-1 helpers (merged) | ready |
+| AUDIT-NOTIF-ALL | audit rows on the four profile-data routes of `api/notifications.py` that AUDIT-MISSING-MED does not cover | queue status 2026-10-17; recurring-failures #9 | [§3](#audit-notif-all--apinotificationspy-writes-no-audit-row-on-any-route) | AUDIT-MISSING-MED merged (same files) | ready after AUDIT-MISSING-MED merges |
 
 Dependency graph: `D-0 → D-1 → {D-2, D-3}`; D-4 is independent. D-2 and D-3 touch disjoint product files and may run as the 2 allowed code L1s at once.
 
@@ -366,6 +367,62 @@ Defaults stay `utcnow().date()`, so module-level callers and tests are unchanged
 **Acceptance:** `pyt tests/test_export_questions.py tests/test_export_redaction.py tests/test_visit_prep_packet.py tests/test_export_api.py tests/test_fhir_export.py -q`: 0 failed. HC-EXPR-002 (CSV/JSON byte-for-byte) still green. `scripts/time_source_lint.py` clean. The recurring-failures #9 recheck grep returns no `utcnow().date()` in `modules/export.py`. Full suite per RUNBOOK §6. **Rollback:** revert.
 
 **Order:** never beside C-GC1 (`api/export.py`, `api/pinboards.py`) or E-1b (`tests/test_export_redaction.py`). E-1 is merged (#106).
+
+### AUDIT-NOTIF-ALL — `api/notifications.py` writes no audit row on any route
+
+**Source:** queue status 2026-10-17 (found while planning AUDIT-MISSING-MED), queue row AUDIT-NOTIF-ALL; CLAUDE.md hard invariant "Audit logging on every route that touches documents, observations, or profile data"; recurring-failures #9.
+
+**Lands after AUDIT-MISSING-MED.** Both edit `api/notifications.py`, `tests/test_notification_routes_http.py` and `tests/test_audit_order_guard.py`. AUDIT-MISSING-MED covers exactly one notifications route, `POST /notifications/test/{medication_id}` (`send_test_medication_notification`), and adds its guard row. This item does not touch that handler or that guard row. It relies on the imports AUDIT-MISSING-MED adds: `Depends` (fastapi), `get_db` (`core.database`), and `audit_and_commit, log_document_event` (`core.audit`). Task 0 checks that they are on main and adds any that are missing.
+
+**Fact (`046d12c`; the lines moved since AUDIT-MISSING-MED was planned on `b54f105`):**
+- `api/notifications.py` imports nothing from `core.audit`. E-3a (#142) removed the unused `log_document_event` import, and `:23` is now the `core.time` import. AUDIT-MISSING-MED's handler is now `:414-418`, not `:417-421`.
+- Every route in the file (prefix `/notifications`, `api/__init__.py:53`):
+
+| Route | Handler | Profile data touched | Audit today | This item |
+|---|---|---|---|---|
+| `GET /settings/{medication_id}` | `get_notification_settings` `:143-191` | reads `Medication` (vault) | none | **add** read audit |
+| `PATCH /settings/{medication_id}` | `update_notification_settings` `:194-283` | writes `Medication.reminder_enabled` and `metadata_json`; vault commit `:264` | none; the guard says `"C"` (`tests/test_audit_order_guard.py:92`) | **add** C audit |
+| `GET /history` | `get_notification_history` `:286-377` | reads `ReminderLog` and `Medication` | none | **add** read audit |
+| `POST /test` | `send_test_notification` `:380-411` | none: no `profile_db`, text comes from the request | none | none (no profile data) |
+| `POST /test/{medication_id}` | `send_test_medication_notification` `:414-487` | reads `Medication`, the streak | none | **AUDIT-MISSING-MED** (HC-AUDMED-003/004) |
+| `GET /scheduler/status` | `get_scheduler_status` `:490-512` | none: process-wide scheduler counters | none | none (no profile data) |
+| `POST /{reminder_id}/interaction` | `record_reminder_interaction` `:515-559` | writes `ReminderLog`; vault commit `:557` | none; the guard says `"C"` (`:93`) | **add** C audit |
+
+- The guard (HC-AUD-ORD-030) checks that a committing handler is *classified*, not that the class is true. `security/audit_middleware.py` logs mutating methods to the app log only, never as an audit row (`tests/security/test_audit_middleware.py:83`).
+- **Found while planning (wider than this row, not fixed here):** the recurring-failures #9 recheck, applied to every `"C"` and `"A2"` row of the guard, also finds 17 handlers with no audit call in their body and none reached through a helper. They are `api/assistant.py` `create_session` `:430`, `delete_session` `:483`, `update_memory_settings` `:539`; `api/medications.py` `update_medication` `:561`, `create_schedule` `:696`, `update_schedule` `:790`, `delete_schedule` `:859`, `log_dose` `:912`, `learn_patterns` `:1275`; `api/model_settings.py` `run_hardware_detection` `:445`, `set_model_tier` `:486`, `start_model_download` `:634`, `save_external_api_settings` `:730`, `set_timezone` `:967`, `update_voice_settings` `:1002`, `update_ocr_settings` `:1105`, `update_agent_settings` `:1133`. The `api/interpretations.py` rows audit through `_audit_interpretation`, so they are not in the list. Method: an AST walk of each handler body for `audit_and_commit`, `audit_intent`, `log_*_event(`, `create_audit_log(`, `_emit_audit(`. L0 should add a new queue row for these (suggested id **AUDIT-C-CLASS**). Recorded in recurring-failures #9.
+
+**Design (helpers and event shapes already in use; no new helper, no `core/audit.py` edit):**
+1. **C routes: the AUDIT-ORDER C pattern of `delete_medication`'s soft-delete branch (`api/medications.py:667-685`).** The handler commits the vault first, then writes `log_document_event(db=master_db, ...)` and runs `master_db.commit()` inside `try`. On failure it logs `logger.error("AUDIT-ORDER: audit commit failed after change (event=%s, entity=%s)", event, id)` (ids only) and re-raises. Result: the change stays durable, the request returns 500 and there is an ERROR line. This is AUDIT-ORDER plan `:205` (`docs/plans/2026-10-09-AUDIT-ORDER.md`). Event names follow the `medication_*` shape of `create_medication` (`:348-356`). `log_document_event` (`core/audit.py:306`) maps an unknown event to action `document.<event>`, equal to its `event_type`, so `_scrub_action` (`:174-193`) keeps it and does not warn (HC-AUD-010).
+   - `update_notification_settings` takes `master_db: AsyncSession = Depends(get_db)`. After `:264-265`, it audits `event="notification_settings_update"`, `profile_id=session.profile_id`, `document_id=medication_id`, `details={"changed_fields": sorted(update.model_dump(exclude_none=True))}`. The details hold field names only, never values. `changed_fields` is allowlisted (`core/audit.py:80-83`), and `update_gamification_settings` uses the same shape (`api/model_settings.py:1063-1072`).
+   - `record_reminder_interaction` takes `master_db` the same way. After `:557`, it audits `event="reminder_interaction"`, `document_id=reminder_id`, `details={"entity_type": "reminder_interaction"}`. The `interaction_type` (`marked_taken`, ...) is left out on purpose. It is adherence behaviour, and the master DB is unencrypted (AUDIT-PHI-001). Adding it later is one allowlisted `"action"` key.
+2. **Read routes: the pattern of `get_medication_correlations` (`api/medications.py:522-529`).** The handler takes `master_db` and, after the access check and before the response is built, calls `await audit_and_commit(master_db, log_document_event, event="view", ...)`. This fails closed: an audit failure fails the request.
+   - `get_notification_settings`: `document_id=medication_id`, `details={"entity_type": "notification_settings"}`.
+   - `get_notification_history`: `document_id=medication_id or "all"` (the `"all"` handle follows `list_documents`, `api/documents.py:1093-1099`), `details={"entity_type": "notification_history", "count": len(reminders)}`.
+   - Action "Viewed document" and the keys `entity_type` and `count` are already allowlisted (`core/audit.py:42`, `:70`, `:96`).
+3. **Guard:** the two `"C"` rows (`tests/test_audit_order_guard.py:92-93`) stay, and now they are true. The two read handlers now commit, so HC-AUD-ORD-030 fails until they are classified. Add `"api/notifications.py::get_notification_settings"` and `"api/notifications.py::get_notification_history"` as `"excluded: read route, audit_and_commit only"`, in file order.
+
+**Test-first** (`tests/test_notification_routes_http.py`, over HTTP with `route_client` and the existing `profile_db` fixture override (`:45-49`); spy = `monkeypatch.setattr(notif_api, "log_document_event", spy)`, where the spy records its kwargs and appends `"audit"` to an order list. Vault order = `monkeypatch.setattr(profile_db, "commit", wrapper)` appending `"vault"`. Failure = `master = AsyncMock(); master.commit.side_effect = RuntimeError` passed as `route_client(..., master_db=master, raise_server_exceptions=False)`. RED on `046d12c` + AUDIT-MISSING-MED):
+
+| Id | Route | Assertion | RED? |
+|---|---|---|---|
+| HC-AUDNTF-001 | `PATCH /notifications/settings/{id}` `{"enabled": false, "quiet_hours_start": "22:00"}` | 200; one spy call with `event="notification_settings_update"`, `profile_id=PROFILE`, `document_id=med_id`, `details == {"changed_fields": ["enabled", "quiet_hours_start"]}`; order `["vault", "audit"]`; `master.commit` awaited | yes (no call) |
+| HC-AUDNTF-002 | same, master commit raises | 500; the vault row is still changed (`reminder_enabled is False` on re-select); exactly one ERROR record containing `AUDIT-ORDER` and `med_id`; the medication name is not in `caplog.text` | yes (200 today) |
+| HC-AUDNTF-003 | `POST /notifications/{reminder_id}/interaction?interaction_type=snoozed&snooze_minutes=10` | 204; one spy call with `event="reminder_interaction"`, `document_id=reminder_id`, `details == {"entity_type": "reminder_interaction"}`; order `["vault", "audit"]` | yes |
+| HC-AUDNTF-004 | same, master commit raises | 500; `ReminderLog.was_interacted` is True on re-select; one `AUDIT-ORDER` ERROR record with `reminder_id` | yes (204 today) |
+| HC-AUDNTF-005 | `GET /notifications/settings/{id}` | 200; one spy call with `event="view"`, `document_id=med_id`, `details == {"entity_type": "notification_settings"}`; `master.commit` awaited | yes |
+| HC-AUDNTF-006 | same, spy raises | status 500, the settings body is not served | yes (200 today) |
+| HC-AUDNTF-007 ×2 | `GET /notifications/history`, parametrized: no filter / `?medication_id=<id>` | 200; one spy call with `event="view"`, `document_id == "all"` / `== med_id`, `details == {"entity_type": "notification_history", "count": 1}` | yes ×2 |
+| HC-AUDNTF-008 | `GET /notifications/history`, spy raises | status 500 | yes (200 today) |
+
+What these tests would not notice: the stored row's columns. The spy sees the helper's kwargs, not the `AuditLog` row, and `log_document_event` hard-codes `entity_type="document"`, as for every medication row today. The helper's row shape is pinned by HC-AUD-004 (`tests/test_audit_phi_minimization.py:180`), not here.
+
+**Files:** `src/backend/api/notifications.py`; `src/backend/tests/test_notification_routes_http.py`; `src/backend/tests/test_audit_order_guard.py` (2 new `excluded:` rows; `:92-93` unchanged); `docs/agentic/recurring-failures.md` (#9: mark the notifications instance fixed; keep the AUDIT-C-CLASS list); slots. **Re-run, not edited:** `src/backend/tests/test_utc_sweep_http.py` (HC-UTC-005 calls `GET /notifications/history` through `route_client`, whose default `AsyncMock` master absorbs the new audit write) and `src/backend/tests/test_notification_scheduler_wiring.py` (`GET /scheduler/status`, unchanged).
+
+**Expected collected delta:** +9 (8 ids, HC-AUDNTF-007 parametrized ×2).
+
+**Acceptance:** the nine tests above; `pyt tests/test_notification_routes_http.py tests/test_audit_order_guard.py tests/test_audit_order.py tests/test_audit_phi_minimization.py tests/test_utc_sweep_http.py tests/test_notification_scheduler_wiring.py -q`: 0 failed. The recurring-failures #9 recheck run on `api/notifications.py` hits inside both `"C"` handlers. `cd src/backend && python -c "from main import app"`. Full suite per RUNBOOK §6. **Rollback:** revert; no data.
+
+**Order:** only after AUDIT-MISSING-MED merges. Never beside MED-STREAK-GRACE (option (a) edits `tests/test_notification_routes_http.py`), and never beside another open PR on `tests/test_audit_order_guard.py` (E-2, B-5, C-GC1, RSI1-DONATE, AUDIT-MISSING-MED).
 
 ---
 
