@@ -114,4 +114,31 @@ describe('InterpretedResultCard', () => {
     expect(screen.getByText('Eat more fibre.')).toBeInTheDocument();
     expect(screen.getByText('Walk daily.')).toBeInTheDocument();
   });
+
+  it('HC-IRC-004: gauge min label clamps at 0 for a non-negative range', () => {
+    render(
+      <InterpretedResultCard
+        interpretation={makeInterpretation()}
+        value={120}
+        refLow={0}
+        refHigh={99}
+        unit="mg/dL"
+      />
+    );
+    expect(screen.getByText('0.0')).toBeInTheDocument();
+    expect(screen.queryByText('-29.7')).not.toBeInTheDocument();
+  });
+
+  it('HC-IRC-005: gauge keeps the padded formula when the range is negative (pins current behaviour)', () => {
+    render(
+      <InterpretedResultCard
+        interpretation={makeInterpretation()}
+        value={0}
+        refLow={-5}
+        refHigh={5}
+        unit="mmol/L"
+      />
+    );
+    expect(screen.getByText('-8.0')).toBeInTheDocument();
+  });
 });
