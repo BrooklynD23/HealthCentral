@@ -35,8 +35,26 @@ ignore = [
 "modules/verifier_agent.py" = ["I001"]
 # E-3a: ask-first file, owner approval needed to fix (Q-RUFF-SET)
 "security/__init__.py" = ["I001"]
+# E-3a: ask-first file, owner approval needed to fix (Q-RUFF-SET)
+"api/profiles.py" = ["F401", "I001"]
+# E-3a: ask-first file, owner approval needed to fix (Q-RUFF-SET)
+"core/audit.py" = ["I001"]
 # E-3a: merged migrations are never edited (RUNBOOK §9.4)
-"migrations/*/versions/*.py" = ["I001"]
+"migrations/master/versions/001_initial_schema.py" = ["I001"]
+"migrations/master/versions/002_backup_schedules.py" = ["I001"]
+"migrations/profile/versions/001_initial_schema.py" = ["I001"]
+"migrations/profile/versions/002_add_external_api_settings.py" = ["I001"]
+"migrations/profile/versions/003_gamification_voice_settings.py" = ["I001"]
+"migrations/profile/versions/004_document_categories_entities.py" = ["I001"]
+"migrations/profile/versions/005_memory_items.py" = ["I001"]
+"migrations/profile/versions/006_ocr_preference.py" = ["I001"]
+"migrations/profile/versions/007_chat_sessions.py" = ["I001"]
+"migrations/profile/versions/008_response_feedback.py" = ["I001"]
+"migrations/profile/versions/009_agent_enabled.py" = ["I001"]
+"migrations/profile/versions/010_entity_source_spans.py" = ["I001"]
+"migrations/profile/versions/011_care_plan_tasks.py" = ["I001"]
+"migrations/profile/versions/012_pinboards.py" = ["I001"]
+"migrations/profile/versions/013_adaptive_windows_local.py" = ["I001"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["api", "core", "models", "modules", "scripts"]

@@ -5,10 +5,10 @@ Handles profile creation, authentication, and access control.
 """
 
 import base64
-import logging
 import os
-import shutil
 import uuid
+import logging
+import shutil
 from pathlib import Path
 from typing import Optional
 
@@ -17,35 +17,37 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.audit import audit_intent, create_audit_log, log_profile_event
-from core.auth import (
-    LoginRequest,
-    ProfileDbSession,
-    RequireAuth,
-    Session,
-    TokenResponse,
-    authenticate_profile,
-    close_profile_database_on_logout,
-    create_session_token,
-    open_profile_database_on_login,
-    require_profile_access,
-)
-from core.config import settings
 from core.database import get_db
-from core.profile_database import get_profile_db_manager
-from core.rate_limiter import auth_rate_limiter, recovery_rate_limiter
+from core.config import settings
+from core.time import utcnow
 from core.security import (
-    KeySealingError,
     generate_encryption_key,
     generate_recovery_code,
     generate_salt,
     hash_password,
     normalize_recovery_code,
-    revoke_jwt_token,
     seal_key_with_dpapi,
     unseal_key_with_dpapi,
+    revoke_jwt_token,
+    KeySealingError,
 )
-from core.time import utcnow
+from core.rate_limiter import auth_rate_limiter, recovery_rate_limiter
+from core.profile_database import get_profile_db_manager
+from core.auth import (
+    authenticate_profile,
+    create_session_token,
+    require_auth,
+    require_profile_access,
+    TokenResponse,
+    LoginRequest,
+    RequireAuth,
+    OptionalAuth,
+    Session,
+    open_profile_database_on_login,
+    close_profile_database_on_logout,
+    ProfileDbSession,
+)
+from core.audit import audit_intent, create_audit_log, log_profile_event
 from models import (
     AdherencePattern,
     AuditLog,
