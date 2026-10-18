@@ -7,7 +7,7 @@ components of the medication reminder system.
 
 import asyncio
 import sys
-from datetime import datetime, time, timedelta
+from datetime import time
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -33,7 +33,6 @@ from modules.notification_scheduler import (
     get_notification_scheduler,
 )
 from modules.platform_notifications import (
-    DeliveryResult,
     DeliveryStatus,
     DesktopNotifierProvider,
     MockProvider,
@@ -41,7 +40,6 @@ from modules.platform_notifications import (
     NotificationPlatform,
     NotificationService,
     PlyerProvider,
-    get_notification_service,
 )
 
 

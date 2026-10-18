@@ -13,23 +13,18 @@ import pytest
 # Add backend to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from modules.claim_extractor import ClaimExtractionResult, ClaimExtractor, ExtractedClaim
+from modules.claim_extractor import ClaimExtractionResult, ClaimExtractor
 from modules.faithfulness import (
-    FaithfulnessConfig,
     FaithfulnessScorer,
     calculate_faithfulness,
 )
 from modules.source_authority import (
-    AuthorityConfig,
     SourceAuthorityScorer,
     SourceMetadata,
     SourceTier,
-    analyze_claim_authority,
 )
 from modules.verifier_agent import (
-    EntailmentLabel,
     SourceEvidence,
-    VerificationConfig,
     VerifierAgent,
     verify_all_claims,
 )

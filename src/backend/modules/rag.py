@@ -23,23 +23,19 @@ from core.time import to_naive_utc
 class ModelUnavailableError(Exception):
     """Raised when no LLM model is available for inference."""
 
-from .claim_extractor import ClaimExtractionResult, ClaimExtractor, ExtractedClaim
+from .claim_extractor import ClaimExtractor
 from .embeddings import EmbeddingsModule
 from .faithfulness import (
     FaithfulnessConfig,
     FaithfulnessScorer,
-    FaithfulnessScores,
 )
 from .interpret_safety import InterpretationSafetyGuard
 from .source_authority import (
-    ClaimAuthorityAnalysis,
     SourceAuthorityScorer,
     SourceMetadata,
-    SourceTier,
     analyze_claim_authority,
 )
 from .verifier_agent import (
-    ClaimVerificationResult,
     SourceEvidence,
     VerificationConfig,
     VerifierAgent,

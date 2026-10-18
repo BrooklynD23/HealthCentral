@@ -8,7 +8,6 @@ Covers:
 - Safety guard still intact after changes
 """
 
-import json
 import sys
 import uuid
 from datetime import datetime, timezone

@@ -5,7 +5,7 @@ Covers: create, list, get, update, delete, auth enforcement, cross-profile denia
 """
 
 import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from pydantic import ValidationError

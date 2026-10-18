@@ -1,6 +1,5 @@
 """Tests for visit notes entity extractor."""
 
-import pytest
 
 from modules.extract_visit_notes import extract_visit_note_entities
 

@@ -1,7 +1,7 @@
 """HC-FKA: report-only orphan detection for every declared + logical FK."""
 import pytest
 import pytest_asyncio
-from sqlalchemy import ForeignKey, text
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 import models  # noqa: F401  registers every model on both metadatas

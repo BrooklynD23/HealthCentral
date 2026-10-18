@@ -12,7 +12,7 @@ Covers:
 import sys
 from datetime import date, datetime
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 

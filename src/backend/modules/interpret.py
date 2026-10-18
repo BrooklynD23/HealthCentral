@@ -7,7 +7,6 @@ using the knowledge base, safety guardrails, and recommendation engine.
 Phase 1: Core Lab Interpretation Engine - Main Orchestrator
 """
 
-import asyncio
 import json
 import logging
 import re

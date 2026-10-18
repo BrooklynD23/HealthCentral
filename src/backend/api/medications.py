@@ -25,13 +25,11 @@ from core.auth import ProfileDbSession, RequireAuth, Session
 from core.database import get_db
 from core.time import NaiveUtcDatetime, profile_timezone_name, safe_zone_name, to_local, utcnow
 from models import (
-    AdherencePattern,
     DoseTaken,
     EarnedBadge,
     Medication,
     MedicationSchedule,
     Observation,
-    ReminderLog,
     UserModelSettings,
 )
 from modules.badge_evaluator import BadgeEvalResult, evaluate_badges_after_dose

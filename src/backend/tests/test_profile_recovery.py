@@ -17,9 +17,8 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 

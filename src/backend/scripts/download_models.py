@@ -55,8 +55,8 @@ from huggingface_hub import list_repo_files
 # Allow running from repo root or scripts/ directory.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from modules.hardware_detection import TIER_REQUIREMENTS, detect_hardware
-from modules.model_selector import TIER_MODEL_CONFIG, ModelSelector, get_model_selector
+from modules.hardware_detection import detect_hardware
+from modules.model_selector import TIER_MODEL_CONFIG, ModelSelector
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 logger = logging.getLogger(__name__)

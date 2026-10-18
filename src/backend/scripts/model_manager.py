@@ -14,7 +14,6 @@ Manages model downloads, switching, and cleanup for the tiered model system.
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -25,7 +24,6 @@ from modules.hardware_detection import can_run_tier, detect_hardware, get_tier_d
 from modules.model_selector import (
     TIER_MODEL_CONFIG,
     ModelSelector,
-    get_model_selector,
 )
 
 

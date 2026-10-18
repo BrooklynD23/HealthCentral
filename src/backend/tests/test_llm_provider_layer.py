@@ -21,10 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
-import types
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -324,7 +321,6 @@ class TestOllamaProvider:
     # --- generate (mocked httpx.Client) ---
 
     def test_generate_success(self):
-        import httpx
         p = self._make_provider()
         self._mock_probe_available(p)
 
@@ -485,7 +481,6 @@ class TestModelRunnerFacade:
 
     def test_generate_wraps_prompt_as_user_message(self):
         runner, mock_p = self._make_runner_with_mock_provider()
-        from core.model_runner import InferenceConfig
         cfg = _make_inference_config()
         result = runner.generate("What is glucose?", cfg)
         assert mock_p.generate.called
@@ -744,7 +739,7 @@ class TestProviderProtocol:
 
     def test_mock_provider_satisfies_protocol(self):
         """A correctly shaped object should pass the structural check."""
-        from core.llm.provider import CapabilityFlags, ChatMessage, ProviderProtocol
+        from core.llm.provider import CapabilityFlags, ProviderProtocol
 
         class MinimalProvider:
             def capabilities(self): return CapabilityFlags()

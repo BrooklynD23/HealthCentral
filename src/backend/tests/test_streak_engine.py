@@ -1,8 +1,7 @@
 """Tests for timezone-aware streak computation engine."""
 
 import time
-from datetime import date, datetime, timedelta
-from zoneinfo import ZoneInfo
+from datetime import date, datetime
 
 import pytest
 

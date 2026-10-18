@@ -20,7 +20,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.audit import audit_intent, create_audit_log, log_profile_event
 from core.auth import (
     LoginRequest,
-    OptionalAuth,
     ProfileDbSession,
     RequireAuth,
     Session,
@@ -29,7 +28,6 @@ from core.auth import (
     close_profile_database_on_logout,
     create_session_token,
     open_profile_database_on_login,
-    require_auth,
     require_profile_access,
 )
 from core.config import settings

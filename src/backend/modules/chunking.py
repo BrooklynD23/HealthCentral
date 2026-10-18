@@ -8,7 +8,6 @@ Preserves sentence boundaries and tracks provenance.
 import re
 import uuid
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass

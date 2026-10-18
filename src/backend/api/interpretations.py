@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.assistant import get_rag_module
 from core.audit import audit_and_commit, audit_intent, create_audit_log
-from core.auth import ProfileDbSession, RequireAuth, Session
+from core.auth import ProfileDbSession, RequireAuth
 from core.database import get_db
 from core.time import NaiveUtcDatetime, utcnow
 from models import (

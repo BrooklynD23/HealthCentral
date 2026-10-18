@@ -14,18 +14,15 @@ import uuid
 from datetime import time, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.audit import log_document_event
-from core.auth import ProfileDbSession, RequireAuth, Session
-from core.database import get_db
+from core.auth import ProfileDbSession, RequireAuth
 from core.time import NaiveUtcDatetime, profile_timezone_name, to_local, utcnow
 from models import (
     Medication,
-    MedicationSchedule,
     ReminderLog,
 )
 from modules.adherence_patterns import get_pattern_learner

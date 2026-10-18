@@ -12,11 +12,9 @@ TDD Tests that verify:
 All tests verify authenticated access and data isolation.
 """
 
-import json
-import struct
 import sys
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -450,7 +448,7 @@ class TestRetrievalPipeline:
 
         Each retrieved chunk must include source document info for citations.
         """
-        from modules.rag import RAGModule, RetrievedChunk
+        from modules.rag import RAGModule
 
         rag = RAGModule()
 

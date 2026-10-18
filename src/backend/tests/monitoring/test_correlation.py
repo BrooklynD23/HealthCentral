@@ -1,6 +1,5 @@
 """Tests for CorrelationIdMiddleware."""
 
-import json
 import logging
 import logging.config
 import uuid

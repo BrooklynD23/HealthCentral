@@ -9,9 +9,6 @@ from pathlib import Path
 import pytest
 
 from scripts.backup import (
-    BackupResult,
-    RestoreResult,
-    VerifyResult,
     _compute_sha256,
     backup,
     prune,

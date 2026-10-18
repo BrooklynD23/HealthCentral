@@ -8,14 +8,13 @@ Phase 0.3: Tiered Hardware Model System
 """
 
 import asyncio
-import json
 import logging
 import threading
 import time
 from datetime import datetime, timezone
 from typing import Literal, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 
@@ -30,9 +29,7 @@ from modules.environment_diagnostics import build_environment_diagnostics
 from modules.hardware_detection import (
     TIER_ORDER,
     TIER_REQUIREMENTS,
-    HardwareProfile,
     can_run_tier,
-    detect_hardware,
     get_tier_display_info,
 )
 from modules.model_selector import (

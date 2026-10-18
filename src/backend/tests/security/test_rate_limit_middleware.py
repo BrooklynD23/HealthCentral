@@ -1,6 +1,5 @@
 """Tests for RateLimitMiddleware and SlidingWindowCounter."""
 
-import json
 import time
 from unittest.mock import patch
 

@@ -14,33 +14,30 @@ import asyncio
 import json
 import logging
 import uuid
-from dataclasses import dataclass, field
-from datetime import datetime, time, timedelta
+from dataclasses import dataclass
+from datetime import datetime, time
 from enum import Enum
 from typing import Awaitable, Callable, Optional
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.time import local_day_bounds_utc, profile_timezone_name, to_local, utcnow
 from models import (
-    AdherencePattern,
     DoseTaken,
     Medication,
     MedicationSchedule,
     ReminderLog,
 )
 
-from .adherence_patterns import StreakData, get_pattern_learner
+from .adherence_patterns import get_pattern_learner
 from .message_generator import (
-    GeneratedMessage,
     MessageContext,
     MessageGenerator,
     ReminderPriority,
     get_message_generator,
 )
 from .platform_notifications import (
-    DeliveryResult,
     NotificationPayload,
     NotificationService,
     get_notification_service,

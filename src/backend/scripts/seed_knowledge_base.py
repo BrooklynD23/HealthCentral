@@ -26,7 +26,6 @@ import logging
 # Add parent directory to path for imports
 import sys
 import uuid
-from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy import select

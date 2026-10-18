@@ -6,7 +6,6 @@ Returns list of newly earned badges to include in dose response.
 
 from __future__ import annotations
 
-import json
 import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta

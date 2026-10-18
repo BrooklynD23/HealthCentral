@@ -1,6 +1,5 @@
 """Tests for pathology entity extractor."""
 
-import pytest
 
 from modules.extract_pathology import extract_pathology_entities
 

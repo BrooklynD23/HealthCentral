@@ -12,13 +12,12 @@ import logging
 import re
 import uuid
 from datetime import datetime, timezone
-from io import StringIO
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import Response
 from pydantic import BaseModel
-from sqlalchemy import and_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.audit import audit_and_commit, log_export_event

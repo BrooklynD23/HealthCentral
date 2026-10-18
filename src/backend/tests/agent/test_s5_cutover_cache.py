@@ -35,7 +35,7 @@ async def test_s5_1_cutover_keeps_legacy_fallback():
     user+assistant turn and return the same ``ChatResponse`` shape
     (session_id/turn_id) as the agent path would.
     """
-    from dataclasses import dataclass, field
+    from dataclasses import dataclass
     from unittest.mock import AsyncMock, MagicMock, patch
 
     import api.assistant as A

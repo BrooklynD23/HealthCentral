@@ -10,7 +10,7 @@ Phase 2: Core Medication Management - Pattern Learning Component
 import json
 import logging
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 from statistics import mean, stdev
 from typing import Optional

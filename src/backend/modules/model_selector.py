@@ -10,9 +10,8 @@ asyncio.to_thread() for synchronous llama-cpp operations.
 import asyncio
 import json
 import logging
-import os
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -25,7 +24,6 @@ from core.time import utcnow
 from models import UserModelSettings
 
 from .hardware_detection import (
-    TIER_ORDER,
     HardwareProfile,
     can_run_tier,
     detect_hardware,

@@ -12,7 +12,6 @@ Covers:
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -123,7 +122,6 @@ class TestChatSessionModels:
         assert ChatTurn.__tablename__ == "chat_turns"
 
     def test_chat_session_fields(self):
-        from models.chat_session import ChatSession
         s = _make_session()
         assert s.profile_id == "prof-1"
         assert s.title == "Test session"
@@ -168,7 +166,6 @@ class TestGetOrCreateSession:
     @pytest.mark.asyncio
     async def test_resumes_existing_session(self):
         from api.assistant import _get_or_create_session
-        from models.chat_session import ChatSession
 
         existing = _make_session(profile_id="prof-1", title="Old session")
 
@@ -520,9 +517,7 @@ class TestMemoryInjectionInRAG:
 class TestConfigDefault:
     def test_assistant_memory_enabled_default_is_true(self):
         # Import fresh settings (not the live singleton, which may differ)
-        import importlib
 
-        import core.config as cfg_module
 
         # Re-instantiate settings with defaults
         from core.config import Settings
