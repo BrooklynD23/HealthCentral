@@ -401,6 +401,10 @@ class TestExtractFormats:
             ("Iron 80 ug/dL (60-170)", "Iron", 80.0, "ug/dL"),
             ("Vitamin D: 75 nmol/L (75-250)", "Vitamin D", 75.0, "nmol/L"),
             ("Creatinine 88 umol/L (60-110)", "Creatinine", 88.0, "umol/L"),
+            ("Hemoglobin 135 g/L (120-160)", "Hemoglobin", 135.0, "g/L"),
+            ("Ferritin 60 ug/L (15-150)", "Ferritin", 60.0, "ug/L"),
+            ("TSH 2.1 \u00b5IU/mL (0.4-4.0)", "TSH", 2.1, "\u00b5IU/mL"),
+            ("TSH 2.1 \u03bcIU/mL (0.4-4.0)", "TSH", 2.1, "\u03bcIU/mL"),
         ],
     )
     def test_hc_exf_001_thyroid_and_si_units(self, extract_module, line, analyte, value, unit):
@@ -430,6 +434,7 @@ class TestExtractFormats:
         text = "\n".join([
             "TEST RESULT FLAG UNITS REFERENCE INTERVAL",
             "Patient: Jane Doe",
+            "MRN 00482913",
             "Collected: 01/15/2026 08:10",
             "Glucose 105 H mg/dL 70-99",
             "Creatinine 0.9 mg/dL 0.6-1.3",
@@ -446,6 +451,23 @@ class TestExtractFormats:
             "Glucose", "Creatinine", "TSH", "Hemoglobin",
             "Sodium", "Potassium", "LDL Cholesterol", "Ferritin",
         ]
+        by_name = {o.analyte_raw: o for o in obs}
+        assert (by_name["Glucose"].value, by_name["Glucose"].unit) == (105.0, "mg/dL")
+        assert (by_name["Glucose"].ref_low, by_name["Glucose"].ref_high) == (70.0, 99.0)
+        ldl = by_name["LDL Cholesterol"]
+        assert (ldl.value, ldl.unit, ldl.flag) == (135.0, "mg/dL", "H")
+        assert (ldl.ref_low, ldl.ref_high) == (None, 100.0)
+        assert (by_name["Ferritin"].value, by_name["Ferritin"].unit) == (60.0, "ng/mL")
+
+    def test_hc_exf_004b_column_greater_than_range_and_flag_after(self, extract_module):
+        obs = extract_module._extract_from_text("Vitamin D 120 ng/mL >30 h", 1, "t")
+        assert len(obs) == 1
+        assert (obs[0].value, obs[0].ref_low, obs[0].ref_high) == (120.0, 30.0, None)
+        assert obs[0].flag == "H"
+
+    def test_hc_exf_004c_column_previous_result_not_absorbed_into_analyte(self, extract_module):
+        # Two numbers before the unit: ambiguous, so no observation (never "Glucose 105").
+        assert extract_module._extract_from_text("Glucose 105 98 mg/dL 70-99", 1, "t") == []
 
     @staticmethod
     def _pdf(page):
@@ -458,11 +480,15 @@ class TestExtractFormats:
     @pytest.mark.asyncio
     async def test_hc_exf_005_text_fallback_when_tables_yield_nothing(self, extract_module, tmp_path):
         page = MagicMock()
-        page.extract_text.return_value = "Glucose: 95 mg/dL (70-100)\nTSH 2.1 mIU/L (0.4-4.0)"
+        page.extract_text.return_value = (
+            "MRN: 00482913\nPatient ID: 7731942\nAge: 54\n"
+            "Glucose: 95 mg/dL (70-100)\nTSH 2.1 mIU/L (0.4-4.0)"
+        )
         page.extract_tables.return_value = [[["Header only", "x"]]]
         with patch("pdfplumber.open", return_value=self._pdf(page)):
             result = await extract_module.extract_from_pdf(tmp_path / "a.pdf", "doc")
-        assert len(result.observations) == 2
+        # Identifier lines have no unit, so the fallback must not keep them.
+        assert sorted(o.analyte_raw for o in result.observations) == ["Glucose", "TSH"]
 
     @pytest.mark.asyncio
     async def test_hc_exf_006_no_text_fallback_when_tables_yield(self, extract_module, tmp_path):

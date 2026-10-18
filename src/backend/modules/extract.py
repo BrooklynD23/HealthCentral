@@ -66,7 +66,7 @@ class ExtractionResult:
 # Shared unit alternation. Longer alternatives precede their prefixes.
 _UNIT_ALT = (
     r"mIU/L|[uµμ]IU/mL|ng/dL|[uµμ]g/dL|nmol/L|pmol/L|[uµμ]mol/L|"
-    r"mg/dL|g/dL|mmol/L|mEq/L|U/L|IU/L|ng/mL|pg/mL|%|fL|K/uL|M/uL|cells/uL"
+    r"[uµμ]g/L|g/L|mg/dL|g/dL|mmol/L|mEq/L|U/L|IU/L|ng/mL|pg/mL|%|fL|K/uL|M/uL|cells/uL"
 )
 
 
@@ -162,11 +162,15 @@ class ExtractModule:
                     page_table_count += len(table_obs)
                     observations.extend(table_obs)
 
-                # If this page's tables gave no observations, try text extraction
+                # If this page's tables gave no observations, try text extraction.
+                # Table pages are noisy (demographics, IDs), so keep only
+                # rows with a recognised unit here.
                 if page_table_count == 0:
                     text_obs = self._extract_from_text(
                         text, page_num, document_id
                     )
+                    if tables:
+                        text_obs = [o for o in text_obs if o.unit]
                     observations.extend(text_obs)
 
                 # Extract dates
@@ -421,6 +425,10 @@ class ExtractModule:
             if not col:
                 return None
             name, val, flag_a, col_unit, lo, hi, lt, gt, flag_b = col.groups()
+            # "Glucose 105 98 mg/dL": a second number means a previous-result
+            # column; the line is ambiguous, so do not guess.
+            if name.split()[-1].replace(".", "", 1).isdigit():
+                return None
             # Normalise to the (analyte, value, unit, ref_low, ref_high, flag) shape.
             if lt:
                 lo, hi = None, lt
