@@ -15,6 +15,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import pytest_asyncio
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -169,6 +170,189 @@ class TestSeedingIdempotency:
             await skb.seed_all(skip_db_init=False)
 
             mock_init.assert_called_once()
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 1b. INTERP-ADVICE-WORDING (owner gate IAW-WORDING option b)
+# ──────────────────────────────────────────────────────────────────────────────
+
+_OLD_LDL_HIGH = (
+    "Elevated LDL cholesterol increases your risk of plaque buildup in arteries. "
+    "Lifestyle changes and possibly medication may help reduce this risk."
+)
+
+# Hard-coded on purpose: never import these from _TEXT_REVISIONS, or a typo there
+# would also be a typo here and the test could not fail.
+_OLD_GLUCOSE_HIGH = (
+    "Elevated fasting glucose may indicate prediabetes or diabetes. "
+    "Further testing and lifestyle modifications may be recommended."
+)
+
+
+def _seed_data(analyte: str) -> dict:
+    from scripts.seed_knowledge_base import BIOMARKER_DATA
+
+    return next(d for d in BIOMARKER_DATA if d["analyte_canonical"] == analyte)
+
+
+@pytest_asyncio.fixture
+async def real_master_session():
+    """Real sqlite master DB (tables created from the ORM), not a mock."""
+    from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+
+    from core.database import Base
+    import models  # noqa: F401  (registers tables on Base.metadata)
+
+    engine = create_async_engine("sqlite+aiosqlite://")
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    session = AsyncSession(engine, expire_on_commit=False)
+    try:
+        yield session, engine
+    finally:
+        await session.close()
+        await engine.dispose()
+
+
+def _session_maker_for(engine):
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    return lambda: AsyncSession(engine, expire_on_commit=False)
+
+
+async def _high_text_in_db(engine, analyte: str = "ldl_cholesterol") -> str:
+    from sqlalchemy import select
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from models.knowledge_base import BiomarkerKnowledge
+
+    async with AsyncSession(engine, expire_on_commit=False) as s:
+        row = (
+            await s.execute(
+                select(BiomarkerKnowledge).where(
+                    BiomarkerKnowledge.analyte_canonical == analyte
+                )
+            )
+        ).scalar_one()
+        return row.high_interpretation
+
+
+class TestSeedAdviceWording:
+    """HC-IAW-001..003: a seeded KB sentence must not suggest medication."""
+
+    def test_hc_iaw_001_seed_high_wording_is_educational(self):
+        ldl = _seed_data("ldl_cholesterol")["high_interpretation"]
+        glucose = _seed_data("glucose_fasting")["high_interpretation"]
+        assert "medication" not in ldl.lower()
+        assert "lifestyle modifications may be recommended" not in glucose.lower()
+
+    @pytest.mark.asyncio
+    async def test_hc_iaw_002_untouched_installed_row_is_revised(
+        self, real_master_session
+    ):
+        from scripts import seed_knowledge_base as skb
+        from models.knowledge_base import BiomarkerKnowledge
+
+        session, engine = real_master_session
+        for analyte, old_text in (
+            ("ldl_cholesterol", _OLD_LDL_HIGH),
+            ("glucose_fasting", _OLD_GLUCOSE_HIGH),
+        ):
+            old_row = dict(_seed_data(analyte))
+            old_row["high_interpretation"] = old_text
+            session.add(BiomarkerKnowledge(id=str(uuid.uuid4()), **old_row))
+        await session.commit()
+
+        with patch.object(skb, "async_session_maker", _session_maker_for(engine)):
+            await skb.seed_all(skip_db_init=True)
+
+        for analyte in ("ldl_cholesterol", "glucose_fasting"):
+            stored = await _high_text_in_db(engine, analyte)
+            assert stored == _seed_data(analyte)["high_interpretation"]
+        assert "medication" not in (await _high_text_in_db(engine)).lower()
+
+    @pytest.mark.asyncio
+    async def test_hc_iaw_003_edited_row_is_left_alone(self, real_master_session):
+        from scripts import seed_knowledge_base as skb
+        from models.knowledge_base import BiomarkerKnowledge
+
+        session, engine = real_master_session
+        edited = "Locally edited LDL text that the owner wrote."
+        row = dict(_seed_data("ldl_cholesterol"))
+        row["high_interpretation"] = edited
+        session.add(BiomarkerKnowledge(id=str(uuid.uuid4()), **row))
+        await session.commit()
+
+        with patch.object(skb, "async_session_maker", _session_maker_for(engine)):
+            await skb.seed_all(skip_db_init=True)
+
+        assert await _high_text_in_db(engine) == edited
+
+
+class TestInterpretRouteAdviceWording:
+    """HC-IAW-004: the shipped template path, over HTTP, with the seed row."""
+
+    @pytest.mark.asyncio
+    async def test_hc_iaw_004_high_ldl_interpretation_has_no_medication(
+        self, real_master_session
+    ):
+        from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+
+        from api.interpretations import router as interpretations_router
+        from core.auth import get_profile_db_session
+        from core.profile_database import ProfileDatabaseBase
+        from models import Observation
+        from models.knowledge_base import BiomarkerKnowledge
+        from modules.knowledge_loader import get_knowledge_loader
+        from tests.support.routes import route_client
+
+        master, _engine = real_master_session
+        # Built from the seed dict itself: hard-coded text could never fail.
+        master.add(
+            BiomarkerKnowledge(id=str(uuid.uuid4()), **_seed_data("ldl_cholesterol"))
+        )
+        await master.commit()
+
+        p_engine = create_async_engine("sqlite+aiosqlite://")
+        async with p_engine.begin() as conn:
+            await conn.run_sync(ProfileDatabaseBase.metadata.create_all)
+        profile_db = AsyncSession(p_engine, expire_on_commit=False)
+        obs_id = str(uuid.uuid4())
+        profile_db.add(
+            Observation(
+                id=obs_id, profile_id="profile-iaw", doc_id=str(uuid.uuid4()),
+                analyte_canonical="ldl_cholesterol", analyte_raw="LDL",
+                value=165.0, unit="mg/dL", ref_low=0.0, ref_high=100.0,
+                flag="H", is_abnormal=True, user_verified=True,
+                collected_at=datetime(2025, 3, 10),
+            )
+        )
+        await profile_db.commit()
+
+        async def _override_profile_db():
+            return profile_db
+
+        loader = get_knowledge_loader()
+        loader.clear_cache()  # process-wide cache would hide the DB row
+        try:
+            with route_client(
+                interpretations_router, "/interpretations",
+                profile_id="profile-iaw", master_db=master,
+            ) as client:
+                client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+                response = client.post(
+                    f"/interpretations/observations/{obs_id}/interpret"
+                )
+        finally:
+            loader.clear_cache()
+            await profile_db.close()
+            await p_engine.dispose()
+
+        assert response.status_code == 201, response.text
+        text = response.json()["interpretation_text"]
+        # Guard against a vacuous pass: the KB sentence must actually be there.
+        assert "Elevated LDL cholesterol" in text, text
+        assert "medication" not in text.lower(), text
 
 
 # ──────────────────────────────────────────────────────────────────────────────
