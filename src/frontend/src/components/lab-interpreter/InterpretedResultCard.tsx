@@ -22,6 +22,7 @@ import { CitationTooltip } from './CitationTooltip';
 import { AdviceSection } from './AdviceSection';
 import { ReferenceRangeComparison } from './ReferenceRangeComparison';
 import { DisclaimerBanner } from './DisclaimerBanner';
+import { formatInterpretationText } from './formatInterpretationText';
 import type { InterpretationResponse } from '@/services/types';
 
 interface InterpretedResultCardProps {
@@ -104,9 +105,17 @@ export function InterpretedResultCard({
 
           {/* Interpretation Text */}
           <div className="p-4 rounded-xl bg-surface-muted">
-            <p className="text-sm text-ink leading-relaxed">
-              {interpretation.interpretation_text}
-            </p>
+            <div className="space-y-2">
+              {formatInterpretationText(interpretation.interpretation_text).paragraphs.map(
+                (runs, i) => (
+                  <p key={i} className="text-sm text-ink leading-relaxed">
+                    {runs.map((run, j) =>
+                      run.bold ? <strong key={j}>{run.text}</strong> : <span key={j}>{run.text}</span>
+                    )}
+                  </p>
+                )
+              )}
+            </div>
             {interpretation.citations.length > 0 && (
               <div className="flex items-center gap-1.5 mt-3">
                 {interpretation.citations.map((citation, i) => (
