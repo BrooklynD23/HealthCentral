@@ -33,6 +33,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { findActiveMedications } from '@/utils/correlation';
 import { MedicationOverlay } from '@/components/MedicationOverlay';
 import type { Observation } from '@/services/types';
+import { TrendPointDot, UnverifiedTrendNote, UNVERIFIED_LABEL } from '@/components/TrendVerificationMarkers';
 
 const panels = [
   { id: 'cbc', label: 'CBC' },
@@ -152,8 +153,15 @@ export function TrendsDashboard() {
       confidence: point.extraction_confidence,
       originalValue: point.original_value ?? null,
       originalUnit: point.original_unit ?? null,
+      // D4: a point without the flag is treated as unverified (fail toward labelling).
+      verified: point.user_verified === true,
     }));
   }, [trendData]);
+
+  const unverifiedPointCount = useMemo(
+    () => chartData.filter((p) => !p.verified).length,
+    [chartData]
+  );
 
   // Chart container ref for export (EXPORT-CHART-001)
   const chartRef = useRef<HTMLDivElement>(null);
@@ -439,6 +447,7 @@ export function TrendsDashboard() {
                               confidence: number | null;
                               originalValue: number | null;
                               originalUnit: string | null;
+                              verified: boolean;
                             };
                             return (
                               <div className="bg-white border border-black/8 rounded-xl shadow-soft px-4 py-3">
@@ -451,6 +460,11 @@ export function TrendsDashboard() {
                                   </p>
                                 )}
                                 <p className="text-xs text-ink-secondary">{data.date}</p>
+                                {!data.verified && (
+                                  <p className="text-xs font-medium text-ink mt-1">
+                                    {UNVERIFIED_LABEL}: not yet reviewed
+                                  </p>
+                                )}
                                 {data.confidence != null && (
                                   <p className="text-xs text-ink-tertiary mt-1">
                                     Confidence: {(data.confidence * 100).toFixed(0)}%
@@ -481,7 +495,14 @@ export function TrendsDashboard() {
                           dataKey="value"
                           stroke="#2D7D6F"
                           strokeWidth={2.5}
-                          dot={{ fill: '#2D7D6F', strokeWidth: 0, r: 5 }}
+                          dot={(dotProps: { cx?: number; cy?: number; index?: number; payload?: { verified?: boolean } }) => (
+                            <TrendPointDot
+                              key={`trend-dot-${dotProps.index ?? 0}`}
+                              cx={dotProps.cx}
+                              cy={dotProps.cy}
+                              verified={dotProps.payload?.verified === true}
+                            />
+                          )}
                           activeDot={{ r: 7, fill: '#2D7D6F' }}
                           animationDuration={prefersReducedMotion ? 0 : 800}
                         />
@@ -496,6 +517,7 @@ export function TrendsDashboard() {
                         <p className="text-sm text-ink">
                           <strong>
                             Latest value: {latestValue?.value} {trendData.unit}
+                            {latestValue && latestValue.user_verified !== true && ' (unverified)'}
                           </strong>{' '}
                           {trendData.ref_low !== null && trendData.ref_high !== null && (
                             <>
@@ -508,6 +530,7 @@ export function TrendsDashboard() {
                             {trendData.summary}
                           </p>
                         )}
+                        <UnverifiedTrendNote unverified={unverifiedPointCount} total={chartData.length} />
                         {(trendData.excluded_count ?? 0) > 0 && (
                           <p className="text-sm text-ink-secondary mt-1">
                             {trendData.excluded_count} point(s) hidden — unrecognized unit
