@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import type { TrendData, InterpretationResponse } from '@/services/types';
+import { TrendPointDot, UnverifiedTrendNote } from '@/components/TrendVerificationMarkers';
 
 interface InterpretedTrendChartProps {
   trendData: TrendData | undefined;
@@ -39,6 +40,8 @@ export function InterpretedTrendChart({
       date: point.date.slice(0, 10),
       value: point.value,
       isAbnormal: point.is_abnormal,
+      // D4: a missing flag is read as unverified (fail toward labelling).
+      verified: point.user_verified === true,
     }));
   }, [trendData]);
 
@@ -68,6 +71,7 @@ export function InterpretedTrendChart({
   }
 
   const latestPoint = trendData.data_points[trendData.data_points.length - 1];
+  const unverifiedPointCount = chartData.filter((p) => !p.verified).length;
 
   return (
     <Card className={cn('overflow-hidden', className)}>
@@ -76,8 +80,9 @@ export function InterpretedTrendChart({
           <CardTitle className="flex items-center gap-2.5">
             {trendData.analyte_display_name}
             {latestPoint && (
-              <Badge variant={latestPoint.is_abnormal ? 'attention' : 'verified'}>
+              <Badge variant={latestPoint.is_abnormal ? 'attention' : latestPoint.user_verified === true ? 'verified' : 'caution'}>
                 {latestPoint.value} {trendData.unit}
+                {latestPoint.user_verified !== true && ' (unverified)'}
               </Badge>
             )}
           </CardTitle>
@@ -160,7 +165,15 @@ export function InterpretedTrendChart({
                   dataKey="value"
                   stroke="#2D7D6F"
                   strokeWidth={2.5}
-                  dot={{ fill: '#2D7D6F', strokeWidth: 0, r: 4 }}
+                  dot={(dotProps: { cx?: number; cy?: number; index?: number; payload?: { verified?: boolean } }) => (
+                    <TrendPointDot
+                      key={`trend-dot-${dotProps.index ?? 0}`}
+                      cx={dotProps.cx}
+                      cy={dotProps.cy}
+                      verified={dotProps.payload?.verified === true}
+                      radius={4}
+                    />
+                  )}
                   activeDot={{ r: 6, fill: '#2D7D6F' }}
                   animationDuration={prefersReducedMotion ? 0 : 800}
                 />
@@ -168,6 +181,8 @@ export function InterpretedTrendChart({
             </ResponsiveContainer>
           </div>
         )}
+
+        <UnverifiedTrendNote unverified={unverifiedPointCount} total={chartData.length} />
 
         {/* Interpretation summary inline */}
         {interpretation && (

@@ -82,7 +82,7 @@ export function LabInterpreter() {
     profileId || ''
   );
 
-  const { data: externalApi } = useExternalApiSettings();
+  const { data: externalApi, isError: externalApiError } = useExternalApiSettings();
 
   const generateInterpretation = useGenerateGroundedInterpretation();
   const generatePanelInterp = useGeneratePanelInterpretation();
@@ -191,9 +191,13 @@ export function LabInterpreter() {
         )}
       </div>
 
-      {externalApi?.use_external_api === true && externalApi.redaction_break_glass === true && (
-        <ExternalApiBreakGlassWarning active />
-      )}
+      <ExternalApiBreakGlassWarning
+        active={externalApi?.use_external_api === true && externalApi.redaction_break_glass === true}
+        unknown={
+          externalApiError ||
+          (externalApi?.use_external_api === true && externalApi.redaction_break_glass === undefined)
+        }
+      />
 
       {/* Panel Tabs */}
       <div className="flex gap-2">
