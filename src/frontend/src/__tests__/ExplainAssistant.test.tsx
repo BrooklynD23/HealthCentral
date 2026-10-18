@@ -614,12 +614,16 @@ describe('ExplainAssistant', () => {
       expect(screen.queryByText(/privacy protection override is on/i)).toBeNull();
     });
 
-    it('HC-EXT-005c shows no alert when an older backend sends no flag', async () => {
+    it('HC-EXT-005c shows the neutral status notice, not the alert, when an older backend sends no flag (BGS-1)', async () => {
       mockExternalApi({});
       renderWithProviders(<ExplainAssistant />);
 
       await screen.findByText('openai \u00b7 gpt-x');
-      expect(screen.queryByText(/privacy protection override is on/i)).toBeNull();
+      const notice = await screen.findByText(/could not confirm this installation's privacy settings/i);
+      expect(notice.closest('[role="status"]')).toHaveTextContent(
+        "Could not confirm this installation's privacy settings. If the privacy protection override is on, external AI requests may leave this device with reduced redaction."
+      );
+      expect(screen.queryByRole('alert')).toBeNull();
     });
 
     it('HC-EXT-005d shows no alert when the external API is off, even if the flag is true', async () => {
