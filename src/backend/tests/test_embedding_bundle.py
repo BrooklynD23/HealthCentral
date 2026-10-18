@@ -200,3 +200,20 @@ def test_hc_emb_004e_failed_fetch_removes_only_this_runs_partial(tmp_path, monke
     assert not partial.exists(), "a failed fetch left its .partial behind and would block the next run"
     assert not target.exists()
     # The pre-existing-.partial case (never deleted) is HC-EMB-004d.
+
+
+def test_hc_emb_002_fetched_model_loads_offline(tmp_path):
+    from modules.embeddings import EMBEDDING_FILES, resolve_embedding_model_dir
+
+    model_dir = resolve_embedding_model_dir()
+    if not all((model_dir / name).is_file() for name in EMBEDDING_FILES):
+        pytest.fail(
+            f"embedding model not installed at {model_dir}; run: "
+            "cd src/backend && python scripts/download_models.py embedding"
+        )
+    out = _run_probe(tmp_path, model_dir)
+    assert out["result"] == "loaded" and out["model_loaded"] is True, out
+    assert out["dims"] == 384
+    assert out["similarity"] > 0.7  # same bar as test_api_rag_index_002b; never lowered
+    assert out["attempts"] == [], f"network attempted: {out['attempts']}"
+    assert out["hf_cache_files"] == []
