@@ -69,6 +69,7 @@ CLASSIFICATION: dict[str, str] = {
     "api/medications.py::update_schedule": "C",
     "api/medications.py::delete_schedule": "C",
     "api/medications.py::log_dose": "C",
+    "api/medications.py::get_adherence_stats": "excluded: read route, audit_and_commit only",
     "api/medications.py::learn_patterns": "C",
     "api/memory.py::create_memory_item": "C",
     "api/memory.py::list_memory_items": "excluded: read route, audit_and_commit only",
