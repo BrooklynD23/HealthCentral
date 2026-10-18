@@ -33,6 +33,7 @@ says: …", "You have N open follow-up items"), never advice.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 
 from pydantic import BaseModel
@@ -41,10 +42,12 @@ from core.time import profile_timezone_name, to_local
 from modules.normalize import NormalizeModule
 
 from ..audit import AgentAuditEvent, emit_audit_event
-from .plan import _detect_analyte
 from ..guardrails.redaction_gate import sanitize_untrusted_field
 from ..schemas import Citation
 from ..state import RunLog, ToolContext
+from .plan import _detect_analyte
+
+logger = logging.getLogger(__name__)
 
 
 class Draft(BaseModel):
@@ -102,6 +105,7 @@ async def _profile_tz(ctx: ToolContext) -> str:
         async with ctx.db_session() as session:
             return await profile_timezone_name(session, ctx.profile_id)
     except Exception:  # noqa: BLE001 - a date format must never fail the answer
+        logger.warning("profile timezone lookup failed; formatting dates in UTC", exc_info=True)
         return "UTC"
 
 
@@ -124,7 +128,10 @@ def _observation_sentence(row: dict, tz_name: str = "UTC") -> str:
 
 def _rows_to_draft(question: str, rows: list[dict]) -> list[dict]:
     """An open question (no analyte named) collapses to the latest row per
-    analyte, most recent first, capped. A named analyte keeps every row."""
+    analyte, most recent first, capped. A named analyte keeps every row.
+
+    The per-analyte dedupe is defence in depth (query_observations already
+    returns the latest row per analyte); the cap is what does the work here."""
     if _detect_analyte(question) is not None:
         return rows
     latest: dict[str, dict] = {}

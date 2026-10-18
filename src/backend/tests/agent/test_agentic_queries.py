@@ -893,6 +893,8 @@ async def test_hc_cfr_002_generic_cholesterol_finds_total_cholesterol(
 
 @pytest.mark.asyncio
 async def test_hc_cfr_003_ldl_trend_cites_both_ingest_key_rows(agent_profile_db, make_run_context):
+    import re
+
     from modules.agent.graph import run_agent
 
     profile_id = str(uuid.uuid4())
@@ -908,6 +910,10 @@ async def test_hc_cfr_003_ldl_trend_cites_both_ingest_key_rows(agent_profile_db,
 
     assert terminal.terminal == "answer"
     assert {first, second} <= {c.source_id for c in terminal.citations}
+    # Trend path uses the display name and a date without a time of day.
+    assert "LDL Cholesterol" in terminal.text
+    assert "ldl_cholesterol" not in terminal.text
+    assert not re.search(r"\d:\d\d", terminal.text)
 
 
 @pytest.mark.asyncio
@@ -977,8 +983,8 @@ async def test_hc_cfr_007_sentence_date_is_profile_local_without_time(
 ):
     import re
 
-    from modules.agent.graph import run_agent
     from models.model_settings import UserModelSettings
+    from modules.agent.graph import run_agent
 
     profile_id = str(uuid.uuid4())
     async with agent_profile_db() as session:
@@ -1034,6 +1040,8 @@ async def test_hc_cfr_008_open_question_drafts_latest_per_analyte_capped_at_10(
     # and each cites that analyte's LATEST row (never the older one).
     assert {c.source_id for c in terminal.citations} == set(latest_ids[5:])
     assert len(terminal.citations) == 10
+    # Most recent first.
+    assert [c.source_id for c in terminal.citations] == list(reversed(latest_ids[5:]))
     for analyte in analytes[5:]:
         name = NormalizeModule.DISPLAY_NAMES.get(analyte, analyte.replace("_", " ").title())
         assert name in terminal.text

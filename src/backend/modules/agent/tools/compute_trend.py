@@ -9,7 +9,6 @@ from pydantic import Field
 from sqlalchemy import func, select
 
 from core.time import utcnow
-
 from modules.normalize import NormalizeModule
 
 from ..audit import AgentAuditEvent, emit_audit_event
