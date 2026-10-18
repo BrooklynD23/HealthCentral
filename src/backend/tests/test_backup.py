@@ -922,3 +922,71 @@ def test_hc_bkup_055_cli_restore_honours_profile_id(tmp_path, monkeypatch, capsy
     finally:
         conn.close()
     assert profiles == [("profile-a",), ("profile-b",)], profiles
+
+
+def test_hc_bkup_060_failed_backup_leaves_no_backup_dir(data_dir, backup_dir, monkeypatch):
+    """A backup that dies mid-way must not leave a manifest-less backup_* dir."""
+    from scripts import backup as backup_script
+
+    def boom(_path):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(backup_script, "_compute_sha256", boom)
+    with pytest.raises(OSError):
+        backup_script.backup(data_dir=data_dir, backup_dir=backup_dir)
+
+    assert list(backup_dir.iterdir()) == []
+
+
+def test_hc_bkup_061_same_second_backups_get_distinct_dirs(data_dir, backup_dir, monkeypatch):
+    """Two backups in one second must not share (and clobber) a directory."""
+    from datetime import datetime
+    from scripts import backup as backup_script
+
+    monkeypatch.setattr(backup_script, "utcnow", lambda: datetime(2026, 1, 2, 3, 4, 5))
+    first = backup_script.backup(data_dir=data_dir, backup_dir=backup_dir)
+    first_bytes = first.manifest_path.read_bytes()
+    second = backup_script.backup(data_dir=data_dir, backup_dir=backup_dir)
+
+    assert first.backup_path.name == "backup_20260102_030405"
+    assert second.backup_path.name == "backup_20260102_030405_1"
+    assert first.manifest_path.exists() and second.manifest_path.exists()
+    assert first.manifest_path.read_bytes() == first_bytes
+
+
+def test_hc_bkup_062_busy_source_hits_deadline_not_file_copy(tmp_path, monkeypatch):
+    """A source held under an exclusive lock must raise at the deadline, never
+    hang and never fall back to a torn file copy."""
+    import threading
+    from scripts import backup as backup_script
+
+    src = tmp_path / "locked.db"
+    conn = sqlite3.connect(str(src))
+    conn.execute("CREATE TABLE t (id INTEGER)")
+    conn.commit()
+    conn.close()
+
+    locker = sqlite3.connect(str(src), isolation_level=None)
+    outcome: dict = {}
+
+    def run():
+        try:
+            outcome["result"] = backup_script._backup_sqlite(src, tmp_path / "out.db")
+        except BaseException as exc:  # noqa: BLE001
+            outcome["exc"] = exc
+
+    t = threading.Thread(target=run, daemon=True)
+    try:
+        locker.execute("BEGIN EXCLUSIVE")
+        monkeypatch.setattr(backup_script, "BACKUP_BUSY_TIMEOUT_S", 0.5, raising=False)
+        t.start()
+        t.join(5)
+        finished = not t.is_alive()
+    finally:
+        locker.rollback()
+        locker.close()
+        t.join(5)
+
+    assert finished, "backup is still waiting on the lock past the deadline"
+    assert "result" not in outcome, f"fell back instead of raising: {outcome}"
+    assert isinstance(outcome["exc"], backup_script.BackupBusyTimeout)
