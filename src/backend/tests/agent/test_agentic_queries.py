@@ -1039,4 +1039,10 @@ async def test_hc_cfr_008_open_question_drafts_latest_per_analyte_capped_at_10(
         assert name in terminal.text
     for analyte in analytes[:5]:
         name = NormalizeModule.DISPLAY_NAMES.get(analyte, analyte.replace("_", " ").title())
-        assert name not in terminal.text
+        # Whole-name match: strip longer display names that contain this one
+        # (e.g. "Hemoglobin A1c" contains "Hemoglobin") before checking absence.
+        text = terminal.text
+        for longer in sorted(NormalizeModule.DISPLAY_NAMES.values(), key=len, reverse=True):
+            if longer != name and name in longer:
+                text = text.replace(longer, "")
+        assert name not in text
