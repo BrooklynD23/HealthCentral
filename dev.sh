@@ -108,11 +108,11 @@ fi
 
 # --- STEP 3: pip, with dev.ps1's SQLCipher fallback ---------------------------
 # Provider: $LLM_PROVIDER, else last LLM_PROVIDER= in src/backend/.env, else .env.example.
-PROVIDER="${LLM_PROVIDER:-}"
+PROVIDER="$(printf %s "${LLM_PROVIDER:-}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
 if [ -z "$PROVIDER" ]; then
   for f in "$ENV_FILE" "$ENV_EXAMPLE"; do
     if [ -f "$f" ]; then
-      PROVIDER="$(grep -E '^[[:space:]]*LLM_PROVIDER[[:space:]]*=' "$f" | tail -n 1 | cut -d= -f2- | tr -d "\"'\r" | tr -d '[:space:]' || true)"
+      PROVIDER="$(grep -E '^[[:space:]]*LLM_PROVIDER[[:space:]]*=' "$f" | tail -n 1 | cut -d= -f2- | sed 's/[[:space:]]#.*//' | tr -d "\"'\r" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]' || true)"
       [ -z "$PROVIDER" ] || break
     fi
   done
@@ -140,10 +140,11 @@ if ! "$VENV_PY" -m pip install -r "$REQ_FILE" >"$PIP_LOG" 2>&1; then
     SQLCIPHER_AVAILABLE=0
     FILTERED="$(mktemp)"
     grep -vi sqlcipher "$REQ_FILE" >"$FILTERED" || true
-    "$VENV_PY" -m pip install -r "$FILTERED" --quiet >>"$PIP_LOG" 2>&1 || { rm -f "$FILTERED"; tail -n 15 "$PIP_LOG" >&2; die "pip install failed. See $PIP_LOG"; }
+    "$VENV_PY" -m pip install -r "$FILTERED" --quiet >>"$PIP_LOG" 2>&1 || { rm -f "$FILTERED" "$NOCC_FILTERED"; tail -n 15 "$PIP_LOG" >&2; die "pip install failed. See $PIP_LOG"; }
     rm -f "$FILTERED"
     ok "Python dependencies installed (without SQLCipher)"
   else
+    [ -z "$NOCC_FILTERED" ] || rm -f "$NOCC_FILTERED"
     tail -n 15 "$PIP_LOG" >&2
     die "Failed to install Python dependencies. See $PIP_LOG"
   fi
