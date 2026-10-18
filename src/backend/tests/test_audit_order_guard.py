@@ -91,6 +91,7 @@ CLASSIFICATION: dict[str, str] = {
     "api/model_settings.py::update_ocr_settings": "C",
     "api/model_settings.py::update_agent_settings": "C",
     "api/notifications.py::update_notification_settings": "C",
+    "api/notifications.py::send_test_medication_notification": "excluded: read route, audit_and_commit only",
     "api/notifications.py::record_reminder_interaction": "C",
     "api/observations.py::get_panel_snapshots": "excluded: read route, audit_and_commit only",
     "api/observations.py::list_observations": "excluded: read route, audit_and_commit only",
