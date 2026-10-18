@@ -110,7 +110,7 @@ Concept:
 ### Invariants that survive every loop iteration
 
 - No medical advice — `interpret_safety` prohibited patterns must keep passing.
-- Grounded, cited responses — `[REFERENCE:N]` / `[YOUR_RESULTS:N]` format preserved.
+- Grounded, cited responses — `[cite:N]` citation format preserved (`[REFERENCE:N]` / `[YOUR_RESULTS:N]` are context labels, not citation markers).
 - Per-profile isolation — fine-tuned adapters are associated with the profile whose data trained them.
 - Redaction before export — PHI never enters the JSONL files.
 - Audit logging — model switch events recorded.
