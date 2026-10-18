@@ -274,7 +274,12 @@ export function ExplainAssistant() {
     return chips;
   }, [analyteList]);
   const { data: modelSettings, isLoading: modelSettingsLoading } = useModelSettings();
-  const { data: externalApi } = useExternalApiSettings();
+  const { data: externalApi, isError: externalApiError } = useExternalApiSettings();
+  const breakGlassActive =
+    externalApi?.use_external_api === true && externalApi.redaction_break_glass === true;
+  const breakGlassUnknown =
+    externalApiError ||
+    (externalApi?.use_external_api === true && externalApi.redaction_break_glass === undefined);
 
   const activeModelSummary = useMemo(() => {
     if (externalApi?.use_external_api && (externalApi.model || externalApi.provider)) {
@@ -472,9 +477,9 @@ export function ExplainAssistant() {
             </div>
           )}
 
-          {externalApi?.use_external_api === true && externalApi.redaction_break_glass === true && (
+          {(breakGlassActive || breakGlassUnknown) && (
             <div className="mx-6 mt-4">
-              <ExternalApiBreakGlassWarning active />
+              <ExternalApiBreakGlassWarning active={breakGlassActive} unknown={breakGlassUnknown} />
             </div>
           )}
 

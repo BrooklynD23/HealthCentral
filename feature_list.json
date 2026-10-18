@@ -66,14 +66,14 @@
     {
       "id": "HC-M06",
       "category": "data-science",
-      "description": "Data-quality test suite and extraction eval card: labeled golden set of lab PDFs (synthetic), precision/recall on analyte, unit, date extraction; published as docs/agentic/eval-cards/extraction.md with versioned metrics.",
+      "description": "Data-quality test suite and extraction eval card: labeled golden set of lab PDFs (synthetic), precision/recall on analyte, unit, date extraction; published as docs/agentic/eval-cards/extraction.md with versioned metrics. Delivered 2026-10-17 (B-8, #140).",
       "user_value": "Extraction accuracy is measured, tracked over time, and demonstrable — core Data Science portfolio evidence.",
       "verification_steps": [
         "Golden-set pytest suite runs in CI with explicit thresholds",
         "Eval card records metric, dataset version, and date for each run"
       ],
       "priority": 3,
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "HC-M07",

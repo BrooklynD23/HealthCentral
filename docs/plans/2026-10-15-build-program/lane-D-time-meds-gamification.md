@@ -18,7 +18,7 @@
 | D-1 | STREAK-TZ + the profile time-zone helper (§2) | owner row STREAK-TZ (`owner-decisions-2026-09-27.md:174`) | no | #97, #99 merged | blocked-on-PR |
 | D-2 | SCHED-TZ: scheduler on profile-local now/today; adaptive windows stored local | owner row SCHED-TZ (`:173`); #97 comment at `api/medications.py` learn_patterns (after #97) | no | D-1, #97 | blocked-on-item |
 | D-3 | GAM2-STREAK0: ongoing streak counts through yesterday | owner row GAM2-STREAK0 (`:145`); #84 review LOW-3 (`docs/reviews/2026-10-12/GAM2-T24-diff-codereview.md:76-79` on `feat/gamification-v2-t24`) | no | #84, D-1 | blocked-on-PR |
-| D-4 | CORRELATION-NORMALISE: canonical form of an inbound correlation ID | `implementation-program.md:500`; `audit/2026-09-25/waves/wave-3-L1-A.md:176` | no | — | blocked-on-owner |
+| D-4 | CORRELATION-NORMALISE: canonical form of an inbound correlation ID | `implementation-program.md:500`; `audit/2026-09-25/waves/wave-3-L1-A.md:176` | no | — | done (#138) |
 
 Dependency graph: `D-0 → D-1 → {D-2, D-3}`; D-4 is independent. D-2 and D-3 touch disjoint product files and may run as the 2 allowed code L1s at once.
 
@@ -295,7 +295,7 @@ Existing `test_hc_gam_http_002/003/007/008/009` keep their values (checked: none
 |---|---|---|
 | Ask-first files | none: no item touches `interpret_safety`, `redaction`, `faithfulness`, `verifier_agent`, `core/auth.py` or encryption code | — |
 | PR merges | D-0: #95, #97, #99, #82, #84 in that order | owner merges each |
-| CORRELATION-NORMALISE go | D-4 | **not given**; owner item, "none is approved" |
+| CORRELATION-NORMALISE go | D-4 | **given** |
 | Re-learn method (Q1) | D-2 | **answered 2026-10-16: "Re-learn automatically"** — see D-2 rev 2 (no `core/auth.py` edit) |
 | Grace scope (Q2) | D-3 applies only to `GET /gamification/streaks` | default as written unless the owner widens it |
 

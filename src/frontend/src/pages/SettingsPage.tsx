@@ -98,7 +98,7 @@ export function SettingsPage() {
   const detectHardware = useDetectHardware();
   const setTier = useSetTier();
   const startDownload = useStartDownload();
-  const { data: externalApiData } = useExternalApiSettings();
+  const { data: externalApiData, isError: externalApiError } = useExternalApiSettings();
   const saveExternalApi = useSaveExternalApiSettings();
 
   const { data: timezoneData } = useTimezone();
@@ -678,7 +678,14 @@ export function SettingsPage() {
                 Your data will be sent to the provider's servers.
               </p>
 
-              <ExternalApiBreakGlassWarning active={externalApiData?.redaction_break_glass} />
+              <ExternalApiBreakGlassWarning
+                active={externalApiData?.redaction_break_glass}
+                unknown={
+                  externalApiError ||
+                  (externalApiData?.use_external_api === true &&
+                    externalApiData.redaction_break_glass === undefined)
+                }
+              />
 
               <button
                 onClick={handleExternalApiToggle}

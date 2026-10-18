@@ -249,6 +249,7 @@
 | Q-RUFF-SET | "Q-RUFF said \"Full default ruleset\". Which target should the E-3a cleanup and the CI ruff job use?" (answered 2026-10-17, L0 AskUserQuestion; raised by E-3a Task 0, PR #130) | **Configured set F/I/W (Recommended)** | The rules in `src/backend/pyproject.toml`: 578 findings, 536 auto-fixable on ruff 0.17.1. Clarifies Q-RUFF. | yes |
 | Q-RUFF-UNSAFE | "Fixes that ruff marks unsafe (34) ... How should E-3a handle them?" (answered 2026-10-17, L0 AskUserQuestion) | **Safe fixes only (Recommended)** | Unsafe ones are checked by hand; an import is kept if removing it changes import-time behaviour. | yes |
 | Q-RUFF-PIN | "Which ruff version should E-3a and CI pin?" (answered 2026-10-17, L0 AskUserQuestion) | **0.17.1 (Recommended)** | Supersedes the plan's 0.15.10. | yes |
+| C-DUPAUD-DIFF | "C-DUPAUD (#141) adds one key to the audit allow-list in ask-first core/audit.py: \"duplicate_warning\", is appended to STRING_DETAIL_KEYS ... Approve this diff for merge?" (answered 2026-10-17, L0 AskUserQuestion) | **Approve the diff (Recommended)** | Merged #141 on green CI. | yes |
 
 ## Earlier owner records still in force
 
