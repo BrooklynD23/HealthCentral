@@ -25,6 +25,7 @@ What "verified" means in this repo. Every task in [feature_list.json](../../feat
 6. **Dependency-baseline grep** — after any docs/setup change: `grep -rn -E "Python 3\.10|Node(\.js)? 1[68]|Node(\.js)? 20" README.md AGENT.md CLAUDE.md CONTRIBUTING.md docs/user/ dev.ps1 dev.bat .github/` must return nothing (historical logs under `docs/plans/` are exempt as point-in-time records).
 7. **PHI-leakage / redaction eval** — pytest suites covering `modules/redaction.py` and the RL dataset export path assert that exportable artifacts contain no unredacted user text; the export flow requires explicit confirmation.
 8. **Legacy RAG gate** — `python3 scripts/legacy_eval_gate.py` sends 8 golden cases (`src/backend/tests/legacy_eval/golden/`) through `POST /assistant/chat` and fails CI if an `is_valid=False` or uncited legacy answer is served, a grounded answer is abstained, or the persisted turn differs from the served text (owner decision G-B5).
+9. **Extraction eval (HC-M06)** — `cd src/backend && python -m pytest tests/test_extraction_golden.py -q` scores `ExtractModule.extract_from_pdf` on a synthetic golden set (analyte/unit/date precision and recall, thresholds never lowered). Numbers and run log: [eval-cards/extraction.md](eval-cards/extraction.md).
 
 ## Rules
 
