@@ -1,6 +1,6 @@
 # Lane E — Privacy, Gates, CI — Build Design
 
-**Last Updated:** 2026-10-15
+**Last Updated:** 2026-10-17 (E-1b, REDACT-EMAIL-REDOS, DEV-SH-CC planned)
 **Owner:** repository owner
 **Status:** DESIGN — nothing here is implemented. Owner answers are quoted from [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md); this file records no new approval. Every "default" or "recommended" is the lane designer's, not the owner's.
 **Refresh Trigger:** any merge of #74, #72, #84 or a P6/P7 PR; an owner answer to S-3, S-6, OG-1, Q-AUD-LIST, Q-RUFF, Q-COV, CI-SEED, NPM-AUDIT-CI or W1-SMOKE-RUN; any commit to `.github/workflows/ci.yml`, `src/backend/api/export.py`, `src/backend/modules/export.py`, `src/backend/modules/redaction.py`, `src/backend/api/profiles.py`, `src/backend/core/auth.py`, `src/backend/core/denial_audit.py` or `src/backend/tests/support/routes.py`.
@@ -23,6 +23,9 @@
 | E-5 | NPM-AUDIT-DRIFT: the 7 remaining advisories | program `:493` (closed row; "the remaining 7 need Tailwind 4"), `:427` | no (closed row) → §2.5 | E-4 merged | blocked-on-PR |
 | E-6 | W1-SMOKE: owner `/agents` runtime smoke | program `:487`; [W01 plan](../2026-09-27-W01-harness-agents-branch-a.md) Task 7 | yes → §2.6 | — | blocked-on-owner |
 | E-7 | AUDIT-ORDER / AUDIT-DENIALS status reconciliation | [AUDIT-ORDER plan](../2026-10-09-AUDIT-ORDER.md) `:5`, `:467`; program `:488-489` | yes (executed) → §2.7 | — | ready (DOCS) |
+| E-1b | strict misses parenthesised qualifier, `#`/`no.` after a bare label, `-` separator | queue status 2026-10-16 second batch; E-1a plan residual gaps 8–10 | yes → §2.8 | E-1a (merged #108) | blocked-on-owner (E1B-SCOPE, then E1B-DIFF); ask-first `redaction.py` |
+| REDACT-EMAIL-REDOS | quadratic `email` rule | queue status 2026-10-16 second batch | yes → §2.9 | — | blocked-on-owner (REDOS-APPROACH, then REDOS-DIFF); ask-first `redaction.py` |
+| DEV-SH-CC | `dev.sh` compiler check; skip `llama-cpp-python` under `LLM_PROVIDER=ollama` | queue status 2026-10-16 third batch (MM-4); DEV-SH `owner-decisions:147` | yes → §2.10 | — | ready |
 
 Graph: `E-3 → E-4 → E-5`; `P6 → P7 → E-2`; E-1, E-6, E-7 independent. E-1 and E-3 are the two lane-E code items ready today and share no file. The 2-code-L1 limit is **box-wide, not per lane**: L0 assigns the slots across lanes (§7 P-1).
 
@@ -137,6 +140,128 @@ Source: program `:487`. W-1 Task 7 Steps 2–5 are a manual runtime smoke. The o
 
 `implementation-program.md` is also the orchestrator's status file. E-7 edits only rows `:488-489` and runs after the orchestrator's own program refresh, or folds into it.
 
+### 2.8 E-1b — three underscore-label shapes strict still misses (ask-first `modules/redaction.py`)
+
+**Source:** queue status 2026-10-16 (second batch); [E-1a plan](../2026-10-16-E1a-redaction-underscore-phi.md) §Residual gaps 8–10, found by the PR #108 rev 3 security review. Planned 2026-10-17 on `origin/main` @ `b54f105`.
+
+**Measured on `b54f105`** (`RedactionEngine("strict")`, scratchpad probe, not committed):
+
+| Input | Strict output today |
+|---|---|
+| `mrn_(hospital):_a12345`, `patient_name_(legal):_jane_doe` | unchanged (gap 8) |
+| `patient_#:_98765`, `patient_no.:_98765`, `name_#:_jane` | unchanged (gap 9) |
+| `mrn_-_a12345`, `patient_name_-_jane_doe` | unchanged (gap 10, `-`) |
+| `mrn_=_a12345`, `mrn_;_a12345` | unchanged (gap 10 also lists `=` and `;`; the queue row names only `-`, so they wait on E1B-SCOPE) |
+| `dob_-_01/02/1980` | `dob_-_[DATE-REDACTED]` (only the date rule fires) |
+| `mrn_no._-_12345` | `[ID-REDACTED]` (already matched; `no._-_12345` is read as the value) |
+
+**Why:** one rule, `underscore_labelled_id` (`src/backend/modules/redaction.py:136-146`). Specific labels take `(?:_*[:#.]+)?`, then `_+`, then a value that must start with `[^\W_]`, so `(`, `-`, `=` or `;` right after the `_` ends the match. The bare labels `patient` / `name` take one qualifier word `(?:_[^\W_]+)?` and then need `_*:`, so `#` or `no.` before the colon fails.
+
+**Design (strict only; widen the one rule; no new rule, no other level):**
+1. An optional parenthesised qualifier after any label: one `_(word)` group where the word is `[^\W_]+`, with no nesting and no `_` inside, so it cannot match across an `_` run.
+2. On the bare labels, `#` or `no.` may sit between the label (or its qualifier word) and the colon. The branch must stay **disjoint** from the `_` runs around it: no two adjacent `_*` around an optional group. That shape is the rev 2 quadratic bug (`dob` + 50000 `_` took 7.9 s).
+3. `-` as a label separator: `_-_` between the label part and the value. `=` and `;` are added only if the owner answers E1B-SCOPE (b). Recommended (b): the same review found all three, and leaving `=` / `;` keeps a known leak.
+4. Everything E-1a matches still matches with the same output (HC-REDACT-001 to -008 unchanged).
+
+The implementer drafts the exact pattern, posts it in the PR body, and the owner approves that exact diff (E1B-DIFF). This plan licenses no other edit to `redaction.py`.
+
+**Accepted over-redaction (strict only; listed in the PR body):** labelled tokens with a qualifier, such as `mrn_(status):_ok`, become `[ID-REDACTED]`. Same class as E-1a's `patient_count:_3`.
+
+**Test-first** (`src/backend/tests/test_redaction.py`; "RED" = fails on `b54f105`):
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-REDACT-001 (+7 rows in `UNDERSCORE_PHI`) | the 7 gap 8–10 shapes with `-` above → the existing assertions (`secret` gone, `result.text.removeprefix("full_") == "[ID-REDACTED]"`) | yes ×7 |
+| HC-REDACT-001 (+4 rows, only under E1B-SCOPE (b)) | `mrn_=_a12345`, `mrn_;_a12345`, `patient_name_=_jane_doe`, `patient_name_;_jane_doe` | yes ×4 |
+| HC-REDACT-004 (+6 rows in `ANALYTE_LIKE`) | `glucose_(fasting)`, `t4_(free)`, `name_(of_test)`, `patient_(count)_3`, `ldl_-_calculated`, `mrna_-_level` unchanged, 0 redactions | no (guards; each must fail against a mutant in Task 3, as in E-1a) |
+| HC-REDACT-009 ×3 | strict on `"mrn" + "_(" * 20000`, `"patient" + "_#" * 20000 + "!"`, `"mrn" + "_-" * 20000 + "!"` → under 1.0 s and text unchanged | measure in Task 0; it is a backtracking guard for the widened rule |
+| HC-EXPR-001 (+1 row in `GAP_ROWS`, `tests/test_export_redaction.py:271`) | analyte `mrn_(hospital):_a12345` → absent from every doctor-summary download format | yes |
+
+Also edit the `test_export_redaction.py` module docstring (`:9-10`): drop "the E-1b shapes" from the not-covered list and name what remains (gap 11, non-space whitespace; `=`/`;` unless E1B-SCOPE (b)).
+
+**Tasks:** 0 start count + RED run (`-rfE`) + HC-REDACT-009 timing on `main`; 1 RED tests; 2 GREEN, the one-rule edit; 3 mutants (drop each new branch, drop the disjointness): each fails a named test, output in the PR body; 4 docstring; 5 PR as **draft** until E1B-DIFF.
+
+**Files:** `src/backend/modules/redaction.py` (ask-first, **edited**), `src/backend/tests/test_redaction.py`, `src/backend/tests/test_export_redaction.py`.
+
+**Expected collected delta:** +17 (7 + 6 + 3 + 1); +21 under E1B-SCOPE (b).
+
+**Acceptance** (from `src/backend`, `pyt` = `scripts/pyslot.sh env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest`):
+1. `pyt tests/test_redaction.py tests/test_export_redaction.py -q -rfE`: 0 failed.
+2. E-1a acceptance rows 3–4 (safety suites; the other strict callers `fhir_export`, `visit_prep`, `rl_*`, `external_runner`, `agent/test_s4_phi_gate`, `agent/test_s6_evals`): same pass/fail as Task 0.
+3. Full suite per RUNBOOK §6; collected = N0 + 17 (or + 21).
+
+**Doc claim (PR body, PRIV-04 gap column via L0):** strict now also matches a parenthesised qualifier, `#` / `no.` before a bare label's colon, and `-` as a label separator. Never "all PHI".
+
+**Order:** never beside REDACT-EMAIL-REDOS (same two files). Either may go first; the second rebases and re-runs both timing tests. **Rollback:** revert; no data.
+
+### 2.9 REDACT-EMAIL-REDOS — the `email` rule is quadratic (ask-first `modules/redaction.py`)
+
+**Source:** queue status 2026-10-16 (second batch), found during the E-1a rev 3 review.
+
+**Measured on `b54f105`** (one `finditer` per rule, this WSL box; the queue's 0.81 s came from another run):
+
+| Input (no `@` anywhere) | `email` rule alone |
+|---|---|
+| `"mrn" + "._" * 20000` | 4.97 s |
+| `"a." * 20000` | 3.80 s |
+| `"a." * 40000` | 19.85 s (2× input → 5.2× time: quadratic) |
+
+Every other rule stayed under 0.01 s on these inputs.
+
+**Why:** `\b[A-Za-z0-9._%+-]+@…` (`src/backend/modules/redaction.py:65-72`). The local-part class contains `.` **and** `_`, so a long `._` or `a.` run is one class run. At every `\b` inside the run, the engine scans to the end of the run, finds no `@`, and fails. That is O(n²) per run. (The Haiku lead said `_` is not in the class. It is.) The domain part `[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}` backtracks only within one domain, after one `@`, so it is linear per attempt.
+
+**Rejected: a pure-regex run-start anchor.** Replacing `\b` with the lookbehind `(?<![A-Za-z0-9._%+-])` is linear, but it **redacts less**. In `a@b.com.c@d.com` the second address continues the class run that the first match ended in, so no start is allowed and `c@d.com` stays in clear text. Today both addresses are redacted.
+
+**Options (owner REDOS-APPROACH):**
+
+| Option | Change | Output vs today |
+|---|---|---|
+| **(a) Recommended: anchor on `@`** | `RedactionRule` gets an optional `anchor: str \| None = None`. The `email` rule sets `anchor="@"`, and its pattern is unchanged, including the literal `\|` in `[A-Z\|a-z]`. For a rule with an anchor, the engine visits each `@` in turn and computes the window start: the start of the local-part class run that ends at that `@`, but never before the previous match's end. It finds the first `\b` position in `[window start, @)` and makes one `pattern.match(text, p)` call there. Every match holds exactly one `@`, because neither class contains `@`. The class run is uniform up to the `@`, so if the first `\b` start fails, every later start fails too. Each run is scanned once: linear. About 20 lines in `RedactionEngine.redact` | **identical**: same spans, same order (HC-REDACT-011) |
+| (b) RFC 5321 bounds | `[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}`, one-line pattern edit | narrower: a local part over 64 characters with no inner `\b` (`"a" * 100 + "@x.com"`) is no longer redacted, or only its last ≤ 64 characters are. Such addresses are not valid, but today they are redacted |
+| (c) leave it | none | local single-user app; the input is the patient's own text |
+
+Removing the stray `|` from `[A-Z|a-z]` would stop redacting `jane@x.c|om`-shaped text. That is a narrowing, so no option changes it.
+
+**Test-first** (`src/backend/tests/test_redaction.py`, next to HC-REDACT-007/008; under (a)):
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-REDACT-010 ×3 | strict on each of the 3 inputs above at `N = 20000` → under 1.0 s, text unchanged | yes ×3 (3.8–5.0 s) |
+| HC-REDACT-011 | differential: build `RedactionEngine(policy_level=lvl, rules=[OLD_EMAIL])` from an inline copy of today's rule, with no anchor. The inputs are a fixed corpus (`jane@x.com`, `a.b+c@sub.x.org`, `jane_doe@example.com`, `.jane@x.com`, `-a@x.io`, `mail: jane@x.com.`, `éjane@x.com`, `jane@@x.com`, `a@b@c.com`, `a@b.com.c@d.com`, `x@y`, `@x.com`) plus 2000 seeded-random strings of length ≤ 40 over `a._-+%@é ,;\n0`. Each must give the same `text` and the same metadata spans as the new engine, at strict and at standard | no (pin; a mutant that drops the "previous match end" bound fails on `a@b.com.c@d.com`) |
+| HC-REDACT-012 | a rule without an anchor keeps today's `finditer` path: the SSN/phone/underscore tests are unchanged, and one test checks `RedactionRule(...).anchor is None` by default | no (pin) |
+
+**Files:** `src/backend/modules/redaction.py` (ask-first, **edited**: the `RedactionRule` field, the anchored branch in `redact`, `anchor="@"` on `email`), `src/backend/tests/test_redaction.py`.
+
+**Expected collected delta:** +5 (3 + 1 + 1). Under (b): +4 (no HC-REDACT-012; HC-REDACT-011 becomes "equal on every corpus string with local part ≤ 64").
+
+**Acceptance:** `pyt tests/test_redaction.py -q -rfE` 0 failed. The E-1a acceptance rows 3–4 suites, plus `tests/test_external_runner_hardening.py` (standard level), have the same pass/fail as Task 0. Full suite per RUNBOOK §6.
+
+**Owner gates:** REDOS-APPROACH (licenses the edit and picks the option), then REDOS-DIFF (a yes on the exact diff before merge, as for E-1a). The PR stays draft until then. **Order:** never beside E-1b. **Rollback:** revert.
+
+### 2.10 DEV-SH-CC — `dev.sh` dies when `llama-cpp-python` cannot compile
+
+**Source:** queue status 2026-10-16 (third batch, MM-4); follows DEV-SH (`owner-decisions:147`, "Yes, build dev.sh").
+
+**Fact (`b54f105`):** STEP 3 (`dev.sh:105-126`) runs one `pip install -r requirements.txt`. Its only fallback checks for `sqlcipher` in the log (`:111`). A `llama-cpp-python==0.3.35` (`src/backend/requirements.txt:72`) source build with no C compiler falls to `die "Failed to install Python dependencies"` (`:121-122`). `dev.sh` never checks for a compiler and never reads `LLM_PROVIDER`. The `.env` it would read is created later, in STEP 4 (`:139-147`). Default provider: `config/.env.example:142` `LLM_PROVIDER=llama_cpp`. `core/llm/factory.py:47-61`: `ollama` works without `llama_cpp`. When the daemon is down, it falls back to `LlamaCppProvider`, whose import is lazy (`core/llm/llama_cpp_provider.py:8`), so the app starts and that fallback reports the model unavailable.
+
+**Design:**
+1. STEP 1 adds a compiler check: `command -v cc || command -v gcc || command -v clang`.
+2. Before STEP 3, resolve the provider: `$LLM_PROVIDER` from the environment, else from `src/backend/.env` if it exists, else from `config/.env.example`.
+3. No compiler and provider `ollama`: warn ("llama-cpp-python skipped: no C compiler; LLM_PROVIDER=ollama does not need it"), then install a filtered requirements file without the `llama-cpp-python` line. Use the same `mktemp` + `grep -v` shape as the SQLCipher branch.
+4. No compiler and any other provider: `die` **before** pip with the fix: "install a C compiler (Debian/Ubuntu: sudo apt install build-essential), or set LLM_PROVIDER=ollama".
+5. A test hook, `HC_DEV_STOP_AFTER_DEPS=1`, exits 0 after STEP 3. Document it in the header beside `HC_SKIP_OCR_SETUP`. `dev.ps1` is out of scope: same gap on Windows, new row if wanted.
+
+**Test-first:** new `src/backend/tests/test_dev_sh_prereqs.py`, skipped on Windows. Each test copies `dev.sh` into `tmp_path` with a 2-line `src/backend/requirements.txt` (`fastapi`, `llama-cpp-python==0.3.35`) and `config/.env.example`. It runs `bash dev.sh` through `subprocess` with a stub `PATH` (`python3` reporting 3.11 and recording `-m pip` arguments, `node`, `npm`, and `cc` only when wanted), with `HC_ALLOW_WINDOWS_MOUNT=1` and `HC_DEV_STOP_AFTER_DEPS=1`.
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-DEVSH-001 | no `cc`, `LLM_PROVIDER=ollama` → exit 0, pip got a requirements file without `llama-cpp-python`, stderr has the skip warning | yes (no filter) |
+| HC-DEVSH-002 | no `cc`, `LLM_PROVIDER=llama_cpp` → exit 1 before any pip call, message names `build-essential` and `LLM_PROVIDER=ollama` | yes (pip runs first) |
+| HC-DEVSH-003 | `cc` present → the full requirements file | no (pin) |
+| HC-DEVSH-004 | no `cc`, env unset, `src/backend/.env` says `LLM_PROVIDER=ollama` → as 001 | yes |
+
+**Files:** `dev.sh`, `src/backend/tests/test_dev_sh_prereqs.py`. **Expected collected delta:** +4. **Acceptance:** `pyt tests/test_dev_sh_prereqs.py -q` 4 passed; `bash -n dev.sh`; on a box with a compiler, `HC_DEV_STOP_AFTER_DEPS=1 ./dev.sh` still installs everything (pasted). **Rollback:** revert.
+
 ---
 
 ## 3. Provides
@@ -172,6 +297,9 @@ Source: program `:487`. W-1 Task 7 Steps 2–5 are a manual runtime smoke. The o
 | TW4-SHOTS + #74 merge | E-4 | owner compares screenshots (`:140`); owner merges |
 | NPM-AUDIT-CI (new) | E-5 | unasked; default do not add |
 | W1-SMOKE-RUN (new) | E-6 | unasked; default owner runs W-1 Task 7 |
+| Ask-first `modules/redaction.py` (**edited**) | E-1b, REDACT-EMAIL-REDOS | each needs a yes to edit (E1B-SCOPE, REDOS-APPROACH) and a yes on its exact diff before merge (E1B-DIFF, REDOS-DIFF), as E-1a; never both at once |
+| E1B-SCOPE (new) | E-1b | unasked; (a) the queue row's shapes (qualifier, `#`/`no.`, `-`) or (b) also `=` and `;`. Recommended (b) |
+| REDOS-APPROACH (new) | REDACT-EMAIL-REDOS | unasked; (a) `@`-anchored match, identical output / (b) RFC bounds, narrower / (c) leave. Recommended (a) |
 
 ## 6. Open questions
 
