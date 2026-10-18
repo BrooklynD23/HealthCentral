@@ -233,3 +233,35 @@ async def test_hc_ver_003_unverified_document_chunk_absent_from_legacy_rag_conte
     prompt = runner.prompts[0]
     assert "ALPHA-VERIFIED-CHUNK" in prompt, "positive control: verified-document chunk missing"
     assert "BRAVO-PENDING-CHUNK" not in prompt, "unverified-document chunk text reached the legacy RAG prompt"
+
+
+@pytest.mark.asyncio
+async def test_hc_ver_005_knowledge_fallback_cites_verified_values_only(real_profile_db) -> None:
+    from unittest.mock import MagicMock, patch
+    from api.assistant import ChatRequest, _build_knowledge_fallback
+    from modules.knowledge_loader import BiomarkerInfo
+
+    db = real_profile_db
+    db.add_all([_document("doc-v", "verified"), _document("doc-u", "parsed")])
+    db.add_all([
+        _ldl("obs-v", "doc-v", 101.0, True, datetime(2025, 1, 10)),
+        _ldl("obs-u", "doc-u", 187.0, False, datetime(2025, 6, 10)),
+    ])
+    await db.commit()
+    info = BiomarkerInfo(
+        id="kb-ldl", analyte_canonical="ldl_cholesterol", display_name="LDL Cholesterol",
+        description="d", clinical_significance="c", normal_interpretation="n",
+        high_interpretation="h", low_interpretation="l", standard_unit="mg/dL", category="lipid",
+    )
+    with patch("modules.knowledge_loader.get_knowledge_loader") as loader_fn:
+        loader = MagicMock()
+        loader.get_biomarker_knowledge = AsyncMock(return_value=info)
+        loader_fn.return_value = loader
+        response = await _build_knowledge_fallback(
+            request=ChatRequest(question="How is my LDL?"), profile_id=PROFILE,
+            db=AsyncMock(), profile_db=db,
+        )
+
+    combined = " ".join(s.content for s in response.segments)
+    assert "101.0" in combined, "positive control: verified value missing from fallback"
+    assert "187.0" not in combined, "unverified value cited by the no-LLM fallback"

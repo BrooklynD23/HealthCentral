@@ -1434,6 +1434,9 @@ async def _build_knowledge_fallback(
                 Observation.profile_id == profile_id,
                 Observation.analyte_canonical == analyte,
                 Observation.value.isnot(None),
+                # D4 (owner, 2026-09-27): the legacy path cites verified
+                # values only, matching the agent's query_observations tool.
+                Observation.user_verified == True,  # noqa: E712
             )
             if from_dt is not None:
                 stmt = stmt.where(Observation.collected_at >= from_dt)
