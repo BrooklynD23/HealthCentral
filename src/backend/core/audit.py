@@ -73,6 +73,7 @@ STRING_DETAIL_KEYS: frozenset[str] = frozenset({
     "source_document_id", "source_entity_id", "observation_id", "category",
     "highlight_type", "event_type", "event_type_filter", "decision", "direction",
     "handle", "abstain_reason", "since_date", "trigger", "reason", "node",
+    "duplicate_warning",
 })
 
 # Keys holding short lists of opaque identifiers.

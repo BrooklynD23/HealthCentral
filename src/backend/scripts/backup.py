@@ -22,6 +22,7 @@ import shutil
 import sqlite3
 import sys
 import threading
+import time
 from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -170,6 +171,13 @@ def _compute_sha256(file_path: Path) -> str:
     return h.hexdigest()
 
 
+BACKUP_BUSY_TIMEOUT_S = 600
+
+
+class BackupBusyTimeout(Exception):
+    """The source stayed locked past BACKUP_BUSY_TIMEOUT_S."""
+
+
 def _backup_sqlite(source: Path, dest: Path, sqlite_module=sqlite3) -> str:
     """
     Backup a SQLite database using the backup() API.
@@ -180,11 +188,26 @@ def _backup_sqlite(source: Path, dest: Path, sqlite_module=sqlite3) -> str:
 
     Returns the backup method used ('sqlite_backup' or 'file_copy').
     """
+    # timeout=1: each busy wait is short so the deadline below is checked often
+    # (the default 5 s wait would overshoot a small deadline).
+    deadline = time.monotonic() + BACKUP_BUSY_TIMEOUT_S
+
+    def _progress(status, remaining, total):
+        # 101 = SQLITE_DONE: a copy that finished is complete and consistent,
+        # keep it even if it landed just past the deadline.
+        if status != 101 and time.monotonic() > deadline:
+            raise BackupBusyTimeout(
+                f"SQLite backup of {source} still busy after {BACKUP_BUSY_TIMEOUT_S}s"
+            )
+
     try:
-        with closing(sqlite_module.connect(str(source))) as src_conn, \
+        with closing(sqlite_module.connect(str(source), timeout=1)) as src_conn, \
                 closing(sqlite_module.connect(str(dest))) as dst_conn:
-            src_conn.backup(dst_conn)
+            src_conn.backup(dst_conn, progress=_progress)
         return "sqlite_backup"
+    except BackupBusyTimeout:
+        # Never fall back to a file copy here: that stores a torn copy.
+        raise
     except Exception as e:
         logger.warning(
             "SQLite backup API failed for %s, falling back to file copy: %s",
@@ -388,110 +411,125 @@ def _backup_unlocked(
         raise NotADirectoryError(f"Data directory is not a directory: {data_dir}")
 
     timestamp = utcnow().strftime("%Y%m%d_%H%M%S")
+    # Same-second backups must not share a directory; a failure below must not
+    # leave a manifest-less backup_* dir behind.
     dest_dir = backup_dir / f"backup_{timestamp}"
-    dest_dir.mkdir(parents=True, exist_ok=True)
+    suffix = 0
+    while True:
+        try:
+            dest_dir.mkdir(parents=True, exist_ok=False)
+            break
+        except FileExistsError:
+            suffix += 1
+            dest_dir = backup_dir / f"backup_{timestamp}_{suffix}"
+    try:
+        databases = _discover_databases(data_dir)
 
-    databases = _discover_databases(data_dir)
+        key_files = _discover_key_files(data_dir)
 
-    key_files = _discover_key_files(data_dir)
+        if profile_id:
+            # Vaults are directories named by profile id, so match on the parent.
+            databases = [
+                db for db in databases
+                if db.name in MASTER_DB_NAMES or db.parent.name == profile_id
+            ]
+            key_files = [k for k in key_files if k.parent.name == profile_id]
 
-    if profile_id:
-        # Vaults are directories named by profile id, so match on the parent.
-        databases = [
-            db for db in databases
-            if db.name in MASTER_DB_NAMES or db.parent.name == profile_id
-        ]
-        key_files = [k for k in key_files if k.parent.name == profile_id]
+        if not databases and not key_files:
+            return BackupResult(
+                success=True,
+                backup_path=dest_dir,
+                files_backed_up=0,
+                manifest_path=dest_dir / "manifest.json",
+                method="none",
+            )
 
-    if not databases and not key_files:
+        manifest_files: list[dict] = []
+        backup_method = "sqlite_backup"
+
+        for db_path in databases:
+            # Preserve relative structure
+            rel_path = db_path.relative_to(data_dir)
+            dest_file = dest_dir / rel_path
+            dest_file.parent.mkdir(parents=True, exist_ok=True)
+
+            is_scoped_vault = profile_id and db_path == data_dir / "vaults" / profile_id / "vault.db"
+            if snapshot_vault and is_scoped_vault and snapshot_vault(dest_file):
+                method = "keyed_snapshot"
+            else:
+                # Vaults are opened in-process through sqlcipher3, the master through stdlib.
+                module = sqlite3 if db_path.name in MASTER_DB_NAMES else get_sqlcipher_module()
+                method = _backup_sqlite(db_path, dest_file, module)
+            if method == "file_copy":
+                backup_method = "file_copy"
+
+            # A profile-scoped backup keeps only this profile's master rows. An
+            # unscoped one is a backup of the whole install and keeps everything.
+            # Scope before checksumming so the manifest describes what is stored.
+            # Membership, not equality: if discovery picked up a legacy-named
+            # master, an equality check would skip scoping and quietly store every
+            # other profile's rows — display names and password hashes — inside
+            # this profile's backup.
+            if profile_id and db_path.name in MASTER_DB_NAMES:
+                _scope_master_to_profile(dest_file, profile_id)
+
+            checksum = _compute_sha256(dest_file)
+            manifest_files.append({
+                "path": str(rel_path),
+                "sha256": checksum,
+                "size_bytes": dest_file.stat().st_size,
+                "method": method,
+            })
+
+        # Sealed key files are copied verbatim -- they are opaque blobs, not
+        # SQLite databases, so the backup API does not apply.
+        for key_path in key_files:
+            rel_path = key_path.relative_to(data_dir)
+            dest_file = dest_dir / rel_path
+            dest_file.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(key_path, dest_file)
+            manifest_files.append({
+                "path": str(rel_path),
+                "sha256": _compute_sha256(dest_file),
+                "size_bytes": dest_file.stat().st_size,
+                "method": "file_copy",
+            })
+
+        manifest = {
+            "timestamp": timestamp,
+            "created_at": utcnow().isoformat() + "Z",
+            "app_version": APP_VERSION,
+            "backup_method": backup_method,
+            # Records what the stored master DB actually contains: one profile's
+            # rows, or the whole install. Restore needs this to tell the two apart —
+            # they are the same filename with very different meanings. Null for an
+            # unscoped backup, which is also how a pre-scoping backup (no key at
+            # all) reads.
+            "profile_id": profile_id,
+            "files": manifest_files,
+        }
+
+        manifest_path = dest_dir / "manifest.json"
+        manifest_path.write_text(json.dumps(manifest, indent=2))
+
+        logger.info(
+            "Backup complete: %d files to %s",
+            len(manifest_files), dest_dir,
+        )
+
         return BackupResult(
             success=True,
             backup_path=dest_dir,
-            files_backed_up=0,
-            manifest_path=dest_dir / "manifest.json",
-            method="none",
+            files_backed_up=len(manifest_files),
+            manifest_path=manifest_path,
+            method=backup_method,
         )
-
-    manifest_files: list[dict] = []
-    backup_method = "sqlite_backup"
-
-    for db_path in databases:
-        # Preserve relative structure
-        rel_path = db_path.relative_to(data_dir)
-        dest_file = dest_dir / rel_path
-        dest_file.parent.mkdir(parents=True, exist_ok=True)
-
-        is_scoped_vault = profile_id and db_path == data_dir / "vaults" / profile_id / "vault.db"
-        if snapshot_vault and is_scoped_vault and snapshot_vault(dest_file):
-            method = "keyed_snapshot"
-        else:
-            # Vaults are opened in-process through sqlcipher3, the master through stdlib.
-            module = sqlite3 if db_path.name in MASTER_DB_NAMES else get_sqlcipher_module()
-            method = _backup_sqlite(db_path, dest_file, module)
-        if method == "file_copy":
-            backup_method = "file_copy"
-
-        # A profile-scoped backup keeps only this profile's master rows. An
-        # unscoped one is a backup of the whole install and keeps everything.
-        # Scope before checksumming so the manifest describes what is stored.
-        # Membership, not equality: if discovery picked up a legacy-named
-        # master, an equality check would skip scoping and quietly store every
-        # other profile's rows — display names and password hashes — inside
-        # this profile's backup.
-        if profile_id and db_path.name in MASTER_DB_NAMES:
-            _scope_master_to_profile(dest_file, profile_id)
-
-        checksum = _compute_sha256(dest_file)
-        manifest_files.append({
-            "path": str(rel_path),
-            "sha256": checksum,
-            "size_bytes": dest_file.stat().st_size,
-            "method": method,
-        })
-
-    # Sealed key files are copied verbatim -- they are opaque blobs, not
-    # SQLite databases, so the backup API does not apply.
-    for key_path in key_files:
-        rel_path = key_path.relative_to(data_dir)
-        dest_file = dest_dir / rel_path
-        dest_file.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(key_path, dest_file)
-        manifest_files.append({
-            "path": str(rel_path),
-            "sha256": _compute_sha256(dest_file),
-            "size_bytes": dest_file.stat().st_size,
-            "method": "file_copy",
-        })
-
-    manifest = {
-        "timestamp": timestamp,
-        "created_at": utcnow().isoformat() + "Z",
-        "app_version": APP_VERSION,
-        "backup_method": backup_method,
-        # Records what the stored master DB actually contains: one profile's
-        # rows, or the whole install. Restore needs this to tell the two apart —
-        # they are the same filename with very different meanings. Null for an
-        # unscoped backup, which is also how a pre-scoping backup (no key at
-        # all) reads.
-        "profile_id": profile_id,
-        "files": manifest_files,
-    }
-
-    manifest_path = dest_dir / "manifest.json"
-    manifest_path.write_text(json.dumps(manifest, indent=2))
-
-    logger.info(
-        "Backup complete: %d files to %s",
-        len(manifest_files), dest_dir,
-    )
-
-    return BackupResult(
-        success=True,
-        backup_path=dest_dir,
-        files_backed_up=len(manifest_files),
-        manifest_path=manifest_path,
-        method=backup_method,
-    )
+    except BaseException:
+        shutil.rmtree(dest_dir, ignore_errors=True)
+        if dest_dir.exists():
+            # May still hold an unscoped master; surface it, path stays out of HTTP detail.
+            logger.warning("Failed backup directory could not be removed: %s", dest_dir)
+        raise
 
 
 def verify(backup_path: Path) -> VerifyResult:
@@ -539,6 +577,7 @@ def verify(backup_path: Path) -> VerifyResult:
     )
 
 
+# PRAGMA foreign_keys stays OFF here: restore deletes then re-inserts the profile row (SQL-FK-001).
 def _reapply_profile_row(backup_master: Path, live_master: Path, profile_id: str) -> bool:
     """Copy one profile's row from a backed-up master DB into the live one.
 
