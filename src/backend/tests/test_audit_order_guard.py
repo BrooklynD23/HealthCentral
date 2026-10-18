@@ -85,6 +85,8 @@ CLASSIFICATION: dict[str, str] = {
     "api/model_settings.py::save_external_api_settings": "C",
     "api/model_settings.py::set_timezone": "C",
     "api/model_settings.py::update_voice_settings": "C",
+    "api/model_settings.py::get_gamification_settings": "excluded: read route, audit_and_commit only",
+    "api/model_settings.py::update_gamification_settings": "C",
     "api/model_settings.py::get_environment_diagnostics": "excluded: read route, audit_and_commit only",
     "api/model_settings.py::recheck_environment_diagnostics": "excluded: read route, audit_and_commit only",
     "api/model_settings.py::update_ocr_settings": "C",

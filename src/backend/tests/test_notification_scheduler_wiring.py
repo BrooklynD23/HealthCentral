@@ -725,6 +725,7 @@ def test_hc_sched_tz_005_migration_clears_windows_and_round_trips(tmp_path, monk
     import sqlite3
 
     from alembic import command
+    from alembic.script import ScriptDirectory
 
     import core.sqlcipher_driver as driver
     from core import migrations
@@ -738,13 +739,13 @@ def test_hc_sched_tz_005_migration_clears_windows_and_round_trips(tmp_path, monk
     assert len(files) == 1
     text = files[0].read_text()
     down = re.search(r'^down_revision[^=]*=\s*"([^"]+)"', text, re.M).group(1)
-    rev = re.search(r'^revision[^=]*=\s*"([^"]+)"', text, re.M).group(1)
 
     vault, key = tmp_path / "vault.db", b"0" * 32
     migrations.run_profile_migration(vault, key)
     config = migrations._get_alembic_config("profile")
     config.attributes["vault_path"] = vault
     config.attributes["encryption_key"] = key
+    head = ScriptDirectory.from_config(config).get_current_head()
 
     command.downgrade(config, down)
     con = sqlite3.connect(vault)
@@ -768,7 +769,7 @@ def test_hc_sched_tz_005_migration_clears_windows_and_round_trips(tmp_path, monk
             c.close()
 
     command.upgrade(config, "head")
-    assert migrations.get_profile_current_revision(vault, key) == rev
+    assert migrations.get_profile_current_revision(vault, key) == head
     cols, r = row()
     assert "adaptive_window_tz" in cols
     assert r == ("08:00:00", None, None, None)
@@ -786,7 +787,7 @@ def test_hc_sched_tz_005_migration_clears_windows_and_round_trips(tmp_path, monk
     assert r == ("08:00:00", None, None)
 
     command.upgrade(config, "head")
-    assert migrations.get_profile_current_revision(vault, key) == rev
+    assert migrations.get_profile_current_revision(vault, key) == head
 
 
 # ---------------------------------------------------------------------------

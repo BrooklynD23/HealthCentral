@@ -321,6 +321,37 @@ export function useSaveVoiceSettings() {
   });
 }
 
+// Gamification display settings (C-GAM2B)
+
+export interface GamificationSettings {
+  streaks_hidden: boolean;
+}
+
+async function fetchGamificationSettings(): Promise<GamificationSettings> {
+  return apiGet('/settings/model/gamification');
+}
+
+async function saveGamificationSettings(data: { streaks_hidden?: boolean }): Promise<GamificationSettings> {
+  return apiPatch('/settings/model/gamification', data);
+}
+
+export function useGamificationSettings() {
+  return useQuery({
+    queryKey: ['settings', 'gamification'],
+    queryFn: fetchGamificationSettings,
+  });
+}
+
+export function useSaveGamificationSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: saveGamificationSettings,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings', 'gamification'] });
+    },
+  });
+}
+
 // OCR preference & environment diagnostics
 
 async function saveOcrPreference(ocr_preference_enabled: boolean): Promise<OcrSettingsResponse> {

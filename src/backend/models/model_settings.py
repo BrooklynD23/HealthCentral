@@ -136,6 +136,15 @@ class UserModelSettings(ProfileDatabaseBase):
         nullable=False,
     )
 
+    # C-GAM2B: per-profile opt-out of streak displays (badges stay visible).
+    # Added by 014_streaks_hidden.
+    streaks_hidden: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="0",
+        nullable=False,
+    )
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime,

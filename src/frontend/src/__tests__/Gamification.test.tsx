@@ -4,6 +4,7 @@
 import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { BadgeInfo, BadgeStatus, StreakResponse } from '@/services/types';
 
 vi.mock('framer-motion', () => {
@@ -25,12 +26,49 @@ vi.mock('framer-motion', () => {
 
 const badgesData: { badges: BadgeStatus[] } = { badges: [] };
 let streaksData: StreakResponse | undefined;
-vi.mock('@/services', () => ({
-  useBadges: () => ({ data: badgesData, isLoading: false }),
-  useStreaks: () => ({ data: streaksData }),
-  useDocuments: () => ({ data: [] }),
-  useMedReconciliation: () => ({ data: [], isLoading: false }),
+vi.mock('@/services', () => {
+  // Inert query/mutation results for the hooks SettingsPage reads.
+  const query = () => ({ data: undefined, isLoading: false, isError: false });
+  const mutation = () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false });
+  return {
+    useBadges: () => ({ data: badgesData, isLoading: false }),
+    useStreaks: () => ({ data: streaksData }),
+    useDocuments: () => ({ data: [] }),
+    useMedReconciliation: () => ({ data: [], isLoading: false }),
+    useModelSettings: query,
+    useTiers: query,
+    useDownloadProgress: query,
+    useExternalApiSettings: query,
+    useTimezone: query,
+    useVoiceSettings: query,
+    useEnvironmentDiagnostics: query,
+    useDetectHardware: mutation,
+    useSetTier: mutation,
+    useStartDownload: mutation,
+    useSaveExternalApiSettings: mutation,
+    useSaveTimezone: mutation,
+    useSaveVoiceSettings: mutation,
+    useSaveOcrPreference: mutation,
+    useRecheckDiagnostics: mutation,
+  };
+});
+
+// C-GAM2B: streaks_hidden setting. undefined = loading or failed.
+let gamificationData: { streaks_hidden: boolean } | undefined;
+const saveGamificationMutate = vi.fn();
+vi.mock('@/services/modelSettings', () => ({
+  useGamificationSettings: () => ({ data: gamificationData }),
+  useSaveGamificationSettings: () => ({ mutate: saveGamificationMutate, isPending: false }),
 }));
+
+vi.mock('@/services/feedback', () => ({
+  useFeedbackStats: () => ({ data: undefined }),
+  useExportDataset: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+vi.mock('@/components/MemoryManager', () => ({ MemoryManager: () => null }));
+vi.mock('@/components/settings/BackupCard', () => ({ BackupCard: () => null }));
+vi.mock('@/components/settings/RecoveryCodeCard', () => ({ RecoveryCodeCard: () => null }));
+vi.mock('@/components/settings/DangerZone', () => ({ DangerZone: () => null }));
 
 const logDoseMutate = vi.fn();
 vi.mock('@/services/medications', () => ({
@@ -67,6 +105,8 @@ import { BadgeToast } from '@/components/medication-coach/BadgeToast';
 import { AchievementsWidget } from '@/components/medication-coach/AchievementsWidget';
 import { StreakDisplay } from '@/components/medication-coach/StreakDisplay';
 import { MedicationCoach } from '@/pages/MedicationCoach';
+import { AdherenceDashboard } from '@/components/medication-coach/AdherenceDashboard';
+import { SettingsPage } from '@/pages/SettingsPage';
 
 const badge = (id: string, name: string): BadgeInfo => ({ badge_id: id, name, description: '', icon: 'star', medication_id: null, earned_at: '2026-03-05T03:00:00' });
 const status = (over: Partial<BadgeStatus>): BadgeStatus => ({
@@ -198,5 +238,86 @@ describe('MedicationCoach badge queue', () => {
     expect(screen.queryByText('Badge Alpha')).toBeNull();
     fireEvent.click(screen.getByLabelText('Dismiss'));
     expect(screen.queryByText('Badge Beta')).toBeNull();
+  });
+});
+
+describe('streaks_hidden (C-GAM2B)', () => {
+  const streaks: StreakResponse = {
+    current_streak_days: 4, longest_streak_days: 11, timezone: 'UTC', as_of_date: '2026-03-04',
+    active_days_last_28: 4, weeks_with_log_last_4: 1,
+  };
+  const adherence = {
+    medication_id: 'm1', current_streak_days: 6, longest_streak_days: 21,
+    last_7_days_adherence: 0.9, last_30_days_adherence: 0.8,
+    total_doses_taken: 10, total_doses_skipped: 1, total_doses_expected: 11,
+  };
+  const renderWidget = () => render(<BrowserRouter><AchievementsWidget /></BrowserRouter>);
+  const renderDashboard = () =>
+    render(<AdherenceDashboard stats={adherence} isLoading={false} isError={false} />);
+  afterEach(() => {
+    gamificationData = undefined;
+    streaksData = undefined;
+    saveGamificationMutate.mockReset();
+  });
+
+  it('hidden: profile streak and UTC hint are gone, badges stay', () => {
+    gamificationData = { streaks_hidden: true };
+    streaksData = streaks;
+    badgesData.badges = [status({ id: 'streak-7', name: 'Week Warrior', earned: true, criteria_type: 'streak' })];
+    renderWidget();
+    expect(screen.queryByText('All medications')).toBeNull();
+    expect(screen.queryByText(/Streak days are counted in UTC/)).toBeNull();
+    expect(screen.getByText('Week Warrior')).toBeInTheDocument();
+  });
+
+  it('hidden: per-medication streak is gone from the adherence dashboard', () => {
+    gamificationData = { streaks_hidden: true };
+    renderDashboard();
+    expect(screen.getByText('Adherence')).toBeInTheDocument();
+    expect(screen.queryByText('6')).toBeNull();
+    expect(screen.queryByText('21')).toBeNull();
+  });
+
+  it.each([
+    ['shown', { streaks_hidden: false }],
+    ['loading or failed', undefined],
+  ])('%s: both streak surfaces behave as before', (_name, data) => {
+    gamificationData = data;
+    streaksData = streaks;
+    badgesData.badges = [];
+    const { unmount } = renderWidget();
+    expect(screen.getByText('All medications')).toBeInTheDocument();
+    expect(screen.getByText(/Streak days are counted in UTC/)).toBeInTheDocument();
+    unmount();
+    renderDashboard();
+    expect(screen.getByText('6')).toBeInTheDocument();
+    expect(screen.getByText('21')).toBeInTheDocument();
+  });
+
+  describe('Show streaks switch', () => {
+    const renderSettings = () =>
+      render(
+        <QueryClientProvider client={new QueryClient()}>
+          <BrowserRouter><SettingsPage /></BrowserRouter>
+        </QueryClientProvider>
+      );
+
+    it('is on by default and PATCHes streaks_hidden=true when turned off', () => {
+      gamificationData = { streaks_hidden: false };
+      renderSettings();
+      const toggle = screen.getByRole('switch', { name: 'Show streaks' });
+      expect(toggle).toHaveAttribute('aria-checked', 'true');
+      fireEvent.click(toggle);
+      expect(saveGamificationMutate).toHaveBeenCalledWith({ streaks_hidden: true });
+    });
+
+    it('is off when hidden and PATCHes streaks_hidden=false when turned on', () => {
+      gamificationData = { streaks_hidden: true };
+      renderSettings();
+      const toggle = screen.getByRole('switch', { name: 'Show streaks' });
+      expect(toggle).toHaveAttribute('aria-checked', 'false');
+      fireEvent.click(toggle);
+      expect(saveGamificationMutate).toHaveBeenCalledWith({ streaks_hidden: false });
+    });
   });
 });

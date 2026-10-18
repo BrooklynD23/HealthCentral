@@ -1,6 +1,7 @@
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui';
 import { cn } from '@/utils/cn';
+import { useGamificationSettings } from '@/services/modelSettings';
 import { StreakDisplay } from './StreakDisplay';
 import type { AdherenceStats } from '@/services/types';
 
@@ -63,6 +64,10 @@ export function AdherenceDashboard({
   isError,
   className,
 }: AdherenceDashboardProps) {
+  // Loading or failed settings keep the default (streaks shown).
+  const { data: gamification } = useGamificationSettings();
+  const streaksHidden = gamification?.streaks_hidden === true;
+
   if (isLoading) {
     return (
       <Card className={className}>
@@ -95,10 +100,12 @@ export function AdherenceDashboard({
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Streaks */}
-        <StreakDisplay
-          currentStreak={stats.current_streak_days}
-          longestStreak={stats.longest_streak_days}
-        />
+        {!streaksHidden && (
+          <StreakDisplay
+            currentStreak={stats.current_streak_days}
+            longestStreak={stats.longest_streak_days}
+          />
+        )}
 
         {/* Adherence Rings */}
         <div className="flex items-center justify-around">
