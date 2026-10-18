@@ -176,7 +176,7 @@ async def test_multipart_import_allowed():
 async def test_options_preflight_passes():
     """OPTIONS requests bypass all validation."""
     mw = InputValidationMiddleware(passthrough_app, max_request_body_bytes=1)
-    scope = make_scope(method="OPTIONS", path="/api/v1/test\x00evil")
+    _ = make_scope(method="OPTIONS", path="/api/v1/test\x00evil")
     # Even with null bytes, OPTIONS should pass
     # But path validation happens before method check, let's use clean path
     scope_clean = make_scope(method="OPTIONS")

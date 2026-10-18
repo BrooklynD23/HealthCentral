@@ -224,7 +224,7 @@ class TestUpsertFeedback:
         )
 
         with patch("api.feedback._emit_audit", new_callable=AsyncMock):
-            resp = await upsert_feedback(
+            await upsert_feedback(
                 turn_id=turn_id,
                 body=req,
                 session=mock_session,
@@ -683,7 +683,6 @@ class TestEdgeCases:
         assert r1.sft_path != r2.sft_path
 
         content_a = Path(r1.sft_path).read_text()
-        content_b = Path(r2.sft_path).read_text()
         assert "prof-AAA" not in content_a or True  # profile ids not in content anyway
         assert r1.sft_positives_count == 1
         assert r2.sft_positives_count == 1

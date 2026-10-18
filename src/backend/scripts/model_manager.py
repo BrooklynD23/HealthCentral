@@ -241,7 +241,7 @@ def main():
     detect_parser.add_argument("--json", action="store_true", help="Output as JSON")
 
     # list command
-    list_parser = subparsers.add_parser("list", help="List downloaded models")
+    subparsers.add_parser("list", help="List downloaded models")
 
     # download command
     download_parser = subparsers.add_parser("download", help="Download a model")

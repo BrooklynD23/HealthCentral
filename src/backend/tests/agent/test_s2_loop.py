@@ -122,7 +122,7 @@ async def test_s2_3_run_log_replays(agent_profile_db, make_run_context):
     )
 
     ctx = make_run_context(session_maker, profile_id=profile_id)
-    run_log = graph_mod.RunLog(run_id=ctx.run_id, profile_id=ctx.profile_id)
+    _ = graph_mod.RunLog(run_id=ctx.run_id, profile_id=ctx.profile_id)
 
     # Run the real graph once, capturing the RunLog it produces, by swapping
     # in a thin wrapper that mirrors run_agent's own bookkeeping. Simplest

@@ -465,7 +465,6 @@ class NotificationScheduler:
         # Calculate time differences
         current_minutes = current_time.hour * 60 + current_time.minute
         target_minutes = schedule.target_time.hour * 60 + schedule.target_time.minute
-        window_start_minutes = window_start.hour * 60 + window_start.minute
 
         minutes_until_target = target_minutes - current_minutes
         minutes_past_target = -minutes_until_target if minutes_until_target < 0 else 0
@@ -594,7 +593,7 @@ class NotificationScheduler:
         )
 
         # Send notification
-        result = await self._notification_service.send(payload)
+        await self._notification_service.send(payload)
 
         # Log the reminder
         log_entry = ReminderLog(

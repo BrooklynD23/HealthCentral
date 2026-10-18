@@ -63,7 +63,7 @@ class EmbeddingsModule:
                 )
             # Use fallback mode
             self._model = None
-        except Exception as e:
+        except Exception:
             if not self.use_fallback:
                 raise
             self._model = None

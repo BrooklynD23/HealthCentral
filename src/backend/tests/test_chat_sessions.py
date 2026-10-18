@@ -492,7 +492,7 @@ class TestMemoryInjectionInRAG:
         rag._retrieve_memory_context = _spy
 
         from modules.rag import RetrievedChunk
-        chunks = [
+        _ = [
             RetrievedChunk(
                 chunk_id="c1", source_type="reference",
                 doc_id=None, doc_title="Ref", page=None,
@@ -534,8 +534,6 @@ class TestAutoExtractMemory:
     async def test_extracts_medication(self):
         from api.assistant import _auto_extract_memory
 
-        added = []
-
         count_result = MagicMock()
         count_result.scalar.return_value = 0  # 0 existing auto items
 
@@ -563,8 +561,6 @@ class TestAutoExtractMemory:
     @pytest.mark.asyncio
     async def test_extracts_allergy(self):
         from api.assistant import _auto_extract_memory
-
-        added = []
 
         count_result = MagicMock()
         count_result.scalar.return_value = 0

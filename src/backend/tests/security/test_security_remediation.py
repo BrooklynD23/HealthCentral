@@ -345,5 +345,5 @@ class TestSEC006ProductionDebugGuard:
 
         s = Settings(app_env="development", debug=True)
         assert s.debug is True
-        warnings = s.validate_startup()
+        s.validate_startup()
         assert s.debug is True

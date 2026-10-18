@@ -195,7 +195,7 @@ class TestQueryCategoryParam:
 
             # query should accept and pass category
             # Since retrieve_context returns [] it will return insufficient context
-            result = await rag.query(
+            await rag.query(
                 question="show my imaging",
                 profile_id="p1",
                 category="imaging",
@@ -221,7 +221,7 @@ class TestQueryCategoryParam:
 
             rag.retrieve_context = capture_retrieve
 
-            result = await rag.query(
+            await rag.query(
                 question="general question",
                 profile_id="p1",
             )

@@ -12,7 +12,7 @@ from sqlalchemy import select
 
 import modules.adherence_patterns as adherence_patterns
 from models import DoseTaken, MedicationSchedule, UserModelSettings
-from tests.test_medications_routes_http import _client, _seed, profile_db  # noqa: F401
+from tests.test_medications_routes_http import _client, _seed, profile_db  # noqa: F401, F811
 
 LA = "America/Los_Angeles"
 
@@ -43,7 +43,7 @@ def _learn(db, med_id):
 
 
 @pytest.mark.asyncio
-async def test_hc_adhere_tz_001_morning_across_dst_is_local_morning(profile_db, monkeypatch):
+async def test_hc_adhere_tz_001_morning_across_dst_is_local_morning(profile_db, monkeypatch):  # noqa: F811  # pytest fixture parameter
     # 08:00 LA daily Mar 2-13 2026; DST starts Mar 8 -> 16:00Z before, 15:00Z after.
     doses = [
         (datetime(2026, 3, d, 16 if d < 8 else 15, 0), False) for d in range(2, 14)
@@ -61,7 +61,7 @@ async def test_hc_adhere_tz_001_morning_across_dst_is_local_morning(profile_db, 
 
 
 @pytest.mark.asyncio
-async def test_hc_adhere_tz_002_weekday_weekend_split_uses_local_day(profile_db, monkeypatch):
+async def test_hc_adhere_tz_002_weekday_weekend_split_uses_local_day(profile_db, monkeypatch):  # noqa: F811  # pytest fixture parameter
     # Jan 2026 (PST, UTC-8). Weekdays 20:00 local (= 04:00Z next day, so Fri
     # evening is Sat in UTC); weekends 10:00 local (= 18:00Z same day).
     doses = []
@@ -78,7 +78,7 @@ async def test_hc_adhere_tz_002_weekday_weekend_split_uses_local_day(profile_db,
 
 
 @pytest.mark.asyncio
-async def test_hc_adhere_tz_003_missed_day_is_local_weekday(profile_db, monkeypatch):
+async def test_hc_adhere_tz_003_missed_day_is_local_weekday(profile_db, monkeypatch):  # noqa: F811  # pytest fixture parameter
     # Daily 20:00 PST (= 04:00Z next day); every local Monday is skipped.
     doses = []
     for d in range(5, 26):
@@ -90,7 +90,7 @@ async def test_hc_adhere_tz_003_missed_day_is_local_weekday(profile_db, monkeypa
 
 
 @pytest.mark.asyncio
-async def test_hc_adhere_tz_004_streak_counts_local_today(profile_db, monkeypatch):
+async def test_hc_adhere_tz_004_streak_counts_local_today(profile_db, monkeypatch):  # noqa: F811  # pytest fixture parameter
     # 09:00 PST Jan 13-15 (17:00Z). Now = Jan 15 17:00 PST = Jan 16 01:00Z:
     # locally today has a dose, so the streak is 3 (UTC "today" would give 0).
     # Extra 16:30 PST Jan 15 dose is Jan 16 in UTC: still one local day.
@@ -103,14 +103,14 @@ async def test_hc_adhere_tz_004_streak_counts_local_today(profile_db, monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_hc_adhere_tz_005_utc_profile_unchanged(profile_db, monkeypatch):
+async def test_hc_adhere_tz_005_utc_profile_unchanged(profile_db, monkeypatch):  # noqa: F811  # pytest fixture parameter
     doses = [(datetime(2026, 3, d, 8, 0), False) for d in range(2, 14)]
     med_id, _ = await _setup(profile_db, "UTC", doses, monkeypatch, datetime(2026, 3, 14, 0, 0))
     assert _learn(profile_db, med_id)["time_window"]["avg_time"] == "08:00"
 
 
 @pytest.mark.asyncio
-async def test_hc_adhere_tz_006_invalid_zone_falls_back_to_utc(profile_db, monkeypatch):
+async def test_hc_adhere_tz_006_invalid_zone_falls_back_to_utc(profile_db, monkeypatch):  # noqa: F811  # pytest fixture parameter
     doses = [(datetime(2026, 3, d, 15, 0), False) for d in range(2, 14)]
     med_id, _ = await _setup(profile_db, "Mars/Olympus", doses, monkeypatch, datetime(2026, 3, 14, 0, 0))
     assert _learn(profile_db, med_id)["time_window"]["avg_time"] == "15:00"

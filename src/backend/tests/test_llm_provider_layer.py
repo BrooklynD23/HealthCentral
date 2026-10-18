@@ -482,7 +482,7 @@ class TestModelRunnerFacade:
     def test_generate_wraps_prompt_as_user_message(self):
         runner, mock_p = self._make_runner_with_mock_provider()
         cfg = _make_inference_config()
-        result = runner.generate("What is glucose?", cfg)
+        runner.generate("What is glucose?", cfg)
         assert mock_p.generate.called
         call_args = mock_p.generate.call_args
         messages = call_args.args[0] if call_args.args else call_args.kwargs.get("messages", [])
