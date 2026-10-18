@@ -7,6 +7,7 @@ import { Award, Lock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, StaggerGroup, StaggerItem } from '@/components/ui';
 import { cn } from '@/utils/cn';
 import { useBadges, useStreaks } from '@/services';
+import { useGamificationSettings } from '@/services/modelSettings';
 import { StreakDisplay } from './StreakDisplay';
 import type { BadgeStatus } from '@/services/types';
 
@@ -60,6 +61,9 @@ function BadgeCard({ badge }: { badge: BadgeStatus }) {
 export function AchievementsWidget() {
   const { data, isLoading } = useBadges();
   const { data: streaks } = useStreaks();
+  // Loading or failed settings keep the default (streaks shown).
+  const { data: gamification } = useGamificationSettings();
+  const streaksHidden = gamification?.streaks_hidden === true;
 
   if (isLoading || !data) return null;
 
@@ -79,7 +83,7 @@ export function AchievementsWidget() {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {streaks && (
+        {streaks && !streaksHidden && (
           <div className="mb-4 space-y-2">
             <p className="text-xs font-medium text-ink-secondary">All medications</p>
             <StreakDisplay
