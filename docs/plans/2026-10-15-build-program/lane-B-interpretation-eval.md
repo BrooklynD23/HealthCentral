@@ -159,7 +159,7 @@ The W11b plan's Group G-C3a stands. Delta on main `3b2236c`:
 | Fact | Then (pack 2026-10-07) | Now |
 |---|---|---|
 | S-C3-1 on main | absent | **signed**, `owner-decisions:48` |
-| S-C3-2 threshold rule | unsigned | **unsigned** (`W11b:1950`); Task C3a.2 Step 3 STOPs |
+| S-C3-2 threshold rule | signed | **signed** |
 | W-4 | no PR | PR #72 open; adds "Concrete evals" item **8** (`evals.md:27` on its branch). G-C3a appends item **9**, not 8 |
 | `ci.yml` backend job runs `run-backend-tests.sh` | `:53` | `:56` |
 | `ExtractModule` anchors `extract_from_pdf :114`, `parser_version :91`, `_normalize_date_str :662`, `_extract_from_table :195`, `analyte_raw :35`, `collected_at :44` | — | MATCH |
