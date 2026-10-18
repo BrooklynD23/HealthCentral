@@ -200,8 +200,8 @@ async def real_master_session():
     """Real sqlite master DB (tables created from the ORM), not a mock."""
     from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
-    from core.database import Base
     import models  # noqa: F401  (registers tables on Base.metadata)
+    from core.database import Base
 
     engine = create_async_engine("sqlite+aiosqlite://")
     async with engine.begin() as conn:
@@ -250,8 +250,8 @@ class TestSeedAdviceWording:
     async def test_hc_iaw_002_untouched_installed_row_is_revised(
         self, real_master_session
     ):
-        from scripts import seed_knowledge_base as skb
         from models.knowledge_base import BiomarkerKnowledge
+        from scripts import seed_knowledge_base as skb
 
         session, engine = real_master_session
         for analyte, old_text in (
@@ -273,8 +273,8 @@ class TestSeedAdviceWording:
 
     @pytest.mark.asyncio
     async def test_hc_iaw_003_edited_row_is_left_alone(self, real_master_session):
-        from scripts import seed_knowledge_base as skb
         from models.knowledge_base import BiomarkerKnowledge
+        from scripts import seed_knowledge_base as skb
 
         session, engine = real_master_session
         edited = "Locally edited LDL text that the owner wrote."
