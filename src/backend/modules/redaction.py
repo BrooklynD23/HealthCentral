@@ -27,6 +27,8 @@ class RedactionRule:
     pattern: re.Pattern[str]
     replacement: str
     policy_levels: frozenset[str]  # which policy levels include this rule
+    # Email-only: the anchored branch in RedactionEngine.redact assumes the
+    # email local-part walk-back (_LOCAL_CHARS). Do not set on other rules.
     anchor: str | None = None
 
 
@@ -163,6 +165,7 @@ VALID_POLICY_LEVELS = frozenset({"strict", "standard", "minimal"})
 # ---------------------------------------------------------------------------
 
 _WORD_BOUNDARY = re.compile(r"\b")
+# Must mirror the email rule local-part class [A-Za-z0-9._%+-] (pinned by HC-REDACT-012).
 _LOCAL_CHARS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._%+-")
 
 

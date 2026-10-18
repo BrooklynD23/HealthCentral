@@ -322,9 +322,10 @@ class TestUnderscoreJoinedRedaction:
             "jane@x.com", "a.b+c@sub.x.org", "jane_doe@example.com",
             ".jane@x.com", "-a@x.io", "mail: jane@x.com.", "\u00e9jane@x.com",
             "jane@@x.com", "a@b@c.com", "a@b.com.c@d.com", "x@y", "@x.com",
+            "John.Doe@Example.COM", "J9@x.io", "Z|A9@x.io",
         ]
         rng = random.Random(20261018)
-        alphabet = "a._-+%@\u00e9 ,;\n0"
+        alphabet = "a._-+%@\u00e9 ,;\n0AZ9|"
         corpus += [
             "".join(rng.choice(alphabet) for _ in range(rng.randint(0, 40)))
             for _ in range(2000)
@@ -345,6 +346,16 @@ class TestUnderscoreJoinedRedaction:
         """HC-REDACT-012: anchor is optional; rules without it keep the finditer path."""
         rule = RedactionRule("t", re.compile("x"), "[X]", frozenset({"strict"}))
         assert rule.anchor is None
+
+    def test_hc_redact_012b_anchor_is_email_only_and_local_chars_match_pattern(self):
+        """HC-REDACT-012b: only email is anchored; _LOCAL_CHARS equals the pattern's local-part class."""
+        from modules import redaction as red
+
+        assert [r.name for r in _RULES if r.anchor] == ["email"]
+        email = next(r for r in _RULES if r.name == "email")
+        cls = re.match(r"\\b\[([^\]]+)\]\+@", email.pattern.pattern).group(1)
+        expected = {c for c in map(chr, range(128)) if re.fullmatch(f"[{cls}]", c)}
+        assert set(red._LOCAL_CHARS) == expected
 
 
 # ---------------------------------------------------------------------------
