@@ -947,3 +947,96 @@ def test_hc_cfr_005_every_planner_label_maps_to_an_ingest_key():
         keys = NormalizeModule.canonical_keys_for(label)
         assert keys, f"planner label {label!r} matches no ANALYTE_SYNONYMS key"
         assert set(keys) <= set(NormalizeModule.ANALYTE_SYNONYMS)
+
+
+# ---------------------------------------------------------------------------
+# HC-CFR-006..008: CHAT-FACT-ROUTING fact answer format (owner option (a)):
+# display names, profile-local dates, latest value per analyte capped at 10.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_hc_cfr_006_sentence_uses_display_name_not_ingest_key(
+    agent_profile_db, make_run_context
+):
+    from modules.agent.graph import run_agent
+
+    profile_id = str(uuid.uuid4())
+    await _cfr_seed(agent_profile_db, profile_id, "ldl_cholesterol", 138.0)
+
+    ctx = make_run_context(agent_profile_db, profile_id=profile_id)
+    terminal = await run_agent("Is my LDL cholesterol high?", ctx)
+
+    assert terminal.terminal == "answer"
+    assert "LDL Cholesterol" in terminal.text
+    assert "ldl_cholesterol" not in terminal.text
+
+
+@pytest.mark.asyncio
+async def test_hc_cfr_007_sentence_date_is_profile_local_without_time(
+    agent_profile_db, make_run_context
+):
+    import re
+
+    from modules.agent.graph import run_agent
+    from models.model_settings import UserModelSettings
+
+    profile_id = str(uuid.uuid4())
+    async with agent_profile_db() as session:
+        session.add(UserModelSettings(profile_id=profile_id, timezone="America/Los_Angeles"))
+        await session.commit()
+    # 2026-01-16 01:00 UTC is 2026-01-15 17:00 in Los Angeles.
+    await _cfr_seed(
+        agent_profile_db, profile_id, "ldl_cholesterol", 138.0,
+        collected_at=datetime(2026, 1, 16, 1, 0),
+    )
+
+    ctx = make_run_context(agent_profile_db, profile_id=profile_id)
+    terminal = await run_agent("Is my LDL cholesterol high?", ctx)
+
+    assert terminal.terminal == "answer"
+    assert "Jan 15, 2026" in terminal.text
+    assert not re.search(r"\d:\d\d", terminal.text)
+
+
+@pytest.mark.asyncio
+async def test_hc_cfr_008_open_question_drafts_latest_per_analyte_capped_at_10(
+    agent_profile_db, make_run_context
+):
+    from datetime import timedelta
+
+    from modules.agent.graph import run_agent
+    from modules.normalize import NormalizeModule
+
+    analytes = [
+        "hemoglobin", "hematocrit", "red_blood_cells", "white_blood_cells", "platelets",
+        "glucose", "bun", "creatinine", "sodium", "potassium", "chloride", "tsh",
+        "free_t4", "hba1c", "triglycerides",
+    ]
+    profile_id = str(uuid.uuid4())
+    latest_ids: list[str] = []
+    for i, analyte in enumerate(analytes):
+        await _cfr_seed(
+            agent_profile_db, profile_id, analyte, 1.0,
+            collected_at=datetime(2025, 1, 1) + timedelta(days=i),
+        )
+        latest_ids.append(
+            await _cfr_seed(
+                agent_profile_db, profile_id, analyte, 100.0 + i,
+                collected_at=datetime(2026, 1, 1) + timedelta(days=i),
+            )
+        )
+
+    ctx = make_run_context(agent_profile_db, profile_id=profile_id)
+    terminal = await run_agent("Show me my latest lab results.", ctx)
+
+    assert terminal.terminal == "answer"
+    # The 10 analytes with the most recent result, one cited sentence each,
+    # and each cites that analyte's LATEST row (never the older one).
+    assert {c.source_id for c in terminal.citations} == set(latest_ids[5:])
+    assert len(terminal.citations) == 10
+    for analyte in analytes[5:]:
+        name = NormalizeModule.DISPLAY_NAMES.get(analyte, analyte.replace("_", " ").title())
+        assert name in terminal.text
+    for analyte in analytes[:5]:
+        name = NormalizeModule.DISPLAY_NAMES.get(analyte, analyte.replace("_", " ").title())
+        assert name not in terminal.text
