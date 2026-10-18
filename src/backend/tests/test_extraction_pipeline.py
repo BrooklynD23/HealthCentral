@@ -474,6 +474,16 @@ class TestExtractFormats:
             "Glucose 105 98 mg/dL 70-99",
             "Glucose 105 H 98 mg/dL 70-99",
             "Glucose 105 HIGH 98 mg/dL 70-99",
+            "Glucose 105 98 mg/dL",
+            "Glucose 105 H 98 mg/dL",
+            "Glucose 105 98 mg/dL (70-99)",
+            "Glucose 105, 98 mg/dL 70-99",
+            "Creatinine 120 H 88 umol/L (60-110)",
+            "Ferritin 300 H 60 ug/L",
+            "Iron 200 H 80 ug/dL (60-170)",
+            "Vitamin D 40 L 75 nmol/L (75-250)",
+            "Hemoglobin 150 H 135 g/L",
+            "Creatinine 120 88 umol/L",
         ],
     )
     def test_hc_exf_004c_column_previous_result_not_absorbed_into_analyte(self, extract_module, line):
