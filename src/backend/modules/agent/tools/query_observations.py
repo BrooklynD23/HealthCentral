@@ -80,6 +80,28 @@ class QueryObservationsTool:
             stmt = stmt.where(Observation.collected_at >= filters.from_dt)
         if filters.to_dt is not None:
             stmt = stmt.where(Observation.collected_at <= filters.to_dt)
+        if asked is None:
+            # Open question (no analyte named, nothing adding): the LATEST
+            # verified row per analyte, over the same filters, so the limit
+            # cuts analytes rather than an arbitrary slice of rows. NULL-dated
+            # rows never win "latest".
+            ranked = (
+                stmt.where(Observation.collected_at.isnot(None))
+                .with_only_columns(
+                    Observation.id.label("oid"),
+                    func.row_number().over(
+                        partition_by=Observation.analyte_canonical,
+                        order_by=Observation.collected_at.desc(),
+                    ).label("rn"),
+                )
+                .subquery()
+            )
+            stmt = (
+                select(Observation)
+                .join(ranked, Observation.id == ranked.c.oid)
+                .where(ranked.c.rn == 1)
+                .order_by(Observation.collected_at.desc())
+            )
         stmt = stmt.limit(args.limit)
 
         async with ctx.db_session() as session:
