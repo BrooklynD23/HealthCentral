@@ -220,7 +220,7 @@ points visibly marked "unverified", and the legacy assistant (RAG) path cites
 verified values only, matching the agent path. That includes the no-LLM
 fallback, which cites verified values only, and legacy RAG document chunks,
 which come from verified documents only. Implemented in `b45f9cb`; tests
-HC-VER-001…005.
+HC-VER-001…005 and vitest HC-VER-FE-001…003.
 
 ## Third-Party Data Sharing
 
@@ -256,10 +256,12 @@ When enabled by user opt-in:
   whole vault.
 - API key stored locally (never logged or transmitted elsewhere)
 - Provider: OpenAI or Anthropic (user choice)
-- PHI redaction: owner decision D12 (2026-09-27) requires `strict` redaction
-  through `modules/redaction.py` on every external call, with break-glass as
-  the only bypass, allowed only with an audit record and a UI warning.
-  Implemented in `2f0cb6f`; tests HC-EXT-001…004.
+- PHI redaction: `strict` through `modules/redaction.py` on every external
+  call (owner decision D12, 2026-09-27; implemented in `2f0cb6f`).
+  Break-glass is the only bypass, and it is allowed only with an audit record
+  and a UI warning. The warning shows in Settings and on the chat page
+  (`2f0cb6f`) and on the interpretation page (`eaad770`). Tests: backend
+  HC-EXT-001…004b; vitest HC-EXT-003, HC-EXT-005.
 
 ### No Analytics or Telemetry
 
