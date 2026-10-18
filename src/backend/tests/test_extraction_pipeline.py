@@ -383,3 +383,100 @@ class TestExtractFromText:
         assert isinstance(observations, list)
         # After implementation:
         # assert len(observations) >= 3
+
+
+class TestExtractFormats:
+    """EXTRACT-FORMATS: column layouts, thyroid/SI units, per-page table fallback."""
+
+    @pytest.fixture
+    def extract_module(self):
+        return ExtractModule()
+
+    @pytest.mark.parametrize(
+        "line,analyte,value,unit",
+        [
+            ("TSH: 2.1 mIU/L (0.4-4.0)", "TSH", 2.1, "mIU/L"),
+            ("TSH 2.1 uIU/mL (0.4-4.0)", "TSH", 2.1, "uIU/mL"),
+            ("Free T4: 1.2 ng/dL (0.8-1.8)", "Free T4", 1.2, "ng/dL"),
+            ("Iron 80 ug/dL (60-170)", "Iron", 80.0, "ug/dL"),
+            ("Vitamin D: 75 nmol/L (75-250)", "Vitamin D", 75.0, "nmol/L"),
+            ("Creatinine 88 umol/L (60-110)", "Creatinine", 88.0, "umol/L"),
+        ],
+    )
+    def test_hc_exf_001_thyroid_and_si_units(self, extract_module, line, analyte, value, unit):
+        obs = extract_module._extract_from_text(line, page_num=1, document_id="t")
+        assert len(obs) == 1
+        assert obs[0].analyte_raw == analyte
+        assert obs[0].value == value
+        assert obs[0].unit == unit
+
+    def test_hc_exf_002_column_layout_range(self, extract_module):
+        obs = extract_module._extract_from_text("TSH 2.10 mIU/L 0.45-4.50", 1, "t")
+        assert len(obs) == 1
+        assert obs[0].value == 2.10
+        assert obs[0].unit == "mIU/L"
+        assert obs[0].ref_low == 0.45
+        assert obs[0].ref_high == 4.50
+
+    def test_hc_exf_003_column_layout_flag_before_unit(self, extract_module):
+        obs = extract_module._extract_from_text("Glucose 105 H mg/dL 70-99", 1, "t")
+        assert len(obs) == 1
+        assert obs[0].value == 105.0
+        assert obs[0].flag == "H"
+        assert obs[0].ref_low == 70.0
+        assert obs[0].ref_high == 99.0
+
+    def test_hc_exf_004_column_page_only_result_rows(self, extract_module):
+        text = "\n".join([
+            "TEST RESULT FLAG UNITS REFERENCE INTERVAL",
+            "Patient: Jane Doe",
+            "Collected: 01/15/2026 08:10",
+            "Glucose 105 H mg/dL 70-99",
+            "Creatinine 0.9 mg/dL 0.6-1.3",
+            "TSH 2.10 mIU/L 0.45-4.50",
+            "Hemoglobin 13.5 g/dL 12.0-16.0",
+            "Sodium 140 mmol/L 135-145",
+            "Potassium 4.1 mmol/L 3.5-5.1",
+            "LDL Cholesterol 135 H mg/dL <100",
+            "Ferritin 60 ng/mL 15-150",
+            "Page 1 of 2",
+        ])
+        obs = extract_module._extract_from_text(text, 1, "t")
+        assert [o.analyte_raw for o in obs] == [
+            "Glucose", "Creatinine", "TSH", "Hemoglobin",
+            "Sodium", "Potassium", "LDL Cholesterol", "Ferritin",
+        ]
+
+    @staticmethod
+    def _pdf(page):
+        pdf = MagicMock()
+        pdf.pages = [page]
+        pdf.__enter__ = MagicMock(return_value=pdf)
+        pdf.__exit__ = MagicMock(return_value=False)
+        return pdf
+
+    @pytest.mark.asyncio
+    async def test_hc_exf_005_text_fallback_when_tables_yield_nothing(self, extract_module, tmp_path):
+        page = MagicMock()
+        page.extract_text.return_value = "Glucose: 95 mg/dL (70-100)\nTSH 2.1 mIU/L (0.4-4.0)"
+        page.extract_tables.return_value = [[["Header only", "x"]]]
+        with patch("pdfplumber.open", return_value=self._pdf(page)):
+            result = await extract_module.extract_from_pdf(tmp_path / "a.pdf", "doc")
+        assert len(result.observations) == 2
+
+    @pytest.mark.asyncio
+    async def test_hc_exf_006_no_text_fallback_when_tables_yield(self, extract_module, tmp_path):
+        page = MagicMock()
+        page.extract_text.return_value = "Glucose: 95 mg/dL (70-100)\nCreatinine: 1.1 mg/dL (0.7-1.3)"
+        page.extract_tables.return_value = [
+            [
+                ["Test Name", "Result", "Units", "Reference Range", "Flag"],
+                ["Glucose", "95", "mg/dL", "70-100", ""],
+                ["Creatinine", "1.1", "mg/dL", "0.7-1.3", ""],
+            ]
+        ]
+        with patch("pdfplumber.open", return_value=self._pdf(page)), \
+                patch.object(ExtractModule, "_extract_from_text") as text_parser:
+            result = await extract_module.extract_from_pdf(tmp_path / "b.pdf", "doc")
+        assert len(result.observations) == 2
+        text_parser.assert_not_called()
