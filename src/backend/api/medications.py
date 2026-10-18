@@ -1249,7 +1249,10 @@ async def _calculate_current_streak(medication_id: str, db: AsyncSession, tz: st
     )
     doses = result.scalars().all()
 
-    return compute_streak(list(doses), tz, to_local(utcnow(), tz).date())
+    doses = list(doses)
+    today = to_local(utcnow(), tz).date()
+    # GAM2-STREAK0: streak counts through yesterday until the day ends with no dose.
+    return compute_streak(doses, tz, today) or compute_streak(doses, tz, today - timedelta(days=1))
 
 
 async def _calculate_longest_streak(medication_id: str, db: AsyncSession, tz: str) -> int:
