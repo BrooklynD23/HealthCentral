@@ -66,27 +66,27 @@ class ExtractionResult:
 class ExtractModule:
     """
     Document extraction service.
-    
+
     Phase 0: Text-based PDF extraction using pdfplumber
     Phase 1+: OCR support for scanned documents
     """
-    
+
     # Common lab value patterns
     VALUE_PATTERN = re.compile(
         r"(\d+\.?\d*)\s*(mg/dL|g/dL|mmol/L|mEq/L|U/L|IU/L|ng/mL|pg/mL|%|fL|K/uL|M/uL|cells/uL)?",
         re.IGNORECASE
     )
-    
+
     RANGE_PATTERN = re.compile(
         r"(\d+\.?\d*)\s*[-–]\s*(\d+\.?\d*)",
         re.IGNORECASE
     )
-    
+
     FLAG_PATTERN = re.compile(
         r"\b(H|L|HH|LL|A|HIGH|LOW|ABNORMAL|CRITICAL)\b",
         re.IGNORECASE
     )
-    
+
     def __init__(self):
         """Initialize extraction module."""
         self.parser_version = "0.1.0"
@@ -142,24 +142,24 @@ class ExtractModule:
                 # Extract text
                 text = page.extract_text() or ""
                 pages_text.append(text)
-                
+
                 # Extract tables (more structured)
                 tables = page.extract_tables() or []
-                
+
                 # Process tables for lab values
                 for table in tables:
                     table_obs = self._extract_from_table(
                         table, page_num, document_id
                     )
                     observations.extend(table_obs)
-                
+
                 # If no tables, try text extraction
                 if not tables:
                     text_obs = self._extract_from_text(
                         text, page_num, document_id
                     )
                     observations.extend(text_obs)
-                
+
                 # Extract dates
                 dates = self._extract_dates(text)
                 collection_dates.extend(dates)
@@ -183,7 +183,7 @@ class ExtractModule:
             overall_confidence = sum(o.confidence for o in observations) / len(observations)
         else:
             overall_confidence = 0.0
-        
+
         return ExtractionResult(
             document_id=document_id,
             observations=observations,
@@ -201,25 +201,25 @@ class ExtractModule:
     ) -> list[ExtractedObservation]:
         """Extract observations from a table structure."""
         observations = []
-        
+
         if not table or len(table) < 2:
             return observations
-        
+
         # Try to identify header row
         header = table[0] if table else []
-        
+
         # Find column indices
         name_col = self._find_column(header, ["test", "name", "analyte", "component"])
         value_col = self._find_column(header, ["result", "value"])
         unit_col = self._find_column(header, ["unit", "units"])
         range_col = self._find_column(header, ["range", "reference", "ref"])
         flag_col = self._find_column(header, ["flag", "status", "abnormal"])
-        
+
         # Process data rows
         for row_idx, row in enumerate(table[1:], start=2):
             if not row or all(not cell for cell in row):
                 continue
-            
+
             obs = self._parse_table_row(
                 row,
                 name_col=name_col,
@@ -229,12 +229,12 @@ class ExtractModule:
                 flag_col=flag_col,
                 page_num=page_num,
             )
-            
+
             if obs:
                 observations.append(obs)
-        
+
         return observations
-    
+
     def _find_column(self, header: list[str], keywords: list[str]) -> int:
         """Find column index by header keywords."""
         for idx, cell in enumerate(header):
@@ -244,7 +244,7 @@ class ExtractModule:
                     if keyword in cell_lower:
                         return idx
         return -1
-    
+
     def _parse_table_row(
         self,
         row: list[str],
@@ -256,17 +256,17 @@ class ExtractModule:
         page_num: int,
     ) -> Optional[ExtractedObservation]:
         """Parse a single table row into an observation."""
-        
+
         def get_cell(idx: int) -> str:
             if 0 <= idx < len(row) and row[idx]:
                 return row[idx].strip()
             return ""
-        
+
         # Get analyte name
         analyte = get_cell(name_col) if name_col >= 0 else get_cell(0)
         if not analyte:
             return None
-        
+
         # Get value
         value_text = get_cell(value_col) if value_col >= 0 else ""
         value = None
@@ -280,10 +280,10 @@ class ExtractModule:
                         "Failed to parse observation value",
                         extra={"analyte": analyte, "raw_value": value_text, "page": page_num},
                     )
-        
+
         # Get unit
         unit = get_cell(unit_col) if unit_col >= 0 else None
-        
+
         # Get reference range
         range_text = get_cell(range_col) if range_col >= 0 else ""
         ref_low, ref_high = None, None
@@ -298,7 +298,7 @@ class ExtractModule:
                         "Failed to parse reference range",
                         extra={"analyte": analyte, "raw_range": range_text, "page": page_num},
                     )
-        
+
         # Get flag
         flag = None
         flag_text = get_cell(flag_col) if flag_col >= 0 else ""
@@ -306,7 +306,7 @@ class ExtractModule:
             flag_match = self.FLAG_PATTERN.search(flag_text)
             if flag_match:
                 flag = flag_match.group(1).upper()
-        
+
         # Calculate confidence
         confidence = 0.5
         if value is not None:
@@ -315,7 +315,7 @@ class ExtractModule:
             confidence += 0.2
         if unit:
             confidence += 0.1
-        
+
         return ExtractedObservation(
             analyte_raw=analyte,
             value=value,
@@ -329,7 +329,7 @@ class ExtractModule:
             confidence=min(confidence, 1.0),
             extraction_method="pdf_table",
         )
-    
+
     # Pattern for "Analyte: Value Unit" format
     LINE_PATTERN = re.compile(
         r"^([A-Za-z][A-Za-z0-9\s,\-]+?):\s*"  # Analyte name ending with colon
@@ -455,7 +455,7 @@ class ExtractModule:
             confidence=min(confidence, 1.0),
             extraction_method="pdf_text",
         )
-    
+
     async def extract_from_scanned_pdf(
         self,
         pdf_source: Union[Path, BinaryIO, io.BytesIO],

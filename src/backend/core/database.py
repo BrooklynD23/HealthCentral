@@ -104,7 +104,7 @@ async def close_database() -> None:
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
     Dependency for getting database sessions.
-    
+
     Usage in FastAPI routes:
         @router.get("/items")
         async def get_items(db: AsyncSession = Depends(get_db)):

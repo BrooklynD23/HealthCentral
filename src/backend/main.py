@@ -104,7 +104,7 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     install_correlation_logging()
-    
+
     app = FastAPI(
         title="Asclexis API",
         description="Local-first medical results companion - API backend",
@@ -113,14 +113,14 @@ def create_app() -> FastAPI:
         redoc_url="/redoc" if settings.debug else None,
         lifespan=lifespan,
     )
-    
+
     # CORS configuration
     # Local mode: only allow localhost origins
     # Server mode: configure allowed origins via settings
     allowed_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
     if settings.app_mode == "server":
         allowed_origins = settings.cors_origins
-    
+
     # Middleware stack (Starlette: last added = outermost)
     # Request flow: CORS → CorrelationId → SecurityHeaders → RateLimit → InputValidation → Audit → Timing → Routes
 
@@ -181,10 +181,10 @@ app = create_app()
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     # Security: Always bind to localhost in local mode
     host = "127.0.0.1" if settings.app_mode == "local" else settings.host
-    
+
     uvicorn.run(
         "main:app",
         host=host,

@@ -15,14 +15,14 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     """Application settings with environment variable support."""
-    
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
     )
-    
+
     # Application mode
     app_mode: Literal["local", "server"] = "local"
     app_env: Literal["development", "production"] = "development"
@@ -36,21 +36,21 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8000
     cors_origins: list[str] = ["http://localhost:3000"]
-    
+
     # Database
     database_type: Literal["sqlite", "postgresql"] = "sqlite"
     sqlite_database_path: str = "data/asclexis.db"
     database_encryption_enabled: bool = True
     # Require SQLCipher for profile databases. Set to False only for development.
     database_encryption_required: bool = True
-    
+
     # PostgreSQL (future server mode)
     postgres_host: str = "localhost"
     postgres_port: int = 5432
     postgres_user: str = "asclexis"
     postgres_password: str = ""
     postgres_database: str = "asclexis"
-    
+
     # Security
     auto_lock_timeout_minutes: int = 15
     use_dpapi: bool = True
@@ -87,7 +87,7 @@ class Settings(BaseSettings):
     metrics_enabled: bool = True
     metrics_buffer_size: int = 10000
     correlation_id_header: str = "X-Correlation-ID"
-    
+
     # Local AI models
     models_path: str = "models/"
     default_chat_model: str = "phi-3-mini"
@@ -114,10 +114,10 @@ class Settings(BaseSettings):
     # model-settings API asserts it via _assert_localhost. core/llm/factory.py does
     # not pass it to OllamaProvider, which uses its own 127.0.0.1:11434 default.
     ollama_base_url: str = "http://127.0.0.1:11434"
-    
+
     # Vector store
     embedding_dimensions: int = 384
-    
+
     # Document processing
     max_import_file_size_mb: int = 50
     supported_doc_types: str = "pdf,png,jpg,jpeg,csv,json"
@@ -125,7 +125,7 @@ class Settings(BaseSettings):
     # Reserved for future AI-assisted lab JSON extraction (no pipeline wiring yet)
     ai_assisted_lab_extraction: bool = False
     allow_legacy_plaintext_documents: bool = False
-    
+
     # Logging
     log_level: str = "INFO"
     log_file_path: str = "logs/asclexis.log"
@@ -171,7 +171,7 @@ class Settings(BaseSettings):
         else:
             # Server mode uses configured paths
             return Path(self.sqlite_database_path).parent
-    
+
     @property
     def master_db_filename(self) -> str:
         """Filename of the master database.
@@ -194,7 +194,7 @@ class Settings(BaseSettings):
                 f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
                 f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_database}"
             )
-    
+
     @property
     def supported_extensions(self) -> list[str]:
         """Get list of supported file extensions."""
