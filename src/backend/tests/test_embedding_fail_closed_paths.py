@@ -183,3 +183,23 @@ async def test_hc_emb_006c_grounded_interpretation_returns_501_over_http(profile
     assert detail == QFC_APPROVED_DETAIL  # exact owner-approved wording (Q-FC), not the product constant
     assert str(absent_model) not in detail
     assert runner.calls == 0, "the LLM answered from retrieval that ran without the bundled embedding model"
+
+@pytest.mark.asyncio
+async def test_hc_emb_007_reprocess_keeps_chunks_when_embedding_unavailable(profile_db, absent_model):
+    from api import documents as documents_api
+    from modules.embeddings import EmbeddingModelUnavailableError
+
+    doc = await _seed_one_chunk(profile_db)
+    with pytest.raises(EmbeddingModelUnavailableError):
+        await documents_api._create_chunks_and_embeddings(
+            profile_db=profile_db, profile_id=doc.profile_id, doc_id=doc.id,
+            extracted_text="Glucose 96 mg/dL (70-100)\fLDL 128 mg/dL", refresh_existing=True,
+        )
+    # Order-of-effects test: the pipeline caller swallows this error and then
+    # COMMITS (api/documents.py `except Exception as chunk_error` then
+    # `await profile_db.commit()`). Assert on committed state, not on the
+    # session's pending state: commit, then read through a fresh query.
+    await profile_db.commit()
+    profile_db.expunge_all()
+    ids = (await profile_db.execute(select(Chunk.id).where(Chunk.doc_id == doc.id))).scalars().all()
+    assert ids == ["chunk-1"], "reprocess deleted the previous chunks although no replacement embeddings could be made"

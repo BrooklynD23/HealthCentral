@@ -866,11 +866,12 @@ async def _create_chunks_and_embeddings(
     if not all_chunks:
         return 0
 
+    # Embed before touching existing rows: if the embedding model is
+    # unavailable this raises and the document keeps its previous chunks.
+    embeddings = embedder.embed_chunks(all_chunks)
+
     if refresh_existing:
         await profile_db.execute(delete(Chunk).where(Chunk.doc_id == doc_id))
-
-    # Generate embeddings
-    embeddings = embedder.embed_chunks(all_chunks)
 
     # Persist chunks and embeddings
     for chunk_data, emb_data in zip(all_chunks, embeddings):
