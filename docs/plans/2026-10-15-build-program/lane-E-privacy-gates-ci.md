@@ -93,6 +93,32 @@ Graph: `E-3 → E-4 → E-5`; `P6 → P7 → E-2`; E-1, E-6, E-7 independent. E-
 
 **Order inside the lane:** land E-3 before E-4 if #74 is still waiting on TW4-SHOTS, so #74's final refresh is the first Tailwind 4 head built and linted in Linux CI (#74 body: "CI has no build step: the Windows build is the only build evidence").
 
+### 2.3a E-3a — ruff cleanup (plan; owner Q-RUFF-SET, Q-RUFF-UNSAFE, Q-RUFF-PIN, PARALLEL-WAVES)
+
+**Target (Q-RUFF-SET):** the rule set already configured in `src/backend/pyproject.toml` (`F`, `I`, `W`), not ruff's built-in default. **Pin (Q-RUFF-PIN):** `ruff==0.17.1` in `src/backend/requirements.txt:119` (today `ruff>=0.1.0`) and in E-3 Task 7's CI job. **Fixes (Q-RUFF-UNSAFE):** safe fixes only; every finding ruff marks unsafe is fixed by hand or kept with a reason.
+
+**Start (measured 2026-10-17 on `2ac361a`, ruff 0.17.1, PR #130 comment):** `cd src/backend && ruff check . --no-cache --statistics` → 254 I001, 152 F401, 139 W293, 19 F841, 7 F541, 7 F811: **578 errors, 536 fixable (34 unsafe)**. `ruff check scripts --no-cache --config src/backend/pyproject.toml` → 8.
+
+**Never edited (ask-first, auth, encryption):** `core/profile_database.py`, `core/security.py`, `core/auth.py`, `modules/interpret_safety.py`, `modules/redaction.py`, `modules/faithfulness.py`, `modules/verifier_agent.py`, `security/__init__.py` (33 findings). They get a `[tool.ruff.lint.per-file-ignores]` entry in `pyproject.toml` naming only the codes each one has today, with the comment `# E-3a: ask-first file, owner approval needed to fix (Q-RUFF-SET)`. The PR body lists them for the owner.
+
+**Files:** ruff-fixable Python under `src/backend/` and `scripts/` (excluding the list above), `src/backend/pyproject.toml` (per-file-ignores only), `src/backend/requirements.txt:119`. No test is weakened: a finding inside `tests/` is fixed like any other file, and no assertion may change.
+
+**Tasks (one commit each, explicit pathspecs):**
+1. **RED:** paste the start statistics above, re-measured on the worktree.
+2. `ruff check . --select I001 --fix` (import order; safe). Run the full suite.
+3. `ruff check . --select W293,W291,W292 --fix` (whitespace; safe).
+4. `ruff check . --select F541 --fix` (f-string without placeholders; safe).
+5. **F401, by hand for the unsafe ones:** apply `--fix` without `--unsafe-fixes`. For each remaining F401, keep the import when it has a side effect at import time (model registration for `Base.metadata` and Alembic `env.py`, router registration, a `__init__` re-export). Keep it by adding the name to `__all__`, or with `# noqa: F401  # side-effect import: <what>`. Remove it otherwise. Check: `python -c "from main import app"`, plus both Alembic chains: `alembic -c migrations/master/alembic.ini check` and the profile equivalent, or the repo's migration-head tests.
+6. **F841 / F811, by hand:** remove a dead assignment only when the right-hand side has no side effect; otherwise rename it to `_`. An F811 redefinition in a test file means a test is shadowed: rename it so both tests run (the collected count may rise; report it). Never delete a test.
+7. Pin `ruff==0.17.1`; add the per-file-ignores entries.
+8. **GREEN:** `ruff check . --no-cache` → `All checks passed!`, exit 0; the same for `scripts/` with the backend config.
+
+**Acceptance (RUNBOOK §6, pasted):** steps 1 and 8 output; full suite through `scripts/pyslot.sh` with no new failures; collected count with its delta (a rise only from renamed F811 tests); `python -c "from main import app"`; `git diff --name-only origin/main...HEAD | grep -E 'interpret_safety|redaction|faithfulness|verifier_agent|core/auth|core/security|profile_database|security/__init__'` prints nothing.
+
+**Merge order (PARALLEL-WAVES):** E-3a merges last in its run. Before merging: `git merge origin/main`, re-run Tasks 2 to 6 on the merged tree (safe fixes, then a hand check of anything new), re-run step 8 and the full suite.
+
+**E-3 Task 7 delta:** with Q-RUFF-SET, the `backend-lint` job runs `ruff check .` with the configured set (not only `E9,F63,F7,F82`) and pins `ruff==0.17.1`. It needs E-3a merged first. The Step 1 seed (`F821`) still applies.
+
 ### 2.4 E-4 — Tailwind 4 (#74) landing steps
 
 State: draft, head `9a87785`, CI 6/6 green at that head, `mergeable: CONFLICTING`. `git merge-tree --write-tree origin/main origin/feat/tailwind4` → one conflict, `docs/INDEX.md` (generated).
