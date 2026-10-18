@@ -450,8 +450,9 @@ def _stats_client(profile_db, master_db, raise_server_exceptions=True):
 
 @pytest.mark.asyncio
 async def test_hc_audmed_001_stats_view_is_audited_on_master_db(profile_db, monkeypatch):
-    import api.medications as med_api
     from unittest.mock import AsyncMock
+
+    import api.medications as med_api
 
     med_id = await _seed(profile_db)
     master_db = AsyncMock()
@@ -480,8 +481,9 @@ async def test_hc_audmed_001_stats_view_is_audited_on_master_db(profile_db, monk
 
 @pytest.mark.asyncio
 async def test_hc_audmed_002_stats_audit_failure_fails_closed(profile_db, monkeypatch):
-    import api.medications as med_api
     from unittest.mock import AsyncMock
+
+    import api.medications as med_api
 
     med_id = await _seed(profile_db)
 
