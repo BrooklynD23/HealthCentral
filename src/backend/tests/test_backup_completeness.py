@@ -17,7 +17,6 @@ from __future__ import annotations
 import json
 import sqlite3
 
-
 from scripts.backup import _discover_databases, _discover_key_files, backup
 
 

@@ -9,7 +9,6 @@ follow, fails until someone classifies it (recurring-failures #9).
 
 from __future__ import annotations
 
-
 from tests.support.callgraph import Graph
 
 CLASSIFICATION: dict[str, str] = {

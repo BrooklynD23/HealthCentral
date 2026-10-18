@@ -7,7 +7,6 @@ scoring and the CI gate land with implementation.
 
 from __future__ import annotations
 
-
 from tests.agent.conftest import load_golden_cases
 
 REQUIRED_KEYS = {"id", "category", "question", "vault", "expect"}
