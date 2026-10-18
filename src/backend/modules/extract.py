@@ -425,10 +425,13 @@ class ExtractModule:
             if not col:
                 return None
             name, val, flag_a, col_unit, lo, hi, lt, gt, flag_b = col.groups()
-            # "Glucose 105 98 mg/dL": a second number means a previous-result
-            # column; the line is ambiguous, so do not guess.
-            if name.split()[-1].replace(".", "", 1).isdigit():
+            # "Glucose 105 98 mg/dL" or "Glucose 105 H 98 mg/dL": a second number
+            # means a previous-result column; the line is ambiguous, so do not guess.
+            if any(t.replace(".", "", 1).isdigit() for t in name.split()[1:]):
                 return None
+            col_range_text = (
+                f"{lo}-{hi}" if lo and hi else f"<{lt}" if lt else f">{gt}" if gt else None
+            )
             # Normalise to the (analyte, value, unit, ref_low, ref_high, flag) shape.
             if lt:
                 lo, hi = None, lt
@@ -437,6 +440,7 @@ class ExtractModule:
             groups = (name, val, col_unit, lo, hi, flag_a or flag_b)
         else:
             groups = match.groups()
+            col_range_text = None
         analyte = groups[0].strip() if groups[0] else None
         value_str = groups[1] if len(groups) > 1 else None
         unit = groups[2] if len(groups) > 2 else None
@@ -489,7 +493,9 @@ class ExtractModule:
             unit=unit,
             ref_low=ref_low,
             ref_high=ref_high,
-            ref_range_text=f"{ref_low_str or ''}-{ref_high_str or ''}" if ref_low_str else None,
+            ref_range_text=col_range_text or (
+                f"{ref_low_str or ''}-{ref_high_str or ''}" if ref_low_str else None
+            ),
             flag=flag,
             provenance=Provenance(page=page_num, text_snippet=line),
             confidence=min(confidence, 1.0),

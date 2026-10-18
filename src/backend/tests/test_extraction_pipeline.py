@@ -457,6 +457,8 @@ class TestExtractFormats:
         ldl = by_name["LDL Cholesterol"]
         assert (ldl.value, ldl.unit, ldl.flag) == (135.0, "mg/dL", "H")
         assert (ldl.ref_low, ldl.ref_high) == (None, 100.0)
+        assert ldl.ref_range_text == "<100"
+        assert by_name["Glucose"].ref_range_text == "70-99"
         assert (by_name["Ferritin"].value, by_name["Ferritin"].unit) == (60.0, "ng/mL")
 
     def test_hc_exf_004b_column_greater_than_range_and_flag_after(self, extract_module):
@@ -464,10 +466,20 @@ class TestExtractFormats:
         assert len(obs) == 1
         assert (obs[0].value, obs[0].ref_low, obs[0].ref_high) == (120.0, 30.0, None)
         assert obs[0].flag == "H"
+        assert obs[0].ref_range_text == ">30"
 
-    def test_hc_exf_004c_column_previous_result_not_absorbed_into_analyte(self, extract_module):
-        # Two numbers before the unit: ambiguous, so no observation (never "Glucose 105").
-        assert extract_module._extract_from_text("Glucose 105 98 mg/dL 70-99", 1, "t") == []
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "Glucose 105 98 mg/dL 70-99",
+            "Glucose 105 H 98 mg/dL 70-99",
+            "Glucose 105 HIGH 98 mg/dL 70-99",
+        ],
+    )
+    def test_hc_exf_004c_column_previous_result_not_absorbed_into_analyte(self, extract_module, line):
+        # Two numbers before the unit (a flag may sit between them): ambiguous, so no
+        # observation. Never "Glucose 105" or a dropped flag on the wrong value.
+        assert extract_module._extract_from_text(line, 1, "t") == []
 
     @staticmethod
     def _pdf(page):
