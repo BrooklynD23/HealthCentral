@@ -1,6 +1,6 @@
 # HealthCentral Features Index (Current)
 
-**Last Updated:** 2026-07-23
+**Last Updated:** 2026-10-17
 **Owner:** Product Lead
 **Refresh Trigger:** Feature shipped or new feature architecture doc added
 
@@ -35,7 +35,7 @@ This folder contains feature architecture references and the active remaining-wo
 - **CSV/FHIR Structured Import (HC-M23)**: `.csv` and `.json` (FHIR R4 `Bundle`) files upload through the existing `POST /api/v1/documents/import` route. Pure parsers (`modules/import_structured.py`) land observations and medication/diagnosis mentions as **unverified** rows — no OCR, no LLM. Medication mentions become HC-M19 reconciliation suggestions; they never mutate the medication tracker directly. Reprocessing a structured-import document is rejected (data-loss guard); the fix is delete-and-re-import.
 - **Bounded Agentic Queries (HC-M24)**: three read-only agent tools (`query_care_tasks`, `query_medication_changes`, `query_timeline`) let the assistant answer record-navigation questions ("what's still open?", "what changed?") with cited, non-speculative answers, including deterministic no-LLM fallbacks. "Ask about your records" suggested-query chips surface the same intents in the assistant UI.
 - **Model-Agnostic Provider Layer**: Backend now supports hardware-adaptive LLM selection via `src/backend/core/llm/` provider interface. Users select provider and model through the model provider API (`GET`/`PUT /api/v1/settings/model/provider`). Available providers: `llama_cpp_provider` (default, embeds llama.cpp, auto-detects GGUF chat template) and `ollama_provider` (optional, localhost-only base URL). Hardware tier auto-selection currently accepts `low`, `mid`, and `high` for set/download operations; Gemma 4 configs are registered/read-visible as alternates but current write schemas do not accept them as selectable/downloadable tiers.
-- **Biomarker Grounding in RAG**: Lab Interpreter assistant responses now ground in two citation layers. `[YOUR_RESULTS:N]` cites patient's own observation context (latest measured value, normal range, trend direction), while `[REFERENCE:N]` cites auto-seeded reference knowledge base (general biomarker definitions, clinical significance). At startup, the reference KB auto-populates if empty via `seed_knowledge_base.py`. Response structure separates "Report Facts" (citing user's data) from "General Info" (citing reference KB) to maintain education-only framing and no-medical-advice compliance.
+- **Biomarker Grounding in RAG**: Lab Interpreter assistant responses now ground in two context layers, labelled `[YOUR_RESULTS:N]` (the patient's own observation context: latest measured value, normal range, trend direction) and `[REFERENCE:N]` (the auto-seeded reference knowledge base: general biomarker definitions, clinical significance). Answers cite both with `[cite:N]` markers, the only format `validate_response` checks; the labels are not citation markers. At startup, the reference KB auto-populates if empty via `seed_knowledge_base.py`. Response structure separates "Report Facts" (citing user's data) from "General Info" (citing reference KB) to maintain education-only framing and no-medical-advice compliance.
 
 ## Remaining Work
 

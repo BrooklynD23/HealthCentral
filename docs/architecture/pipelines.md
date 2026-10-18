@@ -123,7 +123,7 @@ flowchart TD
     GUARD --> AOUT["agent answer<br/>template-composed, every sentence cited"]
     GUARD -->|"ungrounded, low confidence, or advice-bait"| ABSTAIN["abstain / escalate<br/>fixed templates"]
     MR --> SAFE["legacy-path checks: validate_response ·<br/>verifier_agent · faithfulness · interpret_safety patterns"]
-    SAFE --> OUT["cited answer<br/>[REFERENCE:N] / [YOUR_RESULTS:N]"]
+    SAFE --> OUT["cited answer<br/>[cite:N] markers (context labels are not citations)"]
     SAFE -.->|"any check fails (prohibited-advice match, missing citations, faithfulness < 0.6):<br/>is_valid=false, answer still served (W-4 pending)"| OUT
 
     style GUARD fill:#4a148c,stroke:#ba68c8,color:#fff
