@@ -6,9 +6,11 @@ from datetime import datetime, timedelta
 from typing import ClassVar, Literal
 
 from pydantic import Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from core.time import utcnow
+
+from modules.normalize import NormalizeModule
 
 from ..audit import AgentAuditEvent, emit_audit_event
 from ..state import ChatFilters, ToolContext
@@ -56,7 +58,7 @@ class ComputeTrendTool:
 
         stmt = select(Observation).where(
             Observation.user_verified == True,  # noqa: E712
-            Observation.analyte_canonical.ilike(args.analyte),
+            func.lower(Observation.analyte_canonical).in_({args.analyte.lower(), *NormalizeModule.canonical_keys_for(args.analyte)}),
         )
         if args.window_days is not None:
             cutoff = utcnow() - timedelta(days=args.window_days)

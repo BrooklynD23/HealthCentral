@@ -914,17 +914,20 @@ async def test_hc_cfr_003_ldl_trend_cites_both_ingest_key_rows(agent_profile_db,
 async def test_hc_cfr_004_unverified_ingest_key_abstains_not_yet_verified(
     agent_profile_db, make_run_context, monkeypatch
 ):
-    from modules.agent import graph
+    """The loop reaches the abstain through check_verification's "unverified"
+    status (the "value not yet verified" reason), not through "absent"."""
     from modules.agent.graph import run_agent
+    from modules.agent.tools.check_verification import CheckVerificationTool
 
-    reasons: list[str | None] = []
-    real_record = graph._record_plan_step
+    statuses: list[str] = []
+    real_run = CheckVerificationTool.run
 
-    def _spy(run_log, ctx, decision):
-        reasons.append(decision.abstain_reason)
-        return real_record(run_log, ctx, decision)
+    async def _spy(self, args, ctx):
+        out = await real_run(self, args, ctx)
+        statuses.append(out.status)
+        return out
 
-    monkeypatch.setattr(graph, "_record_plan_step", _spy)
+    monkeypatch.setattr(CheckVerificationTool, "run", _spy)
 
     profile_id = str(uuid.uuid4())
     await _cfr_seed(agent_profile_db, profile_id, "ldl_cholesterol", 138.0, verified=False)
@@ -933,7 +936,7 @@ async def test_hc_cfr_004_unverified_ingest_key_abstains_not_yet_verified(
     terminal = await run_agent("Is my LDL cholesterol high?", ctx)
 
     assert terminal.terminal == "abstain"
-    assert "value not yet verified" in reasons
+    assert statuses == ["unverified"]
 
 
 def test_hc_cfr_005_every_planner_label_maps_to_an_ingest_key():

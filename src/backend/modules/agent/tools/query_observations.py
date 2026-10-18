@@ -14,6 +14,8 @@ from typing import ClassVar, Literal
 from pydantic import Field
 from sqlalchemy import case, func, or_, select
 
+from modules.normalize import NormalizeModule
+
 from ..audit import AgentAuditEvent, emit_audit_event
 from ..state import ChatFilters, ToolContext
 from .base import ToolInput, ToolOutput
@@ -57,7 +59,7 @@ class QueryObservationsTool:
         # selected analytes are ADDED to the asked analyte, never replace it.
         filters = getattr(ctx, "filters", None) or ChatFilters()
         adding = bool(args.analyte and filters.analytes)
-        asked = Observation.analyte_canonical.ilike(args.analyte) if args.analyte else None
+        asked = func.lower(Observation.analyte_canonical).in_({args.analyte.lower(), *NormalizeModule.canonical_keys_for(args.analyte)}) if args.analyte else None
         # With a selection, each row carries whether it is of the ASKED analyte,
         # computed by the same predicate that selects it (one matcher).
         stmt = select(Observation, asked.label("is_asked")) if adding else select(Observation)
