@@ -10,10 +10,9 @@ Python 3.10-compatible: no 3.11+ syntax.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from dataclasses import dataclass, field
-from typing import AsyncIterator, List, Optional, Protocol, runtime_checkable
+from typing import AsyncIterator, List, Protocol, runtime_checkable
 
 logger = logging.getLogger(__name__)
 

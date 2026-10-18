@@ -14,18 +14,16 @@ Manages model downloads, switching, and cleanup for the tiered model system.
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from modules.hardware_detection import detect_hardware, can_run_tier, get_tier_display_info
+from modules.hardware_detection import can_run_tier, detect_hardware, get_tier_display_info
 from modules.model_selector import (
     TIER_MODEL_CONFIG,
     ModelSelector,
-    get_model_selector,
 )
 
 
@@ -91,7 +89,7 @@ def cmd_download(args):
     config = TIER_MODEL_CONFIG[tier]
     repo = config["repo"]
 
-    print(f"\n[Downloading Model]")
+    print("\n[Downloading Model]")
     print(f"  Tier:  {tier}")
     print(f"  Repo:  {repo}")
 
@@ -138,7 +136,7 @@ def cmd_download(args):
             local_dir_use_symlinks=False,
         )
 
-        print(f"\n[Download Complete]")
+        print("\n[Download Complete]")
         print(f"  Path: {local_path}")
 
         # Verify
@@ -176,10 +174,10 @@ def cmd_switch(args):
 
     # Note: This only prints the intended action
     # Actual preference saving requires database access via API
-    print(f"\n[Tier Switch]")
+    print("\n[Tier Switch]")
     print(f"  New tier: {tier}")
-    print(f"\n  Note: To persist this preference, use the API:")
-    print(f"    POST /api/v1/settings/model/tier")
+    print("\n  Note: To persist this preference, use the API:")
+    print("    POST /api/v1/settings/model/tier")
     print(f'    {{"tier": "{tier}"}}')
 
     info = get_tier_display_info(tier)
@@ -243,7 +241,7 @@ def main():
     detect_parser.add_argument("--json", action="store_true", help="Output as JSON")
 
     # list command
-    list_parser = subparsers.add_parser("list", help="List downloaded models")
+    subparsers.add_parser("list", help="List downloaded models")
 
     # download command
     download_parser = subparsers.add_parser("download", help="Download a model")

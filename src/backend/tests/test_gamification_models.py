@@ -6,8 +6,6 @@ and EarnedBadge models before implementation is verified.
 
 import uuid
 
-import pytest
-
 from core.time import utcnow
 from models.gamification import BadgeDefinition, EarnedBadge
 

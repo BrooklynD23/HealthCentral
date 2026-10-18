@@ -9,7 +9,6 @@ Exit 0 clean, 1 on any enforced orphan, 2 on refused/invalid usage.
 import argparse
 import asyncio
 import getpass
-import os
 import shutil
 import sqlite3
 import sys

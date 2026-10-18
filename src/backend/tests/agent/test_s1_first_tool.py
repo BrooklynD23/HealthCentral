@@ -14,7 +14,6 @@ from modules.agent.tools.query_observations import (
 )
 from tests.agent.conftest import seed_document, seed_observation
 
-
 # --- live: typed-registry / tool contracts (FR-2, FR-3) ---------------------
 
 def test_s1_1_malformed_tool_args_rejected_by_validation():
@@ -105,10 +104,10 @@ async def test_s1_4_audit_event_per_node(agent_profile_db, make_run_context, mon
     # compute_trend directly rather than query_observations — see
     # nodes/plan.py's trend-keyword detection — so both tools' bound
     # references need patching for this capture to see every act event.)
-    import modules.agent.nodes.plan as plan_mod
     import modules.agent.nodes.draft as draft_mod
-    import modules.agent.tools.query_observations as qo_mod
+    import modules.agent.nodes.plan as plan_mod
     import modules.agent.tools.compute_trend as ct_mod
+    import modules.agent.tools.query_observations as qo_mod
 
     monkeypatch.setattr(plan_mod, "emit_audit_event", _capture)
     monkeypatch.setattr(draft_mod, "emit_audit_event", _capture)

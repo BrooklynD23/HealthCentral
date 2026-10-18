@@ -15,11 +15,11 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.audit import audit_and_commit, audit_intent, log_memory_event
-from core.auth import RequireAuth, ProfileDbSession
+from core.auth import ProfileDbSession, RequireAuth
 from core.config import settings
 from core.database import get_db
 from models.memory_item import MemoryItem

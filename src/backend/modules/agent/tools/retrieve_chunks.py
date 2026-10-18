@@ -95,7 +95,6 @@ class RetrieveChunksTool:
                 .distinct()
             ))
 
-        query_lower = args.query.lower()
         match_stmt = base_stmt.where(Chunk.text.ilike(f"%{args.query}%")).limit(args.k)
 
         async with ctx.db_session() as session:

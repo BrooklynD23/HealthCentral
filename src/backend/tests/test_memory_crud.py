@@ -5,20 +5,19 @@ Covers: create, list, get, update, delete, auth enforcement, cross-profile denia
 """
 
 import uuid
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from pydantic import ValidationError
 
 from api.memory import (
     MemoryItemCreate,
-    MemoryItemUpdate,
     MemoryItemResponse,
+    MemoryItemUpdate,
     _validate_uuid,
 )
 from core.time import utcnow
 from models.memory_item import MemoryItem
-
 
 # ---------------------------------------------------------------------------
 # Request model validation
@@ -125,6 +124,7 @@ class TestCrossProfileIsolation:
     @pytest.mark.asyncio
     async def test_get_queries_by_id_and_profile_and_returns_404(self):
         from fastapi import HTTPException
+
         from api.memory import get_memory_item
 
         item_id = str(uuid.uuid4())
@@ -147,7 +147,8 @@ class TestCrossProfileIsolation:
     @pytest.mark.asyncio
     async def test_update_queries_by_id_and_profile_and_returns_404(self):
         from fastapi import HTTPException
-        from api.memory import update_memory_item, MemoryItemUpdate
+
+        from api.memory import MemoryItemUpdate, update_memory_item
 
         item_id = str(uuid.uuid4())
         session = MagicMock(profile_id="profile-B")
@@ -174,6 +175,7 @@ class TestCrossProfileIsolation:
     @pytest.mark.asyncio
     async def test_delete_queries_by_id_and_profile_and_returns_404(self):
         from fastapi import HTTPException
+
         from api.memory import delete_memory_item
 
         item_id = str(uuid.uuid4())

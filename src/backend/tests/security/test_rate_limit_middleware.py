@@ -1,15 +1,14 @@
 """Tests for RateLimitMiddleware and SlidingWindowCounter."""
 
-import json
 import time
 from unittest.mock import patch
 
 import pytest
+
 from security.rate_limit_middleware import (
     RateLimitMiddleware,
     SlidingWindowCounter,
 )
-
 
 # --- ASGI test helpers ---
 

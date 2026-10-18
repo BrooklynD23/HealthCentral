@@ -5,32 +5,28 @@ Tests the claim extraction, source authority, verifier agent,
 and faithfulness scoring components.
 """
 
-import pytest
 import sys
 from pathlib import Path
+
+import pytest
 
 # Add backend to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from modules.claim_extractor import ClaimExtractor, ExtractedClaim, ClaimExtractionResult
+from modules.claim_extractor import ClaimExtractionResult, ClaimExtractor
+from modules.faithfulness import (
+    FaithfulnessScorer,
+    calculate_faithfulness,
+)
 from modules.source_authority import (
     SourceAuthorityScorer,
     SourceMetadata,
     SourceTier,
-    AuthorityConfig,
-    analyze_claim_authority,
 )
 from modules.verifier_agent import (
-    VerifierAgent,
     SourceEvidence,
-    VerificationConfig,
-    EntailmentLabel,
+    VerifierAgent,
     verify_all_claims,
-)
-from modules.faithfulness import (
-    FaithfulnessScorer,
-    FaithfulnessConfig,
-    calculate_faithfulness,
 )
 
 

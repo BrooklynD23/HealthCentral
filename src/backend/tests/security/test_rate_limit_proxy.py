@@ -1,6 +1,6 @@
 """Tests for proxy-aware client IP extraction in rate limiting (SEC-007)."""
 
-import pytest
+
 from security.rate_limit_middleware import _extract_client_ip
 
 

@@ -22,23 +22,22 @@ Or via API (when implemented):
 import asyncio
 import json
 import logging
-import uuid
-from datetime import datetime
-
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 # Add parent directory to path for imports
 import sys
+import uuid
 from pathlib import Path
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.database import async_session_maker, init_database
 from models.knowledge_base import (
     BiomarkerKnowledge,
-    InterventionMapping,
     BiomarkerRelationship,
+    InterventionMapping,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -919,7 +918,7 @@ if __name__ == "__main__":
     results = asyncio.run(seed_all())
 
     print("=" * 50)
-    print(f"Seeding complete!")
+    print("Seeding complete!")
     print(f"  Biomarkers added: {results['biomarkers']}")
     print(f"  Interventions added: {results['interventions']}")
     print(f"  Relationships added: {results['relationships']}")

@@ -1,6 +1,5 @@
 """Tests for imaging entity extractor."""
 
-import pytest
 
 from modules.extract_imaging import extract_imaging_entities
 

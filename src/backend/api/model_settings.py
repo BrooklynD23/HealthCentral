@@ -8,22 +8,21 @@ Phase 0.3: Tiered Hardware Model System
 """
 
 import asyncio
-import json
 import logging
 import threading
 import time
 from datetime import datetime, timezone
-from typing import Optional, Literal
+from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
-from pydantic import BaseModel, Field, ConfigDict
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.audit import audit_and_commit, create_audit_log
-from core.auth import RequireAuth, ProfileDbSession, ProfileEncryptionManager
+from core.auth import ProfileDbSession, ProfileEncryptionManager, RequireAuth
+from core.config import compute_ocr_effective, user_ocr_preference_enabled
 from core.database import get_db
-from core.config import user_ocr_preference_enabled, compute_ocr_effective
 from core.external_runner import redaction_bypass_active
 from core.profile_database import get_profile_db_manager
 from core.time import utcnow
@@ -31,19 +30,17 @@ from models import UserModelSettings
 from modules.agent.settings import is_agent_enabled
 from modules.environment_diagnostics import build_environment_diagnostics
 from modules.hardware_detection import (
-    HardwareProfile,
-    detect_hardware,
+    TIER_ORDER,
+    TIER_REQUIREMENTS,
     can_run_tier,
     get_tier_display_info,
-    TIER_REQUIREMENTS,
-    TIER_ORDER,
 )
 from modules.model_selector import (
-    ModelSelector,
+    TIER_MODEL_CONFIG,
     DownloadProgress,
+    ModelSelector,
     get_model_selector,
     get_tier_capabilities,
-    TIER_MODEL_CONFIG,
 )
 
 logger = logging.getLogger(__name__)
@@ -775,8 +772,8 @@ async def save_external_api_settings(
 async def get_llm_provider(session: RequireAuth):
     """Return active provider info and capability flags."""
     _ = session
-    from core.llm.factory import get_provider
     from core.config import settings as app_settings
+    from core.llm.factory import get_provider
 
     provider = get_provider()
     caps = provider.capabilities()
@@ -814,9 +811,9 @@ async def set_llm_provider(
 ):
     """Switch the active LLM provider at runtime."""
     _ = session
+    from core.config import settings as app_settings
     from core.llm.factory import reset_provider
     from core.llm.ollama_provider import _assert_localhost
-    from core.config import settings as app_settings
 
     # Validate Ollama base_url stays local (already enforced in OllamaProvider
     # constructor, but assert early for a cleaner error message).

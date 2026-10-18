@@ -31,7 +31,6 @@ from modules.med_reconcile import (
     derive_reconciliation_suggestions,
 )
 
-
 # ---------------------------------------------------------------------------
 # Shared helpers (style matches tests/test_care_tasks.py)
 # ---------------------------------------------------------------------------

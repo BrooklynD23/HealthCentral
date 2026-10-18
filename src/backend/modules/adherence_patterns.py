@@ -10,22 +10,23 @@ Phase 2: Core Medication Management - Pattern Learning Component
 import json
 import logging
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 from statistics import mean, stdev
 from typing import Optional
 
-from sqlalchemy import select, and_
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.time import to_local, utcnow
-from .streak_engine import _dose_dates
 from models import (
+    AdherencePattern,
+    DoseTaken,
     Medication,
     MedicationSchedule,
-    DoseTaken,
-    AdherencePattern,
 )
+
+from .streak_engine import _dose_dates
 
 logger = logging.getLogger(__name__)
 

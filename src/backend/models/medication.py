@@ -13,7 +13,7 @@ since it contains sensitive health information.
 from datetime import datetime, time
 from typing import Optional
 
-from sqlalchemy import String, Float, Boolean, Integer, DateTime, Time, Text, ForeignKey
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, Time
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.profile_database import ProfileDatabaseBase

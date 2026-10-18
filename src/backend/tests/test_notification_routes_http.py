@@ -15,7 +15,7 @@ from tests.test_medications_routes_http import PROFILE, _seed_la_doses, profile_
 
 
 @pytest.mark.asyncio
-async def test_hc_streak_tz_003_test_notification_streak_uses_profile_zone(profile_db, monkeypatch):
+async def test_hc_streak_tz_003_test_notification_streak_uses_profile_zone(profile_db, monkeypatch):  # noqa: F811  # pytest fixture parameter
     # Same seed as tz_001: three PST days, now = Jan 15 17:00 PST (Jan 16 01:00Z).
     med_id = await _seed_la_doses(
         profile_db, [datetime(2026, 1, d, 17, 0) for d in (13, 14, 15)]

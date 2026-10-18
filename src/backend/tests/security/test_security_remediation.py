@@ -6,10 +6,10 @@ Each test is tagged with the finding ID it validates.
 
 import json
 from pathlib import Path
+
 import pytest
 
 from scripts.backup import _validate_manifest_path
-
 
 # ---------------------------------------------------------------------------
 # Helpers reused from test_input_validator
@@ -102,8 +102,9 @@ class TestSEC001MetricsAuth:
 
     def test_get_metrics_has_auth_dependency(self):
         """SEC-001: get_metrics endpoint requires RequireAuth dependency."""
-        from monitoring.health import get_metrics
         import inspect
+
+        from monitoring.health import get_metrics
 
         sig = inspect.signature(get_metrics)
         param_names = list(sig.parameters.keys())
@@ -223,6 +224,7 @@ class TestSEC003StreamingLimit:
     async def test_streaming_import_also_enforced(self):
         """SEC-003: Streaming import uploads are enforced with upload limit."""
         from unittest.mock import patch
+
         from security.input_validator import InputValidationMiddleware
 
         # Patch settings to use a small upload limit for test efficiency
@@ -343,5 +345,5 @@ class TestSEC006ProductionDebugGuard:
 
         s = Settings(app_env="development", debug=True)
         assert s.debug is True
-        warnings = s.validate_startup()
+        s.validate_startup()
         assert s.debug is True

@@ -8,7 +8,6 @@ import pytest
 
 from modules.agent.guardrails import redaction_gate
 
-
 # --- live: the gate exists and exposes no bypass parameter (SG-4) ------------
 
 def test_s4_1_redaction_gate_signature_has_no_bypass():

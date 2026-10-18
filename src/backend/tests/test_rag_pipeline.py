@@ -12,14 +12,13 @@ TDD Tests that verify:
 All tests verify authenticated access and data isolation.
 """
 
-import pytest
 import sys
-from pathlib import Path
-from datetime import datetime, timezone, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
 import uuid
-import json
-import struct
+from datetime import datetime, timezone
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 # Add backend to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -449,7 +448,7 @@ class TestRetrievalPipeline:
 
         Each retrieved chunk must include source document info for citations.
         """
-        from modules.rag import RAGModule, RetrievedChunk
+        from modules.rag import RAGModule
 
         rag = RAGModule()
 
@@ -1297,8 +1296,9 @@ class TestModelRunner:
     @pytest.mark.asyncio
     async def test_model_runner_generate_async_with_mock(self):
         """generate_async should work with a mocked provider."""
-        from core.model_runner import ModelRunner, InferenceConfig, InferenceResult
         from unittest.mock import AsyncMock, MagicMock
+
+        from core.model_runner import InferenceConfig, InferenceResult, ModelRunner
 
         # Inject a fully-mocked provider so no real model is needed.
         mock_provider = MagicMock()
@@ -1344,8 +1344,8 @@ class TestRAGModuleLLMIntegration:
         """
         Sprint 6: generate_response should use ModelRunner for inference.
         """
-        from modules.rag import RAGModule
         from core.model_runner import InferenceResult
+        from modules.rag import RAGModule
 
         rag = RAGModule()
 
@@ -1379,7 +1379,7 @@ Reference ranges may vary between labs.""",
         """
         generate_response should raise ModelUnavailableError when model unavailable.
         """
-        from modules.rag import RAGModule, ModelUnavailableError
+        from modules.rag import ModelUnavailableError, RAGModule
 
         rag = RAGModule()
 
@@ -1392,8 +1392,8 @@ Reference ranges may vary between labs.""",
         """
         generate_response should return safe response on timeout.
         """
-        from modules.rag import RAGModule
         from core.model_runner import InferenceResult
+        from modules.rag import RAGModule
 
         rag = RAGModule()
 
@@ -1419,8 +1419,8 @@ Reference ranges may vary between labs.""",
         """
         Full RAG query should work end-to-end with mocked LLM.
         """
-        from modules.rag import RAGModule
         from core.model_runner import InferenceResult
+        from modules.rag import RAGModule
 
         rag = RAGModule()
 
@@ -1469,6 +1469,7 @@ class TestRAGProfileDbIsolation:
         Calling without it should raise TypeError (required param).
         """
         import inspect
+
         from modules.rag import RAGModule
 
         sig = inspect.signature(RAGModule.query)
@@ -1481,6 +1482,7 @@ class TestRAGProfileDbIsolation:
         HC-REM-008-002: retrieve_context() must accept profile_db parameter.
         """
         import inspect
+
         from modules.rag import RAGModule
 
         sig = inspect.signature(RAGModule.retrieve_context)
@@ -1544,8 +1546,8 @@ class TestVectorSearchIntegration:
     @pytest.mark.asyncio
     async def test_search_vectors_async_calculates_similarity(self):
         """_search_vectors_async should calculate similarity and sort results."""
-        from modules.rag import RAGModule
         from modules.embeddings import EmbeddingsModule
+        from modules.rag import RAGModule
 
         rag = RAGModule()
         embedder = EmbeddingsModule()

@@ -10,12 +10,11 @@ Covers:
 - auto-extract memory heuristics
 """
 
-import pytest
 import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
 from dataclasses import dataclass
-from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
@@ -123,7 +122,6 @@ class TestChatSessionModels:
         assert ChatTurn.__tablename__ == "chat_turns"
 
     def test_chat_session_fields(self):
-        from models.chat_session import ChatSession
         s = _make_session()
         assert s.profile_id == "prof-1"
         assert s.title == "Test session"
@@ -168,7 +166,6 @@ class TestGetOrCreateSession:
     @pytest.mark.asyncio
     async def test_resumes_existing_session(self):
         from api.assistant import _get_or_create_session
-        from models.chat_session import ChatSession
 
         existing = _make_session(profile_id="prof-1", title="Old session")
 
@@ -494,14 +491,6 @@ class TestMemoryInjectionInRAG:
 
         rag._retrieve_memory_context = _spy
 
-        from modules.rag import RetrievedChunk
-        chunks = [
-            RetrievedChunk(
-                chunk_id="c1", source_type="reference",
-                doc_id=None, doc_title="Ref", page=None,
-                text="context", relevance_score=0.9,
-            )
-        ]
         # Directly call the internal path without going through the full pipeline
         # Simulate what query() does: only call _retrieve_memory_context if use_memory
         use_memory = False
@@ -520,8 +509,6 @@ class TestMemoryInjectionInRAG:
 class TestConfigDefault:
     def test_assistant_memory_enabled_default_is_true(self):
         # Import fresh settings (not the live singleton, which may differ)
-        import importlib
-        import core.config as cfg_module
         # Re-instantiate settings with defaults
         from core.config import Settings
         fresh = Settings()
@@ -536,8 +523,6 @@ class TestAutoExtractMemory:
     @pytest.mark.asyncio
     async def test_extracts_medication(self):
         from api.assistant import _auto_extract_memory
-
-        added = []
 
         count_result = MagicMock()
         count_result.scalar.return_value = 0  # 0 existing auto items
@@ -566,8 +551,6 @@ class TestAutoExtractMemory:
     @pytest.mark.asyncio
     async def test_extracts_allergy(self):
         from api.assistant import _auto_extract_memory
-
-        added = []
 
         count_result = MagicMock()
         count_result.scalar.return_value = 0

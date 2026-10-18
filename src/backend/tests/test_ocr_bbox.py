@@ -5,13 +5,13 @@ Covers: bbox JSON round-trip, page image content-type, out-of-range 404, auth re
 """
 
 import json
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 import types
 from io import BytesIO
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from api.observations import ObservationResponse
-
 
 # ---------------------------------------------------------------------------
 # bbox JSON round-trip
@@ -146,8 +146,9 @@ class TestPageImageEndpoint:
 
     def test_validate_uuid_rejects_traversal(self):
         """UUID validation should reject path traversal attempts."""
-        from api.documents import validate_uuid
         from fastapi import HTTPException
+
+        from api.documents import validate_uuid
 
         with pytest.raises(HTTPException) as exc_info:
             validate_uuid("../../etc/passwd", "document_id")
@@ -156,8 +157,8 @@ class TestPageImageEndpoint:
     @pytest.mark.asyncio
     async def test_page_image_uses_in_process_cache(self):
         """F-005: Repeated requests should not re-render the same page image."""
-        from api.documents import get_page_image
         import api.documents as documents_api
+        from api.documents import get_page_image
 
         # Clear any prior cache state from other tests
         with documents_api._page_image_cache_lock:
@@ -216,8 +217,8 @@ class TestPageImageEndpoint:
     @pytest.mark.asyncio
     async def test_page_image_out_of_range_does_not_audit(self):
         """Out-of-range pages should return 404 without writing an audit row."""
-        from api.documents import get_page_image
         import api.documents as documents_api
+        from api.documents import get_page_image
 
         with documents_api._page_image_cache_lock:
             documents_api._page_image_cache.clear()

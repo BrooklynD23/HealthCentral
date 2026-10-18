@@ -7,40 +7,40 @@ using the knowledge base, safety guardrails, and recommendation engine.
 Phase 1: Core Lab Interpretation Engine - Main Orchestrator
 """
 
-import asyncio
 import json
 import logging
 import re
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, Any
+from typing import Any, Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import Observation, LabInterpretation, PanelInterpretation
+from models import LabInterpretation, Observation, PanelInterpretation
 from modules.normalize import (
     canonical_unit_for,
     convert_to_canonical,
     normalize_unit,
 )
-from .knowledge_loader import (
-    KnowledgeLoader,
-    BiomarkerInfo,
-    get_knowledge_loader,
-)
+
 from .interpret_safety import (
     InterpretationSafetyGuard,
     SafetyValidationResult,
     get_safety_guard,
 )
+from .knowledge_loader import (
+    BiomarkerInfo,
+    KnowledgeLoader,
+    get_knowledge_loader,
+)
+from .model_selector import ModelSelector, get_model_selector
 from .recommend import (
     RecommendationEngine,
     RecommendationSet,
     get_recommendation_engine,
 )
-from .model_selector import ModelSelector, get_model_selector
 
 logger = logging.getLogger(__name__)
 

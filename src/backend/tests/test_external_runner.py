@@ -23,8 +23,7 @@ async def test_runner_lookup_uses_profile_db():
     Mock profile_db with UserModelSettings row that has use_external_api=True.
     Assert returns an ExternalModelRunner.
     """
-    from core.external_runner import get_runner_for_request, ExternalModelRunner
-
+    from core.external_runner import ExternalModelRunner, get_runner_for_request
     from core.security import EncryptionManager
 
     encryption_manager = EncryptionManager()
@@ -57,7 +56,7 @@ async def test_runner_lookup_uses_profile_db():
 @pytest.mark.asyncio
 async def test_runner_decrypts_encrypted_api_key():
     """Encrypted API key should be decrypted for request-time runner usage."""
-    from core.external_runner import get_runner_for_request, ExternalModelRunner
+    from core.external_runner import ExternalModelRunner, get_runner_for_request
     from core.security import EncryptionManager
 
     encryption_manager = EncryptionManager()

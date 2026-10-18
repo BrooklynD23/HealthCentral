@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException
 
 from core.auth import RequireAuth
 from core.config import settings
+
 from .metrics import metrics_collector
 
 # Public liveness probe — mounted at root (no /api/v1 prefix)

@@ -14,7 +14,7 @@ since it contains no patient data - only reference medical information.
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import String, Float, Integer, DateTime, Text
+from sqlalchemy import DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.database import Base

@@ -52,7 +52,7 @@ async def build_vault(case: dict, *, profile_id: str):
     fixture is preserved.
     """
     from core.profile_database import ProfileDatabaseBase
-    from models import document, observation, chunk  # noqa: F401  (register tables)
+    from models import chunk, document, observation  # noqa: F401  (register tables)
 
     engine = create_async_engine(
         "sqlite+aiosqlite://",

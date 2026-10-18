@@ -6,7 +6,6 @@ import pytest
 
 from modules.agent.cache import CacheKey
 
-
 # --- live: cache key REQUIRES profile_version (no version-blind caching) -----
 
 def test_s5_2_cache_key_requires_profile_version():
@@ -36,7 +35,7 @@ async def test_s5_1_cutover_keeps_legacy_fallback():
     user+assistant turn and return the same ``ChatResponse`` shape
     (session_id/turn_id) as the agent path would.
     """
-    from dataclasses import dataclass, field
+    from dataclasses import dataclass
     from unittest.mock import AsyncMock, MagicMock, patch
 
     import api.assistant as A
@@ -164,8 +163,8 @@ async def test_s5_3_per_node_timing_surfaced(agent_profile_db, make_run_context)
     import uuid
     from datetime import datetime
 
-    from monitoring.metrics import metrics_collector
     from modules.agent.graph import run_agent
+    from monitoring.metrics import metrics_collector
     from tests.agent.conftest import seed_document, seed_observation
 
     session_maker = agent_profile_db

@@ -21,10 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
-import types
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -204,9 +201,10 @@ class TestLlamaCppProvider:
         assert result.text == "async response"
 
     def test_generate_async_timeout_returns_graceful_message(self):
-        from core.llm.provider import ChatMessage
-        from core.llm.llama_cpp_provider import LlamaCppProvider
         import time
+
+        from core.llm.llama_cpp_provider import LlamaCppProvider
+        from core.llm.provider import ChatMessage
 
         p = LlamaCppProvider(model_path="/fake/model.gguf")
         p._initialized = True
@@ -323,7 +321,6 @@ class TestOllamaProvider:
     # --- generate (mocked httpx.Client) ---
 
     def test_generate_success(self):
-        import httpx
         p = self._make_provider()
         self._mock_probe_available(p)
 
@@ -484,9 +481,8 @@ class TestModelRunnerFacade:
 
     def test_generate_wraps_prompt_as_user_message(self):
         runner, mock_p = self._make_runner_with_mock_provider()
-        from core.model_runner import InferenceConfig
         cfg = _make_inference_config()
-        result = runner.generate("What is glucose?", cfg)
+        runner.generate("What is glucose?", cfg)
         assert mock_p.generate.called
         call_args = mock_p.generate.call_args
         messages = call_args.args[0] if call_args.args else call_args.kwargs.get("messages", [])
@@ -730,20 +726,20 @@ class TestProviderProtocol:
     """Verify providers structurally satisfy ProviderProtocol."""
 
     def test_llama_cpp_satisfies_protocol(self):
-        from core.llm.provider import ProviderProtocol
         from core.llm.llama_cpp_provider import LlamaCppProvider
+        from core.llm.provider import ProviderProtocol
         p = LlamaCppProvider()
         assert isinstance(p, ProviderProtocol)
 
     def test_ollama_satisfies_protocol(self):
-        from core.llm.provider import ProviderProtocol
         from core.llm.ollama_provider import OllamaProvider
+        from core.llm.provider import ProviderProtocol
         p = OllamaProvider()
         assert isinstance(p, ProviderProtocol)
 
     def test_mock_provider_satisfies_protocol(self):
         """A correctly shaped object should pass the structural check."""
-        from core.llm.provider import ProviderProtocol, CapabilityFlags, ChatMessage
+        from core.llm.provider import CapabilityFlags, ProviderProtocol
 
         class MinimalProvider:
             def capabilities(self): return CapabilityFlags()

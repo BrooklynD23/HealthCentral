@@ -1,8 +1,8 @@
 """Tests for SecurityHeadersMiddleware."""
 
 import pytest
-from security.security_headers import SecurityHeadersMiddleware
 
+from security.security_headers import SecurityHeadersMiddleware
 
 # --- ASGI test helpers ---
 

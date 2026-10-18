@@ -11,18 +11,18 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from api import router as api_router
 from core.config import settings
-from core.database import init_database, close_database
+from core.database import close_database, init_database
 from core.logging_setup import install_correlation_logging
 from core.migrations import run_master_migrations_async
-from api import router as api_router
+from monitoring.correlation import CorrelationIdMiddleware
+from monitoring.health import health_router, metrics_router
+from monitoring.timing_middleware import TimingMiddleware
+from security.audit_middleware import SecurityAuditMiddleware
 from security.input_validator import InputValidationMiddleware
 from security.rate_limit_middleware import RateLimitMiddleware
 from security.security_headers import SecurityHeadersMiddleware
-from security.audit_middleware import SecurityAuditMiddleware
-from monitoring.correlation import CorrelationIdMiddleware
-from monitoring.timing_middleware import TimingMiddleware
-from monitoring.health import health_router, metrics_router
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +104,7 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     install_correlation_logging()
-    
+
     app = FastAPI(
         title="Asclexis API",
         description="Local-first medical results companion - API backend",
@@ -113,14 +113,14 @@ def create_app() -> FastAPI:
         redoc_url="/redoc" if settings.debug else None,
         lifespan=lifespan,
     )
-    
+
     # CORS configuration
     # Local mode: only allow localhost origins
     # Server mode: configure allowed origins via settings
     allowed_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
     if settings.app_mode == "server":
         allowed_origins = settings.cors_origins
-    
+
     # Middleware stack (Starlette: last added = outermost)
     # Request flow: CORS → CorrelationId → SecurityHeaders → RateLimit → InputValidation → Audit → Timing → Routes
 
@@ -181,10 +181,10 @@ app = create_app()
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     # Security: Always bind to localhost in local mode
     host = "127.0.0.1" if settings.app_mode == "local" else settings.host
-    
+
     uvicorn.run(
         "main:app",
         host=host,

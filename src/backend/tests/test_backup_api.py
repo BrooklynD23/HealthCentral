@@ -580,8 +580,8 @@ async def test_hc_bkup_032_successful_reauth_resets_the_restore_limiter(data_dir
     """restore_backup copied delete_profile's pattern, including its omission:
     failures accumulated across successful attempts, so a user who mistyped
     their password a few times over a session got locked out of restoring."""
-    from core.rate_limiter import auth_rate_limiter
     from core.config import settings as core_settings
+    from core.rate_limiter import auth_rate_limiter
 
     if not core_settings.auth_rate_limit_enabled:
         pytest.skip("rate limiting disabled in this configuration")

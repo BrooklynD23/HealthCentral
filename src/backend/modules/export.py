@@ -8,13 +8,13 @@ Handles:
 - Visit-prep packet composition (HC-M18: redacted before it can leave)
 """
 
-from typing import Optional
-from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+import csv
 import html
 import json
-import csv
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta
 from io import StringIO
+from typing import Optional
 
 from core.time import utcnow
 
@@ -35,11 +35,11 @@ class DoctorSummary:
     generated_at: datetime
     date_range_start: Optional[datetime]
     date_range_end: Optional[datetime]
-    
+
     # Summary content
     key_findings: list[str]
     sections: list[SummarySection]
-    
+
     # Statistics
     total_observations: int
     abnormal_count: int
@@ -71,14 +71,14 @@ NEAR_DUE_WINDOW_DAYS = 14
 class ExportModule:
     """
     Export generation service.
-    
+
     Creates clinician-ready outputs and data exports.
     """
-    
+
     def __init__(self):
         """Initialize export module."""
         pass
-    
+
     async def generate_doctor_summary(
         self,
         profile_id: str,
@@ -91,7 +91,7 @@ class ExportModule:
     ) -> DoctorSummary:
         """
         Generate a doctor-ready summary.
-        
+
         Creates a 1-2 page summary with:
         - Key findings (abnormalities, trends)
         - Organized by panel/category
@@ -99,19 +99,19 @@ class ExportModule:
         - Trend narratives
         """
         import uuid
-        
+
         # Filter observations by date
         filtered_obs = observations
         if from_date:
             filtered_obs = [o for o in filtered_obs if o.get("collected_at", datetime.min) >= from_date]
         if to_date:
             filtered_obs = [o for o in filtered_obs if o.get("collected_at", datetime.max) <= to_date]
-        
+
         # Identify key findings
         key_findings = []
         abnormal_count = 0
         critical_count = 0
-        
+
         for obs in filtered_obs:
             if obs.get("is_abnormal"):
                 abnormal_count += 1
@@ -126,10 +126,10 @@ class ExportModule:
                         f"{obs['analyte_canonical']}: {obs['value']} {obs.get('unit', '')} "
                         f"({obs.get('flag', 'abnormal')})"
                     )
-        
+
         # Build sections
         sections = []
-        
+
         # Summary section
         sections.append(SummarySection(
             title="Overview",
@@ -141,7 +141,7 @@ class ExportModule:
                 to_date=to_date,
             ),
         ))
-        
+
         # Abnormal values section
         if abnormal_count > 0:
             sections.append(SummarySection(
@@ -150,14 +150,14 @@ class ExportModule:
                     [o for o in filtered_obs if o.get("is_abnormal")]
                 ),
             ))
-        
+
         # Trends section
         if include_trends and trends:
             sections.append(SummarySection(
                 title="Notable Trends",
                 content=self._format_trends(trends),
             ))
-        
+
         return DoctorSummary(
             summary_id=str(uuid.uuid4()),
             profile_id=profile_id,
@@ -170,7 +170,7 @@ class ExportModule:
             abnormal_count=abnormal_count,
             critical_count=critical_count,
         )
-    
+
     def _generate_overview(
         self,
         total: int,
@@ -181,21 +181,21 @@ class ExportModule:
     ) -> str:
         """Generate overview paragraph."""
         parts = [f"This summary includes {total} lab values"]
-        
+
         if from_date and to_date:
             parts.append(f"from {from_date.strftime('%B %d, %Y')} to {to_date.strftime('%B %d, %Y')}")
         elif from_date:
             parts.append(f"since {from_date.strftime('%B %d, %Y')}")
-        
+
         parts.append(".")
-        
+
         if abnormal > 0:
             parts.append(f"{abnormal} values were outside the reference range as flagged by the reporting lab.")
         if critical > 0:
             parts.append(f"{critical} values were flagged as critical.")
-        
+
         return " ".join(parts)
-    
+
     def _format_abnormal_values(self, observations: list[dict]) -> str:
         """Format abnormal values section."""
         lines = []
@@ -207,7 +207,7 @@ class ExportModule:
                 f"[{obs.get('flag', 'abnormal')}] - {date_str}"
             )
         return "\n".join(lines)
-    
+
     def _format_trends(self, trends: list[dict]) -> str:
         """Format trends section."""
         lines = []
@@ -268,7 +268,7 @@ class ExportModule:
             "questions": questions,
             "redaction_count": redaction_count,
         }
-    
+
     def export_csv(
         self,
         observations: list[dict],
@@ -276,15 +276,15 @@ class ExportModule:
     ) -> str:
         """
         Export observations as CSV.
-        
+
         Returns CSV string.
         """
         if analyte_filter:
             observations = [o for o in observations if o.get("analyte_canonical") in analyte_filter]
-        
+
         output = StringIO()
         writer = csv.writer(output)
-        
+
         # Header
         writer.writerow([
             "Date",
@@ -296,7 +296,7 @@ class ExportModule:
             "Flag",
             "Verified",
         ])
-        
+
         # Data rows
         for obs in sorted(observations, key=lambda x: (x.get("analyte_canonical", ""), x.get("collected_at", datetime.min))):
             date_str = obs.get("collected_at", "").strftime("%Y-%m-%d") if obs.get("collected_at") else ""
@@ -310,9 +310,9 @@ class ExportModule:
                 obs.get("flag", ""),
                 "Yes" if obs.get("user_verified") else "No",
             ])
-        
+
         return output.getvalue()
-    
+
     def export_json(
         self,
         observations: list[dict],
@@ -320,12 +320,12 @@ class ExportModule:
     ) -> str:
         """
         Export observations as JSON.
-        
+
         Returns JSON string.
         """
         if analyte_filter:
             observations = [o for o in observations if o.get("analyte_canonical") in analyte_filter]
-        
+
         # Convert datetime objects to ISO strings
         export_data = []
         for obs in observations:
@@ -333,9 +333,9 @@ class ExportModule:
             if "collected_at" in export_obs and export_obs["collected_at"]:
                 export_obs["collected_at"] = export_obs["collected_at"].isoformat()
             export_data.append(export_obs)
-        
+
         return json.dumps(export_data, indent=2)
-    
+
     def render_html_summary(self, summary_data: dict) -> str:
         """
         Render a doctor summary as an inline-CSS HTML document.
@@ -579,6 +579,7 @@ class ExportModule:
         does not match.
         """
         import uuid
+
         from modules.redaction import RedactionEngine
 
         sections: list[dict] = []

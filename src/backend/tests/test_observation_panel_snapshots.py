@@ -5,8 +5,8 @@ from __future__ import annotations
 import sys
 import uuid
 from datetime import datetime, timezone
-from types import SimpleNamespace
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest

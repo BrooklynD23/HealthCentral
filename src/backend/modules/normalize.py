@@ -7,9 +7,8 @@ Handles:
 - Unit preservation and conversion
 """
 
-from typing import Optional
 from dataclasses import dataclass
-
+from typing import Optional
 
 # --- Cross-lab unit conversion (NORM-UNIT-001) ---------------------------------
 #
@@ -132,11 +131,11 @@ class NormalizedAnalyte:
 class NormalizeModule:
     """
     Analyte normalization service.
-    
+
     Maps various names and abbreviations to canonical forms.
     Preserves original names for provenance.
     """
-    
+
     # Built-in synonym mappings (extendable via database)
     ANALYTE_SYNONYMS = {
         # CBC
@@ -149,7 +148,7 @@ class NormalizeModule:
         "mch": ["mean corpuscular hemoglobin"],
         "mchc": ["mean corpuscular hemoglobin concentration"],
         "rdw": ["red cell distribution width"],
-        
+
         # CMP/BMP
         "glucose": ["blood glucose", "fasting glucose", "glu"],
         "bun": ["blood urea nitrogen", "urea nitrogen"],
@@ -165,36 +164,36 @@ class NormalizeModule:
         "alkaline_phosphatase": ["alk phos", "alp", "alkp"],
         "ast": ["aspartate aminotransferase", "sgot", "aspartate transaminase"],
         "alt": ["alanine aminotransferase", "sgpt", "alanine transaminase"],
-        
+
         # Lipids
         "total_cholesterol": ["cholesterol", "total chol", "tc"],
         "hdl_cholesterol": ["hdl", "hdl-c", "high density lipoprotein"],
         "ldl_cholesterol": ["ldl", "ldl-c", "low density lipoprotein"],
         "triglycerides": ["trig", "tg"],
-        
+
         # Thyroid
         "tsh": ["thyroid stimulating hormone", "thyrotropin"],
         "free_t4": ["ft4", "free thyroxine", "thyroxine free"],
         "free_t3": ["ft3", "free triiodothyronine"],
-        
+
         # Iron studies
         "iron": ["serum iron", "fe"],
         "ferritin": ["serum ferritin"],
         "tibc": ["total iron binding capacity", "iron binding capacity"],
-        
+
         # Vitamins
         "vitamin_d": ["25-hydroxy vitamin d", "25-oh vitamin d", "vitamin d 25-oh", "25(oh)d"],
         "vitamin_b12": ["b12", "cobalamin"],
         "folate": ["folic acid", "serum folate"],
-        
+
         # Inflammation
         "crp": ["c-reactive protein", "c reactive protein"],
         "esr": ["erythrocyte sedimentation rate", "sed rate"],
-        
+
         # HbA1c
         "hba1c": ["hemoglobin a1c", "glycated hemoglobin", "a1c", "glycohemoglobin"],
     }
-    
+
     # Analyte categories
     ANALYTE_CATEGORIES = {
         "cbc": [
@@ -217,7 +216,7 @@ class NormalizeModule:
         "inflammation": ["crp", "esr"],
         "diabetes": ["glucose", "hba1c"],
     }
-    
+
     # Display names
     DISPLAY_NAMES = {
         "hemoglobin": "Hemoglobin",
@@ -243,7 +242,7 @@ class NormalizeModule:
         "ferritin": "Ferritin",
         "crp": "C-Reactive Protein (CRP)",
     }
-    
+
     def __init__(self):
         """Initialize normalization module."""
         # Build reverse lookup
@@ -252,23 +251,23 @@ class NormalizeModule:
             self._synonym_to_canonical[canonical.lower()] = canonical
             for syn in synonyms:
                 self._synonym_to_canonical[syn.lower()] = canonical
-    
+
     def normalize_analyte(self, raw_name: str) -> NormalizedAnalyte:
         """
         Normalize an analyte name to canonical form.
-        
+
         Args:
             raw_name: Raw analyte name from document
-            
+
         Returns:
             NormalizedAnalyte with canonical name and metadata
         """
         # Clean and lowercase
         cleaned = raw_name.lower().strip()
-        
+
         # Look up canonical name
         canonical = self._synonym_to_canonical.get(cleaned)
-        
+
         if canonical:
             display_name = self.DISPLAY_NAMES.get(canonical, canonical.replace("_", " ").title())
             category = self._get_category(canonical)
@@ -284,14 +283,14 @@ class NormalizeModule:
                 display_name=raw_name.strip(),
                 category="other",
             )
-    
+
     def _get_category(self, canonical_name: str) -> str:
         """Get the category for an analyte."""
         for category, analytes in self.ANALYTE_CATEGORIES.items():
             if canonical_name in analytes:
                 return category
         return "other"
-    
+
     def get_panel_analytes(self, panel_name: str) -> list[str]:
         """Get list of analytes in a panel."""
         return self.ANALYTE_CATEGORIES.get(panel_name.lower(), [])

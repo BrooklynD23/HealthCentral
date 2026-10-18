@@ -9,7 +9,6 @@ import re
 
 from modules.extract_spans import with_span
 
-
 SPECIMEN_TYPE_PATTERN = re.compile(
     r"\b(biopsy|excision|resection|aspiration|cytology|smear|swab)\b",
     re.IGNORECASE,

@@ -9,7 +9,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from core.profile_database import ProfileDatabaseBase
 from core.time import utcnow
 
-
 PINBOARD_ITEM_TYPES = ("document", "observation", "care_task", "question")
 
 

@@ -19,12 +19,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.auth import Session
 from core.time import utcnow
+from models.document_category import DocumentEntity
 from modules.extract_imaging import extract_imaging_entities
 from modules.extract_pathology import extract_pathology_entities
 from modules.extract_spans import EXTRACTION_VERSION, with_span
 from modules.extract_visit_notes import extract_visit_note_entities
-from models.document_category import DocumentEntity
-
 
 IMAGING_TEXT = (
     "RADIOLOGY REPORT\n"

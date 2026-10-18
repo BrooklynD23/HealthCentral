@@ -54,6 +54,7 @@ class LookupReferenceTool:
 
         try:
             from core.database import async_session_maker
+
             from .. import knowledge_lookup  # local import to keep this seam swappable
 
             async with async_session_maker() as session:

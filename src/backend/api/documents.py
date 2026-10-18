@@ -15,19 +15,19 @@ import threading
 import time
 from collections import OrderedDict
 from dataclasses import asdict
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Literal, Optional
-from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, File, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import and_, delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.audit import audit_and_commit, audit_intent, log_document_event
+from core.auth import ProfileDbSession, RequireAuth, Session
+from core.config import compute_ocr_effective, settings, user_ocr_preference_enabled
 from core.database import get_db
-from core.config import settings, user_ocr_preference_enabled, compute_ocr_effective
-from core.audit import log_document_event, audit_and_commit, audit_intent
-from core.auth import RequireAuth, Session, ProfileDbSession
 from core.document_crypto import get_decrypted_document, get_profile_encryption_key
 from core.time import utcnow
 from models import (
@@ -39,17 +39,17 @@ from models import (
     PinboardItem,
     UserModelSettings,
 )
-from modules.extract import ExtractModule
-from modules.normalize import NormalizeModule
+from models.document_category import DocumentCategory, DocumentEntity
 from modules.chunking import ChunkingModule
-from modules.embeddings import EmbeddingsModule
 from modules.document_classifier import classify_document
+from modules.embeddings import EmbeddingsModule
+from modules.extract import ExtractModule
 from modules.extract_imaging import extract_imaging_entities
 from modules.extract_pathology import extract_pathology_entities
 from modules.extract_visit_notes import extract_visit_note_entities, llm_assist_visit_entities
 from modules.highlights import Highlight, derive_highlights
 from modules.import_structured import parse_fhir_bundle, parse_lab_csv
-from models.document_category import DocumentCategory, DocumentEntity
+from modules.normalize import NormalizeModule
 
 # Doc types handled by the structured-import pipeline (HC-M23) instead of the
 # OCR/regex extraction + rule-based classification pipeline.
@@ -148,7 +148,8 @@ def _parse_date_string(date_str: Optional[str]) -> Optional[datetime]:
     if not date_str:
         return None
 
-    from datetime import date as _date, timedelta
+    from datetime import date as _date
+    from datetime import timedelta
     _MIN_DATE = _date(1950, 1, 1)
 
     formats = [
@@ -1758,8 +1759,9 @@ async def get_page_image(
         if cached is not None:
             content = cached
         else:
-            import pdfplumber
             from io import BytesIO
+
+            import pdfplumber
 
             decrypted_doc = get_decrypted_document(document.profile_id, document_id)
             with pdfplumber.open(decrypted_doc) as pdf:

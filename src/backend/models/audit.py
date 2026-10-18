@@ -4,11 +4,11 @@ Audit log model for tracking all operations.
 HIPAA-compliant audit trail for security and compliance.
 """
 
-from datetime import datetime
-from typing import Optional, TYPE_CHECKING
 import uuid
+from datetime import datetime
+from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import String, DateTime, Text, ForeignKey
+from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base

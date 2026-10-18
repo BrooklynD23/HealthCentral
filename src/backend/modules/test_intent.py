@@ -7,7 +7,6 @@ Uses curated local data for privacy and consistency.
 
 from typing import Optional
 
-
 # Curated test intent information
 # Explains what tests are for without providing medical advice
 TEST_INTENT_DATA = {

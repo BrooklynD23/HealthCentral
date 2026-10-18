@@ -7,7 +7,6 @@ DocumentCategory + DocumentEntity records are persisted correctly.
 from __future__ import annotations
 
 import sys
-import uuid
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -15,11 +14,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from modules.document_classifier import classify_document, ClassificationResult
-from modules.extract_imaging import extract_imaging_entities
-from modules.extract_pathology import extract_pathology_entities
-from modules.extract_visit_notes import extract_visit_note_entities
-
+from modules.document_classifier import classify_document
 
 # ---------------------------------------------------------------------------
 # Unit tests: classifier produces correct categories for full documents

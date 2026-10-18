@@ -13,7 +13,6 @@ import pytest
 
 from modules.agent import audit, schemas, settings, state
 
-
 # --- live: scaffold contracts that hold today -------------------------------
 
 def test_s0_1_agent_package_imports_clean():

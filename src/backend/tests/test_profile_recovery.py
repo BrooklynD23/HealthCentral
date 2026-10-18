@@ -17,9 +17,8 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -344,6 +343,7 @@ def test_hc_recov_025_recovery_uses_the_project_time_helper():
     datetime.utcnow() is also deprecated from 3.12. This is a source assertion
     because the returned value is identical either way — only the call differs."""
     import inspect
+
     import api.profiles as profiles_api
 
     source = inspect.getsource(profiles_api.recover_profile)

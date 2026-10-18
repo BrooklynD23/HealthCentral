@@ -13,11 +13,11 @@ Covers:
 
 import json
 import uuid
-from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 
 async def _empty_async_gen():
     """Yield nothing — used to short-circuit audit DB lookups in tests."""
@@ -142,7 +142,8 @@ class TestResponseFeedbackModel:
 
 class TestMigration008:
     def test_importable(self):
-        import importlib.util, os
+        import importlib.util
+        import os
         fpath = os.path.normpath(os.path.join(
             os.path.dirname(__file__), "..",
             "migrations", "profile", "versions", "008_response_feedback.py",
@@ -161,7 +162,7 @@ class TestMigration008:
 class TestUpsertFeedback:
     @pytest.mark.asyncio
     async def test_creates_new_feedback(self):
-        from api.feedback import upsert_feedback, FeedbackRequest
+        from api.feedback import FeedbackRequest, upsert_feedback
 
         db = AsyncMock()
         # No existing row
@@ -200,7 +201,7 @@ class TestUpsertFeedback:
     @pytest.mark.asyncio
     async def test_updates_existing_feedback(self):
         """Second call with same turn_id changes rating in-place (upsert)."""
-        from api.feedback import upsert_feedback, FeedbackRequest
+        from api.feedback import FeedbackRequest, upsert_feedback
 
         turn_id = str(uuid.uuid4())
         existing = _make_fb(turn_id=turn_id, rating=1)
@@ -223,7 +224,7 @@ class TestUpsertFeedback:
         )
 
         with patch("api.feedback._emit_audit", new_callable=AsyncMock):
-            resp = await upsert_feedback(
+            await upsert_feedback(
                 turn_id=turn_id,
                 body=req,
                 session=mock_session,
@@ -236,14 +237,16 @@ class TestUpsertFeedback:
         assert existing.correction_text == "Actually, let me fix this."
 
     def test_invalid_rating_rejected(self):
-        from api.feedback import FeedbackRequest
         import pydantic
+
+        from api.feedback import FeedbackRequest
         with pytest.raises(pydantic.ValidationError):
             FeedbackRequest(session_id="s1", rating=0)
 
     def test_invalid_tags_rejected(self):
-        from api.feedback import FeedbackRequest
         import pydantic
+
+        from api.feedback import FeedbackRequest
         with pytest.raises(pydantic.ValidationError):
             FeedbackRequest(session_id="s1", rating=1, feedback_tags=["made_up_tag"])
 
@@ -298,8 +301,9 @@ class TestFeedbackStats:
 class TestExportConfirmationGate:
     @pytest.mark.asyncio
     async def test_export_requires_confirmed_true(self):
-        from api.feedback import export_dataset, ExportRequest
         from fastapi import HTTPException
+
+        from api.feedback import ExportRequest, export_dataset
 
         mock_session = MagicMock()
         mock_session.profile_id = "prof-1"
@@ -315,8 +319,9 @@ class TestExportConfirmationGate:
 
     @pytest.mark.asyncio
     async def test_export_404_when_no_feedback(self):
-        from api.feedback import export_dataset, ExportRequest
         from fastapi import HTTPException
+
+        from api.feedback import ExportRequest, export_dataset
 
         db = _make_profile_db_with([])
         mock_session = MagicMock()
@@ -333,8 +338,9 @@ class TestExportConfirmationGate:
     @pytest.mark.asyncio
     async def test_export_rejects_path_traversal(self):
         """HC-RL-PATH: output_dir outside allowed base rejected with 400."""
-        from api.feedback import export_dataset, ExportRequest
         from fastapi import HTTPException
+
+        from api.feedback import ExportRequest, export_dataset
 
         db = _make_profile_db_with([])  # empty so we test path check before 404
         mock_session = MagicMock()
@@ -630,7 +636,7 @@ class TestEdgeCases:
         assert result.grpo_rewards_count == 0
 
     def test_records_without_prompt_snapshot_skipped(self, tmp_path):
-        from modules.rl_dataset import export_rl_datasets, FeedbackRecord
+        from modules.rl_dataset import FeedbackRecord, export_rl_datasets
 
         rec = FeedbackRecord(
             id=str(uuid.uuid4()),
@@ -677,7 +683,7 @@ class TestEdgeCases:
         assert r1.sft_path != r2.sft_path
 
         content_a = Path(r1.sft_path).read_text()
-        content_b = Path(r2.sft_path).read_text()
+        Path(r2.sft_path).read_text()  # profile B export must exist and be readable
         assert "prof-AAA" not in content_a or True  # profile ids not in content anyway
         assert r1.sft_positives_count == 1
         assert r2.sft_positives_count == 1

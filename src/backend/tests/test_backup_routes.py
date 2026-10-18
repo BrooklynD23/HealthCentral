@@ -58,8 +58,8 @@ def test_hc_bkup_034_restore_route_is_reachable(data_dir, monkeypatch):
     Depends(require_profile_access()), which reads path_params["profile_id"] —
     a parameter this route does not have — so every request 400'd before any
     handler logic ran."""
-    from unittest.mock import AsyncMock
     from types import SimpleNamespace
+    from unittest.mock import AsyncMock
 
     with route_client(backup_api.router, "/backup") as client:
         created = client.post("/backup/")

@@ -10,12 +10,11 @@ asyncio.to_thread() for synchronous llama-cpp operations.
 import asyncio
 import json
 import logging
-import os
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Any
+from typing import Any, Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,12 +22,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.config import settings
 from core.time import utcnow
 from models import UserModelSettings
+
 from .hardware_detection import (
     HardwareProfile,
-    detect_hardware,
     can_run_tier,
+    detect_hardware,
     get_recommended_tier,
-    TIER_ORDER,
 )
 
 logger = logging.getLogger(__name__)

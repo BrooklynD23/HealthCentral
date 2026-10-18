@@ -20,20 +20,20 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from api.model_settings import (
     ExternalApiSettingsRequest,
+    OcrSettingsUpdate,
     TimezoneUpdate,
     VoiceSettingsUpdate,
-    OcrSettingsUpdate,
-    _download_model_task,
     _clear_live_progress,
+    _diagnostics_list_response,
+    _download_model_task,
     _get_live_progress,
     _make_progress_key,
     _set_live_progress,
     get_external_api_settings,
     save_external_api_settings,
     set_timezone,
-    update_voice_settings,
     update_ocr_settings,
-    _diagnostics_list_response,
+    update_voice_settings,
 )
 from core.auth import Session
 from core.security import EncryptionManager

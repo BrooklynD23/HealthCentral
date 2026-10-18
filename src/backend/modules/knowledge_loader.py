@@ -15,7 +15,7 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import BiomarkerKnowledge, InterventionMapping, BiomarkerRelationship
+from models import BiomarkerKnowledge, BiomarkerRelationship, InterventionMapping
 
 logger = logging.getLogger(__name__)
 

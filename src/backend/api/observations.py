@@ -12,17 +12,17 @@ import json
 import logging
 import re
 from collections import defaultdict
-from typing import Optional
 from datetime import date
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select, and_
+from pydantic import BaseModel, ConfigDict
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database import get_db
 from core.audit import audit_and_commit, log_observation_event
-from core.auth import RequireAuth, Session, ProfileDbSession
+from core.auth import ProfileDbSession, RequireAuth, Session
+from core.database import get_db
 from core.time import NaiveUtcDatetime, utcnow
 from models import Document, Observation
 from modules.normalize import (

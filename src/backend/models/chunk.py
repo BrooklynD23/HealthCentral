@@ -7,11 +7,11 @@ Phase 3: This model lives in per-profile encrypted databases,
 not the master database.
 """
 
-from datetime import datetime
-from typing import Optional, TYPE_CHECKING
 import uuid
+from datetime import datetime
+from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import String, Integer, DateTime, Text, ForeignKey
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.profile_database import ProfileDatabaseBase

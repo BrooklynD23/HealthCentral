@@ -7,14 +7,11 @@ Validates that:
 - Graceful fallback when category data is missing
 """
 
-import uuid
-from datetime import datetime
+import sys
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-import sys
-from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -198,7 +195,7 @@ class TestQueryCategoryParam:
 
             # query should accept and pass category
             # Since retrieve_context returns [] it will return insufficient context
-            result = await rag.query(
+            await rag.query(
                 question="show my imaging",
                 profile_id="p1",
                 category="imaging",
@@ -224,7 +221,7 @@ class TestQueryCategoryParam:
 
             rag.retrieve_context = capture_retrieve
 
-            result = await rag.query(
+            await rag.query(
                 question="general question",
                 profile_id="p1",
             )
@@ -248,8 +245,9 @@ class TestChatRequestCategoryField:
         assert req.document_category is None
 
     def test_chat_request_rejects_invalid_category(self) -> None:
-        from api.assistant import ChatRequest
         from pydantic import ValidationError
+
+        from api.assistant import ChatRequest
 
         with pytest.raises(ValidationError):
             ChatRequest(question="test", document_category="invalid_category")

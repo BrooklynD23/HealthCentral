@@ -11,37 +11,34 @@ import json
 import logging
 import re
 import uuid
-from typing import Optional
 from datetime import time, timedelta
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select, and_, func
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database import get_db
-from core.audit import log_document_event
-from core.auth import RequireAuth, Session, ProfileDbSession
+from core.auth import ProfileDbSession, RequireAuth
 from core.time import NaiveUtcDatetime, profile_timezone_name, to_local, utcnow
 from models import (
     Medication,
-    MedicationSchedule,
     ReminderLog,
 )
-from modules.notification_scheduler import (
-    get_notification_scheduler,
-    NotificationSettings,
-)
+from modules.adherence_patterns import get_pattern_learner
 from modules.message_generator import (
-    get_message_generator,
     MessageContext,
     ReminderPriority,
+    get_message_generator,
+)
+from modules.notification_scheduler import (
+    NotificationSettings,
+    get_notification_scheduler,
 )
 from modules.platform_notifications import (
-    get_notification_service,
     NotificationPayload,
+    get_notification_service,
 )
-from modules.adherence_patterns import get_pattern_learner
 
 logger = logging.getLogger(__name__)
 

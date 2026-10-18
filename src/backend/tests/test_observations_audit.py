@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -10,7 +10,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import api.observations as observations_api
-from api.observations import get_analyte_trend, router as observations_router
+from api.observations import get_analyte_trend
+from api.observations import router as observations_router
 from core.auth import Session, get_profile_db_session, require_auth
 from core.database import get_db
 

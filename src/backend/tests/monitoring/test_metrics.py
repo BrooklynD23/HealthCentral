@@ -4,7 +4,8 @@ import threading
 from dataclasses import FrozenInstanceError
 
 import pytest
-from monitoring.metrics import MetricsCollector, MetricsSummary, EndpointStats
+
+from monitoring.metrics import MetricsCollector
 
 
 def test_record_stores_entry():

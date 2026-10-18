@@ -19,7 +19,6 @@ from models import CarePlanTask, Document, Observation, Pinboard, PinboardItem
 from models.document_category import DocumentEntity
 from modules.export import ExportModule
 
-
 router = APIRouter()
 ItemType = Literal["document", "observation", "care_task", "question"]
 

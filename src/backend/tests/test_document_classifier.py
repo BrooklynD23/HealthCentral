@@ -1,8 +1,7 @@
 """Tests for rule-based document category classifier."""
 
-import pytest
 
-from modules.document_classifier import classify_document, ClassificationResult
+from modules.document_classifier import classify_document
 
 
 class TestClassifyDocument:

@@ -7,7 +7,6 @@ Preserves sentence boundaries and tracks provenance.
 
 import re
 import uuid
-from typing import Optional
 from dataclasses import dataclass
 
 

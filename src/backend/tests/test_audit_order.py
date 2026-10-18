@@ -10,9 +10,10 @@ import json
 import logging
 import uuid
 from dataclasses import dataclass
-from typing import Any
-from unittest.mock import patch
 from datetime import datetime, timezone
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
@@ -20,36 +21,30 @@ from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
-from api.documents import router as documents_router
-from api.medications import router as medications_router
-from api.memory import router as memory_router
-from api.pinboards import router as pinboards_router
-from core.config import settings
-from core.audit import audit_intent, log_memory_event
-from core.auth import get_profile_db_session
-from core.database import Base
-from core.profile_database import ProfileDatabaseBase
-from models import Document, DocumentEntity, LabInterpretation, Medication, Observation
-from models.pinboard import PinboardItem
 import api.assistant as assistant_api
 import api.backup as backup_api
 import api.documents as documents_api
-import api.profiles as profiles_api
 import api.interpretations as interp_api
-from api.interpretations import router as interp_router
-from modules.rag import ModelUnavailableError
-from models import Profile
-from models.chat_session import ChatTurn
+import api.profiles as profiles_api
 from api.assistant import ResponseSegment, VerificationInfo
 from api.assistant import router as assistant_router
-from core.audit import create_audit_log
-from pathlib import Path
-from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
-from scripts.backup import RestoreResult
+from api.documents import router as documents_router
+from api.interpretations import router as interp_router
+from api.medications import router as medications_router
+from api.memory import router as memory_router
+from api.pinboards import router as pinboards_router
+from core.audit import audit_intent, create_audit_log, log_memory_event
+from core.auth import get_profile_db_session
+from core.config import settings
+from core.database import Base
+from core.profile_database import ProfileDatabaseBase
+from models import Document, DocumentEntity, LabInterpretation, Medication, Observation, Profile
 from models.audit import AuditLog
+from models.chat_session import ChatTurn
 from models.memory_item import MemoryItem
-from models.pinboard import Pinboard
+from models.pinboard import Pinboard, PinboardItem
+from modules.rag import ModelUnavailableError
+from scripts.backup import RestoreResult
 from tests.support.routes import route_client
 
 PROFILE = "profile-a"

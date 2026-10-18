@@ -27,8 +27,8 @@ from sqlalchemy.pool import StaticPool
 import api.feedback as feedback_api
 from core.auth import get_profile_db_session
 from core.profile_database import ProfileDatabaseBase
-from models import chat_session, response_feedback  # noqa: F401  register tables
 from core.time import utcnow
+from models import chat_session, response_feedback  # noqa: F401  register tables
 from models.chat_session import ChatSession, ChatTurn
 from models.response_feedback import ResponseFeedback
 from tests.support.routes import route_client

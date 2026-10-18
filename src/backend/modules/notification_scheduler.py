@@ -14,36 +14,34 @@ import asyncio
 import json
 import logging
 import uuid
-from dataclasses import dataclass, field
-from datetime import datetime, time, timedelta
+from dataclasses import dataclass
+from datetime import datetime, time
 from enum import Enum
-from typing import Optional, Callable, Awaitable
+from typing import Awaitable, Callable, Optional
 
-from sqlalchemy import select, and_, or_
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.time import local_day_bounds_utc, profile_timezone_name, to_local, utcnow
 from models import (
+    DoseTaken,
     Medication,
     MedicationSchedule,
-    DoseTaken,
-    AdherencePattern,
     ReminderLog,
 )
+
+from .adherence_patterns import get_pattern_learner
 from .message_generator import (
-    MessageGenerator,
     MessageContext,
-    GeneratedMessage,
+    MessageGenerator,
     ReminderPriority,
     get_message_generator,
 )
 from .platform_notifications import (
-    NotificationService,
     NotificationPayload,
-    DeliveryResult,
+    NotificationService,
     get_notification_service,
 )
-from .adherence_patterns import get_pattern_learner, StreakData
 
 logger = logging.getLogger(__name__)
 
@@ -467,7 +465,6 @@ class NotificationScheduler:
         # Calculate time differences
         current_minutes = current_time.hour * 60 + current_time.minute
         target_minutes = schedule.target_time.hour * 60 + schedule.target_time.minute
-        window_start_minutes = window_start.hour * 60 + window_start.minute
 
         minutes_until_target = target_minutes - current_minutes
         minutes_past_target = -minutes_until_target if minutes_until_target < 0 else 0
@@ -596,7 +593,7 @@ class NotificationScheduler:
         )
 
         # Send notification
-        result = await self._notification_service.send(payload)
+        await self._notification_service.send(payload)
 
         # Log the reminder
         log_entry = ReminderLog(

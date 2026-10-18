@@ -238,6 +238,7 @@ async def test_hc_ver_003_unverified_document_chunk_absent_from_legacy_rag_conte
 @pytest.mark.asyncio
 async def test_hc_ver_005_knowledge_fallback_cites_verified_values_only(real_profile_db) -> None:
     from unittest.mock import MagicMock, patch
+
     from api.assistant import ChatRequest, _build_knowledge_fallback
     from modules.knowledge_loader import BiomarkerInfo
 

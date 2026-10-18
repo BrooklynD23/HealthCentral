@@ -17,6 +17,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
+from modules.faithfulness import FaithfulnessConfig
+
 from ..audit import AgentAuditEvent, emit_audit_event
 from ..schemas import AgentTerminal, Citation
 from .classifier import classify_advice
@@ -29,8 +31,6 @@ from .templates import ABSTAIN_TEMPLATE, ESCALATE_TEMPLATE
 # in the codebase — rather than inventing a second, divergent threshold.
 # Below this value the guard abstains; it never hedges. Flagged here for
 # reconciliation if a different sprint later wants a guard-specific value.
-from modules.faithfulness import FaithfulnessConfig
-
 CONFIDENCE_THRESHOLD = FaithfulnessConfig().min_overall_score  # 0.6
 
 

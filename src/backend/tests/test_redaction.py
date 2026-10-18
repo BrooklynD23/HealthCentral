@@ -5,16 +5,15 @@ Covers: SSN/email/phone/name/DOB redaction, policy levels,
 no-mutation, metadata-no-plaintext, disabled bypass, external_runner integration.
 """
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from modules.redaction import (
+    VALID_POLICY_LEVELS,
     RedactionEngine,
     RedactionResult,
-    RedactionRule,
-    VALID_POLICY_LEVELS,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

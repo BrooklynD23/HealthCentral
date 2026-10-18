@@ -11,56 +11,33 @@ Model Organization:
   Medication, MedicationSchedule, DoseTaken, AdherencePattern, ReminderLog
 """
 
-# Master database models
-from .profile import Profile
 from .audit import AuditLog
 from .backup_schedule import BackupSchedule
-
-# Knowledge base models (master database - reference data)
+from .care_plan_task import CarePlanTask
+from .chat_session import ChatSession, ChatTurn
+from .chunk import Chunk
+from .document import Document
+from .document_category import DocumentCategory, DocumentEntity
+from .embedding import Embedding
+from .gamification import BadgeDefinition, EarnedBadge
+from .interpretation import LabInterpretation, PanelInterpretation
 from .knowledge_base import (
     BiomarkerKnowledge,
-    InterventionMapping,
     BiomarkerRelationship,
+    InterventionMapping,
 )
-
-# Per-profile database models
-from .document import Document
-from .observation import Observation
-from .chunk import Chunk
-from .embedding import Embedding
-
-# Lab interpretation models (per-profile)
-from .interpretation import LabInterpretation, PanelInterpretation
-
-# Medication adherence models (per-profile)
 from .medication import (
+    AdherencePattern,
+    DoseTaken,
     Medication,
     MedicationSchedule,
-    DoseTaken,
-    AdherencePattern,
     ReminderLog,
 )
-
-# Model settings (per-profile, Phase 0.3)
-from .model_settings import UserModelSettings
-
-# Gamification (per-profile, GAM-001)
-from .gamification import BadgeDefinition, EarnedBadge
-
-# Document classification (per-profile, INGEST-EPIC-001)
-from .document_category import DocumentCategory, DocumentEntity
-
-# Memory store (per-profile, ASSIST-MEM-001)
 from .memory_item import MemoryItem
-
-# Chat session persistence (per-profile, ASSIST-HIST-001)
-from .chat_session import ChatSession, ChatTurn
-
-# Care-plan tasks (per-profile, HC-M15)
-from .care_plan_task import CarePlanTask
-
-# User-curated record collections (per-profile, HC-M20)
+from .model_settings import UserModelSettings
+from .observation import Observation
 from .pinboard import Pinboard, PinboardItem
+from .profile import Profile
 
 __all__ = [
     # Master database

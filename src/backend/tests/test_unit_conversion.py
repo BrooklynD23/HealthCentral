@@ -20,16 +20,15 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from api.observations import get_analyte_trend
+from core.auth import Session
 from modules.normalize import (
     UNIT_CONVERSIONS,
     NormalizeModule,
-    convert_to_canonical,
     canonical_unit_for,
+    convert_to_canonical,
     normalize_unit,
 )
-from api.observations import get_analyte_trend
-from core.auth import Session
-
 
 # --- Pure conversion table (HC-NORM-2xx) ---------------------------------
 

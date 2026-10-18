@@ -17,20 +17,20 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database import get_db
-from core.auth import RequireAuth, Session, ProfileDbSession
+from api.assistant import get_rag_module
 from core.audit import audit_and_commit, audit_intent, create_audit_log
+from core.auth import ProfileDbSession, RequireAuth
+from core.database import get_db
 from core.time import NaiveUtcDatetime, utcnow
 from models import (
-    Observation,
-    LabInterpretation,
-    PanelInterpretation,
     BiomarkerKnowledge,
+    LabInterpretation,
+    Observation,
+    PanelInterpretation,
 )
 from modules import get_interpret_module
-from modules.rag import ModelUnavailableError
-from api.assistant import get_rag_module
 from modules.agent.guardrails.templates import ESCALATE_TEMPLATE
+from modules.rag import ModelUnavailableError
 
 logger = logging.getLogger(__name__)
 

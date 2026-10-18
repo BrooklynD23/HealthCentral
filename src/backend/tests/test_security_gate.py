@@ -18,8 +18,6 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
-
 SCRIPT_PATH = Path(__file__).resolve().parents[3] / "scripts" / "security_gate.py"
 SPEC = importlib.util.spec_from_file_location("security_gate_root", SCRIPT_PATH)
 assert SPEC is not None and SPEC.loader is not None

@@ -24,23 +24,23 @@ Organized by domain (all mounted under /api/v1 by main.py):
 
 from fastapi import APIRouter
 
-from .documents import router as documents_router
-from .observations import router as observations_router
-from .interpretations import router as interpretations_router
-from .medications import router as medications_router
-from .notifications import router as notifications_router
 from .assistant import router as assistant_router
-from .export import router as export_router
-from .profiles import router as profiles_router
-from .model_settings import router as model_settings_router
-from .memory import router as memory_router
-from .gamification import router as gamification_router
-from .care_tasks import router as care_tasks_router
-from .timeline import router as timeline_router
-from .med_reconcile import router as med_reconcile_router
-from .pinboards import router as pinboards_router
-from .search import router as search_router
 from .backup import router as backup_router
+from .care_tasks import router as care_tasks_router
+from .documents import router as documents_router
+from .export import router as export_router
+from .gamification import router as gamification_router
+from .interpretations import router as interpretations_router
+from .med_reconcile import router as med_reconcile_router
+from .medications import router as medications_router
+from .memory import router as memory_router
+from .model_settings import router as model_settings_router
+from .notifications import router as notifications_router
+from .observations import router as observations_router
+from .pinboards import router as pinboards_router
+from .profiles import router as profiles_router
+from .search import router as search_router
+from .timeline import router as timeline_router
 
 router = APIRouter()
 
@@ -64,4 +64,5 @@ router.include_router(search_router, prefix="/search", tags=["search"])
 router.include_router(backup_router, prefix="/backup", tags=["backup"])
 
 from .feedback import router as feedback_router
+
 router.include_router(feedback_router, prefix="/feedback", tags=["feedback"])
