@@ -97,4 +97,21 @@ describe('InterpretedResultCard', () => {
     expect(strong.tagName).toBe('STRONG');
     expect(container.textContent ?? '').not.toContain('**');
   });
+
+  it('HC-IRC-003: advice_text has [KB:] markers stripped and keeps one paragraph per line', () => {
+    render(
+      <InterpretedResultCard
+        interpretation={makeInterpretation({
+          advice_text:
+            'Eat more fibre. [KB:3f2a1b2c-0000-4000-8000-000000000001]\nWalk daily.',
+        })}
+      />
+    );
+    const heading = screen.getByText('Recommendations');
+    const section = heading.closest('div')!.parentElement!;
+    const text = section.textContent ?? '';
+    expect(text).not.toContain('[KB:');
+    expect(screen.getByText('Eat more fibre.')).toBeInTheDocument();
+    expect(screen.getByText('Walk daily.')).toBeInTheDocument();
+  });
 });
