@@ -102,7 +102,7 @@ def _requirements_installed(record: str) -> list[str]:
 
 
 def test_hc_devsh_001_no_compiler_ollama_skips_llama_cpp(tmp_path):
-    proc, record = _run_dev_sh(tmp_path, compiler=False, provider_env="ollama")
+    proc, record = _run_dev_sh(tmp_path, compiler=False, provider_env="Ollama")
     assert proc.returncode == 0, proc.stdout + proc.stderr
     reqs = _requirements_installed(record)
     assert reqs, record
@@ -129,7 +129,7 @@ def test_hc_devsh_003_compiler_present_installs_full_requirements(tmp_path):
 
 def test_hc_devsh_004_provider_read_from_backend_env_file(tmp_path):
     proc, record = _run_dev_sh(
-        tmp_path, compiler=False, provider_env=None, env_file="LLM_PROVIDER=ollama\n"
+        tmp_path, compiler=False, provider_env=None, env_file='LLM_PROVIDER="Ollama"  # local\n'
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
     reqs = _requirements_installed(record)
