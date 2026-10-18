@@ -354,7 +354,7 @@ Applied to every `"C"` and `"A2"` row on `046d12c` (planning AUDIT-NOTIF-ALL,
 2026-10-18), that recheck finds 17 more `"C"` handlers with no audit call in
 the body and none reached through a helper: 3 in `api/assistant.py`, 6 in
 `api/medications.py`, 8 in `api/model_settings.py` (list in the lane D
-AUDIT-NOTIF-ALL plan; suggested row AUDIT-C-CLASS). A per-file grep misses
+AUDIT-NOTIF-ALL plan; queue row AUDIT-C-CLASS). A per-file grep misses
 them, because the same file audits in a sibling handler; walk each handler body
 instead.
 

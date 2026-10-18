@@ -1,6 +1,6 @@
 # Lane E — Privacy, Gates, CI — Build Design
 
-**Last Updated:** 2026-10-18 (EXPORT-COLLECTED-TZ planned); 2026-10-17 (E-1b, REDACT-EMAIL-REDOS, DEV-SH-CC planned)
+**Last Updated:** 2026-10-18 (EXPORT-COLLECTED-TZ planned; owner answered (c)); 2026-10-17 (E-1b, REDACT-EMAIL-REDOS, DEV-SH-CC planned)
 **Owner:** repository owner
 **Status:** DESIGN — nothing here is implemented. Owner answers are quoted from [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md); this file records no new approval. Every "default" or "recommended" is the lane designer's, not the owner's.
 **Refresh Trigger:** any merge of #74, #72, #84 or a P6/P7 PR; an owner answer to S-3, S-6, OG-1, Q-AUD-LIST, Q-RUFF, Q-COV, CI-SEED, NPM-AUDIT-CI or W1-SMOKE-RUN; any commit to `.github/workflows/ci.yml`, `src/backend/api/export.py`, `src/backend/modules/export.py`, `src/backend/modules/redaction.py`, `src/backend/api/profiles.py`, `src/backend/core/auth.py`, `src/backend/core/denial_audit.py` or `src/backend/tests/support/routes.py`.
@@ -26,7 +26,7 @@
 | E-1b | strict misses parenthesised qualifier, `#`/`no.` after a bare label, `-` separator | queue status 2026-10-16 second batch; E-1a plan residual gaps 8–10 | yes → §2.8 | E-1a (merged #108) | blocked-on-owner (E1B-SCOPE, then E1B-DIFF); ask-first `redaction.py` |
 | REDACT-EMAIL-REDOS | quadratic `email` rule | queue status 2026-10-16 second batch | yes → §2.9 | — | blocked-on-owner (REDOS-APPROACH, then REDOS-DIFF); ask-first `redaction.py` |
 | DEV-SH-CC | `dev.sh` compiler check; skip `llama-cpp-python` under `LLM_PROVIDER=ollama` | queue status 2026-10-16 third batch (MM-4); DEV-SH `owner-decisions:147` | yes → §2.10 | — | ready |
-| EXPORT-COLLECTED-TZ | which day the doctor summary and visit-prep packet print for a lab result | queue status 2026-10-17 (EXPORT-TODAY-TZ planning) | yes → §2.11 | EXPORT-TODAY-TZ merged (same file) | blocked-on-owner (EXPORT-COLLECTED-TZ-DISPLAY) |
+| EXPORT-COLLECTED-TZ | which day the doctor summary and visit-prep packet print for a lab result | queue status 2026-10-17 (EXPORT-TODAY-TZ planning) | yes → §2.11 | EXPORT-TODAY-TZ merged (same files) | ready after EXPORT-TODAY-TZ merges; owner answered (c) |
 
 Graph: `E-3 → E-4 → E-5`; `P6 → P7 → E-2`; E-1, E-6, E-7 independent. E-1 and E-3 are the two lane-E code items ready today and share no file. The 2-code-L1 limit is **box-wide, not per lane**: L0 assigns the slots across lanes (§7 P-1).
 
@@ -291,49 +291,45 @@ Removing the stray `|` from `[A-Z|a-z]` would stop redacting `jane@x.c|om`-shape
 
 ### 2.11 EXPORT-COLLECTED-TZ — which day the doctor summary prints for a lab result (owner display ruling)
 
-**Source:** queue status 2026-10-17 (found while planning EXPORT-TODAY-TZ, lane D §3); queue row EXPORT-COLLECTED-TZ. **Do not build until the owner answers EXPORT-COLLECTED-TZ-DISPLAY** (§5). The plan has a task list for each option.
+**Source:** queue status 2026-10-17 (found while planning EXPORT-TODAY-TZ, lane D §3); queue row EXPORT-COLLECTED-TZ. **Owner answer 2026-10-18: EXPORT-COLLECTED-TZ-DISPLAY = (c) "As recorded + pin"** (owner-decisions row EXPORT-COLLECTED-TZ-DISPLAY). Only the (c) task list below is built. The options table stays as the record of what was asked.
 
-**Fact (`046d12c`; corrects the queue row):**
-- The doctor summary prints a collection date in one place: `_format_abnormal_values` (`src/backend/modules/export.py:199-208`), `date_str = obs.get("collected_at", "").strftime("%Y-%m-%d")` at `:203`. This renders the "Values Outside Reference Range" section (`:145-151`), which the text, HTML and PDF formats all render from the stored, strict-redacted dict (E-1, `redact_summary_data` `:222`). The format is owner O-2 ("ISO-8601 dates", 2026-10-08).
-- **`:302` is not the doctor summary.** It is `export_csv` (`:272`), behind `GET /export/csv` (`api/export.py:913-945`). That is the patient's own full-fidelity export: D3 exempt, pinned byte-for-byte by HC-EXPR-002 (`tests/test_export_redaction.py:260`). It stays out of scope under every option.
-- **Same class, also sent to a clinician:** the visit-prep packet prints `collected.date().isoformat()` (`modules/export.py:622-623`, `compose_visit_prep_packet` `:551`; callers `api/export.py:796`, `api/pinboards.py:500`). Each option below covers both `:203` and `:622`.
-- **What the stored value means, measured:** `Observation.collected_at` is naive `DateTime` (`models/observation.py:75-77`). Every ingest path stores the calendar date printed on the source as **midnight with no zone**. PDF extraction keeps only `YYYY-MM-DD` (`_normalize_date_str`, `modules/extract.py:664-703`, returns `parsed.strftime("%Y-%m-%d")` at `:700`; `_extract_dates` `:705`), parsed by `_parse_date_string` (`api/documents.py:138-184`, `:657`). CSV/FHIR import reduces even an offset `effectiveDateTime` to its own date (`modules/import_structured.py:77-97`) before `api/documents.py:759`. The only writer of a true UTC instant is `POST /observations/{id}/verify` with an offset-aware `collected_at` (`NaiveUtcDatetime`, `api/observations.py:153`, `:451-456`; UTC-SWEEP), and the frontend does not send that field today. For those values the owner already accepted the UTC calendar day for panels and interpretations (UTC-DAY, `owner-decisions:161`).
-- **So today both documents print the date as recorded** for every ingested result. That is the same date the app's own screens show: `new Date(<naive ISO>).toLocaleDateString()` reads a naive string as local wall-clock (`src/frontend/src/components/lab-interpreter/PanelInterpretationDashboard.tsx:169`, `src/frontend/src/pages/MedicationDetail.tsx:383`). "Prints in UTC" is true only for a verify-route instant.
-- **EXPORT-TODAY-TZ composes:** it computes `local_today` from `profile_timezone_name` in the routes, threads `today` into `render_html_summary` (footer `:401`), `compose_visit_prep_packet` (`Generated:` line `:703`) and `generate_questions` (`:454`), and leaves `:203`/`:302`/`:622` alone. This item lands after it (same file, `modules/export.py`). Under option (a) only, it reuses that route-level zone lookup.
+**Fact (`046d12c`; `modules/export.py` is unchanged on `b8a47c7`; corrects the queue row):**
+- **Doctor summary.** It prints a collection date in one place: `_format_abnormal_values` (`src/backend/modules/export.py:199-208`), `date_str = obs.get("collected_at", "").strftime("%Y-%m-%d")` at `:203`. That renders the "Values Outside Reference Range" section (`:145-151`). Text, HTML and PDF all render from the stored, strict-redacted dict (E-1, `redact_summary_data` `:222`). The format is owner O-2 ("ISO-8601 dates", 2026-10-08).
+- **`:302` is not the doctor summary.** It is `export_csv` (`:272`), behind `GET /export/csv` (`api/export.py:912-945`). That is the patient's own full-fidelity export: D3 exempt, and pinned byte for byte by HC-EXPR-002 (`tests/test_export_redaction.py:260`). Out of scope.
+- **The visit-prep packet also goes to a clinician** (`compose_visit_prep_packet` `:551`; callers `api/export.py:796`, `api/pinboards.py:500`). It prints three dates of the same kind:
+  - the observation line, `collected.date().isoformat()` (`:622-623`);
+  - the visit-mention lines, `f"- {date_str}: ..."` (`:643-645`). Their `doc_date` is `Document.collection_date.date().isoformat()`, computed in `_fetch_visit_mention_dicts` (`api/export.py:274-275`);
+  - the "Source Documents" lines, `collected.date().isoformat()` of `Document.collection_date` (`:676-677`).
+- **`Document.collection_date`** (naive `DateTime`, `models/document.py:61`) is `min(valid_dates)` of the document's extracted observation dates (`api/documents.py:665`, `:807`). So it is the same recorded-date-at-midnight value. The ruling covers all four sites: `:203`, `:622`, `:643-645` and `:676-677`.
+- **What the stored value means, measured.** `Observation.collected_at` is naive `DateTime` (`models/observation.py:75-77`). Every ingest path stores the calendar date printed on the source as **midnight with no zone**:
+  - PDF extraction keeps only `YYYY-MM-DD` (`_normalize_date_str`, `modules/extract.py:664-703`, which returns `parsed.strftime("%Y-%m-%d")` at `:700`; `_extract_dates` `:705`). `_parse_date_string` then parses it (`api/documents.py:138-184`, `:657`).
+  - CSV and FHIR import reduce even an offset `effectiveDateTime` to its own date (`modules/import_structured.py:77-97`) before `api/documents.py:759`.
+  - The only other writer is `POST /observations/{id}/verify` (`NaiveUtcDatetime`, `api/observations.py:153`, `:451-456`; UTC-SWEEP). It stores an offset-aware `collected_at` as a UTC instant. It stores a **naive** value with a time of day unchanged (`core/time.py:39`), which the app reads as UTC by the same convention as everywhere else. The frontend type allows the field (`src/frontend/src/services/types.ts:181`), but no caller sends it today. For such values the owner already accepted the UTC calendar day for panels and interpretations (UTC-DAY, `owner-decisions:161`).
+- **So today both documents print the date as recorded** for every ingested result. The app's own screens show the same date: `new Date(<naive ISO>).toLocaleDateString()` reads a naive string as local wall-clock (`src/frontend/src/components/lab-interpreter/PanelInterpretationDashboard.tsx:169`, `src/frontend/src/pages/MedicationDetail.tsx:383`).
+- **EXPORT-TODAY-TZ composes.** Its Design 2 rev (lane D §3, owner EXPORT-TODAY-TZ-DESIGN = B) stores the generation-day local date and leaves `:203`, `:302`, `:622`, `:643-645` and `:676-677` alone. It edits `modules/export.py` and `tests/test_export_redaction.py`, so this item lands after it.
 
-**Options (owner EXPORT-COLLECTED-TZ-DISPLAY):**
+**Options as asked (owner EXPORT-COLLECTED-TZ-DISPLAY; answered (c)):**
 
 | Option | What the doctor sees | Change |
 |---|---|---|
-| (a) profile's local time zone | instants: the patient's local day. Printed dates: unchanged, but only through a "naive midnight = date-only" rule | `to_local` on non-midnight values only. A plain `to_local` on every value moves every printed date one day earlier for a profile west of UTC (`2026-01-15 00:00` → `2026-01-14` in `America/Los_Angeles`). The midnight rule still misreads a real instant stored at exactly `00:00:00` UTC. Only a "date-only" column (profile migration and every writer) removes that, which is out of scope here: new row |
-| (b) UTC, labelled | `2026-01-15 UTC` | one suffix at `:203` and `:622`. It is honest about storage, but it labels the lab's printed date "UTC", which it is not. The suffix must survive strict redaction |
-| **(c) Recommended: date as recorded (today's output)** | `2026-01-15`, the same as the report and the app's own screens | no product edit; pin tests only. Revisit when wearables (#94) bring real timestamps into exports |
+| (a) profile's local time zone | instants: the patient's local day; recorded dates: unchanged, but only through a "naive midnight = date-only" rule | `to_local` on non-midnight values at all four sites, with the zone passed from the routes. A plain `to_local` on every value moves every recorded date one day earlier west of UTC (`2026-01-15 00:00` → `2026-01-14` in `America/Los_Angeles`). The midnight rule still misreads a real instant at exactly `00:00:00` UTC. A naive non-midnight verify value is read as UTC (app convention). A "date-only" column would remove the guess (schema change) |
+| (b) UTC, labelled | `2026-01-15 UTC` | one suffix at all four sites; it must survive strict redaction. It calls the lab's printed date "UTC", which it is not |
+| **(c) chosen: date as recorded (today's output)** | `2026-01-15`, the same as the report and the app's own screens | no product edit; pin tests only. Revisit when wearables (#94) bring real timestamps into exports |
 
-**Why (c):** every value that reaches these documents today is a recorded calendar date. (a) only adds risk for the rare verify-route instant, and (b) mislabels the common case. (c) matches UTC-DAY and the in-app display, and it costs no product change. This is the conservative choice (CLAUDE.md §1).
+**Owner question as asked (2026-10-18, through L0 AskUserQuestion; recorded verbatim in owner-decisions):** "EXPORT-COLLECTED-TZ-DISPLAY: which date should the doctor summary and the visit-prep packet print next to each lab result? Today every imported lab date (PDF, CSV, FHIR) is the date printed on the report, stored without a time zone, and printed unchanged. That matches the app's own screens." The source-document and visit-mention dates in the packet are the same recorded dates (`Document.collection_date` = the earliest observation date), so the answer covers them.
 
-**Owner question EXPORT-COLLECTED-TZ-DISPLAY (ask verbatim):** "Which date should the doctor summary and the visit-prep packet print next to each lab result? CONTEXT: every lab date the app imports today (PDF, CSV, FHIR) is the calendar date printed on the report, stored without a time zone, and both documents print it unchanged (e.g. 2026-01-15). That is the same date the app's own screens show. Only a collection time sent through the API with a UTC offset is stored as a UTC moment; for those, the printed date is the UTC day, which you accepted for panels (UTC-DAY). OPTIONS: (a) convert to your profile's time zone. This is right for real moments, but a printed date and a moment look the same in storage, so the code must treat midnight as 'date only'. A real moment at exactly midnight UTC would then print the wrong day, and only a schema change fixes that fully. (b) keep the stored date and label it 'UTC' (2026-01-15 UTC). This is honest about storage, but it calls the lab's own date a UTC date. (c) keep printing the date as recorded, with no label, and pin it with tests (Recommended). Nothing changes for the reader; revisit when wearables bring real timestamps. WHY IT MATTERS: a clinician reads these dates, and a one-day shift can put a result on the wrong side of a dose change or symptom."
+**Task 0:** EXPORT-TODAY-TZ is merged. Measure the collected count. Confirm the four sites still format as quoted: `grep -n 'strftime("%Y-%m-%d")\|date().isoformat()\|doc_date' src/backend/modules/export.py src/backend/api/export.py`.
 
-**Task 0 (all options):** EXPORT-TODAY-TZ is merged; measure collected; confirm `:203` and `:622` still format as quoted (`grep -n 'strftime("%Y-%m-%d")\|date().isoformat()' src/backend/modules/export.py`).
+**Tasks (option (c)):**
+1. **HC-EXPCTZ-001** (`tests/test_export_redaction.py`, the HTTP doctor-summary fixture `_export_client`, `:133-152`). Use profile zone `America/Los_Angeles` (the `profile_timezone_name` stub EXPORT-TODAY-TZ adds there) and an abnormal observation stored `datetime(2026, 1, 15)`. The text download contains `- 2026-01-15` and not `2026-01-14`. This is a pin, not RED. The mutant `to_local(...)` at `:203` fails it.
+2. **HC-EXPCTZ-002** (`tests/test_visit_prep_packet.py`). Call `compose_visit_prep_packet` directly with a verified observation `collected_at=datetime(2026, 1, 15)`, a verified visit mention `doc_date="2026-01-15"`, and a selected document `collection_date=datetime(2026, 1, 15)`. The markdown has `— 2026-01-15` (observation), `- 2026-01-15:` (mention) and `(2026-01-15)` (source document). This is a pin. A `to_local` mutant at `:622` or `:677` fails it.
+3. **No product edit.**
 
-**Tasks under (c):**
-1. HC-EXPCTZ-001 (`tests/test_export_redaction.py`, the HTTP doctor-summary fixture EXPORT-TODAY-TZ uses for HC-EXPTZ-003): profile `America/Los_Angeles`, an abnormal observation stored `datetime(2026, 1, 15)`. The text download contains `- 2026-01-15` and not `2026-01-14`. Not RED (pin). The mutant `to_local(...)` at `:203` fails it.
-2. HC-EXPCTZ-002 (`tests/test_visit_prep_packet.py`): the same setup through the visit-prep route. The packet markdown has `— 2026-01-15`. Pin; the same mutant at `:622` fails it.
-3. No product edit. **Files:** the two test files. **Expected collected delta:** +2.
+**Files:** `src/backend/tests/test_export_redaction.py`, `src/backend/tests/test_visit_prep_packet.py`, slots. **Expected collected delta:** +2. The existing substring pins (`tests/test_visit_prep_packet.py:183`, `tests/test_export_redaction.py:327`) are unchanged.
 
-**Tasks under (b):**
-1. RED: HC-EXPCTZ-001 asserts `- 2026-01-15 UTC`. HC-EXPCTZ-002 asserts `— 2026-01-15 UTC`. HC-EXPCTZ-003 (`tests/test_export_redaction.py`): after `redact_summary_data`, the stored text still contains `2026-01-15 UTC`, so strict leaves the suffix alone. That one is a pin.
-2. `modules/export.py:203` and `:622`: append ` UTC` to the date when there is one. "Unknown date" / "no date" stay as they are.
-3. **Files:** `src/backend/modules/export.py`, the two test files. **Expected collected delta:** +3. Existing substring pins (`tests/test_visit_prep_packet.py:183`, `tests/test_export_redaction.py:327`) still pass.
+**Acceptance:** `pyt tests/test_export_redaction.py tests/test_visit_prep_packet.py tests/test_export_api.py -q`: 0 failed. HC-EXPR-002 is still green. `git diff origin/main -- src/backend/modules src/backend/api` is empty. **Rollback:** revert; no data.
 
-**Tasks under (a)** (midnight rule; the "date-only" column is a separate row if the owner wants it):
-1. RED: HC-EXPCTZ-001: a verify-style instant stored `datetime(2026, 1, 16, 1, 0)` (= Jan 15 17:00 PST) prints `2026-01-15` in the summary (UTC prints `2026-01-16`). HC-EXPCTZ-002: the same in the visit-prep packet. HC-EXPCTZ-003: a recorded date `datetime(2026, 1, 15)` still prints `2026-01-15`. That one is a pin, and it is the guard against a plain `to_local`. HC-EXPCTZ-004: a profile with no settings row prints exactly today's output. Pin.
-2. `modules/export.py`: one private `_display_date(value, tz_name)`. A naive value at midnight gives `value.date()`; anything else gives `to_local(value, tz_name).date()` (D-1 helper, `core/time.py`). `generate_doctor_summary(..., tz_name: str = "UTC")` passes it to `_format_abnormal_values`, and `compose_visit_prep_packet(..., tz_name: str = "UTC")` uses it at `:622`. The defaults keep module-level callers and tests unchanged.
-3. Routes: `api/export.py` (summary call `:424`, visit prep `:796`) and `api/pinboards.py:500` pass the zone that EXPORT-TODAY-TZ already looks up (hoist it into a local `tz`).
-4. **Files:** `src/backend/modules/export.py`, `src/backend/api/export.py`, `src/backend/api/pinboards.py`, `src/backend/tests/test_export_redaction.py`, `src/backend/tests/test_visit_prep_packet.py`. **Expected collected delta:** +4.
-
-**Acceptance (all options):** `pyt tests/test_export_redaction.py tests/test_visit_prep_packet.py tests/test_export_api.py tests/test_export_questions.py tests/test_fhir_export.py -q`: 0 failed. HC-EXPR-002 (CSV/JSON byte-for-byte) still green. `scripts/time_source_lint.py` clean. Full suite per RUNBOOK §6. **Rollback:** revert; no data.
-
-**Order:** after EXPORT-TODAY-TZ merges. Never beside E-1b (`tests/test_export_redaction.py`). Under (a), also never beside C-GC1 (`api/export.py`, `api/pinboards.py`).
+**Order:** after EXPORT-TODAY-TZ merges (both edit `tests/test_export_redaction.py` and `tests/test_visit_prep_packet.py`). Never beside E-1b (`tests/test_export_redaction.py`).
 
 ---
 
@@ -373,7 +369,7 @@ Removing the stray `|` from `[A-Z|a-z]` would stop redacting `jane@x.c|om`-shape
 | Ask-first `modules/redaction.py` (**edited**) | E-1b, REDACT-EMAIL-REDOS | each needs a yes to edit (E1B-SCOPE, REDOS-APPROACH) and a yes on its exact diff before merge (E1B-DIFF, REDOS-DIFF), as E-1a; never both at once |
 | E1B-SCOPE (new) | E-1b | unasked; (a) the queue row's shapes (qualifier, `#`/`no.`, `-`) or (b) also `=` and `;`. Recommended (b) |
 | REDOS-APPROACH (new) | REDACT-EMAIL-REDOS | unasked; (a) `@`-anchored match, identical output / (b) RFC bounds, narrower / (c) leave. Recommended (a) |
-| EXPORT-COLLECTED-TZ-DISPLAY (new) | EXPORT-COLLECTED-TZ | unasked; (a) profile-local day (midnight rule) / (b) stored day labelled `UTC` / (c) date as recorded, no change. Recommended (c). Question text in §2.11 and the queue's Owner questions table |
+| EXPORT-COLLECTED-TZ-DISPLAY | EXPORT-COLLECTED-TZ | **answered 2026-10-18: (c) "As recorded + pin"** (owner-decisions row EXPORT-COLLECTED-TZ-DISPLAY) |
 
 ## 6. Open questions
 
