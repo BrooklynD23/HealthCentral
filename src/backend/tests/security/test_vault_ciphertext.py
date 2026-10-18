@@ -7,6 +7,16 @@ requirement back on for themselves and read the raw bytes.
 sqlcipher3-binary publishes Linux wheels only (no win_amd64), so on native
 Windows HC-KEYCT-001/002 skip. In CI (CI=true) or with HC_REQUIRE_SQLCIPHER=1
 a missing sqlcipher3 is a FAILURE, never a skip (HC-KEYCT-005).
+
+HC-KEYCT-006 reads the rollback journal (vault.db-journal) while a write
+transaction is open, the only time it exists, and requires journal_mode=delete
+so the check cannot pass vacuously. HC-KEYCT-007 is the negative control for the
+canary scan in _assert_vault_ciphertext. HC-KEYCT-008 covers vault/docs/<id>.bin
+(IngestModule._encrypt_and_store), with an unencrypted control in the same test.
+
+The stdlib "file is not a database" check in _assert_vault_ciphertext cannot
+fire on its own: SQLite refuses any file lacking the plaintext header, so the
+header check above it already covers that case. It has no separate control.
 """
 
 from __future__ import annotations
@@ -23,6 +33,7 @@ import core.sqlcipher_driver as sqlcipher_driver
 from core.config import settings
 from core.profile_database import get_profile_db_manager
 from core.security import generate_encryption_key, seal_key_with_dpapi
+from modules.ingest import IngestModule
 
 SQLITE_PLAINTEXT_HEADER = b"SQLite format 3\x00"
 PROFILE = "hc-keyct-profile"
@@ -167,6 +178,25 @@ def test_hc_keyct_007_negative_control_canary_in_non_sqlite_file_is_caught(tmp_p
     (tmp_path / "vault.db").write_bytes(b"NOT-A-SQLITE-HEADER" + CANARY.encode() + b"\x00" * 64)
     with pytest.raises(AssertionError, match="canary found"):
         _assert_vault_ciphertext(tmp_path, CANARY)
+
+
+def test_hc_keyct_008_vault_docs_blobs_are_ciphertext(tmp_path):
+    """Coverage for the other on-disk artefact: vault/docs/<id>.bin written by
+    IngestModule._encrypt_and_store. Negative control in the same test: with no
+    key the writer stores the canary in plaintext, so the scan can see it."""
+    data = f"lab result {CANARY}".encode()
+
+    encrypted = tmp_path / "encrypted"
+    ingest = IngestModule(encrypted, encryption_key=generate_encryption_key())
+    ingest._encrypt_and_store("doc-keyct-enc", data)
+    assert CANARY.encode() not in (encrypted / "docs" / "doc-keyct-enc.bin").read_bytes()
+
+    plain = tmp_path / "plain"
+    ingest = IngestModule(plain, encryption_key=None)
+    ingest._encrypt_and_store("doc-keyct-plain", data)
+    assert CANARY.encode() in (plain / "docs" / "doc-keyct-plain.bin").read_bytes(), (
+        "negative control: the unencrypted writer should leave the canary readable"
+    )
 
 
 @pytest.mark.parametrize(
