@@ -374,7 +374,7 @@ Defaults stay `utcnow().date()`, so module-level callers and tests are unchanged
 **Why a rev:** the build stopped at Task 0 on draft PR #155 ("blocked: tell L0" comment). Design 2 above has `api/export.py:534` and `:882` pass `local_today`. Those calls are in the download routes `download_summary` (`api/export.py:488-489`) and `download_visit_prep` (`:831-832`), and those routes have no `profile_db`, so they cannot look up the zone. Adding `ProfileDbSession` to them would run the vault dependency before the ownership check. The cross-profile 403 would then come from the dependency, with no `denial.cross_profile` row, and `tests/test_denial_audit.py:66-92` (HC-AUD-ORD-040/042) would fail. The owner chose (B) (owner-decisions row EXPORT-TODAY-TZ-DESIGN): "Record the local date when the summary or packet is generated and print that."
 
 **Replaces Design 2 (the footer). Design 1 (`generate_questions(today=)`) and Design 3 (`compose_visit_prep_packet(today=)`) stand.** Lines below are at `b8a47c7` (main after #165).
-1. **Generate routes compute the local date once.** These are the routes that have `ProfileDbSession`: `generate_doctor_summary` (`api/export.py:380-381`), `generate_visit_prep` (`:705-706`) and `export_pinboard_packet` (`api/pinboards.py:397`). Each computes `local_today = to_local(utcnow(), await profile_timezone_name(profile_db, profile_id)).date()` and uses it for Design 1 and Design 3.
+1. **Routes compute the local date once.** These are the routes that have `ProfileDbSession`: `generate_doctor_summary` (`api/export.py:380-381`), `generate_questions` (`POST /export/questions`, `:614-615`; Design 1 only), `generate_visit_prep` (`:705-706`) and `export_pinboard_packet` (`api/pinboards.py:397`). Each computes `local_today = to_local(utcnow(), await profile_timezone_name(profile_db, profile_id)).date()` and uses it for Design 1 and, where it applies, Design 3. In `generate_visit_prep` and `export_pinboard_packet`, the lookup goes **after** the `confirm is not True` check (`api/pinboards.py:404`). HC-PKT-009 (`tests/test_visit_prep_packet.py:290-303`) and HC-PIN-004 (`tests/test_pinboards.py:195-204`) pass a bare `AsyncMock()` vault and expect the 400 first.
 2. **Doctor summary:** after `redact_summary_data` (`api/export.py:450`) and before `_summary_store[...] = summary_data` (`:451`), set `summary_data["generated_on"] = local_today.isoformat()`. It is added after redaction, so `redact_summary_data` (I-10) and HC-EXPR-001/002/003 keep their semantics. The value is a bare ISO date with no user text. Note for C-GC1: the persisted `payload_json` gains this one key.
 3. **Footer:** `render_html_summary(summary_data)` (`modules/export.py:401`) prints `date.fromisoformat(summary_data["generated_on"]).strftime('%B %d, %Y')` when the key is present, and `utcnow()` as today when it is absent. The fallback covers module-level callers (`tests/test_export_api.py:387`, `:403`) and store dicts seeded without the key. There is no `today` parameter. `download_summary` (`:533`) and the PDF path (`modules/export.py:407`) are unchanged: they render the stored dict. The footer now shows the **generation** date, not the download date.
 4. **Visit prep:** `compose_visit_prep_packet(..., today=local_today)` (Design 3) also stores `packet["generated_on"] = (today or utcnow().date()).isoformat()` next to `generated_at` (`modules/export.py:718`). The `Generated:` line (`:704`) prints the same date.
@@ -395,18 +395,18 @@ Defaults stay `utcnow().date()`, so module-level callers and tests are unchanged
 - `tests/test_export_redaction.py`: `_FakeProfileDb.execute` returns the fixture rows for any query (`:107-114`), so the new zone lookup in `generate_doctor_summary` cannot read a settings row. `_export_client` (`:133-152`) patches `api.export.profile_timezone_name` to return `"UTC"`, or the test's zone for HC-EXPTZ-003/005. This keeps HC-EXPR-001/002/003 green.
 - `tests/test_visit_prep_packet.py`: about ten `await generate_visit_prep(request, _make_session(), AsyncMock(), AsyncMock())` calls pass an `AsyncMock` vault. Patch `api.export.profile_timezone_name` to return `"UTC"` in `_patch_fetchers` (`:265-283`).
 
-**Re-run, not edited** (their vaults are real SQLite with `ProfileDatabaseBase.metadata.create_all`, so the lookup returns `"UTC"`):
+- `tests/test_pinboards.py`: HC-PIN-005 (`:208-262`) calls `export_pinboard_packet` directly with an `AsyncMock` vault whose `execute.side_effect` is a fixed list of 3 results (`:237-240`). An extra `execute` would shift or exhaust that list. Add `monkeypatch.setattr("api.pinboards.profile_timezone_name", AsyncMock(return_value="UTC"))` in HC-PIN-005. HC-PIN-004 needs no edit (see step 1).
+- `tests/test_export_questions.py`: HC-QGN-013 (`:324-356`) calls the questions route with `profile_db=AsyncMock()`. Add the `api.export.profile_timezone_name` stub returning `"UTC"` there. This edit is required.
+
+**Re-run, not edited** (their vaults are real SQLite with `ProfileDatabaseBase.metadata.create_all`, so the lookup returns `"UTC"`; the real-SQLite pinboard export path is `tests/test_audit_order.py:598`):
 - `tests/test_utc_sweep_http.py` (`:229`, `:240`)
 - `tests/test_rl_export_prompt_snapshot.py`
 - `tests/test_audit_order.py`
-- `tests/test_pinboards.py`
 - `tests/test_export_api.py` (module-level `render_html_summary`, fallback path)
 - `tests/test_denial_audit.py`
 - `tests/test_fhir_export.py`
 
-`tests/test_export_questions.py` is already in the base file list for Design 1. If its route tests pass a fake vault, they get the same one-line `profile_timezone_name` stub.
-
-**Files (rev):** `src/backend/modules/export.py`, `src/backend/api/export.py`, `src/backend/api/pinboards.py`, `src/backend/tests/test_export_questions.py`, `src/backend/tests/test_export_redaction.py`, `src/backend/tests/test_visit_prep_packet.py`, slots. **Expected collected delta:** +7 (HC-EXPTZ-001…007).
+**Files (rev):** `src/backend/modules/export.py`, `src/backend/api/export.py`, `src/backend/api/pinboards.py`, `src/backend/tests/test_export_questions.py`, `src/backend/tests/test_export_redaction.py`, `src/backend/tests/test_visit_prep_packet.py`, `src/backend/tests/test_pinboards.py`, slots. **Expected collected delta:** +7 (HC-EXPTZ-001…007).
 
 **Acceptance (rev):** the base acceptance above, plus `tests/test_denial_audit.py tests/test_pinboards.py tests/test_utc_sweep_http.py tests/test_rl_export_prompt_snapshot.py tests/test_audit_order.py` with 0 failed and `git diff origin/main -- src/backend/tests/test_denial_audit.py` empty.
 
