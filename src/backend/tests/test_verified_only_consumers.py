@@ -208,3 +208,28 @@ async def test_hc_ver_004_only_unverified_data_yields_insufficient_context_witho
 
     assert runner.prompts == [], "runner was called with a prompt although only unverified data exists"
     assert result.insufficient_context is True
+# ── HC-VER-003: document chunks (vector path, _search_vectors_async) ───────
+
+def _chunk_with_embedding(chunk_id: str, doc_id: str, text: str) -> list:
+    return [
+        Chunk(id=chunk_id, doc_id=doc_id, chunk_index=0, text=text, page_number=1),
+        Embedding(chunk_id=chunk_id, model_name="stub", vector_blob=b"\x00", dimensions=2),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_hc_ver_003_unverified_document_chunk_absent_from_legacy_rag_context(real_profile_db) -> None:
+    db = real_profile_db
+    db.add_all([_document("doc-v", "verified"), _document("doc-u", "parsed")])
+    # Distinct tokens: neither may be a substring of the other.
+    db.add_all(_chunk_with_embedding("chunk-v", "doc-v", "ALPHA-VERIFIED-CHUNK report text"))
+    db.add_all(_chunk_with_embedding("chunk-u", "doc-u", "BRAVO-PENDING-CHUNK report text"))
+    await db.commit()
+    rag, runner = _rag()
+
+    await _ask(rag, runner, db, "What does my report say?", None)
+
+    assert len(runner.prompts) == 1, "verified document chunk should still reach the model"
+    prompt = runner.prompts[0]
+    assert "ALPHA-VERIFIED-CHUNK" in prompt, "positive control: verified-document chunk missing"
+    assert "BRAVO-PENDING-CHUNK" not in prompt, "unverified-document chunk text reached the legacy RAG prompt"

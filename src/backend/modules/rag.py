@@ -562,6 +562,10 @@ USER QUESTION: {question}"""
             select(Chunk, Embedding, Document)
             .join(Embedding, Chunk.id == Embedding.chunk_id)
             .join(Document, Chunk.doc_id == Document.id)
+            # D4: chunks have no verified flag of their own; they inherit the
+            # parent document's (RECONCILIATION R-5), as the agent's
+            # retrieve_chunks tool filters.
+            .where(Document.status == "verified")
         )
 
         # Apply date filters on Document.collection_date
