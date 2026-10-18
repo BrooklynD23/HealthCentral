@@ -939,6 +939,7 @@ def test_hc_bkup_060_failed_backup_leaves_no_backup_dir(data_dir, backup_dir, mo
 def test_hc_bkup_063_failed_backup_keeps_earlier_same_second_backup(data_dir, backup_dir, monkeypatch):
     """Cleanup removes only the failed backup's own dir, never a good sibling."""
     from datetime import datetime
+
     from scripts import backup as backup_script
 
     monkeypatch.setattr(backup_script, "utcnow", lambda: datetime(2026, 1, 2, 3, 4, 5))
@@ -959,6 +960,7 @@ def test_hc_bkup_063_failed_backup_keeps_earlier_same_second_backup(data_dir, ba
 def test_hc_bkup_061_same_second_backups_get_distinct_dirs(data_dir, backup_dir, monkeypatch):
     """Two backups in one second must not share (and clobber) a directory."""
     from datetime import datetime
+
     from scripts import backup as backup_script
 
     monkeypatch.setattr(backup_script, "utcnow", lambda: datetime(2026, 1, 2, 3, 4, 5))
@@ -977,6 +979,7 @@ def test_hc_bkup_062_busy_source_hits_deadline_not_file_copy(tmp_path, monkeypat
     """A source held under an exclusive lock must raise at the deadline, never
     hang and never fall back to a torn file copy."""
     import threading
+
     from scripts import backup as backup_script
 
     if module_name == "sqlite3":
