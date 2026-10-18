@@ -432,3 +432,67 @@ async def test_hc_streak_tz_002_longest_streak_uses_profile_local_date(profile_d
         ctx.__exit__(None, None, None)
     assert resp.status_code == 200, resp.text
     assert resp.json()["longest_streak_days"] == 3
+
+
+def _stats_client(profile_db, master_db, raise_server_exceptions=True):
+    ctx = route_client(
+        med_router, "/medications", profile_id=PROFILE,
+        master_db=master_db, raise_server_exceptions=raise_server_exceptions,
+    )
+    client = ctx.__enter__()
+
+    async def _override_profile_db():
+        return profile_db
+
+    client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+    return ctx, client
+
+
+@pytest.mark.asyncio
+async def test_hc_audmed_001_stats_view_is_audited_on_master_db(profile_db, monkeypatch):
+    import api.medications as med_api
+    from unittest.mock import AsyncMock
+
+    med_id = await _seed(profile_db)
+    master_db = AsyncMock()
+    calls = []
+
+    async def _spy(**kwargs):
+        calls.append(kwargs)
+
+    monkeypatch.setattr(med_api, "log_document_event", _spy)
+    ctx, client = _stats_client(profile_db, master_db)
+    try:
+        resp = client.get(f"/medications/{med_id}/stats")
+    finally:
+        ctx.__exit__(None, None, None)
+    assert resp.status_code == 200, resp.text
+    assert len(calls) == 1
+    call = calls[0]
+    assert call["event"] == "view"
+    assert call["profile_id"] == PROFILE
+    assert call["document_id"] == med_id
+    assert call["details"]["entity_type"] == "medication_adherence_stats"
+    # Audit row must go to the master DB (not the profile DB) and be committed.
+    assert call["db"] is master_db
+    master_db.commit.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_hc_audmed_002_stats_audit_failure_fails_closed(profile_db, monkeypatch):
+    import api.medications as med_api
+    from unittest.mock import AsyncMock
+
+    med_id = await _seed(profile_db)
+
+    async def _boom(**kwargs):
+        raise RuntimeError("audit down")
+
+    monkeypatch.setattr(med_api, "log_document_event", _boom)
+    ctx, client = _stats_client(profile_db, AsyncMock(), raise_server_exceptions=False)
+    try:
+        resp = client.get(f"/medications/{med_id}/stats")
+    finally:
+        ctx.__exit__(None, None, None)
+    assert resp.status_code == 500
+    assert "current_streak_days" not in resp.text
