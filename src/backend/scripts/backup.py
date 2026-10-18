@@ -193,7 +193,9 @@ def _backup_sqlite(source: Path, dest: Path, sqlite_module=sqlite3) -> str:
     deadline = time.monotonic() + BACKUP_BUSY_TIMEOUT_S
 
     def _progress(status, remaining, total):
-        if time.monotonic() > deadline:
+        # 101 = SQLITE_DONE: a copy that finished is complete and consistent,
+        # keep it even if it landed just past the deadline.
+        if status != 101 and time.monotonic() > deadline:
             raise BackupBusyTimeout(
                 f"SQLite backup of {source} still busy after {BACKUP_BUSY_TIMEOUT_S}s"
             )
@@ -421,7 +423,6 @@ def _backup_unlocked(
             suffix += 1
             dest_dir = backup_dir / f"backup_{timestamp}_{suffix}"
     try:
-
         databases = _discover_databases(data_dir)
 
         key_files = _discover_key_files(data_dir)
@@ -525,6 +526,9 @@ def _backup_unlocked(
         )
     except BaseException:
         shutil.rmtree(dest_dir, ignore_errors=True)
+        if dest_dir.exists():
+            # May still hold an unscoped master; surface it, path stays out of HTTP detail.
+            logger.warning("Failed backup directory could not be removed: %s", dest_dir)
         raise
 
 

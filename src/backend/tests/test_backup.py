@@ -938,6 +938,26 @@ def test_hc_bkup_060_failed_backup_leaves_no_backup_dir(data_dir, backup_dir, mo
     assert list(backup_dir.iterdir()) == []
 
 
+def test_hc_bkup_063_failed_backup_keeps_earlier_same_second_backup(data_dir, backup_dir, monkeypatch):
+    """Cleanup removes only the failed backup's own dir, never a good sibling."""
+    from datetime import datetime
+    from scripts import backup as backup_script
+
+    monkeypatch.setattr(backup_script, "utcnow", lambda: datetime(2026, 1, 2, 3, 4, 5))
+    good = backup_script.backup(data_dir=data_dir, backup_dir=backup_dir)
+    good_bytes = good.manifest_path.read_bytes()
+
+    def boom(_path):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(backup_script, "_compute_sha256", boom)
+    with pytest.raises(OSError):
+        backup_script.backup(data_dir=data_dir, backup_dir=backup_dir)
+
+    assert sorted(p.name for p in backup_dir.iterdir()) == ["backup_20260102_030405"]
+    assert good.manifest_path.read_bytes() == good_bytes
+
+
 def test_hc_bkup_061_same_second_backups_get_distinct_dirs(data_dir, backup_dir, monkeypatch):
     """Two backups in one second must not share (and clobber) a directory."""
     from datetime import datetime
@@ -954,31 +974,40 @@ def test_hc_bkup_061_same_second_backups_get_distinct_dirs(data_dir, backup_dir,
     assert first.manifest_path.read_bytes() == first_bytes
 
 
-def test_hc_bkup_062_busy_source_hits_deadline_not_file_copy(tmp_path, monkeypatch):
+@pytest.mark.parametrize("module_name", ["sqlite3", "sqlcipher"])
+def test_hc_bkup_062_busy_source_hits_deadline_not_file_copy(tmp_path, monkeypatch, module_name):
     """A source held under an exclusive lock must raise at the deadline, never
     hang and never fall back to a torn file copy."""
     import threading
     from scripts import backup as backup_script
 
+    if module_name == "sqlite3":
+        mod = sqlite3
+    else:
+        from core.sqlcipher_driver import get_sqlcipher_module
+        mod = get_sqlcipher_module()
+
     src = tmp_path / "locked.db"
-    conn = sqlite3.connect(str(src))
+    conn = mod.connect(str(src))
     conn.execute("CREATE TABLE t (id INTEGER)")
     conn.commit()
     conn.close()
 
-    locker = sqlite3.connect(str(src), isolation_level=None)
+    locker = mod.connect(str(src), isolation_level=None)
     outcome: dict = {}
 
     def run():
         try:
-            outcome["result"] = backup_script._backup_sqlite(src, tmp_path / "out.db")
+            outcome["result"] = backup_script._backup_sqlite(
+                src, tmp_path / "out.db", sqlite_module=mod
+            )
         except BaseException as exc:  # noqa: BLE001
             outcome["exc"] = exc
 
     t = threading.Thread(target=run, daemon=True)
     try:
         locker.execute("BEGIN EXCLUSIVE")
-        monkeypatch.setattr(backup_script, "BACKUP_BUSY_TIMEOUT_S", 0.5, raising=False)
+        monkeypatch.setattr(backup_script, "BACKUP_BUSY_TIMEOUT_S", 0.5)
         t.start()
         t.join(5)
         finished = not t.is_alive()
