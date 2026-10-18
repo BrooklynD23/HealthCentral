@@ -341,6 +341,10 @@ USER QUESTION: {question}"""
                         Observation.profile_id == profile_id,
                         Observation.analyte_canonical == analyte,
                         Observation.value.isnot(None),
+                        # D4 (owner, 2026-09-27): legacy RAG cites verified values
+                        # only, same filter as the agent's query_observations /
+                        # compute_trend tools.
+                        Observation.user_verified == True,  # noqa: E712
                     )
                     .order_by(Observation.collected_at.desc().nullslast())
                     .limit(5)
@@ -558,6 +562,10 @@ USER QUESTION: {question}"""
             select(Chunk, Embedding, Document)
             .join(Embedding, Chunk.id == Embedding.chunk_id)
             .join(Document, Chunk.doc_id == Document.id)
+            # D4: chunks have no verified flag of their own; they inherit the
+            # parent document's (RECONCILIATION R-5), as the agent's
+            # retrieve_chunks tool filters.
+            .where(Document.status == "verified")
         )
 
         # Apply date filters on Document.collection_date
