@@ -175,7 +175,7 @@ The implementer drafts the exact pattern, posts it in the PR body, and the owner
 | HC-REDACT-001 (+4 rows, only under E1B-SCOPE (b)) | `mrn_=_a12345`, `mrn_;_a12345`, `patient_name_=_jane_doe`, `patient_name_;_jane_doe` | yes ×4 |
 | HC-REDACT-004 (+6 rows in `ANALYTE_LIKE`) | `glucose_(fasting)`, `t4_(free)`, `name_(of_test)`, `patient_(count)_3`, `ldl_-_calculated`, `mrna_-_level` unchanged, 0 redactions | no (guards; each must fail against a mutant in Task 3, as in E-1a) |
 | HC-REDACT-009 ×3 | strict on `"mrn" + "_(" * 20000`, `"patient" + "_#" * 20000 + "!"`, `"mrn" + "_-" * 20000 + "!"` → under 1.0 s and text unchanged | measure in Task 0; it is a backtracking guard for the widened rule |
-| HC-EXPR-001 (+1 row in `GAP_ROWS`, `tests/test_export_redaction.py:271`) | analyte `mrn_(hospital):_a12345` → absent from every doctor-summary download format | yes |
+| HC-EXPR-001 (+1 row in `GAP_ROWS`, `tests/test_export_redaction.py:271`; no new test id: `GAP_ROWS` feeds only the non-parametrized `test_hc_expr_001_underscore_phi_redacted`, text format) | analyte `mrn_(hospital):_b67890` (a value no other row uses) → add `b67890` to that test's absent-tuple; absent from the text download | yes |
 
 Also edit the `test_export_redaction.py` module docstring (`:9-10`): drop "the E-1b shapes" from the not-covered list and name what remains (gap 11, non-space whitespace; `=`/`;` unless E1B-SCOPE (b)).
 
@@ -183,16 +183,16 @@ Also edit the `test_export_redaction.py` module docstring (`:9-10`): drop "the E
 
 **Files:** `src/backend/modules/redaction.py` (ask-first, **edited**), `src/backend/tests/test_redaction.py`, `src/backend/tests/test_export_redaction.py`.
 
-**Expected collected delta:** +17 (7 + 6 + 3 + 1); +21 under E1B-SCOPE (b).
+**Expected collected delta:** +16 (7 + 6 + 3; the `GAP_ROWS` row adds no collected test); +20 under E1B-SCOPE (b).
 
 **Acceptance** (from `src/backend`, `pyt` = `scripts/pyslot.sh env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest`):
 1. `pyt tests/test_redaction.py tests/test_export_redaction.py -q -rfE`: 0 failed.
 2. E-1a acceptance rows 3–4 (safety suites; the other strict callers `fhir_export`, `visit_prep`, `rl_*`, `external_runner`, `agent/test_s4_phi_gate`, `agent/test_s6_evals`): same pass/fail as Task 0.
-3. Full suite per RUNBOOK §6; collected = N0 + 17 (or + 21).
+3. Full suite per RUNBOOK §6; collected = N0 + 16 (or + 20).
 
 **Doc claim (PR body, PRIV-04 gap column via L0):** strict now also matches a parenthesised qualifier, `#` / `no.` before a bare label's colon, and `-` as a label separator. Never "all PHI".
 
-**Order:** never beside REDACT-EMAIL-REDOS (same two files). Either may go first; the second rebases and re-runs both timing tests. **Rollback:** revert; no data.
+**Order:** never beside REDACT-EMAIL-REDOS (same two files), and never beside EXPORT-TODAY-TZ (`tests/test_export_redaction.py`). Either redaction row may go first; the second rebases and re-runs both timing tests. **Rollback:** revert; no data.
 
 ### 2.9 REDACT-EMAIL-REDOS — the `email` rule is quadratic (ask-first `modules/redaction.py`)
 
@@ -226,7 +226,7 @@ Removing the stray `|` from `[A-Z|a-z]` would stop redacting `jane@x.c|om`-shape
 
 | Id | Assertion | RED today? |
 |---|---|---|
-| HC-REDACT-010 ×3 | strict on each of the 3 inputs above at `N = 20000` → under 1.0 s, text unchanged | yes ×3 (3.8–5.0 s) |
+| HC-REDACT-010 ×3 | strict on each of the 3 input shapes above at `N = 60000` → under 1.0 s, text unchanged | yes ×3 (quadratic: 9× the `N = 20000` time, which was 0.81–5.0 s across runs, so ≥ 7 s; at `N = 20000` the fastest recorded run, 0.81 s, would pass on `main`) |
 | HC-REDACT-011 | differential: build `RedactionEngine(policy_level=lvl, rules=[OLD_EMAIL])` from an inline copy of today's rule, with no anchor. The inputs are a fixed corpus (`jane@x.com`, `a.b+c@sub.x.org`, `jane_doe@example.com`, `.jane@x.com`, `-a@x.io`, `mail: jane@x.com.`, `éjane@x.com`, `jane@@x.com`, `a@b@c.com`, `a@b.com.c@d.com`, `x@y`, `@x.com`) plus 2000 seeded-random strings of length ≤ 40 over `a._-+%@é ,;\n0`. Each must give the same `text` and the same metadata spans as the new engine, at strict and at standard | no (pin; a mutant that drops the "previous match end" bound fails on `a@b.com.c@d.com`) |
 | HC-REDACT-012 | a rule without an anchor keeps today's `finditer` path: the SSN/phone/underscore tests are unchanged, and one test checks `RedactionRule(...).anchor is None` by default | no (pin) |
 
@@ -251,7 +251,7 @@ Removing the stray `|` from `[A-Z|a-z]` would stop redacting `jane@x.c|om`-shape
 4. No compiler and any other provider: `die` **before** pip with the fix: "install a C compiler (Debian/Ubuntu: sudo apt install build-essential), or set LLM_PROVIDER=ollama".
 5. A test hook, `HC_DEV_STOP_AFTER_DEPS=1`, exits 0 after STEP 3. Document it in the header beside `HC_SKIP_OCR_SETUP`. `dev.ps1` is out of scope: same gap on Windows, new row if wanted.
 
-**Test-first:** new `src/backend/tests/test_dev_sh_prereqs.py`, skipped on Windows. Each test copies `dev.sh` into `tmp_path` with a 2-line `src/backend/requirements.txt` (`fastapi`, `llama-cpp-python==0.3.35`) and `config/.env.example`. It runs `bash dev.sh` through `subprocess` with a stub `PATH` (`python3` reporting 3.11 and recording `-m pip` arguments, `node`, `npm`, and `cc` only when wanted), with `HC_ALLOW_WINDOWS_MOUNT=1` and `HC_DEV_STOP_AFTER_DEPS=1`.
+**Test-first:** new `src/backend/tests/test_dev_sh_prereqs.py`, skipped on Windows. Each test copies `dev.sh` into `tmp_path` with a 2-line `src/backend/requirements.txt` (`fastapi`, `llama-cpp-python==0.3.35`) and `config/.env.example`. It runs `bash dev.sh` through `subprocess` with a stub `PATH` that is **only** a `tmp_path/bin` directory (`/usr/bin` usually holds `cc`/`gcc`, so it must not be on `PATH`): symlinks to the tools `dev.sh` runs (`bash`, `grep`, `mktemp`, `tail`, `rm`, `cp`, `cat`, `dirname`, `uname`, ...; Task 1 lists them from `dev.sh`), a `python3` stub reporting 3.11 that creates the venv's `bin/python` (itself the stub) and records `-m pip` arguments, `node`, `npm`, and `cc` only when wanted, with `HC_ALLOW_WINDOWS_MOUNT=1` and `HC_DEV_STOP_AFTER_DEPS=1`.
 
 | Id | Assertion | RED today? |
 |---|---|---|

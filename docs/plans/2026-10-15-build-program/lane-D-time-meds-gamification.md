@@ -365,7 +365,7 @@ Defaults stay `utcnow().date()`, so module-level callers and tests are unchanged
 
 **Acceptance:** `pyt tests/test_export_questions.py tests/test_export_redaction.py tests/test_visit_prep_packet.py tests/test_export_api.py tests/test_fhir_export.py -q`: 0 failed. HC-EXPR-002 (CSV/JSON byte-for-byte) still green. `scripts/time_source_lint.py` clean. The recurring-failures #9 recheck grep returns no `utcnow().date()` in `modules/export.py`. Full suite per RUNBOOK §6. **Rollback:** revert.
 
-**Order:** never beside C-GC1 (`api/export.py`, `api/pinboards.py`). E-1 is merged (#106).
+**Order:** never beside C-GC1 (`api/export.py`, `api/pinboards.py`) or E-1b (`tests/test_export_redaction.py`). E-1 is merged (#106).
 
 ---
 

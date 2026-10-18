@@ -207,7 +207,7 @@ GC3A-ORDER becomes moot once #72 merges. GC3A-LEDGER (`feature_list.json` HC-M06
 | HC-IRC-005 | range −5 to 5 (a signed analyte) → the min label is `-8.0` (today's formula kept) | no (pin) |
 | HC-IRC-006 (IR-FOOTER a) | `model_tier: "template"` → footer `Source: knowledge-base template` | yes |
 
-**Files:** `src/frontend/src/components/lab-interpreter/InterpretedResultCard.tsx`, `src/frontend/src/components/lab-interpreter/ReferenceRangeComparison.tsx`, `src/frontend/src/components/lab-interpreter/formatInterpretationText.ts` (new), plus `AdviceSection`'s file if it is separate, and `src/frontend/src/__tests__/InterpretedResultCard.test.tsx` (new).
+**Files:** `src/frontend/src/components/lab-interpreter/InterpretedResultCard.tsx`, `src/frontend/src/components/lab-interpreter/ReferenceRangeComparison.tsx`, `src/frontend/src/components/lab-interpreter/formatInterpretationText.ts` (new), `src/frontend/src/components/lab-interpreter/AdviceSection.tsx`, and `src/frontend/src/__tests__/InterpretedResultCard.test.tsx` (new).
 
 **Expected collected delta:** backend 0. Frontend: +6 vitest cases (+5 without IR-FOOTER (a)).
 
@@ -243,9 +243,9 @@ GC3A-ORDER becomes moot once #72 merges. GC3A-LEDGER (`feature_list.json` HC-M06
 
 The MM-4 report itself is not in the repo. If the owner can share one de-identified page's `extract_text()` output (optional gate EXF-SAMPLE), it becomes an extra HC-EXF-004 row. The plan does not wait for it.
 
-**Files:** `src/backend/modules/extract.py`, `src/backend/tests/test_extraction_pipeline.py`. **Expected collected delta:** +11 (6 + 1 + 1 + 1 + 1 + 1). **Acceptance:** `pyt tests/test_extraction_pipeline.py tests/test_date_extraction.py tests/test_documents_api.py tests/test_unit_conversion.py -q` 0 failed. Full suite per RUNBOOK §6. **Rollback:** revert. Already-extracted documents are unchanged until a user re-processes them.
+**Files:** `src/backend/modules/extract.py`, `src/backend/tests/test_extraction_pipeline.py`. **Expected collected delta:** +11 (6 + 1 + 1 + 1 + 1 + 1). **Acceptance:** `pyt tests/test_extraction_pipeline.py tests/test_date_extraction.py tests/test_documents_api.py tests/test_unit_conversion.py tests/test_extraction_golden.py -q` 0 failed (B-8 merged as #140, so its golden set measures this parser; any golden change goes in the PR body for the owner's S-C3-2 rule). Full suite per RUNBOOK §6. **Rollback:** revert. Already-extracted documents are unchanged until a user re-processes them.
 
-**Order:** B-8 (G-C3a golden set) is blocked. If it lands later, it measures this parser. If it lands first, this PR re-runs `tests/test_extraction_golden.py` and reports any golden change for the owner's S-C3-2 rule. No shared file.
+**Order:** B-8 (G-C3a golden set) merged as #140, so this PR re-runs `tests/test_extraction_golden.py` (acceptance above) and reports any golden change for the owner's S-C3-2 rule. No shared file.
 
 ## Provides
 
