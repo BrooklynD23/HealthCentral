@@ -5,7 +5,6 @@ Each test runs a copy of dev.sh in a sandbox whose PATH is only tmp_path/bin
 leak in. HC_DEV_STOP_AFTER_DEPS=1 stops the script after the pip step.
 """
 
-import os
 import shutil
 import stat
 import subprocess
