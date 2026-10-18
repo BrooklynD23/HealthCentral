@@ -115,7 +115,7 @@ Graph: `E-3 → E-4 → E-5`; `P6 → P7 → E-2`; E-1, E-6, E-7 independent. E-
 
 **Acceptance (RUNBOOK §6, pasted):** steps 1 and 8 output; full suite through `scripts/pyslot.sh` with no new failures; collected count with its delta (a rise only from renamed F811 tests); `python -c "from main import app"`; `git diff --name-only origin/main...HEAD | grep -E 'interpret_safety|redaction|faithfulness|verifier_agent|core/auth|core/security|profile_database|security/__init__'` prints nothing.
 
-**Merge order (PARALLEL-WAVES):** E-3a merges last in its run. Before merging: `git merge origin/main`, re-run Tasks 2 to 6 on the merged tree (safe fixes, then a hand check of anything new), re-run step 8 and the full suite.
+**Merge order (PARALLEL-WAVES):** E-3a merges last in its run. Never run `ruff format` (L0 ruling 2026-10-17 on #142 round 3: it reformats 230 files including ask-first files and merged migrations). Encryption-adjacent files `migrations/profile/env.py` and `core/config.py` are treated as ask-first here: per-file-ignores, not edits. Before merging: `git merge origin/main`, re-run Tasks 2 to 6 on the merged tree (safe fixes, then a hand check of anything new), re-run step 8 and the full suite.
 
 **E-3 Task 7 delta:** with Q-RUFF-SET, the `backend-lint` job runs `ruff check .` with the configured set (not only `E9,F63,F7,F82`) and pins `ruff==0.17.1`. It needs E-3a merged first. The Step 1 seed (`F821`) still applies.
 
