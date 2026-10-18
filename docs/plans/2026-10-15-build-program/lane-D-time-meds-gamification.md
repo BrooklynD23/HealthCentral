@@ -1,6 +1,6 @@
 # Lane D — Time Zones, Medications, Gamification — Build Design
 
-**Last Updated:** 2026-10-16 (D-2 rev 2, owner Q1)
+**Last Updated:** 2026-10-17 (MED-STREAK-GRACE, AUDIT-MISSING-MED, EXPORT-TODAY-TZ planned); 2026-10-16 (D-2 rev 2, owner Q1)
 **Owner:** repository owner
 **Refresh Trigger:** any merge of #95, #97, #99, #82 or #84; any commit to `src/backend/core/time.py`, `src/backend/modules/notification_scheduler.py`, `src/backend/modules/adherence_patterns.py`, `src/backend/modules/streak_engine.py`, `src/backend/api/medications.py`, `src/backend/api/gamification.py`, `src/backend/api/notifications.py`, `src/backend/monitoring/correlation.py`; a new profile migration after `012_pinboards`.
 **Status:** DESIGN. Nothing here is implemented. Owner answers cited below are quoted from `docs/capstone-report/owner-decisions-2026-09-27.md`; this file records no new approval.
@@ -19,6 +19,9 @@
 | D-2 | SCHED-TZ: scheduler on profile-local now/today; adaptive windows stored local | owner row SCHED-TZ (`:173`); #97 comment at `api/medications.py` learn_patterns (after #97) | no | D-1, #97 | blocked-on-item |
 | D-3 | GAM2-STREAK0: ongoing streak counts through yesterday | owner row GAM2-STREAK0 (`:145`); #84 review LOW-3 (`docs/reviews/2026-10-12/GAM2-T24-diff-codereview.md:76-79` on `feat/gamification-v2-t24`) | no | #84, D-1 | blocked-on-PR |
 | D-4 | CORRELATION-NORMALISE: canonical form of an inbound correlation ID | `implementation-program.md:500`; `audit/2026-09-25/waves/wave-3-L1-A.md:176` | no | — | done (#138) |
+| MED-STREAK-GRACE | per-medication and reminder streaks count through yesterday (Q2) | queue status 2026-10-16 second batch | [§3](#med-streak-grace--the-per-medication-streak-still-resets-each-morning-owner-ruling--q2) | D-3 (merged #109) | blocked-on-owner (MSG-SCOPE) |
+| AUDIT-MISSING-MED | audit rows on `GET /medications/{id}/stats` and `POST /notifications/test/{id}` | queue status 2026-10-16 second batch; CLAUDE.md audit invariant | [§3](#audit-missing-med--two-profile-data-routes-write-no-audit-row) | D-1 (merged #104); rebase after #130 | ready |
+| EXPORT-TODAY-TZ | export questions window and generated-on dates use the profile-local day | queue status 2026-10-16 second batch; recurring-failures #9 | [§3](#export-today-tz--export-dates-use-the-utc-calendar-day) | D-1 helpers (merged) | ready |
 
 Dependency graph: `D-0 → D-1 → {D-2, D-3}`; D-4 is independent. D-2 and D-3 touch disjoint product files and may run as the 2 allowed code L1s at once.
 
@@ -264,6 +267,106 @@ Existing `test_hc_gam_http_002/003/007/008/009` keep their values (checked: none
 
 **Gate:** registered under "Program owner items", which says each is owner-gated and none is approved (`implementation-program.md:456`). Dispatch only after an owner go.
 
+### MED-STREAK-GRACE — the per-medication streak still resets each morning (owner ruling = Q2)
+
+**Source:** queue status 2026-10-16 (second batch), a D-3 follow-up; open question Q2 in §7. Planned on `origin/main` @ `b54f105`.
+
+**Fact (re-read on `b54f105`):** three surfaces compute "current streak", and only one applies the owner's GAM2-STREAK0 rule ("Count through yesterday", `owner-decisions:146`):
+
+| Surface | Code | Missed-morning value |
+|---|---|---|
+| Gamification widget `GET /gamification/streaks` | `api/gamification.py:169-171`: `compute_streak(as_of) or compute_streak(as_of - 1 day)` | N (grace) |
+| Per-medication `GET /medications/{id}/stats` (`AdherenceDashboard.tsx:97-100` → `StreakDisplay`) | `api/medications.py:1234-1244` `_calculate_current_streak` → `compute_streak(doses, tz, today)` | **0** |
+| Reminder text: `POST /notifications/test/{id}` (`api/notifications.py:454`) and the scheduler (`modules/notification_scheduler.py:564`) | `modules/adherence_patterns.py:441-452` `calculate_streak`: its own loop from `today` | **0**; a reminder fires only when today's dose is not logged, so under today's rule it always says 0 |
+
+**Owner gate MSG-SCOPE (= Q2).** Options:
+- **(a) Recommended:** apply the grace at all three. `_calculate_current_streak` returns `compute_streak(.., today) or compute_streak(.., today - 1)`. `calculate_streak` replaces its own current-streak loop (`:441-452`) with the same two `compute_streak` calls (one engine, recurring-failures #9). `compute_streak` and badges stay unchanged, as in D-3.
+- (b) Stats route only, so the dashboard matches the widget. Reminder text keeps 0.
+- (c) No change. Close the row.
+
+**Test-first** (RED on `b54f105`; doses at 17:00Z = 09:00 PST, profile `America/Los_Angeles`, using the STREAK-TZ helpers `_seed_la_doses` / `_freeze_utcnow` in `tests/test_medications_routes_http.py:383-401`):
+
+| Id | File | Assertion | RED? |
+|---|---|---|---|
+| HC-MSG-001 | `tests/test_medications_routes_http.py` | doses Jan 13–15, now Jan 16 18:00Z (10:00 PST, no dose today) → `GET /medications/{id}/stats` `current_streak_days == 3` | yes (0) |
+| HC-MSG-002 | same | doses Jan 13–14, now Jan 16 18:00Z (Jan 15 had none) → `0` | no (pin: a full day without a dose ends it) |
+| HC-MSG-003 | same | same seed as 001, single medication → stats `current_streak_days` == `GET /gamification/streaks` `current_streak_days` (both routes over `route_client`) | yes (0 vs 3) |
+| HC-MSG-004 (a only) | `tests/test_notification_routes_http.py` | seed as 001 → `POST /notifications/test/{id}` passes `MessageContext.current_streak == 3` (spy pattern of `test_hc_streak_tz_003`) | yes (0) |
+
+**Files:** `src/backend/api/medications.py`, `src/backend/modules/adherence_patterns.py` (a only), `src/backend/tests/test_medications_routes_http.py`, `src/backend/tests/test_notification_routes_http.py` (a only).
+
+**Expected collected delta:** +4 under (a), +3 under (b).
+
+**Acceptance:** `pyt tests/test_medications_routes_http.py tests/test_notification_routes_http.py tests/test_gamification_api.py tests/test_streak_engine.py tests/test_adherence_patterns_tz_http.py tests/test_notification_scheduler_wiring.py -q`: 0 failed. Existing `hc_streak_tz_001/002` keep their values. `hc_streak_tz_003` keeps 3, because today has a dose there. Full suite per RUNBOOK §6. **Rollback:** revert; no data.
+
+**Order:** never beside AUDIT-MISSING-MED (`api/medications.py`, both test files).
+
+### AUDIT-MISSING-MED — two profile-data routes write no audit row
+
+**Source:** queue status 2026-10-16 (second batch), a D-1 follow-up; CLAUDE.md hard invariant "Audit logging on every route that touches documents, observations, or profile data".
+
+**Fact (`b54f105`):**
+- `GET /medications/{medication_id}/stats` (`api/medications.py:1101-1105` `get_adherence_stats`) reads doses and returns adherence and streaks. It has no audit call and takes no `master_db`. The middleware does not cover it: `security/audit_middleware.py` logs only mutating methods (`MUTATING_METHODS`, `:20`), and only to the log (`tests/security/test_audit_middleware.py:83` `test_get_skipped`).
+- `POST /notifications/test/{medication_id}` (`api/notifications.py:417-421` `send_test_medication_notification`) reads the medication and its streak, then sends a notification. No audit call. The middleware writes a `SECURITY_AUDIT` log line, not an audit row.
+- **Found while planning (wider than the row):** `api/notifications.py` has **no** audit call at all. `log_document_event` is imported at `:23` and never used. Yet `tests/test_audit_order_guard.py:92-93` classifies `update_notification_settings` and `record_reminder_interaction` as `"C"` (audit after change). Those two handlers commit (`:267`, `:560`) and write no row. The guard checks that a handler is classified, not that the class is true: recurring-failures #9. Not fixed here; new unplanned row **AUDIT-NOTIF-ALL** (queue).
+- PR #130 (E-3a ruff cleanup) may delete the unused `log_document_event` import. This item re-adds what it needs after #130 merges.
+
+**Design (pattern of `get_medication_correlations`, `api/medications.py:524-531`):**
+1. `get_adherence_stats` takes `master_db: AsyncSession = Depends(get_db)`. After the access check, and before the response is built, it calls `await audit_and_commit(master_db, log_document_event, event="view", profile_id=session.profile_id, document_id=medication_id, details={"entity_type": "medication_adherence_stats"})`. This is fail-closed: an audit failure fails the request.
+2. `send_test_medication_notification` takes `master_db` the same way and makes the same call with `"entity_type": "medication_test_notification"`, **before** the notification is generated and sent, so an unaudited read never reaches the OS notifier. Import `audit_and_commit` from `core.audit`.
+3. Both handlers now commit, so `tests/test_audit_order_guard.py` (HC-AUD-ORD-030) fails until they are classified. Add `"api/medications.py::get_adherence_stats"` and `"api/notifications.py::send_test_medication_notification"` as `"excluded: read route, audit_and_commit only"`.
+4. No `core/audit.py` edit: action "Viewed document" and detail key `entity_type` are already allowlisted (`core/audit.py:36-60`, `:89`).
+
+**Test-first** (over HTTP with `route_client`; spy = `monkeypatch.setattr(<module>, "log_document_event", spy)`, because `audit_and_commit` calls the `log_fn` object it is handed):
+
+| Id | File | Assertion | RED? |
+|---|---|---|---|
+| HC-AUDMED-001 | `tests/test_medications_routes_http.py` | `GET /medications/{id}/stats` → 200 and exactly one spy call with `event="view"`, `profile_id=PROFILE`, `document_id=med_id`, `details["entity_type"] == "medication_adherence_stats"`; the master session's `commit` awaited | yes |
+| HC-AUDMED-002 | same | spy raises → the stats body is not served (`raise_server_exceptions=False`, status 500) | yes (200 today) |
+| HC-AUDMED-003 | `tests/test_notification_routes_http.py` | `POST /notifications/test/{id}` → one spy call with `entity_type == "medication_test_notification"`, recorded before `service.send` (call-order list) | yes |
+| HC-AUDMED-004 | same | spy raises → `service.send` never awaited, response not 200 | yes |
+
+**Files:** `src/backend/api/medications.py`, `src/backend/api/notifications.py`, `src/backend/tests/test_medications_routes_http.py`, `src/backend/tests/test_notification_routes_http.py`, `src/backend/tests/test_audit_order_guard.py` (2 classification rows).
+
+**Expected collected delta:** +4.
+
+**Acceptance:** the four tests above; `pyt tests/test_audit_order_guard.py tests/test_audit_phi_minimization.py tests/test_audit_order.py tests/test_medications_routes_http.py tests/test_notification_routes_http.py -q`: 0 failed. Full suite per RUNBOOK §6. **Rollback:** revert.
+
+**Order:** never beside MED-STREAK-GRACE, and never beside another open PR on `tests/test_audit_order_guard.py` (C-GAM2B, E-2, B-5, C-GC1, RSI1-DONATE). Rebase after #130.
+
+### EXPORT-TODAY-TZ — export dates use the UTC calendar day
+
+**Source:** queue status 2026-10-16 (second batch); recurring-failures #9 names `modules/export.py:454` as the one remaining UTC-date hit.
+
+**Fact (re-read on `b54f105`; the queue row's wording is corrected here):**
+- `modules/export.py:454` `today = today or utcnow().date()` sets the 14-day near-due window (`NEAR_DUE_WINDOW_DAYS`, `:68`; used `:504`) for **open care-task questions**. The doctor-summary route does not pass care tasks (`api/export.py:417-420`), so `:454` does **not** change the doctor summary. It changes `POST /export/questions` (`api/export.py:653-658`), the visit-prep packet (`:782-787`) and the pinboard packet (`api/pinboards.py:497-500`). None of them passes `today`.
+- What **does** date the doctor summary in UTC is the HTML footer, `Generated by Asclexis • {utcnow().strftime('%B %d, %Y')}` (`modules/export.py:401`, `render_html_summary`; PDF renders from it, `:407`). It is the same class as the visit-prep line `Generated: {generated_at.date().isoformat()}` (`:703`).
+- Not in scope: stored timestamps (`generated_at=utcnow()`, `:164`, `:693`, `:717`; naive UTC is the storage rule), and observation dates rendered as `collected_at.strftime("%Y-%m-%d")` (`:203`, `:302`). Whether a lab's collection date should show in local time is a separate display question (new unplanned row **EXPORT-COLLECTED-TZ** if wanted).
+
+**Design:** the routes compute `local_today = to_local(utcnow(), await profile_timezone_name(profile_db, profile_id)).date()` once (D-1 helpers, §2) and pass it:
+1. `generate_questions(..., today=local_today)` at all four call sites (3 in `api/export.py`, 1 in `api/pinboards.py`).
+2. `render_html_summary(summary_data, today: Optional[date] = None)` uses `today` for the footer. The two callers (`api/export.py:534`, `:882`) pass `local_today`.
+3. `compose_visit_prep_packet(..., today: Optional[date] = None)` uses it for the `Generated:` line. `generated_at` itself stays UTC.
+
+Defaults stay `utcnow().date()`, so module-level callers and tests are unchanged.
+
+**Test-first** (profile `America/Los_Angeles`; freeze `api.export.utcnow`, `api.pinboards.utcnow` and `modules.export.utcnow` at `2026-01-16 01:00Z` = Jan 15 17:00 PST; RED on `b54f105`):
+
+| Id | File | Assertion | RED? |
+|---|---|---|---|
+| HC-EXPTZ-001 | `tests/test_export_questions.py` | over HTTP (`route_client`), an open care task due `2026-01-30` (= UTC today + 14, local today + 15) → `POST /export/questions` has **no** follow-up question for it | yes (UTC window includes it) |
+| HC-EXPTZ-002 | same | a task due `2026-01-29` (local + 14) → the follow-up question is present | no (pin: the window still includes its last day) |
+| HC-EXPTZ-003 | `tests/test_export_redaction.py` (its doctor-summary HTTP fixture, `test_hc_expr_003` `:423`) | the HTML download footer contains `January 15, 2026`, not `January 16, 2026` | yes |
+| HC-EXPTZ-004 | `tests/test_visit_prep_packet.py` | the packet markdown has `Generated: 2026-01-15` | yes |
+
+**Files:** `src/backend/modules/export.py`, `src/backend/api/export.py`, `src/backend/api/pinboards.py`, `src/backend/tests/test_export_questions.py`, `src/backend/tests/test_export_redaction.py`, `src/backend/tests/test_visit_prep_packet.py`.
+
+**Expected collected delta:** +4.
+
+**Acceptance:** `pyt tests/test_export_questions.py tests/test_export_redaction.py tests/test_visit_prep_packet.py tests/test_export_api.py tests/test_fhir_export.py -q`: 0 failed. HC-EXPR-002 (CSV/JSON byte-for-byte) still green. `scripts/time_source_lint.py` clean. The recurring-failures #9 recheck grep returns no `utcnow().date()` in `modules/export.py`. Full suite per RUNBOOK §6. **Rollback:** revert.
+
+**Order:** never beside C-GC1 (`api/export.py`, `api/pinboards.py`) or E-1b (`tests/test_export_redaction.py`). E-1 is merged (#106).
+
 ---
 
 ## 4. Provides
@@ -297,12 +400,12 @@ Existing `test_hc_gam_http_002/003/007/008/009` keep their values (checked: none
 | PR merges | D-0: #95, #97, #99, #82, #84 in that order | owner merges each |
 | CORRELATION-NORMALISE go | D-4 | **given** |
 | Re-learn method (Q1) | D-2 | **answered 2026-10-16: "Re-learn automatically"** — see D-2 rev 2 (no `core/auth.py` edit) |
-| Grace scope (Q2) | D-3 applies only to `GET /gamification/streaks` | default as written unless the owner widens it |
+| Grace scope (Q2) = **MSG-SCOPE** | D-3 applies only to `GET /gamification/streaks`; MED-STREAK-GRACE asks whether to widen it | not asked; options in §3 MED-STREAK-GRACE (planned 2026-10-17) |
 
 ## 7. Open questions
 
 1. **Q1 (D-2):** "One-time re-learn": the default is a migration that clears stored windows, so reminders use `target_time ± tolerance` until the user presses "Learn patterns". The other option is to re-learn automatically for every schedule in the migration or on first unlock. That needs the learner inside a migration, or a per-profile startup job while the vault is unlocked. Recommendation: clear. **Answered 2026-10-16: re-learn automatically on first unlock → D-2 rev 2.**
-2. **Q2 (D-1/D-3):** should "count through yesterday" also apply to `/medications/{id}/stats` and to the streak in reminder messages? A reminder fires only when today's dose is not yet logged, so under today's rule it always reports the streak as 0. Default: gamification route only (the owner's literal scope). Widening it later is the same one-line `or` at 2 more call sites.
+2. **Q2 (D-1/D-3):** should "count through yesterday" also apply to `/medications/{id}/stats` and to the streak in reminder messages? A reminder fires only when today's dose is not yet logged, so under today's rule it always reports the streak as 0. Default: gamification route only (the owner's literal scope). Widening it later is the same one-line `or` at 2 more call sites. **Now planned as MED-STREAK-GRACE (gate MSG-SCOPE), 2026-10-17.**
 3. **Q3 (D-2, out of scope):** quiet hours are stored (`api/notifications.py:73-74,247-248`) but `notification_scheduler.py` never reads them. Register as a separate item?
 4. **Q4 (D-2 edge):** a `target_time` that does not exist on a spring-forward day (02:00–02:59 local) gets no reminder that day. This matches the clamp behaviour of `_offset_time` (`:605-610`). Accept as is?
 5. **Q5 (D-2 rev 2, not asked yet):** re-learn windows automatically when the user later changes time zone? `adaptive_window_tz` makes it a one-condition change (`IS NULL OR != tz`). Default: no (owner asked for a one-time re-learn).

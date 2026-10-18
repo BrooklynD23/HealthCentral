@@ -1,6 +1,6 @@
 # Lane B — Interpretation and Eval
 
-**Last Updated:** 2026-10-15
+**Last Updated:** 2026-10-17 (INTERP-RENDER, EXTRACT-FORMATS planned)
 **Status:** DESIGN ONLY. Nothing here is implemented, signed or approved. No owner approval is recorded by this doc; every gate below is open unless it cites a row in [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md).
 **Base:** `origin/main` = `3b2236c` (2026-10-15), worktree `hc-wave6-design`. Open PRs assumed to merge as-is: #95, #97, #99, #82, #84, #94, #74, #72, #68, #61.
 **Collected-count slot on main:** `CLAUDE.md:30` and `:34` read **1574**; `AGENT.md:76` reads 1574. The orchestrator's "1501" is the slot on PR #95's branch, not main. Every count-changing PR in this lane re-measures with `--collect-only` and rewrites those three tokens (SLOT-RULE). Not re-run here (12 GB box rule).
@@ -19,6 +19,8 @@
 | B-7 | MM-1: W-4 20-question real-model count | OWNER + model machine | `TASK_LIST.md:82`; W4-OQ-2, W4-20Q-HOST (`owner-decisions:105,136`) | needs-model-machine | — |
 | B-8 | G-C3a HC-M06 extraction eval card | PRODUCT (tests + doc) | [W11b plan](../2026-09-27-W11b-roadmap-items-gc1-gc4.md) `:1214-1525`; [G-C3a pack](../../../audit/2026-09-25/waves/scaffold/G-C3a.md) | blocked-on-PR (#72) + owner (S-C3-2) | B-7 → #72 merged |
 | B-9 | MM-3 full suite with embedding model; MM-4 real-app smoke | OWNER + model machine | `TASK_LIST.md:84-85` | needs-model-machine | MM-4 after B-3 (and B-5 if merged) |
+| INTERP-RENDER | interpretation card: raw `**`, `[KB:]`/`[INT:]` markers, negative gauge axis, footer label | PRODUCT (frontend) | queue status 2026-10-16 third batch (MM-4) | ready (footer task: IR-FOOTER) | — |
+| EXTRACT-FORMATS | text-PDF parser: column layouts, missing units, table-page fallthrough | PRODUCT | queue status 2026-10-16 third batch (MM-4) | ready | — (EXF-SAMPLE optional) |
 
 Order: B-1, B-2 and B-6 are owner questions that can be asked now. B-3 codes in parallel. B-7 unblocks B-8. B-5 is last: it needs B-3's judge and B-2's ruling.
 
@@ -176,6 +178,77 @@ GC3A-ORDER becomes moot once #72 merges. GC3A-LEDGER (`feature_list.json` HC-M06
 - **MM-3:** `cd src/backend && python -m pytest tests/ --collect-only -q | tail -1` and the full suite on a machine with the embedding model. Expect `test_api_rag_index_002b` to pass there. Record both lines in `TASK_LIST.md`, on the MM-3/MM-4 rows only (own-row rule; no wait on lane F's F-13, contracts R-11).
 - **MM-4:** after B-3 merges, add to the smoke: one chat answer and one grounded interpretation on a real local model; record whether either was blocked and the audit `reason`. With break-glass off, confirm no warning; with the hook failing (stop backend), confirm the B-1 notice if B-1 has merged.
 
+## INTERP-RENDER — the interpretation card shows raw markup, a negative gauge axis and a confusing footer
+
+**Source:** queue status 2026-10-16 (third batch, MM-4). Planned on `origin/main` @ `b54f105`. Frontend only. No backend validation changes.
+
+**Facts (re-read on `b54f105`):**
+1. **Raw `**`.** `InterpretedResultCard.tsx:107-109` renders `interpretation.interpretation_text` as plain text in a `<p>`. The template path writes `\n\n**What this test measures:** … [KB:<id>]` (`modules/interpret.py:636`). No markdown renderer is in the frontend.
+2. **Raw markers.** The backend writes `[KB:<uuid>]` (`interpret.py:600,605,612,636`) and `[INT:<uuid>]` (`interpret.py:1187`, `modules/recommend.py:40`) **on purpose**: `_validate_llm_citations` (`:832`) and `interpret_safety.py:78` gate on them. The card already shows the citations as `CitationTooltip`s (`:110-120`), so the inline markers are noise. Strip them **display-side only**. `interpret_safety.py` is ask-first and is not touched.
+3. **Negative axis.** `ReferenceRangeComparison.tsx:20-23` computes `displayMin = refLow - 0.3 * (refHigh - refLow)`. With LDL `0–99` that is `-29.7`, the exact MM-4 value. The labels at `:85` and `:99` are unclamped; only the marker is (`:28`).
+4. **Footer `Model: template`** (`InterpretedResultCard.tsx:165`) is **accurate** for the card. `POST /interpretations/...` (`api/interpretations.py:380`) runs `interpret_observation`, the template path (`interpret.py:264`). The 19.3 s Ollama call was most likely the separate **grounded summary** (`interpret-grounded`, shown at `pages/LabInterpreter.tsx:290-296`), which is not persisted as this card. Model-written card text is B-5 (W-7). So the defect is a label patients cannot read, not a wrong value. Task 0 confirms on the model machine, from the MM-4 network log, which request took 19.3 s.
+
+**Design.**
+1. A pure helper `formatInterpretationText(text: string): { paragraphs: Array<Array<{ bold: boolean; text: string }>> }` in `src/frontend/src/components/lab-interpreter/formatInterpretationText.ts`. It removes `\s*\[(KB|INT):[^\]\s]+\]`, splits paragraphs on blank lines, and turns `**x**` into bold runs. It renders React nodes only: no `dangerouslySetInnerHTML`, no new dependency. The card uses it for `interpretation_text`; `AdviceSection` uses it for `advice_text`.
+2. Gauge: when `refLow >= 0` and `value >= 0`, `displayMin = Math.max(0, refLow - padding)`. Ranges that start below 0 keep today's formula.
+3. **Footer (gate IR-FOOTER, its own task):** recommended (a) map `model_tier` to plain text: `template` → `Source: knowledge-base template`, any other tier → `Source: local model (<tier>)`.
+
+**Owner gate IR-FOOTER** (text patients see):
+- **(a) Recommended:** the plain labels above.
+- (b) Hide the footer tier.
+- (c) Keep `Model: <tier>`. The footer then changes when B-5 makes the card model-written.
+
+**Test-first** (vitest + testing-library, new `src/frontend/src/__tests__/InterpretedResultCard.test.tsx`, `HC-IRC-NNN`; RED on `b54f105`):
+
+| Id | Assertion | RED? |
+|---|---|---|
+| HC-IRC-001 | text `"High. [KB:3f2a-…] More [INT:9c1e-…]."` → rendered text has no `[KB:` / `[INT:`; the citation tooltips still render | yes |
+| HC-IRC-002 | `"\n\n**What this test measures:** LDL…"` → a `<strong>` holds `What this test measures:`; no literal `**` | yes |
+| HC-IRC-003 | `advice_text` with a marker → stripped in `AdviceSection` too | yes |
+| HC-IRC-004 | `ReferenceRangeComparison` value 120, range 0–99 → the min label is `0.0`, not `-29.7` | yes |
+| HC-IRC-005 | range −5 to 5 (a signed analyte) → the min label is `-8.0` (today's formula kept) | no (pin) |
+| HC-IRC-006 (IR-FOOTER a) | `model_tier: "template"` → footer `Source: knowledge-base template` | yes |
+
+**Files:** `src/frontend/src/components/lab-interpreter/InterpretedResultCard.tsx`, `src/frontend/src/components/lab-interpreter/ReferenceRangeComparison.tsx`, `src/frontend/src/components/lab-interpreter/formatInterpretationText.ts` (new), `src/frontend/src/components/lab-interpreter/AdviceSection.tsx`, and `src/frontend/src/__tests__/InterpretedResultCard.test.tsx` (new).
+
+**Expected collected delta:** backend 0. Frontend: +6 vitest cases (+5 without IR-FOOTER (a)).
+
+**Acceptance:** `cd src/frontend && npx tsc --noEmit` clean; `npx vitest run src/__tests__/InterpretedResultCard.test.tsx src/__tests__/LabInterpreter.test.tsx` all pass. That command runs from Windows or CI (vitest stalls on `/mnt/c`, RUNBOOK §6 step 5). Record the run's location. `npm run lint` clean. **Rollback:** revert.
+
+**Order:** no shared file with B-1 (`pages/LabInterpreter.tsx`) or W-3 (`InterpretedTrendChart.tsx`). B-5 later changes what `model_tier` holds, not this rendering.
+
+## EXTRACT-FORMATS — the text-PDF parser misses column layouts and `mIU/L`
+
+**Source:** queue status 2026-10-16 (third batch, MM-4). A column-layout report gave `0 values extracted`.
+
+**Facts (`b54f105`, `src/backend/modules/extract.py`):**
+1. Lines are parsed only by `LINE_PATTERN` (`:333-342`, `Analyte: value unit (range) flag`) and `ALT_LINE_PATTERN` (`:344-353`, `Analyte value unit (range) flag`). Both are anchored `^…$`. The range must sit in **parentheses**, and the flag must come **after** the range. A column row such as `TSH 2.10 mIU/L 0.45-4.50` or `Glucose 105 H mg/dL 70-99` matches neither. `_extract_from_text` (`:358-380`) drops non-matching lines silently.
+2. The unit alternation (`:75`, `:336`, `:347`) has no `mIU/L`, `uIU/mL`, `µIU/mL`, `ng/dL`, `ug/dL`, `nmol/L`, `pmol/L` or `umol/L`. `modules/normalize.py` `UNIT_CONVERSIONS` (`:39-60`) converts all of them. For example, `tsh` takes `miu/l` and `uiu/ml`; `free_t4` takes `ng/dl` and `pmol/l`.
+3. `extract_from_pdf` runs the text parser **only when `page.extract_tables()` returns nothing** (`:156-160`). A page where pdfplumber detects a table that yields 0 observations gets 0 values, even when its text lines would parse.
+
+**Design (smallest correct; a wrong value on a lab card is a patient-safety defect, so every new match needs a known unit and a whole-line match):**
+1. Add the units in `UNIT_CONVERSIONS` that the extractor lacks to one shared `_UNIT_ALT`, used by all three patterns. Task 1 diffs the two lists in the PR body. Spelling variants (`µ`/`u`, case) go through the existing case-insensitive flag; `µ` is added explicitly.
+2. A third pattern, `COLUMN_LINE_PATTERN`: analyte, value, optional flag, **required** unit, optional bare range (`a-b`, `<a`, `>a`), optional flag, whitespace-separated, `^…$`. Tried after the two existing patterns, so their matches are unchanged.
+3. On a page with tables, run the text parser when the tables gave **0** observations. A page whose tables gave any observation keeps today's behaviour, so no duplicates.
+
+**Test-first** (`src/backend/tests/test_extraction_pipeline.py`, beside `:340-390`, fixture `extract_module`; RED on `b54f105`):
+
+| Id | Assertion | RED? |
+|---|---|---|
+| HC-EXF-001 ×6 | `TSH: 2.1 mIU/L (0.4-4.0)`, `TSH 2.1 uIU/mL (0.4-4.0)`, `Free T4: 1.2 ng/dL (0.8-1.8)`, `Iron 80 ug/dL (60-170)`, `Vitamin D: 75 nmol/L (75-250)`, `Creatinine 88 umol/L (60-110)` → 1 observation each, value and unit exact | yes ×6 |
+| HC-EXF-002 | `TSH 2.10 mIU/L 0.45-4.50` → value 2.10, unit `mIU/L`, ref 0.45–4.50 | yes |
+| HC-EXF-003 | `Glucose 105 H mg/dL 70-99` → value 105, flag `H`, ref 70–99 | yes |
+| HC-EXF-004 | a 12-line column page (header `TEST RESULT FLAG UNITS REFERENCE INTERVAL`, `Page 1 of 2`, `Collected: 01/15/2026 08:10`, a patient-name line, 8 result rows) → exactly the 8 rows, none from header or footer lines | yes |
+| HC-EXF-005 | a fake pdfplumber page whose `extract_tables()` returns one table that yields 0 observations and whose text has 2 result lines → 2 observations | yes |
+| HC-EXF-006 | a fake page whose table yields 2 observations → 2 observations, text parser not run (no duplicates) | no (pin) |
+| HC-EXF-007 | existing colon and alt cases (`:340-390`) and `test_api_extract_001-004` unchanged | no (pin; existing tests) |
+
+The MM-4 report itself is not in the repo. If the owner can share one de-identified page's `extract_text()` output (optional gate EXF-SAMPLE), it becomes an extra HC-EXF-004 row. The plan does not wait for it.
+
+**Files:** `src/backend/modules/extract.py`, `src/backend/tests/test_extraction_pipeline.py`. **Expected collected delta:** +11 (6 + 1 + 1 + 1 + 1 + 1). **Acceptance:** `pyt tests/test_extraction_pipeline.py tests/test_date_extraction.py tests/test_documents_api.py tests/test_unit_conversion.py tests/test_extraction_golden.py -q` 0 failed (B-8 merged as #140, so its golden set measures this parser; any golden change goes in the PR body for the owner's S-C3-2 rule). Full suite per RUNBOOK §6. **Rollback:** revert. Already-extracted documents are unchanged until a user re-processes them.
+
+**Order:** B-8 (G-C3a golden set) merged as #140, so this PR re-runs `tests/test_extraction_golden.py` (acceptance above) and reports any golden change for the owner's S-C3-2 rule. No shared file.
+
 ## Provides
 
 1. `src/backend/modules/agent/guardrails/advice_judge.py`: `async def advice_judge(text: str, runner: core.model_runner.ModelRunner) -> Literal["ALLOW", "BLOCK", "UNAVAILABLE"]`; constant `FROZEN_PROMPT: str`. Never sends to an external runner. (B-3)
@@ -201,6 +274,8 @@ None of these is answered. Ask with the wording below; record answers in owner-d
 3. **PR3-TIER (B-3).** "Your Q4/Q5 'tier-2' minimum: the app cannot tell which tier a loaded model belongs to, except the `low` file. (a) enforce at measurement only, and block at runtime only when the loaded file is the `low` tier's (b) block unless the loaded file is a pinned mid-or-higher file (fails closed for everyone today) (c) other." Recommended (a).
 4. **PR3-S5N (B-3/B-4).** "S5 size: the plan asks 180 + 200 items; your Q6 note says 40-60. Which?" Recommended: the plan's size, or accept ±8 points at 50.
 5. **IUV-1 (B-6)**, **W7-SPILL (B-5)**, **S-C3-2** and **GC3A-LEDGER (B-8)**: wording in §B-6, the [W-7 pack](../../../audit/2026-09-25/waves/scaffold/W-7.md) Q3, and the [G-C3a pack](../../../audit/2026-09-25/waves/scaffold/G-C3a.md) §3.
+6. **IR-FOOTER (INTERP-RENDER, planned 2026-10-17).** "The lab card footer says `Model: template` even when a local model wrote the separate grounded summary. What should it say? (a) plain source labels: 'Source: knowledge-base template' / 'Source: local model (<tier>)' (b) hide the tier (c) keep as is." Recommended (a).
+7. **EXF-SAMPLE (EXTRACT-FORMATS, optional, planned 2026-10-17).** "Can you share the `extract_text()` output of one de-identified page of the column-layout report from MM-4? It becomes a regression row; the fix does not wait for it."
 
 Owner tasks (no question): OW-3 (S5), MM-1, MM-2, MM-3, MM-4.
 

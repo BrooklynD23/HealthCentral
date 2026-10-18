@@ -330,9 +330,27 @@ streak helpers and `calculate_streak` callers (STREAK-TZ, D-1 PR #104), the
 gamification streak (D-3 PR #109) and the scheduler clock with learned windows
 (SCHED-TZ, D-2 PR #115, profile migration `013_adaptive_windows_local`) now use
 the profile's local date and time (2026-10-16). One hit remains:
-`modules/export.py:454` dates the doctor summary with the UTC `today` (queue row
-EXPORT-TODAY-TZ). Recheck: `grep -rnE
+`modules/export.py:454` uses the UTC `today` (queue row EXPORT-TODAY-TZ; what it
+dates is corrected below). Recheck: `grep -rnE
 "taken_at\.(hour|date\(\)|weekday)|utcnow\(\)\.(date|time)\(\)" src/backend`.
+Planning EXPORT-TODAY-TZ (2026-10-17) found that `:454` sets the care-task
+questions window, not the doctor summary's date. The summary is dated by its
+HTML footer, `utcnow().strftime(...)` (`modules/export.py:401`), which the
+grep above does not match. Recheck the class with `grep -rn
+"utcnow()\.strftime\|utcnow()\.date()" src/backend --include=*.py`. On
+`b54f105` it prints `export.py:401`, `:454` and `scripts/backup.py:390`; the
+last is a backup filename stamp, UTC by design.
+
+It appears for audit too. The audit-order guard (`tests/test_audit_order_guard.py`,
+HC-AUD-ORD-030) checks that every committing handler is *classified*, not that
+the class is *true*. It lists `api/notifications.py::update_notification_settings`
+and `::record_reminder_interaction` as `"C"` (audit after change), but
+`api/notifications.py` has no audit call at all; its `log_document_event`
+import is unused (found planning AUDIT-MISSING-MED, 2026-10-17; new row
+AUDIT-NOTIF-ALL). Recheck: for each `"C"` or `"A2"` row, `grep -n
+"audit_and_commit\|audit_intent\|log_.*_event(" <file>` must hit inside that
+handler.
+
 
 **Recheck:** when a comment or doc justifies a deletion with a reason that names
 a *category* ("verbatim document text", "credential material", "anything

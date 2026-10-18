@@ -1,6 +1,6 @@
 # Lane A — RAG + assistant: build-program design
 
-**Last Updated:** 2026-10-15
+**Last Updated:** 2026-10-17 (CHAT-FACT-ROUTING, LOCAL-HF-HUB, INTERP-ADVICE-WORDING planned)
 **Owner:** repository owner
 **Status:** PROPOSED — design only, not approved for execution. No owner approval is recorded here that is not already in [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md). Every "Recommended" below is the lane designer's, not the owner's.
 **Refresh Trigger:** any of #72 (W-4), #95 (ASSIST-UTC), #74 (Tailwind 4) merging; any owner answer to a gate in [Owner gates](#owner-gates); any commit to `src/backend/api/assistant.py`, `src/backend/modules/rag.py`, `src/backend/api/interpretations.py` or `src/backend/modules/agent/**`.
@@ -21,6 +21,9 @@ Read-only design. No product file was edited. Existing merged plans are not rewr
 | SAFE-CHAT-HISTORY | OWNER | `:498` (c); wave-3-L1-A "Other paths" 5 | none | blocked-on-owner | SCH-RULING |
 | ASSIST-AGENT-DATES | PRODUCT | #95 body "Scope note"; `docs/reviews/2026-10-14/ASSIST-UTC-diff-codereview.md` (on `fix/assistant-utc`) MEDIUM row | none | ready | AAD-ROW + AAD-SEMANTICS answered; #95 merged (provides the parser) |
 | RAG-RUNTIME-500 | PRODUCT | program owner item `:495`; wave-3-L1-A Phase 4 owner item 4 | none | blocked-on-owner | RR500-MAP; serial with W-7 on `api/interpretations.py` |
+| CHAT-FACT-ROUTING | PRODUCT | queue status 2026-10-16 third batch (MM-4) | [below](#chat-fact-routing--the-agent-cannot-find-real-lab-rows-by-name-open-questions-dump-raw-facts) | ready (Tasks 1–2) | Task 3 only: CFR-FORMAT |
+| LOCAL-HF-HUB | PRODUCT (or folds into W-8) | queue status 2026-10-16 third batch (MM-4); LOCAL-01 | [below](#local-hf-hub--embeddings-may-fetch-from-the-hugging-face-hub-at-runtime-local-first) | blocked-on-owner | LHH-SCOPE; (a) = W-8's blockers |
+| INTERP-ADVICE-WORDING | PRODUCT (seed text) | queue status 2026-10-16 third batch (MM-4); no-medical-advice invariant | [below](#interp-advice-wording--a-seeded-kb-sentence-suggests-medication) | blocked-on-owner | IAW-WORDING |
 
 Collected-count note: the lane baseline is **1574** (`CLAUDE.md:30`, `AGENT.md:76` on `3b2236c`; confirmed by L0 in the peer-review round). 1501 was #95's own branch value. Not re-measured here (no pytest on this box). Ground rule 8 (SLOT-RULE): every lane-A PR runs `--collect-only` **after its final rebase** onto `origin/main` and writes the measured number into both slots in the same commit. It never adds its own delta to a number copied from a doc. Lane D's D-0 chain (#95 → #97 → #99 → #82 → #84) runs first, so lane-A PRs start from whatever D-0 measured.
 
@@ -207,6 +210,96 @@ Never put `str(exc)` in the detail; it carries provider error text. About 6 line
 - RAG-RUNTIME-500 lands **before B-5 (W-7)**. W-7 is the large insertion, and it already maps runner `RuntimeError` to its template fallback (W07 plan HC-INT tests `:551`, `:1021`).
 - W-8's 501 path is unaffected (W-8 point 5).
 
+## CHAT-FACT-ROUTING — the agent cannot find real lab rows by name; open questions dump raw facts
+
+**Source:** queue status 2026-10-16 (third batch, MM-4). Planned on `origin/main` @ `b54f105`.
+
+**Root cause (verified on `b54f105`; not the model):** the agent path is deterministic by design (S1/S2: `nodes/plan.py:188` "Deterministic plan", `nodes/draft.py:262`), so "answers without the model" is expected there. The patient-visible bug is a **name mismatch**. `_ANALYTE_KEYWORDS` (`modules/agent/nodes/plan.py:28-45`) maps question words to labels: `ldl` → `"LDL"`, `hdl` → `"HDL"`, `cholesterol` → `"Cholesterol"`, `a1c` → `"HbA1c"`, `vitamin d` → `"Vitamin D"`. The tools match those labels with `analyte_canonical ILIKE <label>`: `query_observations.py:60`, `compute_trend.py:59`, `check_verification.py:74`. Ingest stores the `NormalizeModule.ANALYTE_SYNONYMS` keys instead (`modules/normalize.py:165-195`): `ldl_cholesterol`, `hdl_cholesterol`, `total_cholesterol`, `hba1c`, `vitamin_d`. So with a real vault:
+- "Is my LDL cholesterol high?" finds 0 rows, then runs `check_verification("LDL")`, finds 0 rows, and abstains, even though `ldl_cholesterol` is verified.
+- "Explain my cholesterol results." finds `"Cholesterol"` ≠ `total_cholesterol` and gets the same result.
+- The agent goldens (`tests/agent/golden/*.json`, seeded by `tests/agent/conftest.py:127` with `analyte_canonical=<label>`) store the labels, so the eval gate never saw it.
+- With no analyte in the question, `query_observations` runs unfiltered, and `draft()` writes one sentence per row (`draft.py:69-80`): `Your verified {analyte_canonical} result was … (collected {collected_at})`. The result is raw keys such as `ldl_cholesterol` and a raw `datetime` string.
+
+**Design.**
+1. **Task 1–2 (no gate; a bug).** Add `NormalizeModule.canonical_keys_for(term: str) -> tuple[str, ...]` to `modules/normalize.py`, which already owns canonicalisation. It returns every key whose key, its space form, or a synonym equals `term.lower()`. The 3 tools match `func.lower(Observation.analyte_canonical).in_({label.lower(), *canonical_keys_for(label)})`. Labels keep matching, so the 74 goldens are unchanged, and real keys match too. Leave the `_ANALYTE_KEYWORDS` labels as they are.
+2. **Task 3 (gate CFR-FORMAT; what patients read).** Recommended option (a): a sentence names the analyte by `NormalizeModule.DISPLAY_NAMES` (`normalize.py:222`, else key → title case, as `:273`). It dates the result by the profile-local date (`%b %d, %Y`; D lane `to_local` + `profile_timezone_name`). An open question with no analyte drafts the **latest** verified value per analyte, at most 10 analytes, most recent first, each sentence cited.
+
+**Owner gate CFR-FORMAT** (Task 3 only; Tasks 1–2 do not wait):
+- **(a) Recommended:** display names, local dates, latest value per analyte, cap 10.
+- (b) Display names and local dates only; keep one sentence per verified row.
+- (c) No format change; ship Tasks 1–2 only.
+- Model-written agent answers stay out of scope. They need an LLM drafting node behind B-3's advice judge, which is a separate plan.
+
+**Test-first** (`src/backend/tests/agent/test_agentic_queries.py`, `HC-CFR-NNN`; real `run_agent` on the in-memory profile DB of `tests/agent/conftest.py`, seeding **ingest keys**; RED on `b54f105`):
+
+| Id | Assertion | RED? |
+|---|---|---|
+| HC-CFR-001 | verified `ldl_cholesterol` 138 → "Is my LDL cholesterol high?" ends `answer` and cites that observation id | yes (abstains) |
+| HC-CFR-002 | verified `total_cholesterol` → "Explain my cholesterol results." cites it | yes |
+| HC-CFR-003 | two verified `ldl_cholesterol` rows → "How has my LDL changed over time?" → `compute_trend` cites both | yes |
+| HC-CFR-004 | **unverified** `ldl_cholesterol` → still abstains with the "not yet verified" reason (the `check_verification` path now finds the row) | yes (today: the no-data reason) |
+| HC-CFR-005 | guard: every `_ANALYTE_KEYWORDS` value has `canonical_keys_for(value) != ()` | yes (no helper) |
+| HC-CFR-006 (Task 3) | the sentence for `ldl_cholesterol` says `LDL Cholesterol`, not `ldl_cholesterol` | yes |
+| HC-CFR-007 (Task 3) | `collected_at` `2026-01-16 01:00` (naive UTC), profile LA → the sentence says `Jan 15, 2026`, no `:` time | yes |
+| HC-CFR-008 (Task 3, a) | 15 verified analytes, 2 rows each → an open question drafts 10 sentences, one per analyte, the latest of each | yes |
+
+**Files:** `src/backend/modules/normalize.py`, `src/backend/modules/agent/tools/query_observations.py`, `src/backend/modules/agent/tools/compute_trend.py`, `src/backend/modules/agent/tools/check_verification.py`, `src/backend/modules/agent/nodes/draft.py` (Task 3), `src/backend/tests/agent/test_agentic_queries.py`.
+
+**Expected collected delta:** +5 (Tasks 1–2); +8 with Task 3 (a); +7 with (b).
+
+**Acceptance:** the new tests; `~/venvs/asclexis-311/bin/python ../../scripts/agent_eval_gate.py` (from `src/backend`) PASS on all 74 golden cases (the gate is never edited); `pyt tests/agent/ tests/test_assist_agent_dates_http.py tests/test_biomarker_assistant.py -q` 0 failed; HC-AAD-* unchanged. Full suite per RUNBOOK §6. **Rollback:** revert.
+
+**Order:** none of B-3, W-3, W-8, G-C5 or LEGACY-CITE-PROMPT edits these files. ASSIST-AGENT-DATES (#119) is merged, so rebase on its `query_observations` hunk.
+
+## LOCAL-HF-HUB — embeddings may fetch from the Hugging Face Hub at runtime (local-first)
+
+**Source:** queue status 2026-10-16 (third batch, MM-4). `docs/features/TASK_LIST.md:91` has the same log line.
+
+**Fact (`b54f105`):** `EmbeddingsModule._ensure_initialized` calls `SentenceTransformer(self.config.model_name)` with the bare name `all-MiniLM-L6-v2` (`modules/embeddings.py:55-56`). With no local copy, `huggingface_hub` resolves the name online. That is the "unauthenticated requests" warning and a local-first violation, recorded since 2026-09-27 as LOCAL-01 (`docs/capstone-report/specs-compliance-matrix.md:41`). No product code sets `HF_HUB_OFFLINE`, `TRANSFORMERS_OFFLINE` or `local_files_only`. **Not verified:** that the request happens at *startup*. `main.py:31-70` lifespan does not build `EmbeddingsModule`; the call sites are lazy (`modules/rag.py:184` via `get_rag_module`, `api/documents.py:852`). The likely trigger is the first chat, interpret or index request.
+
+**This is W-8's scope.** The W-8 plan (`docs/plans/2026-09-27-W08-bundled-embedding-model.md`) loads one local directory with `local_files_only=True`, fails closed, and never sets `HF_HUB_OFFLINE` in product code. That last rule implements owner Q-OFFLINE "per call" (`owner-decisions:87`), because a process-wide flag would also break the sanctioned GGUF download (`api/model_settings.py:902-937`). W-8 is blocked on W-3 and on owner Q-FC and Q-HASH (lane A §W-8).
+
+**Owner gate LHH-SCOPE:**
+- **(a) Recommended:** no separate PR. Fold the row into W-8 and add one startup check to W-8's tests (HC-LHH-001 below). The interim leak stays, and is recorded, until W-8 merges.
+- (b) Interim PR now: `SentenceTransformer(name, local_files_only=True)`, loading from the local HF cache only. On a cache miss the module takes today's `except Exception` branch (`embeddings.py:66-69`), which means hash-vector fallback, so retrieval quality silently drops on a fresh install. That pre-empts Q-FC (fail closed), which is unsigned.
+- (c) Interim PR that fails closed on a cache miss. This is W-8 Task 2 without the bundling, and it needs Q-FC.
+
+**Test-first (both options):**
+
+| Id | File | Assertion | RED? |
+|---|---|---|---|
+| HC-LHH-001 | `src/backend/tests/test_embedding_no_network.py` (new) | with `socket.socket.connect` patched to record and refuse non-loopback addresses, and `HF_HOME` set to an empty `tmp_path`, `EmbeddingsModule()._ensure_initialized()` makes **no** non-loopback connect attempt (`sentence_transformers` absent → `pytest.importorskip`) | yes (it tries the hub) |
+| HC-LHH-002 | same | `TestClient(main.app)` startup with the same guard (lifespan only, no request) → no non-loopback connect attempt | Task 0 finds out; if it passes on `main`, the row's "startup" wording is corrected in the PR body, and the guard stays |
+
+**Files:** (a) W-8's list plus `src/backend/tests/test_embedding_no_network.py`; (b)/(c) `src/backend/modules/embeddings.py` and the new test. **Expected collected delta:** +2. **Acceptance:** HC-LHH-001/002; `pyt tests/test_rag_pipeline.py -q` same pass/fail as Task 0 (`test_api_rag_index_002b` is the environmental one; its 0.7 bar is never lowered); `grep -rn "HF_HUB_OFFLINE" src/backend --include=*.py | grep -v tests/` prints nothing. **Rollback:** revert.
+
+## INTERP-ADVICE-WORDING — a seeded KB sentence suggests medication
+
+**Source:** queue status 2026-10-16 (third batch, MM-4), flagged for owner review against the no-medical-advice invariant. Lane A owns the KB seed text (§SAFE-CHAT-FALLBACK).
+
+**Fact (`b54f105`):** `src/backend/scripts/seed_knowledge_base.py:106`, LDL `high_interpretation`: "Elevated LDL cholesterol increases your risk of plaque buildup in arteries. **Lifestyle changes and possibly medication may help reduce this risk.**" The template path appends it to every high-LDL card (`modules/interpret.py:600`). It also goes into the LLM prompt (`:799`), the RAG context (`modules/rag.py:502`) and the chat fallback (`api/assistant.py:1510`). `interpret_safety` does not catch it: its medication patterns are `prescribe`, `should take`, `must take`, `start taking`, `stop taking` and dosing (`interpret_safety.py:54-59`). The owner's IBF-1 + SCF-RULING "Accept" (`owner-decisions:187`) covered the 7 fields that **match** a pattern. This sentence matches none, so that answer does not cover it. Similar fields: glucose `high_interpretation` "…lifestyle modifications may be recommended." (`:223`), and the `intervention_text` rows (`:541-595`, "Consider …"), which recommendation cards show as lifestyle suggestions.
+
+**Existing installs keep the old text:** `seed_biomarker_knowledge` skips rows that already exist (`seed_knowledge_base.py:799-812`). A seed edit alone reaches only new installs.
+
+**Owner gate IAW-WORDING** (text patients read):
+- **(a) Recommended:** replace the second sentence with an educational one: "Elevated LDL cholesterol increases your risk of plaque buildup in arteries. Your healthcare provider can explain what this result means for you." Also rewrite rows in existing installs whose text still **equals** the old default; a row someone edited is left alone.
+- (b) Option (a), plus the glucose sentence `:223` → "Elevated fasting glucose may indicate prediabetes or diabetes. Your healthcare provider can explain whether further testing is needed."
+- (c) Keep the wording (educational enough); close the row.
+- Out of scope either way: the `intervention_text` rows and any new `interpret_safety` pattern (ask-first file).
+
+**Design (a/b):** edit the seed dict. Add `_TEXT_REVISIONS: tuple[tuple[str, str, str, str], ...]`, holding (`analyte_canonical`, field, old exact text, new text). `seed_biomarker_knowledge` applies a revision only where the stored field equals the old text: idempotent, no migration, master DB only. It returns the count, logged with the existing seed log line.
+
+**Test-first** (`src/backend/tests/test_biomarker_assistant.py`, next to the seed tests `:85-151`; RED on `b54f105`):
+
+| Id | Assertion | RED? |
+|---|---|---|
+| HC-IAW-001 | the seed data's `ldl_cholesterol.high_interpretation` contains no `medication` (and, under b, glucose's contains no `lifestyle modifications may be recommended`) | yes |
+| HC-IAW-002 | a master DB holding the **old** LDL row → after `seed_all(skip_db_init=True)` the row has the new text | yes |
+| HC-IAW-003 | a row whose text was edited (≠ old default) → unchanged after `seed_all` | no (pin) |
+| HC-IAW-004 | over HTTP (`route_client`), the template interpretation of a verified high LDL observation → `interpretation_text` contains no `medication` | yes |
+
+**Files:** `src/backend/scripts/seed_knowledge_base.py`, `src/backend/tests/test_biomarker_assistant.py`. **Expected collected delta:** +4. **Acceptance:** the 4 tests; `pyt tests/test_biomarker_assistant.py tests/test_safe_interp_grounded.py tests/test_interpret_safety_adversarial.py tests/test_phase4_ai_safety.py -q` 0 failed; `~/venvs/asclexis-311/bin/python scripts/measure_prohibited_patterns.py` count does not rise. **Rollback:** revert, plus a reverse revision tuple if any install already took the new text.
+
 ## Provides
 
 1. `modules.agent.state.ChatFilters` (frozen: `from_dt`, `to_dt` naive UTC, `analytes: tuple[str, ...]`, `category`); `modules.agent.graph.RunContext.filters: ChatFilters`, read by agent tools via `getattr(ctx, "filters", None)` (ASSIST-AGENT-DATES).
@@ -241,6 +334,9 @@ Never put `str(exc)` in the detail; it carries provider error text. About 6 line
 | SCH-RULING | SAFE-CHAT-HISTORY | A new answers only / B read-time mask | not asked |
 | AAD-ROW, AAD-SEMANTICS | ASSIST-AGENT-DATES | scope; narrow or add? | answered 2026-10-16 (all four filters) and 2026-10-17 (ADD). AAD-TREND-ADD open (trend answers) |
 | RR500-MAP | RAG-RUNTIME-500 | 503 + fixed sentence (proposed: "The explanation could not be generated right now. Please try again.") | not asked |
+| CFR-FORMAT | CHAT-FACT-ROUTING Task 3 | how agent fact answers read: (a) display names + local dates + latest per analyte, cap 10 / (b) names + dates only / (c) no change | not asked (planned 2026-10-17) |
+| LHH-SCOPE | LOCAL-HF-HUB | (a) fold into W-8 / (b) interim `local_files_only` with today's hash fallback / (c) interim fail-closed (needs Q-FC) | not asked (planned 2026-10-17) |
+| IAW-WORDING | INTERP-ADVICE-WORDING | (a) educational LDL sentence + rewrite untouched installed rows / (b) (a) + the glucose sentence / (c) keep | not asked (planned 2026-10-17) |
 
 Ask-first files touched by this lane: only `modules/verifier_agent.py` (G-C5). `interpret_safety.py`, `redaction.py`, `faithfulness.py`, `core/auth.py` and auth/encryption code stay read-only. SAFE-CHAT-AGENT option B only imports `PROHIBITED_PATTERNS`.
 
