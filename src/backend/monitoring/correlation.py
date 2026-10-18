@@ -46,8 +46,7 @@ class CorrelationIdMiddleware:
                 raw = value.decode("utf-8", errors="replace").strip()
                 # Validate it looks like a UUID
                 try:
-                    uuid.UUID(raw)
-                    correlation_id = raw
+                    correlation_id = str(uuid.UUID(raw))
                 except ValueError:
                     correlation_id = None
                 break
