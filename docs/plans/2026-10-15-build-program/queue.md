@@ -1,6 +1,6 @@
 # Build Program 2026-10-15 — Execution Queue
 
-**Last Updated:** 2026-10-17 (RSI app track: RSI-T2-EVAL, LEGACY-CITE-PROMPT, RSI1-DONATE planned)
+**Last Updated:** 2026-10-17 (11 rows planned: E-1b, REDACT-EMAIL-REDOS, MED-STREAK-GRACE, AUDIT-MISSING-MED, EXPORT-TODAY-TZ, CHAT-FACT-ROUTING, INTERP-RENDER, INTERP-ADVICE-WORDING, LOCAL-HF-HUB, DEV-SH-CC, EXTRACT-FORMATS); 2026-10-17 (RSI app track: RSI-T2-EVAL, LEGACY-CITE-PROMPT, RSI1-DONATE planned)
 **Owner:** repository owner
 **Status:** PROPOSED (L0 contracts reconciler). This is the single execution queue for lanes A–F. **No owner approval is recorded here**; every gate keeps its state in [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md).
 **Refresh Trigger:** any item below changing status; any merge of #95, #97, #99, #82, #84, #74, #72, #94 or #68; any owner answer to a gate listed here; any edit to [contracts.md](contracts.md).
@@ -16,7 +16,7 @@ Rules: [contracts.md](contracts.md) §b (shared files), §c (migrations), §d (c
 4. **No-slot items** (docs, owner merges, PR landings with no pytest) run beside code items, subject to rule 2.
 5. Humans merge, in any order that respects real code dependencies. Slots and the index are updated by L0's post-merge batch (contracts §d, SLOT-RULE-2).
 
-Totals: 51 items. 7 ready now (E-1, E-3, D-0, C-PMIG, E-7, F-3, and B-3 for the next free slot). Waves 6–14 plus a docs tail.
+Totals: 51 items. 7 ready now (E-1, E-3, D-0, C-PMIG, E-7, F-3, and B-3 for the next free slot). Waves 6–14 plus a docs tail. **+11 rows planned 2026-10-17** (Wave 6: AUDIT-MISSING-MED, EXPORT-TODAY-TZ, DEV-SH-CC, EXTRACT-FORMATS, INTERP-RENDER, CHAT-FACT-ROUTING; Wave 9: E-1b, REDACT-EMAIL-REDOS, MED-STREAK-GRACE, INTERP-ADVICE-WORDING; Wave 11: LOCAL-HF-HUB), now 62.
 
 
 **Owner answers 2026-10-15** ([owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md) rows MM-HOST, S-3 + S-6, Q-RUFF, CI-SEED):
@@ -36,12 +36,12 @@ Totals: 51 items. 7 ready now (E-1, E-3, D-0, C-PMIG, E-7, F-3, and B-3 for the 
 **Status 2026-10-16 (second batch)** (owner row P6-ORPHAN):
 - **Merged:** E-1a (#108), E-1 / W-2 (#106), B-2 (#112), C-P6 Task 1 orphan-audit tool (#113), RAG-RUNTIME-500 (#114), D-2 (#115, profile migration `013_adaptive_windows_local`), B-6 (#116). Collected 1683 on `33f42eb`.
 - **C-P6 Tasks 2-5:** wait for the owner's real-vault orphan counts (P6-ORPHAN). The FK migration takes the next free revision, `014`.
-- **New rows (not yet planned):**
+- **New rows (planned 2026-10-17; queue rows in Waves 6, 9 and 11, plans in lanes D and E):**
   - **E-1b** (ask-first `modules/redaction.py`): strict misses a parenthesised qualifier (`mrn_(hospital):_…`), `#` / `no.` after a bare label (`patient_#:_…`), and `-` as separator (`mrn_-_…`). Needs a plan and an owner yes.
   - **REDACT-EMAIL-REDOS** (ask-first `modules/redaction.py`): the existing `email` rule is quadratic; `"mrn"+"._"*20000` takes 0.81 s. Needs a plan and an owner yes.
   - **MED-STREAK-GRACE:** the per-medication streak (`api/medications.py:1244`, `modules/adherence_patterns.py:441-449`) still resets each morning and disagrees with the gamification widget (D-3 follow-up). Needs an owner ruling (lane-D Q2).
   - **AUDIT-MISSING-MED:** pre-existing missing audit calls at `api/medications.py:1105` and `api/notifications.py:416` (D-1 follow-up; CLAUDE.md audit-logging invariant).
-  - **EXPORT-TODAY-TZ:** `modules/export.py:454` dates the doctor summary with the UTC `today`.
+  - **EXPORT-TODAY-TZ:** `modules/export.py:454` dates the doctor summary with the UTC `today`. (Planning correction: `:454` sets the care-task questions window; the doctor summary's UTC date is its HTML footer `:401`. The plan covers both.)
 
 **Status 2026-10-17 (fifth batch)** (owner rows VAULT-SIDECAR, DUP-AUDIT-KEY, CORRELATION-NORMALISE, S-C3-2, GC3A-LEDGER, C-DUPAUD-DIFF):
 - **Merged:** D-4 (#138, `c512dd8`), C-DUPAUD (#141, `f8b16cb`), E-3 (#143, `e1763d4`), B-8 (#140, `94370ba`), C-VAULTSC (#139, `fe58090`), C-BKUP (#137, `e1eac03`), plus harness/docs #126-#133 and #144. Collected **1745**.
@@ -55,7 +55,7 @@ Totals: 51 items. 7 ready now (E-1, E-3, D-0, C-PMIG, E-7, F-3, and B-3 for the 
 **Status 2026-10-16 (third batch)** (owner rows MM1-RERUN, MERGE-72; TASK_LIST MM-1, MM-3, MM-4):
 - **Merged:** W-4 legacy abstain (#72, `cfc1e50`) after MM-1. #61 closed, branch kept (PR61-CLOSE). Collected 1690 on `cfc1e50` (MM-3: `1690 passed` with a real embedding model).
 - **Model host:** the owner's RTX 3080 WSL box now runs Ollama 0.40.5 with `gemma4:e4b`, `llama3.1:8b`, `qwen3:8b`, `gemma3:12b` (MM-HOST). Needs-model-machine items (B-7, B-4, B-9) can run there; MM-2 stays blocked on OW-3.
-- **New rows (not yet planned):**
+- **New rows (planned 2026-10-17; queue rows in Waves 6, 9 and 11, plans in lanes A, B and E):**
   - **LEGACY-CITE-PROMPT** (owner yes, MERGE-72; approach RSI-3, 2026-10-17): now planned as constrained decoding with the gate unchanged. See the row in [RSI app track](#rsi-app-track-rsi-1-rsi-3-rsi-4) and its [plan](../2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md). (`SYSTEM_PROMPT` is now at `be/modules/rag.py:139`.)
   - **CHAT-FACT-ROUTING:** the agent chat answers deterministically without the model. `Is my LDL cholesterol high?` / `Explain my cholesterol results.` abstain with LDL/HDL verified; open questions dump every fact with raw analyte ids and ISO timestamps (MM-4).
   - **INTERP-RENDER:** the interpretation card shows raw `**` markdown and `[KB:uuid]` / `[INT:uuid]` markers, the gauge axis goes negative (`-29.7`), and the footer says `Model: template` after a 19.3 s Ollama call (MM-4).
@@ -63,6 +63,12 @@ Totals: 51 items. 7 ready now (E-1, E-3, D-0, C-PMIG, E-7, F-3, and B-3 for the 
   - **LOCAL-HF-HUB** (local-first invariant): backend startup logs `You are sending unauthenticated requests to the HF Hub`; embeddings load without `HF_HUB_OFFLINE` (MM-4).
   - **DEV-SH-CC:** `dev.sh` dies when `llama-cpp-python` cannot compile (no C compiler); its pip fallback only drops SQLCipher. Check for a compiler up front or skip it when `LLM_PROVIDER=ollama` (MM-4).
   - **EXTRACT-FORMATS:** the text-PDF parser reads only `Analyte: value unit (range)` lines; a column-layout report gave `0 values extracted`; `mIU/L` is not in the unit list (MM-4).
+
+**Status 2026-10-17 (planning batch, docs only):** the 11 rows above now have plans and queue rows. No owner approval is recorded here; the new gates are open (owner prompts 11 and 12 below).
+- **Measured while planning (`b54f105`):** strict misses all 7 E-1b shapes; the `email` rule alone takes 4.97 s on `"mrn"+"._"*20000` and 19.85 s on `"a."*40000` (quadratic); the agent planner's labels (`"LDL"`, `"Cholesterol"`) never match ingest keys (`ldl_cholesterol`, `total_cholesterol`), which is the CHAT-FACT-ROUTING abstain.
+- **New rows found while planning (not yet planned):**
+  - **AUDIT-NOTIF-ALL:** `api/notifications.py` has no audit call at all, yet `tests/test_audit_order_guard.py:92-93` classifies `update_notification_settings` and `record_reminder_interaction` as `"C"` (audit after change); both commit (`:267`, `:560`) and write no row. Recurring-failures #9.
+  - **EXPORT-COLLECTED-TZ** (display question): the doctor summary prints `collected_at` with `strftime("%Y-%m-%d")` in UTC (`modules/export.py:203`, `:302`).
 
 ---
 
@@ -79,6 +85,12 @@ Totals: 51 items. 7 ready now (E-1, E-3, D-0, C-PMIG, E-7, F-3, and B-3 for the 
 | C-PMIG | C | DOCS (no slot) | — | OW-W13 (optional, R-13) | — | `docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md` | 0.5 | any | **ready** (lands with this build-program docs commit) |
 | E-7 | E | DOCS (no slot) | — | — | — | `docs/plans/2026-10-09-AUDIT-ORDER.md`, `docs/capstone-report/implementation-program.md` (`:488-489` only) | 0.5 | any | **ready** |
 | F-3 | F | DOCS (no slot) | — | — | — | `docs/architecture/README.md`, `docs/architecture/backend.md` | 0.5 | any | **ready** |
+| AUDIT-MISSING-MED | D | PRODUCT (code) | D-1 (#104 merged); rebase after #130 (E-3a may drop the unused `log_document_event` import) | — | — | `be/api/medications.py`, `be/api/notifications.py`, `be/tests/test_medications_routes_http.py`, `be/tests/test_notification_routes_http.py`, `be/tests/test_audit_order_guard.py` (2 classification rows), slots | 1.5 | claude | **ready** (plan: [lane D §3](lane-D-time-meds-gamification.md#audit-missing-med--two-profile-data-routes-write-no-audit-row)); never beside MED-STREAK-GRACE or another open PR on `test_audit_order_guard.py` |
+| EXPORT-TODAY-TZ | D | PRODUCT (code) | D-1 helpers (merged) | — | — | `be/modules/export.py`, `be/api/export.py`, `be/api/pinboards.py`, `be/tests/test_export_questions.py`, `be/tests/test_export_redaction.py`, `be/tests/test_visit_prep_packet.py`, slots | 2 | any | **ready** (plan: [lane D §3](lane-D-time-meds-gamification.md#export-today-tz--export-dates-use-the-utc-calendar-day)); never beside C-GC1 or E-1b |
+| DEV-SH-CC | E | PRODUCT (launcher) | — | DEV-SH answered (`owner-decisions:147`) | — | `dev.sh`, `be/tests/test_dev_sh_prereqs.py`, slots | 1.5 | claude (Linux bash) | **ready** (plan: [lane E §2.10](lane-E-privacy-gates-ci.md#210-dev-sh-cc--devsh-dies-when-llama-cpp-python-cannot-compile)) |
+| EXTRACT-FORMATS | B | PRODUCT (code) | — (B-8 either order) | EXF-SAMPLE (optional; never blocks) | — | `be/modules/extract.py`, `be/tests/test_extraction_pipeline.py`, slots | 3 | claude | **ready** (plan: [lane B](lane-B-interpretation-eval.md#extract-formats--the-text-pdf-parser-misses-column-layouts-and-miul)) |
+| INTERP-RENDER | B | PRODUCT (frontend) | — | IR-FOOTER (footer task only) | none (`be/modules/interpret_safety.py`, `be/modules/interpret.py` read-only) | `fe/components/lab-interpreter/InterpretedResultCard.tsx`, `fe/components/lab-interpreter/ReferenceRangeComparison.tsx`, `fe/components/lab-interpreter/formatInterpretationText.ts` (new), `fe/components/lab-interpreter/AdviceSection.tsx`, `fe/__tests__/InterpretedResultCard.test.tsx` (new) | 2 | any (vitest on Windows/CI) | **ready**; footer task blocked: owner IR-FOOTER (plan: [lane B](lane-B-interpretation-eval.md#interp-render--the-interpretation-card-shows-raw-markup-a-negative-gauge-axis-and-a-confusing-footer)); backend count unchanged |
+| CHAT-FACT-ROUTING | A | PRODUCT (code) | ASSIST-AGENT-DATES (#119 merged) | CFR-FORMAT (Task 3 only) | — | `be/modules/normalize.py`, `be/modules/agent/tools/query_observations.py`, `be/modules/agent/tools/compute_trend.py`, `be/modules/agent/tools/check_verification.py`, `be/modules/agent/nodes/draft.py` (Task 3), `be/tests/agent/test_agentic_queries.py`, slots | 3 | claude | **ready** (Tasks 1–2); Task 3 blocked: owner CFR-FORMAT (plan: [lane A](lane-A-rag-assistant.md#chat-fact-routing--the-agent-cannot-find-real-lab-rows-by-name-open-questions-dump-raw-facts)) |
 
 The B-3 Codex plan review (R-22) also runs in Wave 6. It is a review, not a code slot.
 
@@ -106,7 +118,7 @@ D-2 and D-3 share no file, so they may hold both slots.
 
 ## Wave 9 — gated small-code pool (2 at a time)
 
-Run in the order the owner answers gates. **Never pair:** any two of {RAG-RUNTIME-500, B-2, B-6} (`api/interpretations.py` + test file; contracts §b); B-1 with C-GAM2B (`SettingsPage.tsx`); any two of {ASSIST-AGENT-DATES, SAFE-CHAT-FALLBACK B, SAFE-CHAT-HISTORY B} (`api/assistant.py`); C-GAM2B with D-2 if D-2 is still open (head literal).
+Run in the order the owner answers gates. **Never pair:** E-1b with REDACT-EMAIL-REDOS (`redaction.py` + `test_redaction.py`); MED-STREAK-GRACE with AUDIT-MISSING-MED (`api/medications.py` + both test files); any two of {RAG-RUNTIME-500, B-2, B-6} (`api/interpretations.py` + test file; contracts §b); B-1 with C-GAM2B (`SettingsPage.tsx`); any two of {ASSIST-AGENT-DATES, SAFE-CHAT-FALLBACK B, SAFE-CHAT-HISTORY B} (`api/assistant.py`); C-GAM2B with D-2 if D-2 is still open (head literal).
 
 | id | lane | kind | depends_on | owner gates | ask-first | files | est h | runtime | status |
 |---|---|---|---|---|---|---|---|---|---|
@@ -124,6 +136,10 @@ Run in the order the owner answers gates. **Never pair:** any two of {RAG-RUNTIM
 | SAFE-CHAT-FALLBACK | A | OWNER → PRODUCT if B/C | — | SCF-RULING (with IBF-1, R-1; rec. A) | — | `be/api/assistant.py` (B), `be/scripts/seed_knowledge_base.py` (C) | 0.5 | any | blocked: owner SCF-RULING; no code if A |
 | SAFE-CHAT-HISTORY | A | OWNER → PRODUCT if B | — | SCH-RULING (rec. A) | — | `be/api/assistant.py` | 0.5 | any | blocked: owner SCH-RULING; no code if A |
 | B-8 | B | PRODUCT | B-7 (MM-1), #72 | S-C3-2 signed, GC3A-LEDGER | — | `be/tests/support/minimal_pdf.py`, `be/tests/fixtures/extraction_golden/manifest.json`, `be/tests/test_extraction_golden.py`, `docs/agentic/eval-cards/extraction.md`, `docs/agentic/evals.md`, `docs/INDEX.md`, `docs/_link_graph.json`, slots | 5 | claude (was codex; PARALLEL-WAVES) | **done** 2026-10-17 (#140, `94370ba`) |
+| E-1b | E | PRODUCT (code) | E-1a (#108 merged); never beside REDACT-EMAIL-REDOS | E1B-SCOPE (edit licence + scope), E1B-DIFF (merge) | `be/modules/redaction.py` (**edited**) | `be/modules/redaction.py`, `be/tests/test_redaction.py`, `be/tests/test_export_redaction.py`, slots | 3 | claude (+ security review) | blocked: owner yes on the `be/modules/redaction.py` diff (E1B-SCOPE before the edit, E1B-DIFF before merge; plan: [lane E §2.8](lane-E-privacy-gates-ci.md#28-e-1b--three-underscore-label-shapes-strict-still-misses-ask-first-modulesredactionpy)) |
+| REDACT-EMAIL-REDOS | E | PRODUCT (code) | never beside E-1b (either order) | REDOS-APPROACH (edit licence + option), REDOS-DIFF (merge) | `be/modules/redaction.py` (**edited**) | `be/modules/redaction.py`, `be/tests/test_redaction.py`, slots | 2 | claude (+ security review) | blocked: owner yes on the `be/modules/redaction.py` diff (REDOS-APPROACH before the edit, REDOS-DIFF before merge; plan: [lane E §2.9](lane-E-privacy-gates-ci.md#29-redact-email-redos--the-email-rule-is-quadratic-ask-first-modulesredactionpy)) |
+| MED-STREAK-GRACE | D | PRODUCT (code) | D-3 (#109 merged); never beside AUDIT-MISSING-MED | MSG-SCOPE (= lane D Q2) | — | `be/api/medications.py`, `be/modules/adherence_patterns.py` (option a), `be/tests/test_medications_routes_http.py`, `be/tests/test_notification_routes_http.py` (option a), slots | 1 | any | blocked: owner MSG-SCOPE (plan: [lane D §3](lane-D-time-meds-gamification.md#med-streak-grace--the-per-medication-streak-still-resets-each-morning-owner-ruling--q2)) |
+| INTERP-ADVICE-WORDING | A | PRODUCT (seed text) | — | IAW-WORDING | — (`be/modules/interpret_safety.py` not edited) | `be/scripts/seed_knowledge_base.py`, `be/tests/test_biomarker_assistant.py`, slots | 1.5 | any | blocked: owner IAW-WORDING (plan: [lane A](lane-A-rag-assistant.md#interp-advice-wording--a-seeded-kb-sentence-suggests-medication)) |
 | F-10 | F | DOCS + harness (no slot; count-moving) | #95, #97, #99, #82, #84, #74, #72 merged | PR68-SYNC, HOOKS-COMMIT answered; OW-5 | — | slots, `docs/INDEX.md`, `docs/_link_graph.json`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/features/TASK_LIST.md`, `CS4610_Report_Demo/README.md`, `.gitignore`, `.claude/settings.json`, `.claude/hooks/session_log.py`, `be/tests/test_session_log_hook.py`, `be/tests/test_claude_agent_definitions.py`, `docs/plans/2026-10-10-rsi-loop-applicability-report.md`, `docs/plans/2026-10-10-rsi-audit-handoff-prompt.md` | 1.5 | claude | blocked: #74, #72 (and D-0); merges last of the open-PR set (§d step 7) |
 
 ## Wave 10
@@ -139,6 +155,7 @@ Run in the order the owner answers gates. **Never pair:** any two of {RAG-RUNTIM
 |---|---|---|---|---|---|---|---|---|---|
 | C-P7 | C | PRODUCT (code) | C-P6 | P7-ROUTE, RESET-AUDIT-OWNER signed; N-02 | `be/api/profiles.py` | `be/api/profiles.py`, `be/tests/support/routes.py`, `be/tests/test_profile_test_reset.py`, slots | 2 | claude (was codex; PARALLEL-WAVES) | blocked: C-P6; owner N-02 |
 | W-8 | A | PRODUCT (code) | W-3, E-3, #72; last on `ci.yml` | Q-FC, Q-HASH, VERIFIED-FALLBACK (= O-1); Q-OFFLINE and EMB-REV answered | — | `be/modules/embeddings.py`, `be/core/config.py`, `.gitignore`, `config/.env.example`, `be/scripts/download_models.py`, `.github/workflows/ci.yml`, `be/modules/rag.py`, `be/api/documents.py`, `be/tests/test_embedding_bundle.py`, `be/tests/test_embedding_fail_closed_paths.py`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/specs-compliance-matrix.md`, `docs/capstone-report/architecture-overview.md`, `docs/capstone-report/claims-ledger.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/architecture/performance-scalability-review.md`, slots | 8 | claude (Task 4 needs one network fetch on the owner host or CI) | blocked: W-3; owner Q-FC, Q-HASH |
+| LOCAL-HF-HUB | A | PRODUCT (option a: inside W-8) | (a) W-8; (b)/(c) none | LHH-SCOPE; (c) also Q-FC | — | (a) W-8's list + `be/tests/test_embedding_no_network.py`; (b)/(c) `be/modules/embeddings.py`, `be/tests/test_embedding_no_network.py`, slots | 1 (b/c) | claude | blocked: owner LHH-SCOPE (plan: [lane A](lane-A-rag-assistant.md#local-hf-hub--embeddings-may-fetch-from-the-hugging-face-hub-at-runtime-local-first)) |
 
 ## Wave 12
 
@@ -213,6 +230,8 @@ Handoff 2026-10-17 §2 item 4. Owner rows RSI-1, RSI-2, RSI-3, RSI-4 and RSI-BUI
 | 8 | OG-1, Q-AUD-LIST, S-C1-1 + S-C1-2, RESET-APPEND | E-2, C-GC1, WEAR reset rows |
 | 9 | Q5b + GC5-PLAN + GC5-MODEL, Q5a, W7-SPILL, S-C3-2 + GC3A-LEDGER | G-C5-PLAN → G-C5; B-5; B-8 |
 | 10 (RSI, 4 prompts of ≤ 4) | (a) DON-PURPOSES, DON-REVOKE, DON-COPY, DON-SRC-DELETE; (b) DON-SOURCE, DON-DETECTOR, DON-RECALL, DON-RLEXPORT; (c) DON-CANARY, DON-MIX, DON-SYNTH, DON-FT-SCOPE; (d) DON-FILE-EXPORT, LCP-ACCEPT, LCP-HEADERLESS | RSI1-DONATE PR-1/2/3; LEGACY-CITE-PROMPT merge; LCP-HEADERLESS follow-up row |
-| later | GC5-ASKFIRST (after the plan exists), P6-ORPHAN (after the Task 1 report), NPM-AUDIT-CI, W1-SMOKE-RUN, P8-B2-ORDER, W10B-*, RTN §9, SHOW-*, M0 + OW-W*, OW-W13 (optional, R-13), GATE-12 conftest item (contracts §e owner list 5) | E-5, E-6, F-4, F-6, F-8, F-9, F-12 |
+| 11 (planning batch 2026-10-17: privacy and safety) | E1B-SCOPE, REDOS-APPROACH, LHH-SCOPE, IAW-WORDING | E-1b, REDACT-EMAIL-REDOS, LOCAL-HF-HUB, INTERP-ADVICE-WORDING |
+| 12 (planning batch 2026-10-17: what patients see) | MSG-SCOPE, CFR-FORMAT, IR-FOOTER, EXF-SAMPLE (optional) | MED-STREAK-GRACE, CHAT-FACT-ROUTING Task 3, INTERP-RENDER footer, EXTRACT-FORMATS regression row |
+| later | E1B-DIFF, REDOS-DIFF (after each draft PR exists), GC5-ASKFIRST (after the plan exists), P6-ORPHAN (after the Task 1 report), NPM-AUDIT-CI, W1-SMOKE-RUN, P8-B2-ORDER, W10B-*, RTN §9, SHOW-*, M0 + OW-W*, OW-W13 (optional, R-13), GATE-12 conftest item (contracts §e owner list 5) | E-5, E-6, F-4, F-6, F-8, F-9, F-12 |
 
 Back to: [contracts](contracts.md) · [implementation program](../../capstone-report/implementation-program.md)
