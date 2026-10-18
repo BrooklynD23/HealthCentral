@@ -18,6 +18,7 @@ import {
   Zap,
   Server,
   Mic,
+  Flame,
   Clock,
   FileText,
   Wrench,
@@ -52,6 +53,7 @@ import {
   useRecheckDiagnostics,
 } from '@/services';
 import { useFeedbackStats, useExportDataset } from '@/services/feedback';
+import { useGamificationSettings, useSaveGamificationSettings } from '@/services/modelSettings';
 import { Database, Download as DownloadIcon } from 'lucide-react';
 
 const OCR_BLOCKER_LABELS: Record<string, string> = {
@@ -98,13 +100,16 @@ export function SettingsPage() {
   const detectHardware = useDetectHardware();
   const setTier = useSetTier();
   const startDownload = useStartDownload();
-  const { data: externalApiData } = useExternalApiSettings();
+  const { data: externalApiData, isError: externalApiError } = useExternalApiSettings();
   const saveExternalApi = useSaveExternalApiSettings();
 
   const { data: timezoneData } = useTimezone();
   const saveTimezone = useSaveTimezone();
   const { data: voiceData } = useVoiceSettings();
   const saveVoice = useSaveVoiceSettings();
+  const { data: gamificationData } = useGamificationSettings();
+  const saveGamification = useSaveGamificationSettings();
+  const showStreaks = gamificationData?.streaks_hidden !== true;
   const saveOcr = useSaveOcrPreference();
   const { data: diagnostics, isLoading: diagnosticsLoading } = useEnvironmentDiagnostics();
   const { data: feedbackStats } = useFeedbackStats();
@@ -275,6 +280,50 @@ export function SettingsPage() {
                   <div className={cn(
                     'absolute w-4 h-4 rounded-full bg-white top-1 transition-transform duration-300',
                     voiceData?.voice_logging_enabled ? 'translate-x-5' : 'translate-x-1'
+                  )} />
+                </div>
+              </button>
+            </CardContent>
+          </Card>
+
+          {/* Streaks */}
+          <Card>
+            <CardHeader className="border-b border-black/4">
+              <CardTitle className="flex items-center gap-3">
+                <Flame className="w-5 h-5 text-ink-secondary" />
+                Streaks
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <p className="text-sm text-ink-secondary mb-3">
+                Show medication streak counts. Badges stay visible either way.
+              </p>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={showStreaks}
+                onClick={() => saveGamification.mutate({ streaks_hidden: showStreaks })}
+                className={cn(
+                  'w-full flex items-center justify-between px-4 py-3 rounded-xl',
+                  'transition-all duration-300 ease-in-out',
+                  showStreaks
+                    ? 'bg-accent-subtle border border-accent/20'
+                    : 'bg-surface-muted border border-transparent hover:bg-surface-sunken'
+                )}
+              >
+                <span className={cn(
+                  'text-sm font-medium',
+                  showStreaks ? 'text-accent' : 'text-ink-secondary'
+                )}>
+                  Show streaks
+                </span>
+                <div className={cn(
+                  'w-10 h-6 rounded-full relative transition-colors duration-300',
+                  showStreaks ? 'bg-accent' : 'bg-black/12'
+                )}>
+                  <div className={cn(
+                    'absolute w-4 h-4 rounded-full bg-white top-1 transition-transform duration-300',
+                    showStreaks ? 'translate-x-5' : 'translate-x-1'
                   )} />
                 </div>
               </button>
@@ -678,7 +727,14 @@ export function SettingsPage() {
                 Your data will be sent to the provider's servers.
               </p>
 
-              <ExternalApiBreakGlassWarning active={externalApiData?.redaction_break_glass} />
+              <ExternalApiBreakGlassWarning
+                active={externalApiData?.redaction_break_glass}
+                unknown={
+                  externalApiError ||
+                  (externalApiData?.use_external_api === true &&
+                    externalApiData.redaction_break_glass === undefined)
+                }
+              />
 
               <button
                 onClick={handleExternalApiToggle}

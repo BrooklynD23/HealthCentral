@@ -14,12 +14,15 @@ import time
 from datetime import datetime, timezone
 from typing import Literal, Optional
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.audit import audit_and_commit, create_audit_log
 from core.auth import ProfileDbSession, ProfileEncryptionManager, RequireAuth
 from core.config import compute_ocr_effective, user_ocr_preference_enabled
+from core.database import get_db
 from core.external_runner import redaction_bypass_active
 from core.profile_database import get_profile_db_manager
 from core.time import utcnow
@@ -1015,6 +1018,59 @@ async def update_voice_settings(
         voice_logging_enabled=settings.voice_logging_enabled,
         voice_modal_seen=settings.voice_modal_seen,
     )
+
+
+class GamificationSettings(BaseModel):
+    streaks_hidden: bool
+
+
+class GamificationSettingsUpdate(BaseModel):
+    streaks_hidden: Optional[bool] = None
+
+
+@router.get("/gamification", response_model=GamificationSettings)
+async def get_gamification_settings(
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """Get gamification display preferences (streaks_hidden)."""
+    settings = await _get_user_settings(session.profile_id, profile_db)
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type="settings.gamification.view",
+        action="settings.gamification.view",
+        profile_id=session.profile_id,
+        entity_type="settings",
+        entity_id="gamification",
+    )
+    return GamificationSettings(streaks_hidden=bool(settings.streaks_hidden) if settings else False)
+
+
+@router.patch("/gamification", response_model=GamificationSettings)
+async def update_gamification_settings(
+    data: GamificationSettingsUpdate,
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """Update gamification display preferences (streaks_hidden)."""
+    settings = await _get_or_create_user_settings(session.profile_id, profile_db)
+    if data.streaks_hidden is not None:
+        settings.streaks_hidden = data.streaks_hidden
+    await profile_db.commit()
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type="settings.gamification.update",
+        action="settings.gamification.update",
+        profile_id=session.profile_id,
+        entity_type="settings",
+        entity_id="gamification",
+        details={"changed_fields": ["streaks_hidden"]},
+    )
+    return GamificationSettings(streaks_hidden=bool(settings.streaks_hidden))
 
 
 @router.get(

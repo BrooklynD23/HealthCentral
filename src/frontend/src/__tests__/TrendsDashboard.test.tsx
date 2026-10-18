@@ -78,6 +78,7 @@ const mockTrendData = {
       unit: 'g/dL',
       is_abnormal: false,
       flag: null,
+      user_verified: true,
       doc_id: 'doc-1',
     },
     {
@@ -86,6 +87,7 @@ const mockTrendData = {
       unit: 'g/dL',
       is_abnormal: false,
       flag: null,
+      user_verified: true,
       doc_id: 'doc-2',
     },
     {
@@ -94,6 +96,7 @@ const mockTrendData = {
       unit: 'g/dL',
       is_abnormal: false,
       flag: null,
+      user_verified: true,
       doc_id: 'doc-3',
     },
     {
@@ -102,6 +105,7 @@ const mockTrendData = {
       unit: 'g/dL',
       is_abnormal: false,
       flag: null,
+      user_verified: true,
       doc_id: 'doc-4',
     },
   ],
@@ -393,6 +397,40 @@ describe('TrendsDashboard', () => {
       await waitFor(() => {
         expect(screen.getByTestId('medication-overlay-empty')).toBeInTheDocument();
       });
+    });
+  });
+
+  describe('HC-VER-FE-001: unverified trend points are visibly marked (D4)', () => {
+    const mixedTrend = {
+      ...mockTrendData,
+      data_points: [
+        { ...mockTrendData.data_points[0], user_verified: true },
+        { ...mockTrendData.data_points[1], user_verified: false },
+      ],
+    };
+
+    it('shows a text note with the unverified count', async () => {
+      setupApiMocks({ trendData: mixedTrend });
+      renderWithProviders(<TrendsDashboard />);
+      const note = await screen.findByTestId('trend-unverified-note');
+      expect(note).toHaveTextContent('1 of 2 points on this chart are unverified');
+    });
+
+    it('marks the latest value as unverified when the newest point is unverified', async () => {
+      setupApiMocks({ trendData: mixedTrend });
+      renderWithProviders(<TrendsDashboard />);
+      expect(
+        await screen.findByText(/Latest value: 14\.1 g\/dL \(unverified\)/)
+      ).toBeInTheDocument();
+    });
+
+    it('shows no unverified note when every charted point is verified', async () => {
+      setupApiMocks({});
+      renderWithProviders(<TrendsDashboard />);
+      // Wait for a positive anchor first. A bare "not present" check passes on the
+      // first empty render tick (recurring-failures #1).
+      await screen.findByText(/increased by 2.9%/i);
+      expect(screen.queryByTestId('trend-unverified-note')).not.toBeInTheDocument();
     });
   });
 });

@@ -65,6 +65,7 @@ ignore = [
 "migrations/profile/versions/011_care_plan_tasks.py" = ["I001"]
 "migrations/profile/versions/012_pinboards.py" = ["I001"]
 "migrations/profile/versions/013_adaptive_windows_local.py" = ["I001"]
+"migrations/profile/versions/014_streaks_hidden.py" = ["I001"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["api", "core", "models", "modules", "scripts"]

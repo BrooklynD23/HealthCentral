@@ -167,6 +167,9 @@ class TrendPoint(BaseModel):
     # (NORM-UNIT-001). Both None when no conversion happened.
     original_value: Optional[float] = None
     original_unit: Optional[str] = None
+    # D4 (owner, 2026-09-27): trends may show unverified points but must mark
+    # them. Defaults to False so a point is never presented as verified by omission.
+    user_verified: bool = False
 
 
 class TrendResponse(BaseModel):
@@ -616,6 +619,7 @@ async def get_analyte_trend(
                     extraction_confidence=obs.extraction_confidence,
                     original_value=original_value,
                     original_unit=original_unit,
+                    user_verified=obs.user_verified is True,
                 ))
             elif obs.value is not None:
                 # Has a value but no date — count it so the summary is accurate

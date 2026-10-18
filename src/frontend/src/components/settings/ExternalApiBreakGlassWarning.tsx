@@ -4,16 +4,32 @@
  * The external AI runner always applies strict redaction, except when the
  * installation sets EXTERNAL_API_REDACTION_BREAK_GLASS and weakens redaction.
  * That exception is audited server-side; this component is the required UI
- * warning. It renders nothing unless the backend says `true`.
+ * warning. It renders nothing unless the backend says `true`, or `unknown`
+ * (flag could not be confirmed) shows a neutral status notice (B-1, BGS-1).
  */
 import { AlertCircle } from 'lucide-react';
 
 interface ExternalApiBreakGlassWarningProps {
   active?: boolean;
+  unknown?: boolean;
 }
 
-export function ExternalApiBreakGlassWarning({ active }: ExternalApiBreakGlassWarningProps) {
-  if (active !== true) return null;
+export function ExternalApiBreakGlassWarning({ active, unknown }: ExternalApiBreakGlassWarningProps) {
+  if (active !== true) {
+    if (unknown !== true) return null;
+    return (
+      <div
+        role="status"
+        className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-status-caution-subtle border border-status-caution/20"
+      >
+        <AlertCircle className="w-4 h-4 text-ink-secondary shrink-0 mt-0.5" aria-hidden />
+        <p className="text-xs text-ink leading-relaxed">
+          Could not confirm this installation&apos;s privacy settings. If the privacy protection
+          override is on, external AI requests may leave this device with reduced redaction.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div
