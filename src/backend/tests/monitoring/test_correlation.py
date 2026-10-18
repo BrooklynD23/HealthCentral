@@ -226,3 +226,36 @@ def test_hc_obsv_004_create_app_installs_correlation_logging(restore_logging_sta
     main.create_app()
     record = logging.getLogRecordFactory()("x", logging.INFO, __file__, 1, "m", None, None)
     assert getattr(record, "correlation_id", None) == "-"
+
+
+_D4_UUID = uuid.uuid4()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "raw",
+    [
+        f"urn:uuid:{_D4_UUID}",
+        "{" + str(_D4_UUID).upper() + "}",
+        str(_D4_UUID).upper(),
+        str(_D4_UUID),
+    ],
+)
+async def test_hc_obsv_005(raw):
+    """Valid-but-non-canonical inbound IDs are normalised to str(UUID)."""
+    captured_id = None
+
+    async def app(scope, receive, send):
+        nonlocal captured_id
+        captured_id = get_correlation_id()
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"ok"})
+
+    mw = CorrelationIdMiddleware(app)
+    scope = make_scope(headers=[[b"x-correlation-id", raw.encode()]])
+    capture = ResponseCapture()
+    await mw(scope, make_receive, capture)
+
+    expected = str(uuid.UUID(raw))
+    assert captured_id == expected
+    assert capture.headers_dict["x-correlation-id"] == expected

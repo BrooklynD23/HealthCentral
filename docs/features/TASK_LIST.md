@@ -194,6 +194,13 @@ On the first of each month, review all canonical docs for freshness:
 
 ## Session Notes
 
+### 2026-10-17 - E-3 / W-11a PR-3 gate hardening (PR #143, draft)
+
+Branch `feat/e-3-ci-gate-hardening` from main `5386548`.
+
+- Added: `tests/test_migration_heads.py` (5 tests, one head and linear chain per Alembic chain); `ci.yml` runs `npm run lint` and `npm run build` in `frontend-tests`; `backend-tests` publishes `coverage.xml` and fails if it is missing (report only, no threshold, Q-COV). Local coverage TOTAL 74%.
+- Skipped: Task 7 (ruff gate) waits for E-3a to merge; Task 8 Step 4 (CI seed) not run.
+
 ### 2026-10-10 - RSI-loop research docs + session-log hook (PR #68, not merged)
 
 Branch `docs/rsi-loop-research` from main `eb7de28`; owner row HOOKS-COMMIT.
