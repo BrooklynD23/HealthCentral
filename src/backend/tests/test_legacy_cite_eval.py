@@ -9,6 +9,8 @@ HC-T2E-005  render_markdown: one row per model, baseline deltas, missing -> "—
 HC-T2E-006  main refuses under pytest (exit 3) and never touches get_model_runner
 HC-T2E-007  sealed output holds no question, response or chunk text
 HC-T2E-008  cite-value diagnostic: a number absent from the cited chunk mismatches
+HC-T2E-009  parent loop: one child per model with LLM_PROVIDER/LLM_MODEL set, merged
+            report written; a child that found no model fails the run
 
 Every model here is a fake (tests/legacy_eval/harness.py::FakeRunner). Fixture
 text is synthetic; it holds no patient data.
@@ -84,6 +86,7 @@ def test_hc_t2e_003_metric_driven_by_real_validation():
     cited = t2e.summarise(t2e.run_questions(doc["questions"], chunks, runner_patch=FakeRunner(CITED)), "fake")
     assert cited["answered_cited"] == 20
     assert cited["abstained"] == 0
+    assert cited["cite_value_mismatch"] == 0  # real route Citation shape maps back to chunk 1
 
     uncited = t2e.summarise(t2e.run_questions(doc["questions"], chunks, runner_patch=FakeRunner(UNCITED)), "fake")
     assert uncited["abstained"] == 20
@@ -153,6 +156,11 @@ def test_hc_t2e_005_render_markdown_with_baseline():
     assert gemma.rstrip().endswith("| -2 | +2 |")
     assert qwen.rstrip().endswith("| — | — |")  # missing from baseline: never 0
 
+    pooled_baseline = {"models": [dict(_summary("gemma4:e4b", 20, 0), repeats=3)]}
+    gemma3 = next(line for line in t2e.render_markdown(report, pooled_baseline).splitlines()
+                  if line.startswith("| gemma4"))
+    assert gemma3.rstrip().endswith("| — | — |")  # different repeats: no raw-count delta
+
 
 def test_hc_t2e_006_main_refuses_under_pytest(monkeypatch, tmp_path, capsys):
     calls = []
@@ -208,3 +216,36 @@ def test_hc_t2e_008_cite_value_mismatch():
     assert t2e.cite_value_mismatches(wrong, chunks) == 1
     assert t2e.cite_value_mismatches(other_doc, {**chunks, "doc-2": "LDL Cholesterol: 128 mg/dL"}) == 1
     assert t2e.cite_value_mismatches(general, chunks) == 0  # only report_facts segments are checked
+
+
+def test_hc_t2e_009_parent_runs_one_child_per_model(monkeypatch, tmp_path, capsys):
+    from types import SimpleNamespace
+
+    seen = []
+
+    def fake_run(cmd, **kwargs):
+        if "--one-model" not in cmd:  # git rev-parse / ollama --version
+            return SimpleNamespace(returncode=0, stdout="v-test\n")
+        model = cmd[cmd.index("--one-model") + 1]
+        seen.append((model, kwargs["env"]["LLM_PROVIDER"], kwargs["env"]["LLM_MODEL"], kwargs["env"]["TEST_MODE"]))
+        if model == "missing:1b":
+            return SimpleNamespace(returncode=2)
+        out = Path(cmd[cmd.index("--json-out") + 1])
+        out.write_text(json.dumps(dict(_summary(model, 5, 15), repeats=1)), encoding="utf-8")
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(t2e.subprocess, "run", fake_run)
+    ok = t2e._parent(t2e._parse(["--models", "gemma4:e4b,qwen3:8b", "--out-dir", str(tmp_path / "ok")]))
+    assert ok == 0
+    assert seen == [("gemma4:e4b", "ollama", "gemma4:e4b", "1"), ("qwen3:8b", "ollama", "qwen3:8b", "1")]
+    report = json.loads((tmp_path / "ok" / "legacy_cite_eval.json").read_text(encoding="utf-8"))
+    assert [m["model"] for m in report["models"]] == ["gemma4:e4b", "qwen3:8b"]
+    assert report["questions_sha256"] == FIXTURE_SHA256
+    assert "| qwen3:8b | 5/20 | 15/20 |" in (tmp_path / "ok" / "legacy_cite_eval.md").read_text(encoding="utf-8")
+    assert "RESULT gemma4:e4b: 5/20 abstained, 15/20 cited" in capsys.readouterr().out
+
+    seen.clear()
+    bad = t2e._parent(t2e._parse(["--models", "gemma4:e4b,missing:1b", "--out-dir", str(tmp_path / "bad")]))
+    assert bad == 1
+    report = json.loads((tmp_path / "bad" / "legacy_cite_eval.json").read_text(encoding="utf-8"))
+    assert [m["model"] for m in report["models"]] == ["gemma4:e4b"]

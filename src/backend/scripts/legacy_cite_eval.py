@@ -255,16 +255,18 @@ def build_report(models: list[dict], questions_path: Path, *, sealed: bool = Fal
         "git_sha": _cmd_output(["git", "-C", str(BACKEND), "rev-parse", "--short", "HEAD"]),
         "ollama_version": _cmd_output(["ollama", "--version"]),
         "questions_sha256": fixture_sha256(questions_path),
+        "questions_sha256_note": "sha256 of the file with CRLF normalised to LF",
         "questions_file": "<sealed>" if sealed else Path(questions_path).name,
         "sealed": sealed,
         "models": models,
     }
 
 
-def _fmt_delta(now: int, base: dict | None, key: str) -> str:
-    if base is None:
+def _fmt_delta(m: dict, base: dict | None, key: str) -> str:
+    # Pooled counts only compare at the same n and repeats; otherwise no number.
+    if base is None or base.get("n") != m["n"] or base.get("repeats", 1) != m.get("repeats", 1):
         return "—"
-    return f"{now - int(base.get(key, 0)):+d}"
+    return f"{m[key] - int(base.get(key, 0)):+d}"
 
 
 def render_markdown(report: dict, baseline: dict | None = None) -> str:
@@ -281,8 +283,7 @@ def render_markdown(report: dict, baseline: dict | None = None) -> str:
                f"{m['abstain_rate']:.2f}", f"{m['cited_answer_rate']:.2f}", str(m["cite_value_mismatch"])]
         if baseline is not None:
             base = base_by_model.get(m["model"])
-            row += [_fmt_delta(m["abstained"], base, "abstained"),
-                    _fmt_delta(m["answered_cited"], base, "answered_cited")]
+            row += [_fmt_delta(m, base, "abstained"), _fmt_delta(m, base, "answered_cited")]
         lines.append("| " + " | ".join(row) + " |")
     if report.get("questions_sha256"):
         repeats = ", ".join(f"{m['model']}={m.get('repeats', 1)}" for m in report.get("models", []))
@@ -312,7 +313,7 @@ def _parse(argv: list[str] | None) -> argparse.Namespace:
     p.add_argument("--out-dir", type=Path, help="result directory (required; keep it outside the repo)")
     p.add_argument("--baseline", type=Path, help="an earlier legacy_cite_eval.json, for delta columns")
     p.add_argument("--questions", type=Path, default=DEFAULT_QUESTIONS)
-    p.add_argument("--sealed", action="store_true", help="write counts and sha256 only, never text")
+    p.add_argument("--sealed", action="store_true", help="write counts and the LF-normalised sha256 only, never text")
     p.add_argument("--repeats", type=int, default=1)
     p.add_argument("--one-model", help=argparse.SUPPRESS)
     p.add_argument("--json-out", type=Path, help=argparse.SUPPRESS)
