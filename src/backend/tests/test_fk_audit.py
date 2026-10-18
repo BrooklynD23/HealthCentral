@@ -6,13 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 import models  # noqa: F401  registers every model on both metadatas
 import models.response_feedback  # noqa: F401  not exported by models/__init__
-from core.profile_database import ProfileDatabaseBase
 from core.fk_audit import (
     LOGICAL_CHECKS,
     MASTER_CHECKS,
     PROFILE_CHECKS,
     find_orphans,
 )
+from core.profile_database import ProfileDatabaseBase
 
 
 @pytest_asyncio.fixture

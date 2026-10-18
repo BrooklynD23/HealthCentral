@@ -14,7 +14,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from api import documents as documents_api
 from models import Document
 
-
 PROFILE_A = "profile-a"
 PROFILE_B = "profile-b"
 

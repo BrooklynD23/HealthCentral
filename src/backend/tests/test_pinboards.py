@@ -17,8 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.auth import Session
-from core.time import utcnow
 from core.profile_database import ProfileDatabaseBase
+from core.time import utcnow
 
 
 def _session(profile_id: str = "test-profile") -> Session:
@@ -187,6 +187,7 @@ async def test_hc_pin_002_add_list_remove_and_duplicate_conflict(monkeypatch):
 @pytest.mark.asyncio
 async def test_hc_pin_003_rejects_unknown_item_type_before_persistence():
     from pydantic import ValidationError
+
     from api.pinboards import PinboardItemCreateRequest
 
     with pytest.raises(ValidationError):
@@ -275,6 +276,7 @@ def test_hc_pin_006_migration_012_has_exact_parent_and_unique_item_key():
 @pytest.mark.asyncio
 async def test_hc_pin_007_unique_constraint_race_returns_conflict(monkeypatch):
     from sqlalchemy.exc import IntegrityError
+
     from api.pinboards import PinboardItemCreateRequest, add_pinboard_item
 
     board = _pinboard()

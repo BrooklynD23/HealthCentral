@@ -21,7 +21,7 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from modules.hardware_detection import detect_hardware, can_run_tier, get_tier_display_info
+from modules.hardware_detection import can_run_tier, detect_hardware, get_tier_display_info
 from modules.model_selector import (
     TIER_MODEL_CONFIG,
     ModelSelector,

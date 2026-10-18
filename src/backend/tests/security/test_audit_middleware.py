@@ -5,8 +5,8 @@ import logging
 import uuid
 
 import pytest
-from security.audit_middleware import SecurityAuditMiddleware
 
+from security.audit_middleware import SecurityAuditMiddleware
 
 # --- ASGI test helpers ---
 

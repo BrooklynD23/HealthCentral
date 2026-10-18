@@ -14,35 +14,25 @@ Agent Overhaul S5-1: POST /chat serves via the agent graph when
   explicitly off. Session/turn persistence is identical on both paths.
 """
 
-from dataclasses import replace
 import logging
 import uuid
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database import get_db
-from core.auth import RequireAuth, ProfileDbSession
-from core.time import utcnow
 from core.audit import audit_and_commit, create_audit_log
+from core.auth import ProfileDbSession, RequireAuth
+from core.database import get_db
+from core.time import utcnow
 from models.chat_session import ChatSession, ChatTurn
-from models.model_settings import UserModelSettings
 from models.document import Document
+from models.model_settings import UserModelSettings
 from models.observation import Observation
-from modules.rag import (
-    RAGModule,
-    VerificationConfig,
-    ModelUnavailableError,
-    ValidatedResponse,
-    ResponseSegment as RagResponseSegment,
-    VerificationMetadata,
-    _parse_filter_date,
-)
-from modules.faithfulness import FaithfulnessConfig
 from modules.agent.cache import (
     CacheKey,
     get_cached,
@@ -50,10 +40,22 @@ from modules.agent.cache import (
     put_cached,
 )
 from modules.agent.graph import RunContext, new_run_id, run_agent
-from modules.agent.schemas import AgentTerminal
-from modules.agent.state import ChatFilters
 from modules.agent.guardrails.templates import ABSTAIN_TEMPLATE, ESCALATE_TEMPLATE
+from modules.agent.schemas import AgentTerminal
 from modules.agent.settings import is_agent_enabled
+from modules.agent.state import ChatFilters
+from modules.faithfulness import FaithfulnessConfig
+from modules.rag import (
+    ModelUnavailableError,
+    RAGModule,
+    ValidatedResponse,
+    VerificationConfig,
+    VerificationMetadata,
+    _parse_filter_date,
+)
+from modules.rag import (
+    ResponseSegment as RagResponseSegment,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1096,7 +1098,8 @@ async def _auto_extract_memory(
     medications, allergies, and known chronic conditions.  Duplicates
     (same key+value) are silently skipped.
     """
-    from sqlalchemy import select, func
+    from sqlalchemy import func, select
+
     from models.memory_item import MemoryItem
 
     # Count existing auto-extracted items to avoid unbounded growth
@@ -1429,6 +1432,7 @@ async def _build_knowledge_fallback(
             return None
         try:
             from sqlalchemy import select
+
             from models.observation import Observation
             stmt = select(Observation).where(
                 Observation.profile_id == profile_id,

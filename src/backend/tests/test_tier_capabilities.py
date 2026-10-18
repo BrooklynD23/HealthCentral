@@ -76,7 +76,7 @@ class TestTierCapabilities:
 
 class TestTiersRouteCapabilities:
     def test_hc_cap_007_tiers_route_returns_capabilities_per_tier(self):
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
 
         from api.model_settings import router as ms_router
         from core.auth import get_profile_db_session

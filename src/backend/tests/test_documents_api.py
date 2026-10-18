@@ -6,27 +6,27 @@ Phase C duplicate imports are warn-only: a new document is still created.
 
 from __future__ import annotations
 
-import sys
 import io
+import sys
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
-from fastapi import UploadFile
 import pytest
+from fastapi import UploadFile
 
 # Add backend to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from api.documents import router as documents_router
+import modules
 from api import documents as documents_api
+from api.documents import router as documents_router
 from core.auth import Session, get_profile_db_session
 from core.time import utcnow
 from models import CarePlanTask, Document
 from modules.ingest import ImportResult
 from tests.support.routes import route_client
-import modules
 
 
 class _ScalarResult:

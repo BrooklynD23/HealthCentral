@@ -6,8 +6,8 @@ in different units for the same analyte.
 """
 
 import sys
-from pathlib import Path
 from datetime import datetime, timezone
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest

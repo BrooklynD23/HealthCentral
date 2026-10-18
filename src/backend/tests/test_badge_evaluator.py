@@ -1,6 +1,7 @@
 """Tests for badge evaluation logic."""
 
-from datetime import datetime, date, timedelta, timezone as dt_timezone
+from datetime import date, datetime, timedelta
+from datetime import timezone as dt_timezone
 from unittest.mock import MagicMock
 
 import pytest

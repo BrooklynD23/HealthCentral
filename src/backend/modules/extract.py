@@ -10,11 +10,12 @@ Handles:
 
 import io
 import logging
-from pathlib import Path
-from typing import Optional, Union, BinaryIO
-from dataclasses import dataclass, field
 import re
-from datetime import datetime, date as date_type
+from dataclasses import dataclass, field
+from datetime import date as date_type
+from datetime import datetime
+from pathlib import Path
+from typing import BinaryIO, Optional, Union
 
 logger = logging.getLogger(__name__)
 
@@ -492,8 +493,8 @@ class ExtractModule:
             )
 
         try:
-            from pdf2image import convert_from_bytes
             import pytesseract
+            from pdf2image import convert_from_bytes
         except ImportError:
             return ExtractionResult(
                 document_id=document_id,
@@ -593,8 +594,8 @@ class ExtractModule:
             )
 
         try:
-            from PIL import Image
             import pytesseract
+            from PIL import Image
         except ImportError:
             return ExtractionResult(
                 document_id=document_id,
@@ -654,7 +655,8 @@ class ExtractModule:
     @staticmethod
     def _date_is_plausible(d: datetime) -> bool:
         """Return True if date falls within 1950..today+1 day."""
-        from datetime import date as _date, timedelta
+        from datetime import date as _date
+        from datetime import timedelta
         today = _date.today()
         return ExtractModule._DATE_MIN <= d.date() <= today + timedelta(days=1)
 

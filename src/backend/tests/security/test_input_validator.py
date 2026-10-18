@@ -1,9 +1,10 @@
 """Tests for InputValidationMiddleware."""
 
 import json
-import pytest
-from security.input_validator import InputValidationMiddleware
 
+import pytest
+
+from security.input_validator import InputValidationMiddleware
 
 # --- ASGI test helpers ---
 

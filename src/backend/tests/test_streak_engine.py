@@ -1,13 +1,12 @@
 """Tests for timezone-aware streak computation engine."""
 
-from datetime import datetime, date, timedelta
-from zoneinfo import ZoneInfo
-
 import time
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 
-from modules.streak_engine import compute_streak, compute_longest_streak, detect_comeback_gap
+from modules.streak_engine import compute_longest_streak, compute_streak, detect_comeback_gap
 
 
 def _make_dose(taken_at_str: str):

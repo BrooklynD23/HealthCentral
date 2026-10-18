@@ -8,13 +8,13 @@ Handles:
 - Visit-prep packet composition (HC-M18: redacted before it can leave)
 """
 
-from typing import Optional
-from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+import csv
 import html
 import json
-import csv
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta
 from io import StringIO
+from typing import Optional
 
 from core.time import utcnow
 
@@ -579,6 +579,7 @@ class ExportModule:
         does not match.
         """
         import uuid
+
         from modules.redaction import RedactionEngine
 
         sections: list[dict] = []

@@ -3,9 +3,9 @@
 from unittest.mock import MagicMock
 
 import pytest
-from monitoring.timing_middleware import TimingMiddleware
-from monitoring.metrics import MetricsCollector, metrics_collector
 
+from monitoring.metrics import MetricsCollector, metrics_collector
+from monitoring.timing_middleware import TimingMiddleware
 
 # --- ASGI test helpers ---
 

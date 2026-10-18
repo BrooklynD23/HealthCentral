@@ -7,12 +7,12 @@ doesn't affect user B (who may prefer local inference).
 Phase 2E: External API Backend (Opt-in)
 """
 
-import logging
 import json
+import logging
 from typing import Optional
 
-from .model_runner import InferenceConfig, InferenceResult
 from .config import settings
+from .model_runner import InferenceConfig, InferenceResult
 
 logger = logging.getLogger(__name__)
 
@@ -258,7 +258,7 @@ class ExternalModelRunner:
 
         redacted_count: Optional[int] = None
         if redaction_enabled:
-            from modules.redaction import RedactionEngine, VALID_POLICY_LEVELS
+            from modules.redaction import VALID_POLICY_LEVELS, RedactionEngine
 
             if policy_level not in VALID_POLICY_LEVELS:
                 logger.error(
@@ -421,6 +421,7 @@ async def get_runner_for_request(profile_id: str, profile_db) -> Optional["Exter
     """
     try:
         from sqlalchemy import select
+
         from models.model_settings import UserModelSettings
 
         result = await profile_db.execute(

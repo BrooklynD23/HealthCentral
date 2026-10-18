@@ -15,7 +15,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Any
+from typing import Any, Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,12 +23,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.config import settings
 from core.time import utcnow
 from models import UserModelSettings
+
 from .hardware_detection import (
-    HardwareProfile,
-    detect_hardware,
-    can_run_tier,
-    get_recommended_tier,
     TIER_ORDER,
+    HardwareProfile,
+    can_run_tier,
+    detect_hardware,
+    get_recommended_tier,
 )
 
 logger = logging.getLogger(__name__)

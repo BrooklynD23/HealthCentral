@@ -5,11 +5,11 @@ Generates vector embeddings for text chunks using local models.
 Supports caching and batch processing for efficiency.
 """
 
+import hashlib
 import math
 import re
 import struct
 from dataclasses import dataclass
-import hashlib
 
 
 @dataclass

@@ -8,10 +8,10 @@ Handles:
 - Chart data preparation
 """
 
-from typing import Optional
 from dataclasses import dataclass
 from datetime import datetime
 from statistics import mean
+from typing import Optional
 
 
 @dataclass

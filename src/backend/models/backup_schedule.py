@@ -17,16 +17,15 @@ user-supplied text of any kind. Everything below is an id, an enum, a count or
 a timestamp. If a field is ever added here, it must clear that bar.
 """
 
+import uuid
 from datetime import datetime
 from typing import Optional
-import uuid
 
-from sqlalchemy import String, DateTime, Boolean, Integer, ForeignKey
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.database import Base
 from core.time import utcnow
-
 
 # Interval values. Stored as a short enum string rather than a number of
 # seconds so the intent stays readable in the row.

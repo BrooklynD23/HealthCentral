@@ -9,16 +9,16 @@ in separate databases.
 """
 
 from datetime import datetime
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import String, Integer, DateTime, Text
+from sqlalchemy import DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.profile_database import ProfileDatabaseBase
 
 if TYPE_CHECKING:
-    from .observation import Observation
     from .chunk import Chunk
+    from .observation import Observation
 
 
 class Document(ProfileDatabaseBase):

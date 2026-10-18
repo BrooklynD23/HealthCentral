@@ -15,7 +15,6 @@ from core.sqlcipher_driver import is_sqlcipher_available
 from modules.hardware_detection import detect_hardware
 from modules.model_selector import get_model_selector
 
-
 DiagnosticStatus = Literal["ok", "warn", "error"]
 
 

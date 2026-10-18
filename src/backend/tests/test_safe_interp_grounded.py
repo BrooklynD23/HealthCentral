@@ -25,11 +25,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import StaticPool
 
 import api.interpretations as I
+import models  # noqa: F401  register every table on both bases
 from api.interpretations import router as interpretations_router
 from core.auth import get_profile_db_session
 from core.database import Base
 from core.profile_database import ProfileDatabaseBase
-import models  # noqa: F401  register every table on both bases
 from models import LabInterpretation, Observation
 from models.audit import AuditLog
 from modules.agent.guardrails.templates import ESCALATE_TEMPLATE

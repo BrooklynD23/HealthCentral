@@ -10,9 +10,9 @@ This module is part of the dual-agent verification pattern:
 3. Verifier agent checks each claim against cited sources
 """
 
-from typing import Optional
-from dataclasses import dataclass, field
 import re
+from dataclasses import dataclass, field
+from typing import Optional
 
 
 @dataclass

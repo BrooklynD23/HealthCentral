@@ -555,13 +555,13 @@ class TestQuestionsSectionExclusion:
 import pytest_asyncio  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E402
 
-from core.profile_database import ProfileDatabaseBase  # noqa: E402
-from models import Document  # noqa: E402
-from models.document_category import DocumentEntity  # noqa: E402
 from api.export import (  # noqa: E402
     _fetch_question_entity_dicts,
     _fetch_visit_mention_dicts,
 )
+from core.profile_database import ProfileDatabaseBase  # noqa: E402
+from models import Document  # noqa: E402
+from models.document_category import DocumentEntity  # noqa: E402
 
 
 @pytest_asyncio.fixture

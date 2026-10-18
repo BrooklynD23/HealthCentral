@@ -29,10 +29,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.config import settings
 from core.migrations import (
-    run_master_migrations,
-    run_profile_migration,
     get_master_current_revision,
     get_profile_current_revision,
+    run_master_migrations,
+    run_profile_migration,
 )
 from core.security import unseal_key_with_dpapi
 

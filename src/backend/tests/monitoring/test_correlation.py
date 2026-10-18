@@ -7,8 +7,8 @@ import uuid
 from pathlib import Path
 
 import pytest
-from monitoring.correlation import CorrelationIdMiddleware, get_correlation_id
 
+from monitoring.correlation import CorrelationIdMiddleware, get_correlation_id
 
 # --- ASGI test helpers ---
 

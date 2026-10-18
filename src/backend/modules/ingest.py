@@ -9,13 +9,13 @@ Handles:
 """
 
 import hashlib
+import io
 import json
 import logging
-from pathlib import Path
-from typing import Optional, BinaryIO
-from dataclasses import dataclass
 import uuid
-import io
+from dataclasses import dataclass
+from pathlib import Path
+from typing import BinaryIO, Optional
 
 from core.config import settings
 from core.security import DocumentEncryption

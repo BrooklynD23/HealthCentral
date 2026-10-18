@@ -20,8 +20,8 @@ async def lookup_reference_range(analyte: str, master_db: Any):
     knowledge-base entry or no usable range — the caller treats that as a
     graceful "no curated reference available".
     """
-    from .tools.lookup_reference import ReferenceRange
     from ..knowledge_loader import get_knowledge_loader
+    from .tools.lookup_reference import ReferenceRange
 
     loader = get_knowledge_loader()
     info = await loader.get_biomarker_knowledge(analyte, master_db)

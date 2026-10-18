@@ -6,7 +6,6 @@ import importlib.util
 import sys
 from pathlib import Path
 
-
 SCRIPT_PATH = Path(__file__).resolve().parents[3] / "scripts" / "harness_drift_check.py"
 SPEC = importlib.util.spec_from_file_location("harness_drift_check_root", SCRIPT_PATH)
 assert SPEC is not None and SPEC.loader is not None

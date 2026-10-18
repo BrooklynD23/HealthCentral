@@ -34,7 +34,6 @@ import re
 import sys
 from pathlib import Path
 
-
 CANONICAL_DOCS = [
     "docs/00_architecture_plans_index.md",
     "docs/features/00_features_index.md",

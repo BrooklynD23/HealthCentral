@@ -81,7 +81,9 @@ def local_day_bounds_utc(day: date, tz_name: str) -> tuple[datetime, datetime]:
 
 async def profile_timezone_name(profile_db: AsyncSession, profile_id: str) -> str:
     """The profile's safe IANA zone, "UTC" when it has no settings row."""
-    from models import UserModelSettings  # ponytail: lazy import breaks the models -> core.time cycle
+    from models import (
+        UserModelSettings,  # ponytail: lazy import breaks the models -> core.time cycle
+    )
 
     result = await profile_db.execute(
         select(UserModelSettings.timezone).where(UserModelSettings.profile_id == profile_id)

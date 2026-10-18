@@ -475,8 +475,9 @@ def _fake_profile(profile_id: str, display_name: str = "Jane Doe"):
 @pytest.mark.asyncio
 class TestFhirExportApi:
     async def test_hc_fhir_100_confirm_false_returns_400(self):
-        from api.export import FhirExportRequest, generate_fhir_export
         from fastapi import HTTPException
+
+        from api.export import FhirExportRequest, generate_fhir_export
 
         with pytest.raises(HTTPException) as exc:
             await generate_fhir_export(
@@ -533,16 +534,18 @@ class TestFhirExportApi:
         del _fhir_store[export_id]
 
     async def test_hc_fhir_103_download_unknown_id_404(self):
-        from api.export import download_fhir_export
         from fastapi import HTTPException
+
+        from api.export import download_fhir_export
 
         with pytest.raises(HTTPException) as exc:
             await download_fhir_export(str(uuid.uuid4()), _session("test-profile"), AsyncMock())
         assert exc.value.status_code == 404
 
     async def test_hc_fhir_104_download_cross_profile_403(self):
-        from api.export import _fhir_store, download_fhir_export
         from fastapi import HTTPException
+
+        from api.export import _fhir_store, download_fhir_export
 
         export_id = str(uuid.uuid4())
         _fhir_store[export_id] = {

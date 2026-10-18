@@ -8,7 +8,7 @@ All significant operations should be logged through this module.
 import json
 import logging
 import re
-from typing import Optional, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 

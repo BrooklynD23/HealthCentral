@@ -10,7 +10,7 @@ Covers:
 """
 
 import sys
-from datetime import datetime, date
+from datetime import date, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -19,7 +19,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from modules.extract import ExtractModule
-
 
 # ---------------------------------------------------------------------------
 # Helpers

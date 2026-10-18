@@ -7,14 +7,13 @@ Validates that:
 - Graceful fallback when category data is missing
 """
 
+import sys
 import uuid
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-import sys
-from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -248,8 +247,9 @@ class TestChatRequestCategoryField:
         assert req.document_category is None
 
     def test_chat_request_rejects_invalid_category(self) -> None:
-        from api.assistant import ChatRequest
         from pydantic import ValidationError
+
+        from api.assistant import ChatRequest
 
         with pytest.raises(ValidationError):
             ChatRequest(question="test", document_category="invalid_category")

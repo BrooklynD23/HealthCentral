@@ -19,7 +19,6 @@ from modules.agent.guardrails.guard import guard
 from modules.agent.schemas import Citation
 from tests.agent.conftest import load_golden_cases, seed_document, seed_observation
 
-
 # --- live: fixed templates are constants, not generated (S3-1, S3-3) --------
 
 def test_s3_templates_are_nonempty_constants():

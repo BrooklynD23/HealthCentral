@@ -24,14 +24,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 import modules.notification_scheduler as ns_module
-from core.time import to_local, utcnow
-from modules.notification_scheduler import (
-    NotificationScheduler,
-    ProfileVaultLockedError,
-    profile_session_factory,
-)
-from modules.platform_notifications import MockProvider, NotificationService
 from core.profile_database import ProfileDatabaseBase
+from core.time import to_local, utcnow
 from models import (
     AdherencePattern,
     DoseTaken,
@@ -40,6 +34,12 @@ from models import (
     ReminderLog,
     UserModelSettings,
 )
+from modules.notification_scheduler import (
+    NotificationScheduler,
+    ProfileVaultLockedError,
+    profile_session_factory,
+)
+from modules.platform_notifications import MockProvider, NotificationService
 
 
 def run(coro):
@@ -172,8 +172,9 @@ def test_hc_nsw_005_status_endpoint_reports_skipped_locked(monkeypatch):
 def test_hc_nsw_006_lifespan_starts_and_stops_scheduler(monkeypatch):
     """main.lifespan starts the notification scheduler on boot and stops it
     on shutdown — same fail-soft contract as the backup scheduler."""
-    import main as main_module
     from fastapi import FastAPI
+
+    import main as main_module
 
     started = AsyncMock()
     stopped = AsyncMock()
@@ -461,8 +462,9 @@ def test_hc_nsw_010_close_waits_for_inflight_pass_and_vault_not_recreated(
     `connect` listener re-runs PRAGMA key, and an erased vault file is
     recreated.
     """
-    import core.auth as auth_module
     from sqlalchemy import text
+
+    import core.auth as auth_module
     from core.config import settings
     from core.profile_database import get_profile_db_manager
 
@@ -566,8 +568,9 @@ def test_hc_streak_tz_004_scheduler_passes_profile_zone_to_calculate_streak(tmp_
 # HC-SCHED-TZ — scheduler reads the profile-local clock (D-2)
 # ---------------------------------------------------------------------------
 
-import modules.adherence_patterns as _ap_module  # noqa: E402
 from datetime import date, datetime, time  # noqa: E402
+
+import modules.adherence_patterns as _ap_module  # noqa: E402
 
 _TZ_PID = "profile-tz"
 _LA = "America/Los_Angeles"

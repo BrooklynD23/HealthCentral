@@ -14,9 +14,9 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .knowledge_loader import (
-    KnowledgeLoader,
     BiomarkerInfo,
     InterventionInfo,
+    KnowledgeLoader,
     get_knowledge_loader,
 )
 

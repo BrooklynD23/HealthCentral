@@ -24,7 +24,6 @@ import api.profiles as profiles_api
 from api.profiles import PROFILE_DELETE_CONFIRMATION, ProfileDeleteRequest
 from core.auth import Session
 
-
 # ---------------------------------------------------------------------------
 # Test doubles
 # ---------------------------------------------------------------------------
@@ -425,8 +424,8 @@ async def test_hc_pdel_018_successful_reauth_resets_the_rate_limiter(vaults):
     """login and unlock_profile both reset the limiter after a good password.
     delete did not, so failed attempts accumulated across successful ones until
     the user was locked out of deleting their own profile."""
-    from core.rate_limiter import auth_rate_limiter
     from core.config import settings as core_settings
+    from core.rate_limiter import auth_rate_limiter
 
     if not core_settings.auth_rate_limit_enabled:
         pytest.skip("rate limiting disabled in this configuration")

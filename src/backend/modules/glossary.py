@@ -7,7 +7,6 @@ Uses a curated local glossary for privacy and consistency.
 
 from typing import Optional
 
-
 # Curated medical terms glossary
 # Focus on lab test-related terms patients commonly encounter
 MEDICAL_GLOSSARY = {

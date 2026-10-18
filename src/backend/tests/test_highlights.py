@@ -33,7 +33,6 @@ from modules.highlights import (
     derive_observation_highlights,
 )
 
-
 # ---------------------------------------------------------------------------
 # Shared helpers (style matches tests/test_care_tasks.py)
 # ---------------------------------------------------------------------------

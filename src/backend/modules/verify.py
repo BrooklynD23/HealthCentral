@@ -8,9 +8,9 @@ Handles:
 Production verification is implemented in api/observations.py:verify_observation.
 """
 
-from typing import Optional
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Optional
 
 
 @dataclass

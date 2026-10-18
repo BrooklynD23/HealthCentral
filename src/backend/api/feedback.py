@@ -26,11 +26,11 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.auth import RequireAuth, ProfileDbSession
 from core.audit import create_audit_log
+from core.auth import ProfileDbSession, RequireAuth
 from core.database import get_db
 from core.feedback_constants import VALID_TAGS
 from core.time import utcnow

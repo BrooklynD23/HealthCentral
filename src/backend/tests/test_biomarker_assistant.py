@@ -8,13 +8,14 @@ Covers:
 - Safety guard still intact after changes
 """
 
-import pytest
+import json
 import sys
 import uuid
-import json
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timezone
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -84,7 +85,7 @@ class TestSeedingIdempotency:
     @pytest.mark.asyncio
     async def test_seed_biomarker_knowledge_skips_existing_rows(self):
         """Second call to seed_biomarker_knowledge() inserts zero new rows."""
-        from scripts.seed_knowledge_base import seed_biomarker_knowledge, BIOMARKER_DATA
+        from scripts.seed_knowledge_base import BIOMARKER_DATA, seed_biomarker_knowledge
 
         # Simulate an existing row for the first analyte
         existing_canonical = BIOMARKER_DATA[0]["analyte_canonical"]
@@ -106,7 +107,7 @@ class TestSeedingIdempotency:
     @pytest.mark.asyncio
     async def test_seed_biomarker_knowledge_inserts_when_table_empty(self):
         """seed_biomarker_knowledge() inserts all rows when table is empty."""
-        from scripts.seed_knowledge_base import seed_biomarker_knowledge, BIOMARKER_DATA
+        from scripts.seed_knowledge_base import BIOMARKER_DATA, seed_biomarker_knowledge
 
         added_objects = []
 
@@ -370,7 +371,7 @@ class TestFallbackPath:
     @pytest.mark.asyncio
     async def test_fallback_includes_kb_info_when_seeded(self):
         """Fallback produces informative text when KB entry exists."""
-        from api.assistant import _build_knowledge_fallback, ChatRequest
+        from api.assistant import ChatRequest, _build_knowledge_fallback
 
         request = ChatRequest(question="How's my LDL cholesterol?")
         kb_info = _make_kb_info("ldl_cholesterol")
@@ -396,7 +397,7 @@ class TestFallbackPath:
     @pytest.mark.asyncio
     async def test_fallback_includes_user_observation_when_profile_db_provided(self):
         """With profile_db, fallback embeds the user's actual value."""
-        from api.assistant import _build_knowledge_fallback, ChatRequest
+        from api.assistant import ChatRequest, _build_knowledge_fallback
 
         request = ChatRequest(question="What's my LDL?")
         kb_info = _make_kb_info("ldl_cholesterol")
@@ -430,7 +431,7 @@ class TestFallbackPath:
     @pytest.mark.asyncio
     async def test_fallback_graceful_when_kb_empty(self):
         """With empty KB, fallback returns uncertainty segment (no crash)."""
-        from api.assistant import _build_knowledge_fallback, ChatRequest
+        from api.assistant import ChatRequest, _build_knowledge_fallback
 
         request = ChatRequest(question="explain my LDL")
 
@@ -453,7 +454,7 @@ class TestFallbackPath:
     @pytest.mark.asyncio
     async def test_fallback_observation_cite_refs_are_user_observation_type(self):
         """Citations produced by fallback are source_type='user_observation'."""
-        from api.assistant import _build_knowledge_fallback, ChatRequest
+        from api.assistant import ChatRequest, _build_knowledge_fallback
 
         request = ChatRequest(question="LDL status?")
         kb_info = _make_kb_info("ldl_cholesterol")

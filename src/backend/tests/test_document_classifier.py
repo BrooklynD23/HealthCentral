@@ -2,7 +2,7 @@
 
 import pytest
 
-from modules.document_classifier import classify_document, ClassificationResult
+from modules.document_classifier import ClassificationResult, classify_document
 
 
 class TestClassifyDocument:

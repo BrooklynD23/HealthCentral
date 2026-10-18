@@ -22,23 +22,23 @@ Or via API (when implemented):
 import asyncio
 import json
 import logging
-import uuid
-from datetime import datetime
-
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 # Add parent directory to path for imports
 import sys
+import uuid
+from datetime import datetime
 from pathlib import Path
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.database import async_session_maker, init_database
 from models.knowledge_base import (
     BiomarkerKnowledge,
-    InterventionMapping,
     BiomarkerRelationship,
+    InterventionMapping,
 )
 
 logging.basicConfig(level=logging.INFO)

@@ -23,40 +23,44 @@ Phase 1 Lab Interpretation modules:
 - knowledge_loader: Knowledge base data access
 """
 
-from .ingest import IngestModule
-from .extract import ExtractModule
-from .normalize import NormalizeModule
-from .verify import VerificationPayload, VerificationEdit, validate_edit_value, EDITABLE_FIELDS
+# Phase 2: Medication Adherence modules
+from .adherence_patterns import (
+    MissedDayPattern,
+    PatternLearner,
+    StreakData,
+    TimeWindowPattern,
+    WeekdayPattern,
+    get_pattern_learner,
+)
 from .analytics import AnalyticsModule
-from .rag import RAGModule
-from .export import ExportModule
 
 # Phase 4: AI Safety modules
-from .claim_extractor import ClaimExtractor, ExtractedClaim, ClaimExtractionResult
-from .source_authority import (
-    SourceAuthorityScorer,
-    SourceMetadata,
-    SourceTier,
-    ClaimAuthorityAnalysis,
-)
-from .verifier_agent import (
-    VerifierAgent,
-    SourceEvidence,
-    ClaimVerificationResult,
-    VerificationConfig,
-    EntailmentLabel,
-)
+from .claim_extractor import ClaimExtractionResult, ClaimExtractor, ExtractedClaim
+from .export import ExportModule
+from .extract import ExtractModule
 from .faithfulness import (
+    FaithfulnessConfig,
     FaithfulnessScorer,
     FaithfulnessScores,
-    FaithfulnessConfig,
 )
+
+# Phase 0.3: Hardware Detection and Model Selection modules
+from .hardware_detection import (
+    TIER_ORDER,
+    TIER_REQUIREMENTS,
+    HardwareProfile,
+    can_run_tier,
+    detect_hardware,
+    get_recommended_tier,
+    get_tier_display_info,
+)
+from .ingest import IngestModule
 
 # Phase 1: Lab Interpretation modules
 from .interpret import (
-    InterpretModule,
     InterpretationContext,
     InterpretationResult,
+    InterpretModule,
     PanelInterpretationResult,
     get_interpret_module,
 )
@@ -65,77 +69,72 @@ from .interpret_safety import (
     SafetyValidationResult,
     get_safety_guard,
 )
-from .recommend import (
-    RecommendationEngine,
-    Recommendation,
-    RecommendationSet,
-    get_recommendation_engine,
-)
 from .knowledge_loader import (
-    KnowledgeLoader,
     BiomarkerInfo,
     InterventionInfo,
+    KnowledgeLoader,
     RelationshipInfo,
     get_knowledge_loader,
 )
 
-# Phase 2: Medication Adherence modules
-from .adherence_patterns import (
-    PatternLearner,
-    TimeWindowPattern,
-    WeekdayPattern,
-    MissedDayPattern,
-    StreakData,
-    get_pattern_learner,
-)
-
-# Phase 0.3: Hardware Detection and Model Selection modules
-from .hardware_detection import (
-    HardwareProfile,
-    detect_hardware,
-    can_run_tier,
-    get_recommended_tier,
-    get_tier_display_info,
-    TIER_REQUIREMENTS,
-    TIER_ORDER,
-)
-from .model_selector import (
-    ModelSelector,
-    DownloadProgress,
-    get_model_selector,
-    TIER_MODEL_CONFIG,
-    TIER_FALLBACK_ORDER,
-)
-
 # Phase 3: Smart Notifications modules
 from .message_generator import (
-    MessageGenerator,
-    MessageContext,
     GeneratedMessage,
-    ReminderPriority,
+    MessageContext,
+    MessageGenerator,
     MessageTone,
+    ReminderPriority,
     get_message_generator,
 )
-from .platform_notifications import (
-    NotificationService,
-    NotificationProvider,
-    NotificationPayload,
-    DeliveryResult,
-    DeliveryStatus,
-    NotificationPlatform,
-    get_notification_service,
-    initialize_notifications,
+from .model_selector import (
+    TIER_FALLBACK_ORDER,
+    TIER_MODEL_CONFIG,
+    DownloadProgress,
+    ModelSelector,
+    get_model_selector,
 )
+from .normalize import NormalizeModule
 from .notification_scheduler import (
     NotificationScheduler,
-    SchedulerState,
-    ScheduleCheck,
     NotificationSettings,
+    ScheduleCheck,
     SchedulerConfig,
+    SchedulerState,
     get_notification_scheduler,
     start_notification_scheduler,
     stop_notification_scheduler,
 )
+from .platform_notifications import (
+    DeliveryResult,
+    DeliveryStatus,
+    NotificationPayload,
+    NotificationPlatform,
+    NotificationProvider,
+    NotificationService,
+    get_notification_service,
+    initialize_notifications,
+)
+from .rag import RAGModule
+from .recommend import (
+    Recommendation,
+    RecommendationEngine,
+    RecommendationSet,
+    get_recommendation_engine,
+)
+from .source_authority import (
+    ClaimAuthorityAnalysis,
+    SourceAuthorityScorer,
+    SourceMetadata,
+    SourceTier,
+)
+from .verifier_agent import (
+    ClaimVerificationResult,
+    EntailmentLabel,
+    SourceEvidence,
+    VerificationConfig,
+    VerifierAgent,
+)
+from .verify import EDITABLE_FIELDS, VerificationEdit, VerificationPayload, validate_edit_value
 
 __all__ = [
     # Core modules

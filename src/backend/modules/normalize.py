@@ -7,9 +7,8 @@ Handles:
 - Unit preservation and conversion
 """
 
-from typing import Optional
 from dataclasses import dataclass
-
+from typing import Optional
 
 # --- Cross-lab unit conversion (NORM-UNIT-001) ---------------------------------
 #

@@ -11,19 +11,20 @@ TDD Tests that verify:
 All tests verify authenticated access and data isolation.
 """
 
-import pytest
-import sys
-from pathlib import Path
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
-import uuid
 import json
+import sys
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 # Add backend to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.time import utcnow
-from modules.export import ExportModule, DoctorSummary, QuestionPrompt
+from modules.export import DoctorSummary, ExportModule, QuestionPrompt
 
 
 class TestExportCSV:

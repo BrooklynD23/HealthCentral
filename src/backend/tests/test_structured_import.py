@@ -44,8 +44,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.auth import Session
 from core.profile_database import ProfileDatabaseBase
 from modules.fhir_export import build_fhir_bundle
-from modules.ingest import ImportResult, IngestModule
 from modules.import_structured import parse_fhir_bundle, parse_lab_csv
+from modules.ingest import ImportResult, IngestModule
 
 
 def _session(profile_id: str = "test-profile") -> Session:
@@ -429,9 +429,9 @@ class TestStructuredImportRoute:
     async def test_hc_fimp_060_csv_upload_persists_unverified_observations_and_category(
         self, monkeypatch, real_profile_db
     ):
+        import modules
         from api import documents as documents_api
         from models import DocumentCategory, Observation
-        import modules
 
         csv_bytes = (
             b"Date,Analyte,Value,Unit,Reference Low,Reference High,Flag\n"
@@ -486,9 +486,9 @@ class TestStructuredImportRoute:
     async def test_hc_fimp_061_fhir_upload_persists_entities_and_observations(
         self, monkeypatch, real_profile_db
     ):
+        import modules
         from api import documents as documents_api
         from models import DocumentCategory, DocumentEntity
-        import modules
 
         bundle = _bundle([
             {"resource": {
@@ -545,8 +545,8 @@ class TestStructuredImportRoute:
         assert cat_rows[0].category == "lab"  # observations present -> lab wins the tie-break
 
     async def test_hc_fimp_062_duplicate_csv_reupload_warns(self, monkeypatch, real_profile_db):
-        from api import documents as documents_api
         import modules
+        from api import documents as documents_api
 
         csv_bytes = b"Analyte,Value\nGlucose,100\n"
         monkeypatch.setattr(documents_api, "get_profile_encryption_key", lambda _pid: b"x" * 32)
@@ -575,9 +575,9 @@ class TestStructuredImportRoute:
     async def test_hc_fimp_063_injection_payload_analyte_via_route_stays_inert_and_unverified(
         self, monkeypatch, real_profile_db
     ):
+        import modules
         from api import documents as documents_api
         from models import Observation
-        import modules
 
         payload = "Robert'); DROP TABLE observations;--"
         csv_bytes = f"Analyte,Value\n{payload},5\n".encode()
@@ -600,8 +600,8 @@ class TestStructuredImportRoute:
         assert obs_rows[0].user_verified is False
 
     async def test_hc_fimp_064_malformed_json_upload_returns_400(self, monkeypatch, real_profile_db):
-        from api import documents as documents_api
         import modules
+        from api import documents as documents_api
 
         monkeypatch.setattr(documents_api, "get_profile_encryption_key", lambda _pid: b"x" * 32)
         monkeypatch.setattr(modules, "IngestModule", _FakeStructuredIngestModule)
@@ -616,8 +616,8 @@ class TestStructuredImportRoute:
         assert exc.value.status_code == 400
 
     async def test_hc_fimp_065_non_bundle_json_upload_returns_400(self, monkeypatch, real_profile_db):
-        from api import documents as documents_api
         import modules
+        from api import documents as documents_api
 
         monkeypatch.setattr(documents_api, "get_profile_encryption_key", lambda _pid: b"x" * 32)
         monkeypatch.setattr(modules, "IngestModule", _FakeStructuredIngestModule)
@@ -633,8 +633,8 @@ class TestStructuredImportRoute:
         assert exc.value.status_code == 400
 
     async def test_hc_fimp_066_empty_csv_upload_is_zero_import_not_error(self, monkeypatch, real_profile_db):
-        from api import documents as documents_api
         import modules
+        from api import documents as documents_api
 
         monkeypatch.setattr(documents_api, "get_profile_encryption_key", lambda _pid: b"x" * 32)
         monkeypatch.setattr(documents_api, "get_decrypted_document", lambda _pid, _did: io.BytesIO(b""))
@@ -657,9 +657,9 @@ class TestStructuredImportRoute:
         (FHIR bundle) must not wipe its entities/category — the extraction
         pipeline has no text to rebuild from for structured imports, so the
         route must reject the reprocess request before mutating anything."""
+        import modules
         from api import documents as documents_api
         from models import DocumentCategory, DocumentEntity, Observation
-        import modules
 
         bundle = _bundle([
             {"resource": {

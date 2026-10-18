@@ -10,12 +10,12 @@ Covers:
 - auto-extract memory heuristics
 """
 
-import pytest
 import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
 from dataclasses import dataclass
 from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
@@ -521,7 +521,9 @@ class TestConfigDefault:
     def test_assistant_memory_enabled_default_is_true(self):
         # Import fresh settings (not the live singleton, which may differ)
         import importlib
+
         import core.config as cfg_module
+
         # Re-instantiate settings with defaults
         from core.config import Settings
         fresh = Settings()

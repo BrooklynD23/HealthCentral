@@ -8,17 +8,18 @@ TDD Tests that verify:
 - needs_verification is computed
 """
 
-import pytest
 import sys
-from pathlib import Path
-from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
 import uuid
+from datetime import datetime
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 # Add backend to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from modules.extract import ExtractModule, ExtractionResult, ExtractedObservation, Provenance
+from modules.extract import ExtractedObservation, ExtractionResult, ExtractModule, Provenance
 
 
 class TestExtractionPipeline:

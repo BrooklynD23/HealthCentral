@@ -26,7 +26,6 @@ from models.care_plan_task import CarePlanTask
 from models.document_category import DocumentEntity
 from modules.care_tasks import derive_task_candidates
 
-
 # ---------------------------------------------------------------------------
 # Shared helpers (mock-session style matches tests/test_source_spans.py)
 # ---------------------------------------------------------------------------

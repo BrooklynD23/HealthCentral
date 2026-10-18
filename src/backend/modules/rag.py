@@ -9,42 +9,42 @@ Handles:
 - Dual-agent verification (Phase 4)
 """
 
+import logging
+import re
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
-from dataclasses import dataclass, field
-import re
-import logging
 
-from core.model_runner import get_model_runner, InferenceConfig
 from core.config import settings
+from core.model_runner import InferenceConfig, get_model_runner
 from core.time import to_naive_utc
 
 
 class ModelUnavailableError(Exception):
     """Raised when no LLM model is available for inference."""
 
+from .claim_extractor import ClaimExtractionResult, ClaimExtractor, ExtractedClaim
 from .embeddings import EmbeddingsModule
-from .claim_extractor import ClaimExtractor, ExtractedClaim, ClaimExtractionResult
+from .faithfulness import (
+    FaithfulnessConfig,
+    FaithfulnessScorer,
+    FaithfulnessScores,
+)
+from .interpret_safety import InterpretationSafetyGuard
 from .source_authority import (
+    ClaimAuthorityAnalysis,
     SourceAuthorityScorer,
     SourceMetadata,
     SourceTier,
-    ClaimAuthorityAnalysis,
     analyze_claim_authority,
 )
 from .verifier_agent import (
-    VerifierAgent,
-    SourceEvidence,
     ClaimVerificationResult,
+    SourceEvidence,
     VerificationConfig,
+    VerifierAgent,
     verify_all_claims,
 )
-from .faithfulness import (
-    FaithfulnessScorer,
-    FaithfulnessScores,
-    FaithfulnessConfig,
-)
-from .interpret_safety import InterpretationSafetyGuard
 
 
 def _parse_filter_date(value: str) -> Optional[datetime]:
@@ -310,14 +310,16 @@ USER QUESTION: {question}"""
 
         At most 5 analytes are surfaced to keep the prompt compact.
         """
+        from sqlalchemy import select
+
+        from models.observation import Observation
+
         from .normalize import (
             NormalizeModule,
             canonical_unit_for,
             convert_to_canonical,
             normalize_unit,
         )
-        from sqlalchemy import select
-        from models.observation import Observation
 
         normalizer = NormalizeModule()
 
@@ -548,7 +550,8 @@ USER QUESTION: {question}"""
             List of (chunk_data, similarity_score) tuples
         """
         from sqlalchemy import select
-        from models import Chunk, DocumentCategory, Embedding, Document, Observation
+
+        from models import Chunk, Document, DocumentCategory, Embedding, Observation
 
         # Embed the query
         query_vector = self._embedder.embed_text(query)
@@ -1084,6 +1087,7 @@ I was unable to fully process your question within the time limit. Please try as
 
         try:
             from sqlalchemy import select
+
             from models.memory_item import MemoryItem
 
             max_items = max(0, int(getattr(settings, "assistant_memory_max_items_in_prompt", 0)))

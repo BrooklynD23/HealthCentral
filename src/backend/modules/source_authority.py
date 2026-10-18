@@ -11,9 +11,9 @@ Source Authority Tiers:
 - Tier 4: Unverified/unknown sources (lowest)
 """
 
-from typing import Optional
 from dataclasses import dataclass, field
 from enum import IntEnum
+from typing import Optional
 
 
 class SourceTier(IntEnum):

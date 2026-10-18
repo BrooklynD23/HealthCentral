@@ -16,26 +16,26 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select, and_, func
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from core.database import get_db
 from core.audit import audit_and_commit, audit_intent, log_document_event
-from core.auth import RequireAuth, Session, ProfileDbSession
+from core.auth import ProfileDbSession, RequireAuth, Session
+from core.database import get_db
 from core.time import NaiveUtcDatetime, profile_timezone_name, safe_zone_name, to_local, utcnow
 from models import (
+    AdherencePattern,
+    DoseTaken,
+    EarnedBadge,
     Medication,
     MedicationSchedule,
-    DoseTaken,
-    AdherencePattern,
     Observation,
     ReminderLog,
     UserModelSettings,
-    EarnedBadge,
 )
-from modules.streak_engine import compute_longest_streak, compute_streak
 from modules.badge_evaluator import BadgeEvalResult, evaluate_badges_after_dose
+from modules.streak_engine import compute_longest_streak, compute_streak
 
 logger = logging.getLogger(__name__)
 

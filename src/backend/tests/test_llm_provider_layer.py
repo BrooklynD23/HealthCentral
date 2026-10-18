@@ -204,9 +204,10 @@ class TestLlamaCppProvider:
         assert result.text == "async response"
 
     def test_generate_async_timeout_returns_graceful_message(self):
-        from core.llm.provider import ChatMessage
-        from core.llm.llama_cpp_provider import LlamaCppProvider
         import time
+
+        from core.llm.llama_cpp_provider import LlamaCppProvider
+        from core.llm.provider import ChatMessage
 
         p = LlamaCppProvider(model_path="/fake/model.gguf")
         p._initialized = True
@@ -730,20 +731,20 @@ class TestProviderProtocol:
     """Verify providers structurally satisfy ProviderProtocol."""
 
     def test_llama_cpp_satisfies_protocol(self):
-        from core.llm.provider import ProviderProtocol
         from core.llm.llama_cpp_provider import LlamaCppProvider
+        from core.llm.provider import ProviderProtocol
         p = LlamaCppProvider()
         assert isinstance(p, ProviderProtocol)
 
     def test_ollama_satisfies_protocol(self):
-        from core.llm.provider import ProviderProtocol
         from core.llm.ollama_provider import OllamaProvider
+        from core.llm.provider import ProviderProtocol
         p = OllamaProvider()
         assert isinstance(p, ProviderProtocol)
 
     def test_mock_provider_satisfies_protocol(self):
         """A correctly shaped object should pass the structural check."""
-        from core.llm.provider import ProviderProtocol, CapabilityFlags, ChatMessage
+        from core.llm.provider import CapabilityFlags, ChatMessage, ProviderProtocol
 
         class MinimalProvider:
             def capabilities(self): return CapabilityFlags()

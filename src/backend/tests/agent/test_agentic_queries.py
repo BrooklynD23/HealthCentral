@@ -360,9 +360,9 @@ async def test_hc_agq_032_query_timeline_sanitizes_injection_in_title(
     agent_profile_db, make_run_context, monkeypatch
 ):
     """A tampered document title flowing into a TimelineEvent must be sanitized."""
+    import modules.timeline as timeline_mod
     from modules.agent.guardrails.redaction_gate import sanitize_untrusted_field
     from modules.agent.tools.query_timeline import QueryTimelineInput, QueryTimelineTool
-    import modules.timeline as timeline_mod
 
     async def _fake_build_timeline(db, profile_id, event_type=None, date_from=None, date_to=None):
         event = timeline_mod.TimelineEvent(

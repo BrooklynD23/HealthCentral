@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import importlib
 import asyncio
+import importlib
 import sys
 import uuid
 from datetime import date, datetime
@@ -18,11 +18,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.profile_database import ProfileDatabaseBase
 from core.auth import Session
+from core.profile_database import ProfileDatabaseBase
 from core.time import utcnow
 from models import Chunk, Document, DocumentCategory, DocumentEntity, Observation
-
 
 PROFILE_ID = "search-profile"
 DOC_ID = str(uuid.uuid4())
@@ -402,8 +401,9 @@ def test_HC_SRCH_012_route_declares_query_and_limit_bounds():
 async def test_HC_SRCH_013_category_filter_rejects_free_text_before_audit(
     profile_db, monkeypatch
 ):
-    import api.search as search_api
     from fastapi import HTTPException
+
+    import api.search as search_api
 
     audit_mock = AsyncMock(return_value=object())
     search_mock = AsyncMock(return_value=[])
@@ -452,8 +452,9 @@ async def test_HC_SRCH_014_unreviewed_provider_does_not_feed_provider_filter(pro
 async def test_HC_SRCH_015_route_rejects_blank_after_trim_before_audit(
     profile_db, monkeypatch
 ):
-    import api.search as search_api
     from fastapi import HTTPException
+
+    import api.search as search_api
 
     search_mock = AsyncMock(return_value=[])
     audit_mock = AsyncMock(return_value=object())

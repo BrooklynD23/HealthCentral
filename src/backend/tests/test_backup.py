@@ -9,14 +9,14 @@ from pathlib import Path
 import pytest
 
 from scripts.backup import (
-    backup,
-    verify,
-    restore,
-    prune,
-    _compute_sha256,
     BackupResult,
-    VerifyResult,
     RestoreResult,
+    VerifyResult,
+    _compute_sha256,
+    backup,
+    prune,
+    restore,
+    verify,
 )
 
 
@@ -220,6 +220,7 @@ def test_hc_bkup_037_partial_restore_is_reported_as_partial(tmp_path, monkeypatc
     are replaced. Reporting success=False makes the API and UI say "Nothing was
     changed", which is false and leaves the user unable to reason about state."""
     import sqlite3
+
     from scripts import backup as backup_script
 
     data_dir = tmp_path / "data"

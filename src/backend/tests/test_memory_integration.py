@@ -5,9 +5,10 @@ Verifies that user memory items are correctly injected into RAG context
 when the feature is enabled, and excluded when disabled.
 """
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 from dataclasses import dataclass
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 
 @dataclass(frozen=True)

@@ -13,16 +13,16 @@ import logging
 from logging.config import fileConfig
 from pathlib import Path
 
+from alembic import context
 from sqlalchemy import engine_from_config, pool, text
 
-from alembic import context
+from core.config import settings
 
 # Import master database base and models to populate metadata
 from core.database import Base
-from core.config import settings
 
 # Import all master models to register them with Base.metadata
-from models import profile, audit, knowledge_base  # noqa: F401
+from models import audit, knowledge_base, profile  # noqa: F401
 
 logger = logging.getLogger("alembic.env")
 

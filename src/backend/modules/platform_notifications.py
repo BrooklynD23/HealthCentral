@@ -15,7 +15,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Callable
+from typing import Callable, Optional
 
 from core.time import utcnow
 
@@ -128,11 +128,11 @@ class WindowsToastProvider(NotificationProvider):
 
         # Try to import Windows SDK
         try:
-            from winsdk.windows.ui.notifications import (
-                ToastNotificationManager,
-                ToastNotification,
-            )
             from winsdk.windows.data.xml.dom import XmlDocument
+            from winsdk.windows.ui.notifications import (
+                ToastNotification,
+                ToastNotificationManager,
+            )
             self._toast_module = {
                 "manager": ToastNotificationManager,
                 "notification": ToastNotification,

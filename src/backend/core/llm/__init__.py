@@ -11,14 +11,14 @@ Public surface:
     get_provider       – factory: returns the provider configured in settings
 """
 
+from .factory import get_provider, reset_provider
+from .llama_cpp_provider import LlamaCppProvider
+from .ollama_provider import OllamaProvider
 from .provider import (
     CapabilityFlags,
     ProviderProtocol,
     ProviderUnavailableError,
 )
-from .llama_cpp_provider import LlamaCppProvider
-from .ollama_provider import OllamaProvider
-from .factory import get_provider, reset_provider
 
 __all__ = [
     "CapabilityFlags",

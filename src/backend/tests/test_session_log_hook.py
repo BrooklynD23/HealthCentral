@@ -7,7 +7,6 @@ import json
 import sys
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT_PATH = REPO_ROOT / ".claude" / "hooks" / "session_log.py"
 SPEC = importlib.util.spec_from_file_location("session_log_hook", SCRIPT_PATH)

@@ -9,7 +9,6 @@ import re
 
 from modules.extract_spans import with_span
 
-
 MODALITY_PATTERN = re.compile(
     r"\b(MRI|CT\s*scan|CT|X[\-\s]?ray|ultrasound|radiograph|fluoroscopy|mammograph|PET\s*scan|PET/CT)\b",
     re.IGNORECASE,

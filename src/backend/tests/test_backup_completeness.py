@@ -19,7 +19,7 @@ import sqlite3
 
 import pytest
 
-from scripts.backup import backup, _discover_databases, _discover_key_files
+from scripts.backup import _discover_databases, _discover_key_files, backup
 
 
 def _seed(data_dir, profile_ids=("profile-a",), with_recovery=True):
