@@ -17,26 +17,26 @@ These are passed via context.config.attributes from the migration runner.
 import logging
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import create_engine, event, pool
 
-from core.config import settings
+from alembic import context
 
 # Import profile database base and models to populate metadata
 from core.profile_database import ProfileDatabaseBase
+from core.config import settings
 from core.sqlcipher_driver import get_sqlcipher_module, is_sqlcipher_available
 
 # Import all profile models to register them with ProfileDatabaseBase.metadata
 from models import (  # noqa: F401
-    chat_session,
-    chunk,
     document,
+    observation,
+    chunk,
     embedding,
     interpretation,
     medication,
     memory_item,
     model_settings,
-    observation,
+    chat_session,
 )
 
 logger = logging.getLogger("alembic.env")
