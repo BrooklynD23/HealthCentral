@@ -5,14 +5,18 @@ Covers: SSN/email/phone/name/DOB redaction, policy levels,
 no-mutation, metadata-no-plaintext, disabled bypass, external_runner integration.
 """
 
+import random
+import re
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from modules.redaction import (
+    _RULES,
     VALID_POLICY_LEVELS,
     RedactionEngine,
     RedactionResult,
+    RedactionRule,
 )
 
 # ---------------------------------------------------------------------------
@@ -287,6 +291,60 @@ class TestUnderscoreJoinedRedaction:
         result = _engine("strict").redact(text)
         assert time.perf_counter() - start < 1.0  # rev 2 rule: 7.9 s
         assert result.text == text
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            pytest.param("mrn" + "._" * 60000, id="mrn_dot_us"),
+            pytest.param("a." * 60000, id="a_dot"),
+            pytest.param("a." * 120000, id="a_dot_2x"),
+        ],
+    )
+    def test_hc_redact_010_email_rule_linear_time_without_at(self, text):
+        """HC-REDACT-010: a long local-part-class run with no '@' is not quadratic."""
+        import time
+
+        start = time.perf_counter()
+        result = _engine("strict").redact(text)
+        assert time.perf_counter() - start < 1.0
+        assert result.text == text
+
+    def test_hc_redact_011_email_anchor_output_identical_to_unanchored(self):
+        """HC-REDACT-011: anchored email rule gives the same text, count and spans."""
+        old_email = RedactionRule(
+            "email",
+            re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"),
+            "[EMAIL-REDACTED]",
+            frozenset({"strict", "standard"}),
+        )
+        new_email = next(r for r in _RULES if r.name == "email")
+        corpus = [
+            "jane@x.com", "a.b+c@sub.x.org", "jane_doe@example.com",
+            ".jane@x.com", "-a@x.io", "mail: jane@x.com.", "\u00e9jane@x.com",
+            "jane@@x.com", "a@b@c.com", "a@b.com.c@d.com", "x@y", "@x.com",
+        ]
+        rng = random.Random(20261018)
+        alphabet = "a._-+%@\u00e9 ,;\n0"
+        corpus += [
+            "".join(rng.choice(alphabet) for _ in range(rng.randint(0, 40)))
+            for _ in range(2000)
+        ]
+        for lvl in ("strict", "standard"):
+            old_engine = RedactionEngine(policy_level=lvl, rules=[old_email])
+            new_engine = RedactionEngine(policy_level=lvl, rules=[new_email])
+            for text in corpus:
+                old = old_engine.redact(text)
+                new = new_engine.redact(text)
+                assert new.text == old.text, (lvl, text)
+                assert new.redacted_count == old.redacted_count, (lvl, text)
+                assert [(m.rule_name, m.start, m.end) for m in new.metadata] == [
+                    (m.rule_name, m.start, m.end) for m in old.metadata
+                ], (lvl, text)
+
+    def test_hc_redact_012_rule_anchor_defaults_to_none(self):
+        """HC-REDACT-012: anchor is optional; rules without it keep the finditer path."""
+        rule = RedactionRule("t", re.compile("x"), "[X]", frozenset({"strict"}))
+        assert rule.anchor is None
 
 
 # ---------------------------------------------------------------------------
