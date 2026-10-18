@@ -102,7 +102,7 @@ BIOMARKER_DATA = [
         "description": "LDL (low-density lipoprotein) cholesterol is often called 'bad' cholesterol because it can build up in the walls of your arteries, forming plaques that narrow and harden them.",
         "clinical_significance": "LDL is a primary target for cholesterol-lowering treatment. High LDL increases the risk of atherosclerosis, heart attack, and stroke.",
         "normal_interpretation": "Your LDL cholesterol is at a healthy level. This is associated with lower cardiovascular risk.",
-        "high_interpretation": "Elevated LDL cholesterol increases your risk of plaque buildup in arteries. Lifestyle changes and possibly medication may help reduce this risk.",
+        "high_interpretation": "Elevated LDL cholesterol increases your risk of plaque buildup in arteries. Your healthcare provider can explain what this result means for you.",
         "low_interpretation": "Low LDL is generally favorable for heart health. Very low levels are uncommon and usually not concerning unless associated with other conditions.",
         "ref_range_adult_json": json.dumps({
             "default": {"optimal": [0, 100], "near_optimal": [100, 130], "borderline_high": [130, 160], "high": [160, 190], "very_high": [190, None]},
@@ -219,7 +219,7 @@ BIOMARKER_DATA = [
         "description": "Fasting blood glucose measures the amount of sugar (glucose) in your blood after not eating for at least 8 hours. It's a primary screening test for diabetes.",
         "clinical_significance": "Blood glucose is the body's main source of energy. Abnormal levels can indicate diabetes, prediabetes, or other metabolic conditions.",
         "normal_interpretation": "Your fasting glucose is in the normal range, suggesting healthy blood sugar regulation.",
-        "high_interpretation": "Elevated fasting glucose may indicate prediabetes or diabetes. Further testing and lifestyle modifications may be recommended.",
+        "high_interpretation": "Elevated fasting glucose may indicate prediabetes or diabetes. Your healthcare provider can explain whether further testing is needed.",
         "low_interpretation": "Low blood glucose (hypoglycemia) can cause symptoms like shakiness, confusion, and fatigue. Causes include certain medications, missed meals, or underlying conditions.",
         "ref_range_adult_json": json.dumps({
             "default": {"normal": [70, 100], "prediabetes": [100, 126], "diabetes": [126, None]},
@@ -795,9 +795,34 @@ RELATIONSHIP_DATA = [
 # SEEDING FUNCTIONS
 # =============================================================================
 
+# INTERP-ADVICE-WORDING (owner gate IAW-WORDING option b): rows installed before
+# the wording change keep the old default text. Rewrite a row only when its
+# stored text EXACTLY equals the old default; an edited row is left alone.
+# (analyte_canonical, field, old_exact_text, new_text)
+_TEXT_REVISIONS: tuple[tuple[str, str, str, str], ...] = (
+    (
+        "ldl_cholesterol",
+        "high_interpretation",
+        "Elevated LDL cholesterol increases your risk of plaque buildup in arteries. "
+        "Lifestyle changes and possibly medication may help reduce this risk.",
+        "Elevated LDL cholesterol increases your risk of plaque buildup in arteries. "
+        "Your healthcare provider can explain what this result means for you.",
+    ),
+    (
+        "glucose_fasting",
+        "high_interpretation",
+        "Elevated fasting glucose may indicate prediabetes or diabetes. "
+        "Further testing and lifestyle modifications may be recommended.",
+        "Elevated fasting glucose may indicate prediabetes or diabetes. "
+        "Your healthcare provider can explain whether further testing is needed.",
+    ),
+)
+
+
 async def seed_biomarker_knowledge(session: AsyncSession) -> int:
-    """Seed biomarker knowledge data."""
+    """Seed biomarker knowledge data. Returns the number of rows ADDED."""
     count = 0
+    revised = 0
     for data in BIOMARKER_DATA:
         # Check if already exists
         result = await session.execute(
@@ -808,6 +833,13 @@ async def seed_biomarker_knowledge(session: AsyncSession) -> int:
         existing = result.scalar_one_or_none()
 
         if existing:
+            for analyte, field, old_text, new_text in _TEXT_REVISIONS:
+                if (
+                    analyte == data["analyte_canonical"]
+                    and getattr(existing, field) == old_text
+                ):
+                    setattr(existing, field, new_text)
+                    revised += 1
             logger.info(f"Biomarker {data['analyte_canonical']} already exists, skipping")
             continue
 
@@ -820,6 +852,7 @@ async def seed_biomarker_knowledge(session: AsyncSession) -> int:
         logger.info(f"Added biomarker: {data['analyte_canonical']}")
 
     await session.commit()
+    logger.info(f"Revised {revised} installed biomarker text(s)")
     return count
 
 
