@@ -223,7 +223,7 @@ Handoff 2026-10-17 §2 item 4. Owner rows RSI-1, RSI-2, RSI-3, RSI-4 and RSI-BUI
 | E-6 | E | W-1 `/agents` runtime smoke | F-10 only for the optional test edit | W1-SMOKE-RUN | `docs/agentic/harness.md` claim; optional `be/tests/test_claude_agent_definitions.py` fix | claude | blocked: owner W1-SMOKE-RUN |
 | F-4 | F | `docs/compliance/hipaa-controls.md:169` key-rotation row | — | P8-B2-ORDER | — | any | blocked: owner |
 | F-7 | F | G-C2 OpenWiki run + review (`openwiki/README.md`, `AGENT.md`, `docs/00_architecture_plans_index.md`, `docs/INDEX.md`, `docs/_link_graph.json`) | — | G-C2-DEFER in force; S-C2-1…3, GC2-CLAUDE-66, OW-4 | OpenWiki navigation | claude | blocked: owner |
-| F-8 | F | RTN nightly doc-drift routine (`docs/plans/2026-09-27-nightly-doc-drift-routine-spec.md`) | — | RTN §9 Q1–Q6 | routine creation | claude | blocked: owner |
+| F-8 | F | RTN nightly doc-drift routine (`docs/plans/2026-09-27-nightly-doc-drift-routine-spec.md`) | — | RTN §9 Q1–Q6 | routine creation | claude | routine `trig_01FemPFiWdzSq6PuhSSQNodV` created 2026-10-18 (`0 7 * * *`, Sonnet, connectors cleared) and **disabled** per RTN-Q6; smoke run `cse_01MggpnD8piK6FeSThRnSSBb` passed C1-C4, C5, C6, C9 but the session can `git push` (dry-run rc=0) and `allowed_tools` did not restrict Write or push notifications. Blocked: owner decides to enable (see [handoff 2026-10-18](../2026-10-18-session-handoff.md)) |
 | F-12 | F | wearables (#94) consumer map; no code | #94 merged | M0, OW-W0, OW-W3, OW-W6…OW-W13, RESET-APPEND | all WEAR code waves | claude | blocked: OW-W0, OW-W3, OW-W6…OW-W13 (M0 = #94 merge, answered; #94 merged `87101f6`) |
 
 ### Owner questions, grouped for asking (at most 4 per prompt, orchestration §2 step 3)

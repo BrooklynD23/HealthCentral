@@ -1286,7 +1286,7 @@ Links to: `audit/2026-09-25/waves/scaffold/G-C2.md`, `audit/2026-09-25/waves/sca
 
 Rules: contracts.md §b (shared files), §c (migrations), §d (count slots). Path shorthand: `be/` = `src/backend/`, `fe/` = `src/frontend/src/`; "slots" = the `CLAUDE.md` / `AGENT.md` collected-count…
 
-Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`, `docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md`, `docs/plans/2026-10-17-rsi-track2-eval-harness-plan.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`
+Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`, `docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`, `docs/plans/2026-10-18-session-handoff.md`
 
 ## `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`
 
@@ -1324,9 +1324,17 @@ Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026
 
 **Session handoff: 2026-10-16 → 2026-10-17 (L0, Opus 5.5)**
 
-Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. Owner answers quoted here are recorded in owner-decisions (rows dated 2026-10-17). Verify every fact below with `git`/`gh` before…
+**Superseded by 2026-10-18 handoff.**
 
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-18-session-handoff.md`
+
+## `docs/plans/2026-10-18-session-handoff.md`
+
+**Session handoff: 2026-10-17 → 2026-10-18 (L0, Opus 5.5)**
+
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-17 handoff. Owner answers quoted here are recorded in owner-decisions (rows dated 2026-10-17 and…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-17-session-handoff.md`
 
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
