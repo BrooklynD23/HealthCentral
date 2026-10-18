@@ -136,6 +136,31 @@ async def test_hc_keyct_004_required_encryption_without_sqlcipher_fails_closed(v
     assert not get_profile_db_manager().is_profile_open(PROFILE)
 
 
+@pytest.mark.asyncio
+async def test_hc_keyct_006_rollback_journal_holds_no_plaintext_canary(vault_dir):
+    """The rollback journal copies original pages while a write is in flight; it
+    must be ciphertext too. The journal only exists mid-transaction, so read it
+    there."""
+    _require_sqlcipher()
+    await _write_canary_and_close()
+    manager = get_profile_db_manager()
+    connection = await manager.open_profile_database(PROFILE, PASSWORD)
+    try:
+        async with connection.session_maker() as session:
+            mode = (await session.execute(text("PRAGMA journal_mode"))).scalar_one()
+            assert str(mode).lower() == "delete", f"journal_mode is {mode!r}, not rollback-journal"
+            await session.execute(text("UPDATE hc_keyct_probe SET note='x'"))
+            await session.flush()
+            journal = vault_dir / "vault.db-journal"
+            assert journal.exists(), "no rollback journal on disk mid-transaction"
+            assert CANARY.encode() not in journal.read_bytes(), (
+                "canary found in plaintext in vault.db-journal"
+            )
+            await session.rollback()
+    finally:
+        await manager.close_profile_database(PROFILE)
+
+
 @pytest.mark.parametrize(
     ("env", "outcome"),
     [({"CI": "true"}, "fail"), ({"HC_REQUIRE_SQLCIPHER": "1"}, "fail"), ({}, "skip")],
