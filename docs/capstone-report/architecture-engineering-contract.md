@@ -275,8 +275,8 @@ This contract turns the repo's invariants into rules a reviewer can check. Curre
 
 **C-MIG-2 · PROPOSED.**
 - **Rule:** A test MUST assert exactly one head per chain.
-- **Enforced at:** —.
-- **Verify:** —.
+- **Enforced at:** `src/backend/tests/test_migration_heads.py` (HC-MIGHEAD-001…003), run by CI `backend-tests`.
+- **Verify:** `cd src/backend && python -m pytest tests/test_migration_heads.py -q`.
 - **On violation:** —.
 - **Owner:** Engineering.
 
@@ -309,8 +309,8 @@ This contract turns the repo's invariants into rules a reviewer can check. Curre
 
 **C-API-3 · PROPOSED.**
 - **Rule:** `npm run build` and eslint run in CI.
-- **Enforced at:** — (audit §18).
-- **Verify:** —.
+- **Enforced at:** `.github/workflows/ci.yml` job `frontend-tests` (`npm run lint`, `npm run build`).
+- **Verify:** read the `frontend-tests` job log for both steps.
 - **On violation:** —.
 - **Owner:** Engineering.
 
