@@ -181,6 +181,13 @@ _OLD_LDL_HIGH = (
     "Lifestyle changes and possibly medication may help reduce this risk."
 )
 
+# Hard-coded on purpose: never import these from _TEXT_REVISIONS, or a typo there
+# would also be a typo here and the test could not fail.
+_OLD_GLUCOSE_HIGH = (
+    "Elevated fasting glucose may indicate prediabetes or diabetes. "
+    "Further testing and lifestyle modifications may be recommended."
+)
+
 
 def _seed_data(analyte: str) -> dict:
     from scripts.seed_knowledge_base import BIOMARKER_DATA
@@ -213,7 +220,7 @@ def _session_maker_for(engine):
     return lambda: AsyncSession(engine, expire_on_commit=False)
 
 
-async def _ldl_text_in_db(engine) -> str:
+async def _high_text_in_db(engine, analyte: str = "ldl_cholesterol") -> str:
     from sqlalchemy import select
     from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -223,7 +230,7 @@ async def _ldl_text_in_db(engine) -> str:
         row = (
             await s.execute(
                 select(BiomarkerKnowledge).where(
-                    BiomarkerKnowledge.analyte_canonical == "ldl_cholesterol"
+                    BiomarkerKnowledge.analyte_canonical == analyte
                 )
             )
         ).scalar_one()
@@ -247,18 +254,22 @@ class TestSeedAdviceWording:
         from models.knowledge_base import BiomarkerKnowledge
 
         session, engine = real_master_session
-        old_row = dict(_seed_data("ldl_cholesterol"))
-        old_row["high_interpretation"] = _OLD_LDL_HIGH
-        session.add(BiomarkerKnowledge(id=str(uuid.uuid4()), **old_row))
+        for analyte, old_text in (
+            ("ldl_cholesterol", _OLD_LDL_HIGH),
+            ("glucose_fasting", _OLD_GLUCOSE_HIGH),
+        ):
+            old_row = dict(_seed_data(analyte))
+            old_row["high_interpretation"] = old_text
+            session.add(BiomarkerKnowledge(id=str(uuid.uuid4()), **old_row))
         await session.commit()
 
         with patch.object(skb, "async_session_maker", _session_maker_for(engine)):
             await skb.seed_all(skip_db_init=True)
 
-        assert await _ldl_text_in_db(engine) == (
-            _seed_data("ldl_cholesterol")["high_interpretation"]
-        )
-        assert "medication" not in (await _ldl_text_in_db(engine)).lower()
+        for analyte in ("ldl_cholesterol", "glucose_fasting"):
+            stored = await _high_text_in_db(engine, analyte)
+            assert stored == _seed_data(analyte)["high_interpretation"]
+        assert "medication" not in (await _high_text_in_db(engine)).lower()
 
     @pytest.mark.asyncio
     async def test_hc_iaw_003_edited_row_is_left_alone(self, real_master_session):
@@ -275,7 +286,7 @@ class TestSeedAdviceWording:
         with patch.object(skb, "async_session_maker", _session_maker_for(engine)):
             await skb.seed_all(skip_db_init=True)
 
-        assert await _ldl_text_in_db(engine) == edited
+        assert await _high_text_in_db(engine) == edited
 
 
 class TestInterpretRouteAdviceWording:
