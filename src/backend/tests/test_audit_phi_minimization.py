@@ -451,3 +451,27 @@ def test_hc_aud_010b_a_genuinely_replaced_action_still_warns(caplog):
     assert [r for r in caplog.records if "Unregistered audit action" in r.message], (
         "a replaced action is real drift and must still warn"
     )
+
+
+# --------------------------------------------------------------------------
+# HC-AUD-011 — duplicate_warning carries the match type string on import
+# --------------------------------------------------------------------------
+
+def test_hc_aud_011_duplicate_warning_match_type_survives():
+    """api/documents.py audits duplicate_warning as the match_type enum string
+    ("content_hash" / "same_date"). It was allowlisted only as a boolean, so
+    the string was dropped and _scrubbed bumped."""
+    assert audit_module._scrub_details({"duplicate_warning": "content_hash"}) == {
+        "duplicate_warning": "content_hash"
+    }
+    assert audit_module._scrub_details({"duplicate_warning": "same_date"}) == {
+        "duplicate_warning": "same_date"
+    }
+    # Regression: bool and None values are unaffected.
+    assert audit_module._scrub_details({"duplicate_warning": True}) == {
+        "duplicate_warning": True
+    }
+    # Prose is still dropped.
+    assert audit_module._scrub_details({"duplicate_warning": "has spaces here"}) == {
+        "_scrubbed": 1
+    }

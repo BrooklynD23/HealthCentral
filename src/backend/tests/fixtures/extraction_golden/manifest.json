@@ -1,0 +1,22 @@
+{
+  "dataset_version": "2026.10-v1",
+  "synthetic": true,
+  "documents": [
+    {"id": "lab_01", "pages": [["Synthetic Lab Report - fictional data", "Reported: 03/20/2024", "Collection Date: 03/15/2024", "Glucose: 95 mg/dL (70-100)", "Hemoglobin A1c: 6.1 % (4.0-5.6) H", "Potassium 5.8 mmol/L (3.5-5.1) H"]],
+     "expected": [{"analyte": "glucose", "unit": "mg/dL", "date": "2024-03-15"}, {"analyte": "hemoglobin a1c", "unit": "%", "date": "2024-03-15"}, {"analyte": "potassium", "unit": "mmol/L", "date": "2024-03-15"}]},
+    {"id": "lab_02", "pages": [["Synthetic Chemistry Panel - fictional data", "Collected: 2023-11-02", "Sodium 141 mmol/L (135-145)", "Chloride 103 mmol/L (98-107)", "BUN 18 mg/dL (7-20)", "Creatinine 1.4 mg/dL (0.6-1.2) H"]],
+     "expected": [{"analyte": "sodium", "unit": "mmol/L", "date": "2023-11-02"}, {"analyte": "chloride", "unit": "mmol/L", "date": "2023-11-02"}, {"analyte": "bun", "unit": "mg/dL", "date": "2023-11-02"}, {"analyte": "creatinine", "unit": "mg/dL", "date": "2023-11-02"}]},
+    {"id": "lab_03", "pages": [["Synthetic CBC - fictional data", "Date of Service: March 5, 2024", "WBC 3.1 K/uL (4.0-11.0) L", "RBC 4.6 M/uL (4.2-5.9)", "Hemoglobin: 11.2 g/dL (12.0-16.0) L", "Platelets 250 K/uL (150-400)"]],
+     "expected": [{"analyte": "wbc", "unit": "K/uL", "date": "2024-03-05"}, {"analyte": "rbc", "unit": "M/uL", "date": "2024-03-05"}, {"analyte": "hemoglobin", "unit": "g/dL", "date": "2024-03-05"}, {"analyte": "platelets", "unit": "K/uL", "date": "2024-03-05"}]},
+    {"id": "lab_04", "pages": [["Synthetic Lipid Panel - fictional data", "Specimen Collected: 05-Feb-2024", "Total Cholesterol: 212 mg/dL (125-200) H", "LDL Cholesterol: 162 mg/dL (<100) H", "HDL Cholesterol: 48 mg/dL (40-60)", "Triglycerides: 150 mg/dL (0-150)"]],
+     "expected": [{"analyte": "total cholesterol", "unit": "mg/dL", "date": "2024-02-05"}, {"analyte": "ldl cholesterol", "unit": "mg/dL", "date": "2024-02-05"}, {"analyte": "hdl cholesterol", "unit": "mg/dL", "date": "2024-02-05"}, {"analyte": "triglycerides", "unit": "mg/dL", "date": "2024-02-05"}]},
+    {"id": "lab_05", "pages": [["Synthetic Liver Panel - fictional data", "Page 1 of 2", "Collection Date: 01/10/2024", "ALT 45 U/L (7-56)", "AST 38 U/L (10-40)"], ["Page 2 of 2", "Collection Date: 01/24/2024", "ALT 61 U/L (7-56) H", "Albumin: 4.1 g/dL (3.5-5.0)"]],
+     "expected": [{"analyte": "alt", "unit": "U/L", "date": "2024-01-10"}, {"analyte": "ast", "unit": "U/L", "date": "2024-01-10"}, {"analyte": "alt", "unit": "U/L", "date": "2024-01-24"}, {"analyte": "albumin", "unit": "g/dL", "date": "2024-01-24"}]},
+    {"id": "lab_06", "pages": [["Synthetic Iron Studies - fictional data", "Ferritin: 12 ng/mL (15-150) L", "Iron 60 ug/dL (60-170)", "TSH 2.1 mIU/L (0.4-4.0)"]],
+     "expected": [{"analyte": "ferritin", "unit": "ng/mL", "date": null}, {"analyte": "iron", "unit": "ug/dL", "date": null}, {"analyte": "tsh", "unit": "mIU/L", "date": null}]},
+    {"id": "lab_07", "pages": [["Synthetic Electrolytes - fictional data", "Drawn on: Aug 14, 2023", "Bicarbonate: 24 mEq/L (22-29)", "Calcium 9.4 mg/dL (8.5-10.2)", "Alkaline Phosphatase: 130 IU/L (44-147)"]],
+     "expected": [{"analyte": "bicarbonate", "unit": "mEq/L", "date": "2023-08-14"}, {"analyte": "calcium", "unit": "mg/dL", "date": "2023-08-14"}, {"analyte": "alkaline phosphatase", "unit": "IU/L", "date": "2023-08-14"}]},
+    {"id": "lab_08", "pages": [["Synthetic Vitamin Panel - fictional data", "Specimen Date: 2024-06-01T08:30", "Vitamin B12: 410 pg/mL (200-900)", "MCV 88 fL (80-100)", "Vitamin D 18 ng/mL (30-100) L"]],
+     "expected": [{"analyte": "vitamin b12", "unit": "pg/mL", "date": "2024-06-01"}, {"analyte": "mcv", "unit": "fL", "date": "2024-06-01"}, {"analyte": "vitamin d", "unit": "ng/mL", "date": "2024-06-01"}]}
+  ]
+}

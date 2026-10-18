@@ -757,6 +757,79 @@ class _CommitTrackingMasterDb(_FakeMasterDb):
 
 
 @pytest.mark.asyncio
+async def test_HC_DUP_007_duplicate_import_audit_row_keeps_match_type_over_http(
+    monkeypatch, tmp_path
+):
+    """C-DUPAUD. HC-DUP-006 calls `import_document` as a plain function and
+    cannot see `Depends(...)` or the real audit scrub on the way to the row.
+    Drive the duplicate import over HTTP and read the committed AuditLog row:
+    the match_type string must survive `_scrub_details`."""
+    import json
+
+    monkeypatch.setattr(
+        type(documents_api.settings), "app_data_path", property(lambda self: tmp_path)
+    )
+    profile_id = "profile-a"  # route_client's default session profile_id
+    existing_doc = Document(
+        id=str(uuid.uuid4()),
+        profile_id=profile_id,
+        path_hash="c" * 64,
+        content_hash="b" * 64,  # matches fake ingest content hash
+        doc_type="lab_pdf",
+        source="existing.pdf",
+        status="parsed",
+        page_count=1,
+        metadata_json="{}",
+        imported_at=utcnow(),
+    )
+    profile_db = _FakeProfileDb(existing_doc=existing_doc, obs_count=2)
+
+    monkeypatch.setattr(documents_api, "get_profile_encryption_key", lambda _pid: b"x" * 32)
+    monkeypatch.setattr(modules, "IngestModule", _FakeIngestModule)
+
+    async def _mock_pipeline(**_kwargs):
+        return {"observations_extracted": 0, "needs_verification": True, "extracted_text": ""}
+
+    async def _mock_classify(**_kwargs):
+        return None
+
+    async def _mock_confidences(*_args, **_kwargs):
+        return {}
+
+    monkeypatch.setattr(documents_api, "_run_extraction_pipeline", _mock_pipeline)
+    monkeypatch.setattr(documents_api, "_classify_and_extract_entities", _mock_classify)
+    monkeypatch.setattr(documents_api, "_document_extraction_confidences", _mock_confidences)
+
+    master = _CommitTrackingMasterDb()
+    with route_client(
+        documents_router, "/documents", profile_id=profile_id, master_db=master
+    ) as client:
+
+        async def _override_profile_db():
+            return profile_db
+
+        client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+        resp = client.post(
+            "/documents/import",
+            files={"file": ("duplicate.pdf", b"%PDF-1.4\n%fake\n", "application/pdf")},
+        )
+
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["duplicate_warning"]["match_type"] == "content_hash"
+
+    import_rows = [
+        o for o in master.added
+        if type(o).__name__ == "AuditLog"
+        and o.details_json
+        and "doc_type" in json.loads(o.details_json)
+    ]
+    assert len(import_rows) == 1, [type(o).__name__ for o in master.added]
+    details = json.loads(import_rows[0].details_json)
+    assert details["duplicate_warning"] == "content_hash"
+    assert "_scrubbed" not in details
+
+
+@pytest.mark.asyncio
 async def test_HC_CAREQ_004_delete_document_over_http_clears_care_task_quote(
     entity_profile_db, monkeypatch, tmp_path
 ):

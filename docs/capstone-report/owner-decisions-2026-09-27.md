@@ -246,6 +246,9 @@
 | FULL-QUEUE-MERGE | Owner in chat, 2026-10-17, unprompted | **"You have full authorization to continue running, merging after tests pass & CI passes, to finish everything in queue.md"** | Extends AUTO-MERGE to every queue PR and its harness/docs PRs once tests and CI pass. L0 reading: RSI-loop promotions stay owner-merged (RSI-4 not overridden); ask-first diffs still need the owner's yes on the diff; owner gates are still never inferred. | n/a |
 | PARALLEL-WAVES | "Approve these exact queue.md scheduling edits? (1) E-3a stops running alone ... merges LAST in its run after re-running ruff ... (2) C-GAM2B (devin), B-8 (codex), C-P7 (codex) switch runtime to claude." (answered 2026-10-17, L0 AskUserQuestion) | **Approve both (Recommended)** | Owner context: "We must full develop all of our queue.md in a week time, then a week for testing & integrations." | yes |
 | PYSLOTS-6 | "Raise pytest parallelism to PYSLOTS=6 for build runs on this box?" (answered 2026-10-17, L0 AskUserQuestion) | **Yes, 6 slots (Recommended)** | Env only (`PYSLOTS=6`); `scripts/pyslot.sh` not edited. | yes |
+| Q-RUFF-SET | "Q-RUFF said \"Full default ruleset\". Which target should the E-3a cleanup and the CI ruff job use?" (answered 2026-10-17, L0 AskUserQuestion; raised by E-3a Task 0, PR #130) | **Configured set F/I/W (Recommended)** | The rules in `src/backend/pyproject.toml`: 578 findings, 536 auto-fixable on ruff 0.17.1. Clarifies Q-RUFF. | yes |
+| Q-RUFF-UNSAFE | "Fixes that ruff marks unsafe (34) ... How should E-3a handle them?" (answered 2026-10-17, L0 AskUserQuestion) | **Safe fixes only (Recommended)** | Unsafe ones are checked by hand; an import is kept if removing it changes import-time behaviour. | yes |
+| Q-RUFF-PIN | "Which ruff version should E-3a and CI pin?" (answered 2026-10-17, L0 AskUserQuestion) | **0.17.1 (Recommended)** | Supersedes the plan's 0.15.10. | yes |
 
 ## Earlier owner records still in force
 
