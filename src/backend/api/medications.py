@@ -1104,6 +1104,7 @@ async def get_adherence_stats(
     medication_id: str,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     Get adherence statistics for a medication.
@@ -1125,6 +1126,15 @@ async def get_adherence_stats(
         )
 
     verify_medication_access(medication, session)
+
+    await audit_and_commit(
+        master_db,
+        log_document_event,
+        event="view",
+        profile_id=session.profile_id,
+        document_id=medication_id,
+        details={"entity_type": "medication_adherence_stats"},
+    )
 
     # Get dose counts
     now = utcnow()

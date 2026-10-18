@@ -14,12 +14,14 @@ import uuid
 from datetime import time, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.audit import audit_and_commit, log_document_event
 from core.auth import ProfileDbSession, RequireAuth
+from core.database import get_db
 from core.time import NaiveUtcDatetime, profile_timezone_name, to_local, utcnow
 from models import (
     Medication,
@@ -419,6 +421,7 @@ async def send_test_medication_notification(
     medication_id: str,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     Send a test notification for a specific medication.
@@ -444,6 +447,16 @@ async def send_test_medication_notification(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied"
         )
+
+    # Audit (fail-closed) before any streak lookup or OS notification.
+    await audit_and_commit(
+        master_db,
+        log_document_event,
+        event="view",
+        profile_id=session.profile_id,
+        document_id=medication_id,
+        details={"entity_type": "medication_test_notification"},
+    )
 
     # Get streak data
     pattern_learner = get_pattern_learner()

@@ -1,7 +1,7 @@
 export const meta = {
   name: 'build-program',
   description: 'Drive queue.md to done: waves of build-item sub-orchestrators, an Opus unblocker for plan gaps, an Opus planner for unplanned rows, optional owner-authorised merges',
-  whenToUse: 'L0 after merges or owner answers, to keep the queue moving without hand-starting each item. args {max_waves?: 4, max?: 12, plan_new?: true, auto_merge?: false, rsi?: true, run_id?: string}. auto_merge=true only with a current owner row that authorises agent merges.',
+  whenToUse: 'L0 after merges or owner answers, to keep the queue moving without hand-starting each item. args {max_waves?: 4, max?: 12, plan_new?: true, auto_merge?: false, rsi?: true, run_id?: string}. auto_merge=true only with a current owner row that authorises agent merges. Nested build-items share THIS run\'s agent cap (min(16, CPUs - 2); about 4 seen on the 6-vCPU box, 2026-10-17): for more items at once, L0 runs build-wave and starts one top-level build-item Workflow per id instead.',
   phases: [
     { title: 'Select', detail: 'build-wave picks the eligible, file-disjoint set' },
     { title: 'Build', detail: 'one build-item per id: haiku explore, opus Task 0, sonnet implement, haiku tests, opus review + verify' },
@@ -95,6 +95,9 @@ for (let wave = 1; wave <= MAX_WAVES; wave++) {
   const notEligible = (sel && sel.not_eligible) || []
 
   phase('Build')
+  // Defect #3 (handoff 2026-10-18): a script can only start nested workflows, and nested
+  // build-items share this run's agent cap, so a large wave runs a few items at a time.
+  log(`wave ${wave}: ${picked.length} items share this run's agent cap; L0 can start them top-level instead (RUNBOOK §10.1)`)
   const built = await pipeline(
     picked,
     (id) => workflow('build-item', { id }).catch((e) => `ERROR ${id}: ${e && e.message}`),
