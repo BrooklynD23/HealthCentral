@@ -100,7 +100,7 @@ READ FIRST: CLAUDE.md, AGENT.md, docs/plans/2026-10-18-session-handoff.md, docs/
 
 DO (parallel where independent; dynamic workflow; Opus sub-orchestrators, Sonnet implementation, Haiku tests and search):
 1. Audit main: `git fetch origin`, open PRs, CI on the latest main commit, collected count with the pyslot recipe (contracts.md section d), `ruff check .` clean.
-2. Run build-wave, then start each eligible queue item as its own background build-item workflow (not nested inside build-program: nested items share a small agent cap). At most 2 at once. Use scriptPath for any workflow merged after session start.
+2. Run build-wave, then start each eligible queue item as its own background build-item workflow (not nested inside build-program: nested items share a small agent cap). Run as many at once as the queue slot cap allows (12, queue rule 1; PARALLEL-WAVES). Use scriptPath for any workflow merged after session start.
 3. Fix harness defects #2 (route full-suite plan steps to the Haiku runner), #3 (build-program starts items top-level or documents the cap) and #5 (build-item resume of a blocked claim) from the handoff.
 4. Have a planner pass plan AUDIT-NOTIF-ALL and EXPORT-COLLECTED-TZ.
 5. Start the session with `--plugin-dir .claude/mods/asclexis-rsi`, run rsi-loop once, and leave its PRs for the owner.
