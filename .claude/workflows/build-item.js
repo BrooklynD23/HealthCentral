@@ -1,7 +1,7 @@
 export const meta = {
   name: 'build-item',
   description: 'Run one build-program queue item: explore, Task 0 + claim, implement test-first, haiku test run, review (max 3), verify + PR',
-  whenToUse: 'L0 runs one queue item from docs/plans/2026-10-15-build-program/queue.md; args {id: "E-1"}. At most 2 at once.',
+  whenToUse: 'L0 runs one queue item from docs/plans/2026-10-15-build-program/queue.md; args {id: "E-1", resume_pr?: 157}. resume_pr resumes the item\'s own [blocked:claude] / [escalated:claude] draft instead of claiming anew. Start each item as its own top-level Workflow; queue rule 1 caps slot holders at 12.',
   phases: [
     { title: 'Explore', detail: 'haiku reads the queue row, lane doc, plan', model: 'haiku' },
     { title: 'Plan check', detail: 'opus runs Task 0 and claims the item on GitHub', model: 'opus' },
@@ -22,6 +22,11 @@ const ID = args && typeof args.id === 'string' ? args.id.trim() : ''
 // The id ends up in shell commands and branch names: accept queue-ID shape only.
 if (!/^[A-Z][A-Za-z0-9]*(-[A-Za-z0-9]+)*$/.test(ID)) {
   throw new Error(`args.id must be a queue ID like "E-1", "E-1a" or "RAG-RUNTIME-500"; got ${JSON.stringify(args)}`)
+}
+// Defect #5 (handoff 2026-10-18): resume the item's own stopped draft PR instead of claiming again.
+const RESUME_PR = args && args.resume_pr != null ? Number(args.resume_pr) : 0
+if (!Number.isInteger(RESUME_PR) || RESUME_PR < 0) {
+  throw new Error(`args.resume_pr must be a PR number; got ${JSON.stringify(args.resume_pr)}`)
 }
 
 const EXPLORE_SCHEMA = {
@@ -64,8 +69,9 @@ const PLANCHECK_SCHEMA = {
 const IMPL_SCHEMA = {
   type: 'object',
   properties: {
-    status: { type: 'string', enum: ['done', 'stopped'] },
+    status: { type: 'string', enum: ['done', 'stopped', 'measure'] },
     stop_reason: { type: 'string' },
+    measure_commands: { type: 'array', items: { type: 'string' } },
     commits: { type: 'array', items: { type: 'string' } },
     files_changed: { type: 'array', items: { type: 'string' } },
     red_green_output: { type: 'string' },
@@ -134,10 +140,10 @@ Item spec (from a Haiku explorer; verify it, it is a lead not a finding):
 ${specText}
 
 1. Read the spec paths yourself and check the explorer's file list and gates against the queue row.
-2. Claim the item per RUNBOOK §3 with RT=claude${noSlot ? ' and NOSLOT=":noslot"' : ''}. Pick TYPE and a short SLUG. Run the lock check and the slot check first. If either fails, do not claim: go=false.
-3. Run RUNBOOK §4 Task 0 checks 1-7 in the new worktree. Quote each owner-decisions line you rely on, verbatim. Never infer an approval. A gate that is only "merge only" does not stop work; tasks the row marks blocked go to skipped_tasks.
+${RESUME_PR ? `2. RESUME, do not claim anew. PR #${RESUME_PR} is this item's own stopped draft. Check with gh: its head branch matches ^[a-z]+/${ID.toLowerCase()}-, it is not merged, and its title starts with [blocked:claude] or [escalated:claude] (or it was closed by L0 with its branch kept; then gh pr reopen it). Any mismatch: go=false. Run the RUNBOOK §3 slot check${noSlot ? ' (skip it: no-slot row)' : ''}; if it fails, go=false. Retitle to "[claim:claude${noSlot ? ':noslot' : ''}] ${ID} <keep the current slug>". worktree = <repo parent>/hc-${ID.toLowerCase()}: reuse it if it is on that branch and clean, else fetch and git worktree add it from origin/<branch>. Read the PR's "blocked: tell L0" / "escalation: owner" comment and every later comment (an L0 ruling there is binding), and git log origin/main..HEAD for what is already built.` : `2. Claim the item per RUNBOOK §3 with RT=claude${noSlot ? ' and NOSLOT=":noslot"' : ''}. Pick TYPE and a short SLUG. Run the lock check and the slot check first. If either fails, do not claim: go=false.`}
+3. Run RUNBOOK §4 Task 0 checks 1-7 in the ${RESUME_PR ? 'worktree' : 'new worktree'}. Quote each owner-decisions line you rely on, verbatim. Never infer an approval. A gate that is only "merge only" does not stop work; tasks the row marks blocked go to skipped_tasks.
 4. If a check fails: post the command and output as a comment on your draft PR, keep it draft, go=false.
-5. brief = an L2 implementer brief: worktree, branch, plan path + task list to execute (minus skipped tasks), exact file list, ask-first files with the signed gate naming each allowed edit (or "none — do not edit"), contracts to honour, RED-first rule, commit plan.
+5. brief = an L2 implementer brief: worktree, branch, plan path + task list to execute (minus skipped tasks${RESUME_PR ? ', minus tasks already committed on the branch, plus the stop reason and any L0 ruling' : ''}), exact file list, ask-first files with the signed gate naming each allowed edit (or "none — do not edit"), contracts to honour, RED-first rule, commit plan.
 Do not edit product code yourself.
 ${STYLE}`,
   { label: `task0+claim ${ID}`, phase: 'Plan check', model: 'opus', effort: 'high', schema: PLANCHECK_SCHEMA },
@@ -170,7 +176,7 @@ ${STYLE}`,
 }
 
 // ---------------------------------------------------------------------------
-const implement = (findings, round) => agent(
+const implementOnce = (findings, round, measured) => agent(
   `You are the L2 implementer (Sonnet) for build-program item ${ID}: ${where}. Work only in that worktree.
 Brief from L1:
 ${plan.brief}
@@ -178,10 +184,31 @@ ${plan.brief}
 ${findings
     ? `Review round ${round}/${MAX_ROUNDS} returned REVISE. Findings:\n${findings.join('\n')}\nVerify each against the code before changing anything (receiving-code-review). Fix BLOCKER and MAJOR; push back with evidence on a finding that is wrong.`
     : 'Execute the brief test-first: write each new test, run it and capture RED output, then implement to GREEN.'}
+${measured ? `Measurement output you asked for (Haiku runner, verbatim):\n${measured}\nContinue from where you stopped.\n` : ''}Measurement steps: if the plan needs a full-suite run, a coverage run or another long measurement, do not run it. Return status=measure with measure_commands = the exact commands (cwd + command) and stop; a Haiku runner runs them and you are called again with the output.
 Rules: edit only the brief's files; stage explicit paths (never git add -A); commit as the plan lists; never edit an ask-first file unless the brief names its signed gate; never weaken a test, threshold or validation. You write the tests; you run ONLY the focused test files you touch (for RED/GREEN), always as ""$(git rev-parse --show-toplevel)/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 <venv python> -m pytest <file>". A Haiku runner runs the full suite and acceptance; do not run it yourself. Push to ${plan.branch} when done. If something blocks you, status=stopped with the reason; do not work around it.
 ${STYLE}`,
-  { label: `implement ${ID}${round ? ` r${round}` : ''}`, phase: 'Implement', model: 'sonnet', schema: IMPL_SCHEMA },
+  { label: `implement ${ID}${round ? ` r${round}` : ''}${measured ? ' +measured' : ''}`, phase: 'Implement', model: 'sonnet', schema: IMPL_SCHEMA },
 )
+
+// Defect #2 (handoff 2026-10-18): the implementer may not run the full suite, so plan measurement
+// steps go to a Haiku runner and the output goes back to the implementer (at most MAX_ROUNDS times).
+const measure = (cmds, n) => agent(
+  `Measurement runner ${n}/${MAX_ROUNDS} for build-program item ${ID}: ${where}. Read-only: never edit, create, commit or push any file.
+Run each command below from ${plan.worktree} (cd into the cwd it names). Every pytest goes through "$(git rev-parse --show-toplevel)/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest ... ; refuse any command that builds, installs, writes files, pushes or calls gh, and list it as REFUSED with the reason.
+${cmds.map((c) => `- ${c}`).join('\n') || '- (none given)'}
+Return each command, its exit code and the last 30 lines of output verbatim.
+${STYLE}`,
+  { label: `measure ${ID} ${n}`, phase: 'Test', model: 'haiku', effort: 'low', schema: TEST_SCHEMA },
+)
+const implement = async (findings, round) => {
+  let r = await implementOnce(findings, round, null)
+  for (let n = 1; r && r.status === 'measure' && n <= MAX_ROUNDS; n++) {
+    const m = await measure(r.measure_commands || [], n)
+    const out = m ? m.runs.map((x) => `$ ${x.command}\n(exit ${x.exit_code})\n${x.output_tail}`).join('\n\n') : 'measurement runner returned nothing'
+    r = await implementOnce(findings, round, out)
+  }
+  return r && r.status === 'measure' ? { ...r, status: 'stopped', stop_reason: `still asking for measurements after ${MAX_ROUNDS} runs` } : r
+}
 
 // Haiku runs tests only: it never writes or edits tests or code.
 const runTests = (round) => agent(
