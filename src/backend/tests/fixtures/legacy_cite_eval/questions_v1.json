@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "note": "Synthetic eval fixture, no patient data. The 20 questions and 6 lab chunks are copied verbatim from the MM-1 count script (PR #72 comment 6116808120) so results compare with the MM-1 baseline. Editing this file changes its sha256 pinned in HC-T2E-002.",
+  "chunks": [
+    {
+      "chunk_id": "1",
+      "source_type": "user_observation",
+      "doc_id": "doc-1",
+      "doc_title": "Your Glucose Result",
+      "page": 1,
+      "text": "Glucose: 95 mg/dL (reference range 70-100 mg/dL), collected 2026-01-10.",
+      "relevance_score": 0.9,
+      "is_user_verified": true
+    },
+    {
+      "chunk_id": "2",
+      "source_type": "user_observation",
+      "doc_id": "doc-2",
+      "doc_title": "Your LDL Cholesterol Result",
+      "page": 1,
+      "text": "LDL Cholesterol: 128 mg/dL (reference range 0-99 mg/dL), collected 2026-01-10.",
+      "relevance_score": 0.9,
+      "is_user_verified": true
+    },
+    {
+      "chunk_id": "3",
+      "source_type": "user_observation",
+      "doc_id": "doc-3",
+      "doc_title": "Your HDL Cholesterol Result",
+      "page": 1,
+      "text": "HDL Cholesterol: 52 mg/dL (reference range >39 mg/dL), collected 2026-01-10.",
+      "relevance_score": 0.9,
+      "is_user_verified": true
+    },
+    {
+      "chunk_id": "4",
+      "source_type": "user_observation",
+      "doc_id": "doc-4",
+      "doc_title": "Your Hemoglobin A1c Result",
+      "page": 1,
+      "text": "Hemoglobin A1c: 5.4 % (reference range 4.0-5.6 %), collected 2026-01-10.",
+      "relevance_score": 0.9,
+      "is_user_verified": true
+    },
+    {
+      "chunk_id": "5",
+      "source_type": "user_observation",
+      "doc_id": "doc-5",
+      "doc_title": "Your TSH Result",
+      "page": 1,
+      "text": "TSH: 2.1 mIU/L (reference range 0.4-4.0 mIU/L), collected 2026-01-10.",
+      "relevance_score": 0.9,
+      "is_user_verified": true
+    },
+    {
+      "chunk_id": "6",
+      "source_type": "user_observation",
+      "doc_id": "doc-6",
+      "doc_title": "Your Hemoglobin Result",
+      "page": 1,
+      "text": "Hemoglobin: 13.1 g/dL (reference range 12.0-15.5 g/dL), collected 2026-01-10.",
+      "relevance_score": 0.9,
+      "is_user_verified": true
+    }
+  ],
+  "questions": [
+    "What was my latest glucose?",
+    "Is my glucose in the normal range?",
+    "What was my LDL cholesterol?",
+    "Is my LDL high?",
+    "What was my HDL cholesterol?",
+    "Is my HDL in range?",
+    "What was my hemoglobin A1c?",
+    "What does my A1c result mean?",
+    "What was my TSH?",
+    "Is my TSH normal?",
+    "What was my hemoglobin?",
+    "Is my hemoglobin in range?",
+    "Which of my results are outside the reference range?",
+    "Summarize my lab results from January 2026.",
+    "When were my labs collected?",
+    "What is the reference range for LDL?",
+    "Compare my LDL and HDL.",
+    "Are any of my results borderline?",
+    "What units is my glucose measured in?",
+    "Explain my cholesterol results."
+  ]
+}
