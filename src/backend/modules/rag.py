@@ -23,8 +23,13 @@ from core.time import to_naive_utc
 class ModelUnavailableError(Exception):
     """Raised when no LLM model is available for inference."""
 
+
+EMBEDDING_UNAVAILABLE_MESSAGE = (
+    "Document search is unavailable because the local embedding model is not installed."
+)
+
 from .claim_extractor import ClaimExtractor
-from .embeddings import EmbeddingsModule
+from .embeddings import EmbeddingModelUnavailableError, EmbeddingsModule
 from .faithfulness import (
     FaithfulnessConfig,
     FaithfulnessScorer,
@@ -553,9 +558,6 @@ USER QUESTION: {question}"""
 
         from models import Chunk, Document, DocumentCategory, Embedding, Observation
 
-        # Embed the query
-        query_vector = self._embedder.embed_text(query)
-
         # Build base query
         stmt = (
             select(Chunk, Embedding, Document)
@@ -599,6 +601,14 @@ USER QUESTION: {question}"""
 
         if not rows:
             return []
+
+        # Embed only when there is something to compare against. Fail closed:
+        # never substitute hash vectors for the bundled model (D8-delivery).
+        try:
+            query_vector = self._embedder.embed_text(query)
+        except EmbeddingModelUnavailableError as exc:
+            self._logger.warning("Embedding model unavailable; vector retrieval failed closed: %s", exc)
+            raise ModelUnavailableError(EMBEDDING_UNAVAILABLE_MESSAGE) from exc
 
         # Calculate similarity scores
         candidates = []

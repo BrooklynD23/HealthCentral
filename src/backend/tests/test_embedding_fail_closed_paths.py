@@ -1,0 +1,185 @@
+"""HC-EMB-005..008 — what fail-closed means on each retrieval/ingest surface.
+
+Owner decisions D8 + D8-delivery (2026-09-27): runtime "fails closed if
+absent". The patient-visible form (existing knowledge-fallback template on
+legacy chat; existing 501 on grounded interpretation) is owner-gated as Q-FC in
+docs/plans/2026-09-27-W08-bundled-embedding-model.md.
+"""
+
+from __future__ import annotations
+
+import struct
+import uuid
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+
+import pytest
+import pytest_asyncio
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.pool import StaticPool
+
+import models  # noqa: F401  register every profile table
+from core.profile_database import ProfileDatabaseBase
+from core.time import utcnow
+from models import Chunk, Document, Embedding
+
+UNIT = [1.0] + [0.0] * 383
+BLOB = struct.pack("384f", *UNIT)
+# Patient-visible 501 detail, copied VERBATIM from the signed Q-FC line in
+# docs/plans/2026-09-27-W08-bundled-embedding-model.md. Deliberately a literal,
+# not modules.rag.EMBEDDING_UNAVAILABLE_MESSAGE: a wording change in product code
+# must fail this test. Change it only when a new Q-FC line is signed.
+QFC_APPROVED_DETAIL = "Document search is unavailable because the local embedding model is not installed."
+
+
+@pytest_asyncio.fixture
+async def profile_db():
+    engine = create_async_engine(
+        "sqlite+aiosqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(ProfileDatabaseBase.metadata.create_all)
+    session = AsyncSession(engine, expire_on_commit=False)
+    try:
+        yield session
+    finally:
+        await session.close()
+        await engine.dispose()
+
+
+@pytest.fixture
+def absent_model(tmp_path, monkeypatch):
+    from core.config import settings
+
+    path = tmp_path / "absent-model"
+    monkeypatch.setattr(settings, "embedding_model_path", str(path))
+    return path
+
+
+def _document(profile_id: str = "profile-emb") -> Document:
+    return Document(
+        id=str(uuid.uuid4()), profile_id=profile_id, path_hash="0" * 64, content_hash="1" * 64,
+        doc_type="pdf", status="verified", imported_at=utcnow(),
+    )
+
+
+async def _seed_one_chunk(profile_db, profile_id: str = "profile-emb") -> Document:
+    doc = _document(profile_id)
+    profile_db.add_all([
+        doc,
+        Chunk(id="chunk-1", doc_id=doc.id, chunk_index=0, text="LDL 128 mg/dL"),
+        Embedding(chunk_id="chunk-1", model_name="all-MiniLM-L6-v2", vector_blob=BLOB, dimensions=384),
+    ])
+    await profile_db.commit()
+    return doc
+
+
+class _SentinelRunner:
+    def __init__(self):
+        self.calls = 0
+
+    def is_available(self):
+        return True
+
+    async def generate_async(self, prompt, config):
+        self.calls += 1
+        return SimpleNamespace(text="ANSWER-SENTINEL from retrieval", finish_reason="stop")
+
+
+@pytest.mark.asyncio
+async def test_hc_emb_005_legacy_chat_fails_closed_over_http(profile_db, absent_model, monkeypatch):
+    import api.assistant as assistant_api
+    from api.assistant import router as assistant_router
+    from core.auth import get_profile_db_session
+    from tests.support.routes import route_client
+
+    profile_id = str(uuid.uuid4())
+    await _seed_one_chunk(profile_db, profile_id)
+    runner = _SentinelRunner()
+    monkeypatch.setattr("core.external_runner.get_runner_for_request", AsyncMock(return_value=runner))
+    monkeypatch.setattr(assistant_api, "is_agent_enabled", lambda _settings: False)
+    monkeypatch.setattr(assistant_api, "_rag_module", None)
+
+    with route_client(assistant_router, "/assistant", profile_id=profile_id) as client:
+        async def _override_profile_db():
+            return profile_db
+
+        client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+        resp = client.post("/assistant/chat", json={"question": "What is my LDL?", "include_references": False})
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert runner.calls == 0, "the LLM answered from retrieval that ran without the bundled embedding model"
+    assert "ANSWER-SENTINEL" not in body["full_response"]
+    assert body["verification"]["enabled"] is False  # existing knowledge-fallback shape
+
+
+@pytest.mark.asyncio
+async def test_hc_emb_006a_retrieval_raises_model_unavailable_without_path(profile_db, absent_model):
+    from modules.rag import ModelUnavailableError, RAGModule
+
+    doc = await _seed_one_chunk(profile_db)
+    rag = RAGModule(enable_verification=False)
+    with pytest.raises(ModelUnavailableError) as info:
+        await rag._search_vectors_async(query="LDL", profile_id=doc.profile_id, profile_db=profile_db)
+    message = str(info.value)
+    assert "embedding model" in message.lower()
+    # api/interpretations.py returns this text as a 501 detail to the patient.
+    assert str(absent_model) not in message
+
+
+@pytest.mark.asyncio
+async def test_hc_emb_006b_empty_profile_needs_no_embedding(profile_db, absent_model):
+    from modules.rag import RAGModule
+
+    rag = RAGModule(enable_verification=False)
+    assert await rag._search_vectors_async(query="LDL", profile_id="p", profile_db=profile_db) == []
+
+
+@pytest.mark.asyncio
+async def test_hc_emb_006c_grounded_interpretation_returns_501_over_http(profile_db, absent_model, monkeypatch):
+    """POST /interpretations/observations/{id}/interpret-grounded, through HTTP.
+
+    The route maps ModelUnavailableError to 501 and returns str(exc) as the
+    detail (api/interpretations.py:453-457 B@7b2ff1f), so the patient sees this
+    text. The wording itself is owner-gated (Q-FC). The interpret module is
+    stubbed: this test is about retrieval, and interpret.py sits beside the
+    ask-first interpret_safety.py.
+    """
+    import api.assistant as assistant_api
+    import api.interpretations as interpretations_api
+    from api.interpretations import router as interpretations_router
+    from core.auth import get_profile_db_session
+    from models import Observation
+    from tests.support.routes import route_client
+
+    profile_id = str(uuid.uuid4())
+    doc = await _seed_one_chunk(profile_db, profile_id)
+    obs_id = str(uuid.uuid4())  # the route validates UUID format
+    profile_db.add(Observation(
+        id=obs_id, profile_id=profile_id, doc_id=doc.id, analyte_canonical="ldl",
+        analyte_raw="LDL", value=128.0, unit="mg/dL", user_verified=True,
+    ))
+    await profile_db.commit()
+
+    runner = _SentinelRunner()
+    monkeypatch.setattr("core.external_runner.get_runner_for_request", AsyncMock(return_value=runner))
+    monkeypatch.setattr(assistant_api, "_rag_module", None)  # get_rag_module is shared with the chat route
+    stub = SimpleNamespace(interpret_observation=AsyncMock(
+        return_value=SimpleNamespace(success=True, interpretation=SimpleNamespace(), error_message=None)
+    ))
+    monkeypatch.setattr(interpretations_api, "get_interpret_module", lambda: stub)
+
+    with route_client(interpretations_router, "/interpretations", profile_id=profile_id) as client:
+        async def _override_profile_db():
+            return profile_db
+
+        client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+        resp = client.post(f"/interpretations/observations/{obs_id}/interpret-grounded")
+
+    assert resp.status_code == 501, resp.text
+    detail = resp.json()["detail"]
+    assert detail == QFC_APPROVED_DETAIL  # exact owner-approved wording (Q-FC), not the product constant
+    assert str(absent_model) not in detail
+    assert runner.calls == 0, "the LLM answered from retrieval that ran without the bundled embedding model"
