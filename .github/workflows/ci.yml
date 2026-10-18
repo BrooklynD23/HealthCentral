@@ -54,8 +54,18 @@ jobs:
           pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install -r src/backend/requirements.txt
 
-      - name: Run backend tests
-        run: bash scripts/run-backend-tests.sh -q
+      - name: Run backend tests (with coverage report)
+        run: bash scripts/run-backend-tests.sh -q --cov=api --cov=core --cov=models --cov=modules --cov=monitoring --cov=security --cov=scripts --cov-report=term --cov-report=xml:coverage.xml
+
+      - name: Require the coverage report (fail closed)
+        run: test -s src/backend/coverage.xml
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: src/backend/coverage.xml
+          if-no-files-found: error
 
   frontend-tests:
     name: Frontend Tests
