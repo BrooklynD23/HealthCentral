@@ -19,6 +19,24 @@ ignore = [
 # Extra safety for files with SQLAlchemy boolean comparisons
 "api/*.py" = ["E712"]
 "models/*.py" = ["E712"]
+# E-3a: ask-first file, owner approval needed to fix (Q-RUFF-SET)
+"core/profile_database.py" = ["F401", "I001"]
+# E-3a: ask-first file, owner approval needed to fix (Q-RUFF-SET)
+"core/security.py" = ["F401", "I001", "W293"]
+# E-3a: ask-first file, owner approval needed to fix (Q-RUFF-SET)
+"core/auth.py" = ["F401", "F841", "I001"]
+# E-3a: ask-first file, owner approval needed to fix (Q-RUFF-SET)
+"modules/interpret_safety.py" = ["F541", "I001"]
+# E-3a: ask-first file, owner approval needed to fix (Q-RUFF-SET)
+"modules/redaction.py" = ["F401", "I001"]
+# E-3a: ask-first file, owner approval needed to fix (Q-RUFF-SET)
+"modules/faithfulness.py" = ["F841", "I001"]
+# E-3a: ask-first file, owner approval needed to fix (Q-RUFF-SET)
+"modules/verifier_agent.py" = ["I001"]
+# E-3a: ask-first file, owner approval needed to fix (Q-RUFF-SET)
+"security/__init__.py" = ["I001"]
+# E-3a: merged migrations are never edited (RUNBOOK §9.4)
+"migrations/*/versions/*.py" = ["I001"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["api", "core", "models", "modules", "scripts"]
