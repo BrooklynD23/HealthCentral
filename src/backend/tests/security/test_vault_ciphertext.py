@@ -161,6 +161,14 @@ async def test_hc_keyct_006_rollback_journal_holds_no_plaintext_canary(vault_dir
         await manager.close_profile_database(PROFILE)
 
 
+def test_hc_keyct_007_negative_control_canary_in_non_sqlite_file_is_caught(tmp_path):
+    """Break-it, kept in CI: a file with a non-SQLite header (so the header check
+    passes) that contains the canary must trip the sidecar canary scan."""
+    (tmp_path / "vault.db").write_bytes(b"NOT-A-SQLITE-HEADER" + CANARY.encode() + b"\x00" * 64)
+    with pytest.raises(AssertionError, match="canary found"):
+        _assert_vault_ciphertext(tmp_path, CANARY)
+
+
 @pytest.mark.parametrize(
     ("env", "outcome"),
     [({"CI": "true"}, "fail"), ({"HC_REQUIRE_SQLCIPHER": "1"}, "fail"), ({}, "skip")],
