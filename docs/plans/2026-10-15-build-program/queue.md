@@ -43,6 +43,9 @@ Totals: 51 items. 7 ready now (E-1, E-3, D-0, C-PMIG, E-7, F-3, and B-3 for the 
   - **AUDIT-MISSING-MED:** pre-existing missing audit calls at `api/medications.py:1105` and `api/notifications.py:416` (D-1 follow-up; CLAUDE.md audit-logging invariant).
   - **EXPORT-TODAY-TZ:** `modules/export.py:454` dates the doctor summary with the UTC `today`.
 
+**Status 2026-10-17 (fifth batch)** (owner rows CORRELATION-NORMALISE, AUTO-MERGE, FULL-QUEUE-MERGE):
+- **Merged:** build-program workflow (#121), RSI research (#122), handoff + owner rows (#123), capstone RSI section (#125), rsi-loop workflow (#126), asclexis-rsi mod Track 1 (#127), RSI app-track plans (#128), build-program rsi stage (#129), PARALLEL-WAVES queue edits (#131), E-3a plan (#133), D-4 correlation normalise (#138, `c512dd8`, D-4 done), build-item reviewer agent fix (#144, `0440045`). Collected **1725** on `0440045`.
+
 **Status 2026-10-17 (fourth batch)** (owner rows M0, AUTO-MERGE, PR68-SYNC; TASK_LIST OW-2, OW-5):
 - **Merged:** ASSIST-AGENT-DATES (#119, `d80a153`), post-merge batch (#120), wearables plans (#94, `87101f6`, = M0), Tailwind 4 (#74, `fcc86d9`, E-4 done), RSI-loop research + session-log hook (#68, `3536cc6`). Collected **1721** on `3536cc6`.
 - **F-10:** landing. #68 is merged; this batch writes the slots (1714 → 1721).
@@ -113,7 +116,7 @@ Run in the order the owner answers gates. **Never pair:** any two of {RAG-RUNTIM
 | C-BKUP | C | PRODUCT | — | BKUP-FOLLOWUPS | — | `be/scripts/backup.py`, `be/tests/test_backup.py`, slots | 2 | claude | blocked: owner BKUP-FOLLOWUPS |
 | C-VAULTSC | C | PRODUCT (tests) | — | VAULT-SIDECAR | `be/tests/security/test_vault_ciphertext.py` (encryption tests) | `be/tests/security/test_vault_ciphertext.py`, slots | 1.5 | claude | blocked: owner VAULT-SIDECAR |
 | C-DUPAUD | C | PRODUCT | — | DUP-AUDIT-KEY | `be/core/audit.py` | `be/core/audit.py`, `be/tests/test_audit_phi_minimization.py`, `be/tests/test_documents_api.py`, slots | 0.5 | any | blocked: owner DUP-AUDIT-KEY; not beside C-P6 |
-| D-4 | D | PRODUCT | — | CORRELATION-NORMALISE go | — | `be/monitoring/correlation.py`, `be/tests/monitoring/test_correlation.py`, slots | 0.5 | any | blocked: owner go |
+| D-4 | D | PRODUCT | — | CORRELATION-NORMALISE go | — | `be/monitoring/correlation.py`, `be/tests/monitoring/test_correlation.py`, slots | 0.5 | any | **done** (#138, `c512dd8`) |
 | SAFE-CHAT-AGENT | A | OWNER → PRODUCT if B | — | SCA-RULING (rec. A: close) | — (imports `PROHIBITED_PATTERNS` only) | `be/modules/agent/guardrails/guard.py`, `be/tests/agent/test_guard_prohibited_floor.py` | 1.5 | any | blocked: owner SCA-RULING; no code if A |
 | SAFE-CHAT-FALLBACK | A | OWNER → PRODUCT if B/C | — | SCF-RULING (with IBF-1, R-1; rec. A) | — | `be/api/assistant.py` (B), `be/scripts/seed_knowledge_base.py` (C) | 0.5 | any | blocked: owner SCF-RULING; no code if A |
 | SAFE-CHAT-HISTORY | A | OWNER → PRODUCT if B | — | SCH-RULING (rec. A) | — | `be/api/assistant.py` | 0.5 | any | blocked: owner SCH-RULING; no code if A |
