@@ -416,6 +416,7 @@ class ExtractModule:
         """Parse a single text line into an observation."""
         # Try colon format first: "Glucose: 95 mg/dL (70-100)"
         match = self.LINE_PATTERN.match(line)
+        colon_match = bool(match)
         if not match:
             # Try alternative format: "Glucose 95 mg/dL (70-100)"
             match = self.ALT_LINE_PATTERN.match(line)
@@ -425,10 +426,6 @@ class ExtractModule:
             if not col:
                 return None
             name, val, flag_a, col_unit, lo, hi, lt, gt, flag_b = col.groups()
-            # "Glucose 105 98 mg/dL" or "Glucose 105 H 98 mg/dL": a second number
-            # means a previous-result column; the line is ambiguous, so do not guess.
-            if any(t.replace(".", "", 1).isdigit() for t in name.split()[1:]):
-                return None
             col_range_text = (
                 f"{lo}-{hi}" if lo and hi else f"<{lt}" if lt else f">{gt}" if gt else None
             )
@@ -449,6 +446,14 @@ class ExtractModule:
         flag = groups[5].upper() if len(groups) > 5 and groups[5] else None
 
         if not analyte or not value_str:
+            return None
+
+        # Non-colon lines only: a numeric token after the analyte's first word is a
+        # previous-result column ("Glucose 105 H 98 mg/dL"). Ambiguous, so yield no
+        # value rather than a wrong one. Colon matches are not guarded.
+        if not colon_match and any(
+            re.fullmatch(r"[\d.,]+", t) for t in analyte.split()[1:]
+        ):
             return None
 
         # Parse numeric values
