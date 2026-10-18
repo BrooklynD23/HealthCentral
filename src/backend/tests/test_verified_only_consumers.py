@@ -97,3 +97,114 @@ def test_hc_ver_002_trend_points_carry_user_verified_over_http(monkeypatch) -> N
         (90.0, True),
         (130.0, False),
     ]
+# ── real profile DB + legacy RAG helpers ────────────────────────────────────
+
+@pytest_asyncio.fixture
+async def real_profile_db():
+    engine = create_async_engine("sqlite+aiosqlite://")
+    async with engine.begin() as conn:
+        await conn.run_sync(ProfileDatabaseBase.metadata.create_all)
+    session = AsyncSession(engine, expire_on_commit=False)
+    try:
+        yield session
+    finally:
+        await session.close()
+        await engine.dispose()
+
+
+class _StubEmbedder:
+    """Deterministic stand-in: the test never loads or downloads a model, so it
+    does not depend on the environment the way test_api_rag_index_002b does."""
+
+    def embed_text(self, text: str) -> list[float]:
+        return [1.0, 0.0]
+
+    def blob_to_vector(self, blob: bytes) -> list[float]:
+        return [1.0, 0.0]
+
+    def cosine_similarity(self, a: list[float], b: list[float]) -> float:
+        return 1.0
+
+
+class _CapturingRunner:
+    """ModelRunner-shaped fake: records every prompt the legacy path would send."""
+
+    def __init__(self) -> None:
+        self.prompts: list[str] = []
+
+    def is_available(self) -> bool:
+        return True
+
+    async def generate_async(self, prompt: str, config) -> SimpleNamespace:
+        self.prompts.append(prompt)
+        return SimpleNamespace(
+            text="UNCERTAINTIES:\nI don't have enough information", finish_reason="stop"
+        )
+
+
+def _document(doc_id: str, status: str) -> Document:
+    return Document(
+        id=doc_id, profile_id=PROFILE, path_hash="x" * 64,
+        content_hash=uuid.uuid4().hex * 2, doc_type="lab_pdf",
+        source=f"{doc_id}.pdf", status=status, imported_at=datetime(2025, 1, 1),
+    )
+
+
+def _ldl(obs_id: str, doc_id: str, value: float, verified: bool, collected_at: datetime) -> Observation:
+    return Observation(
+        id=obs_id, profile_id=PROFILE, doc_id=doc_id,
+        analyte_canonical="ldl_cholesterol", analyte_raw="LDL Cholesterol",
+        value=value, unit="mg/dL", collected_at=collected_at, user_verified=verified,
+    )
+
+
+def _rag() -> tuple[RAGModule, _CapturingRunner]:
+    rag = RAGModule(enable_verification=False)
+    rag._embedder = _StubEmbedder()
+    return rag, _CapturingRunner()
+
+
+async def _ask(rag: RAGModule, runner: _CapturingRunner, db: AsyncSession, question: str, analytes):
+    return await rag.query(
+        question=question, profile_id=PROFILE, selected_analytes=analytes,
+        include_references=False, model_runner=runner, master_db=None, profile_db=db,
+    )
+
+
+# ── HC-VER-001 / HC-VER-004: observations ──────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_hc_ver_001_unverified_observation_absent_from_legacy_rag_context(real_profile_db) -> None:
+    db = real_profile_db
+    db.add_all([_document("doc-v", "verified"), _document("doc-u", "parsed")])
+    db.add_all([
+        _ldl("obs-v", "doc-v", 101.0, True, datetime(2025, 1, 10)),
+        # Newer, so without the filter it becomes "Latest value".
+        _ldl("obs-u", "doc-u", 187.0, False, datetime(2025, 6, 10)),
+    ])
+    await db.commit()
+    rag, runner = _rag()
+
+    await _ask(rag, runner, db, "How is my LDL?", ["ldl_cholesterol"])
+
+    # Positive control first: _get_observation_chunks swallows exceptions
+    # (modules/rag.py:450-451), so a broken query would make the absence
+    # assertion pass vacuously.
+    assert len(runner.prompts) == 1, "verified LDL should still reach the model"
+    prompt = runner.prompts[0]
+    assert "101.0" in prompt, "positive control: verified value missing from context"
+    assert "187.0" not in prompt, "unverified value 187.0 reached the legacy RAG prompt"
+
+
+@pytest.mark.asyncio
+async def test_hc_ver_004_only_unverified_data_yields_insufficient_context_without_llm_call(real_profile_db) -> None:
+    db = real_profile_db
+    db.add(_document("doc-u", "parsed"))
+    db.add(_ldl("obs-u", "doc-u", 187.0, False, datetime(2025, 6, 10)))
+    await db.commit()
+    rag, runner = _rag()
+
+    result = await _ask(rag, runner, db, "How is my LDL?", ["ldl_cholesterol"])
+
+    assert runner.prompts == [], "runner was called with a prompt although only unverified data exists"
+    assert result.insufficient_context is True

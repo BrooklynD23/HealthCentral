@@ -341,6 +341,10 @@ USER QUESTION: {question}"""
                         Observation.profile_id == profile_id,
                         Observation.analyte_canonical == analyte,
                         Observation.value.isnot(None),
+                        # D4 (owner, 2026-09-27): legacy RAG cites verified values
+                        # only, same filter as the agent's query_observations /
+                        # compute_trend tools.
+                        Observation.user_verified == True,  # noqa: E712
                     )
                     .order_by(Observation.collected_at.desc().nullslast())
                     .limit(5)
