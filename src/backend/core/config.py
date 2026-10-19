@@ -116,6 +116,11 @@ class Settings(BaseSettings):
     
     # Vector store
     embedding_dimensions: int = 384
+    # Bundled embedding model (owner decisions D8 + D8-delivery, 2026-09-27).
+    # Fetched once by `python scripts/download_models.py embedding`; loaded
+    # offline at runtime; retrieval fails closed when it is absent. Relative
+    # paths resolve against src/backend, not the working directory.
+    embedding_model_path: str = "models/embeddings/all-MiniLM-L6-v2"
     
     # Document processing
     max_import_file_size_mb: int = 50

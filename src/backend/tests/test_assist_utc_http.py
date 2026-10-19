@@ -102,6 +102,7 @@ def _rag(runner: _Runner):
 
         rag = RAGModule(enable_verification=False)
     rag._embedder.cosine_similarity.return_value = 0.9
+    rag._embedder.config.model_name = "m"
     return rag
 
 
