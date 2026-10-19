@@ -675,3 +675,154 @@ class TestModelUnavailableFallback:
         assert kwargs["assistant_content"] == "KB-only answer"
         assert kwargs["user_content"] == "How is my glucose?"
         profile_db.commit.assert_awaited()
+
+
+# ---------------------------------------------------------------------------
+# AUDIT-C-ASSIST: audit rows on create_session / update_memory_settings
+# ---------------------------------------------------------------------------
+
+import logging as _logging
+
+import pytest_asyncio
+from sqlalchemy import select as _select
+from sqlalchemy.ext.asyncio import AsyncSession as _AsyncSession
+from sqlalchemy.ext.asyncio import create_async_engine as _create_async_engine
+
+import api.assistant as _assistant_api
+from core.auth import get_profile_db_session as _get_profile_db_session
+from core.profile_database import ProfileDatabaseBase as _ProfileDatabaseBase
+from tests.support.routes import route_client as _route_client
+
+_AUD_PROFILE = "profile-a"
+_AUD_TITLE = "Chest pain questions"
+
+
+@pytest_asyncio.fixture
+async def _aud_vault():
+    engine = _create_async_engine("sqlite+aiosqlite://")
+    async with engine.begin() as conn:
+        await conn.run_sync(_ProfileDatabaseBase.metadata.create_all)
+    sess = _AsyncSession(engine, expire_on_commit=False)
+    try:
+        yield sess
+    finally:
+        await sess.close()
+        await engine.dispose()
+
+
+def _aud_setup(monkeypatch, vault, master):
+    order: list[str] = []
+    calls: list[dict] = []
+
+    async def spy(**kwargs):
+        calls.append(kwargs)
+        order.append("audit")
+
+    monkeypatch.setattr(_assistant_api, "create_audit_log", spy)
+    real_commit = vault.commit
+
+    async def wrapped():
+        await real_commit()
+        order.append("vault")
+
+    monkeypatch.setattr(vault, "commit", wrapped)
+    ctx = _route_client(
+        _assistant_api.router, "/assistant", profile_id=_AUD_PROFILE,
+        master_db=master, raise_server_exceptions=False,
+    )
+    client = ctx.__enter__()
+
+    async def _v():
+        return vault
+
+    client.app.dependency_overrides[_get_profile_db_session] = _v
+    return ctx, client, calls, order
+
+
+@pytest.mark.asyncio
+async def test_hc_audcas_001_create_session_audit_after_vault(_aud_vault, monkeypatch):
+    master = AsyncMock()
+    ctx, client, calls, order = _aud_setup(monkeypatch, _aud_vault, master)
+    try:
+        resp = client.post("/assistant/sessions", json={"title": _AUD_TITLE})
+    finally:
+        ctx.__exit__(None, None, None)
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert len(calls) == 1
+    kw = calls[0]
+    assert kw["event_type"] == kw["action"] == "assistant.session.create"
+    assert kw["entity_type"] == "chat_session"
+    assert kw["entity_id"] == body["session_id"]
+    assert kw["details"] is None
+    assert _AUD_TITLE not in repr(kw)
+    assert order == ["vault", "audit"]
+    master.commit.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_hc_audcas_002_create_session_audit_commit_fails(
+    _aud_vault, monkeypatch, caplog
+):
+    from models.chat_session import ChatSession
+
+    master = AsyncMock()
+    master.commit.side_effect = RuntimeError("disk full")
+    ctx, client, calls, order = _aud_setup(monkeypatch, _aud_vault, master)
+    try:
+        with caplog.at_level(_logging.ERROR):
+            resp = client.post("/assistant/sessions", json={"title": _AUD_TITLE})
+    finally:
+        ctx.__exit__(None, None, None)
+    assert resp.status_code == 500
+    rows = (await _aud_vault.execute(_select(ChatSession))).scalars().all()
+    assert len(rows) == 1
+    errs = [r for r in caplog.records if "AUDIT-ORDER" in r.getMessage()]
+    assert len(errs) == 1 and errs[0].levelno == _logging.ERROR
+    assert rows[0].id in errs[0].getMessage()
+    assert _AUD_TITLE not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_hc_audcas_003_memory_settings_audit_after_vault(_aud_vault, monkeypatch):
+    master = AsyncMock()
+    ctx, client, calls, order = _aud_setup(monkeypatch, _aud_vault, master)
+    try:
+        resp = client.patch(
+            "/assistant/memory-settings", json={"assistant_memory_enabled": False}
+        )
+    finally:
+        ctx.__exit__(None, None, None)
+    assert resp.status_code == 200, resp.text
+    assert len(calls) == 1
+    kw = calls[0]
+    assert kw["event_type"] == kw["action"] == "settings.assistant_memory.update"
+    assert kw["entity_type"] == "settings"
+    assert kw["entity_id"] == "assistant_memory"
+    assert kw["details"] == {"changed_fields": ["assistant_memory_enabled"]}
+    assert order == ["vault", "audit"]
+    master.commit.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_hc_audcas_004_memory_settings_audit_commit_fails(
+    _aud_vault, monkeypatch, caplog
+):
+    from models.model_settings import UserModelSettings
+
+    master = AsyncMock()
+    master.commit.side_effect = RuntimeError("disk full")
+    ctx, client, calls, order = _aud_setup(monkeypatch, _aud_vault, master)
+    try:
+        with caplog.at_level(_logging.ERROR):
+            resp = client.patch(
+                "/assistant/memory-settings", json={"assistant_memory_enabled": False}
+            )
+    finally:
+        ctx.__exit__(None, None, None)
+    assert resp.status_code == 500
+    _aud_vault.expire_all()
+    row = (await _aud_vault.execute(_select(UserModelSettings))).scalars().one()
+    assert row.assistant_memory_enabled is False
+    errs = [r for r in caplog.records if "AUDIT-ORDER" in r.getMessage()]
+    assert len(errs) == 1 and errs[0].levelno == _logging.ERROR
