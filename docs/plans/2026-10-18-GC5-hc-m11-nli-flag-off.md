@@ -4,7 +4,7 @@
 **Owner:** repository owner
 **Status:** PROPOSED — plan only, not approved for execution
 **Refresh Trigger:** any commit to `src/backend/modules/verifier_agent.py`, `modules/rag.py`, `api/assistant.py`, `modules/embeddings.py`, `scripts/download_models.py`, `core/config.py` or `config/model_manifest.json`; any owner answer to an [unsigned line](#unsigned-owner-lines); the model's Hub revision changing.
-**Base measured:** `origin/main` @ `e000974` (2026-10-18). W-8 (#168) and W-4 (#72) are both merged. Every `file:line` below was re-read at this base. Lane A's design (`lane-A-rag-assistant.md` §G-C5) was written at `3b2236c`; its line numbers have drifted and are corrected in [Measured anchors](#measured-anchors).
+**Base measured:** `origin/main` @ `e000974` (2026-10-18); the anchors that drifted by `a9978e8` (`queue.md`, `api/assistant.py`, `CLAUDE.md` SLOT-RULE-2 lines) were re-anchored to `a9978e8` in review round 3 and are the ones to trust. W-8 (#168) and W-4 (#72) are both merged. Every `file:line` below was re-read at this base. Lane A's design (`lane-A-rag-assistant.md` §G-C5) was written at `3b2236c`; its line numbers have drifted and are corrected in [Measured anchors](#measured-anchors).
 **Item:** `G-C5` in [queue.md](2026-10-15-build-program/queue.md) (this plan is item `G-C5-PLAN`, DOCS, no slot). Design source: [lane A §G-C5](2026-10-15-build-program/lane-A-rag-assistant.md); readiness pack: `audit/2026-09-25/waves/scaffold/G-C5.md`; packet: `audit/2026-09-25/gated-items-decision-packet.md` Brief 5.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:test-driven-development, then superpowers:executing-plans. Steps use `- [ ]`. Nothing here is ticked, and nothing below is approved except the five owner lines quoted verbatim in [Owner lines](#owner-lines).
@@ -50,7 +50,7 @@ What each line does **not** say:
 - W-8 #168 merged: the loader pattern (`EmbeddingModelUnavailableError`, per-call `local_files_only=True`, `settings.*_model_path`, the `download_models.py` subcommand) is copied from merged code. Contract I-14.
 - W-4 #72 merged: `scripts/legacy_eval_gate.py` exists (contract I-2) and is the byte-identical proof's first command.
 - **G-C5 is next in the `rag.py` chain** (queue row: "last on `rag.py`"). Hunk H1 edits `rag.py:1027`. Branch it after every earlier `rag.py` PR merges (W-3, #95 per lane A). Re-run Task 0 at branch time.
-- B-3 floats per R-4 (queue): it **does** share `modules/rag.py` and `api/assistant.py` with G-C5 (`queue.md:130` lists both; R-4 exists because of that overlap). It is a parked draft (R-4/R-5) that rebases onto G-C5 when G-C5 lands; G-C5 does not wait for it. The Task 0 overlap check skips draft PRs, so it will not report B-3: check `queue.md:130` by hand at branch time (recurring-failures #8).
+- B-3 floats per R-4 (queue): it **does** share `modules/rag.py` and `api/assistant.py` with G-C5 (`queue.md:145` lists both; R-4 exists because of that overlap). It is a parked draft (R-4/R-5) that rebases onto G-C5 when G-C5 lands; G-C5 does not wait for it. The Task 0 overlap check skips draft PRs, so it will not report B-3: check `queue.md:130` by hand at branch time (recurring-failures #8).
 - P5: no shared file (scaffold `G-C5.md` §5 `:76`: its grep covers `faithfulness.py` and `verifier_agent.py` for `utcnow`; G-C5 adds none). Order against W-8, W-4 and P5 is satisfied: the first two are merged, P5 is independent.
 - This plan consumes I-2 and I-14 **without changing a signature**. No hunk below changes `EmbeddingModelUnavailableError`, `resolve_embedding_model_dir`, `EmbeddingsModule`, or either gate script.
 
@@ -69,7 +69,7 @@ All on `e000974`. "Lane A" is the line number lane A quoted.
 | dispatch to `_check_entailment_llm` | `verifier_agent.py:223-224` | same |
 | `_check_entailment_llm` stub body (calls the rules) | `verifier_agent.py:304-317` | same (matches GC5-ASKFIRST) |
 | `verify_all_claims(claims, config=None)` builds `VerifierAgent(config)` | `verifier_agent.py:470` | `:470-484` |
-| 0.6 threshold sites | `rag.py:886`, `verifier_agent.py:85`, `api/assistant.py:223,227,1228` | `rag.py:866` |
+| 0.6 threshold sites | `rag.py:886`, `verifier_agent.py:85`, `api/assistant.py:223,227,1276` | `rag.py:866` |
 | `per_claim_entailment` already a parameter | `faithfulness.py:366` | `:362-366` |
 | `EmbeddingModelUnavailableError`, `resolve_embedding_model_dir`, `local_files_only=True` | `embeddings.py:37`, `:41`, `:112` | — |
 | `cmd_embedding`, subparser, dispatch | `download_models.py:327`, `:409`, `:423-424` | `:317-328` |
@@ -107,7 +107,7 @@ Candidate: `cross-encoder/nli-deberta-v3-xsmall`. **No weights were downloaded.*
 
 ## File list
 
-Start: queue row `G-C5` (`queue.md:194`). Hunks use only these files.
+Start: queue row `G-C5` (`queue.md:209`). Hunks use only these files.
 
 | File | In queue row | Hunk | Ask-first |
 |---|---|---|---|
@@ -126,12 +126,12 @@ Start: queue row `G-C5` (`queue.md:194`). Hunks use only these files.
 
 **Needs an L0 queue-row change (not added silently):**
 1. **`.gitignore`** (one line, `/src/backend/models/nli/`). Without it the 7 non-weight files of a fetched model show as untracked and invite `git add`. Alternative with no extra file: default the path to `models/embeddings/nli-deberta-v3-xsmall` (already ignored). The plan assumes the `.gitignore` line; L0 picks.
-2. **Slots wording.** The row lists "slots", but `CLAUDE.md:30-34` says PRs never edit the baseline line and the orchestrator updates it in a post-merge batch (SLOT-RULE-2). The PR reports the measured count and delta only. L0 should drop "slots" from the row or confirm the CLAUDE.md text governs.
+2. **Slots wording.** The row lists "slots", but `CLAUDE.md:38-40` says PRs never edit the baseline line and the orchestrator updates it in a post-merge batch (SLOT-RULE-2). The PR reports the measured count and delta only. L0 should drop "slots" from the row or confirm the CLAUDE.md text governs.
 3. If the real tokenizer needs `sentencepiece`: `src/backend/requirements.txt`.
 
 ## Unsigned owner lines
 
-None of these is signed. The plan states each option and does not choose silently. The orchestrator asks; the executor of G-C5 does not start Tasks 3-4 until OL-1 and OL-2 are answered.
+None of these is signed. The plan states each option and does not choose silently. The orchestrator asks; the executor of G-C5 does not start Tasks 3-4 until OL-1, OL-2 and OL-3 are answered. OL-3 is a gate because the queue row `G-C5` (`queue.md:209`) names "ModelRunner applicability" in its gates column beside OL-2; the plan's arguments for option A are the planner's, not the owner's answer.
 
 ### OL-1 GC5-MODEL: confirm the model, licence and pin
 
@@ -139,13 +139,13 @@ Q: "Confirm `cross-encoder/nli-deberta-v3-xsmall`, licence **Apache-2.0** (not M
 
 ### OL-2 Absent model with the flag on: fall back to rules, or fail closed?
 
-Queue row `:194` already lists "absent model with flag on" as an open gate. Lane A's design hunk 3 falls back to rules. Owner line `:226` says "fail closed". They differ.
+Queue row `:209` already lists "absent model with flag on" as an open gate. Lane A's design hunk 3 falls back to rules. Owner line `:226` says "fail closed". They differ.
 
 | | A: fall back to the rules | B: fail closed (claims unverified) |
 |---|---|---|
 | Code in H3 | `return self._check_entailment_rules(claim, source)` | `return EntailmentResult(..., label=NEUTRAL, confidence=0.0, ...)` |
 | Flag on, model absent: patient sees on `POST /assistant/chat` | exactly today's answers (rule-based verification, same abstentions) | **every legacy chat answer with a cited claim is abstained** (`ABSTAIN_TEMPLATE`): no supporting source, so `_determine_verification` is False for every claim |
-| Flag on, model absent: patient sees on `POST /interpretations/observations/{id}/interpret-grounded` (`api/interpretations.py:506`, `rag.query` `:529`; same `get_rag_module()` singleton) | exactly today's output | **the answer is still served**: this route never calls `_legacy_serve_or_abstain`; it returns the segments with every claim failed (`failed_claims == total_claims`, `is_valid=False`, `:599-608`) and `LabInterpreter.tsx` still renders it. Not withheld. |
+| Flag on, model absent: patient sees on `POST /interpretations/observations/{id}/interpret-grounded` (`api/interpretations.py:506`, `rag.query` `:529`; same `get_rag_module()` singleton) | exactly today's output | **the answer is still served**: this route never calls `_legacy_serve_or_abstain`; it returns the segments with every claim failed (`failed_claims == total_claims`, `is_valid=False`, `:580-589` copies `failed_claims`/`total_claims` into the response; `:609-618` returns the segments with `is_valid=rag_result.is_valid`) and `LabInterpreter.tsx` still renders it. Not withheld. |
 | Never weaker than today? | yes | yes; stricter |
 | Operator signal | none except a log line | a log line, and the patient-visible abstentions |
 | Matches the signed `:226` text literally | **no** ("fail closed" is not "fall back") | **yes** |
@@ -157,7 +157,7 @@ Both options keep flag-off unchanged. The plan's default for the tests and hunk 
 
 ### OL-3 ModelRunner applicability
 
-CLAUDE.md §3: all LLM calls go through `ModelRunner`. A cross-encoder is not an LLM; `modules/embeddings.py` already loads `sentence_transformers` directly (the embeddings precedent, W-8). Options: **(A, planned)** load directly in `embeddings.py` beside the embedder, no new layer (CLAUDE.md §2); **(B)** add an NLI method to the `ModelRunner` facade. B adds a layer for a non-generative model. The packet's option C (prompting the local LLM for entailment) is not what Q5b chose. Unsigned: the plan assumes A.
+CLAUDE.md §3: all LLM calls go through `ModelRunner`. A cross-encoder is not an LLM; `modules/embeddings.py` already loads `sentence_transformers` directly (the embeddings precedent, W-8). Options: **(A, planned)** load directly in `embeddings.py` beside the embedder, no new layer (CLAUDE.md §2); **(B)** add an NLI method to the `ModelRunner` facade. B adds a layer for a non-generative model. The packet's option C (prompting the local LLM for entailment) is not what Q5b chose. **Blocking, unsigned:** the owner must answer before Tasks 3-4. The recommendation is A (the W-8 precedent and CLAUDE.md §2); it is a recommendation, not an answer.
 
 ### OL-4 Feed `per_claim_entailment` into faithfulness in v1? (lane A open question 4)
 
@@ -210,7 +210,7 @@ After:
                 use_llm_entailment=app_settings.use_llm_entailment,
             ),
 ```
-The local import matches `assistant.py:371` and `:522`. `0.6` and `fail_on_contradiction` are untouched. Flag default is False, so the value is the dataclass default today.
+The local import matches `assistant.py:371` and `:551`. `0.6` and `fail_on_contradiction` are untouched. Flag default is False, so the value is the dataclass default today.
 
 ### H3 `src/backend/modules/verifier_agent.py:304-317` (ASK-FIRST, GC5-ASKFIRST `:238`)
 
@@ -435,8 +435,8 @@ Interpreter: `~/venvs/asclexis-311/bin/python` written in full. Every pytest run
 - [ ] `git ls-files src/backend/scripts/legacy_eval_gate.py scripts/legacy_eval_gate.py` lists `scripts/legacy_eval_gate.py` (I-2).
 - [ ] Re-grep every anchor in [Measured anchors](#measured-anchors) on the current `origin/main`. Any mismatch other than a line number: STOP and tell L0.
 - [ ] File-overlap check against open non-draft PRs (`gh pr diff <n> --name-only`) for every file in the [file list](#file-list).
-- [ ] OL-1 and OL-2 answered. If not, do only Tasks 1 and 2 (H1/H2) and report the rest as blocked.
-- [ ] `~/venvs/asclexis-311/bin/python -m pytest tests/ --collect-only -q -p no:cacheprovider | tail -1` (through `pyslot.sh`). Record the number: it is the PR's baseline. Measured 1901 on `e000974` on 2026-10-18.
+- [ ] OL-1, OL-2 and OL-3 all answered. If any is not, do only Tasks 1 and 2 (H1/H2) and report the rest as blocked.
+- [ ] `~/venvs/asclexis-311/bin/python -m pytest tests/ --collect-only -q -p no:cacheprovider | tail -1` (through `pyslot.sh`). Record the number: it is the PR's baseline. Example only: 1901 on `e000974` on 2026-10-18; `origin/main` @ `a9978e8` collects 1933.
 
 ### Task 1: baseline byte-identical capture (flag off, before any hunk)
 
@@ -512,8 +512,8 @@ diff <(sed -E 's/ in [0-9.]+s.*$//' "$OUT/before/pytest.txt") <(sed -E 's/ in [0
 diff "$OUT/before/exit.txt" "$OUT/after/exit.txt"; echo "exit-code diff exit=$?"
 ```
 - The only normalisation is stripping pytest's wall-clock suffix. If a gate's raw output differs (timestamps, paths), report the differing lines; do not normalise them away silently.
-- **Reach check** (a throwaway script in the scratch directory, not committed): run the legacy gate's `main()` with `VerifierAgent._check_entailment` wrapped by a counter, before and after. Require count greater than 0 and equal. Without it a gate that never reaches the verifier proves nothing about H1.
-- **What it would fail to notice:** the golden sets fake retrieval and generation (`tests/legacy_eval/harness.py`), so it proves the flag-off verifier path, not real-model behaviour. It cannot see the flag-on path at all; that is HC-GC5-001/002 and Task 7. `agent_eval_gate.py` did not consume the verifier when last measured (packet Brief 5 table, `scorer.py` row, 2026-10-01; re-check in Task 0), so its identical output is weak evidence for H1-H3. It is listed because the brief names it; the legacy gate and the reach check carry the weight.
+- **Reach check** (a throwaway script in the scratch directory, not committed): run the legacy gate's `main()` with `VerifierAgent._check_entailment` wrapped by a counter, before and after. Require count greater than 0 and equal. The script also writes per-case `failed_claims`/`verified_claims` (one line per golden case) to `$OUT/$S/claims.txt`, before and after, and the two files are diffed (`diff "$OUT/before/claims.txt" "$OUT/after/claims.txt"`); the gate's own output is an 8-case aggregate and cannot show two cases trading outcomes. Without it a gate that never reaches the verifier proves nothing about H1.
+- **What it would fail to notice:** the golden sets fake retrieval and generation (`tests/legacy_eval/harness.py`), so it proves the flag-off verifier path, not real-model behaviour. It cannot see the flag-on path at all; the per-case claims diff closes the aggregate-only gap, but only for the golden cases; that is HC-GC5-001/002 and Task 7. `agent_eval_gate.py` did not consume the verifier when last measured (packet Brief 5 table, `scorer.py` row, 2026-10-01; re-check in Task 0), so its identical output is weak evidence for H1-H3. It is listed because the brief names it; the legacy gate and the reach check carry the weight.
 
 ## Acceptance for the G-C5 PR
 
@@ -526,8 +526,8 @@ Each command is pasted with its output in the PR. "Predicted" is a prediction; t
 - [ ] 0.6 grep unchanged: `git grep -n "0\.6" -- src/backend/modules/rag.py src/backend/modules/verifier_agent.py src/backend/api/assistant.py` equals its output on `origin/main` (compare the two outputs; line numbers in `api/assistant.py` shift by the H2 additions, the values do not; compare the values, not the numbers).
 - [ ] `git ls-files | grep -i -E 'safetensors|\.bin$'` prints nothing.
 - [ ] `git diff --name-only origin/main...HEAD` lists only [the file list](#file-list) (plus any L0-approved row additions).
-- [ ] Full suite through `scripts/pyslot.sh` (run by the Haiku runner, not the implementer): `... -m pytest tests/ -q -p no:cacheprovider`. `test_api_rag_index_002b` may fail without an embedding model; that is environmental and its 0.7 threshold is never lowered.
-- [ ] Collected: `... --collect-only -q | tail -1`. **Predicted +5** over the base measured in Task 0 (1901 on `e000974`, so 1906 if nothing else merges). Measured at the PR after the final rebase. `CLAUDE.md:30` and `AGENT.md:76` are not edited by the PR.
+- [ ] Full suite through `scripts/pyslot.sh` (run by the Haiku runner, not the implementer): `... -m pytest tests/ -q -p no:cacheprovider`. Without the fetched embedding bundle exactly 5 tests fail: the list is in `CLAUDE.md` §4 (Baseline) on `origin/main`: `test_embedding_bundle.py::test_hc_emb_002_fetched_model_loads_offline`, and in `test_rag_pipeline.py` `test_api_rag_index_002`, `test_api_rag_index_002b`, `test_api_rag_index_002c`, `test_search_vectors_async_calculates_similarity`. They are environmental (or fetch it first: `python scripts/download_models.py embedding`); the 0.7 threshold is never lowered. Any other failure is the PR's.
+- [ ] Collected: `... --collect-only -q | tail -1`. **Predicted +5** over the base measured in Task 0 (example from `e000974` only: 1901, so 1906; `origin/main` @ `a9978e8` collects 1933, so 1938 if nothing else merges). Measured at the PR after the final rebase. `CLAUDE.md:30` and `AGENT.md:76` are not edited by the PR.
 - [ ] Docs gates stay green: `docs_lint.py`, `generate_docs_index.py --check`, `harness_drift_check.py`, `repo_hygiene_check.py`.
 
 **Rollback:** revert the PR. With the flag off (default) the path before and after is the same; H1 is value-identical; the model directory is a separate download that can be deleted without touching code. Leaving `USE_LLM_ENTAILMENT` unset is itself the rollback for any deployment.
