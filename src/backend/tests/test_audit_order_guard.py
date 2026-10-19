@@ -204,6 +204,21 @@ def test_hc_aud_ord_030_a2_handlers_reach_audit_intent():
             assert _G.reaches(_REACH[k], "audit_intent"), f"{k} is A2 but never calls audit_intent"
 
 
+_AUDIT_SINKS = frozenset({"create_audit_log", "audit_and_commit", "audit_intent"})
+
+
+def _rows_without_audit(classification, reach, g) -> list[str]:
+    """Sorted "C"/"A2" keys whose handler reaches none of the audit sinks."""
+    return sorted(
+        k for k, v in classification.items()
+        if v in {"C", "A2"} and not any(g.reaches(reach[k], s) for s in _AUDIT_SINKS))
+
+
+def test_hc_aud_ord_030_c_and_a2_handlers_reach_an_audit_call():
+    """The class is a claim ("this handler audits"); this makes it checked."""
+    assert _rows_without_audit(CLASSIFICATION, _REACH, _G) == []
+
+
 def test_hc_aud_ord_030_dynamic_calls_are_named():
     unlisted = sorted(_DYN - set(NAMED_DYNAMIC_EXCLUSIONS))
     stale = sorted(set(NAMED_DYNAMIC_EXCLUSIONS) - _DYN)
@@ -273,3 +288,16 @@ def test_hc_aud_ord_030_vault_commit_must_be_on_profile_db(tmp_path):
         "    profile_db.add(1)\n    await master_db.commit()\n"))
     g = Graph(tmp_path, ("api",))
     assert [h[1] for h in g.handlers() if g.unscoped_vault_writes(h)] == ["zz"]
+
+
+def test_hc_aud_ord_030_break_it_c_handler_without_audit(tmp_path):
+    """A "C" row whose handler never reaches an audit call must be reported."""
+    _, reach, _, _ = _overlay(tmp_path, (
+        '@router.post("/bare")\nasync def h(profile_db=None):\n'
+        "    profile_db.add(1)\n    await profile_db.commit()\n"
+        '@router.post("/audited")\nasync def ha(profile_db=None):\n'
+        "    profile_db.add(1)\n    await profile_db.commit()\n"
+        "    await create_audit_log(profile_db)\n"))
+    cls = {"api/zz.py::h": "C", "api/zz.py::ha": "C"}
+    assert _rows_without_audit(cls, reach, _G) == ["api/zz.py::h"]
+    assert _rows_without_audit({"api/zz.py::ha": "C"}, reach, _G) == []

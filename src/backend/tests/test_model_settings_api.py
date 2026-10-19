@@ -520,7 +520,7 @@ _EXT_BODY = {
 }
 
 
-def _ext_put(vault, master):
+def _ext_put(vault, master, body=None):
     with _aud_client(master) as client:
         async def _pdb():
             return vault
@@ -530,7 +530,9 @@ def _ext_put(vault, master):
 
         client.app.dependency_overrides[get_profile_db_session] = _pdb
         client.app.dependency_overrides[get_profile_encryption_manager] = _enc
-        return client.put("/settings/model/external-api", json=_EXT_BODY)
+        return client.put(
+            "/settings/model/external-api", json=_EXT_BODY if body is None else body
+        )
 
 
 @pytest.mark.asyncio
@@ -589,3 +591,38 @@ async def test_hc_audcms_004_external_api_audit_commit_failure_logged_and_raised
     assert len(records) == 1
     assert "external_api" in records[0].getMessage()
     assert "sk-canary-123" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_hc_audcms_005_external_api_save_without_key_keeps_key_and_audits_no_key(
+    aud_vault, monkeypatch
+):
+    order: list[str] = []
+    _, calls = _aud_setup(monkeypatch, aud_vault, order)
+    master = MagicMock()
+    master.commit = AsyncMock()
+
+    resp1 = _ext_put(aud_vault, master)
+    assert resp1.status_code == 200, resp1.text
+    row = (await aud_vault.execute(
+        select(UserModelSettings).where(UserModelSettings.profile_id == _AUD_PROFILE)
+    )).scalar_one()
+    stored_key = row.external_api_key_encrypted
+    assert stored_key.startswith("gAAAAA")
+
+    resp2 = _ext_put(
+        aud_vault,
+        master,
+        {"use_external_api": False, "provider": "openai", "consent_acknowledged": False},
+    )
+
+    assert resp2.status_code == 200, resp2.text
+    assert len(calls) == 2
+    assert calls[1]["details"] == {"changed_fields": ["provider", "use_external_api"]}
+    assert resp2.json()["api_key_configured"] is True
+    row = (await aud_vault.execute(
+        select(UserModelSettings).where(UserModelSettings.profile_id == _AUD_PROFILE)
+    )).scalar_one()
+    assert row.external_api_key_encrypted == stored_key
+    assert row.use_external_api is False
+    assert "sk-canary-123" not in repr(calls[1])
