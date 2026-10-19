@@ -448,7 +448,7 @@ async def test_hc_audcms_001_audit_row_after_vault_commit(route, aud_vault, monk
     order: list[str] = []
     _, calls = _aud_setup(monkeypatch, aud_vault, order)
     master = MagicMock()
-    master.commit = AsyncMock()
+    master.commit = AsyncMock(side_effect=lambda: order.append("master_commit"))
 
     with _aud_client(master) as client:
         async def _pdb():
@@ -465,7 +465,7 @@ async def test_hc_audcms_001_audit_row_after_vault_commit(route, aud_vault, monk
     assert call["entity_id"] == entity
     assert call["details"] == details
     assert call["profile_id"] == _AUD_PROFILE
-    assert order == ["vault", "audit"]
+    assert order == ["vault", "audit", "master_commit"]
     master.commit.assert_awaited()
 
 
@@ -478,7 +478,12 @@ async def test_hc_audcms_002_audit_commit_failure_logged_and_raised(
     order: list[str] = []
     stub, _ = _aud_setup(monkeypatch, aud_vault, order)
     master = MagicMock()
-    master.commit = AsyncMock(side_effect=RuntimeError("audit db down"))
+
+    async def _failing_commit():
+        order.append("master_commit")
+        raise RuntimeError("audit db down")
+
+    master.commit = AsyncMock(side_effect=_failing_commit)
     caplog.set_level(logging.INFO)
 
     with _aud_client(master) as client:
@@ -488,6 +493,7 @@ async def test_hc_audcms_002_audit_commit_failure_logged_and_raised(
         resp = client.request(method, f"/settings/model{path}", json=body)
 
     assert resp.status_code == 500
+    assert order == ["vault", "audit", "master_commit"]
     if column is None:
         assert _STUB_CALL[route] in stub.calls
     else:
