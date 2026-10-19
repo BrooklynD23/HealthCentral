@@ -822,3 +822,52 @@ async def test_hc_pkt_023_spaced_labelled_mrn_in_reason_never_reaches_packet(
     finally:
         if packet_id is not None:
             _packet_store.pop(packet_id, None)
+
+
+@pytest.mark.asyncio
+async def test_hc_exptz_009_visit_prep_questions_use_profile_local_today(
+    real_profile_db, monkeypatch
+):
+    """HC-EXPTZ-009: through HTTP, visit-prep follow-up questions use the profile's
+    local date. Frozen 2026-01-16 01:00 UTC = Jan 15 17:00 America/Los_Angeles, so
+    the window ends Jan 29 locally (Jan 30 in UTC). Zone is read from the
+    UserModelSettings row, not stubbed.
+    """
+    from models import CarePlanTask
+
+    _freeze_utcnow(monkeypatch, TZ_FROZEN_UTC)
+    db = real_profile_db
+    db.add(UserModelSettings(profile_id="profile-a", timezone="America/Los_Angeles"))
+    in_window = CarePlanTask(
+        id=str(uuid.uuid4()), title="In local window", status="open",
+        due_date=date(2026, 1, 29),
+    )
+    outside = CarePlanTask(
+        id=str(uuid.uuid4()), title="Outside local window", status="open",
+        due_date=date(2026, 1, 30),
+    )
+    db.add_all([in_window, outside])
+    await db.commit()
+
+    packet_id = None
+    try:
+        with route_client(export_api.router, "/export", profile_id="profile-a") as client:
+
+            async def _override_profile_db():
+                return db
+
+            client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+            created = client.post(
+                "/export/visit-prep",
+                json={"confirm": True, "include_tasks": True, "include_questions": True},
+            )
+            assert created.status_code == 200, created.text
+            packet_id = created.json()["packet_id"]
+            questions = _packet_store[packet_id]["questions"]
+
+        texts = [q["question"] for q in questions if q["category"] == "follow_up"]
+        assert any("In local window" in text for text in texts)
+        assert not any("Outside local window" in text for text in texts)
+    finally:
+        if packet_id is not None:
+            _packet_store.pop(packet_id, None)
