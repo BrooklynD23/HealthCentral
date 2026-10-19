@@ -63,6 +63,13 @@ class ExtractionResult:
     extracted_text: Optional[str] = None
 
 
+# Shared unit alternation. Longer alternatives precede their prefixes.
+_UNIT_ALT = (
+    r"mIU/L|[uµμ]IU/mL|ng/dL|[uµμ]g/dL|nmol/L|pmol/L|[uµμ]mol/L|"
+    r"[uµμ]g/L|g/L|mg/dL|g/dL|mmol/L|mEq/L|U/L|IU/L|ng/mL|pg/mL|%|fL|K/uL|M/uL|cells/uL"
+)
+
+
 class ExtractModule:
     """
     Document extraction service.
@@ -73,7 +80,7 @@ class ExtractModule:
 
     # Common lab value patterns
     VALUE_PATTERN = re.compile(
-        r"(\d+\.?\d*)\s*(mg/dL|g/dL|mmol/L|mEq/L|U/L|IU/L|ng/mL|pg/mL|%|fL|K/uL|M/uL|cells/uL)?",
+        r"(\d+\.?\d*)\s*(" + _UNIT_ALT + r")?",
         re.IGNORECASE
     )
 
@@ -147,17 +154,23 @@ class ExtractModule:
                 tables = page.extract_tables() or []
 
                 # Process tables for lab values
+                page_table_count = 0
                 for table in tables:
                     table_obs = self._extract_from_table(
                         table, page_num, document_id
                     )
+                    page_table_count += len(table_obs)
                     observations.extend(table_obs)
 
-                # If no tables, try text extraction
-                if not tables:
+                # If this page's tables gave no observations, try text extraction.
+                # Table pages are noisy (demographics, IDs), so keep only
+                # rows with a recognised unit here.
+                if page_table_count == 0:
                     text_obs = self._extract_from_text(
                         text, page_num, document_id
                     )
+                    if tables:
+                        text_obs = [o for o in text_obs if o.unit]
                     observations.extend(text_obs)
 
                 # Extract dates
@@ -334,7 +347,7 @@ class ExtractModule:
     LINE_PATTERN = re.compile(
         r"^([A-Za-z][A-Za-z0-9\s,\-]+?):\s*"  # Analyte name ending with colon
         r"(\d+\.?\d*)\s*"  # Numeric value
-        r"(mg/dL|g/dL|mmol/L|mEq/L|U/L|IU/L|ng/mL|pg/mL|%|fL|K/uL|M/uL|cells/uL)?"  # Unit
+        r"(" + _UNIT_ALT + r")?"  # Unit
         r"(?:\s*\((?:Normal:|Ref:?)?\s*([<>]?\d+\.?\d*)\s*[-–]?\s*(\d+\.?\d*)?\))?"  # Reference range
         r"(?:\s*(H|L|HH|LL|HIGH|LOW|ABNORMAL|CRITICAL))?"  # Flag
         r"\s*$",
@@ -345,11 +358,25 @@ class ExtractModule:
     ALT_LINE_PATTERN = re.compile(
         r"^([A-Za-z][A-Za-z0-9\s,\-]+?)\s+"  # Analyte name
         r"(\d+\.?\d*)\s*"  # Value
-        r"(mg/dL|g/dL|mmol/L|mEq/L|U/L|IU/L|ng/mL|pg/mL|%|fL|K/uL|M/uL|cells/uL)\s*"  # Required unit
+        r"(" + _UNIT_ALT + r")\s*"  # Required unit
         r"(?:\(([<>]?\d+\.?\d*)\s*[-–]?\s*(\d+\.?\d*)?\))?"  # Reference range
         r"(?:\s*(H|L|HH|LL|HIGH|LOW|ABNORMAL|CRITICAL))?"  # Flag
         r"\s*$",
         re.IGNORECASE | re.MULTILINE
+    )
+
+    # Column layout: "Analyte Value [Flag] Unit [Range] [Flag]" (whitespace-separated,
+    # unit required, range bare: a-b, <a or >a). Tried after the two patterns above.
+    _FLAG_ALT = r"HH|LL|HIGH|LOW|ABNORMAL|CRITICAL|H|L"
+    COLUMN_LINE_PATTERN = re.compile(
+        r"^([A-Za-z][A-Za-z0-9\s,\-]*?)\s+"  # Analyte name
+        r"(\d+\.?\d*)\s+"  # Value
+        r"(?:(" + _FLAG_ALT + r")\s+)?"  # Flag before unit
+        r"(" + _UNIT_ALT + r")"  # Required unit
+        r"(?:\s+(?:(\d+\.?\d*)\s*[-–]\s*(\d+\.?\d*)|<\s*(\d+\.?\d*)|>\s*(\d+\.?\d*)))?"  # Range
+        r"(?:\s+(" + _FLAG_ALT + r"))?"  # Flag after range
+        r"\s*$",
+        re.IGNORECASE
     )
 
     def _extract_from_text(
@@ -389,14 +416,28 @@ class ExtractModule:
         """Parse a single text line into an observation."""
         # Try colon format first: "Glucose: 95 mg/dL (70-100)"
         match = self.LINE_PATTERN.match(line)
+        colon_match = bool(match)
         if not match:
             # Try alternative format: "Glucose 95 mg/dL (70-100)"
             match = self.ALT_LINE_PATTERN.match(line)
 
         if not match:
-            return None
-
-        groups = match.groups()
+            col = self.COLUMN_LINE_PATTERN.match(line)
+            if not col:
+                return None
+            name, val, flag_a, col_unit, lo, hi, lt, gt, flag_b = col.groups()
+            col_range_text = (
+                f"{lo}-{hi}" if lo and hi else f"<{lt}" if lt else f">{gt}" if gt else None
+            )
+            # Normalise to the (analyte, value, unit, ref_low, ref_high, flag) shape.
+            if lt:
+                lo, hi = None, lt
+            elif gt:
+                lo, hi = gt, None
+            groups = (name, val, col_unit, lo, hi, flag_a or flag_b)
+        else:
+            groups = match.groups()
+            col_range_text = None
         analyte = groups[0].strip() if groups[0] else None
         value_str = groups[1] if len(groups) > 1 else None
         unit = groups[2] if len(groups) > 2 else None
@@ -405,6 +446,17 @@ class ExtractModule:
         flag = groups[5].upper() if len(groups) > 5 and groups[5] else None
 
         if not analyte or not value_str:
+            return None
+
+        # Non-colon lines only: a numeric token after the analyte's first word is a
+        # previous-result column ("Glucose 105 H 98 mg/dL", "Glucose 105H 98 mg/dL").
+        # Any letters glued to the number count ("105H", "105HI", "105A"), whatever
+        # the flag spelling. Ambiguous, so yield no value rather than a wrong one.
+        # Colon matches are not guarded.
+        if not colon_match and any(
+            re.fullmatch(r"[\d.,]+[A-Za-z]*", t)
+            for t in analyte.split()[1:]
+        ):
             return None
 
         # Parse numeric values
@@ -449,7 +501,9 @@ class ExtractModule:
             unit=unit,
             ref_low=ref_low,
             ref_high=ref_high,
-            ref_range_text=f"{ref_low_str or ''}-{ref_high_str or ''}" if ref_low_str else None,
+            ref_range_text=col_range_text or (
+                f"{ref_low_str or ''}-{ref_high_str or ''}" if ref_low_str else None
+            ),
             flag=flag,
             provenance=Provenance(page=page_num, text_snippet=line),
             confidence=min(confidence, 1.0),
