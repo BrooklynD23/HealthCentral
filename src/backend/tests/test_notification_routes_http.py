@@ -1,11 +1,10 @@
 """HTTP-level tests for notification routes (STREAK-TZ)."""
 
+import logging
+import uuid
 from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
-
-import logging
-import uuid
 
 import pytest
 from sqlalchemy import select
@@ -172,21 +171,21 @@ async def test_hc_msg_004_test_notification_streak_holds_through_missed_morning(
 # --- AUDIT-NOTIF-ALL: audit rows on settings, history, interaction ---------
 
 
-async def _audntf_seed(profile_db, with_reminder=False):
+async def _audntf_seed(db, with_reminder=False):
     med_id = str(uuid.uuid4())
-    profile_db.add(Medication(
+    db.add(Medication(
         id=med_id, profile_id=PROFILE, name="Metformin",
         frequency="once_daily", is_active=True, reminder_enabled=True,
     ))
     reminder_id = None
     if with_reminder:
         reminder_id = str(uuid.uuid4())
-        profile_db.add(ReminderLog(
+        db.add(ReminderLog(
             id=reminder_id, profile_id=PROFILE, medication_id=med_id,
             reminder_type="initial", message_tone="friendly", message="Time for Metformin",
             sent_at=datetime(2026, 3, 1, 19, 45), delivery_method="in_app",
         ))
-    await profile_db.commit()
+    await db.commit()
     return med_id, reminder_id
 
 
@@ -200,19 +199,19 @@ def _audntf_spy(monkeypatch, order, calls, fail=False):
     monkeypatch.setattr(notif_api, "log_document_event", _spy)
 
 
-def _audntf_track_vault(profile_db, monkeypatch, order):
-    real_commit = profile_db.commit
+def _audntf_track_vault(db, monkeypatch, order):
+    real_commit = db.commit
 
     async def _commit():
         order.append("vault")
         await real_commit()
 
-    monkeypatch.setattr(profile_db, "commit", _commit)
+    monkeypatch.setattr(db, "commit", _commit)
 
 
-def _audntf_override(client, profile_db):
+def _audntf_override(client, db):
     async def _override_profile_db():
-        return profile_db
+        return db
 
     client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
 
@@ -247,7 +246,7 @@ async def test_hc_audntf_002_settings_update_audit_commit_failure_logged(profile
     _audntf_spy(monkeypatch, [], [])
     master = AsyncMock()
     master.commit.side_effect = RuntimeError("master down")
-    with caplog.at_level(logging.ERROR):
+    with caplog.at_level(logging.DEBUG):
         with route_client(
             notif_router, "/notifications", profile_id=PROFILE, master_db=master,
             raise_server_exceptions=False,
@@ -255,6 +254,7 @@ async def test_hc_audntf_002_settings_update_audit_commit_failure_logged(profile
             _audntf_override(client, profile_db)
             resp = client.patch(f"/notifications/settings/{med_id}", json=_SETTINGS_BODY)
     assert resp.status_code == 500
+    await profile_db.rollback()
     med = (await profile_db.execute(select(Medication).where(Medication.id == med_id))).scalar_one()
     assert med.reminder_enabled is False
     errors = [r for r in caplog.records if r.levelno == logging.ERROR and "AUDIT-ORDER" in r.getMessage()]
@@ -293,7 +293,7 @@ async def test_hc_audntf_004_reminder_interaction_audit_commit_failure_logged(pr
     _audntf_spy(monkeypatch, [], [])
     master = AsyncMock()
     master.commit.side_effect = RuntimeError("master down")
-    with caplog.at_level(logging.ERROR):
+    with caplog.at_level(logging.DEBUG):
         with route_client(
             notif_router, "/notifications", profile_id=PROFILE, master_db=master,
             raise_server_exceptions=False,
@@ -304,11 +304,13 @@ async def test_hc_audntf_004_reminder_interaction_audit_commit_failure_logged(pr
                 params={"interaction_type": "snoozed", "snooze_minutes": 10},
             )
     assert resp.status_code == 500
+    await profile_db.rollback()
     row = (await profile_db.execute(select(ReminderLog).where(ReminderLog.id == reminder_id))).scalar_one()
     assert row.was_interacted is True
     errors = [r for r in caplog.records if r.levelno == logging.ERROR and "AUDIT-ORDER" in r.getMessage()]
     assert len(errors) == 1
     assert reminder_id in errors[0].getMessage()
+    assert "snoozed" not in errors[0].getMessage()
 
 
 @pytest.mark.asyncio
