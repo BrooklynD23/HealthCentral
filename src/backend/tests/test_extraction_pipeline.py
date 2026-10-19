@@ -484,12 +484,19 @@ class TestExtractFormats:
             "Vitamin D 40 L 75 nmol/L (75-250)",
             "Hemoglobin 150 H 135 g/L",
             "Creatinine 120 88 umol/L",
+            "Glucose 105H 98 mg/dL 70-99",
+            "Creatinine 120H 88 umol/L (60-110)",
         ],
     )
     def test_hc_exf_004c_column_previous_result_not_absorbed_into_analyte(self, extract_module, line):
         # Two numbers before the unit (a flag may sit between them): ambiguous, so no
         # observation. Never "Glucose 105" or a dropped flag on the wrong value.
         assert extract_module._extract_from_text(line, 1, "t") == []
+
+    def test_hc_exf_004d_colon_lines_are_not_guarded(self, extract_module):
+        # The previous-result guard covers non-colon matches only.
+        result = extract_module._extract_from_text("Vitamin B 12: 400 pg/mL", 1, "t")
+        assert [(o.analyte_raw, o.value) for o in result] == [("Vitamin B 12", 400.0)]
 
     @staticmethod
     def _pdf(page):
@@ -528,3 +535,13 @@ class TestExtractFormats:
             result = await extract_module.extract_from_pdf(tmp_path / "b.pdf", "doc")
         assert len(result.observations) == 2
         text_parser.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_hc_exf_007_no_tables_page_keeps_unitless_rows(self, extract_module, tmp_path):
+        page = MagicMock()
+        page.extract_text.return_value = "Glucose: 95 (70-100)"
+        page.extract_tables.return_value = []
+        with patch("pdfplumber.open", return_value=self._pdf(page)):
+            result = await extract_module.extract_from_pdf(tmp_path / "c.pdf", "doc")
+        # The unit filter applies only on pages that have tables.
+        assert [o.analyte_raw for o in result.observations] == ["Glucose"]
