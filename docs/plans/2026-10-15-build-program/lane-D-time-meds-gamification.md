@@ -1,6 +1,6 @@
 # Lane D — Time Zones, Medications, Gamification — Build Design
 
-**Last Updated:** 2026-10-18 (AUDIT-NOTIF-ALL planned; EXPORT-TODAY-TZ Design 2 rev for owner EXPORT-TODAY-TZ-DESIGN = B; AUDIT-C-CLASS row); 2026-10-17 (MED-STREAK-GRACE, AUDIT-MISSING-MED, EXPORT-TODAY-TZ planned); 2026-10-16 (D-2 rev 2, owner Q1)
+**Last Updated:** 2026-10-18 (AUDIT-C-CLASS planned and split into AUDIT-C-MED, AUDIT-C-ASSIST, AUDIT-C-MSET, AUDIT-C-MSET-EXT); 2026-10-18 (AUDIT-NOTIF-ALL planned; EXPORT-TODAY-TZ Design 2 rev for owner EXPORT-TODAY-TZ-DESIGN = B; AUDIT-C-CLASS row); 2026-10-17 (MED-STREAK-GRACE, AUDIT-MISSING-MED, EXPORT-TODAY-TZ planned); 2026-10-16 (D-2 rev 2, owner Q1)
 **Owner:** repository owner
 **Refresh Trigger:** any merge of #95, #97, #99, #82 or #84; any commit to `src/backend/core/time.py`, `src/backend/modules/notification_scheduler.py`, `src/backend/modules/adherence_patterns.py`, `src/backend/modules/streak_engine.py`, `src/backend/api/medications.py`, `src/backend/api/gamification.py`, `src/backend/api/notifications.py`, `src/backend/monitoring/correlation.py`; a new profile migration after `012_pinboards`.
 **Status:** DESIGN. Nothing here is implemented. Owner answers cited below are quoted from `docs/capstone-report/owner-decisions-2026-09-27.md`; this file records no new approval.
@@ -23,7 +23,10 @@
 | AUDIT-MISSING-MED | audit rows on `GET /medications/{id}/stats` and `POST /notifications/test/{id}` | queue status 2026-10-16 second batch; CLAUDE.md audit invariant | [§3](#audit-missing-med--two-profile-data-routes-write-no-audit-row) | D-1 (merged #104); rebase after #130 | ready |
 | EXPORT-TODAY-TZ | export questions window and generated-on dates use the profile-local day | queue status 2026-10-16 second batch; recurring-failures #9 | [§3](#export-today-tz--export-dates-use-the-utc-calendar-day) | D-1 helpers (merged) | ready (Design 2 rev: owner EXPORT-TODAY-TZ-DESIGN = B) |
 | AUDIT-NOTIF-ALL | audit rows on the four profile-data routes of `api/notifications.py` that AUDIT-MISSING-MED does not cover | queue status 2026-10-17; recurring-failures #9 | [§3](#audit-notif-all--apinotificationspy-writes-no-audit-row-on-any-route) | AUDIT-MISSING-MED (merged #165) | ready |
-| AUDIT-C-CLASS | audit rows on the 17 `"C"` handlers with no audit call (assistant 3, medications 6, model_settings 8) | AUDIT-NOTIF-ALL planning, 2026-10-18; recurring-failures #9 | no (list in [§3 AUDIT-NOTIF-ALL](#audit-notif-all--apinotificationspy-writes-no-audit-row-on-any-route)) | — | unplanned |
+| AUDIT-C-MED | audit rows on 6 `api/medications.py` handlers; `delete_schedule` becomes A2 | AUDIT-C-CLASS split, 2026-10-18; recurring-failures #9 | [§3](#audit-c-class--17-c-handlers-write-no-audit-row-split-audit-c-med-audit-c-assist-audit-c-mset-audit-c-mset-ext) | AUDIT-NOTIF-ALL merged (shared guard file) | ready after AUDIT-NOTIF-ALL |
+| AUDIT-C-ASSIST | audit rows on 3 `api/assistant.py` handlers; `delete_session` becomes A2 | same | [§3](#audit-c-class--17-c-handlers-write-no-audit-row-split-audit-c-med-audit-c-assist-audit-c-mset-audit-c-mset-ext) | AUDIT-NOTIF-ALL merged; never beside AUDIT-C-MED | ready after AUDIT-NOTIF-ALL |
+| AUDIT-C-MSET | audit rows on 7 `api/model_settings.py` settings handlers | same | [§3](#audit-c-class--17-c-handlers-write-no-audit-row-split-audit-c-med-audit-c-assist-audit-c-mset-audit-c-mset-ext) | — | ready |
+| AUDIT-C-MSET-EXT | audit row on `save_external_api_settings` (encryption code, ask-first; AUDIT-EXT-ASKFIRST = A) | same | [§3](#audit-c-class--17-c-handlers-write-no-audit-row-split-audit-c-med-audit-c-assist-audit-c-mset-audit-c-mset-ext) | AUDIT-C-MSET | ready after AUDIT-C-MSET merges |
 
 Dependency graph: `D-0 → D-1 → {D-2, D-3}`; D-4 is independent. D-2 and D-3 touch disjoint product files and may run as the 2 allowed code L1s at once.
 
@@ -470,7 +473,147 @@ What these tests would not notice: the stored row's columns. The spy sees the he
 
 **Acceptance:** the nine tests above; `pyt tests/test_notification_routes_http.py tests/test_audit_order_guard.py tests/test_audit_order.py tests/test_audit_phi_minimization.py tests/test_utc_sweep_http.py tests/test_notification_scheduler_wiring.py -q`: 0 failed. The recurring-failures #9 recheck run on `api/notifications.py` hits inside both `"C"` handlers. `cd src/backend && python -c "from main import app"`. Full suite per RUNBOOK §6. **Rollback:** revert; no data.
 
-**Order:** AUDIT-MISSING-MED is merged (#165). Never beside MED-STREAK-GRACE (option (a) edits `tests/test_notification_routes_http.py`) or AUDIT-C-CLASS, and never beside another open PR on `tests/test_audit_order_guard.py` (E-2, B-5, C-GC1, RSI1-DONATE).
+**Order:** AUDIT-MISSING-MED is merged (#165). Never beside MED-STREAK-GRACE (option (a) edits `tests/test_notification_routes_http.py`), AUDIT-C-MED or AUDIT-C-ASSIST (AUDIT-C-MSET is file-disjoint), and never beside another open PR on `tests/test_audit_order_guard.py` (E-2, B-5, C-GC1, RSI1-DONATE).
+
+### AUDIT-C-CLASS — 17 `"C"` handlers write no audit row (split: AUDIT-C-MED, AUDIT-C-ASSIST, AUDIT-C-MSET, AUDIT-C-MSET-EXT)
+
+**Source:** queue row AUDIT-C-CLASS (found planning AUDIT-NOTIF-ALL, PR #166, `f8ef7f8`); CLAUDE.md hard invariant "Audit logging on every route that touches documents, observations, or profile data"; recurring-failures #9. AUDIT-ORDER §3.1 (`docs/plans/2026-10-09-AUDIT-ORDER.md:130-142`) listed the same routes on 2026-10-09 as "write no audit row at all" and left them as a candidate item. Its execution decision 3 (`:452`) then classified them `"C"` "with no code change", so the guard row asserts an audit that was never written.
+
+**Fact (`f8ef7f8`, re-walked for this plan).** Method: an AST walk of every `"C"`/`"A2"` row in `tests/test_audit_order_guard.py`. Each handler body, plus every same-file function it calls (transitively), is searched for a call to `audit_and_commit`, `audit_intent`, `log_*_event`, `create_audit_log`, `_emit_audit` or `_audit*`. There are 19 misses: the 2 `api/notifications.py` handlers that AUDIT-NOTIF-ALL (#172, in flight) fixes, plus the same 17 as on `b8a47c7`. Only `learn_patterns` moved (`:1285` → `:1288`, MED-STREAK-GRACE #167). Lines below are at `f8ef7f8`.
+
+| File | Handler (lines) | Route | Vault commit | Planned class | Row |
+|---|---|---|---|---|---|
+| `api/medications.py` | `update_medication` `:561-616` | `PATCH /medications/{id}` | `:611` | C | AUDIT-C-MED |
+| | `create_schedule` `:696-747` | `POST /medications/{id}/schedules` | `:743` | C | AUDIT-C-MED |
+| | `update_schedule` `:790-852` | `PATCH /medications/{id}/schedules/{sid}` | `:849` | C | AUDIT-C-MED |
+| | `delete_schedule` `:859-901` | `DELETE /medications/{id}/schedules/{sid}` | `:899` | **A2** (guard row changes) | AUDIT-C-MED |
+| | `log_dose` `:912-1051` | `POST /medications/{id}/doses` | `:979` (dose), `:1036` (badges, best effort) | C | AUDIT-C-MED |
+| | `learn_patterns` `:1288-1407` | `POST /medications/{id}/learn-patterns` | in `modules/adherence_patterns.py` (`save_patterns` `:668`, `update_adaptive_windows` `:500`/`:537`) | C | AUDIT-C-MED |
+| `api/assistant.py` | `create_session` `:430-452` | `POST /assistant/sessions` | `:446` | C | AUDIT-C-ASSIST |
+| | `delete_session` `:483-500` | `DELETE /assistant/sessions/{id}` | `:500` (turns go by ORM cascade, `models/chat_session.py:61-64`) | **A2** (guard row changes) | AUDIT-C-ASSIST |
+| | `update_memory_settings` `:539-570` | `PATCH /assistant/memory-settings` | `:565` | C | AUDIT-C-ASSIST |
+| `api/model_settings.py` | `run_hardware_detection` `:445-477` | `POST /settings/model/detect` | `:461` | C | AUDIT-C-MSET |
+| | `set_model_tier` `:486-531` | `POST /settings/model/tier` | `:519` | C | AUDIT-C-MSET |
+| | `start_model_download` `:634-692` | `POST /settings/model/download` | `:673` (none on the already-downloaded early return `:651-657`) | C | AUDIT-C-MSET |
+| | `set_timezone` `:967-984` | `PUT /settings/model/timezone` | `:983` | C | AUDIT-C-MSET |
+| | `update_voice_settings` `:1002-1020` | `PATCH /settings/model/voice` | `:1016` | C | AUDIT-C-MSET |
+| | `update_ocr_settings` `:1105-1119` | `PATCH /settings/model/ocr` | `:1112` | C | AUDIT-C-MSET |
+| | `update_agent_settings` `:1133-1142` | `PATCH /settings/model/agent` | `:1141` | C | AUDIT-C-MSET |
+| | `save_external_api_settings` `:730-762` | `PUT /settings/model/external-api` | `:755` | C | **AUDIT-C-MSET-EXT (AUDIT-EXT-ASKFIRST = A)** |
+
+**Ask-first check (CLAUDE.md §1).**
+- `save_external_api_settings` is **encryption code**. It takes `ProfileEncryptionManager` (`:734`) and Fernet-encrypts the cloud API key (`:749-753`). It also switches the opt-in external runner on (`use_external_api`, D12). So it is ask-first. It is its own row, AUDIT-C-MSET-EXT, licensed by the owner's answer AUDIT-EXT-ASKFIRST = A (2026-10-18, PR #175; question below).
+- `update_memory_settings` is **not** auth or encryption code. It flips one boolean on `UserModelSettings`, which decides whether stored memory items are injected into prompts (`_effective_use_memory`). It reads no credential, key or session token and calls nothing in `core/auth.py`, `modules/redaction.py` or the external runner. Not gated.
+- `start_model_download` hands `_download_model_task` (`:894`, `hf_hub_download`) to `BackgroundTasks`: an existing outbound path, not an ask-first file. This plan does not touch it, and the tests patch it to a no-op.
+- No other handler here touches `interpret_safety`, `redaction`, `faithfulness`, `verifier_agent`, `core/auth.py` or encryption. `api/model_settings.py` imports `redaction_bypass_active` (`:26`), but none of the 7 AUDIT-C-MSET handlers calls it.
+
+**Design (shared by all four rows; no new `core/audit.py` helper or edit, no migration):**
+1. **C pattern.** This is the template AUDIT-NOTIF-ALL uses: the soft-delete branch of `delete_medication` (`api/medications.py:666-683`). The vault commit runs first. Then the handler writes the audit row on `master_db` (outside a `try`) and runs `master_db.commit()` inside `try`. If that commit fails, it logs `logger.error("AUDIT-ORDER: audit commit failed after change (event=%s, entity=%s)", event, entity_id)` (ids only) and re-raises. The change stays durable, the request returns 500 and there is an ERROR line (AUDIT-ORDER plan `:205`, case (a) under C). Each handler gains `master_db: AsyncSession = Depends(get_db)`. All three files already import `Depends`, `AsyncSession` and `get_db`.
+2. **One module-private helper per file, used at 5 sites (MED) or 7 sites (MSET).** The try/ERROR block repeats, so it lives once per file. The helper is not an abstraction over `core/audit.py`. AUDIT-C-ASSIST has 2 C sites and inlines them. Existing call sites (`delete_medication`, `create_medication`, `update_gamification_settings`) are **not** rewritten to use it (surgical edits).
+   - `api/medications.py`: `async def _audit_after_change(master_db, event, profile_id, document_id, details=None)` calls `log_document_event(db=master_db, ...)`, then the try/commit/ERROR block.
+   - `api/model_settings.py`: `async def _audit_settings_change(master_db, profile_id, event_type, entity_id, details=None)` calls `create_audit_log(db=master_db, event_type=event_type, action=event_type, profile_id=profile_id, entity_type="settings", entity_id=entity_id, details=details)`, then the same block. `action == event_type`, so `_scrub_action` keeps it and does not warn (`core/audit.py:174-193`). This is the `settings.<x>.<verb>` shape of `update_gamification_settings` (`:1063-1072`).
+3. **A2 for the two hard deletes.** `delete_schedule` and `delete_session` destroy rows that the product cannot restore: a schedule's learned adaptive windows, and a chat session with its turns. Owner-signed AUDIT-ORDER option D says "A2 on the irreversible set, C on the rest" (`AUDIT-ORDER.md:270-276`), and its siblings `delete_memory_item` and `delete_pinboard` are A2. So both get `audit_intent(master_db, "started", ...)` before the delete and `"completed"` after the vault commit, as the hard branch of `delete_medication` does (`:655-665`). Their guard rows change `"C"` → `"A2"`. `test_hc_aud_ord_030_a2_handlers_reach_audit_intent` then enforces the call. This is a planner ruling under the signed option, not a new approval. The owner confirmed it: AUDIT-C-A2 = A (2026-10-18, PR #175). A2 is the conservative choice: a failed audit stops the delete.
+4. **Details: field names and ids only, never values.** No medication name, dosage, instructions, schedule time or label, dose time, skip reason or note. No chat title, time-zone name, tier name, provider or key. `changed_fields` (`core/audit.py:80-83`) holds request field names only: `sorted(update.model_dump(exclude_none=True))`, matching the `is not None` checks in each handler. Adherence behaviour (`was_skipped`) is left out, as AUDIT-NOTIF-ALL leaves out `interaction_type` (AUDIT-PHI-001: the master DB is unencrypted).
+
+**Event table (all new names; `log_document_event` maps an unknown event to action `document.<event>` = its `event_type`, so no warning, HC-AUD-010):**
+
+| Handler | Helper call | `document_id` / `entity_id` | `details` | Placement |
+|---|---|---|---|---|
+| `update_medication` | `_audit_after_change(event="medication_update")` | `medication_id` | `{"changed_fields": [...]}` | after `:611-613`, before the response |
+| `create_schedule` | `event="medication_schedule_create"` | `sched.id` | `None` | after `:743-744` |
+| `update_schedule` | `event="medication_schedule_update"` | `schedule_id` | `{"changed_fields": [...]}` | after `:849-850` |
+| `delete_schedule` | `audit_intent(..., log_document_event, event="medication_schedule_delete")` started/completed | `schedule_id` | `None` (+ `status`) | started after the 404 checks, before `:898`; completed after `:899` |
+| `log_dose` | `event="medication_dose_log"` | `dose_record.id` | `None` | after the badge block (`:983-1042`), before `logger.info`. A master failure then cannot skip badge evaluation, and badges keep their best-effort rule |
+| `learn_patterns` | `event="medication_learn_patterns"` | `medication_id` | `None` | after `update_adaptive_windows` returns (`:1352-1356`), before the response is built |
+| `create_session` | inline `create_audit_log(event_type="assistant.session.create", action=same, entity_type="chat_session")` + try/ERROR | `new_session.id` | `None` | after `:446-447` |
+| `delete_session` | `audit_intent(..., create_audit_log, event_type="assistant.session.delete", action=same, entity_type="chat_session")` | `session_id` | `None` (+ `status`) | started after the 404 check, before `:499`; completed after `:500` |
+| `update_memory_settings` | inline, `event_type="settings.assistant_memory.update"`, `entity_type="settings"` | `"assistant_memory"` | `{"changed_fields": ["assistant_memory_enabled"]}` | after `:565-566` |
+| `run_hardware_detection` | `_audit_settings_change("settings.hardware.detect")` | `"hardware"` | `None` | after `:461` |
+| `set_model_tier` | `"settings.model_tier.update"` | `"model_tier"` | `{"changed_fields": ["tier"]}` | after `:519` (no row on the 400 path) |
+| `start_model_download` | `"settings.model_download.start"` | `"model_download"` | `None` | after `:673`, before `background_tasks.add_task` (no row on the already-downloaded return, which commits nothing) |
+| `set_timezone` | `"settings.timezone.update"` | `"timezone"` | `{"changed_fields": ["timezone"]}` | after `:983` |
+| `update_voice_settings` | `"settings.voice.update"` | `"voice"` | `{"changed_fields": sorted(data.model_dump(exclude_none=True))}` | after `:1016` |
+| `update_ocr_settings` | `"settings.ocr.update"` | `"ocr"` | `{"changed_fields": ["ocr_preference_enabled"]}` | after `:1112` |
+| `update_agent_settings` | `"settings.agent.update"` | `"agent"` | `{"changed_fields": sorted(data.model_dump(exclude_none=True))}` | after `:1141` |
+| `save_external_api_settings` (gated) | `"settings.external_api.update"` | `"external_api"` | `{"changed_fields": sorted(["provider", "use_external_api"] + (["api_key"] if request.api_key else []))}`: the handler assigns `use_external_api` and `provider` every time (`:743-744`) and the key only when it is truthy (`:749`); `model` is accepted but never stored, so it is not listed. Never the key, never the provider value | after `:755`; the encryption call `:749-753` is not touched |
+
+`"api_key"` in `changed_fields` is a field name, and `_scrub_details` keeps id-list values only if they match `_ENUM_VALUE_RE` (`core/audit.py:113`), which a name does.
+
+**Test pattern (all rows, over HTTP).**
+- **Client:** `route_client(<router>, <prefix>, profile_id=PROFILE, master_db=master)` with an explicit `master` whose `commit` is an `AsyncMock`. This is the `_master_db()` shape of `tests/test_gamification_settings.py:31-34`, or a plain `AsyncMock()` as in HC-AUDMED-003. The vault is a real in-memory SQLite session installed with `client.app.dependency_overrides[get_profile_db_session]`, like the existing `profile_db` fixture of `tests/test_medications_routes_http.py:22-40`.
+- **Spy and order:** `monkeypatch.setattr(<api module>, "log_document_event" | "create_audit_log", spy)`. The handlers and the per-file helpers look the name up in the module at call time, and `audit_intent` calls the `log_fn` it is handed. The spy records kwargs and appends `"audit"` (or `"audit:<status>"`) to an order list. `profile_db.commit` is wrapped after seeding, so each call appends `"vault"`.
+- **Failure rows:** `master.commit.side_effect = RuntimeError` with `raise_server_exceptions=False`. Assert 500, the vault change on re-select, exactly one `AUDIT-ORDER` ERROR record containing the entity id, and that `caplog.text` holds no seeded clinical string (`"Metformin"`, the chat title, `"America/New_York"`).
+- **A2 rows** reuse the parametrised harness in `tests/test_audit_order.py` (`Case`, `:96-154`; HC-AUD-ORD-001a/001b/002/003, real in-memory master with `FailingCommitSession`). The two new `Case`s are **appended** to `CASES`, because `test_hc_aud_ord_020` reads `CASES[1]`. They need a `seed`/`url`/`present` branch each: `schedule` seeds a `Medication` plus a `MedicationSchedule` and keeps the parent id on the case for `url`. `chat_session` seeds a `ChatSession` with one `ChatTurn`, and its `url` is `/assistant/sessions/{id}`.
+- **What these tests would not notice:** the stored row's columns for spy-based C rows. The A2 rows use a real master and do see `entity_id`. No test pins the stored shape of the new `log_document_event` C rows: HC-AUD-004 (`tests/test_audit_phi_minimization.py:180`) only checks that the actions in its parametrised list are registered, and that list does not include these events. HC-GAMSET-005 (`tests/test_gamification_settings.py:118`) pins one `create_audit_log` row with `entity_type="settings"`, the shape AUDIT-C-MSET reuses. They also would not notice a new committing handler added later without an audit call: the guard still checks classification, not truth (follow-up below).
+
+**Follow-up, not a row:** once all four rows (and AUDIT-NOTIF-ALL) have merged, add `test_hc_aud_ord_030_c_handlers_reach_an_audit_call` to the guard. For each `"C"` row it asserts `_G.reaches(_REACH[k], n)` for some `n` in `{create_audit_log, log_document_event, audit_and_commit, ...}` (`tests/support/callgraph.py:96`). That turns the recurring-failures #9 recheck into a test. It is L0's call. Until AUDIT-C-MSET-EXT merges it would fail on `save_external_api_settings`.
+
+---
+
+#### AUDIT-C-MED — `api/medications.py`, 6 handlers
+
+**Files (edited):** `src/backend/api/medications.py`; `src/backend/tests/test_medications_routes_http.py` (new C tests); `src/backend/tests/test_medications_dose_logging.py`, which calls `log_dose` directly at `:91` and `:131`. Once `master_db` defaults to the `Depends(get_db)` object, those two calls fail, so each passes `master_db=MagicMock(commit=AsyncMock())`; behaviour assertions are unchanged (session handoff 2026-10-18, harness-defects table row 6: "row file lists omit pinning tests"). Also `src/backend/tests/test_audit_order.py` (new `schedule` Case), `src/backend/tests/test_audit_order_guard.py` (`:70` `delete_schedule` `"C"` → `"A2"`; the other five `"C"` rows stay and are now true), and slots.
+**Re-run, not edited:** `src/backend/tests/test_adherence_patterns_tz_http.py` (`POST learn-patterns` through `route_client`, whose default `AsyncMock` master absorbs the write), `src/backend/tests/test_medication_correlations.py`, `src/backend/tests/test_gamification_api.py`, `src/backend/tests/test_audit_phi_minimization.py`.
+
+| Id | Route | Assertion | RED on `f8ef7f8`? |
+|---|---|---|---|
+| HC-AUDCMED-001 ×5 | parametrised: `PATCH /medications/{id}` `{"dosage_amount": 20, "instructions": "with food"}`; `POST .../schedules` `{"schedule_label": "morning", "target_time": "08:00"}`; `PATCH .../schedules/{sid}` `{"target_time": "09:00"}`; `POST .../doses` `{"taken_at": "2026-07-15T09:00:00Z"}`; `POST .../learn-patterns` | 2xx; exactly one spy call with the event and `document_id` of the event table, `profile_id=PROFILE`, details exactly as in the table (`["dosage_amount", "instructions"]`, `["target_time"]`, or `None`); order ends `["vault", "audit"]`; `master.commit` awaited | yes ×5 (no call) |
+| HC-AUDCMED-002 ×5 | same five, master commit raises | 500; the vault change is present on re-select (dosage 20 / schedule row / `target_time` 09:00 / dose row / `AdherencePattern` rows). For learn-patterns, the test seeds 8 taken `DoseTaken` rows on 8 consecutive days at 08:00 local, at least `MIN_SAMPLES_FOR_PATTERN = 7` (`modules/adherence_patterns.py:117`), so `time_window` is learned and at least one row exists; one `AUDIT-ORDER` ERROR with the entity id; `"Metformin"` and `"with food"` not in `caplog.text` | yes ×5 (2xx today) |
+| HC-AUD-ORD-001a/001b/002/003 `[schedule]` | `DELETE /medications/{id}/schedules/{sid}` via the new Case | the four existing A2 assertions (intent fails → schedule kept, no row; completion fails → schedule gone, `["started"]`; vault fails → kept, `["started"]`; happy → 204, `["started", "completed"]`, `entity_id == sid`) | yes ×4 (204 and no rows today) |
+
+**Expected collected delta:** +14.
+**Acceptance:** `pyt tests/test_medications_routes_http.py tests/test_medications_dose_logging.py tests/test_audit_order.py tests/test_audit_order_guard.py tests/test_audit_phi_minimization.py tests/test_adherence_patterns_tz_http.py tests/test_medication_correlations.py tests/test_gamification_api.py -q`: 0 failed. The #9 walk above prints no `api/medications.py` line. `cd src/backend && python -c "from main import app"`. Full suite per RUNBOOK §6. **Rollback:** revert; no data.
+**Order:** after AUDIT-NOTIF-ALL (#172) merges, which shares `test_audit_order_guard.py`. Never beside MED-STREAK-GRACE (merged #167; `api/medications.py`, `test_medications_routes_http.py`), AUDIT-C-ASSIST (`test_audit_order.py`, `test_audit_order_guard.py`) or another open PR on either guard file (E-2, B-5, C-GC1, RSI1-DONATE). No other open or ready row shares `api/medications.py`, `test_medications_routes_http.py` or `test_adherence_patterns_tz_http.py`: D-1 (#104), D-2 (#115) and MED-STREAK-GRACE (#167) are merged (checked with `gh pr view` on 2026-10-18), and no open PR (#155, #159, #164, #168, #172) touches those files.
+
+#### AUDIT-C-ASSIST — `api/assistant.py`, 3 handlers
+
+**Files (edited):** `src/backend/api/assistant.py` (adds `audit_intent` to the `core.audit` import, `:28`); `src/backend/tests/test_chat_sessions.py` (new HTTP tests; its existing tests call helpers, not these handlers); `src/backend/tests/test_audit_order.py` (new `chat_session` Case); `src/backend/tests/test_audit_order_guard.py` (`:16` `delete_session` `"C"` → `"A2"`; `:15`, `:17` stay `"C"`, now true); slots.
+**Re-run, not edited:** `src/backend/tests/test_assist_utc_http.py` (being edited by W-8, #168; chat only), `src/backend/tests/test_assist_agent_dates_http.py`, `src/backend/tests/test_audit_phi_minimization.py`. No other test calls these three routes or handlers (grep on `f8ef7f8`).
+
+| Id | Route | Assertion | RED? |
+|---|---|---|---|
+| HC-AUDCAS-001 | `POST /assistant/sessions` `{"title": "Chest pain questions"}` | 201; one spy call `event_type == action == "assistant.session.create"`, `entity_type="chat_session"`, `entity_id == body["session_id"]`, `details is None`; the title is in no spy kwarg; order `["vault", "audit"]` | yes |
+| HC-AUDCAS-002 | same, master commit raises | 500; the `ChatSession` row exists; one `AUDIT-ORDER` ERROR with its id; the title not in `caplog.text` | yes (201 today) |
+| HC-AUDCAS-003 | `PATCH /assistant/memory-settings` `{"assistant_memory_enabled": false}` | 200; one spy call `event_type="settings.assistant_memory.update"`, `entity_id="assistant_memory"`, `details == {"changed_fields": ["assistant_memory_enabled"]}`; order `["vault", "audit"]` | yes |
+| HC-AUDCAS-004 | same, master commit raises | 500; `UserModelSettings.assistant_memory_enabled is False` on re-select; one `AUDIT-ORDER` ERROR | yes (200 today) |
+| HC-AUD-ORD-001a/001b/002/003 `[chat_session]` | `DELETE /assistant/sessions/{id}` via the new Case | the four A2 assertions. `present` also checks the seeded `ChatTurn`: kept when the intent fails, gone on success | yes ×4 |
+
+**Expected collected delta:** +8.
+**Acceptance:** `pyt tests/test_chat_sessions.py tests/test_audit_order.py tests/test_audit_order_guard.py tests/test_audit_phi_minimization.py tests/test_assist_utc_http.py tests/test_assist_agent_dates_http.py -q`: 0 failed; app import; full suite per RUNBOOK §6. **Rollback:** revert.
+**Order:** after AUDIT-NOTIF-ALL merges. Never beside AUDIT-C-MED (two shared test files; run MED first, since medications are patient data). Never beside B-3 (ready; edits `api/assistant.py`), SAFE-CHAT-FALLBACK (B) or SAFE-CHAT-HISTORY (B), G-C5, or any open PR on `api/assistant.py` or either guard file.
+
+#### AUDIT-C-MSET — `api/model_settings.py`, 7 handlers (not `save_external_api_settings`)
+
+**Files (edited):** `src/backend/api/model_settings.py`; `src/backend/tests/test_model_settings_api.py`. That file gets the new HTTP tests, and it calls three of these handlers directly: `set_timezone` `:269`, `update_voice_settings` `:286`, `update_ocr_settings` `:305`. Each of those calls passes `master_db=MagicMock(commit=AsyncMock())`, with assertions unchanged (session handoff 2026-10-18, harness-defects table row 6: "row file lists omit pinning tests"). Slots.
+**Not edited:** `tests/test_audit_order_guard.py` (the 7 rows stay `"C"` and become true; no handler changes class or starts committing; the named dynamic exclusion `start_model_download::background_tasks.add_task(_download_model_task)` is unchanged). **Re-run:** `src/backend/tests/test_audit_order_guard.py`, `src/backend/tests/test_gamification_settings.py`, `src/backend/tests/test_tier_capabilities.py`, `src/backend/tests/test_hardware_detection.py`, `src/backend/tests/test_voice_settings_api.py`, `src/backend/tests/test_audit_phi_minimization.py`.
+**Stubs:** `run_hardware_detection`, `set_model_tier` and `start_model_download` call `get_model_selector()`. The tests use `monkeypatch.setattr(model_settings_api, "get_model_selector", lambda: stub)`, where the stub's `save_hardware_detection`, `set_user_preference`, `is_model_available` (False, so download gets past the early return `:651-657`) and `update_download_progress` are fakes that record calls. `detect_hardware_tier` returns a real `modules.hardware_detection.HardwareProfile` (`:171`), because `run_hardware_detection` builds `HardwareInfoResponse` from its fields. `api.model_settings.can_run_tier` is patched to return True, as HC-CAP-007 does (`tests/test_tier_capabilities.py:91`). Otherwise `set_model_tier`'s `logger.warning` (`:503-505`) writes the tier name to the log and breaks HC-AUDCMS-002's `"mid"` check for a reason that has nothing to do with the audit. `_download_model_task` is patched to an async no-op, so no download or network call runs (local-first).
+
+| Id | Route | Assertion | RED? |
+|---|---|---|---|
+| HC-AUDCMS-001 ×7 | parametrised over the 7 routes with a valid body (`{"tier": "mid"}`, `{"timezone": "America/New_York"}`, `{"voice_logging_enabled": true}`, `{"ocr_preference_enabled": false}`, `{"agent_enabled": false}`, `{"tier": "mid"}` for download (`TierDownloadRequest.tier` is required, `:128-134`; an empty body would 422 before the handler), empty for detect) | 200; exactly one spy call (`create_audit_log`) with `event_type == action ==` the table value, `entity_type="settings"`, the table `entity_id` and `details`; `profile_id=PROFILE`; order `["vault", "audit"]`; `master.commit` awaited | yes ×7 |
+| HC-AUDCMS-002 ×7 | same, master commit raises | 500; the vault change on re-select (the `UserModelSettings` column for the four direct writes; the recorded stub call for the three selector routes); one `AUDIT-ORDER` ERROR with the entity id; `"America/New_York"` and `"mid"` not in `caplog.text` | yes ×7 (200 today) |
+
+**Expected collected delta:** +14.
+**Acceptance:** `pyt tests/test_model_settings_api.py tests/test_gamification_settings.py tests/test_tier_capabilities.py tests/test_hardware_detection.py tests/test_voice_settings_api.py tests/test_audit_order_guard.py tests/test_audit_phi_minimization.py -q`: 0 failed. The #9 walk prints only `save_external_api_settings` for this file. App import; full suite per RUNBOOK §6. **Rollback:** revert.
+**Order:** file-disjoint from AUDIT-NOTIF-ALL, AUDIT-C-MED and AUDIT-C-ASSIST, so it may run beside any of them. Never beside AUDIT-C-MSET-EXT or any open PR on `api/model_settings.py` or `tests/test_model_settings_api.py`.
+
+#### AUDIT-C-MSET-EXT — `save_external_api_settings` (ask-first; AUDIT-EXT-ASKFIRST = A)
+
+**Licensed by owner answer AUDIT-EXT-ASKFIRST = A (2026-10-18, recorded by PR #175).** Before that answer this plan did not license the edit. On **B**, the row becomes a one-line guard reclassification. On any answer, the encryption call `:749-753` and the consent check `:737-741` are not touched.
+**Files (edited, under A):** `src/backend/api/model_settings.py` (one `_audit_settings_change` call after `:755`, plus the `master_db` parameter); `src/backend/tests/test_model_settings_api.py` (2 new HTTP tests; `test_put_external_api_persists` `:100` passes `master_db=MagicMock(commit=AsyncMock())`; `test_put_external_api_requires_consent` `:80` raises 400 before the audit and is left alone); slots. **Re-run:** `src/backend/tests/test_external_runner_hardening.py` (`PUT /settings/model/external-api` through `route_client` at `:285-295`), `src/backend/tests/test_external_runner.py`, `src/backend/tests/test_audit_order_guard.py`.
+
+| Id | Assertion | RED? |
+|---|---|---|
+| HC-AUDCMS-003 | `PUT /settings/model/external-api` `{"use_external_api": true, "provider": "openai", "api_key": "sk-canary-123", "consent_acknowledged": true}` → 200; one spy call `event_type="settings.external_api.update"`, `entity_id="external_api"`, `details == {"changed_fields": ["api_key", "provider", "use_external_api"]}`; `"sk-canary-123"` and `"openai"` in no spy kwarg; order `["vault", "audit"]` | yes |
+| HC-AUDCMS-004 | same, master commit raises → 500; the encrypted key is stored (re-select, starts `gAAAAA`); one `AUDIT-ORDER` ERROR; `"sk-canary-123"` not in `caplog.text` | yes |
+
+**Expected collected delta:** +2. **Est:** 0.5 h. **Order:** after AUDIT-C-MSET merges (same two files).
+
+**Owner questions.**
+1. **AUDIT-EXT-ASKFIRST — answered A, 2026-10-18 (PR #175).** "`PUT /settings/model/external-api` (`save_external_api_settings`, `api/model_settings.py:730`) encrypts the cloud API key and turns the opt-in external runner on or off (D12), so CLAUDE.md §1 makes it ask-first. It writes no audit row today, although the audit-order guard says it does. May an agent add one audit row after the settings are saved? The row would hold event `settings.external_api.update` and the names of the changed fields (`use_external_api`, `provider`, `api_key`), never the key or the provider. The encryption and consent code would not change. A. Yes, as planned (recommended): every change to the cloud-runner switch becomes attributable. B. No: leave it unaudited and reclassify the guard row as `excluded:` with a reason; the gap stays documented."
+2. **AUDIT-C-A2 — answered A (keep A2), 2026-10-18 (PR #175).** "Deleting a medication schedule or a chat session cannot be undone. Under your signed AUDIT-ORDER option D, the plan gives both the two-row started/completed audit, so a failed audit stops the delete. A. Keep A2 (default, recommended). B. Use the single after-change row (C) instead: smaller, but a failed audit leaves a deleted schedule or chat with no row."
+
+**Recurring-failures #9:** none of these rows edits `docs/agentic/recurring-failures.md`. Each row would otherwise share it with every other row and with AUDIT-NOTIF-ALL. When the last of AUDIT-C-MED / -ASSIST / -MSET merges, L0's post-merge batch rewrites the "17 more" sentence: what was fixed, and what is still waiting on AUDIT-EXT-ASKFIRST. The heading of this section keeps the anchor that #9's "queue row AUDIT-C-CLASS" reference resolves to.
 
 ---
 
@@ -501,7 +644,9 @@ What these tests would not notice: the stored row's columns. The spy sees the he
 
 | Gate | Item | State |
 |---|---|---|
-| Ask-first files | none: no item touches `interpret_safety`, `redaction`, `faithfulness`, `verifier_agent`, `core/auth.py` or encryption code | — |
+| Ask-first files | none, except AUDIT-C-MSET-EXT: `save_external_api_settings` holds the API-key encryption call (licensed by AUDIT-EXT-ASKFIRST = A); no item touches `interpret_safety`, `redaction`, `faithfulness`, `verifier_agent` or `core/auth.py` | — |
+| AUDIT-EXT-ASKFIRST | AUDIT-C-MSET-EXT | **answered 2026-10-18: A** (yes, as planned; recorded by PR #175) |
+| AUDIT-C-A2 | AUDIT-C-MED, AUDIT-C-ASSIST (`delete_schedule`, `delete_session` as A2) | **answered 2026-10-18: A** (keep A2; recorded by PR #175) |
 | PR merges | D-0: #95, #97, #99, #82, #84 in that order | owner merges each |
 | CORRELATION-NORMALISE go | D-4 | **given** |
 | Re-learn method (Q1) | D-2 | **answered 2026-10-16: "Re-learn automatically"** — see D-2 rev 2 (no `core/auth.py` edit) |
