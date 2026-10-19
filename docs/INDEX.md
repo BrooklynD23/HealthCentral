@@ -1240,7 +1240,7 @@ Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-repor
 
 Read-only design. No product file was edited. Existing merged plans are not rewritten; this file gives a **delta** for each (W-3, W-8) and a compact design for items with no plan.
 
-Links to: `audit/2026-09-25/waves/scaffold/G-C5.md`, `audit/2026-09-25/waves/wave-3-L1-A.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W03-verified-only-rag-and-trend-labels.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-10-15-build-program/contracts.md`
+Links to: `audit/2026-09-25/waves/scaffold/G-C5.md`, `audit/2026-09-25/waves/wave-3-L1-A.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W03-verified-only-rag-and-trend-labels.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md`
 
 ## `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`
 
@@ -1327,6 +1327,14 @@ Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026
 **Superseded by 2026-10-18 handoff.**
 
 Links to: `AGENT.md`, `CLAUDE.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-18-session-handoff.md`
+
+## `docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md`
+
+**G-C5 HC-M11 NLI Cross-Encoder Behind a Default-Off Flag Implementation Plan**
+
+**This plan changes no product code.** It describes one hunk in an ask-first file (`modules/verifier_agent.py`); it does not touch it.
+
+Links to: `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/queue.md`
 
 ## `docs/plans/2026-10-18-session-handoff.md`
 
