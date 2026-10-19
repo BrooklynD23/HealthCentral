@@ -6,6 +6,7 @@ HC-LCP-006  invalid / forged structured answers render to None
 HC-LCP-007  prose (external runner, every existing mock) renders to None and passes through
 HC-LCP-008  a supported structured answer is served over HTTP
 HC-LCP-009  a cited-but-unsupported structured answer is still withheld (gate unchanged)
+HC-LCP-009b renderer-rejected JSON reaches the gate raw and is withheld, never served
 HC-LCP-010  the prompt keeps exactly one citation-format instruction, naming [cite:N]
 """
 from __future__ import annotations
@@ -161,6 +162,22 @@ def test_hc_lcp_009_cited_but_unsupported_claim_is_still_withheld():
     gate = re.compile(r"verif|faithful|prohibited", re.IGNORECASE)
     assert any(gate.search(e) for e in body["validation_errors"]), body["validation_errors"]
     assert "140 mg/dL" not in body["full_response"]
+
+
+def test_hc_lcp_009b_renderer_rejected_json_is_withheld_not_served_raw():
+    """When the renderer returns None the raw JSON goes to the unchanged gate; it must never be served."""
+    header_case = json.dumps(_answer(
+        report_facts=[{"text": "Glucose: 95 mg/dL", "cites": [1]}],
+        uncertainties=["Several uncertainties remain about lab variation."],
+    ))
+    empty_case = json.dumps({"report_facts": [], "general_info": [], "uncertainties": []})
+    for raw in (header_case, empty_case):
+        assert RAGModule()._render_structured_answer(raw, 2) is None
+        body, received = _post(raw, "What was my glucose?")
+        assert received and received[0] == raw, received
+        assert body["is_valid"] is False
+        assert body["full_response"] in (ABSTAIN_TEMPLATE, f"**UNCERTAINTY**\n{ABSTAIN_TEMPLATE}"), body["full_response"]
+        assert '"report_facts"' not in body["full_response"]
 
 
 @pytest.mark.asyncio
