@@ -620,7 +620,7 @@ What these tests would not notice: the stored row's columns. The spy sees the he
 
 ### Follow-ups found 2026-10-18 (planned 2026-10-19 on `origin/main` @ `a9978e8`)
 
-Three test-only rows. None edits product code; each adds the pin a review said was missing. `pyt` = `scripts/pyslot.sh env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest`, run from `src/backend`. A pin test passes on `main` by design, so "fails before the fix" is shown by a **mutant**: a temporary product edit in the worktree that the test must turn RED, with the output pasted in the PR body and the edit reverted (`git diff origin/main -- src/backend/api src/backend/modules` empty at the end).
+Three test-only rows. None edits product code; each adds the pin a review said was missing. `pyt` = `scripts/pyslot.sh env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest`, run from `src/backend`. A pin test passes on `main` by design, so "fails before the fix" is shown by a **mutant**: a temporary product edit in the worktree that the test must turn RED, with the output pasted in the PR body and the edit reverted (`git diff origin/main -- src/backend/api src/backend/modules` empty at the end). **Exception, MSET-EXT-NOKEY-TEST:** its handler is ask-first, so its mutants are monkeypatches in a scratch test, never edits to the file (L0 ruling below).
 
 #### AUDIT-GUARD-TEST — the audit-order guard checks the class, not that the class is true
 
@@ -643,7 +643,7 @@ Three test-only rows. None edits product code; each adds the pin a review said w
 **Files:** `src/backend/tests/test_audit_order_guard.py`, `docs/agentic/recurring-failures.md` (#9 audit paragraph only), slots. **Re-run, not edited:** `tests/test_audit_order.py`, `tests/test_audit_phi_minimization.py`.
 **Expected collected delta:** +2. **Est:** 1 h.
 **Acceptance:** `pyt tests/test_audit_order_guard.py tests/test_audit_order.py -q -rfE`: 0 failed; the mutant run output in the PR body; full suite per RUNBOOK §6. **Rollback:** revert.
-**Order:** ready now. Never beside any open PR on `tests/test_audit_order_guard.py` (E-2, B-5, C-GC1, RSI1-DONATE are blocked today) or on `docs/agentic/recurring-failures.md`. A row that adds a `"C"` row later must now also add the audit call, which is the point.
+**Order:** ready now. Never beside any open PR on `tests/test_audit_order_guard.py` (E-2, B-5, C-GC1, RSI1-DONATE are blocked today) or on `docs/agentic/recurring-failures.md`. A row that adds a `"C"` row later must now also add the audit call, which is the point. **Recurring-failures #12 recheck:** after this merges, L0 runs the new gate (`tests/test_audit_order_guard.py`) on `origin/main` and on every open PR built before it, and rebases or fixes those PRs before merging the rest of the group. Any open PR that adds a `"C"`/`"A2"` row without an audit call fails it.
 
 #### MSET-EXT-NOKEY-TEST — no test saves external-API settings without a key
 
@@ -653,13 +653,13 @@ Three test-only rows. None edits product code; each adds the pin a review said w
 
 **Design (test file only; the handler is ask-first and is not edited):**
 1. Give `_ext_put(vault, master)` (`:523-534`) an optional `body` argument defaulting to `_EXT_BODY`; HC-AUDCMS-003/004 keep calling it unchanged.
-2. **HC-AUDCMS-005:** in one client, PUT `_EXT_BODY` (stores a key), then PUT `{"use_external_api": false, "provider": "openai", "consent_acknowledged": false}` (no `api_key`) → both 200. The second spy call has `details == {"changed_fields": ["provider", "use_external_api"]}`; the second response has `api_key_configured is True`; the re-selected row keeps the first encrypted key byte for byte and has `use_external_api is False`. That covers the no-key branch and the switch-off case.
+2. **HC-AUDCMS-005:** PUT `_EXT_BODY` with `_ext_put` (stores a key), then a second `_ext_put` with `{"use_external_api": false, "provider": "openai", "consent_acknowledged": false}` (no `api_key`) → both 200. The second spy call has `details == {"changed_fields": ["provider", "use_external_api"]}`; the second response has `api_key_configured is True`; the re-selected row keeps the first encrypted key byte for byte and has `use_external_api is False`. That covers the no-key branch and the switch-off case.
 
 | Id | Assertion | Fails before? |
 |---|---|---|
-| HC-AUDCMS-005 | as above | passes on `main`. **Mutants:** (1) `changed_fields` always lists `"api_key"` → fails on `details`; (2) a no-key save clears `external_api_key_encrypted` → fails on the kept key. Apply each in the worktree, paste the RED output, revert; `git diff origin/main -- src/backend/api/model_settings.py` is empty at the end |
+| HC-AUDCMS-005 | as above | passes on `main`. **Mutants (monkeypatch only, in a scratch test file that is not committed):** (1) wrap `api.model_settings._audit_settings_change` so it always adds `"api_key"` to `details["changed_fields"]` before calling the real one → HC-AUDCMS-005's body run under that patch fails on `details`; (2) wrap it so it also clears `external_api_key_encrypted` on the profile's `UserModelSettings` row and commits → fails on the kept key. Paste both RED outputs in the PR body |
 
-**Files:** `src/backend/tests/test_model_settings_api.py`, slots. **Ask-first:** `api/model_settings.py::save_external_api_settings` is read and mutated only temporarily for the mutant runs; the committed diff touches no product file. **Re-run, not edited:** `tests/test_external_runner_hardening.py`, `tests/test_external_runner.py`.
+**Files:** `src/backend/tests/test_model_settings_api.py`, slots. **Ask-first:** `api/model_settings.py::save_external_api_settings` is **never edited, not even temporarily** (L0 ruling 2026-10-19, PR #189 review round 1, under CLAUDE.md §1). `git diff origin/main -- src/backend/api` is empty at every step. **Re-run, not edited:** `tests/test_external_runner_hardening.py`, `tests/test_external_runner.py`.
 **Expected collected delta:** +1. **Est:** 0.5 h.
 **Acceptance:** `pyt tests/test_model_settings_api.py tests/test_external_runner_hardening.py tests/test_external_runner.py -q -rfE`: 0 failed; both mutant outputs in the PR body; full suite per RUNBOOK §6. **Rollback:** revert.
 **Order:** ready now. Never beside an open PR on `tests/test_model_settings_api.py` (none on `a9978e8`).
