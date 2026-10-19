@@ -5,6 +5,7 @@ Tests for model settings persistence and background download status.
 from __future__ import annotations
 
 import asyncio
+import logging
 import sys
 import types
 import uuid
@@ -320,3 +321,184 @@ def test_diagnostics_response_has_core_components():
     ids = {c.id for c in r.components}
     assert "tesseract" in ids
     assert "ocr_python" in ids
+
+
+# --- AUDIT-C-MSET: audit row after each settings change (HC-AUDCMS-001/002) ---
+
+import api.model_settings as model_settings_api  # noqa: E402
+import pytest_asyncio  # noqa: E402
+from sqlalchemy import select  # noqa: E402
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E402
+
+from core.auth import get_profile_db_session  # noqa: E402
+from core.profile_database import ProfileDatabaseBase  # noqa: E402
+from models import UserModelSettings  # noqa: E402
+from modules.hardware_detection import HardwareProfile  # noqa: E402
+from tests.support.routes import route_client  # noqa: E402
+
+_AUD_PROFILE = "profile-aud"
+
+# route id -> (method, path, body, event_type, entity_id, details, settings column)
+_AUD_ROUTES = {
+    "detect": ("POST", "/detect", None, "settings.hardware.detect", "hardware", None, None),
+    "tier": ("POST", "/tier", {"tier": "mid"}, "settings.model_tier.update",
+             "model_tier", {"changed_fields": ["tier"]}, None),
+    "download": ("POST", "/download", {"tier": "mid"}, "settings.model_download.start",
+                 "model_download", None, None),
+    "timezone": ("PUT", "/timezone", {"timezone": "America/New_York"},
+                 "settings.timezone.update", "timezone",
+                 {"changed_fields": ["timezone"]}, ("timezone", "America/New_York")),
+    "voice": ("PATCH", "/voice", {"voice_logging_enabled": True},
+              "settings.voice.update", "voice",
+              {"changed_fields": ["voice_logging_enabled"]},
+              ("voice_logging_enabled", True)),
+    "ocr": ("PATCH", "/ocr", {"ocr_preference_enabled": False},
+            "settings.ocr.update", "ocr",
+            {"changed_fields": ["ocr_preference_enabled"]},
+            ("ocr_preference_enabled", False)),
+    "agent": ("PATCH", "/agent", {"agent_enabled": False},
+              "settings.agent.update", "agent",
+              {"changed_fields": ["agent_enabled"]}, ("agent_enabled", False)),
+}
+
+
+class _StubSelector:
+    def __init__(self):
+        self.calls = []
+
+    def detect_hardware_tier(self):
+        return HardwareProfile(ram_total_gb=16.0, ram_available_gb=8.0, cpu_cores=8)
+
+    async def save_hardware_detection(self, **kwargs):
+        self.calls.append("save_hardware_detection")
+
+    async def set_user_preference(self, **kwargs):
+        self.calls.append("set_user_preference")
+
+    async def update_download_progress(self, **kwargs):
+        self.calls.append("update_download_progress")
+
+    def is_model_available(self, tier):
+        return False
+
+
+_STUB_CALL = {
+    "detect": "save_hardware_detection",
+    "tier": "set_user_preference",
+    "download": "update_download_progress",
+}
+
+
+@pytest_asyncio.fixture
+async def aud_vault():
+    engine = create_async_engine("sqlite+aiosqlite://")
+    async with engine.begin() as conn:
+        await conn.run_sync(ProfileDatabaseBase.metadata.create_all)
+    session = AsyncSession(engine, expire_on_commit=False)
+    # Seed the row so the default-vs-changed check is meaningful.
+    session.add(UserModelSettings(profile_id=_AUD_PROFILE))
+    await session.commit()
+    try:
+        yield session
+    finally:
+        await session.close()
+        await engine.dispose()
+
+
+def _aud_setup(monkeypatch, vault, order):
+    stub = _StubSelector()
+    monkeypatch.setattr(model_settings_api, "get_model_selector", lambda: stub)
+    monkeypatch.setattr(model_settings_api, "can_run_tier", lambda hw, tier: True)
+
+    async def _noop_download(**kwargs):
+        return None
+
+    monkeypatch.setattr(model_settings_api, "_download_model_task", _noop_download)
+
+    calls = []
+
+    async def spy(**kwargs):
+        calls.append(kwargs)
+        order.append("audit")
+
+    monkeypatch.setattr(model_settings_api, "create_audit_log", spy)
+
+    real_commit = vault.commit
+
+    async def _commit():
+        await real_commit()
+        order.append("vault")
+
+    monkeypatch.setattr(vault, "commit", _commit)
+    return stub, calls
+
+
+def _aud_client(master):
+    ctx = route_client(
+        model_settings_api.router, "/settings/model",
+        profile_id=_AUD_PROFILE, master_db=master,
+        raise_server_exceptions=False,
+    )
+    return ctx
+
+
+@pytest.mark.parametrize("route", list(_AUD_ROUTES))
+@pytest.mark.asyncio
+async def test_hc_audcms_001_audit_row_after_vault_commit(route, aud_vault, monkeypatch):
+    method, path, body, event, entity, details, _ = _AUD_ROUTES[route]
+    order: list[str] = []
+    _, calls = _aud_setup(monkeypatch, aud_vault, order)
+    master = MagicMock()
+    master.commit = AsyncMock()
+
+    with _aud_client(master) as client:
+        async def _pdb():
+            return aud_vault
+        client.app.dependency_overrides[get_profile_db_session] = _pdb
+        resp = client.request(method, f"/settings/model{path}", json=body)
+
+    assert resp.status_code == 200, resp.text
+    assert len(calls) == 1
+    call = calls[0]
+    assert call["event_type"] == event
+    assert call["action"] == event
+    assert call["entity_type"] == "settings"
+    assert call["entity_id"] == entity
+    assert call["details"] == details
+    assert call["profile_id"] == _AUD_PROFILE
+    assert order == ["vault", "audit"]
+    master.commit.assert_awaited()
+
+
+@pytest.mark.parametrize("route", list(_AUD_ROUTES))
+@pytest.mark.asyncio
+async def test_hc_audcms_002_audit_commit_failure_logged_and_raised(
+    route, aud_vault, monkeypatch, caplog
+):
+    method, path, body, event, entity, details, column = _AUD_ROUTES[route]
+    order: list[str] = []
+    stub, _ = _aud_setup(monkeypatch, aud_vault, order)
+    master = MagicMock()
+    master.commit = AsyncMock(side_effect=RuntimeError("audit db down"))
+    caplog.set_level(logging.INFO)
+
+    with _aud_client(master) as client:
+        async def _pdb():
+            return aud_vault
+        client.app.dependency_overrides[get_profile_db_session] = _pdb
+        resp = client.request(method, f"/settings/model{path}", json=body)
+
+    assert resp.status_code == 500
+    if column is None:
+        assert _STUB_CALL[route] in stub.calls
+    else:
+        row = (await aud_vault.execute(
+            select(UserModelSettings).where(UserModelSettings.profile_id == _AUD_PROFILE)
+        )).scalar_one()
+        assert getattr(row, column[0]) == column[1]
+    records = [r for r in caplog.records
+               if r.levelno == logging.ERROR and "AUDIT-ORDER" in r.getMessage()]
+    assert len(records) == 1
+    assert entity in records[0].getMessage()
+    assert "America/New_York" not in caplog.text
+    assert "mid" not in caplog.text
