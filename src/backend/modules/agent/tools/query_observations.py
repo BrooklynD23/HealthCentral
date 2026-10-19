@@ -14,6 +14,8 @@ from typing import ClassVar, Literal
 from pydantic import Field
 from sqlalchemy import case, func, or_, select
 
+from modules.normalize import NormalizeModule
+
 from ..audit import AgentAuditEvent, emit_audit_event
 from ..state import ChatFilters, ToolContext
 from .base import ToolInput, ToolOutput
@@ -57,7 +59,7 @@ class QueryObservationsTool:
         # selected analytes are ADDED to the asked analyte, never replace it.
         filters = getattr(ctx, "filters", None) or ChatFilters()
         adding = bool(args.analyte and filters.analytes)
-        asked = Observation.analyte_canonical.ilike(args.analyte) if args.analyte else None
+        asked = func.lower(Observation.analyte_canonical).in_({args.analyte.lower(), *NormalizeModule.canonical_keys_for(args.analyte)}) if args.analyte else None
         # With a selection, each row carries whether it is of the ASKED analyte,
         # computed by the same predicate that selects it (one matcher).
         stmt = select(Observation, asked.label("is_asked")) if adding else select(Observation)
@@ -78,6 +80,28 @@ class QueryObservationsTool:
             stmt = stmt.where(Observation.collected_at >= filters.from_dt)
         if filters.to_dt is not None:
             stmt = stmt.where(Observation.collected_at <= filters.to_dt)
+        if asked is None:
+            # Open question (no analyte named, nothing adding): the LATEST
+            # verified row per analyte, over the same filters, so the limit
+            # cuts analytes rather than an arbitrary slice of rows. NULL-dated
+            # rows never win "latest".
+            ranked = (
+                stmt.where(Observation.collected_at.isnot(None))
+                .with_only_columns(
+                    Observation.id.label("oid"),
+                    func.row_number().over(
+                        partition_by=Observation.analyte_canonical,
+                        order_by=Observation.collected_at.desc(),
+                    ).label("rn"),
+                )
+                .subquery()
+            )
+            stmt = (
+                select(Observation)
+                .join(ranked, Observation.id == ranked.c.oid)
+                .where(ranked.c.rn == 1)
+                .order_by(Observation.collected_at.desc())
+            )
         stmt = stmt.limit(args.limit)
 
         async with ctx.db_session() as session:

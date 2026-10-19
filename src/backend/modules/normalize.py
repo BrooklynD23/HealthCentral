@@ -252,6 +252,20 @@ class NormalizeModule:
             for syn in synonyms:
                 self._synonym_to_canonical[syn.lower()] = canonical
 
+    @classmethod
+    def canonical_keys_for(cls, term: str) -> tuple[str, ...]:
+        """Every ANALYTE_SYNONYMS key whose key, space form or synonym equals ``term``.
+
+        Question-side labels ("LDL", "Vitamin D") to the ingest keys that are
+        actually stored in ``Observation.analyte_canonical`` (CHAT-FACT-ROUTING).
+        """
+        t = term.strip().lower()
+        return tuple(
+            key
+            for key, synonyms in cls.ANALYTE_SYNONYMS.items()
+            if t == key or t == key.replace("_", " ") or t in synonyms
+        )
+
     def normalize_analyte(self, raw_name: str) -> NormalizedAnalyte:
         """
         Normalize an analyte name to canonical form.

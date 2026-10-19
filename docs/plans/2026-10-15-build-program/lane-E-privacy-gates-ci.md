@@ -1,6 +1,6 @@
 # Lane E — Privacy, Gates, CI — Build Design
 
-**Last Updated:** 2026-10-17 (E-1b, REDACT-EMAIL-REDOS, DEV-SH-CC planned)
+**Last Updated:** 2026-10-18 (EXPORT-COLLECTED-TZ planned; owner answered (c)); 2026-10-17 (E-1b, REDACT-EMAIL-REDOS, DEV-SH-CC planned)
 **Owner:** repository owner
 **Status:** DESIGN — nothing here is implemented. Owner answers are quoted from [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md); this file records no new approval. Every "default" or "recommended" is the lane designer's, not the owner's.
 **Refresh Trigger:** any merge of #74, #72, #84 or a P6/P7 PR; an owner answer to S-3, S-6, OG-1, Q-AUD-LIST, Q-RUFF, Q-COV, CI-SEED, NPM-AUDIT-CI or W1-SMOKE-RUN; any commit to `.github/workflows/ci.yml`, `src/backend/api/export.py`, `src/backend/modules/export.py`, `src/backend/modules/redaction.py`, `src/backend/api/profiles.py`, `src/backend/core/auth.py`, `src/backend/core/denial_audit.py` or `src/backend/tests/support/routes.py`.
@@ -26,6 +26,7 @@
 | E-1b | strict misses parenthesised qualifier, `#`/`no.` after a bare label, `-` separator | queue status 2026-10-16 second batch; E-1a plan residual gaps 8–10 | yes → §2.8 | E-1a (merged #108) | blocked-on-owner (E1B-SCOPE, then E1B-DIFF); ask-first `redaction.py` |
 | REDACT-EMAIL-REDOS | quadratic `email` rule | queue status 2026-10-16 second batch | yes → §2.9 | — | blocked-on-owner (REDOS-APPROACH, then REDOS-DIFF); ask-first `redaction.py` |
 | DEV-SH-CC | `dev.sh` compiler check; skip `llama-cpp-python` under `LLM_PROVIDER=ollama` | queue status 2026-10-16 third batch (MM-4); DEV-SH `owner-decisions:147` | yes → §2.10 | — | ready |
+| EXPORT-COLLECTED-TZ | which day the doctor summary and visit-prep packet print for a lab result | queue status 2026-10-17 (EXPORT-TODAY-TZ planning) | yes → §2.11 | EXPORT-TODAY-TZ merged (same files) | ready after EXPORT-TODAY-TZ merges; owner answered (c) |
 
 Graph: `E-3 → E-4 → E-5`; `P6 → P7 → E-2`; E-1, E-6, E-7 independent. E-1 and E-3 are the two lane-E code items ready today and share no file. The 2-code-L1 limit is **box-wide, not per lane**: L0 assigns the slots across lanes (§7 P-1).
 
@@ -288,6 +289,48 @@ Removing the stray `|` from `[A-Z|a-z]` would stop redacting `jane@x.c|om`-shape
 
 **Files:** `dev.sh`, `src/backend/tests/test_dev_sh_prereqs.py`. **Expected collected delta:** +4. **Acceptance:** `pyt tests/test_dev_sh_prereqs.py -q` 4 passed; `bash -n dev.sh`; on a box with a compiler, `HC_DEV_STOP_AFTER_DEPS=1 ./dev.sh` still installs everything (pasted). **Rollback:** revert.
 
+### 2.11 EXPORT-COLLECTED-TZ — which day the doctor summary prints for a lab result (owner display ruling)
+
+**Source:** queue status 2026-10-17 (found while planning EXPORT-TODAY-TZ, lane D §3); queue row EXPORT-COLLECTED-TZ. **Owner answer 2026-10-18: EXPORT-COLLECTED-TZ-DISPLAY = (c) "As recorded + pin"** (owner-decisions row EXPORT-COLLECTED-TZ-DISPLAY). Only the (c) task list below is built. The options table stays as the record of what was asked.
+
+**Fact (`046d12c`; `modules/export.py` is unchanged on `b8a47c7`; corrects the queue row):**
+- **Doctor summary.** It prints a collection date in one place: `_format_abnormal_values` (`src/backend/modules/export.py:199-208`), `date_str = obs.get("collected_at", "").strftime("%Y-%m-%d")` at `:203`. That renders the "Values Outside Reference Range" section (`:145-151`). Text, HTML and PDF all render from the stored, strict-redacted dict (E-1, `redact_summary_data` `:222`). The format is owner O-2 ("ISO-8601 dates", 2026-10-08).
+- **`:302` is not the doctor summary.** It is `export_csv` (`:272`), behind `GET /export/csv` (`api/export.py:912-945`). That is the patient's own full-fidelity export: D3 exempt, and pinned byte for byte by HC-EXPR-002 (`tests/test_export_redaction.py:260`). Out of scope.
+- **The visit-prep packet also goes to a clinician** (`compose_visit_prep_packet` `:551`; callers `api/export.py:796`, `api/pinboards.py:500`). It prints three dates of the same kind:
+  - the observation line, `collected.date().isoformat()` (`:622-623`);
+  - the visit-mention lines, `f"- {date_str}: ..."` (`:643-645`). Their `doc_date` is `Document.collection_date.date().isoformat()`, computed in `_fetch_visit_mention_dicts` (`api/export.py:274-275`);
+  - the "Source Documents" lines, `collected.date().isoformat()` of `Document.collection_date` (`:676-677`).
+- **`Document.collection_date`** (naive `DateTime`, `models/document.py:61`) is `min(valid_dates)` of the document's extracted observation dates (`api/documents.py:665`, `:807`). So it is the same recorded-date-at-midnight value. The planner pins all four sites (`:203`, `:622`, `:643-645`, `:676-677`); see the note after the owner question.
+- **What the stored value means, measured.** `Observation.collected_at` is naive `DateTime` (`models/observation.py:75-77`). Every ingest path stores the calendar date printed on the source as **midnight with no zone**:
+  - PDF extraction keeps only `YYYY-MM-DD` (`_normalize_date_str`, `modules/extract.py:664-703`, which returns `parsed.strftime("%Y-%m-%d")` at `:700`; `_extract_dates` `:705`). `_parse_date_string` then parses it (`api/documents.py:138-184`, `:657`).
+  - CSV and FHIR import reduce even an offset `effectiveDateTime` to its own date (`modules/import_structured.py:77-97`) before `api/documents.py:759`.
+  - The only other writer is `POST /observations/{id}/verify` (`NaiveUtcDatetime`, `api/observations.py:153`, `:451-456`; UTC-SWEEP). It stores an offset-aware `collected_at` as a UTC instant. It stores a **naive** value with a time of day unchanged (`core/time.py:39`), which the app reads as UTC by the same convention as everywhere else. The frontend type allows the field (`src/frontend/src/services/types.ts:181`), but no caller sends it today. For such values the owner already accepted the UTC calendar day for panels and interpretations (UTC-DAY, `owner-decisions:161`).
+- **So today both documents print the date as recorded** for every ingested result. The app's own screens show the same date: `new Date(<naive ISO>).toLocaleDateString()` reads a naive string as local wall-clock (`src/frontend/src/components/lab-interpreter/PanelInterpretationDashboard.tsx:169`, `src/frontend/src/pages/MedicationDetail.tsx:383`).
+- **EXPORT-TODAY-TZ composes.** Its Design 2 rev (lane D §3, owner EXPORT-TODAY-TZ-DESIGN = B) stores the generation-day local date and leaves `:203`, `:302`, `:622`, `:643-645` and `:676-677` alone. It edits `modules/export.py` and `tests/test_export_redaction.py`, so this item lands after it.
+
+**Options as asked (owner EXPORT-COLLECTED-TZ-DISPLAY; answered (c)):**
+
+| Option | What the doctor sees | Change |
+|---|---|---|
+| (a) profile's local time zone | instants: the patient's local day; recorded dates: unchanged, but only through a "naive midnight = date-only" rule | `to_local` on non-midnight values at all four sites, with the zone passed from the routes. A plain `to_local` on every value moves every recorded date one day earlier west of UTC (`2026-01-15 00:00` → `2026-01-14` in `America/Los_Angeles`). The midnight rule still misreads a real instant at exactly `00:00:00` UTC. A naive non-midnight verify value is read as UTC (app convention). A "date-only" column would remove the guess (schema change) |
+| (b) UTC, labelled | `2026-01-15 UTC` | one suffix at all four sites; it must survive strict redaction. It calls the lab's printed date "UTC", which it is not |
+| **(c) chosen: date as recorded (today's output)** | `2026-01-15`, the same as the report and the app's own screens | no product edit; pin tests only. Revisit when wearables (#94) bring real timestamps into exports |
+
+**Owner question as asked (2026-10-18, through L0 AskUserQuestion; recorded verbatim in owner-decisions):** "EXPORT-COLLECTED-TZ-DISPLAY: which date should the doctor summary and the visit-prep packet print next to each lab result? Today every imported lab date (PDF, CSV, FHIR) is the date printed on the report, stored without a time zone, and printed unchanged. That matches the app's own screens." **Planner's reasoning, not the owner's scope:** under (c) no site changes. The planner also pins the packet's visit-mention (`:643-645`) and source-document (`:676-677`) dates, because `Document.collection_date` holds the same recorded date. The owner was not asked about them separately.
+
+**Task 0:** EXPORT-TODAY-TZ is merged. Measure the collected count. Confirm the four sites still format as quoted: `grep -n 'strftime("%Y-%m-%d")\|date().isoformat()\|doc_date' src/backend/modules/export.py src/backend/api/export.py`.
+
+**Tasks (option (c)):**
+1. **HC-EXPCTZ-001** (`tests/test_export_redaction.py`, the HTTP doctor-summary fixture `_export_client`, `:133-152`). Use profile zone `America/Los_Angeles` (the `profile_timezone_name` stub EXPORT-TODAY-TZ adds there) and an abnormal observation stored `datetime(2026, 1, 15)`. The text download contains `- 2026-01-15` and not `2026-01-14`. This is a pin, not RED. The mutant `to_local(...)` at `:203` fails it.
+2. **HC-EXPCTZ-002** (`tests/test_visit_prep_packet.py`). Call `compose_visit_prep_packet` directly with a verified observation `collected_at=datetime(2026, 1, 15)`, a verified visit mention `doc_date="2026-01-15"`, and a selected document `collection_date=datetime(2026, 1, 15)`. The markdown has `— 2026-01-15` (observation), `- 2026-01-15:` (mention) and `(2026-01-15)` (source document). This is a pin. A `to_local` mutant at `:622` or `:677` fails it. Not pinned: the `doc_date` string is built in `_fetch_visit_mention_dicts` (`api/export.py:274-275`), and this test passes it in already formatted, so a change there would go unnoticed.
+3. **No product edit.**
+
+**Files:** `src/backend/tests/test_export_redaction.py`, `src/backend/tests/test_visit_prep_packet.py`, slots. **Expected collected delta:** +2. The existing substring pins (`tests/test_visit_prep_packet.py:183`, `tests/test_export_redaction.py:327`) are unchanged.
+
+**Acceptance:** `pyt tests/test_export_redaction.py tests/test_visit_prep_packet.py tests/test_export_api.py -q`: 0 failed. HC-EXPR-002 is still green. `git diff origin/main -- src/backend/modules src/backend/api` is empty. **Rollback:** revert; no data.
+
+**Order:** after EXPORT-TODAY-TZ merges (both edit `tests/test_export_redaction.py` and `tests/test_visit_prep_packet.py`). Never beside E-1b (`tests/test_export_redaction.py`).
+
 ---
 
 ## 3. Provides
@@ -326,6 +369,7 @@ Removing the stray `|` from `[A-Z|a-z]` would stop redacting `jane@x.c|om`-shape
 | Ask-first `modules/redaction.py` (**edited**) | E-1b, REDACT-EMAIL-REDOS | each needs a yes to edit (E1B-SCOPE, REDOS-APPROACH) and a yes on its exact diff before merge (E1B-DIFF, REDOS-DIFF), as E-1a; never both at once |
 | E1B-SCOPE (new) | E-1b | unasked; (a) the queue row's shapes (qualifier, `#`/`no.`, `-`) or (b) also `=` and `;`. Recommended (b) |
 | REDOS-APPROACH (new) | REDACT-EMAIL-REDOS | unasked; (a) `@`-anchored match, identical output / (b) RFC bounds, narrower / (c) leave. Recommended (a) |
+| EXPORT-COLLECTED-TZ-DISPLAY | EXPORT-COLLECTED-TZ | **answered 2026-10-18: (c) "As recorded + pin"** (owner-decisions row EXPORT-COLLECTED-TZ-DISPLAY) |
 
 ## 6. Open questions
 

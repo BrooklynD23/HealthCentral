@@ -107,11 +107,30 @@ Work that cannot run in the agent environment. The dev box has no local model (n
 
 From the wearable feasibility package (`docs/research/2026-10-12/`, branch `docs/wearable-feasibility`, not yet merged). Recommendation there: defer until this gate passes.
 
-- [ ] **OM-1 — Apple Health export once.** Record ZIP size, members, `<Record` types, one record's attributes, one ECG CSV header. Do not commit the export.
-- [ ] **OM-2 / OM-3 — Garmin Connect "Export Your Data" and Samsung "Download personal data" once each.** Record layout, turnaround, timezone fields.
+- [ ] **OM-1 — Apple Health export once.** Record ZIP size, members, `<Record` types, one record's attributes, one ECG CSV header. Do not commit the export. (= OW-W0)
+- [ ] **OM-2 / OM-3 — Garmin Connect "Export Your Data" and Samsung "Download personal data" once each.** Record layout, turnaround, timezone fields. (OM-2 = OW-W3)
 - [ ] **OM-4 / OM-5 — 3-5 clinician and 3-5 patient conversations.** Would they use it, which metrics, how much time.
 - [ ] **OM-6 / OM-7 — Answer OD-1..OD-8; legal read** on FDA general-wellness wording, the FTC Health Breach Notification Rule, and the Garmin FIT licence.
 - [ ] **OM-8 — Read the full FDA January 2026 general-wellness guidance** (https://www.fda.gov/media/90652/download) and confirm the descriptive-summary position.
+
+### Wearables owner follow-ups (OW-W*)
+
+From [wearables program 00 §10](../plans/2026-10-13-wearables-00-program.md). Owner items only; this section records no owner answers, and the only box ticked is OW-W5.
+
+- [ ] **OW-W0 — Apple export notes (= OM-1),** plus sleep overlap, `export.xml` prolog, exact-duplicate step records. Unblocks M0, then every WEAR code wave.
+- [ ] **OW-W1 — M4 dogfood on the real Apple export.** Unblocks M4 exit evidence (after M4).
+- [ ] **OW-W2 — Windows 200 MB perf smoke.** Unblocks R11 evidence for WEAR-04 (after WB).
+- [ ] **OW-W3 — Garmin export notes (= OM-2).** Unblocks WE (11a, 12, 11b).
+- [ ] **OW-W4 — Windows vitest / Playwright for 07b, 08, 09b, 10, 13, 15b.** Unblocks M3 and M4 exit (after each PR).
+- [x] **OW-W5 — Answer D1-D8.** Done 2026-10-14: owner rows WEAR-D1..WEAR-D8, commit `c53ba44` (PR #92).
+- [ ] **OW-W6 — Are OM-4/OM-5 still required?** Unblocks M0 scope.
+- [ ] **OW-W7 — FIT licence read, record as row `WEAR-FIT-LIC`.** Unblocks WEAR-11b.
+- [ ] **OW-W8 — Copy approval for 07b, 08, 15b, 09 journal strings.** Unblocks WEAR-07b, 08b, 15b, 09b-journal.
+- [ ] **OW-W9 — Names in free text: accept the residual, or open an ask-first `modules/redaction.py` change if option 2.** Unblocks WEAR-09a-journal and 09b-journal (their Task 0 STOP).
+- [ ] **OW-W10 — Should journal entries join `GET /export/json`?** Unblocks a follow-up plan only.
+- [ ] **OW-W11 — Journal audit vocabulary in `core/audit.py`.** Unblocks WEAR-15a.
+- [ ] **OW-W12 — Purge preview snapshots in reset/delete paths (`api/profiles.py`).** Unblocks WEAR-09a-journal; delete path, ask-first.
+- [ ] **OW-W13 — Profile-migration merge order.** Unblocks WEAR-02 and 15a numbering, and the lane C question on GAM2-2b vs G-C1 order.
 
 ---
 

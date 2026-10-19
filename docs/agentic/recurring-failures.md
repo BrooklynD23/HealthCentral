@@ -350,6 +350,13 @@ import is unused (found planning AUDIT-MISSING-MED, 2026-10-17; new row
 AUDIT-NOTIF-ALL). Recheck: for each `"C"` or `"A2"` row, `grep -n
 "audit_and_commit\|audit_intent\|log_.*_event(" <file>` must hit inside that
 handler.
+Applied to every `"C"` and `"A2"` row on `046d12c` (planning AUDIT-NOTIF-ALL,
+2026-10-18), that recheck finds 17 more `"C"` handlers with no audit call in
+the body and none reached through a helper: 3 in `api/assistant.py`, 6 in
+`api/medications.py`, 8 in `api/model_settings.py` (list in the lane D
+AUDIT-NOTIF-ALL plan; queue row AUDIT-C-CLASS). A per-file grep misses
+them, because the same file audits in a sibling handler; walk each handler body
+instead.
 
 
 **Recheck:** when a comment or doc justifies a deletion with a reason that names
