@@ -7,8 +7,8 @@ stay byte-for-byte unredacted (named exceptions, W-10).
 
 Scope of the claim: labelled multi-word name, M/D/Y DOB and MRN in free-text
 fields, plus underscore-joined labelled name/DOB/MRN (O-3, closed by E-1a).
-Not covered by strict: ISO/textual DOB, single-token names, and the E-1b shapes
-(parenthesised qualifier, '#'/'no.' after a bare label, '-' separator).
+Not covered by strict: ISO/textual DOB, single-token names, and labels split
+by non-space whitespace (gap 11).
 
 Every test drives FastAPI's dependency graph through
 tests/support/routes.py::route_client (recurring-failures #1).
