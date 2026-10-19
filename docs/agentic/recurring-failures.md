@@ -341,6 +341,14 @@ grep above does not match. Recheck the class with `grep -rn
 `b54f105` it prints `export.py:401`, `:454` and `scripts/backup.py:390`; the
 last is a backup filename stamp, UTC by design.
 
+That grep went stale after #155 reshaped the UTC fallback at `modules/export.py`:
+the fallback is now `today or now.date()` (`:460`) and `today or
+generated_at.date()` (`:703`), which neither pattern above matches. On
+`d6a2964` the old grep prints only `scripts/backup.py:413`, the same backup
+filename stamp. Replacement: `grep -rnE "or (now|generated_at|utcnow\(\))\.date\(\)"
+src/backend --include=*.py`; it prints `export.py:460` and `:703`, the two
+fallbacks that apply only when a caller omits `today=`.
+
 It appears for audit too. The audit-order guard (`tests/test_audit_order_guard.py`,
 HC-AUD-ORD-030) checks that every committing handler is *classified*, not that
 the class is *true*. It lists `api/notifications.py::update_notification_settings`
@@ -400,3 +408,11 @@ any other entry point — check the call site, not just the callee.
 The queue row for E-3a, written by the orchestrator, told implementers to run `ruff format` as part of the cleanup. The approved plan allowed only safe `ruff check --fix` changes and excluded the ask-first files (`modules/redaction.py`, `modules/interpret_safety.py`, `modules/faithfulness.py`, `modules/verifier_agent.py`) and merged migrations. `ruff format` rewrites whole files, so following the row would have edited ask-first files. The E-3a implementer did not follow it: it skipped the step, flagged the conflict between queue row `:71` and plan section 2.3a in its PR #142 report, and waited for a ruling; the ruling and the row correction ("never `ruff format`") landed in #147. The row text was the orchestrator's own paraphrase, broader than the plan, and nothing but the implementer's habit of re-reading the plan stood between it and an ask-first edit. A one-line instruction in a queue row reads as authority and was never checked against the plan it summarised.
 
 **Recheck:** when writing or following a queue-row instruction that names a command, compare it with the plan section it cites: `grep -n "<command>" docs/plans/<plan>.md`. If the plan does not name the command, do not run it. For any bulk-edit command (`ruff format`, `--fix`, codemods), run it on a scratch branch and list `git diff --stat` against the ask-first file list before committing.
+
+---
+
+## 12. A gate merged beside PRs built before it
+
+E-3-T7 (#160) added the Backend Lint gate to CI. #156 and #165 were built before it existed and merged in the same group without being run against it. Each passed the checks it had been given, but the gate was new, so neither had ever seen it. Main's lint went red on `d427868` with 5 `I001` (unsorted import) errors, and #171 fixed it afterwards. Every PR in the group was green on its own head; the failure existed only in the combination, and nothing in the merge step asked whether the new gate held on the merged tree.
+
+**Recheck:** after merging a PR that adds a gate (a CI job, a lint rule, a guard test), run that gate on `origin/main` before merging the rest of the group, and rebase or fix the remaining PRs on it. Do not read "each PR was green" as "main will be green": `git log --oneline -- .github/workflows/ci.yml` shows which gates are new, and a PR whose base predates one has not been checked against it.
