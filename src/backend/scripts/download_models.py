@@ -367,19 +367,22 @@ def cmd_embedding(target: Optional[Path] = None) -> None:
             local_dir=str(partial),
             allow_patterns=list(EMBEDDING_FILES),
         )
+        verified = _embedding_complete(partial)
+        if verified:
+            partial.rename(target)
     except BaseException:
-        # Network error, interrupt, anything: remove only the `partial` this run
-        # created (exclusive mkdir above) so the next run is not blocked, then re-raise.
+        # Network error, hashing error, failed rename, interrupt, anything: remove
+        # only the `partial` this run created (exclusive mkdir above) so the next
+        # run is not blocked, then re-raise.
         shutil.rmtree(partial, ignore_errors=True)
         raise
 
-    if not _embedding_complete(partial):
+    if not verified:
         shutil.rmtree(partial, ignore_errors=True)  # created by this run (exclusive mkdir above)
-        print("ERROR: fetched embedding model is incomplete or its weights checksum does not match.")
+        print("ERROR: fetched embedding model is incomplete or a file checksum does not match.")
         print("Nothing was installed.")
         sys.exit(1)
 
-    partial.rename(target)
     print(f"Embedding model installed: {target}")
 
 
