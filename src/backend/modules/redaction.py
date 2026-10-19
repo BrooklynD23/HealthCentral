@@ -137,13 +137,19 @@ _RULES: tuple[RedactionRule, ...] = (
     # as "mrn_number:_123" or "name:_doe,_jane"), specific labels take "#"/"."
     # separators like the spaced mrn rule, and the separator is unambiguous so
     # a long "_" run cannot backtrack quadratically.
+    # E-1b: any label may carry one "_(word)" qualifier, a bare label may have
+    # "#" or "no." before its colon, and "-", "=" or ";" may separate label and
+    # value on the specific labels ("mrn_-_a12345"). Each optional piece starts
+    # with a character the neighbouring "_" runs cannot match, so they stay
+    # disjoint and linear.
     RedactionRule(
         name="underscore_labelled_id",
         pattern=re.compile(
             r"(?i)(?<![^\W_])"
-            r"(?:(?:patient_name|dob|date_of_birth|birth_?date|mrn|medical_record)(?:_*[:#.]+)?"
-            r"|(?:patient|name)(?:_[^\W_]+)?_*:)"
-            r"_+[^\W_][\w/.'\u2019\-]*(?:[:#,]_+[^\W_][\w/.'\u2019\-]*)*"
+            r"(?:(?:patient_name|dob|date_of_birth|birth_?date|mrn|medical_record)"
+            r"(?:_\([^\W_]+\))?(?:_*[:#.]+)?"
+            r"|(?:patient|name)(?:_[^\W_]+)?(?:_\([^\W_]+\))?_*(?:#|no\.)?:)"
+            r"_+(?:[-=;]_+)?[^\W_][\w/.'\u2019\-]*(?:[:#,]_+[^\W_][\w/.'\u2019\-]*)*"
         ),
         replacement="[ID-REDACTED]",
         policy_levels=frozenset({"strict"}),
