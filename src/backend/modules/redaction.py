@@ -139,9 +139,11 @@ _RULES: tuple[RedactionRule, ...] = (
     # a long "_" run cannot backtrack quadratically.
     # E-1b: any label may carry one "_(word)" qualifier, a bare label may have
     # "#" or "no." before its colon, and "-", "=" or ";" may separate label and
-    # value on the specific labels ("mrn_-_a12345"). Each optional piece starts
-    # with a character the neighbouring "_" runs cannot match, so they stay
-    # disjoint and linear.
+    # value after ANY label, including after a bare label's colon
+    # ("mrn_-_a12345", "patient:_-_jane"). The qualifier stays disjoint from
+    # the neighbouring "_" runs because of its "(", and the "#"/"no." and
+    # separator pieces because they start with a non-"_" character, so
+    # matching stays linear.
     RedactionRule(
         name="underscore_labelled_id",
         pattern=re.compile(
