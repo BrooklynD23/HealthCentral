@@ -1403,6 +1403,25 @@ I was unable to fully process your question within the time limit. Please try as
         "question. Please try asking a more specific question about your results."
     )
 
+    @staticmethod
+    def _contains_json_object(text: str) -> bool:
+        """True if text is, or embeds (fenced or after prose), a JSON object."""
+        stripped = text.strip()
+        candidates = [stripped]
+        if stripped.startswith("```"):
+            body = stripped.split("\n", 1)[1] if "\n" in stripped else ""
+            candidates.append(body.rsplit("```", 1)[0])
+        first, last = stripped.find("{"), stripped.rfind("}")
+        if 0 <= first < last:
+            candidates.append(stripped[first:last + 1])
+        for c in candidates:
+            try:
+                if isinstance(json.loads(c), dict):
+                    return True
+            except (TypeError, ValueError):
+                continue
+        return False
+
     async def _generate_with_runner(
         self, prompt: str, runner, n_chunks: Optional[int] = None
     ) -> str:
@@ -1437,11 +1456,8 @@ I was unable to fully process your question within the time limit. Please try as
                     return rendered
                 # A JSON object the renderer rejected (forged marker/header, empty) must not
                 # reach the text parser raw: it would serve a broken JSON fragment.
-                try:
-                    is_object = isinstance(json.loads(result.text), dict)
-                except (TypeError, ValueError):
-                    is_object = False
-                if is_object:
+                # Covers bare, code-fenced, and prose-prefixed objects; never rendered, only withheld.
+                if self._contains_json_object(result.text):
                     return self._STRUCTURED_WITHHELD
             return result.text
         except Exception as e:

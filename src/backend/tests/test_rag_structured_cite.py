@@ -165,8 +165,9 @@ def test_hc_lcp_009_cited_but_unsupported_claim_is_still_withheld():
 
 
 def test_hc_lcp_009b_renderer_rejected_json_is_withheld_not_served_raw():
-    """Under the cite schema, a JSON object the renderer rejects is replaced by a fixed
-    withheld text. Raw JSON never reaches the gate, so no JSON fragment is ever served."""
+    """Under the cite schema, text containing a JSON object the renderer rejects (bare, fenced,
+    or after prose) is replaced by a fixed withheld text. It never reaches the gate raw, so each
+    fixture serves exactly the abstain template and no JSON fragment."""
     header_case = json.dumps(_answer(
         report_facts=[{"text": "Glucose: 95 mg/dL", "cites": [1]}],
         uncertainties=["Several uncertainties remain about lab variation."],
@@ -176,11 +177,22 @@ def test_hc_lcp_009b_renderer_rejected_json_is_withheld_not_served_raw():
     marker_case = json.dumps(_answer(
         report_facts=[{"text": "Glucose: 95 mg/dL [cite:1]", "cites": [1]}],
     ))
-    for raw in (header_case, empty_case, marker_case):
+    fenced_case = "```json\n" + json.dumps(_answer(
+        report_facts=[{"text": "Glucose: 95 mg/dL [cite:1]", "cites": [1]}],
+    )) + "\n```"
+    fenced_empty_unc = "```json\n" + json.dumps(_answer(
+        report_facts=[{"text": "Glucose: 95 mg/dL [cite:1]", "cites": [1]}], uncertainties=[],
+    )) + "\n```"
+    prefixed_case = "Here is the answer: " + marker_case
+    for raw in (header_case, empty_case, marker_case, fenced_case, fenced_empty_unc, prefixed_case):
         assert RAGModule()._render_structured_answer(raw, 2) is None
         body, received = _post(raw, "What was my glucose?")
         assert received and received[0] == RAGModule._STRUCTURED_WITHHELD, received
         assert raw not in received
+        assert body["full_response"] == f"**UNCERTAINTY**\n{ABSTAIN_TEMPLATE}", body["full_response"]
+        assert body["segments"] == [
+            {"segment_type": "uncertainty", "content": ABSTAIN_TEMPLATE, "citations": []}
+        ], body["segments"]
         for fragment in ('"report_facts"', '"uncertainties"', '"general_info"', '"cites"', "{", "}"):
             assert fragment not in body["full_response"], (fragment, body["full_response"])
             assert all(fragment not in s["content"] for s in body["segments"]), body["segments"]
