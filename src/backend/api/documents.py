@@ -868,14 +868,12 @@ async def _create_chunks_and_embeddings(
 
     # Embed before touching existing rows: if the embedding model is
     # unavailable this raises and the document keeps its previous chunks.
+    # Build every row (incl. vector_to_blob) before the delete for the same reason.
     embeddings = embedder.embed_chunks(all_chunks)
 
-    if refresh_existing:
-        await profile_db.execute(delete(Chunk).where(Chunk.doc_id == doc_id))
-
-    # Persist chunks and embeddings
+    rows = []
     for chunk_data, emb_data in zip(all_chunks, embeddings):
-        chunk = Chunk(
+        rows.append(Chunk(
             id=chunk_data["chunk_id"],
             doc_id=doc_id,
             chunk_index=chunk_data["chunk_index"],
@@ -885,17 +883,18 @@ async def _create_chunks_and_embeddings(
             end_char=chunk_data.get("end_char"),
             token_count=chunk_data.get("token_count"),
             chunk_type=chunk_data.get("chunk_type", "text"),
-        )
-        profile_db.add(chunk)
-
-        embedding = Embedding(
+        ))
+        rows.append(Embedding(
             chunk_id=chunk_data["chunk_id"],
             model_name=emb_data["model_name"],
             vector_blob=embedder.vector_to_blob(emb_data["vector"]),
             dimensions=emb_data["dimensions"],
-        )
-        profile_db.add(embedding)
+        ))
 
+    if refresh_existing:
+        await profile_db.execute(delete(Chunk).where(Chunk.doc_id == doc_id))
+
+    profile_db.add_all(rows)
     await profile_db.commit()
 
     return len(all_chunks)
