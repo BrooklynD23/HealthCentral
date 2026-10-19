@@ -57,6 +57,9 @@ tune downward.
 
 ## Known env-only failure
 
-`test_rag_pipeline.py::...test_api_rag_index_002b_similar_text_yields_similar_embeddings`
-needs a real embedding model and fails in environments without one. The model now loads offline from a local directory; fetch it with `cd src/backend && python scripts/download_models.py embedding` (CI does this before the tests). The 0.7
+Five tests need the real embedding model and fail in environments without one
+(measured with `EMBEDDING_MODEL_PATH=/nonexistent`, Py 3.11, W-8 head `3aac97f`: `5 failed, 1804 passed`):
+`test_embedding_bundle.py::test_hc_emb_002_fetched_model_loads_offline`,
+`test_rag_pipeline.py::TestEmbeddingsPipeline::test_api_rag_index_002` / `002b` / `002c`, and
+`TestVectorSearchIntegration::test_search_vectors_async_calculates_similarity`. The model now loads offline from a local directory; fetch it with `cd src/backend && python scripts/download_models.py embedding` (CI does this before the tests). The 0.7
 similarity threshold is deliberately not lowered to make it pass.

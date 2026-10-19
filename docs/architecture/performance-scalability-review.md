@@ -125,9 +125,10 @@ similarity scan rather than an ANN index, which is correct at these volumes
 (thousands of chunks, not millions) and avoids a heavyweight vector-store
 dependency in a local-first app.
 
-**Caveat to be honest about:** the one persistently failing test in the suite is
-`test_api_rag_index_002b`, an embedding-similarity assertion that needs a real
-embedding model to run. It is an environment gap, not a product bug (the model is fetched with
+**Caveat to be honest about:** five tests fail when the embedding model is absent
+(`test_api_rag_index_002` / `002b` / `002c`, `test_search_vectors_async_calculates_similarity`,
+`test_hc_emb_002_fetched_model_loads_offline`; measured `5 failed, 1804 passed` with
+`EMBEDDING_MODEL_PATH=/nonexistent`). They need a real embedding model to run. It is an environment gap, not a product bug (the model is fetched with
 `scripts/download_models.py embedding` and loaded offline), and the
 0.7 threshold is deliberately not lowered to make it pass — but it does mean
 embedding quality is less regression-covered than the rest of the pipeline.
