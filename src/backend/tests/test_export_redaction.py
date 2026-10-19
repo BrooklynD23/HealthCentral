@@ -11,8 +11,9 @@ spaced or underscore labelled MRN / patient ID / name that carries a
 parenthesised qualifier, "#" or "no.", or a "-", en dash, em dash, "=" or ";"
 separator (E-1b, E-1c).
 Not covered by strict: a bare underscore label with no colon (group G, for
-example patient_id_-_98765), ISO/textual DOB, single-token names, and labels
-split by non-space whitespace (gap 11).
+example patient_id_-_98765), ISO/textual DOB, single-token names, "Patient ID
+no.: 98765" (name_context takes "ID no" first), a qualifier after the colon
+("MRN: (hospital) A12345"), and labels split by non-space whitespace (gap 11).
 
 Every test drives FastAPI's dependency graph through
 tests/support/routes.py::route_client (recurring-failures #1).

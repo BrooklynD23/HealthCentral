@@ -271,6 +271,11 @@ SPACED_PHI_VARIANTS = [
     ("Patient #: - 98765", "98765"),
     ("Name (legal): = Jane Doe", "Jane Doe"),
     ("Name (legal): \u2013 Jane Doe", "Jane Doe"),
+    ("Patient ID: A123/45", "A123/45"),
+    ("Patient ID: AB.123.456", "AB.123.456"),
+    ("Patient #: AB/12345", "AB/12345"),
+    ("Patient Name: Doe, Jane", "Doe, Jane"),
+    ("Name (legal): \u00c5ngstr\u00f6m \u00d6lund", "\u00c5ngstr\u00f6m \u00d6lund"),
 ]
 
 SPACED_NEAR_SHAPES = [
