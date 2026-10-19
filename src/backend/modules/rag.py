@@ -183,6 +183,14 @@ CRITICAL RULES:
 6. Context labeled [REFERENCE:N] contains general medical knowledge — use these in GENERAL INFO
 7. If you cannot answer with citations, say "I don't have enough information"
 
+ANSWER FORMAT: reply with a single JSON object that has exactly these fields:
+- report_facts: a list of items, each with "text" (one fact from the patient's own results) and "cites" (1 to 3 context numbers)
+- general_info: a list of items with the same two fields, for educational background
+- uncertainties: a list of strings for what cannot be determined
+Each number in "cites" is the number after the colon in a context heading below.
+Use only facts that appear in CONTEXT. Do not name outside organisations, guidelines, studies or URLs.
+If you cannot answer, leave report_facts and general_info empty and explain in uncertainties.
+
 CONTEXT:
 {context}
 
@@ -1323,7 +1331,9 @@ I was unable to fully process your question within the time limit. Please try as
 
         # Step 3: Generate response (use override runner if provided)
         runner = model_runner or self._model_runner
-        response = await self._generate_with_runner(prompt, runner)
+        response = await self._generate_with_runner(
+            prompt, runner, n_chunks=len(chunks)
+        )
 
         # Step 4: Validate and verify response
         validated = self.validate_response(response, chunks)
@@ -1388,8 +1398,15 @@ I was unable to fully process your question within the time limit. Please try as
             lines.append("UNCERTAINTIES:\n" + "\n".join(f"- {n}" for n in notes))
         return "\n\n".join(lines) if lines else None
 
-    async def _generate_with_runner(self, prompt: str, runner) -> str:
-        """Generate response using the provided model runner."""
+    async def _generate_with_runner(
+        self, prompt: str, runner, n_chunks: Optional[int] = None
+    ) -> str:
+        """Generate response using the provided model runner.
+
+        With n_chunks, the cite schema is sent for constrained decoding and a valid
+        structured answer is rendered to the REPORT FACTS text format. Without it
+        (or on any mismatch) the raw model text is returned unchanged.
+        """
         if not runner.is_available():
             self._logger.warning("Model runner not available for inference")
             raise ModelUnavailableError(
@@ -1401,6 +1418,7 @@ I was unable to fully process your question within the time limit. Please try as
             temperature=0.1,
             top_p=0.9,
             timeout_seconds=60,
+            response_schema=_cite_schema(n_chunks) if n_chunks else None,
         )
 
         try:
@@ -1408,6 +1426,10 @@ I was unable to fully process your question within the time limit. Please try as
             if result.finish_reason == "timeout":
                 return """UNCERTAINTIES:
 I was unable to fully process your question within the time limit. Please try asking a more specific question about your results."""
+            if n_chunks:
+                rendered = self._render_structured_answer(result.text, n_chunks)
+                if rendered is not None:
+                    return rendered
             return result.text
         except Exception as e:
             self._logger.error(f"LLM generation failed: {e}")

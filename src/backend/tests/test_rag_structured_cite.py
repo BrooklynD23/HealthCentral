@@ -4,20 +4,35 @@ HC-LCP-004  _cite_schema(n): enum 1..n, minItems 1, additionalProperties false a
 HC-LCP-005  a valid structured answer renders to text the unchanged parser/validator accept
 HC-LCP-006  invalid / forged structured answers render to None
 HC-LCP-007  prose (external runner, every existing mock) renders to None and passes through
+HC-LCP-008  a supported structured answer is served over HTTP
+HC-LCP-009  a cited-but-unsupported structured answer is still withheld (gate unchanged)
+HC-LCP-010  the prompt keeps exactly one citation-format instruction, naming [cite:N]
 """
 from __future__ import annotations
 
 import asyncio
 import json
+import re
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
+
+import pytest
 
 from modules.rag import RAGModule, _cite_schema
-from tests.legacy_eval.harness import FakeRunner, build_chunks
+from modules.agent.guardrails.templates import ABSTAIN_TEMPLATE, ESCALATE_TEMPLATE
+from tests.legacy_eval.harness import CHAT_PATH, FakeRunner, build_chunks, legacy_chat_client
+from tests.test_rag_citation_prompt import (
+    _CONTEXT_LABELS,
+    _cite_lines_naming_a_label,
+    _citation_format_instructions,
+    _instruction_header,
+)
 
 
 def _answer(**over) -> dict:
     base = {
         "report_facts": [{"text": "Glucose: 95 mg/dL (reference range 70-100 mg/dL)", "cites": [1]}],
-        "general_info": [{"text": "Glucose is the primary source of energy for cells", "cites": [2]}],
+        "general_info": [{"text": "Normal fasting glucose is typically 70-100 mg/dL", "cites": [2]}],
         "uncertainties": ["Reference ranges can vary between laboratories."],
     }
     base.update(over)
@@ -41,7 +56,7 @@ def test_hc_lcp_005_valid_structured_answer_renders_and_passes_unchanged_validat
     text = rag._render_structured_answer(json.dumps(_answer()), 2)
     assert text is not None
     assert "REPORT FACTS:\n- Glucose: 95 mg/dL (reference range 70-100 mg/dL) [cite:1]" in text
-    assert "GENERAL INFO:\n- Glucose is the primary source of energy for cells [cite:2]" in text
+    assert "GENERAL INFO:\n- Normal fasting glucose is typically 70-100 mg/dL [cite:2]" in text
     assert "UNCERTAINTIES:\n- Reference ranges can vary between laboratories." in text
 
     segs = rag._parse_response_segments(text)
@@ -84,5 +99,94 @@ def test_hc_lcp_007_prose_renders_to_none_and_runner_returns_it_unchanged():
     rag = RAGModule(enable_verification=False)
     prose = "REPORT FACTS:\nYour glucose was 95 mg/dL [cite:1]."
     assert rag._render_structured_answer(prose, 2) is None
-    out = asyncio.run(rag._generate_with_runner("prompt", FakeRunner(prose)))
-    assert out == prose
+    assert asyncio.run(rag._generate_with_runner("prompt", FakeRunner(prose))) == prose
+    # With n_chunks the same prose still passes through byte-for-byte.
+    assert asyncio.run(rag._generate_with_runner("prompt", FakeRunner(prose), n_chunks=2)) == prose
+
+    # Structured JSON is rendered only when n_chunks is given, and the schema is sent.
+    seen = []
+
+    class SpyRunner(FakeRunner):
+        async def generate_async(self, prompt, config):
+            seen.append(config)
+            return await super().generate_async(prompt, config)
+
+    raw = json.dumps(_answer())
+    assert asyncio.run(rag._generate_with_runner("p", SpyRunner(raw))) == raw
+    assert seen[-1].response_schema is None
+    out = asyncio.run(rag._generate_with_runner("p", SpyRunner(raw), n_chunks=2))
+    assert out == rag._render_structured_answer(raw, 2)
+    assert seen[-1].response_schema == _cite_schema(2)
+    # Malformed JSON with n_chunks: raw text back, as on main.
+    assert asyncio.run(rag._generate_with_runner("p", SpyRunner("{oops"), n_chunks=2)) == "{oops"
+
+
+def _post(model_output: str, question: str):
+    """POST over HTTP; also record every string validate_response receives."""
+    received: list[str] = []
+    original = RAGModule.validate_response
+
+    def spy(self, response, chunks):
+        received.append(response)
+        return original(self, response, chunks)
+
+    with patch.object(RAGModule, "validate_response", spy):
+        with legacy_chat_client(build_chunks("glucose"), model_output) as (client, _turns):
+            resp = client.post(CHAT_PATH, json={"question": question})
+    assert resp.status_code == 200, resp.text
+    return resp.json(), received
+
+
+def test_hc_lcp_008_supported_structured_answer_is_served_over_http():
+    raw = json.dumps(_answer())
+    body, received = _post(raw, "What was my glucose?")
+    assert received and received[0].startswith("REPORT FACTS:"), received
+    assert body["is_valid"] is True, body["validation_errors"]
+    assert ABSTAIN_TEMPLATE not in body["full_response"]
+    facts = [s for s in body["segments"] if s["segment_type"] == "report_facts"]
+    assert facts and facts[0]["citations"] and "Glucose: 95 mg/dL" in facts[0]["content"]
+
+
+def test_hc_lcp_009_cited_but_unsupported_claim_is_still_withheld():
+    """Forcing a citation must not buy a pass: the verifier/faithfulness/prohibited gate still decides."""
+    raw = json.dumps(_answer(
+        report_facts=[{"text": "Glucose: 140 mg/dL, which indicates diabetes", "cites": [1]}],
+        general_info=[], uncertainties=[],
+    ))
+    body, received = _post(raw, "What was my glucose?")
+    # The rendered text (not raw JSON) reached the unchanged validator, with its marker.
+    assert received and received[0].startswith("REPORT FACTS:") and "[cite:1]" in received[0], received
+    served = body["full_response"] in (ABSTAIN_TEMPLATE, f"**UNCERTAINTY**\n{ABSTAIN_TEMPLATE}", ESCALATE_TEMPLATE)
+    assert served, body["full_response"]
+    gate = re.compile(r"verif|faithful|prohibited", re.IGNORECASE)
+    assert any(gate.search(e) for e in body["validation_errors"]), body["validation_errors"]
+    assert "140 mg/dL" not in body["full_response"]
+
+
+@pytest.mark.asyncio
+async def test_hc_lcp_010_prompt_still_has_exactly_one_citation_instruction():
+    from modules.rag import RetrievedChunk
+
+    header = _instruction_header()
+    assert "report_facts" in header and "cites" in header  # the new block is present
+    found = _citation_format_instructions(header)
+    assert [m for _, m in found] == [["cite"]], found
+    assert _cite_lines_naming_a_label(header, _CONTEXT_LABELS) == []
+
+    rag = RAGModule()
+    chunks = [RetrievedChunk(
+        chunk_id="obs_1", source_type="user_observation", doc_id=None, doc_title="Your LDL Result",
+        page=None, text="YOUR RESULTS - LDL\nLatest value : 145 mg/dL",
+        relevance_score=0.95, is_observation_summary=True,
+    )]
+    generate = AsyncMock(return_value="REPORT FACTS:\nLDL 145 mg/dL [cite:1].")
+    with (
+        patch.object(rag, "retrieve_context", new_callable=AsyncMock, return_value=chunks),
+        patch.object(rag, "_generate_with_runner", generate),
+    ):
+        await rag.query(question="Is my LDL high?", profile_id="prof-1")
+    prompt = generate.call_args.args[0]
+    assert generate.call_args.kwargs == {"n_chunks": 1}
+    assert "report_facts" in prompt
+    assert [m for _, m in _citation_format_instructions(prompt)] == [["cite"]]
+    assert _cite_lines_naming_a_label(prompt, {"YOUR_RESULTS"}) == []
