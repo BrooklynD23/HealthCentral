@@ -47,6 +47,16 @@ Totals: 51 items. 7 ready now (E-1, E-3, D-0, C-PMIG, E-7, F-3, and B-3 for the 
 - **Merged:** W-8 + LOCAL-HF-HUB (#168, `26106ee`), AUDIT-C-MSET-EXT (#181, `4a3cd7d`), AUDIT-C-ASSIST (#180, `b4faee6`), harness build-item model-machine check (#186, `d3a6fb0`), F-5 (#184, `4ee29cb`), owner rows EXF-SCOPE, E1B-DIFF, MSET-EXT-DIFF (#187, `396a1af`), E-1b (#179, `d6a2964`). Collected **1933** on `d6a2964` (1885 -> 1933).
 - **Done:** W-8, LOCAL-HF-HUB, AUDIT-C-MSET-EXT, AUDIT-C-ASSIST, F-5, E-1b.
 - **Stale cells fixed:** since W-8 the embedding model is a fetched, gitignored bundle; without it exactly 5 tests fail (the environment-failure sentence in `CLAUDE.md` section 4 and `AGENT.md` now names them and the fix, `python scripts/download_models.py embedding`).
+- **Follow-ups found 2026-10-18** (unplanned; each needs a plan before a queue row):
+  - **E-1c** (ask-first `modules/redaction.py`): strict redaction still misses the spaced shapes `MRN (hospital): A12345`, `Patient #: 98765` and `MRN - A12345`, plus the leftover shapes the security reviewer listed on #179. Source: PR #179 (E-1b) review.
+  - **W-8-FC-NOTICE:** a hash-only vault with the embedding model absent abstains silently instead of returning the Q-FC 501 notice. Source: PR #168 Codex high 1, L0 ruling.
+  - **REPROCESS-ATOMIC:** reprocess can commit a chunk delete if the row build raises afterwards. Source: PR #168 Codex high 2.
+  - **W-8-HARDEN:** the model path appears in logs, only the weights file is checksummed, and a `.partial` file is left after an exception. Source: PR #168 Codex mediums.
+  - **AUDIT-GUARD-TEST:** a guard test asserting every `"C"` / `"A2"` row in `be/tests/test_audit_order_guard.py` reaches an audit call; turns recurring-failures #9 into a test. Source: PR #174 planner proposal.
+  - **MSET-EXT-NOKEY-TEST:** a test for an external-api save with no API key. Source: PR #181 note.
+  - **EXPORT-TZ-PINS:** pin `today=local_today` for the pinboard and visit-prep `generate_questions` callers. Source: PR #155 note.
+  - **CFR-CACHE-TZ:** the agent cache key lacks the profile time zone; `alt` / `egfr` display names are missing. Source: PR #162 notes.
+  - LCP-HEADERLESS is already a gate; not duplicated here.
 
 **Status 2026-10-18 (tenth batch)** (no new owner rows; stale cells fixed):
 - **Merged:** owner rows (#175, `03cf7eb`), EXPORT-TODAY-TZ (#155, `8c4b685`), AUDIT-NOTIF-ALL (#172, `b8da940`), AUDIT-C plan (#174, docs only, `17040dd`), REDACT-EMAIL-REDOS (#159, `1db0ad4`), EXTRACT-FORMATS (#164, `134c6bf`), EXPORT-COLLECTED-TZ (#178, `9598964`), AUDIT-C-MED (#176, `3de7400`), AUDIT-C-MSET (#177, `ca5b43c`). Collected **1885** on `ca5b43c` (1793 -> 1885).
