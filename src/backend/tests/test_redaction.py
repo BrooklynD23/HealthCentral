@@ -410,13 +410,13 @@ class TestUnderscoreJoinedRedaction:
             assert _engine("strict").redact(run).text == run
             assert time.perf_counter() - start < 1.0
 
-    @pytest.mark.parametrize("level", ["standard", "minimal"])
-    @pytest.mark.parametrize("text,_secret", SPACED_PHI)
-    def test_hc_redact_016_spaced_rules_are_strict_only(self, level, text, _secret):
+    def test_hc_redact_016_spaced_rules_are_strict_only(self):
         """HC-REDACT-016: standard and minimal leave every group-S input as it was."""
-        result = _engine(level).redact(text)
-        assert result.text == text
-        assert result.redacted_count == 0
+        for level in ("standard", "minimal"):
+            for text, _secret in SPACED_PHI:
+                result = _engine(level).redact(text)
+                assert result.text == text, (level, text)
+                assert result.redacted_count == 0, (level, text)
 
     @pytest.mark.parametrize(
         "text",
