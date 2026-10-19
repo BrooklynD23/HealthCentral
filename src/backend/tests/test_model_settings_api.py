@@ -271,6 +271,7 @@ async def test_put_timezone_upserts_when_missing():
         data=TimezoneUpdate(timezone="America/New_York"),
         session=_session(profile_id),
         profile_db=profile_db,
+        master_db=MagicMock(commit=AsyncMock()),
     )
 
     assert response.timezone == "America/New_York"
@@ -288,6 +289,7 @@ async def test_patch_voice_upserts_when_missing():
         data=VoiceSettingsUpdate(voice_logging_enabled=True, voice_modal_seen=True),
         session=_session(profile_id),
         profile_db=profile_db,
+        master_db=MagicMock(commit=AsyncMock()),
     )
 
     assert response.voice_logging_enabled is True
@@ -307,6 +309,7 @@ async def test_patch_ocr_persists_preference():
         data=OcrSettingsUpdate(ocr_preference_enabled=False),
         session=_session(profile_id),
         profile_db=profile_db,
+        master_db=MagicMock(commit=AsyncMock()),
     )
 
     assert response.ocr_preference_enabled is False
