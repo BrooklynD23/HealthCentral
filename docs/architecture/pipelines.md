@@ -1,6 +1,6 @@
 # Pipelines: Documents, Assistant, Safety
 
-**Last Updated:** 2026-10-04
+**Last Updated:** 2026-10-18
 **Owner:** Project Lead
 **Refresh Trigger:** An extractor, agent tool, guardrail, or export surface is added or removed
 
@@ -125,7 +125,7 @@ flowchart TD
     MR --> SAFE["legacy-path checks: validate_response ·<br/>verifier_agent · faithfulness · interpret_safety patterns"]
     SAFE --> OUT["cited answer<br/>[cite:N] markers (context labels are not citations)"]
     SAFE -->|"prohibited-advice match"| ESC["escalation template (SAFE-CHAT)"]
-    SAFE -.->|"missing citations or faithfulness < 0.6:<br/>is_valid=false, answer still served (W-4 pending)"| OUT
+    SAFE -->|"missing citations or faithfulness < 0.6:<br/>is_valid=false, answer withheld"| LABST["abstain template<br/>ABSTAIN_TEMPLATE (same as the agent path)"]
 
     style GUARD fill:#4a148c,stroke:#ba68c8,color:#fff
     style FB fill:#e65100,stroke:#ff9800,color:#fff
