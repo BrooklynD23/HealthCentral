@@ -567,6 +567,9 @@ USER QUESTION: {question}"""
             # parent document's (RECONCILIATION R-5), as the agent's
             # retrieve_chunks tool filters.
             .where(Document.status == "verified")
+            # Q-HASH: vectors from another model (hash-fallback rows stored
+            # before W-8) are not comparable with this model's query vector.
+            .where(Embedding.model_name == self._embedder.config.model_name)
         )
 
         # Apply date filters on Document.collection_date
