@@ -761,3 +761,28 @@ def test_hc_exptz_007_packet_without_generated_on_falls_back_to_generated_at():
         _packet_store.pop(packet_id, None)
     assert download.status_code == 200, download.text
     assert "Visit Prep Packet \u2014 2026-01-16" in download.text
+
+
+def test_hc_expctz_002_packet_prints_recorded_dates(export_module):
+    """HC-EXPCTZ-002: observation, mention and source-document dates render as recorded.
+
+    Not pinned: `doc_date` is built in api/export.py `_fetch_visit_mention_dicts`;
+    this test passes it pre-formatted.
+    """
+    packet = export_module.compose_visit_prep_packet(
+        profile_id="test-profile",
+        observations=[_obs(collected_at=datetime(2026, 1, 15))],
+        visit_mentions=[
+            {
+                "verified_by_user": True,
+                "doc_date": "2026-01-15",
+                "entity_type": "diagnosis",
+                "entity_value": "Type 2 diabetes",
+            }
+        ],
+        selected_documents=[{"source": "lab.pdf", "collection_date": datetime(2026, 1, 15)}],
+    )
+    md = packet["markdown"]
+    assert "— 2026-01-15" in md
+    assert "- 2026-01-15:" in md
+    assert "lab.pdf (2026-01-15)" in md

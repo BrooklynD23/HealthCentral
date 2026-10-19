@@ -565,3 +565,199 @@ async def test_hc_msg_003_stats_streak_matches_gamification_streaks(profile_db, 
     assert gresp.status_code == 200, gresp.text
     assert gresp.json()["current_streak_days"] == 3
     assert stats_streak == gresp.json()["current_streak_days"]
+
+
+# --- AUDIT-C-MED: audit row on master AFTER the vault commit (class C) ------
+
+_ACM_DAY0 = datetime(2026, 7, 1, 8, 0)
+
+
+async def _acm_seed(db: AsyncSession) -> tuple[str, str]:
+    """Metformin + one schedule + 8 taken doses on 8 consecutive days at 08:00."""
+    med_id = await _seed(db, with_schedule=True)
+    sched_id = (await db.execute(select(MedicationSchedule.id))).scalar_one()
+    for day in range(8):
+        taken = _ACM_DAY0 + timedelta(days=day)
+        db.add(DoseTaken(
+            id=str(uuid.uuid4()), medication_id=med_id, schedule_id=sched_id,
+            taken_at=taken, was_skipped=False, logged_at=taken, log_method="manual",
+        ))
+    await db.commit()
+    return med_id, sched_id
+
+
+# name -> (method, path template, json, event, details, entity: "med"|"sched"|"new")
+_ACM_CASES = {
+    "update_medication": (
+        "patch", "/medications/{med}", {"dosage_amount": 20, "instructions": "with food"},
+        "medication_update", {"changed_fields": ["dosage_amount", "instructions"]}, "med",
+    ),
+    "create_schedule": (
+        "post", "/medications/{med}/schedules",
+        {"schedule_label": "morning", "target_time": "08:00"},
+        "medication_schedule_create", None, "new",
+    ),
+    "update_schedule": (
+        "patch", "/medications/{med}/schedules/{sched}", {"target_time": "09:00"},
+        "medication_schedule_update", {"changed_fields": ["target_time"]}, "sched",
+    ),
+    "log_dose": (
+        "post", "/medications/{med}/doses", {"taken_at": "2026-07-15T09:00:00Z"},
+        "medication_dose_log", None, "new",
+    ),
+    "learn_patterns": (
+        "post", "/medications/{med}/learn-patterns", None,
+        "medication_learn_patterns", None, "med",
+    ),
+}
+
+
+def _acm_master():
+    from unittest.mock import AsyncMock
+
+    master = AsyncMock()
+    master.commit = AsyncMock()
+    return master
+
+
+def _acm_wire(profile_db, master, monkeypatch):
+    """Spy on log_document_event; record vault commits and audit calls in order."""
+    import api.medications as med_api
+
+    order, calls = [], []
+    real_commit = profile_db.commit
+
+    async def _vault_commit():
+        order.append("vault")
+        await real_commit()
+
+    async def _spy(**kwargs):
+        calls.append(kwargs)
+        order.append("audit")
+
+    failure = master.commit.side_effect
+
+    async def _master_commit():
+        order.append("master")
+        if failure is not None:
+            raise failure
+
+    master.commit.side_effect = _master_commit
+    monkeypatch.setattr(profile_db, "commit", _vault_commit)
+    monkeypatch.setattr(med_api, "log_document_event", _spy)
+    ctx = route_client(
+        med_router, "/medications", profile_id=PROFILE,
+        master_db=master, raise_server_exceptions=False,
+    )
+    client = ctx.__enter__()
+
+    async def _override_profile_db():
+        return profile_db
+
+    client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+    return ctx, client, order, calls
+
+
+def _acm_send(client, case, med, sched):
+    method, path, body, *_ = _ACM_CASES[case]
+    kw = {"json": body} if body is not None else {}
+    return getattr(client, method)(path.format(med=med, sched=sched), **kw)
+
+
+@pytest.mark.parametrize("case", list(_ACM_CASES))
+@pytest.mark.asyncio
+async def test_hc_audcmed_001_audit_row_follows_vault_commit(profile_db, monkeypatch, case):
+    med, sched = await _acm_seed(profile_db)
+    master = _acm_master()
+    ctx, client, order, calls = _acm_wire(profile_db, master, monkeypatch)
+    try:
+        resp = _acm_send(client, case, med, sched)
+    finally:
+        ctx.__exit__(None, None, None)
+    assert 200 <= resp.status_code < 300, resp.text
+    _, _, _, event, details, entity = _ACM_CASES[case]
+    if entity == "new":
+        body = resp.json()
+        expected_id = body["dose"]["id"] if case == "log_dose" else body["id"]
+    else:
+        expected_id = med if entity == "med" else sched
+    assert len(calls) == 1
+    call = calls[0]
+    assert call["event"] == event
+    assert call["document_id"] == expected_id
+    assert call["profile_id"] == PROFILE
+    assert call["details"] == details
+    assert call["db"] is master
+    assert order[-3:] == ["vault", "audit", "master"]
+    master.commit.assert_awaited()
+
+
+async def _acm_vault_change_present(db, case, med, sched, new_id):
+    db.expire_all()
+    if case == "update_medication":
+        m = (await db.execute(select(Medication).where(Medication.id == med))).scalar_one()
+        return m.dosage_amount == 20 and m.instructions == "with food"
+    if case == "create_schedule":
+        return (await db.execute(
+            select(MedicationSchedule).where(MedicationSchedule.id == new_id)
+        )).scalar_one_or_none() is not None
+    if case == "update_schedule":
+        s = (await db.execute(select(MedicationSchedule).where(MedicationSchedule.id == sched))).scalar_one()
+        return s.target_time == time(9, 0)
+    if case == "log_dose":
+        return (await db.execute(
+            select(DoseTaken).where(DoseTaken.id == new_id)
+        )).scalar_one_or_none() is not None
+    n = (await db.execute(select(func.count()).select_from(AdherencePattern))).scalar_one()
+    return n >= 1
+
+
+@pytest.mark.parametrize("case", list(_ACM_CASES))
+@pytest.mark.asyncio
+async def test_hc_audcmed_002_audit_commit_failure_keeps_change_and_logs_ids(
+    profile_db, monkeypatch, caplog, case
+):
+    import logging
+
+    med, sched = await _acm_seed(profile_db)
+    master = _acm_master()
+    master.commit.side_effect = RuntimeError("audit disk down")
+    ctx, client, order, calls = _acm_wire(profile_db, master, monkeypatch)
+    try:
+        with caplog.at_level(logging.ERROR):
+            resp = _acm_send(client, case, med, sched)
+    finally:
+        ctx.__exit__(None, None, None)
+    assert resp.status_code == 500
+    assert len(calls) == 1
+    assert order[-3:] == ["vault", "audit", "master"]
+    entity_id = calls[0]["document_id"]
+    assert await _acm_vault_change_present(profile_db, case, med, sched, entity_id)
+    errs = [r for r in caplog.records if "AUDIT-ORDER" in r.getMessage()]
+    assert len(errs) == 1 and errs[0].levelno == logging.ERROR
+    assert entity_id in errs[0].getMessage()
+    assert "Metformin" not in caplog.text
+    assert "with food" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_hc_audcmed_003_log_dose_badge_failure_still_audits_dose_id(profile_db, monkeypatch):
+    """Badge failure rolls back and expires dose_record; audit must still carry the id."""
+    import api.medications as med_api
+
+    med, sched = await _acm_seed(profile_db)
+    master = _acm_master()
+    ctx, client, order, calls = _acm_wire(profile_db, master, monkeypatch)
+
+    async def _boom(*a, **k):
+        raise RuntimeError("badge down")
+
+    monkeypatch.setattr(med_api, "evaluate_badges_after_dose", _boom)
+    try:
+        _acm_send(client, "log_dose", med, sched)
+    finally:
+        ctx.__exit__(None, None, None)
+    assert len(calls) == 1
+    assert calls[0]["event"] == "medication_dose_log"
+    assert calls[0]["document_id"]
+    assert order[-2:] == ["audit", "master"]
