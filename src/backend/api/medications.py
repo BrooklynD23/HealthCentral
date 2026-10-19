@@ -1030,6 +1030,8 @@ async def log_dose(
     profile_db.add(dose_record)
     await profile_db.commit()
     await profile_db.refresh(dose_record)
+    # Bind now: the badge-failure rollback below expires dose_record.
+    dose_id = dose_record.id
 
     newly_earned_badges: list[BadgeInfo] = []
     if not dose_record.was_skipped:
@@ -1095,7 +1097,7 @@ async def log_dose(
 
     # After the badge block: a master failure cannot skip badge evaluation.
     await _audit_after_change(
-        master_db, "medication_dose_log", session.profile_id, dose_record.id,
+        master_db, "medication_dose_log", session.profile_id, dose_id,
     )
 
     logger.info(

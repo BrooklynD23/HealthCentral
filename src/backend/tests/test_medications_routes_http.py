@@ -635,6 +635,14 @@ def _acm_wire(profile_db, master, monkeypatch):
         calls.append(kwargs)
         order.append("audit")
 
+    failure = master.commit.side_effect
+
+    async def _master_commit():
+        order.append("master")
+        if failure is not None:
+            raise failure
+
+    master.commit.side_effect = _master_commit
     monkeypatch.setattr(profile_db, "commit", _vault_commit)
     monkeypatch.setattr(med_api, "log_document_event", _spy)
     ctx = route_client(
@@ -680,7 +688,7 @@ async def test_hc_audcmed_001_audit_row_follows_vault_commit(profile_db, monkeyp
     assert call["profile_id"] == PROFILE
     assert call["details"] == details
     assert call["db"] is master
-    assert order[-2:] == ["vault", "audit"]
+    assert order[-3:] == ["vault", "audit", "master"]
     master.commit.assert_awaited()
 
 
@@ -722,6 +730,7 @@ async def test_hc_audcmed_002_audit_commit_failure_keeps_change_and_logs_ids(
         ctx.__exit__(None, None, None)
     assert resp.status_code == 500
     assert len(calls) == 1
+    assert order[-3:] == ["vault", "audit", "master"]
     entity_id = calls[0]["document_id"]
     assert await _acm_vault_change_present(profile_db, case, med, sched, entity_id)
     errs = [r for r in caplog.records if "AUDIT-ORDER" in r.getMessage()]
@@ -729,3 +738,26 @@ async def test_hc_audcmed_002_audit_commit_failure_keeps_change_and_logs_ids(
     assert entity_id in errs[0].getMessage()
     assert "Metformin" not in caplog.text
     assert "with food" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_hc_audcmed_003_log_dose_badge_failure_still_audits_dose_id(profile_db, monkeypatch):
+    """Badge failure rolls back and expires dose_record; audit must still carry the id."""
+    import api.medications as med_api
+
+    med, sched = await _acm_seed(profile_db)
+    master = _acm_master()
+    ctx, client, order, calls = _acm_wire(profile_db, master, monkeypatch)
+
+    async def _boom(*a, **k):
+        raise RuntimeError("badge down")
+
+    monkeypatch.setattr(med_api, "evaluate_badges_after_dose", _boom)
+    try:
+        _acm_send(client, "log_dose", med, sched)
+    finally:
+        ctx.__exit__(None, None, None)
+    assert len(calls) == 1
+    assert calls[0]["event"] == "medication_dose_log"
+    assert calls[0]["document_id"]
+    assert order[-2:] == ["audit", "master"]
