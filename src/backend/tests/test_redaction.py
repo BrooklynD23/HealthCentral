@@ -276,6 +276,12 @@ SPACED_PHI_VARIANTS = [
     ("Patient #: AB/12345", "AB/12345"),
     ("Patient Name: Doe, Jane", "Doe, Jane"),
     ("Name (legal): \u00c5ngstr\u00f6m \u00d6lund", "\u00c5ngstr\u00f6m \u00d6lund"),
+    ("Patient Name: \u0130lker \u015eahin", "\u0130lker \u015eahin"),
+    ("Name (legal): \u0110\u1eb7ng Th\u1ecb Lan", "\u0110\u1eb7ng Th\u1ecb Lan"),
+    ("Patient Name: \u0141ukasiewicz", "\u0141ukasiewicz"),
+    ("MRN (hospital): A123/45", "A123/45"),
+    ("MRN: A123.456", "A123.456"),
+    ("MRN - A12.345", "A12.345"),
 ]
 
 SPACED_NEAR_SHAPES = [
@@ -391,6 +397,8 @@ class TestUnderscoreJoinedRedaction:
             "MRN (" + "x" * 60 + "): Specimen",
             "Name (" + "x" * 60 + "): Jane Doe",
             "mrn_(" + "a_" * 30 + "):_specimen",
+            "Patient ID (" + "x" * 60 + "): Specimen",
+            "mrn:_(" + "x" * 60 + ")_specimen",
         ):
             assert _engine("strict").redact(long_shape).text == long_shape
 
@@ -412,7 +420,12 @@ class TestUnderscoreJoinedRedaction:
         assert time.perf_counter() - start < 1.0
         assert result.text == text
         # the spaced_labelled_id rule has its own space runs (disjointness guard)
-        for run in ("Name (legal)" + " " * 50000 + "!", "patient id" + " " * 50000 + "!"):
+        for run in (
+            "Name (legal)" + " " * 50000 + "!",
+            "patient id" + " " * 50000 + "!",
+            "Name (legal):" + " " * 50000 + "!",
+            "Patient #:" + " " * 50000 + "!",
+        ):
             start = time.perf_counter()
             assert _engine("strict").redact(run).text == run
             assert time.perf_counter() - start < 1.0

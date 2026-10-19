@@ -817,6 +817,8 @@ async def test_hc_pkt_023_spaced_labelled_mrn_in_reason_never_reaches_packet(
         assert "B67890" not in stored
         assert "B67890" not in html.text
         assert "Reason for Visit" in stored
+        assert "[MRN-REDACTED]" in stored
+        assert "[MRN-REDACTED]" in html.text
     finally:
         if packet_id is not None:
             _packet_store.pop(packet_id, None)

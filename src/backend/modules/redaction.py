@@ -129,7 +129,7 @@ _RULES: tuple[RedactionRule, ...] = (
         pattern=re.compile(
             r"(?i)\b(?:mrn|medical\s+record\s+(?:number|no\.?))"
             r"(?:\s*\([^()\n]{1,40}\))?(?:\s*(?:no\.|#))?(?:\s*:)?(?:\s+[-\u2013\u2014=;])?"
-            r"\s*[A-Z0-9][A-Z0-9-]{3,}\b"
+            r"\s*[A-Z0-9][A-Z0-9/.-]{3,}\b"
         ),
         replacement="[MRN-REDACTED]",
         policy_levels=frozenset({"strict"}),
@@ -139,12 +139,16 @@ _RULES: tuple[RedactionRule, ...] = (
     # by a colon or a separator, and bare "patient" / "name" with a "(qualifier)"
     # and/or "#" / "no." before a required colon ("Patient #: 98765",
     # "Name (legal): Jane Doe"), then the value: a capitalised name of up to
-    # four words (optionally "Last, First"; "/" and "." stay inside a word so a
-    # capital-led identifier such as "A123.456" is not cut short), or one token.
-    # An identifier containing spaces ("98765 4321") is only partly matched. A bare label with a colon and nothing else
-    # ("Patient: 98765") is NOT matched, and neither is "Patient ID no.: 98765"
-    # (name_context, which runs first, takes "ID no" as a name and leaves the
-    # number). Same piece rules as mrn above.
+    # four words (optionally "Last, First"), or one token. A word starts with
+    # any non-lowercase letter (Latin, Cyrillic, Vietnamese, Turkish ...) and
+    # "/" and "." stay inside it, so "A123.456" is not cut short. Side effects:
+    # a trailing "." lets the name run into the next sentence ("Name (legal):
+    # Jane Doe. Follow Up With Cardiology" loses up to four capitalised words
+    # in total), and the value may follow a newline. An identifier containing
+    # spaces ("98765 4321") is only partly matched. A bare label with a colon
+    # and nothing else ("Patient: 98765") is NOT matched, and neither is
+    # "Patient ID no.: 98765" (name_context, which runs first, takes "ID no"
+    # as a name and leaves the number). Same piece rules as mrn above.
     RedactionRule(
         name="spaced_labelled_id",
         pattern=re.compile(
@@ -154,9 +158,9 @@ _RULES: tuple[RedactionRule, ...] = (
             r"|(?:patient|name)(?:\s*\([^()\n]{1,40}\)(?:\s*(?:no\.|#))?|\s*(?:no\.|#))"
             r"\s*:(?:\s*[-\u2013\u2014=;])?"
             r")\s*"
-            r"(?:(?-i:[A-Z\u00c0-\u00d6\u00d8-\u00de])[\w/.'\u2019-]*"
-            r"(?:,[ \t]+(?-i:[A-Z\u00c0-\u00d6\u00d8-\u00de])[\w/.'\u2019-]*)?"
-            r"(?:[ \t]+(?-i:[A-Z\u00c0-\u00d6\u00d8-\u00de])[\w/.'\u2019-]*){0,3}"
+            r"(?:(?-i:[^\W\d_a-z\u00df-\u00f6\u00f8-\u00ff])[\w/.'\u2019-]*"
+            r"(?:,[ \t]+(?-i:[^\W\d_a-z\u00df-\u00f6\u00f8-\u00ff])[\w/.'\u2019-]*)?"
+            r"(?:[ \t]+(?-i:[^\W\d_a-z\u00df-\u00f6\u00f8-\u00ff])[\w/.'\u2019-]*){0,3}"
             r"|[^\W_][\w/.'\u2019-]*)"
         ),
         replacement="[ID-REDACTED]",
