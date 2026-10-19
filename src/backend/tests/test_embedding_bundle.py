@@ -156,6 +156,7 @@ def _fake_manifest(monkeypatch, payload: bytes = _PINNED_PAYLOAD) -> None:
 
 
 def test_hc_emb_004a_fetch_rejects_checksum_mismatch(tmp_path, monkeypatch):
+    _fake_manifest(monkeypatch)
     monkeypatch.setattr("huggingface_hub.snapshot_download", _fake_snapshot(b"not the pinned weights", []))
     target = tmp_path / "embeddings" / "all-MiniLM-L6-v2"
     with pytest.raises(SystemExit) as info:
