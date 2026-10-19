@@ -27,6 +27,9 @@
 | AUDIT-C-ASSIST | audit rows on 3 `api/assistant.py` handlers; `delete_session` becomes A2 | same | [§3](#audit-c-class--17-c-handlers-write-no-audit-row-split-audit-c-med-audit-c-assist-audit-c-mset-audit-c-mset-ext) | AUDIT-NOTIF-ALL merged; never beside AUDIT-C-MED | ready after AUDIT-NOTIF-ALL |
 | AUDIT-C-MSET | audit rows on 7 `api/model_settings.py` settings handlers | same | [§3](#audit-c-class--17-c-handlers-write-no-audit-row-split-audit-c-med-audit-c-assist-audit-c-mset-audit-c-mset-ext) | — | ready |
 | AUDIT-C-MSET-EXT | audit row on `save_external_api_settings` (encryption code, ask-first; AUDIT-EXT-ASKFIRST = A) | same | [§3](#audit-c-class--17-c-handlers-write-no-audit-row-split-audit-c-med-audit-c-assist-audit-c-mset-audit-c-mset-ext) | AUDIT-C-MSET | ready after AUDIT-C-MSET merges |
+| AUDIT-GUARD-TEST | guard test: every `"C"`/`"A2"` row reaches an audit call | AUDIT-C-CLASS plan follow-up (PR #174); recurring-failures #9 | [§3](#audit-guard-test--the-audit-order-guard-checks-the-class-not-that-the-class-is-true) | — | ready |
+| MSET-EXT-NOKEY-TEST | HTTP test: external-API save with no key and switch-off | PR #181 "would fail to notice"; owner MSET-EXT-DIFF | [§3](#mset-ext-nokey-test--no-test-saves-external-api-settings-without-a-key) | — | ready |
+| EXPORT-TZ-PINS | HTTP pins for `today=local_today` on the pinboard and visit-prep question callers | PR #155 review minors 1-2 | [§3](#export-tz-pins--no-test-pins-todaylocal_today-on-the-pinboard-and-visit-prep-question-callers) | — | ready |
 
 Dependency graph: `D-0 → D-1 → {D-2, D-3}`; D-4 is independent. D-2 and D-3 touch disjoint product files and may run as the 2 allowed code L1s at once.
 
@@ -614,6 +617,70 @@ What these tests would not notice: the stored row's columns. The spy sees the he
 2. **AUDIT-C-A2 — answered A (keep A2), 2026-10-18 (PR #175).** "Deleting a medication schedule or a chat session cannot be undone. Under your signed AUDIT-ORDER option D, the plan gives both the two-row started/completed audit, so a failed audit stops the delete. A. Keep A2 (default, recommended). B. Use the single after-change row (C) instead: smaller, but a failed audit leaves a deleted schedule or chat with no row."
 
 **Recurring-failures #9:** none of these rows edits `docs/agentic/recurring-failures.md`. Each row would otherwise share it with every other row and with AUDIT-NOTIF-ALL. When the last of AUDIT-C-MED / -ASSIST / -MSET merges, L0's post-merge batch rewrites the "17 more" sentence: what was fixed, and what is still waiting on AUDIT-EXT-ASKFIRST. The heading of this section keeps the anchor that #9's "queue row AUDIT-C-CLASS" reference resolves to.
+
+### Follow-ups found 2026-10-18 (planned 2026-10-19 on `origin/main` @ `a9978e8`)
+
+Three test-only rows. None edits product code; each adds the pin a review said was missing. `pyt` = `scripts/pyslot.sh env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest`, run from `src/backend`. A pin test passes on `main` by design, so "fails before the fix" is shown by a **mutant**: a temporary product edit in the worktree that the test must turn RED, with the output pasted in the PR body and the edit reverted (`git diff origin/main -- src/backend/api src/backend/modules` empty at the end). **Exception, MSET-EXT-NOKEY-TEST:** its handler is ask-first, so its mutants are monkeypatches in a scratch test, never edits to the file (L0 ruling below).
+
+#### AUDIT-GUARD-TEST — the audit-order guard checks the class, not that the class is true
+
+**Source:** the AUDIT-C-CLASS plan above ("Follow-up, not a row": add `test_hc_aud_ord_030_c_handlers_reach_an_audit_call`, written for PR #174, `17040dd`); recurring-failures #9 (audit paragraph).
+
+**Fact (`a9978e8`):** `tests/test_audit_order_guard.py` checks that every committing handler is classified (`test_hc_aud_ord_030_every_committing_handler_is_classified`, `:188-196`) and that every `"A2"` row reaches `audit_intent` (`:198-204`). Nothing checks that a `"C"` row reaches any audit call; that gap let 19 `"C"` handlers write no row (AUDIT-NOTIF-ALL, AUDIT-C-*). **Measured today** with the guard's own graph (`_G.reaches(_REACH[k], name)`): all 49 `"C"` / `"A2"` rows (35 C, 14 A2) reach one of `create_audit_log`, `audit_and_commit` or `audit_intent`; none misses. Reaching through a helper counts, because `_REACH` already holds every same-tree function a handler calls (for example `_audit_settings_change`, `log_document_event` → `create_audit_log`). The 3-name sink set alone covers all 49 rows, so `log_*_event` and `_audit*` names need not be listed.
+
+**Design (test file only):**
+1. Add `_AUDIT_SINKS = frozenset({"create_audit_log", "audit_and_commit", "audit_intent"})` and a helper `_rows_without_audit(classification, reach, g) -> list[str]`: the sorted keys whose class is `"C"` or `"A2"` and whose `reach` list reaches none of the sinks.
+2. `test_hc_aud_ord_030_c_and_a2_handlers_reach_an_audit_call`: `_rows_without_audit(CLASSIFICATION, _REACH, _G) == []`.
+3. `test_hc_aud_ord_030_break_it_c_handler_without_audit(tmp_path)`: with the existing `_overlay`, a handler `h` that only `await profile_db.commit()`s → `_rows_without_audit({"api/zz.py::h": "C"}, reach, g) == ["api/zz.py::h"]`; a second overlay handler that also calls `await create_audit_log(...)` → `[]`.
+
+| Id | Assertion | Fails before? |
+|---|---|---|
+| `test_hc_aud_ord_030_c_and_a2_handlers_reach_an_audit_call` | no `"C"`/`"A2"` row without an audit sink | passes on `main` (all 49 reach). **Mutant:** delete the `log_document_event(...)` call in `api/notifications.py::update_notification_settings` (added by AUDIT-NOTIF-ALL; it reaches `create_audit_log`) → this test fails naming that key, while `..._every_committing_handler_is_classified` stays green. That pair is the proof |
+| `test_hc_aud_ord_030_break_it_c_handler_without_audit` | the synthetic C handler with no audit is flagged; with an audit it is not | RED (helper does not exist); behaviourally pinned by the mutant above |
+
+**Also edit:** `docs/agentic/recurring-failures.md` #9, the audit paragraph's recheck: add one sentence after the grep recheck saying the class is now a test (`test_hc_aud_ord_030_c_and_a2_handlers_reach_an_audit_call`), so a new unaudited `"C"` row fails CI. Leave the rest of #9 alone.
+
+**Files:** `src/backend/tests/test_audit_order_guard.py`, `docs/agentic/recurring-failures.md` (#9 audit paragraph only), slots. **Re-run, not edited:** `tests/test_audit_order.py`, `tests/test_audit_phi_minimization.py`.
+**Expected collected delta:** +2. **Est:** 1 h.
+**Acceptance:** `pyt tests/test_audit_order_guard.py tests/test_audit_order.py -q -rfE`: 0 failed; the mutant run output in the PR body; full suite per RUNBOOK §6. **Rollback:** revert.
+**Order:** ready now. Never beside any open PR on `tests/test_audit_order_guard.py` (E-2, B-5, C-GC1, RSI1-DONATE are blocked today) or on `docs/agentic/recurring-failures.md`. A row that adds a `"C"` row later must now also add the audit call, which is the point. **Recurring-failures #12 recheck:** after this merges, L0 runs the new gate (`tests/test_audit_order_guard.py`) on `origin/main` and on every open PR built before it, and rebases or fixes those PRs before merging the rest of the group. Any open PR that adds a `"C"`/`"A2"` row without an audit call fails it.
+
+#### MSET-EXT-NOKEY-TEST — no test saves external-API settings without a key
+
+**Source:** PR #181 (AUDIT-C-MSET-EXT) "What the new tests would fail to notice", HC-AUDCMS-003: "The no-key branch is untested. A mutant that always lists `"api_key"` passes ... The switch-off case (`use_external_api: false`) is not tested." Owner MSET-EXT-DIFF: "The two notes become follow-ups."
+
+**Fact (`a9978e8`):** `save_external_api_settings` (`src/backend/api/model_settings.py:776-820`) encrypts and stores a key only `if request.api_key:` (`:795-800`; `api_key` defaults to `""`, `:205`), and audits `changed_fields` `sorted(["provider", "use_external_api"] + (["api_key"] if request.api_key else []))` (`:809`). HC-AUDCMS-003/004 (`tests/test_model_settings_api.py:537-590`) send only `_EXT_BODY`, which always carries `api_key`.
+
+**Design (test file only; the handler is ask-first and is not edited):**
+1. Give `_ext_put(vault, master)` (`:523-534`) an optional `body` argument defaulting to `_EXT_BODY`; HC-AUDCMS-003/004 keep calling it unchanged.
+2. **HC-AUDCMS-005:** PUT `_EXT_BODY` with `_ext_put` (stores a key), then a second `_ext_put` with `{"use_external_api": false, "provider": "openai", "consent_acknowledged": false}` (no `api_key`) → both 200. The second spy call has `details == {"changed_fields": ["provider", "use_external_api"]}`; the second response has `api_key_configured is True`; the re-selected row keeps the first encrypted key byte for byte and has `use_external_api is False`. That covers the no-key branch and the switch-off case.
+
+| Id | Assertion | Fails before? |
+|---|---|---|
+| HC-AUDCMS-005 | as above | passes on `main`. **Mutants (monkeypatch only, in a scratch test file that is not committed):** (1) wrap `api.model_settings._audit_settings_change` so it always adds `"api_key"` to `details["changed_fields"]` before calling the real one → HC-AUDCMS-005's body run under that patch fails on `details`; (2) wrap it so it also clears `external_api_key_encrypted` on the profile's `UserModelSettings` row and commits → fails on the kept key. Paste both RED outputs in the PR body |
+
+**Files:** `src/backend/tests/test_model_settings_api.py`, slots. **Ask-first:** `api/model_settings.py::save_external_api_settings` is **never edited, not even temporarily** (L0 ruling 2026-10-19, PR #189 review round 1, under CLAUDE.md §1). `git diff origin/main -- src/backend/api` is empty at every step. **Re-run, not edited:** `tests/test_external_runner_hardening.py`, `tests/test_external_runner.py`.
+**Expected collected delta:** +1. **Est:** 0.5 h.
+**Acceptance:** `pyt tests/test_model_settings_api.py tests/test_external_runner_hardening.py tests/test_external_runner.py -q -rfE`: 0 failed; both mutant outputs in the PR body; full suite per RUNBOOK §6. **Rollback:** revert.
+**Order:** ready now. Never beside an open PR on `tests/test_model_settings_api.py` (none on `a9978e8`).
+
+#### EXPORT-TZ-PINS — no test pins `today=local_today` on the pinboard and visit-prep question callers
+
+**Source:** PR #155 (EXPORT-TODAY-TZ) review, open minors 1-2: "No test would notice if the pinboard route (`api/pinboards.py:501`, `:512`) or the visit-prep `generate_questions` call (`api/export.py:799`) dropped `today=local_today`. The reviewers' break-it mutations left the suite green."
+
+**Fact (`a9978e8`):** `export_pinboard_packet` computes `local_today` (`src/backend/api/pinboards.py:406-408`) and passes it to `generate_questions` (`:499-502`) and `compose_visit_prep_packet` (`:503-513`). The visit-prep route passes it to `generate_questions` (`src/backend/api/export.py:794-800`) and to the packet (`:810-820`). HC-EXPTZ-001/002 (`tests/test_export_questions.py:429-445`) cover only `POST /export/questions`; HC-EXPTZ-006 (`tests/test_visit_prep_packet.py:720-741`) covers the visit-prep packet date, not its questions. `tests/test_pinboards.py` has no time-zone test (HC-PIN-005 stubs the zone to `"UTC"`, `:248-250`). Without `today=`, `generate_questions` falls back to the UTC day (`modules/export.py:460`, `today or now.date()`). The open-task window is `due <= today + timedelta(days=NEAR_DUE_WINDOW_DAYS)` (14 days, `modules/export.py:510`).
+
+**Design (tests only; same frozen moment as HC-EXPTZ-001: `2026-01-16 01:00Z` = Jan 15 17:00 `America/Los_Angeles`, frozen on `api.export.utcnow`, `api.pinboards.utcnow` and `modules.export.utcnow`):** two open care tasks, due **Jan 29** (local today + 14: in the window either way) and **Jan 30** (local today + 15: outside the local window, but UTC today + 14, so inside the UTC window). With `today=local_today`, only the Jan 29 task yields a `follow_up` question; without it, both do. The Jan 29 question also proves the questions section is not empty, so the absence check cannot pass vacuously.
+
+| Id | File | Assertion | Fails before? |
+|---|---|---|---|
+| HC-EXPTZ-008 | `tests/test_pinboards.py` (`real_profile_db`, `route_client` on the pinboards router; new import of `tests.support.routes.route_client` and `get_profile_db_session`) | a `UserModelSettings` row with `America/Los_Angeles`; a pinboard with the two tasks pinned as `item_type="question"`; `POST /pinboards/{id}/export` `{"confirm": true}` → 200; the stored packet (`api.export._packet_store[packet_id]`) has a `follow_up` question whose `source_id` is the Jan 29 task and none for the Jan 30 task; the response `markdown` contains `Generated: 2026-01-15` | passes on `main`. **Mutants:** drop `today=local_today` at `api/pinboards.py:501` → Jan 30 question appears; at `:512` → `Generated: 2026-01-16` |
+| HC-EXPTZ-009 | `tests/test_visit_prep_packet.py` (`real_profile_db`, `route_client`, as HC-EXPTZ-006) | same zone and tasks (unpinned, status `open`); `POST /export/visit-prep` `{"confirm": true, "include_tasks": true, "include_questions": true}` → 200; the stored packet's questions include the Jan 29 `follow_up` and not the Jan 30 one | passes on `main`. **Mutant:** drop `today=local_today` at `api/export.py:799` → Jan 30 question appears |
+
+**Files:** `src/backend/tests/test_pinboards.py`, `src/backend/tests/test_visit_prep_packet.py`, slots. **Re-run, not edited:** `tests/test_export_questions.py`, `tests/test_export_redaction.py`, `tests/test_export_api.py`, `tests/test_audit_order.py`.
+**Expected collected delta:** +2. **Est:** 1 h.
+**Acceptance:** `pyt tests/test_pinboards.py tests/test_visit_prep_packet.py tests/test_export_questions.py tests/test_export_api.py -q -rfE`: 0 failed; the three mutant outputs in the PR body; `git diff origin/main -- src/backend/api src/backend/modules` empty; full suite per RUNBOOK §6. **Rollback:** revert.
+**Order:** ready now. Never beside C-GC1 (`tests/test_visit_prep_packet.py`) or E-1c (adds a visit-prep test to `tests/test_visit_prep_packet.py`).
 
 ---
 
