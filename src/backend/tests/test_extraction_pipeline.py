@@ -486,6 +486,10 @@ class TestExtractFormats:
             "Creatinine 120 88 umol/L",
             "Glucose 105H 98 mg/dL 70-99",
             "Creatinine 120H 88 umol/L (60-110)",
+            "Glucose 105HI 98 mg/dL 70-99",
+            "Glucose 105LO 98 mg/dL 70-99",
+            "Glucose 105A 98 mg/dL 70-99",
+            "Creatinine 120HI 88 umol/L (60-110)",
         ],
     )
     def test_hc_exf_004c_column_previous_result_not_absorbed_into_analyte(self, extract_module, line):
@@ -537,7 +541,7 @@ class TestExtractFormats:
         text_parser.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_hc_exf_007_no_tables_page_keeps_unitless_rows(self, extract_module, tmp_path):
+    async def test_hc_exf_005b_no_tables_page_keeps_unitless_rows(self, extract_module, tmp_path):
         page = MagicMock()
         page.extract_text.return_value = "Glucose: 95 (70-100)"
         page.extract_tables.return_value = []
