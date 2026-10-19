@@ -1405,22 +1405,16 @@ I was unable to fully process your question within the time limit. Please try as
 
     @staticmethod
     def _contains_json_object(text: str) -> bool:
-        """True if text is, or embeds (fenced or after prose), a JSON object."""
-        stripped = text.strip()
-        candidates = [stripped]
-        if stripped.startswith("```"):
-            body = stripped.split("\n", 1)[1] if "\n" in stripped else ""
-            candidates.append(body.rsplit("```", 1)[0])
-        first, last = stripped.find("{"), stripped.rfind("}")
+        """True if text embeds a JSON object (bare, fenced, or after prose), or a quoted
+        cite-schema key (covers output cut off by max_tokens, which does not parse)."""
+        first, last = text.find("{"), text.rfind("}")
         if 0 <= first < last:
-            candidates.append(stripped[first:last + 1])
-        for c in candidates:
             try:
-                if isinstance(json.loads(c), dict):
+                if isinstance(json.loads(text[first:last + 1]), dict):
                     return True
-            except (TypeError, ValueError):
-                continue
-        return False
+            except ValueError:
+                pass
+        return any(f'"{k}"' in text for k in ("report_facts", "general_info", "uncertainties"))
 
     async def _generate_with_runner(
         self, prompt: str, runner, n_chunks: Optional[int] = None

@@ -6,7 +6,7 @@ HC-LCP-006  invalid / forged structured answers render to None
 HC-LCP-007  prose (external runner, every existing mock) renders to None and passes through
 HC-LCP-008  a supported structured answer is served over HTTP
 HC-LCP-009  a cited-but-unsupported structured answer is still withheld (gate unchanged)
-HC-LCP-009b renderer-rejected JSON reaches the gate raw and is withheld, never served
+HC-LCP-009b renderer-rejected JSON (bare, fenced, prefixed, truncated) is withheld, never served
 HC-LCP-010  the prompt keeps exactly one citation-format instruction, naming [cite:N]
 """
 from __future__ import annotations
@@ -14,18 +14,17 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from modules.rag import RAGModule, _cite_schema
 from modules.agent.guardrails.templates import ABSTAIN_TEMPLATE, ESCALATE_TEMPLATE
+from modules.rag import RAGModule, _cite_schema
 from tests.legacy_eval.harness import CHAT_PATH, FakeRunner, build_chunks, legacy_chat_client
 from tests.test_rag_citation_prompt import (
     _CONTEXT_LABELS,
-    _cite_lines_naming_a_label,
     _citation_format_instructions,
+    _cite_lines_naming_a_label,
     _instruction_header,
 )
 
@@ -184,7 +183,11 @@ def test_hc_lcp_009b_renderer_rejected_json_is_withheld_not_served_raw():
         report_facts=[{"text": "Glucose: 95 mg/dL [cite:1]", "cites": [1]}], uncertainties=[],
     )) + "\n```"
     prefixed_case = "Here is the answer: " + marker_case
-    for raw in (header_case, empty_case, marker_case, fenced_case, fenced_empty_unc, prefixed_case):
+    # Cut off by max_tokens: does not parse, but still carries the quoted schema keys.
+    truncated_case = marker_case[: marker_case.index("Reference") + len("Reference")]
+    truncated_fenced = "```json\n" + truncated_case
+    for raw in (header_case, empty_case, marker_case, fenced_case, fenced_empty_unc,
+                prefixed_case, truncated_case, truncated_fenced):
         assert RAGModule()._render_structured_answer(raw, 2) is None
         body, received = _post(raw, "What was my glucose?")
         assert received and received[0] == RAGModule._STRUCTURED_WITHHELD, received
