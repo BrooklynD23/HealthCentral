@@ -901,6 +901,7 @@ async def delete_schedule(
     schedule_id: str,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Delete a medication schedule."""
     validate_uuid(medication_id, "medication_id")
@@ -935,8 +936,18 @@ async def delete_schedule(
             detail="Schedule not found"
         )
 
+    # AUDIT-ORDER D (A2): intent committed before the irreversible delete.
+    audit_kwargs = dict(profile_id=session.profile_id, document_id=schedule_id)
+    await audit_intent(
+        master_db, "started", log_document_event,
+        event="medication_schedule_delete", **audit_kwargs,
+    )
     await profile_db.delete(schedule)
     await profile_db.commit()
+    await audit_intent(
+        master_db, "completed", log_document_event,
+        event="medication_schedule_delete", **audit_kwargs,
+    )
 
     logger.info(f"Deleted schedule {schedule_id}")
 

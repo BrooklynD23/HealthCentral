@@ -10,7 +10,7 @@ import json
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -38,7 +38,15 @@ from core.auth import get_profile_db_session
 from core.config import settings
 from core.database import Base
 from core.profile_database import ProfileDatabaseBase
-from models import Document, DocumentEntity, LabInterpretation, Medication, Observation, Profile
+from models import (
+    Document,
+    DocumentEntity,
+    LabInterpretation,
+    Medication,
+    MedicationSchedule,
+    Observation,
+    Profile,
+)
 from models.audit import AuditLog
 from models.chat_session import ChatTurn
 from models.memory_item import MemoryItem
@@ -109,6 +117,7 @@ def _status(row: AuditLog) -> str | None:
 class Case:
     def __init__(self, name, router, prefix, model):
         self.name, self.router, self.prefix, self.model = name, router, prefix, model
+        self.parent: str | None = None
 
     async def seed(self, vault: AsyncSession, tmp_path) -> str:
         id_ = str(uuid.uuid4())
@@ -126,6 +135,17 @@ class Case:
                 id=id_, profile_id=PROFILE, name="Metformin",
                 frequency="once_daily", is_active=True, reminder_enabled=False,
             ))
+        elif self.name == "schedule":
+            self.parent = str(uuid.uuid4())
+            vault.add(Medication(
+                id=self.parent, profile_id=PROFILE, name="Metformin",
+                frequency="once_daily", is_active=True, reminder_enabled=False,
+            ))
+            await vault.flush()
+            vault.add(MedicationSchedule(
+                id=id_, medication_id=self.parent, schedule_label="morning",
+                target_time=time(8, 0), reminder_offset_minutes=15, is_active=True,
+            ))
         elif self.name == "memory":
             vault.add(MemoryItem(id=id_, profile_id=PROFILE, key="k", value="v"))
         else:
@@ -134,6 +154,8 @@ class Case:
         return id_
 
     def url(self, id_: str) -> str:
+        if self.name == "schedule":
+            return f"{self.prefix}/{self.parent}/schedules/{id_}"
         suffix = "?hard_delete=true" if self.name == "medication" else ""
         return f"{self.prefix}/{id_}{suffix}"
 
@@ -151,6 +173,7 @@ CASES = [
     Case("medication", medications_router, "/medications", Medication),
     Case("memory", memory_router, "/memory", MemoryItem),
     Case("pinboard", pinboards_router, "/pinboards", Pinboard),
+    Case("schedule", medications_router, "/medications", MedicationSchedule),
 ]
 IDS = [c.name for c in CASES]
 
