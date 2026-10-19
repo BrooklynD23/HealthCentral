@@ -7,8 +7,8 @@ stay byte-for-byte unredacted (named exceptions, W-10).
 
 Scope of the claim: labelled multi-word name, M/D/Y DOB and MRN in free-text
 fields, plus underscore-joined labelled name/DOB/MRN (O-3, closed by E-1a).
-Not covered by strict: ISO/textual DOB, single-token names, and the E-1b shapes
-(parenthesised qualifier, '#'/'no.' after a bare label, '-' separator).
+Not covered by strict: ISO/textual DOB, single-token names, and labels split
+by non-space whitespace (gap 11).
 
 Every test drives FastAPI's dependency graph through
 tests/support/routes.py::route_client (recurring-failures #1).
@@ -279,6 +279,7 @@ GAP_ROWS = (
     _obs("00000000-0000-4000-8000-000000000011", "patient_name:_jane_doe", 1.0, "", "H", datetime(2024, 3, 15), 0.0, 0.5),
     _obs("00000000-0000-4000-8000-000000000012", "dob:_01/02/1980", 1.0, "", "H", datetime(2024, 3, 15), 0.0, 0.5),
     _obs("00000000-0000-4000-8000-000000000013", "mrn:_a12345", 1.0, "", "H", datetime(2024, 3, 15), 0.0, 0.5),
+    _obs("00000000-0000-4000-8000-000000000014", "mrn_(hospital):_b67890", 1.0, "", "H", datetime(2024, 3, 15), 0.0, 0.5),
 )
 
 
@@ -371,7 +372,7 @@ def test_hc_expr_001_underscore_phi_redacted() -> None:
     with _export_client(rows=GAP_ROWS) as client:
         _summary_id, raw = _download_summary(client, "text")
     body = raw.decode("utf-8").lower()
-    for phi in ("jane", "01/02/1980", "a12345"):
+    for phi in ("jane", "01/02/1980", "a12345", "b67890"):
         assert phi not in body, f"{phi!r} still present: O-3 regression"
 
 
