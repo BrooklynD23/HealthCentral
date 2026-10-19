@@ -51,6 +51,7 @@ What each line does **not** say:
 - W-4 #72 merged: `scripts/legacy_eval_gate.py` exists (contract I-2) and is the byte-identical proof's first command.
 - **G-C5 is next in the `rag.py` chain** (queue row: "last on `rag.py`"). Hunk H1 edits `rag.py:1027`. Branch it after every earlier `rag.py` PR merges (W-3, #95 per lane A). Re-run Task 0 at branch time.
 - B-3 floats per R-4 (queue): it has no shared file with G-C5; confirm with the Task 0 file-overlap check.
+- P5: no shared file (scaffold `G-C5.md` §5 `:76`: its grep covers `faithfulness.py` and `verifier_agent.py` for `utcnow`; G-C5 adds none). Order against W-8, W-4 and P5 is satisfied: the first two are merged, P5 is independent.
 - This plan consumes I-2 and I-14 **without changing a signature**. No hunk below changes `EmbeddingModelUnavailableError`, `resolve_embedding_model_dir`, `EmbeddingsModule`, or either gate script.
 
 ## Measured anchors
@@ -118,7 +119,7 @@ Start: queue row `G-C5` (`queue.md:194`). Hunks use only these files.
 | `config/.env.example` | yes | H6 | no |
 | `src/backend/scripts/download_models.py` | yes | H7 | no |
 | `config/model_manifest.json` | yes | H8 | no |
-| `src/backend/tests/test_gc5_nli_flag.py` | yes | new, 4 tests | no |
+| `src/backend/tests/test_gc5_nli_flag.py` | yes | new, 5 tests (HC-GC5-001 to 005; 005 added after review, see Task 3) | no |
 | `CLAUDE.md` / `AGENT.md` count slots | row says "slots" | **not edited by the G-C5 PR** | n/a |
 
 **Not edited:** `modules/faithfulness.py`, `modules/interpret_safety.py`, `modules/redaction.py`, `modules/verifier_agent.py` outside `:304-317`, `scripts/legacy_eval_gate.py`, `scripts/agent_eval_gate.py`, `requirements.txt`.
@@ -134,7 +135,7 @@ None of these is signed. The plan states each option and does not choose silentl
 
 ### OL-1 GC5-MODEL: confirm the model, licence and pin
 
-Q: "Confirm `cross-encoder/nli-deberta-v3-xsmall`, licence **Apache-2.0** (not MIT as `feature_list.json` says), revision `a150876…c5f68…` (full value in the model table), 294,480,009 bytes to fetch." Owner line `:228` says the owner confirms. Until then the pins in H4/H8 are proposals. A different model changes H4, H7, H8 and the byte counts.
+Q: "Confirm `cross-encoder/nli-deberta-v3-xsmall`, licence **Apache-2.0** (not MIT as `feature_list.json` says), revision `a150876415327c80daeff35ca6f68f5ed8cf5c24`, 294,480,009 bytes to fetch." Owner line `:228` says the owner confirms. Until then the pins in H4/H8 are proposals. A different model changes H4, H7, H8 and the byte counts.
 
 ### OL-2 Absent model with the flag on: fall back to rules, or fail closed?
 
@@ -271,6 +272,9 @@ Notes:
 - Premise is `source.source_text`, hypothesis is the claim, matching the model's `(premise, hypothesis)` training order.
 - `EntailmentLabel(...)` raises `ValueError` if a model ever returns a label outside the enum; with the pinned model the labels are contradiction/entailment/neutral (measured). Not caught on purpose: an unexpected label must be loud, not neutral.
 - Thresholds are unchanged: `verify_claim` still demotes an entailment below `min_entailment_confidence` (0.7) to neutral (`verifier_agent.py:173`).
+- **Asymmetry, not changed here.** Only ENTAILMENT has the 0.7 floor. A CONTRADICTION at any confidence fails the claim (`verifier_agent.py:177-178`, with `fail_on_contradiction=True`). With an NLI argmax, a low-confidence contradiction (for example 0.34 against 0.33 and 0.33) therefore abstains the legacy answer. Adding a floor would be a `verify_claim` edit outside `:304-317` and outside GC5-ASKFIRST: unsigned, see OL-5. Task 7 measures how often it happens.
+- **Failure scope.** Only `EmbeddingModelUnavailableError` from the load is caught. A failure in `encoder.predict` (out-of-memory, tokenizer error) or the deliberate `ValueError` above propagates through `validate_response` (`rag.py:815`) to the route, uncaught, flag on only. That is loud by design; see risk 10.
+- **Cost, flag on only.** `validate_response` is synchronous and `query()` calls it inside an `async` function (`rag.py:1297`), so the first-call sha256 of 283 MB, the model load and every `predict` block the event loop. `predict` runs once per claim x source (one pair per call). With the model absent, `load_local_cross_encoder` runs again for each pair and logs one warning per claim x source (failures are not cached). Both are accepted for a default-off flag and measured in Task 7; moving the work to a thread or batching pairs would touch `rag.py` or `verifier_agent.py` beyond the signed range.
 
 ### H4 `src/backend/modules/embeddings.py` (after `resolve_embedding_model_dir`, `:41-46`; not ask-first)
 
@@ -331,7 +335,7 @@ def load_local_cross_encoder():
         ) from exc
     return _nli_encoder
 ```
-The integrity function is `verify_model_file(path, tier, *, manifest_path=None)` at `modules/model_integrity.py:137`; the sketch above must call it that way (`verify_model_file(model_dir / "model.safetensors", NLI_MANIFEST_KEY)`), not `verify_artifact`. `model_integrity.py` is not edited. A missing manifest yields `UNKNOWN_TIER`, which is not `VERIFIED`, so the load fails closed.
+The integrity function is `verify_model_file(path, tier, *, manifest_path=None)` at `modules/model_integrity.py:138`, and the sketch above calls it that way. `model_integrity.py` is not edited. A missing manifest yields `UNKNOWN_TIER`, which is not `VERIFIED`, so the load fails closed.
 
 ### H5 `src/backend/core/config.py:123` (not ask-first)
 
@@ -392,8 +396,13 @@ def cmd_nli(target: Optional[Path] = None) -> None:
     """Fetch the pinned NLI cross-encoder once. The only network step for it.
     Same rules as cmd_embedding: exclusive .partial dir, sha256 check, never
     deletes a directory it did not create in this run."""
-    # body mirrors cmd_embedding (:327-381) with: repo/revision from _nli_pin(),
-    # allow_patterns=list(NLI_FETCH_FILES), target default resolve_nli_model_dir().
+    # Body: copy cmd_embedding (:327-381) line for line, written out in full by the
+    # executor, with exactly these substitutions: repo and revision come from
+    # _nli_pin(); allow_patterns=list(NLI_FETCH_FILES); the target defaults to
+    # resolve_nli_model_dir(); completeness uses _nli_complete(); messages say "NLI".
+    # Behaviour pinned by HC-GC5-005: exclusive <target>.partial dir, sha256 check
+    # before the rename, nothing installed on mismatch, no deletion of an existing
+    # .partial or of any directory this run did not create.
 ```
 Plus, in `main()`: `sub.add_parser("nli", help="Fetch the pinned NLI cross-encoder once (the backend loads it offline)")` after `:409`, and `elif args.command == "nli": cmd_nli()` after `:424`. Also one usage line in the module docstring after `:21`.
 
@@ -443,22 +452,23 @@ See [Byte-identical proof](#byte-identical-proof). Save outputs under a scratch 
 - **Break it:** (a) revert H1 only: step 3 fails. (b) revert H2 only: step 2 fails. Undo by hand.
 - **What it would fail to notice:** it calls `get_rag_module()` and `validate_response` directly, not `POST /assistant/chat` through `route_client`, so a broken `Depends(...)` or a route that stops calling `get_rag_module()` is invisible (recurring-failures #1). The flag-off route path is covered by the legacy gate in [the proof](#byte-identical-proof); the flag-on route path is not covered in the PR (it needs the real model; Task 7). It also never loads a real model.
 
-### Task 3: loader, config, script, manifest (H4-H8), tests HC-GC5-003 (and the sha half of 004)
+### Task 3: loader, config, script, manifest (H4-H8), tests HC-GC5-003 and HC-GC5-005 (and the sha half of 004)
 
 - [ ] **RED first.** Add `test_hc_gc5_003_offline_load_opens_zero_sockets`, copying the subprocess-probe pattern of `tests/test_embedding_bundle.py:28-77` (socket methods patched on the class, not `socket.socket` replaced; clean env without `HF_*`; empty `HF_HOME`; assert no files appear in it). The probe sets `NLI_MODEL_PATH` to a **tiny stand-in model built by the test in `tmp_path`**: a 1-layer BERT sequence classifier (hidden size 16, `num_labels=3`, `id2label` = contradiction/entailment/neutral) saved with `save_pretrained` plus a 10-word `vocab.txt`/tokenizer. It needs no network and about 100 KB. Inside the probe, after the socket patch and before use, it patches `modules.model_integrity.verify_model_file` to return a `VERIFIED` result (H4 imports it inside the function, so the patch takes effect) (the stand-in cannot match the real pin; the sha gate is covered by HC-GC5-004). The probe calls `load_local_cross_encoder()` then `predict([("a","b")], apply_softmax=True)` and prints a JSON line with `attempts`, the label, and a probability sum.
 - [ ] Run. Expected RED: `ImportError: cannot import name 'load_local_cross_encoder' from 'modules.embeddings'`. Capture.
 - [ ] Apply H4, H5. Re-run until GREEN: `attempts == []`, three probabilities summing to about 1, `hf_cache_files == []`. Capture.
 - [ ] Apply H6, H7, H8. Run `tests/test_model_integrity.py::test_hc_mint_011_shipped_manifest_is_valid_and_honest` and `tests/test_embedding_bundle.py` to prove they still pass (neither is edited).
+- [ ] **RED first, 005.** `test_hc_gc5_005_cmd_nli_fetch_rules` (mirror `HC-EMB-004a-e` in `tests/test_embedding_fail_closed_paths.py` and `test_embedding_bundle.py`): patch `huggingface_hub.snapshot_download` with a fake that writes a stand-in file set into the directory it is given (no network). Assert (a) a correct fake (files match `NLI_FETCH_FILES`, weights sha256 equal to a patched `_nli_pin()`) installs the target; (b) a checksum mismatch installs nothing and leaves no target directory; (c) a pre-existing `<target>.partial` is never deleted (the command refuses or aborts and the directory is byte-identical afterwards); (d) the fake is called with the manifest `revision` and `allow_patterns == list(NLI_FETCH_FILES)`. Expected RED: `AttributeError: module 'scripts.download_models' has no attribute 'cmd_nli'`. H7's body is written in full from `cmd_embedding` (`:327-381`) with the substitutions listed in H7.
 - [ ] `python scripts/download_models.py --help` lists `nli` (read-only check; **do not run `nli`**).
 - **Break it:** (a) in H4 make `load_local_cross_encoder` call `socket.create_connection(("huggingface.co", 443))` once before loading: `attempts` becomes `["network"]` and 003 fails. (b) change `local_files_only=True` to `False` and put a `config.json` in the stand-in dir whose `_name_or_path` is a hub id: any fetch attempt must show in `attempts` or in the empty-`HF_HOME` assertion, and 003 fails. Undo by hand.
 - **What it would fail to notice:** a stand-in BERT is not DeBERTa; tokenizer/`sentencepiece` behaviour of the real model, and `CrossEncoder.config.id2label` on the real files, are not exercised (Task 7). Native-code fetches that bypass Python sockets are caught only by the empty-`HF_HOME` assertion. A weights file whose sha matches the manifest but whose bytes are malicious is outside this test (the pin protects only against accidental or Hub-side change).
-- **Gap to flag to L1:** `cmd_nli` (H7) is exercised by none of the four tests. W-8 covered its twin with HC-EMB-004a-e (fake `snapshot_download`, checksum mismatch rejected, partial dir never deleted). Recommendation: add `HC-GC5-005` (checksum mismatch installs nothing) as a fifth test; the delta would then be +5. The brief fixes four; this plan keeps four and reports the gap.
+- **Break it (005):** (a) skip the sha compare in `cmd_nli`: (b) fails. (b) make `cmd_nli` `rmtree` an existing `.partial`: (c) fails. Undo by hand. **What it would fail to notice:** the fake `snapshot_download` never talks to the Hub, so a wrong repo id, a revision the Hub no longer serves, or a real file-name mismatch only show at the owner's first real fetch (Task 7).
 
 ### Task 4: H3 (the ask-first hunk), tests HC-GC5-002 and HC-GC5-004
 
 - [ ] **RED first, 002.** `test_hc_gc5_002_contradiction_fails_claim`: build a `VerifierAgent(VerificationConfig(use_llm_entailment=True))`; patch `modules.embeddings.load_local_cross_encoder` to return a fake object with `.predict(pairs, apply_softmax=True)` returning `[[0.9, 0.05, 0.05]]` and `.config.id2label = {0: "contradiction", 1: "entailment", 2: "neutral"}`. Pick a (claim, source) pair for which the **rules** return `ENTAILMENT` at or above 0.7, and first assert that with `use_llm_entailment=False` the claim verifies (`failed_claims == 0`): the precondition that stops this test passing vacuously. Then, flag on, assert the claim is unverified, `contradicting_sources` names the source, and through `RAGModule(...).validate_response` that `verification.failed_claims == 1`.
 - [ ] Run. Expected RED today: the stub calls the rules, the claim verifies, the final assertion fails. Capture.
-- [ ] **RED first, 004.** `test_hc_gc5_004_absent_model_behaviour`: point `settings.nli_model_path` at an absent `tmp_path` dir; with the flag on, `verify_claim` on the same pair. **Assertions follow OL-2.** Option B (planned): the claim is unverified, `entailment_results[0].label is NEUTRAL`, `confidence == 0.0`, and no socket opened. Option A: the claim result equals the flag-off result. Also in this test: place the tiny stand-in model from Task 3 at the path with a **wrong** sha (the real manifest pin does not match it) and assert the same absent-model behaviour (the sha gate). Expected RED today: `load_local_cross_encoder` does not exist before Task 3, and after Task 3 the stub still returns the rule result, so the assertion fails. Capture.
+- [ ] **RED first, 004.** `test_hc_gc5_004_absent_model_behaviour`: point `settings.nli_model_path` at an absent `tmp_path` dir; with the flag on, `verify_claim` on the same pair. First `monkeypatch.setattr(modules.embeddings, "_nli_encoder", None)` (and again in the wrong-sha half): the test runs in-process and the module global is never reset, so an encoder cached by an earlier test would hide an absent model (recurring-failures #4). **Assertions follow OL-2.** Option B (planned): the claim is unverified, `entailment_results[0].label is NEUTRAL`, `confidence == 0.0`, and no socket opened. Option A: the claim result equals the flag-off result. Also in this test: place the tiny stand-in model from Task 3 at the path with a **wrong** sha (the real manifest pin does not match it) and assert the same absent-model behaviour (the sha gate). Expected RED today: `load_local_cross_encoder` does not exist before Task 3, and after Task 3 the stub still returns the rule result, so the assertion fails. Capture.
 - [ ] Apply H3 (option per OL-2). Re-run both: GREEN. Capture.
 - **Break it:** (002) invert the mapping in H3 (take `argmin`): the contradiction test fails; (002) drop the `.lower()`: `ValueError` on the fake's labels only if the fake uses capitalised labels, so make the fake's `id2label` mixed-case once to pin this. (004) in H3 delete the `except`: the test errors with `EmbeddingModelUnavailableError` instead of returning a result.
 - **What it would fail to notice:** 002 uses a fake model, so it proves wiring and label mapping, not that the real model ever says "contradiction" on a lab claim. It does not test several sources per claim, long premises (truncation is UNMEASURED), or latency. 004 under option B proves the effect on `verify_claim`/`validate_response`, not that `POST /assistant/chat` shows `ABSTAIN_TEMPLATE`; the route-level abstention is `_legacy_serve_or_abstain`'s existing, already-gated behaviour.
@@ -473,7 +483,7 @@ See [Acceptance](#acceptance-for-the-g-c5-pr) and [Reviews](#reviews). The PR me
 
 ### Task 7: owner-host evidence (not part of the PR)
 
-Q5a says "not now" and the packet's recommended option is to "bring back eval evidence from G-C5". This task needs the weights, so no agent runs it on a build box without the owner. On the owner/model host only: run `python scripts/download_models.py nli`; record the real fetch size and that `sha256` matched; load once with sockets blocked; run the legacy gate **flag on** and record where answers change; measure latency and RAM per claim; confirm `CrossEncoder.config.id2label` and tokenizer load for the real files. Output is a report, not a flag change. **UNMEASURED until then:** everything in this paragraph.
+Q5a says "not now" and the packet's recommended option is to "bring back eval evidence from G-C5". This task needs the weights, so no agent runs it on a build box without the owner. On the owner/model host only: run `python scripts/download_models.py nli`; record the real fetch size and that `sha256` matched; load once with sockets blocked; run the legacy gate **flag on** and record where answers change; measure first-call latency (sha256 plus load), per-claim latency and RAM, and how long the event loop is blocked; count claims where a low-confidence CONTRADICTION fails a claim that the rules verified; force a `predict` failure and record what the route returns; with the model absent, count warning lines per answer; confirm `CrossEncoder.config.id2label` and tokenizer load for the real files. Output is a report, not a flag change. **UNMEASURED until then:** everything in this paragraph.
 
 ## Byte-identical proof
 
@@ -506,7 +516,7 @@ diff "$OUT/before/exit.txt" "$OUT/after/exit.txt"; echo "exit-code diff exit=$?"
 
 Each command is pasted with its output in the PR. "Predicted" is a prediction; the PR records the measurement.
 
-- [ ] The 4 tests: `... -m pytest tests/test_gc5_nli_flag.py -v` (all four ids: `HC-GC5-001` to `004`), RED output captured per test before its hunk.
+- [ ] The 5 tests: `... -m pytest tests/test_gc5_nli_flag.py -v` (all five ids: `HC-GC5-001` to `005`; the brief named four, 005 covers the only new network path, `cmd_nli`), RED output captured per test before its hunk.
 - [ ] Flag-off diff empty and all exit codes equal ([proof](#byte-identical-proof)).
 - [ ] `git diff origin/main -- src/backend/modules/faithfulness.py | wc -l` prints `0`.
 - [ ] `git diff origin/main -- src/backend/modules/verifier_agent.py` shows hunks only within the old lines `:304-317` (read the `@@` headers).
@@ -514,7 +524,7 @@ Each command is pasted with its output in the PR. "Predicted" is a prediction; t
 - [ ] `git ls-files | grep -i -E 'safetensors|\.bin$'` prints nothing.
 - [ ] `git diff --name-only origin/main...HEAD` lists only [the file list](#file-list) (plus any L0-approved row additions).
 - [ ] Full suite through `scripts/pyslot.sh` (run by the Haiku runner, not the implementer): `... -m pytest tests/ -q -p no:cacheprovider`. `test_api_rag_index_002b` may fail without an embedding model; that is environmental and its 0.7 threshold is never lowered.
-- [ ] Collected: `... --collect-only -q | tail -1`. **Predicted +4** over the base measured in Task 0 (1901 on `e000974`, so 1905 if nothing else merges; +5 if HC-GC5-005 is added). Measured at the PR after the final rebase. `CLAUDE.md:30` and `AGENT.md:76` are not edited by the PR.
+- [ ] Collected: `... --collect-only -q | tail -1`. **Predicted +5** over the base measured in Task 0 (1901 on `e000974`, so 1906 if nothing else merges). Measured at the PR after the final rebase. `CLAUDE.md:30` and `AGENT.md:76` are not edited by the PR.
 - [ ] Docs gates stay green: `docs_lint.py`, `generate_docs_index.py --check`, `harness_drift_check.py`, `repo_hygiene_check.py`.
 
 **Rollback:** revert the PR. With the flag off (default) the path before and after is the same; H1 is value-identical; the model directory is a separate download that can be deleted without touching code. Leaving `USE_LLM_ENTAILMENT` unset is itself the rollback for any deployment.
@@ -537,9 +547,12 @@ For the G-C5 build PR (not this plan):
 | 4 | Licence recorded as MIT in `feature_list.json:142` is Apache-2.0 | OL-1; the ledger text is not edited by this plan |
 | 5 | Silent downgrade under option A / silent mass-abstain under option B | OL-2; both effects stated; log line in H3 |
 | 6 | Flag read once at first construction (singleton) | existing behaviour; documented in H2; restart required |
-| 7 | `cmd_nli` untested by the 4 tests | gap flagged, HC-GC5-005 proposed |
+| 7 | `cmd_nli` (the only new network path) | covered by HC-GC5-005 (fake fetch; mismatch installs nothing; `.partial` kept); real fetch is Task 7 |
 | 8 | Long source chunks truncated by the tokenizer, changing the label | UNMEASURED; Task 7 |
 | 9 | A later `rag.py` PR moves `:1027` | Task 0 re-grep; the lane order puts G-C5 last on `rag.py` |
+| 10 | Flag on: a `predict` failure or unexpected label propagates uncaught from `validate_response` (`rag.py:815`) to the route | by design (loud, flag-off path unaffected); Task 7 records the route's behaviour on a forced failure; a catch would be a hunk outside `:304-317` (OL-5) |
+| 11 | Flag on: sync sha256 (283 MB, first call), model load and each `predict` block the event loop inside async `query()` (`rag.py:1297`); absent model logs one warning per claim x source | accepted for a default-off flag; Task 7 measures first-call and per-claim latency; fixing it needs a hunk outside the signed range |
+| 12 | Low-confidence CONTRADICTION fails a claim (no floor, `verifier_agent.py:177-178`) | Task 7 counts flips on the legacy gate flag on; a floor is unsigned (OL-5) |
 
 ## Everything UNMEASURED
 
