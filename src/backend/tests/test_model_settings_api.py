@@ -40,7 +40,7 @@ from api.model_settings import (
     update_ocr_settings,
     update_voice_settings,
 )
-from core.auth import Session, get_profile_db_session
+from core.auth import Session, get_profile_db_session, get_profile_encryption_manager
 from core.profile_database import ProfileDatabaseBase
 from core.security import EncryptionManager
 from models import UserModelSettings
@@ -117,6 +117,7 @@ async def test_put_external_api_persists():
         session=_session(profile_id),
         profile_db=profile_db,
         encryption_manager=EncryptionManager(),
+        master_db=MagicMock(commit=AsyncMock()),
     )
 
     assert response.use_external_api is True
@@ -507,3 +508,84 @@ async def test_hc_audcms_002_audit_commit_failure_logged_and_raised(
     assert entity in records[0].getMessage()
     assert "America/New_York" not in caplog.text
     assert "mid" not in caplog.text
+
+
+# --- AUDIT-C-MSET-EXT: audit row after external-api settings save (HC-AUDCMS-003/004) ---
+
+_EXT_BODY = {
+    "use_external_api": True,
+    "provider": "openai",
+    "api_key": "sk-canary-123",
+    "consent_acknowledged": True,
+}
+
+
+def _ext_put(vault, master):
+    with _aud_client(master) as client:
+        async def _pdb():
+            return vault
+
+        async def _enc():
+            return EncryptionManager()
+
+        client.app.dependency_overrides[get_profile_db_session] = _pdb
+        client.app.dependency_overrides[get_profile_encryption_manager] = _enc
+        return client.put("/settings/model/external-api", json=_EXT_BODY)
+
+
+@pytest.mark.asyncio
+async def test_hc_audcms_003_external_api_audit_row_after_vault_commit(
+    aud_vault, monkeypatch
+):
+    order: list[str] = []
+    _, calls = _aud_setup(monkeypatch, aud_vault, order)
+    master = MagicMock()
+    master.commit = AsyncMock(side_effect=lambda: order.append("master_commit"))
+
+    resp = _ext_put(aud_vault, master)
+
+    assert resp.status_code == 200, resp.text
+    assert len(calls) == 1
+    call = calls[0]
+    assert call["event_type"] == "settings.external_api.update"
+    assert call["action"] == "settings.external_api.update"
+    assert call["entity_type"] == "settings"
+    assert call["entity_id"] == "external_api"
+    assert call["details"] == {"changed_fields": ["api_key", "provider", "use_external_api"]}
+    assert call["profile_id"] == _AUD_PROFILE
+    assert "sk-canary-123" not in repr(call)
+    assert "openai" not in repr(call)
+    assert order == ["vault", "audit", "master_commit"]
+    master.commit.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_hc_audcms_004_external_api_audit_commit_failure_logged_and_raised(
+    aud_vault, monkeypatch, caplog
+):
+    order: list[str] = []
+    _aud_setup(monkeypatch, aud_vault, order)
+    master = MagicMock()
+
+    async def _failing_commit():
+        order.append("master_commit")
+        raise RuntimeError("audit db down")
+
+    master.commit = AsyncMock(side_effect=_failing_commit)
+    caplog.set_level(logging.INFO)
+
+    resp = _ext_put(aud_vault, master)
+
+    assert resp.status_code == 500
+    assert order == ["vault", "audit", "master_commit"]
+    row = (await aud_vault.execute(
+        select(UserModelSettings).where(UserModelSettings.profile_id == _AUD_PROFILE)
+    )).scalar_one()
+    assert row.external_api_key_encrypted.startswith("gAAAAA")
+    assert row.external_api_key_encrypted != "sk-canary-123"
+    assert row.use_external_api is True
+    records = [r for r in caplog.records
+               if r.levelno == logging.ERROR and "AUDIT-ORDER" in r.getMessage()]
+    assert len(records) == 1
+    assert "external_api" in records[0].getMessage()
+    assert "sk-canary-123" not in caplog.text

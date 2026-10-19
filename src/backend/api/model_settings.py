@@ -778,6 +778,7 @@ async def save_external_api_settings(
     session: RequireAuth,
     profile_db: ProfileDbSession,
     encryption_manager: ProfileEncryptionManager,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Save external API settings to profile database."""
     if request.use_external_api and not request.consent_acknowledged:
@@ -799,6 +800,14 @@ async def save_external_api_settings(
         user_settings.external_api_key_encrypted = encrypted_key
 
     await profile_db.commit()
+
+    await _audit_settings_change(
+        master_db,
+        session.profile_id,
+        "settings.external_api.update",
+        "external_api",
+        {"changed_fields": sorted(["provider", "use_external_api"] + (["api_key"] if request.api_key else []))},
+    )
 
     return ExternalApiSettingsResponse(
         use_external_api=user_settings.use_external_api,
