@@ -9,6 +9,7 @@ Handles:
 - Dual-agent verification (Phase 4)
 """
 
+import json
 import logging
 import re
 from dataclasses import dataclass, field
@@ -126,6 +127,37 @@ class ValidatedResponse:
     verification: VerificationMetadata = field(default_factory=VerificationMetadata)
     # SAFE-CHAT: True when a PROHIBITED_PATTERNS match fired in validate_response.
     prohibited_advice: bool = False
+
+
+def _cite_schema(n_chunks: int) -> dict:
+    """JSON schema for constrained decoding: every item carries cites from 1..n_chunks."""
+    item_ref = {"$ref": "#/$defs/item"}
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["report_facts", "general_info", "uncertainties"],
+        "properties": {
+            "report_facts": {"type": "array", "items": item_ref},
+            "general_info": {"type": "array", "items": item_ref},
+            "uncertainties": {"type": "array", "items": {"type": "string", "maxLength": 400}},
+        },
+        "$defs": {
+            "item": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["text", "cites"],
+                "properties": {
+                    "text": {"type": "string", "maxLength": 400},
+                    "cites": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 3,
+                        "items": {"type": "integer", "enum": list(range(1, n_chunks + 1))},
+                    },
+                },
+            }
+        },
+    }
 
 
 class RAGModule:
@@ -1297,6 +1329,64 @@ I was unable to fully process your question within the time limit. Please try as
         validated = self.validate_response(response, chunks)
 
         return validated
+
+    _STRUCTURED_HEADERS = ("report facts", "general info", "uncertainties")
+
+    @staticmethod
+    def _render_structured_answer(text: str, n_chunks: int) -> Optional[str]:
+        """Render a schema-constrained JSON answer into the REPORT FACTS text format.
+
+        Pure. Checks the shape in code (the provider is not trusted) and returns
+        None for anything that is not exactly the _cite_schema shape, or that
+        forges a section header or a [cite:] marker inside a field.
+        """
+        try:
+            data = json.loads(text)
+        except (TypeError, ValueError):
+            return None
+        sections = ("report_facts", "general_info", "uncertainties")
+        if not isinstance(data, dict) or set(data) != set(sections):
+            return None
+
+        def _clean(value: object) -> Optional[str]:
+            if not isinstance(value, str) or not value.strip() or len(value) > 400:
+                return None
+            lowered = value.lower()
+            if "[cite:" in lowered or any(h in lowered for h in RAGModule._STRUCTURED_HEADERS):
+                return None
+            return " ".join(value.split())
+
+        lines: list[str] = []
+        for key, title in (("report_facts", "REPORT FACTS"), ("general_info", "GENERAL INFO")):
+            items = data[key]
+            if not isinstance(items, list):
+                return None
+            rendered = []
+            for item in items:
+                if not isinstance(item, dict) or set(item) != {"text", "cites"}:
+                    return None
+                body = _clean(item["text"])
+                cites = item["cites"]
+                if (
+                    body is None
+                    or not isinstance(cites, list)
+                    or not 1 <= len(cites) <= 3
+                    or any(type(c) is not int or not 1 <= c <= n_chunks for c in cites)
+                ):
+                    return None
+                rendered.append(f"- {body} " + " ".join(f"[cite:{c}]" for c in cites))
+            if rendered:
+                lines.append(f"{title}:\n" + "\n".join(rendered))
+
+        uncertainties = data["uncertainties"]
+        if not isinstance(uncertainties, list):
+            return None
+        notes = [_clean(u) for u in uncertainties]
+        if any(n is None for n in notes):
+            return None
+        if notes:
+            lines.append("UNCERTAINTIES:\n" + "\n".join(f"- {n}" for n in notes))
+        return "\n\n".join(lines) if lines else None
 
     async def _generate_with_runner(self, prompt: str, runner) -> str:
         """Generate response using the provided model runner."""
