@@ -349,7 +349,8 @@ and `::record_reminder_interaction` as `"C"` (audit after change), but
 import was unused (found planning AUDIT-MISSING-MED, 2026-10-17; row
 AUDIT-NOTIF-ALL). Fixed by AUDIT-NOTIF-ALL: both `"C"` handlers now audit
 after the vault commit, and the settings and history reads use
-`audit_and_commit` (HC-AUDNTF-001..008). Recheck: for each `"C"` or `"A2"` row, `grep -n
+`audit_and_commit` (HC-AUDNTF-001..008). Recheck: for each `"C"` or `"A2"`
+row, `grep -n
 "audit_and_commit\|audit_intent\|log_.*_event(" <file>` must hit inside that
 handler.
 Applied to every `"C"` and `"A2"` row on `046d12c` (planning AUDIT-NOTIF-ALL,
