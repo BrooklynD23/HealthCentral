@@ -474,7 +474,8 @@ async def get_model_settings(
 )
 async def run_hardware_detection(
     session: RequireAuth,
-    profile_db: ProfileDbSession,    master_db: AsyncSession = Depends(get_db),
+    profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Run hardware detection and save results to database."""
     selector = get_model_selector()
@@ -519,7 +520,8 @@ async def run_hardware_detection(
 async def set_model_tier(
     request: TierSetRequest,
     session: RequireAuth,
-    profile_db: ProfileDbSession,    master_db: AsyncSession = Depends(get_db),
+    profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Set user's preferred model tier."""
     selector = get_model_selector()
@@ -551,7 +553,11 @@ async def set_model_tier(
     )
     await profile_db.commit()
     await _audit_settings_change(
-        master_db, session.profile_id, "settings.model_tier.update", "model_tier", {"changed_fields": ["tier"]},
+        master_db,
+        session.profile_id,
+        "settings.model_tier.update",
+        "model_tier",
+        {"changed_fields": ["tier"]},
     )
 
     logger.info(f"Set model tier to '{tier}' for profile {session.profile_id}")
@@ -671,7 +677,8 @@ async def start_model_download(
     request: TierDownloadRequest,
     background_tasks: BackgroundTasks,
     session: RequireAuth,
-    profile_db: ProfileDbSession,    master_db: AsyncSession = Depends(get_db),
+    profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Start downloading a model in the background."""
     selector = get_model_selector()
@@ -1006,7 +1013,8 @@ async def get_timezone(
 async def set_timezone(
     data: TimezoneUpdate,
     session: RequireAuth,
-    profile_db: ProfileDbSession,    master_db: AsyncSession = Depends(get_db),
+    profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Set profile timezone."""
     from zoneinfo import ZoneInfo
@@ -1021,7 +1029,11 @@ async def set_timezone(
     settings.timezone = data.timezone
     await profile_db.commit()
     await _audit_settings_change(
-        master_db, session.profile_id, "settings.timezone.update", "timezone", {"changed_fields": ["timezone"]},
+        master_db,
+        session.profile_id,
+        "settings.timezone.update",
+        "timezone",
+        {"changed_fields": ["timezone"]},
     )
     return TimezoneResponse(timezone=settings.timezone)
 
@@ -1044,7 +1056,8 @@ async def get_voice_settings(
 async def update_voice_settings(
     data: VoiceSettingsUpdate,
     session: RequireAuth,
-    profile_db: ProfileDbSession,    master_db: AsyncSession = Depends(get_db),
+    profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Update voice logging preferences."""
     profile_id = session.profile_id
@@ -1057,7 +1070,11 @@ async def update_voice_settings(
 
     await profile_db.commit()
     await _audit_settings_change(
-        master_db, session.profile_id, "settings.voice.update", "voice", {"changed_fields": sorted(data.model_dump(exclude_none=True))},
+        master_db,
+        session.profile_id,
+        "settings.voice.update",
+        "voice",
+        {"changed_fields": sorted(data.model_dump(exclude_none=True))},
     )
     return VoiceSettingsResponse(
         voice_logging_enabled=settings.voice_logging_enabled,
@@ -1150,13 +1167,18 @@ async def recheck_environment_diagnostics(session: RequireAuth):
 async def update_ocr_settings(
     data: OcrSettingsUpdate,
     session: RequireAuth,
-    profile_db: ProfileDbSession,    master_db: AsyncSession = Depends(get_db),
+    profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
 ):
     settings_row = await _get_or_create_user_settings(session.profile_id, profile_db)
     settings_row.ocr_preference_enabled = data.ocr_preference_enabled
     await profile_db.commit()
     await _audit_settings_change(
-        master_db, session.profile_id, "settings.ocr.update", "ocr", {"changed_fields": ["ocr_preference_enabled"]},
+        master_db,
+        session.profile_id,
+        "settings.ocr.update",
+        "ocr",
+        {"changed_fields": ["ocr_preference_enabled"]},
     )
     ocr_pref = user_ocr_preference_enabled(settings_row)
     ocr_effective, ocr_blockers = compute_ocr_effective(ocr_pref)
@@ -1181,13 +1203,18 @@ async def update_ocr_settings(
 async def update_agent_settings(
     data: UserModelSettingsUpdate,
     session: RequireAuth,
-    profile_db: ProfileDbSession,    master_db: AsyncSession = Depends(get_db),
+    profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
 ):
     settings_row = await _get_or_create_user_settings(session.profile_id, profile_db)
     if data.agent_enabled is not None:
         settings_row.agent_enabled = data.agent_enabled
     await profile_db.commit()
     await _audit_settings_change(
-        master_db, session.profile_id, "settings.agent.update", "agent", {"changed_fields": sorted(data.model_dump(exclude_none=True))},
+        master_db,
+        session.profile_id,
+        "settings.agent.update",
+        "agent",
+        {"changed_fields": sorted(data.model_dump(exclude_none=True))},
     )
     return AgentSettingsResponse(agent_enabled=is_agent_enabled(settings_row))

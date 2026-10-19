@@ -14,11 +14,15 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import pytest_asyncio
 from fastapi import HTTPException
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 # Add backend to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import api.model_settings as model_settings_api
 from api.model_settings import (
     ExternalApiSettingsRequest,
     OcrSettingsUpdate,
@@ -36,8 +40,12 @@ from api.model_settings import (
     update_ocr_settings,
     update_voice_settings,
 )
-from core.auth import Session
+from core.auth import Session, get_profile_db_session
+from core.profile_database import ProfileDatabaseBase
 from core.security import EncryptionManager
+from models import UserModelSettings
+from modules.hardware_detection import HardwareProfile
+from tests.support.routes import route_client
 
 
 class _ScalarResult:
@@ -328,17 +336,6 @@ def test_diagnostics_response_has_core_components():
 
 # --- AUDIT-C-MSET: audit row after each settings change (HC-AUDCMS-001/002) ---
 
-import api.model_settings as model_settings_api  # noqa: E402
-import pytest_asyncio  # noqa: E402
-from sqlalchemy import select  # noqa: E402
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E402
-
-from core.auth import get_profile_db_session  # noqa: E402
-from core.profile_database import ProfileDatabaseBase  # noqa: E402
-from models import UserModelSettings  # noqa: E402
-from modules.hardware_detection import HardwareProfile  # noqa: E402
-from tests.support.routes import route_client  # noqa: E402
-
 _AUD_PROFILE = "profile-aud"
 
 # route id -> (method, path, body, event_type, entity_id, details, settings column)
@@ -437,12 +434,11 @@ def _aud_setup(monkeypatch, vault, order):
 
 
 def _aud_client(master):
-    ctx = route_client(
+    return route_client(
         model_settings_api.router, "/settings/model",
         profile_id=_AUD_PROFILE, master_db=master,
         raise_server_exceptions=False,
     )
-    return ctx
 
 
 @pytest.mark.parametrize("route", list(_AUD_ROUTES))
