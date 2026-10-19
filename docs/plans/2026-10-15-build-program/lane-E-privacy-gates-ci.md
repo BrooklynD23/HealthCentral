@@ -1,6 +1,6 @@
 # Lane E — Privacy, Gates, CI — Build Design
 
-**Last Updated:** 2026-10-18 (EXPORT-COLLECTED-TZ planned; owner answered (c)); 2026-10-17 (E-1b, REDACT-EMAIL-REDOS, DEV-SH-CC planned)
+**Last Updated:** 2026-10-19 (E-1c review round 2: HC-PKT-023, E1C-SCOPE row cited on main); 2026-10-18 (EXPORT-COLLECTED-TZ planned; owner answered (c)); 2026-10-17 (E-1b, REDACT-EMAIL-REDOS, DEV-SH-CC planned)
 **Owner:** repository owner
 **Status:** DESIGN — nothing here is implemented. Owner answers are quoted from [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md); this file records no new approval. Every "default" or "recommended" is the lane designer's, not the owner's.
 **Refresh Trigger:** any merge of #74, #72, #84 or a P6/P7 PR; an owner answer to S-3, S-6, OG-1, Q-AUD-LIST, Q-RUFF, Q-COV, CI-SEED, NPM-AUDIT-CI or W1-SMOKE-RUN; any commit to `.github/workflows/ci.yml`, `src/backend/api/export.py`, `src/backend/modules/export.py`, `src/backend/modules/redaction.py`, `src/backend/api/profiles.py`, `src/backend/core/auth.py`, `src/backend/core/denial_audit.py` or `src/backend/tests/support/routes.py`.
@@ -27,7 +27,7 @@
 | REDACT-EMAIL-REDOS | quadratic `email` rule | queue status 2026-10-16 second batch | yes → §2.9 | — | blocked-on-owner (REDOS-APPROACH, then REDOS-DIFF); ask-first `redaction.py` |
 | DEV-SH-CC | `dev.sh` compiler check; skip `llama-cpp-python` under `LLM_PROVIDER=ollama` | queue status 2026-10-16 third batch (MM-4); DEV-SH `owner-decisions:147` | yes → §2.10 | — | ready |
 | EXPORT-COLLECTED-TZ | which day the doctor summary and visit-prep packet print for a lab result | queue status 2026-10-17 (EXPORT-TODAY-TZ planning) | yes → §2.11 | EXPORT-TODAY-TZ merged (same files) | ready after EXPORT-TODAY-TZ merges; owner answered (c) |
-| E-1c | strict misses spaced label shapes (`MRN (hospital): A12345`, `Patient #: 98765`, `MRN - A12345`, ...) and the E-1b review residuals | PR #179 L0 ruling, Known gaps, security review finding 2 | yes → §2.12 | E-1b (merged #179) | ready to build: E1C-SCOPE (b); merge needs E1C-DIFF; ask-first `redaction.py` |
+| E-1c | strict misses spaced label shapes (`MRN (hospital): A12345`, `Patient #: 98765`, `MRN - A12345`, ...) and the E-1b review residuals | PR #179 L0 ruling, Known gaps, security review finding 2 | yes → §2.12 | E-1b (merged #179) | ready to build: E1C-SCOPE (b), `owner-decisions-2026-09-27.md:272`; merge needs E1C-DIFF; ask-first `redaction.py` |
 
 Graph: `E-3 → E-4 → E-5`; `P6 → P7 → E-2`; E-1, E-6, E-7 independent. E-1 and E-3 are the two lane-E code items ready today and share no file. The 2-code-L1 limit is **box-wide, not per lane**: L0 assigns the slots across lanes (§7 P-1).
 
@@ -336,7 +336,7 @@ Removing the stray `|` from `[A-Z|a-z]` would stop redacting `jane@x.c|om`-shape
 
 **Source:** PR #179 (E-1b): the L0 ruling ("Follow-up row E-1c: the same shapes with spaces (`MRN (hospital): A12345`, `Patient #: 98765`, `MRN - A12345`)"), the PR body's "Known gaps", and the round-1 security review finding 2 (residual shapes; "L0 should open a follow-up row (E-1c, ask-first, owner gate) and add the shapes to the PRIV-04 gap column"). Planned 2026-10-19 on `origin/main` @ `a9978e8`.
 
-**E1C-SCOPE answered (b), 2026-10-19, recorded in PR #190.** That answer licenses the `modules/redaction.py` edit at scope (b): groups S and U, not G. The merge still waits for **E1C-DIFF** (owner yes on the exact diff), as E-1a and E-1b did.
+**E1C-SCOPE answered (b), 2026-10-19, recorded on `main` at `docs/capstone-report/owner-decisions-2026-09-27.md:272` (PR #190, merged `126dfe3`).** That answer licenses the `modules/redaction.py` edit at scope (b): groups S and U, not G. The merge still waits for **E1C-DIFF** (owner yes on the exact diff), as E-1a and E-1b did.
 
 **Measured on `a9978e8`** (`RedactionEngine("strict").redact(s).text`, scratchpad probe, not committed):
 
@@ -350,7 +350,7 @@ Removing the stray `|` from `[A-Z|a-z]` would stop redacting `jane@x.c|om`-shape
 
 **Why:** the spaced rules are older and narrower than the underscore rule. `mrn` (`src/backend/modules/redaction.py:118-126`) allows only `\s*[:#]?\s*` between the label and the value, so a qualifier, `-`, `=`, `no.` or `#:` ends it. `name_context` (`:85-93`) needs a capitalised multi-word name after `patient`/`name`, so digits and qualifiers fail. The underscore rule `underscore_labelled_id` (`:147-158`) was widened by E-1a and E-1b, but only for `_`-joined text. Where spaced text goes: free-text fields of strict exports, for example the visit-prep packet's `reason_for_visit` (`modules/export.py:694`, strict) and the opt-in external runner (D12, strict on every call).
 
-**Owner gate E1C-SCOPE** (exact wording as asked; **answered (b)**, PR #190):
+**Owner gate E1C-SCOPE** (exact wording as asked; **answered (b)**, `docs/capstone-report/owner-decisions-2026-09-27.md:272`):
 
 > "E1C-SCOPE: strict redaction (doctor summary, visit-prep and pinboard packets, cloud runner) still lets these identifier shapes through, measured on main `a9978e8`: spaced labels such as `MRN (hospital): A12345`, `Patient #: 98765`, `MRN - A12345`, `MRN = A12345`, `Patient ID: 98765`; and underscore forms the E-1b review listed, such as `mrn_(hospital_a):_x12345`, `patient_#_:_98765`, `mrn_–_a12345`, `mrn-a12345`. Fixing them means editing ask-first modules/redaction.py (strict level only). Which scope?
 > **(a)** Spaced shapes only (group S): the spaced versions of what strict already catches in underscore form.
@@ -375,13 +375,13 @@ Recommended **(b)**. Merge needs **E1C-DIFF** after the draft PR exists: "E1C-DI
 | HC-REDACT-001 (+4 rows, only under (c)) | the group-G inputs | yes ×4 |
 | HC-REDACT-015 (timing) | strict on `"MRN" + " (" * 20000`, `"Patient" + " #" * 20000 + "!"`, `"MRN" + " -" * 20000 + "!"`, `"MRN" + " " * 50000 + ":"` → under 1.0 s each and text unchanged | measure in Task 0; backtracking guard for the widened rule |
 | HC-REDACT-016 | standard and minimal output for every group-S input equals today's output | no (pins strict-only scope; must fail against the mutant "rule at standard") |
-| HC-PKT-001 | `POST /export/visit-prep` through `route_client` with `reason_for_visit="MRN (hospital): B67890"` → the stored packet markdown and the HTML download contain no `B67890` | yes |
+| HC-PKT-023 | `POST /export/visit-prep` through `route_client` with `reason_for_visit="MRN (hospital): B67890"` → the stored packet markdown and the HTML download contain no `B67890` | yes |
 
-`test_export_redaction.py`'s module docstring (`:8-11`) "Not covered by strict" list: name what remains after the chosen scope (for example group G under (b), gap 11). HC-PKT-001 lives in `tests/test_visit_prep_packet.py` (a visit-prep route test, so it takes that file's own id family, not HC-EXPR); the docstring edit is the only change to `tests/test_export_redaction.py`.
+`test_export_redaction.py`'s module docstring (`:8-11`) "Not covered by strict" list: name what remains after the chosen scope (for example group G under (b), gap 11). HC-PKT-023 lives in `tests/test_visit_prep_packet.py` (a visit-prep route test, so it takes that file's own id family, not HC-EXPR); the docstring edit is the only change to `tests/test_export_redaction.py`.
 
 **Tasks:** 0 start count, RED run (`-rfE`), HC-REDACT-015 timing on `main`; 1 RED tests; 2 GREEN, the rule edit (draft PR); 3 mutants (drop each new branch, drop the qualifier bound, drop the disjointness): each fails a named test, output in the PR body; 4 docstring; 5 PR stays **draft** until E1C-DIFF.
 
-**Files:** `src/backend/modules/redaction.py` (ask-first, **edited only after E1C-SCOPE**), `src/backend/tests/test_redaction.py`, `src/backend/tests/test_visit_prep_packet.py` (HC-PKT-001), `src/backend/tests/test_export_redaction.py` (docstring only), slots.
+**Files:** `src/backend/modules/redaction.py` (ask-first, **edited only after E1C-SCOPE**), `src/backend/tests/test_redaction.py`, `src/backend/tests/test_visit_prep_packet.py` (HC-PKT-023), `src/backend/tests/test_export_redaction.py` (docstring only), slots.
 **Expected collected delta:** (a) 14 + 6 + 4 + 1 + 1 = **+26**; (b) **+33**; (c) **+37**; (d) 0 (no PR).
 **Est:** 4 h after E1C-SCOPE (+ security review).
 **Acceptance** (from `src/backend`, `pyt` as §2.8): 1. `pyt tests/test_redaction.py tests/test_export_redaction.py tests/test_visit_prep_packet.py -q -rfE`: 0 failed. 2. E-1a acceptance rows 3-4 (the other strict callers: `fhir_export`, `visit_prep`, `rl_*`, `external_runner`, `agent/test_s4_phi_gate`, `agent/test_s6_evals`): same pass/fail as Task 0. 3. Full suite per RUNBOOK §6.
@@ -427,7 +427,7 @@ Recommended **(b)**. Merge needs **E1C-DIFF** after the draft PR exists: "E1C-DI
 | E1B-SCOPE (new) | E-1b | unasked; (a) the queue row's shapes (qualifier, `#`/`no.`, `-`) or (b) also `=` and `;`. Recommended (b) |
 | REDOS-APPROACH (new) | REDACT-EMAIL-REDOS | unasked; (a) `@`-anchored match, identical output / (b) RFC bounds, narrower / (c) leave. Recommended (a) |
 | EXPORT-COLLECTED-TZ-DISPLAY | EXPORT-COLLECTED-TZ | **answered 2026-10-18: (c) "As recorded + pin"** (owner-decisions row EXPORT-COLLECTED-TZ-DISPLAY) |
-| E1C-SCOPE, E1C-DIFF | E-1c | E1C-SCOPE **answered (b)** 2026-10-19 (PR #190): spaced shapes + underscore residuals with a separator. E1C-DIFF (merge) open, asked after the draft PR exists |
+| E1C-SCOPE, E1C-DIFF | E-1c | E1C-SCOPE **answered (b)** 2026-10-19 (`docs/capstone-report/owner-decisions-2026-09-27.md:272`, PR #190 merged): spaced shapes + underscore residuals with a separator. E1C-DIFF (merge) open, asked after the draft PR exists |
 
 ## 6. Open questions
 
