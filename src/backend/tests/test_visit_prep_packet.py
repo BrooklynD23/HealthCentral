@@ -786,3 +786,37 @@ def test_hc_expctz_002_packet_prints_recorded_dates(export_module):
     assert "— 2026-01-15" in md
     assert "- 2026-01-15:" in md
     assert "lab.pdf (2026-01-15)" in md
+
+
+@pytest.mark.asyncio
+async def test_hc_pkt_023_spaced_labelled_mrn_in_reason_never_reaches_packet(
+    real_profile_db,
+):
+    """HC-PKT-023 (E-1c): a spaced, qualified MRN in reason_for_visit is redacted
+    in the stored markdown and in the HTML download, through the real route."""
+    db = real_profile_db
+    packet_id = None
+    try:
+        with route_client(export_api.router, "/export", profile_id="profile-a") as client:
+
+            async def _override_profile_db():
+                return db
+
+            client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+            created = client.post(
+                "/export/visit-prep",
+                json={"confirm": True, "reason_for_visit": "MRN (hospital): B67890"},
+            )
+            assert created.status_code == 200, created.text
+            packet_id = created.json()["packet_id"]
+            stored = _packet_store[packet_id]["markdown"]
+            html = client.get(
+                f"/export/visit-prep/{packet_id}/download", params={"format": "html"}
+            )
+        assert html.status_code == 200, html.text
+        assert "B67890" not in stored
+        assert "B67890" not in html.text
+        assert "Reason for Visit" in stored
+    finally:
+        if packet_id is not None:
+            _packet_store.pop(packet_id, None)

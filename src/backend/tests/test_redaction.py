@@ -231,6 +231,55 @@ UNDERSCORE_PHI = [
     ("patient_name_;_jane_doe", "jane"),
     # bare label with a qualifier before its colon
     ("name_(legal):_jane", "jane"),
+    # E-1c (group U): residuals E-1b left
+    ("mrn_(hospital_a):_x12345", "x12345"),
+    ("patient_#_:_98765", "98765"),
+    ("mrn_\u2013_a12345", "a12345"),
+    ("mrn_=_=_a12345", "a12345"),
+    ("mrn:_(hospital)_a12345", "a12345"),
+    ("mrn_-a12345", "a12345"),
+    ("mrn-a12345", "a12345"),
+]
+
+# E-1c (group S): the spaced versions, (text, identifying value).
+SPACED_PHI = [
+    ("MRN (hospital): A12345", "A12345"),
+    ("MRN (Hospital A): X12345", "X12345"),
+    ("Patient #: 98765", "98765"),
+    ("MRN - A12345", "A12345"),
+    ("MRN = A12345", "A12345"),
+    ("MRN \u2013 A12345", "A12345"),
+    ("MRN #: A12345", "A12345"),
+    ("MRN No.: A12345", "A12345"),
+    ("MRN no. A12345", "A12345"),
+    ("Patient No.: 98765", "98765"),
+    ("Patient ID: 98765", "98765"),
+    ("Patient ID - 98765", "98765"),
+    ("Name (legal): Jane Doe", "Jane Doe"),
+    ("Patient (legal name): Jane Doe", "Jane Doe"),
+]
+
+# Further spaced shapes of the same rules; each pins one pattern branch that the
+# 14 rows above do not reach (checked inside HC-REDACT-013, so the item count
+# stays 14).
+SPACED_PHI_VARIANTS = [
+    ("Patient ID \u2013 98765", "98765"),
+    ("Patient ID \u2014 98765", "98765"),
+    ("Patient ID (hospital): 98765", "98765"),
+    ("Patient ID #: 98765", "98765"),
+    ("Patient ID: - 98765", "98765"),
+    ("Patient #: - 98765", "98765"),
+    ("Name (legal): = Jane Doe", "Jane Doe"),
+    ("Name (legal): \u2013 Jane Doe", "Jane Doe"),
+]
+
+SPACED_NEAR_SHAPES = [
+    "MRNA - level 2",
+    "Patient education: diet",
+    "Specimen (serum): clear",
+    "Glucose (fasting): 96",
+    "T4 (free): 1.2",
+    "LDL - calculated",
 ]
 
 ANALYTE_LIKE = [
@@ -310,6 +359,64 @@ class TestUnderscoreJoinedRedaction:
         result = _engine("strict").redact(text)
         assert time.perf_counter() - start < 1.0  # rev 2 rule: 7.9 s
         assert result.text == text
+
+    @pytest.mark.parametrize("text,secret", SPACED_PHI)
+    def test_hc_redact_013_spaced_labelled_shapes_redacted_strict(self, text, secret):
+        """HC-REDACT-013: E-1c spaced label shapes lose their value at strict."""
+        result = _engine("strict").redact(text)
+        assert all(tok not in result.text for tok in secret.split())
+        assert "REDACTED" in result.text
+        assert result.redacted_count >= 1
+        for variant, value in SPACED_PHI_VARIANTS:
+            out = _engine("strict").redact(variant).text
+            assert all(tok not in out for tok in value.split()), variant
+
+    @pytest.mark.parametrize("text", SPACED_NEAR_SHAPES)
+    def test_hc_redact_014_spaced_near_shapes_unchanged_strict(self, text):
+        """HC-REDACT-014: spaced analyte and prose lines are not over-redacted."""
+        result = _engine("strict").redact(text)
+        assert result.text == text
+        assert result.redacted_count == 0
+        # A parenthesis longer than the 40-character qualifier bound is prose,
+        # not a qualifier, in all three rules (mrn, spaced_labelled_id,
+        # underscore_labelled_id).
+        for long_shape in (
+            "MRN (" + "x" * 60 + "): Specimen",
+            "Name (" + "x" * 60 + "): Jane Doe",
+            "mrn_(" + "a_" * 30 + "):_specimen",
+        ):
+            assert _engine("strict").redact(long_shape).text == long_shape
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            pytest.param("MRN" + " (" * 20000, id="mrn_paren"),
+            pytest.param("Patient" + " #" * 20000 + "!", id="patient_hash"),
+            pytest.param("MRN" + " -" * 20000 + "!", id="mrn_dash"),
+            pytest.param("MRN" + " " * 50000 + ":", id="mrn_space_run"),
+        ],
+    )
+    def test_hc_redact_015_spaced_shapes_linear_time(self, text):
+        """HC-REDACT-015: E-1c spaced qualifier, '#', '-' and space runs are linear."""
+        import time
+
+        start = time.perf_counter()
+        result = _engine("strict").redact(text)
+        assert time.perf_counter() - start < 1.0
+        assert result.text == text
+        # the spaced_labelled_id rule has its own space runs (disjointness guard)
+        for run in ("Name (legal)" + " " * 50000 + "!", "patient id" + " " * 50000 + "!"):
+            start = time.perf_counter()
+            assert _engine("strict").redact(run).text == run
+            assert time.perf_counter() - start < 1.0
+
+    @pytest.mark.parametrize("level", ["standard", "minimal"])
+    @pytest.mark.parametrize("text,_secret", SPACED_PHI)
+    def test_hc_redact_016_spaced_rules_are_strict_only(self, level, text, _secret):
+        """HC-REDACT-016: standard and minimal leave every group-S input as it was."""
+        result = _engine(level).redact(text)
+        assert result.text == text
+        assert result.redacted_count == 0
 
     @pytest.mark.parametrize(
         "text",
