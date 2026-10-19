@@ -375,6 +375,8 @@ class TestUnderscoreJoinedRedaction:
         for variant, value in SPACED_PHI_VARIANTS:
             out = _engine("strict").redact(variant).text
             assert all(tok not in out for tok in value.split()), variant
+            # no tail of the value may survive next to the marker
+            assert re.sub(r"\[[A-Z-]+\]", "", out).strip() == "", (variant, out)
 
     @pytest.mark.parametrize("text", SPACED_NEAR_SHAPES)
     def test_hc_redact_014_spaced_near_shapes_unchanged_strict(self, text):
