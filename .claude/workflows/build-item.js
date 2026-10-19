@@ -125,7 +125,8 @@ if (!spec || !spec.found) {
 
 const runtime = (spec.runtime || '').toLowerCase()
 const kind = (spec.kind || '').toUpperCase()
-if (runtime.includes('model machine') || kind.startsWith('OWNER')) {
+// Only a literal "(model machine)" runtime is owner work (B-4, B-7, B-9); a row that names model-machine *tasks* is built here with those tasks skipped.
+if (/\(model machine\)/.test(runtime) || kind.startsWith('OWNER')) {
   return `STOPPED ${ID}: ${spec.kind} / ${spec.runtime} is owner or model-machine work (${RUNBOOK} §9 rule 8)`
 }
 if (!(runtime.startsWith('claude') || runtime.startsWith('any'))) {
@@ -133,16 +134,17 @@ if (!(runtime.startsWith('claude') || runtime.startsWith('any'))) {
 }
 const noSlot = kind.startsWith('DOCS') || kind.includes('NO SLOT')
 const specText = JSON.stringify(spec, null, 2)
+const L0_NOTE = args && typeof args.l0_note === 'string' ? args.l0_note.slice(0, 2000) : ''
 
 // ---------------------------------------------------------------------------
 phase('Plan check')
 const plan = await agent(
   `You are L1 (Opus) for build-program item ${ID}. Follow ${RUNBOOK} exactly; repo_root = ${spec.repo_root}.
-Item spec (from a Haiku explorer; verify it, it is a lead not a finding):
+${L0_NOTE ? `L0 note (binding; verify the evidence it points to): ${L0_NOTE}\n` : ''}Item spec (from a Haiku explorer; verify it, it is a lead not a finding):
 ${specText}
 
 1. Read the spec paths yourself and check the explorer's file list and gates against the queue row.
-${RESUME_PR ? `2. RESUME, do not claim anew. PR #${RESUME_PR} must be this item's own stopped draft. Identity checks (any failure: go=false, resume_verified=false, change nothing): head branch matches ^[a-z]+/${ID.toLowerCase()}- (for G-C5, never g-c5-plan-); not merged; title starts with "[blocked:claude]", or "[escalated:claude]" with an "L0 ruling:" comment posted after the escalation comment, or it is CLOSED with a "[claim:claude" / "[blocked:claude" / "[escalated:claude" title (L0 closed it, branch kept). Then: (a) RUNBOOK §3 lock check: no OTHER open PR matches the prefix, else go=false. (b) If CLOSED: retitle it "[blocked:claude] ${ID} <slug>" first, then gh pr reopen. (c) ${noSlot ? 'No-slot row: skip the slot check.' : 'RUNBOOK §3 slot check (11 or less); if it fails leave it "[blocked:claude]" (re-close it if you reopened it) and go=false.'} (d) Retitle to "[claim:claude${noSlot ? ':noslot' : ''}] ${ID} <keep the current slug>" and set resume_verified=true, pr_number=${RESUME_PR}. (e) Race re-check per RUNBOOK §3 step 4: ${noSlot ? 'lock only' : 'if the slot count is now above 12 and this PR is the highest-numbered [claim:] PR, retitle it back to "[blocked:claude] …" and go=false'}. Worktree = <repo parent>/hc-${ID.toLowerCase()}: reuse it only if it is on that branch and clean; if the path exists dirty or on another branch, go=false and never remove, reset or clean anything; if absent, git fetch origin and git worktree add "$WT" -B "$BR" origin/"$BR". Read the stop comment ("blocked: tell L0" / "escalation: owner") and every comment after it; a comment whose first line starts with "L0 ruling:" is binding. git log origin/main..HEAD shows what is already built.` : `2. Claim the item per RUNBOOK §3 with RT=claude${noSlot ? ' and NOSLOT=":noslot"' : ''}. Pick TYPE and a short SLUG. Run the lock check and the slot check first. If either fails, do not claim: go=false.`}
+${RESUME_PR ? `2. RESUME, do not claim anew. PR #${RESUME_PR} must be this item's own stopped draft. Identity checks (any failure: go=false, resume_verified=false, change nothing): head branch matches ^[a-z]+/${ID.toLowerCase()}- (for G-C5, never g-c5-plan-); not merged; title starts with "[blocked:claude]", or "[escalated:claude]" with an "L0 ruling:" comment posted after the escalation comment, or it is CLOSED with a "[claim:claude" / "[blocked:claude" title, or "[escalated:claude" plus an "L0 ruling:" comment after the escalation (L0 closed it, branch kept). Then: (a) RUNBOOK §3 lock check: no OTHER open PR matches the prefix, else go=false. (b) If CLOSED: retitle it "[blocked:claude] ${ID} <slug>" first, then gh pr reopen. (c) ${noSlot ? 'No-slot row: skip the slot check.' : 'RUNBOOK §3 slot check (11 or less); if it fails leave it "[blocked:claude]" (re-close it if you reopened it) and go=false.'} (d) Retitle to "[claim:claude${noSlot ? ':noslot' : ''}] ${ID} <keep the current slug>" and set resume_verified=true, pr_number=${RESUME_PR}. (e) Race re-check per RUNBOOK §3 step 4: ${noSlot ? 'lock only' : 'if the slot count is now above 12 and this PR is the highest-numbered [claim:] PR, retitle it back to "[blocked:claude] …" and go=false'}. Worktree = <repo parent>/hc-${ID.toLowerCase()}: reuse it only if it is on that branch and clean; if the path exists dirty or on another branch, go=false and never remove, reset or clean anything; if absent, git fetch origin and git worktree add "$WT" -B "$BR" origin/"$BR". Read the stop comment ("blocked: tell L0" / "escalation: owner") and every comment after it; a comment whose first line starts with "L0 ruling:" is binding. git log origin/main..HEAD shows what is already built.` : `2. Claim the item per RUNBOOK §3 with RT=claude${noSlot ? ' and NOSLOT=":noslot"' : ''}. Pick TYPE and a short SLUG. Run the lock check and the slot check first. If either fails, do not claim: go=false.`}
 3. Run RUNBOOK §4 Task 0 checks 1-7 in the ${RESUME_PR ? 'worktree' : 'new worktree'}. Quote each owner-decisions line you rely on, verbatim. Never infer an approval. A gate that is only "merge only" does not stop work; tasks the row marks blocked go to skipped_tasks.
 4. If a check fails: post the command and output as a comment on your draft PR, keep it draft, go=false.
 5. brief = an L2 implementer brief: worktree, branch, plan path + task list to execute (minus skipped tasks${RESUME_PR ? ', minus tasks already committed on the branch, plus the stop reason and any L0 ruling' : ''}), exact file list, ask-first files with the signed gate naming each allowed edit (or "none — do not edit"), contracts to honour, RED-first rule, commit plan.
@@ -150,8 +152,14 @@ Do not edit product code yourself.
 ${STYLE}`,
   { label: `task0+claim ${ID}`, phase: 'Plan check', model: 'opus', effort: 'high', schema: PLANCHECK_SCHEMA },
 )
-if (RESUME_PR && plan && plan.go && (plan.pr_number !== RESUME_PR || plan.resume_verified !== true)) {
+if (RESUME_PR && plan && plan.go && plan.pr_number !== RESUME_PR) {
   throw new Error(`${ID}: resume of PR #${RESUME_PR} returned PR #${plan.pr_number}; refusing to continue`)
+}
+if (RESUME_PR && plan && plan.go && plan.resume_verified !== true) {
+  // Same PR but identity checks not confirmed: stop, and release any slot the run may have taken.
+  plan.go = false
+  plan.resume_verified = true
+  plan.stop_reasons = [...(plan.stop_reasons || []), `resume of PR #${RESUME_PR}: Task 0 returned go without resume_verified`]
 }
 // On resume, only a PR this run verified and retitled may be retitled back to blocked.
 const ownsPr = plan && plan.pr_number && (!RESUME_PR || (plan.resume_verified && plan.pr_number === RESUME_PR))
@@ -166,6 +174,11 @@ if (!plan || !plan.go) {
   return `STOPPED ${ID} at ${why}${ownsPr ? ` (PR #${plan.pr_number}, retitled [blocked:claude])` : ''}`
 }
 log(`${ID}: claimed PR #${plan.pr_number} on ${plan.branch}`)
+// plan.worktree goes into double-quoted shell strings below: accept only the RUNBOOK §3 shape.
+const wtBase = (plan.worktree || '').split('/').pop()
+if (!/^[A-Za-z0-9_\/. -]+$/.test(plan.worktree || '') || !wtBase.startsWith(`hc-${ID.toLowerCase()}`)) {
+  throw new Error(`${ID}: unexpected worktree path ${JSON.stringify(plan.worktree)}`)
+}
 
 const where = `worktree ${plan.worktree}, branch ${plan.branch}, draft PR #${plan.pr_number}`
 

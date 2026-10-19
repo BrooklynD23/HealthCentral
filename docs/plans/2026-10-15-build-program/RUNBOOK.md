@@ -210,6 +210,8 @@ Two workflows, explicit models throughout:
 - [`.claude/workflows/build-item.js`](../../../.claude/workflows/build-item.js) runs one item: haiku explore, opus Task 0 + claim, sonnet implement test-first (writes tests, runs only its focused files), **haiku runs the full suite and acceptance** (failures go back to sonnet, at most 3 fixes), opus review (at most 3 rounds, haiku re-runs tests after each fix), opus verify + PR.
   - **Measurement steps** (a plan task that needs a full-suite or coverage run): the implementer returns `status: "measure"` with the commands; a Haiku runner runs them under `pyslot.sh` (allow-listed pytest arguments only; the script builds the command) and the implementer continues with the output (at most 3 times).
   - **Resume** a stopped item with `{"id": "<ID>", "resume_pr": <n>}`: Task 0 re-uses the item's own `[blocked:claude]` / `[escalated:claude]` draft (or reopens one L0 closed with its branch kept), re-takes the slot, reads the stop comment and any L0 ruling after it, and briefs only the tasks not yet committed.
+  - **Model-machine rows:** only a literal `(model machine)` runtime (B-4, B-7, B-9) is refused. A row that names model-machine *tasks* (LEGACY-CITE-PROMPT Task 0 step 4 and Task 5) is built, and those tasks are skipped and left for L0 on a quiet box.
+  - **L0 note:** `{"id": "<ID>", "l0_note": "..."}` passes L0 evidence or a ruling into Task 0, for example a model-host probe L0 ran itself.
   - **Agent cap:** a nested `workflow('build-item')` (inside `build-program` or `build-wave {"nested": true}`) shares its parent's agent cap, so only a few items run at once. For a full wave, L0 starts each `build-item` as its own top-level Workflow.
 
 Paste into the main Claude Code session (L0, Opus):
