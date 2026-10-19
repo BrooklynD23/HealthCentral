@@ -343,6 +343,7 @@ class TestQuestionsRoute:
 
         monkeypatch.setattr("api.export._fetch_observations", AsyncMock(return_value=obs))
         monkeypatch.setattr("api.export._fetch_care_task_dicts", AsyncMock(return_value=[task]))
+        monkeypatch.setattr("api.export.profile_timezone_name", AsyncMock(return_value="UTC"))
         monkeypatch.setattr("api.export._fetch_question_entity_dicts", AsyncMock(return_value=[ent]))
         audit_mock = AsyncMock()
         monkeypatch.setattr("api.export.log_export_event", audit_mock)
@@ -375,3 +376,68 @@ class TestQuestionsRoute:
 
         audit_mock.assert_awaited_once()
         assert audit_mock.await_args.kwargs["export_type"] == "questions"
+
+
+# ---------------------------------------------------------------------------
+# EXPORT-TODAY-TZ: the follow-up window is anchored on the profile-local date
+# ---------------------------------------------------------------------------
+
+import pytest_asyncio  # noqa: E402
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E402
+
+import api.export as export_api  # noqa: E402
+from core.auth import get_profile_db_session  # noqa: E402
+from core.profile_database import ProfileDatabaseBase  # noqa: E402
+from models import CarePlanTask, UserModelSettings  # noqa: E402
+from tests.support.routes import route_client  # noqa: E402
+
+TZ_PROFILE = "profile-a"
+# 2026-01-16 01:00Z = Jan 15 17:00 America/Los_Angeles
+TZ_FROZEN_UTC = datetime(2026, 1, 16, 1, 0)
+
+
+@pytest_asyncio.fixture
+async def tz_profile_db():
+    engine = create_async_engine("sqlite+aiosqlite://")
+    async with engine.begin() as conn:
+        await conn.run_sync(ProfileDatabaseBase.metadata.create_all)
+    session = AsyncSession(engine, expire_on_commit=False)
+    try:
+        yield session
+    finally:
+        await session.close()
+        await engine.dispose()
+
+
+async def _post_questions_with_task_due(db, monkeypatch, due: date) -> list[dict]:
+    for target in ("api.export.utcnow", "api.pinboards.utcnow", "modules.export.utcnow"):
+        monkeypatch.setattr(target, lambda: TZ_FROZEN_UTC)
+    db.add(UserModelSettings(profile_id=TZ_PROFILE, timezone="America/Los_Angeles"))
+    db.add(CarePlanTask(title="Repeat CBC", status="open", due_date=due))
+    await db.commit()
+    with route_client(export_api.router, "/export", profile_id=TZ_PROFILE) as client:
+        async def _override_profile_db():
+            return db
+
+        client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+        resp = client.post("/export/questions")
+    assert resp.status_code == 200, resp.text
+    return resp.json()
+
+
+@pytest.mark.asyncio
+async def test_hc_exptz_001_task_past_local_window_has_no_question(tz_profile_db, monkeypatch):
+    """Due Jan 30 = local today (Jan 15) + 15 days: outside the 14-day window."""
+    questions = await _post_questions_with_task_due(
+        tz_profile_db, monkeypatch, date(2026, 1, 30)
+    )
+    assert not [q for q in questions if q["category"] == "follow_up"]
+
+
+@pytest.mark.asyncio
+async def test_hc_exptz_002_task_on_last_local_window_day_has_question(tz_profile_db, monkeypatch):
+    """Due Jan 29 = local today + 14 days: the window still includes its last day."""
+    questions = await _post_questions_with_task_due(
+        tz_profile_db, monkeypatch, date(2026, 1, 29)
+    )
+    assert [q for q in questions if q["category"] == "follow_up"]
