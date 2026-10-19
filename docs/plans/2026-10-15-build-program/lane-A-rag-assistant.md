@@ -21,7 +21,7 @@ Read-only design. No product file was edited. Existing merged plans are not rewr
 | SAFE-CHAT-HISTORY | OWNER | `:498` (c); wave-3-L1-A "Other paths" 5 | none | blocked-on-owner | SCH-RULING |
 | ASSIST-AGENT-DATES | PRODUCT | #95 body "Scope note"; `docs/reviews/2026-10-14/ASSIST-UTC-diff-codereview.md` (on `fix/assistant-utc`) MEDIUM row | none | ready | AAD-ROW + AAD-SEMANTICS answered; #95 merged (provides the parser) |
 | RAG-RUNTIME-500 | PRODUCT | program owner item `:495`; wave-3-L1-A Phase 4 owner item 4 | none | blocked-on-owner | RR500-MAP; serial with W-7 on `api/interpretations.py` |
-| CHAT-FACT-ROUTING | PRODUCT | queue status 2026-10-16 third batch (MM-4) | [below](#chat-fact-routing--the-agent-cannot-find-real-lab-rows-by-name-open-questions-dump-raw-facts) | ready (Tasks 1–2) | Task 3 only: CFR-FORMAT |
+| CHAT-FACT-ROUTING | PRODUCT | queue status 2026-10-16 third batch (MM-4) | [below](#chat-fact-routing--the-agent-cannot-find-real-lab-rows-by-name-open-questions-dump-raw-facts) | done (#162) | CFR-FORMAT (a), answered 2026-10-18 |
 | LOCAL-HF-HUB | PRODUCT (or folds into W-8) | queue status 2026-10-16 third batch (MM-4); LOCAL-01 | [below](#local-hf-hub--embeddings-may-fetch-from-the-hugging-face-hub-at-runtime-local-first) | blocked-on-owner | LHH-SCOPE; (a) = W-8's blockers |
 | INTERP-ADVICE-WORDING | PRODUCT (seed text) | queue status 2026-10-16 third batch (MM-4); no-medical-advice invariant | [below](#interp-advice-wording--a-seeded-kb-sentence-suggests-medication) | done (#156) | IAW-WORDING (b), answered 2026-10-18 |
 
@@ -334,7 +334,7 @@ Never put `str(exc)` in the detail; it carries provider error text. About 6 line
 | SCH-RULING | SAFE-CHAT-HISTORY | A new answers only / B read-time mask | not asked |
 | AAD-ROW, AAD-SEMANTICS | ASSIST-AGENT-DATES | scope; narrow or add? | answered 2026-10-16 (all four filters) and 2026-10-17 (ADD). AAD-TREND-ADD open (trend answers) |
 | RR500-MAP | RAG-RUNTIME-500 | 503 + fixed sentence (proposed: "The explanation could not be generated right now. Please try again.") | not asked |
-| CFR-FORMAT | CHAT-FACT-ROUTING Task 3 | how agent fact answers read: (a) display names + local dates + latest per analyte, cap 10 / (b) names + dates only / (c) no change | not asked (planned 2026-10-17) |
+| CFR-FORMAT | CHAT-FACT-ROUTING Task 3 | how agent fact answers read: (a) display names + local dates + latest per analyte, cap 10 / (b) names + dates only / (c) no change | **(a)**, answered 2026-10-18 |
 | LHH-SCOPE | LOCAL-HF-HUB | (a) fold into W-8 / (b) interim `local_files_only` with today's hash fallback / (c) interim fail-closed (needs Q-FC) | not asked (planned 2026-10-17) |
 | IAW-WORDING | INTERP-ADVICE-WORDING | (a) educational LDL sentence + rewrite untouched installed rows / (b) (a) + the glucose sentence / (c) keep | **(b)**, answered 2026-10-18 |
 
