@@ -554,6 +554,28 @@ async def get_medication_correlations(
     )
 
 
+async def _audit_after_change(
+    master_db: AsyncSession,
+    event: str,
+    profile_id: str,
+    document_id: str,
+    details: Optional[dict] = None,
+) -> None:
+    """AUDIT-ORDER C: audit row after the vault commit; failure is logged (ids only) and re-raised."""
+    await log_document_event(
+        db=master_db, event=event, profile_id=profile_id,
+        document_id=document_id, details=details,
+    )
+    try:
+        await master_db.commit()
+    except Exception:
+        logger.error(
+            "AUDIT-ORDER: audit commit failed after change (event=%s, entity=%s)",
+            event, document_id,
+        )
+        raise
+
+
 @router.patch(
     "/{medication_id}",
     response_model=MedicationResponse,
@@ -563,6 +585,7 @@ async def update_medication(
     update: MedicationUpdate,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     Update a medication.
@@ -611,6 +634,12 @@ async def update_medication(
     await profile_db.commit()
     await profile_db.refresh(medication)
     await profile_db.refresh(medication, attribute_names=["schedules"])
+
+    # AUDIT-PHI-001: field names only, never values.
+    await _audit_after_change(
+        master_db, "medication_update", session.profile_id, medication_id,
+        {"changed_fields": sorted(update.model_dump(exclude_none=True))},
+    )
 
     logger.info(f"Updated medication {medication_id}")
     return MedicationResponse.from_model(medication)
@@ -698,6 +727,7 @@ async def create_schedule(
     schedule: ScheduleCreate,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     Create a schedule for a medication.
@@ -742,6 +772,10 @@ async def create_schedule(
     profile_db.add(sched)
     await profile_db.commit()
     await profile_db.refresh(sched)
+
+    await _audit_after_change(
+        master_db, "medication_schedule_create", session.profile_id, sched.id,
+    )
 
     logger.info(f"Created schedule {sched.id} for medication {medication_id}")
     return ScheduleResponse.from_model(sched)
@@ -793,6 +827,7 @@ async def update_schedule(
     update: ScheduleUpdate,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Update a medication schedule."""
     validate_uuid(medication_id, "medication_id")
@@ -848,6 +883,11 @@ async def update_schedule(
 
     await profile_db.commit()
     await profile_db.refresh(schedule)
+
+    await _audit_after_change(
+        master_db, "medication_schedule_update", session.profile_id, schedule_id,
+        {"changed_fields": sorted(update.model_dump(exclude_none=True))},
+    )
 
     return ScheduleResponse.from_model(schedule)
 
@@ -915,6 +955,7 @@ async def log_dose(
     session: RequireAuth,
     schedule_id: Optional[str] = Query(None, description="Schedule ID if applicable"),
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     Log a dose taken (or skipped).
@@ -1040,6 +1081,11 @@ async def log_dose(
         except Exception as exc:
             await profile_db.rollback()
             logger.warning("Badge evaluation failed after dose log: %s", exc)
+
+    # After the badge block: a master failure cannot skip badge evaluation.
+    await _audit_after_change(
+        master_db, "medication_dose_log", session.profile_id, dose_record.id,
+    )
 
     logger.info(
         f"Logged dose for {medication_id}: "
@@ -1290,6 +1336,7 @@ async def learn_patterns(
     session: RequireAuth,
     schedule_id: Optional[str] = Query(None, description="Specific schedule to learn"),
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     Trigger pattern learning for a medication.
@@ -1353,6 +1400,10 @@ async def learn_patterns(
         medication_id=medication_id,
         db=profile_db,
         tz_name=tz_name,
+    )
+
+    await _audit_after_change(
+        master_db, "medication_learn_patterns", session.profile_id, medication_id,
     )
 
     # Format response

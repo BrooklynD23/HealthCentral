@@ -7,6 +7,7 @@ import sys
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -97,6 +98,7 @@ async def test_log_dose_returns_badges_in_response():
         session=session,
         schedule_id=None,
         profile_db=profile_db,
+        master_db=MagicMock(commit=AsyncMock()),
     )
 
     assert isinstance(response, DoseLogResponse)
@@ -137,6 +139,7 @@ async def test_hc_time_007_dose_log_badge_string_has_no_offset():
         session=session,
         schedule_id=None,
         profile_db=profile_db,
+        master_db=MagicMock(commit=AsyncMock()),
     )
 
     assert response.newly_earned_badges
