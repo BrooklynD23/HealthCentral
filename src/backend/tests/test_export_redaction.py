@@ -279,6 +279,7 @@ GAP_ROWS = (
     _obs("00000000-0000-4000-8000-000000000011", "patient_name:_jane_doe", 1.0, "", "H", datetime(2024, 3, 15), 0.0, 0.5),
     _obs("00000000-0000-4000-8000-000000000012", "dob:_01/02/1980", 1.0, "", "H", datetime(2024, 3, 15), 0.0, 0.5),
     _obs("00000000-0000-4000-8000-000000000013", "mrn:_a12345", 1.0, "", "H", datetime(2024, 3, 15), 0.0, 0.5),
+    _obs("00000000-0000-4000-8000-000000000014", "mrn_(hospital):_b67890", 1.0, "", "H", datetime(2024, 3, 15), 0.0, 0.5),
 )
 
 
@@ -371,7 +372,7 @@ def test_hc_expr_001_underscore_phi_redacted() -> None:
     with _export_client(rows=GAP_ROWS) as client:
         _summary_id, raw = _download_summary(client, "text")
     body = raw.decode("utf-8").lower()
-    for phi in ("jane", "01/02/1980", "a12345"):
+    for phi in ("jane", "01/02/1980", "a12345", "b67890"):
         assert phi not in body, f"{phi!r} still present: O-3 regression"
 
 

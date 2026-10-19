@@ -215,6 +215,20 @@ UNDERSCORE_PHI = [
     ("patient_id:_98765", "98765"),
     ("name:_mary_o'brien", "brien"),
     ("name:_doe,_jane", "jane"),
+    # E-1b (a): parenthesised qualifier, '#'/'no.' before a bare label's colon,
+    # '-' separator
+    ("mrn_(hospital):_a12345", "a12345"),
+    ("patient_name_(legal):_jane_doe", "jane"),
+    ("patient_#:_98765", "98765"),
+    ("patient_no.:_98765", "98765"),
+    ("name_#:_jane", "jane"),
+    ("mrn_-_a12345", "a12345"),
+    ("patient_name_-_jane_doe", "jane"),
+    # E-1b (b): '=' and ';' separators
+    ("mrn_=_a12345", "a12345"),
+    ("mrn_;_a12345", "a12345"),
+    ("patient_name_=_jane_doe", "jane"),
+    ("patient_name_;_jane_doe", "jane"),
 ]
 
 ANALYTE_LIKE = [
@@ -222,6 +236,9 @@ ANALYTE_LIKE = [
     "t4_free", "glucose_fasting", "ms_afp", "mrna_level",
     "name_of_test", "patient_count_3", "hba1c_2025-05-01",
     "dobutamine_level", "medical_records_count",
+    # E-1b guards: the new shapes must not catch analyte-like names
+    "glucose_(fasting)", "t4_(free)", "name_(of_test)", "patient_(count)_3",
+    "ldl_-_calculated", "mrna_-_level",
 ]
 
 
@@ -290,6 +307,23 @@ class TestUnderscoreJoinedRedaction:
         start = time.perf_counter()
         result = _engine("strict").redact(text)
         assert time.perf_counter() - start < 1.0  # rev 2 rule: 7.9 s
+        assert result.text == text
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            pytest.param("mrn" + "_(" * 20000, id="mrn_paren"),
+            pytest.param("patient" + "_#" * 20000 + "!", id="patient_hash"),
+            pytest.param("mrn" + "_-" * 20000 + "!", id="mrn_dash"),
+        ],
+    )
+    def test_hc_redact_009_new_label_shapes_linear_time(self, text):
+        """HC-REDACT-009: E-1b qualifier, '#' and '-' runs do not backtrack quadratically."""
+        import time
+
+        start = time.perf_counter()
+        result = _engine("strict").redact(text)
+        assert time.perf_counter() - start < 1.0
         assert result.text == text
 
     @pytest.mark.parametrize(
