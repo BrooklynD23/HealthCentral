@@ -15,7 +15,7 @@ Read-only design. No product file was edited. Existing merged plans are not rewr
 | W-3 | PRODUCT | program row `implementation-program.md:436` | [W03](../2026-09-27-W03-verified-only-rag-and-trend-labels.md) (delta below) | blocked-on-PR | #72 (W-4, plan prerequisite), #95 (adjacent `rag.py` hunks); O-5 / O-1 / O-2 gate tasks 3 / 7 / 6 |
 | W-8 | PRODUCT | program row `:441` | [W08](../2026-09-27-W08-bundled-embedding-model.md) (delta below) | blocked-on-item | W-3, W-11a PR-3 = lane E E-3 (hard, plan §Shared-file order); `ci.yml` last per lane E (E-3 → #74 → #72 → W-8); Q-FC, Q-HASH, VERIFIED-FALLBACK unsigned |
 | G-C5-PLAN | DOCS | program row `:411`, `:450`; [scaffold pack](../../../audit/2026-09-25/waves/scaffold/G-C5.md) | [GC5](../2026-10-18-GC5-hc-m11-nli-flag-off.md) (PROPOSED) | PR #183 (draft) | Q5b and GC5-PLAN signed 2026-10-17; W-8 merged |
-| G-C5 | PRODUCT | same | [GC5](../2026-10-18-GC5-hc-m11-nli-flag-off.md) (PROPOSED) | blocked-on-owner | G-C5-PLAN merge; plan OL-1 (model confirm), OL-2 (absent model: fall back or fail closed) and OL-3 (ModelRunner applicability; recommendation A). W-8 and W-4 merged |
+| G-C5 | PRODUCT | same | [GC5](../2026-10-18-GC5-hc-m11-nli-flag-off.md) (PROPOSED) | blocked-on-item | G-C5-PLAN merge; plan OL-1..3 answered 2026-10-19 (`owner-decisions-2026-09-27.md:269-271`: confirm the pin; B, fail closed; A, load directly). W-8 and W-4 merged |
 | SAFE-CHAT-AGENT | OWNER (→ PRODUCT if B) | program owner item `:498` (a); [wave-3-L1-A](../../../audit/2026-09-25/waves/wave-3-L1-A.md) "Other paths" 2 | none | blocked-on-owner | SCA-RULING |
 | SAFE-CHAT-FALLBACK | OWNER | `:498` (b); wave-3-L1-A Codex diff row | none | blocked-on-owner | SCF-RULING |
 | SAFE-CHAT-HISTORY | OWNER | `:498` (c); wave-3-L1-A "Other paths" 5 | none | blocked-on-owner | SCH-RULING |
@@ -95,7 +95,7 @@ Scope (D8 + D8-delivery), tasks and test IDs (HC-EMB-001…008) stay valid. Chan
 |---|---|---|---|
 | 1 | `src/backend/modules/rag.py:1007` | `verify_all_claims(claims_to_verify, self.verifier.config)` | no |
 | 2 | `src/backend/api/assistant.py:210-213` | add `use_llm_entailment=app_settings.use_llm_entailment` | no |
-| 3 | `src/backend/modules/verifier_agent.py:304-317` | body of `_check_entailment_llm` only: score `(source.text, claim)` with the cross-encoder, then map contradiction/entailment/neutral to `EntailmentResult`; model absent: see the [plan](../2026-10-18-GC5-hc-m11-nli-flag-off.md) OL-2 (rules fallback vs fail closed; Q5b says "fail closed", plan default is fail closed) | **yes (GC5-ASKFIRST)** |
+| 3 | `src/backend/modules/verifier_agent.py:304-317` | body of `_check_entailment_llm` only: score `(source.text, claim)` with the cross-encoder, then map contradiction/entailment/neutral to `EntailmentResult`; model absent: see the [plan](../2026-10-18-GC5-hc-m11-nli-flag-off.md) OL-2 (answered B, fail closed, `owner-decisions-2026-09-27.md:270`) | **yes (GC5-ASKFIRST)** |
 | 4 | `src/backend/modules/embeddings.py` | `load_local_cross_encoder()`: per-call `local_files_only=True` on a resolved local dir (Q-OFFLINE pattern, W-8's resolver), raising W-8's `EmbeddingModelUnavailableError` | no |
 | 5 | `src/backend/scripts/download_models.py`, `config/model_manifest.json`, `core/config.py` (`nli_model_path`), `config/.env.example` | `nli` subcommand copied from W-8's `embedding` subcommand; revision + sha256 pin | no |
 
@@ -329,7 +329,7 @@ Never put `str(exc)` in the detail; it carries provider error text. About 6 line
 | O-5, O-1 (= VERIFIED-FALLBACK), O-2 veto | W-3 (+W-8 for O-1) | as in W03 §10 | unsigned |
 | O-3 (= IUV-1, lane B B-6), O-4 (= MSG-UNVERIFIED, lane A if opened) | not W-3 blockers | as in W03 §10 | unsigned |
 | Q-FC, Q-HASH | W-8 | as in W08 §Owner sign-offs | unsigned (Q-OFFLINE, EMB-REV answered 2026-10-08) |
-| Q5a, Q5b, GC5-MODEL, GC5-PLAN | G-C5 | scaffold pack §3 | answered 2026-10-17 (`owner-decisions-2026-09-27.md:225-228`); open follow-ups OL-1, OL-2 and OL-3 in the [plan](../2026-10-18-GC5-hc-m11-nli-flag-off.md) |
+| Q5a, Q5b, GC5-MODEL, GC5-PLAN | G-C5 | scaffold pack §3 | answered 2026-10-17 (`owner-decisions-2026-09-27.md:225-228`); follow-ups OL-1, OL-2 and OL-3 in the [plan](../2026-10-18-GC5-hc-m11-nli-flag-off.md) answered 2026-10-19 (`:269-271`) |
 | **GC5-ASKFIRST** | G-C5 | approve the exact `verifier_agent.py:304-317` hunk (ask-first file, CLAUDE.md §1) | answered 2026-10-17 (`:238`: approved in advance, Opus review still runs, owner merges); `faithfulness.py` is not edited |
 | SCA-RULING | SAFE-CHAT-AGENT | A accept / B pattern floor in `guard.py` | not asked |
 | SCF-RULING | SAFE-CHAT-FALLBACK | A accept / B screen / C reword seed (ask together with lane B IBF-1; same 7 seed fields) | not asked |

@@ -7,7 +7,7 @@
 **Base measured:** `origin/main` @ `e000974` (2026-10-18); the anchors that drifted by `a9978e8` (`queue.md`, `api/assistant.py`, `CLAUDE.md` SLOT-RULE-2 lines) were re-anchored to `a9978e8` in review round 3 and are the ones to trust. W-8 (#168) and W-4 (#72) are both merged. Every `file:line` below was re-read at this base. Lane A's design (`lane-A-rag-assistant.md` §G-C5) was written at `3b2236c`; its line numbers have drifted and are corrected in [Measured anchors](#measured-anchors).
 **Item:** `G-C5` in [queue.md](2026-10-15-build-program/queue.md) (this plan is item `G-C5-PLAN`, DOCS, no slot). Design source: [lane A §G-C5](2026-10-15-build-program/lane-A-rag-assistant.md); readiness pack: `audit/2026-09-25/waves/scaffold/G-C5.md`; packet: `audit/2026-09-25/gated-items-decision-packet.md` Brief 5.
 
-> **For agentic workers:** REQUIRED SUB-SKILL: superpowers:test-driven-development, then superpowers:executing-plans. Steps use `- [ ]`. Nothing here is ticked, and nothing below is approved except the five owner lines quoted verbatim in [Owner lines](#owner-lines).
+> **For agentic workers:** REQUIRED SUB-SKILL: superpowers:test-driven-development, then superpowers:executing-plans. Steps use `- [ ]`. Nothing here is ticked, and nothing below is approved except the eight owner lines quoted verbatim in [Owner lines](#owner-lines).
 
 **Goal:** Make the existing flag `use_llm_entailment` reach the verifier, and make `_check_entailment_llm` score `(source, claim)` with a local NLI cross-encoder loaded offline. The flag stays **off by default**. With the flag off, the legacy eval output is byte-identical to before. No threshold changes.
 
@@ -29,7 +29,7 @@ This plan uses **one** of the two files (`verifier_agent.py`, one function body)
 
 ## Owner lines
 
-Quoted from `docs/capstone-report/owner-decisions-2026-09-27.md`. The "answer" is the bold text of the row, copied unchanged. Nothing outside these five lines is recorded as approved.
+Quoted from `docs/capstone-report/owner-decisions-2026-09-27.md`. The "answer" is the bold text of the row, copied unchanged. Nothing outside these eight lines is recorded as approved.
 
 | Line | Gate | Owner answer (verbatim) |
 |---|---|---|
@@ -38,11 +38,14 @@ Quoted from `docs/capstone-report/owner-decisions-2026-09-27.md`. The "answer" i
 | `:227` | GC5-PLAN | **wait for W-8** (satisfied: W-8 #168 merged, `26106ee` is an ancestor of `origin/main`) |
 | `:228` | GC5-MODEL | **plan measures both; owner confirms** |
 | `:238` | GC5-ASKFIRST | **Approve the hunk in advance** — "G-C5 may edit verifier_agent.py:304-317 within its plan. Opus review still runs, and you still merge." The row's last column reads `no (recommended: decide on the real diff)`: the owner chose the option that was not the recommended one. |
+| `:269` | GC5-OL-1 (GC5-MODEL confirm) | **Confirm as stated (Recommended)** — "These pins go into the plan's H4/H8." |
+| `:270` | GC5-OL-2 (absent model, flag on) | **B: fail closed (Recommended)** — "Matches your signed wording. Every claim is unverified, so chat abstains. A forgotten fetch silently disables legacy answers while the flag is on." |
+| `:271` | GC5-OL-3 (ModelRunner applicability) | **A: load directly (Recommended)** — "In embeddings.py beside the embedder, with no new layer (CLAUDE.md §2, W-8 precedent)." |
 
 What each line does **not** say:
 - Q5a: not now. The flag never defaults on in this plan, and NLI scores never change production faithfulness. No criterion for enabling was given.
-- Q5b: "fail closed" is two words in a one-line answer. It does not say what the patient sees; see [OL-2](#unsigned-owner-lines).
-- GC5-MODEL: "plan measures both" means licence and size (packet `:399-403`). The owner **confirms later**; the model is not yet chosen. See [OL-1](#unsigned-owner-lines).
+- Q5b: "fail closed" is two words in a one-line answer. It does not say what the patient sees; see [OL-2](#unsigned-owner-lines), answered B at `:270`.
+- GC5-MODEL: "plan measures both" means licence and size (packet `:399-403`). The owner **confirms later**; the model is not yet chosen. See [OL-1](#unsigned-owner-lines), confirmed at `:269`.
 - GC5-ASKFIRST: covers `verifier_agent.py:304-317` and nothing else. Any other `verifier_agent.py` hunk needs a new gate.
 
 ## Dependencies and order
@@ -131,11 +134,13 @@ Start: queue row `G-C5` (`queue.md:209`). Hunks use only these files.
 
 ## Unsigned owner lines
 
-None of these is signed. The plan states each option and does not choose silently. The orchestrator asks; the executor of G-C5 does not start Tasks 3-4 until OL-1, OL-2 and OL-3 are answered. OL-3 is a gate because the queue row `G-C5` (`queue.md:209`) names "ModelRunner applicability" in its gates column beside OL-2; the plan's arguments for option A are the planner's, not the owner's answer.
+OL-1, OL-2 and OL-3 were answered on 2026-10-19 (`owner-decisions-2026-09-27.md:269-271`, quoted in [Owner lines](#owner-lines)): confirm the pin, B (fail closed), A (load directly). OL-4 and OL-5 are still unsigned. The plan states each option and does not choose silently. The executor of G-C5 does not start Tasks 3-4 until OL-1, OL-2 and OL-3 are answered; they now are. OL-3 is a gate because the queue row `G-C5` (`queue.md:209`) names "ModelRunner applicability" in its gates column beside OL-2; the plan's arguments for option A are the planner's, not the owner's answer.
 
 ### OL-1 GC5-MODEL: confirm the model, licence and pin
 
 Q: "Confirm `cross-encoder/nli-deberta-v3-xsmall`, licence **Apache-2.0** (not MIT as `feature_list.json` says), revision `a150876415327c80daeff35ca6f68f5ed8cf5c24`, 294,480,009 bytes to fetch." Owner line `:228` says the owner confirms. Until then the pins in H4/H8 are proposals. A different model changes H4, H7, H8 and the byte counts.
+
+**Answered 2026-10-19 (`:269`): Confirm as stated.** The pins above go into H4/H8 unchanged.
 
 ### OL-2 Absent model with the flag on: fall back to rules, or fail closed?
 
@@ -155,9 +160,13 @@ Queue row `:209` already lists "absent model with flag on" as an open gate. Lane
 
 Both options keep flag-off unchanged. The plan's default for the tests and hunk text is **B**, because it matches the signed words. The decision is the owner's; if the owner picks A, only H3's absent branch and HC-GC5-004's assertions change.
 
+**Answered 2026-10-19 (`:270`): B, fail closed.** H3's absent branch and HC-GC5-004 use option B. The `interpret-grounded` caveat above was in the question the owner answered; withholding on that route is still unsigned.
+
 ### OL-3 ModelRunner applicability
 
-CLAUDE.md §3: all LLM calls go through `ModelRunner`. A cross-encoder is not an LLM; `modules/embeddings.py` already loads `sentence_transformers` directly (the embeddings precedent, W-8). Options: **(A, planned)** load directly in `embeddings.py` beside the embedder, no new layer (CLAUDE.md §2); **(B)** add an NLI method to the `ModelRunner` facade. B adds a layer for a non-generative model. The packet's option C (prompting the local LLM for entailment) is not what Q5b chose. **Blocking, unsigned:** the owner must answer before Tasks 3-4. The recommendation is A (the W-8 precedent and CLAUDE.md §2); it is a recommendation, not an answer.
+CLAUDE.md §3: all LLM calls go through `ModelRunner`. A cross-encoder is not an LLM; `modules/embeddings.py` already loads `sentence_transformers` directly (the embeddings precedent, W-8). Options: **(A, planned)** load directly in `embeddings.py` beside the embedder, no new layer (CLAUDE.md §2); **(B)** add an NLI method to the `ModelRunner` facade. B adds a layer for a non-generative model. The packet's option C (prompting the local LLM for entailment) is not what Q5b chose. The recommendation was A (the W-8 precedent and CLAUDE.md §2).
+
+**Answered 2026-10-19 (`:271`): A, load directly** in `embeddings.py` beside the embedder, with no new layer.
 
 ### OL-4 Feed `per_claim_entailment` into faithfulness in v1? (lane A open question 4)
 
@@ -231,7 +240,7 @@ Before (the whole function, `:304-317`):
         # and is selected by use_llm_entailment=False in config.
         return self._check_entailment_rules(claim, source)
 ```
-After (**option B**, the planned default, see OL-2):
+After (**option B**, the owner's OL-2 answer at `:270`):
 ```python
     def _check_entailment_llm(
         self,
