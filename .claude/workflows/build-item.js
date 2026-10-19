@@ -126,7 +126,7 @@ if (!spec || !spec.found) {
 const runtime = (spec.runtime || '').toLowerCase()
 const kind = (spec.kind || '').toUpperCase()
 // Only a literal "(model machine)" runtime is owner work (B-4, B-7, B-9); a row that names model-machine *tasks* is built here with those tasks skipped.
-if (/\(model machine\)/.test(runtime) || kind.startsWith('OWNER')) {
+if (/\(model machine\)/.test(runtime) || (runtime.includes('model machine') && !runtime.startsWith('claude')) || kind.startsWith('OWNER')) {
   return `STOPPED ${ID}: ${spec.kind} / ${spec.runtime} is owner or model-machine work (${RUNBOOK} §9 rule 8)`
 }
 if (!(runtime.startsWith('claude') || runtime.startsWith('any'))) {
@@ -156,9 +156,8 @@ if (RESUME_PR && plan && plan.go && plan.pr_number !== RESUME_PR) {
   throw new Error(`${ID}: resume of PR #${RESUME_PR} returned PR #${plan.pr_number}; refusing to continue`)
 }
 if (RESUME_PR && plan && plan.go && plan.resume_verified !== true) {
-  // Same PR but identity checks not confirmed: stop, and release any slot the run may have taken.
+  // Same PR but identity never confirmed: stop and report to L0; never retitle a PR whose identity was not checked.
   plan.go = false
-  plan.resume_verified = true
   plan.stop_reasons = [...(plan.stop_reasons || []), `resume of PR #${RESUME_PR}: Task 0 returned go without resume_verified`]
 }
 // On resume, only a PR this run verified and retitled may be retitled back to blocked.
@@ -174,10 +173,18 @@ if (!plan || !plan.go) {
   return `STOPPED ${ID} at ${why}${ownsPr ? ` (PR #${plan.pr_number}, retitled [blocked:claude])` : ''}`
 }
 log(`${ID}: claimed PR #${plan.pr_number} on ${plan.branch}`)
-// plan.worktree goes into double-quoted shell strings below: accept only the RUNBOOK §3 shape.
-const wtBase = (plan.worktree || '').split('/').pop()
-if (!/^[A-Za-z0-9_\/. -]+$/.test(plan.worktree || '') || !wtBase.startsWith(`hc-${ID.toLowerCase()}`)) {
-  throw new Error(`${ID}: unexpected worktree path ${JSON.stringify(plan.worktree)}`)
+// plan.worktree and plan.branch go into shell commands below (one unquoted use predates this check):
+// accept only the RUNBOOK §3 shapes, and on a mismatch release the slot before stopping.
+const wtPrefix = `hc-${ID.toLowerCase()}`
+const wtBase = (plan.worktree || '').replace(/\/+$/, '').split('/').pop()
+const wtOk = /^\/[A-Za-z0-9_\/. -]+$/.test(plan.worktree || '') && !(plan.worktree || '').includes('..') && (wtBase === wtPrefix || wtBase.startsWith(wtPrefix + '-'))
+const brOk = new RegExp(`^[a-z]+/${ID.toLowerCase().replace(/[^a-z0-9-]/g, '')}-[A-Za-z0-9._-]+$`).test(plan.branch || '')
+if (!wtOk || !brOk) {
+  await agent(
+    `Build-program item ${ID}: Task 0 returned an unexpected worktree or branch shape after claiming draft PR #${plan.pr_number}. Change nothing else: gh pr edit ${plan.pr_number} --title "[blocked:claude] ${ID} <keep the current slug>" (keep it draft). ${STYLE}`,
+    { label: `block ${ID}`, phase: 'Plan check', model: 'opus', effort: 'low' },
+  )
+  return `STOPPED ${ID}: unexpected worktree ${JSON.stringify(plan.worktree)} or branch ${JSON.stringify(plan.branch)} (PR #${plan.pr_number}, retitled [blocked:claude])`
 }
 
 const where = `worktree ${plan.worktree}, branch ${plan.branch}, draft PR #${plan.pr_number}`
@@ -291,7 +298,7 @@ Implementer report:
 ${impl.report}
 Test run (Haiku, verbatim):
 ${testEvidence()}
-Diff: git -C ${plan.worktree} diff origin/main...HEAD.
+Diff: git -C "${plan.worktree}" diff origin/main...HEAD.
 Check in order: (1) spec compliance and file list, (2) quality, (3) every mode in docs/agentic/recurring-failures.md: route tests via route_client, say what each new test would fail to notice. Flag any ask-first edit without a signed gate naming it, and any weakened test or threshold.
 The PR title and body are written in the Verify stage AFTER review: never raise findings about them; list what the body must say under a "for the PR body" heading in your comment instead.
 Return verdict PASS or REVISE and findings as "[BLOCKER|MAJOR|MINOR] file:line — issue — fix". Then post them as a PR comment headed "review round ${round}/${MAX_ROUNDS} (claude, opus ${lens})" with: gh pr comment ${plan.pr_number} --body-file <tmpfile under /tmp/claude-1000>.
