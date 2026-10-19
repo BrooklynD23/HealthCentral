@@ -131,16 +131,28 @@ import download_models  # noqa: E402
 from modules import embeddings as emb  # noqa: E402
 
 
-def _fake_snapshot(payload: bytes, calls: list):
+def _fake_snapshot(payload: bytes, calls: list, overrides: dict[str, bytes] | None = None):
     def _fake(*, repo_id, revision, local_dir, allow_patterns):
         calls.append({"repo_id": repo_id, "revision": revision, "allow_patterns": list(allow_patterns)})
         root = Path(local_dir)
         for name in allow_patterns:
             path = root / name
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(payload if name == "model.safetensors" else b"{}")
+            default = payload if name == "model.safetensors" else b"{}"
+            path.write_bytes((overrides or {}).get(name, default))
         return str(root)
     return _fake
+
+
+_PINNED_PAYLOAD = b"pinned-weights-stand-in"
+
+
+def _fake_manifest(monkeypatch, payload: bytes = _PINNED_PAYLOAD) -> None:
+    """Pin the digests of what _fake_snapshot writes (weights payload, b"{}" elsewhere)."""
+    monkeypatch.setattr(emb, "EMBEDDING_FILE_SHA256", {
+        name: hashlib.sha256(payload if name == "model.safetensors" else b"{}").hexdigest()
+        for name in emb.EMBEDDING_FILES
+    })
 
 
 def test_hc_emb_004a_fetch_rejects_checksum_mismatch(tmp_path, monkeypatch):
@@ -154,8 +166,8 @@ def test_hc_emb_004a_fetch_rejects_checksum_mismatch(tmp_path, monkeypatch):
 
 
 def test_hc_emb_004b_fetch_installs_pinned_files_only(tmp_path, monkeypatch):
-    payload = b"pinned-weights-stand-in"
-    monkeypatch.setattr(emb, "EMBEDDING_WEIGHTS_SHA256", hashlib.sha256(payload).hexdigest())
+    payload = _PINNED_PAYLOAD
+    _fake_manifest(monkeypatch, payload)
     calls: list = []
     monkeypatch.setattr("huggingface_hub.snapshot_download", _fake_snapshot(payload, calls))
     target = tmp_path / "embeddings" / "all-MiniLM-L6-v2"
@@ -213,6 +225,65 @@ def test_hc_emb_004e_failed_fetch_removes_only_this_runs_partial(tmp_path, monke
     assert not partial.exists(), "a failed fetch left its .partial behind and would block the next run"
     assert not target.exists()
     # The pre-existing-.partial case (never deleted) is HC-EMB-004d.
+
+
+def test_hc_emb_004f_exception_while_hashing_removes_partial(tmp_path, monkeypatch):
+    monkeypatch.setattr("huggingface_hub.snapshot_download", _fake_snapshot(_PINNED_PAYLOAD, []))
+
+    def _boom(path):
+        raise OSError("simulated read error while hashing")
+
+    monkeypatch.setattr(download_models, "_sha256", _boom)
+    target = tmp_path / "embeddings" / "all-MiniLM-L6-v2"
+    with pytest.raises(OSError, match="simulated read error"):
+        download_models.cmd_embedding(target)
+    assert not target.with_name(target.name + ".partial").exists(), "a hashing error left its .partial behind"
+    assert not target.exists()
+
+
+def test_hc_emb_004g_exception_on_rename_removes_partial(tmp_path, monkeypatch):
+    monkeypatch.setattr("huggingface_hub.snapshot_download", _fake_snapshot(_PINNED_PAYLOAD, []))
+    monkeypatch.setattr(download_models, "_embedding_complete", lambda directory: True)
+
+    def _deny(self, new):
+        raise PermissionError("simulated rename failure")
+
+    monkeypatch.setattr(Path, "rename", _deny)
+    target = tmp_path / "embeddings" / "all-MiniLM-L6-v2"
+    with pytest.raises(PermissionError, match="simulated rename failure"):
+        download_models.cmd_embedding(target)
+    assert not target.with_name(target.name + ".partial").exists(), "a failed rename left its .partial behind"
+    assert not target.exists()
+
+
+def test_hc_emb_004h_fetch_rejects_a_changed_non_weights_file(tmp_path, monkeypatch):
+    _fake_manifest(monkeypatch)
+    monkeypatch.setattr(
+        "huggingface_hub.snapshot_download",
+        _fake_snapshot(_PINNED_PAYLOAD, [], overrides={"tokenizer.json": b'{"tampered": true}'}),
+    )
+    target = tmp_path / "embeddings" / "all-MiniLM-L6-v2"
+    with pytest.raises(SystemExit) as info:
+        download_models.cmd_embedding(target)
+    assert info.value.code == 1
+    assert not target.exists()
+    assert not target.with_name(target.name + ".partial").exists()
+
+
+def test_hc_emb_004i_existing_target_with_changed_config_is_rejected_not_deleted(tmp_path, monkeypatch):
+    _fake_manifest(monkeypatch)
+    target = tmp_path / "embeddings" / "all-MiniLM-L6-v2"
+    _fake_snapshot(_PINNED_PAYLOAD, [], overrides={"config.json": b'{"tampered": true}'})(
+        repo_id="r", revision="v", local_dir=str(target), allow_patterns=list(emb.EMBEDDING_FILES)
+    )
+    calls: list = []
+    monkeypatch.setattr("huggingface_hub.snapshot_download", _fake_snapshot(_PINNED_PAYLOAD, calls))
+    with pytest.raises(SystemExit) as info:
+        download_models.cmd_embedding(target)
+    assert info.value.code == 1
+    assert (target / "config.json").read_bytes() == b'{"tampered": true}', "the existing target was touched"
+    assert target.is_dir()
+    assert calls == []
 
 
 def test_hc_emb_002_fetched_model_loads_offline(tmp_path):

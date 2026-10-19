@@ -8,7 +8,9 @@ docs/plans/2026-09-27-W08-bundled-embedding-model.md.
 
 from __future__ import annotations
 
+import logging
 import struct
+import sys
 import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -318,3 +320,91 @@ async def test_hc_emb_008_vector_search_ignores_vectors_from_another_model(profi
     rag._embedder = _FixedEmbedder()
     results = await rag._search_vectors_async(query="LDL", profile_id=doc.profile_id, profile_db=profile_db)
     assert [chunk["chunk_id"] for chunk, _ in results] == ["chunk-real"]
+
+
+def test_hc_emb_009a_unavailable_messages_do_not_contain_the_model_path(tmp_path, absent_model, monkeypatch):
+    from modules.embeddings import EMBEDDING_FILES, EmbeddingModelUnavailableError, EmbeddingsModule
+
+    with pytest.raises(EmbeddingModelUnavailableError) as missing:
+        EmbeddingsModule()._load_local_model()
+    assert "not installed" in str(missing.value)
+    assert str(absent_model) not in str(missing.value)
+
+    installed = tmp_path / "installed-model"
+    for name in EMBEDDING_FILES:
+        (installed / name).parent.mkdir(parents=True, exist_ok=True)
+        (installed / name).write_bytes(b"{}")
+    from core.config import settings
+
+    monkeypatch.setattr(settings, "embedding_model_path", str(installed))
+
+    def _raiser(*args, **kwargs):
+        raise ValueError("corrupt weights")
+
+    monkeypatch.setitem(sys.modules, "sentence_transformers", SimpleNamespace(SentenceTransformer=_raiser))
+    with pytest.raises(EmbeddingModelUnavailableError) as failed:
+        EmbeddingsModule()._load_local_model()
+    assert "failed to load" in str(failed.value)
+    assert "ValueError" in str(failed.value)
+    assert str(installed) not in str(failed.value)
+
+
+@pytest.mark.asyncio
+async def test_hc_emb_009b_retrieval_warning_log_does_not_contain_the_model_path(profile_db, absent_model, caplog):
+    from modules.rag import ModelUnavailableError, RAGModule
+
+    doc = await _seed_one_chunk(profile_db)
+    rag = RAGModule(enable_verification=False)
+    with caplog.at_level(logging.WARNING):
+        with pytest.raises(ModelUnavailableError):
+            await rag._search_vectors_async(query="LDL", profile_id=doc.profile_id, profile_db=profile_db)
+    assert "failed closed" in caplog.text, "the rag.py warning sink did not fire; this test would prove nothing"
+    assert str(absent_model) not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_hc_emb_009c_reprocess_warning_log_does_not_contain_the_model_path(
+    profile_db, absent_model, monkeypatch, caplog
+):
+    from api import documents as documents_api
+    from api.documents import router as documents_router
+    from core.auth import get_profile_db_session
+    from tests.support.routes import route_client
+
+    profile_id = str(uuid.uuid4())
+    doc = _document(profile_id)
+    doc.doc_type = "lab_pdf"
+    profile_db.add_all([
+        doc,
+        Chunk(id="chunk-1", doc_id=doc.id, chunk_index=0, text="LDL 128 mg/dL"),
+        Embedding(chunk_id="chunk-1", model_name="all-MiniLM-L6-v2", vector_blob=BLOB, dimensions=384),
+    ])
+    await profile_db.commit()
+    doc_id = doc.id
+
+    extraction = SimpleNamespace(
+        observations=[], extracted_text="LDL 128 mg/dL", ocr_unavailable=False, collection_dates=[]
+    )
+    extract_stub = MagicMock()
+    extract_stub.return_value.extract_from_pdf = AsyncMock(return_value=extraction)
+
+    async def _classify(profile_db, doc_id, **kw):
+        return None
+
+    monkeypatch.setattr(documents_api, "get_decrypted_document", lambda *a, **k: "unused.pdf")
+    monkeypatch.setattr(documents_api, "ExtractModule", extract_stub)
+    monkeypatch.setattr(documents_api, "_classify_and_extract_entities", _classify)
+
+    master_db = AsyncMock()
+    master_db.add = MagicMock()
+    with caplog.at_level(logging.WARNING):
+        with route_client(documents_router, "/documents", profile_id=profile_id, master_db=master_db) as client:
+            async def _override_profile_db():
+                return profile_db
+
+            client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+            resp = client.post(f"/documents/{doc_id}/reprocess")
+
+    assert resp.status_code == 200, resp.text
+    assert "Chunking failed" in caplog.text, "the api/documents.py warning sink did not fire; this test would prove nothing"
+    assert str(absent_model) not in caplog.text
