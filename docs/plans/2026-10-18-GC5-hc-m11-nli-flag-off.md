@@ -45,7 +45,7 @@ Quoted from `docs/capstone-report/owner-decisions-2026-09-27.md`. The "answer" i
 What each line does **not** say:
 - Q5a: not now. The flag never defaults on in this plan, and NLI scores never change production faithfulness. No criterion for enabling was given.
 - Q5b: "fail closed" is two words in a one-line answer. It does not say what the patient sees; see [OL-2](#unsigned-owner-lines), answered B at `:270`.
-- GC5-MODEL: "plan measures both" means licence and size (packet `:399-403`). The owner **confirms later**; the model is not yet chosen. See [OL-1](#unsigned-owner-lines), confirmed at `:269`.
+- GC5-MODEL: "plan measures both" means licence and size (packet `:399-403`). The owner confirmed it later; see [OL-1](#unsigned-owner-lines), confirmed at `:269`.
 - GC5-ASKFIRST: covers `verifier_agent.py:304-317` and nothing else. Any other `verifier_agent.py` hunk needs a new gate.
 
 ## Dependencies and order
@@ -53,7 +53,7 @@ What each line does **not** say:
 - W-8 #168 merged: the loader pattern (`EmbeddingModelUnavailableError`, per-call `local_files_only=True`, `settings.*_model_path`, the `download_models.py` subcommand) is copied from merged code. Contract I-14.
 - W-4 #72 merged: `scripts/legacy_eval_gate.py` exists (contract I-2) and is the byte-identical proof's first command.
 - **G-C5 is next in the `rag.py` chain** (queue row: "last on `rag.py`"). Hunk H1 edits `rag.py:1027`. Branch it after every earlier `rag.py` PR merges (W-3, #95 per lane A). Re-run Task 0 at branch time.
-- B-3 floats per R-4 (queue): it **does** share `modules/rag.py` and `api/assistant.py` with G-C5 (`queue.md:145` lists both; R-4 exists because of that overlap). It is a parked draft (R-4/R-5) that rebases onto G-C5 when G-C5 lands; G-C5 does not wait for it. The Task 0 overlap check skips draft PRs, so it will not report B-3: check `queue.md:130` by hand at branch time (recurring-failures #8).
+- B-3 floats per R-4 (queue): it **does** share `modules/rag.py` and `api/assistant.py` with G-C5 (`queue.md:145` lists both; R-4 exists because of that overlap). It is a parked draft (R-4/R-5) that rebases onto G-C5 when G-C5 lands; G-C5 does not wait for it. The Task 0 overlap check skips draft PRs, so it will not report B-3: check `queue.md:145` by hand at branch time (recurring-failures #8).
 - P5: no shared file (scaffold `G-C5.md` §5 `:76`: its grep covers `faithfulness.py` and `verifier_agent.py` for `utcnow`; G-C5 adds none). Order against W-8, W-4 and P5 is satisfied: the first two are merged, P5 is independent.
 - This plan consumes I-2 and I-14 **without changing a signature**. No hunk below changes `EmbeddingModelUnavailableError`, `resolve_embedding_model_dir`, `EmbeddingsModule`, or either gate script.
 
@@ -134,7 +134,7 @@ Start: queue row `G-C5` (`queue.md:209`). Hunks use only these files.
 
 ## Unsigned owner lines
 
-OL-1, OL-2 and OL-3 were answered on 2026-10-19 (`owner-decisions-2026-09-27.md:269-271`, quoted in [Owner lines](#owner-lines)): confirm the pin, B (fail closed), A (load directly). OL-4 and OL-5 are still unsigned. The plan states each option and does not choose silently. The executor of G-C5 does not start Tasks 3-4 until OL-1, OL-2 and OL-3 are answered; they now are. OL-3 is a gate because the queue row `G-C5` (`queue.md:209`) names "ModelRunner applicability" in its gates column beside OL-2; the plan's arguments for option A are the planner's, not the owner's answer.
+OL-1, OL-2 and OL-3 were answered on 2026-10-19 (`owner-decisions-2026-09-27.md:269-271`, quoted in [Owner lines](#owner-lines)): confirm the pin, B (fail closed), A (load directly). OL-4 and OL-5 are still unsigned. The plan states each option and does not choose silently. OL-3 is a gate because the queue row `G-C5` (`queue.md:209`) names "ModelRunner applicability" in its gates column beside OL-2.
 
 ### OL-1 GC5-MODEL: confirm the model, licence and pin
 
