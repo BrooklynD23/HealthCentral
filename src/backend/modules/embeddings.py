@@ -10,12 +10,46 @@ import math
 import re
 import struct
 from dataclasses import dataclass
+from pathlib import Path
+
+EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
+# Source for the one-time, user-run fetch only (scripts/download_models.py
+# embedding). The runtime below never contacts this repo.
+EMBEDDING_REPO_ID = "sentence-transformers/all-MiniLM-L6-v2"
+EMBEDDING_REVISION = "1110a243fdf4706b3f48f1d95db1a4f5529b4d41"
+EMBEDDING_WEIGHTS_SHA256 = "53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db"
+EMBEDDING_FILES = (
+    "1_Pooling/config.json",
+    "README.md",
+    "config.json",
+    "config_sentence_transformers.json",
+    "model.safetensors",
+    "modules.json",
+    "sentence_bert_config.json",
+    "special_tokens_map.json",
+    "tokenizer.json",
+    "tokenizer_config.json",
+    "vocab.txt",
+)
+_BACKEND_DIR = Path(__file__).resolve().parents[1]
+
+
+class EmbeddingModelUnavailableError(RuntimeError):
+    """The bundled embedding model is missing or cannot be loaded offline."""
+
+
+def resolve_embedding_model_dir() -> Path:
+    """Directory the embedding model is loaded from (EMBEDDING_MODEL_PATH)."""
+    from core.config import settings
+
+    path = Path(settings.embedding_model_path)
+    return path if path.is_absolute() else _BACKEND_DIR / path
 
 
 @dataclass
 class EmbeddingsConfig:
     """Configuration for embeddings generation."""
-    model_name: str = "all-MiniLM-L6-v2"
+    model_name: str = EMBEDDING_MODEL_NAME
     dimensions: int = 384
     batch_size: int = 32
     normalize: bool = True
@@ -25,50 +59,61 @@ class EmbeddingsModule:
     """
     Text embedding generation for RAG retrieval.
 
-    Uses sentence-transformers for local, privacy-preserving embeddings.
-    Falls back to simple hash-based embeddings if model unavailable.
+    Loads the bundled sentence-transformers model from a local directory with
+    Hugging Face offline, and fails closed (EmbeddingModelUnavailableError) when
+    it is absent. The hash-based fallback exists for tests only
+    (use_fallback=True); product code must never enable it (HC-EMB-003).
     """
 
     def __init__(
         self,
-        model_name: str = "all-MiniLM-L6-v2",
-        use_fallback: bool = True,
+        model_name: str = EMBEDDING_MODEL_NAME,
+        use_fallback: bool = False,
     ):
         """
-        Initialize embeddings module.
-
         Args:
-            model_name: Name of sentence-transformers model
-            use_fallback: Use hash-based fallback if model unavailable
+            model_name: Label stored with each vector (Embedding.model_name).
+            use_fallback: Tests only. Use hash vectors when the model is absent.
         """
         self.config = EmbeddingsConfig(model_name=model_name)
         self.use_fallback = use_fallback
         self._model = None
         self._initialized = False
 
-    def _ensure_initialized(self):
-        """Lazy initialization of embedding model."""
+    def _ensure_initialized(self) -> None:
+        """Load the local model once. A failure is not cached: the next call
+        retries, so fetching the model does not need a restart."""
         if self._initialized:
             return
-
         try:
-            from sentence_transformers import SentenceTransformer
-            self._model = SentenceTransformer(self.config.model_name)
+            self._model = self._load_local_model()
             self.config.dimensions = self._model.get_sentence_embedding_dimension()
-        except ImportError:
-            if not self.use_fallback:
-                raise ImportError(
-                    "sentence-transformers not installed. "
-                    "Install with: pip install sentence-transformers"
-                )
-            # Use fallback mode
-            self._model = None
-        except Exception:
+        except EmbeddingModelUnavailableError:
             if not self.use_fallback:
                 raise
             self._model = None
-
         self._initialized = True
+
+    def _load_local_model(self):
+        """Load from the bundled directory only; never from the network."""
+        model_dir = resolve_embedding_model_dir()
+        missing = [name for name in EMBEDDING_FILES if not (model_dir / name).is_file()]
+        if missing:
+            raise EmbeddingModelUnavailableError(
+                f"Embedding model not installed at {model_dir} "
+                f"({len(missing)} of {len(EMBEDDING_FILES)} files missing). Fetch it once with: "
+                "cd src/backend && python scripts/download_models.py embedding"
+            )
+        try:
+            from sentence_transformers import SentenceTransformer
+        except ImportError as exc:
+            raise EmbeddingModelUnavailableError("sentence-transformers is not installed") from exc
+        try:
+            return SentenceTransformer(str(model_dir), local_files_only=True)
+        except Exception as exc:  # corrupt or incompatible files: fail closed, never download
+            raise EmbeddingModelUnavailableError(
+                f"Embedding model at {model_dir} failed to load: {type(exc).__name__}"
+            ) from exc
 
     def embed_chunks(
         self,

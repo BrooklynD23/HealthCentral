@@ -20,6 +20,7 @@ flowchart TD
         FE["frontend-tests<br/>tsc --noEmit · eslint · vitest · build"]
         SEC["security-scan<br/>bandit + pip-audit via security_gate.py"]
         EVAL["agent-evals<br/>agent_eval_gate.py"]
+        LEGACY["legacy-evals<br/>legacy_eval_gate.py"]
         E2E["e2e-tests<br/>Playwright (chromium)"]
     end
 
@@ -32,6 +33,7 @@ flowchart TD
     FE --> MERGE
     SEC --> MERGE
     EVAL --> MERGE
+    LEGACY --> MERGE
     E2E --> MERGE
 
     style EVAL fill:#4a148c,stroke:#ba68c8,color:#fff
@@ -43,11 +45,12 @@ flowchart TD
 | Job | Blocks on | Why it exists |
 |---|---|---|
 | `docs-lint` | Doc drift (DOC-003…DOC-013), stale generated index, malformed feature inventory, scratch files at the repo root | Documentation that contradicts the code is worse than no documentation |
-| `backend-tests` | Any pytest failure, or a missing coverage report (coverage report only, no threshold; fails if the report is missing) | The measured collected-count baseline is the one in [CLAUDE.md](../../CLAUDE.md); see "Known env-only failure" below |
+| `backend-tests` | Any pytest failure, or a missing coverage report (coverage report only, no threshold; fails if the report is missing). The job first runs `python scripts/download_models.py embedding` so the offline embedding model is present | The measured collected-count baseline is the one in [CLAUDE.md](../../CLAUDE.md); see "Known env-only failure" below |
 | `backend-lint` | Any ruff finding under the configured set in `src/backend/pyproject.toml`. Ask-first files are held by per-file-ignores until the owner approves fixing them | Catches undefined names and import/whitespace drift before the test job does |
 | `frontend-tests` | Type errors, eslint errors, vitest failures and a failing production build (`npm run lint`, `npm run build`; contract C-API-3) | — |
 | `security-scan` | High/critical findings not covered by a dated, owner-attributed waiver; a scanner error (exit ≥ 2); a missing or malformed report | Waivers expire on purpose; the gate fails closed |
 | `agent-evals` | Any failed golden case or missed bar: groundedness, citation, abstention and injection_resistance == 1.0; advice_leakage and phi_leakage == 0. Agent path only | Injection and leakage resistance are regression-tested guarantees, not one-time reviews |
+| `legacy-evals` | Any missed bar in `scripts/legacy_eval_gate.py`: served_invalid, uncited_served, leaked and persisted_mismatch == 0; abstention, escalation and answer_rate == 1.0. Legacy (non-agent) chat path only, scored over HTTP | The legacy path is the only one that calls a model, and an invalid answer used to be served (owner decision G-B5). `api.assistant._legacy_serve_or_abstain` now replaces any `is_valid=False` result with `ABSTAIN_TEMPLATE` |
 | `e2e-tests` | Playwright failures | Runs after backend and frontend jobs pass |
 
 The two purple gates are the ones that encode product-safety claims rather than
@@ -57,6 +60,9 @@ tune downward.
 
 ## Known env-only failure
 
-`test_rag_pipeline.py::...test_api_rag_index_002b_similar_text_yields_similar_embeddings`
-needs a real embedding model and fails in environments without one. The 0.7
+Five tests need the real embedding model and fail in environments without one
+(measured with `EMBEDDING_MODEL_PATH=/nonexistent`, Py 3.11, W-8 head `3aac97f`: `5 failed, 1804 passed`):
+`test_embedding_bundle.py::test_hc_emb_002_fetched_model_loads_offline`,
+`test_rag_pipeline.py::TestEmbeddingsPipeline::test_api_rag_index_002` / `002b` / `002c`, and
+`TestVectorSearchIntegration::test_search_vectors_async_calculates_similarity`. The model now loads offline from a local directory; fetch it with `cd src/backend && python scripts/download_models.py embedding` (CI does this before the tests). The 0.7
 similarity threshold is deliberately not lowered to make it pass.

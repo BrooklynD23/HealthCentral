@@ -13,7 +13,7 @@ from tests.support.callgraph import Graph
 
 CLASSIFICATION: dict[str, str] = {
     "api/assistant.py::create_session": "C",
-    "api/assistant.py::delete_session": "C",
+    "api/assistant.py::delete_session": "A2",
     "api/assistant.py::update_memory_settings": "C",
     "api/assistant.py::chat": "C",
     "api/backup.py::list_backups": "excluded: read route, audit_and_commit only",

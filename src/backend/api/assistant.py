@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.audit import audit_and_commit, create_audit_log
+from core.audit import audit_and_commit, audit_intent, create_audit_log
 from core.auth import ProfileDbSession, RequireAuth
 from core.database import get_db
 from core.time import utcnow
@@ -431,6 +431,7 @@ async def create_session(
     data: NewSessionRequest,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Explicitly create a new chat session (client-driven)."""
     profile_id = session.profile_id
@@ -445,6 +446,24 @@ async def create_session(
     profile_db.add(new_session)
     await profile_db.commit()
     await profile_db.refresh(new_session)
+    await create_audit_log(
+        db=master_db,
+        event_type="assistant.session.create",
+        action="assistant.session.create",
+        profile_id=profile_id,
+        entity_type="chat_session",
+        entity_id=new_session.id,
+        details=None,
+    )
+    try:
+        await master_db.commit()
+    except Exception:
+        logger.error(
+            "AUDIT-ORDER: audit commit failed after change (event=%s, entity=%s)",
+            "assistant.session.create",
+            new_session.id,
+        )
+        raise
     return NewSessionResponse(
         session_id=new_session.id,
         title=new_session.title,
@@ -484,6 +503,7 @@ async def delete_session(
     session_id: str,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Delete a chat session and all its turns."""
     profile_id = session.profile_id
@@ -496,8 +516,17 @@ async def delete_session(
     chat_session = result.scalar_one_or_none()
     if not chat_session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+    audit_kwargs = dict(
+        event_type="assistant.session.delete",
+        action="assistant.session.delete",
+        profile_id=profile_id,
+        entity_type="chat_session",
+        entity_id=session_id,
+    )
+    await audit_intent(master_db, "started", create_audit_log, **audit_kwargs)
     await profile_db.delete(chat_session)
     await profile_db.commit()
+    await audit_intent(master_db, "completed", create_audit_log, **audit_kwargs)
 
 
 # ---------------------------------------------------------------------------
@@ -540,6 +569,7 @@ async def update_memory_settings(
     data: MemorySettingsUpdate,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Toggle per-profile memory injection."""
     from core.config import settings as app_settings
@@ -564,6 +594,24 @@ async def update_memory_settings(
     row.updated_at = utcnow()
     await profile_db.commit()
     await profile_db.refresh(row)
+    await create_audit_log(
+        db=master_db,
+        event_type="settings.assistant_memory.update",
+        action="settings.assistant_memory.update",
+        profile_id=session.profile_id,
+        entity_type="settings",
+        entity_id="assistant_memory",
+        details={"changed_fields": ["assistant_memory_enabled"]},
+    )
+    try:
+        await master_db.commit()
+    except Exception:
+        logger.error(
+            "AUDIT-ORDER: audit commit failed after change (event=%s, entity=%s)",
+            "settings.assistant_memory.update",
+            "assistant_memory",
+        )
+        raise
     return MemorySettingsResponse(
         assistant_memory_enabled=bool(row.assistant_memory_enabled),
         global_default=bool(app_settings.assistant_memory_enabled),
