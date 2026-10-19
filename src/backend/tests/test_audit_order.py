@@ -48,7 +48,7 @@ from models import (
     Profile,
 )
 from models.audit import AuditLog
-from models.chat_session import ChatTurn
+from models.chat_session import ChatSession, ChatTurn
 from models.memory_item import MemoryItem
 from models.pinboard import Pinboard, PinboardItem
 from modules.rag import ModelUnavailableError
@@ -148,6 +148,13 @@ class Case:
             ))
         elif self.name == "memory":
             vault.add(MemoryItem(id=id_, profile_id=PROFILE, key="k", value="v"))
+        elif self.name == "chat_session":
+            vault.add(ChatSession(id=id_, profile_id=PROFILE, title="Chest pain questions"))
+            await vault.flush()
+            vault.add(ChatTurn(
+                id=str(uuid.uuid4()), session_id=id_, profile_id=PROFILE,
+                turn_index=0, role="user", content="hello",
+            ))
         else:
             vault.add(Pinboard(id=id_, name="board"))
         await vault.commit()
@@ -157,6 +164,8 @@ class Case:
         if self.name == "schedule":
             return f"{self.prefix}/{self.parent}/schedules/{id_}"
         suffix = "?hard_delete=true" if self.name == "medication" else ""
+        if self.name == "chat_session":
+            return f"{self.prefix}/sessions/{id_}"
         return f"{self.prefix}/{id_}{suffix}"
 
     async def present(self, vault: AsyncSession, id_: str, tmp_path) -> bool:
@@ -165,6 +174,11 @@ class Case:
         if self.name == "document":
             on_disk = (tmp_path / "vaults" / PROFILE / "docs" / f"{id_}.bin").exists()
             assert on_disk == bool(found), "document row and .bin disagree"
+        if self.name == "chat_session":
+            turn = (await vault.execute(
+                select(ChatTurn).where(ChatTurn.session_id == id_)
+            )).first()
+            assert bool(turn) == bool(found), "chat session and its turns disagree"
         return bool(found)
 
 
@@ -174,6 +188,7 @@ CASES = [
     Case("memory", memory_router, "/memory", MemoryItem),
     Case("pinboard", pinboards_router, "/pinboards", Pinboard),
     Case("schedule", medications_router, "/medications", MedicationSchedule),
+    Case("chat_session", assistant_router, "/assistant", ChatSession),
 ]
 IDS = [c.name for c in CASES]
 
