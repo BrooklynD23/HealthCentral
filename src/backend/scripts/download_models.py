@@ -332,6 +332,7 @@ def cmd_embedding(target: Optional[Path] = None) -> None:
     2026-09-27). Never deletes a directory it did not create in this run.
     """
     from huggingface_hub import snapshot_download
+
     from modules.embeddings import (
         EMBEDDING_FILES,
         EMBEDDING_REPO_ID,

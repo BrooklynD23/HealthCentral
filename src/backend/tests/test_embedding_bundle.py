@@ -115,6 +115,7 @@ import hashlib
 
 sys.path.insert(0, str(BACKEND_DIR / "scripts"))
 import download_models  # noqa: E402
+
 from modules import embeddings as emb  # noqa: E402
 
 

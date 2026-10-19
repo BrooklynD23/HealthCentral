@@ -12,7 +12,6 @@ import struct
 from dataclasses import dataclass
 from pathlib import Path
 
-
 EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
 # Source for the one-time, user-run fetch only (scripts/download_models.py
 # embedding). The runtime below never contacts this repo.
