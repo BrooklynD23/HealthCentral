@@ -66,7 +66,7 @@ flowchart LR
   class CLOUD,HF ext
 ```
 
-Dashed edges are network or conditional paths. On the W-8 branch the backend no longer fetches the embedding model implicitly: it loads it from a local directory offline and fails closed when it is absent. The model is fetched only by the explicit `scripts/download_models.py embedding` (and the other user-triggered model downloads); the cloud LLM path is off by default. The notification scheduler is **not** drawn because nothing starts it.
+Dashed edges are network or conditional paths. Since W-8 (PR #168) the backend no longer fetches the embedding model implicitly: it loads it from a local directory offline and fails closed when it is absent. The model is fetched only by the explicit `scripts/download_models.py embedding` (and the other user-triggered model downloads); the cloud LLM path is off by default. The notification scheduler is **not** drawn because nothing starts it.
 
 ## 3. Subsystem table
 

@@ -36,19 +36,19 @@ This contract turns the repo's invariants into rules a reviewer can check. Curre
   - `tests/agent/test_s4_phi_gate.py::test_s4_2_offline_loop_completes` blocks AF_INET for the agent loop only.
   - No lint bans network imports.
 - **Verify:**
-  - `grep -rnE "import (requests|httpx|aiohttp|socket|urllib\.request|huggingface_hub|sentence_transformers)|from (requests|httpx|aiohttp|huggingface_hub|sentence_transformers)" src/backend --include=*.py | grep -v /tests/`. Every hit must be in `core/llm/ollama_provider.py`, `core/external_runner.py`, the model-download code (`api/model_settings.py`, `modules/model_selector.py`, `scripts/model_manager.py`), `modules/embeddings.py`, or the import-availability probe in `modules/environment_diagnostics.py:268`. That is 7 files at main on 2026-09-27, 8 after P1 (B's `src/backend/scripts/download_models.py` adds `huggingface_hub`, `:53`).
+  - `grep -rnE "import (requests|httpx|aiohttp|socket|urllib\.request|huggingface_hub|sentence_transformers)|from (requests|httpx|aiohttp|huggingface_hub|sentence_transformers)" src/backend --include=*.py | grep -v /tests/`. Every hit must be in `core/llm/ollama_provider.py`, `core/external_runner.py`, the model-download code (`api/model_settings.py`, `modules/model_selector.py`, `scripts/model_manager.py`), `scripts/download_models.py`, `modules/embeddings.py`, or the import-availability probe in `modules/environment_diagnostics.py:268`. That is 7 files at main on 2026-09-27, and 8 files at `c37cdcc` (W-8 head, measured with this grep): the list above plus `src/backend/scripts/download_models.py`, which adds `huggingface_hub` (`:53`).
   - `pytest tests/test_llm_provider_layer.py -k "local"` covers the Ollama allow-list only (2 tests).
 - **Status today:** partial. W-8 removed the implicit Hugging Face fetch: `modules/embeddings.py` loads the model from a local directory with `local_files_only=True` and raises `EmbeddingModelUnavailableError` when it is absent (matrix LOCAL-03). The fetch is now an explicit step, `scripts/download_models.py embedding`, which CI runs before the backend tests (`ci.yml`). Other network surfaces are unchanged (matrix LOCAL-04, LOCAL-06).
 - **On violation:** stop; remove the call or route it through an approved path.
 - **Owner:** Project owner.
 - **Planned by:** W-8 (W-6 done, PR #32; it did not change the network surface).
 
-**C-LOCAL-2 · BINDING in code, not yet in CLAUDE.md** (owner-approved D8 + D8-delivery, `owner-decisions-2026-09-27.md:21,26`; not yet in CLAUDE.md).
+**C-LOCAL-2 · PROPOSED** (owner-approved D8 + D8-delivery, `owner-decisions-2026-09-27.md:21,26`; not yet in CLAUDE.md). Implemented and tested by W-8 (PR #168).
 - **Rule:** The embedding model MUST load from a local path or cache and MUST NOT download implicitly at query time. Downloads happen only through the user-triggered model manager. Interim delivery (D8-delivery): the model is fetched once by `src/backend/scripts/download_models.py` into a local models dir; runtime loads that path with HF offline and fails closed if it is absent.
-- **Enforced at:** `src/backend/modules/embeddings.py` (`settings.embedding_model_path`, `local_files_only=True` on the load, `EmbeddingModelUnavailableError` when the files are missing); `src/backend/scripts/download_models.py embedding` (pinned, checksummed fetch).
+- **Enforced at:** `src/backend/modules/embeddings.py` (`settings.embedding_model_path`, `local_files_only=True` on the load, `EmbeddingModelUnavailableError` when the files are missing); `src/backend/modules/rag.py` (turns it into `ModelUnavailableError(EMBEDDING_UNAVAILABLE_MESSAGE)`); `src/backend/scripts/download_models.py embedding` (pinned, checksummed fetch); the CI `backend-tests` fetch step in `.github/workflows/ci.yml`, which runs before the tests.
 - **Verify:** `grep -n "local_files_only\|HF_HUB_OFFLINE" src/backend/modules/embeddings.py`, and `tests/test_embedding_bundle.py`, `tests/test_embedding_no_network.py`, `tests/test_embedding_fail_closed_paths.py` (HC-EMB-001 to 008, HC-LHH-001/002).
 - **On violation:** —.
-- **Owner:** Project owner. Decided: D8 "Bundle the model" + D8-delivery "Script + offline load" (`owner-decisions-2026-09-27.md:21,26`), so implicit download is not accepted; the exact model revision is gate EMB-REV (unsigned).
+- **Owner:** Project owner. Decided: D8 "Bundle the model" + D8-delivery "Script + offline load" (`owner-decisions-2026-09-27.md:21,26`), so implicit download is not accepted; the exact model revision is answered, gate EMB-REV (`owner-decisions-2026-09-27.md:86`, "Approve this pin").
 - **Planned by:** W-8 (PR #168).
 
 **C-LOCAL-3 · PROPOSED** (source: `docs/compliance/data-privacy.md:53`).
