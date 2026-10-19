@@ -710,9 +710,16 @@ async def _aud_vault():
         await engine.dispose()
 
 
-def _aud_setup(monkeypatch, vault, master):
+def _aud_setup(monkeypatch, vault, master, fail=False):
     order: list[str] = []
     calls: list[dict] = []
+
+    async def _master_commit():
+        order.append("master_commit")
+        if fail:
+            raise RuntimeError("disk full")
+
+    master.commit = AsyncMock(side_effect=_master_commit)
 
     async def spy(**kwargs):
         calls.append(kwargs)
@@ -754,9 +761,10 @@ async def test_hc_audcas_001_create_session_audit_after_vault(_aud_vault, monkey
     assert kw["event_type"] == kw["action"] == "assistant.session.create"
     assert kw["entity_type"] == "chat_session"
     assert kw["entity_id"] == body["session_id"]
+    assert kw["profile_id"] == _AUD_PROFILE
     assert kw["details"] is None
     assert _AUD_TITLE not in repr(kw)
-    assert order == ["vault", "audit"]
+    assert order == ["vault", "audit", "master_commit"]
     master.commit.assert_awaited()
 
 
@@ -767,16 +775,16 @@ async def test_hc_audcas_002_create_session_audit_commit_fails(
     from models.chat_session import ChatSession
 
     master = AsyncMock()
-    master.commit.side_effect = RuntimeError("disk full")
-    ctx, client, calls, order = _aud_setup(monkeypatch, _aud_vault, master)
+    ctx, client, calls, order = _aud_setup(monkeypatch, _aud_vault, master, fail=True)
     try:
-        with caplog.at_level(_logging.ERROR):
+        with caplog.at_level(_logging.INFO):
             resp = client.post("/assistant/sessions", json={"title": _AUD_TITLE})
     finally:
         ctx.__exit__(None, None, None)
     assert resp.status_code == 500
     rows = (await _aud_vault.execute(_select(ChatSession))).scalars().all()
     assert len(rows) == 1
+    assert order == ["vault", "audit", "master_commit"]
     errs = [r for r in caplog.records if "AUDIT-ORDER" in r.getMessage()]
     assert len(errs) == 1 and errs[0].levelno == _logging.ERROR
     assert rows[0].id in errs[0].getMessage()
@@ -799,8 +807,9 @@ async def test_hc_audcas_003_memory_settings_audit_after_vault(_aud_vault, monke
     assert kw["event_type"] == kw["action"] == "settings.assistant_memory.update"
     assert kw["entity_type"] == "settings"
     assert kw["entity_id"] == "assistant_memory"
+    assert kw["profile_id"] == _AUD_PROFILE
     assert kw["details"] == {"changed_fields": ["assistant_memory_enabled"]}
-    assert order == ["vault", "audit"]
+    assert order == ["vault", "audit", "master_commit"]
     master.commit.assert_awaited()
 
 
@@ -811,10 +820,9 @@ async def test_hc_audcas_004_memory_settings_audit_commit_fails(
     from models.model_settings import UserModelSettings
 
     master = AsyncMock()
-    master.commit.side_effect = RuntimeError("disk full")
-    ctx, client, calls, order = _aud_setup(monkeypatch, _aud_vault, master)
+    ctx, client, calls, order = _aud_setup(monkeypatch, _aud_vault, master, fail=True)
     try:
-        with caplog.at_level(_logging.ERROR):
+        with caplog.at_level(_logging.INFO):
             resp = client.patch(
                 "/assistant/memory-settings", json={"assistant_memory_enabled": False}
             )
@@ -824,5 +832,7 @@ async def test_hc_audcas_004_memory_settings_audit_commit_fails(
     _aud_vault.expire_all()
     row = (await _aud_vault.execute(_select(UserModelSettings))).scalars().one()
     assert row.assistant_memory_enabled is False
+    assert order == ["vault", "audit", "master_commit"]
     errs = [r for r in caplog.records if "AUDIT-ORDER" in r.getMessage()]
     assert len(errs) == 1 and errs[0].levelno == _logging.ERROR
+    assert "assistant_memory" in errs[0].getMessage()
