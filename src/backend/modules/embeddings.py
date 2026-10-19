@@ -100,7 +100,7 @@ class EmbeddingsModule:
         missing = [name for name in EMBEDDING_FILES if not (model_dir / name).is_file()]
         if missing:
             raise EmbeddingModelUnavailableError(
-                f"Embedding model not installed at {model_dir} "
+                f"Embedding model not installed "
                 f"({len(missing)} of {len(EMBEDDING_FILES)} files missing). Fetch it once with: "
                 "cd src/backend && python scripts/download_models.py embedding"
             )
@@ -112,7 +112,7 @@ class EmbeddingsModule:
             return SentenceTransformer(str(model_dir), local_files_only=True)
         except Exception as exc:  # corrupt or incompatible files: fail closed, never download
             raise EmbeddingModelUnavailableError(
-                f"Embedding model at {model_dir} failed to load: {type(exc).__name__}"
+                f"Embedding model failed to load: {type(exc).__name__}"
             ) from exc
 
     def embed_chunks(
