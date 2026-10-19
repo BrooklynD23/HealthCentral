@@ -432,7 +432,9 @@ def test_hc_expr_003_doctor_summary_route_over_http(master_audit_db) -> None:
     download each persist a real audit row without PHI; another profile gets
     403 and writes exactly one denial.cross_profile row; an unknown id gets 404."""
     session, sync_engine = master_audit_db
-    with route_client(
+    with patch.object(
+        export_api, "profile_timezone_name", AsyncMock(return_value="UTC")
+    ), route_client(
         export_api.router, "/export", profile_id=PROFILE_A, master_db=session
     ) as client:
         client.app.dependency_overrides[get_profile_db_session] = _override_profile_db_for(PHI_ROWS)

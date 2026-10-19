@@ -398,6 +398,9 @@ async def generate_doctor_summary(
     Only includes data from the authenticated profile.
     """
     profile_id = session.profile_id
+    local_today = to_local(
+        utcnow(), await profile_timezone_name(profile_db, profile_id)
+    ).date()
 
     # Fetch observations from profile database
     observations = await _fetch_observations(
@@ -416,6 +419,7 @@ async def generate_doctor_summary(
         generated_questions = export_module.generate_questions(
             observations=observations,
             trends=trends,
+            today=local_today,
         )
         questions = [QuestionItem.from_prompt(q) for q in generated_questions]
 
@@ -448,6 +452,8 @@ async def generate_doctor_summary(
     # redaction runs BEFORE it is stored, so the preview below and every
     # download format (text/html/pdf render from the store) are redacted.
     summary_data = export_module.redact_summary_data(summary_data)
+    # Profile-local generation day, added after redaction (a bare ISO date).
+    summary_data["generated_on"] = local_today.isoformat()
     _summary_store[summary.summary_id] = summary_data
 
     # Create audit log
@@ -631,6 +637,9 @@ async def generate_questions(
     (medication changes, ordered tests, referrals), each tied to its source.
     """
     profile_id = session.profile_id
+    local_today = to_local(
+        utcnow(), await profile_timezone_name(profile_db, profile_id)
+    ).date()
 
     # Fetch observations from profile database
     observations = await _fetch_observations(
@@ -654,6 +663,7 @@ async def generate_questions(
         trends=trends,
         care_tasks=care_tasks,
         entities=entities,
+        today=local_today,
     )
 
     # Log generation
@@ -729,6 +739,9 @@ async def generate_visit_prep(
     profile_id = session.profile_id
     for doc_id in request.selected_doc_ids or []:
         validate_uuid(doc_id, "selected_doc_ids entry")
+    local_today = to_local(
+        utcnow(), await profile_timezone_name(profile_db, profile_id)
+    ).date()
 
     observations = None
     questions = None
@@ -783,6 +796,7 @@ async def generate_visit_prep(
             trends=_compute_trends(verified_observations),
             care_tasks=questions_care_tasks,
             entities=question_entities,
+            today=local_today,
         )
 
     selected_documents = (
@@ -802,6 +816,7 @@ async def generate_visit_prep(
         care_tasks=care_tasks if request.include_tasks else None,
         questions=questions,
         selected_documents=selected_documents,
+        today=local_today,
     )
     _packet_store[packet["packet_id"]] = packet
 
@@ -871,7 +886,11 @@ async def download_visit_prep(
         export_module = ExportModule()
         # Reuse the existing doctor-summary renderer (no new dependency).
         summary_data = {
-            "date_range": f"Visit Prep Packet — {packet['generated_at'][:10]}",
+            "date_range": (
+                "Visit Prep Packet — "
+                f"{packet.get('generated_on') or packet['generated_at'][:10]}"
+            ),
+            "generated_on": packet.get("generated_on"),
             "key_findings": [],
             "sections": packet["sections"],
             "questions": [],  # already rendered as a packet section

@@ -343,6 +343,7 @@ class TestQuestionsRoute:
 
         monkeypatch.setattr("api.export._fetch_observations", AsyncMock(return_value=obs))
         monkeypatch.setattr("api.export._fetch_care_task_dicts", AsyncMock(return_value=[task]))
+        monkeypatch.setattr("api.export.profile_timezone_name", AsyncMock(return_value="UTC"))
         monkeypatch.setattr("api.export._fetch_question_entity_dicts", AsyncMock(return_value=[ent]))
         audit_mock = AsyncMock()
         monkeypatch.setattr("api.export.log_export_event", audit_mock)

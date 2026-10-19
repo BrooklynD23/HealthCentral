@@ -264,6 +264,7 @@ from api.export import (  # noqa: E402
 
 def _patch_fetchers(monkeypatch, observations=None, meds=None, mentions=None,
                     tasks=None, entities=None, docs=None):
+    monkeypatch.setattr("api.export.profile_timezone_name", AsyncMock(return_value="UTC"))
     monkeypatch.setattr(
         "api.export._fetch_observations", AsyncMock(return_value=observations or [])
     )
