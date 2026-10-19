@@ -367,6 +367,42 @@ class TestUnderscoreJoinedRedaction:
         expected = {c for c in map(chr, range(128)) if re.fullmatch(f"[{cls}]", c)}
         assert set(red._LOCAL_CHARS) == expected
 
+    def test_hc_redact_010c_email_one_match_attempt_per_at(self):
+        """HC-REDACT-010c: the email rule makes exactly one pattern.match per '@' and never finditer."""
+        import dataclasses
+
+        class _Counting:
+            def __init__(self, inner):
+                self._inner = inner
+                self.pattern = inner.pattern
+                self.match_calls = 0
+                self.finditer_calls = 0
+
+            def match(self, *a, **k):
+                self.match_calls += 1
+                return self._inner.match(*a, **k)
+
+            def finditer(self, *a, **k):
+                self.finditer_calls += 1
+                return self._inner.finditer(*a, **k)
+
+        live = next(r for r in _RULES if r.name == "email")
+        proxy = _Counting(live.pattern)
+        engine = RedactionEngine(
+            policy_level="strict",
+            rules=[dataclasses.replace(live, pattern=proxy)],
+        )
+        cases = [
+            ("a." * 2000 + "@x", "a." * 2000 + "@x", 1, 0),
+            ("a." * 2000 + "@x.com", "[EMAIL-REDACTED]", 1, 0),
+            ("a." * 2000, "a." * 2000, 0, 0),
+        ]
+        for text, expected, n_match, n_finditer in cases:
+            proxy.match_calls = proxy.finditer_calls = 0
+            assert engine.redact(text).text == expected
+            assert proxy.match_calls == n_match == text.count("@")
+            assert proxy.finditer_calls == n_finditer
+
 
 # ---------------------------------------------------------------------------
 # Policy levels
