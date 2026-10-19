@@ -127,7 +127,8 @@ dependency in a local-first app.
 
 **Caveat to be honest about:** the one persistently failing test in the suite is
 `test_api_rag_index_002b`, an embedding-similarity assertion that needs a real
-embedding model to run. It is an environment gap, not a product bug, and the
+embedding model to run. It is an environment gap, not a product bug (the model is fetched with
+`scripts/download_models.py embedding` and loaded offline), and the
 0.7 threshold is deliberately not lowered to make it pass — but it does mean
 embedding quality is less regression-covered than the rest of the pipeline.
 

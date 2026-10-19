@@ -43,7 +43,7 @@ flowchart TD
 | Job | Blocks on | Why it exists |
 |---|---|---|
 | `docs-lint` | Doc drift (DOC-003…DOC-013), stale generated index, malformed feature inventory, scratch files at the repo root | Documentation that contradicts the code is worse than no documentation |
-| `backend-tests` | Any pytest failure, or a missing coverage report (coverage report only, no threshold; fails if the report is missing) | The measured collected-count baseline is the one in [CLAUDE.md](../../CLAUDE.md); see "Known env-only failure" below |
+| `backend-tests` | Any pytest failure, or a missing coverage report (coverage report only, no threshold; fails if the report is missing). The job first runs `python scripts/download_models.py embedding` so the offline embedding model is present | The measured collected-count baseline is the one in [CLAUDE.md](../../CLAUDE.md); see "Known env-only failure" below |
 | `backend-lint` | Any ruff finding under the configured set in `src/backend/pyproject.toml`. Ask-first files are held by per-file-ignores until the owner approves fixing them | Catches undefined names and import/whitespace drift before the test job does |
 | `frontend-tests` | Type errors, eslint errors, vitest failures and a failing production build (`npm run lint`, `npm run build`; contract C-API-3) | — |
 | `security-scan` | High/critical findings not covered by a dated, owner-attributed waiver; a scanner error (exit ≥ 2); a missing or malformed report | Waivers expire on purpose; the gate fails closed |
@@ -58,5 +58,5 @@ tune downward.
 ## Known env-only failure
 
 `test_rag_pipeline.py::...test_api_rag_index_002b_similar_text_yields_similar_embeddings`
-needs a real embedding model and fails in environments without one. The 0.7
+needs a real embedding model and fails in environments without one. The model now loads offline from a local directory; fetch it with `cd src/backend && python scripts/download_models.py embedding` (CI does this before the tests). The 0.7
 similarity threshold is deliberately not lowered to make it pass.
