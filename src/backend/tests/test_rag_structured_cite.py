@@ -165,19 +165,29 @@ def test_hc_lcp_009_cited_but_unsupported_claim_is_still_withheld():
 
 
 def test_hc_lcp_009b_renderer_rejected_json_is_withheld_not_served_raw():
-    """When the renderer returns None the raw JSON goes to the unchanged gate; it must never be served."""
+    """Under the cite schema, a JSON object the renderer rejects is replaced by a fixed
+    withheld text. Raw JSON never reaches the gate, so no JSON fragment is ever served."""
     header_case = json.dumps(_answer(
         report_facts=[{"text": "Glucose: 95 mg/dL", "cites": [1]}],
         uncertainties=["Several uncertainties remain about lab variation."],
     ))
     empty_case = json.dumps({"report_facts": [], "general_info": [], "uncertainties": []})
-    for raw in (header_case, empty_case):
+    # Forged marker inside "text": prompt rule 1 still asks for [cite:N], so models do emit it.
+    marker_case = json.dumps(_answer(
+        report_facts=[{"text": "Glucose: 95 mg/dL [cite:1]", "cites": [1]}],
+    ))
+    for raw in (header_case, empty_case, marker_case):
         assert RAGModule()._render_structured_answer(raw, 2) is None
         body, received = _post(raw, "What was my glucose?")
-        assert received and received[0] == raw, received
-        assert body["is_valid"] is False
-        assert body["full_response"] in (ABSTAIN_TEMPLATE, f"**UNCERTAINTY**\n{ABSTAIN_TEMPLATE}"), body["full_response"]
-        assert '"report_facts"' not in body["full_response"]
+        assert received and received[0] == RAGModule._STRUCTURED_WITHHELD, received
+        assert raw not in received
+        for fragment in ('"report_facts"', '"uncertainties"', '"general_info"', '"cites"', "{", "}"):
+            assert fragment not in body["full_response"], (fragment, body["full_response"])
+            assert all(fragment not in s["content"] for s in body["segments"]), body["segments"]
+
+    # Prose and malformed JSON still pass through unchanged (HC-LCP-007).
+    rag = RAGModule(enable_verification=False)
+    assert asyncio.run(rag._generate_with_runner("p", FakeRunner("{oops"), n_chunks=2)) == "{oops"
 
 
 @pytest.mark.asyncio

@@ -1398,6 +1398,11 @@ I was unable to fully process your question within the time limit. Please try as
             lines.append("UNCERTAINTIES:\n" + "\n".join(f"- {n}" for n in notes))
         return "\n\n".join(lines) if lines else None
 
+    _STRUCTURED_WITHHELD = (
+        "UNCERTAINTIES:\nI could not produce a verifiable answer from your records for this "
+        "question. Please try asking a more specific question about your results."
+    )
+
     async def _generate_with_runner(
         self, prompt: str, runner, n_chunks: Optional[int] = None
     ) -> str:
@@ -1430,6 +1435,14 @@ I was unable to fully process your question within the time limit. Please try as
                 rendered = self._render_structured_answer(result.text, n_chunks)
                 if rendered is not None:
                     return rendered
+                # A JSON object the renderer rejected (forged marker/header, empty) must not
+                # reach the text parser raw: it would serve a broken JSON fragment.
+                try:
+                    is_object = isinstance(json.loads(result.text), dict)
+                except (TypeError, ValueError):
+                    is_object = False
+                if is_object:
+                    return self._STRUCTURED_WITHHELD
             return result.text
         except Exception as e:
             self._logger.error(f"LLM generation failed: {e}")
