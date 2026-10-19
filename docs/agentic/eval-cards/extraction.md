@@ -46,5 +46,4 @@ analyte, unit, collection date. Thresholds live in the test and are never lowere
 
 - Table-layout PDFs (`_extract_from_table`), scanned/OCR PDFs, images.
 - Value, reference range and flag correctness.
-- Known miss: lines whose unit is outside `ExtractModule.VALUE_PATTERN` (for example `ug/dL`, `mIU/L`) are dropped whole (lab_06).
 - Environment: counts are CI's (Linux, Python 3.11). `pdfplumber>=0.10.0` is unpinned, so another version may differ.
