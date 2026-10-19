@@ -450,10 +450,11 @@ class ExtractModule:
 
         # Non-colon lines only: a numeric token after the analyte's first word is a
         # previous-result column ("Glucose 105 H 98 mg/dL", "Glucose 105H 98 mg/dL").
-        # A flag glued to the number counts. Ambiguous, so yield no value rather
-        # than a wrong one. Colon matches are not guarded.
+        # Any letters glued to the number count ("105H", "105HI", "105A"), whatever
+        # the flag spelling. Ambiguous, so yield no value rather than a wrong one.
+        # Colon matches are not guarded.
         if not colon_match and any(
-            re.fullmatch(r"[\d.,]+(?:" + self._FLAG_ALT + r")?", t, re.IGNORECASE)
+            re.fullmatch(r"[\d.,]+[A-Za-z]*", t)
             for t in analyte.split()[1:]
         ):
             return None
