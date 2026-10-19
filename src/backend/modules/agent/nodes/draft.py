@@ -33,12 +33,21 @@ says: …", "You have N open follow-up items"), never advice.
 
 from __future__ import annotations
 
+import logging
+from datetime import datetime
+
 from pydantic import BaseModel
+
+from core.time import profile_timezone_name, to_local
+from modules.normalize import NormalizeModule
 
 from ..audit import AgentAuditEvent, emit_audit_event
 from ..guardrails.redaction_gate import sanitize_untrusted_field
 from ..schemas import Citation
 from ..state import RunLog, ToolContext
+from .plan import _detect_analyte
+
+logger = logging.getLogger(__name__)
 
 
 class Draft(BaseModel):
@@ -66,7 +75,41 @@ def _observation_rows_from_log(run_log: RunLog) -> list[dict]:
     return rows
 
 
-def _observation_sentence(row: dict) -> str:
+# CHAT-FACT-ROUTING: an open question (rows span several analytes) answers with
+# the latest verified value per analyte, most recent first, at most this many.
+_MAX_OPEN_ANALYTES = 10
+
+
+def _display_name(raw: str) -> str:
+    """Patient-facing analyte name: ``DISPLAY_NAMES`` for an ingest key (or a
+    planner label that maps to exactly one), else the key title-cased."""
+    key = raw
+    if key not in NormalizeModule.ANALYTE_SYNONYMS:
+        keys = NormalizeModule.canonical_keys_for(raw)
+        key = keys[0] if len(keys) == 1 else raw
+    return NormalizeModule.DISPLAY_NAMES.get(key, key.replace("_", " ").title())
+
+
+def _local_date(value, tz_name: str) -> str:
+    """``Jan 15, 2026``: the profile-local calendar date, no time (I-6)."""
+    try:
+        moment = datetime.fromisoformat(value) if isinstance(value, str) else value
+        return to_local(moment, tz_name).strftime("%b %d, %Y")
+    except (TypeError, ValueError):
+        return str(value)
+
+
+async def _profile_tz(ctx: ToolContext) -> str:
+    """The profile's IANA zone; UTC when the context has no readable settings."""
+    try:
+        async with ctx.db_session() as session:
+            return await profile_timezone_name(session, ctx.profile_id)
+    except Exception:  # noqa: BLE001 - a date format must never fail the answer
+        logger.warning("profile timezone lookup failed; formatting dates in UTC", exc_info=True)
+        return "UTC"
+
+
+def _observation_sentence(row: dict, tz_name: str = "UTC") -> str:
     """Compose the one grounded sentence for an observation row.
 
     ``analyte``/``unit`` are extraction-derived free text — untrusted input
@@ -74,13 +117,33 @@ def _observation_sentence(row: dict) -> str:
     both are scrubbed of injection markers and PHI patterns first (HC-M05;
     see guardrails/redaction_gate.sanitize_untrusted_field).
     """
-    analyte = sanitize_untrusted_field(row["analyte"])
+    analyte = _display_name(sanitize_untrusted_field(row["analyte"]))
     unit_value = sanitize_untrusted_field(row.get("unit"))
     unit = f" {unit_value}" if unit_value else ""
-    return f"Your verified {analyte} result was {row['value']}{unit} (collected {row['collected_at']})."
+    return (
+        f"Your verified {analyte} result was {row['value']}{unit} "
+        f"(collected {_local_date(row['collected_at'], tz_name)})."
+    )
 
 
-def _trend_sentences(run_log: RunLog) -> tuple[list[str], list[Citation]]:
+def _rows_to_draft(question: str, rows: list[dict]) -> list[dict]:
+    """An open question (no analyte named) collapses to the latest row per
+    analyte, most recent first, capped. A named analyte keeps every row.
+
+    The per-analyte dedupe is defence in depth (query_observations already
+    returns the latest row per analyte); the cap is what does the work here."""
+    if _detect_analyte(question) is not None:
+        return rows
+    latest: dict[str, dict] = {}
+    for row in rows:
+        best = latest.get(row["analyte"])
+        if best is None or str(row["collected_at"]) > str(best["collected_at"]):
+            latest[row["analyte"]] = row
+    ordered = sorted(latest.values(), key=lambda r: str(r["collected_at"]), reverse=True)
+    return ordered[:_MAX_OPEN_ANALYTES]
+
+
+def _trend_sentences(run_log: RunLog, tz_name: str = "UTC") -> tuple[list[str], list[Citation]]:
     """Compose grounded trend sentences from compute_trend outputs in the log.
 
     One sentence per TrendPoint (chronological — compute_trend already
@@ -93,7 +156,7 @@ def _trend_sentences(run_log: RunLog) -> tuple[list[str], list[Citation]]:
     citations: list[Citation] = []
 
     for output in _act_outputs(run_log, "compute_trend"):
-        analyte = sanitize_untrusted_field(output.get("analyte", "result"))
+        analyte = _display_name(sanitize_untrusted_field(output.get("analyte", "result")))
         points = output.get("points", [])
         if not points:
             continue
@@ -105,7 +168,7 @@ def _trend_sentences(run_log: RunLog) -> tuple[list[str], list[Citation]]:
 
         for p in points:
             unit = ""  # TrendPoint carries no unit; value-only point sentence
-            sentences.append(f"Your verified {analyte} result was {p['value']}{unit} (collected {p['collected_at']}).")
+            sentences.append(f"Your verified {analyte} result was {p['value']}{unit} (collected {_local_date(p['collected_at'], tz_name)}).")
             citations.append(
                 Citation(source_type="document", source_id=p["observation_id"], locator=p["observation_id"], source_kind="observation")
             )
@@ -268,18 +331,19 @@ async def draft(question: str, run_log: RunLog, ctx: ToolContext) -> Draft:
     sentences: list[str] = []
     citations: list[Citation] = []
 
-    trend_sentences, trend_citations = _trend_sentences(run_log)
+    tz_name = await _profile_tz(ctx)
+    trend_sentences, trend_citations = _trend_sentences(run_log, tz_name)
     sentences.extend(trend_sentences)
     citations.extend(trend_citations)
 
     # Avoid double-reporting a value both as a raw observation row AND as a
     # trend point if a run somehow gathered both for the same observation.
     cited_observation_ids = {c.source_id for c in citations}
-    rows = _observation_rows_from_log(run_log)
+    rows = _rows_to_draft(question, _observation_rows_from_log(run_log))
     for row in rows:
         if row["observation_id"] in cited_observation_ids:
             continue
-        sentences.append(_observation_sentence(row))
+        sentences.append(_observation_sentence(row, tz_name))
         citations.append(
             Citation(
                 source_type="document",

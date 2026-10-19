@@ -14,7 +14,7 @@ from api.export import _compute_trends, _packet_store
 from core.audit import audit_and_commit, audit_intent, log_pinboard_event
 from core.auth import ProfileDbSession, RequireAuth
 from core.database import get_db
-from core.time import utcnow
+from core.time import profile_timezone_name, to_local, utcnow
 from models import CarePlanTask, Document, Observation, Pinboard, PinboardItem
 from models.document_category import DocumentEntity
 from modules.export import ExportModule
@@ -403,6 +403,9 @@ async def export_pinboard_packet(
 ):
     if payload.confirm is not True:
         raise HTTPException(status_code=400, detail="Pinboard export requires confirm=true.")
+    local_today = to_local(
+        utcnow(), await profile_timezone_name(profile_db, session.profile_id)
+    ).date()
     board = await _board_or_404(profile_db, pinboard_id)
     item_result = await profile_db.execute(
         select(PinboardItem).where(PinboardItem.pinboard_id == board.id)
@@ -495,7 +498,7 @@ async def export_pinboard_packet(
     export_module = ExportModule()
     questions = export_module.generate_questions(
         question_observations, _compute_trends(question_observations),
-        care_tasks=question_tasks, entities=question_entities,
+        care_tasks=question_tasks, entities=question_entities, today=local_today,
     ) if question_ids else []
     packet = export_module.compose_visit_prep_packet(
         profile_id=session.profile_id,
@@ -506,6 +509,7 @@ async def export_pinboard_packet(
         selected_documents=documents if ids_by_type["document"] else None,
         packet_title="Pinboard Packet",
         include_normal_observations=True,
+        today=local_today,
     )
     _packet_store[packet["packet_id"]] = packet
     await audit_and_commit(

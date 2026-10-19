@@ -1,6 +1,6 @@
 # CI & Quality Gates
 
-**Last Updated:** 2026-10-04
+**Last Updated:** 2026-10-18
 **Owner:** Project Lead
 **Refresh Trigger:** A CI job is added, removed, or changes what it blocks on
 
@@ -16,6 +16,7 @@ flowchart TD
         direction TB
         DOCS["docs-lint<br/>docs_lint.py · generate_docs_index.py --check<br/>feature_list_lint.py · repo_hygiene_check.py"]
         BE["backend-tests<br/>pytest via run-backend-tests.sh<br/>SQLCipher installed"]
+        LINT["backend-lint<br/>ruff check (F, I, W) · ruff 0.17.1"]
         FE["frontend-tests<br/>tsc --noEmit · eslint · vitest · build"]
         SEC["security-scan<br/>bandit + pip-audit via security_gate.py"]
         EVAL["agent-evals<br/>agent_eval_gate.py"]
@@ -27,6 +28,7 @@ flowchart TD
 
     DOCS --> MERGE{"merge allowed"}
     BE --> MERGE
+    LINT --> MERGE
     FE --> MERGE
     SEC --> MERGE
     EVAL --> MERGE
@@ -42,6 +44,7 @@ flowchart TD
 |---|---|---|
 | `docs-lint` | Doc drift (DOC-003…DOC-013), stale generated index, malformed feature inventory, scratch files at the repo root | Documentation that contradicts the code is worse than no documentation |
 | `backend-tests` | Any pytest failure, or a missing coverage report (coverage report only, no threshold; fails if the report is missing) | The measured collected-count baseline is the one in [CLAUDE.md](../../CLAUDE.md); see "Known env-only failure" below |
+| `backend-lint` | Any ruff finding under the configured set in `src/backend/pyproject.toml`. Ask-first files are held by per-file-ignores until the owner approves fixing them | Catches undefined names and import/whitespace drift before the test job does |
 | `frontend-tests` | Type errors, eslint errors, vitest failures and a failing production build (`npm run lint`, `npm run build`; contract C-API-3) | — |
 | `security-scan` | High/critical findings not covered by a dated, owner-attributed waiver; a scanner error (exit ≥ 2); a missing or malformed report | Waivers expire on purpose; the gate fails closed |
 | `agent-evals` | Any failed golden case or missed bar: groundedness, citation, abstention and injection_resistance == 1.0; advice_leakage and phi_leakage == 0. Agent path only | Injection and leakage resistance are regression-tested guarantees, not one-time reviews |

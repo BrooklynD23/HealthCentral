@@ -841,3 +841,216 @@ async def test_hc_agq_080_advice_seeking_question_still_escalates(
     terminal = await run_agent("Should I stop taking my statin?", ctx)
 
     assert terminal.terminal == "escalate"
+
+
+# ---------------------------------------------------------------------------
+# HC-CFR-001..005: CHAT-FACT-ROUTING analyte-key routing. Ingest stores
+# NormalizeModule keys (ldl_cholesterol), the planner asks with labels ("LDL").
+# ---------------------------------------------------------------------------
+
+async def _cfr_seed(session_maker, profile_id, analyte, value, *, verified=True, collected_at=None):
+    doc_id = await seed_document(session_maker, profile_id=profile_id)
+    return await seed_observation(
+        session_maker,
+        profile_id=profile_id,
+        doc_id=doc_id,
+        analyte=analyte,
+        value=value,
+        verified=verified,
+        collected_at=collected_at,
+    )
+
+
+@pytest.mark.asyncio
+async def test_hc_cfr_001_ldl_question_finds_ingest_key_row(agent_profile_db, make_run_context):
+    from modules.agent.graph import run_agent
+
+    profile_id = str(uuid.uuid4())
+    obs_id = await _cfr_seed(agent_profile_db, profile_id, "ldl_cholesterol", 138.0)
+
+    ctx = make_run_context(agent_profile_db, profile_id=profile_id)
+    terminal = await run_agent("Is my LDL cholesterol high?", ctx)
+
+    assert terminal.terminal == "answer"
+    assert obs_id in {c.source_id for c in terminal.citations}
+
+
+@pytest.mark.asyncio
+async def test_hc_cfr_002_generic_cholesterol_finds_total_cholesterol(
+    agent_profile_db, make_run_context
+):
+    from modules.agent.graph import run_agent
+
+    profile_id = str(uuid.uuid4())
+    obs_id = await _cfr_seed(agent_profile_db, profile_id, "total_cholesterol", 210.0)
+
+    ctx = make_run_context(agent_profile_db, profile_id=profile_id)
+    terminal = await run_agent("Explain my cholesterol results.", ctx)
+
+    assert terminal.terminal == "answer"
+    assert obs_id in {c.source_id for c in terminal.citations}
+
+
+@pytest.mark.asyncio
+async def test_hc_cfr_003_ldl_trend_cites_both_ingest_key_rows(agent_profile_db, make_run_context):
+    import re
+
+    from modules.agent.graph import run_agent
+
+    profile_id = str(uuid.uuid4())
+    first = await _cfr_seed(
+        agent_profile_db, profile_id, "ldl_cholesterol", 150.0, collected_at=datetime(2025, 1, 10)
+    )
+    second = await _cfr_seed(
+        agent_profile_db, profile_id, "ldl_cholesterol", 130.0, collected_at=datetime(2026, 1, 10)
+    )
+
+    ctx = make_run_context(agent_profile_db, profile_id=profile_id)
+    terminal = await run_agent("How has my LDL changed over time?", ctx)
+
+    assert terminal.terminal == "answer"
+    assert {first, second} <= {c.source_id for c in terminal.citations}
+    # Trend path uses the display name and a date without a time of day.
+    assert "LDL Cholesterol" in terminal.text
+    assert "ldl_cholesterol" not in terminal.text
+    assert not re.search(r"\d:\d\d", terminal.text)
+
+
+@pytest.mark.asyncio
+async def test_hc_cfr_004_unverified_ingest_key_abstains_not_yet_verified(
+    agent_profile_db, make_run_context, monkeypatch
+):
+    """The loop reaches the abstain through check_verification's "unverified"
+    status (the "value not yet verified" reason), not through "absent"."""
+    from modules.agent.graph import run_agent
+    from modules.agent.tools.check_verification import CheckVerificationTool
+
+    statuses: list[str] = []
+    real_run = CheckVerificationTool.run
+
+    async def _spy(self, args, ctx):
+        out = await real_run(self, args, ctx)
+        statuses.append(out.status)
+        return out
+
+    monkeypatch.setattr(CheckVerificationTool, "run", _spy)
+
+    profile_id = str(uuid.uuid4())
+    await _cfr_seed(agent_profile_db, profile_id, "ldl_cholesterol", 138.0, verified=False)
+
+    ctx = make_run_context(agent_profile_db, profile_id=profile_id)
+    terminal = await run_agent("Is my LDL cholesterol high?", ctx)
+
+    assert terminal.terminal == "abstain"
+    assert statuses == ["unverified"]
+
+
+def test_hc_cfr_005_every_planner_label_maps_to_an_ingest_key():
+    from modules.agent.nodes.plan import _ANALYTE_KEYWORDS
+    from modules.normalize import NormalizeModule
+
+    for label in set(_ANALYTE_KEYWORDS.values()):
+        keys = NormalizeModule.canonical_keys_for(label)
+        assert keys, f"planner label {label!r} matches no ANALYTE_SYNONYMS key"
+        assert set(keys) <= set(NormalizeModule.ANALYTE_SYNONYMS)
+
+
+# ---------------------------------------------------------------------------
+# HC-CFR-006..008: CHAT-FACT-ROUTING fact answer format (owner option (a)):
+# display names, profile-local dates, latest value per analyte capped at 10.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_hc_cfr_006_sentence_uses_display_name_not_ingest_key(
+    agent_profile_db, make_run_context
+):
+    from modules.agent.graph import run_agent
+
+    profile_id = str(uuid.uuid4())
+    await _cfr_seed(agent_profile_db, profile_id, "ldl_cholesterol", 138.0)
+
+    ctx = make_run_context(agent_profile_db, profile_id=profile_id)
+    terminal = await run_agent("Is my LDL cholesterol high?", ctx)
+
+    assert terminal.terminal == "answer"
+    assert "LDL Cholesterol" in terminal.text
+    assert "ldl_cholesterol" not in terminal.text
+
+
+@pytest.mark.asyncio
+async def test_hc_cfr_007_sentence_date_is_profile_local_without_time(
+    agent_profile_db, make_run_context
+):
+    import re
+
+    from models.model_settings import UserModelSettings
+    from modules.agent.graph import run_agent
+
+    profile_id = str(uuid.uuid4())
+    async with agent_profile_db() as session:
+        session.add(UserModelSettings(profile_id=profile_id, timezone="America/Los_Angeles"))
+        await session.commit()
+    # 2026-01-16 01:00 UTC is 2026-01-15 17:00 in Los Angeles.
+    await _cfr_seed(
+        agent_profile_db, profile_id, "ldl_cholesterol", 138.0,
+        collected_at=datetime(2026, 1, 16, 1, 0),
+    )
+
+    ctx = make_run_context(agent_profile_db, profile_id=profile_id)
+    terminal = await run_agent("Is my LDL cholesterol high?", ctx)
+
+    assert terminal.terminal == "answer"
+    assert "Jan 15, 2026" in terminal.text
+    assert not re.search(r"\d:\d\d", terminal.text)
+
+
+@pytest.mark.asyncio
+async def test_hc_cfr_008_open_question_drafts_latest_per_analyte_capped_at_10(
+    agent_profile_db, make_run_context
+):
+    from datetime import timedelta
+
+    from modules.agent.graph import run_agent
+    from modules.normalize import NormalizeModule
+
+    analytes = [
+        "hemoglobin", "hematocrit", "red_blood_cells", "white_blood_cells", "platelets",
+        "glucose", "bun", "creatinine", "sodium", "potassium", "chloride", "tsh",
+        "free_t4", "hba1c", "triglycerides",
+    ]
+    profile_id = str(uuid.uuid4())
+    latest_ids: list[str] = []
+    for i, analyte in enumerate(analytes):
+        await _cfr_seed(
+            agent_profile_db, profile_id, analyte, 1.0,
+            collected_at=datetime(2025, 1, 1) + timedelta(days=i),
+        )
+        latest_ids.append(
+            await _cfr_seed(
+                agent_profile_db, profile_id, analyte, 100.0 + i,
+                collected_at=datetime(2026, 1, 1) + timedelta(days=i),
+            )
+        )
+
+    ctx = make_run_context(agent_profile_db, profile_id=profile_id)
+    terminal = await run_agent("Show me my latest lab results.", ctx)
+
+    assert terminal.terminal == "answer"
+    # The 10 analytes with the most recent result, one cited sentence each,
+    # and each cites that analyte's LATEST row (never the older one).
+    assert {c.source_id for c in terminal.citations} == set(latest_ids[5:])
+    assert len(terminal.citations) == 10
+    # Most recent first.
+    assert [c.source_id for c in terminal.citations] == list(reversed(latest_ids[5:]))
+    for analyte in analytes[5:]:
+        name = NormalizeModule.DISPLAY_NAMES.get(analyte, analyte.replace("_", " ").title())
+        assert name in terminal.text
+    for analyte in analytes[:5]:
+        name = NormalizeModule.DISPLAY_NAMES.get(analyte, analyte.replace("_", " ").title())
+        # Whole-name match: strip longer display names that contain this one
+        # (e.g. "Hemoglobin A1c" contains "Hemoglobin") before checking absence.
+        text = terminal.text
+        for longer in sorted(NormalizeModule.DISPLAY_NAMES.values(), key=len, reverse=True):
+            if longer != name and name in longer:
+                text = text.replace(longer, "")
+        assert name not in text

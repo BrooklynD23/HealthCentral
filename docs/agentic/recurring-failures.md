@@ -345,11 +345,21 @@ It appears for audit too. The audit-order guard (`tests/test_audit_order_guard.p
 HC-AUD-ORD-030) checks that every committing handler is *classified*, not that
 the class is *true*. It lists `api/notifications.py::update_notification_settings`
 and `::record_reminder_interaction` as `"C"` (audit after change), but
-`api/notifications.py` has no audit call at all; its `log_document_event`
-import is unused (found planning AUDIT-MISSING-MED, 2026-10-17; new row
-AUDIT-NOTIF-ALL). Recheck: for each `"C"` or `"A2"` row, `grep -n
+`api/notifications.py` had no audit call at all; its `log_document_event`
+import was unused (found planning AUDIT-MISSING-MED, 2026-10-17; row
+AUDIT-NOTIF-ALL). Fixed by AUDIT-NOTIF-ALL: both `"C"` handlers now audit
+after the vault commit, and the settings and history reads use
+`audit_and_commit` (HC-AUDNTF-001..008). Recheck: for each `"C"` or `"A2"`
+row, `grep -n
 "audit_and_commit\|audit_intent\|log_.*_event(" <file>` must hit inside that
 handler.
+Applied to every `"C"` and `"A2"` row on `046d12c` (planning AUDIT-NOTIF-ALL,
+2026-10-18), that recheck finds 17 more `"C"` handlers with no audit call in
+the body and none reached through a helper: 3 in `api/assistant.py`, 6 in
+`api/medications.py`, 8 in `api/model_settings.py` (list in the lane D
+AUDIT-NOTIF-ALL plan; queue row AUDIT-C-CLASS). A per-file grep misses
+them, because the same file audits in a sibling handler; walk each handler body
+instead.
 
 
 **Recheck:** when a comment or doc justifies a deletion with a reason that names

@@ -67,6 +67,26 @@ jobs:
           path: src/backend/coverage.xml
           if-no-files-found: error
 
+  # Q-RUFF-SET and Q-RUFF-PIN (2026-10-17): the configured F/I/W set from
+  # src/backend/pyproject.toml, ruff pinned to match requirements.txt.
+  backend-lint:
+    name: Backend Lint (ruff hard errors)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install ruff
+        run: pip install "ruff==0.17.1"
+
+      - name: Run ruff
+        working-directory: src/backend
+        run: ruff check . --output-format=github
+
   frontend-tests:
     name: Frontend Tests
     runs-on: ubuntu-latest

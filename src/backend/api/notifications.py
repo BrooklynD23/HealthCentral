@@ -14,12 +14,14 @@ import uuid
 from datetime import time, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.audit import audit_and_commit, log_document_event
 from core.auth import ProfileDbSession, RequireAuth
+from core.database import get_db
 from core.time import NaiveUtcDatetime, profile_timezone_name, to_local, utcnow
 from models import (
     Medication,
@@ -148,6 +150,7 @@ async def get_notification_settings(
     medication_id: str,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     Get notification settings for a medication.
@@ -173,6 +176,15 @@ async def get_notification_settings(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied"
         )
+
+    await audit_and_commit(
+        master_db,
+        log_document_event,
+        event="view",
+        profile_id=session.profile_id,
+        document_id=medication_id,
+        details={"entity_type": "notification_settings"},
+    )
 
     # Get settings from metadata
     settings = _get_settings_from_medication(medication)
@@ -200,6 +212,7 @@ async def update_notification_settings(
     update: NotificationSettingsUpdate,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     Update notification settings for a medication.
@@ -262,6 +275,24 @@ async def update_notification_settings(
     medication.metadata_json = json.dumps(current_metadata)
 
     await profile_db.commit()
+    # AUDIT-ORDER C: reversible, so audit follows the change; a failed audit
+    # commit is logged (ids only) and re-raised.
+    event_type = "notification_settings_update"
+    await log_document_event(
+        db=master_db,
+        event=event_type,
+        profile_id=session.profile_id,
+        document_id=medication_id,
+        details={"changed_fields": sorted(update.model_dump(exclude_none=True))},
+    )
+    try:
+        await master_db.commit()
+    except Exception:
+        logger.error(
+            "AUDIT-ORDER: audit commit failed after change (event=%s, entity=%s)",
+            event_type, medication_id,
+        )
+        raise
     await profile_db.refresh(medication)
 
     # Return updated settings
@@ -295,6 +326,7 @@ async def get_notification_history(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     Get notification history for the profile.
@@ -334,6 +366,15 @@ async def get_notification_history(
     query = query.order_by(ReminderLog.sent_at.desc()).offset(offset).limit(limit)
     result = await profile_db.execute(query)
     reminders = result.scalars().all()
+
+    await audit_and_commit(
+        master_db,
+        log_document_event,
+        event="view",
+        profile_id=session.profile_id,
+        document_id=medication_id or "all",
+        details={"entity_type": "notification_history", "count": len(reminders)},
+    )
 
     # Get medication names for display
     medication_names = {}
@@ -419,6 +460,7 @@ async def send_test_medication_notification(
     medication_id: str,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     Send a test notification for a specific medication.
@@ -444,6 +486,16 @@ async def send_test_medication_notification(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied"
         )
+
+    # Audit (fail-closed) before any streak lookup or OS notification.
+    await audit_and_commit(
+        master_db,
+        log_document_event,
+        event="view",
+        profile_id=session.profile_id,
+        document_id=medication_id,
+        details={"entity_type": "medication_test_notification"},
+    )
 
     # Get streak data
     pattern_learner = get_pattern_learner()
@@ -522,6 +574,7 @@ async def record_reminder_interaction(
     interaction_type: str = Query(..., pattern="^(dismissed|snoozed|marked_taken|opened_app)$"),
     snooze_minutes: Optional[int] = Query(None, ge=5, le=60),
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     Record user interaction with a reminder.
@@ -555,6 +608,24 @@ async def record_reminder_interaction(
         reminder.snooze_minutes = snooze_minutes
 
     await profile_db.commit()
+    # AUDIT-ORDER C: reversible, so audit follows the change; a failed audit
+    # commit is logged (ids only) and re-raised.
+    event_type = "reminder_interaction"
+    await log_document_event(
+        db=master_db,
+        event=event_type,
+        profile_id=session.profile_id,
+        document_id=reminder_id,
+        details={"entity_type": "reminder_interaction"},
+    )
+    try:
+        await master_db.commit()
+    except Exception:
+        logger.error(
+            "AUDIT-ORDER: audit commit failed after change (event=%s, entity=%s)",
+            event_type, reminder_id,
+        )
+        raise
 
     logger.info(f"Recorded interaction {interaction_type} for reminder {reminder_id}")
 

@@ -248,6 +248,9 @@ async def test_hc_pin_005_export_excludes_unverified_and_invokes_existing_redact
     audit = AsyncMock()
     monkeypatch.setattr("api.pinboards.log_pinboard_event", audit)
     monkeypatch.setattr(
+        "api.pinboards.profile_timezone_name", AsyncMock(return_value="UTC")
+    )
+    monkeypatch.setattr(
         "api.pinboards._prune_stale_items",
         AsyncMock(side_effect=lambda _db, current_items, _profile_id, *_a: current_items),
     )
@@ -330,6 +333,9 @@ async def test_hc_pin_008_export_excludes_unverified_source_documents(monkeypatc
         _Result(items=[verified, unverified]),
     ]
     monkeypatch.setattr("api.pinboards.log_pinboard_event", AsyncMock())
+    monkeypatch.setattr(
+        "api.pinboards.profile_timezone_name", AsyncMock(return_value="UTC")
+    )
     monkeypatch.setattr(
         "api.pinboards._prune_stale_items",
         AsyncMock(side_effect=lambda _db, current_items, _profile_id, *_a: current_items),
@@ -435,6 +441,9 @@ async def test_hc_pin_013_export_renders_selected_verified_normal_observation(
         _Result(items=[normal]),
     ]
     monkeypatch.setattr("api.pinboards.log_pinboard_event", AsyncMock())
+    monkeypatch.setattr(
+        "api.pinboards.profile_timezone_name", AsyncMock(return_value="UTC")
+    )
     monkeypatch.setattr(
         "api.pinboards._prune_stale_items",
         AsyncMock(side_effect=lambda _db, current_items, _profile_id, *_a: current_items),

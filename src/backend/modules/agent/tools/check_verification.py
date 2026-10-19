@@ -22,7 +22,9 @@ from datetime import datetime
 from typing import ClassVar, Literal
 
 from pydantic import model_validator
-from sqlalchemy import select
+from sqlalchemy import func, select
+
+from modules.normalize import NormalizeModule
 
 from ..audit import AgentAuditEvent, emit_audit_event
 from ..state import ToolContext
@@ -71,7 +73,7 @@ class CheckVerificationTool:
             stmt = select(Observation).where(Observation.id == args.observation_id)
         else:
             stmt = select(Observation).where(
-                Observation.analyte_canonical.ilike(args.analyte)
+                func.lower(Observation.analyte_canonical).in_({args.analyte.lower(), *NormalizeModule.canonical_keys_for(args.analyte)})
             )
 
         async with ctx.db_session() as session:

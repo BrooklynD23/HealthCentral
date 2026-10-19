@@ -19,7 +19,8 @@ export function ReferenceRangeComparison({
 
   const range = refHigh - refLow;
   const padding = range * 0.3;
-  const displayMin = refLow - padding;
+  const displayMin =
+    refLow >= 0 && value >= 0 ? Math.max(0, refLow - padding) : refLow - padding;
   const displayMax = refHigh + padding;
   const displayRange = displayMax - displayMin;
 
