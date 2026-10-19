@@ -26,7 +26,7 @@ from models import (
     MedicationSchedule,
 )
 
-from .streak_engine import _dose_dates
+from .streak_engine import _dose_dates, compute_streak
 
 logger = logging.getLogger(__name__)
 
@@ -440,15 +440,11 @@ class PatternLearner:
                     last_break_date = datetime.combine(dates[i-1], time())
                 current = 1
 
-        # Calculate current streak (counting backwards from today)
+        # Current streak counts through yesterday until the day ends with no dose (GAM2-STREAK0).
         today = to_local(utcnow(), tz_name).date()
-        current_streak = 0
-        check_date = today
-
-        date_set = set(dates)
-        while check_date in date_set:
-            current_streak += 1
-            check_date -= timedelta(days=1)
+        current_streak = compute_streak(doses, tz_name, today) or compute_streak(
+            doses, tz_name, today - timedelta(days=1)
+        )
 
         return StreakData(
             current_streak=current_streak,

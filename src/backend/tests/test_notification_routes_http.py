@@ -126,3 +126,39 @@ async def test_hc_audmed_004_test_notification_audit_failure_blocks_send(profile
     service.send.assert_not_awaited()
     service.initialize.assert_not_awaited()
     assert order == []
+
+
+@pytest.mark.asyncio
+async def test_hc_msg_004_test_notification_streak_holds_through_missed_morning(profile_db, monkeypatch):  # noqa: F811
+    # Doses Jan 13-15 at 09:00 PST; now = Jan 16 10:00 PST, no dose yet today.
+    med_id = await _seed_la_doses(
+        profile_db, [datetime(2026, 1, d, 17, 0) for d in (13, 14, 15)]
+    )
+    frozen = datetime(2026, 1, 16, 18, 0)
+    monkeypatch.setattr(notif_api, "utcnow", lambda: frozen)
+    monkeypatch.setattr(ap_module, "utcnow", lambda: frozen)
+
+    seen = {}
+    message = SimpleNamespace(title="t", body="b", action_text=None)
+
+    def _generate(context):
+        seen["streak"] = context.current_streak
+        return message
+
+    monkeypatch.setattr(
+        notif_api, "get_message_generator", lambda: SimpleNamespace(generate_reminder=_generate)
+    )
+    service = SimpleNamespace(
+        initialize=AsyncMock(),
+        send=AsyncMock(return_value=SimpleNamespace(success=True, platform=None, error_message=None)),
+    )
+    monkeypatch.setattr(notif_api, "get_notification_service", lambda: service)
+
+    async def _override_profile_db():
+        return profile_db
+
+    with route_client(notif_router, "/notifications", profile_id=PROFILE) as client:
+        client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+        resp = client.post(f"/notifications/test/{med_id}")
+    assert resp.status_code == 200, resp.text
+    assert seen["streak"] == 3
