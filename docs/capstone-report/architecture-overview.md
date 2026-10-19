@@ -59,14 +59,14 @@ flowchart LR
   LIFE --> BACKUPS
 
   EXT -. "HTTPS" .-> CLOUD["api.openai.com / api.anthropic.com"]
-  ST -. "HTTPS model fetch" .-> HF["huggingface.co"]
+  ST -. "explicit one-time fetch: scripts/download_models.py embedding" .-> HF["huggingface.co"]
   LCP --> GGUF[("local GGUF model files")]
 
   classDef ext fill:#fff3e0,stroke:#e65100,color:#000
   class CLOUD,HF ext
 ```
 
-Dashed edges are network or conditional paths. The only default-on outbound path is the implicit Hugging Face fetch of the embedding model (and user-triggered model downloads); the cloud LLM path is off by default. The notification scheduler is **not** drawn because nothing starts it.
+Dashed edges are network or conditional paths. Since W-8 (PR #168) the backend no longer fetches the embedding model implicitly: it loads it from a local directory offline and fails closed when it is absent. The model is fetched only by the explicit `scripts/download_models.py embedding` (and the other user-triggered model downloads); the cloud LLM path is off by default. The notification scheduler is **not** drawn because nothing starts it.
 
 ## 3. Subsystem table
 
@@ -129,7 +129,7 @@ Whether trends must exclude unverified rows is a **spec question** (PRD `docs/Lo
 | `core/llm/ollama_provider.py` (`httpx`) | local inference | yes | off; host pinned `127.0.0.1:11434` | `:31-54,73` |
 | `modules/model_selector.py:438` (`:456` after P1) `from llama_cpp import Llama` | tiered interpretation | **no** | **dormant** — only caller chain is `interpret_with_model` (`modules/interpret.py:877`), which has **0 callers** | `grep -rn interpret_with_model src/backend` |
 | `core/external_runner.py:261-300` (`httpx` → OpenAI/Anthropic) | opt-in cloud inference | **no** | off (`use_external_api` default `False`, `models/model_settings.py:78-81`); strict redaction default | used by `api/assistant.py:697`, `api/interpretations.py:436` |
-| `modules/embeddings.py:56` `SentenceTransformer(name)` | embeddings | n/a | **implicit** HF download on first use (no `local_files_only`/offline flag) | — |
+| `modules/embeddings.py` `SentenceTransformer(str(model_dir), local_files_only=True)` | embeddings | n/a | none at runtime: loads a local directory offline, fails closed if absent. The one-time fetch is `scripts/download_models.py embedding` | — |
 | `hf_hub_download` (`api/model_settings.py:892-919`, `modules/model_selector.py:607-633`) | model download | n/a | user-triggered | — |
 
 No `requests`, `aiohttp` or raw `socket` use in product code. `core/config.py:109` claims non-local Ollama URLs are "rejected at startup", but `validate_startup` (`:197-270`) has no such check — enforcement is at provider construction and the provider API (`api/model_settings.py:799-808`).

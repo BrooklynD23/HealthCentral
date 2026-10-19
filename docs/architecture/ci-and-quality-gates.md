@@ -43,7 +43,7 @@ flowchart TD
 | Job | Blocks on | Why it exists |
 |---|---|---|
 | `docs-lint` | Doc drift (DOC-003…DOC-013), stale generated index, malformed feature inventory, scratch files at the repo root | Documentation that contradicts the code is worse than no documentation |
-| `backend-tests` | Any pytest failure, or a missing coverage report (coverage report only, no threshold; fails if the report is missing) | The measured collected-count baseline is the one in [CLAUDE.md](../../CLAUDE.md); see "Known env-only failure" below |
+| `backend-tests` | Any pytest failure, or a missing coverage report (coverage report only, no threshold; fails if the report is missing). The job first runs `python scripts/download_models.py embedding` so the offline embedding model is present | The measured collected-count baseline is the one in [CLAUDE.md](../../CLAUDE.md); see "Known env-only failure" below |
 | `backend-lint` | Any ruff finding under the configured set in `src/backend/pyproject.toml`. Ask-first files are held by per-file-ignores until the owner approves fixing them | Catches undefined names and import/whitespace drift before the test job does |
 | `frontend-tests` | Type errors, eslint errors, vitest failures and a failing production build (`npm run lint`, `npm run build`; contract C-API-3) | — |
 | `security-scan` | High/critical findings not covered by a dated, owner-attributed waiver; a scanner error (exit ≥ 2); a missing or malformed report | Waivers expire on purpose; the gate fails closed |
@@ -57,6 +57,9 @@ tune downward.
 
 ## Known env-only failure
 
-`test_rag_pipeline.py::...test_api_rag_index_002b_similar_text_yields_similar_embeddings`
-needs a real embedding model and fails in environments without one. The 0.7
+Five tests need the real embedding model and fail in environments without one
+(measured with `EMBEDDING_MODEL_PATH=/nonexistent`, Py 3.11, W-8 head `3aac97f`: `5 failed, 1804 passed`):
+`test_embedding_bundle.py::test_hc_emb_002_fetched_model_loads_offline`,
+`test_rag_pipeline.py::TestEmbeddingsPipeline::test_api_rag_index_002` / `002b` / `002c`, and
+`TestVectorSearchIntegration::test_search_vectors_async_calculates_similarity`. The model now loads offline from a local directory; fetch it with `cd src/backend && python scripts/download_models.py embedding` (CI does this before the tests). The 0.7
 similarity threshold is deliberately not lowered to make it pass.

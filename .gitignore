@@ -93,6 +93,10 @@ src/backend/rl_exports/
 *.bin
 *.safetensors
 
+# Embedding model fetched by `src/backend/scripts/download_models.py embedding`.
+# Owner decision D8-delivery (2026-09-27): no model files in git.
+/src/backend/models/embeddings/
+
 # Environment and secrets
 .env
 .env.local

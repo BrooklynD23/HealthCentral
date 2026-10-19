@@ -161,6 +161,7 @@ def _ldl(obs_id: str, doc_id: str, value: float, verified: bool, collected_at: d
 def _rag() -> tuple[RAGModule, _CapturingRunner]:
     rag = RAGModule(enable_verification=False)
     rag._embedder = _StubEmbedder()
+    rag._embedder.config = SimpleNamespace(model_name="stub")
     return rag, _CapturingRunner()
 
 
