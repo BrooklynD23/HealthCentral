@@ -124,7 +124,8 @@ flowchart TD
     GUARD -->|"ungrounded, low confidence, or advice-bait"| ABSTAIN["abstain / escalate<br/>fixed templates"]
     MR --> SAFE["legacy-path checks: validate_response ·<br/>verifier_agent · faithfulness · interpret_safety patterns"]
     SAFE --> OUT["cited answer<br/>[cite:N] markers (context labels are not citations)"]
-    SAFE -.->|"any check fails (prohibited-advice match, missing citations, faithfulness < 0.6):<br/>is_valid=false, answer still served (W-4 pending)"| OUT
+    SAFE -->|"prohibited-advice match"| ESC["escalation template (SAFE-CHAT)"]
+    SAFE -.->|"missing citations or faithfulness < 0.6:<br/>is_valid=false, answer still served (W-4 pending)"| OUT
 
     style GUARD fill:#4a148c,stroke:#ba68c8,color:#fff
     style FB fill:#e65100,stroke:#ff9800,color:#fff
@@ -207,5 +208,5 @@ unredacted: a redacted backup cannot be restored. For the other three, owner
 decision [D3](../capstone-report/owner-decisions-2026-09-27.md) (2026-09-27)
 applies: the doctor summary is to be strictly redacted
 (**approved, not yet implemented**, work item W-2), and CSV / JSON stay full-fidelity as the
-patient's own data, to be named as deliberate exceptions in `CLAUDE.md` and
-`docs/compliance/data-privacy.md` (work item W-10).
+patient's own data, named as deliberate exceptions in `CLAUDE.md` and
+`docs/compliance/data-privacy.md`.

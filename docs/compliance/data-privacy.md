@@ -77,11 +77,9 @@ Users can export their data at any time:
 `docs/capstone-report/owner-decisions-2026-09-27.md`.
 - **CSV and JSON are deliberate exceptions to redaction.** They are the
   patient's own data export, so they stay full-fidelity, like backups.
-- **The doctor summary must be redacted at the `strict` policy level,** because
-  it goes to a third party. Status: owner-approved, **not yet implemented**.
-  Today the summary and its text, HTML and PDF downloads are produced without
-  redaction. Tracked as W-2 in
-  `docs/capstone-report/implementation-program.md` (matrix PRIV-04).
+- **The doctor summary is redacted at the `strict` policy level,** because it
+  goes to a third party, in all three download formats (text, HTML, PDF).
+  Implemented in `c4b1aa5`; tests HC-EXPR-001…003.
 
 ## Reinforcement Learning Dataset Export
 
@@ -187,9 +185,8 @@ redacted on the same grounds: they are the patient's own data export (owner
 decision D3, 2026-09-27; see Data Portability). These three are the
 export-shaped paths that are intentionally unredacted. The exports built for a
 third party pass through `modules/redaction.py` at `strict`: the visit-prep
-packet, the pinboard export, the FHIR bundle and the RL dataset. Under D3 the
-doctor summary must join them; that is owner-approved but not yet implemented
-(W-2).
+packet, the pinboard export, the FHIR bundle, the RL dataset and, under D3, the
+doctor summary (implemented in `c4b1aa5`).
 
 ### Document Deletion
 
@@ -218,12 +215,12 @@ is. Tracked as `FEEDBACK-SNAP-001`.
 ## Unverified Extracted Values
 
 Values extracted from an imported document are stored as unverified until the
-user confirms them. Owner decision D4 (2026-09-27): trends may show unverified
-points, but each must be visibly marked "unverified"; the legacy assistant
-(RAG) path cites verified values only, matching the agent path. Status:
-owner-approved, **not yet implemented**. Today the trends response carries no
-verification flag and legacy RAG retrieval does not filter on it. Tracked as
-W-3 in `docs/capstone-report/implementation-program.md` (matrix SAFE-02).
+user confirms them. Owner decision D4 (2026-09-27): trends show unverified
+points visibly marked "unverified", and the legacy assistant (RAG) path cites
+verified values only, matching the agent path. That includes the no-LLM
+fallback, which cites verified values only, and legacy RAG document chunks,
+which come from verified documents only. Implemented in `b45f9cb`; tests
+HC-VER-001…005 and vitest HC-VER-FE-001…003.
 
 ## Third-Party Data Sharing
 
@@ -259,11 +256,14 @@ When enabled by user opt-in:
   whole vault.
 - API key stored locally (never logged or transmitted elsewhere)
 - Provider: OpenAI or Anthropic (user choice)
-- PHI redaction: owner decision D12 (2026-09-27) requires `strict` redaction
-  through `modules/redaction.py` on every external call, with break-glass as
-  the only bypass, allowed only with an audit record and a UI warning. Status:
-  code merged in `2f0cb6f` (W-6); **conformance unverified** (matrix
-  LOCAL-04).
+- PHI redaction: `strict` through `modules/redaction.py` on every external
+  call (owner decision D12, 2026-09-27; implemented in `2f0cb6f`).
+  Break-glass is the only bypass, and it is allowed only with an audit record
+  and a UI warning. The warning shows in Settings and on the chat page
+  (`2f0cb6f`) and on the interpretation page (`eaad770`). Tests: backend
+  HC-EXT-001, HC-EXT-002…002d, HC-EXT-004 and HC-EXT-004b; vitest HC-EXT-003
+  (the warning component), HC-EXT-005 (chat page) and HC-EXT-006
+  (interpretation page). The Settings page has no page-level warning test.
 
 ### No Analytics or Telemetry
 

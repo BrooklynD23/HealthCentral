@@ -1,6 +1,6 @@
 # Lane D — Time Zones, Medications, Gamification — Build Design
 
-**Last Updated:** 2026-10-17 (MED-STREAK-GRACE, AUDIT-MISSING-MED, EXPORT-TODAY-TZ planned); 2026-10-16 (D-2 rev 2, owner Q1)
+**Last Updated:** 2026-10-18 (AUDIT-NOTIF-ALL planned; EXPORT-TODAY-TZ Design 2 rev for owner EXPORT-TODAY-TZ-DESIGN = B; AUDIT-C-CLASS row); 2026-10-17 (MED-STREAK-GRACE, AUDIT-MISSING-MED, EXPORT-TODAY-TZ planned); 2026-10-16 (D-2 rev 2, owner Q1)
 **Owner:** repository owner
 **Refresh Trigger:** any merge of #95, #97, #99, #82 or #84; any commit to `src/backend/core/time.py`, `src/backend/modules/notification_scheduler.py`, `src/backend/modules/adherence_patterns.py`, `src/backend/modules/streak_engine.py`, `src/backend/api/medications.py`, `src/backend/api/gamification.py`, `src/backend/api/notifications.py`, `src/backend/monitoring/correlation.py`; a new profile migration after `012_pinboards`.
 **Status:** DESIGN. Nothing here is implemented. Owner answers cited below are quoted from `docs/capstone-report/owner-decisions-2026-09-27.md`; this file records no new approval.
@@ -21,7 +21,9 @@
 | D-4 | CORRELATION-NORMALISE: canonical form of an inbound correlation ID | `implementation-program.md:500`; `audit/2026-09-25/waves/wave-3-L1-A.md:176` | no | — | done (#138) |
 | MED-STREAK-GRACE | per-medication and reminder streaks count through yesterday (Q2) | queue status 2026-10-16 second batch | [§3](#med-streak-grace--the-per-medication-streak-still-resets-each-morning-owner-ruling--q2) | D-3 (merged #109) | blocked-on-owner (MSG-SCOPE) |
 | AUDIT-MISSING-MED | audit rows on `GET /medications/{id}/stats` and `POST /notifications/test/{id}` | queue status 2026-10-16 second batch; CLAUDE.md audit invariant | [§3](#audit-missing-med--two-profile-data-routes-write-no-audit-row) | D-1 (merged #104); rebase after #130 | ready |
-| EXPORT-TODAY-TZ | export questions window and generated-on dates use the profile-local day | queue status 2026-10-16 second batch; recurring-failures #9 | [§3](#export-today-tz--export-dates-use-the-utc-calendar-day) | D-1 helpers (merged) | ready |
+| EXPORT-TODAY-TZ | export questions window and generated-on dates use the profile-local day | queue status 2026-10-16 second batch; recurring-failures #9 | [§3](#export-today-tz--export-dates-use-the-utc-calendar-day) | D-1 helpers (merged) | ready (Design 2 rev: owner EXPORT-TODAY-TZ-DESIGN = B) |
+| AUDIT-NOTIF-ALL | audit rows on the four profile-data routes of `api/notifications.py` that AUDIT-MISSING-MED does not cover | queue status 2026-10-17; recurring-failures #9 | [§3](#audit-notif-all--apinotificationspy-writes-no-audit-row-on-any-route) | AUDIT-MISSING-MED (merged #165) | ready |
+| AUDIT-C-CLASS | audit rows on the 17 `"C"` handlers with no audit call (assistant 3, medications 6, model_settings 8) | AUDIT-NOTIF-ALL planning, 2026-10-18; recurring-failures #9 | no (list in [§3 AUDIT-NOTIF-ALL](#audit-notif-all--apinotificationspy-writes-no-audit-row-on-any-route)) | — | unplanned |
 
 Dependency graph: `D-0 → D-1 → {D-2, D-3}`; D-4 is independent. D-2 and D-3 touch disjoint product files and may run as the 2 allowed code L1s at once.
 
@@ -366,6 +368,109 @@ Defaults stay `utcnow().date()`, so module-level callers and tests are unchanged
 **Acceptance:** `pyt tests/test_export_questions.py tests/test_export_redaction.py tests/test_visit_prep_packet.py tests/test_export_api.py tests/test_fhir_export.py -q`: 0 failed. HC-EXPR-002 (CSV/JSON byte-for-byte) still green. `scripts/time_source_lint.py` clean. The recurring-failures #9 recheck grep returns no `utcnow().date()` in `modules/export.py`. Full suite per RUNBOOK §6. **Rollback:** revert.
 
 **Order:** never beside C-GC1 (`api/export.py`, `api/pinboards.py`) or E-1b (`tests/test_export_redaction.py`). E-1 is merged (#106).
+
+#### EXPORT-TODAY-TZ Design 2 rev — store the local date at generate (owner EXPORT-TODAY-TZ-DESIGN = B, 2026-10-18)
+
+**Why a rev:** the build stopped at Task 0 on draft PR #155 ("blocked: tell L0" comment). Design 2 above has `api/export.py:534` and `:882` pass `local_today`. Those calls are in the download routes `download_summary` (`api/export.py:488-489`) and `download_visit_prep` (`:831-832`), and those routes have no `profile_db`, so they cannot look up the zone. Adding `ProfileDbSession` to them would run the vault dependency before the ownership check. The cross-profile 403 would then come from the dependency, with no `denial.cross_profile` row, and `tests/test_denial_audit.py:66-92` (HC-AUD-ORD-040/042) would fail. The owner chose (B) (owner-decisions row EXPORT-TODAY-TZ-DESIGN): "Record the local date when the summary or packet is generated and print that."
+
+**Replaces Design 2 (the footer). Design 1 (`generate_questions(today=)`) and Design 3 (`compose_visit_prep_packet(today=)`) stand.** Lines below are at `b8a47c7` (main after #165).
+1. **Routes compute the local date once.** These are the routes that have `ProfileDbSession`: `generate_doctor_summary` (`api/export.py:380-381`), `generate_questions` (`POST /export/questions`, `:614-615`; Design 1 only), `generate_visit_prep` (`:705-706`) and `export_pinboard_packet` (`api/pinboards.py:397`). Each computes `local_today = to_local(utcnow(), await profile_timezone_name(profile_db, profile_id)).date()` and uses it for Design 1 and, where it applies, Design 3. In `generate_visit_prep` and `export_pinboard_packet`, the lookup goes **after** the `confirm is not True` check (`api/pinboards.py:404`). HC-PKT-009 (`tests/test_visit_prep_packet.py:290-303`) and HC-PIN-004 (`tests/test_pinboards.py:195-204`) pass a bare `AsyncMock()` vault and expect the 400 first.
+2. **Doctor summary:** after `redact_summary_data` (`api/export.py:450`) and before `_summary_store[...] = summary_data` (`:451`), set `summary_data["generated_on"] = local_today.isoformat()`. It is added after redaction, so `redact_summary_data` (I-10) and HC-EXPR-001/002/003 keep their semantics. The value is a bare ISO date with no user text. Note for C-GC1: the persisted `payload_json` gains this one key.
+3. **Footer:** `render_html_summary(summary_data)` (`modules/export.py:401`) prints `date.fromisoformat(summary_data["generated_on"]).strftime('%B %d, %Y')` when the key is present, and `utcnow()` as today when it is absent. The fallback covers module-level callers (`tests/test_export_api.py:387`, `:403`) and store dicts seeded without the key. There is no `today` parameter. `download_summary` (`:533`) and the PDF path (`modules/export.py:407`) are unchanged: they render the stored dict. The footer now shows the **generation** date, not the download date.
+4. **Visit prep:** `compose_visit_prep_packet(..., today=local_today)` (Design 3) also stores `packet["generated_on"] = (today or utcnow().date()).isoformat()` next to `generated_at` (`modules/export.py:718`). The `Generated:` line (`:704`) prints the same date.
+5. **Visit-prep header (L0 ruling: in scope):** `download_visit_prep` builds `"date_range": f"Visit Prep Packet — {packet['generated_at'][:10]}"` (`api/export.py:874`). It now uses `packet.get("generated_on") or packet["generated_at"][:10]`, and the dict it hands to `render_html_summary` (`:873-878`) carries the same `generated_on`, so the header and the footer agree. Pinboard packets share `_packet_store` (`api/pinboards.py:13`, `:510`) and the same download route.
+6. **Ownership and denial-audit order unchanged:** neither download route gains a dependency. `tests/test_denial_audit.py` is untouched; it seeds store dicts without `generated_on` and gets a 403 before any render.
+7. **Seen, not in scope:** the text download's `Generated: {summary_data['generated_at']}` (`api/export.py:565`) prints the full UTC ISO timestamp, not a calendar day. Leave it; a new row if wanted.
+
+**Tests (replace HC-EXPTZ-003; HC-EXPTZ-001/002/004 stand):** freeze `api.export.utcnow`, `api.pinboards.utcnow` and `modules.export.utcnow` at `2026-01-16 01:00Z` (Jan 15 17:00 PST), with profile zone `America/Los_Angeles`.
+
+| Id | File | Assertion | RED? |
+|---|---|---|---|
+| HC-EXPTZ-003 | `tests/test_export_redaction.py` (`_export_client`, `:133-152`) | generate, then download HTML: footer `January 15, 2026`, not `January 16, 2026` | yes |
+| HC-EXPTZ-005 | same | generate at the frozen time, move `utcnow` to `2026-01-18 12:00Z`, then download: footer is still `January 15, 2026`. This pins "the stored generation date" | yes |
+| HC-EXPTZ-006 | `tests/test_visit_prep_packet.py` | over HTTP (`route_client`), `POST /export/visit-prep`, then `GET .../download?format=html`: body has `Visit Prep Packet — 2026-01-15` and `January 15, 2026` | yes |
+| HC-EXPTZ-007 | same | a `_packet_store` entry seeded without `generated_on` still downloads as HTML with the `generated_at[:10]` header. Pins the fallback | no (pin) |
+
+**Tests that pin changed behaviour (must be edited):**
+- `tests/test_export_redaction.py`: `_FakeProfileDb.execute` returns the fixture rows for any query (`:107-114`), so the new zone lookup in `generate_doctor_summary` cannot read a settings row. `_export_client` (`:133-152`) patches `api.export.profile_timezone_name` to return `"UTC"`, or the test's zone for HC-EXPTZ-003/005. This keeps HC-EXPR-001/002/003 green.
+- `tests/test_visit_prep_packet.py`: about ten `await generate_visit_prep(request, _make_session(), AsyncMock(), AsyncMock())` calls pass an `AsyncMock` vault. Patch `api.export.profile_timezone_name` to return `"UTC"` in `_patch_fetchers` (`:265-283`).
+
+- `tests/test_pinboards.py`: HC-PIN-005 (`:208-262`) calls `export_pinboard_packet` directly with an `AsyncMock` vault whose `execute.side_effect` is a fixed list of 3 results (`:237-240`). An extra `execute` would shift or exhaust that list. Add `monkeypatch.setattr("api.pinboards.profile_timezone_name", AsyncMock(return_value="UTC"))` in HC-PIN-005. HC-PIN-004 needs no edit (see step 1).
+- `tests/test_export_questions.py`: HC-QGN-013 (`:324-356`) calls the questions route with `profile_db=AsyncMock()`. Add the `api.export.profile_timezone_name` stub returning `"UTC"` there. This edit is required.
+
+**Re-run, not edited** (their vaults are real SQLite with `ProfileDatabaseBase.metadata.create_all`, so the lookup returns `"UTC"`; the real-SQLite pinboard export path is `tests/test_audit_order.py:598`):
+- `tests/test_utc_sweep_http.py` (`:229`, `:240`)
+- `tests/test_rl_export_prompt_snapshot.py`
+- `tests/test_audit_order.py`
+- `tests/test_export_api.py` (module-level `render_html_summary`, fallback path)
+- `tests/test_denial_audit.py`
+- `tests/test_fhir_export.py`
+
+**Files (rev):** `src/backend/modules/export.py`, `src/backend/api/export.py`, `src/backend/api/pinboards.py`, `src/backend/tests/test_export_questions.py`, `src/backend/tests/test_export_redaction.py`, `src/backend/tests/test_visit_prep_packet.py`, `src/backend/tests/test_pinboards.py`, slots. **Expected collected delta:** +7 (HC-EXPTZ-001…007).
+
+**Acceptance (rev):** the base acceptance above, plus `tests/test_denial_audit.py tests/test_pinboards.py tests/test_utc_sweep_http.py tests/test_rl_export_prompt_snapshot.py tests/test_audit_order.py` with 0 failed and `git diff origin/main -- src/backend/tests/test_denial_audit.py` empty.
+
+### AUDIT-NOTIF-ALL — `api/notifications.py` writes no audit row on any route
+
+**Source:** queue status 2026-10-17 (found while planning AUDIT-MISSING-MED), queue row AUDIT-NOTIF-ALL; CLAUDE.md hard invariant "Audit logging on every route that touches documents, observations, or profile data"; recurring-failures #9.
+
+**After AUDIT-MISSING-MED (merged #165, `d427868`).** That item covered exactly one notifications route, `POST /notifications/test/{medication_id}` (`send_test_medication_notification`), and its guard row (`tests/test_audit_order_guard.py:94`, `excluded: read route`). This item does not touch that handler or that row. The imports it needs are on main: `Depends` (`api/notifications.py:17`), `audit_and_commit, log_document_event` (`:22`) and `get_db` (`:24`).
+
+**Fact (`b8a47c7`, main after #165):**
+- The only audit call in `api/notifications.py` is AUDIT-MISSING-MED's, inside `send_test_medication_notification` (`:452`).
+- Every route in the file (prefix `/notifications`, `api/__init__.py:53`):
+
+| Route | Handler | Profile data touched | Audit today | This item |
+|---|---|---|---|---|
+| `GET /settings/{medication_id}` | `get_notification_settings` `:145-193` | reads `Medication` (vault) | none | **add** read audit |
+| `PATCH /settings/{medication_id}` | `update_notification_settings` `:196-285` | writes `Medication.reminder_enabled` and `metadata_json`; vault commit `:266` | none; the guard says `"C"` (`tests/test_audit_order_guard.py:93`) | **add** C audit |
+| `GET /history` | `get_notification_history` `:288-379` | reads `ReminderLog` and `Medication` | none | **add** read audit |
+| `POST /test` | `send_test_notification` `:382-413` | none: no `profile_db`, text comes from the request | none | none (no profile data) |
+| `POST /test/{medication_id}` | `send_test_medication_notification` `:416-500` | reads `Medication`, the streak | `audit_and_commit` view row (`:452`, #165) | done by AUDIT-MISSING-MED (HC-AUDMED-003/004) |
+| `GET /scheduler/status` | `get_scheduler_status` `:503-525` | none: process-wide scheduler counters | none | none (no profile data) |
+| `POST /{reminder_id}/interaction` | `record_reminder_interaction` `:528-572` | writes `ReminderLog`; vault commit `:570` | none; the guard says `"C"` (`:95`) | **add** C audit |
+
+- The guard (HC-AUD-ORD-030) checks that a committing handler is *classified*, not that the class is true. `security/audit_middleware.py` logs mutating methods to the app log only, never as an audit row (`tests/security/test_audit_middleware.py:83`).
+- **Found while planning (wider than this row, not fixed here):** the recurring-failures #9 recheck, applied to every `"C"` and `"A2"` row of the guard, also finds 17 handlers with no audit call in their body and none reached through a helper. They are `api/assistant.py` `create_session` `:430`, `delete_session` `:483`, `update_memory_settings` `:539`; `api/medications.py` `update_medication` `:561`, `create_schedule` `:696`, `update_schedule` `:790`, `delete_schedule` `:859`, `log_dose` `:912`, `learn_patterns` `:1285`; `api/model_settings.py` `run_hardware_detection` `:445`, `set_model_tier` `:486`, `start_model_download` `:634`, `save_external_api_settings` `:730`, `set_timezone` `:967`, `update_voice_settings` `:1002`, `update_ocr_settings` `:1105`, `update_agent_settings` `:1133`. The `api/interpretations.py` rows audit through `_audit_interpretation`, so they are not in the list. Method: an AST walk of each handler body for `audit_and_commit`, `audit_intent`, `log_*_event(`, `create_audit_log(`, `_emit_audit(`. Re-checked on `b8a47c7` (main after #165): same 17. They are now queue row **AUDIT-C-CLASS** (unplanned), and recurring-failures #9 records them.
+
+**Design (helpers and event shapes already in use; no new helper, no `core/audit.py` edit):**
+1. **C routes: the AUDIT-ORDER C pattern of `delete_medication`'s soft-delete branch (`api/medications.py:667-685`).** The handler commits the vault, then calls `log_document_event(db=master_db, ...)` (outside the `try`), then runs `master_db.commit()` inside `try`, as `api/medications.py:673-683` does. On failure it logs `logger.error("AUDIT-ORDER: audit commit failed after change (event=%s, entity=%s)", event, id)` (ids only) and re-raises. Result: the change stays durable, the request returns 500 and there is an ERROR line. This is AUDIT-ORDER plan `:205` (`docs/plans/2026-10-09-AUDIT-ORDER.md`). Event names follow the `medication_*` shape of `create_medication` (`:348-356`). `log_document_event` (`core/audit.py:306`) maps an unknown event to action `document.<event>`, equal to its `event_type`, so `_scrub_action` (`:174-193`) keeps it and does not warn (HC-AUD-010).
+   - `update_notification_settings` takes `master_db: AsyncSession = Depends(get_db)`. After `:266-267`, it audits `event="notification_settings_update"`, `profile_id=session.profile_id`, `document_id=medication_id`, `details={"changed_fields": sorted(update.model_dump(exclude_none=True))}`. The details hold field names only, never values. `changed_fields` is allowlisted (`core/audit.py:80-83`), and `update_gamification_settings` uses the same shape (`api/model_settings.py:1063-1072`).
+   - `record_reminder_interaction` takes `master_db` the same way. After `:570`, it audits `event="reminder_interaction"`, `document_id=reminder_id`, `details={"entity_type": "reminder_interaction"}`. The `interaction_type` (`marked_taken`, ...) is left out on purpose. It is adherence behaviour, and the master DB is unencrypted (AUDIT-PHI-001). Adding it later is one allowlisted `"action"` key.
+2. **Read routes: the pattern of `get_medication_correlations` (`api/medications.py:522-529`).** The handler takes `master_db` and, after the access check and before the response is built, calls `await audit_and_commit(master_db, log_document_event, event="view", ...)`. This fails closed: an audit failure fails the request.
+   - `get_notification_settings`: `document_id=medication_id`, `details={"entity_type": "notification_settings"}`.
+   - `get_notification_history`: `document_id=medication_id or "all"` (the `"all"` handle follows `list_documents`, `api/documents.py:1093-1099`), `details={"entity_type": "notification_history", "count": len(reminders)}`.
+   - Action "Viewed document" and the keys `entity_type` and `count` are already allowlisted (`core/audit.py:42`, `:70`, `:96`).
+3. **Guard:** the two `"C"` rows (`tests/test_audit_order_guard.py:93`, `:95`) stay, and now they are true. The two read handlers now commit, so HC-AUD-ORD-030 fails until they are classified. Add `"api/notifications.py::get_notification_settings"` and `"api/notifications.py::get_notification_history"` as `"excluded: read route, audit_and_commit only"`, in file order.
+
+**Test-first** (`tests/test_notification_routes_http.py`, all over HTTP):
+- **Client:** every row uses `route_client(notif_router, "/notifications", profile_id=PROFILE, master_db=master)` with an explicit `master = AsyncMock()`, so `master.commit` can be asserted. This is the HC-AUDMED-003 shape (`:90-101`). The `profile_db` fixture override follows `:45-49`.
+- **Failure rows:** set `master.commit.side_effect = RuntimeError` (002/004), or make the spy raise (006/008). Both add `raise_server_exceptions=False`.
+- **Seeds:** the shared `profile_db` fixture seeds nothing by itself. Each test inserts what it needs: a `Medication(id=med_id, profile_id=PROFILE, name="Metformin", frequency="once_daily", is_active=True, reminder_enabled=True)` and, for 003/004/007/008, a `ReminderLog(...)` for that medication. Copy the HC-UTC-005 seed (`tests/test_utc_sweep_http.py:146-153`) as a local insert, then `await profile_db.commit()`.
+- **Spy:** `monkeypatch.setattr(notif_api, "log_document_event", spy)`. The spy records its kwargs and appends `"audit"` to an order list.
+- **Vault order:** wrap `profile_db.commit` with `monkeypatch.setattr` so each call appends `"vault"`, installed after seeding.
+- Every row is RED on `b8a47c7`.
+
+| Id | Route | Assertion | RED? |
+|---|---|---|---|
+| HC-AUDNTF-001 | `PATCH /notifications/settings/{id}` `{"enabled": false, "quiet_hours_start": "22:00"}` | 200; one spy call with `event="notification_settings_update"`, `profile_id=PROFILE`, `document_id=med_id`, `details == {"changed_fields": ["enabled", "quiet_hours_start"]}`; order `["vault", "audit"]`; `master.commit` awaited | yes (no call) |
+| HC-AUDNTF-002 | same, master commit raises | 500; the vault row is still changed (`reminder_enabled is False` on re-select); exactly one ERROR record containing `AUDIT-ORDER` and `med_id`; the medication name is not in `caplog.text` | yes (200 today) |
+| HC-AUDNTF-003 | `POST /notifications/{reminder_id}/interaction?interaction_type=snoozed&snooze_minutes=10` | 204; one spy call with `event="reminder_interaction"`, `document_id=reminder_id`, `details == {"entity_type": "reminder_interaction"}`; order `["vault", "audit"]` | yes |
+| HC-AUDNTF-004 | same, master commit raises | 500; `ReminderLog.was_interacted` is True on re-select; one `AUDIT-ORDER` ERROR record with `reminder_id` | yes (204 today) |
+| HC-AUDNTF-005 | `GET /notifications/settings/{id}` | 200; one spy call with `event="view"`, `document_id=med_id`, `details == {"entity_type": "notification_settings"}`; `master.commit` awaited | yes |
+| HC-AUDNTF-006 | same, spy raises | status 500, the settings body is not served | yes (200 today) |
+| HC-AUDNTF-007 ×2 | `GET /notifications/history`, parametrized: no filter / `?medication_id=<id>` | 200; one spy call with `event="view"`, `document_id == "all"` / `== med_id`, `details == {"entity_type": "notification_history", "count": 1}` | yes ×2 |
+| HC-AUDNTF-008 | `GET /notifications/history`, spy raises | status 500 | yes (200 today) |
+
+What these tests would not notice: the stored row's columns. The spy sees the helper's kwargs, not the `AuditLog` row, and `log_document_event` hard-codes `entity_type="document"`, as for every medication row today. The helper's row shape is pinned by HC-AUD-004 (`tests/test_audit_phi_minimization.py:180`), not here.
+
+**Files:** `src/backend/api/notifications.py`; `src/backend/tests/test_notification_routes_http.py`; `src/backend/tests/test_audit_order_guard.py` (2 new `excluded:` rows; the `"C"` rows `:93`, `:95` unchanged); `docs/agentic/recurring-failures.md` (#9: mark the notifications instance fixed; keep the AUDIT-C-CLASS list); slots. **Re-run, not edited:** `src/backend/tests/test_utc_sweep_http.py` (HC-UTC-005 calls `GET /notifications/history` through `route_client`, whose default `AsyncMock` master absorbs the new audit write) and `src/backend/tests/test_notification_scheduler_wiring.py` (`GET /scheduler/status`, unchanged).
+
+**Expected collected delta:** +9 (8 ids, HC-AUDNTF-007 parametrized ×2).
+
+**Acceptance:** the nine tests above; `pyt tests/test_notification_routes_http.py tests/test_audit_order_guard.py tests/test_audit_order.py tests/test_audit_phi_minimization.py tests/test_utc_sweep_http.py tests/test_notification_scheduler_wiring.py -q`: 0 failed. The recurring-failures #9 recheck run on `api/notifications.py` hits inside both `"C"` handlers. `cd src/backend && python -c "from main import app"`. Full suite per RUNBOOK §6. **Rollback:** revert; no data.
+
+**Order:** AUDIT-MISSING-MED is merged (#165). Never beside MED-STREAK-GRACE (option (a) edits `tests/test_notification_routes_http.py`) or AUDIT-C-CLASS, and never beside another open PR on `tests/test_audit_order_guard.py` (E-2, B-5, C-GC1, RSI1-DONATE).
 
 ---
 
