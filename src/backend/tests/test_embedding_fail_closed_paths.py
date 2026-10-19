@@ -11,7 +11,7 @@ from __future__ import annotations
 import struct
 import uuid
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import pytest_asyncio
@@ -171,7 +171,9 @@ async def test_hc_emb_006c_grounded_interpretation_returns_501_over_http(profile
     ))
     monkeypatch.setattr(interpretations_api, "get_interpret_module", lambda: stub)
 
-    with route_client(interpretations_router, "/interpretations", profile_id=profile_id) as client:
+    master_db = AsyncMock()
+    master_db.add = MagicMock()  # AuditLog rows land here; a bare AsyncMock would hide a dropped row
+    with route_client(interpretations_router, "/interpretations", profile_id=profile_id, master_db=master_db) as client:
         async def _override_profile_db():
             return profile_db
 
@@ -183,6 +185,10 @@ async def test_hc_emb_006c_grounded_interpretation_returns_501_over_http(profile
     assert detail == QFC_APPROVED_DETAIL  # exact owner-approved wording (Q-FC), not the product constant
     assert str(absent_model) not in detail
     assert runner.calls == 0, "the LLM answered from retrieval that ran without the bundled embedding model"
+    # The grounded route audits before rag.query, so the 501 path must still leave the row.
+    audit_rows = [c.args[0] for c in master_db.add.call_args_list]
+    assert [r.entity_id for r in audit_rows] == [obs_id]
+
 
 @pytest.mark.asyncio
 async def test_hc_emb_007_reprocess_keeps_chunks_when_embedding_unavailable(profile_db, absent_model):

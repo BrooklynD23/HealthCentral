@@ -98,11 +98,23 @@ def test_hc_emb_003_product_code_never_enables_hash_fallback():
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if (
+                        isinstance(target, ast.Attribute)
+                        and target.attr == "use_fallback"
+                        and not isinstance(node.value, ast.Name)  # self.use_fallback = use_fallback
+                        and not (isinstance(node.value, ast.Constant) and node.value.value is False)
+                    ):
+                        offenders.append(f"{rel}:{node.lineno}")
+                continue
             if not isinstance(node, ast.Call):
                 continue
             name = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
             if name != "EmbeddingsModule":
                 continue
+            if len(node.args) > 1:
+                offenders.append(f"{rel}:{node.lineno}")
             for kw in node.keywords:
                 if kw.arg == "use_fallback" and not (
                     isinstance(kw.value, ast.Constant) and kw.value.value is False
