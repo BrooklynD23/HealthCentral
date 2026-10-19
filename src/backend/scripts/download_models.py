@@ -317,11 +317,13 @@ def _sha256(path: Path) -> str:
 
 
 def _embedding_complete(directory: Path) -> bool:
-    from modules.embeddings import EMBEDDING_FILES, EMBEDDING_WEIGHTS_SHA256
+    from modules.embeddings import EMBEDDING_FILE_SHA256
 
-    if not all((directory / name).is_file() for name in EMBEDDING_FILES):
-        return False
-    return _sha256(directory / "model.safetensors") == EMBEDDING_WEIGHTS_SHA256
+    for name, expected in EMBEDDING_FILE_SHA256.items():
+        path = directory / name
+        if not path.is_file() or _sha256(path) != expected:
+            return False
+    return True
 
 
 def cmd_embedding(target: Optional[Path] = None) -> None:
