@@ -229,6 +229,8 @@ UNDERSCORE_PHI = [
     ("mrn_;_a12345", "a12345"),
     ("patient_name_=_jane_doe", "jane"),
     ("patient_name_;_jane_doe", "jane"),
+    # bare label with a qualifier before its colon
+    ("name_(legal):_jane", "jane"),
 ]
 
 ANALYTE_LIKE = [
@@ -315,6 +317,8 @@ class TestUnderscoreJoinedRedaction:
             pytest.param("mrn" + "_(" * 20000, id="mrn_paren"),
             pytest.param("patient" + "_#" * 20000 + "!", id="patient_hash"),
             pytest.param("mrn" + "_-" * 20000 + "!", id="mrn_dash"),
+            # a bare '_' run before the optional '#'/'no.' (disjointness guard)
+            pytest.param("patient" + "_" * 50000 + "!", id="patient_run"),
         ],
     )
     def test_hc_redact_009_new_label_shapes_linear_time(self, text):
