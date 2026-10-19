@@ -264,6 +264,7 @@ from api.export import (  # noqa: E402
 
 def _patch_fetchers(monkeypatch, observations=None, meds=None, mentions=None,
                     tasks=None, entities=None, docs=None):
+    monkeypatch.setattr("api.export.profile_timezone_name", AsyncMock(return_value="UTC"))
     monkeypatch.setattr(
         "api.export._fetch_observations", AsyncMock(return_value=observations or [])
     )
@@ -686,3 +687,77 @@ class TestRealFetchers:
 
         entities = await _fetch_question_entity_dicts(db)
         assert {e["entity_value"] for e in entities} == {"start metformin 500 mg"}
+
+
+# ---------------------------------------------------------------------------
+# EXPORT-TODAY-TZ: the packet prints the profile-local generation date
+# ---------------------------------------------------------------------------
+
+import api.export as export_api  # noqa: E402
+from core.auth import get_profile_db_session  # noqa: E402
+from models import UserModelSettings  # noqa: E402
+from tests.support.routes import route_client  # noqa: E402
+
+TZ_FROZEN_UTC = datetime(2026, 1, 16, 1, 0)  # = Jan 15 17:00 America/Los_Angeles
+
+
+def _freeze_utcnow(monkeypatch, moment: datetime) -> None:
+    for target in ("api.export.utcnow", "api.pinboards.utcnow", "modules.export.utcnow"):
+        monkeypatch.setattr(target, lambda: moment)
+
+
+def test_hc_exptz_004_packet_generated_line_uses_local_date(monkeypatch):
+    _freeze_utcnow(monkeypatch, TZ_FROZEN_UTC)
+    packet = ExportModule().compose_visit_prep_packet(
+        profile_id="p", today=date(2026, 1, 15)
+    )
+    assert "Generated: 2026-01-15" in packet["markdown"]
+    assert packet["generated_on"] == "2026-01-15"
+    assert packet["generated_at"].startswith("2026-01-16")  # stored stamp stays UTC
+
+
+@pytest.mark.asyncio
+async def test_hc_exptz_006_html_download_header_and_footer_local_date(
+    real_profile_db, monkeypatch
+):
+    _freeze_utcnow(monkeypatch, TZ_FROZEN_UTC)
+    db = real_profile_db
+    db.add(UserModelSettings(profile_id="profile-a", timezone="America/Los_Angeles"))
+    await db.commit()
+    with route_client(export_api.router, "/export", profile_id="profile-a") as client:
+        async def _override_profile_db():
+            return db
+
+        client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+        created = client.post("/export/visit-prep", json={"confirm": True})
+        assert created.status_code == 200, created.text
+        _freeze_utcnow(monkeypatch, datetime(2026, 1, 18, 12, 0))
+        download = client.get(
+            f"/export/visit-prep/{created.json()['packet_id']}/download",
+            params={"format": "html"},
+        )
+    assert download.status_code == 200, download.text
+    assert "Visit Prep Packet \u2014 2026-01-15" in download.text
+    assert "January 15, 2026" in download.text
+
+
+def test_hc_exptz_007_packet_without_generated_on_falls_back_to_generated_at():
+    packet_id = str(uuid.uuid4())
+    _packet_store[packet_id] = {
+        "packet_id": packet_id,
+        "profile_id": "profile-a",
+        "generated_at": "2026-01-16T01:00:00",
+        "sections": [{"title": "S", "content": "c"}],
+        "questions": [],
+        "markdown": "m",
+        "redaction_count": 0,
+    }
+    try:
+        with route_client(export_api.router, "/export", profile_id="profile-a") as client:
+            download = client.get(
+                f"/export/visit-prep/{packet_id}/download", params={"format": "html"}
+            )
+    finally:
+        _packet_store.pop(packet_id, None)
+    assert download.status_code == 200, download.text
+    assert "Visit Prep Packet \u2014 2026-01-16" in download.text

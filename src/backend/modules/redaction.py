@@ -27,6 +27,9 @@ class RedactionRule:
     pattern: re.Pattern[str]
     replacement: str
     policy_levels: frozenset[str]  # which policy levels include this rule
+    # Email-only: the anchored branch in RedactionEngine.redact assumes the
+    # email local-part walk-back (_LOCAL_CHARS). Do not set on other rules.
+    anchor: str | None = None
 
 
 @dataclass(frozen=True)
@@ -69,6 +72,7 @@ _RULES: tuple[RedactionRule, ...] = (
         ),
         replacement="[EMAIL-REDACTED]",
         policy_levels=frozenset({"strict", "standard"}),
+        anchor="@",
     ),
     RedactionRule(
         name="phone",
@@ -160,6 +164,11 @@ VALID_POLICY_LEVELS = frozenset({"strict", "standard", "minimal"})
 # Engine
 # ---------------------------------------------------------------------------
 
+_WORD_BOUNDARY = re.compile(r"\b")
+# Must mirror the email rule local-part class [A-Za-z0-9._%+-] (pinned by HC-REDACT-012b).
+_LOCAL_CHARS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._%+-")
+
+
 class RedactionEngine:
     """Stateless, deterministic redaction engine.
 
@@ -216,7 +225,26 @@ class RedactionEngine:
             new_text_parts: list[str] = []
             last_end = 0
 
-            for match in rule.pattern.finditer(current_text):
+            if rule.anchor is None:
+                matches = rule.pattern.finditer(current_text)
+            else:
+                # Linear time: one match attempt per anchor, at the first \b
+                # of the local-part run ending there (same matches as finditer).
+                matches = []
+                prev_end = 0
+                at = current_text.find(rule.anchor)
+                while at != -1:
+                    ws = at
+                    while ws > prev_end and current_text[ws - 1] in _LOCAL_CHARS:
+                        ws -= 1
+                    boundary = _WORD_BOUNDARY.search(current_text, ws, at)
+                    m = rule.pattern.match(current_text, boundary.start()) if boundary else None
+                    if m:
+                        matches.append(m)
+                        prev_end = m.end()
+                    at = current_text.find(rule.anchor, max(at + 1, prev_end))
+
+            for match in matches:
                 start, end = match.start(), match.end()
                 new_text_parts.append(current_text[last_end:start])
                 new_text_parts.append(rule.replacement)
