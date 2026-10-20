@@ -116,7 +116,12 @@ describe('DataDonationCard', () => {
       // The same words must be what the patient actually sees.
       // Screen readers get it too: the switch is described by the same text.
       expect(screen.getByRole('switch', { name: label })).toHaveAccessibleDescription(description);
+      // DON-COPY-R1: covers answers rated before and after agreeing.
+      expect(description).toMatch(/chat answers I have rated or will rate/);
     }
+    expect(PURPOSE_COPY.fine_tune.description).toContain(
+      'This also allows a redacted training file saved on this device.',
+    );
   });
 
   it('HC-DON-FE-006: the redaction caveat does not over-claim numeric dates', () => {

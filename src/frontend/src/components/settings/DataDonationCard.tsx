@@ -18,7 +18,7 @@ import {
   type DonationPurpose,
 } from '@/services/donation';
 
-export const CONSENT_TEXT_VERSION = '2026-10-20-draft-4';
+export const CONSENT_TEXT_VERSION = '2026-10-20-v1';
 
 // The audit write can fail after the change is saved, so never claim it failed.
 const NEUTRAL_ERROR = 'Could not confirm your choice. Reload to see what was saved.';
@@ -33,15 +33,15 @@ export const CONSENT_INTRO = [
 export const PURPOSE_COPY: Record<DonationPurpose, { label: string; description: string }> = {
   fine_tune: {
     label: 'Improve the assistant model',
-    description: 'For chat answers I rate, use redacted copies of my question, the answer and any correction I gave, to tune the model on this device.',
+    description: 'For chat answers I have rated or will rate, use redacted copies of my question, the answer and any correction I gave, to tune the model on this device. This also allows a redacted training file saved on this device.',
   },
   synthetic_seed: {
     label: 'Create practice data',
-    description: 'For chat answers I rate, use redacted copies of my question, the answer and any correction I gave as a starting point for made-up practice data, which is kept apart from real data and never replaces it.',
+    description: 'For chat answers I have rated or will rate, use redacted copies of my question, the answer and any correction I gave as a starting point for made-up practice data, which is kept apart from real data and never replaces it.',
   },
   agent_traces: {
     label: 'Find assistant mistakes',
-    description: 'For chat answers I rate, use redacted copies of my question, the answer and any correction I gave to find and fix the assistant’s mistakes.',
+    description: 'For chat answers I have rated or will rate, use redacted copies of my question, the answer and any correction I gave to find and fix the assistant’s mistakes.',
   },
 };
 
