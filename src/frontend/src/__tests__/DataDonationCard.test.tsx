@@ -2,7 +2,7 @@
  * RSI1-DONATE PR-1: consent card (HC-DON-FE-001..003).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DataDonationCard, CONSENT_TEXT_VERSION, PURPOSE_COPY, CONSENT_INTRO } from '@/components/settings/DataDonationCard';
@@ -123,5 +123,29 @@ describe('DataDonationCard', () => {
     expect(CONSENT_INTRO).not.toMatch(/dates written as numbers/i);
     expect(CONSENT_INTRO).toMatch(/can miss/i);
     expect(CONSENT_INTRO).toMatch(/2024-03-15/);
+  });
+
+  it('HC-DON-FE-007: the intro says stopping does not change a model already tuned', () => {
+    expect(CONSENT_INTRO).toMatch(/already tuned/i);
+    expect(CONSENT_INTRO).toMatch(/not changed/i);
+  });
+
+  it('HC-DON-FE-008: a failed save shows a neutral error while the refetch shows the saved state', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.apiGet)
+      .mockResolvedValueOnce(consents())
+      .mockResolvedValue(consents(['fine_tune']));
+    vi.mocked(api.apiPut).mockRejectedValue(new Error('audit write failed'));
+    renderCard();
+    const switches = await screen.findAllByRole('switch');
+    await user.click(switches[0]);
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/could not confirm your choice/i);
+    expect(alert).toHaveTextContent(/reload to see what was saved/i);
+    expect(alert).not.toHaveTextContent(/could not save/i);
+    expect(alert).not.toHaveTextContent(/audit write failed/i);
+    await waitFor(() =>
+      expect(screen.getAllByRole('switch')[0]).toHaveAttribute('aria-checked', 'true'),
+    );
   });
 });

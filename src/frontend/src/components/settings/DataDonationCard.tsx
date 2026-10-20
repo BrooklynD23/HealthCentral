@@ -18,12 +18,15 @@ import {
   type DonationPurpose,
 } from '@/services/donation';
 
-export const CONSENT_TEXT_VERSION = '2026-10-20-draft-3';
+export const CONSENT_TEXT_VERSION = '2026-10-20-draft-4';
+
+// The audit write can fail after the change is saved, so never claim it failed.
+const NEUTRAL_ERROR = 'Could not confirm your choice. Reload to see what was saved.';
 
 export const CONSENT_INTRO = [
   'Donating is optional and off by default. You choose each purpose separately, and you can change your mind at any time.',
   'Your data never leaves this device. Before anything is stored as a donated copy, it goes through strict automatic redaction, which removes labelled names and some dates such as 03/15/2024. It can miss other date formats such as 2024-03-15, and names or dates written out in free text, so please keep that in mind.',
-  'If you stop, the donated copies for that purpose are deleted. Your own records are not touched.',
+  'If you stop, the donated copies for that purpose are deleted. Your own records are not touched. A model already tuned with the copies, or a file already exported from them, is not changed.',
   'Nothing here is medical advice. Donated copies only help improve this app.',
 ].join('\n\n');
 
@@ -58,8 +61,8 @@ export function DataDonationCard() {
     setMessage(null);
     try {
       await setConsent.mutateAsync({ purpose, granted: true, consent_text_version: CONSENT_TEXT_VERSION });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not save your choice.');
+    } catch {
+      setError(NEUTRAL_ERROR);
     }
   };
 
@@ -76,8 +79,8 @@ export function DataDonationCard() {
       setMessage(
         `Stopped. ${result.deleted_count} donated ${result.deleted_count === 1 ? 'copy was' : 'copies were'} deleted.`,
       );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not stop and delete.');
+    } catch {
+      setError(NEUTRAL_ERROR);
     }
   };
 
