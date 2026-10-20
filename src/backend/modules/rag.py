@@ -644,14 +644,15 @@ USER QUESTION: {question}"""
         rows = result.all()
 
         # Embed only when eligible chunks exist. With no comparable rows, probe
-        # the unfiltered statement: a hash-only vault must still surface the
-        # Q-FC notice when the model is absent (W-8-FC-NOTICE). Hash vectors
-        # are never compared, so a present model still returns [].
+        # the same statement without the model_name filter: a hash-only vault
+        # must still surface the Q-FC notice when the model is absent
+        # (W-8-FC-NOTICE). Hash vectors are never compared, so a present model
+        # still returns [].
         if not rows:
             probe = await profile_db.execute(
                 stmt.with_only_columns(Chunk.id).limit(1)
             )
-            if probe.first() is None:
+            if not probe.all():
                 return []
 
         # Fail closed: never substitute hash vectors for the bundled model (D8-delivery).
