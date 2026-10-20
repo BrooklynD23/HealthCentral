@@ -61,8 +61,8 @@ _CHILD = (
 
 @pytest.mark.parametrize(
     "text",
-    ["grade" + " " * 1600 + "x", "grade " * 8000, "grade" + " " * 50000 + "x"],
-    ids=["spaces-1600", "grade-x8000", "spaces-50000"],
+    ["grade" + " " * 1600 + "x", "grade " * 8000, "grade" + " " * 100000 + "x"],
+    ids=["spaces-1600", "grade-x8000", "spaces-100000"],
 )
 def test_hc_path_001_grade_pattern_linear_on_whitespace_runs(text):
     try:
