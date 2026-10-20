@@ -269,7 +269,7 @@ Run from ${plan.worktree}, every pytest through the ABSOLUTE pyslot path shown i
 5. python3 scripts/docs_lint.py (cwd worktree root).
 Run every plan \`git diff [opts] origin/main -- <paths>\` check (including --stat and piped forms) as \`{ git diff [opts] origin/main...HEAD -- <paths>; git diff [opts] HEAD -- <paths>; }\`, any pipe after the braces, and keep that check's own pass rule: the two-dot form also shows changes merged to main after the branch point (#215 false PROTECTED-FILE stop, handoff 2026-10-20 §4).
 Frontend vitest stalls under WSL on /mnt/c: there, record it as skipped with that reason, never retry; on a native Linux checkout (not under /mnt/), run \`npx vitest run <changed test files>\` from src/frontend.
-\`test_api_rag_index_002b\` failing without an embedding model is environmental: list it in failures prefixed "ENV:" and do not count it against all_passed.
+Without the fetched embedding bundle exactly these 5 tests fail as environmental (CLAUDE.md §4): \`test_embedding_bundle.py::test_hc_emb_002_fetched_model_loads_offline\` and, in \`test_rag_pipeline.py\`, \`test_api_rag_index_002\`, \`test_api_rag_index_002b\`, \`test_api_rag_index_002c\`, \`test_search_vectors_async_calculates_similarity\`. List each in failures prefixed "ENV:" and do not count them against all_passed; any other failure counts. Run python scripts that import backend code (e.g. legacy_eval_gate.py) with ~/venvs/asclexis-311/bin/python, not system python3.
 Return each command, its exit code and the last 30 lines of output verbatim. failures = one line per failing test id or command.
 ${STYLE}`,
   { label: `test ${ID} r${round}`, phase: 'Test', model: 'haiku', effort: 'low', schema: TEST_SCHEMA },
