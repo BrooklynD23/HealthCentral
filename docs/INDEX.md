@@ -668,7 +668,7 @@ Several API responses include `profile_id` even though the backend already deriv
 
 This document maps HealthCentral's technical controls to HIPAA Security Rule requirements under 45 CFR 164.312.
 
-Links to: `docs/compliance/disaster-recovery.md`
+Links to: `audit/2026-09-25/gated-items-decision-packet.md`, `docs/compliance/disaster-recovery.md`
 
 ## `docs/compliance/security-review-sprint06.md`
 
