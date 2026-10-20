@@ -1054,3 +1054,23 @@ async def test_hc_cfr_008_open_question_drafts_latest_per_analyte_capped_at_10(
             if longer != name and name in longer:
                 text = text.replace(longer, "")
         assert name not in text
+
+
+@pytest.mark.parametrize(
+    ("key", "expected"),
+    [
+        ("mcv", "MCV (Mean Corpuscular Volume)"),
+        ("mch", "MCH (Mean Corpuscular Hemoglobin)"),
+        ("mchc", "MCHC (Mean Corpuscular Hemoglobin Concentration)"),
+        ("rdw", "RDW (Red Cell Distribution Width)"),
+        ("ast", "AST (Aspartate Aminotransferase)"),
+        ("alt", "ALT (Alanine Aminotransferase)"),
+        ("tibc", "TIBC (Total Iron-Binding Capacity)"),
+        ("esr", "ESR (Erythrocyte Sedimentation Rate)"),
+        ("egfr", "eGFR (Estimated Glomerular Filtration Rate)"),
+    ],
+)
+def test_hc_cfr_010_abbreviation_analytes_have_display_names(key, expected):
+    from modules.agent.nodes.draft import _display_name
+
+    assert _display_name(key) == expected
