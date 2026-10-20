@@ -15,6 +15,7 @@ export type DonationPurpose = (typeof DONATION_PURPOSES)[number];
 export interface DonationConsentState {
   purpose: DonationPurpose;
   granted: boolean;
+  current: boolean;
   consent_text_version: string | null;
   granted_at: string | null;
   revoked_at: string | null;

@@ -42,6 +42,8 @@ class DonationPurpose(str, Enum):
 class ConsentState(BaseModel):
     purpose: DonationPurpose
     granted: bool
+    # True only when the active row was agreed on the current wording.
+    current: bool = False
     consent_text_version: Optional[str] = None
     granted_at: Optional[datetime] = None
     revoked_at: Optional[datetime] = None
@@ -64,13 +66,14 @@ class ConsentUpdateResult(BaseModel):
 
 
 def _state(purpose: DonationPurpose, row: Optional[DonationConsent]) -> ConsentState:
-    # granted = active row, whatever its version. PR-2 collect must itself refuse
-    # a row whose consent_text_version is not the current one.
+    # granted = active row, whatever its version; current = that row is on the
+    # current wording. PR-2 collect must itself refuse rows that are not current.
     if row is None:
         return ConsentState(purpose=purpose, granted=False)
     return ConsentState(
         purpose=purpose,
         granted=row.revoked_at is None,
+        current=row.consent_text_version == CURRENT_CONSENT_TEXT_VERSION,
         consent_text_version=row.consent_text_version,
         granted_at=row.granted_at,
         revoked_at=row.revoked_at,

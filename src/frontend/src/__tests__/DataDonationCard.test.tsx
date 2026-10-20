@@ -19,12 +19,13 @@ vi.mock('@/services/api', () => ({
 
 const PURPOSES = ['fine_tune', 'synthetic_seed', 'agent_traces'] as const;
 
-function consents(grantedPurposes: string[] = []) {
+function consents(grantedPurposes: string[] = [], stalePurposes: string[] = []) {
   return {
     consents: PURPOSES.map((purpose) => ({
       purpose,
       granted: grantedPurposes.includes(purpose),
       consent_text_version: grantedPurposes.includes(purpose) ? CONSENT_TEXT_VERSION : null,
+      current: grantedPurposes.includes(purpose) && !stalePurposes.includes(purpose),
       granted_at: null,
       revoked_at: null,
     })),
@@ -153,5 +154,34 @@ describe('DataDonationCard', () => {
     await waitFor(() =>
       expect(screen.getAllByRole('switch')[0]).toHaveAttribute('aria-checked', 'true'),
     );
+  });
+
+  it('HC-DON-FE-009: a stale consent offers Review and re-confirm, which grants and never stops', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.apiGet).mockResolvedValue(consents(['fine_tune', 'agent_traces'], ['fine_tune']));
+    vi.mocked(api.apiPut).mockResolvedValue({
+      purpose: 'fine_tune', granted: true, consent_text_version: CONSENT_TEXT_VERSION, deleted_count: 0,
+    });
+    renderCard();
+    await screen.findAllByRole('switch');
+    expect(screen.getByRole('switch', { name: PURPOSE_COPY.fine_tune.label })).toHaveAttribute('aria-checked', 'true');
+    expect(
+      screen.getAllByText(
+        'The wording above changed after you agreed. Nothing new is donated for this purpose until you review it and re-confirm.',
+      ),
+    ).toHaveLength(1);
+    // A current granted purpose shows no re-confirm button.
+    expect(screen.getAllByRole('button', { name: /review and re-confirm/i })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: /stop and delete/i })).toHaveLength(2);
+
+    await user.click(
+      screen.getByRole('button', { name: `Review and re-confirm: ${PURPOSE_COPY.fine_tune.label}` }),
+    );
+    await waitFor(() => expect(api.apiPut).toHaveBeenCalledTimes(1));
+    expect(api.apiPut).toHaveBeenCalledWith('/donation/consents/fine_tune', {
+      granted: true,
+      consent_text_version: CONSENT_TEXT_VERSION,
+    });
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
   });
 });

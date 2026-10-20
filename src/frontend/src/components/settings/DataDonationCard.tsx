@@ -55,6 +55,9 @@ export function DataDonationCard() {
   const granted = new Set(
     (data?.consents ?? []).filter((c) => c.granted).map((c) => c.purpose),
   );
+  const stale = new Set(
+    (data?.consents ?? []).filter((c) => c.granted && !c.current).map((c) => c.purpose),
+  );
 
   const grant = async (purpose: DonationPurpose) => {
     setError(null);
@@ -146,6 +149,22 @@ export function DataDonationCard() {
                       />
                     </span>
                   </button>
+
+                  {stale.has(purpose) && (
+                    <div className="space-y-2">
+                      <p className="text-sm text-ink-secondary">
+                        The wording above changed after you agreed. Nothing new is donated for this purpose until you review it and re-confirm.
+                      </p>
+                      <Button
+                        size="sm"
+                        aria-label={`Review and re-confirm: ${copy.label}`}
+                        onClick={() => grant(purpose)}
+                        disabled={setConsent.isPending}
+                      >
+                        Review and re-confirm
+                      </Button>
+                    </div>
+                  )}
 
                   {on && confirming !== purpose && (
                     <Button

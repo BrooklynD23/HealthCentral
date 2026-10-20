@@ -499,3 +499,40 @@ async def test_hc_don_009e_grant_commits_vault_before_audit_and_survives_audit_f
     consent = (await vault.execute(select(DonationConsent))).scalar_one()
     assert consent.revoked_at is None
     assert consent.consent_text_version == CURRENT_CONSENT_TEXT_VERSION
+
+
+@pytest.mark.asyncio
+async def test_hc_don_005g_stale_consent_is_visible_and_reconfirmable_without_deleting(vault):
+    """DON-STALE: an active row on an old wording reads granted but not current;
+    re-confirming closes it, opens a current one, and deletes no copies."""
+    old = "2026-10-19-old"
+    vault.add(DonationConsent(
+        profile_id=PROFILE_A, purpose="fine_tune", consent_text_version=old,
+    ))
+    await vault.commit()
+    await _seed(vault, PROFILE_A, "fine_tune")
+    before = await _count(vault, "fine_tune")
+    assert before > 0
+
+    resp, _ = _call("GET", vault)
+    st = _state(resp)["fine_tune"]
+    assert st["granted"] is True and st["current"] is False
+    assert st["consent_text_version"] == old
+    assert _state(resp)["agent_traces"]["current"] is False  # never granted
+
+    resp, _ = _put(vault, "fine_tune", True)
+    assert resp.status_code == 200, resp.text
+
+    resp, _ = _call("GET", vault)
+    st = _state(resp)["fine_tune"]
+    assert st["granted"] is True and st["current"] is True
+    assert await _count(vault, "fine_tune") == before
+    rows = (await vault.execute(select(DonationConsent))).scalars().all()
+    assert len(rows) == 2
+    assert [r for r in rows if r.consent_text_version == old][0].revoked_at is not None
+    assert len([r for r in rows if r.revoked_at is None]) == 1
+
+    # A fresh-version grant reads current too.
+    await _put_ok(vault, "agent_traces", True)
+    resp, _ = _call("GET", vault)
+    assert _state(resp)["agent_traces"]["current"] is True
