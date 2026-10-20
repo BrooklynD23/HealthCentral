@@ -158,13 +158,14 @@ class ClaimExtractor:
     # the text the parser serves.
     SECTION_HEADER_RE = re.compile(
         r"^[ \t]*(?:\*\*|#+[ \t]*)?"
-        r"(REPORT FACTS|GENERAL INFO|UNCERTAINTIES|UNCERTAINTY)"
+        r"(REPORT FACTS|GENERAL INFO(?:RMATION)?|UNCERTAINTIES|UNCERTAINTY)"
         r"(?=:|\*\*|[ \t]*$)\**:?\**",
         re.IGNORECASE | re.MULTILINE,
     )
     SECTION_TYPES = {
         "REPORT FACTS": "report_facts",
         "GENERAL INFO": "general_info",
+        "GENERAL INFORMATION": "general_info",
         "UNCERTAINTIES": "uncertainty",
         "UNCERTAINTY": "uncertainty",
     }

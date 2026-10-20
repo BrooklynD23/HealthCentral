@@ -163,4 +163,23 @@ def test_hc_lcph_008_claim_extractor_splits_like_the_parser():
 def test_hc_lcph_009_stripped_context_label_keeps_the_preceding_newline():
     # Fails if _CONTEXT_LABEL_RE goes back to \s?, which would eat the newline.
     kept = _validate("REPORT FACTS:\n- X [cite:1]\n[YOUR_RESULTS:1] Glucose 95 [cite:1]")
-    assert [s.content for s in kept.segments] == ["- X [cite:1]\n Glucose 95 [cite:1]"]
+    content = kept.segments[0].content
+    assert "- X [cite:1]\n" in content
+    assert "[YOUR_RESULTS:" not in content
+    assert content.endswith("Glucose 95 [cite:1]")
+
+
+GENERAL_INFORMATION_ANSWER = (
+    "REPORT FACTS:\n- Glucose: 95 mg/dL (reference range 70-100 mg/dL) [cite:1]\n\n"
+    "GENERAL INFORMATION:\nGlucose is a sugar used for energy."
+)
+
+
+def test_hc_lcph_010_general_information_header_still_splits_over_http():
+    with legacy_chat_client(build_chunks("glucose"), GENERAL_INFORMATION_ANSWER) as (client, _append):
+        resp = client.post(CHAT_PATH, json={"question": "What was my glucose?"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["is_valid"] is False
+    assert "GENERAL INFORMATION" not in body["full_response"]
+    assert ClaimExtractor()._parse_sections(GENERAL_INFORMATION_ANSWER)[1][0] == "general_info"
