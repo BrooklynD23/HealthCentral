@@ -1316,7 +1316,7 @@ Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026
 
 **RSI1-DONATE: Opt-In Local Data Donation Pipeline (RSI-1 / RSI-2) — Implementation Plan**
 
-A patient can opt in, **per purpose and revocably**, to donate a copy of their own chat data for improving local models. Every donated record: 1. is redacted locally at `strict` by **calling**…
+**Delta 2026-10-20:** all DON-* gates answered; PR-2 gains `api/feedback.py` and the chat-session delete route; PR-3's leak rule follows DON-CANARY (b). See Delta 2026-10-20.
 
 Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`
 
