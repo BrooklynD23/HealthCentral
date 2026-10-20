@@ -170,3 +170,105 @@ def test_hc_gc5_003_offline_load_opens_zero_sockets(tmp_path):
     assert len(calls) == 1
     kw = {k.arg: k.value for k in calls[0].keywords}
     assert isinstance(kw.get("local_files_only"), ast.Constant) and kw["local_files_only"].value is True
+
+
+# ---------------------------------------------------------------------------
+# HC-GC5-005: `download_models.py nli` fetch rules (mirrors HC-EMB-004a-e)
+# ---------------------------------------------------------------------------
+
+import hashlib
+
+sys.path.insert(0, str(BACKEND_DIR / "scripts"))
+import download_models  # noqa: E402
+
+from modules import embeddings as emb  # noqa: E402
+
+_NLI_PAYLOAD = b"pinned-nli-weights-stand-in"
+
+
+def _fake_nli_snapshot(payload: bytes, calls: list):
+    def _fake(*, repo_id, revision, local_dir, allow_patterns):
+        calls.append({"repo_id": repo_id, "revision": revision, "allow_patterns": list(allow_patterns)})
+        root = Path(local_dir)
+        for name in allow_patterns:
+            (root / name).write_bytes(payload if name == "model.safetensors" else b"{}")
+        return str(root)
+    return _fake
+
+
+def _pin_nli_payload(monkeypatch, payload: bytes = _NLI_PAYLOAD) -> dict:
+    """Keep the manifest repo/revision, pin the sha of what the fake writes."""
+    pin = dict(download_models._nli_pin(), sha256=hashlib.sha256(payload).hexdigest())
+    monkeypatch.setattr(download_models, "_nli_pin", lambda: pin)
+    return pin
+
+
+def test_hc_gc5_005_cmd_nli_fetch_rules(tmp_path, monkeypatch):
+    real_pin = download_models._nli_pin()
+    pin = _pin_nli_payload(monkeypatch)
+    fetch = "huggingface_hub.snapshot_download"
+
+    # (b) checksum mismatch installs nothing and leaves no directory behind
+    monkeypatch.setattr(fetch, _fake_nli_snapshot(b"not the pinned weights", []))
+    target = tmp_path / "b" / "nli"
+    with pytest.raises(SystemExit) as info:
+        download_models.cmd_nli(target)
+    assert info.value.code == 1
+    assert not target.exists()
+    assert not target.with_name("nli.partial").exists()
+
+    # (a) + (d) a correct fetch installs exactly NLI_FETCH_FILES, with the manifest pin
+    calls: list = []
+    monkeypatch.setattr(fetch, _fake_nli_snapshot(_NLI_PAYLOAD, calls))
+    target = tmp_path / "a" / "nli"
+    download_models.cmd_nli(target)
+    assert calls == [{
+        "repo_id": real_pin["repo"],
+        "revision": real_pin["revision"],
+        "allow_patterns": list(emb.NLI_FETCH_FILES),
+    }]
+    assert real_pin["revision"] == "a150876415327c80daeff35ca6f68f5ed8cf5c24"
+    installed = sorted(p.relative_to(target).as_posix() for p in target.rglob("*") if p.is_file())
+    assert installed == sorted(emb.NLI_FETCH_FILES)
+    assert not target.with_name("nli.partial").exists()
+    assert pin["sha256"] == hashlib.sha256((target / "model.safetensors").read_bytes()).hexdigest()
+
+    # (c) an existing incomplete target is never deleted; no fetch happens
+    calls = []
+    monkeypatch.setattr(fetch, _fake_nli_snapshot(b"x", calls))
+    target = tmp_path / "c" / "nli"
+    target.mkdir(parents=True)
+    keep = target / "user-file.txt"
+    keep.write_text("do not delete")
+    with pytest.raises(SystemExit) as info:
+        download_models.cmd_nli(target)
+    assert info.value.code == 1
+    assert keep.read_text() == "do not delete"
+    assert calls == []
+
+    # (c2) a pre-existing .partial is never deleted; no fetch happens
+    calls = []
+    monkeypatch.setattr(fetch, _fake_nli_snapshot(b"x", calls))
+    target = tmp_path / "c2" / "nli"
+    partial = target.with_name("nli.partial")
+    partial.mkdir(parents=True)
+    keep = partial / "someone-elses-file.bin"
+    keep.write_bytes(b"do not delete")
+    with pytest.raises(SystemExit) as info:
+        download_models.cmd_nli(target)
+    assert info.value.code == 1
+    assert keep.read_bytes() == b"do not delete"
+    assert not target.exists()
+    assert calls == []
+
+    # (c3) a fetch that fails after writing removes only this run's .partial
+    def _failing(*, repo_id, revision, local_dir, allow_patterns):
+        (Path(local_dir) / "config.json").write_bytes(b"{}")
+        raise OSError("simulated network drop")
+
+    monkeypatch.setattr(fetch, _failing)
+    target = tmp_path / "c3" / "nli"
+    with pytest.raises(OSError, match="simulated network drop"):
+        download_models.cmd_nli(target)
+    assert not target.with_name("nli.partial").exists()
+    assert not target.exists()
