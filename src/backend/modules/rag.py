@@ -1121,22 +1121,7 @@ I was unable to fully process your question within the time limit. Please try as
             verification_summary=verification_results.summary,
         )
 
-    # A section header counts only at the start of a line (LCP-HL-SCOPE (a)). The
-    # keyword must be followed by ":", "**" or the end of the line, so a prose line
-    # such as "Uncertainty about lab ranges [cite:1]" is not a header.
-    _SECTION_HEADER_RE = re.compile(
-        r"^[ \t]*(?:\*\*|#+[ \t]*)?"
-        r"(REPORT FACTS|GENERAL INFO|UNCERTAINTIES|UNCERTAINTY)"
-        r"(?=:|\*\*|[ \t]*$)\**:?\**",
-        re.IGNORECASE | re.MULTILINE,
-    )
     _CONTEXT_LABEL_RE = re.compile(r"[ \t]?\[(?:YOUR_RESULTS|REFERENCE|USER_DOCUMENT|USER_OBSERVATION):\d+\]")
-    _SECTION_TYPES = {
-        "REPORT FACTS": "report_facts",
-        "GENERAL INFO": "general_info",
-        "UNCERTAINTIES": "uncertainty",
-        "UNCERTAINTY": "uncertainty",
-    }
 
     def _parse_response_segments(self, response: str) -> list[ResponseSegment]:
         """Parse response into labeled segments.
@@ -1144,23 +1129,10 @@ I was unable to fully process your question within the time limit. Please try as
         Text before the first header, and headerless text, is REPORT FACTS so the
         citation check applies to it. Empty or whitespace-only text gives no segment.
         """
-        segments = []
-        headers = list(self._SECTION_HEADER_RE.finditer(response))
-
-        prefix = response[: headers[0].start()] if headers else response
-        if prefix.strip():
-            segments.append(ResponseSegment(segment_type="report_facts", content=prefix.strip()))
-
-        for i, header in enumerate(headers):
-            end = headers[i + 1].start() if i + 1 < len(headers) else len(response)
-            content = response[header.end() : end].strip()
-            if content:
-                segments.append(ResponseSegment(
-                    segment_type=self._SECTION_TYPES[header.group(1).upper()],
-                    content=content,
-                ))
-
-        return segments
+        return [
+            ResponseSegment(segment_type=segment_type, content=content)
+            for segment_type, content in self.claim_extractor._parse_sections(response)
+        ]
 
     async def _retrieve_memory_context(
         self,

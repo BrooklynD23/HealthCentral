@@ -7,12 +7,16 @@ HC-LCPH-002  prose mentioning "uncertainties" mid-line is not cut
 HC-LCPH-003  repr dict / curly keys / JSON string / JSON array stay whole (x4)
 HC-LCPH-004  line-start headers still split; **UNCERTAINTY** is a header
 HC-LCPH-005  over HTTP: [USER_OBSERVATION:N] is not served, [cite:N] is
+HC-LCPH-006  verifier receives raw labelled text
+HC-LCPH-007  over HTTP: a prefixed unverified value is not served
+HC-LCPH-008  ClaimExtractor splits sections like the parser
 """
 
 from __future__ import annotations
 
 import pytest
 
+from modules.claim_extractor import ClaimExtractor
 from modules.rag import RAGModule, VerificationMetadata
 from tests.legacy_eval.harness import CHAT_PATH, build_chunks, legacy_chat_client
 
@@ -110,3 +114,47 @@ def test_hc_lcph_006_verifier_receives_raw_text_with_labels():
     assert "[USER_OBSERVATION:1]" in seen["response"]
     assert any("[USER_OBSERVATION:1]" in c for c in seen["segments"])
     assert all("[USER_OBSERVATION:" not in s.content for s in result.segments)
+
+
+PREFIXED_ANSWER = (
+    "Your glucose is 300 mg/dL, far above the range [cite:1].\n\n"
+    "REPORT FACTS:\n- Glucose: 95 mg/dL (reference range 70-100 mg/dL) [cite:1]"
+)
+
+
+def test_hc_lcph_007_prefixed_unverified_value_is_not_served_over_http():
+    with legacy_chat_client(build_chunks("glucose"), PREFIXED_ANSWER) as (client, _append):
+        resp = client.post(CHAT_PATH, json={"question": "What was my glucose?"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["is_valid"] is False
+    assert "300 mg/dL" not in body["full_response"]
+    assert all("300 mg/dL" not in s["content"] for s in body["segments"])
+
+
+def test_hc_lcph_008_claim_extractor_splits_like_the_parser():
+    ex = ClaimExtractor()
+    claims = ex.extract_claims(PREFIXED_ANSWER).claims
+    assert any(c.segment_type == "report_facts" and "300 mg/dL" in c.text for c in claims)
+
+    headerless = ex.extract_claims("Your LDL is 128 mg/dL [cite:1].").claims
+    assert headerless and all(c.segment_type == "report_facts" for c in headerless)
+
+    text2 = "LDL is 128 mg/dL [cite:1]. Some uncertainties: lab ranges vary."
+    assert ex._parse_sections(text2) == [("report_facts", text2)]
+
+    # Same (type, content) as the parser on the HC-LCPH-004 inputs.
+    rag = RAGModule(enable_verification=False)
+    for text in (
+        "REPORT FACTS:\n- X [cite:1]\n\nGENERAL INFO:\n- Y\n\nUNCERTAINTIES:\n- Z",
+        "**UNCERTAINTY**\n- Z",
+        "**REPORT FACTS:**\n- X [cite:1]",
+        "Uncertainty about lab ranges [cite:1]",
+        "REPORT FACTS:\n- A\nUNCERTAINTIES:\n- B\nREPORT FACTS:\n- C",
+        PREFIXED_ANSWER,
+        "   ",
+    ):
+        assert ex._parse_sections(text) == [
+            (s.segment_type, s.content) for s in rag._parse_response_segments(text)
+        ]
+
