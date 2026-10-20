@@ -31,7 +31,7 @@ router = APIRouter()
 
 # The consent copy version the patient is shown. Must equal CONSENT_TEXT_VERSION
 # in src/frontend/src/components/settings/DataDonationCard.tsx (HC-DON-005e).
-CURRENT_CONSENT_TEXT_VERSION = "2026-10-20-v1"
+CURRENT_CONSENT_TEXT_VERSION = "2026-10-20-v2"
 
 
 class DonationPurpose(str, Enum):

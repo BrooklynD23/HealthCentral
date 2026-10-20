@@ -185,3 +185,32 @@ describe('DataDonationCard', () => {
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
   });
 });
+
+// HC-DON-FE-010: the owner approved this exact copy as version 2026-10-20-v2
+// (DON-COPY, 2026-10-20). Changing any word must also change the version and
+// get a new owner approval, so this pin fails until both happen.
+describe('approved consent copy (DON-COPY)', () => {
+  it('HC-DON-FE-010: copy matches the approved text for its version', () => {
+    expect(CONSENT_TEXT_VERSION).toBe('2026-10-20-v2');
+    expect(CONSENT_INTRO).toBe([
+      'Donating is optional and off by default. You choose each purpose separately, and you can change your mind at any time.',
+      'Your data never leaves this device. Before anything is stored as a donated copy, it goes through strict automatic redaction, which removes labelled names and some dates such as 03/15/2024. It can miss other date formats such as 2024-03-15, and names or dates written out in free text, so please keep that in mind.',
+      'If you stop, the donated copies for that purpose are deleted. Your own records are not touched. A model already tuned with the copies, or a file already exported from them, is not changed.',
+      'Nothing here is medical advice. Donated copies only help improve this app.',
+    ].join('\n\n'));
+    expect(PURPOSE_COPY).toEqual({
+      fine_tune: {
+        label: 'Improve the assistant model',
+        description: 'For chat answers I have rated or will rate, use redacted copies of my question, the answer and any correction I gave, to tune the model on this device. This also allows a redacted training file saved on this device.',
+      },
+      synthetic_seed: {
+        label: 'Create practice data',
+        description: 'For chat answers I have rated or will rate, use redacted copies of my question, the answer and any correction I gave as a starting point for practice data that a model on this device rewrites from them. Some details may carry over. It is kept apart from real data and never replaces it.',
+      },
+      agent_traces: {
+        label: 'Find assistant mistakes',
+        description: 'For chat answers I have rated or will rate, use redacted copies of my question, the answer and any correction I gave to find and fix the assistant’s mistakes.',
+      },
+    });
+  });
+});

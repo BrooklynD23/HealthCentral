@@ -18,7 +18,7 @@ import {
   type DonationPurpose,
 } from '@/services/donation';
 
-export const CONSENT_TEXT_VERSION = '2026-10-20-v1';
+export const CONSENT_TEXT_VERSION = '2026-10-20-v2';
 
 // The audit write can fail after the change is saved, so never claim it failed.
 const NEUTRAL_ERROR = 'Could not confirm your choice. Reload to see what was saved.';
@@ -37,7 +37,7 @@ export const PURPOSE_COPY: Record<DonationPurpose, { label: string; description:
   },
   synthetic_seed: {
     label: 'Create practice data',
-    description: 'For chat answers I have rated or will rate, use redacted copies of my question, the answer and any correction I gave as a starting point for made-up practice data, which is kept apart from real data and never replaces it.',
+    description: 'For chat answers I have rated or will rate, use redacted copies of my question, the answer and any correction I gave as a starting point for practice data that a model on this device rewrites from them. Some details may carry over. It is kept apart from real data and never replaces it.',
   },
   agent_traces: {
     label: 'Find assistant mistakes',
