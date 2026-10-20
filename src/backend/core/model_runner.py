@@ -36,6 +36,9 @@ class InferenceConfig:
     top_p: float = 0.9
     stop_sequences: Optional[List[str]] = None
     timeout_seconds: int = 60
+    # JSON schema for constrained decoding (providers map it to their native
+    # parameter; None = unconstrained, identical to before).
+    response_schema: Optional[dict] = None
 
 
 @dataclass
