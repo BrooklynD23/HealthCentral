@@ -155,11 +155,13 @@ class ClaimExtractor:
     # keyword must be followed by ":", "**" or the end of the line, so a prose line
     # such as "Uncertainty about lab ranges [cite:1]" is not a header. RAGModule
     # splits responses with this same regex and map, so the verifier sees exactly
-    # the text the parser serves.
+    # the text the parser serves. A header may carry a list marker ("- ", "1. "), a
+    # space before the colon, or a dash / "(note)" terminator.
     SECTION_HEADER_RE = re.compile(
-        r"^[ \t]*(?:\*\*|#+[ \t]*)?"
+        r"^[ \t]*(?:(?:[-*•]|\d+[.)])[ \t]+)?(?:\*\*|#+[ \t]*)?"
         r"(REPORT FACTS|GENERAL INFO(?:RMATION)?|UNCERTAINTIES|UNCERTAINTY)"
-        r"(?=:|\*\*|[ \t]*$)\**:?\**",
+        r"(?=[ \t]*:|\*\*|[ \t]*$|[ \t]*[(\-–—])"
+        r"(?:[ \t]*\([^)\n]*\))?[ \t]*\**[ \t]*(?::|[-–—](?=[ \t]))?\**",
         re.IGNORECASE | re.MULTILINE,
     )
     SECTION_TYPES = {
