@@ -1358,7 +1358,15 @@ Links to: `AGENT.md`, `CLAUDE.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.
 
 Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-19 handoff. The session ended because the owner moved development to another machine ("Please push…
 
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-19-session-handoff.md`
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-19-session-handoff.md`, `docs/plans/2026-10-20b-session-handoff.md`
+
+## `docs/plans/2026-10-20b-session-handoff.md`
+
+**Session handoff: 2026-10-20 cloud session → local machine (L0)**
+
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-20 handoff. This session ran in a Claude Code cloud container; the owner moved development back to a local…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-20-session-handoff.md`, `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`
 
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
