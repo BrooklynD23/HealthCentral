@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import pytest
 
-from modules.rag import RAGModule
+from modules.rag import RAGModule, VerificationMetadata
 from tests.legacy_eval.harness import CHAT_PATH, build_chunks, legacy_chat_client
 
 REPR_DICT = (
@@ -46,6 +46,10 @@ def test_hc_lcph_002_mid_line_uncertainties_does_not_cut_the_text():
     result = _validate(text)
     assert "\n".join(s.content for s in result.segments) == text
     assert [s.segment_type for s in result.segments] == ["report_facts"]
+    # A colon after a mid-line keyword must not cut either (fails if the ^ anchor goes).
+    text2 = "LDL is 128 mg/dL [cite:1]. Some uncertainties: lab ranges vary."
+    result2 = _validate(text2)
+    assert [(s.segment_type, s.content) for s in result2.segments] == [("report_facts", text2)]
 
 
 @pytest.mark.parametrize(
@@ -68,6 +72,8 @@ def test_hc_lcph_004_line_start_headers_split_and_singular_uncertainty_counts():
     ]
     singular = rag._parse_response_segments("**UNCERTAINTY**\n- Z")
     assert [(s.segment_type, s.content) for s in singular] == [("uncertainty", "- Z")]
+    bold = rag._parse_response_segments("**REPORT FACTS:**\n- X [cite:1]")
+    assert [(s.segment_type, s.content) for s in bold] == [("report_facts", "- X [cite:1]")]
     # Conservative pin: a prose line that merely starts with the word is not a header.
     prose = "Uncertainty about lab ranges [cite:1]"
     parsed_prose = rag._parse_response_segments(prose)
@@ -86,3 +92,21 @@ def test_hc_lcph_005_context_labels_are_not_served_over_http():
     assert body["is_valid"] is True
     assert "[cite:1]" in body["full_response"]
     assert "[USER_OBSERVATION:" not in body["full_response"]
+
+
+def test_hc_lcph_006_verifier_receives_raw_text_with_labels():
+    """Labels are stripped after verification: the verifier must still see them."""
+    rag = RAGModule(enable_verification=True)
+    seen = {}
+
+    def spy(response, chunks, segments):
+        seen["response"] = response
+        seen["segments"] = [s.content for s in segments]
+        return VerificationMetadata(verification_enabled=True, faithfulness_score=1.0)
+
+    answer = "REPORT FACTS:\n- Glucose: 95 mg/dL [USER_OBSERVATION:1] [cite:1]"
+    rag._run_verification_pipeline = spy
+    result = rag.validate_response(answer, build_chunks("glucose"))
+    assert "[USER_OBSERVATION:1]" in seen["response"]
+    assert any("[USER_OBSERVATION:1]" in c for c in seen["segments"])
+    assert all("[USER_OBSERVATION:" not in s.content for s in result.segments)

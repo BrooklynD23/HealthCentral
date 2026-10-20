@@ -1127,10 +1127,10 @@ I was unable to fully process your question within the time limit. Please try as
     _SECTION_HEADER_RE = re.compile(
         r"^[ \t]*(?:\*\*|#+[ \t]*)?"
         r"(REPORT FACTS|GENERAL INFO|UNCERTAINTIES|UNCERTAINTY)"
-        r"(?=:|\*\*|[ \t]*$)\**:?",
+        r"(?=:|\*\*|[ \t]*$)\**:?\**",
         re.IGNORECASE | re.MULTILINE,
     )
-    _CONTEXT_LABEL_RE = re.compile(r"\s?\[(?:YOUR_RESULTS|REFERENCE|USER_DOCUMENT|USER_OBSERVATION):\d+\]")
+    _CONTEXT_LABEL_RE = re.compile(r"[ \t]?\[(?:YOUR_RESULTS|REFERENCE|USER_DOCUMENT|USER_OBSERVATION):\d+\]")
     _SECTION_TYPES = {
         "REPORT FACTS": "report_facts",
         "GENERAL INFO": "general_info",
