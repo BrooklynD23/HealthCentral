@@ -29,7 +29,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.auth import Session
 from core.time import utcnow
 from modules.export import ExportModule
-from tests.test_export_redaction import weasyprint_renders  # noqa: F401  (fixture)
+from tests.test_export_redaction import (  # noqa: F401  (weasyprint_renders is a fixture)
+    _install_capturing_weasyprint,
+    weasyprint_renders,
+)
 
 
 def _make_session(profile_id: str = "test-profile") -> Session:
@@ -825,24 +828,7 @@ async def test_hc_pkt_023_spaced_labelled_mrn_in_reason_never_reaches_packet(
             _packet_store.pop(packet_id, None)
 
 
-def _install_html_echo_weasyprint(monkeypatch, suffix: bytes = b"") -> None:
-    """Stand-in WeasyPrint: the 'PDF' is the HTML handed to the writer."""
-    import types
-
-    fake = types.ModuleType("weasyprint")
-
-    class HTML:
-        def __init__(self, string: str) -> None:
-            self._html = string
-
-        def write_pdf(self) -> bytes:
-            return self._html.encode("utf-8") + suffix
-
-    fake.HTML = HTML
-    monkeypatch.setitem(sys.modules, "weasyprint", fake)
-
-
-async def _visit_prep_pdf(db) -> "object":
+async def _visit_prep_pdf(db):
     packet_id = None
     try:
         with route_client(export_api.router, "/export", profile_id="profile-a") as client:
@@ -876,7 +862,7 @@ async def test_hc_pkt_026a_visit_prep_pdf_download_redacted_fake_writer(
     real_profile_db, monkeypatch
 ):
     """HC-PKT-026a: the PDF download route hands the writer redacted HTML only."""
-    _install_html_echo_weasyprint(monkeypatch)
+    _install_capturing_weasyprint(monkeypatch)
     resp = await _visit_prep_pdf(real_profile_db)
     _assert_pdf_response(resp)
     body = resp.content.decode("utf-8")
@@ -885,10 +871,9 @@ async def test_hc_pkt_026a_visit_prep_pdf_download_redacted_fake_writer(
     assert "Reason for Visit" in body
 
 
+@pytest.mark.usefixtures("weasyprint_renders")
 @pytest.mark.asyncio
-async def test_hc_pkt_026b_visit_prep_pdf_download_redacted_real_renderer(
-    real_profile_db, weasyprint_renders
-):
+async def test_hc_pkt_026b_visit_prep_pdf_download_redacted_real_renderer(real_profile_db):
     """HC-PKT-026b: same through the real WeasyPrint; runs only where it renders."""
     import io
 
