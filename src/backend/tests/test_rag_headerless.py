@@ -11,6 +11,7 @@ HC-LCPH-006  verifier receives raw labelled text
 HC-LCPH-007  over HTTP: a prefixed unverified value is not served
 HC-LCPH-008  ClaimExtractor splits sections like the parser
 HC-LCPH-009  a stripped context label keeps the preceding newline
+HC-LCPH-010  GENERAL INFORMATION stays a section header
 """
 
 from __future__ import annotations
