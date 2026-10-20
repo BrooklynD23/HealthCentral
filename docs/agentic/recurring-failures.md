@@ -242,8 +242,8 @@ Plans are docs too. LLM-PATH-LOG's plan (2026-10-19) told the implementer to
 re-run `tests/test_llm_import_boundary.py`; that file exists only as a "to
 create" entry in the W07 plan, so the acceptance command failed (#208). And the
 pytest slot script every runbook command calls directly, `scripts/pyslot.sh`,
-is mode `100644` in git: on a checkout with `core.fileMode=true` the documented
-call exits 126, `Permission denied` (measured 2026-10-20, row PYSLOT-MODE).
+was mode `100644` in git: on a checkout with `core.fileMode=true` the documented
+call exited 126, `Permission denied` (measured 2026-10-20; fixed by #220).
 
 **Recheck:** run every command a doc quotes, exactly as written, from the
 directory the surrounding text implies. A planner checks every path it cites

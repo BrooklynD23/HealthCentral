@@ -757,7 +757,7 @@ Two rows: AUDIT-GUARD-MINORS (from the #193 review MINORs) and MSET-EXT-NOKEY-PI
 
 ### Follow-ups found 2026-10-20 (planned 2026-10-20 on `origin/main` @ `b2b3f4e`)
 
-One row from PR #209 (MSET-EXT-NOKEY-PIN). Its body also flagged stale guidance (recurring-failures #8): Fact 3 above and the queue bullet MSET-EXT-NOKEY-MINORS said the `repr(calls[1])` line could never fail. #209's round-1 security review measured that false (mutant `audit_entity`, an audit `entity_id` with the key appended, turns it RED), and #209 kept the line. Fact 3 and the queue bullet now say so (this plan PR). `pyt` = `bash "$(git rev-parse --show-toplevel)/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest`, run from `src/backend` (absolute path and `bash`: the blob is mode 100644 and there is no `scripts/` under `src/backend`, see lane E §2.18).
+One row from PR #209 (MSET-EXT-NOKEY-PIN). Its body also flagged stale guidance (recurring-failures #8): Fact 3 above and the queue bullet MSET-EXT-NOKEY-MINORS said the `repr(calls[1])` line could never fail. #209's round-1 security review measured that false (mutant `audit_entity`, an audit `entity_id` with the key appended, turns it RED), and #209 kept the line. Fact 3 and the queue bullet now say so (this plan PR). `pyt` = `bash "$(git rev-parse --show-toplevel)/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest`, run from `src/backend` (absolute path: there is no `scripts/` under `src/backend`; see lane E §2.18).
 
 #### MSET-EXT-AUDIT-CT — HC-AUDCMS-005 checks the audit record for the plaintext key only, not the stored ciphertext
 

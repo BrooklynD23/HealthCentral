@@ -33,7 +33,7 @@
 | Q-COV-GATE | CI fails below 74% backend coverage | owner Q-COV `:300`; W-11a `:1953` | yes → §2.15 | — | ready |
 | PKT-QUESTIONS-REDACT | the stored visit-prep / pinboard packet keeps raw question text | PR #198 body, follow-up candidate 1 | yes → §2.16 | — | blocked-on-owner (PKT-Q-SCOPE, then PKT-Q-DIFF) |
 | WAVE-DEP-DONE | build-wave counts a queue-ID dependency as done when any PR for it merged | queue bullet HARNESS (build-wave), 2026-10-19 C-P6 misread | yes → §2.17 | — | ready (harness, no slot) |
-| PYSLOT-MODE | `scripts/pyslot.sh` is mode 100644 and never creates its lock directory | found while planning 2026-10-20 (queue bullet ENV) | yes → §2.18 | — | ready (no slot) |
+| PYSLOT-MODE | `scripts/pyslot.sh` never creates its lock directory (its mode 100644 was fixed by #220) | found while planning 2026-10-20 (queue bullet ENV) | yes → §2.18 | — | ready (no slot) |
 | GATE12-MINORS | HC-GATE12-004 (record-only guard with the DB file present), HC-GATE12-005 (session-end backstop) | PR #206 round-2 review MINORs | yes → §2.19 | GATE-12 (#206 merged) | ready |
 | PKT-Q-MINORS | HC-PKT-024/025 assert the redaction tags; two redundant imports | PR #213 review MINORs | yes → §2.20 | PKT-QUESTIONS-REDACT (#213 merged) | ready |
 | REDACT-NAME-PINS | pins: strict run-on over-redaction (HC-REDACT-019), visit-prep PDF download (HC-PKT-026a/b) | owner E1C-DIFF `:273`; PR #195 body | yes → §2.21 | — | ready (tests only) |
@@ -537,11 +537,11 @@ Under (b), both tests assert `"questions" not in` the stored packet instead, and
 
 ### Follow-ups found 2026-10-20 (planned 2026-10-20 on `origin/main` @ `b2b3f4e`)
 
-Six rows: two harness rows (WAVE-DEP-DONE, PYSLOT-MODE), two test-only rows from the reviews of #206 and #213 (GATE12-MINORS, PKT-Q-MINORS), and the owner's E1C-DIFF follow-ups split in two: a test-only pin row (REDACT-NAME-PINS, no gate) and the ask-first fix (REDACT-NAME-GAPS, gated). Every "measured" fact ran as a scratch test or script in the planning worktree, removed afterwards (`git status --short` empty). `pyt` = `bash "$(git rev-parse --show-toplevel)/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest`, run from `src/backend` (absolute path and `bash`, see §2.18).
+Six rows: two harness rows (WAVE-DEP-DONE, PYSLOT-MODE), two test-only rows from the reviews of #206 and #213 (GATE12-MINORS, PKT-Q-MINORS), and the owner's E1C-DIFF follow-ups split in two: a test-only pin row (REDACT-NAME-PINS, no gate) and the ask-first fix (REDACT-NAME-GAPS, gated). Every "measured" fact ran as a scratch test or script in the planning worktree, removed afterwards (`git status --short` empty). `pyt` = `bash "$(git rev-parse --show-toplevel)/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest`, run from `src/backend` (absolute path: there is no `scripts/` under `src/backend`; see §2.18).
 
 ### 2.17 WAVE-DEP-DONE — build-wave counts a dependency as done when any PR for it merged
 
-**Source:** queue bullet HARNESS (build-wave): "build-wave misread C-P6 as done because Task 1 #113 merged, and picked C-P7." The other half of that bullet (build-item Task 0 installs the embedding bundle) and the HARNESS stale-queue bullet are fixed by open PR #218 (`.claude/workflows/build-item.js` only) and are not planned here.
+**Source:** queue bullet HARNESS (build-wave): "build-wave misread C-P6 as done because Task 1 #113 merged, and picked C-P7." The other half of that bullet (build-item Task 0 installs the embedding bundle) and the HARNESS stale-queue bullet are fixed by #218 (`.claude/workflows/build-item.js` only, merged as `ed38769` while this plan was open) and are not planned here.
 
 **Facts (`b2b3f4e`, `.claude/workflows/build-wave.js`):**
 1. The Select prompt's rule 2 (`:73`) reads "Every depends_on PR/item is merged on origin/main (git merge-base --is-ancestor, or merged_recent)". For a queue ID, "merged" is read off `merged_recent`, the titles of recently merged PRs (scan step 4, `:57`). `#113` "C-P6 Task 1 orphan-audit tool" merged on 2026-10-16, so C-P6 read as merged although its row is not done (C-P6 Tasks 2-5 wait on P6-ORPHAN, queue "Status 2026-10-16 (second batch)").
@@ -563,30 +563,28 @@ Six rows: two harness rows (WAVE-DEP-DONE, PYSLOT-MODE), two test-only rows from
 **Files:** `.claude/workflows/build-wave.js`. No slots (no backend test).
 **Expected collected delta:** 0. **Est:** 0.5 h.
 **Acceptance:** the three checks above, pasted; `python3 scripts/docs_lint.py`. **Rollback:** revert.
-**Order:** ready now. Runs beside #218 (different file). Never beside another `build-wave.js` PR. Runtime claude (harness rows need a Claude Code session to replay).
+**Order:** ready now. Never beside another `build-wave.js` PR. Runtime claude (harness rows need a Claude Code session to replay).
 
-### 2.18 PYSLOT-MODE — the pytest slot script is not executable on a fresh checkout
+### 2.18 PYSLOT-MODE — the pytest slot script never creates its lock directory
 
-**Source:** found while planning 2026-10-20 (queue bullet ENV). The ENV bullet itself (CRLF in the old machine's working tree) does not reproduce here: `git ls-files --eol scripts/pyslot.sh` prints `i/lf w/lf attr/text=auto`. Two other defects in the same script do.
+**Source:** found while planning 2026-10-20 (queue bullet ENV). The ENV bullet itself (CRLF in the old machine's working tree) does not reproduce here: `git ls-files --eol scripts/pyslot.sh` prints `i/lf w/lf attr/text=auto`. Two other defects in the same script did.
 
-**Facts (`b2b3f4e`):**
-1. `git ls-files -s scripts/pyslot.sh` prints mode `100644`. On a checkout with `core.fileMode=true` (this cloud box) the file is not executable: `./scripts/pyslot.sh true` → `Permission denied`, exit 126 (measured). RUNBOOK §6 step 2 (`RUNBOOK.md:137`), contracts §d step 2, and `.claude/workflows/build-item.js:233` and `:262` all call it directly, without `bash`.
-2. The script locks `/tmp/claude-1000/hc-pytest.$i.lock` (`:8`) but never creates `/tmp/claude-1000`. Where it is missing, `flock` prints `cannot open lock file … No such file or directory` and exits 66; `66 != 75`, so the script exits 66 at once and the test command never runs (measured with a missing directory).
-3. Several lane docs define `pyt` as `scripts/pyslot.sh …` "from `src/backend`" (lane E §2.8 `:220`, lane D `:626`), but `src/backend/scripts/` has no `pyslot.sh`. Those are done rows; this row fixes the script, not their text.
+**Facts:**
+1. **Fixed while this plan was open:** on `b2b3f4e` the blob was mode `100644`, so on a `core.fileMode=true` checkout (this cloud box) `./scripts/pyslot.sh true` gave `Permission denied`, exit 126 (measured). #220 (`1cd94ee`, merged into `main` as `a10962d`) set it to `100755`. That half is not part of this row.
+2. **Still open on `a10962d`:** the script locks `/tmp/claude-1000/hc-pytest.$i.lock` (`scripts/pyslot.sh:8`) but never creates `/tmp/claude-1000`. Where it is missing, `flock` prints `cannot open lock file … No such file or directory` and exits 66. Because `66 != 75`, the script exits 66 at once and the test command never runs (measured with a missing directory). RUNBOOK §6 step 2 (`RUNBOOK.md:137`), contracts §d step 2 and `.claude/workflows/build-item.js:236`, `:265` all go through it.
+3. Several lane docs define `pyt` as `scripts/pyslot.sh …` "from `src/backend`" (lane E §2.8 `:226`, lane D `:626`), but `src/backend/scripts/` has no `pyslot.sh`. Those are done rows, and this row does not edit their text. New sections use the absolute `bash "$(git rev-parse --show-toplevel)/scripts/pyslot.sh"` form.
 
-**Design:** `git update-index --chmod=+x scripts/pyslot.sh` (mode `100755`), and one line before the loop: `mkdir -p /tmp/claude-1000`. Nothing else changes (slot count, lock names, exit codes).
+**Design:** one line before the loop, `mkdir -p /tmp/claude-1000`. Nothing else changes: slot count, lock names, exit codes and mode stay as they are.
 
 | Check | Expected | RED today? |
 |---|---|---|
-| `git ls-files -s scripts/pyslot.sh` | `100755` | yes (`100644`) |
-| on a fresh checkout of the branch: `./scripts/pyslot.sh true; echo $?` | `0` | yes (126) |
-| `bash -n scripts/pyslot.sh` | exit 0 | n/a |
-| with `/tmp/claude-1000` absent (only on a box where no pytest holds a slot; never delete it while one runs): `./scripts/pyslot.sh true; echo $?` | `0`, and the directory now exists | yes (66) |
+| `bash -n scripts/pyslot.sh` and `git ls-files -s scripts/pyslot.sh` | exit 0; mode `100755` kept | n/a |
+| With `/tmp/claude-1000` absent: `./scripts/pyslot.sh true; echo $?`. Run this only on a box where no pytest holds a slot, and never delete the directory while one runs. A safe RED alternative is a scratch copy of the script with the lock path pointed at a fresh empty temp dir | `0`, and the directory now exists | yes (66) |
 
 **Files:** `scripts/pyslot.sh`. No slots.
-**Expected collected delta:** 0. **Est:** 0.25 h.
+**Expected collected delta:** 0. **Est:** 0.1 h.
 **Acceptance:** the checks above, pasted. **Rollback:** revert.
-**Order:** ready now. No shared file with any open PR. Runtime any.
+**Order:** ready now. No shared file with any open PR. Runtime claude.
 
 ### 2.19 GATE12-MINORS — no test catches a record-only guard when the master DB file exists, or pins the session-end backstop
 
