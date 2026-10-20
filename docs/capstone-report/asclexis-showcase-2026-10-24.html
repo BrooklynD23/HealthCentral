@@ -199,7 +199,7 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
   <span data-ledger="H7" data-kind="case-study">failure modes are written down (docs/agentic/recurring-failures.md)</span>.</p>
   <p class="meta" data-exempt="metadata">github.com/BrooklynD23/HealthCentral · figures measured 2026-10-20 at c529d19 (pre-freeze; the 2026-10-24 freeze re-measures them) · first audit 2026-09-25 · single-file interactive artifact</p>
   <div class="stats">
-    <div class="stat" data-ledger="H2"><div class="v">2,011</div><div class="l">backend tests collected (Linux Py 3.11, c529d19)</div></div>
+    <div class="stat" data-ledger="H20"><div class="v">2,011</div><div class="l">backend tests collected (Linux Py 3.11, c529d19)</div></div>
     <div class="stat" data-ledger="H14"><div class="v">18</div><div class="l">API routers</div></div>
     <div class="stat" data-ledger="H14"><div class="v">16</div><div class="l">frontend pages</div></div>
     <div class="stat" data-ledger="H14"><div class="v">36</div><div class="l">agent skills (32 process + 4 domain)</div></div>
@@ -211,7 +211,7 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
 
 <div class="wrap">
 <section id="journey">
-  <h2><span class="num">01</span> The Patient Journey</h2>
+  <h2 data-exempt="navigation"><span class="num">01</span> The Patient Journey</h2>
   <p class="sub" data-ledger="C10 C13">What a patient does — five stages. Patient data stays on this computer unless the opt-in cloud assistant is switched on (off by default). Each step lists the code that implements it.</p>
   <div class="stepper" id="journeyBtns">
     <div class="stepbtn on" data-panel="journey" data-i="0" data-ledger="C1"><div class="n">STEP 1</div><div class="t">Import</div><div class="s" style="font-size:10.5px;color:var(--dim2)">Drop a lab PDF, photo, or FHIR export</div></div>
@@ -222,11 +222,11 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
   </div>
   <div class="stepdetail" data-group="journey" data-i="0">
     <div class="cols"><div>
-      <h3>Import</h3>
+      <h3 data-ledger="C1 C21 C30">Import</h3>
       <p class="lede" data-ledger="C1 C21 C30">Patient drags a lab result PDF, a photo of a printout, or an HL7 FHIR export into the upload view. Uploaded files are stored AES-GCM encrypted with this profile's key. The upload goes to the backend on 127.0.0.1.</p>
       <div style="margin-top:10px"><span class="tag t" data-ledger="C1">PDF</span><span class="tag t" data-ledger="C1">image/OCR</span><span class="tag t" data-ledger="C1">FHIR export</span></div>
     </div>
-    <div><h4>Evidence path</h4><ul class="tight">
+    <div><h4 data-exempt="navigation">Evidence path</h4><ul class="tight">
       <li data-ledger="C1 C13">POST /api/v1/documents — <code>api/documents.py:408</code></li>
       <li data-ledger="C21">AES-GCM encrypted at rest</li>
       <li data-ledger="C1 C13"><code>modules/ingest.py</code> — format detection + dedup</li>
@@ -234,10 +234,10 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
   </div>
   <div class="stepdetail" data-group="journey" data-i="1" hidden>
     <div class="cols"><div>
-      <h3>Extract</h3>
+      <h3 data-ledger="C13">Extract</h3>
       <p class="lede" data-ledger="C13">Extraction proposes values with units and dates.</p>
     </div>
-    <div><h4>Evidence path</h4><ul class="tight">
+    <div><h4 data-exempt="navigation">Evidence path</h4><ul class="tight">
       <li data-ledger="C13"><code>modules/extract*</code> — OCR via Tesseract when it is installed; text extraction for PDFs</li>
       <li data-ledger="C13"><code>modules/normalize</code> + <code>glossary</code> — analyte synonyms → canonical names</li>
       <li data-ledger="C13"><code>POST /{id}/reprocess</code> re-runs extraction</li>
@@ -245,11 +245,11 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
   </div>
   <div class="stepdetail" data-group="journey" data-i="2" hidden>
     <div class="cols"><div>
-      <h3>Verify</h3>
+      <h3 data-ledger="C2">Verify</h3>
       <p class="lede" data-ledger="C2">The Verification Workbench shows extracted values side-by-side with the source. The patient confirms or corrects each row. Extracted values land unverified until the patient confirms them. The default assistant, FHIR, visit-prep and pinboards use verified values only.</p>
       <div style="margin-top:10px"><span class="tag t" data-ledger="C2">human gate</span></div>
     </div>
-    <div><h4>Evidence path</h4><ul class="tight">
+    <div><h4 data-exempt="navigation">Evidence path</h4><ul class="tight">
       <li data-ledger="C2">VerificationWorkbench page</li>
       <li data-ledger="C2">verified flag on every observation</li>
       <li data-ledger="C24">Assistant feedback exports as a strict-redacted dataset after explicit confirmation</li>
@@ -257,22 +257,22 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
   </div>
   <div class="stepdetail" data-group="journey" data-i="3" hidden>
     <div class="cols"><div>
-      <h3>Trends</h3>
+      <h3 data-ledger="C13">Trends</h3>
       <p class="lede" data-ledger="C13">The Trends Dashboard charts each analyte over time.</p>
       <div style="margin-top:10px"><span class="tag t" data-ledger="C13">longitudinal</span><span class="tag t" data-ledger="C13">per-analyte</span></div>
     </div>
-    <div><h4>Evidence path</h4><ul class="tight">
+    <div><h4 data-exempt="navigation">Evidence path</h4><ul class="tight">
       <li data-ledger="C13"><code>GET /api/v1/observations</code> — per-profile vault</li>
       <li data-ledger="C13">TrendsDashboard page</li>
     </ul></div></div>
   </div>
   <div class="stepdetail" data-group="journey" data-i="4" hidden>
     <div class="cols"><div>
-      <h3>Ask</h3>
+      <h3 data-ledger="C3 C4 C24">Ask</h3>
       <p class="lede" data-ledger="C3 C4 C24">The default assistant path attaches a source to every sentence and drops sentences it cannot source; the legacy path checks <code>[cite:N]</code> markers. A prohibited-pattern suite blocks diagnosis and dosing language (tested; no test can prove "never"). Feedback thumbs/corrections export as redacted RL datasets (explicit confirmation required).</p>
       <div style="margin-top:10px"><span class="tag t" data-ledger="C3">sourced sentences</span><span class="tag t" data-ledger="C3">education only</span></div>
     </div>
-    <div><h4>Evidence path</h4><ul class="tight">
+    <div><h4 data-exempt="navigation">Evidence path</h4><ul class="tight">
       <li data-ledger="C14"><code>POST /api/v1/assistant/chat</code> — <code>api/assistant.py:839</code></li>
       <li data-ledger="C3 C14">agent graph (default) or RAG path</li>
       <li data-ledger="C3 C14 C4">agent: guard (groundedness + advice classifier); legacy: <code>validate_response</code> + <code>interpret_safety</code> patterns</li>
@@ -281,7 +281,7 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
 </section>
 
 <section id="pipeline">
-  <h2><span class="num">02</span> Document → Observation Pipeline</h2>
+  <h2 data-exempt="navigation"><span class="num">02</span> Document → Observation Pipeline</h2>
   <p class="sub" data-ledger="C13">A lab file becomes an observation the patient can verify. Each node names the module that does the work — click a node for the code path.</p>
   <div class="pipe" id="pipeNodes">
     <div class="pnode on" data-panel="pipe" data-i="0" data-exempt="pointer"><div class="ic">⇪</div><div class="t">Upload</div><div class="s">api/documents.py</div></div>
@@ -299,8 +299,8 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
     <div class="pnode" data-panel="pipe" data-i="6" data-exempt="pointer"><div class="ic">✓</div><div class="t">Human verification</div><div class="s">Workbench</div></div>
   </div>
   <div class="pdetail" data-group="pipe" data-i="0">
-    <h3>Upload</h3>
-    <p class="lede" data-ledger="C21 C19">Multipart upload → file written AES-GCM-encrypted to the profile's document store. An audit event is emitted (every document route is audit-logged).</p><h4 style="margin-top:10px">Code evidence</h4>
+    <h3 data-ledger="C21 C19">Upload</h3>
+    <p class="lede" data-ledger="C21 C19">Multipart upload → file written AES-GCM-encrypted to the profile's document store. An audit event is emitted (every document route is audit-logged).</p><h4 style="margin-top:10px" data-exempt="navigation">Code evidence</h4>
     <ul class="tight">
       <li data-ledger="C13"><code>api/documents.py:408</code> (upload route)</li>
       <li data-ledger="C21"><code>core/document_crypto.py</code></li>
@@ -308,16 +308,16 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
     </ul>
   </div>
   <div class="pdetail" data-group="pipe" data-i="1" hidden>
-    <h3>Ingest</h3>
-    <p class="lede" data-ledger="C1 C13">Format detection (PDF / image / FHIR JSON), dedup, and job state. FHIR bundles take the structured path — no OCR needed.</p><h4 style="margin-top:10px">Code evidence</h4>
+    <h3 data-ledger="C1 C13">Ingest</h3>
+    <p class="lede" data-ledger="C1 C13">Format detection (PDF / image / FHIR JSON), dedup, and job state. FHIR bundles take the structured path — no OCR needed.</p><h4 style="margin-top:10px" data-exempt="navigation">Code evidence</h4>
     <ul class="tight">
       <li data-ledger="C13"><code>modules/ingest.py</code></li>
       <li data-ledger="C13">FHIR import (HC-M23)</li>
     </ul>
   </div>
   <div class="pdetail" data-group="pipe" data-i="2" hidden>
-    <h3>Extract + normalize</h3>
-    <p class="lede" data-ledger="C13">Text extraction for PDFs; OCR via Tesseract when installed. Analyte synonyms map to canonical names (<code>modules/normalize.py</code>, <code>modules/glossary.py</code>).</p><h4 style="margin-top:10px">Code evidence</h4>
+    <h3 data-ledger="C13">Extract + normalize</h3>
+    <p class="lede" data-ledger="C13">Text extraction for PDFs; OCR via Tesseract when installed. Analyte synonyms map to canonical names (<code>modules/normalize.py</code>, <code>modules/glossary.py</code>).</p><h4 style="margin-top:10px" data-exempt="navigation">Code evidence</h4>
     <ul class="tight">
       <li data-ledger="C13"><code>modules/extract.py</code> + variants</li>
       <li data-ledger="C13"><code>modules/normalize.py</code></li>
@@ -325,8 +325,8 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
     </ul>
   </div>
   <div class="pdetail" data-group="pipe" data-i="3" hidden>
-    <h3>Observations stored, unverified</h3>
-    <p class="lede" data-ledger="C25 C16 C2">Observations are created unverified and written to the profile's own vault through ProfileDbSession, never the master DB. The vault is SQLCipher-encrypted where SQLCipher is installed.</p><h4 style="margin-top:10px">Code evidence</h4>
+    <h3 data-ledger="C25 C16 C2">Observations stored, unverified</h3>
+    <p class="lede" data-ledger="C25 C16 C2">Observations are created unverified and written to the profile's own vault through ProfileDbSession, never the master DB. The vault is SQLCipher-encrypted where SQLCipher is installed.</p><h4 style="margin-top:10px" data-exempt="navigation">Code evidence</h4>
     <ul class="tight">
       <li data-ledger="C2"><code>api/documents.py:658,760</code> (<code>user_verified=False</code>)</li>
       <li data-ledger="C25"><code>core/auth.py:315-341</code> (<code>ProfileDbSession</code>)</li>
@@ -334,8 +334,8 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
     </ul>
   </div>
   <div class="pdetail" data-group="pipe" data-i="4" hidden>
-    <h3>Chunk + embed</h3>
-    <p class="lede" data-ledger="C13 C12">Text is chunked and embedded with sentence-transformers; retrieval is a pure-Python cosine scan — FAISS was removed (2026-07-01). The embedding model is downloaded once with an explicit script and loads offline (fails closed if absent).</p><h4 style="margin-top:10px">Code evidence</h4>
+    <h3 data-ledger="C13 C12">Chunk + embed</h3>
+    <p class="lede" data-ledger="C13 C12">Text is chunked and embedded with sentence-transformers; retrieval is a pure-Python cosine scan — FAISS was removed (2026-07-01). The embedding model is downloaded once with an explicit script and loads offline (fails closed if absent).</p><h4 style="margin-top:10px" data-exempt="navigation">Code evidence</h4>
     <ul class="tight">
       <li data-ledger="C13"><code>_create_chunks_and_embeddings</code> <code>api/documents.py:830</code></li>
       <li data-ledger="C13"><code>modules/chunking.py</code></li>
@@ -343,15 +343,15 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
     </ul>
   </div>
   <div class="pdetail" data-group="pipe" data-i="5" hidden>
-    <h3>Classify</h3>
-    <p class="lede" data-ledger="C13">Classifies the document and extracts entities; optional LLM assist.</p><h4 style="margin-top:10px">Code evidence</h4>
+    <h3 data-ledger="C13">Classify</h3>
+    <p class="lede" data-ledger="C13">Classifies the document and extracts entities; optional LLM assist.</p><h4 style="margin-top:10px" data-exempt="navigation">Code evidence</h4>
     <ul class="tight">
       <li data-ledger="C13"><code>_classify_and_extract_entities</code> <code>api/documents.py:931</code></li>
     </ul>
   </div>
   <div class="pdetail" data-group="pipe" data-i="6" hidden>
-    <h3>Human verification</h3>
-    <p class="lede" data-ledger="C2">The default assistant, FHIR, visit-prep and pinboards use verified values only. A reprocess path exists for bad extractions.</p><h4 style="margin-top:10px">Code evidence</h4>
+    <h3 data-ledger="C2">Human verification</h3>
+    <p class="lede" data-ledger="C2">The default assistant, FHIR, visit-prep and pinboards use verified values only. A reprocess path exists for bad extractions.</p><h4 style="margin-top:10px" data-exempt="navigation">Code evidence</h4>
     <ul class="tight">
       <li data-ledger="C2">VerificationWorkbench</li>
       <li data-ledger="C13"><code>POST /{id}/reprocess</code></li>
@@ -360,7 +360,7 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
 </section>
 
 <section id="models">
-  <h2><span class="num">03</span> Local LLM &amp; Model Selection</h2>
+  <h2 data-exempt="navigation"><span class="num">03</span> Local LLM &amp; Model Selection</h2>
   <p class="sub" data-ledger="H11 C10">Local inference runs through one facade (ModelRunner) over two local providers. An opt-in cloud runner sits outside it as a documented exception. All inference is local by default.</p>
   <div class="router" id="provBtns">
     <div class="prov on" data-panel="prov" data-i="0" data-ledger="C27 C14"><div class="pt">LlamaCppProvider</div><div class="ps">default · local GGUF</div></div>
@@ -368,21 +368,21 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
     <div class="prov" data-panel="prov" data-i="2" data-ledger="C10 H11"><div class="pt">External runner</div><div class="ps">opt-in · off by default · outside ModelRunner</div></div>
   </div>
   <div class="provdetail" data-group="prov" data-i="0">
-    <h3>LlamaCppProvider</h3>
+    <h3 data-ledger="C27 C14">LlamaCppProvider</h3>
     <p class="lede" data-ledger="C27 C14">llama-cpp-python, lazily imported so the app boots without a model present. Model files come from an explicit download step (<code>src/backend/scripts/download_models.py</code>, Hugging Face or <code>ollama pull</code>). The default assistant path needs no model.</p><ul class="tight" style="margin-top:8px">
       <li data-ledger="C27"><code>core/llm/llama_cpp_provider.py</code></li>
       <li data-ledger="C14">no-LLM fallback stays functional</li>
     </ul>
   </div>
   <div class="provdetail" data-group="prov" data-i="1" hidden>
-    <h3>OllamaProvider</h3>
+    <h3 data-ledger="C26">OllamaProvider</h3>
     <p class="lede" data-ledger="C26">Optional provider for users who already run Ollama. The provider refuses any non-local URL when it is constructed; tested.</p><ul class="tight" style="margin-top:8px">
       <li data-ledger="C26"><code>core/llm/ollama_provider.py</code></li>
       <li data-ledger="C26">default <code>127.0.0.1:11434</code></li>
     </ul>
   </div>
   <div class="provdetail" data-group="prov" data-i="2" hidden>
-    <h3>External runner</h3>
+    <h3 data-ledger="C10 H11">External runner</h3>
     <p class="lede" data-ledger="C10 H11">An opt-in cloud runner sits outside the ModelRunner facade as a documented exception. It is off by default and redacts by default. Redaction is pattern-based. Two callers can reach it: the assistant and interpretations.</p><ul class="tight" style="margin-top:8px">
       <li data-ledger="C10 H11"><code>core/external_runner.py</code></li>
       <li data-ledger="C10"><code>modules/redaction.py</code> — strict by default</li>
@@ -393,11 +393,11 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
 </section>
 
 <section id="safety">
-  <h2><span class="num">04</span> Assistant Safety: Two Roads, Two Checks</h2>
+  <h2 data-exempt="navigation"><span class="num">04</span> Assistant Safety: Two Roads, Two Checks</h2>
   <p class="sub" data-ledger="C14 C3">The two assistant paths use different checks. Toggle to compare. The legacy path runs when the agent flag is off or the agent raises.</p>
   <div class="toggle" id="pathToggle">
-    <button class="on" data-p="0">Agent graph path (default ON)</button>
-    <button data-p="1">Legacy RAG path</button>
+    <button class="on" data-p="0" data-ledger="C14">Agent graph path (default ON)</button>
+    <button data-p="1" data-exempt="navigation">Legacy RAG path</button>
   </div>
   <div class="lane" data-group="lane" data-i="0">
     <div class="pnode" style="cursor:default" data-ledger="C14"><div class="t" style="font-size:12px">CHAT</div><div class="s">POST /assistant/chat</div></div>
@@ -426,17 +426,17 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
     <div class="parr">→</div><div class="pnode" style="cursor:default;border-color:var(--green)" data-ledger="C28"><div class="t" style="font-size:12px;color:var(--green)">ANSWER SERVED OR ABSTAINED</div><div class="s">abstention template when is_valid=False; flag in payload</div></div>
   </div>
   <div class="grid g3" style="margin-top:18px">
-    <div class="card"><h4>Citation checks</h4><ul class="tight">
+    <div class="card"><h4 data-exempt="navigation">Citation checks</h4><ul class="tight">
       <li data-ledger="C3"><span class="cite yr">[YOUR_RESULTS:N]</span> labels the patient's own values in the legacy prompt. It is a context label; the validated marker is <code>[cite:N]</code>.</li>
       <li data-ledger="C3"><span class="cite rf">[REFERENCE:N]</span> labels knowledge-base entries (<code>src/backend/scripts/seed_knowledge_base.py</code>).</li>
       <li data-ledger="C23">Memory &amp; session history are labeled <b>non-citable</b></li>
       <li data-ledger="C3 C14">Agent path: the guard drops any sentence it cannot map to a source. Legacy path: <code>validate_response</code> checks <code>[cite:N]</code> markers.</li></ul></div>
-    <div class="card"><h4>Constitutional limits</h4><ul class="tight">
+    <div class="card"><h4 data-exempt="navigation">Constitutional limits</h4><ul class="tight">
       <li data-ledger="C4">Education only — a prohibited-pattern suite blocks diagnosis and dosing language (tested; no test can prove "never").</li>
       <li data-ledger="C4"><code>interpret_safety</code> prohibited-pattern suite must keep passing</li>
       <li data-ledger="C14 C28">Agent path abstains when it cannot ground an answer. The legacy path replaces a failed validation with the same abstention template (W-4).</li>
       <li data-ledger="H3">74 golden cases run in CI (agent path only). Whether the check is merge-required is not recorded in the repo.</li></ul></div>
-    <div class="card"><h4>Scored on 6 axes</h4><ul class="tight">
+    <div class="card"><h4 data-ledger="H3">Scored on 6 axes</h4><ul class="tight">
       <li data-ledger="H3">groundedness, citation accuracy, abstention correctness, injection resistance = 1.0; advice leakage, PHI leakage = 0</li>
       <li data-ledger="C22"><code>consistency_score</code> is a fixed 1.0 placeholder. An NLI replacement (HC-M11) is approved only behind a default-off flag; changing production scoring is owner-gated.</li>
       <li data-ledger="H3">CI job <code>agent-evals</code> runs <code>scripts/agent_eval_gate.py</code> with absolute bars</li></ul></div>
@@ -444,7 +444,7 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
 </section>
 
 <section id="vault">
-  <h2><span class="num">05</span> Vault Architecture &amp; The Right To Be Forgotten</h2>
+  <h2 data-exempt="navigation"><span class="num">05</span> Vault Architecture &amp; The Right To Be Forgotten</h2>
   <p class="sub" data-ledger="C18 C16 C5">One unencrypted master DB (profile names, password hashes, audit rows, knowledge base) + one vault per profile, SQLCipher-encrypted where SQLCipher is installed. Deletion is an ordered crypto-erase, not a row flag.</p>
   <div class="vault">
     <div class="db">
@@ -470,7 +470,7 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
     <div class="dt">Backup archive <span class="badge open" data-ledger="C17">unredacted by design</span></div>
     <ul class="tight"><li data-ledger="C17">Backup archive: vault + sealed keys + plaintext master copy of this profile (by design, unredacted)</li></ul>
   </div>
-  <h3>Crypto-erase — <code>DELETE /profiles/{id}</code> with phrase <code>DELETE MY HEALTH DATA</code></h3>
+  <h3 data-ledger="C5">Crypto-erase — <code>DELETE /profiles/{id}</code> with phrase <code>DELETE MY HEALTH DATA</code></h3>
   <div class="erase">
     <div class="estep" data-ledger="C5 C17"><div class="en">1 · commit point</div><div class="et">1 · Unlink the sealed key files first</div></div>
     <div class="estep" data-ledger="C5"><div class="en">2</div><div class="et">Vault sweep — vault.db + encrypted documents</div></div>
@@ -478,49 +478,49 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
     <div class="estep" data-ledger="C5 C19"><div class="en">4</div><div class="et">Master txn — purge audit rows, write anonymized tombstone</div></div>
   </div>
   <div class="grid g2" style="margin-top:14px">
-    <div class="card"><h4>Backup ↔ restore</h4><ul class="tight">
+    <div class="card"><h4 data-exempt="navigation">Backup ↔ restore</h4><ul class="tight">
       <li data-ledger="C17">Deliberately <b>unredacted</b> — a redacted backup can't be restored</li>
       <li data-ledger="C17">Profile-scoped restore: vault + sealed keys verbatim, only this profile's master row re-applied. The archive also carries a plaintext master copy of this profile's row and audit rows.</li>
       <li data-ledger="C17">Gated on password + phrase <code>RESTORE MY DATA</code></li>
-      <li data-ledger="C13">A lifespan scheduler runs due backups and records <code>skipped_locked</code> when a vault is closed (code path; not run in the audit).</li></ul></div>
-    <div class="card"><h4>Recovery codes</h4><ul class="tight">
+      <li data-ledger="C32">A lifespan scheduler runs due backups and records <code>skipped_locked</code> when a vault is closed (code path; not run in the audit).</li></ul></div>
+    <div class="card"><h4 data-exempt="navigation">Recovery codes</h4><ul class="tight">
       <li data-ledger="C6">Profile creation issues a one-time recovery code sealing a <i>second copy of the same DEK</i></li></ul></div>
   </div>
 </section>
 
 <section id="harness">
-  <h2><span class="num">06</span> The Harness — Engineering The Agent's Environment</h2>
+  <h2 data-exempt="navigation"><span class="num">06</span> The Harness — Engineering The Agent's Environment</h2>
   <p class="sub" data-ledger="M5">The 2026-09-25 audit's qualitative rubric rated the harness L3, trending L4 (the auditors' judgment, not a measurement).</p>
-  <h3>Enforcement layers</h3>
+  <h3 data-exempt="navigation">Enforcement layers</h3>
   <div class="gates">
     <div class="gate2" data-ledger="H13"><div class="gt"><span class="dot g"></span>CLAUDE.md + AGENT.md</div><div class="gs">Constitution: hard invariants, protected files, "run verification — never assert it", Definition of Done.</div></div>
     <div class="gate2" data-ledger="H14"><div class="gt"><span class="dot g"></span>36 skills</div><div class="gs">32 process skills (<code>.claude/skills/</code>) + 4 domain skills (<code>skills/asclexis-*</code>), with a routing table.</div></div>
     <div class="gate2" data-ledger="H14"><div class="gt"><span class="dot g"></span>feature_list.json</div><div class="gs">27 items, each with verification commands, linted in CI.</div></div>
     <div class="gate2" data-ledger="H3 H14"><div class="gt"><span class="dot g"></span>docs_lint</div><div class="gs">Rules numbered 1–13: Last-Updated headers, Historical banners, link resolution, index freshness.</div></div>
     <div class="gate2" data-ledger="H3"><div class="gt"><span class="dot g"></span>agent_eval_gate</div><div class="gs">74 golden cases scored on 6 axes with absolute bars (agent path only).</div></div>
-    <div class="gate2" data-ledger="H4" data-kind="finding"><div class="gt"><span class="dot g"></span>security_gate</div><div class="gs">Fails closed since P1: a missing scan report exits 2 (measured 2026-10-20).</div></div>
+    <div class="gate2" data-ledger="H19"><div class="gt"><span class="dot g"></span>security_gate</div><div class="gs">Fails closed since P1: a missing scan report exits 2 (measured 2026-10-20).</div></div>
     <div class="gate2" data-ledger="H17"><div class="gt"><span class="dot a"></span>route_client harness</div><div class="gs"><code>route_client</code> runs route tests through real HTTP. Many route tests still call handlers directly.</div></div>
-    <div class="gate2" data-ledger="H7" data-kind="case-study"><div class="gt"><span class="dot a"></span>recurring-failures.md</div><div class="gs">12 documented failure modes. Several later findings match them — a match, not a prediction test.</div></div>
+    <div class="gate2"><div class="gt" data-exempt="navigation"><span class="dot a"></span>recurring-failures.md</div><div class="gs"><span data-ledger="H14">12 documented failure modes.</span> <span data-ledger="H7" data-kind="case-study">Several later findings match them — a match, not a prediction test.</span></div></div>
   </div>
-  <h3>Recorded failure modes (docs/agentic/recurring-failures.md)</h3>
+  <h3 data-exempt="navigation">Recorded failure modes (docs/agentic/recurring-failures.md)</h3>
   <div class="grid g4">
-    <div class="card" data-ledger="H7" data-kind="case-study"><h4 style="color:var(--pink)">1. A green suite that could not have failed</h4><p style="font-size:12px;color:var(--dim)">“A restore endpoint returned 400 for every request”</p></div>
-    <div class="card" data-ledger="H7" data-kind="case-study"><h4 style="color:var(--pink)">2. The fix that creates the next bug one layer over</h4><p style="font-size:12px;color:var(--dim)">“Every individually-correct fix in the backup subsystem propagated a new false statement or data-loss path somewhere adjacent”</p></div>
-    <div class="card" data-ledger="H7" data-kind="case-study"><h4 style="color:var(--pink)">3. Figures asserted instead of measured</h4><p style="font-size:12px;color:var(--dim)">“CLAUDE.md and AGENT.md both claimed &quot;~620 backend tests&quot; for months.”</p></div>
-    <div class="card" data-ledger="H7" data-kind="case-study"><h4 style="color:var(--pink)">4. Environment-dependent results written as absolutes</h4><p style="font-size:12px;color:var(--dim)">“1245 pass in CI, 1244 pass and 1 fails locally, same commit.”</p></div>
-    <div class="card" data-ledger="H7" data-kind="case-study"><h4 style="color:var(--pink)">5. Gates run in a contaminated tree</h4><p style="font-size:12px;color:var(--dim)">“generate_docs_index.py --check reported fresh in the working tree while CI reported stale on the same commit.”</p></div>
-    <div class="card" data-ledger="H7" data-kind="case-study"><h4 style="color:var(--pink)">6. Documented commands nobody ran</h4><p style="font-size:12px;color:var(--dim)">“That script contains zero references to ollama and cannot download any Gemma 4 tier.”</p></div>
-    <div class="card" data-ledger="H7" data-kind="case-study"><h4 style="color:var(--pink)">7. SQL three-valued logic</h4><p style="font-size:12px;color:var(--dim)">“Scoping a backup with WHERE profile_id != ? silently kept every row where profile_id was NULL”</p></div>
-    <div class="card" data-ledger="H7" data-kind="case-study"><h4 style="color:var(--pink)">8. Stale guidance that reads as authority</h4><p style="font-size:12px;color:var(--dim)">“The decision stood unchallenged for weeks because it was written down.”</p></div>
-    <div class="card" data-ledger="H7" data-kind="case-study"><h4 style="color:var(--pink)">9. An invariant enforced at one site, not across its class</h4><p style="font-size:12px;color:var(--dim)">“That is a rule about a class of data, enforced at exactly one table.”</p></div>
-    <div class="card" data-ledger="H7" data-kind="case-study"><h4 style="color:var(--pink)">10. A fully unit-tested feature that was never started</h4><p style="font-size:12px;color:var(--dim)">“The feature was dead on every boot for months”</p></div>
-    <div class="card" data-ledger="H7" data-kind="case-study"><h4 style="color:var(--pink)">11. Harness rule text broader than the plan it summarises</h4><p style="font-size:12px;color:var(--dim)">“The queue row for E-3a, written by the orchestrator, told implementers to run ruff format as part of the cleanup.”</p></div>
-    <div class="card" data-ledger="H7" data-kind="case-study"><h4 style="color:var(--pink)">12. A gate merged beside PRs built before it</h4><p style="font-size:12px;color:var(--dim)">“Main&#x27;s lint went red on d427868 with 5 I001 (unsorted import) errors”</p></div>
+    <div class="card" data-ledger="H14"><h4 style="color:var(--pink)" data-exempt="navigation">1. A green suite that could not have failed</h4><p style="font-size:12px;color:var(--dim)">“A restore endpoint returned 400 for every request”</p></div>
+    <div class="card" data-ledger="H14"><h4 style="color:var(--pink)" data-exempt="navigation">2. The fix that creates the next bug one layer over</h4><p style="font-size:12px;color:var(--dim)">“Every individually-correct fix in the backup subsystem propagated a new false statement or data-loss path somewhere adjacent”</p></div>
+    <div class="card" data-ledger="H14"><h4 style="color:var(--pink)" data-exempt="navigation">3. Figures asserted instead of measured</h4><p style="font-size:12px;color:var(--dim)">“CLAUDE.md and AGENT.md both claimed &quot;~620 backend tests&quot; for months.”</p></div>
+    <div class="card" data-ledger="H14"><h4 style="color:var(--pink)" data-exempt="navigation">4. Environment-dependent results written as absolutes</h4><p style="font-size:12px;color:var(--dim)">“1245 pass in CI, 1244 pass and 1 fails locally, same commit.”</p></div>
+    <div class="card" data-ledger="H14"><h4 style="color:var(--pink)" data-exempt="navigation">5. Gates run in a contaminated tree</h4><p style="font-size:12px;color:var(--dim)">“generate_docs_index.py --check reported fresh in the working tree while CI reported stale on the same commit.”</p></div>
+    <div class="card" data-ledger="H14"><h4 style="color:var(--pink)" data-exempt="navigation">6. Documented commands nobody ran</h4><p style="font-size:12px;color:var(--dim)">“That script contains zero references to ollama and cannot download any Gemma 4 tier.”</p></div>
+    <div class="card" data-ledger="H14"><h4 style="color:var(--pink)" data-exempt="navigation">7. SQL three-valued logic</h4><p style="font-size:12px;color:var(--dim)">“Scoping a backup with WHERE profile_id != ? silently kept every row where profile_id was NULL”</p></div>
+    <div class="card" data-ledger="H14"><h4 style="color:var(--pink)" data-exempt="navigation">8. Stale guidance that reads as authority</h4><p style="font-size:12px;color:var(--dim)">“The decision stood unchallenged for weeks because it was written down.”</p></div>
+    <div class="card" data-ledger="H14"><h4 style="color:var(--pink)" data-exempt="navigation">9. An invariant enforced at one site, not across its class</h4><p style="font-size:12px;color:var(--dim)">“That is a rule about a class of data, enforced at exactly one table.”</p></div>
+    <div class="card" data-ledger="H14"><h4 style="color:var(--pink)" data-exempt="navigation">10. A fully unit-tested feature that was never started</h4><p style="font-size:12px;color:var(--dim)">“The feature was dead on every boot for months”</p></div>
+    <div class="card" data-ledger="H14"><h4 style="color:var(--pink)" data-exempt="navigation">11. Harness rule text broader than the plan it summarises</h4><p style="font-size:12px;color:var(--dim)">“The queue row for E-3a, written by the orchestrator, told implementers to run ruff format as part of the cleanup.”</p></div>
+    <div class="card" data-ledger="H14"><h4 style="color:var(--pink)" data-exempt="navigation">12. A gate merged beside PRs built before it</h4><p style="font-size:12px;color:var(--dim)">“Main&#x27;s lint went red on d427868 with 5 I001 (unsorted import) errors”</p></div>
   </div>
 </section>
 
 <section id="evidence">
-  <h2><span class="num">07</span> Evidence — The Developer → Orchestrator Shift</h2>
+  <h2 data-exempt="navigation"><span class="num">07</span> Evidence — The Developer → Orchestrator Shift</h2>
   <p class="sub" data-ledger="H12 H13">By git author name: 0 of 98 commits from Dec to May name an agent; 263 of 1,352 from 2026-06-23 do (at <code>c529d19</code>). 28 of those Dec–May commits carry an agent co-author trailer, so author name is a proxy, not a measure of who did the work. CLAUDE.md and AGENT.md were committed 2026-06-13; the first agent-authored commit is 2026-06-23. The docs lint and security gate are older (2026-02).</p>
   <div class="eras">
     <div class="era" data-ledger="H12"><div class="et">E0 · 2025-12</div><div class="en">Import</div><div class="ed">2 commits (the second adds 14,397 lines in 70 files)</div><div class="bar"><i style="width:0%"></i></div><div class="ed" style="margin-top:4px;font-family:var(--mono);font-size:10px">0/2 by author · 0/2 with co-author trailer</div></div>
@@ -533,16 +533,16 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
     <div class="era" data-ledger="H12"><div class="et">E7 · Oct 1–20</div><div class="en">Hardening + parallel agents</div><div class="ed">The agent shows only as a co-author trailer</div><div class="bar"><i style="width:0%"></i></div><div class="ed" style="margin-top:4px;font-family:var(--mono);font-size:10px">0/1040 by author · 717/1040 with co-author trailer</div></div>
   </div>
   <p class="note" data-ledger="H12">Git author name is a proxy, not a measure of who did the work.</p>
-  <h3>Lifetime authorship</h3>
+  <h3 data-exempt="navigation">Lifetime authorship</h3>
   <div class="authbar"><div class="h" style="width:82%"></div><div class="a" style="width:18%"></div></div>
   <div class="legend"><span data-ledger="H12"><i style="background:var(--teal)"></i>Other git authors 82%</span><span data-ledger="H12"><i style="background:var(--violet)"></i>Agent git author 18% (263/1459 commits at c529d19); 71% (1042/1459) with an agent author or co-author trailer</span></div>
   <div class="grid g2" style="margin-top:20px">
-    <div class="card"><h4>What the artifacts let you measure</h4><ul class="tight">
+    <div class="card"><h4 data-exempt="navigation">What the artifacts let you measure</h4><ul class="tight">
       <li data-ledger="H12">Authorship time-series (git-author proxy)</li>
       <li data-ledger="H18">Defect taxonomy → agentic-specific failure modes with commit-hash evidence (July 2026 backup fixes: 12 fix(backup) commits, 2026-07-29…31)</li>
       <li data-ledger="M2" data-kind="hypothesis">Hypothesis to test: docs drift where no gate runs. Observed drift sat on ungated surfaces; gated surfaces were not sampled.</li>
       <li data-ledger="M1" data-kind="case-study">Case study: in the 2026-09-25 audit (reported as 6 agents), the reconciler caught 3 errors in sibling output. One run; no rate.</li></ul></div>
-    <div class="card"><h4>The honest counter-narrative (Part-2 material)</h4><ul class="tight">
+    <div class="card"><h4 data-exempt="navigation">The honest counter-narrative (Part-2 material)</h4><ul class="tight">
       <li data-ledger="H4" data-kind="finding">The security gate shipped green while failing open (fixed in P1).</li>
       <li data-ledger="H5" data-kind="finding"><code>.claude/agents/</code> was cited as evidence while <code>.gitignore</code> made it impossible to commit. Five definitions were authored new by owner decision D1 (2026-10-01).</li>
       <li data-ledger="H6" data-kind="finding">The CS4610 report claims hook-based PHI enforcement; no PreToolUse hook that scans for PHI exists in the repo, and the user-level PreToolUse hooks are continuous-learning and GSD only — claims outran artifacts.</li>
@@ -551,20 +551,20 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
 </section>
 
 <section id="audit">
-  <h2><span class="num">08</span> Audit Findings &amp; The Forward Roadmap</h2>
-  <p class="sub"><span data-exempt="metadata">Audit of 2026-09-25 (reported as 6 agents + reconciliation; the agent outputs are not packaged).</span> <span data-exempt="navigation">Filter by severity.</span> <span data-ledger="M9">8 audit plans (2026-09-25) and 14 follow-up plans (2026-09-27) were written; the table below says which have merged.</span> <span data-ledger="M1" data-kind="case-study">The planning pass itself caught 4 errors in this audit.</span></p>
+  <h2 data-exempt="navigation"><span class="num">08</span> Audit Findings &amp; The Forward Roadmap</h2>
+  <p class="sub"><span data-exempt="metadata">Audit of 2026-09-25 (reported as 6 agents + reconciliation; the agent outputs are not packaged).</span> <span data-exempt="navigation">Filter by severity.</span> <span data-ledger="M10">8 audit plans (2026-09-25) and 14 follow-up plans (2026-09-27) were written;</span> <span data-ledger="M9">the table below says which have merged.</span> <span data-ledger="M1" data-kind="case-study">The planning pass itself caught 4 errors in this audit.</span></p>
   <div class="filt" id="sevFilt">
-    <button class="on" data-s="all">All</button>
-    <button data-s="p1">P1</button>
-    <button data-s="p2">P2</button>
-    <button data-s="p3">P3 / hygiene</button>
+    <button class="on" data-s="all" data-exempt="navigation">All</button>
+    <button data-s="p1" data-exempt="navigation">P1</button>
+    <button data-s="p2" data-exempt="navigation">P2</button>
+    <button data-s="p3" data-exempt="navigation">P3 / hygiene</button>
   </div>
   <div class="card" style="padding:0;overflow-x:auto"><table id="findings">
     <tr><th>Finding</th><th>Severity</th><th>Detail</th><th>Where</th></tr>
-    <tr data-s="p1" data-ledger="H4" data-kind="finding"><td>Security gate failed open</td><td><span class="sev p1">P1</span></td><td>Fixed in P1; exit 2 on a missing report (measured 2026-10-20).</td><td class="file">scripts/security_gate.py + ci.yml</td></tr>
-    <tr data-s="p1" data-ledger="C7 M9" data-kind="finding"><td>Notification scheduler had no production caller</td><td><span class="sev p1">P1</span></td><td>No production caller on main@40f590e. Since P2 (#31) the lifespan starts a session-scoped scheduler (code read, <code>main.py:82-83</code>); reminders were not exercised in this pass.</td><td class="file">main.py lifespan</td></tr>
+    <tr data-s="p1" data-ledger="H4" data-kind="finding"><td>Security gate failed open</td><td><span class="sev p1">P1</span></td><td><span data-ledger="H19" data-kind="current">Fixed in P1; exit 2 on a missing report (measured 2026-10-20).</span></td><td class="file">scripts/security_gate.py + ci.yml</td></tr>
+    <tr data-s="p1" data-ledger="C7" data-kind="finding"><td>Notification scheduler had no production caller</td><td><span class="sev p1">P1</span></td><td>No production caller on main@40f590e. <span data-ledger="C31" data-kind="current">Since P2 (#31) the lifespan starts a session-scoped scheduler (code read, <code>main.py:82-83</code>); reminders were not exercised in this pass.</span></td><td class="file">main.py lifespan</td></tr>
     <tr data-s="p1" data-ledger="C11" data-kind="finding"><td>In-memory export stores</td><td><span class="sev p1">P1</span></td><td>Artifact dicts live in module memory — downloads 404 after restart; pinboards imports private _packet_store.</td><td class="file">api/export.py, api/pinboards.py</td></tr>
-    <tr data-s="p1" data-ledger="H9" data-kind="finding"><td>datetime.utcnow() systemic breach</td><td><span class="sev p1">P1</span></td><td>On 2026-09-27: 101 product lines (109 references) in 30 files. Measured 2026-10-20 after P5 (#54): <code>git grep -n 'datetime\.utcnow' -- src/backend ':!src/backend/tests'</code> → 0 lines.</td><td class="file">src/backend (non-test)</td></tr>
+    <tr data-s="p1" data-ledger="H9" data-kind="finding"><td>datetime.utcnow() systemic breach</td><td><span class="sev p1">P1</span></td><td>On 2026-09-27: 101 product lines (109 references) in 30 files. <span data-ledger="H21" data-kind="current">Measured 2026-10-20 after P5 (#54): <code>git grep -n 'datetime\.utcnow' -- src/backend ':!src/backend/tests'</code> → 0 lines.</span></td><td class="file">src/backend (non-test)</td></tr>
     <tr data-s="p1" data-ledger="C15" data-kind="finding"><td>SQL echo of bound values (default dev config)</td><td><span class="sev p1">P1</span></td><td>Fixed by S-1 (#29): <code>sql_echo</code> defaults to False, separate from DEBUG. Leaked values seen in the probe are reported, not packaged.</td><td class="file">core/config.py, core/database.py</td></tr>
     <tr data-s="p2" data-ledger="C12" data-kind="finding"><td>Implicit embedding download</td><td><span class="sev p2">P2</span></td><td>Fixed by W-8 (#168): the model loads from a local directory with <code>local_files_only=True</code> and fails closed; it is fetched only by <code>scripts/download_models.py embedding</code>.</td><td class="file">modules/embeddings.py</td></tr>
     <tr data-s="p2" data-ledger="C28" data-kind="finding"><td>Legacy path served failed validations</td><td><span class="sev p2">P2</span></td><td>Fixed by W-4 (#72): a failed legacy validation is replaced by the abstention template.</td><td class="file">api/assistant.py</td></tr>
@@ -576,7 +576,7 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
     <tr data-s="p3" data-ledger="H15" data-kind="finding"><td>Stale docstrings and hygiene items</td><td><span class="sev p3">P3</span></td><td>Resolved: docstrings corrected (fd3f287) and the duplicate download_models.py removed. Unbounded audit retention remains (owner-gated, P8).</td><td class="file">modules/, api/, scripts/</td></tr>
   </table></div>
 
-  <h3>Program phases and the 2026-09-27 plan set (merge status)</h3>
+  <h3 data-exempt="navigation">Program phases and the 2026-09-27 plan set (merge status)</h3>
   <div class="card" style="padding:0;overflow-x:auto"><table>
     <tr><th>Item</th><th>Plan scope (as proposed)</th><th>Status</th></tr>
     <tr data-ledger="M9"><td>P1</td><td>Merge both repair branches (fail-closed gate, recovery UI)</td><td>merged: B #21 (2026-09-29), A #24 (2026-10-01)</td></tr>
@@ -600,10 +600,10 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
 </section>
 
 <section id="capstone">
-  <h2><span class="num">09</span> Capstone Track — Audit → Plans → Orchestration</h2>
+  <h2 data-exempt="navigation"><span class="num">09</span> Capstone Track — Audit → Plans → Orchestration</h2>
   <p class="sub" data-ledger="M1" data-kind="case-study">The handoff pipeline itself is a research artifact: this page, the audit, and the plans were produced by orchestrated agents. Review found errors at several layers in these runs (case studies, no rates).</p>
 
-  <h3>Delivery pipeline</h3>
+  <h3 data-exempt="navigation">Delivery pipeline</h3>
   <div class="pipe">
     <div class="pnode" style="cursor:default;border-color:var(--green)" data-exempt="metadata"><div class="ic">⛁</div><div class="t">Audit</div><div class="s">2026-09-25 · done</div></div>
     <div class="parr">→</div>
@@ -617,14 +617,14 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
   </div>
 
   <div class="grid g2">
-    <div class="card"><h4>Knowledge base — <code>docs/capstone-report/</code></h4><ul class="tight">
+    <div class="card"><h4 data-exempt="navigation">Knowledge base — <code>docs/capstone-report/</code></h4><ul class="tight">
       <li data-exempt="pointer"><code>00-original-goal.md</code> — product + research goal restated</li>
       <li data-exempt="pointer"><code>claims-ledger.md</code> — every report claim ↔ evidence ↔ verdict</li>
       <li data-exempt="pointer"><code>report-outline.md</code> — sections mapped to backing artifacts</li>
       <li data-exempt="pointer"><code>research/</code> — 4 scouting docs: agentic tools, harness techniques, RAG/local-LLM, papers+evals</li>
       <li data-ledger="M4"><code>specs-compliance-matrix.md</code> (78 requirement rows, 3 enforced) and <code>implementation-program.md</code>, written 2026-09-27</li></ul></div>
-    <div class="card"><h4>Claims ledger — honesty snapshot (57 rows)</h4>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 12px"><span class="tag g" style="font-size:12px;padding:5px 12px" data-exempt="metadata">33 verified</span><span class="tag a" style="font-size:12px;padding:5px 12px" data-exempt="metadata">10 partial</span><span class="tag r" style="font-size:12px;padding:5px 12px" data-exempt="metadata">6 contradicted</span><span class="tag " style="font-size:12px;padding:5px 12px" data-exempt="metadata">3 not-evidenced</span><span class="tag " style="font-size:12px;padding:5px 12px" data-exempt="metadata">3 case-study</span><span class="tag " style="font-size:12px;padding:5px 12px" data-exempt="metadata">1 hypothesis</span><span class="tag " style="font-size:12px;padding:5px 12px" data-exempt="metadata">1 reported</span></div>
+    <div class="card"><h4 data-ledger="M11">Claims ledger — honesty snapshot (64 rows)</h4>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 12px"><span class="tag g" style="font-size:12px;padding:5px 12px" data-ledger="M11">40 verified</span><span class="tag a" style="font-size:12px;padding:5px 12px" data-ledger="M11">10 partial</span><span class="tag r" style="font-size:12px;padding:5px 12px" data-ledger="M11">6 contradicted</span><span class="tag " style="font-size:12px;padding:5px 12px" data-ledger="M11">3 not-evidenced</span><span class="tag " style="font-size:12px;padding:5px 12px" data-ledger="M11">3 case-study</span><span class="tag " style="font-size:12px;padding:5px 12px" data-ledger="M11">1 hypothesis</span><span class="tag " style="font-size:12px;padding:5px 12px" data-ledger="M11">1 reported</span></div>
       <ul class="tight">
         <li data-ledger="H4 H5 H6" data-kind="finding">The <b>contradicted</b> rows are the report's strength — the audit caught its own project's overclaims (the phantom <code>.claude/agents/</code> layer, since authored by owner decision D1; the fail-open gate, fixed in P1; AgentShield, not evidenced).</li>
         <li data-exempt="metadata">Rule: a claim ships only with a ledger row + evidence pointer</li></ul></div>
