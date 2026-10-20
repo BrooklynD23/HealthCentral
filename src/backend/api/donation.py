@@ -13,7 +13,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,6 +27,10 @@ from models.data_donation import DonatedRecord, DonationConsent
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# The consent copy version the patient is shown. Must equal CONSENT_TEXT_VERSION
+# in src/frontend/src/components/settings/DataDonationCard.tsx (HC-DON-005e).
+CURRENT_CONSENT_TEXT_VERSION = "2026-10-20-draft-2"
 
 
 class DonationPurpose(str, Enum):
@@ -148,12 +152,19 @@ async def set_consent(
 ):
     """Grant or revoke one purpose. Revoke deletes the derived donated rows."""
     profile_id = session.profile_id
+    # A grant must name the copy the patient was shown. Revoke is never gated
+    # on version: a stale client must always be able to stop and delete.
+    if data.granted and data.consent_text_version != CURRENT_CONSENT_TEXT_VERSION:
+        raise HTTPException(
+            status_code=422,
+            detail="Consent text is out of date. Reload and review the current text.",
+        )
     row = await _get_active(profile_db, profile_id, purpose)
     deleted = 0
     if data.granted:
         # Same version already active: nothing to change. A new version closes
         # the old record and opens a new one, so earlier choices stay dated.
-        if row is None or row.consent_text_version != data.consent_text_version:
+        if row is None or row.consent_text_version != CURRENT_CONSENT_TEXT_VERSION:
             if row is not None:
                 row.revoked_at = utcnow()
                 await profile_db.flush()
@@ -161,7 +172,7 @@ async def set_consent(
                 profile_id=profile_id,
                 purpose=purpose.value,
                 granted_at=utcnow(),
-                consent_text_version=data.consent_text_version,
+                consent_text_version=CURRENT_CONSENT_TEXT_VERSION,
             ))
         await profile_db.commit()
         await audit_and_commit(
@@ -173,7 +184,7 @@ async def set_consent(
             entity_type="donation",
             entity_id=purpose.value,
         )
-        version = data.consent_text_version
+        version = CURRENT_CONSENT_TEXT_VERSION
     else:
         audit_kwargs = dict(
             event_type="donation.consent.revoke",

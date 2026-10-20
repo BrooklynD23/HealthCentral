@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import api.donation as donation_api
+from api.donation import CURRENT_CONSENT_TEXT_VERSION
 from core.auth import get_profile_db_session, require_auth
 from core.profile_database import ProfileDatabaseBase
 from models.data_donation import DonatedRecord, DonationConsent
@@ -31,7 +32,9 @@ PATH = f"{PREFIX}/consents"
 PROFILE_A = "profile-a"
 PROFILE_B = "profile-b"
 PURPOSES = ["fine_tune", "synthetic_seed", "agent_traces"]
-VERSION = "2026-10-20-draft-1"
+VERSION = CURRENT_CONSENT_TEXT_VERSION
+REPO_ROOT = Path(__file__).resolve().parents[3]
+CARD = REPO_ROOT / "src/frontend/src/components/settings/DataDonationCard.tsx"
 
 
 def _master_db(commit_error: Exception | None = None) -> MagicMock:
@@ -177,17 +180,67 @@ async def test_hc_don_005b_grant_revoke_regrant_keeps_dated_revoke(vault):
     resp, _ = _call("GET", vault)
     assert _state(resp)["fine_tune"]["granted"] is True
 
-    # A new text version closes the old record and opens a new one.
-    resp, _ = _call(
-        "PUT", vault, f"{PATH}/fine_tune",
-        json={"granted": True, "consent_text_version": "v2"},
-    )
-    assert resp.status_code == 200, resp.text
+    # Supersede path: an active row carrying an older version is closed (and
+    # kept) when the current version is granted, and one new active row opens.
+    active = (await vault.execute(
+        select(DonationConsent).where(DonationConsent.revoked_at.is_(None))
+    )).scalar_one()
+    active.consent_text_version = "2026-10-19-old"
+    await vault.commit()
+    old_id = active.id
+
+    await _put_ok(vault, "fine_tune", True)
     rows = (await vault.execute(select(DonationConsent))).scalars().all()
     assert len(rows) == 3
-    assert [r.revoked_at is None for r in rows].count(True) == 1
+    old = next(r for r in rows if r.id == old_id)
+    assert old.revoked_at is not None and old.consent_text_version == "2026-10-19-old"
+    active_rows = [r for r in rows if r.revoked_at is None]
+    assert len(active_rows) == 1
+    assert active_rows[0].id != old_id
+    assert active_rows[0].consent_text_version == CURRENT_CONSENT_TEXT_VERSION
     resp, _ = _call("GET", vault)
-    assert _state(resp)["fine_tune"]["consent_text_version"] == "v2"
+    assert _state(resp)["fine_tune"]["consent_text_version"] == CURRENT_CONSENT_TEXT_VERSION
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad_version", ["2026-10-20-draft-1", "invented-version", "v2"])
+async def test_hc_don_005c_grant_with_non_current_version_is_422_and_writes_nothing(vault, bad_version):
+    master = _master_db()
+    resp, master = _call(
+        "PUT", vault, f"{PATH}/fine_tune",
+        json={"granted": True, "consent_text_version": bad_version}, master_db=master,
+    )
+    assert resp.status_code == 422, resp.text
+    assert bad_version not in resp.text  # the client's string is never echoed
+    assert (await vault.execute(select(func.count()).select_from(DonationConsent))).scalar_one() == 0
+    assert [r for r in _audit_rows(master) if r.event_type == "donation.consent.grant"] == []
+    assert _audit_rows(master) == []
+
+
+@pytest.mark.asyncio
+async def test_hc_don_005d_revoke_with_stale_version_still_deletes(vault):
+    await _seed(vault, PROFILE_A, "fine_tune")
+    await _put_ok(vault, "fine_tune", True)
+    before = await _count(vault, "fine_tune")
+    assert before > 0
+    resp, _ = _call(
+        "PUT", vault, f"{PATH}/fine_tune",
+        json={"granted": False, "consent_text_version": "2026-10-19-stale"},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["deleted_count"] == before
+    assert await _count(vault, "fine_tune") == 0
+    consent = (await vault.execute(select(DonationConsent))).scalar_one()
+    assert consent.revoked_at is not None
+
+
+def test_hc_don_005e_card_version_matches_server_constant():
+    """Drift pin: the version the card sends must be the one the server accepts."""
+    import re
+
+    m = re.search(r"CONSENT_TEXT_VERSION\s*=\s*'([^']+)'", CARD.read_text(encoding="utf-8"))
+    assert m, "CONSENT_TEXT_VERSION literal not found in DataDonationCard.tsx"
+    assert m.group(1) == CURRENT_CONSENT_TEXT_VERSION
 
 
 @pytest.mark.asyncio
