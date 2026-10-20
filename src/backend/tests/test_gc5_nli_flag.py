@@ -427,8 +427,9 @@ def test_hc_gc5_004b_failures_leak_no_model_path(tmp_path, monkeypatch, caplog, 
 
 
 def test_hc_gc5_004c_load_restores_library_logger_levels(tmp_path, monkeypatch):
-    import modules.model_integrity as mi
     import sentence_transformers
+
+    import modules.model_integrity as mi
     from core.config import settings
     from modules.embeddings import EmbeddingModelUnavailableError, load_local_cross_encoder
 
