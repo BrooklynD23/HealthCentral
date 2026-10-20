@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import logging
 import struct
-import traceback
 import sys
+import traceback
 import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -534,8 +534,8 @@ async def test_hc_emb_008_vector_search_ignores_vectors_from_another_model(profi
     assert [chunk["chunk_id"] for chunk, _ in results] == ["chunk-real"]
 
 
-def _leak_surfaces(caplog, capsys) -> list[str]:
-    """Every text a path could hide in: message, exc_text, formatted exc_info, captured stdout/stderr."""
+def _leak_surfaces(caplog, capfd) -> list[str]:
+    """Every text a path could hide in: message, exc_text, formatted exc_info, captured stdout/stderr (capfd, so handlers bound to the original stderr are seen)."""
     out = []
     for rec in caplog.records:
         out.append(rec.getMessage())
@@ -543,7 +543,7 @@ def _leak_surfaces(caplog, capsys) -> list[str]:
             out.append(rec.exc_text)
         if rec.exc_info and rec.exc_info[1] is not None:
             out.append("".join(traceback.format_exception(*rec.exc_info)))
-    captured = capsys.readouterr()
+    captured = capfd.readouterr()
     out.extend([captured.out, captured.err])
     return out
 
@@ -566,7 +566,7 @@ def _install_stub_bundle(tmp_path, monkeypatch):
     return model_dir
 
 
-def test_hc_emb_010a_real_package_load_failure_leaks_no_path_at_debug(tmp_path, monkeypatch, caplog, capsys):
+def test_hc_emb_010a_real_package_load_failure_leaks_no_path_at_debug(tmp_path, monkeypatch, caplog, capfd):
     from modules.embeddings import EmbeddingModelUnavailableError, EmbeddingsModule
 
     model_dir = _install_stub_bundle(tmp_path, monkeypatch)
@@ -575,7 +575,7 @@ def test_hc_emb_010a_real_package_load_failure_leaks_no_path_at_debug(tmp_path, 
             EmbeddingsModule()._load_local_model()
 
     assert "failed to load" in str(failed.value), "the real package did not fail to load the stub bundle"
-    _assert_no_path(_leak_surfaces(caplog, capsys), str(model_dir), "jane-doe-home")
+    _assert_no_path(_leak_surfaces(caplog, capfd), str(model_dir), "jane-doe-home")
     assert failed.value.__cause__ is None
     assert failed.value.__suppress_context__ is True
 
@@ -593,6 +593,34 @@ def test_hc_emb_010b_load_restores_the_sentence_transformers_logger_level(tmp_pa
         assert st_logger.level == logging.INFO
     finally:
         st_logger.setLevel(before)
+
+
+def test_hc_emb_010c_load_quiets_every_library_logger_that_prints_the_path(tmp_path, monkeypatch):
+    """transformers also logs the model path at INFO on a successful load; no bundle is needed to pin it."""
+    import sentence_transformers
+
+    from modules.embeddings import EmbeddingsModule
+
+    _install_stub_bundle(tmp_path, monkeypatch)
+    names = ("sentence_transformers", "transformers")
+    loggers = {n: logging.getLogger(n) for n in names}
+    before = {n: lg.level for n, lg in loggers.items()}
+    seen = {}
+
+    def _stub(path, **kwargs):
+        seen.update({n: lg.getEffectiveLevel() for n, lg in loggers.items()})
+        return "model"
+
+    for lg in loggers.values():
+        lg.setLevel(logging.INFO)
+    monkeypatch.setattr(sentence_transformers, "SentenceTransformer", _stub)
+    try:
+        assert EmbeddingsModule()._load_local_model() == "model"
+        assert {n: lg.level for n, lg in loggers.items()} == {n: logging.INFO for n in names}
+    finally:
+        for n, lg in loggers.items():
+            lg.setLevel(before[n])
+    assert all(level >= logging.WARNING for level in seen.values()) and set(seen) == set(names), seen
 
 
 def test_hc_emb_009a_unavailable_messages_do_not_contain_the_model_path(tmp_path, absent_model, monkeypatch):
@@ -628,7 +656,7 @@ def test_hc_emb_009a_unavailable_messages_do_not_contain_the_model_path(tmp_path
 
 @pytest.mark.asyncio
 async def test_hc_emb_009b_retrieval_warning_log_does_not_contain_the_model_path(
-    profile_db, absent_model, tmp_path, caplog, capsys
+    profile_db, absent_model, tmp_path, caplog, capfd
 ):
     from modules.rag import ModelUnavailableError, RAGModule
 
@@ -638,16 +666,16 @@ async def test_hc_emb_009b_retrieval_warning_log_does_not_contain_the_model_path
         with pytest.raises(ModelUnavailableError):
             await rag._search_vectors_async(query="LDL", profile_id=doc.profile_id, profile_db=profile_db)
     assert "failed closed" in caplog.text, "the rag.py warning sink did not fire; this test would prove nothing"
-    _assert_no_path(_leak_surfaces(caplog, capsys), str(absent_model), absent_model.name, str(tmp_path))
+    _assert_no_path(_leak_surfaces(caplog, capfd), str(absent_model), absent_model.name, str(tmp_path))
 
 
 @pytest.mark.asyncio
 async def test_hc_emb_009c_reprocess_warning_log_does_not_contain_the_model_path(
-    profile_db, absent_model, monkeypatch, tmp_path, caplog, capsys
+    profile_db, absent_model, monkeypatch, tmp_path, caplog, capfd
 ):
     with caplog.at_level(logging.DEBUG):
         resp, _ = await _post_reprocess(profile_db, monkeypatch)
 
     assert resp.status_code == 200, resp.text
     assert "Chunking failed" in caplog.text, "the api/documents.py warning sink did not fire; this test would prove nothing"
-    _assert_no_path(_leak_surfaces(caplog, capsys), str(absent_model), absent_model.name, str(tmp_path))
+    _assert_no_path(_leak_surfaces(caplog, capfd), str(absent_model), absent_model.name, str(tmp_path))
