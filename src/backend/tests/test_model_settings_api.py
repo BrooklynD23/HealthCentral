@@ -628,3 +628,5 @@ async def test_hc_audcms_005_external_api_save_without_key_keeps_key_and_audits_
     assert row.external_api_key_encrypted == stored_key
     assert row.use_external_api is False
     assert "sk-canary-123" not in resp2.text
+    assert stored_key not in resp2.text
+    assert "sk-canary-123" not in repr(calls[1])
