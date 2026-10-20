@@ -1539,7 +1539,8 @@ class TestVectorSearchIntegration:
         )
 
         # Should have called execute
-        mock_db.execute.assert_called_once()
+        # Filtered search, then the eligible-chunk probe on an empty profile.
+        assert mock_db.execute.call_count == 2
         # Should return empty list for empty DB
         assert results == []
 
