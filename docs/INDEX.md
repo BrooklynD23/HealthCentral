@@ -1352,6 +1352,14 @@ Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces t
 
 Links to: `AGENT.md`, `CLAUDE.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-18-session-handoff.md`
 
+## `docs/plans/2026-10-20-session-handoff.md`
+
+**Session handoff: 2026-10-19 → 2026-10-20 (L0, Opus 5.5)**
+
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-19 handoff. The session ended because the owner moved development to another machine ("Please push…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-19-session-handoff.md`
+
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
 **Project Structure Setup**
