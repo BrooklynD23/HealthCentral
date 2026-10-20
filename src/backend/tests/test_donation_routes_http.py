@@ -117,7 +117,7 @@ async def _count(session, purpose=None):
     ("GET", PATH, None),
     ("PUT", f"{PATH}/fine_tune", {"granted": True, "consent_text_version": VERSION}),
 ])
-def test_hc_don_001_http_requires_auth(method, path, body):
+def test_hc_don_004b_http_requires_auth(method, path, body):
     with route_client(donation_api.router, PREFIX, master_db=_master_db()) as client:
         client.app.dependency_overrides.pop(require_auth)
         resp = client.request(method, path, json=body)
@@ -155,17 +155,56 @@ async def test_hc_don_005_grant_then_get_with_one_audit_row(vault):
     assert state["synthetic_seed"]["granted"] is False
     assert state["agent_traces"]["granted"] is False
 
-    # Re-grant stays one active row per purpose.
+    # Same-version re-grant does nothing: still one active row.
     resp, _ = _put(vault, "fine_tune", True)
     assert resp.status_code == 200
-    n = (await vault.execute(select(func.count()).select_from(DonationConsent))).scalar_one()
-    assert n == 1
+    rows = (await vault.execute(select(DonationConsent))).scalars().all()
+    assert len(rows) == 1 and rows[0].revoked_at is None
+
+
+@pytest.mark.asyncio
+async def test_hc_don_005b_grant_revoke_regrant_keeps_dated_revoke(vault):
+    await _put_ok(vault, "fine_tune", True)
+    await _put_ok(vault, "fine_tune", False)
+    await _put_ok(vault, "fine_tune", True)
+    rows = (await vault.execute(
+        select(DonationConsent).order_by(DonationConsent.granted_at)
+    )).scalars().all()
+    assert len(rows) == 2
+    assert rows[0].revoked_at is not None  # the earlier choice stays dated
+    assert rows[1].revoked_at is None
+    resp, _ = _call("GET", vault)
+    assert _state(resp)["fine_tune"]["granted"] is True
+
+    # A new text version closes the old record and opens a new one.
+    resp, _ = _call(
+        "PUT", vault, f"{PATH}/fine_tune",
+        json={"granted": True, "consent_text_version": "v2"},
+    )
+    assert resp.status_code == 200, resp.text
+    rows = (await vault.execute(select(DonationConsent))).scalars().all()
+    assert len(rows) == 3
+    assert [r.revoked_at is None for r in rows].count(True) == 1
+    resp, _ = _call("GET", vault)
+    assert _state(resp)["fine_tune"]["consent_text_version"] == "v2"
 
 
 @pytest.mark.asyncio
 async def test_hc_don_006_revoke_deletes_real_and_synthetic_children(vault):
-    await _seed(vault, PROFILE_A, "fine_tune", n_real=2, n_syn_per_real=2)  # 2 + 4
+    await _seed(vault, PROFILE_A, "fine_tune", n_real=2, n_syn_per_real=2)  # 2 + 4 (+2 orphan synthetic)
     await _seed(vault, PROFILE_A, "agent_traces", n_real=1, n_syn_per_real=1)
+    # Orphan synthetic rows of the purpose (NULL and dangling parent) also go.
+    vault.add(DonatedRecord(
+        profile_id=PROFILE_A, purpose="fine_tune", origin="synthetic",
+        source_kind="chat_turn", parent_id=None,
+        prompt_redacted="p", response_redacted="r",
+    ))
+    vault.add(DonatedRecord(
+        profile_id=PROFILE_A, purpose="fine_tune", origin="synthetic",
+        source_kind="chat_turn", parent_id="dangling-id",
+        prompt_redacted="p", response_redacted="r",
+    ))
+    await vault.commit()
     await _put_ok(vault, "fine_tune", True)
     await _put_ok(vault, "agent_traces", True)
 
@@ -173,7 +212,7 @@ async def test_hc_don_006_revoke_deletes_real_and_synthetic_children(vault):
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["granted"] is False
-    assert body["deleted_count"] == 6
+    assert body["deleted_count"] == 8
     assert await _count(vault, "fine_tune") == 0
     assert await _count(vault, "agent_traces") == 2  # untouched
 
@@ -186,7 +225,7 @@ async def test_hc_don_006_revoke_deletes_real_and_synthetic_children(vault):
     assert len(rows) == 1
     assert rows[0].event_type == "donation.consent.revoke"
     assert rows[0].entity_id == "fine_tune"
-    assert '"count": 6' in rows[0].details_json
+    assert '"count": 8' in rows[0].details_json
 
     resp, _ = _call("GET", vault)
     assert _state(resp)["fine_tune"]["granted"] is False
@@ -250,6 +289,28 @@ async def test_hc_don_007_profiles_are_isolated_by_vault():
 
 
 @pytest.mark.asyncio
+async def test_hc_don_007b_same_vault_other_profile_rows_are_invisible(vault):
+    """Fails if a profile_id filter is dropped from api/donation.py."""
+    vault.add(DonationConsent(
+        profile_id=PROFILE_B, purpose="fine_tune", consent_text_version=VERSION,
+    ))
+    await vault.commit()
+    resp, _ = _call("GET", vault, profile_id=PROFILE_A)
+    assert all(c["granted"] is False for c in _state(resp).values())
+    # A's grant must not collide with, or touch, B's active row.
+    await _put_ok(vault, "fine_tune", True)
+    b_row = (await vault.execute(
+        select(DonationConsent).where(DonationConsent.profile_id == PROFILE_B)
+    )).scalar_one()
+    assert b_row.revoked_at is None
+    resp, _ = _put(vault, "fine_tune", False)
+    b_row = (await vault.execute(
+        select(DonationConsent).where(DonationConsent.profile_id == PROFILE_B)
+    )).scalar_one()
+    assert b_row.revoked_at is None
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("bad_purpose", ["marketing", "FINE_TUNE", "fine_tune%20x"])
 async def test_hc_don_008_unknown_purpose_is_422(vault, bad_purpose):
     resp, master = _put(vault, bad_purpose, True)
@@ -275,6 +336,6 @@ async def test_hc_don_008b_bad_body_is_422(vault, body):
     ("GET", PATH, None),
     ("PUT", f"{PATH}/fine_tune", {"granted": True, "consent_text_version": VERSION}),
 ])
-async def test_hc_don_010_fails_closed_when_audit_commit_fails(vault, method, path, body):
+async def test_hc_don_009b_fails_closed_when_audit_commit_fails(vault, method, path, body):
     resp, _ = _call(method, vault, path, master_db=_master_db(RuntimeError("audit down")), json=body)
     assert resp.status_code == 500

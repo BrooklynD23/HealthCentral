@@ -32,6 +32,13 @@ def upgrade() -> None:
     )
     op.create_index("ix_donation_consents_profile_id", "donation_consents", ["profile_id"])
     op.create_index("ix_donation_consents_purpose", "donation_consents", ["purpose"])
+    op.create_index(
+        "uq_donation_consents_active",
+        "donation_consents",
+        ["profile_id", "purpose"],
+        unique=True,
+        sqlite_where=sa.text("revoked_at IS NULL"),
+    )
 
     op.create_table(
         "donated_records",

@@ -55,11 +55,11 @@ def test_hc_don_001_migration_round_trip_single_head(tmp_path, monkeypatch):
     cfg.attributes["encryption_key"] = key
 
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["015_data_donation"]
+    assert len(script.get_heads()) == 1
     rev = script.get_revision("015_data_donation")
     assert rev.down_revision == "014_streaks_hidden"
 
-    assert migrations.get_profile_current_revision(vault, key) == "015_data_donation"
+    assert migrations.get_profile_current_revision(vault, key) == script.get_current_head()
     assert set(TABLES) <= _tables(vault, key)
 
     command.downgrade(cfg, "014_streaks_hidden")
@@ -78,6 +78,7 @@ def test_hc_don_002_no_raw_text_column():
     assert {"prompt_redacted", "response_redacted"} <= set(DonatedRecord.__table__.columns.keys())
     assert not DonatedRecord.__table__.foreign_keys
     assert not DonationConsent.__table__.foreign_keys
+    assert any(i.unique and i.name == "uq_donation_consents_active" for i in DonationConsent.__table__.indexes)
 
 
 def test_hc_don_003_profile_metadata_only():

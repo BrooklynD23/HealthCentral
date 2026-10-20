@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, Integer, String, Text
+from sqlalchemy import DateTime, Index, Integer, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.profile_database import ProfileDatabaseBase
@@ -16,9 +16,22 @@ from core.time import utcnow
 
 
 class DonationConsent(ProfileDatabaseBase):
-    """One row per (profile, purpose). Revoke sets revoked_at; the row stays."""
+    """One consent record per grant. Revoke sets revoked_at; rows are never deleted.
+
+    At most one active row (revoked_at IS NULL) per (profile, purpose); a
+    re-grant after a revoke inserts a new row so the dated revoke survives.
+    """
 
     __tablename__ = "donation_consents"
+    __table_args__ = (
+        Index(
+            "uq_donation_consents_active",
+            "profile_id",
+            "purpose",
+            unique=True,
+            sqlite_where=text("revoked_at IS NULL"),
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     profile_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)

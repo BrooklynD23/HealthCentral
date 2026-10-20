@@ -69,20 +69,21 @@ def _state(purpose: DonationPurpose, row: Optional[DonationConsent]) -> ConsentS
     )
 
 
-async def _get_consent(
+async def _get_active(
     profile_db: ProfileDbSession, profile_id: str, purpose: DonationPurpose
 ) -> Optional[DonationConsent]:
     result = await profile_db.execute(
         select(DonationConsent).where(
             DonationConsent.profile_id == profile_id,
             DonationConsent.purpose == purpose.value,
+            DonationConsent.revoked_at.is_(None),
         )
     )
     return result.scalars().first()
 
 
 async def _delete_derived(profile_db: ProfileDbSession, profile_id: str, purpose: DonationPurpose) -> int:
-    """Delete the purpose's real rows and the synthetic rows derived from them."""
+    """Delete the purpose's real rows, synthetic children and synthetic rows of the purpose."""
     real_ids = select(DonatedRecord.id).where(
         DonatedRecord.profile_id == profile_id,
         DonatedRecord.purpose == purpose.value,
@@ -95,14 +96,15 @@ async def _delete_derived(profile_db: ProfileDbSession, profile_id: str, purpose
             DonatedRecord.parent_id.in_(real_ids),
         )
     )
-    real = await profile_db.execute(
+    # Also covers synthetic rows of this purpose whose parent is NULL or dangling.
+    rest = await profile_db.execute(
         delete(DonatedRecord).where(
             DonatedRecord.profile_id == profile_id,
             DonatedRecord.purpose == purpose.value,
-            DonatedRecord.origin == "real",
+            DonatedRecord.origin.in_(("real", "synthetic")),
         )
     )
-    return (children.rowcount or 0) + (real.rowcount or 0)
+    return (children.rowcount or 0) + (rest.rowcount or 0)
 
 
 @router.get("/consents", response_model=ConsentList)
@@ -115,7 +117,13 @@ async def list_consents(
     result = await profile_db.execute(
         select(DonationConsent).where(DonationConsent.profile_id == session.profile_id)
     )
-    by_purpose = {r.purpose: r for r in result.scalars().all()}
+    by_purpose: dict[str, DonationConsent] = {}
+    for r in result.scalars().all():
+        # Active row wins; otherwise the most recent record of the choice.
+        key = (r.revoked_at is None, r.granted_at)
+        cur = by_purpose.get(r.purpose)
+        if cur is None or key > (cur.revoked_at is None, cur.granted_at):
+            by_purpose[r.purpose] = r
     await audit_and_commit(
         master_db,
         create_audit_log,
@@ -138,25 +146,26 @@ async def set_consent(
 ):
     """Grant or revoke one purpose. Revoke deletes the derived donated rows."""
     profile_id = session.profile_id
-    row = await _get_consent(profile_db, profile_id, purpose)
+    row = await _get_active(profile_db, profile_id, purpose)
     deleted = 0
     if data.granted:
-        if row is None:
+        # Same version already active: nothing to change. A new version closes
+        # the old record and opens a new one, so earlier choices stay dated.
+        if row is None or row.consent_text_version != data.consent_text_version:
+            if row is not None:
+                row.revoked_at = utcnow()
+                await profile_db.flush()
             profile_db.add(DonationConsent(
                 profile_id=profile_id,
                 purpose=purpose.value,
                 granted_at=utcnow(),
                 consent_text_version=data.consent_text_version,
             ))
-        else:
-            row.granted_at = utcnow()
-            row.revoked_at = None
-            row.consent_text_version = data.consent_text_version
         event = "donation.consent.grant"
         version = data.consent_text_version
     else:
         deleted = await _delete_derived(profile_db, profile_id, purpose)
-        if row is not None and row.revoked_at is None:
+        if row is not None:
             row.revoked_at = utcnow()
         event = "donation.consent.revoke"
         version = row.consent_text_version if row is not None else data.consent_text_version
