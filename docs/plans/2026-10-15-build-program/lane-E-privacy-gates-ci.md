@@ -37,7 +37,7 @@
 | GATE12-MINORS | HC-GATE12-004 (record-only guard with the DB file present), HC-GATE12-005 (session-end backstop) | PR #206 round-2 review MINORs | yes → §2.19 | GATE-12 (#206 merged) | ready |
 | PKT-Q-MINORS | HC-PKT-024/025 assert the redaction tags; two redundant imports | PR #213 review MINORs | yes → §2.20 | PKT-QUESTIONS-REDACT (#213 merged) | ready |
 | REDACT-NAME-PINS | pins: strict run-on over-redaction (HC-REDACT-019), visit-prep PDF download (HC-PKT-026a/b) | owner E1C-DIFF `:273`; PR #195 body | yes → §2.21 | — | ready (tests only) |
-| REDACT-NAME-GAPS | labelled names with hyphens, particles, accents, NFD marks leak in part (strict and standard) | owner E1C-DIFF `:273`; PR #195 body | yes → §2.22 | REDACT-NAME-PINS | blocked-on-owner (REDACT-NG-SCOPE, then REDACT-NG-DIFF); ask-first `redaction.py` |
+| REDACT-NAME-GAPS | labelled names with hyphens, particles, accents, NFD marks leak in part (strict and standard) | owner E1C-DIFF `:273`; PR #195 body | yes → §2.22 | REDACT-NAME-PINS | ready (build on draft; REDACT-NG-SCOPE answered (a)), merge blocked on REDACT-NG-DIFF; ask-first `redaction.py` |
 
 Graph: `E-3 → E-4 → E-5`; `P6 → P7 → E-2`; E-1, E-6, E-7 independent. E-1 and E-3 are the two lane-E code items ready today and share no file. The 2-code-L1 limit is **box-wide, not per lane**: L0 assigns the slots across lanes (§7 P-1).
 
@@ -546,19 +546,38 @@ Six rows: two harness rows (WAVE-DEP-DONE, PYSLOT-MODE), two test-only rows from
 **Facts (`b2b3f4e`, `.claude/workflows/build-wave.js`):**
 1. The Select prompt's rule 2 (`:73`) reads "Every depends_on PR/item is merged on origin/main (git merge-base --is-ancestor, or merged_recent)". For a queue ID, "merged" is read off `merged_recent`, the titles of recently merged PRs (scan step 4, `:57`). `#113` "C-P6 Task 1 orphan-audit tool" merged on 2026-10-16, so C-P6 read as merged although its row is not done (C-P6 Tasks 2-5 wait on P6-ORPHAN, queue "Status 2026-10-16 (second batch)").
 2. The scan already copies each row's `status` (`SCAN_SCHEMA`, `:24-27`), so the rule can use the row's own status. Nothing after `sel` re-checks a dependency: the greedy pick (`:85-96`) checks files only.
-3. A `depends_on` cell mixes real dependencies with file rules ("never beside G-C5") and task-scoped ones ("reset-tuple append only after C-P7"). Only the part before the first `never` is a dependency list.
+3. A `depends_on` cell mixes real dependencies with file rules ("never beside G-C5"), negations ("— (not E-1: …)", E-1a), rebase notes ("rebases on … G-C5 … as they land", B-3) and task-scoped ones ("reset-tuple append only after C-P7", RSI1-DONATE). Only the part before the first of these markers is an item-level dependency list.
 
 **Design (harness only, two edits in `build-wave.js`):**
 1. Rule 2 text: "A depends_on that names a queue ID is met only when that row's own status starts with done. A merged PR for one task of an item (a title such as 'C-P6 Task 1') does not meet it. A depends_on that names a PR number or a commit is met when it is on origin/main. A dependency scoped to one task ('X only after Y') blocks that task only; say so in why."
-2. A deterministic cross-check after `sel`: a pure function `depWarnings(rows, ids)` at the top of the file. For each picked id, it takes the row's `depends_on` up to the first `never` (case-insensitive) and finds every other row id that appears in it as a whole token (`(^|[^A-Za-z0-9-])<ID>(?![A-Za-z0-9-])`). It returns `"<id>: depends on <dep>, row status '<first 60 chars>'"` for each such dep whose status does not start with `done` (after stripping `*` and spaces). Items with a warning move from `picked` to `deferred`, **unless** L0 named them in `args.ids` (an explicit L0 choice; the warning is still logged). The return value gains `dep_warnings`.
+2. A deterministic, **advisory** cross-check after the greedy pick (L0 ruling 2026-10-20 on the #222 review): a pure function `depWarnings(rows, ids)` at the top of the file. For each picked id, it takes the row's `depends_on` up to the first of `never`, `not`, `rebases on`, `either order`, `only after` (case-insensitive, whole words) and finds every other row id that appears in it as a whole token (`(^|[^A-Za-z0-9-])<ID>(?![A-Za-z0-9-])`). It returns `"<id>: depends on <dep>, row status '<first 60 chars>'"` for each such dep whose status does not start with `done` (after stripping leading `*` and spaces). The workflow `log`s each warning (`dep-warning <text>`) and the return value gains `dep_warnings` for L0 and the build-item L1s to read. **It never moves an item out of `picked` and never defers one**: rule 2 in the Select prompt stays the decision, and the warnings are a second look for L0. A text-parsed check cannot tell a real dependency from prose, so it may warn, but it may not block (measured below: even the narrowed parser still warns on B-4's "B-3 PR head frozen as a draft", which needs a draft, not a merge).
+
+**Measured 2026-10-20** (scratch `depWarnings` as above, node, over this branch's `queue.md` after this PR's edits: every table with an `id … depends_on … status` header, 102 rows, no duplicate ids, 38 rows whose status does not start with `done`, all 38 passed as `ids`; scratch removed afterwards):
+
+```
+warnings 10
+C-P7: depends on C-P6, row status 'blocked: owner P6-Q1, P6-Q3 (then P6-ORPHAN after the Task 1'
+E-2: depends on C-P6, row status 'blocked: owner P6-Q1, P6-Q3 (then P6-ORPHAN after the Task 1'
+E-2: depends on C-P7, row status 'blocked: C-P6; owner N-02'
+B-5: depends on B-3, row status 'ready** for the next free slot; draft until B-4'
+C-GC1: depends on E-1, row status 'ready** (merge blocked: S-3, S-6, E-1a merged; on rebase ove'
+C-GC1: depends on C-P6, row status 'blocked: owner P6-Q1, P6-Q3 (then P6-ORPHAN after the Task 1'
+C-GC1: depends on C-P7, row status 'blocked: C-P6; owner N-02'
+REDACT-NAME-GAPS: depends on REDACT-NAME-PINS, row status 'ready (plan: [lane E §2.21](lane-E-privacy-gates-ci.md#221-r'
+B-4 (OW-3 → MM-2): depends on B-3, row status 'ready** for the next free slot; draft until B-4'
+B-9 (MM-3, MM-4): depends on B-3, row status 'ready** for the next free slot; draft until B-4'
+```
+
+All ten are real dependencies on rows not marked done, except B-4's (its dependency is a frozen draft, not a merge). The C-GC1 → E-1 warning comes from E-1's row status, which still reads `**ready**` although the 2026-10-16 second batch lists E-1 / W-2 (#106) as merged. That is a stale row for L0's post-merge batch, not for this PR. The same run with the review's cut-at-`never`-only parser gave 13 warnings: the 10 above plus three false positives, `E-1a: depends on E-1`, `B-3: depends on G-C5` and `RSI1-DONATE: depends on C-P7`. Under the old auto-defer design, E-1a and B-3 (both ready) would have been skipped on every run.
 
 **Test-first (a harness script; no pytest id):**
 
 | Check | Expected | RED today? |
 |---|---|---|
 | `node --check` cannot parse a workflow body (top-level `await`, `return`), so: `node -e 'const s=require("fs").readFileSync(".claude/workflows/build-wave.js","utf8").replace(/^export const meta/m,"const meta"); new (Object.getPrototypeOf(async function(){}).constructor)("args","agent","phase","log","parallel","workflow",s)'` | exits 0 (the body parses) | n/a |
-| Fixture check: `sed -n '/^function depWarnings/,/^}/p' .claude/workflows/build-wave.js > /tmp/claude-1000/depw.js`, then a node one-liner that loads it and asserts: rows C-P6 `{status: "blocked: owner P6-ORPHAN"}` and C-P7 `{depends_on: "C-P6"}` → one warning for C-P7; C-P7 with C-P6 `{status: "**done** 2026-10-21"}` → none; a row with `depends_on: "LEGACY-CITE-PROMPT (#185) merged; never beside G-C5"` and G-C5 blocked → none; `B-3 merged, B-2` with B-3 blocked → one | all four as stated | yes: on `main` the sed prints nothing (no `depWarnings`), so the check fails |
-| Replay: `build-wave` with `{ids: ["C-P7"]}` (nested false) | C-P7 is not in `picked`; its reason names C-P6's row status | not deterministic before the change (the selector may or may not misread), which is why check 2 exists |
+| Fixture check: `sed -n '/^function depWarnings/,/^}/p' .claude/workflows/build-wave.js > /tmp/claude-1000/depw.js`, then a node one-liner that loads it and asserts: (1) rows C-P6 `{status: "blocked: owner P6-ORPHAN"}` and C-P7 `{depends_on: "C-P6"}` → one warning for C-P7; (2) C-P7 with C-P6 `{status: "**done** 2026-10-21"}` → none; (3) a row with `depends_on: "LEGACY-CITE-PROMPT (#185) merged; never beside G-C5"` and G-C5 blocked → none; (4) `B-3 merged, B-2` with B-3 blocked, B-2 done → one; (5) **E-1a shape:** E-1a `{depends_on: "— (not E-1: E-1's merge waits on E-1a)"}` with E-1 `{status: "**ready** (merge blocked)"}` → none; (6) **B-3 shape:** B-3 `{depends_on: "Codex review of §B-3; rebases on #72, W-8, G-C5 as they land (parked draft, R-5)"}` with W-8 and G-C5 blocked → none; (7) RSI1-DONATE `{depends_on: "C-PMIG; reset-tuple append only after C-P7"}` with C-PMIG done and C-P7 blocked → none | all seven as stated (measured on the scratch function: `fixtures ok (7)`; the cut-at-`never`-only parser fails fixture 5) | yes: on `main` the sed prints nothing (no `depWarnings`), so the check fails |
+| Advisory only: `grep -n "depWarnings" .claude/workflows/build-wave.js` and read the lines that use its result | the result is only `log`ged and returned as `dep_warnings`; no line pushes to `deferred` or removes from `picked` because of it | n/a |
+| Replay: `build-wave` with `{ids: ["C-P7"]}` (nested false) | C-P7 is not in `picked` (rule 2, Select prompt; its reason names C-P6's row status). If the selector still picks it, `dep_warnings` contains `C-P7: depends on C-P6, …` | not deterministic before the change (the selector may or may not misread), which is why check 2 exists |
 
 **Files:** `.claude/workflows/build-wave.js`. No slots (no backend test).
 **Expected collected delta:** 0. **Est:** 0.5 h.
@@ -607,7 +626,7 @@ Six rows: two harness rows (WAVE-DEP-DONE, PYSLOT-MODE), two test-only rows from
 
 **Files:** `src/backend/tests/test_gate12_master_db_guard.py`, slots. **Re-run, not edited:** `tests/test_denial_audit.py`, `tests/test_export_redaction.py`.
 **Expected collected delta:** +2. **Est:** 0.5 h.
-**Acceptance:** `pyt tests/test_gate12_master_db_guard.py tests/test_denial_audit.py -q -rfE`: 0 failed; both mutant outputs pasted; `git diff origin/main -- src/backend/tests/conftest.py` empty; full suite per RUNBOOK §6, then `test ! -e src/backend/data/asclexis.db` unless it existed before the run. **Rollback:** revert.
+**Acceptance:** `pyt tests/test_gate12_master_db_guard.py tests/test_denial_audit.py tests/test_export_redaction.py -q -rfE`: 0 failed; both mutant outputs pasted; `git diff origin/main -- src/backend/tests/conftest.py` empty; full suite per RUNBOOK §6, then `test ! -e src/backend/data/asclexis.db` unless it existed before the run. **Rollback:** revert.
 **Order:** ready now. Never beside another PR on `tests/test_gate12_master_db_guard.py` or `tests/conftest.py` (none open on `b2b3f4e`).
 
 ### 2.20 PKT-Q-MINORS — the stored-question tests pass if the question is blanked
@@ -626,7 +645,7 @@ Six rows: two harness rows (WAVE-DEP-DONE, PYSLOT-MODE), two test-only rows from
 
 **Files:** `src/backend/tests/test_visit_prep_packet.py` (HC-PKT-024 only), `src/backend/tests/test_pinboards.py` (HC-PKT-025 only), slots. **Re-run, not edited:** `tests/test_export_redaction.py`, `tests/test_export_questions.py`. `src/backend/modules/export.py` shows an empty diff.
 **Expected collected delta:** 0. **Est:** 0.25 h.
-**Acceptance:** `pyt tests/test_visit_prep_packet.py tests/test_pinboards.py tests/test_export_questions.py -q -rfE`: 0 failed; the mutant output pasted; full suite per RUNBOOK §6. **Rollback:** revert.
+**Acceptance:** `pyt tests/test_visit_prep_packet.py tests/test_pinboards.py tests/test_export_questions.py tests/test_export_redaction.py -q -rfE`: 0 failed; the mutant output pasted; full suite per RUNBOOK §6. **Rollback:** revert.
 **Order:** ready now. Never beside C-GC1 or REDACT-NAME-PINS (`tests/test_visit_prep_packet.py`).
 
 ### 2.21 REDACT-NAME-PINS — pin strict run-on over-redaction and the visit-prep PDF download (tests only)
@@ -681,7 +700,7 @@ PDF: `POST /export/visit-prep` with `reason_for_visit: "MRN (hospital): B67890"`
 Controls: NFC `Name (legal): José Núñez` → `[ID-REDACTED]` (strict); `Patient Name: Maria van der Berg` → `Patient [NAME-REDACTED]` (`name_context` runs with `(?i)`). G4 is new in this plan (not in #195's list): `name_context` misses any name with a non-ASCII letter, at both levels.
 
 **Owner gates** (ask-first `modules/redaction.py`; RUNBOOK §4 step 4 needs a signed gate naming the exact edit):
-- **REDACT-NG-SCOPE** (execution; open). Exact wording: "REDACT-NG-SCOPE (ask-first `modules/redaction.py`): measured on `main`, labelled names still leak in part: `Patient Name: Jane Doe-Smith` → `Patient [NAME-REDACTED]-Smith` (strict and standard), `Name (legal): Maria de la Cruz` → `[ID-REDACTED] de la Cruz`, decomposed (NFD) `José Núñez` keeps `Núñez`, `Patient: José Núñez` is not redacted at all (strict and standard), and `Name (legal): jane doe` → `[ID-REDACTED] doe`. Which scope may an agent build on a draft PR? (a) Hyphens, particles, accents and NFD: `name_context` (strict and standard) accepts hyphenated parts and non-ASCII letters with combining marks; strict `spaced_labelled_id` accepts lowercase particles (de, la, del, van, der, von, da, di, du, le, bin, al) before a capitalised word and combining marks inside a word. Lowercase names after a qualifier stay a known gap (Recommended: closes every measured leak except lowercase names; standard output changes only for names with a hyphen or an accent). (b) (a) plus lowercase names after a qualifier (`Name (legal): jane doe` → fully redacted); costs more strict over-redaction, for example `Name (brand): lipitor daily` → `[ID-REDACTED]`. (c) No `redaction.py` change; the pins (REDACT-NAME-PINS) only."
+- **REDACT-NG-SCOPE** (execution; **answered 2026-10-20: (a) Hyphen/accent**, `docs/capstone-report/owner-decisions-2026-09-27.md:316`, PR #224 merged). Recorded answer: "name_context (strict + standard) accepts hyphenated parts and non-ASCII letters with combining marks; strict spaced_labelled_id accepts lowercase particles before a capitalised word and combining marks. Lowercase names after a qualifier stay a known gap." It licenses the REDACT-NAME-GAPS edit of `modules/redaction.py` on a draft PR; merge still needs REDACT-NG-DIFF. Under (a), the (b)-only test additions below do not apply. Wording as asked: "REDACT-NG-SCOPE (ask-first `modules/redaction.py`): measured on `main`, labelled names still leak in part: `Patient Name: Jane Doe-Smith` → `Patient [NAME-REDACTED]-Smith` (strict and standard), `Name (legal): Maria de la Cruz` → `[ID-REDACTED] de la Cruz`, decomposed (NFD) `José Núñez` keeps `Núñez`, `Patient: José Núñez` is not redacted at all (strict and standard), and `Name (legal): jane doe` → `[ID-REDACTED] doe`. Which scope may an agent build on a draft PR? (a) Hyphens, particles, accents and NFD: `name_context` (strict and standard) accepts hyphenated parts and non-ASCII letters with combining marks; strict `spaced_labelled_id` accepts lowercase particles (de, la, del, van, der, von, da, di, du, le, bin, al) before a capitalised word and combining marks inside a word. Lowercase names after a qualifier stay a known gap (Recommended: closes every measured leak except lowercase names; standard output changes only for names with a hyphen or an accent). (b) (a) plus lowercase names after a qualifier (`Name (legal): jane doe` → fully redacted); costs more strict over-redaction, for example `Name (brand): lipitor daily` → `[ID-REDACTED]`. (c) No `redaction.py` change; the pins (REDACT-NAME-PINS) only."
 - **REDACT-NG-DIFF** (merge only; open; asked after the draft PR exists): "REDACT-NG-DIFF: here is the exact `modules/redaction.py` diff for REDACT-NAME-GAPS under option (x), with RED/GREEN, the differential, timing and mutant output. Merge?"
 
 **Design (under (a); the implementer drafts the exact diff for REDACT-NG-DIFF):**
@@ -700,10 +719,10 @@ Controls: NFC `Name (legal): José Núñez` → `[ID-REDACTED]` (strict); `Patie
 
 Under (b), HC-REDACT-020 gains `Name (legal): jane doe` and `Patient (legal name): jane doe`, and HC-REDACT-014 gains `Name (brand): lipitor daily` as a documented strict over-redaction.
 
-**Files:** `src/backend/modules/redaction.py` (ask-first, **edited only after REDACT-NG-SCOPE**: `name_context` `:88-89` and `spaced_labelled_id` `:161-163` only), `src/backend/tests/test_redaction.py`, slots. **Re-run, not edited:** `tests/test_export_redaction.py`, `tests/test_visit_prep_packet.py`, `tests/test_pinboards.py`, `tests/test_external_runner_hardening.py` (standard level), `tests/test_rl_feedback.py`.
-**Expected collected delta:** +9 under (a) (7 + 1 + 1); +11 under (b). **Est:** 2.5 h after REDACT-NG-SCOPE (+ security review).
+**Files:** `src/backend/modules/redaction.py` (ask-first, **edited under REDACT-NG-SCOPE (a)**: `name_context` `:88-89` and `spaced_labelled_id` `:161-163` only), `src/backend/tests/test_redaction.py`, slots. **Re-run, not edited:** `tests/test_export_redaction.py`, `tests/test_visit_prep_packet.py`, `tests/test_pinboards.py`, `tests/test_external_runner_hardening.py` (standard level), `tests/test_rl_feedback.py`.
+**Expected collected delta:** +9 (option (a), answered: 7 + 1 + 1). **Est:** 2.5 h (+ security review).
 **Acceptance:** 1. `pyt tests/test_redaction.py tests/test_export_redaction.py tests/test_visit_prep_packet.py tests/test_pinboards.py -q -rfE`: 0 failed. 2. The E-1a acceptance rows 3-4 suites (the other strict callers) and `tests/test_external_runner_hardening.py` (standard): same pass/fail as Task 0. 3. Full suite per RUNBOOK §6.
-**Order:** blocked on REDACT-NG-SCOPE; depends on REDACT-NAME-PINS merged; PR stays draft until REDACT-NG-DIFF. Never beside another `redaction.py` / `test_redaction.py` row. RSI1-DONATE keeps an empty `redaction.py` diff; its PR-2 recall report (Task 3) is re-measured if this merges first. **Rollback:** revert; no data.
+**Order:** ready (build on draft) once REDACT-NAME-PINS has merged (REDACT-NG-SCOPE answered (a)); merge blocked on REDACT-NG-DIFF, so the PR stays draft until then. Never beside another `redaction.py` / `test_redaction.py` row. RSI1-DONATE keeps an empty `redaction.py` diff; its PR-2 recall report (Task 3) is re-measured if this merges first. **Rollback:** revert; no data.
 
 ---
 
@@ -749,7 +768,7 @@ Under (b), HC-REDACT-020 gains `Name (legal): jane doe` and `Patient (legal name
 | GATE-12 | GATE-12 | **answered 2026-10-19: yes, add the row** (`:299`) |
 | Q-COV | Q-COV-GATE (was E-3) | **answered 2026-10-19: 74% floor** (`:300`) |
 | PKT-Q-SCOPE, PKT-Q-DIFF (new) | PKT-QUESTIONS-REDACT | both open (export path under the redaction invariant; `redaction.py` called only). Exact wording in §2.16; recommended (a) |
-| REDACT-NG-SCOPE, REDACT-NG-DIFF (new 2026-10-20) | REDACT-NAME-GAPS | both open. REDACT-NG-SCOPE is the edit licence and scope for ask-first `redaction.py` (recommended (a)); REDACT-NG-DIFF is merge only, asked after the draft PR exists. Exact wording in §2.22 |
+| REDACT-NG-SCOPE, REDACT-NG-DIFF (new 2026-10-20) | REDACT-NAME-GAPS | REDACT-NG-SCOPE **answered 2026-10-20: (a)** (`owner-decisions-2026-09-27.md:316`, #224): "name_context (strict + standard) accepts hyphenated parts and non-ASCII letters with combining marks; strict spaced_labelled_id accepts lowercase particles before a capitalised word and combining marks. Lowercase names after a qualifier stay a known gap." REDACT-NG-DIFF (merge only) open, asked after the draft PR exists. Exact wording in §2.22 |
 
 ## 6. Open questions
 
