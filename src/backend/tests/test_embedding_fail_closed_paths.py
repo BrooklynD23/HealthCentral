@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import struct
+import traceback
 import sys
 import uuid
 from types import SimpleNamespace
@@ -417,11 +418,15 @@ def _stub_embedding_blob_failure(monkeypatch):
     def _embed(self, chunks):
         return [{"model_name": "all-MiniLM-L6-v2", "vector": UNIT, "dimensions": 384} for _ in chunks]
 
+    calls = {"n": 0}
+
     def _raise(self, vector):
+        calls["n"] += 1
         raise ValueError("blob conversion failed")
 
     monkeypatch.setattr(EmbeddingsModule, "embed_chunks", _embed)
     monkeypatch.setattr(EmbeddingsModule, "vector_to_blob", _raise)
+    return calls
 
 
 async def _committed_chunk_state(profile_db, doc_id):
@@ -495,10 +500,11 @@ async def _post_reprocess(profile_db, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_hc_emb_007c_reprocess_route_keeps_chunks_when_row_build_fails(profile_db, monkeypatch):
-    _stub_embedding_blob_failure(monkeypatch)
+    calls = _stub_embedding_blob_failure(monkeypatch)
     resp, doc_id = await _post_reprocess(profile_db, monkeypatch)
 
     assert resp.status_code == 200, resp.text
+    assert calls["n"] >= 1, "the row build never reached the blob stub; this test would prove nothing"
     ids, emb = await _committed_chunk_state(profile_db, doc_id)
     assert ids == ["chunk-1"], "the caller committed a half-built reprocess"
     assert emb == ["chunk-1"]
@@ -526,6 +532,67 @@ async def test_hc_emb_008_vector_search_ignores_vectors_from_another_model(profi
     rag._embedder = _FixedEmbedder()
     results = await rag._search_vectors_async(query="LDL", profile_id=doc.profile_id, profile_db=profile_db)
     assert [chunk["chunk_id"] for chunk, _ in results] == ["chunk-real"]
+
+
+def _leak_surfaces(caplog, capsys) -> list[str]:
+    """Every text a path could hide in: message, exc_text, formatted exc_info, captured stdout/stderr."""
+    out = []
+    for rec in caplog.records:
+        out.append(rec.getMessage())
+        if rec.exc_text:
+            out.append(rec.exc_text)
+        if rec.exc_info and rec.exc_info[1] is not None:
+            out.append("".join(traceback.format_exception(*rec.exc_info)))
+    captured = capsys.readouterr()
+    out.extend([captured.out, captured.err])
+    return out
+
+
+def _assert_no_path(surfaces, *needles):
+    for text in surfaces:
+        for needle in needles:
+            assert needle not in text, f"{needle!r} leaked into: {text[:200]!r}"
+
+
+def _install_stub_bundle(tmp_path, monkeypatch):
+    from core.config import settings
+    from modules.embeddings import EMBEDDING_FILES
+
+    model_dir = tmp_path / "jane-doe-home" / "model"
+    for name in EMBEDDING_FILES:
+        (model_dir / name).parent.mkdir(parents=True, exist_ok=True)
+        (model_dir / name).write_bytes(b"{}")
+    monkeypatch.setattr(settings, "embedding_model_path", str(model_dir))
+    return model_dir
+
+
+def test_hc_emb_010a_real_package_load_failure_leaks_no_path_at_debug(tmp_path, monkeypatch, caplog, capsys):
+    from modules.embeddings import EmbeddingModelUnavailableError, EmbeddingsModule
+
+    model_dir = _install_stub_bundle(tmp_path, monkeypatch)
+    with caplog.at_level(logging.DEBUG):
+        with pytest.raises(EmbeddingModelUnavailableError) as failed:
+            EmbeddingsModule()._load_local_model()
+
+    assert "failed to load" in str(failed.value), "the real package did not fail to load the stub bundle"
+    _assert_no_path(_leak_surfaces(caplog, capsys), str(model_dir), "jane-doe-home")
+    assert failed.value.__cause__ is None
+    assert failed.value.__suppress_context__ is True
+
+
+def test_hc_emb_010b_load_restores_the_sentence_transformers_logger_level(tmp_path, monkeypatch):
+    from modules.embeddings import EmbeddingModelUnavailableError, EmbeddingsModule
+
+    _install_stub_bundle(tmp_path, monkeypatch)
+    st_logger = logging.getLogger("sentence_transformers")
+    before = st_logger.level
+    st_logger.setLevel(logging.INFO)
+    try:
+        with pytest.raises(EmbeddingModelUnavailableError):
+            EmbeddingsModule()._load_local_model()
+        assert st_logger.level == logging.INFO
+    finally:
+        st_logger.setLevel(before)
 
 
 def test_hc_emb_009a_unavailable_messages_do_not_contain_the_model_path(tmp_path, absent_model, monkeypatch):
@@ -561,30 +628,26 @@ def test_hc_emb_009a_unavailable_messages_do_not_contain_the_model_path(tmp_path
 
 @pytest.mark.asyncio
 async def test_hc_emb_009b_retrieval_warning_log_does_not_contain_the_model_path(
-    profile_db, absent_model, tmp_path, caplog
+    profile_db, absent_model, tmp_path, caplog, capsys
 ):
     from modules.rag import ModelUnavailableError, RAGModule
 
     doc = await _seed_one_chunk(profile_db)
     rag = RAGModule(enable_verification=False)
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.DEBUG):
         with pytest.raises(ModelUnavailableError):
             await rag._search_vectors_async(query="LDL", profile_id=doc.profile_id, profile_db=profile_db)
     assert "failed closed" in caplog.text, "the rag.py warning sink did not fire; this test would prove nothing"
-    assert str(absent_model) not in caplog.text
-    assert absent_model.name not in caplog.text
-    assert str(tmp_path) not in caplog.text
+    _assert_no_path(_leak_surfaces(caplog, capsys), str(absent_model), absent_model.name, str(tmp_path))
 
 
 @pytest.mark.asyncio
 async def test_hc_emb_009c_reprocess_warning_log_does_not_contain_the_model_path(
-    profile_db, absent_model, monkeypatch, tmp_path, caplog
+    profile_db, absent_model, monkeypatch, tmp_path, caplog, capsys
 ):
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.DEBUG):
         resp, _ = await _post_reprocess(profile_db, monkeypatch)
 
     assert resp.status_code == 200, resp.text
     assert "Chunking failed" in caplog.text, "the api/documents.py warning sink did not fire; this test would prove nothing"
-    assert str(absent_model) not in caplog.text
-    assert absent_model.name not in caplog.text
-    assert str(tmp_path) not in caplog.text
+    _assert_no_path(_leak_surfaces(caplog, capsys), str(absent_model), absent_model.name, str(tmp_path))
