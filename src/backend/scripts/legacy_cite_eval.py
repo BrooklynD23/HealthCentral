@@ -48,7 +48,9 @@ KINDS = ("error", "no_model", "timeout", "escalated", "abstained", "answered_cit
 NO_MODEL_TEXT = "knowledge base only"
 TIMEOUT_TEXT = "unable to fully process your question within the time limit"
 REFUSE_MSG = "refusing to run a real-model eval inside pytest"
-_CITE_MARKER = re.compile(r"\[cite:\d+\]")
+# [cite:N] plus the context labels rag.py writes (YOUR_RESULTS, or source_type.upper()) when
+# the model echoes them inline. A closed set, case-sensitive: "[LDL:130]" is still a value.
+_CITE_MARKER = re.compile(r"\[(?:cite|YOUR_RESULTS|USER_DOCUMENT|USER_OBSERVATION|REFERENCE):\d+\]")
 _NUMBER = re.compile(r"\d+(?:\.\d+)?")
 
 
