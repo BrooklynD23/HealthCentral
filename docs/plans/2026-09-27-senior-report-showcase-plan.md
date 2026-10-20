@@ -587,6 +587,28 @@ main @ `40f590e`):
 | Outline | 26 | 15 | 11 | 0 |
 | **Total** | **210** | **78** | **114** | **18** |
 
+### 9.4 Deviations found at execution (2026-10-20, Task 1 Step 9 and Task 2 Step 3)
+
+The §9.1 table above is the 2026-09-27 plan; the committed showcase copy follows it except where the tree had moved. Each deviation names its ledger row. §9.3's tally was re-counted (63/103/18 and 15/11/0) and stays as written.
+
+| Rows | Plan text | What the tree showed | Copy says |
+|---|---|---|---|
+| S007-S016, S112, S113 | tile and card figures | skills 32 + 4 (H14), CI jobs 8 (H14), commits 1459 at c529d19 (H12), collected 2,011 (H2) | measured values |
+| S003, S016, S128, S138 | "{H1_PCT}% agent git author" | author name is 18% lifetime; October commits carry the agent only as a co-author trailer (71% by author or trailer, H12) | both figures, with the proxy caveat; E7 era added |
+| S046, S054, S060, C12 text | "fetched on first use" | W-8 landed (#168); offline load, fails closed (C12) | "downloaded once, loads offline" |
+| S030, S072, S028 | W-3 switch text | W-3 merged (#136), but ledger rows C2 and C3 predate it | the verification clauses are dropped; no claim rests on a stale row |
+| S053, S065 | before/after W-6 text | W-6 merged (#32); C10 says "redacts by default" | "off by default and redacts by default" |
+| S074, S081 | legacy serves invalid answers | W-4 merged (#72); C28 rewritten to the post-W-4 state | legacy lane ends in the abstention template |
+| S108, S155 | recovery-code UI | card is mounted (`SettingsPage.tsx:943`) but C6 predates it | the UI sentence and the finding row are dropped |
+| S116, S151 | gate fail-closed | measured rc=2 (§15) | stated with the date; H4 stays a finding |
+| S119-S127 | 8 failure modes | `recurring-failures.md` now has 12 entries (H14) | 12 headings, one quoted sentence each |
+| S133 | "Part-1 submitted 05-15" | O-7: the report gives two dates | date dropped |
+| S152, S154, S158, S161, S162 | old findings | P2 wired (#31), utcnow 0 product hits (P5), FK pragma still unset (P6 is report-only), docstrings fixed (fd3f287) | rewritten with the 2026-10-20 measurements; H15 resolved |
+| S149, S165-S169 | "all proposed" | 14 of 16 tracked items merged (M9) | status table from M9 |
+| O10, S172, F20 | "4 of 73 enforced" | 3 of 78 (M4) | updated in the outline and the page |
+
+Ledger rows C2, C3, C6, C7, C9, H4, H7 (8 modes), H9 and H10 carry pre-merge text. Their owners re-verdict them; this run did not edit them.
+
 ## 10. Claim-freeze checklist (run on the freeze date; owner signs O-6)
 
 **Freeze date:** ______ · **SHA:** ______ · **Run by:** ______
@@ -907,18 +929,24 @@ PR: #210 is already open as a draft from the claim. Update its body (measurement
 
 ## 15. Execution record (filled by the executor)
 
+Pre-freeze run 2026-10-20, not the O-6 freeze. Branch tip after `git merge origin/main` = `c529d19` (the measurement ref); worktree `/mnt/e/Programming/Github Repo/hc-f-9`; interpreter `~/venvs/asclexis-311/bin/python` (Linux, Python 3.11, SQLCipher present) via `scripts/pyslot.sh`.
+
 | Item | Value | Command | Environment |
 |---|---|---|---|
-| `{SHA}` / `{FREEZE_DATE}` | | | |
-| `{COLLECTED}` / `{INTERP}` | | | |
-| inventory (`{ROUTERS}` … `{CI_JOBS}`) | | | |
-| authorship + eras | | | |
-| ledger / matrix tallies | | | |
-| review-log counts + time | | | |
-| security gate rc | | | |
-| phases merged at freeze | | | |
-| demo checks 1–11 + dry-run results | | | |
-| freeze checklist outputs | | | |
+| `{SHA}` / `{FREEZE_DATE}` | `c529d19` / 2026-10-24 (pre-freeze 2026-10-20) | `git rev-parse --short HEAD` | WSL |
+| `{COLLECTED}` / `{INTERP}` | 2011 (1992 before the merge; contracts §d delta from 1945: +66) / Linux Python 3.11 | `pytest tests/ --collect-only -q -p no:cacheprovider` in `src/backend` | HF_HUB_OFFLINE=1 |
+| inventory | routers 18, pages 16, process skills 32, domain skills 4, golden 74, features 27 (19 completed, 7 pending, 1 in progress), CI jobs 8, recovery card mounted `SettingsPage.tsx:943` | Task 1 Step 3 commands | same at `43950de` and `c529d19` |
+| authorship + eras (`c529d19`) | 1459 commits; author name `Claude` 263 (18.0%); author or co-author trailer 1042 (71.4%); E0 2/0/0, E1 62/0/27, E2 34/0/1, E3 9/0/0, E4 230/222/222, E5 17/17/17, E6 65/24/58, E7 (Oct 1-20) 1040/0/717; since 2026-06-23 263/1352; Dec-May 98/0 with 28 trailers; first commits: 2 (second adds 14,397 lines in 70 files); P1 merged 2026-09-29 (#21) and 2026-10-01 (#24) | Task 1 Step 4 | counts are commits, merges included |
+| harness dates (H13) | docs_lint 2026-02-12 `e1c1b29`; security_gate 2026-02-22 `ae2e9ea`; CLAUDE.md 2026-06-13 `ee8bd33`; skills 2026-06-23 `caacd93`; agent_eval_gate 2026-06-24 `1571927`; .claude/skills 2026-07-01 `9169c3e`; feature_list 2026-07-07 `ddad453`; routes.py 2026-07-30 `7c90afd`; recurring-failures 2026-08-04 `7e985e6` | Task 1 Step 5 | unchanged from H13 |
+| ledger / matrix tallies | ledger 57 rows, no `?` (before this run: 24 rows `{VERIFIED 7, PARTIAL 6, CONTRADICTED 6, NOT-EVIDENCED 2, CASE-STUDY 2, HYPOTHESIS 1}`; after C1: 56 rows `{VERIFIED 32, PARTIAL 10, CONTRADICTED 6, NOT-EVIDENCED 3, CASE-STUDY 3, HYPOTHESIS 1, REPORTED 1}`; after M9: 57 rows `{VERIFIED 33, PARTIAL 10, CONTRADICTED 6, NOT-EVIDENCED 3, CASE-STUDY 3, HYPOTHESIS 1, REPORTED 1}`, no `?`); matrix 78 rows: 3 enforced, 36 tested, 6 implemented, 17 partial, 12 gap, 1 contradicted, 2 owner-gated, 1 unknown (the matrix's own scorecard paragraph still shows 32/18/15) | Task 1 Step 6; `scorecard_count.py` | Linux |
+| review-log counts + time | 51 rounds, all `codex`, all `rc=0`; P04 4, P08 4, S01 3, W01 4, W02 4, W03 4, W04 4, W05 2, W06 3, W07 2, W08 4, W10 4, W11a 4, W11b 4, RTN 1; counted 2026-10-20T00:29-07:00 from `docs/reviews/2026-09-27-swarm/reviewer-log.tsv` (reproduces the 09-27 snapshot); M6 stays `REPORTED` (O-4 A/B unanswered) | Task 1 Step 7 | the log reached `docs/reviews/` by `1843ca3` |
+| security gate rc | `ERROR: Could not parse bandit report '/nonexistent.json': ...` then `rc=2` | Task 1 Step 8 | `c529d19` |
+| phases merged | W-1, W-2, W-3, W-4, W-5, W-6, W-8, W-10, W-11a PR-4, P2, S-1, P5, P6 (report-only) merged; W-7 and W-11b not; `written new` count in the coursework README = 1; post-P1 ancestry ok (row M9) | Task 0 Step 2 | `git merge-base --is-ancestor` |
+| Task 1 Step 9 citation pass | 149 quoted `showcase:N` citations checked: 122 matched by script, 27 by hand (data arrays and split markup); 35 unquoted rows read by hand; all held. Code pointers: most `file:line` cites in §3.1/§9.1 had moved (for example `core/database.py:46` now reads `settings.sql_echo`; recurring-failures headings moved to 12 entries); the page re-anchors each pointer it keeps | script + `sed -n` | `c529d19` |
+| Task 2 Step 3 | C12, C15, C28 had changed state (W-8, S-1, W-4) and were written to the current state; H15 is resolved; M4 is 3 of 78; see §9.4 | per-row commands | `43950de` then `c529d19` |
+| checker | `OK: 458 claim elements, 0 unmapped, 0 disallowed`, rc=0; four breaks all RED: (a) `no ledger row or verdict: C999` rc=1, (b) `unmapped: 'Memory & session history are labeled'` rc=1, (c) `disallowed: H4=CONTRADICTED kind=None` rc=1, (d) `external URL present` rc=1 | Task 7 Steps 2-3 | `/tmp/claude-1000/showcase_claims_check.py`, not committed |
+| demo checks 1-11 + dry-run | not run (Task 9 is the owner's, Windows) | | |
+| freeze checklist (rehearsal) | 1 OK 458/0/0; 2 word grep: hits are quotes or rows `VERIFIED`/`PARTIAL` with scope stated (C2 "verified values only", C3/C19 "every" with the row's scope, C10 "All inference is local by default", C25, M4 "3 enforced"); "across every import" was reworded; 3 numbers in this table; 4 every planned item sits beside "merged #N" or "proposed"; 5 owner-gated list is a pointer to matrix GATED-01...05 (S1-A/B, OQ-1, Q-FC, Q-HASH are answered in owner-decisions); 6 `grep -ci hipaa` on the page, the coursework README and the outline: 0; 7 findings carry `data-kind="finding"`; 8 not run; 9 docx/pdf diff: empty; 10 `unchanged`; 11 `docs_lint` passed, `generate_docs_index.py` regenerated, `test_docs_lint.py` 7 passed | Task 10 Step 1 | `c529d19` plus doc commits |
 
 ## 16. Stop gates
 
