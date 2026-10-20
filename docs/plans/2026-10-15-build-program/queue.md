@@ -154,6 +154,13 @@ Totals: 51 items. 7 ready now (E-1, E-3, D-0, C-PMIG, E-7, F-3, and B-3 for the 
   - **COUNT-ENV-VARIES** (#222 planner; not yet planned): CLAUDE.md §4 says the collected count does not vary by environment, but `test_embedding_no_network.py`'s `importorskip` adds 2 tests when sentence-transformers is installed. A governance wording edit for the owner.
   - **RSI1-DONATE-PR2 notes** (#211 adversarial reviews, for the PR-2 builder; not a new row): MINORs 4-9 (an `ended_reason` column; revoke deletes cross-purpose synthetic children unpinned; canary rows after revoke; move the logic to `modules/data_donation.py`; HC-DON-007 isolation via 403), and research OQ-25 (the consent copy may need to say agent answers are included, which would need a v3 copy and DON-COPY re-approval).
   - **RRSI-OQ** (found 2026-10-20, #229; not yet planned): the 27 owner questions in [04-owner-questions.md](../../research/2026-10-20-rrsi-harness2/04-owner-questions.md) are open; owner-prompt 18 below points at the file, none answered.
+  - **RRSI-CI-REPLAY** (not yet planned; OQ-4): CI job running `.claude/mods/asclexis-rsi/rsi.test.ts` on every PR; owner-gated build-item PR.
+  - **RRSI-H2-SANDBOX** (not yet planned; OQ-2): harness2 as a dev-only tool in an isolated sandbox with an egress firewall; needs Python 3.12 and Vertex creds; never product code paths, local-first invariant applies.
+  - **RRSI-LOOP-CRITIC** (not yet planned; OQ-5, OQ-6, OQ-7): rsi-loop deterministic critic (budget 9) and additions-only on `recurring-failures.md`; touches RSI files, so RSI PRs are never agent-merged.
+  - **AGENT-ENABLED-TOGGLE** (not yet planned; OQ-9): `agent_enabled` Settings toggle plus an "unverified" label on care-task text in answers.
+  - **RUNSTEP-CONTRACT** (not yet planned; OQ-14): correct the RunStep comment in `state.py` and add a test that RunLog never reaches audit, cache, persistence or donation.
+  - **CHAT-TREND-DEF** (not yet planned; OQ-21): chat trend definition becomes the Trends page's latest-vs-prior with a 5% stable band.
+  - **Track-2 capability design** (not yet planned): per OQ-10..OQ-27, plan after the 2026-10-24 freeze (OQ-27).
 
 ---
 

@@ -4,7 +4,7 @@
 **Owner:** repository owner
 **Refresh Trigger:** any answer below (record it in `docs/capstone-report/owner-decisions-2026-09-27.md` with the date and channel, then mark it here); the merge of PR #211.
 
-> **Point-in-time research (2026-10-20). No gate below is answered.** Each question was merged from the five verdicts and their reviews ([02-verdicts.md](02-verdicts.md), [03-adversarial-review.md](03-adversarial-review.md)) and de-duplicated. Options are listed neutrally and are not ordered by preference; the recommendation is the research's suggestion only. "From" names the verdict questions merged into each item.
+> **Point-in-time research (2026-10-20). All 27 questions were answered 2026-10-20 (L0 AskUserQuestion) and recorded as owner-decisions rows RRSI-OQ-1..RRSI-OQ-27 (OQ-1..OQ-27 below) in `docs/capstone-report/owner-decisions-2026-09-27.md`.** Each question was merged from the five verdicts and their reviews ([02-verdicts.md](02-verdicts.md), [03-adversarial-review.md](03-adversarial-review.md)) and de-duplicated. Options are listed neutrally and are not ordered by preference; the recommendation is the research's suggestion only. "From" names the verdict questions merged into each item.
 
 ## A. Research record and Track 1 (development harness)
 
