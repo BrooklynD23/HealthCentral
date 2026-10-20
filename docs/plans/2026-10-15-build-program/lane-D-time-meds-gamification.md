@@ -743,11 +743,11 @@ Two rows: AUDIT-GUARD-MINORS (from the #193 review MINORs) and MSET-EXT-NOKEY-PI
 
 **Design (test file only; `save_external_api_settings` is ask-first and is not edited, even temporarily: L0 ruling 2026-10-19 on MSET-EXT-NOKEY-TEST):**
 1. Change HC-AUDCMS-005's post-PUT-2 re-select to `execution_options(populate_existing=True)`, so the key check reads the database.
-2. Replace the vacuous `:628` line with `assert "sk-canary-123" not in resp2.text`. The canary from PUT 1 must not come back in the response. Do not delete a check without replacing it.
+2. Replace the vacuous `:628` line with the **forward pin** `assert "sk-canary-123" not in resp2.text`. It cannot fail against today's handler either, because `ExternalApiSettingsResponse` has no field that could carry the key. It guards a future response field that echoes the key; it is not a fix for a leak. Its mutant (scratch monkeypatch of the response model or handler return to echo the decrypted key) must turn it RED. Do not delete a check without replacing it.
 
 | Id | Assertion | RED today? |
 |---|---|---|
-| HC-AUDCMS-005 (edited) | as today, but the key is read with `populate_existing=True` | no (pin). **Mutants A and B, as monkeypatches in a scratch test that is not committed:** today's version passes both (measured); the edited version must fail both. Paste the 2 × 2 outputs in the PR body |
+| HC-AUDCMS-005 (edited) | as today, but the key is read with `populate_existing=True`; plus the forward pin on `resp2.text` | no (pin). **Mutants A and B, as monkeypatches in a scratch test that is not committed:** today's version passes both (measured); the edited version must fail both. Paste the 2 × 2 outputs in the PR body |
 
 **Files:** `src/backend/tests/test_model_settings_api.py` (HC-AUDCMS-005 only), slots. **Re-run, not edited:** `tests/test_external_runner_hardening.py`, `tests/test_external_runner.py`.
 **Expected collected delta:** 0. **Est:** 0.5 h.
