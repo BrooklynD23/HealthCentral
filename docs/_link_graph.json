@@ -1074,7 +1074,8 @@
       "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md"
     ],
     "docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md": [
-      "docs/plans/2026-10-15-build-program/contracts.md"
+      "docs/plans/2026-10-15-build-program/contracts.md",
+      "docs/plans/2026-10-15-build-program/queue.md"
     ],
     "docs/plans/2026-10-15-build-program/queue.md": [
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
@@ -1093,6 +1094,7 @@
       "docs/reviews/2026-10-16/E1a-r2-response.md"
     ],
     "docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md": [
+      "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md",
       "docs/plans/2026-10-15-build-program/queue.md",
       "docs/plans/2026-10-17-rsi-track2-eval-harness-plan.md"
     ],
@@ -3111,6 +3113,7 @@
       "audit/2026-09-25/waves/scaffold/G-C5.md",
       "docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md",
       "audit/2026-09-25/waves/wave-3-L1-A.md",
+      "docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md",
       "docs/plans/2026-10-15-build-program/contracts.md"
     ],
     "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md": [
@@ -3174,6 +3177,7 @@
       "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md",
       "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md",
       "docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md",
+      "docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md",
       "docs/plans/2026-10-18-session-handoff.md",
       "docs/capstone-report/implementation-program.md"
     ],

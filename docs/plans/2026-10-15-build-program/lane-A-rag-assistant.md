@@ -1,6 +1,6 @@
 # Lane A — RAG + assistant: build-program design
 
-**Last Updated:** 2026-10-19 (review round 2 fixes: HC-EMB-005b, HC-EMB-009a; G-C5 OL-1..3 answered); 2026-10-18 (G-C5 plan linked, PR #183); 2026-10-17 (CHAT-FACT-ROUTING, LOCAL-HF-HUB, INTERP-ADVICE-WORDING planned)
+**Last Updated:** 2026-10-19 (follow-ups planned: LCP-HEADERLESS, EMB-LOAD-LOG-PATH, LLM-PATH-LOG); 2026-10-19 (review round 2 fixes: HC-EMB-005b, HC-EMB-009a; G-C5 OL-1..3 answered); 2026-10-18 (G-C5 plan linked, PR #183); 2026-10-17 (CHAT-FACT-ROUTING, LOCAL-HF-HUB, INTERP-ADVICE-WORDING planned)
 **Owner:** repository owner
 **Status:** PROPOSED — design only, not approved for execution. No owner approval is recorded here that is not already in [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md). Every "Recommended" below is the lane designer's, not the owner's.
 **Refresh Trigger:** any of #72 (W-4), #95 (ASSIST-UTC), #74 (Tailwind 4) merging; any owner answer to a gate in [Owner gates](#owner-gates); any commit to `src/backend/api/assistant.py`, `src/backend/modules/rag.py`, `src/backend/api/interpretations.py` or `src/backend/modules/agent/**`.
@@ -28,6 +28,9 @@ Read-only design. No product file was edited. Existing merged plans are not rewr
 | REPROCESS-ATOMIC | PRODUCT | PR #168 Codex [high] 2 + L0 ruling | [below](#reprocess-atomic--reprocess-commits-the-chunk-delete-when-the-replacement-row-build-fails) | ready | — |
 | W-8-HARDEN | PRODUCT | PR #168 Codex mediums + L0 ruling | [below](#w-8-harden--model-path-in-logs-weights-only-checksum-partial-left-after-an-exception) | blocked-on-item | REPROCESS-ATOMIC (shared test file, reused harness) |
 | CFR-CACHE-TZ | PRODUCT | PR #162 follow-ups 1-2 | [below](#cfr-cache-tz--the-agent-cache-key-ignores-the-profile-time-zone-abbreviation-analytes-get-title-case-names) | ready | — |
+| LCP-HEADERLESS | PRODUCT | owner LCP-HEADERLESS (a), `owner-decisions-2026-09-27.md:275`; #185 open MINOR 1 and comment 6270643786 | [below](#lcp-headerless--the-legacy-parser-finds-headers-anywhere-drops-text-before-them-and-never-checks-headerless-text-for-citations) | blocked-on-PR | #185 holds `rag.py`; owner LCP-HL-SCOPE (then LCP-HL-DIFF, merge) |
+| EMB-LOAD-LOG-PATH | PRODUCT | #196 L0 ruling (comment 6267273354); #196 and #192 review MINORs | [below](#emb-load-log-path--sentence-transformers-logs-the-model-path-at-info-the-path-leak-tests-look-only-at-warning-takes-emb-harden-minors-and-reprocess-007c-reach) | ready | — |
+| LLM-PATH-LOG | PRODUCT | #196 reviews (LLM model paths at INFO) | [below](#llm-path-log--the-two-llm-loaders-log-the-model-path-at-info) | blocked-on-PR | #185 holds `llama_cpp_provider.py`; never beside B-5 |
 
 Collected-count note: the lane baseline is **1574** (`CLAUDE.md:30`, `AGENT.md:76` on `3b2236c`; confirmed by L0 in the peer-review round). 1501 was #95's own branch value. Not re-measured here (no pytest on this box). Ground rule 8 (SLOT-RULE): every lane-A PR runs `--collect-only` **after its final rebase** onto `origin/main` and writes the measured number into both slots in the same commit. It never adds its own delta to a number copied from a doc. Lane D's D-0 chain (#95 → #97 → #99 → #82 → #84) runs first, so lane-A PRs start from whatever D-0 measured.
 
@@ -438,6 +441,116 @@ Four rows from the W-8 (#168) Codex review and the CHAT-FACT-ROUTING (#162) note
 **Acceptance:** `pyt tests/agent/ tests/test_assist_agent_dates_http.py tests/test_agent_cache_isolation.py tests/test_hc_a1_agent_verification.py tests/test_assist_utc_http.py tests/test_chat_sessions.py tests/test_rag_trend_units.py -q -rfE`: 0 failed. `cd src/backend && python -c "from main import app"`. Full suite per RUNBOOK §6. **Rollback:** revert; the cache is in-process only.
 **Order:** ready now. Never beside B-3 or G-C5 (both edit `api/assistant.py`), and never beside LEGACY-CITE-PROMPT (#185): `DISPLAY_NAMES` feeds the legacy context at `rag.py:372`, so this row would change the prompt text while #185 is measured against the RSI-T2-EVAL baseline. Merge it after #185 merges or is closed. No ask-first file. **Recurring-failures #12 recheck:** after this merges, L0 runs the new gate (the required `CacheKey.tz_name`: `tests/agent/`, `tests/test_agent_cache_isolation.py`, `tests/test_hc_a1_agent_verification.py`) on `origin/main` and on every open PR built before it, and rebases or fixes those PRs before merging the rest of the group. An open PR that builds a `CacheKey` without `tz_name` fails it.
 
+## Follow-ups found 2026-10-19 (planned 2026-10-19 on `origin/main` @ `d42dba9`)
+
+Three rows: LCP-HEADERLESS (owner LCP-HEADERLESS (a), `docs/capstone-report/owner-decisions-2026-09-27.md:275`), EMB-LOAD-LOG-PATH (L0 ruling on #196, comment 6267273354; it also takes EMB-HARDEN-MINORS and REPROCESS-007C-REACH, because all three edit `tests/test_embedding_fail_closed_paths.py`) and LLM-PATH-LOG (the LLM half of EMB-LOAD-LOG-PATH, split off because its two files are held by #185 and B-5). Every "measured" fact below ran in a scratch copy of `d42dba9` under `/tmp/claude-1000/` through `scripts/pyslot.sh`; nothing was committed. `pyt` = `scripts/pyslot.sh env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest`, run from `src/backend`.
+
+### LCP-HEADERLESS — the legacy parser finds headers anywhere, drops text before them, and never checks headerless text for citations
+
+**Source:** owner LCP-HEADERLESS (a) "Own row", `owner-decisions-2026-09-27.md:275`: "Plan it as its own item; it takes #185's open headerless-malformed MINOR." The [LEGACY-CITE-PROMPT plan](../2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md) `:164` raised it. #185's open MINOR 1 (PR body, "Open MINORs"; review comment 6263486895, finding at `rag.py:1454` on the #185 branch): Python-repr dicts, curly-quoted keys, multi-item arrays and JSON strings "can be served as a JSON fragment with `is_valid: true`", root cause `_parse_response_segments`. #185 comment 6270643786 (LCP Task 5 quiet re-run): "the served text shows `[USER_OBSERVATION:N]` labels to the patient (cosmetic, D11 context label leaked into output)."
+
+**Facts (`d42dba9`):**
+1. `_parse_response_segments` (`src/backend/modules/rag.py:1061-1087`) runs `re.search` for `REPORT FACTS:?`, `GENERAL INFO:?` and `UNCERTAINTIES:?` anywhere in the text, case-insensitively (`:1067-1069`, `:1073`). Text before the first match is in no segment. If nothing matches, the whole text becomes one `general_info` segment (`:1079-1084`).
+2. `validate_response` checks for citations only in `report_facts` segments (`:851-856`). The served text is the segments joined (`api/assistant.py:952`).
+3. Context labels come from `_compose_prompt`: `[YOUR_RESULTS:N]` for observation summaries and `[{source_type.upper()}:N]` for other chunks (`rag.py:656-663`), so `[USER_DOCUMENT:N]`, `[REFERENCE:N]` and `[USER_OBSERVATION:N]` can be echoed by the model. Nothing removes them from served text.
+
+**Measured** (`validate_response` with `enable_verification=False` isolates the parser's own check; scratch test, not committed):
+
+| Input | Segments today | `is_valid` today |
+|---|---|---|
+| `Your LDL is 128 mg/dL, above the range.` (headerless, uncited) | one `general_info`, no "missing citations" error | True |
+| `REPORT FACTS:\nYour LDL is 128 mg/dL, above the range.` (same text, headed) | `report_facts`, error "Report facts section missing citations" | False |
+| `LDL Cholesterol is 128 mg/dL [cite:1]. There are uncertainties about lab ranges.` | one `uncertainty` segment, `about lab ranges.`; the cited fact is dropped | True |
+| `{'report_facts': [{'text': 'LDL Cholesterol: 128 mg/dL [cite:1]', 'cites': [1]}], 'uncertainties': ['Reference ranges can vary between laboratories.']}` | one `uncertainty` segment, `': ['Reference ranges can vary between laboratories.']}` | True |
+| `**UNCERTAINTY**\n- Reference ranges can vary.` (the singular form #185's renderer emits, per its PR body) | one `general_info` segment (the pattern needs `UNCERTAINTIES`) | True |
+
+With the verifier on (the default), the first, third and fourth inputs are still withheld, by "could not be verified" or "Low faithfulness score". So today the parser defects reach a patient only when the verifier passes, as in #185's HTTP probe (glucose chunks, `is_valid: true`, served `"**UNCERTAINTY**\n': ['Reference ranges can vary between laboratories.']}"`). **Label leak, over HTTP** (`legacy_chat_client`, glucose chunks, verifier on): model output `REPORT FACTS:\n- Glucose: 95 mg/dL (reference range 70-100 mg/dL) [USER_OBSERVATION:1] [cite:1]` → 200, `is_valid: true`, `full_response` keeps `[USER_OBSERVATION:1]`.
+
+**Owner gate LCP-HL-SCOPE** (execution; open; exact wording to ask):
+
+> "LCP-HL-SCOPE (LCP-HEADERLESS; edits the legacy citation check in `modules/rag.py`, `_parse_response_segments` and the end of `validate_response`; no threshold, `faithfulness.py`, `verifier_agent.py` or `interpret_safety.py` change). Today the parser finds section headers anywhere in the text and drops everything before the first one. Measured on `d42dba9` with the verifier off: `LDL Cholesterol is 128 mg/dL [cite:1]. There are uncertainties about lab ranges.` keeps only `about lab ranges.`; a headerless answer is one GENERAL INFO segment, so the 'Report facts section missing citations' check never runs on it; a Python-repr dict is cut to `': [...]}`. With the verifier on these examples are still withheld, but #185's probe served such fragments as valid when the verifier passed. Which fix?
+> **(a)** A header counts only at the start of a line (optionally in `**…**` or after `#`), and `UNCERTAINTY` counts like `UNCERTAINTIES`. Any text outside a recognised section is treated as REPORT FACTS, so it must carry a `[cite:N]`. A headerless or prefixed uncited answer then abstains. Recommended: stricter than today, closes the fragment shapes at their root, no threshold changes.
+> **(b)** (a), plus withhold any legacy answer whose text starts with `{`, `[` or a quote character (structured output the renderer did not turn into sections). If #185 has merged, this flips its pinned `{oops` pass-through (HC-LCP-007) to withheld.
+> **(c)** Line-start headers only. Headerless text stays GENERAL INFO, so the citation check still does not run on it.
+> In every option the served text drops the context labels `[YOUR_RESULTS:N]`, `[REFERENCE:N]`, `[USER_DOCUMENT:N]` and `[USER_OBSERVATION:N]` (D11: labels, not citations); `[cite:N]` stays."
+
+**Owner gate LCP-HL-DIFF** (merge only; open; asked after the draft PR exists): "LCP-HL-DIFF: here is the exact `modules/rag.py` diff for LCP-HEADERLESS under option (x), with RED/GREEN output, the mutant table and `scripts/legacy_eval_gate.py` on the branch. Validation still runs on the raw model text; thresholds, `faithfulness.py`, `verifier_agent.py` and `interpret_safety.py` are unchanged. Merge?" `modules/rag.py` is not a CLAUDE.md §1 file, but this edits the citation check that the LEGACY-CITE-PROMPT plan says to stop and ask about ("If any task seems to need an edit to `validate_response` … STOP and ask"), so the diff gets its own owner yes.
+
+**Design (under (a); the implementer drafts the exact pattern for LCP-HL-DIFF):**
+1. `_parse_response_segments`: match headers with `re.MULTILINE` at the start of a line: optional spaces, optional `**` or `#`s, then `REPORT FACTS`, `GENERAL INFO`, `UNCERTAINTIES` or `UNCERTAINTY`, optional closing `**`, optional `:`. The rest of that line belongs to the section, as today. Split the text at those header lines, in order. One header type may appear more than once; keep each occurrence as its own segment.
+2. Text before the first header, and a headerless text, becomes a `report_facts` segment (so the existing check at `:851-856` applies). Empty text gives no segment.
+3. Labels: after verification and before `ValidatedResponse` is built, remove `\[(?:YOUR_RESULTS|REFERENCE|USER_DOCUMENT|USER_OBSERVATION):\d+\]` (and the space before it) from each returned segment's `content`. The citation regex, the verifier and faithfulness keep reading the raw `response`, so validation is unchanged.
+4. Under (b) only: in `validate_response`, when the stripped response starts with `{`, `[`, `'`, `"`, `“` or `‘`, append the error `"Unrendered structured answer"`.
+
+**Test-first** (new file `src/backend/tests/test_rag_headerless.py`; "RED" = fails on `d42dba9`, measured above):
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-LCPH-001 | (a)/(b) only: `RAGModule(enable_verification=False).validate_response("Your LDL is 128 mg/dL, above the range.", chunks)` → `"Report facts section missing citations"` in `validation_errors`, `is_valid is False` | yes (no error, `is_valid` True) |
+| HC-LCPH-002 | `"LDL Cholesterol is 128 mg/dL [cite:1]. There are uncertainties about lab ranges."` → the joined segment content equals the whole input (nothing dropped, no `uncertainty` segment) | yes (only `about lab ranges.` survives) |
+| HC-LCPH-003 ×4 | the four #185 probe shapes (Python-repr dict, curly-quoted keys, 2-item `{text, cites}` array, JSON string; take the strings verbatim from the probe table in #185 review comment 6263486895) → no returned segment's content is a fragment that starts inside the input (it is either the whole input or, under (b), `is_valid` False with `"Unrendered structured answer"`) | yes for the repr dict (measured `': [...]}`); the other three per #185's probe |
+| HC-LCPH-004 | line-start headers still split: `REPORT FACTS:\n- X [cite:1]\n\nGENERAL INFO:\n- Y\n\nUNCERTAINTIES:\n- Z` → three segments with today's types and contents; `**UNCERTAINTY**\n- Z` → one `uncertainty` segment | the first half no (pin); the `**UNCERTAINTY**` half yes (`general_info` today) |
+| HC-LCPH-005 | over HTTP: `legacy_chat_client(build_chunks("glucose"), "REPORT FACTS:\n- Glucose: 95 mg/dL (reference range 70-100 mg/dL) [USER_OBSERVATION:1] [cite:1]")` → 200, `is_valid` True, `full_response` contains `[cite:1]` and no `[USER_OBSERVATION:` | yes (measured: label served) |
+| HC-LCPH-006 | (b) only: `"{oops"` and `"[1, 2]"` → `"Unrendered structured answer"` | yes |
+
+**Mutants (Task 3, output in the PR body):** drop the line-start anchor → HC-LCPH-002 fails; map prefix text to `general_info` → HC-LCPH-001 fails; strip labels before validation instead of after → a scratch check shows `validate_response` input changed (assert the verifier mock receives the raw text); drop `UNCERTAINTY` → HC-LCPH-004 fails.
+
+**Files:** `src/backend/modules/rag.py` (`_parse_response_segments`; the end of `validate_response`), `src/backend/tests/test_rag_headerless.py` (new), slots. **Re-run, not edited:** `tests/test_rag_pipeline.py`, `tests/test_legacy_abstain.py`, `tests/test_safe_chat_prohibited.py`, `tests/legacy_eval/`, `tests/test_rag_structured_cite.py` (if #185 merged), and `python3 scripts/legacy_eval_gate.py` (the only headerless golden case, `abstain-generation-timeout`, has empty output and expects abstain; measured).
+**Expected collected delta:** (a) +8; (b) +9; (c) +7 (no HC-LCPH-001). **Est:** 3 h after LCP-HL-SCOPE.
+**Acceptance:** `pyt tests/test_rag_headerless.py tests/test_rag_pipeline.py tests/test_legacy_abstain.py tests/legacy_eval -q -rfE`: 0 failed; `python3 scripts/legacy_eval_gate.py` (from the repo root, as the `legacy-evals` CI job runs it) passes; `git diff origin/main -- src/backend/modules/faithfulness.py src/backend/modules/verifier_agent.py src/backend/modules/interpret_safety.py src/backend/modules/redaction.py` empty; full suite per RUNBOOK §6. **Rollback:** revert.
+**Order:** blocked until LEGACY-CITE-PROMPT (#185) merges or is closed (both edit `rag.py`; #185 also decides whether the JSON shapes are reachable on the default path). Task 0 then re-measures the table above on merged `main`. Never beside W-8-FC-NOTICE, G-C5 or B-3 (`rag.py`). PR stays draft until LCP-HL-DIFF. **Recurring-failures #12 recheck:** after this merges, L0 runs `tests/test_legacy_abstain.py`, `tests/test_rag_headerless.py` and `scripts/legacy_eval_gate.py` on `origin/main` and on every open PR built before it: an open PR whose fake model output has no line-start header now abstains.
+
+### EMB-LOAD-LOG-PATH — sentence-transformers logs the model path at INFO; the path-leak tests look only at WARNING (takes EMB-HARDEN-MINORS and REPROCESS-007C-REACH)
+
+**Source:** L0 ruling on #196 (comment 6267273354): "EMB-LOAD-LOG-PATH (silence or redact the sentence_transformers logger during load, a real-package INFO test, `from None`; …)". #196 review MINORs (EMB-HARDEN-MINORS): HC-EMB-009a/b/c "miss a leak through `exc_info`, stdout, or a log level below WARNING". #192 review MINOR (REPROCESS-007C-REACH): HC-EMB-007c "does not assert the blob failure was reached".
+
+**Facts (`d42dba9`):**
+1. `_load_local_model` passes the absolute directory to `SentenceTransformer(str(model_dir), local_files_only=True)` (`src/backend/modules/embeddings.py:114`) and re-raises with `from exc` (`:112`, `:118`).
+2. Nothing in the backend sets the root logger level: `alembic.ini`'s `[logger_root]` is `WARN`, and `core/config.py:134` `log_level` is never applied (L1 triage on #196). So INFO lines are dropped by default; this is a latent leak, reachable once anyone enables INFO.
+3. HC-EMB-009b and 009c capture at `logging.WARNING` only (`tests/test_embedding_fail_closed_paths.py:373`, `:386`); 009a uses a stub `SentenceTransformer` (`:352-356`), so it cannot see the real package log.
+4. HC-EMB-007c (`:299-307`) asserts status 200 and that `chunk-1` and its embedding survive. It never checks that the stubbed `vector_to_blob` raised.
+
+**Measured** (scratch tests):
+- Real package, stub bundle (the 11 files of `EMBEDDING_FILES` written as `b"{}"` under `<tmp>/jane-doe-home/model`): with `caplog` at DEBUG, `EmbeddingsModule()._load_local_model()` raises `EmbeddingModelUnavailableError`, and logger `sentence_transformers.base.model` has already logged the full path at INFO. Stdout and stderr hold no path. `__cause__` is a `ValueError` whose text holds no path here (it depends on the dependency's message).
+- Real bundle (`/home/danny/asclexis-models/embeddings/all-MiniLM-L6-v2`): the INFO record reads `Loading SentenceTransformer model from /home/danny/asclexis-models/embeddings/all-MiniLM-L…`.
+- HC-EMB-007c mutant: `api.documents._create_chunks_and_embeddings` replaced by a function that raises before building any row → the route still returns 200 and `chunk-1` and its embedding survive, so all three 007c assertions pass. The test passes without reaching the blob failure.
+
+**Design:**
+1. `embeddings.py`: around the `SentenceTransformer(...)` call only, raise the `sentence_transformers` logger to `WARNING` and restore its previous level in a `finally`. Child loggers such as `sentence_transformers.base.model` inherit it while their own level is unset; Task 0 checks that, and HC-EMB-010a fails if it stops being true. Raise both `EmbeddingModelUnavailableError`s `from None`. The messages stay as W-8-HARDEN left them.
+2. Tests only: 009b and 009c capture at `logging.DEBUG`, also check `capsys` output, and check each record's `exc_text` / formatted traceback, not only `caplog.text`. 007c counts calls in the raising `vector_to_blob` stub (`_stub_embedding_blob_failure` returns the counter) and asserts at least one call.
+
+**Test-first** (`src/backend/tests/test_embedding_fail_closed_paths.py`):
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-EMB-010a | stub bundle under a directory named `jane-doe-home`, real `sentence_transformers`, `caplog` at DEBUG → no record from any logger contains the directory path; `EmbeddingModelUnavailableError.__cause__ is None` | yes (measured INFO record; `__cause__` set). Needs `sentence-transformers` installed, not the model bundle, so it adds no environment failure |
+| HC-EMB-010b | after HC-EMB-010a's call, `logging.getLogger("sentence_transformers").level` equals its level before the call | no (pin; mutant "no `finally`" fails it) |
+| HC-EMB-009b, 009c (edited) | capture at DEBUG + `capsys` + formatted tracebacks | no (pins; mutant: add `logger.debug("model at %s", model_dir)` to `_load_local_model` → both now fail, the WARNING-only versions stay green; paste both) |
+| HC-EMB-007c (edited) | as today, plus the blob stub was called at least once | no (pin; the mutant above now fails it) |
+
+**Files:** `src/backend/modules/embeddings.py`, `src/backend/tests/test_embedding_fail_closed_paths.py`, slots. **Re-run, not edited:** `tests/test_embedding_bundle.py`, `tests/test_embedding_no_network.py`, `tests/test_rag_pipeline.py`.
+**Expected collected delta:** +2. **Est:** 1.5 h.
+**Acceptance:** `pyt tests/test_embedding_fail_closed_paths.py tests/test_embedding_bundle.py tests/test_embedding_no_network.py -q -rfE`: 0 failed (the bundle tests that need the fetched model are the known environment failures if it is absent); the two mutant outputs in the PR body; full suite per RUNBOOK §6. **Rollback:** revert.
+**Order:** ready now. Never beside W-8-FC-NOTICE (shared test file) or G-C5 (`embeddings.py`). No ask-first file.
+
+### LLM-PATH-LOG — the two LLM loaders log the model path at INFO
+
+**Source:** the "LLM model paths at INFO" follow-up that #196's reviews raised and the L0 ruling (comment 6267273354) folded into EMB-LOAD-LOG-PATH. Split into its own row here: `core/llm/llama_cpp_provider.py` is in #185's file list and `modules/model_selector.py` is in B-5's, so keeping them in EMB-LOAD-LOG-PATH would block that row on both.
+
+**Facts (`d42dba9`):** `logger.info("LlamaCppProvider: loading model from %s", model_path)` (`src/backend/core/llm/llama_cpp_provider.py:130`) and `logger.info(f"Loading model from {model_path}")` (`src/backend/modules/model_selector.py:462`) log the absolute GGUF path. Like fact 2 above, INFO is dropped by default.
+
+**Design:** log `model_path.name` (the GGUF file name) instead of the path at both sites. No other change.
+
+| Id | File | Assertion | RED today? |
+|---|---|---|---|
+| HC-MPATH-001 | `src/backend/tests/test_model_path_logs.py` (new) | `LlamaCppProvider._ensure_initialized()` with `_find_model_path` returning `<tmp>/jane-doe-home/x.gguf`, and `_load_llama_class` and `modules.model_integrity.verify_and_log` stubbed, `caplog` at DEBUG → the GGUF file name appears, the directory does not | yes (path logged at `:130`) |
+| HC-MPATH-002 | same | `ModelSelector.load_model(tier)` with `get_model_path` returning the same path and `llama_cpp` stubbed in `sys.modules`, same assertion | yes (`:462`) |
+
+**Files:** `src/backend/core/llm/llama_cpp_provider.py`, `src/backend/modules/model_selector.py`, `src/backend/tests/test_model_path_logs.py` (new), slots. **Re-run, not edited:** `tests/test_llm_import_boundary.py`, `tests/test_model_integrity.py`. The new test stubs `llama_cpp`; it never imports it for real (CLAUDE.md §3 import boundary).
+**Expected collected delta:** +2. **Est:** 1 h.
+**Acceptance:** `pyt tests/test_model_path_logs.py tests/test_llm_import_boundary.py tests/test_model_integrity.py -q -rfE`: 0 failed; full suite per RUNBOOK §6. **Rollback:** revert.
+**Order:** blocked until LEGACY-CITE-PROMPT (#185) merges or is closed (`llama_cpp_provider.py`). Never beside B-5 (`model_selector.py`). No ask-first file.
+
 ## Provides
 
 1. `modules.agent.state.ChatFilters` (frozen: `from_dt`, `to_dt` naive UTC, `analytes: tuple[str, ...]`, `category`); `modules.agent.graph.RunContext.filters: ChatFilters`, read by agent tools via `getattr(ctx, "filters", None)` (ASSIST-AGENT-DATES).
@@ -475,8 +588,10 @@ Four rows from the W-8 (#168) Codex review and the CHAT-FACT-ROUTING (#162) note
 | CFR-FORMAT | CHAT-FACT-ROUTING Task 3 | how agent fact answers read: (a) display names + local dates + latest per analyte, cap 10 / (b) names + dates only / (c) no change | **(a)**, answered 2026-10-18 |
 | LHH-SCOPE | LOCAL-HF-HUB | (a) fold into W-8 / (b) interim `local_files_only` with today's hash fallback / (c) interim fail-closed (needs Q-FC) | not asked (planned 2026-10-17) |
 | IAW-WORDING | INTERP-ADVICE-WORDING | (a) educational LDL sentence + rewrite untouched installed rows / (b) (a) + the glucose sentence / (c) keep | **(b)**, answered 2026-10-18 |
+| **LCP-HL-SCOPE** | LCP-HEADERLESS | (a) line-start headers, text outside a section counts as REPORT FACTS / (b) (a) + withhold unrendered structured text / (c) line-start headers only; labels dropped from served text in all three (exact wording in [LCP-HEADERLESS](#lcp-headerless--the-legacy-parser-finds-headers-anywhere-drops-text-before-them-and-never-checks-headerless-text-for-citations)) | **open** (planned 2026-10-19; recommended (a)) |
+| **LCP-HL-DIFF** | LCP-HEADERLESS | merge only: owner yes on the exact `rag.py` diff (citation check) | **open**; asked after the draft PR exists |
 
-Ask-first files touched by this lane: only `modules/verifier_agent.py` (G-C5). `interpret_safety.py`, `redaction.py`, `faithfulness.py`, `core/auth.py` and auth/encryption code stay read-only. SAFE-CHAT-AGENT option B only imports `PROHIBITED_PATTERNS`.
+Ask-first files touched by this lane: only `modules/verifier_agent.py` (G-C5). LCP-HEADERLESS edits the citation check in `modules/rag.py` (not a CLAUDE.md §1 file), so its diff has the named merge gate LCP-HL-DIFF. `interpret_safety.py`, `redaction.py`, `faithfulness.py`, `core/auth.py` and auth/encryption code stay read-only. SAFE-CHAT-AGENT option B only imports `PROHIBITED_PATTERNS`.
 
 ## Open questions
 

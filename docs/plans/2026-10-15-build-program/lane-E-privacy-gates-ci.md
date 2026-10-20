@@ -1,6 +1,6 @@
 # Lane E — Privacy, Gates, CI — Build Design
 
-**Last Updated:** 2026-10-19 (E-1c review round 2: HC-PKT-023, E1C-SCOPE row cited on main); 2026-10-18 (EXPORT-COLLECTED-TZ planned; owner answered (c)); 2026-10-17 (E-1b, REDACT-EMAIL-REDOS, DEV-SH-CC planned)
+**Last Updated:** 2026-10-19 (follow-ups planned: REDACT-WS-REDOS, GATE-12, Q-COV-GATE, PKT-QUESTIONS-REDACT); 2026-10-19 (E-1c review round 2: HC-PKT-023, E1C-SCOPE row cited on main); 2026-10-18 (EXPORT-COLLECTED-TZ planned; owner answered (c)); 2026-10-17 (E-1b, REDACT-EMAIL-REDOS, DEV-SH-CC planned)
 **Owner:** repository owner
 **Status:** DESIGN — nothing here is implemented. Owner answers are quoted from [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md); this file records no new approval. Every "default" or "recommended" is the lane designer's, not the owner's.
 **Refresh Trigger:** any merge of #74, #72, #84 or a P6/P7 PR; an owner answer to S-3, S-6, OG-1, Q-AUD-LIST, Q-RUFF, Q-COV, CI-SEED, NPM-AUDIT-CI or W1-SMOKE-RUN; any commit to `.github/workflows/ci.yml`, `src/backend/api/export.py`, `src/backend/modules/export.py`, `src/backend/modules/redaction.py`, `src/backend/api/profiles.py`, `src/backend/core/auth.py`, `src/backend/core/denial_audit.py` or `src/backend/tests/support/routes.py`.
@@ -28,6 +28,10 @@
 | DEV-SH-CC | `dev.sh` compiler check; skip `llama-cpp-python` under `LLM_PROVIDER=ollama` | queue status 2026-10-16 third batch (MM-4); DEV-SH `owner-decisions:147` | yes → §2.10 | — | ready |
 | EXPORT-COLLECTED-TZ | which day the doctor summary and visit-prep packet print for a lab result | queue status 2026-10-17 (EXPORT-TODAY-TZ planning) | yes → §2.11 | EXPORT-TODAY-TZ merged (same files) | ready after EXPORT-TODAY-TZ merges; owner answered (c) |
 | E-1c | strict misses spaced label shapes (`MRN (hospital): A12345`, `Patient #: 98765`, `MRN - A12345`, ...) and the E-1b review residuals | PR #179 L0 ruling, Known gaps, security review finding 2 | yes → §2.12 | E-1b (merged #179) | ready to build: E1C-SCOPE (b), `owner-decisions-2026-09-27.md:272`; merge needs E1C-DIFF; ask-first `redaction.py` |
+| REDACT-WS-REDOS | strict `dob` and `name_context` (also standard) quadratic on whitespace runs | PR #195 follow-ups; owner REDACT-WS-REDOS `:276` (plan only) | yes → §2.13 | E-1c (merged #195) | blocked-on-owner (REDACT-WS-REDOS-BUILD, then REDACT-WS-REDOS-DIFF); ask-first `redaction.py` |
+| GATE-12 | conftest guard: no test may open the real master DB | owner GATE-12 `:299`; §6 Q-E3; contracts §e item 5 | yes → §2.14 | — | ready |
+| Q-COV-GATE | CI fails below 74% backend coverage | owner Q-COV `:300`; W-11a `:1953` | yes → §2.15 | — | ready |
+| PKT-QUESTIONS-REDACT | the stored visit-prep / pinboard packet keeps raw question text | PR #198 body, follow-up candidate 1 | yes → §2.16 | — | blocked-on-owner (PKT-Q-SCOPE, then PKT-Q-DIFF) |
 
 Graph: `E-3 → E-4 → E-5`; `P6 → P7 → E-2`; E-1, E-6, E-7 independent. E-1 and E-3 are the two lane-E code items ready today and share no file. The 2-code-L1 limit is **box-wide, not per lane**: L0 assigns the slots across lanes (§7 P-1).
 
@@ -388,6 +392,143 @@ Recommended **(b)**. Merge needs **E1C-DIFF** after the draft PR exists: "E1C-DI
 **Doc claim (PR body, PRIV-04 gap column via L0):** name the shapes now matched and the ones that remain. Never "all PHI".
 **Order:** ready to build at scope (b); merge needs E1C-DIFF. Never beside another `redaction.py` / `test_redaction.py` row, never beside EXPORT-TZ-PINS or C-GC1 (`tests/test_visit_prep_packet.py`), and LEGACY-CITE-PROMPT must keep an empty `redaction.py` diff (rebase it after E-1c if E-1c merges first). RSI1-DONATE calls the engine only. **Rollback:** revert; no data.
 
+### 2.13 REDACT-WS-REDOS — strict `dob` and `name_context` are quadratic on long whitespace runs (ask-first `modules/redaction.py`)
+
+**Source:** PR #195 (E-1c) body, "Follow-ups": "`dob` (strict) and `name_context` are quadratic on long whitespace runs: 2.8 s and 2.6 s at 20k spaces, and `"patient name" + 50k spaces` takes 15 s, all in `name_context`. Needs its own owner gate." Owner E1C-DIFF (`docs/capstone-report/owner-decisions-2026-09-27.md:273`): "REDACT-WS-REDOS … become follow-up rows." Owner REDACT-WS-REDOS (`:276`): **"Plan the row now"**, "Licenses planning only; the redaction.py diff still needs a later REDACT-WS-REDOS-DIFF yes." Planned 2026-10-19 on `origin/main` @ `d42dba9`.
+
+**Measured on `d42dba9`** (`RedactionEngine(level).redact(s)`, scratch script through `scripts/pyslot.sh`, not committed; every output equals its input):
+
+| Input | strict | standard | rule (strict, one `search`) |
+|---|---|---|---|
+| `"dob" + " " * 20000 + "x"` | 2.54 s | 0.00 s | `dob` 2.37 s |
+| `"date of birth" + " " * 20000 + "x"` | 2.62 s | 0.00 s | `dob` |
+| `"dob" + "\t" * 20000 + "x"` | 2.61 s | 0.00 s | `dob` |
+| `"dob" + " " * 40000 + "x"` | 9.73 s | 0.00 s | `dob` (2× input → 3.8× time: quadratic) |
+| `"patient" + " " * 20000 + "!"` | 2.59 s | 2.19 s | `name_context` 2.18 s |
+| `"name" + " " * 20000 + "!"` | 2.23 s | 2.38 s | `name_context` |
+| `"patient" + " " * 40000 + "!"` | 9.01 s | 9.00 s | `name_context` |
+| `"patient name" + " " * 50000` | 14.04 s | 14.52 s | `name_context` 14.48 s |
+| `"1" + " " * 20000 + "x"` (`address`, control) | 0.00 s | 0.00 s | — |
+
+`name_context` runs at strict **and** standard (`src/backend/modules/redaction.py:92`), so standard-level callers are slow too (for example the default of `modules/agent/guardrails/redaction_gate.py:38`). `dob` is strict only (`:101`).
+
+**Why:** both patterns put two `\s*` around an optional colon: `\s*:?\s*` (`name_context` `:88`, `dob` `:97`). With no colon, a run of n spaces can be split between the two `\s*` in n+1 ways, and each split is tried when the next token fails: O(n²) per label. In `"patient name" + spaces` the label `name` itself starts a second attempt. This is the shape E-1c removed from `mrn` (its comment at `:121-126`: "the old `\s*[:#]?\s*` could, 2.2 s at 20k spaces").
+
+**Design (strict and standard keep byte-identical output; the implementer drafts the exact diff for REDACT-WS-REDOS-DIFF):** in both patterns replace `\s*:?\s*` with `\s*(?::\s*)?`. That matches the same strings (spaces, an optional colon, spaces), but a space run can only be split one way when there is no colon. Nothing else in either rule changes, including the `(?i)` flag on the name group. **Measured as a scratch check on `d42dba9`** (not committed): the rewritten patterns take 0.001-0.003 s on the inputs above (`"patient name" + 50k spaces`: 0.003 s), and a 48,712-input differential (labels × separators × values × tails, plus 20,000 seeded random strings) gives 0 differences against today's two patterns with `.sub`.
+
+**Owner gates.**
+- **REDACT-WS-REDOS-BUILD** (execution; open). REDACT-WS-REDOS licenses planning only, and RUNBOOK §4 step 4 needs a signed gate naming the exact `redaction.py` edit before a build. Exact wording to ask: "REDACT-WS-REDOS-BUILD: may an agent edit ask-first `modules/redaction.py` to replace `\s*:?\s*` with `\s*(?::\s*)?` in the `name_context` and `dob` patterns only, on a draft PR? Output must stay byte-identical at every level (a differential test proves it), and inputs that take 2.2-14.5 s today must run under 1 s. (a) Yes, build it as planned (Recommended). (b) No, leave both rules."
+- **REDACT-WS-REDOS-DIFF** (merge only; open; asked after the draft PR exists): "REDACT-WS-REDOS-DIFF: here is the exact `modules/redaction.py` diff (two patterns), with the timing and differential output and the mutant table. Merge?"
+
+**Test-first** (`src/backend/tests/test_redaction.py`, next to HC-REDACT-015, same style: `time.perf_counter()`, under 1.0 s, text unchanged):
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-REDACT-017 ×6 (parametrised) | at strict: `"dob" + " " * 50000 + "x"`, `"date of birth" + " " * 50000 + "x"`, `"dob" + "\t" * 50000 + "x"`, `"patient" + " " * 50000 + "!"`, `"name" + " " * 50000 + "!"`, `"patient name" + " " * 50000` → each under 1.0 s and unchanged; the three `name_context` inputs are also run at standard inside the same case | yes ×6 (measured 9-14.5 s at 40k-50k; 50k is used so the bound fails clearly even on a faster CI runner) |
+| HC-REDACT-018 | differential, as HC-REDACT-011: inline copies of today's `name_context` and `dob` rules in a `RedactionEngine(policy_level=lvl, rules=[...])`; a fixed corpus (`Patient: Jane Doe`, `Name : Jane Doe`, `patient\tJane Doe`, `Mr. Smith Jones`, `DOB: 01/02/1980`, `DOB 1-2-80`, `date of birth : 12/31/1999`, `birthdate:01/02/1980`, `Patient:\nJane Doe`, `DOB :: 01/02/1980`) plus 2000 seeded random strings over `patient name dob : \t\n Jane Doe 01/02/1980 x` → the same `text` and the same metadata spans at strict and at standard | no (pin; the mutant `\s*(?::\s*)?` → `(?:\s*:)?` (drops the leading space run when there is no colon) fails it) |
+
+**Mutants (Task 3, output in the PR body):** restore `\s*:?\s*` in either rule → HC-REDACT-017 fails for that rule; drop the colon branch (`\s*`) → HC-REDACT-018 fails on `Patient: Jane Doe`; apply the change to `name_context` only → the three `dob` cases of HC-REDACT-017 fail.
+
+**Files:** `src/backend/modules/redaction.py` (ask-first, **edited only after REDACT-WS-REDOS-BUILD**: `:88` and `:97`), `src/backend/tests/test_redaction.py`, slots.
+**Expected collected delta:** +7 (6 + 1). **Est:** 1.5 h after REDACT-WS-REDOS-BUILD (+ security review).
+**Acceptance** (`pyt` as §2.8): 1. `pyt tests/test_redaction.py tests/test_export_redaction.py -q -rfE`: 0 failed. 2. The E-1a acceptance rows 3-4 suites (the other strict callers) and `tests/test_external_runner_hardening.py` (standard level): same pass/fail as Task 0. 3. Full suite per RUNBOOK §6.
+**Order:** blocked on REDACT-WS-REDOS-BUILD; PR stays draft until REDACT-WS-REDOS-DIFF. Never beside another `redaction.py` / `test_redaction.py` row (none open on `d42dba9`). LEGACY-CITE-PROMPT (#185) and RSI1-DONATE keep an empty `redaction.py` diff. **Rollback:** revert; no data.
+
+### 2.14 GATE-12 — a conftest guard so no test can open the real master DB
+
+**Source:** owner GATE-12 (`docs/capstone-report/owner-decisions-2026-09-27.md:299`): **"Yes, add the row"**, "A planner designs a conftest-level autouse guard so cross-profile tests cannot write into `src/backend/data/asclexis.db`." Lane E Q-E3 (§6 `:436`); contracts §e "Needs the owner" item 5 (`contracts.md:188`); contract I-12 (`contracts.md:32`). Planned 2026-10-19 on `d42dba9`.
+
+**Facts (`d42dba9`):**
+1. The master engine is built at import from `settings.database_url` (`src/backend/core/database.py:44-56`). In local mode that is `sqlite+aiosqlite:///data/asclexis.db`, a path relative to the working directory (`core/config.py:170-177`, `:191-195`), so a run from `src/backend` resolves it to `src/backend/data/asclexis.db`.
+2. `audit_denial` opens its own session from `database.async_session_maker` when it is given none (`core/denial_audit.py:72-79`) and swallows any error (`:80-85`). `core/external_runner.py:129-131`, `modules/backup_scheduler.py:103-107` and `modules/agent/tools/lookup_reference.py:56-60` open the master maker the same way, and `get_db` uses it (`core/database.py:104-113`).
+3. `tests/conftest.py` sets env vars and a writable temp dir only; it has no fixtures.
+
+**Measured on `d42dba9`** (scratch copy, with a pytest plugin that records every connection the real `core.database.engine` makes and every write statement it runs, not committed):
+- **Control:** a test that calls `audit_denial("caller-x", "document")` without the I-12 patch, run with an empty `data/` directory present (as on a developer machine), created `data/asclexis.db` and ran `INSERT INTO audit_logs …`, and the test passed.
+- **Full suite** (1978 collected; 4 failures that need a git checkout, because the scratch copy is not one) with `data/` present: **0 tests** connected to the real master engine, and `data/asclexis.db` was not created. So nothing writes there today, and a guard that fails such a test breaks nothing.
+
+**Design (test infrastructure only; no product file):**
+1. In `tests/conftest.py`, after the env lines: a session-scoped autouse fixture `_gate12_guard` imports `core.database` and registers a SQLAlchemy `do_connect` listener on `database.engine.sync_engine`. The listener appends the running test's node id to a module list `_GATE12_HITS` and raises `RuntimeError("GATE-12: a test opened the real master DB (data/asclexis.db). Patch core.database.async_session_maker to a test maker (contracts I-12).")`. It raises before the DBAPI connects, so no file is created and nothing is written. The fixture removes the listener at session end.
+2. A function-scoped autouse fixture records `len(_GATE12_HITS)` before the test and calls `_gate12_check(start, nodeid)` after it, which calls `pytest.fail(...)` with the message above if the list grew. This catches the swallowed case in fact 2: `audit_denial` logs and returns, but the test still fails.
+3. Tests that patch `core.database.async_session_maker` (I-12) use their own engine and never reach the listener. Tests that build their own engines are not affected.
+
+**Owner gates:** GATE-12 answered (above). `tests/conftest.py` is not ask-first and no lane owns it; this row owns it for its PR. No other gate.
+
+**Test-first** (new file `src/backend/tests/test_gate12_master_db_guard.py`):
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-GATE12-001 | `monkeypatch.chdir(tmp_path)`, `(tmp_path / "data").mkdir()`, clear `core.denial_audit._state`, `await audit_denial("caller-x", "document")` → `tmp_path / "data" / "asclexis.db"` does not exist, and `_GATE12_HITS` gained this test's node id. The test then removes its own hit so its teardown check passes | yes (the control above: the file is created and the row inserted) |
+| HC-GATE12-002 | `_gate12_check(start, "x")` after appending a fake hit raises `pytest.fail.Exception` whose message names GATE-12 and I-12; with no new hit it returns | yes (`_gate12_check` does not exist) |
+| HC-GATE12-003 | an I-12-style test (patch `core.database.async_session_maker` to an in-memory master maker with the audit table) → `audit_denial` writes exactly one `denial.cross_profile` row there and `_GATE12_HITS` does not grow | no (pin: the guard must not block the sanctioned pattern) |
+
+**Files:** `src/backend/tests/conftest.py`, `src/backend/tests/test_gate12_master_db_guard.py` (new), slots. **Re-run, not edited:** `tests/test_denial_audit.py`, `tests/test_export_redaction.py` (HC-EXPR-003, an I-12 test), `tests/test_backup_api.py`, `tests/test_external_runner_hardening.py`.
+**Expected collected delta:** +3. **Est:** 1.5 h.
+**Acceptance:** `pyt tests/test_gate12_master_db_guard.py tests/test_denial_audit.py tests/test_export_redaction.py -q -rfE`: 0 failed; the full suite per RUNBOOK §6 with an empty `src/backend/data/` directory present, then `test ! -e src/backend/data/asclexis.db` (paste both). **Rollback:** revert.
+**Order:** ready now. Never beside another PR on `tests/conftest.py` (none open on `d42dba9`). **Recurring-failures #12 recheck:** this adds a gate. After it merges, L0 runs the full suite on `origin/main` and on every open PR built before it; an open PR with a test that reaches the real master engine now fails, and is rebased and fixed before the rest of the group merges.
+
+### 2.15 Q-COV-GATE — CI fails when backend coverage drops below 74%
+
+**Source:** owner Q-COV (`docs/capstone-report/owner-decisions-2026-09-27.md:300`): **"74% floor (current)"**, "CI fails if backend coverage TOTAL drops below 74%. Becomes row Q-COV-GATE." The W-11a plan left it open: "Q-COV. Coverage stays report-only. A threshold, if any, is set after the first measured TOTAL" (`docs/plans/2026-09-27-W11a-test-and-gate-hardening.md:1953`).
+
+**Facts (`d42dba9`):**
+1. CI's `backend-tests` job runs `bash scripts/run-backend-tests.sh -q --cov=api --cov=core --cov=models --cov=modules --cov=monitoring --cov=security --cov=scripts --cov-report=term --cov-report=xml:coverage.xml` (`.github/workflows/ci.yml:61-62`), then fails only if `coverage.xml` is missing (`:64-65`) and uploads it (`:67-72`). There is no threshold. `scripts/run-backend-tests.sh` ends with `python3 -m pytest "$@"` under `set -euo pipefail`, so pytest's exit code is the step's.
+2. `docs/architecture/ci-and-quality-gates.md:48` says `backend-tests` fails on "a missing coverage report (coverage report only, no threshold …)".
+3. No coverage config file exists (`src/backend/pyproject.toml` has no `[tool.coverage]`; no `.coveragerc`). `src/backend/requirements.txt:117` pins `pytest-cov>=4.1.0`.
+
+**Measured:**
+- CI run 39276536690 (main @ `d42dba9`, 2026-10-19): `TOTAL 17076 4165 76%`, so 75.61% (1 − 4165/17076), 1.61 points over the floor. The owner row calls 74% "current"; it was set below today's TOTAL, not at it.
+- Mechanism (scratch copy, `tests/test_time_source.py` with `--cov=core`, TOTAL 26.28%): `--cov-fail-under=99` → the tests pass, pytest prints `FAIL Required test coverage of 99% not reached. Total coverage: 26.28%` and exits 1; `--cov-fail-under=1` → `Required test coverage of 1% reached.`, exit 0.
+
+**Design:** append `--cov-fail-under=74` to the existing `Run backend tests (with coverage report)` command (`ci.yml:62`). pytest-cov checks the same TOTAL the step already prints, after it writes the reports. Rename the step to `Run backend tests (coverage report, 74% floor)`. A separate `coverage report --fail-under` step is not used: without the same `--cov` sources it leaves never-imported files out, so its TOTAL could differ from the printed one. Update `ci-and-quality-gates.md:48`: "… or a missing coverage report, or a coverage TOTAL below 74% (owner Q-COV, 2026-10-19)."
+
+**Owner gates:** Q-COV answered (above). Nothing ask-first.
+
+**Test-first (a CI gate; no pytest id):**
+
+| Check | Expected | RED today? |
+|---|---|---|
+| Local, in the worktree: the CI command plus `--cov-fail-under=74` (through `scripts/pyslot.sh`) | exit 0 and `Required test coverage of 74% reached. Total coverage: NN.NN%` (paste NN.NN; it may differ from CI, which is the authority) | n/a |
+| Break-it, local: the same command with `--cov-fail-under=99` | the suite passes, then `FAIL Required test coverage of 99% not reached`, exit 1 | n/a (proves the step can fail) |
+| CI on the PR | `backend-tests` green, its log shows `Required test coverage of 74% reached` | today the log has no such line |
+
+**Files:** `.github/workflows/ci.yml` (the `backend-tests` test step only), `docs/architecture/ci-and-quality-gates.md` (`:48` row only). No slots (no test added).
+**Expected collected delta:** 0. **Est:** 0.5 h.
+**Acceptance:** the three checks above, pasted; `python3 scripts/docs_lint.py`. **Rollback:** revert.
+**Order:** ready now. Never beside another `ci.yml` or `ci-and-quality-gates.md` PR (none open on `d42dba9`). **Recurring-failures #12 recheck:** this adds a CI gate. After it merges, L0 re-runs CI (or the local command with `--cov-fail-under=74`) on `origin/main` and on every open PR built before it, before merging the rest of the group: a PR that adds a lot of untested code can now fail `backend-tests` although it was green on its own head.
+
+### 2.16 PKT-QUESTIONS-REDACT — the stored packet keeps unredacted question text (privacy; export path)
+
+**Source:** PR #198 (EXPORT-TZ-PINS) body, "Follow-up candidates, outside this PR": "(1) `_packet_store[...]["questions"]` keeps unredacted question text in memory. Nothing serves it today, but any future reader of that field would bypass strict redaction." Planned 2026-10-19 on `d42dba9`.
+
+**Facts (`d42dba9`):**
+1. `compose_visit_prep_packet` renders the questions into a section (`src/backend/modules/export.py:673-674`) and redacts every section at strict (`:694-699`), but its return dict also carries `"questions": [{"question": q.question, "category": q.category} …]` straight from the inputs (`:730-733`).
+2. Question text carries user text: the care-task question is `f"This follow-up is still open: {task.get('title', '')}. Should it be scheduled?"` (`:513`).
+3. Both callers store the whole dict: `api/export.py:821` (`POST /export/visit-prep`) and `api/pinboards.py:514` (pinboard export). No product code reads `packet["questions"]` today: the download route passes `"questions": []` (`api/export.py:896`), and `api/export.py:593-597` reads the doctor-summary dict, not the packet. #198's new tests (HC-EXPTZ-008/009) read the field.
+4. C-GC1 (Wave 14) plans to persist export artifacts as `payload_json` (lane C §3, `ExportArtifact` with kind `visit_prep`). If it stores this dict, the unredacted text goes to disk.
+
+**Measured** (scratch test): `ExportModule().compose_visit_prep_packet(profile_id="p1", questions=[QuestionPrompt(question="This follow-up is still open: Call Dr. Jane Smith, MRN: A1234567. Should it be scheduled?", category="follow_up")])` → `markdown` contains neither `Jane` nor `A1234567`; `packet["questions"]` holds the full question with both.
+
+**Owner gates** (the fix edits the export path that CLAUDE.md's "Redaction before anything leaves" invariant covers; `modules/redaction.py` is **called only**):
+- **PKT-Q-SCOPE** (execution; open). Exact wording: "PKT-Q-SCOPE: the visit-prep and pinboard packets redact every section at strict, but the stored packet dict also keeps a `questions` list with the raw question text (care-task titles, measured with a name and an MRN). Nothing reads it today; C-GC1 plans to persist packets. Which fix? (a) Redact each stored question with the same strict engine as the sections, keep the field (Recommended: one line in `modules/export.py`; #198's tests keep working because their task titles hold no PHI). (b) Drop the `questions` field from the stored packet (#198's two tests must then read the markdown instead). (c) Leave it and record it as a C-GC1 constraint."
+- **PKT-Q-DIFF** (merge only; open; asked after the draft PR exists): "PKT-Q-DIFF: here is the exact `modules/export.py` diff for PKT-QUESTIONS-REDACT under option (x), with RED/GREEN output. Merge?"
+
+**Design (under (a)):** in `compose_visit_prep_packet`, build the `questions` list with `engine.redact(q.question).text` using the strict `engine` already created at `:694`. `redaction_count` does not change: the same text is already counted once in the questions section.
+
+**Test-first** (`src/backend/tests/test_visit_prep_packet.py`):
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-PKT-024 | through `route_client` (as HC-PKT-023): an open care task titled `Call Dr. Jane Smith, MRN: A1234567`, `POST /export/visit-prep` `{"confirm": true, "include_tasks": true, "include_questions": true}` → 200; `api.export._packet_store[packet_id]["questions"]` is non-empty (so the check is not vacuous) and no entry contains `Jane`, `Smith` or `A1234567` | yes (measured at module level: the field keeps both) |
+| HC-PKT-025 | the same through the pinboard export (`POST /pinboards/{id}/export`, the task pinned as `item_type="question"`) | yes (same function, `api/pinboards.py:514`) |
+
+Under (b), both tests assert `"questions" not in` the stored packet instead, and #198's HC-EXPTZ-008/009 move to the markdown.
+
+**Files:** `src/backend/modules/export.py` (`:730-733` only), `src/backend/tests/test_visit_prep_packet.py`, `src/backend/tests/test_pinboards.py` (HC-PKT-025; under (b) also #198's HC-EXPTZ-008), slots. **Re-run, not edited:** `tests/test_export_redaction.py`, `tests/test_export_questions.py`, `tests/test_export_api.py`, `tests/test_audit_order.py`.
+**Expected collected delta:** +2. **Est:** 1 h after PKT-Q-SCOPE.
+**Acceptance:** `pyt tests/test_visit_prep_packet.py tests/test_pinboards.py tests/test_export_redaction.py tests/test_export_questions.py -q -rfE`: 0 failed; `git diff origin/main -- src/backend/modules/redaction.py` empty; full suite per RUNBOOK §6. **Rollback:** revert.
+**Order:** blocked on PKT-Q-SCOPE; PR stays draft until PKT-Q-DIFF. Never beside EXPORT-TZ-PINS (#198) or C-GC1 (`tests/test_visit_prep_packet.py`, `tests/test_pinboards.py`); land it before C-GC1, or C-GC1 must not persist the field.
+
 ---
 
 ## 3. Provides
@@ -418,7 +559,7 @@ Recommended **(b)**. Merge needs **E1C-DIFF** after the draft PR exists: "E1C-DI
 | OG-1 (edit `api/profiles.py`, auth-adjacent) + Q-AUD-LIST | E-2 Task 2 | **unsigned**. RESET-AUDIT-OWNER (`:89`) assigns the reset audit to PR-1 but is not OG-1 |
 | `core/auth.py`, `core/audit.py` | E-2, E-3 | not edited by any lane-E item |
 | Q-RUFF | E-3 Task 7 | **unsigned**; recommended (a) hard-error rules only (0 findings today) |
-| Q-COV | E-3 | unsigned; only a threshold needs it; report-only proceeds |
+| Q-COV | E-3 | answered 2026-10-19 (74% floor, `:300`); the threshold is row Q-COV-GATE (§2.15) |
 | CI-SEED (W-11a OG-3) | E-3 Task 8 Step 4 | unsigned; W4-CI-SEED (`:106`) does not cover it |
 | TW4-SHOTS + #74 merge | E-4 | owner compares screenshots (`:140`); owner merges |
 | NPM-AUDIT-CI (new) | E-5 | unasked; default do not add |
@@ -428,12 +569,16 @@ Recommended **(b)**. Merge needs **E1C-DIFF** after the draft PR exists: "E1C-DI
 | REDOS-APPROACH (new) | REDACT-EMAIL-REDOS | unasked; (a) `@`-anchored match, identical output / (b) RFC bounds, narrower / (c) leave. Recommended (a) |
 | EXPORT-COLLECTED-TZ-DISPLAY | EXPORT-COLLECTED-TZ | **answered 2026-10-18: (c) "As recorded + pin"** (owner-decisions row EXPORT-COLLECTED-TZ-DISPLAY) |
 | E1C-SCOPE, E1C-DIFF | E-1c | E1C-SCOPE **answered (b)** 2026-10-19 (`docs/capstone-report/owner-decisions-2026-09-27.md:272`, PR #190 merged): spaced shapes + underscore residuals with a separator. E1C-DIFF (merge) open, asked after the draft PR exists |
+| REDACT-WS-REDOS-BUILD, REDACT-WS-REDOS-DIFF (new) | REDACT-WS-REDOS | REDACT-WS-REDOS answered 2026-10-19 "Plan the row now" (`owner-decisions-2026-09-27.md:276`, planning only). **REDACT-WS-REDOS-BUILD** (edit licence) open; **REDACT-WS-REDOS-DIFF** (merge only) open, asked after the draft PR exists. Exact wording in §2.13 |
+| GATE-12 | GATE-12 | **answered 2026-10-19: yes, add the row** (`:299`) |
+| Q-COV | Q-COV-GATE (was E-3) | **answered 2026-10-19: 74% floor** (`:300`) |
+| PKT-Q-SCOPE, PKT-Q-DIFF (new) | PKT-QUESTIONS-REDACT | both open (export path under the redaction invariant; `redaction.py` called only). Exact wording in §2.16; recommended (a) |
 
 ## 6. Open questions
 
 1. **Q-E1 (E-3 order):** the lane drops the `W-4 → W-11a PR-3` ordering (§2.3) because the `ci.yml` hunks are disjoint and #72 waits on an owner model-host run. The orchestrator records this in program `:142`, or says no and PR-3 waits for #72.
 2. **Q-E2 (E-2):** should HC-PGUARD's denial-row assertion live in PR-1, or stay with `test_denial_audit.py`? Default: in PR-1, because it is the HTTP proof that `require_profile_access` writes the row.
-3. **Q-E3 (GATE-12):** #78 made every cross-profile 403 on a `require_profile_access` route write through `core.database.async_session_maker`. A route test that forgets the patch writes to `src/backend/data/asclexis.db` if it exists. A conftest-level autouse patch would close this for all tests, but `tests/conftest.py` is read-only for W-11a (plan §1). Register as a GATE-12 follow-up?
+3. **Q-E3 (GATE-12):** *Answered 2026-10-19 (owner GATE-12, `owner-decisions-2026-09-27.md:299`: yes, add the row); planned as §2.14.* #78 made every cross-profile 403 on a `require_profile_access` route write through `core.database.async_session_maker`. A route test that forgets the patch writes to `src/backend/data/asclexis.db` if it exists. A conftest-level autouse patch would close this for all tests, but `tests/conftest.py` is read-only for W-11a (plan §1). Register as a GATE-12 follow-up?
 4. **Q-E4 (E-5):** if `npm audit` on merged main is still > 0, does each remaining advisory need its own owner row (FE-SEQ reading), or one row for the batch?
 5. **Q-E5 (E-6):** may an L1 in a fresh Claude Code session inside the smoke worktree run W-1 Task 7 instead of the owner (W1-SMOKE-RUN)?
 
