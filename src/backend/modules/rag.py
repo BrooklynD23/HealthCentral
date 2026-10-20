@@ -1110,31 +1110,43 @@ I was unable to fully process your question within the time limit. Please try as
             verification_summary=verification_results.summary,
         )
 
+    # A section header counts only at the start of a line (LCP-HL-SCOPE (a)). The
+    # keyword must be followed by ":", "**" or the end of the line, so a prose line
+    # such as "Uncertainty about lab ranges [cite:1]" is not a header.
+    _SECTION_HEADER_RE = re.compile(
+        r"^[ \t]*(?:\*\*|#+[ \t]*)?"
+        r"(REPORT FACTS|GENERAL INFO|UNCERTAINTIES|UNCERTAINTY)"
+        r"(?=:|\*\*|[ \t]*$)\**:?",
+        re.IGNORECASE | re.MULTILINE,
+    )
+    _SECTION_TYPES = {
+        "REPORT FACTS": "report_facts",
+        "GENERAL INFO": "general_info",
+        "UNCERTAINTIES": "uncertainty",
+        "UNCERTAINTY": "uncertainty",
+    }
+
     def _parse_response_segments(self, response: str) -> list[ResponseSegment]:
-        """Parse response into labeled segments."""
+        """Parse response into labeled segments.
+
+        Text before the first header, and headerless text, is REPORT FACTS so the
+        citation check applies to it. Empty or whitespace-only text gives no segment.
+        """
         segments = []
+        headers = list(self._SECTION_HEADER_RE.finditer(response))
 
-        # Look for section headers
-        section_patterns = [
-            (r"REPORT FACTS:?\s*(.*?)(?=GENERAL INFO:|UNCERTAINTIES:|$)", "report_facts"),
-            (r"GENERAL INFO:?\s*(.*?)(?=REPORT FACTS:|UNCERTAINTIES:|$)", "general_info"),
-            (r"UNCERTAINTIES:?\s*(.*?)(?=REPORT FACTS:|GENERAL INFO:|$)", "uncertainty"),
-        ]
+        prefix = response[: headers[0].start()] if headers else response
+        if prefix.strip():
+            segments.append(ResponseSegment(segment_type="report_facts", content=prefix.strip()))
 
-        for pattern, segment_type in section_patterns:
-            match = re.search(pattern, response, re.IGNORECASE | re.DOTALL)
-            if match and match.group(1).strip():
+        for i, header in enumerate(headers):
+            end = headers[i + 1].start() if i + 1 < len(headers) else len(response)
+            content = response[header.end() : end].strip()
+            if content:
                 segments.append(ResponseSegment(
-                    segment_type=segment_type,
-                    content=match.group(1).strip(),
+                    segment_type=self._SECTION_TYPES[header.group(1).upper()],
+                    content=content,
                 ))
-
-        # If no sections found, treat entire response as general
-        if not segments:
-            segments.append(ResponseSegment(
-                segment_type="general_info",
-                content=response.strip(),
-            ))
 
         return segments
 
