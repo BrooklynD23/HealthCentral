@@ -166,7 +166,7 @@ HealthCentral supports opt-in feedback collection and RL dataset export for mode
 | Gap | Priority | Plan |
 |-----|----------|------|
 | Multi-factor authentication | Medium | Planned for server mode |
-| Key rotation | Medium | Manual via password change |
+| Key rotation | Medium | Owner-approved 2026-10-19, not yet implemented (plan: [decision packet Brief 2](../../audit/2026-09-25/gated-items-decision-packet.md#brief-2--key-rotation)). Until it ships, a password change re-seals the existing data key only. |
 | Network segmentation | Low | N/A for local mode |
 | Penetration testing | Medium | Scheduled for post-launch |
 | Business Associate Agreement template | High | Required for server deployments |
