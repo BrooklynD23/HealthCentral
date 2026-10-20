@@ -2,6 +2,7 @@
 
 RSI1-DONATE: consent record plus the redacted-only donated set. There is no
 raw-text column and no foreign key (source_id is an opaque reference).
+correction_redacted holds the patient's redacted correction, NULL when none.
 
 Revision ID: 015_data_donation
 Revises: 014_streaks_hidden
@@ -51,6 +52,7 @@ def upgrade() -> None:
         sa.Column("parent_id", sa.String(36), nullable=True),
         sa.Column("prompt_redacted", sa.Text(), nullable=False),
         sa.Column("response_redacted", sa.Text(), nullable=False),
+        sa.Column("correction_redacted", sa.Text(), nullable=True),
         sa.Column("strict_redaction_count", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("created_at", sa.DateTime(), nullable=False),
     )

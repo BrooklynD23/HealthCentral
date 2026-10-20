@@ -37,6 +37,17 @@ def _active_index_sql(vault_path: Path, key: bytes) -> str | None:
         engine.dispose()
 
 
+def _table_info(vault_path: Path, key: bytes, table: str) -> list[tuple]:
+    from sqlalchemy import text
+
+    engine = _engine(vault_path, key)
+    try:
+        with engine.connect() as conn:
+            return [tuple(r) for r in conn.execute(text(f"PRAGMA table_info({table})"))]
+    finally:
+        engine.dispose()
+
+
 def _engine(vault_path: Path, key: bytes):
     from sqlalchemy import create_engine, event
 
@@ -88,6 +99,16 @@ def test_hc_don_001_migration_round_trip_single_head(tmp_path, monkeypatch):
     assert "CREATE UNIQUE INDEX" in sql
     assert "(PROFILE_ID, PURPOSE)" in sql
     assert "WHERE REVOKED_AT IS NULL" in sql
+
+    # PRAGMA table_info rows: (cid, name, type, notnull, dflt_value, pk).
+    from models.data_donation import DonatedRecord
+
+    info = {r[1]: r for r in _table_info(vault, key, "donated_records")}
+    assert "correction_redacted" in info
+    assert info["correction_redacted"][2].upper() == "TEXT"
+    assert info["correction_redacted"][3] == 0  # nullable
+    # The migrated column set must equal the model's: kills model/migration drift.
+    assert set(info) == set(DonatedRecord.__table__.columns.keys())
 
     command.downgrade(cfg, "014_streaks_hidden")
     assert not set(TABLES) & _tables(vault, key)

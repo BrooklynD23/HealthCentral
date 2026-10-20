@@ -45,7 +45,10 @@ class DonationConsent(ProfileDatabaseBase):
 
 
 class DonatedRecord(ProfileDatabaseBase):
-    """A strict-redacted record donated for one purpose."""
+    """A strict-redacted record donated for one purpose.
+
+    correction_redacted holds the patient's redacted correction, NULL when the patient gave none.
+    """
 
     __tablename__ = "donated_records"
 
@@ -58,5 +61,6 @@ class DonatedRecord(ProfileDatabaseBase):
     parent_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True, index=True)
     prompt_redacted: Mapped[str] = mapped_column(Text, nullable=False)
     response_redacted: Mapped[str] = mapped_column(Text, nullable=False)
+    correction_redacted: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     strict_redaction_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
