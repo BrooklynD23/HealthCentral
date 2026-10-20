@@ -630,3 +630,4 @@ async def test_hc_audcms_005_external_api_save_without_key_keeps_key_and_audits_
     assert "sk-canary-123" not in resp2.text
     assert stored_key not in resp2.text
     assert "sk-canary-123" not in repr(calls[1])
+    assert stored_key not in repr(calls[1])
