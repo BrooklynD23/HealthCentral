@@ -305,3 +305,40 @@ async def test_hc_aad_014_null_dated_selected_row_does_not_break_the_agent(profi
     body = _post(profile_db, {"question": GLUCOSE_Q, "selected_analytes": ["potassium"]})
     assert body["verification"]["summary"].startswith("agent:"), body["verification"]
     assert _cited(body) == {"obs-g-jan", "obs-g-jun", "obs-k-jun"}
+
+
+def _answer_text(body: dict) -> str:
+    return " ".join(seg["content"] for seg in body["segments"])
+
+
+@pytest.mark.asyncio
+async def test_hc_cfr_009_cache_key_includes_profile_time_zone(profile_db):
+    """The answer prints local dates, so a time-zone change must not replay the
+    answer cached under the old zone. 2026-01-16 03:00 UTC is Jan 15 in Los
+    Angeles and Jan 16 in Tokyo."""
+    from sqlalchemy import update
+
+    from models import UserModelSettings
+
+    profile_db.add(Observation(
+        id="obs-ldl-tz", profile_id=PROFILE, doc_id="doc-jun", analyte_canonical="ldl",
+        analyte_raw="LDL", value=130.0, unit="mg/dL", collected_at=datetime(2026, 1, 16, 3, 0, 0),
+        user_verified=True, verified_at=JUN,
+    ))
+    profile_db.add(UserModelSettings(profile_id=PROFILE, timezone="America/Los_Angeles"))
+    await profile_db.commit()
+
+    question = {"question": "Is my LDL cholesterol high?"}
+    first = _answer_text(_post(profile_db, question))
+    assert "Jan 15, 2026" in first, first
+
+    await profile_db.execute(
+        update(UserModelSettings)
+        .where(UserModelSettings.profile_id == PROFILE)
+        .values(timezone="Asia/Tokyo")
+    )
+    await profile_db.commit()
+
+    second = _answer_text(_post(profile_db, question))
+    assert "Jan 16, 2026" in second, second
+    assert "Jan 15, 2026" not in second, second

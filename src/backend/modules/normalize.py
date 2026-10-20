@@ -241,6 +241,15 @@ class NormalizeModule:
         "vitamin_b12": "Vitamin B12",
         "ferritin": "Ferritin",
         "crp": "C-Reactive Protein (CRP)",
+        "mcv": "MCV (Mean Corpuscular Volume)",
+        "mch": "MCH (Mean Corpuscular Hemoglobin)",
+        "mchc": "MCHC (Mean Corpuscular Hemoglobin Concentration)",
+        "rdw": "RDW (Red Cell Distribution Width)",
+        "ast": "AST (Aspartate Aminotransferase)",
+        "alt": "ALT (Alanine Aminotransferase)",
+        "tibc": "TIBC (Total Iron-Binding Capacity)",
+        "esr": "ESR (Erythrocyte Sedimentation Rate)",
+        "egfr": "eGFR (Estimated Glomerular Filtration Rate)",
     }
 
     def __init__(self):

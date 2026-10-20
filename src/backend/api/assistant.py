@@ -28,7 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.audit import audit_and_commit, audit_intent, create_audit_log
 from core.auth import ProfileDbSession, RequireAuth
 from core.database import get_db
-from core.time import utcnow
+from core.time import profile_timezone_name, utcnow
 from models.chat_session import ChatSession, ChatTurn
 from models.document import Document
 from models.model_settings import UserModelSettings
@@ -804,6 +804,7 @@ async def _serve_via_agent(
         normalized_question=normalize_question(question),
         profile_version=profile_version,
         profile_id=profile_id,
+        tz_name=await profile_timezone_name(profile_db, profile_id),
         filters=filters,
     )
 
