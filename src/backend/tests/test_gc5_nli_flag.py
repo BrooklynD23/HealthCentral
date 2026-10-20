@@ -78,7 +78,8 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 # Copied from tests/test_embedding_bundle.py (HC-EMB probe): socket methods are
 # patched on the class; replacing socket.socket breaks a later `import ssl`.
 _NLI_PROBE = r'''
-import json, socket
+import json, logging, socket, sys
+logging.basicConfig(level=logging.DEBUG, stream=sys.stderr)
 attempts = []
 def _blocked(*args, **kwargs):
     attempts.append("network")
@@ -147,14 +148,18 @@ def _run_nli_probe(tmp_path: Path, model_dir: Path) -> dict:
     assert proc.returncode == 0 and lines, f"probe crashed:\n{proc.stderr[-3000:]}"
     out = json.loads(lines[-1].split("=", 1)[1])
     # Native-code fetches that bypass Python sockets would land in the empty cache.
+    out["probe_output"] = proc.stdout + proc.stderr
     out["hf_cache_files"] = [str(p) for p in hf_home.rglob("*") if p.is_file()] if hf_home.exists() else []
     return out
 
 
 def test_hc_gc5_003_offline_load_opens_zero_sockets(tmp_path):
-    model_dir = _build_stand_in_nli(tmp_path / "nli-stand-in")
+    model_dir = _build_stand_in_nli(tmp_path / "jane-doe-home" / "nli-stand-in")
     out = _run_nli_probe(tmp_path, model_dir)
     assert out["attempts"] == []
+    # The library logs the model path at INFO while loading; at DEBUG nothing may carry it.
+    for needle in (str(model_dir), "jane-doe-home"):
+        assert needle not in out["probe_output"], f"{needle!r} leaked into the probe's stdout/stderr"
     assert out["hf_cache_files"] == []
     assert out["n_scores"] == 3
     assert out["prob_sum"] == pytest.approx(1.0, abs=1e-4)
@@ -368,3 +373,88 @@ def test_hc_gc5_004_absent_model_behaviour(tmp_path, monkeypatch):
     # Sha gate: real-looking files whose weights do not match the manifest pin.
     stand_in = _build_stand_in_nli(tmp_path / "wrong-sha")
     _assert_left_unverified(stand_in, monkeypatch)
+
+
+# ---------------------------------------------------------------------------
+# HC-GC5-004b/c: no log sink, stdout/stderr or cause chain carries the model path
+# (recurring-failures #9; same rule as HC-EMB-010a-c)
+# ---------------------------------------------------------------------------
+
+import logging  # noqa: E402
+from types import SimpleNamespace  # noqa: E402
+
+from tests.test_embedding_fail_closed_paths import _assert_no_path, _leak_surfaces  # noqa: E402
+
+
+def test_hc_gc5_004b_failures_leak_no_model_path(tmp_path, monkeypatch, caplog, capfd):
+    import modules.model_integrity as mi
+    from core.config import settings
+    from modules.embeddings import EmbeddingModelUnavailableError, load_local_cross_encoder
+
+    home = tmp_path / "jane-doe-home"
+
+    def _load_fails(model_dir: Path) -> EmbeddingModelUnavailableError:
+        monkeypatch.setattr(settings, "nli_model_path", str(model_dir))
+        monkeypatch.setattr(emb, "_nli_encoder", None)
+        with pytest.raises(EmbeddingModelUnavailableError) as failed:
+            load_local_cross_encoder()
+        return failed.value
+
+    with caplog.at_level(logging.DEBUG):
+        absent = _load_fails(home / "absent")
+        wrong_sha = _load_fails(_build_stand_in_nli(home / "wrong-sha"))
+        # Sha gate satisfied, package cannot load the files: the real failure path.
+        corrupt_dir = home / "corrupt"
+        corrupt_dir.mkdir(parents=True)
+        (corrupt_dir / "config.json").write_text("{}", encoding="utf-8")
+        (corrupt_dir / "model.safetensors").write_bytes(b"not a model")
+        monkeypatch.setattr(
+            mi, "verify_model_file",
+            lambda *a, **k: SimpleNamespace(status=mi.IntegrityStatus.VERIFIED),
+        )
+        corrupt = _load_fails(corrupt_dir)
+        # Through the verifier: the WARNING it logs must be path-free too.
+        monkeypatch.setattr(settings, "nli_model_path", str(home / "absent"))
+        monkeypatch.setattr(emb, "_nli_encoder", None)
+        VerifierAgent(VerificationConfig(use_llm_entailment=True)).verify_claim(_CLAIM, "c1", [_SOURCE])
+
+    assert "failed to load" in str(corrupt), "the real package did not fail on the corrupt files"
+    for err in (absent, wrong_sha, corrupt):
+        assert str(home) not in str(err) and "jane-doe-home" not in str(err)
+        assert err.__cause__ is None
+    assert corrupt.__suppress_context__ is True  # raised inside `except`: `from None` drops the chain
+    _assert_no_path(_leak_surfaces(caplog, capfd), str(home), "jane-doe-home", str(tmp_path))
+
+
+def test_hc_gc5_004c_load_restores_library_logger_levels(tmp_path, monkeypatch):
+    import modules.model_integrity as mi
+    import sentence_transformers
+    from core.config import settings
+    from modules.embeddings import EmbeddingModelUnavailableError, load_local_cross_encoder
+
+    model_dir = tmp_path / "corrupt"
+    model_dir.mkdir()
+    (model_dir / "config.json").write_text("{}", encoding="utf-8")
+    (model_dir / "model.safetensors").write_bytes(b"x")
+    monkeypatch.setattr(settings, "nli_model_path", str(model_dir))
+    monkeypatch.setattr(emb, "_nli_encoder", None)
+    monkeypatch.setattr(mi, "verify_model_file", lambda *a, **k: SimpleNamespace(status=mi.IntegrityStatus.VERIFIED))
+    loggers = {n: logging.getLogger(n) for n in ("sentence_transformers", "transformers")}
+    before = {n: lg.level for n, lg in loggers.items()}
+    seen: dict = {}
+
+    def _stub(path, **kwargs):
+        seen.update({n: lg.getEffectiveLevel() for n, lg in loggers.items()})
+        raise RuntimeError("stop")
+
+    for lg in loggers.values():
+        lg.setLevel(logging.INFO)
+    monkeypatch.setattr(sentence_transformers, "CrossEncoder", _stub)
+    try:
+        with pytest.raises(EmbeddingModelUnavailableError):
+            load_local_cross_encoder()
+        assert seen and all(level >= logging.WARNING for level in seen.values()), seen
+        assert all(lg.level == logging.INFO for lg in loggers.values())
+    finally:
+        for n, lg in loggers.items():
+            lg.setLevel(before[n])

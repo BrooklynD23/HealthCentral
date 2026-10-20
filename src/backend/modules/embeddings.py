@@ -82,24 +82,34 @@ def load_local_cross_encoder():
     model_dir = resolve_nli_model_dir()
     missing = [n for n in NLI_REQUIRED_FILES if not (model_dir / n).is_file()]
     if missing:
+        # Messages are path-free: they reach logs (recurring-failures #9).
         raise EmbeddingModelUnavailableError(
-            f"NLI model not installed at {model_dir} ({len(missing)} required files missing). "
+            f"NLI model not installed ({len(missing)} required files missing). "
             "Fetch it once with: cd src/backend && python scripts/download_models.py nli"
         )
     from modules.model_integrity import IntegrityStatus, verify_model_file
 
     if verify_model_file(model_dir / "model.safetensors", NLI_MANIFEST_KEY).status is not IntegrityStatus.VERIFIED:
-        raise EmbeddingModelUnavailableError(f"NLI weights at {model_dir} do not match the pinned sha256")
+        raise EmbeddingModelUnavailableError("NLI weights do not match the pinned sha256")
     try:
         from sentence_transformers import CrossEncoder
-    except ImportError as exc:
-        raise EmbeddingModelUnavailableError("sentence-transformers is not installed") from exc
+    except ImportError:
+        raise EmbeddingModelUnavailableError("sentence-transformers is not installed") from None
+    # sentence_transformers and transformers log the model path at INFO while loading;
+    # keep it out of any log sink.
+    quiet = [logging.getLogger(n) for n in ("sentence_transformers", "transformers")]
+    prev_levels = [lg.level for lg in quiet]
+    for lg in quiet:
+        lg.setLevel(max(lg.getEffectiveLevel(), logging.WARNING))
     try:
         _nli_encoder = CrossEncoder(str(model_dir), local_files_only=True)
     except Exception as exc:  # corrupt or incompatible files: fail closed, never download
         raise EmbeddingModelUnavailableError(
-            f"NLI model at {model_dir} failed to load: {type(exc).__name__}"
-        ) from exc
+            f"NLI model failed to load: {type(exc).__name__}"
+        ) from None
+    finally:
+        for lg, level in zip(quiet, prev_levels):
+            lg.setLevel(level)
     return _nli_encoder
 
 
