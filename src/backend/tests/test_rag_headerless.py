@@ -15,6 +15,8 @@ HC-LCPH-010  GENERAL INFORMATION stays a section header
 HC-LCPH-011  over HTTP: bullet / space-colon / dash / paren header forms still split
 HC-LCPH-012  over HTTP: a "Based on the provided" prefix does not exempt a cited/numeric claim
 HC-LCPH-013  pin: an UNCERTAINTY section is not verified (owner LCP-HL-SCOPE (a))
+HC-LCPH-014  over HTTP: "Uncertainty-wise" / "Uncertainty (in my reading)" prose is not a header
+HC-LCPH-015  filter_unverifiable_claims: an uncited numeric meta claim stays verifiable
 """
 
 from __future__ import annotations
@@ -221,6 +223,12 @@ def test_hc_lcph_011_header_forms_split_so_uncited_text_is_not_served(header):
     assert ClaimExtractor()._parse_sections(prose) == [("report_facts", prose)]
 
 
+META_PREFIXED_ANSWER = (
+    "Based on the provided records, your glucose is 300 mg/dL, far above the range [cite:1].\n\n"
+    "REPORT FACTS:\n- Glucose: 95 mg/dL (reference range 70-100 mg/dL) [cite:1]"
+)
+
+
 def test_hc_lcph_012_meta_prefix_does_not_exempt_cited_numeric_claim_over_http():
     with legacy_chat_client(build_chunks("glucose"), META_PREFIXED_ANSWER) as (client, _append):
         resp = client.post(CHAT_PATH, json={"question": "What was my glucose?"})
@@ -228,12 +236,6 @@ def test_hc_lcph_012_meta_prefix_does_not_exempt_cited_numeric_claim_over_http()
     body = resp.json()
     assert "300 mg/dL" not in body["full_response"]
     assert all("300 mg/dL" not in s["content"] for s in body["segments"])
-
-
-META_PREFIXED_ANSWER = (
-    "Based on the provided records, your glucose is 300 mg/dL, far above the range [cite:1].\n\n"
-    "REPORT FACTS:\n- Glucose: 95 mg/dL (reference range 70-100 mg/dL) [cite:1]"
-)
 
 
 def test_hc_lcph_013_pin_uncertainty_section_is_not_verified():
@@ -246,6 +248,38 @@ def test_hc_lcph_013_pin_uncertainty_section_is_not_verified():
         resp = client.post(CHAT_PATH, json={"question": "What was my glucose?"})
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    print("HC-LCPH-013 measured:", body["is_valid"], repr(body["full_response"]))
     assert body["is_valid"] is True
     assert "300 mg/dL" in body["full_response"]
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "Uncertainty-wise, your glucose is 300 mg/dL [cite:1]",
+        "Uncertainty (in my reading) remains, your glucose is 300 mg/dL [cite:1]",
+    ],
+    ids=["hyphen-joined", "paren-no-colon"],
+)
+def test_hc_lcph_014_prose_after_facts_is_not_an_uncertainty_header(line):
+    """Prose must not become an unverified UNCERTAINTY section (abstains on main)."""
+    answer = FACTS_LINE + line
+    with legacy_chat_client(build_chunks("glucose"), answer) as (client, _append):
+        resp = client.post(CHAT_PATH, json={"question": "What was my glucose?"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["is_valid"] is False
+    assert "300 mg/dL" not in body["full_response"]
+    assert all("300 mg/dL" not in s["content"] for s in body["segments"])
+    assert [t for t, _ in ClaimExtractor()._parse_sections(answer)] == ["report_facts"]
+
+
+def test_hc_lcph_015_uncited_numeric_meta_claim_stays_verifiable():
+    # Digit half of carries_fact on its own. The cite half is covered by the digit
+    # check in practice, because claim.text keeps [cite:N].
+    ex = ClaimExtractor()
+    answer = "GENERAL INFO: Based on the provided records, your glucose is 300 mg/dL."
+    claims = ex.extract_claims(answer).claims
+    assert claims and all(not c.cited_sources for c in claims)
+    verifiable, unverifiable = ex.filter_unverifiable_claims(claims)
+    assert any("300 mg/dL" in c.text for c in verifiable)
+    assert not any("300 mg/dL" in c.text for c in unverifiable)

@@ -160,8 +160,9 @@ class ClaimExtractor:
     SECTION_HEADER_RE = re.compile(
         r"^[ \t]*(?:(?:[-*•]|\d+[.)])[ \t]+)?(?:\*\*|#+[ \t]*)?"
         r"(REPORT FACTS|GENERAL INFO(?:RMATION)?|UNCERTAINTIES|UNCERTAINTY)"
-        r"(?=[ \t]*:|\*\*|[ \t]*$|[ \t]*[(\-–—])"
-        r"(?:[ \t]*\([^)\n]*\))?[ \t]*\**[ \t]*(?::|[-–—](?=[ \t]))?\**",
+        r"(?:[ \t]*\([^)\n]*\))?"
+        r"(?=[ \t]*:|\*\*|[ \t]*$|[ \t]+[-–—][ \t])"
+        r"[ \t]*\**[ \t]*(?::|[-–—](?=[ \t]))?\**",
         re.IGNORECASE | re.MULTILINE,
     )
     SECTION_TYPES = {
