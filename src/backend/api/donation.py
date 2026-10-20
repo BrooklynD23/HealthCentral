@@ -1,0 +1,180 @@
+"""Opt-in data donation consent routes (RSI1-DONATE PR-1).
+
+Session-scoped: the profile comes from the session and the profile vault, never
+from the path. Revoke deletes the purpose's donated rows in the same vault
+transaction as the consent change (DON-REVOKE a). Audit follows the vault
+commit (AUDIT-ORDER C) and carries counts and the purpose only (AUDIT-PHI-001).
+"""
+
+import logging
+from datetime import datetime
+from enum import Enum
+from typing import Optional
+
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel, Field
+from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from core.audit import audit_and_commit, create_audit_log
+from core.auth import ProfileDbSession, RequireAuth
+from core.database import get_db
+from core.time import utcnow
+from models.data_donation import DonatedRecord, DonationConsent
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+
+class DonationPurpose(str, Enum):
+    FINE_TUNE = "fine_tune"
+    SYNTHETIC_SEED = "synthetic_seed"
+    AGENT_TRACES = "agent_traces"
+
+
+class ConsentState(BaseModel):
+    purpose: DonationPurpose
+    granted: bool
+    consent_text_version: Optional[str] = None
+    granted_at: Optional[datetime] = None
+    revoked_at: Optional[datetime] = None
+
+
+class ConsentList(BaseModel):
+    consents: list[ConsentState]
+
+
+class ConsentUpdate(BaseModel):
+    granted: bool
+    consent_text_version: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_.\-]+$")
+
+
+class ConsentUpdateResult(BaseModel):
+    purpose: DonationPurpose
+    granted: bool
+    consent_text_version: str
+    deleted_count: int = 0
+
+
+def _state(purpose: DonationPurpose, row: Optional[DonationConsent]) -> ConsentState:
+    if row is None:
+        return ConsentState(purpose=purpose, granted=False)
+    return ConsentState(
+        purpose=purpose,
+        granted=row.revoked_at is None,
+        consent_text_version=row.consent_text_version,
+        granted_at=row.granted_at,
+        revoked_at=row.revoked_at,
+    )
+
+
+async def _get_consent(
+    profile_db: ProfileDbSession, profile_id: str, purpose: DonationPurpose
+) -> Optional[DonationConsent]:
+    result = await profile_db.execute(
+        select(DonationConsent).where(
+            DonationConsent.profile_id == profile_id,
+            DonationConsent.purpose == purpose.value,
+        )
+    )
+    return result.scalars().first()
+
+
+async def _delete_derived(profile_db: ProfileDbSession, profile_id: str, purpose: DonationPurpose) -> int:
+    """Delete the purpose's real rows and the synthetic rows derived from them."""
+    real_ids = select(DonatedRecord.id).where(
+        DonatedRecord.profile_id == profile_id,
+        DonatedRecord.purpose == purpose.value,
+        DonatedRecord.origin == "real",
+    )
+    children = await profile_db.execute(
+        delete(DonatedRecord).where(
+            DonatedRecord.profile_id == profile_id,
+            DonatedRecord.origin == "synthetic",
+            DonatedRecord.parent_id.in_(real_ids),
+        )
+    )
+    real = await profile_db.execute(
+        delete(DonatedRecord).where(
+            DonatedRecord.profile_id == profile_id,
+            DonatedRecord.purpose == purpose.value,
+            DonatedRecord.origin == "real",
+        )
+    )
+    return (children.rowcount or 0) + (real.rowcount or 0)
+
+
+@router.get("/consents", response_model=ConsentList)
+async def list_consents(
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """Every purpose with its granted state and consent text version."""
+    result = await profile_db.execute(
+        select(DonationConsent).where(DonationConsent.profile_id == session.profile_id)
+    )
+    by_purpose = {r.purpose: r for r in result.scalars().all()}
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type="donation.consent.view",
+        action="donation.consent.view",
+        profile_id=session.profile_id,
+        entity_type="donation",
+        entity_id="consents",
+    )
+    return ConsentList(consents=[_state(p, by_purpose.get(p.value)) for p in DonationPurpose])
+
+
+@router.put("/consents/{purpose}", response_model=ConsentUpdateResult)
+async def set_consent(
+    purpose: DonationPurpose,
+    data: ConsentUpdate,
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """Grant or revoke one purpose. Revoke deletes the derived donated rows."""
+    profile_id = session.profile_id
+    row = await _get_consent(profile_db, profile_id, purpose)
+    deleted = 0
+    if data.granted:
+        if row is None:
+            profile_db.add(DonationConsent(
+                profile_id=profile_id,
+                purpose=purpose.value,
+                granted_at=utcnow(),
+                consent_text_version=data.consent_text_version,
+            ))
+        else:
+            row.granted_at = utcnow()
+            row.revoked_at = None
+            row.consent_text_version = data.consent_text_version
+        event = "donation.consent.grant"
+        version = data.consent_text_version
+    else:
+        deleted = await _delete_derived(profile_db, profile_id, purpose)
+        if row is not None and row.revoked_at is None:
+            row.revoked_at = utcnow()
+        event = "donation.consent.revoke"
+        version = row.consent_text_version if row is not None else data.consent_text_version
+    await profile_db.commit()
+
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type=event,
+        action=event,
+        profile_id=profile_id,
+        entity_type="donation",
+        entity_id=purpose.value,
+        details={"count": deleted} if not data.granted else None,
+    )
+    return ConsentUpdateResult(
+        purpose=purpose,
+        granted=data.granted,
+        consent_text_version=version,
+        deleted_count=deleted,
+    )
