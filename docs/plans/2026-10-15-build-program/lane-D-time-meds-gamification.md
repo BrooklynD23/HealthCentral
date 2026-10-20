@@ -1,6 +1,6 @@
 # Lane D — Time Zones, Medications, Gamification — Build Design
 
-**Last Updated:** 2026-10-18 (AUDIT-C-CLASS planned and split into AUDIT-C-MED, AUDIT-C-ASSIST, AUDIT-C-MSET, AUDIT-C-MSET-EXT); 2026-10-18 (AUDIT-NOTIF-ALL planned; EXPORT-TODAY-TZ Design 2 rev for owner EXPORT-TODAY-TZ-DESIGN = B; AUDIT-C-CLASS row); 2026-10-17 (MED-STREAK-GRACE, AUDIT-MISSING-MED, EXPORT-TODAY-TZ planned); 2026-10-16 (D-2 rev 2, owner Q1)
+**Last Updated:** 2026-10-20 (PR #202 review round 1: MSET-EXT-NOKEY-PIN planned, EXPORT-TZ-PINS done); 2026-10-19 (AUDIT-GUARD-MINORS planned; EXPORT-TZ-PINS HC-EXPTZ-008 check reworded from `source_id` to the task title, PR #198); 2026-10-18 (AUDIT-C-CLASS planned and split into AUDIT-C-MED, AUDIT-C-ASSIST, AUDIT-C-MSET, AUDIT-C-MSET-EXT); 2026-10-18 (AUDIT-NOTIF-ALL planned; EXPORT-TODAY-TZ Design 2 rev for owner EXPORT-TODAY-TZ-DESIGN = B; AUDIT-C-CLASS row); 2026-10-17 (MED-STREAK-GRACE, AUDIT-MISSING-MED, EXPORT-TODAY-TZ planned); 2026-10-16 (D-2 rev 2, owner Q1)
 **Owner:** repository owner
 **Refresh Trigger:** any merge of #95, #97, #99, #82 or #84; any commit to `src/backend/core/time.py`, `src/backend/modules/notification_scheduler.py`, `src/backend/modules/adherence_patterns.py`, `src/backend/modules/streak_engine.py`, `src/backend/api/medications.py`, `src/backend/api/gamification.py`, `src/backend/api/notifications.py`, `src/backend/monitoring/correlation.py`; a new profile migration after `012_pinboards`.
 **Status:** DESIGN. Nothing here is implemented. Owner answers cited below are quoted from `docs/capstone-report/owner-decisions-2026-09-27.md`; this file records no new approval.
@@ -29,7 +29,9 @@
 | AUDIT-C-MSET-EXT | audit row on `save_external_api_settings` (encryption code, ask-first; AUDIT-EXT-ASKFIRST = A) | same | [§3](#audit-c-class--17-c-handlers-write-no-audit-row-split-audit-c-med-audit-c-assist-audit-c-mset-audit-c-mset-ext) | AUDIT-C-MSET | ready after AUDIT-C-MSET merges |
 | AUDIT-GUARD-TEST | guard test: every `"C"`/`"A2"` row reaches an audit call | AUDIT-C-CLASS plan follow-up (PR #174); recurring-failures #9 | [§3](#audit-guard-test--the-audit-order-guard-checks-the-class-not-that-the-class-is-true) | — | ready |
 | MSET-EXT-NOKEY-TEST | HTTP test: external-API save with no key and switch-off | PR #181 "would fail to notice"; owner MSET-EXT-DIFF | [§3](#mset-ext-nokey-test--no-test-saves-external-api-settings-without-a-key) | — | ready |
-| EXPORT-TZ-PINS | HTTP pins for `today=local_today` on the pinboard and visit-prep question callers | PR #155 review minors 1-2 | [§3](#export-tz-pins--no-test-pins-todaylocal_today-on-the-pinboard-and-visit-prep-question-callers) | — | ready |
+| EXPORT-TZ-PINS | HTTP pins for `today=local_today` on the pinboard and visit-prep question callers | PR #155 review minors 1-2 | [§3](#export-tz-pins--no-test-pins-todaylocal_today-on-the-pinboard-and-visit-prep-question-callers) | — | **done** 2026-10-20 (#198, `adb22f0`) |
+| AUDIT-GUARD-MINORS | guard break-it on the overlay graph with an `"A2"` row; `excluded:` labels checked (HC-AUD-ORD-031); `get_schedule` audit or relabel | PR #193 review MINORs | [§3](#audit-guard-minors--the-guards-break-it-uses-the-wrong-graph-and-no-a2-row-excluded-labels-are-never-checked) | — | blocked-on-owner (AUDIT-SCHED-READ) |
+| MSET-EXT-NOKEY-PIN | HC-AUDCMS-005 reads the key with `populate_existing=True`; the vacuous canary line is replaced | PR #194 review MINORs; PR #202 review round 1 | [§3](#mset-ext-nokey-pin--hc-audcms-005s-re-select-returns-the-cached-row-so-a-key-wipe-in-the-database-passes) | — | ready |
 
 Dependency graph: `D-0 → D-1 → {D-2, D-3}`; D-4 is independent. D-2 and D-3 touch disjoint product files and may run as the 2 allowed code L1s at once.
 
@@ -674,7 +676,7 @@ Three test-only rows. None edits product code; each adds the pin a review said w
 
 | Id | File | Assertion | Fails before? |
 |---|---|---|---|
-| HC-EXPTZ-008 | `tests/test_pinboards.py` (`real_profile_db`, `route_client` on the pinboards router; new import of `tests.support.routes.route_client` and `get_profile_db_session`) | a `UserModelSettings` row with `America/Los_Angeles`; a pinboard with the two tasks pinned as `item_type="question"`; `POST /pinboards/{id}/export` `{"confirm": true}` → 200; the stored packet (`api.export._packet_store[packet_id]`) has a `follow_up` question whose `source_id` is the Jan 29 task and none for the Jan 30 task; the response `markdown` contains `Generated: 2026-01-15` | passes on `main`. **Mutants:** drop `today=local_today` at `api/pinboards.py:501` → Jan 30 question appears; at `:512` → `Generated: 2026-01-16` |
+| HC-EXPTZ-008 | `tests/test_pinboards.py` (`real_profile_db`, `route_client` on the pinboards router; new import of `tests.support.routes.route_client` and `get_profile_db_session`) | a `UserModelSettings` row with `America/Los_Angeles`; a pinboard with the two tasks pinned as `item_type="question"`; `POST /pinboards/{id}/export` `{"confirm": true}` → 200; the stored packet (`api.export._packet_store[packet_id]`) has a `follow_up` question whose text names the Jan 29 task's title and none naming the Jan 30 task's (the stored packet keeps only `{question, category}`, `modules/export.py:730-733`, so the task title is the handle; PR #198); the response `markdown` contains `Generated: 2026-01-15` | passes on `main`. **Mutants:** drop `today=local_today` at `api/pinboards.py:501` → Jan 30 question appears; at `:512` → `Generated: 2026-01-16` |
 | HC-EXPTZ-009 | `tests/test_visit_prep_packet.py` (`real_profile_db`, `route_client`, as HC-EXPTZ-006) | same zone and tasks (unpinned, status `open`); `POST /export/visit-prep` `{"confirm": true, "include_tasks": true, "include_questions": true}` → 200; the stored packet's questions include the Jan 29 `follow_up` and not the Jan 30 one | passes on `main`. **Mutant:** drop `today=local_today` at `api/export.py:799` → Jan 30 question appears |
 
 **Files:** `src/backend/tests/test_pinboards.py`, `src/backend/tests/test_visit_prep_packet.py`, slots. **Re-run, not edited:** `tests/test_export_questions.py`, `tests/test_export_redaction.py`, `tests/test_export_api.py`, `tests/test_audit_order.py`.
@@ -683,6 +685,74 @@ Three test-only rows. None edits product code; each adds the pin a review said w
 **Order:** ready now. Never beside C-GC1 (`tests/test_visit_prep_packet.py`) or E-1c (adds a visit-prep test to `tests/test_visit_prep_packet.py`).
 
 ---
+
+### Follow-ups found 2026-10-19 (planned 2026-10-19 on `origin/main` @ `d42dba9`)
+
+Two rows: AUDIT-GUARD-MINORS (from the #193 review MINORs) and MSET-EXT-NOKEY-PIN (from the #194 review MINORs). MSET-EXT-NOKEY-PIN was won't-plan in the first pass; PR #202 review round 1 showed the evidence was wrong, and it is re-measured below.
+
+#### AUDIT-GUARD-MINORS — the guard's break-it uses the wrong graph and no `"A2"` row; `excluded:` labels are never checked
+
+**Source:** PR #193 (AUDIT-GUARD-TEST) review MINORs: the new recurring-failures sentence "sits before 'that recheck' and is unwrapped"; "the break-it passes real-tree `_G` with the overlay's `reach`"; "it covers only a `"C"` row, so narrowing `{"C","A2"}` to `{"C"}` stays green"; "`excluded:` rows are unchecked (`api/backup.py::get_schedule` reaches no sink)".
+
+**Facts (`d42dba9`):**
+1. `docs/agentic/recurring-failures.md:364`: the sentence "The class is now a test (…)" is one long unwrapped line between the grep recheck (`:360-363`) and "Applied to every … that recheck finds 17 more" (`:365`), so "that recheck" now reads as if it meant the test.
+2. `test_hc_aud_ord_030_break_it_c_handler_without_audit` (`src/backend/tests/test_audit_order_guard.py:293-303`) takes `reach` from the overlay but passes the real-tree `_G` to `_rows_without_audit` (`:302-303`). It still works, because the overlay handler names `create_audit_log` directly, but a sink reached only through an overlay helper would not be found.
+3. The same test classifies only `"C"` rows (`:301`).
+4. Each `excluded:` row in `CLASSIFICATION` carries a reason string; nothing checks it.
+
+**Measured** (scratch tests importing the guard's own `CLASSIFICATION`, `_G`, `_REACH` and `_overlay`; not committed):
+- A copy of `_rows_without_audit` narrowed to `{"C"}` passes the break-it's two assertions unchanged.
+- 47 rows say `excluded: read route, audit_and_commit only`. Five of them never reach `audit_and_commit`: `api/backup.py::get_schedule` reaches **no** audit sink at all, and `api/model_settings.py::get_model_settings`, `::list_tiers`, `::get_environment_diagnostics`, `::recheck_environment_diagnostics` reach `create_audit_log` instead (a wrong label, not a missing audit). The only other `excluded:` row that reaches no sink is `api/profiles.py::reset_synthetic_test_profile`, whose label ("test-only reset (3.1)") claims no audit; its audit belongs to E-2 (RESET-AUDIT-OWNER).
+- `get_schedule` (`src/backend/api/backup.py:531-546`) reads, and may create, this profile's backup-schedule row in the master DB, commits, and writes no audit row. Every other backup read route (`list_backups`, `verify_backup`, `download_backup`) is labelled and wired `audit_and_commit`.
+
+**Owner gate AUDIT-SCHED-READ** (execution; open; exact wording to ask): "AUDIT-SCHED-READ: `GET /backup/schedule` returns this profile's backup schedule (and creates a default row on first read) but writes no audit row, while the audit-order guard labels it 'read route, audit_and_commit only'. The other backup read routes do audit. Should it? (a) Yes: add the same `audit_and_commit` read audit the other backup routes use (Recommended: matches its siblings and the guard's label; one call in `api/backup.py`). (b) No: the schedule is backup configuration, not profile data; relabel the guard row to say it writes no audit row."
+
+**Design:**
+1. `recurring-failures.md` #9: move the sentence to the end of the paragraph (after "walk each handler body instead.") and wrap it to the file's width. Change no other words.
+2. Break-it (`:293-303`): build the overlay graph (`g = Graph(tmp_path, ("api", "core", "modules"))`, as the other break-its do) and pass `g`, not `_G`. Add a third overlay handler `h2` (commit only) classified `"A2"` and assert it is reported too.
+3. New `test_hc_aud_ord_031_excluded_rows_reach_the_sink_they_name`: for every `excluded:` row whose reason names one of `_AUDIT_SINKS`, the handler reaches that sink in `_G`. Relabel the four `api/model_settings.py` rows to `excluded: read route, create_audit_log only`.
+4. `get_schedule`: under (a), add `await audit_and_commit(master_db, create_audit_log, …)` in the same form as `list_backups` (`api/backup.py:224-232`; for example `event_type="backup.schedule.view"`, `entity_type="backup_schedule"`), with ids only in `details`; under (b), relabel the row `excluded: read of the master-only backup schedule; no audit row` (and HC-AUD-ORD-031 then skips it because the label names no sink).
+
+**Test-first:**
+
+| Id | File | Assertion | RED today? |
+|---|---|---|---|
+| `test_hc_aud_ord_030_break_it_c_handler_without_audit` (edited) | `tests/test_audit_order_guard.py` | overlay graph; `"A2"` bare handler also reported | no (pin; the `{"C"}`-only mutant of `_rows_without_audit` now fails it, measured passing today) |
+| HC-AUD-ORD-031 | same | every `excluded:` row that names a sink reaches it | yes (5 rows, measured) |
+| HC-BKUP-064 (under (a)) | `tests/test_backup_routes.py` | through `route_client`: `GET /backup/schedule` → 200 and exactly one audit row for the caller's profile, with no schedule values in `details` | yes (no audit row) |
+
+**Files:** `src/backend/tests/test_audit_order_guard.py`, `docs/agentic/recurring-failures.md` (#9 audit paragraph only), under (a) also `src/backend/api/backup.py` (`get_schedule` only) and `src/backend/tests/test_backup_routes.py`, slots. **Re-run, not edited:** `tests/test_audit_order.py`, `tests/test_audit_phi_minimization.py`, `tests/test_backup_api.py`.
+**Expected collected delta:** (a) +2; (b) +1. **Est:** 1 h after AUDIT-SCHED-READ.
+**Acceptance:** `pyt tests/test_audit_order_guard.py tests/test_audit_order.py tests/test_backup_routes.py tests/test_backup_api.py -q -rfE`: 0 failed; the `{"C"}`-only mutant output in the PR body; full suite per RUNBOOK §6. **Rollback:** revert.
+**Order:** blocked on AUDIT-SCHED-READ. Never beside E-2, B-5, C-GC1 or RSI1-DONATE (`tests/test_audit_order_guard.py`), or any open PR on `docs/agentic/recurring-failures.md`. **Recurring-failures #12 recheck:** HC-AUD-ORD-031 is a new guard. After it merges, L0 runs `tests/test_audit_order_guard.py` on `origin/main` and on every open PR built before it: a PR that adds an `excluded:` row naming a sink it does not reach now fails.
+
+#### MSET-EXT-NOKEY-PIN — HC-AUDCMS-005's re-select returns the cached row, so a key wipe in the database passes
+
+**Source:** PR #194 (MSET-EXT-NOKEY-TEST) review MINORs (queue bullet MSET-EXT-NOKEY-MINORS). PR #202 review round 1 MAJOR: the first planning pass called minor 1 "did not reproduce". That was wrong. Its scratch mutant dropped the test's reference to the row, so the identity map no longer held the object.
+
+**Facts (`5750a97`):**
+1. `aud_vault` is an `AsyncSession(engine, expire_on_commit=False)` (`src/backend/tests/test_model_settings_api.py:398`).
+2. HC-AUDCMS-005 keeps `row` from its first select (`:607-609`). After the second PUT it re-selects into the same variable (`:623-625`) and asserts `row.external_api_key_encrypted == stored_key` (`:626`). While `row` is alive, the re-select returns the identity-mapped object with its cached attributes. Nothing refreshes it.
+3. `"sk-canary-123" not in repr(calls[1])` (`:628`) cannot fail, because the second PUT body carries no key.
+
+**Measured on `5750a97`** (scratch tests that hold `row` exactly as HC-AUDCMS-005 does; monkeypatch only, the handler is not edited):
+- **Mutant A:** a raw-SQL `UPDATE user_model_settings SET external_api_key_encrypted = ''` inside request 2, just before the vault commit (`aud_vault.commit` wrapped).
+- **Mutant B:** the same `UPDATE` at the start of request 2 (`api.model_settings._get_user_settings` wrapped).
+- Under both mutants, **every** HC-AUDCMS-005 assertion passes: status 200, `api_key_configured` True, the `changed_fields` details, the key equal to `stored_key`, and `use_external_api` False.
+- After either mutant, `select(...).execution_options(populate_existing=True)` and a raw `SELECT external_api_key_encrypted` both read `''`.
+
+**Design (test file only; `save_external_api_settings` is ask-first and is not edited, even temporarily: L0 ruling 2026-10-19 on MSET-EXT-NOKEY-TEST):**
+1. Change HC-AUDCMS-005's post-PUT-2 re-select to `execution_options(populate_existing=True)`, so the key check reads the database.
+2. Replace the vacuous `:628` line with the **forward pin** `assert "sk-canary-123" not in resp2.text`. It cannot fail against today's handler either, because `ExternalApiSettingsResponse` has no field that could carry the key. It guards a future response field that echoes the key; it is not a fix for a leak. Its mutant (scratch monkeypatch of the response model or handler return to echo the decrypted key) must turn it RED. Do not delete a check without replacing it.
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-AUDCMS-005 (edited) | as today, but the key is read with `populate_existing=True`; plus the forward pin on `resp2.text` | no (pin). **Mutants A and B, as monkeypatches in a scratch test that is not committed:** today's version passes both (measured); the edited version must fail both. Paste the 2 × 2 outputs in the PR body |
+
+**Files:** `src/backend/tests/test_model_settings_api.py` (HC-AUDCMS-005 only), slots. **Re-run, not edited:** `tests/test_external_runner_hardening.py`, `tests/test_external_runner.py`.
+**Expected collected delta:** 0. **Est:** 0.5 h.
+**Acceptance:** `pyt tests/test_model_settings_api.py tests/test_external_runner_hardening.py tests/test_external_runner.py -q -rfE`: 0 failed; both mutant outputs in the PR body; `git diff origin/main -- src/backend/api` empty; full suite per RUNBOOK §6. **Rollback:** revert.
+**Order:** ready now. Never beside another PR on `tests/test_model_settings_api.py` (none open on `5750a97`).
 
 ## 4. Provides
 
@@ -718,6 +788,7 @@ Three test-only rows. None edits product code; each adds the pin a review said w
 | CORRELATION-NORMALISE go | D-4 | **given** |
 | Re-learn method (Q1) | D-2 | **answered 2026-10-16: "Re-learn automatically"** — see D-2 rev 2 (no `core/auth.py` edit) |
 | Grace scope (Q2) = **MSG-SCOPE** | D-3 applies only to `GET /gamification/streaks`; MED-STREAK-GRACE asks whether to widen it | not asked; options in §3 MED-STREAK-GRACE (planned 2026-10-17) |
+| **AUDIT-SCHED-READ** (new) | AUDIT-GUARD-MINORS | **open** (planned 2026-10-19): (a) audit `GET /backup/schedule` like the other backup reads (recommended) / (b) relabel the guard row as unaudited; exact wording in §3 AUDIT-GUARD-MINORS |
 
 ## 7. Open questions
 
