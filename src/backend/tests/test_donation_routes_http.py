@@ -412,7 +412,7 @@ async def test_hc_don_009b_fails_closed_when_audit_commit_fails(vault, method, p
 
 
 @pytest.mark.asyncio
-async def test_hc_don_010a_revoke_intent_commit_fails_changes_nothing(vault):
+async def test_hc_don_009c_revoke_intent_commit_fails_changes_nothing(vault):
     """A2: if the `started` audit commit fails, rows and consent stay intact."""
     await _seed(vault, PROFILE_A, "fine_tune")
     await _put_ok(vault, "fine_tune", True)
@@ -426,12 +426,35 @@ async def test_hc_don_010a_revoke_intent_commit_fails_changes_nothing(vault):
 
 
 @pytest.mark.asyncio
-async def test_hc_don_010b_revoke_completion_commit_fails_delete_stays_durable(vault):
+async def test_hc_don_009d_revoke_completion_commit_fails_delete_stays_durable(vault):
     await _seed(vault, PROFILE_A, "fine_tune")
     await _put_ok(vault, "fine_tune", True)
+
+    # Record commit order across both databases: audit intent, then the vault
+    # delete, then the completion audit. Dropping the vault commit changes it.
+    order: list[str] = []
+    real_vault_commit = vault.commit
+
+    async def _vault_commit():
+        order.append("vault")
+        await real_vault_commit()
+
+    vault.commit = _vault_commit
     master = _master_db()
-    master.commit = AsyncMock(side_effect=[None, RuntimeError("audit down")])
-    resp, _ = _put(vault, "fine_tune", False, master_db=master)
+    calls = {"n": 0}
+
+    async def _master_commit():
+        order.append("audit")
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise RuntimeError("audit down")
+
+    master.commit = _master_commit
+    try:
+        resp, _ = _put(vault, "fine_tune", False, master_db=master)
+    finally:
+        vault.commit = real_vault_commit
     assert resp.status_code == 500
+    assert order == ["audit", "vault", "audit"]
     assert await _count(vault, "fine_tune") == 0
     assert [json.loads(r.details_json)["status"] for r in _audit_rows(master)][:1] == ["started"]
