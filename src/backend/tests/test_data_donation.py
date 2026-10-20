@@ -149,6 +149,7 @@ from sqlalchemy import event, select  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E402
 
 from core.profile_database import ProfileDatabaseBase  # noqa: E402
+from models.chat_session import ChatTurn  # noqa: E402
 from models.data_donation import DonatedRecord, DonationConsent  # noqa: E402
 from models.response_feedback import ResponseFeedback  # noqa: E402
 
@@ -191,8 +192,11 @@ async def _consent(db, version=None, revoked=False):
 
 
 async def _feedback(db, prompt, response="Your result is in range.", correction=None, session_id="s1"):
+    turn_id = f"t-{len(db.statements)}-{id(prompt)}"
+    db.add(ChatTurn(id=turn_id, session_id=session_id, profile_id=PID,
+                    turn_index=0, role="assistant", content="a"))
     row = ResponseFeedback(
-        profile_id=PID, session_id=session_id, turn_id=f"t-{len(db.statements)}-{id(prompt)}",
+        profile_id=PID, session_id=session_id, turn_id=turn_id,
         rating=1, prompt_snapshot=prompt, response_text=response, correction_text=correction,
     )
     db.add(row)
@@ -272,3 +276,19 @@ async def test_hc_don_016_strict_gap_is_dropped_and_counted_by_category(vault):
     assert counts.dropped == {"ip_address": 1}
     stored = " ".join(r.prompt_redacted for r in await _donated(vault))
     assert "192.168.1.1" not in stored
+
+
+@pytest.mark.asyncio
+async def test_collect_skips_orphaned_feedback_and_counts_incomplete(vault):
+    from modules.data_donation import collect
+
+    await _consent(vault)
+    await _feedback(vault, "What is my LDL?")
+    await _feedback(vault, "")  # incomplete: no prompt
+    # feedback whose assistant turn was deleted with its session
+    vault.add(ResponseFeedback(profile_id=PID, session_id="gone", turn_id="no-such-turn",
+                               rating=1, prompt_snapshot="q", response_text="r"))
+    await vault.commit()
+    counts = await collect(vault, PID, PURPOSE)
+    assert (counts.collected, counts.skipped_incomplete) == (1, 1)
+    assert len((await _donated(vault))) == 1

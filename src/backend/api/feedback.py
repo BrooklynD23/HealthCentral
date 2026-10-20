@@ -37,7 +37,6 @@ from models.chat_session import ChatTurn
 from models.response_feedback import ResponseFeedback
 from modules.data_donation import has_current_consent
 
-
 # DON-COPY: patient-facing text, owner-approved at merge.
 EXPORT_CONSENT_DETAIL = (
     "Exporting your rated answers needs your permission first. "

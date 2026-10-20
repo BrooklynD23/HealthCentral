@@ -24,6 +24,7 @@ import api.donation as donation_api
 from api.donation import CURRENT_CONSENT_TEXT_VERSION
 from core.auth import get_profile_db_session, require_auth
 from core.profile_database import ProfileDatabaseBase
+from models.chat_session import ChatTurn
 from models.data_donation import DonatedRecord, DonationConsent
 from tests.support.routes import route_client
 
@@ -579,6 +580,9 @@ from models.response_feedback import ResponseFeedback  # noqa: E402
 
 
 async def _rate(session, profile_id, session_id, turn_id, prompt="What does a high LDL mean?"):
+    # collect only donates feedback whose assistant turn still exists
+    session.add(ChatTurn(id=turn_id, session_id=session_id, profile_id=profile_id,
+                         turn_index=0, role="assistant", content="a"))
     row = ResponseFeedback(
         profile_id=profile_id, session_id=session_id, turn_id=turn_id, rating=1,
         prompt_snapshot=prompt, response_text="It is a cholesterol marker.",
@@ -708,3 +712,13 @@ async def test_hc_don_022_deleting_a_session_deletes_its_donated_copies(vault):
     left = (await vault.execute(select(DonatedRecord.id))).scalars().all()
     assert sorted(left) == ["real-sb", "syn-sb"]
     assert len(_audit_rows(master_db)) == 2  # A2 started + completed unchanged
+
+    # The next collect must not re-donate the deleted session's feedback.
+    vault.add(DonationConsent(profile_id=PROFILE_A, purpose="fine_tune", consent_text_version=VERSION))
+    await vault.commit()
+    resp, _ = _collect(vault)
+    assert resp.status_code == 200, resp.text
+    sources = (await vault.execute(
+        select(DonatedRecord.source_id).where(DonatedRecord.origin == "real")
+    )).scalars().all()
+    assert ids["sa"] not in sources

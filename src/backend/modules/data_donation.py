@@ -12,8 +12,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select
 
+from models.chat_session import ChatTurn
 from models.data_donation import DonatedRecord, DonationConsent
 from models.response_feedback import ResponseFeedback
 from modules.phi_second_pass import detect
@@ -34,12 +35,14 @@ class CollectCounts:
 
     collected: int = 0
     skipped_existing: int = 0
+    skipped_incomplete: int = 0  # rows with no prompt or no response
+    dropped_records: int = 0  # records dropped (a record hitting N categories counts once)
     dropped: dict[str, int] = field(default_factory=dict)  # Safe Harbor category -> records
     strict_redaction_count: int = 0
 
     @property
     def dropped_total(self) -> int:
-        return sum(self.dropped.values())
+        return self.dropped_records
 
 
 async def get_active_consent(
@@ -94,7 +97,12 @@ async def delete_for_session(profile_db, session_id: str) -> int:
     (feedback rows may cascade). Does not commit: the caller's commit makes it
     atomic with the session delete.
     """
-    feedback_ids = select(ResponseFeedback.id).where(ResponseFeedback.session_id == session_id)
+    # client-supplied feedback.session_id is not trusted alone: also key on the
+    # session's own turns.
+    session_turns = select(ChatTurn.id).where(ChatTurn.session_id == session_id)
+    feedback_ids = select(ResponseFeedback.id).where(
+        or_(ResponseFeedback.session_id == session_id, ResponseFeedback.turn_id.in_(session_turns))
+    )
     real_ids = select(DonatedRecord.id).where(
         DonatedRecord.origin == "real",
         DonatedRecord.source_kind == SOURCE_KIND,
@@ -150,18 +158,28 @@ async def collect(profile_db, profile_id: str, purpose: str) -> CollectCounts:
     )).scalars().all())
     rows = (await profile_db.execute(
         select(ResponseFeedback)
-        .where(ResponseFeedback.profile_id == profile_id)
+        .where(
+            ResponseFeedback.profile_id == profile_id,
+            # DON-SRC-DELETE: feedback of a deleted session survives (no FK), so
+            # only rows whose assistant turn still exists are donatable.
+            ResponseFeedback.turn_id.in_(
+                select(ChatTurn.id).where(
+                    ChatTurn.profile_id == profile_id, ChatTurn.role == "assistant"
+                )
+            ),
+        )
         .order_by(ResponseFeedback.created_at)
     )).scalars().all()
 
     engine = RedactionEngine(policy_level="strict")
-    collected = skipped = strict_total = 0
+    collected = skipped = incomplete = dropped_records = strict_total = 0
     dropped: dict[str, int] = {}
     for row in rows:
         if row.id in already:
             skipped += 1
             continue
         if not row.prompt_snapshot or not row.response_text:
+            incomplete += 1
             continue
         text, n, categories = _screen(engine, {
             "prompt": row.prompt_snapshot,
@@ -169,6 +187,7 @@ async def collect(profile_db, profile_id: str, purpose: str) -> CollectCounts:
             "correction": row.correction_text or None,
         })
         if categories:
+            dropped_records += 1
             for category in categories:
                 dropped[category] = dropped.get(category, 0) + 1
             continue
@@ -189,6 +208,8 @@ async def collect(profile_db, profile_id: str, purpose: str) -> CollectCounts:
     return CollectCounts(
         collected=collected,
         skipped_existing=skipped,
+        skipped_incomplete=incomplete,
+        dropped_records=dropped_records,
         dropped=dropped,
         strict_redaction_count=strict_total,
     )

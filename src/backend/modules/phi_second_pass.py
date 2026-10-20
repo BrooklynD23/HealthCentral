@@ -24,10 +24,10 @@ _STATES = (
 ).replace(" ", "|")
 
 _PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
-    ("email", re.compile(r"\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b")),
+    ("email", re.compile(r"\b[\w.+-]{1,64}@[\w-]+(?:\.[\w-]+)+\b")),
     ("url", re.compile(r"\b(?:https?://|www\.)\S+", re.I)),
     ("ip_address", re.compile(r"\b(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}\b")),
-    ("ssn", re.compile(r"\b\d{3}-\d{2}-\d{4}\b")),
+    ("ssn", re.compile(r"\b\d{3}-\d{2}-\d{4}\b|\b(?:SSN|social security(?: number| no\.?| #)?)\s*[:#]?\s*\d{9}\b", re.I)),
     ("phone", re.compile(r"(?<!\d)(?:\+?1[-. ])?\(?\d{3}\)?[-. ]\d{3}[-. ]\d{4}(?!\d)")),
     ("date", re.compile(
         rf"\b\d{{1,2}}[/-]\d{{1,2}}[/-]\d{{2,4}}\b|\b\d{{4}}-\d{{2}}-\d{{2}}\b"

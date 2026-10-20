@@ -43,8 +43,8 @@ from modules.agent.graph import RunContext, new_run_id, run_agent
 from modules.agent.guardrails.templates import ABSTAIN_TEMPLATE, ESCALATE_TEMPLATE
 from modules.agent.schemas import AgentTerminal
 from modules.agent.settings import is_agent_enabled
-from modules.data_donation import delete_for_session
 from modules.agent.state import ChatFilters
+from modules.data_donation import delete_for_session
 from modules.faithfulness import FaithfulnessConfig
 from modules.rag import (
     ModelUnavailableError,

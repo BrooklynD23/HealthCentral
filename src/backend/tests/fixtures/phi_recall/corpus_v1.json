@@ -23,6 +23,16 @@
    {
     "text": "The patient is Samuel Pennywhistle, 54.",
     "planted": "Pennywhistle"
+   },
+   {
+    "text": "Jane Doe, your LDL is 162 mg/dL.",
+    "planted": "Jane Doe",
+    "known_gap": true
+   },
+   {
+    "text": "Hi John Smith. Your hemoglobin is within range.",
+    "planted": "John Smith",
+    "known_gap": true
    }
   ],
   "geographic": [
@@ -138,6 +148,10 @@
    {
     "text": "Social security 222-33-4444 was verified.",
     "planted": "222-33-4444"
+   },
+   {
+    "text": "SSN 123456789 is on the claim form.",
+    "planted": "123456789"
    }
   ],
   "mrn": [

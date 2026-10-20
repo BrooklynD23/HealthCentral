@@ -23,6 +23,13 @@ TARGET_CANARY = 1.0
 TARGET_CATEGORY = 0.95
 
 
+def _leaks(planted: str, redacted: str) -> bool:
+    """True if the planted string or any token of 3+ chars of it survives."""
+    if planted in redacted:
+        return True
+    return any(t in redacted for t in planted.replace("-", " ").split() if len(t) >= 3)
+
+
 def measure(corpus: dict) -> dict[str, dict]:
     """Return {category: {n, strict, second, union, canary_n, canary_union}} (counts)."""
     engine = RedactionEngine(policy_level="strict")
@@ -32,7 +39,7 @@ def measure(corpus: dict) -> dict[str, dict]:
         row["n"] = len(items)
         for item in items:
             redacted = engine.redact(item["text"]).text
-            strict = item["planted"] not in redacted
+            strict = not _leaks(item["planted"], redacted)
             second = any(h.category == category for h in detect(item["text"]))
             union = strict or bool(detect(redacted))
             row["strict"] += strict
