@@ -940,6 +940,17 @@ I was unable to fully process your question within the time limit. Please try as
                     f"Low faithfulness score: {verification_metadata.faithfulness_score:.2f}"
                 )
 
+        # LCP-HL-LABELS (a): context labels mean nothing to a patient. Strip them from
+        # copies of the segments; validation above read the raw response.
+        validated_segments = [
+            ResponseSegment(
+                segment_type=segment.segment_type,
+                content=self._CONTEXT_LABEL_RE.sub("", segment.content),
+                citations=segment.citations,
+            )
+            for segment in validated_segments
+        ]
+
         return ValidatedResponse(
             segments=validated_segments,
             is_valid=len(errors) == 0,
@@ -1119,6 +1130,7 @@ I was unable to fully process your question within the time limit. Please try as
         r"(?=:|\*\*|[ \t]*$)\**:?",
         re.IGNORECASE | re.MULTILINE,
     )
+    _CONTEXT_LABEL_RE = re.compile(r"\s?\[(?:YOUR_RESULTS|REFERENCE|USER_DOCUMENT|USER_OBSERVATION):\d+\]")
     _SECTION_TYPES = {
         "REPORT FACTS": "report_facts",
         "GENERAL INFO": "general_info",

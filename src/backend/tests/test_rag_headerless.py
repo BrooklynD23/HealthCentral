@@ -6,6 +6,7 @@ HC-LCPH-001  headerless uncited text -> "Report facts section missing citations"
 HC-LCPH-002  prose mentioning "uncertainties" mid-line is not cut
 HC-LCPH-003  repr dict / curly keys / JSON string / JSON array stay whole (x4)
 HC-LCPH-004  line-start headers still split; **UNCERTAINTY** is a header
+HC-LCPH-005  over HTTP: [USER_OBSERVATION:N] is not served, [cite:N] is
 """
 
 from __future__ import annotations
@@ -13,7 +14,7 @@ from __future__ import annotations
 import pytest
 
 from modules.rag import RAGModule
-from tests.legacy_eval.harness import build_chunks
+from tests.legacy_eval.harness import CHAT_PATH, build_chunks, legacy_chat_client
 
 REPR_DICT = (
     "{'report_facts': [{'text': 'Glucose: 95 mg/dL [cite:1]', 'cites': [1]}], "
@@ -72,3 +73,16 @@ def test_hc_lcph_004_line_start_headers_split_and_singular_uncertainty_counts():
     parsed_prose = rag._parse_response_segments(prose)
     assert [(s.segment_type, s.content) for s in parsed_prose] == [("report_facts", prose)]
 
+
+def test_hc_lcph_005_context_labels_are_not_served_over_http():
+    answer = (
+        "REPORT FACTS:\n- Glucose: 95 mg/dL (reference range 70-100 mg/dL) "
+        "[USER_OBSERVATION:1] [cite:1]"
+    )
+    with legacy_chat_client(build_chunks("glucose"), answer) as (client, _append):
+        resp = client.post(CHAT_PATH, json={"question": "What was my glucose?"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["is_valid"] is True
+    assert "[cite:1]" in body["full_response"]
+    assert "[USER_OBSERVATION:" not in body["full_response"]
