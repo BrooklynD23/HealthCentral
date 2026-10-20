@@ -1,7 +1,7 @@
 {
   "$comment": "MODEL-INT-001 — SHA256 pins for local model artifacts. A silently swapped model artifact silently invalidates every tuned guardrail threshold and golden eval, so the artifact identity is checked at download and at load. Entries with sha256=null are UNPINNED and are reported as such rather than being treated as verified: fabricating a hash would be worse than admitting we do not have one. Add a pin by downloading the artifact, running `python -m modules.model_integrity --hash <path>`, and recording the result here together with the date and where it was obtained.",
   "manifest_version": 1,
-  "updated": "2026-07-27",
+  "updated": "2026-10-20",
   "models": {
     "low": {
       "repo": "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
@@ -43,6 +43,13 @@
       "filename_pattern": "q4_k_m",
       "sha256": null,
       "note": "Repo URL is still a PLACEHOLDER in TIER_MODEL_CONFIG; cannot be pinned until the real artifact is confirmed."
+    },
+    "nli-deberta-v3-xsmall": {
+      "repo": "cross-encoder/nli-deberta-v3-xsmall",
+      "revision": "a150876415327c80daeff35ca6f68f5ed8cf5c24",
+      "filename": "model.safetensors",
+      "sha256": "4e4fc4977f8d29d2a164255c8f69b9d6c158deeb309bb5e70445b94666ccd9e9",
+      "note": "HC-M11 NLI cross-encoder. Apache-2.0 per the model card (measured 2026-10-18 from Hub metadata). sha256 is the Hub's advertised LFS hash; scripts/download_models.py nli recomputes it after the fetch. Pins confirmed by the owner 2026-10-19 (GC5-OL-1, docs/capstone-report/owner-decisions-2026-09-27.md:269)."
     }
   }
 }

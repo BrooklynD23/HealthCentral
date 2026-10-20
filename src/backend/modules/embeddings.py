@@ -49,6 +49,70 @@ def resolve_embedding_model_dir() -> Path:
     return path if path.is_absolute() else _BACKEND_DIR / path
 
 
+# HC-M11 NLI cross-encoder. Repo, revision and weights sha256 are pinned in
+# config/model_manifest.json ("nli-deberta-v3-xsmall"); the runtime below never
+# contacts that repo. Fetched once by scripts/download_models.py nli.
+NLI_MANIFEST_KEY = "nli-deberta-v3-xsmall"
+NLI_FETCH_FILES = (
+    "README.md", "added_tokens.json", "config.json", "model.safetensors",
+    "special_tokens_map.json", "spm.model", "tokenizer.json", "tokenizer_config.json",
+)
+NLI_REQUIRED_FILES = ("config.json", "model.safetensors")
+_nli_encoder = None
+
+
+def resolve_nli_model_dir() -> Path:
+    """Directory the NLI cross-encoder is loaded from (NLI_MODEL_PATH)."""
+    from core.config import settings
+
+    path = Path(settings.nli_model_path)
+    return path if path.is_absolute() else _BACKEND_DIR / path
+
+
+def load_local_cross_encoder():
+    """Load the NLI cross-encoder from the local directory only; never the network.
+
+    Fails closed (EmbeddingModelUnavailableError) when files are missing, the
+    weights do not match the manifest pin, or the model cannot be loaded. A
+    failure is not cached, so fetching the model needs no restart.
+    """
+    global _nli_encoder
+    if _nli_encoder is not None:
+        return _nli_encoder
+    model_dir = resolve_nli_model_dir()
+    missing = [n for n in NLI_REQUIRED_FILES if not (model_dir / n).is_file()]
+    if missing:
+        # Messages are path-free: they reach logs (recurring-failures #9).
+        raise EmbeddingModelUnavailableError(
+            f"NLI model not installed ({len(missing)} required files missing). "
+            "Fetch it once with: cd src/backend && python scripts/download_models.py nli"
+        )
+    from modules.model_integrity import IntegrityStatus, verify_model_file
+
+    if verify_model_file(model_dir / "model.safetensors", NLI_MANIFEST_KEY).status is not IntegrityStatus.VERIFIED:
+        raise EmbeddingModelUnavailableError("NLI weights do not match the pinned sha256")
+    try:
+        from sentence_transformers import CrossEncoder
+    except ImportError:
+        raise EmbeddingModelUnavailableError("sentence-transformers is not installed") from None
+    # sentence_transformers and transformers log the model path at INFO while loading;
+    # keep it out of any log sink.
+    quiet = [logging.getLogger(n) for n in ("sentence_transformers", "transformers")]
+    prev_levels = [lg.level for lg in quiet]
+    for lg in quiet:
+        lg.setLevel(max(lg.getEffectiveLevel(), logging.WARNING))
+    try:
+        _nli_encoder = CrossEncoder(str(model_dir), local_files_only=True)
+    except Exception as exc:  # corrupt or incompatible files: fail closed, never download
+        raise EmbeddingModelUnavailableError(
+            f"NLI model failed to load: {type(exc).__name__}"
+        ) from None
+    finally:
+        for lg, level in zip(quiet, prev_levels):
+            lg.setLevel(level)
+    return _nli_encoder
+
+
 @dataclass
 class EmbeddingsConfig:
     """Configuration for embeddings generation."""

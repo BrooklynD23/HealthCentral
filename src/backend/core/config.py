@@ -121,6 +121,10 @@ class Settings(BaseSettings):
     # offline at runtime; retrieval fails closed when it is absent. Relative
     # paths resolve against src/backend, not the working directory.
     embedding_model_path: str = "models/embeddings/all-MiniLM-L6-v2"
+    # HC-M11 NLI cross-encoder (owner decision Q5b, 2026-10-17). Fetched once by
+    # `python scripts/download_models.py nli`; used only when use_llm_entailment
+    # is on. Relative paths resolve against src/backend.
+    nli_model_path: str = "models/nli/nli-deberta-v3-xsmall"
     
     # Document processing
     max_import_file_size_mb: int = 50

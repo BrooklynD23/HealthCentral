@@ -1087,7 +1087,7 @@ I was unable to fully process your question within the time limit. Please try as
                 claim_authority_scores.append(authority.aggregate_score)
 
         # Run batch verification
-        verification_results = verify_all_claims(claims_to_verify)
+        verification_results = verify_all_claims(claims_to_verify, self.verifier.config)
 
         # Step 4: Calculate faithfulness
         all_source_texts = [chunk.text for chunk in retrieved_chunks]
