@@ -586,3 +586,52 @@ async def test_hc_exptz_008_pinboard_export_uses_profile_local_today(
     finally:
         if packet_id is not None:
             export_api._packet_store.pop(packet_id, None)
+
+
+@pytest.mark.asyncio
+async def test_hc_pkt_025_pinboard_export_stored_questions_are_strict_redacted(
+    real_profile_db,
+):
+    """HC-PKT-025: through HTTP, the pinboard export stores strict-redacted
+    questions (PKT-QUESTIONS-REDACT)."""
+    from datetime import timedelta
+
+    import api.export as export_api
+    import api.pinboards as pinboards_api
+    from core.auth import get_profile_db_session
+    from models import CarePlanTask
+    from tests.support.routes import route_client
+
+    db = real_profile_db
+    task = CarePlanTask(
+        id=str(uuid.uuid4()),
+        title="Call Dr. Jane Smith, MRN: A1234567",
+        status="open",
+        due_date=date.today() + timedelta(days=2),
+    )
+    board = _pinboard()
+    db.add_all([task, board])
+    await db.flush()
+    db.add(_item(board.id, item_type="question", item_id=task.id))
+    await db.commit()
+
+    packet_id = None
+    try:
+        with route_client(pinboards_api.router, "/pinboards", profile_id="profile-a") as client:
+
+            async def _override_profile_db():
+                return db
+
+            client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+            response = client.post(f"/pinboards/{board.id}/export", json={"confirm": True})
+            assert response.status_code == 200, response.text
+            packet_id = response.json()["packet_id"]
+            questions = export_api._packet_store[packet_id]["questions"]
+
+        assert questions, "task-derived question missing; check would pass vacuously"
+        for entry in questions:
+            for phi in ("Jane", "Smith", "A1234567"):
+                assert phi not in entry["question"]
+    finally:
+        if packet_id is not None:
+            export_api._packet_store.pop(packet_id, None)
