@@ -16,6 +16,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.audit import audit_and_commit, audit_intent, create_audit_log
@@ -169,7 +170,8 @@ async def set_consent(
     if data.granted:
         # Same version already active: nothing to change. A new version closes
         # the old record and opens a new one, so earlier choices stay dated.
-        if row is None or row.consent_text_version != CURRENT_CONSENT_TEXT_VERSION:
+        changed = row is None or row.consent_text_version != CURRENT_CONSENT_TEXT_VERSION
+        if changed:
             if row is not None:
                 row.revoked_at = utcnow()
                 await profile_db.flush()
@@ -179,16 +181,25 @@ async def set_consent(
                 granted_at=utcnow(),
                 consent_text_version=CURRENT_CONSENT_TEXT_VERSION,
             ))
-        await profile_db.commit()
-        await audit_and_commit(
-            master_db,
-            create_audit_log,
-            event_type="donation.consent.grant",
-            action="donation.consent.grant",
-            profile_id=profile_id,
-            entity_type="donation",
-            entity_id=purpose.value,
-        )
+        try:
+            await profile_db.commit()
+        except IntegrityError:
+            # Another window opened the active row first (partial unique index).
+            await profile_db.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail="Consent changed in another window. Reload to see the current choice.",
+            )
+        if changed:
+            await audit_and_commit(
+                master_db,
+                create_audit_log,
+                event_type="donation.consent.grant",
+                action="donation.consent.grant",
+                profile_id=profile_id,
+                entity_type="donation",
+                entity_id=purpose.value,
+            )
         version = CURRENT_CONSENT_TEXT_VERSION
     else:
         audit_kwargs = dict(

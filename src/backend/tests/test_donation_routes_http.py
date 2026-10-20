@@ -536,3 +536,36 @@ async def test_hc_don_005g_stale_consent_is_visible_and_reconfirmable_without_de
     await _put_ok(vault, "agent_traces", True)
     resp, _ = _call("GET", vault)
     assert _state(resp)["agent_traces"]["current"] is True
+
+
+@pytest.mark.asyncio
+async def test_hc_don_005h_idempotent_regrant_writes_no_audit_row(vault):
+    resp, first = _put(vault, "fine_tune", True)
+    assert resp.status_code == 200, resp.text
+    assert len(_audit_rows(first)) == 1
+    resp, second = _put(vault, "fine_tune", True, master_db=_master_db())
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["granted"] is True
+    assert _audit_rows(second) == []
+    rows = (await vault.execute(select(DonationConsent))).scalars().all()
+    assert len(rows) == 1 and rows[0].revoked_at is None
+
+
+@pytest.mark.asyncio
+async def test_hc_don_005i_concurrent_grant_is_409_not_500_and_writes_no_audit(vault, monkeypatch):
+    """A second window won the race: the partial unique index rejects our add."""
+    vault.add(DonationConsent(
+        profile_id=PROFILE_A, purpose="fine_tune", consent_text_version=VERSION,
+    ))
+    await vault.commit()
+
+    async def _none(*_a, **_k):
+        return None
+
+    monkeypatch.setattr(donation_api, "_get_active", _none)
+    resp, master = _put(vault, "fine_tune", True)
+    assert resp.status_code == 409, resp.text
+    assert resp.json()["detail"] == "Consent changed in another window. Reload to see the current choice."
+    assert _audit_rows(master) == []
+    rows = (await vault.execute(select(DonationConsent))).scalars().all()
+    assert len(rows) == 1 and rows[0].revoked_at is None
