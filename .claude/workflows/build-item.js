@@ -110,7 +110,7 @@ const spec = await agent(
   `Read-only. Find build-program queue item ${ID}.
 1. Run \`git rev-parse --show-toplevel\` from your cwd; that is repo_root. Run \`git -C <repo_root> fetch origin\`.
 2. Read its row with \`git -C <repo_root> show origin/main:${QUEUE}\`, never the working-tree copy (a stale checkout misses new rows; handoff 2026-10-20 §4). found=false if no row has id ${ID}.
-3. From the row, copy kind, runtime, depends_on, owner gates, ask-first, and the full file list (expand be/ = src/backend/, fe/ = src/frontend/src/). Map cells by the table header \`| id | lane | kind | depends_on | owner gates | ask-first | files | est h | runtime | status |\`: runtime is the verbatim text of the runtime cell (e.g. "claude (+ Codex security review)"), never a tech stack you infer from the plan.
+3. From the row, copy kind, runtime, depends_on, owner gates, ask-first, and the full file list (expand be/ = src/backend/, fe/ = src/frontend/src/). Map cells by that table's own header row (most read \`| id | lane | kind | depends_on | owner gates | ask-first | files | est h | runtime | status |\`; the owner-work table has fewer columns): runtime is the verbatim text of the runtime cell (e.g. "claude (+ Codex security review)"), never a tech stack you infer from the plan.
 4. Read the lane-doc section for ${ID} (docs/plans/2026-10-15-build-program/lane-*.md) and the plan file it names. spec_paths = those paths with section anchors or line ranges.
 5. acceptance_commands = the plan's measured acceptance commands, verbatim.
 6. contracts = the I-n rows in contracts.md §a where ${ID} is provider or consumer.
