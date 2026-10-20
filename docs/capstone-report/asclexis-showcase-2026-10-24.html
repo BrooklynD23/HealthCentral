@@ -328,7 +328,7 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
     <h3 data-ledger="C25 C16 C2">Observations stored, unverified</h3>
     <p class="lede" data-ledger="C25 C16 C2">Observations are created unverified and written to the profile's own vault through ProfileDbSession, never the master DB. The vault is SQLCipher-encrypted where SQLCipher is installed.</p><h4 style="margin-top:10px" data-exempt="navigation">Code evidence</h4>
     <ul class="tight">
-      <li data-ledger="C2"><code>api/documents.py:658,760</code> (<code>user_verified=False</code>)</li>
+      <li data-ledger="C13"><code>api/documents.py:658,760</code> (<code>user_verified=False</code>)</li>
       <li data-ledger="C25"><code>core/auth.py:315-341</code> (<code>ProfileDbSession</code>)</li>
       <li data-ledger="C16"><code>core/profile_database.py</code>, <code>core/sqlcipher_driver.py</code>, <code>migrations/profile/</code></li>
     </ul>
@@ -527,9 +527,9 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
     <div class="era" data-ledger="H12"><div class="et">E1 · Jan–Feb</div><div class="en">Human build</div><div class="bar"><i style="width:0%"></i></div><div class="ed" style="margin-top:4px;font-family:var(--mono);font-size:10px">0/62 by author · 27/62 with co-author trailer</div></div>
     <div class="era" data-ledger="H12"><div class="et">E2 · Mar–May</div><div class="en">Course quiet</div><div class="bar"><i style="width:0%"></i></div><div class="ed" style="margin-top:4px;font-family:var(--mono);font-size:10px">0/34 by author · 1/34 with co-author trailer</div></div>
     <div class="era" data-ledger="H12"><div class="et">E3 · Jun 11–13</div><div class="en">Agentic pivot</div><div class="ed">Human lays rails: provider layer, RAG memory, RL pipeline, CLAUDE.md/AGENT.md</div><div class="bar"><i style="width:0%"></i></div><div class="ed" style="margin-top:4px;font-family:var(--mono);font-size:10px">0/9 by author · 0/9 with co-author trailer</div></div>
-    <div class="era" data-ledger="H12"><div class="et">E4 · Jun 23–Jul</div><div class="en">Agent factory</div><div class="ed">230 of 1459 commits; 12 fix(backup) commits 2026-07-29…31</div><div class="bar"><i style="width:97%"></i></div><div class="ed" style="margin-top:4px;font-family:var(--mono);font-size:10px">222/230 by author · 222/230 with co-author trailer</div></div>
+    <div class="era" data-ledger="H12 H18"><div class="et">E4 · Jun 23–Jul</div><div class="en">Agent factory</div><div class="ed">230 of 1459 commits; 12 fix(backup) commits 2026-07-29…31</div><div class="bar"><i style="width:97%"></i></div><div class="ed" style="margin-top:4px;font-family:var(--mono);font-size:10px">222/230 by author · 222/230 with co-author trailer</div></div>
     <div class="era" data-ledger="H12"><div class="et">E5 · Aug 1–4</div><div class="en">Rename + failure memory</div><div class="ed">Rename; recurring-failures.md added 2026-08-04</div><div class="bar"><i style="width:100%"></i></div><div class="ed" style="margin-top:4px;font-family:var(--mono);font-size:10px">17/17 by author · 17/17 with co-author trailer</div></div>
-    <div class="era" data-ledger="H12"><div class="et">E6 · Sep</div><div class="en">Backlog + research</div><div class="ed">PR #18; branches A and B merged in P1 (2026-09-29 and 2026-10-01)</div><div class="bar"><i style="width:37%"></i></div><div class="ed" style="margin-top:4px;font-family:var(--mono);font-size:10px">24/65 by author · 58/65 with co-author trailer</div></div>
+    <div class="era" data-ledger="H12 M9"><div class="et">E6 · Sep</div><div class="en">Backlog + research</div><div class="ed">PR #18; branches B and A merged in P1 (2026-09-29 and 2026-10-01)</div><div class="bar"><i style="width:37%"></i></div><div class="ed" style="margin-top:4px;font-family:var(--mono);font-size:10px">24/65 by author · 58/65 with co-author trailer</div></div>
     <div class="era" data-ledger="H12"><div class="et">E7 · Oct 1–20</div><div class="en">Hardening + parallel agents</div><div class="ed">The agent shows only as a co-author trailer</div><div class="bar"><i style="width:0%"></i></div><div class="ed" style="margin-top:4px;font-family:var(--mono);font-size:10px">0/1040 by author · 717/1040 with co-author trailer</div></div>
   </div>
   <p class="note" data-ledger="H12">Git author name is a proxy, not a measure of who did the work.</p>
@@ -543,7 +543,7 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
       <li data-ledger="M2" data-kind="hypothesis">Hypothesis to test: docs drift where no gate runs. Observed drift sat on ungated surfaces; gated surfaces were not sampled.</li>
       <li data-ledger="M1" data-kind="case-study">Case study: in the 2026-09-25 audit (reported as 6 agents), the reconciler caught 3 errors in sibling output. One run; no rate.</li></ul></div>
     <div class="card"><h4 data-exempt="navigation">The honest counter-narrative (Part-2 material)</h4><ul class="tight">
-      <li data-ledger="H4" data-kind="finding">The security gate shipped green while failing open (fixed in P1).</li>
+      <li data-ledger="H4" data-kind="finding">The security gate shipped green while failing open (<span data-ledger="H19" data-kind="current">fixed in P1</span>).</li>
       <li data-ledger="H5" data-kind="finding"><code>.claude/agents/</code> was cited as evidence while <code>.gitignore</code> made it impossible to commit. Five definitions were authored new by owner decision D1 (2026-10-01).</li>
       <li data-ledger="H6" data-kind="finding">The CS4610 report claims hook-based PHI enforcement; no PreToolUse hook that scans for PHI exists in the repo, and the user-level PreToolUse hooks are continuous-learning and GSD only — claims outran artifacts.</li>
       <li data-ledger="M3" data-kind="finding">Three different docs cite three different test counts (620 / 1160 / 1245)</li></ul></div>
@@ -607,9 +607,9 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
   <div class="pipe">
     <div class="pnode" style="cursor:default;border-color:var(--green)" data-exempt="metadata"><div class="ic">⛁</div><div class="t">Audit</div><div class="s">2026-09-25 · done</div></div>
     <div class="parr">→</div>
-    <div class="pnode" style="cursor:default;border-color:var(--green)" data-ledger="M9"><div class="ic">▤</div><div class="t">Plans</div><div class="s">8 + 14 · most merged, W-7 and W-11b not</div></div>
+    <div class="pnode" style="cursor:default;border-color:var(--green)" data-ledger="M9 M10"><div class="ic">▤</div><div class="t">Plans</div><div class="s">8 + 14 · most merged, W-7 and W-11b not</div></div>
     <div class="parr">→</div>
-    <div class="pnode" style="cursor:default;border-color:var(--green)" data-ledger="M4"><div class="ic">◎</div><div class="t">Contract, matrix, program</div><div class="s">done 2026-09-27</div></div>
+    <div class="pnode" style="cursor:default;border-color:var(--green)" data-ledger="M4"><div class="ic">◎</div><div class="t">Contract, matrix, program</div><div class="s">matrix: 3 of 78 rows enforced</div></div>
     <div class="parr">→</div>
     <div class="pnode" style="cursor:default;border-color:var(--amber)" data-ledger="M9"><div class="ic">⚙</div><div class="t">Execution</div><div class="s">P1 merged 2026-09-29 and 2026-10-01; later phases in progress</div></div>
     <div class="parr">→</div>
@@ -626,7 +626,7 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
     <div class="card"><h4 data-ledger="M11">Claims ledger — honesty snapshot (64 rows)</h4>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 12px"><span class="tag g" style="font-size:12px;padding:5px 12px" data-ledger="M11">40 verified</span><span class="tag a" style="font-size:12px;padding:5px 12px" data-ledger="M11">10 partial</span><span class="tag r" style="font-size:12px;padding:5px 12px" data-ledger="M11">6 contradicted</span><span class="tag " style="font-size:12px;padding:5px 12px" data-ledger="M11">3 not-evidenced</span><span class="tag " style="font-size:12px;padding:5px 12px" data-ledger="M11">3 case-study</span><span class="tag " style="font-size:12px;padding:5px 12px" data-ledger="M11">1 hypothesis</span><span class="tag " style="font-size:12px;padding:5px 12px" data-ledger="M11">1 reported</span></div>
       <ul class="tight">
-        <li data-ledger="H4 H5 H6" data-kind="finding">The <b>contradicted</b> rows are the report's strength — the audit caught its own project's overclaims (the phantom <code>.claude/agents/</code> layer, since authored by owner decision D1; the fail-open gate, fixed in P1; AgentShield, not evidenced).</li>
+        <li data-ledger="H4 H5 H6" data-kind="finding">The <b>contradicted</b> rows are the report's strength — the audit caught its own project's overclaims (the phantom <code>.claude/agents/</code> layer, since authored by owner decision D1; the fail-open gate, <span data-ledger="H19" data-kind="current">fixed in P1</span>; AgentShield, not evidenced).</li>
         <li data-exempt="metadata">Rule: a claim ships only with a ledger row + evidence pointer</li></ul></div>
   </div>
 </section>
