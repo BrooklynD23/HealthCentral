@@ -1,6 +1,6 @@
 # Lane A — RAG + assistant: build-program design
 
-**Last Updated:** 2026-10-17 (CHAT-FACT-ROUTING, LOCAL-HF-HUB, INTERP-ADVICE-WORDING planned)
+**Last Updated:** 2026-10-19 (review round 2 fixes: HC-EMB-005b, HC-EMB-009a; G-C5 OL-1..3 answered); 2026-10-18 (G-C5 plan linked, PR #183); 2026-10-17 (CHAT-FACT-ROUTING, LOCAL-HF-HUB, INTERP-ADVICE-WORDING planned)
 **Owner:** repository owner
 **Status:** PROPOSED — design only, not approved for execution. No owner approval is recorded here that is not already in [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md). Every "Recommended" below is the lane designer's, not the owner's.
 **Refresh Trigger:** any of #72 (W-4), #95 (ASSIST-UTC), #74 (Tailwind 4) merging; any owner answer to a gate in [Owner gates](#owner-gates); any commit to `src/backend/api/assistant.py`, `src/backend/modules/rag.py`, `src/backend/api/interpretations.py` or `src/backend/modules/agent/**`.
@@ -14,8 +14,8 @@ Read-only design. No product file was edited. Existing merged plans are not rewr
 |---|---|---|---|---|---|
 | W-3 | PRODUCT | program row `implementation-program.md:436` | [W03](../2026-09-27-W03-verified-only-rag-and-trend-labels.md) (delta below) | blocked-on-PR | #72 (W-4, plan prerequisite), #95 (adjacent `rag.py` hunks); O-5 / O-1 / O-2 gate tasks 3 / 7 / 6 |
 | W-8 | PRODUCT | program row `:441` | [W08](../2026-09-27-W08-bundled-embedding-model.md) (delta below) | blocked-on-item | W-3, W-11a PR-3 = lane E E-3 (hard, plan §Shared-file order); `ci.yml` last per lane E (E-3 → #74 → #72 → W-8); Q-FC, Q-HASH, VERIFIED-FALLBACK unsigned |
-| G-C5-PLAN | DOCS | program row `:411`, `:450`; [scaffold pack](../../../audit/2026-09-25/waves/scaffold/G-C5.md) | none (design below = plan brief) | blocked-on-owner | Q5b (and GC5-PLAN) |
-| G-C5 | PRODUCT | same | none | blocked-on-item | G-C5-PLAN, W-8 (if Q5b = A), W-4 (#72, for the byte-identical gate) |
+| G-C5-PLAN | DOCS | program row `:411`, `:450`; [scaffold pack](../../../audit/2026-09-25/waves/scaffold/G-C5.md) | [GC5](../2026-10-18-GC5-hc-m11-nli-flag-off.md) (PROPOSED) | PR #183 (draft) | Q5b and GC5-PLAN signed 2026-10-17; W-8 merged |
+| G-C5 | PRODUCT | same | [GC5](../2026-10-18-GC5-hc-m11-nli-flag-off.md) (PROPOSED) | blocked-on-item | G-C5-PLAN merge; plan OL-1..3 answered 2026-10-19 (`owner-decisions-2026-09-27.md:269-271`: confirm the pin; B, fail closed; A, load directly). W-8 and W-4 merged |
 | SAFE-CHAT-AGENT | OWNER (→ PRODUCT if B) | program owner item `:498` (a); [wave-3-L1-A](../../../audit/2026-09-25/waves/wave-3-L1-A.md) "Other paths" 2 | none | blocked-on-owner | SCA-RULING |
 | SAFE-CHAT-FALLBACK | OWNER | `:498` (b); wave-3-L1-A Codex diff row | none | blocked-on-owner | SCF-RULING |
 | SAFE-CHAT-HISTORY | OWNER | `:498` (c); wave-3-L1-A "Other paths" 5 | none | blocked-on-owner | SCH-RULING |
@@ -24,6 +24,10 @@ Read-only design. No product file was edited. Existing merged plans are not rewr
 | CHAT-FACT-ROUTING | PRODUCT | queue status 2026-10-16 third batch (MM-4) | [below](#chat-fact-routing--the-agent-cannot-find-real-lab-rows-by-name-open-questions-dump-raw-facts) | done (#162) | CFR-FORMAT (a), answered 2026-10-18 |
 | LOCAL-HF-HUB | PRODUCT (or folds into W-8) | queue status 2026-10-16 third batch (MM-4); LOCAL-01 | [below](#local-hf-hub--embeddings-may-fetch-from-the-hugging-face-hub-at-runtime-local-first) | blocked-on-owner | LHH-SCOPE; (a) = W-8's blockers |
 | INTERP-ADVICE-WORDING | PRODUCT (seed text) | queue status 2026-10-16 third batch (MM-4); no-medical-advice invariant | [below](#interp-advice-wording--a-seeded-kb-sentence-suggests-medication) | done (#156) | IAW-WORDING (b), answered 2026-10-18 |
+| W-8-FC-NOTICE | PRODUCT | PR #168 Codex [high] 1 + L0 ruling | [below](#w-8-fc-notice--a-hash-only-vault-with-no-embedding-model-abstains-silently-instead-of-returning-the-q-fc-notice) | blocked-on-PR | LEGACY-CITE-PROMPT (#185) holds `rag.py` |
+| REPROCESS-ATOMIC | PRODUCT | PR #168 Codex [high] 2 + L0 ruling | [below](#reprocess-atomic--reprocess-commits-the-chunk-delete-when-the-replacement-row-build-fails) | ready | — |
+| W-8-HARDEN | PRODUCT | PR #168 Codex mediums + L0 ruling | [below](#w-8-harden--model-path-in-logs-weights-only-checksum-partial-left-after-an-exception) | blocked-on-item | REPROCESS-ATOMIC (shared test file, reused harness) |
+| CFR-CACHE-TZ | PRODUCT | PR #162 follow-ups 1-2 | [below](#cfr-cache-tz--the-agent-cache-key-ignores-the-profile-time-zone-abbreviation-analytes-get-title-case-names) | ready | — |
 
 Collected-count note: the lane baseline is **1574** (`CLAUDE.md:30`, `AGENT.md:76` on `3b2236c`; confirmed by L0 in the peer-review round). 1501 was #95's own branch value. Not re-measured here (no pytest on this box). Ground rule 8 (SLOT-RULE): every lane-A PR runs `--collect-only` **after its final rebase** onto `origin/main` and writes the measured number into both slots in the same commit. It never adds its own delta to a number copied from a doc. Lane D's D-0 chain (#95 → #97 → #99 → #82 → #84) runs first, so lane-A PRs start from whatever D-0 measured.
 
@@ -79,6 +83,8 @@ Scope (D8 + D8-delivery), tasks and test IDs (HC-EMB-001…008) stay valid. Chan
 
 ## G-C5 — HC-M11 NLI cross-encoder behind the default-off flag (design, no plan yet)
 
+> Plan: [2026-10-18-GC5-hc-m11-nli-flag-off.md](../2026-10-18-GC5-hc-m11-nli-flag-off.md) (PROPOSED, PR #183). Its line numbers and the absent-model decision (OL-2) supersede the design text below.
+
 **Goal:** a local NLI cross-encoder behind the existing flag `use_llm_entailment`, default off. Flag off ⇒ legacy eval output byte-identical. No threshold change.
 
 **Measured on main (new since the scaffold pack):**
@@ -93,7 +99,7 @@ Scope (D8 + D8-delivery), tasks and test IDs (HC-EMB-001…008) stay valid. Chan
 |---|---|---|---|
 | 1 | `src/backend/modules/rag.py:1007` | `verify_all_claims(claims_to_verify, self.verifier.config)` | no |
 | 2 | `src/backend/api/assistant.py:210-213` | add `use_llm_entailment=app_settings.use_llm_entailment` | no |
-| 3 | `src/backend/modules/verifier_agent.py:304-317` | body of `_check_entailment_llm` only: score `(source.text, claim)` with the cross-encoder, then map contradiction/entailment/neutral to `EntailmentResult`; model absent → `return self._check_entailment_rules(claim, source)` (today's exact behaviour) | **yes (GC5-ASKFIRST)** |
+| 3 | `src/backend/modules/verifier_agent.py:304-317` | body of `_check_entailment_llm` only: score `(source.text, claim)` with the cross-encoder, then map contradiction/entailment/neutral to `EntailmentResult`; model absent: see the [plan](../2026-10-18-GC5-hc-m11-nli-flag-off.md) OL-2 (answered B, fail closed, `owner-decisions-2026-09-27.md:270`) | **yes (GC5-ASKFIRST)** |
 | 4 | `src/backend/modules/embeddings.py` | `load_local_cross_encoder()`: per-call `local_files_only=True` on a resolved local dir (Q-OFFLINE pattern, W-8's resolver), raising W-8's `EmbeddingModelUnavailableError` | no |
 | 5 | `src/backend/scripts/download_models.py`, `config/model_manifest.json`, `core/config.py` (`nli_model_path`), `config/.env.example` | `nli` subcommand copied from W-8's `embedding` subcommand; revision + sha256 pin | no |
 
@@ -300,6 +306,138 @@ Never put `str(exc)` in the detail; it carries provider error text. About 6 line
 
 **Files:** `src/backend/scripts/seed_knowledge_base.py`, `src/backend/tests/test_biomarker_assistant.py`. **Expected collected delta:** +4. **Acceptance:** the 4 tests; `pyt tests/test_biomarker_assistant.py tests/test_safe_interp_grounded.py tests/test_interpret_safety_adversarial.py tests/test_phase4_ai_safety.py -q` 0 failed; `~/venvs/asclexis-311/bin/python scripts/measure_prohibited_patterns.py` count does not rise. **Rollback:** revert, plus a reverse revision tuple if any install already took the new text.
 
+## Follow-ups found 2026-10-18 (planned 2026-10-19 on `origin/main` @ `a9978e8`)
+
+Four rows from the W-8 (#168) Codex review and the CHAT-FACT-ROUTING (#162) notes. Each fact below was re-checked on `a9978e8`. The repros ran through `scripts/pyslot.sh` from a scratchpad test file (not committed). `pyt` = `scripts/pyslot.sh env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest`, run from `src/backend`.
+
+**Shared test file.** W-8-FC-NOTICE, REPROCESS-ATOMIC and W-8-HARDEN all add tests to `src/backend/tests/test_embedding_fail_closed_paths.py`, so no two of them run at once. Order: REPROCESS-ATOMIC → W-8-HARDEN (it reuses REPROCESS-ATOMIC's HTTP reprocess harness). W-8-FC-NOTICE goes whenever `rag.py` is free, but never beside either of the other two.
+
+### W-8-FC-NOTICE — a hash-only vault with no embedding model abstains silently instead of returning the Q-FC notice
+
+**Source:** PR #168 Codex adversarial review, [high] 1, and the L0 ruling on that PR: "return the Q-FC unavailable error before the hash-only early return, with a route test. Not a merge blocker."
+
+**Fact (`a9978e8`):** `RAGModule._search_vectors_async` filters on `Embedding.model_name == self._embedder.config.model_name` (`src/backend/modules/rag.py:570-572`, Q-HASH). It returns `[]` at `:605-606` when no row is left. It reaches `embed_text` (`:611`) only when rows remain, and that call is what raises `ModelUnavailableError(EMBEDDING_UNAVAILABLE_MESSAGE)` (`:612-614`). So a pre-W-8 vault that holds only `hash-fallback` rows never asks whether the model is installed. With the model absent, document search is skipped **silently**: `rag.query` carries on with observation and KB context only, and **the LLM is still called** with that context. The patient gets a generated answer with no document context and never sees the signed Q-FC notice (`api/interpretations.py:539-543` would map the error to a 501). On `/assistant/chat`, when observation context exists, the same vault yields an LLM answer instead of the knowledge fallback that HC-EMB-005 pins for a vault with real vectors. (With no observation and `include_references: false` the chunk list is empty and `RAGModule.query` abstains before the runner, `modules/rag.py:1261-1271`, review round 2.)
+**Repro:** a verified document with one chunk whose embedding is `model_name="hash-fallback"`, model path pointing at an empty directory (the `absent_model` fixture). `await rag._search_vectors_async(query="LDL", ...)` returned `[]` and raised nothing. Review round 1 on PR #189 (comment 6264375489) re-ran the HC-EMB-006c harness with only the embedding row changed to `hash-fallback`: `rag.query` ran, the sentinel runner was called once (`runner.calls == 1`), and the 006c stub then crashed in `InterpretationResponse.from_model` (`api/interpretations.py:139`, no `citations_json`), because that stub is only safe when retrieval raises first.
+
+**Scope of the harm.** No unverified or placeholder vector reaches an answer (L0 ruling on #168). The defect is that the model-absent state is invisible: the LLM answers from observation and KB context alone, and the patient is not told that document search is unavailable.
+
+**Design (one hunk in `_search_vectors_async`, no new layer):**
+1. Keep the base statement (joins, `Document.status == "verified"`, date / analyte / category filters) in one variable. Apply the `model_name` filter to a copy of it, and run that copy as today.
+2. If that returns no rows, run the base statement once more as `select(Chunk.id)` with the same joins and filters, `limit(1)`. If it finds a row, eligible chunks exist but none has a comparable vector. Call `self._embedder.embed_text(query)` inside the same `try` as `:610-614`. With the model absent, that raises the Q-FC error. With the model present, the result is discarded and the method returns `[]` (Q-HASH unchanged: hash vectors are still never compared).
+3. If the base statement finds nothing, return `[]` without embedding (HC-EMB-006b unchanged: an empty profile needs no model).
+
+**Test-first** (`src/backend/tests/test_embedding_fail_closed_paths.py`; "RED" = fails on `a9978e8`):
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-EMB-006d | `POST /interpretations/observations/{id}/interpret-grounded` through `route_client`, as HC-EMB-006c but the only embedding row has `model_name="hash-fallback"`, model absent. The interpret stub returns a **complete** interpretation object (a `LabInterpretation` with `citations_json`, `context_json` and every field `InterpretationResponse.from_model` reads, `api/interpretations.py:135-160`), so the request finishes instead of crashing → 501, `detail == QFC_APPROVED_DETAIL`, `str(absent_model)` not in it, `runner.calls == 0`, one audit row with `entity_id == obs_id` (`master_db.add` is a `MagicMock`) | yes: today 200 and `runner.calls == 1` (the LLM answered without document context) |
+| HC-EMB-005b | `POST /assistant/chat` through `route_client`, as HC-EMB-005 (`"What is my LDL?"`, `include_references: false`) but the only embedding row is `hash-fallback`, model absent, **and a verified observation for the asked analyte is seeded** (`analyte_canonical="ldl_cholesterol"`, `user_verified=True`; not 006c's `"ldl"`: on `/assistant/chat` `selected_analytes` is None, so `_get_observation_chunks` takes the analyte from the question text, `modules/rag.py:327-332`, and "What is my LDL?" resolves to `ldl_cholesterol`), so observation context exists → 200, `runner.calls == 0`, `ANSWER-SENTINEL` not in `full_response`, `verification.enabled is False`, and `"based on the knowledge base only"` in `full_response` (the note only `_build_knowledge_fallback` emits, `api/assistant.py:1592`; the route reaches it via `except ModelUnavailableError` at `:1047`), so the test cannot pass on the insufficient-context abstain shape | yes: today `runner.calls == 1` and the LLM answer is returned without the fallback note |
+| HC-EMB-006e | `_search_vectors_async` on the same hash-only vault, model absent → raises `ModelUnavailableError` | yes (repro above) |
+| HC-EMB-006f | hash-only vault, model present (`_FixedEmbedder` as in HC-EMB-008) → returns `[]` | no. Guard against over-correction; the mutant "raise whenever the filtered query is empty" must fail it |
+
+**Files:** `src/backend/modules/rag.py` (`_search_vectors_async` only), `src/backend/tests/test_embedding_fail_closed_paths.py`, slots. **Re-run, not edited:** `tests/test_embedding_bundle.py`, `tests/test_rag_pipeline.py`, `tests/test_safe_interp_grounded.py`, `tests/test_assist_utc_http.py`, `tests/test_verified_only_consumers.py`.
+**Expected collected delta:** +4. **Est:** 1.5 h.
+**Acceptance:** `pyt tests/test_embedding_fail_closed_paths.py tests/test_embedding_bundle.py tests/test_rag_pipeline.py tests/test_safe_interp_grounded.py tests/test_verified_only_consumers.py -q -rfE`: 0 failed except the documented model-absent set when the bundle is not fetched. Full suite per RUNBOOK §6, with the embedding model present. **Rollback:** revert; no data.
+**Order:** `rag.py` is held by LEGACY-CITE-PROMPT (#185, in flight). This row is **blocked until #185 merges or is closed** (`rag.py` free; #185's merge waits on the open owner gate LCP-ACCEPT), then rebases. Never beside G-C5 or B-3 (both edit `rag.py`), REPROCESS-ATOMIC or W-8-HARDEN (shared test file). No ask-first file.
+
+### REPROCESS-ATOMIC — reprocess commits the chunk delete when the replacement row build fails
+
+**Source:** PR #168 Codex adversarial review, [high] 2; L0 ruling on #168 ("pre-existing, narrowed by W-8; follow-up row").
+
+**Fact (`a9978e8`):** `_create_chunks_and_embeddings` embeds first (`src/backend/api/documents.py:869-871`, W-8). Then, with `refresh_existing`, it runs `delete(Chunk).where(Chunk.doc_id == doc_id)` (`:873-874`) and builds the replacement rows one pair at a time (`:877-897`): each `Chunk` is added before its `Embedding`, and `embedder.vector_to_blob(...)` runs inside the `Embedding(...)` constructor (`:894`). If that raises, the caller `_run_extraction_pipeline` swallows the error (`:686-687`) and commits (`:689`).
+**Repro (worse than the review says):** one chunk `chunk-1` with its embedding; `EmbeddingsModule.embed_chunks` stubbed, `vector_to_blob` raising `ValueError`; call with `refresh_existing=True`, then commit as the caller does. The committed chunk ids for the document are `['<new uuid>']`: `chunk-1` is gone and **one new chunk with no embedding row** replaced it. The document's index is silently emptied.
+
+**Design (smallest correct version):** build every replacement `Chunk` and `Embedding` object, including every `vector_to_blob` call and every `emb_data[...]` lookup, into a list **before** the delete. Then run the delete and `profile_db.add_all(rows)`, and commit as today. A failure in the build then happens before any row is touched. A flush failure at the `:899` commit already rolls back the whole transaction, delete included, so no savepoint is needed. Do not change the swallow-and-commit in the caller: it is what keeps a document's new observations when embedding is unavailable (HC-EMB-007).
+
+**Not in scope (noted only):** the core `delete(Chunk)` relies on `Embedding.chunk_id` `ondelete="CASCADE"` (`models/embedding.py:44`), which works only with SQLite FK enforcement on. That is C-P6's FK work (recurring-failures #9 already records it).
+
+**Test-first** (`src/backend/tests/test_embedding_fail_closed_paths.py`):
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-EMB-007b | as HC-EMB-007 (direct `_create_chunks_and_embeddings`, `refresh_existing=True`), but `embed_chunks` returns valid dicts and `EmbeddingsModule.vector_to_blob` raises → the call raises; after `commit()` + `expunge_all()`, the committed chunk ids are `["chunk-1"]` and `chunk-1` still has its embedding row | yes (repro: one new chunk id, no embedding) |
+| HC-EMB-007c | `POST /documents/{id}/reprocess` through `route_client`: a verified `lab_pdf` document with `chunk-1` and its embedding; `documents_api.get_decrypted_document`, `documents_api.ExtractModule` (one result with `observations=[]`, `extracted_text="LDL 128 mg/dL"`, `ocr_unavailable=False`, `collection_dates=[]`), `documents_api._classify_and_extract_entities` (as the `reprocess` fixture in `tests/test_audit_order.py:373-394`), `EmbeddingsModule.embed_chunks` and a raising `vector_to_blob` stubbed → 200; committed chunk ids `["chunk-1"]` | yes (same defect, through the caller's commit) |
+
+**Files:** `src/backend/api/documents.py` (`_create_chunks_and_embeddings` only), `src/backend/tests/test_embedding_fail_closed_paths.py`, slots. **Re-run, not edited:** `tests/test_audit_order.py` (reprocess Cases), `tests/test_documents_api.py`, `tests/test_care_tasks.py`, `tests/test_audit_order_guard.py`.
+**Expected collected delta:** +2. **Est:** 1.5 h.
+**Acceptance:** `pyt tests/test_embedding_fail_closed_paths.py tests/test_audit_order.py tests/test_documents_api.py tests/test_audit_order_guard.py -q -rfE`: 0 failed (model-absent set aside); HC-EMB-007 still green. Full suite per RUNBOOK §6. **Rollback:** revert; no data.
+**Order:** ready now. Never beside W-8-FC-NOTICE or W-8-HARDEN (shared test file), or any open PR on `api/documents.py` (none open or ready on `a9978e8`). No ask-first file.
+
+### W-8-HARDEN — model path in logs, weights-only checksum, `.partial` left after an exception
+
+**Source:** PR #168 Codex adversarial review, the three [medium] findings; L0 ruling on #168 ("go into one follow-up row, W-8-HARDEN").
+
+**Facts (`a9978e8`):**
+1. **Path in logs.** `EmbeddingsModule._load_local_model` puts the absolute model directory in both error messages (`src/backend/modules/embeddings.py:102-105` "not installed at {model_dir}", `:114-116` "at {model_dir} failed to load"). Two sinks log the message verbatim: `rag.py:613` (`"...failed closed: %s", exc`) and `api/documents.py:687` (`f"Chunking failed ...: {chunk_error}"`). Measured: with `settings.embedding_model_path` set to `/tmp/.../home-jane-doe/model`, the message reads `Embedding model not installed at /tmp/.../home-jane-doe/model (11 of 11 files missing). ...`. The 501 detail is already path-free (HC-EMB-006a/c).
+2. **Weights-only checksum.** `_embedding_complete` checks that the 11 `EMBEDDING_FILES` exist and that only `model.safetensors` matches `EMBEDDING_WEIGHTS_SHA256` (`src/backend/scripts/download_models.py:319-324`). A changed tokenizer or config file is accepted, both on a fresh fetch and when an existing target is re-checked (`:344-347`).
+3. **`.partial` left behind.** Cleanup covers an exception from `snapshot_download` (`:361-372`) and a `False` verification (`:374-378`). It does not cover an exception raised by `_embedding_complete` itself (for example `OSError` while hashing) or by `partial.rename(target)` (`:380`). The next run then stops at `:356-359` ("already exists") and needs manual cleanup.
+
+**Design:**
+1. **Messages without the path** (`embeddings.py:102-105`, `:114-116`): "Embedding model not installed ({n} of {m} files missing). Fetch it once with: cd src/backend && python scripts/download_models.py embedding" and "Embedding model failed to load: {type(exc).__name__}". No log line elsewhere changes; both sinks then log a path-free message. The fetch script prints its own target path, so a developer still sees where the model goes.
+2. **Full digest manifest** (`embeddings.py`): replace `EMBEDDING_WEIGHTS_SHA256` with `EMBEDDING_FILE_SHA256: dict[str, str]`, one entry per name in `EMBEDDING_FILES`, keep `EMBEDDING_FILES = tuple(EMBEDDING_FILE_SHA256)` order-stable, and make `_embedding_complete` require every file to exist and match. The values, measured on 2026-10-19 with `sha256sum` over a bundle fetched by the W-8 script (`hc-f-5` worktree; its `model.safetensors` digest equals today's pinned `EMBEDDING_WEIGHTS_SHA256`, so it is the pinned revision `1110a243…`):
+
+   | File | sha256 |
+   |---|---|
+   | `1_Pooling/config.json` | `4be450dde3b0273bb9787637cfbd28fe04a7ba6ab9d36ac48e92b11e350ffc23` |
+   | `README.md` | `dcd602d2fd35c203a247304a06fec6654a12f7941b739f9221a064fe8dc3b7f0` |
+   | `config.json` | `953f9c0d463486b10a6871cc2fd59f223b2c70184f49815e7efbcab5d8908b41` |
+   | `config_sentence_transformers.json` | `061ca9d39661d6c6d6de5ba27f79a1cd5770ea247f8d46412a68a498dc5ac9f3` |
+   | `model.safetensors` | `53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db` |
+   | `modules.json` | `84e40c8e006c9b1d6c122e02cba9b02458120b5fb0c87b746c41e0207cf642cf` |
+   | `sentence_bert_config.json` | `fc1993fde0a95c24ec6c022539d41cf6e2f7c9721e5415d6fb6897472a9cd4b7` |
+   | `special_tokens_map.json` | `303df45a03609e4ead04bc3dc1536d0ab19b5358db685b6f3da123d05ec200e3` |
+   | `tokenizer.json` | `be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037` |
+   | `tokenizer_config.json` | `acb92769e8195aabd29b7b2137a9e6d6e25c476a4f15aa4355c233426c61576b` |
+   | `vocab.txt` | `07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3` |
+
+   Task 0 re-measures these on a fresh fetch (owner host or CI fetch step) and stops if any differs. The revision pin (EMB-REV) does not change, so no owner gate is needed. The runtime load path does not hash files; only the fetch script does, as today.
+3. **One ownership-aware cleanup** (`download_models.py:361-381`): `snapshot_download`, `_embedding_complete(partial)` and `partial.rename(target)` sit in one `try`. On any `BaseException`, remove `partial` (created by this run's exclusive `mkdir`, `:355`) and re-raise. On a `False` check, remove it and exit 1 as today. Never touch `target` or a `.partial` this run did not create (HC-EMB-004c/d unchanged).
+
+**Test-first:**
+
+| Id | File | Assertion | RED today? |
+|---|---|---|---|
+| HC-EMB-009a | `tests/test_embedding_fail_closed_paths.py` | with `absent_model`, and with a model directory holding all 11 files and `monkeypatch.setitem(sys.modules, "sentence_transformers", SimpleNamespace(SentenceTransformer=_raiser))` (not `monkeypatch.setattr("sentence_transformers.SentenceTransformer", ...)`, which imports the package first; the function-local `from sentence_transformers import SentenceTransformer` at `modules/embeddings.py:108` picks the stub up whether or not the package is installed, so the `:114-116` branch always runs), `str(EmbeddingModelUnavailableError)` does not contain the directory path | yes (path in both messages) |
+| HC-EMB-009b | same | `caplog` at WARNING: `_search_vectors_async` with one chunk and `absent_model` → `str(absent_model)` not in `caplog.text` (the `rag.py:613` sink) | yes |
+| HC-EMB-009c | same | `caplog` at WARNING: the HC-EMB-007c HTTP reprocess harness with `absent_model` and the real `embed_chunks` → `str(absent_model)` not in `caplog.text` (the `api/documents.py:687` sink) | yes |
+| HC-EMB-004f | `tests/test_embedding_bundle.py` | the fake snapshot succeeds, `download_models._sha256` raises `OSError` → `OSError` propagates; no `.partial`, no target | yes (`.partial` left) |
+| HC-EMB-004g | same | `download_models._embedding_complete` monkeypatched to return `True` (so the test does not depend on the new manifest), `Path.rename` raises `PermissionError` for the `.partial` → error propagates; no `.partial`, no target | yes: today the rename sits outside the cleanup `try` and the `.partial` is left |
+| HC-EMB-004h | same | manifest monkeypatched to the fake payload digests, then the fake snapshot writes a different `tokenizer.json` → exit 1, nothing installed, no `.partial` | yes (today only the weights are checked; before the edit the monkeypatch target does not exist either, so also prove RED with the mutant "check `model.safetensors` only" in Task 3) |
+| HC-EMB-004i | same | an existing complete target whose `config.json` differs from the manifest → exit 1, target not deleted, `snapshot_download` not called | today the monkeypatch of `emb.EMBEDDING_FILE_SHA256` fails at setup (`AttributeError`), which proves nothing (recurring-failures #1). The behavioural RED is the Task 3 mutant "check `model.safetensors` only": it accepts the altered target and fails this test; paste its output, as for 004h |
+
+**Tests that pin changed behaviour (edited):** HC-EMB-004b (`tests/test_embedding_bundle.py:157-170`) monkeypatches `emb.EMBEDDING_WEIGHTS_SHA256`; it now monkeypatches `emb.EMBEDDING_FILE_SHA256` to the digests of the fake payloads (`b"pinned-weights-stand-in"` for the weights, `b"{}"` for the rest). HC-EMB-004a stays as is (wrong weights still fail).
+
+**Files:** `src/backend/modules/embeddings.py`, `src/backend/scripts/download_models.py`, `src/backend/tests/test_embedding_bundle.py`, `src/backend/tests/test_embedding_fail_closed_paths.py`, slots. **Re-run, not edited:** `tests/test_embedding_no_network.py`, `tests/test_model_integrity.py`, `tests/test_verify_model_repos.py`, `tests/test_rag_pipeline.py`.
+**Expected collected delta:** +7. **Est:** 2.5 h.
+**Acceptance:** `pyt tests/test_embedding_bundle.py tests/test_embedding_fail_closed_paths.py tests/test_embedding_no_network.py tests/test_model_integrity.py tests/test_verify_model_repos.py -q -rfE`: 0 failed with the model present. `cd src/backend && python scripts/download_models.py embedding` against the installed bundle prints "already installed" (the real bundle passes the full manifest). Full suite per RUNBOOK §6. **Recurring-failures #12 recheck:** after this merges, L0 runs the new gate (the stricter `_embedding_complete`: CI's fetch step and any open PR that installs or fakes a bundle) on `origin/main` and on every open PR built before it, and rebases or fixes those PRs before merging the rest of the group. **Rollback:** revert; an install that the stricter check now rejects is re-fetched by deleting it by hand (the script never deletes it).
+**Order:** blocked until REPROCESS-ATOMIC merges (shared test file; HC-EMB-009c reuses its harness). Never beside W-8-FC-NOTICE (shared test file) or G-C5 (edits `embeddings.py` and `download_models.py`). No ask-first file.
+
+### CFR-CACHE-TZ — the agent cache key ignores the profile time zone; abbreviation analytes get title-case names
+
+**Source:** PR #162 (CHAT-FACT-ROUTING) "Follow-ups (MINOR, outside this row's files)" items 1 and 2.
+
+**Facts (`a9978e8`):**
+1. **Cache key.** `CacheKey` holds `normalized_question`, `profile_version`, `profile_id`, `filters` (`src/backend/modules/agent/cache.py:37-43`). `_serve_via_agent` builds it at `src/backend/api/assistant.py:803-808`, and `_profile_version` (`:638`) fingerprints only verified observations and documents. Since CFR-FORMAT (a), the agent's fact sentences print profile-local dates: `draft.py` reads the zone at answer time (`modules/agent/nodes/draft.py:102-110`, `:334`). A cache hit skips `draft`, so after the patient changes their time zone a cached answer keeps the old zone's dates until the evidence changes.
+2. **Display names.** `_display_name` (`draft.py:83-90`) falls back to `key.replace("_", " ").title()`. 17 of the 39 `ANALYTE_SYNONYMS` keys have no `DISPLAY_NAMES` entry (`modules/normalize.py:221-244`). For most the fallback reads fine (`Calcium`, `Total Protein`). It is wrong for the 8 abbreviation keys `mcv`, `mch`, `mchc`, `rdw`, `ast`, `alt`, `tibc`, `esr` (`Mcv`, `Alt`, ...), and for `egfr` (`Egfr`), which is not a synonyms key but is stored as-is when a report prints it.
+
+**Design:**
+1. **Cache key.** Add a **required** field `tz_name: str` to `CacheKey`. At `api/assistant.py:803-808`, pass `tz_name=await profile_timezone_name(profile_db, profile_id)` (`core.time`, already the zone source for `draft`). Required, not defaulted to `"UTC"`: a default would let a future construction site recreate this bug without failing. Update the module docstring (`cache.py:1-23`) with one sentence: the zone is in the key because answers print local dates.
+2. **Display names.** Add 9 entries to `NormalizeModule.DISPLAY_NAMES`, in the existing "ABBR (Expansion)" style of `BUN (Blood Urea Nitrogen)`: `mcv` "MCV (Mean Corpuscular Volume)", `mch` "MCH (Mean Corpuscular Hemoglobin)", `mchc` "MCHC (Mean Corpuscular Hemoglobin Concentration)", `rdw` "RDW (Red Cell Distribution Width)", `ast` "AST (Aspartate Aminotransferase)", `alt` "ALT (Alanine Aminotransferase)", `tibc` "TIBC (Total Iron-Binding Capacity)", `esr` "ESR (Erythrocyte Sedimentation Rate)", `egfr` "eGFR (Estimated Glomerular Filtration Rate)". These are names, not advice; CFR-FORMAT (a) already approved display names. `DISPLAY_NAMES` is also read by `modules/rag.py:372` and `modules/normalize.py:286`; neither file's code changes, and no test pins the old title-case strings (grep on `a9978e8`). The `rag.py:372` reader means the legacy RAG "YOUR RESULTS" context text changes too (for example `Alt` becomes `ALT (Alanine Aminotransferase)`). CFR-FORMAT (a) was answered for the agent's fact answers; applying it to the legacy context is **L0's reading, not an owner answer**. L0 ruling (2026-10-19, PR #189 review round 1): allowed, because display names are presentation only.
+
+**Test-first:**
+
+| Id | File | Assertion | RED today? |
+|---|---|---|---|
+| HC-CFR-009 | `tests/test_assist_agent_dates_http.py` (its `_post` harness, real `run_agent`, `route_client`) | profile zone `America/Los_Angeles` (a `UserModelSettings` row), one verified LDL row collected `2026-01-16 03:00` (naive UTC). Ask "Is my LDL cholesterol high?" → the answer contains `Jan 15, 2026`. Set the row's zone to `Asia/Tokyo`, commit, ask the same question → the answer contains `Jan 16, 2026` and not `Jan 15, 2026` | yes (cache hit replays `Jan 15`) |
+| HC-CFR-010 | `tests/agent/test_agentic_queries.py` | parametrised over the 9 keys: `draft._display_name(key)` equals the name above | yes ×9 |
+
+**Tests that pin changed behaviour (edited, one kwarg each):** every direct `CacheKey(...)` with all three old fields gains `tz_name="UTC"`: `tests/test_agent_cache_isolation.py:127-128`, `tests/test_hc_a1_agent_verification.py:75` (`_seed_cache`; the route computes `"UTC"` for a profile with no settings row, so the seeded key still matches), `tests/agent/test_s5_cutover_cache.py:24-25`, `:132`, `:147`. `test_s5_cutover_cache.py:15` and `:20` assert that a missing field raises; they stay as they are and still pass.
+
+**Files:** `src/backend/modules/agent/cache.py`, `src/backend/api/assistant.py` (the `CacheKey(...)` call and the `core.time` import only), `src/backend/modules/normalize.py` (`DISPLAY_NAMES` only), `src/backend/tests/test_assist_agent_dates_http.py`, `src/backend/tests/agent/test_agentic_queries.py`, `src/backend/tests/test_agent_cache_isolation.py`, `src/backend/tests/test_hc_a1_agent_verification.py`, `src/backend/tests/agent/test_s5_cutover_cache.py`, slots. **Re-run, not edited:** `tests/test_assist_utc_http.py`, `tests/test_chat_sessions.py`, `tests/test_rag_trend_units.py`, `tests/test_export_trend_units.py`, `tests/test_audit_order.py`.
+**Expected collected delta:** +10. **Est:** 2 h.
+**Acceptance:** `pyt tests/agent/ tests/test_assist_agent_dates_http.py tests/test_agent_cache_isolation.py tests/test_hc_a1_agent_verification.py tests/test_assist_utc_http.py tests/test_chat_sessions.py tests/test_rag_trend_units.py -q -rfE`: 0 failed. `cd src/backend && python -c "from main import app"`. Full suite per RUNBOOK §6. **Rollback:** revert; the cache is in-process only.
+**Order:** ready now. Never beside B-3 or G-C5 (both edit `api/assistant.py`), and never beside LEGACY-CITE-PROMPT (#185): `DISPLAY_NAMES` feeds the legacy context at `rag.py:372`, so this row would change the prompt text while #185 is measured against the RSI-T2-EVAL baseline. Merge it after #185 merges or is closed. No ask-first file. **Recurring-failures #12 recheck:** after this merges, L0 runs the new gate (the required `CacheKey.tz_name`: `tests/agent/`, `tests/test_agent_cache_isolation.py`, `tests/test_hc_a1_agent_verification.py`) on `origin/main` and on every open PR built before it, and rebases or fixes those PRs before merging the rest of the group. An open PR that builds a `CacheKey` without `tz_name` fails it.
+
 ## Provides
 
 1. `modules.agent.state.ChatFilters` (frozen: `from_dt`, `to_dt` naive UTC, `analytes: tuple[str, ...]`, `category`); `modules.agent.graph.RunContext.filters: ChatFilters`, read by agent tools via `getattr(ctx, "filters", None)` (ASSIST-AGENT-DATES).
@@ -327,8 +465,8 @@ Never put `str(exc)` in the detail; it carries provider error text. About 6 line
 | O-5, O-1 (= VERIFIED-FALLBACK), O-2 veto | W-3 (+W-8 for O-1) | as in W03 §10 | unsigned |
 | O-3 (= IUV-1, lane B B-6), O-4 (= MSG-UNVERIFIED, lane A if opened) | not W-3 blockers | as in W03 §10 | unsigned |
 | Q-FC, Q-HASH | W-8 | as in W08 §Owner sign-offs | unsigned (Q-OFFLINE, EMB-REV answered 2026-10-08) |
-| Q5a, Q5b, GC5-MODEL, GC5-PLAN | G-C5 | scaffold pack §3 | unsigned |
-| **GC5-ASKFIRST** | G-C5 | approve the exact `verifier_agent.py:304-317` hunk (ask-first file, CLAUDE.md §1) | unsigned; `faithfulness.py` is not edited |
+| Q5a, Q5b, GC5-MODEL, GC5-PLAN | G-C5 | scaffold pack §3 | answered 2026-10-17 (`owner-decisions-2026-09-27.md:225-228`); follow-ups OL-1, OL-2 and OL-3 in the [plan](../2026-10-18-GC5-hc-m11-nli-flag-off.md) answered 2026-10-19 (`:269-271`) |
+| **GC5-ASKFIRST** | G-C5 | approve the exact `verifier_agent.py:304-317` hunk (ask-first file, CLAUDE.md §1) | answered 2026-10-17 (`:238`: approved in advance, Opus review still runs, owner merges); `faithfulness.py` is not edited |
 | SCA-RULING | SAFE-CHAT-AGENT | A accept / B pattern floor in `guard.py` | not asked |
 | SCF-RULING | SAFE-CHAT-FALLBACK | A accept / B screen / C reword seed (ask together with lane B IBF-1; same 7 seed fields) | not asked |
 | SCH-RULING | SAFE-CHAT-HISTORY | A new answers only / B read-time mask | not asked |

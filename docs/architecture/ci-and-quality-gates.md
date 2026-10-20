@@ -20,6 +20,7 @@ flowchart TD
         FE["frontend-tests<br/>tsc --noEmit · eslint · vitest · build"]
         SEC["security-scan<br/>bandit + pip-audit via security_gate.py"]
         EVAL["agent-evals<br/>agent_eval_gate.py"]
+        LEGACY["legacy-evals<br/>legacy_eval_gate.py"]
         E2E["e2e-tests<br/>Playwright (chromium)"]
     end
 
@@ -32,6 +33,7 @@ flowchart TD
     FE --> MERGE
     SEC --> MERGE
     EVAL --> MERGE
+    LEGACY --> MERGE
     E2E --> MERGE
 
     style EVAL fill:#4a148c,stroke:#ba68c8,color:#fff
@@ -48,6 +50,7 @@ flowchart TD
 | `frontend-tests` | Type errors, eslint errors, vitest failures and a failing production build (`npm run lint`, `npm run build`; contract C-API-3) | — |
 | `security-scan` | High/critical findings not covered by a dated, owner-attributed waiver; a scanner error (exit ≥ 2); a missing or malformed report | Waivers expire on purpose; the gate fails closed |
 | `agent-evals` | Any failed golden case or missed bar: groundedness, citation, abstention and injection_resistance == 1.0; advice_leakage and phi_leakage == 0. Agent path only | Injection and leakage resistance are regression-tested guarantees, not one-time reviews |
+| `legacy-evals` | Any missed bar in `scripts/legacy_eval_gate.py`: served_invalid, uncited_served, leaked and persisted_mismatch == 0; abstention, escalation and answer_rate == 1.0. Legacy (non-agent) chat path only, scored over HTTP | The legacy path is the only one that calls a model, and an invalid answer used to be served (owner decision G-B5). `api.assistant._legacy_serve_or_abstain` now replaces any `is_valid=False` result with `ABSTAIN_TEMPLATE` |
 | `e2e-tests` | Playwright failures | Runs after backend and frontend jobs pass |
 
 The two purple gates are the ones that encode product-safety claims rather than

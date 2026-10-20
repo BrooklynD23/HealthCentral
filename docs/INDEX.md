@@ -1240,7 +1240,7 @@ Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-repor
 
 Read-only design. No product file was edited. Existing merged plans are not rewritten; this file gives a **delta** for each (W-3, W-8) and a compact design for items with no plan.
 
-Links to: `audit/2026-09-25/waves/scaffold/G-C5.md`, `audit/2026-09-25/waves/wave-3-L1-A.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W03-verified-only-rag-and-trend-labels.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-10-15-build-program/contracts.md`
+Links to: `audit/2026-09-25/waves/scaffold/G-C5.md`, `audit/2026-09-25/waves/wave-3-L1-A.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W03-verified-only-rag-and-trend-labels.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md`
 
 ## `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`
 
@@ -1286,7 +1286,7 @@ Links to: `audit/2026-09-25/waves/scaffold/G-C2.md`, `audit/2026-09-25/waves/sca
 
 Rules: contracts.md §b (shared files), §c (migrations), §d (count slots). Path shorthand: `be/` = `src/backend/`, `fe/` = `src/frontend/src/`; "slots" = the `CLAUDE.md` / `AGENT.md` collected-count…
 
-Links to: `docs/architecture/ci-and-quality-gates.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`, `docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`, `docs/plans/2026-10-18-session-handoff.md`
+Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`, `docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`, `docs/plans/2026-10-18-session-handoff.md`
 
 ## `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`
 
@@ -1328,13 +1328,29 @@ Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026
 
 Links to: `AGENT.md`, `CLAUDE.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-18-session-handoff.md`
 
+## `docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md`
+
+**G-C5 HC-M11 NLI Cross-Encoder Behind a Default-Off Flag Implementation Plan**
+
+**This plan changes no product code.** It describes one hunk in an ask-first file (`modules/verifier_agent.py`); it does not touch it.
+
+Links to: `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/queue.md`
+
 ## `docs/plans/2026-10-18-session-handoff.md`
 
 **Session handoff: 2026-10-17 → 2026-10-18 (L0, Opus 5.5)**
 
 Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-17 handoff. Owner answers quoted here are recorded in owner-decisions (rows dated 2026-10-17 and…
 
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-17-session-handoff.md`
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-17-session-handoff.md`, `docs/plans/2026-10-19-session-handoff.md`
+
+## `docs/plans/2026-10-19-session-handoff.md`
+
+**Session handoff: 2026-10-18 → 2026-10-19 (L0, Opus 5.5)**
+
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-18 handoff. Every PR number and sha below was checked with `gh pr view` when it was written, but treat this…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-18-session-handoff.md`
 
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 

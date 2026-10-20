@@ -30,6 +30,7 @@
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
       "docs/plans/2026-10-17-session-handoff.md",
       "docs/plans/2026-10-18-session-handoff.md",
+      "docs/plans/2026-10-19-session-handoff.md",
       "docs/research/2026-10-12/05-mvp-roadmap-tests.md",
       "CLAUDE.md"
     ],
@@ -49,6 +50,7 @@
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
       "docs/plans/2026-10-17-session-handoff.md",
       "docs/plans/2026-10-18-session-handoff.md",
+      "docs/plans/2026-10-19-session-handoff.md",
       "docs/research/2026-09-08/PLAN.md",
       "docs/research/2026-10-17-rsi-opt-in-data/00-README.md",
       "AGENT.md"
@@ -346,8 +348,7 @@
     ],
     "docs/architecture/ci-and-quality-gates.md": [
       "docs/00_architecture_plans_index.md",
-      "docs/architecture/README.md",
-      "docs/plans/2026-10-15-build-program/queue.md"
+      "docs/architecture/README.md"
     ],
     "docs/architecture/frontend.md": [
       "docs/00_architecture_plans_index.md",
@@ -1038,6 +1039,7 @@
     "docs/plans/2026-10-15-build-program/RUNBOOK.md": [
       "docs/plans/2026-10-17-session-handoff.md",
       "docs/plans/2026-10-18-session-handoff.md",
+      "docs/plans/2026-10-19-session-handoff.md",
       "docs/reviews/2026-10-15/build-program-codex.md"
     ],
     "docs/plans/2026-10-15-build-program/contracts.md": [
@@ -1051,7 +1053,8 @@
     ],
     "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md": [
       "docs/plans/2026-10-15-build-program/contracts.md",
-      "docs/plans/2026-10-15-build-program/queue.md"
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md"
     ],
     "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md": [
       "docs/plans/2026-10-15-build-program/contracts.md",
@@ -1080,6 +1083,7 @@
       "docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md",
       "docs/plans/2026-10-17-rsi-track2-eval-harness-plan.md",
       "docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md",
+      "docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md",
       "docs/reviews/2026-10-15/build-program-codex.md"
     ],
     "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md": [
@@ -1101,9 +1105,16 @@
     "docs/plans/2026-10-17-session-handoff.md": [
       "docs/plans/2026-10-18-session-handoff.md"
     ],
+    "docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md": [
+      "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md"
+    ],
     "docs/plans/2026-10-18-session-handoff.md": [
       "docs/plans/2026-10-15-build-program/queue.md",
-      "docs/plans/2026-10-17-session-handoff.md"
+      "docs/plans/2026-10-17-session-handoff.md",
+      "docs/plans/2026-10-19-session-handoff.md"
+    ],
+    "docs/plans/2026-10-19-session-handoff.md": [
+      "docs/plans/2026-10-18-session-handoff.md"
     ],
     "docs/plans/implementation-log": [
       "docs/00_architecture_plans_index.md"
@@ -3098,6 +3109,7 @@
       "docs/plans/2026-09-27-W03-verified-only-rag-and-trend-labels.md",
       "docs/plans/2026-09-27-W08-bundled-embedding-model.md",
       "audit/2026-09-25/waves/scaffold/G-C5.md",
+      "docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md",
       "audit/2026-09-25/waves/wave-3-L1-A.md",
       "docs/plans/2026-10-15-build-program/contracts.md"
     ],
@@ -3162,7 +3174,6 @@
       "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md",
       "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md",
       "docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md",
-      "docs/architecture/ci-and-quality-gates.md",
       "docs/plans/2026-10-18-session-handoff.md",
       "docs/capstone-report/implementation-program.md"
     ],
@@ -3194,12 +3205,23 @@
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
       "docs/capstone-report/owner-decisions-2026-09-27.md"
     ],
+    "docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md": [
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md"
+    ],
     "docs/plans/2026-10-18-session-handoff.md": [
+      "docs/plans/2026-10-19-session-handoff.md",
       "CLAUDE.md",
       "AGENT.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
       "docs/plans/2026-10-17-session-handoff.md",
       "docs/capstone-report/owner-decisions-2026-09-27.md"
+    ],
+    "docs/plans/2026-10-19-session-handoff.md": [
+      "CLAUDE.md",
+      "AGENT.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-18-session-handoff.md"
     ],
     "docs/plans/implementation-log/README.md": [
       "docs/plans/implementation-log/2024-12-28_project-structure-setup.md",

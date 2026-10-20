@@ -8,7 +8,9 @@ docs/plans/2026-09-27-W08-bundled-embedding-model.md.
 
 from __future__ import annotations
 
+import logging
 import struct
+import sys
 import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -211,6 +213,100 @@ async def test_hc_emb_007_reprocess_keeps_chunks_when_embedding_unavailable(prof
     assert ids == ["chunk-1"], "reprocess deleted the previous chunks although no replacement embeddings could be made"
 
 
+def _stub_embedding_blob_failure(monkeypatch):
+    """Embedding succeeds, then the vector-to-blob step raises (after the old delete on the buggy order)."""
+    from modules.embeddings import EmbeddingsModule
+
+    def _embed(self, chunks):
+        return [{"model_name": "all-MiniLM-L6-v2", "vector": UNIT, "dimensions": 384} for _ in chunks]
+
+    def _raise(self, vector):
+        raise ValueError("blob conversion failed")
+
+    monkeypatch.setattr(EmbeddingsModule, "embed_chunks", _embed)
+    monkeypatch.setattr(EmbeddingsModule, "vector_to_blob", _raise)
+
+
+async def _committed_chunk_state(profile_db, doc_id):
+    await profile_db.commit()
+    profile_db.expunge_all()
+    ids = (await profile_db.execute(select(Chunk.id).where(Chunk.doc_id == doc_id))).scalars().all()
+    emb = (await profile_db.execute(select(Embedding.chunk_id))).scalars().all()
+    return ids, emb
+
+
+@pytest.mark.asyncio
+async def test_hc_emb_007b_reprocess_keeps_chunks_when_row_build_fails(profile_db, monkeypatch):
+    from api import documents as documents_api
+
+    doc = await _seed_one_chunk(profile_db)
+    _stub_embedding_blob_failure(monkeypatch)
+    with pytest.raises(ValueError):
+        await documents_api._create_chunks_and_embeddings(
+            profile_db=profile_db, profile_id=doc.profile_id, doc_id=doc.id,
+            extracted_text="LDL 128 mg/dL", refresh_existing=True,
+        )
+    ids, emb = await _committed_chunk_state(profile_db, doc.id)
+    assert ids == ["chunk-1"], "old chunks were deleted before the replacement rows were built"
+    assert emb == ["chunk-1"], "chunk-1 lost its embedding"
+
+
+async def _post_reprocess(profile_db, monkeypatch):
+    """Seed one document with one embedded chunk, POST /documents/{id}/reprocess over HTTP.
+
+    Returns (response, doc_id). Callers stub the embedder before calling.
+    """
+    from api import documents as documents_api
+    from api.documents import router as documents_router
+    from core.auth import get_profile_db_session
+    from tests.support.routes import route_client
+
+    profile_id = str(uuid.uuid4())
+    doc = _document(profile_id)
+    doc.doc_type = "lab_pdf"
+    profile_db.add_all([
+        doc,
+        Chunk(id="chunk-1", doc_id=doc.id, chunk_index=0, text="LDL 128 mg/dL"),
+        Embedding(chunk_id="chunk-1", model_name="all-MiniLM-L6-v2", vector_blob=BLOB, dimensions=384),
+    ])
+    await profile_db.commit()
+    doc_id = doc.id
+
+    extraction = SimpleNamespace(
+        observations=[], extracted_text="LDL 128 mg/dL", ocr_unavailable=False, collection_dates=[]
+    )
+    extract_stub = MagicMock()
+    extract_stub.return_value.extract_from_pdf = AsyncMock(return_value=extraction)
+
+    async def _classify(profile_db, doc_id, **kw):
+        return None
+
+    monkeypatch.setattr(documents_api, "get_decrypted_document", lambda *a, **k: "unused.pdf")
+    monkeypatch.setattr(documents_api, "ExtractModule", extract_stub)
+    monkeypatch.setattr(documents_api, "_classify_and_extract_entities", _classify)
+
+    master_db = AsyncMock()
+    master_db.add = MagicMock()
+    with route_client(documents_router, "/documents", profile_id=profile_id, master_db=master_db) as client:
+        async def _override_profile_db():
+            return profile_db
+
+        client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+        resp = client.post(f"/documents/{doc_id}/reprocess")
+    return resp, doc_id
+
+
+@pytest.mark.asyncio
+async def test_hc_emb_007c_reprocess_route_keeps_chunks_when_row_build_fails(profile_db, monkeypatch):
+    _stub_embedding_blob_failure(monkeypatch)
+    resp, doc_id = await _post_reprocess(profile_db, monkeypatch)
+
+    assert resp.status_code == 200, resp.text
+    ids, emb = await _committed_chunk_state(profile_db, doc_id)
+    assert ids == ["chunk-1"], "the caller committed a half-built reprocess"
+    assert emb == ["chunk-1"]
+
+
 @pytest.mark.asyncio
 async def test_hc_emb_008_vector_search_ignores_vectors_from_another_model(profile_db):
     from modules.embeddings import EmbeddingsModule
@@ -233,3 +329,65 @@ async def test_hc_emb_008_vector_search_ignores_vectors_from_another_model(profi
     rag._embedder = _FixedEmbedder()
     results = await rag._search_vectors_async(query="LDL", profile_id=doc.profile_id, profile_db=profile_db)
     assert [chunk["chunk_id"] for chunk, _ in results] == ["chunk-real"]
+
+
+def test_hc_emb_009a_unavailable_messages_do_not_contain_the_model_path(tmp_path, absent_model, monkeypatch):
+    from modules.embeddings import EMBEDDING_FILES, EmbeddingModelUnavailableError, EmbeddingsModule
+
+    with pytest.raises(EmbeddingModelUnavailableError) as missing:
+        EmbeddingsModule()._load_local_model()
+    assert "not installed" in str(missing.value)
+    assert str(absent_model) not in str(missing.value)
+    assert absent_model.name not in str(missing.value)
+    assert str(tmp_path) not in str(missing.value)
+
+    installed = tmp_path / "installed-model"
+    for name in EMBEDDING_FILES:
+        (installed / name).parent.mkdir(parents=True, exist_ok=True)
+        (installed / name).write_bytes(b"{}")
+    from core.config import settings
+
+    monkeypatch.setattr(settings, "embedding_model_path", str(installed))
+
+    def _raiser(*args, **kwargs):
+        raise ValueError("corrupt weights")
+
+    monkeypatch.setitem(sys.modules, "sentence_transformers", SimpleNamespace(SentenceTransformer=_raiser))
+    with pytest.raises(EmbeddingModelUnavailableError) as failed:
+        EmbeddingsModule()._load_local_model()
+    assert "failed to load" in str(failed.value)
+    assert "ValueError" in str(failed.value)
+    assert str(installed) not in str(failed.value)
+    assert installed.name not in str(failed.value)
+    assert str(tmp_path) not in str(failed.value)
+
+
+@pytest.mark.asyncio
+async def test_hc_emb_009b_retrieval_warning_log_does_not_contain_the_model_path(
+    profile_db, absent_model, tmp_path, caplog
+):
+    from modules.rag import ModelUnavailableError, RAGModule
+
+    doc = await _seed_one_chunk(profile_db)
+    rag = RAGModule(enable_verification=False)
+    with caplog.at_level(logging.WARNING):
+        with pytest.raises(ModelUnavailableError):
+            await rag._search_vectors_async(query="LDL", profile_id=doc.profile_id, profile_db=profile_db)
+    assert "failed closed" in caplog.text, "the rag.py warning sink did not fire; this test would prove nothing"
+    assert str(absent_model) not in caplog.text
+    assert absent_model.name not in caplog.text
+    assert str(tmp_path) not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_hc_emb_009c_reprocess_warning_log_does_not_contain_the_model_path(
+    profile_db, absent_model, monkeypatch, tmp_path, caplog
+):
+    with caplog.at_level(logging.WARNING):
+        resp, _ = await _post_reprocess(profile_db, monkeypatch)
+
+    assert resp.status_code == 200, resp.text
+    assert "Chunking failed" in caplog.text, "the api/documents.py warning sink did not fire; this test would prove nothing"
+    assert str(absent_model) not in caplog.text
+    assert absent_model.name not in caplog.text
+    assert str(tmp_path) not in caplog.text

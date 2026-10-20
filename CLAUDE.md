@@ -27,11 +27,16 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
 ## 4. Loop toward verifiable success criteria
 
 - Write or extend a test first, then make it pass. Tests live in `src/backend/tests/` (pytest, `HC-XXX-NNN` naming) and `src/frontend` (vitest + Playwright e2e).
-- Baseline: **1885 backend tests collected.** Without a real embedding
-  model installed, `test_api_rag_index_002b` fails on embedding similarity. That failure is environmental — it is not yours, and you
-  must not "fix" it by lowering the 0.7 threshold. Judge yourself on the
+- Baseline: **1945 backend tests collected.** Since W-8 the embedding model is
+  a fetched, gitignored bundle. Without it, exactly 5 tests fail:
+  `test_embedding_bundle.py::test_hc_emb_002_fetched_model_loads_offline`, and
+  in `test_rag_pipeline.py` `test_api_rag_index_002`, `test_api_rag_index_002b`,
+  `test_api_rag_index_002c` and `test_search_vectors_async_calculates_similarity`.
+  Those failures are environmental — they are not yours; fix them by fetching
+  the model (`python scripts/download_models.py embedding`), and you must not
+  "fix" them by lowering the 0.7 threshold. Judge yourself on the
   **collected** count, which does not vary by environment: if it differs from
-  1885, the line may lag merges: PRs never edit it; the orchestrator updates
+  1945, the line may lag merges: PRs never edit it; the orchestrator updates
   it in a post-merge batch (SLOT-RULE-2). Report your measured count and delta.
 - **Run verification; never assert it.** Report the command and its actual
   output. "Tests pass" without the output is not a result. If a check was
@@ -46,7 +51,7 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
   cannot see a broken `Depends(...)`. Use `tests/support/routes.py::route_client`
   for anything asserting auth, path scoping, or status codes.
 - **Read [docs/agentic/recurring-failures.md](docs/agentic/recurring-failures.md)
-  before claiming done.** Ten failure modes this repo has actually produced,
+  before claiming done.** Twelve failure modes this repo has actually produced,
   each with the evidence that exposed it and a specific recheck. Catch a new
   instance of one — or a mode that is not listed — and add it in the same commit.
 - Done is defined once, in [AGENT.md](AGENT.md#definition-of-done). It requires seeing the output, not believing it.
