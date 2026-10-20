@@ -272,3 +272,99 @@ def test_hc_gc5_005_cmd_nli_fetch_rules(tmp_path, monkeypatch):
         download_models.cmd_nli(target)
     assert not target.with_name("nli.partial").exists()
     assert not target.exists()
+
+
+# ---------------------------------------------------------------------------
+# HC-GC5-002 / HC-GC5-004: the NLI branch of VerifierAgent._check_entailment_llm
+# ---------------------------------------------------------------------------
+
+from modules.verifier_agent import SourceEvidence, VerificationConfig  # noqa: E402
+
+_CLAIM = "Your glucose level is 95 mg/dL, which falls within the normal reference range of 70-100 mg/dL"
+_SOURCE = SourceEvidence(
+    source_id="1",
+    source_text="Glucose: 95 mg/dL. Reference range: 70-100 mg/dL. Within normal limits.",
+    source_type="user_document",
+)
+
+
+class _FakeCrossEncoder:
+    """Stands in for sentence_transformers.CrossEncoder; mixed-case labels pin .lower()."""
+
+    def __init__(self, probs):
+        self._probs = probs
+        self.pairs = None
+        self.config = type("Cfg", (), {"id2label": {0: "Contradiction", 1: "ENTAILMENT", 2: "Neutral"}})()
+
+    def predict(self, pairs, apply_softmax=False):
+        self.pairs = list(pairs)
+        assert apply_softmax is True
+        return [self._probs]
+
+
+def _rag(flag: bool) -> RAGModule:
+    return RAGModule(
+        enable_verification=True,
+        verification_config=VerificationConfig(use_llm_entailment=flag),
+    )
+
+
+def test_hc_gc5_002_contradiction_fails_claim(monkeypatch):
+    # Precondition (non-vacuous): the rules verify this claim with the flag off.
+    off = VerifierAgent(VerificationConfig(use_llm_entailment=False)).verify_claim(_CLAIM, "c1", [_SOURCE])
+    assert off.is_verified is True
+    assert _rag(False).validate_response(_RESPONSE, _chunks()).verification.failed_claims == 0
+
+    fake = _FakeCrossEncoder([0.9, 0.05, 0.05])
+    monkeypatch.setattr("modules.embeddings.load_local_cross_encoder", lambda: fake)
+
+    on = VerifierAgent(VerificationConfig(use_llm_entailment=True)).verify_claim(_CLAIM, "c1", [_SOURCE])
+    assert on.is_verified is False
+    assert on.contradicting_sources == ["1"]
+    assert on.entailment_results[0].label is EntailmentLabel.CONTRADICTION
+    assert on.entailment_results[0].confidence == pytest.approx(0.9)
+    assert fake.pairs == [(_SOURCE.source_text, _CLAIM)]  # (premise, hypothesis) order
+
+    validated = _rag(True).validate_response(_RESPONSE, _chunks())
+    assert validated.verification.failed_claims == 1
+
+
+def _block_sockets(monkeypatch) -> list:
+    import socket
+
+    attempts: list = []
+
+    def _blocked(*args, **kwargs):
+        attempts.append("network")
+        raise OSError("network blocked by HC-GC5-004")
+
+    for name in ("connect", "connect_ex"):
+        monkeypatch.setattr(socket.socket, name, _blocked)
+    monkeypatch.setattr(socket, "create_connection", _blocked)
+    monkeypatch.setattr(socket, "getaddrinfo", _blocked)
+    return attempts
+
+
+def _assert_left_unverified(model_dir: Path, monkeypatch) -> None:
+    from core.config import settings
+
+    monkeypatch.setattr(settings, "nli_model_path", str(model_dir))
+    monkeypatch.setattr(emb, "_nli_encoder", None)  # a cached encoder would hide an absent model
+    attempts = _block_sockets(monkeypatch)
+
+    result = VerifierAgent(VerificationConfig(use_llm_entailment=True)).verify_claim(_CLAIM, "c1", [_SOURCE])
+    assert result.is_verified is False
+    assert result.entailment_results[0].label is EntailmentLabel.NEUTRAL
+    assert result.entailment_results[0].confidence == 0.0
+    assert emb._nli_encoder is None  # a failure is never cached
+    assert _rag(True).validate_response(_RESPONSE, _chunks()).verification.failed_claims == 1
+    assert attempts == []
+
+
+def test_hc_gc5_004_absent_model_behaviour(tmp_path, monkeypatch):
+    # OL-2 option B: model absent => claim left unverified (fail closed), no network.
+    _assert_left_unverified(tmp_path / "does-not-exist", monkeypatch)
+
+    # Sha gate: real-looking files whose weights do not match the manifest pin.
+    stand_in = _build_stand_in_nli(tmp_path / "wrong-sha")
+    _assert_left_unverified(stand_in, monkeypatch)
