@@ -12,6 +12,9 @@ HC-LCPH-007  over HTTP: a prefixed unverified value is not served
 HC-LCPH-008  ClaimExtractor splits sections like the parser
 HC-LCPH-009  a stripped context label keeps the preceding newline
 HC-LCPH-010  GENERAL INFORMATION stays a section header
+HC-LCPH-011  over HTTP: bullet / space-colon / dash / paren header forms still split
+HC-LCPH-012  over HTTP: a "Based on the provided" prefix does not exempt a cited/numeric claim
+HC-LCPH-013  pin: an UNCERTAINTY section is not verified (owner LCP-HL-SCOPE (a))
 """
 
 from __future__ import annotations
@@ -168,6 +171,12 @@ def test_hc_lcph_009_stripped_context_label_keeps_the_preceding_newline():
     assert "- X [cite:1]\n" in content
     assert "[YOUR_RESULTS:" not in content
     assert content.endswith("Glucose 95 [cite:1]")
+    # The strip is case-insensitive.
+    lower = _validate("REPORT FACTS:\n- X [cite:1] [your_results:1]\n[Reference:2] Glucose 95 [cite:1]")
+    lower_content = lower.segments[0].content
+    assert "[your_results:" not in lower_content
+    assert "[Reference:" not in lower_content
+    assert "- X [cite:1]\n" in lower_content
 
 
 GENERAL_INFORMATION_ANSWER = (
@@ -184,3 +193,59 @@ def test_hc_lcph_010_general_information_header_still_splits_over_http():
     assert body["is_valid"] is False
     assert "GENERAL INFORMATION" not in body["full_response"]
     assert ClaimExtractor()._parse_sections(GENERAL_INFORMATION_ANSWER)[1][0] == "general_info"
+
+
+FACTS_LINE = "REPORT FACTS:\n- Glucose: 95 mg/dL (reference range 70-100 mg/dL) [cite:1]\n"
+UNCITED = "Glucose is a sugar used for energy."
+
+
+@pytest.mark.parametrize(
+    "header",
+    ["- GENERAL INFO: ", "GENERAL INFO : ", "GENERAL INFO - ", "GENERAL INFO (educational): "],
+    ids=["bullet", "space-colon", "dash", "paren"],
+)
+def test_hc_lcph_011_header_forms_split_so_uncited_text_is_not_served(header):
+    answer = FACTS_LINE + header + UNCITED
+    with legacy_chat_client(build_chunks("glucose"), answer) as (client, _append):
+        resp = client.post(CHAT_PATH, json={"question": "What was my glucose?"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["is_valid"] is False or (
+        UNCITED not in body["full_response"]
+        and all(UNCITED not in s["content"] for s in body["segments"])
+    )
+    # Header forms are real headers for the extractor too.
+    assert [t for t, _ in ClaimExtractor()._parse_sections(answer)] == ["report_facts", "general_info"]
+    # Prose pin: still not a header.
+    prose = "Uncertainty about lab ranges [cite:1]"
+    assert ClaimExtractor()._parse_sections(prose) == [("report_facts", prose)]
+
+
+def test_hc_lcph_012_meta_prefix_does_not_exempt_cited_numeric_claim_over_http():
+    with legacy_chat_client(build_chunks("glucose"), META_PREFIXED_ANSWER) as (client, _append):
+        resp = client.post(CHAT_PATH, json={"question": "What was my glucose?"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert "300 mg/dL" not in body["full_response"]
+    assert all("300 mg/dL" not in s["content"] for s in body["segments"])
+
+
+META_PREFIXED_ANSWER = (
+    "Based on the provided records, your glucose is 300 mg/dL, far above the range [cite:1].\n\n"
+    "REPORT FACTS:\n- Glucose: 95 mg/dL (reference range 70-100 mg/dL) [cite:1]"
+)
+
+
+def test_hc_lcph_013_pin_uncertainty_section_is_not_verified():
+    """PIN of today's behaviour, owner LCP-HL-SCOPE (a): UNCERTAINTY counts like
+    UNCERTAINTIES, and uncertainty sections are never verified (pre-existing for the
+    plural). Follow-up row: "uncertainty sections are never verified". If that row
+    lands, this test is expected to change."""
+    answer = FACTS_LINE + "\nUNCERTAINTY:\nYour glucose is 300 mg/dL [cite:1]"
+    with legacy_chat_client(build_chunks("glucose"), answer) as (client, _append):
+        resp = client.post(CHAT_PATH, json={"question": "What was my glucose?"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    print("HC-LCPH-013 measured:", body["is_valid"], repr(body["full_response"]))
+    assert body["is_valid"] is True
+    assert "300 mg/dL" in body["full_response"]
