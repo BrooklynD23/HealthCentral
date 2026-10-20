@@ -329,6 +329,66 @@ async def test_hc_emb_006f_hash_only_vault_returns_empty_when_model_present(prof
     assert await rag._search_vectors_async(query="LDL", profile_id=doc.profile_id, profile_db=profile_db) == []
 
 
+# The Q-FC probe in _search_vectors_async must see only chunks the search could
+# really use. Each excluded case below leaves the vault with a hash-only chunk
+# that the filters rule out, so no embedding may be attempted; the control has
+# the same chunk with every filter matching, so one embedding must be attempted.
+_PROBE_CASES = [
+    pytest.param({"status": "pending"}, {}, 0, id="unverified-only-vault"),
+    pytest.param({}, {"from_date": "2023-01-01"}, 0, id="date-excluded"),
+    pytest.param({}, {"category": "imaging"}, 0, id="category-excluded"),
+    pytest.param({}, {"selected_analytes": ["HbA1c"]}, 0, id="analyte-excluded"),
+    pytest.param(
+        {},
+        {"from_date": "2021-01-01", "category": "lab_results", "selected_analytes": ["LDL"]},
+        1,
+        id="control-all-filters-match",
+    ),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("doc_overrides", "search_kwargs", "expected_embed_calls"), _PROBE_CASES)
+async def test_hc_emb_006g_probe_keeps_verified_date_category_and_analyte_filters(
+    profile_db, doc_overrides, search_kwargs, expected_embed_calls
+):
+    """Guard: the eligibility probe must not widen to chunks the filters exclude."""
+    from datetime import datetime
+
+    from models import DocumentCategory, Observation
+    from modules.embeddings import EmbeddingsModule
+    from modules.rag import RAGModule
+
+    class _SpyEmbedder(EmbeddingsModule):
+        calls = 0
+
+        def embed_text(self, text):
+            type(self).calls += 1
+            return UNIT
+
+    doc = await _seed_hash_only_chunk(profile_db)
+    doc.collection_date = datetime(2022, 1, 1)
+    for field, value in doc_overrides.items():
+        setattr(doc, field, value)
+    profile_db.add_all([
+        DocumentCategory(doc_id=doc.id, category="lab_results", confidence=1.0, classified_by="test"),
+        Observation(
+            id=str(uuid.uuid4()), profile_id=doc.profile_id, doc_id=doc.id,
+            analyte_canonical="LDL", analyte_raw="LDL",
+        ),
+    ])
+    await profile_db.commit()
+
+    rag = RAGModule(enable_verification=False)
+    rag._embedder = _SpyEmbedder()
+    results = await rag._search_vectors_async(
+        query="LDL", profile_id=doc.profile_id, profile_db=profile_db, **search_kwargs
+    )
+    # Hash vectors are never compared, so the result is empty either way.
+    assert results == []
+    assert _SpyEmbedder.calls == expected_embed_calls
+
+
 @pytest.mark.asyncio
 async def test_hc_emb_007_reprocess_keeps_chunks_when_embedding_unavailable(profile_db, absent_model):
     from api import documents as documents_api
