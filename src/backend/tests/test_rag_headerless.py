@@ -10,6 +10,7 @@ HC-LCPH-005  over HTTP: [USER_OBSERVATION:N] is not served, [cite:N] is
 HC-LCPH-006  verifier receives raw labelled text
 HC-LCPH-007  over HTTP: a prefixed unverified value is not served
 HC-LCPH-008  ClaimExtractor splits sections like the parser
+HC-LCPH-009  a stripped context label keeps the preceding newline
 """
 
 from __future__ import annotations
@@ -158,3 +159,8 @@ def test_hc_lcph_008_claim_extractor_splits_like_the_parser():
             (s.segment_type, s.content) for s in rag._parse_response_segments(text)
         ]
 
+
+def test_hc_lcph_009_stripped_context_label_keeps_the_preceding_newline():
+    # Fails if _CONTEXT_LABEL_RE goes back to \s?, which would eat the newline.
+    kept = _validate("REPORT FACTS:\n- X [cite:1]\n[YOUR_RESULTS:1] Glucose 95 [cite:1]")
+    assert [s.content for s in kept.segments] == ["- X [cite:1]\n Glucose 95 [cite:1]"]
