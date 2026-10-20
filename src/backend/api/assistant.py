@@ -217,11 +217,14 @@ _rag_module: Optional[RAGModule] = None
 def get_rag_module() -> RAGModule:
     global _rag_module
     if _rag_module is None:
+        from core.config import settings as app_settings
+
         _rag_module = RAGModule(
             enable_verification=True,
             verification_config=VerificationConfig(
                 min_faithfulness_score=0.6,
                 fail_on_contradiction=True,
+                use_llm_entailment=app_settings.use_llm_entailment,
             ),
             faithfulness_config=FaithfulnessConfig(
                 min_overall_score=0.6,
