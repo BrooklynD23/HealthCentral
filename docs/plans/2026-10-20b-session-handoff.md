@@ -35,6 +35,8 @@ No other open PR. No `[claim:` slot is held.
 
 ## 3. Next (dynamic workflow: build-wave, then one top-level `build-item` per id)
 
+Every row in items 1-2 carries a dated stop in queue.md (owner MOVE-LOCAL, 2026-10-20: "Stop; continue locally"): not started in the cloud session. The stop ends when the next L0 starts the row.
+
 1. **Ready rows (planned in #222, plus unblocked rows):** WAVE-DEP-DONE (harness), PYSLOT-MODE, F-4-FOLLOWUPS, GATE12-MINORS, PKT-Q-MINORS, REDACT-NAME-PINS, EMB-LOG-M7, LLM-PATH-LOG-M2M3 (never beside B-5), MSET-EXT-AUDIT-CT, AUDIT-GUARD-MINORS (#211 released `test_audit_order_guard.py`), RSI1-DONATE PR-2 (file list per the plan delta in #222; adversarial MINORs 4-9 from #211 noted in queue.md).
 2. **Build on draft, merge gated:** GRADE-PATTERN-REDOS (GRADE-REDOS-DIFF), REDACT-NAME-GAPS after REDACT-NAME-PINS merges (REDACT-NG-DIFF; never beside another `redaction.py` row).
 3. **G-C5 real-model steps:** on a machine that can reach huggingface.co, fetch the NLI model once (`download_models.py`, Q5b) and run the plan's real-model measurements; the flag stays default-off.
