@@ -13,7 +13,7 @@ export const meta = {
 }
 
 // Runbook: docs/plans/2026-10-15-build-program/RUNBOOK.md. This script only sequences it.
-const STYLE = 'Output style: follow ~/.claude/rules/common/subagent-output.md (i-have-adhd)'
+let STYLE = 'Output style: follow ~/.claude/rules/common/subagent-output.md (i-have-adhd)'
 const RUNBOOK = 'docs/plans/2026-10-15-build-program/RUNBOOK.md'
 const QUEUE = 'docs/plans/2026-10-15-build-program/queue.md'
 const MAX_ROUNDS = 3
@@ -135,6 +135,9 @@ if (!(runtime.startsWith('claude') || runtime.startsWith('any'))) {
 const noSlot = kind.startsWith('DOCS') || kind.includes('NO SLOT')
 const specText = JSON.stringify(spec, null, 2)
 const L0_NOTE = args && typeof args.l0_note === 'string' ? args.l0_note.slice(0, 2000) : ''
+// After Task 0 every agent sees the note too (Verify needs environment rulings such as a Codex substitute).
+const STYLE_TASK0 = STYLE
+if (L0_NOTE) STYLE = `${STYLE}\nL0 note (binding; verify the evidence it points to): ${L0_NOTE}`
 
 // ---------------------------------------------------------------------------
 phase('Plan check')
@@ -149,7 +152,7 @@ ${RESUME_PR ? `2. RESUME, do not claim anew. PR #${RESUME_PR} must be this item'
 4. If a check fails: post the command and output as a comment on your draft PR, keep it draft, go=false.
 5. brief = an L2 implementer brief: worktree, branch, plan path + task list to execute (minus skipped tasks${RESUME_PR ? ', minus tasks already committed on the branch, plus the stop reason and any L0 ruling' : ''}), exact file list, ask-first files with the signed gate naming each allowed edit (or "none — do not edit"), contracts to honour, RED-first rule, commit plan.
 Do not edit product code yourself.
-${STYLE}`,
+${STYLE_TASK0}`,
   { label: `task0+claim ${ID}`, phase: 'Plan check', model: 'opus', effort: 'high', schema: PLANCHECK_SCHEMA },
 )
 if (RESUME_PR && plan && plan.go && plan.pr_number !== RESUME_PR) {
