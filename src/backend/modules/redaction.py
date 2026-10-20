@@ -85,7 +85,7 @@ _RULES: tuple[RedactionRule, ...] = (
     RedactionRule(
         name="name_context",
         pattern=re.compile(
-            r"(?i)\b(?:patient|name|mr\.?|mrs\.?|ms\.?|dr\.?)\s*:?\s*"
+            r"(?i)\b(?:patient|name|mr\.?|mrs\.?|ms\.?|dr\.?)\s*(?::\s*)?"
             r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)"
         ),
         replacement="[NAME-REDACTED]",
@@ -94,7 +94,7 @@ _RULES: tuple[RedactionRule, ...] = (
     RedactionRule(
         name="dob",
         pattern=re.compile(
-            r"(?i)\b(?:dob|date\s+of\s+birth|birth\s*date)\s*:?\s*"
+            r"(?i)\b(?:dob|date\s+of\s+birth|birth\s*date)\s*(?::\s*)?"
             r"\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4}"
         ),
         replacement="[DOB-REDACTED]",
