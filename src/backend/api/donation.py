@@ -15,7 +15,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,15 +23,17 @@ from core.audit import audit_and_commit, audit_intent, create_audit_log
 from core.auth import ProfileDbSession, RequireAuth
 from core.database import get_db
 from core.time import utcnow
-from models.data_donation import DonatedRecord, DonationConsent
+from models.data_donation import DonationConsent
+from modules.data_donation import (  # noqa: F401  (CURRENT_CONSENT_TEXT_VERSION is re-exported)
+    CURRENT_CONSENT_TEXT_VERSION,
+    collect,
+    delete_derived,
+    get_active_consent,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-# The consent copy version the patient is shown. Must equal CONSENT_TEXT_VERSION
-# in src/frontend/src/components/settings/DataDonationCard.tsx (HC-DON-005e).
-CURRENT_CONSENT_TEXT_VERSION = "2026-10-20-v2"
 
 
 class DonationPurpose(str, Enum):
@@ -84,39 +86,7 @@ def _state(purpose: DonationPurpose, row: Optional[DonationConsent]) -> ConsentS
 async def _get_active(
     profile_db: ProfileDbSession, profile_id: str, purpose: DonationPurpose
 ) -> Optional[DonationConsent]:
-    result = await profile_db.execute(
-        select(DonationConsent).where(
-            DonationConsent.profile_id == profile_id,
-            DonationConsent.purpose == purpose.value,
-            DonationConsent.revoked_at.is_(None),
-        )
-    )
-    return result.scalars().first()
-
-
-async def _delete_derived(profile_db: ProfileDbSession, profile_id: str, purpose: DonationPurpose) -> int:
-    """Delete the purpose's real rows, synthetic children and synthetic rows of the purpose."""
-    real_ids = select(DonatedRecord.id).where(
-        DonatedRecord.profile_id == profile_id,
-        DonatedRecord.purpose == purpose.value,
-        DonatedRecord.origin == "real",
-    )
-    children = await profile_db.execute(
-        delete(DonatedRecord).where(
-            DonatedRecord.profile_id == profile_id,
-            DonatedRecord.origin == "synthetic",
-            DonatedRecord.parent_id.in_(real_ids),
-        )
-    )
-    # Also covers synthetic rows of this purpose whose parent is NULL or dangling.
-    rest = await profile_db.execute(
-        delete(DonatedRecord).where(
-            DonatedRecord.profile_id == profile_id,
-            DonatedRecord.purpose == purpose.value,
-            DonatedRecord.origin.in_(("real", "synthetic")),
-        )
-    )
-    return (children.rowcount or 0) + (rest.rowcount or 0)
+    return await get_active_consent(profile_db, profile_id, purpose.value)
 
 
 @router.get("/consents", response_model=ConsentList)
@@ -212,7 +182,7 @@ async def set_consent(
         # A2: the intent row commits before the irreversible delete; a failed
         # audit write stops the revoke with the donated rows intact.
         await audit_intent(master_db, "started", create_audit_log, **audit_kwargs)
-        deleted = await _delete_derived(profile_db, profile_id, purpose)
+        deleted = await delete_derived(profile_db, profile_id, purpose.value)
         if row is not None:
             row.revoked_at = utcnow()
         await profile_db.commit()
@@ -225,4 +195,58 @@ async def set_consent(
         granted=data.granted,
         consent_text_version=version,
         deleted_count=deleted,
+    )
+
+
+class CollectRequest(BaseModel):
+    confirmed: bool = False
+
+
+class CollectResult(BaseModel):
+    purpose: DonationPurpose
+    collected: int
+    skipped_existing: int
+    dropped: dict[str, int]  # Safe Harbor category -> records dropped
+    dropped_total: int
+    strict_redaction_count: int
+
+
+@router.post("/{purpose}/collect", response_model=CollectResult)
+async def collect_donation(
+    purpose: DonationPurpose,
+    data: CollectRequest,
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """Copy the profile's rated feedback into the purpose's donated set. Counts only."""
+    if not data.confirmed:
+        raise HTTPException(status_code=400, detail="Collect requires confirmed=true in the request body.")
+    audit_kwargs = dict(
+        event_type="donation.collect",
+        action="donation.collect",
+        profile_id=session.profile_id,
+        entity_type="donation",
+        entity_id=purpose.value,
+    )
+    # A2: intent commits first; a failed audit write stops the collect.
+    await audit_intent(master_db, "started", create_audit_log, **audit_kwargs)
+    counts = await collect(profile_db, session.profile_id, purpose.value)
+    await audit_intent(
+        master_db, "completed", create_audit_log,
+        details={
+            "count": counts.collected,
+            "dropped_count": counts.dropped_total,
+            "skipped_count": counts.skipped_existing,
+            "redaction_count": counts.strict_redaction_count,
+        },
+        **audit_kwargs,
+    )
+    return CollectResult(
+        purpose=purpose,
+        collected=counts.collected,
+        skipped_existing=counts.skipped_existing,
+        dropped=counts.dropped,
+        dropped_total=counts.dropped_total,
+        strict_redaction_count=counts.strict_redaction_count,
     )

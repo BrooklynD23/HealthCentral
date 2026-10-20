@@ -569,3 +569,57 @@ async def test_hc_don_005i_concurrent_grant_is_409_not_500_and_writes_no_audit(v
     assert _audit_rows(master) == []
     rows = (await vault.execute(select(DonationConsent))).scalars().all()
     assert len(rows) == 1 and rows[0].revoked_at is None
+
+
+# ---------------------------------------------------------------------------
+# PR-2: collect route (HC-DON-016b)
+# ---------------------------------------------------------------------------
+
+from models.response_feedback import ResponseFeedback  # noqa: E402
+
+
+async def _rate(session, profile_id, session_id, turn_id, prompt="What does a high LDL mean?"):
+    row = ResponseFeedback(
+        profile_id=profile_id, session_id=session_id, turn_id=turn_id, rating=1,
+        prompt_snapshot=prompt, response_text="It is a cholesterol marker.",
+    )
+    session.add(row)
+    await session.commit()
+    return row.id
+
+
+def _collect(vault, purpose="fine_tune", body=None, **kw):
+    return _call("POST", vault, f"{PREFIX}/{purpose}/collect", json=body if body is not None else {"confirmed": True}, **kw)
+
+
+@pytest.mark.asyncio
+async def test_hc_don_016b_collect_route(vault):
+    await _rate(vault, PROFILE_A, "s1", "t1")
+
+    # confirmed=false -> 400, nothing audited or stored
+    resp, mdb = _collect(vault, body={"confirmed": False})
+    assert resp.status_code == 400 and _audit_rows(mdb) == []
+
+    # no consent -> 200 with a zero count
+    resp, mdb = _collect(vault)
+    assert resp.status_code == 200 and resp.json()["collected"] == 0
+    assert await _count(vault) == 0
+
+    # unknown purpose -> 422
+    resp, _ = _collect(vault, purpose="nope")
+    assert resp.status_code == 422
+
+    # granted -> collected; audit pair holds counts only
+    resp, _ = _put(vault, "fine_tune", True)
+    assert resp.status_code == 200
+    resp, mdb = _collect(vault)
+    assert resp.status_code == 200
+    assert resp.json()["collected"] == 1 and resp.json()["dropped_total"] == 0
+    assert await _count(vault, "fine_tune") == 1
+    rows = [r for r in _audit_rows(mdb) if r.action.startswith("donation.collect")]
+    assert len(rows) == 2  # A2 started + completed
+    assert all(r.entity_type == "donation" and r.entity_id == "fine_tune" for r in rows)
+    blob = " ".join(r.details_json or "" for r in rows)
+    assert "LDL" not in blob and "cholesterol" not in blob
+    assert json.loads(rows[1].details_json)["count"] == 1
+
