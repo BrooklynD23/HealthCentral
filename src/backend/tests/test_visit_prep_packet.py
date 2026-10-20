@@ -29,6 +29,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.auth import Session
 from core.time import utcnow
 from modules.export import ExportModule
+from tests.test_export_redaction import weasyprint_renders  # noqa: F401  (fixture)
 
 
 def _make_session(profile_id: str = "test-profile") -> Session:
@@ -822,6 +823,83 @@ async def test_hc_pkt_023_spaced_labelled_mrn_in_reason_never_reaches_packet(
     finally:
         if packet_id is not None:
             _packet_store.pop(packet_id, None)
+
+
+def _install_html_echo_weasyprint(monkeypatch, suffix: bytes = b"") -> None:
+    """Stand-in WeasyPrint: the 'PDF' is the HTML handed to the writer."""
+    import types
+
+    fake = types.ModuleType("weasyprint")
+
+    class HTML:
+        def __init__(self, string: str) -> None:
+            self._html = string
+
+        def write_pdf(self) -> bytes:
+            return self._html.encode("utf-8") + suffix
+
+    fake.HTML = HTML
+    monkeypatch.setitem(sys.modules, "weasyprint", fake)
+
+
+async def _visit_prep_pdf(db) -> "object":
+    packet_id = None
+    try:
+        with route_client(export_api.router, "/export", profile_id="profile-a") as client:
+
+            async def _override_profile_db():
+                return db
+
+            client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+            created = client.post(
+                "/export/visit-prep",
+                json={"confirm": True, "reason_for_visit": "MRN (hospital): B67890"},
+            )
+            assert created.status_code == 200, created.text
+            packet_id = created.json()["packet_id"]
+            return client.get(
+                f"/export/visit-prep/{packet_id}/download", params={"format": "pdf"}
+            )
+    finally:
+        if packet_id is not None:
+            _packet_store.pop(packet_id, None)
+
+
+def _assert_pdf_response(resp) -> None:
+    assert resp.status_code == 200, resp.text
+    assert resp.headers["content-type"].startswith("application/pdf")
+    assert ".pdf" in resp.headers["content-disposition"]
+
+
+@pytest.mark.asyncio
+async def test_hc_pkt_026a_visit_prep_pdf_download_redacted_fake_writer(
+    real_profile_db, monkeypatch
+):
+    """HC-PKT-026a: the PDF download route hands the writer redacted HTML only."""
+    _install_html_echo_weasyprint(monkeypatch)
+    resp = await _visit_prep_pdf(real_profile_db)
+    _assert_pdf_response(resp)
+    body = resp.content.decode("utf-8")
+    assert "B67890" not in body
+    assert "[MRN-REDACTED]" in body
+    assert "Reason for Visit" in body
+
+
+@pytest.mark.asyncio
+async def test_hc_pkt_026b_visit_prep_pdf_download_redacted_real_renderer(
+    real_profile_db, weasyprint_renders
+):
+    """HC-PKT-026b: same through the real WeasyPrint; runs only where it renders."""
+    import io
+
+    from pypdf import PdfReader
+
+    resp = await _visit_prep_pdf(real_profile_db)
+    _assert_pdf_response(resp)
+    text = "".join(p.extract_text() or "" for p in PdfReader(io.BytesIO(resp.content)).pages)
+    assert "B67890" not in text
+    assert "[MRN-REDACTED]" in text
+    assert "Reason for Visit" in text
 
 
 @pytest.mark.asyncio
