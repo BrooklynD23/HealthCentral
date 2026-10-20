@@ -607,9 +607,6 @@ USER QUESTION: {question}"""
             # parent document's (RECONCILIATION R-5), as the agent's
             # retrieve_chunks tool filters.
             .where(Document.status == "verified")
-            # Q-HASH: vectors from another model (hash-fallback rows stored
-            # before W-8) are not comparable with this model's query vector.
-            .where(Embedding.model_name == self._embedder.config.model_name)
         )
 
         # Apply date filters on Document.collection_date
@@ -639,19 +636,34 @@ USER QUESTION: {question}"""
             )
             stmt = stmt.where(Document.id.in_(category_doc_stmt))
 
-        result = await profile_db.execute(stmt)
+        # Q-HASH: vectors from another model (hash-fallback rows stored
+        # before W-8) are not comparable with this model's query vector.
+        result = await profile_db.execute(
+            stmt.where(Embedding.model_name == self._embedder.config.model_name)
+        )
         rows = result.all()
 
+        # Embed only when eligible chunks exist. With no comparable rows, probe
+        # the same statement without the model_name filter: a hash-only vault
+        # must still surface the Q-FC notice when the model is absent
+        # (W-8-FC-NOTICE). Hash vectors are never compared, so a present model
+        # still returns [].
         if not rows:
-            return []
+            probe = await profile_db.execute(
+                stmt.with_only_columns(Chunk.id).limit(1)
+            )
+            if not probe.all():
+                return []
 
-        # Embed only when there is something to compare against. Fail closed:
-        # never substitute hash vectors for the bundled model (D8-delivery).
+        # Fail closed: never substitute hash vectors for the bundled model (D8-delivery).
         try:
             query_vector = self._embedder.embed_text(query)
         except EmbeddingModelUnavailableError as exc:
             self._logger.warning("Embedding model unavailable; vector retrieval failed closed: %s", exc)
             raise ModelUnavailableError(EMBEDDING_UNAVAILABLE_MESSAGE) from exc
+
+        if not rows:
+            return []
 
         # Calculate similarity scores
         candidates = []

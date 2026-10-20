@@ -18,6 +18,9 @@ happen to share a ``profile_version`` fingerprint (for example two empty
 profiles, both ``"o:0:|d:0:"``) collide on the same key and the cache serves
 one profile's answer to another (HC-CACHE-ISO-001/002, S-CACHE).
 
+``tz_name`` is required too: answers print local dates, so the same question
+under a different profile time zone must not replay the old zone's text.
+
 In-process only (a module-level dict) — no cross-process/cross-restart
 persistence is required or implied; this is a same-process answer cache, not
 a durable store, and it carries no PHI on disk.
@@ -40,6 +43,7 @@ class CacheKey(BaseModel):
     normalized_question: str
     profile_version: str
     profile_id: str
+    tz_name: str
     filters: ChatFilters = ChatFilters()
 
 

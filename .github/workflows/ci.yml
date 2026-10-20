@@ -58,8 +58,8 @@ jobs:
         working-directory: src/backend
         run: python scripts/download_models.py embedding
 
-      - name: Run backend tests (with coverage report)
-        run: bash scripts/run-backend-tests.sh -q --cov=api --cov=core --cov=models --cov=modules --cov=monitoring --cov=security --cov=scripts --cov-report=term --cov-report=xml:coverage.xml
+      - name: Run backend tests (coverage report, 74% floor)
+        run: bash scripts/run-backend-tests.sh -q --cov=api --cov=core --cov=models --cov=modules --cov=monitoring --cov=security --cov=scripts --cov-report=term --cov-report=xml:coverage.xml --cov-fail-under=74
 
       - name: Require the coverage report (fail closed)
         run: test -s src/backend/coverage.xml

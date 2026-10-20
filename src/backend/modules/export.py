@@ -728,7 +728,7 @@ class ExportModule:
             "generated_on": generated_on.isoformat(),
             "sections": sections,
             "questions": [
-                {"question": q.question, "category": q.category}
+                {"question": engine.redact(q.question).text, "category": q.category}
                 for q in (questions or [])
             ],
             "markdown": "\n".join(md_lines),

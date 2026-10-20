@@ -124,8 +124,8 @@ def test_hc_cache_iso_002_cache_key_is_profile_scoped():
     """The key itself must distinguish profiles: same question, same
     version, different profile_id -> different key, and a value stored under
     one profile is never visible to a get_cached() for another."""
-    key_a = CacheKey(normalized_question="q", profile_version="v", profile_id="a")
-    key_b = CacheKey(normalized_question="q", profile_version="v", profile_id="b")
+    key_a = CacheKey(normalized_question="q", profile_version="v", profile_id="a", tz_name="UTC")
+    key_b = CacheKey(normalized_question="q", profile_version="v", profile_id="b", tz_name="UTC")
     assert key_a != key_b
 
     clear_cache()
