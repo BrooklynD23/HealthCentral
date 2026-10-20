@@ -1136,6 +1136,7 @@
       "docs/plans/2026-10-20b-session-handoff.md"
     ],
     "docs/plans/2026-10-20b-session-handoff.md": [
+      "docs/plans/2026-10-15-build-program/queue.md",
       "docs/plans/2026-10-20-session-handoff.md"
     ],
     "docs/plans/implementation-log": [
@@ -3232,6 +3233,7 @@
       "docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md",
       "docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md",
       "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md",
+      "docs/plans/2026-10-20b-session-handoff.md",
       "docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md",
       "docs/plans/2026-10-18-session-handoff.md",
       "docs/capstone-report/implementation-program.md"
