@@ -17,6 +17,24 @@ const MAX = Math.max(1, Math.min(15, (args && args.max) || 12))
 const NESTED = !!(args && args.nested)
 const ONLY = (args && Array.isArray(args.ids)) ? args.ids : null
 
+// Advisory only (WAVE-DEP-DONE): warn when a picked row depends on a row whose own status is not done. Never defers.
+function depWarnings(rows, ids) {
+  const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const out = []
+  for (const id of ids) {
+    const row = rows.find((r) => r.id === id)
+    if (!row) continue
+    const dep = (row.depends_on || '').split(/\b(?:never|not|rebases on|either order|only after)\b/i)[0]
+    for (const d of rows) {
+      if (d.id === id) continue
+      if (!new RegExp('(^|[^A-Za-z0-9-])' + esc(d.id) + '(?![A-Za-z0-9-])').test(dep)) continue
+      const st = (d.status || '').replace(/^[* ]+/, '')
+      if (!/^done/i.test(st)) out.push(id + ': depends on ' + d.id + ", row status '" + st.slice(0, 60) + "'")
+    }
+  }
+  return out
+}
+
 const SCAN_SCHEMA = {
   type: 'object',
   properties: {
@@ -70,7 +88,7 @@ ${ONLY ? `Consider only these ids: ${ONLY.join(', ')}.` : 'Consider every row.'}
 
 An item is eligible only if ALL hold (cite evidence in why):
 1. kind is PRODUCT or DOCS (not OWNER, not model-machine); runtime is claude or any.
-2. Every depends_on PR/item is merged on origin/main (git merge-base --is-ancestor, or merged_recent).
+2. A depends_on that names a queue ID is met only when that row's own status starts with done. A merged PR for one task of an item (a title such as 'C-P6 Task 1') does not meet it. A depends_on that names a PR number or a commit is met when it is on origin/main. A dependency scoped to one task ('X only after Y') blocks that task only; say so in why.
 3. Every gate that blocks EXECUTION is answered in owner_rows with a choice that allows the work (merge-only gates do not block). Never infer an approval; quote the row.
 4. No open PR already claims it (head branch matches ^[a-z]+/<id-lower>- or title has "[claim:" + id).
 5. None of its files is in an open non-draft PR's file list (contracts.md §b rule 1; count slots, docs/INDEX.md, docs/_link_graph.json are never in an item's list under SLOT-RULE-2 — drop them from files).
@@ -95,12 +113,15 @@ for (const it of [...sel.eligible].sort((a, b) => a.priority - b.priority)) {
 }
 log(`picked ${picked.length}: ${picked.join(', ') || 'none'}; deferred ${deferred.length}; not eligible ${sel.not_eligible.length}`)
 deferred.forEach((d) => log(`deferred ${d}`))
+const dep_warnings = depWarnings(scan.rows, picked)
+dep_warnings.forEach((w) => log(`dep-warning ${w}`))
 
 if (!NESTED) {
   return {
     main_sha: scan.main_sha,
     picked,
     deferred,
+    dep_warnings,
     not_eligible: sel.not_eligible,
     next: `L0: start one background Workflow build-item per id, all in one message: ${picked.map((id) => `{"id": "${id}"}`).join(', ') || 'none'}`,
   }
@@ -129,6 +150,7 @@ return {
   main_sha: scan.main_sha,
   built: results.filter(Boolean),
   deferred,
+  dep_warnings,
   not_eligible: sel.not_eligible,
   next: 'Owner merges the READY PRs; L0 runs the post-merge batch (contracts §d step 3), then re-runs build-wave.',
 }
