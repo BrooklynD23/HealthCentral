@@ -239,7 +239,7 @@ bullet above it. The definition of done once listed `python -c "from main import
 directly after a `cd src/frontend` line.
 
 Plans are docs too. LLM-PATH-LOG's plan (2026-10-19) told the implementer to
-re-run `tests/test_llm_import_boundary.py`; that file exists only as a "to
+re-run `test_llm_import_boundary.py` from `tests/`; that file exists only as a "to
 create" entry in the W07 plan, so the acceptance command failed (#208). And the
 pytest slot script every runbook command calls directly, `scripts/pyslot.sh`,
 was mode `100644` in git: on a checkout with `core.fileMode=true` the documented
