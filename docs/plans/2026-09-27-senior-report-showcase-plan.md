@@ -1,9 +1,10 @@
 # CS4610 Senior Report — Stakeholder Showcase Update Plan
 
-**Last Updated:** 2026-09-27
+**Last Updated:** 2026-10-20 (refreshed under SHOW-AUDIT A; freeze 2026-10-24, showcase 2026-10-31)
 **Owner:** repository owner
 **Refresh Trigger:** P1 merges (re-verify every `main@40f590e` line below); any of W-1, W-8 or W-11a edits `docs/capstone-report/claims-ledger.md`; any of P2, S-1, W-2, W-3, W-4, W-6 or W-8 merges (each upgrades a claim in §9); the owner sets the showcase date; the reviewer log used in §6 changes
-**Status:** PROPOSED — not executed
+**Status:** REFRESHED 2026-10-20 — executing under build-program item F-9 (draft PR #210). This refresh is commit C0. Scope of the F-9 run after it: Codex plan review, Tasks 1-4, 6, 7 and a pre-freeze rehearsal of Task 10 Step 1 (recorded in §15; progress is in PR #210). Not in scope for that run: Task 5 (O-2), Task 7 Step 5 (O-1), Task 8 (O-4 A/B unsigned), Task 9 (owner, Windows), Task 10 binding run and C7 (2026-10-24, O-6). No §13 box is signed.
+**Refresh triggers fired since 2026-09-27:** P1 (both branches ancestors of main), W-1 (#35), P2 notifications (#31), W-3 (#136), W-4 (#72), W-5 (#34), W-6 (#32), W-8 (#168, #196), W-10 (#53), W-11a PR-2/PR-4 (#33, #39), W-2 doctor summary (#106), SAFE-CHAT (#44), SAFE-INTERP (#48), DDI (#41), P5 UTC sweep (#93, #95), F-10 (#68). Every `main@40f590e` line number and figure below is a lead, not a finding: Task 1 re-measures it, and Task 2 re-runs each ledger command before a verdict lands.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -15,7 +16,7 @@
 
 **Prerequisites:** P0-B and P1 merged to `origin/main`. The 2026-09-27 plan set (this file included) committed on main through an owner-approved docs commit. P0-B's approved text covers only `audit/`, `docs/capstone-report/` and `docs/INDEX.md`, not `docs/plans/`. Plan-specific: W-1 Task 6 merged before Task 5 (it owns `CS4610_Report_Demo/README.md:20-23`). If Task 0's ancestry check fails before P1 lands, that is the intended STOP, not a defect.
 
-**Ref labels.** `main@40f590e` = main at the planning date. `B@7b2ff1f` = `origin/claude/healthcentral-agentic-research-r1n54x`. `A@692fdf3` = `origin/claude/asclexis-repo-audit-349pjq`. `showcase:N` = line N of [`audit/2026-09-25/asclexis-showcase.html`](../../audit/2026-09-25/asclexis-showcase.html) in the working tree on 2026-09-27 (untracked package; P0-B commits it unchanged). `FR` / `TC` = the submitted Final Report / Technical Companion (`CS4610_Report_Demo/*.docx`, text read with `zipfile`, never edited). The executor re-verifies every line number on the post-P1 tree.
+**Ref labels.** `main@40f590e` = main at the planning date. `B@7b2ff1f` = `origin/claude/healthcentral-agentic-research-r1n54x`. `A@692fdf3` = `origin/claude/asclexis-repo-audit-349pjq`. `showcase:N` = line N of [`audit/2026-09-25/asclexis-showcase.html`](../../audit/2026-09-25/asclexis-showcase.html) in the working tree on 2026-09-27 (untracked package; P0-B commits it unchanged). `FR` / `TC` = the submitted Final Report / Technical Companion (`CS4610_Report_Demo/*.docx`, text read with `zipfile`, never edited). The executor re-verifies every line number on the post-P1 tree. Every `main@40f590e` line and figure in this file is re-measured by Task 1; the collected-test figure comes from that measurement, never from a document (`CLAUDE.md` or this plan).
 
 ---
 
@@ -199,7 +200,7 @@ Checks run 2026-09-27: middleware order in overview §2 matches `src/backend/mai
 | 3:00 | Ask before verifying | Assistant: "What was my most recent HbA1c?" | Say what the dry run recorded (expected: the agent declines to use unverified values). | C2, C14 |
 | 4:00 | Verify | Verification Workbench: confirm rows; correct one value | "Nothing the AI extracted counts as trusted until you confirm it." | C2, SAFE-01 |
 | 5:00 | Trends | Trends dashboard | Before W-3: "Trends plot every imported value, including unverified ones. Marking those 'unverified' is planned." After W-3: "Unverified points are marked." | C2 |
-| 5:45 | Ask again | "What was my most recent HbA1c?" → cited answer; then "Should I increase my metformin dose?" | "The default assistant builds answers from templates over your verified data. No language model runs on this path. Diagnosis and dosing language is blocked." | C14, C4 |
+| 5:45 | Ask again | "What was my most recent HbA1c?" → cited answer; then "Should I increase my metformin dose?" | "The default assistant builds answers from templates over your verified data. No language model runs on this path." Then name the path the dry run showed: **default agent path** → it abstains (guard abstain template); **legacy path** (agent flag off or agent raised) → since SAFE-CHAT (#44, `api/assistant.py:993-1011`, `ESCALATE_TEMPLATE`) a prohibited-pattern match is replaced by the fixed escalation template, never returned. Say only what the dry run recorded in §15. | C14, C4 |
 | 7:15 | Export | Visit-prep export | "Exports that go to a third party pass strict redaction." | C24 |
 | 8:15 | Delete | Delete profile with the phrase `DELETE MY HEALTH DATA`; show `src\backend\data\vaults\<id>` gone in Explorer | "Deletion unlinks the sealed keys first, then sweeps the vault and backups." | C5, C19 |
 | 9:15 | Harness | A **separate** PowerShell window (repo root, not the backend): the security-gate command from §6.3 check 9 | "CI's security gate now fails when a scan report is missing: exit 2." | H4 (post-P1 measured) |
@@ -214,7 +215,7 @@ Checks run 2026-09-27: middleware order in overview §2 matches `src/backend/mai
 | 1 | `git clone https://github.com/BrooklynD23/HealthCentral $D; git -C $D checkout --detach {SHA}; $LASTEXITCODE` | `0` | STOP |
 | 2 | `git -C $D merge-base --is-ancestor 7b2ff1f HEAD; $LASTEXITCODE; git -C $D merge-base --is-ancestor 692fdf3 HEAD; $LASTEXITCODE` | `0` `0` | STOP (pre-P1 tree) |
 | 3 | `Test-Path $D\src\backend\data` (before first launch) | `False` | STOP: not a fresh clone |
-| 4 | `Set-Location $D; .\dev.ps1` (first run installs venv + npm; network on) | browser opens; frontend on :3000 | follow dev.ps1 output |
+| 4 | `Set-Location $D; .\dev.ps1` (first run installs venv + npm; network on). Note: `dev.sh` exists since #86 for Linux/macOS/WSL; the Windows demo stays on `dev.ps1` and nothing in this check changes. | browser opens; frontend on :3000 | follow dev.ps1 output |
 | 5 | `Set-Location $D\src\backend; .\venv\Scripts\python.exe -c "from main import app; print('app ok', len(app.routes))"; $LASTEXITCODE` | `app ok <N>`, `0` | STOP |
 | 6 | `.\venv\Scripts\python.exe -c "import sqlcipher3; print('sqlcipher ok')"` | `sqlcipher ok` → say "encrypted vault" | `ModuleNotFoundError` → vaults are plain SQLite here (C16): use fallback line F-ENC, never say "encrypted vault" |
 | 7 | `$env:HF_HUB_OFFLINE='1'; .\venv\Scripts\python.exe -c "from modules.embeddings import EmbeddingsModule as E; e=E(); e._ensure_initialized(); print('model' if e._model is not None else 'hash-fallback')"` | `model` | `hash-fallback` → warm the cache once with network on (pre-W-8: the same command without `HF_HUB_OFFLINE`; post-W-8: W-8's documented fetch command), re-run until `model` |
@@ -229,7 +230,7 @@ Checks run 2026-09-27: middleware order in overview §2 matches `src/backend/mai
 
 - **F-INSTALL** (no installer): "Today it runs from a developer launcher. Choosing the packaging route is a planned decision spike (G-C4); nothing is built yet."
 - **F-EMB** (embedding model): before W-8: "The small embedding model was fetched into a local cache before the demo. Today the app would fetch it on first use; the approved fix makes that an explicit one-time download that loads offline and fails closed." After W-8: "The embedding model was downloaded once with the model script and loads offline; the app refuses to run retrieval without it. Bundling it into an installer comes later."
-- **F-NOTIFY** (notifications): "Medication reminders are built but not started yet. Wiring them, only while a vault is unlocked, is the next approved phase (P2)." After P2 merges and is measured, replace with a demo step.
+- **F-NOTIFY** (dropped 2026-10-20): the line "reminders built but not started" is false since P2 (#31, the session-scoped notification scheduler). No demo step replaces it: the scheduler has not been run on the demo machine, so it is not shown (stop gate 9). If Task 9 runs it and records the result, add it as a §6.2 step with its ledger row (C7); otherwise say nothing about reminders.
 - **F-ENC** (no SQLCipher on this laptop): "On this Windows laptop SQLCipher isn't installed, so this vault file is plain SQLite. Uploaded documents are still AES-GCM encrypted. CI runs with SQLCipher."
 - **F-EXTRACT** (a value missed): "Extraction missed that one — this is why nothing counts until you verify it." Then switch to the pre-verified synthetic profile "Demo Backup".
 - **F-AGENT** (unexpected answer): "That came from the fallback path." Move on; do not retry live.
@@ -603,39 +604,42 @@ main @ `40f590e`):
 
 **Files:** none
 
-- [ ] **Step 1: Create the worktree**
+- [ ] **Step 1: Use the claimed worktree**
+
+The build-program RUNBOOK §3 claim creates the worktree and branch; this step does not create another.
 
 ```bash
 set -o pipefail
-cd /mnt/c/Users/DangT/Documents/GitHub/HealthCentral
-git fetch origin && git worktree add ../hc-report -b docs/senior-report-showcase origin/main
-cd /mnt/c/Users/DangT/Documents/GitHub/hc-report
+cd "/mnt/e/Programming/Github Repo/hc-f-9"        # RUNBOOK §3 claim; branch docs/f-9-showcase-delta
+git branch --show-current                          # docs/f-9-showcase-delta
 git merge-base --is-ancestor 7b2ff1f HEAD && git merge-base --is-ancestor 692fdf3 HEAD && echo post-P1-ok
 ```
 
-Expected: `post-P1-ok`. Else STOP (intended before P1).
+Expected: `docs/f-9-showcase-delta`, then `post-P1-ok`. Else STOP.
 
 - [ ] **Step 2: Record which upgrade phases have merged**
 
+A `git log --grep=<plan file>` count prints 0 for merged phases (the merge subjects name branches, not plan files). Use ancestry per phase, with the merge commit of its PR:
+
 ```bash
-cd /mnt/c/Users/DangT/Documents/GitHub/hc-report
-for p in 2026-09-27-W01 2026-09-27-W02 2026-09-27-W03 2026-09-27-W04 2026-09-27-W06 2026-09-27-W08 2026-09-27-S01 2026-09-27-W10 2026-09-27-W11a; do
-  echo "$p: $(git log --oneline origin/main --grep="$p" | wc -l) commits citing it"; done
+cd "/mnt/e/Programming/Github Repo/hc-f-9"
+for pair in W-1:cbabed1 W-2:c4b1aa5 W-3:b45f9cb W-4:cfc1e50 W-5:d21c59d W-6:2f0cb6f W-8:26106ee W-10:6c13045 W-11a-PR4:25c993e P2:cff3827; do
+  git merge-base --is-ancestor "${pair#*:}" HEAD && echo "${pair%%:*} merged" || echo "${pair%%:*} NOT merged"; done
 test -f CS4610_Report_Demo/README.md && grep -c "written new" CS4610_Report_Demo/README.md
 ```
 
-Expected: the README exists (P1). `written new` count ≥ 1 means W-1 Task 6 landed; 0 → Task 5 waits. Record every "merged?" answer in §15 by `git merge-base --is-ancestor <merge commit> HEAD`, not by commit-message grep alone.
+For a phase not listed (S-1, W-7, W-11b, P5/P6), find its merge commit with `git log --merges --format='%h %s' | grep -i <branch word>` and test it the same way; no merge commit means "not merged". Expected: the README exists (P1). `written new` count ≥ 1 means W-1 Task 6 landed; 0 → Task 5 waits. Record every answer in §15.
 
 ### Task 1: Measure every figure (freeze values)
 
 **Files:** none (results go to §15)
 
-- [ ] **Step 1: SHA and date.** `git rev-parse --short HEAD` → `{SHA}`; `{FREEZE_DATE}` = today.
-- [ ] **Step 2: Backend collected.** `cd src/backend && ~/venvs/asclexis-311/bin/python -m pytest tests/ --collect-only -q -p no:cacheprovider | tail -1` → `{COLLECTED} tests collected`. If the D9 venv is missing, use `/mnt/c/Python313/python.exe` and set `{INTERP}` = "Windows Python 3.13.7". Never copy a number from a doc. Do not run the full suite here (S-1: master-engine tests write into `<cwd>/data`).
+- [ ] **Step 1: SHA and date.** `git rev-parse --short HEAD` → `{SHA}`; `{FREEZE_DATE}` = `2026-10-24` (owner decisions SHOW-DATE `:243`: freeze = showcase - 7 days; SHOW-FREEZE `:277`: showcase 2026-10-31). A pre-freeze run before that date is labelled "pre-freeze <date> @ <SHA>, not the O-6 freeze" and its figures are re-taken on 2026-10-24.
+- [ ] **Step 2: Backend collected.** `cd src/backend && "$(git rev-parse --show-toplevel)/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest tests/ --collect-only -q -p no:cacheprovider | tail -1` → `{COLLECTED} tests collected`. If the D9 venv is missing, use `/mnt/c/Python313/python.exe` and set `{INTERP}` = "Windows Python 3.13.7". Never copy a number from a doc (`CLAUDE.md`'s 1933 line may lag merges; the measurement wins). Do not run the full suite here (S-1: master-engine tests write into `<cwd>/data`).
 - [ ] **Step 3: Inventory.**
 
 ```bash
-cd /mnt/c/Users/DangT/Documents/GitHub/hc-report; set -o pipefail
+cd "/mnt/e/Programming/Github Repo/hc-f-9"; set -o pipefail
 grep -c "include_router" src/backend/api/__init__.py            # {ROUTERS}
 ls src/frontend/src/pages/*.tsx | wc -l                            # {PAGES}
 ls -d .claude/skills/*/ | wc -l; ls -d skills/*/ | wc -l          # {SKILLS_P} {SKILLS_D}
@@ -648,7 +652,7 @@ grep -n "RecoveryCodeCard\|TierCapabilities" src/frontend/src/pages/SettingsPage
 - [ ] **Step 4: Authorship (H1, H12).**
 
 ```bash
-cd /mnt/c/Users/DangT/Documents/GitHub/hc-report
+cd "/mnt/e/Programming/Github Repo/hc-f-9"
 git rev-list --count HEAD; git log HEAD --format=%an | grep -c '^Claude$'
 git log HEAD --format='%H|%ad|%an|%(trailers:key=Co-Authored-By,valueonly,separator=;)' --date=format:%Y-%m-%d > /tmp/claude-1000/authors.txt
 python3 - <<'EOF'
@@ -839,7 +843,7 @@ A claim is upgraded only after its phase is merged **and** the named evidence is
 |---|---|---|---|
 | P1 (branches A+B) | gate fails closed; computed trust score; recovery-code card; lock files gone | H4, C3, C6, H15 | Task 1 steps 3 and 8; `grep -n "faithfulness_score=1.0" src/backend/api/assistant.py` → none |
 | W-1 (P3) | `.claude/agents/` committed | H5 (W-1 edits it) | W-1's HC-AGENTS tests + drift check |
-| P2 | reminders fire (session-scoped) | C7 | HC-NSW tests; lifespan test; replace F-NOTIFY with a demo step |
+| P2 (#31 merged) | reminders fire (session-scoped) | C7 | HC-NSW tests; lifespan test; F-NOTIFY is dropped (§6.4); add a demo step only after Task 9 records it |
 | S-1 | SQL echo off by default | C15 | HC-SQLECHO-001…004 green; `engine.echo` False with default config |
 | W-2 | doctor summary redacted | C9 | HC-EXPR tests; then the demo may show the doctor summary |
 | W-10 | CSV/JSON named exceptions in CLAUDE.md, data-privacy.md | C9 | the governance commit on main |
@@ -856,19 +860,21 @@ A claim is upgraded only after its phase is merged **and** the named evidence is
 
 ## 13. Owner sign-offs (unsigned)
 
+As of 2026-10-20 every box below is unsigned; an agent never ticks or signs one. Each gates only its own task or commit (O-1 Task 7 Step 5 / C5 and the new-copy pointers; O-2 Task 5 / C4; O-3 the demo `.env`; O-4 Task 8 / C6; O-5 §6a; O-6 Task 10 Step 2 / C7; O-7 §8 Edit 5). The remaining tasks run without them.
+
 | # | Decision | Recommendation | Signed |
 |---|---|---|---|
 | O-1 | Publish the ledger-gated copy at `docs/capstone-report/asclexis-showcase-{FREEZE_DATE}.html`; the 2026-09-25 page stays byte-identical | yes | ☐ ______ date ______ |
 | O-2 | Add the §8 scope-note text to `CS4610_Report_Demo/README.md` (Edits 1–4, 6) | yes | ☐ ______ |
 | O-3 | Demo clone only: set `DEBUG=false` in the untracked `src/backend/.env`, plus `HF_HUB_OFFLINE=1` and Wi-Fi off during the demo | yes (the safe default without it: hidden backend window, browser-only sharing) | ☐ ______ |
-| O-4 | Package review evidence into `docs/reviews/`: (A) `reviewer-log.tsv` only, or (B) the TSV + Codex outputs + `review.sh` + prompt template | B (makes M6 reproducible; avoids repeating audit addendum A-5) | ☐ A ☐ B ☐ neither |
-| O-5 | Add outline §6a (2026-09-27 reconciliation) with the `CASE-STUDY` verdict only | yes | ☐ ______ |
+| O-4 | Package review evidence into `docs/reviews/` (location answered 2026-10-10, SHOWCASE-O4 `owner-decisions-2026-09-27.md:122`: "Yes, docs/reviews/"; options A/B still unsigned): (A) `reviewer-log.tsv` only, or (B) the TSV + Codex outputs + `review.sh` + prompt template | B (makes M6 reproducible; avoids repeating audit addendum A-5) | ☐ A ☐ B ☐ neither |
+| O-5 | Add outline §6a (2026-09-27 reconciliation) with the `CASE-STUDY` verdict only. Gates §4.1 / the §6a insertion; unsigned, so §6a is not inserted | yes | ☐ ______ |
 | O-6 | Claim freeze passed (§10) for the showcase on ______ | — | ☐ ______ |
 | O-7 | Add the submission-date inconsistency note (§8 Edit 5) | owner's call | ☐ yes ☐ no |
 
 ## 14. Commit plan
 
-Worktree `/mnt/c/Users/DangT/Documents/GitHub/hc-report`, branch `docs/senior-report-showcase`. Never `git add -A` or `git add .` (C-GATE-3). Before each commit: `git diff --cached --name-only` must print exactly the listed paths.
+Worktree `/mnt/e/Programming/Github Repo/hc-f-9` (RUNBOOK §3 claim), branch `docs/f-9-showcase-delta`, draft PR #210 (title `[claim:claude:noslot] F-9 showcase-delta`: do not retitle, do not mark ready). Never `git add -A` or `git add .` (C-GATE-3). Before each commit: `git diff --cached --name-only` must print exactly the listed paths.
 
 | # | After | Message | Pathspec (exact) |
 |---|---|---|---|
@@ -883,13 +889,13 @@ Worktree `/mnt/c/Users/DangT/Documents/GitHub/hc-report`, branch `docs/senior-re
 Example (C1):
 
 ```bash
-cd /mnt/c/Users/DangT/Documents/GitHub/hc-report
+cd "/mnt/e/Programming/Github Repo/hc-f-9"
 git add docs/capstone-report/claims-ledger.md
 git diff --cached --name-only        # expect exactly: docs/capstone-report/claims-ledger.md
 git commit -m "docs: add claims-ledger rows for the showcase claim audit" -m "Rows C11-C30, H12-H18, M4-M8; M1 evidence extended. Evidence re-run at <SHA>." -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-PR: `gh pr create --base main --head docs/senior-report-showcase --title "docs: ledger-gated showcase, outline and scope notes" --body-file <body>`; body per handoff §6 (measurements, files changed, owner stops reached, one next action).
+PR: #210 is already open as a draft from the claim. Update its body (measurements, files changed, owner stops reached and skipped tasks, one next action); never `gh pr create` a second PR.
 
 ## 15. Execution record (filled by the executor)
 
@@ -921,7 +927,7 @@ PR: `gh pr create --base main --head docs/senior-report-showcase --title "docs: 
 
 ## 17. Rollback
 
-- Before push: `cd /mnt/c/Users/DangT/Documents/GitHub/HealthCentral && git worktree remove ../hc-report && git branch -D docs/senior-report-showcase`. No `git reset` (recurring-failures #5).
+- Before push: the worktree and branch belong to the RUNBOOK §3 claim; remove them only through that procedure (`git worktree remove` on `/mnt/e/Programming/Github Repo/hc-f-9`, then delete `docs/f-9-showcase-delta`). No `git reset` (recurring-failures #5).
 - After push / PR: `gh pr close <n> --delete-branch`.
 - After merge: `git revert <commit>` per commit C1…C7 (each is single-purpose).
 - Demo: delete the demo clone folder (`Remove-Item -Recurse $D`) and the synthetic files; nothing in them is real.
@@ -933,7 +939,7 @@ PR: `gh pr create --base main --head docs/senior-report-showcase --title "docs: 
 | #1 green signal that could not fail | the claim checker could pass vacuously | Task 7 step 3 breaks it four ways |
 | #3 figures asserted | the old page's numbers were hand-typed (24 features, ~50 sites, era %) | every number comes from Task 1 with its command |
 | #4 environment-dependent results | pass counts, SQLCipher presence, embedding model presence | freeze item 3; demo checks 6–7 |
-| #5 contaminated tree | the owner's checkout has uncommitted edits | all gates run in the `hc-report` worktree; the demo runs in a fresh clone |
+| #5 contaminated tree | the owner's checkout has uncommitted edits | all gates run in the `hc-f-9` worktree; the demo runs in a fresh clone |
 | #6 documented commands nobody ran | the demo checklist and this plan quote commands | Task 9 runs every §6.3 command exactly as written; fix the plan if one fails |
 | #8 stale guidance as authority | the orchestrator ledger and the old showcase are leads, not findings | Task 2 step 3 re-runs every evidence command before a row lands |
 
