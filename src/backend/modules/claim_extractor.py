@@ -347,8 +347,11 @@ class ClaimExtractor:
             if claim.segment_type == "uncertainty":
                 is_unverifiable = True
 
-            # Meta-statements about information availability
-            for pattern in meta_patterns:
+            # Meta-statements about information availability. A meta phrase never
+            # exempts a claim that carries a citation or a number: it still has to
+            # be verified.
+            carries_fact = bool(claim.cited_sources) or bool(re.search(r"\d", claim.text))
+            for pattern in () if carries_fact else meta_patterns:
                 if re.search(pattern, claim.text, re.IGNORECASE):
                     is_unverifiable = True
                     break
