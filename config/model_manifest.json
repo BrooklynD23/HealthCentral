@@ -49,7 +49,7 @@
       "revision": "a150876415327c80daeff35ca6f68f5ed8cf5c24",
       "filename": "model.safetensors",
       "sha256": "4e4fc4977f8d29d2a164255c8f69b9d6c158deeb309bb5e70445b94666ccd9e9",
-      "note": "HC-M11 NLI cross-encoder. Apache-2.0 per the model card (measured 2026-10-18 from Hub metadata). sha256 is the Hub's advertised LFS hash; scripts/download_models.py nli recomputes it after the fetch. Pending owner confirmation GC5-MODEL."
+      "note": "HC-M11 NLI cross-encoder. Apache-2.0 per the model card (measured 2026-10-18 from Hub metadata). sha256 is the Hub's advertised LFS hash; scripts/download_models.py nli recomputes it after the fetch. Pins confirmed by the owner 2026-10-19 (GC5-OL-1, docs/capstone-report/owner-decisions-2026-09-27.md:269)."
     }
   }
 }
