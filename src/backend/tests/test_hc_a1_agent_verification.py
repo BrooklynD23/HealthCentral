@@ -76,6 +76,7 @@ def _seed_cache(question: str, terminal: AgentTerminal, profile_id: str) -> None
         normalized_question=normalize_question(question),
         profile_version=EMPTY_PROFILE_VERSION,
         profile_id=profile_id,
+        tz_name="UTC",
     )
     put_cached(key, terminal)
 
