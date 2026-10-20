@@ -871,3 +871,47 @@ async def test_hc_exptz_009_visit_prep_questions_use_profile_local_today(
     finally:
         if packet_id is not None:
             _packet_store.pop(packet_id, None)
+
+
+@pytest.mark.asyncio
+async def test_hc_pkt_024_stored_questions_are_strict_redacted(real_profile_db):
+    """HC-PKT-024: through HTTP, the raw `questions` list stored with the packet is
+    strict-redacted like the sections beside it (PKT-QUESTIONS-REDACT)."""
+    from datetime import timedelta
+
+    from models import CarePlanTask
+
+    db = real_profile_db
+    db.add(
+        CarePlanTask(
+            id=str(uuid.uuid4()),
+            title="Call Dr. Jane Smith, MRN: A1234567",
+            status="open",
+            due_date=date.today() + timedelta(days=2),
+        )
+    )
+    await db.commit()
+
+    packet_id = None
+    try:
+        with route_client(export_api.router, "/export", profile_id="profile-a") as client:
+
+            async def _override_profile_db():
+                return db
+
+            client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+            created = client.post(
+                "/export/visit-prep",
+                json={"confirm": True, "include_tasks": True, "include_questions": True},
+            )
+            assert created.status_code == 200, created.text
+            packet_id = created.json()["packet_id"]
+            questions = _packet_store[packet_id]["questions"]
+
+        assert questions, "task-derived question missing; check would pass vacuously"
+        for entry in questions:
+            for phi in ("Jane", "Smith", "A1234567"):
+                assert phi not in entry["question"]
+    finally:
+        if packet_id is not None:
+            _packet_store.pop(packet_id, None)
