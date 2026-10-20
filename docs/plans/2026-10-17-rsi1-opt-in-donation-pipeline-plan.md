@@ -4,6 +4,7 @@
 **Owner:** repository owner
 **Status:** PROPOSED (Opus planner). Docs only. No owner approval is recorded here. **Build is blocked on the open owner gates listed at the end.** No answer is inferred. Gates keep their state in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md).
 **Base measured:** `origin/main` @ `3536cc6` (2026-10-17). Profile migration head `013_adaptive_windows_local`.
+**Delta 2026-10-20:** all DON-* gates answered; PR-2 gains `api/feedback.py` and the chat-session delete route; PR-3's leak rule follows DON-CANARY (b). See [Delta 2026-10-20](#delta-2026-10-20-planner-answered-gates-pr-2-file-list-pr-3-leak-rule).
 **Refresh Trigger:** any owner answer to a DON-* gate; any commit to `src/backend/modules/redaction.py` (its rule set changes the recall numbers), `src/backend/modules/rl_dataset.py`, `src/backend/api/feedback.py`, `src/backend/models/response_feedback.py`, `src/backend/api/profiles.py` (`_SYNTHETIC_RESET_MODELS`, deletion sweep); C-P6 or C-P7 merging (FK and reset-tuple rules, contracts §c item 5); a new profile migration on `main`.
 
 **Queue row:** [queue.md](2026-10-15-build-program/queue.md) RSI1-DONATE. **Sources:** owner rows RSI-1 (**"Build it as part of the workflow"**; owner: "RSI 1 - build out as part of workflow"; pipeline "consent → local strict redaction → local-only store (RSI-2) → leak eval → mix real+synthetic") and RSI-2 (**"No: everything stays local"**), both 2026-10-17 and landing with #123; handoff 2026-10-17 §2 item 4(c) (lands with #123); research `docs/research/2026-10-17-rsi-opt-in-data/00-README.md` §A and `02-private-synthetic-health-data.md` (land with #122); [contracts](2026-10-15-build-program/contracts.md) §b, §c.
@@ -76,13 +77,13 @@ Prefer extending existing code (CLAUDE.md §2).
 
 ### Leak eval
 
-- **Canaries.** On each `collect`, insert K synthetic canary records (`origin=canary`), each with a unique random fake identifier in every Safe Harbor shape the detectors claim to cover (fake MRN, phone, email, SSN-shaped, date, name). They are passed through the **same** steps 3-4. A canary that survives into `donated_records` with its secret intact means the pipeline leaked. `leak_check` fails and the purpose's manifest is blocked (DON-CANARY).
-- **Store scan.** `leak_check` also scans every stored `real` and `synthetic` row for the profile's own display name (the only personal identifier the master `Profile` row stores, `models/profile.py:47`), by exact and case-folded match. Any hit blocks the manifest.
+- **Canaries.** On each `collect`, insert K synthetic canary records (`origin=canary`), each with a unique random fake identifier in every Safe Harbor shape the detectors claim to cover (fake MRN, phone, email, SSN-shaped, date, name). They are passed through the **same** steps 3-4. A canary that survives into `donated_records` with its secret intact means the pipeline leaked. `leak_check` fails and the purpose's manifest is blocked (DON-CANARY). **Superseded by [Delta 2026-10-20](#delta-2026-10-20-planner-answered-gates-pr-2-file-list-pr-3-leak-rule) (DON-CANARY (b)).**
+- **Store scan.** `leak_check` also scans every stored `real` and `synthetic` row for the profile's own display name (the only personal identifier the master `Profile` row stores, `models/profile.py:47`), by exact and case-folded match. Any hit blocks the manifest. **Superseded by [Delta 2026-10-20](#delta-2026-10-20-planner-answered-gates-pr-2-file-list-pr-3-leak-rule) (DON-CANARY (b)).**
 - **Extraction probe (model-machine, later).** `src/backend/scripts/donation_extraction_probe.py` prompts a model with each canary's prefix and checks whether the secret comes back (research 02 #3, #4). It runs only on a model tuned on a manifest, which is DON-FT-SCOPE. If fine-tuning is out of scope, this script is not built here, and the plan says so in the PR.
 
 ### Synthetic and mix (DON-SYNTH, DON-MIX)
 
-- `build_manifest(purpose)` returns every `real` row plus at most `ratio × real_count` `synthetic` rows. It never returns `canary` rows, and it refuses (raises) if `leak_check` fails.
+- `build_manifest(purpose)` returns every `real` row plus at most `ratio × real_count` `synthetic` rows. It never returns `canary` rows, and it refuses (raises) if `leak_check` fails. **Superseded by [Delta 2026-10-20](#delta-2026-10-20-planner-answered-gates-pr-2-file-list-pr-3-leak-rule) (DON-CANARY (b)).**
 - If synthetic generation is in scope, it generates through `get_model_runner()` from already-redacted real rows. Each output is strict-redacted and second-pass-checked again, then stored as `origin=synthetic` with `parent_id`.
 - Revoke deletes the purpose's `real` rows and every `synthetic` row whose `parent_id` points at one, in the same transaction.
 
@@ -126,6 +127,70 @@ Details are counts only. `entity_type="donation"`, and `entity_id=<purpose>`.
 
 Size: about 700 lines of non-test diff. **Split into 3 PRs** in this order, each its own build-item: **PR-1** migration, models, consent routes and UI (Tasks 1, 2, 6); **PR-2** collect, second pass and recall report (Tasks 3, 4); **PR-3** leak eval, manifest and synthetic (Task 5).
 
+## Delta 2026-10-20 (planner): answered gates, PR-2 file list, PR-3 leak rule
+
+Planned 2026-10-20 on `origin/main` @ `b2b3f4e` from the #211 L0 comment (queue bullets RSI1-DONATE-PR2-FILES and RSI1-DONATE-PR3-DELTA). This section overrides the lines it names; everything else above stands. No owner answer is inferred: each one below is quoted from [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md), and none is re-asked.
+
+### All 13 DON-* gates are answered (2026-10-19, `owner-decisions-2026-09-27.md:278-290`)
+
+The "Open owner gates" list at the end of this plan is now a record of the questions asked. The answers:
+
+| Gate | Answer (quoted) | Effect on the plan |
+|---|---|---|
+| DON-PURPOSES `:278` | **(a) All three** — "Fine-tune, synthetic seed, app-agent traces." | as designed |
+| DON-REVOKE `:279` | **(a) Delete now** — "Delete that purpose's records and synthetic children immediately; keep a dated record of the choice." | as designed (HC-DON-006) |
+| DON-COPY `:280` | **(a) Agent drafts, I approve** — "Owner approves the text before PR-1 merges." | PR-1 merge; also covers PR-2's one new refusal string (below), approved at PR-2 merge |
+| DON-SRC-DELETE `:281` | **(a) Yes** — "Donated copy is deleted with its source session." | PR-2 edits the chat-session delete route (below) |
+| DON-SOURCE `:282` | **(a) Rated chat turns** — "Only chat turns the patient rated with feedback: question, answer and correction." | as designed |
+| DON-DETECTOR `:283` | **(a) In-repo Safe Harbor** | as designed (`modules/phi_second_pass.py`) |
+| DON-RECALL `:284` | **(a) 100% canary, >=95% per category** — "a flagged record is dropped, not re-redacted." | as designed (HC-DON-013 gate unchanged) |
+| DON-RLEXPORT `:285` | **(a) Yes, one consent** — "One consent model for both donation and the RL export." | PR-2 edits `api/feedback.py` (below) |
+| DON-CANARY `:286` | **(b) Drop and continue** — "Drop the leaking record and carry on." (not the recommended (a)) | PR-3 leak rule rewritten (below) |
+| DON-MIX `:287` | **(a) 1:1** — "1:1, and every real record is always kept." | as designed (HC-DON-019) |
+| DON-SYNTH `:288` | **(a) Local rewrite** — "labelled 'synthetic, no DP guarantee'." | as designed (HC-DON-020) |
+| DON-FT-SCOPE `:289` | **(b) Yes, LoRA + probe** — "Local LoRA fine-tune and the extraction probe are in scope; widens PR-3 and needs the model machine." (not the recommended (a)) | PR-3 split proposed (below) |
+| DON-FILE-EXPORT `:290` | **(a) Yes** — "Re-redacted local JSONL under rl_exports/profile_<id>/donation/." | as designed |
+
+### PR-2 file list delta (DON-RLEXPORT, DON-SRC-DELETE)
+
+The plan's "Files" table and the queue row named neither route file, but PR-2 needs both (#211 L0 comment):
+
+1. **`src/backend/api/feedback.py`** (`export_dataset`, `POST /feedback/export`, `:340-448` on `b2b3f4e`). After the existing `confirmed` check (`:356-360`) and before any feedback row is read, refuse with HTTP 403 when the profile has no active `fine_tune` consent (DON-RLEXPORT (a)); no file is written. The detail string is new text the Settings export button can show (`src/frontend/src/pages/SettingsPage.tsx:916`), so it is drafted in PR-2 and approved by the owner at PR-2 merge under DON-COPY (a). The audit-guard row for `export_dataset` (`tests/test_audit_order_guard.py:54`, "excluded: writes export files; master audit only") does not change.
+2. **`src/backend/api/assistant.py`** (`delete_session`, `DELETE /assistant/sessions/{session_id}`, `:501-529` only). Before `profile_db.delete(chat_session)`, in the same transaction, delete the `donated_records` rows with `origin="real"`, `source_kind="response_feedback"` and `source_id` in that session's `ResponseFeedback.id`s (`models/response_feedback.py` carries `session_id`), plus their `synthetic` children (`parent_id`). A `data_donation.delete_for_session(profile_db, session_id) -> int` helper does the work; the route only calls it. The A2 started/completed audit around the delete (AUDIT-C-ASSIST) is unchanged.
+3. **Tests:** `src/backend/tests/test_donation_routes_http.py` (already in the list) gains, through `route_client`:
+   - **HC-DON-021:** `POST /feedback/export {confirmed: true}` with no fine-tune consent → 403 and no file under the export root; with the consent granted → 200 and the files, as today.
+   - **HC-DON-022:** two sessions with rated turns, both donated; `DELETE /assistant/sessions/{a}` → session a's donated `real` rows and their `synthetic` children are gone, session b's stay.
+   Existing callers of the export route need a consent row (fixture lines only): `src/backend/tests/test_rl_export_prompt_snapshot.py` (`_rate_and_export`, `:67-85`) and `src/backend/tests/test_rl_feedback.py` (the direct `export_dataset` calls at `:303-360` whose expected status would otherwise become 403).
+4. **Shared file:** `api/assistant.py` is in B-3's and G-C5's lists. PR-2 never runs beside a non-draft PR on it (contracts §b rules 1-2; B-3 is a parked draft).
+
+PR-2 expected collected delta: +2 on top of Tasks 3-4.
+
+### PR-3 delta: the leak rule under DON-CANARY (b)
+
+The owner chose "Drop the leaking record and carry on." These lines are superseded: Design "Leak eval", the last two sentences of **Canaries** ("…`leak_check` fails and the purpose's manifest is blocked (DON-CANARY)") and the last sentence of **Store scan** ("Any hit blocks the manifest"); Design "Synthetic and mix", "and it refuses (raises) if `leak_check` fails"; Task 5 HC-DON-017 and HC-DON-018 as written.
+
+**New rule:**
+- `leak_check(profile_db, purpose)` deletes every leaking record it finds and returns counts only: `canaries_planted`, `canaries_survived`, `display_name_hits`, `dropped`. It never blocks the purpose.
+  - A canary whose secret survives into `donated_records` is a leaking record: it is deleted and counted in `canaries_survived`. Canaries are never in a manifest either way.
+  - A `real` or `synthetic` row that contains the profile's display name (exact or case-folded) is deleted together with its `synthetic` children and counted in `display_name_hits` and `dropped`.
+- `build_manifest(purpose)` runs `leak_check` first and builds from what is left. It does not raise for a leak.
+- `GET /donation/{purpose}/report` shows the last `leak_check` counts (the route table already says "pass/fail plus counts"; "pass/fail" becomes the counts).
+
+**What (b) does not cover, stated for the record (not a question):** a surviving canary shows that a real record of the same shape may have leaked too, and that record cannot be found, because its secret is unknown. Under (b) the pipeline drops what it can see and carries on. DON-RECALL (a) is unchanged: Task 3's corpus gate (100% of canaries, ≥95% per category) still holds PR-2 at draft if missed, and non-negotiable 7 still holds, because "drop and continue" is the owner's leak rule, not a relaxed one. The PR-3 body repeats this paragraph next to the measured `canaries_survived` count.
+
+**Tests (replace HC-DON-017 and HC-DON-018):**
+- **HC-DON-017 (rev):** a canary whose secret survives (forced by a patched detector) → `leak_check` deletes it and returns `canaries_survived == 1`; `build_manifest` returns without raising, with every `real` row and no canary row.
+- **HC-DON-018 (rev):** a stored `real` row with the display name and its `synthetic` child → `leak_check` deletes both (`display_name_hits == 1`, `dropped == 2`) and keeps the other rows; the manifest does not contain them.
+- **HC-DON-018b (new):** `build_manifest` with no explicit `leak_check` call first still excludes a display-name row (it runs the check itself).
+
+PR-3 expected collected delta: +1 on top of Task 5 (HC-DON-018b).
+
+### DON-FT-SCOPE (b): proposed PR-3 split
+
+The plan has no trainer design: the extraction-probe bullet says "If fine-tuning is out of scope, this script is not built here". DON-FT-SCOPE (b) puts the LoRA run and the probe in scope and "needs the model machine". Proposal (L0 may merge the two back):
+- **PR-3a** (runtime claude): Task 5 as revised above.
+- **PR-3b** (model machine): the local LoRA run on a PR-3a manifest and `src/backend/scripts/donation_extraction_probe.py`. It needs its own plan delta before it starts, because three design points are open: the trainer and its dependencies (a new training dependency is its own dependency row and licence check); where the probe loads the tuned model (CLAUDE.md §3 routes LLM calls through `ModelRunner`; compare GC5-OL-3); and what revoke does to an adapter trained on revoked records (DON-REVOKE (a) deletes records and synthetic children; its option (b), which also deleted adapters, was not chosen). Queue bullet **RSI1-DONATE-FT-PLAN** tracks that plan delta; it is not planned here.
+
 ## Tasks (test-first)
 
 ### Task 0: Gates and re-verify
@@ -164,8 +229,8 @@ Size: about 700 lines of non-test diff. **Split into 3 PRs** in this order, each
 
 ### Task 5: Leak eval, manifest, synthetic (HC-DON-017…020)
 
-- **HC-DON-017:** with a canary whose secret survives (forced by a patched detector in the test), `leak_check` fails and `build_manifest` raises.
-- **HC-DON-018:** a stored row containing the profile's display name fails `leak_check`.
+- **HC-DON-017:** with a canary whose secret survives (forced by a patched detector in the test), `leak_check` fails and `build_manifest` raises. **Superseded by [Delta 2026-10-20](#delta-2026-10-20-planner-answered-gates-pr-2-file-list-pr-3-leak-rule) (DON-CANARY (b)).**
+- **HC-DON-018:** a stored row containing the profile's display name fails `leak_check`. **Superseded by [Delta 2026-10-20](#delta-2026-10-20-planner-answered-gates-pr-2-file-list-pr-3-leak-rule) (DON-CANARY (b)).**
 - **HC-DON-019:** the manifest includes every `real` row, includes no `canary` row, and keeps `synthetic ≤ ratio × real`. With 0 real rows it returns 0 synthetic rows.
 - **HC-DON-020 (local only):** synthetic generation calls `get_model_runner()`. `core.external_runner.get_runner_for_request` is patched to raise, and generation still succeeds, which shows it is never consulted.
 
@@ -209,6 +274,8 @@ cd ../frontend && npx tsc --noEmit && npx vitest run src/__tests__/DataDonationC
 - `modules/interpret_safety.py`, `faithfulness.py`, `verifier_agent.py`: not touched.
 
 ## Open owner gates (exact wording, ready to ask; none inferred)
+
+All answered 2026-10-19 (`owner-decisions-2026-09-27.md:278-290`); the answers and their effect are in [Delta 2026-10-20](#delta-2026-10-20-planner-answered-gates-pr-2-file-list-pr-3-leak-rule). The questions stay below as asked.
 
 1. **DON-PURPOSES:** "The donation screen has one switch per purpose. Which purposes ship? (a) all three: fine-tune local models, seed synthetic data, and app-agent run traces (Recommended); (b) fine-tune and synthetic only; (c) fine-tune only."
 2. **DON-SOURCE:** "Which of a patient's data may be donated? (a) only chat turns the patient rated with feedback: question, answer and correction (Recommended); (b) every legacy chat turn; (c) also document text and lab values."

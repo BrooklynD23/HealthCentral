@@ -31,6 +31,8 @@ Read-only design. No product file was edited. Existing merged plans are not rewr
 | LCP-HEADERLESS | PRODUCT | owner LCP-HEADERLESS (a), `owner-decisions-2026-09-27.md:275`; #185 open MINOR 1 and comment 6270643786 | [below](#lcp-headerless--the-legacy-parser-finds-headers-anywhere-drops-text-before-them-and-never-checks-headerless-text-for-citations) | blocked-on-owner | #185 merged (`5750a97`); owner LCP-HL-SCOPE and LCP-HL-LABELS (then LCP-HL-DIFF, merge) |
 | EMB-LOAD-LOG-PATH | PRODUCT | #196 L0 ruling (comment 6267273354); #196 and #192 review MINORs | [below](#emb-load-log-path--sentence-transformers-logs-the-model-path-at-info-the-path-leak-tests-look-only-at-warning-takes-emb-harden-minors-and-reprocess-007c-reach) | ready | — |
 | LLM-PATH-LOG | PRODUCT | #196 reviews (LLM model paths at INFO) | [below](#llm-path-log--the-two-llm-loaders-log-the-model-path-at-info) | ready | #185 merged (`5750a97`); never beside B-5 |
+| EMB-LOG-M7 | PRODUCT (test only) | PR #214 review MINOR (mutant M7) | [below](#emb-log-m7--the-logger-restore-tests-never-start-at-notset-so-mutant-m7-survives) | ready | — |
+| LLM-PATH-LOG-M2M3 | PRODUCT | PR #208 review M2/M3; L0 handoff 2026-10-20 §3 item 4 | [below](#llm-path-log-m2m3--six-more-loader-log-lines-can-carry-the-model-path) | ready | never beside B-5 |
 
 Collected-count note: the lane baseline is **1574** (`CLAUDE.md:30`, `AGENT.md:76` on `3b2236c`; confirmed by L0 in the peer-review round). 1501 was #95's own branch value. Not re-measured here (no pytest on this box). Ground rule 8 (SLOT-RULE): every lane-A PR runs `--collect-only` **after its final rebase** onto `origin/main` and writes the measured number into both slots in the same commit. It never adds its own delta to a number copied from a doc. Lane D's D-0 chain (#95 → #97 → #99 → #82 → #84) runs first, so lane-A PRs start from whatever D-0 measured.
 
@@ -568,10 +570,75 @@ So with the default verifier on, the parser's defects already reach a patient fo
 | HC-MPATH-001 | `src/backend/tests/test_model_path_logs.py` (new) | `LlamaCppProvider._ensure_initialized()` with `_find_model_path` returning `<tmp>/jane-doe-home/x.gguf`, and `_load_llama_class` and `modules.model_integrity.verify_and_log` stubbed, `caplog` at DEBUG → the GGUF file name appears, the directory does not | yes (path logged at `:130`) |
 | HC-MPATH-002 | same | `ModelSelector.load_model(tier)` with `get_model_path` returning the same path and `llama_cpp` stubbed in `sys.modules`, same assertion | yes (`:462`) |
 
-**Files:** `src/backend/core/llm/llama_cpp_provider.py`, `src/backend/modules/model_selector.py`, `src/backend/tests/test_model_path_logs.py` (new), slots. **Re-run, not edited:** `tests/test_llm_import_boundary.py`, `tests/test_model_integrity.py`. The new test stubs `llama_cpp`; it never imports it for real (CLAUDE.md §3 import boundary).
+**Files:** `src/backend/core/llm/llama_cpp_provider.py`, `src/backend/modules/model_selector.py`, `src/backend/tests/test_model_path_logs.py` (new), slots. **Re-run, not edited:** `tests/test_llm_provider_layer.py`, `tests/test_model_integrity.py` (corrected 2026-10-20, PLANNER bullet: this line first named `tests/test_llm_import_boundary.py`, which does not exist on `main`; only the W07 plan lists it, as a file B-5 will create). The new test stubs `llama_cpp`; it never imports it for real (CLAUDE.md §3 import boundary).
 **Expected collected delta:** +2. **Est:** 1 h.
-**Acceptance:** `pyt tests/test_model_path_logs.py tests/test_llm_import_boundary.py tests/test_model_integrity.py -q -rfE`: 0 failed; full suite per RUNBOOK §6. **Rollback:** revert.
+**Acceptance:** `pyt tests/test_model_path_logs.py tests/test_llm_provider_layer.py tests/test_model_integrity.py -q -rfE`: 0 failed; full suite per RUNBOOK §6. **Rollback:** revert.
 **Order:** ready now: LEGACY-CITE-PROMPT (#185), which also edited `llama_cpp_provider.py`, merged on 2026-10-20 (`5750a97`); `:130` is unchanged. Never beside B-5 (`model_selector.py`). No ask-first file.
+
+## Follow-ups found 2026-10-20 (planned 2026-10-20 on `origin/main` @ `b2b3f4e`)
+
+Two rows from the reviews of #208 (LLM-PATH-LOG) and #214 (EMB-LOAD-LOG-PATH), plus one correction: the LLM-PATH-LOG section above cited `tests/test_llm_import_boundary.py`, which does not exist on `main` (PLANNER bullet; recurring-failures #6), and now cites `tests/test_llm_provider_layer.py`, as the L0 correction on #208 did. CFR-009-AGENT-PATH (#204 review MINOR) is **not** a row: measured on `b2b3f4e`, with `api.assistant._serve_via_agent` monkeypatched to raise, HC-CFR-009 already fails (the legacy path answers "I don't have enough information to answer this question…", so `"Jan 15, 2026" in first` is false), and so does HC-AAD-014 (`'Knowledge base response (no LLM)'.startswith("agent:")` is false). The extra `startswith("agent:")` line only guards a future legacy path that prints local dates; the next row that edits `tests/test_assist_agent_dates_http.py` adds it (queue bullet). Measured facts below ran as scratch tests in the planning worktree through `bash scripts/pyslot.sh` (removed afterwards; `git status --short` empty). `pyt` = `bash "$(git rev-parse --show-toplevel)/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest`, run from `src/backend` (absolute path: there is no `scripts/` under `src/backend`; see lane E §2.18).
+
+### EMB-LOG-M7 — the logger-restore tests never start at NOTSET, so mutant M7 survives
+
+**Source:** PR #214 review MINOR: mutant M7 ("save the effective level instead of `.level`") survives; no test starts the logger at NOTSET.
+
+**Facts (`b2b3f4e`):** `_load_local_model` saves `prev_levels = [lg.level for lg in quiet]` (`src/backend/modules/embeddings.py:117`), raises each logger to `max(getEffectiveLevel(), WARNING)` (`:119`) and restores the saved levels in `finally` (`:127-128`). HC-EMB-010b (`tests/test_embedding_fail_closed_paths.py:583-595`) and HC-EMB-010c (`:598-623`) set the loggers to INFO first. At INFO, `.level` and `getEffectiveLevel()` are both 20, so M7 restores the same value. A logger nobody configured has `.level == NOTSET` (0) and inherits root's WARNING (30); under M7 it would come back pinned at 30, and later `setLevel` calls on the parent would stop reaching it.
+
+**Measured (scratch test, then M7 applied to a working copy of `embeddings.py`, reverted with `git checkout`):** the proposed HC-EMB-010d passes on `b2b3f4e` (`1 passed`) and fails under M7 (`assert 30 == 0`, `<Logger sentence_transformers (WARNING)>.level`).
+
+**Design:** test only. No product change.
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-EMB-010d | `sys.modules["sentence_transformers"]` monkeypatched to a module whose `SentenceTransformer` returns `"model"` (so the real package is not needed), `_install_stub_bundle`, `logging.getLogger("sentence_transformers").setLevel(logging.NOTSET)`; assert `getEffectiveLevel() != NOTSET` first (otherwise M7 restores the same value and the test is vacuous); `EmbeddingsModule()._load_local_model() == "model"`; then `.level == logging.NOTSET`; restore the old level in `finally` | no (pin). Mutant M7 (`:117` saves `lg.getEffectiveLevel()`) fails it: measured above |
+
+**Files:** `src/backend/tests/test_embedding_fail_closed_paths.py`, slots. **Re-run, not edited:** `tests/test_embedding_bundle.py`, `tests/test_embedding_no_network.py`. `src/backend/modules/embeddings.py` shows an empty diff (the mutant is applied only in the RED step and reverted).
+**Expected collected delta:** +1. **Est:** 0.5 h.
+**Acceptance:** `pyt tests/test_embedding_fail_closed_paths.py tests/test_embedding_no_network.py -q -rfE`: 0 failed apart from the known environment failures named in CLAUDE.md §4 when the model bundle is absent; the M7 RED output pasted; `git diff origin/main -- src/backend/modules` empty; full suite per RUNBOOK §6. **Rollback:** revert.
+**Order:** ready now. Never beside another PR on `tests/test_embedding_fail_closed_paths.py` (none open on `b2b3f4e`). G-C5 edits `embeddings.py`, not this test file, so the two may run together. No ask-first file.
+
+### LLM-PATH-LOG-M2M3 — six more loader log lines can carry the model path
+
+**Source:** PR #208 (LLM-PATH-LOG) review M2/M3, L0 handoff 2026-10-20 §3 item 4: model paths are still logged at ERROR and at INFO/WARNING. Never beside B-5.
+
+**Facts (`b2b3f4e`; #208 already fixed `llama_cpp_provider.py:130` and `model_selector.py:462`, pinned by HC-MPATH-001/002 in `src/backend/tests/test_model_path_logs.py`):**
+
+| Site | Level | What it logs |
+|---|---|---|
+| `src/backend/core/llm/llama_cpp_provider.py:110-113` | WARNING | `"no GGUF model found in %s", self._settings.models_path`: the models directory |
+| `src/backend/core/llm/llama_cpp_provider.py:152` | ERROR | `"failed to load model: %s", exc`: llama-cpp-python's load errors carry the path (`ValueError(f"Model path does not exist: {model_path}")`, `llama_cpp/llama.py:384`; `ValueError(f"Failed to load model from file: {path_model}")`, `llama_cpp/_internals.py:62`; read in the pinned 0.3.35 sdist) |
+| `src/backend/modules/model_selector.py:477` | ERROR | `f"Failed to load model for tier {tier}: {e}"`: same exception text |
+| `src/backend/modules/model_selector.py:660` | INFO | `f"Model downloaded to {result_path}"`: full path |
+| `src/backend/modules/model_selector.py:671` | ERROR | `f"Failed to download model for tier {tier}: {e}"`: an `OSError` from `hf_hub_download` names the local file. Not in the review's list; added here because it is the same mechanism in the same function as `:660` |
+| `src/backend/modules/model_selector.py:740` | INFO | `f"Found existing model for tier {check_tier}: {path}"`: full path |
+
+`:152` and `:477` log only `exc`; they leak when the exception text holds a path, which llama.cpp's does. Out of scope and left as is: `llama_cpp_provider.py:227` puts `models_path` into a `ProviderUnavailableError` message (an exception, not a log call), and `download_model_async` stores `str(e)` and `str(result)` in the progress row (a DB field, not a log).
+
+**Measured on `b2b3f4e`** (scratch copies of HC-MPATH-003…008 below, run through `bash scripts/pyslot.sh`): **6 failed**, each on a log message that contains `jane-doe-home`, for example `LlamaCppProvider: failed to load model: Failed to load model from file: /tmp/pytest-of-root/…/jane-doe-home/x.gguf` and `Failed to download model for tier low: [Errno 13] Permission denied: '…/jane-doe-home/models/x.gguf'`.
+
+**Design (log text only; return values and control flow unchanged):**
+1. `:110-113`: log `Path(self._settings.models_path).name` instead of the directory.
+2. `:152`, `:477`, `:671`: log `type(exc).__name__` instead of the exception text (prior art: `modules/embeddings.py:123-125`, "Embedding model failed to load: {type(exc).__name__}").
+3. `:660`: `result_path.name`. `:740`: `path.name`.
+
+**Test-first** (`src/backend/tests/test_model_path_logs.py`; same stubs as HC-MPATH-001/002, `caplog` at DEBUG on the module logger; the directory is `<tmp>/jane-doe-home`; each test also asserts that a record at the named level exists, so it is not vacuous):
+
+| Id | Call | Assertion | RED today? |
+|---|---|---|---|
+| HC-MPATH-003 | `LlamaCppProvider._ensure_initialized()` with `_find_model_path` → `None` and `settings.models_path` monkeypatched to `<tmp>/jane-doe-home/models` | a WARNING record exists; no record contains `jane-doe-home` or `str(tmp_path)` | yes (measured) |
+| HC-MPATH-004 | same provider, `_load_llama_class` → a callable raising `ValueError(f"Failed to load model from file: {model_path}")` | returns `False`; an ERROR record exists and names `ValueError`; no path | yes (measured) |
+| HC-MPATH-005 | `ModelSelector.load_model(tier)` with a stub `llama_cpp` whose `Llama` raises the same `ValueError` | returns `None`; ERROR record names `ValueError`; no path | yes (measured) |
+| HC-MPATH-006 | `ModelSelector(models_path=<tmp>/jane-doe-home/models).download_model(tier)` with a stub `huggingface_hub` module in `sys.modules` (`list_repo_files` → `["x.gguf"]`, `hf_hub_download` → `<local_dir>/x.gguf`) | returns the path; an INFO record contains `x.gguf`; no path | yes (measured) |
+| HC-MPATH-007 | `ensure_model_available()` with `get_model_path` → `<tmp>/jane-doe-home/x.gguf` | returns the path; an INFO record contains `x.gguf`; no path | yes (measured) |
+| HC-MPATH-008 | as HC-MPATH-006, `hf_hub_download` raising `PermissionError(13, "Permission denied", <local_dir>/x.gguf)` | returns `None`; ERROR record names `PermissionError`; no path | yes (measured) |
+
+No test imports the real `llama_cpp` or reaches the network: both libraries are stubbed in `sys.modules` (CLAUDE.md §3 import boundary; local-first).
+
+**Files:** `src/backend/core/llm/llama_cpp_provider.py` (`:110-113`, `:152` only), `src/backend/modules/model_selector.py` (`:477`, `:660`, `:671`, `:740` only), `src/backend/tests/test_model_path_logs.py`, slots. **Re-run, not edited:** `tests/test_llm_provider_layer.py`, `tests/test_model_integrity.py`, `tests/test_tier_capabilities.py`, `tests/test_llm_structured_output.py`.
+**Expected collected delta:** +6. **Est:** 1 h.
+**Acceptance:** `pyt tests/test_model_path_logs.py tests/test_llm_provider_layer.py tests/test_model_integrity.py tests/test_tier_capabilities.py tests/test_llm_structured_output.py -q -rfE`: 0 failed; RED output for the 6 new ids; full suite per RUNBOOK §6. **Rollback:** revert.
+**Order:** ready now. Never beside B-5 (`model_selector.py`; B-5 is blocked on B-3). No ask-first file; `core/model_runner.py` and `core/external_runner.py` are not touched.
 
 ## Provides
 

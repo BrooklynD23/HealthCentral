@@ -32,6 +32,7 @@
 | EXPORT-TZ-PINS | HTTP pins for `today=local_today` on the pinboard and visit-prep question callers | PR #155 review minors 1-2 | [§3](#export-tz-pins--no-test-pins-todaylocal_today-on-the-pinboard-and-visit-prep-question-callers) | — | **done** 2026-10-20 (#198, `adb22f0`) |
 | AUDIT-GUARD-MINORS | guard break-it on the overlay graph with an `"A2"` row; `excluded:` labels checked (HC-AUD-ORD-031); `get_schedule` audit or relabel | PR #193 review MINORs | [§3](#audit-guard-minors--the-guards-break-it-uses-the-wrong-graph-and-no-a2-row-excluded-labels-are-never-checked) | — | blocked-on-owner (AUDIT-SCHED-READ) |
 | MSET-EXT-NOKEY-PIN | HC-AUDCMS-005 reads the key with `populate_existing=True`; the vacuous canary line is replaced | PR #194 review MINORs; PR #202 review round 1 | [§3](#mset-ext-nokey-pin--hc-audcms-005s-re-select-returns-the-cached-row-so-a-key-wipe-in-the-database-passes) | — | ready |
+| MSET-EXT-AUDIT-CT | HC-AUDCMS-005 also checks the audit record for the stored ciphertext | PR #209 body, known gap | [§3](#mset-ext-audit-ct--hc-audcms-005-checks-the-audit-record-for-the-plaintext-key-only-not-the-stored-ciphertext) | — | ready |
 
 Dependency graph: `D-0 → D-1 → {D-2, D-3}`; D-4 is independent. D-2 and D-3 touch disjoint product files and may run as the 2 allowed code L1s at once.
 
@@ -733,7 +734,7 @@ Two rows: AUDIT-GUARD-MINORS (from the #193 review MINORs) and MSET-EXT-NOKEY-PI
 **Facts (`5750a97`):**
 1. `aud_vault` is an `AsyncSession(engine, expire_on_commit=False)` (`src/backend/tests/test_model_settings_api.py:398`).
 2. HC-AUDCMS-005 keeps `row` from its first select (`:607-609`). After the second PUT it re-selects into the same variable (`:623-625`) and asserts `row.external_api_key_encrypted == stored_key` (`:626`). While `row` is alive, the re-select returns the identity-mapped object with its cached attributes. Nothing refreshes it.
-3. `"sk-canary-123" not in repr(calls[1])` (`:628`) cannot fail, because the second PUT body carries no key.
+3. ~~`"sk-canary-123" not in repr(calls[1])` (`:628`) cannot fail, because the second PUT body carries no key.~~ **Corrected 2026-10-20 (PR #209, recurring-failures #8):** it can fail. It fails when request 2's audit record carries the key, for example in `entity_id` (#209 round-1 security review, mutant `audit_entity`, measured). It is vacuous only against today's handler, which is why #209 kept it instead of replacing it (design point 2 below is superseded on that line). The line is now `:632` on `main`.
 
 **Measured on `5750a97`** (scratch tests that hold `row` exactly as HC-AUDCMS-005 does; monkeypatch only, the handler is not edited):
 - **Mutant A:** a raw-SQL `UPDATE user_model_settings SET external_api_key_encrypted = ''` inside request 2, just before the vault commit (`aud_vault.commit` wrapped).
@@ -753,6 +754,27 @@ Two rows: AUDIT-GUARD-MINORS (from the #193 review MINORs) and MSET-EXT-NOKEY-PI
 **Expected collected delta:** 0. **Est:** 0.5 h.
 **Acceptance:** `pyt tests/test_model_settings_api.py tests/test_external_runner_hardening.py tests/test_external_runner.py -q -rfE`: 0 failed; both mutant outputs in the PR body; `git diff origin/main -- src/backend/api` empty; full suite per RUNBOOK §6. **Rollback:** revert.
 **Order:** ready now. Never beside another PR on `tests/test_model_settings_api.py` (none open on `5750a97`).
+
+### Follow-ups found 2026-10-20 (planned 2026-10-20 on `origin/main` @ `b2b3f4e`)
+
+One row from PR #209 (MSET-EXT-NOKEY-PIN). Its body also flagged stale guidance (recurring-failures #8): Fact 3 above and the queue bullet MSET-EXT-NOKEY-MINORS said the `repr(calls[1])` line could never fail. #209's round-1 security review measured that false (mutant `audit_entity`, an audit `entity_id` with the key appended, turns it RED), and #209 kept the line. Fact 3 and the queue bullet now say so (this plan PR). `pyt` = `bash "$(git rev-parse --show-toplevel)/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest`, run from `src/backend` (absolute path: there is no `scripts/` under `src/backend`; see lane E §2.18).
+
+#### MSET-EXT-AUDIT-CT — HC-AUDCMS-005 checks the audit record for the plaintext key only, not the stored ciphertext
+
+**Source:** PR #209 body, "Known gap (security round 2, optional MINOR, not taken): the audit side checks only the plaintext, not `stored_key`. An audit `entity_id` that carries the Fernet token would pass." Queue bullet MSET-EXT-NOKEY-PIN-DOCS.
+
+**Facts (`b2b3f4e`, `src/backend/tests/test_model_settings_api.py`):** HC-AUDCMS-005 keeps `stored_key` (the Fernet token, `:610-611`), and checks `resp2.text` for both the plaintext and `stored_key` (`:630-631`), but checks the audit record `calls[1]` for the plaintext only (`:632`). `calls[1]` is the captured `create_audit_log` kwargs for the second PUT (`details` = `{"changed_fields": [...]}`, `:621`).
+
+**Design:** test only. Add `assert stored_key not in repr(calls[1])` after `:632`. `save_external_api_settings` (ask-first, encryption code) is not edited, not even temporarily: the mutant is a monkeypatch in a scratch test, as for MSET-EXT-NOKEY-PIN.
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-AUDCMS-005 (edited, one line) | as today, plus `stored_key not in repr(calls[1])` | no (pin). Mutant `audit_entity_ct` (scratch monkeypatch of the captured `create_audit_log` that appends `":" + <the row's external_api_key_encrypted>` to request 2's `entity_id`, the shape of #209's `audit_entity` mutant): today's test passes it, the edited test fails it. Paste both outputs |
+
+**Files:** `src/backend/tests/test_model_settings_api.py` (HC-AUDCMS-005 only), slots. **Re-run, not edited:** `tests/test_external_runner_hardening.py`, `tests/test_external_runner.py`.
+**Expected collected delta:** 0. **Est:** 0.25 h.
+**Acceptance:** `pyt tests/test_model_settings_api.py tests/test_external_runner_hardening.py tests/test_external_runner.py -q -rfE`: 0 failed; the 2 mutant outputs; `git diff origin/main -- src/backend/api` empty; full suite per RUNBOOK §6. **Rollback:** revert.
+**Order:** ready now. Never beside another PR on `tests/test_model_settings_api.py` (none open on `b2b3f4e`).
 
 ## 4. Provides
 
