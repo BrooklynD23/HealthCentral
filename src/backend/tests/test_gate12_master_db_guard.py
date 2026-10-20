@@ -104,3 +104,30 @@ async def test_hc_gate12_003_patched_master_maker_is_not_blocked(master_maker, m
         rows = list((await s.execute(select(AuditLog))).scalars())
     assert [r.event_type for r in rows] == ["denial.cross_profile"]
     assert len(_hits()) == before
+
+
+@pytest.mark.asyncio
+async def test_hc_gate12_004_guard_raises_with_master_db_present():
+    # Pins that the guard RAISES (not merely records) even when the master DB file exists,
+    # as on a developer machine: a record-only listener would let the connect succeed.
+    real = Path(database.engine.url.database)
+    existed, dir_existed = real.exists(), real.parent.exists()
+    real.parent.mkdir(parents=True, exist_ok=True)
+    if not real.exists():
+        real.touch()
+    before = len(_hits())
+    try:
+        with pytest.raises(RuntimeError, match="GATE-12"):
+            async with database.engine.connect():
+                pass
+        hits = _hits()
+        assert len(hits) == before + 1
+        assert "test_hc_gate12_004" in hits[-1]
+        hits.pop()  # our own hit, so this test's teardown check passes
+    finally:
+        await database.engine.dispose()
+        if not existed:
+            real.unlink(missing_ok=True)
+        if not dir_existed:
+            real.parent.rmdir()
+
