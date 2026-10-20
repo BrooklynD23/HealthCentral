@@ -57,9 +57,11 @@ os.environ["TEST_MODE"] = "1"
 os.environ["DATABASE_ENCRYPTION_REQUIRED"] = "false"
 
 
-
 # GATE-12: no test may open the real master DB (contracts I-12). Tests that need a
 # master DB must patch core.database.async_session_maker to their own maker.
+# Scope: only the import-time core.database.engine is watched. Other engines on the same
+# file (core/migrations.py run_master_migrations) and subprocess tests are NOT covered;
+# a class-level Engine do_connect listener matching the resolved path would be the follow-up.
 import pytest  # noqa: E402
 
 _GATE12_HITS: list[str] = []
@@ -83,10 +85,16 @@ def _gate12_guard():
     event.listen(database.engine.sync_engine, "do_connect", _on_connect)
     yield
     event.remove(database.engine.sync_engine, "do_connect", _on_connect)
+    # Hits from module/session-scoped fixture setup/teardown fall outside any per-test window.
+    if _GATE12_HITS:
+        leftover = ", ".join(_GATE12_HITS)
+        _GATE12_HITS.clear()
+        pytest.fail(f"{_GATE12_MSG} [{leftover}]", pytrace=False)
 
 
 def _gate12_check(start: int, nodeid: str) -> None:
     if len(_GATE12_HITS) > start:
+        del _GATE12_HITS[start:]  # reported here; do not report again at session end
         pytest.fail(f"{_GATE12_MSG} [{nodeid}]", pytrace=False)
 
 

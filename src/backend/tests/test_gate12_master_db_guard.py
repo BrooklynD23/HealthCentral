@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import importlib
+import os
+import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -19,7 +23,7 @@ gate = importlib.import_module("tests.conftest")
 
 
 def _hits() -> list:
-    return getattr(gate, "_GATE12_HITS", [])
+    return gate._GATE12_HITS
 
 
 @pytest_asyncio.fixture
@@ -58,17 +62,34 @@ async def test_hc_gate12_001_real_master_engine_is_blocked_and_recorded():
             real.parent.rmdir()
 
 
-def test_hc_gate12_002_check_fails_on_new_hit_and_passes_without():
+def test_hc_gate12_002_check_fails_on_new_hit_and_passes_without(tmp_path):
     start = len(_hits())
     gate._gate12_check(start, "x")  # no new hit: returns
     _hits().append("x")
-    try:
-        with pytest.raises(pytest.fail.Exception) as exc:
-            gate._gate12_check(start, "x")
-    finally:
-        _hits().pop()
+    with pytest.raises(pytest.fail.Exception) as exc:
+        gate._gate12_check(start, "x")  # also drops the hit it reported
+    assert len(_hits()) == start
     assert "GATE-12" in str(exc.value)
     assert "I-12" in str(exc.value)
+
+    # Wiring: the real conftest must fail a test whose body leaves a hit behind (e.g. a
+    # swallowed error). Calling _gate12_check directly cannot see a dropped autouse fixture.
+    shutil.copy(Path(gate.__file__), tmp_path / "conftest.py")
+    (tmp_path / "test_inner.py").write_text(
+        "import conftest\n\n"
+        "def test_inner():\n"
+        "    conftest._GATE12_HITS.append('swallowed')\n"
+    )
+    backend = Path(gate.__file__).resolve().parents[1]
+    env = {**os.environ, "PYTHONPATH": str(backend), "HF_HUB_OFFLINE": "1"}
+    proc = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "test_inner.py"],
+        cwd=tmp_path, env=env, capture_output=True, text=True, timeout=120,
+    )
+    out = proc.stdout + proc.stderr
+    assert "1 passed, 1 error" in out, out
+    # the per-test check names the test node; the session-end backstop would name the hit
+    assert "GATE-12" in out and "[test_inner.py::test_inner]" in out, out
 
 
 @pytest.mark.asyncio
