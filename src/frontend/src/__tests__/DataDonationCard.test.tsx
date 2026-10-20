@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { DataDonationCard, CONSENT_TEXT_VERSION } from '@/components/settings/DataDonationCard';
+import { DataDonationCard, CONSENT_TEXT_VERSION, PURPOSE_COPY } from '@/components/settings/DataDonationCard';
 import * as api from '@/services/api';
 
 vi.mock('@/services/api', () => ({
@@ -102,5 +102,19 @@ describe('DataDonationCard', () => {
     renderCard();
     expect(await screen.findByRole('alert')).toHaveTextContent(/could not load/i);
     expect(screen.queryByRole('switch')).not.toBeInTheDocument();
+  });
+
+  it('HC-DON-FE-005: every purpose names question, answer, correction and redaction', async () => {
+    vi.mocked(api.apiGet).mockResolvedValue(consents());
+    renderCard();
+    await screen.findAllByRole('switch');
+    for (const purpose of PURPOSES) {
+      const { label, description } = PURPOSE_COPY[purpose];
+      for (const re of [/question/i, /answer/i, /correction/i, /redacted/i]) {
+        expect(description).toMatch(re);
+      }
+      // The same words must be what the patient actually sees.
+      expect(screen.getByRole('switch', { name: label })).toHaveTextContent(description);
+    }
   });
 });

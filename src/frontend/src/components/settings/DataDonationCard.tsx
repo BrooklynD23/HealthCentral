@@ -18,7 +18,7 @@ import {
   type DonationPurpose,
 } from '@/services/donation';
 
-export const CONSENT_TEXT_VERSION = '2026-10-20-draft-1';
+export const CONSENT_TEXT_VERSION = '2026-10-20-draft-2';
 
 export const CONSENT_INTRO = [
   'Donating is optional and off by default. You choose each purpose separately, and you can change your mind at any time.',
@@ -27,18 +27,18 @@ export const CONSENT_INTRO = [
   'Nothing here is medical advice. Donated copies only help improve this app.',
 ].join('\n\n');
 
-const PURPOSE_COPY: Record<DonationPurpose, { label: string; description: string }> = {
+export const PURPOSE_COPY: Record<DonationPurpose, { label: string; description: string }> = {
   fine_tune: {
     label: 'Improve the assistant model',
-    description: 'Use redacted copies of the chat answers I rate, and my corrections, to tune the model on this device.',
+    description: 'For chat answers I rate, use redacted copies of my question, the answer and any correction I gave, to tune the model on this device.',
   },
   synthetic_seed: {
     label: 'Create practice data',
-    description: 'Use redacted copies of the chat answers I rate as a starting point for made-up practice data, which is kept apart from real data and never replaces it.',
+    description: 'For chat answers I rate, use redacted copies of my question, the answer and any correction I gave as a starting point for made-up practice data, which is kept apart from real data and never replaces it.',
   },
   agent_traces: {
     label: 'Find assistant mistakes',
-    description: 'Use redacted copies of the chat answers I rate to find and fix the assistant’s mistakes.',
+    description: 'For chat answers I rate, use redacted copies of my question, the answer and any correction I gave to find and fix the assistant’s mistakes.',
   },
 };
 
