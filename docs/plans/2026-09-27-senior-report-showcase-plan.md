@@ -3,7 +3,7 @@
 **Last Updated:** 2026-10-20 (refreshed under SHOW-AUDIT A; freeze 2026-10-24, showcase 2026-10-31)
 **Owner:** repository owner
 **Refresh Trigger:** P1 merges (re-verify every `main@40f590e` line below); any of W-1, W-8 or W-11a edits `docs/capstone-report/claims-ledger.md`; any of P2, S-1, W-2, W-3, W-4, W-6 or W-8 merges (each upgrades a claim in §9); the owner sets the showcase date; the reviewer log used in §6 changes
-**Status:** REFRESHED 2026-10-20 — executing under build-program item F-9 (draft PR #210). This refresh is commit C0. Scope of the F-9 run after it: Codex plan review, Tasks 1-4, 6, 7 and a pre-freeze rehearsal of Task 10 Step 1 (recorded in §15; progress is in PR #210). Not in scope for that run: Task 5 (O-2), Task 7 Step 5 (O-1), Task 8 (O-4 A/B unsigned), Task 9 (owner, Windows), Task 10 binding run and C7 (2026-10-24, O-6). No §13 box is signed.
+**Status:** REFRESHED 2026-10-20 — executing under build-program item F-9 (draft PR #210). This refresh is commit C0. The owner answered O-1, O-2, O-5 and O-7 on 2026-10-20 (L0 record: PR #210 comment 6285564680; the verbatim rows reach `owner-decisions-2026-09-27.md` in the next owner-rows PR). After the Codex plan review (REVISE, comment 6285504146) this plan was reconciled in commit C0b. Scope of the F-9 run: C0b, Tasks 1-7 (Task 3 including the §4.1 insertion and the new-copy pointers; Task 5 Edits 1-4, 6 and Edit 5; Task 7 Step 5) and a pre-freeze rehearsal of Task 10 Step 1 (recorded in §15; progress is in PR #210). Not in scope for that run: Task 8 (O-4 A/B unanswered), Task 9 (owner, Windows), O-3, Task 10 Steps 2-3 and C7 (2026-10-24, O-6). No §13 box is ticked or signed by an agent (RUNBOOK §9.2); the table records the owner's answers in prose only.
 **Refresh triggers fired since 2026-09-27:** P1 (both branches ancestors of main), W-1 (#35), P2 notifications (#31), W-3 (#136), W-4 (#72), W-5 (#34), W-6 (#32), W-8 (#168, #196), W-10 (#53), W-11a PR-2/PR-4 (#33, #39), W-2 doctor summary (#106), SAFE-CHAT (#44), SAFE-INTERP (#48), DDI (#41), P5 UTC sweep (#93, #95), F-10 (#68). Every `main@40f590e` line number and figure below is a lead, not a finding: Task 1 re-measures it, and Task 2 re-runs each ledger command before a verdict lands.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -16,13 +16,13 @@
 
 **Prerequisites:** P0-B and P1 merged to `origin/main`. The 2026-09-27 plan set (this file included) committed on main through an owner-approved docs commit. P0-B's approved text covers only `audit/`, `docs/capstone-report/` and `docs/INDEX.md`, not `docs/plans/`. Plan-specific: W-1 Task 6 merged before Task 5 (it owns `CS4610_Report_Demo/README.md:20-23`). If Task 0's ancestry check fails before P1 lands, that is the intended STOP, not a defect.
 
-**Ref labels.** `main@40f590e` = main at the planning date. `B@7b2ff1f` = `origin/claude/healthcentral-agentic-research-r1n54x`. `A@692fdf3` = `origin/claude/asclexis-repo-audit-349pjq`. `showcase:N` = line N of [`audit/2026-09-25/asclexis-showcase.html`](../../audit/2026-09-25/asclexis-showcase.html) in the working tree on 2026-09-27 (untracked package; P0-B commits it unchanged). `FR` / `TC` = the submitted Final Report / Technical Companion (`CS4610_Report_Demo/*.docx`, text read with `zipfile`, never edited). The executor re-verifies every line number on the post-P1 tree. Every `main@40f590e` line and figure in this file is re-measured by Task 1; the collected-test figure comes from that measurement, never from a document (`CLAUDE.md` or this plan).
+**Ref labels.** `main@40f590e` = main at the planning date. `B@7b2ff1f` = `origin/claude/healthcentral-agentic-research-r1n54x`. `A@692fdf3` = `origin/claude/asclexis-repo-audit-349pjq`. `showcase:N` = line N of [`audit/2026-09-25/asclexis-showcase.html`](../../audit/2026-09-25/asclexis-showcase.html) in the working tree on 2026-09-27 (untracked package; P0-B commits it unchanged). `FR` / `TC` = the submitted Final Report / Technical Companion (`CS4610_Report_Demo/*.docx`, text read with `zipfile`, never edited). The executor re-verifies every line number on the post-P1 tree. Task 1 re-measures the figures it lists (counts, authorship, dates, tallies, the security-gate exit code); Task 2 Step 3 re-runs every evidence command in §3.1, and Task 1 Step 9 re-checks the line citations and figures in §5 and §9.1; both record their results in §15. The collected-test figure comes from Task 1's measurement, never from a document (`CLAUDE.md` or this plan).
 
 ---
 
 ## 1. Approval scope
 
-**No owner decision licenses the edits in this plan.** It is DOCS work. Every artifact it changes carries an **unsigned** owner sign-off in §13. The repo rules it follows, verbatim from [capstone README](../capstone-report/README.md) "Maintenance rules":
+**No standing owner decision licenses the edits in this plan; each is licensed by its own §13 answer.** It is DOCS work. Every artifact it changes carries an owner sign-off in §13: O-1, O-2, O-5 and O-7 were answered 2026-10-20 (not yet ticked in the table); O-3, O-4 (options A/B) and O-6 are still open. The repo rules it follows, verbatim from [capstone README](../capstone-report/README.md) "Maintenance rules":
 
 > 1. "**Claims go through the ledger.** Before a claim appears in the report, it gets a claims-ledger row with evidence. Audit-sourced items are `REPORTED` until re-verified. They do not inherit the audit's verdict."
 > 6. "Corrections to submitted coursework (`CS4610_Report_Demo/*.docx`) live as scope notes in `CS4610_Report_Demo/README.md`, never as docx edits."
@@ -131,7 +131,7 @@ Status after this plan assumes Tasks 2–7 ran. A 🔶 names what it still waits
 | 4 Methodology | 🔶 (figure) | `:33` era figure uses H12's measured values and states the method (author name; co-author trailers counted beside it). `:34` layer order replaced by H13's dated sequence: "gates (docs lint, security gate: 2026-02) → constitution (2026-06-13) → skills (2026-06-23) → eval gate (2026-06-24) → task ledger (2026-07-07) → `route_client` (2026-07-30) → failure memory (2026-08-04)". `:35` evidence → H1, H12, H13 commands. | H1, H12, H13 | ✅ |
 | 5 Harness in depth | ✅ | `:39` "18 skills" (H14); `route_client` "required, but many route tests still direct-call" (H17); `feature_list.json` 27 items (H14). | H7, H14, H17 | ✅ |
 | 6 Evaluation | ✅ | `:44` replace "July backup storm" with H18's commits ("12 `fix(backup)` commits, 2026-07-29…31"). `:45` fail-open gate: "fixed in P1; exit 2 on a missing report, measured <date>" after Task 1. `:46` phantom layer: after W-1, "absent when claimed; five definitions authored new by owner decision D1 on <date>". `:47` M1 as amended (§3.2). | H4, H5, H18, M1 | ✅ (🔶 until W-1 merges for `:46`) |
-| **6a (new)** 2026-09-27 reconciliation | — | New section, exact text in §4.1. | M6, M7, M8, C12, C15 | 🔶 until O-4 (else M6 stays `REPORTED` and the section says so) |
+| **6a (new)** 2026-09-27 reconciliation | — | New section, exact text in §4.1. | M6, M7, M8, C12, C15 | ✅ inserted (O-5 answered 2026-10-20); M6 stays `REPORTED` because O-4 options A/B are unanswered, and the section says so |
 | 7 Related work | ✅ | No change. | research/ | ✅ |
 | 8 Limitations | ✅ | Add: "Local results depend on environment: the Windows interpreter used on 2026-09-27 had no SQLCipher, so its suite run used unencrypted vaults (M8, C16); pass counts are named with their environment." | M8, C16 | ✅ |
 | 9 Roadmap | ✅ | `:63` add the 2026-09-27 plan set (14 plans + S-1 finding) with status **PROPOSED — not executed**, and name owner-gated items (§10 item 6). | [program](../capstone-report/implementation-program.md), plan files | ✅ |
@@ -173,7 +173,7 @@ Checks run 2026-09-27: middleware order in overview §2 matches `src/backend/mai
 | F13 | Findings table | showcase:348-354, :528-541, :613-621 | 3 rows false or stale (S154, S159, S162); 2 rows without ledger rows | **fix** | Rows per §9.1 S151–S162; add finding rows for C12, C15, C16, C17, C20 (findings only). |
 | F14 | Workstreams table | showcase:356-367 | "owner-approved order" superseded by the program; D1 decided | **fix** | Replace with program phases (P1…P8, G-A…G-C) and the 2026-09-27 plan set, each "PROPOSED — not executed" unless merged, owner-gated items named. |
 | F15 | Delivery pipeline (capstone track) | showcase:375-386 | "READY"/"pending" stale; agent counts `REPORTED` | **fix** | Nodes per §9.1 S166–S170. |
-| F16 | Ledger snapshot chips | showcase:395-401 | "11 verified / 1 partial / 6 contradicted / 2 not-evidenced" (20) vs 24 rows today (6 VERIFIED incl. H2 mixed, 6 PARTIAL, 7 CONTRADICTED, 2 NOT-EVIDENCED, 2 CASE-STUDY, 1 HYPOTHESIS) | **fix** | Generated by Task 1 step 7's script at the freeze; never hand-typed. |
+| F16 | Ledger snapshot chips | showcase:395-401 | "11 verified / 1 partial / 6 contradicted / 2 not-evidenced" (20) vs 24 rows today (6 VERIFIED incl. H2 mixed, 6 PARTIAL, 7 CONTRADICTED, 2 NOT-EVIDENCED, 2 CASE-STUDY, 1 HYPOTHESIS) | **fix** | Generated by Task 1 Step 6's script at the freeze; never hand-typed. |
 | F17 | Plan-files table | showcase:407-418 | Line counts stale (banners added); "corrected the audit on" items are `REPORTED` | **drop** | — |
 | F18 | Implementation-program dependency graph | [program](../capstone-report/implementation-program.md) `:45-128` | Accurate for the program; since Wave 6 (d430fb7) it draws S-1 and the W-plans (every node *proposed*) | **keep** | Caption: "Proposed order; no node is owner-approved." |
 | F19 | Integration diagram (current state) | [overview](../capstone-report/architecture-overview.md) `:27-67` | Middleware order ✓; agent path no LLM ✓; network boundary: missing `interpretations → EXT` edge (`api/interpretations.py:436-438`); EXT label "opt-in, redacted" omits the dev bypass (`core/external_runner.py:201`) | **fix** | Task 4: add node/edge `R -. "interpretations (opt-in)" .-> EXT` and relabel `ASST -. "opt-in; strict redaction by default (dev bypass until W-6)" .-> EXT`. After P2: add the notification scheduler to LIFE. After W-8: relabel `ST -. "HTTPS model fetch"` to "explicit download (D8-delivery); offline load". |
@@ -261,21 +261,23 @@ The change list is §9.1: each row names its ledger ID and exact text. Task 6 ap
 
 ## 8. Coursework scope notes (`CS4610_Report_Demo/README.md`)
 
-The file exists only after P1 (B@7b2ff1f). W-1 Task 6 replaces its lines 20–23 first. Line 13 ("No hook mechanism and no `.claude/settings.json` exist in this repo at all.") is not touched: it stays true and W-1 pins it. Evidence below is from main@40f590e; the README says so.
+The file exists only after P1 (B@7b2ff1f). W-1 Task 6 and F-10 (#68) have already rewritten its hook bullet and the `.claude/agents/` bullet; line numbers below are the README at `92cd5d8`/main 2026-10-20 (reconciliation C0b), not B@7b2ff1f. The README's `:13-15` now reads: "No `PreToolUse` hook exists in this repo. The only committed hook (since 2026-10-10, owner HOOKS-COMMIT) is a metadata-only `PostToolUse`/`SessionEnd` session logger (`.claude/hooks/session_log.py`) that scans nothing and blocks nothing." That text is not touched. The pre-F-10 sentence "No hook mechanism and no `.claude/settings.json` exist in this repo at all" is gone, and any new text must not repeat it. Evidence below is from main@40f590e unless a line says otherwise; the README says so.
 
-**Edit 1 — extend the sweep bullet** (B@7b2ff1f `:24-27`). Replace:
+**Edit 1 — extend the sweep bullet** (README `:30-33` today; the bullet is now four lines, with the "There is no reranker…" evidence sentence after the part quoted here). Replace the first two lines:
 
 ```markdown
 - **An overnight "Ralph-style" RAG parameter sweep** (chunk size, embedding
   model, reranker on/off) producing a Pareto frontier — Final Report §7.3.
+  There is no reranker …
 ```
 
-with:
+(only the `§7.3.` sentence end changes) with:
 
 ```markdown
 - **An overnight "Ralph-style" RAG parameter sweep** (chunk size, embedding
   model, reranker on/off) producing a Pareto frontier — Final Report §7.3;
   the same campaign is described as a GSD v2 run in Technical Companion §5.6.
+  There is no reranker …
 ```
 
 **Edit 2 — append to the "not evidenced" list** (after the last bullet, before "This list was produced by …"):
@@ -283,10 +285,13 @@ with:
 ```markdown
 - **Hook-based secret scanning in this project's harness** — Final Report
   §5.1, §6 (timeline phase 8). Same finding as the AgentShield bullet above:
-  no hook is registered in the repo, and the user-level PreToolUse hooks are
-  continuous-learning and GSD only (`docs/capstone-report/claims-ledger.md`
-  H6). The repo's scanner is the CI security gate, which failed open on main
-  until branch B's fix was merged (ledger H4).
+  no `PreToolUse` secret-scanning hook exists in the repo. The only committed
+  hook is the metadata-only `PostToolUse`/`SessionEnd` session logger
+  (`.claude/hooks/session_log.py`, F-10 #68), which scans nothing. The
+  user-level PreToolUse hooks are continuous-learning and GSD only
+  (`docs/capstone-report/claims-ledger.md` H6, whose last sentence about
+  `.claude/settings.json` predates #68). The repo's scanner is the CI security
+  gate, which failed open on main until branch B's fix was merged (ledger H4).
 - **A project Skill holding the analyte-synonym map and unit-conversion rules,
   updated by a Stop hook from earlier corrections** — Final Report §7.2,
   Technical Companion §4.6. No such skill exists on main or either branch
@@ -340,7 +345,7 @@ main @ `40f590e`):
   `api/assistant.py:745-751`). Ledger C14.
 ```
 
-**Edit 5 (only if O-7 is signed) — dates:**
+**Edit 5 (O-7 answered yes 2026-10-20) — dates:**
 
 ```markdown
 - The Final Report's cover gives the submission date as May 15th, 2026; its §6
@@ -348,7 +353,7 @@ main @ `40f590e`):
   record which is right.
 ```
 
-**Edit 6 — closing paragraph** (B@7b2ff1f `:38-41`): append one sentence: "The 2026-09-27 additions cite rows in `docs/capstone-report/claims-ledger.md`."
+**Edit 6 — closing paragraph** (README `:44-47` today): append one sentence: "The 2026-09-27 additions cite rows in `docs/capstone-report/claims-ledger.md`."
 
 ## 9. Claims audit
 
@@ -685,6 +690,7 @@ EOF
 Expected: no `?`. These numbers feed F16 verbatim.
 - [ ] **Step 7: Review log (M6).** Re-count the TSV (or the packaged copy after Task 8): `cut -f2 reviewer-log.tsv | sort | uniq -c; cut -f4 reviewer-log.tsv | sort | uniq -c` and write the time of the count. If the scratch file is gone and O-4 was not signed, M6 keeps the 2026-09-27T21:02 snapshot and stays `REPORTED`.
 - [ ] **Step 8: Security gate (H4).** `python3 scripts/security_gate.py --bandit /nonexistent.json --pip-audit /nonexistent.json; echo "rc=$?"` → a line starting `ERROR:` and `rc=2` (B@7b2ff1f `scripts/security_gate.py:155-158`). Record; this is the only evidence that upgrades S116/S151.
+- [ ] **Step 9: Citation pass for §5 and §9.1.** For each `showcase:N` line cited in §5 and §9.1, read the line in `audit/2026-09-25/asclexis-showcase.html` and confirm the "Claim now" text is there; for each `file:line` pointer in the "Exact text" column and in §5 (`api/documents.py:400`, `:928`, `modules/rag.py:1271`, `core/profile_database.py:308` and the like), `sed -n` the line at `{SHA}`. Record in §15 a one-line count (checked / moved / failed) and list each moved or failed citation. A failed one changes that row's Action (stop gate 4); a moved one gets its new line number. Plan edits from this step and from Task 2 Step 3 are committed as C1b (§14).
 
 ### Task 2: Append the ledger rows
 
@@ -695,7 +701,7 @@ Expected: no `?`. These numbers feed F16 verbatim.
 - [ ] **Step 3: Re-verify each row's evidence on the post-P1 tree.** Run each command quoted in §3.1. Update line numbers; label them `main@{SHA}`. If an evidence line no longer holds, change the verdict to what the evidence shows, and update §9's action for every claim that cites the row.
 - [ ] **Step 4: Append the rows** from §3.1 under their section tables, and the M1 sentence from §3.2. Bump `**Last Updated:**`.
 - [ ] **Step 5: Check.** `python3 scripts/docs_lint.py` → no error naming `claims-ledger.md`; Task 1 step 6 script prints no `?`.
-- [ ] **Step 6: Commit C1** (§14).
+- [ ] **Step 6: Commit C1** (§14). If Step 3 changed a §9 action or a §3.1 line number in this plan, commit that plan edit separately as C1b (plan file only) after C1.
 
 *What would this fail to notice?* A row whose evidence is true but whose claim text is broader than the evidence. Review each claim cell against its evidence cell once more before committing.
 
@@ -722,9 +728,9 @@ Expected: no `?`. These numbers feed F16 verbatim.
 
 **Files:** Modify `CS4610_Report_Demo/README.md`
 
-- [ ] **Step 1:** Task 0 step 2 showed W-1 Task 6 landed. Else STOP this task.
-- [ ] **Step 2:** Apply §8 Edits 1–4 and 6 (Edit 5 only if O-7 signed). Do not touch the line "No hook mechanism and no `.claude/settings.json` exist in this repo at all."
-- [ ] **Step 3:** `git diff --stat -- CS4610_Report_Demo/` → only `README.md`. `git diff -- CS4610_Report_Demo/README.md | grep -c '^-[^-]'` → 2 (the two replaced sweep-bullet lines) plus the one closing line if Edit 6 rewrote it.
+- [ ] **Step 1:** Task 0 step 2 showed W-1 Task 6 landed (W-1 merged; `written new` count ≥ 1). Else STOP this task. O-2 and O-7 were answered 2026-10-20.
+- [ ] **Step 2:** Apply §8 Edits 1–4 and 6 (O-2) and Edit 5 (O-7), anchored to the README as it stands. Do not touch the hook bullet at `:11-15` (the PreToolUse / metadata-only logger text).
+- [ ] **Step 3:** `git diff --stat -- CS4610_Report_Demo/` → only `README.md`. `git diff -- CS4610_Report_Demo/README.md | grep -c '^-[^-]'` → record the actual count in §15. Edit 1 replaces one line (`…Final Report §7.3.`) and Edit 6 may rewrite the last line of the closing paragraph; no other line is deleted, and no `.docx`/`.pdf` appears in the diff.
 - [ ] **Step 4: Commit C4** (needs O-2).
 
 ### Task 6: Build the new showcase copy
@@ -829,9 +835,9 @@ sys.exit(1 if p.errors else 0)
 
 ### Task 10: Claim freeze and PR
 
-**Files:** Modify this plan's §15 (execution record)
+**Files:** Modify this plan's §15 (execution record). Step 1 (rehearsal) commits as C1b; Steps 2-3 and C7 are the 2026-10-24 binding run.
 
-- [ ] **Step 1:** Run §10 items 1–11; paste outputs into §15.
+- [ ] **Step 1:** Run §10 items 1–11; paste outputs into §15. Before the freeze this is a rehearsal (labelled "pre-freeze"); commit it with C1b (the plan only), never C7.
 - [ ] **Step 2:** Owner signs O-6.
 - [ ] **Step 3: Commit C7**, push, open the PR (§14).
 
@@ -858,9 +864,9 @@ A claim is upgraded only after its phase is merged **and** the named evidence is
 | P5 / P6 | utcnow; FK enforcement | H9, H10 | grep → 0; pragma test |
 | G-C4 | packaging decision | C8 stays `NOT-EVIDENCED` until something is built | a decision record is not an installer |
 
-## 13. Owner sign-offs (unsigned)
+## 13. Owner sign-offs
 
-As of 2026-10-20 every box below is unsigned; an agent never ticks or signs one. Each gates only its own task or commit (O-1 Task 7 Step 5 / C5 and the new-copy pointers; O-2 Task 5 / C4; O-3 the demo `.env`; O-4 Task 8 / C6; O-5 §6a; O-6 Task 10 Step 2 / C7; O-7 §8 Edit 5). The remaining tasks run without them.
+**Answered 2026-10-20 (L0 record, PR #210 comment 6285564680):** O-1 yes, O-2 yes (Edits 1-4, 6), O-5 yes, O-7 yes (add the note, Edit 5). The verbatim rows go into `owner-decisions-2026-09-27.md` in the next owner-rows PR. **Not answered:** O-3 (the owner's demo-machine setting), O-4 options A/B (the location, `docs/reviews/`, was answered 2026-10-10), O-6 (signed at the 2026-10-24 freeze). An agent never ticks or signs a box (RUNBOOK §9.2), so the Signed column below stays as the owner left it; the answers above are the record until the owner or L0 updates it. Each box gates only its own task or commit (O-1 Task 7 Step 5 / C5 and the new-copy pointers; O-2 Task 5 / C4; O-3 the demo `.env`; O-4 Task 8 / C6; O-5 §6a; O-6 Task 10 Step 2 / C7; O-7 §8 Edit 5). The remaining tasks run without them.
 
 | # | Decision | Recommendation | Signed |
 |---|---|---|---|
@@ -868,7 +874,7 @@ As of 2026-10-20 every box below is unsigned; an agent never ticks or signs one.
 | O-2 | Add the §8 scope-note text to `CS4610_Report_Demo/README.md` (Edits 1–4, 6) | yes | ☐ ______ |
 | O-3 | Demo clone only: set `DEBUG=false` in the untracked `src/backend/.env`, plus `HF_HUB_OFFLINE=1` and Wi-Fi off during the demo | yes (the safe default without it: hidden backend window, browser-only sharing) | ☐ ______ |
 | O-4 | Package review evidence into `docs/reviews/` (location answered 2026-10-10, SHOWCASE-O4 `owner-decisions-2026-09-27.md:122`: "Yes, docs/reviews/"; options A/B still unsigned): (A) `reviewer-log.tsv` only, or (B) the TSV + Codex outputs + `review.sh` + prompt template | B (makes M6 reproducible; avoids repeating audit addendum A-5) | ☐ A ☐ B ☐ neither |
-| O-5 | Add outline §6a (2026-09-27 reconciliation) with the `CASE-STUDY` verdict only. Gates §4.1 / the §6a insertion; unsigned, so §6a is not inserted | yes | ☐ ______ |
+| O-5 | Add outline §6a (2026-09-27 reconciliation) with the `CASE-STUDY` verdict only. Gates §4.1 / the §6a insertion. Answered yes 2026-10-20, so §6a is inserted; M6 stays `REPORTED` until O-4 A/B | yes | ☐ ______ |
 | O-6 | Claim freeze passed (§10) for the showcase on ______ | — | ☐ ______ |
 | O-7 | Add the submission-date inconsistency note (§8 Edit 5) | owner's call | ☐ yes ☐ no |
 
@@ -878,13 +884,15 @@ Worktree `/mnt/e/Programming/Github Repo/hc-f-9` (RUNBOOK §3 claim), branch `do
 
 | # | After | Message | Pathspec (exact) |
 |---|---|---|---|
+| C0b | before Task 1 (ungated) | `docs: reconcile the showcase plan with the 2026-10-20 sign-offs and the Codex plan review (F-9)` | `docs/plans/2026-09-27-senior-report-showcase-plan.md` |
 | C1 | Task 2 | `docs: add claims-ledger rows for the showcase claim audit` | `docs/capstone-report/claims-ledger.md` |
+| C1b | after Task 2 and Task 1 Step 9 (ungated); reused for the §15 record after Task 10 Step 1 | `docs: record the showcase evidence pass and the pre-freeze rehearsal in the plan (F-9)` | `docs/plans/2026-09-27-senior-report-showcase-plan.md` (the plan only) |
 | C2 | Task 3 | `docs: update the report outline for the stakeholder showcase` | `docs/capstone-report/report-outline.md docs/capstone-report/README.md` (+ `docs/INDEX.md docs/_link_graph.json` only if Task 3 step 4 regenerated them) |
 | C3 | Task 4 | `docs: show both external-runner callers in the integration diagram` | `docs/capstone-report/architecture-overview.md` |
-| C4 | Task 5 (O-2) | `docs: add coursework scope notes for claims found false on re-check` | `CS4610_Report_Demo/README.md` |
+| C4 | Task 5 (O-2, O-7) | `docs: add coursework scope notes for claims found false on re-check` | `CS4610_Report_Demo/README.md` |
 | C5 | Task 7 (O-1) | `docs: add the ledger-gated showcase copy` | `docs/capstone-report/asclexis-showcase-{FREEZE_DATE}.html` |
 | C6 | Task 8 (O-4) | `docs: package the 2026-09-27 review log as case-study evidence` | the files O-4 names under `docs/reviews/` + `docs/capstone-report/claims-ledger.md` |
-| C7 | Task 10 | `docs: record the showcase claim freeze` | `docs/plans/2026-09-27-senior-report-showcase-plan.md` |
+| C7 | Task 10 Steps 2-3 (O-6, 2026-10-24) | `docs: record the showcase claim freeze` | `docs/plans/2026-09-27-senior-report-showcase-plan.md` |
 
 Example (C1):
 
