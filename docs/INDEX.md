@@ -1666,6 +1666,54 @@ Haiku 5.5 web sweep, 2026-10-17. Markers: **[V]** fetched, **[S]** search snippe
 
 Links to: `docs/research/2026-10-17-rsi-opt-in-data/00-README.md`, `docs/research/2026-10-17-rsi-opt-in-data/01-rsi-self-improving-agents.md`
 
+## `docs/research/2026-10-20-rrsi-harness2/00-README.md`
+
+**RRSI / harness2 for HealthCentral agents: research package (2026-10-20)**
+
+The owner asked for a research pass on RRSI using `google-research/harness2` as its base, with verdicts that depend on how the user consents to each function, reviewed adversarially. The functions…
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/rsi-in-development-and-application.md`, `docs/research/2026-10-17-rsi-opt-in-data/00-README.md`, `docs/research/2026-10-20-rrsi-harness2/01-harness2.md`, `docs/research/2026-10-20-rrsi-harness2/02-verdicts.md`, `docs/research/2026-10-20-rrsi-harness2/03-adversarial-review.md`, `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`, `docs/research/2026-10-20-rrsi-harness2/05-report-angle.md`
+
+## `docs/research/2026-10-20-rrsi-harness2/01-harness2.md`
+
+**google-research/harness2: what the repo is**
+
+The owner said the RRSI research pass "is based off this repo". The repo does not implement RRSI.
+
+Links to: `CLAUDE.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/research/2026-10-17-rsi-opt-in-data/01-rsi-self-improving-agents.md`, `docs/research/2026-10-20-rrsi-harness2/02-verdicts.md`, `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`
+
+## `docs/research/2026-10-20-rrsi-harness2/02-verdicts.md`
+
+**Verdicts after adversarial review**
+
+These came out of the adversarial review. Each one is a fact about `origin/main` that changes a design.
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/research/2026-10-20-rrsi-harness2/01-harness2.md`, `docs/research/2026-10-20-rrsi-harness2/03-adversarial-review.md`, `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`, `docs/research/2026-10-20-rrsi-harness2/05-report-angle.md`
+
+## `docs/research/2026-10-20-rrsi-harness2/03-adversarial-review.md`
+
+**Adversarial review: refutations and how each was resolved**
+
+No refutation was rejected. Two were adopted with a narrower reading, noted in place.
+
+Links to: `docs/research/2026-10-20-rrsi-harness2/01-harness2.md`, `docs/research/2026-10-20-rrsi-harness2/02-verdicts.md`, `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`, `docs/research/2026-10-20-rrsi-harness2/05-report-angle.md`
+
+## `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`
+
+**Owner questions**
+
+**OQ-1 Citation in the senior report.** harness2 implements Harness² (arXiv 2610.14224), not RRSI (arXiv 2609.24972), and contains no critic, pruner or OOD check. arXiv was unreachable this pass.…
+
+Links to: `docs/research/2026-10-20-rrsi-harness2/02-verdicts.md`, `docs/research/2026-10-20-rrsi-harness2/03-adversarial-review.md`
+
+## `docs/research/2026-10-20-rrsi-harness2/05-report-angle.md`
+
+**Report angle: RSI developing the repo, and RSI improving the user experience**
+
+What the report can claim, and how strongly:
+
+Links to: `docs/capstone-report/rsi-in-development-and-application.md`, `docs/research/2026-10-20-rrsi-harness2/01-harness2.md`, `docs/research/2026-10-20-rrsi-harness2/02-verdicts.md`
+
 ## `docs/reviews/2026-09-25/DDI-r1-prompt.md`
 
 **(untitled)**
