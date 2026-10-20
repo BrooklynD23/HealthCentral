@@ -186,10 +186,16 @@ itself a claim — it does not get a pass because it came from the orchestrator.
 - Playwright only runs here with `HC_E2E_CHROMIUM_PATH=/opt/pw-browsers/chromium`.
   Without it, `npx playwright test` fails on a missing binary and executes zero
   tests. Two reports appeared to contradict each other until that surfaced.
+- The collected count varies too. `tests/test_embedding_no_network.py` calls
+  `pytest.importorskip("sentence_transformers")` at module level, so its 2
+  tests are collected only where that package is installed. Measured
+  2026-10-20 on `b2b3f4e`, same box, same command: 2026 collected, then 2028
+  after another session installed `sentence-transformers` into the shared venv.
 
 **Recheck:** before writing a figure, ask which environment produced it and
 whether another environment produces a different one. Prefer numbers that do not
-vary — collected counts over pass counts.
+vary — collected counts over pass counts — and when quoting a collected count,
+say whether `sentence-transformers` was installed.
 
 ---
 
@@ -232,8 +238,16 @@ A related class: a command that inherits the wrong working directory from the
 bullet above it. The definition of done once listed `python -c "from main import app"`
 directly after a `cd src/frontend` line.
 
+Plans are docs too. LLM-PATH-LOG's plan (2026-10-19) told the implementer to
+re-run `tests/test_llm_import_boundary.py`; that file exists only as a "to
+create" entry in the W07 plan, so the acceptance command failed (#208). And the
+pytest slot script every runbook command calls directly, `scripts/pyslot.sh`,
+is mode `100644` in git: on a checkout with `core.fileMode=true` the documented
+call exits 126, `Permission denied` (measured 2026-10-20, row PYSLOT-MODE).
+
 **Recheck:** run every command a doc quotes, exactly as written, from the
-directory the surrounding text implies. Inherited-from-`main` is not a reason to
+directory the surrounding text implies. A planner checks every path it cites
+with `git ls-files <path>` on the base it plans from. Inherited-from-`main` is not a reason to
 skip it — it is a reason it survived this long.
 
 ---

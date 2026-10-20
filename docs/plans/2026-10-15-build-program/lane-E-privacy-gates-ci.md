@@ -32,6 +32,12 @@
 | GATE-12 | conftest guard: no test may open the real master DB | owner GATE-12 `:299`; §6 Q-E3; contracts §e item 5 | yes → §2.14 | — | ready |
 | Q-COV-GATE | CI fails below 74% backend coverage | owner Q-COV `:300`; W-11a `:1953` | yes → §2.15 | — | ready |
 | PKT-QUESTIONS-REDACT | the stored visit-prep / pinboard packet keeps raw question text | PR #198 body, follow-up candidate 1 | yes → §2.16 | — | blocked-on-owner (PKT-Q-SCOPE, then PKT-Q-DIFF) |
+| WAVE-DEP-DONE | build-wave counts a queue-ID dependency as done when any PR for it merged | queue bullet HARNESS (build-wave), 2026-10-19 C-P6 misread | yes → §2.17 | — | ready (harness, no slot) |
+| PYSLOT-MODE | `scripts/pyslot.sh` is mode 100644 and never creates its lock directory | found while planning 2026-10-20 (queue bullet ENV) | yes → §2.18 | — | ready (no slot) |
+| GATE12-MINORS | HC-GATE12-004 (record-only guard with the DB file present), HC-GATE12-005 (session-end backstop) | PR #206 round-2 review MINORs | yes → §2.19 | GATE-12 (#206 merged) | ready |
+| PKT-Q-MINORS | HC-PKT-024/025 assert the redaction tags; two redundant imports | PR #213 review MINORs | yes → §2.20 | PKT-QUESTIONS-REDACT (#213 merged) | ready |
+| REDACT-NAME-PINS | pins: strict run-on over-redaction (HC-REDACT-019), visit-prep PDF download (HC-PKT-026a/b) | owner E1C-DIFF `:273`; PR #195 body | yes → §2.21 | — | ready (tests only) |
+| REDACT-NAME-GAPS | labelled names with hyphens, particles, accents, NFD marks leak in part (strict and standard) | owner E1C-DIFF `:273`; PR #195 body | yes → §2.22 | REDACT-NAME-PINS | blocked-on-owner (REDACT-NG-SCOPE, then REDACT-NG-DIFF); ask-first `redaction.py` |
 
 Graph: `E-3 → E-4 → E-5`; `P6 → P7 → E-2`; E-1, E-6, E-7 independent. E-1 and E-3 are the two lane-E code items ready today and share no file. The 2-code-L1 limit is **box-wide, not per lane**: L0 assigns the slots across lanes (§7 P-1).
 
@@ -529,6 +535,178 @@ Under (b), both tests assert `"questions" not in` the stored packet instead, and
 **Acceptance:** `pyt tests/test_visit_prep_packet.py tests/test_pinboards.py tests/test_export_redaction.py tests/test_export_questions.py -q -rfE`: 0 failed; `git diff origin/main -- src/backend/modules/redaction.py` empty; full suite per RUNBOOK §6. **Rollback:** revert.
 **Order:** blocked on PKT-Q-SCOPE; PR stays draft until PKT-Q-DIFF. EXPORT-TZ-PINS is merged (#198), so its HC-EXPTZ-008/009 are re-run, and under (b) edited. Never beside C-GC1 (`tests/test_visit_prep_packet.py`, `tests/test_pinboards.py`); land it before C-GC1, or C-GC1 must not persist the field.
 
+### Follow-ups found 2026-10-20 (planned 2026-10-20 on `origin/main` @ `b2b3f4e`)
+
+Six rows: two harness rows (WAVE-DEP-DONE, PYSLOT-MODE), two test-only rows from the reviews of #206 and #213 (GATE12-MINORS, PKT-Q-MINORS), and the owner's E1C-DIFF follow-ups split in two: a test-only pin row (REDACT-NAME-PINS, no gate) and the ask-first fix (REDACT-NAME-GAPS, gated). Every "measured" fact ran as a scratch test or script in the planning worktree, removed afterwards (`git status --short` empty). `pyt` = `bash "$(git rev-parse --show-toplevel)/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest`, run from `src/backend` (absolute path and `bash`, see §2.18).
+
+### 2.17 WAVE-DEP-DONE — build-wave counts a dependency as done when any PR for it merged
+
+**Source:** queue bullet HARNESS (build-wave): "build-wave misread C-P6 as done because Task 1 #113 merged, and picked C-P7." The other half of that bullet (build-item Task 0 installs the embedding bundle) and the HARNESS stale-queue bullet are fixed by open PR #218 (`.claude/workflows/build-item.js` only) and are not planned here.
+
+**Facts (`b2b3f4e`, `.claude/workflows/build-wave.js`):**
+1. The Select prompt's rule 2 (`:73`) reads "Every depends_on PR/item is merged on origin/main (git merge-base --is-ancestor, or merged_recent)". For a queue ID, "merged" is read off `merged_recent`, the titles of recently merged PRs (scan step 4, `:57`). `#113` "C-P6 Task 1 orphan-audit tool" merged on 2026-10-16, so C-P6 read as merged although its row is not done (C-P6 Tasks 2-5 wait on P6-ORPHAN, queue "Status 2026-10-16 (second batch)").
+2. The scan already copies each row's `status` (`SCAN_SCHEMA`, `:24-27`), so the rule can use the row's own status. Nothing after `sel` re-checks a dependency: the greedy pick (`:85-96`) checks files only.
+3. A `depends_on` cell mixes real dependencies with file rules ("never beside G-C5") and task-scoped ones ("reset-tuple append only after C-P7"). Only the part before the first `never` is a dependency list.
+
+**Design (harness only, two edits in `build-wave.js`):**
+1. Rule 2 text: "A depends_on that names a queue ID is met only when that row's own status starts with done. A merged PR for one task of an item (a title such as 'C-P6 Task 1') does not meet it. A depends_on that names a PR number or a commit is met when it is on origin/main. A dependency scoped to one task ('X only after Y') blocks that task only; say so in why."
+2. A deterministic cross-check after `sel`: a pure function `depWarnings(rows, ids)` at the top of the file. For each picked id, it takes the row's `depends_on` up to the first `never` (case-insensitive) and finds every other row id that appears in it as a whole token (`(^|[^A-Za-z0-9-])<ID>(?![A-Za-z0-9-])`). It returns `"<id>: depends on <dep>, row status '<first 60 chars>'"` for each such dep whose status does not start with `done` (after stripping `*` and spaces). Items with a warning move from `picked` to `deferred`, **unless** L0 named them in `args.ids` (an explicit L0 choice; the warning is still logged). The return value gains `dep_warnings`.
+
+**Test-first (a harness script; no pytest id):**
+
+| Check | Expected | RED today? |
+|---|---|---|
+| `node --check` cannot parse a workflow body (top-level `await`, `return`), so: `node -e 'const s=require("fs").readFileSync(".claude/workflows/build-wave.js","utf8").replace(/^export const meta/m,"const meta"); new (Object.getPrototypeOf(async function(){}).constructor)("args","agent","phase","log","parallel","workflow",s)'` | exits 0 (the body parses) | n/a |
+| Fixture check: `sed -n '/^function depWarnings/,/^}/p' .claude/workflows/build-wave.js > /tmp/claude-1000/depw.js`, then a node one-liner that loads it and asserts: rows C-P6 `{status: "blocked: owner P6-ORPHAN"}` and C-P7 `{depends_on: "C-P6"}` → one warning for C-P7; C-P7 with C-P6 `{status: "**done** 2026-10-21"}` → none; a row with `depends_on: "LEGACY-CITE-PROMPT (#185) merged; never beside G-C5"` and G-C5 blocked → none; `B-3 merged, B-2` with B-3 blocked → one | all four as stated | yes: on `main` the sed prints nothing (no `depWarnings`), so the check fails |
+| Replay: `build-wave` with `{ids: ["C-P7"]}` (nested false) | C-P7 is not in `picked`; its reason names C-P6's row status | not deterministic before the change (the selector may or may not misread), which is why check 2 exists |
+
+**Files:** `.claude/workflows/build-wave.js`. No slots (no backend test).
+**Expected collected delta:** 0. **Est:** 0.5 h.
+**Acceptance:** the three checks above, pasted; `python3 scripts/docs_lint.py`. **Rollback:** revert.
+**Order:** ready now. Runs beside #218 (different file). Never beside another `build-wave.js` PR. Runtime claude (harness rows need a Claude Code session to replay).
+
+### 2.18 PYSLOT-MODE — the pytest slot script is not executable on a fresh checkout
+
+**Source:** found while planning 2026-10-20 (queue bullet ENV). The ENV bullet itself (CRLF in the old machine's working tree) does not reproduce here: `git ls-files --eol scripts/pyslot.sh` prints `i/lf w/lf attr/text=auto`. Two other defects in the same script do.
+
+**Facts (`b2b3f4e`):**
+1. `git ls-files -s scripts/pyslot.sh` prints mode `100644`. On a checkout with `core.fileMode=true` (this cloud box) the file is not executable: `./scripts/pyslot.sh true` → `Permission denied`, exit 126 (measured). RUNBOOK §6 step 2 (`RUNBOOK.md:137`), contracts §d step 2, and `.claude/workflows/build-item.js:233` and `:262` all call it directly, without `bash`.
+2. The script locks `/tmp/claude-1000/hc-pytest.$i.lock` (`:8`) but never creates `/tmp/claude-1000`. Where it is missing, `flock` prints `cannot open lock file … No such file or directory` and exits 66; `66 != 75`, so the script exits 66 at once and the test command never runs (measured with a missing directory).
+3. Several lane docs define `pyt` as `scripts/pyslot.sh …` "from `src/backend`" (lane E §2.8 `:220`, lane D `:626`), but `src/backend/scripts/` has no `pyslot.sh`. Those are done rows; this row fixes the script, not their text.
+
+**Design:** `git update-index --chmod=+x scripts/pyslot.sh` (mode `100755`), and one line before the loop: `mkdir -p /tmp/claude-1000`. Nothing else changes (slot count, lock names, exit codes).
+
+| Check | Expected | RED today? |
+|---|---|---|
+| `git ls-files -s scripts/pyslot.sh` | `100755` | yes (`100644`) |
+| on a fresh checkout of the branch: `./scripts/pyslot.sh true; echo $?` | `0` | yes (126) |
+| `bash -n scripts/pyslot.sh` | exit 0 | n/a |
+| with `/tmp/claude-1000` absent (only on a box where no pytest holds a slot; never delete it while one runs): `./scripts/pyslot.sh true; echo $?` | `0`, and the directory now exists | yes (66) |
+
+**Files:** `scripts/pyslot.sh`. No slots.
+**Expected collected delta:** 0. **Est:** 0.25 h.
+**Acceptance:** the checks above, pasted. **Rollback:** revert.
+**Order:** ready now. No shared file with any open PR. Runtime any.
+
+### 2.19 GATE12-MINORS — no test catches a record-only guard when the master DB file exists, or pins the session-end backstop
+
+**Source:** PR #206 (GATE-12) round-2 review MINORs: HC-GATE12-001 misses a record-only guard when `data/asclexis.db` already exists; no test pins the session-end backstop (`tests/conftest.py:88-92`).
+
+**Facts (`b2b3f4e`):**
+1. HC-GATE12-001 (`src/backend/tests/test_gate12_master_db_guard.py:40-62`) sets `created = real.exists() and not existed` (`:51`). When the file already exists (a developer machine), `created` is always `False`, so only the hit count (`:54`) is checked, and a guard that records the hit but lets the connect go through passes.
+2. The backstop is in `_gate12_guard`'s teardown (`src/backend/tests/conftest.py:88-92`): leftover hits after the session fail the run. HC-GATE12-002 (`:65-94`) runs an inner pytest whose hit is made in a test body, so the per-test check catches it; its comment (`:91`) says the backstop is not what it checks. The per-test check is `_gate12_check` (`conftest.py:95-98`), called by `_gate12_per_test` (`:101-105`).
+
+**Measured on `b2b3f4e`:**
+- Record-only mutant (the real listener removed from `database.engine.sync_engine` and replaced by one that only appends the hit), with an empty `data/asclexis.db` created first: HC-GATE12-001 **passes**. The proposed HC-GATE12-004 **fails** (`DID NOT RAISE RuntimeError`) and passes with the real guard.
+- Backstop: an inner run (the real `conftest.py` copied to a temp dir, as HC-GATE12-002 does) whose session-scoped fixture appends `late-session-teardown` in its teardown prints `1 passed, 1 error` and the GATE-12 message ending `[late-session-teardown]`, exit 1. With the 4 backstop lines removed from the copied conftest: `1 passed`, exit 0.
+
+**Design:** tests only; `tests/conftest.py` is not edited.
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-GATE12-004 | with `data/asclexis.db` present (created empty if absent, removed in `finally` only if this test created it), `async with database.engine.connect()` raises `RuntimeError` whose message contains `GATE-12`; the test removes its own hit; `await database.engine.dispose()` in `finally` | no (pin). Record-only mutant → fails (measured) |
+| HC-GATE12-005 | inner run as HC-GATE12-002, with a session-scoped fixture that appends a hit in its teardown and one test that uses it → output contains `1 passed, 1 error` and `[late-session-teardown]` | no (pin). Mutant: the copied conftest without `:88-92` → inner `1 passed`, test fails (measured) |
+
+**Files:** `src/backend/tests/test_gate12_master_db_guard.py`, slots. **Re-run, not edited:** `tests/test_denial_audit.py`, `tests/test_export_redaction.py`.
+**Expected collected delta:** +2. **Est:** 0.5 h.
+**Acceptance:** `pyt tests/test_gate12_master_db_guard.py tests/test_denial_audit.py -q -rfE`: 0 failed; both mutant outputs pasted; `git diff origin/main -- src/backend/tests/conftest.py` empty; full suite per RUNBOOK §6, then `test ! -e src/backend/data/asclexis.db` unless it existed before the run. **Rollback:** revert.
+**Order:** ready now. Never beside another PR on `tests/test_gate12_master_db_guard.py` or `tests/conftest.py` (none open on `b2b3f4e`).
+
+### 2.20 PKT-Q-MINORS — the stored-question tests pass if the question is blanked
+
+**Source:** PR #213 (PKT-QUESTIONS-REDACT) review MINORs.
+
+**Facts (`b2b3f4e`):** HC-PKT-024 (`src/backend/tests/test_visit_prep_packet.py:876-917`) and HC-PKT-025 (`src/backend/tests/test_pinboards.py:591-637`) assert only that `Jane`, `Smith` and `A1234567` are absent from each stored question (`:914`, `:634`). Each has a local `from datetime import timedelta` (`:880`, `:597`) although the module already imports it (`test_visit_prep_packet.py:21`, `test_pinboards.py:7`). The redacted question today is `This follow-up is still open: Call [NAME-REDACTED], [MRN-REDACTED]. Should it be scheduled?` (measured with `RedactionEngine(policy_level="strict")`).
+
+**Measured on `b2b3f4e`:** mutant `{"question": "", …}` at `src/backend/modules/export.py:731` (working copy, reverted with `git checkout`): both tests **pass** (`2 passed`).
+
+**Design:** tests only. In each loop add `assert "[MRN-REDACTED]" in entry["question"]` and `assert "[NAME-REDACTED]" in entry["question"]`; delete the two local imports.
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-PKT-024, HC-PKT-025 (edited) | as today, plus both tags present | no (pins). The blank-question mutant above → both fail. Paste before/after |
+
+**Files:** `src/backend/tests/test_visit_prep_packet.py` (HC-PKT-024 only), `src/backend/tests/test_pinboards.py` (HC-PKT-025 only), slots. **Re-run, not edited:** `tests/test_export_redaction.py`, `tests/test_export_questions.py`. `src/backend/modules/export.py` shows an empty diff.
+**Expected collected delta:** 0. **Est:** 0.25 h.
+**Acceptance:** `pyt tests/test_visit_prep_packet.py tests/test_pinboards.py tests/test_export_questions.py -q -rfE`: 0 failed; the mutant output pasted; full suite per RUNBOOK §6. **Rollback:** revert.
+**Order:** ready now. Never beside C-GC1 or REDACT-NAME-PINS (`tests/test_visit_prep_packet.py`).
+
+### 2.21 REDACT-NAME-PINS — pin strict run-on over-redaction and the visit-prep PDF download (tests only)
+
+**Source:** owner E1C-DIFF (`docs/capstone-report/owner-decisions-2026-09-27.md:273`): "The over-redaction is strict only and errs toward hiding more. REDACT-WS-REDOS, the name gaps and the unpinned run-on behaviour become follow-up rows." PR #195 body, "Accepted strict-only over-redaction" and "Tests" (HC-PKT-023 checks the HTML download only). Split from REDACT-NAME-GAPS so the pins land without the ask-first gate.
+
+**Facts (`b2b3f4e`):**
+1. `spaced_labelled_id` (`src/backend/modules/redaction.py:152-168`, strict) takes up to four capitalised words and may cross a `.` or a newline; its comment (`:145-147`) documents the run-on. No test pins it: `tests/test_redaction.py` has no newline or `Follow Up` case.
+2. HC-PKT-023 (`src/backend/tests/test_visit_prep_packet.py:791-824`) asserts the stored markdown and `format=html` only. `GET /export/visit-prep/{id}/download?format=pdf` (`src/backend/api/export.py:846`, pdf branch `:906-919`) has no test.
+
+**Measured on `b2b3f4e`** (`RedactionEngine(...).redact(s).text`; and the PDF route through `route_client` with the real WeasyPrint 70.0 and `pypdf`):
+
+| Input | strict | standard |
+|---|---|---|
+| `Name (legal): Jane Doe. Follow Up With Cardiology Team` | `[ID-REDACTED] With Cardiology Team` | unchanged |
+| `Patient Name: Doe. Glucose High Today Noted` | `[ID-REDACTED] Noted` | unchanged |
+| `Patient ID:\nGlucose 96 mg/dL` | `[ID-REDACTED] 96 mg/dL` | unchanged |
+| `Name (legal): Jane Doe\nGlucose 96 mg/dL` | `[ID-REDACTED]\nGlucose 96 mg/dL` | unchanged |
+
+PDF: `POST /export/visit-prep` with `reason_for_visit: "MRN (hospital): B67890"`, then `GET …/download?format=pdf` → 200, `application/pdf`; the extracted text has no `B67890` and contains `[MRN-REDACTED]` and `Reason for Visit`.
+
+**Design:** tests only.
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-REDACT-019 ×4 (parametrised) | the four rows above: strict output exactly as measured; standard output equals the input | no (pins). Mutant: `modules.redaction._RULES` monkeypatched in a scratch test so `spaced_labelled_id`'s tail is `{0,0}` instead of `{0,3}` (`redaction.py` not edited, not even temporarily) → the first two cases fail |
+| HC-PKT-026a | as HC-PKT-023, but `format=pdf` with a stand-in `weasyprint` module whose `HTML(string=…).write_pdf()` returns the HTML bytes (the `_install_capturing_weasyprint` pattern, `tests/test_export_redaction.py:290-304`; runs everywhere) → 200, `application/pdf`, `.pdf` filename; body has no `B67890`, has `[MRN-REDACTED]` and `Reason for Visit` | no (pin). Mutant: the stand-in returns `b"Reason for Visit MRN (hospital): B67890"` → fails |
+| HC-PKT-026b | the same with the real renderer, using the `weasyprint_renders` fixture from `tests/test_export_redaction.py` (imported, so it skips where WeasyPrint cannot render and fails under `HC_REQUIRE_WEASYPRINT=1`); text via `pypdf` | no (pin; measured above) |
+
+**Files:** `src/backend/tests/test_redaction.py`, `src/backend/tests/test_visit_prep_packet.py`, slots. `src/backend/modules/redaction.py` and `src/backend/api/export.py` show an empty diff.
+**Expected collected delta:** +6 (4 + 1 + 1). **Est:** 1 h.
+**Acceptance:** `pyt tests/test_redaction.py tests/test_visit_prep_packet.py tests/test_export_redaction.py -q -rfE`: 0 failed (HC-PKT-026b passed, not skipped, on a box where WeasyPrint renders; say which); the 2 mutant outputs; `git diff origin/main -- src/backend/modules src/backend/api` empty; full suite per RUNBOOK §6. **Rollback:** revert.
+**Order:** ready now. Never beside PKT-Q-MINORS or C-GC1 (`tests/test_visit_prep_packet.py`), or REDACT-NAME-GAPS (`tests/test_redaction.py`). Land it before REDACT-NAME-GAPS, so that row's diff shows any change to these pins.
+
+### 2.22 REDACT-NAME-GAPS — name shapes strict and standard still leak (ask-first `modules/redaction.py`)
+
+**Source:** owner E1C-DIFF (`owner-decisions-2026-09-27.md:273`, quoted in §2.21); PR #195 body, "Shapes that remain … Name tails"; queue bullet REDACT-NAME-GAPS. OW-W9 (`:292`, no name scrubber for journal free text) is about free text, not labelled names, and does not cover this row.
+
+**Measured on `b2b3f4e`** (`RedactionEngine(policy_level=…).redact(s).text`):
+
+| Gap | Input | strict | standard | Rule |
+|---|---|---|---|---|
+| G1 hyphen | `Patient Name: Jane Doe-Smith` | `Patient [NAME-REDACTED]-Smith` | same | `name_context` (`redaction.py:85-93`; word `[A-Z][a-z]+`, no hyphen) |
+| G1 hyphen | `Patient: Jane Doe-Smith` | `[NAME-REDACTED]-Smith` | same | `name_context` |
+| G2 particles | `Name (legal): Maria de la Cruz` | `[ID-REDACTED] de la Cruz` | unchanged | `spaced_labelled_id` (`:152-168`; tail words must start upper-case) |
+| G2 particles | `Patient (legal name): Ludwig van Beethoven` | `[ID-REDACTED] van Beethoven` | unchanged | `spaced_labelled_id` |
+| G3 NFD | NFD `Name (legal): José Núñez` | `[ID-REDACTED]́ Núñez` | unchanged | `spaced_labelled_id` (a combining mark ends the word) |
+| G3 NFD | NFD `Patient Name: José Núñez` | `[ID-REDACTED]́ Núñez` | **unchanged** | both |
+| G4 non-ASCII | `Patient: José Núñez` (NFC) | **unchanged** | **unchanged** | `name_context` (`[a-z]` has no `é`) |
+| G5 lowercase | `Name (legal): jane doe` | `[ID-REDACTED] doe` | unchanged | `spaced_labelled_id` |
+
+Controls: NFC `Name (legal): José Núñez` → `[ID-REDACTED]` (strict); `Patient Name: Maria van der Berg` → `Patient [NAME-REDACTED]` (`name_context` runs with `(?i)`). G4 is new in this plan (not in #195's list): `name_context` misses any name with a non-ASCII letter, at both levels.
+
+**Owner gates** (ask-first `modules/redaction.py`; RUNBOOK §4 step 4 needs a signed gate naming the exact edit):
+- **REDACT-NG-SCOPE** (execution; open). Exact wording: "REDACT-NG-SCOPE (ask-first `modules/redaction.py`): measured on `main`, labelled names still leak in part: `Patient Name: Jane Doe-Smith` → `Patient [NAME-REDACTED]-Smith` (strict and standard), `Name (legal): Maria de la Cruz` → `[ID-REDACTED] de la Cruz`, decomposed (NFD) `José Núñez` keeps `Núñez`, `Patient: José Núñez` is not redacted at all (strict and standard), and `Name (legal): jane doe` → `[ID-REDACTED] doe`. Which scope may an agent build on a draft PR? (a) Hyphens, particles, accents and NFD: `name_context` (strict and standard) accepts hyphenated parts and non-ASCII letters with combining marks; strict `spaced_labelled_id` accepts lowercase particles (de, la, del, van, der, von, da, di, du, le, bin, al) before a capitalised word and combining marks inside a word. Lowercase names after a qualifier stay a known gap (Recommended: closes every measured leak except lowercase names; standard output changes only for names with a hyphen or an accent). (b) (a) plus lowercase names after a qualifier (`Name (legal): jane doe` → fully redacted); costs more strict over-redaction, for example `Name (brand): lipitor daily` → `[ID-REDACTED]`. (c) No `redaction.py` change; the pins (REDACT-NAME-PINS) only."
+- **REDACT-NG-DIFF** (merge only; open; asked after the draft PR exists): "REDACT-NG-DIFF: here is the exact `modules/redaction.py` diff for REDACT-NAME-GAPS under option (x), with RED/GREEN, the differential, timing and mutant output. Merge?"
+
+**Design (under (a); the implementer drafts the exact diff for REDACT-NG-DIFF):**
+1. `name_context` (`:88-89`): the name word becomes "a letter, then letters or combining marks (U+0300-U+036F), optionally `-` and another such word". The label, the `\s*(?::\s*)?` separator (REDACT-WS-REDOS) and the at-least-two-words rule stay.
+2. `spaced_labelled_id` (`:161-163`): the tail word class gains U+0300-U+036F, and between tail words an optional run of the particle list (lower-case, case-sensitive), each followed by `[ \t]+`, before the next capitalised word. The four-word cap counts capitalised words only; particles do not open a new word on their own, so `Name (legal): Jane Doe de facto` keeps `de facto` (no capitalised word follows).
+3. Every new optional piece starts with a non-space character, as E-1c's comment (`:121-126`) requires, so no two `\s*` become adjacent.
+
+**Test-first** (`src/backend/tests/test_redaction.py`):
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-REDACT-020 ×7 (parametrised) | the seven gap inputs G1-G4 above: no name token survives at strict; the `name_context` cases (G1 ×2, G3 `Patient Name:`, G4) also at standard | yes ×7 (measured above) |
+| HC-REDACT-021 | differential: inline copies of today's `name_context` and `spaced_labelled_id` against the new rules, on a fixed corpus (the HC-REDACT-013/014 inputs, the HC-REDACT-019 pins, lab lines such as `Glucose 96 mg/dL (70-99)`, `Name (brand): Lipitor 20 mg`, `Name (legal): Jane Doe de facto`) plus 2000 seeded random strings over labels, names, particles, hyphens, accents, NFD marks, punctuation and newlines → every span today's rules redact is still redacted; standard output differs only on inputs that contain `-`, a non-ASCII letter or a combining mark | no (pin). Mutant "drop the particle-before-capital requirement" fails it on `Jane Doe de facto` |
+| HC-REDACT-022 | timing, as HC-REDACT-015/017: `"Name (legal): Jane" + " de" * 20000`, `"Patient: Jane" + "-Doe" * 20000`, `"Name (legal): Jos" + "́" * 50000` → each under 1.0 s | no if the pieces follow point 3; the mutant "two adjacent `\s*`" fails it |
+| HC-REDACT-019 (from REDACT-NAME-PINS) | unchanged unless the diff changes a pin; any change is shown in the PR body | — |
+
+Under (b), HC-REDACT-020 gains `Name (legal): jane doe` and `Patient (legal name): jane doe`, and HC-REDACT-014 gains `Name (brand): lipitor daily` as a documented strict over-redaction.
+
+**Files:** `src/backend/modules/redaction.py` (ask-first, **edited only after REDACT-NG-SCOPE**: `name_context` `:88-89` and `spaced_labelled_id` `:161-163` only), `src/backend/tests/test_redaction.py`, slots. **Re-run, not edited:** `tests/test_export_redaction.py`, `tests/test_visit_prep_packet.py`, `tests/test_pinboards.py`, `tests/test_external_runner_hardening.py` (standard level), `tests/test_rl_feedback.py`.
+**Expected collected delta:** +9 under (a) (7 + 1 + 1); +11 under (b). **Est:** 2.5 h after REDACT-NG-SCOPE (+ security review).
+**Acceptance:** 1. `pyt tests/test_redaction.py tests/test_export_redaction.py tests/test_visit_prep_packet.py tests/test_pinboards.py -q -rfE`: 0 failed. 2. The E-1a acceptance rows 3-4 suites (the other strict callers) and `tests/test_external_runner_hardening.py` (standard): same pass/fail as Task 0. 3. Full suite per RUNBOOK §6.
+**Order:** blocked on REDACT-NG-SCOPE; depends on REDACT-NAME-PINS merged; PR stays draft until REDACT-NG-DIFF. Never beside another `redaction.py` / `test_redaction.py` row. RSI1-DONATE keeps an empty `redaction.py` diff; its PR-2 recall report (Task 3) is re-measured if this merges first. **Rollback:** revert; no data.
+
 ---
 
 ## 3. Provides
@@ -573,6 +751,7 @@ Under (b), both tests assert `"questions" not in` the stored packet instead, and
 | GATE-12 | GATE-12 | **answered 2026-10-19: yes, add the row** (`:299`) |
 | Q-COV | Q-COV-GATE (was E-3) | **answered 2026-10-19: 74% floor** (`:300`) |
 | PKT-Q-SCOPE, PKT-Q-DIFF (new) | PKT-QUESTIONS-REDACT | both open (export path under the redaction invariant; `redaction.py` called only). Exact wording in §2.16; recommended (a) |
+| REDACT-NG-SCOPE, REDACT-NG-DIFF (new 2026-10-20) | REDACT-NAME-GAPS | both open. REDACT-NG-SCOPE is the edit licence and scope for ask-first `redaction.py` (recommended (a)); REDACT-NG-DIFF is merge only, asked after the draft PR exists. Exact wording in §2.22 |
 
 ## 6. Open questions
 

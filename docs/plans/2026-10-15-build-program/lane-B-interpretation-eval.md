@@ -21,6 +21,7 @@
 | B-9 | MM-3 full suite with embedding model; MM-4 real-app smoke | OWNER + model machine | `TASK_LIST.md:84-85` | needs-model-machine | MM-4 after B-3 (and B-5 if merged) |
 | INTERP-RENDER | interpretation card: raw `**`, `[KB:]`/`[INT:]` markers, negative gauge axis, footer label | PRODUCT (frontend) | queue status 2026-10-16 third batch (MM-4) | ready (footer task: IR-FOOTER) | — |
 | EXTRACT-FORMATS | text-PDF parser: column layouts, missing units, table-page fallthrough | PRODUCT | queue status 2026-10-16 third batch (MM-4) | ready | — (EXF-SAMPLE optional) |
+| GRADE-PATTERN-REDOS | pathology `GRADE_PATTERN` cubic on whitespace runs | PRODUCT | PR #212 review MINOR; recurring-failures #9 | ready ([below](#grade-pattern-redos--the-pathology-grade_pattern-is-cubic-on-whitespace-runs)) | — |
 
 Order: B-1, B-2 and B-6 are owner questions that can be asked now. B-3 codes in parallel. B-7 unblocks B-8. B-5 is last: it needs B-3's judge and B-2's ruling.
 
@@ -248,6 +249,50 @@ The MM-4 report itself is not in the repo. If the owner can share one de-identif
 **Files:** `src/backend/modules/extract.py`, `src/backend/tests/test_extraction_pipeline.py`. **Expected collected delta:** +11 (6 + 1 + 1 + 1 + 1 + 1). **Acceptance:** `pyt tests/test_extraction_pipeline.py tests/test_date_extraction.py tests/test_documents_api.py tests/test_unit_conversion.py tests/test_extraction_golden.py -q` 0 failed (B-8 merged as #140, so its golden set measures this parser; any golden change goes in the PR body for the owner's S-C3-2 rule). Full suite per RUNBOOK §6. **Rollback:** revert. Already-extracted documents are unchanged until a user re-processes them.
 
 **Order:** B-8 (G-C3a golden set) merged as #140, so this PR re-runs `tests/test_extraction_golden.py` (acceptance above) and reports any golden change for the owner's S-C3-2 rule. No shared file.
+
+## GRADE-PATTERN-REDOS — the pathology `GRADE_PATTERN` is cubic on whitespace runs
+
+**Source:** PR #212 (REDACT-WS-REDOS) review MINOR, out of scope there: `modules/extract_pathology.py:28` `GRADE_PATTERN` is worse than quadratic (1.6 s at 800 spaces; 1000+ did not finish in 120 s). Recurring-failures #9 (the same `\s*:?\s*` shape REDACT-WS-REDOS removed from `redaction.py` was left in a sibling module). Planned 2026-10-20 on `origin/main` @ `b2b3f4e`.
+
+**Facts (`b2b3f4e`):**
+1. `GRADE_PATTERN = re.compile(r"\b(?:grade|Gleason|Nottingham)\s*:?\s*([\w\s/\+]+?)(?:\n|[,;.])", re.IGNORECASE)` (`src/backend/modules/extract_pathology.py:27-30`), used once: `GRADE_PATTERN.search(text)` (`:89`), value `group(1).strip()`.
+2. `extract_pathology_entities` runs on every document typed `pathology` (`src/backend/api/documents.py:926`), so the text is whatever a patient uploads.
+3. Three pieces can each take the same spaces: the two `\s*` and the lazy `[\w\s/\+]+?`. With no terminator after the run, every split is tried: O(n³) for one label. Separately, many labels in a row (`"grade " * n`) restart the scan at each label: O(n²).
+4. Tests: `tests/test_extract_pathology.py` (5 tests) has no grade test; `tests/test_source_spans.py:81` runs the extractor on a fixed report.
+
+**Measured on `b2b3f4e`** (scratch script, `GRADE_PATTERN.search` and the full `extract_pathology_entities`, not committed):
+
+| Input | `main` | possessive + bounded (design) |
+|---|---|---|
+| `"grade" + " " * 400 + "x"` | 0.342 s | 0.000 s |
+| `"grade" + " " * 800 + "x"` | 2.462 s (`extract_pathology_entities`: 2.09 s) | 0.000 s |
+| `"grade" + " " * 1600 + "x"` | 16.32 s | 0.000 s |
+| `"grade" + " " * 50000 + "x"` | not run (cubic) | 0.000 s |
+| `"grade " * 8000` | 11.36 s | 0.031 s (`"grade " * 50000`: 0.191 s) |
+| possessive only (`\s*+:?\s*+`), `"grade " * 8000` | — | 3.866 s (still quadratic, hence the bound) |
+| design without the first `+` (`\s*:?\s*+`), `"grade" + " " * 50000 + "x"` | — | 2.605 s (quadratic: 0.435 s at 20,000) |
+| `"Gleason:" + "\t" * 1600 + "x"` | 0.03 s (the colon ends the first run) | 0.000 s |
+
+**Design:** `\b(?:grade|Gleason|Nottingham)\s*+:?\s*+([\w\s/\+]{1,200}?)(?:\n|[,;.])` (possessive quantifiers are Python 3.11+, the project floor). The first possessive `\s*+` gives the space run to one piece only (without it: quadratic, measured above), the second stops the value from starting with a space (so no whitespace-only value is captured after a colon), and the `{1,200}` bound stops the restart cost. The flags and the call site stay as they are. Two output changes, both measured:
+1. **A label followed only by whitespace and then `,` `;` `.` or a newline no longer yields an empty grade.** On `main`, `"Grade: ,\nGleason 4+3."` gives a grade entity with `entity_value == ""` (span 0-8). With the change the search goes on and finds `"4+3"` (span 9-21). Differential, 200,000 seeded random strings of 1-10 tokens from {`grade`, `Gleason`, `Nottingham`, spaces, tab, newline, `:`, `,`, `.`, `;`, `x`, `2`, `3+4`, `/`, `-`, `=`, `II`, `score`}: **3,650 differ, and in every one `main`'s value is the empty string.** In 3,574 the new pattern finds no grade, and in 76 it finds a later, non-empty one. No non-empty value changes.
+2. **A value longer than 200 characters before its terminator is no longer matched at that label.** No such value is in the corpus or in any test. Real grade values are a few characters long (`2/3`, `II`, `score 3+4`).
+
+These are extraction-output edge cases, not wording. An empty-value "grade" entity carries no information, so no owner gate is proposed. If L0 reads change 1 as a product change, add a gate before the build.
+
+**Pins of today's values** (measured identical on `main` and with the design): `"Gleason score 3+4, grade group 2"` → `"score 3+4"`; `"Nottingham grade 2."` → `"grade 2"`; `"Grade: 3\n"` → `"3"`; `"Histologic grade: 2/3\nMARGINS: clear"` → `"2/3"` (span 11-22); `"Grade:\n\nII."` → `"II"`; `"GRADE: well differentiated (G1);"` → no grade; `"grade 2"` (no terminator) → no grade.
+
+**Test-first** (`src/backend/tests/test_extract_pathology.py`; timing in the style of HC-REDACT-015/017, `time.perf_counter()`, bound 1.0 s):
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-PATH-001 ×3 (parametrised) | each input runs in a child process (`subprocess.run([sys.executable, "-c", …], cwd=src/backend, timeout=10)`) that times `extract_pathology_entities(s)` with `time.perf_counter()` and prints the seconds and whether a grade entity came back; the test asserts the child finished, the time is under 1.0 s, and no grade entity. Inputs: `"grade" + " " * 1600 + "x"`, `"grade " * 8000`, `"grade" + " " * 50000 + "x"`. The child process is what lets the cubic case fail cleanly (timeout) instead of hanging the suite | yes ×3 (16.3 s, 11.4 s, and a 10 s timeout on `main`) |
+| HC-PATH-002 | differential: an inline copy of today's pattern against `GRADE_PATTERN` on 20,000 seeded random strings over the token set above: for each, the same `(start, end, group(1).strip())`, **or** today's value is `""` | no (pin). Measured on 20,000 strings (seed 1): the design gives 0 differences of this kind; mutant `{1,200}` → `{1,5}` gives 829 (fails it). The timing mutants are HC-PATH-001's: drop the bound (`+?`) → `"grade " * 8000` takes 3.87 s; drop the first `+` → the 50,000-space case takes 2.6 s. Both differential-equal, both fail HC-PATH-001 |
+| HC-PATH-003 ×8 (parametrised) | the 7 pins above, plus `"Grade: ,\nGleason 4+3."` → `"4+3"` (the documented change 1) | 7 no (pins); the last one yes (`main` gives `""`) |
+
+**Files:** `src/backend/modules/extract_pathology.py` (`:27-30` only), `src/backend/tests/test_extract_pathology.py`, slots. **Re-run, not edited:** `tests/test_source_spans.py`, `tests/test_documents_api.py`.
+**Expected collected delta:** +12 (3 + 1 + 8). **Est:** 1 h.
+**Acceptance** (from `src/backend`, `pyt` = `bash "$(git rev-parse --show-toplevel)/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest`): `pyt tests/test_extract_pathology.py tests/test_source_spans.py tests/test_documents_api.py -q -rfE`: 0 failed; RED output for HC-PATH-001 ×3 and the last HC-PATH-003 case; the three mutant outputs (`{1,5}`, no bound, no first `+`); full suite per RUNBOOK §6. **Rollback:** revert. Documents already extracted keep their stored entities until re-processed.
+**Order:** ready now. No shared file with any open PR or queued row on `b2b3f4e`. No ask-first file. The other patterns in this module (`SPECIMEN_SITE_PATTERN`, `DIAGNOSIS_PATTERN`, `MARGINS_PATTERN`, `PATHOLOGIST_PATTERN`) were not timed; a reviewer who finds the same shape there raises a new row, not a scope change.
 
 ## Provides
 
