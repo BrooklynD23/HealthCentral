@@ -129,7 +129,7 @@ class OllamaProvider:
 
     def _build_request_body(self, messages: List[ChatMessage], config) -> dict:
         """Build the /api/chat request payload."""
-        return {
+        body = {
             "model": self._model,
             "messages": [{"role": m.role, "content": m.content} for m in messages],
             "stream": False,
@@ -140,6 +140,10 @@ class OllamaProvider:
                 "stop": list(config.stop_sequences or []),
             },
         }
+        schema = getattr(config, "response_schema", None)
+        if schema:
+            body["format"] = schema
+        return body
 
     # ------------------------------------------------------------------
     # ProviderProtocol implementation

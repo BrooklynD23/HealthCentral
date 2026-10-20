@@ -9,6 +9,7 @@ Handles:
 - Dual-agent verification (Phase 4)
 """
 
+import json
 import logging
 import re
 from dataclasses import dataclass, field
@@ -128,6 +129,37 @@ class ValidatedResponse:
     prohibited_advice: bool = False
 
 
+def _cite_schema(n_chunks: int) -> dict:
+    """JSON schema for constrained decoding: every item carries cites from 1..n_chunks."""
+    item_ref = {"$ref": "#/$defs/item"}
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["report_facts", "general_info", "uncertainties"],
+        "properties": {
+            "report_facts": {"type": "array", "items": item_ref},
+            "general_info": {"type": "array", "items": item_ref},
+            "uncertainties": {"type": "array", "items": {"type": "string", "maxLength": 400}},
+        },
+        "$defs": {
+            "item": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["text", "cites"],
+                "properties": {
+                    "text": {"type": "string", "maxLength": 400},
+                    "cites": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 3,
+                        "items": {"type": "integer", "enum": list(range(1, n_chunks + 1))},
+                    },
+                },
+            }
+        },
+    }
+
+
 class RAGModule:
     """
     Retrieval-Augmented Generation service.
@@ -150,6 +182,14 @@ CRITICAL RULES:
 5. Context labeled [YOUR_RESULTS:N] contains the patient's own measured values — use these in REPORT FACTS
 6. Context labeled [REFERENCE:N] contains general medical knowledge — use these in GENERAL INFO
 7. If you cannot answer with citations, say "I don't have enough information"
+
+ANSWER FORMAT: reply with a single JSON object that has exactly these fields:
+- report_facts: a list of items, each with "text" (one fact from the patient's own results) and "cites" (1 to 3 context numbers)
+- general_info: a list of items with the same two fields, for educational background
+- uncertainties: a list of strings for what cannot be determined
+Each number in "cites" is the number after the colon in a context heading below.
+Use only facts that appear in CONTEXT. Do not name outside organisations, guidelines, studies or URLs.
+If you cannot answer, leave report_facts and general_info empty and explain in uncertainties.
 
 CONTEXT:
 {context}
@@ -1291,15 +1331,100 @@ I was unable to fully process your question within the time limit. Please try as
 
         # Step 3: Generate response (use override runner if provided)
         runner = model_runner or self._model_runner
-        response = await self._generate_with_runner(prompt, runner)
+        response = await self._generate_with_runner(
+            prompt, runner, n_chunks=len(chunks)
+        )
 
         # Step 4: Validate and verify response
         validated = self.validate_response(response, chunks)
 
         return validated
 
-    async def _generate_with_runner(self, prompt: str, runner) -> str:
-        """Generate response using the provided model runner."""
+    _STRUCTURED_HEADERS = ("report facts", "general info", "uncertainties")
+
+    @staticmethod
+    def _render_structured_answer(text: str, n_chunks: int) -> Optional[str]:
+        """Render a schema-constrained JSON answer into the REPORT FACTS text format.
+
+        Pure. Checks the shape in code (the provider is not trusted) and returns
+        None for anything that is not exactly the _cite_schema shape, or that
+        forges a section header or a [cite:] marker inside a field.
+        """
+        try:
+            data = json.loads(text)
+        except (TypeError, ValueError):
+            return None
+        sections = ("report_facts", "general_info", "uncertainties")
+        if not isinstance(data, dict) or set(data) != set(sections):
+            return None
+
+        def _clean(value: object) -> Optional[str]:
+            if not isinstance(value, str) or not value.strip() or len(value) > 400:
+                return None
+            lowered = value.lower()
+            if "[cite:" in lowered or any(h in lowered for h in RAGModule._STRUCTURED_HEADERS):
+                return None
+            return " ".join(value.split())
+
+        lines: list[str] = []
+        for key, title in (("report_facts", "REPORT FACTS"), ("general_info", "GENERAL INFO")):
+            items = data[key]
+            if not isinstance(items, list):
+                return None
+            rendered = []
+            for item in items:
+                if not isinstance(item, dict) or set(item) != {"text", "cites"}:
+                    return None
+                body = _clean(item["text"])
+                cites = item["cites"]
+                if (
+                    body is None
+                    or not isinstance(cites, list)
+                    or not 1 <= len(cites) <= 3
+                    or any(type(c) is not int or not 1 <= c <= n_chunks for c in cites)
+                ):
+                    return None
+                rendered.append(f"- {body} " + " ".join(f"[cite:{c}]" for c in cites))
+            if rendered:
+                lines.append(f"{title}:\n" + "\n".join(rendered))
+
+        uncertainties = data["uncertainties"]
+        if not isinstance(uncertainties, list):
+            return None
+        notes = [_clean(u) for u in uncertainties]
+        if any(n is None for n in notes):
+            return None
+        if notes:
+            lines.append("UNCERTAINTIES:\n" + "\n".join(f"- {n}" for n in notes))
+        return "\n\n".join(lines) if lines else None
+
+    _STRUCTURED_WITHHELD = (
+        "UNCERTAINTIES:\nI could not produce a verifiable answer from your records for this "
+        "question. Please try asking a more specific question about your results."
+    )
+
+    @staticmethod
+    def _contains_json_object(text: str) -> bool:
+        """True if text embeds a JSON object (bare, fenced, or after prose), or a quoted
+        cite-schema key (covers output cut off by max_tokens, which does not parse)."""
+        first, last = text.find("{"), text.rfind("}")
+        if 0 <= first < last:
+            try:
+                if isinstance(json.loads(text[first:last + 1]), dict):
+                    return True
+            except ValueError:
+                pass
+        return any(f'"{k}"' in text for k in ("report_facts", "general_info", "uncertainties"))
+
+    async def _generate_with_runner(
+        self, prompt: str, runner, n_chunks: Optional[int] = None
+    ) -> str:
+        """Generate response using the provided model runner.
+
+        With n_chunks, the cite schema is sent for constrained decoding and a valid
+        structured answer is rendered to the REPORT FACTS text format. Without it
+        (or on any mismatch) the raw model text is returned unchanged.
+        """
         if not runner.is_available():
             self._logger.warning("Model runner not available for inference")
             raise ModelUnavailableError(
@@ -1311,6 +1436,7 @@ I was unable to fully process your question within the time limit. Please try as
             temperature=0.1,
             top_p=0.9,
             timeout_seconds=60,
+            response_schema=_cite_schema(n_chunks) if n_chunks else None,
         )
 
         try:
@@ -1318,6 +1444,15 @@ I was unable to fully process your question within the time limit. Please try as
             if result.finish_reason == "timeout":
                 return """UNCERTAINTIES:
 I was unable to fully process your question within the time limit. Please try asking a more specific question about your results."""
+            if n_chunks:
+                rendered = self._render_structured_answer(result.text, n_chunks)
+                if rendered is not None:
+                    return rendered
+                # A JSON object the renderer rejected (forged marker/header, empty) must not
+                # reach the text parser raw: it would serve a broken JSON fragment.
+                # Covers bare, code-fenced, and prose-prefixed objects; never rendered, only withheld.
+                if self._contains_json_object(result.text):
+                    return self._STRUCTURED_WITHHELD
             return result.text
         except Exception as e:
             self._logger.error(f"LLM generation failed: {e}")

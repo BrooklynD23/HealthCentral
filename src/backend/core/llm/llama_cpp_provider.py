@@ -234,12 +234,17 @@ class LlamaCppProvider:
             llama_messages = [
                 {"role": m.role, "content": m.content} for m in messages
             ]
+            chat_kwargs = {}
+            schema = getattr(config, "response_schema", None)
+            if schema:
+                chat_kwargs["response_format"] = {"type": "json_object", "schema": schema}
             result = self._model.create_chat_completion(
                 messages=llama_messages,
                 max_tokens=config.max_tokens,
                 temperature=config.temperature,
                 top_p=config.top_p,
                 stop=stop,
+                **chat_kwargs,
             )
             text = result["choices"][0]["message"]["content"]
             finish_reason = result["choices"][0].get("finish_reason", "stop")

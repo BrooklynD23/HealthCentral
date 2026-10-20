@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -525,3 +525,64 @@ async def test_hc_pin_015_list_prunes_question_pins_of_deleted_documents(
         select(PinboardItem).where(PinboardItem.id == pin.id)
     )
     assert remaining.scalar_one_or_none() is None
+
+
+@pytest.mark.asyncio
+async def test_hc_exptz_008_pinboard_export_uses_profile_local_today(
+    real_profile_db, monkeypatch
+):
+    """HC-EXPTZ-008: through HTTP, the pinboard export derives the question window
+    and the "Generated:" line from the profile's stored zone, not from UTC.
+
+    Frozen 2026-01-16 01:00 UTC = Jan 15 17:00 America/Los_Angeles. Local window
+    ends Jan 29; the UTC window would end Jan 30. Zone comes from the
+    UserModelSettings row (not stubbed).
+    """
+    import api.export as export_api
+    import api.pinboards as pinboards_api
+    from core.auth import get_profile_db_session
+    from models import CarePlanTask, UserModelSettings
+    from tests.support.routes import route_client
+
+    frozen = datetime(2026, 1, 16, 1, 0)
+    for target in ("api.export.utcnow", "api.pinboards.utcnow", "modules.export.utcnow"):
+        monkeypatch.setattr(target, lambda: frozen)
+
+    db = real_profile_db
+    db.add(UserModelSettings(profile_id="profile-a", timezone="America/Los_Angeles"))
+    in_window = CarePlanTask(
+        id=str(uuid.uuid4()), title="In local window", status="open",
+        due_date=date(2026, 1, 29),
+    )
+    outside = CarePlanTask(
+        id=str(uuid.uuid4()), title="Outside local window", status="open",
+        due_date=date(2026, 1, 30),
+    )
+    board = _pinboard()
+    db.add_all([in_window, outside, board])
+    await db.flush()
+    for task in (in_window, outside):
+        db.add(_item(board.id, item_type="question", item_id=task.id))
+    await db.commit()
+
+    packet_id = None
+    try:
+        with route_client(pinboards_api.router, "/pinboards", profile_id="profile-a") as client:
+
+            async def _override_profile_db():
+                return db
+
+            client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+            response = client.post(f"/pinboards/{board.id}/export", json={"confirm": True})
+            assert response.status_code == 200, response.text
+            packet_id = response.json()["packet_id"]
+            stored = export_api._packet_store[packet_id]
+        questions = stored["questions"]
+
+        texts = [q["question"] for q in questions if q["category"] == "follow_up"]
+        assert any("In local window" in text for text in texts)
+        assert not any("Outside local window" in text for text in texts)
+        assert "Generated: 2026-01-15" in response.json()["markdown"]
+    finally:
+        if packet_id is not None:
+            export_api._packet_store.pop(packet_id, None)
