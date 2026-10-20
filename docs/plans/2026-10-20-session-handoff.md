@@ -3,6 +3,7 @@
 **Last Updated:** 2026-10-20
 **Owner:** repository owner
 **Refresh Trigger:** the next L0 session reads this first, finishes §2 "In flight", works §3, and replaces this file with its own handoff.
+**Superseded by:** [2026-10-20 cloud-session handoff](2026-10-20b-session-handoff.md).
 
 Read this after [CLAUDE.md](../../CLAUDE.md), [AGENT.md](../../AGENT.md) and the [build-program RUNBOOK](2026-10-15-build-program/RUNBOOK.md). It replaces [the 2026-10-19 handoff](2026-10-19-session-handoff.md). The session ended because the owner moved development to another machine ("Please push everything, so that it can be properly recorded on origin main. Pass a handoff prompt, to be continue development in another machine"). Every worktree was clean and fully pushed at handoff. Treat this file as a lead, not a finding: verify with `gh pr view` before acting.
 
