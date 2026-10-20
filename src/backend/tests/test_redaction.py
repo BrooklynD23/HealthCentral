@@ -430,6 +430,82 @@ class TestUnderscoreJoinedRedaction:
             assert _engine("strict").redact(run).text == run
             assert time.perf_counter() - start < 1.0
 
+    @pytest.mark.parametrize(
+        "text",
+        [
+            pytest.param("dob" + " " * 50000 + "x", id="dob_space_run"),
+            pytest.param("date of birth" + " " * 50000 + "x", id="dob_long_label_space_run"),
+            pytest.param("dob" + "\t" * 50000 + "x", id="dob_tab_run"),
+            pytest.param("patient" + " " * 50000 + "!", id="patient_space_run"),
+            pytest.param("name" + " " * 50000 + "!", id="name_space_run"),
+            pytest.param("patient name" + " " * 50000, id="patient_name_space_run"),
+        ],
+    )
+    def test_hc_redact_017_ws_run_shapes_linear_time(self, text):
+        """HC-REDACT-017: REDACT-WS-REDOS name_context and dob whitespace runs are linear."""
+        import time
+
+        start = time.perf_counter()
+        result = _engine("strict").redact(text)
+        assert time.perf_counter() - start < 1.0
+        assert result.text == text
+        # name_context also runs at standard
+        if text.startswith(("patient", "name")):
+            start = time.perf_counter()
+            assert _engine("standard").redact(text).text == text
+            assert time.perf_counter() - start < 1.0
+
+    def test_hc_redact_018_ws_patterns_output_identical_to_old(self):
+        """HC-REDACT-018: linear name_context and dob give the same text, count and spans."""
+        old_rules = [
+            RedactionRule(
+                "name_context",
+                re.compile(
+                    r"(?i)\b(?:patient|name|mr\.?|mrs\.?|ms\.?|dr\.?)\s*:?\s*"
+                    r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)"
+                ),
+                "[NAME-REDACTED]",
+                frozenset({"strict", "standard"}),
+            ),
+            RedactionRule(
+                "dob",
+                re.compile(
+                    r"(?i)\b(?:dob|date\s+of\s+birth|birth\s*date)\s*:?\s*"
+                    r"\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4}"
+                ),
+                "[DOB-REDACTED]",
+                frozenset({"strict"}),
+            ),
+        ]
+        new_rules = [r for r in _RULES if r.name in ("name_context", "dob")]
+        assert [r.name for r in new_rules] == ["name_context", "dob"]
+        assert new_rules[0].policy_levels == old_rules[0].policy_levels
+        assert new_rules[1].policy_levels == old_rules[1].policy_levels
+        corpus = [
+            "Patient: Jane Doe", "Name : Jane Doe", "patient\tJane Doe",
+            "Mr. Smith Jones", "DOB: 01/02/1980", "DOB 1-2-80",
+            "date of birth : 12/31/1999", "birthdate:01/02/1980",
+            "Patient:\nJane Doe", "DOB :: 01/02/1980",
+        ]
+        rng = random.Random(20261020)
+        tokens = ["patient", "name", "dob", ":", " ", "\t", "\n", "Jane", "Doe", "01/02/1980", "x"]
+        corpus += [
+            "".join(rng.choice(tokens) for _ in range(rng.randint(0, 12)))
+            for _ in range(2000)
+        ]
+        assert len(corpus) == 2010
+        for lvl in ("strict", "standard"):
+            old_engine = RedactionEngine(policy_level=lvl, rules=old_rules)
+            new_engine = RedactionEngine(policy_level=lvl, rules=new_rules)
+            for text in corpus:
+                old = old_engine.redact(text)
+                new = new_engine.redact(text)
+                assert new.text == old.text, (lvl, text)
+                assert new.redacted_count == old.redacted_count, (lvl, text)
+                assert [(m.rule_name, m.start, m.end) for m in new.metadata] == [
+                    (m.rule_name, m.start, m.end) for m in old.metadata
+                ], (lvl, text)
+
     def test_hc_redact_016_spaced_rules_are_strict_only(self):
         """HC-REDACT-016: standard and minimal leave every group-S input as it was."""
         for level in ("standard", "minimal"):

@@ -459,7 +459,7 @@ class ModelSelector:
             context_size = config.get("context_size", 2048)
             n_gpu_layers = config.get("n_gpu_layers", 0)
 
-            logger.info(f"Loading model from {model_path}")
+            logger.info(f"Loading model from {model_path.name}")
             model = Llama(
                 model_path=str(model_path),
                 n_ctx=context_size,

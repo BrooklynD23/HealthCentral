@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import struct
 import sys
+import traceback
 import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -192,6 +193,203 @@ async def test_hc_emb_006c_grounded_interpretation_returns_501_over_http(profile
     assert [r.entity_id for r in audit_rows] == [obs_id]
 
 
+async def _seed_hash_only_chunk(profile_db, profile_id: str = "profile-emb") -> Document:
+    """A pre-W-8 vault: one verified chunk whose only embedding row is hash-fallback."""
+    doc = _document(profile_id)
+    profile_db.add_all([
+        doc,
+        Chunk(id="chunk-1", doc_id=doc.id, chunk_index=0, text="LDL 128 mg/dL"),
+        Embedding(chunk_id="chunk-1", model_name="hash-fallback", vector_blob=BLOB, dimensions=384),
+    ])
+    await profile_db.commit()
+    return doc
+
+
+@pytest.mark.asyncio
+async def test_hc_emb_006d_grounded_interpretation_returns_501_for_hash_only_vault(
+    profile_db, absent_model, monkeypatch
+):
+    """As HC-EMB-006c, but the only embedding row is hash-fallback (W-8-FC-NOTICE).
+
+    The interpret stub returns a COMPLETE LabInterpretation so that, if retrieval
+    wrongly succeeds, the request finishes with 200 and the assertions fail on
+    status/runner.calls instead of crashing inside InterpretationResponse.from_model.
+    """
+    import api.assistant as assistant_api
+    import api.interpretations as interpretations_api
+    from api.interpretations import router as interpretations_router
+    from core.auth import get_profile_db_session
+    from models import LabInterpretation, Observation
+    from tests.support.routes import route_client
+
+    profile_id = str(uuid.uuid4())
+    doc = await _seed_hash_only_chunk(profile_db, profile_id)
+    obs_id = str(uuid.uuid4())
+    profile_db.add(Observation(
+        id=obs_id, profile_id=profile_id, doc_id=doc.id, analyte_canonical="ldl",
+        analyte_raw="LDL", value=128.0, unit="mg/dL", user_verified=True,
+    ))
+    await profile_db.commit()
+
+    runner = _SentinelRunner()
+    monkeypatch.setattr("core.external_runner.get_runner_for_request", AsyncMock(return_value=runner))
+    monkeypatch.setattr(assistant_api, "_rag_module", None)
+    interpretation = LabInterpretation(
+        id=str(uuid.uuid4()), profile_id=profile_id, observation_id=obs_id,
+        interpretation_text="Your LDL is 128 mg/dL.", severity_level="borderline_high",
+        advice_text=None, citations_json="[]", context_json=None, model_id="stub",
+        model_tier="template", confidence_score=0.5, requires_physician_review=False,
+        physician_review_reason=None, viewed_at=None, created_at=utcnow(),
+    )
+    stub = SimpleNamespace(interpret_observation=AsyncMock(
+        return_value=SimpleNamespace(success=True, interpretation=interpretation, error_message=None)
+    ))
+    monkeypatch.setattr(interpretations_api, "get_interpret_module", lambda: stub)
+
+    master_db = AsyncMock()
+    master_db.add = MagicMock()
+    with route_client(interpretations_router, "/interpretations", profile_id=profile_id, master_db=master_db) as client:
+        async def _override_profile_db():
+            return profile_db
+
+        client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+        resp = client.post(f"/interpretations/observations/{obs_id}/interpret-grounded")
+
+    assert resp.status_code == 501, resp.text
+    detail = resp.json()["detail"]
+    assert detail == QFC_APPROVED_DETAIL
+    assert str(absent_model) not in detail
+    assert runner.calls == 0, "the LLM answered without document context and without the Q-FC notice"
+    audit_rows = [c.args[0] for c in master_db.add.call_args_list]
+    assert [r.entity_id for r in audit_rows] == [obs_id]
+
+
+@pytest.mark.asyncio
+async def test_hc_emb_005b_legacy_chat_falls_back_for_hash_only_vault_with_observation(
+    profile_db, absent_model, monkeypatch
+):
+    import api.assistant as assistant_api
+    from api.assistant import router as assistant_router
+    from core.auth import get_profile_db_session
+    from models import Observation
+    from tests.support.routes import route_client
+
+    profile_id = str(uuid.uuid4())
+    doc = await _seed_hash_only_chunk(profile_db, profile_id)
+    # "What is my LDL?" resolves to ldl_cholesterol (modules/rag.py _get_observation_chunks).
+    profile_db.add(Observation(
+        id=str(uuid.uuid4()), profile_id=profile_id, doc_id=doc.id, analyte_canonical="ldl_cholesterol",
+        analyte_raw="LDL", value=128.0, unit="mg/dL", user_verified=True,
+    ))
+    await profile_db.commit()
+
+    runner = _SentinelRunner()
+    monkeypatch.setattr("core.external_runner.get_runner_for_request", AsyncMock(return_value=runner))
+    monkeypatch.setattr(assistant_api, "is_agent_enabled", lambda _settings: False)
+    monkeypatch.setattr(assistant_api, "_rag_module", None)
+
+    with route_client(assistant_router, "/assistant", profile_id=profile_id) as client:
+        async def _override_profile_db():
+            return profile_db
+
+        client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+        resp = client.post("/assistant/chat", json={"question": "What is my LDL?", "include_references": False})
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert runner.calls == 0, "the LLM answered from observation context while document search was unavailable"
+    assert "ANSWER-SENTINEL" not in body["full_response"]
+    assert body["verification"]["enabled"] is False
+    assert "based on the knowledge base only" in body["full_response"]
+
+
+@pytest.mark.asyncio
+async def test_hc_emb_006e_hash_only_vault_raises_model_unavailable_when_model_absent(profile_db, absent_model):
+    from modules.rag import ModelUnavailableError, RAGModule
+
+    doc = await _seed_hash_only_chunk(profile_db)
+    rag = RAGModule(enable_verification=False)
+    with pytest.raises(ModelUnavailableError) as info:
+        await rag._search_vectors_async(query="LDL", profile_id=doc.profile_id, profile_db=profile_db)
+    assert str(absent_model) not in str(info.value)
+
+
+@pytest.mark.asyncio
+async def test_hc_emb_006f_hash_only_vault_returns_empty_when_model_present(profile_db):
+    """Guard against over-correction: model present, hash rows are still never compared."""
+    from modules.embeddings import EmbeddingsModule
+    from modules.rag import RAGModule
+
+    class _FixedEmbedder(EmbeddingsModule):
+        def embed_text(self, text):
+            return UNIT
+
+    doc = await _seed_hash_only_chunk(profile_db)
+    rag = RAGModule(enable_verification=False)
+    rag._embedder = _FixedEmbedder()
+    assert await rag._search_vectors_async(query="LDL", profile_id=doc.profile_id, profile_db=profile_db) == []
+
+
+# The Q-FC probe in _search_vectors_async must see only chunks the search could
+# really use. Each excluded case below leaves the vault with a hash-only chunk
+# that the filters rule out, so no embedding may be attempted; the control has
+# the same chunk with every filter matching, so one embedding must be attempted.
+_PROBE_CASES = [
+    pytest.param({"status": "pending"}, {}, 0, id="unverified-only-vault"),
+    pytest.param({}, {"from_date": "2023-01-01"}, 0, id="date-excluded"),
+    pytest.param({}, {"category": "imaging"}, 0, id="category-excluded"),
+    pytest.param({}, {"selected_analytes": ["HbA1c"]}, 0, id="analyte-excluded"),
+    pytest.param(
+        {},
+        {"from_date": "2021-01-01", "category": "lab_results", "selected_analytes": ["LDL"]},
+        1,
+        id="control-all-filters-match",
+    ),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("doc_overrides", "search_kwargs", "expected_embed_calls"), _PROBE_CASES)
+async def test_hc_emb_006g_probe_keeps_verified_date_category_and_analyte_filters(
+    profile_db, doc_overrides, search_kwargs, expected_embed_calls
+):
+    """Guard: the eligibility probe must not widen to chunks the filters exclude."""
+    from datetime import datetime
+
+    from models import DocumentCategory, Observation
+    from modules.embeddings import EmbeddingsModule
+    from modules.rag import RAGModule
+
+    class _SpyEmbedder(EmbeddingsModule):
+        calls = 0
+
+        def embed_text(self, text):
+            type(self).calls += 1
+            return UNIT
+
+    doc = await _seed_hash_only_chunk(profile_db)
+    doc.collection_date = datetime(2022, 1, 1)
+    for field, value in doc_overrides.items():
+        setattr(doc, field, value)
+    profile_db.add_all([
+        DocumentCategory(doc_id=doc.id, category="lab_results", confidence=1.0, classified_by="test"),
+        Observation(
+            id=str(uuid.uuid4()), profile_id=doc.profile_id, doc_id=doc.id,
+            analyte_canonical="LDL", analyte_raw="LDL",
+        ),
+    ])
+    await profile_db.commit()
+
+    rag = RAGModule(enable_verification=False)
+    rag._embedder = _SpyEmbedder()
+    results = await rag._search_vectors_async(
+        query="LDL", profile_id=doc.profile_id, profile_db=profile_db, **search_kwargs
+    )
+    # Hash vectors are never compared, so the result is empty either way.
+    assert results == []
+    assert _SpyEmbedder.calls == expected_embed_calls
+
+
 @pytest.mark.asyncio
 async def test_hc_emb_007_reprocess_keeps_chunks_when_embedding_unavailable(profile_db, absent_model):
     from api import documents as documents_api
@@ -220,11 +418,15 @@ def _stub_embedding_blob_failure(monkeypatch):
     def _embed(self, chunks):
         return [{"model_name": "all-MiniLM-L6-v2", "vector": UNIT, "dimensions": 384} for _ in chunks]
 
+    calls = {"n": 0}
+
     def _raise(self, vector):
+        calls["n"] += 1
         raise ValueError("blob conversion failed")
 
     monkeypatch.setattr(EmbeddingsModule, "embed_chunks", _embed)
     monkeypatch.setattr(EmbeddingsModule, "vector_to_blob", _raise)
+    return calls
 
 
 async def _committed_chunk_state(profile_db, doc_id):
@@ -298,10 +500,11 @@ async def _post_reprocess(profile_db, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_hc_emb_007c_reprocess_route_keeps_chunks_when_row_build_fails(profile_db, monkeypatch):
-    _stub_embedding_blob_failure(monkeypatch)
+    calls = _stub_embedding_blob_failure(monkeypatch)
     resp, doc_id = await _post_reprocess(profile_db, monkeypatch)
 
     assert resp.status_code == 200, resp.text
+    assert calls["n"] >= 1, "the row build never reached the blob stub; this test would prove nothing"
     ids, emb = await _committed_chunk_state(profile_db, doc_id)
     assert ids == ["chunk-1"], "the caller committed a half-built reprocess"
     assert emb == ["chunk-1"]
@@ -329,6 +532,95 @@ async def test_hc_emb_008_vector_search_ignores_vectors_from_another_model(profi
     rag._embedder = _FixedEmbedder()
     results = await rag._search_vectors_async(query="LDL", profile_id=doc.profile_id, profile_db=profile_db)
     assert [chunk["chunk_id"] for chunk, _ in results] == ["chunk-real"]
+
+
+def _leak_surfaces(caplog, capfd) -> list[str]:
+    """Every text a path could hide in: message, exc_text, formatted exc_info, captured stdout/stderr (capfd, so handlers bound to the original stderr are seen)."""
+    out = []
+    for rec in caplog.records:
+        out.append(rec.getMessage())
+        if rec.exc_text:
+            out.append(rec.exc_text)
+        if rec.exc_info and rec.exc_info[1] is not None:
+            out.append("".join(traceback.format_exception(*rec.exc_info)))
+    captured = capfd.readouterr()
+    out.extend([captured.out, captured.err])
+    return out
+
+
+def _assert_no_path(surfaces, *needles):
+    for text in surfaces:
+        for needle in needles:
+            assert needle not in text, f"{needle!r} leaked into: {text[:200]!r}"
+
+
+def _install_stub_bundle(tmp_path, monkeypatch):
+    from core.config import settings
+    from modules.embeddings import EMBEDDING_FILES
+
+    model_dir = tmp_path / "jane-doe-home" / "model"
+    for name in EMBEDDING_FILES:
+        (model_dir / name).parent.mkdir(parents=True, exist_ok=True)
+        (model_dir / name).write_bytes(b"{}")
+    monkeypatch.setattr(settings, "embedding_model_path", str(model_dir))
+    return model_dir
+
+
+def test_hc_emb_010a_real_package_load_failure_leaks_no_path_at_debug(tmp_path, monkeypatch, caplog, capfd):
+    from modules.embeddings import EmbeddingModelUnavailableError, EmbeddingsModule
+
+    model_dir = _install_stub_bundle(tmp_path, monkeypatch)
+    with caplog.at_level(logging.DEBUG):
+        with pytest.raises(EmbeddingModelUnavailableError) as failed:
+            EmbeddingsModule()._load_local_model()
+
+    assert "failed to load" in str(failed.value), "the real package did not fail to load the stub bundle"
+    _assert_no_path(_leak_surfaces(caplog, capfd), str(model_dir), "jane-doe-home")
+    assert failed.value.__cause__ is None
+    assert failed.value.__suppress_context__ is True
+
+
+def test_hc_emb_010b_load_restores_the_sentence_transformers_logger_level(tmp_path, monkeypatch):
+    from modules.embeddings import EmbeddingModelUnavailableError, EmbeddingsModule
+
+    _install_stub_bundle(tmp_path, monkeypatch)
+    st_logger = logging.getLogger("sentence_transformers")
+    before = st_logger.level
+    st_logger.setLevel(logging.INFO)
+    try:
+        with pytest.raises(EmbeddingModelUnavailableError):
+            EmbeddingsModule()._load_local_model()
+        assert st_logger.level == logging.INFO
+    finally:
+        st_logger.setLevel(before)
+
+
+def test_hc_emb_010c_load_quiets_every_library_logger_that_prints_the_path(tmp_path, monkeypatch):
+    """transformers also logs the model path at INFO on a successful load; no bundle is needed to pin it."""
+    import sentence_transformers
+
+    from modules.embeddings import EmbeddingsModule
+
+    _install_stub_bundle(tmp_path, monkeypatch)
+    names = ("sentence_transformers", "transformers")
+    loggers = {n: logging.getLogger(n) for n in names}
+    before = {n: lg.level for n, lg in loggers.items()}
+    seen = {}
+
+    def _stub(path, **kwargs):
+        seen.update({n: lg.getEffectiveLevel() for n, lg in loggers.items()})
+        return "model"
+
+    for lg in loggers.values():
+        lg.setLevel(logging.INFO)
+    monkeypatch.setattr(sentence_transformers, "SentenceTransformer", _stub)
+    try:
+        assert EmbeddingsModule()._load_local_model() == "model"
+        assert {n: lg.level for n, lg in loggers.items()} == {n: logging.INFO for n in names}
+    finally:
+        for n, lg in loggers.items():
+            lg.setLevel(before[n])
+    assert all(level >= logging.WARNING for level in seen.values()) and set(seen) == set(names), seen
 
 
 def test_hc_emb_009a_unavailable_messages_do_not_contain_the_model_path(tmp_path, absent_model, monkeypatch):
@@ -364,30 +656,26 @@ def test_hc_emb_009a_unavailable_messages_do_not_contain_the_model_path(tmp_path
 
 @pytest.mark.asyncio
 async def test_hc_emb_009b_retrieval_warning_log_does_not_contain_the_model_path(
-    profile_db, absent_model, tmp_path, caplog
+    profile_db, absent_model, tmp_path, caplog, capfd
 ):
     from modules.rag import ModelUnavailableError, RAGModule
 
     doc = await _seed_one_chunk(profile_db)
     rag = RAGModule(enable_verification=False)
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.DEBUG):
         with pytest.raises(ModelUnavailableError):
             await rag._search_vectors_async(query="LDL", profile_id=doc.profile_id, profile_db=profile_db)
     assert "failed closed" in caplog.text, "the rag.py warning sink did not fire; this test would prove nothing"
-    assert str(absent_model) not in caplog.text
-    assert absent_model.name not in caplog.text
-    assert str(tmp_path) not in caplog.text
+    _assert_no_path(_leak_surfaces(caplog, capfd), str(absent_model), absent_model.name, str(tmp_path))
 
 
 @pytest.mark.asyncio
 async def test_hc_emb_009c_reprocess_warning_log_does_not_contain_the_model_path(
-    profile_db, absent_model, monkeypatch, tmp_path, caplog
+    profile_db, absent_model, monkeypatch, tmp_path, caplog, capfd
 ):
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.DEBUG):
         resp, _ = await _post_reprocess(profile_db, monkeypatch)
 
     assert resp.status_code == 200, resp.text
     assert "Chunking failed" in caplog.text, "the api/documents.py warning sink did not fire; this test would prove nothing"
-    assert str(absent_model) not in caplog.text
-    assert absent_model.name not in caplog.text
-    assert str(tmp_path) not in caplog.text
+    _assert_no_path(_leak_surfaces(caplog, capfd), str(absent_model), absent_model.name, str(tmp_path))

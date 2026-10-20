@@ -127,7 +127,7 @@ class LlamaCppProvider:
 
         try:
             Llama = _load_llama_class()
-            logger.info("LlamaCppProvider: loading model from %s", model_path)
+            logger.info("LlamaCppProvider: loading model from %s", model_path.name)
             self._model = Llama(
                 model_path=str(model_path),
                 n_ctx=self._n_ctx,
