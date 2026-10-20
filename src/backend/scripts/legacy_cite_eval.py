@@ -48,7 +48,8 @@ KINDS = ("error", "no_model", "timeout", "escalated", "abstained", "answered_cit
 NO_MODEL_TEXT = "knowledge base only"
 TIMEOUT_TEXT = "unable to fully process your question within the time limit"
 REFUSE_MSG = "refusing to run a real-model eval inside pytest"
-_CITE_MARKER = re.compile(r"\[cite:\d+\]")
+# [cite:N] plus D11 context labels the model echoes inline ([USER_OBSERVATION:3], [YOUR_RESULTS:2], [REFERENCE:1]).
+_CITE_MARKER = re.compile(r"\[(?:cite|[A-Z][A-Z_]*):\d+\]")
 _NUMBER = re.compile(r"\d+(?:\.\d+)?")
 
 

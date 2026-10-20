@@ -218,6 +218,15 @@ def test_hc_t2e_008_cite_value_mismatch():
     assert t2e.cite_value_mismatches(general, chunks) == 0  # only report_facts segments are checked
 
 
+def test_hc_t2e_008b_context_label_digits_are_not_values():
+    chunks = {"doc-1": "LDL Cholesterol: 128 mg/dL (reference range 0-99 mg/dL), collected 2026-01-10."}
+    echoed = _body("x", [_seg("report_facts", "LDL Cholesterol: 128 mg/dL [USER_OBSERVATION:2] [cite:2]", True)])
+    wrong = _body("x", [_seg("report_facts", "LDL 130 mg/dL [cite:2]", True)])
+
+    assert t2e.cite_value_mismatches(echoed, chunks) == 0  # D11 context-label digits are not values
+    assert t2e.cite_value_mismatches(wrong, chunks) == 1  # a genuinely wrong value still counts
+
+
 def test_hc_t2e_009_parent_runs_one_child_per_model(monkeypatch, tmp_path, capsys):
     from types import SimpleNamespace
 
