@@ -621,8 +621,12 @@ async def test_hc_audcms_005_external_api_save_without_key_keeps_key_and_audits_
     assert calls[1]["details"] == {"changed_fields": ["provider", "use_external_api"]}
     assert resp2.json()["api_key_configured"] is True
     row = (await aud_vault.execute(
-        select(UserModelSettings).where(UserModelSettings.profile_id == _AUD_PROFILE)
+        select(UserModelSettings)
+        .where(UserModelSettings.profile_id == _AUD_PROFILE)
+        .execution_options(populate_existing=True)
     )).scalar_one()
     assert row.external_api_key_encrypted == stored_key
     assert row.use_external_api is False
+    assert "sk-canary-123" not in resp2.text
+    assert stored_key not in resp2.text
     assert "sk-canary-123" not in repr(calls[1])
