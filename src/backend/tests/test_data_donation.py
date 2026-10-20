@@ -15,7 +15,30 @@ RAW_COLUMN = re.compile(r"raw|original|unredacted|plain", re.I)
 
 
 def _tables(vault_path: Path, key: bytes) -> set[str]:
-    from sqlalchemy import create_engine, event, inspect
+    from sqlalchemy import inspect
+
+    engine = _engine(vault_path, key)
+    try:
+        return set(inspect(engine).get_table_names())
+    finally:
+        engine.dispose()
+
+
+def _active_index_sql(vault_path: Path, key: bytes) -> str | None:
+    from sqlalchemy import text
+
+    engine = _engine(vault_path, key)
+    try:
+        with engine.connect() as conn:
+            return conn.execute(
+                text("SELECT sql FROM sqlite_master WHERE type='index' AND name='uq_donation_consents_active'")
+            ).scalar()
+    finally:
+        engine.dispose()
+
+
+def _engine(vault_path: Path, key: bytes):
+    from sqlalchemy import create_engine, event
 
     from core.sqlcipher_driver import get_sqlcipher_module, is_sqlcipher_available
 
@@ -35,10 +58,7 @@ def _tables(vault_path: Path, key: bytes) -> set[str]:
             cur.execute(f"PRAGMA key = \"x'{key.hex()}'\"")
         cur.close()
 
-    try:
-        return set(inspect(engine).get_table_names())
-    finally:
-        engine.dispose()
+    return engine
 
 
 def test_hc_don_001_migration_round_trip_single_head(tmp_path, monkeypatch):
@@ -61,6 +81,13 @@ def test_hc_don_001_migration_round_trip_single_head(tmp_path, monkeypatch):
 
     assert migrations.get_profile_current_revision(vault, key) == script.get_current_head()
     assert set(TABLES) <= _tables(vault, key)
+
+    # The migrated vault (not just model metadata) must keep the partial unique
+    # index; a full unique index would 500 on grant -> revoke -> grant.
+    sql = " ".join((_active_index_sql(vault, key) or "").split()).upper()
+    assert "CREATE UNIQUE INDEX" in sql
+    assert "(PROFILE_ID, PURPOSE)" in sql
+    assert "WHERE REVOKED_AT IS NULL" in sql
 
     command.downgrade(cfg, "014_streaks_hidden")
     assert not set(TABLES) & _tables(vault, key)

@@ -18,6 +18,9 @@ from core.time import utcnow
 class DonationConsent(ProfileDatabaseBase):
     """One consent record per grant. Revoke sets revoked_at; rows are never deleted.
 
+    revoked_at also closes a row superseded by a grant of a new
+    consent_text_version, so a closed row is not always a patient revoke.
+
     At most one active row (revoked_at IS NULL) per (profile, purpose); a
     re-grant after a revoke inserts a new row so the dated revoke survives.
     """

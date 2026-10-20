@@ -3,7 +3,9 @@
 Session-scoped: the profile comes from the session and the profile vault, never
 from the path. Revoke deletes the purpose's donated rows in the same vault
 transaction as the consent change (DON-REVOKE a). Audit follows the vault
-commit (AUDIT-ORDER C) and carries counts and the purpose only (AUDIT-PHI-001).
+commit for grant (AUDIT-ORDER C). Revoke deletes irreversibly, so it uses the
+A2 started/completed pair (AO-DESIGN D). Audit carries counts and the purpose
+only (AUDIT-PHI-001).
 """
 
 import logging
@@ -16,7 +18,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.audit import audit_and_commit, create_audit_log
+from core.audit import audit_and_commit, audit_intent, create_audit_log
 from core.auth import ProfileDbSession, RequireAuth
 from core.database import get_db
 from core.time import utcnow
@@ -161,26 +163,36 @@ async def set_consent(
                 granted_at=utcnow(),
                 consent_text_version=data.consent_text_version,
             ))
-        event = "donation.consent.grant"
+        await profile_db.commit()
+        await audit_and_commit(
+            master_db,
+            create_audit_log,
+            event_type="donation.consent.grant",
+            action="donation.consent.grant",
+            profile_id=profile_id,
+            entity_type="donation",
+            entity_id=purpose.value,
+        )
         version = data.consent_text_version
     else:
+        audit_kwargs = dict(
+            event_type="donation.consent.revoke",
+            action="donation.consent.revoke",
+            profile_id=profile_id,
+            entity_type="donation",
+            entity_id=purpose.value,
+        )
+        # A2: the intent row commits before the irreversible delete; a failed
+        # audit write stops the revoke with the donated rows intact.
+        await audit_intent(master_db, "started", create_audit_log, **audit_kwargs)
         deleted = await _delete_derived(profile_db, profile_id, purpose)
         if row is not None:
             row.revoked_at = utcnow()
-        event = "donation.consent.revoke"
+        await profile_db.commit()
+        await audit_intent(
+            master_db, "completed", create_audit_log, details={"count": deleted}, **audit_kwargs
+        )
         version = row.consent_text_version if row is not None else data.consent_text_version
-    await profile_db.commit()
-
-    await audit_and_commit(
-        master_db,
-        create_audit_log,
-        event_type=event,
-        action=event,
-        profile_id=profile_id,
-        entity_type="donation",
-        entity_id=purpose.value,
-        details={"count": deleted} if not data.granted else None,
-    )
     return ConsentUpdateResult(
         purpose=purpose,
         granted=data.granted,

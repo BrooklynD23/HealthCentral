@@ -8,6 +8,7 @@ test_gamification_settings.py does.
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
@@ -193,6 +194,18 @@ async def test_hc_don_005b_grant_revoke_regrant_keeps_dated_revoke(vault):
 async def test_hc_don_006_revoke_deletes_real_and_synthetic_children(vault):
     await _seed(vault, PROFILE_A, "fine_tune", n_real=2, n_syn_per_real=2)  # 2 + 4 (+2 orphan synthetic)
     await _seed(vault, PROFILE_A, "agent_traces", n_real=1, n_syn_per_real=1)
+    # A synthetic child of this purpose's real rows but filed under another
+    # purpose: only the parent_id delete can remove it (count 8 -> 9).
+    parent = (await vault.execute(
+        select(DonatedRecord.id).where(
+            DonatedRecord.purpose == "fine_tune", DonatedRecord.origin == "real"
+        )
+    )).scalars().first()
+    vault.add(DonatedRecord(
+        profile_id=PROFILE_A, purpose="agent_traces", origin="synthetic",
+        source_kind="chat_turn", parent_id=parent,
+        prompt_redacted="p", response_redacted="r",
+    ))
     # Orphan synthetic rows of the purpose (NULL and dangling parent) also go.
     vault.add(DonatedRecord(
         profile_id=PROFILE_A, purpose="fine_tune", origin="synthetic",
@@ -212,9 +225,9 @@ async def test_hc_don_006_revoke_deletes_real_and_synthetic_children(vault):
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["granted"] is False
-    assert body["deleted_count"] == 8
+    assert body["deleted_count"] == 9
     assert await _count(vault, "fine_tune") == 0
-    assert await _count(vault, "agent_traces") == 2  # untouched
+    assert await _count(vault, "agent_traces") == 2  # untouched (child of fine_tune row is gone)
 
     consent = (await vault.execute(
         select(DonationConsent).where(DonationConsent.purpose == "fine_tune")
@@ -222,10 +235,11 @@ async def test_hc_don_006_revoke_deletes_real_and_synthetic_children(vault):
     assert consent.revoked_at is not None  # row kept, never deleted
 
     rows = _audit_rows(master)
-    assert len(rows) == 1
-    assert rows[0].event_type == "donation.consent.revoke"
-    assert rows[0].entity_id == "fine_tune"
-    assert '"count": 8' in rows[0].details_json
+    assert [r.event_type for r in rows] == ["donation.consent.revoke"] * 2
+    assert [json.loads(r.details_json)["status"] for r in rows] == ["started", "completed"]
+    assert all(r.entity_id == "fine_tune" for r in rows)
+    assert json.loads(rows[1].details_json)["count"] == 9
+    assert "count" not in json.loads(rows[0].details_json)
 
     resp, _ = _call("GET", vault)
     assert _state(resp)["fine_tune"]["granted"] is False
@@ -299,11 +313,14 @@ async def test_hc_don_007b_same_vault_other_profile_rows_are_invisible(vault):
     assert all(c["granted"] is False for c in _state(resp).values())
     # A's grant must not collide with, or touch, B's active row.
     await _put_ok(vault, "fine_tune", True)
+    resp, _ = _call("GET", vault, profile_id=PROFILE_A)
+    assert _state(resp)["fine_tune"]["granted"] is True
     b_row = (await vault.execute(
         select(DonationConsent).where(DonationConsent.profile_id == PROFILE_B)
     )).scalar_one()
     assert b_row.revoked_at is None
     resp, _ = _put(vault, "fine_tune", False)
+    assert resp.status_code == 200, resp.text
     b_row = (await vault.execute(
         select(DonationConsent).where(DonationConsent.profile_id == PROFILE_B)
     )).scalar_one()
@@ -339,3 +356,29 @@ async def test_hc_don_008b_bad_body_is_422(vault, body):
 async def test_hc_don_009b_fails_closed_when_audit_commit_fails(vault, method, path, body):
     resp, _ = _call(method, vault, path, master_db=_master_db(RuntimeError("audit down")), json=body)
     assert resp.status_code == 500
+
+
+@pytest.mark.asyncio
+async def test_hc_don_010a_revoke_intent_commit_fails_changes_nothing(vault):
+    """A2: if the `started` audit commit fails, rows and consent stay intact."""
+    await _seed(vault, PROFILE_A, "fine_tune")
+    await _put_ok(vault, "fine_tune", True)
+    before = await _count(vault, "fine_tune")
+    assert before > 0
+    resp, master = _put(vault, "fine_tune", False, master_db=_master_db(RuntimeError("audit down")))
+    assert resp.status_code == 500
+    assert await _count(vault, "fine_tune") == before
+    consent = (await vault.execute(select(DonationConsent))).scalar_one()
+    assert consent.revoked_at is None
+
+
+@pytest.mark.asyncio
+async def test_hc_don_010b_revoke_completion_commit_fails_delete_stays_durable(vault):
+    await _seed(vault, PROFILE_A, "fine_tune")
+    await _put_ok(vault, "fine_tune", True)
+    master = _master_db()
+    master.commit = AsyncMock(side_effect=[None, RuntimeError("audit down")])
+    resp, _ = _put(vault, "fine_tune", False, master_db=master)
+    assert resp.status_code == 500
+    assert await _count(vault, "fine_tune") == 0
+    assert [json.loads(r.details_json)["status"] for r in _audit_rows(master)][:1] == ["started"]
