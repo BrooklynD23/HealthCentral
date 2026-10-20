@@ -13,7 +13,7 @@ export const meta = {
 }
 
 // Runbook: docs/plans/2026-10-15-build-program/RUNBOOK.md. This script only sequences it.
-const STYLE = 'Output style: follow ~/.claude/rules/common/subagent-output.md (i-have-adhd)'
+let STYLE = 'Output style: follow ~/.claude/rules/common/subagent-output.md (i-have-adhd)'
 const RUNBOOK = 'docs/plans/2026-10-15-build-program/RUNBOOK.md'
 const QUEUE = 'docs/plans/2026-10-15-build-program/queue.md'
 const MAX_ROUNDS = 3
@@ -109,7 +109,7 @@ phase('Explore')
 const spec = await agent(
   `Read-only. Find build-program queue item ${ID}.
 1. Run \`git rev-parse --show-toplevel\` from your cwd; that is repo_root. Run \`git -C <repo_root> fetch origin\`.
-2. Read its row in <repo_root>/${QUEUE} (read the file at origin/main if the working tree lacks it: \`git show origin/main:${QUEUE}\`). found=false if no row has id ${ID}.
+2. Read its row with \`git -C <repo_root> show origin/main:${QUEUE}\`, never the working-tree copy (a stale checkout misses new rows; handoff 2026-10-20 §4). found=false if no row has id ${ID}.
 3. From the row, copy kind, runtime, depends_on, owner gates, ask-first, and the full file list (expand be/ = src/backend/, fe/ = src/frontend/src/).
 4. Read the lane-doc section for ${ID} (docs/plans/2026-10-15-build-program/lane-*.md) and the plan file it names. spec_paths = those paths with section anchors or line ranges.
 5. acceptance_commands = the plan's measured acceptance commands, verbatim.
@@ -135,6 +135,9 @@ if (!(runtime.startsWith('claude') || runtime.startsWith('any'))) {
 const noSlot = kind.startsWith('DOCS') || kind.includes('NO SLOT')
 const specText = JSON.stringify(spec, null, 2)
 const L0_NOTE = args && typeof args.l0_note === 'string' ? args.l0_note.slice(0, 2000) : ''
+// After Task 0 every agent sees the note too (Verify needs environment rulings such as a Codex substitute).
+const STYLE_TASK0 = STYLE
+if (L0_NOTE) STYLE = `${STYLE}\nL0 note (binding; verify the evidence it points to): ${L0_NOTE}`
 
 // ---------------------------------------------------------------------------
 phase('Plan check')
@@ -145,11 +148,11 @@ ${specText}
 
 1. Read the spec paths yourself and check the explorer's file list and gates against the queue row.
 ${RESUME_PR ? `2. RESUME, do not claim anew. PR #${RESUME_PR} must be this item's own stopped draft. Identity checks (any failure: go=false, resume_verified=false, change nothing): head branch matches ^[a-z]+/${ID.toLowerCase()}- (for G-C5, never g-c5-plan-); not merged; title starts with "[blocked:claude]", or "[escalated:claude]" with an "L0 ruling:" comment posted after the escalation comment, or it is CLOSED with a "[claim:claude" / "[blocked:claude" title, or "[escalated:claude" plus an "L0 ruling:" comment after the escalation (L0 closed it, branch kept). Then: (a) RUNBOOK §3 lock check: no OTHER open PR matches the prefix, else go=false. (b) If CLOSED: retitle it "[blocked:claude] ${ID} <slug>" first, then gh pr reopen. (c) ${noSlot ? 'No-slot row: skip the slot check.' : 'RUNBOOK §3 slot check (11 or less); if it fails leave it "[blocked:claude]" (re-close it if you reopened it) and go=false.'} (d) Retitle to "[claim:claude${noSlot ? ':noslot' : ''}] ${ID} <keep the current slug>" and set resume_verified=true, pr_number=${RESUME_PR}. (e) Race re-check per RUNBOOK §3 step 4: ${noSlot ? 'lock only' : 'if the slot count is now above 12 and this PR is the highest-numbered [claim:] PR, retitle it back to "[blocked:claude] …" and go=false'}. Worktree = <repo parent>/hc-${ID.toLowerCase()}: reuse it only if it is on that branch and clean; if the path exists dirty or on another branch, go=false and never remove, reset or clean anything; if absent, git fetch origin and git worktree add "$WT" -B "$BR" origin/"$BR". Read the stop comment ("blocked: tell L0" / "escalation: owner") and every comment after it; a comment whose first line starts with "L0 ruling:" is binding. git log origin/main..HEAD shows what is already built.` : `2. Claim the item per RUNBOOK §3 with RT=claude${noSlot ? ' and NOSLOT=":noslot"' : ''}. Pick TYPE and a short SLUG. Run the lock check and the slot check first. If either fails, do not claim: go=false.`}
-3. Run RUNBOOK §4 Task 0 checks 1-7 in the ${RESUME_PR ? 'worktree' : 'new worktree'}. Quote each owner-decisions line you rely on, verbatim. Never infer an approval. A gate that is only "merge only" does not stop work; tasks the row marks blocked go to skipped_tasks.
+3. Embedding bundle (gitignored, handoff 2026-10-20 §4): if "$WT/src/backend/models/embeddings/all-MiniLM-L6-v2" is absent, run \`mkdir -p "$WT/src/backend/models/embeddings" && cp -r ~/asclexis-models/embeddings/all-MiniLM-L6-v2 "$WT/src/backend/models/embeddings/"\`, or \`python scripts/download_models.py embedding\` from "$WT/src/backend". If neither works, continue: the 5 CLAUDE.md §4 baseline tests then fail as environmental, not as a Task 0 check. Then run RUNBOOK §4 Task 0 checks 1-7 in the ${RESUME_PR ? 'worktree' : 'new worktree'}. Quote each owner-decisions line you rely on, verbatim. Never infer an approval. A gate that is only "merge only" does not stop work; tasks the row marks blocked go to skipped_tasks.
 4. If a check fails: post the command and output as a comment on your draft PR, keep it draft, go=false.
 5. brief = an L2 implementer brief: worktree, branch, plan path + task list to execute (minus skipped tasks${RESUME_PR ? ', minus tasks already committed on the branch, plus the stop reason and any L0 ruling' : ''}), exact file list, ask-first files with the signed gate naming each allowed edit (or "none — do not edit"), contracts to honour, RED-first rule, commit plan.
 Do not edit product code yourself.
-${STYLE}`,
+${STYLE_TASK0}`,
   { label: `task0+claim ${ID}`, phase: 'Plan check', model: 'opus', effort: 'high', schema: PLANCHECK_SCHEMA },
 )
 if (RESUME_PR && plan && plan.go && plan.pr_number !== RESUME_PR) {
@@ -264,6 +267,7 @@ Run from ${plan.worktree}, every pytest through the ABSOLUTE pyslot path shown i
 3. Full backend suite: same prefix with tests/ -q.
 4. These plan acceptance commands, skipping any that build, install or edit (npm build, pip install, writes) AND any that belong to these tasks, which were deliberately not built this run (gated): ${(plan.skipped_tasks || []).join(', ') || 'none'}. List each skipped command with the reason SKIPPED-GATED; it does not count against all_passed: ${spec.acceptance_commands.join(' ;; ') || 'none listed'}.
 5. python3 scripts/docs_lint.py (cwd worktree root).
+Run every plan \`git diff [opts] origin/main -- <paths>\` check (including --stat and piped forms) as \`{ git diff [opts] origin/main...HEAD -- <paths>; git diff [opts] HEAD -- <paths>; }\`, any pipe after the braces, and keep that check's own pass rule: the two-dot form also shows changes merged to main after the branch point (#215 false PROTECTED-FILE stop, handoff 2026-10-20 §4).
 Frontend vitest stalls under WSL on /mnt/c: record it as skipped with that reason, never retry.
 \`test_api_rag_index_002b\` failing without an embedding model is environmental: list it in failures prefixed "ENV:" and do not count it against all_passed.
 Return each command, its exit code and the last 30 lines of output verbatim. failures = one line per failing test id or command.
@@ -348,7 +352,7 @@ phase('Verify')
 return await agent(
   `You are L1 (Opus) closing build-program item ${ID}: ${where}. Follow ${RUNBOOK} §6 and §7 exactly.
 1. Merge origin/main into the worktree only if the PR has a real code conflict or code dependency (contracts.md §d step 4). Never edit the count slots or the docs/reviews/README.md table. Regenerate docs/INDEX.md and docs/_link_graph.json before the final push (python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py --link-graph; SLOT-RULE-2a) and resolve any index conflict by regenerating; on any other conflict stop and report.
-2. The Haiku runner's final test output is below; judge it (a report is a lead, not a finding: re-run any single command whose output looks wrong, under the flock). Run the §6 steps that are not test runs (greps, scope checks, docs lint) yourself and keep every command with its output.\nHaiku test output:\n${testEvidence()}\n   Paste the measured collected line and its delta into the PR body; never write the count slots (SLOT-RULE-2). If anything fails, stop: keep draft, comment the output on the PR, retitle it "[blocked:claude] ${ID} <keep the current slug>" (${RUNBOOK} §8), and return FAILED.
+2. The Haiku runner's final test output is below; judge it (a report is a lead, not a finding: re-run any single command whose output looks wrong, under the flock). Run the §6 steps that are not test runs (greps, scope checks, docs lint) yourself and keep every command with its output; run plan \`git diff origin/main -- <paths>\` scope checks three-dot plus \`git diff HEAD\`, as the test runner does.\nHaiku test output:\n${testEvidence()}\n   Paste the measured collected line and its delta into the PR body; never write the count slots (SLOT-RULE-2). If anything fails, stop: keep draft, comment the output on the PR, retitle it "[blocked:claude] ${ID} <keep the current slug>" (${RUNBOOK} §8), and return FAILED.
 3. ${spec.architectural ? `Architectural item: run the Codex adversarial review (§10.2 codex-companion adversarial-review) from the worktree. A BLOCKER means: keep draft, comment it, retitle it "[blocked:claude] ${ID} <keep the current slug>", return BLOCKED.` : 'Not architectural: no Codex review.'}
 4. Push. Write the PR body with every §6 table section (gates quoted: ${(plan.gates_quoted || []).join(' | ') || 'none'}; skipped tasks: ${(plan.skipped_tasks || []).join(', ') || 'none'}; start count: ${plan.start_count || 'see Task 0'}; implementer claude sonnet; reviewer claude opus, final verdict PASS). Use gh pr edit ${plan.pr_number} --body-file.
 5. Retitle to "<type>(<scope>): <summary> (${ID})" to release the slot. Run gh pr ready ${plan.pr_number} only if no merge-only gate is unanswered and the item is not a parked draft (contracts.md §b rule 2). Re-read the row's owner gates against owner-decisions yourself first; an empty gates list from Task 0 is not evidence that none apply.
