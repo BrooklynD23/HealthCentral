@@ -111,10 +111,12 @@ class EmbeddingsModule:
             from sentence_transformers import SentenceTransformer
         except ImportError:
             raise EmbeddingModelUnavailableError("sentence-transformers is not installed") from None
-        # The package logs the model path at INFO while loading; keep it out of any log sink.
-        st_logger = logging.getLogger("sentence_transformers")
-        prev_level = st_logger.level
-        st_logger.setLevel(logging.WARNING)
+        # sentence_transformers and transformers log the model path at INFO while loading;
+        # keep it out of any log sink.
+        quiet = [logging.getLogger(n) for n in ("sentence_transformers", "transformers")]
+        prev_levels = [lg.level for lg in quiet]
+        for lg in quiet:
+            lg.setLevel(max(lg.getEffectiveLevel(), logging.WARNING))
         try:
             return SentenceTransformer(str(model_dir), local_files_only=True)
         except Exception as exc:  # corrupt or incompatible files: fail closed, never download
@@ -122,7 +124,8 @@ class EmbeddingsModule:
                 f"Embedding model failed to load: {type(exc).__name__}"
             ) from None
         finally:
-            st_logger.setLevel(prev_level)
+            for lg, level in zip(quiet, prev_levels):
+                lg.setLevel(level)
 
     def embed_chunks(
         self,
