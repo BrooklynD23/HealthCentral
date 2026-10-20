@@ -6,7 +6,7 @@ Working outline. Each section names the artifacts that back it — the report is
 
 2026-09-27: statuses were re-checked against the [review follow-up](../../audit/2026-09-25/review/2026-09-27-followup.md). The system description now draws on the [architecture overview](architecture-overview.md) rather than the audit alone. Multi-agent material is framed as case studies (review F-11).
 
-2026-10-20: rewritten against the [claims ledger](claims-ledger.md) rows C11–C30, H12–H18 and M4–M8 (stakeholder-showcase claim audit, plan `docs/plans/2026-09-27-senior-report-showcase-plan.md`). Figures point to the ledger-gated [showcase copy](asclexis-showcase-2026-10-24.html), not to the 2026-09-25 page.
+2026-10-20: rewritten against the [claims ledger](claims-ledger.md) rows C11–C32, H12–H21 and M4–M11, including the plan-set status row M9 (stakeholder-showcase claim audit, plan `docs/plans/2026-09-27-senior-report-showcase-plan.md`). Figures point to the ledger-gated [showcase copy](asclexis-showcase-2026-10-24.html), not to the 2026-09-25 page.
 
 ## 1. Introduction & motivation
 
@@ -28,7 +28,7 @@ Working outline. Each section names the artifacts that back it — the report is
 - Citation checks (agent guard vs legacy `validate_response`, C3, C14), interpret_safety patterns (C4), abstention (agent path; the legacy path abstains on a failed validation since W-4, C28), redaction (strict by default for the opt-in cloud runner, C10)
 - Vault model, DEK sealing, recovery codes, ordered crypto-erase
 - Evidence: [architecture-engineering-contract.md](architecture-engineering-contract.md) (the rules) + [specs-compliance-matrix.md](specs-compliance-matrix.md) (3 of 78 rows `enforced`, script count 2026-10-20, M4) ✅; audit §4, §11 as context
-- Must-own gaps (each a finding, not a feature): `consistency_score=1.0` placeholder (C22, HC-M11); `POST /export/questions` returns `source_quote` unredacted (C20); each backup archive carries a plaintext master copy (C17); the master DB is unencrypted and holds names and password hashes (C18); a deleted profile's audit rows are purged and 4 of 13 profile routes are unaudited (C19); vaults are plain SQLite where SQLCipher is not installed (C16); export artifacts are lost on restart (C11). Fixed since the audit, each dated in the plan's execution record (§15 of the showcase plan): the agent path's hard-coded `faithfulness_score=1.0` (P1, `cc202d9`), the implicit embedding download (W-8, C12), default SQL echo of bound values (S-1, C15), the legacy path serving failed validations (W-4, C28), the unredacted doctor summary (W-2, C24). The ledger rows C2, C3, C6, C7 and C9 predate these merges and are re-verdicted by their owners ✅
+- Must-own gaps (each a finding, not a feature): `consistency_score=1.0` placeholder (C22, HC-M11); `POST /export/questions` returns `source_quote` unredacted (C20); each backup archive carries a plaintext master copy (C17); the master DB is unencrypted and holds names and password hashes (C18); a deleted profile's audit rows are purged and 4 of 13 profile routes are unaudited (C19); vaults are plain SQLite where SQLCipher is not installed (C16); export artifacts are lost on restart (C11). Fixed since the audit (merge status: ledger row M9): the agent path's hard-coded `faithfulness_score=1.0` (P1, `cc202d9`), the implicit embedding download (W-8, C12), default SQL echo of bound values (S-1, C15), the legacy path serving failed validations (W-4, C28), the unredacted doctor summary (W-2, C24). The ledger rows C2, C3, C6, C7 and C9 predate these merges and are re-verdicted by their owners ✅
 
 ## 4. Methodology — the developer→orchestrator shift
 
@@ -71,7 +71,7 @@ Working outline. Each section names the artifacts that back it — the report is
 
 ## 9. Roadmap / future work
 
-- Owner-sequenced program: branches → notifications → phantom-layer decision → doc-drift → utcnow → FK → reset → gated items, plus the gap phases G-A…G-C; the 2026-09-27 plan set (14 plans + S-1) was written PROPOSED, and since then W-1…W-6, W-8, W-10, W-11a PR-4, S-1, P2, P5 and the report-only P6 FK orphan audit have merged (ancestry checks, showcase plan §15) while W-7 and W-11b have not
+- Owner-sequenced program: branches → notifications → phantom-layer decision → doc-drift → utcnow → FK → reset → gated items, plus the gap phases G-A…G-C; the 2026-09-27 plan set (14 plans + S-1) was written PROPOSED, and since then W-1…W-6, W-8, W-10, W-11a PR-4, S-1, P2, P5 and the report-only P6 FK orphan audit have merged (ancestry checks, ledger row M9) while W-7 and W-11b have not
 - Evidence: [implementation-program.md](implementation-program.md) (dependency graph, stop gates, measured acceptance, owner decisions D1–D13) ✅; audit §16–18; `plans/01`–`08` (corrected 2026-09-27)
 
 ## 10. Conclusion
