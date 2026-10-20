@@ -131,3 +131,27 @@ async def test_hc_gate12_004_guard_raises_with_master_db_present():
         if not dir_existed:
             real.parent.rmdir()
 
+
+def test_hc_gate12_005_session_end_backstop_fails_on_late_hit(tmp_path):
+    # A hit appended in session-fixture teardown falls outside every per-test window;
+    # only the session-end backstop in conftest can report it.
+    shutil.copy(Path(gate.__file__), tmp_path / "conftest.py")
+    (tmp_path / "test_inner.py").write_text(
+        "import conftest\n"
+        "import pytest\n\n"
+        "@pytest.fixture(scope='session')\n"
+        "def late():\n"
+        "    yield\n"
+        "    conftest._GATE12_HITS.append('late-session-teardown')\n\n"
+        "def test_inner(late):\n"
+        "    pass\n"
+    )
+    backend = Path(gate.__file__).resolve().parents[1]
+    env = {**os.environ, "PYTHONPATH": str(backend), "HF_HUB_OFFLINE": "1"}
+    proc = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "test_inner.py"],
+        cwd=tmp_path, env=env, capture_output=True, text=True, timeout=120,
+    )
+    out = proc.stdout + proc.stderr
+    assert "1 passed, 1 error" in out, out
+    assert "[late-session-teardown]" in out, out
