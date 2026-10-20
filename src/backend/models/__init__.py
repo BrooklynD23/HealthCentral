@@ -16,6 +16,7 @@ from .backup_schedule import BackupSchedule
 from .care_plan_task import CarePlanTask
 from .chat_session import ChatSession, ChatTurn
 from .chunk import Chunk
+from .data_donation import DonatedRecord, DonationConsent
 from .document import Document
 from .document_category import DocumentCategory, DocumentEntity
 from .embedding import Embedding
@@ -64,6 +65,9 @@ __all__ = [
     "ReminderLog",
     # Model settings (per-profile, Phase 0.3)
     "UserModelSettings",
+    # Opt-in data donation (per-profile, RSI1-DONATE)
+    "DonationConsent",
+    "DonatedRecord",
     # Gamification (per-profile, GAM-001)
     "BadgeDefinition",
     "EarnedBadge",
