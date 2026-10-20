@@ -21,7 +21,7 @@
 | F-1 | P4-deferred N8: D11 citation vocabulary (4 files) + two stale `pipelines.md` lines | DOCS | [P04](../2026-09-27-P04-doc-drift-sweep-amendment.md) `:911-941`; program `:431` | yes → delta §2.1 | W-5 (#34) merged | ready |
 | F-2 | P4-deferred N10: guardrails skill names break-glass | DOCS | P04 `:956-987` | yes → delta §2.2 | W-6 (#32), W-10 (#53) merged | ready |
 | F-3 | P4-deferred F6: D12 "not yet implemented" flip | DOCS | P04 `:998` | yes → delta §2.3 (Before texts changed) | W-6 + W-10 merged | ready |
-| F-4 | P4-deferred N9: `hipaa-controls.md:169` key rotation | DOCS | P04 `:943-954` | yes → §2.4 | P8-B2 answered 2026-10-19: B + A (`owner-decisions-2026-09-27.md:297`) | in progress (#200, claimed 2026-10-20) |
+| F-4 | P4-deferred N9: `hipaa-controls.md:169` key rotation | DOCS | P04 `:943-954` | yes → §2.4 | P8-B2 answered 2026-10-19: B + A (`owner-decisions-2026-09-27.md:297`) | in progress (#200, claimed 2026-10-20; blocked once on the embedding-bundle environment failures, resumed by L0) |
 | F-5 | P4-deferred F1–F5 flips | DOCS | P04 `:993-997` | yes → trigger table §2.5 | W-3, W-2, W-7, W-4 (#72), W-8 | blocked-on-item |
 | F-6 | W-10b privacy status flip | DOCS | [W10 plan](../2026-09-27-W10-governance-invariant-amendments.md) Task 6 `:1489-1499`; program `:434` | yes → delta §2.6 | W-2 (lane E E-1), W-3 (lane A) | blocked-on-item |
 | F-7 | G-C2 OpenWiki generation (owner runs, session reviews) | OWNER → DOCS | [W11b](../2026-09-27-W11b-roadmap-items-gc1-gc4.md) G-C2; program `:447`; G-C2-DEFER (`owner-decisions:77`) | yes → delta §2.7 | owner run (OW-4) | blocked-on-owner |
@@ -86,7 +86,7 @@ Trigger: `grep -n "core/external_runner.py" CLAUDE.md` → `:25` and `:59` hit. 
 1. **Trigger.** N9's trigger is the ticked packet ledger row (`gated-items-decision-packet.md:421`). That row is still unticked, and agents never tick owner boxes (RUNBOOK §9 item 2). The owner-decisions row is the gate record (RUNBOOK §4 step 3), so the trigger is met by `:297`. The packet tick, if wanted, is L0's.
 2. **After row.** Use N9's "B or C approved" row with `<signed date>` = `2026-10-19`. No DEK-rotation implementation plan exists, so `<link>` points at the decision (packet Brief 2, or the owner-decisions row), never at a plan.
 
-Before is still exactly one hit at `docs/compliance/hipaa-controls.md:169` (re-checked). The item is claimed as #200 (draft, Task 0 passed, 2026-10-20), and its diff follows both corrections.
+Before is still exactly one hit at `docs/compliance/hipaa-controls.md:169` (re-checked). The item is claimed as #200 (draft, 2026-10-20), and its diff follows both corrections. It posted "blocked: tell L0" once, only for the 5 known environment failures from the missing embedding bundle; L0 resumed it after the bundle fix (Task 0 re-run 2026-10-20).
 
 ### 2.5 F-5 — F1–F5 trigger table (who unblocks what)
 
@@ -166,7 +166,7 @@ Collected baseline it compares (C5): `CLAUDE.md:30`, `AGENT.md:76` = 1574. #68's
 **Executable 2026-10-19 (rechecked on `origin/main` @ `d42dba9`).**
 
 - **Gates.** SHOW-AUDIT answered 2026-10-17 (`owner-decisions-2026-09-27.md:232`): "**A: refresh + Codex plan review, then run**". SHOW-DATE (`:243`, freeze = showcase − 7 days) plus SHOW-FREEZE (`:277`): showcase **2026-10-31**, claim freeze **2026-10-24**, so `{FREEZE_DATE}` = `2026-10-24`. O-1…O-7 (plan §13, `:861-867`) are still unsigned, but each gates only its own task or commit: O-2 Task 5 / C4, O-1 Task 7 publish / C5, O-4 Task 8 / C6, O-3 the demo `.env` step, O-7 §8 Edit 5, O-6 Task 10 Step 2. Skip those and list them in the PR body (RUNBOOK §4 step 3). They do not block the item.
-- **Dependencies.** F-10 merged (#68, `3536cc6`) and W-8 merged (#168, `26106ee`; it was the other `claims-ledger.md` writer). No open PR touches a F-9 file on `d42dba9` (open: #185, #198, #200, #201).
+- **Dependencies.** F-10 merged (#68, `3536cc6`) and W-8 merged (#168, `26106ee`; it was the other `claims-ledger.md` writer). No open PR touches a F-9 file on `5750a97` (#185, #198 and #201 have merged; #200 edits only `hipaa-controls.md` and the index).
 - **Order inside the item (SHOW-AUDIT A).** (1) Refresh the plan in place: Task 0's `/mnt/c/...` worktree commands become the RUNBOOK §3 claim; Task 0 Step 2 uses `git merge-base --is-ancestor` (correction 4); carry corrections 1-5 above; set `{FREEZE_DATE}` = 2026-10-24. Commit the refresh first. (2) Run a Codex adversarial plan review (RUNBOOK §10.2, read-only) on the refreshed plan and post its output on the PR. A BLOCKER stops the item (RUNBOOK §8). (3) Then run Tasks 1-4, 6 and 7 (the ledger check; committing the copy, C5, needs O-1) and Task 10 Step 1, plus each O-gated task whose gate the owner has signed by then.
 - **Who.** Task 9 (demo dry runs on the Windows demo machine, Wi-Fi off) is the owner's. The rest is a claude docs item.
 - **Deadline.** Task 10 runs on the freeze date, 2026-10-24, and needs O-6. If the PR is not ready by then, the item stops and L0 asks the owner whether to move the freeze.
