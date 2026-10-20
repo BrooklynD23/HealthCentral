@@ -55,7 +55,9 @@ export function useSetDonationConsent() {
         granted,
         consent_text_version,
       }),
-    onSuccess: () => {
+    // onSettled: the vault commits before the audit write, so a failed audit
+    // can leave the server changed while the request errors.
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: DONATION_CONSENTS_KEY });
     },
   });

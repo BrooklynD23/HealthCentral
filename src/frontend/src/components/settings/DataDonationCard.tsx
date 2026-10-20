@@ -22,7 +22,7 @@ export const CONSENT_TEXT_VERSION = '2026-10-20-draft-1';
 
 export const CONSENT_INTRO = [
   'Donating is optional and off by default. You choose each purpose separately, and you can change your mind at any time.',
-  'Your data never leaves this device. Before anything is stored as a donated copy, it goes through strict automatic redaction, which removes names, dates, contact details and other identifiers. Redaction is automatic and not perfect, so please keep that in mind.',
+  'Your data never leaves this device. Before anything is stored as a donated copy, it goes through strict automatic redaction, which removes labelled names and dates written as numbers. It can miss names or dates written out in free text, so please keep that in mind.',
   'If you stop, the donated copies for that purpose are deleted. Your own records are not touched.',
   'Nothing here is medical advice. Donated copies only help improve this app.',
 ].join('\n\n');
@@ -30,20 +30,20 @@ export const CONSENT_INTRO = [
 const PURPOSE_COPY: Record<DonationPurpose, { label: string; description: string }> = {
   fine_tune: {
     label: 'Improve the assistant model',
-    description: 'Use redacted copies of my questions and answers to tune the model on this device.',
+    description: 'Use redacted copies of the chat answers I rate, and my corrections, to tune the model on this device.',
   },
   synthetic_seed: {
     label: 'Create practice data',
-    description: 'Use redacted copies as a starting point for made-up practice data, which is mixed with real data and never replaces it.',
+    description: 'Use redacted copies of the chat answers I rate as a starting point for made-up practice data, which is kept apart from real data and never replaces it.',
   },
   agent_traces: {
-    label: 'Improve the assistant’s steps',
-    description: 'Use redacted records of the steps the assistant took, to find and fix its mistakes.',
+    label: 'Find assistant mistakes',
+    description: 'Use redacted copies of the chat answers I rate to find and fix the assistant’s mistakes.',
   },
 };
 
 export function DataDonationCard() {
-  const { data, isLoading } = useDonationConsents();
+  const { data, isLoading, isError } = useDonationConsents();
   const setConsent = useSetDonationConsent();
   const [confirming, setConfirming] = useState<DonationPurpose | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -97,6 +97,10 @@ export function DataDonationCard() {
 
         {isLoading ? (
           <p className="text-sm text-ink-secondary">Loading your choices...</p>
+        ) : isError || !data ? (
+          <p role="alert" className="text-sm text-status-critical">
+            Could not load your donation choices. Reload to try again.
+          </p>
         ) : (
           <ul className="space-y-3">
             {DONATION_PURPOSES.map((purpose) => {

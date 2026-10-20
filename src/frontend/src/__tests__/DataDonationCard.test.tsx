@@ -96,4 +96,11 @@ describe('DataDonationCard', () => {
     });
     expect(await screen.findByRole('status')).toHaveTextContent(/7 donated copies were deleted/i);
   });
+
+  it('HC-DON-FE-004: a failed load shows an error, not false off switches', async () => {
+    vi.mocked(api.apiGet).mockRejectedValue(new Error('boom'));
+    renderCard();
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not load/i);
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
+  });
 });
