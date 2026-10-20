@@ -64,6 +64,8 @@ class ConsentUpdateResult(BaseModel):
 
 
 def _state(purpose: DonationPurpose, row: Optional[DonationConsent]) -> ConsentState:
+    # granted = active row, whatever its version. PR-2 collect must itself refuse
+    # a row whose consent_text_version is not the current one.
     if row is None:
         return ConsentState(purpose=purpose, granted=False)
     return ConsentState(

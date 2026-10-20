@@ -128,6 +128,7 @@ describe('DataDonationCard', () => {
   it('HC-DON-FE-007: the intro says stopping does not change a model already tuned', () => {
     expect(CONSENT_INTRO).toMatch(/already tuned/i);
     expect(CONSENT_INTRO).toMatch(/not changed/i);
+    expect(CONSENT_INTRO).toMatch(/exported/i);
   });
 
   it('HC-DON-FE-008: a failed save shows a neutral error while the refetch shows the saved state', async () => {
