@@ -67,7 +67,7 @@ flowchart LR
   class CLOUD,HF ext
 ```
 
-Dashed edges are network or conditional paths. Since W-8 (PR #168) the backend no longer fetches the embedding model implicitly: it loads it from a local directory offline and fails closed when it is absent. The model is fetched only by the explicit `scripts/download_models.py embedding` (and the other user-triggered model downloads); the cloud LLM path is off by default. Both `assistant` (`api/assistant.py:866`) and `interpretations` (`api/interpretations.py:522`) can reach the opt-in cloud runner; it is off by default. "Redaction always on" means strict redaction is forced on every call unless the audited break-glass flag is set (`core/external_runner.py:95-109`, W-6). The notification scheduler is started by the lifespan (`main.py:82-83`, P2) and serves only profiles whose vault is unlocked.
+Dashed edges are network or conditional paths. Since W-8 (PR #168) the backend no longer fetches the embedding model implicitly: it loads it from a local directory offline and fails closed when it is absent. The model is fetched only by the explicit `scripts/download_models.py embedding` (and the other user-triggered model downloads); the cloud LLM path is off by default. Both `assistant` (`api/assistant.py:867`) and `interpretations` (`api/interpretations.py:522`) can reach the opt-in cloud runner; it is off by default. "Redaction always on" means strict redaction is forced on every call unless the audited break-glass flag is set (`core/external_runner.py:95-109`, W-6). The notification scheduler is started by the lifespan (`main.py:82-83`, P2) and serves only profiles whose vault is unlocked.
 
 ## 3. Subsystem table
 
