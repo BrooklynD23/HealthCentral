@@ -192,6 +192,143 @@ async def test_hc_emb_006c_grounded_interpretation_returns_501_over_http(profile
     assert [r.entity_id for r in audit_rows] == [obs_id]
 
 
+async def _seed_hash_only_chunk(profile_db, profile_id: str = "profile-emb") -> Document:
+    """A pre-W-8 vault: one verified chunk whose only embedding row is hash-fallback."""
+    doc = _document(profile_id)
+    profile_db.add_all([
+        doc,
+        Chunk(id="chunk-1", doc_id=doc.id, chunk_index=0, text="LDL 128 mg/dL"),
+        Embedding(chunk_id="chunk-1", model_name="hash-fallback", vector_blob=BLOB, dimensions=384),
+    ])
+    await profile_db.commit()
+    return doc
+
+
+@pytest.mark.asyncio
+async def test_hc_emb_006d_grounded_interpretation_returns_501_for_hash_only_vault(
+    profile_db, absent_model, monkeypatch
+):
+    """As HC-EMB-006c, but the only embedding row is hash-fallback (W-8-FC-NOTICE).
+
+    The interpret stub returns a COMPLETE LabInterpretation so that, if retrieval
+    wrongly succeeds, the request finishes with 200 and the assertions fail on
+    status/runner.calls instead of crashing inside InterpretationResponse.from_model.
+    """
+    import api.assistant as assistant_api
+    import api.interpretations as interpretations_api
+    from api.interpretations import router as interpretations_router
+    from core.auth import get_profile_db_session
+    from models import LabInterpretation, Observation
+    from tests.support.routes import route_client
+
+    profile_id = str(uuid.uuid4())
+    doc = await _seed_hash_only_chunk(profile_db, profile_id)
+    obs_id = str(uuid.uuid4())
+    profile_db.add(Observation(
+        id=obs_id, profile_id=profile_id, doc_id=doc.id, analyte_canonical="ldl",
+        analyte_raw="LDL", value=128.0, unit="mg/dL", user_verified=True,
+    ))
+    await profile_db.commit()
+
+    runner = _SentinelRunner()
+    monkeypatch.setattr("core.external_runner.get_runner_for_request", AsyncMock(return_value=runner))
+    monkeypatch.setattr(assistant_api, "_rag_module", None)
+    interpretation = LabInterpretation(
+        id=str(uuid.uuid4()), profile_id=profile_id, observation_id=obs_id,
+        interpretation_text="Your LDL is 128 mg/dL.", severity_level="borderline_high",
+        advice_text=None, citations_json="[]", context_json=None, model_id="stub",
+        model_tier="template", confidence_score=0.5, requires_physician_review=False,
+        physician_review_reason=None, viewed_at=None, created_at=utcnow(),
+    )
+    stub = SimpleNamespace(interpret_observation=AsyncMock(
+        return_value=SimpleNamespace(success=True, interpretation=interpretation, error_message=None)
+    ))
+    monkeypatch.setattr(interpretations_api, "get_interpret_module", lambda: stub)
+
+    master_db = AsyncMock()
+    master_db.add = MagicMock()
+    with route_client(interpretations_router, "/interpretations", profile_id=profile_id, master_db=master_db) as client:
+        async def _override_profile_db():
+            return profile_db
+
+        client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+        resp = client.post(f"/interpretations/observations/{obs_id}/interpret-grounded")
+
+    assert resp.status_code == 501, resp.text
+    detail = resp.json()["detail"]
+    assert detail == QFC_APPROVED_DETAIL
+    assert str(absent_model) not in detail
+    assert runner.calls == 0, "the LLM answered without document context and without the Q-FC notice"
+    audit_rows = [c.args[0] for c in master_db.add.call_args_list]
+    assert [r.entity_id for r in audit_rows] == [obs_id]
+
+
+@pytest.mark.asyncio
+async def test_hc_emb_005b_legacy_chat_falls_back_for_hash_only_vault_with_observation(
+    profile_db, absent_model, monkeypatch
+):
+    import api.assistant as assistant_api
+    from api.assistant import router as assistant_router
+    from core.auth import get_profile_db_session
+    from models import Observation
+    from tests.support.routes import route_client
+
+    profile_id = str(uuid.uuid4())
+    doc = await _seed_hash_only_chunk(profile_db, profile_id)
+    # "What is my LDL?" resolves to ldl_cholesterol (modules/rag.py _get_observation_chunks).
+    profile_db.add(Observation(
+        id=str(uuid.uuid4()), profile_id=profile_id, doc_id=doc.id, analyte_canonical="ldl_cholesterol",
+        analyte_raw="LDL", value=128.0, unit="mg/dL", user_verified=True,
+    ))
+    await profile_db.commit()
+
+    runner = _SentinelRunner()
+    monkeypatch.setattr("core.external_runner.get_runner_for_request", AsyncMock(return_value=runner))
+    monkeypatch.setattr(assistant_api, "is_agent_enabled", lambda _settings: False)
+    monkeypatch.setattr(assistant_api, "_rag_module", None)
+
+    with route_client(assistant_router, "/assistant", profile_id=profile_id) as client:
+        async def _override_profile_db():
+            return profile_db
+
+        client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+        resp = client.post("/assistant/chat", json={"question": "What is my LDL?", "include_references": False})
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert runner.calls == 0, "the LLM answered from observation context while document search was unavailable"
+    assert "ANSWER-SENTINEL" not in body["full_response"]
+    assert body["verification"]["enabled"] is False
+    assert "based on the knowledge base only" in body["full_response"]
+
+
+@pytest.mark.asyncio
+async def test_hc_emb_006e_hash_only_vault_raises_model_unavailable_when_model_absent(profile_db, absent_model):
+    from modules.rag import ModelUnavailableError, RAGModule
+
+    doc = await _seed_hash_only_chunk(profile_db)
+    rag = RAGModule(enable_verification=False)
+    with pytest.raises(ModelUnavailableError) as info:
+        await rag._search_vectors_async(query="LDL", profile_id=doc.profile_id, profile_db=profile_db)
+    assert str(absent_model) not in str(info.value)
+
+
+@pytest.mark.asyncio
+async def test_hc_emb_006f_hash_only_vault_returns_empty_when_model_present(profile_db):
+    """Guard against over-correction: model present, hash rows are still never compared."""
+    from modules.embeddings import EmbeddingsModule
+    from modules.rag import RAGModule
+
+    class _FixedEmbedder(EmbeddingsModule):
+        def embed_text(self, text):
+            return UNIT
+
+    doc = await _seed_hash_only_chunk(profile_db)
+    rag = RAGModule(enable_verification=False)
+    rag._embedder = _FixedEmbedder()
+    assert await rag._search_vectors_async(query="LDL", profile_id=doc.profile_id, profile_db=profile_db) == []
+
+
 @pytest.mark.asyncio
 async def test_hc_emb_007_reprocess_keeps_chunks_when_embedding_unavailable(profile_db, absent_model):
     from api import documents as documents_api
