@@ -144,6 +144,7 @@ async def test_hc_gamset_006_fails_closed_when_audit_commit_fails(vault, method,
 
 def test_hc_gamset_007_migration_round_trip(tmp_path, monkeypatch):
     from alembic import command
+    from alembic.script import ScriptDirectory
 
     from core import migrations
     from core.config import settings
@@ -157,7 +158,9 @@ def test_hc_gamset_007_migration_round_trip(tmp_path, monkeypatch):
     vault_path = tmp_path / "vault.db"
     key = b"0" * 32
     migrations.run_profile_migration(vault_path, key)
-    assert migrations.get_profile_current_revision(vault_path, key) == "014_streaks_hidden"
+    head_cfg = migrations._get_alembic_config("profile")
+    head = ScriptDirectory.from_config(head_cfg).get_current_head()
+    assert migrations.get_profile_current_revision(vault_path, key) == head
 
     def _cols():
         from sqlalchemy import create_engine, event, inspect
@@ -193,5 +196,5 @@ def test_hc_gamset_007_migration_round_trip(tmp_path, monkeypatch):
     assert migrations.get_profile_current_revision(vault_path, key) == prev
     assert "streaks_hidden" not in _cols()
     command.upgrade(cfg, "head")
-    assert migrations.get_profile_current_revision(vault_path, key) == "014_streaks_hidden"
+    assert migrations.get_profile_current_revision(vault_path, key) == head
     assert "streaks_hidden" in _cols()
