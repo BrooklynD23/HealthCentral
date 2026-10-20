@@ -940,6 +940,17 @@ I was unable to fully process your question within the time limit. Please try as
                     f"Low faithfulness score: {verification_metadata.faithfulness_score:.2f}"
                 )
 
+        # LCP-HL-LABELS (a): context labels mean nothing to a patient. Strip them from
+        # copies of the segments; validation above read the raw response.
+        validated_segments = [
+            ResponseSegment(
+                segment_type=segment.segment_type,
+                content=self._CONTEXT_LABEL_RE.sub("", segment.content),
+                citations=segment.citations,
+            )
+            for segment in validated_segments
+        ]
+
         return ValidatedResponse(
             segments=validated_segments,
             is_valid=len(errors) == 0,
@@ -1110,33 +1121,18 @@ I was unable to fully process your question within the time limit. Please try as
             verification_summary=verification_results.summary,
         )
 
+    _CONTEXT_LABEL_RE = re.compile(r"[ \t]?\[(?:YOUR_RESULTS|REFERENCE|USER_DOCUMENT|USER_OBSERVATION):\d+\]", re.IGNORECASE)
+
     def _parse_response_segments(self, response: str) -> list[ResponseSegment]:
-        """Parse response into labeled segments."""
-        segments = []
+        """Parse response into labeled segments.
 
-        # Look for section headers
-        section_patterns = [
-            (r"REPORT FACTS:?\s*(.*?)(?=GENERAL INFO:|UNCERTAINTIES:|$)", "report_facts"),
-            (r"GENERAL INFO:?\s*(.*?)(?=REPORT FACTS:|UNCERTAINTIES:|$)", "general_info"),
-            (r"UNCERTAINTIES:?\s*(.*?)(?=REPORT FACTS:|GENERAL INFO:|$)", "uncertainty"),
+        Text before the first header, and headerless text, is REPORT FACTS so the
+        citation check applies to it. Empty or whitespace-only text gives no segment.
+        """
+        return [
+            ResponseSegment(segment_type=segment_type, content=content)
+            for segment_type, content in self.claim_extractor._parse_sections(response)
         ]
-
-        for pattern, segment_type in section_patterns:
-            match = re.search(pattern, response, re.IGNORECASE | re.DOTALL)
-            if match and match.group(1).strip():
-                segments.append(ResponseSegment(
-                    segment_type=segment_type,
-                    content=match.group(1).strip(),
-                ))
-
-        # If no sections found, treat entire response as general
-        if not segments:
-            segments.append(ResponseSegment(
-                segment_type="general_info",
-                content=response.strip(),
-            ))
-
-        return segments
 
     async def _retrieve_memory_context(
         self,
