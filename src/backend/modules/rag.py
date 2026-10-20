@@ -1121,7 +1121,7 @@ I was unable to fully process your question within the time limit. Please try as
             verification_summary=verification_results.summary,
         )
 
-    _CONTEXT_LABEL_RE = re.compile(r"[ \t]?\[(?:YOUR_RESULTS|REFERENCE|USER_DOCUMENT|USER_OBSERVATION):\d+\]")
+    _CONTEXT_LABEL_RE = re.compile(r"[ \t]?\[(?:YOUR_RESULTS|REFERENCE|USER_DOCUMENT|USER_OBSERVATION):\d+\]", re.IGNORECASE)
 
     def _parse_response_segments(self, response: str) -> list[ResponseSegment]:
         """Parse response into labeled segments.
