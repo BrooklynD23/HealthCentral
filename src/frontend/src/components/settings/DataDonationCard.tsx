@@ -18,11 +18,11 @@ import {
   type DonationPurpose,
 } from '@/services/donation';
 
-export const CONSENT_TEXT_VERSION = '2026-10-20-draft-2';
+export const CONSENT_TEXT_VERSION = '2026-10-20-draft-3';
 
 export const CONSENT_INTRO = [
   'Donating is optional and off by default. You choose each purpose separately, and you can change your mind at any time.',
-  'Your data never leaves this device. Before anything is stored as a donated copy, it goes through strict automatic redaction, which removes labelled names and dates written as numbers. It can miss names or dates written out in free text, so please keep that in mind.',
+  'Your data never leaves this device. Before anything is stored as a donated copy, it goes through strict automatic redaction, which removes labelled names and some dates such as 03/15/2024. It can miss other date formats such as 2024-03-15, and names or dates written out in free text, so please keep that in mind.',
   'If you stop, the donated copies for that purpose are deleted. Your own records are not touched.',
   'Nothing here is medical advice. Donated copies only help improve this app.',
 ].join('\n\n');
@@ -113,6 +113,7 @@ export function DataDonationCard() {
                     role="switch"
                     aria-checked={on}
                     aria-label={copy.label}
+                    aria-describedby={`donation-desc-${purpose}`}
                     disabled={setConsent.isPending}
                     onClick={() => (on ? setConfirming(purpose) : grant(purpose))}
                     className={cn(
@@ -125,7 +126,7 @@ export function DataDonationCard() {
                   >
                     <span>
                       <span className="block text-sm font-medium">{copy.label}</span>
-                      <span className="block text-xs text-ink-secondary">{copy.description}</span>
+                      <span id={`donation-desc-${purpose}`} className="block text-xs text-ink-secondary">{copy.description}</span>
                     </span>
                     <span
                       aria-hidden

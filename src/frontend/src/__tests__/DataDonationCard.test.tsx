@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { DataDonationCard, CONSENT_TEXT_VERSION, PURPOSE_COPY } from '@/components/settings/DataDonationCard';
+import { DataDonationCard, CONSENT_TEXT_VERSION, PURPOSE_COPY, CONSENT_INTRO } from '@/components/settings/DataDonationCard';
 import * as api from '@/services/api';
 
 vi.mock('@/services/api', () => ({
@@ -114,7 +114,14 @@ describe('DataDonationCard', () => {
         expect(description).toMatch(re);
       }
       // The same words must be what the patient actually sees.
-      expect(screen.getByRole('switch', { name: label })).toHaveTextContent(description);
+      // Screen readers get it too: the switch is described by the same text.
+      expect(screen.getByRole('switch', { name: label })).toHaveAccessibleDescription(description);
     }
+  });
+
+  it('HC-DON-FE-006: the redaction caveat does not over-claim numeric dates', () => {
+    expect(CONSENT_INTRO).not.toMatch(/dates written as numbers/i);
+    expect(CONSENT_INTRO).toMatch(/can miss/i);
+    expect(CONSENT_INTRO).toMatch(/2024-03-15/);
   });
 });

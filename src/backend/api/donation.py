@@ -30,7 +30,7 @@ router = APIRouter()
 
 # The consent copy version the patient is shown. Must equal CONSENT_TEXT_VERSION
 # in src/frontend/src/components/settings/DataDonationCard.tsx (HC-DON-005e).
-CURRENT_CONSENT_TEXT_VERSION = "2026-10-20-draft-2"
+CURRENT_CONSENT_TEXT_VERSION = "2026-10-20-draft-3"
 
 
 class DonationPurpose(str, Enum):
@@ -203,7 +203,7 @@ async def set_consent(
         await audit_intent(
             master_db, "completed", create_audit_log, details={"count": deleted}, **audit_kwargs
         )
-        version = row.consent_text_version if row is not None else data.consent_text_version
+        version = row.consent_text_version if row is not None else CURRENT_CONSENT_TEXT_VERSION
     return ConsentUpdateResult(
         purpose=purpose,
         granted=data.granted,

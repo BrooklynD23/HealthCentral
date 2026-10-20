@@ -234,6 +234,17 @@ async def test_hc_don_005d_revoke_with_stale_version_still_deletes(vault):
     assert consent.revoked_at is not None
 
 
+@pytest.mark.asyncio
+async def test_hc_don_005f_revoke_without_active_row_never_echoes_client_version(vault):
+    resp, _ = _call(
+        "PUT", vault, f"{PATH}/fine_tune",
+        json={"granted": False, "consent_text_version": "client-made-up"},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["consent_text_version"] == CURRENT_CONSENT_TEXT_VERSION
+    assert resp.json()["deleted_count"] == 0
+
+
 def test_hc_don_005e_card_version_matches_server_constant():
     """Drift pin: the version the card sends must be the one the server accepts."""
     import re
@@ -458,3 +469,33 @@ async def test_hc_don_009d_revoke_completion_commit_fails_delete_stays_durable(v
     assert order == ["audit", "vault", "audit"]
     assert await _count(vault, "fine_tune") == 0
     assert [json.loads(r.details_json)["status"] for r in _audit_rows(master)][:1] == ["started"]
+
+
+@pytest.mark.asyncio
+async def test_hc_don_009e_grant_commits_vault_before_audit_and_survives_audit_failure(vault):
+    """AUDIT-ORDER C: the consent row is durable first; a failed audit write
+    returns 500 but does not roll the grant back."""
+    order: list[str] = []
+    real_vault_commit = vault.commit
+
+    async def _vault_commit():
+        order.append("vault")
+        await real_vault_commit()
+
+    vault.commit = _vault_commit
+    master = _master_db()
+
+    async def _master_commit():
+        order.append("audit")
+        raise RuntimeError("audit down")
+
+    master.commit = _master_commit
+    try:
+        resp, _ = _put(vault, "fine_tune", True, master_db=master)
+    finally:
+        vault.commit = real_vault_commit
+    assert resp.status_code == 500
+    assert order == ["vault", "audit"]
+    consent = (await vault.execute(select(DonationConsent))).scalar_one()
+    assert consent.revoked_at is None
+    assert consent.consent_text_version == CURRENT_CONSENT_TEXT_VERSION
