@@ -25,7 +25,7 @@ DIAGNOSIS_PATTERN = re.compile(
 )
 
 GRADE_PATTERN = re.compile(
-    r"\b(?:grade|Gleason|Nottingham)\s*:?\s*([\w\s/\+]+?)(?:\n|[,;.])",
+    r"\b(?:grade|Gleason|Nottingham)\s*+:?\s*+([\w\s/\+]{1,200}?)(?:\n|[,;.])",
     re.IGNORECASE,
 )
 
