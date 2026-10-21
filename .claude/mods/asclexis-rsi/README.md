@@ -14,7 +14,7 @@ Repo-shipped Claude Code mod: observe, report, guard. Built with the `plugin-aut
 - Logging and hints (after `next`) **fail open**: they run in their own try/catch, writes are fire-and-forget, so telemetry can never block, fail, or alter a call.
 
 ## Privacy
-Metadata only. Rows never contain command text, file contents, tool output, prompts, or paths. `error_class` is a fixed category from the rule table (or `timeout`, `edit-no-match`, `permission-denied`, `other`), never raw text. Logs stay local in the git-ignored `.claude/logs/`. Nothing leaves the machine.
+Metadata only. Rows never contain command text, file contents, tool output, prompts, or paths. `error_class` is a fixed category from the rule table (or `exit-144-self-kill`, `timeout`, `edit-no-match`, `permission-denied`, `module-not-found`, `command-not-found`, `no-such-file`, `tests-failed`, `git-fatal`, `syntax-error`, `exit-<n>` (1-255), `other`), never raw text. Logs stay local in the git-ignored `.claude/logs/`. Nothing leaves the machine.
 
 ## Load it
 ```
