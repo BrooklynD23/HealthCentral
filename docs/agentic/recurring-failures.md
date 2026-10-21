@@ -297,6 +297,15 @@ not leaving. Two of the eight tracks had flagged the memory route, which made
 the recommendation look corroborated — convergence is evidence the *area*
 matters, not that the *proposed fix* is right.
 
+A fifth instance, 2026-10-20: the RRSI research said the Trends page uses
+"latest-vs-prior with a 5% band" and cited `modules/analytics.py:96-112`. That
+module has no caller; the Trends page shows `GET /observations/trends/{analyte}`,
+which compares the **first and last** result (`api/observations.py:660-671`).
+The owner answered RRSI-OQ-21 on that premise ("Adopt the Trends page's
+latest-vs-prior comparison"), so the answer names two different rules, and the
+CHAT-TREND-DEF plan had to ask again (gate CTD-DEF). A cited line proves the
+code exists, not that the feature runs it.
+
 **Recheck:** a written decision is evidence about what someone believed, not
 proof that it was true. When a doc gives a *reason*, check the reason. When a
 ticket asserts an *absence* ("no X exists", "zero Y today"), grep for X before
