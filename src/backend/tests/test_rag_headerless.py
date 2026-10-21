@@ -14,16 +14,20 @@ HC-LCPH-009  a stripped context label keeps the preceding newline
 HC-LCPH-010  GENERAL INFORMATION stays a section header
 HC-LCPH-011  over HTTP: bullet / space-colon / dash / paren header forms still split
 HC-LCPH-012  over HTTP: a "Based on the provided" prefix does not exempt a cited/numeric claim
-HC-LCPH-013  pin: an UNCERTAINTY section is not verified (owner LCP-HL-SCOPE (a))
+HC-LCPH-013  over HTTP: a cited/numeric line in an UNCERTAINTY section is verified (UNCERTAINTY-VERIFY)
 HC-LCPH-014  over HTTP: "Uncertainty-wise" / "Uncertainty (in my reading)" prose is not a header
 HC-LCPH-015  filter_unverifiable_claims: an uncited numeric meta claim stays verifiable
+HC-LCPH-016  pin: a plain hedge in UNCERTAINTIES is served unchanged
+HC-LCPH-017  over HTTP: an uncited numeric line in UNCERTAINTIES is withheld
+HC-LCPH-018  filter_unverifiable_claims: uncertainty claim with cite/number is verifiable, bare hedge is not
+HC-LCPH-019  pin: the rag.py timeout text extracts exactly as on main (fact-free hedge is skipped)
 """
 
 from __future__ import annotations
 
 import pytest
 
-from modules.claim_extractor import ClaimExtractor
+from modules.claim_extractor import ClaimExtractor, ExtractedClaim
 from modules.rag import RAGModule, VerificationMetadata
 from tests.legacy_eval.harness import CHAT_PATH, build_chunks, legacy_chat_client
 
@@ -238,18 +242,119 @@ def test_hc_lcph_012_meta_prefix_does_not_exempt_cited_numeric_claim_over_http()
     assert all("300 mg/dL" not in s["content"] for s in body["segments"])
 
 
-def test_hc_lcph_013_pin_uncertainty_section_is_not_verified():
-    """PIN of today's behaviour, owner LCP-HL-SCOPE (a): UNCERTAINTY counts like
-    UNCERTAINTIES, and uncertainty sections are never verified (pre-existing for the
-    plural). Follow-up row: "uncertainty sections are never verified". If that row
-    lands, this test is expected to change."""
+def test_hc_lcph_013_uncertainty_section_cited_or_numeric_line_is_verified():
+    """The UNCERTAINTY-VERIFY row changed this test (it used to pin that uncertainty
+    sections were never verified). Owner UNC-VERIFY-SCOPE (a): a line that carries a
+    [cite:N] or a number is verified; the unsupported value must not be served."""
     answer = FACTS_LINE + "\nUNCERTAINTY:\nYour glucose is 300 mg/dL [cite:1]"
     with legacy_chat_client(build_chunks("glucose"), answer) as (client, _append):
         resp = client.post(CHAT_PATH, json={"question": "What was my glucose?"})
     assert resp.status_code == 200, resp.text
     body = resp.json()
+    assert "300 mg/dL" not in body["full_response"]
+    assert all("300 mg/dL" not in s["content"] for s in body["segments"])
+
+
+def test_hc_lcph_016_pin_plain_hedge_in_uncertainties_is_served_unchanged():
+    hedge = "Reference ranges can vary between laboratories."
+    answer = FACTS_LINE + "UNCERTAINTIES:\n- " + hedge
+    with legacy_chat_client(build_chunks("glucose"), answer) as (client, _append):
+        resp = client.post(CHAT_PATH, json={"question": "What was my glucose?"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
     assert body["is_valid"] is True
-    assert "300 mg/dL" in body["full_response"]
+    assert hedge in body["full_response"]
+
+    # Positive leg: a supported cited line in the uncertainty section is served.
+    # Without it, 013 and 017 stay green even if every fact-carrying uncertainty
+    # line abstained.
+    supported = FACTS_LINE + "UNCERTAINTIES:\n- Your glucose may be 95 mg/dL [cite:1]"
+    with legacy_chat_client(build_chunks("glucose"), supported) as (client, _append):
+        resp = client.post(CHAT_PATH, json={"question": "What was my glucose?"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["is_valid"] is True
+    assert "may be 95 mg/dL" in body["full_response"]
+
+
+def test_hc_lcph_017_uncited_numeric_uncertainty_line_is_withheld():
+    answer = FACTS_LINE + "UNCERTAINTIES:\n- Your glucose is 300 mg/dL"
+    with legacy_chat_client(build_chunks("glucose"), answer) as (client, _append):
+        resp = client.post(CHAT_PATH, json={"question": "What was my glucose?"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert "300 mg/dL" not in body["full_response"]
+    assert all("300 mg/dL" not in s["content"] for s in body["segments"])
+
+
+def test_hc_lcph_018_filter_keeps_cited_uncertainty_claim_verifiable():
+    ex = ClaimExtractor()
+
+    claims = ex.extract_claims(
+        FACTS_LINE + "UNCERTAINTIES:\n- Your glucose may be 300 mg/dL [cite:1]"
+    ).claims
+    unc = [c for c in claims if c.segment_type == "uncertainty"]
+    assert len(unc) == 1, claims
+    cited = unc[0]
+    verifiable, unverifiable = ex.filter_unverifiable_claims(claims)
+    assert cited in verifiable and cited not in unverifiable
+
+    # extract_claims skips fact-free hedges (HC-LCPH-019), so build the claim
+    # directly to test the filter's own rule.
+    hedge = ExtractedClaim(
+        claim_id="claim_x",
+        text="Reference ranges can vary between laboratories.",
+        segment_type="uncertainty",
+    )
+    verifiable, unverifiable = ex.filter_unverifiable_claims([hedge])
+    assert hedge in unverifiable and hedge not in verifiable
+    hedge_extracted = ex.extract_claims(
+        FACTS_LINE + "UNCERTAINTIES:\n- " + hedge.text
+    ).claims
+    assert all(c.segment_type != "uncertainty" for c in hedge_extracted)
+
+
+def test_hc_lcph_019_pin_timeout_text_extracts_as_on_main():
+    """The rag.py timeout text is a fact-free hedge. Main's extract_claims skips the
+    uncertainty section, then its no-claims fallback re-extracts the whole response as
+    two general_info claims. Measured on origin/main b902e0f. The legacy eval gate
+    (abstain-generation-timeout) depends on this; it would fail to notice a change in
+    validate_response alone, so the extraction is pinned directly."""
+    text = (
+        "UNCERTAINTIES:\nI was unable to fully process your question within the "
+        "time limit. Please try asking a more specific question about your results."
+    )
+    claims = ClaimExtractor().extract_claims(text).claims
+    assert [(c.claim_id, c.text, c.segment_type) for c in claims] == [
+        (
+            "claim_1",
+            "UNCERTAINTIES:\nI was unable to fully process your question within the time limit.",
+            "general_info",
+        ),
+        (
+            "claim_2",
+            "Please try asking a more specific question about your results.",
+            "general_info",
+        ),
+    ]
+    # Parsing only: this validate_response call runs with verification off, so it
+    # never reaches the extractor. The extraction above and the eval gate carry
+    # the regression check.
+    result = _validate(text)
+    assert result.is_valid is True
+    assert [s.segment_type for s in result.segments] == ["uncertainty"]
+
+    # An answer that is only an UNCERTAINTIES section keeps main's whole-response
+    # fallback even when one line carries a fact: the fact-free line is then
+    # checked, so the answer abstains as on main.
+    only_unc = (
+        "UNCERTAINTIES:\n- Reference ranges can vary between laboratories.\n"
+        "- Your glucose is 95 mg/dL [cite:1]"
+    )
+    with legacy_chat_client(build_chunks("glucose"), only_unc) as (client, _append):
+        resp = client.post(CHAT_PATH, json={"question": "What was my glucose?"})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["is_valid"] is False
 
 
 @pytest.mark.parametrize(
