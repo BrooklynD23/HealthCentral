@@ -60,6 +60,7 @@ export interface ModelSettings {
   ocr_preference_enabled: boolean;
   ocr_effective: boolean;
   ocr_blockers: string[];
+  agent_enabled: boolean;
 }
 
 export interface OcrSettingsResponse {
@@ -348,6 +349,22 @@ export function useSaveGamificationSettings() {
     mutationFn: saveGamificationSettings,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings', 'gamification'] });
+    },
+  });
+}
+
+// Agent toggle (AGENT-ENABLED-TOGGLE, RRSI-OQ-9)
+
+async function saveAgentSettings(agent_enabled: boolean): Promise<{ agent_enabled: boolean }> {
+  return apiPatch('/settings/model/agent', { agent_enabled });
+}
+
+export function useSaveAgentSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: saveAgentSettings,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
     },
   });
 }
