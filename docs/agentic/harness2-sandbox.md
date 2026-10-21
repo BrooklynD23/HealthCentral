@@ -52,19 +52,19 @@ Everything else is denied by default. Other endpoints harness2 might need are **
 
 ### Network and mounts
 
-- Bind the LiteLLM bridge to `127.0.0.1` only. harness2 can bind it to `0.0.0.0` (research section 4, `docs/SETUP.md:131-133`). Publish no ports from the container.
-- No host mounts of any of: `src/backend/data/`, any vault, `.env`, `~/.ssh`, `~/.claude`, or any credential other than the Vertex ADC file.
+- Bind the LiteLLM bridge to `127.0.0.1` only. harness2 can bind it to `0.0.0.0` (research section 4, harness2 repo, docs/SETUP.md lines 131-133). Publish no ports from the container.
+- No host mounts of any of: `src/backend/data`, any vault, `.env`, `~/.ssh`, `~/.claude`, or any credential other than the Vertex ADC file.
 - No repo checkout in the sandbox.
 
 ### Bypass flags
 
 harness2 runs agents with permission-bypass flags (research section 4):
 
-- `--dangerously-bypass-approvals-and-sandbox` (Codex executor, `substrate/codex.py:166-167`)
+- `--dangerously-bypass-approvals-and-sandbox` (Codex executor, harness2 repo, substrate/codex.py lines 166-167)
 - `--dangerously-bypass-hook-trust` (same location)
-- `--dangerously-skip-permissions` (`claude_cli` improver, `core/proposer.py:213-216`)
+- `--dangerously-skip-permissions` (`claude_cli` improver, harness2 repo, core/proposer.py lines 213-216)
 
-These flags are allowed **only inside the container or VM, never on the host**. Do not run harness2 on the host to "try it". Research also reports a Codex rollout that downloaded its own task rubric unprompted (`docs/EXPERIMENTS.md:95-98`), which is why the egress test in stage 1 matters.
+These flags are allowed **only inside the container or VM, never on the host**. Do not run harness2 on the host to "try it". Research also reports a Codex rollout that downloaded its own task rubric unprompted (harness2 repo, docs/EXPERIMENTS.md lines 95-98), which is why the egress test in stage 1 matters.
 
 ## Source
 
@@ -90,7 +90,7 @@ The two paths:
 - `.claude/mods/asclexis-rsi/hooks/rules.ts`
 - `.claude/mods/asclexis-rsi/replay/cases.ts`
 
-**Stays out** (executable mod code and its tests): `hooks/register.ts`, `hooks/logic.ts`, `rsi.test.ts`. Any other file, including any other file under `.claude/mods/asclexis-rsi/`, needs a new owner gate. Do not add it on your own authority.
+**Stays out** (executable mod code and its tests): `.claude/mods/asclexis-rsi/hooks/register.ts`, `.claude/mods/asclexis-rsi/hooks/logic.ts`, `rsi.test.ts`. Any other file, including any other file under `.claude/mods/asclexis-rsi/`, needs a new owner gate. Do not add it on your own authority.
 
 ### Checklist before any stage 2 run
 
@@ -111,7 +111,7 @@ If anything else prints, stop and remove it. Also confirm both files are read-on
 
 No repo content enters the sandbox for this stage.
 
-1. Run harness2's own example task. Research notes a credential-free deterministic demo exists (`README.md:93-94`, `harness2/demo.py:15`); whether stage 1 uses that or a Vertex-backed example task is the owner's choice.
+1. Run harness2's own example task. Research notes a credential-free deterministic demo exists (harness2 repo, README.md lines 93-94 and harness2/demo.py line 15); whether stage 1 uses that or a Vertex-backed example task is the owner's choice.
 2. Run an egress test to a host that is **not** on the allow-list, for example `curl -sS --max-time 10 https://<NON_ALLOWED_HOST>/`. It must fail (timeout or connection refused). Paste the command and its output into the PR, or into the stage 1 note the owner keeps. A passing connection means the firewall is wrong: stop, fix it, repeat.
 3. Confirm no listener is reachable from outside the sandbox (the LiteLLM bridge is on `127.0.0.1` and no ports are published).
 
