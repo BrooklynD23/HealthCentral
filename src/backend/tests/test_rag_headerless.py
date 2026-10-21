@@ -14,9 +14,12 @@ HC-LCPH-009  a stripped context label keeps the preceding newline
 HC-LCPH-010  GENERAL INFORMATION stays a section header
 HC-LCPH-011  over HTTP: bullet / space-colon / dash / paren header forms still split
 HC-LCPH-012  over HTTP: a "Based on the provided" prefix does not exempt a cited/numeric claim
-HC-LCPH-013  pin: an UNCERTAINTY section is not verified (owner LCP-HL-SCOPE (a))
+HC-LCPH-013  over HTTP: a cited/numeric line in an UNCERTAINTY section is verified (UNCERTAINTY-VERIFY)
 HC-LCPH-014  over HTTP: "Uncertainty-wise" / "Uncertainty (in my reading)" prose is not a header
 HC-LCPH-015  filter_unverifiable_claims: an uncited numeric meta claim stays verifiable
+HC-LCPH-016  pin: a plain hedge in UNCERTAINTIES is served unchanged
+HC-LCPH-017  over HTTP: an uncited numeric line in UNCERTAINTIES is withheld
+HC-LCPH-018  filter_unverifiable_claims: uncertainty claim with cite/number is verifiable, bare hedge is not
 """
 
 from __future__ import annotations
@@ -238,18 +241,56 @@ def test_hc_lcph_012_meta_prefix_does_not_exempt_cited_numeric_claim_over_http()
     assert all("300 mg/dL" not in s["content"] for s in body["segments"])
 
 
-def test_hc_lcph_013_pin_uncertainty_section_is_not_verified():
-    """PIN of today's behaviour, owner LCP-HL-SCOPE (a): UNCERTAINTY counts like
-    UNCERTAINTIES, and uncertainty sections are never verified (pre-existing for the
-    plural). Follow-up row: "uncertainty sections are never verified". If that row
-    lands, this test is expected to change."""
+def test_hc_lcph_013_uncertainty_section_cited_or_numeric_line_is_verified():
+    """The UNCERTAINTY-VERIFY row changed this test (it used to pin that uncertainty
+    sections were never verified). Owner UNC-VERIFY-SCOPE (a): a line that carries a
+    [cite:N] or a number is verified; the unsupported value must not be served."""
     answer = FACTS_LINE + "\nUNCERTAINTY:\nYour glucose is 300 mg/dL [cite:1]"
     with legacy_chat_client(build_chunks("glucose"), answer) as (client, _append):
         resp = client.post(CHAT_PATH, json={"question": "What was my glucose?"})
     assert resp.status_code == 200, resp.text
     body = resp.json()
+    assert "300 mg/dL" not in body["full_response"]
+    assert all("300 mg/dL" not in s["content"] for s in body["segments"])
+
+
+def test_hc_lcph_016_pin_plain_hedge_in_uncertainties_is_served_unchanged():
+    hedge = "Reference ranges can vary between laboratories."
+    answer = FACTS_LINE + "UNCERTAINTIES:\n- " + hedge
+    with legacy_chat_client(build_chunks("glucose"), answer) as (client, _append):
+        resp = client.post(CHAT_PATH, json={"question": "What was my glucose?"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
     assert body["is_valid"] is True
-    assert "300 mg/dL" in body["full_response"]
+    assert hedge in body["full_response"]
+
+
+def test_hc_lcph_017_uncited_numeric_uncertainty_line_is_withheld():
+    answer = FACTS_LINE + "UNCERTAINTIES:\n- Your glucose is 300 mg/dL"
+    with legacy_chat_client(build_chunks("glucose"), answer) as (client, _append):
+        resp = client.post(CHAT_PATH, json={"question": "What was my glucose?"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert "300 mg/dL" not in body["full_response"]
+    assert all("300 mg/dL" not in s["content"] for s in body["segments"])
+
+
+def test_hc_lcph_018_filter_keeps_cited_uncertainty_claim_verifiable():
+    ex = ClaimExtractor()
+    answer = (
+        FACTS_LINE
+        + "UNCERTAINTIES:\n- Your glucose may be 300 mg/dL [cite:1]\n"
+        + "- Reference ranges can vary between laboratories."
+    )
+    claims = ex.extract_claims(answer).claims
+    unc = [c for c in claims if c.segment_type == "uncertainty"]
+    assert len(unc) == 2
+    verifiable, unverifiable = ex.filter_unverifiable_claims(claims)
+    cited = [c for c in unc if "[cite:1]" in c.text]
+    hedge = [c for c in unc if "[cite:1]" not in c.text]
+    assert len(cited) == 1 and len(hedge) == 1
+    assert all(c in verifiable for c in cited)
+    assert all(c in unverifiable for c in hedge)
 
 
 @pytest.mark.parametrize(
