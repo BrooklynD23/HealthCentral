@@ -1,7 +1,7 @@
 // Single source of the replay set (JSON-shaped; the test environment cannot import .json).
 // Shape: {id, rule, tool, input, error_text?, failed?, expect: 'deny'|'hint'|'pass'}.
 export default [
-  {"id": "pkill-self-pos-1", "rule": "pkill-self", "tool": "Bash", "input": {"command": "pkill -f \"vite --port 5173\""}, "expect": "pass"},
+  {"id": "pkill-self-pos-1", "rule": "pkill-self", "tool": "Bash", "input": {"command": "pkill -f \"vite --port 5173\""}, "expect": "deny"},
   {"id": "pkill-self-pos-2", "rule": "pkill-self", "tool": "Bash", "input": {"command": "pkill -9 -f uvicorn"}, "expect": "deny"},
   {"id": "pkill-self-pos-3", "rule": "pkill-self", "tool": "Bash", "input": {"command": "pkill --full uvicorn"}, "expect": "deny"},
   {"id": "pkill-self-neg-1", "rule": "pkill-self", "tool": "Bash", "input": {"command": "lsof -ti:5173 -sTCP:LISTEN | xargs kill"}, "expect": "pass"},
