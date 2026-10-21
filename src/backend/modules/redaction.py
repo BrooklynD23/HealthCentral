@@ -89,9 +89,9 @@ _RULES: tuple[RedactionRule, ...] = (
             r"(?=[^\W\d_](?:[\w\s\u0300-\u036f-]{0,80}?[^\x00-\x7f-]|[\w\s\u0300-\u036f]{0,80}?-))"
             r"|(?:patient|name|mr\.?|mrs\.?|ms\.?|dr\.?)\s*(?::\s*)?)"
             r"((?:[A-Za-z]{2,}(?![\w\u0300-\u036f-])(?:\s+[A-Za-z]{2,}(?![\w\u0300-\u036f-]))*\s+[^\W\d_](?:[^\W\d_]|[\u0300-\u036f])+(?:-[^\W\d_](?:[^\W\d_]|[\u0300-\u036f])+)?"
-            r"(?:[^\S\n]+(?!(?:mrn|medical|patient|name|id|dob|date|ssn|address|phone|dr|mr|mrs|ms)(?![\ẁ-ͯ-]))[^\W\d_](?:[^\W\d_]|[\u0300-\u036f])+(?:-[^\W\d_](?:[^\W\d_]|[\u0300-\u036f])+)?)*"
-            r"|(?!(?:mrn|medical|patient|name|id|dob|date|ssn|address|phone|dr|mr|mrs|ms)(?![\ẁ-ͯ-]))[^\W\d_](?:[^\W\d_]|[\u0300-\u036f])+(?:-[^\W\d_](?:[^\W\d_]|[\u0300-\u036f])+)?"
-            r"(?:[^\S\n]+(?!(?:mrn|medical|patient|name|id|dob|date|ssn|address|phone|dr|mr|mrs|ms)(?![\ẁ-ͯ-]))[^\W\d_](?:[^\W\d_]|[\u0300-\u036f])+(?:-[^\W\d_](?:[^\W\d_]|[\u0300-\u036f])+)?)+))"
+            r"(?:[^\S\n]+(?!(?:mrn|medical|patient|name|id|dob|date|ssn|address|phone|dr|mr|mrs|ms)(?![\w\u0300-\u036f-]))[^\W\d_](?:[^\W\d_]|[\u0300-\u036f])+(?:-[^\W\d_](?:[^\W\d_]|[\u0300-\u036f])+)?)*"
+            r"|[^\W\d_](?:[^\W\d_]|[\u0300-\u036f])+(?:-[^\W\d_](?:[^\W\d_]|[\u0300-\u036f])+)?"
+            r"(?:[^\S\n]+(?!(?:mrn|medical|patient|name|id|dob|date|ssn|address|phone|dr|mr|mrs|ms)(?![\w\u0300-\u036f-]))[^\W\d_](?:[^\W\d_]|[\u0300-\u036f])+(?:-[^\W\d_](?:[^\W\d_]|[\u0300-\u036f])+)?)+))"
             r"(?(pn)(?:[.,]?[ \t]+(?!(?:mrn|medical|patient|name|id|dob|date|ssn|address|phone|dr|mr|mrs|ms)(?![\w\u0300-\u036f-]))"
             r"(?-i:[^\W\d_a-z\u00df-\u00f6\u00f8-\u00ff])[\w/.'\u2019\u0300-\u036f-]*){0,3})"
         ),
