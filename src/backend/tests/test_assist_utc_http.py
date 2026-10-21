@@ -29,6 +29,7 @@ from models.document import Document
 from models.embedding import Embedding
 from models.observation import Observation
 from tests.support.routes import route_client
+from tests.legacy_eval.harness import AllowJudge
 
 PROFILE = "profile-a"  # route_client's default session
 # Stored naive UTC: 2026-03-10 20:00 UTC.
@@ -111,7 +112,8 @@ async def _chat(filters: dict) -> tuple[object, str]:
     profile_db, engine = await _seeded_profile_db()
     try:
         with patch.object(A, "get_rag_module", return_value=_rag(runner)), \
-             patch.object(A, "is_agent_enabled", return_value=False):
+             patch.object(A, "is_agent_enabled", return_value=False), \
+             patch("modules.rag.get_model_runner", return_value=AllowJudge()):
             with route_client(
                 assistant_router, "/assistant", profile_id=PROFILE, master_db=_MasterDb()
             ) as client:

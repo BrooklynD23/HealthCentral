@@ -179,8 +179,7 @@ async def test_hc_para_103_chat_route_blocks_on_judge_block():
     assert not any(re.search(p, PARAPHRASED_ADVICE, re.I) for p, _ in floor.PROHIBITED_PATTERNS), \
         "fixture must be judge-only, not a floor hit"
     master = _RecordingMasterDb()
-    with _judge_patch(judge_runner("BLOCK")[0]):
-        resp, turns = await _post_chat(PARAPHRASED_ADVICE, master)
+    resp, turns = await _post_chat(PARAPHRASED_ADVICE, master, judge=judge_runner("BLOCK")[0])
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert "PARA-JUDGE-ONLY-77e2" not in json.dumps(body)
@@ -239,8 +238,7 @@ async def test_hc_para_106_judge_raises_blocks_chat_route():
 
     master = _RecordingMasterDb()
     runner, _ = judge_runner(raises=RuntimeError("judge down"))
-    with _judge_patch(runner):
-        resp, turns = await _post_chat(CLEAN_ANSWER, master)
+    resp, turns = await _post_chat(CLEAN_ANSWER, master, judge=runner)
     assert resp.status_code == 200, resp.text
     assert resp.json()["full_response"] == ESCALATE_TEMPLATE
     assert [t.content for t in turns if t.role == "assistant"] == [ESCALATE_TEMPLATE]

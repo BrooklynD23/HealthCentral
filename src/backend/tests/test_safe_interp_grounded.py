@@ -34,6 +34,7 @@ from models import LabInterpretation, Observation
 from models.audit import AuditLog
 from modules.agent.guardrails.templates import ESCALATE_TEMPLATE
 from modules.rag import ModelUnavailableError, RetrievedChunk, VerificationMetadata
+from tests.legacy_eval.harness import AllowJudge
 from tests.support.routes import route_client
 
 PROFILE_ID = "profile-a"  # route_client's default session profile_id
@@ -157,7 +158,8 @@ async def test_hc_safeinterp_001_prohibited_grounded_answer_replaced_and_audited
 @pytest.mark.asyncio
 async def test_hc_safeinterp_002_clean_grounded_answer_untouched(dbs):
     profile_db, master_db, obs_id = dbs
-    with patch.object(I, "get_rag_module", return_value=_rag(CLEAN_ANSWER)):
+    with patch.object(I, "get_rag_module", return_value=_rag(CLEAN_ANSWER)), \
+         patch("modules.rag.get_model_runner", return_value=AllowJudge()):
         resp = _call(profile_db, master_db, "POST",
                      f"/interpretations/observations/{obs_id}/interpret-grounded")
     assert resp.status_code == 201, resp.text
