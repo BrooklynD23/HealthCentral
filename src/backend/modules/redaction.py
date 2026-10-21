@@ -99,17 +99,6 @@ _RULES: tuple[RedactionRule, ...] = (
         policy_levels=frozenset({"strict", "standard"}),
     ),
     RedactionRule(
-        name="name_guard_tail",
-        pattern=re.compile(
-            r"\[NAME-REDACTED\][^\S\n]+(?i:medical|patient|name|id|dob|date|ssn|address|phone|dr|mr|mrs|ms)"
-            r"(?![\w\u0300-\u036f-])"
-            r"(?![^\S\n]*(?i:id|name|legal)\b|[^\S\n]*[(:#])"
-            r"[^\S\n]+(?!\[)(?!(?i:patient|name|dr|mr|mrs|ms|mrn|record|rec)\b)[^\s,.;:]+"
-        ),
-        replacement="[NAME-REDACTED] [ID-REDACTED]",
-        policy_levels=frozenset({"strict"}),
-    ),
-    RedactionRule(
         name="dob",
         pattern=re.compile(
             r"(?i)\b(?:dob|date\s+of\s+birth|birth\s*date)\s*(?::\s*)?"
@@ -125,6 +114,17 @@ _RULES: tuple[RedactionRule, ...] = (
             r"\s+(?:St\.?|Ave\.?|Blvd\.?|Dr\.?|Rd\.?|Ln\.?|Ct\.?|Way)\b",
         ),
         replacement="[ADDRESS-REDACTED]",
+        policy_levels=frozenset({"strict"}),
+    ),
+    RedactionRule(
+        name="name_guard_tail",
+        pattern=re.compile(
+            r"\[NAME-REDACTED\][^\S\n]+(?i:medical|patient|name|id|dob|date|ssn|address|phone|dr|mr|mrs|ms)"
+            r"(?![\w\u0300-\u036f-])"
+            r"(?![^\S\n]*(?:(?i:id|name|legal)\b|(?i:no)\.)|[^\S\n]*[(:#])"
+            r"[^\S\n]+(?!\[)(?!(?i:patient|name|dr|mr|mrs|ms|mrn|record|rec)\b)[^\s,.;:]+"
+        ),
+        replacement="[NAME-REDACTED] [ID-REDACTED]",
         policy_levels=frozenset({"strict"}),
     ),
     # RL-REDACT-001 additions (strict only — additive, no existing rule or
