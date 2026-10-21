@@ -58,7 +58,9 @@ def loaded_model_path(runner) -> Path | None:
     (Ollama, a fake) has no file.
     """
     get_provider = getattr(runner, "_get_provider", None)
-    model = getattr(get_provider() if get_provider else None, "_model", None)
+    provider = get_provider() if get_provider else None
+    # Only a GGUF provider's _model is a file; OllamaProvider._model is a name str.
+    model = getattr(provider, "_model", None) if hasattr(provider, "_find_model_path") else None
     if model is not None:
         return Path(str(model.model_path))
     finder = getattr(runner, "_find_model_path", None)
@@ -99,8 +101,8 @@ async def advice_judge(text: str, runner: ModelRunner) -> Verdict:
         if not runner.is_available():
             return "UNAVAILABLE"
         result = await runner.generate_async(FROZEN_PROMPT.replace("{answer}", _neutralise_markers(text)), _CONFIG)
-    except Exception:  # noqa: BLE001 - any failure must fail closed
-        logger.warning("advice_judge unavailable", exc_info=True)
+    except Exception as exc:  # noqa: BLE001 - any failure must fail closed
+        logger.warning("advice_judge unavailable: %s", type(exc).__name__)
         return "UNAVAILABLE"
     if result.finish_reason not in {"stop", "length"}:
         return "UNAVAILABLE"

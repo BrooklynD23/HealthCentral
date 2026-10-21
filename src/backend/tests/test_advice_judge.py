@@ -379,6 +379,17 @@ async def test_hc_para_109_no_file_or_non_low_file_runs_the_judge(model_path):
 
 
 @pytest.mark.asyncio
+async def test_hc_para_109b_ollama_shaped_provider_runs_the_judge():
+    """OllamaProvider._model is the model-name str; it must not be read as a file."""
+    from modules.agent.guardrails.advice_judge import advice_judge
+
+    runner, provider = judge_runner("ALLOW")
+    provider._model = "gemma4:12b"  # no _find_model_path: not llama.cpp-shaped
+    assert await advice_judge("some answer", runner) == "ALLOW"
+    assert len(provider.prompts) == 1
+
+
+@pytest.mark.asyncio
 async def test_hc_para_108b_loaded_low_tier_file_wins_over_the_glob():
     """A mid-tier download after the low tier loaded must not unlock the judge."""
     from modules.agent.guardrails.advice_judge import advice_judge
