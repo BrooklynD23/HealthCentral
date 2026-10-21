@@ -341,3 +341,62 @@ async def test_hc_sie_001_blocked_grounded_interpretation_is_persisted_template(
                 f"/interpretations/observations/{obs_id}/interpretation")
     assert got.status_code == 200, got.text
     assert got.json()["interpretation_text"] == stored.interpretation_text
+
+
+# ---------------------------------------------------------------------------
+# HC-FSC-004 (GC5-FAITH-SCORE): the served verification block cannot report a
+# faithfulness_score above the share of claims verified. The real
+# _run_verification_pipeline runs; only retrieval and generation are stubbed.
+# ---------------------------------------------------------------------------
+
+_FSC_ANSWER = (
+    "REPORT FACTS:\nYour glucose was 95 mg/dL [cite:1].\n\n"
+    "GENERAL INFO:\nNormal fasting glucose is typically 70-100 mg/dL [cite:2]."
+)
+
+
+class _FscContradictionEncoder:
+    def __init__(self):
+        self.config = type("Cfg", (), {"id2label": {0: "Contradiction", 1: "ENTAILMENT", 2: "Neutral"}})()
+
+    def predict(self, pairs, apply_softmax=False):
+        return [[0.9, 0.05, 0.05] for _ in pairs]
+
+
+def _fsc_real_rag(flag: bool):
+    from modules.verifier_agent import VerificationConfig
+    from tests.legacy_eval.harness import build_chunks
+
+    with patch("modules.rag.get_model_runner") as runner, patch("modules.rag.EmbeddingsModule"):
+        runner.return_value = MagicMock(is_available=MagicMock(return_value=True))
+        from modules.rag import RAGModule
+
+        rag = RAGModule(
+            enable_verification=True,
+            verification_config=VerificationConfig(use_llm_entailment=flag),
+        )
+    rag.retrieve_context = AsyncMock(return_value=build_chunks("glucose"))
+    rag._generate_with_runner = AsyncMock(return_value=_FSC_ANSWER)
+    return rag
+
+
+@pytest.mark.asyncio
+async def test_hc_fsc_004_served_score_capped_at_verified_share(dbs, monkeypatch):
+    profile_db, master_db, obs_id = dbs
+    url = f"/interpretations/observations/{obs_id}/interpret-grounded"
+
+    # Precondition (non-vacuous): flag off, both claims verify.
+    with patch.object(I, "get_rag_module", return_value=_fsc_real_rag(False)):
+        resp = _call(profile_db, master_db, "POST", url)
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["verification"]["verified_claims"] == 2
+
+    # Flag on with a contradicting NLI model: nothing verifies, score must be 0.
+    monkeypatch.setattr("modules.embeddings.load_local_cross_encoder", lambda: _FscContradictionEncoder())
+    with patch.object(I, "get_rag_module", return_value=_fsc_real_rag(True)):
+        resp = _call(profile_db, master_db, "POST", url)
+    assert resp.status_code == 201, resp.text
+    v = resp.json()["verification"]
+    assert v["failed_claims"] == 2
+    assert v["verified_claims"] == 0
+    assert v["faithfulness_score"] == 0.0
