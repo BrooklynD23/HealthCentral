@@ -82,10 +82,15 @@ class ComputeTrendTool:
 
         direction: Literal["up", "down", "flat"] = "flat"
         if len(points) >= 2:
-            delta = points[-1].value - points[0].value
-            if delta > 0:
+            first = points[0].value
+            delta = points[-1].value - first
+            # CTD-DEF (a): first-vs-last with a 5% band, as the Trends page.
+            change_pct = (delta / first * 100) if first != 0 else 0
+            if abs(change_pct) < 5:
+                direction = "flat"
+            elif delta > 0:
                 direction = "up"
-            elif delta < 0:
+            else:
                 direction = "down"
 
         output = ComputeTrendOutput(analyte=args.analyte, points=points, direction=direction)
