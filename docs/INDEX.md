@@ -110,6 +110,14 @@ How AI agents (and humans supervising them) work in this repo. Behavioral rules 
 
 Links to: `AGENT.md`, `CLAUDE.md`, `docs/INDEX.md`, `docs/agentic/evals.md`, `docs/agentic/mcp-tools.md`, `docs/agentic/progress.md`, `feature_list.json`
 
+## `docs/agentic/harness2-sandbox.md`
+
+**harness2 Sandbox Runbook**
+
+How to run google-research/harness2 as a dev-only tool inside an isolated sandbox. Plan: `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md` section 2.26 (RRSI-H2-SANDBOX). Every…
+
+Links to: `docs/research/2026-10-20-rrsi-harness2/01-harness2.md`
+
 ## `docs/agentic/mcp-tools.md`
 
 **MCP and Tooling Plan**
