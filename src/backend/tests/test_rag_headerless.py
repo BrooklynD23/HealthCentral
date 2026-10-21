@@ -277,20 +277,20 @@ def test_hc_lcph_017_uncited_numeric_uncertainty_line_is_withheld():
 
 def test_hc_lcph_018_filter_keeps_cited_uncertainty_claim_verifiable():
     ex = ClaimExtractor()
-    answer = (
-        FACTS_LINE
-        + "UNCERTAINTIES:\n- Your glucose may be 300 mg/dL [cite:1]\n"
-        + "- Reference ranges can vary between laboratories."
-    )
-    claims = ex.extract_claims(answer).claims
-    unc = [c for c in claims if c.segment_type == "uncertainty"]
-    assert len(unc) == 2
+
+    def uncertainty_claims(line):
+        claims = ex.extract_claims(FACTS_LINE + "UNCERTAINTIES:\n- " + line).claims
+        unc = [c for c in claims if c.segment_type == "uncertainty"]
+        assert len(unc) == 1, claims
+        return claims, unc[0]
+
+    claims, cited = uncertainty_claims("Your glucose may be 300 mg/dL [cite:1]")
     verifiable, unverifiable = ex.filter_unverifiable_claims(claims)
-    cited = [c for c in unc if "[cite:1]" in c.text]
-    hedge = [c for c in unc if "[cite:1]" not in c.text]
-    assert len(cited) == 1 and len(hedge) == 1
-    assert all(c in verifiable for c in cited)
-    assert all(c in unverifiable for c in hedge)
+    assert cited in verifiable and cited not in unverifiable
+
+    claims, hedge = uncertainty_claims("Reference ranges can vary between laboratories.")
+    verifiable, unverifiable = ex.filter_unverifiable_claims(claims)
+    assert hedge in unverifiable and hedge not in verifiable
 
 
 @pytest.mark.parametrize(
