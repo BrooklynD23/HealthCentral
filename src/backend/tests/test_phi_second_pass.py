@@ -25,8 +25,6 @@ def test_hc_don_010_detects_each_category_and_no_false_positive_on_labs():
         assert items, category
         for item in items:
             hits = detect(item["text"])
-            if item.get("known_gap"):  # uncued names: counted in the recall table, not detectable
-                continue
             assert category in {h.category for h in hits}, (category, item["text"])
             # a hit never carries the matched value
             assert all(set(vars(h)) == {"category"} for h in hits)
@@ -34,6 +32,27 @@ def test_hc_don_010_detects_each_category_and_no_false_positive_on_labs():
     assert len(non_phi) == 20
     assert [s for s in non_phi if detect(s)] == []
     assert detect("") == [] and detect(None) == []
+
+
+def test_hc_don_010_uncued_name_pairs_flagged():
+    from modules.phi_second_pass import detect
+
+    for text in ("Jane Doe, your LDL is 162 mg/dL.", "Hi John Smith. Your hemoglobin is within range."):
+        assert "name" in {h.category for h in detect(text)}, text
+
+
+def test_hc_don_010_lab_prose_not_flagged_as_name():
+    from modules.phi_second_pass import detect
+
+    prose = [
+        "PT Results are back. Hemoglobin A1c is 6.8 %.",
+        "Vitamin D 22 ng/mL is low. Dr. visits are advised.",
+        "Total Cholesterol 214 mg/dL is borderline.",
+        "White Blood Cells 11.2 are mildly high; see the Reference Range.",
+        "Reference Range for Hemoglobin is 12.0-15.5.",
+        "Blood Pressure 128/82 and Heart Rate 72 were recorded.",
+    ]
+    assert [t for t in prose if "name" in {h.category for h in detect(t)}] == []
 
 
 def test_hc_don_011_recall_report_can_fail():
