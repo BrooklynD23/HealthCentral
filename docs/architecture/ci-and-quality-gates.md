@@ -14,7 +14,7 @@ flowchart TD
 
     subgraph JOBS[".github/workflows/ci.yml"]
         direction TB
-        DOCS["docs-lint<br/>docs_lint.py · generate_docs_index.py --check<br/>feature_list_lint.py · repo_hygiene_check.py"]
+        DOCS["docs-lint<br/>generate_docs_index.py · docs_lint.py --link-graph<br/>docs_lint.py · feature_list_lint.py<br/>repo_hygiene_check.py · time_source_lint.py"]
         BE["backend-tests<br/>pytest via run-backend-tests.sh<br/>SQLCipher installed"]
         LINT["backend-lint<br/>ruff check (F, I, W) · ruff 0.17.1"]
         FE["frontend-tests<br/>tsc --noEmit · eslint · vitest · build"]
