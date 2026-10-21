@@ -389,14 +389,16 @@ async def test_hc_fsc_004_served_score_capped_at_verified_share(dbs, monkeypatch
     url = f"/interpretations/observations/{obs_id}/interpret-grounded"
 
     # Precondition (non-vacuous): flag off, both claims verify.
-    with patch.object(I, "get_rag_module", return_value=_fsc_real_rag(False)):
+    with patch.object(I, "get_rag_module", return_value=_fsc_real_rag(False)), \
+         patch("modules.rag.get_model_runner", return_value=AllowJudge()):
         resp = _call(profile_db, master_db, "POST", url)
     assert resp.status_code == 201, resp.text
     assert resp.json()["verification"]["verified_claims"] == 2
 
     # Flag on with a contradicting NLI model: nothing verifies, score must be 0.
     monkeypatch.setattr("modules.embeddings.load_local_cross_encoder", lambda: _FscContradictionEncoder())
-    with patch.object(I, "get_rag_module", return_value=_fsc_real_rag(True)):
+    with patch.object(I, "get_rag_module", return_value=_fsc_real_rag(True)), \
+         patch("modules.rag.get_model_runner", return_value=AllowJudge()):
         resp = _call(profile_db, master_db, "POST", url)
     assert resp.status_code == 201, resp.text
     v = resp.json()["verification"]
