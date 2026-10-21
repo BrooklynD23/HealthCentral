@@ -903,7 +903,7 @@ class TestUnderscoreJoinedRedaction:
         names = [r.name for r in _RULES]
         main_rules = [r for r in _RULES if r.name != "name_guard_tail"]
         assert len(main_rules) == len(_RULES) - 1
-        assert names.index("name_guard_tail") == names.index("address") + 1
+        assert names[-1] == "name_guard_tail"  # last: (?!\[) defers to every other rule
 
         labels = ["Patient Name:", "Patient ID:", "Name (legal):", "Name:", "Patient:",
                   "Patient (legal name):", "Dr.", "Mr.", "Name (legal) :", "patient name"]
@@ -916,7 +916,13 @@ class TestUnderscoreJoinedRedaction:
                   "Name: Maria Cruz", "Glucose 96 mg/dL", "Follow Up",
                   "Address 42 Oak Ave", "Address 123 Main St", "DOB 01/02/1980",
                   "Date of birth 01/02/1980", "Dob 01/02/1980", "Dr Smith", "ID A12345",
-                  "Phone 555-123-4567", "Patient no.: 98765", "Name no.: Bob Stone"]
+                  "Phone 555-123-4567", "Patient no.: 98765", "Name no.: Bob Stone",
+                  "Id patient_name:_Doe", "Id medical_record:_A12345", "Id name_first:_Doe",
+                  "Ms Patient_Name:_Doe", "Id Medical_Record:_x123",
+                  "Id Medical Record Number B67890", "Date Medical Record No. B67890",
+                  "Dr patient_name:_bob", "Dr medical_record:_A12345",
+                  "Patient patient_id:_98765", "Medical Medical Record No. A1234",
+                  "Dr dob:_01/02/1980"]
         seps = [" ", "\t", "\n", ". ", ", ", " \t", "\n\n"]
         word = re.compile(r"\w+")
         marker = re.compile(r"\[[A-Z]+-REDACTED\]")  # replacement tokens are not input words
@@ -957,7 +963,13 @@ class TestUnderscoreJoinedRedaction:
 
     @pytest.mark.parametrize("tail", [
         "Address 42 Oak Ave", "Address 123 Main St", "Patient no.: 98765",
-        "Name no.: Bob Stone", "Date of birth 01/02/1980", "Dob 01/02/1980"])
+        "Name no.: Bob Stone", "Date of birth 01/02/1980", "Dob 01/02/1980",
+        "Id patient_name:_Doe", "Id medical_record:_A12345", "Id name_first:_Doe",
+        "Ms Patient_Name:_Doe", "Id Medical_Record:_x123",
+        "Id Medical Record Number B67890", "Date Medical Record No. B67890",
+        "Dr patient_name:_bob", "Dr medical_record:_A12345",
+        "Patient patient_id:_98765", "Medical Medical Record No. A1234",
+        "Dr dob:_01/02/1980"])
     def test_hc_redact_025_guard_tail_defers_to_later_rules(self, tail):
         """HC-REDACT-025: name_guard_tail never costs a value another strict
         rule (address, dob, spaced_labelled_id) hides without it."""
@@ -965,9 +977,11 @@ class TestUnderscoreJoinedRedaction:
         main_rules = [r for r in _RULES if r.name != "name_guard_tail"]
         want = RedactionEngine(policy_level="strict", rules=main_rules).redact(text).text
         got = RedactionEngine(policy_level="strict").redact(text).text
-        for w in re.findall(r"\w+", text):
-            if w not in re.sub(r"\[[A-Z]+-REDACTED\]", " ", want):
-                assert w not in re.sub(r"\[[A-Z]+-REDACTED\]", " ", got), (text, got)
+        tok = re.compile(r"\[[A-Z]+-REDACTED\]")
+        want_w = set(re.findall(r"\w+", tok.sub(" ", want)))
+        got_w = set(re.findall(r"\w+", tok.sub(" ", got)))
+        for w in set(re.findall(r"\w+", text)) - want_w:
+            assert w not in got_w, (text, got)
 
     def test_hc_redact_016_spaced_rules_are_strict_only(self):
         """HC-REDACT-016: standard and minimal leave every group-S input as it was."""
