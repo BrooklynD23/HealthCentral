@@ -293,13 +293,20 @@ def test_hc_aud_ord_030_vault_commit_must_be_on_profile_db(tmp_path):
 
 
 def test_hc_aud_ord_030_break_it_c_handler_without_audit(tmp_path):
-    """A "C" row whose handler never reaches an audit call must be reported."""
+    """A "C" or "A2" row whose handler never reaches an audit call is reported.
+
+    Uses the overlay's own graph: _G was built on the real tree, so it could not
+    resolve the overlay's handlers.
+    """
     _, reach, _, _ = _overlay(tmp_path, (
         '@router.post("/bare")\nasync def h(profile_db=None):\n'
+        "    profile_db.add(1)\n    await profile_db.commit()\n"
+        '@router.post("/bare2")\nasync def h2(profile_db=None):\n'
         "    profile_db.add(1)\n    await profile_db.commit()\n"
         '@router.post("/audited")\nasync def ha(profile_db=None):\n'
         "    profile_db.add(1)\n    await profile_db.commit()\n"
         "    await create_audit_log(profile_db)\n"))
-    cls = {"api/zz.py::h": "C", "api/zz.py::ha": "C"}
-    assert _rows_without_audit(cls, reach, _G) == ["api/zz.py::h"]
-    assert _rows_without_audit({"api/zz.py::ha": "C"}, reach, _G) == []
+    g = Graph(tmp_path, ("api", "core", "modules"))
+    cls = {"api/zz.py::h": "C", "api/zz.py::h2": "A2", "api/zz.py::ha": "C"}
+    assert _rows_without_audit(cls, reach, g) == ["api/zz.py::h", "api/zz.py::h2"]
+    assert _rows_without_audit({"api/zz.py::ha": "C"}, reach, g) == []
