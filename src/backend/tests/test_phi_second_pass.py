@@ -6,6 +6,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 CORPUS = Path(__file__).parent / "fixtures/phi_recall/corpus_v1.json"
@@ -90,6 +92,39 @@ def test_second_pass_email_scan_is_linear_enough():
     start = time.perf_counter()
     detect("a." * 25000)
     assert time.perf_counter() - start < 1.0
+
+
+@pytest.mark.parametrize("label", ["name", "patient", "SSN", "MRN", "account", "zip", "VIN", "age"])
+@pytest.mark.parametrize("ws", [" ", "\n"])
+def test_second_pass_label_whitespace_is_linear(label, ws):
+    import time
+
+    from modules.phi_second_pass import detect
+
+    start = time.perf_counter()
+    detect(label + ws * 20000 + "x")
+    assert time.perf_counter() - start < 1.0
+
+
+@pytest.mark.parametrize("text,category", [
+    ("Admitted on 2024.03.15", "date"),
+    ("on 03.15.2024", "date"),
+    ("Seen 2024-3-5", "date"),
+    ("I was born on the 3rd of March", "date"),
+    ("Patient is 101 yrs old", "age_over_89"),
+    ("SSN 123.45.6789", "ssn"),
+    ("My MRN is A 1234567", "mrn"),
+])
+def test_second_pass_flags_shape_variants(text, category):
+    from modules.phi_second_pass import detect
+
+    assert category in {h.category for h in detect(text)}
+
+
+def test_second_pass_reference_range_is_not_a_date():
+    from modules.phi_second_pass import detect
+
+    assert detect("Hemoglobin 13.5 g/dL (reference 12.0-15.5 g/dL) is within range.") == []
 
 
 def test_hc_don_013_corpus_meets_recall_target():

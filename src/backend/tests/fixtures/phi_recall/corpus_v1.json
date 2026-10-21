@@ -45,6 +45,22 @@
    {
     "text": "name_=_jane was typed into the form.",
     "planted": "jane"
+   },
+   {
+    "text": "my doctor is jane smith and I live in pasadena",
+    "planted": "jane smith"
+   },
+   {
+    "text": "I'm JOHN SMITH",
+    "planted": "JOHN SMITH"
+   },
+   {
+    "text": "this is Maria",
+    "planted": "Maria"
+   },
+   {
+    "text": "My mom Mary is 91 and lives with me.",
+    "planted": "Mary"
    }
   ],
   "geographic": [
@@ -72,6 +88,14 @@
    {
     "text": "My zip is 90210",
     "planted": "90210"
+   },
+   {
+    "text": "I live in 90210",
+    "planted": "90210"
+   },
+   {
+    "text": "Cedars-Sinai in Pasadena",
+    "planted": "Pasadena"
    }
   ],
   "date": [
@@ -115,6 +139,22 @@
    {
     "text": "Dated 2024/03/15",
     "planted": "2024/03/15"
+   },
+   {
+    "text": "Admitted on 2024.03.15 for observation.",
+    "planted": "2024.03.15"
+   },
+   {
+    "text": "Visit on 03.15.2024 was routine.",
+    "planted": "03.15.2024"
+   },
+   {
+    "text": "Seen 2024-3-5 at the clinic.",
+    "planted": "2024-3-5"
+   },
+   {
+    "text": "I was born on the 3rd of March.",
+    "planted": "3rd of March"
    }
   ],
   "phone": [
@@ -200,6 +240,10 @@
    {
     "text": "my ssn is 987654321 on file.",
     "planted": "987654321"
+   },
+   {
+    "text": "SSN 123.45.6789 is on the form.",
+    "planted": "123.45.6789"
    }
   ],
   "mrn": [
@@ -231,6 +275,10 @@
    {
     "text": "my medical record number is 7654321",
     "planted": "7654321"
+   },
+   {
+    "text": "My MRN is A 1234567 at the hospital.",
+    "planted": "1234567"
    }
   ],
   "account_number": [
@@ -350,6 +398,18 @@
    },
    {
     "text": "He is 95 years old and frail.",
+    "planted": "95"
+   },
+   {
+    "text": "Patient is 101 yrs old.",
+    "planted": "101"
+   },
+   {
+    "text": "My mom Mary is 91 and lives with me.",
+    "planted": "91"
+   },
+   {
+    "text": "she is 95",
     "planted": "95"
    }
   ],

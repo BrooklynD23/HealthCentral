@@ -918,6 +918,7 @@ export function SettingsPage() {
                   onClick={async () => {
                     setShowExportDialog(false);
                     setExportError(null);
+                    setExportResult(null);
                     try {
                       const res = await exportDataset.mutateAsync({ confirmed: true });
                       setExportResult({

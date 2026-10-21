@@ -121,6 +121,7 @@ async def _count(session, purpose=None):
 @pytest.mark.parametrize("method,path,body", [
     ("GET", PATH, None),
     ("PUT", f"{PATH}/fine_tune", {"granted": True, "consent_text_version": VERSION}),
+    ("POST", f"{PREFIX}/fine_tune/collect", {"confirmed": True}),
 ])
 def test_hc_don_004b_http_requires_auth(method, path, body):
     with route_client(donation_api.router, PREFIX, master_db=_master_db()) as client:
