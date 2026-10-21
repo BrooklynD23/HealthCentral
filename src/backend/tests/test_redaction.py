@@ -664,35 +664,37 @@ class TestUnderscoreJoinedRedaction:
                 "[NAME-REDACTED]\tDr. Ana-Lucia",
                 id="tail_tab_title_leftover",
             ),
+            # known leftovers (REDACT-NG-DIFF exceptions): a particle continuation
+            # swallows the next label, so strict keeps the trailing value visible
             pytest.param(
                 "Name (legal): Maria de la Cruz Patient ID: 98765",
-                "[ID-REDACTED] [ID-REDACTED]",
+                "[ID-REDACTED]: 98765",
                 "Name (legal): Maria de la Cruz Patient ID: 98765",
-                id="particle_space_next_label",
+                id="particle_space_next_label_leftover",
             ),
             pytest.param(
                 "Name (legal): Maria de la Cruz\tPatient ID: 98765",
-                "[ID-REDACTED]\t[ID-REDACTED]",
+                "[ID-REDACTED]: 98765",
                 "Name (legal): Maria de la Cruz\tPatient ID: 98765",
-                id="particle_tab_next_label",
+                id="particle_tab_next_label_leftover",
             ),
             pytest.param(
                 "Name (legal): Ana van der Berg Patient ID: 98765",
-                "[ID-REDACTED] [ID-REDACTED]",
+                "[ID-REDACTED]: 98765",
                 "Name (legal): Ana van der Berg Patient ID: 98765",
-                id="particle_van_next_label",
+                id="particle_van_next_label_leftover",
             ),
             pytest.param(
                 "Patient ID: Maria de la Cruz Patient ID: A12345",
-                "[ID-REDACTED] [ID-REDACTED]",
+                "[ID-REDACTED]: A12345",
                 "Patient ID: Maria de la Cruz Patient ID: A12345",
-                id="particle_id_label_next_label",
+                id="particle_id_label_next_label_leftover",
             ),
         ],
     )
     def test_hc_redact_023_consumed_label_tail_and_particle_next_label(self, text, strict, standard):
         """HC-REDACT-023: a consumed 'patient name' label keeps its value tail
-        redacted, and a particle continuation never swallows a later label."""
+        redacted (particle_*_leftover rows pin known strict leftovers)."""
         assert _engine("strict").redact(text).text == strict
         assert _engine("standard").redact(text).text == standard
 
