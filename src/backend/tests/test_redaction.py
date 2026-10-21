@@ -547,8 +547,11 @@ class TestUnderscoreJoinedRedaction:
             assert all(t not in out for t in tokens), out
 
     def test_hc_redact_021_name_gap_fix_differential(self):
-        """HC-REDACT-021: the fix never un-redacts what today's rules redact, and
-        standard output changes only on inputs with '-', non-ASCII or a mark."""
+        """HC-REDACT-021: at standard the fix never un-redacts what today's rules
+        redact, and standard output changes only on inputs with '-', non-ASCII
+        or a mark. At strict this is checked only over this corpus: the known
+        strict leftovers are accepted REDACT-NG-DIFF exceptions, pinned in
+        HC-REDACT-023 *_leftover rows and frozen in HC-REDACT-024."""
         old_name = re.compile(
             r"(?i)\b(?:patient|name|mr\.?|mrs\.?|ms\.?|dr\.?)\s*(?::\s*)?"
             r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)"
@@ -757,6 +760,12 @@ class TestUnderscoreJoinedRedaction:
                 "[NAME-REDACTED] Dr Smith",
                 "[NAME-REDACTED] Dr Smith",
                 id="title_surname_leftover",
+            ),
+            pytest.param(
+                "Patient Name: Jos\u00e9 N\u00fa\u00f1ez Mrs. Garcia",
+                "[NAME-REDACTED] Mrs. Garcia",
+                "[NAME-REDACTED] Mrs. Garcia",
+                id="title_dot_surname_leftover",
             ),
             pytest.param(
                 "Patient ID: Mr. Jos\u00e9 N\u00fa\u00f1ez A12345",
