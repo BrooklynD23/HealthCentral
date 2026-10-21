@@ -495,7 +495,15 @@ async def test_hc_agq_050_draft_composes_care_task_sentences_with_citations(
                         "due_date": "2026-08-01",
                         "source_document_id": "d1",
                         "source_quote": "Schedule a follow-up MRI in 6 weeks.",
-                    }
+                    },
+                    {
+                        "task_id": "t2",
+                        "title": "Book blood draw",
+                        "status": "open",
+                        "due_date": None,
+                        "source_document_id": "d1",
+                        "source_quote": None,
+                    },
                 ]
             },
         )
@@ -508,6 +516,7 @@ async def test_hc_agq_050_draft_composes_care_task_sentences_with_citations(
     mapping = map_sentences(result.sentences, result.citations)
     assert mapping.dropped == []
     assert any("t1" == c.source_id for c in result.citations)
+    assert any("t2" == c.source_id for c in result.citations)
     assert any("The note says" in s for s in result.sentences)
     # AGENT-ENABLED-TOGGLE (AET-LABEL a): care-task text is labelled unverified.
     task_sentences = [s for s in result.sentences if "follow-up item" not in s]
