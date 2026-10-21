@@ -238,8 +238,8 @@ def replay(run_log: RunLog) -> AgentTerminal:
     """Deterministically reconstruct a completed run's terminal (story S2-3).
 
     Replays ``run_log.steps`` WITHOUT re-calling any tool: every node's
-    decision/output is already captured in each step's ``payload`` (handles
-    only, never raw PHI — state.py's ``RunStep`` contract), so replay is pure
+    decision/output is already captured in each step's ``payload`` (full tool
+    output, in memory only — state.py's ``RunStep`` contract), so replay is pure
     reconstruction over already-logged data, never live I/O. This makes
     replay deterministic and safe to run outside the original profile-scoped
     session.
