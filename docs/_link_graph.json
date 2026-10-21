@@ -1114,6 +1114,8 @@
       "docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md"
     ],
     "docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md": [
+      "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md",
+      "docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md",
       "docs/plans/2026-10-15-build-program/queue.md"
     ],
     "docs/plans/2026-10-17-session-handoff.md": [
@@ -3172,6 +3174,7 @@
       "docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md",
       "audit/2026-09-25/waves/wave-3-L1-A.md",
       "docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md",
+      "docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md",
       "docs/plans/2026-10-15-build-program/contracts.md"
     ],
     "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md": [
@@ -3207,6 +3210,7 @@
       "docs/plans/2026-09-27-W01-harness-agents-branch-a.md",
       "docs/plans/2026-10-09-AUDIT-ORDER.md",
       "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md",
+      "docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md",
       "docs/capstone-report/implementation-program.md"
     ],
     "docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md": [
