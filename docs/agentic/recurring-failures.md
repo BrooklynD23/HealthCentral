@@ -384,7 +384,6 @@ after the vault commit, and the settings and history reads use
 row, `grep -n
 "audit_and_commit\|audit_intent\|log_.*_event(" <file>` must hit inside that
 handler.
-The class is now a test (`test_hc_aud_ord_030_c_and_a2_handlers_reach_an_audit_call`), so a new unaudited `"C"` or `"A2"` row fails CI.
 Applied to every `"C"` and `"A2"` row on `046d12c` (planning AUDIT-NOTIF-ALL,
 2026-10-18), that recheck finds 17 more `"C"` handlers with no audit call in
 the body and none reached through a helper: 3 in `api/assistant.py`, 6 in
@@ -392,6 +391,9 @@ the body and none reached through a helper: 3 in `api/assistant.py`, 6 in
 AUDIT-NOTIF-ALL plan; queue row AUDIT-C-CLASS). A per-file grep misses
 them, because the same file audits in a sibling handler; walk each handler body
 instead.
+The class is now a test
+(`test_hc_aud_ord_030_c_and_a2_handlers_reach_an_audit_call`), so a new
+unaudited `"C"` or `"A2"` row fails CI.
 
 
 **Recheck:** when a comment or doc justifies a deletion with a reason that names

@@ -2974,6 +2974,14 @@ Plan: GC5 plan, Task 7. Run by an agent on the owner's dev laptop (CPU, no GPU) 
 
 Links to: `docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md`, `docs/reviews/2026-10-20/gc5-evidence`
 
+## `docs/reviews/2026-10-21/gc5-model-host-evidence.md`
+
+**G-C5 Task 7: model-host evidence, real LLM output (RTX 3080 via Ollama, NLI on CPU)**
+
+Plan: GC5 plan, Task 7. Follows the laptop run, 2026-10-20 report, which listed "real LLM output" and "long source chunk truncation" as unmeasured. Run by an agent on the owner's model host (WSL2,…
+
+Links to: `docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md`, `docs/reviews/2026-10-20/gc5-evidence`, `docs/reviews/2026-10-20/gc5-real-model-evidence.md`, `docs/reviews/2026-10-21/gc5-host-evidence/real_llm.py`, `docs/reviews/2026-10-21/gc5-host-evidence/real_llm_llama3.1_8b.json`, `docs/reviews/2026-10-21/gc5-host-evidence/real_llm_qwen3_8b.json`, `docs/reviews/2026-10-21/gc5-host-evidence/trunc.json`
+
 ## `docs/reviews/README.md`
 
 **Codex Review Archive**
