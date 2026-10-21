@@ -903,7 +903,7 @@ class TestUnderscoreJoinedRedaction:
         names = [r.name for r in _RULES]
         main_rules = [r for r in _RULES if r.name != "name_guard_tail"]
         assert len(main_rules) == len(_RULES) - 1
-        assert names.index("name_guard_tail") == names.index("name_context") + 1
+        assert names.index("name_guard_tail") == names.index("address") + 1
 
         labels = ["Patient Name:", "Patient ID:", "Name (legal):", "Name:", "Patient:",
                   "Patient (legal name):", "Dr.", "Mr.", "Name (legal) :", "patient name"]
@@ -913,9 +913,13 @@ class TestUnderscoreJoinedRedaction:
                   "\u0130lker \u015eahin", "Maria Lopez", "Bob Stone", "Doe", "Jane"]
         values = ["MRN", "Patient ID:", "Name (legal):", "A12345", "98765", "MRN A12345",
                   "Medical Record Number B67890", "Patient Name: Bob Stone", "Dr. Ana-Lucia",
-                  "Name: Maria Cruz", "Glucose 96 mg/dL", "Follow Up"]
+                  "Name: Maria Cruz", "Glucose 96 mg/dL", "Follow Up",
+                  "Address 42 Oak Ave", "Address 123 Main St", "DOB 01/02/1980",
+                  "Date of birth 01/02/1980", "Dob 01/02/1980", "Dr Smith", "ID A12345",
+                  "Phone 555-123-4567", "Patient no.: 98765", "Name no.: Bob Stone"]
         seps = [" ", "\t", "\n", ". ", ", ", " \t", "\n\n"]
         word = re.compile(r"\w+")
+        marker = re.compile(r"\[[A-Z]+-REDACTED\]")  # replacement tokens are not input words
 
         def gen(rng):
             parts = []
@@ -932,20 +936,38 @@ class TestUnderscoreJoinedRedaction:
             main_engine = RedactionEngine(policy_level=lvl, rules=main_rules)
             branch_engine = RedactionEngine(policy_level=lvl)
             rng = random.Random(seed)
-            inputs = words = same = 0
+            inputs = words = same = reached = 0
             for _ in range(_HC024_N):
                 text = gen(rng)
                 main_out = main_engine.redact(text).text
                 branch_out = branch_engine.redact(text).text
                 same += main_out == branch_out
-                gone = set(word.findall(text)) - set(word.findall(main_out))
-                leak = gone & set(word.findall(branch_out))
+                reached += "[ID-REDACTED]" in branch_out and "[ID-REDACTED]" not in main_out
+                gone = set(word.findall(text)) - set(word.findall(marker.sub(" ", main_out)))
+                leak = gone & set(word.findall(marker.sub(" ", branch_out)))
                 if leak:
                     inputs += 1
                     words += len(leak)
             got[lvl] = (inputs, words, same)
+            if lvl == "strict":
+                # a pin that never reaches the rule cannot fail (recurring-failures 1)
+                assert reached >= 200, reached
         assert got["strict"][:2] == (0, 0)
         assert got["standard"] == (0, 0, _HC024_N)
+
+    @pytest.mark.parametrize("tail", [
+        "Address 42 Oak Ave", "Address 123 Main St", "Patient no.: 98765",
+        "Name no.: Bob Stone", "Date of birth 01/02/1980", "Dob 01/02/1980"])
+    def test_hc_redact_025_guard_tail_defers_to_later_rules(self, tail):
+        """HC-REDACT-025: name_guard_tail never costs a value another strict
+        rule (address, dob, spaced_labelled_id) hides without it."""
+        text = "Patient Name: Jos\u00e9 N\u00fa\u00f1ez " + tail
+        main_rules = [r for r in _RULES if r.name != "name_guard_tail"]
+        want = RedactionEngine(policy_level="strict", rules=main_rules).redact(text).text
+        got = RedactionEngine(policy_level="strict").redact(text).text
+        for w in re.findall(r"\w+", text):
+            if w not in re.sub(r"\[[A-Z]+-REDACTED\]", " ", want):
+                assert w not in re.sub(r"\[[A-Z]+-REDACTED\]", " ", got), (text, got)
 
     def test_hc_redact_016_spaced_rules_are_strict_only(self):
         """HC-REDACT-016: standard and minimal leave every group-S input as it was."""
