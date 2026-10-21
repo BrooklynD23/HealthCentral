@@ -2950,13 +2950,13 @@ Run: `codex exec -s read-only -C <hc-e-1a> -o /tmp/claude-1000/e1a-r2-codex.txt 
 
 Links to: `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`, `docs/reviews/2026-10-16/E1a-r2-prompt.md`
 
-## `docs/reviews/2026-10-20-gc5-real-model-evidence.md`
+## `docs/reviews/2026-10-20/gc5-real-model-evidence.md`
 
 **G-C5 Task 7: real-model evidence (laptop, CPU)**
 
-Plan: GC5 plan, Task 7. Authorised by the owner's session goal ("if huggingface.co is reachable, run the G-C5 real-model steps").
+Plan: GC5 plan, Task 7. Run by an agent on the owner's dev laptop (CPU, no GPU) under the owner's session /goal ("if huggingface.co is reachable, run the G-C5 real-model steps"). Plan Task 7 names…
 
-Links to: `docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md`
+Links to: `docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md`, `docs/reviews/2026-10-20/gc5-evidence`
 
 ## `docs/reviews/README.md`
 
