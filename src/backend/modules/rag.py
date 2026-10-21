@@ -885,6 +885,8 @@ I was unable to fully process your question within the time limit. Please try as
         - (Phase 4) Claims are verified against sources
         """
         errors = []
+        if not response.strip():
+            errors.append("Empty model response")
         prohibited_advice = False
 
         # Parse response into segments
