@@ -18,6 +18,7 @@ import re
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from tests.legacy_eval.harness import AllowJudge
 
 _CITE_WORD = re.compile(r"\bcit(?:e|es|ed|ing|ation|ations)\b", re.IGNORECASE)

@@ -172,7 +172,10 @@ def _judge_patch(runner):
 @pytest.mark.asyncio
 async def test_hc_para_103_chat_route_blocks_on_judge_block():
     from tests.test_safe_chat_prohibited import (
-        ESCALATE_TEMPLATE, _audit_rows, _post_chat, _RecordingMasterDb,
+        ESCALATE_TEMPLATE,
+        _audit_rows,
+        _post_chat,
+        _RecordingMasterDb,
     )
 
     floor = __import__("modules.interpret_safety", fromlist=["x"]).InterpretationSafetyGuard
@@ -196,7 +199,7 @@ async def test_hc_para_103_chat_route_blocks_on_judge_block():
 from tests.test_safe_interp_grounded import dbs  # noqa: E402,F401  (fixture)
 
 
-async def _grounded(dbs, answer, runner):
+async def _grounded(dbs, answer, runner):  # noqa: F811 (pytest fixture)
     from unittest.mock import patch as _p
 
     import api.interpretations as I
@@ -219,7 +222,7 @@ async def _blocked_row(master_db):
 
 
 @pytest.mark.asyncio
-async def test_hc_para_104_grounded_route_blocks_on_judge_block(dbs):
+async def test_hc_para_104_grounded_route_blocks_on_judge_block(dbs):  # noqa: F811 (pytest fixture)
     from tests.test_safe_interp_grounded import ESCALATE_TEMPLATE
 
     resp, master_db = await _grounded(dbs, PARAPHRASED_ADVICE, judge_runner("BLOCK")[0])
@@ -233,7 +236,10 @@ async def test_hc_para_104_grounded_route_blocks_on_judge_block(dbs):
 @pytest.mark.asyncio
 async def test_hc_para_106_judge_raises_blocks_chat_route():
     from tests.test_safe_chat_prohibited import (
-        ESCALATE_TEMPLATE, _audit_rows, _post_chat, _RecordingMasterDb,
+        ESCALATE_TEMPLATE,
+        _audit_rows,
+        _post_chat,
+        _RecordingMasterDb,
     )
 
     master = _RecordingMasterDb()
@@ -248,7 +254,7 @@ async def test_hc_para_106_judge_raises_blocks_chat_route():
 
 
 @pytest.mark.asyncio
-async def test_hc_para_106b_judge_raises_blocks_grounded_route(dbs):
+async def test_hc_para_106b_judge_raises_blocks_grounded_route(dbs):  # noqa: F811 (pytest fixture)
     from tests.test_safe_interp_grounded import ESCALATE_TEMPLATE
 
     runner, _ = judge_runner(raises=RuntimeError("judge down"))

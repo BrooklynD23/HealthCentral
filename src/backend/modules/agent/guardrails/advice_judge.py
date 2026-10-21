@@ -52,10 +52,9 @@ def _loaded_file_is_low_tier(runner) -> bool:
     tier. model_selector is imported here, not at module top; it loads the
     llama.cpp binding lazily, inside its loader only.
     """
-    finder = getattr(runner, "_find_model_path", None)
-    if finder is None:
+    if not hasattr(runner, "_find_model_path"):
         return False
-    path = finder()
+    path = runner._find_model_path()
     if path is None:
         return False
     from modules.model_selector import TIER_MODEL_CONFIG

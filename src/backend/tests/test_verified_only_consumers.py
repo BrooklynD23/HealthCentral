@@ -25,8 +25,8 @@ from core.auth import get_profile_db_session  # noqa: E402
 from core.profile_database import ProfileDatabaseBase  # noqa: E402
 from models import Chunk, Document, Embedding, Observation  # noqa: E402
 from modules.rag import RAGModule  # noqa: E402
-from tests.support.routes import route_client  # noqa: E402
 from tests.legacy_eval.harness import AllowJudge
+from tests.support.routes import route_client  # noqa: E402
 
 PROFILE = "profile-w03"
 

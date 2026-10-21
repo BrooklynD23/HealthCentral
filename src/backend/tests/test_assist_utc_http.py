@@ -28,8 +28,8 @@ from models.chunk import Chunk
 from models.document import Document
 from models.embedding import Embedding
 from models.observation import Observation
-from tests.support.routes import route_client
 from tests.legacy_eval.harness import AllowJudge
+from tests.support.routes import route_client
 
 PROFILE = "profile-a"  # route_client's default session
 # Stored naive UTC: 2026-03-10 20:00 UTC.

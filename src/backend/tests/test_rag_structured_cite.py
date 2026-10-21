@@ -20,7 +20,13 @@ import pytest
 
 from modules.agent.guardrails.templates import ABSTAIN_TEMPLATE, ESCALATE_TEMPLATE
 from modules.rag import RAGModule, _cite_schema
-from tests.legacy_eval.harness import AllowJudge, CHAT_PATH, FakeRunner, build_chunks, legacy_chat_client
+from tests.legacy_eval.harness import (
+    CHAT_PATH,
+    AllowJudge,
+    FakeRunner,
+    build_chunks,
+    legacy_chat_client,
+)
 from tests.test_rag_citation_prompt import (
     _CONTEXT_LABELS,
     _citation_format_instructions,
