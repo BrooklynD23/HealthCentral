@@ -20,13 +20,14 @@ HC-LCPH-015  filter_unverifiable_claims: an uncited numeric meta claim stays ver
 HC-LCPH-016  pin: a plain hedge in UNCERTAINTIES is served unchanged
 HC-LCPH-017  over HTTP: an uncited numeric line in UNCERTAINTIES is withheld
 HC-LCPH-018  filter_unverifiable_claims: uncertainty claim with cite/number is verifiable, bare hedge is not
+HC-LCPH-019  pin: the rag.py timeout text extracts exactly as on main (fact-free hedge is skipped)
 """
 
 from __future__ import annotations
 
 import pytest
 
-from modules.claim_extractor import ClaimExtractor
+from modules.claim_extractor import ClaimExtractor, ExtractedClaim
 from modules.rag import RAGModule, VerificationMetadata
 from tests.legacy_eval.harness import CHAT_PATH, build_chunks, legacy_chat_client
 
@@ -278,19 +279,56 @@ def test_hc_lcph_017_uncited_numeric_uncertainty_line_is_withheld():
 def test_hc_lcph_018_filter_keeps_cited_uncertainty_claim_verifiable():
     ex = ClaimExtractor()
 
-    def uncertainty_claims(line):
-        claims = ex.extract_claims(FACTS_LINE + "UNCERTAINTIES:\n- " + line).claims
-        unc = [c for c in claims if c.segment_type == "uncertainty"]
-        assert len(unc) == 1, claims
-        return claims, unc[0]
-
-    claims, cited = uncertainty_claims("Your glucose may be 300 mg/dL [cite:1]")
+    claims = ex.extract_claims(
+        FACTS_LINE + "UNCERTAINTIES:\n- Your glucose may be 300 mg/dL [cite:1]"
+    ).claims
+    unc = [c for c in claims if c.segment_type == "uncertainty"]
+    assert len(unc) == 1, claims
+    cited = unc[0]
     verifiable, unverifiable = ex.filter_unverifiable_claims(claims)
     assert cited in verifiable and cited not in unverifiable
 
-    claims, hedge = uncertainty_claims("Reference ranges can vary between laboratories.")
-    verifiable, unverifiable = ex.filter_unverifiable_claims(claims)
+    # extract_claims skips fact-free hedges (HC-LCPH-019), so build the claim
+    # directly to test the filter's own rule.
+    hedge = ExtractedClaim(
+        claim_id="claim_x",
+        text="Reference ranges can vary between laboratories.",
+        segment_type="uncertainty",
+    )
+    verifiable, unverifiable = ex.filter_unverifiable_claims([hedge])
     assert hedge in unverifiable and hedge not in verifiable
+    hedge_extracted = ex.extract_claims(
+        FACTS_LINE + "UNCERTAINTIES:\n- " + hedge.text
+    ).claims
+    assert all(c.segment_type != "uncertainty" for c in hedge_extracted)
+
+
+def test_hc_lcph_019_pin_timeout_text_extracts_as_on_main():
+    """The rag.py timeout text is a fact-free hedge. Main's extract_claims skips the
+    uncertainty section, then its no-claims fallback re-extracts the whole response as
+    two general_info claims. Measured on origin/main b902e0f. The legacy eval gate
+    (abstain-generation-timeout) depends on this; it would fail to notice a change in
+    validate_response alone, so the extraction is pinned directly."""
+    text = (
+        "UNCERTAINTIES:\nI was unable to fully process your question within the "
+        "time limit. Please try asking a more specific question about your results."
+    )
+    claims = ClaimExtractor().extract_claims(text).claims
+    assert [(c.claim_id, c.text, c.segment_type) for c in claims] == [
+        (
+            "claim_1",
+            "UNCERTAINTIES:\nI was unable to fully process your question within the time limit.",
+            "general_info",
+        ),
+        (
+            "claim_2",
+            "Please try asking a more specific question about your results.",
+            "general_info",
+        ),
+    ]
+    result = _validate(text)
+    assert result.is_valid is True
+    assert [s.segment_type for s in result.segments] == ["uncertainty"]
 
 
 @pytest.mark.parametrize(
