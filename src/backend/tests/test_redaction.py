@@ -713,6 +713,45 @@ class TestUnderscoreJoinedRedaction:
                 "Patient ID: Maria de la Cruz Patient ID: A12345",
                 id="particle_id_label_next_label_leftover",
             ),
+            # known leftovers (REDACT-NG-DIFF exceptions): the same next-label swallow
+            # from NFD marks, a second name label, a title after an ID label and a
+            # newline-separated second name. Strict keeps the trailing value visible.
+            pytest.param(
+                "Name (legal): Jose\u0301 Nu\u0301n\u0303ez Patient ID: 98765",
+                "[ID-REDACTED]: 98765",
+                "Name (legal): Jose\u0301 Nu\u0301n\u0303ez Patient ID: 98765",
+                id="nfd_next_label_leftover",
+            ),
+            pytest.param(
+                "Name (legal): Maria de la Cruz Name (legal): Ana P\u00e9rez",
+                "[ID-REDACTED] (legal): Ana P\u00e9rez",
+                "Name (legal): Maria de la Cruz Name (legal): Ana P\u00e9rez",
+                id="particle_next_name_label_leftover",
+            ),
+            pytest.param(
+                "Name (legal): Jose\u0301 Nu\u0301n\u0303ez Name (legal): Ana P\u00e9rez",
+                "[ID-REDACTED] (legal): Ana P\u00e9rez",
+                "Name (legal): Jose\u0301 Nu\u0301n\u0303ez Name (legal): Ana P\u00e9rez",
+                id="nfd_next_name_label_leftover",
+            ),
+            pytest.param(
+                "Name (legal): Ana-Luc\u00eda Reyes Patient ID: A12345",
+                "[ID-REDACTED]: A12345",
+                "Name (legal): Ana-Luc\u00eda Reyes Patient ID: A12345",
+                id="hyphen_next_label_leftover",
+            ),
+            pytest.param(
+                "Patient ID: Mr. Jos\u00e9 N\u00fa\u00f1ez A12345",
+                "Patient ID: [NAME-REDACTED] A12345",
+                "Patient ID: [NAME-REDACTED] A12345",
+                id="title_after_id_label_leftover",
+            ),
+            pytest.param(
+                "Patient Name: \u0130lker \u015eahin. Patient ID:\n\nName no.: Fran\u00e7ois Dupont",
+                "[NAME-REDACTED]. [ID-REDACTED] no.: Fran\u00e7ois Dupont",
+                "[NAME-REDACTED]. Patient ID:\n\nName no.: Fran\u00e7ois Dupont",
+                id="newline_second_name_leftover",
+            ),
         ],
     )
     def test_hc_redact_023_consumed_label_tail_and_particle_next_label(self, text, strict, standard):
