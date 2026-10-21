@@ -759,9 +759,9 @@ class TestUnderscoreJoinedRedaction:
             ),
             pytest.param(
                 "Patient Name: Jos\u00e9 N\u00fa\u00f1ez Dr Smith",
+                "[NAME-REDACTED] [ID-REDACTED]",
                 "[NAME-REDACTED] Dr Smith",
-                "[NAME-REDACTED] Dr Smith",
-                id="title_surname_leftover",
+                id="title_surname",
             ),
             pytest.param(
                 "Patient Name: Jos\u00e9 N\u00fa\u00f1ez Mrs. Garcia",
@@ -771,9 +771,9 @@ class TestUnderscoreJoinedRedaction:
             ),
             pytest.param(
                 "Patient Name: Jos\u00e9 N\u00fa\u00f1ez ID A12345",
+                "[NAME-REDACTED] [ID-REDACTED]",
                 "[NAME-REDACTED] ID A12345",
-                "[NAME-REDACTED] ID A12345",
-                id="id_word_tail_leftover",
+                id="id_word_tail",
             ),
             pytest.param(
                 "Patient ID: Mr. Jos\u00e9 N\u00fa\u00f1ez A12345",
@@ -801,16 +801,15 @@ class TestUnderscoreJoinedRedaction:
         "guard",
         ["Medical", "Patient", "Name", "Id", "Dob", "Date", "Ssn", "Address", "Phone", "Dr", "Mr", "Mrs", "Ms"],
     )
-    def test_hc_redact_023_guard_word_tail_leftover(self, guard, value):
+    def test_hc_redact_023_guard_word_tail_redacted(self, guard, value):
         """HC-REDACT-023: the conditional tail after a consumed 'patient name'
-        label stops at each guard word, so the guard word and the token after
-        it stay visible at both levels. Main strict redacted these (REDACT-NG-DIFF
-        exceptions, accepted); pins 13 of the 14 guard words (mrn is the 14th,
-        pinned below), with a code-like and a surname-like value each."""
+        label stops at each guard word. Strict (name_guard_tail, REDACT-NG-GUARD-TAIL)
+        redacts the guard word and the token after it; standard leaves both
+        visible. Pins 13 of the 14 guard words (mrn is the 14th, pinned below),
+        with a code-like and a surname-like value each."""
         text = f"Patient Name: Jos\u00e9 N\u00fa\u00f1ez {guard} {value}"
-        expected = f"[NAME-REDACTED] {guard} {value}"
-        assert _engine("strict").redact(text).text == expected
-        assert _engine("standard").redact(text).text == expected
+        assert _engine("strict").redact(text).text == "[NAME-REDACTED] [ID-REDACTED]"
+        assert _engine("standard").redact(text).text == f"[NAME-REDACTED] {guard} {value}"
 
     def test_hc_redact_023_guard_word_tail_mrn_is_caught_by_mrn_rule(self):
         """HC-REDACT-023: the 14th guard word, mrn, is the one stop word whose
@@ -895,6 +894,117 @@ class TestUnderscoreJoinedRedaction:
             got[lvl] = (inputs, words)
         assert got["standard"] == (0, 0)
         assert got["strict"] == (strict_inputs, strict_words)
+
+    @pytest.mark.parametrize("seed", [pytest.param(7, id="seed7"), pytest.param(11, id="seed11")])
+    def test_hc_redact_025_guard_tail_differential(self, seed):
+        """HC-REDACT-025: seeded label+value differential of the full rule set
+        against the same set without name_guard_tail. Neither level may show a
+        word the no-guard-tail set hid, and standard output is identical.
+
+        With the rule last, the strict leak check is 0 by construction: the
+        last rule only replaces text that is still visible, and its
+        replacement holds no input text. The names[-1] == "name_guard_tail"
+        placement assert is what pins safety. The mrn|record|rec value
+        exclusion (M2) and the value-exclusion lookahead (M5) are dead in this
+        position; they only limit over-redaction. The M1 and M3 pattern
+        mutants are caught by test_hc_redact_025_guard_tail_exact_strict_output."""
+        names = [r.name for r in _RULES]
+        main_rules = [r for r in _RULES if r.name != "name_guard_tail"]
+        assert len(main_rules) == len(_RULES) - 1
+        assert names[-1] == "name_guard_tail"  # last: (?!\[) defers to every other rule
+
+        labels = ["Patient Name:", "Patient ID:", "Name (legal):", "Name:", "Patient:",
+                  "Patient (legal name):", "Dr.", "Mr.", "Name (legal) :", "patient name"]
+        people = ["Jane Doe-Smith", "Jos\u00e9 N\u00fa\u00f1ez", "Jose\u0301 Nu\u0301n\u0303ez",
+                  "Maria de la Cruz", "Ana van der Berg", "Ludwig von Beethoven",
+                  "Ana Mar\u00eda", "Mary-Jane Doe", "Ana-Lucia Reyes",
+                  "\u0130lker \u015eahin", "Maria Lopez", "Bob Stone", "Doe", "Jane"]
+        values = ["MRN", "Patient ID:", "Name (legal):", "A12345", "98765", "MRN A12345",
+                  "Medical Record Number B67890", "Patient Name: Bob Stone", "Dr. Ana-Lucia",
+                  "Name: Maria Cruz", "Glucose 96 mg/dL", "Follow Up",
+                  "Address 42 Oak Ave", "Address 123 Main St", "DOB 01/02/1980",
+                  "Date of birth 01/02/1980", "Dob 01/02/1980", "Dr Smith", "ID A12345",
+                  "Phone 555-123-4567", "Patient no.: 98765", "Name no.: Bob Stone",
+                  "Id patient_name:_Doe", "Id medical_record:_A12345", "Id name_first:_Doe",
+                  "Ms Patient_Name:_Doe", "Id Medical_Record:_x123",
+                  "Id Medical Record Number B67890", "Date Medical Record No. B67890",
+                  "Dr patient_name:_bob", "Dr medical_record:_A12345",
+                  "Patient patient_id:_98765", "Medical Medical Record No. A1234",
+                  "Dr dob:_01/02/1980"]
+        seps = [" ", "\t", "\n", ". ", ", ", " \t", "\n\n"]
+        word = re.compile(r"\w+")
+        marker = re.compile(r"\[[A-Z]+-REDACTED\]")  # replacement tokens are not input words
+
+        def gen(rng):
+            parts = []
+            for _ in range(rng.randint(1, 3)):
+                parts.append(rng.choice(labels) + rng.choice([" ", "", "", " "]))
+                parts.append(rng.choice(people))
+                parts.append(rng.choice(seps))
+                parts.append(rng.choice(values))
+                parts.append(rng.choice(seps))
+            return "".join(parts).strip()
+
+        got = {}
+        for lvl in ("strict", "standard"):
+            main_engine = RedactionEngine(policy_level=lvl, rules=main_rules)
+            branch_engine = RedactionEngine(policy_level=lvl)
+            rng = random.Random(seed)
+            inputs = words = same = reached = 0
+            for _ in range(_HC024_N):
+                text = gen(rng)
+                main_out = main_engine.redact(text).text
+                branch_out = branch_engine.redact(text).text
+                same += main_out == branch_out
+                reached += "[ID-REDACTED]" in branch_out and "[ID-REDACTED]" not in main_out
+                gone = set(word.findall(text)) - set(word.findall(marker.sub(" ", main_out)))
+                leak = gone & set(word.findall(marker.sub(" ", branch_out)))
+                if leak:
+                    inputs += 1
+                    words += len(leak)
+            got[lvl] = (inputs, words, same)
+            if lvl == "strict":
+                # a pin that never reaches the rule cannot fail (recurring-failures 1)
+                assert reached >= 200, reached
+        assert got["strict"][:2] == (0, 0)
+        assert got["standard"] == (0, 0, _HC024_N)
+
+    @pytest.mark.parametrize("tail", [
+        "Address 42 Oak Ave", "Address 123 Main St", "Patient no.: 98765",
+        "Name no.: Bob Stone", "Date of birth 01/02/1980", "Dob 01/02/1980",
+        "Id patient_name:_Doe", "Id medical_record:_A12345", "Id name_first:_Doe",
+        "Ms Patient_Name:_Doe", "Id Medical_Record:_x123",
+        "Id Medical Record Number B67890", "Date Medical Record No. B67890",
+        "Dr patient_name:_bob", "Dr medical_record:_A12345",
+        "Patient patient_id:_98765", "Medical Medical Record No. A1234",
+        "Dr dob:_01/02/1980"])
+    def test_hc_redact_025_guard_tail_defers_to_later_rules(self, tail):
+        """HC-REDACT-025: name_guard_tail never costs a value another strict
+        rule (address, dob, spaced_labelled_id) hides without it."""
+        text = "Patient Name: Jos\u00e9 N\u00fa\u00f1ez " + tail
+        main_rules = [r for r in _RULES if r.name != "name_guard_tail"]
+        want = RedactionEngine(policy_level="strict", rules=main_rules).redact(text).text
+        got = RedactionEngine(policy_level="strict").redact(text).text
+        tok = re.compile(r"\[[A-Z]+-REDACTED\]")
+        want_w = set(re.findall(r"\w+", tok.sub(" ", want)))
+        got_w = set(re.findall(r"\w+", tok.sub(" ", got)))
+        for w in set(re.findall(r"\w+", text)) - want_w:
+            assert w not in got_w, (text, got)
+
+    @pytest.mark.parametrize("text,want", [
+        pytest.param("Dr.José Núñez\tPatient ID:",
+                     "[NAME-REDACTED]\tPatient ID:", id="kills_M1_title_tab"),
+        pytest.param("Name:José Núñez \tPatient ID:",
+                     "[NAME-REDACTED] \tPatient ID:", id="kills_M1_name_space_tab"),
+        pytest.param("Patient Name: José Núñez Phone 555-123-4567",
+                     "[NAME-REDACTED] Phone [PHONE-REDACTED]", id="kills_M3_phone"),
+        pytest.param("Patient Name: José Núñez Address 42 Oak Ave",
+                     "[NAME-REDACTED] Address [ADDRESS-REDACTED]", id="kills_M3_address"),
+    ])
+    def test_hc_redact_025_guard_tail_exact_strict_output(self, text, want):
+        """HC-REDACT-025: exact-output pins, so the M1 and M3 pattern mutants
+        of name_guard_tail fail (REDACT-NG-GT-DIFF)."""
+        assert _engine("strict").redact(text).text == want
 
     def test_hc_redact_016_spaced_rules_are_strict_only(self):
         """HC-REDACT-016: standard and minimal leave every group-S input as it was."""
