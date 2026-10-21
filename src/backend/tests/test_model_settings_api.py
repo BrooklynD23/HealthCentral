@@ -265,6 +265,7 @@ async def test_get_external_api_masks_key():
     response = await get_external_api_settings(
         session=_session(profile_id),
         profile_db=_FakeProfileDb(existing_settings=mock_settings),
+        master_db=MagicMock(commit=AsyncMock()),
     )
 
     assert response.api_key_configured is True

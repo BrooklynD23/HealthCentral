@@ -49,12 +49,12 @@ CHIEF_COMPLAINT_PATTERN = re.compile(
 )
 
 ASSESSMENT_PATTERN = re.compile(
-    r"(?:ASSESSMENT|A/P|ASSESSMENT\s+AND\s+PLAN):?\s*(.+?)(?=\n\s*(?:PLAN|[A-Z]{2,})|\Z)",
+    r"(?>ASSESSMENT|A/P|ASSESSMENT\s+AND\s+PLAN):?+\s*+((?:\S|[^\S\n]+(?![^\S\n]|\n\s*[A-Z]{2,}|\s*\Z)|(?>[^\S\n]*\n\s*)(?![A-Z]{2,}|\Z))+?)(?=\s*\Z|[^\S\n]*\n\s*[A-Z]{2,})",
     re.DOTALL | re.IGNORECASE,
 )
 
 PLAN_PATTERN = re.compile(
-    r"(?:PLAN):?\s*(.+?)(?=\n\s*[A-Z]{2,}|\Z)",
+    r"(?>PLAN):?+\s*+((?:\S|[^\S\n]+(?![^\S\n]|\n\s*[A-Z]{2,}|\s*\Z)|(?>[^\S\n]*\n\s*)(?![A-Z]{2,}|\Z))+?)(?=\s*\Z|[^\S\n]*\n\s*[A-Z]{2,})",
     re.DOTALL | re.IGNORECASE,
 )
 
@@ -74,7 +74,7 @@ VISIT_DATE_PATTERN = re.compile(
 )
 
 VITALS_PATTERN = re.compile(
-    r"(?:VITAL\s+SIGNS?|VITALS?):?\s*(.+?)(?=\n\s*[A-Z]{2,}|\Z)",
+    r"(?>VITAL\s+SIGNS?|VITALS?):?+\s*+((?:\S|[^\S\n]+(?![^\S\n]|\n\s*[A-Z]{2,}|\s*\Z)|(?>[^\S\n]*\n\s*)(?![A-Z]{2,}|\Z))+?)(?=\s*\Z|[^\S\n]*\n\s*[A-Z]{2,})",
     re.DOTALL | re.IGNORECASE,
 )
 

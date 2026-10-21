@@ -1316,7 +1316,7 @@ async def _build_care_task_fallback(request: ChatRequest, profile_db) -> ChatRes
         due = f" (due {task.due_date.isoformat()})" if task.due_date else ""
         quote = sanitize_untrusted_field(task.source_quote)
         quote_part = f' The note says: "{quote}"' if quote else ""
-        lines.append(f"- {title}{due}.{quote_part}")
+        lines.append(f"- Open follow-up you saved (wording taken from your documents, not checked): {title}{due}.{quote_part}")
         citations.append(Citation(
             source_type="user_observation",
             doc_id=task.source_document_id,
