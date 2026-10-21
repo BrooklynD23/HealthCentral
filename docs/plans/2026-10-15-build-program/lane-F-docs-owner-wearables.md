@@ -1,6 +1,6 @@
 # Lane F — Docs, Owner Queue, Wearables Consumer Map — Build Design
 
-**Last Updated:** 2026-10-19 (F-4 and F-9 rechecked after owner rows P8-B2, SHOW-FREEZE; status cells fixed); 2026-10-15
+**Last Updated:** 2026-10-21 (§2.15 FEATURE-LIST-LICENCE planned on `b902e0f`; #261 round 1: lint interpreter stated); 2026-10-19 (F-4 and F-9 rechecked after owner rows P8-B2, SHOW-FREEZE; status cells fixed); 2026-10-15
 **Owner:** repository owner
 **Status:** DESIGN — nothing here is implemented. Owner answers are quoted from [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md); this file records no new approval. Every "default" or "recommended" is the lane designer's, not the owner's.
 **Refresh Trigger:** any merge of #72, #74, #84, #94, #68 or a W-2 / W-3 / W-7 / W-8 / P6 / P7 PR; an owner answer to any gate in §5; P8 Brief 2 signed; any commit to `docs/architecture/pipelines.md`, `docs/architecture/README.md`, `docs/architecture/backend.md`, `docs/compliance/data-privacy.md`, `docs/features/TASK_LIST.md`, `skills/asclexis-guardrails/SKILL.md` or `CS4610_Report_Demo/README.md`.
@@ -297,6 +297,32 @@ Source: `TASK_LIST.md:80-104` and wearables program 00 §10 (on #94). "Unblocks"
 **Expected collected delta:** 0. **Est:** 0.25 h.
 **Acceptance:** the checks above, pasted; CI green on the PR. **Rollback:** revert.
 **Order:** ready now (no slot). Never beside another PR on `ci.yml`, `specs-compliance-matrix.md` or `TASK_LIST.md` (none open on `b2b3f4e`; #210 does not touch them).
+
+### 2.15 FEATURE-LIST-LICENCE — `feature_list.json` HC-M11 still says the NLI model is MIT
+
+**Source:** #249 surprise 3 (queue bullet FEATURE-LIST-LICENCE). Planned 2026-10-21 on `origin/main` @ `b902e0f`.
+
+**Facts (`b902e0f`):**
+1. `feature_list.json:142` (HC-M11 `description`): "candidate: cross-encoder/nli-deberta-v3-xsmall, MIT, ~22M params". `git grep -n "nli-deberta-v3-xsmall, MIT" -- feature_list.json` prints `:142` only.
+2. The authoritative sources say Apache-2.0: the model card (`license: apache-2.0`, README line 11, measured in [#249](../../reviews/2026-10-20/gc5-real-model-evidence.md)), `config/model_manifest.json` (`nli-deberta-v3-xsmall` note: "Apache-2.0 per the model card"), and the owner's GC5-OL-1 (`docs/capstone-report/owner-decisions-2026-09-27.md:269`: "licence Apache-2.0 (not MIT, as feature_list.json says)").
+3. Other MIT mentions are dated records and stay as they are: `docs/plans/2026-06-30-tech-upgrade-survey-9-areas.md:97-98` (a June survey), `docs/archive/plans/2026-07-02-*.md` (archived), `audit/2026-09-25/gated-items-decision-packet.md:403` (already says "MIT per feature_list.json … UNVERIFIED") and `audit/2026-09-25/plans/08-gated-items-review-packet.md:248`, `:255`. Rewriting them would change what those records say was believed at the time; GC5-OL-1 and the GC5 plan (`docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md:141`) already carry the correction.
+4. `scripts/feature_list_lint.py` checks structure only (FL-001…FL-007); CI runs it.
+
+**Design (one data string):** `feature_list.json:142`: `MIT` → `Apache-2.0`. Nothing else in the entry changes (its "~22M params" is the backbone figure the survey uses, and its "Verified 2026-07-07 … stub" sentence is a dated note; neither is this row). **No lint rule:** one string, and a licence rule needs a map from free text to manifest entries, which nothing else would use (CLAUDE.md §2).
+
+**Checks (no pytest id):**
+
+| Check | Expected | RED today? |
+|---|---|---|
+| `git grep -c "nli-deberta-v3-xsmall, MIT" -- feature_list.json` | no output, exit 1 | yes (`feature_list.json:1`) |
+| `git grep -c "nli-deberta-v3-xsmall, Apache-2.0, ~22M params" -- feature_list.json` | `feature_list.json:1` | yes (no match) |
+| `python3 scripts/feature_list_lint.py` (stdlib only: `json`, `re`, `sys`, `pathlib`, `feature_list_lint.py:25-30`; CI runs the same command, `ci.yml:29-30`) | exit 0 | n/a |
+| `git diff --stat origin/main...HEAD` | `feature_list.json` only, 1 line changed | n/a |
+
+**Files:** `feature_list.json` (`:142` only). Not under `docs/`, so no index regeneration. No slots.
+**Expected collected delta:** 0. **Est:** 0.1 h.
+**Acceptance:** the checks above, pasted; CI green on the PR. **Rollback:** revert.
+**Order:** ready now (no slot). No open PR touches `feature_list.json` (checked: #210, #230, #239, #246). No ask-first file.
 
 ---
 

@@ -15,6 +15,11 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 
+def _carries_fact(claim: "ExtractedClaim") -> bool:
+    """True when a claim has a citation or a number (UNC-VERIFY-SCOPE (a))."""
+    return bool(claim.cited_sources) or bool(re.search(r"\d", claim.text))
+
+
 @dataclass
 class ExtractedClaim:
     """
@@ -127,19 +132,23 @@ class ClaimExtractor:
         sections = self._parse_sections(response)
 
         for segment_type, content in sections:
-            # Skip uncertainty sections - these are not claims
-            if segment_type == "uncertainty":
-                continue
-
             # Extract claims from section content
             section_claims = self._extract_claims_from_section(
                 content, segment_type, claim_counter
             )
+            if segment_type == "uncertainty":
+                # Fact-free hedges are not claims. Keep only lines that carry a
+                # citation or a number, renumbered so ids stay unique and equal
+                # to main's when everything is dropped.
+                section_claims = [c for c in section_claims if _carries_fact(c)]
+                for n, c in enumerate(section_claims, start=1):
+                    c.claim_id = f"claim_{claim_counter + n}"
             claims.extend(section_claims)
             claim_counter += len(section_claims)
 
-        # If no sections found, process entire response
-        if not claims and response.strip():
+        # If no claims came from a non-uncertainty section, process the entire
+        # response (as main does when uncertainty lines are skipped).
+        if all(c.segment_type == "uncertainty" for c in claims) and response.strip():
             claims = self._extract_claims_from_section(
                 response, "general_info", 0
             )
@@ -344,14 +353,16 @@ class ClaimExtractor:
         for claim in claims:
             is_unverifiable = False
 
-            # Uncertainty section claims are typically not verifiable
-            if claim.segment_type == "uncertainty":
+            carries_fact = _carries_fact(claim)
+
+            # Uncertainty hedges are unverifiable only when they carry no fact
+            # (no citation, no number). UNC-VERIFY-SCOPE (a).
+            if claim.segment_type == "uncertainty" and not carries_fact:
                 is_unverifiable = True
 
             # Meta-statements about information availability. A meta phrase never
             # exempts a claim that carries a citation or a number: it still has to
             # be verified.
-            carries_fact = bool(claim.cited_sources) or bool(re.search(r"\d", claim.text))
             for pattern in () if carries_fact else meta_patterns:
                 if re.search(pattern, claim.text, re.IGNORECASE):
                     is_unverifiable = True
