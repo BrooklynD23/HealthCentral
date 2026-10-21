@@ -719,6 +719,8 @@ class TestUnderscoreJoinedRedaction:
             # known leftovers (REDACT-NG-DIFF exceptions): the same next-label swallow
             # from NFD marks, a second name label, a title after an ID label and a
             # newline-separated second name. Strict keeps the trailing value visible.
+            # title_surname, title_dot_surname and id_word_tail share one cause: the
+            # conditional tail stops at a guard word (see the 14-word test below).
             pytest.param(
                 "Name (legal): Jose\u0301 Nu\u0301n\u0303ez Patient ID: 98765",
                 "[ID-REDACTED]: 98765",
@@ -793,6 +795,29 @@ class TestUnderscoreJoinedRedaction:
         *_preexisting_on_main row pins output identical to main)."""
         assert _engine("strict").redact(text).text == strict
         assert _engine("standard").redact(text).text == standard
+
+    @pytest.mark.parametrize("value", ["A12345", "Garcia"])
+    @pytest.mark.parametrize(
+        "guard",
+        ["Medical", "Patient", "Name", "Id", "Dob", "Date", "Ssn", "Address", "Phone", "Dr", "Mr", "Mrs", "Ms"],
+    )
+    def test_hc_redact_023_guard_word_tail_leftover(self, guard, value):
+        """HC-REDACT-023: the conditional tail after a consumed 'patient name'
+        label stops at each guard word, so the guard word and the token after
+        it stay visible at both levels. Main strict redacted these (REDACT-NG-DIFF
+        exceptions, accepted); pins 13 of the 14 guard words (mrn is the 14th,
+        pinned below), with a code-like and a surname-like value each."""
+        text = f"Patient Name: Jos\u00e9 N\u00fa\u00f1ez {guard} {value}"
+        expected = f"[NAME-REDACTED] {guard} {value}"
+        assert _engine("strict").redact(text).text == expected
+        assert _engine("standard").redact(text).text == expected
+
+    def test_hc_redact_023_guard_word_tail_mrn_is_caught_by_mrn_rule(self):
+        """HC-REDACT-023: the 14th guard word, mrn, is the one stop word whose
+        value strict still redacts, because the mrn rule catches it."""
+        text = "Patient Name: Jos\u00e9 N\u00fa\u00f1ez Mrn A12345"
+        assert _engine("strict").redact(text).text == "[NAME-REDACTED] [MRN-REDACTED]"
+        assert _engine("standard").redact(text).text == "[NAME-REDACTED] Mrn A12345"
 
     @pytest.mark.parametrize(
         ("seed", "strict_inputs", "strict_words"),
