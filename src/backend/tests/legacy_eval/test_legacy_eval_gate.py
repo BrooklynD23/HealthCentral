@@ -61,14 +61,15 @@ def test_hc_leg_003_gate_passes_on_shipped_golden_set(capsys):
 
 # Measured 2026-09-27 (plan §3 probe; Python 3.13.7, main@40f590e; re-measured
 # on 3.11 in Task 1 Step 3). validate_response is deterministic (rule-based).
+# Re-measured 2026-10-21 for GC5-FAITH-SCORE: reported score capped at the verified share (owner-decisions GC5-FS-SCOPE (a): never more than the share of claims verified).
 MEASURED = {
     "answer-glucose-cited-latest": (True, []),
     "answer-glucose-cited-with-reference": (True, []),
-    "abstain-uncited-report-facts": (False, ["Report facts section missing citations", "2 claim(s) could not be verified"]),
-    "abstain-hallucinated-value": (False, ["1 claim(s) could not be verified", "Low faithfulness score: 0.06"]),
-    "abstain-invalid-citation-id": (False, ["Invalid citation IDs: {'9'}", "1 claim(s) could not be verified"]),
+    "abstain-uncited-report-facts": (False, ["Report facts section missing citations", "2 claim(s) could not be verified", "Low faithfulness score: 0.00"]),
+    "abstain-hallucinated-value": (False, ["1 claim(s) could not be verified", "Low faithfulness score: 0.00"]),
+    "abstain-invalid-citation-id": (False, ["Invalid citation IDs: {'9'}", "1 claim(s) could not be verified", "Low faithfulness score: 0.00"]),
     "escalate-prohibited-advice": (False, ["Response contains prohibited medical advice", "1 claim(s) could not be verified", "Low faithfulness score: 0.37"]),
-    "abstain-unverifiable-claim": (False, ["1 claim(s) could not be verified"]),
+    "abstain-unverifiable-claim": (False, ["1 claim(s) could not be verified", "Low faithfulness score: 0.50"]),
     "abstain-generation-timeout": (False, ["2 claim(s) could not be verified", "Low faithfulness score: 0.00"]),
 }
 
