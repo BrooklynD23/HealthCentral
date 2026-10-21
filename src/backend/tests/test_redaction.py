@@ -27,6 +27,9 @@ def _engine(level: str = "standard") -> RedactionEngine:
     return RedactionEngine(policy_level=level)
 
 
+_HC024_N = 40000  # inputs per (seed, level) in HC-REDACT-024
+
+
 # ---------------------------------------------------------------------------
 # SSN redaction
 # ---------------------------------------------------------------------------
@@ -697,6 +700,83 @@ class TestUnderscoreJoinedRedaction:
         redacted (particle_*_leftover rows pin known strict leftovers)."""
         assert _engine("strict").redact(text).text == strict
         assert _engine("standard").redact(text).text == standard
+
+    @pytest.mark.parametrize(
+        ("seed", "strict_inputs", "strict_words"),
+        [pytest.param(7, 190, 362, id="seed7"), pytest.param(11, 208, 406, id="seed11")],
+    )
+    def test_hc_redact_024_label_value_differential(self, seed, strict_inputs, strict_words):
+        """HC-REDACT-024: seeded label+value differential against origin/main's
+        name_context and spaced_labelled_id. Standard never un-redacts a word
+        main redacted; strict leftovers are frozen (REDACT-NG-DIFF exceptions),
+        so any pattern change moves a count and must be re-measured."""
+        main_name = re.compile(
+            r"(?i)\b(?:patient|name|mr\.?|mrs\.?|ms\.?|dr\.?)\s*(?::\s*)?"
+            r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)"
+        )
+        main_spaced = re.compile(
+            r"(?i)\b(?:"
+            r"patient\s+(?:id|name)\b(?:\s*\([^()\n]{1,40}\))?(?:\s*#)?"
+            r"(?:\s*:(?:\s*[-\u2013\u2014=;])?|\s*[-\u2013\u2014=;])"
+            r"|(?:patient|name)(?:\s*\([^()\n]{1,40}\)(?:\s*(?:no\.|#))?|\s*(?:no\.|#))"
+            r"\s*:(?:\s*[-\u2013\u2014=;])?"
+            r")\s*"
+            r"(?:(?-i:[^\W\d_a-z\u00df-\u00f6\u00f8-\u00ff])[\w/.'\u2019-]*"
+            r"(?:,[ \t]+(?-i:[^\W\d_a-z\u00df-\u00f6\u00f8-\u00ff])[\w/.'\u2019-]*)?"
+            r"(?:[ \t]+(?-i:[^\W\d_a-z\u00df-\u00f6\u00f8-\u00ff])[\w/.'\u2019-]*){0,3}"
+            r"|[^\W_][\w/.'\u2019-]*)"
+        )
+        swap = {"name_context": main_name, "spaced_labelled_id": main_spaced}
+        main_rules = [
+            RedactionRule(r.name, swap[r.name], r.replacement, r.policy_levels)
+            if r.name in swap else r
+            for r in _RULES
+        ]
+        assert [r.name for r in main_rules if r.name in swap] == list(swap)
+
+        labels = ["Patient Name:", "Patient ID:", "Name (legal):", "Name:", "Patient:",
+                  "Patient (legal name):", "Dr.", "Mr.", "Name (legal) :", "patient name"]
+        names = ["Jane Doe-Smith", "Jos\u00e9 N\u00fa\u00f1ez", "Jose\u0301 Nu\u0301n\u0303ez",
+                 "Maria de la Cruz", "Ana van der Berg", "Ludwig von Beethoven",
+                 "Ana Mar\u00eda", "Mary-Jane Doe", "Ana-Lucia Reyes",
+                 "\u0130lker \u015eahin", "Maria Lopez", "Bob Stone", "Doe", "Jane"]
+        values = ["MRN", "Patient ID:", "Name (legal):", "A12345", "98765", "MRN A12345",
+                  "Medical Record Number B67890", "Patient Name: Bob Stone", "Dr. Ana-Lucia",
+                  "Name: Maria Cruz", "Glucose 96 mg/dL", "Follow Up"]
+        seps = [" ", "\t", "\n", ". ", ", ", " \t", "\n\n"]
+        label_words = {"patient", "name", "id", "mrn", "medical", "record", "number",
+                       "legal", "dr", "mr", "mrs", "ms"}
+        word = re.compile(r"\w+")
+
+        def gen(rng):
+            parts = []
+            for _ in range(rng.randint(1, 3)):
+                parts.append(rng.choice(labels) + rng.choice([" ", "", "", " "]))
+                parts.append(rng.choice(names))
+                parts.append(rng.choice(seps))
+                parts.append(rng.choice(values))
+                parts.append(rng.choice(seps))
+            return "".join(parts).strip()
+
+        got = {}
+        for lvl in ("strict", "standard"):
+            main_engine = RedactionEngine(policy_level=lvl, rules=main_rules)
+            branch_engine = RedactionEngine(policy_level=lvl)
+            rng = random.Random(seed)
+            inputs = words = 0
+            for _ in range(_HC024_N):
+                text = gen(rng)
+                main_out = main_engine.redact(text).text
+                branch_out = branch_engine.redact(text).text
+                gone = set(word.findall(text)) - set(word.findall(main_out))
+                leak = {w for w in gone & set(word.findall(branch_out))
+                        if w.lower() not in label_words}
+                if leak:
+                    inputs += 1
+                    words += len(leak)
+            got[lvl] = (inputs, words)
+        assert got["standard"] == (0, 0)
+        assert got["strict"] == (strict_inputs, strict_words)
 
     def test_hc_redact_016_spaced_rules_are_strict_only(self):
         """HC-REDACT-016: standard and minimal leave every group-S input as it was."""
