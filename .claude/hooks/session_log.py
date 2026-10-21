@@ -36,11 +36,11 @@ def _classify(text: str) -> str:
     a = re.ASCII
     if re.search(r"Exit code 144\b", text, a):
         return "exit-144-self-kill"
-    if re.search(r"timed out|timeout", text, re.I):
+    if re.search(r"timed out|timeout", text, re.IGNORECASE):
         return "timeout"
-    if re.search(r"did not match|not found in file|String to replace not found", text, re.I):
+    if re.search(r"did not match|not found in file|String to replace not found", text, re.IGNORECASE):
         return "edit-no-match"
-    if re.search(r"permission denied|EACCES", text, re.I):
+    if re.search(r"permission denied|EACCES", text, re.IGNORECASE):
         return "permission-denied"
     if re.search(r"ModuleNotFoundError|No module named", text):
         return "module-not-found"
@@ -50,11 +50,11 @@ def _classify(text: str) -> str:
         return "no-such-file"
     if re.search(r"\b\d+ failed\b", text, a):
         return "tests-failed"
-    if re.search(r"^fatal: ", text, re.M):
+    if re.search(r"^fatal: ", text, re.MULTILINE):
         return "git-fatal"
-    if re.search(r"SyntaxError|syntax error", text, re.I):
+    if re.search(r"SyntaxError|syntax error", text, re.IGNORECASE):
         return "syntax-error"
-    match = re.search(r"^Exit code (\d{1,3})\b", text, re.M | a)
+    match = re.search(r"^Exit code (\d{1,3})\b", text, re.MULTILINE | a)
     if match and 1 <= int(match.group(1)) <= 255:
         return f"exit-{int(match.group(1))}"
     return "other"
