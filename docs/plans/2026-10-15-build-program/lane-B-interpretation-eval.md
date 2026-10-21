@@ -108,7 +108,7 @@ The merged plan stands. Delta only: what moved on main, what the owner fixed, wh
 | HC-PARA-106 (T6) | the judge raises: blocked, reason `advice_judge_unavailable`, on both routes (2 cases) |
 | HC-PARA-107 | the judge prompt holds the five categories and the delimited answer, and never the question, context or history |
 | HC-PARA-108 | the low-tier file gives UNAVAILABLE and `generate_async` is not called; detection raising gives UNAVAILABLE |
-| HC-PARA-109 | no file (method missing or `None`) or a non-low file means the judge runs (2 cases) |
+| HC-PARA-109 | no method, a `None` path, or a non-low file means the judge runs (3 cases) |
 | HC-PMJ-001..008 | `--judge` accepted; counts below 180/200 rc 3; bad schema or duplicate id rc 3; `--tier low` rc 2; two passes call the fake 2xN times and print agreement and the table; sha256s, commit and tier printed; a low-tier loaded file rc 4; an S5 path inside the repo rc 2 |
 
 T7 is not a pytest test: `timeout 600 python3 scripts/agent_eval_gate.py` from the repo root must print `All 74 golden cases passed.` with rc recorded. Any seeded rows that `rag.query` reads carry `user_verified=True` (I-13).
@@ -137,7 +137,7 @@ T7 is not a pytest test: `timeout 600 python3 scripts/agent_eval_gate.py` from t
 4. `! rg -n llama_cpp src/backend/modules/agent/guardrails/advice_judge.py src/backend/scripts/measure_prohibited_patterns.py` (a zero-match `grep` exits 1; this form exits 0 on zero matches).
 5. `timeout 600 python3 scripts/agent_eval_gate.py; echo rc=$?` from the repo root: `All 74 golden cases passed.`
 6. `python3 scripts/legacy_eval_gate.py; echo rc=$?`.
-7. Collected count by contracts §d step 2. Start 2129 on `086466d`. The two new files collect 28 tests by design (HC-PARA 20: 10 + 1 + 1 + 1 + 1 + 2 + 1 + 1 + 2; HC-PMJ 8). The final count and delta are measured at head and pasted; the count slots are not edited by this PR (SLOT-RULE-2).
+7. Collected count by contracts §d step 2. Start 2129 on `086466d`. The two new files collect 29 tests by design (HC-PARA 21: 10 + 1 + 1 + 1 + 1 + 2 + 1 + 1 + 3; HC-PMJ 8), so the expected delta is +29. The final count and delta are measured at head and pasted; the count slots are not edited by this PR (SLOT-RULE-2).
 8. `cd src/backend && ~/venvs/asclexis-311/bin/python -c "from main import app"`.
 9. CI: every job in `.github/workflows/ci.yml` at the final merge (8 today: docs-lint, backend-tests, backend-lint, frontend-tests, security-scan, agent-evals, legacy-evals, e2e-tests; #259 would add rsi-replay).
 10. Lane-F §2.5 F1-F5 greps (I-22): B-3 changes none of them.
