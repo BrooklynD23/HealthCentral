@@ -146,8 +146,9 @@ class ClaimExtractor:
             claims.extend(section_claims)
             claim_counter += len(section_claims)
 
-        # If no sections found, process entire response
-        if not claims and response.strip():
+        # If no claims came from a non-uncertainty section, process the entire
+        # response (as main does when uncertainty lines are skipped).
+        if all(c.segment_type == "uncertainty" for c in claims) and response.strip():
             claims = self._extract_claims_from_section(
                 response, "general_info", 0
             )
