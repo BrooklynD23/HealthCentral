@@ -633,11 +633,22 @@ class TestUnderscoreJoinedRedaction:
             ("Patient: Jane Doe-Smith\nMedical Record Number B67890", "[NAME-REDACTED]\n[MRN-REDACTED]"),
             ("Patient: José Núñez\nPatient ID: 98765", "[NAME-REDACTED]\n[ID-REDACTED]"),
             ("Patient: José Núñez\nName (legal): Maria de la Cruz", "[NAME-REDACTED]\n[ID-REDACTED]"),
+            ("Patient: José Núñez MRN A12345", "[NAME-REDACTED] [MRN-REDACTED]"),
+            ("Patient: José Núñez Patient ID: 98765", "[NAME-REDACTED] [ID-REDACTED]"),
+            ("Patient Name: Ana María\tMRN A12345", "[NAME-REDACTED]\t[MRN-REDACTED]"),
+            ("Patient: José Núñez\tName (legal): Maria de la Cruz", "[NAME-REDACTED]\t[ID-REDACTED]"),
+            ("Dr. Ana-Lucia Reyes MRN# 7788990", "[NAME-REDACTED] [MRN-REDACTED]"),
+            ("Patient: José Núñez\nName: Maria Cruz", "[NAME-REDACTED]\n[NAME-REDACTED]"),
         ],
     )
-    def test_hc_redact_023_new_name_shapes_stop_at_newline(self, text, strict):
-        """HC-REDACT-023: a hyphen/accent name does not swallow the next line's label."""
+    def test_hc_redact_023_new_name_shapes_stop_at_next_label(self, text, strict):
+        """HC-REDACT-023: a hyphen/accent name does not swallow the next label (newline, tab or space)."""
         assert _engine("strict").redact(text).text == strict
+
+    def test_hc_redact_023_standard_bare_name_next_line(self):
+        """HC-REDACT-023: at standard, a bare 'Name:' on the next line is still redacted."""
+        out = _engine("standard").redact("Patient: José Núñez\nName: Maria Cruz").text
+        assert out == "[NAME-REDACTED]\n[NAME-REDACTED]"
 
     def test_hc_redact_016_spaced_rules_are_strict_only(self):
         """HC-REDACT-016: standard and minimal leave every group-S input as it was."""
