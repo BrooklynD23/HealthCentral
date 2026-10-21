@@ -263,7 +263,7 @@ const vitestFiles = (files) => (files || []).filter((f) => /^src\/frontend\/.*\.
 const runTests = (round) => agent(
   `Test runner for build-program item ${ID}, round ${round}: ${where}. Read-only: never edit, create, commit or push any file.
 Run from ${plan.worktree}, every pytest through the ABSOLUTE pyslot path shown in step 1 (3 machine-wide pytest slots); a relative scripts/pyslot.sh does not exist under src/backend. Paste the exact command you ran:
-1. Focused: the test files in this list, if any: ${JSON.stringify((impl && impl.files_changed || []).filter((f) => /tests?\//.test(f)))}; vitest: ${JSON.stringify(vitestFiles(impl && impl.files_changed))}.
+1. Focused: the test files in this list, if any: ${JSON.stringify((impl && impl.files_changed || []).filter((f) => /tests?\//.test(f)))}; vitest (paths relative to src/frontend): ${JSON.stringify(vitestFiles(impl && impl.files_changed).map((f) => f.slice('src/frontend/'.length)))}.
    "$(git rev-parse --show-toplevel)/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest <files> -p no:cacheprovider -q   (cwd src/backend)
 2. Collection: same prefix with tests/ --collect-only -q; copy the final line into collected_line.
 3. Full backend suite: same prefix with tests/ -q.
