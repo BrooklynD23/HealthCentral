@@ -527,11 +527,12 @@ class TestUnderscoreJoinedRedaction:
         [
             pytest.param("Patient Name: Jane Doe-Smith", ["Jane", "Doe", "Smith"], True, id="g1_patient_name"),
             pytest.param("Patient: Jane Doe-Smith", ["Jane", "Doe", "Smith"], True, id="g1_patient"),
+            pytest.param("Patient: Mary-Jane Doe", ["Mary", "Jane", "Doe"], True, id="g1_first_word_hyphen"),
             pytest.param("Name (legal): Maria de la Cruz", ["Maria", "Cruz"], False, id="g2_particles"),
-            pytest.param("Patient (legal name): Ludwig van Beethoven", ["Ludwig", "Beethoven"], False, id="g3_van"),
-            pytest.param("Name (legal): José Núñez", ["Nu"], False, id="g4_nfd_legal"),
-            pytest.param("Patient Name: José Núñez", ["Jose", "Nu"], True, id="g4_nfd_patient_name"),
-            pytest.param("Patient: José Núñez", ["Jos", "Nú"], False, id="g4_nfc_patient"),
+            pytest.param("Patient (legal name): Ludwig van Beethoven", ["Ludwig", "Beethoven"], False, id="g2_van"),
+            pytest.param("Name (legal): José Núñez", ["Jose", "Nu"], False, id="g3_nfd_legal"),
+            pytest.param("Patient Name: José Núñez", ["Jose", "Nu"], True, id="g3_nfd_patient_name"),
+            pytest.param("Patient: José Núñez", ["Jos", "Nú"], True, id="g4_nfc_patient"),
         ],
     )
     def test_hc_redact_020_name_shape_gaps_closed(self, text, tokens, standard):
@@ -611,6 +612,8 @@ class TestUnderscoreJoinedRedaction:
             pytest.param("Name (legal): Jane" + " de" * 20000, id="particle_run"),
             pytest.param("Patient: Jane" + "-Doe" * 20000, id="hyphen_run"),
             pytest.param("Name (legal): Jos" + "́" * 50000, id="mark_run"),
+            pytest.param("patient name x " * 4000, id="label_lookahead_x"),
+            pytest.param("patient name a 1 " * 2000, id="label_lookahead_a1"),
         ],
     )
     def test_hc_redact_022_name_shape_runs_linear_time(self, text):
@@ -621,6 +624,20 @@ class TestUnderscoreJoinedRedaction:
             start = time.perf_counter()
             _engine(lvl).redact(text)
             assert time.perf_counter() - start < 1.0, lvl
+
+    @pytest.mark.parametrize(
+        ("text", "strict"),
+        [
+            ("Patient: José Núñez\nMRN A12345", "[NAME-REDACTED]\n[MRN-REDACTED]"),
+            ("Patient Name: Jane Doe-Smith\nMRN A12345", "[NAME-REDACTED]\n[MRN-REDACTED]"),
+            ("Patient: Jane Doe-Smith\nMedical Record Number B67890", "[NAME-REDACTED]\n[MRN-REDACTED]"),
+            ("Patient: José Núñez\nPatient ID: 98765", "[NAME-REDACTED]\n[ID-REDACTED]"),
+            ("Patient: José Núñez\nName (legal): Maria de la Cruz", "[NAME-REDACTED]\n[ID-REDACTED]"),
+        ],
+    )
+    def test_hc_redact_023_new_name_shapes_stop_at_newline(self, text, strict):
+        """HC-REDACT-023: a hyphen/accent name does not swallow the next line's label."""
+        assert _engine("strict").redact(text).text == strict
 
     def test_hc_redact_016_spaced_rules_are_strict_only(self):
         """HC-REDACT-016: standard and minimal leave every group-S input as it was."""
