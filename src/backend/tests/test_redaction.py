@@ -738,7 +738,25 @@ class TestUnderscoreJoinedRedaction:
                 "Name (legal): Ana-Luc\u00eda Reyes Patient ID: A12345",
                 "[ID-REDACTED]: A12345",
                 "Name (legal): Ana-Luc\u00eda Reyes Patient ID: A12345",
-                id="hyphen_next_label_leftover",
+                id="hyphen_next_label_preexisting_on_main",
+            ),
+            pytest.param(
+                "Patient ID: Jose\u0301 Nu\u0301n\u0303ez Patient ID: A12345",
+                "[ID-REDACTED]: A12345",
+                "Patient ID: Jose\u0301 Nu\u0301n\u0303ez Patient ID: A12345",
+                id="nfd_id_label_next_label_leftover",
+            ),
+            pytest.param(
+                "Name (legal): Maria de la Cruz Patient (legal name): Ana P\u00e9rez",
+                "[ID-REDACTED] (legal name): Ana P\u00e9rez",
+                "Name (legal): Maria de la Cruz Patient (legal name): Ana P\u00e9rez",
+                id="particle_next_qualified_label_leftover",
+            ),
+            pytest.param(
+                "Patient Name: Jos\u00e9 N\u00fa\u00f1ez Dr Smith",
+                "[NAME-REDACTED] Dr Smith",
+                "[NAME-REDACTED] Dr Smith",
+                id="title_surname_leftover",
             ),
             pytest.param(
                 "Patient ID: Mr. Jos\u00e9 N\u00fa\u00f1ez A12345",
@@ -756,7 +774,8 @@ class TestUnderscoreJoinedRedaction:
     )
     def test_hc_redact_023_consumed_label_tail_and_particle_next_label(self, text, strict, standard):
         """HC-REDACT-023: a consumed 'patient name' label keeps its value tail
-        redacted (particle_*_leftover rows pin known strict leftovers)."""
+        redacted (*_leftover rows pin known strict leftovers, the
+        *_preexisting_on_main row pins output identical to main)."""
         assert _engine("strict").redact(text).text == strict
         assert _engine("standard").redact(text).text == standard
 
