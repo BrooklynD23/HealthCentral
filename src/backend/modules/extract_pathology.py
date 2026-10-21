@@ -20,7 +20,9 @@ SPECIMEN_SITE_PATTERN = re.compile(
 )
 
 DIAGNOSIS_PATTERN = re.compile(
-    r"(?:DIAGNOSIS|FINAL DIAGNOSIS|PATHOLOGIC DIAGNOSIS):?\s*(.+?)(?=\n\s*[A-Z]{2,}|\Z)",
+    r"(?>DIAGNOSIS|FINAL DIAGNOSIS|PATHOLOGIC DIAGNOSIS):?+\s*+"
+    r"((?:\S|[^\S\n]+(?![^\S\n]|\n\s*[A-Z]{2,}|\s*\Z)|(?>[^\S\n]*\n\s*)(?![A-Z]{2,}|\Z))+?)"
+    r"(?=\s*\Z|[^\S\n]*\n\s*[A-Z]{2,})",
     re.DOTALL | re.IGNORECASE,
 )
 
@@ -40,7 +42,9 @@ MARGINS_PATTERN = re.compile(
 )
 
 SPECIAL_STAINS_PATTERN = re.compile(
-    r"(?:SPECIAL\s+STAINS?|IMMUNOHISTOCHEMISTRY|IHC):?\s*(.+?)(?=\n\s*[A-Z]{2,}|\Z)",
+    r"(?>SPECIAL\s+STAINS?|IMMUNOHISTOCHEMISTRY|IHC):?+\s*+"
+    r"((?:\S|[^\S\n]+(?![^\S\n]|\n\s*[A-Z]{2,}|\s*\Z)|(?>[^\S\n]*\n\s*)(?![A-Z]{2,}|\Z))+?)"
+    r"(?=\s*\Z|[^\S\n]*\n\s*[A-Z]{2,})",
     re.DOTALL | re.IGNORECASE,
 )
 
