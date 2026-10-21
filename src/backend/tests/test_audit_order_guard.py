@@ -78,18 +78,18 @@ CLASSIFICATION: dict[str, str] = {
     "api/memory.py::get_memory_item": "excluded: read route, audit_and_commit only",
     "api/memory.py::update_memory_item": "C",
     "api/memory.py::delete_memory_item": "A2",
-    "api/model_settings.py::get_model_settings": "excluded: read route, create_audit_log only",
+    "api/model_settings.py::get_model_settings": "excluded: read route, writes no audit row (follow-up AUDIT-READ-SETTINGS)",
     "api/model_settings.py::run_hardware_detection": "C",
     "api/model_settings.py::set_model_tier": "C",
-    "api/model_settings.py::list_tiers": "excluded: read route, create_audit_log only",
+    "api/model_settings.py::list_tiers": "excluded: read route, writes no audit row (follow-up AUDIT-READ-SETTINGS)",
     "api/model_settings.py::start_model_download": "C",
     "api/model_settings.py::save_external_api_settings": "C",
     "api/model_settings.py::set_timezone": "C",
     "api/model_settings.py::update_voice_settings": "C",
     "api/model_settings.py::get_gamification_settings": "excluded: read route, audit_and_commit only",
     "api/model_settings.py::update_gamification_settings": "C",
-    "api/model_settings.py::get_environment_diagnostics": "excluded: read route, create_audit_log only",
-    "api/model_settings.py::recheck_environment_diagnostics": "excluded: read route, create_audit_log only",
+    "api/model_settings.py::get_environment_diagnostics": "excluded: read route, writes no audit row (follow-up AUDIT-READ-SETTINGS)",
+    "api/model_settings.py::recheck_environment_diagnostics": "excluded: read route, writes no audit row (follow-up AUDIT-READ-SETTINGS)",
     "api/model_settings.py::update_ocr_settings": "C",
     "api/model_settings.py::update_agent_settings": "C",
     "api/notifications.py::get_notification_settings": "excluded: read route, audit_and_commit only",
@@ -222,7 +222,13 @@ def test_hc_aud_ord_030_c_and_a2_handlers_reach_an_audit_call():
 
 
 def test_hc_aud_ord_031_excluded_rows_reach_the_sink_they_name():
-    """An "excluded: ... <sink> only" label is a claim about the handler; check it."""
+    """An "excluded: ... <sink> only" label is a claim about the handler; check it.
+
+    Blind spot: the call graph is over-approximate and links calls by name
+    (tests/support/callgraph.py), so a label can be satisfied through a name
+    collision, e.g. `subprocess.run` -> an agent tool's `.run` ->
+    `emit_audit_event` -> `create_audit_log`. This test cannot catch that.
+    """
     bad = sorted(
         f"{k} ({v!r} names {s} but does not reach it)"
         for k, v in CLASSIFICATION.items() if v.startswith("excluded: ")
