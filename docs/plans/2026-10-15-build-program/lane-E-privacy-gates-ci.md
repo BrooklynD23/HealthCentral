@@ -1,6 +1,6 @@
 # Lane E — Privacy, Gates, CI — Build Design
 
-**Last Updated:** 2026-10-21 (follow-up planned on `b902e0f`: §2.27 RSI-LOG-STDERR, RSI row, owner merges; new gate RSI-LOG-WIDEN); 2026-10-20 (PR #202 review round 1: Q-COV-GATE adds GATE-07; GATE-12 control wording; PKT no longer waits on #198); 2026-10-19 (follow-ups planned: REDACT-WS-REDOS, GATE-12, Q-COV-GATE, PKT-QUESTIONS-REDACT); 2026-10-19 (E-1c review round 2: HC-PKT-023, E1C-SCOPE row cited on main); 2026-10-18 (EXPORT-COLLECTED-TZ planned; owner answered (c)); 2026-10-17 (E-1b, REDACT-EMAIL-REDOS, DEV-SH-CC planned)
+**Last Updated:** 2026-10-21 (follow-up planned on `b902e0f`: §2.27 RSI-LOG-STDERR, RSI row, owner merges; new gate RSI-LOG-WIDEN, answered (b) 2026-10-21; §2.28 RSI-LOG-SESSIONLOG planned in #261 round 1); 2026-10-20 (PR #202 review round 1: Q-COV-GATE adds GATE-07; GATE-12 control wording; PKT no longer waits on #198); 2026-10-19 (follow-ups planned: REDACT-WS-REDOS, GATE-12, Q-COV-GATE, PKT-QUESTIONS-REDACT); 2026-10-19 (E-1c review round 2: HC-PKT-023, E1C-SCOPE row cited on main); 2026-10-18 (EXPORT-COLLECTED-TZ planned; owner answered (c)); 2026-10-17 (E-1b, REDACT-EMAIL-REDOS, DEV-SH-CC planned)
 **Owner:** repository owner
 **Status:** DESIGN — nothing here is implemented. Owner answers are quoted from [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md); this file records no new approval. Every "default" or "recommended" is the lane designer's, not the owner's.
 **Refresh Trigger:** any merge of #74, #72, #84 or a P6/P7 PR; an owner answer to S-3, S-6, OG-1, Q-AUD-LIST, Q-RUFF, Q-COV, CI-SEED, NPM-AUDIT-CI or W1-SMOKE-RUN; any commit to `.github/workflows/ci.yml`, `src/backend/api/export.py`, `src/backend/modules/export.py`, `src/backend/modules/redaction.py`, `src/backend/api/profiles.py`, `src/backend/core/auth.py`, `src/backend/core/denial_audit.py` or `src/backend/tests/support/routes.py`.
@@ -826,7 +826,7 @@ Four rows: one harness row from the #221 review (HARNESS-VITEST-HINT) and three 
 
 ### Follow-ups found 2026-10-21 (planned 2026-10-21 on `origin/main` @ `b902e0f`)
 
-One RSI row from the rsi-loop run `2026-10-20-local` ([handoff 2026-10-20c](../2026-10-20c-session-handoff.md) line 16). **RSI rule:** it edits `.claude/mods/asclexis-rsi/`, so it is never agent-merged; the owner merges (RSI-4 `owner-decisions-2026-09-27.md:203`, AUTO-MERGE `:206`). No ask-first file.
+One RSI row from the rsi-loop run `2026-10-20-local`, plus RSI-LOG-SESSIONLOG (owner RSI-LOG-WIDEN (b), #261 round 1; not an RSI row, §2.28) ([handoff 2026-10-20c](../2026-10-20c-session-handoff.md) line 16). **RSI rule:** it edits `.claude/mods/asclexis-rsi/`, so it is never agent-merged; the owner merges (RSI-4 `owner-decisions-2026-09-27.md:203`, AUTO-MERGE `:206`). No ask-first file.
 
 ### 2.27 RSI-LOG-STDERR — most Bash failures log as `error_class: "other"`, so rsi-loop cannot cluster them
 
@@ -858,8 +858,36 @@ The existing `row is metadata only` test (`rsi.test.ts:53-65`, output `out SECRE
 **Files:** `.claude/mods/asclexis-rsi/hooks/logic.ts` (`classifyError` only), `.claude/mods/asclexis-rsi/rsi.test.ts` (new describe + one logger test), `.claude/mods/asclexis-rsi/README.md` (`:17` only). Not on the rsi-loop ALLOW list (`rules.ts:1-2`), so this is a build-item PR, not an rsi-loop proposal. No slots.
 **Expected collected delta:** 0 (pytest); mod tests 19 → 23.
 **Acceptance:** `claude plugin validate .claude/mods/asclexis-rsi` → `Validation passed`; `claude plugin test .claude/mods/asclexis-rsi` → `23 pass, 0 fail`, with the RED run (3 failing) pasted first; `git diff origin/main -- .claude/mods/asclexis-rsi/hooks/register.ts .claude/mods/asclexis-rsi/hooks/rules.ts .claude/hooks/session_log.py` empty. **Rollback:** revert.
-**Owner gates:** owner merges (RSI row). **RSI-LOG-WIDEN** (open, does **not** block this row): whether the non-mod logger also gets a fixed class; wording in [§5](#5-owner-gates).
+**Owner gates:** owner merges (RSI row). **RSI-LOG-WIDEN answered (b)** 2026-10-21: the non-mod logger also gets the fixed class, as its own row [§2.28 RSI-LOG-SESSIONLOG](#228-rsi-log-sessionlog--session_logpy-rows-carry-an-exit-code-but-no-error-class); it does not block this row. Wording in [§5](#5-owner-gates).
 **Order:** ready (owner merges). Never beside RRSI-LOOP-CRITIC (`rsi.test.ts`). #230 edits `rules.ts` and `replay/cases.ts` only, so no shared file; after this row merges, #230 re-runs `claude plugin test` on the merged main (recurring-failures #12). Est 1 h. Runtime claude.
+
+### 2.28 RSI-LOG-SESSIONLOG — `session_log.py` rows carry an exit code but no error class
+
+**Source:** owner **RSI-LOG-WIDEN answered (b)** 2026-10-21 (owner-decisions row RSI-LOG-WIDEN): "add a fixed `error_class` field to `session_log.py` rows, filled from the same fixed list, never raw text (widens the HOOKS-COMMIT row)". Planned in #261 round 1.
+
+**Facts (`b902e0f`):**
+1. `build_record` (`.claude/hooks/session_log.py:43-67`) writes `ts, event, session_id, tool_name, file_path, ok, duration_ms`, plus `exit_code` and `tests` for Bash (`:57-66`). On a failure it reads `payload["error"]` (`:63`) only for the exit code and test counts; no class is recorded. The docstring (`:6-8`): "Records metadata only: never file contents, command text, or tool output".
+2. Tests: `src/backend/tests/test_session_log_hook.py` (7 tests, no HC ids; loads the script with `importlib`, `:10-16`). `test_bash_failure_records_exit_code_and_red_counts` (`:74-86`) checks fields one by one, so a new field does not break it.
+3. The mod's class list lives in `.claude/mods/asclexis-rsi/hooks/logic.ts` `classifyError` (TypeScript); the hook is Python, so the list is copied, and a parity test keeps the two equal.
+
+**Design:** a module tuple `_ERROR_CLASSES` and `_classify(text) -> str` in `session_log.py` with exactly RSI-LOG-STDERR's order and patterns (§2.27 design: the four existing shapes, the six new ones, then `exit-<n>` for 1-255, else `other`). In `build_record`, every non-SessionEnd row gets `error_class`: `None` when `ok`, else `_classify(payload.get("error") or "")`, for any tool. Never the text itself. Docstring: one line naming the field.
+
+**RSI row?** No. RSI-4 (`owner-decisions-2026-09-27.md:203`) scopes the RSI loop "as a Claude Code mod for this repo", and the never-agent-merged rule covers rsi-loop promotions and the mod (`:206`; the rsi-loop ALLOW list, `rsi-loop.js:29-33`, holds only mod files and `recurring-failures.md`). `.claude/hooks/session_log.py` is the HOOKS-COMMIT hook (`:78`, 2026-10-10, before RSI-4), wired by `.claude/settings.json`, not part of the mod and not on the ALLOW list. So it is an ordinary harness row under AUTO-MERGE (`:206`); the widening itself is licensed by RSI-LOG-WIDEN (b). The reviewer still checks the metadata-only tests.
+
+**Test-first** (`src/backend/tests/test_session_log_hook.py`):
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-SLOG-001 | Bash failure with `error` `Exit code 1\nModuleNotFoundError: No module named 'secretpkg'` → `row["error_class"] == "module-not-found"`, and `"secretpkg"` not in `json.dumps(row)` | yes (`KeyError`: no field) |
+| HC-SLOG-002 (parametrized ×4) | `Exit code 2\nboom` → `exit-2`; `Exit code 144` → `exit-144-self-kill`; `no exit line` → `other`; an `Edit` failure `String to replace not found` → `edit-no-match` | yes (no field) |
+| HC-SLOG-003 | a successful Bash row has `error_class is None`; a `SessionEnd` row has no `error_class` key | yes (no key on the Bash row) |
+| HC-SLOG-004 | parity: `set(session_log._ERROR_CLASSES)` equals the string literals returned in `classifyError` in `.claude/mods/asclexis-rsi/hooks/logic.ts` (regex `return '([a-z0-9-]+)'` over the function body), plus the `exit-` prefix | yes (no `_ERROR_CLASSES`) |
+
+**Files:** `.claude/hooks/session_log.py` (`build_record` and the new tuple/function only), `src/backend/tests/test_session_log_hook.py` (HC-SLOG-001…004 only), slots. **Re-run, not edited:** `tests/test_claude_agent_definitions.py` (it reads `.claude/settings.json`).
+**Expected collected delta:** +7 (001, 002 ×4, 003, 004). **Est:** 1 h.
+**Acceptance:** `pyt tests/test_session_log_hook.py tests/test_claude_agent_definitions.py -q -rfE`: 0 failed; RED output for each new id; `git diff origin/main -- .claude/settings.json .claude/mods` empty; full suite per RUNBOOK §6. **Rollback:** revert.
+**Owner gates:** RSI-LOG-WIDEN answered (b). No ask-first file.
+**Order:** depends on RSI-LOG-STDERR merged (HC-SLOG-004 reads its final list); never beside RSI-LOG-STDERR (they share the class list through the parity test). Runtime claude.
 
 ## 3. Provides
 
@@ -909,7 +937,7 @@ The existing `row is metadata only` test (`rsi.test.ts:53-65`, output `out SECRE
 | RRSI-CRITIC-LIST (new 2026-10-20) | RRSI-LOOP-CRITIC | **open**; the owner confirms the imperative list (§2.25) at the merge of the RSI PR, which the owner merges anyway |
 | H2-SETUP (owner action), H2-SOURCE (new 2026-10-20) | RRSI-H2-SANDBOX | H2-SETUP: owner builds the sandbox and creates the Vertex project and ADC credential (no agent invents credentials). H2-SOURCE **answered 2026-10-20: (c)** "the RSI replay cases and rule table only (`.claude/mods/asclexis-rsi/`), no other source" (owner-decisions row H2-SOURCE; an exception to G-C2-UNDEFER for these files only) |
 | DON-COPY-V3 (new 2026-10-20) | RSI1-DONATE (v3 consent copy) | **open** (asked once v3 strings are drafted; donation is parked by DON-RECALL-R2); RRSI-OQ-25 (`:346`) asks the copy to say agent answers are included, and any v3 copy needs its own DON-COPY yes. Recommended (a) one intro sentence. Exact wording in the [RSI1-DONATE plan](../2026-10-17-rsi1-opt-in-donation-pipeline-plan.md#delta-2026-10-20-second-planner-211-review-notes-for-pr-2-and-rrsi-oq-25) |
-| RSI-LOG-WIDEN (new 2026-10-21) | RSI-LOG-STDERR (follow-up only; does not block it) | **open**. Wording as asked: "Sessions that start without the asclexis-rsi mod leave only `.claude/hooks/session_log.py` rows, which carry an exit code and no error class (the logger you approved as metadata-only in HOOKS-COMMIT). Should those rows also get a fixed `error_class` field? (a) No: the mod's finer classes are enough, and sessions start with `--plugin-dir .claude/mods/asclexis-rsi`, as the handoff already says (Recommended: keeps the HOOKS-COMMIT row as approved; no new field) (b) Yes: add an `error_class` field to `session_log.py` rows, filled from the same fixed list, never raw text (widens the HOOKS-COMMIT row; a separate row with a Python test in `test_session_log_hook.py`) (c) Neither: drop RSI-LOG-STDERR and keep `other`." |
+| RSI-LOG-WIDEN (new 2026-10-21) | RSI-LOG-STDERR (follow-up only; does not block it); RSI-LOG-SESSIONLOG | **answered (b)** 2026-10-21 (owner-decisions row RSI-LOG-WIDEN; L0 AskUserQuestion, prompt 21): add the field, as row RSI-LOG-SESSIONLOG (§2.28). Wording as asked: "Sessions that start without the asclexis-rsi mod leave only `.claude/hooks/session_log.py` rows, which carry an exit code and no error class (the logger you approved as metadata-only in HOOKS-COMMIT). Should those rows also get a fixed `error_class` field? (a) No: the mod's finer classes are enough, and sessions start with `--plugin-dir .claude/mods/asclexis-rsi`, as the handoff already says (Recommended: keeps the HOOKS-COMMIT row as approved; no new field) (b) Yes: add an `error_class` field to `session_log.py` rows, filled from the same fixed list, never raw text (widens the HOOKS-COMMIT row; a separate row with a Python test in `test_session_log_hook.py`) (c) Neither: drop RSI-LOG-STDERR and keep `other`." |
 
 ## 6. Open questions
 

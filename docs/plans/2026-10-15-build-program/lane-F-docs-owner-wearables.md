@@ -1,6 +1,6 @@
 # Lane F — Docs, Owner Queue, Wearables Consumer Map — Build Design
 
-**Last Updated:** 2026-10-21 (§2.15 FEATURE-LIST-LICENCE planned on `b902e0f`); 2026-10-19 (F-4 and F-9 rechecked after owner rows P8-B2, SHOW-FREEZE; status cells fixed); 2026-10-15
+**Last Updated:** 2026-10-21 (§2.15 FEATURE-LIST-LICENCE planned on `b902e0f`; #261 round 1: lint interpreter stated); 2026-10-19 (F-4 and F-9 rechecked after owner rows P8-B2, SHOW-FREEZE; status cells fixed); 2026-10-15
 **Owner:** repository owner
 **Status:** DESIGN — nothing here is implemented. Owner answers are quoted from [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md); this file records no new approval. Every "default" or "recommended" is the lane designer's, not the owner's.
 **Refresh Trigger:** any merge of #72, #74, #84, #94, #68 or a W-2 / W-3 / W-7 / W-8 / P6 / P7 PR; an owner answer to any gate in §5; P8 Brief 2 signed; any commit to `docs/architecture/pipelines.md`, `docs/architecture/README.md`, `docs/architecture/backend.md`, `docs/compliance/data-privacy.md`, `docs/features/TASK_LIST.md`, `skills/asclexis-guardrails/SKILL.md` or `CS4610_Report_Demo/README.md`.
@@ -316,7 +316,7 @@ Source: `TASK_LIST.md:80-104` and wearables program 00 §10 (on #94). "Unblocks"
 |---|---|---|
 | `git grep -c "nli-deberta-v3-xsmall, MIT" -- feature_list.json` | no output, exit 1 | yes (`feature_list.json:1`) |
 | `git grep -c "nli-deberta-v3-xsmall, Apache-2.0, ~22M params" -- feature_list.json` | `feature_list.json:1` | yes (no match) |
-| `python3 scripts/feature_list_lint.py` | exit 0 | n/a |
+| `python3 scripts/feature_list_lint.py` (stdlib only: `json`, `re`, `sys`, `pathlib`, `feature_list_lint.py:25-30`; CI runs the same command, `ci.yml:29-30`) | exit 0 | n/a |
 | `git diff --stat origin/main...HEAD` | `feature_list.json` only, 1 line changed | n/a |
 
 **Files:** `feature_list.json` (`:142` only). Not under `docs/`, so no index regeneration. No slots.
