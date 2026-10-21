@@ -509,6 +509,11 @@ async def test_hc_agq_050_draft_composes_care_task_sentences_with_citations(
     assert mapping.dropped == []
     assert any("t1" == c.source_id for c in result.citations)
     assert any("The note says" in s for s in result.sentences)
+    # AGENT-ENABLED-TOGGLE (AET-LABEL a): care-task text is labelled unverified.
+    task_sentences = [s for s in result.sentences if "follow-up item" not in s]
+    assert task_sentences
+    for s in task_sentences:
+        assert "Open follow-up (from your documents, not verified by you): " in s
 
 
 @pytest.mark.asyncio
