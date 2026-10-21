@@ -189,7 +189,8 @@ def _care_task_sentences(run_log: RunLog) -> tuple[list[str], list[Citation]]:
     "You have N ... follow-up items" summary sentence citing every row (same
     "per-row + trailing summary" shape as ``_trend_sentences``). Fields are
     already sanitized by the tool (see tools/query_care_tasks.py) — this
-    composes them as-is, record-keeping framing only.
+    composes them as-is, record-keeping framing only. Each task sentence carries the
+    "from your documents, not verified by you" label (AET-LABEL a).
     """
     sentences: list[str] = []
     citations: list[Citation] = []
@@ -208,7 +209,7 @@ def _care_task_sentences(run_log: RunLog) -> tuple[list[str], list[Citation]]:
             due = f" (due {row['due_date']})" if row.get("due_date") else ""
             quote = row.get("source_quote")
             quote_part = f' The note says: "{quote}"' if quote else ""
-            sentences.append(f"Open follow-up: {row['title']}{due}.{quote_part}")
+            sentences.append(f"Open follow-up (from your documents, not verified by you): {row['title']}{due}.{quote_part}")
             citations.append(
                 Citation(source_type="document", source_id=row["task_id"], locator=row["task_id"], source_kind="task")
             )
