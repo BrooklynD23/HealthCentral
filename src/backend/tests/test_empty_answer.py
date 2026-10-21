@@ -11,7 +11,6 @@ All routes are driven over HTTP. Unlike test_safe_interp_grounded._rag, the
 interpret-grounded tests here leave verification real.
 """
 
-# ruff: noqa: F811  (the imported `dbs` fixture is requested by name in the tests)
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -24,7 +23,9 @@ from modules.rag import RAGModule, RetrievedChunk
 from tests.legacy_eval.harness import CHAT_PATH, build_chunks, legacy_chat_client
 from tests.test_safe_interp_grounded import CLEAN_ANSWER, _call, dbs  # noqa: F401
 
-MEASURED_CLEAN_IS_VALID = False  # measured on main b9d285e: interpret_safety flags missing disclaimers
+# Measured on main b9d285e: the real verifier fails both claims of CLEAN_ANSWER
+# (validation_errors: '2 claim(s) could not be verified', 'Low faithfulness score').
+MEASURED_CLEAN_IS_VALID = False
 
 
 @pytest.mark.parametrize("answer", ["", "   \n"])
@@ -63,7 +64,7 @@ def _real_verification_rag(answer: str) -> RAGModule:
     return rag
 
 
-async def _grounded(dbs, answer: str):
+async def _grounded(dbs, answer: str):  # noqa: F811
     profile_db, master_db, obs_id = dbs
     with patch.object(I, "get_rag_module", return_value=_real_verification_rag(answer)):
         return _call(profile_db, master_db, "POST",
@@ -71,15 +72,23 @@ async def _grounded(dbs, answer: str):
 
 
 @pytest.mark.asyncio
-async def test_hc_eas_003_empty_grounded_answer_is_not_valid(dbs):
+async def test_hc_eas_003_empty_grounded_answer_is_not_valid(dbs):  # noqa: F811
     resp = await _grounded(dbs, "")
     assert resp.status_code == 201, resp.text
-    assert resp.json()["is_valid"] is False
+    body = resp.json()
+    assert body["is_valid"] is False
+    assert "Empty model response" in body["validation_errors"]
+    assert body["full_response"] == ""
+    assert body["grounded_segments"] == []
 
 
 @pytest.mark.asyncio
-async def test_hc_eas_004_clean_grounded_answer_verdict_unchanged(dbs):
+async def test_hc_eas_004_clean_grounded_answer_verdict_unchanged(dbs):  # noqa: F811
     resp = await _grounded(dbs, CLEAN_ANSWER)
     assert resp.status_code == 201, resp.text
     # Measured on main (b9d285e) before the fix; the empty check must not move it.
-    assert resp.json()["is_valid"] is MEASURED_CLEAN_IS_VALID
+    body = resp.json()
+    assert body["is_valid"] is MEASURED_CLEAN_IS_VALID
+    # Guards against a check that fires on every answer (the is_valid pin alone
+    # cannot see that). Not the full error list: it carries a faithfulness score.
+    assert "Empty model response" not in body["validation_errors"]
