@@ -640,6 +640,129 @@ No test imports the real `llama_cpp` or reaches the network: both libraries are 
 **Acceptance:** `pyt tests/test_model_path_logs.py tests/test_llm_provider_layer.py tests/test_model_integrity.py tests/test_tier_capabilities.py tests/test_llm_structured_output.py -q -rfE`: 0 failed; RED output for the 6 new ids; full suite per RUNBOOK §6. **Rollback:** revert.
 **Order:** ready now. Never beside B-5 (`model_selector.py`; B-5 is blocked on B-3). No ask-first file; `core/model_runner.py` and `core/external_runner.py` are not touched.
 
+## Follow-ups found 2026-10-20, second batch (planned 2026-10-20 on `origin/main` @ `699eb18`)
+
+Five rows: UNCERTAINTY-VERIFY (owner LCP-HL-DIFF follow-up, `owner-decisions-2026-09-27.md:319`), NLI-LOG-M7 (#240 review), and three RRSI app rows from owner rows RRSI-OQ-9, RRSI-OQ-14 and RRSI-OQ-21 (`owner-decisions-2026-09-27.md:330`, `:335`, `:342`). None of them edits a CLAUDE.md §1 ask-first file. Measured facts ran as scratch tests in the planning worktree through `bash scripts/pyslot.sh` (removed afterwards; `git status --short` empty). `pyt` is as defined in the 2026-10-20 batch above.
+
+### UNCERTAINTY-VERIFY — uncertainty sections are never verified, so a false cited value there is served
+
+**Source:** owner LCP-HL-DIFF (`owner-decisions-2026-09-27.md:319`): "Merge as shown. The UNCERTAINTY gap becomes a follow-up row 'uncertainty sections are never verified'." Disclosure (5) of #215.
+
+**Facts (`699eb18`):**
+1. `ClaimExtractor.extract_claims` skips every uncertainty section before claims are extracted (`src/backend/modules/claim_extractor.py:130-132`, `if segment_type == "uncertainty": continue`). So the bullet's pointer is half right: `filter_unverifiable_claims` also marks uncertainty claims unverifiable (`:347-349`), but no uncertainty claim ever reaches it. A fix must change both sites.
+2. `RAGModule._run_verification_pipeline` (`src/backend/modules/rag.py:1015`) calls `extract_claims` then `filter_unverifiable_claims` (`:1031-1034`); with no verifiable claims it returns `faithfulness_score=1.0` (`:1036-1044`).
+3. HC-LCPH-013 (`src/backend/tests/test_rag_headerless.py:241-252`) pins the gap: `FACTS_LINE + "\nUNCERTAINTY:\nYour glucose is 300 mg/dL [cite:1]"` is served with `is_valid True` and `300 mg/dL` in `full_response`. **Measured:** it passes on `699eb18` (`1 passed`, run together with the NLI scratch test below). Its docstring says it is expected to change when this row lands.
+4. The app's own uncertainty texts carry no digit and no `[cite:N]` (`rag.py:858-859`, `:1409-1412`, `:1453-1454`); the structured renderer's `UNCERTAINTIES:` list (`:1406`) is model text and is the case this row is about.
+
+**Design (under UNC-VERIFY-SCOPE (a), recommended):** `extract_claims` no longer skips uncertainty sections; `filter_unverifiable_claims` treats an uncertainty claim like a meta claim: unverifiable **unless** it carries a citation or a digit (the existing `carries_fact` test, `:354`). A hedge such as "Reference ranges can vary between laboratories." stays unverified; "Your glucose is 300 mg/dL [cite:1]" is verified against source 1 and withheld when it fails, exactly as in REPORT FACTS. No threshold, `faithfulness.py`, `verifier_agent.py` or `interpret_safety.py` change.
+
+**Test-first** (`src/backend/tests/test_rag_headerless.py`, via `legacy_chat_client` as HC-LCPH-013):
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-LCPH-013 (changed, docstring says so) | the same answer is now withheld: `"300 mg/dL"` in neither `full_response` nor any segment | yes (measured: served today) |
+| HC-LCPH-016 | `UNCERTAINTIES:\n- Reference ranges can vary between laboratories.` after `FACTS_LINE` is still served unchanged, `is_valid True` | no (pin) |
+| HC-LCPH-017 | `UNCERTAINTIES:\n- Your glucose is 300 mg/dL` (digit, no cite) is withheld | yes |
+| HC-LCPH-018 | unit: `filter_unverifiable_claims` on an uncertainty claim with `[cite:1]` puts it in `verifiable`; one with no digit and no cite in `unverifiable` | yes (the claim is never extracted today) |
+
+Under (b) (cite only), HC-LCPH-017 flips to "served" and is kept as a pin of the remaining gap.
+
+**Files:** `src/backend/modules/claim_extractor.py` (`:130-132`, `:347-349` only), `src/backend/tests/test_rag_headerless.py`, slots. **Re-run, not edited:** `tests/test_phase4_ai_safety.py`, `tests/test_rag_pipeline.py`, `tests/test_legacy_abstain.py`, `tests/test_legacy_cite_eval.py`, `tests/test_rag_structured_cite.py`, and the legacy eval gate (`scripts/legacy_eval_gate.py`, same result as on `main`).
+**Expected collected delta:** +3. **Est:** 1.5 h (+ Opus review).
+**Acceptance:** `pyt tests/test_rag_headerless.py tests/test_phase4_ai_safety.py tests/test_rag_pipeline.py tests/test_legacy_abstain.py tests/test_legacy_cite_eval.py tests/test_rag_structured_cite.py -q -rfE`: 0 failed apart from the CLAUDE.md §4 environment failures; RED output for HC-LCPH-013 (changed), 017 and 018; legacy eval gate output before and after, identical; full suite per RUNBOOK §6. **Rollback:** revert.
+**Owner gates:** **UNC-VERIFY-SCOPE** (execution, open): "Uncertainty sections are never verified today (`claim_extractor.py:130-132`), so `UNCERTAINTY:\nYour glucose is 300 mg/dL [cite:1]` is served even when source 1 says otherwise (pinned by HC-LCPH-013). Which uncertainty lines should be checked like report facts? (a) lines that carry a `[cite:N]` or a number; hedges without either stay unchecked (Recommended: closes the measured leak; the app's own uncertainty texts have neither, so they are unaffected) (b) only lines that carry a `[cite:N]`; an uncited number stays unchecked (c) none; keep the gap and the pin." **UNC-VERIFY-DIFF** (merge only, open; asked after the draft PR exists), as LCP-HL-DIFF: owner yes on the exact `claim_extractor.py` diff with the eval-gate output.
+**Order:** blocked on UNC-VERIFY-SCOPE. Never beside B-3 (B-3 rebases on what the verifier withholds; queue bullet). No open PR touches `claim_extractor.py` or `test_rag_headerless.py` (checked against #210, #230, #239, #245, #246). No ask-first file.
+
+### NLI-LOG-M7 — the NLI loader's logger-restore test starts at INFO, so mutant M7 survives
+
+**Source:** #240 review (EMB-LOG-M7's twin in the NLI loader). Never run beside G-C5 (queue bullet; G-C5 is done, its real-model steps are pending).
+
+**Facts (`699eb18`):** `load_local_cross_encoder` (`src/backend/modules/embeddings.py:72`) saves `prev_levels = [lg.level for lg in quiet]` (`:101`), raises each logger to `max(getEffectiveLevel(), WARNING)` (`:103`) and restores in `finally` (`:111-112`). Its only restore test, HC-GC5-004c (`src/backend/tests/test_gc5_nli_flag.py:443-461`), sets both loggers to INFO first, where `.level == getEffectiveLevel()`.
+
+**Measured (scratch test, then M7 applied with `sed` to a working copy of `embeddings.py`, reverted with `git checkout`):** a NOTSET-start test passes on `699eb18`; under M7 (`prev_levels = [lg.getEffectiveLevel() …]`) it fails with `assert 30 == 0`, while HC-GC5-004c still passes (`1 failed, 1 passed`).
+
+**Design:** test only, as EMB-LOG-M7 (#240).
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-GC5-004d | same setup as HC-GC5-004c (corrupt bundle, `verify_model_file` → VERIFIED, `CrossEncoder` stub raising); `logging.getLogger("sentence_transformers").setLevel(NOTSET)`; assert `getEffectiveLevel() != NOTSET` first (non-vacuous); `load_local_cross_encoder()` raises `EmbeddingModelUnavailableError`; then `.level == NOTSET`; restore in `finally` | no (pin). M7 fails it (measured above) |
+
+**Files:** `src/backend/tests/test_gc5_nli_flag.py`, slots. `src/backend/modules/embeddings.py` shows an empty diff.
+**Expected collected delta:** +1. **Est:** 0.25 h.
+**Acceptance:** `pyt tests/test_gc5_nli_flag.py tests/test_embedding_fail_closed_paths.py -q -rfE`: 0 failed; the M7 RED output pasted; `git diff origin/main -- src/backend/modules` empty. **Rollback:** revert.
+**Order:** ready now. No open PR touches `test_gc5_nli_flag.py`. No ask-first file.
+
+### AGENT-ENABLED-TOGGLE — no Settings switch for the agent, and care-task text is not labelled unverified
+
+**Source:** owner RRSI-OQ-9 (`owner-decisions-2026-09-27.md:330`): "Keep T0 on by default; add a Settings toggle for `agent_enabled`; label care-task text as unverified in answers."
+
+**Facts (`699eb18`):**
+1. The backend already has the flag: `PATCH /settings/model/agent` (`src/backend/api/model_settings.py:1201-1229`, audited as `settings.agent.update`), and `GET /settings/model` returns `agent_enabled` (`:465`). `git grep -n agent_enabled -- src/frontend/src` prints nothing: no type field, hook or switch.
+2. `_care_task_sentences` (`src/backend/modules/agent/nodes/draft.py:184-219`) writes `Open follow-up: {title}{due}. The note says: "{quote}"` with no label, although `query_care_tasks` returns document-extracted free text (`modules/agent/tools/query_care_tasks.py:5`, `:81`). Prior art for a label: unverified timeline events are rolled into a "pending your verification" sentence (`draft.py:262-300`, HC-AGQ-052b).
+
+**Design:**
+1. Frontend: `agent_enabled: boolean` on `ModelSettings` and `useSaveAgentSettings()` (`apiPatch('/settings/model/agent', …)`, invalidating the model-settings query) in `src/frontend/src/services/modelSettings.ts`; a small `AgentSettingsCard.tsx` in `src/frontend/src/components/settings/` (one switch, on by default, copy: "Use the step-by-step assistant. When off, answers come from the simpler search path."); one import and render line in `SettingsPage.tsx`.
+2. Backend: each care-task sentence gets the AET-LABEL wording (recommended: `Open follow-up (from your documents, not verified by you): …`). Summary sentence and citations unchanged.
+
+**Test-first:**
+
+| Id | Where | Assertion | RED today? |
+|---|---|---|---|
+| HC-AGQ-050 (changed) | `src/backend/tests/agent/test_agentic_queries.py` | each care-task sentence contains the AET-LABEL text; citations and groundedness mapping unchanged (`mapping.dropped == []`) | yes |
+| HC-AET-001 | `src/backend/tests/test_model_settings_api.py` via `route_client` | `PATCH /settings/model/agent {"agent_enabled": false}` → 200, then `GET /settings/model` shows `false`; one `settings.agent.update` audit row | no (pin of the route the card calls) |
+| HC-AET-FE-001…002 | `src/frontend/src/__tests__/AgentSettingsCard.test.tsx` | the switch reflects `agent_enabled`; toggling calls PATCH with the new value | yes (no card) |
+
+**Files:** `src/backend/modules/agent/nodes/draft.py` (`_care_task_sentences` only), `src/backend/tests/agent/test_agentic_queries.py` (HC-AGQ-050 only), `src/backend/tests/test_model_settings_api.py` (HC-AET-001 only), `src/frontend/src/services/modelSettings.ts`, `src/frontend/src/components/settings/AgentSettingsCard.tsx`, `src/frontend/src/pages/SettingsPage.tsx` (one import + render line), `src/frontend/src/__tests__/AgentSettingsCard.test.tsx`, slots.
+**Expected collected delta:** +1 backend. **Est:** 2 h.
+**Acceptance:** `pyt tests/agent/test_agentic_queries.py tests/test_model_settings_api.py -q -rfE`: 0 failed; `cd src/frontend && npx tsc --noEmit && npx vitest run src/__tests__/AgentSettingsCard.test.tsx` (on WSL `/mnt/c` vitest stalls: SKIPPED with that reason, CI runs it); full suite per RUNBOOK §6. **Rollback:** revert.
+**Owner gates:** RRSI-OQ-9 answered (`:330`). **AET-LABEL** (open, wording): "Care-task sentences in agent answers come from text extracted from your documents and are not verified. Which label? (a) `Open follow-up (from your documents, not verified by you): …` (Recommended: says where it came from and that nobody checked it) (b) `Unverified follow-up: …` (c) a separate line after the list: `These follow-ups come from your documents and are not verified.`"
+**Order:** blocked on AET-LABEL for the backend half; the frontend half needs no gate. `SettingsPage.tsx` is a shared file (contracts §b) and #239 (RSI1-DONATE PR-2) edits it: start after #239 merges, or never beside it. Never beside MSET-EXT-AUDIT-CT's successors on `test_model_settings_api.py` (none open). No ask-first file.
+
+### RUNSTEP-CONTRACT — the RunStep comment says handles, but `act` stores full tool outputs
+
+**Source:** owner RRSI-OQ-14 (`owner-decisions-2026-09-27.md:335`): "Correct the comment; add a test that RunLog never reaches audit, cache, persistence or donation."
+
+**Facts (`699eb18`):** `RunStep.payload` is commented `# handles, never raw PHI` (`src/backend/modules/agent/state.py:63`), but `act` stores `{"tool_name": …, "output": output.model_dump(mode="json")}` (`src/backend/modules/agent/nodes/act.py:50-59`, payload at `:56`), i.e. full tool output, values included. `graph.replay` relies on that (`graph.py:237-242`). The RunLog is built in `graph.py:176` and lives only in memory; no `RunLog` reference exists outside `modules/agent/` except the eval scorer (`modules/agent/eval/scorer.py:293-328`).
+
+**Design:** comment only in `state.py:63` (e.g. `# full tool output (values included); in memory only, never persisted, audited, cached or donated (RRSI-OQ-14)`), plus the isolation test. No product change.
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-RUNLOG-001 | one `POST /assistant/chat` through `route_client` on the agent path, with a stub tool whose output carries a canary in a field `draft` never renders (the implementer picks it from `draft.py` and asserts the canary is in `run_log.steps`, so the test is not vacuous); the canary is absent from every `create_audit_log` call's arguments, from the agent cache entry (`modules/agent/cache.py` `put_cached`), from the stored `ChatTurn` rows, and from `caplog` | no (pin). Mutant: `put_cached` storing `run_log.model_dump()` beside the terminal fails it |
+| HC-RUNLOG-002 | donation leg (after #239 merges): `collect` over the profile after the chat in HC-RUNLOG-001 yields no row containing the canary | no (pin) |
+
+**Files:** `src/backend/modules/agent/state.py` (`:63` comment only), `src/backend/tests/agent/test_runlog_isolation.py` (new), slots.
+**Expected collected delta:** +2. **Est:** 1.5 h.
+**Acceptance:** `pyt tests/agent/test_runlog_isolation.py tests/agent/ -q -rfE`: 0 failed; the mutant output pasted; full suite per RUNBOOK §6. **Rollback:** revert.
+**Owner gates:** RRSI-OQ-14 answered (`:335`); none open.
+**Order:** HC-RUNLOG-001 ready now; HC-RUNLOG-002 waits for #239 (it imports `modules/data_donation.py`, which only #239 adds). Build both after #239 merges, or ship 001 and add 002 in a follow-up commit on the same branch after #239 merges. No ask-first file.
+
+### CHAT-TREND-DEF — the chat trend uses first-vs-last with strict equality; the owner wants the Trends-page definition
+
+**Source:** owner RRSI-OQ-21 (`owner-decisions-2026-09-27.md:342`): "Adopt the Trends page's latest-vs-prior comparison with a 5% stable band."
+
+**Facts (`699eb18`) — the owner row's premise does not hold:**
+1. Agent chat: `compute_trend` compares first and last point with strict equality (`src/backend/modules/agent/tools/compute_trend.py:83-89`); `draft` turns that into "increased / decreased / stayed about the same" (`modules/agent/nodes/draft.py:176-179`).
+2. The Trends page shows `trendData.summary` (`src/frontend/src/pages/TrendsDashboard.tsx:403`, `:528-530`) from `GET /observations/trends/{analyte}` (`src/frontend/src/services/observations.ts:51`), which computes **first-vs-last** with a 5% band (`src/backend/api/observations.py:660-671`). The doctor export does the same (`src/backend/api/export.py:355-368`).
+3. The **latest-vs-prior** 5% definition the research cited (`02-verdicts.md:183`) is `AnalyticsModule.calculate_trend` (`src/backend/modules/analytics.py:96-112`), and nothing calls it: `git grep -n "AnalyticsModule\|calculate_trend" -- src/backend` finds only its definition and the `modules/__init__.py` export. The Trends page icon (`TrendsDashboard.tsx:216-221`) is called with `previous = undefined` (`:595`), so it always shows the flat icon.
+4. Other trend texts: the legacy chat chunk uses 3% over the recent rows (`modules/rag.py:465-473`); the lab interpretation uses latest-vs-prior 5% (`modules/interpret.py:531-541`).
+
+So "the Trends page's definition" and "latest-vs-prior" name different rules. Which one the owner meant is a new gate (CTD-DEF); this plan does not choose.
+
+**Design (agent path only unless CTD-SCOPE says otherwise):** `compute_trend` takes the CTD-DEF rule with a 5% band and no division by zero (a zero base gives "flat", as `api/observations.py:664` does). `draft` wording unchanged.
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-CTD-001 ×3 | `compute_trend` on points 100 → 103 gives `flat`; 100 → 110 gives `up`; 100 → 90 gives `down` | 100 → 103 yes (strict equality gives `up`) |
+| HC-CTD-002 | under CTD-DEF (a): points 100, 150, 104 give `flat` (first-vs-last 4%); under (b): `down` (latest-vs-prior −31%) | yes under (b); under (a) yes (strict gives `up`) |
+| HC-CTD-003 | parity: for the same verified series, `compute_trend`'s direction agrees with the word in `GET /observations/trends/{analyte}`'s summary (under (a) only) | yes |
+
+**Files:** `src/backend/modules/agent/tools/compute_trend.py` (`:83-89` only), `src/backend/tests/agent/test_s2_loop.py` or a new `src/backend/tests/agent/test_chat_trend_def.py` (the implementer picks one; the file list names the one used), slots. Under CTD-SCOPE (b) also `src/backend/modules/rag.py` (`:465-473` only) and `src/backend/tests/test_biomarker_assistant.py`.
+**Expected collected delta:** +5. **Est:** 1 h (+1 h under CTD-SCOPE (b)).
+**Acceptance:** `pyt tests/agent/ tests/test_assist_agent_dates_http.py tests/test_export_trend_units.py -q -rfE`: 0 failed; RED output; full suite per RUNBOOK §6. **Rollback:** revert.
+**Owner gates:** RRSI-OQ-21 answered (`:342`), but on a premise that does not match the code (facts 2-3). **CTD-DEF** (open): "You chose 'the Trends page's latest-vs-prior comparison with a 5% stable band' for chat trends. The Trends page actually compares the **first and last** result with a 5% band (`api/observations.py:660-671`, the doctor export does the same); the latest-vs-prior rule exists only in an unused module (`modules/analytics.py`). Which rule should chat use? (a) first-vs-last with a 5% band, the rule the Trends page and export show (Recommended: one definition across the app, as your answer intended, and the smallest change) (b) latest-vs-prior with a 5% band, as worded; chat and the Trends page summary would then disagree (c) latest-vs-prior with a 5% band for chat **and** the Trends page summary (changes the Trends page text too; a separate row)." **CTD-SCOPE** (open): "Should the legacy chat path's trend line (3% over recent rows, `modules/rag.py:465-473`) change too? (a) no, agent path only (Recommended: the legacy text is model context, and `rag.py` is shared with B-3) (b) yes, same rule."
+**Order:** blocked on CTD-DEF. Under CTD-SCOPE (b), never beside B-3 or another `rag.py` row. No open PR touches `compute_trend.py`. No ask-first file.
+
 ## Provides
 
 1. `modules.agent.state.ChatFilters` (frozen: `from_dt`, `to_dt` naive UTC, `analytes: tuple[str, ...]`, `category`); `modules.agent.graph.RunContext.filters: ChatFilters`, read by agent tools via `getattr(ctx, "filters", None)` (ASSIST-AGENT-DATES).
@@ -680,6 +803,11 @@ No test imports the real `llama_cpp` or reaches the network: both libraries are 
 | **LCP-HL-SCOPE** | LCP-HEADERLESS | (a) line-start headers, text outside a section counts as REPORT FACTS (cited unrendered JSON still served raw) / (b) (a) + withhold unrendered structured text / (c) line-start headers only (exact wording in [LCP-HEADERLESS](#lcp-headerless--the-legacy-parser-finds-headers-anywhere-drops-text-before-them-and-never-checks-headerless-text-for-citations)) | **open** (planned 2026-10-19; recommended (a)) |
 | **LCP-HL-LABELS** | LCP-HEADERLESS | yes/no: remove `[YOUR_RESULTS:N]`, `[REFERENCE:N]`, `[USER_DOCUMENT:N]`, `[USER_OBSERVATION:N]` from served text | **open** (split out in PR #202 review round 1; recommended (a) yes) |
 | **LCP-HL-DIFF** | LCP-HEADERLESS | merge only: owner yes on the exact `rag.py` diff (citation check) | **open**; asked after the draft PR exists |
+| **UNC-VERIFY-SCOPE** | UNCERTAINTY-VERIFY | (a) verify uncertainty lines carrying `[cite:N]` or a number / (b) `[cite:N]` only / (c) keep the gap (exact wording in [UNCERTAINTY-VERIFY](#uncertainty-verify--uncertainty-sections-are-never-verified-so-a-false-cited-value-there-is-served)) | **open** (planned 2026-10-20; recommended (a)) |
+| **UNC-VERIFY-DIFF** | UNCERTAINTY-VERIFY | merge only: owner yes on the exact `claim_extractor.py` diff with the eval-gate output | **open**; asked after the draft PR exists |
+| **AET-LABEL** | AGENT-ENABLED-TOGGLE | care-task label wording: (a) `Open follow-up (from your documents, not verified by you): …` / (b) `Unverified follow-up: …` / (c) one trailing sentence | **open** (planned 2026-10-20; recommended (a)); RRSI-OQ-9 answered (`owner-decisions-2026-09-27.md:330`) |
+| **CTD-DEF** | CHAT-TREND-DEF | RRSI-OQ-21's "Trends page's latest-vs-prior" names two different rules: (a) first-vs-last 5% (what the Trends page and export show) / (b) latest-vs-prior 5% as worded / (c) latest-vs-prior for chat and the Trends page | **open** (planned 2026-10-20; recommended (a)); RRSI-OQ-21 answered on a premise the code does not match |
+| **CTD-SCOPE** | CHAT-TREND-DEF | (a) agent path only / (b) also the legacy chunk's 3% line in `rag.py` | **open** (recommended (a)) |
 
 Ask-first files touched by this lane: only `modules/verifier_agent.py` (G-C5). LCP-HEADERLESS edits the citation check in `modules/rag.py` (not a CLAUDE.md §1 file), so its diff has the named merge gate LCP-HL-DIFF. `interpret_safety.py`, `redaction.py`, `faithfulness.py`, `core/auth.py` and auth/encryption code stay read-only. SAFE-CHAT-AGENT option B only imports `PROHIBITED_PATTERNS`.
 

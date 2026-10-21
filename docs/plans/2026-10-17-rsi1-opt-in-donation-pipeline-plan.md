@@ -191,6 +191,25 @@ The plan has no trainer design: the extraction-probe bullet says "If fine-tuning
 - **PR-3a** (runtime claude): Task 5 as revised above.
 - **PR-3b** (model machine): the local LoRA run on a PR-3a manifest and `src/backend/scripts/donation_extraction_probe.py`. It needs its own plan delta before it starts, because three design points are open: the trainer and its dependencies (a new training dependency is its own dependency row and licence check); where the probe loads the tuned model (CLAUDE.md §3 routes LLM calls through `ModelRunner`; compare GC5-OL-3); and what revoke does to an adapter trained on revoked records (DON-REVOKE (a) deletes records and synthetic children; its option (b), which also deleted adapters, was not chosen). Queue bullet **RSI1-DONATE-FT-PLAN** tracks that plan delta; it is not planned here.
 
+## Delta 2026-10-20, second (planner): #211 review notes for PR-2, and RRSI-OQ-25
+
+Planned on `origin/main` @ `699eb18`. PR-2 is in flight as draft #239 (head `5f2c7d3`); this delta edits none of its files and changes no PR-2 task. Each #211 adversarial-review note (the queue bullet "RSI1-DONATE-PR2 notes") was checked against `main` and #239's diff:
+
+| Note | State on `699eb18` / #239 | Where it goes |
+|---|---|---|
+| An `ended_reason` column (a closed consent row may be a patient revoke or a supersede by a new copy version) | No column; the model docstring now says so (`src/backend/models/data_donation.py:19-25`, "revoked_at also closes a row superseded by …"). #239 adds no migration. | No row. Revisit only if an audit or UI must tell the two apart; that needs a profile migration (contracts §c) |
+| Revoke deletes cross-purpose synthetic children, unpinned | **Fixed in PR-1:** HC-DON-006 seeds a synthetic child filed under another purpose; only the `parent_id` delete removes it (count 9, `src/backend/tests/test_donation_routes_http.py:258-294`) | Done |
+| Canary rows after revoke | Kept by design today and pinned (HC-DON-006b, `:319-332`); DON-REVOKE (`owner-decisions-2026-09-27.md:279`) covers "records and synthetic children" and is silent on canaries | PR-3 (leak eval and canaries), as the #211 final review said; no new gate unless PR-3 proposes sweeping them |
+| Move the logic to `modules/data_donation.py` | #239 adds `src/backend/modules/data_donation.py` (collect, consent check) | PR-2 (in flight) |
+| HC-DON-007 isolation via 403 + `denial.cross_profile` | Not applicable: the donation routes are session-scoped with no `{profile_id}` in the path, so there is nothing to deny; isolation is the vault plus the `profile_id` filter, which HC-DON-007b proves in one vault (`:370`) | No row (PR-1 body records the deviation) |
+| Stale-version consent shows as granted (final-review finding 1) | `ConsentState.current` exists on `main` (`src/backend/api/donation.py:46-47`, `:69-77`); #239's `collect` refuses a non-current row (DON-STALE) | PR-2 (in flight) |
+
+**RRSI-OQ-25** (`owner-decisions-2026-09-27.md:346`): "Accept as already decided, under strict redaction plus the Safe Harbor detector, and make sure the DON-COPY wording says agent answers are included." The approved copy (`2026-10-20-v2`, DON-COPY-R2 `:320`; `src/frontend/src/components/settings/DataDonationCard.tsx:20-45`) says "For chat answers I have rated or will rate" for all three purposes and never says that answers written by the step-by-step assistant (agent) are included. The row itself says "Any v3 consent copy needs its own DON-COPY yes." So a copy bump is needed, and it is gated:
+
+- **DON-COPY-V3** (open; asked with the exact v3 strings once drafted): "RRSI-OQ-25 asks the consent copy to say agent answers are included. Approve this v3 change? (a) add one sentence to the intro: 'This includes answers from the step-by-step assistant.', version `2026-10-2x-v3`; existing grants become not current and must re-agree (DON-STALE) (Recommended: one sentence, every purpose covered) (b) add 'including step-by-step assistant answers' inside each purpose description (c) no copy change; record that 'chat answers' already covers agent answers."
+- **Files** (after #239 merges; both files are PR-1/PR-2 files): `src/frontend/src/components/settings/DataDonationCard.tsx` (copy and version), `src/backend/api/donation.py` (`CURRENT_CONSENT_TEXT_VERSION` only), `src/frontend/src/__tests__/DataDonationCard.test.tsx`, `src/backend/tests/test_donation_routes_http.py` (version literal lines only). It rides on PR-3, or a small PR-2b if PR-3 is not near; either way after #239 merges and after DON-COPY-V3 is answered. Under (c), no files.
+- A copy bump marks every existing grant not current (`api/donation.py:77`), so a patient who agreed to v2 must re-agree before `collect` reads anything. The PR body must say so.
+
 ## Tasks (test-first)
 
 ### Task 0: Gates and re-verify

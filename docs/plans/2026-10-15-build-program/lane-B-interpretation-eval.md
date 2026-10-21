@@ -299,6 +299,35 @@ The MM-4 report itself is not in the repo. If the owner can share one de-identif
 **Acceptance** (from `src/backend`, `pyt` = `bash "$(git rev-parse --show-toplevel)/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest`): `pyt tests/test_extract_pathology.py tests/test_source_spans.py tests/test_documents_api.py -q -rfE`: 0 failed; RED output for HC-PATH-001 ×3 and the last HC-PATH-003 case; the three mutant outputs (`{1,5}`, no bound, no first `+`); full suite per RUNBOOK §6. **Rollback:** revert. Documents already extracted keep their stored entities until re-processed.
 **Order:** build allowed now; merge blocked on GRADE-REDOS-DIFF (PR stays draft). No shared file with any open PR or queued row on `b2b3f4e`. No ask-first file. The other patterns in this module (`SPECIMEN_SITE_PATTERN`, `DIAGNOSIS_PATTERN`, `MARGINS_PATTERN`, `PATHOLOGIST_PATTERN`) were not timed; a reviewer who finds the same shape there raises a new row, not a scope change.
 
+## PATH-REGEX-NEWLINES — `DIAGNOSIS_PATTERN` and `SPECIAL_STAINS_PATTERN` are quadratic on newline runs
+
+**Source:** #238 (GRADE-PATTERN-REDOS) review, out of scope there; the GRADE plan above already said the module's other patterns were not timed. Planned 2026-10-20 on `origin/main` @ `699eb18`. Recurring-failures #9 (the same shape in sibling patterns).
+
+**Facts (`699eb18`):**
+1. `DIAGNOSIS_PATTERN` (`src/backend/modules/extract_pathology.py:22-25`) and `SPECIAL_STAINS_PATTERN` (`:42-45`) share the body `(.+?)(?=\n\s*[A-Z]{2,}|\Z)` under `re.DOTALL`. At each step of the lazy body, the lookahead's `\s*` re-scans the rest of a whitespace run, so a run of n newlines costs O(n²).
+2. Each runs once per pathology document (`:80`, `:116`), on uploaded text (`src/backend/api/documents.py:926`). Values are `group(1).strip()[:500]`; spans come from `with_span`, which trims whitespace from the full match (`src/backend/modules/extract_spans.py:28-32`).
+
+**Measured on `699eb18`** (scratch script, `Pattern.search`, not committed): `"DIAGNOSIS:x" + "\n" * n` takes 0.006 s at 1,000, 0.026 s at 2,000, 0.125 s at 4,000 and **2.94 s at 20,000**; `"IHC:x" + "\n" * 20000` takes 3.03 s; `" \n"` runs are about twice as slow. A normal report is unaffected (`"FINAL DIAGNOSIS: Benign tissue.\n…"` → `Benign tissue.`).
+
+**Design (one candidate, measured; the implementer may choose another that passes the same tests):** the body never stops inside a whitespace run. A run is consumed whole (an atomic group, Python 3.11+) unless it holds a newline followed by `[A-Z]{2,}` or reaches the end:
+`((?:\S|[^\S\n]+(?![^\S\n]|\n\s*[A-Z]{2,}|\s*\Z)|(?>[^\S\n]*\n\s*)(?![A-Z]{2,}|\Z))+?)(?=\s*\Z|[^\S\n]*\n\s*[A-Z]{2,})`, with the label prefix of each pattern unchanged.
+- **Timing:** 0.000 s at 50,000 for `"\n"`, `" \n"` and `"\n "` runs, both patterns.
+- **Differential** (200,000 seeded random strings of 1-12 tokens from {`DIAGNOSIS`, `diagnosis`, `IHC`, `Special stains`, `FINAL DIAGNOSIS`, `:`, spaces, tab, `\n`, `\n\n`, `\r`, `AB`, `Ab`, `x`, `MARGINS`, `a`, `.`, `1`}, comparing the observable `(trimmed start, trimmed end, value)`): DIAGNOSIS differs on 6,650 strings and SPECIAL_STAINS on 5,594, **every one** where `main` returns an empty value (a label followed only by whitespace). The candidate then returns no match, or, in 332 (DIAGNOSIS) and 2,951 (STAINS) of 200,000, a later label's non-empty value (e.g. `IHC\n\nSpecial stains: CK7` would give `CK7`). No non-empty value changes. This is the same class of change the owner accepted for grades (GRADE-REDOS-DIFF (a), `owner-decisions-2026-09-27.md:350`), but it is a different field, so it gets its own merge gate.
+
+**Test-first** (`src/backend/tests/test_extract_pathology.py`, the HC-PATH-001 child-process timing style):
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-PATH-004 ×4 (parametrised) | `extract_pathology_entities` on `"DIAGNOSIS:x" + "\n" * 50000`, `"DIAGNOSIS:x" + " \n" * 50000`, `"IHC:x" + "\n" * 50000`, `"IHC:x" + " \n" * 50000` finishes in a child process in under 1.0 s | yes ×4 (quadratic: about 18 s at 50,000 by the measured curve) |
+| HC-PATH-005 | differential: inline copies of today's two patterns against the new ones on 20,000 seeded random strings: same observable triple, **or** today's value is `""` | no (pin); a mutant that drops the `\n\s*[A-Z]{2,}` stop fails it |
+| HC-PATH-006 ×4 | pins: `"DIAGNOSIS: Invasive ductal carcinoma, grade 2\nMARGINS: Clear"` → `Invasive ductal carcinoma, grade 2`; `"FINAL DIAGNOSIS: Benign tissue.\n\nMARGINS: clear"` → `Benign tissue.` (same trimmed span); `"IHC: CK7 positive  \n GRADE: 2"` → `CK7 positive`; `"DIAGNOSIS: carcinoma\n  1. with necrosis\nMARGINS: clear"` → `carcinoma\n  1. with necrosis` (a numbered line continues the value; `[A-Z]{2,}` runs under `re.IGNORECASE`, so any line starting with two letters ends it) | no (pins; all four measured identical on `main` and the candidate) |
+
+**Files:** `src/backend/modules/extract_pathology.py` (`:22-25`, `:42-45` only), `src/backend/tests/test_extract_pathology.py`, slots. **Re-run, not edited:** `tests/test_source_spans.py`, `tests/test_documents_api.py`.
+**Expected collected delta:** +9. **Est:** 1.5 h.
+**Acceptance:** `pyt tests/test_extract_pathology.py tests/test_source_spans.py tests/test_documents_api.py -q -rfE`: 0 failed; RED output for HC-PATH-004 ×4; the differential counts pasted in the PR body; full suite per RUNBOOK §6. **Rollback:** revert.
+**Owner gate:** **PATH-NL-DIFF** (merge only, open; asked after the draft PR exists), Owner gates item 9 below.
+**Order:** build allowed now (GRADE-PATTERN-REDOS merged, #238); merge blocked on PATH-NL-DIFF (PR stays draft). No open PR touches `extract_pathology.py` or its test. No ask-first file.
+
 ## Provides
 
 1. `src/backend/modules/agent/guardrails/advice_judge.py`: `async def advice_judge(text: str, runner: core.model_runner.ModelRunner) -> Literal["ALLOW", "BLOCK", "UNAVAILABLE"]`; constant `FROZEN_PROMPT: str`. Never sends to an external runner. (B-3)
@@ -327,6 +356,7 @@ None of these is answered. Ask with the wording below; record answers in owner-d
 6. **IR-FOOTER (INTERP-RENDER, planned 2026-10-17).** "The lab card footer says `Model: template` even when a local model wrote the separate grounded summary. What should it say? (a) plain source labels: 'Source: knowledge-base template' / 'Source: local model (<tier>)' (b) hide the tier (c) keep as is." Recommended (a).
 7. **EXF-SAMPLE (EXTRACT-FORMATS, optional, planned 2026-10-17).** "Can you share the `extract_text()` output of one de-identified page of the column-layout report from MM-4? It becomes a regression row; the fix does not wait for it."
 8. **GRADE-REDOS-DIFF (GRADE-PATTERN-REDOS, merge only, added 2026-10-20; asked after the draft PR exists).** "GRADE-REDOS-DIFF: here is the exact `modules/extract_pathology.py` diff for GRADE-PATTERN-REDOS, with RED/GREEN, timing, mutant output and the differential against today's pattern. It changes what is extracted from a pathology report in one shape: a grade label followed only by spaces and then `,` `;` `.` or a newline. Today that gives a grade entity with an empty value. With the diff, no empty grade is emitted; the search goes on, and in some strings (76 of 200,000 in the planning differential) it returns a later, non-empty value, for example `Tumor grade: ;\nMargins: clear, grade 3 elsewhere.` gives `3 elsewhere` instead of an empty grade. Which do you want? (a) Merge this diff: no empty grade, the search goes on to a later label. (b) Keep today's empty match at the first label: the implementer redrafts the pattern to keep it and asks again on that diff (more work; not yet designed). (c) Do not merge; leave the pattern as it is (the slow inputs stay slow)." No option is recommended: the choice is what a patient's report should show.
+9. **PATH-NL-DIFF (PATH-REGEX-NEWLINES, merge only, added 2026-10-20; asked after the draft PR exists).** "PATH-NL-DIFF: here is the exact `modules/extract_pathology.py` diff for PATH-REGEX-NEWLINES (`DIAGNOSIS_PATTERN`, `SPECIAL_STAINS_PATTERN`), with RED/GREEN, timing and the differential. Every difference from `main` is a label followed only by whitespace, where `main` returns an empty diagnosis or stains value; the new pattern returns none, or a later label's value (for example `IHC\n\nSpecial stains: CK7` → `CK7`). No non-empty value changes. (a) merge this diff, as you chose for grades (GRADE-REDOS-DIFF (a)) (Recommended: same class of change, same reasoning) (b) redraft so empty values are kept exactly (zero differences), then ask again (c) leave both patterns as they are."
 
 Owner tasks (no question): OW-3 (S5), MM-1, MM-2, MM-3, MM-4.
 
