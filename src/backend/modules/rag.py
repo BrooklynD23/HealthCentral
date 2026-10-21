@@ -1116,7 +1116,12 @@ I was unable to fully process your question within the time limit. Please try as
             verified_claims=verification_results.verified_claims,
             failed_claims=verification_results.failed_claims,
             claims_with_issues=issues_list[:5],  # Limit to first 5 issues
-            faithfulness_score=faithfulness.overall_score,
+            # GC5-FS-SCOPE (a): never report more than the share of claims verified.
+            # The scorer is lexical and cannot see an NLI contradiction.
+            faithfulness_score=min(
+                faithfulness.overall_score,
+                verification_results.verified_claims / len(verifiable),
+            ),
             authority_score=round(avg_authority, 3),
             verification_summary=verification_results.summary,
         )
