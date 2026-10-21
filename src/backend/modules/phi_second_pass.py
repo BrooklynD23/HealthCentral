@@ -16,8 +16,13 @@ CATEGORIES = (
     "account_number", "url", "ip_address", "age_over_89", "device_vehicle_id",
 )
 
-_MONTH = r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\.?"
-_CAP = r"[A-Z][a-z]+(?:[-'][A-Z][a-z]+)?"
+_MONTH = (
+    r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|"
+    r"Sept?(?:ember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?"
+)
+_CAP = r"(?:[A-Z]'[A-Z]|[A-Z])[a-z]+(?:[-'][A-Z][a-z]+)?"
+# "my X is 123", "X: 123", "X = 123"
+_IS = r"\s*(?:[:#=]|\bis\b|\bwas\b)?\s*"
 # Clinical/analyte/heading words that are capitalised in assistant prose but are not names.
 _STOP = (
     "results|result|total|white|red|blood|cells|cell|count|reference|range|vitamin|hemoglobin|cholesterol|"
@@ -36,24 +41,33 @@ _PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("email", re.compile(r"\b[\w.+-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63}){1,10}\b")),
     ("url", re.compile(r"\b(?:https?://|www\.)\S+", re.I)),
     ("ip_address", re.compile(r"\b(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}\b")),
-    ("ssn", re.compile(r"\b\d{3}-\d{2}-\d{4}\b|\b(?:SSN|social security(?: number| no\.?| #)?)\s*[:#]?\s*\d{9}\b", re.I)),
+    ("ssn", re.compile(
+        rf"\b\d{{3}}-\d{{2}}-\d{{4}}\b|\b\d{{3}} \d{{2}} \d{{4}}\b"
+        rf"|\b(?:SSN|social security(?: number| no\.?| #)?){_IS}\d{{3}}[- ]?\d{{2}}[- ]?\d{{4}}\b", re.I)),
     ("phone", re.compile(r"(?<!\d)(?:\+?1[-. ])?\(?\d{3}\)?[-. ]\d{3}[-. ]\d{4}(?!\d)")),
     ("date", re.compile(
-        rf"\b\d{{1,2}}[/-]\d{{1,2}}[/-]\d{{2,4}}\b|\b\d{{4}}-\d{{2}}-\d{{2}}\b"
+        rf"\b\d{{1,2}}[/-]\d{{1,2}}[/-]\d{{2,4}}\b|\b\d{{4}}[-/]\d{{2}}[-/]\d{{2}}(?!\d)"
+        rf"|(?<![\d/.])(?:0?[1-9]|1[0-2])/(?:0?[1-9]|[12]\d|3[01])(?![\d/])|\b{_MONTH}\s+\d{{4}}\b"
         rf"|\b{_MONTH}\s+\d{{1,2}}(?:st|nd|rd|th)?(?:,\s*\d{{4}})?\b|\b\d{{1,2}}(?:st|nd|rd|th)?\s+{_MONTH}\b"
     )),
-    ("mrn", re.compile(r"\b(?:MRN|medical record(?: number| no\.?| #)?|chart(?: number| no\.?| #))\s*[:#]?\s*[A-Z]*-?\d{4,}\b", re.I)),
+    ("mrn", re.compile(
+        rf"\b(?:MRN|medical record(?: number| no\.?| #)?|chart(?: number| no\.?| #)){_IS}[A-Z]*-?\d{{4,}}\b", re.I)),
     ("account_number", re.compile(
-        r"\b(?:account|acct|member|policy|insurance|beneficiary|subscriber|license|licence|certificate|"
-        r"patient id|health plan)(?: id| number| no\.?| #)?\s*[:#]?\s*[A-Z]{0,4}-?\d[\w-]{3,}\b", re.I)),
+        rf"\b(?:account|acct|member|policy|insurance|beneficiary|subscriber|license|licence|certificate|"
+        rf"patient id|health plan)(?: id| number| no\.?| #)?{_IS}[A-Z]{{0,4}}-?\d[\w-]{{3,}}\b", re.I)),
+    # underscore-joined labels ("patient_id_-_98765"): broad on purpose, a hit only drops the record
+    ("account_number", re.compile(r"\b(?:patient|member|account|policy|mrn|ssn|insurance)_[\w#.=-]{0,40}\d{3,}", re.I)),
     ("device_vehicle_id", re.compile(
         r"\b(?:VIN|serial(?: number| no\.?| #)?|UDI|device id|plate)\s*[:#]?\s*[A-Z0-9-]{5,}\b", re.I)),
-    ("age_over_89", re.compile(r"\b(?:age[d]?\s*:?\s*(?:9\d|1[0-2]\d)|(?:9\d|1[0-2]\d)[- ]year[- ]old|(?:9\d|1[0-2]\d)\s*y/?o)\b", re.I)),
+    ("age_over_89", re.compile(r"\b(?:age[d]?\s*:?\s*(?:9\d|1[0-2]\d)|(?:9\d|1[0-2]\d)[- ]years?[- ]old|(?:9\d|1[0-2]\d)\s*y/?o)\b", re.I)),
     ("geographic", re.compile(
         rf"\b\d{{1,6}}\s+(?:[A-Z][a-z]+\s+){{1,3}}(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr|Lane|Ln|Court|Ct|Way)\b\.?"
-        rf"|\b(?:{_STATES})\s+\d{{5}}(?:-\d{{4}})?\b|\b[Zz][Ii][Pp](?: code)?\s*:?\s*\d{{5}}\b|\b{_CAP},\s*(?:{_STATES})\b")),
+        rf"|\b(?:{_STATES})\s+\d{{5}}(?:-\d{{4}})?\b|\b[Zz][Ii][Pp](?: code)?{_IS}\d{{5}}\b|\b{_CAP},\s*(?:{_STATES})\b")),
     ("name", re.compile(
-        rf"\b(?i:patient name|name|patient|pt|mr|mrs|ms|miss|dr)\.?\s*(?i:is|:)?\s*{_NAME}(?:\s+[A-Z]\.)?(?:\s+{_NAME})?"
+        rf"\b(?i:patient name|name|patient|pt)\.?\s*(?i:is|:)?\s*{_NAME}(?:\s+[A-Z]\.)?(?:\s+{_NAME})?"
+        # honorifics: no stop-list ("Dr. White" is a name)
+        rf"|\b(?:[Mm]r|[Mm]rs|[Mm]s|[Mm]iss|[Dd]r)\.?\s*{_CAP}(?:\s+[A-Z]\.)?(?:\s+{_CAP})?"
+        r"|\b(?:patient_)?name_*[=:]_*[A-Za-z]"
         rf"|\b(?i:seen by|referred by|signed by|spoke with|guardian|spouse|wife|husband|mother|father|son|daughter)\s+(?:Dr\.?\s+|Mr\.?\s+|Mrs\.?\s+|Ms\.?\s+)?{_NAME}(?:\s+{_NAME})?"
         rf"|\b{_NAME}\s+{_NAME}\b"
     )),

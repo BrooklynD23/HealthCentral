@@ -33,6 +33,18 @@
     "text": "Hi John Smith. Your hemoglobin is within range.",
     "planted": "John Smith",
     "known_gap": true
+   },
+   {
+    "text": "My doctor is Dr. White.",
+    "planted": "White"
+   },
+   {
+    "text": "Dr. O'Brien reviewed the chart.",
+    "planted": "O'Brien"
+   },
+   {
+    "text": "name_=_jane was typed into the form.",
+    "planted": "jane"
    }
   ],
   "geographic": [
@@ -56,6 +68,10 @@
    {
     "text": "ZIP 30301 is where I get labs drawn.",
     "planted": "30301"
+   },
+   {
+    "text": "My zip is 90210",
+    "planted": "90210"
    }
   ],
   "date": [
@@ -79,6 +95,26 @@
    {
     "text": "Follow up scheduled for 11-30-2025.",
     "planted": "11-30-2025"
+   },
+   {
+    "text": "Lab drawn 2024-07-02T08:15:00Z",
+    "planted": "2024-07-02"
+   },
+   {
+    "text": "Seen in March 2020.",
+    "planted": "March 2020"
+   },
+   {
+    "text": "It happened 3/15",
+    "planted": "3/15"
+   },
+   {
+    "text": "Visit was March 2024",
+    "planted": "March 2024"
+   },
+   {
+    "text": "Dated 2024/03/15",
+    "planted": "2024/03/15"
    }
   ],
   "phone": [
@@ -152,6 +188,18 @@
    {
     "text": "SSN 123456789 is on the claim form.",
     "planted": "123456789"
+   },
+   {
+    "text": "My SSN is 123456789.",
+    "planted": "123456789"
+   },
+   {
+    "text": "SSN: 123 45 6789",
+    "planted": "123 45 6789"
+   },
+   {
+    "text": "my ssn is 987654321 on file.",
+    "planted": "987654321"
    }
   ],
   "mrn": [
@@ -175,6 +223,14 @@
    {
     "text": "Her medical record no. 3321877 is archived.",
     "planted": "3321877"
+   },
+   {
+    "text": "my MRN is A1234567",
+    "planted": "A1234567"
+   },
+   {
+    "text": "my medical record number is 7654321",
+    "planted": "7654321"
    }
   ],
   "account_number": [
@@ -198,6 +254,26 @@
    {
     "text": "License number D1234567 was shown at check-in.",
     "planted": "D1234567"
+   },
+   {
+    "text": "my account number is 12345678",
+    "planted": "12345678"
+   },
+   {
+    "text": "my policy number is AB1234567",
+    "planted": "AB1234567"
+   },
+   {
+    "text": "patient_id_-_98765",
+    "planted": "98765"
+   },
+   {
+    "text": "patient_#_98765",
+    "planted": "98765"
+   },
+   {
+    "text": "patient_no._98765",
+    "planted": "98765"
    }
   ],
   "url": [
@@ -266,6 +342,14 @@
    },
    {
     "text": "My 95 year old mother has diabetes.",
+    "planted": "95"
+   },
+   {
+    "text": "I am 92 years old.",
+    "planted": "92"
+   },
+   {
+    "text": "He is 95 years old and frail.",
     "planted": "95"
    }
   ],

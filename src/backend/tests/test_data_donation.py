@@ -202,7 +202,7 @@ async def _feedback(db, prompt, response="Your result is in range.", correction=
     db.add(ChatTurn(id=f"u{turn_id}", session_id=session_id, profile_id=PID,
                     turn_index=n, role="user", content=prompt))
     db.add(ChatTurn(id=turn_id, session_id=session_id, profile_id=PID,
-                    turn_index=n + 1, role="assistant", content="a"))
+                    turn_index=n + 1, role="assistant", content=response))
     row = ResponseFeedback(
         profile_id=PID, session_id=session_id, turn_id=turn_id,
         rating=1, prompt_snapshot=snapshot if snapshot is not None else prompt,
@@ -231,7 +231,7 @@ async def test_hc_don_014_collect_fails_closed_without_current_consent(vault, st
 
     counts = await collect(vault, PID, PURPOSE)
 
-    assert counts.collected == 0 and counts.dropped_total == 0
+    assert counts.collected == 0 and counts.dropped_records == 0
     assert not [s for s in vault.statements if "response_feedback" in s or "donated_records" in s]
     assert await _donated(vault) == []
 
@@ -246,7 +246,7 @@ async def test_hc_don_015_collect_stores_only_redacted_text(vault):
 
     counts = await collect(vault, PID, PURPOSE)
 
-    assert counts.collected == 1 and counts.dropped_total == 0 and counts.strict_redaction_count > 0
+    assert counts.collected == 1 and counts.dropped_records == 0 and counts.strict_redaction_count > 0
     (rec,) = await _donated(vault)
     assert (rec.origin, rec.source_kind, rec.purpose) == ("real", "response_feedback", PURPOSE)
     stored = " ".join(str(getattr(rec, c.name)) for c in DonatedRecord.__table__.columns)
@@ -312,3 +312,57 @@ async def test_collect_donates_user_turn_not_prompt_snapshot(vault):
                     snapshot="CONTEXT: LDL 162 mg/dL from lab report. What does a high LDL mean?")
     assert (await collect(vault, PID, PURPOSE)).collected == 1
     assert [r.prompt_redacted for r in await _donated(vault)] == ["What does a high LDL mean?"]
+
+
+@pytest.mark.asyncio
+async def test_collect_donates_server_answer_not_client_response_text(vault):
+    from modules.data_donation import collect
+
+    await _consent(vault)
+    row_id = await _feedback(vault, "What does a high LDL mean?", response="Server answer about LDL.")
+    row = (await vault.execute(select(ResponseFeedback).where(ResponseFeedback.id == row_id))).scalars().one()
+    row.response_text = "CLIENT-SUPPLIED retrieved record text"
+    await vault.commit()
+
+    assert (await collect(vault, PID, PURPOSE)).collected == 1
+    (rec,) = await _donated(vault)
+    assert rec.response_redacted == "Server answer about LDL."
+
+
+@pytest.mark.asyncio
+async def test_collect_skips_ambiguous_duplicate_turn_index(vault):
+    from modules.data_donation import collect
+
+    await _consent(vault)
+    row_id = await _feedback(vault, "What does a high LDL mean?")
+    row = (await vault.execute(select(ResponseFeedback).where(ResponseFeedback.id == row_id))).scalars().one()
+    a = (await vault.execute(select(ChatTurn).where(ChatTurn.id == row.turn_id))).scalars().one()
+    vault.add(ChatTurn(id="dup-user", session_id=a.session_id, profile_id=PID,
+                       turn_index=a.turn_index - 1, role="user", content="A different question"))
+    await vault.commit()
+
+    counts = await collect(vault, PID, PURPOSE)
+
+    assert (counts.collected, counts.skipped_incomplete) == (0, 1)
+    assert await _donated(vault) == []
+
+
+@pytest.mark.asyncio
+async def test_collect_rolls_back_when_consent_revoked_before_commit(vault, monkeypatch):
+    import modules.data_donation as dd
+
+    await _consent(vault)
+    await _feedback(vault, "What does a high LDL mean?")
+    real = dd.has_current_consent
+    calls = []
+
+    async def _revoked_after_first(db, pid, purpose):
+        calls.append(1)
+        return await real(db, pid, purpose) if len(calls) == 1 else False
+
+    monkeypatch.setattr(dd, "has_current_consent", _revoked_after_first)
+
+    counts = await dd.collect(vault, PID, PURPOSE)
+
+    assert counts.collected == 0 and len(calls) == 2
+    assert await _donated(vault) == []

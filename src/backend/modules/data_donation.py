@@ -35,14 +35,10 @@ class CollectCounts:
 
     collected: int = 0
     skipped_existing: int = 0
-    skipped_incomplete: int = 0  # rows with no prompt or no response
+    skipped_incomplete: int = 0  # rows without exactly one user turn before a non-empty answer
     dropped_records: int = 0  # records dropped (a record hitting N categories counts once)
     dropped: dict[str, int] = field(default_factory=dict)  # Safe Harbor category -> records
     strict_redaction_count: int = 0
-
-    @property
-    def dropped_total(self) -> int:
-        return self.dropped_records
 
 
 async def get_active_consent(
@@ -142,19 +138,31 @@ def _screen(engine: RedactionEngine, fields: dict[str, Optional[str]]):
     return out, count, categories
 
 
-async def _user_turn_text(profile_db, profile_id: str, assistant_turn_id: str) -> Optional[str]:
-    """Text of the user turn that immediately precedes the given assistant turn."""
+async def _turn_pair(profile_db, profile_id: str, assistant_turn_id: str) -> Optional[tuple[str, str]]:
+    """Server-side (question, answer) for an assistant turn, or None if not exactly one pair.
+
+    Same rule as api/feedback.py _preceding_user_prompt (modules/ cannot import api/):
+    same session and profile, exactly one user turn at turn_index - 1. turn_index
+    is not unique, so any other count is ambiguous and the row is skipped.
+    """
     a = (await profile_db.execute(
-        select(ChatTurn).where(ChatTurn.id == assistant_turn_id, ChatTurn.profile_id == profile_id)
+        select(ChatTurn).where(
+            ChatTurn.id == assistant_turn_id,
+            ChatTurn.profile_id == profile_id,
+            ChatTurn.role == "assistant",
+        )
     )).scalars().first()
-    if a is None:
+    if a is None or not a.content:
         return None
-    return (await profile_db.execute(
+    users = (await profile_db.execute(
         select(ChatTurn.content).where(
-            ChatTurn.session_id == a.session_id, ChatTurn.profile_id == profile_id,
-            ChatTurn.role == "user", ChatTurn.turn_index < a.turn_index,
-        ).order_by(ChatTurn.turn_index.desc()).limit(1)
-    )).scalars().first()
+            ChatTurn.session_id == a.session_id,
+            ChatTurn.profile_id == profile_id,
+            ChatTurn.role == "user",
+            ChatTurn.turn_index == a.turn_index - 1,
+        )
+    )).scalars().all()
+    return (users[0], a.content) if len(users) == 1 and users[0] else None
 
 
 async def collect(profile_db, profile_id: str, purpose: str) -> CollectCounts:
@@ -193,15 +201,16 @@ async def collect(profile_db, profile_id: str, purpose: str) -> CollectCounts:
         if row.id in already:
             skipped += 1
             continue
-        # The question is the user's own turn, not the client-supplied prompt_snapshot
-        # (which can carry retrieved record text).
-        question = await _user_turn_text(profile_db, profile_id, row.turn_id)
-        if not question or not row.response_text:
+        # Question and answer are the server's own turns, not the client-supplied
+        # prompt_snapshot / response_text (which can carry retrieved record text).
+        pair = await _turn_pair(profile_db, profile_id, row.turn_id)
+        if pair is None:
             incomplete += 1
             continue
+        question, answer = pair
         text, n, categories = _screen(engine, {
             "prompt": question,
-            "response": row.response_text,
+            "response": answer,
             "correction": row.correction_text or None,
         })
         if categories:
@@ -222,6 +231,10 @@ async def collect(profile_db, profile_id: str, purpose: str) -> CollectCounts:
         ))
         collected += 1
         strict_total += n
+    # A revoke may have committed since the first check: re-check, keep nothing.
+    if not await has_current_consent(profile_db, profile_id, purpose):
+        await profile_db.rollback()
+        return CollectCounts()
     await profile_db.commit()
     return CollectCounts(
         collected=collected,

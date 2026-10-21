@@ -246,6 +246,15 @@ async def test_hc_don_005f_revoke_without_active_row_never_echoes_client_version
     assert resp.json()["deleted_count"] == 0
 
 
+def test_hc_don_005f_export_403_names_the_card_label():
+    """Drift pin: the 403 detail quotes the same label the card shows."""
+    import re
+
+    m = re.search(r"fine_tune:\s*\{\s*label:\s*'([^']+)'", CARD.read_text(encoding="utf-8"))
+    assert m, "fine_tune label not found in DataDonationCard.tsx"
+    assert f"\u201c{m.group(1)}\u201d" in feedback_api.EXPORT_CONSENT_DETAIL
+
+
 def test_hc_don_005e_card_version_matches_server_constant():
     """Drift pin: the version the card sends must be the one the server accepts."""
     import re
@@ -699,8 +708,19 @@ async def test_hc_don_022_deleting_a_session_deletes_its_donated_copies(vault):
             source_kind="response_feedback", parent_id=f"real-{sid}",
             prompt_redacted="p", response_redacted="r",
         ))
+    # Client-supplied session_id disagrees with the turn's session: only the
+    # turn_id-in-session branch of delete_for_session can find this row.
+    vault.add(ChatTurn(id="t-x", session_id="sa", profile_id=PROFILE_A, turn_index=2,
+                       role="assistant", content="a"))
+    vault.add(ResponseFeedback(id="fb-other", profile_id=PROFILE_A, session_id="other", turn_id="t-x",
+                               rating=1, prompt_snapshot="q", response_text="r"))
+    vault.add(DonatedRecord(
+        id="real-other", profile_id=PROFILE_A, purpose="fine_tune", origin="real",
+        source_kind="response_feedback", source_id="fb-other",
+        prompt_redacted="p", response_redacted="r",
+    ))
     await vault.commit()
-    assert await _count(vault) == 4
+    assert await _count(vault) == 5
 
     master_db = _master_db()
     with route_client(assistant_api.router, "/assistant", profile_id=PROFILE_A,

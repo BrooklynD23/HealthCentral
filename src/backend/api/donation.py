@@ -24,7 +24,7 @@ from core.auth import ProfileDbSession, RequireAuth
 from core.database import get_db
 from core.time import utcnow
 from models.data_donation import DonationConsent
-from modules.data_donation import (  # noqa: F401  (CURRENT_CONSENT_TEXT_VERSION is re-exported)
+from modules.data_donation import (
     CURRENT_CONSENT_TEXT_VERSION,
     collect,
     delete_derived,
@@ -206,6 +206,7 @@ class CollectResult(BaseModel):
     purpose: DonationPurpose
     collected: int
     skipped_existing: int
+    skipped_incomplete: int
     dropped: dict[str, int]  # Safe Harbor category -> records dropped
     dropped_total: int
     strict_redaction_count: int
@@ -236,7 +237,7 @@ async def collect_donation(
         master_db, "completed", create_audit_log,
         details={
             "count": counts.collected,
-            "dropped_count": counts.dropped_total,
+            "dropped_count": counts.dropped_records,
             "skipped_count": counts.skipped_existing,
             "redaction_count": counts.strict_redaction_count,
         },
@@ -246,7 +247,8 @@ async def collect_donation(
         purpose=purpose,
         collected=counts.collected,
         skipped_existing=counts.skipped_existing,
+        skipped_incomplete=counts.skipped_incomplete,
         dropped=counts.dropped,
-        dropped_total=counts.dropped_total,
+        dropped_total=counts.dropped_records,
         strict_redaction_count=counts.strict_redaction_count,
     )
