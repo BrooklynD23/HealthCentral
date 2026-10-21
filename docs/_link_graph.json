@@ -1120,7 +1120,8 @@
       "docs/plans/2026-10-18-session-handoff.md"
     ],
     "docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md": [
-      "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md"
+      "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md",
+      "docs/reviews/2026-10-20/gc5-real-model-evidence.md"
     ],
     "docs/plans/2026-10-18-session-handoff.md": [
       "docs/plans/2026-10-15-build-program/queue.md",
@@ -2101,6 +2102,9 @@
     ],
     "docs/reviews/2026-10-16/E1a-r2-prompt.md": [
       "docs/reviews/2026-10-16/E1a-r2-response.md"
+    ],
+    "docs/reviews/2026-10-20/gc5-evidence": [
+      "docs/reviews/2026-10-20/gc5-real-model-evidence.md"
     ],
     "docs/roles/00_roles_index.md": [
       "docs/00_architecture_plans_index.md",
@@ -3574,6 +3578,10 @@
     "docs/reviews/2026-10-16/E1a-r2-response.md": [
       "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md",
       "docs/reviews/2026-10-16/E1a-r2-prompt.md"
+    ],
+    "docs/reviews/2026-10-20/gc5-real-model-evidence.md": [
+      "docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md",
+      "docs/reviews/2026-10-20/gc5-evidence"
     ],
     "docs/reviews/README.md": [
       "docs/agentic/orchestration.md",
