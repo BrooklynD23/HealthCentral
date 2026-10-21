@@ -266,6 +266,22 @@ async def test_hc_para_106_judge_raises_blocks_chat_route():
 
 
 @pytest.mark.asyncio
+async def test_hc_para_106c_exception_message_is_not_logged(caplog):
+    """A judge failure logs the exception type only; its message may carry PHI."""
+    import logging
+
+    from modules.agent.guardrails.advice_judge import advice_judge
+
+    runner, _ = judge_runner(raises=RuntimeError("PHI-SENTINEL-c0ffee LDL 190"))
+    with caplog.at_level(logging.DEBUG):
+        assert await advice_judge("some answer", runner) == "UNAVAILABLE"
+    # Only the judge's own logger: ModelRunner logs the message itself (not B-3 code).
+    mine = [r for r in caplog.records if r.name == "modules.agent.guardrails.advice_judge"]
+    assert mine and "RuntimeError" in mine[0].getMessage()
+    assert all("PHI-SENTINEL-c0ffee" not in r.getMessage() and r.exc_info is None for r in mine)
+
+
+@pytest.mark.asyncio
 async def test_hc_para_106b_judge_raises_blocks_grounded_route(dbs):  # noqa: F811 (pytest fixture)
     from tests.test_safe_interp_grounded import ESCALATE_TEMPLATE
 
@@ -380,13 +396,29 @@ async def test_hc_para_109_no_file_or_non_low_file_runs_the_judge(model_path):
 
 @pytest.mark.asyncio
 async def test_hc_para_109b_ollama_shaped_provider_runs_the_judge():
-    """OllamaProvider._model is the model-name str; it must not be read as a file."""
+    """OllamaProvider._model is the model-name str; it must not be read as a file.
+
+    Uses the real OllamaProvider class (no network: is_available and
+    generate_async are stubbed), so a future _find_model_path on it is noticed.
+    """
+    from core.llm.ollama_provider import OllamaProvider
     from modules.agent.guardrails.advice_judge import advice_judge
 
-    runner, provider = judge_runner("ALLOW")
-    provider._model = "gemma4:12b"  # no _find_model_path: not llama.cpp-shaped
+    class _OfflineOllama(OllamaProvider):
+        calls = 0
+
+        def is_available(self) -> bool:
+            return True
+
+        async def generate_async(self, messages, config):
+            type(self).calls += 1
+            return InferenceResult(
+                text="ALLOW", tokens_generated=1, finish_reason="stop", model_name="fake"
+            )
+
+    runner = ModelRunner(_provider=_OfflineOllama(model="gemma4:12b"))
     assert await advice_judge("some answer", runner) == "ALLOW"
-    assert len(provider.prompts) == 1
+    assert _OfflineOllama.calls == 1
 
 
 @pytest.mark.asyncio
