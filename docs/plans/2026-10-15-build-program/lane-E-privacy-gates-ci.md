@@ -1,6 +1,6 @@
 # Lane E — Privacy, Gates, CI — Build Design
 
-**Last Updated:** 2026-10-20 (PR #202 review round 1: Q-COV-GATE adds GATE-07; GATE-12 control wording; PKT no longer waits on #198); 2026-10-19 (follow-ups planned: REDACT-WS-REDOS, GATE-12, Q-COV-GATE, PKT-QUESTIONS-REDACT); 2026-10-19 (E-1c review round 2: HC-PKT-023, E1C-SCOPE row cited on main); 2026-10-18 (EXPORT-COLLECTED-TZ planned; owner answered (c)); 2026-10-17 (E-1b, REDACT-EMAIL-REDOS, DEV-SH-CC planned)
+**Last Updated:** 2026-10-21 (follow-up planned on `b902e0f`: §2.27 RSI-LOG-STDERR, RSI row, owner merges; new gate RSI-LOG-WIDEN); 2026-10-20 (PR #202 review round 1: Q-COV-GATE adds GATE-07; GATE-12 control wording; PKT no longer waits on #198); 2026-10-19 (follow-ups planned: REDACT-WS-REDOS, GATE-12, Q-COV-GATE, PKT-QUESTIONS-REDACT); 2026-10-19 (E-1c review round 2: HC-PKT-023, E1C-SCOPE row cited on main); 2026-10-18 (EXPORT-COLLECTED-TZ planned; owner answered (c)); 2026-10-17 (E-1b, REDACT-EMAIL-REDOS, DEV-SH-CC planned)
 **Owner:** repository owner
 **Status:** DESIGN — nothing here is implemented. Owner answers are quoted from [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md); this file records no new approval. Every "default" or "recommended" is the lane designer's, not the owner's.
 **Refresh Trigger:** any merge of #74, #72, #84 or a P6/P7 PR; an owner answer to S-3, S-6, OG-1, Q-AUD-LIST, Q-RUFF, Q-COV, CI-SEED, NPM-AUDIT-CI or W1-SMOKE-RUN; any commit to `.github/workflows/ci.yml`, `src/backend/api/export.py`, `src/backend/modules/export.py`, `src/backend/modules/redaction.py`, `src/backend/api/profiles.py`, `src/backend/core/auth.py`, `src/backend/core/denial_audit.py` or `src/backend/tests/support/routes.py`.
@@ -824,6 +824,43 @@ Four rows: one harness row from the #221 review (HARNESS-VITEST-HINT) and three 
 
 ---
 
+### Follow-ups found 2026-10-21 (planned 2026-10-21 on `origin/main` @ `b902e0f`)
+
+One RSI row from the rsi-loop run `2026-10-20-local` ([handoff 2026-10-20c](../2026-10-20c-session-handoff.md) line 16). **RSI rule:** it edits `.claude/mods/asclexis-rsi/`, so it is never agent-merged; the owner merges (RSI-4 `owner-decisions-2026-09-27.md:203`, AUTO-MERGE `:206`). No ask-first file.
+
+### 2.27 RSI-LOG-STDERR — most Bash failures log as `error_class: "other"`, so rsi-loop cannot cluster them
+
+**Source:** queue bullet RSI-LOG-STDERR: 33 Bash failures of 2026-10-20 (17× exit 1, 10× exit 2, 6× exit 144) were unminable; that session also did not start with `--plugin-dir .claude/mods/asclexis-rsi`.
+
+**Facts (`b902e0f`):**
+1. **Correction to the bullet:** there are two loggers. `.claude/hooks/session_log.py` (owner HOOKS-COMMIT, `owner-decisions-2026-09-27.md:78`, "metadata-only … logger") writes `.claude/logs/session-log.jsonl` with `exit_code` (`session_log.py:61-65`) and no error text; that is the only data a session without the mod leaves, hence "exit codes but no error text". The mod (`hooks/register.ts`) writes `.claude/logs/rsi/<date>.jsonl` rows with **no** exit code and a fixed `error_class` (`register.ts:83`: rule class, else `classifyError(text)`).
+2. `classifyError` (`hooks/logic.ts:61-68`) knows four shapes, `Exit code 144`, timeout, edit-no-match, permission-denied; everything else is `other`. **Measured** (scratch copy of the function, `node --experimental-strip-types`): `Exit code 1` + `ModuleNotFoundError: No module named 'foo'`, `Exit code 2` + `No such file or directory`, `Exit code 1` + `3 failed, 10 passed`, `Exit code 127` + `command not found`, `Exit code 128` + `fatal: not a git repository`, `Exit code 1` + `SyntaxError` → all `other`; `Exit code 144` → `exit-144-self-kill`.
+3. **Measured with the mod loaded (this session, 2026-10-21):** the 6 failing Bash rows in `.claude/logs/rsi/2026-10-21.jsonl` all carry `error_class: "other"` (counted by tool and class only; no row text read). So loading the mod, which the handoff and README already require (`README.md:21`, handoff 2026-10-20c `:44`), is not enough by itself.
+4. rsi-loop mines `tool` + `error_class` only (`.claude/workflows/rsi-loop.js:86-90`, `:154-158`): a finer `error_class` needs no rsi-loop change and no row-schema change.
+5. Baseline: `claude plugin test .claude/mods/asclexis-rsi` (CLI 2.1.306) → `19 pass, 0 fail`.
+
+**Design (metadata-only; no new row field, no change to `register.ts`):** `classifyError` keeps its four shapes first, in today's order, then adds fixed classes, then a bounded exit-code fallback:
+1. `module-not-found` (`/ModuleNotFoundError|No module named/`), `command-not-found` (`/command not found|Exit code 127\b/`), `no-such-file` (`/No such file or directory|ENOENT/`), `tests-failed` (`/\b\d+ failed\b/`), `git-fatal` (`/^fatal: /m`), `syntax-error` (`/SyntaxError|syntax error/i`), in that order.
+2. Else `/^Exit code (\d{1,3})\b/m` with 1 ≤ n ≤ 255 → `exit-<n>` (digits only, from the harness's own prefix); else `other`.
+The function returns only those literals or `exit-` plus at most three digits, never text from the input. `README.md:17` (Privacy) lists the classes. Rules still win (`rule?.errorClass ?? …`, `register.ts:83`), so #230's rule is unaffected.
+
+**Test-first** (`claude plugin test .claude/mods/asclexis-rsi`; no pytest id), new `describe('classifyError')` in `rsi.test.ts` plus one logger test:
+
+| Test | Assertion | RED today? |
+|---|---|---|
+| `fixed classes for common Bash failures` | the 6 texts of fact 2 → `module-not-found`, `no-such-file`, `tests-failed`, `command-not-found`, `git-fatal`, `syntax-error`; `Exit code 144` still `exit-144-self-kill`; `timed out` still `timeout` | yes (measured: all six `other`) |
+| `bounded exit-code fallback` | `Exit code 1\nboom` → `exit-1`; `Exit code 2` → `exit-2`; `Exit code 99999` → `other`; `no exit line` → `other` | yes (`other` today) |
+| `never echoes input` | for texts holding `SECRET-123`, `/home/x/patient.pdf` and `Jane`, every result matches `^(exit-144-self-kill\|timeout\|edit-no-match\|permission-denied\|module-not-found\|command-not-found\|no-such-file\|tests-failed\|git-fatal\|syntax-error\|exit-\d{1,3}\|other)$` | no (pin; `other` today) |
+| logger: `row classifies without the text` | a failing Bash call with output `Exit code 1\nModuleNotFoundError: No module named 'secretpkg'`: the row's `error_class` is `module-not-found` and the raw log does not contain `secretpkg` | yes (`other` today) |
+
+The existing `row is metadata only` test (`rsi.test.ts:53-65`, output `out SECRET-OUTPUT-456` → `other`) stays as it is and must still pass.
+
+**Files:** `.claude/mods/asclexis-rsi/hooks/logic.ts` (`classifyError` only), `.claude/mods/asclexis-rsi/rsi.test.ts` (new describe + one logger test), `.claude/mods/asclexis-rsi/README.md` (`:17` only). Not on the rsi-loop ALLOW list (`rules.ts:1-2`), so this is a build-item PR, not an rsi-loop proposal. No slots.
+**Expected collected delta:** 0 (pytest); mod tests 19 → 23.
+**Acceptance:** `claude plugin validate .claude/mods/asclexis-rsi` → `Validation passed`; `claude plugin test .claude/mods/asclexis-rsi` → `23 pass, 0 fail`, with the RED run (3 failing) pasted first; `git diff origin/main -- .claude/mods/asclexis-rsi/hooks/register.ts .claude/mods/asclexis-rsi/hooks/rules.ts .claude/hooks/session_log.py` empty. **Rollback:** revert.
+**Owner gates:** owner merges (RSI row). **RSI-LOG-WIDEN** (open, does **not** block this row): whether the non-mod logger also gets a fixed class; wording in [§5](#5-owner-gates).
+**Order:** ready (owner merges). Never beside RRSI-LOOP-CRITIC (`rsi.test.ts`). #230 edits `rules.ts` and `replay/cases.ts` only, so no shared file; after this row merges, #230 re-runs `claude plugin test` on the merged main (recurring-failures #12). Est 1 h. Runtime claude.
+
 ## 3. Provides
 
 1. **`ci.yml` merge order (lane E owns):** E-3 (W-11a PR-3) → #74 (E-4) → #72 (W-4) → W-8. E-3 and #72 may swap; the second lander merges main and re-checks the job list. Every other lane that touches `ci.yml` rebases onto this order and asks lane E first.
@@ -872,6 +909,7 @@ Four rows: one harness row from the #221 review (HARNESS-VITEST-HINT) and three 
 | RRSI-CRITIC-LIST (new 2026-10-20) | RRSI-LOOP-CRITIC | **open**; the owner confirms the imperative list (§2.25) at the merge of the RSI PR, which the owner merges anyway |
 | H2-SETUP (owner action), H2-SOURCE (new 2026-10-20) | RRSI-H2-SANDBOX | H2-SETUP: owner builds the sandbox and creates the Vertex project and ADC credential (no agent invents credentials). H2-SOURCE **answered 2026-10-20: (c)** "the RSI replay cases and rule table only (`.claude/mods/asclexis-rsi/`), no other source" (owner-decisions row H2-SOURCE; an exception to G-C2-UNDEFER for these files only) |
 | DON-COPY-V3 (new 2026-10-20) | RSI1-DONATE (v3 consent copy) | **open** (asked once v3 strings are drafted; donation is parked by DON-RECALL-R2); RRSI-OQ-25 (`:346`) asks the copy to say agent answers are included, and any v3 copy needs its own DON-COPY yes. Recommended (a) one intro sentence. Exact wording in the [RSI1-DONATE plan](../2026-10-17-rsi1-opt-in-donation-pipeline-plan.md#delta-2026-10-20-second-planner-211-review-notes-for-pr-2-and-rrsi-oq-25) |
+| RSI-LOG-WIDEN (new 2026-10-21) | RSI-LOG-STDERR (follow-up only; does not block it) | **open**. Wording as asked: "Sessions that start without the asclexis-rsi mod leave only `.claude/hooks/session_log.py` rows, which carry an exit code and no error class (the logger you approved as metadata-only in HOOKS-COMMIT). Should those rows also get a fixed `error_class` field? (a) No: the mod's finer classes are enough, and sessions start with `--plugin-dir .claude/mods/asclexis-rsi`, as the handoff already says (Recommended: keeps the HOOKS-COMMIT row as approved; no new field) (b) Yes: add an `error_class` field to `session_log.py` rows, filled from the same fixed list, never raw text (widens the HOOKS-COMMIT row; a separate row with a Python test in `test_session_log_hook.py`) (c) Neither: drop RSI-LOG-STDERR and keep `other`." |
 
 ## 6. Open questions
 
