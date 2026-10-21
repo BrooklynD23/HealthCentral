@@ -69,6 +69,7 @@ vi.mock('@/components/MemoryManager', () => ({ MemoryManager: () => null }));
 vi.mock('@/components/settings/BackupCard', () => ({ BackupCard: () => null }));
 vi.mock('@/components/settings/RecoveryCodeCard', () => ({ RecoveryCodeCard: () => null }));
 vi.mock('@/components/settings/DangerZone', () => ({ DangerZone: () => null }));
+vi.mock('@/components/settings/AgentSettingsCard', () => ({ AgentSettingsCard: () => null }));
 
 const logDoseMutate = vi.fn();
 vi.mock('@/services/medications', () => ({
