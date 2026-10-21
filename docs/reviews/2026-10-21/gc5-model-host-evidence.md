@@ -22,7 +22,7 @@ With real LLM answers from the app's own legacy RAG prompt, **flag off already w
 | Stack | `~/venvs/asclexis-311`: torch 2.14.1+cpu (**CPU build; `torch.cuda.is_available()` is False**), sentence-transformers 6.1.0, transformers 5.20.1. The NLI cross-encoder therefore ran on the CPU; the GPU was used only by Ollama. No CUDA torch was installed (not changed, by instruction). The laptop run's torch was 2.14.0+cu130 (CPU used) and transformers 5.17.0 |
 | Tree | worktree from `origin/main` b902e0f (flag code present), branch `docs/gc5-model-host-evidence-2026-10-21`. Embedding bundle copied from `~/asclexis-models/embeddings` |
 | Isolation | all three pyslot locks (`hc-pytest.{1,2,3}.lock`, nested blocking `flock`) held for the NLI fetch (33 s) and for the whole measurement session (600 s, no queue wait); no pytest ran |
-| Network | one sanctioned fetch: `python scripts/download_models.py nli` (Q5b), then copied to `~/asclexis-models/nli/`. Every measurement after it: `HF_HUB_OFFLINE=1`. `measure.py`/`routes_probe.py` patch `connect`, `connect_ex`, `bind`, `sendto`, `create_connection`, `getaddrinfo` to raise (0 attempts). `real_llm.py` allows `connect` only to 127.0.0.1:11434 (and `getaddrinfo` only for localhost names) and counts and refuses anything else: **0 other attempts in `gen` (both models) and `trunc`**; 27 connects to Ollama per `gen` run (1 availability probe plus 26 generations) |
+| Network | one sanctioned fetch: `python scripts/download_models.py nli` (Q5b), then copied to `~/asclexis-models/nli/`. Every measurement after it: `HF_HUB_OFFLINE=1`. `measure.py`/`routes_probe.py` patch `connect`, `connect_ex`, `bind`, `sendto`, `create_connection`, `getaddrinfo` to raise (0 attempts). `real_llm.py` replaces `socket.connect` and `connect_ex` so that only 127.0.0.1 and ::1 on port 11434 connect (anything else is counted and refused), and `socket.getaddrinfo` so that only `127.0.0.1`, `localhost` and `::1` resolve (any other host is counted and refused); it does **not** patch `sendto`, `bind` or `create_connection`: **0 other attempts in `gen` (both models) and `trunc`**; 27 connects to Ollama per `gen` run (1 availability probe plus 26 generations) |
 | Flag | on only via `settings.use_llm_entailment = True` and `api.assistant._rag_module = None` inside the measuring process |
 | Generation path | `RAGModule.compose_prompt` (the app's `SYSTEM_PROMPT` and `[YOUR_RESULTS:N]`/`[REFERENCE:N]` context) then `RAGModule._generate_with_runner` (the app's cite schema for constrained decoding, `max_tokens` 1024, `top_p` 0.9) through the `ModelRunner` facade and the Ollama provider, `LLM_PROVIDER=ollama`, `LLM_MODEL=<tag>`. Then the real `RAGModule.validate_response` on the same text, flag off then flag on |
 | Deviations from the app | (1) temperature forced to 0.0 by a wrapper (the app sends 0.1); the Ollama provider has no seed parameter, so **no seed was set** and repeatability was not tested; (2) retrieval is faked: legacy cases use the `glucose` chunk set from `tests/legacy_eval/harness.py`, vault cases use one observation-summary chunk rebuilt from the vault in the text format of `RAGModule._get_observation_chunks` (no DB, analyte name used as the display name, no reference range or flag lines because the vaults have none); (3) "served" means `is_valid` true and no `prohibited_advice` (the `_legacy_serve_or_abstain` rule), computed on `validate_response`; the HTTP route was not driven with a real LLM |
@@ -51,8 +51,8 @@ Aggregates:
 
 | Model | Served off | Served on | Abstain off | Abstain on | Escalate | Tokens at cap (1024) | Empty model text | Gen time, median / total |
 |---|---|---|---|---|---|---|---|---|
-| llama3.1:8b | 0 | 0 | 26 | 26 | 0 / 0 | 0 | 0 | 1.84 s / 55 s |
-| qwen3:8b | 8 | 7 | 18 | 19 | 0 / 0 | 6 | 2 | 10.05 s / 294 s |
+| llama3.1:8b | 0 | 0 | 26 | 26 | 0 / 0 | 0 | 0 | 1.835 s / 55.2 s |
+| qwen3:8b | 8 | 7 | 18 | 19 | 0 / 0 | 6 | 2 | 9.775 s / 293.6 s |
 
 
 ### llama3.1:8b
@@ -119,10 +119,10 @@ Aggregates:
 
 Reading the tables, with the limits of what was checked:
 
-- **llama3.1:8b, flag off, fails claims on correct text.** For `answer-glucose-cited-latest` the model wrote "Your glucose level was 95 mg/dL." and "Normal fasting glucose is typically 70-100 mg/dL." with correct values and citations; the verifier reported `claim_1: Cannot verify claim without source evidence`, `claim_3 ... 0 supporting source(s)`, `claim_4: Cannot verify claim without source evidence` (re-checked on the stored text, flag off). The structured-output renderer emits bullets of the form `- text. [cite:1]`; the golden fixtures put the marker before the period (`text [cite:1].`). In the NLI premise/hypothesis column the claim text shows a leading `[cite:1]\n- ` fragment, so claim splitting appears to detach the marker from its sentence on this format. That is the likely cause, not proven here (the claim extractor was not read or modified).
+- **llama3.1:8b, flag off, fails claims on correct text.** For `answer-glucose-cited-latest` the model wrote "Your glucose level was 95 mg/dL." and "Normal fasting glucose is typically 70-100 mg/dL." with correct values and citations; the verifier reported `claim_1: Cannot verify claim without source evidence`, `claim_3: Verification failed: Only 0 supporting source(s), need at least 1; Faithfulness score (0.10) below threshold (0.6)`, `claim_4: Cannot verify claim without source evidence`. These strings are in the committed JSON as `off.claims_with_issues_rederived`, re-derived without a model run by `summarize.py --rederive` (flag-off `validate_response` on the stored text; the assertion that its failed-claim count equals the recorded one passed for every legacy case; vault cases were not re-derived). The structured-output renderer emits bullets of the form `- text. [cite:1]`; the golden fixtures put the marker before the period (`text [cite:1].`). In the NLI premise/hypothesis column the claim text shows a leading `[cite:1]\n- ` fragment, so claim splitting appears to detach the marker from its sentence on this format. That is the likely cause, not proven here (the claim extractor was not read or modified).
 - **Where NLI changed claim counts** (llama, 7 cases): `a1c-trend` 1 to 2 verified, `creatinine-trend` 0 to 1, `glucose-trend` 0 to 1, `ldl-trend` 0 to 1, `sodium-trend` 0 to 2, `vitamin-d-trend` 0 to 1, and `triglycerides-latest` 1 to 0. Every case still abstained: `faithfulness_score` is computed by `FaithfulnessScorer` and did not change with the flag (the "f=" values are identical off and on in all 52 case-runs), and it was below 0.6 in 18 of 26 llama cases (15 of 26 qwen).
 - **qwen3:8b**: flag-on changes were `sodium-latest` served to abstain (entailment 0.619, claim failed), and `tsh-trend` and `vitamin-d-trend` 0 to 1 verified (abstained either way). `vitamin-d-latest` scored `entailment` 0.688 (also under 0.7) but was already abstained flag off. 2 of 26 qwen NLI entailments were under the 0.7 floor; 1 of 60 llama NLI calls was a `contradiction` (0.577, `potassium-trend`, on a claim the rules had already failed).
-- **qwen3:8b empty output served.** `legacy:answer-glucose-cited-latest` and `vault:grounded-sodium-trend` hit 1024 generated tokens with empty text; `finish_reason` was reported as `stop`. `validate_response` returned `is_valid` true, 0 claims, `faithfulness_score` 1.0, so the pair counts as "served" in the table above, flag off and on. Whether qwen3's thinking tokens consumed the cap was not checked. Four more qwen cases at the cap returned truncated JSON and were withheld by the renderer (abstain). What the HTTP route shows the patient for an empty `is_valid` answer was not measured.
+- **qwen3:8b empty output served.** `legacy:answer-glucose-cited-latest` and `vault:grounded-sodium-trend` hit 1024 generated tokens with empty text; `finish_reason` was reported as `stop`. `validate_response` returned `is_valid` true, 0 claims, `faithfulness_score` 1.0, so the pair counts as "served" in the table above, flag off and on. Whether qwen3's thinking tokens consumed the cap was not checked. Four more qwen cases at the cap returned truncated JSON and were withheld by the renderer (abstain). What the HTTP route shows the patient for an empty `is_valid` answer was not driven. **Inferred from code, not driven:** empty text passes `_generate_with_runner` unchanged (`rag.py:1362`, `1462-1464`), the claim extractor yields no claims (`claim_extractor.py:186`), `validate_response` returns `is_valid` True (`rag.py:956`), `_legacy_serve_or_abstain` passes a valid result through (`api/assistant.py:250-251`), so `POST /assistant/chat` would return 200 with `segments=[]`, `full_response=""` and `is_valid` true (`assistant.py:953-959`, `1036-1046`) and save an empty assistant turn.
 - Llama's 8 legacy questions produced near-identical answers (same glucose chunk set); they are not 8 independent samples.
 
 ### 9. Long source chunk truncation
@@ -170,6 +170,23 @@ The label did not change when the fact sat past the 512th token. This is not the
 - Latency came from a host with other jobs on the box (load average about 17 at the start of the run).
 
 ## Raw output
+
+### Summary figures recomputed from the committed JSON (`summarize.py`)
+
+```text
+llama3.1:8b: cases=26 served_off=0 served_on=0 abstain_off=26 abstain_on=26 escalate_off=0 escalate_on=0
+  tokens>=1024=0 empty_raw=0 gen_s median=1.835 total=55.2
+  faithfulness identical off/on in 26 of 26; faith<0.6 (on)=18
+  verified-count changed=7 up=6 down=1
+  nli calls=60 {'entailment': 26, 'neutral': 33, 'contradiction': 1} entailment<0.7=0
+  served->abstain: [] abstain->served: []
+qwen3:8b: cases=26 served_off=8 served_on=7 abstain_off=18 abstain_on=19 escalate_off=0 escalate_on=0
+  tokens>=1024=6 empty_raw=2 gen_s median=9.775 total=293.6
+  faithfulness identical off/on in 26 of 26; faith<0.6 (on)=15
+  verified-count changed=3 up=2 down=1
+  nli calls=39 {'entailment': 26, 'neutral': 13} entailment<0.7=2
+  served->abstain: ['vault:grounded-sodium-latest'] abstain->served: []
+```
 
 ### `run_all.sh` on this host (filtered by the script)
 

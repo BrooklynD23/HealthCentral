@@ -20,7 +20,12 @@
     "3 claim(s) could not be verified"
    ],
    "validate_s": 0.006,
-   "nli": []
+   "nli": [],
+   "claims_with_issues_rederived": [
+    "claim_1: Cannot verify claim without source evidence",
+    "claim_3: Verification failed: Only 0 supporting source(s), need at least 1; Faithfulness score (0.10) below threshold (0.6)",
+    "claim_4: Cannot verify claim without source evidence"
+   ]
   },
   "on": {
    "status": "abstain",
@@ -83,7 +88,11 @@
     "Low faithfulness score: 0.00"
    ],
    "validate_s": 0.002,
-   "nli": []
+   "nli": [],
+   "claims_with_issues_rederived": [
+    "claim_1: Cannot verify claim without source evidence",
+    "claim_2: Cannot verify claim without source evidence"
+   ]
   },
   "on": {
    "status": "abstain",
@@ -122,7 +131,11 @@
     "Low faithfulness score: 0.00"
    ],
    "validate_s": 0.001,
-   "nli": []
+   "nli": [],
+   "claims_with_issues_rederived": [
+    "claim_1: Cannot verify claim without source evidence",
+    "claim_2: Cannot verify claim without source evidence"
+   ]
   },
   "on": {
    "status": "abstain",
@@ -161,7 +174,11 @@
     "Low faithfulness score: 0.00"
    ],
    "validate_s": 0.001,
-   "nli": []
+   "nli": [],
+   "claims_with_issues_rederived": [
+    "claim_1: Cannot verify claim without source evidence",
+    "claim_2: Cannot verify claim without source evidence"
+   ]
   },
   "on": {
    "status": "abstain",
@@ -200,7 +217,11 @@
     "Low faithfulness score: 0.00"
    ],
    "validate_s": 0.001,
-   "nli": []
+   "nli": [],
+   "claims_with_issues_rederived": [
+    "claim_1: Cannot verify claim without source evidence",
+    "claim_2: Cannot verify claim without source evidence"
+   ]
   },
   "on": {
    "status": "abstain",
@@ -236,7 +257,8 @@
    "faithfulness": 1.0,
    "errors": [],
    "validate_s": 0.0,
-   "nli": []
+   "nli": [],
+   "claims_with_issues_rederived": []
   },
   "on": {
    "status": "served",
@@ -271,7 +293,11 @@
     "2 claim(s) could not be verified"
    ],
    "validate_s": 0.002,
-   "nli": []
+   "nli": [],
+   "claims_with_issues_rederived": [
+    "claim_1: Cannot verify claim without source evidence",
+    "claim_3: Cannot verify claim without source evidence"
+   ]
   },
   "on": {
    "status": "abstain",
@@ -315,7 +341,12 @@
     "3 claim(s) could not be verified"
    ],
    "validate_s": 0.001,
-   "nli": []
+   "nli": [],
+   "claims_with_issues_rederived": [
+    "claim_1: Cannot verify claim without source evidence",
+    "claim_2: Cannot verify claim without source evidence",
+    "claim_3: Cannot verify claim without source evidence"
+   ]
   },
   "on": {
    "status": "abstain",
