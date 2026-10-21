@@ -768,6 +768,12 @@ class TestUnderscoreJoinedRedaction:
                 id="title_dot_surname_leftover",
             ),
             pytest.param(
+                "Patient Name: Jos\u00e9 N\u00fa\u00f1ez ID A12345",
+                "[NAME-REDACTED] ID A12345",
+                "[NAME-REDACTED] ID A12345",
+                id="id_word_tail_leftover",
+            ),
+            pytest.param(
                 "Patient ID: Mr. Jos\u00e9 N\u00fa\u00f1ez A12345",
                 "Patient ID: [NAME-REDACTED] A12345",
                 "Patient ID: [NAME-REDACTED] A12345",
