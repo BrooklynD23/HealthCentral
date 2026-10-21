@@ -1248,7 +1248,7 @@ Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-repor
 
 Read-only design. No product file was edited. Existing merged plans are not rewritten; this file gives a **delta** for each (W-3, W-8) and a compact design for items with no plan.
 
-Links to: `audit/2026-09-25/waves/scaffold/G-C5.md`, `audit/2026-09-25/waves/wave-3-L1-A.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W03-verified-only-rag-and-trend-labels.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`, `docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md`
+Links to: `audit/2026-09-25/waves/scaffold/G-C5.md`, `audit/2026-09-25/waves/wave-3-L1-A.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W03-verified-only-rag-and-trend-labels.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`, `docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md`, `docs/reviews/2026-10-20/gc5-real-model-evidence.md`
 
 ## `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`
 
@@ -1278,7 +1278,7 @@ Links to: `audit/2026-09-25/plans/06-sql-fk-audit.md`, `audit/2026-09-25/plans/0
 
 ---
 
-Links to: `audit/2026-09-25/waves/briefs/TAILWIND-4-L1-brief.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W01-harness-agents-branch-a.md`, `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`, `docs/plans/2026-09-27-W11a-test-and-gate-hardening.md`, `docs/plans/2026-10-09-AUDIT-ORDER.md`, `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`
+Links to: `audit/2026-09-25/waves/briefs/TAILWIND-4-L1-brief.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W01-harness-agents-branch-a.md`, `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`, `docs/plans/2026-09-27-W11a-test-and-gate-hardening.md`, `docs/plans/2026-10-09-AUDIT-ORDER.md`, `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`, `docs/plans/2026-10-20c-session-handoff.md`
 
 ## `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`
 
@@ -1286,7 +1286,7 @@ Links to: `audit/2026-09-25/waves/briefs/TAILWIND-4-L1-brief.md`, `docs/capstone
 
 **Prior art reused, not repeated:** readiness packs P4-deferred, W-10b, G-C2, RTN, SHOWCASE (all measured 2026-10-07 @ `6b4dd84`). Their L1/L2 briefs stay usable once the deltas below are applied.
 
-Links to: `audit/2026-09-25/waves/scaffold/G-C2.md`, `audit/2026-09-25/waves/scaffold/P4-deferred.md`, `audit/2026-09-25/waves/scaffold/RTN.md`, `audit/2026-09-25/waves/scaffold/SHOWCASE.md`, `audit/2026-09-25/waves/scaffold/W-10b.md`, `docs/agentic/recurring-failures.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/features/TASK_LIST.md`, `docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md`, `docs/plans/2026-09-27-W10-governance-invariant-amendments.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`, `docs/plans/2026-09-27-nightly-doc-drift-routine-spec.md`, `docs/plans/2026-09-27-senior-report-showcase-plan.md`
+Links to: `audit/2026-09-25/waves/scaffold/G-C2.md`, `audit/2026-09-25/waves/scaffold/P4-deferred.md`, `audit/2026-09-25/waves/scaffold/RTN.md`, `audit/2026-09-25/waves/scaffold/SHOWCASE.md`, `audit/2026-09-25/waves/scaffold/W-10b.md`, `docs/agentic/recurring-failures.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/features/TASK_LIST.md`, `docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md`, `docs/plans/2026-09-27-W10-governance-invariant-amendments.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`, `docs/plans/2026-09-27-nightly-doc-drift-routine-spec.md`, `docs/plans/2026-09-27-senior-report-showcase-plan.md`, `docs/reviews/2026-10-20/gc5-real-model-evidence.md`
 
 ## `docs/plans/2026-10-15-build-program/queue.md`
 
@@ -2987,6 +2987,14 @@ Links to: `docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md`, `docs/reviews/2026
 **B-3 plan review (R-22, Codex)**
 
 Codex CLI 0.163.0 (`gpt-5.6-sol`), read-only, on main `b902e0f`, run by L0 on the GPU WSL box. Contracts R-22: if Codex returns REVISE with task-level gaps, the B-3 L1 fixes them as the first commit…
+
+## `docs/reviews/2026-10-21/gc5-model-host-evidence.md`
+
+**G-C5 Task 7: model-host evidence, real LLM output (RTX 3080 via Ollama, NLI on CPU)**
+
+Plan: GC5 plan, Task 7. Follows the laptop run, 2026-10-20 report, which listed "real LLM output" and "long source chunk truncation" as unmeasured. Run by an agent on the owner's model host (WSL2,…
+
+Links to: `docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md`, `docs/reviews/2026-10-20/gc5-evidence`, `docs/reviews/2026-10-20/gc5-real-model-evidence.md`, `docs/reviews/2026-10-21/gc5-host-evidence/real_llm.py`, `docs/reviews/2026-10-21/gc5-host-evidence/real_llm_llama3.1_8b.json`, `docs/reviews/2026-10-21/gc5-host-evidence/real_llm_qwen3_8b.json`, `docs/reviews/2026-10-21/gc5-host-evidence/trunc.json`
 
 ## `docs/reviews/README.md`
 
