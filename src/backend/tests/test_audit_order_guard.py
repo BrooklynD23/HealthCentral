@@ -169,6 +169,8 @@ NAMED_DYNAMIC_EXCLUSIONS: dict[str, str] = {
         "sort key function; no session",
     "modules/redaction.py::RedactionEngine.redact::RedactionMetadataEntry(start)":
         "dataclass field named like a def; no call",
+    "modules/agent/guardrails/advice_judge.py::loaded_model_path::finder":
+        "runner._find_model_path (getattr; None on Ollama/fakes): read-only model-file glob for the low-tier check; no session, no commit",
 }
 
 
