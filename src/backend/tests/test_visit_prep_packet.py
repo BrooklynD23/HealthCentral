@@ -940,8 +940,6 @@ async def test_hc_exptz_009_visit_prep_questions_use_profile_local_today(
 async def test_hc_pkt_024_stored_questions_are_strict_redacted(real_profile_db):
     """HC-PKT-024: through HTTP, the raw `questions` list stored with the packet is
     strict-redacted like the sections beside it (PKT-QUESTIONS-REDACT)."""
-    from datetime import timedelta
-
     from models import CarePlanTask
 
     db = real_profile_db
@@ -975,6 +973,8 @@ async def test_hc_pkt_024_stored_questions_are_strict_redacted(real_profile_db):
         for entry in questions:
             for phi in ("Jane", "Smith", "A1234567"):
                 assert phi not in entry["question"]
+            assert "[MRN-REDACTED]" in entry["question"]
+            assert "[NAME-REDACTED]" in entry["question"]
     finally:
         if packet_id is not None:
             _packet_store.pop(packet_id, None)
