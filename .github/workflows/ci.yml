@@ -290,3 +290,26 @@ jobs:
           name: tw4-shots
           path: src/frontend/test-results/tw4-shots/**
           if-no-files-found: warn
+
+  rsi-replay:
+    name: RSI Replay
+    runs-on: ubuntu-latest
+    env:
+      DISABLE_TELEMETRY: '1'
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Claude Code CLI (exact pin)
+        run: npm install -g @anthropic-ai/claude-code@2.1.305
+
+      - name: Validate the asclexis-rsi mod
+        run: claude plugin validate .claude/mods/asclexis-rsi
+
+      - name: Run the asclexis-rsi replay test
+        run: claude plugin test .claude/mods/asclexis-rsi
