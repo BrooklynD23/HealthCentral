@@ -304,8 +304,8 @@ def test_hc_aud_ord_030_vault_commit_must_be_on_profile_db(tmp_path):
 def test_hc_aud_ord_030_break_it_c_handler_without_audit(tmp_path):
     """A "C" or "A2" row whose handler never reaches an audit call is reported.
 
-    Uses the overlay's own graph: _G was built on the real tree, so it could not
-    resolve the overlay's handlers.
+    Uses the overlay's own graph so the test stays right if Graph.reaches ever
+    depends on graph state (today _G and g give the same result).
     """
     _, reach, _, _ = _overlay(tmp_path, (
         '@router.post("/bare")\nasync def h(profile_db=None):\n'

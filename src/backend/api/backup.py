@@ -539,7 +539,7 @@ async def get_schedule(
         master_db,
         create_audit_log,
         event_type="backup.schedule.view",
-        action="Viewed backup schedule",
+        action="backup.schedule.view",
         profile_id=session.profile_id,
         entity_type="backup",
         entity_id="schedule",

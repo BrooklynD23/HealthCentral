@@ -430,9 +430,10 @@ async def test_hc_bkup_064_get_schedule_writes_one_phi_free_audit_row(real_maste
 
     Real master session, real AuditLog row, through HTTP. Does not patch
     audit_and_commit, so a route that audits some other way is still seen.
-    Would NOT notice: an audit row whose details leak a value under a key this
-    test does not list, or a row written but never committed on a separate
-    session (the shared session here would still read it back).
+    The route sends no details, so details_json must be None: key-name checks
+    cannot see a schedule value stored under an allow-listed key.
+    Would NOT notice: a row written on a different session than the one this
+    test reads back (the shared session here would still see it).
     """
     with route_client(
         backup_api.router, "/backup", profile_id="profile-a", master_db=real_master
@@ -440,11 +441,10 @@ async def test_hc_bkup_064_get_schedule_writes_one_phi_free_audit_row(real_maste
         resp = client.get("/backup/schedule")
     assert resp.status_code == 200, resp.text
 
+    assert not real_master.in_transaction(), "audit row was never committed"
     rows = (await real_master.execute(select(AuditLog))).scalars().all()
-    a_rows = [r for r in rows if r.profile_id == "profile-a"]
-    b_rows = [r for r in rows if r.profile_id == "profile-b"]
-    assert len(a_rows) == 1, f"audit rows for profile-a: {[r.event_type for r in rows]}"
-    assert b_rows == []
-    blob = str(a_rows[0].details_json or "").lower()
-    for forbidden in ("frequency", "retention_days", "enabled", "last_"):
-        assert forbidden not in blob, f"schedule value leaked into audit details: {blob}"
+    assert len(rows) == 1, f"audit rows: {[r.event_type for r in rows]}"
+    assert rows[0].profile_id == "profile-a"
+    assert rows[0].event_type == "backup.schedule.view"
+    assert rows[0].action == "backup.schedule.view"
+    assert rows[0].details_json is None, rows[0].details_json
