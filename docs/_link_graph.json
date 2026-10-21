@@ -1326,6 +1326,7 @@
       "docs/research/2026-10-17-rsi-opt-in-data/00-README.md"
     ],
     "docs/research/2026-10-20-rrsi-harness2/01-harness2.md": [
+      "docs/agentic/harness2-sandbox.md",
       "docs/research/2026-10-20-rrsi-harness2/00-README.md",
       "docs/research/2026-10-20-rrsi-harness2/02-verdicts.md",
       "docs/research/2026-10-20-rrsi-harness2/03-adversarial-review.md",
@@ -2435,6 +2436,9 @@
       "docs/INDEX.md",
       "docs/agentic/evals.md",
       "docs/agentic/mcp-tools.md"
+    ],
+    "docs/agentic/harness2-sandbox.md": [
+      "docs/research/2026-10-20-rrsi-harness2/01-harness2.md"
     ],
     "docs/agentic/mcp-tools.md": [
       "docs/agentic/harness.md",
