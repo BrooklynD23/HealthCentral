@@ -1102,7 +1102,6 @@
     ],
     "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md": [
       "docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md",
-      "docs/plans/2026-10-15-build-program/queue.md",
       "docs/reviews/2026-10-16/E1a-r1-response.md",
       "docs/reviews/2026-10-16/E1a-r2-response.md"
     ],
@@ -3229,7 +3228,6 @@
       "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md",
       "docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md",
       "docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md",
-      "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md",
       "docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md",
       "docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md",
       "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md",
