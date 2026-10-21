@@ -178,7 +178,8 @@ async def _grounded_question(dbs, *, verified: bool) -> str:
     rag = _rag(CLEAN_ANSWER)
     spy = AsyncMock(wraps=rag.query)
     rag.query = spy
-    with patch.object(I, "get_rag_module", return_value=rag):
+    with patch.object(I, "get_rag_module", return_value=rag), \
+         patch("modules.rag.get_model_runner", return_value=AllowJudge()):
         resp = _call(profile_db, master_db, "POST",
                      f"/interpretations/observations/{obs_id}/interpret-grounded")
     assert resp.status_code == 201, resp.text

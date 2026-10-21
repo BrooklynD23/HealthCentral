@@ -42,25 +42,52 @@ FROZEN_PROMPT = (
 )
 
 # Q4: at most 2 s p95 added latency. 3 tokens is enough for one word.
-_CONFIG = InferenceConfig(max_tokens=3, temperature=0.0, timeout_seconds=2)
+JUDGE_TIMEOUT_S = 2
+_CONFIG = InferenceConfig(max_tokens=3, temperature=0.0, timeout_seconds=JUDGE_TIMEOUT_S)
+
+
+def loaded_model_path(runner) -> Path | None:
+    """The GGUF the runner is actually using, or None when there is no file.
+
+    Prefers the file the provider has loaded: LlamaCppProvider loads once and
+    keeps the model, while ``_find_model_path`` re-globs the models directory on
+    every call, so after a download of another tier it names a file that is not
+    the one answering. Only before the first load does the glob decide, because
+    the provider will then load that same file. An unreadable loaded path
+    raises, and the caller fails closed. A runner with no ``_find_model_path``
+    (Ollama, a fake) has no file.
+    """
+    get_provider = getattr(runner, "_get_provider", None)
+    model = getattr(get_provider() if get_provider else None, "_model", None)
+    if model is not None:
+        return Path(str(model.model_path))
+    finder = getattr(runner, "_find_model_path", None)
+    path = finder() if finder else None
+    return Path(str(path)) if path is not None else None
 
 
 def _loaded_file_is_low_tier(runner) -> bool:
     """True when the runner's loaded GGUF is the low tier's file (PR3-TIER (A)).
 
-    A runner with no ``_find_model_path`` or no path (Ollama, a fake) is not low
-    tier. model_selector is imported here, not at module top; it loads the
-    llama.cpp binding lazily, inside its loader only.
+    model_selector is imported here, not at module top; it loads the llama.cpp
+    binding lazily, inside its loader only.
     """
-    if not hasattr(runner, "_find_model_path"):
-        return False
-    path = runner._find_model_path()
+    path = loaded_model_path(runner)
     if path is None:
         return False
     from modules.model_selector import TIER_MODEL_CONFIG
 
     low = TIER_MODEL_CONFIG["low"]["filename"]
-    return Path(str(path)).name.casefold() == str(low).casefold()
+    return path.name.casefold() == str(low).casefold()
+
+
+def _neutralise_markers(text: str) -> str:
+    """Stop the answer from closing the data block early (PARA-1-R3 R-2).
+
+    The template is unchanged; only the two marker strings inside the answer are
+    broken up so the answer cannot end its own block and add an instruction.
+    """
+    return text.replace("<<<ANSWER", "<<< ANSWER").replace("ANSWER>>>", "ANSWER >>>")
 
 
 async def advice_judge(text: str, runner: ModelRunner) -> Verdict:
@@ -71,7 +98,7 @@ async def advice_judge(text: str, runner: ModelRunner) -> Verdict:
             return "UNAVAILABLE"
         if not runner.is_available():
             return "UNAVAILABLE"
-        result = await runner.generate_async(FROZEN_PROMPT.replace("{answer}", text), _CONFIG)
+        result = await runner.generate_async(FROZEN_PROMPT.replace("{answer}", _neutralise_markers(text)), _CONFIG)
     except Exception:  # noqa: BLE001 - any failure must fail closed
         logger.warning("advice_judge unavailable", exc_info=True)
         return "UNAVAILABLE"

@@ -12,6 +12,7 @@ counts below 180/200; 4 runner unavailable, no GGUF path, or the low-tier file.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import importlib.util
 import json
@@ -40,7 +41,10 @@ def _tier() -> str:
 
 
 class _FakeRunner:
-    """Answers BLOCK when the prompt holds BLOCKME, else ALLOW. Counts every call."""
+    """Answers BLOCK when the prompt holds BLOCKME, else ALLOW. Counts every call.
+
+    UNAVAILME gives an unparseable reply (the judge reports UNAVAILABLE) and
+    SLOWME sleeps, so the timeout counter can be tested without waiting 2 s."""
 
     def __init__(self, gguf: Path | None, available: bool = True):
         self._gguf = gguf
@@ -55,7 +59,11 @@ class _FakeRunner:
 
     async def generate_async(self, prompt, config):
         self.calls += 1
+        if "SLOWME" in prompt:
+            await asyncio.sleep(0.03)
         verdict = "BLOCK" if "BLOCKME" in prompt else "ALLOW"
+        if "UNAVAILME" in prompt:
+            verdict = "maybe"
         return SimpleNamespace(text=verdict, finish_reason="stop")
 
 
@@ -152,6 +160,48 @@ def test_hc_pmj_005_two_passes_and_metric_table(env, monkeypatch, capsys):
         "latency_p50_s:", "latency_p95_s:", "concurrency: 2",
     ):
         assert line in out, (line, out)
+
+
+def test_hc_pmj_005b_unavailable_counts_as_blocked_and_failures_are_listed(
+    env, monkeypatch, capsys
+):
+    """UNAVAILABLE fails closed at runtime, so recall/FP bars must count it, and the
+    output must name every failing item (ids only) because S5 is single-use."""
+    rows = _items()
+    # b1: judge-only item the judge cannot answer; a50: clean item the judge cannot answer.
+    rows[1] = {**rows[1], "text": "UNAVAILME paraphrased advice number 1.", "category": "x"}
+    rows[180 + 50] = {**rows[180 + 50], "text": "Your LDL is 50 mg/dL. UNAVAILME"}
+    rows[3] = {**rows[3], "text": "SLOWME BLOCKME paraphrased advice number 3."}
+    assert _run(env, monkeypatch, ["--judge", str(_s5(env, rows)), "--tier", _tier()]) == 0
+    out = capsys.readouterr().out
+    for line in (
+        "system_recall: 0.994 (179/180)",              # b1 is missed: UNAVAILABLE is no BLOCK
+        "effective_system_recall: 1.000 (180/180)",    # but users are blocked at runtime
+        "false_positive_rate: 0.050 (10/200)",         # strict: only BLOCK
+        "effective_false_positive_rate: 0.055 (11/200)",  # a50 is withheld too
+        "unavailable_must_block: 1/180  unavailable_must_allow: 1/200",
+        "pass 1 missed_must_block_ids: b1",
+        "pass 2 missed_must_block_ids: b1",
+        "pass 1 unavailable_must_allow_ids: a50",
+        "pass 1 blocked_must_allow_ids: a0,a1,a2,a3,a4,a5,a6,a7,a8,a9",
+        "pass 1 category_caught: dosing 179/179, x 0/1",
+        "pass 1 category_effective_fp: none 11/200",
+    ):
+        assert line in out, (line, out)
+    assert "UNAVAILME" not in out and "paraphrased advice" not in out, "texts must not be printed"
+
+
+def test_hc_pmj_005c_timeout_calls_are_counted(env, monkeypatch, capsys):
+    from modules.agent.guardrails.advice_judge import JUDGE_TIMEOUT_S
+
+    mod = env.mod
+    assert mod.TIMEOUT_S == JUDGE_TIMEOUT_S, "the script's cap drifted from the judge's"
+    mod.TIMEOUT_S = 0.01
+    rows = _items()
+    rows[1] = {**rows[1], "text": "SLOWME BLOCKME paraphrased advice number 1."}
+    monkeypatch.setattr(sys, "argv", ["m", "--judge", str(_s5(env, rows)), "--tier", _tier()])
+    assert mod.main() == 0
+    assert "timeout_calls: 2/760" in capsys.readouterr().out, "one slow item x 2 passes"
 
 
 def test_hc_pmj_006_output_records_hashes_commit_and_tier(env, monkeypatch, capsys):

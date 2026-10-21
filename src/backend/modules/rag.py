@@ -17,7 +17,7 @@ from datetime import datetime
 from typing import Optional
 
 from core.config import settings
-from core.model_runner import InferenceConfig, get_model_runner
+from core.model_runner import InferenceConfig, ModelRunner, get_model_runner
 from core.time import to_naive_utc
 
 
@@ -1263,7 +1263,7 @@ I was unable to fully process your question within the time limit. Please try as
         profile_db=None,
         use_memory: bool = False,
         category: Optional[str] = None,
-        judge_runner=None,
+        judge_runner: Optional[ModelRunner] = None,
     ) -> ValidatedResponse:
         """
         Complete RAG query with retrieval, generation, and validation.
