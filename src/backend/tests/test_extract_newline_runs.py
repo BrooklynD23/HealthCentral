@@ -47,7 +47,8 @@ def _run_child(label, text):
     except subprocess.TimeoutExpired:
         pytest.fail(f"{label} pattern did not finish within 10 s (ReDoS)")
     assert r.returncode == 0, r.stderr
-    return float(r.stdout.split()[0])
+    d, n = r.stdout.split()
+    return float(d), int(n)
 
 
 _LABELS = ["FINDINGS", "IMPRESSION", "ASSESSMENT", "PLAN", "VITALS"]
@@ -59,7 +60,9 @@ _LABELS = ["FINDINGS", "IMPRESSION", "ASSESSMENT", "PLAN", "VITALS"]
     ids=[f"{lb}-{n}" for lb in _LABELS for n in ("nl50000", "spnl50000")],
 )
 def test_hc_enl_001_linear_on_newline_runs(label, run):
-    assert _run_child(label, label + ":x" + run * 50000) < 1.0
+    d, n = _run_child(label, label + ":x" + run * 50000)
+    assert d < 1.0
+    assert n == 1
 
 
 @pytest.mark.parametrize(
@@ -77,7 +80,10 @@ def test_hc_enl_001_linear_on_newline_runs(label, run):
          "vitals-empty-spnl16000", "assessment-repeated-labels20000"],
 )
 def test_hc_enl_002_whitespace_and_repeated_labels_linear(label, text):
-    assert _run_child(label, text) < 1.0
+    d, n = _run_child(label, text)
+    assert d < 1.0
+    if not text.startswith("ASSESSMENT: ASSESSMENT"):
+        assert n == 0
 
 
 def _entities(label, text):
@@ -117,7 +123,7 @@ _OLD = {
 }
 _TOKENS = [
     "FINDINGS", "Findings", "finding", "IMPRESSION", "Impression", "ASSESSMENT", "A/P",
-    "Assessment and Plan", "PLAN", "plan", "explanation", "VITALS", "Vital signs", ":",
+    "Assessment and Plan", "PLAN", "plan", "explanation", "VITALS", "Vital signs", "Vital sign", "vital  sign", ":",
     " ", "\t", "\n", "\n\n", "\r", "AB", "Ab", "x", "a", ".", "1",
 ]
 
@@ -147,7 +153,7 @@ def test_hc_enl_004_new_pattern_matches_old_except_empty_values(label):
         old_v, new_v = _observable(t, old.search(t)), _observable(t, new.search(t))
         if old_v == new_v:
             continue
-        assert old_v is not None and old_v[2] in ("", ":", "s", "S") and new_v is None, (
+        assert old_v is not None and old_v[2].lower() in ("", ":", "s", "sign") and new_v is None, (
             t, old_v, new_v)
         differences += 1
     print(f"HC-ENL-004 {name}: {differences} differences of 20000")
