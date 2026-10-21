@@ -1400,6 +1400,14 @@ Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces t
 
 Links to: `AGENT.md`, `CLAUDE.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-21-session-handoff.md`
 
+## `docs/plans/2026-10-21c-session-handoff.md`
+
+**Session handoff: 2026-10-21 local L0 (laptop) → GPU box tonight**
+
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-21b handoff. This session ran as a **local** L0 on the laptop: Danny-Lenovo, WSL, 6 vCPU, no GPU and no…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-21b-session-handoff.md`
+
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
 **Project Structure Setup**
