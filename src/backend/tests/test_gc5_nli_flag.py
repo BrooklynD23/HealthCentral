@@ -459,3 +459,35 @@ def test_hc_gc5_004c_load_restores_library_logger_levels(tmp_path, monkeypatch):
     finally:
         for n, lg in loggers.items():
             lg.setLevel(before[n])
+
+
+def test_hc_gc5_004d_load_restores_a_notset_logger_to_notset(tmp_path, monkeypatch):
+    """A logger that starts at NOTSET must end at NOTSET, not at its effective level (mutant M7)."""
+    import sentence_transformers
+
+    import modules.model_integrity as mi
+    from core.config import settings
+    from modules.embeddings import EmbeddingModelUnavailableError, load_local_cross_encoder
+
+    model_dir = tmp_path / "corrupt"
+    model_dir.mkdir()
+    (model_dir / "config.json").write_text("{}", encoding="utf-8")
+    (model_dir / "model.safetensors").write_bytes(b"x")
+    monkeypatch.setattr(settings, "nli_model_path", str(model_dir))
+    monkeypatch.setattr(emb, "_nli_encoder", None)
+    monkeypatch.setattr(mi, "verify_model_file", lambda *a, **k: SimpleNamespace(status=mi.IntegrityStatus.VERIFIED))
+
+    def _stub(path, **kwargs):
+        raise RuntimeError("stop")
+
+    monkeypatch.setattr(sentence_transformers, "CrossEncoder", _stub)
+    st = logging.getLogger("sentence_transformers")
+    before = st.level
+    st.setLevel(logging.NOTSET)
+    try:
+        assert st.getEffectiveLevel() != logging.NOTSET, "guard: test would be vacuous"
+        with pytest.raises(EmbeddingModelUnavailableError):
+            load_local_cross_encoder()
+        assert st.level == logging.NOTSET
+    finally:
+        st.setLevel(before)
