@@ -1,5 +1,5 @@
 /**
- * AGENT-ENABLED-TOGGLE: Settings switch for agent_enabled (HC-AET-FE-001..002).
+ * AGENT-ENABLED-TOGGLE: Settings switch for agent_enabled (HC-AET-FE-001..004).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -55,5 +55,34 @@ describe('AgentSettingsCard', () => {
     await waitFor(() =>
       expect(api.apiPatch).toHaveBeenCalledWith('/settings/model/agent', { agent_enabled: false }),
     );
+  });
+
+  it('HC-AET-FE-003: a failed save shows an alert and keeps the stored value', async () => {
+    vi.mocked(api.apiGet).mockResolvedValue({ agent_enabled: true });
+    vi.mocked(api.apiPatch).mockRejectedValue(new Error('boom'));
+    renderCard();
+    const toggle = await screen.findByRole('switch');
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'));
+    await userEvent.click(toggle);
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not save this setting. Try again.',
+    );
+    expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('HC-AET-FE-004a: no switch shows as on while settings load', () => {
+    vi.mocked(api.apiGet).mockReturnValue(new Promise(() => {}));
+    renderCard();
+    expect(screen.queryByRole('switch', { checked: true })).not.toBeInTheDocument();
+    expect(screen.getByText('Loading your assistant setting...')).toBeInTheDocument();
+  });
+
+  it('HC-AET-FE-004b: a failed load shows an alert and no switch', async () => {
+    vi.mocked(api.apiGet).mockRejectedValue(new Error('boom'));
+    renderCard();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not load this setting. Reload to try again.',
+    );
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
   });
 });
