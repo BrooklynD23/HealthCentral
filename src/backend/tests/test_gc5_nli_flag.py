@@ -491,3 +491,91 @@ def test_hc_gc5_004d_load_restores_a_notset_logger_to_notset(tmp_path, monkeypat
         assert st.level == logging.NOTSET
     finally:
         st.setLevel(before)
+
+
+# ---------------------------------------------------------------------------
+# HC-GC5-012..014 (GC5-PREDICT-FAILCLOSED): a failing NLI predict leaves the claim
+# unverified (fail closed, like an absent model) instead of escaping as a 500/503.
+# ---------------------------------------------------------------------------
+
+
+class _RaisingPredictEncoder:
+    def __init__(self, exc: Exception):
+        self._exc = exc
+        self.config = type("Cfg", (), {"id2label": {0: "contradiction", 1: "entailment", 2: "neutral"}})()
+
+    def predict(self, pairs, apply_softmax=False):
+        raise self._exc
+
+
+def _assert_unverified_fail_closed(result) -> None:
+    assert result.is_verified is False
+    nli = result.entailment_results[0]
+    assert nli.label is EntailmentLabel.NEUTRAL
+    assert nli.confidence == 0.0
+    assert nli.explanation.endswith("claim left unverified")
+
+
+def test_hc_gc5_012_predict_failure_leaves_claim_unverified_and_logs_class_only(monkeypatch, caplog):
+    encoder = _RaisingPredictEncoder(RuntimeError("boom " + _CLAIM))
+    monkeypatch.setattr("modules.embeddings.load_local_cross_encoder", lambda: encoder)
+
+    with caplog.at_level(logging.DEBUG):
+        result = VerifierAgent(VerificationConfig(use_llm_entailment=True)).verify_claim(_CLAIM, "c1", [_SOURCE])
+
+    _assert_unverified_fail_closed(result)
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1
+    text = warnings[0].getMessage()
+    assert "RuntimeError" in text
+    assert "boom" not in text and "95 mg/dL" not in text  # a library error can quote patient text
+    assert warnings[0].exc_info is None
+
+
+class _ScoresEncoder(_RaisingPredictEncoder):
+    def __init__(self, scores, id2label):
+        self._scores = scores
+        self.config = type("Cfg", (), {"id2label": id2label})()
+
+    def predict(self, pairs, apply_softmax=False):
+        return [self._scores]
+
+
+@pytest.mark.parametrize(
+    "scores, id2label",
+    [
+        ([0.1, 0.1, 0.1, 0.7], {0: "contradiction", 1: "entailment", 2: "neutral"}),  # KeyError
+        ([0.1, 0.8, 0.1], {0: "contradiction", 1: "maybe", 2: "neutral"}),  # ValueError
+    ],
+    ids=["unmapped-index", "unknown-label"],
+)
+def test_hc_gc5_013_unusable_model_output_leaves_claim_unverified(monkeypatch, scores, id2label):
+    monkeypatch.setattr("modules.embeddings.load_local_cross_encoder", lambda: _ScoresEncoder(scores, id2label))
+    result = VerifierAgent(VerificationConfig(use_llm_entailment=True)).verify_claim(_CLAIM, "c1", [_SOURCE])
+    _assert_unverified_fail_closed(result)
+
+
+def test_hc_gc5_014_chat_abstains_when_predict_fails(monkeypatch):
+    import api.assistant as assistant
+    from core.config import settings
+    from modules.agent.guardrails.templates import ABSTAIN_TEMPLATE
+    from tests.legacy_eval import harness
+
+    answer = (
+        "REPORT FACTS:\nYour glucose was 95 mg/dL [cite:1].\n\n"
+        "GENERAL INFO:\nNormal fasting glucose is typically 70-100 mg/dL [cite:2]."
+    )
+    encoder = _RaisingPredictEncoder(RuntimeError("boom"))
+    monkeypatch.setattr("modules.embeddings.load_local_cross_encoder", lambda: encoder)
+    saved_flag, saved_rag = settings.use_llm_entailment, assistant._rag_module
+    settings.use_llm_entailment = True
+    assistant._rag_module = None
+    try:
+        with harness.legacy_chat_client(harness.build_chunks("glucose"), answer) as (client, _append):
+            resp = client.post("/assistant/chat", json={"question": "Is my glucose in the usual range?"})
+    finally:
+        settings.use_llm_entailment = saved_flag
+        assistant._rag_module = saved_rag
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert [(s["segment_type"], s["content"]) for s in body["segments"]] == [("uncertainty", ABSTAIN_TEMPLATE)]
