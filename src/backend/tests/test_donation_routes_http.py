@@ -581,8 +581,10 @@ from models.response_feedback import ResponseFeedback  # noqa: E402
 
 async def _rate(session, profile_id, session_id, turn_id, prompt="What does a high LDL mean?"):
     # collect only donates feedback whose assistant turn still exists
+    session.add(ChatTurn(id=f"u-{turn_id}", session_id=session_id, profile_id=profile_id,
+                         turn_index=0, role="user", content=prompt))
     session.add(ChatTurn(id=turn_id, session_id=session_id, profile_id=profile_id,
-                         turn_index=0, role="assistant", content="a"))
+                         turn_index=1, role="assistant", content="a"))
     row = ResponseFeedback(
         profile_id=profile_id, session_id=session_id, turn_id=turn_id, rating=1,
         prompt_snapshot=prompt, response_text="It is a cholesterol marker.",

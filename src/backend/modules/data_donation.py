@@ -142,6 +142,21 @@ def _screen(engine: RedactionEngine, fields: dict[str, Optional[str]]):
     return out, count, categories
 
 
+async def _user_turn_text(profile_db, profile_id: str, assistant_turn_id: str) -> Optional[str]:
+    """Text of the user turn that immediately precedes the given assistant turn."""
+    a = (await profile_db.execute(
+        select(ChatTurn).where(ChatTurn.id == assistant_turn_id, ChatTurn.profile_id == profile_id)
+    )).scalars().first()
+    if a is None:
+        return None
+    return (await profile_db.execute(
+        select(ChatTurn.content).where(
+            ChatTurn.session_id == a.session_id, ChatTurn.profile_id == profile_id,
+            ChatTurn.role == "user", ChatTurn.turn_index < a.turn_index,
+        ).order_by(ChatTurn.turn_index.desc()).limit(1)
+    )).scalars().first()
+
+
 async def collect(profile_db, profile_id: str, purpose: str) -> CollectCounts:
     """Donate the profile's rated feedback rows for ``purpose``. Counts only."""
     # Fail closed: no active, current consent -> nothing is read (DON-STALE).
@@ -178,11 +193,14 @@ async def collect(profile_db, profile_id: str, purpose: str) -> CollectCounts:
         if row.id in already:
             skipped += 1
             continue
-        if not row.prompt_snapshot or not row.response_text:
+        # The question is the user's own turn, not the client-supplied prompt_snapshot
+        # (which can carry retrieved record text).
+        question = await _user_turn_text(profile_db, profile_id, row.turn_id)
+        if not question or not row.response_text:
             incomplete += 1
             continue
         text, n, categories = _screen(engine, {
-            "prompt": row.prompt_snapshot,
+            "prompt": question,
             "response": row.response_text,
             "correction": row.correction_text or None,
         })

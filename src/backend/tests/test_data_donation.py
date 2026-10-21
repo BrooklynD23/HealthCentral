@@ -191,13 +191,22 @@ async def _consent(db, version=None, revoked=False):
     await db.commit()
 
 
-async def _feedback(db, prompt, response="Your result is in range.", correction=None, session_id="s1"):
+_TURN_INDEX = __import__("itertools").count()
+
+
+async def _feedback(db, prompt, response="Your result is in range.", correction=None, session_id="s1",
+                    snapshot=None):
+    """``prompt`` is the user turn text; ``snapshot`` (default: same) is the client-supplied prompt_snapshot."""
     turn_id = f"t-{len(db.statements)}-{id(prompt)}"
+    n = 2 * next(_TURN_INDEX)
+    db.add(ChatTurn(id=f"u{turn_id}", session_id=session_id, profile_id=PID,
+                    turn_index=n, role="user", content=prompt))
     db.add(ChatTurn(id=turn_id, session_id=session_id, profile_id=PID,
-                    turn_index=0, role="assistant", content="a"))
+                    turn_index=n + 1, role="assistant", content="a"))
     row = ResponseFeedback(
         profile_id=PID, session_id=session_id, turn_id=turn_id,
-        rating=1, prompt_snapshot=prompt, response_text=response, correction_text=correction,
+        rating=1, prompt_snapshot=snapshot if snapshot is not None else prompt,
+        response_text=response, correction_text=correction,
     )
     db.add(row)
     await db.commit()
@@ -292,3 +301,14 @@ async def test_collect_skips_orphaned_feedback_and_counts_incomplete(vault):
     counts = await collect(vault, PID, PURPOSE)
     assert (counts.collected, counts.skipped_incomplete) == (1, 1)
     assert len((await _donated(vault))) == 1
+
+
+@pytest.mark.asyncio
+async def test_collect_donates_user_turn_not_prompt_snapshot(vault):
+    from modules.data_donation import collect
+
+    await _consent(vault)
+    await _feedback(vault, "What does a high LDL mean?",
+                    snapshot="CONTEXT: LDL 162 mg/dL from lab report. What does a high LDL mean?")
+    assert (await collect(vault, PID, PURPOSE)).collected == 1
+    assert [r.prompt_redacted for r in await _donated(vault)] == ["What does a high LDL mean?"]
