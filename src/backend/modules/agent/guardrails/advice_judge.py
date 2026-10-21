@@ -12,6 +12,7 @@ Plan: docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md §B-3.
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from typing import Literal
 
@@ -89,7 +90,8 @@ def _neutralise_markers(text: str) -> str:
     The template is unchanged; only the two marker strings inside the answer are
     broken up so the answer cannot end its own block and add an instruction.
     """
-    return text.replace("<<<ANSWER", "<<< ANSWER").replace("ANSWER>>>", "ANSWER >>>")
+    text = re.sub(r"(?i)<<<(?=\s*answer)", "<<< ", text)
+    return re.sub(r"(?i)(?<=answer)(?=\s*>>>)", " ", text)
 
 
 async def advice_judge(text: str, runner: ModelRunner) -> Verdict:
@@ -101,12 +103,12 @@ async def advice_judge(text: str, runner: ModelRunner) -> Verdict:
         if not runner.is_available():
             return "UNAVAILABLE"
         result = await runner.generate_async(FROZEN_PROMPT.replace("{answer}", _neutralise_markers(text)), _CONFIG)
+        if result.finish_reason not in {"stop", "length"}:
+            return "UNAVAILABLE"
+        answer = result.text.strip()
     except Exception as exc:  # noqa: BLE001 - any failure must fail closed
         logger.warning("advice_judge unavailable: %s", type(exc).__name__)
         return "UNAVAILABLE"
-    if result.finish_reason not in {"stop", "length"}:
-        return "UNAVAILABLE"
-    answer = result.text.strip()
     if answer == "ALLOW":
         return "ALLOW"
     if answer == "BLOCK":
