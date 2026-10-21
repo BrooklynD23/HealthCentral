@@ -58,12 +58,28 @@ export function checkAfter(
   )
 }
 
-/** Fixed error category for a failure no rule claimed. Never raw text. */
+/**
+ * Fixed error category for a failure no rule claimed. Never raw text.
+ * Order matters: the first four checks win, then common Bash failure shapes,
+ * then a bounded `exit-<n>` (1-255) from the `Exit code` line, else 'other'.
+ * Returns only fixed literals or `exit-` plus captured digits, never input text.
+ */
 export function classifyError(text: string): string {
   if (/Exit code 144\b/.test(text)) return 'exit-144-self-kill'
   if (/timed out|timeout/i.test(text)) return 'timeout'
   if (/did not match|not found in file|String to replace not found/i.test(text)) return 'edit-no-match'
   if (/permission denied|EACCES/i.test(text)) return 'permission-denied'
+  if (/ModuleNotFoundError|No module named/.test(text)) return 'module-not-found'
+  if (/command not found|Exit code 127\b/.test(text)) return 'command-not-found'
+  if (/No such file or directory|ENOENT/.test(text)) return 'no-such-file'
+  if (/\b\d+ failed\b/.test(text)) return 'tests-failed'
+  if (/^fatal: /m.test(text)) return 'git-fatal'
+  if (/SyntaxError|syntax error/i.test(text)) return 'syntax-error'
+  const m = /^Exit code (\d{1,3})\b/m.exec(text)
+  if (m) {
+    const n = Number(m[1])
+    if (n >= 1 && n <= 255) return `exit-${n}`
+  }
   return 'other'
 }
 
