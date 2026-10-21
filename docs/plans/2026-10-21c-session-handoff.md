@@ -60,8 +60,8 @@ Read this after [CLAUDE.md](../../CLAUDE.md), [AGENT.md](../../AGENT.md) and the
 4. **Owner asks:**
    - GC5-NEUTRAL-DIFF once #266 lands;
    - O-6 on or after 2026-10-24;
-   - P6-ORPHAN (real-vault orphan counts);
    - OW-3, OW-W0, OW-W3, OW-W7, OW-W13 and H2-SETUP.
+   - Owner task, not a question: C-P6 waits on the owner running `scripts/fk_orphan_audit.py` on a vault copy and pasting the counts (P6-ORPHAN answered 2026-10-16).
 5. **RSI:** after #271 merges, run rsi-loop again so the clusters carry error classes.
 
 ## 4. Harness gotchas (local)
@@ -69,7 +69,7 @@ Read this after [CLAUDE.md](../../CLAUDE.md), [AGENT.md](../../AGENT.md) and the
 - **`gh pr edit` fails** with the "Projects (classic) is being deprecated" GraphQL error. Use `gh api -X PATCH repos/{owner}/{repo}/pulls/N`. `gh pr ready`, `gh pr comment` and `gh pr merge` work.
 - **Read the harness's security flags before you trust a workflow, and verify them against the three-dot diff.** One flag was a false positive this session (B-3 above).
 - **A build-item resume stops on a dirty worktree** (go=false, nothing touched). Rule on the diff explicitly (keep or discard) and say so in the `l0_note`.
-- **A haiku queue parser misreads gate status.** It marked P6-ORPHAN answered and missed REDACT-NG-GT-DIFF, OW-3 and O-6. Check owner gates against owner-decisions by hand.
+- **A haiku queue parser misreads gate status.** It missed REDACT-NG-GT-DIFF, OW-3 and O-6. (Its "P6-ORPHAN answered" was right; L0 wrongly overrode it from the 21b handoff.) Check owner gates against owner-decisions by hand.
 - Unchanged: never `ruff format`; three-dot diffs only; docs PRs merge one at a time (regenerate `docs/INDEX.md` after merging main); merge only after a review PASS; RSI PRs (#230, #271) and #239 are never agent-merged; the owner merges with `gh pr merge N --merge --delete-branch=false` so WSL worktrees survive.
 
 ## 5. /goal prompt for the next L0
