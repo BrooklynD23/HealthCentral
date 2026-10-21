@@ -648,6 +648,26 @@ class TestUnderscoreJoinedRedaction:
         """HC-REDACT-023: a hyphen/accent name does not swallow the next label (newline, tab or space)."""
         assert _engine("strict").redact(text).text == strict
 
+    @pytest.mark.parametrize(
+        ("text", "standard"),
+        [
+            pytest.param(
+                "Name: José Núñez Patient Name: Bob Stone",
+                "[NAME-REDACTED] Patient [NAME-REDACTED]",
+                id="same_line_space",
+            ),
+            pytest.param(
+                "Name: José Núñez\tPatient Name: Bob Stone",
+                "[NAME-REDACTED]\tPatient [NAME-REDACTED]",
+                id="same_line_tab",
+            ),
+        ],
+    )
+    def test_hc_redact_023_standard_same_line_next_label(self, text, standard):
+        """HC-REDACT-023: at standard, a same-line (space or tab) 'Patient Name:'
+        after an accented name is still redacted, and the name does not swallow it."""
+        assert _engine("standard").redact(text).text == standard
+
     def test_hc_redact_023_standard_bare_name_next_line(self):
         """HC-REDACT-023: at standard, a bare 'Name:' on the next line is still redacted."""
         out = _engine("standard").redact("Patient: José Núñez\nName: Maria Cruz").text
