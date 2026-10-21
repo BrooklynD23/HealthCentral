@@ -101,7 +101,7 @@ The merged plan stands. Delta only: what moved on main, what the owner fixed, wh
 
 | ID | Asserts |
 |---|---|
-| HC-PARA-101 (T1) | parser, 10 parametrized cases: `ALLOW`, `" ALLOW\n"` give ALLOW; `BLOCK` gives BLOCK; `""`, `"allow"`, `"ALLOW please"`, `"ALLOW\nBLOCK"`, `finish_reason="timeout"`, an exception, `is_available() False` give UNAVAILABLE |
+| HC-PARA-101 (T1) | parser, 11 parametrized cases: `ALLOW`, `" ALLOW\n"` give ALLOW; `BLOCK` gives BLOCK; `""`, `"allow"`, `"ALLOW please"`, `"ALLOW\nBLOCK"`, `finish_reason="timeout"`, an exception, `is_available() False`, `text=None` give UNAVAILABLE |
 | HC-PARA-102 (T2) | local only: the external fake runner receives only the generation prompt; the local judge fake receives the judge prompt |
 | HC-PARA-103 (T3) | chat over HTTP (`route_client`, agent disabled): judge BLOCK gives `full_response == ESCALATE_TEMPLATE`, audit `assistant.prohibited_blocked` with `details.reason == "advice_judge"`, persisted turn holds the template |
 | HC-PARA-104 (T4) | same for `POST /interpretations/observations/{id}/interpret-grounded` (201 with the template, as today); the I-16 503 path is unchanged |
@@ -138,7 +138,7 @@ T7 is not a pytest test: `timeout 600 python3 scripts/agent_eval_gate.py` from t
 4. `! rg -n llama_cpp src/backend/modules/agent/guardrails/advice_judge.py src/backend/scripts/measure_prohibited_patterns.py` (a zero-match `grep` exits 1; this form exits 0 on zero matches).
 5. `timeout 600 python3 scripts/agent_eval_gate.py; echo rc=$?` from the repo root: `All 74 golden cases passed.`
 6. `python3 scripts/legacy_eval_gate.py; echo rc=$?`.
-7. Collected count by contracts §d step 2. Start 2129 on `086466d`. The two new files collect 37 tests by design (HC-PARA 27: 10 + 1 + 1 + 1 + 1 + 2 + 1 + 1 + 1 + 1 + 1 + 1 + 3 + 1 + 1, including review 1/3 cases 101b, 105b, 107b, 108b, 109b, 106c; HC-PMJ 10: 001..008 plus 005b, 005c), so the expected delta is +37. The final count and delta are measured at head and pasted; the count slots are not edited by this PR (SLOT-RULE-2).
+7. Collected count by contracts §d step 2. Start 2129 on `086466d`. The two new files collect 39 tests by design (HC-PARA 29: 11 + 1 + 1 + 1 + 1 + 1 + 2 + 1 + 1 + 1 + 1 + 1 + 1 + 3 + 1 + 1, including review 1/3 cases 101b, 105b, 107b, 108b, 109b, 106c and the round 2/3 case-insensitive 101b test; HC-PMJ 10: 001..008 plus 005b, 005c), so the expected delta is +39. The final count and delta are measured at head and pasted; the count slots are not edited by this PR (SLOT-RULE-2).
 8. `cd src/backend && ~/venvs/asclexis-311/bin/python -c "from main import app"`.
 9. CI: every job in `.github/workflows/ci.yml` at the final merge (8 today: docs-lint, backend-tests, backend-lint, frontend-tests, security-scan, agent-evals, legacy-evals, e2e-tests; #259 would add rsi-replay).
 10. Lane-F §2.5 F1-F5 greps (I-22): B-3 changes none of them.
