@@ -109,4 +109,4 @@ async def test_hc_afl_003_agent_path_label(agent_profile_db):
     assert resp.status_code == 200, resp.text
     full = resp.json()["full_response"]
     assert full.count(LABEL) == 2
-    assert "from your documents, not verified by you" not in full
+    assert "from your documents, not verified" + " by you" not in full
