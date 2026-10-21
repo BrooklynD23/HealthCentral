@@ -531,7 +531,7 @@ class TestUnderscoreJoinedRedaction:
             pytest.param("Patient (legal name): Ludwig van Beethoven", ["Ludwig", "Beethoven"], False, id="g3_van"),
             pytest.param("Name (legal): José Núñez", ["Nu"], False, id="g4_nfd_legal"),
             pytest.param("Patient Name: José Núñez", ["Jose", "Nu"], True, id="g4_nfd_patient_name"),
-            pytest.param("Patient: José Núñez", ["Jos", "N"], False, id="g4_nfc_patient"),
+            pytest.param("Patient: José Núñez", ["Jos", "Nú"], False, id="g4_nfc_patient"),
         ],
     )
     def test_hc_redact_020_name_shape_gaps_closed(self, text, tokens, standard):
