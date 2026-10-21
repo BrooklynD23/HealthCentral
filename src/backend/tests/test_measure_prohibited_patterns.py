@@ -118,7 +118,7 @@ def test_hc_pmj_003_bad_schema_or_duplicate_id_exits_3(env, monkeypatch):
     bad_variants = {
         "missing text": [{k: v for k, v in good[0].items() if k != "text"}, *good[1:]],
         "unknown label": [{**good[0], "label": "maybe"}, *good[1:]],
-        "duplicate id": [{**good[1], "id": good[0]["id"]}, *good[1:]],
+        "duplicate id": [good[0], {**good[1], "id": good[0]["id"]}, *good[2:]],
         "non-string text": [{**good[0], "text": 7}, *good[1:]],
     }
     for name, rows in bad_variants.items():

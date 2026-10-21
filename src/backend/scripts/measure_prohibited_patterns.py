@@ -1,8 +1,16 @@
 """Read-only measurement of prohibited-pattern lists. Writes nothing.
 
 Run from src/backend:  python scripts/measure_prohibited_patterns.py [--verbose]
-Exit code is always 0 (measurement, not a gate). Imports the live pattern list and
-product templates read-only; nothing in product code imports this script.
+Exit code is 0 for the list modes (measurement, not a gate). Imports the live pattern
+list and product templates read-only; nothing in product code imports this script.
+
+--judge mode (B-3, plan lane-B §B-3 "--judge CLI contract"):
+  HF_HUB_OFFLINE=1 python scripts/measure_prohibited_patterns.py \
+      --judge <S5.jsonl> --tier <tier> [--concurrency 2]
+  Runs the frozen advice judge over the sealed set S5 twice and prints the §6
+  metric table. Exit codes: 0 OK; 2 usage, --tier low, or S5 inside the repo;
+  3 bad schema or counts below 180 must_block / 200 must_allow; 4 runner
+  unavailable, no GGUF path, or the loaded file is the low-tier file.
 """
 
 import sys
@@ -10,9 +18,12 @@ import sys
 sys.dont_write_bytecode = True  # before any import that could write __pycache__
 
 import argparse
+import asyncio
+import hashlib
 import importlib.util
 import json
 import re
+import subprocess
 import time
 from collections import Counter
 from pathlib import Path
@@ -201,7 +212,163 @@ def report_timing(lists: dict[str, Compiled]) -> None:
         print(f"  {ln}: " + ", ".join(cells))
 
 
-def main() -> int:
+MIN_MUST_BLOCK, MIN_MUST_ALLOW = 180, 200  # PR3-S5N: the plan's size
+LABELS = ("must_block", "must_allow")
+
+
+def _git(*args: str) -> str | None:
+    try:
+        out = subprocess.run(["git", *args], cwd=BACKEND, capture_output=True, text=True,
+                             check=True)
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return out.stdout.strip()
+
+
+def load_s5(path: Path) -> list[dict[str, Any]] | str:
+    """Parse and validate S5; returns the rows, or an error message (exit 3)."""
+    try:
+        lines = [ln for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    except OSError as exc:
+        return f"cannot read {path}: {exc}"
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for n, ln in enumerate(lines, 1):
+        try:
+            row = json.loads(ln)
+        except ValueError:
+            return f"line {n}: not valid JSON"
+        if (not isinstance(row, dict) or set(row) != {"id", "label", "category", "text"}
+                or not isinstance(row["id"], str) or not row["id"]
+                or row["label"] not in LABELS
+                or not (row["category"] is None or isinstance(row["category"], str))
+                or not isinstance(row["text"], str) or not row["text"].strip()):
+            return f"line {n}: bad schema"
+        if row["id"] in seen:
+            return f"line {n}: duplicate id {row['id']!r}"
+        seen.add(row["id"])
+        rows.append(row)
+    nb = sum(r["label"] == "must_block" for r in rows)
+    na = sum(r["label"] == "must_allow" for r in rows)
+    if nb < MIN_MUST_BLOCK or na < MIN_MUST_ALLOW:
+        return (f"counts must_block={nb} must_allow={na}; "
+                f"need >= {MIN_MUST_BLOCK} and >= {MIN_MUST_ALLOW}")
+    return rows
+
+
+def _sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        for block in iter(lambda: fh.read(1 << 20), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
+def _quantile(values: list[float], q: float) -> float:
+    ordered = sorted(values)
+    return ordered[min(len(ordered) - 1, int(round(q * (len(ordered) - 1))))]
+
+
+async def _one_pass(rows: list[dict[str, Any]], runner: Any, concurrency: int,
+                    ) -> tuple[list[str], list[float]]:
+    from modules.agent.guardrails.advice_judge import advice_judge
+
+    sem = asyncio.Semaphore(concurrency)
+    verdicts = ["UNAVAILABLE"] * len(rows)
+    times = [0.0] * len(rows)
+
+    async def work(i: int) -> None:
+        async with sem:
+            t0 = time.perf_counter()
+            verdicts[i] = await advice_judge(rows[i]["text"], runner)
+            times[i] = time.perf_counter() - t0
+
+    await asyncio.gather(*(work(i) for i in range(len(rows))))
+    return verdicts, times
+
+
+def run_judge(s5: str, tier: str | None, concurrency: int) -> int:
+    """The --judge mode. Inference goes only through ModelRunner / advice_judge."""
+    from modules.model_selector import TIER_MODEL_CONFIG
+
+    allowed = [k for k in TIER_MODEL_CONFIG if k != "low"]
+    if tier == "low":
+        print("error: the low tier cannot be measured: it fails closed at runtime "
+              "(PR3-TIER (A)); pick one of " + ", ".join(allowed), file=sys.stderr)
+        return 2
+    if tier not in allowed:
+        print("error: --tier is required with --judge, one of " + ", ".join(allowed),
+              file=sys.stderr)
+        return 2
+    toplevel = _git("rev-parse", "--show-toplevel")
+    if toplevel is None:
+        print("error: cannot find the git toplevel to keep S5 outside it", file=sys.stderr)
+        return 2
+    path = Path(s5).expanduser().resolve()
+    if path == Path(toplevel).resolve() or Path(toplevel).resolve() in path.parents:
+        print(f"error: S5 path is inside the git toplevel {toplevel}; S5 must live outside "
+              "every worktree", file=sys.stderr)
+        return 2
+    rows = load_s5(path)
+    if isinstance(rows, str):
+        print(f"error: {rows}", file=sys.stderr)
+        return 3
+
+    import core.model_runner as model_runner  # looked up at call time (tests patch it)
+
+    runner = model_runner.get_model_runner()
+    finder = getattr(runner, "_find_model_path", None)
+    gguf = finder() if finder else None
+    low_name = str(TIER_MODEL_CONFIG["low"]["filename"]).casefold()
+    if gguf is None or not Path(str(gguf)).is_file():
+        print("error: no loaded GGUF file found for the runner", file=sys.stderr)
+        return 4
+    if Path(str(gguf)).name.casefold() == low_name:
+        print("error: the loaded file is the low-tier model; load a higher tier", file=sys.stderr)
+        return 4
+    if not runner.is_available():
+        print("error: runner unavailable", file=sys.stderr)
+        return 4
+
+    from modules.interpret_safety import InterpretationSafetyGuard as G
+
+    floor = _compile([(f"C{n}", p) for n, (p, _) in enumerate(G.PROHIBITED_PATTERNS, 1)])
+    floor_hit = [first_hit(floor, r["text"]) is not None for r in rows]
+
+    passes: list[list[str]] = []
+    times: list[float] = []
+    for _ in range(2):
+        v, t = asyncio.run(_one_pass(rows, runner, concurrency))
+        passes.append(v)
+        times += t
+    first = passes[0]
+    block_idx = [i for i, r in enumerate(rows) if r["label"] == "must_block"]
+    allow_idx = [i for i, r in enumerate(rows) if r["label"] == "must_allow"]
+    caught = sum(floor_hit[i] or first[i] == "BLOCK" for i in block_idx)
+    added = sum((not floor_hit[i]) and first[i] == "BLOCK" for i in block_idx)
+    added_fp = sum((not floor_hit[i]) and first[i] == "BLOCK" for i in allow_idx)
+    unavailable = sum(v == "UNAVAILABLE" for p in passes for v in p)
+    agree = sum(a == b for a, b in zip(*passes))
+
+    head = _git("rev-parse", "HEAD") or "unknown"
+    print(f"tier: {tier}")
+    print(f"gguf_sha256: {_sha256(Path(str(gguf)))}")
+    print(f"s5_sha256: {_sha256(path)}")
+    print(f"s5_counts: must_block={len(block_idx)} must_allow={len(allow_idx)}")
+    print(f"commit: {head}")
+    print(f"passes: 2  concurrency: {concurrency}")
+    print(f"system_recall: {caught / len(block_idx):.3f} ({caught}/{len(block_idx)})")
+    print(f"judge_added_recall: {added / len(block_idx):.3f} ({added}/{len(block_idx)})")
+    print(f"added_false_positives: {added_fp}")
+    print(f"false_positive_rate: {added_fp / len(allow_idx):.3f} ({added_fp}/{len(allow_idx)})")
+    print(f"unavailable_rate: {unavailable / (2 * len(rows)):.3f}")
+    print(f"two_pass_agreement: {agree / len(rows):.3f}")
+    print(f"latency_p50_s: {_quantile(times, 0.50):.3f}")
+    print(f"latency_p95_s: {_quantile(times, 0.95):.3f}")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--final", action="store_true")
     ap.add_argument("--final2", action="store_true")
@@ -211,7 +378,12 @@ def main() -> int:
     ap.add_argument("--dedupe", action="store_true")
     ap.add_argument("--timing", action="store_true")
     ap.add_argument("--wrap", action="store_true")
-    a = ap.parse_args()
+    ap.add_argument("--judge", metavar="S5_JSONL", help="measure the advice judge on S5")
+    ap.add_argument("--tier", help="model tier being measured (not low); required with --judge")
+    ap.add_argument("--concurrency", type=int, default=2)
+    a = ap.parse_args(argv)
+    if a.judge:
+        return run_judge(a.judge, a.tier, max(1, a.concurrency))
     sealed = [n for n, on in (("held_out_final", a.final),
                               ("held_out_final2", a.final2)) if on]
     for n in sealed:
@@ -235,4 +407,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
