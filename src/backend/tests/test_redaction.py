@@ -650,6 +650,45 @@ class TestUnderscoreJoinedRedaction:
         out = _engine("standard").redact("Patient: José Núñez\nName: Maria Cruz").text
         assert out == "[NAME-REDACTED]\n[NAME-REDACTED]"
 
+    @pytest.mark.parametrize(
+        ("text", "strict", "standard"),
+        [
+            pytest.param("Patient Name: José Núñez A12345", "[NAME-REDACTED]", "[NAME-REDACTED]", id="tail_id"),
+            pytest.param("Patient Name: Jane Doe-Smith B67890", "[NAME-REDACTED]", "[NAME-REDACTED]", id="tail_hyphen_id"),
+            pytest.param("Patient Name: José Núñez. Maria Lopez", "[NAME-REDACTED]", "[NAME-REDACTED]", id="tail_run_on"),
+            pytest.param("Patient Name: José Núñez\tDr. Ana-Lucia", "[NAME-REDACTED]", "[NAME-REDACTED]", id="tail_tab_title"),
+            pytest.param(
+                "Name (legal): Maria de la Cruz Patient ID: 98765",
+                "[ID-REDACTED] [ID-REDACTED]",
+                "Name (legal): Maria de la Cruz Patient ID: 98765",
+                id="particle_space_next_label",
+            ),
+            pytest.param(
+                "Name (legal): Maria de la Cruz\tPatient ID: 98765",
+                "[ID-REDACTED]\t[ID-REDACTED]",
+                "Name (legal): Maria de la Cruz\tPatient ID: 98765",
+                id="particle_tab_next_label",
+            ),
+            pytest.param(
+                "Name (legal): Ana van der Berg Patient ID: 98765",
+                "[ID-REDACTED] [ID-REDACTED]",
+                "Name (legal): Ana van der Berg Patient ID: 98765",
+                id="particle_van_next_label",
+            ),
+            pytest.param(
+                "Patient ID: Maria de la Cruz Patient ID: A12345",
+                "[ID-REDACTED] [ID-REDACTED]",
+                "Patient ID: Maria de la Cruz Patient ID: A12345",
+                id="particle_id_label_next_label",
+            ),
+        ],
+    )
+    def test_hc_redact_023_consumed_label_tail_and_particle_next_label(self, text, strict, standard):
+        """HC-REDACT-023: a consumed 'patient name' label keeps its value tail
+        redacted, and a particle continuation never swallows a later label."""
+        assert _engine("strict").redact(text).text == strict
+        assert _engine("standard").redact(text).text == standard
+
     def test_hc_redact_016_spaced_rules_are_strict_only(self):
         """HC-REDACT-016: standard and minimal leave every group-S input as it was."""
         for level in ("standard", "minimal"):
