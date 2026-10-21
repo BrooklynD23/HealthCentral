@@ -12,12 +12,12 @@ Handles:
 import json
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import Optional
 
 from core.config import settings
-from core.model_runner import InferenceConfig, get_model_runner
+from core.model_runner import InferenceConfig, ModelRunner, get_model_runner
 from core.time import to_naive_utc
 
 
@@ -127,6 +127,9 @@ class ValidatedResponse:
     verification: VerificationMetadata = field(default_factory=VerificationMetadata)
     # SAFE-CHAT: True when a PROHIBITED_PATTERNS match fired in validate_response.
     prohibited_advice: bool = False
+    # B-3: which check set prohibited_advice, for the audit row only (never
+    # answer text): "prohibited_pattern" | "advice_judge" | "advice_judge_unavailable".
+    prohibited_reason: str = "prohibited_pattern"
 
 
 def _cite_schema(n_chunks: int) -> dict:
@@ -1267,6 +1270,7 @@ I was unable to fully process your question within the time limit. Please try as
         profile_db=None,
         use_memory: bool = False,
         category: Optional[str] = None,
+        judge_runner: Optional[ModelRunner] = None,
     ) -> ValidatedResponse:
         """
         Complete RAG query with retrieval, generation, and validation.
@@ -1285,6 +1289,9 @@ I was unable to fully process your question within the time limit. Please try as
             model_runner: Optional override model runner (for external API)
             master_db: Master database session for reference lookups
             category: Optional document category filter for user-document retrieval
+            judge_runner: Local runner for the advice judge (B-3). Defaults to
+                get_model_runner(); never the request runner, so the answer
+                cannot reach an external API through the judge.
 
         Returns:
             ValidatedResponse with verified, grounded answer
@@ -1352,6 +1359,28 @@ I was unable to fully process your question within the time limit. Please try as
 
         # Step 4: Validate and verify response
         validated = self.validate_response(response, chunks)
+
+        # Step 5 (B-3): local advice judge, ORed into the regex floor. It runs
+        # only when the floor did not fire, and anything but ALLOW blocks
+        # (fail closed; owner Q2/Q3). get_model_runner is looked up here, at call
+        # time, so tests can inject the local judge.
+        if not validated.prohibited_advice:
+            from modules.agent.guardrails.advice_judge import advice_judge
+
+            outcome = await advice_judge(response, judge_runner or get_model_runner())
+            if outcome != "ALLOW":
+                validated = replace(
+                    validated,
+                    prohibited_advice=True,
+                    prohibited_reason=(
+                        "advice_judge" if outcome == "BLOCK" else "advice_judge_unavailable"
+                    ),
+                    is_valid=False,
+                    validation_errors=[
+                        *validated.validation_errors,
+                        "Response blocked by the local advice judge",
+                    ],
+                )
 
         return validated
 

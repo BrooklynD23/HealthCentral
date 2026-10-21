@@ -19,6 +19,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from tests.legacy_eval.harness import AllowJudge
+
 _CITE_WORD = re.compile(r"\bcit(?:e|es|ed|ing|ation|ations)\b", re.IGNORECASE)
 _MARKER = re.compile(r"\[([A-Za-z_]+):(?:N|\d+)\]")
 # Context-label names rendered by RAGModule.compose_prompt:
@@ -103,7 +105,7 @@ async def test_hc_cit_002_prompt_sent_to_model_has_exactly_one_citation_format_i
     ):
         await rag.query(
             question="Is my LDL high?", profile_id="prof-1",
-            history=history, use_memory=True,
+            history=history, use_memory=True, judge_runner=AllowJudge(),
         )
 
     prompt = generate.call_args.args[0]

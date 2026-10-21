@@ -34,6 +34,7 @@ from models import LabInterpretation, Observation
 from models.audit import AuditLog
 from modules.agent.guardrails.templates import ESCALATE_TEMPLATE
 from modules.rag import ModelUnavailableError, RetrievedChunk, VerificationMetadata
+from tests.legacy_eval.harness import AllowJudge
 from tests.support.routes import route_client
 
 PROFILE_ID = "profile-a"  # route_client's default session profile_id
@@ -157,7 +158,8 @@ async def test_hc_safeinterp_001_prohibited_grounded_answer_replaced_and_audited
 @pytest.mark.asyncio
 async def test_hc_safeinterp_002_clean_grounded_answer_untouched(dbs):
     profile_db, master_db, obs_id = dbs
-    with patch.object(I, "get_rag_module", return_value=_rag(CLEAN_ANSWER)):
+    with patch.object(I, "get_rag_module", return_value=_rag(CLEAN_ANSWER)), \
+         patch("modules.rag.get_model_runner", return_value=AllowJudge()):
         resp = _call(profile_db, master_db, "POST",
                      f"/interpretations/observations/{obs_id}/interpret-grounded")
     assert resp.status_code == 201, resp.text
@@ -176,7 +178,8 @@ async def _grounded_question(dbs, *, verified: bool) -> str:
     rag = _rag(CLEAN_ANSWER)
     spy = AsyncMock(wraps=rag.query)
     rag.query = spy
-    with patch.object(I, "get_rag_module", return_value=rag):
+    with patch.object(I, "get_rag_module", return_value=rag), \
+         patch("modules.rag.get_model_runner", return_value=AllowJudge()):
         resp = _call(profile_db, master_db, "POST",
                      f"/interpretations/observations/{obs_id}/interpret-grounded")
     assert resp.status_code == 201, resp.text
@@ -386,14 +389,16 @@ async def test_hc_fsc_004_served_score_capped_at_verified_share(dbs, monkeypatch
     url = f"/interpretations/observations/{obs_id}/interpret-grounded"
 
     # Precondition (non-vacuous): flag off, both claims verify.
-    with patch.object(I, "get_rag_module", return_value=_fsc_real_rag(False)):
+    with patch.object(I, "get_rag_module", return_value=_fsc_real_rag(False)), \
+         patch("modules.rag.get_model_runner", return_value=AllowJudge()):
         resp = _call(profile_db, master_db, "POST", url)
     assert resp.status_code == 201, resp.text
     assert resp.json()["verification"]["verified_claims"] == 2
 
     # Flag on with a contradicting NLI model: nothing verifies, score must be 0.
     monkeypatch.setattr("modules.embeddings.load_local_cross_encoder", lambda: _FscContradictionEncoder())
-    with patch.object(I, "get_rag_module", return_value=_fsc_real_rag(True)):
+    with patch.object(I, "get_rag_module", return_value=_fsc_real_rag(True)), \
+         patch("modules.rag.get_model_runner", return_value=AllowJudge()):
         resp = _call(profile_db, master_db, "POST", url)
     assert resp.status_code == 201, resp.text
     v = resp.json()["verification"]

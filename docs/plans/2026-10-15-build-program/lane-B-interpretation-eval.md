@@ -61,40 +61,87 @@ Order: B-1, B-2 and B-6 are owner questions that can be asked now. B-3 codes in 
 
 ## B-3 PARA-1-R3 implementation: `advice_judge`
 
-The merged plan stands. Delta only: what moved on main, what the owner fixed, what is still open.
+The merged plan stands. Delta only: what moved on main, what the owner fixed, what the Codex plan review (R-22, `docs/reviews/2026-10-21/b3-codex-plan-review.md` on PR #263) changed. Anchors were re-taken on `086466d` and are given by symbol first; line numbers are a hint and drift.
 
-**Owner answers now binding** (all quoted from owner-decisions): Q1 "C: local answer judge" (`:107`); Q2/Q3 "Fail closed" (`:117`); Q6 "Owner writes and holds it" (`:118`); Q7 "Reuse ESCALATE_TEMPLATE" (`:119`); Q8 "No, new answers only" (`:120`); Q4/Q5 "2s / 90% / 5% / tier-2" (`:124`).
+**Owner answers now binding** (all quoted from `docs/capstone-report/owner-decisions-2026-09-27.md`): Q1 "C: local answer judge" (`:108`); Q2/Q3 "Fail closed" (`:118`); Q6 "Owner writes and holds it" (`:119`); Q7 "Reuse ESCALATE_TEMPLATE" (`:120`); Q8 "No, new answers only" (`:121`); Q4/Q5 "2s / 90% / 5% / tier-2" (`:125`); **PR3-TIER** "(A) enforce at measurement; block at runtime only if the loaded file is low tier" (`:214`); **PR3-S5N** "plan's size (180 + 200)" (`:215`). Review substitute: CODEX-UNAVAIL "Opus adversarial" (`:315`).
 
-**Anchor delta (main `3b2236c`; after #95 and #72).**
+**Anchor delta (main `086466d`).**
 
-| Plan anchor | Main now | After open PRs | Verdict |
+| Plan anchor | Symbol | Main now | Verdict |
 |---|---|---|---|
-| seam `modules/rag.py:1276` | `:1276` | `:1276` (#95 adds lines above, net 0 here) | MATCH |
-| `ValidatedResponse` `rag.py:103`, flag `:113` | `:101-113` | `:117-127` (#95) | MOVED by #95; anchor on `class ValidatedResponse` |
-| `_generate_with_runner` | `:1280` | `:1280` | MATCH |
-| chat audit reason `api/assistant.py:891` | `:898` | `:932` (#72) | MOVED |
-| grounded audit reason `api/interpretations.py:552` | `:591` | `:591` | MOVED (PR #78 AUDIT-ORDER) |
-| `get_model_runner` `core/model_runner.py:239` | `:239` | — | MATCH |
-| `LlamaCppProvider` `wait_for` `:277-280`, no `Lock` | `:277`; 0 `Lock` | — | MATCH (R-7 stands) |
-| harness `src/backend/scripts/measure_prohibited_patterns.py` | flags `:206-213`, no `--judge` | — | `--judge` still to add |
+| seam | line after `validated = self.validate_response(response, chunks)` in `RAGModule.query` | `modules/rag.py:1347` | MOVED (was `:1276`) |
+| `ValidatedResponse` | `class ValidatedResponse` | `modules/rag.py:119-129` | MOVED |
+| generation | `RAGModule._generate_with_runner` | `modules/rag.py:1427` | MOVED |
+| chat audit reason | `if result.prohibited_advice:` block in the chat route | `api/assistant.py:1015` | MOVED |
+| grounded audit reason | `if rag_result.prohibited_advice:` block in `interpret_grounded` | `api/interpretations.py:606` | MOVED |
+| `get_model_runner` | `core/model_runner.py` | `:242` | MOVED |
+| `LlamaCppProvider` `wait_for` | `core/llm/llama_cpp_provider.py` | `:282-285`, still no `Lock` | MOVED (R-7 stands) |
+| harness | `scripts/measure_prohibited_patterns.py` `main()` | flags `:204-214`, no `--judge` | `--judge` to add |
 
-**Design (unchanged from plan §3 C, §7).**
-1. New `src/backend/modules/agent/guardrails/advice_judge.py`: `FROZEN_PROMPT`, `async def advice_judge(text: str, runner: ModelRunner) -> Literal["ALLOW", "BLOCK", "UNAVAILABLE"]`. `InferenceConfig(max_tokens=3, temperature=0.0, timeout_seconds=2)` (Q4 bound 2 s p95; the L1 measures before it is fixed). Whole-response exact match, `finish_reason in {"stop", "length"}`; everything else, and `runner.is_available() is False`, → `UNAVAILABLE`.
-2. `modules/rag.py`: `ValidatedResponse.prohibited_reason: str = "prohibited_pattern"`; `query(..., judge_runner=None)`; after `:1276`, if the floor did not fire, `judge_runner or get_model_runner()` (never `model_runner`) is called and a non-`ALLOW` sets `prohibited_advice=True` with `prohibited_reason` `"advice_judge"` or `"advice_judge_unavailable"` (`dataclasses.replace`).
-3. `api/assistant.py` and `api/interpretations.py`: audit `details.reason = rag_result.prohibited_reason` at the two lines above. No answer or question text.
-4. `measure_prohibited_patterns.py --judge`: runs the frozen judge over a given file with `HF_HUB_OFFLINE=1`, prints the §6 metric table, the tier, the GGUF sha256 and the commit sha.
+**Design.**
+1. New `src/backend/modules/agent/guardrails/advice_judge.py`: `FROZEN_PROMPT` (the five category definitions, named after the five `PROHIBITED_PATTERNS` classes: diagnostic language, certainty claims, dosing recommendation, medication advice, emergency advice; the answer in a delimited block; no question, context or history), `async def advice_judge(text: str, runner: ModelRunner) -> Literal["ALLOW", "BLOCK", "UNAVAILABLE"]`. `InferenceConfig(max_tokens=3, temperature=0.0, timeout_seconds=2)`. Whole-response exact match after `.strip()`, `finish_reason in {"stop", "length"}`; everything else, any exception, and `runner.is_available() is False` give `UNAVAILABLE`. Calls go only through `runner.generate_async`; the module never imports `llama_cpp`.
+2. **Runtime low-tier rule (PR3-TIER (A)).** `advice_judge` returns `UNAVAILABLE` without calling `generate_async` when the runner's loaded model file has the low tier's filename. Detection prefers the file the provider has actually loaded (`runner._get_provider()._model.model_path` when `_model` is set), because `_find_model_path` re-globs the models directory on every call while `LlamaCppProvider` keeps the first model it loaded; a later `POST /models/download` of another tier would otherwise make the glob name a file that is not answering (review 1/3, fail-open against PR3-TIER (A)). Only before the first load (`_model` is `None`) does `getattr(runner, "_find_model_path", None)` decide, since the provider then loads that same file. If the loaded path cannot be read, the result is `UNAVAILABLE`. The detected path's basename, casefolded, equals `modules.model_selector.TIER_MODEL_CONFIG["low"]["filename"]` casefolded. A missing method or a `None` result (Ollama, a fake) means "not low tier"; if detection raises, the result is `UNAVAILABLE`. The audit reason is the existing `advice_judge_unavailable`, so no fourth reason value exists. `model_selector` imports `llama_cpp` lazily (inside the loader only), so `advice_judge` imports it inside the function; this is checked by the `rg llama_cpp` acceptance line.
+3. `modules/rag.py`: `ValidatedResponse.prohibited_reason: str = "prohibited_pattern"`; `query(..., judge_runner=None)`. After the seam, if the floor did not fire, call `advice_judge(<raw response>, judge_runner or get_model_runner())`, with `get_model_runner` looked up at call time through the `modules.rag` name and never `model_runner` or `self._model_runner`. A non-`ALLOW` result is applied with `dataclasses.replace(validated, prohibited_advice=True, prohibited_reason=..., is_valid=False, validation_errors=[*errors, <fixed string>])`, mirroring the floor in `validate_response`; no answer text goes in the error. The early `not chunks` return carries no model prose and is unchanged. The only values that change in the contract are: the `advice_judge` signature, `FROZEN_PROMPT`, `prohibited_reason` (3 values: `prohibited_pattern`, `advice_judge`, `advice_judge_unavailable`) and `query(..., judge_runner=None)`. There is no blanket bypass (R-2): no env flag, no default ALLOW.
+4. `api/assistant.py` and `api/interpretations.py`: audit `details = {"reason": result.prohibited_reason, "decision": "escalate"}`. No `core/audit.py` edit (`reason` already passes `STRING_DETAIL_KEYS`).
+5. `scripts/measure_prohibited_patterns.py --judge`: see the CLI contract below.
 
-**Tests (plan §7, IDs `HC-PARA-101…107`; the existing `test_hc_para_00N` set is untouched).** T1 parser, T2 local-only (external fake never sees the judge prompt), T3 chat over HTTP via `tests/support/routes.py::route_client`, T4 grounded route over HTTP, T5 floor-OR (break-it: make it AND → FAIL), T6 unavailable → blocked, T7 `timeout 600 python3 scripts/agent_eval_gate.py` → `All 74 golden cases passed.` Expected collected delta ≈ +12 (T1 parametrized); measured at commit.
+**`--judge` CLI contract (Codex BLOCKER 2).**
+- Command: `cd src/backend && HF_HUB_OFFLINE=1 python scripts/measure_prohibited_patterns.py --judge <S5.jsonl> --tier <tier> [--concurrency 2]`.
+- Input is JSONL, one object per line: `{"id": str, "label": "must_block" | "must_allow", "category": str | null, "text": str}`.
+- `--tier` is required. Its choices are the `TIER_MODEL_CONFIG` keys except `low`; `--tier low` is a usage error (the low tier is never measured; at runtime it fails closed, rule 2).
+- Validation: ids unique, labels known, at least 180 `must_block` and at least 200 `must_allow` (PR3-S5N).
+- The S5 path must not be inside the git toplevel (`git rev-parse --show-toplevel`), so S5 stays outside every worktree (plan §6 step 3).
+- The runner comes from `core.model_runner.get_model_runner()`; every item goes through `advice_judge`. The script never imports `llama_cpp`. Two full passes are run; within a pass `--concurrency` calls (default 2) are in flight, which is what the latency figures use (R-7).
+- Output: the §6 metric table (system recall = floor OR judge, judge-added recall, added false positives, FP rate, unavailable rate, two-pass agreement, latency p50 and p95 with 2 concurrent calls), the tier, the GGUF sha256, the S5 sha256 and counts, and `git rev-parse HEAD`.
+- Output also (review 1/3, S5 is single-use and the script freezes at B-4 step 1): UNAVAILABLE blocks users at runtime, so it prints `effective_system_recall` and `effective_false_positive_rate` counting BLOCK or UNAVAILABLE, UNAVAILABLE counts per label, `timeout_calls` (calls at the judge's 2 s cap, because the cap bounds p95 and a p95 bar alone cannot fail), per-pass per-category caught/total and effective FP/total, and per-pass ids (never texts) of missed `must_block` items and of blocked or unavailable `must_allow` items. The tier is operator-declared (a non-low tier's file is a pattern, not a name), so the output says so and prints the GGUF file name.
+- Exit codes: 0 OK; 2 usage, `--tier low`, or a path inside the repo; 3 bad schema, duplicate id, or counts below 180/200; 4 runner unavailable, no GGUF path, or the loaded file is the low-tier file. `main()` becomes `sys.exit(main())`; the existing modes still return 0.
+- Tests: `tests/test_measure_prohibited_patterns.py`, `HC-PMJ-001..008`, with synthetic generated items in `tmp_path` and a fake runner (`core.model_runner.get_model_runner` monkeypatched). No test needs a model.
+
+**Tests (IDs `HC-PARA-101..109`, `HC-PMJ-001..008`; the existing `test_hc_para_00N` set is untouched).** Fake provider through `ModelRunner(_provider=...)`.
+
+| ID | Asserts |
+|---|---|
+| HC-PARA-101 (T1) | parser, 11 parametrized cases: `ALLOW`, `" ALLOW\n"` give ALLOW; `BLOCK` gives BLOCK; `""`, `"allow"`, `"ALLOW please"`, `"ALLOW\nBLOCK"`, `finish_reason="timeout"`, an exception, `is_available() False`, `text=None` give UNAVAILABLE |
+| HC-PARA-102 (T2) | local only: the external fake runner receives only the generation prompt; the local judge fake receives the judge prompt |
+| HC-PARA-103 (T3) | chat over HTTP (`route_client`, agent disabled): judge BLOCK gives `full_response == ESCALATE_TEMPLATE`, audit `assistant.prohibited_blocked` with `details.reason == "advice_judge"`, persisted turn holds the template |
+| HC-PARA-104 (T4) | same for `POST /interpretations/observations/{id}/interpret-grounded` (201 with the template, as today); the I-16 503 path is unchanged |
+| HC-PARA-105 (T5) | floor-OR: a pattern hit plus judge ALLOW still escalates with reason `prohibited_pattern`; the judge is never called. Break-it: flip OR to AND, show FAIL, restore, show PASS |
+| HC-PARA-106 (T6) | the judge raises: blocked, reason `advice_judge_unavailable`, on both routes (2 cases) |
+| HC-PARA-107 | the judge prompt holds the five categories and the delimited answer, and never the question, context or history |
+| HC-PARA-108 | the low-tier file gives UNAVAILABLE and `generate_async` is not called; detection raising gives UNAVAILABLE |
+| HC-PARA-109 | no method, a `None` path, or a non-low file means the judge runs (3 cases) |
+| HC-PMJ-001..008 | `--judge` accepted; counts below 180/200 rc 3; bad schema or duplicate id rc 3; `--tier low` rc 2; two passes call the fake 2xN times and print agreement and the table; sha256s, commit and tier printed; a low-tier loaded file rc 4; an S5 path inside the repo rc 2 |
+
+T7 is not a pytest test: `timeout 600 python3 scripts/agent_eval_gate.py` from the repo root must print `All 74 golden cases passed.` with rc recorded. Any seeded rows that `rag.query` reads carry `user_verified=True` (I-13).
 
 **Delta the plan did not have.**
-- **D-1 Existing RAG tests.** At least 10 test files fake the runner (`git grep -ln "_generate_with_runner\|generate_async" -- src/backend/tests`). With no local model in CI, the default judge returns `UNAVAILABLE` and fails closed. Each failing test gets an explicit `ALLOW` judge fake; no blanket bypass flag (plan §7). Record the RED list in the PR. Re-take the RED list at the final rebase: peer tests that reach `rag.query` with a faked runner join it. Known now: #95 `tests/test_assist_utc_http.py` patches `modules.rag.get_model_runner` (`:98`), so the default judge gets that fake and returns `UNAVAILABLE`; plus whatever W-3, W-8, G-C5, RAG-RUNTIME-500, B-2 and B-6 add (Peer review P-3).
-- **D-2 W-4 legacy gate.** If #72 merges first, `src/backend/tests/legacy_eval/harness.py` must inject an `ALLOW` judge, or the 2 answer cases abstain/escalate and `legacy-evals` goes red for the wrong reason. `escalate-prohibited-advice.json` must still escalate via the floor.
-- **D-3 Tier rule (Q4/Q5 "tier-2").** The local runner loads whatever GGUF it finds; it has no tier (W-7 OG-1). Only the `low` tier has a fixed filename (`modules/model_selector.py:53-55`); every other tier is `filename: None` + pattern `q4_k_m` (`:62-130`). A runtime allowlist of "mid or above" would fail closed for every user today. Open: owner gate PR3-TIER.
-- **D-4 S5 size.** Plan §6 asks ≥180 must-block / ≥200 must-allow (±5 points at 85 %). The owner's Q6 text says "about 40-60 labeled examples" (`:118`). At 50 items the 90 % recall target carries about ±8 points (Wilson 95 %). Open: owner gate PR3-S5N.
-- **D-5 Ship rule.** Plan §10 step 4: "Nothing ships to users until the owner signs the numbers." Smallest way: the PR stays draft; its head is the freeze sha; it merges only after B-4. No feature flag.
-- **D-6 Execution plan record.** Plan §10 step 1 asks for a plan file with the owner's answers verbatim. This section is that record; a Codex plan review of it is owed before code (orchestration §5; model order "6.1 sol" then "6-luna high").
+- **D-1 Existing RAG tests (measured, closes Open question 3).** With no local model the default judge returns `UNAVAILABLE` and fails closed. The probe (a temporary fail-closed patch after `validate_response`, reverted; full suite on `086466d`) gave 17 failures, 5 of them the CLAUDE.md environmental embedding tests. The 12 newly RED tests, in 7 files:
+  - `tests/legacy_eval/test_legacy_eval_gate.py::test_hc_leg_002_gate_fails_on_seeded_uncited_answer`, `::test_hc_leg_003_gate_passes_on_shipped_golden_set`
+  - `tests/test_legacy_abstain.py::test_hc_leg_001_...`, `::test_hc_leg_004_...`, `::test_hc_leg_006_...`
+  - `tests/test_legacy_cite_eval.py::test_hc_t2e_003_metric_driven_by_real_validation`
+  - `tests/test_rag_headerless.py::test_hc_lcph_005_...`, `::test_hc_lcph_016_...`
+  - `tests/test_rag_structured_cite.py::test_hc_lcp_008_...`, `::test_hc_lcp_009b_...`
+  - `tests/test_safe_chat_prohibited.py::test_hc_safechat_002_...`
+  - `tests/test_safe_interp_grounded.py::test_hc_safeinterp_002_...`
+  
+  Each gets an explicit `ALLOW` judge fake (R-2); no blanket bypass flag. Files the probe named that were not in the original list are added to the queue row. `tests/test_verified_only_consumers.py` (contracts §b and R-2) and `tests/test_rag_citation_prompt.py` (Codex MAJOR 3) are also given ALLOW fakes where they reach a real `rag.query`. `tests/test_assist_utc_http.py` patches `modules.rag.get_model_runner` with its answer fake, so it gets an explicit judge fake that answers ALLOW to the judge prompt. Re-take the list at the final merge from main.
+- **D-2 W-4 legacy gate.** `tests/legacy_eval/harness.py` injects an `ALLOW` judge so the two answer cases do not escalate for the wrong reason. `escalate-prohibited-advice.json` must still escalate through the floor; `scripts/legacy_eval_gate.py` output proves it.
+- **D-3 Tier rule: answered.** PR3-TIER (A), `owner-decisions:214`: enforce at measurement; block at runtime only if the loaded file is the low tier's. Implemented as design rule 2 and the `--tier` rule above; RED tests HC-PARA-108/109 and HC-PMJ-004/007.
+- **D-4 S5 size: answered.** PR3-S5N, `owner-decisions:215`: the plan's size, at least 180 must-block and 200 must-allow. Enforced by the CLI (rc 3) and HC-PMJ-002.
+- **D-5 Ship rule.** Plan §10 step 4: nothing ships to users until the owner signs the numbers. The PR stays draft; its head is the freeze sha; it merges only after B-4 is signed. No feature flag.
+- **D-6 Execution plan record.** This section is the record (plan §10 step 1); the Codex plan review ran (R-22, REVISE) and its five findings are fixed here.
 
-**Acceptance.** `cd src/backend && HF_HUB_OFFLINE=1 python -m pytest tests/test_advice_judge.py tests/test_safe_chat_prohibited.py tests/test_safe_interp_grounded.py tests/test_prohibited_patterns_regression.py tests/test_interpret_safety_adversarial.py tests/test_rag_pipeline.py -q -p no:cacheprovider`; `grep -n llama_cpp src/backend/modules/agent/guardrails/advice_judge.py` → 0; full suite under `flock`; CI 6/6.
+**Acceptance (every command pasted with output; none is predicted).**
+1. RED and GREEN output for each new test id; HC-PARA-105 break-it (OR to AND) FAIL then PASS.
+2. The RUNBOOK §6 step 2 command, verbatim: `cd src/backend && "$(git rev-parse --show-toplevel)/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest tests/ -p no:cacheprovider -q`. The only allowed failures are the 5 CLAUDE.md §4 environmental tests.
+3. Focused set: `cd src/backend && "$(git rev-parse --show-toplevel)/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest tests/test_advice_judge.py tests/test_measure_prohibited_patterns.py tests/test_safe_chat_prohibited.py tests/test_safe_interp_grounded.py tests/test_prohibited_patterns_regression.py tests/test_interpret_safety_adversarial.py tests/test_rag_pipeline.py tests/test_verified_only_consumers.py tests/test_assist_utc_http.py tests/legacy_eval -q -p no:cacheprovider`. Main baseline: `4 failed, 104 passed` (measured on `086466d` and `14e721d`; the 4 are environmental embedding tests).
+4. `! rg -n llama_cpp src/backend/modules/agent/guardrails/advice_judge.py src/backend/scripts/measure_prohibited_patterns.py` (a zero-match `grep` exits 1; this form exits 0 on zero matches).
+5. `timeout 600 python3 scripts/agent_eval_gate.py; echo rc=$?` from the repo root: `All 74 golden cases passed.`
+6. `python3 scripts/legacy_eval_gate.py; echo rc=$?`.
+7. Collected count by contracts §d step 2. Start 2129 on `086466d`. The two new files collect 39 tests by design (HC-PARA 29: 11 + 1 + 1 + 1 + 1 + 1 + 2 + 1 + 1 + 1 + 1 + 1 + 1 + 3 + 1 + 1, including review 1/3 cases 101b, 105b, 107b, 108b, 109b, 106c and the round 2/3 case-insensitive 101b test; HC-PMJ 10: 001..008 plus 005b, 005c), so the expected delta is +39. The final count and delta are measured at head and pasted; the count slots are not edited by this PR (SLOT-RULE-2).
+8. `cd src/backend && ~/venvs/asclexis-311/bin/python -c "from main import app"`.
+9. CI: every job in `.github/workflows/ci.yml` at the final merge (8 today: docs-lint, backend-tests, backend-lint, frontend-tests, security-scan, agent-evals, legacy-evals, e2e-tests; #259 would add rsi-replay).
+10. Lane-F §2.5 F1-F5 greps (I-22): B-3 changes none of them.
 
 **Rollback.** Revert the merge commit: `prohibited_reason` has a default, no migration, no stored data.
 
@@ -102,7 +149,7 @@ The merged plan stands. Delta only: what moved on main, what the owner fixed, wh
 
 1. Freeze: B-3 PR head sha, `FROZEN_PROMPT`, parser, tier list (plan §6 step 1). Committed in the PR. A rebase after MM-2 (other lanes land on `rag.py` / `api/assistant.py` first) keeps the measurement only if `git diff <freeze-sha> HEAD -- src/backend/modules/agent/guardrails/advice_judge.py src/backend/scripts/measure_prohibited_patterns.py` is empty and the `rag.py` seam hunk is unchanged; otherwise MM-2 re-runs (Peer review P-2; part of the Codex review of §B-3).
 2. OW-3: owner writes S5 outside every worktree; commits only its sha256 and counts (plan §6 step 3).
-3. MM-2 on a model machine: `cd src/backend && HF_HUB_OFFLINE=1 python scripts/measure_prohibited_patterns.py --judge <S5 path>` twice (agreement), per tier; plus R capture (plan §6). Record tier, GGUF sha256, commit sha, p50/p95 latency with 2 concurrent requests (R-7).
+3. MM-2 on a model machine: `cd src/backend && HF_HUB_OFFLINE=1 python scripts/measure_prohibited_patterns.py --judge <S5 path> --tier <tier>` once per tier (one run makes two passes and prints their agreement); plus R capture (plan §6). Record tier, GGUF sha256, commit sha, p50/p95 latency with 2 concurrent requests (R-7).
 4. Owner compares to 2 s / 90 % / 5 % / tier-2 and signs or rejects. Reject → plan fallback: option B for the grounded route only.
 
 ## B-5 W-7 tiered interpretation (delta)
@@ -403,8 +450,8 @@ Unless an item says it was answered, none of these is answered. Ask with the wor
 
 1. **BGS-1 (B-1).** "When the app cannot confirm whether the privacy override is on, should the page say so? (a) yes, a neutral notice, copy: 'Could not confirm this installation's privacy settings. If the privacy protection override is on, external AI requests may leave this device with reduced redaction.' (b) also block external sends until confirmed (larger) (c) close the item as accepted." Recommended (a).
 2. **IBF-1 (B-2 + W-7).** Options in §B-2. Recommended (a).
-3. **PR3-TIER (B-3).** "Your Q4/Q5 'tier-2' minimum: the app cannot tell which tier a loaded model belongs to, except the `low` file. (a) enforce at measurement only, and block at runtime only when the loaded file is the `low` tier's (b) block unless the loaded file is a pinned mid-or-higher file (fails closed for everyone today) (c) other." Recommended (a).
-4. **PR3-S5N (B-3/B-4).** "S5 size: the plan asks 180 + 200 items; your Q6 note says 40-60. Which?" Recommended: the plan's size, or accept ±8 points at 50.
+3. ~~**PR3-TIER (B-3).**~~ Answered 2026-10-17 (`owner-decisions-2026-09-27.md:214`): "(A) enforce at measurement; block at runtime only if the loaded file is low tier".
+4. ~~**PR3-S5N (B-3/B-4).**~~ Answered 2026-10-17 (`owner-decisions-2026-09-27.md:215`): "plan's size (180 + 200)".
 5. **IUV-1 (B-6)**, **W7-SPILL (B-5)**, **S-C3-2** and **GC3A-LEDGER (B-8)**: wording in §B-6, the [W-7 pack](../../../audit/2026-09-25/waves/scaffold/W-7.md) Q3, and the [G-C3a pack](../../../audit/2026-09-25/waves/scaffold/G-C3a.md) §3.
 6. **IR-FOOTER (INTERP-RENDER, planned 2026-10-17).** "The lab card footer says `Model: template` even when a local model wrote the separate grounded summary. What should it say? (a) plain source labels: 'Source: knowledge-base template' / 'Source: local model (<tier>)' (b) hide the tier (c) keep as is." Recommended (a).
 7. **EXF-SAMPLE (EXTRACT-FORMATS, optional, planned 2026-10-17).** "Can you share the `extract_text()` output of one de-identified page of the column-layout report from MM-4? It becomes a regression row; the fix does not wait for it."
@@ -417,8 +464,8 @@ Owner tasks (no question): OW-3 (S5), MM-1, MM-2, MM-3, MM-4.
 ## Open questions
 
 1. ~~L0: may W-7 drop P7 as a hard dependency?~~ Ruled yes (contracts R-6).
-2. L0: B-3's Codex plan review: run it on §B-3 of this doc, or on a separate `docs/plans/` file? This doc assumes §B-3.
-3. B-3 D-1: how many existing tests fail RED once the judge exists is UNMEASURED; it sets the PR size.
+2. ~~L0: B-3's Codex plan review: run it on §B-3 of this doc, or on a separate file?~~ Closed by R-22: it ran on §B-3 (REVISE); the fixes are in §B-3 above.
+3. ~~B-3 D-1: how many existing tests fail RED once the judge exists?~~ Closed by the C0 probe: 12 tests in 7 files (D-1).
 4. ~~B-2 (c): who owns KB seed text edits?~~ Resolved in peer review: lane A SAFE-CHAT-FALLBACK option C owns `scripts/seed_knowledge_base.py` (P-4).
 5. Main slot reads 1574, open PR branches 1480-1505: each merges from main and re-measures (OW-5); this lane's PRs measure from whatever main is then.
 

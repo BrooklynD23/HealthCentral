@@ -1012,7 +1012,7 @@ async def chat(
                     profile_id=session.profile_id,
                     entity_type="chat_session",
                     entity_id=chat_session.id,
-                    details={"reason": "prohibited_pattern", "decision": "escalate"},
+                    details={"reason": result.prohibited_reason, "decision": "escalate"},
                 )
 
         # --- Persist user + assistant turn (identical on both paths) ---

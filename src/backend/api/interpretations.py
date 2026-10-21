@@ -603,7 +603,7 @@ async def generate_grounded_interpretation(
         await _audit_interpretation(
             master_db, "prohibited_blocked", session.profile_id,
             entity_type="observation", entity_id=observation_id,
-            details={"reason": "prohibited_pattern", "decision": "escalate"},
+            details={"reason": rag_result.prohibited_reason, "decision": "escalate"},
         )
 
     return GroundedInterpretationResponse(
