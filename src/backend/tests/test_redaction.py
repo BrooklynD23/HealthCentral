@@ -522,6 +522,106 @@ class TestUnderscoreJoinedRedaction:
         assert _engine("strict").redact(text).text == strict
         assert _engine("standard").redact(text).text == text
 
+    @pytest.mark.parametrize(
+        ("text", "tokens", "standard"),
+        [
+            pytest.param("Patient Name: Jane Doe-Smith", ["Jane", "Doe", "Smith"], True, id="g1_patient_name"),
+            pytest.param("Patient: Jane Doe-Smith", ["Jane", "Doe", "Smith"], True, id="g1_patient"),
+            pytest.param("Name (legal): Maria de la Cruz", ["Maria", "Cruz"], False, id="g2_particles"),
+            pytest.param("Patient (legal name): Ludwig van Beethoven", ["Ludwig", "Beethoven"], False, id="g3_van"),
+            pytest.param("Name (legal): José Núñez", ["Nu"], False, id="g4_nfd_legal"),
+            pytest.param("Patient Name: José Núñez", ["Jose", "Nu"], True, id="g4_nfd_patient_name"),
+            pytest.param("Patient: José Núñez", ["Jos", "N"], False, id="g4_nfc_patient"),
+        ],
+    )
+    def test_hc_redact_020_name_shape_gaps_closed(self, text, tokens, standard):
+        """HC-REDACT-020: REDACT-NAME-GAPS hyphen, particle, accent and NFD names."""
+        out = _engine("strict").redact(text).text
+        assert all(t not in out for t in tokens), out
+        if standard:
+            out = _engine("standard").redact(text).text
+            assert all(t not in out for t in tokens), out
+
+    def test_hc_redact_021_name_gap_fix_differential(self):
+        """HC-REDACT-021: the fix never un-redacts what today's rules redact, and
+        standard output changes only on inputs with '-', non-ASCII or a mark."""
+        old_name = re.compile(
+            r"(?i)\b(?:patient|name|mr\.?|mrs\.?|ms\.?|dr\.?)\s*(?::\s*)?"
+            r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)"
+        )
+        old_spaced = re.compile(
+            r"(?i)\b(?:"
+            r"patient\s+(?:id|name)\b(?:\s*\([^()\n]{1,40}\))?(?:\s*#)?"
+            r"(?:\s*:(?:\s*[-–—=;])?|\s*[-–—=;])"
+            r"|(?:patient|name)(?:\s*\([^()\n]{1,40}\)(?:\s*(?:no\.|#))?|\s*(?:no\.|#))"
+            r"\s*:(?:\s*[-–—=;])?"
+            r")\s*"
+            r"(?:(?-i:[^\W\d_a-zß-öø-ÿ])[\w/.'’-]*"
+            r"(?:,[ \t]+(?-i:[^\W\d_a-zß-öø-ÿ])[\w/.'’-]*)?"
+            r"(?:[ \t]+(?-i:[^\W\d_a-zß-öø-ÿ])[\w/.'’-]*){0,3}"
+            r"|[^\W_][\w/.'’-]*)"
+        )
+        swap = {"name_context": old_name, "spaced_labelled_id": old_spaced}
+        old_rules = [
+            RedactionRule(r.name, swap[r.name], r.replacement, r.policy_levels)
+            if r.name in swap else r
+            for r in _RULES
+        ]
+        assert [r.name for r in old_rules if r.name in swap] == list(swap)
+        corpus = [t for t, _ in SPACED_PHI] + [v for v, _ in SPACED_PHI_VARIANTS]
+        corpus += list(SPACED_NEAR_SHAPES)
+        corpus += [
+            "Patient Name: Jane Doe. Follow Up With Cardiology Team",
+            "Patient Name: Doe. Glucose High Today Noted",
+            "Patient ID:\nGlucose 96 mg/dL",
+            "Name (legal): Jane Doe\nGlucose 96 mg/dL",
+            "Glucose 96 mg/dL (70-99)",
+            "Name (brand): Lipitor 20 mg",
+            "Name (legal): Jane Doe de facto",
+        ]
+        rng = random.Random(20261021)
+        tokens = [
+            "patient", "name", "Name", "Patient", "(legal)", ":", " ", " ", "\n",
+            "Jane", "Doe", "Maria", "de", "la", "van", "von", "bin", "al", "-",
+            "José", "José", "́", "Núñez", ".", ",", "#", "mr.",
+        ]
+        corpus += [
+            "".join(rng.choice(tokens) for _ in range(rng.randint(0, 14)))
+            for _ in range(2000)
+        ]
+        word = re.compile(r"\w+")
+        for lvl in ("strict", "standard"):
+            old_engine = RedactionEngine(policy_level=lvl, rules=old_rules)
+            new_engine = RedactionEngine(policy_level=lvl)
+            for text in corpus:
+                old = old_engine.redact(text).text
+                new = new_engine.redact(text).text
+                gone = set(word.findall(text)) - set(word.findall(old))
+                assert not (gone & set(word.findall(new))), (lvl, text, old, new)
+                if lvl == "standard" and not any(
+                    c == "-" or ord(c) > 127 for c in text
+                ):
+                    assert new == old, (text, old, new)
+        # lowercase particle after a name stays outside the match
+        assert "de facto" in _engine("strict").redact("Name (legal): Jane Doe de facto").text
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            pytest.param("Name (legal): Jane" + " de" * 20000, id="particle_run"),
+            pytest.param("Patient: Jane" + "-Doe" * 20000, id="hyphen_run"),
+            pytest.param("Name (legal): Jos" + "́" * 50000, id="mark_run"),
+        ],
+    )
+    def test_hc_redact_022_name_shape_runs_linear_time(self, text):
+        """HC-REDACT-022: particle, hyphen and combining-mark runs are linear."""
+        import time
+
+        for lvl in ("strict", "standard"):
+            start = time.perf_counter()
+            _engine(lvl).redact(text)
+            assert time.perf_counter() - start < 1.0, lvl
+
     def test_hc_redact_016_spaced_rules_are_strict_only(self):
         """HC-REDACT-016: standard and minimal leave every group-S input as it was."""
         for level in ("standard", "minimal"):
