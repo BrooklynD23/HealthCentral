@@ -1,0 +1,65 @@
+[
+ {
+  "filler_tokens": 0,
+  "fact_position": "alone",
+  "source_tokens": 24,
+  "pair_tokens_approx": 35,
+  "over_512": false,
+  "label": "entailment",
+  "conf": 0.973
+ },
+ {
+  "filler_tokens": 400,
+  "fact_position": "first",
+  "source_tokens": 456,
+  "pair_tokens_approx": 467,
+  "over_512": false,
+  "label": "entailment",
+  "conf": 0.976
+ },
+ {
+  "filler_tokens": 400,
+  "fact_position": "last",
+  "source_tokens": 456,
+  "pair_tokens_approx": 467,
+  "over_512": false,
+  "label": "entailment",
+  "conf": 0.984
+ },
+ {
+  "filler_tokens": 700,
+  "fact_position": "first",
+  "source_tokens": 744,
+  "pair_tokens_approx": 755,
+  "over_512": true,
+  "label": "entailment",
+  "conf": 0.981
+ },
+ {
+  "filler_tokens": 700,
+  "fact_position": "last",
+  "source_tokens": 744,
+  "pair_tokens_approx": 755,
+  "over_512": true,
+  "label": "entailment",
+  "conf": 0.96
+ },
+ {
+  "filler_tokens": 1500,
+  "fact_position": "first",
+  "source_tokens": 1536,
+  "pair_tokens_approx": 1547,
+  "over_512": true,
+  "label": "entailment",
+  "conf": 0.981
+ },
+ {
+  "filler_tokens": 1500,
+  "fact_position": "last",
+  "source_tokens": 1536,
+  "pair_tokens_approx": 1547,
+  "over_512": true,
+  "label": "entailment",
+  "conf": 0.96
+ }
+]

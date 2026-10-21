@@ -159,6 +159,7 @@ export {
   useExternalApiSettings,
   useSaveExternalApiSettings,
   useSaveOcrPreference,
+  useSaveAgentSettings,
   useEnvironmentDiagnostics,
   useRecheckDiagnostics,
 } from './modelSettings';
