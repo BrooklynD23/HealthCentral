@@ -265,6 +265,17 @@ def test_hc_lcph_016_pin_plain_hedge_in_uncertainties_is_served_unchanged():
     assert body["is_valid"] is True
     assert hedge in body["full_response"]
 
+    # Positive leg: a supported cited line in the uncertainty section is served.
+    # Without it, 013 and 017 stay green even if every fact-carrying uncertainty
+    # line abstained.
+    supported = FACTS_LINE + "UNCERTAINTIES:\n- Your glucose may be 95 mg/dL [cite:1]"
+    with legacy_chat_client(build_chunks("glucose"), supported) as (client, _append):
+        resp = client.post(CHAT_PATH, json={"question": "What was my glucose?"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["is_valid"] is True
+    assert "may be 95 mg/dL" in body["full_response"]
+
 
 def test_hc_lcph_017_uncited_numeric_uncertainty_line_is_withheld():
     answer = FACTS_LINE + "UNCERTAINTIES:\n- Your glucose is 300 mg/dL"
@@ -326,9 +337,24 @@ def test_hc_lcph_019_pin_timeout_text_extracts_as_on_main():
             "general_info",
         ),
     ]
+    # Parsing only: this validate_response call runs with verification off, so it
+    # never reaches the extractor. The extraction above and the eval gate carry
+    # the regression check.
     result = _validate(text)
     assert result.is_valid is True
     assert [s.segment_type for s in result.segments] == ["uncertainty"]
+
+    # An answer that is only an UNCERTAINTIES section keeps main's whole-response
+    # fallback even when one line carries a fact: the fact-free line is then
+    # checked, so the answer abstains as on main.
+    only_unc = (
+        "UNCERTAINTIES:\n- Reference ranges can vary between laboratories.\n"
+        "- Your glucose is 95 mg/dL [cite:1]"
+    )
+    with legacy_chat_client(build_chunks("glucose"), only_unc) as (client, _append):
+        resp = client.post(CHAT_PATH, json={"question": "What was my glucose?"})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["is_valid"] is False
 
 
 @pytest.mark.parametrize(
