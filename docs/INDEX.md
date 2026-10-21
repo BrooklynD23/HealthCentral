@@ -1382,7 +1382,15 @@ Links to: `AGENT.md`, `CLAUDE.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.
 
 Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-20b handoff. This session ran on the owner's laptop (no GPU, no Ollama). The owner's instruction: "commit &…
 
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-20b-session-handoff.md`
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-20b-session-handoff.md`, `docs/plans/2026-10-21-session-handoff.md`
+
+## `docs/plans/2026-10-21-session-handoff.md`
+
+**Session handoff: 2026-10-21 GPU session → cloud L0 (merges), then next machine**
+
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-20c handoff. This session ran on the owner's GPU WSL box (RTX 3080, Ollama). The owner's instruction at the…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-20c-session-handoff.md`, `docs/reviews/2026-10-21/b3-codex-plan-review.md`
 
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
@@ -2973,6 +2981,12 @@ Links to: `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`, `docs/reviews
 Plan: GC5 plan, Task 7. Run by an agent on the owner's dev laptop (CPU, no GPU) under the owner's session /goal ("if huggingface.co is reachable, run the G-C5 real-model steps"). Plan Task 7 names…
 
 Links to: `docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md`, `docs/reviews/2026-10-20/gc5-evidence`
+
+## `docs/reviews/2026-10-21/b3-codex-plan-review.md`
+
+**B-3 plan review (R-22, Codex)**
+
+Codex CLI 0.163.0 (`gpt-5.6-sol`), read-only, on main `b902e0f`, run by L0 on the GPU WSL box. Contracts R-22: if Codex returns REVISE with task-level gaps, the B-3 L1 fixes them as the first commit…
 
 ## `docs/reviews/README.md`
 
