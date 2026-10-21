@@ -899,7 +899,15 @@ class TestUnderscoreJoinedRedaction:
     def test_hc_redact_025_guard_tail_differential(self, seed):
         """HC-REDACT-025: seeded label+value differential of the full rule set
         against the same set without name_guard_tail. Neither level may show a
-        word the no-guard-tail set hid, and standard output is identical."""
+        word the no-guard-tail set hid, and standard output is identical.
+
+        With the rule last, the strict leak check is 0 by construction: the
+        last rule only replaces text that is still visible, and its
+        replacement holds no input text. The names[-1] == "name_guard_tail"
+        placement assert is what pins safety. The mrn|record|rec value
+        exclusion (M2) and the value-exclusion lookahead (M5) are dead in this
+        position; they only limit over-redaction. The M1 and M3 pattern
+        mutants are caught by test_hc_redact_025_guard_tail_exact_strict_output."""
         names = [r.name for r in _RULES]
         main_rules = [r for r in _RULES if r.name != "name_guard_tail"]
         assert len(main_rules) == len(_RULES) - 1
@@ -982,6 +990,21 @@ class TestUnderscoreJoinedRedaction:
         got_w = set(re.findall(r"\w+", tok.sub(" ", got)))
         for w in set(re.findall(r"\w+", text)) - want_w:
             assert w not in got_w, (text, got)
+
+    @pytest.mark.parametrize("text,want", [
+        pytest.param("Dr.José Núñez\tPatient ID:",
+                     "[NAME-REDACTED]\tPatient ID:", id="kills_M1_title_tab"),
+        pytest.param("Name:José Núñez \tPatient ID:",
+                     "[NAME-REDACTED] \tPatient ID:", id="kills_M1_name_space_tab"),
+        pytest.param("Patient Name: José Núñez Phone 555-123-4567",
+                     "[NAME-REDACTED] Phone [PHONE-REDACTED]", id="kills_M3_phone"),
+        pytest.param("Patient Name: José Núñez Address 42 Oak Ave",
+                     "[NAME-REDACTED] Address [ADDRESS-REDACTED]", id="kills_M3_address"),
+    ])
+    def test_hc_redact_025_guard_tail_exact_strict_output(self, text, want):
+        """HC-REDACT-025: exact-output pins, so the M1 and M3 pattern mutants
+        of name_guard_tail fail (REDACT-NG-GT-DIFF)."""
+        assert _engine("strict").redact(text).text == want
 
     def test_hc_redact_016_spaced_rules_are_strict_only(self):
         """HC-REDACT-016: standard and minimal leave every group-S input as it was."""
