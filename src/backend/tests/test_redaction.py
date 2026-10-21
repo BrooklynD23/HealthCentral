@@ -506,6 +506,22 @@ class TestUnderscoreJoinedRedaction:
                     (m.rule_name, m.start, m.end) for m in old.metadata
                 ], (lvl, text)
 
+    @pytest.mark.parametrize(
+        ("text", "strict"),
+        [
+            ("Name (legal): Jane Doe. Follow Up With Cardiology Team", "[ID-REDACTED] With Cardiology Team"),
+            ("Patient Name: Doe. Glucose High Today Noted", "[ID-REDACTED] Noted"),
+            ("Patient ID:\nGlucose 96 mg/dL", "[ID-REDACTED] 96 mg/dL"),
+            ("Name (legal): Jane Doe\nGlucose 96 mg/dL", "[ID-REDACTED]\nGlucose 96 mg/dL"),
+        ],
+    )
+    def test_hc_redact_019_strict_run_on_over_redaction_pinned(self, text, strict):
+        """HC-REDACT-019: pins the accepted strict-only over-redaction of a label
+        followed by capitalised run-on words (owner decision E1C-DIFF); standard
+        leaves the input as it was."""
+        assert _engine("strict").redact(text).text == strict
+        assert _engine("standard").redact(text).text == text
+
     def test_hc_redact_016_spaced_rules_are_strict_only(self):
         """HC-REDACT-016: standard and minimal leave every group-S input as it was."""
         for level in ("standard", "minimal"):
