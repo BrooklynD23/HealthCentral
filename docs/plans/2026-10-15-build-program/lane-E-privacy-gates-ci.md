@@ -1,6 +1,6 @@
 # Lane E — Privacy, Gates, CI — Build Design
 
-**Last Updated:** 2026-10-21 (follow-up planned on `b902e0f`: §2.27 RSI-LOG-STDERR, RSI row, owner merges; new gate RSI-LOG-WIDEN, answered (b) 2026-10-21; §2.28 RSI-LOG-SESSIONLOG planned in #261 round 1); 2026-10-20 (PR #202 review round 1: Q-COV-GATE adds GATE-07; GATE-12 control wording; PKT no longer waits on #198); 2026-10-19 (follow-ups planned: REDACT-WS-REDOS, GATE-12, Q-COV-GATE, PKT-QUESTIONS-REDACT); 2026-10-19 (E-1c review round 2: HC-PKT-023, E1C-SCOPE row cited on main); 2026-10-18 (EXPORT-COLLECTED-TZ planned; owner answered (c)); 2026-10-17 (E-1b, REDACT-EMAIL-REDOS, DEV-SH-CC planned)
+**Last Updated:** 2026-10-21 (second batch on `b9d285e`: §2.29 RRSI-CI-DOCS planned; §2.24 Fact 1 grep corrected; owner action RSI-REPLAY-REQUIRED noted, not asked); 2026-10-21 (follow-up planned on `b902e0f`: §2.27 RSI-LOG-STDERR, RSI row, owner merges; new gate RSI-LOG-WIDEN, answered (b) 2026-10-21; §2.28 RSI-LOG-SESSIONLOG planned in #261 round 1); 2026-10-20 (PR #202 review round 1: Q-COV-GATE adds GATE-07; GATE-12 control wording; PKT no longer waits on #198); 2026-10-19 (follow-ups planned: REDACT-WS-REDOS, GATE-12, Q-COV-GATE, PKT-QUESTIONS-REDACT); 2026-10-19 (E-1c review round 2: HC-PKT-023, E1C-SCOPE row cited on main); 2026-10-18 (EXPORT-COLLECTED-TZ planned; owner answered (c)); 2026-10-17 (E-1b, REDACT-EMAIL-REDOS, DEV-SH-CC planned)
 **Owner:** repository owner
 **Status:** DESIGN — nothing here is implemented. Owner answers are quoted from [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md); this file records no new approval. Every "default" or "recommended" is the lane designer's, not the owner's.
 **Refresh Trigger:** any merge of #74, #72, #84 or a P6/P7 PR; an owner answer to S-3, S-6, OG-1, Q-AUD-LIST, Q-RUFF, Q-COV, CI-SEED, NPM-AUDIT-CI or W1-SMOKE-RUN; any commit to `.github/workflows/ci.yml`, `src/backend/api/export.py`, `src/backend/modules/export.py`, `src/backend/modules/redaction.py`, `src/backend/api/profiles.py`, `src/backend/core/auth.py`, `src/backend/core/denial_audit.py` or `src/backend/tests/support/routes.py`.
@@ -758,7 +758,7 @@ Four rows: one harness row from the #221 review (HARNESS-VITEST-HINT) and three 
 **Source:** owner RRSI-OQ-4 (`owner-decisions-2026-09-27.md:325`): "Add a CI job that runs `.claude/mods/asclexis-rsi/rsi.test.ts` on every PR, through an owner-gated build-item PR."
 
 **Facts (`699eb18`):**
-1. `.github/workflows/ci.yml` has no step that touches `.claude/` (`grep -n "rsi\|\.claude" .github/workflows/ci.yml` prints nothing), while rsi-loop's PR body calls CI half the gate (research `02-verdicts.md` §1.3 item 7).
+1. `.github/workflows/ci.yml` has no step that touches `.claude/` (~~`grep -n "rsi\|\.claude" .github/workflows/ci.yml` prints nothing~~ **corrected 2026-10-21 (#259, handoff 2026-10-21 §4):** that grep prints 9 lines on `main`, because `rsi` matches inside `python-version` and `node-version`; the check is `grep -nE 'rsi-replay|asclexis-rsi|\.claude/' .github/workflows/ci.yml`, which prints nothing on `main` at `b9d285e` and 5 lines on #259's head), while rsi-loop's PR body calls CI half the gate (research `02-verdicts.md` §1.3 item 7).
 2. `rsi.test.ts` imports `claude-code/testing` (`.claude/mods/asclexis-rsi/rsi.test.ts:1`), which only the Claude Code CLI resolves; the mod README runs it as `claude plugin test .claude/mods/asclexis-rsi` (`README.md:29-30`). All 8 mod files are tracked (`git ls-files .claude/mods/asclexis-rsi`), so a CI checkout has them.
 3. **Measured locally:** `claude plugin test .claude/mods/asclexis-rsi` with CLI 2.1.305 → `19 pass, 0 fail`, also with `env -i PATH=/usr/bin:/bin HOME=<empty dir>` (no credentials, no config): `19 pass`. `claude plugin validate` → `Validation passed`. `npm view @anthropic-ai/claude-code@2.1.305 version` → `2.1.305` (published).
 
@@ -889,6 +889,38 @@ The existing `row is metadata only` test (`rsi.test.ts:53-65`, output `out SECRE
 **Owner gates:** RSI-LOG-WIDEN answered (b). No ask-first file.
 **Order:** depends on RSI-LOG-STDERR merged (HC-SLOG-004 reads its final list); never beside RSI-LOG-STDERR (they share the class list through the parity test). Runtime claude.
 
+### Follow-ups found 2026-10-21, second batch (planned 2026-10-21 on `origin/main` @ `b9d285e`)
+
+One docs row from #259 (RRSI-CI-REPLAY, open, owner merges). Not an RSI row (it edits no mod file and nothing on the rsi-loop ALLOW list), and no ask-first file. Also in this plan PR: §2.24 Fact 1's grep is corrected in place (it matched `rsi` inside `version`); that is a fix to this plan's text, not a row, like REDACT-NG-LABEL (§2.22).
+
+### 2.29 RRSI-CI-DOCS — the CI doc lacks the `rsi-replay` job and shows every job as merge-blocking
+
+**Source:** handoff 2026-10-21 §4 bullet (#259): "`docs/architecture/ci-and-quality-gates.md` lacks the `rsi-replay` job, and lane E §2.24 Fact 1's grep is wrong (it prints 9 lines). 'RSI Replay' is not a required check; only the owner can change branch protection."
+
+**Facts (`b9d285e`):**
+1. `docs/architecture/ci-and-quality-gates.md` (Last Updated 2026-10-18; Refresh Trigger "A CI job is added, removed, or changes what it blocks on", `:5`) draws 8 jobs in its mermaid chart (`:15-25`) and sends all 8 into one `merge allowed` node (`:30-37`); its table (`:45-54`) has the same 8 rows. #259 (head `550e0b7`, `git diff origin/main...origin/chore/rrsi-ci-replay-rsi-replay-job`) adds a ninth job, `rsi-replay` (name `RSI Replay`), after `:292` of `.github/workflows/ci.yml`. The doc does not change in #259.
+2. **Required checks, measured 2026-10-21** with `gh api repos/BrooklynD23/HealthCentral/branches/main --jq .protection.required_status_checks` (the `…/protection/required_status_checks` endpoint answers 403 to this integration): `Documentation Lint`, `Backend Tests`, `Frontend Tests`, `Agent Eval Gate`, `Security Scan`, `enforcement_level: everyone`. So `Backend Lint (ruff hard errors)`, `Legacy RAG Eval Gate` and `E2E Smoke Tests` are **not** required today, and `RSI Replay` will not be either after #259. The chart's arrows from `backend-lint`, `legacy-evals` and `e2e-tests` into `merge allowed` are already wrong on `main`, with or without #259. Only the owner changes branch protection (repository settings); no agent row does.
+3. A job-coverage check (job ids from `ci.yml`, each looked up as `` `<id>` `` in the doc): `for j in $(sed -n '/^jobs:/,$p' .github/workflows/ci.yml | grep -oE '^  [a-z][a-z0-9-]*:$' | tr -d ' :'); do grep -q "\`$j\`" docs/architecture/ci-and-quality-gates.md || echo "missing: $j"; done` prints nothing on `main`; run against #259's `ci.yml` (`git show origin/chore/rrsi-ci-replay-rsi-replay-job:.github/workflows/ci.yml`) it prints `missing: rsi-replay` (measured).
+
+**Design (docs only, after #259 merges):**
+1. Chart: add `RSI["rsi-replay<br/>claude plugin validate · claude plugin test<br/>(Claude Code CLI 2.1.305, pinned)"]` to the subgraph; send only the five required jobs into `merge allowed (required checks)`, and the other four (`backend-lint`, `legacy-evals`, `e2e-tests`, `rsi-replay`) into a second node `reported, not required`. Keep `BE --> E2E`, `FE --> E2E`.
+2. Table: add a `Required` column (yes for the five in fact 2, no for the rest) and a `rsi-replay` row: blocks on "a failing `claude plugin validate` or replay case in `.claude/mods/asclexis-rsi/rsi.test.ts`"; why: "RSI rule changes are replayed on every PR (owner RRSI-OQ-4); not a required check".
+3. One sentence under the table: the required list is the owner's branch-protection setting, measured on <date> with the command in fact 2; only the owner changes it, and this doc records it, it does not set it.
+4. `Last Updated` to the build date.
+No change to `ci.yml`, to branch protection, or to any other doc.
+
+**Test-first (docs; no pytest id):**
+
+| Check | Expected | RED today? |
+|---|---|---|
+| The job-coverage loop of fact 3, on merged `main` (after #259) | prints nothing | yes (`missing: rsi-replay`) |
+| `grep -c 'Required' docs/architecture/ci-and-quality-gates.md` | ≥ 1 | yes (0) |
+| The fact-2 `gh api` command re-run at build time; the doc's required list equals its `contexts` | equal | yes (the chart sends 8 jobs to `merge allowed`) |
+| `python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py --link-graph && python3 scripts/docs_lint.py` | exit 0, `git status --short` shows only the doc, `docs/INDEX.md`, `docs/_link_graph.json` | n/a |
+
+**Files:** `docs/architecture/ci-and-quality-gates.md`, `docs/INDEX.md`, `docs/_link_graph.json` (regenerated). No slots.
+**Est:** 0.5 h. **Owner gates:** none for this row (it reports branch protection, it does not change it). **Owner action, not blocking (RSI-REPLAY-REQUIRED, not asked):** whether `RSI Replay` should become a required check is the owner's call in the repository settings; L0 may mention it when #259 is merged. **Order:** waits on RRSI-CI-REPLAY merged (#259, open, owner merges): the row documents that job. If branch protection changes before the build, the builder writes the measured list, not this plan's. No open PR touches `docs/architecture/ci-and-quality-gates.md` on `b9d285e`. Not an RSI row; AUTO-MERGE (`owner-decisions-2026-09-27.md:206`) applies.
+
 ## 3. Provides
 
 1. **`ci.yml` merge order (lane E owns):** E-3 (W-11a PR-3) → #74 (E-4) → #72 (W-4) → W-8. E-3 and #72 may swap; the second lander merges main and re-checks the job list. Every other lane that touches `ci.yml` rebases onto this order and asks lane E first.
@@ -937,6 +969,7 @@ The existing `row is metadata only` test (`rsi.test.ts:53-65`, output `out SECRE
 | RRSI-CRITIC-LIST (new 2026-10-20) | RRSI-LOOP-CRITIC | **open**; the owner confirms the imperative list (§2.25) at the merge of the RSI PR, which the owner merges anyway |
 | H2-SETUP (owner action), H2-SOURCE (new 2026-10-20) | RRSI-H2-SANDBOX | H2-SETUP: owner builds the sandbox and creates the Vertex project and ADC credential (no agent invents credentials). H2-SOURCE **answered 2026-10-20: (c)** "the RSI replay cases and rule table only (`.claude/mods/asclexis-rsi/`), no other source" (owner-decisions row H2-SOURCE; an exception to G-C2-UNDEFER for these files only) |
 | DON-COPY-V3 (new 2026-10-20) | RSI1-DONATE (v3 consent copy) | **open** (asked once v3 strings are drafted; donation is parked by DON-RECALL-R2); RRSI-OQ-25 (`:346`) asks the copy to say agent answers are included, and any v3 copy needs its own DON-COPY yes. Recommended (a) one intro sentence. Exact wording in the [RSI1-DONATE plan](../2026-10-17-rsi1-opt-in-donation-pipeline-plan.md#delta-2026-10-20-second-planner-211-review-notes-for-pr-2-and-rrsi-oq-25) |
+| RSI-REPLAY-REQUIRED (owner action, new 2026-10-21; not asked) | RRSI-CI-DOCS (does not block it) | whether `RSI Replay` (#259) becomes a required check is the owner's branch-protection setting; required today (measured 2026-10-21): Documentation Lint, Backend Tests, Frontend Tests, Agent Eval Gate, Security Scan (§2.29 fact 2). No agent changes it |
 | RSI-LOG-WIDEN (new 2026-10-21) | RSI-LOG-STDERR (follow-up only; does not block it); RSI-LOG-SESSIONLOG | **answered (b)** 2026-10-21 (owner-decisions row RSI-LOG-WIDEN; L0 AskUserQuestion, prompt 21): add the field, as row RSI-LOG-SESSIONLOG (§2.28). Wording as asked: "Sessions that start without the asclexis-rsi mod leave only `.claude/hooks/session_log.py` rows, which carry an exit code and no error class (the logger you approved as metadata-only in HOOKS-COMMIT). Should those rows also get a fixed `error_class` field? (a) No: the mod's finer classes are enough, and sessions start with `--plugin-dir .claude/mods/asclexis-rsi`, as the handoff already says (Recommended: keeps the HOOKS-COMMIT row as approved; no new field) (b) Yes: add an `error_class` field to `session_log.py` rows, filled from the same fixed list, never raw text (widens the HOOKS-COMMIT row; a separate row with a Python test in `test_session_log_hook.py`) (c) Neither: drop RSI-LOG-STDERR and keep `other`." |
 
 ## 6. Open questions
