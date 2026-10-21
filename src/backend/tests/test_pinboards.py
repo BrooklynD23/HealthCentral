@@ -594,8 +594,6 @@ async def test_hc_pkt_025_pinboard_export_stored_questions_are_strict_redacted(
 ):
     """HC-PKT-025: through HTTP, the pinboard export stores strict-redacted
     questions (PKT-QUESTIONS-REDACT)."""
-    from datetime import timedelta
-
     import api.export as export_api
     import api.pinboards as pinboards_api
     from core.auth import get_profile_db_session
@@ -632,6 +630,8 @@ async def test_hc_pkt_025_pinboard_export_stored_questions_are_strict_redacted(
         for entry in questions:
             for phi in ("Jane", "Smith", "A1234567"):
                 assert phi not in entry["question"]
+            assert "[MRN-REDACTED]" in entry["question"]
+            assert "[NAME-REDACTED]" in entry["question"]
     finally:
         if packet_id is not None:
             export_api._packet_store.pop(packet_id, None)
