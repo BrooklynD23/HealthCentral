@@ -10,8 +10,13 @@ from __future__ import annotations
 import sqlite3
 
 import pytest
+import pytest_asyncio
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 import api.backup as backup_api
+from core.database import Base
+from models import AuditLog
 from tests.support.routes import route_client
 
 
@@ -404,3 +409,42 @@ def test_hc_bkup_040_partial_restore_still_writes_an_audit_row(data_dir, monkeyp
     )
     assert "boom" not in str(details)
     assert ".bak" not in str(details)
+
+
+@pytest_asyncio.fixture
+async def real_master():
+    engine = create_async_engine("sqlite+aiosqlite://")
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    session = AsyncSession(engine, expire_on_commit=False)
+    try:
+        yield session
+    finally:
+        await session.close()
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_hc_bkup_064_get_schedule_writes_one_phi_free_audit_row(real_master):
+    """AUDIT-SCHED-READ (a): GET /backup/schedule audits like its sibling reads.
+
+    Real master session, real AuditLog row, through HTTP. Does not patch
+    audit_and_commit, so a route that audits some other way is still seen.
+    Would NOT notice: an audit row whose details leak a value under a key this
+    test does not list, or a row written but never committed on a separate
+    session (the shared session here would still read it back).
+    """
+    with route_client(
+        backup_api.router, "/backup", profile_id="profile-a", master_db=real_master
+    ) as client:
+        resp = client.get("/backup/schedule")
+    assert resp.status_code == 200, resp.text
+
+    rows = (await real_master.execute(select(AuditLog))).scalars().all()
+    a_rows = [r for r in rows if r.profile_id == "profile-a"]
+    b_rows = [r for r in rows if r.profile_id == "profile-b"]
+    assert len(a_rows) == 1, f"audit rows for profile-a: {[r.event_type for r in rows]}"
+    assert b_rows == []
+    blob = str(a_rows[0].details_json or "").lower()
+    for forbidden in ("frequency", "retention_days", "enabled", "last_"):
+        assert forbidden not in blob, f"schedule value leaked into audit details: {blob}"

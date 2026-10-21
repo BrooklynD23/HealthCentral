@@ -535,7 +535,15 @@ async def get_schedule(
 ):
     """Get this profile's backup schedule."""
     schedule = await _get_or_create_schedule(session.profile_id, master_db)
-    await master_db.commit()
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type="backup.schedule.view",
+        action="Viewed backup schedule",
+        profile_id=session.profile_id,
+        entity_type="backup",
+        entity_id="schedule",
+    )
     return ScheduleResponse(
         enabled=schedule.enabled,
         frequency=schedule.frequency,
