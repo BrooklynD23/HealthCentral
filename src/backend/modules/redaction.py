@@ -85,8 +85,15 @@ _RULES: tuple[RedactionRule, ...] = (
     RedactionRule(
         name="name_context",
         pattern=re.compile(
-            r"(?i)\b(?:patient|name|mr\.?|mrs\.?|ms\.?|dr\.?)\s*(?::\s*)?"
-            r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)"
+            r"(?i)\b(?:patient\s+name(?P<pn>)\s*(?::\s*)?"
+            r"(?=[^\W\d_](?:[\w\s\u0300-\u036f-]{0,80}?[^\x00-\x7f-]|[\w\s\u0300-\u036f]{0,80}?-))"
+            r"|(?:patient|name|mr\.?|mrs\.?|ms\.?|dr\.?)\s*(?::\s*)?)"
+            r"((?:[A-Za-z]{2,}(?![\w\u0300-\u036f-])(?:\s+[A-Za-z]{2,}(?![\w\u0300-\u036f-]))*\s+[^\W\d_](?:[^\W\d_]|[\u0300-\u036f])+(?:-[^\W\d_](?:[^\W\d_]|[\u0300-\u036f])+)?"
+            r"(?:[^\S\n]+(?!(?:mrn|medical|patient|name|id|dob|date|ssn|address|phone|dr|mr|mrs|ms)(?![\w\u0300-\u036f-]))[^\W\d_](?:[^\W\d_]|[\u0300-\u036f])+(?:-[^\W\d_](?:[^\W\d_]|[\u0300-\u036f])+)?)*"
+            r"|[^\W\d_](?:[^\W\d_]|[\u0300-\u036f])+(?:-[^\W\d_](?:[^\W\d_]|[\u0300-\u036f])+)?"
+            r"(?:[^\S\n]+(?!(?:mrn|medical|patient|name|id|dob|date|ssn|address|phone|dr|mr|mrs|ms)(?![\w\u0300-\u036f-]))[^\W\d_](?:[^\W\d_]|[\u0300-\u036f])+(?:-[^\W\d_](?:[^\W\d_]|[\u0300-\u036f])+)?)+))"
+            r"(?(pn)(?:[.,]?[ \t]+(?!(?:mrn|medical|patient|name|id|dob|date|ssn|address|phone|dr|mr|mrs|ms)(?![\w\u0300-\u036f-]))"
+            r"(?-i:[^\W\d_a-z\u00df-\u00f6\u00f8-\u00ff])[\w/.'\u2019\u0300-\u036f-]*){0,3})"
         ),
         replacement="[NAME-REDACTED]",
         policy_levels=frozenset({"strict", "standard"}),
@@ -158,9 +165,9 @@ _RULES: tuple[RedactionRule, ...] = (
             r"|(?:patient|name)(?:\s*\([^()\n]{1,40}\)(?:\s*(?:no\.|#))?|\s*(?:no\.|#))"
             r"\s*:(?:\s*[-\u2013\u2014=;])?"
             r")\s*"
-            r"(?:(?-i:[^\W\d_a-z\u00df-\u00f6\u00f8-\u00ff])[\w/.'\u2019-]*"
-            r"(?:,[ \t]+(?-i:[^\W\d_a-z\u00df-\u00f6\u00f8-\u00ff])[\w/.'\u2019-]*)?"
-            r"(?:[ \t]+(?-i:[^\W\d_a-z\u00df-\u00f6\u00f8-\u00ff])[\w/.'\u2019-]*){0,3}"
+            r"(?:(?-i:[^\W\d_a-z\u00df-\u00f6\u00f8-\u00ff])[\w/.'\u2019\u0300-\u036f-]*"
+            r"(?:,[ \t]+(?-i:[^\W\d_a-z\u00df-\u00f6\u00f8-\u00ff])[\w/.'\u2019\u0300-\u036f-]*)?"
+            r"(?:[ \t]+(?-i:(?:de|la|del|van|der|von|da|di|du|le|bin|al)[ \t]+)*(?-i:[^\W\d_a-z\u00df-\u00f6\u00f8-\u00ff])[\w/.'\u2019\u0300-\u036f-]*){0,3}"
             r"|[^\W_][\w/.'\u2019-]*)"
         ),
         replacement="[ID-REDACTED]",
