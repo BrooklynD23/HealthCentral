@@ -1,0 +1,1386 @@
+[
+ {
+  "id": "legacy:abstain-generation-timeout",
+  "question": "What was my glucose?",
+  "golden_expect": "abstain",
+  "gen_s": 6.42,
+  "finish": "stop",
+  "tokens": 156,
+  "raw_text": "{\n  \"report_facts\": [\n    {\n      \"text\": \"Your glucose result was 95 mg/dL.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"This result is within the reference range of 70-100 mg/dL.\",\n      \"cites\": [1, 2]\n    }\n  ],\n  \"general_info\": [\n    {\n      \"text\": \"Glucose is a simple sugar that is the primary source of energy for the body's cells.\",\n      \"cites\": [2]\n    },\n    {\n      \"text\": \"Normal fasting glucose is typically 70-100 mg/dL.\",\n      \"cites\": [2]\n    }\n  ],\n  \"uncertainties\": []\n}",
+  "rendered_text": "REPORT FACTS:\n- Your glucose result was 95 mg/dL. [cite:1]\n- This result is within the reference range of 70-100 mg/dL. [cite:1] [cite:2]\n\nGENERAL INFO:\n- Glucose is a simple sugar that is the primary source of energy for the body's cells. [cite:2]\n- Normal fasting glucose is typically 70-100 mg/dL. [cite:2]",
+  "chunk_text": "Glucose: 95 mg/dL (reference range 70-100 mg/dL), collected 2026-01-10.",
+  "off": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 2,
+   "failed": 3,
+   "total": 5,
+   "faithfulness": 0.775,
+   "errors": [
+    "3 claim(s) could not be verified"
+   ],
+   "validate_s": 0.007,
+   "nli": []
+  },
+  "on": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 2,
+   "failed": 3,
+   "total": 5,
+   "faithfulness": 0.775,
+   "errors": [
+    "3 claim(s) could not be verified"
+   ],
+   "validate_s": 13.8,
+   "nli": [
+    [
+     "[cite:1]\n- This result is within the reference range of 70-100 mg/dL.",
+     "1",
+     "entailment",
+     0.91
+    ],
+    [
+     "[cite:1] [cite:2]",
+     "1",
+     "neutral",
+     0.981
+    ],
+    [
+     "[cite:1] [cite:2]",
+     "2",
+     "neutral",
+     0.999
+    ],
+    [
+     "[cite:2]\n- Normal fasting glucose is typically 70-100 mg/dL.",
+     "2",
+     "entailment",
+     0.896
+    ]
+   ]
+  }
+ },
+ {
+  "id": "legacy:abstain-hallucinated-value",
+  "question": "What was my glucose?",
+  "golden_expect": "abstain",
+  "gen_s": 1.78,
+  "finish": "stop",
+  "tokens": 156,
+  "raw_text": "{\n  \"report_facts\": [\n    {\n      \"text\": \"Your glucose result was 95 mg/dL.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"This result is within the reference range of 70-100 mg/dL.\",\n      \"cites\": [1, 2]\n    }\n  ],\n  \"general_info\": [\n    {\n      \"text\": \"Glucose is a simple sugar that is the primary source of energy for the body's cells.\",\n      \"cites\": [2]\n    },\n    {\n      \"text\": \"Normal fasting glucose is typically 70-100 mg/dL.\",\n      \"cites\": [2]\n    }\n  ],\n  \"uncertainties\": []\n}",
+  "rendered_text": "REPORT FACTS:\n- Your glucose result was 95 mg/dL. [cite:1]\n- This result is within the reference range of 70-100 mg/dL. [cite:1] [cite:2]\n\nGENERAL INFO:\n- Glucose is a simple sugar that is the primary source of energy for the body's cells. [cite:2]\n- Normal fasting glucose is typically 70-100 mg/dL. [cite:2]",
+  "chunk_text": "Glucose: 95 mg/dL (reference range 70-100 mg/dL), collected 2026-01-10.",
+  "off": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 2,
+   "failed": 3,
+   "total": 5,
+   "faithfulness": 0.775,
+   "errors": [
+    "3 claim(s) could not be verified"
+   ],
+   "validate_s": 0.003,
+   "nli": []
+  },
+  "on": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 2,
+   "failed": 3,
+   "total": 5,
+   "faithfulness": 0.775,
+   "errors": [
+    "3 claim(s) could not be verified"
+   ],
+   "validate_s": 0.19,
+   "nli": [
+    [
+     "[cite:1]\n- This result is within the reference range of 70-100 mg/dL.",
+     "1",
+     "entailment",
+     0.91
+    ],
+    [
+     "[cite:1] [cite:2]",
+     "1",
+     "neutral",
+     0.981
+    ],
+    [
+     "[cite:1] [cite:2]",
+     "2",
+     "neutral",
+     0.999
+    ],
+    [
+     "[cite:2]\n- Normal fasting glucose is typically 70-100 mg/dL.",
+     "2",
+     "entailment",
+     0.896
+    ]
+   ]
+  }
+ },
+ {
+  "id": "legacy:abstain-invalid-citation-id",
+  "question": "What was my glucose?",
+  "golden_expect": "abstain",
+  "gen_s": 1.77,
+  "finish": "stop",
+  "tokens": 156,
+  "raw_text": "{\n  \"report_facts\": [\n    {\n      \"text\": \"Your glucose result was 95 mg/dL.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"This result is within the reference range of 70-100 mg/dL.\",\n      \"cites\": [1, 2]\n    }\n  ],\n  \"general_info\": [\n    {\n      \"text\": \"Glucose is a simple sugar that is the primary source of energy for the body's cells.\",\n      \"cites\": [2]\n    },\n    {\n      \"text\": \"Normal fasting glucose is typically 70-100 mg/dL.\",\n      \"cites\": [2]\n    }\n  ],\n  \"uncertainties\": []\n}",
+  "rendered_text": "REPORT FACTS:\n- Your glucose result was 95 mg/dL. [cite:1]\n- This result is within the reference range of 70-100 mg/dL. [cite:1] [cite:2]\n\nGENERAL INFO:\n- Glucose is a simple sugar that is the primary source of energy for the body's cells. [cite:2]\n- Normal fasting glucose is typically 70-100 mg/dL. [cite:2]",
+  "chunk_text": "Glucose: 95 mg/dL (reference range 70-100 mg/dL), collected 2026-01-10.",
+  "off": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 2,
+   "failed": 3,
+   "total": 5,
+   "faithfulness": 0.775,
+   "errors": [
+    "3 claim(s) could not be verified"
+   ],
+   "validate_s": 0.001,
+   "nli": []
+  },
+  "on": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 2,
+   "failed": 3,
+   "total": 5,
+   "faithfulness": 0.775,
+   "errors": [
+    "3 claim(s) could not be verified"
+   ],
+   "validate_s": 0.17,
+   "nli": [
+    [
+     "[cite:1]\n- This result is within the reference range of 70-100 mg/dL.",
+     "1",
+     "entailment",
+     0.91
+    ],
+    [
+     "[cite:1] [cite:2]",
+     "1",
+     "neutral",
+     0.981
+    ],
+    [
+     "[cite:1] [cite:2]",
+     "2",
+     "neutral",
+     0.999
+    ],
+    [
+     "[cite:2]\n- Normal fasting glucose is typically 70-100 mg/dL.",
+     "2",
+     "entailment",
+     0.896
+    ]
+   ]
+  }
+ },
+ {
+  "id": "legacy:abstain-uncited-report-facts",
+  "question": "What was my glucose?",
+  "golden_expect": "abstain",
+  "gen_s": 1.91,
+  "finish": "stop",
+  "tokens": 156,
+  "raw_text": "{\n  \"report_facts\": [\n    {\n      \"text\": \"Your glucose result was 95 mg/dL.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"This result is within the reference range of 70-100 mg/dL.\",\n      \"cites\": [1, 2]\n    }\n  ],\n  \"general_info\": [\n    {\n      \"text\": \"Glucose is a simple sugar that is the primary source of energy for the body's cells.\",\n      \"cites\": [2]\n    },\n    {\n      \"text\": \"Normal fasting glucose is typically 70-100 mg/dL.\",\n      \"cites\": [2]\n    }\n  ],\n  \"uncertainties\": []\n}",
+  "rendered_text": "REPORT FACTS:\n- Your glucose result was 95 mg/dL. [cite:1]\n- This result is within the reference range of 70-100 mg/dL. [cite:1] [cite:2]\n\nGENERAL INFO:\n- Glucose is a simple sugar that is the primary source of energy for the body's cells. [cite:2]\n- Normal fasting glucose is typically 70-100 mg/dL. [cite:2]",
+  "chunk_text": "Glucose: 95 mg/dL (reference range 70-100 mg/dL), collected 2026-01-10.",
+  "off": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 2,
+   "failed": 3,
+   "total": 5,
+   "faithfulness": 0.775,
+   "errors": [
+    "3 claim(s) could not be verified"
+   ],
+   "validate_s": 0.002,
+   "nli": []
+  },
+  "on": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 2,
+   "failed": 3,
+   "total": 5,
+   "faithfulness": 0.775,
+   "errors": [
+    "3 claim(s) could not be verified"
+   ],
+   "validate_s": 0.179,
+   "nli": [
+    [
+     "[cite:1]\n- This result is within the reference range of 70-100 mg/dL.",
+     "1",
+     "entailment",
+     0.91
+    ],
+    [
+     "[cite:1] [cite:2]",
+     "1",
+     "neutral",
+     0.981
+    ],
+    [
+     "[cite:1] [cite:2]",
+     "2",
+     "neutral",
+     0.999
+    ],
+    [
+     "[cite:2]\n- Normal fasting glucose is typically 70-100 mg/dL.",
+     "2",
+     "entailment",
+     0.896
+    ]
+   ]
+  }
+ },
+ {
+  "id": "legacy:abstain-unverifiable-claim",
+  "question": "What was my glucose?",
+  "golden_expect": "abstain",
+  "gen_s": 1.77,
+  "finish": "stop",
+  "tokens": 156,
+  "raw_text": "{\n  \"report_facts\": [\n    {\n      \"text\": \"Your glucose result was 95 mg/dL.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"This result is within the reference range of 70-100 mg/dL.\",\n      \"cites\": [1, 2]\n    }\n  ],\n  \"general_info\": [\n    {\n      \"text\": \"Glucose is a simple sugar that is the primary source of energy for the body's cells.\",\n      \"cites\": [2]\n    },\n    {\n      \"text\": \"Normal fasting glucose is typically 70-100 mg/dL.\",\n      \"cites\": [2]\n    }\n  ],\n  \"uncertainties\": []\n}",
+  "rendered_text": "REPORT FACTS:\n- Your glucose result was 95 mg/dL. [cite:1]\n- This result is within the reference range of 70-100 mg/dL. [cite:1] [cite:2]\n\nGENERAL INFO:\n- Glucose is a simple sugar that is the primary source of energy for the body's cells. [cite:2]\n- Normal fasting glucose is typically 70-100 mg/dL. [cite:2]",
+  "chunk_text": "Glucose: 95 mg/dL (reference range 70-100 mg/dL), collected 2026-01-10.",
+  "off": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 2,
+   "failed": 3,
+   "total": 5,
+   "faithfulness": 0.775,
+   "errors": [
+    "3 claim(s) could not be verified"
+   ],
+   "validate_s": 0.002,
+   "nli": []
+  },
+  "on": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 2,
+   "failed": 3,
+   "total": 5,
+   "faithfulness": 0.775,
+   "errors": [
+    "3 claim(s) could not be verified"
+   ],
+   "validate_s": 0.188,
+   "nli": [
+    [
+     "[cite:1]\n- This result is within the reference range of 70-100 mg/dL.",
+     "1",
+     "entailment",
+     0.91
+    ],
+    [
+     "[cite:1] [cite:2]",
+     "1",
+     "neutral",
+     0.981
+    ],
+    [
+     "[cite:1] [cite:2]",
+     "2",
+     "neutral",
+     0.999
+    ],
+    [
+     "[cite:2]\n- Normal fasting glucose is typically 70-100 mg/dL.",
+     "2",
+     "entailment",
+     0.896
+    ]
+   ]
+  }
+ },
+ {
+  "id": "legacy:answer-glucose-cited-latest",
+  "question": "What was my latest glucose?",
+  "golden_expect": "answer",
+  "gen_s": 1.83,
+  "finish": "stop",
+  "tokens": 157,
+  "raw_text": "{\n  \"report_facts\": [\n    {\n      \"text\": \"Your glucose level was 95 mg/dL.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"This result is within the normal reference range of 70-100 mg/dL.\",\n      \"cites\": [1, 2]\n    }\n  ],\n  \"general_info\": [\n    {\n      \"text\": \"Glucose is a simple sugar that is the primary source of energy for the body's cells.\",\n      \"cites\": [2]\n    },\n    {\n      \"text\": \"Normal fasting glucose is typically 70-100 mg/dL.\",\n      \"cites\": [2]\n    }\n  ],\n  \"uncertainties\": []\n}",
+  "rendered_text": "REPORT FACTS:\n- Your glucose level was 95 mg/dL. [cite:1]\n- This result is within the normal reference range of 70-100 mg/dL. [cite:1] [cite:2]\n\nGENERAL INFO:\n- Glucose is a simple sugar that is the primary source of energy for the body's cells. [cite:2]\n- Normal fasting glucose is typically 70-100 mg/dL. [cite:2]",
+  "chunk_text": "Glucose: 95 mg/dL (reference range 70-100 mg/dL), collected 2026-01-10.",
+  "off": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 2,
+   "failed": 3,
+   "total": 5,
+   "faithfulness": 0.763,
+   "errors": [
+    "3 claim(s) could not be verified"
+   ],
+   "validate_s": 0.002,
+   "nli": []
+  },
+  "on": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 2,
+   "failed": 3,
+   "total": 5,
+   "faithfulness": 0.763,
+   "errors": [
+    "3 claim(s) could not be verified"
+   ],
+   "validate_s": 0.298,
+   "nli": [
+    [
+     "[cite:1]\n- This result is within the normal reference range of 70-100 mg/dL.",
+     "1",
+     "entailment",
+     0.811
+    ],
+    [
+     "[cite:1] [cite:2]",
+     "1",
+     "neutral",
+     0.981
+    ],
+    [
+     "[cite:1] [cite:2]",
+     "2",
+     "neutral",
+     0.999
+    ],
+    [
+     "[cite:2]\n- Normal fasting glucose is typically 70-100 mg/dL.",
+     "2",
+     "entailment",
+     0.896
+    ]
+   ]
+  }
+ },
+ {
+  "id": "legacy:answer-glucose-cited-with-reference",
+  "question": "Is my glucose in the usual range?",
+  "golden_expect": "answer",
+  "gen_s": 2.05,
+  "finish": "stop",
+  "tokens": 180,
+  "raw_text": "{\n  \"report_facts\": [\n    {\n      \"text\": \"Your glucose level is 95 mg/dL.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"The reference range for glucose is 70-100 mg/dL.\",\n      \"cites\": [2]\n    },\n    {\n      \"text\": \"Your glucose level is within the reference range.\",\n      \"cites\": [1, 2]\n    }\n  ],\n  \"general_info\": [\n    {\n      \"text\": \"Glucose is a simple sugar that is the primary source of energy for the body's cells.\",\n      \"cites\": [2]\n    },\n    {\n      \"text\": \"Normal fasting glucose is typically 70-100 mg/dL.\",\n      \"cites\": [2]\n    }\n  ],\n  \"uncertainties\": []\n}",
+  "rendered_text": "REPORT FACTS:\n- Your glucose level is 95 mg/dL. [cite:1]\n- The reference range for glucose is 70-100 mg/dL. [cite:2]\n- Your glucose level is within the reference range. [cite:1] [cite:2]\n\nGENERAL INFO:\n- Glucose is a simple sugar that is the primary source of energy for the body's cells. [cite:2]\n- Normal fasting glucose is typically 70-100 mg/dL. [cite:2]",
+  "chunk_text": "Glucose: 95 mg/dL (reference range 70-100 mg/dL), collected 2026-01-10.",
+  "off": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 2,
+   "failed": 4,
+   "total": 6,
+   "faithfulness": 0.723,
+   "errors": [
+    "4 claim(s) could not be verified"
+   ],
+   "validate_s": 0.002,
+   "nli": []
+  },
+  "on": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 2,
+   "failed": 4,
+   "total": 6,
+   "faithfulness": 0.723,
+   "errors": [
+    "4 claim(s) could not be verified"
+   ],
+   "validate_s": 0.338,
+   "nli": [
+    [
+     "[cite:1]\n- The reference range for glucose is 70-100 mg/dL.",
+     "1",
+     "entailment",
+     0.993
+    ],
+    [
+     "[cite:2]\n- Your glucose level is within the reference range.",
+     "2",
+     "neutral",
+     0.612
+    ],
+    [
+     "[cite:1] [cite:2]",
+     "1",
+     "neutral",
+     0.981
+    ],
+    [
+     "[cite:1] [cite:2]",
+     "2",
+     "neutral",
+     0.999
+    ],
+    [
+     "[cite:2]\n- Normal fasting glucose is typically 70-100 mg/dL.",
+     "2",
+     "entailment",
+     0.896
+    ]
+   ]
+  }
+ },
+ {
+  "id": "legacy:escalate-prohibited-advice",
+  "question": "What should I do about my glucose?",
+  "golden_expect": "escalate",
+  "gen_s": 1.8,
+  "finish": "stop",
+  "tokens": 151,
+  "raw_text": "{\n  \"report_facts\": [\n    {\n      \"text\": \"Your glucose level is 95 mg/dL.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"The reference range for glucose is 70-100 mg/dL.\",\n      \"cites\": [2]\n    }\n  ],\n  \"general_info\": [\n    {\n      \"text\": \"Glucose is a simple sugar that is the primary source of energy for the body's cells.\",\n      \"cites\": [2]\n    },\n    {\n      \"text\": \"Normal fasting glucose is typically 70-100 mg/dL.\",\n      \"cites\": [2]\n    }\n  ],\n  \"uncertainties\": []\n}",
+  "rendered_text": "REPORT FACTS:\n- Your glucose level is 95 mg/dL. [cite:1]\n- The reference range for glucose is 70-100 mg/dL. [cite:2]\n\nGENERAL INFO:\n- Glucose is a simple sugar that is the primary source of energy for the body's cells. [cite:2]\n- Normal fasting glucose is typically 70-100 mg/dL. [cite:2]",
+  "chunk_text": "Glucose: 95 mg/dL (reference range 70-100 mg/dL), collected 2026-01-10.",
+  "off": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 2,
+   "failed": 2,
+   "total": 4,
+   "faithfulness": 0.822,
+   "errors": [
+    "2 claim(s) could not be verified"
+   ],
+   "validate_s": 0.003,
+   "nli": []
+  },
+  "on": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 2,
+   "failed": 2,
+   "total": 4,
+   "faithfulness": 0.822,
+   "errors": [
+    "2 claim(s) could not be verified"
+   ],
+   "validate_s": 0.282,
+   "nli": [
+    [
+     "[cite:1]\n- The reference range for glucose is 70-100 mg/dL.",
+     "1",
+     "entailment",
+     0.993
+    ],
+    [
+     "[cite:2]\n- Normal fasting glucose is typically 70-100 mg/dL.",
+     "2",
+     "entailment",
+     0.896
+    ]
+   ]
+  }
+ },
+ {
+  "id": "vault:grounded-a1c-latest",
+  "question": "What is my most recent A1c?",
+  "golden_expect": "answer",
+  "gen_s": 1.61,
+  "finish": "stop",
+  "tokens": 136,
+  "raw_text": "{\n  \"report_facts\": [\n    {\n      \"text\": \"Your most recent HbA1c result is 5.6%.\",\n      \"cites\": [1]\n    }\n  ],\n  \"general_info\": [\n    {\n      \"text\": \"HbA1c is a measure of average blood glucose levels over the past 2-3 months.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"A normal HbA1c level is typically considered to be below 6.5%.\",\n      \"cites\": [1]\n    }\n  ],\n  \"uncertainties\": []\n}",
+  "rendered_text": "REPORT FACTS:\n- Your most recent HbA1c result is 5.6%. [cite:1]\n\nGENERAL INFO:\n- HbA1c is a measure of average blood glucose levels over the past 2-3 months. [cite:1]\n- A normal HbA1c level is typically considered to be below 6.5%. [cite:1]",
+  "chunk_text": "YOUR RESULTS — HbA1c\nLatest value : 5.6 %\nCollected    : 2025-05-01\n(User-verified result)",
+  "off": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 0,
+   "failed": 3,
+   "total": 3,
+   "faithfulness": 0.287,
+   "errors": [
+    "3 claim(s) could not be verified",
+    "Low faithfulness score: 0.29"
+   ],
+   "validate_s": 0.001,
+   "nli": []
+  },
+  "on": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 0,
+   "failed": 3,
+   "total": 3,
+   "faithfulness": 0.287,
+   "errors": [
+    "3 claim(s) could not be verified",
+    "Low faithfulness score: 0.29"
+   ],
+   "validate_s": 0.072,
+   "nli": [
+    [
+     "[cite:1]\n- A normal HbA1c level is typically considered to be below 6.5%.",
+     "1",
+     "neutral",
+     0.975
+    ]
+   ]
+  }
+ },
+ {
+  "id": "vault:grounded-a1c-trend",
+  "question": "How has my A1c changed over time?",
+  "golden_expect": "answer",
+  "gen_s": 2.32,
+  "finish": "stop",
+  "tokens": 201,
+  "raw_text": "{\n  \"report_facts\": [\n    {\n      \"text\": \"Your latest HbA1c value is 5.8%.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"Your HbA1c value has been decreasing over the last two measurements.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"Your HbA1c value decreased from 6.1% to 5.8%.\",\n      \"cites\": [1]\n    }\n  ],\n  \"general_info\": [\n    {\n      \"text\": \"HbA1c is a measure of average blood glucose levels over the past 2-3 months.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"A decrease in HbA1c value indicates improved blood glucose control.\",\n      \"cites\": [1]\n    }\n  ],\n  \"uncertainties\": []\n}",
+  "rendered_text": "REPORT FACTS:\n- Your latest HbA1c value is 5.8%. [cite:1]\n- Your HbA1c value has been decreasing over the last two measurements. [cite:1]\n- Your HbA1c value decreased from 6.1% to 5.8%. [cite:1]\n\nGENERAL INFO:\n- HbA1c is a measure of average blood glucose levels over the past 2-3 months. [cite:1]\n- A decrease in HbA1c value indicates improved blood glucose control. [cite:1]",
+  "chunk_text": "YOUR RESULTS — HbA1c\nLatest value : 5.8 %\nCollected    : 2025-08-01\nTrend (last 2): 6.1 → 5.8  (decreasing)\n(User-verified result)",
+  "off": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 1,
+   "failed": 4,
+   "total": 5,
+   "faithfulness": 0.349,
+   "errors": [
+    "4 claim(s) could not be verified",
+    "Low faithfulness score: 0.35"
+   ],
+   "validate_s": 0.002,
+   "nli": []
+  },
+  "on": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 2,
+   "failed": 3,
+   "total": 5,
+   "faithfulness": 0.349,
+   "errors": [
+    "3 claim(s) could not be verified",
+    "Low faithfulness score: 0.35"
+   ],
+   "validate_s": 0.308,
+   "nli": [
+    [
+     "[cite:1]\n- Your HbA1c value has been decreasing over the last two measurements.",
+     "1",
+     "entailment",
+     0.937
+    ],
+    [
+     "[cite:1]\n- Your HbA1c value decreased from 6.1% to 5.8%.",
+     "1",
+     "entailment",
+     0.99
+    ],
+    [
+     "[cite:1]\n- A decrease in HbA1c value indicates improved blood glucose control.",
+     "1",
+     "neutral",
+     0.997
+    ]
+   ]
+  }
+ },
+ {
+  "id": "vault:grounded-creatinine-trend",
+  "question": "How has my creatinine changed over the last year?",
+  "golden_expect": "answer",
+  "gen_s": 2.39,
+  "finish": "stop",
+  "tokens": 193,
+  "raw_text": "{\n  \"report_facts\": [\n    {\n      \"text\": \"Your latest creatinine value is 0.9 mg/dL.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"Your creatinine value has been decreasing over the last 2 measurements.\",\n      \"cites\": [1]\n    }\n  ],\n  \"general_info\": [\n    {\n      \"text\": \"Creatinine is a waste product that is filtered out of the blood by the kidneys.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"A decrease in creatinine levels can indicate improved kidney function or a decrease in muscle mass.\",\n      \"cites\": [1]\n    }\n  ],\n  \"uncertainties\": [\n    \"I don't have enough information to determine how your creatinine has changed over the last year, as the provided data only shows a 2-month trend.\"\n  ]\n}",
+  "rendered_text": "REPORT FACTS:\n- Your latest creatinine value is 0.9 mg/dL. [cite:1]\n- Your creatinine value has been decreasing over the last 2 measurements. [cite:1]\n\nGENERAL INFO:\n- Creatinine is a waste product that is filtered out of the blood by the kidneys. [cite:1]\n- A decrease in creatinine levels can indicate improved kidney function or a decrease in muscle mass. [cite:1]\n\nUNCERTAINTIES:\n- I don't have enough information to determine how your creatinine has changed over the last year, as the provided data only shows a 2-month trend.",
+  "chunk_text": "YOUR RESULTS — Creatinine\nLatest value : 0.9 mg/dL\nCollected    : 2025-10-01\nTrend (last 2): 1.1 → 0.9  (decreasing)\n(User-verified result)",
+  "off": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 0,
+   "failed": 4,
+   "total": 4,
+   "faithfulness": 0.36,
+   "errors": [
+    "4 claim(s) could not be verified",
+    "Low faithfulness score: 0.36"
+   ],
+   "validate_s": 0.002,
+   "nli": []
+  },
+  "on": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 1,
+   "failed": 3,
+   "total": 4,
+   "faithfulness": 0.36,
+   "errors": [
+    "3 claim(s) could not be verified",
+    "Low faithfulness score: 0.36"
+   ],
+   "validate_s": 0.228,
+   "nli": [
+    [
+     "[cite:1]\n- Your creatinine value has been decreasing over the last 2 measurements.",
+     "1",
+     "entailment",
+     0.95
+    ],
+    [
+     "[cite:1]\n- A decrease in creatinine levels can indicate improved kidney function or a decrease in muscle mass.",
+     "1",
+     "neutral",
+     0.996
+    ]
+   ]
+  }
+ },
+ {
+  "id": "vault:grounded-glucose-trend",
+  "question": "How has my glucose changed over the last year?",
+  "golden_expect": "answer",
+  "gen_s": 2.18,
+  "finish": "stop",
+  "tokens": 188,
+  "raw_text": "{\n  \"report_facts\": [\n    {\n      \"text\": \"Your latest glucose value is 95 mg/dL.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"Your glucose level has been decreasing over the last two measurements.\",\n      \"cites\": [1]\n    }\n  ],\n  \"general_info\": [\n    {\n      \"text\": \"Normal glucose levels typically range from 70 to 100 mg/dL.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"A decreasing trend in glucose levels may indicate improved glucose control or a change in diet/lifestyle.\",\n      \"cites\": [1]\n    }\n  ],\n  \"uncertainties\": [\n    \"I don't have enough information to determine how your glucose has changed over the last year, as the provided data only shows a trend over the last two measurements.\"\n  ]\n}",
+  "rendered_text": "REPORT FACTS:\n- Your latest glucose value is 95 mg/dL. [cite:1]\n- Your glucose level has been decreasing over the last two measurements. [cite:1]\n\nGENERAL INFO:\n- Normal glucose levels typically range from 70 to 100 mg/dL. [cite:1]\n- A decreasing trend in glucose levels may indicate improved glucose control or a change in diet/lifestyle. [cite:1]\n\nUNCERTAINTIES:\n- I don't have enough information to determine how your glucose has changed over the last year, as the provided data only shows a trend over the last two measurements.",
+  "chunk_text": "YOUR RESULTS — Glucose\nLatest value : 95 mg/dL\nCollected    : 2025-12-01\nTrend (last 2): 110 → 95  (decreasing)\n(User-verified result)",
+  "off": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 0,
+   "failed": 4,
+   "total": 4,
+   "faithfulness": 0.231,
+   "errors": [
+    "4 claim(s) could not be verified",
+    "Low faithfulness score: 0.23"
+   ],
+   "validate_s": 0.001,
+   "nli": []
+  },
+  "on": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 1,
+   "failed": 3,
+   "total": 4,
+   "faithfulness": 0.231,
+   "errors": [
+    "3 claim(s) could not be verified",
+    "Low faithfulness score: 0.23"
+   ],
+   "validate_s": 0.112,
+   "nli": [
+    [
+     "[cite:1]\n- Your glucose level has been decreasing over the last two measurements.",
+     "1",
+     "entailment",
+     0.967
+    ],
+    [
+     "[cite:1]\n- A decreasing trend in glucose levels may indicate improved glucose control or a change in diet/lifestyle.",
+     "1",
+     "neutral",
+     0.998
+    ]
+   ]
+  }
+ },
+ {
+  "id": "vault:grounded-hdl-latest",
+  "question": "What was my most recent HDL level?",
+  "golden_expect": "answer",
+  "gen_s": 1.68,
+  "finish": "stop",
+  "tokens": 139,
+  "raw_text": "{\n  \"report_facts\": [\n    {\n      \"text\": \"Your most recent HDL level is 52 mg/dL.\",\n      \"cites\": [1]\n    }\n  ],\n  \"general_info\": [\n    {\n      \"text\": \"HDL (High-Density Lipoprotein) is a type of cholesterol that helps remove excess cholesterol from the bloodstream.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"Normal HDL levels vary by age and sex, but generally, levels above 60 mg/dL are considered good.\",\n      \"cites\": [1]\n    }\n  ],\n  \"uncertainties\": []\n}",
+  "rendered_text": "REPORT FACTS:\n- Your most recent HDL level is 52 mg/dL. [cite:1]\n\nGENERAL INFO:\n- HDL (High-Density Lipoprotein) is a type of cholesterol that helps remove excess cholesterol from the bloodstream. [cite:1]\n- Normal HDL levels vary by age and sex, but generally, levels above 60 mg/dL are considered good. [cite:1]",
+  "chunk_text": "YOUR RESULTS — HDL\nLatest value : 52 mg/dL\nCollected    : 2025-11-01\n(User-verified result)",
+  "off": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 0,
+   "failed": 3,
+   "total": 3,
+   "faithfulness": 0.221,
+   "errors": [
+    "3 claim(s) could not be verified",
+    "Low faithfulness score: 0.22"
+   ],
+   "validate_s": 0.001,
+   "nli": []
+  },
+  "on": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 0,
+   "failed": 3,
+   "total": 3,
+   "faithfulness": 0.221,
+   "errors": [
+    "3 claim(s) could not be verified",
+    "Low faithfulness score: 0.22"
+   ],
+   "validate_s": 0.219,
+   "nli": [
+    [
+     "[cite:1]\n- Normal HDL levels vary by age and sex, but generally, levels above 60 mg/dL are considered good.",
+     "1",
+     "neutral",
+     0.987
+    ]
+   ]
+  }
+ },
+ {
+  "id": "vault:grounded-hdl-trend",
+  "question": "How has my HDL changed over time?",
+  "golden_expect": "answer",
+  "gen_s": 2.31,
+  "finish": "stop",
+  "tokens": 183,
+  "raw_text": "{\n  \"report_facts\": [\n    {\n      \"text\": \"Your latest HDL value is 52 mg/dL.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"Your HDL value has increased from 48 mg/dL to 52 mg/dL over the last 2 measurements.\",\n      \"cites\": [1]\n    }\n  ],\n  \"general_info\": [\n    {\n      \"text\": \"HDL (High-Density Lipoprotein) is a type of 'good' cholesterol that helps remove excess cholesterol from the bloodstream.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"An increase in HDL levels is generally considered a positive trend, as it can indicate a reduced risk of heart disease.\",\n      \"cites\": [1]\n    }\n  ],\n  \"uncertainties\": []\n}",
+  "rendered_text": "REPORT FACTS:\n- Your latest HDL value is 52 mg/dL. [cite:1]\n- Your HDL value has increased from 48 mg/dL to 52 mg/dL over the last 2 measurements. [cite:1]\n\nGENERAL INFO:\n- HDL (High-Density Lipoprotein) is a type of 'good' cholesterol that helps remove excess cholesterol from the bloodstream. [cite:1]\n- An increase in HDL levels is generally considered a positive trend, as it can indicate a reduced risk of heart disease. [cite:1]",
+  "chunk_text": "YOUR RESULTS — HDL\nLatest value : 52 mg/dL\nCollected    : 2025-09-15\nTrend (last 2): 48 → 52  (increasing)\n(User-verified result)",
+  "off": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 1,
+   "failed": 3,
+   "total": 4,
+   "faithfulness": 0.35,
+   "errors": [
+    "3 claim(s) could not be verified",
+    "Low faithfulness score: 0.35"
+   ],
+   "validate_s": 0.002,
+   "nli": []
+  },
+  "on": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 1,
+   "failed": 3,
+   "total": 4,
+   "faithfulness": 0.35,
+   "errors": [
+    "3 claim(s) could not be verified",
+    "Low faithfulness score: 0.35"
+   ],
+   "validate_s": 0.27,
+   "nli": [
+    [
+     "[cite:1]\n- Your HDL value has increased from 48 mg/dL to 52 mg/dL over the last 2 measurements.",
+     "1",
+     "entailment",
+     0.992
+    ],
+    [
+     "[cite:1]\n- An increase in HDL levels is generally considered a positive trend, as it can indicate a reduced risk of heart disease.",
+     "1",
+     "neutral",
+     0.998
+    ]
+   ]
+  }
+ },
+ {
+  "id": "vault:grounded-hemoglobin-latest",
+  "question": "What is my current hemoglobin level?",
+  "golden_expect": "answer",
+  "gen_s": 1.78,
+  "finish": "stop",
+  "tokens": 144,
+  "raw_text": "{\n  \"report_facts\": [\n    {\n      \"text\": \"Your current hemoglobin level is 13.8 g/dL.\",\n      \"cites\": [1]\n    }\n  ],\n  \"general_info\": [\n    {\n      \"text\": \"Hemoglobin is a protein in red blood cells that carries oxygen throughout the body.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"Normal hemoglobin levels for adults typically range from 13.5 to 17.5 g/dL for men and 12 to 16 g/dL for women.\",\n      \"cites\": [1]\n    }\n  ],\n  \"uncertainties\": []\n}",
+  "rendered_text": "REPORT FACTS:\n- Your current hemoglobin level is 13.8 g/dL. [cite:1]\n\nGENERAL INFO:\n- Hemoglobin is a protein in red blood cells that carries oxygen throughout the body. [cite:1]\n- Normal hemoglobin levels for adults typically range from 13.5 to 17.5 g/dL for men and 12 to 16 g/dL for women. [cite:1]",
+  "chunk_text": "YOUR RESULTS — Hemoglobin\nLatest value : 13.8 g/dL\nCollected    : 2025-04-01\n(User-verified result)",
+  "off": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 0,
+   "failed": 3,
+   "total": 3,
+   "faithfulness": 0.275,
+   "errors": [
+    "3 claim(s) could not be verified",
+    "Low faithfulness score: 0.28"
+   ],
+   "validate_s": 0.001,
+   "nli": []
+  },
+  "on": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 0,
+   "failed": 3,
+   "total": 3,
+   "faithfulness": 0.275,
+   "errors": [
+    "3 claim(s) could not be verified",
+    "Low faithfulness score: 0.28"
+   ],
+   "validate_s": 0.069,
+   "nli": [
+    [
+     "[cite:1]\n- Normal hemoglobin levels for adults typically range from 13.5 to 17.5 g/dL for men and 12 to 16 g/dL for women.",
+     "1",
+     "neutral",
+     0.99
+    ]
+   ]
+  }
+ },
+ {
+  "id": "vault:grounded-hemoglobin-trend",
+  "question": "How has my hemoglobin changed over time?",
+  "golden_expect": "answer",
+  "gen_s": 2.81,
+  "finish": "stop",
+  "tokens": 236,
+  "raw_text": "{\n  \"report_facts\": [\n    {\n      \"text\": \"Your latest hemoglobin value is 13.9 g/dL.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"Your hemoglobin value has increased from 13.2 g/dL to 13.9 g/dL over the last 2 measurements.\",\n      \"cites\": [1]\n    }\n  ],\n  \"general_info\": [\n    {\n      \"text\": \"Hemoglobin is a protein in red blood cells that carries oxygen throughout the body.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"A normal hemoglobin level for adults is typically between 13.5 and 17.5 g/dL for men and 12.0 and 16.0 g/dL for women.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"Changes in hemoglobin levels can be due to various factors, including iron deficiency, anemia, or other medical conditions.\",\n      \"cites\": [1]\n    }\n  ],\n  \"uncertainties\": []\n}",
+  "rendered_text": "REPORT FACTS:\n- Your latest hemoglobin value is 13.9 g/dL. [cite:1]\n- Your hemoglobin value has increased from 13.2 g/dL to 13.9 g/dL over the last 2 measurements. [cite:1]\n\nGENERAL INFO:\n- Hemoglobin is a protein in red blood cells that carries oxygen throughout the body. [cite:1]\n- A normal hemoglobin level for adults is typically between 13.5 and 17.5 g/dL for men and 12.0 and 16.0 g/dL for women. [cite:1]\n- Changes in hemoglobin levels can be due to various factors, including iron deficiency, anemia, or other medical conditions. [cite:1]",
+  "chunk_text": "YOUR RESULTS — Hemoglobin\nLatest value : 13.9 g/dL\nCollected    : 2025-11-01\nTrend (last 2): 13.2 → 13.9  (increasing)\n(User-verified result)",
+  "off": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 1,
+   "failed": 4,
+   "total": 5,
+   "faithfulness": 0.315,
+   "errors": [
+    "4 claim(s) could not be verified",
+    "Low faithfulness score: 0.32"
+   ],
+   "validate_s": 0.002,
+   "nli": []
+  },
+  "on": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 1,
+   "failed": 4,
+   "total": 5,
+   "faithfulness": 0.315,
+   "errors": [
+    "4 claim(s) could not be verified",
+    "Low faithfulness score: 0.32"
+   ],
+   "validate_s": 0.164,
+   "nli": [
+    [
+     "[cite:1]\n- Your hemoglobin value has increased from 13.2 g/dL to 13.9 g/dL over the last 2 measurements.",
+     "1",
+     "entailment",
+     0.99
+    ],
+    [
+     "[cite:1]\n- A normal hemoglobin level for adults is typically between 13.5 and 17.5 g/dL for men and 12.0 and 16.0 g/dL for women.",
+     "1",
+     "neutral",
+     0.973
+    ],
+    [
+     "[cite:1]\n- Changes in hemoglobin levels can be due to various factors, including iron deficiency, anemia, or other medical conditions.",
+     "1",
+     "neutral",
+     0.994
+    ]
+   ]
+  }
+ },
+ {
+  "id": "vault:grounded-ldl-trend",
+  "question": "How has my LDL changed over the last year?",
+  "golden_expect": "answer",
+  "gen_s": 2.68,
+  "finish": "stop",
+  "tokens": 218,
+  "raw_text": "{\n  \"report_facts\": [\n    {\n      \"text\": \"Your latest LDL value is 138 mg/dL.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"Your LDL value has been decreasing over the last two measurements.\",\n      \"cites\": [1]\n    }\n  ],\n  \"general_info\": [\n    {\n      \"text\": \"LDL (Low-Density Lipoprotein) is often referred to as 'bad' cholesterol because high levels can lead to plaque buildup in arteries and increase the risk of heart disease [1].\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"A decrease in LDL levels is generally considered a positive trend, as it may indicate a reduction in cardiovascular risk [2].\",\n      \"cites\": [1]\n    }\n  ],\n  \"uncertainties\": [\n    \"I don't have enough information to determine the exact change in your LDL level over the last year, as the provided trend only shows the last two measurements.\"\n  ]\n}",
+  "rendered_text": "REPORT FACTS:\n- Your latest LDL value is 138 mg/dL. [cite:1]\n- Your LDL value has been decreasing over the last two measurements. [cite:1]\n\nGENERAL INFO:\n- LDL (Low-Density Lipoprotein) is often referred to as 'bad' cholesterol because high levels can lead to plaque buildup in arteries and increase the risk of heart disease [1]. [cite:1]\n- A decrease in LDL levels is generally considered a positive trend, as it may indicate a reduction in cardiovascular risk [2]. [cite:1]\n\nUNCERTAINTIES:\n- I don't have enough information to determine the exact change in your LDL level over the last year, as the provided trend only shows the last two measurements.",
+  "chunk_text": "YOUR RESULTS — LDL\nLatest value : 138 mg/dL\nCollected    : 2025-12-01\nTrend (last 2): 160 → 138  (decreasing)\n(User-verified result)",
+  "off": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 0,
+   "failed": 4,
+   "total": 4,
+   "faithfulness": 0.345,
+   "errors": [
+    "4 claim(s) could not be verified",
+    "Low faithfulness score: 0.34"
+   ],
+   "validate_s": 0.001,
+   "nli": []
+  },
+  "on": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 1,
+   "failed": 3,
+   "total": 4,
+   "faithfulness": 0.345,
+   "errors": [
+    "3 claim(s) could not be verified",
+    "Low faithfulness score: 0.34"
+   ],
+   "validate_s": 0.108,
+   "nli": [
+    [
+     "[cite:1]\n- Your LDL value has been decreasing over the last two measurements.",
+     "1",
+     "entailment",
+     0.964
+    ],
+    [
+     "[cite:1]\n- A decrease in LDL levels is generally considered a positive trend, as it may indicate a reduction in cardiovascular risk [2].",
+     "1",
+     "neutral",
+     0.996
+    ]
+   ]
+  }
+ },
+ {
+  "id": "vault:grounded-potassium-latest",
+  "question": "What is my most recent potassium level?",
+  "golden_expect": "answer",
+  "gen_s": 1.61,
+  "finish": "stop",
+  "tokens": 134,
+  "raw_text": "{\n  \"report_facts\": [\n    {\n      \"text\": \"Your most recent potassium level is 4.2 mmol/L.\",\n      \"cites\": [1]\n    }\n  ],\n  \"general_info\": [\n    {\n      \"text\": \"Potassium is an essential mineral that helps regulate muscle and nerve function, as well as maintain a healthy heart rhythm.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"Normal potassium levels typically range from 3.5 to 5.0 mmol/L.\",\n      \"cites\": [1]\n    }\n  ],\n  \"uncertainties\": []\n}",
+  "rendered_text": "REPORT FACTS:\n- Your most recent potassium level is 4.2 mmol/L. [cite:1]\n\nGENERAL INFO:\n- Potassium is an essential mineral that helps regulate muscle and nerve function, as well as maintain a healthy heart rhythm. [cite:1]\n- Normal potassium levels typically range from 3.5 to 5.0 mmol/L. [cite:1]",
+  "chunk_text": "YOUR RESULTS — Potassium\nLatest value : 4.2 mmol/L\nCollected    : 2025-11-01\n(User-verified result)",
+  "off": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 0,
+   "failed": 3,
+   "total": 3,
+   "faithfulness": 0.238,
+   "errors": [
+    "3 claim(s) could not be verified",
+    "Low faithfulness score: 0.24"
+   ],
+   "validate_s": 0.001,
+   "nli": []
+  },
+  "on": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 0,
+   "failed": 3,
+   "total": 3,
+   "faithfulness": 0.238,
+   "errors": [
+    "3 claim(s) could not be verified",
+    "Low faithfulness score: 0.24"
+   ],
+   "validate_s": 0.056,
+   "nli": [
+    [
+     "[cite:1]\n- Normal potassium levels typically range from 3.5 to 5.0 mmol/L.",
+     "1",
+     "neutral",
+     0.993
+    ]
+   ]
+  }
+ },
+ {
+  "id": "vault:grounded-potassium-trend",
+  "question": "How has my potassium changed over time?",
+  "golden_expect": "answer",
+  "gen_s": 1.76,
+  "finish": "stop",
+  "tokens": 147,
+  "raw_text": "{\n  \"report_facts\": [\n    {\n      \"text\": \"Your potassium level has increased from 4.0 mmol/L to 4.3 mmol/L over the last two measurements.\",\n      \"cites\": [1]\n    }\n  ],\n  \"general_info\": [\n    {\n      \"text\": \"Potassium levels can fluctuate due to various factors, such as diet, medication, or underlying medical conditions.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"A normal potassium level typically ranges from 3.5 to 5.0 mmol/L.\",\n      \"cites\": [1]\n    }\n  ],\n  \"uncertainties\": []\n}",
+  "rendered_text": "REPORT FACTS:\n- Your potassium level has increased from 4.0 mmol/L to 4.3 mmol/L over the last two measurements. [cite:1]\n\nGENERAL INFO:\n- Potassium levels can fluctuate due to various factors, such as diet, medication, or underlying medical conditions. [cite:1]\n- A normal potassium level typically ranges from 3.5 to 5.0 mmol/L. [cite:1]",
+  "chunk_text": "YOUR RESULTS — Potassium\nLatest value : 4.3 mmol/L\nCollected    : 2025-12-01\nTrend (last 2): 4.0 → 4.3  (increasing)\n(User-verified result)",
+  "off": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 0,
+   "failed": 3,
+   "total": 3,
+   "faithfulness": 0.22,
+   "errors": [
+    "3 claim(s) could not be verified",
+    "Low faithfulness score: 0.22"
+   ],
+   "validate_s": 0.002,
+   "nli": []
+  },
+  "on": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 0,
+   "failed": 3,
+   "total": 3,
+   "faithfulness": 0.22,
+   "errors": [
+    "3 claim(s) could not be verified",
+    "Low faithfulness score: 0.22"
+   ],
+   "validate_s": 0.242,
+   "nli": [
+    [
+     "[cite:1]\n- A normal potassium level typically ranges from 3.5 to 5.0 mmol/L.",
+     "1",
+     "contradiction",
+     0.577
+    ]
+   ]
+  }
+ },
+ {
+  "id": "vault:grounded-sodium-latest",
+  "question": "What was my sodium level on my last test?",
+  "golden_expect": "answer",
+  "gen_s": 1.46,
+  "finish": "stop",
+  "tokens": 123,
+  "raw_text": "{\n  \"report_facts\": [\n    {\n      \"text\": \"Your sodium level on your last test was 140 mmol/L.\",\n      \"cites\": [1]\n    }\n  ],\n  \"general_info\": [\n    {\n      \"text\": \"Normal sodium levels typically range from 135 to 145 mmol/L.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"Elevated sodium levels can be a sign of dehydration, among other conditions.\",\n      \"cites\": [1]\n    }\n  ],\n  \"uncertainties\": []\n}",
+  "rendered_text": "REPORT FACTS:\n- Your sodium level on your last test was 140 mmol/L. [cite:1]\n\nGENERAL INFO:\n- Normal sodium levels typically range from 135 to 145 mmol/L. [cite:1]\n- Elevated sodium levels can be a sign of dehydration, among other conditions. [cite:1]",
+  "chunk_text": "YOUR RESULTS — Sodium\nLatest value : 140 mmol/L\nCollected    : 2025-09-01\n(User-verified result)",
+  "off": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 0,
+   "failed": 3,
+   "total": 3,
+   "faithfulness": 0.391,
+   "errors": [
+    "3 claim(s) could not be verified",
+    "Low faithfulness score: 0.39"
+   ],
+   "validate_s": 0.002,
+   "nli": []
+  },
+  "on": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 0,
+   "failed": 3,
+   "total": 3,
+   "faithfulness": 0.391,
+   "errors": [
+    "3 claim(s) could not be verified",
+    "Low faithfulness score: 0.39"
+   ],
+   "validate_s": 0.208,
+   "nli": [
+    [
+     "[cite:1]\n- Elevated sodium levels can be a sign of dehydration, among other conditions.",
+     "1",
+     "neutral",
+     0.998
+    ]
+   ]
+  }
+ },
+ {
+  "id": "vault:grounded-sodium-trend",
+  "question": "How has my sodium changed over time?",
+  "golden_expect": "answer",
+  "gen_s": 2.29,
+  "finish": "stop",
+  "tokens": 185,
+  "raw_text": "{\n  \"report_facts\": [\n    {\n      \"text\": \"Your latest sodium level is 141 mmol/L.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"Your sodium level has been stable over the last two measurements.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"Your sodium level was 138 mmol/L two measurements ago.\",\n      \"cites\": [1]\n    }\n  ],\n  \"general_info\": [\n    {\n      \"text\": \"Sodium levels can be affected by various factors, including diet, hydration, and underlying medical conditions.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"A stable trend in sodium levels suggests that the levels are within a relatively consistent range.\",\n      \"cites\": [1]\n    }\n  ],\n  \"uncertainties\": []\n}",
+  "rendered_text": "REPORT FACTS:\n- Your latest sodium level is 141 mmol/L. [cite:1]\n- Your sodium level has been stable over the last two measurements. [cite:1]\n- Your sodium level was 138 mmol/L two measurements ago. [cite:1]\n\nGENERAL INFO:\n- Sodium levels can be affected by various factors, including diet, hydration, and underlying medical conditions. [cite:1]\n- A stable trend in sodium levels suggests that the levels are within a relatively consistent range. [cite:1]",
+  "chunk_text": "YOUR RESULTS — Sodium\nLatest value : 141 mmol/L\nCollected    : 2025-09-01\nTrend (last 2): 138 → 141  (stable)\n(User-verified result)",
+  "off": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 0,
+   "failed": 5,
+   "total": 5,
+   "faithfulness": 0.266,
+   "errors": [
+    "5 claim(s) could not be verified",
+    "Low faithfulness score: 0.27"
+   ],
+   "validate_s": 0.002,
+   "nli": []
+  },
+  "on": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 2,
+   "failed": 3,
+   "total": 5,
+   "faithfulness": 0.266,
+   "errors": [
+    "3 claim(s) could not be verified",
+    "Low faithfulness score: 0.27"
+   ],
+   "validate_s": 0.302,
+   "nli": [
+    [
+     "[cite:1]\n- Your sodium level has been stable over the last two measurements.",
+     "1",
+     "entailment",
+     0.977
+    ],
+    [
+     "[cite:1]\n- Your sodium level was 138 mmol/L two measurements ago.",
+     "1",
+     "entailment",
+     0.953
+    ],
+    [
+     "[cite:1]\n- A stable trend in sodium levels suggests that the levels are within a relatively consistent range.",
+     "1",
+     "neutral",
+     0.997
+    ]
+   ]
+  }
+ },
+ {
+  "id": "vault:grounded-triglycerides-latest",
+  "question": "What is my most recent triglycerides result?",
+  "golden_expect": "answer",
+  "gen_s": 1.61,
+  "finish": "stop",
+  "tokens": 137,
+  "raw_text": "{\n  \"report_facts\": [\n    {\n      \"text\": \"Your most recent triglycerides result is 150 mg/dL.\",\n      \"cites\": [1]\n    }\n  ],\n  \"general_info\": [\n    {\n      \"text\": \"Triglycerides are a type of fat found in the blood.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"Normal triglyceride levels are typically considered to be less than 150 mg/dL, but this can vary depending on the individual and their health status.\",\n      \"cites\": [1]\n    }\n  ],\n  \"uncertainties\": []\n}",
+  "rendered_text": "REPORT FACTS:\n- Your most recent triglycerides result is 150 mg/dL. [cite:1]\n\nGENERAL INFO:\n- Triglycerides are a type of fat found in the blood. [cite:1]\n- Normal triglyceride levels are typically considered to be less than 150 mg/dL, but this can vary depending on the individual and their health status. [cite:1]",
+  "chunk_text": "YOUR RESULTS — Triglycerides\nLatest value : 150 mg/dL\nCollected    : 2025-10-15\n(User-verified result)",
+  "off": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 1,
+   "failed": 2,
+   "total": 3,
+   "faithfulness": 0.405,
+   "errors": [
+    "2 claim(s) could not be verified",
+    "Low faithfulness score: 0.41"
+   ],
+   "validate_s": 0.001,
+   "nli": []
+  },
+  "on": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 0,
+   "failed": 3,
+   "total": 3,
+   "faithfulness": 0.405,
+   "errors": [
+    "3 claim(s) could not be verified",
+    "Low faithfulness score: 0.41"
+   ],
+   "validate_s": 0.129,
+   "nli": [
+    [
+     "[cite:1]\n- Normal triglyceride levels are typically considered to be less than 150 mg/dL, but this can vary depending on the individual and their health status.",
+     "1",
+     "neutral",
+     0.998
+    ]
+   ]
+  }
+ },
+ {
+  "id": "vault:grounded-tsh-latest",
+  "question": "What was my latest TSH result?",
+  "golden_expect": "answer",
+  "gen_s": 1.84,
+  "finish": "stop",
+  "tokens": 157,
+  "raw_text": "{\n  \"report_facts\": [\n    {\n      \"text\": \"Your latest TSH result is 2.1 mIU/L.\",\n      \"cites\": [1]\n    }\n  ],\n  \"general_info\": [\n    {\n      \"text\": \"TSH (Thyroid-Stimulating Hormone) is a hormone produced by the pituitary gland that regulates thyroid function.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"A normal TSH range is typically between 0.4 and 4.5 mIU/L, but this can vary slightly depending on the laboratory and the individual's age and sex.\",\n      \"cites\": [1]\n    }\n  ],\n  \"uncertainties\": []\n}",
+  "rendered_text": "REPORT FACTS:\n- Your latest TSH result is 2.1 mIU/L. [cite:1]\n\nGENERAL INFO:\n- TSH (Thyroid-Stimulating Hormone) is a hormone produced by the pituitary gland that regulates thyroid function. [cite:1]\n- A normal TSH range is typically between 0.4 and 4.5 mIU/L, but this can vary slightly depending on the laboratory and the individual's age and sex. [cite:1]",
+  "chunk_text": "YOUR RESULTS — TSH\nLatest value : 2.1 mIU/L\nCollected    : 2025-08-01\n(User-verified result)",
+  "off": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 0,
+   "failed": 3,
+   "total": 3,
+   "faithfulness": 0.25,
+   "errors": [
+    "3 claim(s) could not be verified",
+    "Low faithfulness score: 0.25"
+   ],
+   "validate_s": 0.001,
+   "nli": []
+  },
+  "on": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 0,
+   "failed": 3,
+   "total": 3,
+   "faithfulness": 0.25,
+   "errors": [
+    "3 claim(s) could not be verified",
+    "Low faithfulness score: 0.25"
+   ],
+   "validate_s": 0.15,
+   "nli": [
+    [
+     "[cite:1]\n- A normal TSH range is typically between 0.4 and 4.5 mIU/L, but this can vary slightly depending on the laboratory and the individual's age and sex.",
+     "1",
+     "neutral",
+     0.997
+    ]
+   ]
+  }
+ },
+ {
+  "id": "vault:grounded-tsh-trend",
+  "question": "How has my TSH changed over time?",
+  "golden_expect": "answer",
+  "gen_s": 2.01,
+  "finish": "stop",
+  "tokens": 158,
+  "raw_text": "{\n  \"report_facts\": [\n    {\n      \"text\": \"Your TSH level has decreased from 3.1 to 2.4 mIU/L over the last two measurements.\",\n      \"cites\": [1]\n    }\n  ],\n  \"general_info\": [\n    {\n      \"text\": \"TSH (Thyroid-Stimulating Hormone) levels can fluctuate and may require multiple measurements to determine a trend.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"A decrease in TSH levels can indicate an improvement in thyroid function, but it's essential to consider the overall clinical context and other laboratory results.\",\n      \"cites\": [1]\n    }\n  ],\n  \"uncertainties\": []\n}",
+  "rendered_text": "REPORT FACTS:\n- Your TSH level has decreased from 3.1 to 2.4 mIU/L over the last two measurements. [cite:1]\n\nGENERAL INFO:\n- TSH (Thyroid-Stimulating Hormone) levels can fluctuate and may require multiple measurements to determine a trend. [cite:1]\n- A decrease in TSH levels can indicate an improvement in thyroid function, but it's essential to consider the overall clinical context and other laboratory results. [cite:1]",
+  "chunk_text": "YOUR RESULTS — TSH\nLatest value : 2.4 mIU/L\nCollected    : 2025-11-01\nTrend (last 2): 3.1 → 2.4  (decreasing)\n(User-verified result)",
+  "off": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 0,
+   "failed": 3,
+   "total": 3,
+   "faithfulness": 0.232,
+   "errors": [
+    "3 claim(s) could not be verified",
+    "Low faithfulness score: 0.23"
+   ],
+   "validate_s": 0.002,
+   "nli": []
+  },
+  "on": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 0,
+   "failed": 3,
+   "total": 3,
+   "faithfulness": 0.232,
+   "errors": [
+    "3 claim(s) could not be verified",
+    "Low faithfulness score: 0.23"
+   ],
+   "validate_s": 0.059,
+   "nli": [
+    [
+     "[cite:1]\n- A decrease in TSH levels can indicate an improvement in thyroid function, but it's essential to consider the overall clinical context and other laboratory results.",
+     "1",
+     "neutral",
+     0.998
+    ]
+   ]
+  }
+ },
+ {
+  "id": "vault:grounded-vitamin-d-latest",
+  "question": "What is my vitamin D level?",
+  "golden_expect": "answer",
+  "gen_s": 1.62,
+  "finish": "stop",
+  "tokens": 137,
+  "raw_text": "{\n  \"report_facts\": [\n    {\n      \"text\": \"Your Vitamin D level is 32 ng/mL.\",\n      \"cites\": [1]\n    }\n  ],\n  \"general_info\": [\n    {\n      \"text\": \"Vitamin D levels are typically measured in nanograms per milliliter (ng/mL).\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"The normal range for Vitamin D levels can vary depending on the laboratory and the specific test used, but generally falls between 30-50 ng/mL.\",\n      \"cites\": [1]\n    }\n  ],\n  \"uncertainties\": []\n}",
+  "rendered_text": "REPORT FACTS:\n- Your Vitamin D level is 32 ng/mL. [cite:1]\n\nGENERAL INFO:\n- Vitamin D levels are typically measured in nanograms per milliliter (ng/mL). [cite:1]\n- The normal range for Vitamin D levels can vary depending on the laboratory and the specific test used, but generally falls between 30-50 ng/mL. [cite:1]",
+  "chunk_text": "YOUR RESULTS — Vitamin D\nLatest value : 32 ng/mL\nCollected    : 2025-07-01\n(User-verified result)",
+  "off": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 0,
+   "failed": 3,
+   "total": 3,
+   "faithfulness": 0.201,
+   "errors": [
+    "3 claim(s) could not be verified",
+    "Low faithfulness score: 0.20"
+   ],
+   "validate_s": 0.001,
+   "nli": []
+  },
+  "on": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 0,
+   "failed": 3,
+   "total": 3,
+   "faithfulness": 0.201,
+   "errors": [
+    "3 claim(s) could not be verified",
+    "Low faithfulness score: 0.20"
+   ],
+   "validate_s": 0.173,
+   "nli": [
+    [
+     "[cite:1]\n- The normal range for Vitamin D levels can vary depending on the laboratory and the specific test used, but generally falls between 30-50 ng/mL.",
+     "1",
+     "neutral",
+     0.993
+    ]
+   ]
+  }
+ },
+ {
+  "id": "vault:grounded-vitamin-d-trend",
+  "question": "How has my vitamin D changed over time?",
+  "golden_expect": "answer",
+  "gen_s": 1.95,
+  "finish": "stop",
+  "tokens": 166,
+  "raw_text": "{\n  \"report_facts\": [\n    {\n      \"text\": \"Your latest Vitamin D level is 34 ng/mL.\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"Your Vitamin D level has increased from 22 ng/mL to 34 ng/mL over the last 2 measurements.\",\n      \"cites\": [1]\n    }\n  ],\n  \"general_info\": [\n    {\n      \"text\": \"Vitamin D levels are typically measured in nanograms per milliliter (ng/mL).\",\n      \"cites\": [1]\n    },\n    {\n      \"text\": \"A trend of increasing Vitamin D levels may indicate a response to treatment or changes in lifestyle.\",\n      \"cites\": [1]\n    }\n  ],\n  \"uncertainties\": []\n}",
+  "rendered_text": "REPORT FACTS:\n- Your latest Vitamin D level is 34 ng/mL. [cite:1]\n- Your Vitamin D level has increased from 22 ng/mL to 34 ng/mL over the last 2 measurements. [cite:1]\n\nGENERAL INFO:\n- Vitamin D levels are typically measured in nanograms per milliliter (ng/mL). [cite:1]\n- A trend of increasing Vitamin D levels may indicate a response to treatment or changes in lifestyle. [cite:1]",
+  "chunk_text": "YOUR RESULTS — Vitamin D\nLatest value : 34 ng/mL\nCollected    : 2025-10-01\nTrend (last 2): 22 → 34  (increasing)\n(User-verified result)",
+  "off": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 0,
+   "failed": 4,
+   "total": 4,
+   "faithfulness": 0.337,
+   "errors": [
+    "4 claim(s) could not be verified",
+    "Low faithfulness score: 0.34"
+   ],
+   "validate_s": 0.002,
+   "nli": []
+  },
+  "on": {
+   "status": "abstain",
+   "is_valid": false,
+   "verified": 1,
+   "failed": 3,
+   "total": 4,
+   "faithfulness": 0.337,
+   "errors": [
+    "3 claim(s) could not be verified",
+    "Low faithfulness score: 0.34"
+   ],
+   "validate_s": 0.106,
+   "nli": [
+    [
+     "[cite:1]\n- Your Vitamin D level has increased from 22 ng/mL to 34 ng/mL over the last 2 measurements.",
+     "1",
+     "entailment",
+     0.991
+    ],
+    [
+     "[cite:1]\n- A trend of increasing Vitamin D levels may indicate a response to treatment or changes in lifestyle.",
+     "1",
+     "neutral",
+     0.998
+    ]
+   ]
+  }
+ }
+]
