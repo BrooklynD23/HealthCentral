@@ -15,6 +15,11 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 
+def _carries_fact(claim: "ExtractedClaim") -> bool:
+    """True when a claim has a citation or a number (UNC-VERIFY-SCOPE (a))."""
+    return bool(claim.cited_sources) or bool(re.search(r"\d", claim.text))
+
+
 @dataclass
 class ExtractedClaim:
     """
@@ -131,6 +136,13 @@ class ClaimExtractor:
             section_claims = self._extract_claims_from_section(
                 content, segment_type, claim_counter
             )
+            if segment_type == "uncertainty":
+                # Fact-free hedges are not claims. Keep only lines that carry a
+                # citation or a number, renumbered so ids stay unique and equal
+                # to main's when everything is dropped.
+                section_claims = [c for c in section_claims if _carries_fact(c)]
+                for n, c in enumerate(section_claims, start=1):
+                    c.claim_id = f"claim_{claim_counter + n}"
             claims.extend(section_claims)
             claim_counter += len(section_claims)
 
@@ -340,7 +352,7 @@ class ClaimExtractor:
         for claim in claims:
             is_unverifiable = False
 
-            carries_fact = bool(claim.cited_sources) or bool(re.search(r"\d", claim.text))
+            carries_fact = _carries_fact(claim)
 
             # Uncertainty hedges are unverifiable only when they carry no fact
             # (no citation, no number). UNC-VERIFY-SCOPE (a).
