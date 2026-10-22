@@ -1,6 +1,6 @@
 # Lane B — Interpretation and Eval
 
-**Last Updated:** 2026-10-21 (EXTRACT-NL-DIFF marked answered, prompt 28); 2026-10-21 (EXTRACT-REGEX-NEWLINES planned on `b9d285e`; new merge gate EXTRACT-NL-DIFF, Owner gates item 10, no option recommended; item 9 PATH-NL-DIFF marked answered to the wording in its owner-decisions row); 2026-10-17 (INTERP-RENDER, EXTRACT-FORMATS planned)
+**Last Updated:** 2026-10-22 (bug diagnosis on `5f7c67c`: JUDGE-THINK, EXTRACT-UNIT-MGL, EXTRACT-DOB-DATE, INTERP-GROUNDED-MD, INTERP-RENDER-2, INTERP-SAFETY-META, VERIFY-DOCS-STALE planned; new gates JUDGE-THINK, EXTRACT-DATE-PRIORITY, INTERP-DISC-ORDER, Owner gates items 11-13); 2026-10-21 (EXTRACT-NL-DIFF marked answered, prompt 28); 2026-10-21 (EXTRACT-REGEX-NEWLINES planned on `b9d285e`; new merge gate EXTRACT-NL-DIFF, Owner gates item 10, no option recommended; item 9 PATH-NL-DIFF marked answered to the wording in its owner-decisions row); 2026-10-17 (INTERP-RENDER, EXTRACT-FORMATS planned)
 **Status:** DESIGN ONLY. Nothing here is implemented, signed or approved. No owner approval is recorded by this doc; every gate below is open unless it cites a row in [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md).
 **Base:** `origin/main` = `3b2236c` (2026-10-15), worktree `hc-wave6-design`. Open PRs assumed to merge as-is: #95, #97, #99, #82, #84, #94, #74, #72, #68, #61.
 **Collected-count slot on main:** `CLAUDE.md:30` and `:34` read **1574**; `AGENT.md:76` reads 1574. The orchestrator's "1501" is the slot on PR #95's branch, not main. Every count-changing PR in this lane re-measures with `--collect-only` and rewrites those three tokens (SLOT-RULE). Not re-run here (12 GB box rule).
@@ -381,6 +381,159 @@ Whole extractor on `main`: `extract_imaging_entities("FINDINGS:x" + "\n" * 20000
 **Owner gate:** **EXTRACT-NL-DIFF** (merge only, answered 2026-10-21, prompt 28: "Yes, merge #277's diff"), Owner gates item 10 below.
 **Order:** build allowed now; merge blocked on EXTRACT-NL-DIFF (PR stays draft). Not a dependency of #254 or on it: no shared file (#254 edits `extract_pathology.py` and its test). No open PR touches these files on `b9d285e`. No ask-first file. **Not in scope (found while planning, bullet EXTRACT-LABEL-BOUNDARY):** none of these labels has a word boundary, so `PLAN` matches inside `explanation` (`"Explanation of plan: rest\nVITALS: ok"` → plan `ation of plan: rest` on `main` and with the candidate alike); the other patterns in both modules were not timed.
 
+## Bug diagnosis 2026-10-22 (planned 2026-10-22 on `origin/main` @ `5f7c67c`)
+
+**Source:** the 2026-10-22 GPU-box runs, MM-4 run and F-9 dry run (evidence on the GPU box only: `/tmp/claude-1000/gpu-1022/`, `/tmp/claude-1000/mm4-1022/`, `/tmp/claude-1000/f9-dryrun/record.md`). Diagnosis table: `/tmp/claude-1000/bug-diagnosis-1022.md`; Codex proposals (read-only, `gpt-5.6-sol`): `codex-diag-judge.txt`, `codex-diag-extract.txt`, `codex-diag-fe-ui.txt`, `codex-diag-interp-meta.txt` in `/tmp/claude-1000/`. Every `file:line` was re-read on `5f7c67c` (`48a50b5` for the B-3 branch). **No owner approval is recorded here.** **Ask-first files (CLAUDE.md §1):** none edited by any row below; `modules/interpret_safety.py` is read only. Three new gates: JUDGE-THINK (blocks JUDGE-THINK), INTERP-DISC-ORDER (blocks INTERP-SAFETY-META), EXTRACT-DATE-PRIORITY (non-blocking). All three were answered in owner prompts 38-39 (2026-10-22; see each row); the owner-decisions rows land in L0's PR from `docs/owner-rows-prompts38-39`, not here.
+
+### JUDGE-THINK — with Ollama thinking models the B-3 judge never answers ALLOW, so every answer is withheld
+
+**Facts:**
+1. B-3 (draft #264, `48a50b5`, parked until B-4): `src/backend/modules/agent/guardrails/advice_judge.py:45-47` `_CONFIG = InferenceConfig(max_tokens=3, temperature=0.0, timeout_seconds=JUDGE_TIMEOUT_S)` with `JUDGE_TIMEOUT_S = 2`; `:105-116` whole-response exact match `ALLOW` / `BLOCK`, anything else `UNAVAILABLE`; `modules/rag.py:1371-1381` (branch) withholds every non-`ALLOW` answer. The exact match and fail-closed rule are owner-approved (this lane §B-3 rule 1; `owner-decisions-2026-09-27.md:118`) and are **not** changed.
+2. Main: `src/backend/core/llm/ollama_provider.py:130-146` (`_build_request_body`) sends `model`, `messages`, `stream`, `options` (`num_predict` = `max_tokens`) and `format`; no `think` key. The reply text is `message.content` only (`:213`, `:262`). `core/model_runner.py:32-41` `InferenceConfig` has no thinking field.
+3. Measured on the GPU box (2026-10-22, `gpu-1022/judge_preview.py`, 40 texts): Ollama `gemma4:e4b` at the production 2 s: `verdicts {'UNAVAILABLE': 40}`, p50 2.01 s (`s2-preview-ollama.txt`); at a 60 s override: `{'UNAVAILABLE': 39, 'ALLOW': 1}`, p50 0.28 s, warm-up 13.16 s (`s2-preview-ollama-raw.txt`), so the failure is the 3-token reply, not the clock. llama.cpp Phi-4-mini: `{'ALLOW': 37, 'BLOCK': 3}` (`s2-preview-cpu-seq.txt`). The raw judge replies were not logged; "reasoning tokens use the budget" is the reading consistent with these numbers, not a capture.
+4. Second finding for B-4 (not fixed here): at 2 s the first call never completes the 13 s cold load, and each later call timed out too (40/40 at about 2 s). Whether a warm-up belongs anywhere is a B-4 measurement question; the 2 s number is the owner's (Q4) and is not changed.
+
+**Design (two parts, one row):**
+- Main PR: `InferenceConfig.think: Optional[bool] = None` (`core/model_runner.py`, dataclass field only); `OllamaProvider._build_request_body` adds top-level `body["think"] = think` only when it is not `None`. Every existing call is byte-identical. No `<think>` stripping and no reading of `message.thinking`: either would loosen what reaches the exact match.
+- B-3 plan delta (applied on #264 by whoever resumes B-3, after the gate): `_CONFIG` gains `think=False`; tests HC-PARA-110 and HC-PARA-101c below go into `tests/test_advice_judge.py` on that branch.
+- Unknown-daemon behaviour is not assumed: a daemon that rejects the key gives an error -> `UNAVAILABLE` (fail closed); one that ignores it leaves today's failure. Ollama 0.40.5 on the box advertises `--think false` (Codex read of the binary; not run).
+
+**Test-first:**
+
+| Id | File | Assertion | RED today? |
+|---|---|---|---|
+| HC-OTK-001 | `src/backend/tests/test_ollama_think.py` (new, main) | `_build_request_body(msgs, InferenceConfig(think=False))["think"] is False` | yes (no field) |
+| HC-OTK-002 | same | `"think" not in _build_request_body(msgs, InferenceConfig())` | GREEN today (pin: default unchanged) |
+| HC-PARA-110 | `tests/test_advice_judge.py` (#264) | `httpx.MockTransport` behind a real `OllamaProvider`: the judge request body has `think: false`; an ordinary `generate_async` body has no `think` | yes on #264 |
+| HC-PARA-101c | same | a provider reply `"<think>x</think>ALLOW"` gives `UNAVAILABLE` | GREEN (pin: the parse is not loosened) |
+
+**Files (main PR):** `src/backend/core/model_runner.py` (`InferenceConfig` only), `src/backend/core/llm/ollama_provider.py` (`_build_request_body` only), `src/backend/tests/test_ollama_think.py` (new), slots. **Re-run, not edited:** `tests/test_llm_provider_layer.py`, `tests/test_llm_structured_output.py`, `tests/test_model_runner_exc_log.py`. **#264 (later):** `advice_judge.py` `_CONFIG` only, `tests/test_advice_judge.py` (two tests).
+**Expected collected delta:** main +2; #264 +2 when it lands. **Est:** 1 h.
+**Acceptance:** RED for HC-OTK-001; pytest set 0 failed; full suite. **Model-host check (L0, after #264 is resumed):** `judge_preview.py` against Ollama `gemma4:e4b` with the 60 s override gives ALLOW/BLOCK verdicts, not UNAVAILABLE; the 2 s production number is reported, not changed. **Rollback:** revert.
+**Owner gates:** **JUDGE-THINK answered (a) "Judge only, think off"** in substance: Owner prompts 38-39 (2026-10-22, L0 AskUserQuestion; record `/tmp/claude-1000/prompts-38-39.json`; rows land in L0's owner-rows PR from branch `docs/owner-rows-prompts38-39`). Prompt 38 got a proposal instead of an option (a typed decision model, Jev / Laya); L0 re-asked in prompt 39 and the owner chose "Think off now + research Laya (Recommended)". The Laya research is a separate row, JUDGE-LAYA-RESEARCH, planned by another planner; it does not change this row. No answer is recorded in this file; the owner-decisions row comes from L0's PR.
+**Order:** ready once the owner-rows PR (`docs/owner-rows-prompts38-39`) merges. Never beside OLLAMA-NUM-CTX (lane A, also `_build_request_body`); whichever lands second merges `origin/main` and re-runs both test files.
+
+### EXTRACT-UNIT-MGL — `mg/L` is not a known unit, so CRP lines are dropped silently
+
+**Facts (`5f7c67c`):**
+1. `src/backend/modules/extract.py:67-70` `_UNIT_ALT` lists `mg/dL` but not `mg/L`. The three text-line patterns use it (`:347-381`); `LINE_PATTERN`'s unit is optional but its `$` anchor rejects an unknown unit suffix; `ALT_LINE_PATTERN` and `COLUMN_LINE_PATTERN` require it. `_parse_text_line` returns `None` (`:417-427`).
+2. Codex ran the patterns on `5f7c67c`: `CRP: 4.2 mg/L (0.0-5.0) => []`, `CRP 4.2 mg/L 0.0-5.0 => []`, `CRP: 4.2 mg/dL (0.0-5.0) => [('CRP', 4.2, 'mg/dL', 0.0, 5.0)]`.
+3. Observed: MM-4 smoke and F-9 layouts 0, B and C lost CRP (record.md "PDF layout used"); only the ruled table (pdfplumber table path, no unit list) kept it.
+4. EXTRACT-FORMATS (done, #164) added `mIU/L` and others; `mg/L` was not in its list (§EXTRACT-FORMATS). Storage needs nothing else: `api/documents.py:636-647` copies value and unit; `modules/normalize.py` `UNIT_CONVERSIONS` only matters for cross-unit trends (no CRP entry; none added).
+
+**Design:** insert `mg/L|` right after `mg/dL|` in `_UNIT_ALT` (the order does not matter: `mg/L` and `mg/dL` are not prefixes of each other, review round 1; next to `mg/dL` only for readability). Nothing else.
+
+**Test-first** (`src/backend/tests/test_extraction_pipeline.py`, new tests only):
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-EXU-001 (×3) | `CRP: 4.2 mg/L (0.0-5.0)`, `CRP 4.2 mg/L 0.0-5.0`, and a column line `CRP   4.2   mg/L   0.0-5.0` each give one observation: value 4.2, unit `mg/L`, range 0.0-5.0 | yes (all three) |
+| HC-EXU-002 | `LDL: 128 mg/dL (0-100)` still gives unit `mg/dL` (prefix order) | GREEN (pin) |
+
+**Files:** `src/backend/modules/extract.py` (`:69` only), `src/backend/tests/test_extraction_pipeline.py` (new tests only), slots. **Re-run, not edited:** `tests/test_date_extraction.py`, `tests/test_extraction_golden.py`, `tests/test_unit_conversion.py`, `tests/test_documents_api.py`, `tests/test_source_spans.py`.
+**Expected collected delta:** +4. **Est:** 0.5 h.
+**Acceptance:** RED for HC-EXU-001; pytest set 0 failed; full suite. **Rollback:** revert.
+**Owner gates:** none.
+**Order:** ready; built in bundle 2 with EXTRACT-UNIT-MGL and EXTRACT-DOB-DATE (L0 ruling, #289 review round 1); the same-file order is inside that one PR.
+
+### EXTRACT-DOB-DATE — a date of birth becomes the document's collection date
+
+**Facts (`5f7c67c`):**
+1. `src/backend/modules/extract.py:759-814` `_extract_dates`: stage 1 takes dates after collection labels (`_COLLECTION_LABEL_RE`, `:699-703`); stage 2 takes every generic date-shaped string with no exclusion; `_date_is_plausible` (`:713-715`) accepts 1950 onwards. Codex ran it on text with `DOB: 1970-01-01` and `Collection Date: 2026-03-02`: `['2026-03-02', '1970-01-01']`.
+2. `src/backend/api/documents.py:662-667`: `document.collection_date = min(valid_dates)`, so the DOB wins. Then the same-date duplicate check (`:339-383`, called after extraction at `:518-524`) flags a second document with the same DOB: F-9 layout A showed "Possible duplicate upload" and Export listed both files as "1/1/1970" (record.md "PDF layout used", attempt A). Writing the DOB as `1 January 1970` avoided it only because that spelling is not a generic pattern.
+3. The structured-import path (`:799-807`) takes `min()` over observation dates; it is not affected (observations take the page's first date, which is label-first).
+4. No test covers a DOB (`git grep -n -i "dob\|birth" -- src/backend/tests/test_date_extraction.py`: no hit). `modules/redaction.py` has DOB patterns; it is ask-first and not reused here.
+
+**Design (a), the row's scope:** in `_extract_dates`, skip a candidate (both stages) when the 32 characters before it end with a birth label: a module constant `_BIRTH_LABEL_TAIL_RE = re.compile(r"(?:\bd\.?\s?o\.?\s?b\.?|\bdate\s+of\s+birth|\bbirth\s*date|\bborn(?:\s+on)?)\s{0,3}[:\-]?\s{0,3}$", re.IGNORECASE)` run with `.search(text[max(0, start - 32):start])`. The window is fixed, so the check is linear in the text (Codex's prefix-wide `\s*[:\-]?\s*$` search is the REDACT-WS-REDOS shape, quadratic on whitespace runs; review correction). `min()` in `documents.py` is unchanged; with the DOB gone it picks the real date. Never invent a date: a document whose only date is a DOB is undated.
+
+**Test-first** (`src/backend/tests/test_date_extraction.py` new tests; HTTP via `route_client` in `tests/test_documents_api.py`):
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-DATE-007 (×5) | `DOB:`, `D.O.B.`, `Date of Birth:`, `Birth Date:`, `Born on` + `1970-01-01`, with `Collection Date: 2026-03-02`: result is `['2026-03-02']` | yes |
+| HC-DATE-008 | text with only `DOB: 1970-01-01` and a lab line: `collection_dates == []` | yes |
+| HC-DATE-009 | `"DOB" + " " * 50000 + "x 1970-01-01"` returns within 1 s | GREEN (pin against a prefix-wide look-behind: the non-space `x` before the date makes the rejected `\s*[:\-]?\s*$` search over `text[:start]` backtrack, quadratic, about 13 s at 50,000 per the round-1 timing; an all-space tail would match at once and could not fail) |
+| HC-DATE-010 | upload of two text PDFs (same DOB, collection dates 2026-03-02 and 2026-06-01) through `route_client`: stored `collection_date` 2026-03-02 / 2026-06-01, and the second upload has no `same_date` duplicate warning | yes |
+
+**Files:** `src/backend/modules/extract.py` (one constant + `_extract_dates` only), `src/backend/tests/test_date_extraction.py` (new tests only), `src/backend/tests/test_documents_api.py` (HC-DATE-010 only), slots. **Re-run, not edited:** `tests/test_extraction_pipeline.py`, `tests/test_source_spans.py`, `tests/test_fhir_export.py`.
+**Expected collected delta:** +8 (007 ×5, 008, 009, 010). **Est:** 1.5 h.
+**Acceptance:** RED for 007, 008, 010; pytest set 0 failed; full suite. **Rollback:** revert.
+**Owner gates:** none for (a). **EXTRACT-DATE-PRIORITY answered (a) "Keep earliest date"** (Owner prompts 38-39 (2026-10-22, L0 AskUserQuestion; record `/tmp/claude-1000/prompts-38-39.json`; rows land in L0's owner-rows PR from branch `docs/owner-rows-prompts38-39`), prompt 38): `min()` stays, no follow-up row.
+**Order:** ready; built in bundle 2 with EXTRACT-UNIT-MGL and EXTRACT-DOB-DATE (L0 ruling, #289 review round 1); the same-file order is inside that one PR.
+
+### INTERP-GROUNDED-MD — the "Grounded explanation" panel shows raw `**UNCERTAINTY**`
+
+**Facts (`5f7c67c`):** `src/frontend/src/pages/LabInterpreter.tsx:96` stores `data.full_response`; `:294-300` renders it in one `<p className="... whitespace-pre-wrap">`. The backend joins segments as `**SEGMENT TYPE**\n<content>` (`src/backend/api/interpretations.py:575-578`), which the claim extractor parses (`modules/claim_extractor.py:171`, `:181-182`), so the backend string stays. The formatter `components/lab-interpreter/formatInterpretationText.ts` (bold runs, no HTML) is used by `InterpretedResultCard.tsx` and `AdviceSection.tsx:3`. INTERP-RENDER (done, #161) did not list `LabInterpreter.tsx`.
+
+**Design:** render `formatInterpretationText(groundedSummary).paragraphs` as `<p>` runs with `<strong>` for bold, as `InterpretedResultCard.tsx` does. Each `<p>` keeps `whitespace-pre-wrap`: the formatter splits paragraphs only on blank lines, so `**UNCERTAINTY**\n<content>` is one paragraph with a single `\n`, and without pre-wrap the header runs into the body (review round 1). No `dangerouslySetInnerHTML`, no Markdown library.
+
+**Test-first** (`src/frontend/src/__tests__/LabInterpreter.test.tsx`):
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-LAB-001 | `full_response: '**UNCERTAINTY**\nMore context is needed.'` -> `UNCERTAINTY` is in a `STRONG` element and the panel text has no `**` | yes |
+
+**Files:** `src/frontend/src/pages/LabInterpreter.tsx` (`:294-300` + one import), `src/frontend/src/__tests__/LabInterpreter.test.tsx` (new test only). **Expected collected delta:** 0 backend; +1 Vitest. **Est:** 0.5 h.
+**Acceptance:** RED for HC-LAB-001; `npx tsc --noEmit`; `npx vitest run`. **Owner gates:** none. **Order:** ready; built in bundle 3, the frontend PR with INTERP-GROUNDED-MD, CHAT-MODEL-BADGE, INTERP-RENDER-2 and VERIFY-DOCS-STALE (L0 ruling, #289 review round 1).
+
+### INTERP-RENDER-2 — the gauge axis can exclude the value, and citation keys collide
+
+**Facts (`5f7c67c`):**
+1. `src/frontend/src/components/lab-interpreter/ReferenceRangeComparison.tsx:20-29`: axis = reference range ± 30 %, `valuePct` clamped to 0-100. The value is never in the min/max. MM-4: glucose 118 with range 70-99 -> axis 61.3-107.7; LDL 162 with range 0-100 -> axis 0-130 (`mm4-1022/out-interpret-grounded.json`: "The reference range is 0.0-100.0 mg/dL"). The marker sits at the edge, which understates how far out of range the value is.
+2. `InterpretedResultCard.tsx:123` and `PanelInterpretationDashboard.tsx:110` key citations by `citation.id`. Backend source citations default `id` to `""` (`src/backend/modules/interpret.py:697`); MM-4's LDL card had two `{'type': 'source', 'id': ''}` -> React "two children with the same key".
+3. INTERP-RENDER (done) fixed only the negative axis (non-negative floor); its tests stay.
+
+**Design:** `paddedMin = Math.min(refLow, value) - padding`, `displayMin` keeps the non-negative floor rule on `paddedMin`, `displayMax = Math.max(refHigh, value) + padding`. Keys become `` `${citation.type}:${citation.id}:${i}` `` in both components. The backend empty id is left (display fix only).
+
+**Test-first** (`src/frontend/src/__tests__/InterpretedResultCard.test.tsx`):
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-IRC-007 | value 118, range 70-99: axis max label 126.7 (not 107.7); the marker's `left` is below 100 % | yes |
+| HC-IRC-008 | value 162, range 0-100: axis max 192; axis min 0 (floor kept) | yes |
+| HC-IRC-009 | two citations `{type:'source', id:''}` in both components: no `console.error` containing `same key` | yes |
+
+**Files:** `ReferenceRangeComparison.tsx` (`:20-24` only), `InterpretedResultCard.tsx` (`:123` only), `PanelInterpretationDashboard.tsx` (`:110` only), `src/frontend/src/__tests__/InterpretedResultCard.test.tsx` (new tests only). **Re-run, not edited:** the INTERP-RENDER tests HC-IRC-004…006. **Expected collected delta:** 0 backend; +3 Vitest. **Est:** 0.75 h.
+**Acceptance:** RED for each; `npx tsc --noEmit`; `npx vitest run`. **Owner gates:** none (no copy change). **Order:** ready; built in bundle 3, the frontend PR with INTERP-GROUNDED-MD, CHAT-MODEL-BADGE, INTERP-RENDER-2 and VERIFY-DOCS-STALE (L0 ruling, #289 review round 1).
+
+### INTERP-SAFETY-META — template interpretations store "missing disclaimers" for text that ships with them
+
+**Facts (`5f7c67c`, `src/backend/modules/interpret.py`):**
+1. `:209` validates the text, then `:228` appends the disclaimers; same order at `:959` / `:978`. The stored safety metadata (`:236-240`, `:986-990`) therefore reads `passed: False`, `checks_failed: ['missing_disclaimers']`, and `interpret_safety.py:146` logs `Safety violation: Missing required disclaimers` (`mm4-1022/backend.log:115`) for a text the patient receives with disclaimers.
+2. Codex probe (no writes): before `passed=False, ['missing_disclaimers']`; append-then-validate `passed=True, []`; prohibited text still `passed=False` with the prohibited checks.
+3. Not the reason interpret-grounded abstains: the grounded route (`api/interpretations.py:449-611`) never calls `validate_interpretation`; its MM-4 abstain came from verification (`"Low faithfulness score: 0.00"`, 2 claims unverified).
+4. No runtime reader of `checks_failed` / `safety_validation_json` (Codex grep); the API response omits it (`api/interpretations.py:116`).
+
+**Design (if INTERP-DISC-ORDER (a)):** move the `add_required_disclaimers` block above `validate_interpretation` at both sites. `add_required_disclaimers` only appends, so the prohibited-pattern checks still see every original word. `interpret_safety.py` is not edited.
+
+**Test-first** (new `src/backend/tests/test_interpret_safety_metadata.py`; HTTP via `route_client` for 001):
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-ISV-001 | `POST /api/v1/interpretations/observations/{id}/interpret` on a seeded observation: stored metadata `passed` true, `has_required_disclaimers` in `checks_passed`, no `missing_disclaimers` | yes |
+| HC-ISV-002 | the model path (`interpret_with_model` with a stub runner, benign cited text): same | yes |
+| HC-ISV-003 | template path with a dosing sentence injected: `checks_failed` still contains the prohibited check and `passed` is false | GREEN (pin: no weakening) |
+
+**Files:** `src/backend/modules/interpret.py` (the two blocks only), `src/backend/tests/test_interpret_safety_metadata.py` (new), slots. **Re-run, not edited:** `tests/test_interpret*.py`, `tests/test_safe_interp_grounded.py`, `tests/test_interpret_safety*.py`. **Expected collected delta:** +3. **Est:** 0.75 h.
+**Acceptance:** RED for 001-002; pytest set 0 failed; `git diff origin/main --stat -- src/backend/modules/interpret_safety.py` empty; full suite. **Rollback:** revert.
+**Owner gates:** **INTERP-DISC-ORDER answered (a) "Check the final text"** (Owner prompts 38-39 (2026-10-22, L0 AskUserQuestion; record `/tmp/claude-1000/prompts-38-39.json`; rows land in L0's owner-rows PR from branch `docs/owner-rows-prompts38-39`), prompt 38). Not an ask-first file, but the change moves when a safety check runs, so the owner decides (CLAUDE.md §3: never weaken a check without asking).
+**Order:** ready once the owner-rows PR (`docs/owner-rows-prompts38-39`) merges. Never beside B-5 (W-7), which edits `interpret.py`.
+
+### VERIFY-DOCS-STALE — after "Mark All Verified" the "Documents needing attention" panel stays until reload
+
+**Facts (`5f7c67c`):** `src/frontend/src/pages/VerificationWorkbench.tsx:136-150` (`handleMarkAllVerifiedClick`) with no selected document calls `useVerifyObservation().mutateAsync` per observation; `src/frontend/src/services/observations.ts:82-97` invalidates only `['observations']`. The panel reads `useDocuments` (`VerificationWorkbench.tsx:101`, key `['documents', filters]`). The backend flips the document once its last observation is verified (`src/backend/api/observations.py:480`); F-9 step 4: the panel listed both files as `parsed` until a reload showed "All observations verified".
+
+**Design:** `useVerifyObservation.onSuccess` also invalidates `['documents']`.
+
+**Test-first** (`src/frontend/src/__tests__/VerificationWorkbench.test.tsx`):
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-VFY-001 | mocked API flips the document to `verified` when the last observation is verified; after "Mark All Verified" the panel text is gone without a reload and `/documents` was fetched again | yes |
+
+**Files:** `src/frontend/src/services/observations.ts` (`onSuccess` only), `src/frontend/src/__tests__/VerificationWorkbench.test.tsx` (new test only). **Expected collected delta:** 0 backend; +1 Vitest. **Est:** 0.3 h.
+**Acceptance:** RED; `npx tsc --noEmit`; `npx vitest run`. **Owner gates:** none. **Order:** ready; built in bundle 3, the frontend PR with INTERP-GROUNDED-MD, CHAT-MODEL-BADGE, INTERP-RENDER-2 and VERIFY-DOCS-STALE (L0 ruling, #289 review round 1).
+
 ## Provides
 
 1. `src/backend/modules/agent/guardrails/advice_judge.py`: `async def advice_judge(text: str, runner: core.model_runner.ModelRunner) -> Literal["ALLOW", "BLOCK", "UNAVAILABLE"]`; constant `FROZEN_PROMPT: str`. Never sends to an external runner. (B-3)
@@ -411,6 +564,10 @@ Unless an item says it was answered, none of these is answered. Ask with the wor
 8. **GRADE-REDOS-DIFF (GRADE-PATTERN-REDOS, merge only, added 2026-10-20; asked after the draft PR exists).** "GRADE-REDOS-DIFF: here is the exact `modules/extract_pathology.py` diff for GRADE-PATTERN-REDOS, with RED/GREEN, timing, mutant output and the differential against today's pattern. It changes what is extracted from a pathology report in one shape: a grade label followed only by spaces and then `,` `;` `.` or a newline. Today that gives a grade entity with an empty value. With the diff, no empty grade is emitted; the search goes on, and in some strings (76 of 200,000 in the planning differential) it returns a later, non-empty value, for example `Tumor grade: ;\nMargins: clear, grade 3 elsewhere.` gives `3 elsewhere` instead of an empty grade. Which do you want? (a) Merge this diff: no empty grade, the search goes on to a later label. (b) Keep today's empty match at the first label: the implementer redrafts the pattern to keep it and asks again on that diff (more work; not yet designed). (c) Do not merge; leave the pattern as it is (the slow inputs stay slow)." No option is recommended: the choice is what a patient's report should show.
 9. **PATH-NL-DIFF (PATH-REGEX-NEWLINES, merge only, added 2026-10-20; asked after the draft PR exists).** "PATH-NL-DIFF: here is the exact `modules/extract_pathology.py` diff for PATH-REGEX-NEWLINES (`DIAGNOSIS_PATTERN`, `SPECIAL_STAINS_PATTERN`), with RED/GREEN, timing and the differential. Every difference from `main` is a label with no real value, where `main` returns an empty diagnosis or stains value, a bare `:`, or `s` (the last letter of `Special stains`); the new pattern returns no entity there. No non-empty value changes, and no value moves to a later label. (a) merge this diff, as you chose for grades (GRADE-REDOS-DIFF (a)) (Recommended: same class of change, same reasoning) (b) redraft so empty values are kept exactly (zero differences), then ask again (c) leave both patterns as they are." This planned wording is **not** what the owner was asked. **Answered (a) "Yes, merge this diff"** 2026-10-21 (L0 AskUserQuestion, prompt 23) to the question recorded in owner-decisions row PATH-NL-DIFF: "Approve merging this `extract_pathology.py` diff? It rewrites the DIAGNOSIS and SPECIAL_STAINS patterns with atomic groups and possessive quantifiers (Python 3.11+) so newline runs are linear. Differential: 0 violations vs main." (PR #254 head `c550e24`; no option marked recommended).
 10. **EXTRACT-NL-DIFF (EXTRACT-REGEX-NEWLINES, merge only, added 2026-10-21; asked after the draft PR exists).** "EXTRACT-NL-DIFF: here is the exact diff to `modules/extract_imaging.py` (`FINDINGS_PATTERN`, `IMPRESSION_PATTERN`) and `modules/extract_visit_notes.py` (`ASSESSMENT_PATTERN`, `PLAN_PATTERN`, `VITALS_PATTERN`) for EXTRACT-REGEX-NEWLINES, with RED/GREEN, timing and the differential. Timing: on `main` each of these patterns takes 6.7-11.9 s on a document with a 20,000-newline run (measured on `b9d285e`); with the diff, under 0.005 s at 50,000. What it changes: in a 200,000-string differential, every difference from `main` is a section label with no real value. There `main` returns an entity whose value is empty (`""`), a bare `:`, or `s`/`S` (the last letter of `Findings` or `Vitals`); with the diff no entity is returned, so such an empty finding or impression also no longer reaches the FHIR export. No non-empty value changes, and no value moves to a later label. Which do you want? (a) Merge this diff: no entity for an empty section label. (b) Redraft so empty values are kept exactly (zero differences), then ask again on that diff. (c) Do not merge; leave the five patterns as they are (the slow inputs stay slow)." No option is recommended: like GRADE-REDOS-DIFF (item 8), the choice is what a patient's document should show. **Answered 2026-10-21, prompt 28: "Yes, merge #277's diff"** (owner-decisions row EXTRACT-NL-DIFF; #277 merged `35cdb10`). This planned wording is **not** what the owner was asked: the owner saw a two-option question with corrected wording, quoted verbatim in owner-decisions row EXTRACT-NL-DIFF.
+
+11. **JUDGE-THINK (JUDGE-THINK, new 2026-10-22; answered prompt 39: "Think off now + research Laya (Recommended)" = (a) plus row JUDGE-LAYA-RESEARCH; prompt 38 got a proposal, not an option; record `/tmp/claude-1000/prompts-38-39.json`, rows via L0's PR `docs/owner-rows-prompts38-39`). Wording as asked in prompt 38:** "The advice judge (B-3) asks the local model for one word, ALLOW or BLOCK, within 3 tokens. Ollama thinking models (gemma4:e4b, qwen3:8b) spend those tokens reasoning, so the judge fails closed every time and once B-3 lands every answer is withheld (measured 40/40 and 39/40 UNAVAILABLE). What should the judge do? (a) Judge only, thinking off (Recommended): only the judge request tells Ollama not to think; every other call and the exact ALLOW/BLOCK rule stay as they are. Tradeoff: B-4 must measure the judge with thinking off, and a model may judge a little worse without reasoning. (b) Thinking off everywhere: every Ollama call, chat answers included, stops thinking. Tradeoff: changes chat answers that nobody has measured. (c) Leave as is: thinking models cannot serve answers once B-3 lands; only non-thinking models (llama.cpp Phi-4-mini measured 37 ALLOW / 3 BLOCK) work." Options as asked: "Judge only, thinking off" / "Thinking off everywhere" / "Leave as is". Exact diff for (a): `core/model_runner.py` `InferenceConfig` gains `think: Optional[bool] = None`; `core/llm/ollama_provider.py` `_build_request_body` adds `think = getattr(config, "think", None)` / `if think is not None: body["think"] = think`; `advice_judge.py` `_CONFIG = InferenceConfig(max_tokens=3, temperature=0.0, timeout_seconds=JUDGE_TIMEOUT_S, think=False)` (plan: [JUDGE-THINK](#judge-think--with-ollama-thinking-models-the-b-3-judge-never-answers-allow-so-every-answer-is-withheld)).
+12. **EXTRACT-DATE-PRIORITY (EXTRACT-DOB-DATE follow-up, new 2026-10-22; non-blocking; answered prompt 38: (a) "Keep earliest date").** "When a lab report has a labelled collection date and other dates (a printed-on date, say), the app uses the earliest date of all as the document date. Should a labelled collection date win instead? (a) Keep earliest date (Recommended): today's rule; the date-of-birth fix alone solves the reported bug. (b) Labelled date wins: closer to what the report means; documents re-processed later may change date, and a report with two labelled draws would use the first one printed, not the earliest." Options as asked: "Keep earliest date" / "Labelled date wins". A (b) answer becomes its own row (Codex sketch: `api/documents.py:665` `valid_dates[0]` + whole-document label order).
+13. **INTERP-DISC-ORDER (INTERP-SAFETY-META, new 2026-10-22; answered prompt 38: (a) "Check the final text").** "Lab-card explanations are checked for disclaimers before the app adds them, so every saved card records 'missing disclaimers' and the log says 'Safety violation', although the patient sees the disclaimers. (a) Check the final text (Recommended): add the disclaimers first, then run every check; the advice and dosing checks still read every original word. Tradeoff: the disclaimer check then confirms the app's own appended sentence rather than catching a model that left it out. (b) Leave as is: no behaviour change; the stored result and the log stay misleading." Options as asked: "Check the final text" / "Leave as is". Exact diff for (a): in `modules/interpret.py`, move the `# Ensure disclaimers` block (`:227-231` and `:977-981`) above `# Validate safety` (`:208` and `:958`); nothing else; `interpret_safety.py` unchanged.
 
 Owner tasks (no question): OW-3 (S5), MM-1, MM-2, MM-3, MM-4.
 
