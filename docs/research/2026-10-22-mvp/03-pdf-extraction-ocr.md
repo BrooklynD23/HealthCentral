@@ -10,9 +10,9 @@
 
 - Text PDFs: `pdfplumber` (`page.extract_tables()` and `page.extract_text()`), in `modules/extract.py`. `pypdf` is declared in `requirements.txt:38`.
 - OCR: `pdf2image` + `pytesseract`, gated by `core.config.is_ocr_available()`. `ocr_enabled` defaults to `False` (`core/config.py:132`), so a scanned PDF lands in `pending_ocr`.
-- Observed limits on synthetic Quest/LabCorp-style PDFs (L0 bug list; repros re-run by the orchestrator **[V]**): ruled grid tables parse cleanly (12 of 12 rows). Silent loss or distortion comes from the parser rules, not from pdfplumber. `1,234` is read as 1.0, `<0.5` as 0.5, and the flag in `5.9 H` is dropped. A page with any table skips the text pass. A text PDF with one scanned page keeps only the text pages, with no warning.
+- Observed limits on synthetic Quest/LabCorp-style PDFs (local repros at `d2843e8` with `ExtractModule.extract_from_pdf` on reportlab-generated PDFs, re-run by the orchestrator **[V]**; scripts not committed). Example grid row: `Platelet Count | 1,234 | | x10E3/uL | 150-379`, and `Creatinine | <0.5`, `WBC | 5.9 H`: ruled grid tables parse cleanly (12 of 12 rows). Silent loss or distortion comes from the parser rules, not from pdfplumber. `1,234` is read as 1.0, `<0.5` as 0.5, and the flag in `5.9 H` is dropped. A page with any table skips the text pass. A text PDF with one scanned page keeps only the text pages, with no warning.
 
-Changing the PDF library would not fix these. They are fixes to `extract.py`, and the queue rows sit with L0.
+Changing the PDF library would not fix these. They are fixes to `extract.py`, and L0 sequences them in the build-program queue. Parser code: `modules/extract.py:287-290` (value cell), `:168` (text pass skipped when a table yields a row), `:67-70` (unit list).
 
 ## Options
 

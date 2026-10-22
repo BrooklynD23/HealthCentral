@@ -10,7 +10,7 @@
 
 - Providers: `LlamaCppProvider` (default) and `OllamaProvider` (localhost), via `core/llm/factory.py`.
 - Tiers (`modules/model_selector.py`): low = Qwen2.5-0.5B, gemma4-e2b, gemma4-e4b, mid = Phi-4-mini, gemma4-12b, high = BioMistral-7B. Some repo paths are marked as placeholders in comments.
-- Known issues (not repeated here): the `chat_format` 500, no model lock, no GPU-layer setting, and thinking models against the judge. See the 2026-10-22 bug diagnosis and PR #297.
+- Known issues (not repeated here): the `chat_format` 500, no model lock, no GPU-layer setting, and thinking models against the judge. See PR #297 and [lane B, JUDGE-THINK](../../plans/2026-10-15-build-program/lane-B-interpretation-eval.md) (answered: thinking off for the judge request only).
 
 ## Runtimes
 
@@ -26,7 +26,7 @@
 
 | Model | Licence | Q4_K_M size | Notes |
 |---|---|---|---|
-| Phi-4-mini-instruct | MIT **[V]** | 2.49 GB (bartowski GGUF) **[A]** | already the "mid" tier. Not a thinking model. The judge measured 37 ALLOW / 3 BLOCK on llama.cpp (2026-10-22 bug diagnosis, item D) |
+| Phi-4-mini-instruct | MIT **[V]** | 2.49 GB (bartowski GGUF) **[A]** | already the "mid" tier. Not a thinking model. The B-3 judge preview gave 37 ALLOW / 3 BLOCK over 40 texts on llama.cpp, so it returns labels, where Ollama thinking models returned none ([lane B](../../plans/2026-10-15-build-program/lane-B-interpretation-eval.md), JUDGE-THINK item 3) |
 | Qwen3-4B | Apache-2.0 **[V]** | 2.5 GB **[A]** | hybrid thinking (`/think`, `/no_think`, `enable_thinking`) **[A]**; needs `think=false` handled first (B-3 / JUDGE-THINK) |
 | Qwen2.5-1.5B-Instruct | Apache-2.0 **[V]** | 1.12 GB **[A]** | 8 GB tier; stronger than today's 0.5B low tier **[U]** |
 | Gemma 4 E2B | Apache-2.0 **[V]** | — | Gemma 3 is under the Gemma Terms (not OSI) **[A]** |

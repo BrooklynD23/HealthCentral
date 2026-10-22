@@ -40,8 +40,8 @@ Recommendations: an unlock screen that lists existing profiles (owner Q4). A one
 
 Code at `d2843e8` (`src/backend/scripts/backup.py`):
 
-- The keyed vault snapshot uses `VACUUM INTO` on the already-keyed pool connection, inside one read transaction (`keyed_snapshotter`). SQLite: "The VACUUM INTO command is transactional in the sense that the generated output database is a consistent snapshot of the original database" **[A]**. It is also "might be incomplete and corrupt" after power loss during the command **[A]**.
-- The master uses `Connection.backup()` with a progress deadline (`_backup_sqlite`, `:179-216`). Python's backup loop retries on BUSY/LOCKED by itself, so lock contention reaches the deadline path, not the file-copy fallback **[V]** (orchestrator reading of the CPython `sqlite3` backup loop; an agent claim to the contrary was rejected).
+- The keyed vault snapshot uses `VACUUM INTO` on the already-keyed pool connection, inside one read transaction (`keyed_snapshotter`). SQLite: "The VACUUM INTO command is transactional in the sense that the generated output database is a consistent snapshot of the original database" **[A]**. The same page warns that if the command is interrupted by power loss, the output "might be incomplete and corrupt" **[A]**.
+- The master uses `Connection.backup()` with a progress deadline (`_backup_sqlite`, `:179-216`). Python's backup loop retries on BUSY/LOCKED by itself, so lock contention reaches the deadline path, not the file-copy fallback **[A]** (orchestrator reading of the CPython `sqlite3` backup loop, https://github.com/python/cpython/blob/3.11/Modules/_sqlite/connection.c; an agent claim to the contrary was rejected). The vault path, when the profile is closed, runs through the `sqlcipher3` module's own copy of that loop (`_backup_sqlite(..., sqlite_module=...)`), which is a fork of the same code **[U]**.
 - `manifest.json` is written with `write_text` (`:513`): no temp file, no fsync.
 - Restore copies each file straight over the live file with `shutil.copy2` (`:718-723`). It does not delete a sibling `-journal`.
 - No `journal_mode` pragma is set, so both DBs use the default rollback journal.

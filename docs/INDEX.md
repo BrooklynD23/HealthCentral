@@ -1808,7 +1808,7 @@ Links to: `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-22
 
 - Providers: `LlamaCppProvider` (default) and `OllamaProvider` (localhost), via `core/llm/factory.py`. - Tiers (`modules/model_selector.py`): low = Qwen2.5-0.5B, gemma4-e2b, gemma4-e4b, mid =…
 
-Links to: `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-22-mvp/07-owner-questions.md`
+Links to: `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-22-mvp/07-owner-questions.md`
 
 ## `docs/research/2026-10-22-mvp/05-onboarding-errors-backups.md`
 
@@ -1832,7 +1832,7 @@ Links to: `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-22
 
 On Windows and Mac, the app cannot install its encryption library today, so each profile's health data is saved without encryption. A newer package from the same author has the encryption built in…
 
-Links to: `docs/plans/2026-10-01-packaging-decision.md`, `docs/research/2026-10-22-mvp/01-desktop-packaging.md`
+Links to: `docs/plans/2026-10-01-packaging-decision.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/research/2026-10-22-mvp/01-desktop-packaging.md`
 
 ## `docs/reviews/2026-09-25/DDI-r1-prompt.md`
 

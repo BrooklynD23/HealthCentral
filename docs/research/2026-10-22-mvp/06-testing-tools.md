@@ -9,12 +9,12 @@
 ## What exists (at `d2843e8`)
 
 - CI jobs (`.github/workflows/ci.yml`): docs lint, backend tests (pytest + coverage, `--cov-fail-under=74`, no `--cov-branch`), ruff, frontend (tsc, eslint, vitest, build), security scan (bandit, pip-audit, `scripts/security_gate.py`), agent and legacy eval gates, Playwright e2e (chromium), RSI replay.
-- Run 39843670560 on main **[A]**: critical path about 14.5 min. backend-tests 7m11s (deps 3m22s, tests 3m30s); e2e 7m05s (pip 4m30s). torch and the requirements are reinstalled in four jobs. Only the npm cache is configured (`ci.yml:104`, `:254`) **[V]**.
+- Run [39843670560](https://github.com/BrooklynD23/HealthCentral/actions/runs/39843670560) on main **[A]**: critical path about 14.5 min. backend-tests 7m11s (deps 3m22s, tests 3m30s); e2e 7m05s (pip 4m30s). torch and the requirements are reinstalled in four jobs. Only the npm cache is configured (`ci.yml:104`, `:254`) **[V]**.
 - No axe, toHaveScreenshot, Lighthouse, Hypothesis, mutation or schemathesis usage **[A]**.
 
-Weak spots that matter more than new tools (L0 bug list, re-read **[V]**):
+Weak spots that matter more than new tools (re-read at `d2843e8` **[V]**):
 
-- `e2e/ui-full-verification.spec.ts:44-48`: the real-backend suite is `describe.skip` unless `HC_E2E_REAL_PDF` is set or the OS is Windows, so CI never runs it.
+- `e2e/ui-full-verification.spec.ts:15-29`, `:44-48`: the real-backend suite runs only when a real PDF exists, either at the `HC_E2E_REAL_PDF` path or, on Windows, at a hard-coded `F:\` path. CI sets neither, so CI never runs it.
 - `e2e/document-import.spec.ts:54-57`: E2E-DOC-002 matches `/test-report\.pdf|pending|needs review|parsed/i`, which the filename alone satisfies.
 - `tests/test_ocr_bbox.py:141-145` is `assert True`, and `tests/test_extraction_pipeline.py:112-122` is `pass`.
 

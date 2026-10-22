@@ -14,11 +14,11 @@ Measured build **[V]** (`npm ci && npm run build` on a copy, Node 26.2.0): entry
 
 ## Gaps seen in the code (accessibility)
 
-These come from a static read. The file:line references are in the L0 bug list.
+These come from a static read at `d2843e8` (paths under `src/frontend/src/pages/`) **[A]**; the orchestrator re-read the ExplainAssistant error branch (`ExplainAssistant.tsx:406-419`) **[V]**.
 
-- Dialogs in DocumentInbox, VerificationWorkbench and SettingsPage have no Escape handling, no focus trap and no `role="dialog"`.
-- The icon-only send button in ExplainAssistant has no accessible name, and its input has only a placeholder.
-- Trend charts have no text alternative. Verified and unverified points differ only by marker shape.
+- Four dialogs have no Escape handling and no focus trap (no `Escape`/`onKeyDown` handler in these files **[V]**): `DocumentInbox.tsx:462-465`, `VerificationWorkbench.tsx:778-781`, `SettingsPage.tsx:889` and `:1059`. The first three set `role="dialog"`; the consent dialog at `SettingsPage.tsx:1059` does not **[V]**. The label at `VerificationWorkbench.tsx:795-799` has no `htmlFor`.
+- The icon-only send button (`ExplainAssistant.tsx:810-814`) has no accessible name, and its input (`:800`) has only a placeholder.
+- Trend charts (`TrendsDashboard.tsx`, `components/lab-interpreter/InterpretedTrendChart.tsx`) have no text alternative. Verified and unverified points differ only by marker shape.
 
 ## Libraries
 
