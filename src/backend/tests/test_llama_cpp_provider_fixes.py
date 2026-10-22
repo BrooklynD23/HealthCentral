@@ -201,6 +201,39 @@ def test_hc_lck_004_is_available_does_not_wait_for_generation(state, model_file)
     gen.join(timeout=10)
 
 
+def test_hc_lck_005_is_available_does_not_wait_for_first_load(monkeypatch, model_file):
+    """During a first load in another thread, is_available() answers False at
+    once (the pre-lock behaviour) instead of blocking the caller for the load."""
+    loading = threading.Event()
+    release = threading.Event()
+
+    class _SlowLlama:
+        def __init__(self, **kwargs):
+            loading.set()
+            release.wait(timeout=10)  # bounded: the thread always ends
+
+    monkeypatch.setattr(lcp, "_load_llama_class", lambda: _SlowLlama)
+    provider = _provider(model_file)
+    loader = threading.Thread(target=provider._ensure_initialized)
+    out = []
+    probe = threading.Thread(target=lambda: out.append(provider.is_available()))
+    try:
+        loader.start()
+        assert loading.wait(timeout=5), "fake load never started"
+        start = time.monotonic()
+        probe.start()
+        probe.join(timeout=2)
+        elapsed = time.monotonic() - start
+        assert out == [False], "is_available() blocked behind a first load"
+        assert elapsed < 0.1
+        assert provider.health_check()["healthy"] is False
+    finally:
+        release.set()
+    loader.join(timeout=10)
+    probe.join(timeout=10)
+    assert provider.is_available() is True
+
+
 # ---------------------------------------------------------------------------
 # LLAMA-GPU-LAYERS
 # ---------------------------------------------------------------------------

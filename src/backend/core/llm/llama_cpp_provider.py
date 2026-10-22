@@ -82,9 +82,10 @@ class LlamaCppProvider:
         # LLAMA-SERIAL. The native model is not thread-safe, and a timed-out
         # generation keeps running in its executor thread.
         # _model_lock guards every use of self._model (generation and unload).
-        # _init_lock guards _ensure_initialized only. is_available() and
-        # health_check() take only the init lock: they are sync, are called from
-        # async code, and must not wait behind a running generation.
+        # _init_lock guards _ensure_initialized only, taken without waiting.
+        # is_available() and health_check() take only the init lock: they are
+        # sync, are called from async code, and must not wait behind a running
+        # generation or a first load.
         # Lock order: model lock -> init lock, never the reverse.
         self._model_lock = threading.Lock()
         self._init_lock = threading.Lock()
@@ -124,9 +125,18 @@ class LlamaCppProvider:
         return None
 
     def _ensure_initialized(self) -> bool:
-        """Lazy-load the model.  Returns True if model is ready."""
-        with self._init_lock:
+        """Lazy-load the model.  Returns True if model is ready.
+
+        Never waits: while another thread is loading the model, this returns
+        False at once (as before the init lock existed), so a sync caller on
+        the event loop never blocks behind a first load.
+        """
+        if not self._init_lock.acquire(blocking=False):
+            return self._initialized and self._model is not None
+        try:
             return self._ensure_initialized_unlocked()
+        finally:
+            self._init_lock.release()
 
     def _ensure_initialized_unlocked(self) -> bool:
         if self._initialized:
