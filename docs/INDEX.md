@@ -3020,6 +3020,14 @@ Plan: GC5 plan, Task 7. Follows the laptop run, 2026-10-20 report, which listed 
 
 Links to: `docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md`, `docs/reviews/2026-10-20/gc5-evidence`, `docs/reviews/2026-10-20/gc5-real-model-evidence.md`, `docs/reviews/2026-10-21/gc5-host-evidence/real_llm.py`, `docs/reviews/2026-10-21/gc5-host-evidence/real_llm_llama3.1_8b.json`, `docs/reviews/2026-10-21/gc5-host-evidence/real_llm_qwen3_8b.json`, `docs/reviews/2026-10-21/gc5-host-evidence/trunc.json`
 
+## `docs/reviews/2026-10-22/kv-prefix-measure.md`
+
+**KV-PREFIX-MEASURE: prompt sizes, prefill timings, truncation and VRAM on the model host**
+
+Plan: KV-PREFIX-MEASURE; queue row `KV-PREFIX-MEASURE` in queue.md. Feeds the row `OLLAMA-NUM-CTX` (plan). Run by an agent on the owner's model host (WSL2, RTX 3080, Ollama 0.40.5), 2026-10-22 12:53…
+
+Links to: `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/queue.md`
+
 ## `docs/reviews/README.md`
 
 **Codex Review Archive**
