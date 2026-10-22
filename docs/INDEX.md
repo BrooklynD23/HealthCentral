@@ -1770,6 +1770,70 @@ What the report can claim, and how strongly:
 
 Links to: `docs/capstone-report/rsi-in-development-and-application.md`, `docs/research/2026-10-20-rrsi-harness2/01-harness2.md`, `docs/research/2026-10-20-rrsi-harness2/02-verdicts.md`
 
+## `docs/research/2026-10-22-mvp/00-README.md`
+
+**MVP readiness research package (2026-10-22)**
+
+Before the 2026-10-31 showcase, stakeholders who are not developers will download Asclexis and try it: start it, import a lab PDF, see trends, chat, and export. What tools, open-source projects and…
+
+Links to: `CLAUDE.md`, `docs/plans/2026-10-01-packaging-decision.md`, `docs/research/2026-09-08/08-frontend.md`, `docs/research/2026-10-22-mvp/01-desktop-packaging.md`, `docs/research/2026-10-22-mvp/02-frontend-components.md`, `docs/research/2026-10-22-mvp/03-pdf-extraction-ocr.md`, `docs/research/2026-10-22-mvp/04-local-llm-serving.md`, `docs/research/2026-10-22-mvp/05-onboarding-errors-backups.md`, `docs/research/2026-10-22-mvp/06-testing-tools.md`, `docs/research/2026-10-22-mvp/07-owner-questions.md`
+
+## `docs/research/2026-10-22-mvp/01-desktop-packaging.md`
+
+**01 — Desktop packaging and one-click start**
+
+Measured installed footprint (Linux venv, CPU torch): 1.5 GB total, torch 741 MB **[A]** (agent `du` on `~/venvs/asclexis-311`). Embedding bundle: 88 MB in the HF cache **[A]**; the model card gives…
+
+Links to: `docs/plans/2026-10-01-packaging-decision.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-22-mvp/04-local-llm-serving.md`
+
+## `docs/research/2026-10-22-mvp/02-frontend-components.md`
+
+**02 — Frontend component libraries, charts and accessibility**
+
+`src/frontend/package.json` at `d2843e8`: React 18, Tailwind 4, Vite 7, `@radix-ui/react-dropdown-menu`, `@radix-ui/react-slot`, `class-variance-authority`, `clsx`, `tailwind-merge` (the shadcn…
+
+Links to: `docs/research/2026-09-08/08-frontend.md`, `docs/research/2026-10-22-mvp/00-README.md`
+
+## `docs/research/2026-10-22-mvp/03-pdf-extraction-ocr.md`
+
+**03 — Local PDF, table and OCR extraction**
+
+- Text PDFs: `pdfplumber` (`page.extract_tables()` and `page.extract_text()`), in `modules/extract.py`. `pypdf` is declared in `requirements.txt:38`. - OCR: `pdf2image` + `pytesseract`, gated by…
+
+Links to: `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-22-mvp/07-owner-questions.md`
+
+## `docs/research/2026-10-22-mvp/04-local-llm-serving.md`
+
+**04 — Local LLM serving on laptops without a GPU**
+
+- Providers: `LlamaCppProvider` (default) and `OllamaProvider` (localhost), via `core/llm/factory.py`. - Tiers (`modules/model_selector.py`): low = Qwen2.5-0.5B, gemma4-e2b, gemma4-e4b, mid =…
+
+Links to: `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-22-mvp/07-owner-questions.md`
+
+## `docs/research/2026-10-22-mvp/05-onboarding-errors-backups.md`
+
+**05 — First-run onboarding, local error reporting, crash-safe backups**
+
+What a stakeholder meets today (F-9 dry run and code at `d2843e8`):
+
+Links to: `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-22-mvp/07-owner-questions.md`
+
+## `docs/research/2026-10-22-mvp/06-testing-tools.md`
+
+**06 — Offline testing and quality tools**
+
+- CI jobs (`.github/workflows/ci.yml`): docs lint, backend tests (pytest + coverage, `--cov-fail-under=74`, no `--cov-branch`), ruff, frontend (tsc, eslint, vitest, build), security scan (bandit,…
+
+Links to: `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-22-mvp/07-owner-questions.md`
+
+## `docs/research/2026-10-22-mvp/07-owner-questions.md`
+
+**07 — Owner questions from the MVP research pass**
+
+On Windows and Mac, the app cannot install its encryption library today, so each profile's health data is saved without encryption. A newer package from the same author has the encryption built in…
+
+Links to: `docs/plans/2026-10-01-packaging-decision.md`, `docs/research/2026-10-22-mvp/01-desktop-packaging.md`
+
 ## `docs/reviews/2026-09-25/DDI-r1-prompt.md`
 
 **(untitled)**
