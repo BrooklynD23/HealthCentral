@@ -505,16 +505,21 @@ class TestBirthDateExcluded:
         assert all(o.collected_at is None for o in result.observations)
 
     def test_hc_date_009_long_whitespace_after_label_is_fast_and_linear(self):
-        """HC-DATE-009: pin against a prefix-wide look-behind (quadratic on whitespace)."""
+        """HC-DATE-009: pin against a prefix-wide look-behind (quadratic on whitespace).
+
+        The non-space "x" before the date makes a prefix-wide `\\s*[:\\-]?\\s*$`
+        backtrack over the whole run (about 13 s at 50,000); an all-space tail
+        would match that shape at once and could not fail (#289 review round 1).
+        """
         m = _module()
-        text = "DOB" + " " * 50000 + "1970-01-01"
+        text = "DOB" + " " * 50000 + "x 1970-01-01"
         start = time.perf_counter()
         m._extract_dates(text)
         elapsed = time.perf_counter() - start
         assert elapsed < 1.0, f"took {elapsed:.2f}s"
 
         # Many dates each preceded by a long whitespace run: still linear.
-        many = "".join(f"DOB{' ' * 2000}2024-01-{(i % 28) + 1:02d}\n" for i in range(200))
+        many = "".join(f"DOB{' ' * 2000}x 2024-01-{(i % 28) + 1:02d}\n" for i in range(200))
         start = time.perf_counter()
         m._extract_dates(many)
         elapsed = time.perf_counter() - start
