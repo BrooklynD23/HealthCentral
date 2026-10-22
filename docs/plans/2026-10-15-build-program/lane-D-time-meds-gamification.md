@@ -1,6 +1,6 @@
 # Lane D — Time Zones, Medications, Gamification — Build Design
 
-**Last Updated:** 2026-10-21 (AUDIT-READ-SETTINGS planned on `b9d285e`; new gate AUDIT-READ-SCOPE, answered (a) 2026-10-21; AUDIT-GUARD-MINORS measured bullet corrected); 2026-10-20 (PR #202 review round 1: MSET-EXT-NOKEY-PIN planned, EXPORT-TZ-PINS done); 2026-10-19 (AUDIT-GUARD-MINORS planned; EXPORT-TZ-PINS HC-EXPTZ-008 check reworded from `source_id` to the task title, PR #198); 2026-10-18 (AUDIT-C-CLASS planned and split into AUDIT-C-MED, AUDIT-C-ASSIST, AUDIT-C-MSET, AUDIT-C-MSET-EXT); 2026-10-18 (AUDIT-NOTIF-ALL planned; EXPORT-TODAY-TZ Design 2 rev for owner EXPORT-TODAY-TZ-DESIGN = B; AUDIT-C-CLASS row); 2026-10-17 (MED-STREAK-GRACE, AUDIT-MISSING-MED, EXPORT-TODAY-TZ planned); 2026-10-16 (D-2 rev 2, owner Q1)
+**Last Updated:** 2026-10-22 (bug diagnosis on `5f7c67c`: AUDIT-DB-LOCKED planned; new gate DB-LOCK-FIX, asked after the repro); 2026-10-21 (AUDIT-READ-SETTINGS planned on `b9d285e`; new gate AUDIT-READ-SCOPE, answered (a) 2026-10-21; AUDIT-GUARD-MINORS measured bullet corrected); 2026-10-20 (PR #202 review round 1: MSET-EXT-NOKEY-PIN planned, EXPORT-TZ-PINS done); 2026-10-19 (AUDIT-GUARD-MINORS planned; EXPORT-TZ-PINS HC-EXPTZ-008 check reworded from `source_id` to the task title, PR #198); 2026-10-18 (AUDIT-C-CLASS planned and split into AUDIT-C-MED, AUDIT-C-ASSIST, AUDIT-C-MSET, AUDIT-C-MSET-EXT); 2026-10-18 (AUDIT-NOTIF-ALL planned; EXPORT-TODAY-TZ Design 2 rev for owner EXPORT-TODAY-TZ-DESIGN = B; AUDIT-C-CLASS row); 2026-10-17 (MED-STREAK-GRACE, AUDIT-MISSING-MED, EXPORT-TODAY-TZ planned); 2026-10-16 (D-2 rev 2, owner Q1)
 **Owner:** repository owner
 **Refresh Trigger:** any merge of #95, #97, #99, #82 or #84; any commit to `src/backend/core/time.py`, `src/backend/modules/notification_scheduler.py`, `src/backend/modules/adherence_patterns.py`, `src/backend/modules/streak_engine.py`, `src/backend/api/medications.py`, `src/backend/api/gamification.py`, `src/backend/api/notifications.py`, `src/backend/monitoring/correlation.py`; a new profile migration after `012_pinboards`.
 **Status:** DESIGN. Nothing here is implemented. Owner answers cited below are quoted from `docs/capstone-report/owner-decisions-2026-09-27.md`; this file records no new approval.
@@ -815,6 +815,35 @@ Under (b) HC-ARS-001/002 gain the download-progress case (×5 each); under (c) t
 **Owner gates:** **AUDIT-READ-SCOPE answered (a)** 2026-10-21 (owner-decisions row AUDIT-READ-SCOPE). No ask-first file: `save_external_api_settings` (encryption) is not touched; `get_external_api_settings` only reads whether a key exists.
 **Order:** ready (AUDIT-READ-SCOPE answered (a)). Never beside another non-draft PR on `api/model_settings.py` or `tests/test_audit_order_guard.py` (none open on 2026-10-21; #239 edits the guard file but is a parked draft, contracts §b rule 2; #255 merged, so `tests/test_model_settings_api.py`, which this row only re-runs, has no open editor). **Recurring-failures #12:** the guard rows change, so any open PR that adds a model-settings handler re-runs `tests/test_audit_order_guard.py` after this merges.
 
+### Bug diagnosis 2026-10-22 (planned 2026-10-22 on `origin/main` @ `5f7c67c`)
+
+#### AUDIT-DB-LOCKED — Settings page loads hit "database is locked" on an audit insert
+
+**Source:** F-9 dry run record (GPU box, `/tmp/claude-1000/f9-dryrun/record.md:79`): "Backend log showed two `database is locked` errors on an `INSERT INTO audit_logs` (ASGI exception) around Settings page loads (one per profile run); no visible UI failure was observed, cause not investigated." Diagnosis: `/tmp/claude-1000/bug-diagnosis-1022.md` (E9); Codex: `/tmp/claude-1000/codex-diag-dblock.txt`.
+
+**Facts (`5f7c67c`):**
+1. **Not reproduced, and the log line was not kept** (`grep -rn "database is locked"` over the three evidence dirs: no hit). The row therefore starts with a repro.
+2. The master engine sets no pragma: `src/backend/core/database.py:44-50` (`create_async_engine(settings.database_url, echo=..., hide_parameters=True, future=True)`). The Python sqlite driver's default busy wait is 5 s (Codex read `PRAGMA busy_timeout` = 5000 on this box's Python 3.11), so short commits serialise; the error means some master connection held the write lock for more than 5 s.
+3. The Settings page fires several audited reads at once: AUDIT-READ-SETTINGS (#274) made `get_model_settings`, `get_external_api_settings`, `get_timezone`, `get_voice_settings` (`api/model_settings.py`) each `audit_and_commit` (`core/audit.py:475`); `SettingsPage.tsx:41-51`, `:100` onwards mounts them together, plus the audited gamification read.
+4. Candidate holder (not proven): `modules/backup_scheduler.py:107` (`async with async_session_maker() as db:`) onwards keeps a master session open across the threaded backup and commits after it. Manual backup (`api/backup.py:243`) does its file work before touching the master session.
+5. WAL is not safe today: `scripts/backup.py:181` (`_backup_sqlite`), `:211-213` fall back to copying the main file only, which can miss a `-wal` sidecar. Any fix keeps the rollback journal.
+
+**Task 1 (repro, model host or any box; no code):** cold-load Settings 20 times per profile with the scheduler on and a due backup, backend at INFO. **Never set `sqlalchemy.engine` to DEBUG:** at DEBUG SQLAlchemy also logs result rows, `hide_parameters=True` hides only bound parameters, and the master engine returns Profile rows (names, password hashes; CLAUDE.md §4, the backup-hash incident) (review round 1). Instead: `sqlalchemy.engine` at INFO at most (statements and BEGIN/COMMIT, no rows), plus scratch engine event listeners (`checkout`, `begin`, `commit`, `rollback` on the master engine) that log only a connection id, the event and a monotonic timestamp, so the holder and its duration show without any row content. Record every `database is locked`, the connection holding the lock at that moment and how long it had held it. The scratch listener script is not committed; the local log is deleted after. Output in the PR body. **If no lock in 20 loads and one forced scheduler overlap:** the row closes won't-fix with the evidence.
+
+**Task 2 (only if Task 1 reproduces), test-first** (new `src/backend/tests/test_master_sqlite_contention.py`; file-backed master DB; HTTP via `tests/support/routes.py::route_client`; a second sync connection holds `BEGIN IMMEDIATE` for a measured time shorter than the chosen wait):
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-DBL-001 | 8 concurrent audited settings GETs while the lock is held for 6 s: all 200, 8 new `audit_logs` rows | yes (5 s default wait) |
+| HC-DBL-002 | a new master connection reports the chosen `busy_timeout` and `journal_mode` still `delete` | yes |
+
+**Candidate design (gate DB-LOCK-FIX picks):** a SQLAlchemy `connect` listener on the master engine only (`core/database.py`) that runs `PRAGMA busy_timeout = <ms>`; profile (SQLCipher) engines untouched; no WAL. Or shorten the holder Task 1 names.
+**Files (Task 2):** `src/backend/core/database.py` (one listener, master engine only) **or** the holder Task 1 names; `src/backend/tests/test_master_sqlite_contention.py` (new), slots. **Re-run, not edited:** `tests/test_audit_order.py`, `tests/test_audit_read_settings.py`, `tests/test_backup*.py`.
+**Expected collected delta:** 0 (Task 1) / +2 (Task 2). **Est:** 1 h + 1 h.
+**Acceptance:** Task 1 evidence in the PR; Task 2 RED then green; full suite; `python -c "from main import app"`. **Rollback:** revert.
+**Owner gates:** **DB-LOCK-FIX** (new; asked only after Task 1 reproduces, with the measured holder). `core/database.py` imports the SQLCipher check (`:28`), so this planner treats it as auth/encryption-adjacent (CLAUDE.md §1) and asks first, even though it is not on the named list.
+**Order:** Task 1 ready (no slot if run by hand; it is a model-host-style run, never beside a pytest run on the box). Task 2 blocked on DB-LOCK-FIX; never beside C-P6, whose plan also edits `core/database.py` (the FK pragma named by D5).
+
 ## 4. Provides
 
 | What | Exact surface | From |
@@ -851,6 +880,7 @@ Under (b) HC-ARS-001/002 gain the download-progress case (×5 each); under (c) t
 | Grace scope (Q2) = **MSG-SCOPE** | D-3 applies only to `GET /gamification/streaks`; MED-STREAK-GRACE asks whether to widen it | not asked; options in §3 MED-STREAK-GRACE (planned 2026-10-17) |
 | **AUDIT-SCHED-READ** (new) | AUDIT-GUARD-MINORS | **open** (planned 2026-10-19): (a) audit `GET /backup/schedule` like the other backup reads (recommended) / (b) relabel the guard row as unaudited; exact wording in §3 AUDIT-GUARD-MINORS |
 | **AUDIT-READ-SCOPE** (new 2026-10-21) | AUDIT-READ-SETTINGS | **(a) "Four settings reads"**, answered 2026-10-21 (owner-decisions row AUDIT-READ-SCOPE; prompt 24). Options were: (a) audit the four settings reads that read saved settings, download progress a labelled exception (recommended) / (b) (a) plus download progress / (c) `GET /settings/model` only / (d) record the Settings reads as an exception; exact wording in §3 AUDIT-READ-SETTINGS |
+| **DB-LOCK-FIX** (new 2026-10-22) | AUDIT-DB-LOCKED Task 2 | **not asked**; asked only after Task 1 reproduces, with the measured lock holder. Wording then: "Settings page loads sometimes failed to save an audit record ('database is locked'); the repro shows <holder, duration>. (a) Wait longer for the lock: the main database waits up to <N> s before giving up; backups stay safe (no WAL). (b) Fix the holder: <holder> commits sooner, the wait is unchanged. (c) Leave as is: rare; on that load the audit record is not saved and, because the settings reads now fail closed (`audit_and_commit`, `core/audit.py:475`, AUDIT-READ-SETTINGS), that settings request fails too." Options as asked: "Wait longer for lock" / "Fix the holder" / "Leave as is". No recommendation until the repro exists |
 
 ## 7. Open questions
 

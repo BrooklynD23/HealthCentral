@@ -1,6 +1,6 @@
 # Architecture Diagrams
 
-**Last Updated:** 2026-10-04
+**Last Updated:** 2026-10-22
 **Owner:** Project Lead
 **Refresh Trigger:** A new router, module, database, migration chain, or CI job is added or removed
 
@@ -40,11 +40,11 @@ optional model download the user explicitly triggers.
 graph TB
     subgraph device["🖥️ User's device — everything below is local"]
         subgraph browser["Browser / desktop shell"]
-            UI["React + Vite frontend<br/>15 pages, React Query + Zustand"]
+            UI["React + Vite frontend<br/>16 pages, React Query + Zustand"]
         end
 
         subgraph backend["FastAPI backend (uvicorn)"]
-            API["18 routers under /api/v1"]
+            API["19 routers under /api/v1"]
             MOD["modules/ — feature logic"]
             CORE["core/ — config, auth, db, time, llm"]
             MR["ModelRunner facade<br/><i>entry point for local inference</i>"]
@@ -92,16 +92,15 @@ contain — the audit log is the one patient-linked dataset living outside the
 encryption boundary.
 
 The dashed Hugging Face edge is a model download the user chooses in Settings.
-It is not the only outbound path in code today:
+Two other outbound paths exist in code, both user-initiated:
 
-- **Embedding model, first use.** `modules/embeddings.py` builds
-  `SentenceTransformer(name)` with no offline flag, so the first embedding call
-  can fetch the model from Hugging Face. Owner decision D8 (2026-09-27): no
-  runtime download. Interim delivery (D8-delivery): `download_models.py`
-  fetches the model once into a local models dir, and the runtime loads that
-  path with Hugging Face offline and fails closed if it is absent; an
-  installer bundles it later (G-C4). **Approved, not yet implemented** (work
-  item W-8).
+- **Embedding model, one-time fetch.** Owner decision D8 (2026-09-27): no
+  runtime download. Since work item W-8, `src/backend/scripts/download_models.py
+  embedding` fetches the pinned `sentence-transformers/all-MiniLM-L6-v2`
+  revision once (sha256-checked per file), and `modules/embeddings.py` loads it
+  only from the local directory with `local_files_only=True`, failing closed if
+  it is absent. The runtime never contacts Hugging Face for it. An installer
+  that bundles it is later work (G-C4).
 - **Opt-in cloud LLM.** `core/external_runner.py` can call OpenAI or Anthropic
   when the user enables the external API (off by default). It does not go
   through `ModelRunner`. Owner decision D12 (2026-09-27) keeps it as a
@@ -112,8 +111,8 @@ It is not the only outbound path in code today:
   invariants, D12).
 
 `ModelRunner` is the entry point for local inference. One dormant path bypasses
-it: `modules/model_selector.py` imports `llama_cpp` directly, and its only
-caller, `interpret_with_model`, is never called. Owner decision D7 routes it
+it: `ModelSelector.load_model` in `modules/model_selector.py` imports
+`llama_cpp` directly; no non-test code calls `load_model` at this revision. Owner decision D7 routes it
 through `ModelRunner` (work item W-7, not yet implemented). `OllamaProvider` is
 pinned to localhost by design; see [`CLAUDE.md`](../../CLAUDE.md) hard
 invariants. All decisions: [owner-decisions-2026-09-27.md](../capstone-report/owner-decisions-2026-09-27.md).

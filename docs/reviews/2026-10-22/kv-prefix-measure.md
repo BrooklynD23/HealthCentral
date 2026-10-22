@@ -10,7 +10,7 @@ Plan: [KV-PREFIX-MEASURE](../../plans/2026-10-15-build-program/lane-A-rag-assist
 ## Verdict
 
 1. **The box runs every Ollama request at 4096 tokens** (measured: `ollama ps` `CONTEXT` 4096 and `llama_context: n_ctx = 4096` in the journal; no `num_ctx` is sent).
-2. **One of the four cases is truncated at that default, and a second one is cut short.** The legacy-chat largest realistic case (d) is 4350 tokens; at 4096 Ollama logged `truncating input prompt limit=2051 prompt=4350 keep=5 new=2051` and the model saw 2051 of 4350 tokens. The typical legacy-chat case (c) is 3585 tokens and is not truncated, but with its 1024-token output budget it fills the window: generation stopped at `n_tokens = 4095` after 509 to 511 tokens (7 of 7 recorded runs), against 1024 tokens at 8192. The two cases the demo really reaches with the agent on, the lab explanation (a, 2476 tokens) and the visit-note assist (b, 1677 tokens), fit in 4096 with their output budgets.
+2. **One of the four cases is truncated at that default, and a second one is cut short.** The legacy-chat largest realistic case (d) is 4350 tokens; at 4096 Ollama logged `truncating input prompt limit=2051 prompt=4350 keep=5 new=2051` and the model saw 2051 of 4350 tokens. The typical legacy-chat case (c) is 3585 tokens and is not truncated, but with its 1024-token output budget it fills the window: generation stopped at `n_tokens = 4095` after 508 to 511 tokens (all 22 case-c runs at the default; answer text was recorded for 7 of them, all empty), against 1024 tokens at 8192. The two cases the demo really reaches with the agent on, the lab explanation (a, 2476 tokens) and the visit-note assist (b, 1677 tokens), fit in 4096 with their output budgets.
 3. **`num_ctx` for OLLAMA-NUM-CTX: 8192.** It is the smallest of 4096 / 8192 / 16384 that holds the largest case plus its output (4350 + 1024 = 5374 tokens), runs `100% GPU`, costs about 0.3 GiB more VRAM than 4096, and is at or below `capabilities().context_len` (262144 for `gemma4:e4b`, 8192 for every other name). 4096 is not right for this box, so the row has code.
 4. **Prefix reuse works only for an identical prompt.** Same prompt again: prefill 1163 ms to 48 ms (case c). A new question in the same chat, or a new analyte: no gain over a warm runner with no shared prefix (584 ms vs 578 ms; 525 ms vs 520 ms). The journal gives the reason: `forcing full prompt re-processing due to lack of cache data (likely due to SWA or hybrid/recurrent memory)`, with a 354-token common prefix. A prompt-order change would not help `gemma4:e4b` on this Ollama build.
 5. **The model stays loaded after a profile lock until `keep_alive` expires** (5 minutes after the last request; locked at 13:33:37, still loaded at +55 s, `expires_at` 13:38:37). Only loopback connections were made. Owner question below.
@@ -54,10 +54,12 @@ Oct 22 12:52:35 Danny-PC ollama[251]: [GIN] 2026/10/22 - 12:52:35 | 200 |   16.0
 | Demo model | `LLM_MODEL=gemma4:e4b`, `LLM_PROVIDER=ollama` (from `~/hc-mm4/src/backend/.env`). Only this model was measured; `llama3.1:8b`, `qwen3:8b`, `gemma3:12b` were not (not measured) |
 | Server defaults | `OLLAMA_CONTEXT_LENGTH` unset, default "4k/32k/256k based on VRAM"; `OLLAMA_KEEP_ALIVE` default `5m`; `OLLAMA_KV_CACHE_TYPE` unset (default `f16`) |
 | KV type | `f16` only. `q8_0` needs a service restart with a new environment, an owner action: not measured |
-| GPU | RTX 3080, 10240 MiB, 1199 MiB in use with no model loaded |
-| Isolation | every model call ran inside `/tmp/claude-1000/hold_slots.sh <cmd>`, which is `flock /tmp/claude-1000/hc-pytest.1.lock flock …2.lock flock …3.lock <cmd>` (the lock paths of `scripts/pyslot.sh:9`). I started no pytest. **Caveat:** `scripts/pyslot.sh` reads `PYSLOTS` (default 3); another session ran `flock -n … hc-pytest.5.lock … pytest tests/` from 13:26:24, so with more than three slots in use the three held locks do not exclude every pytest. It overlapped only step 7 (13:26 to 13:34). I did not check for other pytest runs continuously during steps 3 to 6 (12:53 to about 13:20); the timing spread there is tight (see the timing table), which gives no sign of contention |
+| GPU | RTX 3080, 10240 MiB, 1210 MiB in use with no model loaded in the step 1 record (1199 MiB in the step 6 baseline) |
+| Isolation | (slot-5 evidence below the table) every model call ran inside `/tmp/claude-1000/hold_slots.sh <cmd>`, which is `flock /tmp/claude-1000/hc-pytest.1.lock flock …2.lock flock …3.lock <cmd>` (the lock paths of `scripts/pyslot.sh:9`). I started no pytest. **Caveat:** `scripts/pyslot.sh` reads `PYSLOTS` (default 3); another session ran `flock -n … hc-pytest.5.lock … pytest tests/` from 13:26:24, so with more than three slots in use the three held locks do not exclude every pytest. It overlapped only step 7 (13:26 to 13:34). I did not check for other pytest runs continuously during steps 3 to 6 (12:53 to about 13:20); the timing spread there is tight (see the timing table), which gives no sign of contention |
 | Product code | not edited. Scratch scripts are pasted at the end of this file and were not committed |
 | Network | prompt capture and measurement ran with `HF_HUB_OFFLINE=1`. `./dev.sh` ran its usual dependency step (`logs/dev-pip.log`: every requirement already satisfied). During the model call the only sockets owned by the backend, `python`, Ollama or llama-server were on loopback (step 7) |
+
+Slot-5 overlap evidence (`pgrep -af`, 13:34): `2363281 flock -n -E 75 /tmp/claude-1000/hc-pytest.5.lock env HF_HUB_OFFLINE=1 /home/danny/venvs/asclexis-311/bin/python -m pytest tests/ -p no:cacheprovider -q`, `ps` start time Thu Oct 22 13:26:24 2026. It did not confound step 7: the Ollama journal for 13:26:40 to 13:34:00 has exactly two `POST "/api/chat"` requests (13:26:59 and 13:33:37), both the app's own calls, and between them only `HEAD /` (the `ollama ps` CLI); each `expires_at` equals its own call's end + 5:00 (13:31:59, 13:38:37). So no other client loaded the model or reset its timer, and the loaded and unloaded findings stand. The two call latencies (11.0 s, 13.2 s) are not used in any conclusion.
 
 ## Prompts (step 2)
 
@@ -112,14 +114,14 @@ For every case the model was unloaded first (`keep_alive: 0`, `ollama ps` empty)
 
 **Case c is cut short at 4096 by the output, not the input.** 3585 prompt tokens plus 1024 allowed output tokens is 4609, above 4096. Generation stopped after 510 tokens with `done_reason: length` and the journal line `slot release: … stop processing: n_tokens = 4095, truncated = 1` (3585 + 510 = 4095). Seven of seven runs at the default ended at 508 to 511 tokens with an empty answer (the model was still in its thinking phase, see "Other findings"). With `num_ctx` 8192 the same prompt gets its full 1024 tokens (3 of 3 runs, 279, 631 and 638 characters of answer):
 
-| Case c, `num_ctx` | load ms | `prompt_eval_count` | prompt eval ms | `eval_count` | answer chars |
+| Case | `num_ctx` | load ms | `prompt_eval_count` | prompt eval ms | `eval_count` | answer chars |
 |---|---|---|---|---|---|
-| c_ctx | 4096 | 6929 | 3585 | 1134 | 510 | 0 |
-| c_ctx | 8192 | 7430 | 3585 | 1100 | 1024 | 279 |
-| c_ctx | 4096 | 7351 | 3585 | 1546 | 509 | 0 |
-| c_ctx | 8192 | 9141 | 3585 | 1155 | 1024 | 631 |
-| c_ctx | 4096 | 7462 | 3585 | 1145 | 509 | 0 |
-| c_ctx | 8192 | 7883 | 3585 | 1147 | 1024 | 638 |
+| c | 4096 | 6929 | 3585 | 1134 | 510 | 0 |
+| c | 8192 | 7430 | 3585 | 1100 | 1024 | 279 |
+| c | 4096 | 7351 | 3585 | 1546 | 509 | 0 |
+| c | 8192 | 9141 | 3585 | 1155 | 1024 | 631 |
+| c | 4096 | 7462 | 3585 | 1145 | 509 | 0 |
+| c | 8192 | 7883 | 3585 | 1147 | 1024 | 638 |
 
 ### Journal search for "truncat"
 
@@ -190,40 +192,40 @@ Oct 22 12:57:23 Danny-PC ollama[251]: slot   operator(): id  0 | task 186 | cach
   The common prefix is 354 tokens (`lcp = 354`) out of 4095 saved, and llama-server answers `forcing full prompt re-processing due to lack of cache data (likely due to SWA or hybrid/recurrent memory)`. The model's sliding-window layers (`n_swa = 512` in the erased-checkpoint lines) mean a partial prefix cannot be restored; only a prompt whose cached checkpoint matches is reused. This is a property of this model and runner, not of the prompt text. Other models were not measured.
 - **Where the time goes.** A full request is 6 to 14 s: model load 7.1 to 7.7 s (cold, and again after 5 minutes idle), prefill 0.5 to 1.2 s, generation 3 to 6 s. Even a perfect reuse of the 354 shared tokens would save about 0.08 s at the measured 0.23 ms per prompt token (833 ms / 3585).
 
-Raw runs (`step4.py`, `extra.py`, `extra2.py`; ms; `eval_count` is in the JSON files and the appendix):
+Raw runs (`step4.py`, `extra.py`, `extra2.py`; ms; `eval_duration` is added as a column here for the step 4 runs; the extra runs below give `eval_count` only):
 
-| kind | case | load ms | `prompt_eval_count` | prompt eval ms | eval_count | total ms |
-|---|---|---|---|---|---|---|
-| cold | c | 6797 | 3585 | 1202 | 508 | 10809 |
-| same | c | 1 | 3585 | 49 | 510 | 2926 |
-| cold | a | 7393 | 2476 | 891 | 1024 | 14159 |
-| same | a | 1 | 2476 | 88 | 1024 | 5873 |
-| cold_before_new | c | 7104 | 3585 | 1144 | 511 | 11210 |
-| new_question | c2 | 1 | 2532 | 584 | 1016 | 6646 |
-| cold_before_a2 | a | 7415 | 2476 | 876 | 1024 | 13841 |
-| new_analyte | a2 | 1 | 2221 | 527 | 1024 | 6170 |
-| cold | c | 7693 | 3585 | 1163 | 511 | 11772 |
-| same | c | 1 | 3585 | 48 | 509 | 2939 |
-| cold | a | 7096 | 2476 | 859 | 1024 | 13490 |
-| same | a | 1 | 2476 | 109 | 1024 | 5920 |
-| cold_before_new | c | 7168 | 3585 | 1204 | 509 | 11362 |
-| new_question | c2 | 1 | 2532 | 590 | 1010 | 6566 |
-| cold_before_a2 | a | 7138 | 2476 | 844 | 1024 | 13330 |
-| new_analyte | a2 | 1 | 2221 | 523 | 1024 | 6136 |
-| cold | c | 7088 | 3585 | 1106 | 510 | 11246 |
-| same | c | 1 | 3585 | 37 | 510 | 3029 |
-| cold | a | 7348 | 2476 | 913 | 1024 | 13943 |
-| same | a | 1 | 2476 | 134 | 1024 | 5511 |
-| cold_before_new | c | 7407 | 3585 | 1187 | 510 | 11626 |
-| new_question | c2 | 1 | 2532 | 577 | 1024 | 6163 |
-| cold_before_a2 | a | 7383 | 2476 | 949 | 1024 | 13676 |
-| new_analyte | a2 | 1 | 2221 | 525 | 1024 | 6035 |
-| warm_before_expiry | c | 1 | 3585 | 772 | 508 | 4041 |
-| after_expiry | c | 7423 | 3585 | 1106 | 510 | 11408 |
-| warm_before_expiry | c | 1 | 3585 | 36 | 508 | 3038 |
-| after_expiry | c | 7195 | 3585 | 1117 | 511 | 11308 |
-| warm_before_expiry | c | 1 | 3585 | 52 | 509 | 2873 |
-| after_expiry | c | 7712 | 3585 | 1143 | 511 | 12084 |
+| kind | case | load ms | `prompt_eval_count` | prompt eval ms | eval_count | eval ms | total ms |
+|---|---|---|---|---|---|---|---|
+| cold | c | 6797 | 3585 | 1202 | 508 | 2777 | 10809 |
+| same | c | 1 | 3585 | 49 | 510 | 2848 | 2926 |
+| cold | a | 7393 | 2476 | 891 | 1024 | 5846 | 14159 |
+| same | a | 1 | 2476 | 88 | 1024 | 5748 | 5873 |
+| cold_before_new | c | 7104 | 3585 | 1144 | 511 | 2919 | 11210 |
+| new_question | c2 | 1 | 2532 | 584 | 1016 | 5888 | 6646 |
+| cold_before_a2 | a | 7415 | 2476 | 876 | 1024 | 5520 | 13841 |
+| new_analyte | a2 | 1 | 2221 | 527 | 1024 | 5518 | 6170 |
+| cold | c | 7693 | 3585 | 1163 | 511 | 2876 | 11772 |
+| same | c | 1 | 3585 | 48 | 509 | 2854 | 2939 |
+| cold | a | 7096 | 2476 | 859 | 1024 | 5500 | 13490 |
+| same | a | 1 | 2476 | 109 | 1024 | 5771 | 5920 |
+| cold_before_new | c | 7168 | 3585 | 1204 | 509 | 2958 | 11362 |
+| new_question | c2 | 1 | 2532 | 590 | 1010 | 5786 | 6566 |
+| cold_before_a2 | a | 7138 | 2476 | 844 | 1024 | 5310 | 13330 |
+| new_analyte | a2 | 1 | 2221 | 523 | 1024 | 5487 | 6136 |
+| cold | c | 7088 | 3585 | 1106 | 510 | 3022 | 11246 |
+| same | c | 1 | 3585 | 37 | 510 | 2961 | 3029 |
+| cold | a | 7348 | 2476 | 913 | 1024 | 5654 | 13943 |
+| same | a | 1 | 2476 | 134 | 1024 | 5350 | 5511 |
+| cold_before_new | c | 7407 | 3585 | 1187 | 510 | 2986 | 11626 |
+| new_question | c2 | 1 | 2532 | 577 | 1024 | 5435 | 6163 |
+| cold_before_a2 | a | 7383 | 2476 | 949 | 1024 | 5310 | 13676 |
+| new_analyte | a2 | 1 | 2221 | 525 | 1024 | 5400 | 6035 |
+| warm_before_expiry | c | 1 | 3585 | 772 | 508 | 3087 | 4041 |
+| after_expiry | c | 7423 | 3585 | 1106 | 510 | 2837 | 11408 |
+| warm_before_expiry | c | 1 | 3585 | 36 | 508 | 2972 | 3038 |
+| after_expiry | c | 7195 | 3585 | 1117 | 511 | 2955 | 11308 |
+| warm_before_expiry | c | 1 | 3585 | 52 | 509 | 2789 | 2873 |
+| after_expiry | c | 7712 | 3585 | 1143 | 511 | 3194 | 12084 |
 
 Cold after load (`extra.py`; columns: load, count, prefill ms, eval_count, answer chars):
 
@@ -258,7 +260,7 @@ Warm, no shared prefix (`extra2.py`):
 
 ## VRAM (step 6)
 
-Case d (the largest) at four per-request sizes, the model unloaded before each, no service restart. Baseline with no model loaded: 1199 MiB used. First pass in ascending order, then a second pass in descending order (`extra.py`) to show the run-to-run spread.
+Case d (the largest) at four per-request sizes, the model unloaded before each, no service restart. Baseline with no model loaded: 1199 MiB used (step 6 run; the step 1 record says 1210 MiB). First pass in ascending order, then a second pass in descending order (`extra.py`) to show the run-to-run spread.
 
 | `num_ctx` | `nvidia-smi` used, pass 1 | pass 2 | `ollama ps` PROCESSOR | `ollama ps` CONTEXT | `prompt_eval_count` | `eval_count` |
 |---|---|---|---|---|---|---|
@@ -267,7 +269,7 @@ Case d (the largest) at four per-request sizes, the model unloaded before each, 
 | 16384 | 6228 MiB | 6210 MiB | 100% GPU | 16384 | 4350 | 1024 |
 | 32768 | 6514 MiB | 6505 MiB | 100% GPU | 32768 | 4350 | 1024 |
 
-- No size spilled to the CPU. The largest, 32768, leaves 3.7 GiB free. Going from 4096 to 8192 adds 269 to 325 MiB (about 0.3 GiB). The 8192 and 16384 rows are within the run-to-run spread of about 150 MiB, so the figures do not show a strict increase between them; do not read more into them than "between 6.0 and 6.5 GiB for all four".
+- No size spilled to the CPU. The largest, 32768, leaves 3.6 GiB free (10240 - 6514 MiB). Going from 4096 to 8192 adds 269 to 325 MiB (about 0.3 GiB). The 8192 and 16384 rows are within the run-to-run spread of about 150 MiB, so the figures do not show a strict increase between them; do not read more into them than "between 6.0 and 6.5 GiB for all four".
 - The `SIZE` column of `ollama ps` (369 MB, 538 MB, 381 MB, 398 MB) does not track `nvidia-smi` in this build and is not used.
 - `gemma4:e4b` is the only model measured. A larger model (`gemma3:12b`) would need its own run; not measured.
 
@@ -402,7 +404,7 @@ In run 3 the "second interpret-grounded 500" never reached the model (so its soc
 Findings:
 
 - The call returned 201 in 11.0 s and 13.2 s. Right after it, `ollama ps` shows `gemma4:e4b`, `100% GPU`, `CONTEXT` 4096, `UNTIL` "4 minutes from now".
-- **Locking the profile does not unload the model.** Run 1: locked at 13:26:59; at once and 57 s later the model was still loaded. Run 2: locked at 13:33:37, loaded at once and at +55 s, `expires_at` 13:38:37 (call end + 5:00). Run 3 (lock at 13:28:10 on the earlier call's timer): still loaded at +60 s and +120 s, gone at +240 s, `expires_at` 13:31:59 (that earlier call's end + 5:00). So the model, and with it the llama-server process, its KV cache and its host-RAM prompt cache holding the lab prompt, stays until `keep_alive` expires, about 5 minutes after the last request, not after the lock.
+- **Locking the profile does not unload the model.** Run 1: locked at 13:26:59; at once and 57 s later the model was still loaded. Run 2: locked at 13:33:37, loaded at once and at +55 s, `expires_at` 13:38:37 (call end + 5:00). Run 3 (lock at 13:28:10 on the earlier call's timer): still loaded at +60 s and +120 s, gone at +240 s, `expires_at` 13:31:59 (that earlier call's end + 5:00). So the model, and with it the llama-server process and the slot's KV cache holding the lab prompt (measured: both runs sent one task to a freshly loaded runner, and the journal after load reads `cache state: 0 prompts, 0.000 MiB`), stays until `keep_alive` expires, about 5 minutes after the last request, not after the lock.
 - After the lock, a protected route returns 401 (the JWT is revoked); the Ollama state is outside that.
 - **Nothing left the machine.** During the call the sockets owned by `python` (the backend) and the Ollama listener are `127.0.0.1:59526 <-> 127.0.0.1:11434` and the measuring script's own connection to the backend at `127.0.0.1:8000`; no non-loopback connection belongs to `python`, `uvicorn`, `ollama` or `llama`. (`ss -tnp` cannot show the Ollama process name here because it runs as another user; its end of the connection is the `127.0.0.1:11434` row.)
 - The prompt the real app sent for the LDL lab explanation was 1182 tokens on the first call and 632 on the second in this one-document profile (journal `task.n_tokens`), far below the 2476 of the multi-document capture. Real size follows the profile's retrieved context.
@@ -424,7 +426,7 @@ Yes: one case truncates at the server default (d), and a second (c) loses half o
 
 - Largest case plus its `max_tokens`: 4350 + 1024 = 5374 tokens. Of the sizes in step 6, 4096 is too small, 8192 is the smallest that fits (2818 tokens of headroom, about 9,000 to 10,000 characters), 100% GPU, +0.3 GiB over 4096.
 - 8192 is at or below `capabilities().context_len` for every model name (262144 for Gemma 4 names, 8192 otherwise, `ollama_provider.py:152-166`), so no re-plan of `capabilities()` is needed.
-- The row therefore has code: `options.num_ctx` = 8192 in `_build_request_body`. Its own trade-off, which the OLLAMA-NUM-CTX plan already discusses for a hard 4096: on a machine with 24 GiB or more the server default is 32k, and a fixed 8192 would shrink that window, though still above the largest measured need (5374). The evidence does not argue for 16384 or 32768 here: they are not needed by any case and cost VRAM.
+- The row therefore has code: `options.num_ctx` = 8192 in `_build_request_body`. Its own trade-off, which the OLLAMA-NUM-CTX plan already discusses for a hard 4096: on a machine with 24 GiB or more the server default is 32k, and a fixed 8192 would shrink that window, though still above the largest measured need (5374). Case d is a constructed worst case at 3.84 characters per token while case c measured 3.17; even at c's density d's 16696 characters would be about 5270 tokens, about 6290 with output, still under 8192, so the conclusion does not depend on d's density. The evidence does not argue for 16384 or 32768 here: they are not needed by any case and cost VRAM.
 - Not part of this value: `chat_context_size` is untouched; this evidence does not argue for changing it (the Ollama path never reads it; the legacy history cap of 2048 characters is the only place it matters for Ollama prompts, and case d shows the prompt still fits at 8192 with that cap).
 
 **(c) Prefix reuse today.** Works for an identical prompt (prefill 1163 to 48 ms, 96 percent less, case c). Does not work for a new question or analyte: 584 ms vs a 578 ms no-shared-prefix baseline (c2), 525 vs 520 ms (a2), because the llama-server cannot restore a partial prefix for this sliding-window model (`forcing full prompt re-processing`, `lcp = 354`). The prompt-order change (history or other stable text before the retrieved context) is therefore **not worth a row for `gemma4:e4b` on Ollama 0.40.5**: the upper bound of the gain is the 354-token rules (about 0.08 s) and the server would not reuse a partial prefix anyway. Whether a non-SWA model (`llama3.1:8b`, `qwen3:8b`) reuses a partial prefix was not measured. New bullet, not planned.
@@ -435,13 +437,14 @@ Yes: one case truncates at the server default (d), and a second (c) loses half o
 
 **OQ-KV-LOCK: should locking a profile, or logging out, unload the Ollama model?**
 
-- **Measured:** the lab prompt of the locked profile stays in the llama-server process (KV cache and the host-RAM prompt cache) for up to 5 minutes after the last request. Only loopback traffic; the Ollama service runs as another OS user on the same machine.
+- **Measured:** the lab prompt of the locked profile stays in the llama-server process (in the slot's KV cache; measured) for up to 5 minutes after the last request. **Inferred from the journal, not measured:** llama-server's host-RAM prompt cache is enabled (`prompt cache is enabled, size limit: 8192 MiB`, `idle slots will be saved to prompt cache upon starting a new task`), so a later request, for example from another profile, would move that slot's prompt into host RAM, and it could sit there too. Both go away when the runner unloads; the window (until `keep_alive` expiry) does not change. Only loopback traffic; the Ollama service runs as another OS user on the same machine.
 - **Why it is a question:** the unload belongs in the lock and logout path. `OllamaProvider.unload` is a no-op today (`ollama_provider.py:311-313`); implementing it is provider code, but calling it from the lock route (`api/profiles.py:992-1025`) or `close_profile_database_on_logout` (`core/auth.py:426`) edits auth code, which CLAUDE.md section 1 makes ask-first.
 - **Options:** (a) accept the window (single-user local machine, loopback only); (b) implement `OllamaProvider.unload` (`POST /api/generate` with `keep_alive: 0`) and call it from lock and logout: closes the window, needs the auth-file edit; (c) send a short `keep_alive` with every request: no auth change, but every idle gap longer than the value costs the measured 7.1 to 7.7 s model load (after 5 minutes idle: 7.4 s load plus 1.1 s prefill).
 - **Not recommended without the owner's threat model:** only (b) closes the window. A longer `keep_alive` to hide the 7 s load would lengthen it.
 
 ## Other findings (new bullets, not planned, outside this row)
 
+0. **The three-lock model-host wrapper excludes pytest only when `PYSLOTS` is 3 or less** (`scripts/pyslot.sh` takes `PYSLOTS`; a session with more slots ran in slot 5 during step 7). The wrapper should hold `1..$PYSLOTS`, or check that no `hc-pytest.*.lock` is held. L0 has since widened `/tmp/claude-1000/hold_slots.sh` to slots 1 to 8. Consider an entry in `docs/agentic/recurring-failures.md` (CLAUDE.md section 4).
 1. **`gemma4:e4b` spends the output budget on thinking.** Ollama returns a separate `thinking` field and the app does not send `think`. Answer text was empty in 11 of 11 visit-note runs (b, `num_predict` 512, `eval_count` 512, `done_reason: length`) and in 2 of 6 lab-explanation runs for the second analyte; the typical legacy chat gave 279 to 1054 characters at 8192 or more but always ended `length` at 1024 tokens. A larger `num_ctx` does not fix this; it is a `think` / `max_tokens` question for the visit-note assist and the cite-schema path (`modules/extract_visit_notes.py:477-501`, `modules/rag.py` `_generate_with_runner`).
 2. **`force_regenerate=true` on an observation that already has an interpretation returned 500** (`sqlcipher3.dbapi2.IntegrityError: UNIQUE constraint failed: lab_interpretations.observation_id`, backend log, second `interpret-grounded` call on the same observation). Not investigated here; it may already be tracked.
 3. **The first request after 5 minutes idle costs a 7.4 s model load.** Relevant to any `keep_alive` change; see OQ-KV-LOCK option (c).
