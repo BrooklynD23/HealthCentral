@@ -1,11 +1,13 @@
 # Session handoff: 2026-10-20 cloud session → local machine (L0)
 
+> **Historical Reference** — superseded by `docs/plans/2026-10-20c-session-handoff.md` and its successors; retained for history, not an active tracker. Moved from `docs/plans/2026-10-20b-session-handoff.md` on 2026-10-22.
+
 **Last Updated:** 2026-10-20
 **Owner:** repository owner
 **Refresh Trigger:** the next L0 session reads this first, works §3, and replaces this file with its own handoff.
-**Superseded by:** [2026-10-20 local-session handoff](2026-10-20c-session-handoff.md).
+**Superseded by:** [2026-10-20 local-session handoff](../../plans/2026-10-20c-session-handoff.md).
 
-Read this after [CLAUDE.md](../../CLAUDE.md), [AGENT.md](../../AGENT.md) and the [build-program RUNBOOK](2026-10-15-build-program/RUNBOOK.md). It replaces [the 2026-10-20 handoff](2026-10-20-session-handoff.md). This session ran in a Claude Code cloud container; the owner moved development back to a local machine ("When all current processes are done, can you commit all works/merge into main. Then provide a handoff prompt"). Every PR below was merged with green CI and a final review PASS; ask-first and merge-gated diffs only after the owner's yes. Treat this file as a lead: verify with `gh pr view` / `git log origin/main` before acting.
+Read this after [CLAUDE.md](../../../CLAUDE.md), [AGENT.md](../../../AGENT.md) and the [build-program RUNBOOK](../../plans/2026-10-15-build-program/RUNBOOK.md). It replaces [the 2026-10-20 handoff](../../plans/2026-10-20-session-handoff.md). This session ran in a Claude Code cloud container; the owner moved development back to a local machine ("When all current processes are done, can you commit all works/merge into main. Then provide a handoff prompt"). Every PR below was merged with green CI and a final review PASS; ask-first and merge-gated diffs only after the owner's yes. Treat this file as a lead: verify with `gh pr view` / `git log origin/main` before acting.
 
 ## 1. What this session did
 
@@ -42,7 +44,7 @@ Every row in items 1-2 carries a dated stop in queue.md (owner MOVE-LOCAL, 2026-
 2. **Build on draft, merge gated:** GRADE-PATTERN-REDOS (GRADE-REDOS-DIFF), REDACT-NAME-GAPS after REDACT-NAME-PINS merges (REDACT-NG-DIFF; never beside another `redaction.py` row).
 3. **G-C5 real-model steps:** on a machine that can reach huggingface.co, fetch the NLI model once (`download_models.py`, Q5b) and run the plan's real-model measurements; the flag stays default-off.
 4. **Plan the new bullets** in queue.md "New rows found while planning": UNCERTAINTY-VERIFY, HARNESS-VITEST-HINT, REDACT-NG-LABEL, COUNT-ENV-VARIES (governance wording, owner), RSI1-DONATE-PR2 notes.
-5. **Owner-blocked:** O-6 (2026-10-24); P6-ORPHAN (biggest unblock: C-P6 Tasks 2-5 → C-P7 → E-2, C-GC1, RSI1 reset tuple); OW-3 (S5 sealed set, after a B-3 draft); OW-W0/W3/W7; E-6 (interactive `/agents`); GRADE-REDOS-DIFF; REDACT-NG-DIFF; the **27 RRSI questions** OQ-1..OQ-27 in [docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md](../research/2026-10-20-rrsi-harness2/04-owner-questions.md) (none answered; OQ-25 may require a v3 consent copy and a new DON-COPY yes); #230. G-C2 stays deferred; F-8 stays disabled.
+5. **Owner-blocked:** O-6 (2026-10-24); P6-ORPHAN (biggest unblock: C-P6 Tasks 2-5 → C-P7 → E-2, C-GC1, RSI1 reset tuple); OW-3 (S5 sealed set, after a B-3 draft); OW-W0/W3/W7; E-6 (interactive `/agents`); GRADE-REDOS-DIFF; REDACT-NG-DIFF; the **27 RRSI questions** OQ-1..OQ-27 in [docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md](../../research/2026-10-20-rrsi-harness2/04-owner-questions.md) (none answered; OQ-25 may require a v3 consent copy and a new DON-COPY yes); #230. G-C2 stays deferred; F-8 stays disabled.
 6. **Post-merge batch** after each merge group (SLOT-RULE-2).
 7. **RSI:** start the session with `--plugin-dir .claude/mods/asclexis-rsi` so Track-1 logs are recorded, and run `rsi-loop` once after the day's run.
 
