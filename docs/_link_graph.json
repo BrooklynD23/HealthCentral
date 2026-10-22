@@ -279,7 +279,8 @@
     "docs/agentic/orchestration.md": [
       "docs/capstone-report/implementation-program.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
-      "docs/reviews/README.md"
+      "docs/reviews/README.md",
+      "README.md"
     ],
     "docs/agentic/progress.md": [
       "docs/agentic/harness.md",
@@ -2359,6 +2360,7 @@
       "docs/architecture/performance-scalability-review.md",
       "docs/architecture/pipelines.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/agentic/orchestration.md",
       "CLAUDE.md",
       "AGENT.md",
       "docs/01_backend_architecture_plan.md",

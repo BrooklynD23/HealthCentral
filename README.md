@@ -18,7 +18,7 @@ Asclexis helps patients:
 ## Core Principles
 
 - **Local-first.** The app, its databases, and model inference run on the user's machine. The Ollama provider is pinned to localhost. The only outbound paths are user-initiated: model downloads, and an opt-in external LLM runner that is off by default and strictly redacted (see [Privacy boundaries](#privacy-boundaries)).
-- **Encrypted at rest.** Each profile has its own SQLCipher vault and AES-GCM document store.
+- **Encrypted at rest.** Each profile has its own SQLCipher vault and AES-GCM document store. Encryption is required by default (`DATABASE_ENCRYPTION_REQUIRED`); a dev setup without SQLCipher runs unencrypted and must not hold real data.
 - **Grounded outputs.** Assistant answers cite the user's records or curated references, or abstain.
 - **Conservative behavior.** "Insufficient information" is preferred over speculation; abstain and escalate are first-class outcomes.
 - **No medical advice.** Education only: no diagnosis, dosing, or treatment recommendations. Prohibited-advice patterns are checked before an answer is shown.
@@ -65,11 +65,12 @@ flowchart TD
     Q["POST /api/v1/assistant/chat<br/>api/assistant.py"] --> SESS["ChatSession / ChatTurn<br/>persisted in the profile vault"]
     SESS --> SW{"is_agent_enabled?<br/>(default: yes)"}
 
-    SW -->|yes| PRE["pre-model advice check<br/>guardrails/classifier.py"]
+    SW -->|yes| PRE["pre-model advice check<br/>modules/agent/guardrails/classifier.py"]
     PRE -->|"advice bait"| ESC["escalation template"]
     PRE --> PLAN
     subgraph AGENT["modules/agent/graph.py (no LLM call)"]
-        PLAN["plan"] --> ACT["act: one read-only tool<br/>tools/registry.py (8 tools)"]
+        PLAN["plan"] --> ACT["act: one read-only tool<br/>modules/agent/tools/registry.py (8 tools)"]
+        PLAN -->|"already grounded"| DRAFT
         ACT --> REFL["reflect"]
         REFL -->|"loop, max 5 acts"| PLAN
         REFL -->|"enough grounding"| DRAFT["draft: every sentence cited"]
@@ -77,6 +78,7 @@ flowchart TD
     DRAFT --> GUARD["guard: advice, groundedness,<br/>confidence, audit"]
     GUARD --> AANS["cited answer"]
     GUARD -->|"ungrounded or low confidence"| ABS["abstain template"]
+    GUARD -->|"advice in the draft"| ESC
     PLAN -->|"nothing to try"| ABS
     REFL -->|"step budget exhausted"| ABS
 
@@ -108,22 +110,26 @@ sequenceDiagram
     User->>UI: Upload PDF, image, lab CSV or FHIR bundle
     UI->>API: POST /api/v1/documents/import
     API->>Ingest: detect type, hash, encrypt (AES-GCM)
-    Ingest->>Vault: store encrypted file + Document row
+    Ingest->>Vault: store encrypted file
+    API->>Vault: Document row
     alt PDF or image
-        API->>Extract: ExtractModule (text or OCR when enabled)
-        Note over API,Extract: no OCR available: status pending_ocr
+        API->>Extract: ExtractModule (text, or OCR when enabled)
+        Note over API,Extract: OCR needed but unavailable: status pending_ocr
+        Extract->>API: extracted observations
+        API->>API: normalize analytes (modules/normalize.py)
+        API->>Vault: Observation rows, unverified
+        API->>Vault: chunks + embeddings for retrieval
+        API->>API: classify document, extract entities
     else lab CSV or FHIR Bundle (HC-M23)
-        API->>Extract: parse_lab_csv / parse_fhir_bundle (no OCR)
+        API->>Extract: parse_lab_csv / parse_fhir_bundle (no OCR, no rule-based classification)
+        Extract->>API: observations, entities, category from the parser
+        API->>Vault: Observation rows, always unverified
     end
-    Extract->>API: extracted observations
-    API->>API: normalize analytes (modules/normalize.py)
-    API->>Vault: Observation rows, always unverified
-    API->>Vault: chunks + embeddings for retrieval
-    API->>API: classify document, extract entities
     API-->>UI: import result + verification payload
     User->>UI: confirm or correct values
-    UI->>API: POST /api/v1/observations/{id}/verify
-    API->>Vault: observation marked user-verified
+    UI->>API: POST /api/v1/observations/{id}/verify (one value)
+    UI->>API: or POST /api/v1/documents/{id}/verify (whole document)
+    API->>Vault: observations marked user-verified
 ```
 
 Undated observations are listed but excluded from time series; `POST
@@ -157,8 +163,10 @@ flowchart LR
     RSI -.-> PR
 ```
 
-Model routing, review rules and the definition of done are in
-[`CLAUDE.md`](CLAUDE.md) and [`AGENT.md`](AGENT.md).
+Per-phase model routing is in the workflow scripts' `meta` blocks and
+[`docs/agentic/orchestration.md`](docs/agentic/orchestration.md); behavioral
+rules and the definition of done are in [`CLAUDE.md`](CLAUDE.md) and
+[`AGENT.md`](AGENT.md).
 
 ### Privacy boundaries
 
@@ -227,7 +235,7 @@ Windows is the native development environment. From the repository root:
 
 `dev.ps1`:
 - checks for Python and Node.js;
-- creates the backend virtual environment at `src/backend/venv` if needed and installs `requirements.txt` (with a SQLCipher fallback);
+- creates the backend virtual environment at `src/backend/venv` if needed and installs `requirements.txt`. **If `sqlcipher3-binary` cannot be installed, it installs the rest, sets `DATABASE_ENCRYPTION_REQUIRED=false` in `src/backend/.env` and warns: profile databases are then unencrypted, so do not use real data** (see [SQLCipher Setup](#sqlcipher-setup));
 - runs `npm ci` when `src/frontend/package-lock.json` changes;
 - creates the data directory structure and `.env`;
 - resolves the next free backend/frontend ports if 8000/3000 are busy and syncs `src/frontend/.env.local` with the resolved API URL;
@@ -272,9 +280,11 @@ python scripts/download_models.py nli                    # optional: NLI cross-e
   `download_models.py`; `python scripts/download_models.py verify` checks every
   tier repo exists on Hugging Face (needs network).
 - **Ollama.** Set `LLM_PROVIDER=ollama` and `LLM_MODEL` (for example
-  `gemma4:12b`), keep `OLLAMA_BASE_URL` on localhost, and pull the model with
+  `gemma4:12b`), and pull the model with
   `ollama pull <tag>` or `python scripts/download_models.py ollama --tag <tag>`.
-  If the daemon is unreachable the factory falls back to llama.cpp. The provider
+  The provider connects to the local default `127.0.0.1:11434`, and switching
+  provider in Settings rejects a non-localhost `OLLAMA_BASE_URL`. If the daemon
+  is unreachable the factory falls back to llama.cpp. The provider
   can also be switched in Settings (`PUT /api/v1/settings/model/provider`).
 - **Embedding bundle.** The pinned `all-MiniLM-L6-v2` revision is fetched once,
   sha256-checked per file, and loaded with `local_files_only=True`; the backend
