@@ -23,7 +23,7 @@ Read this after [CLAUDE.md](../../CLAUDE.md), [AGENT.md](../../AGENT.md) and the
 - **Also merged by L0 after this file was first written:** #279 post-merge batch + this handoff (`89b16d2`; #273 merged with it); #276 REDACT-NG-GUARD-TAIL (`79963ee`; `redaction.py` equals licensed head `8986c95`; 4 strict pins; full suite 2315 passed).
 - **Owner merged:** #267 RSI-LOG-STDERR (`1e9ed8d`) and #259 RRSI-CI-REPLAY (`0976557`).
 - **Prompt 30, O-6:** "Freeze now; sign if all pass". Recorded on #210 in comment 6329347525 and in its owner-decisions row. The claim freeze moves from 2026-10-24 to the GPU-box session (2026-10-22). O-6 is signed for that date only if §10 checks 1-11 all pass at the freeze SHA, with outputs in plan §15. Any failure stops F-9 and goes back to the owner.
-- **RSI logs archived:** `.claude/logs/` is git-ignored, so this session committed copies to [docs/agentic/rsi-runs/2026-10-21-laptop/](../agentic/rsi-runs/README.md) (`rsi-log.jsonl` 348 rows, `session-log.jsonl` 7633 rows since 2026-10-11, `summary.json`). The GPU box adds its own folder the same way, so both machines can be combined for the report.
+- **RSI logs archived:** `.claude/logs/` is git-ignored, so this session committed copies to [docs/agentic/rsi-runs/2026-10-21-laptop/](../agentic/rsi-runs/README.md) (`rsi-log.jsonl` 348 rows, `session-log.jsonl` 7635 rows since 2026-10-11, `summary.json`). The GPU box adds its own folder the same way, so both machines can be combined for the report.
 - **Owner answers this session (local L0 AskUserQuestion):**
   - **Prompt 28, EXTRACT-NL-DIFF:** "Yes, merge #277's diff". Recorded on #277 in comment 6327249339 and in its owner-decisions row.
   - **Prompt 29, REDACT-NG-GT-DIFF:** "Yes, merge with rule last". Recorded on #276 in comment 6328178224 and in its owner-decisions row.
@@ -64,7 +64,7 @@ gh pr merge 271 --merge --delete-branch=false
    - MM-2 after OW-3.
 2. **F-9 Task 10, the claim freeze (O-6, prompt 30).** `{FREEZE_DATE}` is the session date (2026-10-22).
    - On #210, run plan §10 checks 1-11 at main's SHA and paste each output into plan §15.
-   - Check 8 needs the Task 9 dry-run record (owner, Windows demo machine). If it is missing, stop and ask the owner.
+   - Check 8 needs the Task 9 dry-run record. If it is missing, stop and ask the owner.
    - If all 11 pass, record O-6 as signed for that date, commit C7 and mark #210 ready.
    - If any check fails, stop and ask the owner.
    - O-1, O-2, O-5 and O-7 were answered yes on 2026-10-20; O-3 and O-4 still gate only their own tasks.
