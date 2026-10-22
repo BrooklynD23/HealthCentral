@@ -31,6 +31,12 @@
       "docs/plans/2026-10-17-session-handoff.md",
       "docs/plans/2026-10-18-session-handoff.md",
       "docs/plans/2026-10-19-session-handoff.md",
+      "docs/plans/2026-10-20-session-handoff.md",
+      "docs/plans/2026-10-20b-session-handoff.md",
+      "docs/plans/2026-10-20c-session-handoff.md",
+      "docs/plans/2026-10-21-session-handoff.md",
+      "docs/plans/2026-10-21b-session-handoff.md",
+      "docs/plans/2026-10-21c-session-handoff.md",
       "docs/research/2026-10-12/05-mvp-roadmap-tests.md",
       "CLAUDE.md"
     ],
@@ -51,8 +57,15 @@
       "docs/plans/2026-10-17-session-handoff.md",
       "docs/plans/2026-10-18-session-handoff.md",
       "docs/plans/2026-10-19-session-handoff.md",
+      "docs/plans/2026-10-20-session-handoff.md",
+      "docs/plans/2026-10-20b-session-handoff.md",
+      "docs/plans/2026-10-20c-session-handoff.md",
+      "docs/plans/2026-10-21-session-handoff.md",
+      "docs/plans/2026-10-21b-session-handoff.md",
+      "docs/plans/2026-10-21c-session-handoff.md",
       "docs/research/2026-09-08/PLAN.md",
       "docs/research/2026-10-17-rsi-opt-in-data/00-README.md",
+      "docs/research/2026-10-20-rrsi-harness2/01-harness2.md",
       "AGENT.md"
     ],
     "CONTRIBUTING.md": [
@@ -293,6 +306,12 @@
     ],
     "docs/agentic/roadmap.md": [
       "docs/plans/2026-09-27-W01-harness-agents-branch-a.md"
+    ],
+    "docs/agentic/rsi-runs/2026-10-21-laptop/summary.json": [
+      "docs/agentic/rsi-runs/README.md"
+    ],
+    "docs/agentic/rsi-runs/README.md": [
+      "docs/plans/2026-10-21c-session-handoff.md"
     ],
     "docs/agile/AGILE_PLAN.md": [
       "docs/roles/product-and-prd.md",
@@ -614,7 +633,10 @@
       "docs/plans/2026-10-17-rsi-track2-eval-harness-plan.md",
       "docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md",
       "docs/plans/2026-10-17-session-handoff.md",
-      "docs/plans/2026-10-18-session-handoff.md"
+      "docs/plans/2026-10-18-session-handoff.md",
+      "docs/research/2026-10-20-rrsi-harness2/00-README.md",
+      "docs/research/2026-10-20-rrsi-harness2/01-harness2.md",
+      "docs/research/2026-10-20-rrsi-harness2/02-verdicts.md"
     ],
     "docs/capstone-report/report-outline.md": [
       "docs/capstone-report/00-original-goal.md",
@@ -643,7 +665,9 @@
       "docs/capstone-report/research/03-rag-local-llm.md"
     ],
     "docs/capstone-report/rsi-in-development-and-application.md": [
-      "docs/capstone-report/README.md"
+      "docs/capstone-report/README.md",
+      "docs/research/2026-10-20-rrsi-harness2/00-README.md",
+      "docs/research/2026-10-20-rrsi-harness2/05-report-angle.md"
     ],
     "docs/capstone-report/specs-compliance-matrix.md": [
       "docs/capstone-report/00-original-goal.md",
@@ -1045,6 +1069,12 @@
       "docs/plans/2026-10-17-session-handoff.md",
       "docs/plans/2026-10-18-session-handoff.md",
       "docs/plans/2026-10-19-session-handoff.md",
+      "docs/plans/2026-10-20-session-handoff.md",
+      "docs/plans/2026-10-20b-session-handoff.md",
+      "docs/plans/2026-10-20c-session-handoff.md",
+      "docs/plans/2026-10-21-session-handoff.md",
+      "docs/plans/2026-10-21b-session-handoff.md",
+      "docs/plans/2026-10-21c-session-handoff.md",
       "docs/reviews/2026-10-15/build-program-codex.md"
     ],
     "docs/plans/2026-10-15-build-program/contracts.md": [
@@ -1094,7 +1124,6 @@
     ],
     "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md": [
       "docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md",
-      "docs/plans/2026-10-15-build-program/queue.md",
       "docs/reviews/2026-10-16/E1a-r1-response.md",
       "docs/reviews/2026-10-16/E1a-r2-response.md"
     ],
@@ -1107,13 +1136,17 @@
       "docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md"
     ],
     "docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md": [
+      "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md",
+      "docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md",
       "docs/plans/2026-10-15-build-program/queue.md"
     ],
     "docs/plans/2026-10-17-session-handoff.md": [
       "docs/plans/2026-10-18-session-handoff.md"
     ],
     "docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md": [
-      "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md"
+      "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md",
+      "docs/reviews/2026-10-20/gc5-real-model-evidence.md",
+      "docs/reviews/2026-10-21/gc5-model-host-evidence.md"
     ],
     "docs/plans/2026-10-18-session-handoff.md": [
       "docs/plans/2026-10-15-build-program/queue.md",
@@ -1121,7 +1154,29 @@
       "docs/plans/2026-10-19-session-handoff.md"
     ],
     "docs/plans/2026-10-19-session-handoff.md": [
-      "docs/plans/2026-10-18-session-handoff.md"
+      "docs/plans/2026-10-18-session-handoff.md",
+      "docs/plans/2026-10-20-session-handoff.md"
+    ],
+    "docs/plans/2026-10-20-session-handoff.md": [
+      "docs/plans/2026-10-20b-session-handoff.md"
+    ],
+    "docs/plans/2026-10-20b-session-handoff.md": [
+      "docs/plans/2026-10-20-session-handoff.md",
+      "docs/plans/2026-10-20c-session-handoff.md"
+    ],
+    "docs/plans/2026-10-20c-session-handoff.md": [
+      "docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md",
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-10-20b-session-handoff.md",
+      "docs/plans/2026-10-21-session-handoff.md"
+    ],
+    "docs/plans/2026-10-21-session-handoff.md": [
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-10-20c-session-handoff.md",
+      "docs/plans/2026-10-21b-session-handoff.md"
+    ],
+    "docs/plans/2026-10-21b-session-handoff.md": [
+      "docs/plans/2026-10-21c-session-handoff.md"
     ],
     "docs/plans/implementation-log": [
       "docs/00_architecture_plans_index.md"
@@ -1282,11 +1337,13 @@
       "docs/research/2026-10-17-rsi-opt-in-data/01-rsi-self-improving-agents.md",
       "docs/research/2026-10-17-rsi-opt-in-data/02-private-synthetic-health-data.md",
       "docs/research/2026-10-17-rsi-opt-in-data/03-small-model-citation-finetuning.md",
-      "docs/research/2026-10-17-rsi-opt-in-data/04-rsi-harness-engineering.md"
+      "docs/research/2026-10-17-rsi-opt-in-data/04-rsi-harness-engineering.md",
+      "docs/research/2026-10-20-rrsi-harness2/00-README.md"
     ],
     "docs/research/2026-10-17-rsi-opt-in-data/01-rsi-self-improving-agents.md": [
       "docs/research/2026-10-17-rsi-opt-in-data/00-README.md",
-      "docs/research/2026-10-17-rsi-opt-in-data/04-rsi-harness-engineering.md"
+      "docs/research/2026-10-17-rsi-opt-in-data/04-rsi-harness-engineering.md",
+      "docs/research/2026-10-20-rrsi-harness2/01-harness2.md"
     ],
     "docs/research/2026-10-17-rsi-opt-in-data/02-private-synthetic-health-data.md": [
       "docs/research/2026-10-17-rsi-opt-in-data/00-README.md"
@@ -1296,6 +1353,38 @@
     ],
     "docs/research/2026-10-17-rsi-opt-in-data/04-rsi-harness-engineering.md": [
       "docs/research/2026-10-17-rsi-opt-in-data/00-README.md"
+    ],
+    "docs/research/2026-10-20-rrsi-harness2/01-harness2.md": [
+      "docs/agentic/harness2-sandbox.md",
+      "docs/research/2026-10-20-rrsi-harness2/00-README.md",
+      "docs/research/2026-10-20-rrsi-harness2/02-verdicts.md",
+      "docs/research/2026-10-20-rrsi-harness2/03-adversarial-review.md",
+      "docs/research/2026-10-20-rrsi-harness2/05-report-angle.md"
+    ],
+    "docs/research/2026-10-20-rrsi-harness2/02-verdicts.md": [
+      "docs/research/2026-10-20-rrsi-harness2/00-README.md",
+      "docs/research/2026-10-20-rrsi-harness2/01-harness2.md",
+      "docs/research/2026-10-20-rrsi-harness2/03-adversarial-review.md",
+      "docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md",
+      "docs/research/2026-10-20-rrsi-harness2/05-report-angle.md"
+    ],
+    "docs/research/2026-10-20-rrsi-harness2/03-adversarial-review.md": [
+      "docs/research/2026-10-20-rrsi-harness2/00-README.md",
+      "docs/research/2026-10-20-rrsi-harness2/02-verdicts.md",
+      "docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md"
+    ],
+    "docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md": [
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-10-20b-session-handoff.md",
+      "docs/research/2026-10-20-rrsi-harness2/00-README.md",
+      "docs/research/2026-10-20-rrsi-harness2/01-harness2.md",
+      "docs/research/2026-10-20-rrsi-harness2/02-verdicts.md",
+      "docs/research/2026-10-20-rrsi-harness2/03-adversarial-review.md"
+    ],
+    "docs/research/2026-10-20-rrsi-harness2/05-report-angle.md": [
+      "docs/research/2026-10-20-rrsi-harness2/00-README.md",
+      "docs/research/2026-10-20-rrsi-harness2/02-verdicts.md",
+      "docs/research/2026-10-20-rrsi-harness2/03-adversarial-review.md"
     ],
     "docs/reviews/2026-09-25/DDI-diff-codex.txt": [
       "docs/reviews/README.md"
@@ -2054,6 +2143,30 @@
     "docs/reviews/2026-10-16/E1a-r2-prompt.md": [
       "docs/reviews/2026-10-16/E1a-r2-response.md"
     ],
+    "docs/reviews/2026-10-20/gc5-evidence": [
+      "docs/reviews/2026-10-20/gc5-real-model-evidence.md",
+      "docs/reviews/2026-10-21/gc5-model-host-evidence.md"
+    ],
+    "docs/reviews/2026-10-20/gc5-real-model-evidence.md": [
+      "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md",
+      "docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md",
+      "docs/reviews/2026-10-21/gc5-model-host-evidence.md"
+    ],
+    "docs/reviews/2026-10-21/b3-codex-plan-review.md": [
+      "docs/plans/2026-10-21-session-handoff.md"
+    ],
+    "docs/reviews/2026-10-21/gc5-host-evidence/real_llm.py": [
+      "docs/reviews/2026-10-21/gc5-model-host-evidence.md"
+    ],
+    "docs/reviews/2026-10-21/gc5-host-evidence/real_llm_llama3.1_8b.json": [
+      "docs/reviews/2026-10-21/gc5-model-host-evidence.md"
+    ],
+    "docs/reviews/2026-10-21/gc5-host-evidence/real_llm_qwen3_8b.json": [
+      "docs/reviews/2026-10-21/gc5-model-host-evidence.md"
+    ],
+    "docs/reviews/2026-10-21/gc5-host-evidence/trunc.json": [
+      "docs/reviews/2026-10-21/gc5-model-host-evidence.md"
+    ],
     "docs/roles/00_roles_index.md": [
       "docs/00_architecture_plans_index.md",
       "AGENT.md"
@@ -2370,6 +2483,9 @@
       "docs/agentic/evals.md",
       "docs/agentic/mcp-tools.md"
     ],
+    "docs/agentic/harness2-sandbox.md": [
+      "docs/research/2026-10-20-rrsi-harness2/01-harness2.md"
+    ],
     "docs/agentic/mcp-tools.md": [
       "docs/agentic/harness.md",
       "docs/agentic/evals.md"
@@ -2410,6 +2526,9 @@
       "docs/research/2026-09-08/08-frontend.md",
       "docs/research/2026-09-08/09-roadmap.md",
       "docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md"
+    ],
+    "docs/agentic/rsi-runs/README.md": [
+      "docs/agentic/rsi-runs/2026-10-21-laptop/summary.json"
     ],
     "docs/agile/GROUNDING.md": [
       "docs/archive/agile/EXPLORATION_SUMMARY.md",
@@ -3122,6 +3241,8 @@
       "docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md",
       "audit/2026-09-25/waves/wave-3-L1-A.md",
       "docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md",
+      "docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md",
+      "docs/reviews/2026-10-20/gc5-real-model-evidence.md",
       "docs/plans/2026-10-15-build-program/contracts.md"
     ],
     "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md": [
@@ -3157,6 +3278,8 @@
       "docs/plans/2026-09-27-W01-harness-agents-branch-a.md",
       "docs/plans/2026-10-09-AUDIT-ORDER.md",
       "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md",
+      "docs/plans/2026-10-20c-session-handoff.md",
+      "docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md",
       "docs/capstone-report/implementation-program.md"
     ],
     "docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md": [
@@ -3172,20 +3295,23 @@
       "docs/plans/2026-09-27-nightly-doc-drift-routine-spec.md",
       "docs/plans/2026-09-27-senior-report-showcase-plan.md",
       "docs/features/TASK_LIST.md",
+      "docs/reviews/2026-10-20/gc5-real-model-evidence.md",
       "docs/capstone-report/implementation-program.md",
       "docs/agentic/recurring-failures.md"
     ],
     "docs/plans/2026-10-15-build-program/queue.md": [
       "docs/capstone-report/owner-decisions-2026-09-27.md",
       "docs/plans/2026-10-15-build-program/contracts.md",
+      "docs/plans/2026-10-20c-session-handoff.md",
       "docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md",
-      "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md",
+      "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md",
+      "docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md",
+      "docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md",
       "docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md",
       "docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md",
       "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md",
-      "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md",
-      "docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md",
       "docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md",
+      "docs/plans/2026-10-21-session-handoff.md",
       "docs/plans/2026-10-18-session-handoff.md",
       "docs/capstone-report/implementation-program.md"
     ],
@@ -3234,6 +3360,48 @@
       "AGENT.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
       "docs/plans/2026-10-18-session-handoff.md"
+    ],
+    "docs/plans/2026-10-20-session-handoff.md": [
+      "docs/plans/2026-10-20b-session-handoff.md",
+      "CLAUDE.md",
+      "AGENT.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-19-session-handoff.md"
+    ],
+    "docs/plans/2026-10-20b-session-handoff.md": [
+      "docs/plans/2026-10-20c-session-handoff.md",
+      "CLAUDE.md",
+      "AGENT.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-20-session-handoff.md",
+      "docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md"
+    ],
+    "docs/plans/2026-10-20c-session-handoff.md": [
+      "docs/plans/2026-10-21-session-handoff.md",
+      "CLAUDE.md",
+      "AGENT.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-20b-session-handoff.md"
+    ],
+    "docs/plans/2026-10-21-session-handoff.md": [
+      "CLAUDE.md",
+      "AGENT.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-20c-session-handoff.md",
+      "docs/reviews/2026-10-21/b3-codex-plan-review.md"
+    ],
+    "docs/plans/2026-10-21b-session-handoff.md": [
+      "CLAUDE.md",
+      "AGENT.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-21-session-handoff.md"
+    ],
+    "docs/plans/2026-10-21c-session-handoff.md": [
+      "CLAUDE.md",
+      "AGENT.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-21b-session-handoff.md",
+      "docs/agentic/rsi-runs/README.md"
     ],
     "docs/plans/implementation-log/README.md": [
       "docs/plans/implementation-log/2024-12-28_project-structure-setup.md",
@@ -3389,6 +3557,45 @@
       "docs/research/2026-10-17-rsi-opt-in-data/00-README.md",
       "docs/research/2026-10-17-rsi-opt-in-data/01-rsi-self-improving-agents.md"
     ],
+    "docs/research/2026-10-20-rrsi-harness2/00-README.md": [
+      "docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md",
+      "docs/research/2026-10-20-rrsi-harness2/01-harness2.md",
+      "docs/research/2026-10-20-rrsi-harness2/03-adversarial-review.md",
+      "docs/research/2026-10-20-rrsi-harness2/02-verdicts.md",
+      "docs/research/2026-10-20-rrsi-harness2/05-report-angle.md",
+      "docs/research/2026-10-17-rsi-opt-in-data/00-README.md",
+      "docs/capstone-report/rsi-in-development-and-application.md",
+      "docs/capstone-report/owner-decisions-2026-09-27.md"
+    ],
+    "docs/research/2026-10-20-rrsi-harness2/01-harness2.md": [
+      "docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md",
+      "docs/research/2026-10-17-rsi-opt-in-data/01-rsi-self-improving-agents.md",
+      "CLAUDE.md",
+      "docs/research/2026-10-20-rrsi-harness2/02-verdicts.md",
+      "docs/capstone-report/owner-decisions-2026-09-27.md"
+    ],
+    "docs/research/2026-10-20-rrsi-harness2/02-verdicts.md": [
+      "docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md",
+      "docs/research/2026-10-20-rrsi-harness2/01-harness2.md",
+      "docs/research/2026-10-20-rrsi-harness2/03-adversarial-review.md",
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/research/2026-10-20-rrsi-harness2/05-report-angle.md"
+    ],
+    "docs/research/2026-10-20-rrsi-harness2/03-adversarial-review.md": [
+      "docs/research/2026-10-20-rrsi-harness2/02-verdicts.md",
+      "docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md",
+      "docs/research/2026-10-20-rrsi-harness2/05-report-angle.md",
+      "docs/research/2026-10-20-rrsi-harness2/01-harness2.md"
+    ],
+    "docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md": [
+      "docs/research/2026-10-20-rrsi-harness2/02-verdicts.md",
+      "docs/research/2026-10-20-rrsi-harness2/03-adversarial-review.md"
+    ],
+    "docs/research/2026-10-20-rrsi-harness2/05-report-angle.md": [
+      "docs/capstone-report/rsi-in-development-and-application.md",
+      "docs/research/2026-10-20-rrsi-harness2/02-verdicts.md",
+      "docs/research/2026-10-20-rrsi-harness2/01-harness2.md"
+    ],
     "docs/reviews/2026-09-25/DDI-r1-response.md": [
       "docs/reviews/2026-09-25/DDI-r1-codex.txt"
     ],
@@ -3474,6 +3681,19 @@
     "docs/reviews/2026-10-16/E1a-r2-response.md": [
       "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md",
       "docs/reviews/2026-10-16/E1a-r2-prompt.md"
+    ],
+    "docs/reviews/2026-10-20/gc5-real-model-evidence.md": [
+      "docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md",
+      "docs/reviews/2026-10-20/gc5-evidence"
+    ],
+    "docs/reviews/2026-10-21/gc5-model-host-evidence.md": [
+      "docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md",
+      "docs/reviews/2026-10-20/gc5-real-model-evidence.md",
+      "docs/reviews/2026-10-21/gc5-host-evidence/real_llm.py",
+      "docs/reviews/2026-10-20/gc5-evidence",
+      "docs/reviews/2026-10-21/gc5-host-evidence/real_llm_llama3.1_8b.json",
+      "docs/reviews/2026-10-21/gc5-host-evidence/real_llm_qwen3_8b.json",
+      "docs/reviews/2026-10-21/gc5-host-evidence/trunc.json"
     ],
     "docs/reviews/README.md": [
       "docs/agentic/orchestration.md",

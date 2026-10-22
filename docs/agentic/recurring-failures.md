@@ -186,10 +186,16 @@ itself a claim — it does not get a pass because it came from the orchestrator.
 - Playwright only runs here with `HC_E2E_CHROMIUM_PATH=/opt/pw-browsers/chromium`.
   Without it, `npx playwright test` fails on a missing binary and executes zero
   tests. Two reports appeared to contradict each other until that surfaced.
+- The collected count varies too. `tests/test_embedding_no_network.py` calls
+  `pytest.importorskip("sentence_transformers")` at module level, so its 2
+  tests are collected only where that package is installed. Measured
+  2026-10-20 on `b2b3f4e`, same box, same command: 2026 collected, then 2028
+  after another session installed `sentence-transformers` into the shared venv.
 
 **Recheck:** before writing a figure, ask which environment produced it and
 whether another environment produces a different one. Prefer numbers that do not
-vary — collected counts over pass counts.
+vary — collected counts over pass counts — and when quoting a collected count,
+say whether `sentence-transformers` was installed.
 
 ---
 
@@ -232,8 +238,16 @@ A related class: a command that inherits the wrong working directory from the
 bullet above it. The definition of done once listed `python -c "from main import app"`
 directly after a `cd src/frontend` line.
 
+Plans are docs too. LLM-PATH-LOG's plan (2026-10-19) told the implementer to
+re-run `test_llm_import_boundary.py` from `tests/`; that file exists only as a "to
+create" entry in the W07 plan, so the acceptance command failed (#208). And the
+pytest slot script every runbook command calls directly, `scripts/pyslot.sh`,
+was mode `100644` in git: on a checkout with `core.fileMode=true` the documented
+call exited 126, `Permission denied` (measured 2026-10-20; fixed by #220).
+
 **Recheck:** run every command a doc quotes, exactly as written, from the
-directory the surrounding text implies. Inherited-from-`main` is not a reason to
+directory the surrounding text implies. A planner checks every path it cites
+with `git ls-files <path>` on the base it plans from. Inherited-from-`main` is not a reason to
 skip it — it is a reason it survived this long.
 
 ---
@@ -282,6 +296,15 @@ before anything *leaves*"; a write into the per-profile vault is PHI arriving,
 not leaving. Two of the eight tracks had flagged the memory route, which made
 the recommendation look corroborated — convergence is evidence the *area*
 matters, not that the *proposed fix* is right.
+
+A fifth instance, 2026-10-20: the RRSI research said the Trends page uses
+"latest-vs-prior with a 5% band" and cited `modules/analytics.py:96-112`. That
+module has no caller; the Trends page shows `GET /observations/trends/{analyte}`,
+which compares the **first and last** result (`api/observations.py:660-671`).
+The owner answered RRSI-OQ-21 on that premise ("Adopt the Trends page's
+latest-vs-prior comparison"), so the answer names two different rules, and the
+CHAT-TREND-DEF plan had to ask again (gate CTD-DEF). A cited line proves the
+code exists, not that the feature runs it.
 
 **Recheck:** a written decision is evidence about what someone believed, not
 proof that it was true. When a doc gives a *reason*, check the reason. When a
@@ -361,7 +384,6 @@ after the vault commit, and the settings and history reads use
 row, `grep -n
 "audit_and_commit\|audit_intent\|log_.*_event(" <file>` must hit inside that
 handler.
-The class is now a test (`test_hc_aud_ord_030_c_and_a2_handlers_reach_an_audit_call`), so a new unaudited `"C"` or `"A2"` row fails CI.
 Applied to every `"C"` and `"A2"` row on `046d12c` (planning AUDIT-NOTIF-ALL,
 2026-10-18), that recheck finds 17 more `"C"` handlers with no audit call in
 the body and none reached through a helper: 3 in `api/assistant.py`, 6 in
@@ -369,6 +391,9 @@ the body and none reached through a helper: 3 in `api/assistant.py`, 6 in
 AUDIT-NOTIF-ALL plan; queue row AUDIT-C-CLASS). A per-file grep misses
 them, because the same file audits in a sibling handler; walk each handler body
 instead.
+The class is now a test
+(`test_hc_aud_ord_030_c_and_a2_handlers_reach_an_audit_call`), so a new
+unaudited `"C"` or `"A2"` row fails CI.
 
 
 **Recheck:** when a comment or doc justifies a deletion with a reason that names

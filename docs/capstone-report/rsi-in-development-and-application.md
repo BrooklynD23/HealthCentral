@@ -14,7 +14,7 @@ The owner's direction (2026-10-17) is that one opt-in dataset should serve three
 
 ## 2. Track 1: development harness
 
-**Status: in review (PR pending). Not merged.**
+**Status: merged. The Track-1 mod is in main via #127; the `rsi-loop` workflow via #126 and #129. The workflow has not yet been run (see §6).**
 
 Per the handoff (`docs/plans/2026-10-17-session-handoff.md` §2 items 2-3, on the handoff branch), Track 1 has two parts.
 
@@ -24,7 +24,7 @@ Per the handoff (`docs/plans/2026-10-17-session-handoff.md` §2 items 2-3, on th
 - *Guard and hint rules.* Rules are promoted from mined failures. The initial seeds are the failures measured in the session of 2026-10-17 (table in §5).
 - A general-purpose template copy outside the repo is planned; its location is not yet confirmed with the owner.
 
-**The workflow `.claude/workflows/rsi-loop.js`.** It runs as the last stage after every build-program run (owner row RSI-BUILD). The research package defines the loop as six steps (`00-README.md`, section B): (1) log; (2) mine failures; (3) propose; (4) sealed-eval gate; (5) human gate; (6) merge and re-gate. The handoff names the workflow's stages as mine (Haiku clusters failures), reflect (Opus writes GEPA-style reflections), propose (small single-purpose edits only), gate, PR, and measure (before and after per-tool failure rate, retries and tokens per item, with an archive of rejected candidates). The two descriptions cover the same loop; the handoff splits mining from reflection and treats the final merge-and-re-gate as measure. This report does not claim the workflow exists on main.
+**The workflow `.claude/workflows/rsi-loop.js`.** It runs as the last stage after every build-program run (owner row RSI-BUILD). The research package defines the loop as six steps (`00-README.md`, section B): (1) log; (2) mine failures; (3) propose; (4) sealed-eval gate; (5) human gate; (6) merge and re-gate. The handoff names the workflow's stages as mine (Haiku clusters failures), reflect (Opus writes GEPA-style reflections), propose (small single-purpose edits only), gate, PR, and measure (before and after per-tool failure rate, retries and tokens per item, with an archive of rejected candidates). The two descriptions cover the same loop; the handoff splits mining from reflection and treats the final merge-and-re-gate as measure. The workflow is merged on main (#126, #129).
 
 Build order set by the owner (RSI-BUILD): mod first, then the workflow, then the application track, in parallel where the workflow allows.
 

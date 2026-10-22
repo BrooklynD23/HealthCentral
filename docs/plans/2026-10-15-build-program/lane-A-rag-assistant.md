@@ -1,6 +1,6 @@
 # Lane A — RAG + assistant: build-program design
 
-**Last Updated:** 2026-10-20 (PR #202 review round 2: verifier-on column for LCP-HEADERLESS, two shapes served today; (b) rule narrowed; CFR-CACHE-TZ in progress #204); 2026-10-20 (PR #202 review round 1: LCP-HEADERLESS re-measured on `5750a97`, HC-LCPH-003 RED ×3, labels split into LCP-HL-LABELS; #185 merged, so W-8-FC-NOTICE and LLM-PATH-LOG are ready); 2026-10-19 (follow-ups planned: LCP-HEADERLESS, EMB-LOAD-LOG-PATH, LLM-PATH-LOG); 2026-10-19 (review round 2 fixes: HC-EMB-005b, HC-EMB-009a; G-C5 OL-1..3 answered); 2026-10-18 (G-C5 plan linked, PR #183); 2026-10-17 (CHAT-FACT-ROUTING, LOCAL-HF-HUB, INTERP-ADVICE-WORDING planned)
+**Last Updated:** 2026-10-21 (EMPTY-ANS-SCOPE answered (a), owner prompt 22); 2026-10-21 (second batch on `b9d285e`: AET-FALLBACK-LABEL planned, no new gate; #272 round 1: B-3 holds `api/assistant.py`, citations refreshed; owner answers AET-PREMISE "Yes, but reword both" and AET-WORDING "Your saved task, unchecked" widen the row to both paths, ready); 2026-10-21 (follow-ups planned on `b902e0f`: GC5-PREDICT-FAILCLOSED, GC5-NLI-NEUTRAL, GC5-FAITH-SCORE; new gates GC5-PFC-DIFF, GC5-NEUTRAL-SCOPE, GC5-NEUTRAL-DIFF, GC5-FS-SCOPE; #261 round 1: route tests fixed, legacy gate command fixed, owner answers GC5-PFC-DIFF (a), GC5-NEUTRAL-SCOPE (a), GC5-FS-SCOPE (a), EMPTY-ANSWER-SERVED planned, new gate EMPTY-ANS-SCOPE); 2026-10-20 (PR #202 review round 2: verifier-on column for LCP-HEADERLESS, two shapes served today; (b) rule narrowed; CFR-CACHE-TZ in progress #204); 2026-10-20 (PR #202 review round 1: LCP-HEADERLESS re-measured on `5750a97`, HC-LCPH-003 RED ×3, labels split into LCP-HL-LABELS; #185 merged, so W-8-FC-NOTICE and LLM-PATH-LOG are ready); 2026-10-19 (follow-ups planned: LCP-HEADERLESS, EMB-LOAD-LOG-PATH, LLM-PATH-LOG); 2026-10-19 (review round 2 fixes: HC-EMB-005b, HC-EMB-009a; G-C5 OL-1..3 answered); 2026-10-18 (G-C5 plan linked, PR #183); 2026-10-17 (CHAT-FACT-ROUTING, LOCAL-HF-HUB, INTERP-ADVICE-WORDING planned)
 **Owner:** repository owner
 **Status:** PROPOSED — design only, not approved for execution. No owner approval is recorded here that is not already in [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md). Every "Recommended" below is the lane designer's, not the owner's.
 **Refresh Trigger:** any of #72 (W-4), #95 (ASSIST-UTC), #74 (Tailwind 4) merging; any owner answer to a gate in [Owner gates](#owner-gates); any commit to `src/backend/api/assistant.py`, `src/backend/modules/rag.py`, `src/backend/api/interpretations.py` or `src/backend/modules/agent/**`.
@@ -31,6 +31,8 @@ Read-only design. No product file was edited. Existing merged plans are not rewr
 | LCP-HEADERLESS | PRODUCT | owner LCP-HEADERLESS (a), `owner-decisions-2026-09-27.md:275`; #185 open MINOR 1 and comment 6270643786 | [below](#lcp-headerless--the-legacy-parser-finds-headers-anywhere-drops-text-before-them-and-never-checks-headerless-text-for-citations) | blocked-on-owner | #185 merged (`5750a97`); owner LCP-HL-SCOPE and LCP-HL-LABELS (then LCP-HL-DIFF, merge) |
 | EMB-LOAD-LOG-PATH | PRODUCT | #196 L0 ruling (comment 6267273354); #196 and #192 review MINORs | [below](#emb-load-log-path--sentence-transformers-logs-the-model-path-at-info-the-path-leak-tests-look-only-at-warning-takes-emb-harden-minors-and-reprocess-007c-reach) | ready | — |
 | LLM-PATH-LOG | PRODUCT | #196 reviews (LLM model paths at INFO) | [below](#llm-path-log--the-two-llm-loaders-log-the-model-path-at-info) | ready | #185 merged (`5750a97`); never beside B-5 |
+| EMB-LOG-M7 | PRODUCT (test only) | PR #214 review MINOR (mutant M7) | [below](#emb-log-m7--the-logger-restore-tests-never-start-at-notset-so-mutant-m7-survives) | ready | — |
+| LLM-PATH-LOG-M2M3 | PRODUCT | PR #208 review M2/M3; L0 handoff 2026-10-20 §3 item 4 | [below](#llm-path-log-m2m3--six-more-loader-log-lines-can-carry-the-model-path) | ready | never beside B-5 |
 
 Collected-count note: the lane baseline is **1574** (`CLAUDE.md:30`, `AGENT.md:76` on `3b2236c`; confirmed by L0 in the peer-review round). 1501 was #95's own branch value. Not re-measured here (no pytest on this box). Ground rule 8 (SLOT-RULE): every lane-A PR runs `--collect-only` **after its final rebase** onto `origin/main` and writes the measured number into both slots in the same commit. It never adds its own delta to a number copied from a doc. Lane D's D-0 chain (#95 → #97 → #99 → #82 → #84) runs first, so lane-A PRs start from whatever D-0 measured.
 
@@ -568,10 +570,374 @@ So with the default verifier on, the parser's defects already reach a patient fo
 | HC-MPATH-001 | `src/backend/tests/test_model_path_logs.py` (new) | `LlamaCppProvider._ensure_initialized()` with `_find_model_path` returning `<tmp>/jane-doe-home/x.gguf`, and `_load_llama_class` and `modules.model_integrity.verify_and_log` stubbed, `caplog` at DEBUG → the GGUF file name appears, the directory does not | yes (path logged at `:130`) |
 | HC-MPATH-002 | same | `ModelSelector.load_model(tier)` with `get_model_path` returning the same path and `llama_cpp` stubbed in `sys.modules`, same assertion | yes (`:462`) |
 
-**Files:** `src/backend/core/llm/llama_cpp_provider.py`, `src/backend/modules/model_selector.py`, `src/backend/tests/test_model_path_logs.py` (new), slots. **Re-run, not edited:** `tests/test_llm_import_boundary.py`, `tests/test_model_integrity.py`. The new test stubs `llama_cpp`; it never imports it for real (CLAUDE.md §3 import boundary).
+**Files:** `src/backend/core/llm/llama_cpp_provider.py`, `src/backend/modules/model_selector.py`, `src/backend/tests/test_model_path_logs.py` (new), slots. **Re-run, not edited:** `tests/test_llm_provider_layer.py`, `tests/test_model_integrity.py` (corrected 2026-10-20, PLANNER bullet: this line first named `tests/test_llm_import_boundary.py`, which does not exist on `main`; only the W07 plan lists it, as a file B-5 will create). The new test stubs `llama_cpp`; it never imports it for real (CLAUDE.md §3 import boundary).
 **Expected collected delta:** +2. **Est:** 1 h.
-**Acceptance:** `pyt tests/test_model_path_logs.py tests/test_llm_import_boundary.py tests/test_model_integrity.py -q -rfE`: 0 failed; full suite per RUNBOOK §6. **Rollback:** revert.
+**Acceptance:** `pyt tests/test_model_path_logs.py tests/test_llm_provider_layer.py tests/test_model_integrity.py -q -rfE`: 0 failed; full suite per RUNBOOK §6. **Rollback:** revert.
 **Order:** ready now: LEGACY-CITE-PROMPT (#185), which also edited `llama_cpp_provider.py`, merged on 2026-10-20 (`5750a97`); `:130` is unchanged. Never beside B-5 (`model_selector.py`). No ask-first file.
+
+## Follow-ups found 2026-10-20 (planned 2026-10-20 on `origin/main` @ `b2b3f4e`)
+
+Two rows from the reviews of #208 (LLM-PATH-LOG) and #214 (EMB-LOAD-LOG-PATH), plus one correction: the LLM-PATH-LOG section above cited `tests/test_llm_import_boundary.py`, which does not exist on `main` (PLANNER bullet; recurring-failures #6), and now cites `tests/test_llm_provider_layer.py`, as the L0 correction on #208 did. CFR-009-AGENT-PATH (#204 review MINOR) is **not** a row: measured on `b2b3f4e`, with `api.assistant._serve_via_agent` monkeypatched to raise, HC-CFR-009 already fails (the legacy path answers "I don't have enough information to answer this question…", so `"Jan 15, 2026" in first` is false), and so does HC-AAD-014 (`'Knowledge base response (no LLM)'.startswith("agent:")` is false). The extra `startswith("agent:")` line only guards a future legacy path that prints local dates; the next row that edits `tests/test_assist_agent_dates_http.py` adds it (queue bullet). Measured facts below ran as scratch tests in the planning worktree through `bash scripts/pyslot.sh` (removed afterwards; `git status --short` empty). `pyt` = `bash "$(git rev-parse --show-toplevel)/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest`, run from `src/backend` (absolute path: there is no `scripts/` under `src/backend`; see lane E §2.18).
+
+### EMB-LOG-M7 — the logger-restore tests never start at NOTSET, so mutant M7 survives
+
+**Source:** PR #214 review MINOR: mutant M7 ("save the effective level instead of `.level`") survives; no test starts the logger at NOTSET.
+
+**Facts (`b2b3f4e`):** `_load_local_model` saves `prev_levels = [lg.level for lg in quiet]` (`src/backend/modules/embeddings.py:117`), raises each logger to `max(getEffectiveLevel(), WARNING)` (`:119`) and restores the saved levels in `finally` (`:127-128`). HC-EMB-010b (`tests/test_embedding_fail_closed_paths.py:583-595`) and HC-EMB-010c (`:598-623`) set the loggers to INFO first. At INFO, `.level` and `getEffectiveLevel()` are both 20, so M7 restores the same value. A logger nobody configured has `.level == NOTSET` (0) and inherits root's WARNING (30); under M7 it would come back pinned at 30, and later `setLevel` calls on the parent would stop reaching it.
+
+**Measured (scratch test, then M7 applied to a working copy of `embeddings.py`, reverted with `git checkout`):** the proposed HC-EMB-010d passes on `b2b3f4e` (`1 passed`) and fails under M7 (`assert 30 == 0`, `<Logger sentence_transformers (WARNING)>.level`).
+
+**Design:** test only. No product change.
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-EMB-010d | `sys.modules["sentence_transformers"]` monkeypatched to a module whose `SentenceTransformer` returns `"model"` (so the real package is not needed), `_install_stub_bundle`, `logging.getLogger("sentence_transformers").setLevel(logging.NOTSET)`; assert `getEffectiveLevel() != NOTSET` first (otherwise M7 restores the same value and the test is vacuous); `EmbeddingsModule()._load_local_model() == "model"`; then `.level == logging.NOTSET`; restore the old level in `finally` | no (pin). Mutant M7 (`:117` saves `lg.getEffectiveLevel()`) fails it: measured above |
+
+**Files:** `src/backend/tests/test_embedding_fail_closed_paths.py`, slots. **Re-run, not edited:** `tests/test_embedding_bundle.py`, `tests/test_embedding_no_network.py`. `src/backend/modules/embeddings.py` shows an empty diff (the mutant is applied only in the RED step and reverted).
+**Expected collected delta:** +1. **Est:** 0.5 h.
+**Acceptance:** `pyt tests/test_embedding_fail_closed_paths.py tests/test_embedding_no_network.py -q -rfE`: 0 failed apart from the known environment failures named in CLAUDE.md §4 when the model bundle is absent; the M7 RED output pasted; `git diff origin/main -- src/backend/modules` empty; full suite per RUNBOOK §6. **Rollback:** revert.
+**Order:** ready now. Never beside another PR on `tests/test_embedding_fail_closed_paths.py` (none open on `b2b3f4e`). G-C5 edits `embeddings.py`, not this test file, so the two may run together. No ask-first file.
+
+### LLM-PATH-LOG-M2M3 — six more loader log lines can carry the model path
+
+**Source:** PR #208 (LLM-PATH-LOG) review M2/M3, L0 handoff 2026-10-20 §3 item 4: model paths are still logged at ERROR and at INFO/WARNING. Never beside B-5.
+
+**Facts (`b2b3f4e`; #208 already fixed `llama_cpp_provider.py:130` and `model_selector.py:462`, pinned by HC-MPATH-001/002 in `src/backend/tests/test_model_path_logs.py`):**
+
+| Site | Level | What it logs |
+|---|---|---|
+| `src/backend/core/llm/llama_cpp_provider.py:110-113` | WARNING | `"no GGUF model found in %s", self._settings.models_path`: the models directory |
+| `src/backend/core/llm/llama_cpp_provider.py:152` | ERROR | `"failed to load model: %s", exc`: llama-cpp-python's load errors carry the path (`ValueError(f"Model path does not exist: {model_path}")`, `llama_cpp/llama.py:384`; `ValueError(f"Failed to load model from file: {path_model}")`, `llama_cpp/_internals.py:62`; read in the pinned 0.3.35 sdist) |
+| `src/backend/modules/model_selector.py:477` | ERROR | `f"Failed to load model for tier {tier}: {e}"`: same exception text |
+| `src/backend/modules/model_selector.py:660` | INFO | `f"Model downloaded to {result_path}"`: full path |
+| `src/backend/modules/model_selector.py:671` | ERROR | `f"Failed to download model for tier {tier}: {e}"`: an `OSError` from `hf_hub_download` names the local file. Not in the review's list; added here because it is the same mechanism in the same function as `:660` |
+| `src/backend/modules/model_selector.py:740` | INFO | `f"Found existing model for tier {check_tier}: {path}"`: full path |
+
+`:152` and `:477` log only `exc`; they leak when the exception text holds a path, which llama.cpp's does. Out of scope and left as is: `llama_cpp_provider.py:227` puts `models_path` into a `ProviderUnavailableError` message (an exception, not a log call), and `download_model_async` stores `str(e)` and `str(result)` in the progress row (a DB field, not a log).
+
+**Measured on `b2b3f4e`** (scratch copies of HC-MPATH-003…008 below, run through `bash scripts/pyslot.sh`): **6 failed**, each on a log message that contains `jane-doe-home`, for example `LlamaCppProvider: failed to load model: Failed to load model from file: /tmp/pytest-of-root/…/jane-doe-home/x.gguf` and `Failed to download model for tier low: [Errno 13] Permission denied: '…/jane-doe-home/models/x.gguf'`.
+
+**Design (log text only; return values and control flow unchanged):**
+1. `:110-113`: log `Path(self._settings.models_path).name` instead of the directory.
+2. `:152`, `:477`, `:671`: log `type(exc).__name__` instead of the exception text (prior art: `modules/embeddings.py:123-125`, "Embedding model failed to load: {type(exc).__name__}").
+3. `:660`: `result_path.name`. `:740`: `path.name`.
+
+**Test-first** (`src/backend/tests/test_model_path_logs.py`; same stubs as HC-MPATH-001/002, `caplog` at DEBUG on the module logger; the directory is `<tmp>/jane-doe-home`; each test also asserts that a record at the named level exists, so it is not vacuous):
+
+| Id | Call | Assertion | RED today? |
+|---|---|---|---|
+| HC-MPATH-003 | `LlamaCppProvider._ensure_initialized()` with `_find_model_path` → `None` and `settings.models_path` monkeypatched to `<tmp>/jane-doe-home/models` | a WARNING record exists; no record contains `jane-doe-home` or `str(tmp_path)` | yes (measured) |
+| HC-MPATH-004 | same provider, `_load_llama_class` → a callable raising `ValueError(f"Failed to load model from file: {model_path}")` | returns `False`; an ERROR record exists and names `ValueError`; no path | yes (measured) |
+| HC-MPATH-005 | `ModelSelector.load_model(tier)` with a stub `llama_cpp` whose `Llama` raises the same `ValueError` | returns `None`; ERROR record names `ValueError`; no path | yes (measured) |
+| HC-MPATH-006 | `ModelSelector(models_path=<tmp>/jane-doe-home/models).download_model(tier)` with a stub `huggingface_hub` module in `sys.modules` (`list_repo_files` → `["x.gguf"]`, `hf_hub_download` → `<local_dir>/x.gguf`) | returns the path; an INFO record contains `x.gguf`; no path | yes (measured) |
+| HC-MPATH-007 | `ensure_model_available()` with `get_model_path` → `<tmp>/jane-doe-home/x.gguf` | returns the path; an INFO record contains `x.gguf`; no path | yes (measured) |
+| HC-MPATH-008 | as HC-MPATH-006, `hf_hub_download` raising `PermissionError(13, "Permission denied", <local_dir>/x.gguf)` | returns `None`; ERROR record names `PermissionError`; no path | yes (measured) |
+
+No test imports the real `llama_cpp` or reaches the network: both libraries are stubbed in `sys.modules` (CLAUDE.md §3 import boundary; local-first).
+
+**Files:** `src/backend/core/llm/llama_cpp_provider.py` (`:110-113`, `:152` only), `src/backend/modules/model_selector.py` (`:477`, `:660`, `:671`, `:740` only), `src/backend/tests/test_model_path_logs.py`, slots. **Re-run, not edited:** `tests/test_llm_provider_layer.py`, `tests/test_model_integrity.py`, `tests/test_tier_capabilities.py`, `tests/test_llm_structured_output.py`.
+**Expected collected delta:** +6. **Est:** 1 h.
+**Acceptance:** `pyt tests/test_model_path_logs.py tests/test_llm_provider_layer.py tests/test_model_integrity.py tests/test_tier_capabilities.py tests/test_llm_structured_output.py -q -rfE`: 0 failed; RED output for the 6 new ids; full suite per RUNBOOK §6. **Rollback:** revert.
+**Order:** ready now. Never beside B-5 (`model_selector.py`; B-5 is blocked on B-3). No ask-first file; `core/model_runner.py` and `core/external_runner.py` are not touched.
+
+## Follow-ups found 2026-10-20, second batch (planned 2026-10-20 on `origin/main` @ `699eb18`)
+
+Five rows: UNCERTAINTY-VERIFY (owner LCP-HL-DIFF follow-up, `owner-decisions-2026-09-27.md:319`), NLI-LOG-M7 (#240 review), and three RRSI app rows from owner rows RRSI-OQ-9, RRSI-OQ-14 and RRSI-OQ-21 (`owner-decisions-2026-09-27.md:330`, `:335`, `:342`). None of them edits a CLAUDE.md §1 ask-first file. Measured facts ran as scratch tests in the planning worktree through `bash scripts/pyslot.sh` (removed afterwards; `git status --short` empty). `pyt` is as defined in the 2026-10-20 batch above.
+
+### UNCERTAINTY-VERIFY — uncertainty sections are never verified, so a false cited value there is served
+
+**Source:** owner LCP-HL-DIFF (`owner-decisions-2026-09-27.md:319`): "Merge as shown. The UNCERTAINTY gap becomes a follow-up row 'uncertainty sections are never verified'." Disclosure (5) of #215.
+
+**Facts (`699eb18`):**
+1. `ClaimExtractor.extract_claims` skips every uncertainty section before claims are extracted (`src/backend/modules/claim_extractor.py:130-132`, `if segment_type == "uncertainty": continue`). So the bullet's pointer is half right: `filter_unverifiable_claims` also marks uncertainty claims unverifiable (`:347-349`), but no uncertainty claim ever reaches it. A fix must change both sites.
+2. `RAGModule._run_verification_pipeline` (`src/backend/modules/rag.py:1015`) calls `extract_claims` then `filter_unverifiable_claims` (`:1031-1034`); with no verifiable claims it returns `faithfulness_score=1.0` (`:1036-1044`).
+3. HC-LCPH-013 (`src/backend/tests/test_rag_headerless.py:241-252`) pins the gap: `FACTS_LINE + "\nUNCERTAINTY:\nYour glucose is 300 mg/dL [cite:1]"` is served with `is_valid True` and `300 mg/dL` in `full_response`. **Measured:** it passes on `699eb18` (`1 passed`, run together with the NLI scratch test below). Its docstring says it is expected to change when this row lands.
+4. The app's own uncertainty texts carry no digit and no `[cite:N]` (`rag.py:858-859`, `:1409-1412`, `:1453-1454`); the structured renderer's `UNCERTAINTIES:` list (`:1406`) is model text and is the case this row is about.
+
+**Design (under UNC-VERIFY-SCOPE (a), recommended):** `extract_claims` no longer skips uncertainty sections; `filter_unverifiable_claims` treats an uncertainty claim like a meta claim: unverifiable **unless** it carries a citation or a digit (the existing `carries_fact` test, `:354`). A hedge such as "Reference ranges can vary between laboratories." stays unverified; "Your glucose is 300 mg/dL [cite:1]" is verified against source 1 and withheld when it fails, exactly as in REPORT FACTS. No threshold, `faithfulness.py`, `verifier_agent.py` or `interpret_safety.py` change.
+
+**Test-first** (`src/backend/tests/test_rag_headerless.py`, via `legacy_chat_client` as HC-LCPH-013):
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-LCPH-013 (changed, docstring says so) | the same answer is now withheld: `"300 mg/dL"` in neither `full_response` nor any segment | yes (measured: served today) |
+| HC-LCPH-016 | `UNCERTAINTIES:\n- Reference ranges can vary between laboratories.` after `FACTS_LINE` is still served unchanged, `is_valid True` | no (pin) |
+| HC-LCPH-017 | `UNCERTAINTIES:\n- Your glucose is 300 mg/dL` (digit, no cite) is withheld | yes |
+| HC-LCPH-018 | unit: `filter_unverifiable_claims` on an uncertainty claim with `[cite:1]` puts it in `verifiable`; one with no digit and no cite in `unverifiable` | yes (the claim is never extracted today) |
+
+Under (b) (cite only), HC-LCPH-017 flips to "served" and is kept as a pin of the remaining gap.
+
+**Files:** `src/backend/modules/claim_extractor.py` (`:130-132`, `:347-349` only), `src/backend/tests/test_rag_headerless.py`, slots. **Re-run, not edited:** `tests/test_phase4_ai_safety.py`, `tests/test_rag_pipeline.py`, `tests/test_legacy_abstain.py`, `tests/test_legacy_cite_eval.py`, `tests/test_rag_structured_cite.py`, and the legacy eval gate (`scripts/legacy_eval_gate.py`, same result as on `main`).
+**Expected collected delta:** +3. **Est:** 1.5 h (+ Opus review).
+**Acceptance:** `pyt tests/test_rag_headerless.py tests/test_phase4_ai_safety.py tests/test_rag_pipeline.py tests/test_legacy_abstain.py tests/test_legacy_cite_eval.py tests/test_rag_structured_cite.py -q -rfE`: 0 failed apart from the CLAUDE.md §4 environment failures; RED output for HC-LCPH-013 (changed), 017 and 018; legacy eval gate output before and after, identical; full suite per RUNBOOK §6. **Rollback:** revert.
+**Owner gates:** **UNC-VERIFY-SCOPE** (execution; **answered 2026-10-20: (a)**, owner-decisions row UNC-VERIFY-SCOPE: "lines that carry a `[cite:N]` or a number; hedges without either stay unchecked"). Wording as asked: "Uncertainty sections are never verified today (`claim_extractor.py:130-132`), so `UNCERTAINTY:\nYour glucose is 300 mg/dL [cite:1]` is served even when source 1 says otherwise (pinned by HC-LCPH-013). Which uncertainty lines should be checked like report facts? (a) lines that carry a `[cite:N]` or a number; hedges without either stay unchecked (Recommended: closes the measured leak; the app's own uncertainty texts have neither, so they are unaffected) (b) only lines that carry a `[cite:N]`; an uncited number stays unchecked (c) none; keep the gap and the pin." **UNC-VERIFY-DIFF** (merge only, open; asked after the draft PR exists), as LCP-HL-DIFF: owner yes on the exact `claim_extractor.py` diff with the eval-gate output.
+**Order:** ready (build on a draft; UNC-VERIFY-SCOPE answered (a)); merge blocked on UNC-VERIFY-DIFF. Never beside B-3 (B-3 rebases on what the verifier withholds; queue bullet). No open PR touches `claim_extractor.py` or `test_rag_headerless.py` (checked against #210, #230, #239, #245, #246). No ask-first file.
+
+### NLI-LOG-M7 — the NLI loader's logger-restore test starts at INFO, so mutant M7 survives
+
+**Source:** #240 review (EMB-LOG-M7's twin in the NLI loader). Never run beside G-C5 (queue bullet; G-C5 is done, its real-model steps are pending).
+
+**Facts (`699eb18`):** `load_local_cross_encoder` (`src/backend/modules/embeddings.py:72`) saves `prev_levels = [lg.level for lg in quiet]` (`:101`), raises each logger to `max(getEffectiveLevel(), WARNING)` (`:103`) and restores in `finally` (`:111-112`). Its only restore test, HC-GC5-004c (`src/backend/tests/test_gc5_nli_flag.py:443-461`), sets both loggers to INFO first, where `.level == getEffectiveLevel()`.
+
+**Measured (scratch test, then M7 applied with `sed` to a working copy of `embeddings.py`, reverted with `git checkout`):** a NOTSET-start test passes on `699eb18`; under M7 (`prev_levels = [lg.getEffectiveLevel() …]`) it fails with `assert 30 == 0`, while HC-GC5-004c still passes (`1 failed, 1 passed`).
+
+**Design:** test only, as EMB-LOG-M7 (#240).
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-GC5-004d | same setup as HC-GC5-004c (corrupt bundle, `verify_model_file` → VERIFIED, `CrossEncoder` stub raising); `logging.getLogger("sentence_transformers").setLevel(NOTSET)`; assert `getEffectiveLevel() != NOTSET` first (non-vacuous); `load_local_cross_encoder()` raises `EmbeddingModelUnavailableError`; then `.level == NOTSET`; restore in `finally` | no (pin). M7 fails it (measured above) |
+
+**Files:** `src/backend/tests/test_gc5_nli_flag.py`, slots. `src/backend/modules/embeddings.py` shows an empty diff.
+**Expected collected delta:** +1. **Est:** 0.25 h.
+**Acceptance:** `pyt tests/test_gc5_nli_flag.py tests/test_embedding_fail_closed_paths.py -q -rfE`: 0 failed; the M7 RED output pasted; `git diff origin/main -- src/backend/modules` empty. **Rollback:** revert.
+**Order:** ready now. No open PR touches `test_gc5_nli_flag.py`. No ask-first file.
+
+### AGENT-ENABLED-TOGGLE — no Settings switch for the agent, and care-task text is not labelled unverified
+
+**Source:** owner RRSI-OQ-9 (`owner-decisions-2026-09-27.md:330`): "Keep T0 on by default; add a Settings toggle for `agent_enabled`; label care-task text as unverified in answers."
+
+**Facts (`699eb18`):**
+1. The backend already has the flag: `PATCH /settings/model/agent` (`src/backend/api/model_settings.py:1201-1229`, audited as `settings.agent.update`), and `GET /settings/model` returns `agent_enabled` (`:465`). `git grep -n agent_enabled -- src/frontend/src` prints nothing: no type field, hook or switch.
+2. `_care_task_sentences` (`src/backend/modules/agent/nodes/draft.py:184-219`) writes `Open follow-up: {title}{due}. The note says: "{quote}"` with no label, although `query_care_tasks` returns document-extracted free text (`modules/agent/tools/query_care_tasks.py:5`, `:81`). Prior art for a label: unverified timeline events are rolled into a "pending your verification" sentence (`draft.py:262-300`, HC-AGQ-052b).
+
+**Design:**
+1. Frontend: `agent_enabled: boolean` on `ModelSettings` and `useSaveAgentSettings()` (`apiPatch('/settings/model/agent', …)`, invalidating the model-settings query) in `src/frontend/src/services/modelSettings.ts`, exported through the `src/frontend/src/services/index.ts` barrel (AGENT.md:18; it lists `modelSettings` hooks by name, `:164`, `:177`, `:324`), and the card imports it from `@/services`; a small `AgentSettingsCard.tsx` in `src/frontend/src/components/settings/` (one switch, on by default, copy: "Use the step-by-step assistant. When off, answers come from the simpler search path."); one import and render line in `SettingsPage.tsx`.
+2. Backend: each care-task sentence gets the AET-LABEL wording (recommended: `Open follow-up (from your documents, not verified by you): …`). Summary sentence and citations unchanged.
+
+**Test-first:**
+
+| Id | Where | Assertion | RED today? |
+|---|---|---|---|
+| HC-AGQ-050 (changed) | `src/backend/tests/agent/test_agentic_queries.py` | each care-task sentence contains the AET-LABEL text; citations and groundedness mapping unchanged (`mapping.dropped == []`) | yes |
+| HC-AET-001 | `src/backend/tests/test_model_settings_api.py` via `route_client` | `PATCH /settings/model/agent {"agent_enabled": false}` → 200, then `GET /settings/model` shows `false`; one `settings.agent.update` audit row | no (pin of the route the card calls) |
+| HC-AET-FE-001…002 | `src/frontend/src/__tests__/AgentSettingsCard.test.tsx` | the switch reflects `agent_enabled`; toggling calls PATCH with the new value | yes (no card) |
+
+**Files:** `src/backend/modules/agent/nodes/draft.py` (`_care_task_sentences` only), `src/backend/tests/agent/test_agentic_queries.py` (HC-AGQ-050 only), `src/backend/tests/test_model_settings_api.py` (HC-AET-001 only), `src/frontend/src/services/modelSettings.ts`, `src/frontend/src/services/index.ts` (export `useSaveAgentSettings` through the barrel, AGENT.md:18), `src/frontend/src/components/settings/AgentSettingsCard.tsx`, `src/frontend/src/pages/SettingsPage.tsx` (one import + render line), `src/frontend/src/__tests__/AgentSettingsCard.test.tsx`, slots.
+**Expected collected delta:** +1 backend. **Est:** 2 h.
+**Acceptance:** `pyt tests/agent/test_agentic_queries.py tests/test_model_settings_api.py -q -rfE`: 0 failed; `cd src/frontend && npx tsc --noEmit && npx vitest run src/__tests__/AgentSettingsCard.test.tsx` (on WSL `/mnt/c` vitest stalls: SKIPPED with that reason, CI runs it); full suite per RUNBOOK §6. **Rollback:** revert.
+**Owner gates:** RRSI-OQ-9 answered (`:330`). **AET-LABEL** (wording; **answered 2026-10-20: (a)** "`Open follow-up (from your documents, not verified by you): …`", owner-decisions row AET-LABEL). Wording as asked: "Care-task sentences in agent answers come from text extracted from your documents and are not verified. Which label? (a) `Open follow-up (from your documents, not verified by you): …` (Recommended: says where it came from and that nobody checked it) (b) `Unverified follow-up: …` (c) a separate line after the list: `These follow-ups come from your documents and are not verified.`"
+**Order:** ready (AET-LABEL answered (a)). `SettingsPage.tsx` is a shared file (contracts §b) and #239 (RSI1-DONATE PR-2) edits it, but #239 is parked as a draft by owner DON-RECALL-R2 (donation stays off until after 2026-10-24), so it is not running: L0 rules whether this row builds now and #239 rebases its one `SettingsPage.tsx` line later (recommended), or waits. Never beside MSET-EXT-AUDIT-CT's successors on `test_model_settings_api.py` (none open). No ask-first file.
+
+### RUNSTEP-CONTRACT — the RunStep comment says handles, but `act` stores full tool outputs
+
+**Source:** owner RRSI-OQ-14 (`owner-decisions-2026-09-27.md:335`): "Correct the comment; add a test that RunLog never reaches audit, cache, persistence or donation."
+
+**Facts (`699eb18`):** `RunStep.payload` is commented `# handles, never raw PHI` (`src/backend/modules/agent/state.py:64`), but `act` stores `{"tool_name": …, "output": output.model_dump(mode="json")}` (`src/backend/modules/agent/nodes/act.py:50-59`, payload at `:56`), i.e. full tool output, values included. `graph.replay` relies on that, while its docstring repeats the wrong claim: "handles only, never raw PHI — state.py's `RunStep` contract" (`graph.py:240-244`). The RunLog is built in `graph.py:176` and lives only in memory; no `RunLog` reference exists outside `modules/agent/` except the eval scorer (`modules/agent/eval/scorer.py:293-328`).
+
+**Design:** comments only: `state.py:64` (e.g. `# full tool output (values included); in memory only, never persisted, audited, cached or donated (RRSI-OQ-14)`) and the `replay` docstring at `graph.py:240-244` (same correction; #248 Codex review MINOR 6), plus the isolation test. No product change.
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-RUNLOG-001 | one `POST /assistant/chat` through `route_client` on the agent path, with a stub tool whose output carries a canary in a field `draft` never renders (the implementer picks it from `draft.py` and asserts the canary is in `run_log.steps`, so the test is not vacuous); the canary is absent from every `create_audit_log` call's arguments, from the agent cache entry (`modules/agent/cache.py` `put_cached`), from the stored `ChatTurn` rows, and from `caplog` | no (pin). Mutant: `put_cached` storing `run_log.model_dump()` beside the terminal fails it |
+
+**Donation leg: moved out of this row (#248 Codex review MAJOR 4, and owner DON-RECALL-R2).** As first planned, HC-RUNLOG-002 could pass on an empty collection, so it proved nothing. And there is nothing to test on `main`: no code collects donations (`collect` exists only in #239), RRSI-OQ-24 (`owner-decisions-2026-09-27.md:345`) bars any `agent_traces` collection until a new owner row, and owner DON-RECALL-R2 (2026-10-20) parked #239: "donation stays off" until a stronger local detector, as its own row and gate, after 2026-10-24. The donation leg is now a requirement on whichever row turns donation collection on (written into the [RSI1-DONATE plan](../2026-10-17-rsi1-opt-in-donation-pipeline-plan.md#delta-2026-10-20-second-planner-211-review-notes-for-pr-2-and-rrsi-oq-25)): grant `fine_tune` consent on the current copy version, run one agent chat with the canary, rate that turn so a `ResponseFeedback` row exists, run `collect`, and require a **positive control** (the rated turn's redacted question and answer are donated, count ≥ 1) and the canary absent from every donated row; a scratch mutant that copies `run_log` payloads into the donated record must fail it.
+
+**Files:** `src/backend/modules/agent/state.py` (`:64` comment only), `src/backend/modules/agent/graph.py` (`replay` docstring `:240-244` only), `src/backend/tests/agent/test_runlog_isolation.py` (new), slots.
+**Expected collected delta:** +1. **Est:** 1.5 h.
+**Acceptance:** `pyt tests/agent/test_runlog_isolation.py tests/agent/ -q -rfE`: 0 failed; the mutant output pasted; full suite per RUNBOOK §6. **Rollback:** revert.
+**Owner gates:** RRSI-OQ-14 answered (`:335`); none open.
+**Order:** ready now (no dependency on #239). No ask-first file.
+
+### CHAT-TREND-DEF — the chat trend uses first-vs-last with strict equality; the owner wants the Trends-page definition
+
+**Source:** owner RRSI-OQ-21 (`owner-decisions-2026-09-27.md:342`): "Adopt the Trends page's latest-vs-prior comparison with a 5% stable band."
+
+**Facts (`699eb18`) — the owner row's premise does not hold:**
+1. Agent chat: `compute_trend` compares first and last point with strict equality (`src/backend/modules/agent/tools/compute_trend.py:83-89`); `draft` turns that into "increased / decreased / stayed about the same" (`modules/agent/nodes/draft.py:176-179`).
+2. The Trends page shows `trendData.summary` (`src/frontend/src/pages/TrendsDashboard.tsx:403`, `:528-530`) from `GET /observations/trends/{analyte}` (`src/frontend/src/services/observations.ts:51`), which computes **first-vs-last** with a 5% band (`src/backend/api/observations.py:660-671`). The doctor export does the same (`src/backend/api/export.py:355-368`).
+3. The **latest-vs-prior** 5% definition the research cited (`02-verdicts.md:183`) is `AnalyticsModule.calculate_trend` (`src/backend/modules/analytics.py:96-112`), and nothing calls it: `git grep -n "AnalyticsModule\|calculate_trend" -- src/backend` finds only its definition and the `modules/__init__.py` export. The Trends page icon (`TrendsDashboard.tsx:216-221`) is called with `previous = undefined` (`:595`), so it always shows the flat icon.
+4. Other trend texts: the legacy chat chunk uses 3% over the recent rows (`modules/rag.py:465-473`); the lab interpretation uses latest-vs-prior 5% (`modules/interpret.py:531-541`).
+
+So "the Trends page's definition" and "latest-vs-prior" name different rules. Which one the owner meant is a new gate (CTD-DEF); this plan does not choose.
+
+**Design (agent path only unless CTD-SCOPE says otherwise):** `compute_trend` takes the CTD-DEF rule with a 5% band and no division by zero (a zero base gives "flat", as `api/observations.py:664` does). `draft` wording unchanged.
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-CTD-001 ×3 | `compute_trend` on points 100 → 103 gives `flat`; 100 → 110 gives `up`; 100 → 90 gives `down` | 100 → 103 yes (strict equality gives `up`) |
+| HC-CTD-002 | under CTD-DEF (a): points 100, 150, 104 give `flat` (first-vs-last 4%); under (b): `down` (latest-vs-prior −31%) | yes under (b); under (a) yes (strict gives `up`) |
+| HC-CTD-003 | parity: for the same verified series, `compute_trend`'s direction agrees with the word in `GET /observations/trends/{analyte}`'s summary (under (a) only) | yes |
+
+**Files:** `src/backend/modules/agent/tools/compute_trend.py` (`:83-89` only), `src/backend/tests/agent/test_s2_loop.py` or a new `src/backend/tests/agent/test_chat_trend_def.py` (the implementer picks one; the file list names the one used), slots. Under CTD-SCOPE (b) also `src/backend/modules/rag.py` (`:465-473` only) and `src/backend/tests/test_biomarker_assistant.py`.
+**Expected collected delta:** +5. **Est:** 1 h (+1 h under CTD-SCOPE (b)).
+**Acceptance:** `pyt tests/agent/ tests/test_assist_agent_dates_http.py tests/test_export_trend_units.py -q -rfE`: 0 failed; RED output; full suite per RUNBOOK §6. **Rollback:** revert.
+**Owner gates:** RRSI-OQ-21 answered (`:342`), but on a premise that does not match the code (facts 2-3). **CTD-DEF answered 2026-10-20: (a)** "first-vs-last with a 5% band, the rule the Trends page and export show"; **CTD-SCOPE answered 2026-10-20: (a)** "no, agent path only" (owner-decisions rows CTD-DEF, CTD-SCOPE). Wording as asked: **CTD-DEF**: "You chose 'the Trends page's latest-vs-prior comparison with a 5% stable band' for chat trends. The Trends page actually compares the **first and last** result with a 5% band (`api/observations.py:660-671`, the doctor export does the same); the latest-vs-prior rule exists only in an unused module (`modules/analytics.py`). Which rule should chat use? (a) first-vs-last with a 5% band, the rule the Trends page and export show (Recommended: one definition across the app, as your answer intended, and the smallest change) (b) latest-vs-prior with a 5% band, as worded; chat and the Trends page summary would then disagree (c) latest-vs-prior with a 5% band for chat **and** the Trends page summary (changes the Trends page text too; a separate row)." **CTD-SCOPE** (open): "Should the legacy chat path's trend line (3% over recent rows, `modules/rag.py:465-473`) change too? (a) no, agent path only (Recommended: the legacy text is model context, and `rag.py` is shared with B-3) (b) yes, same rule."
+**Order:** ready (CTD-DEF (a), CTD-SCOPE (a): agent path only, so `rag.py` is not touched). No open PR touches `compute_trend.py`. No ask-first file.
+
+## Follow-ups found 2026-10-21 (planned 2026-10-21 on `origin/main` @ `b902e0f`)
+
+Three rows from the G-C5 real-model evidence, plus EMPTY-ANSWER-SERVED (PR #262 host run, added in #261 round 1) (#249, [gc5-real-model-evidence.md](../../reviews/2026-10-20/gc5-real-model-evidence.md)): GC5-PREDICT-FAILCLOSED, GC5-NLI-NEUTRAL, GC5-FAITH-SCORE. **`use_llm_entailment` stays default off under every option below** (`core/config.py:166`, `verifier_agent.py:88`; Q5a `owner-decisions-2026-09-27.md:225`); no row proposes turning it on, and no threshold moves (`min_entailment_confidence` 0.7, `verifier_agent.py:76`, `core/config.py:162`; `min_faithfulness_score` 0.6). **Ask-first:** GC5-PREDICT-FAILCLOSED and GC5-NLI-NEUTRAL edit `modules/verifier_agent.py` (CLAUDE.md §1), so neither is built before the owner's yes; GC5-FAITH-SCORE edits `modules/rag.py` only (`faithfulness.py` is read, not edited). The NLI model is not on this box (`ls src/backend/models/nli` fails), so the planner measured the verifier's NLI branch with fake encoders (scratch script, `~/venvs/asclexis-311/bin/python -I`, run from `src/backend`; removed, `git status --short` empty); the real-model numbers are quoted from #249. `pyt` is as defined in the 2026-10-20 batch above.
+
+**Measured with fake encoders on `b902e0f`** (`_CLAIM` / `_SOURCE` of `tests/test_gc5_nli_flag.py:288-293`; the rules verify `_CLAIM` with the flag off):
+
+| Fake encoder output, flag on | Today |
+|---|---|
+| `predict` raises `RuntimeError` | `verify_claim` raises `RuntimeError` |
+| 4 scores, `id2label` has 3 entries (argmax index 3) | raises `KeyError` |
+| argmax label `"maybe"` | raises `ValueError` |
+| neutral 0.858 | `is_verified False` |
+| entailment 0.668 | `is_verified False` (0.668 < 0.7) |
+| entailment 0.95 on `Your glucose level is 182 mg/dL` against the 95 mg/dL source (rules: `is_verified False`) | **`is_verified True`**: an NLI entailment rescues a claim the rules fail |
+
+### GC5-PREDICT-FAILCLOSED — a failing NLI `predict` turns into a 500 or 503 instead of an unverified claim
+
+**Source:** #249 item 6 (routes table in [gc5-real-model-evidence.md](../../reviews/2026-10-20/gc5-real-model-evidence.md)): flag on, `predict` raising `RuntimeError` gives `POST /assistant/chat` **500** "Error processing chat request" and `interpret-grounded` **503**; an unmapped label index gives **500** on both (interpret-grounded: unhandled `Internal Server Error`).
+
+**Facts (`b902e0f`):**
+1. `_check_entailment_llm` (`src/backend/modules/verifier_agent.py:304`) wraps only the load (`except EmbeddingModelUnavailableError`, `:321-328`, which returns NEUTRAL 0.0, "claim left unverified"). `encoder.predict(...)` (`:329`), the argmax (`:330`) and `EntailmentLabel(str(encoder.config.id2label[best]).lower())` (`:331`) are unguarded (measured above: `RuntimeError`, `KeyError`, `ValueError` escape `verify_claim`).
+2. Chat: the flag reaches only the legacy `_rag_module` (`api/assistant.py:227`); `rag.query` raising falls to the route's `except Exception` → 500 (`api/assistant.py:1071-1078`). Interpret-grounded: `RuntimeError` → 503 with the RR500-MAP sentence (`api/interpretations.py:544-552`); `KeyError` / `ValueError` are not caught → 500.
+3. **Behaviour: proposed by extension of Q5b / GC5-OL-2 B, confirmed by the GC5-PFC-DIFF answer.** Q5b (`owner-decisions-2026-09-27.md:226`, "fail closed") and GC5-OL-2 B (`:270`, "Every claim is unverified, so chat abstains") cover an **absent** model; applying them to a runtime `predict` failure (which also turns today's RR500-MAP 503 into a 201) was the planner's extension. The owner confirmed it: **GC5-PFC-DIFF answered (a) 2026-10-21** (owner-decisions row GC5-PFC-DIFF), whose question stated "chat abstains (200); the lab explanation returns 201 with every claim marked failed and the answer still shown under the caution badge".
+
+**Design (one hunk, `verifier_agent.py:329-337`):** wrap the predict, argmax, label lookup and `EntailmentResult` build in `try: … except Exception as exc:`; on failure log `logging.getLogger(__name__).warning("NLI check failed (%s); claim left unverified", type(exc).__name__)` and return `EntailmentResult(source_id=…, label=EntailmentLabel.NEUTRAL, confidence=0.0, explanation="NLI check failed; claim left unverified")`, the shape of the absent-model return (`:323-328`). Both fail-closed returns (this one and the absent-model `:327`) end with the same phrase `claim left unverified`, which GC5-NLI-NEUTRAL's named check reads (pinned by HC-GC5-012 and HC-GC5-010; no magic confidence value). Never log `str(exc)` or `exc_info`: a library error can quote its input, which is claim and source text (patient data). `Exception`, not `BaseException`. Result: chat 200 abstention (as with the model absent); interpret-grounded 201 `is_valid false`, 0 verified (as with the model absent; the served-text caveat is OL-2's, not this row's). The RR500-MAP 503 stays for real inference failures (`rag.query` raising `RuntimeError` from generation; HC-RAG-RUNTIME-001 unchanged).
+
+**Test-first:**
+
+| Id | File | Assertion | RED today? |
+|---|---|---|---|
+| HC-GC5-012 | `tests/test_gc5_nli_flag.py` | flag on, encoder whose `predict` raises `RuntimeError("boom " + _CLAIM)`: `verify_claim` returns `is_verified False`, label NEUTRAL, confidence 0.0, `explanation.endswith("claim left unverified")`; `caplog` has one WARNING containing `RuntimeError` and neither `boom` nor `95 mg/dL` | yes (measured: raises) |
+| HC-GC5-013 (parametrized ×2) | same | (i) 4 scores with a 3-entry `id2label`; (ii) argmax label `"maybe"`: both return `is_verified False`, NEUTRAL 0.0 | yes (measured: `KeyError`, `ValueError`) |
+| HC-GC5-014 | same | `POST /assistant/chat` through `tests.legacy_eval.harness.legacy_chat_client` (which calls `route_client`), flag on via `settings.use_llm_entailment = True` and `api.assistant._rag_module = None` (both restored in `finally`), raising encoder patched at `modules.embeddings.load_local_cross_encoder`: status 200 and the abstention template (one `uncertainty` segment) | yes (#249: 500) |
+| HC-GC5-015 (parametrized ×2) | `tests/test_safe_interp_grounded.py` (new test; the RAG is built through `patch.object(I, "get_rag_module", …)` with its own `RAGModule(enable_verification=True, verification_config=VerificationConfig(use_llm_entailment=True))` (runner and embeddings patched as `_rag()` does, `:83-87`), `retrieve_context` → `tests.legacy_eval.harness.build_chunks("glucose")`, `_generate_with_runner` → the 2-claim cited glucose answer of `gc5-evidence/routes_probe.py:25`; **`_run_verification_pipeline` stays real** (never the `_rag()` MagicMock, which returns `verified_claims=0, faithfulness_score=0.9`); `dbs` and `_call` from the same file; precondition leg with the flag off: 201, `verified_claims == 2`) | `interpret-grounded`, flag on, (i) encoder whose `predict` raises, (ii) unmapped index: status 201, `is_valid` false, `verification.verified_claims == 0` | yes (**measured on `b902e0f`** with exactly this setup, scratch test removed: flag off 201 / 2 verified / 0.814; (i) **503**; (ii) **500** `Internal Server Error`) |
+
+**Files:** `src/backend/modules/verifier_agent.py` (`_check_entailment_llm` `:329-337` only; **ask-first**), `src/backend/tests/test_gc5_nli_flag.py`, `src/backend/tests/test_safe_interp_grounded.py` (HC-GC5-015 only), slots. **Re-run, not edited:** `tests/test_phase4_ai_safety.py`, `tests/test_hc_a1_agent_verification.py`, `tests/test_embedding_fail_closed_paths.py`, `tests/legacy_eval/`, `scripts/legacy_eval_gate.py` (repo root) (flag off: output identical before and after).
+**Expected collected delta:** +6 (012, 013 ×2, 014, 015 ×2). **Est:** 1.5 h (+ Opus review).
+**Acceptance:** `pyt tests/test_gc5_nli_flag.py tests/test_safe_interp_grounded.py tests/test_phase4_ai_safety.py tests/test_hc_a1_agent_verification.py tests/legacy_eval -q -rfE`: 0 failed apart from the CLAUDE.md §4 environment failures; RED output for each new id; legacy eval gate output (`"$R/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python scripts/legacy_eval_gate.py` from the repo root (`R=$(git rev-parse --show-toplevel)`; the script lives at the repo root, CI `ci.yml:241`)) identical before and after; `git diff origin/main -- src/backend/core/config.py` empty and `grep -n "use_llm_entailment: bool = False" src/backend/core/config.py src/backend/modules/verifier_agent.py` prints both lines; full suite per RUNBOOK §6. **Rollback:** revert.
+**Owner gates:** **GC5-PFC-DIFF** answered **(a)** 2026-10-21 (owner-decisions row GC5-PFC-DIFF): this one hunk (`verifier_agent.py:329-337`) is approved in advance; Opus review still runs and the owner merges. Any edit outside the hunk needs a new yes.
+**Order:** ready (GC5-PFC-DIFF answered (a)); owner merges. Lands **before** GC5-NLI-NEUTRAL (same function). Never beside GC5-NLI-NEUTRAL, NLI-LOG-M7 (`test_gc5_nli_flag.py`) or GC5-FAITH-SCORE (`test_safe_interp_grounded.py`). No open PR touches these files (checked: #210, #230, #239, #246).
+
+### GC5-NLI-NEUTRAL — the real NLI model calls a correct restatement neutral, so flag-on legacy answers all abstain
+
+**Source:** #249 verdict and item 4: flag on, the legacy eval gate fails `answer_rate=0.000` (bar 1.000). `Your glucose was 95 mg/dL [cite:1].` scored `neutral` 0.858 against `Glucose: 95 mg/dL…`; `Your glucose result was 95 mg/dL, within the reference range of 70-100 mg/dL [cite:1].` scored `entailment` 0.668 < 0.7. `served_invalid`, `uncited_served` and `leaked` stayed 0 ("the safety direction held, usefulness did not").
+
+**Facts (`b902e0f`):**
+1. `verify_claim` counts a source as support only for `ENTAILMENT` at ≥ 0.7 (`verifier_agent.py:172-176`); NEUTRAL is never support (`:182-183`). With the flag on, `_check_entailment` (`:214-226`) returns the NLI result **instead of** the rules result, so the NLI label alone decides.
+2. The real model also gave `neutral` 0.996 to the verbatim `Glucose: 95 mg/dL (reference range 70-100 mg/dL) [cite:1].` and 0.997 to a generic glucose sentence against a reference chunk (#249 NLI call list). Counting neutral as support would therefore verify generic and unrelated claims: neutral is not evidence of support for this model on these inputs.
+3. #249 item 5: 0 of 33 rules-verified pairs were failed by an NLI `contradiction`; the 3 low-confidence contradictions (0.487-0.571) sat on claims the rules had already failed; NLI verified 7 pairs the rules failed. Measured above: a fake entailment 0.95 rescues `182 mg/dL` against a 95 mg/dL source today.
+4. Hypothesis text includes the `[cite:N]` marker (`fake.pairs == [(_SOURCE.source_text, _CLAIM)]`, `test_gc5_nli_flag.py:331`; claims come from `claim_extractor` with the marker). Whether stripping it changes the label is UNMEASURED (needs the model).
+
+**Owner choice: GC5-NEUTRAL-SCOPE answered (a) veto only, 2026-10-21** (product: whether a neutral NLI restatement counts as support). Wording in [Owner gates](#owner-gates).
+
+**Design under (a) (`_check_entailment` `:214-226` only):** with the flag on, call `_check_entailment_llm` first. If its result is fail-closed, by a named check `_nli_fail_closed(result)` = `result.label is EntailmentLabel.NEUTRAL and result.explanation.endswith("claim left unverified")` (the shared suffix of the absent-model return `:327` and GC5-PREDICT-FAILCLOSED's return; no magic confidence value), return it: the claim stays unverified (GC5-OL-2 B is kept). If its label is CONTRADICTION, return it (any confidence; the contradiction branch `:177-181` has no floor today). Otherwise return `_check_entailment_rules(claim, source)`. So the NLI can only fail a claim the rules pass, never pass a claim the rules fail; neutral never counts as support. `_check_entailment_llm`, thresholds, `faithfulness.py` and the flag default are unchanged.
+
+**Test-first** (`tests/test_gc5_nli_flag.py`, fakes as `_FakeCrossEncoder` `:296-308`):
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-GC5-006 | flag on, neutral 0.858 on `_CLAIM` (rules verify): `is_verified True` | yes (measured `False`) |
+| HC-GC5-007 | flag on, entailment 0.668 on `_CLAIM`: `is_verified True` (the rules decide) | yes (measured `False`) |
+| HC-GC5-008 | flag on, entailment 0.95 on `Your glucose level is 182 mg/dL` vs `_SOURCE` (rules fail; precondition asserted with the flag off): `is_verified False` | yes (measured `True`) |
+| HC-GC5-009 | flag on, contradiction 0.55 on `_CLAIM`: `is_verified False`, `contradicting_sources == ["1"]` | no (pin of the veto) |
+| HC-GC5-010 | flag on, model absent (`load_local_cross_encoder` raising `EmbeddingModelUnavailableError`) and, second leg, `predict` raising: `is_verified False` and `_nli_fail_closed(result)` is true for both returns (OL-2 fail closed is not turned into a rules fallback); third leg: a real neutral at confidence 0.0001 from `predict` is **not** fail-closed and goes to the rules | no (pin; needs GC5-PREDICT-FAILCLOSED for the second leg) |
+| HC-GC5-011 | legacy eval gate (`tests.legacy_eval.harness`, as `gc5-evidence/measure.py gate` does) with the flag on and a replay encoder that returns #249's measured `(label, confidence)` per claim (the 7 NLI calls listed there): gate PASS, `answer_rate == 1.0`, `served_invalid == uncited_served == leaked == 0` | yes (replays #249: FAIL `answer_rate=0.000`) |
+
+Under (c) or (d) the row has no code; under (b) the plan is redrafted (not recommended).
+
+**Files:** `src/backend/modules/verifier_agent.py` (`_check_entailment` `:214-226` only; **ask-first**), `src/backend/tests/test_gc5_nli_flag.py`, slots. **Re-run, not edited:** `tests/test_phase4_ai_safety.py`, `tests/test_hc_a1_agent_verification.py`, `tests/legacy_eval/`, `scripts/legacy_eval_gate.py` (repo root) (flag off: identical output).
+**Expected collected delta:** +6. **Est:** 2 h (+ Opus review).
+**Acceptance:** `pyt tests/test_gc5_nli_flag.py tests/test_phase4_ai_safety.py tests/test_hc_a1_agent_verification.py tests/legacy_eval -q -rfE`: 0 failed apart from the CLAUDE.md §4 environment failures; RED output for 006, 007, 008, 011; legacy eval gate flag off (`"$R/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python scripts/legacy_eval_gate.py` from the repo root (`R=$(git rev-parse --show-toplevel)`; the script lives at the repo root, CI `ci.yml:241`)) identical before and after; the flag-default and config greps as in GC5-PREDICT-FAILCLOSED; full suite per RUNBOOK §6. **Model-host step (owner or an agent on a machine that holds the fetched model; not CI, not a merge condition unless the owner makes it one):** `docs/reviews/2026-10-20/gc5-evidence/run_all.sh <worktree-root>` with all three pyslot locks held: flag-on gate PASS, pasted. **Rollback:** revert.
+**Owner gates:** **GC5-NEUTRAL-SCOPE** answered **(a) veto only** 2026-10-21 (owner-decisions row GC5-NEUTRAL-SCOPE); **GC5-NEUTRAL-DIFF** (ask-first `verifier_agent.py`, open; owner yes on the exact `_check_entailment` diff).
+**Order:** blocked on GC5-NEUTRAL-DIFF and on GC5-PREDICT-FAILCLOSED merged (same file; HC-GC5-010's second leg). Never beside GC5-PREDICT-FAILCLOSED or NLI-LOG-M7.
+
+**Costs of (a) the GC5-NEUTRAL-SCOPE question did not state** (#261 review round 1 finding 4; L0 tells the owner separately): (1) it gives up the 7 pairs the NLI verified that the rules failed (#249 item 5), so the NLI never adds an answer; (2) it keeps the event-loop stall, about 8.3 s on the first answer and up to about 1 s on later ones (#249 item 7), while the NLI only vetoes; (3) it does not fix RULES-RANGE-VALUE (the rules still verify a wrong value when the reference range matches; queue bullet). The question's option (b) also carried an editorial "not recommended" beside the "(Recommended)" marker on (a).
+
+### GC5-FAITH-SCORE — the reported faithfulness score ignores claim verification
+
+**Source:** #249: "`faithfulness_score` stayed 0.814 on `interpret-grounded` while 0 of 2 claims verified, so a client reading only that score would miss the failure" (0.814 flag off with 2 of 2 verified too).
+
+**Facts (`b902e0f`):**
+1. `_run_verification_pipeline` computes `faithfulness = self.faithfulness_scorer.score_response(claim_texts, all_source_texts)` (`src/backend/modules/rag.py:1093-1097`) and reports `faithfulness.overall_score` (`:1119`). `verify_all_claims` (`:1090`) does not feed it; `score_response` has a `per_claim_entailment` argument (`modules/faithfulness.py:366`) that `rag.py` never passes, so the score is lexical/pseudo-entailment only, whatever the verifier says. No verifiable claims → 1.0 (`rag.py:1036-1044`).
+2. `is_valid` already goes false on any failed claim (`rag.py:933-936`) or a score < 0.6 (`:938-940`); the score is what a patient sees as a number: `Grounded faithfulness: N%` on the Lab Interpreter (`src/frontend/src/pages/LabInterpreter.tsx:99`, `:189`) and `(N% faithfulness)` in chat (`src/frontend/src/pages/ExplainAssistant.tsx:394`, `:627`). The route copies it unchanged (`api/interpretations.py:580-588`).
+3. **Measured (scratch, flag off, `validate_response` with `_chunks()`'s 95 mg/dL source):** the true `_RESPONSE` claim → 1 of 1 verified, score 0.687, valid. `Your glucose level is 182 mg/dL, which falls within the normal reference range of 70-100 mg/dL [cite:1].` → **1 of 1 verified**, 0 failed, score 0.458, `is_valid False` only because 0.458 < 0.6. So today the lexical score is a separate, real safety signal: any fix may lower it, never replace it. (The rules verifying a wrong value is its own new bullet, RULES-RANGE-VALUE, ask-first `verifier_agent.py`, not planned here.)
+
+**Owner choice: GC5-FS-SCOPE answered (a), 2026-10-21** (product: what the number patients see means). Wording in [Owner gates](#owner-gates).
+
+**Design under (a) (`rag.py:1093-1119` only):** report `faithfulness_score = min(faithfulness.overall_score, verification_results.verified_claims / len(verifiable))`. It can only go down: 0 of 2 verified → 0.0 (and the `< 0.6` error at `:938` also fires); all verified → today's score. The no-verifiable-claims 1.0 (`:1036-1044`) is unchanged. `faithfulness.py` is not edited.
+
+**Test-first (under (a)):**
+
+| Id | File | Assertion | RED today? |
+|---|---|---|---|
+| HC-FSC-001 | `tests/test_phase4_ai_safety.py` | `RAGModule(enable_verification=True, verification_config=VerificationConfig(use_llm_entailment=True))` with a contradiction fake encoder (as HC-GC5-002) on `_RESPONSE`-style text: `failed_claims == 1`, `verified_claims == 0`, `faithfulness_score == 0.0` | yes (the scorer ignores the verifier: about 0.687 measured flag off on the same text) |
+| HC-FSC-002 | same | same text flag off (1 of 1 verified): `faithfulness_score == FaithfulnessScorer().score_response(...).overall_score` | no (pin: the cap never lowers a fully verified answer) |
+| HC-FSC-003 | same | the `182 mg/dL` text above: score stays < 0.6 and `is_valid False` | no (pin of fact 3) |
+| HC-FSC-004 | `tests/test_safe_interp_grounded.py` (new test; the RAG is built through `patch.object(I, "get_rag_module", …)` with its own `RAGModule(enable_verification=True, verification_config=VerificationConfig(use_llm_entailment=True))` (runner and embeddings patched as `_rag()` does, `:83-87`), `retrieve_context` → `tests.legacy_eval.harness.build_chunks("glucose")`, `_generate_with_runner` → the 2-claim cited glucose answer of `gc5-evidence/routes_probe.py:25`; **`_run_verification_pipeline` stays real** (never the `_rag()` MagicMock, which returns `verified_claims=0, faithfulness_score=0.9`); `dbs` and `_call` from the same file; precondition leg with the flag off: 201, `verified_claims == 2`) | `interpret-grounded`, flag on, contradiction fake encoder (`[0.9, 0.05, 0.05]`): `failed_claims == 2`, `verified_claims == 0`, `verification.faithfulness_score == 0.0` | yes (**measured on `b902e0f`** with exactly this setup: 201, 0 verified, 2 failed, `faithfulness_score` **0.814**) |
+
+Under (b) the tests move to `src/frontend/src/__tests__/` (vitest: the label shows `verified_claims` of `total_claims`); under (c) HC-FSC-001 asserts a measured lower value; under (d) docs only.
+
+**Files (a):** `src/backend/modules/rag.py` (`_run_verification_pipeline` `:1093-1119` only), `src/backend/tests/test_phase4_ai_safety.py` (HC-FSC-001…003 only), `src/backend/tests/test_safe_interp_grounded.py` (HC-FSC-004 only), slots. **Re-run, not edited:** `tests/test_legacy_abstain.py`, `tests/test_rag_pipeline.py`, `tests/test_hc_a1_agent_verification.py`, `tests/test_rag_headerless.py`, `tests/legacy_eval/`, `scripts/legacy_eval_gate.py` (repo root) (same PASS: abstention is decided by `is_valid`, which this row does not change for any answer that was valid).
+**Expected collected delta:** +4. **Est:** 1.5 h.
+**Acceptance:** `pyt tests/test_phase4_ai_safety.py tests/test_safe_interp_grounded.py tests/test_legacy_abstain.py tests/test_rag_headerless.py tests/test_rag_pipeline.py tests/test_hc_a1_agent_verification.py tests/legacy_eval -q -rfE`: 0 failed apart from the CLAUDE.md §4 environment failures; RED output for 001 and 004; legacy eval gate output (`"$R/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python scripts/legacy_eval_gate.py` from the repo root (`R=$(git rev-parse --show-toplevel)`; the script lives at the repo root, CI `ci.yml:241`)) identical before and after; `git diff origin/main -- src/backend/modules/faithfulness.py src/backend/modules/verifier_agent.py` empty; full suite per RUNBOOK §6. **Rollback:** revert.
+**Owner gates:** **GC5-FS-SCOPE** answered **(a)** 2026-10-21 (owner-decisions row GC5-FS-SCOPE: never more than the share of claims verified). No ask-first file.
+**Order:** ready (GC5-FS-SCOPE answered (a) 2026-10-21; `rag.py` only). Never beside B-3 or B-5 (`rag.py`, `api/interpretations.py` neighbours) or GC5-PREDICT-FAILCLOSED (`test_safe_interp_grounded.py`). UNCERTAINTY-VERIFY may run beside it (no shared edit; each re-runs the other's tests), and whichever lands second re-runs its acceptance on the merged main (as the queue row says).
+
+### EMPTY-ANSWER-SERVED — an empty model answer is served as a valid, empty chat answer and saved
+
+**Source:** found 2026-10-21 by the PR #262 G-C5 host run and its review (inferred from code there; qwen3:8b produced empty text in 2 of 26 real runs). **Measured here on `b902e0f`** (scratch test through `scripts/pyslot.sh`, removed; `git status --short` empty): `RAGModule(enable_verification=True).validate_response("", build_chunks("glucose"))` and the same for `"   \n"` → `is_valid True`, 0 segments, 0 claims, no errors; `POST /assistant/chat` through `harness.legacy_chat_client(build_chunks("glucose"), "")` → **200**, `is_valid true`, `segments []`, `full_response ""`, and `_append_turns` is called with `assistant_content=''` (an empty assistant turn is saved).
+
+**Facts (`b902e0f`):**
+1. Generation returns `result.text` as is, empty included (`modules/rag.py:1462-1464`; the structured renderer `:1358-1366` does not apply to plain text); the parser gives no section for empty or whitespace text (`modules/claim_extractor.py:180`, "Empty or whitespace-only text gives no section").
+2. `validate_response` (`rag.py:867`) starts `errors = []` (`:887`) and returns `is_valid=len(errors) == 0` (`:956`); nothing checks for an empty answer, and with no claims the verifier adds no error.
+3. Chat: `_legacy_serve_or_abstain` keeps a valid result (`api/assistant.py:250-251`), `full_response` is joined from zero segments (`:953-959`), saved as the assistant turn (`:1019-1023`) and returned (`:1036-1046`). The lab explanation (`interpret-grounded`) would return 201 with an empty explanation and `is_valid` true (from the same code; not driven here).
+4. The agent path was not measured for this row.
+
+**Owner choice first: EMPTY-ANS-SCOPE** (product: what the patient sees when the model returns nothing). Wording in [Owner gates](#owner-gates); **answered (a)** 2026-10-21 (owner-decisions row EMPTY-ANS-SCOPE, prompt 22).
+
+**Design under (a) (`rag.py` `validate_response` only, after `:887`):** `if not response.strip(): errors.append("Empty model response")`. Then chat's existing G-B5 path abstains with the fixed `ABSTAIN_TEMPLATE` and saves that text, not an empty turn; the lab explanation returns `is_valid false` (caution badge) with no explanation text. No new patient-facing wording, no `api/` edit, no ask-first file.
+
+**Test-first** (new file `tests/test_empty_answer.py`; chat through `harness.legacy_chat_client`, the lab route through `route_client` with `dbs` / `_call` imported from `tests/test_safe_interp_grounded.py`, its `_rag()` **not** used because it stubs verification):
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-EAS-001 (parametrized `""`, `"   \n"`) | `POST /assistant/chat` → 200, `is_valid` false, one `uncertainty` segment whose content is `ABSTAIN_TEMPLATE`; the `_append_turns` mock got `assistant_content == full_response != ""` | yes (measured: `is_valid true`, `segments []`, `''` saved) |
+| HC-EAS-002 | `validate_response("", chunks)`: `is_valid False`, `"Empty model response" in validation_errors` | yes (measured `True`, no errors) |
+| HC-EAS-003 | `interpret-grounded` with `_generate_with_runner` returning `""` and real verification: 201, `is_valid` false | yes (inferred from fact 3; the builder pastes the RED run) |
+| HC-EAS-004 | a non-empty cited answer (`CLEAN_ANSWER` of `test_safe_interp_grounded.py`) still validates as before through the same path (`is_valid` unchanged from `main`) | no (pin) |
+
+Under (b) HC-EAS-001/003 assert the RR500-MAP 503 sentence and no saved turn (adds `api/assistant.py` and `api/interpretations.py`); under (c) HC-EAS-003 asserts the 503.
+
+**Files (a):** `src/backend/modules/rag.py` (`validate_response`, one check after `:887`), `src/backend/tests/test_empty_answer.py` (new), slots. **Re-run, not edited:** `tests/test_legacy_abstain.py`, `tests/test_safe_interp_grounded.py`, `tests/test_rag_headerless.py`, `tests/test_rag_pipeline.py`, `tests/legacy_eval/`, and the legacy eval gate (`"$R/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python scripts/legacy_eval_gate.py` from the repo root): same PASS (no golden case is empty).
+**Expected collected delta:** +5 (001 ×2, 002, 003, 004). **Est:** 1 h.
+**Acceptance:** `pyt tests/test_empty_answer.py tests/test_legacy_abstain.py tests/test_safe_interp_grounded.py tests/test_rag_headerless.py tests/test_rag_pipeline.py tests/legacy_eval -q -rfE`: 0 failed apart from the CLAUDE.md §4 environment failures; RED output for 001, 002, 003; legacy eval gate output identical before and after; full suite per RUNBOOK §6. **Rollback:** revert.
+**Owner gates:** **EMPTY-ANS-SCOPE** (execution, answered (a) 2026-10-21).
+**Order:** ready (EMPTY-ANS-SCOPE answered (a)). Never beside GC5-FAITH-SCORE, B-3 or B-5 (`rag.py`). No ask-first file.
+
+## Follow-ups found 2026-10-21, second batch (planned 2026-10-21 on `origin/main` @ `b9d285e`)
+
+One row from the #255 (AGENT-ENABLED-TOGGLE) reviews: both review rounds raised the same MAJOR, outside #255's files, and L0 ruled it a follow-up row (#255 comment 6311700759). Every `file:line` below was re-read on `b9d285e` and re-checked on `518ea96` (#255 merged as `376df7c`; #254, #262, #263, #265, #246 merged; `api/assistant.py` unchanged). No ask-first file. `pyt` is as defined in the 2026-10-20 batch above.
+
+### AET-FALLBACK-LABEL — the no-model care-task fallback writes task text without the AET-LABEL wording
+
+**Source:** #255 review round 1 MAJOR (comment 6311651430) and round 2 MAJOR (6312232066): "`_build_care_task_fallback` still writes care-task text with no label … on a template-tier install with the switch off, RRSI-OQ-9 ('label care-task text as unverified in answers') is not met" (recurring-failures #9: enforced at one site, not across its class). L0 ruling (6311700759): "out of scope: L0 files it as a follow-up row". **Scope widened 2026-10-21 by the owner** (AET-PREMISE, AET-WORDING below): both paths get one new wording.
+
+**Facts (`518ea96`):**
+1. `_build_care_task_fallback` (`src/backend/api/assistant.py:1293`) selects `open` and `needs_review` `CarePlanTask` rows (`:1306`) and writes each as `- {title}{due}.{quote_part}` (`:1319`), after a `You have N open follow-up item(s).` header (`:1331`). No label.
+2. Chat reaches it whenever the legacy path raises `ModelUnavailableError` (`:1051-1052` → `_build_knowledge_fallback`, `:1429`) and the question has the care-task intent (`:1451-1452`). The legacy path runs when the agent is off (`use_agent = is_agent_enabled(...)`, `:901`; `if not use_agent or agent_failed:`, `:935`) **or** when the agent raised (`except Exception`, `:917`, `agent_failed = True`, `:926`). So both the Settings switch (off) and an agent error lead here on an install with no model. The fallback text is also saved as the assistant turn (`assistant_content=fallback.full_response`, `:1063`).
+3. The agent path writes the same rows in `_care_task_sentences` (`src/backend/modules/agent/nodes/draft.py:212`: `Open follow-up (from your documents, not verified by you): {title}{due}.{quote_part}`, the AET-LABEL (a) wording added by #255, `376df7c`; its docstring names that label at `:192-193`). HC-AGQ-050 asserts that string (`tests/agent/test_agentic_queries.py:525`).
+4. The sibling `_build_med_change_fallback` (`assistant.py:1357`) lists **verified** `medication_change` rows only (its docstring, `:1360-1361`), so it needs no label. No other assistant answer writes care-task text (`grep -rn 'The note says' src/backend/api src/backend/modules`: `assistant.py:1318`, `:1387`, `draft.py:249`, `modules/export.py:501`: `:1387` and `draft.py:249` are the verified medication-change sentences, and `export.py:501` is a visit-prep question built from a `needs_review` task, an export rather than a chat answer).
+5. Tests: HC-AGQ-070 (`tests/agent/test_agentic_queries.py:762`) calls `_build_knowledge_fallback` as a plain function and asserts only `"MRI" in response.full_response`; no test drives either path's care-task text through `POST /assistant/chat`.
+6. `tests/fixtures/prohibited_patterns/held_out_final.json:1313`, `:1369` (`app_style` false-positive examples) still use the pre-#255 wording `Open follow-up: …`. Only `src/backend/scripts/measure_prohibited_patterns.py` (and `tests/fixtures/prohibited_patterns/candidates.py`) read that file; no pytest test asserts on those two examples. This row does not edit them; whoever next refreshes the held-out set updates them (#255 review MINOR: `filter_prohibited_content` leaves the labelled sentences unchanged).
+
+**Owner answers (2026-10-21, owner-decisions rows, on `main` via #269):** **AET-PREMISE answered "Yes, but reword both"** (prompt 25): "Label the fallback too, and ask you for a new wording for both paths first." It supersedes the AET-LABEL (a) wording. **AET-WORDING answered "Your saved task, unchecked"** (prompt 26): "`Open follow-up you saved (wording taken from your documents, not checked): …`". The premise behind AET-PREMISE: a `CarePlanTask` exists only after the user accepts a candidate (`modules/care_tasks.py:4-5`; `api/care_tasks.py:295-308`).
+
+**Design (both paths, the AET-WORDING text exactly, `LABEL = "Open follow-up you saved (wording taken from your documents, not checked): "`):**
+1. Agent: `draft.py:212` becomes `sentences.append(f"Open follow-up you saved (wording taken from your documents, not checked): {row['title']}{due}.{quote_part}")`; the docstring line `:192-193` names the AET-WORDING label instead of AET-LABEL (a).
+2. No-model fallback: `assistant.py:1319` becomes `lines.append(f"- Open follow-up you saved (wording taken from your documents, not checked): {title}{due}.{quote_part}")`.
+3. Headers, the `uncertainty` segment, citations and `verification` stay unchanged on both paths. No other wording changes.
+
+**Test-first** (new file `tests/agent/test_aet_fallback_label.py`; it uses the `agent_profile_db` and `seed_care_task` fixtures of `tests/agent/conftest.py:47`, `:172`, and the HTTP pattern of `_post` in `tests/test_assist_agent_dates_http.py:101-111`: `route_client(assistant_router, "/assistant", …)`, `get_profile_db_session` overridden, `A.is_agent_enabled` patched; that file's `agent=True` cases run the real agent graph with no model patched. The file imports `models.chat_session` and `models.model_settings` at module top, as `tests/test_assist_agent_dates_http.py:36` does, so the fixture's `create_all` builds those tables too. Seed: 2 `open` tasks, one with due date and quote and one bare, plus 1 `done` task; question `"Which follow-up tasks are open?"`):
+
+| Id | Assertion | RED today? |
+|---|---|---|
+| HC-AFL-001 (parametrized ×2: agent off; agent on with `A._serve_via_agent` raising `RuntimeError`), `A.get_rag_module` patched to a rag whose `query` raises `ModelUnavailableError` | `POST /assistant/chat` → 200; the `report_facts` segment has the header `You have 2 open follow-up items.` and exactly 2 task lines, each starting with exactly `- Open follow-up you saved (wording taken from your documents, not checked): `; 2 citations; the `done` task is absent | yes (no label) |
+| HC-AFL-002 | same request, agent off, `A._append_turns` spied: the saved `assistant_content` equals `full_response` and contains the exact label twice | yes (no label) |
+| HC-AFL-003 | agent on, real agent path: `POST /assistant/chat` → 200; exactly 2 task sentences in `full_response` start with exactly `Open follow-up you saved (wording taken from your documents, not checked): `, and the AET-LABEL (a) string `from your documents, not verified by you` appears nowhere | yes (today's agent text is the AET-LABEL (a) wording) |
+| HC-AGQ-050 (changed, `tests/agent/test_agentic_queries.py:521-525` only) | the expected label string becomes the AET-WORDING text | yes, once the string is changed (the draft still writes AET-LABEL (a)) |
+
+**Files:** `src/backend/modules/agent/nodes/draft.py` (`_care_task_sentences`: `:212` and its docstring `:193` only), `src/backend/api/assistant.py` (`_build_care_task_fallback` `:1319` only), `src/backend/tests/agent/test_aet_fallback_label.py` (new), `src/backend/tests/agent/test_agentic_queries.py` (HC-AGQ-050 `:521-525` only: the `:521` comment "AET-LABEL a: care-task text is labelled unverified" goes stale if only `:525` changes), slots. **Re-run, not edited:** `tests/test_chat_sessions.py`, `tests/test_assist_agent_dates_http.py`, `tests/test_audit_order.py`, `tests/test_prohibited_patterns_regression.py` and `tests/test_safe_chat_prohibited.py` (fact 6: `held_out_final.json` is not edited), `tests/agent/` (whole directory).
+**Expected collected delta:** +4 (001 ×2, 002, 003; HC-AGQ-050 is changed, not new). **Est:** 1 h.
+**Acceptance:** `pyt tests/agent tests/test_chat_sessions.py tests/test_assist_agent_dates_http.py tests/test_audit_order.py -q -rfE`: 0 failed apart from the CLAUDE.md §4 environment failures; RED output for each new id and for the changed HC-AGQ-050; `git grep -n "not verified by you" -- src/backend` prints nothing; `git diff origin/main --stat -- src/backend/api src/backend/modules` shows `assistant.py` and `draft.py` only; full suite per RUNBOOK §6. **Rollback:** revert.
+**Owner gates:** **AET-PREMISE answered "Yes, but reword both"** and **AET-WORDING answered "Your saved task, unchecked"** 2026-10-21 (prompts 25, 26; owner-decisions rows AET-PREMISE, AET-WORDING). They supersede the AET-LABEL (a) wording (`owner-decisions-2026-09-27.md:354`); RRSI-OQ-9 (`:330`) still sets the requirement. No L0 ruling is needed any more: the owner answered the scope directly.
+**Order:** ready. **B-3 holds `api/assistant.py`:** #264 is titled `[claim:claude] B-3 advice-judge` and B-3's queue row lists `be/api/assistant.py`, so it holds a slot and the file (RUNBOOK §4 step 5 exempts only a parked draft that has released its slot). Never beside B-3 unless an L0 ruling allows it; the 2026-10-21 L0 sequencing ruling on #264 (comment 6320313698: rows sharing files with B-3 may run beside it, the later lander merges `origin/main` and re-runs its acceptance) is the precedent. #239 (RSI1-DONATE PR-2, edits `api/assistant.py`) is `[blocked:claude]`, a parked draft (contracts §b rule 2), so it does not hold the file. Never beside another non-draft `api/assistant.py`, `modules/agent/nodes/draft.py` or `tests/agent/test_agentic_queries.py` PR. No ask-first file.
 
 ## Provides
 
@@ -613,8 +979,24 @@ So with the default verifier on, the parser's defects already reach a patient fo
 | **LCP-HL-SCOPE** | LCP-HEADERLESS | (a) line-start headers, text outside a section counts as REPORT FACTS (cited unrendered JSON still served raw) / (b) (a) + withhold unrendered structured text / (c) line-start headers only (exact wording in [LCP-HEADERLESS](#lcp-headerless--the-legacy-parser-finds-headers-anywhere-drops-text-before-them-and-never-checks-headerless-text-for-citations)) | **open** (planned 2026-10-19; recommended (a)) |
 | **LCP-HL-LABELS** | LCP-HEADERLESS | yes/no: remove `[YOUR_RESULTS:N]`, `[REFERENCE:N]`, `[USER_DOCUMENT:N]`, `[USER_OBSERVATION:N]` from served text | **open** (split out in PR #202 review round 1; recommended (a) yes) |
 | **LCP-HL-DIFF** | LCP-HEADERLESS | merge only: owner yes on the exact `rag.py` diff (citation check) | **open**; asked after the draft PR exists |
+| **UNC-VERIFY-SCOPE** | UNCERTAINTY-VERIFY | (a) verify uncertainty lines carrying `[cite:N]` or a number / (b) `[cite:N]` only / (c) keep the gap (exact wording in [UNCERTAINTY-VERIFY](#uncertainty-verify--uncertainty-sections-are-never-verified-so-a-false-cited-value-there-is-served)) | **(a)**, answered 2026-10-20 (owner-decisions row UNC-VERIFY-SCOPE) |
+| **UNC-VERIFY-DIFF** | UNCERTAINTY-VERIFY | merge only: owner yes on the exact `claim_extractor.py` diff with the eval-gate output | **open**; asked after the draft PR exists |
+| **AET-LABEL** | AGENT-ENABLED-TOGGLE | care-task label wording: (a) `Open follow-up (from your documents, not verified by you): …` / (b) `Unverified follow-up: …` / (c) one trailing sentence | **(a)**, answered 2026-10-20 (owner-decisions row AET-LABEL); RRSI-OQ-9 answered (`owner-decisions-2026-09-27.md:330`) |
+| **CTD-DEF** | CHAT-TREND-DEF | RRSI-OQ-21's "Trends page's latest-vs-prior" names two different rules: (a) first-vs-last 5% (what the Trends page and export show) / (b) latest-vs-prior 5% as worded / (c) latest-vs-prior for chat and the Trends page | **(a)**, answered 2026-10-20 (owner-decisions row CTD-DEF; refines RRSI-OQ-21) |
+| **CTD-SCOPE** | CHAT-TREND-DEF | (a) agent path only / (b) also the legacy chunk's 3% line in `rag.py` | **(a)**, answered 2026-10-20 (owner-decisions row CTD-SCOPE) |
+| **GC5-PFC-DIFF** | GC5-PREDICT-FAILCLOSED | ask-first `verifier_agent.py:329-337`: (a) approve the hunk in advance / (b) decide on the real diff / (c) no verifier edit, map the lab route's 500 to 503 only (exact wording below) | **(a)**, answered 2026-10-21 (owner-decisions row GC5-PFC-DIFF; confirms the extension of Q5b / GC5-OL-2 B to a runtime failure) |
+| **GC5-NEUTRAL-SCOPE** | GC5-NLI-NEUTRAL | what the NLI result may do: (a) veto only / (b) neutral ≥ 0.7 is support / (c) no code, re-measure / (d) normalise the claim, re-measure (exact wording below) | **(a) veto only**, answered 2026-10-21 (owner-decisions row GC5-NEUTRAL-SCOPE) |
+| **GC5-NEUTRAL-DIFF** | GC5-NLI-NEUTRAL | ask-first: owner yes on the exact `verifier_agent.py` `_check_entailment` diff | **open**; asked after GC5-NEUTRAL-SCOPE, with the draft diff or in advance |
+| **GC5-FS-SCOPE** | GC5-FAITH-SCORE | what the faithfulness % means: (a) capped at the verified share / (b) show "N of M claims checked" / (c) blend verifier input / (d) document only (exact wording below) | **(a)**, answered 2026-10-21 (owner-decisions row GC5-FS-SCOPE) |
+| **EMPTY-ANS-SCOPE** | EMPTY-ANSWER-SERVED | what an empty model answer shows: (a) invalid, chat abstains / (b) the RR500-MAP 503 sentence on both routes / (c) (a) on chat, 503 on the lab explanation (exact wording below) | **answered (a)** 2026-10-21 (prompt 22; planned 2026-10-21, #261 round 1) |
 
-Ask-first files touched by this lane: only `modules/verifier_agent.py` (G-C5). LCP-HEADERLESS edits the citation check in `modules/rag.py` (not a CLAUDE.md §1 file), so its diff has the named merge gate LCP-HL-DIFF. `interpret_safety.py`, `redaction.py`, `faithfulness.py`, `core/auth.py` and auth/encryption code stay read-only. SAFE-CHAT-AGENT option B only imports `PROHIBITED_PATTERNS`.
+**Wording of the 2026-10-21 gates** (as asked; answered 2026-10-21 by L0 AskUserQuestion, prompt 21: GC5-PFC-DIFF (a), GC5-NEUTRAL-SCOPE (a), GC5-FS-SCOPE (a)):
+- **GC5-PFC-DIFF:** "GC5-PREDICT-FAILCLOSED must edit the ask-first `modules/verifier_agent.py` (`_check_entailment_llm`, `:329-337`): when the NLI model's `predict` fails, or returns a label it cannot map, the claim is left unverified, as for a missing model (your Q5b 'fail closed' and GC5-OL-2 B). Today that case is a 500 on chat and a 503 or 500 on the lab explanation. With the fix, chat abstains (200); the lab explanation returns 201 with every claim marked failed and the answer still shown under the caution badge, as it already does when the model is missing. The flag stays off. When should you decide on the diff? (a) Approve this one hunk in advance; Opus review still runs and you still merge (Recommended: the behaviour is the one you already chose for a missing model, and the hunk is a try/except that logs only the error class, never the claim text) (b) Build it on a draft and decide on the real diff (c) Do not edit `verifier_agent.py`: keep the errors and only map the lab route's unhandled 500 to the RR500-MAP 503 in `api/interpretations.py` (chat stays 500)."
+- **GC5-NEUTRAL-SCOPE:** "With the NLI flag on, the real model calls the correct restatement 'Your glucose was 95 mg/dL' neutral (0.858) against 'Glucose: 95 mg/dL', and another correct claim scores entailment 0.668, under the 0.7 floor, so every flag-on legacy answer abstains (gate answer_rate 0.000). The same model calls verbatim and generic sentences neutral at 0.96-0.997, and today an NLI entailment can pass a wrong value ('182 mg/dL' against a 95 mg/dL source) that the rules fail. The flag stays off under every option. What should the NLI result be allowed to do? (a) Veto only: an NLI contradiction fails a claim; otherwise the rules decide. Neutral never counts as support, and the NLI never passes a claim the rules fail (Recommended: conservative, it can only withhold answers today's rules serve; on #249's sample it contradicted 0 of 33 rules-verified pairs, so both answer cases pass) (b) A neutral at 0.7 or above counts as support (not recommended: it would verify the verbatim and generic sentences the model also calls neutral) (c) No code now: keep the flag off and today's NLI semantics, and re-measure with real model output on the model host first (d) Drop the `[cite:N]` marker from the claim before the NLI call and re-measure on the model host before choosing." (a) and (d) edit `verifier_agent.py`, so they also need GC5-NEUTRAL-DIFF.
+- **GC5-FS-SCOPE:** "The lab explanation and chat show 'faithfulness N%'. That number is a word-overlap score that ignores claim checking: with 0 of 2 claims verified, the lab explanation still showed 81% (#249). What should the number mean? (a) Never more than the share of claims verified: 0 of 2 verified shows 0%, a fully verified answer shows today's number (Recommended: one change in `rag.py`; the number can only go down, so the existing low-score check, which today is the only thing withholding a wrong value the rules verified, keeps working) (b) Keep the number and show 'N of M claims checked against your sources' beside it (frontend only) (c) Blend the verifier's per-claim result into the score through the scorer's existing input (`rag.py`; the number drops, but not to 0; needs measuring) (d) No change; document that it is a word-overlap score."
+- **EMPTY-ANS-SCOPE** (answered (a) 2026-10-21, prompt 22): "When the local model returns an empty answer (qwen3:8b did in 2 of 26 real runs), chat today returns an empty, 'valid' answer and saves an empty assistant message; the lab explanation would show an empty explanation as valid. What should the patient see? (a) Treat it as a failed answer: chat shows the existing abstention text ('There isn't enough verified information…') and saves that, and the lab explanation shows the caution badge with no text (Recommended: one check in `rag.py`, reuses wording you already approved, nothing empty is saved) (b) Treat it as a generation failure: both show 'The explanation could not be generated right now. Please try again.' (your RR500-MAP sentence) and nothing is saved (two route files change) (c) (a) on chat, and the RR500-MAP sentence on the lab explanation."
+
+Ask-first files touched by this lane: only `modules/verifier_agent.py` (G-C5; and, planned 2026-10-21, GC5-PREDICT-FAILCLOSED and GC5-NLI-NEUTRAL behind GC5-PFC-DIFF and GC5-NEUTRAL-DIFF). LCP-HEADERLESS edits the citation check in `modules/rag.py` (not a CLAUDE.md §1 file), so its diff has the named merge gate LCP-HL-DIFF. `interpret_safety.py`, `redaction.py`, `faithfulness.py`, `core/auth.py` and auth/encryption code stay read-only. SAFE-CHAT-AGENT option B only imports `PROHIBITED_PATTERNS`.
 
 ## Open questions
 

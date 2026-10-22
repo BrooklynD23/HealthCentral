@@ -217,11 +217,14 @@ _rag_module: Optional[RAGModule] = None
 def get_rag_module() -> RAGModule:
     global _rag_module
     if _rag_module is None:
+        from core.config import settings as app_settings
+
         _rag_module = RAGModule(
             enable_verification=True,
             verification_config=VerificationConfig(
                 min_faithfulness_score=0.6,
                 fail_on_contradiction=True,
+                use_llm_entailment=app_settings.use_llm_entailment,
             ),
             faithfulness_config=FaithfulnessConfig(
                 min_overall_score=0.6,
@@ -1313,7 +1316,7 @@ async def _build_care_task_fallback(request: ChatRequest, profile_db) -> ChatRes
         due = f" (due {task.due_date.isoformat()})" if task.due_date else ""
         quote = sanitize_untrusted_field(task.source_quote)
         quote_part = f' The note says: "{quote}"' if quote else ""
-        lines.append(f"- {title}{due}.{quote_part}")
+        lines.append(f"- Open follow-up you saved (wording taken from your documents, not checked): {title}{due}.{quote_part}")
         citations.append(Citation(
             source_type="user_observation",
             doc_id=task.source_document_id,

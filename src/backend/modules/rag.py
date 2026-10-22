@@ -885,6 +885,8 @@ I was unable to fully process your question within the time limit. Please try as
         - (Phase 4) Claims are verified against sources
         """
         errors = []
+        if not response.strip():
+            errors.append("Empty model response")
         prohibited_advice = False
 
         # Parse response into segments
@@ -939,6 +941,17 @@ I was unable to fully process your question within the time limit. Please try as
                 errors.append(
                     f"Low faithfulness score: {verification_metadata.faithfulness_score:.2f}"
                 )
+
+        # LCP-HL-LABELS (a): context labels mean nothing to a patient. Strip them from
+        # copies of the segments; validation above read the raw response.
+        validated_segments = [
+            ResponseSegment(
+                segment_type=segment.segment_type,
+                content=self._CONTEXT_LABEL_RE.sub("", segment.content),
+                citations=segment.citations,
+            )
+            for segment in validated_segments
+        ]
 
         return ValidatedResponse(
             segments=validated_segments,
@@ -1076,7 +1089,7 @@ I was unable to fully process your question within the time limit. Please try as
                 claim_authority_scores.append(authority.aggregate_score)
 
         # Run batch verification
-        verification_results = verify_all_claims(claims_to_verify)
+        verification_results = verify_all_claims(claims_to_verify, self.verifier.config)
 
         # Step 4: Calculate faithfulness
         all_source_texts = [chunk.text for chunk in retrieved_chunks]
@@ -1105,38 +1118,28 @@ I was unable to fully process your question within the time limit. Please try as
             verified_claims=verification_results.verified_claims,
             failed_claims=verification_results.failed_claims,
             claims_with_issues=issues_list[:5],  # Limit to first 5 issues
-            faithfulness_score=faithfulness.overall_score,
+            # GC5-FS-SCOPE (a): never report more than the share of claims verified.
+            # The scorer is lexical and cannot see an NLI contradiction.
+            faithfulness_score=min(
+                faithfulness.overall_score,
+                verification_results.verified_claims / len(verifiable),
+            ),
             authority_score=round(avg_authority, 3),
             verification_summary=verification_results.summary,
         )
 
+    _CONTEXT_LABEL_RE = re.compile(r"[ \t]?\[(?:YOUR_RESULTS|REFERENCE|USER_DOCUMENT|USER_OBSERVATION):\d+\]", re.IGNORECASE)
+
     def _parse_response_segments(self, response: str) -> list[ResponseSegment]:
-        """Parse response into labeled segments."""
-        segments = []
+        """Parse response into labeled segments.
 
-        # Look for section headers
-        section_patterns = [
-            (r"REPORT FACTS:?\s*(.*?)(?=GENERAL INFO:|UNCERTAINTIES:|$)", "report_facts"),
-            (r"GENERAL INFO:?\s*(.*?)(?=REPORT FACTS:|UNCERTAINTIES:|$)", "general_info"),
-            (r"UNCERTAINTIES:?\s*(.*?)(?=REPORT FACTS:|GENERAL INFO:|$)", "uncertainty"),
+        Text before the first header, and headerless text, is REPORT FACTS so the
+        citation check applies to it. Empty or whitespace-only text gives no segment.
+        """
+        return [
+            ResponseSegment(segment_type=segment_type, content=content)
+            for segment_type, content in self.claim_extractor._parse_sections(response)
         ]
-
-        for pattern, segment_type in section_patterns:
-            match = re.search(pattern, response, re.IGNORECASE | re.DOTALL)
-            if match and match.group(1).strip():
-                segments.append(ResponseSegment(
-                    segment_type=segment_type,
-                    content=match.group(1).strip(),
-                ))
-
-        # If no sections found, treat entire response as general
-        if not segments:
-            segments.append(ResponseSegment(
-                segment_type="general_info",
-                content=response.strip(),
-            ))
-
-        return segments
 
     async def _retrieve_memory_context(
         self,

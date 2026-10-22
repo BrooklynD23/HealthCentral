@@ -41,6 +41,8 @@ CLASSIFICATION: dict[str, str] = {
     "api/documents.py::get_document_pages": "excluded: read route, audit_and_commit only",
     "api/documents.py::get_page_image": "excluded: read route, audit_and_commit only",
     "api/documents.py::delete_document": "A2",
+    "api/donation.py::list_consents": "excluded: read route, audit_and_commit only",
+    "api/donation.py::set_consent": "A2",
     "api/export.py::generate_doctor_summary": "excluded: read route, audit_and_commit only",
     "api/export.py::download_summary": "excluded: read route, audit_and_commit only",
     "api/export.py::generate_questions": "excluded: read route, audit_and_commit only",
@@ -76,18 +78,22 @@ CLASSIFICATION: dict[str, str] = {
     "api/memory.py::get_memory_item": "excluded: read route, audit_and_commit only",
     "api/memory.py::update_memory_item": "C",
     "api/memory.py::delete_memory_item": "A2",
+    # download-progress is an unaudited labelled exception: owner AUDIT-READ-SCOPE (a), owner-decisions 2026-10-21.
     "api/model_settings.py::get_model_settings": "excluded: read route, audit_and_commit only",
+    "api/model_settings.py::get_external_api_settings": "excluded: read route, audit_and_commit only",
+    "api/model_settings.py::get_timezone": "excluded: read route, audit_and_commit only",
+    "api/model_settings.py::get_voice_settings": "excluded: read route, audit_and_commit only",
     "api/model_settings.py::run_hardware_detection": "C",
     "api/model_settings.py::set_model_tier": "C",
-    "api/model_settings.py::list_tiers": "excluded: read route, audit_and_commit only",
+    "api/model_settings.py::list_tiers": "excluded: read route, reads no profile data; writes no audit row",
     "api/model_settings.py::start_model_download": "C",
     "api/model_settings.py::save_external_api_settings": "C",
     "api/model_settings.py::set_timezone": "C",
     "api/model_settings.py::update_voice_settings": "C",
     "api/model_settings.py::get_gamification_settings": "excluded: read route, audit_and_commit only",
     "api/model_settings.py::update_gamification_settings": "C",
-    "api/model_settings.py::get_environment_diagnostics": "excluded: read route, audit_and_commit only",
-    "api/model_settings.py::recheck_environment_diagnostics": "excluded: read route, audit_and_commit only",
+    "api/model_settings.py::get_environment_diagnostics": "excluded: read route, reads no profile data; writes no audit row",
+    "api/model_settings.py::recheck_environment_diagnostics": "excluded: read route, reads no profile data; writes no audit row",
     "api/model_settings.py::update_ocr_settings": "C",
     "api/model_settings.py::update_agent_settings": "C",
     "api/notifications.py::get_notification_settings": "excluded: read route, audit_and_commit only",
@@ -219,6 +225,21 @@ def test_hc_aud_ord_030_c_and_a2_handlers_reach_an_audit_call():
     assert _rows_without_audit(CLASSIFICATION, _REACH, _G) == []
 
 
+def test_hc_aud_ord_031_excluded_rows_reach_the_sink_they_name():
+    """An "excluded: ... <sink> only" label is a claim about the handler; check it.
+
+    Blind spot: the call graph is over-approximate and links calls by name
+    (tests/support/callgraph.py), so a label can be satisfied through a name
+    collision, e.g. `subprocess.run` -> an agent tool's `.run` ->
+    `emit_audit_event` -> `create_audit_log`. This test cannot catch that.
+    """
+    bad = sorted(
+        f"{k} ({v!r} names {s} but does not reach it)"
+        for k, v in CLASSIFICATION.items() if v.startswith("excluded: ")
+        for s in sorted(_AUDIT_SINKS) if s in v and not _G.reaches(_REACH[k], s))
+    assert not bad, f"excluded rows naming a sink they never reach: {bad}"
+
+
 def test_hc_aud_ord_030_dynamic_calls_are_named():
     unlisted = sorted(_DYN - set(NAMED_DYNAMIC_EXCLUSIONS))
     stale = sorted(set(NAMED_DYNAMIC_EXCLUSIONS) - _DYN)
@@ -291,13 +312,20 @@ def test_hc_aud_ord_030_vault_commit_must_be_on_profile_db(tmp_path):
 
 
 def test_hc_aud_ord_030_break_it_c_handler_without_audit(tmp_path):
-    """A "C" row whose handler never reaches an audit call must be reported."""
+    """A "C" or "A2" row whose handler never reaches an audit call is reported.
+
+    Uses the overlay's own graph so the test stays right if Graph.reaches ever
+    depends on graph state (today _G and g give the same result).
+    """
     _, reach, _, _ = _overlay(tmp_path, (
         '@router.post("/bare")\nasync def h(profile_db=None):\n'
+        "    profile_db.add(1)\n    await profile_db.commit()\n"
+        '@router.post("/bare2")\nasync def h2(profile_db=None):\n'
         "    profile_db.add(1)\n    await profile_db.commit()\n"
         '@router.post("/audited")\nasync def ha(profile_db=None):\n'
         "    profile_db.add(1)\n    await profile_db.commit()\n"
         "    await create_audit_log(profile_db)\n"))
-    cls = {"api/zz.py::h": "C", "api/zz.py::ha": "C"}
-    assert _rows_without_audit(cls, reach, _G) == ["api/zz.py::h"]
-    assert _rows_without_audit({"api/zz.py::ha": "C"}, reach, _G) == []
+    g = Graph(tmp_path, ("api", "core", "modules"))
+    cls = {"api/zz.py::h": "C", "api/zz.py::h2": "A2", "api/zz.py::ha": "C"}
+    assert _rows_without_audit(cls, reach, g) == ["api/zz.py::h", "api/zz.py::h2"]
+    assert _rows_without_audit({"api/zz.py::ha": "C"}, reach, g) == []

@@ -389,6 +389,7 @@ def _diagnostics_list_response() -> DiagnosticsListResponse:
 async def get_model_settings(
     session: RequireAuth,
     profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Get current model settings and hardware information."""
     selector = get_model_selector()
@@ -398,6 +399,15 @@ async def get_model_settings(
 
     # Get user settings from database
     user_settings = await _get_user_settings(session.profile_id, profile_db)
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type="settings.model.view",
+        action="settings.model.view",
+        profile_id=session.profile_id,
+        entity_type="settings",
+        entity_id="model",
+    )
 
     # Determine current tier
     if user_settings and user_settings.preferred_tier:
@@ -747,9 +757,19 @@ async def start_model_download(
 async def get_external_api_settings(
     session: RequireAuth,
     profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Get external API settings with masked key."""
     user_settings = await _get_user_settings(session.profile_id, profile_db)
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type="settings.external_api.view",
+        action="settings.external_api.view",
+        profile_id=session.profile_id,
+        entity_type="settings",
+        entity_id="external_api",
+    )
 
     if not user_settings:
         return ExternalApiSettingsResponse(
@@ -1011,10 +1031,20 @@ async def _download_model_task(
 async def get_timezone(
     session: RequireAuth,
     profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Get profile timezone setting."""
     profile_id = session.profile_id
     settings = await _get_user_settings(profile_id, profile_db)
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type="settings.timezone.view",
+        action="settings.timezone.view",
+        profile_id=session.profile_id,
+        entity_type="settings",
+        entity_id="timezone",
+    )
     return TimezoneResponse(timezone=settings.timezone if settings else "UTC")
 
 
@@ -1051,10 +1081,20 @@ async def set_timezone(
 async def get_voice_settings(
     session: RequireAuth,
     profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Get voice logging preferences."""
     profile_id = session.profile_id
     settings = await _get_user_settings(profile_id, profile_db)
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type="settings.voice.view",
+        action="settings.voice.view",
+        profile_id=session.profile_id,
+        entity_type="settings",
+        entity_id="voice",
+    )
     return VoiceSettingsResponse(
         voice_logging_enabled=settings.voice_logging_enabled if settings else False,
         voice_modal_seen=settings.voice_modal_seen if settings else False,

@@ -31,6 +31,8 @@ import { MemoryManager } from '@/components/MemoryManager';
 import { BackupCard } from '@/components/settings/BackupCard';
 import { RecoveryCodeCard } from '@/components/settings/RecoveryCodeCard';
 import { DangerZone } from '@/components/settings/DangerZone';
+import { DataDonationCard } from '@/components/settings/DataDonationCard';
+import { AgentSettingsCard } from '@/components/settings/AgentSettingsCard';
 import { TierCapabilities } from '@/components/settings/TierCapabilities';
 import { ExternalApiBreakGlassWarning } from '@/components/settings/ExternalApiBreakGlassWarning';
 import { cn } from '@/utils/cn';
@@ -945,6 +947,12 @@ export function SettingsPage() {
       {/* Backup & restore (BKUP-UX-001) — sits directly above the danger
           zone, since taking a backup is the step before deleting anything. */}
       <BackupCard />
+
+      {/* Opt-in data donation consent (RSI1-DONATE) */}
+      <DataDonationCard />
+
+      {/* Step-by-step assistant switch (AGENT-ENABLED-TOGGLE) */}
+      <AgentSettingsCard />
 
       {/* Irreversible profile deletion (PROF-DEL-001) */}
       <DangerZone />

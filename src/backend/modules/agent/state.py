@@ -61,7 +61,9 @@ class ToolContext(Protocol):
 class RunStep(BaseModel):
     step_index: int
     node: AgentNode
-    payload: dict[str, Any] = Field(default_factory=dict)  # handles, never raw PHI
+    # full tool output (values included); in memory only, never persisted,
+    # audited, cached or donated (RRSI-OQ-14)
+    payload: dict[str, Any] = Field(default_factory=dict)
     timestamp: datetime
 
 

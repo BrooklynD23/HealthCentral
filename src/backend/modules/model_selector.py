@@ -459,7 +459,7 @@ class ModelSelector:
             context_size = config.get("context_size", 2048)
             n_gpu_layers = config.get("n_gpu_layers", 0)
 
-            logger.info(f"Loading model from {model_path}")
+            logger.info(f"Loading model from {model_path.name}")
             model = Llama(
                 model_path=str(model_path),
                 n_ctx=context_size,
@@ -474,7 +474,7 @@ class ModelSelector:
             logger.error("llama-cpp-python not installed")
             return None
         except Exception as e:
-            logger.error(f"Failed to load model for tier {tier}: {e}")
+            logger.error(f"Failed to load model for tier {tier}: {type(e).__name__}")
             return None
 
     async def load_model_async(self, tier: str) -> Optional[Any]:
@@ -657,7 +657,7 @@ class ModelSelector:
             )
 
             result_path = Path(downloaded_path)
-            logger.info(f"Model downloaded to {result_path}")
+            logger.info(f"Model downloaded: {result_path.name}")
 
             return result_path
 
@@ -668,7 +668,7 @@ class ModelSelector:
             )
             return None
         except Exception as e:
-            logger.error(f"Failed to download model for tier {tier}: {e}")
+            logger.error(f"Failed to download model for tier {tier}: {type(e).__name__}")
             return None
 
     async def download_model_async(
@@ -737,7 +737,7 @@ class ModelSelector:
         for check_tier in ["low", "mid", "high"]:
             path = self.get_model_path(check_tier)
             if path:
-                logger.info(f"Found existing model for tier {check_tier}: {path}")
+                logger.info(f"Found existing model for tier {check_tier}: {path.name}")
                 return path
 
         # No model found, download the requested tier

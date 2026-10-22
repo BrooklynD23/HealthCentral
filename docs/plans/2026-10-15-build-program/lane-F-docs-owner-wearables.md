@@ -1,6 +1,6 @@
 # Lane F — Docs, Owner Queue, Wearables Consumer Map — Build Design
 
-**Last Updated:** 2026-10-19 (F-4 and F-9 rechecked after owner rows P8-B2, SHOW-FREEZE; status cells fixed); 2026-10-15
+**Last Updated:** 2026-10-21 (§2.15 FEATURE-LIST-LICENCE planned on `b902e0f`; #261 round 1: lint interpreter stated); 2026-10-19 (F-4 and F-9 rechecked after owner rows P8-B2, SHOW-FREEZE; status cells fixed); 2026-10-15
 **Owner:** repository owner
 **Status:** DESIGN — nothing here is implemented. Owner answers are quoted from [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md); this file records no new approval. Every "default" or "recommended" is the lane designer's, not the owner's.
 **Refresh Trigger:** any merge of #72, #74, #84, #94, #68 or a W-2 / W-3 / W-7 / W-8 / P6 / P7 PR; an owner answer to any gate in §5; P8 Brief 2 signed; any commit to `docs/architecture/pipelines.md`, `docs/architecture/README.md`, `docs/architecture/backend.md`, `docs/compliance/data-privacy.md`, `docs/features/TASK_LIST.md`, `skills/asclexis-guardrails/SKILL.md` or `CS4610_Report_Demo/README.md`.
@@ -31,6 +31,7 @@
 | F-11 | Close #61 | OWNER (gh) | PR #61 @ `9c8f297`; PR61-CLOSE (`owner-decisions:141`) | — → §2.11 | #72 merged | blocked-on-PR |
 | F-12 | Wearables program (#94) as consumer: P6/013 and shared-file map | map (no code) | PR #94 @ `4ff5d43`, 14 plans + program 00 + tickets | PR → §2.12 | M0: OW-W0 + owner plan-set approval; #94 merge | blocked-on-owner |
 | F-13 | Owner queue (OW-*, OM-*, MM-*, OW-W*) compiled; `TASK_LIST.md` queue refresh | DOCS | [TASK_LIST](../../features/TASK_LIST.md) `:76-104`; wearables program 00 §10 | — → §2.13 | #94 merged (so OW-W* links resolve) | blocked-on-PR |
+| F-4-FOLLOWUPS | KEY-05 matrix wording, `ci.yml` SLOT-RULE-2a comment, `TASK_LIST.md:220` Q-COV note (takes TASK-LIST-COV) | DOCS | PR #200 and #207 review MINORs | yes → §2.14 | F-4 (#200), Q-COV-GATE (#207) merged | ready |
 
 Graph: F-1, F-2, F-3 are independent docs PRs today (F-1 and F-3 share no file). `F-1 → F-5(F1, F2, F4)` on `pipelines.md`; `F-3 → F-5(F3, F5)` on `README.md`/`backend.md`; `E-1 + W-3 → F-6 → WEAR-14`; `#72 → F-11`; `F-10 → F-9` (`CS4610_Report_Demo/README.md`); `#94 → F-13`. No lane-F item is a code L1; none needs the 12 GB box's code slots.
 
@@ -266,6 +267,62 @@ Source: `TASK_LIST.md:80-104` and wearables program 00 §10 (on #94). "Unblocks"
 | M0 approval | owner approves the wearables plan set (+ merges #94, WEAR-PR "you merge") | all WEAR code | open; not an OW id today |
 
 **TASK_LIST refresh (DOCS, one commit, after #94 merges):** add an `OW-W*` subsection under "Owner and Model-Machine Queue" listing OW-W0…W4, W6…W13 one line each with a link to the merged program 00 §10; annotate OM-1 = OW-W0, OM-2 = OW-W3; mark OW-W5 done with `c53ba44`. Never tick OW-1 or any OM box: that is the owner's. F-13 edits only the new `OW-W*` subsection and the OM-1 / OM-2 / OW-W5 annotations; it never edits the MM-1…MM-4 rows, so lane B's B-9 (MM rows) does not need to wait for it. `TASK_LIST.md` rule (lane E P-3): every claimant (E-3, C-P6, C-DUPAUD, B-9, F-1, F-13, #84, #68) edits only its own row or section; the second lander rebases. Acceptance: `grep -c "OW-W1[0-3]\|OW-W[0-9]" docs/features/TASK_LIST.md` ≥ 13; docs gates pass.
+
+### 2.14 F-4-FOLLOWUPS — three docs lines still contradict F-4 and SLOT-RULE-2a (takes TASK-LIST-COV)
+
+**Source:** PR #200 (F-4) review MINORs (queue bullet F-4-FOLLOWUPS) and PR #207 (Q-COV-GATE) review MINOR (queue bullet TASK-LIST-COV, folded here: same kind of fix, docs only, no shared file with anything open). Planned 2026-10-20 on `origin/main` @ `b2b3f4e`.
+
+**Facts (`b2b3f4e`):**
+1. `docs/capstone-report/specs-compliance-matrix.md:67` (KEY-05) still quotes `hipaa-controls.md:169` as "Manual via password change" and says "**owner-gated** (plan 08 brief 2)". Since #200, `docs/compliance/hipaa-controls.md:169` reads "Owner-approved 2026-10-19, not yet implemented (plan: decision packet Brief 2). Until it ships, a password change re-seals the existing data key only." The owner answer is P8-B2 = B + A (`docs/capstone-report/owner-decisions-2026-09-27.md:297`). The gap itself is still real: no DEK rotation exists.
+2. `.github/workflows/ci.yml:21-22` comment: "SLOT-RULE-2: PRs do not commit docs/INDEX.md or docs/_link_graph.json; regenerate both here (DOC-011 sees new docs). Freshness on main is the orchestrator's post-merge batch, not a PR gate." SLOT-RULE-2a (`owner-decisions-2026-09-27.md:182`, "PRs regenerate the index"; contracts §d step 1; `RUNBOOK.md` §7 item 1) says PRs do regenerate and commit both. The step under the comment is right; only the comment is wrong.
+3. `docs/features/TASK_LIST.md:220` (E-3 row, 2026-10-17): "`backend-tests` publishes `coverage.xml` and fails if it is missing (report only, no threshold, Q-COV)". True when written; since Q-COV-GATE (#207, `33fa9e6`) CI also fails below 74% TOTAL. `git grep -n "Q-COV-GATE" -- docs/features/TASK_LIST.md` is empty.
+4. The decision packet's Brief 2 `Owner decision:` line (`audit/2026-09-25/gated-items-decision-packet.md:117`) and ledger row 2 (`:421`) are unticked. Recording an owner answer is L0's, verbatim (RUNBOOK §9 item 2; §2.4 above: "The packet tick, if wanted, is L0's."). **Not in this row:** L0 copies P8-B2 from `:297` in its next owner-rows PR, or leaves the packet as the historical brief.
+
+**Design (docs and a YAML comment; no behaviour change):**
+1. KEY-05: the Source cell quotes the new `:169` wording; the status cell keeps **gap** and says "owner-approved 2026-10-19 (P8-B2 B + A, `owner-decisions-2026-09-27.md:297`), not yet implemented"; the "a password change is a re-seal, not a rotation" sentence stays.
+2. `ci.yml:21-22`: "SLOT-RULE-2a: PRs regenerate and commit docs/INDEX.md and docs/_link_graph.json; CI regenerates them again here so DOC-011 sees new docs (the committed index is checked by test_docs_index_check_passes_on_real_repo)." Comment lines only; the `run:` lines are unchanged.
+3. `TASK_LIST.md:220`: keep the text and append "Superseded 2026-10-20: CI fails below 74% TOTAL (Q-COV-GATE, #207)."
+
+**Checks (no pytest id):**
+
+| Check | Expected | RED today? |
+|---|---|---|
+| `grep -c "Manual via password change" docs/capstone-report/specs-compliance-matrix.md` | `0` | yes (`1`) |
+| `grep -n "PRs do not commit docs/INDEX.md" .github/workflows/ci.yml` | no output | yes (`:21`) |
+| `grep -c "Q-COV-GATE" docs/features/TASK_LIST.md` | `1` | yes (`0`) |
+| `git diff origin/main -- .github/workflows/ci.yml \| grep '^[-+] ' \| grep -v '^[-+] *#'` | no output (only comment lines changed) | n/a |
+| `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))"` and `python3 scripts/docs_lint.py` | exit 0 | n/a |
+
+**Files:** `docs/capstone-report/specs-compliance-matrix.md` (KEY-05 row only), `.github/workflows/ci.yml` (`:21-22` comment only), `docs/features/TASK_LIST.md` (`:220` only), `docs/INDEX.md`, `docs/_link_graph.json`. No slots.
+**Expected collected delta:** 0. **Est:** 0.25 h.
+**Acceptance:** the checks above, pasted; CI green on the PR. **Rollback:** revert.
+**Order:** ready now (no slot). Never beside another PR on `ci.yml`, `specs-compliance-matrix.md` or `TASK_LIST.md` (none open on `b2b3f4e`; #210 does not touch them).
+
+### 2.15 FEATURE-LIST-LICENCE — `feature_list.json` HC-M11 still says the NLI model is MIT
+
+**Source:** #249 surprise 3 (queue bullet FEATURE-LIST-LICENCE). Planned 2026-10-21 on `origin/main` @ `b902e0f`.
+
+**Facts (`b902e0f`):**
+1. `feature_list.json:142` (HC-M11 `description`): "candidate: cross-encoder/nli-deberta-v3-xsmall, MIT, ~22M params". `git grep -n "nli-deberta-v3-xsmall, MIT" -- feature_list.json` prints `:142` only.
+2. The authoritative sources say Apache-2.0: the model card (`license: apache-2.0`, README line 11, measured in [#249](../../reviews/2026-10-20/gc5-real-model-evidence.md)), `config/model_manifest.json` (`nli-deberta-v3-xsmall` note: "Apache-2.0 per the model card"), and the owner's GC5-OL-1 (`docs/capstone-report/owner-decisions-2026-09-27.md:269`: "licence Apache-2.0 (not MIT, as feature_list.json says)").
+3. Other MIT mentions are dated records and stay as they are: `docs/plans/2026-06-30-tech-upgrade-survey-9-areas.md:97-98` (a June survey), `docs/archive/plans/2026-07-02-*.md` (archived), `audit/2026-09-25/gated-items-decision-packet.md:403` (already says "MIT per feature_list.json … UNVERIFIED") and `audit/2026-09-25/plans/08-gated-items-review-packet.md:248`, `:255`. Rewriting them would change what those records say was believed at the time; GC5-OL-1 and the GC5 plan (`docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md:141`) already carry the correction.
+4. `scripts/feature_list_lint.py` checks structure only (FL-001…FL-007); CI runs it.
+
+**Design (one data string):** `feature_list.json:142`: `MIT` → `Apache-2.0`. Nothing else in the entry changes (its "~22M params" is the backbone figure the survey uses, and its "Verified 2026-07-07 … stub" sentence is a dated note; neither is this row). **No lint rule:** one string, and a licence rule needs a map from free text to manifest entries, which nothing else would use (CLAUDE.md §2).
+
+**Checks (no pytest id):**
+
+| Check | Expected | RED today? |
+|---|---|---|
+| `git grep -c "nli-deberta-v3-xsmall, MIT" -- feature_list.json` | no output, exit 1 | yes (`feature_list.json:1`) |
+| `git grep -c "nli-deberta-v3-xsmall, Apache-2.0, ~22M params" -- feature_list.json` | `feature_list.json:1` | yes (no match) |
+| `python3 scripts/feature_list_lint.py` (stdlib only: `json`, `re`, `sys`, `pathlib`, `feature_list_lint.py:25-30`; CI runs the same command, `ci.yml:29-30`) | exit 0 | n/a |
+| `git diff --stat origin/main...HEAD` | `feature_list.json` only, 1 line changed | n/a |
+
+**Files:** `feature_list.json` (`:142` only). Not under `docs/`, so no index regeneration. No slots.
+**Expected collected delta:** 0. **Est:** 0.1 h.
+**Acceptance:** the checks above, pasted; CI green on the PR. **Rollback:** revert.
+**Order:** ready now (no slot). No open PR touches `feature_list.json` (checked: #210, #230, #239, #246). No ask-first file.
 
 ---
 

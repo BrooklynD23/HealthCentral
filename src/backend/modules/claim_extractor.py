@@ -15,6 +15,11 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 
+def _carries_fact(claim: "ExtractedClaim") -> bool:
+    """True when a claim has a citation or a number (UNC-VERIFY-SCOPE (a))."""
+    return bool(claim.cited_sources) or bool(re.search(r"\d", claim.text))
+
+
 @dataclass
 class ExtractedClaim:
     """
@@ -127,19 +132,23 @@ class ClaimExtractor:
         sections = self._parse_sections(response)
 
         for segment_type, content in sections:
-            # Skip uncertainty sections - these are not claims
-            if segment_type == "uncertainty":
-                continue
-
             # Extract claims from section content
             section_claims = self._extract_claims_from_section(
                 content, segment_type, claim_counter
             )
+            if segment_type == "uncertainty":
+                # Fact-free hedges are not claims. Keep only lines that carry a
+                # citation or a number, renumbered so ids stay unique and equal
+                # to main's when everything is dropped.
+                section_claims = [c for c in section_claims if _carries_fact(c)]
+                for n, c in enumerate(section_claims, start=1):
+                    c.claim_id = f"claim_{claim_counter + n}"
             claims.extend(section_claims)
             claim_counter += len(section_claims)
 
-        # If no sections found, process entire response
-        if not claims and response.strip():
+        # If no claims came from a non-uncertainty section, process the entire
+        # response (as main does when uncertainty lines are skipped).
+        if all(c.segment_type == "uncertainty" for c in claims) and response.strip():
             claims = self._extract_claims_from_section(
                 response, "general_info", 0
             )
@@ -151,21 +160,46 @@ class ClaimExtractor:
             parsing_errors=errors,
         )
 
+    # A section header counts only at the start of a line (LCP-HL-SCOPE (a)). The
+    # keyword must be followed by ":", "**" or the end of the line, so a prose line
+    # such as "Uncertainty about lab ranges [cite:1]" is not a header. RAGModule
+    # splits responses with this same regex and map, so the verifier sees exactly
+    # the text the parser serves. A header may carry a list marker ("- ", "1. "), a
+    # space before the colon, or a dash / "(note)" terminator.
+    SECTION_HEADER_RE = re.compile(
+        r"^[ \t]*(?:(?:[-*•]|\d+[.)])[ \t]+)?(?:\*\*|#+[ \t]*)?"
+        r"(REPORT FACTS|GENERAL INFO(?:RMATION)?|UNCERTAINTIES|UNCERTAINTY)"
+        r"(?:[ \t]*\([^)\n]*\))?"
+        r"(?=[ \t]*:|\*\*|[ \t]*$|[ \t]+[-–—][ \t])"
+        r"[ \t]*\**[ \t]*(?::|[-–—](?=[ \t]))?\**",
+        re.IGNORECASE | re.MULTILINE,
+    )
+    SECTION_TYPES = {
+        "REPORT FACTS": "report_facts",
+        "GENERAL INFO": "general_info",
+        "GENERAL INFORMATION": "general_info",
+        "UNCERTAINTIES": "uncertainty",
+        "UNCERTAINTY": "uncertainty",
+    }
+
     def _parse_sections(self, response: str) -> list[tuple[str, str]]:
-        """Parse response into labeled sections."""
-        sections = []
+        """Parse response into labeled sections.
 
-        # Section patterns with priorities
-        section_patterns = [
-            (r"REPORT FACTS:?\s*(.*?)(?=GENERAL INFO:|UNCERTAINTIES:|$)", "report_facts"),
-            (r"GENERAL INFO(?:RMATION)?:?\s*(.*?)(?=REPORT FACTS:|UNCERTAINTIES:|$)", "general_info"),
-            (r"UNCERTAINTIES:?\s*(.*?)(?=REPORT FACTS:|GENERAL INFO:|$)", "uncertainty"),
-        ]
+        Text before the first header, and headerless text, is report_facts so the
+        verifier checks it. Empty or whitespace-only text gives no section.
+        """
+        sections: list[tuple[str, str]] = []
+        headers = list(self.SECTION_HEADER_RE.finditer(response))
 
-        for pattern, segment_type in section_patterns:
-            match = re.search(pattern, response, re.IGNORECASE | re.DOTALL)
-            if match and match.group(1).strip():
-                sections.append((segment_type, match.group(1).strip()))
+        prefix = response[: headers[0].start()] if headers else response
+        if prefix.strip():
+            sections.append(("report_facts", prefix.strip()))
+
+        for i, header in enumerate(headers):
+            end = headers[i + 1].start() if i + 1 < len(headers) else len(response)
+            content = response[header.end() : end].strip()
+            if content:
+                sections.append((self.SECTION_TYPES[header.group(1).upper()], content))
 
         return sections
 
@@ -319,12 +353,17 @@ class ClaimExtractor:
         for claim in claims:
             is_unverifiable = False
 
-            # Uncertainty section claims are typically not verifiable
-            if claim.segment_type == "uncertainty":
+            carries_fact = _carries_fact(claim)
+
+            # Uncertainty hedges are unverifiable only when they carry no fact
+            # (no citation, no number). UNC-VERIFY-SCOPE (a).
+            if claim.segment_type == "uncertainty" and not carries_fact:
                 is_unverifiable = True
 
-            # Meta-statements about information availability
-            for pattern in meta_patterns:
+            # Meta-statements about information availability. A meta phrase never
+            # exempts a claim that carries a citation or a number: it still has to
+            # be verified.
+            for pattern in () if carries_fact else meta_patterns:
                 if re.search(pattern, claim.text, re.IGNORECASE):
                     is_unverifiable = True
                     break

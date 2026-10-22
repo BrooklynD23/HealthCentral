@@ -97,6 +97,9 @@ src/backend/rl_exports/
 # Owner decision D8-delivery (2026-09-27): no model files in git.
 /src/backend/models/embeddings/
 
+# NLI cross-encoder fetched once by `download_models.py` for G-C5 (Q5b); same rule.
+/src/backend/models/nli/
+
 # Environment and secrets
 .env
 .env.local

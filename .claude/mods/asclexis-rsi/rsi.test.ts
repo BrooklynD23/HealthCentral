@@ -1,6 +1,7 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 import cases from './replay/cases'
 import { RULES } from './hooks/rules'
+import { classifyError } from './hooks/logic'
 
 // The test environment has no fs: an in-memory one answers fs.* beneath the plugin.
 function memfs(on: any) {
@@ -49,6 +50,48 @@ describe('replay set', () => {
   })
 })
 
+describe('classifyError', () => {
+  test('fixed classes for common Bash failures', () => {
+    const cases: [string, string][] = [
+      ["Exit code 1\nModuleNotFoundError: No module named 'foo'", 'module-not-found'],
+      ['Exit code 2\nNo such file or directory', 'no-such-file'],
+      ['Exit code 1\n3 failed, 10 passed', 'tests-failed'],
+      ['Exit code 127\ncommand not found', 'command-not-found'],
+      ['Exit code 128\nfatal: not a git repository', 'git-fatal'],
+      ['Exit code 1\nSyntaxError', 'syntax-error'],
+      ['Exit code 144', 'exit-144-self-kill'],
+      ['timed out', 'timeout'],
+    ]
+    for (const [text, cls] of cases) expect(classifyError(text)).toBe(cls)
+  })
+  test('bounded exit-code fallback', () => {
+    expect(classifyError('Exit code 1\nboom')).toBe('exit-1')
+    expect(classifyError('Exit code 2')).toBe('exit-2')
+    expect(classifyError('Exit code 99999')).toBe('other')
+    expect(classifyError('no exit line')).toBe('other')
+  })
+  test('never echoes input', () => {
+    const planted = ['SECRET-123', '/home/x/patient.pdf', 'Jane']
+    const shapes = (p: string) => [
+      `Exit code 1\n${p}`,
+      `Exit code 2\nNo such file or directory: ${p}`,
+      `Exit code 127\n${p}: command not found`,
+      `Exit code 1\nModuleNotFoundError: No module named '${p}'`,
+      `fatal: ${p}`,
+      `SyntaxError: ${p}`,
+      `${p} timed out`,
+      p,
+    ]
+    const ok = /^(exit-144-self-kill|timeout|edit-no-match|permission-denied|module-not-found|command-not-found|no-such-file|tests-failed|git-fatal|syntax-error|exit-\d{1,3}|other)$/
+    for (const p of planted)
+      for (const t of shapes(p)) {
+        const r = classifyError(t)
+        expect(r).toMatch(ok)
+        for (const q of planted) expect(r).not.toContain(q)
+      }
+  })
+})
+
 describe('logger', () => {
   test('row is metadata only: no command text, no output', async ($, on) => {
     const clock = mock.clock(on, { now: T0 })
@@ -62,6 +105,17 @@ describe('logger', () => {
     expect(raw).not.toContain('Jane')
     const [row] = rowsOf(files)
     expect(row).toEqual(expect.objectContaining({ v: 1, kind: 'tool', tool: 'Bash', ok: false, denied: false, error_class: 'other', retry: false }))
+  })
+  test('row classifies without the text', async ($, on) => {
+    const clock = mock.clock(on, { now: T0 })
+    const files = memfs(on)
+    bottom(on, "Exit code 1\nModuleNotFoundError: No module named 'secretpkg'", true)
+    await $.tool.call({ tool: 'Bash', command: 'make x' })
+    await clock.settle()
+    const raw = [...files.values()].join('')
+    expect(raw).not.toContain('secretpkg')
+    const [row] = rowsOf(files)
+    expect(row.error_class).toBe('module-not-found')
   })
   test('detects retry after a failure', async ($, on) => {
     const clock = mock.clock(on, { now: T0 })

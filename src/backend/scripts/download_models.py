@@ -20,6 +20,9 @@ Usage:
     # One-time fetch of the embedding model; the backend loads it offline
     python scripts/download_models.py embedding
 
+    # One-time fetch of the NLI cross-encoder (HC-M11); the backend loads it offline
+    python scripts/download_models.py nli
+
 This script is the canonical reference for Gemma 4 GGUF download URLs.
 
 PLACEHOLDER NOTICE
@@ -386,6 +389,76 @@ def cmd_embedding(target: Optional[Path] = None) -> None:
     print(f"Embedding model installed: {target}")
 
 
+def _nli_pin() -> dict:
+    from modules.embeddings import NLI_MANIFEST_KEY
+    from modules.model_integrity import load_manifest
+
+    return load_manifest()["models"][NLI_MANIFEST_KEY]
+
+
+def _nli_complete(directory: Path) -> bool:
+    from modules.embeddings import NLI_FETCH_FILES
+
+    if not all((directory / name).is_file() for name in NLI_FETCH_FILES):
+        return False
+    return _sha256(directory / "model.safetensors") == _nli_pin()["sha256"]
+
+
+def cmd_nli(target: Optional[Path] = None) -> None:
+    """Fetch the pinned NLI cross-encoder once. The only network step for it.
+
+    Same rules as cmd_embedding: exclusive .partial dir, sha256 check, never
+    deletes a directory it did not create in this run.
+    """
+    from huggingface_hub import snapshot_download
+
+    from modules.embeddings import NLI_FETCH_FILES, resolve_nli_model_dir
+
+    pin = _nli_pin()
+    target = Path(target) if target is not None else resolve_nli_model_dir()
+    if target.exists():
+        if _nli_complete(target):
+            print(f"NLI model already installed: {target}")
+            return
+        print(f"ERROR: {target} exists but is not a complete, verified NLI model.")
+        print("Remove it yourself and re-run; this script never deletes an existing directory.")
+        sys.exit(1)
+
+    partial = target.with_name(target.name + ".partial")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        partial.mkdir()  # exclusive: this run owns `partial` only if it created it
+    except FileExistsError:
+        print(f"ERROR: {partial} already exists (an interrupted or concurrent fetch?).")
+        print("Remove it yourself and re-run; this script never deletes a directory it did not create.")
+        sys.exit(1)
+    print(f"Fetching {pin['repo']}@{pin['revision'][:12]} ({len(NLI_FETCH_FILES)} files) ...")
+    try:
+        snapshot_download(
+            repo_id=pin["repo"],
+            revision=pin["revision"],
+            local_dir=str(partial),
+            allow_patterns=list(NLI_FETCH_FILES),
+        )
+        verified = _nli_complete(partial)
+        if verified:
+            partial.rename(target)
+    except BaseException:
+        # Network error, hashing error, failed rename, interrupt, anything: remove
+        # only the `partial` this run created (exclusive mkdir above) so the next
+        # run is not blocked, then re-raise.
+        shutil.rmtree(partial, ignore_errors=True)
+        raise
+
+    if not verified:
+        shutil.rmtree(partial, ignore_errors=True)  # created by this run (exclusive mkdir above)
+        print("ERROR: fetched NLI model is incomplete or the weights checksum does not match.")
+        print("Nothing was installed.")
+        sys.exit(1)
+
+    print(f"NLI model installed: {target}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Download GGUF models for Asclexis",
@@ -413,6 +486,8 @@ def main() -> None:
 
     sub.add_parser("embedding", help="Fetch the pinned embedding model once (the backend loads it offline)")
 
+    sub.add_parser("nli", help="Fetch the pinned NLI cross-encoder once (the backend loads it offline)")
+
     args = parser.parse_args()
 
     if args.command == "list":
@@ -427,6 +502,8 @@ def main() -> None:
         cmd_ollama(args.tag)
     elif args.command == "embedding":
         cmd_embedding()
+    elif args.command == "nli":
+        cmd_nli()
 
 
 if __name__ == "__main__":

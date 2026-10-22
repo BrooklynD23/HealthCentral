@@ -109,7 +109,7 @@ class LlamaCppProvider:
         if not model_path:
             logger.warning(
                 "LlamaCppProvider: no GGUF model found in %s",
-                self._settings.models_path,
+                Path(self._settings.models_path).name,
             )
             return False
 
@@ -127,7 +127,7 @@ class LlamaCppProvider:
 
         try:
             Llama = _load_llama_class()
-            logger.info("LlamaCppProvider: loading model from %s", model_path)
+            logger.info("LlamaCppProvider: loading model from %s", model_path.name)
             self._model = Llama(
                 model_path=str(model_path),
                 n_ctx=self._n_ctx,
@@ -149,7 +149,7 @@ class LlamaCppProvider:
             )
             return False
         except Exception as exc:
-            logger.error("LlamaCppProvider: failed to load model: %s", exc)
+            logger.error("LlamaCppProvider: failed to load model: %s", type(exc).__name__)
             return False
 
     @staticmethod

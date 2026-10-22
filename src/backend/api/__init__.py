@@ -66,3 +66,7 @@ router.include_router(backup_router, prefix="/backup", tags=["backup"])
 from .feedback import router as feedback_router
 
 router.include_router(feedback_router, prefix="/feedback", tags=["feedback"])
+
+from .donation import router as donation_router
+
+router.include_router(donation_router, prefix="/donation", tags=["donation"])
