@@ -1,6 +1,6 @@
 # HealthCentral Documentation Index (Current)
 
-**Last Updated:** 2026-10-04
+**Last Updated:** 2026-10-22
 **Owner:** Project Lead
 **Refresh Trigger:** New doc added or doc archived
 
@@ -43,9 +43,6 @@ from the generated map (DOC-011).
 - [`docs/plans/ingest-imaging-pathology-spec.md`](plans/ingest-imaging-pathology-spec.md) — imaging/pathology extractor spec.
 - [`docs/plans/implementation-log/README.md`](plans/implementation-log/README.md) — point-in-time implementation notes.
 - [`docs/plans/2026-06-30-tech-upgrade-survey-9-areas.md`](plans/2026-06-30-tech-upgrade-survey-9-areas.md) — dependency/tech survey.
-- [`docs/superpowers/plans/2026-07-13-hc-m21-search.md`](superpowers/plans/2026-07-13-hc-m21-search.md) and
-  [`docs/superpowers/plans/2026-05-11-dynamic-port-selection.md`](superpowers/plans/2026-05-11-dynamic-port-selection.md)
-  — feature implementation logs.
 
 ## Architecture Diagrams (Current)
 
@@ -107,6 +104,20 @@ from the generated map (DOC-011).
 - [`docs/archive/plans/2026-07-02-fable5-architect-handoff-prompt.md`](archive/plans/2026-07-02-fable5-architect-handoff-prompt.md) (one-time architect-review prompt, superseded)
 - `docs/plans/2026-05-15-cursor-lab-workflow-plan.md` (formerly `.cursor/plans/`; confirmed shipped)
 - `docs/plans/implementation-log/` (formerly top-level `implementation_plan/`; 5 point-in-time notes, all shipped)
+- Archived 2026-10-22 (executed plans and superseded handoffs, moved with `git mv`; each carries a banner naming what superseded it):
+  [`2026-10-19-session-handoff.md`](archive/plans/2026-10-19-session-handoff.md) ·
+  [`2026-10-20b-session-handoff.md`](archive/plans/2026-10-20b-session-handoff.md) ·
+  [`2026-10-04-RCC-recovery-code-cache.md`](archive/plans/2026-10-04-RCC-recovery-code-cache.md) ·
+  [`2026-10-04-RCC2-secret-retention.md`](archive/plans/2026-10-04-RCC2-secret-retention.md) ·
+  [`2026-10-04-RCC3-restore-backup.md`](archive/plans/2026-10-04-RCC3-restore-backup.md) ·
+  [`2026-10-04-NPM-audit-fix.md`](archive/plans/2026-10-04-NPM-audit-fix.md) ·
+  [`2026-10-04-NPM-MAJORS-tailwind4.md`](archive/plans/2026-10-04-NPM-MAJORS-tailwind4.md) ·
+  [`2026-10-04-NPM-MAJORS-react-router7.md`](archive/plans/2026-10-04-NPM-MAJORS-react-router7.md) ·
+  [`2026-10-08-DEV-PS1-install-on-lockfile-change.md`](archive/plans/2026-10-08-DEV-PS1-install-on-lockfile-change.md) ·
+  [`2026-07-07-rename-audit-and-shortlist.md`](archive/plans/2026-07-07-rename-audit-and-shortlist.md) ·
+  [`2026-07-30-phase-b-asclexis-rename.md`](archive/plans/2026-07-30-phase-b-asclexis-rename.md) ·
+  [`2026-07-13-hc-m21-search.md`](archive/plans/2026-07-13-hc-m21-search.md) ·
+  [`2026-05-11-dynamic-port-selection.md`](archive/plans/2026-05-11-dynamic-port-selection.md)
 
 ## Source PRDs
 

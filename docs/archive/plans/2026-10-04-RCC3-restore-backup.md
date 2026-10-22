@@ -1,8 +1,10 @@
 # RCC-3 — Restore Password Out of the Mutation Cache Implementation Plan
 
+> **Historical Reference** — executed and closed 2026-10-05 (RCC-3, PRs #37/#42/#46 per `docs/capstone-report/implementation-program.md`); retained for history, not an active tracker. Moved from `docs/plans/2026-10-04-RCC3-restore-backup.md` on 2026-10-22.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:test-driven-development. Every new test is observed FAILING before the fix. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** approved by the owner on 2026-10-04 (gate RCC-3 in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md)). Wave 3, L1-B.
+**Status:** approved by the owner on 2026-10-04 (gate RCC-3 in [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md)). Wave 3, L1-B.
 **Source:** RCC-2 PR #42 code review, out-of-scope MAJOR: `useRestoreBackup` is the 5th mutation that carries a password, and the only one left unfixed (recurring-failures §9).
 **Architectural:** no. No Codex review. Reviews: `code-reviewer` + `security-reviewer`.
 
