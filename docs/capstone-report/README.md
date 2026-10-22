@@ -1,6 +1,6 @@
 # Capstone Report Knowledge Base
 
-**Last Updated:** 2026-10-17
+**Last Updated:** 2026-10-22
 
 Knowledge base for the CS4610 capstone report. It tracks the distance between the project's original goal, the repository's verified state, and the claims the report makes. Everything here is evidence-linked. A claim without a `file:line`, commit hash, or command output is marked UNVERIFIED, not asserted.
 
@@ -18,9 +18,10 @@ Knowledge base for the CS4610 capstone report. It tracks the distance between th
 | [00-original-goal.md](00-original-goal.md) | Product goal and research question, restated for the report, with the re-checked state beside the stated intent |
 | [claims-ledger.md](claims-ledger.md) | Every load-bearing claim ↔ repo evidence ↔ verdict. The anti-overclaim artifact. |
 | [report-outline.md](report-outline.md) | Capstone structure; each section mapped to the evidence that backs it |
+| [asclexis-showcase-2026-10-22.html](asclexis-showcase-2026-10-22.html) | Ledger-gated copy of the stakeholder showcase page: every claim element maps to a claims-ledger row, checked by a script. Supersedes the 2026-09-25 page, which stays unchanged in `audit/2026-09-25/`. |
 | [architecture-overview.md](architecture-overview.md) | Verified current architecture (process, data, document/assistant paths, model/network boundary, exports, jobs, migrations, CI) kept separate from proposed change; integration diagram; divergences from `docs/architecture/` |
 | [architecture-engineering-contract.md](architecture-engineering-contract.md) | Testable MUST / MUST NOT contracts, each classed `BINDING`, `PROPOSED` or `OWNER-GATED`, with enforcement, verification command, failure response and owner |
-| [specs-compliance-matrix.md](specs-compliance-matrix.md) | Requirement → source → implementation → tests → gate → status. 73 rows (recounted 2026-09-28); only 4 `enforced` |
+| [specs-compliance-matrix.md](specs-compliance-matrix.md) | Requirement → source → implementation → tests → gate → status. 78 rows (script count 2026-10-20, ledger M4); only 3 `enforced` |
 | [implementation-program.md](implementation-program.md) | Dependency-ordered phases over the 8 audit plans plus uncovered gaps, with stop gates, measured acceptance, rollback and owner sign-offs. In execution: Waves 0-2 merged (2026-10-02). |
 | [owner-decisions-2026-09-27.md](owner-decisions-2026-09-27.md) | Owner answers to P0-B, D1–D13 and G-B5 (2026-09-27), with the exact option text each licenses |
 | [rsi-in-development-and-application.md](rsi-in-development-and-application.md) | RSI section: Track 1 dev harness (in review), Track 2 application (planned), gates, MM-1 baselines, results to be filled |
@@ -66,5 +67,6 @@ Proposed plans for the program's W-items, amendments and new findings. None is e
 - [x] Implementation program: [implementation-program.md](implementation-program.md) (2026-09-27; in execution — Waves 0-2 merged by 2026-10-02, see the [ledger](../../audit/2026-09-25/swarm-2026-09-27/ledger.md))
 - [x] Research scouting: 4 docs in `research/` (2026-09-25). Laya claims corrected 2026-09-27. The Jev↔Laya choice is an owner preference (2026-09-26), not a measured result.
 - [x] Owner decisions D1–D13, P0-B, G-B5: [owner-decisions-2026-09-27.md](owner-decisions-2026-09-27.md) (2026-09-27). The phantom layer is D1 = Branch A, all 5 agents.
+- [ ] Showcase claim freeze (plan `docs/plans/2026-09-27-senior-report-showcase-plan.md` §10)
 - [ ] Decision: does the capstone present the phantom-layer finding as a defect, a correction, or a case study? (audit §19, plan `03-phantom-layer.md`)
 - [ ] `docs/INDEX.md` regeneration to catalogue the new docs. It is blocked on the owner's uncommitted `docs/INDEX.md` edits (program P0-B).

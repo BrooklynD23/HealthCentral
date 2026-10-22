@@ -1,6 +1,6 @@
 # Build Program 2026-10-15 — Cross-Lane Contracts
 
-**Last Updated:** 2026-10-15
+**Last Updated:** 2026-10-22 (§c, R-13: owner OW-W13 merge order recorded); 2026-10-15
 **Owner:** repository owner
 **Status:** PROPOSED (L0 contracts reconciler). Binding on lanes A–F once the owner or L0 adopts this build program. **No owner approval is recorded here.** Every gate named below keeps the state it has in [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md). Rulings marked **OWNER** need an owner answer; the rest are L0 rulings.
 **Refresh Trigger:** any merge of #95, #97, #99, #82, #84, #74, #72, #94 or #68; any lane-doc edit; a merge of any item named in §a; a new file under `src/backend/migrations/*/versions/`; an owner answer to a gate in §e.
@@ -101,10 +101,10 @@ This extends "Shared files are ordered as follows" in [implementation-program.md
 |---|---|---|---|
 | `adaptive_windows_local` | D-2 | column `medication_schedules.adaptive_window_tz` (nullable, re-learn marker) + `UPDATE … windows = NULL`; downgrade drops the column (lane D §D-2 rev 2) | likely first → `013` |
 | `streaks_hidden` | C-GAM2B | column | Wave 9 pool |
-| `fk_cascade_alignment` | C-P6 | batch rebuild, FK actions per D5 | Wave 10 |
-| `export_artifacts` | C-GC1 | new table (+ RESET-APPEND, `PROFILE_CHECKS` row) | Wave 14 |
-| `wearables` | WEAR-02 (#94) | new tables | after M0 |
-| `symptom_journal` | WEAR-15a (#94) | new table, after WEAR-02 | after M0 |
+| `fk_cascade_alignment` | C-P6 | batch rebuild, FK actions per D5 | Wave 10; first of the OW-W13 four |
+| `export_artifacts` | C-GC1 | new table (+ RESET-APPEND, `PROFILE_CHECKS` row) | Wave 14; after C-P6 (OW-W13) |
+| `wearables` | WEAR-02 (#94) | new tables | after M0; after C-GC1 (OW-W13) |
+| `symptom_journal` | WEAR-15a (#94) | new table, after WEAR-02 | after M0; last of the OW-W13 four |
 | ~~`audit_outbox`~~ | AUDIT-ORDER B | **withdrawn** (AO-DESIGN = D, merged as #78 with no migration) | — |
 
 Every migration PR, data-only ones included:
@@ -121,6 +121,8 @@ Every migration PR, data-only ones included:
 5. After C-P6: every new FK declares `ondelete=` and gets a `PROFILE_CHECKS` row. After C-P7: every new table is appended to `_SYNTHETIC_RESET_MODELS` (ask-first `api/profiles.py`, gate RESET-APPEND).
 
 OW-W13 (owner order confirmation) is **not** needed for numbering; see R-13.
+
+**Merge order, owner OW-W13 (answered 2026-10-22, prompt 35, `owner-decisions-2026-09-27.md:386`): "P6 → G-C1 → WEAR-02 → WEAR-15"** ("Integrity and privacy work first; wearables after. Matches the original question's order; wearables wait behind your orphan audit."). So `fk_cascade_alignment` (C-P6) → `export_artifacts` (C-GC1) → `wearables` (WEAR-02) → `symptom_journal` (WEAR-15a) merge in that order: a later one in this list does not merge its migration before the earlier ones are on `main`. Numbering is unchanged: each still takes head+1 at its final rebase (rules 1-4 below), so nothing is reserved and nothing is renumbered now. Migrations outside these four (already merged: `013_adaptive_windows_local` D-2, `014_streaks_hidden` C-GAM2B, `015_data_donation` RSI1-DONATE PR-1) are not ordered by OW-W13. The numbers in the original question (wearables 00 `:187`: P6 `013`, G-C1 `014`, AUDIT-ORDER `015`) are stale.
 
 **Master chain** (`be/migrations/master/versions/`). Head on `3b2236c`: `002_backup_schedules`. **No item in lanes A–F or #94 allocates a master migration.** Any PR that adds one first adds a row here; the same head+1 and single-head rules apply with `c('master')`.
 
@@ -159,7 +161,7 @@ SLOT-RULE-2 (owner, 2026-10-16) supersedes ground rule 8 / SLOT-RULE (`owner-dec
 | R-10 | `SettingsPage.tsx` / `AchievementsWidget.tsx` (B↔C, C↔E) | **Accept** lane C: #84 → C-GAM2B; #74 → B-1; C-GAM2B may land on either side; E-4's drift scan covers the switch if C-GAM2B lands first | making C-GAM2B wait for TW4-SHOTS buys nothing | none |
 | R-11 | `TASK_LIST.md`: B-9 vs F-13; 6+ claimants (B↔F, E) | **Modify:** own-row rule (lane E P-3) for all claimants. B-9 does **not** wait for F-13; lane B P-7 is superseded | the rows are disjoint; the wait added an owner dependency (#94) for no file reason | lane B `:174`, `:225` |
 | R-12 | Profile `013` claim; head literals (C↔D, MAJOR) | **Accept** C-PMIG (§c) | already adopted by lane D | none |
-| R-13 | Profile-migration order OW-W13 (C↔owner, F) | **Modify:** numbering needs no owner answer (merge order). OW-W13 is asked once as an optional confirmation covering all six slugs; until it is answered, merge order = readiness order | the order itself decides nothing that C-PMIG does not already handle | none |
+| R-13 | Profile-migration order OW-W13 (C↔owner, F) | **Modify:** numbering needs no owner answer (merge order). OW-W13 is asked once as an optional confirmation covering all six slugs; until it is answered, merge order = readiness order. **Answered 2026-10-22 (prompt 35): P6 → G-C1 → WEAR-02 → WEAR-15** (§c) | the order itself decides nothing that C-PMIG does not already handle | §c (2026-10-22) |
 | R-14 | `route_client` `profile_db` keyword (C↔E) | **Accept** (lane C restored it) | E-2 STOPs without it | none |
 | R-15 | F-12 text "D-2 proposes 013" (D↔F) | **Accept** (lane F §2.12 already reads `NNN_adaptive_windows_local`) | — | none |
 | R-16 | `core/time.py` vs WEAR-03 citations (D↔F) | **Accept:** D-1 appends only; lane F refreshes the WEAR-02/03/11/12 citations (`:12`, `:17`, `:27`) once after D-1 | anchors stay put | none |
@@ -183,7 +185,7 @@ SLOT-RULE-2 (owner, 2026-10-16) supersedes ground rule 8 / SLOT-RULE (`owner-dec
 
 1. **R-5 parked draft:** may B-3 stay open as a draft PR on `rag.py`, `api/assistant.py` and `api/interpretations.py` while other PRs merge? Default if not vetoed: yes.
 2. **R-1 / R-7:** ask SCF-RULING + IBF-1 in one prompt, and IUV-1 (= W-3 O-3) once.
-3. **R-13 OW-W13:** an optional confirmation of profile-migration order; nothing blocks on it.
+3. **R-13 OW-W13:** an optional confirmation of profile-migration order; nothing blocks on it. *Answered 2026-10-22: P6 → G-C1 → WEAR-02 → WEAR-15 (§c).*
 4. **R-6 / R-8:** program edges dropped (P7 → W-7; W-4 → W-11a PR-3; W-8 → F4). These are L0 rulings that the orchestrator records; the owner may veto.
 5. **New item, not a conflict:** lane E Q-E3 (GATE-12). After #78, a 403 test that forgets the I-12 patch writes to the developer's real master DB (`be/data/asclexis.db`). No lane owns `tests/conftest.py`. Proposal: register it as an owner item, design only.
 

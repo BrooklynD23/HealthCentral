@@ -44,7 +44,6 @@ Stored in master database (not encrypted by default).
 | Profile vaults | AES-256-CBC (SQLCipher) | Password-derived key (PBKDF2) |
 | Master database | Not encrypted | Contains no PHI |
 | Backups | Same as source | SQLite backup API preserves encryption |
-| Log files | Not encrypted | Contains event metadata, not PHI |
 
 ### In Transit
 

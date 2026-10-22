@@ -106,7 +106,7 @@ These are three unrelated projects that share one repository, and two of them ed
 
 ## B1 — Rename execution
 
-**Scope:** the surface table in `docs/plans/2026-07-07-rename-audit-and-shortlist.md` — approximately 45 user-visible strings across roughly 20 files. Follow that document's stage-3 procedure.
+**Scope:** the surface table in `docs/archive/plans/2026-07-07-rename-audit-and-shortlist.md` — approximately 45 user-visible strings across roughly 20 files. Follow that document's stage-3 procedure.
 
 Changes: `src/frontend/index.html` (`<title>`, meta description, apple-mobile-web-app-title), `src/frontend/package.json` name, frontend components (App, Sidebar, DocumentInbox, NotificationSettings, ProfileSetup, ExportPage, `api.ts`, `authStore.ts`), FastAPI `title=` in `main.py`, `dev.ps1` / `dev.bat` banners, `README.md`, `CONTRIBUTING.md`, `AGENT.md`, `SECURITY.md`, `config/.env.example` app-name values, and product-presenting docs.
 
