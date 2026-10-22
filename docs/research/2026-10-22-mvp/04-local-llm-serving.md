@@ -10,7 +10,7 @@
 
 - Providers: `LlamaCppProvider` (default) and `OllamaProvider` (localhost), via `core/llm/factory.py`.
 - Tiers (`modules/model_selector.py`): low = Qwen2.5-0.5B, gemma4-e2b, gemma4-e4b, mid = Phi-4-mini, gemma4-12b, high = BioMistral-7B. Some repo paths are marked as placeholders in comments.
-- Known issues (not repeated here): the `chat_format` 500, no model lock, no GPU-layer setting, and thinking models against the judge. See PR #297 and [lane B, JUDGE-THINK](../../plans/2026-10-15-build-program/lane-B-interpretation-eval.md) (answered: thinking off for the judge request only).
+- Known issues (not repeated here): the `chat_format` 500, no model lock, no GPU-layer setting, and thinking models against the judge. See PR #297 and [lane B, JUDGE-THINK](../../plans/2026-10-15-build-program/lane-B-interpretation-eval.md) (the owner chose "thinking off for the judge request only" on 2026-10-22; the owner-decisions row is still to be recorded).
 
 ## Runtimes
 
