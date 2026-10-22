@@ -121,7 +121,7 @@ class ModelRunner:
             selector = get_model_selector()
             return selector.ensure_model_available(tier="low")
         except Exception as exc:
-            logger.warning("ensure_model_available: auto-download failed: %s", exc)
+            logger.warning("ensure_model_available: auto-download failed: %s", type(exc).__name__)
             return None
 
     # ------------------------------------------------------------------
@@ -161,8 +161,8 @@ class ModelRunner:
         except ProviderUnavailableError as exc:
             raise RuntimeError(str(exc)) from exc
         except Exception as exc:
-            logger.error("ModelRunner.generate failed: %s", exc)
-            raise RuntimeError(f"LLM inference failed: {exc}") from exc
+            logger.error("ModelRunner.generate failed: %s", type(exc).__name__)
+            raise RuntimeError(f"LLM inference failed: {type(exc).__name__}") from exc
 
         # Ensure the result is an InferenceResult (providers may return their own)
         if not isinstance(result, InferenceResult):
@@ -211,8 +211,8 @@ class ModelRunner:
                 model_name="unknown",
             )
         except Exception as exc:
-            logger.error("ModelRunner.generate_async failed: %s", exc)
-            raise RuntimeError(f"LLM inference failed: {exc}") from exc
+            logger.error("ModelRunner.generate_async failed: %s", type(exc).__name__)
+            raise RuntimeError(f"LLM inference failed: {type(exc).__name__}") from exc
 
         if not isinstance(result, InferenceResult):
             return InferenceResult(
@@ -229,7 +229,7 @@ class ModelRunner:
             provider = self._get_provider()
             provider.unload()
         except Exception as exc:
-            logger.warning("ModelRunner.unload: %s", exc)
+            logger.warning("ModelRunner.unload: %s", type(exc).__name__)
 
 
 # ---------------------------------------------------------------------------
