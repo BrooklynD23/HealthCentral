@@ -1,5 +1,7 @@
 # Dynamic Port Selection Implementation Plan
 
+> **Historical Reference** — dynamic port selection shipped in `dev.ps1` (free-port resolution) and `dev.sh`; retained for history, not an active tracker. Moved from `docs/superpowers/plans/2026-05-11-dynamic-port-selection.md` on 2026-10-22.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make `dev.ps1` automatically find the next free port when the default backend (8000) or frontend (3000) port is unavailable, rather than aborting, and keep the frontend wired to the correct backend URL at all times.

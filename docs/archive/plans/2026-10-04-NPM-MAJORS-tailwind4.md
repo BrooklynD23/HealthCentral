@@ -1,5 +1,7 @@
 # NPM-MAJORS (a) — Tailwind CSS 3 → 4 Migration Plan
 
+> **Historical Reference** — executed (Tailwind 4 is in `src/frontend/package.json`; screenshot review OW-2 / #74 done per `docs/features/TASK_LIST.md`); retained for history, not an active tracker. Moved from `docs/plans/2026-10-04-NPM-MAJORS-tailwind4.md` on 2026-10-22.
+
 > **For agentic workers:** owner-decisions `:64` NPM-MAJORS-RUN records the approval of this plan for execution ("This approves both NPM-MAJORS plans for execution"), refined by `:69` FE-SEQ, `:70` DEV-PS1-FIRST, `:71` TW4-BROWSERS, `:72` MAJORS-TIED, `:73` TW4-VISUAL and TW4-O1..TW4-O4. It runs as amended by `audit/2026-09-25/waves/briefs/TAILWIND-4-L1-brief.md` §4; where they differ, the brief wins.
 
 **Status:** approved for execution per owner-decisions `:64`, `:69`-`:73`. Written 2026-10-04 by L1-B (Wave 3); amended 2026-10-11 per the brief §4.
