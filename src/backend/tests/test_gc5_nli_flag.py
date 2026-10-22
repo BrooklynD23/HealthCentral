@@ -598,7 +598,9 @@ def _probs(label: str, conf: float) -> list[float]:
 def _verify_on(monkeypatch, claim: str, label: str, conf: float):
     fake = _FakeCrossEncoder(_probs(label, conf))
     monkeypatch.setattr("modules.embeddings.load_local_cross_encoder", lambda: fake)
-    return VerifierAgent(VerificationConfig(use_llm_entailment=True)).verify_claim(claim, "c1", [_SOURCE])
+    result = VerifierAgent(VerificationConfig(use_llm_entailment=True)).verify_claim(claim, "c1", [_SOURCE])
+    assert fake.pairs == [(_SOURCE.source_text, claim)]  # the NLI really ran
+    return result
 
 
 def test_hc_gc5_006_nli_neutral_does_not_unverify_a_rules_verified_claim(monkeypatch):
@@ -660,11 +662,13 @@ _REPLAY = {
 class _ReplayEncoder:
     def __init__(self):
         self.unknown: list[str] = []
+        self.calls: list[str] = []
         self.config = type("Cfg", (), {"id2label": dict(enumerate(_LABELS))})()
 
     def predict(self, pairs, apply_softmax=False):
         out = []
         for _premise, claim in pairs:
+            self.calls.append(claim)
             if claim not in _REPLAY:
                 self.unknown.append(claim)
                 raise AssertionError(f"replay has no measured NLI result for claim: {claim!r}")
@@ -679,15 +683,13 @@ def test_hc_gc5_011_legacy_gate_passes_with_flag_on_under_measured_nli_outputs(m
 
     encoder = _ReplayEncoder()
     monkeypatch.setattr("modules.embeddings.load_local_cross_encoder", lambda: encoder)
-    saved_flag, saved_rag = settings.use_llm_entailment, assistant._rag_module
-    settings.use_llm_entailment = True
-    assistant._rag_module = None
-    try:
-        report = harness.score_cases(harness.load_cases())
-    finally:
-        settings.use_llm_entailment = saved_flag
-        assistant._rag_module = saved_rag
+    monkeypatch.setattr(settings, "use_llm_entailment", True)
+    monkeypatch.setattr(assistant, "_rag_module", None)
+    report = harness.score_cases(harness.load_cases())
     assert encoder.unknown == []
+    # The flag really reached the RAG module: exactly #249's 7 NLI calls (flag off makes 0).
+    assert len(encoder.calls) == 7
+    assert set(encoder.calls) == set(_REPLAY)
     assert report.passed, report.render()
     assert report.answer_rate == 1.0
     assert report.served_invalid == report.uncited_served == report.leaked == 0
