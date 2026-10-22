@@ -199,3 +199,75 @@ def test_hc_lck_004_is_available_does_not_wait_for_generation(state, model_file)
     finally:
         state.gate.set()
     gen.join(timeout=10)
+
+
+# ---------------------------------------------------------------------------
+# LLAMA-GPU-LAYERS
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def clean_factory(monkeypatch):
+    import core.llm.factory as factory
+
+    monkeypatch.setattr(factory, "_active_provider", None)
+    yield factory
+
+
+def test_hc_gpu_001_settings_field_and_env(monkeypatch):
+    from core.config import Settings
+
+    monkeypatch.delenv("LLM_N_GPU_LAYERS", raising=False)
+    assert Settings(_env_file=None).llm_n_gpu_layers == 0
+    monkeypatch.setenv("LLM_N_GPU_LAYERS", "20")
+    assert Settings(_env_file=None).llm_n_gpu_layers == 20
+
+
+def test_hc_gpu_002_factory_passes_layers_llama_cpp_branch(monkeypatch, clean_factory):
+    from core.config import settings
+
+    monkeypatch.setitem(settings.__dict__, "llm_provider", "llama_cpp")
+    monkeypatch.setitem(settings.__dict__, "llm_n_gpu_layers", 20)
+    provider = clean_factory.get_provider(force_new=True)
+    assert isinstance(provider, lcp.LlamaCppProvider)
+    assert provider._n_gpu_layers == 20
+
+
+def test_hc_gpu_002_factory_passes_layers_ollama_fallback(monkeypatch, clean_factory):
+    from core.config import settings
+    from core.llm.ollama_provider import OllamaProvider
+
+    monkeypatch.setitem(settings.__dict__, "llm_provider", "ollama")
+    monkeypatch.setitem(settings.__dict__, "llm_n_gpu_layers", 20)
+    monkeypatch.setattr(OllamaProvider, "is_available", lambda self: False)
+    provider = clean_factory.get_provider(force_new=True)
+    assert isinstance(provider, lcp.LlamaCppProvider)
+    assert provider._n_gpu_layers == 20
+
+
+def test_hc_gpu_003_warns_once_without_path_when_no_gpu_build(
+    state, model_file, monkeypatch, caplog
+):
+    import logging
+
+    # raising=False: the helper does not exist before the fix (RED must be an assertion).
+    monkeypatch.setattr(lcp, "_gpu_offload_supported", lambda: False, raising=False)
+    with caplog.at_level(logging.WARNING, logger="core.llm.llama_cpp_provider"):
+        assert _provider(model_file, n_gpu_layers=20)._ensure_initialized() is True
+    warnings = [
+        r for r in caplog.records
+        if r.name == "core.llm.llama_cpp_provider" and r.levelno == logging.WARNING
+    ]
+    assert len(warnings) == 1
+    text = warnings[0].getMessage()
+    assert "20" in text
+    assert str(model_file) not in text and model_file.name not in text
+    assert state.ctor_kwargs[0]["n_gpu_layers"] == 20
+
+    # Default 0: no warning, and the GPU probe is not even consulted.
+    caplog.clear()
+    monkeypatch.setattr(
+        lcp, "_gpu_offload_supported", lambda: pytest.fail("probed with 0 layers"), raising=False
+    )
+    with caplog.at_level(logging.WARNING, logger="core.llm.llama_cpp_provider"):
+        assert _provider(model_file)._ensure_initialized() is True
+    assert not [r for r in caplog.records if r.name == "core.llm.llama_cpp_provider"]

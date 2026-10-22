@@ -40,6 +40,16 @@ def _load_llama_class():
     return _llama_class
 
 
+def _gpu_offload_supported() -> bool:
+    """True if the installed llama-cpp-python was built with GPU offload."""
+    try:
+        import llama_cpp  # noqa: PLC0415
+
+        return bool(llama_cpp.llama_supports_gpu_offload())
+    except (ImportError, AttributeError):
+        return False
+
+
 class _ModelLockTimeout(Exception):
     """The model lock could not be taken inside the call's own time budget."""
 
@@ -146,6 +156,12 @@ class LlamaCppProvider:
 
         try:
             Llama = _load_llama_class()
+            if self._n_gpu_layers > 0 and not _gpu_offload_supported():
+                logger.warning(
+                    "LlamaCppProvider: n_gpu_layers=%d requested but this llama-cpp-python "
+                    "build has no GPU offload; running on CPU",
+                    self._n_gpu_layers,
+                )
             logger.info("LlamaCppProvider: loading model from %s", model_path.name)
             self._model = Llama(
                 model_path=str(model_path),
