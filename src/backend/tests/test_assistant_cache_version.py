@@ -228,6 +228,11 @@ async def test_hc_cache_ver_010_verifying_a_medication_change_changes_version(pr
     entity.verified_by_user = True
     await profile_db.commit()
     assert await _changed(profile_db, before)
+    # Same row count, different content (a reprocess): only the m: hash sees it.
+    verified = await _profile_version(PROFILE, profile_db)
+    entity.entity_value = "Start metformin 1000 mg"
+    await profile_db.commit()
+    assert await _changed(profile_db, verified), "m: hash missed a same-count content change"
 
 
 @pytest.mark.asyncio
@@ -308,10 +313,14 @@ async def test_hc_cache_ver_011_document_collection_date_changes_version(mixed_d
 
 
 @pytest.mark.asyncio
-async def test_hc_cache_ver_012_empty_profile_and_stable_reads(mixed_db):
-    assert await _profile_version("profile-empty", mixed_db) == EMPTY_VERSION
-    first = await _profile_version(PROFILE, mixed_db)
-    second = await _profile_version(PROFILE, mixed_db)
+async def test_hc_cache_ver_012_empty_profile_and_stable_reads(profile_db):
+    assert await _profile_version(PROFILE, profile_db) == EMPTY_VERSION
+    await _add_verified(profile_db, analyte="LDL", verified_at=BASE)
+    await _add_verified_document(profile_db, doc_id="doc-v", verified_at=BASE)
+    await _add_unverified_doc(profile_db)
+    first = await _profile_version(PROFILE, profile_db)
+    second = await _profile_version(PROFILE, profile_db)
+    assert first != EMPTY_VERSION
     assert first == second
 
 

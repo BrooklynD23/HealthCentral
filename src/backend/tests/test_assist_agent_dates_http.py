@@ -20,8 +20,8 @@ HC-AAD-010).
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -35,9 +35,9 @@ from api.assistant import router as assistant_router
 from core.auth import get_profile_db_session
 from core.profile_database import ProfileDatabaseBase
 from models import care_plan_task, chat_session, medication, model_settings  # noqa: F401  register tables
+from models.care_plan_task import CarePlanTask
 from models.chunk import Chunk
 from models.document import Document
-from models.care_plan_task import CarePlanTask
 from models.document_category import DocumentCategory, DocumentEntity
 from models.medication import Medication
 from models.observation import Observation
