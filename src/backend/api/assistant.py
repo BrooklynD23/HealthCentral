@@ -649,12 +649,32 @@ async def _profile_version(profile_id: str, profile_db: AsyncSession) -> str:
     to a value the cache had already seen, serving an answer about data that no
     longer existed (HC-CACHE-VER-001).
 
-    Two sources are fingerprinted because two feed the agent's tools: verified
-    observations (``query_observations``, ``compute_trend``) and verified
-    documents (``retrieve_chunks``, which filters on
-    ``Document.status == "verified"``). Each contributes a count paired with the
-    latest ``verified_at``, so the value changes on a verify, on a delete, and on
-    the delete-then-verify sequence that collides on count alone.
+    Each part below is the data one agent tool reads, so a change to it
+    changes the key:
+
+    - ``o:`` verified observations (``query_observations``, ``compute_trend``):
+      count and latest ``verified_at``.
+    - ``d:`` verified documents (``retrieve_chunks``, which filters on
+      ``Document.status == "verified"``): count and latest ``verified_at``.
+    - ``t:`` care tasks (``query_care_tasks``): count and latest
+      ``CarePlanTask.updated_at`` (title, status, due_date, source_quote).
+    - ``m:`` verified medication changes (``query_medication_changes``): count
+      and a sha256 prefix over the exact rows it reads (``DocumentEntity.id``,
+      ``doc_id``, ``entity_value``, ``quote``, ``Document.collection_date``);
+      the entity has no ``updated_at``, so the columns are hashed.
+    - ``a:`` ALL observations, verified or not (``query_timeline``,
+      ``check_verification`` and the ``retrieve_chunks`` analyte filter): count
+      and latest ``Observation.updated_at``.
+    - ``e:`` timeline document events (``query_timeline`` via
+      ``modules.timeline._document_events``): count of classified documents and
+      a hash over their ``id``, ``status``, ``collection_date``,
+      ``imported_at``, ``source``, category rows and date entities.
+    - ``r:`` medications (``query_timeline`` via ``_medication_events``): count
+      and latest ``Medication.updated_at``.
+
+    The value changes on a verify, on a delete, and on the delete-then-verify
+    sequence that collides on count alone. ``lookup_reference`` reads the shared
+    knowledge store, not profile data, so it has no part.
 
     Memory items are deliberately excluded: no agent tool reads them
     (``modules/agent/tools/`` has no memory tool), so they cannot change an
@@ -664,6 +684,18 @@ async def _profile_version(profile_id: str, profile_db: AsyncSession) -> str:
     both microsecond ``verified_at`` maxima — a delete and a verify landing on
     the identical timestamp with compensating counts. Fingerprinting the full id
     set would close it exactly, at the cost of fetching every row per request.
+
+    Further residuals: the ``t:``, ``a:`` and ``r:`` timestamps miss a write
+    that bypasses SQLAlchemy ``onupdate`` (raw SQL, or code that sets
+    ``updated_at`` backwards); ``m:`` and ``e:`` are exact only for the columns
+    named above, so a tool that starts reading another column, and any new
+    tool, must be added here by hand (HC-CACHE-VER-013 catches a new tool, not
+    a new column); a change in any part re-keys every cached question for the
+    profile; entries under old keys stay in process memory, unreachable, until
+    restart.
+
+    The value is an in-memory cache key: never log it (the hashes are derived
+    from patient text).
     """
     obs_result = await profile_db.execute(
         select(func.count(Observation.id), func.max(Observation.verified_at)).where(
@@ -681,7 +713,94 @@ async def _profile_version(profile_id: str, profile_db: AsyncSession) -> str:
     )
     doc_count, doc_latest = doc_result.one()
 
-    return f"o:{obs_count or 0}:{obs_latest or ''}|d:{doc_count or 0}:{doc_latest or ''}"
+    import hashlib
+
+    from models.care_plan_task import CarePlanTask
+    from models.document_category import DocumentCategory, DocumentEntity
+    from models.medication import Medication
+    from modules.timeline import DATE_ENTITY_TYPES, DOCUMENT_EVENT_CATEGORIES
+
+    def _field(value) -> str:
+        if value is None:
+            return ""
+        return value.isoformat() if hasattr(value, "isoformat") else str(value)
+
+    def _digest(rows) -> str:
+        if not rows:
+            return ""
+        blob = "\x1e".join("\x1f".join(_field(v) for v in row) for row in rows)
+        return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
+
+    async def _count_latest(count_col, latest_col, *where) -> str:
+        count, latest = (
+            await profile_db.execute(
+                select(func.count(count_col), func.max(latest_col)).where(*where)
+            )
+        ).one()
+        return f"{count or 0}:{latest or ''}"
+
+    task_part = await _count_latest(CarePlanTask.id, CarePlanTask.updated_at)
+    all_obs_part = await _count_latest(
+        Observation.id, Observation.updated_at, Observation.profile_id == profile_id
+    )
+    med_part = await _count_latest(
+        Medication.id, Medication.updated_at, Medication.profile_id == profile_id
+    )
+
+    change_rows = (
+        await profile_db.execute(
+            select(
+                DocumentEntity.id, DocumentEntity.doc_id, DocumentEntity.entity_value,
+                DocumentEntity.quote, Document.collection_date,
+            )
+            .join(Document, DocumentEntity.doc_id == Document.id)
+            .where(
+                DocumentEntity.entity_type == "medication_change",
+                DocumentEntity.verified_by_user == True,  # noqa: E712
+            )
+            .order_by(DocumentEntity.id)
+        )
+    ).all()
+
+    event_rows = (
+        await profile_db.execute(
+            select(
+                Document.id, Document.status, Document.collection_date,
+                Document.imported_at, Document.source,
+                DocumentCategory.id, DocumentCategory.category,
+            )
+            .join(DocumentCategory, DocumentCategory.doc_id == Document.id)
+            .where(
+                Document.profile_id == profile_id,
+                DocumentCategory.category.in_(DOCUMENT_EVENT_CATEGORIES),
+            )
+            .order_by(Document.id, DocumentCategory.id)
+        )
+    ).all()
+    date_rows = []
+    if event_rows:
+        date_rows = (
+            await profile_db.execute(
+                select(
+                    DocumentEntity.id, DocumentEntity.doc_id,
+                    DocumentEntity.entity_value, DocumentEntity.confidence,
+                )
+                .where(
+                    DocumentEntity.doc_id.in_({row[0] for row in event_rows}),
+                    DocumentEntity.entity_type.in_(DATE_ENTITY_TYPES),
+                )
+                .order_by(DocumentEntity.id)
+            )
+        ).all()
+    event_part = (
+        f"{len({row[0] for row in event_rows})}:{_digest(event_rows + date_rows)}"
+    )
+
+    return (
+        f"o:{obs_count or 0}:{obs_latest or ''}|d:{doc_count or 0}:{doc_latest or ''}"
+        f"|t:{task_part}|m:{len(change_rows)}:{_digest(change_rows)}"
+        f"|a:{all_obs_part}|e:{event_part}|r:{med_part}"
+    )
 
 
 def _agent_terminal_to_response_parts(
