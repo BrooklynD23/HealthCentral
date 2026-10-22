@@ -115,7 +115,7 @@ For every case the model was unloaded first (`keep_alive: 0`, `ollama ps` empty)
 **Case c is cut short at 4096 by the output, not the input.** 3585 prompt tokens plus 1024 allowed output tokens is 4609, above 4096. Generation stopped after 510 tokens with `done_reason: length` and the journal line `slot release: … stop processing: n_tokens = 4095, truncated = 1` (3585 + 510 = 4095). Seven of seven runs at the default ended at 508 to 511 tokens with an empty answer (the model was still in its thinking phase, see "Other findings"). With `num_ctx` 8192 the same prompt gets its full 1024 tokens (3 of 3 runs, 279, 631 and 638 characters of answer):
 
 | Case | `num_ctx` | load ms | `prompt_eval_count` | prompt eval ms | `eval_count` | answer chars |
-|---|---|---|---|---|---|
+|---|---|---|---|---|---|---|
 | c | 4096 | 6929 | 3585 | 1134 | 510 | 0 |
 | c | 8192 | 7430 | 3585 | 1100 | 1024 | 279 |
 | c | 4096 | 7351 | 3585 | 1546 | 509 | 0 |
