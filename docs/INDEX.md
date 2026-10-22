@@ -1808,7 +1808,7 @@ Links to: `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-22
 
 - Providers: `LlamaCppProvider` (default) and `OllamaProvider` (localhost), via `core/llm/factory.py`. - Tiers (`modules/model_selector.py`): low = Qwen2.5-0.5B, gemma4-e2b, gemma4-e4b, mid =…
 
-Links to: `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-22-mvp/07-owner-questions.md`
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-22-mvp/07-owner-questions.md`
 
 ## `docs/research/2026-10-22-mvp/05-onboarding-errors-backups.md`
 
