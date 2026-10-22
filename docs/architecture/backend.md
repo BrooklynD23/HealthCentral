@@ -1,6 +1,6 @@
 # Backend Structure
 
-**Last Updated:** 2026-10-04
+**Last Updated:** 2026-10-22
 **Owner:** Project Lead
 **Refresh Trigger:** Middleware order changes, a router is added/removed, or a migration chain gains a head
 
@@ -20,9 +20,9 @@ flowchart TD
     REQ["Incoming request"] --> CORS["CORSMiddleware<br/><i>explicit allow_headers, never *</i>"]
     CORS --> CID["CorrelationIdMiddleware<br/>attaches a request id"]
     CID --> SEC["SecurityHeadersMiddleware"]
-    SEC --> RATE["RateLimitMiddleware<br/>fixed window"]
+    SEC --> RATE["RateLimitMiddleware<br/>sliding window"]
     RATE --> VAL["InputValidationMiddleware<br/>path/query sanity, body size → 413"]
-    VAL --> AUD["SecurityAuditMiddleware<br/>app-log only, never the DB"]
+    VAL --> AUD["SecurityAuditMiddleware<br/>app log; DB only if audit_security_events_to_db"]
     AUD --> TIME["TimingMiddleware<br/>p50/p95/p99"]
     TIME --> ROUTE["Route handler"]
 
@@ -57,12 +57,13 @@ before the app runs: oversized bodies get a clean 413 on both the
 
 ```mermaid
 flowchart TD
-    subgraph api["api/ — 18 routers"]
+    subgraph api["api/ — 19 routers"]
         direction LR
         A1["documents · observations · assistant"]
         A2["timeline · care_tasks · pinboards · search"]
         A3["export · medications · med_reconcile"]
-        A4["profiles · memory · feedback · model_settings"]
+        A4["profiles · memory · feedback · model_settings · donation"]
+        A5["interpretations · notifications · gamification · backup"]
     end
 
     subgraph modules["modules/ — feature logic"]
@@ -146,7 +147,7 @@ flowchart LR
     subgraph chains["Two independent Alembic chains"]
         direction TB
         MM["migrations/master/<br/>head: 002_backup_schedules"]
-        PM["migrations/profile/<br/>head: 012_pinboards"]
+        PM["migrations/profile/<br/>head: 015_data_donation"]
     end
 
     MM --> MDB[("master DB")]
