@@ -4,7 +4,7 @@
 **Owner:** repository owner
 **Refresh Trigger:** the next L0 session reads this first, works the "Not started / next" list, and replaces this file with its own handoff.
 
-**Superseded by:** [2026-10-19 session handoff](2026-10-19-session-handoff.md).
+**Superseded by:** [2026-10-19 session handoff](../archive/plans/2026-10-19-session-handoff.md).
 
 Read this after [CLAUDE.md](../../CLAUDE.md), [AGENT.md](../../AGENT.md) and the [build-program RUNBOOK](2026-10-15-build-program/RUNBOOK.md). It replaces [the 2026-10-17 handoff](2026-10-17-session-handoff.md). Owner answers quoted here are recorded in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md) (rows dated 2026-10-17 and 2026-10-18). Verify every fact below with `git`/`gh` before acting on it. This is a lead, not a finding.
 

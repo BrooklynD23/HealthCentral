@@ -1,8 +1,10 @@
 # RCC-2 — Password and Recovery-Code Retention in Create, Recover and Delete Implementation Plan
 
+> **Historical Reference** — executed and closed 2026-10-05 (RCC-2, PRs #37/#42/#46 per `docs/capstone-report/implementation-program.md`); retained for history, not an active tracker. Moved from `docs/plans/2026-10-04-RCC2-secret-retention.md` on 2026-10-22.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:test-driven-development. Every new test is observed FAILING before the fix. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** owner-approved 2026-10-04 (gate RCC-2 in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md)). Wave 3, L1-B.
+**Status:** owner-approved 2026-10-04 (gate RCC-2 in [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md)). Wave 3, L1-B.
 **Source:** RCC (PR #37) security review, out-of-scope findings HIGH 1-2 and MEDIUM 1-3. Follows [2026-10-04-RCC-recovery-code-cache.md](2026-10-04-RCC-recovery-code-cache.md), which fixed the same defect in `useIssueRecoveryCode`.
 **Architectural:** no. No Codex review. `code-reviewer` + `security-reviewer` required.
 

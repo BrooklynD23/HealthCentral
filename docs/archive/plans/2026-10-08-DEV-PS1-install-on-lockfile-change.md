@@ -1,9 +1,11 @@
 # DEV-PS1-INSTALL — `dev.ps1` Reinstalls Frontend Dependencies When the Lockfile Changed
 
+> **Historical Reference** — executed and closed 2026-10-09 (PR #55 per `docs/capstone-report/implementation-program.md`); retained for history, not an active tracker. Moved from `docs/plans/2026-10-08-DEV-PS1-install-on-lockfile-change.md` on 2026-10-22.
+
 > **For agentic workers:** REQUIRED SUB-SKILLS: superpowers:test-driven-development, superpowers:verification-before-completion. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** owner-scheduled 2026-10-07 (gate DEV-PS1-FIRST in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md)). Wave 4, L1-B.
-**Source:** owner item DEV-PS1-INSTALL ([implementation-program.md](../capstone-report/implementation-program.md)): `dev.ps1` installs only when `node_modules` or the Vite binary is missing, so an existing install keeps the old packages after a lockfile change merges.
+**Status:** owner-scheduled 2026-10-07 (gate DEV-PS1-FIRST in [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md)). Wave 4, L1-B.
+**Source:** owner item DEV-PS1-INSTALL ([implementation-program.md](../../capstone-report/implementation-program.md)): `dev.ps1` installs only when `node_modules` or the Vite binary is missing, so an existing install keeps the old packages after a lockfile change merges.
 **Architectural:** no. No Codex review. `code-reviewer` + `security-reviewer` required (the script runs on patient machines).
 
 **Goal:** `dev.ps1` reinstalls frontend dependencies when `src/frontend/package-lock.json` differs from the lockfile the current `node_modules` was installed from, and refuses to launch when that install fails.

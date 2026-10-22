@@ -1,6 +1,6 @@
 # API Endpoints
 
-**Last Updated:** 2026-10-04
+**Last Updated:** 2026-10-22
 **Owner:** Platform maintainers
 **Refresh Trigger:** Mounted backend route added, removed, renamed, or auth requirement changed
 **Status:** Source of truth for the live mounted backend API
@@ -218,6 +218,15 @@ the backup was made.
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/search/` | Yes | Bounded local search over documents, extracted entities, and observations (HC-M21); `q` required, with optional `provider`/`date_from`/`date_to`/`category`/`highlight_type`/`limit` filters |
+
+## Data Donation
+
+Opt-in consent for donating data (RSI1-DONATE PR-1, `src/backend/api/donation.py`). Session-scoped: the profile comes from the session, never the path. Purposes: `fine_tune`, `synthetic_seed`, `agent_traces`.
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/donation/consents` | Yes | Every purpose with its granted state and consent text version |
+| PUT | `/donation/consents/{purpose}` | Yes | Grant or revoke one purpose. A grant must name the current consent text version; revoke is never version-gated and deletes that purpose's donated rows in the same vault transaction |
 
 ## Model Settings
 

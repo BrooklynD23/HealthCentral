@@ -1,6 +1,6 @@
 # docs/archive/ — Archive Policy
 
-**Last Updated:** 2026-07-27
+**Last Updated:** 2026-10-22
 **Owner:** Project Lead
 **Refresh Trigger:** A doc is archived or restored
 
@@ -26,7 +26,8 @@ current plans, current status, or open work.
   If you are looking for current status, open tickets, or what to work on
   next, that file is the source of truth — not anything under this directory.
 - **Relocate, never rewrite.** Files land here via `git mv` with no content
-  changes beyond adding the required historical banner. The history of a
+  changes beyond adding the required historical banner and re-pointing
+  relative links for the new directory depth (so docs_lint DOC-007 stays green). The history of a
   decision is not edited after the fact.
 - **One-way by default.** Material moves here when it is superseded or a
   sprint/phase closes out. It only moves back out of the archive if the
