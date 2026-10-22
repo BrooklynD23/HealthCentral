@@ -72,10 +72,13 @@ def test_hc_mdl_004_probe_false_does_not_load_the_model(default_llama_cpp):
 
 
 def test_hc_mdl_005_default_call_is_unchanged(default_llama_cpp):
+    rec = default_llama_cpp
     with route_client(router, "/settings/model") as client:
         resp = client.get(URL)
 
     assert resp.status_code == 200, resp.text
+    # The setup reaches the constructor, so HC-MDL-004's "not constructed" can fail.
+    assert rec.constructed == 1
     body = resp.json()
     assert isinstance(body["available"], bool)
     assert set(body) == {
