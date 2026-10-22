@@ -1172,7 +1172,7 @@ Two rows from the owner's KV-CACHE-NEXT answer **"Measure first (Recommended)"**
 **Expected collected delta:** +1. **Est:** 0.3 h.
 **Acceptance:** RED output for HC-LCF-001; `pyt tests/test_llama_cpp_provider_fixes.py tests/test_llm_provider_layer.py tests/test_model_path_logs.py -q -rfE`: 0 failed; `git grep -n 'chat_format=' -- src/backend/core` prints nothing (only `:140` matches today; the docstring mentions at `:9` and `:158` stay, review round 1); full suite per RUNBOOK §6. **Model-host check (L0, not the build-item):** one `/assistant/chat` answer with `LLM_PROVIDER=llama_cpp` and the mid-tier GGUF returns 200 (no shim). **Rollback:** revert.
 **Owner gates:** none.
-**Order:** ready. First of the three `llama_cpp_provider.py` rows; LLAMA-SERIAL and LLAMA-GPU-LAYERS follow it (same file). No open PR touches `core/llm/` (`gh pr diff --name-only` for #230, #239, #264, #284 on 2026-10-22).
+**Order:** ready; built in bundle 1 with LLAMA-CHAT-FORMAT, LLAMA-SERIAL and LLAMA-GPU-LAYERS (L0 ruling, #289 review round 1); the same-file order is inside that one PR. No open PR touches `core/llm/` (`gh pr diff --name-only` for #230, #239, #264, #284 on 2026-10-22).
 
 ### LLAMA-SERIAL — concurrent or timed-out calls enter the same native llama.cpp model and crash the backend
 
@@ -1203,7 +1203,7 @@ Two rows from the owner's KV-CACHE-NEXT answer **"Measure first (Recommended)"**
 **Expected collected delta:** +5. **Est:** 1.5 h.
 **Acceptance:** RED for 001-003 and GREEN-today for 004-005 shown in the PR; the same pytest set 0 failed; mutant: remove the deadline check in `_generate_before_deadline` -> HC-LCK-002 fails (output in the PR); full suite. **Model-host check (L0):** the two-concurrent judge run (`gpu-1022/judge_preview.py`, `CONC=2`) completes with no crash. **Rollback:** revert.
 **Owner gates:** none.
-**Order:** after LLAMA-CHAT-FORMAT merges (same file); never beside LLAMA-GPU-LAYERS.
+**Order:** ready; built in bundle 1 with LLAMA-CHAT-FORMAT, LLAMA-SERIAL and LLAMA-GPU-LAYERS (L0 ruling, #289 review round 1); the same-file order is inside that one PR.
 
 ### LLAMA-GPU-LAYERS — the llama.cpp path can never offload to the GPU
 
@@ -1225,7 +1225,7 @@ Two rows from the owner's KV-CACHE-NEXT answer **"Measure first (Recommended)"**
 **Expected collected delta:** +4. **Est:** 1 h.
 **Acceptance:** RED for each; the pytest set 0 failed; `python -c "from main import app"`; full suite. **Rollback:** revert.
 **Owner gates:** none (default unchanged; local-first unchanged). **Box action (not a gate):** CUDA wheel on the GPU box, recorded in the MM-HOST notes by whoever installs it.
-**Order:** after LLAMA-SERIAL merges (shares `llama_cpp_provider.py` and the test file).
+**Order:** ready; built in bundle 1 with LLAMA-CHAT-FORMAT, LLAMA-SERIAL and LLAMA-GPU-LAYERS (L0 ruling, #289 review round 1); the same-file order is inside that one PR.
 
 ### RUNNER-EXC-CHAIN — two route handlers log the provider exception text through the traceback chain
 
@@ -1256,7 +1256,7 @@ Two rows from the owner's KV-CACHE-NEXT answer **"Measure first (Recommended)"**
 **Facts (`5f7c67c`, re-read on `d2843e8`):**
 1. `src/frontend/src/pages/ExplainAssistant.tsx:284-297` (`activeModelSummary`): external API -> `provider · model`; else `modelSettings.tier_availability[current_tier].model`; else `Tier: …`; else `Local model`.
 2. That tier label is a fixed string: `src/backend/modules/hardware_detection.py:384` `"model": "BioMistral-7B"` (tier `high`), served by `/settings/model`. No frontend code calls `GET /api/v1/settings/model/provider` (`src/backend/api/model_settings.py:841-870`; `git grep -n "model/provider" -- src/frontend/src`: no hit).
-3. That route is not usable as it is (review round 1): `llm_model=app_settings.llm_model or "(auto)"` (`:858`) is the configured setting, never empty, and a full GGUF path when `LLM_MODEL` names a file; `llm_provider` is the configured name, so after the factory's Ollama-unreachable fallback (`core/llm/factory.py:51-60`) it still says `ollama`; and `available=provider.is_available()` (`:859`) on llama_cpp is `_ensure_initialized`, a synchronous model load inside an async route. What answers is in `capabilities`: `provider_name` / `model_name` from the active provider object (`llama_cpp_provider.py:180-196`: the GGUF file stem, or `default_chat_model` when no path is set; `ollama_provider.py:152-166`: the tag). `capabilities()` loads nothing on either provider.
+3. That route is not usable as it is (review round 1): `llm_model=app_settings.llm_model or "(auto)"` (`:858`) is the configured setting, never empty, and a full GGUF path when `LLM_MODEL` names a file; `llm_provider` is the configured name, so after the factory's Ollama-unreachable fallback (`core/llm/factory.py:51-60`) it still says `ollama`; and `available=provider.is_available()` (`:860`) on llama_cpp is `_ensure_initialized`, a synchronous model load inside an async route. What answers is in `capabilities`: `provider_name` / `model_name` from the active provider object (`llama_cpp_provider.py:180-196`: the GGUF file stem, or `default_chat_model` when no path is set; `ollama_provider.py:152-166`: the tag). `capabilities()` loads nothing on either provider.
 4. F-9 dry run: the badge read `BioMistral-7B` while Ollama `gemma4:e4b` was configured, next to the presenter line "no language model runs on this path" (record.md steps 3 and 6).
 
 **Design:**
@@ -1271,10 +1271,10 @@ Two rows from the owner's KV-CACHE-NEXT answer **"Measure first (Recommended)"**
 | HC-MDL-001 | `src/frontend/src/__tests__/ExplainAssistant.test.tsx` | capabilities `{provider_name: 'ollama', model_name: 'gemma4:e4b'}`, tier label `BioMistral-7B` -> badge `ollama · gemma4:e4b`; `BioMistral-7B` absent; the request URL has `probe=false` | yes |
 | HC-MDL-002 | same | provider request rejects -> badge shows the tier label (today's fallback) | GREEN today (pin) |
 | HC-MDL-003 | same | default llama_cpp config: `llm_model: '(auto)'`, capabilities `{provider_name: 'llama_cpp', model_name: 'phi-3-mini'}` -> badge `llama_cpp · phi-3-mini`; no `(auto)`, no `/` or `\` in the badge | yes |
-| HC-MDL-004 | `src/backend/tests/test_provider_info_probe.py` (new; HTTP via `route_client`) | default config (`LLM_PROVIDER=llama_cpp`, no `LLM_MODEL`), `_load_llama_class` patched to a recording fake: `GET /api/v1/settings/model/provider?probe=false` -> 200, `available` null, `capabilities.provider_name == 'llama_cpp'`, and the fake `Llama` was never constructed | yes (no `probe` parameter; the route loads) |
-| HC-MDL-005 | same | without `probe`: `available` is a bool and the response keys are unchanged | GREEN today (pin) |
+| HC-MDL-004 | `src/backend/tests/test_provider_info_probe.py` (new; HTTP via `route_client`; setup for 004 and 005: monkeypatch `settings.models_path` to a tmp dir holding a dummy `model.gguf`, as HC-LCF-001 does, so `_find_model_path` finds a file and `_ensure_initialized` really reaches the constructor (`llama_cpp_provider.py:78-99`, `:109-114`); reset the factory singleton (`core/llm/factory.py:21`, `:36-37`) with `factory._active_provider = None` before each request so no earlier test's provider leaks in; `_load_llama_class` patched to a recording fake) | default config (`LLM_PROVIDER=llama_cpp`, no `LLM_MODEL`): `GET /api/v1/settings/model/provider?probe=false` -> 200, `available` null, `capabilities.provider_name == 'llama_cpp'`, and the fake `Llama` was **not** constructed | yes (no `probe` parameter: the route calls `is_available()`, which constructs the fake) |
+| HC-MDL-005 | same (same setup) | plain `GET /api/v1/settings/model/provider` (no `probe`): `available` is a bool, the response keys are unchanged, and the fake `Llama` **was** constructed (proves the setup reaches the constructor, so HC-MDL-004's "not constructed" can fail) | GREEN today (pin) |
 
-**Files:** `src/backend/api/model_settings.py` (`ProviderInfoResponse.available` and `get_llm_provider` only), `src/backend/tests/test_provider_info_probe.py` (new), `src/frontend/src/services/modelSettings.ts`, `src/frontend/src/services/index.ts` (barrel lines only), `src/frontend/src/pages/ExplainAssistant.tsx` (`activeModelSummary` + one hook call only), `src/frontend/src/__tests__/ExplainAssistant.test.tsx` (new tests only), slots. **Re-run, not edited:** `tests/test_tier_capabilities.py`, `tests/test_model_settings_api.py`, `tests/test_audit_order_guard.py`.
+**Files:** `src/backend/api/model_settings.py` (`ProviderInfoResponse.available` and `get_llm_provider` only), `src/backend/tests/test_provider_info_probe.py` (new), `src/frontend/src/services/modelSettings.ts`, `src/frontend/src/services/index.ts` (barrel lines only), `src/frontend/src/pages/ExplainAssistant.tsx` (`activeModelSummary` + one hook call only), `src/frontend/src/__tests__/ExplainAssistant.test.tsx` (new tests only), slots. **Re-run, not edited:** `tests/test_tier_capabilities.py`, `tests/test_model_settings_api.py`, `tests/test_audit_order_guard.py`, `tests/test_audit_read_settings.py` (HC-ARS-003 pins this route as an unaudited read, `:127-138`; `probe` must not change that).
 **Expected collected delta:** +2 (backend); +3 Vitest. **Est:** 1 h.
 **Acceptance:** RED for HC-MDL-001, 003, 004; pytest set 0 failed; `npx tsc --noEmit` clean; `npx vitest run` passes (Windows side per AGENT.md WSL note); full suite. **Rollback:** revert.
 **Owner gates:** none. Wording is the provider's own model name, not new copy. The route reads settings and provider metadata only (no profile data), as AUDIT-READ-SETTINGS left it.

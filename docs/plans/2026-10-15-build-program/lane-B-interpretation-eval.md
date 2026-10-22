@@ -434,7 +434,7 @@ Whole extractor on `main`: `extract_imaging_entities("FINDINGS:x" + "\n" * 20000
 **Expected collected delta:** +4. **Est:** 0.5 h.
 **Acceptance:** RED for HC-EXU-001; pytest set 0 failed; full suite. **Rollback:** revert.
 **Owner gates:** none.
-**Order:** ready. Never beside EXTRACT-DOB-DATE (same file).
+**Order:** ready; built in bundle 2 with EXTRACT-UNIT-MGL and EXTRACT-DOB-DATE (L0 ruling, #289 review round 1); the same-file order is inside that one PR.
 
 ### EXTRACT-DOB-DATE — a date of birth becomes the document's collection date
 
@@ -459,7 +459,7 @@ Whole extractor on `main`: `extract_imaging_entities("FINDINGS:x" + "\n" * 20000
 **Expected collected delta:** +8 (007 ×5, 008, 009, 010). **Est:** 1.5 h.
 **Acceptance:** RED for 007, 008, 010; pytest set 0 failed; full suite. **Rollback:** revert.
 **Owner gates:** none for (a). **EXTRACT-DATE-PRIORITY answered (a) "Keep earliest date"** (Owner prompts 38-39 (2026-10-22, L0 AskUserQuestion; record `/tmp/claude-1000/prompts-38-39.json`; rows land in L0's owner-rows PR from branch `docs/owner-rows-prompts38-39`), prompt 38): `min()` stays, no follow-up row.
-**Order:** ready; after or before EXTRACT-UNIT-MGL, never beside it (same file).
+**Order:** ready; built in bundle 2 with EXTRACT-UNIT-MGL and EXTRACT-DOB-DATE (L0 ruling, #289 review round 1); the same-file order is inside that one PR.
 
 ### INTERP-GROUNDED-MD — the "Grounded explanation" panel shows raw `**UNCERTAINTY**`
 
@@ -474,7 +474,7 @@ Whole extractor on `main`: `extract_imaging_entities("FINDINGS:x" + "\n" * 20000
 | HC-LAB-001 | `full_response: '**UNCERTAINTY**\nMore context is needed.'` -> `UNCERTAINTY` is in a `STRONG` element and the panel text has no `**` | yes |
 
 **Files:** `src/frontend/src/pages/LabInterpreter.tsx` (`:294-300` + one import), `src/frontend/src/__tests__/LabInterpreter.test.tsx` (new test only). **Expected collected delta:** 0 backend; +1 Vitest. **Est:** 0.5 h.
-**Acceptance:** RED for HC-LAB-001; `npx tsc --noEmit`; `npx vitest run`. **Owner gates:** none. **Order:** ready.
+**Acceptance:** RED for HC-LAB-001; `npx tsc --noEmit`; `npx vitest run`. **Owner gates:** none. **Order:** ready; built in bundle 3, the frontend PR with INTERP-GROUNDED-MD, CHAT-MODEL-BADGE, INTERP-RENDER-2 and VERIFY-DOCS-STALE (L0 ruling, #289 review round 1).
 
 ### INTERP-RENDER-2 — the gauge axis can exclude the value, and citation keys collide
 
@@ -494,7 +494,7 @@ Whole extractor on `main`: `extract_imaging_entities("FINDINGS:x" + "\n" * 20000
 | HC-IRC-009 | two citations `{type:'source', id:''}` in both components: no `console.error` containing `same key` | yes |
 
 **Files:** `ReferenceRangeComparison.tsx` (`:20-24` only), `InterpretedResultCard.tsx` (`:123` only), `PanelInterpretationDashboard.tsx` (`:110` only), `src/frontend/src/__tests__/InterpretedResultCard.test.tsx` (new tests only). **Re-run, not edited:** the INTERP-RENDER tests HC-IRC-004…006. **Expected collected delta:** 0 backend; +3 Vitest. **Est:** 0.75 h.
-**Acceptance:** RED for each; `npx tsc --noEmit`; `npx vitest run`. **Owner gates:** none (no copy change). **Order:** ready.
+**Acceptance:** RED for each; `npx tsc --noEmit`; `npx vitest run`. **Owner gates:** none (no copy change). **Order:** ready; built in bundle 3, the frontend PR with INTERP-GROUNDED-MD, CHAT-MODEL-BADGE, INTERP-RENDER-2 and VERIFY-DOCS-STALE (L0 ruling, #289 review round 1).
 
 ### INTERP-SAFETY-META — template interpretations store "missing disclaimers" for text that ships with them
 
@@ -532,7 +532,7 @@ Whole extractor on `main`: `extract_imaging_entities("FINDINGS:x" + "\n" * 20000
 | HC-VFY-001 | mocked API flips the document to `verified` when the last observation is verified; after "Mark All Verified" the panel text is gone without a reload and `/documents` was fetched again | yes |
 
 **Files:** `src/frontend/src/services/observations.ts` (`onSuccess` only), `src/frontend/src/__tests__/VerificationWorkbench.test.tsx` (new test only). **Expected collected delta:** 0 backend; +1 Vitest. **Est:** 0.3 h.
-**Acceptance:** RED; `npx tsc --noEmit`; `npx vitest run`. **Owner gates:** none. **Order:** ready.
+**Acceptance:** RED; `npx tsc --noEmit`; `npx vitest run`. **Owner gates:** none. **Order:** ready; built in bundle 3, the frontend PR with INTERP-GROUNDED-MD, CHAT-MODEL-BADGE, INTERP-RENDER-2 and VERIFY-DOCS-STALE (L0 ruling, #289 review round 1).
 
 ## Provides
 
