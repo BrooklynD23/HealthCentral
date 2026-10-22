@@ -5,7 +5,7 @@
 **Refresh Trigger:** the next L0 session reads this first, works §3, and replaces this file with its own handoff.
 **Superseded by:** [2026-10-21 GPU-session handoff](2026-10-21-session-handoff.md).
 
-Read this after [CLAUDE.md](../../CLAUDE.md), [AGENT.md](../../AGENT.md) and the [build-program RUNBOOK](2026-10-15-build-program/RUNBOOK.md). It replaces [the 2026-10-20b handoff](2026-10-20b-session-handoff.md). This session ran on the owner's laptop (no GPU, no Ollama). The owner's instruction: "commit & push everything off this dev machine; continue on the GPU machine". Treat this file as a lead: verify with `gh pr view` / `git log origin/main` before acting.
+Read this after [CLAUDE.md](../../CLAUDE.md), [AGENT.md](../../AGENT.md) and the [build-program RUNBOOK](2026-10-15-build-program/RUNBOOK.md). It replaces [the 2026-10-20b handoff](../archive/plans/2026-10-20b-session-handoff.md). This session ran on the owner's laptop (no GPU, no Ollama). The owner's instruction: "commit & push everything off this dev machine; continue on the GPU machine". Treat this file as a lead: verify with `gh pr view` / `git log origin/main` before acting.
 
 ## 1. What this session did
 
