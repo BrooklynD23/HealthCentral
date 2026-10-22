@@ -9,223 +9,196 @@ A privacy-first desktop application for patients to import medical documents, ex
 ## Overview
 
 Asclexis helps patients:
-- **Import** lab PDFs, medical documents, and CSV/FHIR R4 exports from other systems into a secure local vault
-- **Extract & Verify** structured data with human-in-the-loop verification — structured (CSV/FHIR) imports always land unverified, and medication mentions become reconciliation suggestions, never direct tracker mutations
-- **Visualize** longitudinal trends with reference range context
-- **Understand** results via grounded explanations with citations (local RAG), including bounded read-only questions about open follow-up tasks, medication changes, and record timeline
-- **Export** doctor-ready summaries, discussion prompts, and a verified-only, redacted FHIR R4 bundle for other systems
+- **Import** lab PDFs, images, and CSV/FHIR R4 exports from other systems into an encrypted local vault
+- **Extract & Verify** structured data with human-in-the-loop verification. Everything extracted lands unverified until the user confirms it; structured (CSV/FHIR) imports are no exception, and medication mentions become reconciliation suggestions, never direct changes to the medication list
+- **Visualize** longitudinal trends with reference-range context; unverified points are labelled as such
+- **Understand** results through a read-only assistant that answers with citations, including bounded questions about open care tasks, medication changes, and the record timeline
+- **Export** doctor-ready summaries, discussion prompts, and a verified-only, redacted FHIR R4 bundle
 
 ## Core Principles
 
-- **Local-First**: All data stays on your device by default
-- **Privacy-First**: Encrypted at rest; no network calls required
-- **Grounded Outputs**: Every claim cites user documents or curated references
-- **Conservative Behavior**: Prefer "insufficient information" over speculation
-- **No Medical Advice**: Education only; no diagnosis or treatment recommendations
+- **Local-first.** The app, its databases, and model inference run on the user's machine. The Ollama provider is pinned to localhost. The only outbound paths are user-initiated: model downloads, and an opt-in external LLM runner that is off by default and strictly redacted (see [Privacy boundaries](#privacy-boundaries)).
+- **Encrypted at rest.** Each profile has its own SQLCipher vault and AES-GCM document store. Encryption is required by default (`DATABASE_ENCRYPTION_REQUIRED`); a dev setup without SQLCipher runs unencrypted and must not hold real data.
+- **Grounded outputs.** Assistant answers cite the user's records or curated references, or abstain.
+- **Conservative behavior.** "Insufficient information" is preferred over speculation; abstain and escalate are first-class outcomes.
+- **No medical advice.** Education only: no diagnosis, dosing, or treatment recommendations. Prohibited-advice patterns are checked before an answer is shown.
+- **Compliance posture.** The project is designed as if HIPAA applied (owner choice, 2026-09-27). That is a design posture, not a compliance claim or certification. See [`docs/compliance/`](docs/compliance/README.md).
 
-## Project Structure
+## Architecture
 
-```
-HealthCentral/
-├── docs/                      # Architecture and feature documentation
-│   ├── api/                   # API endpoint documentation
-│   ├── user/                  # User guides, workflows, FAQ
-│   ├── compliance/            # HIPAA, data privacy, audit checklist
-│   ├── features/              # Feature architecture + active task list
-│   └── model_tiers/           # AI model tier documentation
-├── src/
-│   ├── backend/              # Python FastAPI backend
-│   │   ├── api/              # API routes and endpoints
-│   │   ├── core/             # Core config, security, database
-│   │   ├── models/           # SQLAlchemy database models
-│   │   ├── modules/          # Feature modules (ingest, RAG, etc.)
-│   │   ├── monitoring/       # Metrics, correlation IDs, timing
-│   │   ├── security/         # Input validation, rate limiting, headers
-│   │   ├── scripts/          # Backup, migrations, model management
-│   │   └── tests/            # Backend test suites
-│   └── frontend/             # React + Vite + TypeScript
-│       ├── src/
-│       │   ├── components/   # Reusable UI and feature components
-│       │   ├── pages/        # Routed application screens
-│       │   ├── services/     # API client and React Query hooks
-│       │   └── stores/       # Zustand auth/session state
-│       └── e2e/              # Playwright/browser verification specs
-├── config/                   # Configuration templates (.env.example)
-├── data/                     # Local data directory (gitignored)
-├── models/                   # Local AI models (gitignored)
-└── scripts/                  # Build and utility scripts
-```
-
-## Architecture Diagrams
-
-The two highest-level views are kept inline below. The full set — request
-lifecycle and middleware chain, module dependency direction, dual-database and
-dual-migration data architecture, the document→insight pipeline, the agent
-graph and its guardrails, the safety/privacy control-flow, frontend structure,
-and the CI gates — lives in
-**[`docs/architecture/`](docs/architecture/README.md)** (13 mermaid diagrams),
-alongside an honest
+Four diagrams below give the shape of the system. The full hand-maintained set
+(request lifecycle and middleware chain, module dependency direction, the
+dual-database and dual-migration data architecture, frontend structure, the
+safety and privacy control-flow, and CI gates) lives in
+**[`docs/architecture/`](docs/architecture/README.md)**, alongside a
 [performance & scalability review](docs/architecture/performance-scalability-review.md).
+Paths below are relative to `src/backend/` unless they start with `src/`.
 
-### High-Level System Context
+### System overview
 
 ```mermaid
 flowchart LR
-    User[Patient] -->|Upload docs, CSV/FHIR, review results| UI[React/Vite UI]
-    UI -->|/api/v1 via Vite proxy or loopback HTTP| API[FastAPI Backend]
-    API -->|profile metadata, auth, audit, knowledge| MasterDB[(Master SQLite DB)]
-    API -->|session-bound PHI| ProfileDB[(Per-Profile SQLCipher Vault DB)]
-    API -->|AES-GCM files| Vault[(Encrypted Documents Vault)]
-    API --> Vector[(Encrypted Embeddings / Vector Index)]
-    API --> LLM[Local GGUF LLM via llama.cpp]
-    API -. opt-in only .-> External[External LLM APIs]
-    API --> Embeddings[Local Embeddings Model]
-    API --> Export[Doctor-ready Exports + FHIR R4 Bundle]
+    User[Patient] --> UI["React + Vite frontend<br/>src/frontend/src/pages (16 pages)"]
+    UI -->|"HTTP on localhost<br/>/api/v1"| MW["FastAPI app (main.py)<br/>CORS, correlation id, security headers,<br/>rate limit, input validation, audit, timing"]
+    MW --> API["api/ (19 routers)<br/>documents, observations, assistant, export, ..."]
+    API --> MOD["modules/<br/>ingest, extract, normalize, rag, agent,<br/>export, redaction, timeline, ..."]
+    MOD --> MR["ModelRunner<br/>core/model_runner.py"]
+    MR --> FAC["core/llm/factory.py<br/>get_provider()"]
+    FAC --> LCPP["LlamaCppProvider<br/>in-process GGUF (default)"]
+    FAC -.->|"LLM_PROVIDER=ollama"| OLL["OllamaProvider<br/>localhost:11434 only"]
+    API --> PDB[("Per-profile SQLCipher vault<br/>ProfileDbSession (core/auth.py)<br/>observations, documents, chats, ...")]
+    API --> MDB[("Master SQLite DB, not encrypted<br/>get_db(): profile metadata, audit log")]
+    MOD --> DOCS[("AES-GCM document files<br/>per-profile vault dir")]
+    MOD -.->|"opt-in, off by default,<br/>strict redaction"| EXT["core/external_runner.py<br/>OpenAI / Anthropic"]
 ```
 
-### Backend Component View
+All feature-code inference goes through `ModelRunner`. The single named
+exception is the opt-in external runner (owner decision D12), which applies
+`strict` redaction on every call; break-glass is the only bypass and writes an
+audit record. Patient data is only read through `ProfileDbSession`; the master
+DB holds profile metadata and the audit log.
+
+### Assistant chat: agent path and legacy RAG path
 
 ```mermaid
-flowchart TB
-    subgraph Backend[FastAPI Backend]
-        Profiles[Profiles & Sessions]
-        Ingest[Ingest Module]
-        Extract[Extract Module]
-        StructImport[Structured Import<br/>CSV/FHIR parsers]
-        Normalize[Normalize Module]
-        Verify[Verify Module]
-        Analytics[Analytics Module]
-        RAG[RAG Assistant + Agent Tools]
-        Interpret[Interpretations]
-        Meds[Medications, Notifications, Gamification]
-        Settings[Model & Voice Settings]
-        Export[Export Pipeline + FHIR R4]
-        Monitor[Monitoring & Audit]
+flowchart TD
+    Q["POST /api/v1/assistant/chat<br/>api/assistant.py"] --> SESS["ChatSession / ChatTurn<br/>persisted in the profile vault"]
+    SESS --> SW{"is_agent_enabled?<br/>(default: yes)"}
+
+    SW -->|yes| PRE["pre-model advice check<br/>modules/agent/guardrails/classifier.py"]
+    PRE -->|"advice bait"| ESC["escalation template"]
+    PRE --> PLAN
+    subgraph AGENT["modules/agent/graph.py (no LLM call)"]
+        PLAN["plan"] --> ACT["act: one read-only tool<br/>modules/agent/tools/registry.py (8 tools)"]
+        PLAN -->|"draft decision"| DRAFT
+        ACT --> REFL["reflect"]
+        REFL -->|"loop, max 5 acts"| PLAN
+        REFL -->|"enough grounding"| DRAFT["draft: every sentence cited"]
     end
+    DRAFT --> GUARD["guard: advice, groundedness,<br/>confidence, audit"]
+    GUARD --> AANS["cited answer"]
+    GUARD -->|"ungrounded or low confidence"| ABS["abstain template"]
+    GUARD -->|"advice in the draft"| ESC
+    PLAN -->|"nothing to try"| ABS
+    REFL -->|"step budget exhausted"| ABS
 
-    Profiles --> Ingest
-    Ingest --> Extract --> Normalize --> Verify --> Analytics
-    Ingest --> StructImport --> Verify
-    Verify --> Interpret --> Export
-    Analytics --> RAG
-    Meds --> RAG
-    Settings --> RAG
-    RAG --> Export
-    Monitor --> Backend
+    SW -->|"no, or agent error"| RAG["modules/rag.py RAGModule.query<br/>verified observations + references,<br/>prompt-injection neutralized"]
+    RAG --> MR["ModelRunner"]
+    MR -->|"no model available"| FB["knowledge fallback<br/>(no-LLM path stays functional)"]
+    MR --> VAL["validate_response:<br/>[cite:N] citations, interpret_safety patterns,<br/>verifier_agent, faithfulness >= 0.6"]
+    VAL --> LANS["cited answer"]
+    VAL -->|"prohibited advice"| ESC
+    VAL -->|"invalid"| ABS
 ```
 
-Request flow is also part of the architecture: CORS, correlation IDs, security headers, rate limiting, input validation, security audit logging, and timing middleware wrap the mounted API routes. The live router inventory is maintained in [`docs/api/endpoints.md`](docs/api/endpoints.md); [`docs/05_backend_integration_status.md`](docs/05_backend_integration_status.md) is historical audit context only.
+The agent path is the default (`modules/agent/settings.py`); a per-profile flag
+switches back to single-shot RAG. On the legacy path, `[cite:N]` is the
+validated citation marker; `[YOUR_RESULTS:N]` and `[REFERENCE:N]` are context
+labels only. Details: [`docs/architecture/pipelines.md`](docs/architecture/pipelines.md).
 
-### Core Data Model (UML)
-
-```mermaid
-classDiagram
-    class Profile {
-        +id: UUID
-        +created_at: datetime
-    }
-
-    class ProfileVault {
-        +vault.db: SQLCipher
-        +documents/: AES-GCM files
-        +sealed_key: encrypted bytes
-    }
-
-    class ClinicalData {
-        +documents
-        +observations
-        +interpretations
-        +medications
-        +reminders
-    }
-
-    class RetrievalData {
-        +document_chunks
-        +embeddings
-        +assistant_memory
-        +knowledge_references
-    }
-
-    class AppData {
-        +model_settings
-        +gamification
-        +exports
-        +audit_events
-    }
-
-    Profile "1" --> "1" ProfileVault
-    ProfileVault "1" --> "many" ClinicalData
-    ProfileVault "1" --> "many" RetrievalData
-    ProfileVault "1" --> "many" AppData
-```
-
-The UML above is a domain map, not a table catalog. The live model layer includes documents, observations, interpretations, knowledge/chunks/embeddings, medication adherence, notifications, memory, model settings, document categories/entities, exports, audit events, and gamification.
-
-### Document-to-Insight Sequence
+### Document to observations
 
 ```mermaid
 sequenceDiagram
     participant User
-    participant UI as Desktop UI
-    participant API as FastAPI Backend
-    participant Vault as Encrypted Vault
-    participant DB as SQLCipher DB
-    participant LLM as Local LLM
+    participant UI as Frontend (Inbox / Verify)
+    participant API as api/documents.py
+    participant Ingest as modules/ingest.py
+    participant Extract as extract / import_structured
+    participant Vault as Profile vault
 
-    User->>UI: Upload lab PDF/image OR CSV/FHIR export
+    User->>UI: Upload PDF, image, lab CSV or FHIR bundle
     UI->>API: POST /api/v1/documents/import
-    API->>Vault: Store encrypted file
-    alt PDF/image
-        API->>API: Classify, extract (OCR), normalize
-    else CSV/FHIR (HC-M23)
-        API->>API: Parse structured file (no OCR/classification)
+    API->>Ingest: detect type, hash, encrypt (AES-GCM)
+    Ingest->>Vault: store encrypted file
+    API->>Vault: Document row
+    alt PDF or image
+        API->>Extract: ExtractModule (text, or OCR when enabled)
+        Note over API,Extract: OCR needed but unavailable: status pending_ocr
+        Extract->>API: extracted observations
+        API->>API: normalize analytes (modules/normalize.py)
+        API->>Vault: Observation rows, unverified
+        API->>Vault: chunks + embeddings for retrieval
+        API->>API: classify document, extract entities
+    else lab CSV or FHIR Bundle (HC-M23)
+        API->>Extract: parse_lab_csv / parse_fhir_bundle (no OCR, no rule-based classification)
+        Extract->>API: observations, entities, category from the parser
+        API->>Vault: Observation rows, always unverified
     end
-    API->>DB: Persist metadata, extracted rows (always unverified for CSV/FHIR), provenance
-    API->>UI: Verification payload
-    User->>UI: Verify/edit values
-    UI->>API: POST /api/v1/observations/{id}/verify
-    API->>DB: Store verified observations
-    API->>LLM: Generate grounded interpretation with citations
-    API->>DB: Save interpretation + citations
-    API->>UI: Trend + explanation response
-    User->>UI: Ask "what's still open?" / "what changed?"
-    UI->>API: POST /api/v1/assistant/chat
-    API->>API: Agent routes to bounded read-only tool (HC-M24)
-    API->>DB: Query verified care tasks/med changes/timeline
-    API->>UI: Cited, record-navigation answer
+    API-->>UI: import result + verification payload
+    User->>UI: confirm or correct values
+    UI->>API: POST /api/v1/observations/{id}/verify (one value)
+    UI->>API: or POST /api/v1/documents/{id}/verify (whole document)
+    API->>Vault: observations marked user-verified
 ```
+
+Undated observations are listed but excluded from time series; `POST
+/documents/{id}/reprocess` re-extracts (except for CSV/FHIR imports, which
+have no text to rebuild from).
+
+### Build-program agent workflow (contributors)
+
+Most recent work in this repository is planned and built by Claude Code agents
+following [`docs/plans/2026-10-15-build-program/RUNBOOK.md`](docs/plans/2026-10-15-build-program/RUNBOOK.md),
+sequenced by the workflow scripts in `.claude/workflows/`. A human owner
+records decisions and merges.
+
+```mermaid
+flowchart LR
+    Q[("queue.md<br/>build-program rows")] --> WAVE["build-wave.js<br/>haiku scan, opus selects<br/>eligible, file-disjoint ids"]
+    WAVE --> ITEM
+    subgraph ITEM["build-item.js (one per id)"]
+        direction TB
+        E["explore (haiku)"] --> T0["Task 0 + claim (opus)"]
+        T0 --> IMP["implement test-first (sonnet)"]
+        IMP --> TST["run tests (haiku)"]
+        TST --> REV["review, max 3 rounds (opus)"]
+        REV --> VER["verify + PR (opus)"]
+    end
+    T0 -.->|"plan gap"| UNB["unblocker (opus)"]
+    VER --> PR["pull request"]
+    PR --> OWN["owner review + merge"]
+    PRG["build-program.js<br/>waves, planner, unblocker"] -.-> WAVE
+    PRG -.-> RSI["rsi-loop.js<br/>mine failures, propose small<br/>rule/doc edits as PRs"]
+    RSI -.-> PR
+```
+
+Per-phase model routing is in the workflow scripts' `meta` blocks and
+[`docs/agentic/orchestration.md`](docs/agentic/orchestration.md); behavioral
+rules and the definition of done are in [`CLAUDE.md`](CLAUDE.md) and
+[`AGENT.md`](AGENT.md).
+
+### Privacy boundaries
+
+- **Exports that leave the app pass through `modules/redaction.py` first:** the
+  doctor summary (strict), FHIR R4 bundle, visit-prep packets, and the RL
+  feedback dataset. `GET /export/csv` and `GET /export/json` are the patient's
+  own full-fidelity export and are deliberately not redacted (owner decision D3).
+- **Backups are unredacted by design** (a redacted backup cannot be restored)
+  and are profile-scoped.
+- **Audit logging** covers routes that touch documents, observations, or profile
+  data. The audit log lives in the unencrypted master DB, so its rows are
+  minimized (AUDIT-PHI-001).
 
 ## Technology Stack
 
-### Current
-- **Backend**: Python 3.11+ with FastAPI
-- **Database**: SQLite master DB plus per-profile SQLCipher vault DBs
-- **Document Vault**: AES-GCM encrypted files under per-profile vault directories
-- **Vector/Retrieval**: Per-profile embedding blobs scanned with a linear cosine-similarity pass (no external vector index — deliberately simple at single-user corpus size), plus local curated reference content
-- **Local LLM**: llama-cpp-python with GGUF models
-- **Optional External LLMs**: OpenAI/Anthropic-compatible runners behind opt-in model settings and redaction checks
-- **Embeddings**: sentence-transformers models such as bge/e5 tiers
-- **Frontend**: React + Vite + TypeScript
-- **Frontend State/Data**: React Router, TanStack Query, and Zustand
+- **Backend**: Python 3.11+, FastAPI, SQLAlchemy, Alembic (separate master and profile chains)
+- **Databases**: SQLite master DB plus per-profile SQLCipher vault DBs
+- **Document vault**: AES-GCM encrypted files under per-profile vault directories
+- **Retrieval**: per-profile embedding blobs scanned with a linear cosine-similarity pass (no external vector index at single-user scale), plus curated reference content seeded at startup
+- **Local LLM**: llama-cpp-python with GGUF models (default), or Ollama on localhost
+- **Embeddings**: `sentence-transformers/all-MiniLM-L6-v2`, fetched once and loaded offline (`modules/embeddings.py`)
+- **Optional external LLMs**: OpenAI/Anthropic runner, opt-in, strict redaction (`core/external_runner.py`)
+- **Frontend**: React + Vite + TypeScript, Tailwind, React Router, TanStack Query, Zustand
 
 ### Scalability posture
 
 The meaningful scaling axis here is **one person's record growing over years**,
-not concurrent users — this is a local-first desktop application by design, and
-moving inference or storage off-device would break the guarantee the product
-exists to make.
-
-What that means in practice, with the current known limits and where they bite,
-is written up in
+not concurrent users; this is a local-first desktop application by design.
+Known limits (search rebuilds its FTS index per query, a few generated-export
+stores are in memory without a TTL, LLM inference is in-process and blocking)
+and what this system deliberately does *not* need are written up in
 [`docs/architecture/performance-scalability-review.md`](docs/architecture/performance-scalability-review.md).
-The short version: search rebuilds its FTS index per query (the first thing to
-degrade as documents accumulate), a few generated-export stores are held in
-memory without a TTL, and LLM inference is deliberately in-process and blocking.
-The review also lists what this system explicitly does *not* need, so nobody
-adds a caching tier or a vector database to a single-user desktop app.
-
-Any future web or multi-user deployment would be a different product with a
-different privacy model; the shared API layer makes it *possible*, not planned.
 
 ## Documentation Source of Truth
 
@@ -235,122 +208,42 @@ different privacy model; the shared API layer makes it *possible*, not planned.
 4. `docs/features/TASK_LIST.md` (active remaining-work tracker)
 5. `docs/05_backend_integration_status.md` (Historical Reference — Sprint 06 snapshot retained for audit context only)
 
-For backend architecture detail specifically, see [`docs/01_backend_architecture_plan.md`](docs/01_backend_architecture_plan.md)
-(reachable via the architecture index and [`docs/roles/backend-api.md`](docs/roles/backend-api.md)).
+Backend detail: [`docs/01_backend_architecture_plan.md`](docs/01_backend_architecture_plan.md)
+and [`docs/roles/backend-api.md`](docs/roles/backend-api.md). A flat map of every
+doc is generated at [`docs/INDEX.md`](docs/INDEX.md).
 
-To validate docs ownership, required sections, canonical-order consistency, and historical-doc
-classification locally, run `python3 scripts/docs_lint.py` (add `--link-graph` to also regenerate
-`docs/_link_graph.json`).
-
-## SQLCipher Setup (Required for Database Encryption)
-
-Asclexis uses SQLCipher for encrypted per-profile databases. Each user profile has its own AES-256 encrypted SQLite database.
-
-### Installation
-
-#### Windows (Recommended: pre-built wheel)
-```powershell
-pip install sqlcipher3-binary
-```
-
-#### Linux (Debian/Ubuntu)
-```bash
-sudo apt-get install libsqlcipher-dev
-pip install sqlcipher3-binary
-```
-
-#### macOS
-```bash
-brew install sqlcipher
-pip install sqlcipher3-binary
-```
-
-### Verify Installation
-```python
-import sqlcipher3
-conn = sqlcipher3.connect(":memory:")
-cursor = conn.cursor()
-cursor.execute("PRAGMA cipher_version")
-print(cursor.fetchone())  # Should print ('4.x.x',)
-```
-
-### Development Without SQLCipher
-If you cannot install SQLCipher, set in `.env`:
-```
-DATABASE_ENCRYPTION_REQUIRED=false
-```
-**WARNING:** Profile databases will be unencrypted. Never use in production.
-
-## Database Migrations
-
-Asclexis uses **Alembic** for database schema migrations with a dual-environment setup:
-
-- **Master database**: Profiles, audit logs, knowledge base (unencrypted)
-- **Profile databases**: Per-user SQLCipher encrypted vaults
-
-### Running Migrations
-
-```powershell
-cd src\backend
-
-# Run master database migrations
-python -m scripts.migrate master
-
-# Check migration status
-python -m scripts.migrate status
-
-# Run profile migrations (requires password)
-python -m scripts.migrate profile --profile-id <uuid>
-```
-
-### Safe Rollout
-The migration system includes **baseline detection**:
-- Existing databases without `alembic_version` are stamped (not migrated)
-- This prevents "table already exists" errors on existing installations
-- New installations get full schema creation via migrations
-
-Migrations run automatically:
-- Master migrations run on application startup
-- Profile migrations run when a vault is opened
+Docs gates (also run in CI): `python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py --link-graph`
+regenerates the index and link graph, and `python3 scripts/docs_lint.py` checks ownership fields,
+required sections, canonical-order consistency, links, orphans, and historical banners.
 
 ## Getting Started
 
 ### Prerequisites
 - Python 3.11+
-- Node.js 22.12+ (for frontend; Node.js 24 LTS recommended)
+- Node.js 22.12+ (Node.js 24 LTS recommended)
 - Browser: Safari 16.4+, Chrome 111+, Firefox 128+
+- Optional: Tesseract and Poppler (`pdftoppm`) for OCR of scanned documents
 
-### Quick Start (Recommended)
+### Quick Start (Windows, `dev.ps1`)
 
-The easiest way to start development is using the included dev script:
+Windows is the native development environment. From the repository root:
 
 ```powershell
-# From the project root directory
-.
-\dev.bat
-
-# Or directly with PowerShell
-.
-\dev.ps1
+.\dev.bat        # one-click launcher
+.\dev.ps1        # or run the PowerShell script directly
 ```
 
-This script automatically:
-- Checks for Python and Node.js installations
-- Creates a Python virtual environment if needed
-- Installs all dependencies (pip and npm)
-- Creates the data directory structure
-- Resolves the next free backend/frontend ports if defaults are busy
-- Syncs `src/frontend/.env.local` with the resolved backend API URL
-- Starts both backend and frontend servers
+`dev.ps1`:
+- checks for Python and Node.js;
+- creates the backend virtual environment at `src/backend/venv` if needed and installs `requirements.txt`. **If `sqlcipher3-binary` cannot be installed, it installs the rest, sets `DATABASE_ENCRYPTION_REQUIRED=false` in `src/backend/.env` and warns: profile databases are then unencrypted, so do not use real data** (see [SQLCipher Setup](#sqlcipher-setup));
+- runs `npm ci` when `src/frontend/package-lock.json` changes;
+- creates the data directory structure and `.env`;
+- resolves the next free backend/frontend ports if 8000/3000 are busy and syncs `src/frontend/.env.local` with the resolved API URL;
+- starts both servers and opens the browser.
 
-Default URLs when the standard ports are free:
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:8000
-- **API Documentation**: http://localhost:8000/docs
-
-If a port is busy, use the resolved URLs printed by `dev.ps1` / `dev.bat`.
-
-Press `Ctrl+C` to stop both servers.
+Default URLs: frontend http://localhost:3000, backend http://localhost:8000
+(`/docs` serves the interactive API docs when `DEBUG=true`). If a port is busy,
+use the URLs `dev.ps1` prints. `Ctrl+C` stops both servers.
 
 ### Quick Start on WSL/Linux (`dev.sh`)
 
@@ -361,20 +254,107 @@ git clone <repo-url> ~/HealthCentral && cd ~/HealthCentral
 ./dev.sh
 ```
 
-It does the same steps as `dev.ps1`, with these differences:
+It mirrors `dev.ps1`, with these differences:
 - Uses its own venv at `src/backend/.venv-linux` (never the Windows `src/backend/venv`).
-- Never installs system packages; it prints an `apt`/`brew`/`nvm` hint when Python 3.11+, Node.js 22.12+, npm, `tesseract` or `pdftoppm` is missing.
+- Never installs system packages; it prints an install hint when Python 3.11+, Node.js 22.12+, `tesseract` or `pdftoppm` is missing.
 - Picks the next free port when 8000/3000 are busy, but does not stop the process holding them.
 - Binds both servers to `127.0.0.1`, writes `logs/dev-backend.log` and `logs/dev-frontend.log`, does not open a browser and does not restart a crashed server.
 
-### Supported Local Verification Bootstrap (WSL/Linux)
+### Model setup
 
-Use the WSL/Linux bootstrap path below to create the verifier environment that the repo-root proof bundle expects. Run every command from the repository root.
+The app works without any model: the assistant falls back to a no-LLM
+knowledge path, and the agent path makes no model call. A local model enables
+the legacy RAG explainer and model-backed interpretations. Run these from
+`src/backend` (`scripts/download_models.py`):
 
 ```bash
-python3 --version
-node --version
+python scripts/download_models.py list                   # tiers, RAM/disk needs, download status, Ollama tags
+python scripts/download_models.py auto                   # download the tier recommended for this hardware
+python scripts/download_models.py download --tier mid    # or a specific tier (low, mid, high, gemma4-*)
+python scripts/download_models.py embedding              # one-time fetch of the embedding bundle (needed for retrieval)
+python scripts/download_models.py nli                    # optional: NLI cross-encoder (HC-M11, flag-gated)
+```
 
+- **llama.cpp (default).** `LLM_PROVIDER=llama_cpp` loads GGUF files from
+  `models/` in-process. The Gemma 4 tier repos are marked as placeholders in
+  `download_models.py`; `python scripts/download_models.py verify` checks every
+  tier repo exists on Hugging Face (needs network).
+- **Ollama.** Set `LLM_PROVIDER=ollama` and `LLM_MODEL` (for example
+  `gemma4:12b`), and pull the model with
+  `ollama pull <tag>` or `python scripts/download_models.py ollama --tag <tag>`.
+  The provider connects to the local default `127.0.0.1:11434`, and switching
+  provider in Settings rejects a non-localhost `OLLAMA_BASE_URL`. If the daemon
+  is unreachable the factory falls back to llama.cpp. The provider
+  can also be switched in Settings (`PUT /api/v1/settings/model/provider`).
+- **Embedding bundle.** The pinned `all-MiniLM-L6-v2` revision is fetched once,
+  sha256-checked per file, and loaded with `local_files_only=True`; the backend
+  never downloads it at runtime and fails closed if it is absent. Without it,
+  exactly 5 backend tests fail (see [AGENT.md](AGENT.md#commands-windows-is-the-native-dev-environment)).
+
+Configuration lives in `src/backend/.env`, created from
+[`config/.env.example`](config/.env.example).
+
+### SQLCipher Setup
+
+Each profile database is an AES-256 SQLCipher database. `sqlcipher3-binary`
+(in `requirements.txt`) ships pre-built wheels; on Debian/Ubuntu install
+`libsqlcipher-dev` first if the wheel fails to build, and on macOS
+`brew install sqlcipher`. Verify with:
+
+```python
+import sqlcipher3
+print(sqlcipher3.connect(":memory:").execute("PRAGMA cipher_version").fetchone())  # ('4.x.x',)
+```
+
+`DATABASE_ENCRYPTION_REQUIRED=false` in `.env` allows unencrypted profile
+databases for development only. **Never use it with real data.**
+
+### Database migrations
+
+Two independent Alembic chains: `migrations/master/` (profiles, audit log,
+knowledge base) and `migrations/profile/` (each SQLCipher vault). Master
+migrations run on startup; profile migrations run when a vault is opened.
+Databases without `alembic_version` are stamped, not migrated. Manual use, from
+`src/backend`:
+
+```bash
+python -m scripts.migrate master                          # master chain
+python -m scripts.migrate status                          # migration status
+python -m scripts.migrate profile --profile-id <uuid>     # one profile (prompts for its password)
+```
+
+### Running tests
+
+```bash
+# Backend (from src/backend)
+python -m pytest tests/ -p no:cacheprovider -q
+
+# Frontend (from src/frontend)
+npx tsc --noEmit
+npx vitest run
+npx playwright test --project chromium       # e2e, as CI runs it
+
+# Eval gates, docs and hygiene (from the repo root, as CI runs them)
+python3 scripts/agent_eval_gate.py           # CI: Agent Eval Gate
+python3 scripts/legacy_eval_gate.py          # CI: Legacy RAG Eval Gate
+python3 scripts/docs_lint.py
+python3 scripts/repo_hygiene_check.py
+```
+
+The current collected-test baseline and the known environment-only failures
+are recorded in [`AGENT.md`](AGENT.md#commands-windows-is-the-native-dev-environment);
+the full definition of done is in [`AGENT.md`](AGENT.md#definition-of-done).
+On WSL with a Windows-mounted checkout, clear `__pycache__` before pytest and
+prefer running the frontend toolchain on Windows. The contributor proof bundle
+is in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+### Supported Local Verification Bootstrap (WSL/Linux)
+
+Creates the repo-root verifier environment that the contributor proof bundle
+expects. Run from the repository root, with a venv created by the WSL/Linux
+interpreter (never activate a Windows-created venv from `/mnt/c/...`):
+
+```bash
 python3 -m venv .wsl-pytest-venv
 ./.wsl-pytest-venv/bin/python -m pip install --upgrade pip
 ./.wsl-pytest-venv/bin/python -m pip install -r src/backend/requirements.txt
@@ -385,192 +365,99 @@ npx --prefix src/frontend tsc --noEmit -p src/frontend/tsconfig.json
 PYTHONPATH=src/backend ./.wsl-pytest-venv/bin/python -m pytest src/backend/tests/test_bootstrap_check.py -q
 ```
 
-What this bootstrap proves:
-- docs drift checks run from repo root;
-- the frontend type-check works with the checked-in `src/frontend/tsconfig.json`;
-- the backend pytest environment can import project dependencies and keeps the production encryption default intact.
-
-#### Bootstrap prerequisites and recovery notes
-
-- **Python**: use Python 3.11+ and create the backend verifier environment from the same WSL/Linux interpreter you will use for pytest.
-- **Node.js**: use Node.js 22.12+ (Node.js 24 LTS recommended) so `npx --prefix src/frontend ...` resolves the frontend toolchain correctly.
-- **SQLCipher**: if `pip install -r src/backend/requirements.txt` fails around `sqlcipher3-binary` on Debian/Ubuntu, install `libsqlcipher-dev` first, then retry the pip install.
-- **OCR packages**: `tesseract-ocr` and PDF/image system libraries are required for OCR-heavy backend tests and runtime features, but the bootstrap smoke test above does not depend on them.
-
-#### Windows / WSL caveats
-
-- If you are inside WSL, create and use the virtualenv from WSL (`python3 -m venv .wsl-pytest-venv`). Do **not** activate a Windows-created virtualenv from `/mnt/c/...`; compiled wheels can mismatch architecture.
-- The repo's recorded backend proof commands assume the repo-root interpreter path `./.wsl-pytest-venv/bin/python`. If that environment is missing, recreate it with the commands above instead of changing the command paths.
-- `npx --prefix src/frontend tsc --noEmit -p src/frontend/tsconfig.json` is the supported local frontend verification command for mounted WSL checkouts. If broader frontend tests stall on an NTFS-mounted repo, run them from a Linux-native filesystem.
-
-### Current Contributor Proof Bundle
-
-After the bootstrap succeeds, this is the maintained repo-root proof bundle for the current assistant-category and hygiene surface:
-
-```bash
-python3 scripts/repo_hygiene_check.py
-python3 scripts/docs_lint.py
-npm --prefix src/frontend run test:run -- src/__tests__/ExplainAssistant.test.tsx
-npx --prefix src/frontend playwright test --config src/frontend/playwright.config.ts src/frontend/e2e/assistant.spec.ts --grep "category"
-PYTHONPATH=src/backend ./.wsl-pytest-venv/bin/python -m pytest src/backend/tests/test_bootstrap_check.py src/backend/tests/security/test_password_hashing.py src/backend/tests/test_repo_hygiene_check.py
-```
-
-What this proves:
-- no disallowed root scratch markdown/report artifacts are present before merge-sensitive work;
-- docs follow the current historical-reference ownership rules;
-- the Explain Assistant document-category filter is covered at both component and browser level;
-- the supported backend proof bundle catches bootstrap, password-hashing, and repo-hygiene regressions from the same repo-root WSL interpreter path.
+`.wsl-pytest-venv/` and `.bg-shell/` are local-only and gitignored. If
+`sqlcipher3-binary` fails to install on Debian/Ubuntu, install
+`libsqlcipher-dev` first. OCR-heavy tests and features also need
+`tesseract-ocr` and Poppler; the bootstrap smoke test does not.
 
 ### Full UI verification (optional)
 
-- **Browser MCP (manual):** Step-by-step sweep and report template in [`src/frontend/e2e/BROWSER_MCP_PLAYBOOK.md`](src/frontend/e2e/BROWSER_MCP_PLAYBOOK.md).
-- **Playwright (real PDF on disk):** Set `HC_E2E_REAL_PDF` to an absolute path, or on Windows rely on the default path documented in [`src/frontend/e2e/ui-full-verification.spec.ts`](src/frontend/e2e/ui-full-verification.spec.ts). Then from `src/frontend`:
+The manual sweep in
+[`src/frontend/e2e/BROWSER_MCP_PLAYBOOK.md`](src/frontend/e2e/BROWSER_MCP_PLAYBOOK.md),
+and the real-PDF Playwright project (`--project real-pdf-local`, set
+`HC_E2E_REAL_PDF`; see
+[`src/frontend/e2e/ui-full-verification.spec.ts`](src/frontend/e2e/ui-full-verification.spec.ts)).
+
+### Manual development
 
 ```bash
-npx playwright test --config playwright.config.ts --project real-pdf-local
-```
-
-CI runs the **`chromium`** project only (`npx playwright test --project chromium`), so the real-PDF suite is opt-in locally.
-
-### Local-only artifact hygiene
-
-Use the following repo-hygiene rules whenever you are about to interpret `git status`, perform an audit, or do pre-merge cleanup:
-
-- `.bg-shell/` and `.wsl-pytest-venv/` are local-only helper directories. They should stay gitignored and should not be treated as shared project changes.
-- Root scratch markdown and ad-hoc generated reports such as `PLAN.md`, `HANDOFF-*.md`, and `*_report*.md` are **not** broadly ignored on purpose. Clean them up or move them elsewhere before dirt-sensitive work.
-- Run `git status --short` before release-oriented or status-sensitive work. If unexpected local-only files appear, clear them first instead of normalizing them into the repo.
-- Use the contributor checklist in `CONTRIBUTING.md` when you need a repeatable pre-merge hygiene pass.
-
-### Manual Installation
-
-If you prefer manual setup beyond the verification bootstrap above:
-
-```bash
-# Clone repository
-git clone https://github.com/your-org/HealthCentral.git
-cd HealthCentral
-
-# Backend setup (Linux/WSL)
-python3 -m venv ~/venvs/asclexis-backend
-source ~/venvs/asclexis-backend/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r src/backend/requirements.txt
-
-# Frontend setup
-npm --prefix src/frontend install
-```
-
-```powershell
-# Backend setup (Windows PowerShell)
-python -m venv .venv
-.
-\venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r src/backend/requirements.txt
-
-# Frontend setup
-npm --prefix src/frontend install
-```
-
-### Manual Development
-
-```bash
-# Terminal 1: Start backend
-cd src/backend
-venv\Scripts\activate
+# Terminal 1: backend (from src/backend, inside its venv)
 uvicorn main:app --reload --host 127.0.0.1 --port 8000
 
-# Terminal 2: Start frontend
-cd src/frontend
+# Terminal 2: frontend (from src/frontend)
 npm run dev
 ```
 
-## Documentation
+## Project Structure
 
-### For Users
-- [Getting Started](docs/user/getting-started.md)
-- [Workflows](docs/user/workflows.md)
-- [Troubleshooting](docs/user/troubleshooting.md)
-- [FAQ](docs/user/faq.md)
+```
+HealthCentral/
+├── AGENT.md, CLAUDE.md        # contributor and agent briefing, behavioral rules
+├── dev.ps1, dev.bat, dev.sh   # one-command dev launchers (Windows, WSL/Linux)
+├── config/                    # .env.example
+├── docs/                      # architecture, API, user, compliance, plans, reviews, archive
+├── scripts/                   # docs lint/index, hygiene, eval and security gates
+├── skills/                    # project domain skills (agent, guardrails, backend, evals)
+├── .claude/                   # vendored process skills, agents, build-program workflows
+└── src/
+    ├── backend/
+    │   ├── main.py            # app factory, middleware, router mount
+    │   ├── api/               # FastAPI routers
+    │   ├── core/              # config, auth, db, audit, time, ModelRunner, llm/ providers
+    │   ├── models/            # SQLAlchemy models
+    │   ├── modules/           # feature logic (ingest, extract, rag, agent/, redaction, ...)
+    │   ├── migrations/        # master/ and profile/ Alembic chains
+    │   ├── monitoring/        # metrics, correlation ids, timing
+    │   ├── security/          # input validation, rate limiting, headers
+    │   ├── scripts/           # backup, migrate, download_models, seed knowledge
+    │   └── tests/             # pytest suites (incl. agent/ golden evals)
+    └── frontend/
+        ├── src/               # pages/, components/, services/, stores/
+        └── e2e/               # Playwright specs
+```
 
-### For Developers
-- [API Documentation](docs/api/README.md)
-- [Live API Endpoints (source of truth)](docs/api/endpoints.md)
-- [Backend Integration Status (Historical Reference)](docs/05_backend_integration_status.md)
-- [Backend Architecture](docs/01_backend_architecture_plan.md)
-- [Documentation Index](docs/00_architecture_plans_index.md)
-
-### Compliance & Operations
-- [HIPAA Controls](docs/compliance/hipaa-controls.md)
-- [Data Privacy](docs/compliance/data-privacy.md)
-- [Disaster Recovery](docs/compliance/disaster-recovery.md)
-- [Audit Checklist](docs/compliance/audit-checklist.md)
-
-## Agent Overhaul — planning package
-
-The `agent-overhaul` workstream promotes the single-shot `/assistant/` RAG explainer
-into a read-only, governed plan→act→reflect agent. **The agent is shipped and is the
-default chat path** (`agent_enabled` defaults to True — `modules/agent/settings.py`);
-the flag remains only as a per-profile kill switch back to single-shot RAG. Planning
-artifacts live alongside the code:
-
-- **PRD:** [docs/prd/PRD_agent_overhaul.md](docs/prd/PRD_agent_overhaul.md)
-- **Agile plan / cadence:** [AGILE_PLAN](docs/agile/AGILE_PLAN.md) ·
-  [STANDUP](docs/archive/agile/STANDUP.md) · [RETRO](docs/archive/agile/RETRO.md) ·
-  [RELEASE_CHECKLIST](docs/agile/RELEASE_CHECKLIST.md)
-- **Grounding:** [GROUNDING](docs/agile/GROUNDING.md) ·
-  [EXPLORATION_SUMMARY](docs/archive/agile/EXPLORATION_SUMMARY.md) ·
-  [RECONCILIATION](docs/archive/agile/RECONCILIATION.md)
-- **Audience expectations:** [main vs branch](docs/archive/agile/audience_expectations_main_vs_branch.md)
-
-### Skill ↔ Epic ↔ Phase ↔ Sprint map
-
-| Skill (`skills/`) | Epic | Phase doc | Sprint doc(s) | Release |
-|---|---|---|---|---|
-| [asclexis-agent](skills/asclexis-agent/SKILL.md) | E1 Agent Core | [P0](docs/archive/prd-phases/PHASE_0_foundation.md) · [P1](docs/archive/prd-phases/PHASE_1_first_tool.md) · [P2](docs/archive/prd-phases/PHASE_2_loop.md) | [S0](docs/archive/agile-sprints/SPRINT_0.md) · [S1](docs/archive/agile-sprints/SPRINT_1.md) · [S2](docs/archive/agile-sprints/SPRINT_2.md) | R1 |
-| [asclexis-guardrails](skills/asclexis-guardrails/SKILL.md) | E2 Guardrails | [P3](docs/archive/prd-phases/PHASE_3_guardrails.md) · [P4](docs/archive/prd-phases/PHASE_4_phi_gate.md) | [S3](docs/archive/agile-sprints/SPRINT_3.md) · [S4](docs/archive/agile-sprints/SPRINT_4.md) | R2 |
-| [asclexis-backend](skills/asclexis-backend/SKILL.md) | E4 LLMOps + E5 Cutover | [P5](docs/archive/prd-phases/PHASE_5_cutover_cache.md) | [S5](docs/archive/agile-sprints/SPRINT_5.md) | R2 |
-| [asclexis-evals](skills/asclexis-evals/SKILL.md) | E3 Evals | [P6](docs/archive/prd-phases/PHASE_6_evals_ci.md) | [S6](docs/archive/agile-sprints/SPRINT_6.md) | R3 |
-| — (uses evals + backend) | E6 Fine-tuning (stretch) | [P7](docs/prd/phases/PHASE_7_lora_stretch.md) | [S7](docs/agile/sprints/SPRINT_7.md) | R3 |
-
-The agent implementation lives under `src/backend/modules/agent/` (graph runner,
-plan/act/reflect/draft nodes, tool registry, guardrails); the eval harness and 74
-golden fixtures under `src/backend/tests/agent/`, gated by `scripts/agent_eval_gate.py`.
+`data/` and `models/` are created locally and gitignored.
 
 ## API Overview
 
-Asclexis exposes a REST API via FastAPI at `http://localhost:8000/api/v1`. Interactive docs are available at `http://localhost:8000/docs`.
+Asclexis exposes a REST API via FastAPI at `http://localhost:8000/api/v1`. The
+exact path-level **source of truth** is [docs/api/endpoints.md](docs/api/endpoints.md).
 
 | Group | Endpoints | Description |
 |-------|-----------|-------------|
-| **Profiles** | `/profiles/` | Create, list, log in to, unlock, lock, and manage encrypted user profiles |
-| **Documents** | `/documents/` | Import PDFs/images or CSV/FHIR structured files (HC-M23, always unverified), list, classify, inspect extracted entities, render page images, delete |
-| **Observations** | `/observations/` | List, verify, trend analysis, panel grouping |
-| **Interpretations** | `/interpretations/` | Observation and panel interpretation plus biomarker knowledge lookup |
-| **Assistant** | `/assistant/` | RAG chat with citations, glossary, verification status, and bounded read-only agent queries over care tasks/medication changes/timeline (HC-M24) |
-| **Memory** | `/memory/` | Persistent assistant memory CRUD per profile |
+| **Profiles** | `/profiles/` | Create, list, log in to, unlock, lock, recover, and delete encrypted profiles |
+| **Documents** | `/documents/` | Import PDFs/images or CSV/FHIR files (always unverified), list, classify, entities, page images, reprocess, delete |
+| **Observations** | `/observations/` | List, verify, trends, panel grouping |
+| **Interpretations** | `/interpretations/` | Observation and panel interpretation, biomarker knowledge lookup |
+| **Assistant** | `/assistant/` | Chat with citations (agent path by default), sessions, glossary, verification status |
+| **Memory** | `/memory/` | Assistant memory CRUD per profile |
 | **Medications** | `/medications/` | CRUD, schedules, dose logging, adherence stats, pattern learning |
-| **Gamification** | `/gamification/` | Badge inventory plus profile streak summaries |
-| **Notifications** | `/notifications/` | Reminder settings, history, test sends, scheduler status, interaction logging |
-| **Export** | `/export/` | CSV/JSON export, doctor summary, discussion questions, verified-only redacted FHIR R4 bundle export/download (HC-M22) |
-| **Model Settings** | `/settings/model` | Model tier selection, downloads, external API config, timezone, and voice preferences |
-| **Care Tasks** | `/care-tasks/` | List persisted care-plan tasks, derive candidates from a document, accept a candidate into a task, update task status |
-| **Timeline** | `/timeline/` | Chronological view of the profile's record (observations, classified documents, medication starts/stops), derived on read |
-| **Med Reconciliation** | `/med-reconciliation/` | Compare a document's medication mentions against the medication list (read-only; never changes the list) |
-| **Pinboards** | `/pinboards/` | Create and manage pinboards and their items; generate a visit-prep packet from a pinboard |
-| **Search** | `/search/` | Bounded local search over documents, extracted entities, and observations |
-| **Backup** | `/backup/` | Create, list, verify, download, restore, and prune per-profile backups; backup schedule |
-| **Feedback** | `/feedback/` | Per-turn rating/correction feedback, aggregate stats, redacted preference-dataset export |
-| **Monitoring** | `/health`, `/monitoring/` | Health check and authenticated metrics dashboard |
+| **Gamification** | `/gamification/` | Badges and streak summaries |
+| **Notifications** | `/notifications/` | Reminder settings, history, test sends, scheduler status |
+| **Export** | `/export/` | CSV/JSON export, doctor summary, discussion questions, verified-only redacted FHIR R4 bundle |
+| **Model Settings** | `/settings/model` | Model tier, provider, downloads, external API, timezone, voice, OCR, agent toggle, diagnostics |
+| **Care Tasks** | `/care-tasks/` | Care-plan tasks, candidates derived from a document, accept, status updates |
+| **Timeline** | `/timeline/` | Chronological view of the record, derived on read |
+| **Med Reconciliation** | `/med-reconciliation/` | Compare a document's medication mentions with the medication list (read-only) |
+| **Pinboards** | `/pinboards/` | Pinboards, items, and visit-prep packets |
+| **Search** | `/search/` | Bounded local search over documents, entities, and observations |
+| **Backup** | `/backup/` | Create, list, verify, download, restore, prune per-profile backups; schedule |
+| **Feedback** | `/feedback/` | Per-turn ratings/corrections, stats, redacted preference-dataset export |
+| **Data Donation** | `/donation/` | Opt-in donation consent per purpose; revoke deletes donated rows |
+| **Monitoring** | `/health`, `/monitoring/` | Public liveness probe and authenticated metrics |
 
-Exact path-level API **source of truth**: [docs/api/endpoints.md](docs/api/endpoints.md).
-`docs/05_backend_integration_status.md` is a **Historical Reference** that preserves the Sprint 06 snapshot and audit context, not the live API tracker or part of the canonical ownership/freshness policy.
+`docs/05_backend_integration_status.md` is a **Historical Reference** (Sprint 06 snapshot), not the live API tracker.
 
-For full endpoint details, see [API Documentation](docs/api/endpoints.md).
+## Documentation
+
+- **Users:** [Getting Started](docs/user/getting-started.md) · [Workflows](docs/user/workflows.md) · [Troubleshooting](docs/user/troubleshooting.md) · [FAQ](docs/user/faq.md)
+- **Developers:** [API docs](docs/api/README.md) · [Live endpoints](docs/api/endpoints.md) · [Architecture diagrams](docs/architecture/README.md) · [Roles index](docs/roles/00_roles_index.md) · [Documentation index](docs/00_architecture_plans_index.md) · [Recurring failure modes](docs/agentic/recurring-failures.md)
+- **Compliance & operations:** [HIPAA controls](docs/compliance/hipaa-controls.md) · [Data privacy](docs/compliance/data-privacy.md) · [Disaster recovery](docs/compliance/disaster-recovery.md) · [Audit checklist](docs/compliance/audit-checklist.md)
+- **Agent overhaul (shipped):** the read-only plan→act→reflect agent under `src/backend/modules/agent/` replaced single-shot RAG as the default chat path. PRD: [PRD_agent_overhaul.md](docs/prd/PRD_agent_overhaul.md); process: [AGILE_PLAN](docs/agile/AGILE_PLAN.md) · [RELEASE_CHECKLIST](docs/agile/RELEASE_CHECKLIST.md); completed phase and sprint records are under [`docs/archive/`](docs/archive/README.md). Its 74 golden eval cases live in `src/backend/tests/agent/golden/`, gated by `scripts/agent_eval_gate.py`. Domain skills: [asclexis-agent](skills/asclexis-agent/SKILL.md) · [asclexis-guardrails](skills/asclexis-guardrails/SKILL.md) · [asclexis-backend](skills/asclexis-backend/SKILL.md) · [asclexis-evals](skills/asclexis-evals/SKILL.md).
 
 ## Implementation Progress
 
-See [docs/features/TASK_LIST.md](docs/features/TASK_LIST.md) for the active remaining-work tracker.
+See [docs/features/TASK_LIST.md](docs/features/TASK_LIST.md) for the active remaining-work tracker, and the build-program [queue](docs/plans/2026-10-15-build-program/queue.md) for agent-run work items.
 
 ## License
 

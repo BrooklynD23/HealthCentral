@@ -19,8 +19,10 @@ removes them.
 
 ## Overview
 
-Asclexis implements security and privacy controls aligned with HIPAA
-technical safeguards for protected health information (PHI).
+Asclexis is designed as if HIPAA applied (owner choice, 2026-09-27): its
+security and privacy controls are modelled on the HIPAA technical safeguards
+for protected health information (PHI). This is a design posture, not a
+compliance claim or a certification.
 
 ## Documents
 

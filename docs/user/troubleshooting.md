@@ -81,7 +81,7 @@
 
 **Solutions**:
 - Ensure sufficient disk space in the backup directory
-- Verify backup integrity: `python scripts/backup.py --action verify`
+- Verify backup integrity (from `src/backend`): `python scripts/backup.py --action verify --backup-dir backups/`
 - For restore, stop the application first
 - Check `.bak` files if restore overwrote existing data
 - See [Disaster Recovery Runbook](../compliance/disaster-recovery.md)
@@ -104,8 +104,9 @@
 
 ### Logs
 
-Application logs are in `logs/asclexis.log`. Set `LOG_LEVEL=DEBUG` for
-verbose output.
+The backend logs to the console (stderr) of its process; no application log
+file is written. `dev.sh` captures that output in `logs/dev-backend.log` and
+`logs/dev-frontend.log`. Set `LOG_LEVEL=DEBUG` for verbose output.
 
 ### Health Check
 
