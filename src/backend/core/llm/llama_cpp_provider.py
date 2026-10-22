@@ -134,66 +134,63 @@ class LlamaCppProvider:
         if not self._init_lock.acquire(blocking=False):
             return self._initialized and self._model is not None
         try:
-            return self._ensure_initialized_unlocked()
+            if self._initialized:
+                return self._model is not None
+
+            self._initialized = True
+            model_path = self._find_model_path()
+
+            if not model_path:
+                logger.warning(
+                    "LlamaCppProvider: no GGUF model found in %s",
+                    Path(self._settings.models_path).name,
+                )
+                return False
+
+            # MODEL-INT-001: check the artifact against its pinned SHA256 before it
+            # is loaded. Advisory by design -- hard-failing would leave a
+            # local-first desktop user with a dead app and no path forward -- but
+            # a mismatch is logged loudly, because every guardrail threshold and
+            # golden eval in this repo was tuned against the pinned artifact.
+            try:
+                from modules.model_integrity import verify_and_log
+
+                verify_and_log(model_path, getattr(self._settings, "llm_model_tier", "low"))
+            except Exception:  # pragma: no cover - integrity check must never block loading
+                logger.debug("MODEL-INT-001: integrity check skipped", exc_info=True)
+
+            try:
+                Llama = _load_llama_class()
+                if self._n_gpu_layers > 0 and not _gpu_offload_supported():
+                    logger.warning(
+                        "LlamaCppProvider: n_gpu_layers=%d requested but this llama-cpp-python "
+                        "build has no GPU offload; running on CPU",
+                        self._n_gpu_layers,
+                    )
+                logger.info("LlamaCppProvider: loading model from %s", model_path.name)
+                self._model = Llama(
+                    model_path=str(model_path),
+                    n_ctx=self._n_ctx,
+                    n_threads=self._n_threads if self._n_threads > 0 else None,
+                    n_gpu_layers=self._n_gpu_layers,
+                    verbose=self._settings.debug,
+                    # Let llama.cpp auto-detect chat template from GGUF metadata.
+                    # Works for Gemma 4, Phi-3, Llama-3, Mistral, Qwen2.5, etc.
+                )
+                logger.info("LlamaCppProvider: model loaded — %s", model_path.name)
+                return True
+
+            except ImportError:
+                logger.error(
+                    "llama-cpp-python not installed; "
+                    "run: pip install llama-cpp-python"
+                )
+                return False
+            except Exception as exc:
+                logger.error("LlamaCppProvider: failed to load model: %s", type(exc).__name__)
+                return False
         finally:
             self._init_lock.release()
-
-    def _ensure_initialized_unlocked(self) -> bool:
-        if self._initialized:
-            return self._model is not None
-
-        self._initialized = True
-        model_path = self._find_model_path()
-
-        if not model_path:
-            logger.warning(
-                "LlamaCppProvider: no GGUF model found in %s",
-                Path(self._settings.models_path).name,
-            )
-            return False
-
-        # MODEL-INT-001: check the artifact against its pinned SHA256 before it
-        # is loaded. Advisory by design -- hard-failing would leave a
-        # local-first desktop user with a dead app and no path forward -- but
-        # a mismatch is logged loudly, because every guardrail threshold and
-        # golden eval in this repo was tuned against the pinned artifact.
-        try:
-            from modules.model_integrity import verify_and_log
-
-            verify_and_log(model_path, getattr(self._settings, "llm_model_tier", "low"))
-        except Exception:  # pragma: no cover - integrity check must never block loading
-            logger.debug("MODEL-INT-001: integrity check skipped", exc_info=True)
-
-        try:
-            Llama = _load_llama_class()
-            if self._n_gpu_layers > 0 and not _gpu_offload_supported():
-                logger.warning(
-                    "LlamaCppProvider: n_gpu_layers=%d requested but this llama-cpp-python "
-                    "build has no GPU offload; running on CPU",
-                    self._n_gpu_layers,
-                )
-            logger.info("LlamaCppProvider: loading model from %s", model_path.name)
-            self._model = Llama(
-                model_path=str(model_path),
-                n_ctx=self._n_ctx,
-                n_threads=self._n_threads if self._n_threads > 0 else None,
-                n_gpu_layers=self._n_gpu_layers,
-                verbose=self._settings.debug,
-                # Let llama.cpp auto-detect chat template from GGUF metadata.
-                # Works for Gemma 4, Phi-3, Llama-3, Mistral, Qwen2.5, etc.
-            )
-            logger.info("LlamaCppProvider: model loaded — %s", model_path.name)
-            return True
-
-        except ImportError:
-            logger.error(
-                "llama-cpp-python not installed; "
-                "run: pip install llama-cpp-python"
-            )
-            return False
-        except Exception as exc:
-            logger.error("LlamaCppProvider: failed to load model: %s", type(exc).__name__)
-            return False
 
     @staticmethod
     def _messages_to_prompt(messages: List[ChatMessage]) -> str:
