@@ -85,12 +85,14 @@ def _formatted(records) -> list[str]:
     return [fmt.format(r) for r in records]
 
 
-def _assert_chain_clean(records, logger_name: str) -> None:
+def _assert_chain_clean(records, logger_name: str, message: str) -> None:
     errors = [
         r for r in records if r.levelno == logging.ERROR and r.name == logger_name
     ]
     assert len(errors) == 1, [(r.name, r.levelno, r.getMessage()) for r in records]
-    assert "RuntimeError" in _formatted(errors)[0]
+    # Type name only: str(exc) would add the exception text (review round 1).
+    assert errors[0].getMessage() == f"{message}: RuntimeError"
+    assert errors[0].exc_info is None
     for text in _formatted(records):
         assert CANARY not in text
         assert "SECRET" not in text
@@ -158,7 +160,9 @@ async def test_hc_rel_004_grounded_route_503_does_not_log_provider_text(dbs, log
         )
     assert resp.status_code == 503, resp.text
     assert CANARY not in resp.text
-    _assert_chain_clean(log_records, "api.interpretations")
+    _assert_chain_clean(
+        log_records, "api.interpretations", "Grounded interpretation inference failed"
+    )
 
 
 def test_hc_rel_005_chat_route_500_does_not_log_provider_text(log_records):
@@ -184,4 +188,4 @@ def test_hc_rel_005_chat_route_500_does_not_log_provider_text(log_records):
         resp = client.post("/assistant/chat", json={"question": "What was my glucose?"})
     assert resp.status_code == 500, resp.text
     assert CANARY not in resp.text
-    _assert_chain_clean(log_records, "api.assistant")
+    _assert_chain_clean(log_records, "api.assistant", "Assistant chat request failed")
