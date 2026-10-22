@@ -6,8 +6,8 @@ provider for HealthCentral's local-first, privacy-first architecture.
 
 Design notes:
 - llama_cpp import is lazy/optional so unit tests run without the native lib.
-- Chat formatting defers to llama.cpp's built-in chat template (read from GGUF
-  metadata) so Gemma 4 templates work automatically.
+- Chat formatting defers to llama.cpp's built-in chat_format / chat_handler
+  (auto-detected from GGUF metadata) so Gemma 4 templates work automatically.
 - generate() preserves the exact timeout / thread-pool behaviour of the old
   ModelRunner so existing call-sites are unaffected.
 - Python 3.10-compatible: no 3.11+ syntax.
@@ -198,7 +198,7 @@ class LlamaCppProvider:
     @staticmethod
     def _messages_to_prompt(messages: List[ChatMessage]) -> str:
         """
-        Fallback prompt formatter used only when the llama.cpp chat template is
+        Fallback prompt formatter used only when llama.cpp chat_format is
         unavailable (e.g. model loaded without metadata).
 
         Prefers llama.cpp's built-in chat handler; this method is the last
