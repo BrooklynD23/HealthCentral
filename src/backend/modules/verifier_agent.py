@@ -326,15 +326,25 @@ class VerifierAgent:
                 confidence=0.0,
                 explanation="NLI model not installed; claim left unverified",
             )
-        scores = encoder.predict([(source.source_text, claim)], apply_softmax=True)[0]
-        best = max(range(len(scores)), key=lambda i: scores[i])
-        label = EntailmentLabel(str(encoder.config.id2label[best]).lower())
-        return EntailmentResult(
-            source_id=source.source_id,
-            label=label,
-            confidence=float(scores[best]),
-            explanation=f"NLI cross-encoder: {label.value}",
-        )
+        try:
+            scores = encoder.predict([(source.source_text, claim)], apply_softmax=True)[0]
+            best = max(range(len(scores)), key=lambda i: scores[i])
+            label = EntailmentLabel(str(encoder.config.id2label[best]).lower())
+            return EntailmentResult(
+                source_id=source.source_id,
+                label=label,
+                confidence=float(scores[best]),
+                explanation=f"NLI cross-encoder: {label.value}",
+            )
+        except Exception as exc:
+            # Class name only: a library error can quote the claim or source text.
+            logging.getLogger(__name__).warning("NLI check failed (%s); claim left unverified", type(exc).__name__)
+            return EntailmentResult(
+                source_id=source.source_id,
+                label=EntailmentLabel.NEUTRAL,
+                confidence=0.0,
+                explanation="NLI check failed; claim left unverified",
+            )
 
     def _extract_values(self, text: str) -> list[str]:
         """Extract numeric values with units from text."""

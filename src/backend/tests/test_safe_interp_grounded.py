@@ -344,6 +344,84 @@ async def test_hc_sie_001_blocked_grounded_interpretation_is_persisted_template(
 
 
 # ---------------------------------------------------------------------------
+# HC-GC5-015 (GC5-PREDICT-FAILCLOSED): a failing NLI predict through the real
+# verification pipeline leaves claims unverified (201, is_valid false), not 503/500.
+# ---------------------------------------------------------------------------
+
+_GLUCOSE_ANSWER = (
+    "REPORT FACTS:\nYour glucose was 95 mg/dL [cite:1].\n\n"
+    "GENERAL INFO:\nNormal fasting glucose is typically 70-100 mg/dL [cite:2]."
+)
+
+
+class _GlucoseEncoder:
+    def __init__(self, scores=None, exc=None):
+        self._scores, self._exc = scores, exc
+        self.config = type("Cfg", (), {"id2label": {0: "contradiction", 1: "entailment", 2: "neutral"}})()
+
+    def predict(self, pairs, apply_softmax=False):
+        if self._exc is not None:
+            raise self._exc
+        return [self._scores for _ in pairs]
+
+
+def _real_verifying_rag(flag: bool):
+    from modules.rag import RAGModule
+    from modules.verifier_agent import VerificationConfig
+    from tests.legacy_eval.harness import build_chunks
+
+    with patch("modules.rag.get_model_runner") as runner, patch("modules.rag.EmbeddingsModule"):
+        runner.return_value = MagicMock(is_available=MagicMock(return_value=True))
+        rag = RAGModule(
+            enable_verification=True,
+            verification_config=VerificationConfig(use_llm_entailment=flag),
+        )
+    rag.retrieve_context = AsyncMock(return_value=build_chunks("glucose"))
+    rag._generate_with_runner = AsyncMock(return_value=_GLUCOSE_ANSWER)
+    return rag  # _run_verification_pipeline stays real
+
+
+async def _glucose_obs(profile_db) -> str:
+    obs = Observation(
+        id=str(uuid.uuid4()), profile_id=PROFILE_ID, doc_id=str(uuid.uuid4()),
+        analyte_canonical="glucose", analyte_raw="Glucose", value=95.0,
+        unit="mg/dL", ref_low=70.0, ref_high=100.0, collected_at=COLLECTED,
+    )
+    profile_db.add(obs)
+    await profile_db.commit()
+    return obs.id
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "encoder",
+    [
+        _GlucoseEncoder(exc=RuntimeError("boom")),
+        _GlucoseEncoder(scores=[0.1, 0.1, 0.1, 0.7]),  # index 3 has no label
+    ],
+    ids=["predict-raises", "unmapped-index"],
+)
+async def test_hc_gc5_015_predict_failure_leaves_claims_unverified(dbs, monkeypatch, encoder):
+    profile_db, master_db, _ = dbs
+    obs_id = await _glucose_obs(profile_db)
+    url = f"/interpretations/observations/{obs_id}/interpret-grounded"
+
+    # Precondition (non-vacuous): flag off, the rules verify both claims.
+    with patch.object(I, "get_rag_module", return_value=_real_verifying_rag(False)):
+        off = _call(profile_db, master_db, "POST", url)
+    assert off.status_code == 201, off.text
+    assert off.json()["verification"]["verified_claims"] == 2
+
+    monkeypatch.setattr("modules.embeddings.load_local_cross_encoder", lambda: encoder)
+    with patch.object(I, "get_rag_module", return_value=_real_verifying_rag(True)):
+        on = _call(profile_db, master_db, "POST", url)
+    assert on.status_code == 201, on.text
+    body = on.json()
+    assert body["is_valid"] is False
+    assert body["verification"]["verified_claims"] == 0
+
+
+# ---------------------------------------------------------------------------
 # HC-FSC-004 (GC5-FAITH-SCORE): the served verification block cannot report a
 # faithfulness_score above the share of claims verified. The real
 # _run_verification_pipeline runs; only retrieval and generation are stubbed.
