@@ -1068,9 +1068,10 @@ async def chat(
             except Exception:
                 await profile_db.rollback()
         return fallback
-    except Exception:
-        logger.exception(
-            "Assistant chat request failed",
+    except Exception as exc:
+        logger.error(
+            "Assistant chat request failed: %s",
+            type(exc).__name__,
             extra={"profile_id": session.profile_id},
         )
         raise HTTPException(
