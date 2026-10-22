@@ -434,7 +434,7 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
     <div class="card"><h4 data-exempt="navigation">Constitutional limits</h4><ul class="tight">
       <li data-ledger="C4">Education only — a prohibited-pattern suite blocks diagnosis and dosing language (tested; no test can prove "never").</li>
       <li data-ledger="C4"><code>interpret_safety</code> prohibited-pattern suite must keep passing</li>
-      <li data-ledger="C14 C28">Agent path abstains when it cannot ground an answer. The legacy path replaces a failed validation with the same abstention template (W-4).</li>
+      <li data-ledger="C14 C28">Agent path abstains when it cannot ground an answer. The legacy path replaces a failed validation with the same abstention template (W-4, merged #72 2026-10-16).</li>
       <li data-ledger="H3">74 golden cases run in CI (agent path only). Whether the check is merge-required is not recorded in the repo.</li></ul></div>
     <div class="card"><h4 data-ledger="H3">Scored on 6 axes</h4><ul class="tight">
       <li data-ledger="H3">groundedness, citation accuracy, abstention correctness, injection resistance = 1.0; advice leakage, PHI leakage = 0</li>
@@ -562,15 +562,15 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
   <div class="card" style="padding:0;overflow-x:auto"><table id="findings">
     <tr><th>Finding</th><th>Severity</th><th>Detail</th><th>Where</th></tr>
     <tr data-s="p1" data-ledger="H4" data-kind="finding"><td>Security gate failed open</td><td><span class="sev p1">P1</span></td><td><span data-ledger="H19" data-kind="current">Fixed in P1; exit 2 on a missing report (measured 2026-10-22).</span></td><td class="file">scripts/security_gate.py + ci.yml</td></tr>
-    <tr data-s="p1" data-ledger="C7" data-kind="finding"><td>Notification scheduler had no production caller</td><td><span class="sev p1">P1</span></td><td>No production caller on main@40f590e. <span data-ledger="C31" data-kind="current">Since P2 (#31) the lifespan starts a session-scoped scheduler (code read, <code>main.py:82-83</code>); reminders were not exercised in this pass.</span></td><td class="file">main.py lifespan</td></tr>
+    <tr data-s="p1" data-ledger="C7" data-kind="finding"><td>Notification scheduler had no production caller</td><td><span class="sev p1">P1</span></td><td>No production caller on main@40f590e. <span data-ledger="C31" data-kind="current">Since P2 (merged #31 2026-10-02) the lifespan starts a session-scoped scheduler (code read, <code>main.py:82-83</code>); reminders were not exercised in this pass.</span></td><td class="file">main.py lifespan</td></tr>
     <tr data-s="p1" data-ledger="C11" data-kind="finding"><td>In-memory export stores</td><td><span class="sev p1">P1</span></td><td>Artifact dicts live in module memory — downloads 404 after restart; pinboards imports private _packet_store.</td><td class="file">api/export.py, api/pinboards.py</td></tr>
-    <tr data-s="p1" data-ledger="H9" data-kind="finding"><td>datetime.utcnow() systemic breach</td><td><span class="sev p1">P1</span></td><td>On 2026-09-27: 101 product lines (109 references) in 30 files. <span data-ledger="H21" data-kind="current">Measured 2026-10-20 after P5 (#54): <code>git grep -n 'datetime\.utcnow' -- src/backend ':!src/backend/tests'</code> → 0 lines.</span></td><td class="file">src/backend (non-test)</td></tr>
-    <tr data-s="p1" data-ledger="C15" data-kind="finding"><td>SQL echo of bound values (default dev config)</td><td><span class="sev p1">P1</span></td><td>Fixed by S-1 (#29): <code>sql_echo</code> defaults to False, separate from DEBUG. Leaked values seen in the probe are reported, not packaged.</td><td class="file">core/config.py, core/database.py</td></tr>
-    <tr data-s="p2" data-ledger="C12" data-kind="finding"><td>Implicit embedding download</td><td><span class="sev p2">P2</span></td><td>Fixed by W-8 (#168): the model loads from a local directory with <code>local_files_only=True</code> and fails closed; it is fetched only by <code>scripts/download_models.py embedding</code>.</td><td class="file">modules/embeddings.py</td></tr>
-    <tr data-s="p2" data-ledger="C28" data-kind="finding"><td>Legacy path served failed validations</td><td><span class="sev p2">P2</span></td><td>Fixed by W-4 (#72): a failed legacy validation is replaced by the abstention template.</td><td class="file">api/assistant.py</td></tr>
+    <tr data-s="p1" data-ledger="H9" data-kind="finding"><td>datetime.utcnow() systemic breach</td><td><span class="sev p1">P1</span></td><td>On 2026-09-27: 101 product lines (109 references) in 30 files. <span data-ledger="H21" data-kind="current">Measured 2026-10-20 after P5 (merged #54 2026-10-09): <code>git grep -n 'datetime\.utcnow' -- src/backend ':!src/backend/tests'</code> → 0 lines.</span></td><td class="file">src/backend (non-test)</td></tr>
+    <tr data-s="p1" data-ledger="C15" data-kind="finding"><td>SQL echo of bound values (default dev config)</td><td><span class="sev p1">P1</span></td><td>Fixed by S-1 (merged #29 2026-10-01): <code>sql_echo</code> defaults to False, separate from DEBUG. Leaked values seen in the probe are reported, not packaged.</td><td class="file">core/config.py, core/database.py</td></tr>
+    <tr data-s="p2" data-ledger="C12" data-kind="finding"><td>Implicit embedding download</td><td><span class="sev p2">P2</span></td><td>Fixed by W-8 (merged #168 2026-10-18): the model loads from a local directory with <code>local_files_only=True</code> and fails closed; it is fetched only by <code>scripts/download_models.py embedding</code>.</td><td class="file">modules/embeddings.py</td></tr>
+    <tr data-s="p2" data-ledger="C28" data-kind="finding"><td>Legacy path served failed validations</td><td><span class="sev p2">P2</span></td><td>Fixed by W-4 (merged #72 2026-10-16): a failed legacy validation is replaced by the abstention template.</td><td class="file">api/assistant.py</td></tr>
     <tr data-s="p2" data-ledger="C18 C17" data-kind="finding"><td>Master DB holds names and hashes; backups carry a plaintext master copy</td><td><span class="sev p2">P2</span></td><td>The master database is plain SQLite and holds profile display names, password hashes and audit rows. Each backup archive includes a plaintext master copy reduced to that profile.</td><td class="file">core/config.py, models/profile.py, scripts/backup.py</td></tr>
     <tr data-s="p2" data-ledger="C16" data-kind="finding"><td>Vaults are plain SQLite where SQLCipher is missing</td><td><span class="sev p2">P2</span></td><td>On a Windows dev install where sqlcipher3-binary will not install, dev.ps1 falls back to unencrypted vaults.</td><td class="file">dev.ps1</td></tr>
-    <tr data-s="p2" data-ledger="H10 M9" data-kind="finding"><td>FK cascades inert</td><td><span class="sev p2">P2</span></td><td>PRAGMA foreign_keys is set nowhere in product code (<code>api/profiles.py:940</code> is a comment). P6 (#113) added a report-only orphan audit, not enforcement.</td><td class="file">api/profiles.py, core/fk_audit.py</td></tr>
+    <tr data-s="p2" data-ledger="H10 M9" data-kind="finding"><td>FK cascades inert</td><td><span class="sev p2">P2</span></td><td>PRAGMA foreign_keys is set nowhere in product code (<code>api/profiles.py:940</code> is a comment). P6 (merged #113 2026-10-16) added a report-only orphan audit, not enforcement.</td><td class="file">api/profiles.py, core/fk_audit.py</td></tr>
     <tr data-s="p2" data-ledger="C20" data-kind="finding"><td>Unredacted source_quote</td><td><span class="sev p2">P2</span></td><td>POST /export/questions returns source_quote unredacted.</td><td class="file">api/export.py</td></tr>
     <tr data-s="p2" data-ledger="C22" data-kind="finding"><td>consistency_score = 1.0</td><td><span class="sev p2">P2</span></td><td>consistency_score is a fixed 1.0 placeholder. An NLI replacement (HC-M11) is approved only behind a default-off flag; changing production scoring is owner-gated.</td><td class="file">modules/faithfulness</td></tr>
     <tr data-s="p3" data-ledger="H15" data-kind="finding"><td>Stale docstrings and hygiene items</td><td><span class="sev p3">P3</span></td><td>Resolved: docstrings corrected (fd3f287) and the duplicate download_models.py removed. Unbounded audit retention remains (owner-gated, P8).</td><td class="file">modules/, api/, scripts/</td></tr>
@@ -580,19 +580,19 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
   <div class="card" style="padding:0;overflow-x:auto"><table>
     <tr><th>Item</th><th>Plan scope (as proposed)</th><th>Status</th></tr>
     <tr data-ledger="M9"><td>P1</td><td>Merge both repair branches (fail-closed gate, recovery UI)</td><td>merged: B #21 (2026-09-29), A #24 (2026-10-01)</td></tr>
-    <tr data-ledger="M9"><td>P2</td><td>Notification scheduler</td><td>merged #31</td></tr>
-    <tr data-ledger="M9"><td>S-1</td><td>SQL echo PHI leak</td><td>merged #29</td></tr>
-    <tr data-ledger="M9"><td>W-1</td><td>Commit the five named subagents (D1)</td><td>merged #35</td></tr>
-    <tr data-ledger="M9"><td>W-2</td><td>Strict redaction of the doctor summary</td><td>merged #106</td></tr>
-    <tr data-ledger="M9"><td>W-3</td><td>Plan scope: verified-only legacy RAG, labelled trend points</td><td>merged #136</td></tr>
-    <tr data-ledger="M9"><td>W-4</td><td>Legacy RAG abstains on invalid answers</td><td>merged #72</td></tr>
-    <tr data-ledger="M9"><td>W-5</td><td>Citation-marker prompt</td><td>merged #34</td></tr>
-    <tr data-ledger="M9"><td>W-6</td><td>External runner hardening</td><td>merged #32</td></tr>
-    <tr data-ledger="M9"><td>W-8</td><td>Bundled embedding model, offline load</td><td>merged #168</td></tr>
-    <tr data-ledger="M9"><td>W-10</td><td>Governance invariant amendments</td><td>merged #53</td></tr>
-    <tr data-ledger="M9"><td>W-11a</td><td>Test and gate hardening</td><td>PR-4 merged #39; other parts not checked here</td></tr>
-    <tr data-ledger="M9"><td>P5</td><td>utcnow migration</td><td>merged #54</td></tr>
-    <tr data-ledger="M9"><td>P6</td><td>FK enforcement</td><td>report-only orphan audit merged #113; enforcement not enabled</td></tr>
+    <tr data-ledger="M9"><td>P2</td><td>Notification scheduler</td><td>merged #31 (2026-10-02)</td></tr>
+    <tr data-ledger="M9"><td>S-1</td><td>SQL echo PHI leak</td><td>merged #29 (2026-10-01)</td></tr>
+    <tr data-ledger="M9"><td>W-1</td><td>Commit the five named subagents (D1)</td><td>merged #35 (2026-10-02)</td></tr>
+    <tr data-ledger="M9"><td>W-2</td><td>Strict redaction of the doctor summary</td><td>merged #106 (2026-10-16)</td></tr>
+    <tr data-ledger="M9"><td>W-3</td><td>Plan scope: verified-only legacy RAG, labelled trend points</td><td>merged #136 (2026-10-17)</td></tr>
+    <tr data-ledger="M9"><td>W-4</td><td>Legacy RAG abstains on invalid answers</td><td>merged #72 (2026-10-16)</td></tr>
+    <tr data-ledger="M9"><td>W-5</td><td>Citation-marker prompt</td><td>merged #34 (2026-10-02)</td></tr>
+    <tr data-ledger="M9"><td>W-6</td><td>External runner hardening</td><td>merged #32 (2026-10-01)</td></tr>
+    <tr data-ledger="M9"><td>W-8</td><td>Bundled embedding model, offline load</td><td>merged #168 (2026-10-18)</td></tr>
+    <tr data-ledger="M9"><td>W-10</td><td>Governance invariant amendments</td><td>merged #53 (2026-10-08)</td></tr>
+    <tr data-ledger="M9"><td>W-11a</td><td>Test and gate hardening</td><td>PR-4 merged #39 (2026-10-06); other parts not checked here</td></tr>
+    <tr data-ledger="M9"><td>P5</td><td>utcnow migration</td><td>merged #54 (2026-10-09)</td></tr>
+    <tr data-ledger="M9"><td>P6</td><td>FK enforcement</td><td>report-only orphan audit merged #113 (2026-10-16); enforcement not enabled</td></tr>
     <tr data-ledger="M9"><td>W-7</td><td>Tiered interpretation through ModelRunner</td><td>proposed — not merged</td></tr>
     <tr data-ledger="M9"><td>W-11b</td><td>Roadmap items G-C1…G-C4</td><td>proposed — not merged</td></tr>
   </table></div>
@@ -635,7 +635,7 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
 
 <footer>
   Asclexis · CS4610 Senior Project · Danny Tran<br>
-  Claim-freeze build: figures measured 2026-10-22 at a16dd51. Owner sign-off O-6 is not given.<br>
+  Claim-freeze build: figures measured 2026-10-22 at a16dd51. Owner sign-off O-6 is recorded in the showcase plan (§13, §15) and in owner-decisions, not on this page.<br>
   Claims map to docs/capstone-report/claims-ledger.md · figures are as of the measurement ref a16dd51 · supersedes the 2026-09-25 showcase (kept unchanged in audit/2026-09-25/)<br>
   <span class="print-note">Single self-contained file · no external requests · safe to embed in the report appendix</span>
 </footer>
