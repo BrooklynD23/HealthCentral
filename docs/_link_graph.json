@@ -38,6 +38,7 @@
       "docs/plans/2026-10-21b-session-handoff.md",
       "docs/plans/2026-10-21c-session-handoff.md",
       "docs/research/2026-10-12/05-mvp-roadmap-tests.md",
+      "README.md",
       "CLAUDE.md"
     ],
     "CLAUDE.md": [
@@ -67,10 +68,12 @@
       "docs/research/2026-10-17-rsi-opt-in-data/00-README.md",
       "docs/research/2026-10-20-rrsi-harness2/01-harness2.md",
       "docs/research/2026-10-22-mvp/00-README.md",
+      "README.md",
       "AGENT.md"
     ],
     "CONTRIBUTING.md": [
-      "docs/roles/devops-and-ci.md"
+      "docs/roles/devops-and-ci.md",
+      "README.md"
     ],
     "SECURITY.md": [
       "docs/roles/security-and-compliance.md"
@@ -220,6 +223,9 @@
     "audit/2026-09-25/waves/wave-4.md": [
       "docs/capstone-report/implementation-program.md"
     ],
+    "config/.env.example": [
+      "README.md"
+    ],
     "docs/00_architecture_plans_index.md": [
       "docs/architecture/README.md",
       "docs/archive/plans/2026-07-02-consolidated-findings-report.md",
@@ -242,12 +248,10 @@
     "docs/04_local_models_inference_plan.md": [
       "docs/roles/ai-llm-pipeline-and-safety.md"
     ],
-    "docs/05_backend_integration_status.md": [
-      "README.md"
-    ],
     "docs/INDEX.md": [
       "docs/agentic/harness.md",
-      "docs/roles/00_roles_index.md"
+      "docs/roles/00_roles_index.md",
+      "README.md"
     ],
     "docs/Local_First_Medical_Results_Companion_PRD_v0_1.md": [
       "docs/roles/product-and-prd.md"
@@ -276,7 +280,8 @@
     "docs/agentic/orchestration.md": [
       "docs/capstone-report/implementation-program.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
-      "docs/reviews/README.md"
+      "docs/reviews/README.md",
+      "README.md"
     ],
     "docs/agentic/progress.md": [
       "docs/agentic/harness.md",
@@ -302,6 +307,7 @@
       "docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md",
       "docs/research/2026-09-08/PLAN.md",
       "docs/research/2026-09-08/STATUS.md",
+      "README.md",
       "AGENT.md",
       "CLAUDE.md"
     ],
@@ -318,15 +324,9 @@
       "docs/roles/product-and-prd.md",
       "README.md"
     ],
-    "docs/agile/GROUNDING.md": [
-      "README.md"
-    ],
     "docs/agile/RELEASE_CHECKLIST.md": [
       "docs/prd/PRD_agent_overhaul.md",
       "docs/roles/devops-and-ci.md",
-      "README.md"
-    ],
-    "docs/agile/sprints/SPRINT_7.md": [
       "README.md"
     ],
     "docs/api/README.md": [
@@ -382,53 +382,27 @@
     ],
     "docs/architecture/pipelines.md": [
       "docs/00_architecture_plans_index.md",
-      "docs/architecture/README.md"
+      "docs/architecture/README.md",
+      "README.md"
     ],
     "docs/archive/README.md": [
-      "docs/00_architecture_plans_index.md"
-    ],
-    "docs/archive/agile-sprints/SPRINT_0.md": [
-      "README.md"
-    ],
-    "docs/archive/agile-sprints/SPRINT_1.md": [
-      "README.md"
-    ],
-    "docs/archive/agile-sprints/SPRINT_2.md": [
-      "README.md"
-    ],
-    "docs/archive/agile-sprints/SPRINT_3.md": [
-      "README.md"
-    ],
-    "docs/archive/agile-sprints/SPRINT_4.md": [
-      "README.md"
-    ],
-    "docs/archive/agile-sprints/SPRINT_5.md": [
-      "README.md"
-    ],
-    "docs/archive/agile-sprints/SPRINT_6.md": [
+      "docs/00_architecture_plans_index.md",
       "README.md"
     ],
     "docs/archive/agile/EXPLORATION_SUMMARY.md": [
-      "docs/agile/GROUNDING.md",
-      "README.md"
+      "docs/agile/GROUNDING.md"
     ],
     "docs/archive/agile/RECONCILIATION.md": [
       "docs/agile/GROUNDING.md",
       "docs/archive/agile/EXPLORATION_SUMMARY.md",
       "docs/archive/agile-sprints/SPRINT_0.md",
-      "docs/archive/prd-phases/PHASE_0_foundation.md",
-      "README.md"
+      "docs/archive/prd-phases/PHASE_0_foundation.md"
     ],
     "docs/archive/agile/RETRO.md": [
-      "docs/archive/agile-sprints/SPRINT_0.md",
-      "README.md"
+      "docs/archive/agile-sprints/SPRINT_0.md"
     ],
     "docs/archive/agile/STANDUP.md": [
-      "docs/archive/agile-sprints/SPRINT_0.md",
-      "README.md"
-    ],
-    "docs/archive/agile/audience_expectations_main_vs_branch.md": [
-      "README.md"
+      "docs/archive/agile-sprints/SPRINT_0.md"
     ],
     "docs/archive/plans/2026-02-15-sprint-06-handoff-prompt.md": [
       "docs/00_architecture_plans_index.md"
@@ -465,32 +439,25 @@
       "docs/roles/ai-llm-pipeline-and-safety.md"
     ],
     "docs/archive/prd-phases/PHASE_0_foundation.md": [
-      "docs/archive/agile-sprints/SPRINT_0.md",
-      "README.md"
+      "docs/archive/agile-sprints/SPRINT_0.md"
     ],
     "docs/archive/prd-phases/PHASE_1_first_tool.md": [
-      "docs/archive/agile-sprints/SPRINT_1.md",
-      "README.md"
+      "docs/archive/agile-sprints/SPRINT_1.md"
     ],
     "docs/archive/prd-phases/PHASE_2_loop.md": [
-      "docs/archive/agile-sprints/SPRINT_2.md",
-      "README.md"
+      "docs/archive/agile-sprints/SPRINT_2.md"
     ],
     "docs/archive/prd-phases/PHASE_3_guardrails.md": [
-      "docs/archive/agile-sprints/SPRINT_3.md",
-      "README.md"
+      "docs/archive/agile-sprints/SPRINT_3.md"
     ],
     "docs/archive/prd-phases/PHASE_4_phi_gate.md": [
-      "docs/archive/agile-sprints/SPRINT_4.md",
-      "README.md"
+      "docs/archive/agile-sprints/SPRINT_4.md"
     ],
     "docs/archive/prd-phases/PHASE_5_cutover_cache.md": [
-      "docs/archive/agile-sprints/SPRINT_5.md",
-      "README.md"
+      "docs/archive/agile-sprints/SPRINT_5.md"
     ],
     "docs/archive/prd-phases/PHASE_6_evals_ci.md": [
-      "docs/archive/agile-sprints/SPRINT_6.md",
-      "README.md"
+      "docs/archive/agile-sprints/SPRINT_6.md"
     ],
     "docs/brand/brand-guidelines.md": [
       "docs/agentic/progress.md"
@@ -694,7 +661,8 @@
       "docs/plans/2026-09-27-senior-report-showcase-plan.md"
     ],
     "docs/compliance/README.md": [
-      "docs/agentic/roadmap.md"
+      "docs/agentic/roadmap.md",
+      "README.md"
     ],
     "docs/compliance/advisories.md": [
       "docs/compliance/README.md"
@@ -1079,7 +1047,8 @@
       "docs/plans/2026-10-21-session-handoff.md",
       "docs/plans/2026-10-21b-session-handoff.md",
       "docs/plans/2026-10-21c-session-handoff.md",
-      "docs/reviews/2026-10-15/build-program-codex.md"
+      "docs/reviews/2026-10-15/build-program-codex.md",
+      "README.md"
     ],
     "docs/plans/2026-10-15-build-program/contracts.md": [
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
@@ -1124,7 +1093,8 @@
       "docs/plans/2026-10-17-rsi-track2-eval-harness-plan.md",
       "docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md",
       "docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md",
-      "docs/reviews/2026-10-15/build-program-codex.md"
+      "docs/reviews/2026-10-15/build-program-codex.md",
+      "README.md"
     ],
     "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md": [
       "docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md",
@@ -1215,8 +1185,7 @@
       "README.md"
     ],
     "docs/prd/phases/PHASE_7_lora_stretch.md": [
-      "docs/agile/sprints/SPRINT_7.md",
-      "README.md"
+      "docs/agile/sprints/SPRINT_7.md"
     ],
     "docs/research/2026-09-08/00-brief.md": [
       "docs/agentic/roadmap.md",
@@ -2210,6 +2179,7 @@
     ],
     "docs/roles/00_roles_index.md": [
       "docs/00_architecture_plans_index.md",
+      "README.md",
       "AGENT.md"
     ],
     "docs/roles/ai-llm-pipeline-and-safety.md": [
@@ -2426,54 +2396,44 @@
       "docs/agentic/recurring-failures.md"
     ],
     "README.md": [
+      "docs/compliance/README.md",
       "docs/architecture/README.md",
       "docs/architecture/performance-scalability-review.md",
-      "docs/api/endpoints.md",
-      "docs/05_backend_integration_status.md",
+      "docs/architecture/pipelines.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/agentic/orchestration.md",
+      "CLAUDE.md",
+      "AGENT.md",
       "docs/01_backend_architecture_plan.md",
       "docs/roles/backend-api.md",
+      "docs/INDEX.md",
+      "config/.env.example",
+      "CONTRIBUTING.md",
       "src/frontend/e2e/BROWSER_MCP_PLAYBOOK.md",
       "src/frontend/e2e/ui-full-verification.spec.ts",
+      "docs/api/endpoints.md",
       "docs/user/getting-started.md",
       "docs/user/workflows.md",
       "docs/user/troubleshooting.md",
       "docs/user/faq.md",
       "docs/api/README.md",
+      "docs/roles/00_roles_index.md",
       "docs/00_architecture_plans_index.md",
+      "docs/agentic/recurring-failures.md",
       "docs/compliance/hipaa-controls.md",
       "docs/compliance/data-privacy.md",
       "docs/compliance/disaster-recovery.md",
       "docs/compliance/audit-checklist.md",
       "docs/prd/PRD_agent_overhaul.md",
       "docs/agile/AGILE_PLAN.md",
-      "docs/archive/agile/STANDUP.md",
-      "docs/archive/agile/RETRO.md",
       "docs/agile/RELEASE_CHECKLIST.md",
-      "docs/agile/GROUNDING.md",
-      "docs/archive/agile/EXPLORATION_SUMMARY.md",
-      "docs/archive/agile/RECONCILIATION.md",
-      "docs/archive/agile/audience_expectations_main_vs_branch.md",
+      "docs/archive/README.md",
       "skills/asclexis-agent/SKILL.md",
-      "docs/archive/prd-phases/PHASE_0_foundation.md",
-      "docs/archive/prd-phases/PHASE_1_first_tool.md",
-      "docs/archive/prd-phases/PHASE_2_loop.md",
-      "docs/archive/agile-sprints/SPRINT_0.md",
-      "docs/archive/agile-sprints/SPRINT_1.md",
-      "docs/archive/agile-sprints/SPRINT_2.md",
       "skills/asclexis-guardrails/SKILL.md",
-      "docs/archive/prd-phases/PHASE_3_guardrails.md",
-      "docs/archive/prd-phases/PHASE_4_phi_gate.md",
-      "docs/archive/agile-sprints/SPRINT_3.md",
-      "docs/archive/agile-sprints/SPRINT_4.md",
       "skills/asclexis-backend/SKILL.md",
-      "docs/archive/prd-phases/PHASE_5_cutover_cache.md",
-      "docs/archive/agile-sprints/SPRINT_5.md",
       "skills/asclexis-evals/SKILL.md",
-      "docs/archive/prd-phases/PHASE_6_evals_ci.md",
-      "docs/archive/agile-sprints/SPRINT_6.md",
-      "docs/prd/phases/PHASE_7_lora_stretch.md",
-      "docs/agile/sprints/SPRINT_7.md",
-      "docs/features/TASK_LIST.md"
+      "docs/features/TASK_LIST.md",
+      "docs/plans/2026-10-15-build-program/queue.md"
     ],
     "docs/00_architecture_plans_index.md": [
       "docs/features/TASK_LIST.md",

@@ -5,18 +5,21 @@ when new verified data lands — a stale cached explanation of changed data is
 a correctness bug, so the cache is NEVER consulted without the profile
 version (skills/asclexis-backend). ``profile_version`` changes whenever the
 evidence the agent can ground an answer in changes (PRD §10 Q4). It is a
-fingerprint built by ``api/assistant.py::_profile_version`` over the verified
-observations AND verified documents for the profile — each as a count paired
-with the latest ``verified_at``. A COUNT alone was not sufficient: counts
-decrease on delete, so a delete followed by a different verify returned the
-key to a value the cache had already seen and served a stale answer for data
-that no longer existed (HC-CACHE-VER-001). A version change is the
+fingerprint built by ``api/assistant.py::_profile_version`` over everything
+the agent's tools read: verified observations (``o:``), verified documents
+(``d:``), care tasks (``t:``), verified medication changes (``m:``), all
+observations (``a:``), timeline document events (``e:``) and medications
+(``r:``). Most parts are a count paired with a latest timestamp; ``m:`` and
+``e:`` hash the columns the tools read. A COUNT alone was not sufficient:
+counts decrease on delete, so a delete followed by a different verify returned
+the key to a value the cache had already seen and served a stale answer for
+data that no longer existed (HC-CACHE-VER-001). A version change is the
 invalidation; there is no separate eviction/TTL mechanism to keep correct.
 
 ``profile_id`` is required for the same reason: without it, two profiles that
 happen to share a ``profile_version`` fingerprint (for example two empty
-profiles, both ``"o:0:|d:0:"``) collide on the same key and the cache serves
-one profile's answer to another (HC-CACHE-ISO-001/002, S-CACHE).
+profiles, both ``"o:0:|d:0:|t:0:|m:0:|a:0:|e:0:|r:0:"``) collide on the same
+key and the cache serves one profile's answer to another (HC-CACHE-ISO-001/002, S-CACHE).
 
 ``tz_name`` is required too: answers print local dates, so the same question
 under a different profile time zone must not replay the old zone's text.
