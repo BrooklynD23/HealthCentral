@@ -954,6 +954,34 @@ No change to `ci.yml`, to branch protection, or to any other doc.
 **Files:** `docs/architecture/ci-and-quality-gates.md`, `docs/INDEX.md`, `docs/_link_graph.json` (regenerated). No slots.
 **Est:** 0.5 h. **Owner gates:** none for this row (it reports branch protection, it does not change it). **Owner action, not blocking (RSI-REPLAY-REQUIRED, not asked):** whether `RSI Replay` should become a required check is the owner's call in the repository settings; L0 may mention it when #259 is merged. **Order:** waits on RRSI-CI-REPLAY merged (#259, open, owner merges): the row documents that job. If branch protection changes before the build, the builder writes the measured list, not this plan's. No open PR touches `docs/architecture/ci-and-quality-gates.md` on `b9d285e`. Not an RSI row; AUTO-MERGE (`owner-decisions-2026-09-27.md:206`) applies.
 
+### Follow-ups planned 2026-10-22 (planned 2026-10-22 on `origin/main` @ `c97192d`)
+
+### 2.30 QUEUE-E6-W1 — row E-6 names an owner gate that was answered on 2026-10-17
+
+**Source:** queue bullet QUEUE-E6-W1 (found 2026-10-21): "row E-6 says 'blocked: owner W1-SMOKE-RUN', but `owner-decisions-2026-09-27.md` records W1-SMOKE-RUN answered 2026-10-17. Reconcile the two; do not change E-6's status until then."
+
+**Facts (`c97192d`):**
+1. The owner row, verbatim (`docs/capstone-report/owner-decisions-2026-09-27.md:240`):
+   > `| W1-SMOKE-RUN | "W-1 Task 7 smoke run of /agents: who runs it?" (answered 2026-10-17, L0 AskUserQuestion) | **An agent runs it (Recommended)** | "A fresh-session agent in a smoke worktree runs Task 7 and posts the output for you to review." | yes |`
+2. Row E-6, verbatim (`docs/plans/2026-10-15-build-program/queue.md:445`):
+   > `| E-6 | E | W-1 `/agents` runtime smoke | F-10 only for the optional test edit | W1-SMOKE-RUN | `docs/agentic/harness.md` claim; optional `be/tests/test_claude_agent_definitions.py` fix | claude | blocked: owner W1-SMOKE-RUN |`
+3. Other places that still treat W1-SMOKE-RUN as open: this lane's item table, E-6 "blocked-on-owner" (`:24`); §2.6 "Who": "Owner gate W1-SMOKE-RUN picks which; default: owner, as the plan says." (`:165`); §5 gates row "W1-SMOKE-RUN (new) | E-6 | unasked; default owner runs W-1 Task 7" (`:989`); §6 Q-E5 (`:1015`); the queue "later" owner-question row lists `W1-SMOKE-RUN` without a strike (`queue.md:478`). Line numbers are at `c97192d`. This plan PR adds lines above some of them (lane E §5 becomes `:1017`, Q-E5 `:1043`), so the edit below names rows by id or content.
+4. The answer does **not** by itself make E-6 runnable by a build-item agent. W-1 Task 7 Step 2 is interactive: "Run `cd …/hc-w01-smoke && claude`, then `/agents`" (`docs/plans/2026-09-27-W01-harness-agents-branch-a.md:1074` onwards, Step 2). Its paths are the old machine's (`/mnt/c/Users/DangT/Documents/GitHub/…`). The handoffs record the leftover blocker: "E-6: W1-SMOKE-RUN says an agent runs it, but it needs an interactive `/agents` session." (`docs/plans/2026-10-20-session-handoff.md:53`); "E-6 (interactive `/agents`)" (`2026-10-20c-session-handoff.md:43`).
+5. Not evidence for Task 7: the planner's own Claude Code session lists the five project agents. That session was started from the main checkout, not from a phi-gated smoke worktree, so it does not count.
+
+**Ruling (planner):** the gate fact is unambiguous: W1-SMOKE-RUN is answered. The status is not, because "who runs it" is settled but "which session runs it" is not. So this is a **docs row**, not an edit made in the plan PR, and E-6 stays blocked.
+
+**Edit (docs only, exact):**
+1. `queue.md` row E-6: gates cell `W1-SMOKE-RUN` → `~~W1-SMOKE-RUN~~ (answered 2026-10-17: "An agent runs it", owner-decisions row W1-SMOKE-RUN)`. Status cell `blocked: owner W1-SMOKE-RUN` → `blocked: run not started; W-1 Task 7 Step 2 needs a fresh interactive Claude Code session (claude, then /agents) in a disposable phi-gated smoke worktree; W1-SMOKE-RUN answered 2026-10-17 (an agent runs it)`. The state stays **blocked**.
+2. `queue.md` "later" owner-question row (Owner questions table, last row): `W1-SMOKE-RUN` → `~~W1-SMOKE-RUN~~ (answered 2026-10-17: an agent runs it)`.
+3. This lane: `:24` status `blocked-on-owner` → `blocked: needs a fresh interactive session (§2.6)`. In `:165`, replace the last sentence with "W1-SMOKE-RUN answered 2026-10-17: an agent runs it, in a fresh session inside the smoke worktree, and posts the output for the owner to review (owner-decisions row W1-SMOKE-RUN)." The §5 gates row `W1-SMOKE-RUN (new)` → `answered 2026-10-17: an agent runs it`. §6 Q-E5 gets a strike and the same note.
+4. Add one line to §2.6: "Task 7's paths are the old machine's; the runner substitutes the current box's worktree paths and records them."
+
+**Files:** `docs/plans/2026-10-15-build-program/queue.md` (row E-6 and the W1-SMOKE-RUN entry of the "later" owner-question row only), `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md` (item table row E-6, §2.6, the §5 W1-SMOKE-RUN row and §6 Q-E5 only), `docs/INDEX.md`, `docs/_link_graph.json`. No product file. No count change.
+**Acceptance:** `python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py --link-graph`; `python3 scripts/docs_lint.py` clean; `git grep -n "blocked: owner W1-SMOKE-RUN" -- docs` prints nothing; `git grep -n "W1-SMOKE-RUN" -- docs/plans/2026-10-15-build-program` shows every hit struck or marked answered.
+**Owner gates:** none. W1-SMOKE-RUN is answered. **For L0 (not an owner gate):** who starts the fresh session: (a) the owner opens `claude` in the smoke worktree and lets the agent run Task 7 there, or (b) L0 runs a headless fresh session in the worktree. Under (b), Step 2's `/agents` evidence becomes whatever the headless session can show, which changes Task 7's evidence. If L0 wants (b), that is a W-1 plan change for the owner to see. It does not change this row.
+**Order:** ready (docs, no slot). The queue row and lane E are "own rows" files (contracts §b rule 4). Never beside another PR that edits row E-6 or lane E §2.6. Today no open PR touches `queue.md` or this lane (#264 edits `queue.md` B-3 rows and lane B only).
+
 ## 3. Provides
 
 1. **`ci.yml` merge order (lane E owns):** E-3 (W-11a PR-3) → #74 (E-4) → #72 (W-4) → W-8. E-3 and #72 may swap; the second lander merges main and re-checks the job list. Every other lane that touches `ci.yml` rebases onto this order and asks lane E first.
