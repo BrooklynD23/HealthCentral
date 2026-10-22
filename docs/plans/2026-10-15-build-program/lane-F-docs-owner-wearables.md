@@ -1,6 +1,6 @@
 # Lane F — Docs, Owner Queue, Wearables Consumer Map — Build Design
 
-**Last Updated:** 2026-10-21 (§2.15 FEATURE-LIST-LICENCE planned on `b902e0f`; #261 round 1: lint interpreter stated); 2026-10-19 (F-4 and F-9 rechecked after owner rows P8-B2, SHOW-FREEZE; status cells fixed); 2026-10-15
+**Last Updated:** 2026-10-22 (§2.16 FIT-DECODER-RESEARCH planned on `d2843e8` from OW-W7; new gate WEAR-FIT-LIC; §2.13 OW-W6…W13 states refreshed; OW-W13 answered); 2026-10-21 (§2.15 FEATURE-LIST-LICENCE planned on `b902e0f`; #261 round 1: lint interpreter stated); 2026-10-19 (F-4 and F-9 rechecked after owner rows P8-B2, SHOW-FREEZE; status cells fixed); 2026-10-15
 **Owner:** repository owner
 **Status:** DESIGN — nothing here is implemented. Owner answers are quoted from [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md); this file records no new approval. Every "default" or "recommended" is the lane designer's, not the owner's.
 **Refresh Trigger:** any merge of #72, #74, #84, #94, #68 or a W-2 / W-3 / W-7 / W-8 / P6 / P7 PR; an owner answer to any gate in §5; P8 Brief 2 signed; any commit to `docs/architecture/pipelines.md`, `docs/architecture/README.md`, `docs/architecture/backend.md`, `docs/compliance/data-privacy.md`, `docs/features/TASK_LIST.md`, `skills/asclexis-guardrails/SKILL.md` or `CS4610_Report_Demo/README.md`.
@@ -256,14 +256,14 @@ Source: `TASK_LIST.md:80-104` and wearables program 00 §10 (on #94). "Unblocks"
 | OW-W2 | Windows 200 MB perf smoke | R11 evidence for WEAR-04 | after WB |
 | OW-W4 | Windows vitest / Playwright for 07b, 08, 09b, 10, 13, 15b | M3, M4 exit | after each PR |
 | OW-W5 | answer D1–D8 | — | **done** (WEAR-D1…D8, `c53ba44`) |
-| OW-W6 | are OM-4/OM-5 still required? | M0 scope | open |
-| OW-W7 | FIT licence read → row `WEAR-FIT-LIC` | WEAR-11b | open |
-| OW-W8 | copy approval for 07b, 08, 15b, 09 journal strings | WEAR-07b, 08b, 15b, 09b-journal | open |
-| OW-W9 | names in free text: accept residual, or open an ask-first `modules/redaction.py` change | WEAR-09a-journal, 09b-journal (Task 0 STOP) | open; **ask-first if option 2** |
-| OW-W10 | journal entries in `GET /export/json`? | a follow-up plan only | open |
-| OW-W11 | journal audit vocabulary in `core/audit.py` | WEAR-15a | open |
-| OW-W12 | purge preview snapshots in reset/delete paths (`api/profiles.py`) | WEAR-09a-journal | open; delete path (RL-EXPORTS-DELETE-PATH precedent) |
-| OW-W13 | profile-migration merge order | WEAR-02, 15a numbering; lane C Q on GAM2-2b vs G-C1 order | open |
+| OW-W6 | are OM-4/OM-5 still required? | M0 scope | **answered 2026-10-19: "Still required"** (`owner-decisions-2026-09-27.md:296`) |
+| OW-W7 | FIT licence read → row `WEAR-FIT-LIC` | WEAR-11b | **answered 2026-10-22: "Research MIT FIT decoder"** (`owner-decisions-2026-09-27.md:385`, prompt 35): row FIT-DECODER-RESEARCH (§2.16) → new gate WEAR-FIT-LIC |
+| OW-W8 | copy approval for 07b, 08, 15b, 09 journal strings | WEAR-07b, 08b, 15b, 09b-journal | **answered 2026-10-19: "Agent drafts, I approve per PR"** (`owner-decisions-2026-09-27.md:294`) |
+| OW-W9 | names in free text: accept residual, or open an ask-first `modules/redaction.py` change | WEAR-09a-journal, 09b-journal (Task 0 STOP) | **answered 2026-10-19: "Accept with preview + warning"** (`owner-decisions-2026-09-27.md:292`; no name-scrubber row, so no ask-first change) |
+| OW-W10 | journal entries in `GET /export/json`? | a follow-up plan only | **answered 2026-10-19: "Yes, include"** (`owner-decisions-2026-09-27.md:295`) |
+| OW-W11 | journal audit vocabulary in `core/audit.py` | WEAR-15a | **answered 2026-10-19: "Approve (Recommended)"** (`owner-decisions-2026-09-27.md:291`; licenses WEAR-15a's `core/audit.py` edit only) |
+| OW-W12 | purge preview snapshots in reset/delete paths (`api/profiles.py`) | WEAR-09a-journal | **answered 2026-10-19: "Approve"** (`owner-decisions-2026-09-27.md:293`); delete path (RL-EXPORTS-DELETE-PATH precedent) |
+| OW-W13 | profile-migration merge order | WEAR-02, 15a numbering; lane C Q on GAM2-2b vs G-C1 order | **answered 2026-10-22: "P6 → G-C1 → WEAR-02 → WEAR-15"** (`owner-decisions-2026-09-27.md:386`, prompt 35); recorded in [contracts](contracts.md) §c; the numbers in wearables 00 `:187` are stale (013-015 are taken), numbering stays head+1 at the final rebase |
 | M0 approval | owner approves the wearables plan set (+ merges #94, WEAR-PR "you merge") | all WEAR code | open; not an OW id today |
 
 **TASK_LIST refresh (DOCS, one commit, after #94 merges):** add an `OW-W*` subsection under "Owner and Model-Machine Queue" listing OW-W0…W4, W6…W13 one line each with a link to the merged program 00 §10; annotate OM-1 = OW-W0, OM-2 = OW-W3; mark OW-W5 done with `c53ba44`. Never tick OW-1 or any OM box: that is the owner's. F-13 edits only the new `OW-W*` subsection and the OM-1 / OM-2 / OW-W5 annotations; it never edits the MM-1…MM-4 rows, so lane B's B-9 (MM rows) does not need to wait for it. `TASK_LIST.md` rule (lane E P-3): every claimant (E-3, C-P6, C-DUPAUD, B-9, F-1, F-13, #84, #68) edits only its own row or section; the second lander rebases. Acceptance: `grep -c "OW-W1[0-3]\|OW-W[0-9]" docs/features/TASK_LIST.md` ≥ 13; docs gates pass.
@@ -324,6 +324,41 @@ Source: `TASK_LIST.md:80-104` and wearables program 00 §10 (on #94). "Unblocks"
 **Acceptance:** the checks above, pasted; CI green on the PR. **Rollback:** revert.
 **Order:** ready now (no slot). No open PR touches `feature_list.json` (checked: #210, #230, #239, #246). No ask-first file.
 
+### 2.16 FIT-DECODER-RESEARCH — which FIT decoder WEAR-11b may use, and whether Garmin's licence covers the protocol itself (docs only)
+
+**Source:** owner OW-W7 (`docs/capstone-report/owner-decisions-2026-09-27.md:385`, prompt 35, re-asked after the owner's prompt-34 clarifying question): **"Research MIT FIT decoder"**: "A planner checks an independent MIT decoder (e.g. fitdecode/fitparse) and whether Garmin's FIT protocol licence still applies; the dependency choice comes back to you. Avoids Garmin's SDK terms if it holds." Planned 2026-10-22 on `d2843e8`. Output feeds the new owner gate **WEAR-FIT-LIC** (below), the row the wearables program already names (`docs/plans/2026-10-13-wearables-00-program.md:181`).
+
+**Facts (`d2843e8`):**
+1. WEAR-11b decodes `.fit` files only for in-scope metrics missing from Garmin's JSON export (wearables 00 `:64`, `:84`, `:102`); it is gated on OW-W7 and on OM-2 (= OW-W3) showing such a metric. The owner's WEAR-D5 answer chose "(b) garmin-fit-sdk after licence read" (00 `:163`), so a switch to another decoder changes D5's option and has to be in the WEAR-FIT-LIC question, not assumed.
+2. Risk rows R2 and R13 (00 `:139`, `:150`) name the issue: the SDK licence says "internal business use" and the repo is public with no root `LICENSE` file (gate brief 2026-10-22 §11). The licence text quoted in prompt 35: use "for Licensee's internal business purposes"; no "distribute, publish, transfer or otherwise make available".
+3. PyPI metadata, read 2026-10-22: `fitdecode` MIT, latest 0.11.0 (2025-08-06), `requires_python >=3.6`; `fitparse` MIT, latest 1.2.0 (2020-09-07); `garmin-fit-sdk` latest 21.218.0 (2026-10-06), licence field empty on PyPI; `fit-tool` 0.9.16 (2026-08-05), licence field empty. The research re-reads each package's own licence file, not the PyPI field.
+4. Wearables design rule A8: parsers are pure and import only the stdlib (00 `:47`); a decoder package is the one named exception WEAR-11b already plans ("one importing module", "no-network test", exact `==` pin, 00 `:163`).
+
+**Questions the research answers (primary sources only: licence files, Garmin's FIT SDK/licence pages, package source; each claim cites a URL and the date read; "not legal advice" stated once at the top):**
+1. **Protocol vs SDK:** does the FIT Protocol License govern the FIT file format itself (so any decoder, even an independent one, is "using the protocol" under its terms), or only Garmin's SDK code and documentation? Quote the licence's definitions section and any Garmin statement on third-party decoders. If the text is ambiguous, say so and stop there; no reading is inferred.
+2. **Each decoder** (`fitdecode`, `fitparse`, `fit-tool`, `garmin-fit-sdk`): licence file text and holder; whether it was written from Garmin's SDK or the public profile (`Profile.xlsx`) and under what terms that profile ships; last release and maintenance; Python 3.11 support (import and decode one synthetic `.fit` in a scratch 3.11 venv, output pasted); pure Python or native code; transitive dependencies; any network access at import or decode time (grep the source for `urllib`, `requests`, `socket`).
+3. **Robustness on untrusted files:** CRC check, behaviour on a truncated or oversized file (bounded memory and time), developer-data fields; a decoder that can hang or allocate without bound is listed as such.
+4. **Distribution shapes:** pip dependency declared in `requirements.txt` (each user downloads it) vs bundled in an installer (HC-M08); which shape each licence allows.
+5. **Metric coverage:** whether the decoder reads the message types WEAR-11b needs (stress, HRV, sleep stages: the list in `docs/plans/2026-10-13-wearables-11-garmin-parser.md`), without a real export (OW-W3 is still open; use Garmin's public example files only if their licence allows, else a synthetic file built in the scratch venv).
+
+**Output:** `docs/research/2026-10-22-fit-decoder/00-README.md` (new; format of the other `docs/research/` READMEs: question, sources with dates, findings table, open points), ending with a filled-in draft of WEAR-FIT-LIC (below). No code, no dependency, nothing under `src/`.
+**Files:** `docs/research/2026-10-22-fit-decoder/00-README.md` (new), `docs/INDEX.md`, `docs/_link_graph.json`. No slots. **Est:** 2 h. **Runtime:** claude (the repo `research` skill; network for reading sources and for the scratch venv only).
+**Acceptance:** every claim in the findings table has a source URL and read date; the scratch-venv decode output is pasted per decoder (or "not run" with the reason); `git diff --name-only origin/main...HEAD` lists only the three files; `git diff origin/main -- src/ requirements*.txt src/backend/requirements*.txt` is empty; docs gates (`python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py --link-graph && python3 scripts/docs_lint.py`) clean.
+**Owner gates:** OW-W7 answered (`:385`). **WEAR-FIT-LIC** (new, asked after the research lands; no recommendation until it does). Draft:
+
+> "WEAR-11b reads Garmin metrics that exist only in .FIT files. The research found [summary: whether Garmin's licence covers the FIT format itself or only Garmin's SDK, and what each MIT decoder's licence allows]. (Not legal advice.) Which decoder may WEAR-11b use?"
+
+| Option (≤ 5 words) | Description |
+|---|---|
+| **MIT decoder (fitdecode)** | Pin the independent MIT decoder as a pip dependency; changes your WEAR-D5 choice from Garmin's SDK. Only sensible if the research shows Garmin's licence does not cover the format. |
+| **Garmin SDK, pip only** | Pin `garmin-fit-sdk` as a pip dependency, never bundled in an installer (HC-M08). Keeps WEAR-D5 as answered; residual risk on "internal business purposes". |
+| **No FIT: JSON only** | Drop WEAR-11b; FIT-only Garmin metrics stay unsupported. No licence risk. |
+| **Get a legal read** | WEAR-11b waits for the OD-8 / OM-7 legal read. |
+
+**Tradeoffs:** the MIT decoder avoids Garmin's SDK terms only if the format itself is free to implement; an unmaintained decoder (fitparse's last release is 2020) adds bug and security risk on untrusted files. Garmin's SDK is maintained and complete but its licence wording targets internal business use. JSON only is safe and loses some metrics. A legal read is correct but slow.
+**Analogy:** reading a song you want to cover: you may be free to play the tune your own way even if you may not copy the record label's sheet music; the research checks which of the two the licence actually restricts.
+**Order:** ready (docs, no slot). Not before anything; WEAR-11b is not a queue row yet and waits on M0, OW-W3 and WEAR-FIT-LIC. No ask-first file.
+
 ---
 
 ## 3. Provides
@@ -355,7 +390,8 @@ Source: `TASK_LIST.md:80-104` and wearables program 00 §10 (on #94). "Unblocks"
 | SHOW-DATE, SHOW-AUDIT, O-1…O-7 | F-9 | SHOW-AUDIT answered (A, `:232`); SHOW-DATE answered (`:243` rule, `:277` showcase 2026-10-31, freeze 2026-10-24); O-1…O-7 unsigned, each gates only its own task (SHOWCASE-O4 answered location only) |
 | HOOKS-COMMIT | F-10 | answered 2026-10-10 per the #68 branch row; not on main until #68 merges |
 | PR68-SYNC, PR61-CLOSE, WEAR-PR | F-10, F-11, F-12 | answered (`:158`, `:141`, `:150`) |
-| M0, OW-W0, OW-W3, OW-W6…OW-W13 | F-12 | open (§2.13) |
+| M0, OW-W0, OW-W3 | F-12 | open (§2.13). OW-W6, OW-W8…OW-W12 answered 2026-10-19; OW-W7, OW-W13 answered 2026-10-22 (§2.13) |
+| WEAR-FIT-LIC (new 2026-10-22) | WEAR-11b | **open, not asked**; asked after FIT-DECODER-RESEARCH (§2.16) lands; draft wording and options in §2.16 |
 | Ask-first files | all | **none edited by any lane-F item.** Flags: OW-W9 option 2 would open `modules/redaction.py` (ask-first); OW-W12 edits the profile delete path in `api/profiles.py` (auth-adjacent, RL-EXPORTS-DELETE-PATH precedent); WEAR-02/06 `core/audit.py`, `security/input_validator.py` are owner-signed exact diffs (WEAR-D4) |
 
 ## 6. Open questions
@@ -369,7 +405,7 @@ Source: `TASK_LIST.md:80-104` and wearables program 00 §10 (on #94). "Unblocks"
 **Later:**
 
 4. **Q-F4 (#61 evidence):** keep the REVISE review on branch `docs/w4-plan-amend` only (default), or copy `W-4-amend-codex.txt` + prompt into `docs/reviews/` before closing?
-5. **Q-F5 (wearables + migration order):** OW-W13 puts G-C1 before GAM2-2b; lane C puts GAM2-2b first and lane D's D-2 also claims `013`. One owner answer should fix the order for all of C-P6, C-GAM2B, D-2, C-GC1, WEAR-02, WEAR-15a.
+5. **Q-F5 (wearables + migration order):** *(answered by OW-W13, 2026-10-22: P6 → G-C1 → WEAR-02 → WEAR-15; GAM2-2b and D-2 already merged as `014`/`013`.)* OW-W13 puts G-C1 before GAM2-2b; lane C puts GAM2-2b first and lane D's D-2 also claims `013`. One owner answer should fix the order for all of C-P6, C-GAM2B, D-2, C-GC1, WEAR-02, WEAR-15a.
 6. **Q-F6 (OM-3):** drop the Samsung export from the queue? Samsung is a program non-goal.
 7. **Q-F7 (orchestrator):** program `:431`, `:434`, `:447`, `:451-452` Sign-off cells are stale since 2026-10-09; record F-1/F-2/F-3 readiness and W-10 merged there.
 
