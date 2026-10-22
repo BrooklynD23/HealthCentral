@@ -579,3 +579,115 @@ def test_hc_gc5_014_chat_abstains_when_predict_fails(monkeypatch):
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert [(s["segment_type"], s["content"]) for s in body["segments"]] == [("uncertainty", ABSTAIN_TEMPLATE)]
+
+
+# ---------------------------------------------------------------------------
+# HC-GC5-006..011 (GC5-NLI-NEUTRAL, GC5-NEUTRAL-SCOPE (a)): with the flag on the rules
+# decide and the NLI may only veto (a contradiction or its own fail-closed result).
+# Neutral / entailment from the NLI never decides support.
+# ---------------------------------------------------------------------------
+
+_LABELS = ("contradiction", "entailment", "neutral")
+
+
+def _probs(label: str, conf: float) -> list[float]:
+    rest = (1.0 - conf) / 2
+    return [conf if name == label else rest for name in _LABELS]
+
+
+def _verify_on(monkeypatch, claim: str, label: str, conf: float):
+    fake = _FakeCrossEncoder(_probs(label, conf))
+    monkeypatch.setattr("modules.embeddings.load_local_cross_encoder", lambda: fake)
+    return VerifierAgent(VerificationConfig(use_llm_entailment=True)).verify_claim(claim, "c1", [_SOURCE])
+
+
+def test_hc_gc5_006_nli_neutral_does_not_unverify_a_rules_verified_claim(monkeypatch):
+    off = VerifierAgent(VerificationConfig(use_llm_entailment=False)).verify_claim(_CLAIM, "c1", [_SOURCE])
+    assert off.is_verified is True  # precondition: the rules verify it
+    assert _verify_on(monkeypatch, _CLAIM, "neutral", 0.858).is_verified is True
+
+
+def test_hc_gc5_007_nli_entailment_below_threshold_does_not_unverify(monkeypatch):
+    assert _verify_on(monkeypatch, _CLAIM, "entailment", 0.668).is_verified is True
+
+
+def test_hc_gc5_008_nli_entailment_never_rescues_a_rules_failed_claim(monkeypatch):
+    wrong = "Your glucose level is 182 mg/dL"
+    off = VerifierAgent(VerificationConfig(use_llm_entailment=False)).verify_claim(wrong, "c1", [_SOURCE])
+    assert off.is_verified is False  # precondition: the rules fail it
+    assert _verify_on(monkeypatch, wrong, "entailment", 0.95).is_verified is False
+
+
+def test_hc_gc5_009_nli_contradiction_still_vetoes(monkeypatch):
+    result = _verify_on(monkeypatch, _CLAIM, "contradiction", 0.55)
+    assert result.is_verified is False
+    assert result.contradicting_sources == ["1"]
+
+
+def test_hc_gc5_010_fail_closed_results_veto_but_a_real_low_confidence_neutral_does_not(monkeypatch):
+    from modules.embeddings import EmbeddingModelUnavailableError
+    from modules.verifier_agent import _nli_fail_closed
+
+    agent = VerifierAgent(VerificationConfig(use_llm_entailment=True))
+
+    def _unavailable():
+        raise EmbeddingModelUnavailableError("absent")
+
+    # (i) model absent, (ii) predict fails: the NLI's own fail-closed returns veto.
+    for loader in (_unavailable, lambda: _RaisingPredictEncoder(RuntimeError("boom"))):
+        monkeypatch.setattr("modules.embeddings.load_local_cross_encoder", loader)
+        assert agent.verify_claim(_CLAIM, "c1", [_SOURCE]).is_verified is False
+        assert _nli_fail_closed(agent._check_entailment(_CLAIM, _SOURCE)) is True
+
+    # (iii) a real neutral at confidence 0.0001 is not fail-closed: the rules decide.
+    fake = _FakeCrossEncoder([0.0, 0.0, 0.0001])  # neutral is the argmax at confidence 0.0001
+    monkeypatch.setattr("modules.embeddings.load_local_cross_encoder", lambda: fake)
+    assert _nli_fail_closed(agent._check_entailment_llm(_CLAIM, _SOURCE)) is False
+    assert agent.verify_claim(_CLAIM, "c1", [_SOURCE]).is_verified is True
+
+
+# #249's measured (label, confidence) per claim (gc5-real-model-evidence.md, NLI call list).
+_REPLAY = {
+    "Your glucose was 182 mg/dL [cite:1].": ("contradiction", 0.998),
+    "Your glucose result was 95 mg/dL, within the reference range of 70-100 mg/dL [cite:1].": ("entailment", 0.668),
+    "Glucose is the primary source of energy for the body's cells [cite:2].": ("neutral", 0.997),
+    "Glucose: 95 mg/dL (reference range 70-100 mg/dL) [cite:1].": ("neutral", 0.996),
+    "Your glucose was 95 mg/dL [cite:1].": ("neutral", 0.858),
+    "Normal fasting glucose is typically 70-100 mg/dL [cite:2].": ("neutral", 0.963),
+}
+
+
+class _ReplayEncoder:
+    def __init__(self):
+        self.unknown: list[str] = []
+        self.config = type("Cfg", (), {"id2label": dict(enumerate(_LABELS))})()
+
+    def predict(self, pairs, apply_softmax=False):
+        out = []
+        for _premise, claim in pairs:
+            if claim not in _REPLAY:
+                self.unknown.append(claim)
+                raise AssertionError(f"replay has no measured NLI result for claim: {claim!r}")
+            out.append(_probs(*_REPLAY[claim]))
+        return out
+
+
+def test_hc_gc5_011_legacy_gate_passes_with_flag_on_under_measured_nli_outputs(monkeypatch):
+    import api.assistant as assistant
+    from core.config import settings
+    from tests.legacy_eval import harness
+
+    encoder = _ReplayEncoder()
+    monkeypatch.setattr("modules.embeddings.load_local_cross_encoder", lambda: encoder)
+    saved_flag, saved_rag = settings.use_llm_entailment, assistant._rag_module
+    settings.use_llm_entailment = True
+    assistant._rag_module = None
+    try:
+        report = harness.score_cases(harness.load_cases())
+    finally:
+        settings.use_llm_entailment = saved_flag
+        assistant._rag_module = saved_rag
+    assert encoder.unknown == []
+    assert report.passed, report.render()
+    assert report.answer_rate == 1.0
+    assert report.served_invalid == report.uncited_served == report.leaked == 0
