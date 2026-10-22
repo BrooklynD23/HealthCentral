@@ -1170,7 +1170,7 @@ Two rows from the owner's KV-CACHE-NEXT answer **"Measure first (Recommended)"**
 
 **Files:** `src/backend/core/llm/llama_cpp_provider.py` (`:138-140` only), `src/backend/tests/test_llama_cpp_provider_fixes.py` (new), slots. **Re-run, not edited:** `tests/test_llm_provider_layer.py`, `tests/test_model_path_logs.py`, `tests/test_model_runner_exc_log.py`.
 **Expected collected delta:** +1. **Est:** 0.3 h.
-**Acceptance:** RED output for HC-LCF-001; `pyt tests/test_llama_cpp_provider_fixes.py tests/test_llm_provider_layer.py tests/test_model_path_logs.py -q -rfE`: 0 failed; `git grep -n 'chat_format' -- src/backend/core` prints nothing; full suite per RUNBOOK §6. **Model-host check (L0, not the build-item):** one `/assistant/chat` answer with `LLM_PROVIDER=llama_cpp` and the mid-tier GGUF returns 200 (no shim). **Rollback:** revert.
+**Acceptance:** RED output for HC-LCF-001; `pyt tests/test_llama_cpp_provider_fixes.py tests/test_llm_provider_layer.py tests/test_model_path_logs.py -q -rfE`: 0 failed; `git grep -n 'chat_format=' -- src/backend/core` prints nothing (only `:140` matches today; the docstring mentions at `:9` and `:158` stay, review round 1); full suite per RUNBOOK §6. **Model-host check (L0, not the build-item):** one `/assistant/chat` answer with `LLM_PROVIDER=llama_cpp` and the mid-tier GGUF returns 200 (no shim). **Rollback:** revert.
 **Owner gates:** none.
 **Order:** ready. First of the three `llama_cpp_provider.py` rows; LLAMA-SERIAL and LLAMA-GPU-LAYERS follow it (same file). No open PR touches `core/llm/` (`gh pr diff --name-only` for #230, #239, #264, #284 on 2026-10-22).
 
@@ -1183,7 +1183,7 @@ Two rows from the owner's KV-CACHE-NEXT answer **"Measure first (Recommended)"**
 4. `ModelRunner` only delegates (`core/model_runner.py:177-224`), so the provider is the right place for the lock (CLAUDE.md §2: fix inside providers). The second direct `Llama` in `modules/model_selector.py:455-570` (called from `modules/interpret.py:761`) has the same shape; B-5 (W-7, contracts I-17) removes that path, so it is not touched here.
 
 **Design (inside the provider only):**
-- `self._model_lock = threading.Lock()` for every use of `self._model` (generation and `unload`); `self._init_lock = threading.Lock()` for `_ensure_initialized` only. `is_available()` and `health_check()` take the init lock, never the model lock: they are sync and are called from async code (`ModelRunner.is_available`), so waiting behind a running generation would block the event loop. (Review correction to the Codex diff, which took the model lock there.)
+- `self._model_lock = threading.Lock()` for every use of `self._model` (generation and `unload`); `self._init_lock = threading.Lock()` for `_ensure_initialized` only. `is_available()` and `health_check()` take the init lock, never the model lock: they are sync and are called from async code (`ModelRunner.is_available`), so waiting behind a running generation would block the event loop. (Review correction to the Codex diff, which took the model lock there.) **Changed behaviour during a first load:** today `_ensure_initialized` sets `_initialized = True` before loading (`:106`), so an `is_available()` call that arrives while another thread is loading returns `False` at once. With the init lock it waits for the load to finish, which blocks the event loop if called from async code. To keep today's behaviour, `is_available()` checks `_initialized` first and returns `self._model is not None` without taking the init lock when a load is already under way (`_init_lock.acquire(blocking=False)` fails); only the first caller loads. HC-LCK-005 pins it.
 - `generate()` = `with self._model_lock: return self._generate_unlocked(...)`.
 - `generate_async()` computes `deadline = time.monotonic() + config.timeout_seconds` and runs `_generate_before_deadline` in the executor: `acquire(timeout=remaining)`; if it fails, or the deadline has passed once acquired, raise a private `_ModelLockTimeout`, which maps to the existing timeout result (`finish_reason="timeout"`, same log line). A call never enters the model after its own timeout.
 - `unload()` takes the model lock, so the model is never freed while a generation runs.
@@ -1197,10 +1197,11 @@ Two rows from the owner's KV-CACHE-NEXT answer **"Measure first (Recommended)"**
 | HC-LCK-002 | call 1 (timeout 0.2 s) times out while the fake is still blocked; call 2 (timeout 0.2 s) returns `finish_reason="timeout"`; after the event is set, total entries is 1 | yes (call 2 enters) |
 | HC-LCK-003 | `unload()` called while a generation is blocked waits until it finishes; the fake records no use after free | yes (`del` happens at once) |
 | HC-LCK-004 | while a generation holds the model lock, `is_available()` on the loaded provider returns `True` within 0.1 s | GREEN today (pin against a lock in `is_available`) |
+| HC-LCK-005 | while a first load is blocked inside the fake `Llama` constructor (thread A), `is_available()` from thread B returns `False` within 0.1 s | GREEN today (pin: the init lock must not make it wait) |
 
 **Files:** `src/backend/core/llm/llama_cpp_provider.py` (imports, `__init__`, `_ensure_initialized` wrapper, `is_available`, `health_check`, `generate`, `generate_async`, `unload` only), `src/backend/tests/test_llama_cpp_provider_fixes.py` (new tests only), slots. **Re-run, not edited:** as LLAMA-CHAT-FORMAT, plus `tests/test_rag_pipeline.py`, `tests/test_safe_interp_grounded.py`.
-**Expected collected delta:** +4. **Est:** 1.5 h.
-**Acceptance:** RED for 001-003 and GREEN-today for 004 shown in the PR; the same pytest set 0 failed; mutant: remove the deadline check in `_generate_before_deadline` -> HC-LCK-002 fails (output in the PR); full suite. **Model-host check (L0):** the two-concurrent judge run (`gpu-1022/judge_preview.py`, `CONC=2`) completes with no crash. **Rollback:** revert.
+**Expected collected delta:** +5. **Est:** 1.5 h.
+**Acceptance:** RED for 001-003 and GREEN-today for 004-005 shown in the PR; the same pytest set 0 failed; mutant: remove the deadline check in `_generate_before_deadline` -> HC-LCK-002 fails (output in the PR); full suite. **Model-host check (L0):** the two-concurrent judge run (`gpu-1022/judge_preview.py`, `CONC=2`) completes with no crash. **Rollback:** revert.
 **Owner gates:** none.
 **Order:** after LLAMA-CHAT-FORMAT merges (same file); never beside LLAMA-GPU-LAYERS.
 
@@ -1237,7 +1238,7 @@ Two rows from the owner's KV-CACHE-NEXT answer **"Measure first (Recommended)"**
 
 **Design:** both sites become `except ... as exc:` + `logger.error("<same message>: %s", type(exc).__name__, extra={...})`. No `exc_info`. Status codes and details unchanged.
 
-**Test-first** (new file `src/backend/tests/test_runner_exception_chain_logs.py`; HTTP through `tests/support/routes.py::route_client`; a real `ModelRunner(_provider=fake)` whose provider raises `RuntimeError("canary glucose 182 SECRET")`; a list handler at DEBUG on the root logger; the check formats each record with `logging.Formatter().format(record)` so `exc_text` is included):
+**Test-first** (new file `src/backend/tests/test_runner_exception_chain_logs.py`; HTTP through `tests/support/routes.py::route_client`; a real `ModelRunner(_provider=fake)` whose provider raises `RuntimeError("canary glucose 182 SECRET")`; retrieval stubbed as in `tests/test_safe_interp_grounded.py:84-105` (patch `modules.rag.get_model_runner`, `modules.rag.EmbeddingsModule` and `retrieve_context`), so the test does not need the fetched embedding bundle (CLAUDE.md §4); the canary sits in the **provider** exception, so `rag.py:1473`, which logs the runner's type-only message, stays clean; a list handler at DEBUG on the root logger; the check formats each record with `logging.Formatter().format(record)` so `exc_text` is included):
 
 | Id | Assertion | RED today? |
 |---|---|---|
@@ -1248,29 +1249,36 @@ Two rows from the owner's KV-CACHE-NEXT answer **"Measure first (Recommended)"**
 **Expected collected delta:** +2. **Est:** 0.75 h.
 **Acceptance:** RED for both; the pytest set 0 failed; `git grep -n "logger.exception" -- src/backend/api/interpretations.py` prints nothing and `src/backend/api/assistant.py` shows only `:922`; full suite. **Rollback:** revert.
 **Owner gates:** none.
-**Order:** ready. `api/assistant.py` and `api/interpretations.py` are also in parked drafts #264 (B-3) and #239; parked drafts hold no file (contracts §b rule 2), and their hunks are elsewhere (`#264`: `assistant.py:~1003`, `interpretations.py:~601`), so the second lander merges `origin/main` and re-runs acceptance. Never beside another non-draft PR on either file (AGENT-CACHE-CARETASKS edits `assistant.py:786-836`: disjoint hunks, but run them one after the other).
+**Order:** ready **after AGENT-CACHE-CARETASKS (#290) merges** (L0 ruling, #289 review round 1). `api/assistant.py` and `api/interpretations.py` are also in parked drafts #264 (B-3) and #239; parked drafts hold no file (contracts §b rule 2), and their hunks are elsewhere (`#264`: `assistant.py:~1003`, `interpretations.py:~601`), so the second lander merges `origin/main` and re-runs acceptance. Never beside another non-draft PR on either file (AGENT-CACHE-CARETASKS, re-planned for owner answer (c), edits `_profile_version` `assistant.py:641-684`: disjoint hunks, but they run one after the other).
 
 ### CHAT-MODEL-BADGE — the chat header names a tier label (BioMistral-7B) instead of the model that answers
 
-**Facts (`5f7c67c`):**
+**Facts (`5f7c67c`, re-read on `d2843e8`):**
 1. `src/frontend/src/pages/ExplainAssistant.tsx:284-297` (`activeModelSummary`): external API -> `provider · model`; else `modelSettings.tier_availability[current_tier].model`; else `Tier: …`; else `Local model`.
-2. That tier label is a fixed string: `src/backend/modules/hardware_detection.py:384` `"model": "BioMistral-7B"` (tier `high`), served by `/settings/model`. The configured provider and model are served by `GET /api/v1/settings/model/provider` (`src/backend/api/model_settings.py:842`, `ProviderInfoResponse`: `llm_provider`, `llm_model`, ...). No frontend code calls it (`git grep -n "model/provider" -- src/frontend/src`: no hit).
-3. F-9 dry run: the badge read `BioMistral-7B` while Ollama `gemma4:e4b` was configured, next to the presenter line "no language model runs on this path" (record.md steps 3 and 6).
+2. That tier label is a fixed string: `src/backend/modules/hardware_detection.py:384` `"model": "BioMistral-7B"` (tier `high`), served by `/settings/model`. No frontend code calls `GET /api/v1/settings/model/provider` (`src/backend/api/model_settings.py:841-870`; `git grep -n "model/provider" -- src/frontend/src`: no hit).
+3. That route is not usable as it is (review round 1): `llm_model=app_settings.llm_model or "(auto)"` (`:858`) is the configured setting, never empty, and a full GGUF path when `LLM_MODEL` names a file; `llm_provider` is the configured name, so after the factory's Ollama-unreachable fallback (`core/llm/factory.py:51-60`) it still says `ollama`; and `available=provider.is_available()` (`:859`) on llama_cpp is `_ensure_initialized`, a synchronous model load inside an async route. What answers is in `capabilities`: `provider_name` / `model_name` from the active provider object (`llama_cpp_provider.py:180-196`: the GGUF file stem, or `default_chat_model` when no path is set; `ollama_provider.py:152-166`: the tag). `capabilities()` loads nothing on either provider.
+4. F-9 dry run: the badge read `BioMistral-7B` while Ollama `gemma4:e4b` was configured, next to the presenter line "no language model runs on this path" (record.md steps 3 and 6).
 
-**Design:** `services/modelSettings.ts`: `ProviderInfo` type, `getProviderInfo()` (`apiGet('/settings/model/provider')`), `useProviderInfo()` (React Query, key `[QUERY_KEY, 'provider']`); exported through `services/index.ts`. `activeModelSummary`: after the external-API branch, when `providerInfo?.llm_model` is set, show `${llm_provider} · ${llm_model}` (both `ollama` and `llama_cpp`); otherwise the existing tier fallback. A failing provider query falls through to today's behaviour. Display only: no backend change.
+**Design:**
+- Backend (one route, no new layer): `get_llm_provider` takes `probe: bool = True`. With `probe=false` it does not call `provider.is_available()` and returns `available: null`; `ProviderInfoResponse.available` becomes `Optional[bool]`. The default (`probe` true) is byte-identical to today. `get_provider()` itself still builds the provider object (no model load on llama_cpp; the Ollama factory branch already probes localhost once when the provider is first built, as today).
+- Frontend: `services/modelSettings.ts`: `ProviderInfo` type, `getProviderInfo()` (`apiGet('/settings/model/provider?probe=false')`), `useProviderInfo()` (React Query, key `[QUERY_KEY, 'provider']`), exported through `services/index.ts`. `activeModelSummary`: after the external-API branch, when `providerInfo?.capabilities?.provider_name` and `model_name` are set, show `${provider_name} · ${model_name}`; never `llm_model`. A failing query falls through to today's tier fallback.
+- Not fixed here: with no `LLM_MODEL`, llama.cpp's `model_name` is `default_chat_model` (`core/config.py:92`, `phi-3-mini`), while the file actually loaded is found by glob (`llama_cpp_provider.py:69-98`); the badge then shows the configured default name, not the file stem. Recorded, not widened.
 
-**Test-first** (Vitest, `src/frontend/src/__tests__/ExplainAssistant.test.tsx`):
+**Test-first:**
 
-| Id | Assertion | RED today? |
-|---|---|---|
-| HC-MDL-001 | provider `{llm_provider: 'ollama', llm_model: 'gemma4:e4b'}`, tier label `BioMistral-7B` -> badge text `ollama · gemma4:e4b`; `BioMistral-7B` absent | yes |
-| HC-MDL-002 | provider request rejects -> badge shows the tier label (today's fallback) | GREEN today (pin) |
+| Id | File | Assertion | RED today? |
+|---|---|---|---|
+| HC-MDL-001 | `src/frontend/src/__tests__/ExplainAssistant.test.tsx` | capabilities `{provider_name: 'ollama', model_name: 'gemma4:e4b'}`, tier label `BioMistral-7B` -> badge `ollama · gemma4:e4b`; `BioMistral-7B` absent; the request URL has `probe=false` | yes |
+| HC-MDL-002 | same | provider request rejects -> badge shows the tier label (today's fallback) | GREEN today (pin) |
+| HC-MDL-003 | same | default llama_cpp config: `llm_model: '(auto)'`, capabilities `{provider_name: 'llama_cpp', model_name: 'phi-3-mini'}` -> badge `llama_cpp · phi-3-mini`; no `(auto)`, no `/` or `\` in the badge | yes |
+| HC-MDL-004 | `src/backend/tests/test_provider_info_probe.py` (new; HTTP via `route_client`) | default config (`LLM_PROVIDER=llama_cpp`, no `LLM_MODEL`), `_load_llama_class` patched to a recording fake: `GET /api/v1/settings/model/provider?probe=false` -> 200, `available` null, `capabilities.provider_name == 'llama_cpp'`, and the fake `Llama` was never constructed | yes (no `probe` parameter; the route loads) |
+| HC-MDL-005 | same | without `probe`: `available` is a bool and the response keys are unchanged | GREEN today (pin) |
 
-**Files:** `src/frontend/src/services/modelSettings.ts`, `src/frontend/src/services/index.ts` (barrel lines only), `src/frontend/src/pages/ExplainAssistant.tsx` (`activeModelSummary` + one hook call only), `src/frontend/src/__tests__/ExplainAssistant.test.tsx` (new tests only).
-**Expected collected delta:** 0 (backend); +2 Vitest. **Est:** 0.75 h.
-**Acceptance:** RED for HC-MDL-001; `npx tsc --noEmit` clean; `npx vitest run` passes (Windows side per AGENT.md WSL note). **Rollback:** revert.
-**Owner gates:** none. Wording is the configured name, not new copy.
-**Order:** ready. No open PR touches these files (#239 edits `SettingsPage.tsx` only).
+**Files:** `src/backend/api/model_settings.py` (`ProviderInfoResponse.available` and `get_llm_provider` only), `src/backend/tests/test_provider_info_probe.py` (new), `src/frontend/src/services/modelSettings.ts`, `src/frontend/src/services/index.ts` (barrel lines only), `src/frontend/src/pages/ExplainAssistant.tsx` (`activeModelSummary` + one hook call only), `src/frontend/src/__tests__/ExplainAssistant.test.tsx` (new tests only), slots. **Re-run, not edited:** `tests/test_tier_capabilities.py`, `tests/test_model_settings_api.py`, `tests/test_audit_order_guard.py`.
+**Expected collected delta:** +2 (backend); +3 Vitest. **Est:** 1 h.
+**Acceptance:** RED for HC-MDL-001, 003, 004; pytest set 0 failed; `npx tsc --noEmit` clean; `npx vitest run` passes (Windows side per AGENT.md WSL note); full suite. **Rollback:** revert.
+**Owner gates:** none. Wording is the provider's own model name, not new copy. The route reads settings and provider metadata only (no profile data), as AUDIT-READ-SETTINGS left it.
+**Order:** ready; built in the frontend bundle PR (queue L0 ruling, #289 review round 1). No open PR touches these files (#239 edits `SettingsPage.tsx` only).
 
 ## Provides
 
