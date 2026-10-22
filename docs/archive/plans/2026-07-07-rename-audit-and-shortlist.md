@@ -1,5 +1,7 @@
 # Product Rename: Surface Audit + Candidate Shortlist (HC-M10, stage 1)
 
+> **Historical Reference** — stage 1 of the HC-M10 rename; stages 1-3 are done and the product is Asclexis (`feature_list.json` HC-M10); retained for history, not an active tracker. Moved from `docs/plans/2026-07-07-rename-audit-and-shortlist.md` on 2026-10-22.
+
 Owner decision (2026-07-07): rename the product — "HealthCentral" collides with the existing health-media brand healthcentral.com. This document is stage 1 of the plan: how big the rename is, and a screened candidate shortlist. **Stage 2 (blocking, manual): the owner picks a candidate and clears it against USPTO TESS + domain registrar + app stores.** Stage 3 executes the rename in one PR.
 
 ## Rename surface (audited 2026-07-07)

@@ -22,6 +22,8 @@
       "docs/agentic/harness.md",
       "docs/agentic/orchestration.md",
       "docs/architecture/README.md",
+      "docs/archive/plans/2026-10-19-session-handoff.md",
+      "docs/archive/plans/2026-10-20b-session-handoff.md",
       "docs/capstone-report/architecture-engineering-contract.md",
       "docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md",
       "docs/plans/2026-09-08-backlog-closure-plan.md",
@@ -30,14 +32,13 @@
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
       "docs/plans/2026-10-17-session-handoff.md",
       "docs/plans/2026-10-18-session-handoff.md",
-      "docs/plans/2026-10-19-session-handoff.md",
       "docs/plans/2026-10-20-session-handoff.md",
-      "docs/plans/2026-10-20b-session-handoff.md",
       "docs/plans/2026-10-20c-session-handoff.md",
       "docs/plans/2026-10-21-session-handoff.md",
       "docs/plans/2026-10-21b-session-handoff.md",
       "docs/plans/2026-10-21c-session-handoff.md",
       "docs/research/2026-10-12/05-mvp-roadmap-tests.md",
+      "README.md",
       "CLAUDE.md"
     ],
     "CLAUDE.md": [
@@ -46,6 +47,8 @@
       "docs/agentic/orchestration.md",
       "docs/architecture/README.md",
       "docs/architecture/ci-and-quality-gates.md",
+      "docs/archive/plans/2026-10-19-session-handoff.md",
+      "docs/archive/plans/2026-10-20b-session-handoff.md",
       "docs/capstone-report/architecture-engineering-contract.md",
       "docs/compliance/ai-safety.md",
       "docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md",
@@ -56,9 +59,7 @@
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
       "docs/plans/2026-10-17-session-handoff.md",
       "docs/plans/2026-10-18-session-handoff.md",
-      "docs/plans/2026-10-19-session-handoff.md",
       "docs/plans/2026-10-20-session-handoff.md",
-      "docs/plans/2026-10-20b-session-handoff.md",
       "docs/plans/2026-10-20c-session-handoff.md",
       "docs/plans/2026-10-21-session-handoff.md",
       "docs/plans/2026-10-21b-session-handoff.md",
@@ -66,10 +67,13 @@
       "docs/research/2026-09-08/PLAN.md",
       "docs/research/2026-10-17-rsi-opt-in-data/00-README.md",
       "docs/research/2026-10-20-rrsi-harness2/01-harness2.md",
+      "docs/research/2026-10-22-mvp/00-README.md",
+      "README.md",
       "AGENT.md"
     ],
     "CONTRIBUTING.md": [
-      "docs/roles/devops-and-ci.md"
+      "docs/roles/devops-and-ci.md",
+      "README.md"
     ],
     "SECURITY.md": [
       "docs/roles/security-and-compliance.md"
@@ -187,10 +191,10 @@
       "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md"
     ],
     "audit/2026-09-25/waves/scaffold/REACT-ROUTER-7.md": [
-      "docs/plans/2026-10-04-NPM-MAJORS-react-router7.md"
+      "docs/archive/plans/2026-10-04-NPM-MAJORS-react-router7.md"
     ],
     "audit/2026-09-25/waves/scaffold/REVIEWS-2026-10-07.md": [
-      "docs/plans/2026-10-04-NPM-MAJORS-react-router7.md"
+      "docs/archive/plans/2026-10-04-NPM-MAJORS-react-router7.md"
     ],
     "audit/2026-09-25/waves/scaffold/RSI-TPM-MMR.md": [
       "docs/capstone-report/implementation-program.md"
@@ -219,6 +223,9 @@
     "audit/2026-09-25/waves/wave-4.md": [
       "docs/capstone-report/implementation-program.md"
     ],
+    "config/.env.example": [
+      "README.md"
+    ],
     "docs/00_architecture_plans_index.md": [
       "docs/architecture/README.md",
       "docs/archive/plans/2026-07-02-consolidated-findings-report.md",
@@ -241,12 +248,10 @@
     "docs/04_local_models_inference_plan.md": [
       "docs/roles/ai-llm-pipeline-and-safety.md"
     ],
-    "docs/05_backend_integration_status.md": [
-      "README.md"
-    ],
     "docs/INDEX.md": [
       "docs/agentic/harness.md",
-      "docs/roles/00_roles_index.md"
+      "docs/roles/00_roles_index.md",
+      "README.md"
     ],
     "docs/Local_First_Medical_Results_Companion_PRD_v0_1.md": [
       "docs/roles/product-and-prd.md"
@@ -275,7 +280,8 @@
     "docs/agentic/orchestration.md": [
       "docs/capstone-report/implementation-program.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
-      "docs/reviews/README.md"
+      "docs/reviews/README.md",
+      "README.md"
     ],
     "docs/agentic/progress.md": [
       "docs/agentic/harness.md",
@@ -301,6 +307,7 @@
       "docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md",
       "docs/research/2026-09-08/PLAN.md",
       "docs/research/2026-09-08/STATUS.md",
+      "README.md",
       "AGENT.md",
       "CLAUDE.md"
     ],
@@ -317,15 +324,9 @@
       "docs/roles/product-and-prd.md",
       "README.md"
     ],
-    "docs/agile/GROUNDING.md": [
-      "README.md"
-    ],
     "docs/agile/RELEASE_CHECKLIST.md": [
       "docs/prd/PRD_agent_overhaul.md",
       "docs/roles/devops-and-ci.md",
-      "README.md"
-    ],
-    "docs/agile/sprints/SPRINT_7.md": [
       "README.md"
     ],
     "docs/api/README.md": [
@@ -381,53 +382,27 @@
     ],
     "docs/architecture/pipelines.md": [
       "docs/00_architecture_plans_index.md",
-      "docs/architecture/README.md"
+      "docs/architecture/README.md",
+      "README.md"
     ],
     "docs/archive/README.md": [
-      "docs/00_architecture_plans_index.md"
-    ],
-    "docs/archive/agile-sprints/SPRINT_0.md": [
-      "README.md"
-    ],
-    "docs/archive/agile-sprints/SPRINT_1.md": [
-      "README.md"
-    ],
-    "docs/archive/agile-sprints/SPRINT_2.md": [
-      "README.md"
-    ],
-    "docs/archive/agile-sprints/SPRINT_3.md": [
-      "README.md"
-    ],
-    "docs/archive/agile-sprints/SPRINT_4.md": [
-      "README.md"
-    ],
-    "docs/archive/agile-sprints/SPRINT_5.md": [
-      "README.md"
-    ],
-    "docs/archive/agile-sprints/SPRINT_6.md": [
+      "docs/00_architecture_plans_index.md",
       "README.md"
     ],
     "docs/archive/agile/EXPLORATION_SUMMARY.md": [
-      "docs/agile/GROUNDING.md",
-      "README.md"
+      "docs/agile/GROUNDING.md"
     ],
     "docs/archive/agile/RECONCILIATION.md": [
       "docs/agile/GROUNDING.md",
       "docs/archive/agile/EXPLORATION_SUMMARY.md",
       "docs/archive/agile-sprints/SPRINT_0.md",
-      "docs/archive/prd-phases/PHASE_0_foundation.md",
-      "README.md"
+      "docs/archive/prd-phases/PHASE_0_foundation.md"
     ],
     "docs/archive/agile/RETRO.md": [
-      "docs/archive/agile-sprints/SPRINT_0.md",
-      "README.md"
+      "docs/archive/agile-sprints/SPRINT_0.md"
     ],
     "docs/archive/agile/STANDUP.md": [
-      "docs/archive/agile-sprints/SPRINT_0.md",
-      "README.md"
-    ],
-    "docs/archive/agile/audience_expectations_main_vs_branch.md": [
-      "README.md"
+      "docs/archive/agile-sprints/SPRINT_0.md"
     ],
     "docs/archive/plans/2026-02-15-sprint-06-handoff-prompt.md": [
       "docs/00_architecture_plans_index.md"
@@ -438,6 +413,9 @@
     "docs/archive/plans/2026-03-28-roadmap-gsd-m001-m003-historical.md": [
       "docs/00_architecture_plans_index.md"
     ],
+    "docs/archive/plans/2026-05-11-dynamic-port-selection.md": [
+      "docs/00_architecture_plans_index.md"
+    ],
     "docs/archive/plans/2026-07-02-consolidated-findings-report.md": [
       "docs/archive/plans/2026-07-02-fable5-architect-handoff-prompt.md",
       "docs/plans/2026-07-02-architect-review-proposal-tickets.md"
@@ -445,8 +423,62 @@
     "docs/archive/plans/2026-07-02-fable5-architect-handoff-prompt.md": [
       "docs/00_architecture_plans_index.md"
     ],
+    "docs/archive/plans/2026-07-07-rename-audit-and-shortlist.md": [
+      "docs/00_architecture_plans_index.md",
+      "docs/agentic/progress.md",
+      "docs/brand/brand-guidelines.md"
+    ],
     "docs/archive/plans/2026-07-12-phase-c-handoff-prompt.md": [
       "docs/00_architecture_plans_index.md"
+    ],
+    "docs/archive/plans/2026-07-13-hc-m21-search.md": [
+      "docs/00_architecture_plans_index.md"
+    ],
+    "docs/archive/plans/2026-07-30-phase-b-asclexis-rename.md": [
+      "docs/00_architecture_plans_index.md"
+    ],
+    "docs/archive/plans/2026-10-04-NPM-MAJORS-react-router7.md": [
+      "docs/00_architecture_plans_index.md",
+      "docs/archive/plans/2026-10-04-NPM-MAJORS-tailwind4.md",
+      "docs/capstone-report/implementation-program.md"
+    ],
+    "docs/archive/plans/2026-10-04-NPM-MAJORS-tailwind4.md": [
+      "docs/00_architecture_plans_index.md",
+      "docs/archive/plans/2026-10-04-NPM-MAJORS-react-router7.md",
+      "docs/capstone-report/implementation-program.md"
+    ],
+    "docs/archive/plans/2026-10-04-NPM-audit-fix.md": [
+      "docs/00_architecture_plans_index.md",
+      "docs/archive/plans/2026-10-04-NPM-MAJORS-react-router7.md",
+      "docs/capstone-report/implementation-program.md"
+    ],
+    "docs/archive/plans/2026-10-04-RCC-recovery-code-cache.md": [
+      "docs/00_architecture_plans_index.md",
+      "docs/archive/plans/2026-10-04-RCC2-secret-retention.md",
+      "docs/archive/plans/2026-10-04-RCC3-restore-backup.md",
+      "docs/capstone-report/implementation-program.md"
+    ],
+    "docs/archive/plans/2026-10-04-RCC2-secret-retention.md": [
+      "docs/00_architecture_plans_index.md",
+      "docs/archive/plans/2026-10-04-RCC3-restore-backup.md",
+      "docs/capstone-report/implementation-program.md"
+    ],
+    "docs/archive/plans/2026-10-04-RCC3-restore-backup.md": [
+      "docs/00_architecture_plans_index.md",
+      "docs/capstone-report/implementation-program.md"
+    ],
+    "docs/archive/plans/2026-10-08-DEV-PS1-install-on-lockfile-change.md": [
+      "docs/00_architecture_plans_index.md"
+    ],
+    "docs/archive/plans/2026-10-19-session-handoff.md": [
+      "docs/00_architecture_plans_index.md",
+      "docs/plans/2026-10-18-session-handoff.md",
+      "docs/plans/2026-10-20-session-handoff.md"
+    ],
+    "docs/archive/plans/2026-10-20b-session-handoff.md": [
+      "docs/00_architecture_plans_index.md",
+      "docs/plans/2026-10-20-session-handoff.md",
+      "docs/plans/2026-10-20c-session-handoff.md"
     ],
     "docs/archive/plans/UI-implementation-2-4.md": [
       "docs/00_architecture_plans_index.md"
@@ -464,32 +496,25 @@
       "docs/roles/ai-llm-pipeline-and-safety.md"
     ],
     "docs/archive/prd-phases/PHASE_0_foundation.md": [
-      "docs/archive/agile-sprints/SPRINT_0.md",
-      "README.md"
+      "docs/archive/agile-sprints/SPRINT_0.md"
     ],
     "docs/archive/prd-phases/PHASE_1_first_tool.md": [
-      "docs/archive/agile-sprints/SPRINT_1.md",
-      "README.md"
+      "docs/archive/agile-sprints/SPRINT_1.md"
     ],
     "docs/archive/prd-phases/PHASE_2_loop.md": [
-      "docs/archive/agile-sprints/SPRINT_2.md",
-      "README.md"
+      "docs/archive/agile-sprints/SPRINT_2.md"
     ],
     "docs/archive/prd-phases/PHASE_3_guardrails.md": [
-      "docs/archive/agile-sprints/SPRINT_3.md",
-      "README.md"
+      "docs/archive/agile-sprints/SPRINT_3.md"
     ],
     "docs/archive/prd-phases/PHASE_4_phi_gate.md": [
-      "docs/archive/agile-sprints/SPRINT_4.md",
-      "README.md"
+      "docs/archive/agile-sprints/SPRINT_4.md"
     ],
     "docs/archive/prd-phases/PHASE_5_cutover_cache.md": [
-      "docs/archive/agile-sprints/SPRINT_5.md",
-      "README.md"
+      "docs/archive/agile-sprints/SPRINT_5.md"
     ],
     "docs/archive/prd-phases/PHASE_6_evals_ci.md": [
-      "docs/archive/agile-sprints/SPRINT_6.md",
-      "README.md"
+      "docs/archive/agile-sprints/SPRINT_6.md"
     ],
     "docs/brand/brand-guidelines.md": [
       "docs/agentic/progress.md"
@@ -558,6 +583,9 @@
     ],
     "docs/capstone-report/implementation-program.md": [
       "docs/agentic/orchestration.md",
+      "docs/archive/plans/2026-10-04-NPM-audit-fix.md",
+      "docs/archive/plans/2026-10-04-RCC-recovery-code-cache.md",
+      "docs/archive/plans/2026-10-08-DEV-PS1-install-on-lockfile-change.md",
       "docs/capstone-report/README.md",
       "docs/capstone-report/architecture-overview.md",
       "docs/capstone-report/owner-decisions-2026-09-27.md",
@@ -578,9 +606,6 @@
       "docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md",
       "docs/plans/2026-09-27-nightly-doc-drift-routine-spec.md",
       "docs/plans/2026-09-27-senior-report-showcase-plan.md",
-      "docs/plans/2026-10-04-NPM-audit-fix.md",
-      "docs/plans/2026-10-04-RCC-recovery-code-cache.md",
-      "docs/plans/2026-10-08-DEV-PS1-install-on-lockfile-change.md",
       "docs/plans/2026-10-15-build-program/contracts.md",
       "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md",
       "docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md",
@@ -592,6 +617,12 @@
       "docs/agentic/orchestration.md",
       "docs/architecture/README.md",
       "docs/architecture/pipelines.md",
+      "docs/archive/plans/2026-10-04-NPM-MAJORS-react-router7.md",
+      "docs/archive/plans/2026-10-04-NPM-audit-fix.md",
+      "docs/archive/plans/2026-10-04-RCC-recovery-code-cache.md",
+      "docs/archive/plans/2026-10-04-RCC2-secret-retention.md",
+      "docs/archive/plans/2026-10-04-RCC3-restore-backup.md",
+      "docs/archive/plans/2026-10-08-DEV-PS1-install-on-lockfile-change.md",
       "docs/capstone-report/README.md",
       "docs/capstone-report/implementation-program.md",
       "docs/capstone-report/rsi-in-development-and-application.md",
@@ -613,13 +644,7 @@
       "docs/plans/2026-09-29-S02-agent-cache-profile-isolation.md",
       "docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md",
       "docs/plans/2026-10-01-packaging-decision.md",
-      "docs/plans/2026-10-04-NPM-MAJORS-react-router7.md",
-      "docs/plans/2026-10-04-NPM-audit-fix.md",
       "docs/plans/2026-10-04-PROHIBITED-PARAPHRASE.md",
-      "docs/plans/2026-10-04-RCC-recovery-code-cache.md",
-      "docs/plans/2026-10-04-RCC2-secret-retention.md",
-      "docs/plans/2026-10-04-RCC3-restore-backup.md",
-      "docs/plans/2026-10-08-DEV-PS1-install-on-lockfile-change.md",
       "docs/plans/2026-10-13-wearables-00-program.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
       "docs/plans/2026-10-15-build-program/contracts.md",
@@ -636,7 +661,8 @@
       "docs/plans/2026-10-18-session-handoff.md",
       "docs/research/2026-10-20-rrsi-harness2/00-README.md",
       "docs/research/2026-10-20-rrsi-harness2/01-harness2.md",
-      "docs/research/2026-10-20-rrsi-harness2/02-verdicts.md"
+      "docs/research/2026-10-20-rrsi-harness2/02-verdicts.md",
+      "docs/research/2026-10-22-mvp/04-local-llm-serving.md"
     ],
     "docs/capstone-report/report-outline.md": [
       "docs/capstone-report/00-original-goal.md",
@@ -693,7 +719,8 @@
       "docs/plans/2026-09-27-senior-report-showcase-plan.md"
     ],
     "docs/compliance/README.md": [
-      "docs/agentic/roadmap.md"
+      "docs/agentic/roadmap.md",
+      "README.md"
     ],
     "docs/compliance/advisories.md": [
       "docs/compliance/README.md"
@@ -809,10 +836,6 @@
     "docs/plans/2026-07-02-architect-review-proposal-tickets.md": [
       "docs/00_architecture_plans_index.md",
       "docs/features/TASK_LIST.md"
-    ],
-    "docs/plans/2026-07-07-rename-audit-and-shortlist.md": [
-      "docs/agentic/progress.md",
-      "docs/brand/brand-guidelines.md"
     ],
     "docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md": [
       "docs/00_architecture_plans_index.md",
@@ -935,37 +958,16 @@
       "docs/capstone-report/owner-decisions-2026-09-27.md"
     ],
     "docs/plans/2026-10-01-packaging-decision.md": [
-      "docs/research/2026-10-12/00-README.md"
+      "docs/research/2026-10-12/00-README.md",
+      "docs/research/2026-10-22-mvp/00-README.md",
+      "docs/research/2026-10-22-mvp/01-desktop-packaging.md",
+      "docs/research/2026-10-22-mvp/07-owner-questions.md"
     ],
     "docs/plans/2026-10-04-DDI-doc-delete-interpretation.md": [
       "docs/capstone-report/implementation-program.md",
       "docs/plans/2026-10-09-AUDIT-ORDER.md"
     ],
-    "docs/plans/2026-10-04-NPM-MAJORS-react-router7.md": [
-      "docs/capstone-report/implementation-program.md",
-      "docs/plans/2026-10-04-NPM-MAJORS-tailwind4.md"
-    ],
-    "docs/plans/2026-10-04-NPM-MAJORS-tailwind4.md": [
-      "docs/capstone-report/implementation-program.md",
-      "docs/plans/2026-10-04-NPM-MAJORS-react-router7.md"
-    ],
-    "docs/plans/2026-10-04-NPM-audit-fix.md": [
-      "docs/capstone-report/implementation-program.md",
-      "docs/plans/2026-10-04-NPM-MAJORS-react-router7.md"
-    ],
     "docs/plans/2026-10-04-PROHIBITED-PARAPHRASE.md": [
-      "docs/capstone-report/implementation-program.md"
-    ],
-    "docs/plans/2026-10-04-RCC-recovery-code-cache.md": [
-      "docs/capstone-report/implementation-program.md",
-      "docs/plans/2026-10-04-RCC2-secret-retention.md",
-      "docs/plans/2026-10-04-RCC3-restore-backup.md"
-    ],
-    "docs/plans/2026-10-04-RCC2-secret-retention.md": [
-      "docs/capstone-report/implementation-program.md",
-      "docs/plans/2026-10-04-RCC3-restore-backup.md"
-    ],
-    "docs/plans/2026-10-04-RCC3-restore-backup.md": [
       "docs/capstone-report/implementation-program.md"
     ],
     "docs/plans/2026-10-04-SAFE-CHAT-legacy-prohibited-abstain.md": [
@@ -1066,22 +1068,24 @@
       "docs/plans/2026-10-13-wearables-tickets.md"
     ],
     "docs/plans/2026-10-15-build-program/RUNBOOK.md": [
+      "docs/archive/plans/2026-10-19-session-handoff.md",
+      "docs/archive/plans/2026-10-20b-session-handoff.md",
       "docs/plans/2026-10-17-session-handoff.md",
       "docs/plans/2026-10-18-session-handoff.md",
-      "docs/plans/2026-10-19-session-handoff.md",
       "docs/plans/2026-10-20-session-handoff.md",
-      "docs/plans/2026-10-20b-session-handoff.md",
       "docs/plans/2026-10-20c-session-handoff.md",
       "docs/plans/2026-10-21-session-handoff.md",
       "docs/plans/2026-10-21b-session-handoff.md",
       "docs/plans/2026-10-21c-session-handoff.md",
-      "docs/reviews/2026-10-15/build-program-codex.md"
+      "docs/reviews/2026-10-15/build-program-codex.md",
+      "README.md"
     ],
     "docs/plans/2026-10-15-build-program/contracts.md": [
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
       "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md",
       "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md",
       "docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md",
+      "docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md",
       "docs/plans/2026-10-15-build-program/queue.md",
       "docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md",
       "docs/reviews/2026-10-15/build-program-codex.md"
@@ -1089,11 +1093,14 @@
     "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md": [
       "docs/plans/2026-10-15-build-program/contracts.md",
       "docs/plans/2026-10-15-build-program/queue.md",
-      "docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md"
+      "docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md",
+      "docs/reviews/2026-10-22/kv-prefix-measure.md"
     ],
     "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md": [
       "docs/plans/2026-10-15-build-program/contracts.md",
-      "docs/plans/2026-10-15-build-program/queue.md"
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/research/2026-10-22-mvp/04-local-llm-serving.md",
+      "docs/research/2026-10-22-mvp/07-owner-questions.md"
     ],
     "docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md": [
       "docs/plans/2026-10-15-build-program/contracts.md"
@@ -1120,7 +1127,9 @@
       "docs/plans/2026-10-17-rsi-track2-eval-harness-plan.md",
       "docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md",
       "docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md",
-      "docs/reviews/2026-10-15/build-program-codex.md"
+      "docs/reviews/2026-10-15/build-program-codex.md",
+      "docs/reviews/2026-10-22/kv-prefix-measure.md",
+      "README.md"
     ],
     "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md": [
       "docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md",
@@ -1149,25 +1158,17 @@
       "docs/reviews/2026-10-21/gc5-model-host-evidence.md"
     ],
     "docs/plans/2026-10-18-session-handoff.md": [
+      "docs/archive/plans/2026-10-19-session-handoff.md",
       "docs/plans/2026-10-15-build-program/queue.md",
-      "docs/plans/2026-10-17-session-handoff.md",
-      "docs/plans/2026-10-19-session-handoff.md"
-    ],
-    "docs/plans/2026-10-19-session-handoff.md": [
-      "docs/plans/2026-10-18-session-handoff.md",
-      "docs/plans/2026-10-20-session-handoff.md"
+      "docs/plans/2026-10-17-session-handoff.md"
     ],
     "docs/plans/2026-10-20-session-handoff.md": [
-      "docs/plans/2026-10-20b-session-handoff.md"
-    ],
-    "docs/plans/2026-10-20b-session-handoff.md": [
-      "docs/plans/2026-10-20-session-handoff.md",
-      "docs/plans/2026-10-20c-session-handoff.md"
+      "docs/archive/plans/2026-10-20b-session-handoff.md"
     ],
     "docs/plans/2026-10-20c-session-handoff.md": [
+      "docs/archive/plans/2026-10-20b-session-handoff.md",
       "docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md",
       "docs/plans/2026-10-15-build-program/queue.md",
-      "docs/plans/2026-10-20b-session-handoff.md",
       "docs/plans/2026-10-21-session-handoff.md"
     ],
     "docs/plans/2026-10-21-session-handoff.md": [
@@ -1211,8 +1212,7 @@
       "README.md"
     ],
     "docs/prd/phases/PHASE_7_lora_stretch.md": [
-      "docs/agile/sprints/SPRINT_7.md",
-      "README.md"
+      "docs/agile/sprints/SPRINT_7.md"
     ],
     "docs/research/2026-09-08/00-brief.md": [
       "docs/agentic/roadmap.md",
@@ -1248,7 +1248,9 @@
       "docs/agentic/roadmap.md"
     ],
     "docs/research/2026-09-08/08-frontend.md": [
-      "docs/agentic/roadmap.md"
+      "docs/agentic/roadmap.md",
+      "docs/research/2026-10-22-mvp/00-README.md",
+      "docs/research/2026-10-22-mvp/02-frontend-components.md"
     ],
     "docs/research/2026-09-08/09-roadmap.md": [
       "docs/agentic/roadmap.md",
@@ -1374,8 +1376,8 @@
       "docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md"
     ],
     "docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md": [
+      "docs/archive/plans/2026-10-20b-session-handoff.md",
       "docs/plans/2026-10-15-build-program/queue.md",
-      "docs/plans/2026-10-20b-session-handoff.md",
       "docs/research/2026-10-20-rrsi-harness2/00-README.md",
       "docs/research/2026-10-20-rrsi-harness2/01-harness2.md",
       "docs/research/2026-10-20-rrsi-harness2/02-verdicts.md",
@@ -1385,6 +1387,41 @@
       "docs/research/2026-10-20-rrsi-harness2/00-README.md",
       "docs/research/2026-10-20-rrsi-harness2/02-verdicts.md",
       "docs/research/2026-10-20-rrsi-harness2/03-adversarial-review.md"
+    ],
+    "docs/research/2026-10-22-mvp/00-README.md": [
+      "docs/research/2026-10-22-mvp/01-desktop-packaging.md",
+      "docs/research/2026-10-22-mvp/02-frontend-components.md",
+      "docs/research/2026-10-22-mvp/03-pdf-extraction-ocr.md",
+      "docs/research/2026-10-22-mvp/04-local-llm-serving.md",
+      "docs/research/2026-10-22-mvp/05-onboarding-errors-backups.md",
+      "docs/research/2026-10-22-mvp/06-testing-tools.md"
+    ],
+    "docs/research/2026-10-22-mvp/01-desktop-packaging.md": [
+      "docs/research/2026-10-22-mvp/00-README.md",
+      "docs/research/2026-10-22-mvp/07-owner-questions.md"
+    ],
+    "docs/research/2026-10-22-mvp/02-frontend-components.md": [
+      "docs/research/2026-10-22-mvp/00-README.md"
+    ],
+    "docs/research/2026-10-22-mvp/03-pdf-extraction-ocr.md": [
+      "docs/research/2026-10-22-mvp/00-README.md"
+    ],
+    "docs/research/2026-10-22-mvp/04-local-llm-serving.md": [
+      "docs/research/2026-10-22-mvp/00-README.md",
+      "docs/research/2026-10-22-mvp/01-desktop-packaging.md"
+    ],
+    "docs/research/2026-10-22-mvp/05-onboarding-errors-backups.md": [
+      "docs/research/2026-10-22-mvp/00-README.md"
+    ],
+    "docs/research/2026-10-22-mvp/06-testing-tools.md": [
+      "docs/research/2026-10-22-mvp/00-README.md"
+    ],
+    "docs/research/2026-10-22-mvp/07-owner-questions.md": [
+      "docs/research/2026-10-22-mvp/00-README.md",
+      "docs/research/2026-10-22-mvp/03-pdf-extraction-ocr.md",
+      "docs/research/2026-10-22-mvp/04-local-llm-serving.md",
+      "docs/research/2026-10-22-mvp/05-onboarding-errors-backups.md",
+      "docs/research/2026-10-22-mvp/06-testing-tools.md"
     ],
     "docs/reviews/2026-09-25/DDI-diff-codex.txt": [
       "docs/reviews/README.md"
@@ -2169,6 +2206,7 @@
     ],
     "docs/roles/00_roles_index.md": [
       "docs/00_architecture_plans_index.md",
+      "README.md",
       "AGENT.md"
     ],
     "docs/roles/ai-llm-pipeline-and-safety.md": [
@@ -2205,12 +2243,6 @@
       "docs/roles/backend-api.md",
       "docs/roles/data-and-migrations.md",
       "docs/roles/devops-and-ci.md"
-    ],
-    "docs/superpowers/plans/2026-05-11-dynamic-port-selection.md": [
-      "docs/00_architecture_plans_index.md"
-    ],
-    "docs/superpowers/plans/2026-07-13-hc-m21-search.md": [
-      "docs/00_architecture_plans_index.md"
     ],
     "docs/user/faq.md": [
       "docs/user/README.md",
@@ -2385,54 +2417,44 @@
       "docs/agentic/recurring-failures.md"
     ],
     "README.md": [
+      "docs/compliance/README.md",
       "docs/architecture/README.md",
       "docs/architecture/performance-scalability-review.md",
-      "docs/api/endpoints.md",
-      "docs/05_backend_integration_status.md",
+      "docs/architecture/pipelines.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/agentic/orchestration.md",
+      "CLAUDE.md",
+      "AGENT.md",
       "docs/01_backend_architecture_plan.md",
       "docs/roles/backend-api.md",
+      "docs/INDEX.md",
+      "config/.env.example",
+      "CONTRIBUTING.md",
       "src/frontend/e2e/BROWSER_MCP_PLAYBOOK.md",
       "src/frontend/e2e/ui-full-verification.spec.ts",
+      "docs/api/endpoints.md",
       "docs/user/getting-started.md",
       "docs/user/workflows.md",
       "docs/user/troubleshooting.md",
       "docs/user/faq.md",
       "docs/api/README.md",
+      "docs/roles/00_roles_index.md",
       "docs/00_architecture_plans_index.md",
+      "docs/agentic/recurring-failures.md",
       "docs/compliance/hipaa-controls.md",
       "docs/compliance/data-privacy.md",
       "docs/compliance/disaster-recovery.md",
       "docs/compliance/audit-checklist.md",
       "docs/prd/PRD_agent_overhaul.md",
       "docs/agile/AGILE_PLAN.md",
-      "docs/archive/agile/STANDUP.md",
-      "docs/archive/agile/RETRO.md",
       "docs/agile/RELEASE_CHECKLIST.md",
-      "docs/agile/GROUNDING.md",
-      "docs/archive/agile/EXPLORATION_SUMMARY.md",
-      "docs/archive/agile/RECONCILIATION.md",
-      "docs/archive/agile/audience_expectations_main_vs_branch.md",
+      "docs/archive/README.md",
       "skills/asclexis-agent/SKILL.md",
-      "docs/archive/prd-phases/PHASE_0_foundation.md",
-      "docs/archive/prd-phases/PHASE_1_first_tool.md",
-      "docs/archive/prd-phases/PHASE_2_loop.md",
-      "docs/archive/agile-sprints/SPRINT_0.md",
-      "docs/archive/agile-sprints/SPRINT_1.md",
-      "docs/archive/agile-sprints/SPRINT_2.md",
       "skills/asclexis-guardrails/SKILL.md",
-      "docs/archive/prd-phases/PHASE_3_guardrails.md",
-      "docs/archive/prd-phases/PHASE_4_phi_gate.md",
-      "docs/archive/agile-sprints/SPRINT_3.md",
-      "docs/archive/agile-sprints/SPRINT_4.md",
       "skills/asclexis-backend/SKILL.md",
-      "docs/archive/prd-phases/PHASE_5_cutover_cache.md",
-      "docs/archive/agile-sprints/SPRINT_5.md",
       "skills/asclexis-evals/SKILL.md",
-      "docs/archive/prd-phases/PHASE_6_evals_ci.md",
-      "docs/archive/agile-sprints/SPRINT_6.md",
-      "docs/prd/phases/PHASE_7_lora_stretch.md",
-      "docs/agile/sprints/SPRINT_7.md",
-      "docs/features/TASK_LIST.md"
+      "docs/features/TASK_LIST.md",
+      "docs/plans/2026-10-15-build-program/queue.md"
     ],
     "docs/00_architecture_plans_index.md": [
       "docs/features/TASK_LIST.md",
@@ -2446,8 +2468,6 @@
       "docs/plans/ingest-imaging-pathology-spec.md",
       "docs/plans/implementation-log/README.md",
       "docs/plans/2026-06-30-tech-upgrade-survey-9-areas.md",
-      "docs/superpowers/plans/2026-07-13-hc-m21-search.md",
-      "docs/superpowers/plans/2026-05-11-dynamic-port-selection.md",
       "docs/architecture/README.md",
       "docs/architecture/backend.md",
       "docs/architecture/pipelines.md",
@@ -2464,7 +2484,20 @@
       "docs/archive/plans/2026-03-04-handoff.md",
       "docs/archive/plans/2026-03-28-roadmap-gsd-m001-m003-historical.md",
       "docs/archive/plans/2026-07-12-phase-c-handoff-prompt.md",
-      "docs/archive/plans/2026-07-02-fable5-architect-handoff-prompt.md"
+      "docs/archive/plans/2026-07-02-fable5-architect-handoff-prompt.md",
+      "docs/archive/plans/2026-10-19-session-handoff.md",
+      "docs/archive/plans/2026-10-20b-session-handoff.md",
+      "docs/archive/plans/2026-10-04-RCC-recovery-code-cache.md",
+      "docs/archive/plans/2026-10-04-RCC2-secret-retention.md",
+      "docs/archive/plans/2026-10-04-RCC3-restore-backup.md",
+      "docs/archive/plans/2026-10-04-NPM-audit-fix.md",
+      "docs/archive/plans/2026-10-04-NPM-MAJORS-tailwind4.md",
+      "docs/archive/plans/2026-10-04-NPM-MAJORS-react-router7.md",
+      "docs/archive/plans/2026-10-08-DEV-PS1-install-on-lockfile-change.md",
+      "docs/archive/plans/2026-07-07-rename-audit-and-shortlist.md",
+      "docs/archive/plans/2026-07-30-phase-b-asclexis-rename.md",
+      "docs/archive/plans/2026-07-13-hc-m21-search.md",
+      "docs/archive/plans/2026-05-11-dynamic-port-selection.md"
     ],
     "docs/01_backend_architecture_plan.md": [
       "docs/api/endpoints.md"
@@ -2503,7 +2536,7 @@
     ],
     "docs/agentic/progress.md": [
       "docs/brand/brand-guidelines.md",
-      "docs/plans/2026-07-07-rename-audit-and-shortlist.md",
+      "docs/archive/plans/2026-07-07-rename-audit-and-shortlist.md",
       "feature_list.json"
     ],
     "docs/agentic/roadmap.md": [
@@ -2638,6 +2671,51 @@
     "docs/archive/plans/2026-07-12-phase-c-handoff-prompt.md": [
       "docs/features/TASK_LIST.md"
     ],
+    "docs/archive/plans/2026-10-04-NPM-MAJORS-react-router7.md": [
+      "docs/archive/plans/2026-10-04-NPM-MAJORS-tailwind4.md",
+      "audit/2026-09-25/waves/scaffold/REACT-ROUTER-7.md",
+      "audit/2026-09-25/waves/scaffold/REVIEWS-2026-10-07.md",
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/archive/plans/2026-10-04-NPM-audit-fix.md"
+    ],
+    "docs/archive/plans/2026-10-04-NPM-MAJORS-tailwind4.md": [
+      "docs/archive/plans/2026-10-04-NPM-MAJORS-react-router7.md"
+    ],
+    "docs/archive/plans/2026-10-04-NPM-audit-fix.md": [
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/capstone-report/implementation-program.md"
+    ],
+    "docs/archive/plans/2026-10-04-RCC-recovery-code-cache.md": [
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/capstone-report/implementation-program.md"
+    ],
+    "docs/archive/plans/2026-10-04-RCC2-secret-retention.md": [
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/archive/plans/2026-10-04-RCC-recovery-code-cache.md"
+    ],
+    "docs/archive/plans/2026-10-04-RCC3-restore-backup.md": [
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/archive/plans/2026-10-04-RCC-recovery-code-cache.md",
+      "docs/archive/plans/2026-10-04-RCC2-secret-retention.md"
+    ],
+    "docs/archive/plans/2026-10-08-DEV-PS1-install-on-lockfile-change.md": [
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/capstone-report/implementation-program.md"
+    ],
+    "docs/archive/plans/2026-10-19-session-handoff.md": [
+      "CLAUDE.md",
+      "AGENT.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-18-session-handoff.md"
+    ],
+    "docs/archive/plans/2026-10-20b-session-handoff.md": [
+      "docs/plans/2026-10-20c-session-handoff.md",
+      "CLAUDE.md",
+      "AGENT.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-20-session-handoff.md",
+      "docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md"
+    ],
     "docs/archive/plans/next-agent-documentation-consolidation.md": [
       "docs/features/TASK_LIST.md"
     ],
@@ -2667,7 +2745,7 @@
       "docs/features/TASK_LIST.md"
     ],
     "docs/brand/brand-guidelines.md": [
-      "docs/plans/2026-07-07-rename-audit-and-shortlist.md"
+      "docs/archive/plans/2026-07-07-rename-audit-and-shortlist.md"
     ],
     "docs/capstone-report/00-original-goal.md": [
       "docs/capstone-report/specs-compliance-matrix.md",
@@ -2744,15 +2822,15 @@
       "docs/plans/2026-09-29-S02-agent-cache-profile-isolation.md",
       "docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md",
       "docs/plans/2026-10-04-DDI-doc-delete-interpretation.md",
-      "docs/plans/2026-10-04-RCC-recovery-code-cache.md",
-      "docs/plans/2026-10-04-RCC2-secret-retention.md",
-      "docs/plans/2026-10-04-RCC3-restore-backup.md",
+      "docs/archive/plans/2026-10-04-RCC-recovery-code-cache.md",
+      "docs/archive/plans/2026-10-04-RCC2-secret-retention.md",
+      "docs/archive/plans/2026-10-04-RCC3-restore-backup.md",
       "docs/plans/2026-10-04-SAFE-CHAT-legacy-prohibited-abstain.md",
       "docs/plans/2026-10-04-SAFE-INTERP-grounded.md",
-      "docs/plans/2026-10-04-NPM-audit-fix.md",
+      "docs/archive/plans/2026-10-04-NPM-audit-fix.md",
       "docs/plans/2026-10-04-PROHIBITED-PARAPHRASE.md",
-      "docs/plans/2026-10-04-NPM-MAJORS-tailwind4.md",
-      "docs/plans/2026-10-04-NPM-MAJORS-react-router7.md",
+      "docs/archive/plans/2026-10-04-NPM-MAJORS-tailwind4.md",
+      "docs/archive/plans/2026-10-04-NPM-MAJORS-react-router7.md",
       "docs/plans/2026-09-27-S01-sql-echo-phi-leak.md",
       "docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md",
       "docs/plans/2026-09-27-W10-governance-invariant-amendments.md",
@@ -3073,39 +3151,8 @@
       "docs/plans/2026-09-27-W08-bundled-embedding-model.md",
       "docs/plans/2026-09-27-W02-doctor-summary-redaction.md"
     ],
-    "docs/plans/2026-10-04-NPM-MAJORS-react-router7.md": [
-      "docs/plans/2026-10-04-NPM-MAJORS-tailwind4.md",
-      "audit/2026-09-25/waves/scaffold/REACT-ROUTER-7.md",
-      "audit/2026-09-25/waves/scaffold/REVIEWS-2026-10-07.md",
-      "docs/capstone-report/owner-decisions-2026-09-27.md",
-      "docs/plans/2026-10-04-NPM-audit-fix.md"
-    ],
-    "docs/plans/2026-10-04-NPM-MAJORS-tailwind4.md": [
-      "docs/plans/2026-10-04-NPM-MAJORS-react-router7.md"
-    ],
-    "docs/plans/2026-10-04-NPM-audit-fix.md": [
-      "docs/capstone-report/owner-decisions-2026-09-27.md",
-      "docs/capstone-report/implementation-program.md"
-    ],
     "docs/plans/2026-10-04-PROHIBITED-PARAPHRASE.md": [
       "docs/capstone-report/owner-decisions-2026-09-27.md"
-    ],
-    "docs/plans/2026-10-04-RCC-recovery-code-cache.md": [
-      "docs/capstone-report/owner-decisions-2026-09-27.md",
-      "docs/capstone-report/implementation-program.md"
-    ],
-    "docs/plans/2026-10-04-RCC2-secret-retention.md": [
-      "docs/capstone-report/owner-decisions-2026-09-27.md",
-      "docs/plans/2026-10-04-RCC-recovery-code-cache.md"
-    ],
-    "docs/plans/2026-10-04-RCC3-restore-backup.md": [
-      "docs/capstone-report/owner-decisions-2026-09-27.md",
-      "docs/plans/2026-10-04-RCC-recovery-code-cache.md",
-      "docs/plans/2026-10-04-RCC2-secret-retention.md"
-    ],
-    "docs/plans/2026-10-08-DEV-PS1-install-on-lockfile-change.md": [
-      "docs/capstone-report/owner-decisions-2026-09-27.md",
-      "docs/capstone-report/implementation-program.md"
     ],
     "docs/plans/2026-10-09-AUDIT-ORDER.md": [
       "docs/plans/2026-10-04-DDI-doc-delete-interpretation.md"
@@ -3295,6 +3342,7 @@
       "docs/plans/2026-09-27-nightly-doc-drift-routine-spec.md",
       "docs/plans/2026-09-27-senior-report-showcase-plan.md",
       "docs/features/TASK_LIST.md",
+      "docs/plans/2026-10-15-build-program/contracts.md",
       "docs/reviews/2026-10-20/gc5-real-model-evidence.md",
       "docs/capstone-report/implementation-program.md",
       "docs/agentic/recurring-failures.md"
@@ -3348,40 +3396,26 @@
       "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md"
     ],
     "docs/plans/2026-10-18-session-handoff.md": [
-      "docs/plans/2026-10-19-session-handoff.md",
+      "docs/archive/plans/2026-10-19-session-handoff.md",
       "CLAUDE.md",
       "AGENT.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
       "docs/plans/2026-10-17-session-handoff.md",
       "docs/capstone-report/owner-decisions-2026-09-27.md"
     ],
-    "docs/plans/2026-10-19-session-handoff.md": [
-      "CLAUDE.md",
-      "AGENT.md",
-      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
-      "docs/plans/2026-10-18-session-handoff.md"
-    ],
     "docs/plans/2026-10-20-session-handoff.md": [
-      "docs/plans/2026-10-20b-session-handoff.md",
+      "docs/archive/plans/2026-10-20b-session-handoff.md",
       "CLAUDE.md",
       "AGENT.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
-      "docs/plans/2026-10-19-session-handoff.md"
-    ],
-    "docs/plans/2026-10-20b-session-handoff.md": [
-      "docs/plans/2026-10-20c-session-handoff.md",
-      "CLAUDE.md",
-      "AGENT.md",
-      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
-      "docs/plans/2026-10-20-session-handoff.md",
-      "docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md"
+      "docs/archive/plans/2026-10-19-session-handoff.md"
     ],
     "docs/plans/2026-10-20c-session-handoff.md": [
       "docs/plans/2026-10-21-session-handoff.md",
       "CLAUDE.md",
       "AGENT.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
-      "docs/plans/2026-10-20b-session-handoff.md"
+      "docs/archive/plans/2026-10-20b-session-handoff.md"
     ],
     "docs/plans/2026-10-21-session-handoff.md": [
       "CLAUDE.md",
@@ -3596,6 +3630,50 @@
       "docs/research/2026-10-20-rrsi-harness2/02-verdicts.md",
       "docs/research/2026-10-20-rrsi-harness2/01-harness2.md"
     ],
+    "docs/research/2026-10-22-mvp/00-README.md": [
+      "docs/research/2026-10-22-mvp/07-owner-questions.md",
+      "CLAUDE.md",
+      "docs/plans/2026-10-01-packaging-decision.md",
+      "docs/research/2026-10-22-mvp/01-desktop-packaging.md",
+      "docs/research/2026-09-08/08-frontend.md",
+      "docs/research/2026-10-22-mvp/02-frontend-components.md",
+      "docs/research/2026-10-22-mvp/03-pdf-extraction-ocr.md",
+      "docs/research/2026-10-22-mvp/04-local-llm-serving.md",
+      "docs/research/2026-10-22-mvp/05-onboarding-errors-backups.md",
+      "docs/research/2026-10-22-mvp/06-testing-tools.md"
+    ],
+    "docs/research/2026-10-22-mvp/01-desktop-packaging.md": [
+      "docs/research/2026-10-22-mvp/00-README.md",
+      "docs/plans/2026-10-01-packaging-decision.md",
+      "docs/research/2026-10-22-mvp/04-local-llm-serving.md"
+    ],
+    "docs/research/2026-10-22-mvp/02-frontend-components.md": [
+      "docs/research/2026-10-22-mvp/00-README.md",
+      "docs/research/2026-09-08/08-frontend.md"
+    ],
+    "docs/research/2026-10-22-mvp/03-pdf-extraction-ocr.md": [
+      "docs/research/2026-10-22-mvp/07-owner-questions.md",
+      "docs/research/2026-10-22-mvp/00-README.md"
+    ],
+    "docs/research/2026-10-22-mvp/04-local-llm-serving.md": [
+      "docs/research/2026-10-22-mvp/07-owner-questions.md",
+      "docs/research/2026-10-22-mvp/00-README.md",
+      "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md",
+      "docs/capstone-report/owner-decisions-2026-09-27.md"
+    ],
+    "docs/research/2026-10-22-mvp/05-onboarding-errors-backups.md": [
+      "docs/research/2026-10-22-mvp/07-owner-questions.md",
+      "docs/research/2026-10-22-mvp/00-README.md"
+    ],
+    "docs/research/2026-10-22-mvp/06-testing-tools.md": [
+      "docs/research/2026-10-22-mvp/07-owner-questions.md",
+      "docs/research/2026-10-22-mvp/00-README.md"
+    ],
+    "docs/research/2026-10-22-mvp/07-owner-questions.md": [
+      "docs/plans/2026-10-01-packaging-decision.md",
+      "docs/research/2026-10-22-mvp/01-desktop-packaging.md",
+      "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md"
+    ],
     "docs/reviews/2026-09-25/DDI-r1-response.md": [
       "docs/reviews/2026-09-25/DDI-r1-codex.txt"
     ],
@@ -3694,6 +3772,10 @@
       "docs/reviews/2026-10-21/gc5-host-evidence/real_llm_llama3.1_8b.json",
       "docs/reviews/2026-10-21/gc5-host-evidence/real_llm_qwen3_8b.json",
       "docs/reviews/2026-10-21/gc5-host-evidence/trunc.json"
+    ],
+    "docs/reviews/2026-10-22/kv-prefix-measure.md": [
+      "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md",
+      "docs/plans/2026-10-15-build-program/queue.md"
     ],
     "docs/reviews/README.md": [
       "docs/agentic/orchestration.md",

@@ -68,7 +68,7 @@ def _client(profile_id, profile_db):
     return ctx, client
 
 
-EMPTY_PROFILE_VERSION = "o:0:|d:0:"  # _profile_version's fingerprint for a profile with no rows
+EMPTY_PROFILE_VERSION = "o:0:|d:0:|t:0:|m:0:|a:0:|e:0:|r:0:"  # _profile_version's fingerprint for a profile with no rows
 
 
 def _seed_cache(question: str, terminal: AgentTerminal, profile_id: str) -> None:
