@@ -1,9 +1,11 @@
 # NPM-AUDIT — Non-Breaking `npm audit fix` for the Frontend Implementation Plan
 
+> **Historical Reference** — executed and closed 2026-10-06 (PR #38; follow-ups closed by #52/#57 per `docs/capstone-report/implementation-program.md`); retained for history, not an active tracker. Moved from `docs/plans/2026-10-04-NPM-audit-fix.md` on 2026-10-22.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:verification-before-completion. Every count in this plan is re-measured, not copied. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** owner-scheduled 2026-10-04 (gate NPM-AUDIT-SCHED in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md)). Wave 3, L1-B.
-**Source:** owner item NPM-AUDIT ([implementation-program.md](../capstone-report/implementation-program.md), "NPM-AUDIT (security, 2026-10-01)" row: 21 vulnerabilities, 1 critical, 14 high, measured on `8064244`).
+**Status:** owner-scheduled 2026-10-04 (gate NPM-AUDIT-SCHED in [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md)). Wave 3, L1-B.
+**Source:** owner item NPM-AUDIT ([implementation-program.md](../../capstone-report/implementation-program.md), "NPM-AUDIT (security, 2026-10-01)" row: 21 vulnerabilities, 1 critical, 14 high, measured on `8064244`).
 **Architectural:** no. No Codex review. `code-reviewer` + `security-reviewer` required.
 
 **Goal:** Apply every `npm audit` fix in `src/frontend` that needs no semver-major upgrade, prove the app still type-checks, lints, builds and tests, and list what is left with the major version it needs.
@@ -199,9 +201,9 @@ One PR; `git revert <merge sha>` restores the old lockfile. Then `npm ci`.
 
 ## Amendment 2 (NPM-AUDIT-2) — L1-B, 2026-10-08
 
-A second run of this plan, as phase NPM-AUDIT-2 (item NPM-AUDIT-DRIFT in [implementation-program.md](../capstone-report/implementation-program.md), scheduled by the NPM-MAJORS-RUN row below). Tasks 0-3 above are reused; where this section and the text above disagree, this section wins for NPM-AUDIT-2. The record of the first run (PR #38) above is unchanged.
+A second run of this plan, as phase NPM-AUDIT-2 (item NPM-AUDIT-DRIFT in [implementation-program.md](../../capstone-report/implementation-program.md), scheduled by the NPM-MAJORS-RUN row below). Tasks 0-3 above are reused; where this section and the text above disagree, this section wins for NPM-AUDIT-2. The record of the first run (PR #38) above is unchanged.
 
-**Gates ([owner-decisions](../capstone-report/owner-decisions-2026-09-27.md); quoted text is the owner's, cut to the part that binds this phase):**
+**Gates ([owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md); quoted text is the owner's, cut to the part that binds this phase):**
 
 - NPM-MAJORS-RUN (2026-10-07): "NPM-AUDIT-2, then React Router 7, then Tailwind 4, each as its own PR."
 - FE-SEQ (2026-10-07): "NPM-AUDIT-2 runs from the existing plan plus Amendment 2; … any other transitive major bump (dev/test-only or not) comes back to you before it lands."

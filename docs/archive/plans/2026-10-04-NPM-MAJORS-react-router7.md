@@ -1,5 +1,7 @@
 # NPM-MAJORS (b) — React Router 6 → 7 Migration Plan
 
+> **Historical Reference** — executed 2026-10-09 (PR #57 per `docs/capstone-report/implementation-program.md`; react-router-dom 7 is in `src/frontend/package.json`); retained for history, not an active tracker. Moved from `docs/plans/2026-10-04-NPM-MAJORS-react-router7.md` on 2026-10-22.
+
 > **For agentic workers:** this plan is **not approved for execution**. Owner gate NPM-MAJORS: "Plans for both migrations this wave; they come back to the owner before running." Do not start Task 0 until owner-decisions records an approval naming this file.
 
 **Status:** plan only, written 2026-10-04 by L1-B (Wave 3). Approval pending.
@@ -105,9 +107,9 @@ Task 2 is one commit: `git revert <sha>` it to return to v6 with the flags still
 
 ## Amendment 1 (execution) — L1-D, 2026-10-09
 
-Applied as the first commit on `fix/react-router-7` (base `origin/main` = `f428a99`). Where this section and the text above disagree, this section wins. Sources: readiness pack [REACT-ROUTER-7.md](../../audit/2026-09-25/waves/scaffold/REACT-ROUTER-7.md) §4, Fable review [REVIEWS-2026-10-07.md](../../audit/2026-09-25/waves/scaffold/REVIEWS-2026-10-07.md) §1, and the owner answers below.
+Applied as the first commit on `fix/react-router-7` (base `origin/main` = `f428a99`). Where this section and the text above disagree, this section wins. Sources: readiness pack [REACT-ROUTER-7.md](../../../audit/2026-09-25/waves/scaffold/REACT-ROUTER-7.md) §4, Fable review [REVIEWS-2026-10-07.md](../../../audit/2026-09-25/waves/scaffold/REVIEWS-2026-10-07.md) §1, and the owner answers below.
 
-**Status.** Approved. Gate NPM-MAJORS-RUN ([owner-decisions](../capstone-report/owner-decisions-2026-09-27.md) row NPM-MAJORS-RUN, 2026-10-07): "This approves both NPM-MAJORS plans for execution". The "not approved" header above is stale. Preconditions: NPM-AUDIT #38 (`93def9e`, `c4d407e`) and NPM-AUDIT-2 #52 (`f428a99`) are on `origin/main`. Worktree `../hc-rr7`, branch `fix/react-router-7`.
+**Status.** Approved. Gate NPM-MAJORS-RUN ([owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md) row NPM-MAJORS-RUN, 2026-10-07): "This approves both NPM-MAJORS plans for execution". The "not approved" header above is stale. Preconditions: NPM-AUDIT #38 (`93def9e`, `c4d407e`) and NPM-AUDIT-2 #52 (`f428a99`) are on `origin/main`. Worktree `../hc-rr7`, branch `fix/react-router-7`.
 
 **Owner answers (chat 2026-10-09; recorded on branch `docs/wave4-close` commit `1349d94`, not yet on `main`).**
 
