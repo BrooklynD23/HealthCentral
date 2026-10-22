@@ -19,7 +19,7 @@ Working outline. Each section names the artifacts that back it — the report is
 
 - Architecture: FastAPI + per-profile vaults (SQLCipher where installed, C16) + React/TS; middleware stack; dual Alembic
 - The five core flows (upload→verify→trends; assistant; record intelligence; lifecycle; feedback→RL) — 2 re-traced, lifecycle code-read, 2 reported (C13)
-- Evidence: [architecture-overview.md](architecture-overview.md) (verified current state + integration diagram) ✅; audit §3–4, §7 as dated context; [`asclexis-showcase-2026-10-22.html`](asclexis-showcase-2026-10-22.html) §01–05 for figures (the ledger-gated copy; the 2026-09-25 page stays unchanged in `audit/` as a dated artifact) ✅
+- Evidence: [architecture-overview.md](architecture-overview.md) (current state + integration diagram) ✅; audit §3–4, §7 as dated context; [`asclexis-showcase-2026-10-22.html`](asclexis-showcase-2026-10-22.html) §01–05 for figures (the ledger-gated copy; the 2026-09-25 page stays unchanged in `audit/` as a dated artifact) ✅
 - Honest status column: what's wired vs built-but-inert (notifications) vs absent (packaging) vs partial (verification gate, export redaction; see [specs-compliance-matrix.md](specs-compliance-matrix.md)) ✅
 - Agent path note: the default agent path makes no LLM call; the draft is deterministic (C14, [overview §6](architecture-overview.md#6-assistant-path)) ✅
 
@@ -32,7 +32,7 @@ Working outline. Each section names the artifacts that back it — the report is
 
 ## 4. Methodology — the developer→orchestrator shift
 
-- Eras E0–E7 with measured git-author shares and co-author-trailer shares, method stated (H12; evidence figure: showcase §07). Git author name is a proxy: in October 2026 the agent shows mostly as a co-author trailer under a human author name (H12: 98 of 1428 October commits name the agent as author, all on 2026-10-20 or later)
+- Eras E0–E7 with measured git-author shares and co-author-trailer shares, method stated (H12; evidence figure: showcase §07). Git author name is a proxy: in October 2026 the agent shows mostly as a co-author trailer under a human author name (H12: 98 of 1428 October commits name the agent as author, dated 2026-10-20 or later)
 - Harness layers as they accreted (H13): gates (docs lint 2026-02-12, security gate 2026-02-22) → constitution (2026-06-13) → skills (2026-06-23) → eval gate (2026-06-24) → task ledger (2026-07-07) → `route_client` (2026-07-30) → failure memory (2026-08-04)
 - Evidence: claims-ledger H1, H12, H13 (commands); audit §9, §12–14 as context ✅
 
