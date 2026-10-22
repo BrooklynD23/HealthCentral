@@ -1,5 +1,7 @@
 # Phase B: Asclexis Rename and Branding Implementation Plan
 
+> **Historical Reference** — the Asclexis rename it plans is done (`feature_list.json` HC-M10, stages 1-3 DONE); retained for history, not an active tracker. Moved from `docs/superpowers/plans/2026-07-30-phase-b-asclexis-rename.md` on 2026-10-22.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Rename the product from HealthCentral to Asclexis across every user-visible surface, migrate the master database filename safely, and record the brand philosophy.
