@@ -474,7 +474,7 @@ Whole extractor on `main`: `extract_imaging_entities("FINDINGS:x" + "\n" * 20000
 **Expected collected delta:** main +2; #264 +2 when it lands. **Est:** 1 h.
 **Acceptance:** RED for HC-OTK-001; pytest set 0 failed; full suite. **Model-host check (L0, after #264 is resumed):** `judge_preview.py` against Ollama `gemma4:e4b` with the 60 s override gives ALLOW/BLOCK verdicts, not UNAVAILABLE; the 2 s production number is reported, not changed. **Rollback:** revert.
 **Owner gates:** **JUDGE-THINK answered (a) "Judge only, think off"** in substance: Owner prompts 38-39 (2026-10-22, L0 AskUserQuestion; record `/tmp/claude-1000/prompts-38-39.json`; rows land in L0's owner-rows PR from branch `docs/owner-rows-prompts38-39`). Prompt 38 got a proposal instead of an option (a typed decision model, Jev / Laya); L0 re-asked in prompt 39 and the owner chose "Think off now + research Laya (Recommended)". The Laya research is a separate row, JUDGE-LAYA-RESEARCH, planned by another planner; it does not change this row. No answer is recorded in this file; the owner-decisions row comes from L0's PR.
-**Order:** ready once the owner-rows PR (`docs/owner-rows-prompts38-39`) merges. Never beside OLLAMA-NUM-CTX (lane A, also `_build_request_body`); whichever lands second merges `origin/main` and re-runs both test files.
+**Order:** ready (owner rows on main via #291 `df9ca7f`). Never beside OLLAMA-NUM-CTX (lane A, also `_build_request_body`); whichever lands second merges `origin/main` and re-runs both test files.
 
 ### EXTRACT-UNIT-MGL — `mg/L` is not a known unit, so CRP lines are dropped silently
 
@@ -580,7 +580,7 @@ Whole extractor on `main`: `extract_imaging_entities("FINDINGS:x" + "\n" * 20000
 **Files:** `src/backend/modules/interpret.py` (the two blocks only), `src/backend/tests/test_interpret_safety_metadata.py` (new), slots. **Re-run, not edited:** `tests/test_interpret*.py`, `tests/test_safe_interp_grounded.py`, `tests/test_interpret_safety*.py`. **Expected collected delta:** +3. **Est:** 0.75 h.
 **Acceptance:** RED for 001-002; pytest set 0 failed; `git diff origin/main --stat -- src/backend/modules/interpret_safety.py` empty; full suite. **Rollback:** revert.
 **Owner gates:** **INTERP-DISC-ORDER answered (a) "Check the final text"** (Owner prompts 38-39 (2026-10-22, L0 AskUserQuestion; record `/tmp/claude-1000/prompts-38-39.json`; rows land in L0's owner-rows PR from branch `docs/owner-rows-prompts38-39`), prompt 38). Not an ask-first file, but the change moves when a safety check runs, so the owner decides (CLAUDE.md §3: never weaken a check without asking).
-**Order:** ready once the owner-rows PR (`docs/owner-rows-prompts38-39`) merges. Never beside B-5 (W-7), which edits `interpret.py`.
+**Order:** ready (owner rows on main via #291 `df9ca7f`). Never beside B-5 (W-7), which edits `interpret.py`, or INTERP-SAFETY-ENFORCE (same function).
 
 ### VERIFY-DOCS-STALE — after "Mark All Verified" the "Documents needing attention" panel stays until reload
 
