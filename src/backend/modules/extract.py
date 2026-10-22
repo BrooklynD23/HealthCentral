@@ -66,7 +66,7 @@ class ExtractionResult:
 # Shared unit alternation. Longer alternatives precede their prefixes.
 _UNIT_ALT = (
     r"mIU/L|[uµμ]IU/mL|ng/dL|[uµμ]g/dL|nmol/L|pmol/L|[uµμ]mol/L|"
-    r"[uµμ]g/L|g/L|mg/dL|g/dL|mmol/L|mEq/L|U/L|IU/L|ng/mL|pg/mL|%|fL|K/uL|M/uL|cells/uL"
+    r"[uµμ]g/L|g/L|mg/dL|mg/L|g/dL|mmol/L|mEq/L|U/L|IU/L|ng/mL|pg/mL|%|fL|K/uL|M/uL|cells/uL"
 )
 
 
