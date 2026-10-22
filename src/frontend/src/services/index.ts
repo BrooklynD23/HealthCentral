@@ -173,6 +173,7 @@ export type {
   ExternalApiSettings,
   ExternalApiSettingsSave,
   ProviderInfo,
+  ProviderCapabilities,
   OcrSettingsResponse,
   DiagnosticFixAction,
   DiagnosticComponent,

@@ -147,6 +147,28 @@ const mockInsufficientContextResponse = {
   validation_errors: [],
 };
 
+function providerPayload(
+  llm_provider: string,
+  llm_model: string,
+  provider_name: string,
+  model_name: string
+) {
+  return {
+    llm_provider,
+    llm_model,
+    ollama_base_url: 'http://localhost:11434',
+    available: true,
+    capabilities: {
+      context_len: 4096,
+      multimodal: false,
+      function_calling: false,
+      streaming: false,
+      provider_name,
+      model_name,
+    },
+  };
+}
+
 describe('ExplainAssistant', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -677,14 +699,8 @@ describe('ExplainAssistant', () => {
       }
     }
 
-    it('HC-MDL-001 shows the configured provider and model, not the tier label', async () => {
-      mockModelApis({
-        llm_provider: 'ollama',
-        llm_model: 'gemma4:e4b',
-        ollama_base_url: 'http://localhost:11434',
-        available: true,
-        capabilities: {},
-      });
+    it('HC-MDL-001 shows the provider and model that answer, not the tier label', async () => {
+      mockModelApis(providerPayload('ollama', 'gemma4:e4b', 'ollama', 'gemma4:e4b'));
       renderWithProviders(<ExplainAssistant />);
 
       await screen.findByText('ollama \u00b7 gemma4:e4b');
@@ -704,20 +720,26 @@ describe('ExplainAssistant', () => {
       expect(screen.getByText('BioMistral-7B')).toBeInTheDocument();
     });
 
-    it('HC-MDL-003 treats the "(auto)" placeholder as unset and keeps the tier label', async () => {
-      mockModelApis({
-        llm_provider: 'llama_cpp',
-        llm_model: '(auto)',
-        ollama_base_url: 'http://localhost:11434',
-        available: true,
-        capabilities: {},
-      });
+    it('HC-MDL-003 default config: shows the GGUF file stem, never "(auto)"', async () => {
+      mockModelApis(
+        providerPayload('llama_cpp', '(auto)', 'llama_cpp', 'phi-4-mini-instruct-q4_k_m')
+      );
       renderWithProviders(<ExplainAssistant />);
 
-      await screen.findByText('BioMistral-7B');
+      await screen.findByText('llama_cpp \u00b7 phi-4-mini-instruct-q4_k_m');
       await flush();
-      expect(screen.getByText('BioMistral-7B')).toBeInTheDocument();
+      expect(screen.queryByText('BioMistral-7B')).toBeNull();
       expect(screen.queryByText(/\(auto\)/)).toBeNull();
+    });
+
+    it('HC-MDL-004 names the provider that really answers after the Ollama fallback', async () => {
+      mockModelApis(providerPayload('ollama', 'gemma4:e4b', 'llama_cpp', 'phi-3-mini'));
+      renderWithProviders(<ExplainAssistant />);
+
+      const badge = await screen.findByText(/^llama_cpp \u00b7 /);
+      await flush();
+      expect(badge).toHaveTextContent('llama_cpp \u00b7 phi-3-mini');
+      expect(screen.queryByText(/^ollama \u00b7 /)).toBeNull();
     });
   });
 });

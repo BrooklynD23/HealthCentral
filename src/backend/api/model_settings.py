@@ -852,12 +852,18 @@ async def get_llm_provider(session: RequireAuth):
 
     provider = get_provider()
     caps = provider.capabilities()
+    # CHAT-MODEL-BADGE: the chat page reads this on open. llama_cpp's is_available()
+    # loads the GGUF synchronously, so report "already loaded" without loading.
+    if caps.provider_name == "llama_cpp":
+        available = getattr(provider, "_model", None) is not None
+    else:
+        available = provider.is_available()
 
     return ProviderInfoResponse(
         llm_provider=app_settings.llm_provider,
         llm_model=app_settings.llm_model or "(auto)",
         ollama_base_url=app_settings.ollama_base_url,
-        available=provider.is_available(),
+        available=available,
         capabilities={
             "context_len": caps.context_len,
             "multimodal": caps.multimodal,

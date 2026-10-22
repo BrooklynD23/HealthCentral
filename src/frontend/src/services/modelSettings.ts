@@ -271,7 +271,17 @@ export interface ProviderInfo {
   llm_model: string;
   ollama_base_url: string;
   available: boolean;
-  capabilities: Record<string, unknown>;
+  /** As built by `get_llm_provider`: the provider that actually answers. */
+  capabilities: ProviderCapabilities;
+}
+
+export interface ProviderCapabilities {
+  context_len: number;
+  multimodal: boolean;
+  function_calling: boolean;
+  streaming: boolean;
+  provider_name: string;
+  model_name: string;
 }
 
 async function getProviderInfo(): Promise<ProviderInfo> {

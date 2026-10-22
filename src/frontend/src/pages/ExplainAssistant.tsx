@@ -288,9 +288,12 @@ export function ExplainAssistant() {
       const m = externalApi.model || 'default';
       return `${p} · ${m}`;
     }
-    // "(auto)" is the backend's placeholder when no model is configured.
-    if (providerInfo?.llm_model && providerInfo.llm_model !== '(auto)') {
-      return `${providerInfo.llm_provider} · ${providerInfo.llm_model}`;
+    // capabilities names the provider that really answers (llm_provider is wrong
+    // after the Ollama-unreachable fallback; llm_model may be "(auto)" or a path).
+    const providerName = providerInfo?.capabilities?.provider_name;
+    const modelName = providerInfo?.capabilities?.model_name;
+    if (providerName && modelName) {
+      return `${providerName} · ${modelName}`;
     }
     const tier = modelSettings?.current_tier;
     if (tier && modelSettings?.tier_availability?.[tier]?.model) {
