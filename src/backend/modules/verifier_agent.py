@@ -88,6 +88,13 @@ class VerificationConfig:
     use_llm_entailment: bool = False
 
 
+def _nli_fail_closed(result: EntailmentResult) -> bool:
+    """True for the NLI's own fail-closed returns (model absent, predict failed)."""
+    return result.label is EntailmentLabel.NEUTRAL and result.explanation.endswith(
+        "claim left unverified"
+    )
+
+
 class VerifierAgent:
     """
     Secondary agent that verifies claims against source evidence.
@@ -218,12 +225,15 @@ class VerifierAgent:
         """
         Check entailment relationship between claim and source.
 
-        Uses rule-based approach with optional LLM fallback.
+        Rules decide; with the NLI flag on, the NLI may only veto
+        (GC5-NEUTRAL-SCOPE (a)): a fail-closed NLI result or a contradiction
+        is returned, otherwise the rules result. Neutral is never support.
         """
         if self.config.use_llm_entailment:
-            return self._check_entailment_llm(claim, source)
-        else:
-            return self._check_entailment_rules(claim, source)
+            result = self._check_entailment_llm(claim, source)
+            if _nli_fail_closed(result) or result.label is EntailmentLabel.CONTRADICTION:
+                return result
+        return self._check_entailment_rules(claim, source)
 
     def _check_entailment_rules(
         self,
