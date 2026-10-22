@@ -70,7 +70,7 @@ flowchart TD
     PRE --> PLAN
     subgraph AGENT["modules/agent/graph.py (no LLM call)"]
         PLAN["plan"] --> ACT["act: one read-only tool<br/>modules/agent/tools/registry.py (8 tools)"]
-        PLAN -->|"already grounded"| DRAFT
+        PLAN -->|"draft decision"| DRAFT
         ACT --> REFL["reflect"]
         REFL -->|"loop, max 5 acts"| PLAN
         REFL -->|"enough grounding"| DRAFT["draft: every sentence cited"]

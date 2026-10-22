@@ -95,7 +95,7 @@ flowchart TD
         PRE --> PLAN --> ACT --> REFLECT
         REFLECT -->|"loop"| PLAN
         REFLECT -->|"enough"| DRAFT
-        PLAN -->|"already grounded"| DRAFT
+        PLAN -->|"draft decision"| DRAFT
     end
     PRE -->|"advice bait"| ESCQ["escalate template"]
     PLAN -->|"nothing to try"| ABSTP["abstain template"]
