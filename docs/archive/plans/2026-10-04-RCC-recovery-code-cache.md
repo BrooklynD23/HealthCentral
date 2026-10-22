@@ -1,9 +1,11 @@
 # RCC — Recovery Code Out of the TanStack Mutation Cache Implementation Plan
 
+> **Historical Reference** — executed and closed 2026-10-05 (PRs #37, #42, #46 per `docs/capstone-report/implementation-program.md`); retained for history, not an active tracker. Moved from `docs/plans/2026-10-04-RCC-recovery-code-cache.md` on 2026-10-22.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:test-driven-development. Every new test is observed FAILING before the fix. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** owner-scheduled 2026-10-04 (gate W3-SEC-SCHED in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md)). Wave 3, L1-B.
-**Source:** owner item RECOVERY-CODE-CACHE ([implementation-program.md](../capstone-report/implementation-program.md), "RECOVERY-CODE-CACHE (security, 2026-09-29)" row), found by Codex on PR #24.
+**Status:** owner-scheduled 2026-10-04 (gate W3-SEC-SCHED in [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md)). Wave 3, L1-B.
+**Source:** owner item RECOVERY-CODE-CACHE ([implementation-program.md](../../capstone-report/implementation-program.md), "RECOVERY-CODE-CACHE (security, 2026-09-29)" row), found by Codex on PR #24.
 **Architectural:** no (frontend, one component + one hook option). No Codex review. `code-reviewer` + `security-reviewer` required.
 
 **Goal:** After the settings-page recovery-code mutation settles, the TanStack mutation cache holds neither the password nor the issued recovery code.

@@ -50,7 +50,7 @@ Session-by-session record of agent work: what changed, what was verified, what f
 - `from main import app` — boots.
 - Frontend untouched this session; `tsc`/vitest not rerun (no frontend diff).
 
-- **HC-M10 stage 1 — rename audit + shortlist** (owner chose rename): surface audited (~45 must-change user-visible strings across ~20 files; internal `HC_*`/`HC-*` identifiers and DB filenames explicitly kept) and an 8-candidate shortlist screened for collisions — see [docs/plans/2026-07-07-rename-audit-and-shortlist.md](../plans/2026-07-07-rename-audit-and-shortlist.md). Ruled out by screening: LabVault, Vitalog, Healthfolio (existing products). **Blocked on owner: pick a candidate and clear it (USPTO/domain/app stores) — stage 2 is manual.**
+- **HC-M10 stage 1 — rename audit + shortlist** (owner chose rename): surface audited (~45 must-change user-visible strings across ~20 files; internal `HC_*`/`HC-*` identifiers and DB filenames explicitly kept) and an 8-candidate shortlist screened for collisions — see [docs/archive/plans/2026-07-07-rename-audit-and-shortlist.md](../archive/plans/2026-07-07-rename-audit-and-shortlist.md). Ruled out by screening: LabVault, Vitalog, Healthfolio (existing products). **Blocked on owner: pick a candidate and clear it (USPTO/domain/app stores) — stage 2 is manual.**
 
 **Next highest priority:** HC-M10 stage 2 (owner clearance — blocking, manual), then HC-M06 (extraction eval card) / HC-M07 (observability gaps).
 
