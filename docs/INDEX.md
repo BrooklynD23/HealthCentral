@@ -156,6 +156,14 @@ Why this project exists as an agentic-engineering exercise, and what "done well"
 
 Links to: `docs/agentic/evals.md`, `docs/agentic/harness.md`, `docs/agentic/mcp-tools.md`, `docs/agentic/progress.md`, `docs/compliance/README.md`, `docs/compliance/ai-safety.md`, `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/01-codebase-audit.md`, `docs/research/2026-09-08/02-inference-serving.md`, `docs/research/2026-09-08/03-agentic-loops.md`, `docs/research/2026-09-08/04-mcp-interop.md`, `docs/research/2026-09-08/05-models-voice.md`, `docs/research/2026-09-08/06-competitive-landscape.md`, `docs/research/2026-09-08/07-data-control.md`, `docs/research/2026-09-08/08-frontend.md`, `docs/research/2026-09-08/09-roadmap.md`, `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`, `docs/research/2026-09-08/PLAN.md`, `feature_list.json`
 
+## `docs/agentic/rsi-runs/README.md`
+
+**RSI run archive**
+
+rsi-loop reads two logs that are git-ignored, so they stay on the machine that wrote them: - `.claude/logs/rsi/<date>.jsonl`, written by the `asclexis-rsi` mod when the session starts with…
+
+Links to: `docs/agentic/rsi-runs/2026-10-21-laptop/summary.json`
+
 ## `docs/agile/AGILE_PLAN.md`
 
 **HealthCentral — Agent Overhaul Agile Plan**
@@ -1406,7 +1414,7 @@ Links to: `AGENT.md`, `CLAUDE.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.
 
 Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-21b handoff. This session ran as a **local** L0 on the laptop: Danny-Lenovo, WSL, 6 vCPU, no GPU and no…
 
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-21b-session-handoff.md`
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/rsi-runs/README.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-21b-session-handoff.md`
 
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
