@@ -10,6 +10,7 @@ Covers:
 """
 
 import sys
+import time
 from datetime import date, datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -456,3 +457,74 @@ class TestTrendsEndpointUndated:
         data_points, summary, ref_low, ref_high, unit = self._run_trend_logic(obs_list)
         assert ref_low == 70.0
         assert ref_high == 100.0
+
+
+# ---------------------------------------------------------------------------
+# EXTRACT-DOB-DATE  A date of birth is never a collection date
+# ---------------------------------------------------------------------------
+
+class TestBirthDateExcluded:
+    """HC-DATE-007..009: dates that follow a birth label are skipped (both stages)."""
+
+    @pytest.mark.parametrize("label", [
+        "DOB:",
+        "D.O.B.",
+        "Date of Birth:",
+        "Birth Date:",
+        "Born on",
+    ])
+    def test_hc_date_007_birth_label_date_is_not_a_collection_date(self, label):
+        """HC-DATE-007: the DOB is dropped; the real collection date remains."""
+        text = (
+            "Patient: Jane Test\n"
+            f"{label} 1970-01-01\n"
+            "Collection Date: 2026-03-02\n"
+            "Glucose: 95 mg/dL (70-100)\n"
+        )
+        assert _module()._extract_dates(text) == ["2026-03-02"]
+
+    @pytest.mark.asyncio
+    async def test_hc_date_008_dob_only_document_is_undated(self, tmp_path):
+        """HC-DATE-008: a document whose only date is a DOB gets no collection date."""
+        mock_page = MagicMock()
+        mock_page.extract_text.return_value = (
+            "DOB: 1970-01-01\n"
+            "Glucose: 95 mg/dL (70-100)\n"
+        )
+        mock_page.extract_tables.return_value = []
+        mock_pdf = MagicMock()
+        mock_pdf.pages = [mock_page]
+        mock_pdf.__enter__ = MagicMock(return_value=mock_pdf)
+        mock_pdf.__exit__ = MagicMock(return_value=False)
+
+        with patch("pdfplumber.open", return_value=mock_pdf):
+            result = await _module().extract_from_pdf(tmp_path / "dob.pdf", "doc-dob-1")
+
+        assert result.collection_dates == []
+        assert [o.analyte_raw for o in result.observations] == ["Glucose"]
+        assert all(o.collected_at is None for o in result.observations)
+
+    def test_hc_date_009_long_whitespace_after_label_is_fast_and_linear(self):
+        """HC-DATE-009: pin against a prefix-wide look-behind (quadratic on whitespace)."""
+        m = _module()
+        text = "DOB" + " " * 50000 + "1970-01-01"
+        start = time.perf_counter()
+        m._extract_dates(text)
+        elapsed = time.perf_counter() - start
+        assert elapsed < 1.0, f"took {elapsed:.2f}s"
+
+        # Many dates each preceded by a long whitespace run: still linear.
+        many = "".join(f"DOB{' ' * 2000}2024-01-{(i % 28) + 1:02d}\n" for i in range(200))
+        start = time.perf_counter()
+        m._extract_dates(many)
+        elapsed = time.perf_counter() - start
+        assert elapsed < 1.0, f"took {elapsed:.2f}s"
+
+    def test_hc_date_009b_label_window_keeps_word_boundary_honest(self):
+        """The 32-char window must not fake a `\\b` when it starts mid-word."""
+        tail = "date" + " " * 18 + "of birth: "
+        assert len(tail) == 32
+        # 'xdate ... of birth:' is not a birth label: the 'x' glues onto 'date'.
+        assert _module()._extract_dates("x" + tail + "2026-03-02") == ["2026-03-02"]
+        # Same tail with a real word boundary in front is a birth label.
+        assert _module()._extract_dates(" " + tail + "2026-03-02") == []

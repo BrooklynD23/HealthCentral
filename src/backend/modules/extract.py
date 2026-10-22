@@ -703,6 +703,25 @@ class ExtractModule:
         re.IGNORECASE,
     )
 
+    # A birth label directly before a date marks it as a date of birth, never a
+    # collection date. Checked on a fixed 32-character window (linear on long
+    # whitespace runs); callers pass pos/endpos so `\b` still sees the real
+    # character before the window.
+    _BIRTH_LABEL_TAIL_RE = re.compile(
+        r"(?:\bd\.?\s?o\.?\s?b\.?|\bdate\s+of\s+birth|\bbirth\s*date|\bborn(?:\s+on)?)"
+        r"\s{0,3}[:\-]?\s{0,3}$",
+        re.IGNORECASE,
+    )
+    _BIRTH_LABEL_WINDOW = 32
+
+    @classmethod
+    def _follows_birth_label(cls, text: str, start: int) -> bool:
+        """True if the text just before *start* ends with a birth label."""
+        return (
+            cls._BIRTH_LABEL_TAIL_RE.search(text, max(0, start - cls._BIRTH_LABEL_WINDOW), start)
+            is not None
+        )
+
     # Plausibility bounds for extracted dates
     _DATE_MIN = date_type(1950, 1, 1)
 
@@ -778,6 +797,9 @@ class ExtractModule:
             # The capture group may contain extra words; try progressively
             # shorter substrings so we get just the date part.
             raw_tail = m.group(1).strip()
+            tail_start = m.start(1) + (len(m.group(1)) - len(m.group(1).lstrip()))
+            if self._follows_birth_label(text, tail_start):
+                continue
             for candidate in _date_candidates_from_tail(raw_tail):
                 iso = self._normalize_date_str(candidate)
                 if iso and iso not in seen:
@@ -805,6 +827,8 @@ class ExtractModule:
 
         for pattern in generic_patterns:
             for m in re.finditer(pattern, text, re.IGNORECASE):
+                if self._follows_birth_label(text, m.start(1)):
+                    continue
                 candidate = m.group(1).strip()
                 iso = self._normalize_date_str(candidate)
                 if iso and iso not in seen:
