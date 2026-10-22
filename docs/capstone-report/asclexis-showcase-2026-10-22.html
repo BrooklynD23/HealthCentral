@@ -194,18 +194,18 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
   <h1>Asclexis</h1>
   <p class="tagline" data-ledger="C10">A local-first medical results companion: patient data stays on this computer by default (one opt-in cloud path, off by default) —
   and a living case study in agentic software engineering:
-  <b data-ledger="H12">18% of commits have an AI agent as git author (263/1459 at <code>c529d19</code>; 71% counting co-author trailers)</b>,
+  <b data-ledger="H12">19.5% of commits have an AI agent as git author (361/1847 at <code>a16dd51</code>; 70% counting co-author trailers)</b>,
   every claim on this page maps to a row in the claims ledger, and
   <span data-ledger="H7" data-kind="case-study">failure modes are written down (docs/agentic/recurring-failures.md)</span>.</p>
-  <p class="meta" data-exempt="metadata">github.com/BrooklynD23/HealthCentral · figures measured 2026-10-20 at c529d19 (pre-freeze; the 2026-10-24 freeze re-measures them) · first audit 2026-09-25 · single-file interactive artifact</p>
+  <p class="meta" data-exempt="metadata">github.com/BrooklynD23/HealthCentral · figures measured for the 2026-10-22 claim freeze at a16dd51 · first audit 2026-09-25 · single-file interactive artifact</p>
   <div class="stats">
-    <div class="stat" data-ledger="H20"><div class="v">2,011</div><div class="l">backend tests collected (Linux Py 3.11, c529d19)</div></div>
-    <div class="stat" data-ledger="H14"><div class="v">18</div><div class="l">API routers</div></div>
+    <div class="stat" data-ledger="H20"><div class="v">2,328</div><div class="l">backend tests collected (Linux Py 3.11, a16dd51)</div></div>
+    <div class="stat" data-ledger="H14"><div class="v">19</div><div class="l">API routers</div></div>
     <div class="stat" data-ledger="H14"><div class="v">16</div><div class="l">frontend pages</div></div>
     <div class="stat" data-ledger="H14"><div class="v">36</div><div class="l">agent skills (32 process + 4 domain)</div></div>
     <div class="stat" data-ledger="H3"><div class="v">74</div><div class="l">golden eval cases (agent path)</div></div>
-    <div class="stat" data-ledger="H14"><div class="v">8</div><div class="l">CI jobs</div></div>
-    <div class="stat" data-ledger="H12"><div class="v">1,459</div><div class="l">commits · 18% agent git author</div></div>
+    <div class="stat" data-ledger="H14"><div class="v">9</div><div class="l">CI jobs</div></div>
+    <div class="stat" data-ledger="H12"><div class="v">1,847</div><div class="l">commits · 19.5% agent git author</div></div>
   </div>
 </header>
 
@@ -273,7 +273,7 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
       <div style="margin-top:10px"><span class="tag t" data-ledger="C3">sourced sentences</span><span class="tag t" data-ledger="C3">education only</span></div>
     </div>
     <div><h4 data-exempt="navigation">Evidence path</h4><ul class="tight">
-      <li data-ledger="C14"><code>POST /api/v1/assistant/chat</code> — <code>api/assistant.py:839</code></li>
+      <li data-ledger="C14"><code>POST /api/v1/assistant/chat</code> — <code>api/assistant.py:842</code></li>
       <li data-ledger="C3 C14">agent graph (default) or RAG path</li>
       <li data-ledger="C3 C14 C4">agent: guard (groundedness + advice classifier); legacy: <code>validate_response</code> + <code>interpret_safety</code> patterns</li>
     </ul></div></div>
@@ -387,7 +387,7 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
       <li data-ledger="C10 H11"><code>core/external_runner.py</code></li>
       <li data-ledger="C10"><code>modules/redaction.py</code> — strict by default</li>
       <li data-ledger="C10">per-profile opt-in, off by default</li>
-      <li data-ledger="C10">callers: <code>api/assistant.py:867</code>, <code>api/interpretations.py:522</code></li>
+      <li data-ledger="C10">callers: <code>api/assistant.py:870</code>, <code>api/interpretations.py:522</code></li>
     </ul>
   </div>
 </section>
@@ -498,7 +498,7 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
     <div class="gate2" data-ledger="H14"><div class="gt"><span class="dot g"></span>feature_list.json</div><div class="gs">27 items, each with verification commands, linted in CI.</div></div>
     <div class="gate2" data-ledger="H3 H14"><div class="gt"><span class="dot g"></span>docs_lint</div><div class="gs">Rules numbered 1–13: Last-Updated headers, Historical banners, link resolution, index freshness.</div></div>
     <div class="gate2" data-ledger="H3"><div class="gt"><span class="dot g"></span>agent_eval_gate</div><div class="gs">74 golden cases scored on 6 axes with absolute bars (agent path only).</div></div>
-    <div class="gate2" data-ledger="H19"><div class="gt"><span class="dot g"></span>security_gate</div><div class="gs">Fails closed since P1: a missing scan report exits 2 (measured 2026-10-20).</div></div>
+    <div class="gate2" data-ledger="H19"><div class="gt"><span class="dot g"></span>security_gate</div><div class="gs">Fails closed since P1: a missing scan report exits 2 (measured 2026-10-22).</div></div>
     <div class="gate2" data-ledger="H17"><div class="gt"><span class="dot a"></span>route_client harness</div><div class="gs"><code>route_client</code> runs route tests through real HTTP. Many route tests still call handlers directly.</div></div>
     <div class="gate2"><div class="gt" data-exempt="navigation"><span class="dot a"></span>recurring-failures.md</div><div class="gs"><span data-ledger="H14">12 documented failure modes.</span> <span data-ledger="H7" data-kind="case-study">Several later findings match them — a match, not a prediction test.</span></div></div>
   </div>
@@ -521,21 +521,21 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
 
 <section id="evidence">
   <h2 data-exempt="navigation"><span class="num">07</span> Evidence — The Developer → Orchestrator Shift</h2>
-  <p class="sub" data-ledger="H12 H13">By git author name: 0 of 98 commits from Dec to May name an agent; 263 of 1,352 from 2026-06-23 do (at <code>c529d19</code>). 28 of those Dec–May commits carry an agent co-author trailer, so author name is a proxy, not a measure of who did the work. CLAUDE.md and AGENT.md were committed 2026-06-13; the first agent-authored commit is 2026-06-23. The docs lint and security gate are older (2026-02).</p>
+  <p class="sub" data-ledger="H12 H13">By git author name: 0 of 98 commits from Dec to May name an agent; 361 of 1,740 from 2026-06-23 do (at <code>a16dd51</code>). 28 of those Dec–May commits carry an agent co-author trailer, so author name is a proxy, not a measure of who did the work. CLAUDE.md and AGENT.md were committed 2026-06-13; the first agent-authored commit is 2026-06-23. The docs lint and security gate are older (2026-02).</p>
   <div class="eras">
     <div class="era" data-ledger="H12"><div class="et">E0 · 2025-12</div><div class="en">Import</div><div class="ed">2 commits (the second adds 14,397 lines in 70 files)</div><div class="bar"><i style="width:0%"></i></div><div class="ed" style="margin-top:4px;font-family:var(--mono);font-size:10px">0/2 by author · 0/2 with co-author trailer</div></div>
     <div class="era" data-ledger="H12"><div class="et">E1 · Jan–Feb</div><div class="en">Human build</div><div class="bar"><i style="width:0%"></i></div><div class="ed" style="margin-top:4px;font-family:var(--mono);font-size:10px">0/62 by author · 27/62 with co-author trailer</div></div>
     <div class="era" data-ledger="H12"><div class="et">E2 · Mar–May</div><div class="en">Course quiet</div><div class="bar"><i style="width:0%"></i></div><div class="ed" style="margin-top:4px;font-family:var(--mono);font-size:10px">0/34 by author · 1/34 with co-author trailer</div></div>
     <div class="era" data-ledger="H12"><div class="et">E3 · Jun 11–13</div><div class="en">Agentic pivot</div><div class="ed">Human lays rails: provider layer, RAG memory, RL pipeline, CLAUDE.md/AGENT.md</div><div class="bar"><i style="width:0%"></i></div><div class="ed" style="margin-top:4px;font-family:var(--mono);font-size:10px">0/9 by author · 0/9 with co-author trailer</div></div>
-    <div class="era" data-ledger="H12 H18"><div class="et">E4 · Jun 23–Jul</div><div class="en">Agent factory</div><div class="ed">230 of 1459 commits; 12 fix(backup) commits 2026-07-29…31</div><div class="bar"><i style="width:97%"></i></div><div class="ed" style="margin-top:4px;font-family:var(--mono);font-size:10px">222/230 by author · 222/230 with co-author trailer</div></div>
+    <div class="era" data-ledger="H12 H18"><div class="et">E4 · Jun 23–Jul</div><div class="en">Agent factory</div><div class="ed">230 of 1847 commits; 12 fix(backup) commits 2026-07-29…31</div><div class="bar"><i style="width:97%"></i></div><div class="ed" style="margin-top:4px;font-family:var(--mono);font-size:10px">222/230 by author · 222/230 with co-author trailer</div></div>
     <div class="era" data-ledger="H12"><div class="et">E5 · Aug 1–4</div><div class="en">Rename + failure memory</div><div class="ed">Rename; recurring-failures.md added 2026-08-04</div><div class="bar"><i style="width:100%"></i></div><div class="ed" style="margin-top:4px;font-family:var(--mono);font-size:10px">17/17 by author · 17/17 with co-author trailer</div></div>
     <div class="era" data-ledger="H12 M9"><div class="et">E6 · Sep</div><div class="en">Backlog + research</div><div class="ed">PR #18; branches B and A merged in P1 (2026-09-29 and 2026-10-01)</div><div class="bar"><i style="width:37%"></i></div><div class="ed" style="margin-top:4px;font-family:var(--mono);font-size:10px">24/65 by author · 58/65 with co-author trailer</div></div>
-    <div class="era" data-ledger="H12"><div class="et">E7 · Oct 1–20</div><div class="en">Hardening + parallel agents</div><div class="ed">The agent shows only as a co-author trailer</div><div class="bar"><i style="width:0%"></i></div><div class="ed" style="margin-top:4px;font-family:var(--mono);font-size:10px">0/1040 by author · 717/1040 with co-author trailer</div></div>
+    <div class="era" data-ledger="H12"><div class="et">E7 · Oct 1–21</div><div class="en">Hardening + parallel agents</div><div class="ed">The agent shows mostly as a co-author trailer; as git author only from 2026-10-20</div><div class="bar"><i style="width:7%"></i></div><div class="ed" style="margin-top:4px;font-family:var(--mono);font-size:10px">98/1428 by author · 967/1428 with co-author trailer</div></div>
   </div>
   <p class="note" data-ledger="H12">Git author name is a proxy, not a measure of who did the work.</p>
   <h3 data-exempt="navigation">Lifetime authorship</h3>
-  <div class="authbar"><div class="h" style="width:82%"></div><div class="a" style="width:18%"></div></div>
-  <div class="legend"><span data-ledger="H12"><i style="background:var(--teal)"></i>Other git authors 82%</span><span data-ledger="H12"><i style="background:var(--violet)"></i>Agent git author 18% (263/1459 commits at c529d19); 71% (1042/1459) with an agent author or co-author trailer</span></div>
+  <div class="authbar"><div class="h" style="width:80.5%"></div><div class="a" style="width:19.5%"></div></div>
+  <div class="legend"><span data-ledger="H12"><i style="background:var(--teal)"></i>Other git authors 80.5%</span><span data-ledger="H12"><i style="background:var(--violet)"></i>Agent git author 19.5% (361/1847 commits at a16dd51); 70% (1292/1847) with an agent author or co-author trailer</span></div>
   <div class="grid g2" style="margin-top:20px">
     <div class="card"><h4 data-exempt="navigation">What the artifacts let you measure</h4><ul class="tight">
       <li data-ledger="H12">Authorship time-series (git-author proxy)</li>
@@ -561,7 +561,7 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
   </div>
   <div class="card" style="padding:0;overflow-x:auto"><table id="findings">
     <tr><th>Finding</th><th>Severity</th><th>Detail</th><th>Where</th></tr>
-    <tr data-s="p1" data-ledger="H4" data-kind="finding"><td>Security gate failed open</td><td><span class="sev p1">P1</span></td><td><span data-ledger="H19" data-kind="current">Fixed in P1; exit 2 on a missing report (measured 2026-10-20).</span></td><td class="file">scripts/security_gate.py + ci.yml</td></tr>
+    <tr data-s="p1" data-ledger="H4" data-kind="finding"><td>Security gate failed open</td><td><span class="sev p1">P1</span></td><td><span data-ledger="H19" data-kind="current">Fixed in P1; exit 2 on a missing report (measured 2026-10-22).</span></td><td class="file">scripts/security_gate.py + ci.yml</td></tr>
     <tr data-s="p1" data-ledger="C7" data-kind="finding"><td>Notification scheduler had no production caller</td><td><span class="sev p1">P1</span></td><td>No production caller on main@40f590e. <span data-ledger="C31" data-kind="current">Since P2 (#31) the lifespan starts a session-scoped scheduler (code read, <code>main.py:82-83</code>); reminders were not exercised in this pass.</span></td><td class="file">main.py lifespan</td></tr>
     <tr data-s="p1" data-ledger="C11" data-kind="finding"><td>In-memory export stores</td><td><span class="sev p1">P1</span></td><td>Artifact dicts live in module memory — downloads 404 after restart; pinboards imports private _packet_store.</td><td class="file">api/export.py, api/pinboards.py</td></tr>
     <tr data-s="p1" data-ledger="H9" data-kind="finding"><td>datetime.utcnow() systemic breach</td><td><span class="sev p1">P1</span></td><td>On 2026-09-27: 101 product lines (109 references) in 30 files. <span data-ledger="H21" data-kind="current">Measured 2026-10-20 after P5 (#54): <code>git grep -n 'datetime\.utcnow' -- src/backend ':!src/backend/tests'</code> → 0 lines.</span></td><td class="file">src/backend (non-test)</td></tr>
@@ -596,7 +596,7 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
     <tr data-ledger="M9"><td>W-7</td><td>Tiered interpretation through ModelRunner</td><td>proposed — not merged</td></tr>
     <tr data-ledger="M9"><td>W-11b</td><td>Roadmap items G-C1…G-C4</td><td>proposed — not merged</td></tr>
   </table></div>
-  <p class="note" data-exempt="pointer">Owner-gated and not implemented: MFA / step-up re-auth, DEK rotation, penetration-test scope, audit retention, HC-M11 production scoring — see GATED-01…05 in specs-compliance-matrix.md.</p>
+  <p class="note" data-exempt="pointer">Owner-gated and not implemented: MFA / step-up re-auth, penetration-test scope, audit retention, HC-M11 production scoring. DEK rotation is owner-approved (2026-10-19) and not implemented. See GATED-01…05 and KEY-05 in specs-compliance-matrix.md.</p>
 </section>
 
 <section id="capstone">
@@ -635,7 +635,7 @@ footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
 
 <footer>
   Asclexis · CS4610 Senior Project · Danny Tran<br>
-  Pre-freeze build: figures measured 2026-10-20 at c529d19. The 2026-10-24 claim freeze re-measures every figure; owner sign-off O-6 is not given.<br>
+  Claim-freeze build: figures measured 2026-10-22 at a16dd51. Owner sign-off O-6 is not given.<br>
   Every claim maps to docs/capstone-report/claims-ledger.md · supersedes the 2026-09-25 showcase (kept unchanged in audit/2026-09-25/)<br>
   <span class="print-note">Single self-contained file · no external requests · safe to embed in the report appendix</span>
 </footer>
