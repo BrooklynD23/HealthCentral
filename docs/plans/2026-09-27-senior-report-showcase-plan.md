@@ -889,7 +889,7 @@ A claim is upgraded only after its phase is merged **and** the named evidence is
 
 ## 13. Owner sign-offs
 
-**Answered 2026-10-20 (L0 record, PR #210 comment 6285564680):** O-1 yes, O-2 yes (Edits 1-4, 6), O-5 yes, O-7 yes (add the note, Edit 5). The verbatim rows go into `owner-decisions-2026-09-27.md` in the next owner-rows PR. **Answered later:** O-4 option B (SHOW-O4, 2026-10-20, `owner-decisions-2026-09-27.md:310`; packaged by C6 `b0a2886`). **Not answered:** O-3 (the owner's demo-machine setting), O-6 (the claim freeze, moved to 2026-10-22 by the O-6 row `:374`; signed only by L0 after review of §15.1). An agent never ticks or signs a box (RUNBOOK §9.2), so the Signed column below stays as the owner left it; the answers above are the record until the owner or L0 updates it. Each box gates only its own task or commit (O-1 Task 7 Step 5 / C5 and the new-copy pointers; O-2 Task 5 / C4; O-3 the demo `.env`; O-4 Task 8 / C6; O-5 §6a; O-6 Task 10 Step 2 / C7; O-7 §8 Edit 5). The remaining tasks run without them.
+**Answered 2026-10-20 (L0 record, PR #210 comment 6285564680):** O-1 yes, O-2 yes (Edits 1-4, 6), O-5 yes, O-7 yes (add the note, Edit 5). The verbatim rows are in `owner-decisions-2026-09-27.md` (SHOW-O1, SHOW-O2, SHOW-O4, SHOW-O5, SHOW-O7). **Answered later:** O-4 option B (SHOW-O4, 2026-10-20, `owner-decisions-2026-09-27.md:310`; packaged by C6 `b0a2886`). **Not answered:** O-3 (the owner's demo-machine setting), O-6 (the claim freeze, moved to 2026-10-22 by the O-6 row `:374`; signed only by L0 after review of §15.1). An agent never ticks or signs a box (RUNBOOK §9.2), so the Signed column below stays as the owner left it; the answers above are the record until the owner or L0 updates it. Each box gates only its own task or commit (O-1 Task 7 Step 5 / C5 and the new-copy pointers; O-2 Task 5 / C4; O-3 the demo `.env`; O-4 Task 8 / C6; O-5 §6a; O-6 Task 10 Step 2 / C7; O-7 §8 Edit 5). The remaining tasks run without them.
 
 | # | Decision | Recommendation | Signed |
 |---|---|---|---|
@@ -898,7 +898,7 @@ A claim is upgraded only after its phase is merged **and** the named evidence is
 | O-3 | Demo clone only: set `DEBUG=false` in the untracked `src/backend/.env`, plus `HF_HUB_OFFLINE=1` and Wi-Fi off during the demo | yes (the safe default without it: hidden backend window, browser-only sharing) | ☐ ______ |
 | O-4 | Package review evidence into `docs/reviews/` (location answered 2026-10-10, SHOWCASE-O4 `owner-decisions-2026-09-27.md:122`: "Yes, docs/reviews/"; SHOW-O4 `owner-decisions-2026-09-27.md:310` answered 2026-10-20 (L0 AskUserQuestion): "(B) TSV + Codex + script (Recommended)"; the box below is not ticked here): (A) `reviewer-log.tsv` only, or (B) the TSV + Codex outputs + `review.sh` + prompt template | B (makes M6 reproducible; avoids repeating audit addendum A-5) | ☐ A ☐ B ☐ neither |
 | O-5 | Add outline §6a (2026-09-27 reconciliation) with the `CASE-STUDY` verdict only. Gates §4.1 / the §6a insertion. Answered yes 2026-10-20, so §6a is inserted; M6 is `CASE-STUDY` since SHOW-O4 (B) | yes | ☐ ______ |
-| O-6 | Claim freeze passed (§10) for the showcase on ______ | — | ☐ ______ |
+| O-6 | Claim freeze passed (§10) for the showcase on ______ | — | ☑ 2026-10-22 — the owner's conditional sign-off (owner-decisions row O-6, prompt 30: "Freeze now; sign if all pass") is met: §10 checks 1-11 all pass at tip `75c1106` (measurement ref `a16dd51`), §15.1 third pass; independent reviews #210 comments 6345517807 (round 1, REVISE) and 6345850792 (round 2, PASS). Recorded by L0, not signed by an agent on its own judgement. |
 | O-7 | Add the submission-date inconsistency note (§8 Edit 5) | owner's call | ☐ yes ☐ no |
 
 ## 14. Commit plan
@@ -1062,6 +1062,8 @@ Old file name `asclexis-showcase-2026-10-24.html` still in files outside this pl
 | 11 | Docs gates | `python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py --link-graph; python3 scripts/docs_lint.py; echo lint_rc=$?; python3 scripts/generate_docs_index.py --check; echo rc=$?` | `regen=0` (INDEX and link graph unchanged); `Docs lint passed.` `lint_rc=0`; `docs/INDEX.md and docs/_link_graph.json are fresh.` `rc=0` | PASS |
 
 **Result of the third pass: checks 1-11 all pass at the tip.** O-6, §13, C7 and the ready state remain L0's.
+
+**O-6 recorded (C7, L0, 2026-10-22):** the owner answered O-6 "Freeze now; sign if all pass" (prompt 30, owner-decisions row O-6) and "L0 dry-runs on the GPU box" for check 8 (prompt 31, row O-6-CHECK8). All 11 checks pass at `75c1106`, and the independent Opus review re-ran them (#210 comment 6345850792, VERDICT PASS). O-6 therefore counts as signed for **2026-10-22**, with the claim freeze at `75c1106` (figures as of `a16dd51`). Left with the owner/presenter, outside the checklist: presenter talk time (≤ 11 min) and the T-1 hour repeat (Task 9 Step 5). Round-2 MINOR not applied, on purpose: the page footer ("Owner sign-off O-6 is recorded in the showcase plan (§13, §15) and in owner-decisions") is left unedited so the frozen page stays byte-identical; it is true from this commit on.
 
 ## 16. Stop gates
 
