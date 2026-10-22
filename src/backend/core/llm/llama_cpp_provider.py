@@ -8,8 +8,9 @@ Design notes:
 - llama_cpp import is lazy/optional so unit tests run without the native lib.
 - Chat formatting defers to llama.cpp's built-in chat_format / chat_handler
   (auto-detected from GGUF metadata) so Gemma 4 templates work automatically.
-- generate() preserves the exact timeout / thread-pool behaviour of the old
-  ModelRunner so existing call-sites are unaffected.
+- generate() serialises use of the native model (LLAMA-SERIAL);
+  generate_async() keeps the old timeout result and never enters the model
+  after its own deadline.
 - Python 3.10-compatible: no 3.11+ syntax.
 """
 
@@ -161,7 +162,7 @@ class LlamaCppProvider:
 
             try:
                 Llama = _load_llama_class()
-                if self._n_gpu_layers > 0 and not _gpu_offload_supported():
+                if self._n_gpu_layers != 0 and not _gpu_offload_supported():
                     logger.warning(
                         "LlamaCppProvider: n_gpu_layers=%d requested but this llama-cpp-python "
                         "build has no GPU offload; running on CPU",
@@ -379,11 +380,12 @@ class LlamaCppProvider:
         self._ensure_initialized()
 
     def unload(self) -> None:
-        # Wait for a running generation: the model must not be freed under it.
-        with self._model_lock:
+        # Wait for a running generation (model lock) and for an in-flight first
+        # load (init lock): the model must not be freed under either, nor land
+        # after unload returned. Lock order: model lock -> init lock.
+        with self._model_lock, self._init_lock:
             if self._model is not None:
                 del self._model
                 self._model = None
-                with self._init_lock:
-                    self._initialized = False
+                self._initialized = False
                 logger.info("LlamaCppProvider: model unloaded")

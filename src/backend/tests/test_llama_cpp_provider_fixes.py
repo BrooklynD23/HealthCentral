@@ -178,6 +178,7 @@ def test_hc_lck_003_unload_waits_for_running_generation(state, model_file):
     assert model_alive_at_exit == [True]
     assert results and results[0].text == "ok"
     assert provider._model is None
+    assert provider._initialized is False  # a later call may load again
 
 
 def test_hc_lck_004_is_available_does_not_wait_for_generation(state, model_file):
@@ -232,6 +233,50 @@ def test_hc_lck_005_is_available_does_not_wait_for_first_load(monkeypatch, model
     loader.join(timeout=10)
     probe.join(timeout=10)
     assert provider.is_available() is True
+
+
+def test_hc_lck_006_generate_on_loaded_model_ignores_a_busy_init_lock(state, model_file):
+    """A brief init-lock hold by another caller (is_available polling) must not
+    make generate() on a loaded model raise ProviderUnavailableError."""
+    provider = _provider(model_file)
+    assert provider._ensure_initialized() is True
+    state.gate.set()  # generation returns at once
+    assert provider._init_lock.acquire(timeout=1)
+    try:
+        result = provider.generate(MSGS, _config())
+    finally:
+        provider._init_lock.release()
+    assert result.text == "ok"
+
+
+def test_hc_lck_007_unload_waits_for_an_in_flight_first_load(monkeypatch, model_file):
+    """unload() during a first load (started via is_available) waits for it and
+    frees the model, so no model lands after unload returned."""
+    loading = threading.Event()
+    release = threading.Event()
+
+    class _SlowLlama:
+        def __init__(self, **kwargs):
+            loading.set()
+            release.wait(timeout=10)
+
+    monkeypatch.setattr(lcp, "_load_llama_class", lambda: _SlowLlama)
+    provider = _provider(model_file)
+    loader = threading.Thread(target=provider.is_available)
+    unload_done = threading.Event()
+    unl = threading.Thread(target=lambda: (provider.unload(), unload_done.set()))
+    try:
+        loader.start()
+        assert loading.wait(timeout=5), "fake load never started"
+        unl.start()
+        assert not unload_done.wait(timeout=0.3), "unload() returned during a first load"
+    finally:
+        release.set()
+    loader.join(timeout=10)
+    unl.join(timeout=10)
+    assert unload_done.is_set()
+    assert provider._model is None
+    assert provider._initialized is False
 
 
 # ---------------------------------------------------------------------------
@@ -295,6 +340,16 @@ def test_hc_gpu_003_warns_once_without_path_when_no_gpu_build(
     assert "20" in text
     assert str(model_file) not in text and model_file.name not in text
     assert state.ctor_kwargs[0]["n_gpu_layers"] == 20
+
+    # -1 (llama.cpp: all layers) also needs a GPU build: same single warning.
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="core.llm.llama_cpp_provider"):
+        assert _provider(model_file, n_gpu_layers=-1)._ensure_initialized() is True
+    neg = [
+        r for r in caplog.records
+        if r.name == "core.llm.llama_cpp_provider" and r.levelno == logging.WARNING
+    ]
+    assert len(neg) == 1 and "-1" in neg[0].getMessage()
 
     # Default 0: no warning, and the GPU probe is not even consulted.
     caplog.clear()
