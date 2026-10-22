@@ -106,3 +106,96 @@ def test_hc_lcf_001_no_chat_format_kwarg(state, model_file):
     assert provider._ensure_initialized() is True
     assert len(state.ctor_kwargs) == 1
     assert "chat_format" not in state.ctor_kwargs[0]
+
+
+# ---------------------------------------------------------------------------
+# LLAMA-SERIAL
+# ---------------------------------------------------------------------------
+
+def _wait_entered(state, timeout=5):
+    assert state.entered.wait(timeout=timeout), "fake model was never entered"
+
+
+@pytest.mark.asyncio
+async def test_hc_lck_001_concurrent_calls_enter_model_one_at_a_time(state, model_file):
+    import asyncio
+
+    provider = _provider(model_file)
+    assert provider._ensure_initialized() is True
+    t1 = asyncio.ensure_future(provider.generate_async(MSGS, _config(timeout=10)))
+    await asyncio.get_running_loop().run_in_executor(None, _wait_entered, state)
+    t2 = asyncio.ensure_future(provider.generate_async(MSGS, _config(timeout=10)))
+    try:
+        await asyncio.sleep(0.3)  # bounded window for a second thread to barge in
+    finally:
+        state.gate.set()
+    r1, r2 = await asyncio.wait_for(asyncio.gather(t1, t2), timeout=10)
+    assert state.max_active == 1
+    assert state.total == 2
+    assert r1.text == "ok" and r2.text == "ok"
+
+
+@pytest.mark.asyncio
+async def test_hc_lck_002_timed_out_call_never_enters_model_later(state, model_file):
+    import asyncio
+
+    provider = _provider(model_file)
+    assert provider._ensure_initialized() is True
+    try:
+        r1 = await provider.generate_async(MSGS, _config(timeout=0.2))
+        assert r1.finish_reason == "timeout"
+        assert state.total == 1  # call 1 is still blocked inside the model
+        r2 = await provider.generate_async(MSGS, _config(timeout=0.2))
+        assert r2.finish_reason == "timeout"
+    finally:
+        state.gate.set()
+    await asyncio.sleep(0.3)  # let any wrongly-queued call reach the model
+    assert state.total == 1
+    assert state.max_active == 1
+
+
+def test_hc_lck_003_unload_waits_for_running_generation(state, model_file):
+    provider = _provider(model_file)
+    assert provider._ensure_initialized() is True
+    model_alive_at_exit = []
+    state.after_gate = lambda: model_alive_at_exit.append(provider._model is not None)
+    unload_done = threading.Event()
+    results = []
+
+    gen = threading.Thread(target=lambda: results.append(provider.generate(MSGS, _config())))
+    unl = threading.Thread(target=lambda: (provider.unload(), unload_done.set()))
+    try:
+        gen.start()
+        _wait_entered(state)
+        unl.start()
+        assert not unload_done.wait(timeout=0.3), "unload() finished during a generation"
+        assert provider._model is not None
+    finally:
+        state.gate.set()
+    gen.join(timeout=10)
+    unl.join(timeout=10)
+    assert unload_done.is_set()
+    assert model_alive_at_exit == [True]
+    assert results and results[0].text == "ok"
+    assert provider._model is None
+
+
+def test_hc_lck_004_is_available_does_not_wait_for_generation(state, model_file):
+    provider = _provider(model_file)
+    assert provider._ensure_initialized() is True
+    gen = threading.Thread(target=lambda: provider.generate(MSGS, _config()))
+    out = []
+    probe = threading.Thread(target=lambda: out.append((provider.is_available(), time.monotonic())))
+    try:
+        gen.start()
+        _wait_entered(state)
+        start = time.monotonic()
+        probe.start()
+        probe.join(timeout=2)
+        assert out, "is_available() blocked behind a running generation"
+        available, finished = out[0]
+        assert available is True
+        assert finished - start < 0.1
+    finally:
+        state.gate.set()
+    gen.join(timeout=10)

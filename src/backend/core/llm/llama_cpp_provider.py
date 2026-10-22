@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
+import time
 from pathlib import Path
 from typing import AsyncIterator, List, Optional
 
@@ -36,6 +38,10 @@ def _load_llama_class():
         from llama_cpp import Llama  # noqa: PLC0415
         _llama_class = Llama
     return _llama_class
+
+
+class _ModelLockTimeout(Exception):
+    """The model lock could not be taken inside the call's own time budget."""
 
 
 class LlamaCppProvider:
@@ -63,6 +69,15 @@ class LlamaCppProvider:
         self._model = None
         self._initialized = False
         self._settings = settings
+        # LLAMA-SERIAL. The native model is not thread-safe, and a timed-out
+        # generation keeps running in its executor thread.
+        # _model_lock guards every use of self._model (generation and unload).
+        # _init_lock guards _ensure_initialized only. is_available() and
+        # health_check() take only the init lock: they are sync, are called from
+        # async code, and must not wait behind a running generation.
+        # Lock order: model lock -> init lock, never the reverse.
+        self._model_lock = threading.Lock()
+        self._init_lock = threading.Lock()
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -100,6 +115,10 @@ class LlamaCppProvider:
 
     def _ensure_initialized(self) -> bool:
         """Lazy-load the model.  Returns True if model is ready."""
+        with self._init_lock:
+            return self._ensure_initialized_unlocked()
+
+    def _ensure_initialized_unlocked(self) -> bool:
         if self._initialized:
             return self._model is not None
 
@@ -210,8 +229,13 @@ class LlamaCppProvider:
             return {"healthy": False, "provider": "llama_cpp", "detail": str(exc)}
 
     def generate(self, messages: List[ChatMessage], config) -> object:
+        """Synchronous inference.  Serialised: one generation in the model at a time."""
+        with self._model_lock:
+            return self._generate_unlocked(messages, config)
+
+    def _generate_unlocked(self, messages: List[ChatMessage], config) -> object:
         """
-        Synchronous inference.  Returns InferenceResult.
+        Inference body; the caller holds ``self._model_lock``.  Returns InferenceResult.
 
         Uses llama.cpp's create_chat_completion() which auto-applies the
         correct chat template (Gemma 4, Phi-3, etc.) from GGUF metadata.
@@ -271,18 +295,42 @@ class LlamaCppProvider:
             model_name=str(model_name),
         )
 
+    def _generate_before_deadline(self, messages: List[ChatMessage], config, deadline) -> object:
+        """Executor-thread entry: take the model lock within the call's own budget.
+
+        A call that cannot get the lock before its deadline (e.g. an earlier,
+        timed-out generation is still running) never enters the model.
+        ``deadline`` is a time.monotonic() value, or None for no timeout.
+        """
+        if deadline is None:
+            self._model_lock.acquire()
+        else:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or not self._model_lock.acquire(timeout=remaining):
+                raise _ModelLockTimeout()
+        try:
+            if deadline is not None and time.monotonic() >= deadline:
+                raise _ModelLockTimeout()
+            return self._generate_unlocked(messages, config)
+        finally:
+            self._model_lock.release()
+
     async def generate_async(self, messages: List[ChatMessage], config) -> object:
         """Async wrapper with timeout — mirrors ModelRunner.generate_async()."""
         from core.model_runner import InferenceResult  # avoid circular
 
         loop = asyncio.get_event_loop()
+        timeout = config.timeout_seconds
+        deadline = None if timeout is None else time.monotonic() + timeout
         try:
             result = await asyncio.wait_for(
-                loop.run_in_executor(None, lambda: self.generate(messages, config)),
-                timeout=config.timeout_seconds,
+                loop.run_in_executor(
+                    None, lambda: self._generate_before_deadline(messages, config, deadline)
+                ),
+                timeout=timeout,
             )
             return result
-        except asyncio.TimeoutError:
+        except (asyncio.TimeoutError, _ModelLockTimeout):
             logger.warning(
                 "LlamaCppProvider: generation timed out after %ds",
                 config.timeout_seconds,
@@ -308,8 +356,11 @@ class LlamaCppProvider:
         self._ensure_initialized()
 
     def unload(self) -> None:
-        if self._model is not None:
-            del self._model
-            self._model = None
-            self._initialized = False
-            logger.info("LlamaCppProvider: model unloaded")
+        # Wait for a running generation: the model must not be freed under it.
+        with self._model_lock:
+            if self._model is not None:
+                del self._model
+                self._model = None
+                with self._init_lock:
+                    self._initialized = False
+                logger.info("LlamaCppProvider: model unloaded")
