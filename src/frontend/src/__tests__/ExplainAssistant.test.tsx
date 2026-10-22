@@ -157,7 +157,7 @@ function providerPayload(
     llm_provider,
     llm_model,
     ollama_base_url: 'http://localhost:11434',
-    available: true,
+    available: null,
     capabilities: {
       context_len: 4096,
       multimodal: false,
@@ -706,7 +706,9 @@ describe('ExplainAssistant', () => {
       await screen.findByText('ollama \u00b7 gemma4:e4b');
       // Queries have settled, so the tier label had its chance to show.
       await flush();
-      expect(vi.mocked(api.apiGet)).toHaveBeenCalledWith('/settings/model/provider');
+      expect(vi.mocked(api.apiGet)).toHaveBeenCalledWith('/settings/model/provider', {
+        probe: 'false',
+      });
       expect(screen.getByText('ollama \u00b7 gemma4:e4b')).toBeInTheDocument();
       expect(screen.queryByText('BioMistral-7B')).toBeNull();
     });
@@ -720,19 +722,18 @@ describe('ExplainAssistant', () => {
       expect(screen.getByText('BioMistral-7B')).toBeInTheDocument();
     });
 
-    it('HC-MDL-003 default config: shows the GGUF file stem, never "(auto)"', async () => {
-      mockModelApis(
-        providerPayload('llama_cpp', '(auto)', 'llama_cpp', 'phi-4-mini-instruct-q4_k_m')
-      );
+    it('HC-MDL-003 default config: shows provider and model name, never "(auto)" or a path', async () => {
+      mockModelApis(providerPayload('llama_cpp', '(auto)', 'llama_cpp', 'phi-3-mini'));
       renderWithProviders(<ExplainAssistant />);
 
-      await screen.findByText('llama_cpp \u00b7 phi-4-mini-instruct-q4_k_m');
+      const badge = await screen.findByText('llama_cpp \u00b7 phi-3-mini');
       await flush();
       expect(screen.queryByText('BioMistral-7B')).toBeNull();
       expect(screen.queryByText(/\(auto\)/)).toBeNull();
+      expect(badge.textContent).not.toMatch(/[\\/]/);
     });
 
-    it('HC-MDL-004 names the provider that really answers after the Ollama fallback', async () => {
+    it('HC-MDL-006 names the provider that really answers after the Ollama fallback', async () => {
       mockModelApis(providerPayload('ollama', 'gemma4:e4b', 'llama_cpp', 'phi-3-mini'));
       renderWithProviders(<ExplainAssistant />);
 

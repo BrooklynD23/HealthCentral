@@ -258,7 +258,7 @@ class ProviderInfoResponse(BaseModel):
     llm_provider: str
     llm_model: str
     ollama_base_url: str
-    available: bool
+    available: Optional[bool]
     capabilities: dict
 
 
@@ -844,26 +844,24 @@ async def save_external_api_settings(
     summary="Get active LLM provider",
     description="Return the active LLM provider and its capability flags.",
 )
-async def get_llm_provider(session: RequireAuth):
-    """Return active provider info and capability flags."""
+async def get_llm_provider(session: RequireAuth, probe: bool = True):
+    """Return active provider info and capability flags.
+
+    CHAT-MODEL-BADGE: probe=false skips is_available() (a synchronous model load
+    on llama_cpp) and returns available=null; the chat page only needs names.
+    """
     _ = session
     from core.config import settings as app_settings
     from core.llm.factory import get_provider
 
     provider = get_provider()
     caps = provider.capabilities()
-    # CHAT-MODEL-BADGE: the chat page reads this on open. llama_cpp's is_available()
-    # loads the GGUF synchronously, so report "already loaded" without loading.
-    if caps.provider_name == "llama_cpp":
-        available = getattr(provider, "_model", None) is not None
-    else:
-        available = provider.is_available()
 
     return ProviderInfoResponse(
         llm_provider=app_settings.llm_provider,
         llm_model=app_settings.llm_model or "(auto)",
         ollama_base_url=app_settings.ollama_base_url,
-        available=available,
+        available=provider.is_available() if probe else None,
         capabilities={
             "context_len": caps.context_len,
             "multimodal": caps.multimodal,

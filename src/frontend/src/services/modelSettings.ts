@@ -270,7 +270,8 @@ export interface ProviderInfo {
   llm_provider: string;
   llm_model: string;
   ollama_base_url: string;
-  available: boolean;
+  /** null when requested with probe=false. */
+  available: boolean | null;
   /** As built by `get_llm_provider`: the provider that actually answers. */
   capabilities: ProviderCapabilities;
 }
@@ -285,7 +286,8 @@ export interface ProviderCapabilities {
 }
 
 async function getProviderInfo(): Promise<ProviderInfo> {
-  return apiGet<ProviderInfo>('/settings/model/provider');
+  // probe=false: names only; the server skips the availability probe (a model load on llama_cpp).
+  return apiGet<ProviderInfo>('/settings/model/provider', { probe: 'false' });
 }
 
 /**
