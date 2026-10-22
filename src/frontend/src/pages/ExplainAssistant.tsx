@@ -26,7 +26,7 @@ import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/compo
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useAuthStore } from '@/stores/authStore';
-import { useAnalyteList, useModelSettings, useExternalApiSettings } from '@/services';
+import { useAnalyteList, useModelSettings, useExternalApiSettings, useProviderInfo } from '@/services';
 import { useObservations } from '@/services/observations';
 import { ExternalApiBreakGlassWarning } from '@/components/settings/ExternalApiBreakGlassWarning';
 import {
@@ -275,6 +275,7 @@ export function ExplainAssistant() {
   }, [analyteList]);
   const { data: modelSettings, isLoading: modelSettingsLoading } = useModelSettings();
   const { data: externalApi, isError: externalApiError } = useExternalApiSettings();
+  const { data: providerInfo } = useProviderInfo();
   const breakGlassActive =
     externalApi?.use_external_api === true && externalApi.redaction_break_glass === true;
   const breakGlassUnknown =
@@ -287,13 +288,17 @@ export function ExplainAssistant() {
       const m = externalApi.model || 'default';
       return `${p} · ${m}`;
     }
+    // "(auto)" is the backend's placeholder when no model is configured.
+    if (providerInfo?.llm_model && providerInfo.llm_model !== '(auto)') {
+      return `${providerInfo.llm_provider} · ${providerInfo.llm_model}`;
+    }
     const tier = modelSettings?.current_tier;
     if (tier && modelSettings?.tier_availability?.[tier]?.model) {
       return modelSettings.tier_availability[tier].model as string;
     }
     if (tier) return `Tier: ${tier}`;
     return 'Local model';
-  }, [modelSettings, externalApi]);
+  }, [modelSettings, externalApi, providerInfo]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth' });

@@ -263,6 +263,32 @@ export function useSaveExternalApiSettings() {
   });
 }
 
+// Active LLM provider (display only)
+
+/** Mirrors the backend `ProviderInfoResponse` (api/model_settings.py). */
+export interface ProviderInfo {
+  llm_provider: string;
+  llm_model: string;
+  ollama_base_url: string;
+  available: boolean;
+  capabilities: Record<string, unknown>;
+}
+
+async function getProviderInfo(): Promise<ProviderInfo> {
+  return apiGet<ProviderInfo>('/settings/model/provider');
+}
+
+/**
+ * Query hook for the configured LLM provider and model.
+ */
+export function useProviderInfo() {
+  return useQuery({
+    queryKey: [QUERY_KEY, 'provider'],
+    queryFn: getProviderInfo,
+    staleTime: 30_000,
+  });
+}
+
 // Timezone settings
 
 async function fetchTimezone(): Promise<{ timezone: string }> {

@@ -643,4 +643,81 @@ describe('ExplainAssistant', () => {
       expect(screen.queryByText(/privacy protection override is on/i)).toBeNull();
     });
   });
+
+  describe('CHAT-MODEL-BADGE: header names the configured model', () => {
+    function mockModelApis(provider: unknown | Error) {
+      vi.mocked(api.apiGet).mockImplementation(async (url) => {
+        if (url === '/settings/model/provider') {
+          if (provider instanceof Error) throw provider;
+          return provider;
+        }
+        if (url === '/settings/model') {
+          return {
+            current_tier: 'high',
+            tier_availability: { high: { model: 'BioMistral-7B' } },
+          };
+        }
+        if (url === '/observations/') {
+          return mockObservations;
+        }
+        return [];
+      });
+    }
+
+    // Wait until the settings query was issued, give every query a few ticks to
+    // settle (including a rejected provider query), then flush into a render.
+    async function flush() {
+      await waitFor(() => {
+        expect(vi.mocked(api.apiGet)).toHaveBeenCalledWith('/settings/model');
+      });
+      for (let i = 0; i < 3; i++) {
+        await act(async () => {
+          await new Promise((r) => setTimeout(r, 10));
+        });
+      }
+    }
+
+    it('HC-MDL-001 shows the configured provider and model, not the tier label', async () => {
+      mockModelApis({
+        llm_provider: 'ollama',
+        llm_model: 'gemma4:e4b',
+        ollama_base_url: 'http://localhost:11434',
+        available: true,
+        capabilities: {},
+      });
+      renderWithProviders(<ExplainAssistant />);
+
+      await screen.findByText('ollama \u00b7 gemma4:e4b');
+      // Queries have settled, so the tier label had its chance to show.
+      await flush();
+      expect(vi.mocked(api.apiGet)).toHaveBeenCalledWith('/settings/model/provider');
+      expect(screen.getByText('ollama \u00b7 gemma4:e4b')).toBeInTheDocument();
+      expect(screen.queryByText('BioMistral-7B')).toBeNull();
+    });
+
+    it('HC-MDL-002 falls back to the tier label when the provider request fails', async () => {
+      mockModelApis(new Error('provider unavailable'));
+      renderWithProviders(<ExplainAssistant />);
+
+      await screen.findByText('BioMistral-7B');
+      await flush();
+      expect(screen.getByText('BioMistral-7B')).toBeInTheDocument();
+    });
+
+    it('HC-MDL-003 treats the "(auto)" placeholder as unset and keeps the tier label', async () => {
+      mockModelApis({
+        llm_provider: 'llama_cpp',
+        llm_model: '(auto)',
+        ollama_base_url: 'http://localhost:11434',
+        available: true,
+        capabilities: {},
+      });
+      renderWithProviders(<ExplainAssistant />);
+
+      await screen.findByText('BioMistral-7B');
+      await flush();
+      expect(screen.getByText('BioMistral-7B')).toBeInTheDocument();
+      expect(screen.queryByText(/\(auto\)/)).toBeNull();
+    });
+  });
 });
