@@ -1175,3 +1175,99 @@ async def test_HC_DDI_004_interpretation_created_by_fk_still_flushes(entity_prof
     assert await _ddi_count(
         entity_profile_db, LabInterpretation, LabInterpretation.observation_id == obs_id
     ) == 0
+
+
+# ---------------------------------------------------------------------------
+# EXTRACT-DOB-DATE (HC-DATE-010)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_HC_DATE_010_same_dob_does_not_make_two_reports_same_date_duplicates(
+    entity_profile_db, monkeypatch, tmp_path
+):
+    """A date of birth is not a collection date. Two lab PDFs for the same patient
+    (same `DOB:` line, different collection dates) must store their own
+    collection dates and must not trip the `same_date` duplicate warning.
+
+    Real `ExtractModule.extract_from_pdf` on real text PDFs, real profile DB, and
+    the upload goes through HTTP; only vault encryption/ingest is replaced."""
+    import hashlib
+
+    from tests.support.minimal_pdf import minimal_pdf
+
+    profile_id = "profile-a"  # route_client's default session profile_id
+    stored: dict[str, bytes] = {}
+
+    class _PdfIngest:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def import_document(self, *, file, **_kwargs):
+            data = file.read()
+            doc_id = str(uuid.uuid4())
+            stored[doc_id] = data
+            digest = hashlib.sha256(data).hexdigest()
+            return ImportResult(
+                document_id=doc_id,
+                path_hash=hashlib.sha256(doc_id.encode()).hexdigest(),
+                content_hash=digest,  # distinct per PDF: only a date match can warn
+                doc_type="lab_pdf",
+                page_count=1,
+                is_duplicate=False,
+                metadata={},
+                encrypted=True,
+            )
+
+    async def _no_classify(**_kwargs):
+        return None
+
+    monkeypatch.setattr(
+        type(documents_api.settings), "app_data_path", property(lambda self: tmp_path)
+    )
+    monkeypatch.setattr(documents_api, "get_profile_encryption_key", lambda _pid: b"x" * 32)
+    monkeypatch.setattr(modules, "IngestModule", _PdfIngest)
+    monkeypatch.setattr(
+        documents_api, "get_decrypted_document", lambda _pid, doc_id: io.BytesIO(stored[doc_id])
+    )
+    monkeypatch.setattr(documents_api, "_classify_and_extract_entities", _no_classify)
+
+    def _report(collection_date: str) -> bytes:
+        return minimal_pdf([[
+            "Patient: Jane Test",
+            "DOB: 1970-01-01",
+            f"Collection Date: {collection_date}",
+            "Glucose: 95 mg/dL (70-100)",
+        ]])
+
+    master = _CommitTrackingMasterDb()
+    responses = []
+    with route_client(
+        documents_router, "/documents", profile_id=profile_id, master_db=master
+    ) as client:
+
+        async def _override_profile_db():
+            return entity_profile_db
+
+        client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+        for name, day in (("first.pdf", "2026-03-02"), ("second.pdf", "2026-06-01")):
+            responses.append(
+                client.post(
+                    "/documents/import",
+                    files={"file": (name, _report(day), "application/pdf")},
+                )
+            )
+
+    assert [r.status_code for r in responses] == [201, 201], [r.text for r in responses]
+    first, second = (r.json() for r in responses)
+    assert first["observations_extracted"] == 1 and second["observations_extracted"] == 1
+
+    docs = (await entity_profile_db.execute(
+        select(Document).where(Document.profile_id == profile_id)
+    )).scalars().all()
+    by_source = {d.source: d.collection_date for d in docs}
+    assert by_source == {
+        "first.pdf": datetime(2026, 3, 2),
+        "second.pdf": datetime(2026, 6, 1),
+    }
+    assert second["duplicate_warning"] is None, second["duplicate_warning"]

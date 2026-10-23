@@ -549,3 +549,44 @@ class TestExtractFormats:
             result = await extract_module.extract_from_pdf(tmp_path / "c.pdf", "doc")
         # The unit filter applies only on pages that have tables.
         assert [o.analyte_raw for o in result.observations] == ["Glucose"]
+
+
+class TestMgPerLiterUnit:
+    """EXTRACT-UNIT-MGL: `mg/L` (CRP) is a known unit on all three text-line patterns."""
+
+    @pytest.fixture
+    def extract_module(self):
+        return ExtractModule()
+
+    @pytest.mark.parametrize(
+        "line,pattern",
+        [
+            ("CRP: 4.2 mg/L (0.0-5.0)", "LINE_PATTERN"),
+            # ALT_LINE_PATTERN only takes a parenthesised range; a bare range is a column line.
+            ("CRP 4.2 mg/L (0.0-5.0)", "ALT_LINE_PATTERN"),
+            ("CRP 4.2 mg/L 0.0-5.0", "COLUMN_LINE_PATTERN"),
+            ("CRP   4.2   mg/L   0.0-5.0", "COLUMN_LINE_PATTERN"),
+        ],
+        ids=["colon", "alt-parenthesised", "column-single-space", "column-padded"],
+    )
+    def test_hc_exu_001_mg_per_l_line_is_kept(self, extract_module, line, pattern):
+        obs = extract_module._extract_from_text(line, page_num=1, document_id="t")
+        assert len(obs) == 1
+        assert obs[0].analyte_raw == "CRP"
+        assert obs[0].value == 4.2
+        assert obs[0].unit == "mg/L"
+        assert obs[0].ref_low == 0.0
+        assert obs[0].ref_high == 5.0
+        # The line must reach the pattern this case is meant to exercise (the earlier
+        # patterns must not take it), so the three cases cover three different patterns.
+        order = ["LINE_PATTERN", "ALT_LINE_PATTERN", "COLUMN_LINE_PATTERN"]
+        for name in order[: order.index(pattern)]:
+            assert getattr(ExtractModule, name).match(line) is None, name
+        assert getattr(ExtractModule, pattern).match(line) is not None
+
+    def test_hc_exu_002_mg_per_dl_keeps_longer_unit(self, extract_module):
+        # Pin: `mg/dL` stays listed before `mg/L`/`g/dL` so it is never truncated.
+        obs = extract_module._extract_from_text("LDL: 128 mg/dL (0-100)", page_num=1, document_id="t")
+        assert len(obs) == 1
+        assert obs[0].value == 128.0
+        assert obs[0].unit == "mg/dL"
