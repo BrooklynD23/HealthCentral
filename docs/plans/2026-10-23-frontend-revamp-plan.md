@@ -1,10 +1,10 @@
 # Frontend revamp 2026-10-23 — merged plan: Ink & Paper on a Motion Gradient
 
-**Last Updated:** 2026-10-23 (review round 1 of #311: framer-motion 10 kept (owner UI-DEPS), fixture name (owner UI-FIXTURE-NAME), stillness probe G10, UI-AUTH-SCREENS relabelled, test-file ownership, 11 minors)
+**Last Updated:** 2026-10-23 (review round 2 of #311: e2e contract-change appendix, `data-t0` owners and M0 route default, overlay rule, fixture screenshot, wave order, base `257e072`); 2026-10-23 (review round 1 of #311: framer-motion 10 kept (owner UI-DEPS), fixture name (owner UI-FIXTURE-NAME), stillness probe G10, UI-AUTH-SCREENS relabelled, test-file ownership, 11 minors)
 **Owner:** repository owner
 **Status:** PROPOSED (Opus planner). Docs only. **No owner approval is recorded here.** Every gate keeps its state in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md); the owner direction and prompt 44's four answers are recorded there as rows UI-DIRECTION, UI-SAAS-MEANING, UI-SCOPE-1031, UI-DARK-MODE and UI-SAFETY-TOGGLE, and prompt 45's two answers as rows UI-DEPS and UI-FIXTURE-NAME (same PR).
-**Base measured:** `origin/main` @ `15fe095` (2026-10-23, after #310). `src/frontend` is unchanged since `7749744`, the commit both designers and the UI review read (`git diff --stat 7749744 origin/main -- src/frontend` is empty).
-**Refresh Trigger:** an owner answer to a gate in [§11](#11-owner-gates-and-open-questions); a merge of any `UI-*` row (its measured numbers replace the ones quoted here); a merge of SESSION-REENTRY, FE-IMPORT-ERROR, IMPORT-SCANNED-PAGE, FE-VERIFY-NUMERIC, FE-EXPLAIN-ERR, BADGE-TICK, GAUGE-ZERO-WIDTH, AXE-E2E or E2E-UIFULL-CI; any edit to `src/frontend/package.json` outside these rows.
+**Base measured:** `origin/main` @ `257e072` (2026-10-23; merged since the first draft's `15fe095`: #321 MVP-REAUTH-401, #315 CPU-DEFAULT-PHI4, #318 OLLAMA-NUM-CTX, #314 FE-EXPLAIN-ERR, #319 GAUGE-ZERO-WIDTH, #320 INTERP-REGEN-500). The designers and the UI review read `7749744`; since then `src/frontend` changed only through #321 (`services/api.ts`, `profiles.ts`, `backup.ts`), #314 (`ExplainAssistant.tsx`) and #319 (`ReferenceRangeComparison.tsx`) with their tests, and both prototype patches still pass `git apply --check` on `257e072`. Every e2e line cited in [Appendix A](#appendix-a-e2e-assertions-and-the-row-that-changes-each) was read on `257e072`.
+**Refresh Trigger:** an owner answer to a gate in [§11](#11-owner-gates-and-open-questions); a merge of any `UI-*` row (its measured numbers replace the ones quoted here); a merge of SESSION-REENTRY, FE-IMPORT-ERROR, IMPORT-SCANNED-PAGE, FE-VERIFY-NUMERIC, BADGE-TICK, AXE-E2E or E2E-UIFULL-CI (MVP-REAUTH-401, FE-EXPLAIN-ERR and GAUGE-ZERO-WIDTH have merged: #321, #314, #319); any edit to a `src/frontend/e2e/*.spec.ts` assertion listed in Appendix A; any edit to `src/frontend/package.json` outside these rows.
 
 Queue rows: [queue.md, "Planned 2026-10-23, frontend revamp"](2026-10-15-build-program/queue.md#planned-2026-10-23-frontend-revamp). Rules: [RUNBOOK](2026-10-15-build-program/RUNBOOK.md), [contracts](2026-10-15-build-program/contracts.md) §b-§d. Path shorthand as in the queue: `fe/` = `src/frontend/src/`, `e2e/` = `src/frontend/e2e/`, `be/` = `src/backend/`.
 
@@ -43,7 +43,8 @@ UI-DEPS means: `framer-motion` stays at ^10.18, `motion` 14 is not adopted, and 
 **L0 readings (L0's words, not the owner's), used by this plan:**
 - UI-SAAS-MEANING: "Lab values and safety copy stay still" covers values, ranges, units, dates, disclaimers, citations and verification text. The one exception is one explanatory first reveal per analyte per session (the Range Ribbon draw), which is value-blind.
 - UI-SCOPE-1031: the token remap and the shell land first and each page migrates completely inside its own row. Between merges `main` still mixes migrated and unmigrated pages, and an unmigrated page's layout shows the new global tokens and primitives: this is the accepted half-migrated risk the option text names, reduced by the order, not removed.
-- UI-SAAS-MEANING, stillness: a T0 element never sits inside an animated wrapper (M6, M7, S1). On a route whose first paint has T0 content the route change is instant (M0), lists of T0 items render without M6, and showcase entrances wrap only non-T0 content. Gate G10's stillness probe enforces it.
+- UI-SAAS-MEANING, stillness: a T0 element never sits inside an animated wrapper (M6, M7, S1). On a route whose first paint has T0 content the route change is instant (M0), lists of T0 items render without M6, and showcase entrances wrap only non-T0 content. Gate G10's stillness probe enforces it on every component listed in [§2.7](#27-t0-marking-which-components-carry-data-t0-and-which-row-adds-it).
+- UI-SAAS-MEANING, overlays (L0 reading, not the owner's words): an overlay that holds T0 content (a value, a range, a date, a citation, a disclaimer, consent or warning copy) opens and closes with **M0**: no opacity, scale or translate on its content. M3, M4, M5 and M11 stay for overlays without T0 content (the More sheet, menus, the settings section sheet, toasts that name no value). This is the reading closest to "Lab values and safety copy stay still": the alternative (probe after the overlay settles) would let values slide and fade in. The probe starts sampling at the opening interaction, so any overlay motion on a T0 node fails it.
 - UI-SAAS-MEANING, onboarding: the create-profile form counts as first-run onboarding (a showcase surface); the recovery-code step does not, and stays still.
 - UI-DARK-MODE: until UI-DARK-FLIP merges, the product renders light whatever the OS says. There is no Preview toggle. The flip is gated on a test that finds no unmigrated colour.
 - UI-SAFETY-TOGGLE: the toggle is not designed yet. SAFETY-MODE-REAL researches concrete behaviours and turns them into an owner question; the build waits on that answer plus an ask-first yes. Until then the toggle stays, relabelled so it does not imply that it does anything ([§3.6](#36-the-safety-rail-and-the-safety-toggle-until-safety-mode-real)).
@@ -156,15 +157,15 @@ CSS custom properties in `globals.css`, mirrored in `fe/motion/tokens.ts`. One e
 | M0 | none: instant | — |
 | M1 | press: `scale(.97)` on `:active`, 120 ms | colour only |
 | M2 | hover: colour/background 150 ms, behind `@media (hover:hover) and (pointer:fine)` | same |
-| M3 | popover: opacity + `scale(.96→1)` from the Radix transform origin, 180 ms; exit 120 ms | opacity only |
-| M4 | dialog: opacity + `scale(.97→1)`, 320 ms; scrim 200 ms; exit 200 ms | opacity 150 ms |
-| M5 | sheet: `translateY(100%)→0` (phone) / `translateX` (desktop side), 320 ms drawer curve | opacity 150 ms |
+| M3 | popover: opacity + `scale(.96→1)` from the Radix transform origin, 180 ms; exit 120 ms; only for popovers with no T0 content (others M0) | opacity only |
+| M4 | dialog: opacity + `scale(.97→1)`, 320 ms; scrim 200 ms; exit 200 ms; only for dialogs with no T0 content (others M0; the scrim may still fade, it is not an ancestor of the content) | opacity 150 ms |
+| M5 | sheet: `translateY(100%)→0` (phone) / `translateX` (desktop side), 320 ms drawer curve; only for sheets with no T0 content (others M0) | opacity 150 ms |
 | M6 | list enter: opacity .35→1 + 6 px rise, 240 ms, stagger 40 ms cap 6, first view per session; never on a list of T0 items | opacity 120 ms, no stagger |
-| M7 | route enter: opacity .35→1 + 6 px rise, 240 ms, **no exit**, keyed by pathname; only on routes whose first paint has no T0 element, otherwise M0 | opacity .35→1, 120 ms |
+| M7 | route enter: opacity .35→1 + 6 px rise, 240 ms, **no exit**, keyed by pathname; only on routes whose first paint has no T0 element. **Used on no route today** (UI-SHELL's list is empty, see UI-SHELL); the default route change is M0 | opacity .35→1, 120 ms |
 | M8 | state morph: label crossfade 180 ms ("Copy" → "Copied") | opacity only |
 | M9 | indicator: one element moved by a CSS transition, 240 ms (nav pill, tab underline); jumps for keyboard | opacity 120 ms |
 | M10 | draw: `clip-path: inset(0 100% 0 0)→inset(0)` 640 ms, points .6→1 at 40 ms intervals; once per analyte per session; value-blind | none (final frame) |
-| M11 | toast: sonner transitions, swipe to dismiss | sonner reduced (opacity) |
+| M11 | toast: sonner transitions, swipe to dismiss; a toast that names a value or date (the verify confirmation) renders with M0 | sonner reduced (opacity) |
 | M12 | progress: determinate `scaleX` 240 ms; indeterminate opacity breathing 1.6 s | breathing continues (loaders never freeze) |
 | M13 | expand: `grid-template-rows 0fr→1fr` 240 ms + opacity | instant, opacity 120 ms |
 | **S1** | choreographed entrance (wraps non-T0 groups only): groups rise 12 px + opacity 0→1, 480 ms ease-out, stagger 60 ms cap 8, first visit per session (sessionStorage, wrapped in try/catch) | opacity 150 ms, no stagger |
@@ -173,6 +174,33 @@ CSS custom properties in `globals.css`, mirrored in `fe/motion/tokens.ts`. One e
 | **S4** | hero draw (About only): an SVG ribbon illustration over **labelled example data** ("Example data, not yours") drawn once by clip-path, 1.2 s | final frame |
 
 Global rules: transform, opacity and clip-path only (plus M13's sanctioned `grid-template-rows`); `transition-all` banned; focus rings never transition; `MotionConfig reducedMotion="user"` (framer-motion 10.18.0 `dist/index.d.ts`:3583, prop :1658, values `"always" | "never" | "user"` :1632) plus per-recipe fallbacks replace the blanket `* { animation-duration: .01ms !important }` kill-switch (which also froze spinners); the repo's `useReducedMotion` hook reads `matchMedia` synchronously so the first render honours the preference (framer-motion's own `useReducedMotion`, :4636, returns `boolean | null`); nothing that plays during navigation uses framer-motion's `x`/`y`/`scale` shorthands (main-thread); no number ever tweens.
+
+### 2.7 T0 marking: which components carry `data-t0`, and which row adds it
+
+Every element in this table renders with `data-t0` so G10's `stillnessProbe` can find it. A route listed in the right column must show at least one `[data-t0]` node once its row has merged; the probe fails on zero.
+
+| Component (T0 content) | Row that adds `data-t0` | Route(s) the probe expects it on |
+|---|---|---|
+| `SafetyRail`; `SafetyModeToggle` note and its popover text | UI-SHELL | every authenticated route |
+| `StatusChip` (range and verification words) | UI-PRIM-FEEDBACK | wherever used |
+| `RangeRibbon` text layer (axis labels, value labels, live caption), its table fallback cells; `RangeTick` text | UI-RIBBON | `/results` |
+| `SourceTrace` (excerpt lines, result, date, range, read-confidence rows); `CitationTooltip` (chip label, quote, page) | UI-PROVENANCE | `/results`, `/verify`, `/explain` |
+| palette Results group (latest value text) | UI-PALETTE | palette open |
+| `DisclaimerBanner`, hero value, unit and date, analyte list values, `InterpretedResultCard` body, `PanelInterpretationDashboard` values, `AdviceSection` | UI-PG-RESULTS | `/results` |
+| document row date, status words, confidence words; FE-IMPORT-ERROR's alert; IMPORT-SCANNED-PAGE's warning; the "N values ready to review" handoff | UI-PG-DOCUMENTS | `/inbox` |
+| `EntityDetailView` value, unit, range and date cells; Edit dialog current value | UI-PG-REVIEW | `/verify` |
+| assistant answer bubbles, citation chips, the Ask disclaimer, chat error text | UI-PG-ASK | `/explain` |
+| dose, schedule times, adherence figures and ring, reminder times | UI-PG-MEDS | `/medications`, `/medications/:id`, `/medications?tab=reminders` |
+| follow-up dates | UI-PG-CARE | `/care-tasks` |
+| timeline card dates and analytes, search result values, pinned values | UI-PG-RECORDS | `/timeline`, `/search`, `/pinboards` |
+| summary preview values, redaction-level text | UI-PG-EXPORT | `/export` |
+| break-glass warning, consent copy, tier availability text | UI-PG-SETTINGS | `/settings?section=assistant-privacy`, `/settings?section=advanced` |
+| recovery code, its warnings, backup/restore/delete warnings and errors | UI-PG-SECURITY | `/settings` (Profile & security) |
+| create-profile field errors, recovery-code step, unlock errors | UI-PG-AUTH | `/setup`, `/recover` |
+| Overview counts and values | UI-OVERVIEW | `/overview` |
+| About safety and local-first statements | UI-ABOUT | `/about` |
+
+A page whose row has not merged yet carries no `data-t0` and cannot be probed; UI-SHELL's M0 route default (no route animation at all) is what keeps those pages' values still in the meantime. In-page motion the old pages already have (for example `DocumentInbox`'s stagger) stays until that page's row removes it.
 
 ---
 
@@ -237,8 +265,8 @@ Owned by the existing row **SESSION-REENTRY** (owner answer (a), [MVP plan](2026
 | Moment | Trigger | Spec | Tier | Reduced motion |
 |---|---|---|---|---|
 | **Range Ribbon first reveal** | first view of an analyte in a session | band and grid static; line and points revealed left to right (M10, 640 ms), value-blind; then the chart is a slider: ← → Home End jump without animation, pointer cursor glides 180 ms | T0 exception | no reveal |
-| **Ink** | the user verifies a value (Review values or Source Trace) | the dashed graphite ring closes and fills with ink, 360 ms ease-out, on the marker only; the value text never moves; every chart, row and chip for that value flips together; a toast confirms ("Glucose, Apr 10, 2026 is now marked as checked") with **no Undo**: the API has no unverify endpoint (`be/api/observations.py:384` is verify only; bullet VERIFY-UNDO) | T3 | instant swap, toast still shows |
-| **Source Trace** | "Show source" on any value, or "Open source" in a citation popover | side sheet (desktop, M5 side) / bottom sheet (phone); the source row's highlight draws across the line (clip-path 420 ms, 160 ms delay, once); copy "This is what your report states." | T3 | highlight fades in 150 ms |
+| **Ink** | the user verifies a value (Review values or Source Trace) | the dashed graphite ring closes and fills with ink, 360 ms ease-out, on the marker only; the value text never moves; every chart, row and chip for that value flips together; a toast confirms ("Glucose, Apr 10, 2026 is now marked as checked"), with M0 because it names a value and a date, and with **no Undo**: the API has no unverify endpoint (`be/api/observations.py:384` is verify only; bullet VERIFY-UNDO) | T3 | instant swap, toast still shows |
+| **Source Trace** | "Show source" on any value, or "Open source" in a citation popover | side sheet (desktop) / bottom sheet (phone) that opens with **M0** (it holds T0 content); the moment is the highlight behind the source row, a separate background element without `data-t0`, which draws across the line (clip-path 420 ms, 160 ms delay, once) while the text stays still | T3 | highlight fades in 150 ms |
 | **Lift** (in UI-PG-AUTH, gated) | successful unlock on the SESSION-REENTRY card | the unlock panel fades and lifts 8 px, 240 ms, onto the shell already painted with skeletons | T3 | opacity 150 ms |
 
 Refused: confetti or celebration on verify or adherence (the `BadgeToast` `animate-ping` goes), count-up numbers, motion on out-of-range values, a bounce anywhere near a value, 3D, sound.
@@ -248,8 +276,8 @@ Refused: confetti or celebration on verify or adherence (the `BadgeToast` `anima
 | Surface | Row | What moves | What stays still |
 |---|---|---|---|
 | First-run onboarding: **Overview** checklist (Import → Review values → See results) | UI-OVERVIEW | S1 entrance of the checklist cards; the next step is marked in words ("Next step") with a static accent border (S2 marks a running process only, so it is not used here) | the counts and any value shown later ("3 values waiting for review" is T0 text) |
-| First-run onboarding: the **create-profile form** (L0 reading) | UI-PG-AUTH (layout and motion gated by UI-AUTH-SCREENS) | S1 entrance of the form groups; no fake progress | the recovery-code step (no S1 at all), the code, the acknowledgement checkbox, every warning |
-| **Document import/processing** | UI-PG-DOCUMENTS | S2 beam on the card of a document being extracted; S3 orb (20 px) beside the status line "Reading page 2 of 3"; the import → review handoff (new rows enter with M6) | extracted values, confidence words, error messages (FE-IMPORT-ERROR's alert), the scanned-page warning (IMPORT-SCANNED-PAGE) |
+| First-run onboarding: the **create-profile form** (L0 reading) | UI-PG-AUTH (layout and motion gated by UI-AUTH-SCREENS) | S1 entrance of the label-and-input groups; no fake progress | field errors (rendered in a container outside the S1 wrapper), the recovery-code step (no S1 at all), the code, the acknowledgement checkbox, every warning |
+| **Document import/processing** | UI-PG-DOCUMENTS | S2 beam on the border of the card of a document being extracted (the border element only); S3 orb (20 px) beside the status line "Reading page 2 of 3" | document rows (they show dates, status and confidence, so new rows appear with M0, no M6), extracted values, confidence words, error messages (FE-IMPORT-ERROR's alert), the scanned-page warning (IMPORT-SCANNED-PAGE), the handoff text |
 | **Empty states** (every page) | UI-SHOWCASE-KIT (`EmptyState`), used by each page row | S1 entrance of the illustration, sentence and one action | — |
 | **About page** for the demo | UI-ABOUT | S1 sections; S4 hero ribbon over labelled example data; S2 on the single call to action; S3 (64 px) beside "How it reads a report" | the safety statement, the local-first statement, the "not medical advice" text |
 
@@ -305,9 +333,9 @@ Versions, licences and React peers re-read with `npm view` by the L0 planner on 
 | G7 | zero console errors; no request to a non-localhost origin (local-first) | `consoleAndNetworkGuard()` |
 | G8 | `npx tsc --noEmit`, `npm run build`, `npx vitest run` (count and delta; from Windows or CI per RUNBOOK §6.5), the row's Playwright spec | — |
 | G9 (from UI-SHELL on) | the Safety Rail is in the viewport at effective opacity 1 at first paint and after each interaction; contextual disclaimers and citations visible without hover | `safetyVisible()` |
-| G10 | stillness: every `[data-t0]` element (values, ranges, units, dates, verification text, disclaimers, citations, the Safety Rail) keeps the same `getBoundingClientRect()` (±0.5 px) and an **effective opacity** of 1 (the product of its own and every ancestor's computed opacity) in samples every 16-40 ms for 800 ms after each navigation and interaction. T0 components set `data-t0` | `stillnessProbe()` |
+| G10 | stillness: `stillnessProbe(page, { trigger, expected })` starts sampling, then runs `trigger` (a navigation or an interaction, including opening an overlay), and samples every 16-40 ms for 800 ms. Every `[data-t0]` element keeps the same `getBoundingClientRect()` (±0.5 px) and an **effective opacity** of 1 (the product of its own and every ancestor's computed opacity) from the first sample in which it exists. The probe **fails** when it finds zero `[data-t0]` nodes, or when any selector in `expected` (the route's components from [§2.7](#27-t0-marking-which-components-carry-data-t0-and-which-row-adds-it)) matches no `[data-t0]` node | `stillnessProbe()` |
 
-Frontend e2e uses `page.route` mocks typed from `fe/services/types.ts` (`e2e/support/mockApi.ts`). Anything that asserts auth, session or status-code behaviour runs against the real backend through HTTP (`e2e/support/start-backend.mjs`), as CLAUDE.md §4 requires. Existing tests may have selectors or labels updated when markup changes; no assertion is removed or loosened (CLAUDE.md §3). Before claiming done, each row re-reads [recurring-failures.md](../agentic/recurring-failures.md); #1 (a test that could not fail) is why every new check below names its RED state, and #12 (a gate merged beside PRs built before it) is why L0 runs UI-BUDGET's check and UI-TOKENS' contrast test on `origin/main` before merging the next group.
+Frontend e2e uses `page.route` mocks typed from `fe/services/types.ts` (`e2e/support/mockApi.ts`). Anything that asserts auth, session or status-code behaviour runs against the real backend through HTTP (`e2e/support/start-backend.mjs`), as CLAUDE.md §4 requires. Existing tests may have selectors or labels updated when markup changes; no assertion is removed or loosened (CLAUDE.md §3). Every e2e assertion a row changes is listed, old value → new value, in [Appendix A](#appendix-a-e2e-assertions-and-the-row-that-changes-each) and in that row's Files; CI runs every spec (`ci.yml` e2e job), so an unlisted break is a failed row. Before claiming done, each row re-reads [recurring-failures.md](../agentic/recurring-failures.md); #1 (a test that could not fail) is why every new check below names its RED state, and #12 (a gate merged beside PRs built before it) is why L0 runs UI-BUDGET's check and UI-TOKENS' contrast test on `origin/main` before merging the next group.
 
 **Defect checks** (found in the prototypes; details in [comparison §3](../research/2026-10-23-frontend-revamp/comparison.md#3-defects-found-in-the-prototypes-become-acceptance-checks)):
 
@@ -318,7 +346,7 @@ Frontend e2e uses `page.route` mocks typed from `fe/services/types.ts` (`e2e/sup
 | DF-3 | opening a Sheet or Dialog leaves no `[data-sonner-toast]` intersecting the overlay content; the toast layer is below the modal layer | UI-PRIM-FEEDBACK (HC-UIFB-004), UI-SHELL (HC-UISH-007) |
 | DF-4 | at 390×844, first paint, ≥ 200 px of the Range Ribbon plot is inside the viewport above the tab bar and the Safety Rail | UI-PG-RESULTS (HC-UIRES-004) |
 | DF-5 | after typing in the palette, every `aria-activedescendant` resolves to an existing element; axe on the open, filtered palette 0 serious/critical | UI-PALETTE (HC-UIPAL-002, 003) |
-| DF-6 | route container opacity sampled every 40 ms after a nav click never drops below 0.3 | UI-SHELL (HC-UISH-003) |
+| DF-6 | route container opacity sampled every 40 ms after a nav click never drops below 0.3 (with the M0 default it stays 1) | UI-SHELL (HC-UISH-003) |
 
 ---
 
@@ -326,7 +354,7 @@ Frontend e2e uses `page.route` mocks typed from `fe/services/types.ts` (`e2e/sup
 
 **Ordering rule (UI-SCOPE-1031, L0 reading).** Waves are dependency layers (queue rule 3): every row is queued now and starts when its own dependencies have merged. Foundation (tokens, motion, theme) and primitives restyle every page at once; the shell then wraps every page; each page row then migrates one page completely (layout, primitives, overlays, empty state, dark-safe colours, its own tests). The aim is that each page is either in its old layout with the new tokens and primitives, or fully migrated. This is not a guarantee: between merges `main` mixes migrated and unmigrated pages, and an unmigrated page shows the new primitives inside its old layout. That is the half-migrated risk the owner accepted with "Full plan, no freeze".
 
-**File ownership rules.** `src/frontend/package.json` and `package-lock.json`: UI-MOTION, UI-BUDGET (scripts line), UI-CHART-CLEANUP only, never beside AXE-E2E or another `package.json` PR. `fe/App.tsx`: UI-ROUTES, UI-PG-RESULTS, UI-OVERVIEW, UI-ABOUT, in different waves. `fe/components/ui/index.ts`: UI-PRIM-CONTROLS only (other primitives are imported by path). `fe/components/layout/navConfig.ts`: UI-SHELL, UI-PG-RESULTS, UI-OVERVIEW, UI-MICRO, in different waves. `e2e/tailwind4-styles.spec.ts` (owner row TW4-VISUAL, `owner-decisions-2026-09-27.md:73`): UI-TOKENS (TW4-RECOVER border and placeholder, TW4-INBOX body background) and UI-SHELL (TW4-INBOX `aside h1` colour), each a declared contract change that keeps the computed-style check and updates only the value its row changes. `e2e/routing.spec.ts`: UI-SHELL (nav label), UI-PG-RESULTS (Trends heading), UI-OVERVIEW (E2E-ROUTE-001 redirect and heading), UI-MICRO (any remaining h1 renamed to its nav name), in different waves; UI-PG-DOCUMENTS keeps the h1 "Document Inbox" so it does not touch the spec. `fe/__tests__/Gamification.test.tsx`: UI-PG-MEDS, then UI-PG-SETTINGS (which therefore runs after it). `fe/__tests__/RecoveryCodeCard.test.tsx` (it tests the settings card): UI-PG-SECURITY. New tests go in new files named after the row, so two rows rarely share a test file.
+**File ownership rules.** `src/frontend/package.json` and `package-lock.json`: UI-MOTION, UI-BUDGET (scripts line), UI-CHART-CLEANUP only, never beside AXE-E2E or another `package.json` PR. `fe/App.tsx`: UI-ROUTES, UI-PG-RESULTS, UI-OVERVIEW, UI-ABOUT, in different waves. `fe/components/ui/index.ts`: UI-PRIM-CONTROLS only (other primitives are imported by path). `fe/components/layout/navConfig.ts`: UI-SHELL, UI-PG-RESULTS, UI-OVERVIEW, UI-MICRO, in different waves. Every `src/frontend/e2e/*.spec.ts` assertion a row breaks is a declared contract change in that row (old value → new value, same assertion kept), listed in [Appendix A](#appendix-a-e2e-assertions-and-the-row-that-changes-each). Spec files are edited by at most one row per wave: `tailwind4-styles.spec.ts` (owner row TW4-VISUAL, `owner-decisions-2026-09-27.md:73`) by UI-TOKENS (w1), UI-SHELL (w3), UI-PG-MEDS (w5), UI-PG-AUTH (w6); `routing.spec.ts` by UI-SHELL (w3), UI-PG-RESULTS (w5), UI-OVERVIEW (w6); `assistant.spec.ts` by UI-PG-ASK (w5), UI-MICRO (w8); `ui-full-verification.spec.ts` by UI-PG-ASK (w5), UI-PG-SETTINGS (w6), UI-MICRO (w8); `settings-smoke.spec.ts` by UI-PG-SETTINGS; `auth.spec.ts` by UI-PG-AUTH. Page rows keep their page's h1 text and UI-MICRO renames the h1s to their nav names, so a heading assertion changes once. `fe/__tests__/Gamification.test.tsx`: UI-PG-MEDS, then UI-PG-SETTINGS (which therefore runs after it). `fe/__tests__/RecoveryCodeCard.test.tsx` (it tests the settings card): UI-PG-SECURITY. New tests go in new files named after the row, so two rows rarely share a test file.
 
 ### 7.1 Summary
 
@@ -348,19 +376,19 @@ Frontend e2e uses `page.route` mocks typed from `fe/services/types.ts` (`e2e/sup
 | 4 | [UI-PROVENANCE](#ui-provenance--source-trace-sheet-and-citation-popover) | UI-PRIM-OVERLAYS, UI-PRIM-FEEDBACK | — | P1 | 3 |
 | 4 | [UI-SHOWCASE-KIT](#ui-showcase-kit--beam-orb-entrance-and-the-empty-state) | UI-MOTION, UI-PRIM-CONTROLS | UI-SAAS-MEANING answered | P1 | 3 |
 | 4 | [SESSION-REENTRY Task 3](#82-delta-to-session-reentry-task-3-lock-now) | UI-SHELL, SESSION-REENTRY Task 1 | **SESSION-LOCK-NOW** (new) | P2 | 1 |
-| 5 | [UI-PG-RESULTS](#ui-pg-results--results-merges-trends-and-interpret-around-the-range-ribbon) | wave 4 rows, UI-BUDGET; GAUGE-ZERO-WIDTH merged or closed | — | P1 | 5 |
+| 5 | [UI-PG-RESULTS](#ui-pg-results--results-merges-trends-and-interpret-around-the-range-ribbon) | wave 4 rows, UI-BUDGET; GAUGE-ZERO-WIDTH (merged, #319) | — | P1 | 5 |
 | 5 | [UI-PG-DOCUMENTS](#ui-pg-documents--documents-page-and-the-import-and-processing-showcase) | UI-SHELL, UI-SHOWCASE-KIT, UI-PROVENANCE, FE-IMPORT-ERROR; never beside IMPORT-SCANNED-PAGE | — | P1 | 4 |
 | 5 | [UI-PG-REVIEW](#ui-pg-review--review-values-with-ink) | UI-SHELL, UI-PROVENANCE, UI-SHOWCASE-KIT, FE-VERIFY-NUMERIC | — | P1 | 4 |
-| 5 | [UI-PG-ASK](#ui-pg-ask--ask-the-chat-owns-its-scroll-citations-open-on-tap) | UI-SHELL, UI-PROVENANCE, UI-SHOWCASE-KIT, FE-EXPLAIN-ERR, BADGE-TICK | — | P1 | 4 |
+| 5 | [UI-PG-ASK](#ui-pg-ask--ask-the-chat-owns-its-scroll-citations-open-on-tap) | UI-SHELL, UI-PROVENANCE, UI-SHOWCASE-KIT, FE-EXPLAIN-ERR (merged, #314), BADGE-TICK | — | P1 | 4 |
 | 5 | [UI-PG-MEDS](#ui-pg-meds--medications-reminders-tab-dose-sheet) | UI-SHELL, UI-SHOWCASE-KIT | MED-BADGES (open, non-blocking) | P2 | 4 |
 | 5 | [UI-PG-CARE](#ui-pg-care--follow-ups) | UI-SHELL, UI-SHOWCASE-KIT | — | P2 | 2 |
 | 5 | [UI-PG-RECORDS](#ui-pg-records--timeline-search-pinboards) | UI-SHELL, UI-SHOWCASE-KIT, UI-PALETTE | — | P2 | 3 |
 | 5 | [UI-PG-EXPORT](#ui-pg-export--doctor-summary) | UI-SHELL, UI-SHOWCASE-KIT | — | P2 | 2.5 |
-| 6 | [UI-PG-SETTINGS](#ui-pg-settings--settings-split-into-sections) | UI-PG-MEDS (`Gamification.test.tsx`), UI-SHELL, UI-SHOWCASE-KIT; never beside DON-COPY-V3 | — | P2 | 5 |
+| 6 | [UI-PG-SETTINGS](#ui-pg-settings--settings-split-into-sections) | UI-PG-MEDS (`Gamification.test.tsx`), UI-PG-ASK (`ui-full-verification.spec.ts`), UI-SHELL, UI-SHOWCASE-KIT; never beside DON-COPY-V3 | — | P2 | 5 |
 | 6 | [UI-CHART-CLEANUP](#ui-chart-cleanup--delete-the-recharts-chart-and-the-dependency) | UI-PG-RESULTS | — | P2 | 1.5 |
 | 6 | [UI-OVERVIEW](#ui-overview--overview-landing-with-the-first-run-checklist) | UI-PG-RESULTS (App.tsx, `routing.spec.ts`), UI-PG-DOCUMENTS | — | P1 | 3 |
-| 7 | [UI-PG-SECURITY](#ui-pg-security--profile--security-section-gated) | UI-PG-SETTINGS, MVP-REAUTH-401 | UI-AUTH-SCREENS (new; planner reading of CLAUDE.md §1) | P2 | 3 |
-| 6 | [UI-PG-AUTH](#ui-pg-auth--setup-unlock-card-and-recovery-gated) | SESSION-REENTRY Task 1, UI-SHOWCASE-KIT, UI-SHELL | UI-AUTH-SCREENS (new; planner reading of CLAUDE.md §1) | P1 | 3 |
+| 6 | [UI-PG-AUTH](#ui-pg-auth--setup-unlock-card-and-recovery-gated) | SESSION-REENTRY Task 1, UI-PG-MEDS (`tailwind4-styles.spec.ts`), UI-SHOWCASE-KIT, UI-SHELL | UI-AUTH-SCREENS (new; planner reading of CLAUDE.md §1) | P1 | 3 |
+| 7 | [UI-PG-SECURITY](#ui-pg-security--profile--security-section-gated) | UI-PG-SETTINGS; MVP-REAUTH-401 (merged, #321) | UI-AUTH-SCREENS (new; planner reading of CLAUDE.md §1) | P2 | 3 |
 | 7 | [UI-ABOUT](#ui-about--the-about-page-for-the-demo) | UI-OVERVIEW (App.tsx), UI-RIBBON, UI-SHOWCASE-KIT | UI-ABOUT-PLACE (open, non-blocking) | P1 | 3 |
 | 8 | [UI-MICRO](#ui-micro--press-target-and-copy-sweep) | every wave 5-7 row | — | P2 | 3 |
 | 9 | [UI-DARK-FLIP](#ui-dark-flip--dark-mode-follows-the-os-once-no-unmigrated-colour-remains) | every `UI-*` row above (UI-PG-SECURITY / UI-PG-AUTH in any UI-AUTH-SCREENS outcome) | UI-DARK-MODE answered | P2 | 2 |
@@ -381,7 +409,7 @@ Frontend e2e uses `page.route` mocks typed from `fe/services/types.ts` (`e2e/sup
 | HC-UIG-003 | `routeOpacitySamples` after a nav click records a sample < 0.3 (today 0.00); `test.fail()` until UI-SHELL | yes, by design |
 | HC-UIG-004 | `consoleAndNetworkGuard` fails a page that requests `https://example.com` (fixture via `page.setContent`) | GREEN (self-test) |
 | HC-UIG-005 | `maxEventDuration` returns a finite number for a click on `/setup` under CPU ×4 | GREEN (self-test) |
-| HC-UIG-006 | `stillnessProbe` fails on a fixture `[data-t0]` child of a container that fades from opacity .35, fails on one inside a parent that translates 6 px, and passes on one outside both (it reads ancestor opacity and the bounding rect, not the element's own style) | GREEN (self-test that the probe can fail) |
+| HC-UIG-006 | `stillnessProbe` self-test on `page.setContent` fixtures whose animations **start inside the sampling window**: each fixture exposes `window.__start()`, which the probe's `trigger` calls after the first sample, and one fixture runs an infinite animation instead. It must FAIL on (a) a `[data-t0]` child of a container that fades from opacity .35, (b) one inside a parent that translates 6 px, (c) a `[data-t0]` popover that scales in from .96 (the overlay rule), (d) a page with zero `[data-t0]` nodes when `expected` is non-empty, and (e) a page where one `expected` selector matches nothing; it must PASS on a still `[data-t0]` node beside an animated non-T0 sibling | GREEN (self-test that the probe can fail) |
 
 **Acceptance:** the six ids with output; the harness runs with the mock API and no backend; the README lists every helper and when to use the real backend. **Est:** 3 h. **MVP:** P1.
 
@@ -406,7 +434,7 @@ Frontend e2e uses `page.route` mocks typed from `fe/services/types.ts` (`e2e/sup
 
 #### UI-TOKENS — remap the colour, type and motion tokens so every page passes AA
 
-**Files:** `fe/styles/globals.css` (the [§2.2](#22-colour-tokens-and-contrast-proposal-a) tokens, light and dark; aliases for `status-success`, `status-danger`, `muted-foreground`; type scale with body 17 px and the 13 px floor; motion tokens; `--z-toast`/`--z-modal`; font fallback metric overrides; focus ring with no transition; the blanket reduced-motion kill-switch replaced by `--motion-distance: 0` plus per-recipe rules, so loaders keep breathing; unused `glass-card`, `subtle-noise`, `stagger-animation`, `animation-delay-*` and the six dead `dark-*` tokens deleted), `fe/components/ui/Card.tsx` (`bg-white/80 backdrop-blur-xl` → `bg-surface-elevated`, nothing else), `fe/__tests__/ui-tokens.test.ts` (new), `e2e/ui-tokens.spec.ts` (new), `e2e/ui-gates.spec.ts` (remove the `test.fail()` mark on HC-UIG-002 only), `e2e/tailwind4-styles.spec.ts` (TW4-RECOVER border and placeholder values, TW4-INBOX body background: a declared contract change; the computed-style checks owner row TW4-VISUAL asked for stay, with the new token values).
+**Files:** `fe/styles/globals.css` (the [§2.2](#22-colour-tokens-and-contrast-proposal-a) tokens, light and dark; aliases for `status-success`, `status-danger`, `muted-foreground`; type scale with body 17 px and the 13 px floor; motion tokens; `--z-toast`/`--z-modal`; font fallback metric overrides; the global focus ring stays the box-shadow ring of `*:focus-visible` (`globals.css:288-290`) in the accent token, so TW4-FOCUS and TW4-INBOX's outline check keep passing; the blanket reduced-motion kill-switch replaced by `--motion-distance: 0` plus per-recipe rules, so loaders keep breathing; unused `glass-card`, `subtle-noise`, `stagger-animation`, `animation-delay-*` and the six dead `dark-*` tokens deleted), `fe/components/ui/Card.tsx` (`bg-white/80 backdrop-blur-xl` → `bg-surface-elevated`, nothing else), `fe/__tests__/ui-tokens.test.ts` (new), `e2e/ui-tokens.spec.ts` (new), `e2e/ui-gates.spec.ts` (remove the `test.fail()` mark on HC-UIG-002 only), `e2e/tailwind4-styles.spec.ts` (declared contract changes under owner row TW4-VISUAL, same assertions with the new token values: `:138` border `rgb(229, 231, 235)` → `rgb(226, 223, 215)` (`--line`), `:140` placeholder `rgb(156, 163, 175)` → `rgb(104, 100, 93)` (`--ink-3`, `globals.css:150-151`), `:178` body `rgb(250, 250, 248)` → `rgb(246, 245, 241)` (`--paper`), `:181` `aside h1` colour `rgb(31, 31, 31)` → `rgb(28, 27, 25)` (`--ink-1`); Appendix A).
 **Depends on:** UI-GATES. **Gate:** none.
 
 | Id | Check | RED today? |
@@ -415,7 +443,7 @@ Frontend e2e uses `page.route` mocks typed from `fe/services/types.ts` (`e2e/sup
 | HC-UITK-002 | every colour utility used in `fe/**/*.tsx` resolves to a defined token (`status-success`, `status-danger`, `muted-foreground` included) | yes (21 undefined uses) |
 | HC-UITK-003 | `--text-xs` ≥ 13 px and the body size is 17 px | yes |
 | HC-UITK-004 | e2e: axe `color-contrast` = 0 on `/setup`, `/inbox`, `/verify`, `/trends`, `/explain`, `/settings` (light) | yes (314 nodes on 29 states) |
-| HC-UITK-005 | e2e: a focus ring is visible 16 ms after Tab on a Button (no fade-in) | yes (200 ms fade) |
+| HC-UITK-005 | e2e: TW4-FOCUS and TW4-INBOX's focus checks pass unchanged (the global ring stays a box-shadow ring) | GREEN (pin) |
 | HC-UITK-006 | e2e: cold-load CLS on `/setup` ≤ 0.02 (font swap) | measure; 0.011 in B's prototype |
 
 **Acceptance:** G (G1 light; dark contrast is covered by HC-UITK-001 until each page row runs G1 dark). L0 runs HC-UITK-001 on `origin/main` after merge (recurring-failures #12). **Est:** 3 h. **MVP:** P1.
@@ -474,12 +502,13 @@ Frontend e2e uses `page.route` mocks typed from `fe/services/types.ts` (`e2e/sup
 | HC-UIPC-004 | `Tabs`: arrow keys move focus (roving), each `tabpanel` is `aria-labelledby` its tab | yes |
 | HC-UIPC-005 | `Input` with `error` then without: `aria-invalid` goes `true` → absent; the label is associated | yes |
 | HC-UIPC-006 | no primitive's class list contains `transition-all` | yes (Button) |
+| HC-UIPC-007 | e2e: a focus ring is visible 16 ms after Tab on a Button (no 200 ms fade from `transition-all`) | yes (200 ms fade) |
 
 **Acceptance:** G on `/setup` and `/settings` (the pages that use these most). **Est:** 3 h. **MVP:** P1.
 
 #### UI-PRIM-OVERLAYS — Dialog, AlertDialog, Sheet, Popover
 
-**Files:** `fe/components/ui/Dialog.tsx`, `ui/AlertDialog.tsx` (Dialog with `role="alertdialog"`), `ui/Sheet.tsx` (bottom on phones, side on desktop, M5), `ui/Popover.tsx` (M3; opens on click, Enter and Space, never on hover alone), all new; `fe/__tests__/ui-overlays.test.tsx` (new). **Depends on:** UI-TOKENS, UI-MOTION. **Gate:** none.
+**Files:** `fe/components/ui/Dialog.tsx`, `ui/AlertDialog.tsx` (Dialog with `role="alertdialog"`), `ui/Sheet.tsx` (bottom on phones, side on desktop, M5), `ui/Popover.tsx` (M3; opens on click, Enter and Space, never on hover alone), all new, each with a `still` prop that renders M0 for overlays holding T0 content; `fe/__tests__/ui-overlays.test.tsx` (new). **Depends on:** UI-TOKENS, UI-MOTION. **Gate:** none.
 
 | Id | Check | RED today? |
 |---|---|---|
@@ -489,6 +518,7 @@ Frontend e2e uses `page.route` mocks typed from `fe/services/types.ts` (`e2e/sup
 | HC-UIOV-004 | under reduced motion, content has opacity only, no transform | yes |
 | HC-UIOV-005 | Popover opens on click and on Enter, not on hover | yes |
 | HC-UIOV-006 | opening any Dialog, AlertDialog or Sheet dispatches the `asclexis:overlay-open` document event that UI-PRIM-FEEDBACK's toaster listens for (DF-3) | yes |
+| HC-UIOV-007 | e2e: each primitive with `still` passes `stillnessProbe` on a `[data-t0]` child from the opening click (no opacity, scale or translate on the content) | yes |
 
 **Acceptance:** G (rendered on a test route in the e2e harness). **Est:** 3 h. **MVP:** P1.
 
@@ -503,6 +533,7 @@ Frontend e2e uses `page.route` mocks typed from `fe/services/types.ts` (`e2e/sup
 | HC-UIFB-003 | `Pending` keeps animating opacity under reduced motion (loaders never freeze) | yes (kill-switch freezes) |
 | HC-UIFB-004 | DF-3 contract: the toaster's z-index token is below the modal token, and the toaster subscribes to the `asclexis:overlay-open` document event (dispatched by UI-PRIM-OVERLAYS, HC-UIOV-006) and dismisses visible toasts | yes |
 | HC-UIFB-005 | `Progress` animates `transform`, never `width` | yes |
+| HC-UIFB-006 | `notify({ still: true })` (for toasts that name a value or date) renders with no enter transform or opacity change: its `[data-t0]` text passes `stillnessProbe` from the triggering click; `StatusChip` carries `data-t0` | yes |
 
 **Acceptance:** G. **Est:** 3 h. **MVP:** P1. (The event name is fixed here and in UI-PRIM-OVERLAYS so the two rows stay file-disjoint; UI-SHELL proves the pair with HC-UISH-007.)
 
@@ -510,19 +541,21 @@ Frontend e2e uses `page.route` mocks typed from `fe/services/types.ts` (`e2e/sup
 
 #### UI-SHELL — responsive shell, grouped nav, tab bar, Safety Rail, honest toggle
 
-**Files:** `fe/components/layout/AppLayout.tsx` (grid shell; `AnimatePresence mode="wait"` removed; M7 keyed by pathname; skip link; mounts `AppToaster`; bottom padding for tab bar and rail), `Sidebar.tsx` (groups, prefix match, M9 CSS indicator replacing the `layoutId` spring, brand as `<span>`), `TopBar.tsx` (the existing search form restyled, `SafetyModeToggle`, profile menu on phones), `MobileTabBar.tsx`, `MoreSheet.tsx`, `SafetyRail.tsx`, `SafetyModeToggle.tsx`, `ProfileMenu.tsx`, `BrandMark.tsx`, `navConfig.ts` (all new), `layout/index.ts`; `fe/__tests__/ui-shell.test.tsx` (new), `e2e/ui-shell.spec.ts` (new), `e2e/routing.spec.ts` (nav label `Trends` → `Results` only), `e2e/ui-routes-verification.spec.ts` (nav labels only; file from E2E-UIFULL-CI), `e2e/ui-gates.spec.ts` (remove the `test.fail()` mark on HC-UIG-003 only), `e2e/tailwind4-styles.spec.ts` (TW4-INBOX: the `aside h1` colour check moves to the brand `<span>` with its new colour; a declared contract change under TW4-VISUAL).
+**Files:** `fe/components/layout/AppLayout.tsx` (grid shell; `AnimatePresence mode="wait"` removed; route change **M0** by default; skip link; mounts `AppToaster`; bottom padding for tab bar and rail), `Sidebar.tsx` (groups, prefix match, M9 CSS indicator replacing the `layoutId` spring, brand as `<span>`), `TopBar.tsx` (the existing search form restyled, `SafetyModeToggle`, profile menu on phones), `MobileTabBar.tsx`, `MoreSheet.tsx`, `SafetyRail.tsx`, `SafetyModeToggle.tsx`, `ProfileMenu.tsx`, `BrandMark.tsx`, `navConfig.ts` (all new), `layout/index.ts`; `fe/__tests__/ui-shell.test.tsx` (new), `e2e/ui-shell.spec.ts` (new), `e2e/routing.spec.ts` (`:46` nav link name `'Trends'` → `'Results'`; it still lands on `/trends` until UI-PG-RESULTS), `e2e/ui-routes-verification.spec.ts` (nav labels only; file from E2E-UIFULL-CI), `e2e/ui-gates.spec.ts` (remove the `test.fail()` mark on HC-UIG-003 only), `e2e/tailwind4-styles.spec.ts` (TW4-INBOX `:180` selector `aside h1` → `aside [data-brand]`, the brand `<span>`; the colour value set by UI-TOKENS is unchanged). Kept as they are (Appendix A): the nav landmark name "Main navigation", nav links at `min-height: 44px`, and the top-bar profile trigger's accessible name "Profile and settings" with `cursor: pointer`.
+**Route motion:** M0 on every route. The list of routes allowed M7 is **empty**, because every authenticated route paints T0 content on first paint: `/inbox` document dates and statuses; `/verify` values; `/trends`, `/interpret` and later `/results` values; `/timeline` dates; `/pinboards` pinned values; `/explain` the disclaimer and answers; `/medications`, `/medications/:id` and `/notifications` doses and times; `/care-tasks` dates; `/export` summary values; `/search` values; `/settings` warnings and consent copy. A later row may add a route only with a G10 pass on it.
 **Depends on:** UI-PRIM-CONTROLS, UI-PRIM-OVERLAYS, UI-PRIM-FEEDBACK, UI-THEME merged; E2E-UIFULL-CI merged (its spec is edited). **Gate:** UI-SAFETY-TOGGLE answered; the toggle wording of [§3.6](#36-the-safety-rail-and-the-safety-toggle-until-safety-mode-real) ships now and SAFETY-LABEL-WORDING (open, non-blocking) may change it in a one-line follow-up.
 
 | Id | Check | RED today? |
 |---|---|---|
 | HC-UISH-001 | vitest: `navConfig` has the [§3.1](#31-destinations) groups and transition entries; `/medications/abc` marks Medications active | yes |
 | HC-UISH-002 | e2e: the first Tab focuses the skip link; exactly one `h1` on each of the 15 routes | yes (2 h1s, no skip link) |
-| HC-UISH-003 | e2e (DF-6): route container opacity never < 0.3 after a nav click | yes (0.00 today) |
+| HC-UISH-003 | e2e (DF-6): after a nav click, the route container's opacity is 1 and its transform is `none` in every 40 ms sample (M0 route change) | yes (0.00 today) |
 | HC-UISH-004 | e2e: at 390 and 320 no sidebar is rendered, `main` starts at x = 0 with the viewport's width, the tab bar shows 5 tabs each ≥ 44 px | yes (`pl-64`) |
 | HC-UISH-005 | e2e (DF-1): the Safety Rail is opaque and on top (see §6), light and dark, 1440 and 390; it is in the viewport on every route | yes (no rail) |
 | HC-UISH-006 | e2e: the texts "Safety Mode", "ON" and "OFF" are absent from the top bar; the switch is `aria-disabled="true"` with an accessible description containing "standard safety checks always run"; clicking it changes no DOM state outside its popover | yes (placebo toggle) |
 | HC-UISH-007 | e2e (DF-3): with a toast visible, opening the More sheet leaves no toast intersecting the sheet | yes |
 | HC-UISH-008 | e2e: More sheet: Escape closes, focus returns to the More tab, every destination is reachable from it | yes |
+| HC-UISH-009 | e2e: on every authenticated route `stillnessProbe` with `expected: ['SafetyRail']` passes across a nav click, and the safety-toggle popover (T0 copy) opens with M0 | yes |
 
 **Acceptance:** G on all 15 routes (old page content inside the new shell; G6 failures caused by a page's own content are listed in the PR and owned by that page's row). **Est:** 5 h. **MVP:** **P0** (a phone user cannot use the app today; the placebo toggle claims safety can be switched off).
 
@@ -551,6 +584,7 @@ Frontend e2e uses `page.route` mocks typed from `fe/services/types.ts` (`e2e/sup
 | HC-UIPAL-002 | (DF-5) after typing `chol`, every `aria-activedescendant` resolves to an existing element | yes with cmdk 1.1.1 as shipped (measured) |
 | HC-UIPAL-003 | (DF-5) axe on the open, filtered palette: 0 serious/critical | yes (`aria-valid-attr-value` critical ×2) |
 | HC-UIPAL-004 | Escape closes and returns focus to the trigger; Enter on free text navigates to `/search?q=…` | yes |
+| HC-UIPAL-005 | the Results group's latest-value text carries `data-t0` and passes `stillnessProbe` from the Ctrl+K press | yes |
 
 **Acceptance:** G; palette chunk ≤ 8 kB gz. **Est:** 3 h. **MVP:** P1.
 
@@ -574,7 +608,7 @@ Frontend e2e uses `page.route` mocks typed from `fe/services/types.ts` (`e2e/sup
 
 #### UI-PROVENANCE — Source Trace sheet and citation popover
 
-**Files:** `fe/components/results/SourceTrace.tsx` (new; the sheet: source file and row or page, the excerpt lines with the matching line highlighted, collected date, range, read confidence in words, "This is what your report states.", and for an unchecked value "It matches, mark as checked" using the existing `useVerifyObservation` (`fe/services/observations.ts:82`) plus "Correct it in Review values"), `fe/components/lab-interpreter/CitationTooltip.tsx` (rewritten on `Popover`, same props, so every caller upgrades at once: opens on tap, click and Enter, 44 px trigger, quote plus page plus "Open source"), `fe/components/PageImageOverlay.tsx` (image fades in on decode; the bbox highlight uses the trace mark), `fe/__tests__/ui-provenance.test.tsx` (new), `fe/__tests__/PageImageOverlay.test.tsx` (selectors only), `e2e/ui-provenance.spec.ts` (new). **Depends on:** UI-PRIM-OVERLAYS, UI-PRIM-FEEDBACK. **Gate:** none.
+**Files:** `fe/components/results/SourceTrace.tsx` (new; the sheet: source file and row or page, the excerpt lines with the matching line highlighted, collected date, range, read confidence in words, "This is what your report states.", and for an unchecked value "It matches, mark as checked" using the existing `useVerifyObservation` (`fe/services/observations.ts:82`) plus "Correct it in Review values"), `fe/components/lab-interpreter/CitationTooltip.tsx` (rewritten on `Popover` with `still` (M0, it holds a quote), same props, so every caller upgrades at once: opens on tap, click and Enter, 44 px trigger, quote plus page plus "Open source"), `fe/components/PageImageOverlay.tsx` (image fades in on decode; the bbox highlight uses the trace mark), `fe/__tests__/ui-provenance.test.tsx` (new), `fe/__tests__/PageImageOverlay.test.tsx` (selectors only), `e2e/ui-provenance.spec.ts` (new). **Depends on:** UI-PRIM-OVERLAYS, UI-PRIM-FEEDBACK. **Gate:** none.
 
 | Id | Check | RED today? |
 |---|---|---|
@@ -583,6 +617,7 @@ Frontend e2e uses `page.route` mocks typed from `fe/services/types.ts` (`e2e/sup
 | HC-UIPV-003 | Source Trace shows the source row highlighted, page, date and the "This is what your report states." line | yes |
 | HC-UIPV-004 | (DF-2) every excerpt line wraps at 1440 and 390 | yes in proposal A's prototype |
 | HC-UIPV-005 | "It matches, mark as checked" sends exactly one `POST /observations/{id}/verify` (mocked HTTP) and shows the confirmation toast; no Undo is offered (no unverify endpoint) | yes |
+| HC-UIPV-006 | Source Trace (sheet, `still`), the citation popover and the verify toast: every `[data-t0]` node in them passes `stillnessProbe` from the opening click; the source-row highlight (no `data-t0`) is the only thing that moves | yes |
 
 **Acceptance:** G. **Est:** 3 h. **MVP:** P1.
 
@@ -607,8 +642,8 @@ Every page row: rebuild the page on the primitives; replace its hand-built overl
 
 #### UI-PG-RESULTS — Results merges Trends and Interpret around the Range Ribbon
 
-**Files:** `fe/pages/ResultsPage.tsx` (new), `fe/pages/TrendsDashboard.tsx` (delete), `fe/pages/LabInterpreter.tsx` (delete; folded in), `fe/pages/index.ts`, `fe/App.tsx` (`/results`; `/trends` and `/interpret` redirect), `fe/components/layout/navConfig.ts` (Results → `/results`; Interpret entry removed), `fe/components/lab-interpreter/InterpretedResultCard.tsx`, `PanelInterpretationDashboard.tsx`, `AdviceSection.tsx` ("Questions you could ask your clinician"), `DisclaimerBanner.tsx` (`role="note"`, never animated), `ReferenceRangeComparison.tsx` (renders `RangeTick`), `fe/__tests__/TrendsDashboard.test.tsx` and `LabInterpreter.test.tsx` (ported to `ResultsPage` as `fe/__tests__/ResultsPage.test.tsx`; every assertion kept), `InterpretedResultCard.test.tsx` (selectors only), `fe/__tests__/ui-results.test.tsx` (new), `e2e/ui-results.spec.ts` (new), `e2e/routing.spec.ts` (heading only).
-**Depends on:** UI-RIBBON, UI-PROVENANCE, UI-SHOWCASE-KIT, UI-SHELL, UI-BUDGET; GAUGE-ZERO-WIDTH merged, or closed by L0 as superseded (its HC-GZW cases live on as HC-UIRR-008). **Gate:** none.
+**Files:** `fe/pages/ResultsPage.tsx` (new), `fe/pages/TrendsDashboard.tsx` (delete), `fe/pages/LabInterpreter.tsx` (delete; folded in), `fe/pages/index.ts`, `fe/App.tsx` (`/results`; `/trends` and `/interpret` redirect), `fe/components/layout/navConfig.ts` (Results → `/results`; Interpret entry removed), `fe/components/lab-interpreter/InterpretedResultCard.tsx`, `PanelInterpretationDashboard.tsx`, `AdviceSection.tsx` ("Questions you could ask your clinician"), `DisclaimerBanner.tsx` (`role="note"`, never animated), `ReferenceRangeComparison.tsx` (renders `RangeTick`), `fe/__tests__/TrendsDashboard.test.tsx` and `LabInterpreter.test.tsx` (ported to `ResultsPage` as `fe/__tests__/ResultsPage.test.tsx`; every assertion kept), `InterpretedResultCard.test.tsx` (selectors only), `fe/__tests__/ui-results.test.tsx` (new), `e2e/ui-results.spec.ts` (new), `e2e/routing.spec.ts` (`:47` URL `/\/trends$/` → `/\/results$/` and `:48` heading `'Trends Dashboard'` → `'Results'`, Appendix A), `fe/__tests__/ReferenceRangeComparison.test.tsx` (HC-GZW-001…003 from #319 kept green against `RangeTick`; selectors only).
+**Depends on:** UI-RIBBON, UI-PROVENANCE, UI-SHOWCASE-KIT, UI-SHELL, UI-BUDGET; GAUGE-ZERO-WIDTH merged (#319): its HC-GZW-001…003 stay green. **Gate:** none.
 **Motion:** the route change into Results is M0 (its first paint has values); the analyte list has no M6. **Layout:** proposal A's (chart card with the analyte list beside it on desktop; on phones a compact header, the analyte chip scroller as a labelled focusable region, then the chart). Panel tabs filter the list (fixes "CBC" showing Glucose). The dead "Last 12 Months" and "Filters" become one real range select or are deleted. "Explain this result" shows the interpretation card with its DisclaimerBanner and citations. PNG/SVG export kept.
 
 | Id | Check | RED today? |
@@ -626,7 +661,7 @@ Every page row: rebuild the page on the primitives; replace its hand-built overl
 
 **Files:** `fe/pages/DocumentInbox.tsx`, `fe/components/documents/CategoryBadge.tsx` (delete; no importer), `ExtractionConfidenceBadge.tsx` (words first, shown only below the threshold), `HighlightChips.tsx` (Tags, max 2 + "+N"), `fe/__tests__/DocumentInbox.test.tsx` (selectors only), `fe/__tests__/ui-documents.test.tsx` (new), `e2e/ui-documents.spec.ts` (new). `EntityDetailView.tsx` belongs to UI-PG-REVIEW.
 **Depends on:** UI-SHELL, UI-SHOWCASE-KIT, UI-PROVENANCE; FE-IMPORT-ERROR merged; never beside IMPORT-SCANNED-PAGE (same page): whichever lands second merges `origin/main` and keeps the other's tests green (HC-FIE-001…003, HC-ISP-004). **Gate:** none.
-**Showcase:** S2 on the card of a document being extracted, S3 (20 px) beside "Reading page N of M" (text from the existing processing state), M6 for new rows, then the handoff "N values ready to review" linking to Review values. The page h1 stays "Document Inbox" here (UI-MICRO renames it), so this row does not touch `e2e/routing.spec.ts`. Row actions are always visible (no hover-only); preview is a Sheet; `window.confirm` becomes AlertDialog.
+**Showcase:** S2 on the border element of the card of a document being extracted, S3 (20 px) beside "Reading page N of M" (text from the existing processing state); document rows show dates, status and confidence (T0), so new rows appear with M0 (no M6), and the handoff "N values ready to review" is static text linking to Review values. The preview Sheet holds document content, so it is `still` (M0). The page h1 stays "Document Inbox" here (UI-MICRO renames it), and the empty-state sentence "No documents yet. Import your first lab report", the status words "Pending", "Needs Review", "Verified", "OCR Required", the upload input label "Upload medical documents" and the row menu "More options" → "Review extracted values" are kept, so this row changes no e2e assertion (Appendix A). Row actions are always visible (no hover-only); preview is a Sheet; `window.confirm` becomes AlertDialog.
 
 | Id | Check | RED today? |
 |---|---|---|
@@ -635,12 +670,13 @@ Every page row: rebuild the page on the primitives; replace its hand-built overl
 | HC-UIDOC-003 | a processing document shows the beam and a `role="status"` text; under reduced motion the border is static and the text stays | yes |
 | HC-UIDOC-004 | FE-IMPORT-ERROR's alert and IMPORT-SCANNED-PAGE's warning (whichever has merged) render static, never inside the beam card's animation | GREEN once those rows merge (pin) |
 | HC-UIDOC-005 | delete asks through an AlertDialog; `window.confirm` is never called (stubbed to throw) | yes |
+| HC-UIDOC-006 | `stillnessProbe` with the §2.7 `/inbox` selectors passes across an import that completes (new row appears) and across opening the preview Sheet | yes |
 
 **Acceptance:** G; `thinking-orbs` loads only on this route and About. **Est:** 4 h. **MVP:** P1.
 
 #### UI-PG-REVIEW — Review values with Ink
 
-**Files:** `fe/pages/VerificationWorkbench.tsx`, `fe/components/documents/EntityDetailView.tsx` (responsive rows; StatusChip; "Show source" opens Source Trace; Ink on verify), `fe/__tests__/VerificationWorkbench.test.tsx` and `VerificationWorkbenchEdit.test.tsx` (selectors only), `fe/__tests__/ui-review.test.tsx` (new), `e2e/ui-review.spec.ts` (new).
+**Files:** `fe/pages/VerificationWorkbench.tsx`, `fe/components/documents/EntityDetailView.tsx` (responsive rows; StatusChip; "Show source" opens Source Trace; Ink on verify; the Edit dialog is `still` (M0) because it shows the current value), `fe/__tests__/VerificationWorkbench.test.tsx` and `VerificationWorkbenchEdit.test.tsx` (selectors only), `fe/__tests__/ui-review.test.tsx` (new), `e2e/ui-review.spec.ts` (new).
 **Depends on:** UI-SHELL, UI-PROVENANCE, UI-SHOWCASE-KIT; FE-VERIFY-NUMERIC merged (its strict parse and error path stay). **Gate:** none.
 
 | Id | Check | RED today? |
@@ -649,13 +685,14 @@ Every page row: rebuild the page on the primitives; replace its hand-built overl
 | HC-UIREV-002 | verifying flips the marker from pencil to ink in the row, the chart and the chip together; the value text passes `stillnessProbe` throughout the Ink animation | yes |
 | HC-UIREV-003 | the Edit dialog is labelled, traps focus, Escape closes; HC-FVN-001…005 still pass | yes for the dialog; pins for FVN |
 | HC-UIREV-004 | no fixed `grid-cols-3` overflow at 390 and 320 (G6) | yes |
+| HC-UIREV-005 | the Edit dialog's current value passes `stillnessProbe` from the Edit click | yes |
 
 **Acceptance:** G. **Est:** 4 h. **MVP:** P1.
 
 #### UI-PG-ASK — Ask: the chat owns its scroll, citations open on tap
 
-**Files:** `fe/pages/ExplainAssistant.tsx`, `fe/__tests__/ExplainAssistant.test.tsx` and `ExplainAssistantHistoryRestore.test.tsx` (selectors only), `fe/__tests__/ui-ask.test.tsx` (new), `e2e/ui-ask.spec.ts` (new).
-**Depends on:** UI-SHELL, UI-PROVENANCE, UI-SHOWCASE-KIT; FE-EXPLAIN-ERR and BADGE-TICK merged (same file; their HC-FEE and HC-BTK tests stay green). **Gate:** none.
+**Files:** `fe/pages/ExplainAssistant.tsx`, `fe/__tests__/ExplainAssistant.test.tsx` and `ExplainAssistantHistoryRestore.test.tsx` (selectors only), `fe/__tests__/ui-ask.test.tsx` (new), `e2e/ui-ask.spec.ts` (new), `e2e/assistant.spec.ts` (`:61`, `:85`, `:162`, `:220`, `:236`, `:249`, `:261` send-button selector "last button with an svg" → `getByRole('button', { name: 'Send question' })` (the name FE-EXPLAIN-ERR added); `:223` `/searching documents|generating response/i` → `/reading your verified results/i`), `e2e/ui-full-verification.spec.ts` (`:110` the same send-button selector change). Kept: the h1 "Explain Assistant" (UI-MICRO renames it), the placeholder "Ask about your results...", both disclaimer sentences, the native `Document Category` select (so `toHaveValue` still works), the suggested questions.
+**Depends on:** UI-SHELL, UI-PROVENANCE, UI-SHOWCASE-KIT; FE-EXPLAIN-ERR (merged, #314) and BADGE-TICK merged (same file; their HC-FEE and HC-BTK tests stay green). **Gate:** none.
 **Spec:** the message list is its own focusable scroll region; the disclaimer sits under the composer, always visible; citation chips use the popover from UI-PROVENANCE; the pending state is `Pending` text "Reading your verified results…" (no orb: Ask is not a showcase surface); the patient's own message enters with M6, while assistant answers (values and citations, T0) appear without motion; filter date inputs labelled; feedback thumbs are 44 px `IconButton`s with `aria-pressed`.
 
 | Id | Check | RED today? |
@@ -670,13 +707,13 @@ Every page row: rebuild the page on the primitives; replace its hand-built overl
 
 #### UI-PG-MEDS — Medications, reminders tab, dose sheet
 
-**Files:** `fe/pages/MedicationCoach.tsx` (tabs Medications / Reminders via `?tab=`), `fe/pages/MedicationDetail.tsx`, `fe/pages/NotificationSettings.tsx` (becomes a redirect to `/medications?tab=reminders`; its content moves into a `RemindersPanel` inside `fe/components/medication-coach/`), `fe/components/medication-coach/*` (MedicationCard as a real link; DoseLoggingModal → Sheet/Dialog; BadgeToast → `notify()` with no `animate-ping`; AchievementsWidget and AdherenceDashboard on tokens; the adherence ring renders final, with no draw, because adherence figures are T0), `fe/components/MedicationOverlay.tsx` (router `Link` instead of `<a href>`), `fe/__tests__/NotificationSettingsPage.test.tsx`, `Gamification.test.tsx` (selectors only; this row owns `Gamification.test.tsx` in wave 5, and UI-PG-SETTINGS follows it), `fe/__tests__/ui-meds.test.tsx` (new), `e2e/ui-meds.spec.ts` (new).
+**Files:** `fe/pages/MedicationCoach.tsx` (tabs Medications / Reminders via `?tab=`), `fe/pages/MedicationDetail.tsx`, `fe/pages/NotificationSettings.tsx` (becomes a redirect to `/medications?tab=reminders`; its content moves into a `RemindersPanel` inside `fe/components/medication-coach/`), `fe/components/medication-coach/*` (MedicationCard as a real link; DoseLoggingModal → Sheet/Dialog; BadgeToast → `notify()` with no `animate-ping`; AchievementsWidget and AdherenceDashboard on tokens; the adherence ring renders final, with no draw, because adherence figures are T0), `fe/components/MedicationOverlay.tsx` (router `Link` instead of `<a href>`), `fe/__tests__/NotificationSettingsPage.test.tsx`, `Gamification.test.tsx` (selectors only; this row owns `Gamification.test.tsx` in wave 5, and UI-PG-SETTINGS follows it), `fe/__tests__/ui-meds.test.tsx` (new), `e2e/ui-meds.spec.ts` (new), `e2e/tailwind4-styles.spec.ts` (TW4-MEDS `:270` close-button radius `'8px'` → `'10px'` (the `IconButton` control radius); the dose dialog keeps its title "Log Dose", the "Log" button and the "Close" name). The dose dialog/sheet shows the dose, so it is `still` (M0). Kept (Appendix A): `a[href^="/medications/"]` links and the detail page's h1/h2 for `medication-detail.spec.ts`.
 **Depends on:** UI-SHELL, UI-SHOWCASE-KIT. **Gate:** none; MED-BADGES is open and non-blocking: the row keeps the badges as they are, static, behind the existing streaks setting (C-GAM2B `streaks_hidden`).
 
 | Id | Check | RED today? |
 |---|---|---|
 | HC-UIMED-001 | MedicationCard is keyboard-activatable (Enter opens the detail) | yes (`div onClick`) |
-| HC-UIMED-002 | the dose sheet: Escape closes, focus is trapped and returns; its exit plays | yes |
+| HC-UIMED-002 | the dose sheet: Escape closes, focus is trapped and returns; it opens and closes with M0 (`still`), and its dose text passes `stillnessProbe` from the Log click | yes |
 | HC-UIMED-003 | no `animate-ping` anywhere under `medication-coach/` | yes |
 | HC-UIMED-004 | `/notifications` lands on the reminders tab with the same settings | yes |
 
@@ -696,7 +733,7 @@ Done and ignore are optimistic with a toast offering Undo (the care-task API has
 
 #### UI-PG-RECORDS — Timeline, Search, Pinboards
 
-**Files:** `fe/pages/TimelinePage.tsx` (event cards name the analytes, "Glucose, LDL"; duplicate `p-8` removed), `fe/pages/SearchPage.tsx` (query echoed; results are interactive cards), `fe/pages/PinboardsPage.tsx` (`window.prompt`/`confirm` → Dialog/AlertDialog), `fe/components/pinboards/AddToPinboardButton.tsx` (M3 `data-state` enter), `fe/__tests__/PinboardsPage.test.tsx`, `SearchPage.test.tsx` (selectors only; after UI-PALETTE), `fe/__tests__/ui-records.test.tsx` (new), `e2e/ui-records.spec.ts` (new). **Depends on:** UI-SHELL, UI-SHOWCASE-KIT, UI-PALETTE. **Gate:** none.
+**Files:** `fe/pages/TimelinePage.tsx` (event cards name the analytes, "Glucose, LDL"; duplicate `p-8` removed), `fe/pages/SearchPage.tsx` (query echoed; results are interactive cards), `fe/pages/PinboardsPage.tsx` (`window.prompt`/`confirm` → Dialog/AlertDialog), `fe/components/pinboards/AddToPinboardButton.tsx` (M3 `data-state` enter), `fe/__tests__/PinboardsPage.test.tsx`, `SearchPage.test.tsx` (selectors only; after UI-PALETTE), `fe/__tests__/ui-records.test.tsx` (new), `e2e/ui-records.spec.ts` (new). **Depends on:** UI-SHELL, UI-SHOWCASE-KIT, UI-PALETTE. **Gate:** none. The timeline card keeps the backend title "Lab results (N analytes)" and adds the analyte names beneath it, so TW4-TIMELINE (`tailwind4-styles.spec.ts:232`) is unchanged.
 
 | Id | Check | RED today? |
 |---|---|---|
@@ -708,7 +745,7 @@ Done and ignore are optimistic with a toast offering Undo (the care-task API has
 
 #### UI-PG-EXPORT — Doctor summary
 
-**Files:** `fe/pages/ExportPage.tsx` (section toggles → Checkbox/Switch rows; "Full Preview" opens a Sheet or is removed; the redaction level shown as read-only text), `fe/__tests__/ExportPage.test.tsx` (selectors only), `fe/__tests__/ui-export.test.tsx` (new), `e2e/ui-export.spec.ts` (new). **Depends on:** UI-SHELL, UI-SHOWCASE-KIT. **Gate:** none. Redaction is untouched: `git diff origin/main -- src/frontend/src/services/export.ts src/backend` must be empty (pasted).
+**Files:** `fe/pages/ExportPage.tsx` (section toggles → Checkbox/Switch rows; "Full Preview" opens a Sheet or is removed; the redaction level shown as read-only text), `fe/__tests__/ExportPage.test.tsx` (selectors only), `fe/__tests__/ui-export.test.tsx` (new), `e2e/ui-export.spec.ts` (new). **Depends on:** UI-SHELL, UI-SHOWCASE-KIT. **Gate:** none. The Full Preview sheet shows summary values, so it is `still` (M0). Redaction is untouched: `git diff origin/main -- src/frontend/src/services/export.ts src/backend` must be empty (pasted).
 
 | Id | Check | RED today? |
 |---|---|---|
@@ -718,10 +755,12 @@ Done and ignore are optimistic with a toast offering Undo (the care-task API has
 
 **Acceptance:** G. **Est:** 2.5 h. **MVP:** P2.
 
+### 7.8 Wave 6: settings, chart cleanup, overview, auth
+
 #### UI-PG-SETTINGS — Settings split into sections
 
-**Files:** `fe/pages/SettingsPage.tsx` (section host with Tabs, `?section=`), `fe/pages/settings/PreferencesSection.tsx`, `AssistantPrivacySection.tsx`, `AdvancedSection.tsx`, `SecuritySection.tsx` (new; the security section renders today's `RecoveryCodeCard`, `BackupCard`, `DangerZone` unchanged, which UI-PG-SECURITY restyles), `fe/components/MemoryManager.tsx`, `fe/components/settings/AgentSettingsCard.tsx` (Switch), `TierCapabilities.tsx` (honest copy, 13 px floor), `DataDonationCard.tsx` (Switch + AlertDialog; `CONSENT_TEXT_VERSION` and consent text unchanged), `ExternalApiBreakGlassWarning.tsx` (token restyle only; text, role and visibility unchanged, D12), the settings tests for those components (selectors only), `fe/__tests__/Gamification.test.tsx` (the streaks-switch cases, selectors only), `fe/__tests__/ui-settings.test.tsx` (new), `e2e/ui-settings.spec.ts` (new).
-**Wave 6** (listed with the page rows): **Depends on:** UI-PG-MEDS (it owns `Gamification.test.tsx` in wave 5), UI-SHELL, UI-SHOWCASE-KIT; never beside DON-COPY-V3 (`DataDonationCard.tsx`). **Gate:** none (auth and encryption cards are left to UI-PG-SECURITY).
+**Files:** `fe/pages/SettingsPage.tsx` (section host with Tabs, `?section=`), `fe/pages/settings/PreferencesSection.tsx`, `AssistantPrivacySection.tsx`, `AdvancedSection.tsx`, `SecuritySection.tsx` (new; the security section renders today's `RecoveryCodeCard`, `BackupCard`, `DangerZone` unchanged, which UI-PG-SECURITY restyles), `fe/components/MemoryManager.tsx`, `fe/components/settings/AgentSettingsCard.tsx` (Switch), `TierCapabilities.tsx` (honest copy, 13 px floor), `DataDonationCard.tsx` (Switch + AlertDialog; `CONSENT_TEXT_VERSION` and consent text unchanged), `ExternalApiBreakGlassWarning.tsx` (token restyle only; text, role and visibility unchanged, D12), the settings tests for those components (selectors only), `fe/__tests__/Gamification.test.tsx` (the streaks-switch cases, selectors only), `fe/__tests__/ui-settings.test.tsx` (new), `e2e/ui-settings.spec.ts` (new), `e2e/settings-smoke.spec.ts` (E2E-SET-001 `:29-31`, E2E-SET-002 `:41-48`, E2E-SET-004 `:85-102`: open `/settings?section=advanced` and press "Show advanced settings" before the same assertions; E2E-SET-003 `:55-66`: open `/settings?section=assistant-privacy` first), `e2e/ui-full-verification.spec.ts` (E2E-UI-FULL-004 `:127-130`: open the Advanced section first; `:124` subtitle "Configure AI model and hardware preferences" kept). Consent, break-glass and export-confirm dialogs hold safety copy, so they are `still` (M0). `recovery-code.spec.ts` is unchanged: `/settings` still lands on Profile & security with the recovery card.
+**Depends on:** UI-PG-MEDS (it owns `Gamification.test.tsx` in wave 5), UI-PG-ASK (it edits `ui-full-verification.spec.ts` in wave 5), UI-SHELL, UI-SHOWCASE-KIT; never beside DON-COPY-V3 (`DataDonationCard.tsx`). **Gate:** none (auth and encryption cards are left to UI-PG-SECURITY).
 
 | Id | Check | RED today? |
 |---|---|---|
@@ -732,8 +771,6 @@ Done and ignore are optimistic with a toast offering Undo (the care-task API has
 | HC-UISET-005 | no section is taller than 2 viewports at 1440 | yes (5,565 px) |
 
 **Acceptance:** G. **Est:** 5 h. **MVP:** P2.
-
-### 7.8 Wave 6
 
 #### UI-CHART-CLEANUP — delete the Recharts chart and the dependency
 
@@ -748,7 +785,7 @@ Done and ignore are optimistic with a toast offering Undo (the care-task API has
 
 #### UI-OVERVIEW — Overview landing with the first-run checklist
 
-**Files:** `fe/pages/OverviewPage.tsx` (new), `fe/App.tsx` (index → `/overview`), `fe/components/layout/navConfig.ts` (Overview entry and phone tab), `fe/__tests__/Routing.test.tsx` (HC-ROUTE-001 expects `/overview`: a contract change from this plan), `e2e/routing.spec.ts` (E2E-ROUTE-001's redirect target and heading only, the same contract change), `fe/__tests__/ui-landing.test.tsx` (new), `e2e/ui-landing.spec.ts` (new). **Depends on:** UI-PG-RESULTS (`App.tsx`, navConfig), UI-PG-DOCUMENTS. **Gate:** none.
+**Files:** `fe/pages/OverviewPage.tsx` (new), `fe/App.tsx` (index → `/overview`), `fe/components/layout/navConfig.ts` (Overview entry and phone tab), `fe/__tests__/Routing.test.tsx` (HC-ROUTE-001 expects `/overview`: a contract change from this plan), `e2e/routing.spec.ts` (E2E-ROUTE-001 `:15` `/\/inbox$/` → `/\/overview$/` and `:16` heading `'Document Inbox'` → `'Overview'`, the same contract change), `fe/__tests__/ui-landing.test.tsx` (new), `e2e/ui-landing.spec.ts` (new). **Depends on:** UI-PG-RESULTS (`App.tsx`, navConfig), UI-PG-DOCUMENTS. **Gate:** none.
 **Spec:** built from existing queries only. Before the first import: the Import → Review values → See results checklist with S1 on the cards (the counts and values sit outside the S1 wrapper); the current step is marked "Next step" in words with a static accent border; each step is a working link. Afterwards: "N values waiting for review", latest results as static text with StatusChips, next dose, each linking to its page.
 
 | Id | Check | RED today? |
@@ -759,9 +796,25 @@ Done and ignore are optimistic with a toast offering Undo (the care-task API has
 
 **Acceptance:** G. **Est:** 3 h. **MVP:** P1.
 
+#### UI-PG-AUTH — setup, unlock card and recovery (gated)
+
+**Files:** `fe/pages/ProfileSetup.tsx` (the SESSION-REENTRY unlock card restyled; the Lift moment; S1 entrance of the create form only, never on the recovery-code step; errors clear when fixed; the fake `setTimeout(500)` progress removed; the unlinked "Terms of Service" sentence removed), `fe/pages/RecoverProfile.tsx`, `fe/components/profile/RecoveryCodeCard.tsx` (code in 4-character groups that never wrap mid-group; warning in `--caution`), `fe/__tests__/ProfileSetup.test.tsx`, `RecoverProfile.test.tsx` (selectors only), `fe/__tests__/ui-auth.test.tsx` (new), `e2e/ui-auth.spec.ts` (new; real backend), `e2e/auth.spec.ts` (E2E-AUTH-001 `:36` `getByText('Creating secure vault...')` → `getByText('Creating your profile…')`, the Button loading label shown while `POST /profiles` is pending), `e2e/tailwind4-styles.spec.ts` (TW4-RECOVER `:138` border `rgb(226, 223, 215)` → `rgb(138, 133, 123)` once `#recover-code` uses the `Input` primitive's `--line-strong`; TW4-FOCUS unchanged). Kept for `auth.spec.ts`: the label "Profile Name", the placeholder "Create a secure password", the button "Create Your Profile", the "saved this recovery code" checkbox, "Password is required", the post-setup `/inbox` landing. Field errors render in a container outside the S1 wrapper. **Depends on:** SESSION-REENTRY Task 1 merged (its HC-SRE-001…004 stay green), UI-PG-MEDS (it edits `tailwind4-styles.spec.ts` in wave 5), UI-SHELL, UI-SHOWCASE-KIT. **Gate:** UI-AUTH-SCREENS (new; planner reading of CLAUDE.md §1): its answer decides the layout, the S1 entrance and the Lift; the token and raw-colour swap happens in every outcome.
+
+| Id | Check | RED today? |
+|---|---|---|
+| HC-UIAUTH-001 | a fixed field's error disappears on the next valid input | yes (stale errors) |
+| HC-UIAUTH-002 | creating a profile shows no progress steps that are not tied to a real request (no `setTimeout` in the flow) | yes |
+| HC-UIAUTH-003 | e2e (real backend): unlock succeeds and the shell is visible within one frame of the Lift; under reduced motion opacity only | yes |
+| HC-UIAUTH-004 | the recovery code renders in groups with no group split across lines at 320 | yes |
+| HC-UIAUTH-005 | submitting during the S1 entrance and after it: every field error passes `stillnessProbe` from its first render (it sits outside the S1 wrapper); the recovery-code step passes it with `expected` = the code and its warning | yes |
+
+**Acceptance:** G. **Est:** 3 h. **MVP:** P1.
+
+### 7.9 Waves 7-9: security, about, micro sweep, dark flip
+
 #### UI-PG-SECURITY — Profile & security section (gated)
 
-**Files:** `fe/components/settings/BackupCard.tsx`, `DangerZone.tsx`, `fe/components/settings/RecoveryCodeCard.tsx`, `fe/pages/settings/SecuritySection.tsx`, `fe/__tests__/DangerZone.test.tsx`, `BackupRestoreFlow.test.tsx`, `RecoveryCodeCard.test.tsx` (it tests this settings card; selectors only), `fe/__tests__/ui-security.test.tsx` (new), `e2e/ui-security.spec.ts` (new; real backend through HTTP). **Wave 7** (UI-PG-SETTINGS moved to wave 6). **Depends on:** UI-PG-SETTINGS; MVP-REAUTH-401 merged (same tests; its HC-RA4 cases stay green). **Gate:** UI-AUTH-SCREENS (new; planner reading of CLAUDE.md §1). The token and raw-colour swap happens in every outcome; the answer decides only the layout change. If the owner picks "No layout change", the row is just that swap.
+**Files:** `fe/components/settings/BackupCard.tsx`, `DangerZone.tsx`, `fe/components/settings/RecoveryCodeCard.tsx`, `fe/pages/settings/SecuritySection.tsx`, `fe/__tests__/DangerZone.test.tsx`, `BackupRestoreFlow.test.tsx`, `RecoveryCodeCard.test.tsx` (it tests this settings card; selectors only), `fe/__tests__/ui-security.test.tsx` (new), `e2e/ui-security.spec.ts` (new; real backend through HTTP). **Depends on:** UI-PG-SETTINGS; MVP-REAUTH-401 (merged, #321; its HC-RA4 cases stay green). Its dialogs hold warnings, so they are `still` (M0); `recovery-code.spec.ts`'s labels, button names and test ids (`recovery-code-value`, `recovery-code-once-warning`, `recovery-code-replace-warning`) are kept. **Gate:** UI-AUTH-SCREENS (new; planner reading of CLAUDE.md §1). The token and raw-colour swap happens in every outcome; the answer decides only the layout change. If the owner picks "No layout change", the row is just that swap.
 **Spec:** primitives only; the typed-phrase delete stays (no hold-to-confirm); restore and delete confirmations become AlertDialogs; requests, copy of warnings and the order of steps unchanged.
 
 | Id | Check | RED today? |
@@ -771,21 +824,6 @@ Done and ignore are optimistic with a toast offering Undo (the care-task API has
 | HC-UISEC-003 | every dialog: Escape, focus trap, focus return | yes |
 
 **Acceptance:** G. **Est:** 3 h. **MVP:** P2.
-
-#### UI-PG-AUTH — setup, unlock card and recovery (gated)
-
-**Files:** `fe/pages/ProfileSetup.tsx` (the SESSION-REENTRY unlock card restyled; the Lift moment; S1 entrance of the create form only, never on the recovery-code step; errors clear when fixed; the fake `setTimeout(500)` progress removed; the unlinked "Terms of Service" sentence removed), `fe/pages/RecoverProfile.tsx`, `fe/components/profile/RecoveryCodeCard.tsx` (code in 4-character groups that never wrap mid-group; warning in `--caution`), `fe/__tests__/ProfileSetup.test.tsx`, `RecoverProfile.test.tsx` (selectors only), `fe/__tests__/ui-auth.test.tsx` (new), `e2e/ui-auth.spec.ts` (new; real backend). **Depends on:** SESSION-REENTRY Task 1 merged (its HC-SRE-001…004 stay green), UI-SHELL, UI-SHOWCASE-KIT. **Gate:** UI-AUTH-SCREENS (new; planner reading of CLAUDE.md §1): its answer decides the layout, the S1 entrance and the Lift; the token and raw-colour swap happens in every outcome.
-
-| Id | Check | RED today? |
-|---|---|---|
-| HC-UIAUTH-001 | a fixed field's error disappears on the next valid input | yes (stale errors) |
-| HC-UIAUTH-002 | creating a profile shows no progress steps that are not tied to a real request (no `setTimeout` in the flow) | yes |
-| HC-UIAUTH-003 | e2e (real backend): unlock succeeds and the shell is visible within one frame of the Lift; under reduced motion opacity only | yes |
-| HC-UIAUTH-004 | the recovery code renders in groups with no group split across lines at 320 | yes |
-
-**Acceptance:** G. **Est:** 3 h. **MVP:** P1.
-
-### 7.9 Waves 7-9
 
 #### UI-ABOUT — the About page for the demo
 
@@ -803,13 +841,14 @@ Done and ignore are optimistic with a toast offering Undo (the care-task API has
 
 #### UI-MICRO — press, target and copy sweep
 
-**Files:** every remaining raw `<button>` under `fe/` moved to `Button` / `IconButton` (the file list is the output of the grep in HC-UIMIC-001, frozen in the PR); `src/frontend/eslint.config.js` (`no-restricted-syntax` on `transition-all`, `text-[9px]`, `text-[10px]` and on `<button className=` outside `fe/components/ui/`); copy pass ("abnormal" → "outside the reference range (per report)"; "AI-powered insights" removed; the model chip says "Template answers, no model installed" when true); `fe/components/layout/navConfig.ts` (the transition "Reminders" entry removed); `fe/__tests__/ui-micro.test.ts` (new). **Depends on:** every wave 5-7 row merged (it touches their files). **Gate:** none.
+**Files:** every remaining raw `<button>` under `fe/` moved to `Button` / `IconButton` (the file list is the output of the grep in HC-UIMIC-001, frozen in the PR); `src/frontend/eslint.config.js` (`no-restricted-syntax` on `transition-all`, `text-[9px]`, `text-[10px]` and on `<button className=` outside `fe/components/ui/`); copy pass ("abnormal" → "outside the reference range (per report)"; "AI-powered insights" removed; the model chip says "Template answers, no model installed" when true); `fe/components/layout/navConfig.ts` (the transition "Reminders" entry removed); page h1s renamed to their nav names (`DocumentInbox.tsx` "Document Inbox" → "Documents", `VerificationWorkbench.tsx` "Verification Workbench" → "Review values", `ExplainAssistant.tsx` "Explain Assistant" → "Ask"; any other h1 whose text differs from its nav name, list frozen in the PR); and the e2e assertions on them (Appendix A): `e2e/assistant.spec.ts` (`:52`, `:78`, `:102`, `:121`, `:148`, `:213`, `:229`, `:245`, `:258` `getByText(/explain assistant…/i)` → `getByRole('heading', { level: 1, name: 'Ask' })`), `e2e/ui-full-verification.spec.ts` (`:96` `/verification workbench/i` → heading `'Review values'`; `:105` → heading `'Ask'`), `e2e/routing.spec.ts` (only if a heading it asserts was renamed; `:52` "Timeline" is not); `fe/__tests__/ui-micro.test.ts` (new). **Depends on:** every wave 5-7 row merged (it touches their files). **Gate:** none.
 
 | Id | Check | RED today? |
 |---|---|---|
 | HC-UIMIC-001 | `eslint` passes with the new rules (no raw `<button className=` outside `ui/`) | yes |
 | HC-UIMIC-002 | rendered text of every route contains none of the forbidden words ("abnormal", "AI-powered") | yes |
 | HC-UIMIC-003 | axe `target-size` = 0 on every route | yes (password eye 20 px, citation chip 20 px) |
+| HC-UIMIC-004 | each page's h1 equals its nav label (navConfig) on every route | yes |
 
 **Acceptance:** G on all routes. **Est:** 3 h. **MVP:** P2.
 
@@ -844,20 +883,20 @@ Tasks 1 and 2 of SESSION-REENTRY are unchanged, with their gates (SESSION-REENTR
 
 ## 9. Reconciliation with rows already on main
 
-| Existing row (status on `15fe095`) | Overlap | Rule |
+| Existing row (status on `257e072`) | Overlap | Rule |
 |---|---|---|
 | SESSION-REENTRY (Task 1 ready, P0; Task 2 gated) | unlock UI; `ProfileSetup.tsx` | no new unlock row; UI-PG-AUTH depends on Task 1; Task 3 added as a delta (§8.2); UI-MOTION never beside Task 1 |
-| MVP-REAUTH-401 (ready, P0) | `DangerZone.test.tsx`, `BackupRestoreFlow.test.tsx` | UI-PG-SECURITY depends on it; services files untouched by any UI row |
+| MVP-REAUTH-401 (**merged**, #321 `fa635f5`) | `DangerZone.test.tsx`, `BackupRestoreFlow.test.tsx`, `services/api.ts` | UI-PG-SECURITY keeps its HC-RA4 cases green; services files untouched by any UI row |
 | FE-IMPORT-ERROR (ready, P0), IMPORT-SCANNED-PAGE (blocked) | `DocumentInbox.tsx` | UI-PG-DOCUMENTS depends on FE-IMPORT-ERROR and is never beside IMPORT-SCANNED-PAGE; UI-MOTION never beside either |
 | FE-VERIFY-NUMERIC (ready, P1) | `VerificationWorkbench.tsx` | UI-PG-REVIEW depends on it; UI-MOTION never beside it |
-| FE-EXPLAIN-ERR (ready, P1), BADGE-TICK (ready, P2) | `ExplainAssistant.tsx` and its test | UI-PG-ASK depends on both; UI-MOTION never beside either |
-| GAUGE-ZERO-WIDTH (ready, P2) | `ReferenceRangeComparison.tsx` | UI-PG-RESULTS replaces the gauge with RangeTick; if GAUGE-ZERO-WIDTH is unclaimed when UI-PG-RESULTS starts, L0 may close it as superseded (its cases are HC-UIRR-008) |
+| FE-EXPLAIN-ERR (**merged**, #314), BADGE-TICK (ready, P2) | `ExplainAssistant.tsx` and its test | UI-PG-ASK keeps HC-FEE green and depends on BADGE-TICK; UI-MOTION never beside BADGE-TICK; UI-PG-ASK's e2e send selector uses the "Send question" name #314 added |
+| GAUGE-ZERO-WIDTH (**merged**, #319) | `ReferenceRangeComparison.tsx`, `fe/__tests__/ReferenceRangeComparison.test.tsx` | UI-PG-RESULTS replaces the gauge with RangeTick and keeps HC-GZW-001…003 green; HC-UIRR-008 covers the same cases on RangeTick |
 | AXE-E2E (ready, P2) | `package.json`; axe in e2e | UI-GATES and UI-MOTION depend on it; its `KNOWN_A11Y` entries are removed by the page rows that fix them (an entry may only be removed) |
 | E2E-UIFULL-CI (ready, P1) | `ui-routes-verification.spec.ts` | UI-SHELL depends on it and updates nav labels only |
 | CI-CACHE (ready, P2) | `ci.yml` | UI-BUDGET never beside it |
 | DON-COPY-V3 (blocked) | `DataDonationCard.tsx` | UI-PG-SETTINGS never beside it; consent text untouched by UI rows |
 | FE-A11Y-DIALOGS (bullet, not planned) | dialogs without Escape or focus trap | **planned here**: UI-PRIM-OVERLAYS plus the page rows that own each dialog (Settings export and consent dialogs: UI-PG-SETTINGS; dose modal: UI-PG-MEDS; preview: UI-PG-DOCUMENTS; edit value: UI-PG-REVIEW) |
-| CHAT-MODEL-BADGE, INTERP-GROUNDED-MD, INTERP-RENDER-2, VERIFY-DOCS-STALE | done (#295) | their tests stay green inside the page rows that move those components |
+| CHAT-MODEL-BADGE, INTERP-GROUNDED-MD, INTERP-RENDER-2, VERIFY-DOCS-STALE (#295); INTERP-REGEN-500 (#320), CPU-DEFAULT-PHI4 (#315), OLLAMA-NUM-CTX (#318): backend only | done | their tests stay green inside the page rows that move those components |
 
 **New bullets found while planning (not yet planned):**
 - **VERIFY-UNDO:** the Ink moment cannot offer Undo: `be/api/observations.py:384` has verify only and no unverify. Both designers assumed Undo. A backend row (audit-logged, per-profile) if the owner wants it.
@@ -876,7 +915,7 @@ Tasks 1 and 2 of SESSION-REENTRY are unchanged, with their gates (SESSION-REENTR
 | R5 | The custom chart loses Recharts behaviours (tooltips, resize edge cases, export) | the Ribbon has a table fallback, keeps PNG/SVG export (ported tests), and is ~250 lines in both prototypes |
 | R6 | Owner expectation: "bold showcase" could drift onto clinical pages | the Motion Gradient is the review checklist; G10's stillness probe (HC-UIG-006 proves it can fail) runs on every route, and HC-UIRES-003, HC-UILAND-002, HC-UIABT-002, HC-UIREV-002 and HC-UIASK-005 pin it where showcase or moment motion sits next to T0 content |
 | R7 | The Ink moment animates a marker on a lab value (L0 reading that this is allowed as T3: the marker, not the value, after the user's own action) | the value text passes the stillness probe (HC-UIREV-002); the owner can veto (open question INK-MOMENT) |
-| R12 | Clinical routes no longer fade in (G10 makes their route change M0), which is less "smooth" than both prototypes | the shell, sheets, palette and showcase surfaces carry the motion; an L0 reading of "Lab values and safety copy stay still" the owner can revisit |
+| R12 | No route fades in (M0 everywhere, see UI-SHELL) and overlays holding values open with M0, which is less "smooth" than both prototypes | press feedback, menus, the More sheet, the palette, the Ribbon's first reveal, Ink and the showcase surfaces carry the motion; both rules are L0 readings of "Lab values and safety copy stay still" the owner can revisit |
 | R8 | The relabelled toggle could still be read as safety being off | the visible note says the standard checks always run; HC-UISH-006 pins it; SAFETY-LABEL-WORDING lets the owner choose another wording |
 | R9 | IA renames break muscle memory, docs and capstone screenshots | old routes redirect; names are one file; open question UI-NAV-NAMES |
 | R10 | `thinking-orbs` is a 0.x package | MIT, no runtime dependencies or network code; isolated behind `ThinkingOrb`, lazy, on two routes; replacing it is one file |
@@ -905,5 +944,64 @@ None of these is answered. L0 numbers and asks them; the owner's words are recor
 - **INK-MOMENT.** "When you mark a value as checked, its dot on the chart fills in over a third of a second; the number itself never moves. Keep that, or make the change instant?" Options: "Keep the fill" (default) / "Instant".
 
 **L0 tells the owner (not gates):** the Undo the designers drew on verify needs a backend row (VERIFY-UNDO); the idle-lock warning needs the unread auto-lock setting (AUTO-LOCK-UNUSED, ask-first auth).
+
+---
+
+## Appendix A: e2e assertions and the row that changes each
+
+Every assertion in `src/frontend/e2e/*.spec.ts` on `257e072`, grouped by spec, with the first row whose change breaks it (or "kept", with the row that must keep it). Method: `grep -n "expect\|getByRole\|getByText\|getByLabel\|getByPlaceholder\|locator(\|toHaveURL\|toBe("` over each spec, each line read against the rows' Files and Specs. A changed assertion keeps its kind (same locator type or the same computed-style check) with a new value; none is removed.
+
+| Spec:line | Test | Asserts | Row | Old → new |
+|---|---|---|---|---|
+| `tailwind4-styles:138` | TW4-RECOVER | `#recover-code` border colour | UI-TOKENS, then UI-PG-AUTH | `rgb(229, 231, 235)` → `rgb(226, 223, 215)` (`--line`) → `rgb(138, 133, 123)` (`Input`, `--line-strong`) |
+| `tailwind4-styles:139-141` | TW4-RECOVER | placeholder colour | UI-TOKENS | `rgb(156, 163, 175)` → `rgb(104, 100, 93)` (`--ink-3`) |
+| `tailwind4-styles:156` | TW4-FOCUS | focus `box-shadow` not `none` | kept (UI-TOKENS keeps the ring) | — |
+| `tailwind4-styles:167` | TW4-INBOX | seeded file name visible on `/inbox` | kept (UI-PG-DOCUMENTS) | — |
+| `tailwind4-styles:170-173` | TW4-INBOX | first nav link ≥ 44 px, `min-height: 44px`; landmark "Main navigation" | kept (UI-SHELL) | — |
+| `tailwind4-styles:177-178` | TW4-INBOX | body background | UI-TOKENS | `rgb(250, 250, 248)` → `rgb(246, 245, 241)` (`--paper`) |
+| `tailwind4-styles:180-181` | TW4-INBOX | brand colour | UI-TOKENS (value), then UI-SHELL (selector) | colour `rgb(31, 31, 31)` → `rgb(28, 27, 25)` (`--ink-1`); selector `aside h1` → `aside [data-brand]` |
+| `tailwind4-styles:185-188` | TW4-INBOX | "Profile and settings" button enabled, parent `cursor: auto`, button `cursor: pointer` | kept (UI-SHELL keeps the name on the profile trigger) | — |
+| `tailwind4-styles:196-201` | TW4-INBOX | focused nav link has no outline (ring is a box-shadow) | kept (UI-TOKENS) | — |
+| `tailwind4-styles:211, 218, 224, 239, 247, 253` | TW4-INBOX-DARK, -VERIFY, -TRENDS, -SEARCH, -EXPLAIN, -SETTINGS | seeded text or a Settings heading visible (screenshots) | kept (`/trends` redirects to `/results` from UI-PG-RESULTS and still shows glucose) | — |
+| `tailwind4-styles:232-233` | TW4-TIMELINE | `Lab results (` title and medication name | kept (UI-PG-RECORDS keeps the title) | — |
+| `tailwind4-styles:261-266` | TW4-MEDS | medication name, "Log" button, "Log Dose" heading | kept (UI-PG-MEDS) | — |
+| `tailwind4-styles:269-270` | TW4-MEDS | "Close" button corner radius | UI-PG-MEDS | `'8px'` → `'10px'` |
+| `auth:27, 30, 33` | E2E-AUTH-001 | "Profile Name" label, "Create a secure password" placeholder, "Create Your Profile" button | kept (UI-PG-AUTH) | — |
+| `auth:36` | E2E-AUTH-001 | progress text | UI-PG-AUTH | `'Creating secure vault...'` → `'Creating your profile…'` (the Button loading label, tied to the real request) |
+| `auth:42-57` | E2E-AUTH-001 | recovery code shown, continue disabled until the checkbox, lands on `/inbox` | kept (UI-PG-AUTH; SESSION-REENTRY) | — |
+| `auth:70, 73, 81, 107, 131` | E2E-AUTH-002…005 | "Password is required"; redirects to `/setup` | kept | — |
+| `recovery-code:20-72` | E2E-RECOV-001, 002 | "confirm your password" label, create/replace button names, `recovery-code-*` test ids, code not shown after reload | kept (UI-PG-SETTINGS default section; UI-PG-SECURITY) | — |
+| `routing:15-16` | E2E-ROUTE-001 | unknown path → URL and h1 | UI-OVERVIEW | `/\/inbox$/`, `'Document Inbox'` → `/\/overview$/`, `'Overview'` |
+| `routing:22-23, 43` | E2E-ROUTE-002 | `main` and an h1 visible; nav landmark "Main navigation" | kept (UI-SHELL) | — |
+| `routing:46` | E2E-ROUTE-002 | nav link name | UI-SHELL | `'Trends'` → `'Results'` |
+| `routing:47-48` | E2E-ROUTE-002 | URL and h1 after the click | UI-PG-RESULTS | `/\/trends$/`, `'Trends Dashboard'` → `/\/results$/`, `'Results'` |
+| `routing:50-52, 57` | E2E-ROUTE-002 | Timeline link, URL, h1; main never empty | kept | — |
+| `settings-smoke:29-31` | E2E-SET-001 | hardware-detect button on `/settings` | UI-PG-SETTINGS | navigate to `/settings?section=advanced` and press "Show advanced settings" first; same assertion |
+| `settings-smoke:41-48` | E2E-SET-002 | tier names visible | UI-PG-SETTINGS | same navigation first |
+| `settings-smoke:55-66` | E2E-SET-003 | external API switch and consent text | UI-PG-SETTINGS | navigate to `/settings?section=assistant-privacy` first |
+| `settings-smoke:85-102` | E2E-SET-004 | `tier-row-*` rows, one availability state each | UI-PG-SETTINGS | Advanced section first |
+| `medication-detail:29-98` | E2E-MED-001…003 | `a[href^="/medications/"]` links, detail URL, an h1/h2, no error text | kept (UI-PG-MEDS: MedicationCard becomes that link) | — |
+| `document-import:23-27` | E2E-DOC-001 | `/inbox` URL; "No documents yet… Import your first" | kept (UI-PG-DOCUMENTS) | — |
+| `document-import:35-155` | E2E-DOC-002…005 | file input; file name; status words "pending", "needs review", "parsed", "verified", "ocr required" (case-insensitive) | kept (UI-PG-DOCUMENTS) | — |
+| `assistant:52, 78` | E2E-RAG-001, 002 | `/explain assistant\|ask about your results/i` text | UI-MICRO | → `getByRole('heading', { level: 1, name: 'Ask' })` |
+| `assistant:102, 121, 148, 213, 229, 245, 258` | E2E-RAG-003…005 and unnamed tests | `/explain assistant/i` text | UI-MICRO | → `getByRole('heading', { level: 1, name: 'Ask' })` |
+| `assistant:57, 83, 113, 160, 216, 234, 247, 267` | several | placeholder `/ask about your results/i` | kept (UI-PG-ASK) | — |
+| `assistant:61, 85, 162, 220, 236, 249, 261` | several | send button = last button with an svg | UI-PG-ASK | → `getByRole('button', { name: 'Send question' })` |
+| `assistant:105-114` | E2E-RAG-003 | suggested question fills the input | kept (UI-PG-ASK) | — |
+| `assistant:124-125` | E2E-RAG-004 | "does not provide medical advice", "always consult your healthcare provider" | kept (T0, UI-PG-ASK) | — |
+| `assistant:150-153` | E2E-RAG-005 | combobox "Document Category" with value `imaging` | kept (UI-PG-ASK keeps a native select) | — |
+| `assistant:223` | loading state | `/searching documents\|generating response/i` | UI-PG-ASK | → `/reading your verified results/i` |
+| `assistant:68-69, 91-95, 171, 239, 252, 264, 271` | several | answer or fallback text, the user's message, input clears, send disabled/enabled | kept | — |
+| `ui-full-verification:62, 66, 70-72` | E2E-UI-FULL-001 | "Upload medical documents" input; file name; status words (case-sensitive "Needs Review", "OCR Required") | kept (UI-PG-DOCUMENTS) | — |
+| `ui-full-verification:80` | E2E-UI-FULL-002 | `main` visible on each route | kept | — |
+| `ui-full-verification:92-95` | E2E-UI-FULL-002b | "More options" → "Review extracted values" → `/verify?doc=…&mode=all` | kept (UI-PG-DOCUMENTS) | — |
+| `ui-full-verification:96` | E2E-UI-FULL-002b | `/verification workbench/i` | UI-MICRO | → `getByRole('heading', { level: 1, name: 'Review values' })` |
+| `ui-full-verification:105` | E2E-UI-FULL-003 | `/explain assistant/i` | UI-MICRO | → heading `'Ask'` |
+| `ui-full-verification:110` | E2E-UI-FULL-003 | send button = last svg button | UI-PG-ASK | → `getByRole('button', { name: 'Send question' })` |
+| `ui-full-verification:124` | E2E-UI-FULL-004 | "Configure AI model and hardware preferences" | kept (UI-PG-SETTINGS) | — |
+| `ui-full-verification:127-130` | E2E-UI-FULL-004 | Detect Hardware, then RAM / Recommended Tier | UI-PG-SETTINGS | open the Advanced section first |
+| `health-smoke:6-8` | E2E-HEALTH-001 | `/health` 200 | kept (backend) | — |
+
+`e2e/ui-routes-verification.spec.ts` does not exist on `257e072`; E2E-UIFULL-CI creates it (and may move the `ui-full-verification` assertions above into it). If it does, the same contract changes apply there, and UI-SHELL updates its nav labels.
 
 Back to: [queue](2026-10-15-build-program/queue.md) · [RUNBOOK](2026-10-15-build-program/RUNBOOK.md) · [research package](../research/2026-10-23-frontend-revamp/00-README.md)
