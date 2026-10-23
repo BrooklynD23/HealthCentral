@@ -1788,6 +1788,12 @@ What the report can claim, and how strongly:
 
 Links to: `docs/capstone-report/rsi-in-development-and-application.md`, `docs/research/2026-10-20-rrsi-harness2/01-harness2.md`, `docs/research/2026-10-20-rrsi-harness2/02-verdicts.md`
 
+## `docs/research/2026-10-22-fit-decoder/00-README.md`
+
+**FIT decoder research: which decoder may WEAR-11b use (2026-10-22)**
+
+Owner decision OW-W7 (`docs/capstone-report/owner-decisions-2026-09-27.md:385`, prompt 35), verbatim:
+
 ## `docs/research/2026-10-22-mvp/00-README.md`
 
 **MVP readiness research package (2026-10-22)**
