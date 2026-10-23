@@ -286,7 +286,7 @@ class ExtractModule:
         value = None
         cell_flag = None
         if value_text:
-            _num = r"(?P<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)"
+            _num = r"(?P<num>[1-9]\d{0,2}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)"
             _flg = r"(?P<flag>\(?(?:HH|LL|H|L|A|HIGH|LOW|ABNORMAL|CRITICAL)\)?|\*)"
             _cmp = r"(?P<cmp>[<>]=?|≤|≥)"
             # Collapse whitespace runs first: adjacent \s* around optional groups
@@ -302,16 +302,9 @@ class ExtractModule:
                 re.IGNORECASE,
             )
             if cell_match:
-                if cell_match.groupdict().get("cmp"):
-                    pass  # bound, not an exact value: value stays None, value_text keeps the cell
-                else:
-                    try:
-                        value = float(cell_match.group("num").replace(",", ""))
-                    except ValueError:
-                        logger.warning(
-                            "Failed to parse observation value",
-                            extra={"analyte": analyte, "raw_value": value_text, "page": page_num},
-                        )
+                # A comparator makes it a bound, not an exact value: value stays None.
+                if not cell_match.group("cmp"):
+                    value = float(cell_match.group("num").replace(",", ""))
                 raw_flag = cell_match.group("flag")
                 if raw_flag:
                     cell_flag = "A" if raw_flag == "*" else raw_flag.strip("()").upper()
