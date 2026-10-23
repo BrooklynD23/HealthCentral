@@ -793,13 +793,27 @@ Write-Host ""
 $currentPath = $env:PATH
 $npmPath     = (Get-Command npm -ErrorAction SilentlyContinue).Source | Split-Path
 $frontendLog = Join-Path $ROOT_DIR "logs\dev-frontend.log"
+$backendLog    = Join-Path $ROOT_DIR "logs\dev-backend.log"
+$backendErrLog = Join-Path $ROOT_DIR "logs\dev-backend.err.log"
+
+# Start uvicorn with stdout and stderr redirected to files (PowerShell cannot
+# send both streams to one file). Shared by STEP 8 and the STEP 10 restart.
+function Start-BackendDevServer {
+    $logDir = Split-Path -Parent $backendLog
+    if (-not (Test-Path -LiteralPath $logDir)) {
+        New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+    }
+    return Start-Process -FilePath $venvPython `
+        -ArgumentList "-m", "uvicorn", "main:app", "--reload", "--host", "127.0.0.1", "--port", "$resolvedBackendPort" `
+        -WorkingDirectory $BACKEND_DIR `
+        -WindowStyle Hidden `
+        -RedirectStandardOutput $backendLog `
+        -RedirectStandardError $backendErrLog `
+        -PassThru
+}
 
 # -- Backend (background process) --
-$backendProc = Start-Process -FilePath $venvPython `
-    -ArgumentList "-m", "uvicorn", "main:app", "--reload", "--host", "127.0.0.1", "--port", "$resolvedBackendPort" `
-    -WorkingDirectory $BACKEND_DIR `
-    -WindowStyle Hidden `
-    -PassThru
+$backendProc = Start-BackendDevServer
 
 # Give backend a head start
 Start-Sleep -Seconds 2
@@ -818,6 +832,8 @@ $fPid = $frontendProc.Id
 Write-Ok "Backend  started  [PID $bPid]"
 Write-Ok "Frontend started  [PID $fPid]"
 Write-Status "Frontend log: $frontendLog"
+Write-Status "Backend log:  $backendLog"
+Write-Status "Backend error log: $backendErrLog"
 Write-Host ""
 
 # ===================================================================
@@ -825,9 +841,11 @@ Write-Host ""
 # ===================================================================
 Write-Status "Waiting for servers to be ready ..."
 
-$maxWait = 30       # seconds
+$maxWait = 60       # seconds
 $elapsed = 0
 $opened  = $false
+$backendReady  = $false
+$frontendReady = $false
 
 while ($elapsed -lt $maxWait) {
     Start-Sleep -Seconds 1
@@ -841,17 +859,51 @@ while ($elapsed -lt $maxWait) {
         exit 1
     }
 
-    try {
-        $response = Invoke-WebRequest -Uri "http://localhost:$resolvedFrontendPort" `
-                        -UseBasicParsing -TimeoutSec 2 -ErrorAction SilentlyContinue
-        if ($response.StatusCode -eq 200) {
-            Write-Ok "Servers are ready!"
-            Write-Host ""
-            Start-Process "http://localhost:$resolvedFrontendPort"
-            $opened = $true
-            break
-        }
-    } catch { }
+    if ($backendProc.HasExited) {
+        $ec = $backendProc.ExitCode
+        Write-Err "Backend exited during startup [exit code $ec]."
+        Write-LogTail -LogPath $backendLog -Label "Backend log"
+        Write-LogTail -LogPath $backendErrLog -Label "Backend error log"
+        Stop-Process -Id $frontendProc.Id -Force -ErrorAction SilentlyContinue
+        Read-Host "  Press Enter to exit"
+        exit 1
+    }
+
+    if (-not $backendReady) {
+        try {
+            $response = Invoke-WebRequest -Uri "http://127.0.0.1:$resolvedBackendPort/health" `
+                            -UseBasicParsing -TimeoutSec 2 -ErrorAction SilentlyContinue
+            if ($response.StatusCode -eq 200) { $backendReady = $true }
+        } catch { }
+    }
+
+    if (-not $frontendReady) {
+        try {
+            $response = Invoke-WebRequest -Uri "http://localhost:$resolvedFrontendPort" `
+                            -UseBasicParsing -TimeoutSec 2 -ErrorAction SilentlyContinue
+            if ($response.StatusCode -eq 200) { $frontendReady = $true }
+        } catch { }
+    }
+
+    if ($backendReady -and $frontendReady) {
+        Write-Ok "Servers are ready!"
+        Write-Host ""
+        Start-Process "http://localhost:$resolvedFrontendPort"
+        $opened = $true
+        break
+    }
+}
+
+# uvicorn --reload keeps its parent alive after an import error, so
+# HasExited can stay false. No /health answer within the wait is a failure.
+if (-not $backendReady) {
+    Write-Err "Backend did not answer /health within $maxWait seconds."
+    Write-LogTail -LogPath $backendLog -Label "Backend log"
+    Write-LogTail -LogPath $backendErrLog -Label "Backend error log"
+    Stop-Process -Id $backendProc.Id -Force -ErrorAction SilentlyContinue
+    Stop-Process -Id $frontendProc.Id -Force -ErrorAction SilentlyContinue
+    Read-Host "  Press Enter to exit"
+    exit 1
 }
 
 if (-not $opened) {
@@ -888,6 +940,7 @@ function Stop-Servers {
 
 try {
     $frontendRestartCount = 0
+    $backendRestartCount  = 0
     while ($true) {
         Start-Sleep -Seconds 2
 
@@ -901,11 +954,14 @@ try {
         if ($backendDead) {
             $ec = $backendProc.ExitCode
             Write-Warn "Backend stopped unexpectedly [exit code $ec]. Restarting ..."
-            $backendProc = Start-Process -FilePath $venvPython `
-                -ArgumentList "-m", "uvicorn", "main:app", "--reload", "--host", "127.0.0.1", "--port", "$resolvedBackendPort" `
-                -WorkingDirectory $BACKEND_DIR `
-                -WindowStyle Hidden `
-                -PassThru
+            Write-LogTail -LogPath $backendLog -Label "Backend log"
+            Write-LogTail -LogPath $backendErrLog -Label "Backend error log"
+            if ($backendRestartCount -ge 3) {
+                Write-Err "Backend failed repeatedly. See $backendLog and $backendErrLog"
+                break
+            }
+            $backendRestartCount++
+            $backendProc = Start-BackendDevServer
             $bPid = $backendProc.Id
             Write-Ok "Backend restarted [PID $bPid]"
         }
