@@ -26,7 +26,7 @@ import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/compo
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useAuthStore } from '@/stores/authStore';
-import { useAnalyteList, useModelSettings, useExternalApiSettings } from '@/services';
+import { useAnalyteList, useModelSettings, useExternalApiSettings, useProviderInfo } from '@/services';
 import { useObservations } from '@/services/observations';
 import { ExternalApiBreakGlassWarning } from '@/components/settings/ExternalApiBreakGlassWarning';
 import {
@@ -275,6 +275,7 @@ export function ExplainAssistant() {
   }, [analyteList]);
   const { data: modelSettings, isLoading: modelSettingsLoading } = useModelSettings();
   const { data: externalApi, isError: externalApiError } = useExternalApiSettings();
+  const { data: providerInfo } = useProviderInfo();
   const breakGlassActive =
     externalApi?.use_external_api === true && externalApi.redaction_break_glass === true;
   const breakGlassUnknown =
@@ -287,13 +288,20 @@ export function ExplainAssistant() {
       const m = externalApi.model || 'default';
       return `${p} · ${m}`;
     }
+    // capabilities names the provider that really answers (llm_provider is wrong
+    // after the Ollama-unreachable fallback; llm_model may be "(auto)" or a path).
+    const providerName = providerInfo?.capabilities?.provider_name;
+    const modelName = providerInfo?.capabilities?.model_name;
+    if (providerName && modelName) {
+      return `${providerName} · ${modelName}`;
+    }
     const tier = modelSettings?.current_tier;
     if (tier && modelSettings?.tier_availability?.[tier]?.model) {
       return modelSettings.tier_availability[tier].model as string;
     }
     if (tier) return `Tier: ${tier}`;
     return 'Local model';
-  }, [modelSettings, externalApi]);
+  }, [modelSettings, externalApi, providerInfo]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth' });
