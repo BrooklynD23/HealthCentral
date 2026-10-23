@@ -289,13 +289,16 @@ class ExtractModule:
             _num = r"(?P<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)"
             _flg = r"(?P<flag>\(?(?:HH|LL|H|L|A|HIGH|LOW|ABNORMAL|CRITICAL)\)?|\*)"
             _cmp = r"(?P<cmp>[<>]=?|≤|≥)"
+            # Collapse whitespace runs first: adjacent \s* around optional groups
+            # backtrack cubically on a long space run. value_text stays raw.
+            cell = " ".join(value_text.split())
             cell_match = re.fullmatch(
                 r"\s*" + _cmp + r"?\s*" + _num + r"\s*(?P<unit>" + _UNIT_ALT + r")?\s*" + _flg + r"?\s*",
-                value_text,
+                cell,
                 re.IGNORECASE,
             ) or re.fullmatch(
                 r"\s*" + _flg + r"\s*" + _cmp + r"?\s*" + _num + r"\s*(?P<unit>" + _UNIT_ALT + r")?\s*",
-                value_text,
+                cell,
                 re.IGNORECASE,
             )
             if cell_match:
