@@ -286,6 +286,71 @@ describe('VerificationWorkbench', () => {
     });
   });
 
+  describe('HC-VFY-001: verifying the last observation refreshes the documents list', () => {
+    it('HC-VFY-001: "Documents needing attention" entry disappears after Mark All Verified without a reload', async () => {
+      const user = userEvent.setup();
+      const state = {
+        obs: [mockObservations[0]] as unknown[],
+        docStatus: 'parsed',
+      };
+      const docFetches = () =>
+        vi.mocked(api.apiGet).mock.calls.filter(([url]) => url === '/documents/').length;
+
+      vi.mocked(api.apiGet).mockImplementation((url: string) => {
+        if (url.startsWith('/documents') && url.includes('/pages')) {
+          return Promise.resolve([]);
+        }
+        if (url.startsWith('/documents')) {
+          return Promise.resolve([
+            {
+              id: 'doc-1',
+              profile_id: 'profile-123',
+              doc_type: 'lab_report',
+              source: 'quarterly-labs.pdf',
+              status: state.docStatus,
+              page_count: 1,
+              collection_date: null,
+              imported_at: '2026-01-01T00:00:00Z',
+              parsed_at: '2026-01-01T00:00:00Z',
+              verified_at: null,
+              extraction_confidence: 0.9,
+            },
+          ]);
+        }
+        if (url.startsWith('/observations')) {
+          return Promise.resolve(state.obs);
+        }
+        return Promise.resolve([]);
+      });
+      // Backend flips the document once its last observation is verified.
+      vi.mocked(api.apiPost).mockImplementation(async () => {
+        state.obs = [];
+        state.docStatus = 'verified';
+        return { ...mockObservations[0], user_verified: true };
+      });
+
+      renderWithProviders(<VerificationWorkbench />);
+
+      // Queue view is up (the attention panel only shows once the queue is empty).
+      await screen.findByText('Glucose');
+      await waitFor(() => expect(docFetches()).toBe(1));
+      expect(screen.queryByText('Documents needing attention')).not.toBeInTheDocument();
+      const docFetchesBefore = docFetches();
+
+      await user.click(screen.getByRole('button', { name: /Mark All Verified/i }));
+
+      // The documents list must be fetched again after the last verify. Without
+      // the fix the empty-state panel keeps listing the stale "parsed" document.
+      await waitFor(() => expect(docFetches()).toBeGreaterThan(docFetchesBefore));
+
+      // Only now is absence meaningful: wait for the replacement empty state to
+      // be on screen, then assert the stale entry is gone.
+      await screen.findByText(/all observations verified/i);
+      expect(screen.queryByText('quarterly-labs.pdf')).not.toBeInTheDocument();
+      expect(screen.queryByText('Documents needing attention')).not.toBeInTheDocument();
+    });
+  });
+
   describe('Document review mode', () => {
     it('loads all observations for selected document when mode=all', async () => {
       window.history.pushState({}, '', '/verify?doc=doc-1&mode=all');
