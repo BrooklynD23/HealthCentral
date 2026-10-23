@@ -9,6 +9,7 @@
 
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
   Heart,
@@ -77,6 +78,7 @@ function validatePassword(password: string): {
 
 export function ProfileSetup() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const prefersReducedMotion = useReducedMotion();
   const [isCreating, setIsCreating] = useState(false);
   const [step, setStep] = useState(0);
@@ -101,7 +103,7 @@ export function ProfileSetup() {
 
   // SESSION-REENTRY: an existing profile unlocks with its password through the
   // normal login endpoint. The recovery code is only for a forgotten password.
-  const { data: profiles } = useProfiles();
+  const { data: profiles, isPending: profilesPending } = useProfiles();
   const login = useLogin();
   const hasProfiles = !!profiles && profiles.length > 0;
   const [showCreate, setShowCreate] = useState(false);
@@ -126,9 +128,13 @@ export function ProfileSetup() {
       });
       setUnlockPassword('');
       login.reset();
+      // Nothing cached under a previous profile's session may be shown to
+      // this one.
+      queryClient.clear();
       navigate('/inbox');
     } catch (err) {
       login.reset();
+      setUnlockPassword('');
       if (err instanceof ApiError && err.status === 401) {
         setUnlockError('Incorrect password');
       } else if (err instanceof ApiError && err.status === 429) {
@@ -371,7 +377,7 @@ export function ProfileSetup() {
         )}
 
         <motion.div variants={itemVariants}>
-          {!isCreating ? (
+          {profilesPending ? null : !isCreating ? (
             <Card>
               <CardContent className="p-6 space-y-4">
                 {hasProfiles && !showCreate ? (
@@ -385,61 +391,61 @@ export function ProfileSetup() {
                   </Button>
                 ) : (
                   <>
-                <Input
-                  label="Profile Name"
-                  placeholder="My Health Profile"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  error={formErrors.displayName}
-                  autoComplete="name"
-                />
+                    <Input
+                      label="Profile Name"
+                      placeholder="My Health Profile"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      error={formErrors.displayName}
+                      autoComplete="name"
+                    />
 
-                <div className="relative">
-                  <Input
-                    type={showPassword ? 'text' : 'password'}
-                    label="Password"
-                    placeholder="Create a secure password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    error={formErrors.password}
-                    autoComplete="new-password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-[38px] text-ink-tertiary hover:text-ink transition-colors"
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-5 h-5" />
-                    ) : (
-                      <Eye className="w-5 h-5" />
+                    <div className="relative">
+                      <Input
+                        type={showPassword ? 'text' : 'password'}
+                        label="Password"
+                        placeholder="Create a secure password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        error={formErrors.password}
+                        autoComplete="new-password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-[38px] text-ink-tertiary hover:text-ink transition-colors"
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="w-5 h-5" />
+                        ) : (
+                          <Eye className="w-5 h-5" />
+                        )}
+                      </button>
+                    </div>
+
+                    {showPasswordHints && (
+                      <div className="text-sm text-ink-secondary space-y-1">
+                        <p className="font-medium">Password requirements:</p>
+                        <ul className="list-disc list-inside space-y-0.5">
+                          {passwordValidation.errors.map((err) => (
+                            <li key={err} className="text-status-critical">
+                              {err}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     )}
-                  </button>
-                </div>
 
-                {showPasswordHints && (
-                  <div className="text-sm text-ink-secondary space-y-1">
-                    <p className="font-medium">Password requirements:</p>
-                    <ul className="list-disc list-inside space-y-0.5">
-                      {passwordValidation.errors.map((err) => (
-                        <li key={err} className="text-status-critical">
-                          {err}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                <Button
-                  onClick={handleCreateProfile}
-                  size="lg"
-                  className="w-full group"
-                  disabled={createProfile.isPending}
-                >
-                  Create Your Profile
-                  <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-                </Button>
+                    <Button
+                      onClick={handleCreateProfile}
+                      size="lg"
+                      className="w-full group"
+                      disabled={createProfile.isPending}
+                    >
+                      Create Your Profile
+                      <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                    </Button>
                   </>
                 )}
 

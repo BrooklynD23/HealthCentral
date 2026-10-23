@@ -93,7 +93,7 @@ describe('ProfileSetup', () => {
       renderWithProviders(<ProfileSetup />);
 
       // Fill in display name using label
-      const displayNameInput = screen.getByLabelText('Profile Name');
+      const displayNameInput = await screen.findByLabelText('Profile Name');
       await user.type(displayNameInput, 'My Health Profile');
 
       // Fill in password using placeholder since label matches multiple
@@ -160,7 +160,7 @@ describe('ProfileSetup', () => {
       renderWithProviders(<ProfileSetup />);
 
       // Fill only display name
-      const displayNameInput = screen.getByLabelText('Profile Name');
+      const displayNameInput = await screen.findByLabelText('Profile Name');
       await user.type(displayNameInput, 'My Health Profile');
 
       // Submit without password
@@ -182,7 +182,7 @@ describe('ProfileSetup', () => {
       const user = userEvent.setup();
       renderWithProviders(<ProfileSetup />);
 
-      const passwordInput = screen.getByPlaceholderText(
+      const passwordInput = await screen.findByPlaceholderText(
         'Create a secure password'
       );
 
@@ -213,7 +213,7 @@ describe('ProfileSetup', () => {
       renderWithProviders(<ProfileSetup />);
 
       // Fill form
-      await user.type(screen.getByLabelText('Profile Name'), 'Test Profile');
+      await user.type(await screen.findByLabelText('Profile Name'), 'Test Profile');
       await user.type(
         screen.getByPlaceholderText('Create a secure password'),
         'SecurePass123'
@@ -243,7 +243,7 @@ describe('ProfileSetup', () => {
       renderWithProviders(<ProfileSetup />);
 
       // Fill form
-      await user.type(screen.getByLabelText('Profile Name'), 'Test Profile');
+      await user.type(await screen.findByLabelText('Profile Name'), 'Test Profile');
       await user.type(
         screen.getByPlaceholderText('Create a secure password'),
         'SecurePass123'
@@ -279,7 +279,7 @@ describe('ProfileSetup', () => {
     };
 
     async function fillAndSubmit(user: ReturnType<typeof userEvent.setup>) {
-      await user.type(screen.getByLabelText('Profile Name'), 'My Health Profile');
+      await user.type(await screen.findByLabelText('Profile Name'), 'My Health Profile');
       await user.type(screen.getByPlaceholderText('Create a secure password'), PASSWORD);
       await user.click(screen.getByRole('button', { name: /create your profile/i }));
     }
@@ -291,7 +291,7 @@ describe('ProfileSetup', () => {
       const pw = watchCacheFor(queryClient, PASSWORD);
       const code = watchCacheFor(queryClient, CODE);
 
-      await user.type(screen.getByPlaceholderText('Create a secure password'), PASSWORD);
+      await user.type(await screen.findByPlaceholderText('Create a secure password'), PASSWORD);
       expect(reactStateContains(container, PASSWORD)).toBe(true); // positive control
       await user.clear(screen.getByPlaceholderText('Create a secure password'));
       await fillAndSubmit(user);
