@@ -194,6 +194,9 @@ export function ProfileSetup() {
       // then removes it, with the password and code) and clear the field.
       createProfile.reset();
       setPassword('');
+      // Same rule as unlock: nothing cached under a previous session may be
+      // shown to the new profile.
+      queryClient.clear();
 
       setStep(2);
       await new Promise((r) => setTimeout(r, 500));
