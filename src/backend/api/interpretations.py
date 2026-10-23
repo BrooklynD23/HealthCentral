@@ -541,9 +541,10 @@ async def generate_grounded_interpretation(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail=str(exc),
         )
-    except RuntimeError:
-        logger.exception(
-            "Grounded interpretation inference failed",
+    except RuntimeError as exc:
+        logger.error(
+            "Grounded interpretation inference failed: %s",
+            type(exc).__name__,
             extra={"profile_id": session.profile_id},
         )
         raise HTTPException(
