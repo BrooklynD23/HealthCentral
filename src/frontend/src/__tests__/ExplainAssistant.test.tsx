@@ -147,6 +147,28 @@ const mockInsufficientContextResponse = {
   validation_errors: [],
 };
 
+function providerPayload(
+  llm_provider: string,
+  llm_model: string,
+  provider_name: string,
+  model_name: string
+) {
+  return {
+    llm_provider,
+    llm_model,
+    ollama_base_url: 'http://localhost:11434',
+    available: null,
+    capabilities: {
+      context_len: 4096,
+      multimodal: false,
+      function_calling: false,
+      streaming: false,
+      provider_name,
+      model_name,
+    },
+  };
+}
+
 describe('ExplainAssistant', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -641,6 +663,84 @@ describe('ExplainAssistant', () => {
         await new Promise((r) => setTimeout(r, 0));
       });
       expect(screen.queryByText(/privacy protection override is on/i)).toBeNull();
+    });
+  });
+
+  describe('CHAT-MODEL-BADGE: header names the configured model', () => {
+    function mockModelApis(provider: unknown | Error) {
+      vi.mocked(api.apiGet).mockImplementation(async (url) => {
+        if (url === '/settings/model/provider') {
+          if (provider instanceof Error) throw provider;
+          return provider;
+        }
+        if (url === '/settings/model') {
+          return {
+            current_tier: 'high',
+            tier_availability: { high: { model: 'BioMistral-7B' } },
+          };
+        }
+        if (url === '/observations/') {
+          return mockObservations;
+        }
+        return [];
+      });
+    }
+
+    // Wait until the settings query was issued, give every query a few ticks to
+    // settle (including a rejected provider query), then flush into a render.
+    async function flush() {
+      await waitFor(() => {
+        expect(vi.mocked(api.apiGet)).toHaveBeenCalledWith('/settings/model');
+      });
+      for (let i = 0; i < 3; i++) {
+        await act(async () => {
+          await new Promise((r) => setTimeout(r, 10));
+        });
+      }
+    }
+
+    it('HC-MDL-001 shows the provider and model that answer, not the tier label', async () => {
+      mockModelApis(providerPayload('ollama', 'gemma4:e4b', 'ollama', 'gemma4:e4b'));
+      renderWithProviders(<ExplainAssistant />);
+
+      await screen.findByText('ollama \u00b7 gemma4:e4b');
+      // Queries have settled, so the tier label had its chance to show.
+      await flush();
+      expect(vi.mocked(api.apiGet)).toHaveBeenCalledWith('/settings/model/provider', {
+        probe: 'false',
+      });
+      expect(screen.getByText('ollama \u00b7 gemma4:e4b')).toBeInTheDocument();
+      expect(screen.queryByText('BioMistral-7B')).toBeNull();
+    });
+
+    it('HC-MDL-002 falls back to the tier label when the provider request fails', async () => {
+      mockModelApis(new Error('provider unavailable'));
+      renderWithProviders(<ExplainAssistant />);
+
+      await screen.findByText('BioMistral-7B');
+      await flush();
+      expect(screen.getByText('BioMistral-7B')).toBeInTheDocument();
+    });
+
+    it('HC-MDL-003 default config: shows provider and model name, never "(auto)" or a path', async () => {
+      mockModelApis(providerPayload('llama_cpp', '(auto)', 'llama_cpp', 'phi-3-mini'));
+      renderWithProviders(<ExplainAssistant />);
+
+      const badge = await screen.findByText('llama_cpp \u00b7 phi-3-mini');
+      await flush();
+      expect(screen.queryByText('BioMistral-7B')).toBeNull();
+      expect(screen.queryByText(/\(auto\)/)).toBeNull();
+      expect(badge.textContent).not.toMatch(/[\\/]/);
+    });
+
+    it('HC-MDL-006 names the provider that really answers after the Ollama fallback', async () => {
+      mockModelApis(providerPayload('ollama', 'gemma4:e4b', 'llama_cpp', 'phi-3-mini'));
+      renderWithProviders(<ExplainAssistant />);
+
+      const badge = await screen.findByText(/^llama_cpp \u00b7 /);
+      await flush();
+      expect(badge).toHaveTextContent('llama_cpp \u00b7 phi-3-mini');
+      expect(screen.queryByText(/^ollama \u00b7 /)).toBeNull();
     });
   });
 });
