@@ -1792,7 +1792,9 @@ Links to: `docs/capstone-report/rsi-in-development-and-application.md`, `docs/re
 
 **FIT decoder research: which decoder may WEAR-11b use (2026-10-22)**
 
-Owner decision OW-W7 (`docs/capstone-report/owner-decisions-2026-09-27.md:385`, prompt 35), verbatim:
+Owner decision OW-W7 (`docs/capstone-report/owner-decisions-2026-09-27.md` line 385, prompt 35), verbatim:
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`
 
 ## `docs/research/2026-10-22-mvp/00-README.md`
 
