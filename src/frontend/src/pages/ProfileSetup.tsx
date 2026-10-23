@@ -24,7 +24,8 @@ import {
 import { Button, Card, CardContent, Input } from '@/components/ui';
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
-import { useCreateProfile } from '@/services';
+import { useCreateProfile, useLogin, useProfiles } from '@/services';
+import { ApiError } from '@/services/api';
 import { takeRestoreNotice } from '@/services/backup';
 import { RecoveryCodeCard } from '@/components/profile/RecoveryCodeCard';
 
@@ -97,6 +98,52 @@ export function ProfileSetup() {
   }>({});
 
   const createProfile = useCreateProfile();
+
+  // SESSION-REENTRY: an existing profile unlocks with its password through the
+  // normal login endpoint. The recovery code is only for a forgotten password.
+  const { data: profiles } = useProfiles();
+  const login = useLogin();
+  const hasProfiles = !!profiles && profiles.length > 0;
+  const [showCreate, setShowCreate] = useState(false);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [unlockPassword, setUnlockPassword] = useState('');
+  const [unlockError, setUnlockError] = useState<string | null>(null);
+  const unlockProfileId =
+    profiles?.find((p) => p.id === selectedProfileId)?.id ?? profiles?.[0]?.id;
+
+  const handleUnlock = async () => {
+    if (!unlockProfileId) return;
+    setUnlockError(null);
+    if (!unlockPassword) {
+      setUnlockError('Enter your password');
+      return;
+    }
+    try {
+      // useLogin's onSuccess stores the token.
+      await login.mutateAsync({
+        profile_id: unlockProfileId,
+        password: unlockPassword,
+      });
+      setUnlockPassword('');
+      login.reset();
+      navigate('/inbox');
+    } catch (err) {
+      login.reset();
+      if (err instanceof ApiError && err.status === 401) {
+        setUnlockError('Incorrect password');
+      } else if (err instanceof ApiError && err.status === 429) {
+        setUnlockError(
+          'Too many attempts. Wait a moment, then try again.'
+        );
+      } else {
+        setUnlockError(
+          err instanceof Error && err.message
+            ? err.message
+            : 'Could not unlock your profile'
+        );
+      }
+    }
+  };
 
   const handleCreateProfile = async () => {
     // Reset errors
@@ -262,10 +309,82 @@ export function ProfileSetup() {
           </Card>
         </motion.div>
 
+        {hasProfiles && !isCreating && (
+          <motion.div variants={itemVariants} className="mb-6">
+            <Card>
+              <CardContent className="p-6 space-y-4">
+                <h2 className="font-display text-xl font-semibold text-ink">
+                  Unlock your profile
+                </h2>
+                <form
+                  className="space-y-4"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void handleUnlock();
+                  }}
+                >
+                  <div>
+                    <label
+                      htmlFor="unlock-profile"
+                      className="block text-sm font-medium text-ink mb-1.5"
+                    >
+                      Profile
+                    </label>
+                    <select
+                      id="unlock-profile"
+                      value={unlockProfileId ?? ''}
+                      onChange={(e) => setSelectedProfileId(e.target.value)}
+                      className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-ink"
+                    >
+                      {profiles!.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.display_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <Input
+                    type="password"
+                    label="Unlock password"
+                    placeholder="Your password"
+                    value={unlockPassword}
+                    onChange={(e) => setUnlockPassword(e.target.value)}
+                    autoComplete="current-password"
+                  />
+                  {unlockError && (
+                    <p role="alert" className="text-sm text-status-critical">
+                      {unlockError}
+                    </p>
+                  )}
+                  <Button
+                    type="submit"
+                    size="lg"
+                    className="w-full"
+                    disabled={login.isPending}
+                  >
+                    Unlock
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
         <motion.div variants={itemVariants}>
           {!isCreating ? (
             <Card>
               <CardContent className="p-6 space-y-4">
+                {hasProfiles && !showCreate ? (
+                  <Button
+                    variant="secondary"
+                    size="lg"
+                    className="w-full"
+                    onClick={() => setShowCreate(true)}
+                  >
+                    Create a new profile
+                  </Button>
+                ) : (
+                  <>
                 <Input
                   label="Profile Name"
                   placeholder="My Health Profile"
@@ -321,6 +440,8 @@ export function ProfileSetup() {
                   Create Your Profile
                   <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
                 </Button>
+                  </>
+                )}
 
                 {/* SEC-RECOV-001: the way back in for an existing profile
                     whose password has been forgotten. */}
