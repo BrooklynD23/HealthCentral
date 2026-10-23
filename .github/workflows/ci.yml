@@ -242,7 +242,7 @@ jobs:
 
   e2e-tests:
     name: E2E Smoke Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # Playwright has no chromium build for ubuntu26.04 (ubuntu-latest from 2026-10-23)
     needs: [frontend-tests, backend-tests]
     steps:
       - uses: actions/checkout@v4
