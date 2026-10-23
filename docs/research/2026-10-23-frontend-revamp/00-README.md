@@ -4,6 +4,8 @@
 **Owner:** repository owner
 **Refresh Trigger:** an owner answer to a gate or open question in the plan's §11; a merged `UI-*` row that measures a number quoted here differently; a new major version of `motion`, `cmdk`, `thinking-orbs` or the Radix primitives.
 
+> **Owner answer UI-DEPS (prompt 45): "Keep framer-motion 10".** Both proposals and `research-motion.md` describe a move to `motion` 14; the plan stays on framer-motion 10.18 with the same `LazyMotion` + `m` pattern. The copies here are left as written.
+>
 > **Point-in-time research (2026-10-23).** Planning and documentation only. No product code changed. Both designers worked on scratch copies of `src/frontend` at `main` @ `7749744`; the repository was not edited by them. The merged plan is [docs/plans/2026-10-23-frontend-revamp-plan.md](../../plans/2026-10-23-frontend-revamp-plan.md); the owner's answers are rows UI-DIRECTION, UI-SAAS-MEANING, UI-SCOPE-1031, UI-DARK-MODE and UI-SAFETY-TOGGLE in [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md).
 
 ## The question
@@ -35,9 +37,9 @@ The owner asked for a complete, ambitious update of the frontend, "engaging, mod
 4. **The owner answered prompt 44** (four questions, L0 AskUserQuestion, 2026-10-23) after both proposals existed.
 5. **The Opus 5.5 planner** (this package's author) read every input and the screenshots, merged the proposals into one plan, re-read the npm versions, licences and React peers of every planned dependency (`npm view`, 2026-10-23), read the `border-beam` and `thinking-orbs` READMEs and type definitions, and re-ran proposal B's cmdk probe against proposal A's prototype (vite on 127.0.0.1:5191 with the API proxy pointed at a dead port; result in [comparison DF-5](comparison.md#3-defects-found-in-the-prototypes-become-acceptance-checks)).
 
-**The patches.** `proto-A.patch` (37 files) and `proto-B.patch` (12 files) are `git diff`s of each prototype's `src/frontend` against `src/frontend` at `7749744`, source files only: no `node_modules`, no `dist`, no measurement directories, no logs and no `package-lock.json` (each prototype's `package.json` diff names the added packages; run `npm install` after applying). Line endings were normalised to LF. Both apply cleanly to `origin/main` @ `15fe095` (`git apply --check`, run by the planner). They are prototypes: fixtures stand in for the API, B's lives under `src/proto/`, and neither is a PR.
+**The patches.** `proto-A.patch` (37 files) and `proto-B.patch` (12 files) are `git diff`s of each prototype's `src/frontend` against `src/frontend` at `7749744`, source files only: no `node_modules`, no `dist`, no measurement directories, no logs and no `package-lock.json` (each prototype's `package.json` diff names the added packages; run `npm install` after applying). Line endings were normalised to LF. Both apply cleanly to `origin/main` @ `15fe095` (`git apply --check`, run by the planner). They are prototypes: fixtures stand in for the API, B's lives under `src/proto/`, and neither is a PR. `proto-B.patch` was regenerated after the prototype's hard-coded profile name was replaced by "Alex Rivera" / "AR" (owner UI-FIXTURE-NAME).
 
-**Copied files.** The ten markdown files above are copies of the scratch originals, unchanged except for a one-paragraph note under each title and the path rewrites that note describes. Nothing from the scratch `skills-download/` directory (third-party skill text) is in this folder.
+**Copied files.** The ten markdown files above are copies of the scratch originals, unchanged except for a one-paragraph note under each title, the path rewrites that note describes, and in `proposal-B.md` the prototype profile name replaced by the fixture name "Alex Rivera" (owner UI-FIXTURE-NAME, prompt 45). Nothing from the scratch `skills-download/` directory (third-party skill text) is in this folder.
 
 **Screenshots.**
 
@@ -52,7 +54,7 @@ The owner asked for a complete, ambitious update of the frontend, "engaging, mod
 | `shots/B-results-1440-light-peek-open.png` | proposal B | Provenance Peek popover open |
 | `shots/B-results-390-light.png` | proposal B | B's phone layout with the Safety Rail above the tab bar |
 
-All eight are under 300 KB as captured (largest 169 KB), so none was recompressed.
+All eight are under 300 KB as captured (largest 170 KB), so none was recompressed. The four prototype screenshots `A-results-light-390.png`, `A-source-sheet-light-1440.png`, `A-mobile-more-sheet-light-390.png` and `B-results-1440-dark.png` were **re-captured on 2026-10-23** by the planner from the same prototypes (vite on 127.0.0.1:5191 and :5192, Playwright 1.58, Chromium 1200) with the fixture profile name "Alex Rivera" instead of the owner's name (owner UI-FIXTURE-NAME); nothing was cropped or covered, and each was checked by viewing it. They still show DF-1 to DF-4. `B-results-1440-light-peek-open.png` and `B-results-390-light.png` show no profile name and are unchanged.
 
 ## What was not verified
 

@@ -1,24 +1,24 @@
 # Frontend revamp 2026-10-23 — merged plan: Ink & Paper on a Motion Gradient
 
-**Last Updated:** 2026-10-23
+**Last Updated:** 2026-10-23 (review round 1 of #311: framer-motion 10 kept (owner UI-DEPS), fixture name (owner UI-FIXTURE-NAME), stillness probe G10, UI-AUTH-SCREENS relabelled, test-file ownership, 11 minors)
 **Owner:** repository owner
-**Status:** PROPOSED (Opus planner). Docs only. **No owner approval is recorded here.** Every gate keeps its state in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md); the owner direction and prompt 44's four answers are recorded there as rows UI-DIRECTION, UI-SAAS-MEANING, UI-SCOPE-1031, UI-DARK-MODE and UI-SAFETY-TOGGLE (same PR).
+**Status:** PROPOSED (Opus planner). Docs only. **No owner approval is recorded here.** Every gate keeps its state in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md); the owner direction and prompt 44's four answers are recorded there as rows UI-DIRECTION, UI-SAAS-MEANING, UI-SCOPE-1031, UI-DARK-MODE and UI-SAFETY-TOGGLE, and prompt 45's two answers as rows UI-DEPS and UI-FIXTURE-NAME (same PR).
 **Base measured:** `origin/main` @ `15fe095` (2026-10-23, after #310). `src/frontend` is unchanged since `7749744`, the commit both designers and the UI review read (`git diff --stat 7749744 origin/main -- src/frontend` is empty).
 **Refresh Trigger:** an owner answer to a gate in [§11](#11-owner-gates-and-open-questions); a merge of any `UI-*` row (its measured numbers replace the ones quoted here); a merge of SESSION-REENTRY, FE-IMPORT-ERROR, IMPORT-SCANNED-PAGE, FE-VERIFY-NUMERIC, FE-EXPLAIN-ERR, BADGE-TICK, GAUGE-ZERO-WIDTH, AXE-E2E or E2E-UIFULL-CI; any edit to `src/frontend/package.json` outside these rows.
 
 Queue rows: [queue.md, "Planned 2026-10-23, frontend revamp"](2026-10-15-build-program/queue.md#planned-2026-10-23-frontend-revamp). Rules: [RUNBOOK](2026-10-15-build-program/RUNBOOK.md), [contracts](2026-10-15-build-program/contracts.md) §b-§d. Path shorthand as in the queue: `fe/` = `src/frontend/src/`, `e2e/` = `src/frontend/e2e/`, `be/` = `src/backend/`.
 
-**Sources.** The research package [docs/research/2026-10-23-frontend-revamp/](../research/2026-10-23-frontend-revamp/00-README.md): the owner's message and pasted guidelines, the framing note, the UI review and component audit of `main` @ `7749744`, four library research notes, and two independent designer proposals with prototypes ([proposal A](../research/2026-10-23-frontend-revamp/proposal-A.md), [proposal B](../research/2026-10-23-frontend-revamp/proposal-B.md), [comparison](../research/2026-10-23-frontend-revamp/comparison.md), [`proto-A.patch`](../research/2026-10-23-frontend-revamp/proto-A.patch), [`proto-B.patch`](../research/2026-10-23-frontend-revamp/proto-B.patch)). The owner's answers to prompt 44 (L0 AskUserQuestion, record `/tmp/claude-1000/prompts-44.json`).
+**Sources.** The research package [docs/research/2026-10-23-frontend-revamp/](../research/2026-10-23-frontend-revamp/00-README.md): the owner's message and pasted guidelines, the framing note, the UI review and component audit of `main` @ `7749744`, four library research notes, and two independent designer proposals with prototypes ([proposal A](../research/2026-10-23-frontend-revamp/proposal-A.md), [proposal B](../research/2026-10-23-frontend-revamp/proposal-B.md), [comparison](../research/2026-10-23-frontend-revamp/comparison.md), [`proto-A.patch`](../research/2026-10-23-frontend-revamp/proto-A.patch), [`proto-B.patch`](../research/2026-10-23-frontend-revamp/proto-B.patch)). The owner's answers to prompt 44 (L0 AskUserQuestion; L0 evidence comment 6374428883 on PR #311) and prompt 45 (L0 evidence comment 6374428087 on PR #311).
 
 **MVP priority** (showcase 2026-10-31, same scale as the [MVP plan](2026-10-22-mvp-rows-plan.md)): **P0** = makes a safety, privacy or lab-value claim false on screen, or leaves a phone user unable to use the app; **P1** = visible on the demo path; **P2** = after the demo is fine. Owner answer UI-SCOPE-1031 ("Full plan, no freeze") means every row is queued now and starts when its own dependencies merge; P0/P1/P2 only orders the picks.
 
-**Ask-first files (CLAUDE.md §1).** No `UI-*` row edits `modules/interpret_safety.py`, `redaction.py`, `faithfulness.py`, `verifier_agent.py`, `core/auth.py` or any encryption file. No `UI-*` row edits any backend file. SAFETY-MODE-REAL is research only; whichever behaviour the owner picks gets its own build row with its own ask-first gate. The frontend screens that drive sign-in, recovery, backup and profile deletion are not ask-first files, but they are auth and encryption flows, so their restyle waits on a new owner gate (UI-AUTH-SCREENS, [§11](#11-owner-gates-and-open-questions)); logic and requests stay unchanged either way.
+**Ask-first files (CLAUDE.md §1).** No `UI-*` row edits `modules/interpret_safety.py`, `redaction.py`, `faithfulness.py`, `verifier_agent.py`, `core/auth.py` or any encryption file. No `UI-*` row edits any backend file. SAFETY-MODE-REAL is research only; whichever behaviour the owner picks gets its own build row with its own ask-first gate. The frontend screens that drive sign-in, recovery, backup and profile deletion are not ask-first files. **Planner reading of CLAUDE.md §1** ("ALWAYS ask before touching … anything auth/encryption"), not an owner instruction: their new layout, their entrance motion and the Lift moment wait on a gate (UI-AUTH-SCREENS, [§11](#11-owner-gates-and-open-questions)). Tokens, primitives and the `m.*` import swap change these screens whatever the answer (UI-TOKENS, UI-PRIM-CONTROLS, UI-MOTION), and their raw colours are swapped for tokens in every outcome, so the gate never blocks dark mode. Logic and requests stay unchanged.
 
 ---
 
 ## 1. Goal and the owner's answers
 
-**Goal.** Bring the whole frontend to SaaS-grade craft (instant feedback, no blank frames, no dead clicks, a designed phone layout, a keyboard palette, accessible overlays, AA contrast in light and dark), and give the four non-clinical surfaces the owner named a bolder, choreographed showcase. Throughout, every lab value, range, disclaimer and citation stays still and traceable to its source. Ship it as small, file-disjoint rows whose order keeps `main` coherent at every merge.
+**Goal.** Bring the whole frontend to SaaS-grade craft (instant feedback, no blank frames, no dead clicks, a designed phone layout, a keyboard palette, accessible overlays, AA contrast in light and dark), and give the four non-clinical surfaces the owner named a bolder, choreographed showcase. Throughout, every lab value, range, disclaimer and citation stays still and traceable to its source. Ship it as small, file-disjoint rows ordered to reduce how half-migrated `main` looks between merges; the owner accepted that risk ("Higher risk of a half-migrated look").
 
 **Owner direction** (2026-10-23, verbatim in [owner-direction.md](../research/2026-10-23-frontend-revamp/owner-direction.md) and owner-decisions row UI-DIRECTION): the frontend "should be engaging, modern, active like how SaaS has smooth UI/UX experiences with animations & more enganging UI … Be ambitious".
 
@@ -31,9 +31,20 @@ Queue rows: [queue.md, "Planned 2026-10-23, frontend revamp"](2026-10-15-build-p
 | UI-DARK-MODE | **"Follow OS setting"** | "Ship dark mode on, following the operating system, once every page is migrated." |
 | UI-SAFETY-TOGGLE | **"Make it real"** | "Keep a toggle and wire it to real behaviour. Needs backend changes near ask-first safety modules and a separate plan." |
 
+**Prompt 45 (L0 AskUserQuestion, 2026-10-23; L0 evidence comment 6374428087 on PR #311),** same format:
+
+| Id | Answer | Option description (verbatim) |
+|---|---|---|
+| UI-DEPS | **"Keep framer-motion 10"** | "No major bump: build the motion system on framer-motion 10 (it also has LazyMotion and reduced-motion support); still add the other listed packages." |
+| UI-FIXTURE-NAME | **"Replace with fixture"** | "Replace it with a fixture name (e.g. "Alex Rivera") in the patch, proposal text and screenshots (re-captured or cropped)." |
+
+UI-DEPS means: `framer-motion` stays at ^10.18, `motion` 14 is not adopted, and the other packages of [§5](#5-dependencies-and-bundle-budgets) are approved as listed; any other major comes back to the owner. The designers' proposals in the research package still describe `motion` 14 as they wrote it.
+
 **L0 readings (L0's words, not the owner's), used by this plan:**
 - UI-SAAS-MEANING: "Lab values and safety copy stay still" covers values, ranges, units, dates, disclaimers, citations and verification text. The one exception is one explanatory first reveal per analyte per session (the Range Ribbon draw), which is value-blind.
-- UI-SCOPE-1031: the token remap and the shell land first, each page migrates completely inside its own row, and no row leaves a page half in the old look and half in the new.
+- UI-SCOPE-1031: the token remap and the shell land first and each page migrates completely inside its own row. Between merges `main` still mixes migrated and unmigrated pages, and an unmigrated page's layout shows the new global tokens and primitives: this is the accepted half-migrated risk the option text names, reduced by the order, not removed.
+- UI-SAAS-MEANING, stillness: a T0 element never sits inside an animated wrapper (M6, M7, S1). On a route whose first paint has T0 content the route change is instant (M0), lists of T0 items render without M6, and showcase entrances wrap only non-T0 content. Gate G10's stillness probe enforces it.
+- UI-SAAS-MEANING, onboarding: the create-profile form counts as first-run onboarding (a showcase surface); the recovery-code step does not, and stays still.
 - UI-DARK-MODE: until UI-DARK-FLIP merges, the product renders light whatever the OS says. There is no Preview toggle. The flip is gated on a test that finds no unmigrated colour.
 - UI-SAFETY-TOGGLE: the toggle is not designed yet. SAFETY-MODE-REAL researches concrete behaviours and turns them into an owner question; the build waits on that answer plus an ask-first yes. Until then the toggle stays, relabelled so it does not imply that it does anything ([§3.6](#36-the-safety-rail-and-the-safety-toggle-until-safety-mode-real)).
 
@@ -49,11 +60,11 @@ How much a thing may move goes down as its clinical weight goes up. Proposal B's
 
 | Tier | Covers | Allowed | Never |
 |---|---|---|---|
-| **T0 Data and safety** | lab values, ranges, units, dates, verification text, disclaimers, citations, the Safety Rail, consent and break-glass copy, error text | nothing after first paint. Exception: the Range Ribbon's one value-blind draw per analyte per session (M10) | count-ups, colour pulses, emphasis motion on out-of-range values, hover-only disclosure |
-| **T1 Structure** | pages, cards, lists | enter only: M6, M7 (from opacity .35, never invisible) | exit animations on routes, `AnimatePresence mode="wait"` |
+| **T0 Data and safety** | lab values, ranges, units, dates, verification text, disclaimers, citations, the Safety Rail, consent and break-glass copy, error text, adherence figures (the ring renders final) | nothing after first paint, including no ancestor that fades or moves (G10). Exception: the Range Ribbon's one value-blind draw per analyte per session (M10, on the plot, not on its text). The Ink marker glyph is T3; the value beside it is T0 | count-ups, colour pulses, emphasis motion on out-of-range values, hover-only disclosure |
+| **T1 Structure** | pages, cards, lists | enter only: M6, M7 (from opacity .35, never invisible), and only on containers with no T0 descendant | exit animations on routes, `AnimatePresence mode="wait"` |
 | **T2 Chrome and controls** | buttons, nav, sheets, popovers, toasts, tabs | M1-M5, M8, M9, M11-M13; press feedback within one frame | animation on keyboard-initiated or 100+/day actions (palette, keyboard chart moves, focus rings) |
 | **T3 Moments** | Ink (verify), Source Trace highlight, Lift (unlock) | the recipes named in [§4.1](#41-signature-moments) only, triggered by the user's own action | bounce on anything near a value; celebration |
-| **S Showcase** | first-run onboarding (Overview checklist, profile setup), document import/processing, empty states, the About page | S1-S4 ([§2.6](#26-motion-tokens-and-recipes)) | any T0 element inside a showcase surface (a value, a disclaimer) moves; sound; confetti; parallax; scroll-jacking; 3D |
+| **S Showcase** | first-run onboarding (Overview checklist; the create-profile form, an L0 reading; not the recovery-code step), document import/processing, empty states, the About page | S1-S4 ([§2.6](#26-motion-tokens-and-recipes)) | any T0 element inside a showcase surface (a value, a disclaimer) moves; sound; confetti; parallax; scroll-jacking; 3D |
 
 ### 2.2 Colour tokens and contrast (proposal A)
 
@@ -137,7 +148,7 @@ CSS custom properties in `globals.css`, mirrored in `fe/motion/tokens.ts`. One e
 | `--dur-ink` | 360 ms | Ink (verify) |
 | `--dur-draw` | 640 ms | Range Ribbon first reveal only |
 | `--dur-show` | 480 ms | Showcase entrances (S tier only) |
-| springs (Motion) | `snappy {visualDuration .22, bounce 0}` | sheet snap, drag release; no bounce anywhere else |
+| springs (framer-motion 10) | `snappy {type: 'spring', duration: 0.22, bounce: 0}` (`duration` and `bounce` exist in framer-motion 10.18.0 `dist/index.d.ts`:454 and :473; `visualDuration` does not exist in 10.x) | sheet snap, drag release; no bounce anywhere else |
 | stagger | 40 ms, cap 6, first view per session (T1); 60 ms, cap 8 (S tier) | lists |
 
 | Code | Recipe | Reduced motion |
@@ -148,20 +159,20 @@ CSS custom properties in `globals.css`, mirrored in `fe/motion/tokens.ts`. One e
 | M3 | popover: opacity + `scale(.96→1)` from the Radix transform origin, 180 ms; exit 120 ms | opacity only |
 | M4 | dialog: opacity + `scale(.97→1)`, 320 ms; scrim 200 ms; exit 200 ms | opacity 150 ms |
 | M5 | sheet: `translateY(100%)→0` (phone) / `translateX` (desktop side), 320 ms drawer curve | opacity 150 ms |
-| M6 | list enter: opacity .35→1 + 6 px rise, 240 ms, stagger 40 ms cap 6, first view per session | opacity 120 ms, no stagger |
-| M7 | route enter: opacity .35→1 + 6 px rise, 240 ms, **no exit**, keyed by pathname | opacity .35→1, 120 ms |
+| M6 | list enter: opacity .35→1 + 6 px rise, 240 ms, stagger 40 ms cap 6, first view per session; never on a list of T0 items | opacity 120 ms, no stagger |
+| M7 | route enter: opacity .35→1 + 6 px rise, 240 ms, **no exit**, keyed by pathname; only on routes whose first paint has no T0 element, otherwise M0 | opacity .35→1, 120 ms |
 | M8 | state morph: label crossfade 180 ms ("Copy" → "Copied") | opacity only |
 | M9 | indicator: one element moved by a CSS transition, 240 ms (nav pill, tab underline); jumps for keyboard | opacity 120 ms |
 | M10 | draw: `clip-path: inset(0 100% 0 0)→inset(0)` 640 ms, points .6→1 at 40 ms intervals; once per analyte per session; value-blind | none (final frame) |
 | M11 | toast: sonner transitions, swipe to dismiss | sonner reduced (opacity) |
 | M12 | progress: determinate `scaleX` 240 ms; indeterminate opacity breathing 1.6 s | breathing continues (loaders never freeze) |
 | M13 | expand: `grid-template-rows 0fr→1fr` 240 ms + opacity | instant, opacity 120 ms |
-| **S1** | choreographed entrance: groups rise 12 px + opacity 0→1, 480 ms ease-out, stagger 60 ms cap 8, first visit per session (sessionStorage, wrapped in try/catch) | opacity 150 ms, no stagger |
+| **S1** | choreographed entrance (wraps non-T0 groups only): groups rise 12 px + opacity 0→1, 480 ms ease-out, stagger 60 ms cap 8, first visit per session (sessionStorage, wrapped in try/catch) | opacity 150 ms, no stagger |
 | **S2** | beam: a CSS conic-gradient stroke masked to the card border (`@property --beam-angle`), 2.4 s linear loop, colours from `--accent`, `--accent-ink`, `--band`; runs only while a real process runs (extraction), or as the single accent on the About page; fades out 240 ms when done | static 1 px `--accent` border plus the status text |
 | **S3** | thinking orb: `thinking-orbs` `ThinkingOrb` (lazy), `theme="auto"` (follows `data-theme`), canvas `aria-hidden`, always beside a `role="status"` text such as "Reading page 2 of 3" | the library's static frame |
 | **S4** | hero draw (About only): an SVG ribbon illustration over **labelled example data** ("Example data, not yours") drawn once by clip-path, 1.2 s | final frame |
 
-Global rules: transform, opacity and clip-path only (plus M13's sanctioned `grid-template-rows`); `transition-all` banned; focus rings never transition; `MotionConfig reducedMotion="user"` plus per-recipe fallbacks replace the blanket `* { animation-duration: .01ms !important }` kill-switch (which also froze spinners); `useReducedMotion` reads synchronously so the first render honours the preference; nothing that plays during navigation uses Motion's `x`/`y`/`scale` shorthands (main-thread); no number ever tweens.
+Global rules: transform, opacity and clip-path only (plus M13's sanctioned `grid-template-rows`); `transition-all` banned; focus rings never transition; `MotionConfig reducedMotion="user"` (framer-motion 10.18.0 `dist/index.d.ts`:3583, prop :1658, values `"always" | "never" | "user"` :1632) plus per-recipe fallbacks replace the blanket `* { animation-duration: .01ms !important }` kill-switch (which also froze spinners); the repo's `useReducedMotion` hook reads `matchMedia` synchronously so the first render honours the preference (framer-motion's own `useReducedMotion`, :4636, returns `boolean | null`); nothing that plays during navigation uses framer-motion's `x`/`y`/`scale` shorthands (main-thread); no number ever tweens.
 
 ---
 
@@ -236,8 +247,8 @@ Refused: confetti or celebration on verify or adherence (the `BadgeToast` `anima
 
 | Surface | Row | What moves | What stays still |
 |---|---|---|---|
-| First-run onboarding: **Overview** checklist (Import → Review values → See results) | UI-OVERVIEW | S1 entrance of the checklist cards; the next step's card carries S2 while it is the one to do | the counts and any value shown later ("3 values waiting for review" is T0 text) |
-| First-run onboarding: **profile setup** and the recovery-code step | UI-PG-AUTH (gated) | S1 entrance of the form groups; no fake progress | the recovery code, the acknowledgement checkbox, every warning |
+| First-run onboarding: **Overview** checklist (Import → Review values → See results) | UI-OVERVIEW | S1 entrance of the checklist cards; the next step is marked in words ("Next step") with a static accent border (S2 marks a running process only, so it is not used here) | the counts and any value shown later ("3 values waiting for review" is T0 text) |
+| First-run onboarding: the **create-profile form** (L0 reading) | UI-PG-AUTH (layout and motion gated by UI-AUTH-SCREENS) | S1 entrance of the form groups; no fake progress | the recovery-code step (no S1 at all), the code, the acknowledgement checkbox, every warning |
 | **Document import/processing** | UI-PG-DOCUMENTS | S2 beam on the card of a document being extracted; S3 orb (20 px) beside the status line "Reading page 2 of 3"; the import → review handoff (new rows enter with M6) | extracted values, confidence words, error messages (FE-IMPORT-ERROR's alert), the scanned-page warning (IMPORT-SCANNED-PAGE) |
 | **Empty states** (every page) | UI-SHOWCASE-KIT (`EmptyState`), used by each page row | S1 entrance of the illustration, sentence and one action | — |
 | **About page** for the demo | UI-ABOUT | S1 sections; S4 hero ribbon over labelled example data; S2 on the single call to action; S3 (64 px) beside "How it reads a report" | the safety statement, the local-first statement, the "not medical advice" text |
@@ -248,11 +259,11 @@ Not showcase surfaces: Results, Review values, Ask, Medications, Doctor summary,
 
 ## 5. Dependencies and bundle budgets
 
-Versions, licences and React peers re-read with `npm view` by the L0 planner on 2026-10-23 unless marked; sizes are the designers' measurements.
+Versions, licences and React peers re-read with `npm view` by the L0 planner on 2026-10-23 unless marked; sizes are the designers' measurements unless marked. **Owner UI-DEPS (prompt 45): "Keep framer-motion 10".** Nothing below is a major bump: `framer-motion` stays on 10, React and the dropdown move within their major, and the rest are new packages the owner approved as listed. Any other major comes back to the owner.
 
 | Package | Version | Licence | gzip | Decision |
 |---|---|---|---|---|
-| `motion` (replaces `framer-motion` 10.18) | 14.6.0 | MIT, peer react `^18 \|\| ^19` | 9.4 kB sync (`LazyMotion` + `m` + `MotionConfig` + `AnimatePresence`) + 18.3 kB async `domAnimation` (A, vite build) | adopt (UI-MOTION) |
+| `framer-motion` (kept, owner UI-DEPS) | ^10.18.0 (as today) | MIT | 9.5 kB sync for `LazyMotion` + `m` + `MotionConfig` + `AnimatePresence` + `useReducedMotion`; 19.4 kB for `domAnimation` (async); 37.1 kB for the full `motion` component used today. Planner measurement, 2026-10-23: esbuild 0.27.2 `--minify`, React external, `gzip -9`, each entry bundled alone, so code shared between them is counted in both | keep; every `motion.*` moves to `m.*` under `LazyMotion` (UI-MOTION). `motion` 14 is **not** adopted: `motion@14.6.0` depends on `framer-motion@14.6.0`, a major the owner declined |
 | `react`, `react-dom` | 18.2 → **18.3.1** (last 18.x; latest is 19.3.1) | MIT | — | bump only; React 19 later as its own row (both designers) |
 | `@radix-ui/react-dialog` / `-popover` / `-tabs` / `-switch` / `-checkbox` / `-select` | 1.3.1 / 1.3.1 / 1.2.1 / 1.4.1 / 1.4.1 / 2.4.1 | MIT | combined +13.9 (B) to +21.4 kB (A) over today's dropdown; Select 32.5 alone, lazy pages only | adopt |
 | `@radix-ui/react-dropdown-menu` | 2.0.6 → 2.2.1 | MIT | present | bump |
@@ -260,7 +271,7 @@ Versions, licences and React peers re-read with `npm view` by the L0 planner on 
 | `sonner` | 2.0.8 | MIT | 9.4-9.6 | adopt |
 | `cmdk` | 1.1.1 | MIT | 5.6 kB lazy chunk (A) | adopt, lazy, with the DF-5 fix |
 | `thinking-orbs` | 0.3.2 | MIT, peer react `>=18`, no runtime deps, no network code (grep of `dist/` for `fetch`/URLs: 0) | 11.2 kB (B, esbuild), lazy | adopt on showcase surfaces only (S3) |
-| `border-beam` | 1.4.1 | MIT | 12.5-12.8 | **effect adopted, package not**: `colorVariant` is only `colorful` / `mono` / `ocean` / `sunset` with a hue shift by default (its README), none in our teal, and its rotate types need manual reduced-motion wiring. S2 is a ~40-line CSS reimplementation in token colours, 0 kB JS |
+| `border-beam` | 1.4.1 | MIT | 12.5-12.8 | **effect adopted, package not**: `colorVariant` is one of 8 fixed palettes (`colorful`, `mono`, `ocean`, `sunset`, `forest`, `candy`, `ice`, `gold`; `dist/index.d.ts:32`; the README lists only the first four), none bound to our tokens, with a hue shift by default, and its rotate types need manual reduced-motion wiring. S2 is a ~40-line CSS reimplementation in token colours, 0 kB JS |
 | `recharts` | 3.9.1 | MIT | 105.2 kB lazy chunk today | remove (UI-CHART-CLEANUP) |
 | `@axe-core/playwright` | 4.14.0 | MPL-2.0, dev only | — | via AXE-E2E (owner TEST-DEV-DEPS (a)) |
 | Rejected | `lenis` 1.3.27 (nested scrollers, zoom, magnifiers); GSAP (second engine); three / `@react-three/fiber` 9.8.2 (needs react `>=19 <19.4`; no clinical gain); `react-aria-components` 1.22.1, `@ark-ui/react` 5.39.3 (a second primitive system); `vaul` 1.1.2 (last publish 2024-12-14); Aceternity (licence); Spline (CDN runtime; self-host is Enterprise-only); Canvas UI (Commons Clause); Morphin (reference only, never copy Pro code); Bencho (licence unverified, reference only) | | | — |
@@ -269,7 +280,7 @@ Versions, licences and React peers re-read with `npm view` by the L0 planner on 
 
 | Budget | Limit (gz) | Basis |
 |---|---|---|
-| main JS chunk | **≤ 165 kB** | A measured 160.4 with `LazyMotion strict` + lazy Inbox/Verify/Settings/Results |
+| main JS chunk | **≤ 165 kB** | A measured 160.4 kB with **`motion` 14**, `LazyMotion strict` and lazy Inbox/Verify/Settings/Results. For framer-motion 10 this is an **estimate, not a measurement**: the sync LazyMotion set measures 9.5 kB on 10.18 against A's 9.4 kB on 14.6, so the planner expects about 160-161 kB; UI-ROUTES measures the real Vite build |
 | any route chunk (excluding shared vendor) | ≤ 30 kB | A |
 | Results route total (main + route + chart) | ≤ 205 kB | B; today 289.7 |
 | palette chunk | ≤ 8 kB | A (measured 5.6) |
@@ -293,7 +304,8 @@ Versions, licences and React peers re-read with `npm view` by the L0 planner on 
 | G6 | no horizontal scroll at 390×844 **and** 320×640 | `documentElement.scrollWidth <= innerWidth` |
 | G7 | zero console errors; no request to a non-localhost origin (local-first) | `consoleAndNetworkGuard()` |
 | G8 | `npx tsc --noEmit`, `npm run build`, `npx vitest run` (count and delta; from Windows or CI per RUNBOOK §6.5), the row's Playwright spec | — |
-| G9 (from UI-SHELL on) | the Safety Rail is in the viewport at opacity 1 at first paint and after each interaction; contextual disclaimers and citations visible without hover | `safetyVisible()` |
+| G9 (from UI-SHELL on) | the Safety Rail is in the viewport at effective opacity 1 at first paint and after each interaction; contextual disclaimers and citations visible without hover | `safetyVisible()` |
+| G10 | stillness: every `[data-t0]` element (values, ranges, units, dates, verification text, disclaimers, citations, the Safety Rail) keeps the same `getBoundingClientRect()` (±0.5 px) and an **effective opacity** of 1 (the product of its own and every ancestor's computed opacity) in samples every 16-40 ms for 800 ms after each navigation and interaction. T0 components set `data-t0` | `stillnessProbe()` |
 
 Frontend e2e uses `page.route` mocks typed from `fe/services/types.ts` (`e2e/support/mockApi.ts`). Anything that asserts auth, session or status-code behaviour runs against the real backend through HTTP (`e2e/support/start-backend.mjs`), as CLAUDE.md §4 requires. Existing tests may have selectors or labels updated when markup changes; no assertion is removed or loosened (CLAUDE.md §3). Before claiming done, each row re-reads [recurring-failures.md](../agentic/recurring-failures.md); #1 (a test that could not fail) is why every new check below names its RED state, and #12 (a gate merged beside PRs built before it) is why L0 runs UI-BUDGET's check and UI-TOKENS' contrast test on `origin/main` before merging the next group.
 
@@ -312,9 +324,9 @@ Frontend e2e uses `page.route` mocks typed from `fe/services/types.ts` (`e2e/sup
 
 ## 7. Rows
 
-**Ordering rule (UI-SCOPE-1031, L0 reading).** Waves are dependency layers (queue rule 3): every row is queued now and starts when its own dependencies have merged. Foundation (tokens, motion, theme) and primitives restyle every page at once; the shell then wraps every page; each page row then migrates one page completely (layout, primitives, overlays, empty state, dark-safe colours, its own tests). At any merge point every page is either fully old-layout-in-new-tokens or fully migrated, never a mix inside one page.
+**Ordering rule (UI-SCOPE-1031, L0 reading).** Waves are dependency layers (queue rule 3): every row is queued now and starts when its own dependencies have merged. Foundation (tokens, motion, theme) and primitives restyle every page at once; the shell then wraps every page; each page row then migrates one page completely (layout, primitives, overlays, empty state, dark-safe colours, its own tests). The aim is that each page is either in its old layout with the new tokens and primitives, or fully migrated. This is not a guarantee: between merges `main` mixes migrated and unmigrated pages, and an unmigrated page shows the new primitives inside its old layout. That is the half-migrated risk the owner accepted with "Full plan, no freeze".
 
-**File ownership rules.** `src/frontend/package.json` and `package-lock.json`: UI-MOTION, UI-BUDGET (scripts line), UI-CHART-CLEANUP only, never beside AXE-E2E or another `package.json` PR. `fe/App.tsx`: UI-ROUTES, UI-PG-RESULTS, UI-OVERVIEW, UI-ABOUT, in different waves. `fe/components/ui/index.ts`: UI-PRIM-CONTROLS only (other primitives are imported by path). `fe/components/layout/navConfig.ts`: UI-SHELL, UI-PG-RESULTS, UI-OVERVIEW, UI-MICRO, in different waves. New tests go in new files named after the row, so two rows rarely share a test file.
+**File ownership rules.** `src/frontend/package.json` and `package-lock.json`: UI-MOTION, UI-BUDGET (scripts line), UI-CHART-CLEANUP only, never beside AXE-E2E or another `package.json` PR. `fe/App.tsx`: UI-ROUTES, UI-PG-RESULTS, UI-OVERVIEW, UI-ABOUT, in different waves. `fe/components/ui/index.ts`: UI-PRIM-CONTROLS only (other primitives are imported by path). `fe/components/layout/navConfig.ts`: UI-SHELL, UI-PG-RESULTS, UI-OVERVIEW, UI-MICRO, in different waves. `e2e/tailwind4-styles.spec.ts` (owner row TW4-VISUAL, `owner-decisions-2026-09-27.md:73`): UI-TOKENS (TW4-RECOVER border and placeholder, TW4-INBOX body background) and UI-SHELL (TW4-INBOX `aside h1` colour), each a declared contract change that keeps the computed-style check and updates only the value its row changes. `e2e/routing.spec.ts`: UI-SHELL (nav label), UI-PG-RESULTS (Trends heading), UI-OVERVIEW (E2E-ROUTE-001 redirect and heading), UI-MICRO (any remaining h1 renamed to its nav name), in different waves; UI-PG-DOCUMENTS keeps the h1 "Document Inbox" so it does not touch the spec. `fe/__tests__/Gamification.test.tsx`: UI-PG-MEDS, then UI-PG-SETTINGS (which therefore runs after it). `fe/__tests__/RecoveryCodeCard.test.tsx` (it tests the settings card): UI-PG-SECURITY. New tests go in new files named after the row, so two rows rarely share a test file.
 
 ### 7.1 Summary
 
@@ -323,7 +335,7 @@ Frontend e2e uses `page.route` mocks typed from `fe/services/types.ts` (`e2e/sup
 | 0 | [UI-GATES](#ui-gates--the-acceptance-harness-every-ui-row-uses) | AXE-E2E | — | P1 | 3 |
 | 0 | [SAFETY-MODE-REAL](#safety-mode-real--research-concrete-behaviours-for-the-safety-toggle-and-turn-them-into-an-owner-question) | — | UI-SAFETY-TOGGLE answered; produces SAFETY-MODE-BEHAVIOUR | P2 | 3 |
 | 1 | [UI-TOKENS](#ui-tokens--remap-the-colour-type-and-motion-tokens-so-every-page-passes-aa) | UI-GATES | — | P1 | 3 |
-| 1 | [UI-MOTION](#ui-motion--framer-motion-10--motion-14-react-1831-and-the-new-dependencies) | AXE-E2E; never beside the MVP rows on shared files | — | P1 | 4 |
+| 1 | [UI-MOTION](#ui-motion--the-motion-system-on-framer-motion-10-lazymotion--m-react-1831-and-the-new-dependencies) | AXE-E2E; never beside the MVP rows on shared files | UI-DEPS answered "Keep framer-motion 10" | P1 | 4 |
 | 1 | [UI-THEME](#ui-theme--theme-resolution-light-until-the-flip-and-the-missing-favicon) | — | UI-DARK-MODE answered | P1 | 1.5 |
 | 2 | [UI-ROUTES](#ui-routes--lazy-routes-and-an-error-boundary-per-route) | UI-MOTION | — | P1 | 2 |
 | 2 | [UI-PRIM-CONTROLS](#ui-prim-controls--button-iconbutton-fields-switch-tabs-card) | UI-TOKENS, UI-MOTION | — | P1 | 3 |
@@ -344,11 +356,11 @@ Frontend e2e uses `page.route` mocks typed from `fe/services/types.ts` (`e2e/sup
 | 5 | [UI-PG-CARE](#ui-pg-care--follow-ups) | UI-SHELL, UI-SHOWCASE-KIT | — | P2 | 2 |
 | 5 | [UI-PG-RECORDS](#ui-pg-records--timeline-search-pinboards) | UI-SHELL, UI-SHOWCASE-KIT, UI-PALETTE | — | P2 | 3 |
 | 5 | [UI-PG-EXPORT](#ui-pg-export--doctor-summary) | UI-SHELL, UI-SHOWCASE-KIT | — | P2 | 2.5 |
-| 5 | [UI-PG-SETTINGS](#ui-pg-settings--settings-split-into-sections) | UI-SHELL, UI-SHOWCASE-KIT; never beside DON-COPY-V3 | — | P2 | 5 |
+| 6 | [UI-PG-SETTINGS](#ui-pg-settings--settings-split-into-sections) | UI-PG-MEDS (`Gamification.test.tsx`), UI-SHELL, UI-SHOWCASE-KIT; never beside DON-COPY-V3 | — | P2 | 5 |
 | 6 | [UI-CHART-CLEANUP](#ui-chart-cleanup--delete-the-recharts-chart-and-the-dependency) | UI-PG-RESULTS | — | P2 | 1.5 |
-| 6 | [UI-OVERVIEW](#ui-overview--overview-landing-with-the-first-run-checklist) | UI-PG-RESULTS (App.tsx), UI-PG-DOCUMENTS | — | P1 | 3 |
-| 6 | [UI-PG-SECURITY](#ui-pg-security--profile--security-section-gated) | UI-PG-SETTINGS, MVP-REAUTH-401 | **UI-AUTH-SCREENS** (new) | P2 | 3 |
-| 6 | [UI-PG-AUTH](#ui-pg-auth--setup-unlock-card-and-recovery-gated) | SESSION-REENTRY Task 1, UI-SHOWCASE-KIT, UI-SHELL | **UI-AUTH-SCREENS** (new) | P1 | 3 |
+| 6 | [UI-OVERVIEW](#ui-overview--overview-landing-with-the-first-run-checklist) | UI-PG-RESULTS (App.tsx, `routing.spec.ts`), UI-PG-DOCUMENTS | — | P1 | 3 |
+| 7 | [UI-PG-SECURITY](#ui-pg-security--profile--security-section-gated) | UI-PG-SETTINGS, MVP-REAUTH-401 | UI-AUTH-SCREENS (new; planner reading of CLAUDE.md §1) | P2 | 3 |
+| 6 | [UI-PG-AUTH](#ui-pg-auth--setup-unlock-card-and-recovery-gated) | SESSION-REENTRY Task 1, UI-SHOWCASE-KIT, UI-SHELL | UI-AUTH-SCREENS (new; planner reading of CLAUDE.md §1) | P1 | 3 |
 | 7 | [UI-ABOUT](#ui-about--the-about-page-for-the-demo) | UI-OVERVIEW (App.tsx), UI-RIBBON, UI-SHOWCASE-KIT | UI-ABOUT-PLACE (open, non-blocking) | P1 | 3 |
 | 8 | [UI-MICRO](#ui-micro--press-target-and-copy-sweep) | every wave 5-7 row | — | P2 | 3 |
 | 9 | [UI-DARK-FLIP](#ui-dark-flip--dark-mode-follows-the-os-once-no-unmigrated-colour-remains) | every `UI-*` row above (UI-PG-SECURITY / UI-PG-AUTH in any UI-AUTH-SCREENS outcome) | UI-DARK-MODE answered | P2 | 2 |
@@ -359,18 +371,19 @@ Frontend e2e uses `page.route` mocks typed from `fe/services/types.ts` (`e2e/sup
 
 #### UI-GATES — the acceptance harness every UI row uses
 
-**Files:** `e2e/support/gates.ts` (new: `axeGate`, `setTheme`, `noHorizontalScroll`, `measureCls`, `maxEventDuration` (CDP CPU ×4), `reducedMotionSnapshot`, `routeOpacitySamples`, `consoleAndNetworkGuard`, `safetyVisible`), `e2e/support/mockApi.ts` (new; `page.route` fixtures typed from `fe/services/types.ts`, the seeded values of the UI review: glucose 92/104/118/101 against 70–99 mg/dL, LDL 142, HbA1c 6.1), `e2e/ui-gates.spec.ts` (new), `src/frontend/playwright.config.ts` (an `HC_E2E_BASE_URL` override for `vite preview` runs, nothing else), `e2e/README.md` (new).
+**Files:** `e2e/support/gates.ts` (new: `axeGate`, `setTheme`, `noHorizontalScroll`, `measureCls`, `maxEventDuration` (CDP CPU ×4), `reducedMotionSnapshot`, `routeOpacitySamples`, `consoleAndNetworkGuard`, `safetyVisible`, `stillnessProbe`), `e2e/support/mockApi.ts` (new; `page.route` fixtures typed from `fe/services/types.ts`, the seeded values of the UI review: glucose 92/104/118/101 against 70–99 mg/dL, LDL 142, HbA1c 6.1), `e2e/ui-gates.spec.ts` (new), `src/frontend/playwright.config.ts` (an `HC_E2E_BASE_URL` override for `vite preview` runs, nothing else), `e2e/README.md` (new).
 **Depends on:** AXE-E2E merged (adds `@axe-core/playwright`). **Gate:** none.
 
 | Id | Check | RED today? |
 |---|---|---|
-| HC-UIG-001 | `noHorizontalScroll` on `/trends` at 390 fails (scrollWidth 588–1,077); marked `test.fail()` with the reason until UI-SHELL removes the mark | yes, by design (proves the helper can fail) |
+| HC-UIG-001 | `noHorizontalScroll` fails on a fixture page (`page.setContent`) with a 600 px-wide block at 390, and passes on a fitting one (today's real overflow on `/trends` is each page row's G6, not a mark here) | GREEN (self-test that the helper can fail) |
 | HC-UIG-002 | `axeGate` on `/inbox` reports `color-contrast`; `test.fail()` until UI-TOKENS | yes, by design |
 | HC-UIG-003 | `routeOpacitySamples` after a nav click records a sample < 0.3 (today 0.00); `test.fail()` until UI-SHELL | yes, by design |
 | HC-UIG-004 | `consoleAndNetworkGuard` fails a page that requests `https://example.com` (fixture via `page.setContent`) | GREEN (self-test) |
 | HC-UIG-005 | `maxEventDuration` returns a finite number for a click on `/setup` under CPU ×4 | GREEN (self-test) |
+| HC-UIG-006 | `stillnessProbe` fails on a fixture `[data-t0]` child of a container that fades from opacity .35, fails on one inside a parent that translates 6 px, and passes on one outside both (it reads ancestor opacity and the bounding rect, not the element's own style) | GREEN (self-test that the probe can fail) |
 
-**Acceptance:** the five ids with output; the harness runs with the mock API and no backend; the README lists every helper and when to use the real backend. **Est:** 3 h. **MVP:** P1.
+**Acceptance:** the six ids with output; the harness runs with the mock API and no backend; the README lists every helper and when to use the real backend. **Est:** 3 h. **MVP:** P1.
 
 #### SAFETY-MODE-REAL — research concrete behaviours for the safety toggle and turn them into an owner question
 
@@ -393,7 +406,7 @@ Frontend e2e uses `page.route` mocks typed from `fe/services/types.ts` (`e2e/sup
 
 #### UI-TOKENS — remap the colour, type and motion tokens so every page passes AA
 
-**Files:** `fe/styles/globals.css` (the [§2.2](#22-colour-tokens-and-contrast-proposal-a) tokens, light and dark; aliases for `status-success`, `status-danger`, `muted-foreground`; type scale with body 17 px and the 13 px floor; motion tokens; `--z-toast`/`--z-modal`; font fallback metric overrides; focus ring with no transition; the blanket reduced-motion kill-switch replaced by `--motion-distance: 0` plus per-recipe rules, so loaders keep breathing; unused `glass-card`, `subtle-noise`, `stagger-animation`, `animation-delay-*` and the six dead `dark-*` tokens deleted), `fe/components/ui/Card.tsx` (`bg-white/80 backdrop-blur-xl` → `bg-surface-elevated`, nothing else), `fe/__tests__/ui-tokens.test.ts` (new), `e2e/ui-tokens.spec.ts` (new), `e2e/ui-gates.spec.ts` (remove the `test.fail()` mark on HC-UIG-002 only).
+**Files:** `fe/styles/globals.css` (the [§2.2](#22-colour-tokens-and-contrast-proposal-a) tokens, light and dark; aliases for `status-success`, `status-danger`, `muted-foreground`; type scale with body 17 px and the 13 px floor; motion tokens; `--z-toast`/`--z-modal`; font fallback metric overrides; focus ring with no transition; the blanket reduced-motion kill-switch replaced by `--motion-distance: 0` plus per-recipe rules, so loaders keep breathing; unused `glass-card`, `subtle-noise`, `stagger-animation`, `animation-delay-*` and the six dead `dark-*` tokens deleted), `fe/components/ui/Card.tsx` (`bg-white/80 backdrop-blur-xl` → `bg-surface-elevated`, nothing else), `fe/__tests__/ui-tokens.test.ts` (new), `e2e/ui-tokens.spec.ts` (new), `e2e/ui-gates.spec.ts` (remove the `test.fail()` mark on HC-UIG-002 only), `e2e/tailwind4-styles.spec.ts` (TW4-RECOVER border and placeholder values, TW4-INBOX body background: a declared contract change; the computed-style checks owner row TW4-VISUAL asked for stay, with the new token values).
 **Depends on:** UI-GATES. **Gate:** none.
 
 | Id | Check | RED today? |
@@ -407,19 +420,19 @@ Frontend e2e uses `page.route` mocks typed from `fe/services/types.ts` (`e2e/sup
 
 **Acceptance:** G (G1 light; dark contrast is covered by HC-UITK-001 until each page row runs G1 dark). L0 runs HC-UITK-001 on `origin/main` after merge (recurring-failures #12). **Est:** 3 h. **MVP:** P1.
 
-#### UI-MOTION — framer-motion 10 → motion 14, React 18.3.1 and the new dependencies
+#### UI-MOTION — the motion system on framer-motion 10 (LazyMotion + m), React 18.3.1 and the new dependencies
 
-**Files:** `src/frontend/package.json`, `src/frontend/package-lock.json` (add `motion@14.6.0`, `@radix-ui/react-dialog@1.3.1`, `-popover@1.3.1`, `-tabs@1.2.1`, `-switch@1.4.1`, `-checkbox@1.4.1`, `-select@2.4.1`, `sonner@2.0.8`, `cmdk@1.1.1`, `thinking-orbs@0.3.2`; bump `@radix-ui/react-dropdown-menu` to 2.2.1, `react`/`react-dom` to 18.3.1, `@types/react`/`@types/react-dom` to 18.3.x; remove `framer-motion`; exact versions, re-read with `npm view` at build time), `fe/motion/tokens.ts`, `fe/motion/MotionProvider.tsx`, `fe/motion/features.ts` (new; `LazyMotion strict` with async `domAnimation`, `MotionConfig reducedMotion="user"`), `fe/main.tsx` (wrap in `MotionProvider`), `fe/components/ui/Motion.tsx` (rewrite on `m`; delete `PageTransition` and `modalVariants`), `fe/hooks/useReducedMotion.ts` (synchronous initial read), and the mechanical import swap (`framer-motion` → `motion/react`, `motion.*` → `m.*`) in `fe/components/lab-interpreter/InterpretedResultCard.tsx`, `PanelInterpretationDashboard.tsx`, `fe/components/layout/AppLayout.tsx`, `Sidebar.tsx`, `fe/components/medication-coach/BadgeToast.tsx`, `DoseLoggingModal.tsx`, `MedicationCard.tsx`, `fe/pages/DocumentInbox.tsx`, `ExplainAssistant.tsx`, `ExportPage.tsx`, `LabInterpreter.tsx`, `MedicationDetail.tsx`, `ProfileSetup.tsx`, `SettingsPage.tsx`, `TrendsDashboard.tsx`, `VerificationWorkbench.tsx` (import and element-name lines only), and the test mocks in `fe/__tests__/setup.ts`, `Accessibility.test.tsx`, `ChartExport.test.tsx`, `ExplainAssistant.test.tsx`, `ExplainAssistantHistoryRestore.test.tsx`, `ExportPage.test.tsx`, `ExternalApiBreakGlassWarning.test.tsx`, `Gamification.test.tsx`, `InterpretedResultCard.test.tsx`, `LabInterpreter.test.tsx`, `PageImageOverlay.test.tsx` (mock target only), plus `fe/__tests__/ui-motion.test.tsx` (new), `e2e/ui-motion.spec.ts` (new).
-**Depends on:** AXE-E2E merged (`package.json`). **Never beside** SESSION-REENTRY Task 1 (`ProfileSetup.tsx`), FE-IMPORT-ERROR and IMPORT-SCANNED-PAGE (`DocumentInbox.tsx`), FE-VERIFY-NUMERIC (`VerificationWorkbench.tsx`), FE-EXPLAIN-ERR and BADGE-TICK (`ExplainAssistant.tsx` and its test); L0 order: those MVP rows first (each ≤ 1.5 h), then this row merges `origin/main`. **Gate:** none.
+**Files:** `src/frontend/package.json`, `src/frontend/package-lock.json` (keep `framer-motion` at ^10.18.0, no major bump (owner UI-DEPS); add `@radix-ui/react-dialog@1.3.1`, `-popover@1.3.1`, `-tabs@1.2.1`, `-switch@1.4.1`, `-checkbox@1.4.1`, `-select@2.4.1`, `sonner@2.0.8`, `cmdk@1.1.1`, `thinking-orbs@0.3.2`; bump `@radix-ui/react-dropdown-menu` to 2.2.1, `react`/`react-dom` to 18.3.1, `@types/react`/`@types/react-dom` to 18.3.x (all within their major); exact versions, re-read with `npm view` at build time), `fe/motion/tokens.ts`, `fe/motion/MotionProvider.tsx`, `fe/motion/features.ts` (new; `LazyMotion strict` with async `domAnimation`, `MotionConfig reducedMotion="user"`; each API checked in framer-motion 10.18.0 `dist/index.d.ts`: `LazyMotion` :3673 with `strict` :3635 and an async `features` loader type :3585, `m` :3457, `domAnimation` :4383, `MotionConfig` :3583 with `reducedMotion` :1658, `useReducedMotion` :4636, `AnimatePresence` :3557), `fe/main.tsx` (wrap in `MotionProvider`), `fe/components/ui/Motion.tsx` (rewrite on `m`; delete `PageTransition` and `modalVariants`), `fe/hooks/useReducedMotion.ts` (synchronous initial read), and the mechanical swap (`motion.*` → `m.*`; imports stay `from 'framer-motion'`) in `fe/components/lab-interpreter/InterpretedResultCard.tsx`, `PanelInterpretationDashboard.tsx`, `fe/components/layout/AppLayout.tsx`, `Sidebar.tsx`, `fe/components/medication-coach/BadgeToast.tsx`, `DoseLoggingModal.tsx`, `MedicationCard.tsx`, `fe/pages/DocumentInbox.tsx`, `ExplainAssistant.tsx`, `ExportPage.tsx`, `LabInterpreter.tsx`, `MedicationDetail.tsx`, `ProfileSetup.tsx`, `SettingsPage.tsx`, `TrendsDashboard.tsx`, `VerificationWorkbench.tsx` (import and element-name lines only), and the test mocks in `fe/__tests__/setup.ts`, `Accessibility.test.tsx`, `ChartExport.test.tsx`, `ExplainAssistant.test.tsx`, `ExplainAssistantHistoryRestore.test.tsx`, `ExportPage.test.tsx`, `ExternalApiBreakGlassWarning.test.tsx`, `Gamification.test.tsx`, `InterpretedResultCard.test.tsx`, `LabInterpreter.test.tsx`, `PageImageOverlay.test.tsx` (mock target only), plus `fe/__tests__/ui-motion.test.tsx` (new), `e2e/ui-motion.spec.ts` (new).
+**Depends on:** AXE-E2E merged (`package.json`). **Gate:** UI-DEPS answered "Keep framer-motion 10" (owner prompt 45). **Never beside** SESSION-REENTRY Task 1 (`ProfileSetup.tsx`), FE-IMPORT-ERROR and IMPORT-SCANNED-PAGE (`DocumentInbox.tsx`), FE-VERIFY-NUMERIC (`VerificationWorkbench.tsx`), FE-EXPLAIN-ERR and BADGE-TICK (`ExplainAssistant.tsx` and its test); L0 order: those MVP rows first (each ≤ 1.5 h), then this row merges `origin/main`.
 
 | Id | Check | RED today? |
 |---|---|---|
-| HC-UIMO-001 | no `from 'framer-motion'` anywhere under `src/` (grep test) | yes (28 files) |
+| HC-UIMO-001 | no `motion` component is imported from `framer-motion` and no `<motion.` element exists under `src/` outside `fe/motion/` (grep test); `package.json` still pins `framer-motion` 10.x and has no `motion` package | yes (17 source files use `motion.*`) |
 | HC-UIMO-002 | with `matchMedia` mocked to `reduce`, the **first** render of a `FadeIn` has no transform | yes (the hook starts `false`) |
 | HC-UIMO-003 | each route renders under `LazyMotion strict` without throwing (a `motion.*` left behind throws) | yes until the swap |
 | HC-UIMO-004 | e2e: on `/setup` under reduced motion, no non-identity transform at 60 ms | yes (y-offset kept, `ProfileSetup.tsx:172-184`) |
 
-**Acceptance:** G (G4: main ≤ 180.0 reported; ≤ 165 is reached with UI-ROUTES); the whole vitest suite green (Motion v11 moved the post-mount render to a microtask, so tests that assert immediately may need an animation-frame await; no assertion is removed); `npm ls react` shows 18.3.1. **Est:** 4 h. **MVP:** P1.
+**Acceptance:** G (G4: main ≤ 180.0 reported; ≤ 165 is expected with UI-ROUTES, see §5); the whole vitest suite green with no assertion removed; `npm ls react` shows 18.3.1 and `npm ls framer-motion` 10.x. **Est:** 4 h. **MVP:** P1.
 
 #### UI-THEME — theme resolution, light until the flip, and the missing favicon
 
@@ -447,11 +460,11 @@ Frontend e2e uses `page.route` mocks typed from `fe/services/types.ts` (`e2e/sup
 | HC-UIRT-001 | a route element that throws renders the boundary ("This page hit a problem" plus a working link to Documents), not a white screen | yes |
 | HC-UIRT-002 | HC-ROUTE-001 and HC-ROUTE-002 still pass unchanged | GREEN (pin) |
 
-**Acceptance:** G; the build output lists separate `DocumentInbox-*`, `VerificationWorkbench-*` and `SettingsPage-*` chunks and main ≤ 165 kB gz (A measured 160.4 with UI-MOTION's `m` swap plus this splitting). **Est:** 2 h. **MVP:** P1.
+**Acceptance:** G; the build output lists separate `DocumentInbox-*`, `VerificationWorkbench-*` and `SettingsPage-*` chunks and main ≤ 165 kB gz (A measured 160.4 kB with `motion` 14 plus this splitting; this row measures the framer-motion 10 build and records the number in the PR). **Est:** 2 h. **MVP:** P1.
 
 #### UI-PRIM-CONTROLS — Button, IconButton, fields, Switch, Tabs, Card
 
-**Files:** `fe/components/ui/Button.tsx` (`loading` prop replacing 69 inline `Loader2`s over time, `link` variant, danger on `--on-status`, `transition-property: transform, background-color, color`, M1 press, no hover lift), `ui/IconButton.tsx` (new; `aria-label` required by type; ≥ 44 px), `ui/Input.tsx` (`focus-visible`, `line-strong`, error clears when the `error` prop clears), `ui/Select.tsx`, `ui/Textarea.tsx`, `ui/Checkbox.tsx`, `ui/Switch.tsx`, `ui/Tabs.tsx` (new; Radix), `ui/Card.tsx` (variants `plain` / `interactive` / `inset`), `ui/index.ts` (exports; stops re-exporting Motion helpers so the barrel does not pull Motion into every importer), `fe/__tests__/ui-controls.test.tsx` (new). **Depends on:** UI-TOKENS, UI-MOTION. **Gate:** none.
+**Files:** `fe/components/ui/Button.tsx` (`loading` prop replacing the 49 inline `<Loader2` JSX uses over time, `link` variant, danger on `--on-status`, `transition-property: transform, background-color, color`, M1 press, no hover lift), `ui/IconButton.tsx` (new; `aria-label` required by type; ≥ 44 px), `ui/Input.tsx` (`focus-visible`, `line-strong`, error clears when the `error` prop clears), `ui/Select.tsx`, `ui/Textarea.tsx`, `ui/Checkbox.tsx`, `ui/Switch.tsx`, `ui/Tabs.tsx` (new; Radix), `ui/Card.tsx` (variants `plain` / `interactive` / `inset`), `ui/index.ts` (exports; stops re-exporting Motion helpers so the barrel does not pull Motion into every importer), `fe/__tests__/ui-controls.test.tsx` (new). **Depends on:** UI-TOKENS, UI-MOTION. **Gate:** none.
 
 | Id | Check | RED today? |
 |---|---|---|
@@ -497,7 +510,7 @@ Frontend e2e uses `page.route` mocks typed from `fe/services/types.ts` (`e2e/sup
 
 #### UI-SHELL — responsive shell, grouped nav, tab bar, Safety Rail, honest toggle
 
-**Files:** `fe/components/layout/AppLayout.tsx` (grid shell; `AnimatePresence mode="wait"` removed; M7 keyed by pathname; skip link; mounts `AppToaster`; bottom padding for tab bar and rail), `Sidebar.tsx` (groups, prefix match, M9 CSS indicator replacing the `layoutId` spring, brand as `<span>`), `TopBar.tsx` (the existing search form restyled, `SafetyModeToggle`, profile menu on phones), `MobileTabBar.tsx`, `MoreSheet.tsx`, `SafetyRail.tsx`, `SafetyModeToggle.tsx`, `ProfileMenu.tsx`, `BrandMark.tsx`, `navConfig.ts` (all new), `layout/index.ts`; `fe/__tests__/ui-shell.test.tsx` (new), `e2e/ui-shell.spec.ts` (new), `e2e/routing.spec.ts` (nav label `Trends` → `Results` only), `e2e/ui-routes-verification.spec.ts` (nav labels only; file from E2E-UIFULL-CI), `e2e/ui-gates.spec.ts` (remove the `test.fail()` marks on HC-UIG-001 and HC-UIG-003).
+**Files:** `fe/components/layout/AppLayout.tsx` (grid shell; `AnimatePresence mode="wait"` removed; M7 keyed by pathname; skip link; mounts `AppToaster`; bottom padding for tab bar and rail), `Sidebar.tsx` (groups, prefix match, M9 CSS indicator replacing the `layoutId` spring, brand as `<span>`), `TopBar.tsx` (the existing search form restyled, `SafetyModeToggle`, profile menu on phones), `MobileTabBar.tsx`, `MoreSheet.tsx`, `SafetyRail.tsx`, `SafetyModeToggle.tsx`, `ProfileMenu.tsx`, `BrandMark.tsx`, `navConfig.ts` (all new), `layout/index.ts`; `fe/__tests__/ui-shell.test.tsx` (new), `e2e/ui-shell.spec.ts` (new), `e2e/routing.spec.ts` (nav label `Trends` → `Results` only), `e2e/ui-routes-verification.spec.ts` (nav labels only; file from E2E-UIFULL-CI), `e2e/ui-gates.spec.ts` (remove the `test.fail()` mark on HC-UIG-003 only), `e2e/tailwind4-styles.spec.ts` (TW4-INBOX: the `aside h1` colour check moves to the brand `<span>` with its new colour; a declared contract change under TW4-VISUAL).
 **Depends on:** UI-PRIM-CONTROLS, UI-PRIM-OVERLAYS, UI-PRIM-FEEDBACK, UI-THEME merged; E2E-UIFULL-CI merged (its spec is edited). **Gate:** UI-SAFETY-TOGGLE answered; the toggle wording of [§3.6](#36-the-safety-rail-and-the-safety-toggle-until-safety-mode-real) ships now and SAFETY-LABEL-WORDING (open, non-blocking) may change it in a one-line follow-up.
 
 | Id | Check | RED today? |
@@ -596,13 +609,13 @@ Every page row: rebuild the page on the primitives; replace its hand-built overl
 
 **Files:** `fe/pages/ResultsPage.tsx` (new), `fe/pages/TrendsDashboard.tsx` (delete), `fe/pages/LabInterpreter.tsx` (delete; folded in), `fe/pages/index.ts`, `fe/App.tsx` (`/results`; `/trends` and `/interpret` redirect), `fe/components/layout/navConfig.ts` (Results → `/results`; Interpret entry removed), `fe/components/lab-interpreter/InterpretedResultCard.tsx`, `PanelInterpretationDashboard.tsx`, `AdviceSection.tsx` ("Questions you could ask your clinician"), `DisclaimerBanner.tsx` (`role="note"`, never animated), `ReferenceRangeComparison.tsx` (renders `RangeTick`), `fe/__tests__/TrendsDashboard.test.tsx` and `LabInterpreter.test.tsx` (ported to `ResultsPage` as `fe/__tests__/ResultsPage.test.tsx`; every assertion kept), `InterpretedResultCard.test.tsx` (selectors only), `fe/__tests__/ui-results.test.tsx` (new), `e2e/ui-results.spec.ts` (new), `e2e/routing.spec.ts` (heading only).
 **Depends on:** UI-RIBBON, UI-PROVENANCE, UI-SHOWCASE-KIT, UI-SHELL, UI-BUDGET; GAUGE-ZERO-WIDTH merged, or closed by L0 as superseded (its HC-GZW cases live on as HC-UIRR-008). **Gate:** none.
-**Layout:** proposal A's (chart card with the analyte list beside it on desktop; on phones a compact header, the analyte chip scroller as a labelled focusable region, then the chart). Panel tabs filter the list (fixes "CBC" showing Glucose). The dead "Last 12 Months" and "Filters" become one real range select or are deleted. "Explain this result" shows the interpretation card with its DisclaimerBanner and citations. PNG/SVG export kept.
+**Motion:** the route change into Results is M0 (its first paint has values); the analyte list has no M6. **Layout:** proposal A's (chart card with the analyte list beside it on desktop; on phones a compact header, the analyte chip scroller as a labelled focusable region, then the chart). Panel tabs filter the list (fixes "CBC" showing Glucose). The dead "Last 12 Months" and "Filters" become one real range select or are deleted. "Explain this result" shows the interpretation card with its DisclaimerBanner and citations. PNG/SVG export kept.
 
 | Id | Check | RED today? |
 |---|---|---|
 | HC-UIRES-001 | `/trends` and `/interpret` redirect to `/results`, keeping `?analyte=` | yes |
 | HC-UIRES-002 | selecting the CBC panel lists only CBC analytes | yes (shows Glucose) |
-| HC-UIRES-003 | the contextual disclaimer is in the DOM at first paint at opacity 1, and the Safety Rail is visible, before any interaction | yes (no disclaimer on `/trends`) |
+| HC-UIRES-003 | the contextual disclaimer, the Safety Rail and every value on the page are in the DOM at first paint and pass `stillnessProbe` from the first sample after navigation (effective opacity 1, fixed rect) | yes (no disclaimer on `/trends`; the route fades today) |
 | HC-UIRES-004 | (DF-4) at 390×844, ≥ 200 px of the plot is in the first viewport above the tab bar and the rail | yes in proposal A's prototype |
 | HC-UIRES-005 | no control on the page lacks a handler (the old "Last 12 Months"/"Filters" are gone or work) | yes |
 | HC-UIRES-006 | PNG and SVG export still produce a file (ported `ChartExport` cases) | GREEN (pin, ported) |
@@ -613,7 +626,7 @@ Every page row: rebuild the page on the primitives; replace its hand-built overl
 
 **Files:** `fe/pages/DocumentInbox.tsx`, `fe/components/documents/CategoryBadge.tsx` (delete; no importer), `ExtractionConfidenceBadge.tsx` (words first, shown only below the threshold), `HighlightChips.tsx` (Tags, max 2 + "+N"), `fe/__tests__/DocumentInbox.test.tsx` (selectors only), `fe/__tests__/ui-documents.test.tsx` (new), `e2e/ui-documents.spec.ts` (new). `EntityDetailView.tsx` belongs to UI-PG-REVIEW.
 **Depends on:** UI-SHELL, UI-SHOWCASE-KIT, UI-PROVENANCE; FE-IMPORT-ERROR merged; never beside IMPORT-SCANNED-PAGE (same page): whichever lands second merges `origin/main` and keeps the other's tests green (HC-FIE-001…003, HC-ISP-004). **Gate:** none.
-**Showcase:** S2 on the card of a document being extracted, S3 (20 px) beside "Reading page N of M" (text from the existing processing state), M6 for new rows, then the handoff "N values ready to review" linking to Review values. Row actions are always visible (no hover-only); preview is a Sheet; `window.confirm` becomes AlertDialog.
+**Showcase:** S2 on the card of a document being extracted, S3 (20 px) beside "Reading page N of M" (text from the existing processing state), M6 for new rows, then the handoff "N values ready to review" linking to Review values. The page h1 stays "Document Inbox" here (UI-MICRO renames it), so this row does not touch `e2e/routing.spec.ts`. Row actions are always visible (no hover-only); preview is a Sheet; `window.confirm` becomes AlertDialog.
 
 | Id | Check | RED today? |
 |---|---|---|
@@ -633,7 +646,7 @@ Every page row: rebuild the page on the primitives; replace its hand-built overl
 | Id | Check | RED today? |
 |---|---|---|
 | HC-UIREV-001 | an out-of-range value carries an icon and the words, not colour alone (WCAG 1.4.1) | yes |
-| HC-UIREV-002 | verifying flips the marker from pencil to ink in the row, the chart and the chip together; the value text has no transform at any sampled frame | yes |
+| HC-UIREV-002 | verifying flips the marker from pencil to ink in the row, the chart and the chip together; the value text passes `stillnessProbe` throughout the Ink animation | yes |
 | HC-UIREV-003 | the Edit dialog is labelled, traps focus, Escape closes; HC-FVN-001…005 still pass | yes for the dialog; pins for FVN |
 | HC-UIREV-004 | no fixed `grid-cols-3` overflow at 390 and 320 (G6) | yes |
 
@@ -643,7 +656,7 @@ Every page row: rebuild the page on the primitives; replace its hand-built overl
 
 **Files:** `fe/pages/ExplainAssistant.tsx`, `fe/__tests__/ExplainAssistant.test.tsx` and `ExplainAssistantHistoryRestore.test.tsx` (selectors only), `fe/__tests__/ui-ask.test.tsx` (new), `e2e/ui-ask.spec.ts` (new).
 **Depends on:** UI-SHELL, UI-PROVENANCE, UI-SHOWCASE-KIT; FE-EXPLAIN-ERR and BADGE-TICK merged (same file; their HC-FEE and HC-BTK tests stay green). **Gate:** none.
-**Spec:** the message list is its own focusable scroll region; the disclaimer sits under the composer, always visible; citation chips use the popover from UI-PROVENANCE; the pending state is `Pending` text "Reading your verified results…" (no orb: Ask is not a showcase surface); new messages enter with M6; filter date inputs labelled; feedback thumbs are 44 px `IconButton`s with `aria-pressed`.
+**Spec:** the message list is its own focusable scroll region; the disclaimer sits under the composer, always visible; citation chips use the popover from UI-PROVENANCE; the pending state is `Pending` text "Reading your verified results…" (no orb: Ask is not a showcase surface); the patient's own message enters with M6, while assistant answers (values and citations, T0) appear without motion; filter date inputs labelled; feedback thumbs are 44 px `IconButton`s with `aria-pressed`.
 
 | Id | Check | RED today? |
 |---|---|---|
@@ -651,12 +664,13 @@ Every page row: rebuild the page on the primitives; replace its hand-built overl
 | HC-UIASK-002 | the disclaimer under the composer is in the viewport at 390 and 1440 without scrolling | yes |
 | HC-UIASK-003 | axe: `scrollable-region-focusable`, `label`, `button-name` pass | yes |
 | HC-UIASK-004 | no `canvas` and no `ThinkingOrb` on the page | GREEN (pin for the tier rule) |
+| HC-UIASK-005 | a new answer's values and citations pass `stillnessProbe` from the first sample after they render | yes |
 
 **Acceptance:** G. **Est:** 4 h. **MVP:** P1.
 
 #### UI-PG-MEDS — Medications, reminders tab, dose sheet
 
-**Files:** `fe/pages/MedicationCoach.tsx` (tabs Medications / Reminders via `?tab=`), `fe/pages/MedicationDetail.tsx`, `fe/pages/NotificationSettings.tsx` (becomes a redirect to `/medications?tab=reminders`; its content moves into a `RemindersPanel` inside `fe/components/medication-coach/`), `fe/components/medication-coach/*` (MedicationCard as a real link; DoseLoggingModal → Sheet/Dialog; BadgeToast → `notify()` with no `animate-ping`; AchievementsWidget and AdherenceDashboard on tokens; the adherence ring draws once or renders final), `fe/components/MedicationOverlay.tsx` (router `Link` instead of `<a href>`), `fe/__tests__/NotificationSettingsPage.test.tsx`, `Gamification.test.tsx` (selectors only; this row owns `Gamification.test.tsx` in wave 5), `fe/__tests__/ui-meds.test.tsx` (new), `e2e/ui-meds.spec.ts` (new).
+**Files:** `fe/pages/MedicationCoach.tsx` (tabs Medications / Reminders via `?tab=`), `fe/pages/MedicationDetail.tsx`, `fe/pages/NotificationSettings.tsx` (becomes a redirect to `/medications?tab=reminders`; its content moves into a `RemindersPanel` inside `fe/components/medication-coach/`), `fe/components/medication-coach/*` (MedicationCard as a real link; DoseLoggingModal → Sheet/Dialog; BadgeToast → `notify()` with no `animate-ping`; AchievementsWidget and AdherenceDashboard on tokens; the adherence ring renders final, with no draw, because adherence figures are T0), `fe/components/MedicationOverlay.tsx` (router `Link` instead of `<a href>`), `fe/__tests__/NotificationSettingsPage.test.tsx`, `Gamification.test.tsx` (selectors only; this row owns `Gamification.test.tsx` in wave 5, and UI-PG-SETTINGS follows it), `fe/__tests__/ui-meds.test.tsx` (new), `e2e/ui-meds.spec.ts` (new).
 **Depends on:** UI-SHELL, UI-SHOWCASE-KIT. **Gate:** none; MED-BADGES is open and non-blocking: the row keeps the badges as they are, static, behind the existing streaks setting (C-GAM2B `streaks_hidden`).
 
 | Id | Check | RED today? |
@@ -706,8 +720,8 @@ Done and ignore are optimistic with a toast offering Undo (the care-task API has
 
 #### UI-PG-SETTINGS — Settings split into sections
 
-**Files:** `fe/pages/SettingsPage.tsx` (section host with Tabs, `?section=`), `fe/pages/settings/PreferencesSection.tsx`, `AssistantPrivacySection.tsx`, `AdvancedSection.tsx`, `SecuritySection.tsx` (new; the security section renders today's `RecoveryCodeCard`, `BackupCard`, `DangerZone` unchanged, which UI-PG-SECURITY restyles), `fe/components/MemoryManager.tsx`, `fe/components/settings/AgentSettingsCard.tsx` (Switch), `TierCapabilities.tsx` (honest copy, 13 px floor), `DataDonationCard.tsx` (Switch + AlertDialog; `CONSENT_TEXT_VERSION` and consent text unchanged), `ExternalApiBreakGlassWarning.tsx` (token restyle only; text, role and visibility unchanged, D12), the settings tests for those components (selectors only), `fe/__tests__/ui-settings.test.tsx` (new), `e2e/ui-settings.spec.ts` (new).
-**Depends on:** UI-SHELL, UI-SHOWCASE-KIT; never beside DON-COPY-V3 (`DataDonationCard.tsx`). **Gate:** none (auth and encryption cards are left to UI-PG-SECURITY).
+**Files:** `fe/pages/SettingsPage.tsx` (section host with Tabs, `?section=`), `fe/pages/settings/PreferencesSection.tsx`, `AssistantPrivacySection.tsx`, `AdvancedSection.tsx`, `SecuritySection.tsx` (new; the security section renders today's `RecoveryCodeCard`, `BackupCard`, `DangerZone` unchanged, which UI-PG-SECURITY restyles), `fe/components/MemoryManager.tsx`, `fe/components/settings/AgentSettingsCard.tsx` (Switch), `TierCapabilities.tsx` (honest copy, 13 px floor), `DataDonationCard.tsx` (Switch + AlertDialog; `CONSENT_TEXT_VERSION` and consent text unchanged), `ExternalApiBreakGlassWarning.tsx` (token restyle only; text, role and visibility unchanged, D12), the settings tests for those components (selectors only), `fe/__tests__/Gamification.test.tsx` (the streaks-switch cases, selectors only), `fe/__tests__/ui-settings.test.tsx` (new), `e2e/ui-settings.spec.ts` (new).
+**Wave 6** (listed with the page rows): **Depends on:** UI-PG-MEDS (it owns `Gamification.test.tsx` in wave 5), UI-SHELL, UI-SHOWCASE-KIT; never beside DON-COPY-V3 (`DataDonationCard.tsx`). **Gate:** none (auth and encryption cards are left to UI-PG-SECURITY).
 
 | Id | Check | RED today? |
 |---|---|---|
@@ -734,20 +748,20 @@ Done and ignore are optimistic with a toast offering Undo (the care-task API has
 
 #### UI-OVERVIEW — Overview landing with the first-run checklist
 
-**Files:** `fe/pages/OverviewPage.tsx` (new), `fe/App.tsx` (index → `/overview`), `fe/components/layout/navConfig.ts` (Overview entry and phone tab), `fe/__tests__/Routing.test.tsx` (HC-ROUTE-001 expects `/overview`: a contract change from this plan), `fe/__tests__/ui-overview.test.tsx` (new), `e2e/ui-overview.spec.ts` (new). **Depends on:** UI-PG-RESULTS (`App.tsx`, navConfig), UI-PG-DOCUMENTS. **Gate:** none.
-**Spec:** built from existing queries only. Before the first import: the Import → Review values → See results checklist with S1 and S2 on the current step, each a working link. Afterwards: "N values waiting for review", latest results as static text with StatusChips, next dose, each linking to its page.
+**Files:** `fe/pages/OverviewPage.tsx` (new), `fe/App.tsx` (index → `/overview`), `fe/components/layout/navConfig.ts` (Overview entry and phone tab), `fe/__tests__/Routing.test.tsx` (HC-ROUTE-001 expects `/overview`: a contract change from this plan), `e2e/routing.spec.ts` (E2E-ROUTE-001's redirect target and heading only, the same contract change), `fe/__tests__/ui-landing.test.tsx` (new), `e2e/ui-landing.spec.ts` (new). **Depends on:** UI-PG-RESULTS (`App.tsx`, navConfig), UI-PG-DOCUMENTS. **Gate:** none.
+**Spec:** built from existing queries only. Before the first import: the Import → Review values → See results checklist with S1 on the cards (the counts and values sit outside the S1 wrapper); the current step is marked "Next step" in words with a static accent border; each step is a working link. Afterwards: "N values waiting for review", latest results as static text with StatusChips, next dose, each linking to its page.
 
 | Id | Check | RED today? |
 |---|---|---|
-| HC-UIOVW-001 | with no documents, the checklist renders three working links; the current step has the beam | yes |
-| HC-UIOVW-002 | with data, counts equal the API's; values are static (no transform at any sampled frame) | yes |
-| HC-UIOVW-003 | the unknown-path redirect and the index both land on `/overview` | yes |
+| HC-UILAND-001 | with no documents, the checklist renders three working links; the current step reads "Next step" and has no animation running | yes |
+| HC-UILAND-002 | with data, counts equal the API's; every count and value passes `stillnessProbe` after navigation and through the S1 entrance | yes |
+| HC-UILAND-003 | the unknown-path redirect and the index both land on `/overview` | yes |
 
 **Acceptance:** G. **Est:** 3 h. **MVP:** P1.
 
 #### UI-PG-SECURITY — Profile & security section (gated)
 
-**Files:** `fe/components/settings/BackupCard.tsx`, `DangerZone.tsx`, `fe/components/settings/RecoveryCodeCard.tsx`, `fe/pages/settings/SecuritySection.tsx`, `fe/__tests__/DangerZone.test.tsx`, `BackupRestoreFlow.test.tsx` (selectors only), `fe/__tests__/ui-security.test.tsx` (new), `e2e/ui-security.spec.ts` (new; real backend through HTTP). **Depends on:** UI-PG-SETTINGS; MVP-REAUTH-401 merged (same tests; its HC-RA4 cases stay green). **Gate:** **UI-AUTH-SCREENS** (new). If the owner picks "colours only", the row shrinks to the raw-colour swap needed by UI-DARK-FLIP.
+**Files:** `fe/components/settings/BackupCard.tsx`, `DangerZone.tsx`, `fe/components/settings/RecoveryCodeCard.tsx`, `fe/pages/settings/SecuritySection.tsx`, `fe/__tests__/DangerZone.test.tsx`, `BackupRestoreFlow.test.tsx`, `RecoveryCodeCard.test.tsx` (it tests this settings card; selectors only), `fe/__tests__/ui-security.test.tsx` (new), `e2e/ui-security.spec.ts` (new; real backend through HTTP). **Wave 7** (UI-PG-SETTINGS moved to wave 6). **Depends on:** UI-PG-SETTINGS; MVP-REAUTH-401 merged (same tests; its HC-RA4 cases stay green). **Gate:** UI-AUTH-SCREENS (new; planner reading of CLAUDE.md §1). The token and raw-colour swap happens in every outcome; the answer decides only the layout change. If the owner picks "No layout change", the row is just that swap.
 **Spec:** primitives only; the typed-phrase delete stays (no hold-to-confirm); restore and delete confirmations become AlertDialogs; requests, copy of warnings and the order of steps unchanged.
 
 | Id | Check | RED today? |
@@ -760,7 +774,7 @@ Done and ignore are optimistic with a toast offering Undo (the care-task API has
 
 #### UI-PG-AUTH — setup, unlock card and recovery (gated)
 
-**Files:** `fe/pages/ProfileSetup.tsx` (the SESSION-REENTRY unlock card restyled; the Lift moment; S1 entrance of the create form; errors clear when fixed; the fake `setTimeout(500)` progress removed; the unlinked "Terms of Service" sentence removed), `fe/pages/RecoverProfile.tsx`, `fe/components/profile/RecoveryCodeCard.tsx` (code in 4-character groups that never wrap mid-group; warning in `--caution`), `fe/__tests__/ProfileSetup.test.tsx`, `RecoverProfile.test.tsx`, `RecoveryCodeCard.test.tsx` (selectors only), `fe/__tests__/ui-auth.test.tsx` (new), `e2e/ui-auth.spec.ts` (new; real backend). **Depends on:** SESSION-REENTRY Task 1 merged (its HC-SRE-001…004 stay green), UI-SHELL, UI-SHOWCASE-KIT. **Gate:** **UI-AUTH-SCREENS** (new).
+**Files:** `fe/pages/ProfileSetup.tsx` (the SESSION-REENTRY unlock card restyled; the Lift moment; S1 entrance of the create form only, never on the recovery-code step; errors clear when fixed; the fake `setTimeout(500)` progress removed; the unlinked "Terms of Service" sentence removed), `fe/pages/RecoverProfile.tsx`, `fe/components/profile/RecoveryCodeCard.tsx` (code in 4-character groups that never wrap mid-group; warning in `--caution`), `fe/__tests__/ProfileSetup.test.tsx`, `RecoverProfile.test.tsx` (selectors only), `fe/__tests__/ui-auth.test.tsx` (new), `e2e/ui-auth.spec.ts` (new; real backend). **Depends on:** SESSION-REENTRY Task 1 merged (its HC-SRE-001…004 stay green), UI-SHELL, UI-SHOWCASE-KIT. **Gate:** UI-AUTH-SCREENS (new; planner reading of CLAUDE.md §1): its answer decides the layout, the S1 entrance and the Lift; the token and raw-colour swap happens in every outcome.
 
 | Id | Check | RED today? |
 |---|---|---|
@@ -781,7 +795,7 @@ Done and ignore are optimistic with a toast offering Undo (the care-task API has
 | Id | Check | RED today? |
 |---|---|---|
 | HC-UIABT-001 | `/about` renders without a profile and makes no API request | yes |
-| HC-UIABT-002 | the "not medical advice" and local-first statements are static (no transform or opacity change at any sampled frame) | yes |
+| HC-UIABT-002 | the "not medical advice" and local-first statements pass `stillnessProbe` through the whole S1 sequence (they sit outside S1 wrappers) | yes |
 | HC-UIABT-003 | the example chart is labelled as example data in text | yes |
 | HC-UIABT-004 | G7: no request to a non-localhost origin | yes |
 
@@ -808,7 +822,7 @@ Done and ignore are optimistic with a toast offering Undo (the care-task API has
 | HC-UIDRK-001 | a source scan of `fe/**/*.{ts,tsx}` and `fe/styles/*.css` outside the token block finds no unmigrated colour: `bg-white`, `text-white`, `bg-black`, `text-black`, `(bg\|text\|border\|ring\|fill\|stroke)-(gray\|slate\|zinc\|neutral\|stone\|red\|orange\|amber\|yellow\|lime\|green\|emerald\|teal\|cyan\|sky\|blue\|indigo\|violet\|purple\|fuchsia\|pink\|rose)-\d+`, arbitrary hex in class names (`[#…]`), hex or `rgb(` literals in `style` or SVG attributes; **no allowlist** | yes on `7749744` (the PR pastes the failing count from a checkout of that commit) |
 | HC-UIDRK-002 | e2e: with `colorScheme: 'dark'`, every route (the 15, Overview, About, setup, recover) has `data-theme="dark"` and axe 0 serious/critical | — |
 | HC-UIDRK-003 | e2e: in dark, no visible element larger than 40×40 px has a computed background with relative luminance > 0.8 (catches a leftover white card) | — |
-| HC-UIDRK-004 | e2e: with `colorScheme: 'light'` nothing changes from today's light screenshots (pixel diff below 0.5 % per route) | — |
+| HC-UIDRK-004 | e2e: with `colorScheme: 'light'` nothing changes from `origin/main`'s light screenshots taken at this row's merge base, just before the flip (pixel diff below 0.5 % per route) | — |
 
 **Acceptance:** G on every route in both themes. **Est:** 2 h. **MVP:** P2. If HC-UIDRK-001 finds anything, the fix belongs to the row that owns that file; the flip waits.
 
@@ -855,13 +869,14 @@ Tasks 1 and 2 of SESSION-REENTRY are unchanged, with their gates (SESSION-REENTR
 
 | # | Risk | Mitigation |
 |---|---|---|
-| R1 | **Time.** 30 rows, 8 days to the demo, and "no freeze" (owner) | the ordering rule keeps `main` coherent at every merge; P0/P1 first; nothing is promised for 2026-10-31 beyond what merges |
-| R2 | UI-MOTION touches 28 files, several shared with ready MVP rows | MVP P0/P1 rows on those files go first (each ≤ 1.5 h); the swap is mechanical and was proven in proposal A's prototype (vitest 273/275, both failures intended contract changes) |
+| R1 | **Time and a half-migrated look.** 30 rows, 8 days to the demo, and "no freeze" (owner, who accepted "Higher risk of a half-migrated look") | the order reduces the mixed look but does not remove it; P0/P1 first; nothing is promised for 2026-10-31 beyond what merges |
+| R2 | UI-MOTION touches 28 files, several shared with ready MVP rows | MVP P0/P1 rows on those files go first (each ≤ 1.5 h); the `m` swap is mechanical. Proposal A proved it on `motion` 14 (vitest 273/275); on framer-motion 10.18 the same APIs exist (typings cited in the row) but the swap and its bundle size are unmeasured until the row runs |
 | R3 | A gate row (UI-TOKENS' contrast test, UI-BUDGET) merges beside rows built before it | L0 runs the new gate on `origin/main` before merging the next group (recurring-failures #12) |
 | R4 | Dark mode looks broken on any page with a leftover raw colour | it stays off until UI-DARK-FLIP, whose source scan has no allowlist |
 | R5 | The custom chart loses Recharts behaviours (tooltips, resize edge cases, export) | the Ribbon has a table fallback, keeps PNG/SVG export (ported tests), and is ~250 lines in both prototypes |
-| R6 | Owner expectation: "bold showcase" could drift onto clinical pages | the Motion Gradient is the review checklist; HC-UIASK-004, HC-UIOVW-002 and HC-UIABT-002 pin the stillness of T0 content inside and beside showcase surfaces |
-| R7 | The Ink moment animates a marker on a lab value (L0 reading that this is allowed as T3: the marker, not the value, after the user's own action) | the value text never moves (HC-UIREV-002); the owner can veto (open question INK-MOMENT) |
+| R6 | Owner expectation: "bold showcase" could drift onto clinical pages | the Motion Gradient is the review checklist; G10's stillness probe (HC-UIG-006 proves it can fail) runs on every route, and HC-UIRES-003, HC-UILAND-002, HC-UIABT-002, HC-UIREV-002 and HC-UIASK-005 pin it where showcase or moment motion sits next to T0 content |
+| R7 | The Ink moment animates a marker on a lab value (L0 reading that this is allowed as T3: the marker, not the value, after the user's own action) | the value text passes the stillness probe (HC-UIREV-002); the owner can veto (open question INK-MOMENT) |
+| R12 | Clinical routes no longer fade in (G10 makes their route change M0), which is less "smooth" than both prototypes | the shell, sheets, palette and showcase surfaces carry the motion; an L0 reading of "Lab values and safety copy stay still" the owner can revisit |
 | R8 | The relabelled toggle could still be read as safety being off | the visible note says the standard checks always run; HC-UISH-006 pins it; SAFETY-LABEL-WORDING lets the owner choose another wording |
 | R9 | IA renames break muscle memory, docs and capstone screenshots | old routes redirect; names are one file; open question UI-NAV-NAMES |
 | R10 | `thinking-orbs` is a 0.x package | MIT, no runtime dependencies or network code; isolated behind `ThinkingOrb`, lazy, on two routes; replacing it is one file |
@@ -875,7 +890,7 @@ None of these is answered. L0 numbers and asks them; the owner's words are recor
 
 **Execution gates (a row waits for the answer):**
 
-- **UI-AUTH-SCREENS** (UI-PG-AUTH, UI-PG-SECURITY). "The sign-in and recovery screens, and the backup, restore and delete-profile cards in Settings, would get the new look: same requests, same steps, same warning text. Should the revamp restyle them?" Options: "Full restyle" (new layout and primitives; the unlock card gets the short lift on success; the recovery code is grouped so it never wraps mid-group). "Colours only" (only the colour classes change, so dark mode works; layout stays as today). "Leave as today" (these screens keep today's look; dark mode then waits until they are handled). Tradeoffs: these screens protect access to encrypted records, so any change is reviewed against today's request sequence; "Leave as today" keeps dark mode off. Analogy: repainting the front door versus only changing its colour.
+- **UI-AUTH-SCREENS** (UI-PG-AUTH, UI-PG-SECURITY). **Planner reading of CLAUDE.md §1** ("ALWAYS ask before touching … anything auth/encryption"), not an owner instruction; L0 decides whether and when to ask. Whatever the answer, UI-TOKENS, UI-PRIM-CONTROLS and UI-MOTION already change these screens (colours, buttons, inputs, import lines), and their raw colours become tokens, so dark mode is never blocked. The question covers only what is left: "The sign-in, recovery, backup, restore and delete-profile screens already get the new colours and controls. Should they also get the new layout, the entrance motion on the create-profile form, and the short 'lift' when you unlock? Requests, steps and warning text stay the same." Options: "Layout, motion and Lift" (new layout; the create-profile form enters with S1; the unlock card lifts away on success; the recovery-code step stays still). "Layout only" (new layout; no entrance motion and no Lift). "No layout change" (today's layout with the new colours and controls). Tradeoffs: these screens protect access to encrypted records, so any change is reviewed against today's request sequence (HC-UISEC-002); "No layout change" leaves them looking older than the rest. Analogy: the front door already has the new paint; the question is whether to also change its shape and add a gentle opening.
 - **SESSION-LOCK-NOW** (SESSION-REENTRY Task 3). "Add a 'Lock now' item to the profile menu that closes the profile and returns to the unlock card, using the lock endpoint that already exists?" Options: "Add Lock now" (one menu item; nothing changes in the backend). "Not now" (you stay signed in until the session expires or you log out). Tradeoffs: locking closes the profile on this device; the next action needs the password. Analogy: a "lock screen" button on a shared computer.
 - **SAFETY-MODE-BEHAVIOUR** (after SAFETY-MODE-REAL): asked with the research's options; no recommendation until the research exists.
 - **SAFETY-MODE-DIFF** (merge or execution, per ask-first file the chosen behaviour touches): asked with the exact diff.

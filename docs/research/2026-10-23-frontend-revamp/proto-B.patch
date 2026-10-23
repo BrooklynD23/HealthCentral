@@ -713,7 +713,7 @@ index 0000000..b8e7752
 +}
 diff --git a/src/frontend/src/proto/Shell.tsx b/src/frontend/src/proto/Shell.tsx
 new file mode 100644
-index 0000000..f69e6b7
+index 0000000..931a257
 --- /dev/null
 +++ b/src/frontend/src/proto/Shell.tsx
 @@ -0,0 +1,267 @@
@@ -857,10 +857,10 @@ index 0000000..f69e6b7
 +        </NavLink>
 +        <div className="mt-2 flex items-center gap-3 rounded-[10px] px-3 py-2">
 +          <span className="grid size-8 place-items-center rounded-full bg-well text-cap font-semibold text-fg-2" aria-hidden="true">
-+            DT
++            AR
 +          </span>
 +          <div className="min-w-0 flex-1">
-+            <p className="truncate text-ui font-medium">Danny’s records</p>
++            <p className="truncate text-ui font-medium">Alex Rivera’s records</p>
 +            <p className="flex items-center gap-1 text-cap text-fg-3">
 +              <ShieldCheck className="size-3.5" aria-hidden="true" /> Encrypted on this device
 +            </p>

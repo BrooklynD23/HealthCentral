@@ -1,6 +1,6 @@
 # Proposal B: "Quiet Instrument", a frontend revamp for Asclexis
 
-> **Copied 2026-10-23** from the L0 scratch directory into this folder, unchanged except for the path rewrites this note describes. Paths that cited the scratch directory now point at this folder where the file was kept (`proto-A.patch`, `proto-B.patch`, `shots/`); anything else marked "L0 scratch" was not committed. Index and provenance: [00-README.md](00-README.md).
+> **Copied 2026-10-23** from the L0 scratch directory into this folder, unchanged except for the path rewrites this note describes and the prototype profile name, replaced by the fixture name "Alex Rivera" (owner UI-FIXTURE-NAME, prompt 45). Paths that cited the scratch directory now point at this folder where the file was kept (`proto-A.patch`, `proto-B.patch`, `shots/`); anything else marked "L0 scratch" was not committed. Index and provenance: [00-README.md](00-README.md).
 
 Author: Designer B (Opus 5.5). Date: 2026-10-23. Base: `main` @ 7749744. I read nothing written by Designer A.
 Inputs: `owner-direction.md`, `framing.md`, `ui-review.md`, `COMPONENT_AUDIT.md`, `capture-metrics.json`,
@@ -295,7 +295,7 @@ Split `SettingsPage.tsx` (1,144 lines, currently eager) into a lazy route with R
 
 ### 4.3 Shells
 
-- **≥ 1024 px:** a 264 px sidebar with group labels, a CSS-transitioned active indicator (M9), a profile block ("Danny's records · Encrypted on this
+- **≥ 1024 px:** a 264 px sidebar with group labels, a CSS-transitioned active indicator (M9), a profile block ("Alex Rivera's records · Encrypted on this
   device"), a top bar with the palette trigger "Search records or jump to… Ctrl K", and a theme toggle. The placebo **Safety Mode toggle is removed**
   (§0 of the review: a switch reading "Safety Mode OFF" falsely claims the safety guards can be turned off).
 - **768–1023 px:** the same shell with the sidebar collapsed to a 72 px icon rail with tooltips (Radix Tooltip, opens on focus as well).
@@ -320,7 +320,7 @@ The dialog chunk is lazy-loaded on first open (with a hover/focus prefetch of th
 
 Today an expired session redirects to `/setup` ("Create Your Profile"). Proposal:
 
-1. Add `/unlock`: "Welcome back, Danny." It asks for a password field only and offers "Use your recovery code" as the secondary path. It uses the existing
+1. Add `/unlock`: "Welcome back, Alex." It asks for a password field only and offers "Use your recovery code" as the secondary path. It uses the existing
    `useLogin` and `unlockProfile` (`services/profiles.ts`, currently unused). `ProtectedRoute` routes to `/unlock` when a profile exists and the token has
    expired, and to `/setup` only when no profile exists.
 2. Add **Lock now**, in the palette and the profile block. It clears the token and keeps the profile id.

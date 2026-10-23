@@ -8,12 +8,14 @@ Two Opus 5.5 designers worked independently on 2026-10-23, from the same inputs 
 
 Owner answers that override both proposals (prompt 44, 2026-10-23, verbatim in the plan §1): **"Craft + bold showcase"**, **"Full plan, no freeze"**, **"Follow OS setting"**, **"Make it real"**. Both proposals were written before those answers: both assumed craft only, both removed the Safety Mode toggle, and A put dark mode behind a Preview setting. The plan follows the owner where the owner answered.
 
+**Owner answer UI-DEPS (prompt 45, 2026-10-23): "Keep framer-motion 10"** ("No major bump: build the motion system on framer-motion 10 (it also has LazyMotion and reduced-motion support); still add the other listed packages."). Both proposals moved to `motion` 14 (which depends on `framer-motion` 14); the plan does not. It keeps the same `LazyMotion` + `m` pattern on framer-motion 10.18. The proposals below are left as the designers wrote them. **Owner answer UI-FIXTURE-NAME (prompt 45): "Replace with fixture"**: the prototype profile name is now "Alex Rivera" in `proto-B.patch`, `proposal-B.md` and the screenshots.
+
 ## 1. Agreements (adopted as written)
 
 | Topic | Both proposals | Evidence |
 |---|---|---|
 | React | stay on React 18, bump to 18.3.1; React 19 later as its own row | A §7, B §7; `npm view react@18` lists 18.3.1 as the last 18.x (L0 planner, 2026-10-23) |
-| Motion library | `framer-motion` 10.18 → `motion` 14.6.0 (`motion/react`, `LazyMotion` + `m`, `MotionConfig reducedMotion="user"`); CSS for everything predetermined | A §7 (measured 9.4 kB gz sync + 18.3 kB async features), B §7 |
+| Motion library | `framer-motion` 10.18 → `motion` 14.6.0 (`motion/react`, `LazyMotion` + `m`, `MotionConfig reducedMotion="user"`); CSS for everything predetermined | A §7 (measured 9.4 kB gz sync + 18.3 kB async features), B §7 **Overridden by the owner (UI-DEPS): the plan stays on framer-motion 10.18 with the same `LazyMotion` + `m` + `MotionConfig` pattern.** |
 | Overlays | Radix Dialog / Popover / Tabs / Switch; one overlay path with Escape, focus trap, focus return | A §6a, B §6a |
 | Toasts | `sonner` 2.0.8 | A §7, B §7 |
 | Command palette | `cmdk` 1.1.1, lazy on first Ctrl/⌘ K, no open/close animation | A §4.4, B §4.4 |
@@ -33,16 +35,16 @@ Owner answers that override both proposals (prompt 44, 2026-10-23, verbatim in t
 |---|---|---|---|---|---|
 | 1 | Concept | "Ink & Paper": unverified values in pencil, verified in ink | "Quiet Instrument" | **A** | It promotes an existing owner decision (D4's hollow dashed marker) into the visual language of verification, so the concept says something true about the data. |
 | 2 | Provenance for a value | **Source Trace** side/bottom sheet with the source row, page and a verify action | **Provenance Peek** popover from a citation chip | **A for values; B's popover for inline citation chips** | A value needs the row, the page and the verify action, which do not fit a popover at 390 px; a chip in running text still opens a popover that links on to the sheet. |
-| 3 | Token names | remap the existing names (`ink-tertiary`, `status-*`) so current utilities inherit the fix | new names (`fg`, `fg-2`, `raised`) | **A** | One CSS row fixes the 314 contrast nodes on every page at once without editing components, which is what keeps `main` from looking half-migrated (owner: "Full plan, no freeze"). |
+| 3 | Token names | remap the existing names (`ink-tertiary`, `status-*`) so current utilities inherit the fix | new names (`fg`, `fg-2`, `raised`) | **A** | One CSS row fixes the 314 contrast nodes on every page at once without editing components, which reduces, without removing, the half-migrated look the owner accepted with "Full plan, no freeze". |
 | 4 | Body size | 16 px plus an optional "Comfort text" setting | 17 px base | **B** | The audience is older patients (`docs/02_frontend_accessibility_plan.md:6`), and a base size needs no extra setting to build. |
 | 5 | Route entrance | 180 ms fade from opacity 0 | M7: from opacity .35, 6 px rise, never invisible | **B** | A's own samples hit opacity 0.00 at 390 (a blank frame); B's never dropped below .35. |
 | 6 | Motion governance | three zones (Chrome / Data / Safety) | the **Motion Gradient** (T0 Data … T3 Moments) | **B, extended with a Showcase tier** | The gradient is a checklist a reviewer can apply per element; the owner's "bold showcase" needs an explicit tier for non-clinical surfaces, and A's zones map onto it. |
 | 7 | Safety copy in the chrome | a top-bar "Educational use · not medical advice" note | a persistent **Safety Rail** on every page, outside the route animation | **B** | It puts the disclaimer on the five pages that have none today and on phones, where A's note is only a chip. |
 | 8 | Safety Mode toggle | remove, replace with a static note | remove | **Neither: owner chose "Make it real"** | The toggle stays, relabelled honestly, until the SAFETY-MODE-REAL research gives the owner concrete behaviours. |
 | 9 | cmdk accessibility | wrapped `Command` in a Radix Dialog with an sr-only title | measured 2 critical axe failures (`aria-valid-attr-value`), proposed a test-gated patch or an own listbox | **B** | L0 planner re-ran B's probe on A's prototype: A's wrapper still fails (details in §3, DF-5). |
-| 10 | `border-beam` | rejected (measured: only 4 fixed palettes) | adopt once, on the extraction card | **The effect, as a CSS reimplementation in token colours** | Owner chose "bold showcase" (border-beam allowed there); the package's `colorVariant` is only `colorful` / `mono` / `ocean` / `sunset` with a hue shift by default (its README, read by the planner), none in our teal, so a ~40-line CSS conic-gradient border costs 0 kB JS and stays on tokens. |
+| 10 | `border-beam` | rejected (measured: only 4 fixed palettes) | adopt once, on the extraction card | **The effect, as a CSS reimplementation in token colours** | Owner chose "bold showcase" (border-beam allowed there); the package's `colorVariant` is one of 8 fixed palettes (`colorful`, `mono`, `ocean`, `sunset`, `forest`, `candy`, `ice`, `gold`: `dist/index.d.ts:32`; its README lists only the first four, which is what A counted), none bound to our tokens, with a hue shift by default, so a ~40-line CSS conic-gradient border costs 0 kB JS and stays on tokens. |
 | 11 | `thinking-orbs` | rejected ("AI mystique") | adopt on the Ask pending state | **Adopt on showcase surfaces only (import/processing, About)** | The owner limited richer motion to non-clinical surfaces; Ask answers are clinical content, so Ask keeps a plain status line. |
-| 12 | Bundle | measured **160.4 kB gz** main after `LazyMotion strict` + route splitting; CI budget ≤ 165 | prototype 209.4 (both motion libraries eager), target ≤ 170, cap 185 | **A's budget, plus B's Results-route total ≤ 205** | A's number is a measured production build of the target state; B's route total is the one budget A did not set. |
+| 12 | Bundle | measured **160.4 kB gz** main **with `motion` 14** after `LazyMotion strict` + route splitting; CI budget ≤ 165 | prototype 209.4 (both motion libraries eager), target ≤ 170, cap 185 | **A's budget, plus B's Results-route total ≤ 205** | A's number is a measured production build of the target state on `motion` 14; on framer-motion 10 (owner UI-DEPS) the plan treats about 160-161 kB as an estimate until UI-ROUTES measures it; B's route total is the one budget A did not set. |
 | 13 | Dark mode | behind Settings › Appearance "Preview" until a GA row | theme toggle in the top bar | **Owner: follow the OS, once every page is migrated; light until then** | Owner answer UI-DARK-MODE; the flip row is gated on a test that finds no unmigrated colour. |
 | 14 | Landing | **Overview** with a first-run checklist | optional Home, "first thing I would cut" | **A** | First-run onboarding and empty states are owner-named showcase surfaces; Overview is that surface. |
 | 15 | Pinboards | under Care | under Records | **B** | Pinboards collect records; they are not care actions. |
@@ -58,7 +60,7 @@ Owner answers that override both proposals (prompt 44, 2026-10-23, verbatim in t
 
 ## 3. Defects found in the prototypes (become acceptance checks)
 
-Found by L0 in the screenshots, except DF-5 (measured by B, re-verified by the L0 planner on A's prototype) and DF-6 (A's own samples). Each check names the plan row that owns it.
+Found by L0 in the screenshots, except DF-5 (measured by B, re-verified by the L0 planner on A's prototype) and DF-6 (A's own samples). Each check names the plan row that owns it. The A and B screenshots in this folder were re-captured on 2026-10-23 from the same prototypes with the fixture profile name "Alex Rivera" (owner UI-FIXTURE-NAME); they show the same defects.
 
 | Id | Prototype | What is wrong | Evidence | Acceptance check (plan row) |
 |---|---|---|---|---|
