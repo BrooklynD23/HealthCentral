@@ -120,7 +120,7 @@ export function InterpretedResultCard({
               <div className="flex items-center gap-1.5 mt-3">
                 {interpretation.citations.map((citation, i) => (
                   <CitationTooltip
-                    key={citation.id}
+                    key={`${citation.type}:${citation.id}:${i}`}
                     citation={citation}
                     index={i}
                   />
