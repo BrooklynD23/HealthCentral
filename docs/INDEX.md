@@ -1336,7 +1336,7 @@ Links to: `audit/2026-09-25/waves/scaffold/G-C2.md`, `audit/2026-09-25/waves/sca
 
 Rules: contracts.md §b (shared files), §c (migrations), §d (count slots). Path shorthand: `be/` = `src/backend/`, `fe/` = `src/frontend/src/`; "slots" = the `CLAUDE.md` / `AGENT.md` collected-count…
 
-Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`, `docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`, `docs/plans/2026-10-18-session-handoff.md`, `docs/plans/2026-10-20c-session-handoff.md`, `docs/plans/2026-10-21-session-handoff.md`, `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`
+Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`, `docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`, `docs/plans/2026-10-18-session-handoff.md`, `docs/plans/2026-10-20c-session-handoff.md`, `docs/plans/2026-10-21-session-handoff.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`
 
 ## `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`
 
@@ -1433,6 +1433,14 @@ Links to: `AGENT.md`, `CLAUDE.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.
 Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-21b handoff. This session ran as a **local** L0 on the laptop: Danny-Lenovo, WSL, 6 vCPU, no GPU and no…
 
 Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/rsi-runs/README.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-21b-session-handoff.md`
+
+## `docs/plans/2026-10-22-mvp-rows-plan.md`
+
+**MVP rows 2026-10-22 — plans for the MVP pass, owner prompts 40-41 and the bug-fixer follow-ups**
+
+Queue rows: queue.md, "Planned 2026-10-22, MVP rows". Rules: RUNBOOK, contracts §b-§d. Path shorthand as in the queue: `be/` = `src/backend/`, `fe/` = `src/frontend/src/`.
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-01-packaging-decision.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-22-mvp/01-desktop-packaging.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`
 
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
