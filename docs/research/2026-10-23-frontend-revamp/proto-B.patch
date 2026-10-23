@@ -1,0 +1,1341 @@
+diff --git a/src/frontend/mock-api.ts b/src/frontend/mock-api.ts
+new file mode 100644
+index 0000000..85c31f1
+--- /dev/null
++++ b/src/frontend/mock-api.ts
+@@ -0,0 +1,94 @@
++/**
++ * Prototype-only mock of the observation endpoints the Results screen reads.
++ * Shapes follow src/services/types.ts (Observation, TrendData). No network.
++ */
++import type { Plugin } from 'vite';
++
++type Series = {
++  canonical: string;
++  raw: string;
++  unit: string;
++  low: number | null;
++  high: number | null;
++  doc: string;
++  page: number;
++  points: Array<[string, number, boolean]>; // date, value, verified
++};
++
++const SERIES: Series[] = [
++  { canonical: 'glucose', raw: 'Glucose, fasting', unit: 'mg/dL', low: 70, high: 99, doc: 'Metabolic panel — Valley Clinic Lab', page: 1,
++    points: [['2025-10-10', 92, true], ['2026-01-10', 104, true], ['2026-04-10', 118, true], ['2026-07-10', 101, false]] },
++  { canonical: 'hba1c', raw: 'Hemoglobin A1c', unit: '%', low: 4.0, high: 5.6, doc: 'HbA1c report — Valley Clinic Lab', page: 1,
++    points: [['2025-10-10', 5.3, true], ['2026-01-10', 5.4, true], ['2026-04-10', 5.9, true], ['2026-07-10', 6.1, true]] },
++  { canonical: 'ldl_cholesterol', raw: 'LDL Cholesterol', unit: 'mg/dL', low: 0, high: 99, doc: 'Lipid panel — Valley Clinic Lab', page: 2,
++    points: [['2025-10-10', 128, true], ['2026-04-10', 135, true], ['2026-07-10', 142, false]] },
++  { canonical: 'hdl_cholesterol', raw: 'HDL Cholesterol', unit: 'mg/dL', low: 40, high: null, doc: 'Lipid panel — Valley Clinic Lab', page: 2,
++    points: [['2025-10-10', 52, true], ['2026-04-10', 50, true], ['2026-07-10', 48, true]] },
++  { canonical: 'triglycerides', raw: 'Triglycerides', unit: 'mg/dL', low: 0, high: 149, doc: 'Lipid panel — Valley Clinic Lab', page: 2,
++    points: [['2025-10-10', 140, true], ['2026-04-10', 151, true], ['2026-07-10', 160, true]] },
++  { canonical: 'tsh', raw: 'TSH', unit: 'mIU/L', low: 0.4, high: 4.0, doc: 'Thyroid panel — Valley Clinic Lab', page: 1,
++    points: [['2026-01-10', 1.8, true], ['2026-07-10', 2.1, true]] },
++  { canonical: 'hemoglobin', raw: 'Hemoglobin', unit: 'g/dL', low: 12.0, high: 15.5, doc: 'CBC — Valley Clinic Lab', page: 1,
++    points: [['2026-01-10', 13.6, true], ['2026-07-10', 13.9, true]] },
++];
++
++const outside = (v: number, lo: number | null, hi: number | null) =>
++  (lo !== null && v < lo) || (hi !== null && v > hi);
++
++function observations() {
++  const out: unknown[] = [];
++  for (const s of SERIES) {
++    s.points.slice().reverse().forEach(([date, value, verified], i) => {
++      out.push({
++        id: `${s.canonical}-${i}`, profile_id: 'p1', doc_id: `doc-${s.canonical}-${date}`,
++        analyte_canonical: s.canonical, analyte_raw: s.raw, value, value_text: null, unit: s.unit,
++        ref_low: s.low, ref_high: s.high,
++        ref_range_text: s.high === null ? `>${s.low}` : `${s.low}-${s.high}`,
++        flag: outside(value, s.low, s.high) ? (s.high !== null && value > s.high ? 'H' : 'L') : null,
++        is_abnormal: outside(value, s.low, s.high), collected_at: `${date}T08:00:00`,
++        user_verified: verified, extraction_confidence: verified ? 0.96 : 0.62, source_page: s.page,
++        source_bbox_json: null, source_doc_title: s.doc,
++      });
++    });
++  }
++  return out;
++}
++
++function trend(canonical: string) {
++  const s = SERIES.find((x) => x.canonical === canonical);
++  if (!s) return null;
++  return {
++    analyte_canonical: s.canonical, analyte_display_name: s.raw, unit: s.unit, ref_low: s.low, ref_high: s.high,
++    summary: '',
++    data_points: s.points.map(([date, value, verified]) => ({
++      date, value, unit: s.unit, is_abnormal: outside(value, s.low, s.high), flag: null,
++      doc_id: `doc-${s.canonical}-${date}`, extraction_confidence: verified ? 0.96 : 0.62,
++      user_verified: verified, source_doc_title: s.doc, source_page: s.page,
++    })),
++  };
++}
++
++export function mockApi(): Plugin {
++  return {
++    name: 'proto-mock-api',
++    configureServer(server) {
++      server.middlewares.use((req, res, next) => {
++        if (!req.url || !req.url.startsWith('/api/v1/')) return next();
++        const url = new URL(req.url, 'http://x');
++        const send = (body: unknown, status = 200) => {
++          res.statusCode = status;
++          res.setHeader('Content-Type', 'application/json');
++          res.end(JSON.stringify(body));
++        };
++        const m = url.pathname.match(/^\/api\/v1\/observations\/trends\/([^/]+)/);
++        if (m) {
++          const t = trend(decodeURIComponent(m[1]));
++          return t ? send(t) : send({ detail: 'not found' }, 404);
++        }
++        if (url.pathname.replace(/\/$/, '') === '/api/v1/observations') return send(observations());
++        if (req.method === 'GET') return send([]);
++        return send({ ok: true });
++      });
++    },
++  };
++}
+diff --git a/src/frontend/package.json b/src/frontend/package.json
+index 3ad17f7..aa22da8 100644
+--- a/src/frontend/package.json
++++ b/src/frontend/package.json
+@@ -21,12 +21,15 @@
+     "@fontsource-variable/source-sans-3": "^5.0.19",
+     "@fontsource/jetbrains-mono": "^5.0.19",
+     "@radix-ui/react-dropdown-menu": "^2.0.6",
++    "@radix-ui/react-popover": "^1.3.1",
+     "@radix-ui/react-slot": "^1.0.2",
+     "@tanstack/react-query": "^5.17.0",
+     "class-variance-authority": "^0.7.0",
+     "clsx": "^2.1.0",
++    "cmdk": "^1.1.1",
+     "framer-motion": "^10.18.0",
+     "lucide-react": "^0.303.0",
++    "motion": "^14.6.0",
+     "react": "^18.2.0",
+     "react-dom": "^18.2.0",
+     "react-router-dom": "^7.18.4",
+diff --git a/src/frontend/src/App.tsx b/src/frontend/src/App.tsx
+index 230d6e1..756c19a 100644
+--- a/src/frontend/src/App.tsx
++++ b/src/frontend/src/App.tsx
+@@ -13,7 +13,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+ import { Skeleton } from './components/ui';
+ 
+ // Layout
+-import { AppLayout } from './components/layout';
++import { Shell } from './proto/Shell';
++import { ResultsPage } from './proto/ResultsPage';
+ import { ProtectedRoute } from './components/auth';
+ 
+ // Eager pages
+@@ -111,8 +112,9 @@ function App() {
+ 
+           {/* Protected routes - require authentication */}
+           <Route element={<ProtectedRoute />}>
+-            <Route path="/" element={<AppLayout />}>
+-              <Route index element={<Navigate to="/inbox" replace />} />
++            <Route path="/" element={<Shell />}>
++              <Route index element={<Navigate to="/results" replace />} />
++              <Route path="results" element={<ResultsPage />} />
+               <Route path="inbox" element={<DocumentInbox />} />
+               <Route path="verify" element={<VerificationWorkbench />} />
+               <Route path="trends" element={lazyRoute(<TrendsDashboard />)} />
+diff --git a/src/frontend/src/proto/CommandPalette.tsx b/src/frontend/src/proto/CommandPalette.tsx
+new file mode 100644
+index 0000000..9e2187e
+--- /dev/null
++++ b/src/frontend/src/proto/CommandPalette.tsx
+@@ -0,0 +1,83 @@
++import { Command } from 'cmdk';
++import { useNavigate } from 'react-router-dom';
++import { Activity, CornerDownLeft, Moon, Upload } from 'lucide-react';
++import { useObservations } from '@/services/observations';
++import { useAuthStore } from '@/stores/authStore';
++import { NAV } from './Shell';
++
++/**
++ * Opened 100+ times a day by keyboard users, so it has no open/close animation
++ * (Raycast rule). Highlight moves instantly too.
++ */
++export function CommandPalette({
++  open,
++  onOpenChange,
++  onToggleTheme,
++}: {
++  open: boolean;
++  onOpenChange: (o: boolean) => void;
++  onToggleTheme: () => void;
++}) {
++  const navigate = useNavigate();
++  const { profileId } = useAuthStore();
++  const { data: observations } = useObservations({ profile_id: profileId || '' });
++  const analytes = Array.from(new Map((observations ?? []).map((o) => [o.analyte_canonical, o.analyte_raw])).entries());
++
++  const go = (to: string) => {
++    onOpenChange(false);
++    navigate(to);
++  };
++
++  const itemClass =
++    'flex min-h-11 cursor-pointer items-center gap-3 rounded-[10px] px-3 text-ui text-fg data-[selected=true]:bg-brand-wash data-[selected=true]:text-brand-ink';
++
++  return (
++    <Command.Dialog
++      open={open}
++      onOpenChange={onOpenChange}
++      label="Search records or jump to a page"
++      overlayClassName="fixed inset-0 z-50 bg-[rgb(12_14_13/0.36)]"
++      contentClassName="fixed inset-x-3 top-[12vh] z-50 mx-auto max-w-[620px] overflow-hidden rounded-[20px] border border-line bg-raised shadow-modal"
++    >
++      <div className="flex items-center gap-3 border-b border-line px-4">
++        <Command.Input
++          autoFocus
++          placeholder="Search results, pages and actions…"
++          className="h-14 w-full bg-transparent text-body text-fg outline-none placeholder:text-fg-3 focus-visible:ring-0 focus-visible:ring-offset-0"
++        />
++      </div>
++      <Command.List className="max-h-[56vh] overflow-y-auto p-2">
++        <Command.Empty className="px-3 py-6 text-center text-ui text-fg-2">No matches in your records.</Command.Empty>
++        {analytes.length > 0 && (
++          <Command.Group heading="Results" className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-group-heading]]:text-cap [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-fg-3">
++            {analytes.map(([canonical, label]) => (
++              <Command.Item key={canonical} value={`result ${label}`} onSelect={() => go(`/results?analyte=${canonical}`)} className={itemClass}>
++                <Activity className="size-4 text-fg-3" aria-hidden="true" />
++                <span className="flex-1">{label}</span>
++                <CornerDownLeft className="size-3.5 text-fg-3" aria-hidden="true" />
++              </Command.Item>
++            ))}
++          </Command.Group>
++        )}
++        {NAV.map((g) => (
++          <Command.Group key={g.id} heading={g.label ?? ''} className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-group-heading]]:text-cap [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-fg-3">
++            {g.items.map((i) => (
++              <Command.Item key={i.to} value={`go ${i.label}`} onSelect={() => go(i.to)} className={itemClass}>
++                <i.icon className="size-4 text-fg-3" />
++                {i.label}
++              </Command.Item>
++            ))}
++          </Command.Group>
++        ))}
++        <Command.Group heading="Actions" className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-group-heading]]:text-cap [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:text-fg-3">
++          <Command.Item value="import a document" onSelect={() => go('/inbox')} className={itemClass}>
++            <Upload className="size-4 text-fg-3" aria-hidden="true" /> Import a document
++          </Command.Item>
++          <Command.Item value="switch theme dark light" onSelect={() => { onToggleTheme(); onOpenChange(false); }} className={itemClass}>
++            <Moon className="size-4 text-fg-3" aria-hidden="true" /> Switch light / dark
++          </Command.Item>
++        </Command.Group>
++      </Command.List>
++    </Command.Dialog>
++  );
++}
+diff --git a/src/frontend/src/proto/ProvenancePeek.tsx b/src/frontend/src/proto/ProvenancePeek.tsx
+new file mode 100644
+index 0000000..f56d707
+--- /dev/null
++++ b/src/frontend/src/proto/ProvenancePeek.tsx
+@@ -0,0 +1,60 @@
++import * as Popover from '@radix-ui/react-popover';
++import { FileText, X } from 'lucide-react';
++
++/**
++ * Provenance Peek: a citation opens on tap, click, Enter or Space — never
++ * hover-only — and scales out of its own chip. Escape and outside-click close
++ * it, and focus returns to the chip (Radix).
++ */
++export function ProvenancePeek({
++  n,
++  docTitle,
++  page,
++  quote,
++  collected,
++}: {
++  n: number;
++  docTitle: string;
++  page: number;
++  quote: string;
++  collected: string;
++}) {
++  return (
++    <Popover.Root>
++      <Popover.Trigger
++        className="pressable inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-raised px-3 text-cap font-medium text-fg-2 hover:border-line-strong hover:text-fg data-[state=open]:border-brand data-[state=open]:text-brand-ink"
++        aria-label={`Source ${n}: ${docTitle}, page ${page}`}
++      >
++        <span className="tnum grid size-5 place-items-center rounded-full bg-brand-wash text-[12px] font-semibold text-brand-ink">{n}</span>
++        <span className="max-w-[16rem] truncate">{docTitle}</span>
++        <span className="text-fg-3">p.{page}</span>
++      </Popover.Trigger>
++      <Popover.Portal>
++        <Popover.Content
++          side="top"
++          align="start"
++          sideOffset={8}
++          collisionPadding={16}
++          className="peek z-50 w-[min(360px,calc(100vw-32px))] rounded-[14px] border border-line bg-raised p-4 shadow-overlay"
++        >
++          <div className="flex items-start gap-3">
++            <FileText className="mt-0.5 size-4 shrink-0 text-fg-3" aria-hidden="true" />
++            <div className="min-w-0 flex-1">
++              <p className="text-ui font-semibold text-fg">{docTitle}</p>
++              <p className="text-cap text-fg-2">Page {page} · collected {collected}</p>
++            </div>
++            <Popover.Close aria-label="Close source" className="pressable -m-2 grid size-11 place-items-center rounded-[10px] text-fg-3 hover:text-fg">
++              <X className="size-4" />
++            </Popover.Close>
++          </div>
++          <blockquote className="tnum mt-3 rounded-[10px] bg-well px-3 py-2.5 text-ui text-fg">“{quote}”</blockquote>
++          <p className="mt-3 text-cap text-fg-2">This is what your report states. Open the document to see it in context.</p>
++          <a href="/inbox" className="mt-2 inline-flex min-h-11 items-center text-ui font-semibold text-brand-ink underline underline-offset-4">
++            Open document
++          </a>
++          <Popover.Arrow className="fill-raised" />
++        </Popover.Content>
++      </Popover.Portal>
++    </Popover.Root>
++  );
++}
+diff --git a/src/frontend/src/proto/RangeRibbon.tsx b/src/frontend/src/proto/RangeRibbon.tsx
+new file mode 100644
+index 0000000..866f3bf
+--- /dev/null
++++ b/src/frontend/src/proto/RangeRibbon.tsx
+@@ -0,0 +1,177 @@
++import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
++
++export type RibbonPoint = { date: string; value: number; verified: boolean };
++
++const drawnThisSession = new Set<string>();
++
++const fmtDate = (iso: string) =>
++  new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
++const fmtLong = (iso: string) =>
++  new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
++
++export function rangeState(v: number, low: number | null, high: number | null) {
++  if (high !== null && v > high) return 'above' as const;
++  if (low !== null && v < low) return 'below' as const;
++  return 'within' as const;
++}
++
++/**
++ * The Range Ribbon. Position against the lab's printed range is the signal;
++ * colour never shouts, and every point animates identically whatever its value
++ * ("value-blind motion"). The line draws once per analyte per session.
++ */
++export function RangeRibbon({
++  id,
++  points,
++  low,
++  high,
++  unit,
++  label,
++}: {
++  id: string;
++  points: RibbonPoint[];
++  low: number | null;
++  high: number | null;
++  unit: string;
++  label: string;
++}) {
++  const wrapRef = useRef<HTMLDivElement>(null);
++  const [width, setWidth] = useState(640);
++  const [focus, setFocus] = useState<number | null>(null);
++  const [draw] = useState(() => !drawnThisSession.has(id));
++
++  useEffect(() => {
++    drawnThisSession.add(id);
++  }, [id]);
++
++  useLayoutEffect(() => {
++    const el = wrapRef.current;
++    if (!el) return;
++    setWidth(Math.max(280, Math.round(el.getBoundingClientRect().width))); // measure before first paint: no resize shift
++    const ro = new ResizeObserver(([entry]) => setWidth(Math.max(280, Math.round(entry.contentRect.width))));
++    ro.observe(el);
++    return () => ro.disconnect();
++  }, []);
++
++  const height = width < 520 ? 208 : 248;
++  const pad = { l: 12, r: 56, t: 20, b: 34 };
++
++  const geo = useMemo(() => {
++    const values = points.map((p) => p.value);
++    let lo = Math.min(...values, low ?? Infinity);
++    let hi = Math.max(...values, high ?? -Infinity);
++    const span = hi - lo || Math.abs(hi) || 1;
++    lo -= span * 0.14;
++    hi += span * 0.14;
++    if (low !== null && low >= 0 && lo < 0) lo = Math.min(0, Math.min(...values));
++    const t = points.map((p) => new Date(p.date).getTime());
++    const t0 = Math.min(...t);
++    const t1 = Math.max(...t);
++    const x = (ms: number) => pad.l + 8 + ((ms - t0) / (t1 - t0 || 1)) * (width - pad.l - pad.r - 16);
++    const y = (v: number) => pad.t + (1 - (v - lo) / (hi - lo)) * (height - pad.t - pad.b);
++    const xy = points.map((p, i) => ({ ...p, x: x(t[i]), y: y(p.value) }));
++    return { x, y, xy, lo, hi };
++  }, [points, low, high, width, height, pad.l, pad.r, pad.t, pad.b]);
++
++  const bandTop = high !== null ? geo.y(high) : pad.t;
++  const bandBottom = low !== null ? geo.y(Math.max(low, geo.lo)) : height - pad.b;
++  const path = geo.xy.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
++  const last = geo.xy.length - 1;
++  const sp = geo.xy[focus ?? last];
++  const state = rangeState(sp.value, low, high);
++  const stateText = state === 'above' ? 'above the report’s range' : state === 'below' ? 'below the report’s range' : 'within the report’s range';
++
++  const rangeText =
++    low !== null && high !== null ? `${low}–${high}` : high !== null ? `up to ${high}` : `${low} or more`;
++
++  return (
++    <figure className="m-0">
++      <div ref={wrapRef} className="relative">
++        <svg
++          width={width}
++          height={height}
++          viewBox={`0 0 ${width} ${height}`}
++          role="group"
++          aria-label={`${label} over time against the report range ${rangeText} ${unit}. Use Tab to move between results.`}
++          className="block overflow-visible"
++        >
++          {/* Range band */}
++          <rect x={pad.l} y={bandTop} width={width - pad.l - pad.r} height={Math.max(0, bandBottom - bandTop)} rx={6} className="fill-band" />
++          <line x1={pad.l} x2={width - pad.r} y1={bandTop} y2={bandTop} className="stroke-brand" strokeOpacity={0.45} strokeDasharray="3 4" />
++          {low !== null && low > geo.lo && (
++            <line x1={pad.l} x2={width - pad.r} y1={bandBottom} y2={bandBottom} className="stroke-brand" strokeOpacity={0.45} strokeDasharray="3 4" />
++          )}
++          {high !== null && (
++            <text x={width - pad.r + 8} y={bandTop + 4} className="fill-fg-2 tnum" fontSize={13}>{high}</text>
++          )}
++          {low !== null && low > geo.lo && (
++            <text x={width - pad.r + 8} y={bandBottom + 4} className="fill-fg-2 tnum" fontSize={13}>{low}</text>
++          )}
++
++          {/* Line: honest straight segments between real results */}
++          <g className="ribbon-line" data-draw={draw}>
++            <path d={path} fill="none" className="stroke-brand" strokeWidth={2.25} strokeLinejoin="round" strokeLinecap="round" />
++          </g>
++
++          {/* Halo on the latest result is static: no pulse, whatever the value */}
++          <circle cx={geo.xy[last].x} cy={geo.xy[last].y} r={13} className="fill-brand" fillOpacity={0.14} />
++
++          {geo.xy.map((p, i) => {
++            const s = rangeState(p.value, low, high);
++            const a11y = `${fmtLong(p.date)}: ${p.value} ${unit}, ${
++              s === 'above' ? 'above' : s === 'below' ? 'below' : 'within'
++            } the report’s range${p.verified ? '' : ', not yet checked by you'}`;
++            return (
++              <g key={p.date} tabIndex={0} role="img" aria-label={a11y} onFocus={() => setFocus(i)} onBlur={() => setFocus(null)}
++                onPointerEnter={() => setFocus(i)} onPointerLeave={() => setFocus(null)} className="cursor-default outline-none">
++                <circle cx={p.x} cy={p.y} r={22} fill="transparent" />
++                {focus === i && <circle cx={p.x} cy={p.y} r={11} fill="none" className="stroke-brand" strokeWidth={2} />}
++                <circle
++                  cx={p.x}
++                  cy={p.y}
++                  r={i === last ? 6.5 : 5}
++                  className="ribbon-point fill-raised stroke-brand"
++                  data-draw={draw}
++                  style={draw ? { animationDelay: `${Math.min(i, 5) * 40 + 360}ms` } : undefined}
++                  strokeWidth={2.25}
++                  strokeDasharray={p.verified ? undefined : '2.5 2.5'}
++                  fill={p.verified ? undefined : 'transparent'}
++                />
++                {p.verified && <circle cx={p.x} cy={p.y} r={i === last ? 3 : 2.25} className="ribbon-point fill-brand" data-draw={draw}
++                  style={draw ? { animationDelay: `${Math.min(i, 5) * 40 + 360}ms` } : undefined} />}
++              </g>
++            );
++          })}
++
++          {geo.xy.map((p) => (
++            <text key={`x-${p.date}`} x={p.x} y={height - 10} textAnchor="middle" className="fill-fg-2" fontSize={13}>
++              {fmtDate(p.date)}
++            </text>
++          ))}
++        </svg>
++
++        {/* Callout: data reads instantly, it never animates in. Hidden until a point is hovered or focused. */}
++        {focus !== null && <div
++          className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full rounded-[10px] border border-line bg-raised px-3 py-2 shadow-overlay"
++          style={{ left: Math.min(Math.max(sp.x, 90), width - 90), top: sp.y - 18 }}
++          aria-hidden="true"
++        >
++          <p className="tnum whitespace-nowrap text-ui font-semibold text-fg">
++            {sp.value} <span className="font-normal text-fg-2">{unit}</span>
++          </p>
++          <p className="whitespace-nowrap text-cap text-fg-2">
++            {fmtLong(sp.date)}
++            {sp.verified ? '' : ' · not yet checked'}
++          </p>
++        </div>}
++      </div>
++      <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 px-1 text-cap text-fg-2" aria-hidden="true">
++        <span className="inline-flex items-center gap-2"><span className="h-3 w-5 rounded-[3px] bg-band ring-1 ring-brand/40" />Report range {rangeText} {unit}</span>
++        {points.some((p) => !p.verified) && <span className="inline-flex items-center gap-2"><svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" fill="none" className="stroke-brand" strokeWidth="2" strokeDasharray="2.5 2.5" /></svg>Not yet checked by you</span>}
++      </div>
++      <figcaption className="sr-only" aria-live="polite">
++        {fmtLong(sp.date)}: {sp.value} {unit}, {stateText}.
++      </figcaption>
++    </figure>
++  );
++}
+diff --git a/src/frontend/src/proto/ResultsPage.tsx b/src/frontend/src/proto/ResultsPage.tsx
+new file mode 100644
+index 0000000..b8e7752
+--- /dev/null
++++ b/src/frontend/src/proto/ResultsPage.tsx
+@@ -0,0 +1,223 @@
++import { useMemo } from 'react';
++import { Link, useSearchParams } from 'react-router-dom';
++import { ArrowDown, ArrowUp, Check, CircleDashed, MessageCircle, Send } from 'lucide-react';
++import { useObservations, useTrend } from '@/services/observations';
++import { useAuthStore } from '@/stores/authStore';
++import type { Observation } from '@/services/types';
++import { cn } from '@/utils/cn';
++import { RangeRibbon, rangeState } from './RangeRibbon';
++import { ProvenancePeek } from './ProvenancePeek';
++
++const longDate = (iso: string) =>
++  new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
++
++function rangeLabel(low: number | null, high: number | null) {
++  if (low !== null && high !== null) return `${low}–${high}`;
++  if (high !== null) return `up to ${high}`;
++  if (low !== null) return `${low} or more`;
++  return 'not printed';
++}
++
++function RangeChip({ value, low, high, size = 'md' }: { value: number; low: number | null; high: number | null; size?: 'sm' | 'md' }) {
++  const s = rangeState(value, low, high);
++  const Icon = s === 'above' ? ArrowUp : s === 'below' ? ArrowDown : Check;
++  const text = s === 'above' ? 'Above report range' : s === 'below' ? 'Below report range' : 'Within report range';
++  return (
++    <span
++      className={cn(
++        'inline-flex items-center gap-1.5 rounded-full font-semibold',
++        size === 'md' ? 'px-3 py-1 text-ui' : 'px-2 py-0.5 text-cap',
++        s === 'within' ? 'bg-inrange-wash text-inrange' : 'bg-outside-wash text-outside',
++      )}
++    >
++      <Icon className={size === 'md' ? 'size-4' : 'size-3.5'} aria-hidden="true" strokeWidth={2.5} />
++      {text}
++    </span>
++  );
++}
++
++/** A 64px glyph: where the latest value sits against the printed range. Shape, not colour. */
++function RangeTick({ value, low, high }: { value: number; low: number | null; high: number | null }) {
++  const lo = Math.min(value, low ?? value) - Math.abs(value) * 0.25;
++  const hi = Math.max(value, high ?? value) + Math.abs(value) * 0.25;
++  const x = (v: number) => 4 + ((v - lo) / (hi - lo || 1)) * 56;
++  return (
++    <svg width="64" height="14" viewBox="0 0 64 14" aria-hidden="true" className="shrink-0">
++      <rect x="4" y="6" width="56" height="2" rx="1" className="fill-sunken" />
++      <rect x={x(low ?? lo)} y="3" width={Math.max(2, x(high ?? hi) - x(low ?? lo))} height="8" rx="4" className="fill-band" />
++      <circle cx={x(value)} cy="7" r="4" className="fill-brand stroke-raised" strokeWidth="1.5" />
++    </svg>
++  );
++}
++
++export function ResultsPage() {
++  const { profileId } = useAuthStore();
++  const [params, setParams] = useSearchParams();
++  const { data: observations, isLoading } = useObservations({ profile_id: profileId || '' });
++
++  const latestByAnalyte = useMemo(() => {
++    const m = new Map<string, Observation>();
++    for (const o of observations ?? []) {
++      const prev = m.get(o.analyte_canonical);
++      if (!prev || (o.collected_at ?? '') > (prev.collected_at ?? '')) m.set(o.analyte_canonical, o);
++    }
++    return Array.from(m.values());
++  }, [observations]);
++
++  const selected = params.get('analyte') ?? latestByAnalyte[0]?.analyte_canonical;
++  const { data: trend } = useTrend(selected);
++  const latest = latestByAnalyte.find((o) => o.analyte_canonical === selected);
++  const select = (c: string) => setParams({ analyte: c }, { replace: true });
++
++  const pts = trend?.data_points ?? [];
++  const first = pts[0];
++  const last = pts[pts.length - 1];
++  const docTitle = (latest as (Observation & { source_doc_title?: string }) | undefined)?.source_doc_title ?? 'Lab report';
++
++  return (
++    <div className="space-y-8">
++      <header className="max-w-[46rem]">
++        <h1 className="font-display text-h2 font-semibold tracking-[-0.025em] sm:text-h1">Results</h1>
++        <p className="mt-2 text-body text-fg-2">
++          Values from your imported lab reports, drawn against the reference range each lab printed.
++        </p>
++      </header>
++
++      {isLoading || (selected && !trend) ? (
++        <div role="status" aria-live="polite" className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-8">
++          <div className="hidden h-[440px] rounded-[14px] bg-well lg:block" />
++          <div className="h-[760px] rounded-[18px] bg-well" />
++          <span className="sr-only">Loading results…</span>
++        </div>
++      ) : (
++      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-8">
++        {/* Analyte picker: rail on desktop, scrollable chips on phones (scrolls inside itself) */}
++        <nav aria-label="Analytes" className="lg:sticky lg:top-24 lg:self-start">
++          <ul className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:block lg:space-y-1 lg:overflow-visible lg:px-0">
++            {latestByAnalyte.map((o) => {
++              const active = o.analyte_canonical === selected;
++              return (
++                <li key={o.analyte_canonical} className="shrink-0">
++                  <button
++                    type="button"
++                    onClick={() => select(o.analyte_canonical)}
++                    aria-current={active ? 'true' : undefined}
++                    className={cn(
++                      'pressable flex min-h-11 w-full items-center gap-3 rounded-[12px] border px-3 py-2 text-left',
++                      active ? 'border-brand/40 bg-brand-wash' : 'border-line bg-raised hover-lift lg:border-transparent lg:bg-transparent',
++                    )}
++                  >
++                    <span className="min-w-0 flex-1">
++                      <span className={cn('block whitespace-nowrap text-ui font-semibold', active ? 'text-brand-ink' : 'text-fg')}>
++                        {o.analyte_raw}
++                      </span>
++                      <span className="tnum block whitespace-nowrap text-cap text-fg-2">
++                        {o.value} {o.unit}
++                        {o.value !== null && rangeState(o.value, o.ref_low, o.ref_high) !== 'within' && (
++                          <span className="ml-1.5 text-outside">
++                            · {rangeState(o.value, o.ref_low, o.ref_high) === 'above' ? 'above range' : 'below range'}
++                          </span>
++                        )}
++                      </span>
++                    </span>
++                    {o.value !== null && (
++                      <span className="hidden lg:block">
++                        <RangeTick value={o.value} low={o.ref_low} high={o.ref_high} />
++                      </span>
++                    )}
++                  </button>
++                </li>
++              );
++            })}
++          </ul>
++        </nav>
++
++        {latest && trend && last ? (
++          <article aria-labelledby="result-title" className="rounded-[18px] border border-line bg-raised p-5 sm:p-8">
++            <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
++              <div>
++                <h2 id="result-title" className="font-display text-h3 font-semibold tracking-[-0.02em] sm:text-h2">
++                  {trend.analyte_display_name}
++                </h2>
++                <p className="mt-1 text-ui text-fg-2">
++                  Latest result · {longDate(last.date)} · {docTitle}
++                </p>
++              </div>
++              {last.user_verified ? (
++                <span className="inline-flex items-center gap-1.5 rounded-full bg-well px-3 py-1 text-ui font-medium text-fg-2">
++                  <Check className="size-4" aria-hidden="true" /> Checked by you
++                </span>
++              ) : (
++                <Link to="/verify" className="pressable inline-flex min-h-11 items-center gap-1.5 rounded-full bg-caution-wash px-3 text-ui font-semibold text-caution">
++                  <CircleDashed className="size-4" aria-hidden="true" /> Not yet checked · Review
++                </Link>
++              )}
++            </div>
++
++            <div className="mt-6 flex flex-wrap items-end gap-x-5 gap-y-3">
++              <p className="tnum font-display text-numeral font-medium tracking-[-0.03em]">
++                {last.value}
++                <span className="ml-2 font-body text-lead font-normal tracking-normal text-fg-2">{trend.unit}</span>
++              </p>
++              <div className="flex flex-col gap-1.5 pb-1.5">
++                <RangeChip value={last.value} low={trend.ref_low} high={trend.ref_high} />
++                <span className="tnum text-ui text-fg-2">
++                  Report range {rangeLabel(trend.ref_low, trend.ref_high)} {trend.unit}
++                </span>
++              </div>
++            </div>
++
++            <div className="mt-6 -mx-1">
++              <RangeRibbon
++                id={trend.analyte_canonical}
++                label={trend.analyte_display_name}
++                points={pts.map((p) => ({ date: p.date, value: p.value, verified: p.user_verified === true }))}
++                low={trend.ref_low}
++                high={trend.ref_high}
++                unit={trend.unit}
++              />
++            </div>
++
++            <section aria-labelledby="says-title" className="mt-6 border-t border-line pt-6">
++              <h3 id="says-title" className="font-body text-ui font-semibold tracking-normal text-fg">What your reports show</h3>
++              <p className="tnum mt-2 max-w-[62ch] text-body text-fg">
++                Your {trend.analyte_display_name} result on {longDate(last.date)} was {last.value} {trend.unit}
++                <sup className="ml-0.5 text-cap text-fg-2">[1]</sup>. The range printed on that report is {rangeLabel(trend.ref_low, trend.ref_high)} {trend.unit}.
++                {pts.length > 1 && first && (
++                  <> Across {pts.length} results since {longDate(first.date)}, it went from {first.value} to {last.value} {trend.unit}<sup className="ml-0.5 text-cap text-fg-2">[2]</sup>.</>
++                )}
++              </p>
++              <div className="mt-3 flex flex-wrap gap-2">
++                <ProvenancePeek n={1} docTitle={docTitle} page={latest.source_page ?? 1}
++                  quote={`${latest.analyte_raw}  ${last.value} ${trend.unit}  (${latest.ref_range_text ?? rangeLabel(trend.ref_low, trend.ref_high)})`}
++                  collected={longDate(last.date)} />
++                {pts.length > 1 && first && (
++                  <ProvenancePeek n={2} docTitle={docTitle} page={latest.source_page ?? 1}
++                    quote={`${latest.analyte_raw}  ${first.value} ${trend.unit}`} collected={longDate(first.date)} />
++                )}
++              </div>
++
++              {/* Contextual disclaimer: static, never inside an animated element. */}
++              <p className="mt-5 rounded-[12px] bg-well px-4 py-3 text-ui text-fg-2">
++                <strong className="font-semibold text-fg">Educational, not medical advice.</strong> This shows what your
++                report states. Whether this value matters for you is a question for your clinician.
++              </p>
++
++              <div className="mt-5 flex flex-wrap gap-2">
++                <Link to="/explain" className="pressable inline-flex min-h-11 items-center gap-2 rounded-[10px] bg-brand px-4 text-ui font-semibold text-on-brand">
++                  <MessageCircle className="size-4" aria-hidden="true" /> Ask about this result
++                </Link>
++                <Link to="/export" className="pressable inline-flex min-h-11 items-center gap-2 rounded-[10px] border border-line bg-raised px-4 text-ui font-semibold text-fg hover:border-line-strong">
++                  <Send className="size-4" aria-hidden="true" /> Add to doctor summary
++                </Link>
++              </div>
++            </section>
++          </article>
++        ) : (
++          <div className="h-[420px] rounded-[18px] border border-line bg-raised" aria-hidden="true" />
++        )}
++      </div>
++      )}
++    </div>
++  );
++}
+diff --git a/src/frontend/src/proto/Shell.tsx b/src/frontend/src/proto/Shell.tsx
+new file mode 100644
+index 0000000..f69e6b7
+--- /dev/null
++++ b/src/frontend/src/proto/Shell.tsx
+@@ -0,0 +1,267 @@
++import { useEffect, useLayoutEffect, useRef, useState, type ComponentType } from 'react';
++import { NavLink, Outlet, useLocation } from 'react-router-dom';
++import {
++  Inbox,
++  ListChecks,
++  History,
++  Pin,
++  Activity,
++  MessageCircle,
++  Pill,
++  ClipboardList,
++  Send,
++  Settings,
++  Search,
++  Moon,
++  Sun,
++  MoreHorizontal,
++  ShieldCheck,
++} from 'lucide-react';
++import { MotionConfig } from 'motion/react';
++import { cn } from '@/utils/cn';
++import { CommandPalette } from './CommandPalette';
++import { applyTheme, readTheme, resolveTheme, type ThemeChoice } from './theme';
++
++type Item = { to: string; label: string; icon: ComponentType<{ className?: string }>; count?: number };
++type Group = { id: string; label: string | null; items: Item[] };
++
++export const NAV: Group[] = [
++  { id: 'records', label: 'Records', items: [
++    { to: '/inbox', label: 'Documents', icon: Inbox },
++    { to: '/verify', label: 'Review values', icon: ListChecks, count: 6 },
++    { to: '/timeline', label: 'Timeline', icon: History },
++    { to: '/pinboards', label: 'Pinboards', icon: Pin },
++  ] },
++  { id: 'understand', label: 'Understand', items: [
++    { to: '/results', label: 'Results', icon: Activity },
++    { to: '/explain', label: 'Ask', icon: MessageCircle },
++  ] },
++  { id: 'care', label: 'Care', items: [
++    { to: '/medications', label: 'Medications', icon: Pill },
++    { to: '/care-tasks', label: 'Follow-ups', icon: ClipboardList },
++  ] },
++  { id: 'share', label: 'Share', items: [{ to: '/export', label: 'Doctor summary', icon: Send }] },
++];
++
++const MOBILE_TABS: Item[] = [
++  { to: '/inbox', label: 'Records', icon: Inbox },
++  { to: '/results', label: 'Results', icon: Activity },
++  { to: '/explain', label: 'Ask', icon: MessageCircle },
++  { to: '/medications', label: 'Care', icon: Pill },
++];
++
++function isActivePath(pathname: string, to: string) {
++  return pathname === to || pathname.startsWith(`${to}/`);
++}
++
++function Sidebar({ pathname }: { pathname: string }) {
++  const navRef = useRef<HTMLElement>(null);
++  const [indicator, setIndicator] = useState<{ y: number; h: number } | null>(null);
++
++  // One CSS-transitioned indicator instead of a JS layout animation: it keeps
++  // running on the compositor while the next route chunk loads.
++  useLayoutEffect(() => {
++    const nav = navRef.current;
++    const active = nav?.querySelector<HTMLElement>('a[aria-current="page"]');
++    if (!nav || !active) return setIndicator(null);
++    setIndicator({ y: active.offsetTop, h: active.offsetHeight });
++  }, [pathname]);
++
++  return (
++    <aside className="hidden lg:flex fixed inset-y-0 left-0 w-[264px] flex-col border-r border-line bg-canvas/80 backdrop-blur-sm">
++      <div className="flex items-center gap-3 px-6 h-16">
++        <div className="grid size-8 place-items-center rounded-[10px] bg-brand text-on-brand" aria-hidden="true">
++          <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
++            <path d="M3 12h4l2-5 4 10 2-5h6" />
++          </svg>
++        </div>
++        <span className="font-display text-[19px] font-semibold tracking-[-0.02em]">Asclexis</span>
++      </div>
++
++      <nav ref={navRef} aria-label="Main" className="relative flex-1 overflow-y-auto px-3 pb-4">
++        <span
++          aria-hidden="true"
++          className="nav-indicator pointer-events-none absolute left-3 right-3 top-0 rounded-[10px] bg-brand-wash"
++          style={{
++            height: indicator?.h ?? 44,
++            transform: `translateY(${indicator?.y ?? 0}px)`,
++            opacity: indicator ? 1 : 0,
++          }}
++        />
++        {NAV.map((group) => (
++          <div key={group.id} className="mt-5 first:mt-2">
++            {group.label && (
++              <p id={`nav-${group.id}`} className="px-3 pb-1.5 text-cap font-semibold text-fg-3">
++                {group.label}
++              </p>
++            )}
++            <ul aria-labelledby={group.label ? `nav-${group.id}` : undefined} className="space-y-0.5">
++              {group.items.map((item) => {
++                const active = isActivePath(pathname, item.to);
++                return (
++                  <li key={item.to}>
++                    <NavLink
++                      to={item.to}
++                      aria-current={active ? 'page' : undefined}
++                      className={cn(
++                        'pressable relative flex min-h-11 items-center gap-3 rounded-[10px] px-3 text-ui font-medium',
++                        active ? 'text-brand-ink' : 'text-fg-2 hover-lift hover:text-fg',
++                      )}
++                    >
++                      <item.icon className="size-[18px] shrink-0" />
++                      <span className="flex-1">{item.label}</span>
++                      {item.count ? (
++                        <span className="tnum rounded-full bg-caution-wash px-2 py-0.5 text-cap font-semibold text-caution">
++                          {item.count}
++                          <span className="sr-only"> values waiting for review</span>
++                        </span>
++                      ) : null}
++                    </NavLink>
++                  </li>
++                );
++              })}
++            </ul>
++          </div>
++        ))}
++      </nav>
++
++      <div className="border-t border-line p-3">
++        <NavLink
++          to="/settings"
++          className={({ isActive }) =>
++            cn('pressable flex min-h-11 items-center gap-3 rounded-[10px] px-3 text-ui font-medium',
++              isActive ? 'bg-brand-wash text-brand-ink' : 'text-fg-2 hover-lift hover:text-fg')
++          }
++        >
++          <Settings className="size-[18px]" />
++          Settings
++        </NavLink>
++        <div className="mt-2 flex items-center gap-3 rounded-[10px] px-3 py-2">
++          <span className="grid size-8 place-items-center rounded-full bg-well text-cap font-semibold text-fg-2" aria-hidden="true">
++            DT
++          </span>
++          <div className="min-w-0 flex-1">
++            <p className="truncate text-ui font-medium">Danny’s records</p>
++            <p className="flex items-center gap-1 text-cap text-fg-3">
++              <ShieldCheck className="size-3.5" aria-hidden="true" /> Encrypted on this device
++            </p>
++          </div>
++        </div>
++      </div>
++    </aside>
++  );
++}
++
++function ThemeButton({ choice, onToggle }: { choice: ThemeChoice; onToggle: () => void }) {
++  const dark = resolveTheme(choice) === 'dark';
++  return (
++    <button
++      type="button"
++      onClick={onToggle}
++      aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
++      className="pressable grid size-11 place-items-center rounded-[10px] text-fg-2 hover-lift hover:text-fg"
++    >
++      {dark ? <Sun className="size-[18px]" /> : <Moon className="size-[18px]" />}
++    </button>
++  );
++}
++
++export function Shell() {
++  const { pathname } = useLocation();
++  const [paletteOpen, setPaletteOpen] = useState(false);
++  const [theme, setTheme] = useState<ThemeChoice>(() => readTheme());
++
++  useEffect(() => applyTheme(theme), [theme]);
++
++  useEffect(() => {
++    const onKey = (e: KeyboardEvent) => {
++      const typing = e.target instanceof HTMLElement && e.target.closest('input, textarea, select, [contenteditable]');
++      if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || (e.key === '/' && !typing)) {
++        e.preventDefault();
++        setPaletteOpen((o) => !o);
++      }
++    };
++    window.addEventListener('keydown', onKey);
++    return () => window.removeEventListener('keydown', onKey);
++  }, []);
++
++  const toggleTheme = () => setTheme(resolveTheme(theme) === 'dark' ? 'light' : 'dark');
++
++  return (
++    <MotionConfig reducedMotion="user">
++      <a
++        href="#main"
++        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-[10px] focus:bg-raised focus:px-4 focus:py-3 focus:shadow-overlay"
++      >
++        Skip to content
++      </a>
++
++      <Sidebar pathname={pathname} />
++
++      <div className="min-h-dvh lg:pl-[264px] pb-[112px] lg:pb-0">
++        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-line bg-canvas/85 px-4 backdrop-blur-sm sm:px-6 lg:px-10">
++          <span className="font-display text-[19px] font-semibold tracking-[-0.02em] lg:hidden">Asclexis</span>
++          <button
++            type="button"
++            onClick={() => setPaletteOpen(true)}
++            className="pressable ml-auto hidden h-11 w-full max-w-[420px] items-center gap-3 rounded-[10px] border border-line bg-raised px-3.5 text-left text-ui text-fg-3 hover:border-line-strong lg:ml-0 lg:flex"
++          >
++            <Search className="size-4" aria-hidden="true" />
++            <span className="flex-1">Search records or jump to…</span>
++            <kbd className="rounded-md border border-line bg-well px-1.5 py-0.5 font-body text-cap text-fg-2">Ctrl K</kbd>
++          </button>
++          <div className="ml-auto flex items-center gap-1">
++            <button
++              type="button"
++              onClick={() => setPaletteOpen(true)}
++              aria-label="Search records or jump to a page"
++              className="pressable grid size-11 place-items-center rounded-[10px] text-fg-2 hover-lift lg:hidden"
++            >
++              <Search className="size-[18px]" />
++            </button>
++            <ThemeButton choice={theme} onToggle={toggleTheme} />
++          </div>
++        </header>
++
++        <main id="main" tabIndex={-1} className="mx-auto w-full max-w-[1240px] px-4 pb-16 pt-6 outline-none sm:px-6 lg:px-10 lg:pt-10">
++          {/* Enter-only route motion: the new page renders immediately; no exit, no blank gap. */}
++          <div key={pathname} className="route-in">
++            <Outlet />
++          </div>
++        </main>
++
++        {/* Safety rail: in the chrome, so no route animation ever touches it. */}
++        <p className="fixed inset-x-0 bottom-[64px] z-20 border-t border-line bg-canvas/95 px-4 py-1.5 text-center text-cap text-fg-2 lg:sticky lg:bottom-0 lg:py-2">
++          Educational only — not medical advice.<span className="hidden sm:inline"> Your records stay on this device.</span>
++        </p>
++      </div>
++
++      <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-30 grid h-16 grid-cols-5 border-t border-line bg-raised/95 backdrop-blur-sm lg:hidden">
++        {MOBILE_TABS.map((t) => {
++          const active = isActivePath(pathname, t.to);
++          return (
++            <NavLink
++              key={t.to}
++              to={t.to}
++              aria-current={active ? 'page' : undefined}
++              className={cn('pressable flex flex-col items-center justify-center gap-0.5 text-cap font-medium', active ? 'text-brand-ink' : 'text-fg-2')}
++            >
++              <t.icon className="size-5" />
++              {t.label}
++            </NavLink>
++          );
++        })}
++        <button
++          type="button"
++          onClick={() => setPaletteOpen(true)}
++          className="pressable flex flex-col items-center justify-center gap-0.5 text-cap font-medium text-fg-2"
++        >
++          <MoreHorizontal className="size-5" aria-hidden="true" />
++          More
++        </button>
++      </nav>
++
++      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} onToggleTheme={toggleTheme} />
++    </MotionConfig>
++  );
++}
+diff --git a/src/frontend/src/proto/theme.ts b/src/frontend/src/proto/theme.ts
+new file mode 100644
+index 0000000..bf187df
+--- /dev/null
++++ b/src/frontend/src/proto/theme.ts
+@@ -0,0 +1,37 @@
++/** Theme: explicit choice wins, otherwise follow the OS. Stored per device only. */
++export type ThemeChoice = 'light' | 'dark' | 'system';
++const KEY = 'asclexis-theme';
++
++export function resolveTheme(choice: ThemeChoice): 'light' | 'dark' {
++  if (choice !== 'system') return choice;
++  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
++}
++
++export function readTheme(): ThemeChoice {
++  try {
++    const v = localStorage.getItem(KEY);
++    return v === 'light' || v === 'dark' ? v : 'system';
++  } catch {
++    return 'system';
++  }
++}
++
++export function applyTheme(choice: ThemeChoice) {
++  document.documentElement.dataset.theme = resolveTheme(choice);
++  try {
++    if (choice === 'system') localStorage.removeItem(KEY);
++    else localStorage.setItem(KEY, choice);
++  } catch {
++    /* storage unavailable: theme still applies for this session */
++  }
++}
++
++/** Motion tokens for JS-driven motion (mirrors tokens.css). */
++export const motionTokens = {
++  easeOutExpo: [0.23, 1, 0.32, 1] as const,
++  easeInOut: [0.77, 0, 0.175, 1] as const,
++  springSnappy: { type: 'spring' as const, visualDuration: 0.22, bounce: 0 },
++  springSettle: { type: 'spring' as const, visualDuration: 0.35, bounce: 0.1 },
++  staggerMs: 40,
++  staggerCap: 6,
++};
+diff --git a/src/frontend/src/proto/tokens.css b/src/frontend/src/proto/tokens.css
+new file mode 100644
+index 0000000..a66b371
+--- /dev/null
++++ b/src/frontend/src/proto/tokens.css
+@@ -0,0 +1,253 @@
++/*
++ * Proposal B — "Quiet Instrument" tokens (prototype).
++ * Every text/background pair below is contrast-checked in proposal-B.md §3.
++ * Light/dark are composed separately, not inverted.
++ */
++
++@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
++
++:root {
++  color-scheme: light;
++  --c-canvas: #f8f7f3;
++  --c-raised: #ffffff;
++  --c-well: #f1efea;
++  --c-sunken: #e8e6e0;
++  --c-fg: #1b1d1a;
++  --c-fg-2: #4f534d;
++  --c-fg-3: #686c66;
++  --c-line: #dedbd3;
++  --c-line-strong: #8a8d85;
++  --c-brand: #1e6b5e;
++  --c-brand-ink: #185a4f;
++  --c-brand-wash: #e2f0ec;
++  --c-on-brand: #ffffff;
++  --c-band: #d9ebe5;
++  --c-inrange: #2e6a45;
++  --c-inrange-wash: #e7f2ea;
++  --c-outside: #94422f;
++  --c-outside-wash: #fbece7;
++  --c-caution: #7c5214;
++  --c-caution-wash: #faf0de;
++  --c-info: #2f5c86;
++  --c-info-wash: #e8f0f8;
++  --shadow-overlay: 0 1px 2px rgb(27 29 26 / 0.06), 0 12px 32px -12px rgb(27 29 26 / 0.22);
++  --shadow-modal: 0 2px 4px rgb(27 29 26 / 0.06), 0 32px 72px -24px rgb(27 29 26 / 0.34);
++  --glow: radial-gradient(1200px 600px at 12% -10%, rgb(30 107 94 / 0.07), transparent 60%);
++}
++
++:root[data-theme='dark'] {
++  color-scheme: dark;
++  --c-canvas: #111413;
++  --c-raised: #181c1a;
++  --c-well: #202523;
++  --c-sunken: #0c0e0d;
++  --c-fg: #eceee9;
++  --c-fg-2: #b9beb6;
++  --c-fg-3: #979d95;
++  --c-line: #2c322f;
++  --c-line-strong: #6e756f;
++  --c-brand: #6cc9b5;
++  --c-brand-ink: #7fd3c0;
++  --c-brand-wash: #17302a;
++  --c-on-brand: #06201a;
++  --c-band: #1c3a33;
++  --c-inrange: #93d6a8;
++  --c-inrange-wash: #16281d;
++  --c-outside: #f2a893;
++  --c-outside-wash: #33201a;
++  --c-caution: #e9c57e;
++  --c-caution-wash: #2e2615;
++  --c-info: #a3c6ec;
++  --c-info-wash: #172433;
++  --shadow-overlay: 0 0 0 1px rgb(255 255 255 / 0.04), 0 16px 40px -12px rgb(0 0 0 / 0.6);
++  --shadow-modal: 0 0 0 1px rgb(255 255 255 / 0.05), 0 40px 80px -24px rgb(0 0 0 / 0.7);
++  --glow: radial-gradient(1200px 600px at 12% -10%, rgb(108 201 181 / 0.06), transparent 60%);
++}
++
++@theme inline {
++  --color-canvas: var(--c-canvas);
++  --color-raised: var(--c-raised);
++  --color-well: var(--c-well);
++  --color-sunken: var(--c-sunken);
++  --color-fg: var(--c-fg);
++  --color-fg-2: var(--c-fg-2);
++  --color-fg-3: var(--c-fg-3);
++  --color-line: var(--c-line);
++  --color-line-strong: var(--c-line-strong);
++  --color-brand: var(--c-brand);
++  --color-brand-ink: var(--c-brand-ink);
++  --color-brand-wash: var(--c-brand-wash);
++  --color-on-brand: var(--c-on-brand);
++  --color-band: var(--c-band);
++  --color-inrange: var(--c-inrange);
++  --color-inrange-wash: var(--c-inrange-wash);
++  --color-outside: var(--c-outside);
++  --color-outside-wash: var(--c-outside-wash);
++  --color-caution: var(--c-caution);
++  --color-caution-wash: var(--c-caution-wash);
++  --color-info: var(--c-info);
++  --color-info-wash: var(--c-info-wash);
++  --shadow-overlay: var(--shadow-overlay);
++  --shadow-modal: var(--shadow-modal);
++}
++
++@theme {
++  /* Type scale (px at 16px root): 13 / 15 / 17 / 19 / 22 / 28 / 36 / 56 */
++  --text-cap: 0.8125rem;
++  --text-cap--line-height: 1.15rem;
++  --text-ui: 0.9375rem;
++  --text-ui--line-height: 1.35rem;
++  --text-body: 1.0625rem;
++  --text-body--line-height: 1.65rem;
++  --text-lead: 1.1875rem;
++  --text-lead--line-height: 1.75rem;
++  --text-h3: 1.375rem;
++  --text-h3--line-height: 1.75rem;
++  --text-h2: 1.75rem;
++  --text-h2--line-height: 2.1rem;
++  --text-h1: 2.25rem;
++  --text-h1--line-height: 2.5rem;
++  --text-numeral: 3.5rem;
++  --text-numeral--line-height: 1;
++
++  /* Motion tokens */
++  --ease-out-expo: cubic-bezier(0.23, 1, 0.32, 1);
++  --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
++  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
++  --dur-press: 120ms;
++  --dur-hover: 150ms;
++  --dur-sm: 180ms;
++  --dur-md: 240ms;
++  --dur-lg: 320ms;
++  --dur-draw: 640ms;
++}
++
++/* Theme-aware browser surfaces */
++html {
++  background: var(--c-canvas);
++}
++body {
++  background-color: var(--c-canvas) !important;
++  background-image: var(--glow) !important;
++  background-attachment: fixed;
++  color: var(--c-fg);
++}
++::selection {
++  background: var(--c-brand-wash);
++  color: var(--c-fg);
++}
++.tnum {
++  font-variant-numeric: tabular-nums lining-nums;
++}
++
++/* Press feedback: one frame, spring-like release via strong ease-out */
++.pressable {
++  transition:
++    transform var(--dur-press) var(--ease-out-expo),
++    background-color var(--dur-hover) ease,
++    color var(--dur-hover) ease,
++    border-color var(--dur-hover) ease;
++}
++.pressable:active {
++  transform: scale(0.97);
++}
++
++/* Route enter: no exit, no blank gap. Opacity + 6px rise, compositor-only. */
++@keyframes route-in {
++  from {
++    opacity: 0.35;
++    transform: translateY(6px);
++  }
++}
++.route-in {
++  animation: route-in var(--dur-md) var(--ease-out-expo) both;
++}
++
++/* Range ribbon: line reveal by clip-path, points settle after. */
++.ribbon-line {
++  clip-path: inset(0 0 0 0);
++}
++.ribbon-line[data-draw='true'] {
++  animation: ribbon-draw var(--dur-draw) var(--ease-out-expo) both;
++}
++@keyframes ribbon-draw {
++  from {
++    clip-path: inset(0 100% 0 0);
++  }
++}
++.ribbon-point[data-draw='true'] {
++  animation: point-in var(--dur-sm) var(--ease-out-expo) both;
++}
++@keyframes point-in {
++  from {
++    opacity: 0;
++    transform: scale(0.6);
++  }
++}
++.ribbon-point {
++  transform-box: fill-box;
++  transform-origin: center;
++}
++
++/* Provenance peek popover: scale from its trigger. */
++.peek {
++  transform-origin: var(--radix-popover-content-transform-origin);
++  animation: peek-in var(--dur-sm) var(--ease-out-expo);
++}
++.peek[data-state='closed'] {
++  animation: peek-out 120ms var(--ease-out-expo) forwards;
++}
++@keyframes peek-in {
++  from {
++    opacity: 0;
++    transform: scale(0.96);
++  }
++}
++@keyframes peek-out {
++  to {
++    opacity: 0;
++    transform: scale(0.98);
++  }
++}
++
++/* Nav indicator: CSS transform so it stays smooth while the next route loads. */
++.nav-indicator {
++  transition: transform var(--dur-md) var(--ease-out-expo), opacity var(--dur-sm) ease;
++}
++
++@media (hover: hover) and (pointer: fine) {
++  .hover-lift:hover {
++    background-color: var(--c-well);
++  }
++}
++
++/* Reduced motion: keep opacity, drop movement. Loaders keep feedback (opacity only). */
++@media (prefers-reduced-motion: reduce) {
++  .route-in {
++    animation: route-soft 120ms ease both;
++  }
++  .ribbon-line[data-draw='true'],
++  .ribbon-point[data-draw='true'] {
++    animation: route-fade 120ms ease both;
++  }
++  .peek,
++  .peek[data-state='closed'] {
++    animation: none;
++  }
++  .nav-indicator {
++    transition: opacity 120ms ease;
++  }
++  .pressable:active {
++    transform: none;
++  }
++}
++@keyframes route-soft {
++  from {
++    opacity: 0.35;
++  }
++}
++@keyframes route-fade {
++  from {
++    opacity: 0;
++  }
++}
+diff --git a/src/frontend/src/styles/globals.css b/src/frontend/src/styles/globals.css
+index 801fe39..eec1ace 100644
+--- a/src/frontend/src/styles/globals.css
++++ b/src/frontend/src/styles/globals.css
+@@ -1,4 +1,5 @@
+ @import 'tailwindcss';
++@import '../proto/tokens.css';
+ 
+ @theme {
+   --font-display: 'Fraunces Variable', Georgia, serif;
+@@ -259,13 +260,6 @@
+       scroll-behavior: auto;
+     }
+     
+-    *,
+-    *::before,
+-    *::after {
+-      animation-duration: 0.01ms !important;
+-      animation-iteration-count: 1 !important;
+-      transition-duration: 0.01ms !important;
+-    }
+   }
+ 
+   body {
+diff --git a/src/frontend/vite.config.ts b/src/frontend/vite.config.ts
+index 24207dc..005335a 100644
+--- a/src/frontend/vite.config.ts
++++ b/src/frontend/vite.config.ts
+@@ -1,5 +1,6 @@
+ import { defineConfig, loadEnv } from 'vite';
+ import react from '@vitejs/plugin-react';
++import { mockApi } from './mock-api';
+ import { fileURLToPath } from 'url';
+ import { dirname, resolve } from 'path';
+ 
+@@ -29,7 +30,7 @@ export default defineConfig(({ mode }) => {
+   const proxyTarget = devApiProxyTarget(env);
+ 
+   return {
+-    plugins: [react()],
++    plugins: [react(), mockApi()],
+     resolve: {
+       alias: {
+         '@': resolve(__dirname, './src'),
+@@ -43,7 +44,7 @@ export default defineConfig(({ mode }) => {
+       },
+     },
+     server: {
+-      port: 3000,
++      port: 5182,
+       strictPort: false,
+       proxy: {
+         '/api': {
