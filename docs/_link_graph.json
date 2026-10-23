@@ -667,6 +667,7 @@
       "docs/research/2026-10-20-rrsi-harness2/00-README.md",
       "docs/research/2026-10-20-rrsi-harness2/01-harness2.md",
       "docs/research/2026-10-20-rrsi-harness2/02-verdicts.md",
+      "docs/research/2026-10-22-fit-decoder/00-README.md",
       "docs/research/2026-10-22-mvp/04-local-llm-serving.md"
     ],
     "docs/capstone-report/report-outline.md": [
@@ -1126,7 +1127,8 @@
     ],
     "docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md": [
       "docs/plans/2026-10-15-build-program/contracts.md",
-      "docs/plans/2026-10-15-build-program/queue.md"
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/research/2026-10-22-fit-decoder/00-README.md"
     ],
     "docs/plans/2026-10-15-build-program/queue.md": [
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
@@ -3677,6 +3679,10 @@
       "docs/capstone-report/rsi-in-development-and-application.md",
       "docs/research/2026-10-20-rrsi-harness2/02-verdicts.md",
       "docs/research/2026-10-20-rrsi-harness2/01-harness2.md"
+    ],
+    "docs/research/2026-10-22-fit-decoder/00-README.md": [
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md"
     ],
     "docs/research/2026-10-22-mvp/00-README.md": [
       "docs/research/2026-10-22-mvp/07-owner-questions.md",
