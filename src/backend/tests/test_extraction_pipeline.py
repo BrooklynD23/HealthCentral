@@ -636,6 +636,22 @@ class TestTableCellFullParse:
         obs = self._row("4.2 mg/L")
         assert obs.value == 4.2
 
+    @pytest.mark.parametrize(
+        "cell",
+        [
+            pytest.param(" " * 20000 + "x", id="spaces20000-x"),
+            pytest.param("5" + " " * 5000 + "x", id="5-spaces5000-x"),
+        ],
+    )
+    def test_hc_etv_008_long_whitespace_run_parses_in_linear_time(self, cell):
+        import time
+
+        start = time.perf_counter()
+        obs = self._row(cell)
+        elapsed = time.perf_counter() - start
+        assert obs.value is None
+        assert elapsed < 1.0, f"table-cell parse took {elapsed:.2f}s on a whitespace run"
+
     @pytest.mark.asyncio
     async def test_hc_etv_007_ruled_grid_pdf_through_import(
         self, monkeypatch, tmp_path
