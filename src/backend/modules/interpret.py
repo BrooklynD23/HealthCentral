@@ -274,6 +274,7 @@ class InterpretModule:
             interpretation.previous_interpretation_id = existing_interp.id
             # Delete old interpretation
             await profile_db.delete(existing_interp)
+            await profile_db.flush()
 
         profile_db.add(interpretation)
         await profile_db.commit()
@@ -1029,6 +1030,7 @@ class InterpretModule:
             interpretation.regeneration_count = existing_interp.regeneration_count + 1
             interpretation.previous_interpretation_id = existing_interp.id
             await profile_db.delete(existing_interp)
+            await profile_db.flush()
 
         profile_db.add(interpretation)
         await profile_db.commit()
