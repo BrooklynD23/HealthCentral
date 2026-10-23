@@ -14,7 +14,7 @@ Queue rows: [queue.md, "Planned 2026-10-22, MVP rows"](2026-10-15-build-program/
 
 **Ask-first files (CLAUDE.md §1).** Edited only behind a named gate: `be/core/database.py`, `be/core/migrations.py`, `be/core/profile_database.py`, `be/migrations/profile/env.py` (encryption; SQLCIPHER-WHEEL, gates SQLC-OLD-VAULTS and SQLC-WHEEL-DIFF; `be/core/sqlcipher_driver.py` not edited); `be/core/auth.py` (SESSION-REENTRY Task 2, gate SESSION-AUTH-DIFF); `be/api/profiles.py` call sites (EXPORT-STORE-PURGE, treated as auth-adjacent, gate EXPORT-PURGE-DIFF). `modules/interpret_safety.py`, `redaction.py`, `faithfulness.py`, `verifier_agent.py`: none edited by any row.
 
-**Overlaps with open PRs** (`gh pr list --state open`, 2026-10-22, after review round 1): #295 (frontend bundle) and #297 (llama provider) **merged** (`531c712`, `afbe1af`), as did #301 (owner rows); rows that waited on them are ready. #300 (`f588571`) and #304 (`64b92eb`) also **merged**. Still open: #305 JUDGE-THINK claim (`core/model_runner.py`, `ollama_provider.py`), #264 and #239 (parked drafts; hold no file, contracts §b rule 2, but rows that must follow #264 say so), #284, #308 (docs). Each row's `depends_on` names the PR it follows.
+**Overlaps with open PRs** (`gh pr list --state open`, 2026-10-22, after review round 1): #295 (frontend bundle) and #297 (llama provider) **merged** (`531c712`, `afbe1af`), as did #301 (owner rows); rows that waited on them are ready. #300 (`f588571`), #304 (`64b92eb`), #284 (`08ad842`), #308 (`3102dd1`) and #305 JUDGE-THINK (`2434209`) also **merged**. Still open: #264 and #239 (parked drafts; hold no file, contracts §b rule 2, but rows that must follow #264 say so). Each row's `depends_on` names the PR it follows.
 
 ---
 
