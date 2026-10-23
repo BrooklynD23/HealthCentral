@@ -21,7 +21,7 @@
 | E-3 | W-11a PR-3: migration-head test, CI eslint + build, ruff, coverage report | W11a plan Tasks 4–10; program `:444` | yes → delta §2.3 | P4, P5 done; W-4 dependency dropped (§2.3) | ready (Task 7 only after Q-RUFF) |
 | E-4 | Tailwind 4 landing (#74) | #74 body; [TW4 brief](../../../audit/2026-09-25/waves/briefs/TAILWIND-4-L1-brief.md); owner rows `:64-73,:108-111,:138-140` | yes (brief + PR) → landing steps §2.4 | E-3 (recommended first), owner TW4-SHOTS | blocked-on-owner |
 | E-5 | NPM-AUDIT-DRIFT: the 7 remaining advisories | program `:493` (closed row; "the remaining 7 need Tailwind 4"), `:427` | no (closed row) → §2.5 | E-4 merged | blocked-on-PR |
-| E-6 | W1-SMOKE: owner `/agents` runtime smoke | program `:487`; [W01 plan](../2026-09-27-W01-harness-agents-branch-a.md) Task 7 | yes → §2.6 | — | blocked-on-owner |
+| E-6 | W1-SMOKE: owner `/agents` runtime smoke | program `:487`; [W01 plan](../2026-09-27-W01-harness-agents-branch-a.md) Task 7 | yes → §2.6 | — | blocked: needs a fresh interactive session (§2.6) |
 | E-7 | AUDIT-ORDER / AUDIT-DENIALS status reconciliation | [AUDIT-ORDER plan](../2026-10-09-AUDIT-ORDER.md) `:5`, `:467`; program `:488-489` | yes (executed) → §2.7 | — | ready (DOCS) |
 | E-1b | strict misses parenthesised qualifier, `#`/`no.` after a bare label, `-` separator | queue status 2026-10-16 second batch; E-1a plan residual gaps 8–10 | yes → §2.8 | E-1a (merged #108) | blocked-on-owner (E1B-SCOPE, then E1B-DIFF); ask-first `redaction.py` |
 | REDACT-EMAIL-REDOS | quadratic `email` rule | queue status 2026-10-16 second batch | yes → §2.9 | — | blocked-on-owner (REDOS-APPROACH, then REDOS-DIFF); ask-first `redaction.py` |
@@ -186,7 +186,8 @@ Program `:493` closed the drift row with "the remaining 7 need Tailwind 4"; the 
 Source: program `:487`. W-1 Task 7 Steps 2–5 are a manual runtime smoke. The open risk: `windows-bootstrap-engineer` has `Edit` (`.claude/agents/windows-bootstrap-engineer.md` frontmatter), and an `Edit` with an empty `old_string` may create a file, so `docs/agentic/harness.md:28` ("so it cannot create files") may be false.
 
 - **Run:** W-1 Task 7 as written, plus one probe added to Step 4: ask `@windows-bootstrap-engineer` to create `scripts/w01-probe.ps1` **with the Edit tool and an empty `old_string`**. Then `git -C <smoke-wt> status --porcelain --untracked-files=all`.
-- **Who:** the owner, or an L1 in a fresh Claude Code session started inside the disposable smoke worktree (it dispatches each agent by name and pastes the transcript plus `git status`). Owner gate W1-SMOKE-RUN picks which; default: owner, as the plan says.
+- **Who:** the owner, or an L1 in a fresh Claude Code session started inside the disposable smoke worktree (it dispatches each agent by name and pastes the transcript plus `git status`). W1-SMOKE-RUN answered 2026-10-17: an agent runs it, in a fresh session inside the smoke worktree, and posts the output for the owner to review (owner-decisions row W1-SMOKE-RUN).
+- Task 7's paths are the old machine's; the runner substitutes the current box's worktree paths and records them.
 - **If the probe creates a file:** fix `harness.md`'s claim in a docs PR ("cannot create files" → "can create a file through `Edit`; the orchestrator's `git status` review is the bound"). A PreToolUse hook (W-1 OG-1) is a separate owner decision; this lane does not add one.
 - **Later (test-only, optional):** HC-AGENTS-001/002 report "still ignored" when git exits 128 (wave-2-L1-C finding 3). One assert on `returncode in (0, 1)` with git's stderr in the message, in `src/backend/tests/test_claude_agent_definitions.py`. No count change. **Waits for #68 (lane F F-10, merges last):** #68 rewrites `test_hc_agents_002` (`:60-82` on its branch) and adds a `returncode != 1` check; the fix is written against #68's text, never before it.
 
@@ -1073,7 +1074,7 @@ No change to `ci.yml`, to branch protection, or to any other doc.
 | CI-SEED (W-11a OG-3) | E-3 Task 8 Step 4 | unsigned; W4-CI-SEED (`:106`) does not cover it |
 | TW4-SHOTS + #74 merge | E-4 | owner compares screenshots (`:140`); owner merges |
 | NPM-AUDIT-CI | E-5, NPM-AUDIT-SCHEDULED | **answered 2026-10-22: "Scheduled audit workflow"** (`:383`, prompt 34; not the recommended "Don't add"): row NPM-AUDIT-SCHEDULED (§2.5a); nothing added to `frontend-tests` |
-| W1-SMOKE-RUN (new) | E-6 | unasked; default owner runs W-1 Task 7 |
+| W1-SMOKE-RUN (new) | E-6 | answered 2026-10-17: an agent runs it |
 | Ask-first `modules/redaction.py` (**edited**) | E-1b, REDACT-EMAIL-REDOS | each needs a yes to edit (E1B-SCOPE, REDOS-APPROACH) and a yes on its exact diff before merge (E1B-DIFF, REDOS-DIFF), as E-1a; never both at once |
 | E1B-SCOPE (new) | E-1b | unasked; (a) the queue row's shapes (qualifier, `#`/`no.`, `-`) or (b) also `=` and `;`. Recommended (b) |
 | REDOS-APPROACH (new) | REDACT-EMAIL-REDOS | unasked; (a) `@`-anchored match, identical output / (b) RFC bounds, narrower / (c) leave. Recommended (a) |
@@ -1102,7 +1103,7 @@ No change to `ci.yml`, to branch protection, or to any other doc.
 2. **Q-E2 (E-2):** should HC-PGUARD's denial-row assertion live in PR-1, or stay with `test_denial_audit.py`? Default: in PR-1, because it is the HTTP proof that `require_profile_access` writes the row.
 3. **Q-E3 (GATE-12):** *Answered 2026-10-19 (owner GATE-12, `owner-decisions-2026-09-27.md:299`: yes, add the row); planned as §2.14.* #78 made every cross-profile 403 on a `require_profile_access` route write through `core.database.async_session_maker`. A route test that forgets the patch writes to `src/backend/data/asclexis.db` if it exists. A conftest-level autouse patch would close this for all tests, but `tests/conftest.py` is read-only for W-11a (plan §1). Register as a GATE-12 follow-up?
 4. **Q-E4 (E-5):** *(NPM-AUDIT-CI answered 2026-10-22: scheduled workflow, §2.5a; this question about fixes stays open.)* if `npm audit` on merged main is still > 0, does each remaining advisory need its own owner row (FE-SEQ reading), or one row for the batch?
-5. **Q-E5 (E-6):** may an L1 in a fresh Claude Code session inside the smoke worktree run W-1 Task 7 instead of the owner (W1-SMOKE-RUN)?
+5. **Q-E5 (E-6):** ~~may an L1 in a fresh Claude Code session inside the smoke worktree run W-1 Task 7 instead of the owner (W1-SMOKE-RUN)?~~ (answered 2026-10-17: an agent runs it; W1-SMOKE-RUN)
 
 ## 7. Peer review (2026-10-15)
 

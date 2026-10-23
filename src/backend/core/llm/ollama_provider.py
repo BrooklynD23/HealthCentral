@@ -143,6 +143,9 @@ class OllamaProvider:
         schema = getattr(config, "response_schema", None)
         if schema:
             body["format"] = schema
+        think = getattr(config, "think", None)
+        if think is not None:
+            body["think"] = think
         return body
 
     # ------------------------------------------------------------------

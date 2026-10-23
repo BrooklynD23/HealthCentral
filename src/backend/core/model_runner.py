@@ -39,6 +39,8 @@ class InferenceConfig:
     # JSON schema for constrained decoding (providers map it to their native
     # parameter; None = unconstrained, identical to before).
     response_schema: Optional[dict] = None
+    # Ollama thinking models: False disables thinking (None = key not sent).
+    think: Optional[bool] = None
 
 
 @dataclass
