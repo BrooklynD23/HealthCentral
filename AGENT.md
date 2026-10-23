@@ -81,7 +81,7 @@ cd src/backend; python scripts/download_models.py list     # GGUF tiers + ollama
 cd src/backend; python scripts/download_models.py verify   # check every tier repo exists on HuggingFace (needs network)
 ```
 
-Known env-only failure: since W-8 the embedding model is a fetched, gitignored bundle. Without it exactly 5 tests fail: `test_embedding_bundle.py::test_hc_emb_002_fetched_model_loads_offline` and, in `test_rag_pipeline.py`, `test_api_rag_index_002`, `test_api_rag_index_002b`, `test_api_rag_index_002c`, `test_search_vectors_async_calculates_similarity`. Fix: `python scripts/download_models.py embedding`; never lower the 0.7 threshold. CI fetches the model. WSL/9p mounts: clear `__pycache__` before pytest (stale bytecode causes phantom results); `node_modules` may be unusable — run frontend toolchain on Windows.
+Known env-only failure: since W-8 the embedding model is a fetched, gitignored bundle. Without it exactly 5 tests fail: `test_embedding_bundle.py::test_hc_emb_002_fetched_model_loads_offline` and, in `test_rag_pipeline.py`, `test_api_rag_index_002`, `test_api_rag_index_002b`, `test_api_rag_index_002c`, `test_search_vectors_async_calculates_similarity`. Fix: `cd src/backend && python scripts/download_models.py embedding`; never lower the 0.7 threshold. CI fetches the model. WSL/9p mounts: clear `__pycache__` before pytest (stale bytecode causes phantom results); `node_modules` may be unusable — run frontend toolchain on Windows.
 
 ## Key flows (trace these before changing them)
 

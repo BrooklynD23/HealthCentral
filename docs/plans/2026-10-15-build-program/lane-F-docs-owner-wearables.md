@@ -391,7 +391,7 @@ Source: `TASK_LIST.md:80-104` and wearables program 00 §10 (on #94). "Unblocks"
 | HOOKS-COMMIT | F-10 | answered 2026-10-10 per the #68 branch row; not on main until #68 merges |
 | PR68-SYNC, PR61-CLOSE, WEAR-PR | F-10, F-11, F-12 | answered (`:158`, `:141`, `:150`) |
 | M0, OW-W0, OW-W3 | F-12 | open (§2.13). OW-W6, OW-W8…OW-W12 answered 2026-10-19; OW-W7, OW-W13 answered 2026-10-22 (§2.13) |
-| WEAR-FIT-LIC (new 2026-10-22) | WEAR-11b | **open, not asked**; asked after FIT-DECODER-RESEARCH (§2.16) lands; draft wording and options in §2.16 |
+| WEAR-FIT-LIC (new 2026-10-22) | WEAR-11b | **answered 2026-10-23 (prompt 43): "MIT decoder (fitdecode)"** (`owner-decisions-2026-09-27.md:405`); draft wording and options in §2.16 |
 | Ask-first files | all | **none edited by any lane-F item.** Flags: OW-W9 option 2 would open `modules/redaction.py` (ask-first); OW-W12 edits the profile delete path in `api/profiles.py` (auth-adjacent, RL-EXPORTS-DELETE-PATH precedent); WEAR-02/06 `core/audit.py`, `security/input_validator.py` are owner-signed exact diffs (WEAR-D4) |
 
 ## 6. Open questions
