@@ -8,7 +8,7 @@
 
 ## The question
 
-Owner decision OW-W7 (`docs/capstone-report/owner-decisions-2026-09-27.md:385`, prompt 35), verbatim:
+Owner decision OW-W7 ([`docs/capstone-report/owner-decisions-2026-09-27.md`](../../capstone-report/owner-decisions-2026-09-27.md) line 385, prompt 35), verbatim:
 
 > "OW-W7, re-asked with the distinction above. Garmin's licence restricts USE to 'internal business purposes' and forbids DISTRIBUTING its SDK; being non-commercial does not change that. A pip dependency (each user downloads Garmin's SDK themselves) is lower risk than bundling it into an installer (HC-M08), which would be distribution. Which path for reading Garmin .FIT files?"
 
@@ -224,7 +224,7 @@ Every row has a source and the date read. Read date for all rows: 2026-10-22.
 
 ## WEAR-FIT-LIC: draft owner question (no recommendation)
 
-Draft, from `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md` section 2.16 with the summary filled from the findings above. Asked only after this research lands.
+Draft, from [`docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`](../../plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md) section 2.16 with the summary filled from the findings above. Asked only after this research lands.
 
 > "WEAR-11b reads Garmin metrics that exist only in .FIT files. The research found that Garmin's licence text defines its 'Licensed Technology' as Garmin's FIT SDK including protocol documentation and source code, and does not say whether it reaches the FIT file format itself or independent decoders (the text is ambiguous, so no reading was inferred). Independent decoders exist under MIT (fitdecode, fitparse) and BSD-3-Clause (fit-tool), but each embeds a profile generated from Garmin's SDK profile, and nothing read says on what terms that profile may be used. fitdecode is maintained and streams files in flat memory; fitparse has had no release since 2020 and cannot name three of the message types WEAR-11b may need; fit-tool allocated without bound on a 6.3 MB file. (Not legal advice.) Which decoder may WEAR-11b use?"
 
