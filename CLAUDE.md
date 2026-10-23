@@ -27,16 +27,16 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
 ## 4. Loop toward verifiable success criteria
 
 - Write or extend a test first, then make it pass. Tests live in `src/backend/tests/` (pytest, `HC-XXX-NNN` naming) and `src/frontend` (vitest + Playwright e2e).
-- Baseline: **2291 backend tests collected.** Since W-8 the embedding model is
+- Baseline: **2390 backend tests collected.** Since W-8 the embedding model is
   a fetched, gitignored bundle. Without it, exactly 5 tests fail:
   `test_embedding_bundle.py::test_hc_emb_002_fetched_model_loads_offline`, and
   in `test_rag_pipeline.py` `test_api_rag_index_002`, `test_api_rag_index_002b`,
   `test_api_rag_index_002c` and `test_search_vectors_async_calculates_similarity`.
   Those failures are environmental — they are not yours; fix them by fetching
-  the model (`python scripts/download_models.py embedding`), and you must not
+  the model (`cd src/backend && python scripts/download_models.py embedding`), and you must not
   "fix" them by lowering the 0.7 threshold. Judge yourself on the
   **collected** count, which does not vary by environment: if it differs from
-  2291, the line may lag merges: PRs never edit it; the orchestrator updates
+  2390, the line may lag merges: PRs never edit it; the orchestrator updates
   it in a post-merge batch (SLOT-RULE-2). Report your measured count and delta.
 - **Run verification; never assert it.** Report the command and its actual
   output. "Tests pass" without the output is not a result. If a check was

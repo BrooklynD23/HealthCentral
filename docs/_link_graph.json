@@ -1409,6 +1409,9 @@
       "docs/research/2026-10-20-rrsi-harness2/02-verdicts.md",
       "docs/research/2026-10-20-rrsi-harness2/03-adversarial-review.md"
     ],
+    "docs/research/2026-10-22-fit-decoder/00-README.md": [
+      "docs/plans/2026-10-15-build-program/queue.md"
+    ],
     "docs/research/2026-10-22-mvp/00-README.md": [
       "docs/plans/2026-10-15-build-program/queue.md",
       "docs/plans/2026-10-22-mvp-rows-plan.md",
@@ -3380,6 +3383,7 @@
       "docs/plans/2026-10-15-build-program/contracts.md",
       "docs/plans/2026-10-20c-session-handoff.md",
       "docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md",
+      "docs/research/2026-10-22-fit-decoder/00-README.md",
       "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md",
       "docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md",
       "docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md",
