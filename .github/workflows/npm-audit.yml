@@ -29,8 +29,14 @@ jobs:
         run: |
           node -e '
           const fs = require("fs");
-          const r = JSON.parse(fs.readFileSync("npm-audit.json", "utf8"));
-          const m = (r.metadata && r.metadata.vulnerabilities) || {};
+          let r = {};
+          try { r = JSON.parse(fs.readFileSync("npm-audit.json", "utf8")); } catch (e) { r = { message: "unreadable npm-audit.json: " + e.message }; }
+          const m = r.metadata && r.metadata.vulnerabilities;
+          if (!m) {
+            const why = r.message || (r.error && r.error.summary) || "no metadata in output";
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, "## npm audit\n\nnpm audit did not produce a report: " + why + "\n");
+            process.exit(0);
+          }
           const keys = ["info", "low", "moderate", "high", "critical", "total"];
           let out = "## npm audit\n\n| " + keys.join(" | ") + " |\n|" + keys.map(() => "---").join("|") + "|\n";
           out += "| " + keys.map((k) => m[k] ?? 0).join(" | ") + " |\n";
@@ -52,7 +58,12 @@ jobs:
         working-directory: src/frontend
         run: |
           node -e '
-          const m = require("./npm-audit.json").metadata.vulnerabilities;
+          let m;
+          try { m = require("./npm-audit.json").metadata.vulnerabilities; } catch (e) {}
+          if (!m) {
+            console.log("npm audit did not produce a report (registry error or unreadable output)");
+            process.exit(1);
+          }
           const n = (m.high || 0) + (m.critical || 0);
           console.log("high+critical = " + n);
           process.exit(n > 0 ? 1 : 0);
