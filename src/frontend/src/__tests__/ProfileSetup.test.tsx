@@ -332,4 +332,72 @@ describe('ProfileSetup', () => {
       });
     }, 15000);
   });
+
+  describe('SESSION-REENTRY: unlock an existing profile with its password', () => {
+    const PROFILE = {
+      id: 'profile-uuid-123',
+      display_name: 'Maria Lopez',
+      is_locked: false,
+      created_at: '2026-01-01T00:00:00Z',
+      last_accessed_at: null,
+    };
+    const PASSWORD = 'SecurePass123';
+
+    function mockOneProfile() {
+      vi.mocked(api.apiGet).mockResolvedValue([PROFILE]);
+    }
+
+    it('HC-SRE-001: with a profile on file, /setup offers "Unlock your profile"', async () => {
+      mockOneProfile();
+      renderWithProviders(<ProfileSetup />);
+
+      expect(await screen.findByText('Unlock your profile')).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: 'Maria Lopez' })).toBeInTheDocument();
+      expect(screen.getByLabelText('Unlock password')).toHaveAttribute('type', 'password');
+      expect(screen.getByRole('button', { name: /^unlock$/i })).toBeInTheDocument();
+      // The recovery-code route stays reachable.
+      expect(screen.getByRole('link', { name: /use your recovery code/i })).toBeInTheDocument();
+    });
+
+    it('HC-SRE-002: unlocking posts {profile_id, password}, stores the token and goes to /inbox', async () => {
+      const user = userEvent.setup();
+      mockOneProfile();
+      vi.mocked(api.apiPost).mockResolvedValueOnce({
+        access_token: 'unlocked-token-456',
+        token_type: 'bearer',
+        expires_in: 3600,
+        profile_id: PROFILE.id,
+        profile_name: PROFILE.display_name,
+      });
+      renderWithProviders(<ProfileSetup />);
+
+      await user.type(await screen.findByLabelText('Unlock password'), PASSWORD);
+      await user.click(screen.getByRole('button', { name: /^unlock$/i }));
+
+      await waitFor(() => {
+        expect(api.apiPost).toHaveBeenCalledWith('/profiles/login', {
+          profile_id: PROFILE.id,
+          password: PASSWORD,
+        });
+      });
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/inbox'));
+      expect(useAuthStore.getState().token).toBe('unlocked-token-456');
+    });
+
+    it('HC-SRE-003: a 401 shows "Incorrect password" in an alert and stays on /setup', async () => {
+      const user = userEvent.setup();
+      mockOneProfile();
+      vi.mocked(api.apiPost).mockRejectedValueOnce(
+        new api.ApiError(401, 'Unauthorized', 'Invalid credentials')
+      );
+      renderWithProviders(<ProfileSetup />);
+
+      await user.type(await screen.findByLabelText('Unlock password'), 'WrongPass999');
+      await user.click(screen.getByRole('button', { name: /^unlock$/i }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Incorrect password');
+      expect(mockNavigate).not.toHaveBeenCalled();
+      expect(useAuthStore.getState().token).toBeNull();
+    });
+  });
 });
