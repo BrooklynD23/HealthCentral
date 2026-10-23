@@ -76,6 +76,46 @@ function gateNumstat(text) {
 }
 const namesOf = (text) => String(text || '').split('\n').map((s) => s.trim()).filter(Boolean)
 
+// Pure and self-contained (extracted alone by the test fixture): no MOD/ALLOW/log/args references.
+// Merge Claude's and Codex's reflections: only worth_proposing ones; Codex entries are validated;
+// same cluster from both keeps Claude's with Codex's as second_opinion; the rest alternate C, X, C, ...
+function mergeReflections(claude, codex, max) {
+  const TARGETS = ['.claude/mods/asclexis-rsi/hooks/rules.ts', '.claude/mods/asclexis-rsi/replay/cases.ts', 'docs/agentic/recurring-failures.md']
+  const KEYS = ['cluster', 'went_wrong', 'smallest_change', 'target_file', 'worth_proposing']
+  const notes = []
+  const mine = (Array.isArray(claude) ? claude : []).filter((r) => r && r.worth_proposing === true).map((r) => ({ ...r, source: 'claude' }))
+  let theirs = []
+  if (!Array.isArray(codex)) {
+    notes.push('codex: unavailable')
+  } else {
+    const valid = codex.filter((r) => r && typeof r === 'object' && KEYS.every((k) => r[k] !== undefined && r[k] !== null)
+      && typeof r.cluster === 'string' && typeof r.worth_proposing === 'boolean' && TARGETS.includes(r.target_file))
+    if (valid.length < codex.length) notes.push(`codex: dropped ${codex.length - valid.length} invalid reflection(s)`)
+    theirs = valid.filter((r) => r.worth_proposing === true).map((r) => ({ ...r, source: 'codex' }))
+  }
+  const seen = new Set(mine.map((r) => r.cluster))
+  const extra = []
+  for (const x of theirs) {
+    const twin = mine.find((r) => r.cluster === x.cluster)
+    if (twin) { if (!twin.second_opinion) twin.second_opinion = x; continue }
+    if (!seen.has(x.cluster)) { seen.add(x.cluster); extra.push(x) }
+  }
+  const out = []
+  for (let i = 0; out.length < max && (i < mine.length || i < extra.length); i++) {
+    if (i < mine.length && out.length < max) out.push(mine[i])
+    if (i < extra.length && out.length < max) out.push(extra[i])
+  }
+  return { reflections: out, notes }
+}
+// PASS/REVISE only when the FIRST line is exactly the verdict; anything else is UNAVAILABLE.
+function parseCodexVerdict(text) {
+  if (typeof text !== 'string') return 'UNAVAILABLE'
+  const first = text.replace(/^\uFEFF/, '').split('\n')[0].replace(/\r$/, '')
+  if (first === 'VERDICT: PASS') return 'PASS'
+  if (first === 'VERDICT: REVISE') return 'REVISE'
+  return 'UNAVAILABLE'
+}
+
 // ---------------------------------------------------------------------------
 const MINE_SCHEMA = {
   type: 'object',
