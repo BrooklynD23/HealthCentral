@@ -13,7 +13,18 @@ import {
   ensureE2EProfile,
 } from './support/auth';
 
+// API paths only: Vite also serves RecoveryCodeCard.tsx as a module.
+const isRecoveryApiPath = (pathname: string) =>
+  /\/api\/v1\/profiles\/[^/]+\/recover(y-code)?$/.test(pathname);
+
 test.describe('SESSION-REENTRY unlock', () => {
+  test('HC-SRE-004 control: the recovery matcher matches the real recovery paths and not module requests', () => {
+    expect(isRecoveryApiPath('/api/v1/profiles/x/recover')).toBe(true);
+    expect(isRecoveryApiPath('/api/v1/profiles/x/recovery-code')).toBe(true);
+    expect(isRecoveryApiPath('/src/components/RecoveryCodeCard.tsx')).toBe(false);
+    expect(isRecoveryApiPath('/api/v1/profiles/login')).toBe(false);
+  });
+
   test('HC-SRE-004: with the token cleared, /setup unlocks with the password and never touches recovery', async ({
     page,
     request,
@@ -22,8 +33,7 @@ test.describe('SESSION-REENTRY unlock', () => {
 
     const recoveryCalls: string[] = [];
     page.on('request', (req) => {
-      // API paths only: Vite also serves RecoveryCodeCard.tsx as a module.
-      if (/\/api\/v1\/profiles\/[^/]+\/recover(y-code)?$/.test(new URL(req.url()).pathname)) {
+      if (isRecoveryApiPath(new URL(req.url()).pathname)) {
         recoveryCalls.push(req.url());
       }
     });
@@ -55,11 +65,20 @@ test.describe('SESSION-REENTRY unlock', () => {
     const loginResponse = page.waitForResponse(
       (r) => new URL(r.url()).pathname.endsWith('/profiles/login') && r.status() === 200
     );
+    // The per-profile vault must really open: a profile-data GET succeeds
+    // with the new token before any negative check below means anything.
+    const documentsResponse = page.waitForResponse(
+      (r) =>
+        r.request().method() === 'GET' &&
+        /\/documents\/?$/.test(new URL(r.url()).pathname) &&
+        r.status() === 200
+    );
     await page.getByRole('button', { name: 'Unlock', exact: true }).click();
     await loginResponse;
+    await documentsResponse;
 
     await expect(page).toHaveURL(/\/inbox/, { timeout: 15000 });
-    await expect(page.getByText(/documents|inbox/i).first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Document Inbox' })).toBeVisible();
     await expect(page.getByText('Your session has ended')).toHaveCount(0);
     await expect(page.getByText('Access denied')).toHaveCount(0);
     expect(new URL(page.url()).pathname).not.toMatch(/recover/i);
