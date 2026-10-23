@@ -8,7 +8,7 @@
 
 ## The question
 
-Owner decision OW-W7 ([`docs/capstone-report/owner-decisions-2026-09-27.md`](../../capstone-report/owner-decisions-2026-09-27.md) line 385, prompt 35), verbatim:
+This section quotes the owner's question that this note answers. Owner decision OW-W7 ([`docs/capstone-report/owner-decisions-2026-09-27.md`](../../capstone-report/owner-decisions-2026-09-27.md) line 385, prompt 35), verbatim:
 
 > "OW-W7, re-asked with the distinction above. Garmin's licence restricts USE to 'internal business purposes' and forbids DISTRIBUTING its SDK; being non-commercial does not change that. A pip dependency (each user downloads Garmin's SDK themselves) is lower risk than bundling it into an installer (HC-M08), which would be distribution. Which path for reading Garmin .FIT files?"
 
@@ -19,8 +19,8 @@ The owner picked "Research MIT FIT decoder": "A planner checks an independent MI
 1. **Q1 is ambiguous in the text, so no reading is inferred.** The Garmin licence defines the "Licensed Technology" as Garmin's FIT SDK "that includes documentation describing the FIT protocol and related source code files". It never says that the file format itself, or an independent implementation of it, is licensed. It also never says the format is free to implement. Section 1 grants a licence "to use the FIT protocol in any software created by Licensee". Garmin publishes no statement on third-party decoders on any page read. See Q1.
 2. **Every decoder embeds a profile generated from Garmin's SDK profile.** `fitdecode`, `fitparse` and `fit-tool` each ship a generated profile module stamped with a Garmin SDK version (21.171, 20.8, 21.212/21.213). Garmin ships `Profile.xlsx` in the `garmin/fit-sdk-tools` repo, whose `LICENSE.txt` is word-for-word the same agreement. Whether that makes the MIT decoders subject to Garmin's terms is a legal question this research does not answer. See Q2.
 3. **`fit-tool` is BSD-3-Clause, not MIT, and is a community fork** of a package its author removed from PyPI. The plan's "licence field empty on PyPI" is a metadata artefact: the wheel carries `License-Expression: BSD-3-Clause` (Stages Cycling, 2021). `garmin-fit-sdk` carries `LicenseRef-FIT-Protocol-License-Agreement`.
-4. **Robustness differs a lot.** On a 6.3 MB synthetic file (900,000 records) `fit-tool` hit a 2 GiB address-space cap and raised `MemoryError`; `fitdecode` stayed at 17 MiB. `fitdecode` only warns on a bad CRC by default; it must be called with `check_crc=CrcCheck.RAISE`. No decoder hung in 1,500 mutated files each. See Q3.
-5. **`fitparse` cannot name three message types WEAR-11b may need** (`monitoring_hr_data` 211, `sleep_level` 275, `hrv_value` 371): its bundled profile is SDK 20.8 (2019), so they decode as `unknown_NNN` with raw field numbers. The other three decode all of them. See Q5.
+4. **Robustness differs a lot.** On a 6.3 MB synthetic file (900,000 records) `fit-tool` used about 360 bytes of memory per input byte and hit a 2 GiB test cap (`MemoryError`); `garmin-fit-sdk` grew about 38 B/B; `fitdecode` stayed at 17 MiB. `fitdecode` only warns on a bad CRC by default; it must be called with `check_crc=CrcCheck.RAISE`. No decoder hung in 1,500 mutated files each. See Q3.
+5. **`fitparse` cannot name three message types WEAR-11b may need** (`monitoring_hr_data` 211, `sleep_level` 275, `hrv_value` 371): its bundled profile is SDK 20.8 (2019), so they decode as `unknown_NNN` with raw field numbers. `fit-tool` names the messages but does not resolve the `steps` sub-field (it returns `cycles`); `fitdecode` and `garmin-fit-sdk` decode all of them. See Q5.
 6. **The plan's metric list and the brief differ.** The wearables-11 plan puts resting HR, steps and sleep intervals in scope and lists stress, HRV, SpO2 as non-goals (`docs/plans/2026-10-13-wearables-11-garmin-parser.md:32-37`, `docs/plans/2026-10-13-wearables-00-program.md:26`). Q5 tests both lists. This does not change the WEAR-FIT-LIC options.
 
 ## Method
@@ -29,7 +29,7 @@ The owner picked "Research MIT FIT decoder": "A planner checks an independent MI
 2. Read Garmin's FIT SDK pages (overview, get-the-sdk, protocol, FIT CSV Tool) as served on 2026-10-22.
 3. Downloaded each package's sdist from PyPI into its own empty directory outside the repo; read licence files, READMEs, history, and grepped source for `urllib`, `requests`, `socket`, `subprocess`, `http.client`.
 4. Built a scratch Python 3.11.17 venv (`/tmp/claude-1000/fitdec/venv`, outside the repo, never the repo or `asclexis-311` venv) with the four packages at the pinned versions below. Scripts lived in a separate directory and were run with `python -I`.
-5. Hand-encoded synthetic `.fit` files with `struct` (no decoder library used to write them), so no decoder produced its own test input. Decoded them in all four decoders with sockets and `subprocess.Popen` patched to raise and a 2 GiB address-space cap.
+5. Hand-encoded synthetic `.fit` files with `struct` (no decoder library used to write them), so no decoder produced its own test input. Decoded them in all four decoders with `socket.socket.connect`, `socket.getaddrinfo`, `socket.create_connection` and `subprocess.Popen` patched to raise, and a 2 GiB address-space cap. The scratch scripts (`/tmp/claude-1000/fitdec/scripts/{mkfit,dec,fuzz}.py`) are not preserved in the repo; the pasted output is the record.
 6. Real Garmin example files were **not** used: the only public ones found (`Activity.fit` in `garmin/fit-sdk-tools/examples`) sit under the same agreement. No real Garmin export exists (OW-W3 is open).
 
 Versions tested (all installed in the scratch venv): `fitdecode 0.11.0`, `fitparse 1.2.0`, `fit-tool 0.9.16`, `garmin-fit-sdk 21.218.0`.
@@ -69,7 +69,7 @@ Two Garmin statements bear on what is "the SDK":
 - Section 1 treats "use the FIT protocol in any software created by Licensee" as something the licence grants within the Licensed Technology; it does not say that using the protocol without the SDK needs this licence, or that it does not.
 - Section 2c reaches "any features or functionality of the Licensed Technology"; section 2h refers to "the FIT protocol and related documentation". Whether an independent decoder is covered by either phrase is not stated.
 
-**Conclusion: ambiguous. This note stops here and infers no reading.** Whether the licence reaches an independent implementation of the format, and whether decoders built from the public profile are covered, needs a legal read (option 4 in WEAR-FIT-LIC).
+**Conclusion: ambiguous. This note stops here and infers no reading.** Whether the licence reaches an independent implementation of the format, and whether decoders built from the public profile are covered, is not answered by the text. WEAR-FIT-LIC option 4 is a legal read.
 
 ## Q2. Each decoder
 
@@ -87,7 +87,7 @@ Read dates are 2026-10-22 for every cell. "Licence file" means the file inside t
 | `requires_python` | `>=3.6` | not declared | `>=3.9` | `>=3.6` |
 | Network/subprocess in source | none: grep for `urllib`, `requests`, `socket`, `subprocess`, `http.client`, `urlopen` finds only `import os` / `os.path` | none (only `import os`) | none (only `import os`; 207 `.py` files incl. generator) | none (only `import os` in `stream.py`) |
 
-**Python 3.11 import and decode of one synthetic `.fit`** (scratch venv, Python 3.11.17, `python -I`, sockets and `subprocess.Popen` patched to raise, file `synth.fit`, 155 bytes, hand-encoded). Output pasted:
+**Python 3.11 import and decode of one synthetic `.fit`** (scratch venv, Python 3.11.17, `python -I`, network and `subprocess.Popen` calls patched to raise (see Method), file `synth.fit`, 155 bytes, hand-encoded). Output pasted:
 
 ```
 ##### fitdecode
@@ -151,7 +151,7 @@ Harness: one process per file, 2 GiB address-space cap (`RLIMIT_AS`), `timeout 9
 | 2.1 MB, 300,000 records | 5.3 s, 17 MiB | 8.8 s, 152 MiB | 17.3 s, **765 MiB** | 5.6 s, 89 MiB |
 | 6.3 MB, 900,000 records | 16.2 s, 17 MiB | 27.5 s, 423 MiB | **`MemoryError` at the 2 GiB cap** after 44.9 s | 15.3 s, 238 MiB |
 
-Reading: `fitdecode` streams (flat memory). `fitparse` and `garmin-fit-sdk` hold every message and grow linearly (about 65 and 38 bytes per input byte). `fit-tool` grew about 360 bytes per input byte and exhausted 2 GiB on a 6.3 MB file. At the planned per-member FIT cap of 64 MiB (`docs/plans/2026-10-13-wearables-11-garmin-parser.md` line 20), the same ratios would give about 2.4 GiB for `garmin-fit-sdk`, 4.3 GiB for `fitparse` and over 20 GiB for `fit-tool` [I]; this extrapolation is untested. A small cap on decoded bytes, or `fitdecode`'s streaming, bounds memory. **`fit-tool` allocates without a practical bound relative to input size and is listed as such.**
+Reading: `fitdecode` streams (flat memory). `fitparse` and `garmin-fit-sdk` hold every message and grow linearly (about 65 and 38 bytes per input byte). `fit-tool` used about 360 bytes of memory per input byte and hit the 2 GiB test cap on a 6.3 MB file. At the planned per-member FIT cap of 64 MiB (`docs/plans/2026-10-13-wearables-11-garmin-parser.md` line 20), the same ratios would give about 2.4 GiB for `garmin-fit-sdk`, 4.3 GiB for `fitparse` and over 20 GiB for `fit-tool` [I]; this extrapolation is untested. A small cap on decoded bytes, or `fitdecode`'s streaming, bounds memory. Memory growth is linear in input size for `fitparse`, `fit-tool` and `garmin-fit-sdk`; only `fitdecode` stayed flat.
 
 **Hang check:** 1,500 byte-mutated copies of `synth_dev.fit` per decoder (1 to 8 random byte changes inside the body, CRC check off, 5 s alarm, 1 GiB cap). No timeouts and no `MemoryError` in any decoder; none took over 1 s. Outcomes: `fitdecode` 534 ok / 966 raised (`FitParseError`, `FitEOFError`, and also `TypeError` 173, `KeyError` 18, `AssertionError` 6, `ValueError` 4); `fitparse` 520 ok / 980 raised (also `KeyError` 32, `TypeError` 91); `fit-tool` 356 ok / 1,144 raised (`FitRecordError`, `ValueError` 173); `garmin-fit-sdk` 1,500 ok (errors collected, never raised). So **a caller must catch `Exception`, not only the library's error classes, for `fitdecode` and `fitparse`**. This is a small sample, not a proof of absence of hangs; no decoder is listed as hanging.
 
@@ -164,7 +164,7 @@ Reading: `fitdecode` streams (flat memory). `fitparse` and `garmin-fit-sdk` hold
 | `fitdecode` (MIT) | Allowed: MIT grants use, copy, distribute "without restriction" | Allowed; the copyright and licence notice must stay with copies |
 | `fitparse` (MIT) | Same | Same |
 | `fit-tool` (BSD-3-Clause) | Allowed | Allowed; binary redistribution "must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials"; no endorsement use of "Stages Cycling" |
-| `garmin-fit-sdk` | Text restricts use to "internal business purposes" (section 1) and bars to "distribute, publish, transfer or otherwise make available" (2c). Whether a user's own `pip install` makes that user the licensee, and whether a private individual's use is "internal business purposes", is not stated. **Ambiguous; no reading inferred.** | Bundling is "distribute ... to any third party" under the plain wording of 2c; the owner's own OW-W7 text treats it as distribution. Section 2d adds a restriction against distributing under a licence that requires disclosure of source or lets others modify; the HealthCentral repository licence was not checked here. |
+| `garmin-fit-sdk` | Text restricts use to "internal business purposes" (section 1) and bars to "distribute, publish, transfer or otherwise make available" (2c). Whether a user's own `pip install` makes that user the licensee, and whether a private individual's use is "internal business purposes", is not stated. **Ambiguous; no reading inferred.** | Bundling is "distribute ... to any third party" under the plain wording of 2c; the owner's own OW-W7 text treats it as distribution. Section 2d adds a restriction against distributing under a licence that requires disclosure of source or lets others modify; the HealthCentral repository root has no `LICENSE` or `COPYING` file (read on `0e2799b`); no legal conclusion is drawn from that. |
 
 The MIT and BSD rows say nothing about the Garmin-derived profile data inside them (Q2); that remains the open legal point.
 
@@ -175,7 +175,7 @@ The wearables-11 plan puts **resting heart rate, steps and sleep** in scope and 
 | Message (global number) | Metric | `fitdecode` | `fitparse` | `fit-tool` | `garmin-fit-sdk` |
 |---|---|---|---|---|---|
 | `monitoring_hr_data` (211): `resting_heart_rate` | resting HR (in scope) | named | **`unknown_211`**, raw `unknown_0: 52` | named | named |
-| `monitoring` (55): `steps` | steps (in scope) | named, `steps: 2400` | named, `steps: 2400` | named; returns `cycles: 1200.0` and `activity_type: 6`; no `steps` key shown | named, `cycles` and `steps` |
+| `monitoring` (55): `steps` | steps (in scope) | named, `steps: 2400` | named, `steps: 2400` | message named; `steps` not resolved (returns `cycles: 1200.0`, `activity_type: 6`; caller converts from cycles) | named, `cycles` and `steps` |
 | `sleep_level` (275): `sleep_level` | sleep stages (in scope as sleep) | named, `'deep'` | **`unknown_275`**, raw `unknown_0: 3` | named, integer `3` | named, `'deep'` |
 | `stress_level` (227) | stress (non-goal) | named | named | named | named |
 | `hrv_value` (371) | HRV (non-goal) | named, `40.0` | **`unknown_371`**, raw `unknown_0: 5120` (unscaled) | named, `40.0` | named, `40.0` |
@@ -201,12 +201,12 @@ Every row has a source and the date read. Read date for all rows: 2026-10-22.
 | F11 | `fit-tool` 0.9.16: BSD-3-Clause, "Copyright 2021 Stages Cycling", released 2026-08-05, community fork of a package removed from PyPI, generator reads `Profile.xlsx` | V | https://pypi.org/project/fit-tool/0.9.16/ (sdist `LICENSE`, `AUTHORS`, `README.md`, `gen/component_registry.py`) ; https://github.com/shaonianche/python_fit_tool |
 | F12 | The plan's "licence field empty on PyPI" for `fit-tool` and `garmin-fit-sdk` is a metadata artefact: both carry `License-Expression` in the wheel | V | https://pypi.org/pypi/fit-tool/json ; https://pypi.org/pypi/garmin-fit-sdk/json |
 | F13 | All four are pure Python, with no runtime dependencies on Python 3.11 | V | the four sdists/wheels above (`METADATA`, `pyproject.toml`, `setup.py`) |
-| F14 | No `urllib`, `requests`, `socket`, `subprocess` or `http.client` import in any of the four packages; no network/subprocess call during import or decode in the scratch run | V | grep of the four sdists above; `scripts/dec.py` run (scratch, not committed) |
-| F15 | All four import and decode a synthetic `.fit` on Python 3.11.17 | V | scratch venv run, output pasted in Q2 |
+| F14 | No `urllib`, `requests`, `socket`, `subprocess` or `http.client` import in any of the four packages; no network/subprocess call during import or decode in the scratch run | V | grep of the four sdists above; `/tmp/claude-1000/fitdec/scripts/dec.py` run (scratch, not preserved) |
+| F15 | All four import and decode a synthetic `.fit` on Python 3.11.17 | V | scratch venv run (`/tmp/claude-1000/fitdec/scripts/{mkfit,dec}.py`, not preserved), output pasted in Q2 |
 | F16 | `fitdecode` default `check_crc` is `WARN` (decodes and warns on a wrong CRC); `RAISE` needs an explicit argument | V | `fitdecode/reader.py` line 153 in the 0.11.0 sdist ; https://github.com/polyvertex/fitdecode |
-| F17 | `fit-tool` raised `MemoryError` at a 2 GiB cap on a 6.3 MB file; `fitdecode` stayed at 17 MiB | V | scratch run, table in Q3 |
-| F18 | No hang or timeout in 1,500 mutated files per decoder; `fitdecode` and `fitparse` also raise `TypeError`/`KeyError`/`AssertionError` | V | scratch run, Q3 |
-| F19 | `fitparse` decodes `monitoring_hr_data`, `sleep_level` and `hrv_value` only as `unknown_NNN` | V | scratch run, Q5 |
+| F17 | `fit-tool` used ~360 B/B and hit a 2 GiB test cap (`MemoryError`) on a 6.3 MB file; `fitdecode` stayed at 17 MiB | V | scratch run (`/tmp/claude-1000/fitdec/scripts/{mkfit,dec}.py`, not preserved), table in Q3 |
+| F18 | No hang or timeout in 1,500 mutated files per decoder; `fitdecode` and `fitparse` also raise `TypeError`/`KeyError`/`AssertionError` | V | scratch run (`/tmp/claude-1000/fitdec/scripts/fuzz.py`, not preserved), Q3 |
+| F19 | `fitparse` decodes `monitoring_hr_data`, `sleep_level` and `hrv_value` only as `unknown_NNN` | V | scratch run (`/tmp/claude-1000/fitdec/scripts/dec.py`, not preserved), Q5 |
 | F20 | Whether a profile generated from Garmin's `Profile.xlsx` is subject to Garmin's agreement | U (legal question, not answered by any source read) | n/a |
 | F21 | wearables-11 in-scope metrics are resting HR, steps, sleep; stress, HRV, SpO2 are non-goals | V | `docs/plans/2026-10-13-wearables-11-garmin-parser.md:32-37` ; `docs/plans/2026-10-13-wearables-00-program.md:26` (repo, `origin/main` `0e2799b`) |
 | F22 | Owner's WEAR-D5 answer: "(b) garmin-fit-sdk after licence read" | V | `docs/plans/2026-10-13-wearables-00-program.md:163` |
@@ -222,20 +222,20 @@ Every row has a source and the date read. Read date for all rows: 2026-10-22.
 7. **Pin policy:** the 11b-0 rule wants a pinned version at least two weeks old. On 2026-10-22 every version tested meets it (the newest, `garmin-fit-sdk` 21.218.0, is 16 days old); a pin chosen later must be re-checked.
 8. **Caller duties if a decoder is chosen:** with `fitdecode`, pass `check_crc=CrcCheck.RAISE` explicitly; with `fitdecode` or `fitparse`, catch `Exception`, not only the library's error classes (Q3).
 
-## WEAR-FIT-LIC: draft owner question (no recommendation)
+## WEAR-FIT-LIC: draft owner question
 
 Draft, from [`docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`](../../plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md) section 2.16 with the summary filled from the findings above. Asked only after this research lands.
 
-> "WEAR-11b reads Garmin metrics that exist only in .FIT files. The research found that Garmin's licence text defines its 'Licensed Technology' as Garmin's FIT SDK including protocol documentation and source code, and does not say whether it reaches the FIT file format itself or independent decoders (the text is ambiguous, so no reading was inferred). Independent decoders exist under MIT (fitdecode, fitparse) and BSD-3-Clause (fit-tool), but each embeds a profile generated from Garmin's SDK profile, and nothing read says on what terms that profile may be used. fitdecode is maintained and streams files in flat memory; fitparse has had no release since 2020 and cannot name three of the message types WEAR-11b may need; fit-tool allocated without bound on a 6.3 MB file. (Not legal advice.) Which decoder may WEAR-11b use?"
+> "WEAR-11b reads Garmin metrics that exist only in .FIT files. The research found that Garmin's licence text defines its 'Licensed Technology' as Garmin's FIT SDK including protocol documentation and source code, and does not say whether it reaches the FIT file format itself or independent decoders (the text is ambiguous, so no reading was inferred). Independent decoders exist under MIT (fitdecode, fitparse) and BSD-3-Clause (fit-tool), but each embeds a profile generated from Garmin's SDK profile, and nothing read says on what terms that profile may be used. fitdecode is maintained and streams files in flat memory; fitparse has had no release since 2020 and cannot name three of the message types WEAR-11b may need; fit-tool used about 360 bytes of memory per input byte and hit a 2 GiB test cap on a 6.3 MB file; garmin-fit-sdk grows about 38 bytes per input byte (about 2.4 GiB at the planned 64 MiB cap, inferred) and, on a bad CRC, returns the data with an error list instead of raising, so the caller must check it. (Not legal advice.) Which decoder may WEAR-11b use?"
 
 | Option (5 words or fewer) | Description |
 |---|---|
-| **MIT decoder (fitdecode)** | Pin the independent MIT decoder as a pip dependency; changes your WEAR-D5 choice from Garmin's SDK. Only sensible if the research shows Garmin's licence does not cover the format. |
+| **MIT decoder (fitdecode)** | Pin the independent MIT decoder as a pip dependency; changes your WEAR-D5 choice from Garmin's SDK. Depends on Garmin's licence not covering the format; the text leaves that open (Q1). |
 | **Garmin SDK, pip only** | Pin `garmin-fit-sdk` as a pip dependency, never bundled in an installer (HC-M08). Keeps WEAR-D5 as answered; residual risk on "internal business purposes". |
 | **No FIT: JSON only** | Drop WEAR-11b; FIT-only Garmin metrics stay unsupported. No licence risk. |
 | **Get a legal read** | WEAR-11b waits for the OD-8 / OM-7 legal read. |
 
-**Tradeoffs.** The MIT decoder avoids Garmin's SDK terms only if the format itself is free to implement; this research found that question unanswered in the text (Q1) and found that the decoder's profile comes from Garmin's SDK profile (Q2), so option 1 does not yet have the support its description requires. An unmaintained decoder (fitparse's last release is 2020) adds bug and security risk on untrusted files. Garmin's SDK is maintained and complete but its licence wording targets internal business use. JSON only is safe and loses some metrics. A legal read is correct but slow.
+**Tradeoffs.** The MIT decoder avoids Garmin's SDK terms only if the format itself is free to implement; the text leaves that question open (Q1), and the decoder's profile comes from Garmin's SDK profile (Q2). An unmaintained decoder (fitparse's last release is 2020) adds bug and security risk on untrusted files. Garmin's SDK is maintained and complete but its licence wording targets internal business use. JSON only is safe and loses some metrics. A legal read is correct but slow.
 
 **Effect on an existing answer.** Option 1 changes the owner's WEAR-D5 answer ("(b) garmin-fit-sdk after licence read", `docs/plans/2026-10-13-wearables-00-program.md:163`). No owner answer to WEAR-FIT-LIC exists.
 
