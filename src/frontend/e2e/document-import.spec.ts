@@ -72,13 +72,16 @@ test.describe('Document Import Smoke Tests', () => {
       buffer: txtContent,
     });
 
-    // Should show an error or the file should not appear in the list
-    // The file input has accept=".pdf,.png,.jpg,.jpeg" so browser may reject,
-    // but if it gets through, server should reject with 400
-    await page.waitForTimeout(2000);
+    // setInputFiles bypasses the accept attribute, so the server rejects the
+    // file and the page must show the import-failure alert naming it (FE-IMPORT-ERROR).
+    const alert = page.getByRole('alert');
+    await expect(alert).toContainText('invalid-file.txt', { timeout: 15000 });
+    await expect(alert).toContainText('Import failed');
 
-    // Verify no .txt document appears in list
-    await expect(page.getByText('invalid-file.txt')).not.toBeVisible();
+    // Only after the upload has settled: no .txt document in the document list.
+    // Rows render the name as an <h4>; the alert renders it in a <p>, so a
+    // heading query cannot match the alert.
+    await expect(page.getByRole('heading', { name: 'invalid-file.txt' })).not.toBeVisible();
   });
 
   test('E2E-DOC-004: Upload PDF, verify correct status badge text', async ({ page, request }) => {
