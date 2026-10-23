@@ -153,6 +153,9 @@ export function useLogin() {
       });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
     },
+    // Variables hold the password. Drop the mutation
+    // from the cache as soon as nothing observes it (RCC-2).
+    gcTime: 0,
   });
 }
 
