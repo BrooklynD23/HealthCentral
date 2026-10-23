@@ -798,13 +798,15 @@ $backendErrLog = Join-Path $ROOT_DIR "logs\dev-backend.err.log"
 
 # Start uvicorn with stdout and stderr redirected to files (PowerShell cannot
 # send both streams to one file). Shared by STEP 8 and the STEP 10 restart.
+# --no-access-log: the access log records full request lines (search text in
+# query strings) and these logs are plaintext on disk.
 function Start-BackendDevServer {
     $logDir = Split-Path -Parent $backendLog
     if (-not (Test-Path -LiteralPath $logDir)) {
         New-Item -ItemType Directory -Path $logDir -Force | Out-Null
     }
     return Start-Process -FilePath $venvPython `
-        -ArgumentList "-m", "uvicorn", "main:app", "--reload", "--host", "127.0.0.1", "--port", "$resolvedBackendPort" `
+        -ArgumentList "-m", "uvicorn", "main:app", "--reload", "--no-access-log", "--host", "127.0.0.1", "--port", "$resolvedBackendPort" `
         -WorkingDirectory $BACKEND_DIR `
         -WindowStyle Hidden `
         -RedirectStandardOutput $backendLog `
@@ -837,19 +839,18 @@ Write-Status "Backend error log: $backendErrLog"
 Write-Host ""
 
 # ===================================================================
-#  STEP 9  -  Wait for frontend to be ready, then open browser
+#  STEP 9  -  Wait for backend and frontend to be ready, then open browser
 # ===================================================================
 Write-Status "Waiting for servers to be ready ..."
 
 $maxWait = 60       # seconds
-$elapsed = 0
+$sw      = [System.Diagnostics.Stopwatch]::StartNew()
 $opened  = $false
 $backendReady  = $false
 $frontendReady = $false
 
-while ($elapsed -lt $maxWait) {
+while ($sw.Elapsed.TotalSeconds -lt $maxWait) {
     Start-Sleep -Seconds 1
-    $elapsed++
 
     if ($frontendProc.HasExited) {
         $ec = $frontendProc.ExitCode
@@ -872,7 +873,7 @@ while ($elapsed -lt $maxWait) {
     if (-not $backendReady) {
         try {
             $response = Invoke-WebRequest -Uri "http://127.0.0.1:$resolvedBackendPort/health" `
-                            -UseBasicParsing -TimeoutSec 2 -ErrorAction SilentlyContinue
+                            -UseBasicParsing -TimeoutSec 1 -ErrorAction SilentlyContinue
             if ($response.StatusCode -eq 200) { $backendReady = $true }
         } catch { }
     }
@@ -880,7 +881,7 @@ while ($elapsed -lt $maxWait) {
     if (-not $frontendReady) {
         try {
             $response = Invoke-WebRequest -Uri "http://localhost:$resolvedFrontendPort" `
-                            -UseBasicParsing -TimeoutSec 2 -ErrorAction SilentlyContinue
+                            -UseBasicParsing -TimeoutSec 1 -ErrorAction SilentlyContinue
             if ($response.StatusCode -eq 200) { $frontendReady = $true }
         } catch { }
     }
@@ -900,7 +901,8 @@ if (-not $backendReady) {
     Write-Err "Backend did not answer /health within $maxWait seconds."
     Write-LogTail -LogPath $backendLog -Label "Backend log"
     Write-LogTail -LogPath $backendErrLog -Label "Backend error log"
-    Stop-Process -Id $backendProc.Id -Force -ErrorAction SilentlyContinue
+    # /T kills the --reload worker child too, so it does not keep the port.
+    & taskkill.exe /PID $backendProc.Id /T /F 2>&1 | Out-Null
     Stop-Process -Id $frontendProc.Id -Force -ErrorAction SilentlyContinue
     Read-Host "  Press Enter to exit"
     exit 1
@@ -953,7 +955,7 @@ try {
         }
         if ($backendDead) {
             $ec = $backendProc.ExitCode
-            Write-Warn "Backend stopped unexpectedly [exit code $ec]. Restarting ..."
+            Write-Warn "Backend stopped unexpectedly [exit code $ec]."
             Write-LogTail -LogPath $backendLog -Label "Backend log"
             Write-LogTail -LogPath $backendErrLog -Label "Backend error log"
             if ($backendRestartCount -ge 3) {
