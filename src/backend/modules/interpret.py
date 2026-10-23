@@ -205,6 +205,12 @@ class InterpretModule:
         # Generate citations
         citations = self._generate_citations(context)
 
+        # Ensure disclaimers
+        interpretation_text, advice_text = self._safety_guard.add_required_disclaimers(
+            interpretation_text=interpretation_text,
+            advice_text=advice_text,
+        )
+
         # Validate safety
         safety_result = self._safety_guard.validate_interpretation(
             interpretation_text=interpretation_text,
@@ -223,12 +229,6 @@ class InterpretModule:
             if critical_result.requires_physician_review:
                 safety_result.requires_physician_review = True
                 safety_result.physician_review_reason = critical_result.physician_review_reason
-
-        # Ensure disclaimers
-        interpretation_text, advice_text = self._safety_guard.add_required_disclaimers(
-            interpretation_text=interpretation_text,
-            advice_text=advice_text,
-        )
 
         # Build context JSON
         context_json = self._build_context_json(context)
@@ -955,6 +955,12 @@ class InterpretModule:
         # Generate citations
         citations = self._generate_citations(context)
 
+        # Ensure disclaimers
+        interpretation_text, advice_text = self._safety_guard.add_required_disclaimers(
+            interpretation_text=interpretation_text,
+            advice_text=advice_text,
+        )
+
         # Validate safety
         safety_result = self._safety_guard.validate_interpretation(
             interpretation_text=interpretation_text,
@@ -973,12 +979,6 @@ class InterpretModule:
             if critical_result.requires_physician_review:
                 safety_result.requires_physician_review = True
                 safety_result.physician_review_reason = critical_result.physician_review_reason
-
-        # Ensure disclaimers
-        interpretation_text, advice_text = self._safety_guard.add_required_disclaimers(
-            interpretation_text=interpretation_text,
-            advice_text=advice_text,
-        )
 
         # Build context JSON
         context_json = self._build_context_json(context)

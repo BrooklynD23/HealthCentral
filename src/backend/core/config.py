@@ -109,6 +109,10 @@ class Settings(BaseSettings):
     #   ollama:     Ollama model tag, e.g. "gemma4:12b", "gemma4:e4b", "gemma4:26b"
     llm_model: str = ""
 
+    # llm_n_gpu_layers: llama_cpp only. Layers to offload to the GPU (env
+    # LLM_N_GPU_LAYERS). 0 = CPU only; -1 = all layers. Non-zero needs a GPU build.
+    llm_n_gpu_layers: int = 0
+
     # Ollama base URL. Must be localhost. validate_startup does not check it; the
     # model-settings API asserts it via _assert_localhost. core/llm/factory.py does
     # not pass it to OllamaProvider, which uses its own 127.0.0.1:11434 default.

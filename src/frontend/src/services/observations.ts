@@ -92,6 +92,8 @@ export function useVerifyObservation() {
     }) => verifyObservation(observationId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      // The backend flips a document to "verified" with its last observation.
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
     },
   });
 }
