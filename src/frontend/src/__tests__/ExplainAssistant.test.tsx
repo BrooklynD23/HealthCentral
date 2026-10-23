@@ -378,6 +378,42 @@ describe('ExplainAssistant', () => {
     });
   });
 
+  describe('FE-EXPLAIN-ERR: chat errors branch on ApiError.status', () => {
+    async function ask() {
+      const user = userEvent.setup();
+      renderWithProviders(<ExplainAssistant />);
+      const input = screen.getByPlaceholderText('Ask about your results...');
+      await user.type(input, 'Test question{enter}');
+    }
+
+    it('HC-FEE-001: a real 403 ApiError shows the session-expired message', async () => {
+      vi.mocked(api.apiPost).mockRejectedValueOnce(
+        new api.ApiError(403, 'Forbidden', 'Profile database not available. Please log in again.')
+      );
+      await ask();
+      await waitFor(() => {
+        expect(screen.getByText(/session has expired/)).toBeInTheDocument();
+      });
+    });
+
+    it('HC-FEE-002: a real 501 ApiError shows the no-model message and banner', async () => {
+      vi.mocked(api.apiPost).mockRejectedValueOnce(
+        new api.ApiError(501, 'Not Implemented', 'No LLM provider configured')
+      );
+      await ask();
+      await waitFor(() => {
+        expect(screen.getByText(/No AI model is configured yet/)).toBeInTheDocument();
+      });
+      expect(screen.getByText('No AI model configured')).toBeInTheDocument();
+    });
+
+    it('HC-FEE-003: the question input and icon-only send button have accessible names', () => {
+      renderWithProviders(<ExplainAssistant />);
+      expect(screen.getByRole('textbox', { name: 'Your question' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Send question' })).toBeInTheDocument();
+    });
+  });
+
   describe('HC-REM-007: Panel selector', () => {
     it('should render panel selector in filter sidebar', () => {
       renderWithProviders(<ExplainAssistant />);
