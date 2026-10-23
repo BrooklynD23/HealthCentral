@@ -14,7 +14,7 @@ Owner answer OCR-FOR-MVP (b) "Bundle RapidOCR" rested on four premises.
 |---|---|---|
 | Licence is Apache-2.0 | **PASS, with one flag** [V] | rapidocr and the 3 bundled models are Apache-2.0. Flag: the `opencv-python-headless` wheel redistributes FFmpeg under LGPL (`LICENSE-3RD-PARTY.txt:243`). |
 | Offline at runtime | **PASS** [V] | Models ship inside the wheel; OCR ran under `unshare -rn` with no download, no `~/.cache` write, no package-dir write. |
-| Added size is about 150 MB or less | **FAIL on installed size** [V] | 271.0 MB installed is new to the project venv (31.0 MB of it models). Wheels are 86.0 MB (win_amd64) to 112.2 MB (manylinux x86_64) compressed. |
+| Added size is about 150 MB or less | **FAIL on installed size** [V] | 271.0 MB installed is new to the project venv (31.7 MB of it models). Wheels are 86.0 MB (win_amd64) to 112.2 MB (manylinux x86_64) compressed. |
 | Accuracy usable on lab tables | **PARTIAL** [V] | 117/140 analytes found (83.6%); 116 correct value; 117 correct unit; 1 silent wrong value (Chloride 98 read as 86, OCR score 1.0). Ruled grids are the weak layout (38/56). |
 
 **Failed premise: size.** L0 takes it back to the owner with the numbers above; RAPIDOCR-BUNDLE stays blocked until then. The doc continues regardless.
@@ -109,7 +109,7 @@ Installed size, from each package's RECORD files excluding `__pycache__` (`scrip
 |---|---|
 | opencv-python-headless | 159.5 |
 | onnxruntime | 64.5 |
-| rapidocr (incl. 31.0 MB models) | 32.4 |
+| rapidocr (incl. 31.7 MB models) | 32.4 |
 | shapely | 7.8 |
 | pyclipper | 3.7 |
 | protobuf | 1.4 |
@@ -117,7 +117,7 @@ Installed size, from each package's RECORD files excluding `__pycache__` (`scrip
 | urllib3, requests, flatbuffers, colorlog, six | 0.8 |
 | **Total new** | **271.0** |
 
-Already in the project venv (numpy 57.4, pillow 20.4, PyYAML 2.9, certifi, charset-normalizer, idna, packaging, tqdm): 82.7 MB, so all 20 runtime packages together are about 353.7 MB. Whole scratch `site-packages` after install: 355,820 KB on disk, 363,292 KB apparent, including the measurement tooling [V]. Model files: 31,016 KB for `rapidocr/models/` (`du -sk`). Peak RSS for one page: 601,876 KB (`/usr/bin/time -v`, 1 thread) [V].
+Already in the project venv (numpy 57.4, pillow 20.4, PyYAML 2.9, certifi, charset-normalizer, idna, packaging, tqdm): 82.7 MB, so all 20 runtime packages together are about 353.7 MB. Whole scratch `site-packages` after install: 355,820 KB on disk, 363,292 KB apparent, including the measurement tooling [V]. Model files: 31,749,509 bytes = 31.7 MB for the three files in `rapidocr/models/` (`du -sk` shows 31,016 KiB, which is the same size in KiB; an earlier draft wrote that figure as 31.0 MB). Peak RSS for one page: 601,876 KB (`/usr/bin/time -v`, 1 thread) [V].
 
 Wheel sizes from PyPI JSON for the installed versions [V]:
 
@@ -129,7 +129,7 @@ Wheel sizes from PyPI JSON for the installed versions [V]:
 
 Shapely, pyclipper and the small pure-Python packages are not in the sums (win/mac wheel sizes not read: **[U]**).
 
-**Against the premise.** The planner's "about 150 MB added" is read here as installed size, which is what a bundled installer carries. 271.0 MB is 1.8 times that: **FAIL**. Compressed wheels (86 to 112 MB) are under 150 MB. The biggest lever is OpenCV (159.5 MB, of which `opencv_python_headless.libs` is 82.7 MB and carries FFmpeg, libaom, libvpx and OpenBLAS that this pipeline does not use). Whether stripping those libraries still leaves a working `cv2` is **[U]** and not tested; replacing OpenCV is not possible without patching rapidocr (it is a hard dependency).
+**Against the premise.** The planner's "about 150 MB added" is read here as installed size, which is what a bundled installer carries. 271.0 MB is 1.8 times that: **FAIL**. Compressed wheels (86 to 112 MB) are under 150 MB. The biggest lever is OpenCV (159.5 MB, of which `opencv_python_headless.libs` is 84.8 MB (82,792 KiB x 1024 = 84,779,008 bytes) and carries FFmpeg, libaom, libvpx and OpenBLAS that this pipeline does not use). Whether stripping those libraries still leaves a working `cv2` is **[U]** and not tested; replacing OpenCV is not possible without patching rapidocr (it is a hard dependency).
 
 ## 4. Rasterising without Poppler
 
@@ -174,7 +174,7 @@ By layout: grid 38/56 (67.9%), column 38/42 (90.5%), summary 41/42 (97.6%).
 What failed:
 
 - **Unit misreads drop the row.** Most misses are a garbled unit: `g/dL` read as `7p/6`, `mg/dL` as `m9/dl` or `m9/6dl`, `U/L` as `7/n` or `7/0`, `ng/dL` as `7p/6u`. The extractor requires a known unit, so the row is not found. This fails closed (a missing row, not a wrong one).
-- **One silent wrong value.** Page 05 Chloride: the image shows `98` (crop checked by eye), OCR returned `86` with score 1.0, the extractor produced `value=86.0 mmol/L`. That is 1 wrong value in 117 found (0.9%) and it carries full OCR confidence, so a recogniser score cannot be used as a trust signal.
+- **One silent wrong value.** Page 05 Chloride: the image shows `98` (crop checked by eye), OCR returned `86` with score 1.0, the extractor produced `value=86.0 mmol/L`. Clinical impact: the true value 98 is the low end of the Chloride reference range (98-107), so the misread 86 moves an in-range result to below range. That is 1 wrong value in 117 found (0.9%) and it carries full OCR confidence, so a recogniser score cannot be used as a trust signal.
 - **Merged words.** Page 08: `HDLCholesterol: 41mg/dL(40-90)` has no spaces, so the name does not match the truth name and the row is counted missing plus one spurious. The extractor did parse it.
 - **Grid rules matter.** Removing ruled lines first (`scripts/derule.py`: OpenCV morphological open with 120 px kernels, painted white) raised the four grid pages from 38/56 to 49/56 (87.5%), all values and units correct, no cost in time (about 4 CPU s per page). Remaining misses are `g/dL` and `U/L` unit garbles. This is one synthetic font (DejaVu Sans) on synthetic noise, so treat it as a direction, not a rate.
 - **Resolution.** 300 dpi from PDF raster: pages 01, 02, 03, 10 scored 9, 9, 10, 14 found, identical to 200 dpi.
@@ -196,6 +196,8 @@ Numbers support RapidOCR as an offline reader, not as a trusted extractor, and t
 
 1. **Owner decision first on size.** 271.0 MB installed against about 150 MB. Options for the owner: accept it, or require a smaller build (OpenCV trimming is untested **[U]**).
 2. **Pin the three model paths** (`Det/Rec/Cls.model_path`) and ship the SHA-256 values, so a corrupt file can never become a network call. Pre-compile bytecode.
+
+   Finding for the RAPIDOCR-BUNDLE planner (not a decision): the models already ship inside the rapidocr wheel (the 31.7 MB above), so the provisional `download_models.py ocr` subcommand may be unnecessary, or may only need to verify the SHA-256 of the installed files. A separate gitignored `models/ocr/` copy would add another 31.7 MB for no new capability unless there is a reason to keep models outside site-packages.
 3. **Ship licence notices**: Apache-2.0 text, the MODEL_LICENSES.md modification notice, and the FFmpeg LGPL notices; keep the FFmpeg libraries dynamically linked and replaceable.
 4. **Pre-process ruled grids** (line removal) and write the box-to-line grouping with word-spacing repair; both measurably matter.
 5. **Treat every OCR observation as unverified.** A 98 to 86 read at score 1.0 means OCR rows must go through the verification workbench before any trend, summary or interpretation uses them. OCR-confidence must not raise extraction confidence. Rows lost to unit garbles must be visible to the user as "page read, N rows not understood" rather than silently omitted. Do not add unit aliases such as `7p/6` to `g/dL`; that is guessing on medical data.
@@ -208,7 +210,8 @@ Numbers support RapidOCR as an offline reader, not as a trusted extractor, and t
 /tmp/claude-1000/rapidocr-scratch/{venv,dl,pages,scripts,out}
 python -I  (all Python run on downloaded or generated data)
 OCR_THREADS=1 venv/bin/python -I scripts/ocr_pages.py out/ocr1 pages/page*.png
-cd src/backend && ~/venvs/asclexis-311/bin/python -I scripts/score.py out/ocr1 pages
+cd <repo>/src/backend && ~/venvs/asclexis-311/bin/python -I /tmp/claude-1000/rapidocr-scratch/scripts/score.py /tmp/claude-1000/rapidocr-scratch/out/ocr1 /tmp/claude-1000/rapidocr-scratch/pages
+# (re-run for this fix: scratch inputs still existed; same totals, 117/140 found, 116 value-correct)
 ```
 
 Nothing was installed into `~/venvs/asclexis-311`. No new test ids and no product code: the RED/GREEN rule is replaced by measuring; the collected-test delta is 0.
