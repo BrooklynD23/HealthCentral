@@ -660,15 +660,16 @@ class TestTableCellFullParse:
         import hashlib
         import io
 
+        from sqlalchemy import select
+        from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+
         import modules
         from api import documents as documents_api
         from api.documents import router as documents_router
         from core.auth import get_profile_db_session
+        from core.profile_database import ProfileDatabaseBase
         from models import Observation
         from modules.ingest import ImportResult
-        from sqlalchemy import select
-        from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-        from core.profile_database import ProfileDatabaseBase
         from tests.support.routes import route_client
         from tests.test_documents_api import _CommitTrackingMasterDb
 
