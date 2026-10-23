@@ -73,6 +73,8 @@ describe('ProfileSetup', () => {
     localStorage.clear();
     // Reset auth store
     useAuthStore.getState().clearAuth();
+    // The real zero-profiles state: an empty list, not an errored query.
+    vi.mocked(api.apiGet).mockResolvedValue([]);
   });
 
   describe('FE-AUTH-001: test_create_profile_with_password', () => {
@@ -464,27 +466,55 @@ describe('ProfileSetup', () => {
       });
       const { queryClient } = renderWithProviders(<ProfileSetup />);
       await screen.findByText('Unlock your profile');
-      // Data fetched under a previous profile's session.
+      // Data fetched under a previous profile's session, including the
+      // per-profile detail query that shares the 'profiles' key prefix.
       queryClient.setQueryData(['medications', { activeOnly: true }], [{ name: 'Metformin' }]);
+      queryClient.setQueryData(['profiles', 'old-profile-id'], { id: 'old-profile-id' });
       expect(queryClient.getQueryData(['medications', { activeOnly: true }])).toBeDefined();
 
       await user.type(screen.getByLabelText('Unlock password'), PASSWORD);
       await user.click(screen.getByRole('button', { name: /^unlock$/i }));
       await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/inbox'));
 
-      // The mounted profiles-list observer may re-create its own query after
-      // the clear; everything else must be gone.
+      // The mounted profiles-list observer may re-create its own list query
+      // after the clear (exactly ['profiles']); everything else must be gone.
       const leftover = queryClient
         .getQueryCache()
         .getAll()
-        .filter((q) => q.queryKey[0] !== 'profiles');
-      expect(leftover).toEqual([]);
+        .filter((q) => !(q.queryKey.length === 1 && q.queryKey[0] === 'profiles'));
+      expect(leftover.map((q) => q.queryKey)).toEqual([]);
     });
+
+    it('HC-SRE-010: creating a profile also clears the query cache', async () => {
+      const user = userEvent.setup();
+      vi.mocked(api.apiPost).mockResolvedValueOnce({
+        access_token: 'new-token',
+        token_type: 'bearer',
+        expires_in: 3600,
+        profile_id: 'profile-uuid-new',
+        profile_name: 'New Person',
+        recovery_code: 'H4K2-9QMR-7TXB-3VWZ-5CDF-8GHJ-2NPS-6KTV',
+      });
+      const { queryClient } = renderWithProviders(<ProfileSetup />);
+      // A previous profile's documents, still cached after an SPA redirect.
+      queryClient.setQueryData(['documents', {}], [{ id: 'doc-of-previous-profile' }]);
+
+      await user.type(await screen.findByLabelText('Profile Name'), 'New Person');
+      await user.type(screen.getByPlaceholderText('Create a secure password'), PASSWORD);
+      await user.click(screen.getByRole('button', { name: /create your profile/i }));
+      await screen.findByTestId('recovery-code', {}, { timeout: 5000 });
+
+      expect(queryClient.getQueryData(['documents', {}])).toBeUndefined();
+    }, 15000);
 
     it('HC-SRE-009: while the profile list is loading, neither the create button nor the create form is shown', async () => {
       vi.mocked(api.apiGet).mockReturnValue(new Promise(() => {}));
       renderWithProviders(<ProfileSetup />);
 
+      // The page itself rendered (a crash or blank render must not pass).
+      expect(
+        await screen.findByRole('heading', { name: /welcome to asclexis/i })
+      ).toBeInTheDocument();
       // Let the first render settle; the list never arrives.
       await new Promise((r) => setTimeout(r, 50));
       expect(screen.queryByRole('button', { name: /create a new profile/i })).not.toBeInTheDocument();
