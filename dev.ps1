@@ -834,8 +834,8 @@ $fPid = $frontendProc.Id
 Write-Ok "Backend  started  [PID $bPid]"
 Write-Ok "Frontend started  [PID $fPid]"
 Write-Status "Frontend log: $frontendLog"
-Write-Status "Backend log:  $backendLog"
-Write-Status "Backend error log: $backendErrLog"
+Write-Status "Backend log (uvicorn writes here): $backendErrLog"
+Write-Status "Backend stdout log:                  $backendLog"
 Write-Host ""
 
 # ===================================================================
@@ -856,6 +856,8 @@ while ($sw.Elapsed.TotalSeconds -lt $maxWait) {
         $ec = $frontendProc.ExitCode
         Write-Err "Frontend exited during startup [exit code $ec]."
         Write-LogTail -LogPath $frontendLog -Label "Frontend log"
+        # The backend is hidden and logs only to files: do not leave it on the port.
+        & taskkill.exe /PID $backendProc.Id /T /F 2>&1 | Out-Null
         Read-Host "  Press Enter to exit"
         exit 1
     }
@@ -959,8 +961,11 @@ try {
             Write-LogTail -LogPath $backendLog -Label "Backend log"
             Write-LogTail -LogPath $backendErrLog -Label "Backend error log"
             if ($backendRestartCount -ge 3) {
-                Write-Err "Backend failed repeatedly. See $backendLog and $backendErrLog"
-                break
+                Write-Err "Backend failed repeatedly. See $backendErrLog and $backendLog"
+                # exit 1 (not break): break leaves exit code 0, dev.bat then
+                # closes the window before the log tail can be read.
+                # The finally block still runs Stop-Servers.
+                exit 1
             }
             $backendRestartCount++
             $backendProc = Start-BackendDevServer
