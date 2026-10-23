@@ -203,7 +203,7 @@ describe('ExplainAssistant', () => {
       renderWithProviders(<ExplainAssistant />);
 
       const input = screen.getByPlaceholderText('Ask about your results...');
-      const sendButton = screen.getByRole('button', { name: '' }); // Send button has no text
+      const sendButton = screen.getByRole('button', { name: 'Send question' });
 
       await user.type(input, 'What does my hemoglobin level mean?');
       await user.click(sendButton);
@@ -350,7 +350,7 @@ describe('ExplainAssistant', () => {
     it('should display 501 error message correctly', async () => {
       const user = userEvent.setup();
       const mockApiPost = vi.mocked(api.apiPost);
-      mockApiPost.mockRejectedValueOnce(new Error('501: Not Implemented'));
+      mockApiPost.mockRejectedValueOnce(new api.ApiError(501, 'Not Implemented', '501: Not Implemented'));
 
       renderWithProviders(<ExplainAssistant />);
 
@@ -365,7 +365,7 @@ describe('ExplainAssistant', () => {
     it('should display session expired message on 401', async () => {
       const user = userEvent.setup();
       const mockApiPost = vi.mocked(api.apiPost);
-      mockApiPost.mockRejectedValueOnce(new Error('401: Unauthorized'));
+      mockApiPost.mockRejectedValueOnce(new api.ApiError(401, 'Unauthorized', '401: Unauthorized'));
 
       renderWithProviders(<ExplainAssistant />);
 
