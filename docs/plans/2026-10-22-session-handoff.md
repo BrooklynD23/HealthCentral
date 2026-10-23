@@ -11,7 +11,7 @@ Read this after [CLAUDE.md](../../CLAUDE.md), [AGENT.md](../../AGENT.md) and the
 - **Setup (main `c97192d`):** `2328 tests collected`, `from main import app` ok, Ollama and the RSI mod loaded. `merge_par.sh` was recreated from the 2026-10-20c handoff lines 67-86 (the 21 handoff's "66,85" was off by one). `hold_slots.sh` now holds pyslot locks 1-8: a `PYSLOTS>3` pytest slipped past the 3-lock version. `chain_merge.sh` and `docs_chain.sh` merge PRs in order; `docs_chain.sh` regenerates `docs/INDEX.md` and `docs/_link_graph.json` on index-only conflicts. All four scripts are pasted in the §4 appendix: recreate them from there.
 - **Merged by L0 (each re-verified with one focused test run, review PASS, green checks):** #282, #281, #283 GC5-NLI-NEUTRAL, #285 RUNNER-EXC-LOG, #286, #287, #210 F-9 showcase (below), #288, #289 (13-row bug plan), #290 AGENT-CACHE-CARETASKS, #291, #292 (README and architecture refresh), #293, #294 (mg/L lab lines and DOB), #296 (archive), #297 (llama provider: chat_format, serial lock, GPU layers), #298 (KV evidence), #299 (MVP research), #301. **Owner merged** #266 and #271 before the session (`f6019f1`, `c97192d`).
 - **F-9 / O-6:** signed 2026-10-22 under the owner's conditional answer (prompt 30), all 11 §10 checks pass at `75c1106`. The Task 9 dry run is recorded on #210 (comment 6334394792). #210 merged as `0f7939e`.
-- **Owner prompts 31-41 answered**, all verbatim in [owner-decisions-2026-09-27.md](../capstone-report/owner-decisions-2026-09-27.md) (machine-readable copies in `/tmp/claude-1000/prompts-33-37.json`, `-38-39.json`, `-40-41.json`, which are not committed):
+- **Owner prompts 31-41 answered**, all verbatim in [owner-decisions-2026-09-27.md](../capstone-report/owner-decisions-2026-09-27.md) (machine-readable copies in `/tmp/claude-1000/prompts-33-37.json`, `-38-39.json`, `-40-41.json`, which are not committed). The table gives the option chosen; free-text answers are quoted verbatim, and anything else in a cell is labelled as the L0 reading:
 
   | Prompt item | Answer |
   |---|---|
@@ -33,10 +33,10 @@ Read this after [CLAUDE.md](../../CLAUDE.md), [AGENT.md](../../AGENT.md) and the
   | INTERP-DISC-ORDER | (a) |
   | EXTRACT-DATE-PRIORITY | (a) |
   | INTERP-SAFETY-ENFORCE | plan the enforce fix |
-  | SQLCIPHER-WHEEL | free text: sqlcipher3 on Windows and macOS, keep Linux |
+  | SQLCIPHER-WHEEL | free text, verbatim: "switch to sqlcipher3 for window + then keep whatever works on Linux on Linux? That way we can support different OS." (L0 reading, not the owner's words: sqlcipher3 on Windows, and on macOS by the same wheel gap; keep sqlcipher3-binary on Linux. SQLC-WHEEL-DIFF asks the owner to confirm.) |
   | SESSION-REENTRY | (a) unlock screen |
   | OCR-FOR-MVP | (b) bundle RapidOCR |
-  | MVP-PACKAGING | (a) then (c) installer |
+  | MVP-PACKAGING | free text, verbatim: "Option A then work on C installer" |
   | CPU-DEFAULT-MODEL | "A and B" |
   | CODE-SIGNING | (a) none |
   | TEST-DEV-DEPS | (a) |
@@ -127,7 +127,7 @@ for i in $(seq 1 90); do
     if [ "$st" = OK ] && [ "$m" = MERGEABLE ]; then
       gh pr merge "$n" --merge >/dev/null 2>&1 && gh pr view "$n" --json mergeCommit --jq '"#'"$n"' MERGED \(.mergeCommit.oid[0:7])"' || { echo "#$n merge refused"; left+=("$n"); }
     elif [ "$st" = FAIL ]; then failed+=("$n"); echo "#$n FAILED: $(gh pr view "$n" --json statusCheckRollup --jq '[.statusCheckRollup[]|select((.conclusion // .state)!="SUCCESS")|"\(.name // .context)=\(.conclusion // .state)"]|join(",")')"
-    elif [ "$m" = CONFLICTING ]; then echo "#$n CONFLICTING"
+    elif [ "$m" = CONFLICTING ]; then failed+=("$n"); echo "#$n CONFLICTING"
     else left+=("$n"); fi
   done
   pending=("${left[@]}"); [ ${#pending[@]} -eq 0 ] && { [ ${#failed[@]} -eq 0 ] && { echo "all done"; exit 0; }; echo "done; FAILED (not merged): ${failed[*]}"; exit 1; }
@@ -164,9 +164,10 @@ for n in "$@"; do
     br=$(gh pr view "$n" --json headRefName --jq .headRefName); W=$(wt_for "$br")
     [ -n "$W" ] || { echo "#$n conflicting, no worktree"; exit 1; }
     git -C "$W" fetch -q origin && git -C "$W" merge -q origin/main -m "Merge branch 'main' into $br" 2>/dev/null
+    git -C "$W" rev-parse -q --verify MERGE_HEAD >/dev/null || { echo "#$n merge did not start (dirty worktree?)"; exit 1; }
     bad=$(git -C "$W" diff --name-only --diff-filter=U | grep -v -E '^docs/(INDEX\.md|_link_graph\.json)$')
     [ -z "$bad" ] || { echo "#$n real conflict: $bad"; git -C "$W" merge --abort; exit 1; }
-    (cd "$W" && python3 scripts/generate_docs_index.py >/dev/null && python3 scripts/docs_lint.py --link-graph >/dev/null && python3 scripts/docs_lint.py | tail -1) || { echo "#$n lint failed"; exit 1; }
+    (cd "$W" && python3 scripts/generate_docs_index.py >/dev/null && python3 scripts/docs_lint.py --link-graph >/dev/null && python3 scripts/docs_lint.py >/dev/null) || { echo "#$n lint failed"; exit 1; }
     git -C "$W" add docs/INDEX.md docs/_link_graph.json && git -C "$W" commit -q --no-edit && git -C "$W" push -q && echo "#$n index regenerated"
   fi
   bash /tmp/claude-1000/chain_merge.sh "$n" || exit 1
