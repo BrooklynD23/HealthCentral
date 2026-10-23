@@ -639,7 +639,7 @@ class TestTableCellFullParse:
     @pytest.mark.parametrize(
         "cell",
         [
-            pytest.param(" " * 20000 + "x", id="spaces20000-x"),
+            pytest.param("(H) 5" + " " * 20000 + "x", id="flag5-spaces20000-x"),
             pytest.param("5" + " " * 5000 + "x", id="5-spaces5000-x"),
         ],
     )
@@ -651,6 +651,19 @@ class TestTableCellFullParse:
         elapsed = time.perf_counter() - start
         assert obs.value is None
         assert elapsed < 1.0, f"table-cell parse took {elapsed:.2f}s on a whitespace run"
+
+    @pytest.mark.parametrize("cell", ["0,123", "00,123", "0,123.4"])
+    def test_hc_etv_009_leading_zero_thousands_group_stays_text(self, cell):
+        """A decimal-comma 0,123 must not become the exact value 123.0."""
+        obs = self._row(cell)
+        assert obs.value is None
+        assert obs.value_text == cell
+
+    @pytest.mark.parametrize(
+        "cell,value", [("1,234", 1234.0), ("10,000", 10000.0), ("12,345.6", 12345.6)]
+    )
+    def test_hc_etv_009b_valid_thousands_groups_still_parse(self, cell, value):
+        assert self._row(cell).value == value
 
     @pytest.mark.asyncio
     async def test_hc_etv_007_ruled_grid_pdf_through_import(
@@ -779,9 +792,15 @@ class TestTableCellFullParse:
         by_name = {o.analyte_raw: o for o in obs}
         assert set(by_name) == {"Alpha", "Bravo", "Charlie", "Delta"}, sorted(by_name)
         assert by_name["Alpha"].value == 1234.0
+        assert by_name["Alpha"].flag is None
+        assert by_name["Alpha"].is_abnormal is False
         assert by_name["Bravo"].value is None
         assert by_name["Bravo"].value_text == "<0.5"
+        assert by_name["Bravo"].flag is None
+        assert by_name["Bravo"].is_abnormal is False
         assert by_name["Charlie"].value == 5.9
         assert by_name["Charlie"].flag == "H"
         assert by_name["Charlie"].is_abnormal is True
         assert by_name["Delta"].value == 4.2
+        assert by_name["Delta"].flag is None
+        assert by_name["Delta"].is_abnormal is False
