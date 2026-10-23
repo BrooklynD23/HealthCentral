@@ -369,7 +369,8 @@ describe('ProfileSetup', () => {
         profile_id: PROFILE.id,
         profile_name: PROFILE.display_name,
       });
-      renderWithProviders(<ProfileSetup />);
+      const { queryClient } = renderWithProviders(<ProfileSetup />);
+      const pw = watchCacheFor(queryClient, PASSWORD);
 
       await user.type(await screen.findByLabelText('Unlock password'), PASSWORD);
       await user.click(screen.getByRole('button', { name: /^unlock$/i }));
@@ -382,6 +383,10 @@ describe('ProfileSetup', () => {
       });
       await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/inbox'));
       expect(useAuthStore.getState().token).toBe('unlocked-token-456');
+      // RCC-2: positive control, then the password must leave the cache.
+      expect(pw.seen.value).toBe(true);
+      pw.unsubscribe();
+      await waitFor(() => expect(cachedMutationsContaining(queryClient, PASSWORD)).toBe(0));
     });
 
     it('HC-SRE-003: a 401 shows "Incorrect password" in an alert and stays on /setup', async () => {
@@ -390,7 +395,8 @@ describe('ProfileSetup', () => {
       vi.mocked(api.apiPost).mockRejectedValueOnce(
         new api.ApiError(401, 'Unauthorized', 'Invalid credentials')
       );
-      renderWithProviders(<ProfileSetup />);
+      const { queryClient } = renderWithProviders(<ProfileSetup />);
+      const pw = watchCacheFor(queryClient, 'WrongPass999');
 
       await user.type(await screen.findByLabelText('Unlock password'), 'WrongPass999');
       await user.click(screen.getByRole('button', { name: /^unlock$/i }));
@@ -398,6 +404,92 @@ describe('ProfileSetup', () => {
       expect(await screen.findByRole('alert')).toHaveTextContent('Incorrect password');
       expect(mockNavigate).not.toHaveBeenCalled();
       expect(useAuthStore.getState().token).toBeNull();
+      // The wrong password is not kept in the field.
+      expect(screen.getByLabelText('Unlock password')).toHaveValue('');
+      // RCC-2: positive control, then the password must leave the cache.
+      expect(pw.seen.value).toBe(true);
+      pw.unsubscribe();
+      await waitFor(() => expect(cachedMutationsContaining(queryClient, 'WrongPass999')).toBe(0));
+    });
+
+    it('HC-SRE-006: with two profiles, the one selected in the picker is the one unlocked', async () => {
+      const user = userEvent.setup();
+      const second = { ...PROFILE, id: 'profile-uuid-456', display_name: 'Sam Lee' };
+      vi.mocked(api.apiGet).mockResolvedValue([PROFILE, second]);
+      vi.mocked(api.apiPost).mockResolvedValueOnce({
+        access_token: 'second-token',
+        token_type: 'bearer',
+        expires_in: 3600,
+        profile_id: second.id,
+        profile_name: second.display_name,
+      });
+      renderWithProviders(<ProfileSetup />);
+
+      await user.selectOptions(await screen.findByLabelText('Profile'), second.id);
+      await user.type(screen.getByLabelText('Unlock password'), PASSWORD);
+      await user.click(screen.getByRole('button', { name: /^unlock$/i }));
+
+      await waitFor(() => {
+        expect(api.apiPost).toHaveBeenCalledWith('/profiles/login', {
+          profile_id: second.id,
+          password: PASSWORD,
+        });
+      });
+    });
+
+    it('HC-SRE-007: a 429 tells the patient to wait and try again', async () => {
+      const user = userEvent.setup();
+      mockOneProfile();
+      vi.mocked(api.apiPost).mockRejectedValueOnce(
+        new api.ApiError(429, 'Too Many Requests', 'rate limited')
+      );
+      renderWithProviders(<ProfileSetup />);
+
+      await user.type(await screen.findByLabelText('Unlock password'), PASSWORD);
+      await user.click(screen.getByRole('button', { name: /^unlock$/i }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(/too many attempts.*try again/i);
+      expect(mockNavigate).not.toHaveBeenCalled();
+    });
+
+    it('HC-SRE-008: unlocking clears the query cache so no other profile\'s data survives', async () => {
+      const user = userEvent.setup();
+      mockOneProfile();
+      vi.mocked(api.apiPost).mockResolvedValueOnce({
+        access_token: 'unlocked-token-456',
+        token_type: 'bearer',
+        expires_in: 3600,
+        profile_id: PROFILE.id,
+        profile_name: PROFILE.display_name,
+      });
+      const { queryClient } = renderWithProviders(<ProfileSetup />);
+      await screen.findByText('Unlock your profile');
+      // Data fetched under a previous profile's session.
+      queryClient.setQueryData(['medications', { activeOnly: true }], [{ name: 'Metformin' }]);
+      expect(queryClient.getQueryData(['medications', { activeOnly: true }])).toBeDefined();
+
+      await user.type(screen.getByLabelText('Unlock password'), PASSWORD);
+      await user.click(screen.getByRole('button', { name: /^unlock$/i }));
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/inbox'));
+
+      // The mounted profiles-list observer may re-create its own query after
+      // the clear; everything else must be gone.
+      const leftover = queryClient
+        .getQueryCache()
+        .getAll()
+        .filter((q) => q.queryKey[0] !== 'profiles');
+      expect(leftover).toEqual([]);
+    });
+
+    it('HC-SRE-009: while the profile list is loading, neither the create button nor the create form is shown', async () => {
+      vi.mocked(api.apiGet).mockReturnValue(new Promise(() => {}));
+      renderWithProviders(<ProfileSetup />);
+
+      // Let the first render settle; the list never arrives.
+      await new Promise((r) => setTimeout(r, 50));
+      expect(screen.queryByRole('button', { name: /create a new profile/i })).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Profile Name')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /create your profile/i })).not.toBeInTheDocument();
     });
   });
 });
