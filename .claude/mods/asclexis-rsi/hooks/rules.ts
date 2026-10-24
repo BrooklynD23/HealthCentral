@@ -78,6 +78,17 @@ export const RULES: readonly Rule[] = [
     errorClass: 'no-c-compiler',
   },
   {
+    id: 'embedding-bundle-missing',
+    tool: 'Bash',
+    when: 'after',
+    match: String.raw`test_hc_emb_002_fetched_model_loads_offline|test_api_rag_index_002[bc]?|test_search_vectors_async_calculates_similarity`,
+    action: 'hint',
+    message:
+      'These failures are environmental. Fetch the model with python scripts/download_models.py embedding. Do not lower the 0.7 threshold. Judge on the collected count (recurring-failures #4).',
+    source: 'pr-review leads 223,218',
+    errorClass: 'embedding-bundle-missing',
+  },
+  {
     id: 'no-such-file-path',
     tool: 'Bash',
     when: 'after',

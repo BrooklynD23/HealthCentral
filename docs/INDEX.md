@@ -164,7 +164,7 @@ Links to: `docs/agentic/evals.md`, `docs/agentic/harness.md`, `docs/agentic/mcp-
 
 rsi-loop reads two logs that are git-ignored, so they stay on the machine that wrote them: - `.claude/logs/rsi/<date>.jsonl`, written by the `asclexis-rsi` mod when the session starts with…
 
-Links to: `docs/agentic/rsi-runs/2026-10-21-laptop/summary.json`
+Links to: `docs/agentic/rsi-runs/2026-10-21-laptop/summary.json`, `docs/agentic/rsi-runs/2026-10-22-gpubox/summary.json`, `docs/agentic/rsi-runs/2026-10-24-gpubox/summary.json`
 
 ## `docs/agile/AGILE_PLAN.md`
 
@@ -1450,7 +1450,7 @@ Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026
 
 Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-21c handoff. This session ran as the **GPU-box** L0 (RTX 3080, WSL, Ollama 0.40.5 with gemma4:e4b,…
 
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/rsi-runs/README.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-21c-session-handoff.md`
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/rsi-runs/README.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-21c-session-handoff.md`, `docs/plans/2026-10-24-session-handoff.md`
 
 ## `docs/plans/2026-10-23-frontend-revamp-plan.md`
 
@@ -1459,6 +1459,14 @@ Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/rsi-runs/README.md`, `docs/caps
 Queue rows: queue.md, "Planned 2026-10-23, frontend revamp". Rules: RUNBOOK, contracts §b-§d. Path shorthand as in the queue: `fe/` = `src/frontend/src/`, `e2e/` = `src/frontend/e2e/`, `be/` =…
 
 Links to: `docs/agentic/recurring-failures.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/comparison.md`, `docs/research/2026-10-23-frontend-revamp/owner-direction.md`, `docs/research/2026-10-23-frontend-revamp/proposal-A.md`, `docs/research/2026-10-23-frontend-revamp/proposal-B.md`, `docs/research/2026-10-23-frontend-revamp/proto-A.patch`, `docs/research/2026-10-23-frontend-revamp/proto-B.patch`
+
+## `docs/plans/2026-10-24-session-handoff.md`
+
+**Session handoff: 2026-10-24 GPU-box L0 (RTX 3080) → next L0**
+
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-22 handoff. This session continued the **GPU-box** L0 (RTX 3080, WSL, Ollama, llama.cpp tiers,…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/rsi-runs/README.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-22-session-handoff.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`
 
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
@@ -1822,6 +1830,14 @@ This section quotes the owner's question that this note answers. Owner decision 
 
 Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`
 
+## `docs/research/2026-10-22-installer/00-README.md`
+
+**Installer research for after the MVP (INSTALLER-POST-MVP)**
+
+After the 2026-10-31 showcase, what should "download Asclexis and double-click it" look like? Which shell, what ships in the box, what a stakeholder sees when the app is unsigned, and which owner…
+
+Links to: `docs/plans/2026-10-01-packaging-decision.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-22-mvp/01-desktop-packaging.md`, `docs/research/2026-10-22-mvp/07-owner-questions.md`, `docs/research/2026-10-22-rapidocr/00-README.md`
+
 ## `docs/research/2026-10-22-mvp/00-README.md`
 
 **MVP readiness research package (2026-10-22)**
@@ -1987,6 +2003,14 @@ Links to: `docs/research/2026-10-23-frontend-revamp/00-README.md`
 These notes read the app twice: once as an Awwwards juror would, and once as a SaaS product manager. Every claim points at a screenshot in `shots/`, a measurement in `capture-metrics.json`,…
 
 Links to: `docs/research/2026-10-23-frontend-revamp/00-README.md`
+
+## `docs/research/2026-10-23-safety-mode-real/00-README.md`
+
+**Safety Mode research: what can the top-bar toggle really do (2026-10-23)**
+
+Owner answer **UI-SAFETY-TOGGLE = "Make it real"** (owner-decisions-2026-09-27.md, line 410) keeps a toggle and wires it to real behaviour. The plan (frontend revamp plan section 7.2, row…
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`
 
 ## `docs/reviews/2026-09-25/DDI-r1-prompt.md`
 
