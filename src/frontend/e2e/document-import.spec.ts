@@ -34,9 +34,17 @@ test.describe('Document Import Smoke Tests', () => {
     const auth = await openAuthenticatedPage(page, request);
 
     // Committed text-lab fixture (see ui-full-verification.spec.ts header).
+    // Track the id from this upload's own import response, so a 'parsed' row
+    // left by an earlier attempt (retries, shared profile) cannot satisfy it.
+    const importResponse = page.waitForResponse(
+      (r) => r.request().method() === 'POST' && /\/documents\/import\/?(?:\?.*)?$/.test(r.url())
+    );
     await page
       .locator('input[type="file"]')
       .setInputFiles(path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'synthetic-lab.pdf'));
+    const imported = await importResponse;
+    expect(imported.ok()).toBe(true);
+    const documentId = ((await imported.json()) as { document: { id: string } }).document.id;
 
     // Assert the backend status, not toast/filename text: a rejected import
     // never produces a 'parsed' row. There is no backend "needs review" status
@@ -44,12 +52,11 @@ test.describe('Document Import Smoke Tests', () => {
     await expect
       .poll(
         async () => {
-          const res = await request.get(`${E2E_API_URL}/documents/`, {
+          const res = await request.get(`${E2E_API_URL}/documents/${documentId}`, {
             headers: { Authorization: `Bearer ${auth.access_token}` },
           });
           if (!res.ok()) return `http ${res.status()}`;
-          const docs = (await res.json()) as Array<{ source: string | null; status: string }>;
-          return docs.find((d) => d.source === 'synthetic-lab.pdf')?.status ?? 'missing';
+          return ((await res.json()) as { status: string }).status;
         },
         { timeout: 60_000, intervals: [1000] }
       )

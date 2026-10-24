@@ -3,9 +3,10 @@
  *
  * Fixture: e2e/fixtures/synthetic-lab.pdf is a one-page, obviously fictional
  * text-lab PDF (no real data). It is regenerated with this stdlib-only script,
- * run from src/frontend. The binary marker comment (%\xe2\xe3\xcf\xd3) keeps git
- * from treating it as text, so .gitattributes "* text=auto" cannot rewrite line
- * endings and break the xref byte offsets.
+ * run from src/frontend. Git detects the file as binary (-text) only because of
+ * the control bytes in the zlib stream; the high-byte marker comment
+ * (%\xe2\xe3\xcf\xd3) does not count. Keep the zlib stream, or ".gitattributes"
+ * "* text=auto" could rewrite line endings and break the xref byte offsets.
  *
  *   import zlib
  *   lines = [
@@ -72,7 +73,7 @@ function resolveRealPdfPath(): string {
 const REAL_PDF_PATH = resolveRealPdfPath();
 const HAS_REAL_PDF = REAL_PDF_PATH.length > 0 && fs.existsSync(REAL_PDF_PATH);
 
-const SKIP_REASON = `Real PDF not on disk. Set HC_E2E_REAL_PDF or add the default Windows path. Last resolved: ${REAL_PDF_PATH || '(empty)'}`;
+const SKIP_REASON = `HC_E2E_REAL_PDF names a file that does not exist. Fix the path or unset it to use the synthetic fixture. Last resolved: ${REAL_PDF_PATH || '(empty)'}`;
 
 function describeRealPdfSuite(name: string, fn: () => void) {
   if (!HAS_REAL_PDF) {
@@ -100,7 +101,7 @@ describeRealPdfSuite('UI full verification (real PDF)', () => {
     });
 
     await expect(
-      page.getByText(/Verified|OCR Required|Pending|Needs Review/, { exact: false })
+      page.getByText(/Verified|OCR Required|Pending|Needs Review/, { exact: false }).first()
     ).toBeVisible({ timeout: 180_000 });
   });
 

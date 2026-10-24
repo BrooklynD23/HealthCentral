@@ -41,6 +41,10 @@ test.describe('UI routes verification', () => {
 
     await expect(page.getByText(/explain assistant/i)).toBeVisible({ timeout: 15_000 });
 
+    // Let the most-recent-session restore (ExplainAssistant, ASSIST-HIST-001)
+    // finish first, so `before` is not taken ahead of restored turns.
+    await page.waitForLoadState('networkidle');
+
     const question = 'What do my latest lab values show?';
     const assistantMessages = page.locator(
       '[data-testid="chat-message"][data-role="assistant"]'
@@ -50,14 +54,20 @@ test.describe('UI routes verification', () => {
     const input = page.getByPlaceholder(/ask about your results/i);
     await input.fill(question);
 
+    const chatResponse = page.waitForResponse(
+      (r) => r.request().method() === 'POST' && /\/api\/v1\/assistant\/chat\/?(?:\?.*)?$/.test(r.url()),
+      { timeout: 120_000 }
+    );
     const sendButton = page.getByRole('button').filter({ has: page.locator('svg') }).last();
     await sendButton.click();
 
-    // CI has no model: an abstain/fallback reply is a valid reply. Assert a new
-    // assistant message with non-empty text that is not the question echoed back.
-    await expect
-      .poll(() => assistantMessages.count(), { timeout: 120_000 })
-      .toBeGreaterThan(before);
+    // CI has no model: the backend answers 200 with an abstain/fallback reply
+    // (see E2E-RAG-002). An error reply (500/401/network) is not a valid reply.
+    expect((await chatResponse).status()).toBe(200);
+
+    // Exactly one new assistant message, with non-empty text that is not the
+    // question echoed back.
+    await expect(assistantMessages).toHaveCount(before + 1, { timeout: 120_000 });
     const reply = assistantMessages.last();
     await expect(reply).toBeVisible({ timeout: 120_000 });
     await expect
