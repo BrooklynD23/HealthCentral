@@ -527,6 +527,8 @@ export function ExplainAssistant() {
               {messages.map((message) => (
                 <motion.div
                   key={message.id}
+                  data-testid="chat-message"
+                  data-role={message.role}
                   initial={prefersReducedMotion ? {} : { opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}

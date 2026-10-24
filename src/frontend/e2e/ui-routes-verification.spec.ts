@@ -41,17 +41,29 @@ test.describe('UI routes verification', () => {
 
     await expect(page.getByText(/explain assistant/i)).toBeVisible({ timeout: 15_000 });
 
+    const question = 'What do my latest lab values show?';
+    const assistantMessages = page.locator(
+      '[data-testid="chat-message"][data-role="assistant"]'
+    );
+    const before = await assistantMessages.count();
+
     const input = page.getByPlaceholder(/ask about your results/i);
-    await input.fill('What do my latest lab values show?');
+    await input.fill(question);
 
     const sendButton = page.getByRole('button').filter({ has: page.locator('svg') }).last();
     await sendButton.click();
 
-    await expect(
-      page.getByText(
-        /(insufficient|don't have enough|no relevant|limited context|not fully configured|knowledge base only|setup instructions|reference range|lab value|result|mg\/dl|mmol|hemoglobin|glucose)/i
-      )
-    ).toBeVisible({ timeout: 120_000 });
+    // CI has no model: an abstain/fallback reply is a valid reply. Assert a new
+    // assistant message with non-empty text that is not the question echoed back.
+    await expect(assistantMessages).toHaveCount(before + 1, { timeout: 120_000 });
+    const reply = assistantMessages.last();
+    await expect(reply).toBeVisible({ timeout: 120_000 });
+    await expect
+      .poll(async () => ((await reply.innerText()) ?? '').trim(), { timeout: 120_000 })
+      .not.toBe('');
+    const text = (await reply.innerText()).trim();
+    expect(text).not.toBe(question);
+    expect(text).not.toContain(question);
   });
 
   // (was E2E-UI-FULL-004)
