@@ -90,6 +90,7 @@ gh pr merge 340 --merge --delete-branch=false
 ### Known gaps
 
 - **#333 PR body has no RUNBOOK §6 table sections.** Its body has Summary, Files, E2E counts, Break-it and green runs, Deviations, Local run notes and Backend; it lacks Item, Runtimes, Gates used, Skipped tasks, Contracts, Commands, Count and Review. The fix is a post-merge comment on #333 with those sections; the next L0 or the owner decides.
+- **#329 PR body has the same gap** (AXE-E2E, merged `a48cdbc` in the interim session): it has Summary, Files, First run's allow-list, Review and Evidence, and lacks Item, Runtimes, Gates used, Skipped tasks, Contracts and Count. The same post-merge-comment decision applies.
 - **Count on the #333 branch:** the Haiku runner measured 2437 collected there before later merges. Main measures 2462.
 
 ## 4. Harness gotchas
