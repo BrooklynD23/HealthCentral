@@ -18,7 +18,7 @@ type Route = (typeof ROUTES)[number];
 interface KnownA11y {
   rule: string;
   selector: string;
-  fixBy: 'UI-TOKENS' | 'A11Y-CRIT-LABELS';
+  fixBy: 'UI-TOKENS';
   note: string;
 }
 
@@ -125,10 +125,6 @@ const KNOWN_A11Y: Record<Route, KnownA11y[]> = {
       "div:nth-child(1) > .gap-2.items-center.flex > .text-ink-tertiary",
       ".text-center.py-2.text-ink-tertiary",
     ]),
-    ...known("label", "A11Y-CRIT-LABELS", "critical: date input has no accessible name; removed by A11Y-CRIT-LABELS", [
-      "input[type=\"date\"]:nth-child(1)",
-      "input[type=\"date\"]:nth-child(3)",
-    ]),
   ],
   '/settings': [
     ...known("color-contrast", "UI-TOKENS", "serious: contrast below WCAG AA; removed by UI-TOKENS", [
@@ -180,9 +176,6 @@ const KNOWN_A11Y: Record<Route, KnownA11y[]> = {
       ".text-base.tracking-tight > .bg-status-verified-subtle.text-status-verified.gap-1\\.5",
       "p[data-testid=\"recovery-code-replace-warning\"]",
       ".text-status-attention.text-xl.tracking-tight",
-    ]),
-    ...known("select-name", "A11Y-CRIT-LABELS", "critical: select has no accessible name; removed by A11Y-CRIT-LABELS", [
-      "select",
     ]),
   ],
 };
