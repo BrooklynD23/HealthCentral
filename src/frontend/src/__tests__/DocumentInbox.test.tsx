@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router-dom';
 import { DocumentInbox } from '@/pages/DocumentInbox';
+import { ApiError } from '@/services';
 import { useAuthStore } from '@/stores/authStore';
 
 const mutateAsync = vi.fn();
@@ -186,6 +187,78 @@ describe('DocumentInbox Phase C warnings and confidence', () => {
       expect(
         screen.getByText(/imported 3 lab results and 1 record mentions.*pending your verification/i)
       ).toBeInTheDocument();
+    });
+  });
+});
+
+describe('DocumentInbox import failure alert', () => {
+  beforeEach(() => {
+    mutateAsync.mockReset();
+    useAuthStore.getState().setAuth({
+      token: 'test-token',
+      profileId: 'profile-123',
+      profileName: 'Test Profile',
+    });
+  });
+
+  const uploadFile = async (user: ReturnType<typeof userEvent.setup>, name: string) => {
+    await user.upload(
+      screen.getByLabelText(/upload medical documents/i),
+      new File(['x'], name, { type: 'application/pdf' })
+    );
+  };
+
+  it('HC-FIE-001: shows the server message and file name when an import fails', async () => {
+    const user = userEvent.setup();
+    mutateAsync.mockRejectedValue(new ApiError(400, 'Bad Request', 'Unsupported file type'));
+    render(<BrowserRouter><DocumentInbox /></BrowserRouter>);
+    await uploadFile(user, 'bad.pdf');
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Unsupported file type');
+    expect(alert).toHaveTextContent('bad.pdf');
+  });
+
+  it('HC-FIE-002: shows fixed too-large copy for a 413', async () => {
+    const user = userEvent.setup();
+    mutateAsync.mockRejectedValue(new ApiError(413, 'Payload Too Large', 'raw server detail'));
+    render(<BrowserRouter><DocumentInbox /></BrowserRouter>);
+    await uploadFile(user, 'huge.pdf');
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('This file is too large to import.');
+    expect(alert).not.toHaveTextContent('raw server detail');
+  });
+
+  it('HC-FIE-003: a successful import after a failure removes the alert', async () => {
+    const user = userEvent.setup();
+    mutateAsync
+      .mockRejectedValueOnce(new ApiError(400, 'Bad Request', 'Unsupported file type'))
+      .mockResolvedValueOnce({
+        document: {
+          id: 'ok-doc',
+          profile_id: 'profile-123',
+          doc_type: 'lab_pdf',
+          source: 'ok.pdf',
+          status: 'parsed',
+          page_count: 1,
+          collection_date: '2026-07-01T00:00:00',
+          imported_at: '2026-07-13T10:00:00',
+          parsed_at: '2026-07-13T10:00:01',
+          verified_at: null,
+          extraction_confidence: 0.9,
+        },
+        observations_extracted: 1,
+        needs_verification: true,
+        duplicate_warning: null,
+      });
+    render(<BrowserRouter><DocumentInbox /></BrowserRouter>);
+    await uploadFile(user, 'bad.pdf');
+    await screen.findByRole('alert');
+
+    await uploadFile(user, 'ok.pdf');
+    await waitFor(() => {
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
   });
 });
