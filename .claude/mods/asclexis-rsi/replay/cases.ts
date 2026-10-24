@@ -15,4 +15,6 @@ export default [
   {"id": "venv-husk-neg-good-venv", "rule": "venv-husk", "tool": "Bash", "input": {"command": "~/venvs/asclexis-311/bin/pytest -q"}, "failed": false, "error_text": "", "expect": "pass"},
   {"id": "llama-cpp-no-compiler-pos", "rule": "llama-cpp-no-compiler", "tool": "Bash", "input": {"command": "pip install llama-cpp-python"}, "error_text": "CMake Error: No CMAKE_C_COMPILER could be found.", "expect": "hint"},
   {"id": "llama-cpp-no-compiler-neg", "rule": "llama-cpp-no-compiler", "tool": "Bash", "input": {"command": "pip install llama-cpp-python"}, "error_text": "ERROR: No matching distribution found", "expect": "pass"},
+  {"id": "embedding-bundle-missing-pos", "rule": "embedding-bundle-missing", "tool": "Bash", "input": {"command": "pytest -q tests/"}, "error_text": "FAILED tests/test_rag_pipeline.py::test_api_rag_index_002b - AssertionError", "expect": "hint"},
+  {"id": "embedding-bundle-missing-neg", "rule": "embedding-bundle-missing", "tool": "Bash", "input": {"command": "pytest -q tests/"}, "error_text": "FAILED tests/test_auth.py::test_hc_auth_001 - AssertionError", "expect": "pass"},
 ]
