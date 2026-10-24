@@ -158,7 +158,7 @@ test('HC-UIG-003 pre: a nav click samples the route container and ends at opacit
     samples.filter((s) => !Number.isFinite(s.opacity)),
     'every sample must read a finite route container opacity'
   ).toEqual([]);
-  expect(samples.at(-1)?.opacity, 'route container must settle at 1').toBe(1);
+  expect(samples[samples.length - 1]?.opacity, 'route container must settle at 1').toBe(1);
 });
 
 test.fail(
@@ -386,14 +386,17 @@ const FAIL_FIXTURES: Array<{
 for (const fixture of FAIL_FIXTURES) {
   test(`HC-UIG-006 ${fixture.id} stillnessProbe fails: ${fixture.title}`, async ({ page }) => {
     await serveFixture(page, fixture.html);
-    const probe = stillnessProbe(page, {
+    const error = await stillnessProbe(page, {
       trigger: startFixture(page),
       expected: fixture.expected,
       kind: fixture.kind,
-    });
-    await expect(probe, `probe must reject with a message naming the moved property`).rejects.toThrow(
-      fixture.reason
+    }).then(
+      () => null,
+      (caught: unknown) => caught
     );
+    console.log(`HC-UIG-006 ${fixture.id} rejected with: ${String(error)}`);
+    expect(error, 'the probe must reject this fixture').not.toBeNull();
+    expect(String(error), 'the rejection must name the property that moved').toMatch(fixture.reason);
   });
 }
 
