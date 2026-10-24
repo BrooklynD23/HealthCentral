@@ -406,7 +406,12 @@ export interface StillnessOptions {
   trigger: () => Promise<void>;
   /** Selectors that must each match at least one [data-t0] node (the route's §2.7 components). */
   expected: string[];
-  /** A navigation enables the route-fade rules; an interaction (including an overlay) has no fade window. Default `interaction`. */
+  /**
+   * A navigation enables the route-fade rules. During the fade window a [data-t0] node inside the route
+   * container must match the container's opacity, and a node outside it (the Safety Rail) must stay at 1,
+   * because only the container fades (plan §2 T0 row, HC-UISH-009). An interaction, including an overlay,
+   * has no fade window. Default `interaction`.
+   */
   kind?: 'interaction' | 'navigation';
   /**
    * A route that fetches its data after the trigger: the window starts only when no request is in flight and none
@@ -449,7 +454,10 @@ interface NodeSnap {
   filter: string;
   transform: string;
   rect: [number, number, number, number];
+  /** product of this node's and every ancestor's computed opacity */
   opacity: number;
+  /** inside the route container, the element that fades on a navigation */
+  inRoute: boolean;
 }
 
 interface RouteSnap {
@@ -459,30 +467,56 @@ interface RouteSnap {
 }
 
 interface Snap {
+  /** milliseconds on the page clock (performance.now()) */
   t: number;
-  doc: string;
   pathname: string;
   route: RouteSnap | null;
   nodes: NodeSnap[];
   expectedHits: boolean[];
 }
 
+/** The sampler's state inside the page (window.__hcStill). */
+interface SamplerState {
+  running: boolean;
+  timer: number;
+  snaps: Snap[];
+  lastError: string | null;
+}
+
+/** What stopSampler hands back to the probe. */
+interface SamplerDump {
+  snaps: Snap[];
+  lastError: string | null;
+}
+
 /**
- * Samples every [data-t0] node, the route container, and the expected
- * selectors. Runs inside the page, so it must not reference module scope.
+ * Runs inside the page. Starts the sampler, replacing an earlier one, and takes
+ * the first sample at once. Each tick snapshots every [data-t0] node, the route
+ * container and the expected selectors, on the page's own clock.
+ *
+ * Playwright serialises this function, so it must not reference module scope.
+ *
+ * It samples in the page because a sample taken by a CDP call from Node queues
+ * behind whatever the trigger is running. The gap between samples then depended
+ * on what ran earlier in the test run (review round 2: gaps of 35-66 ms on a
+ * cold run of a fixture that is 25 ms warm).
  */
-function snapshotDocument(expected: string[]): Omit<Snap, 't'> {
-  type State = { doc: string; next: number; ids: WeakMap<Element, number> };
-  const w = window as unknown as { __hcStill?: State };
-  if (!w.__hcStill) {
-    w.__hcStill = { doc: Math.random().toString(36).slice(2), next: 1, ids: new WeakMap() };
+function startSampler(config: { expected: string[]; intervalMs: number }): void {
+  const w = window as unknown as { __hcStill?: SamplerState };
+  if (w.__hcStill) {
+    w.__hcStill.running = false;
+    window.clearInterval(w.__hcStill.timer);
   }
-  const state = w.__hcStill;
+  const state: SamplerState = { running: true, timer: 0, snaps: [], lastError: null };
+  w.__hcStill = state;
+
+  const ids = new WeakMap<Element, number>();
+  let nextId = 1;
   const idOf = (el: Element): number => {
-    let id = state.ids.get(el);
+    let id = ids.get(el);
     if (id === undefined) {
-      id = state.next++;
-      state.ids.set(el, id);
+      id = nextId++;
+      ids.set(el, id);
     }
     return id;
   };
@@ -494,46 +528,67 @@ function snapshotDocument(expected: string[]): Omit<Snap, 't'> {
     return value;
   };
 
-  const routeEl = document.querySelector('[data-route-container]');
-  let route: RouteSnap | null = null;
-  if (routeEl) {
-    const cs = getComputedStyle(routeEl);
-    route = {
-      key: routeEl.getAttribute('data-route-container') ?? '',
-      opacity: parseFloat(cs.opacity),
-      transform: cs.transform,
-    };
-  }
+  const snapshot = (): Snap => {
+    const routeEl = document.querySelector('[data-route-container]');
+    let route: RouteSnap | null = null;
+    if (routeEl) {
+      const cs = getComputedStyle(routeEl);
+      route = {
+        key: routeEl.getAttribute('data-route-container') ?? '',
+        opacity: parseFloat(cs.opacity),
+        transform: cs.transform,
+      };
+    }
 
-  const nodes: NodeSnap[] = Array.from(document.querySelectorAll('[data-t0]')).map((el): NodeSnap => {
-    const cs = getComputedStyle(el);
-    const r = el.getBoundingClientRect();
-    const text = el.textContent ?? '';
-    return {
-      id: idOf(el),
-      label: `${el.tagName.toLowerCase()} "${text.trim().slice(0, 40)}"`,
-      text,
-      color: cs.color,
-      bg: cs.backgroundColor,
-      clip: cs.clipPath,
-      filter: cs.filter,
-      transform: cs.transform,
-      rect: [r.x, r.y, r.width, r.height],
-      opacity: effectiveOpacity(el),
-    };
-  });
+    const nodes: NodeSnap[] = Array.from(document.querySelectorAll('[data-t0]')).map((el): NodeSnap => {
+      const cs = getComputedStyle(el);
+      const r = el.getBoundingClientRect();
+      const text = el.textContent ?? '';
+      return {
+        id: idOf(el),
+        label: `${el.tagName.toLowerCase()} "${text.trim().slice(0, 40)}"`,
+        text,
+        color: cs.color,
+        bg: cs.backgroundColor,
+        clip: cs.clipPath,
+        filter: cs.filter,
+        transform: cs.transform,
+        rect: [r.x, r.y, r.width, r.height],
+        opacity: effectiveOpacity(el),
+        inRoute: routeEl !== null && routeEl.contains(el),
+      };
+    });
 
-  const expectedHits = expected.map((selector) =>
-    Array.from(document.querySelectorAll(selector)).some((el) => el.matches('[data-t0]'))
-  );
+    const expectedHits = config.expected.map((selector) =>
+      Array.from(document.querySelectorAll(selector)).some((el) => el.matches('[data-t0]'))
+    );
 
-  return { doc: state.doc, pathname: location.pathname, route, nodes, expectedHits };
+    return { t: Math.round(performance.now()), pathname: location.pathname, route, nodes, expectedHits };
+  };
+
+  const tick = () => {
+    if (!state.running) return;
+    try {
+      state.snaps.push(snapshot());
+    } catch (error) {
+      // A selector may be invalid, or the DOM may be mid-update. The next tick retries.
+      state.lastError = String(error);
+    }
+  };
+  tick();
+  state.timer = window.setInterval(tick, config.intervalMs);
 }
 
-async function takeSnapshot(page: Page, expected: string[]): Promise<Snap> {
-  const t = Date.now();
-  const snap = await page.evaluate(snapshotDocument, expected);
-  return { t, ...snap };
+/**
+ * Runs inside the page. Stops the sampler and returns what it recorded. Returns
+ * null when the page has no sampler, which means the document was replaced.
+ */
+function stopSampler(): SamplerDump | null {
+  const state = (window as unknown as { __hcStill?: SamplerState }).__hcStill;
+  if (!state) return null;
+  state.running = false;
+  window.clearInterval(state.timer);
+  return { snaps: state.snaps, lastError: state.lastError };
 }
 
 /**
@@ -561,17 +616,17 @@ function analyse(snaps: Snap[], kind: 'interaction' | 'navigation', expected: st
   });
 
   // Per-node stillness: the baseline is the first sample in which the node exists.
-  const baselines = new Map<string, NodeSnap>();
+  const baselines = new Map<number, NodeSnap>();
   for (const snap of snaps) {
     for (const node of snap.nodes) {
-      const key = `${snap.doc}:${node.id}`;
-      const base = baselines.get(key);
+      const base = baselines.get(node.id);
       if (!base) {
-        baselines.set(key, node);
+        baselines.set(node.id, node);
         continue;
       }
       const at = snap.t - origin;
       const who = `[data-t0] ${base.label}`;
+      const key = String(node.id);
       const compare = (prop: string, before: string, after: string) => {
         if (before !== after) {
           fail(`${key}:${prop}`, `${prop} changed on ${who}: "${before}" -> "${after}" at ${at} ms`);
@@ -624,8 +679,9 @@ function analyse(snaps: Snap[], kind: 'interaction' | 'navigation', expected: st
     }
   }
 
-  // Effective opacity: 1, except that during the navigation fade window each
-  // node must equal the route container's own opacity (plan G10).
+  // Effective opacity (plan G10). During the navigation fade window a node inside the route container must
+  // equal the container's own opacity. A node outside it must stay at 1: only the container fades, and the
+  // Safety Rail sits outside it (plan §2 T0 row, HC-UISH-009). Everywhere else every node must be 1.
   for (let index = 0; index < snaps.length; index++) {
     const snap = snaps[index];
     const inWindow =
@@ -634,14 +690,20 @@ function analyse(snaps: Snap[], kind: 'interaction' | 'navigation', expected: st
       index >= i0 &&
       snap.t - t0 <= ROUTE_FADE_MS &&
       snap.route !== null;
-    const allowed = inWindow && snap.route ? snap.route.opacity : 1;
     for (const node of snap.nodes) {
+      const insideFade = inWindow && node.inRoute;
+      const allowed = insideFade && snap.route ? snap.route.opacity : 1;
       if (Math.abs(node.opacity - allowed) > OPACITY_EPSILON) {
         const at = snap.t - origin;
-        const message = inWindow
-          ? `effective opacity ${node.opacity.toFixed(2)} must equal the route container's ${allowed.toFixed(2)} during the fade on [data-t0] ${node.label} at ${at} ms`
-          : `effective opacity ${node.opacity.toFixed(2)} (must be 1) on [data-t0] ${node.label} at ${at} ms`;
-        fail(`${snap.doc}:${node.id}:opacity`, message);
+        let message: string;
+        if (insideFade) {
+          message = `effective opacity ${node.opacity.toFixed(2)} must equal the route container's ${allowed.toFixed(2)} during the fade on [data-t0] ${node.label} at ${at} ms`;
+        } else if (inWindow) {
+          message = `effective opacity ${node.opacity.toFixed(2)} must be 1 on [data-t0] ${node.label} at ${at} ms: the node is outside the route container, and only the container fades`;
+        } else {
+          message = `effective opacity ${node.opacity.toFixed(2)} (must be 1) on [data-t0] ${node.label} at ${at} ms`;
+        }
+        fail(`${node.id}:opacity`, message);
       }
     }
   }
@@ -731,37 +793,29 @@ function trackRequests(page: Page): NetworkTracker {
 }
 
 /**
- * Samples every STILLNESS_SAMPLE_MS while `trigger` runs and for the window
- * after it, then throws a StillnessError listing every failure. Resolves with
- * a summary when the page stays still.
+ * Samples every STILLNESS_SAMPLE_MS on the page's clock while `trigger` runs and
+ * for the window after it, then throws a StillnessError listing every failure.
+ * Resolves with a summary when the page stays still.
+ *
+ * The sampler runs in the page, so a full document load ends it and the probe
+ * then fails with "lost its sampler". Use the probe for interactions and for
+ * client-side (SPA) navigations.
  */
 export async function stillnessProbe(page: Page, options: StillnessOptions): Promise<StillnessReport> {
   const kind = options.kind ?? 'interaction';
   const windowMs = options.windowMs ?? STILLNESS_WINDOW_MS;
-  const snaps: Snap[] = [];
-  let lastError: unknown = null;
-  let running = true;
+  await page.evaluate(startSampler, { expected: options.expected, intervalMs: STILLNESS_SAMPLE_MS });
+
+  let dump: SamplerDump | null = null;
   let triggeredAt = 0;
   let elapsedMs = 0;
-
-  const sampler = (async () => {
-    while (running) {
-      try {
-        snaps.push(await takeSnapshot(page, options.expected));
-      } catch (error) {
-        // The document may be navigating, or a selector may be invalid; the next sample retries.
-        lastError = error;
-      }
-      if (running) await sleep(STILLNESS_SAMPLE_MS);
-    }
-  })();
-
   try {
-    await waitUntil(() => snaps.length > 0, 10_000, 'the first stillness sample');
     const network = options.lazyRoute ? trackRequests(page) : null;
-    triggeredAt = Date.now();
-    let windowStart = triggeredAt;
     try {
+      // Whole milliseconds, like the samples, so the messages read "at 1280 ms" and the gap is integral.
+      triggeredAt = await page.evaluate(() => Math.round(performance.now()));
+      const triggeredWall = Date.now();
+      let windowStart = triggeredWall;
       await options.trigger();
       if (network) {
         // A request the trigger starts can begin a few ms later, so the quiet period runs from the trigger.
@@ -773,25 +827,29 @@ export async function stillnessProbe(page: Page, options: StillnessOptions): Pro
         );
         windowStart = Date.now();
       }
+      const end = windowStart + windowMs;
+      while (Date.now() < end) await sleep(10);
+      elapsedMs = Date.now() - triggeredWall;
     } finally {
       network?.stop();
     }
-    const end = windowStart + windowMs;
-    while (Date.now() < end) await sleep(10);
-    elapsedMs = Date.now() - triggeredAt;
   } finally {
-    running = false;
-    await sampler;
+    // Stop the sampler on every path, including a trigger that throws.
+    dump = await page.evaluate(stopSampler).catch(() => null);
   }
 
+  if (dump === null) {
+    throw new StillnessError('stillnessProbe lost its sampler: the page reloaded or navigated during the probe');
+  }
+  const snaps = dump.snaps;
   if (snaps.length === 0) {
-    throw new StillnessError(`stillnessProbe took no sample: ${String(lastError)}`);
+    throw new StillnessError(`stillnessProbe took no sample: ${String(dump.lastError)}`);
   }
   const sampling = checkSampling(
     snaps.map((snap) => snap.t),
     triggeredAt,
     windowMs,
-    lastError
+    dump.lastError
   );
   const failures = [...sampling.failures, ...analyse(snaps, kind, options.expected)];
   if (failures.length > 0) {
