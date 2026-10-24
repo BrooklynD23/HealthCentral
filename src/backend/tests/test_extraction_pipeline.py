@@ -9,6 +9,7 @@ TDD Tests that verify:
 """
 
 import sys
+import time
 import uuid
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -1034,3 +1035,88 @@ class TestImportScannedPage:
         result = await ExtractModule().extract_from_pdf(io.BytesIO(pdf), "doc")
         assert len(result.observations) == 4
         assert result.pages_without_text == []
+
+
+class TestExtractTextForms:
+    """EXTRACT-TEXT-FORMS: Quest/LabCorp text lines (units, comparators, flag slot, one-bound ranges)."""
+
+    @pytest.fixture
+    def extract_module(self):
+        return ExtractModule()
+
+    def test_hc_etf_001_x10e3_unit_with_flag_before_unit(self, extract_module):
+        obs = extract_module._parse_text_line("WBC 5.9 H x10E3/uL 3.4-10.8", 1)
+        assert obs is not None
+        assert obs.analyte_raw == "WBC"
+        assert obs.value == 5.9
+        assert obs.unit == "x10E3/uL"
+        assert obs.flag == "H"
+        assert (obs.ref_low, obs.ref_high) == (3.4, 10.8)
+
+    def test_hc_etf_002_less_than_comparator_is_not_a_number(self, extract_module):
+        obs = extract_module._parse_text_line("Creatinine <0.5 mg/dL 0.5-1.2", 1)
+        assert obs is not None
+        assert obs.value is None
+        assert obs.value_text == "<0.5"
+        assert obs.unit == "mg/dL"
+        assert (obs.ref_low, obs.ref_high) == (0.5, 1.2)
+
+    def test_hc_etf_003_greater_than_comparator_and_or_equal_range(self, extract_module):
+        obs = extract_module._parse_text_line("eGFR >90 mL/min/1.73m2 >OR=60", 1)
+        assert obs is not None
+        assert obs.value is None
+        assert obs.value_text == ">90"
+        assert obs.unit == "mL/min/1.73m2"
+        assert (obs.ref_low, obs.ref_high) == (60.0, None)
+        assert obs.ref_range_text == ">OR=60"
+
+    @pytest.mark.parametrize(
+        "line,ref_low,ref_high,ref_range_text",
+        [
+            ("Ferritin 60 ng/mL <=150", None, 150.0, "<=150"),
+            ("Ferritin 60 ng/mL <OR=150", None, 150.0, "<OR=150"),
+            ("Hemoglobin 13.5 g/dL >=12", 12.0, None, ">=12"),
+        ],
+    )
+    def test_hc_etf_003b_one_bound_range_forms_set_one_bound(
+        self, extract_module, line, ref_low, ref_high, ref_range_text
+    ):
+        obs = extract_module._parse_text_line(line, 1)
+        assert obs is not None
+        assert obs.value is not None
+        assert (obs.ref_low, obs.ref_high) == (ref_low, ref_high)
+        assert obs.ref_range_text == ref_range_text
+
+    def test_hc_etf_004_flag_between_unit_and_range(self, extract_module):
+        obs = extract_module._parse_text_line("Glucose 105 mg/dL H 70-99", 1)
+        assert obs is not None
+        assert (obs.value, obs.unit, obs.flag) == (105.0, "mg/dL", "H")
+        assert (obs.ref_low, obs.ref_high) == (70.0, 99.0)
+
+    @pytest.mark.parametrize(
+        "line,analyte,value,unit,flag,ref_low,ref_high,ref_range_text",
+        [
+            ("Glucose 105 mg/dL 70-99 H", "Glucose", 105.0, "mg/dL", "H", 70.0, 99.0, "70-99"),
+            ("WBC 5.9 K/uL 3.4-10.8", "WBC", 5.9, "K/uL", None, 3.4, 10.8, "3.4-10.8"),
+            ("TSH 2.10 mIU/L 0.45-4.50", "TSH", 2.10, "mIU/L", None, 0.45, 4.50, "0.45-4.50"),
+            ("LDL Cholesterol 135 H mg/dL <100", "LDL Cholesterol", 135.0, "mg/dL", "H", None, 100.0, "<100"),
+            ("Vitamin D 120 ng/mL >30 h", "Vitamin D", 120.0, "ng/mL", "H", 30.0, None, ">30"),
+        ],
+    )
+    def test_hc_etf_005_existing_column_lines_unchanged(
+        self, extract_module, line, analyte, value, unit, flag, ref_low, ref_high, ref_range_text
+    ):
+        obs = extract_module._parse_text_line(line, 1)
+        assert obs is not None
+        assert (obs.analyte_raw, obs.value, obs.value_text, obs.unit) == (analyte, value, None, unit)
+        assert (obs.flag, obs.ref_low, obs.ref_high, obs.ref_range_text) == (
+            flag, ref_low, ref_high, ref_range_text,
+        )
+
+    def test_hc_etf_006_long_space_run_parses_in_linear_time(self, extract_module):
+        line = "WBC " + " " * 50000 + "x"
+        start = time.perf_counter()
+        obs = extract_module._parse_text_line(line, 1)
+        elapsed = time.perf_counter() - start
+        assert obs is None
+        assert elapsed < 1.0, f"took {elapsed:.2f}s"
