@@ -501,7 +501,7 @@ async def llm_assist_visit_entities(
             InferenceConfig(max_tokens=512, temperature=0.0),
         )
     except Exception as exc:
-        logger.warning("llm_assist_visit_entities: inference failed: %s", exc)
+        logger.warning("llm_assist_visit_entities: inference failed: %s", type(exc).__name__)
         return []
 
     seen = {
