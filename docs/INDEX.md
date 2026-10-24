@@ -164,7 +164,7 @@ Links to: `docs/agentic/evals.md`, `docs/agentic/harness.md`, `docs/agentic/mcp-
 
 rsi-loop reads two logs that are git-ignored, so they stay on the machine that wrote them: - `.claude/logs/rsi/<date>.jsonl`, written by the `asclexis-rsi` mod when the session starts with…
 
-Links to: `docs/agentic/rsi-runs/2026-10-21-laptop/summary.json`
+Links to: `docs/agentic/rsi-runs/2026-10-21-laptop/summary.json`, `docs/agentic/rsi-runs/2026-10-22-gpubox/summary.json`, `docs/agentic/rsi-runs/2026-10-24-gpubox/summary.json`
 
 ## `docs/agile/AGILE_PLAN.md`
 
