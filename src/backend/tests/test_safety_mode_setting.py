@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 import api.assistant as assistant_api
 from core.auth import get_profile_db_session, require_auth
 from core.profile_database import ProfileDatabaseBase
+from models.model_settings import UserModelSettings
 from tests.support.routes import route_client
 
 PREFIX = "/assistant"
@@ -73,6 +74,7 @@ async def test_hc_sms_001_new_profile_reads_false(vault):
     resp, _ = _call("GET", vault)
     assert resp.status_code == 200, resp.text
     assert resp.json() == {"strict_safety_mode": False}
+    assert await assistant_api.is_strict_safety_mode(vault) is False
 
 
 @pytest.mark.asyncio
@@ -83,6 +85,24 @@ async def test_hc_sms_002_patch_true_persists_and_reads_back(vault):
     resp, _ = _call("GET", vault)
     assert resp.status_code == 200, resp.text
     assert resp.json() == {"strict_safety_mode": True}
+    assert await assistant_api.is_strict_safety_mode(vault) is True
+    resp, _ = _call("PATCH", vault, json={"strict_safety_mode": False})
+    assert resp.status_code == 200, resp.text
+    assert await assistant_api.is_strict_safety_mode(vault) is False
+
+    # Two first-time writers can each insert a row for one profile: profile_id
+    # is indexed, not unique. Here the OFF row is returned first. The helper
+    # must still fail closed and report ON.
+    engine, racy = await _open_vault("sqlite+aiosqlite://")
+    try:
+        racy.add(UserModelSettings(id="race-off", profile_id=PROFILE_A, strict_safety_mode=False))
+        await racy.commit()
+        racy.add(UserModelSettings(id="race-on", profile_id=PROFILE_A, strict_safety_mode=True))
+        await racy.commit()
+        assert await assistant_api.is_strict_safety_mode(racy) is True
+    finally:
+        await racy.close()
+        await engine.dispose()
 
 
 @pytest.mark.asyncio

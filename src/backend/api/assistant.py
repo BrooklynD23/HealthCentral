@@ -22,7 +22,7 @@ from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.audit import audit_and_commit, audit_intent, create_audit_log
@@ -636,14 +636,17 @@ class SafetyModeUpdate(BaseModel):
 async def is_strict_safety_mode(profile_db: AsyncSession) -> bool:
     """True when this profile's strict safety mode is on, False otherwise.
 
-    Returns False when there is no settings row. The profile DB belongs to one
-    profile, so no profile_id filter is applied here. SAFETY-MODE-STRICT and
-    SAFETY-MODE-VERIFIED import this; keep the signature stable.
+    Fails closed: True if ANY settings row in this DB has the flag set. Returns
+    False when there is no settings row. Duplicate rows can exist (profile_id
+    is indexed, not unique), so this never picks one row. The profile DB
+    belongs to one profile (vaults/<profile_id>), so no profile_id filter is
+    applied. SAFETY-MODE-STRICT and SAFETY-MODE-VERIFIED import this; keep the
+    signature stable.
     """
     result = await profile_db.execute(
-        select(UserModelSettings.strict_safety_mode).limit(1)
+        select(exists().where(UserModelSettings.strict_safety_mode.is_(True)))
     )
-    return bool(result.scalar_one_or_none())
+    return bool(result.scalar())
 
 
 @router.get("/safety-mode", response_model=SafetyModeResponse)
