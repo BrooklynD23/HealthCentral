@@ -137,6 +137,8 @@ export interface DocumentImportResponse {
   } | null;
   /** Only set for CSV/FHIR structured imports (HC-M23). */
   import_summary: ImportSummary | null;
+  /** 1-based pages with no readable text, so their values were not read (IMPORT-SCANNED-PAGE). */
+  pages_without_text?: number[] | null;
 }
 
 export interface DocumentVerifyResponse {

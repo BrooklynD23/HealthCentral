@@ -959,3 +959,78 @@ class TestExtractPageMerge:
             ("Glucose", 95.0, "pdf_table"),
             ("Sodium", 140.0, "pdf_text"),
         ]
+
+
+def _text_then_image_pdf(text_lines):
+    """Raw-bytes two-page PDF: page 1 text lines, page 2 one image and no text operators."""
+    import io
+
+    def esc(s):
+        return s.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+    page1 = ["BT", "/F1 11 Tf", "14 TL", "50 740 Td"]
+    page1 += [f"({esc(line)}) Tj T*" for line in text_lines]
+    page1.append("ET")
+    page2 = ["q", "300 0 0 300 100 400 cm", "/Im1 Do", "Q"]
+    stream1 = "\n".join(page1).encode("latin-1")
+    stream2 = "\n".join(page2).encode("latin-1")
+    pixels = bytes([0, 64, 128, 255] * 4)  # 4x4 greyscale, 8 bits per component
+    objs = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+        b"/Resources << /Font << /F1 6 0 R >> >> /Contents 5 0 R >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+        b"/Resources << /XObject << /Im1 7 0 R >> >> /Contents 8 0 R >>",
+        b"<< /Length %d >>\nstream\n" % len(stream1) + stream1 + b"\nendstream",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+        b"<< /Type /XObject /Subtype /Image /Width 4 /Height 4 /ColorSpace /DeviceGray "
+        b"/BitsPerComponent 8 /Length 16 >>\nstream\n" + pixels + b"\nendstream",
+        b"<< /Length %d >>\nstream\n" % len(stream2) + stream2 + b"\nendstream",
+    ]
+    out = io.BytesIO()
+    out.write(b"%PDF-1.4\n")
+    offsets = []
+    for number, body in enumerate(objs, start=1):
+        offsets.append(out.tell())
+        out.write(f"{number} 0 obj\n".encode() + body + b"\nendobj\n")
+    xref = out.tell()
+    out.write(f"xref\n0 {len(objs) + 1}\n0000000000 65535 f \n".encode())
+    out.write("".join(f"{o:010d} 00000 n \n" for o in offsets).encode())
+    out.write(f"trailer\n<< /Size {len(objs) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode())
+    return out.getvalue()
+
+
+class TestImportScannedPage:
+    """IMPORT-SCANNED-PAGE: pages with no readable text are reported; real pdfplumber on raw PDF bytes."""
+
+    @pytest.mark.asyncio
+    async def test_hc_isp_001_image_only_page_is_reported(self):
+        import io
+
+        lines = [
+            "Patient: Jane Test  DOB: 1970-01-01  Collected: 03/02/2026",
+            "Glucose: 95 mg/dL (70-100)",
+            "Creatinine: 1.1 mg/dL (0.7-1.3)",
+            "Sodium: 140 mmol/L (135-145)",
+        ]
+        result = await ExtractModule().extract_from_pdf(
+            io.BytesIO(_text_then_image_pdf(lines)), "doc"
+        )
+        assert result.pages_without_text == [2]
+        # Page 1 is still read; only the image page is reported.
+        assert {"Glucose", "Creatinine", "Sodium"} <= {o.analyte_raw for o in result.observations}
+
+    @pytest.mark.asyncio
+    async def test_hc_isp_003_all_text_pdf_reports_no_pages(self):
+        import io
+
+        from tests.support.minimal_pdf import minimal_pdf
+
+        pdf = minimal_pdf([
+            ["Glucose: 95 mg/dL (70-100)", "Creatinine: 1.1 mg/dL (0.7-1.3)"],
+            ["Sodium: 140 mmol/L (135-145)", "Potassium: 4.2 mmol/L (3.5-5.1)"],
+        ])
+        result = await ExtractModule().extract_from_pdf(io.BytesIO(pdf), "doc")
+        assert len(result.observations) == 4
+        assert result.pages_without_text == []

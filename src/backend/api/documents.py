@@ -289,6 +289,9 @@ class DocumentImportResponse(BaseModel):
     # Only set for CSV/FHIR structured imports (HC-M23); optional so
     # existing PDF/image import clients are unaffected.
     import_summary: Optional[ImportSummary] = None
+    # 1-based pages with no readable text, so their values were not read
+    # (IMPORT-SCANNED-PAGE). Null when the pipeline did not run.
+    pages_without_text: Optional[list[int]] = None
 
 
 class DocumentVerifyResponse(BaseModel):
@@ -481,6 +484,7 @@ async def import_document(
     needs_verification = True
     extracted_text: Optional[str] = None
     import_summary: Optional[ImportSummary] = None
+    pages_without_text: Optional[list[int]] = None
 
     if import_result.doc_type in _STRUCTURED_IMPORT_DOC_TYPES:
         # CSV/FHIR structured import (HC-M23): parse + persist directly,
@@ -505,6 +509,7 @@ async def import_document(
             observations_extracted = extraction_outcome["observations_extracted"]
             needs_verification = extraction_outcome["needs_verification"]
             extracted_text = extraction_outcome.get("extracted_text")
+            pages_without_text = extraction_outcome.get("pages_without_text")
 
         # Classify document and extract entities (runs for all doc types)
         await _classify_and_extract_entities(
@@ -563,6 +568,7 @@ async def import_document(
         needs_verification=needs_verification,
         duplicate_warning=duplicate_warning,
         import_summary=import_summary,
+        pages_without_text=pages_without_text,
     )
 
 
@@ -624,6 +630,7 @@ async def _run_extraction_pipeline(
                 "observations_extracted": 0,
                 "needs_verification": True,
                 "extracted_text": extraction_result.extracted_text,
+                "pages_without_text": extraction_result.pages_without_text,
             }
 
         if refresh_existing:
@@ -694,6 +701,7 @@ async def _run_extraction_pipeline(
             "observations_extracted": observations_extracted,
             "needs_verification": needs_verification,
             "extracted_text": extraction_result.extracted_text,
+            "pages_without_text": extraction_result.pages_without_text,
         }
     except Exception as e:
         logger.error(f"Extraction failed for document {document.id}: {e}")
@@ -1212,6 +1220,7 @@ async def reprocess_document(
     observations_extracted = extraction_outcome["observations_extracted"] if extraction_outcome else 0
     needs_verification = extraction_outcome["needs_verification"] if extraction_outcome else True
     extracted_text = extraction_outcome.get("extracted_text") if extraction_outcome else None
+    pages_without_text = extraction_outcome.get("pages_without_text") if extraction_outcome else None
 
     await _classify_and_extract_entities(
         profile_db=profile_db,
@@ -1249,6 +1258,7 @@ async def reprocess_document(
         document=DocumentResponse.from_model(document),
         observations_extracted=observations_extracted,
         needs_verification=needs_verification,
+        pages_without_text=pages_without_text,
     )
 
 

@@ -61,6 +61,9 @@ class ExtractionResult:
     overall_confidence: float = 0.0
     ocr_unavailable: bool = False
     extracted_text: Optional[str] = None
+    # 1-based pages whose text layer has fewer than 20 non-space characters
+    # (image-only or blank). Set by extract_from_pdf (IMPORT-SCANNED-PAGE).
+    pages_without_text: list[int] = field(default_factory=list)
 
 
 # Shared unit alternation. Longer alternatives precede their prefixes.
@@ -143,12 +146,15 @@ class ExtractModule:
         observations = []
         collection_dates = []
         pages_text: list[str] = []
+        pages_without_text: list[int] = []
 
         with pdfplumber.open(pdf_source) as pdf:
             for page_num, page in enumerate(pdf.pages, start=1):
                 # Extract text
                 text = page.extract_text() or ""
                 pages_text.append(text)
+                if len("".join(text.split())) < 20:
+                    pages_without_text.append(page_num)
 
                 # Extract tables (more structured)
                 tables = page.extract_tables() or []
@@ -227,6 +233,7 @@ class ExtractModule:
             parser_version=self.parser_version,
             overall_confidence=overall_confidence,
             extracted_text="\f".join(pages_text),
+            pages_without_text=pages_without_text,
         )
 
     def _extract_from_table(
