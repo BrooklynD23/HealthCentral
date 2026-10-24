@@ -33,7 +33,7 @@ Three consequences the options below depend on:
 
 1. **The default chat path has no graded score to tighten.** The agent guard's confidence is 0 or 1 (`guard.py:44` onward), so raising a threshold does nothing there. Threshold options reach the legacy fallback and `interpret-grounded` only. On the fallback a failed score becomes the fixed abstention. On `interpret-grounded` it only flips `is_valid` (see Option A).
 2. **Template-only is mostly today's behaviour already.** The default chat and `/interpret` are template-driven. Only `interpret-grounded` and the legacy fallback use a model for prose.
-3. **Verified-only is mostly today's behaviour already** for chat and retrieval (D4). The remaining gap is the interpretation routes, which interpret an unverified observation (no `user_verified` check in `interpret_observation`; the only use is `src/backend/api/interpretations.py:511`, which keeps the value out of the question text).
+3. **Verified-only is mostly today's behaviour already** for chat and retrieval (D4). The remaining gap is the interpretation API: every generate path calls `interpret_observation` or `interpret_panel` with no `user_verified` gate (`src/backend/api/interpretations.py:426`, `:486`, `:715`, `:865` on `origin/main`), and the GET routes return stored rows regardless (`:626`, `:743`). The only `user_verified` use today is `:511`, which keeps an unverified value out of the grounded question text, not out of generation.
 
 ## Shared plumbing (needed by any option, counted once)
 
@@ -46,7 +46,7 @@ Three consequences the options below depend on:
 
 **Cache trap.** The agent answer cache key is `normalized_question, profile_version, profile_id, tz_name, filters` (`src/backend/modules/agent/cache.py:43` to `:50`). It has no mode field. None of the four options below changes agent output, so no change is needed now. Any later option that does change agent output must add the mode to this key, or a stricter answer can replay under OFF and the reverse.
 
-**Test pattern (all options).** Through HTTP with `route_client` (`src/backend/tests/support/routes.py:27`, `def route_client(`), using a real in-memory profile database and stubs below `rag.query`, as `src/backend/tests/test_safe_interp_grounded.py:83-101` does (it stubs `retrieve_context`, `_generate_with_runner` and `_run_verification_pipeline`, not `rag.query`; the `from tests.support.routes import route_client` import is at `:37`). A stub on `rag.query` itself would decide `is_valid` and hide whether a threshold was wired (recurring-failures #1) (`from tests.support.routes import route_client`). Every option needs the same two proofs: **OFF equals today** (same request with the setting absent, `false` and a pre-migration profile returns an identical body) and **ON is stricter** (a fixture that passes today is withheld, never the reverse). A route test that calls the handler directly would not see a broken `Depends(...)` (recurring-failures list), so none is proposed.
+**Test pattern (all options).** Through HTTP with `route_client` (`src/backend/tests/support/routes.py:27`, `def route_client(`), using a real in-memory profile database and stubs below `rag.query`, as `src/backend/tests/test_safe_interp_grounded.py:83-101` does (it stubs `retrieve_context`, `_generate_with_runner` and `_run_verification_pipeline`, not `rag.query`; the `from tests.support.routes import route_client` import is at `:37`). A stub on `rag.query` itself would decide `is_valid` and hide whether a threshold was wired (recurring-failures #1). Every option needs the same two proofs: **OFF equals today** (same request with the setting absent, `false` and a pre-migration profile returns an identical body) and **ON is stricter** (a fixture that passes today is withheld, never the reverse). A route test that calls the handler directly would not see a broken `Depends(...)` (recurring-failures list), so none is proposed.
 
 ## The options
 
@@ -73,7 +73,7 @@ Three consequences the options below depend on:
 **Conditional on PR #264** (B-3 advice judge, still an open draft; not main). #264 touches `assistant.py`, `interpretations.py`, `rag.py` and adds `modules/agent/guardrails/advice_judge.py`. If it merges first, the judge's threshold could join this option and the build row must be rebased on it; if the judge threshold lives in an ask-first file the SAFETY-MODE-DIFF wording below is needed for that file. Not designed here because the diff is not on main.
 
 **Storage.** Per-profile setting. Survives lock/unlock: yes.
-**HTTP test.** Stub at the `test_safe_interp_grounded.py:83-101` layer, with `_run_verification_pipeline` returning `faithfulness_score=0.70`, so the real `rag.py:940` comparison runs against the selected module's config. `POST /assistant/chat` with the agent disabled: OFF serves the answer, ON returns `ABSTAIN_TEMPLATE`. `interpret-grounded`, same stub: with no failed claims in the stub, OFF returns the segments with `is_valid` true; ON returns `ABSTAIN_TEMPLATE` as segment and as `full_response`, empty verification, and writes one audit row. Extra proofs: (1) a score of 0.50 on the chat fallback is withheld in both modes (interpret-grounded under OFF still serves segments with `is_valid` false); (2) a prohibited answer under ON still returns `ESCALATE_TEMPLATE` with exactly one `prohibited_blocked` audit row. Limit: this test stubs the verification pipeline, so it does not exercise `faithfulness.py:149` or `verifier_agent.py:446`/`:480`.
+**HTTP test.** Stub at the `test_safe_interp_grounded.py:83-101` layer, with `_run_verification_pipeline` returning `faithfulness_score=0.70`, so the real `rag.py:940` comparison runs against the selected module's config. `POST /assistant/chat` with the agent disabled: OFF serves the answer, ON returns `ABSTAIN_TEMPLATE`. `interpret-grounded`, same stub: with no failed claims in the stub, OFF returns the segments with `is_valid` true; ON returns `ABSTAIN_TEMPLATE` as segment and as `full_response`, empty verification, and writes one audit row. Extra proofs: (1) a score of 0.50 on the chat fallback is withheld in both modes (interpret-grounded under OFF still serves segments with `is_valid` false); (2) a prohibited answer under ON still returns `ESCALATE_TEMPLATE` with exactly one `prohibited_blocked` audit row. Limit: the stubbed pipeline test would not notice if the build wired a strict `FaithfulnessConfig` but left `VerificationConfig` at 0.6, or the reverse. Add one test following `_real_verifying_rag` (`test_safe_interp_grounded.py:368`, real `_run_verification_pipeline`, stubbed retrieval and generation only) with `get_rag_module` returning a module built with **both** `FaithfulnessConfig(min_overall_score=0.75)` and `VerificationConfig(min_faithfulness_score=0.75)`.
 **Cost.** 6 to 8 h plus the shared 4 to 5 h (the extra route branch, its audit and HTTP test add about 1 h).
 **Honest limit.** Reach is the legacy fallback and `interpret-grounded`. A patient on the default agent path sees no change.
 
@@ -94,7 +94,7 @@ Three consequences the options below depend on:
 | `src/backend/modules/interpret_safety.py` | **read only**, called on the fact list | **yes**, not edited |
 
 **Storage.** Per-profile setting. Survives lock/unlock: yes.
-**HTTP test.** `interpret-grounded` with a stubbed `rag.query` that would return prose containing a prohibited phrase: ON never calls `rag.query` (assert on the mock) and the body has no model text; OFF unchanged. Chat fallback: ON abstains. Fact-list screening: seed a reference chunk with a prohibited phrase and assert it is withheld.
+**HTTP test.** Same stub layer as `:49`: stub `retrieve_context` to return a chunk whose text contains a prohibited phrase, stub `_generate_with_runner` to return model prose, and leave `_run_verification_pipeline` stubbed or real as needed. `interpret-grounded` with ON: assert `_generate_with_runner` was never awaited, the body has no model-written prose (facts only), and OFF is unchanged. Chat fallback: ON abstains. Fact-list screening: assert `interpret_safety` withholds a prohibited fact from the list.
 **Cost.** 6 to 8 h plus the shared 4 to 5 h.
 **Honest limit.** Mostly today's behaviour already (see consequence 2). The visible change is on one route and the fallback. The `interpret-grounded` payload shape (`GroundedInterpretationResponse`, `interpretations.py:202`) must stay valid for the frontend.
 
@@ -119,26 +119,31 @@ Three consequences the options below depend on:
 
 ### Option D: Verified-only data
 
-**Patient sees.** OFF: today. ON: asking for an interpretation of a value the patient has not yet checked returns "verify this result first" instead of an interpretation; unchecked values on the trends page are listed but not plotted.
+**Patient sees.** OFF: today. ON: any request that would **generate** an interpretation for an unchecked lab value is refused with "verify this result first" (single observation, grounded, panel, and batch). Stored interpretations for unchecked values are **not returned** on the GET routes while ON (even if they were created while OFF). Unchecked values on the trends page are listed but not plotted.
 
 **Constraint check.** Passes: ON refuses more, never less.
 
 **Confirmed (the plan said "confirm").** `verifier_agent.py` stays read only. It imports only `typing`, `dataclasses`, `enum` and `re` (`src/backend/modules/verifier_agent.py:16` to `:19`) and has no database or file write; the option never calls it differently.
 
-**Finding.** Chat is already verified-only (rows at `rag.py:390`, `rag.py:609`, and the agent tools). The plan's list names `ResultsPage.tsx`; that file does not exist. The real surfaces are `src/frontend/src/pages/TrendsDashboard.tsx` and `src/frontend/src/pages/LabInterpreter.tsx`.
+**Finding (recurring-failures #9).** Chat is already verified-only (`rag.py:390`, `rag.py:609`, and the agent tools). Refusing only at the two observation `POST` handlers would leave four other interpretation routes on `origin/main` unchanged: panel generate (`interpretations.py:689`, `interpret_panel` at `:715`), batch (`:806`, `interpret_observation` at `:865` with no check), stored GET (`:626`), and recent list (`:743`). Today the only `user_verified` branch in this file is `:511` (question text for grounded RAG, not a refusal). The plan's list names `ResultsPage.tsx`; that file does not exist. The real surfaces are `src/frontend/src/pages/TrendsDashboard.tsx` and `src/frontend/src/pages/LabInterpreter.tsx`.
 
 | File | Change | Ask-first |
 |---|---|---|
-| `src/backend/api/interpretations.py:375` and `:448` (the two `POST` routes) | when on, refuse an observation with `user_verified` false (pattern at `:511`) | no |
-| `src/backend/modules/interpret.py:139` (`async def interpret_observation(`) | none; refusal stays in the route | no |
+| `src/backend/api/interpretations.py:380` (`async def generate_interpretation(`) | when on, refuse before `:426` if `user_verified` is false | no |
+| `src/backend/api/interpretations.py:453` (`async def generate_grounded_interpretation(`) | when on, refuse before `:486` if `user_verified` is false (not only `:511`) | no |
+| `src/backend/api/interpretations.py:689` (`async def generate_panel_interpretation(`) | when on, refuse before `:715` if any observation in the panel at `collected_at` is unverified | no |
+| `src/backend/api/interpretations.py:806` (`async def batch_generate_interpretations(`) | when on, refuse or skip each unverified id in the loop before `:865` | no |
+| `src/backend/api/interpretations.py:626` (`async def get_interpretation(`) | when on, refuse if the linked observation is unverified (stored-under-OFF rows must not leak) | no |
+| `src/backend/api/interpretations.py:743` (`async def get_recent_interpretations(`) | when on, omit interpretations whose observation is unverified | no |
+| `src/backend/modules/interpret.py:139` (`async def interpret_observation(`) | none; refusal stays in the routes | no |
 | `src/frontend/src/pages/TrendsDashboard.tsx:499` (`<TrendPointDot`) and `:533` (`<UnverifiedTrendNote`) | hide unverified points when on | no |
 | `src/frontend/src/pages/LabInterpreter.tsx` | show the "verify first" state | no |
 | `src/backend/modules/verifier_agent.py` | **read only** | **yes**, not edited |
 
 **Storage.** Per-profile setting (the refusal is server-side). Survives lock/unlock: yes.
-**HTTP test.** Seed an unverified and a verified observation; `POST .../interpret` and `.../interpret-grounded`: OFF returns the interpretation for both (today), ON refuses the unverified one with a stable status and returns the verified one unchanged. The audit row is still written for the refusal.
-**Cost.** 5 to 7 h plus the shared 4 to 5 h.
-**Honest limit.** Chat sees no change. Interacts with W-3 (invariant I-13 in `docs/plans/2026-10-15-build-program/contracts.md`, line 33), which already marks unverified trend points; re-read the trends file before building.
+**HTTP test.** Seed one verified and one unverified observation. With OFF: `POST .../interpret` and `.../interpret-grounded` succeed for both (today); `GET .../interpretation` returns the stored row for the unverified one. With ON: both `POST` routes refuse the unverified id with a stable status; `GET .../interpretation` for that id refuses even when the row exists; `GET /recent` lists only the verified interpretation; `POST /batch` leaves the unverified id in `failed` (or equivalent) and succeeds for the verified id; panel route gets a fixture with one unverified member and is refused. Audit rows on refusals as today.
+**Cost.** 7 to 10 h plus the shared 4 to 5 h (four extra routes, shared `user_verified` helper, and GET/stored-OFF proofs).
+**Honest limit.** Chat sees no change. Does not retroactively delete interpretations created under OFF; ON hides or refuses them until the observation is verified. Interacts with W-3 (invariant I-13 in `docs/plans/2026-10-15-build-program/contracts.md`, line 33), which already marks unverified trend points; re-read the trends file before building.
 
 ## Dropped options
 
@@ -158,13 +163,13 @@ Three consequences the options below depend on:
 | **Stricter checks** | Answers need a higher verified share (0.75, not 0.6); more questions get "there isn't enough verified information" on the older chat fallback, and a lab result's grounded explanation is replaced by the same message instead of only showing a caution badge. Not on normal chat. |
 | **Template-only explanations** | No model-written sentences: a lab result's grounded explanation becomes the template text plus a list of the cited facts. Normal chat already works this way, but ON also makes the older chat fallback always refuse, so a profile with the assistant's agent mode switched off would get a refusal for every chat question. |
 | **Always-on citations view** | Every answer and interpretation shows its sources expanded with name, page and quote, instead of small chips. No check changes; the grounding is just visible. |
-| **Verified-only data** | An unchecked lab value cannot be interpreted until you verify it, and unchecked points are hidden from trend charts. Chat already uses verified values only. |
+| **Verified-only data** | Unchecked values cannot get new interpretations (single, grounded, panel, or batch) until you verify them; stored interpretations for unchecked values are not shown while ON; unchecked points are hidden from trend charts. Chat already uses verified values only. |
 
 **Tradeoffs.**
 - Stricter checks is the only option that visibly changes answers, at the price of more refusals. Its reach is the fallback and the grounded explanation (which needs the extra route branch, or only the badge changes), so most patients on the default path see little. The number 0.75 is a proposal, to be set or measured before the build.
 - Template-only is safe and cheap to reason about but mostly describes today's default; the change is felt on one screen and the fallback. Its cost: ON makes the fallback always abstain, so a profile with the agent flag off gets a refusal for every chat question.
 - Always-on citations is the cheapest and carries no safety risk, but it does not make anything safer; on the default chat path the "quote" is a locator until a backend change adds real quotes.
-- Verified-only is easy to explain ("only what you checked") and refuses more, but chat already behaves this way, so the felt change is on interpretations and charts.
+- Verified-only is easy to explain ("only what you checked") and refuses more, but chat already behaves this way; the build must gate every interpretation route (six handlers in `interpretations.py`, not two), including stored GET responses, or the toggle overclaims (recurring-failures #9).
 - All four share one setting per profile (one new profile migration) except Always-on citations, which can live in the browser. All four need the label to change (plan section 3.6 already sets it; SAFETY-LABEL-WORDING holds the alternatives), because today's behaviour is shown as "Safety Mode ON" and must become the OFF state.
 
 **Analogy.** A car with checks that always run (seat belt chime, brake assist). The toggle cannot switch those off. It can add an "extra careful" mode: slower to answer (stricter checks), a script instead of free speech (template-only), the dashboard showing every gauge (citations view), or refusing to drive on a part nobody has inspected (verified-only).
@@ -190,7 +195,7 @@ Each yes must name the file and the diff, and an unrelated edit to the same file
 | A Stricter checks | none as designed (2 conditional) | `faithfulness.py`, `verifier_agent.py` | 016 (shared) | 6 to 8 h + 4 to 5 h |
 | B Template-only | none as designed (1 conditional) | `interpret_safety.py` | 016 (shared) | 6 to 8 h + 4 to 5 h |
 | C Always-on citations | none | none | none if browser storage | 4 to 5 h + 1 to 2 h |
-| D Verified-only | none | `verifier_agent.py` | 016 (shared) | 5 to 7 h + 4 to 5 h |
+| D Verified-only | none | `verifier_agent.py` | 016 (shared) | 7 to 10 h + 4 to 5 h |
 
 The shared cost is paid once however many options are picked.
 
