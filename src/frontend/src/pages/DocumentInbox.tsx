@@ -43,6 +43,7 @@ export function DocumentInbox() {
   const [previewDocId, setPreviewDocId] = useState<string | null>(null);
   const [lastImport, setLastImport] = useState<DocumentImportResponse | null>(null);
   const [duplicateWarnings, setDuplicateWarnings] = useState<DocumentImportResponse[]>([]);
+  const [importError, setImportError] = useState<{ message: string; fileName: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Get active profile from auth store
@@ -85,11 +86,19 @@ export function DocumentInbox() {
     try {
       const result = await importDocument.mutateAsync({ file, profileId });
       setLastImport(result);
+      setImportError(null);
       if (result.duplicate_warning) {
         setDuplicateWarnings((current) => [...current, result]);
       }
     } catch (err) {
       console.error('Failed to import document:', err);
+      const message =
+        err instanceof ApiError
+          ? err.status === 413
+            ? 'This file is too large to import.'
+            : err.message
+          : 'Something went wrong while importing this file. Please try again.';
+      setImportError({ message, fileName: file.name });
     }
   };
 
@@ -165,6 +174,29 @@ export function DocumentInbox() {
           aria-label="Upload medical documents"
         />
       </div>
+
+      {importError && (
+        <Card className="border-status-critical/30 bg-status-critical/5" role="alert">
+          <CardContent className="py-4 flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-status-critical shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-ink">Import failed: {importError.fileName}</p>
+                <p className="text-sm text-ink-secondary mt-1">{importError.message}</p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={`Dismiss import error for ${importError.fileName}`}
+              onClick={() => setImportError(null)}
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Card
         className={cn(
