@@ -22,7 +22,7 @@ from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.audit import audit_and_commit, audit_intent, create_audit_log
@@ -619,6 +619,102 @@ async def update_memory_settings(
         assistant_memory_enabled=bool(row.assistant_memory_enabled),
         global_default=bool(app_settings.assistant_memory_enabled),
     )
+
+
+# ---------------------------------------------------------------------------
+# Safety mode setting endpoint  (SAFETY-MODE-SETTING)
+# ---------------------------------------------------------------------------
+
+class SafetyModeResponse(BaseModel):
+    strict_safety_mode: bool
+
+
+class SafetyModeUpdate(BaseModel):
+    strict_safety_mode: bool
+
+
+async def is_strict_safety_mode(profile_db: AsyncSession) -> bool:
+    """True when this profile's strict safety mode is on, False otherwise.
+
+    Fails closed: True if ANY settings row in this DB has the flag set. Returns
+    False when there is no settings row. Duplicate rows can exist (profile_id
+    is indexed, not unique), so this never picks one row. The profile DB
+    belongs to one profile (vaults/<profile_id>), so no profile_id filter is
+    applied. SAFETY-MODE-STRICT and SAFETY-MODE-VERIFIED import this; keep the
+    signature stable.
+    """
+    result = await profile_db.execute(
+        select(exists().where(UserModelSettings.strict_safety_mode.is_(True)))
+    )
+    return bool(result.scalar())
+
+
+@router.get("/safety-mode", response_model=SafetyModeResponse)
+async def get_safety_mode(
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """Return the per-profile strict safety mode flag. Audited read."""
+    row = await _get_user_model_settings(session.profile_id, profile_db)
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type="safety_mode_viewed",
+        action="safety_mode_viewed",
+        profile_id=session.profile_id,
+        entity_type="settings",
+        entity_id="safety_mode",
+    )
+    return SafetyModeResponse(
+        strict_safety_mode=bool(row.strict_safety_mode) if row else False,
+    )
+
+
+@router.patch("/safety-mode", response_model=SafetyModeResponse)
+async def update_safety_mode(
+    data: SafetyModeUpdate,
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """Set the per-profile strict safety mode flag. Commit, then audit."""
+    row = await _get_user_model_settings(session.profile_id, profile_db)
+    if row is None:
+        row = UserModelSettings(
+            id=str(uuid.uuid4()),
+            profile_id=session.profile_id,
+            created_at=utcnow(),
+            updated_at=utcnow(),
+        )
+        profile_db.add(row)
+
+    row.strict_safety_mode = data.strict_safety_mode
+    row.updated_at = utcnow()
+    await profile_db.commit()
+    await profile_db.refresh(row)
+    await create_audit_log(
+        db=master_db,
+        event_type="safety_mode_updated",
+        action="safety_mode_updated",
+        profile_id=session.profile_id,
+        entity_type="settings",
+        entity_id="safety_mode",
+        details={
+            "changed_fields": ["strict_safety_mode"],
+            "status": "enabled" if data.strict_safety_mode else "disabled",
+        },
+    )
+    try:
+        await master_db.commit()
+    except Exception:
+        logger.error(
+            "AUDIT-ORDER: audit commit failed after change (event=%s, entity=%s)",
+            "safety_mode_updated",
+            "safety_mode",
+        )
+        raise
+    return SafetyModeResponse(strict_safety_mode=bool(row.strict_safety_mode))
 
 
 # ---------------------------------------------------------------------------

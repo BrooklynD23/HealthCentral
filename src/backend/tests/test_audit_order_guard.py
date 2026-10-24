@@ -15,6 +15,8 @@ CLASSIFICATION: dict[str, str] = {
     "api/assistant.py::create_session": "C",
     "api/assistant.py::delete_session": "A2",
     "api/assistant.py::update_memory_settings": "C",
+    "api/assistant.py::get_safety_mode": "excluded: read route, audit_and_commit only",
+    "api/assistant.py::update_safety_mode": "C",
     "api/assistant.py::chat": "C",
     "api/backup.py::list_backups": "excluded: read route, audit_and_commit only",
     "api/backup.py::create_backup": "excluded: writes backup files, master audit row only; no vault mutation",
