@@ -275,7 +275,7 @@ export function ExplainAssistant() {
   }, [analyteList]);
   const { data: modelSettings, isLoading: modelSettingsLoading } = useModelSettings();
   const { data: externalApi, isError: externalApiError } = useExternalApiSettings();
-  const { data: providerInfo } = useProviderInfo();
+  const { data: providerInfo, isPending: providerInfoPending } = useProviderInfo();
   const breakGlassActive =
     externalApi?.use_external_api === true && externalApi.redaction_break_glass === true;
   const breakGlassUnknown =
@@ -295,13 +295,15 @@ export function ExplainAssistant() {
     if (providerName && modelName) {
       return `${providerName} · ${modelName}`;
     }
+    // Avoid flashing the tier label (a different model) before provider info lands.
+    if (providerInfoPending) return 'Local model';
     const tier = modelSettings?.current_tier;
     if (tier && modelSettings?.tier_availability?.[tier]?.model) {
       return modelSettings.tier_availability[tier].model as string;
     }
     if (tier) return `Tier: ${tier}`;
     return 'Local model';
-  }, [modelSettings, externalApi, providerInfo]);
+  }, [modelSettings, externalApi, providerInfo, providerInfoPending]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth' });
