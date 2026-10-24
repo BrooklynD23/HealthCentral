@@ -10,7 +10,7 @@
 
 Owner answer to SAFETY-MODE-BEHAVIOUR (prompt 51, multi-select), verbatim from the owner-decisions row: **"Stricter checks"**, **"Always-on citations view"**, **"Verified-only data"**. "Template-only explanations" was not chosen and is not planned.
 
-The question offered "Stricter checks" with the text "answers need a higher verified share (0.75, not 0.6)". This plan uses **0.75** as that option stated. It is not a measured value; if the owner wants another number above 0.6, only the constant in SAFETY-MODE-STRICT changes.
+The question offered "Stricter checks" with the text "answers need a higher verified share (0.75, not 0.6)". This plan uses **0.75** as that option stated. It is not a measured value: the research calls it "a proposal, to be set or measured before the build" ([research](../research/2026-10-23-safety-mode-real/00-README.md), Tradeoffs). The owner may still confirm or change it; any number above 0.6 changes only the constant in SAFETY-MODE-STRICT.
 
 **L0 reading, not the owner's words:**
 
@@ -26,7 +26,7 @@ The question offered "Stricter checks" with the text "answers need a higher veri
 | [SAFETY-MODE-VERIFIED](#safety-mode-verified) | D (backend) | PRODUCT (backend; interpretation routes) | SAFETY-MODE-SETTING; after SAFETY-MODE-STRICT (same file) | 9 |
 | [SAFETY-MODE-TOGGLE](#safety-mode-toggle) | shared (UI) | PRODUCT (frontend) | SAFETY-MODE-SETTING, UI-SHELL | 2.5 |
 | [SAFETY-MODE-CITATIONS](#safety-mode-citations) | C | PRODUCT (frontend; citations display) | SAFETY-MODE-TOGGLE, UI-PG-ASK, UI-PG-RESULTS, UI-PROVENANCE | 4.5 |
-| [SAFETY-MODE-VERIFIED-FE](#safety-mode-verified-fe) | D (frontend) | PRODUCT (frontend; lab-value display) | SAFETY-MODE-VERIFIED, SAFETY-MODE-TOGGLE, UI-PG-RESULTS, UI-RIBBON | 3 |
+| [SAFETY-MODE-VERIFIED-FE](#safety-mode-verified-fe) | D (frontend) | PRODUCT (frontend; lab-value display) | SAFETY-MODE-VERIFIED, SAFETY-MODE-TOGGLE, SAFETY-MODE-CITATIONS, UI-PG-RESULTS, UI-RIBBON | 3 |
 
 Total 30.5 h. The three backend rows can start now. The frontend rows wait for the UI rows that own their files: UI-SHELL owns `SafetyModeToggle.tsx`, UI-PG-ASK owns `ExplainAssistant.tsx`, and UI-PG-RESULTS replaces `TrendsDashboard.tsx` and `LabInterpreter.tsx` with `ResultsPage.tsx`. Building on today's pages would be rewritten a wave later.
 
@@ -48,7 +48,7 @@ Total 30.5 h. The three backend rows can start now. The frontend rows wait for t
 
 - `be/migrations/profile/versions/016_strict_safety_mode.py` (new): `down_revision = "015_data_donation"`, one column `strict_safety_mode` Boolean, `nullable=False`, `server_default="0"`, so every existing profile stays OFF. The downgrade drops the column.
 - `be/models/model_settings.py`: the mapped column after `streaks_hidden` (`:141`), with an `# Added by 016_strict_safety_mode.` comment, following that precedent.
-- `be/api/assistant.py`: `GET` and `PATCH /assistant/safety-mode`, modelled on `/assistant/memory-settings` (`:548`, `:570`), with the same auth dependencies and `ProfileDbSession`, and an audit row on `PATCH` (action `safety_mode_updated`, the new boolean only). Add one helper, `async def is_strict_safety_mode(profile_db) -> bool`, that the other rows import; it returns `False` when there is no settings row. `api/interpretations.py` already imports from `api.assistant` (`:20`), so no new module is needed.
+- `be/api/assistant.py`: `GET` and `PATCH /assistant/safety-mode`, modelled on `/assistant/memory-settings` (`:548`, `:570`), with the same auth dependencies and `ProfileDbSession`, and an audit row on both routes: `GET` (a settings read, as AUDIT-READ-SCOPE (a) requires) and `PATCH` (action `safety_mode_updated`, the new boolean only). Add one helper, `async def is_strict_safety_mode(profile_db) -> bool`, that the other rows import; it returns `False` when there is no settings row. `api/interpretations.py` already imports from `api.assistant` (`:20`), so no new module is needed.
 - `be/tests/test_safety_mode_setting.py` (new): HC-SMS-001…006.
 
 **Tests (RED first, all through `route_client`).**
@@ -57,7 +57,7 @@ Total 30.5 h. The three backend rows can start now. The frontend rows wait for t
 - HC-SMS-002: a `PATCH` to true persists and is read back.
 - HC-SMS-003: the value survives a lock and unlock. Lock through the route, unlock, then `GET`.
 - HC-SMS-004: profile isolation. Setting it on profile A leaves profile B false.
-- HC-SMS-005: the `PATCH` writes exactly one audit row, which contains no free text.
+- HC-SMS-005: the `GET` and the `PATCH` each write exactly one audit row, which contains no free text.
 - HC-SMS-006: a `GET` without auth gets the same status as `/memory-settings` without auth.
 - Migration: `test_migration_heads.py` must still show one profile head. Add one upgrade-from-015 case if the existing migration tests have a pattern for it (`test_data_donation.py` or `test_gamification_settings.py` carry the 015 and 014 precedents).
 
@@ -79,7 +79,7 @@ Total 30.5 h. The three backend rows can start now. The frontend rows wait for t
 | `be/api/interpretations.py:529` (`rag_result = await rag.query(`) | Choose the strict module the same way. |
 | `be/api/interpretations.py:598` (`if rag_result.prohibited_advice:` block) | New `elif strict and not rag_result.is_valid:` branch, as an `elif` so the `ESCALATE_TEMPLATE` path always wins with exactly one `prohibited_blocked` audit row. It replaces the segments with `ABSTAIN_TEMPLATE` (`modules/agent/guardrails/templates.py:20`), sets `full_response = ABSTAIN_TEMPLATE` (recurring-failures #2: the withheld text must not ship in `full_response`), clears `verification`, and writes one audit row through `_audit_interpretation` (`:38`) with no text. |
 | `be/api/assistant.py:1400` (`"min_faithfulness_score": 0.6,`) | The status route reports the threshold in force for this profile. |
-| `be/tests/test_safety_mode_strict.py` (new) | HC-SMA-001…007 |
+| `be/tests/test_safety_mode_strict.py` (new) | HC-SMA-001…008 |
 
 **Tests (RED first; `route_client`; stubs as in `test_safe_interp_grounded.py:83-101`).**
 
@@ -89,6 +89,7 @@ Total 30.5 h. The three backend rows can start now. The frontend rows wait for t
 - HC-SMA-004: a prohibited answer under ON still returns `ESCALATE_TEMPLATE` with exactly one `prohibited_blocked` audit row and no strict-abstain row.
 - HC-SMA-005: OFF is identical for the setting absent, false, and a 015-migrated profile. Compare the whole response bodies.
 - HC-SMA-006: the real verification pipeline, following `_real_verifying_rag` (`test_safe_interp_grounded.py:368`), with only retrieval and generation stubbed. A fixture that scores between 0.6 and 0.75 under the real pipeline passes under OFF and is withheld under ON. This is the test that would notice a strict `FaithfulnessConfig` paired with a 0.6 `VerificationConfig`, or the reverse.
+- HC-SMA-008: the status route (`assistant.py:1400`) reports 0.6 under OFF and 0.75 under ON.
 - HC-SMA-007: the default agent chat path returns an identical body under OFF and ON (no reach, as the research says).
 
 **Acceptance.** The new file plus `tests/test_safe_interp_grounded.py` and every existing test that imports `get_rag_module` stay green. `git diff origin/main...HEAD -- src/backend/modules/faithfulness.py src/backend/modules/verifier_agent.py src/backend/modules/interpret_safety.py` is empty and pasted in the PR. **Honest limit for the PR body:** a patient on the default agent path sees no change. **Est:** 7 h.
@@ -97,16 +98,16 @@ Total 30.5 h. The three backend rows can start now. The frontend rows wait for t
 
 **Kind:** PRODUCT (backend; interpretation routes). **Depends on:** SAFETY-MODE-SETTING. **Order:** after SAFETY-MODE-STRICT, never beside it (both edit `api/interpretations.py`). **Gate:** SAFETY-MODE-BEHAVIOUR answered "Verified-only data". **Ask-first:** none. `verifier_agent.py` is read only and not called differently.
 
-**Design (research Option D).** When the setting is on, all **six** handlers in `api/interpretations.py` gate on `Observation.user_verified`. Gating only the two observation `POST` routes would let the toggle overclaim (recurring-failures #9).
+**Design (research Option D).** When the setting is on, all **six** handlers in `api/interpretations.py` that generate or return a patient interpretation gate on `Observation.user_verified`. The seventh route, `GET /knowledge/biomarker` (`:769`), reads public master-DB knowledge only and is correctly left out. Gating only the two observation `POST` routes would let the toggle overclaim (recurring-failures #9).
 
 | Handler (line on `29dca22`) | ON behaviour |
 |---|---|
 | `generate_interpretation` `:380` | Refuse before `interpret_observation` (`:426`) if the observation is unverified. The refusal must come **before** the stored-row shortcut, because `interpret_observation` returns a stored row when `force_regenerate` is false (`:392`, `:417`). |
 | `generate_grounded_interpretation` `:453` | Refuse before `:486` (not only the `:511` question-text branch). |
-| `generate_panel_interpretation` `:689` | Refuse before `interpret_panel` (`:715`) if any observation in the panel at `collected_at` is unverified. |
+| `generate_panel_interpretation` `:689` | Refuse before `interpret_panel` (`:715`) if any panel member is unverified, where the members are selected **exactly as `interpret_panel` selects them** (`modules/interpret.py:326-335`: same profile, `analyte_canonical` in the panel definition, the whole calendar day of `collected_at`). Matching `collected_at` exactly would let unverified same-day values through. The refusal also comes before the stored `PanelInterpretation` shortcut (`interpret.py:345-358`). |
 | `batch_generate_interpretations` `:806` | Add each unverified id to `failed` as `{"observation_id": id, "error": "Verify this result first"}` before `:865`. Verified ids still succeed. The response shape (`BatchInterpretResponse`, `:366`) is unchanged. |
 | `get_interpretation` `:626` | Refuse when the linked observation is unverified, even if a row stored under OFF exists. |
-| `get_recent_interpretations` `:743` | Omit interpretations whose observation is unverified. |
+| `get_recent_interpretations` `:743` | Omit interpretations whose observation is unverified, by joining `Observation` and filtering on `user_verified` **in the SQL query, before `.limit(limit)`** (`:755-759`); filtering after the limit returns a short page. |
 
 **Refusal contract:** HTTP **409** with `detail = {"code": "observation_unverified", "message": "Verify this result first."}`. It is the same on all four refusing routes so the frontend handles one shape. Each refusal writes one audit row through `_audit_interpretation` with no value text. If Task 0 finds 409 is already used by these routes for another meaning, it picks another status, names it in the PR, and keeps one shape. Use one private helper in `interpretations.py`, used by all six; there is no new module.
 
@@ -116,11 +117,11 @@ Total 30.5 h. The three backend rows can start now. The frontend rows wait for t
 
 - HC-SMD-001: OFF, `POST …/interpret` and `…/interpret-grounded` succeed for both observations (today's behaviour).
 - HC-SMD-002: ON, both `POST` routes refuse the unverified id with the 409 shape and succeed for the verified one.
-- HC-SMD-003: ON with `force_regenerate=false` and a row stored under OFF for the unverified id: the `POST` still refuses and does not return the stored row.
+- HC-SMD-003: ON with `force_regenerate=false` and a row stored under OFF for the unverified id: both `POST …/interpret` and `POST …/interpret-grounded` still refuse and do not return the stored row.
 - HC-SMD-004: ON, the `GET …/interpretation` for the unverified id refuses although the row exists; OFF returns it.
-- HC-SMD-005: ON, `GET /recent` lists only the verified interpretation; OFF lists both.
+- HC-SMD-005: ON, `GET /recent` lists only the verified interpretation; OFF lists both. With `limit=1` and the unverified interpretation newest, ON still returns the verified one (proves the filter is before the limit).
 - HC-SMD-006: ON, `POST /batch` puts the unverified id in `failed` with the error text and the verified id in `successful`, and the generation stub is never called for the unverified id.
-- HC-SMD-007: ON, the panel route with one unverified member is refused; an all-verified panel succeeds.
+- HC-SMD-007: ON, the panel route is refused when one member is unverified **at a different time on the same day** than `collected_at`, and also when a panel row stored under OFF exists with `force_regenerate=false`; an all-verified panel succeeds.
 - HC-SMD-008: every refusal writes exactly one audit row with no value text.
 
 **Acceptance.** The new file plus every existing `tests/test_*interp*` file stay green. In the PR body, list the six handlers with the test that covers each. **Honest limit:** chat sees no change (it is already verified-only, `rag.py:390`, `:609`). Interpretations created under OFF are hidden while ON, not deleted. **Est:** 9 h.
@@ -149,7 +150,7 @@ Total 30.5 h. The three backend rows can start now. The frontend rows wait for t
 
 ### SAFETY-MODE-VERIFIED-FE
 
-**Kind:** PRODUCT (frontend; lab-value display). **Depends on:** SAFETY-MODE-VERIFIED (the 409 shape), SAFETY-MODE-TOGGLE, UI-PG-RESULTS (`ResultsPage.tsx`), UI-RIBBON (`RangeRibbon.tsx` draws the points). **Gate:** SAFETY-MODE-BEHAVIOUR answered "Verified-only data". **Ask-first:** none.
+**Kind:** PRODUCT (frontend; lab-value display). **Depends on:** SAFETY-MODE-VERIFIED (the 409 shape), SAFETY-MODE-TOGGLE, SAFETY-MODE-CITATIONS (both append to `e2e/safety-mode.spec.ts`; never beside it), UI-PG-RESULTS (`ResultsPage.tsx`), UI-RIBBON (`RangeRibbon.tsx` draws the points). **Gate:** SAFETY-MODE-BEHAVIOUR answered "Verified-only data". **Ask-first:** none.
 
 **Behaviour.** With the mode on, unchecked values are listed under the chart but not plotted, with a one-line note ("2 unchecked values are not plotted. Check them in Review values."). Today's unverified marking, invariant I-13 from W-3 (`contracts.md:33`), stays for the mode off. An interpretation request answered with the 409 `observation_unverified` shape shows a "Verify this result first" state with a link to Review values, not an error toast. With the mode off, today's display is unchanged.
 
