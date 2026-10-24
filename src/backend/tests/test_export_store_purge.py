@@ -20,9 +20,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 import api.export as export_api
-from core import time as core_time
 import api.profiles as profiles_api
 from api.profiles import PROFILE_DELETE_CONFIRMATION
+from core import time as core_time
 from tests.support.routes import route_client
 from tests.test_export_redaction import _export_client
 from tests.test_profile_deletion import _FakeMasterDb, _make_vault
@@ -74,12 +74,14 @@ def _profiles_client(profile_id: str, master_db):
 
 
 def test_hc_esp_001_logout_purges_summary():
+    export_api._summary_store[OTHER_SUMMARY] = {"profile_id": B}
     with _export_client(A) as exp:
         sid = _create_summary(exp)
         assert _download(exp, sid).status_code == 200  # served before logout
         with _profiles_client(A, _db_with_profile(None)) as prof:
             assert prof.post("/profiles/logout").status_code == 200
         assert _download(exp, sid).status_code == 404
+    assert OTHER_SUMMARY in export_api._summary_store  # other profile survives
 
 
 def test_hc_esp_002_lock_purges_summary():
@@ -87,12 +89,14 @@ def test_hc_esp_002_lock_purges_summary():
         id=A, display_name="T", is_locked=False, password_hash="x",
         created_at=T0, last_accessed_at=None,
     )
+    export_api._summary_store[OTHER_SUMMARY] = {"profile_id": B}
     with _export_client(A) as exp:
         sid = _create_summary(exp)
         assert _download(exp, sid).status_code == 200
         with _profiles_client(A, _db_with_profile(profile)) as prof:
             assert prof.post(f"/profiles/{A}/lock").status_code == 200
         assert _download(exp, sid).status_code == 404
+    assert OTHER_SUMMARY in export_api._summary_store  # other profile survives
 
 
 def test_hc_esp_003_delete_purges_all_three_stores_for_that_profile_only(
@@ -150,3 +154,49 @@ def test_hc_esp_005_entry_without_created_at_counts_as_fresh(monkeypatch):
         sid = _create_summary(exp)
         export_api._summary_store[sid].pop("created_at")
         assert _download(exp, sid).status_code == 200
+
+
+def test_hc_esp_006_write_prunes_expired_entries(monkeypatch):
+    """The 'unbounded' half: a later write drops entries past the TTL."""
+    clock = {"now": T0}
+    monkeypatch.setattr(core_time, "utcnow", lambda: clock["now"])
+    with _export_client(A) as exp:
+        first = _create_summary(exp)
+        clock["now"] = T0 + timedelta(minutes=31)
+        second = _create_summary(exp)
+    assert first not in export_api._summary_store
+    assert second in export_api._summary_store
+
+
+@pytest.mark.parametrize(
+    "body, auth_ok, expected",
+    [
+        ({"password": "wrong", "confirmation_phrase": PROFILE_DELETE_CONFIRMATION,
+          "export_acknowledged": True}, False, 401),
+        ({"password": "CorrectHorse1", "confirmation_phrase": "nope",
+          "export_acknowledged": True}, True, 400),
+        ({"password": "CorrectHorse1", "confirmation_phrase": PROFILE_DELETE_CONFIRMATION,
+          "export_acknowledged": False}, True, 400),
+    ],
+)
+def test_hc_esp_007_refused_delete_keeps_exports(tmp_path, monkeypatch, body, auth_ok, expected):
+    """Purge happens only after the auth decision and the confirmation checks."""
+    monkeypatch.setattr(
+        type(profiles_api.settings), "app_data_path", property(lambda self: tmp_path)
+    )
+    _make_vault(tmp_path, A)
+    export_api._summary_store["s-a"] = {"profile_id": A}
+    export_api._packet_store[PACKET_ID] = {"profile_id": A}
+    export_api._fhir_store[FHIR_ID] = {"profile_id": A, "bundle": {}}
+
+    profile = SimpleNamespace(id=A, display_name="T")
+    with patch.object(profiles_api, "_load_profile_for_delete",
+                      AsyncMock(return_value=profile)), \
+         patch.object(profiles_api, "authenticate_profile",
+                      AsyncMock(return_value=profile if auth_ok else None)), \
+         _profiles_client(A, _FakeMasterDb()) as prof:
+        resp = prof.request("DELETE", f"/profiles/{A}", json=body)
+    assert resp.status_code == expected, resp.text
+    assert "s-a" in export_api._summary_store
+    assert PACKET_ID in export_api._packet_store
+    assert FHIR_ID in export_api._fhir_store
