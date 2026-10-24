@@ -4,19 +4,38 @@ Playwright specs for the frontend. The gate helpers in `support/gates.ts` implem
 
 ## Running
 
-From `src/frontend`:
+Run these from `src/frontend`. Each one was run as written on the UI-GATES branch, and each passed.
+
+**1. With the backend (the config's default).** The config starts `e2e/support/start-backend.mjs` on port 8000 and `npm run dev` on port 3000. Set `HC_E2E_BACKEND_PYTHON` to a path to a Python that has the backend requirements. The path is resolved from `src/frontend`, so a checkout with `src/backend/.venv` can use `../backend/.venv/bin/python`.
 
 ```bash
-npx playwright test e2e/ui-gates.spec.ts --project=chromium
+HC_E2E_BACKEND_PYTHON=<python with the backend requirements> npx playwright test e2e/ui-gates.spec.ts --project=chromium
 ```
+
+**2. Without the backend.** `PLAYWRIGHT_ASSISTANT_CATEGORY_PROOF=1` is the config's switch for this: it starts only the dev server and `global-setup.ts` returns before it waits for `/health`. The variable is named for the assistant proof, so reusing it here is a side effect. A dedicated variable would change `playwright.config.ts` and `global-setup.ts`, which this row does not own.
+
+```bash
+PLAYWRIGHT_ASSISTANT_CATEGORY_PROOF=1 npx playwright test e2e/ui-gates.spec.ts --project=chromium
+```
+
+**3. Against a production build (`vite preview`).** G3 is measured on a production build (plan §6). Preview serves `dist/`, and `HC_E2E_BASE_URL` points the specs at it. The config still starts the dev server on port 3000, which the specs do not use.
+
+```bash
+npm run build
+npx vite preview --host 127.0.0.1 --port 4173 --strictPort &
+HC_E2E_BASE_URL=http://127.0.0.1:4173 PLAYWRIGHT_ASSISTANT_CATEGORY_PROOF=1 npx playwright test e2e/ui-gates.spec.ts --project=chromium
+```
+
+Stop the preview server afterwards.
 
 Environment variables:
 
 | Variable | Use |
 |---|---|
-| `HC_E2E_BACKEND_PYTHON` | Python with the backend requirements, for `support/start-backend.mjs` (the config always starts the backend). |
+| `HC_E2E_BACKEND_PYTHON` | Python with the backend requirements, for `support/start-backend.mjs`. Without a usable one, the backend webServer exits with "no candidate Python can import FastAPI/Uvicorn". |
+| `PLAYWRIGHT_ASSISTANT_CATEGORY_PROOF=1` | Starts only the dev server and skips the backend wait and the e2e profile setup (recipe 2). |
+| `HC_E2E_BASE_URL` | Overrides `use.baseURL` (default `http://127.0.0.1:3000`), for example a `vite preview` run (recipe 3). |
 | `HC_E2E_CHROMIUM_PATH` | Browser binary when the bundled Chromium revision is not installed. |
-| `HC_E2E_BASE_URL` | Overrides `use.baseURL` (default `http://127.0.0.1:3000`), for example a `vite preview` run. The config still starts `npm run dev` on port 3000 for its `webServer`, so run preview on the same origin or accept that the dev server also starts. |
 
 ## Mock API or the real backend
 
@@ -24,7 +43,7 @@ Use the mock (`installMockApi`) for layout, motion, accessibility, and stillness
 
 Use the real backend through HTTP (`support/start-backend.mjs`, with the helpers in `support/auth.ts`) for anything that asserts **auth, sessions, or status codes**: login, lock and unlock, token expiry, 401/403 handling, and any response code. A mock returns the status the test wrote, so it cannot show that the backend returns it. Route tests in the backend go through `tests/support/routes.py::route_client` for the same reason.
 
-`ui-gates.spec.ts` makes no `/api/v1` request that reaches the backend. Every such request is answered by `installMockApi`, and the precondition test (`HC-UIG-002 pre`) fails on any request the mock did not answer. Two things still run the backend: the config's `webServer` starts it, and `support/global-setup.ts` waits for `/health` and creates the e2e profile before any test. The spec does not depend on that data.
+`ui-gates.spec.ts` makes no `/api/v1` request that reaches the backend. Every such request is answered by `installMockApi`. An unanswered request is recorded, answered with 599, and fails the precondition test (`HC-UIG-002 pre`) and the guard. With the backend running (recipe 1), `global-setup.ts` still waits for `/health` and creates the e2e profile before any test. The spec does not use that data, and recipe 2 shows it passes without the backend.
 
 ## Helpers
 
@@ -34,20 +53,26 @@ Use the real backend through HTTP (`support/start-backend.mjs`, with the helpers
 | `setTheme(page, theme)` | G1 | Applying dark before an axe or screenshot run. The product stays light until `UI-DARK-FLIP`, so dark results only mean something after the flip. | Sets `color-scheme`, `data-theme` and the `dark` class. |
 | `noHorizontalScroll(page)` | G6 | After setting a viewport of 390×844 or 320×640, checking the page does not scroll sideways. | `{ scrollWidth, innerWidth, ok }`. |
 | `measureCls(page, action)` | G2 | Measuring layout shift over a load plus interactions. Call it before the navigation that loads the page. | The CLS total, or NaN when no observer ran. |
-| `maxEventDuration(page, action, { cpuRate? })` | G3 | Measuring the slowest input response (INP proxy) with the CPU throttled (default ×4). Chromium only. | Milliseconds. 0 means no event reached the 16 ms threshold. |
+| `maxEventDuration(page, action, { cpuRate? })` | G3 | Measuring the slowest input response (INP proxy) with the CPU throttled (default ×4). Chromium only. Only events that start after the call count. | Milliseconds. 0 means no event reached the 16 ms threshold, which a fast click and a dead observer both give. Pair it with a click known to be slow (HC-UIG-005). |
 | `reducedMotionSnapshot(page, action)` | G5 | Checking that nothing is still transformed 50 ms after an interaction with reduced motion on. | Offending elements. An empty array passes. |
 | `routeOpacitySamples(page, { navigate, durationMs?, intervalMs? })` | DF-6, HC-UISH-003 | Checking the route fade after a click in the nav. Samples every 40 ms by default. | `[{ t, opacity, source }]`. See **The route element** below. |
 | `consoleAndNetworkGuard(page, { mock? })` | G7 | Failing a page that logs an error, requests a non-localhost origin, or reaches an unmocked API. Create it before the navigation. Pass the `installMockApi` result as `mock`. | `{ report(), assertClean() }`. `assertClean` throws, listing every problem. |
 | `safetyVisible(page, selector?)` | G9 (from UI-SHELL) | Checking the Safety Rail is in the viewport at effective opacity 1, at first paint and after each interaction. Default selector `[data-safety-rail]`. | `{ found, inViewport, effectiveOpacity }`. |
-| `stillnessProbe(page, { trigger, expected, kind?, lazyRoute?, windowMs? })` | G10 | Checking that `[data-t0]` content stays still through an interaction or a navigation. | Resolves with `{ samples, nodes, routeKey }` when still. Throws `StillnessError` with one line per failure. |
+| `stillnessProbe(page, { trigger, expected, kind?, lazyRoute?, windowMs? })` | G10 | Checking that `[data-t0]` content stays still through an interaction or a navigation. | Resolves with `{ samples, postTriggerSamples, maxGapMs, elapsedMs, nodes, routeKey }` when still. Throws `StillnessError` with one line per failure. |
+| `checkSampling(sampleTimes, triggeredAt, windowMs, lastError)` | G10 | Checking sample times without a page: the sampling rule the probe applies. Used by its own test. | `{ failures, maxGapMs, postTriggerSamples }`. |
 
 ### stillnessProbe
 
 - `trigger` runs after the first sample, so the probe sees the start of any animation it starts.
 - `expected` lists the route's `data-t0` selectors (plan §2.7). Each must match a `[data-t0]` node. The probe also fails on zero nodes.
 - `kind: 'navigation'` turns on the route-fade rules: the container is keyed by pathname, it must have no transform, it must reach opacity 1 within 240 ms, and each node's effective opacity must equal the container's during that window. `kind: 'interaction'` (the default) requires effective opacity 1 throughout, with no fade window.
-- `lazyRoute: true` extends the window until network idle, then 800 ms more. Use it on the first visit to a lazy route.
-- Failure messages name the property: `computed transform changed`, `getBoundingClientRect changed`, `computed color changed`, `computed clip-path changed`, `textContent changed`, `effective opacity 0.35 (must be 1)`, `route container transform`, `route container did not reach opacity 1 within 240 ms`, `found zero [data-t0] nodes`, `expected selector "…" matched no [data-t0] node`.
+- `lazyRoute: true` is for a trigger that starts a fetch. The window starts only when no request is in flight and none has started or finished for 500 ms, counted from the trigger (the same quiet period as Playwright's `networkidle`). Then the probe runs 800 ms more. It does not use `waitForLoadState('networkidle')`, which returns at once on a page that was already idle. HC-UIG-006 (m) is a fetch that starts after the trigger; the old wait missed it.
+- Sampling: the probe samples about every 20 ms. It fails when a gap at or after the trigger is over 40 ms, or when the window has fewer than 800 / 40 = 20 samples after the trigger. The report's `maxGapMs` and `postTriggerSamples` show the measured values.
+- Failure messages name the property: `computed transform changed`, `getBoundingClientRect changed`, `computed color changed`, `computed clip-path changed`, `textContent changed`, `effective opacity 0.35 (must be 1)`, `route container transform`, `route container did not reach opacity 1 within 240 ms`, `found zero [data-t0] nodes`, `expected selector "…" matched no [data-t0] node`, `sampling gap of N ms`, `only N sample(s) after the trigger`, `timed out waiting for the lazy route to go network idle`.
+
+### maxEventDuration
+
+Event Timing reports an event only when it takes at least 16 ms, and the duration is rounded. Entries that start before the call are ignored, so an earlier slow click does not leak into the next measurement. Under the default ×4 throttle, a 120 ms busy handler reports about 120 ms.
 
 ### consoleAndNetworkGuard
 
@@ -73,6 +98,8 @@ No row has added `data-route-container` yet. Until one does, `routeOpacitySample
 
 ## Test-fail policy
 
-`HC-UIG-002` and `HC-UIG-003` are `test.fail()`. Each one asserts on the specific defect (an axe rule id, a sample below 0.3), so an unrelated error cannot make it pass. Each has a green precondition test beside it that proves the page rendered and the sampler worked. When the owning row lands, the test starts to pass; Playwright reports that as an unexpected pass, and the row removes the `test.fail()` wrapper.
+`HC-UIG-002` and `HC-UIG-003` are `test.fail()`. Playwright passes a `test.fail()` on any failure, so the defect assertion alone cannot show the reason. Two things do. The green `pre` test beside each one proves the page rendered and the sampler recorded. The line each test prints (`HC-UIG-002 axe rule ids on /inbox: [...]`, `HC-UIG-003 samples below 0.3 (...)`) names the rule id or the samples that failed.
+
+To see the assertion behind a `test.fail()`, copy the spec to a scratch file under `e2e/`, replace `test.fail(` with `test(`, and run it with `-g 'expected until'`. Delete the copy afterwards. When the owning row lands, the test starts to pass. Playwright reports that as an unexpected pass, and the row removes the `test.fail()` wrapper.
 
 Do not weaken a helper or an assertion to make a test pass. Fix the product, or stop and ask.
