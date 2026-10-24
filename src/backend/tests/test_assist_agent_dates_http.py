@@ -347,6 +347,36 @@ async def test_hc_cfr_009_cache_key_includes_profile_time_zone(profile_db):
     assert "Jan 15, 2026" not in second, second
 
 
+async def _tz_answer(profile_db, obs_id: str, collected_at: datetime) -> str:
+    from models import UserModelSettings
+
+    profile_db.add(Observation(
+        id=obs_id, profile_id=PROFILE, doc_id="doc-jun", analyte_canonical="ldl",
+        analyte_raw="LDL", value=130.0, unit="mg/dL", collected_at=collected_at,
+        user_verified=True, verified_at=JUN,
+    ))
+    profile_db.add(UserModelSettings(profile_id=PROFILE, timezone="America/Los_Angeles"))
+    await profile_db.commit()
+    return _answer_text(_post(profile_db, {"question": "Is my LDL cholesterol high?"}))
+
+
+@pytest.mark.asyncio
+async def test_hc_adt_001_date_only_collection_date_is_its_calendar_day(profile_db):
+    """A date-only lab date (naive midnight) is a calendar day, not an instant:
+    it must not slide to the previous day in a western zone."""
+    text = await _tz_answer(profile_db, "obs-ldl-dateonly", datetime(2026, 3, 2, 0, 0, 0))
+    assert "Mar 02, 2026" in text, text
+    assert "Mar 01, 2026" not in text, text
+
+
+@pytest.mark.asyncio
+async def test_hc_adt_002_timed_value_still_converts_to_profile_zone(profile_db):
+    """Pin: 03:00 UTC is a real instant, so it is still Mar 01 in Los Angeles."""
+    text = await _tz_answer(profile_db, "obs-ldl-timed", datetime(2026, 3, 2, 3, 0, 0))
+    assert "Mar 01, 2026" in text, text
+    assert "Mar 02, 2026" not in text, text
+
+
 # --- HC-CACHE-VER-004..008: the cache key covers every source the agent's
 # tools read (AGENT-CACHE-CARETASKS, owner gate CACHE-STALE (c)). Each test
 # asks, changes data a tool reads WITHOUT touching the verified-observation or
