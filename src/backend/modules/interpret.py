@@ -782,7 +782,7 @@ class InterpretModule:
             return text, advice_text
 
         except Exception as e:
-            logger.error(f"LLM interpretation failed: {e}, falling back to template")
+            logger.error("LLM interpretation failed: %s, falling back to template", type(e).__name__)
             return await self._generate_interpretation(context, db)
 
     def _build_llm_prompt(self, context: InterpretationContext) -> str:

@@ -880,7 +880,7 @@ async def batch_generate_interpretations(
         except HTTPException as e:
             failed.append({"observation_id": obs_id, "error": e.detail})
         except Exception as e:
-            logger.error(f"Batch interpretation error for {obs_id}: {e}")
+            logger.error("Batch interpretation error for %s: %s", obs_id, type(e).__name__)
             failed.append({"observation_id": obs_id, "error": "Internal error"})
 
     logger.info(
