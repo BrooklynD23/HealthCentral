@@ -181,3 +181,14 @@ async def test_hc_rei_004_batch_route_type_only(dbs, log_records):
     assert TOKEN not in resp.text
     assert any("RuntimeError" in r.getMessage() for r in log_records)
     _assert_no_token(log_records)
+
+
+@pytest.mark.asyncio
+async def test_hc_rei_005_visit_assist_type_only(log_records):
+    fake = MagicMock()
+    fake.is_available = MagicMock(return_value=True)
+    fake.generate_async = AsyncMock(side_effect=RuntimeError(TOKEN))
+    out = await llm_assist_visit_entities("Visit note text", runner=fake)
+    assert out == []
+    assert any("RuntimeError" in r.getMessage() for r in log_records)
+    _assert_no_token(log_records)
