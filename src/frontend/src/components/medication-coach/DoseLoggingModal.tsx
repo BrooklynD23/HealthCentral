@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { CheckCircle, X, Loader2, SkipForward } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import { Button, Card, CardContent, CardHeader, CardTitle, modalVariants, backdropVariants } from '@/components/ui';
 import { cn } from '@/utils/cn';
 import type { DoseLog, MedicationSchedule } from '@/services/types';
@@ -71,7 +71,7 @@ export function DoseLoggingModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
-      <motion.div
+      <m.div
         initial="initial"
         animate="animate"
         exit="exit"
@@ -82,7 +82,7 @@ export function DoseLoggingModal({
       />
 
       {/* Modal */}
-      <motion.div
+      <m.div
         initial="initial"
         animate="animate"
         exit="exit"
@@ -143,7 +143,7 @@ export function DoseLoggingModal({
             {/* Skip Reason */}
             <AnimatePresence mode="wait">
               {mode === 'skipped' && (
-                <motion.div
+                <m.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
@@ -168,7 +168,7 @@ export function DoseLoggingModal({
                       </button>
                     ))}
                   </div>
-                </motion.div>
+                </m.div>
               )}
             </AnimatePresence>
 
@@ -208,7 +208,7 @@ export function DoseLoggingModal({
             </Button>
           </CardContent>
         </Card>
-      </motion.div>
+      </m.div>
     </div>
   );
 }

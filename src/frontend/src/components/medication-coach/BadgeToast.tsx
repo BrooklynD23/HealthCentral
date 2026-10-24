@@ -3,7 +3,7 @@
  */
 
 import { useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import type { BadgeInfo } from '@/services/types';
@@ -36,7 +36,7 @@ export function BadgeToast({ badge, onDismiss }: BadgeToastProps) {
   return (
     <AnimatePresence>
       {badge && (
-        <motion.div
+        <m.div
           initial={prefersReducedMotion ? { opacity: 0, y: 20 } : { opacity: 0, y: -50, scale: 0.9, rotate: -5 }}
           animate={{ opacity: 1, y: 0, scale: 1, rotate: 0 }}
           exit={prefersReducedMotion ? { opacity: 0, scale: 0.95 } : { opacity: 0, y: -20, scale: 0.9 }}
@@ -66,7 +66,7 @@ export function BadgeToast({ badge, onDismiss }: BadgeToastProps) {
           >
             <X className="w-4 h-4" />
           </button>
-        </motion.div>
+        </m.div>
       )}
     </AnimatePresence>
   );
