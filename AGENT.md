@@ -18,6 +18,7 @@ Local-first, privacy-first desktop app: patients import lab PDFs/medical documen
   - `src/pages/` (TrendsDashboard, ExplainAssistant, VerificationWorkbench, SettingsPage…), `src/services/` (API client + hooks; export everything through `services/index.ts` barrel), `e2e/` Playwright
 - **Docs** `docs/` — start at [`docs/00_architecture_plans_index.md`](docs/00_architecture_plans_index.md) (canonical order) or [`docs/roles/00_roles_index.md`](docs/roles/00_roles_index.md) (domain-based "which doc for X"); `docs/plans/` (active + historical plans/decisions log, incl. `implementation-log/` for point-in-time notes). Skills live in `.claude/skills/` and `skills/` — see [Skills](#skills) below.
 - **Generated repo map** [`openwiki/`](openwiki/README.md) — reserved home for a repo-navigation layer that OpenWiki would generate for coding agents (**not yet generated**; README-only stub). Advisory only once generated: it never overrides CLAUDE.md, this file, or `docs/`. See `openwiki/README.md` for regeneration commands and review rules.
+- **Agent model routing** (owner, 2026-10-24): never use Sonnet 5.5; Haiku 5.5 at effort `xhigh` replaces it for every Sonnet role. Opus and Haiku roles are unchanged. Workflow scripts in `.claude/workflows/` use `model: 'haiku', effort: 'xhigh'`. Full rule in [CLAUDE.md](CLAUDE.md) (Hard invariants).
 
 ## Skills
 
