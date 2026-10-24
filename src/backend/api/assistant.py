@@ -697,7 +697,10 @@ async def update_safety_mode(
         profile_id=session.profile_id,
         entity_type="settings",
         entity_id="safety_mode",
-        details={"strict_safety_mode": data.strict_safety_mode},
+        details={
+            "changed_fields": ["strict_safety_mode"],
+            "status": "enabled" if data.strict_safety_mode else "disabled",
+        },
     )
     try:
         await master_db.commit()

@@ -137,8 +137,19 @@ async def test_hc_sms_005_get_and_patch_each_write_one_audit_row_without_text(va
     assert len(rows) == 1
     assert rows[0].action == "safety_mode_updated"
     assert rows[0].profile_id == PROFILE_A
-    # The boolean only. A free-text value would be dropped by the allowlist.
-    assert json.loads(rows[0].details_json) == {"strict_safety_mode": True}
+    # Field names and an enum status only. The boolean itself is not logged:
+    # `strict_safety_mode` is not in the audit allowlist, so it would be scrubbed.
+    details = json.loads(rows[0].details_json)
+    assert details == {"changed_fields": ["strict_safety_mode"], "status": "enabled"}
+    assert "_scrubbed" not in details
+
+    resp, master = _call("PATCH", vault, json={"strict_safety_mode": False})
+    assert resp.status_code == 200, resp.text
+    rows = _audit_rows(master)
+    assert len(rows) == 1
+    details = json.loads(rows[0].details_json)
+    assert details == {"changed_fields": ["strict_safety_mode"], "status": "disabled"}
+    assert "_scrubbed" not in details
 
 
 def test_hc_sms_006_unauthenticated_get_matches_memory_settings():
