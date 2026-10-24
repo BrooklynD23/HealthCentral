@@ -861,8 +861,8 @@ I was unable to fully process your question within the time limit. Please try as
             return result.text
 
         except Exception as e:
-            self._logger.error(f"LLM generation failed: {e}")
-            raise RuntimeError(f"Failed to generate response: {e}")
+            self._logger.error("LLM generation failed: %s", type(e).__name__)
+            raise RuntimeError("Failed to generate response") from e
 
     def validate_response(
         self,
@@ -1470,5 +1470,5 @@ I was unable to fully process your question within the time limit. Please try as
                     return self._STRUCTURED_WITHHELD
             return result.text
         except Exception as e:
-            self._logger.error(f"LLM generation failed: {e}")
-            raise RuntimeError(f"Failed to generate response: {e}")
+            self._logger.error("LLM generation failed: %s", type(e).__name__)
+            raise RuntimeError("Failed to generate response") from e
