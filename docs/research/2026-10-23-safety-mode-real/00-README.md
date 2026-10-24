@@ -1,8 +1,8 @@
 # Safety Mode research: what can the top-bar toggle really do (2026-10-23)
 
-**Last Updated:** 2026-10-23
+**Last Updated:** 2026-10-24
 **Owner:** repository owner
-**Status:** research complete, owner question SAFETY-MODE-BEHAVIOUR drafted and not yet asked
+**Status:** research complete; owner answered SAFETY-MODE-BEHAVIOUR on 2026-10-24: "Stricter checks", "Always-on citations view", "Verified-only data" (not "Template-only explanations"); evidence comment 6382001534 on PR #338
 **Refresh Trigger:** an owner answer to SAFETY-MODE-BEHAVIOUR or SAFETY-MODE-DIFF; PR #264 (B-3 advice judge) merging or closing; a change to any `file:line` cited below (re-read before the build row starts); a new migration in `src/backend/migrations/profile/versions/`.
 
 > **Point-in-time research (2026-10-23).** Planning and documentation only. No product code changed and no owner gate is answered here. Read at `origin/main` `fe9581f` (rebased from `035637e` after review round 1; the claim commit touches only queue text). The ExplainAssistant cite moved from `:571` to `:573` with BADGE-TICK (#332) and was re-read. Every `file:line` below was re-read on that tree. Medical-safety files named here (`interpret_safety.py`, `faithfulness.py`, `verifier_agent.py`) were read only.
@@ -154,7 +154,7 @@ Three consequences the options below depend on:
 | Raise the agent guard confidence threshold | No effect: the signal is only 0 or 1 (`guard.py:44`). Making it effective needs a new graded signal, which is a design change to a safety path, out of scope. |
 | Lower the embedding threshold (0.7) or any current threshold | Forbidden by CLAUDE.md. |
 
-## Owner question SAFETY-MODE-BEHAVIOUR (draft; not asked)
+## Owner question SAFETY-MODE-BEHAVIOUR (asked and answered 2026-10-24; see Status)
 
 **Question.** "You asked to keep the top-bar toggle and wire it to real behaviour. Today every safety check always runs, and the toggle changes nothing. The constraint I am working to is: with the toggle OFF the app behaves exactly as it does now, and ON is only ever stricter, never looser. Which behaviour should ON mean? You may pick more than one; each is separate work."
 
