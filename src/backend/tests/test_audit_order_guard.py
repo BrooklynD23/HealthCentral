@@ -157,6 +157,8 @@ NAMED_DYNAMIC_EXCLUSIONS: dict[str, str] = {
         "in-memory progress dict update; no session",
     "api/model_settings.py::start_model_download::background_tasks.add_task(_download_model_task)":
         "background download task; settings write is part of start_model_download (C)",
+    "api/model_settings.py::set_llm_provider::asyncio.to_thread(reset_provider)":
+        "unloads the in-memory LLM provider in a thread; no session",
     "api/observations.py::get_panel_snapshots::snapshots.sort(sort_snap)":
         "sort key function; no session",
     "core/migrations.py::run_profile_migration_async::asyncio.to_thread(run_profile_migration)":
