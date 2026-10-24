@@ -1338,7 +1338,7 @@ Links to: `audit/2026-09-25/waves/scaffold/G-C2.md`, `audit/2026-09-25/waves/sca
 
 Rules: contracts.md §b (shared files), §c (migrations), §d (count slots). Path shorthand: `be/` = `src/backend/`, `fe/` = `src/frontend/src/`; "slots" = the `CLAUDE.md` / `AGENT.md` collected-count…
 
-Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`, `docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`, `docs/plans/2026-10-18-session-handoff.md`, `docs/plans/2026-10-20c-session-handoff.md`, `docs/plans/2026-10-21-session-handoff.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`, `docs/research/2026-10-22-fit-decoder/00-README.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`
+Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`, `docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`, `docs/plans/2026-10-18-session-handoff.md`, `docs/plans/2026-10-20c-session-handoff.md`, `docs/plans/2026-10-21-session-handoff.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/plans/2026-10-24-safety-mode-build-plan.md`, `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`, `docs/research/2026-10-22-fit-decoder/00-README.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-safety-mode-real/00-README.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`
 
 ## `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`
 
@@ -1458,7 +1458,15 @@ Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/rsi-runs/README.md`, `docs/caps
 
 Queue rows: queue.md, "Planned 2026-10-23, frontend revamp". Rules: RUNBOOK, contracts §b-§d. Path shorthand as in the queue: `fe/` = `src/frontend/src/`, `e2e/` = `src/frontend/e2e/`, `be/` =…
 
-Links to: `docs/agentic/recurring-failures.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/comparison.md`, `docs/research/2026-10-23-frontend-revamp/owner-direction.md`, `docs/research/2026-10-23-frontend-revamp/proposal-A.md`, `docs/research/2026-10-23-frontend-revamp/proposal-B.md`, `docs/research/2026-10-23-frontend-revamp/proto-A.patch`, `docs/research/2026-10-23-frontend-revamp/proto-B.patch`
+Links to: `docs/agentic/recurring-failures.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/plans/2026-10-24-safety-mode-build-plan.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/comparison.md`, `docs/research/2026-10-23-frontend-revamp/owner-direction.md`, `docs/research/2026-10-23-frontend-revamp/proposal-A.md`, `docs/research/2026-10-23-frontend-revamp/proposal-B.md`, `docs/research/2026-10-23-frontend-revamp/proto-A.patch`, `docs/research/2026-10-23-frontend-revamp/proto-B.patch`
+
+## `docs/plans/2026-10-24-safety-mode-build-plan.md`
+
+**Safety Mode build plan: the stricter-mode toggle (2026-10-24)**
+
+Owner answer to SAFETY-MODE-BEHAVIOUR (prompt 51, multi-select), verbatim from the owner-decisions row: **"Stricter checks"**, **"Always-on citations view"**, **"Verified-only data"**.…
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/research/2026-10-23-safety-mode-real/00-README.md`
 
 ## `docs/plans/2026-10-24-session-handoff.md`
 
