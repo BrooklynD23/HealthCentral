@@ -24,7 +24,7 @@ import {
   useSetEntityVerification,
 } from '@/services';
 import { useAuthStore } from '@/stores/authStore';
-import { apiGet } from '@/services/api';
+import { apiGet, ApiError } from '@/services/api';
 import { PageImageOverlay } from '@/components/PageImageOverlay';
 import { EntityDetailView } from '@/components/documents/EntityDetailView';
 import { ExtractionConfidenceBadge } from '@/components/documents/ExtractionConfidenceBadge';
@@ -80,6 +80,7 @@ export function VerificationWorkbench() {
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [editingObservation, setEditingObservation] = useState<Observation | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [sourcePages, setSourcePages] = useState<DocumentPage[]>([]);
   const [loadingSource, setLoadingSource] = useState(false);
   // A citation applies once per navigation. Without this the effect below
@@ -152,20 +153,51 @@ export function VerificationWorkbench() {
   const handleEdit = (observation: Observation) => {
     setEditingObservation(observation);
     setEditValue(observation.value?.toString() || observation.value_text || '');
+    setSaveError(null);
   };
+
+  const closeEdit = () => {
+    setEditingObservation(null);
+    setSaveError(null);
+  };
+
+  // Strict parse: never convert "7,5" or "7.5abc" into a number silently.
+  const parseEditValue = (
+    raw: string
+  ): { kind: 'empty' } | { kind: 'error'; message: string } | { kind: 'number'; value: number } | { kind: 'text'; text: string } => {
+    const trimmed = raw.trim();
+    if (!trimmed) return { kind: 'empty' };
+    if (/^-?\d+(?:\.\d+)?$/.test(trimmed)) return { kind: 'number', value: Number(trimmed) };
+    if (/^-?\d+,\d+$/.test(trimmed)) {
+      return { kind: 'error', message: 'Use a dot for decimals, for example 7.5' };
+    }
+    if (/^[<>]/.test(trimmed)) return { kind: 'text', text: raw };
+    if (/^[-+]?[\d.]/.test(trimmed)) {
+      return { kind: 'error', message: 'Enter a number such as 7.5, or a result like <0.5' };
+    }
+    return { kind: 'text', text: raw };
+  };
+
+  const parsedEdit = parseEditValue(editValue);
 
   const handleSaveEdit = async () => {
     if (!editingObservation) return;
+    if (parsedEdit.kind === 'empty' || parsedEdit.kind === 'error') return;
 
-    const newValue = parseFloat(editValue);
-    await verifyMutation.mutateAsync({
-      observationId: editingObservation.id,
-      data: {
-        value: isNaN(newValue) ? undefined : newValue,
-        value_text: isNaN(newValue) ? editValue : undefined,
-      },
-    });
-    setEditingObservation(null);
+    try {
+      await verifyMutation.mutateAsync({
+        observationId: editingObservation.id,
+        data:
+          parsedEdit.kind === 'number'
+            ? { value: parsedEdit.value }
+            : { value_text: parsedEdit.text },
+      });
+      closeEdit();
+    } catch (err) {
+      setSaveError(
+        err instanceof ApiError ? err.message : 'Could not save this value. Try again.'
+      );
+    }
   };
 
   const handleRowSelect = useCallback(async (observation: Observation) => {
@@ -785,7 +817,7 @@ export function VerificationWorkbench() {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => setEditingObservation(null)}
+                onClick={closeEdit}
               >
                 <X className="w-4 h-4" />
               </Button>
@@ -799,7 +831,11 @@ export function VerificationWorkbench() {
                   <input
                     type="text"
                     value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
+                    onChange={(e) => {
+                      setEditValue(e.target.value);
+                      setSaveError(null);
+                    }}
+                    aria-invalid={parsedEdit.kind === 'error'}
                     className="flex-1 px-3 py-2 border border-black/10 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-accent"
                     autoFocus
                   />
@@ -807,17 +843,26 @@ export function VerificationWorkbench() {
                     {editingObservation.unit}
                   </span>
                 </div>
+                {(parsedEdit.kind === 'error' || saveError) && (
+                  <p role="alert" className="mt-1 text-sm text-red-600">
+                    {parsedEdit.kind === 'error' ? parsedEdit.message : saveError}
+                  </p>
+                )}
               </div>
               <div className="flex gap-2 justify-end">
                 <Button
                   variant="secondary"
-                  onClick={() => setEditingObservation(null)}
+                  onClick={closeEdit}
                 >
                   Cancel
                 </Button>
                 <Button
                   onClick={handleSaveEdit}
-                  disabled={verifyMutation.isPending}
+                  disabled={
+                    verifyMutation.isPending ||
+                    parsedEdit.kind === 'empty' ||
+                    parsedEdit.kind === 'error'
+                  }
                 >
                   {verifyMutation.isPending ? (
                     <Loader2 className="w-4 h-4 animate-spin mr-2" />
