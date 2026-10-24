@@ -154,24 +154,47 @@ class ExtractModule:
                 tables = page.extract_tables() or []
 
                 # Process tables for lab values
-                page_table_count = 0
+                table_obs_all: list[ExtractedObservation] = []
+                table_yields: list[int] = []
                 for table in tables:
                     table_obs = self._extract_from_table(
                         table, page_num, document_id
                     )
-                    page_table_count += len(table_obs)
+                    table_yields.append(len(table_obs))
+                    table_obs_all.extend(table_obs)
                     observations.extend(table_obs)
+                page_table_count = len(table_obs_all)
 
-                # If this page's tables gave no observations, try text extraction.
-                # Table pages are noisy (demographics, IDs), so keep only
-                # rows with a recognised unit here.
                 if page_table_count == 0:
+                    # No table gave observations: parse the whole page text.
+                    # Table pages are noisy (demographics, IDs), so keep only
+                    # rows with a recognised unit here.
                     text_obs = self._extract_from_text(
                         text, page_num, document_id
                     )
                     if tables:
                         text_obs = [o for o in text_obs if o.unit]
                     observations.extend(text_obs)
+                else:
+                    # Tables yielded: parse the text outside those tables only
+                    # (a table that yielded nothing keeps its text), keep rows
+                    # with a unit, and drop rows a table already gave.
+                    found = page.find_tables()
+                    region = page
+                    if len(found) == len(tables):
+                        for idx, n_obs in enumerate(table_yields):
+                            if n_obs:
+                                region = region.outside_bbox(found[idx].bbox)
+                    text_obs = self._extract_from_text(
+                        region.extract_text() or "", page_num, document_id
+                    )
+                    seen = {
+                        (o.analyte_raw.strip().lower(), o.value) for o in table_obs_all
+                    }
+                    observations.extend(
+                        o for o in text_obs
+                        if o.unit and (o.analyte_raw.strip().lower(), o.value) not in seen
+                    )
 
                 # Extract dates
                 dates = self._extract_dates(text)
