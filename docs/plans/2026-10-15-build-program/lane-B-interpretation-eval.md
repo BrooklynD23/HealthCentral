@@ -304,7 +304,7 @@ GC3A-ORDER becomes moot once #72 merges. GC3A-LEDGER (`feature_list.json` HC-M06
 | HC-EXF-003 | `Glucose 105 H mg/dL 70-99` → value 105, flag `H`, ref 70–99 | yes |
 | HC-EXF-004 | a 12-line column page (header `TEST RESULT FLAG UNITS REFERENCE INTERVAL`, `Page 1 of 2`, `Collected: 01/15/2026 08:10`, a patient-name line, 8 result rows) → exactly the 8 rows, none from header or footer lines | yes |
 | HC-EXF-005 | a fake pdfplumber page whose `extract_tables()` returns one table that yields 0 observations and whose text has 2 result lines → 2 observations | yes |
-| HC-EXF-006 | a fake page whose table yields 2 observations → 2 observations, text parser not run (no duplicates) | no (pin) |
+| HC-EXF-006 | after EXTRACT-PAGE-MERGE (#336): table yields 2 observations and page text repeats those rows → still 2 observations, table methods only, no text duplicates (`test_hc_exf_006_no_duplicate_when_text_repeats_table`; rewrites the pre-#336 pin that skipped the text pass entirely) | no (pin) |
 | HC-EXF-007 | existing colon and alt cases (`:340-390`) and `test_api_extract_001-004` unchanged | no (pin; existing tests) |
 
 The MM-4 report itself is not in the repo. If the owner can share one de-identified page's `extract_text()` output (optional gate EXF-SAMPLE), it becomes an extra HC-EXF-004 row. The plan does not wait for it.
