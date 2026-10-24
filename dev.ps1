@@ -793,13 +793,29 @@ Write-Host ""
 $currentPath = $env:PATH
 $npmPath     = (Get-Command npm -ErrorAction SilentlyContinue).Source | Split-Path
 $frontendLog = Join-Path $ROOT_DIR "logs\dev-frontend.log"
+$backendLog    = Join-Path $ROOT_DIR "logs\dev-backend.log"
+$backendErrLog = Join-Path $ROOT_DIR "logs\dev-backend.err.log"
+
+# Start uvicorn with stdout and stderr redirected to files (PowerShell cannot
+# send both streams to one file). Shared by STEP 8 and the STEP 10 restart.
+# --no-access-log: the access log records full request lines (search text in
+# query strings) and these logs are plaintext on disk.
+function Start-BackendDevServer {
+    $logDir = Split-Path -Parent $backendLog
+    if (-not (Test-Path -LiteralPath $logDir)) {
+        New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+    }
+    return Start-Process -FilePath $venvPython `
+        -ArgumentList "-m", "uvicorn", "main:app", "--reload", "--no-access-log", "--host", "127.0.0.1", "--port", "$resolvedBackendPort" `
+        -WorkingDirectory $BACKEND_DIR `
+        -WindowStyle Hidden `
+        -RedirectStandardOutput $backendLog `
+        -RedirectStandardError $backendErrLog `
+        -PassThru
+}
 
 # -- Backend (background process) --
-$backendProc = Start-Process -FilePath $venvPython `
-    -ArgumentList "-m", "uvicorn", "main:app", "--reload", "--host", "127.0.0.1", "--port", "$resolvedBackendPort" `
-    -WorkingDirectory $BACKEND_DIR `
-    -WindowStyle Hidden `
-    -PassThru
+$backendProc = Start-BackendDevServer
 
 # Give backend a head start
 Start-Sleep -Seconds 2
@@ -818,40 +834,80 @@ $fPid = $frontendProc.Id
 Write-Ok "Backend  started  [PID $bPid]"
 Write-Ok "Frontend started  [PID $fPid]"
 Write-Status "Frontend log: $frontendLog"
+Write-Status "Backend log (uvicorn writes here): $backendErrLog"
+Write-Status "Backend stdout log:                  $backendLog"
 Write-Host ""
 
 # ===================================================================
-#  STEP 9  -  Wait for frontend to be ready, then open browser
+#  STEP 9  -  Wait for backend and frontend to be ready, then open browser
 # ===================================================================
 Write-Status "Waiting for servers to be ready ..."
 
-$maxWait = 30       # seconds
-$elapsed = 0
+$maxWait = 60       # seconds
+$sw      = [System.Diagnostics.Stopwatch]::StartNew()
 $opened  = $false
+$backendReady  = $false
+$frontendReady = $false
 
-while ($elapsed -lt $maxWait) {
+while ($sw.Elapsed.TotalSeconds -lt $maxWait) {
     Start-Sleep -Seconds 1
-    $elapsed++
 
     if ($frontendProc.HasExited) {
         $ec = $frontendProc.ExitCode
         Write-Err "Frontend exited during startup [exit code $ec]."
         Write-LogTail -LogPath $frontendLog -Label "Frontend log"
+        # The backend is hidden and logs only to files: do not leave it on the port.
+        & taskkill.exe /PID $backendProc.Id /T /F 2>&1 | Out-Null
         Read-Host "  Press Enter to exit"
         exit 1
     }
 
-    try {
-        $response = Invoke-WebRequest -Uri "http://localhost:$resolvedFrontendPort" `
-                        -UseBasicParsing -TimeoutSec 2 -ErrorAction SilentlyContinue
-        if ($response.StatusCode -eq 200) {
-            Write-Ok "Servers are ready!"
-            Write-Host ""
-            Start-Process "http://localhost:$resolvedFrontendPort"
-            $opened = $true
-            break
-        }
-    } catch { }
+    if ($backendProc.HasExited) {
+        $ec = $backendProc.ExitCode
+        Write-Err "Backend exited during startup [exit code $ec]."
+        Write-LogTail -LogPath $backendLog -Label "Backend log"
+        Write-LogTail -LogPath $backendErrLog -Label "Backend error log"
+        Stop-Process -Id $frontendProc.Id -Force -ErrorAction SilentlyContinue
+        Read-Host "  Press Enter to exit"
+        exit 1
+    }
+
+    if (-not $backendReady) {
+        try {
+            $response = Invoke-WebRequest -Uri "http://127.0.0.1:$resolvedBackendPort/health" `
+                            -UseBasicParsing -TimeoutSec 1 -ErrorAction SilentlyContinue
+            if ($response.StatusCode -eq 200) { $backendReady = $true }
+        } catch { }
+    }
+
+    if (-not $frontendReady) {
+        try {
+            $response = Invoke-WebRequest -Uri "http://localhost:$resolvedFrontendPort" `
+                            -UseBasicParsing -TimeoutSec 1 -ErrorAction SilentlyContinue
+            if ($response.StatusCode -eq 200) { $frontendReady = $true }
+        } catch { }
+    }
+
+    if ($backendReady -and $frontendReady) {
+        Write-Ok "Servers are ready!"
+        Write-Host ""
+        Start-Process "http://localhost:$resolvedFrontendPort"
+        $opened = $true
+        break
+    }
+}
+
+# uvicorn --reload keeps its parent alive after an import error, so
+# HasExited can stay false. No /health answer within the wait is a failure.
+if (-not $backendReady) {
+    Write-Err "Backend did not answer /health within $maxWait seconds."
+    Write-LogTail -LogPath $backendLog -Label "Backend log"
+    Write-LogTail -LogPath $backendErrLog -Label "Backend error log"
+    # /T kills the --reload worker child too, so it does not keep the port.
+    & taskkill.exe /PID $backendProc.Id /T /F 2>&1 | Out-Null
+    Stop-Process -Id $frontendProc.Id -Force -ErrorAction SilentlyContinue
+    Read-Host "  Press Enter to exit"
+    exit 1
 }
 
 if (-not $opened) {
@@ -888,6 +944,7 @@ function Stop-Servers {
 
 try {
     $frontendRestartCount = 0
+    $backendRestartCount  = 0
     while ($true) {
         Start-Sleep -Seconds 2
 
@@ -900,12 +957,18 @@ try {
         }
         if ($backendDead) {
             $ec = $backendProc.ExitCode
-            Write-Warn "Backend stopped unexpectedly [exit code $ec]. Restarting ..."
-            $backendProc = Start-Process -FilePath $venvPython `
-                -ArgumentList "-m", "uvicorn", "main:app", "--reload", "--host", "127.0.0.1", "--port", "$resolvedBackendPort" `
-                -WorkingDirectory $BACKEND_DIR `
-                -WindowStyle Hidden `
-                -PassThru
+            Write-Warn "Backend stopped unexpectedly [exit code $ec]."
+            Write-LogTail -LogPath $backendLog -Label "Backend log"
+            Write-LogTail -LogPath $backendErrLog -Label "Backend error log"
+            if ($backendRestartCount -ge 3) {
+                Write-Err "Backend failed repeatedly. See $backendErrLog and $backendLog"
+                # exit 1 (not break): break leaves exit code 0, dev.bat then
+                # closes the window before the log tail can be read.
+                # The finally block still runs Stop-Servers.
+                exit 1
+            }
+            $backendRestartCount++
+            $backendProc = Start-BackendDevServer
             $bPid = $backendProc.Id
             Write-Ok "Backend restarted [PID $bPid]"
         }
