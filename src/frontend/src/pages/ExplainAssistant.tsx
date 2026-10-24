@@ -849,6 +849,7 @@ export function ExplainAssistant() {
               <div className="flex items-center gap-2">
                 <input
                   type="date"
+                  aria-label="From date"
                   value={fromDate}
                   onChange={(e) => setFromDate(e.target.value)}
                   className="flex-1 px-2 py-1.5 rounded-lg bg-surface-muted text-xs text-ink border border-black/6 focus:outline-hidden focus:ring-2 focus:ring-accent"
@@ -856,6 +857,7 @@ export function ExplainAssistant() {
                 <span className="text-xs text-ink-tertiary">to</span>
                 <input
                   type="date"
+                  aria-label="To date"
                   value={toDate}
                   onChange={(e) => setToDate(e.target.value)}
                   className="flex-1 px-2 py-1.5 rounded-lg bg-surface-muted text-xs text-ink border border-black/6 focus:outline-hidden focus:ring-2 focus:ring-accent"
