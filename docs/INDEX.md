@@ -1822,6 +1822,14 @@ This section quotes the owner's question that this note answers. Owner decision 
 
 Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`
 
+## `docs/research/2026-10-22-installer/00-README.md`
+
+**Installer research for after the MVP (INSTALLER-POST-MVP)**
+
+After the 2026-10-31 showcase, what should "download Asclexis and double-click it" look like? Which shell, what ships in the box, what a stakeholder sees when the app is unsigned, and which owner…
+
+Links to: `docs/plans/2026-10-01-packaging-decision.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-22-mvp/01-desktop-packaging.md`, `docs/research/2026-10-22-mvp/07-owner-questions.md`, `docs/research/2026-10-22-rapidocr/00-README.md`
+
 ## `docs/research/2026-10-22-mvp/00-README.md`
 
 **MVP readiness research package (2026-10-22)**
