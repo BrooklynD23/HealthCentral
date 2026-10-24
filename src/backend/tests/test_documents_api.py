@@ -1271,3 +1271,120 @@ async def test_HC_DATE_010_same_dob_does_not_make_two_reports_same_date_duplicat
         "second.pdf": datetime(2026, 6, 1),
     }
     assert second["duplicate_warning"] is None, second["duplicate_warning"]
+
+
+def _text_then_image_pdf(text_lines):
+    """Raw-bytes two-page PDF: page 1 text lines, page 2 one image and no text operators."""
+    import io as _io
+
+    def esc(s):
+        return s.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+    page1 = ["BT", "/F1 11 Tf", "14 TL", "50 740 Td"]
+    page1 += [f"({esc(line)}) Tj T*" for line in text_lines]
+    page1.append("ET")
+    page2 = ["q", "300 0 0 300 100 400 cm", "/Im1 Do", "Q"]
+    stream1 = "\n".join(page1).encode("latin-1")
+    stream2 = "\n".join(page2).encode("latin-1")
+    pixels = bytes([0, 64, 128, 255] * 4)  # 4x4 greyscale, 8 bits per component
+    objs = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+        b"/Resources << /Font << /F1 6 0 R >> >> /Contents 5 0 R >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+        b"/Resources << /XObject << /Im1 7 0 R >> >> /Contents 8 0 R >>",
+        b"<< /Length %d >>\nstream\n" % len(stream1) + stream1 + b"\nendstream",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+        b"<< /Type /XObject /Subtype /Image /Width 4 /Height 4 /ColorSpace /DeviceGray "
+        b"/BitsPerComponent 8 /Length 16 >>\nstream\n" + pixels + b"\nendstream",
+        b"<< /Length %d >>\nstream\n" % len(stream2) + stream2 + b"\nendstream",
+    ]
+    out = _io.BytesIO()
+    out.write(b"%PDF-1.4\n")
+    offsets = []
+    for number, body in enumerate(objs, start=1):
+        offsets.append(out.tell())
+        out.write(f"{number} 0 obj\n".encode() + body + b"\nendobj\n")
+    xref = out.tell()
+    out.write(f"xref\n0 {len(objs) + 1}\n0000000000 65535 f \n".encode())
+    out.write("".join(f"{o:010d} 00000 n \n" for o in offsets).encode())
+    out.write(f"trailer\n<< /Size {len(objs) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode())
+    return out.getvalue()
+
+
+@pytest.mark.asyncio
+async def test_hc_isp_002_import_response_names_the_page_without_text(
+    entity_profile_db, monkeypatch, tmp_path
+):
+    """IMPORT-SCANNED-PAGE: a text report with one image-only page imports as a
+    parsed text report (not pending_ocr), and the HTTP response names the page
+    that had no readable text.
+
+    Real ExtractModule on real PDF bytes, real doc-type detection
+    (IngestModule.detect_doc_type), real profile DB, upload over HTTP; only the
+    vault encryption and the document store are replaced."""
+    import hashlib
+
+    from modules.ingest import IngestModule as RealIngest
+
+    profile_id = "profile-a"  # route_client's default session profile_id
+    stored: dict[str, bytes] = {}
+    classifier = RealIngest(vault_path=tmp_path / "classify", encryption_key=b"x" * 32)
+
+    class _PdfIngest:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def import_document(self, *, file, filename, **_kwargs):
+            data = file.read()
+            doc_id = str(uuid.uuid4())
+            stored[doc_id] = data
+            return ImportResult(
+                document_id=doc_id,
+                path_hash=hashlib.sha256(doc_id.encode()).hexdigest(),
+                content_hash=hashlib.sha256(data).hexdigest(),
+                doc_type=classifier.detect_doc_type(filename, data),
+                page_count=2,
+                is_duplicate=False,
+                metadata={},
+                encrypted=True,
+            )
+
+    async def _no_classify(**_kwargs):
+        return None
+
+    monkeypatch.setattr(
+        type(documents_api.settings), "app_data_path", property(lambda self: tmp_path)
+    )
+    monkeypatch.setattr(documents_api, "get_profile_encryption_key", lambda _pid: b"x" * 32)
+    monkeypatch.setattr(modules, "IngestModule", _PdfIngest)
+    monkeypatch.setattr(
+        documents_api, "get_decrypted_document", lambda _pid, doc_id: io.BytesIO(stored[doc_id])
+    )
+    monkeypatch.setattr(documents_api, "_classify_and_extract_entities", _no_classify)
+
+    lines = [
+        "Patient: Jane Test  DOB: 1970-01-01  Collected: 03/02/2026",
+        "Glucose: 95 mg/dL (70-100)",
+        "Creatinine: 1.1 mg/dL (0.7-1.3)",
+        "Sodium: 140 mmol/L (135-145)",
+    ]
+    with route_client(
+        documents_router, "/documents", profile_id=profile_id, master_db=_CommitTrackingMasterDb()
+    ) as client:
+
+        async def _override_profile_db():
+            return entity_profile_db
+
+        client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+        response = client.post(
+            "/documents/import",
+            files={"file": ("report.pdf", _text_then_image_pdf(lines), "application/pdf")},
+        )
+
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["document"]["status"] == "parsed", body["document"]
+    assert body["observations_extracted"] == 3, body
+    assert body["pages_without_text"] == [2], body
