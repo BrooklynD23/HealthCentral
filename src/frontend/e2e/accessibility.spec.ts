@@ -16,8 +16,38 @@ type Route = (typeof ROUTES)[number];
 
 interface KnownA11y {
   rule: string;
-  fixBy: 'FE-A11Y-DIALOGS';
+  selector: string;
+  fixBy: 'UI-TOKENS' | 'A11Y-CRIT-LABELS';
   note: string;
+}
+
+interface AxeNode {
+  target: unknown[];
+}
+interface AxeViolation {
+  id: string;
+  impact?: string | null;
+  help: string;
+  nodes: AxeNode[];
+}
+interface Blocking {
+  rule: string;
+  impact: string;
+  selector: string;
+  help: string;
+}
+interface Classified {
+  blocking: Blocking[];
+  stale: KnownA11y[];
+}
+
+// STUB (RED): real matching lands in the next commit.
+function classify(
+  _route: Route,
+  _violations: AxeViolation[],
+  _known: Record<Route, KnownA11y[]>
+): Classified {
+  return { blocking: [], stale: [] };
 }
 
 const KNOWN_A11Y: Record<Route, KnownA11y[]> = {
@@ -66,3 +96,85 @@ for (const route of ROUTES) {
     expect(blocking, `Unexpected axe violations on ${route}:\n${report}`).toEqual([]);
   });
 }
+
+const EMPTY_KNOWN: Record<Route, KnownA11y[]> = {
+  '/setup': [],
+  '/inbox': [],
+  '/verify': [],
+  '/trends': [],
+  '/explain': [],
+  '/settings': [],
+};
+
+test.describe('E2E-A11Y self-tests: allow-list matching', () => {
+  const entry = (rule: string, selector: string): KnownA11y => ({
+    rule,
+    selector,
+    fixBy: 'UI-TOKENS',
+    note: 'synthetic',
+  });
+  const violation = (id: string, impact: string, selectors: string[][]): AxeViolation => ({
+    id,
+    impact,
+    help: `help for ${id}`,
+    nodes: selectors.map((target) => ({ target })),
+  });
+
+  test('E2E-A11Y-SELF-001: listed rule+route+selector passes, unlisted selector of a listed rule blocks', () => {
+    const known = { ...EMPTY_KNOWN, '/inbox': [entry('color-contrast', '.a')] };
+    const { blocking, stale } = classify(
+      '/inbox',
+      [violation('color-contrast', 'serious', [['.a'], ['.b']])],
+      known
+    );
+    expect(blocking.map((b) => b.selector)).toEqual(['.b']);
+    expect(stale).toEqual([]);
+  });
+
+  test('E2E-A11Y-SELF-002: a listed rule on an unlisted route blocks', () => {
+    const known = { ...EMPTY_KNOWN, '/inbox': [entry('color-contrast', '.a')] };
+    const { blocking } = classify(
+      '/verify',
+      [violation('color-contrast', 'serious', [['.a']])],
+      known
+    );
+    expect(blocking.map((b) => b.selector)).toEqual(['.a']);
+  });
+
+  test('E2E-A11Y-SELF-003: an entry matching nothing is stale', () => {
+    const known = {
+      ...EMPTY_KNOWN,
+      '/inbox': [entry('color-contrast', '.a'), entry('color-contrast', '.gone')],
+    };
+    const { blocking, stale } = classify(
+      '/inbox',
+      [violation('color-contrast', 'serious', [['.a']])],
+      known
+    );
+    expect(blocking).toEqual([]);
+    expect(stale.map((e) => e.selector)).toEqual(['.gone']);
+  });
+
+  test('E2E-A11Y-SELF-004: minor/moderate impact is ignored; multi-part targets join with a space', () => {
+    const known = { ...EMPTY_KNOWN, '/inbox': [entry('label', 'iframe input')] };
+    const { blocking, stale } = classify(
+      '/inbox',
+      [
+        violation('label', 'critical', [['iframe', 'input']]),
+        violation('region', 'moderate', [['.x']]),
+      ],
+      known
+    );
+    expect(blocking).toEqual([]);
+    expect(stale).toEqual([]);
+  });
+
+  test('E2E-A11Y-SELF-005: a real axe scan of a page with an unnamed <select> is blocking', async ({
+    page,
+  }) => {
+    await page.setContent('<!doctype html><html lang="en"><body><main><select><option>a</option></select></main></body></html>');
+    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+    const { blocking } = classify('/settings', results.violations, EMPTY_KNOWN);
+    expect(blocking.map((b) => b.rule)).toContain('select-name');
+  });
+});
