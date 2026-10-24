@@ -232,6 +232,7 @@ export function SettingsPage() {
                 Used for streak and badge calculations.
               </p>
               <select
+                aria-label="Time zone"
                 value={timezoneData?.timezone ?? 'UTC'}
                 onChange={(e) => saveTimezone.mutate(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl bg-surface-muted text-sm text-ink border border-black/6 focus:outline-hidden focus:ring-2 focus:ring-accent transition-all"
@@ -774,8 +775,9 @@ export function SettingsPage() {
                     className="space-y-3 pt-2 overflow-hidden"
                   >
                     <div>
-                      <label className="text-[10px] font-bold uppercase tracking-wider text-ink-tertiary block mb-1.5 ml-1">Provider</label>
+                      <label htmlFor="external-provider-select" className="text-[10px] font-bold uppercase tracking-wider text-ink-tertiary block mb-1.5 ml-1">Provider</label>
                       <select
+                        id="external-provider-select"
                         value={externalProvider}
                         onChange={(e) => setExternalProvider(e.target.value)}
                         className="w-full px-3 py-2.5 h-11 rounded-xl bg-surface-elevated text-sm text-ink border border-black/8 focus:outline-hidden focus:ring-2 focus:ring-accent transition-all"
