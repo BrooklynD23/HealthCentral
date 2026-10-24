@@ -4,7 +4,7 @@ Playwright specs for the frontend. The gate helpers in `support/gates.ts` implem
 
 ## Running
 
-Run these from `src/frontend`. Each one was run as written on the UI-GATES branch, and each passed.
+Run these from `src/frontend`. Each one was run as written on the UI-GATES branch, and each passed all 30 tests in `ui-gates.spec.ts` (the two `test.fail()` marks count as passes).
 
 **1. With the backend (the config's default).** The config starts `e2e/support/start-backend.mjs` on port 8000 and `npm run dev` on port 3000. Set `HC_E2E_BACKEND_PYTHON` to a path to a Python that has the backend requirements. The path is resolved from `src/frontend`, so a checkout with `src/backend/.venv` can use `../backend/.venv/bin/python`.
 
@@ -65,10 +65,11 @@ Use the real backend through HTTP (`support/start-backend.mjs`, with the helpers
 
 - `trigger` runs after the first sample, so the probe sees the start of any animation it starts.
 - `expected` lists the route's `data-t0` selectors (plan §2.7). Each must match a `[data-t0]` node. The probe also fails on zero nodes.
-- `kind: 'navigation'` turns on the route-fade rules: the container is keyed by pathname, it must have no transform, it must reach opacity 1 within 240 ms, and each node's effective opacity must equal the container's during that window. `kind: 'interaction'` (the default) requires effective opacity 1 throughout, with no fade window.
+- `kind: 'navigation'` turns on the route-fade rules. The container is keyed by pathname, it must have no transform, and it must reach opacity 1 within 240 ms. During that window a `[data-t0]` node inside the container must match the container's opacity. A node outside it, such as the Safety Rail, must stay at 1, because only the container fades (plan §2 T0 row, HC-UISH-009). Plan G10's "each T0 node" is read as "each T0 node inside the container", since the same plan keeps the Safety Rail outside it at opacity 1. `kind: 'interaction'` (the default) requires effective opacity 1 throughout, with no fade window.
 - `lazyRoute: true` is for a trigger that starts a fetch. The window starts only when no request is in flight and none has started or finished for 500 ms, counted from the trigger (the same quiet period as Playwright's `networkidle`). Then the probe runs 800 ms more. It does not use `waitForLoadState('networkidle')`, which returns at once on a page that was already idle. HC-UIG-006 (m) is a fetch that starts after the trigger; the old wait missed it.
-- Sampling: the probe samples about every 20 ms. It fails when a gap at or after the trigger is over 40 ms, or when the window has fewer than 800 / 40 = 20 samples after the trigger. The report's `maxGapMs` and `postTriggerSamples` show the measured values.
-- Failure messages name the property: `computed transform changed`, `getBoundingClientRect changed`, `computed color changed`, `computed clip-path changed`, `textContent changed`, `effective opacity 0.35 (must be 1)`, `route container transform`, `route container did not reach opacity 1 within 240 ms`, `found zero [data-t0] nodes`, `expected selector "…" matched no [data-t0] node`, `sampling gap of N ms`, `only N sample(s) after the trigger`, `timed out waiting for the lazy route to go network idle`.
+- Sampling runs inside the page, every 20 ms, on the page's clock (`performance.now()`, in whole milliseconds). A CDP call from Node would queue behind the trigger's own calls, so the gap between samples would depend on what ran earlier in the run. The probe fails when a gap at or after the trigger is over 40 ms, or when the window has fewer than 800 / 40 = 20 samples after the trigger. The report's `maxGapMs` and `postTriggerSamples` show the measured values. `HC-UIG-006 pass-2 passes in a fresh browser context` runs a navigation in a new context, so a cold run is part of the suite.
+- A full page load ends the in-page sampler, and the probe then fails with `lost its sampler`. Use the probe for interactions and client-side (SPA) navigations.
+- Failure messages name the property: `computed transform changed`, `getBoundingClientRect changed`, `computed color changed`, `computed clip-path changed`, `textContent changed`, `effective opacity 0.35 (must be 1)`, `effective opacity 0.60 must be 1 … outside the route container`, `route container transform`, `route container opacity changed after settling`, `route container did not reach opacity 1 within 240 ms`, `found zero [data-t0] nodes`, `expected selector "…" matched no [data-t0] node`, `sampling gap of N ms`, `only N sample(s) after the trigger`, `timed out waiting for the lazy route to go network idle`, `lost its sampler`.
 
 ### maxEventDuration
 
@@ -98,7 +99,7 @@ No row has added `data-route-container` yet. Until one does, `routeOpacitySample
 
 ## Test-fail policy
 
-`HC-UIG-002` and `HC-UIG-003` are `test.fail()`. Playwright passes a `test.fail()` on any failure, so the defect assertion alone cannot show the reason. Two things do. The green `pre` test beside each one proves the page rendered and the sampler recorded. The line each test prints (`HC-UIG-002 axe rule ids on /inbox: [...]`, `HC-UIG-003 samples below 0.3 (...)`) names the rule id or the samples that failed.
+`HC-UIG-002` and `HC-UIG-003` are `test.fail()`. Playwright passes a `test.fail()` on any failure, so the defect assertion alone cannot show the reason. Two things do. The green `pre` test beside each one proves the page rendered and the sampler recorded. The line each test prints (`HC-UIG-002 axe rule ids on /inbox: [...]`, `HC-UIG-003 samples below 0.3 (...)`) names the rule id or the samples that failed. The `HC-UIG-002 pre` test also calls `axeGate` and asserts that it returned a list of rule ids. If axe itself throws, the `test.fail()` would pass for the wrong reason, so the `pre` test fails first.
 
 To see the assertion behind a `test.fail()`, copy the spec to a scratch file under `e2e/`, replace `test.fail(` with `test(`, and run it with `-g 'expected until'`. Delete the copy afterwards. When the owning row lands, the test starts to pass. Playwright reports that as an unexpected pass, and the row removes the `test.fail()` wrapper.
 
