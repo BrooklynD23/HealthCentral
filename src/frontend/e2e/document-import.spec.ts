@@ -7,8 +7,10 @@
  * No "view document detail" tests — the Eye button is not wired to a route.
  */
 
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { test, expect } from '@playwright/test';
-import { openAuthenticatedPage } from './support/auth';
+import { E2E_API_URL, openAuthenticatedPage } from './support/auth';
 
 test.describe('Document Import Smoke Tests', () => {
   test.beforeEach(async ({ page }) => {
@@ -28,33 +30,34 @@ test.describe('Document Import Smoke Tests', () => {
     ).toBeVisible({ timeout: 10000 });
   });
 
-  test('E2E-DOC-002: Upload test PDF, verify document list item appears', async ({ page, request }) => {
-    await openAuthenticatedPage(page, request);
+  test('E2E-DOC-002: Upload synthetic lab PDF, backend parses it', async ({ page, request }) => {
+    const auth = await openAuthenticatedPage(page, request);
 
-    // Create a minimal test PDF in memory and upload
-    const fileInput = page.locator('input[type="file"]');
+    // Committed text-lab fixture (see ui-full-verification.spec.ts header).
+    await page
+      .locator('input[type="file"]')
+      .setInputFiles(path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'synthetic-lab.pdf'));
 
-    // Use a minimal PDF content
-    const pdfContent = Buffer.from(
-      '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n' +
-      '2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n' +
-      '3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R/Resources<<>>>>endobj\n' +
-      'xref\n0 4\ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n0\n%%EOF'
-    );
+    // Assert the backend status, not toast/filename text: a rejected import
+    // never produces a 'parsed' row. There is no backend "needs review" status
+    // (the inbox labels every non-pending status that), so only 'parsed' passes.
+    await expect
+      .poll(
+        async () => {
+          const res = await request.get(`${E2E_API_URL}/documents/`, {
+            headers: { Authorization: `Bearer ${auth.access_token}` },
+          });
+          if (!res.ok()) return `http ${res.status()}`;
+          const docs = (await res.json()) as Array<{ source: string | null; status: string }>;
+          return docs.find((d) => d.source === 'synthetic-lab.pdf')?.status ?? 'missing';
+        },
+        { timeout: 60_000, intervals: [1000] }
+      )
+      .toBe('parsed');
 
-    await fileInput.setInputFiles({
-      name: 'test-report.pdf',
-      mimeType: 'application/pdf',
-      buffer: pdfContent,
+    await expect(page.getByRole('heading', { name: /synthetic-lab\.pdf/ }).first()).toBeVisible({
+      timeout: 15_000,
     });
-
-    // Wait for import to process — either a list item appears or an error
-    // The document should appear in the list with a status badge.
-    // Use .first(): the filename/status text can match the import toast, the
-    // status line, and the list heading simultaneously (strict-mode otherwise).
-    await expect(
-      page.getByText(/test-report\.pdf|pending|needs review|parsed/i).first()
-    ).toBeVisible({ timeout: 15000 });
   });
 
   test('E2E-DOC-003: Upload non-PDF, verify rejection message', async ({ page, request }) => {
