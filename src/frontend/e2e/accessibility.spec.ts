@@ -196,7 +196,15 @@ async function waitForMainContent(page: Page, route: Route): Promise<void> {
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 15000 });
   }
   await page.waitForLoadState('networkidle');
+  // A fade-in still running makes axe measure blended colours (transient
+  // color-contrast nodes seen on /setup, run 40068287285 attempt 3).
+  await page.waitForFunction(() => document.getAnimations().length === 0, undefined, {
+    timeout: 5000,
+  });
 }
+
+// globals.css collapses CSS animation/transition durations under this media query.
+test.use({ reducedMotion: 'reduce' });
 
 for (const route of ROUTES) {
   test(`E2E-A11Y: ${route} has no unexpected critical/serious axe violations`, async ({
