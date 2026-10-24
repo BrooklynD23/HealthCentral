@@ -5,7 +5,7 @@
 **Status:** research complete, owner question SAFETY-MODE-BEHAVIOUR drafted and not yet asked
 **Refresh Trigger:** an owner answer to SAFETY-MODE-BEHAVIOUR or SAFETY-MODE-DIFF; PR #264 (B-3 advice judge) merging or closing; a change to any `file:line` cited below (re-read before the build row starts); a new migration in `src/backend/migrations/profile/versions/`.
 
-> **Point-in-time research (2026-10-23).** Planning and documentation only. No product code changed and no owner gate is answered here. Read at `origin/main` `035637e` (plus the claim commit `ce1a19e`, which touches only queue text). Every `file:line` below was re-read on that tree. Medical-safety files named here (`interpret_safety.py`, `faithfulness.py`, `verifier_agent.py`) were read only.
+> **Point-in-time research (2026-10-23).** Planning and documentation only. No product code changed and no owner gate is answered here. Read at `origin/main` `fe9581f` (rebased from `035637e` after review round 1; the claim commit touches only queue text). The ExplainAssistant cite moved from `:571` to `:573` with BADGE-TICK (#332) and was re-read. Every `file:line` below was re-read on that tree. Medical-safety files named here (`interpret_safety.py`, `faithfulness.py`, `verifier_agent.py`) were read only.
 
 ## Where this comes from
 
@@ -16,7 +16,7 @@ Owner answer **UI-SAFETY-TOGGLE = "Make it real"** ([owner-decisions-2026-09-27.
 ## What the toggle is today
 
 - `src/frontend/src/components/layout/TopBar.tsx:9` holds `const [safeMode, setSafeMode] = useState(true);` and nothing reads it outside that component. It resets on every reload.
-- It starts **ON**. So today's behaviour is displayed as "Safety Mode ON". Under the constraint, OFF is today's behaviour, so the label must change in the build (for example "Extra checks", default OFF). Calling today's behaviour "OFF" under the name "Safety Mode" would tell the patient the always-on checks are off. This is a finding for the owner question, not a decision.
+- It starts **ON**. So today's behaviour is displayed as "Safety Mode ON". Under the constraint, OFF is today's behaviour, so the label must change. Plan section 3.6 already sets "Stricter safety mode" (disabled, off, with the note that the standard checks always run), and the open non-blocking question SAFETY-LABEL-WORDING holds the alternatives. This research coins no label; the build row wires the switch under whichever wording is in force.
 
 ## What the pipeline does today (what an option can and cannot change)
 
@@ -31,7 +31,7 @@ Owner answer **UI-SAFETY-TOGGLE = "Make it real"** ([owner-decisions-2026-09-27.
 
 Three consequences the options below depend on:
 
-1. **The default chat path has no graded score to tighten.** The agent guard's confidence is 0 or 1 (`guard.py:44` onward), so raising a threshold does nothing there. Threshold options reach the legacy fallback and `interpret-grounded` only.
+1. **The default chat path has no graded score to tighten.** The agent guard's confidence is 0 or 1 (`guard.py:44` onward), so raising a threshold does nothing there. Threshold options reach the legacy fallback and `interpret-grounded` only. On the fallback a failed score becomes the fixed abstention. On `interpret-grounded` it only flips `is_valid` (see Option A).
 2. **Template-only is mostly today's behaviour already.** The default chat and `/interpret` are template-driven. Only `interpret-grounded` and the legacy fallback use a model for prose.
 3. **Verified-only is mostly today's behaviour already** for chat and retrieval (D4). The remaining gap is the interpretation routes, which interpret an unverified observation (no `user_verified` check in `interpret_observation`; the only use is `src/backend/api/interpretations.py:511`, which keeps the value out of the question text).
 
@@ -52,7 +52,7 @@ Three consequences the options below depend on:
 
 ### Option A: Stricter checks
 
-**Patient sees.** OFF: today. ON: on the legacy chat fallback and on `interpret-grounded`, an answer needs a higher verified share to be shown (the proposal uses 0.75 against today's 0.6; the number is for the owner to confirm and must stay above 0.6), so more questions get the fixed "There isn't enough verified information" abstention. The default chat path is unchanged because its score is 0 or 1.
+**Patient sees.** OFF: today. ON: an answer needs a higher verified share (the proposal uses 0.75 against today's 0.6; the number is for the owner to confirm and must stay above 0.6). On the legacy chat fallback, more questions get the fixed "There isn't enough verified information" abstention. On `interpret-grounded` the route today never abstains on `is_valid` false: it returns the segments with `is_valid` and `validation_errors`, and the page only turns a badge from verified to caution (`src/frontend/src/pages/LabInterpreter.tsx:189`, `<Badge variant={groundedValidation.isValid ? 'verified' : 'caution'}>`). So the threshold alone changes that badge, not the answer. The extra route row below makes ON withhold the answer there too. The default chat path is unchanged because its score is 0 or 1.
 
 **Constraint check.** Passes: ON only raises thresholds; OFF keeps the 0.6 objects. No check is lowered.
 
@@ -62,8 +62,9 @@ Three consequences the options below depend on:
 |---|---|---|
 | `src/backend/modules/rag.py:940` (`if verification_metadata.faithfulness_score < 0.6:`) | use `self.faithfulness_scorer.config.min_overall_score`; default identical | no |
 | `src/backend/api/assistant.py:217` (`def get_rag_module() -> RAGModule:`) and `:225`, `:230` (the two `0.6` literals) | choose the strict module when the profile setting is on | no |
-| `src/backend/api/assistant.py:1055` (`result = await rag.query(`) | pass the chosen module | no |
-| `src/backend/api/interpretations.py:529` (`rag_result = await rag.query(`) | same | no |
+| `src/backend/api/assistant.py:1055` (`result = await rag.query(`) | pass the chosen module; `_legacy_serve_or_abstain` (`:236`) already turns an invalid result into the abstention | no |
+| `src/backend/api/interpretations.py:529` (`rag_result = await rag.query(`) | pass the chosen module | no |
+| `src/backend/api/interpretations.py:598` (`if rag_result.prohibited_advice:`, the existing swap-to-template block; the new branch goes after it) | when ON and `rag_result.is_valid` is false, replace the segments with `ABSTAIN_TEMPLATE` (`src/backend/modules/agent/guardrails/templates.py:20`), drop verification detail as the block above does, and write an audit row through `_audit_interpretation` (`:38`) with no answer or question text. Without this row, ON only changes the badge. | no |
 | `src/backend/core/config.py:165` (`min_faithfulness_score: float = 0.6  # Minimum score for verified claims`) | read only; not changed (it is the global default) | no |
 | `src/backend/api/assistant.py:1400` (`"min_faithfulness_score": 0.6,`) | status route reports the active value | no |
 | `src/backend/modules/faithfulness.py:55`, `:149`, `:431` | **read only** | **yes**, not edited |
@@ -72,8 +73,8 @@ Three consequences the options below depend on:
 **Conditional on PR #264** (B-3 advice judge, still an open draft; not main). #264 touches `assistant.py`, `interpretations.py`, `rag.py` and adds `modules/agent/guardrails/advice_judge.py`. If it merges first, the judge's threshold could join this option and the build row must be rebased on it; if the judge threshold lives in an ask-first file the SAFETY-MODE-DIFF wording below is needed for that file. Not designed here because the diff is not on main.
 
 **Storage.** Per-profile setting. Survives lock/unlock: yes.
-**HTTP test.** `POST /assistant/chat` with the agent disabled and a stubbed `rag.query` returning faithfulness 0.70: OFF serves the answer, ON returns `ABSTAIN_TEMPLATE` (`src/backend/modules/agent/guardrails/templates.py:20`). Same shape on `interpret-grounded`. Extra proof: a score of 0.50 is withheld in both modes.
-**Cost.** 5 to 7 h plus the shared 4 to 5 h.
+**HTTP test.** `POST /assistant/chat` with the agent disabled and a stubbed `rag.query` returning faithfulness 0.70: OFF serves the answer, ON returns `ABSTAIN_TEMPLATE`. `interpret-grounded`, same stub: OFF returns the segments with `is_valid` true; ON (with the extra route row) returns `ABSTAIN_TEMPLATE` as the segment and writes the audit row. Without the extra row the honest assertion would be only `is_valid` false and the segments unchanged. Extra proof: a score of 0.50 is withheld in both modes.
+**Cost.** 6 to 8 h plus the shared 4 to 5 h (the extra route branch, its audit and HTTP test add about 1 h).
 **Honest limit.** Reach is the legacy fallback and `interpret-grounded`. A patient on the default agent path sees no change.
 
 ### Option B: Template-only explanations
@@ -87,7 +88,7 @@ Three consequences the options below depend on:
 | File | Change | Ask-first |
 |---|---|---|
 | `src/backend/api/interpretations.py:529` (`rag_result = await rag.query(`) | when on, use retrieval only (`rag.retrieve_context`) and return the facts as segments | no |
-| `src/backend/api/assistant.py:1055` (`result = await rag.query(`) | when on and the agent path failed or is off, return the abstention | no |
+| `src/backend/api/assistant.py:1055` (`result = await rag.query(`) | when on and the agent path failed or is off, return the abstention. ON makes the fallback always abstain, so a profile whose agent flag is off (`is_agent_enabled`, `assistant.py:1020`) gets a refusal for every chat question. | no |
 | `src/backend/modules/interpret.py:209` and `:215` | read only; existing calls reused | no |
 | `src/backend/modules/agent/nodes/draft.py:342` | none; already deterministic | no |
 | `src/backend/modules/interpret_safety.py` | **read only**, called on the fact list | **yes**, not edited |
@@ -107,7 +108,7 @@ Three consequences the options below depend on:
 
 | File | Change | Ask-first |
 |---|---|---|
-| `src/frontend/src/pages/ExplainAssistant.tsx:571` (`{message.citations && message.citations.length > 0 && (`) | render expanded when on | no |
+| `src/frontend/src/pages/ExplainAssistant.tsx:573` (`{message.citations && message.citations.length > 0 && (`) | render expanded when on | no |
 | `src/frontend/src/components/lab-interpreter/InterpretedResultCard.tsx:119` (`{interpretation.citations.length > 0 && (`) | same | no |
 | `src/frontend/src/components/lab-interpreter/CitationTooltip.tsx` | reuse content inline | no |
 | `src/frontend/src/components/layout/TopBar.tsx:9` | wire the toggle | no |
@@ -154,21 +155,21 @@ Three consequences the options below depend on:
 
 | Option (5 words or fewer) | What changes for the patient |
 |---|---|
-| **Stricter checks** | Answers need a higher verified share (0.75, not 0.6); more questions get "there isn't enough verified information". Shows up on the older chat fallback and on the grounded explanation of a lab result, not on normal chat. |
-| **Template-only explanations** | No model-written sentences: a lab result's grounded explanation becomes the template text plus a list of the cited facts. Normal chat already works this way. |
+| **Stricter checks** | Answers need a higher verified share (0.75, not 0.6); more questions get "there isn't enough verified information" on the older chat fallback, and a lab result's grounded explanation is replaced by the same message instead of only showing a caution badge. Not on normal chat. |
+| **Template-only explanations** | No model-written sentences: a lab result's grounded explanation becomes the template text plus a list of the cited facts. Normal chat already works this way, but ON also makes the older chat fallback always refuse, so a profile with the assistant's agent mode switched off would get a refusal for every chat question. |
 | **Always-on citations view** | Every answer and interpretation shows its sources expanded with name, page and quote, instead of small chips. No check changes; the grounding is just visible. |
 | **Verified-only data** | An unchecked lab value cannot be interpreted until you verify it, and unchecked points are hidden from trend charts. Chat already uses verified values only. |
 
 **Tradeoffs.**
-- Stricter checks is the only option that visibly changes answers, at the price of more refusals. Its reach is the fallback and the grounded explanation, so most patients on the default path see little. The number 0.75 is a proposal, to be set or measured before the build.
-- Template-only is safe and cheap to reason about but mostly describes today's default; the change is felt on one screen and the fallback.
+- Stricter checks is the only option that visibly changes answers, at the price of more refusals. Its reach is the fallback and the grounded explanation (which needs the extra route branch, or only the badge changes), so most patients on the default path see little. The number 0.75 is a proposal, to be set or measured before the build.
+- Template-only is safe and cheap to reason about but mostly describes today's default; the change is felt on one screen and the fallback. Its cost: ON makes the fallback always abstain, so a profile with the agent flag off gets a refusal for every chat question.
 - Always-on citations is the cheapest and carries no safety risk, but it does not make anything safer; on the default chat path the "quote" is a locator until a backend change adds real quotes.
 - Verified-only is easy to explain ("only what you checked") and refuses more, but chat already behaves this way, so the felt change is on interpretations and charts.
-- All four share one setting per profile (one new profile migration) except Always-on citations, which can live in the browser. All four need the label to change, because today's behaviour is shown as "Safety Mode ON" and must become the OFF state.
+- All four share one setting per profile (one new profile migration) except Always-on citations, which can live in the browser. All four need the label to change (plan section 3.6 already sets it; SAFETY-LABEL-WORDING holds the alternatives), because today's behaviour is shown as "Safety Mode ON" and must become the OFF state.
 
 **Analogy.** A car with checks that always run (seat belt chime, brake assist). The toggle cannot switch those off. It can add an "extra careful" mode: slower to answer (stricter checks), a script instead of free speech (template-only), the dashboard showing every gauge (citations view), or refusing to drive on a part nobody has inspected (verified-only).
 
-**Reading, not the owner's words (L1/L2).** The research supports one statement: template-only and verified-only mostly restate today's behaviour for chat, so choosing only those would give a toggle patients rarely feel. If the owner wants a toggle with visible effect and low risk, stricter checks (reach: fallback and grounded explanation) plus the always-on citations view is the lowest-cost pair; the research does not support ranking beyond that, and the choice is the owner's.
+**Reading, not the owner's words (L1/L2).** The research supports one statement: template-only and verified-only mostly restate today's behaviour for chat, so choosing only those would give a toggle patients rarely feel. If the owner wants a toggle with visible effect and low risk, stricter checks (reach: fallback and grounded explanation, with the extra route branch so the answer, not only a badge, changes) plus the always-on citations view is the lowest-cost pair; the research does not support ranking beyond that, and the choice is the owner's.
 
 ## SAFETY-MODE-DIFF: draft wording (ask-first files)
 
@@ -186,7 +187,7 @@ Each yes must name the file and the diff, and an unrelated edit to the same file
 
 | Option | Ask-first files edited | Ask-first files read only | New migration | Cost (option + shared) |
 |---|---|---|---|---|
-| A Stricter checks | none as designed (2 conditional) | `faithfulness.py`, `verifier_agent.py` | 016 (shared) | 5 to 7 h + 4 to 5 h |
+| A Stricter checks | none as designed (2 conditional) | `faithfulness.py`, `verifier_agent.py` | 016 (shared) | 6 to 8 h + 4 to 5 h |
 | B Template-only | none as designed (1 conditional) | `interpret_safety.py` | 016 (shared) | 6 to 8 h + 4 to 5 h |
 | C Always-on citations | none | none | none if browser storage | 4 to 5 h + 1 to 2 h |
 | D Verified-only | none | `verifier_agent.py` | 016 (shared) | 5 to 7 h + 4 to 5 h |
