@@ -43,6 +43,7 @@ CLASSIFICATION: dict[str, str] = {
     "api/documents.py::delete_document": "A2",
     "api/donation.py::list_consents": "excluded: read route, audit_and_commit only",
     "api/donation.py::set_consent": "A2",
+    "api/donation.py::collect_donation": "A2",
     "api/export.py::generate_doctor_summary": "excluded: read route, audit_and_commit only",
     "api/export.py::download_summary": "excluded: read route, audit_and_commit only",
     "api/export.py::generate_questions": "excluded: read route, audit_and_commit only",

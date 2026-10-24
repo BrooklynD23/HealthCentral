@@ -90,6 +90,7 @@ const tierDescriptions: Record<string, { label: string; desc: string; icon: type
 export function SettingsPage() {
   const [showConsentDialog, setShowConsentDialog] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [exportResult, setExportResult] = useState<{ dpo: number; sft: number; grpo: number; path: string } | null>(null);
   const [diagToolId, setDiagToolId] = useState<string | null>(null);
   const [externalProvider, setExternalProvider] = useState('');
@@ -856,6 +857,9 @@ export function SettingsPage() {
             </p>
           )}
 
+          {exportError && (
+            <p role="alert" className="text-sm text-status-danger">{exportError}</p>
+          )}
           {exportResult && (
             <div className="rounded-xl bg-status-success/10 p-3 text-sm text-status-success space-y-1">
               <p className="font-medium">Export complete</p>
@@ -914,6 +918,8 @@ export function SettingsPage() {
                 <Button
                   onClick={async () => {
                     setShowExportDialog(false);
+                    setExportError(null);
+                    setExportResult(null);
                     try {
                       const res = await exportDataset.mutateAsync({ confirmed: true });
                       setExportResult({
@@ -922,8 +928,8 @@ export function SettingsPage() {
                         grpo: res.grpo_rewards_count,
                         path: res.metadata_path,
                       });
-                    } catch {
-                      // error surfaced by React Query
+                    } catch (err) {
+                      setExportError((err as Error).message);
                     }
                   }}
                   disabled={exportDataset.isPending}

@@ -137,3 +137,232 @@ def test_hc_don_003_profile_metadata_only():
     for t in TABLES:
         assert t in ProfileDatabaseBase.metadata.tables
         assert t not in Base.metadata.tables
+
+
+# ---------------------------------------------------------------------------
+# PR-2 Task 4: collect (HC-DON-014..016)
+# ---------------------------------------------------------------------------
+
+import pytest  # noqa: E402
+import pytest_asyncio  # noqa: E402
+from sqlalchemy import event, select  # noqa: E402
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E402
+
+from core.profile_database import ProfileDatabaseBase  # noqa: E402
+from models.chat_session import ChatTurn  # noqa: E402
+from models.data_donation import DonatedRecord, DonationConsent  # noqa: E402
+from models.response_feedback import ResponseFeedback  # noqa: E402
+
+PID = "profile-a"
+PURPOSE = "fine_tune"
+GAP_TEXT = "The portal logged a visit from IP 192.168.1.1 yesterday."  # strict leaves IPv4 intact
+
+
+@pytest_asyncio.fixture
+async def vault():
+    engine = create_async_engine("sqlite+aiosqlite://")
+    async with engine.begin() as conn:
+        await conn.run_sync(ProfileDatabaseBase.metadata.create_all)
+    statements: list[str] = []
+
+    @event.listens_for(engine.sync_engine, "before_cursor_execute")
+    def _spy(conn, cursor, statement, *a):
+        statements.append(statement)
+
+    session = AsyncSession(engine, expire_on_commit=False)
+    session.statements = statements
+    try:
+        yield session
+    finally:
+        await session.close()
+        await engine.dispose()
+
+
+async def _consent(db, version=None, revoked=False):
+    from datetime import datetime
+
+    from modules.data_donation import CURRENT_CONSENT_TEXT_VERSION
+
+    db.add(DonationConsent(
+        profile_id=PID, purpose=PURPOSE,
+        consent_text_version=version or CURRENT_CONSENT_TEXT_VERSION,
+        revoked_at=datetime(2026, 1, 1) if revoked else None,
+    ))
+    await db.commit()
+
+
+_TURN_INDEX = __import__("itertools").count()
+
+
+async def _feedback(db, prompt, response="Your result is in range.", correction=None, session_id="s1",
+                    snapshot=None):
+    """``prompt`` is the user turn text; ``snapshot`` (default: same) is the client-supplied prompt_snapshot."""
+    turn_id = f"t-{len(db.statements)}-{id(prompt)}"
+    n = 2 * next(_TURN_INDEX)
+    db.add(ChatTurn(id=f"u{turn_id}", session_id=session_id, profile_id=PID,
+                    turn_index=n, role="user", content=prompt))
+    db.add(ChatTurn(id=turn_id, session_id=session_id, profile_id=PID,
+                    turn_index=n + 1, role="assistant", content=response))
+    row = ResponseFeedback(
+        profile_id=PID, session_id=session_id, turn_id=turn_id,
+        rating=1, prompt_snapshot=snapshot if snapshot is not None else prompt,
+        response_text=response, correction_text=correction,
+    )
+    db.add(row)
+    await db.commit()
+    return row.id
+
+
+async def _donated(db):
+    return (await db.execute(select(DonatedRecord))).scalars().all()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("state", ["none", "revoked", "stale"])
+async def test_hc_don_014_collect_fails_closed_without_current_consent(vault, state):
+    from modules.data_donation import collect
+
+    await _feedback(vault, "What is my LDL?")
+    if state == "revoked":
+        await _consent(vault, revoked=True)
+    elif state == "stale":
+        await _consent(vault, version="2026-10-01-v1")
+    vault.statements.clear()
+
+    counts = await collect(vault, PID, PURPOSE)
+
+    assert counts.collected == 0 and counts.dropped_records == 0
+    assert not [s for s in vault.statements if "response_feedback" in s or "donated_records" in s]
+    assert await _donated(vault) == []
+
+
+@pytest.mark.asyncio
+async def test_hc_don_015_collect_stores_only_redacted_text(vault):
+    from modules.data_donation import collect
+
+    await _consent(vault)
+    src = "Patient Name: Jane Doe, phone 555-123-4567. What does my LDL mean?"
+    await _feedback(vault, src, response="Your LDL is 162 mg/dL.", correction="Call 555-123-4567.")
+
+    counts = await collect(vault, PID, PURPOSE)
+
+    assert counts.collected == 1 and counts.dropped_records == 0 and counts.strict_redaction_count > 0
+    (rec,) = await _donated(vault)
+    assert (rec.origin, rec.source_kind, rec.purpose) == ("real", "response_feedback", PURPOSE)
+    stored = " ".join(str(getattr(rec, c.name)) for c in DonatedRecord.__table__.columns)
+    for secret in ("Jane", "Doe", "555-123-4567"):
+        assert secret not in stored
+    assert "LDL" in rec.prompt_redacted  # lab content survives
+
+
+@pytest.mark.asyncio
+async def test_hc_don_015b_collect_is_idempotent(vault):
+    from modules.data_donation import collect
+
+    await _consent(vault)
+    await _feedback(vault, "What does a high LDL mean?")
+    first = await collect(vault, PID, PURPOSE)
+    second = await collect(vault, PID, PURPOSE)
+    assert (first.collected, second.collected, second.skipped_existing) == (1, 0, 1)
+    assert len(await _donated(vault)) == 1
+
+
+@pytest.mark.asyncio
+async def test_hc_don_016_strict_gap_is_dropped_and_counted_by_category(vault):
+    from modules.data_donation import collect
+    from modules.redaction import RedactionEngine
+
+    # Task 0: the known strict gap used here is a bare IPv4 address.
+    assert "192.168.1.1" in RedactionEngine(policy_level="strict").redact(GAP_TEXT).text
+
+    await _consent(vault)
+    await _feedback(vault, GAP_TEXT)
+    await _feedback(vault, "What does a high LDL mean?")
+
+    counts = await collect(vault, PID, PURPOSE)
+
+    assert counts.collected == 1
+    assert counts.dropped == {"ip_address": 1}
+    stored = " ".join(r.prompt_redacted for r in await _donated(vault))
+    assert "192.168.1.1" not in stored
+
+
+@pytest.mark.asyncio
+async def test_collect_skips_orphaned_feedback_and_counts_incomplete(vault):
+    from modules.data_donation import collect
+
+    await _consent(vault)
+    await _feedback(vault, "What is my LDL?")
+    await _feedback(vault, "")  # incomplete: no prompt
+    # feedback whose assistant turn was deleted with its session
+    vault.add(ResponseFeedback(profile_id=PID, session_id="gone", turn_id="no-such-turn",
+                               rating=1, prompt_snapshot="q", response_text="r"))
+    await vault.commit()
+    counts = await collect(vault, PID, PURPOSE)
+    assert (counts.collected, counts.skipped_incomplete) == (1, 1)
+    assert len((await _donated(vault))) == 1
+
+
+@pytest.mark.asyncio
+async def test_collect_donates_user_turn_not_prompt_snapshot(vault):
+    from modules.data_donation import collect
+
+    await _consent(vault)
+    await _feedback(vault, "What does a high LDL mean?",
+                    snapshot="CONTEXT: LDL 162 mg/dL from lab report. What does a high LDL mean?")
+    assert (await collect(vault, PID, PURPOSE)).collected == 1
+    assert [r.prompt_redacted for r in await _donated(vault)] == ["What does a high LDL mean?"]
+
+
+@pytest.mark.asyncio
+async def test_collect_donates_server_answer_not_client_response_text(vault):
+    from modules.data_donation import collect
+
+    await _consent(vault)
+    row_id = await _feedback(vault, "What does a high LDL mean?", response="Server answer about LDL.")
+    row = (await vault.execute(select(ResponseFeedback).where(ResponseFeedback.id == row_id))).scalars().one()
+    row.response_text = "CLIENT-SUPPLIED retrieved record text"
+    await vault.commit()
+
+    assert (await collect(vault, PID, PURPOSE)).collected == 1
+    (rec,) = await _donated(vault)
+    assert rec.response_redacted == "Server answer about LDL."
+
+
+@pytest.mark.asyncio
+async def test_collect_skips_ambiguous_duplicate_turn_index(vault):
+    from modules.data_donation import collect
+
+    await _consent(vault)
+    row_id = await _feedback(vault, "What does a high LDL mean?")
+    row = (await vault.execute(select(ResponseFeedback).where(ResponseFeedback.id == row_id))).scalars().one()
+    a = (await vault.execute(select(ChatTurn).where(ChatTurn.id == row.turn_id))).scalars().one()
+    vault.add(ChatTurn(id="dup-user", session_id=a.session_id, profile_id=PID,
+                       turn_index=a.turn_index - 1, role="user", content="A different question"))
+    await vault.commit()
+
+    counts = await collect(vault, PID, PURPOSE)
+
+    assert (counts.collected, counts.skipped_incomplete) == (0, 1)
+    assert await _donated(vault) == []
+
+
+@pytest.mark.asyncio
+async def test_collect_rolls_back_when_consent_revoked_before_commit(vault, monkeypatch):
+    import modules.data_donation as dd
+
+    await _consent(vault)
+    await _feedback(vault, "What does a high LDL mean?")
+    real = dd.has_current_consent
+    calls = []
+
+    async def _revoked_after_first(db, pid, purpose):
+        calls.append(1)
+        return await real(db, pid, purpose) if len(calls) == 1 else False
+
+    monkeypatch.setattr(dd, "has_current_consent", _revoked_after_first)
+
+    counts = await dd.collect(vault, PID, PURPOSE)
+
+    assert counts.collected == 0 and len(calls) == 2
+    assert await _donated(vault) == []

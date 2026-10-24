@@ -318,6 +318,7 @@ class TestExportConfirmationGate:
         assert exc_info.value.status_code == 400
 
     @pytest.mark.asyncio
+    @patch("api.feedback.has_current_consent", new=AsyncMock(return_value=True))
     async def test_export_404_when_no_feedback(self):
         from fastapi import HTTPException
 
@@ -336,6 +337,7 @@ class TestExportConfirmationGate:
         assert exc_info.value.status_code == 404
 
     @pytest.mark.asyncio
+    @patch("api.feedback.has_current_consent", new=AsyncMock(return_value=True))
     async def test_export_rejects_path_traversal(self):
         """HC-RL-PATH: output_dir outside allowed base rejected with 400."""
         from fastapi import HTTPException
