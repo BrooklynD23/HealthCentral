@@ -1466,7 +1466,7 @@ Links to: `docs/agentic/recurring-failures.md`, `docs/capstone-report/owner-deci
 
 Owner answer to SAFETY-MODE-BEHAVIOUR (prompt 51, multi-select), verbatim from the owner-decisions row: **"Stricter checks"**, **"Always-on citations view"**, **"Verified-only data"**.…
 
-Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/research/2026-10-23-safety-mode-real/00-README.md`
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/research/2026-10-23-safety-mode-real/00-README.md`
 
 ## `docs/plans/2026-10-24-session-handoff.md`
 

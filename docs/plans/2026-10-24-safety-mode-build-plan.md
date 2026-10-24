@@ -1,6 +1,6 @@
 # Safety Mode build plan: the stricter-mode toggle (2026-10-24)
 
-**Last Updated:** 2026-10-24
+**Last Updated:** 2026-10-24 (SAFETY-MODE-STRICT may build beside parked draft #264, contracts §b rule 2)
 **Owner:** repository owner
 **Status:** PROPOSED (Opus L0 planner). Docs only. No owner approval is recorded here; the owner's answer it plans from is recorded in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md) row SAFETY-MODE-BEHAVIOUR (prompt 51).
 **Base measured:** `origin/main` @ `29dca22` (2026-10-24). Every `file:line` below was re-read on that tree; they match the [SAFETY-MODE-REAL research](../research/2026-10-23-safety-mode-real/00-README.md), which was read on `fe9581f`.
@@ -65,7 +65,7 @@ Total 30.5 h. The three backend rows can start now. The frontend rows wait for t
 
 ### SAFETY-MODE-STRICT
 
-**Kind:** PRODUCT (backend; safety thresholds). **Depends on:** SAFETY-MODE-SETTING. **Never beside:** B-3 (#264 touches `assistant.py`, `interpretations.py`, `rag.py`), RAG-TIMEOUT-ANSWER (#317), SAFETY-MODE-VERIFIED (`interpretations.py`). **Gate:** SAFETY-MODE-BEHAVIOUR answered "Stricter checks" (0.75 as the option stated). **Ask-first:** none edited. `faithfulness.py` and `verifier_agent.py` are read only and are constructed with different arguments.
+**Kind:** PRODUCT (backend; safety thresholds). **Depends on:** SAFETY-MODE-SETTING. **Never beside:** RAG-TIMEOUT-ANSWER (#317), SAFETY-MODE-VERIFIED (`interpretations.py`). B-3 (#264 touches `assistant.py`, `interpretations.py`, `rag.py`) is a parked draft waiting on B-4, so it holds no files ([contracts](2026-10-15-build-program/contracts.md) §b rule 2, R-5): this row may build beside it, and #264 rebases onto this row when B-3 resumes. **Gate:** SAFETY-MODE-BEHAVIOUR answered "Stricter checks" (0.75 as the option stated). **Ask-first:** none edited. `faithfulness.py` and `verifier_agent.py` are read only and are constructed with different arguments.
 
 **Design (research Option A).** When the setting is on, the chat legacy fallback and `interpret-grounded` use a RAG module built with `FaithfulnessConfig(min_overall_score=STRICT_MIN_SCORE)` **and** `VerificationConfig(min_faithfulness_score=STRICT_MIN_SCORE)`, where `STRICT_MIN_SCORE = 0.75` lives in `api/assistant.py` beside `get_rag_module`. Both configs are plain dataclass arguments (`faithfulness.py:55`, `verifier_agent.py:85`). OFF keeps today's module and its 0.6 objects.
 
