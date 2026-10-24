@@ -305,3 +305,64 @@ describe('DocumentInbox row actions on touch and keyboard', () => {
     expect(container).toContainElement(document.activeElement as HTMLElement);
   });
 });
+
+// IMPORT-SCANNED-PAGE: a page with no readable text is named on the last-import card.
+describe('DocumentInbox scanned-page notice', () => {
+  beforeEach(() => {
+    mutateAsync.mockReset();
+    useAuthStore.getState().setAuth({
+      token: 'test-token',
+      profileId: 'profile-123',
+      profileName: 'Test Profile',
+    });
+  });
+
+  const importResponse = (id: string, source: string, pagesWithoutText: number[]) => ({
+    document: {
+      id,
+      profile_id: 'profile-123',
+      doc_type: 'lab_pdf',
+      source,
+      status: 'parsed',
+      page_count: 3,
+      collection_date: '2026-07-01T00:00:00',
+      imported_at: '2026-07-13T10:00:00',
+      parsed_at: '2026-07-13T10:00:01',
+      verified_at: null,
+      extraction_confidence: 0.6,
+    },
+    observations_extracted: 4,
+    needs_verification: true,
+    duplicate_warning: null,
+    import_summary: null,
+    pages_without_text: pagesWithoutText,
+  });
+
+  it('HC-ISP-004: the last-import card names the pages whose values were not read', async () => {
+    const user = userEvent.setup();
+    mutateAsync
+      .mockResolvedValueOnce(importResponse('scan-one', 'one-scan.pdf', [2]))
+      .mockResolvedValueOnce(importResponse('scan-two', 'two-scan.pdf', [2, 3]))
+      .mockResolvedValueOnce(importResponse('text-only', 'text.pdf', []));
+    render(<BrowserRouter><DocumentInbox /></BrowserRouter>);
+    const input = screen.getByLabelText(/upload medical documents/i);
+
+    await user.upload(input, new File(['%PDF-1.4 a'], 'one-scan.pdf', { type: 'application/pdf' }));
+    const single = await screen.findByText(
+      'Page 2 has no readable text, so its values were not read. Check the original report.'
+    );
+    expect(single).toHaveAttribute('role', 'status');
+
+    await user.upload(input, new File(['%PDF-1.4 b'], 'two-scan.pdf', { type: 'application/pdf' }));
+    const plural = await screen.findByText(
+      'Pages 2 and 3 have no readable text, so their values were not read. Check the original report.'
+    );
+    expect(plural).toHaveAttribute('role', 'status');
+
+    await user.upload(input, new File(['%PDF-1.4 c'], 'text.pdf', { type: 'application/pdf' }));
+    await waitFor(() => {
+      expect(screen.getByText(/document imported: text\.pdf/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/no readable text/i)).not.toBeInTheDocument();
+  });
+});
