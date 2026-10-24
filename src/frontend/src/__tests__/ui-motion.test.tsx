@@ -52,6 +52,9 @@ const PACKAGE_JSON = resolve(__dirname, '../..', 'package.json');
 
 // `import { motion, ... } from 'framer-motion'` (single or multi-line).
 const MOTION_IMPORT = /import\s*(?:type\s*)?\{[^}]*\bmotion\b[^}]*\}\s*from\s*['"]framer-motion['"]/;
+// A namespace import, e.g. `import * as FM from 'framer-motion'`. It is flagged
+// because this audit cannot follow `FM.motion`; use named imports instead.
+const NAMESPACE_IMPORT = /import\s+\*\s+as\s+\w+\s+from\s*['"]framer-motion['"]/;
 // A `motion` element in JSX, e.g. <motion.div ...>.
 const MOTION_JSX = /<motion\./;
 
@@ -70,7 +73,7 @@ describe('UI-MOTION source audit', () => {
       .filter((file) => file !== SELF && !file.startsWith(motionDir))
       .filter((file) => {
         const text = readFileSync(file, 'utf8');
-        return MOTION_IMPORT.test(text) || MOTION_JSX.test(text);
+        return MOTION_IMPORT.test(text) || NAMESPACE_IMPORT.test(text) || MOTION_JSX.test(text);
       })
       .map((file) => relative(SRC_DIR, file));
 
@@ -156,6 +159,10 @@ const ROUTE_PATHS = [
   '/settings',
 ];
 
+// What the route block proves: the strict provider is live, and every route
+// renders under it with empty fixtures. Empty lists never reach `m.*` elements
+// that sit behind data branches, so those are not exercised here. HC-UIMO-001
+// (the source audit above) is the complete guard against a leftover `motion.*`.
 describe('UI-MOTION every route under LazyMotion strict', () => {
   beforeEach(() => {
     useAuthStore.getState().setAuth({
