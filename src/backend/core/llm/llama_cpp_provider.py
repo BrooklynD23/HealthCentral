@@ -79,6 +79,7 @@ class LlamaCppProvider:
         self._n_gpu_layers = n_gpu_layers
         self._model = None
         self._initialized = False
+        self._closed = False  # set by unload(); a closed provider never reloads
         self._settings = settings
         # LLAMA-SERIAL. The native model is not thread-safe, and a timed-out
         # generation keeps running in its executor thread.
@@ -139,6 +140,8 @@ class LlamaCppProvider:
         try:
             if self._initialized:
                 return self._model is not None
+            if self._closed:
+                return False
 
             self._initialized = True
             model_path = self._find_model_path()
@@ -386,6 +389,7 @@ class LlamaCppProvider:
         # load (init lock): the model must not be freed under either, nor land
         # after unload returned. Lock order: model lock -> init lock.
         with self._model_lock, self._init_lock:
+            self._closed = True
             if self._model is not None:
                 del self._model
                 self._model = None

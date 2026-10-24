@@ -79,9 +79,11 @@ def get_provider(force_new: bool = False):
 def reset_provider() -> None:
     """Unload and discard the cached provider (for testing / hot-reload)."""
     global _active_provider
-    if _active_provider is not None:
+    # Detach first: unload() can wait on a running generation, and new
+    # requests must not get the old instance while it does.
+    old, _active_provider = _active_provider, None
+    if old is not None:
         try:
-            _active_provider.unload()
+            old.unload()
         except Exception:
             pass
-        _active_provider = None
