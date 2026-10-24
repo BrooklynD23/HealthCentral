@@ -61,11 +61,14 @@ def providers(monkeypatch):
     monkeypatch.setattr(s, "llm_provider", s.llm_provider)
     monkeypatch.setattr(s, "llm_model", s.llm_model)
     monkeypatch.setattr(factory, "_active_provider", first)
-    monkeypatch.setattr(
-        factory,
-        "get_provider",
-        lambda: factory._active_provider or second,
-    )
+
+    def fake_get_provider():
+        # Like the real factory: build once, then cache in the global.
+        if factory._active_provider is None:
+            factory._active_provider = second
+        return factory._active_provider
+
+    monkeypatch.setattr(factory, "get_provider", fake_get_provider)
     return first, second
 
 
@@ -99,7 +102,7 @@ def test_hc_lul_001_get_answers_while_provider_switch_unloads(providers):
 
 
 def test_hc_lul_002_switch_completes_and_replaces_provider(providers):
-    first, _ = providers
+    first, second = providers
     result: dict = {}
     with route_client(model_settings.router, "/settings/model") as client:
         t = _put_in_thread(client, result)
@@ -111,4 +114,4 @@ def test_hc_lul_002_switch_completes_and_replaces_provider(providers):
     assert result["resp"].status_code == 200
     assert result["resp"].json()["llm_provider"] == "llama_cpp"
     assert first.unload_calls == 1
-    assert factory._active_provider is not first
+    assert factory._active_provider is second
