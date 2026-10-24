@@ -180,6 +180,9 @@ def test_hc_lul_003_old_provider_never_reloads_after_a_switch(monkeypatch, tmp_p
         deadline = time.monotonic() + 2
         while factory._active_provider is old and time.monotonic() < deadline:
             time.sleep(0.01)
+        # Detach-first: while unload() still waits, the factory must already
+        # have dropped the old instance.
+        assert factory._active_provider is not old, "old provider still cached during unload"
         threads.append(run(lambda: old.generate(msgs, cfg)))  # queued on OLD
         time.sleep(0.2)  # let it reach the model lock
     finally:
