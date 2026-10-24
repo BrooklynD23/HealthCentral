@@ -10,9 +10,8 @@ Create Date: 2026-10-24
 
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 revision: str = "016_strict_safety_mode"
 down_revision: Union[str, None] = "015_data_donation"
