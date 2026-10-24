@@ -36,6 +36,15 @@ import { ExtractionConfidenceBadge } from '@/components/documents/ExtractionConf
 // CategoryBadge + EntityDetailView available in @/components/documents/
 // Wire into document detail view when it's built (no detail page exists yet)
 
+// IMPORT-SCANNED-PAGE: the values on these pages were not read; say which ones.
+function pagesWithoutTextNotice(pages: number[]): string {
+  if (pages.length === 1) {
+    return `Page ${pages[0]} has no readable text, so its values were not read. Check the original report.`;
+  }
+  const head = pages.slice(0, -1).join(', ');
+  return `Pages ${head} and ${pages[pages.length - 1]} have no readable text, so their values were not read. Check the original report.`;
+}
+
 export function DocumentInbox() {
   const prefersReducedMotion = useReducedMotion();
   const navigate = useNavigate();
@@ -295,6 +304,11 @@ export function DocumentInbox() {
                   Imported {lastImport.import_summary.observations_imported} lab results and{' '}
                   {lastImport.import_summary.entities_imported} record mentions — all pending your
                   verification
+                </p>
+              )}
+              {(lastImport.pages_without_text?.length ?? 0) > 0 && (
+                <p role="status" className="text-sm font-medium text-ink">
+                  {pagesWithoutTextNotice(lastImport.pages_without_text ?? [])}
                 </p>
               )}
             </div>
