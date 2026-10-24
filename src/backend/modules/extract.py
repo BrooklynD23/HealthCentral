@@ -280,19 +280,34 @@ class ExtractModule:
         if not analyte:
             return None
 
-        # Get value
+        # Get value: the whole cell must parse. A comparator (<, >, <=, >=) is a
+        # bound, never an exact number; anything that does not fully match stays text.
         value_text = get_cell(value_col) if value_col >= 0 else ""
         value = None
+        cell_flag = None
         if value_text:
-            match = self.VALUE_PATTERN.search(value_text)
-            if match:
-                try:
-                    value = float(match.group(1))
-                except ValueError:
-                    logger.warning(
-                        "Failed to parse observation value",
-                        extra={"analyte": analyte, "raw_value": value_text, "page": page_num},
-                    )
+            _num = r"(?P<num>[1-9]\d{0,2}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)"
+            _flg = r"(?P<flag>\(?(?:HH|LL|H|L|A|HIGH|LOW|ABNORMAL|CRITICAL)\)?|\*)"
+            _cmp = r"(?P<cmp>[<>]=?|≤|≥)"
+            # Collapse whitespace runs first: adjacent \s* around optional groups
+            # backtrack cubically on a long space run. value_text stays raw.
+            cell = " ".join(value_text.split())
+            cell_match = re.fullmatch(
+                r"\s*" + _cmp + r"?\s*" + _num + r"\s*(?P<unit>" + _UNIT_ALT + r")?\s*" + _flg + r"?\s*",
+                cell,
+                re.IGNORECASE,
+            ) or re.fullmatch(
+                r"\s*" + _flg + r"\s*" + _cmp + r"?\s*" + _num + r"\s*(?P<unit>" + _UNIT_ALT + r")?\s*",
+                cell,
+                re.IGNORECASE,
+            )
+            if cell_match:
+                # A comparator makes it a bound, not an exact value: value stays None.
+                if not cell_match.group("cmp"):
+                    value = float(cell_match.group("num").replace(",", ""))
+                raw_flag = cell_match.group("flag")
+                if raw_flag:
+                    cell_flag = "A" if raw_flag == "*" else raw_flag.strip("()").upper()
 
         # Get unit
         unit = get_cell(unit_col) if unit_col >= 0 else None
@@ -319,6 +334,8 @@ class ExtractModule:
             flag_match = self.FLAG_PATTERN.search(flag_text)
             if flag_match:
                 flag = flag_match.group(1).upper()
+        if flag is None:
+            flag = cell_flag  # the flag column wins; the in-cell flag is the fallback
 
         # Calculate confidence
         confidence = 0.5

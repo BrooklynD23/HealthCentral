@@ -590,3 +590,217 @@ class TestMgPerLiterUnit:
         assert len(obs) == 1
         assert obs[0].value == 128.0
         assert obs[0].unit == "mg/dL"
+
+
+class TestTableCellFullParse:
+    """EXTRACT-TABLE-VALUE: a table result cell is parsed whole, not by its first digits."""
+
+    @staticmethod
+    def _row(cell, flag_cell="", unit_cell="", flag_col=-1):
+        row = ["Analyte", cell, unit_cell, "", flag_cell]
+        return ExtractModule()._parse_table_row(
+            row, name_col=0, value_col=1, unit_col=2 if unit_cell else -1,
+            range_col=-1, flag_col=4 if flag_col < 0 and flag_cell else flag_col, page_num=1,
+        )
+
+    def test_hc_etv_001_thousands_separator_is_one_number(self):
+        obs = self._row("1,234")
+        assert obs.value == 1234.0
+        assert obs.value_text is None
+
+    @pytest.mark.parametrize("cell", ["<0.5", ">90", "<=5"])
+    def test_hc_etv_002_comparator_is_never_an_exact_number(self, cell):
+        obs = self._row(cell)
+        assert obs.value is None
+        assert obs.value_text == cell
+
+    @pytest.mark.parametrize(
+        "cell,flag", [("5.9 H", "H"), ("(H) 5.9", "H"), ("5.9*", "A")]
+    )
+    def test_hc_etv_003_in_cell_flag_sets_flag(self, cell, flag):
+        obs = self._row(cell)
+        assert obs.value == 5.9
+        assert obs.flag == flag
+
+    def test_hc_etv_004_partial_match_is_text_not_a_number(self):
+        obs = self._row("12.5 (calc)")
+        assert obs.value is None
+        assert obs.value_text == "12.5 (calc)"
+
+    def test_hc_etv_005_flag_column_wins_over_in_cell_flag(self):
+        obs = self._row("105 L", flag_cell="H")
+        assert obs.value == 105.0
+        assert obs.flag == "H"
+
+    def test_hc_etv_006_value_with_unit_in_cell_still_parses(self):
+        obs = self._row("4.2 mg/L")
+        assert obs.value == 4.2
+
+    @pytest.mark.parametrize(
+        "cell",
+        [
+            pytest.param("(H) 5" + " " * 20000 + "x", id="flag5-spaces20000-x"),
+            pytest.param("5" + " " * 5000 + "x", id="5-spaces5000-x"),
+        ],
+    )
+    def test_hc_etv_008_long_whitespace_run_parses_in_linear_time(self, cell):
+        import time
+
+        start = time.perf_counter()
+        obs = self._row(cell)
+        elapsed = time.perf_counter() - start
+        assert obs.value is None
+        assert elapsed < 1.0, f"table-cell parse took {elapsed:.2f}s on a whitespace run"
+
+    @pytest.mark.parametrize("cell", ["0,123", "00,123", "0,123.4"])
+    def test_hc_etv_009_leading_zero_thousands_group_stays_text(self, cell):
+        """A decimal-comma 0,123 must not become the exact value 123.0."""
+        obs = self._row(cell)
+        assert obs.value is None
+        assert obs.value_text == cell
+
+    @pytest.mark.parametrize(
+        "cell,value", [("1,234", 1234.0), ("10,000", 10000.0), ("12,345.6", 12345.6)]
+    )
+    def test_hc_etv_009b_valid_thousands_groups_still_parse(self, cell, value):
+        assert self._row(cell).value == value
+
+    @pytest.mark.asyncio
+    async def test_hc_etv_007_ruled_grid_pdf_through_import(
+        self, monkeypatch, tmp_path
+    ):
+        """Ruled-grid PDF -> real pdfplumber table -> POST /documents/import -> stored rows."""
+        import hashlib
+        import io
+
+        from sqlalchemy import select
+        from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+
+        import modules
+        from api import documents as documents_api
+        from api.documents import router as documents_router
+        from core.auth import get_profile_db_session
+        from core.profile_database import ProfileDatabaseBase
+        from models import Observation
+        from modules.ingest import ImportResult
+        from tests.support.routes import route_client
+        from tests.test_documents_api import _CommitTrackingMasterDb
+
+        rows = [
+            ["Test", "Result", "Unit"],
+            ["Alpha", "1,234", ""],
+            ["Bravo", "<0.5", ""],
+            ["Charlie", "5.9 H", ""],
+            ["Delta", "4.2 mg/L", ""],
+        ]
+        col_x, row_h, top = [50, 200, 350, 450], 24, 740
+        ops = ["0.5 w"]
+        n_rows = len(rows)
+        for i in range(n_rows + 1):
+            y = top - i * row_h
+            ops.append(f"{col_x[0]} {y} m {col_x[-1]} {y} l S")
+        for x in col_x:
+            ops.append(f"{x} {top} m {x} {top - n_rows * row_h} l S")
+        ops += ["BT", "/F1 11 Tf"]
+        for r, row in enumerate(rows):
+            for c, text in enumerate(row):
+                if text:
+                    esc = text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+                    ops.append(f"1 0 0 1 {col_x[c] + 6} {top - r * row_h - 16} Tm ({esc}) Tj")
+        ops.append("ET")
+        stream = "\n".join(ops).encode("latin-1")
+        objs = [
+            b"<< /Type /Catalog /Pages 2 0 R >>",
+            b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+            b"/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+            b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream",
+            b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+        ]
+        out = io.BytesIO()
+        out.write(b"%PDF-1.4\n")
+        offsets = []
+        for number, body in enumerate(objs, start=1):
+            offsets.append(out.tell())
+            out.write(f"{number} 0 obj\n".encode() + body + b"\nendobj\n")
+        xref = out.tell()
+        out.write(f"xref\n0 {len(objs) + 1}\n0000000000 65535 f \n".encode())
+        out.write("".join(f"{o:010d} 00000 n \n" for o in offsets).encode())
+        out.write(
+            f"trailer\n<< /Size {len(objs) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()
+        )
+        pdf = out.getvalue()
+
+        stored: dict[str, bytes] = {}
+
+        class _PdfIngest:
+            def __init__(self, *_a, **_k):
+                pass
+
+            async def import_document(self, *, file, **_k):
+                data = file.read()
+                doc_id = str(uuid.uuid4())
+                stored[doc_id] = data
+                return ImportResult(
+                    document_id=doc_id,
+                    path_hash=hashlib.sha256(doc_id.encode()).hexdigest(),
+                    content_hash=hashlib.sha256(data).hexdigest(),
+                    doc_type="lab_pdf",
+                    page_count=1,
+                    is_duplicate=False,
+                    metadata={},
+                    encrypted=True,
+                )
+
+        async def _no_classify(**_k):
+            return None
+
+        monkeypatch.setattr(
+            type(documents_api.settings), "app_data_path", property(lambda self: tmp_path)
+        )
+        monkeypatch.setattr(documents_api, "get_profile_encryption_key", lambda _p: b"x" * 32)
+        monkeypatch.setattr(modules, "IngestModule", _PdfIngest)
+        monkeypatch.setattr(
+            documents_api, "get_decrypted_document", lambda _p, d: io.BytesIO(stored[d])
+        )
+        monkeypatch.setattr(documents_api, "_classify_and_extract_entities", _no_classify)
+
+        engine = create_async_engine("sqlite+aiosqlite://")
+        async with engine.begin() as conn:
+            await conn.run_sync(ProfileDatabaseBase.metadata.create_all)
+        session = AsyncSession(engine, expire_on_commit=False)
+        try:
+            with route_client(
+                documents_router, "/documents", profile_id="profile-a",
+                master_db=_CommitTrackingMasterDb(),
+            ) as client:
+
+                async def _override_profile_db():
+                    return session
+
+                client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+                resp = client.post(
+                    "/documents/import",
+                    files={"file": ("grid.pdf", pdf, "application/pdf")},
+                )
+            assert resp.status_code == 201, resp.text
+            obs = (await session.execute(select(Observation))).scalars().all()
+        finally:
+            await session.close()
+            await engine.dispose()
+
+        by_name = {o.analyte_raw: o for o in obs}
+        assert set(by_name) == {"Alpha", "Bravo", "Charlie", "Delta"}, sorted(by_name)
+        assert by_name["Alpha"].value == 1234.0
+        assert by_name["Alpha"].flag is None
+        assert by_name["Alpha"].is_abnormal is False
+        assert by_name["Bravo"].value is None
+        assert by_name["Bravo"].value_text == "<0.5"
+        assert by_name["Bravo"].flag is None
+        assert by_name["Bravo"].is_abnormal is False
+        assert by_name["Charlie"].value == 5.9
+        assert by_name["Charlie"].flag == "H"
+        assert by_name["Charlie"].is_abnormal is True
+        assert by_name["Delta"].value == 4.2
+        assert by_name["Delta"].flag is None
+        assert by_name["Delta"].is_abnormal is False
