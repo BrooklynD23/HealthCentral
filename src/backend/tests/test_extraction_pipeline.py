@@ -524,7 +524,7 @@ class TestExtractFormats:
         assert sorted(o.analyte_raw for o in result.observations) == ["Glucose", "TSH"]
 
     @pytest.mark.asyncio
-    async def test_hc_exf_006_no_text_fallback_when_tables_yield(self, extract_module, tmp_path):
+    async def test_hc_exf_006_no_duplicate_when_text_repeats_table(self, extract_module, tmp_path):
         page = MagicMock()
         page.extract_text.return_value = "Glucose: 95 mg/dL (70-100)\nCreatinine: 1.1 mg/dL (0.7-1.3)"
         page.extract_tables.return_value = [
@@ -534,11 +534,13 @@ class TestExtractFormats:
                 ["Creatinine", "1.1", "mg/dL", "0.7-1.3", ""],
             ]
         ]
-        with patch("pdfplumber.open", return_value=self._pdf(page)), \
-                patch.object(ExtractModule, "_extract_from_text") as text_parser:
+        with patch("pdfplumber.open", return_value=self._pdf(page)):
             result = await extract_module.extract_from_pdf(tmp_path / "b.pdf", "doc")
         assert len(result.observations) == 2
-        text_parser.assert_not_called()
+        assert sorted((o.analyte_raw, o.value, o.extraction_method) for o in result.observations) == [
+            ("Creatinine", 1.1, "pdf_table"),
+            ("Glucose", 95.0, "pdf_table"),
+        ]
 
     @pytest.mark.asyncio
     async def test_hc_exf_005b_no_tables_page_keeps_unitless_rows(self, extract_module, tmp_path):
@@ -804,3 +806,136 @@ class TestTableCellFullParse:
         assert by_name["Delta"].value == 4.2
         assert by_name["Delta"].flag is None
         assert by_name["Delta"].is_abnormal is False
+
+
+def _epm_pdf(grids, lines):
+    """Raw-bytes one-page PDF: ruled grids [(rows, top_y)] and free text lines [(y, text)]."""
+    import io
+
+    col_x, row_h = [50, 200, 350, 450], 24
+    ops = ["0.5 w", "BT", "/F1 11 Tf", "ET"]
+
+    def esc(s):
+        return s.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+    for rows, top in grids:
+        ncols = len(rows[0])
+        xs = col_x[: ncols + 1]
+        for i in range(len(rows) + 1):
+            y = top - i * row_h
+            ops.append(f"{xs[0]} {y} m {xs[-1]} {y} l S")
+        for x in xs:
+            ops.append(f"{x} {top} m {x} {top - len(rows) * row_h} l S")
+        ops.append("BT")
+        for r, row in enumerate(rows):
+            for c, text in enumerate(row):
+                if text:
+                    ops.append(f"1 0 0 1 {xs[c] + 6} {top - r * row_h - 16} Tm /F1 11 Tf ({esc(text)}) Tj")
+        ops.append("ET")
+    ops.append("BT")
+    for y, text in lines:
+        ops.append(f"1 0 0 1 50 {y} Tm /F1 11 Tf ({esc(text)}) Tj")
+    ops.append("ET")
+    stream = "\n".join(ops).encode("latin-1")
+    objs = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+        b"/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+        b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+    ]
+    out = io.BytesIO()
+    out.write(b"%PDF-1.4\n")
+    offsets = []
+    for number, body in enumerate(objs, start=1):
+        offsets.append(out.tell())
+        out.write(f"{number} 0 obj\n".encode() + body + b"\nendobj\n")
+    xref = out.tell()
+    out.write(f"xref\n0 {len(objs) + 1}\n0000000000 65535 f \n".encode())
+    out.write("".join(f"{o:010d} 00000 n \n" for o in offsets).encode())
+    out.write(f"trailer\n<< /Size {len(objs) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode())
+    return out.getvalue()
+
+
+_EPM_LAB_GRID = [
+    ["Test Name", "Result", "Units", "Reference Range"],
+    ["Glucose", "95", "mg/dL", "70-100"],
+    ["Creatinine", "1.1", "mg/dL", "0.7-1.3"],
+]
+
+
+class TestExtractPageMerge:
+    """EXTRACT-PAGE-MERGE: text pass outside yielding tables, real pdfplumber on raw PDF bytes."""
+
+    @staticmethod
+    async def _run(grids, lines):
+        import io
+
+        result = await ExtractModule().extract_from_pdf(io.BytesIO(_epm_pdf(grids, lines)), "doc")
+        return result.observations
+
+    @staticmethod
+    def _key(obs):
+        return sorted((o.analyte_raw, o.value, o.extraction_method) for o in obs)
+
+    @pytest.mark.asyncio
+    async def test_hc_epm_001_summary_box_does_not_hide_analyte_lines(self):
+        box = [["Summary", "Status"], ["Overall", "Normal"], ["Reviewed", "Yes"]]
+        lines = [
+            (600, "Glucose: 95 mg/dL (70-100)"),
+            (580, "HbA1c: 5.4 % (4.0-5.6)"),
+            (560, "Creatinine: 1.1 mg/dL (0.7-1.3)"),
+            (540, "TSH: 2.1 mIU/L (0.4-4.0)"),
+            (520, "Sodium: 140 mmol/L (135-145)"),
+            (500, "Potassium: 4.2 mmol/L (3.5-5.1)"),
+        ]
+        obs = await self._run([(box, 740)], lines)
+        from_text = [o for o in obs if o.extraction_method != "pdf_table"]
+        assert sorted(o.analyte_raw for o in from_text) == [
+            "Creatinine", "Glucose", "HbA1c", "Potassium", "Sodium", "TSH",
+        ]
+        assert {"Glucose", "HbA1c"} <= {o.analyte_raw for o in obs}
+
+    @pytest.mark.asyncio
+    async def test_hc_epm_002_ruled_lab_grid_unchanged_no_duplicates(self):
+        obs = await self._run([(_EPM_LAB_GRID, 740)], [])
+        assert self._key(obs) == [
+            ("Creatinine", 1.1, "pdf_table"),
+            ("Glucose", 95.0, "pdf_table"),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_hc_epm_003_grid_row_repeated_as_text_gives_one_observation(self):
+        obs = await self._run([(_EPM_LAB_GRID, 740)], [(600, "Glucose: 95 mg/dL (70-100)")])
+        assert self._key(obs) == [
+            ("Creatinine", 1.1, "pdf_table"),
+            ("Glucose", 95.0, "pdf_table"),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_hc_epm_004_identifier_lines_around_grid_stay_out(self):
+        lines = [
+            (770, "MRN: 00482913"),
+            (755, "Patient ID: 7731942"),
+            (600, "Age: 54"),
+            (585, "Collected: 01/15/2026 08:10"),
+            (570, "Page 1 of 2"),
+            (555, "Reference range: 70-99 mg/dL"),
+        ]
+        obs = await self._run([(_EPM_LAB_GRID, 740)], lines)
+        assert self._key(obs) == [
+            ("Creatinine", 1.1, "pdf_table"),
+            ("Glucose", 95.0, "pdf_table"),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_hc_epm_005_zero_yield_table_keeps_its_text_lines(self):
+        grid = [
+            ["Panel", "Result", "Unit"],
+            ["", "Glucose 95 mg/dL", ""],
+            ["", "Creatinine 1.1 mg/dL", ""],
+        ]
+        obs = await self._run([(grid, 740)], [])
+        assert sorted((o.analyte_raw, o.value) for o in obs) == [("Creatinine", 1.1), ("Glucose", 95.0)]
+        assert all(o.extraction_method != "pdf_table" for o in obs)
