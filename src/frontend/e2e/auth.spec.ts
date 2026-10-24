@@ -23,6 +23,14 @@ test.describe('Authentication Flow', () => {
     // Navigate to setup
     await page.goto('/setup');
 
+    // A profile may already exist on this backend; then the create form is
+    // behind a button.
+    const createNew = page.getByRole('button', { name: 'Create a new profile' });
+    // The form is not rendered while the profile list loads, so wait for
+    // whichever of the two appears.
+    await createNew.or(page.getByLabel('Profile Name')).waitFor();
+    if (await createNew.isVisible()) await createNew.click();
+
     // Fill in profile name
     await page.getByLabel('Profile Name').fill(profileName);
 
@@ -59,6 +67,14 @@ test.describe('Authentication Flow', () => {
 
   test('E2E-AUTH-002: Missing password blocks submit', async ({ page }) => {
     await page.goto('/setup');
+
+    // A profile may already exist on this backend; then the create form is
+    // behind a button.
+    const createNew = page.getByRole('button', { name: 'Create a new profile' });
+    // The form is not rendered while the profile list loads, so wait for
+    // whichever of the two appears.
+    await createNew.or(page.getByLabel('Profile Name')).waitFor();
+    if (await createNew.isVisible()) await createNew.click();
 
     // Fill only display name
     await page.getByLabel('Profile Name').fill('Test Profile');
