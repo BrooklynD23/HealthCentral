@@ -91,15 +91,15 @@ Under option (a) there is no certificate. What a stakeholder sees is below, with
 >
 > **Windows**
 > 1. Double-click the file. A blue box says "Windows protected your PC".
-> 2. Click **More info**.
+> 2. Click **More info**. [A: click path from Microsoft Q&A, not the SmartScreen page]
 > 3. Click **Run anyway**.
 > 4. If there is no "Run anyway" button, your PC is set to block unsigned apps. Stop and tell us. Do not turn the protection off.
 >
 > **Mac**
-> 1. Double-click the app. A message says it cannot be opened. Click **Done** (do not move it to the Trash).
+> 1. Double-click the app. A message says it cannot be opened. Click **Done** (do not move it to the Trash). [U: "Done" is not on Apple's page]
 > 2. Open **System Settings**, then **Privacy & Security**.
 > 3. Scroll down. Click **Open Anyway** next to the Asclexis message.
-> 4. Click **Open** in the new box. You may need your Mac password.
+> 4. Click **Open** in the new box. You may need your Mac password. [U: the password step is not on Apple's page]
 > 5. Next time, double-click as normal.
 >
 > **After it opens:** Asclexis runs on your computer, and it does not send your data anywhere unless you turn on the optional cloud model [U: wording pending an owner decision]. It is not medical advice.
