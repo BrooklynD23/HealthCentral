@@ -204,7 +204,8 @@ async function waitForMainContent(page: Page, route: Route): Promise<void> {
 }
 
 // globals.css collapses CSS animation/transition durations under this media query.
-test.use({ reducedMotion: 'reduce' });
+// (reducedMotion is a context option, not a test option, in Playwright 1.58.)
+test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
 for (const route of ROUTES) {
   test(`E2E-A11Y: ${route} has no unexpected critical/serious axe violations`, async ({
@@ -213,6 +214,10 @@ for (const route of ROUTES) {
   }) => {
     await openAuthenticatedPage(page, request, route);
     await waitForMainContent(page, route);
+    expect(
+      await page.evaluate(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches),
+      'reduced motion must be active for the scan'
+    ).toBe(true);
 
     const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
 
