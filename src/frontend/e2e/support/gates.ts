@@ -10,7 +10,7 @@
  * falls back to the PageTransition element (`main > div`); see its docs.
  */
 
-import type { Page } from '@playwright/test';
+import type { Page, Request } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
 export type Theme = 'light' | 'dark';
@@ -24,6 +24,12 @@ export const ROUTE_FADE_MS = 240;
 export const STILLNESS_WINDOW_MS = 800;
 /** G10: sampling interval (plan says 16-40 ms). */
 export const STILLNESS_SAMPLE_MS = 20;
+/** G10: no gap between samples may exceed this (the plan's upper sampling bound). */
+export const STILLNESS_MAX_GAP_MS = 40;
+/** G10 lazy route: network idle is this long with nothing in flight (Playwright's networkidle quiet period). */
+export const NETWORK_IDLE_MS = 500;
+/** G10 lazy route: give up waiting for network idle after this long. */
+const LAZY_IDLE_TIMEOUT_MS = 15_000;
 /** G10: bounding-rect tolerance in CSS pixels. */
 export const RECT_TOLERANCE_PX = 0.5;
 
@@ -143,30 +149,49 @@ export async function measureCls(
 
 /**
  * Largest Event Timing duration (ms, threshold 16) for the events `action`
- * causes, with the CPU throttled (default x4). Returns 0 when no event reached
- * the threshold. Chromium only (CDP).
+ * causes, with the CPU throttled (default x4). Events that started before
+ * `action` are not counted. Returns 0 when no event reached the threshold, so
+ * a fast click and a dead observer both return 0: a caller that needs to know
+ * the observer works must click something known to be slow (see HC-UIG-005).
+ * Chromium only (CDP).
  */
 export async function maxEventDuration(
   page: Page,
   action: () => Promise<void>,
   options: { cpuRate?: number; settleMs?: number } = {}
 ): Promise<number> {
+  type EventTiming = { start: number; duration: number };
   const session = await page.context().newCDPSession(page);
   await session.send('Emulation.setCPUThrottlingRate', { rate: options.cpuRate ?? 4 });
   try {
+    // The observer is buffered, so it also delivers entries from before the mark; the filter below drops them.
     await page.evaluate(() => {
-      const w = window as unknown as { __hcEventDurations?: number[] };
-      w.__hcEventDurations = [];
-      new PerformanceObserver((list) => {
-        for (const entry of list.getEntries()) w.__hcEventDurations?.push(entry.duration);
-      }).observe({ type: 'event', durationThreshold: 16, buffered: true } as PerformanceObserverInit);
+      const w = window as unknown as {
+        __hcEvents?: Array<{ start: number; duration: number }>;
+        __hcEventMark?: number;
+        __hcEventObserver?: PerformanceObserver;
+      };
+      w.__hcEvents = [];
+      w.__hcEventMark = performance.now();
+      w.__hcEventObserver?.disconnect();
+      w.__hcEventObserver = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) w.__hcEvents?.push({ start: entry.startTime, duration: entry.duration });
+      });
+      w.__hcEventObserver.observe({ type: 'event', durationThreshold: 16, buffered: true } as PerformanceObserverInit);
     });
     await action();
     await page.waitForTimeout(options.settleMs ?? 200);
-    const durations = await page.evaluate(
-      () => (window as unknown as { __hcEventDurations?: number[] }).__hcEventDurations ?? []
-    );
-    return durations.length > 0 ? Math.max(...durations) : 0;
+    const events: EventTiming[] = await page.evaluate(() => {
+      const w = window as unknown as {
+        __hcEvents?: Array<{ start: number; duration: number }>;
+        __hcEventMark?: number;
+        __hcEventObserver?: PerformanceObserver;
+      };
+      w.__hcEventObserver?.disconnect();
+      const mark = w.__hcEventMark ?? 0;
+      return (w.__hcEvents ?? []).filter((event) => event.start >= mark);
+    });
+    return events.length > 0 ? Math.max(...events.map((event) => event.duration)) : 0;
   } finally {
     await session.send('Emulation.setCPUThrottlingRate', { rate: 1 }).catch(() => undefined);
     await session.detach().catch(() => undefined);
@@ -383,14 +408,24 @@ export interface StillnessOptions {
   expected: string[];
   /** A navigation enables the route-fade rules; an interaction (including an overlay) has no fade window. Default `interaction`. */
   kind?: 'interaction' | 'navigation';
-  /** First visit to a lazy route: extend the window until network idle, then 800 ms more. */
+  /**
+   * A route that fetches its data after the trigger: the window starts only when no request is in flight and none
+   * has started or finished for NETWORK_IDLE_MS (counted from the trigger), then runs windowMs more.
+   */
   lazyRoute?: boolean;
   /** Window after the trigger. Default STILLNESS_WINDOW_MS (800). */
   windowMs?: number;
 }
 
 export interface StillnessReport {
+  /** Every sample, before and after the trigger. */
   samples: number;
+  /** Samples at or after the trigger; the probe needs at least windowMs / 40 of them. */
+  postTriggerSamples: number;
+  /** Largest gap in ms between consecutive samples at or after the trigger (must be <= 40). */
+  maxGapMs: number;
+  /** Trigger to the end of the window, in ms (longer on a lazy route). */
+  elapsedMs: number;
   /** [data-t0] nodes in the last sample */
   nodes: number;
   /** key of the route container in the last sample, if any */
@@ -622,6 +657,79 @@ async function waitUntil(predicate: () => boolean, timeoutMs: number, what: stri
   }
 }
 
+export interface SamplingCheck {
+  failures: string[];
+  /** Largest gap between consecutive samples at or after the trigger; the gap that spans the trigger counts. */
+  maxGapMs: number;
+  postTriggerSamples: number;
+}
+
+/**
+ * G10 sampling, checked on the sample times: at least windowMs / 40 samples at
+ * or after the trigger, and no gap over 40 ms. Pure, so the harness tests it on
+ * synthetic times. A probe whose sampler stalls or throws fails here instead of
+ * passing on the few samples it did take.
+ */
+export function checkSampling(
+  sampleTimes: number[],
+  triggeredAt: number,
+  windowMs: number,
+  lastError: unknown
+): SamplingCheck {
+  const failures: string[] = [];
+  let maxGapMs = 0;
+  let postTriggerSamples = 0;
+  sampleTimes.forEach((at, index) => {
+    if (at < triggeredAt) return;
+    postTriggerSamples++;
+    if (index > 0) maxGapMs = Math.max(maxGapMs, at - sampleTimes[index - 1]);
+  });
+  const minimum = Math.floor(windowMs / STILLNESS_MAX_GAP_MS);
+  if (postTriggerSamples < minimum) {
+    const detail = lastError === null ? '' : ` (last sampler error: ${String(lastError)})`;
+    failures.push(
+      `only ${postTriggerSamples} sample(s) after the trigger; the ${windowMs} ms window needs at least ${minimum} at one per ${STILLNESS_MAX_GAP_MS} ms${detail}`
+    );
+  }
+  if (maxGapMs > STILLNESS_MAX_GAP_MS) {
+    failures.push(`sampling gap of ${maxGapMs} ms (must be <= ${STILLNESS_MAX_GAP_MS} ms; G10 samples every 16-40 ms)`);
+  }
+  return { failures, maxGapMs, postTriggerSamples };
+}
+
+interface NetworkTracker {
+  /** Requests started and not yet finished or failed. */
+  readonly inFlight: Set<Request>;
+  /** Time (ms since epoch) of the last request start, finish or failure. */
+  lastEventAt: number;
+  stop(): void;
+}
+
+/** Long-lived streams never go idle, so they do not count toward network idle. */
+const STREAMING_TYPES = new Set(['eventsource', 'websocket']);
+
+function trackRequests(page: Page): NetworkTracker {
+  const inFlight = new Set<Request>();
+  const tracker: NetworkTracker = { inFlight, lastEventAt: Date.now(), stop: () => undefined };
+  const started = (request: Request) => {
+    tracker.lastEventAt = Date.now();
+    if (!STREAMING_TYPES.has(request.resourceType())) inFlight.add(request);
+  };
+  const ended = (request: Request) => {
+    tracker.lastEventAt = Date.now();
+    inFlight.delete(request);
+  };
+  page.on('request', started);
+  page.on('requestfinished', ended);
+  page.on('requestfailed', ended);
+  tracker.stop = () => {
+    page.off('request', started);
+    page.off('requestfinished', ended);
+    page.off('requestfailed', ended);
+  };
+  return tracker;
+}
+
 /**
  * Samples every STILLNESS_SAMPLE_MS while `trigger` runs and for the window
  * after it, then throws a StillnessError listing every failure. Resolves with
@@ -633,6 +741,8 @@ export async function stillnessProbe(page: Page, options: StillnessOptions): Pro
   const snaps: Snap[] = [];
   let lastError: unknown = null;
   let running = true;
+  let triggeredAt = 0;
+  let elapsedMs = 0;
 
   const sampler = (async () => {
     while (running) {
@@ -648,14 +758,27 @@ export async function stillnessProbe(page: Page, options: StillnessOptions): Pro
 
   try {
     await waitUntil(() => snaps.length > 0, 10_000, 'the first stillness sample');
-    const triggeredAt = Date.now();
-    await options.trigger();
-    if (options.lazyRoute) {
-      await page.waitForLoadState('networkidle').catch(() => undefined);
+    const network = options.lazyRoute ? trackRequests(page) : null;
+    triggeredAt = Date.now();
+    let windowStart = triggeredAt;
+    try {
+      await options.trigger();
+      if (network) {
+        // A request the trigger starts can begin a few ms later, so the quiet period runs from the trigger.
+        // waitForLoadState('networkidle') is not used: it returns at once on a page that was already idle.
+        await waitUntil(
+          () => network.inFlight.size === 0 && Date.now() - network.lastEventAt >= NETWORK_IDLE_MS,
+          LAZY_IDLE_TIMEOUT_MS,
+          'the lazy route to go network idle'
+        );
+        windowStart = Date.now();
+      }
+    } finally {
+      network?.stop();
     }
-    const windowStart = options.lazyRoute ? Date.now() : triggeredAt;
     const end = windowStart + windowMs;
     while (Date.now() < end) await sleep(10);
+    elapsedMs = Date.now() - triggeredAt;
   } finally {
     running = false;
     await sampler;
@@ -664,10 +787,23 @@ export async function stillnessProbe(page: Page, options: StillnessOptions): Pro
   if (snaps.length === 0) {
     throw new StillnessError(`stillnessProbe took no sample: ${String(lastError)}`);
   }
-  const failures = analyse(snaps, kind, options.expected);
+  const sampling = checkSampling(
+    snaps.map((snap) => snap.t),
+    triggeredAt,
+    windowMs,
+    lastError
+  );
+  const failures = [...sampling.failures, ...analyse(snaps, kind, options.expected)];
   if (failures.length > 0) {
     throw new StillnessError(`stillnessProbe failed (${failures.length}):\n  - ${failures.join('\n  - ')}`);
   }
   const last = snaps[snaps.length - 1];
-  return { samples: snaps.length, nodes: last.nodes.length, routeKey: last.route?.key ?? null };
+  return {
+    samples: snaps.length,
+    postTriggerSamples: sampling.postTriggerSamples,
+    maxGapMs: sampling.maxGapMs,
+    elapsedMs,
+    nodes: last.nodes.length,
+    routeKey: last.route?.key ?? null,
+  };
 }
