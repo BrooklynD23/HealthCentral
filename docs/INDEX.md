@@ -52,6 +52,8 @@ Links to: `docs/api/endpoints.md`
 
 - Reduce confusion and anxiety via clarity, provenance, and conservative language - Make “verify and correct” the default for extracted values - Optimize for older patients and non-medical users:…
 
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`
+
 ## `docs/03_data_confidentiality_pipeline_plan.md`
 
 **Data + Confidentiality Pipeline Plan (Draft v0 — pending PM approval)**
@@ -662,7 +664,7 @@ Links to: `audit/2026-09-25/handoff-2026-09-28-execution-orchestrator.md`, `audi
 
 1. **Governance edits are now approved:** amend `CLAUDE.md` (D3: CSV/JSON as named exceptions; D12: the external runner as a named ModelRunner exception) and `docs/compliance/data-privacy.md` (D3,…
 
-Links to: `docs/capstone-report/README.md`, `docs/capstone-report/implementation-program.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md`
+Links to: `docs/capstone-report/README.md`, `docs/capstone-report/implementation-program.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/framing.md`, `docs/research/2026-10-23-frontend-revamp/owner-direction.md`
 
 ## `docs/capstone-report/report-outline.md`
 
@@ -1336,7 +1338,7 @@ Links to: `audit/2026-09-25/waves/scaffold/G-C2.md`, `audit/2026-09-25/waves/sca
 
 Rules: contracts.md §b (shared files), §c (migrations), §d (count slots). Path shorthand: `be/` = `src/backend/`, `fe/` = `src/frontend/src/`; "slots" = the `CLAUDE.md` / `AGENT.md` collected-count…
 
-Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`, `docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`, `docs/plans/2026-10-18-session-handoff.md`, `docs/plans/2026-10-20c-session-handoff.md`, `docs/plans/2026-10-21-session-handoff.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`, `docs/research/2026-10-22-fit-decoder/00-README.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`
+Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`, `docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`, `docs/plans/2026-10-18-session-handoff.md`, `docs/plans/2026-10-20c-session-handoff.md`, `docs/plans/2026-10-21-session-handoff.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`, `docs/research/2026-10-22-fit-decoder/00-README.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`
 
 ## `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`
 
@@ -1449,6 +1451,14 @@ Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026
 Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-21c handoff. This session ran as the **GPU-box** L0 (RTX 3080, WSL, Ollama 0.40.5 with gemma4:e4b,…
 
 Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/rsi-runs/README.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-21c-session-handoff.md`
+
+## `docs/plans/2026-10-23-frontend-revamp-plan.md`
+
+**Frontend revamp 2026-10-23 — merged plan: Ink & Paper on a Motion Gradient**
+
+Queue rows: queue.md, "Planned 2026-10-23, frontend revamp". Rules: RUNBOOK, contracts §b-§d. Path shorthand as in the queue: `fe/` = `src/frontend/src/`, `e2e/` = `src/frontend/e2e/`, `be/` =…
+
+Links to: `docs/agentic/recurring-failures.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/comparison.md`, `docs/research/2026-10-23-frontend-revamp/owner-direction.md`, `docs/research/2026-10-23-frontend-revamp/proposal-A.md`, `docs/research/2026-10-23-frontend-revamp/proposal-B.md`, `docs/research/2026-10-23-frontend-revamp/proto-A.patch`, `docs/research/2026-10-23-frontend-revamp/proto-B.patch`
 
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
@@ -1889,6 +1899,102 @@ Links to: `docs/plans/2026-10-01-packaging-decision.md`, `docs/plans/2026-10-15-
 **RapidOCR premises: licence, offline behaviour, size, accuracy (RAPIDOCR-RESEARCH)**
 
 Owner answer OCR-FOR-MVP (b) "Bundle RapidOCR" rested on four premises.
+
+## `docs/research/2026-10-23-frontend-revamp/00-README.md`
+
+**Frontend revamp research package (2026-10-23)**
+
+The owner asked for a complete, ambitious update of the frontend, "engaging, modern, active like how SaaS has smooth UI/UX experiences", researched against current component, motion and scroll…
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/research/2026-10-23-frontend-revamp/COMPONENT_AUDIT.md`, `docs/research/2026-10-23-frontend-revamp/comparison.md`, `docs/research/2026-10-23-frontend-revamp/framing.md`, `docs/research/2026-10-23-frontend-revamp/owner-direction.md`, `docs/research/2026-10-23-frontend-revamp/proposal-A.md`, `docs/research/2026-10-23-frontend-revamp/proposal-B.md`, `docs/research/2026-10-23-frontend-revamp/proto-A.patch`, `docs/research/2026-10-23-frontend-revamp/proto-B.patch`, `docs/research/2026-10-23-frontend-revamp/research-components.md`, `docs/research/2026-10-23-frontend-revamp/research-motion.md`, `docs/research/2026-10-23-frontend-revamp/research-scroll-3d.md`, `docs/research/2026-10-23-frontend-revamp/research-skills.md`, `docs/research/2026-10-23-frontend-revamp/ui-review.md`
+
+## `docs/research/2026-10-23-frontend-revamp/COMPONENT_AUDIT.md`
+
+**Asclexis frontend: component, motion and token audit**
+
+Scope: `src/frontend/src/components/**`, `src/frontend/src/pages/**`, `src/App.tsx`, `src/styles/globals.css`, `src/hooks/useReducedMotion.ts`. Snapshot: branch `main`, HEAD `7749744`. Read-only…
+
+Links to: `docs/research/2026-10-23-frontend-revamp/00-README.md`
+
+## `docs/research/2026-10-23-frontend-revamp/comparison.md`
+
+**Proposal A vs proposal B: what the merged plan takes from each**
+
+Two Opus 5.5 designers worked independently on 2026-10-23, from the same inputs and without seeing each other's work: proposal A "Ink & Paper" and proposal B "Quiet Instrument". Both built a…
+
+Links to: `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/research/2026-10-23-frontend-revamp/proposal-A.md`, `docs/research/2026-10-23-frontend-revamp/proposal-B.md`, `docs/research/2026-10-23-frontend-revamp/proto-A.patch`, `docs/research/2026-10-23-frontend-revamp/proto-B.patch`, `docs/research/2026-10-23-frontend-revamp/shots/A-mobile-more-sheet-light-390.png`, `docs/research/2026-10-23-frontend-revamp/shots/A-results-light-390.png`, `docs/research/2026-10-23-frontend-revamp/shots/A-source-sheet-light-1440.png`, `docs/research/2026-10-23-frontend-revamp/shots/B-results-1440-dark.png`, `docs/research/2026-10-23-frontend-revamp/shots/B-results-1440-light-peek-open.png`, `docs/research/2026-10-23-frontend-revamp/shots/B-results-390-light.png`, `docs/research/2026-10-23-frontend-revamp/shots/before-trends-1440.png`, `docs/research/2026-10-23-frontend-revamp/shots/before-trends-390.png`
+
+## `docs/research/2026-10-23-frontend-revamp/framing.md`
+
+**How Asclexis frames itself**
+
+Repo: `/mnt/e/Programming/Github Repo/HealthCentral` at `main` 7749744 (clean tree), read 2026-10-23. Searched CLAUDE.md, AGENT.md, README.md, `docs/capstone-report/**` and wider `docs/**` for…
+
+Links to: `docs/research/2026-10-23-frontend-revamp/00-README.md`
+
+## `docs/research/2026-10-23-frontend-revamp/owner-direction.md`
+
+**Owner direction for the frontend revamp (2026-10-23, verbatim)**
+
+The owner's message, verbatim:
+
+Links to: `docs/research/2026-10-23-frontend-revamp/00-README.md`
+
+## `docs/research/2026-10-23-frontend-revamp/proposal-A.md`
+
+**Asclexis frontend revamp: proposal A ("Ink & Paper")**
+
+Designer A, 2026-10-23. Repo `main` @ 7749744. Nothing in the repo was edited. The prototype lives in `proto-A.patch` in this folder (a diff against `src/frontend` at `7749744`; it ran on port…
+
+Links to: `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/proto-A.patch`
+
+## `docs/research/2026-10-23-frontend-revamp/proposal-B.md`
+
+**Proposal B: "Quiet Instrument", a frontend revamp for Asclexis**
+
+Author: Designer B (Opus 5.5). Date: 2026-10-23. Base: `main` @ 7749744. I read nothing written by Designer A. Inputs: `owner-direction.md`, `framing.md`, `ui-review.md`, `COMPONENT_AUDIT.md`,…
+
+Links to: `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/proto-B.patch`
+
+## `docs/research/2026-10-23-frontend-revamp/research-components.md`
+
+**UI component sources: research for a local-first health app revamp**
+
+Date of research: 2026-10-23. Stack: React 18.2, Vite 7, Tailwind v4, framer-motion 10, Radix primitives, lucide. Constraints: no runtime CDN/remote fonts/telemetry; WCAG 2.2 AA;…
+
+Links to: `docs/research/2026-10-23-frontend-revamp/00-README.md`
+
+## `docs/research/2026-10-23-frontend-revamp/research-motion.md`
+
+**Motion library research for the HealthCentral frontend (2026-10-23)**
+
+Scope: research only, no repo edits. Versions and licences from `npm view` (run 2026-10-23). Every fact cites a URL; anything not reachable is marked **not verified**.
+
+Links to: `docs/research/2026-10-23-frontend-revamp/00-README.md`
+
+## `docs/research/2026-10-23-frontend-revamp/research-scroll-3d.md`
+
+**Scroll and 3D/GPU options for the HealthCentral frontend (research, 2026-10-23)**
+
+Scope: research only, no repo edits. npm data from `npm view` / `npm pack` run on 2026-10-23. Items marked "not verified" could not be confirmed from a primary source in this pass.
+
+Links to: `docs/research/2026-10-23-frontend-revamp/00-README.md`
+
+## `docs/research/2026-10-23-frontend-revamp/research-skills.md`
+
+**Research: three Claude Code design skills (checked 2026-10-23)**
+
+Downloads (untrusted, not executed): `ui/skills-download/` in the L0 scratch directory (third-party skill text; deliberately not committed) - impeccable/, emil-kowalski/, awwwards-sandrohub/,…
+
+Links to: `docs/research/2026-10-23-frontend-revamp/00-README.md`
+
+## `docs/research/2026-10-23-frontend-revamp/ui-review.md`
+
+**Asclexis UI review (current state, 2026-10-23)**
+
+These notes read the app twice: once as an Awwwards juror would, and once as a SaaS product manager. Every claim points at a screenshot in `shots/`, a measurement in `capture-metrics.json`,…
+
+Links to: `docs/research/2026-10-23-frontend-revamp/00-README.md`
 
 ## `docs/reviews/2026-09-25/DDI-r1-prompt.md`
 
