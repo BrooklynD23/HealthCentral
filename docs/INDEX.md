@@ -1988,6 +1988,14 @@ These notes read the app twice: once as an Awwwards juror would, and once as a S
 
 Links to: `docs/research/2026-10-23-frontend-revamp/00-README.md`
 
+## `docs/research/2026-10-23-safety-mode-real/00-README.md`
+
+**Safety Mode research: what can the top-bar toggle really do (2026-10-23)**
+
+Owner answer **UI-SAFETY-TOGGLE = "Make it real"** (owner-decisions-2026-09-27.md, line 410) keeps a toggle and wires it to real behaviour. The plan (frontend revamp plan section 7.2, row…
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`
+
 ## `docs/reviews/2026-09-25/DDI-r1-prompt.md`
 
 **(untitled)**
