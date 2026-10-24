@@ -1,8 +1,50 @@
 /**
- * UI full verification — real PDF on disk (local opt-in project).
+ * UI full verification — PDF import + inbox review (local opt-in project).
  *
- * Set HC_E2E_REAL_PDF to an absolute path, or rely on the Windows default below.
- * When the file is missing, the suite skips (CI-friendly).
+ * Fixture: e2e/fixtures/synthetic-lab.pdf is a one-page, obviously fictional
+ * text-lab PDF (no real data). It is regenerated with this stdlib-only script,
+ * run from src/frontend. The binary marker comment (%\xe2\xe3\xcf\xd3) keeps git
+ * from treating it as text, so .gitattributes "* text=auto" cannot rewrite line
+ * endings and break the xref byte offsets.
+ *
+ *   import zlib
+ *   lines = [
+ *       "SYNTHETIC TEST REPORT - NOT REAL DATA",
+ *       "Patient: Test Patient",
+ *       "Collection Date: 01/15/2024",
+ *       "Glucose 95 mg/dL 70-99",
+ *       "Hemoglobin 14.2 g/dL 13.5-17.5",
+ *   ]
+ *   ops = ["BT", "/F1 12 Tf", "14 TL", "72 720 Td"]
+ *   for ln in lines:
+ *       ops.append("(%s) Tj T*" % ln)
+ *   ops.append("ET")
+ *   stream = zlib.compress("\n".join(ops).encode("ascii"))
+ *   objs = [
+ *       b"<< /Type /Catalog /Pages 2 0 R >>",
+ *       b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+ *       b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+ *       b"<< /Length %d /Filter /FlateDecode >>\nstream\n" % len(stream) + stream + b"\nendstream",
+ *       b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+ *   ]
+ *   out = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+ *   offs = []
+ *   for i, o in enumerate(objs, 1):
+ *       offs.append(len(out))
+ *       out += b"%d 0 obj\n" % i + o + b"\nendobj\n"
+ *   xref = len(out)
+ *   out += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objs) + 1)
+ *   for o in offs:
+ *       out += b"%010d 00000 n \n" % o
+ *   out += b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objs) + 1, xref)
+ *   open("e2e/fixtures/synthetic-lab.pdf", "wb").write(out)
+ *
+ * Where things run:
+ *   - ui-routes-verification.spec.ts (sidebar, Explain, Settings): project
+ *     "chromium", every run, including CI.
+ *   - This file: project "real-pdf-local" only (chromium has testIgnore for it).
+ *     HC_E2E_REAL_PDF (or the Windows default path) overrides the PDF; when
+ *     neither exists the synthetic fixture is used instead of skipping.
  *
  * Run: npx playwright test --config playwright.config.ts --project real-pdf-local
  */
