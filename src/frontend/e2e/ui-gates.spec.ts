@@ -128,7 +128,7 @@ test('HC-UIG-001 noHorizontalScroll fails a 600 px block at 390 and passes a fit
 // ---------------------------------------------------------------------------
 // HC-UIG-002: axeGate on /inbox reports color-contrast (test.fail until UI-TOKENS).
 // ---------------------------------------------------------------------------
-test('HC-UIG-002 pre: /inbox renders under the mock API with no unmocked call', async ({ page }) => {
+test('HC-UIG-002 pre: /inbox renders under the mock API, and axe returns rule ids', async ({ page }) => {
   const { mock, guard } = await openInbox(page);
   await page.waitForLoadState('networkidle');
 
@@ -136,6 +136,11 @@ test('HC-UIG-002 pre: /inbox renders under the mock API with no unmocked call', 
   expect(mock.served.length, 'the mock must answer the inbox API calls').toBeGreaterThan(0);
   expect(mock.unmocked, 'no /api/v1 call may reach the backend').toEqual([]);
   expect(() => guard.assertClean(), 'console and network must be clean on /inbox').not.toThrow();
+
+  // The guard for the test.fail() below: if axe itself throws, that test would pass for the wrong reason.
+  const result = await axeGate(page);
+  console.log(`HC-UIG-002 pre axe rule ids: ${JSON.stringify(result.ruleIds)}`);
+  expect(Array.isArray(result.ruleIds), 'axeGate must return a list of rule ids').toBe(true);
 });
 
 test.fail(
@@ -227,7 +232,7 @@ test('HC-UIG-004 consoleAndNetworkGuard fails a page that requests https://examp
 }) => {
   await page.route('https://example.com/**', (route) => route.abort());
   await page.route('http://localhost/pixel.png', (route) =>
-    route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.alloc(0) })
+    route.fulfill({ status: 200, contentType: 'image/png', body: '' })
   );
   const guard = consoleAndNetworkGuard(page);
 
@@ -406,6 +411,22 @@ const FAIL_FIXTURES: Array<{
     reason: /effective opacity 0\.\d+ \(must be 1\)/,
   },
   {
+    id: '(h2)',
+    title: 'the route container re-fades inside the 240 ms window, after it had settled',
+    html: fixtureHtml(
+      NAV_BODY,
+      `${NAV_SWAP_SCRIPT}
+       window.__start = function () {
+         var m = window.__swap('<p data-t0 id="t">Route B</p>');
+         m.animate([{opacity:.35},{opacity:1}], {duration:120, fill:'both'});
+         m.animate([{opacity:1},{opacity:.5},{opacity:1}], {duration:120, delay:150});
+       };`
+    ),
+    kind: 'navigation',
+    expected: ['[data-t0]'],
+    reason: /route container opacity changed after settling/,
+  },
+  {
     id: '(i)',
     title: 'count-up at fixed width (tabular-nums)',
     html: fixtureHtml(
@@ -483,6 +504,22 @@ const FAIL_FIXTURES: Array<{
     reason: /sampling gap of \d+ ms/,
     minimum: { pattern: /sampling gap of (\d+) ms/, min: 100 },
   },
+  {
+    id: '(o)',
+    title: 'a Safety Rail outside the route container fades with its wrapper during the route swap',
+    html: fixtureHtml(
+      '<div id="shell"><aside data-t0 data-safety-rail id="rail">Safety Rail</aside></div>' + NAV_BODY,
+      `${NAV_SWAP_SCRIPT}
+       window.__start = function () {
+         var m = window.__swap('<p data-t0 id="t">Route B</p>');
+         m.animate([{opacity:.35},{opacity:1}], {duration:200, fill:'both'});
+         document.getElementById('shell').animate([{opacity:.6},{opacity:1}], {duration:200, fill:'both'});
+       };`
+    ),
+    kind: 'navigation',
+    expected: ['[data-safety-rail]'],
+    reason: /effective opacity 0\.\d+ must be 1 on \[data-t0\] aside "Safety Rail".*outside the route container/,
+  },
 ];
 
 for (const fixture of FAIL_FIXTURES) {
@@ -509,14 +546,18 @@ for (const fixture of FAIL_FIXTURES) {
   });
 }
 
-const PASS_FIXTURES: Array<{
+interface PassFixture {
   id: string;
   title: string;
   html: string;
   kind: 'interaction' | 'navigation';
   slowFetchMs?: number;
   lazyRoute?: boolean;
-}> = [
+  /** Defaults to ['[data-t0]']. */
+  expected?: string[];
+}
+
+const PASS_FIXTURES: PassFixture[] = [
   {
     id: 'pass-1',
     title: 'still [data-t0] node beside an infinitely animated non-T0 sibling',
@@ -551,26 +592,62 @@ const PASS_FIXTURES: Array<{
     slowFetchMs: 1200,
     lazyRoute: true,
   },
+  {
+    id: 'pass-4',
+    title: 'navigation whose Safety Rail sits outside a route container that fades (HC-UISH-009)',
+    html: fixtureHtml(
+      '<aside data-t0 data-safety-rail id="rail">Safety Rail: not medical advice</aside>' + NAV_BODY,
+      `${NAV_SWAP_SCRIPT}
+       window.__start = function () {
+         var m = window.__swap('<p data-t0 id="t">Route B 92 mg/dL</p>');
+         m.animate([{opacity:.35},{opacity:1}], {duration:200, fill:'both'});
+       };`
+    ),
+    kind: 'navigation',
+    expected: ['[data-safety-rail]'],
+  },
 ];
+
+/** Runs one PASS fixture through the probe and returns its report. */
+async function runPassFixture(page: Page, fixture: PassFixture) {
+  await serveFixture(page, fixture.html, { slowFetchMs: fixture.slowFetchMs });
+  const report = await stillnessProbe(page, {
+    trigger: startFixture(page),
+    expected: fixture.expected ?? ['[data-t0]'],
+    kind: fixture.kind,
+    lazyRoute: fixture.lazyRoute,
+  });
+  console.log(`HC-UIG-006 ${fixture.id} report: ${JSON.stringify(report)}`);
+  expect(report.samples, 'probe must take samples').toBeGreaterThan(3);
+  expect(report.nodes, 'probe must see the [data-t0] node').toBeGreaterThan(0);
+  if (fixture.lazyRoute) {
+    // The 1200 ms fetch ends at ~1200 ms, network idle is 500 ms of quiet, then 800 ms more.
+    expect(report.elapsedMs, 'the lazy window must run past the fetch, then 800 ms more').toBeGreaterThanOrEqual(2000);
+  }
+  return report;
+}
 
 for (const fixture of PASS_FIXTURES) {
   test(`HC-UIG-006 ${fixture.id} stillnessProbe passes: ${fixture.title}`, async ({ page }) => {
-    await serveFixture(page, fixture.html, { slowFetchMs: fixture.slowFetchMs });
-    const report = await stillnessProbe(page, {
-      trigger: startFixture(page),
-      expected: ['[data-t0]'],
-      kind: fixture.kind,
-      lazyRoute: fixture.lazyRoute,
-    });
-    console.log(`HC-UIG-006 ${fixture.id} report: ${JSON.stringify(report)}`);
-    expect(report.samples, 'probe must take samples').toBeGreaterThan(3);
-    expect(report.nodes, 'probe must see the [data-t0] node').toBeGreaterThan(0);
-    if (fixture.lazyRoute) {
-      // The 1200 ms fetch ends at ~1200 ms, network idle is 500 ms of quiet, then 800 ms more.
-      expect(report.elapsedMs, 'the lazy window must run past the fetch, then 800 ms more').toBeGreaterThanOrEqual(2000);
-    }
+    await runPassFixture(page, fixture);
   });
 }
+
+// The sampler's gap check must not depend on what ran before it. A new browser context
+// starts with a cold page and no earlier probe in it. Review round 2 measured a 40 ms
+// gap limit failing on a cold run of pass-2 when the sampler queued behind CDP calls.
+test('HC-UIG-006 pass-2 passes in a fresh browser context (cold sampler, no earlier probe)', async ({ browser }) => {
+  const fixture = PASS_FIXTURES.find((candidate) => candidate.id === 'pass-2');
+  if (!fixture) throw new Error('pass-2 fixture is missing');
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+    const report = await runPassFixture(page, fixture);
+    expect(report.maxGapMs, 'no sampling gap may exceed 40 ms on a cold context').toBeLessThanOrEqual(40);
+  } finally {
+    await context.close();
+  }
+});
 
 test('HC-UIG-006 sampling check rejects too few samples and a gap over 40 ms, and passes a 20 ms cadence', () => {
   const cadence = (from: number, to: number, step: number): number[] => {
