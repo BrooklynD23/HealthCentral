@@ -34,7 +34,7 @@ says: …", "You have N open follow-up items"), never advice.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import date, datetime, time
 
 from pydantic import BaseModel
 
@@ -91,9 +91,25 @@ def _display_name(raw: str) -> str:
 
 
 def _local_date(value, tz_name: str) -> str:
-    """``Jan 15, 2026``: the profile-local calendar date, no time (I-6)."""
+    """``Jan 15, 2026``: the profile-local calendar date, no time (I-6).
+
+    A date-only value is a calendar day, not an instant, so it is printed as
+    is with no zone conversion. Date-only means: a ``date`` that is not a
+    ``datetime``, an ISO string of length 10, or a naive ``datetime`` at exactly
+    00:00:00.000000. Timed values, and aware values even at midnight, go
+    through ``to_local``.
+    """
     try:
-        moment = datetime.fromisoformat(value) if isinstance(value, str) else value
+        if isinstance(value, str):
+            if len(value) == 10:
+                return date.fromisoformat(value).strftime("%b %d, %Y")
+            moment = datetime.fromisoformat(value)
+        else:
+            moment = value
+        if isinstance(moment, date) and not isinstance(moment, datetime):
+            return moment.strftime("%b %d, %Y")
+        if isinstance(moment, datetime) and moment.tzinfo is None and moment.time() == time(0):
+            return moment.strftime("%b %d, %Y")
         return to_local(moment, tz_name).strftime("%b %d, %Y")
     except (TypeError, ValueError):
         return str(value)

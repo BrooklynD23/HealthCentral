@@ -225,8 +225,9 @@ class LlamaCppProvider:
 
     def capabilities(self) -> CapabilityFlags:
         model_name = self._settings.default_chat_model
-        if self._model_path:
-            model_name = Path(self._model_path).stem
+        path = self._model_path or self._find_model_path()
+        if path:
+            model_name = Path(path).stem
 
         # Gemma 4 GGUF: multimodal + function_calling available at the model
         # level; we surface the flags so the app layer can gate feature use.

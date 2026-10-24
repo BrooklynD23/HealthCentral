@@ -749,6 +749,15 @@ describe('ExplainAssistant', () => {
       expect(screen.queryByText('BioMistral-7B')).toBeNull();
     });
 
+    it('HC-BTK-001 shows "Local model" (not the tier label) while provider info is pending', async () => {
+      mockModelApis(new Promise(() => {}));
+      renderWithProviders(<ExplainAssistant />);
+
+      await flush();
+      expect(screen.getByText('Local model')).toBeInTheDocument();
+      expect(screen.queryByText('BioMistral-7B')).toBeNull();
+    });
+
     it('HC-MDL-002 falls back to the tier label when the provider request fails', async () => {
       mockModelApis(new Error('provider unavailable'));
       renderWithProviders(<ExplainAssistant />);

@@ -228,7 +228,7 @@ async def test_hc_cache_ver_010_verifying_a_medication_change_changes_version(pr
     entity.verified_by_user = True
     await profile_db.commit()
     assert await _changed(profile_db, before)
-    # Same row count, different content (a reprocess): only the m: hash sees it.
+    # Same row count, different content (an in-place value edit): only the m: hash sees it.
     verified = await _profile_version(PROFILE, profile_db)
     entity.entity_value = "Start metformin 1000 mg"
     await profile_db.commit()
@@ -310,6 +310,25 @@ async def test_hc_cache_ver_011_document_collection_date_changes_version(mixed_d
     )
     await mixed_db.commit()
     assert await _changed(mixed_db, before)
+
+
+@pytest.mark.asyncio
+async def test_hc_cache_ver_014_date_entity_on_undated_document_changes_version(mixed_db):
+    """A date entity on a document with no collection_date feeds the timeline,
+    so the e: part must move. Only e: reads it: m: reads verified
+    medication_change rows, and d:/a: do not read entities at all."""
+    mixed_db.add(DocumentCategory(
+        doc_id="doc-u", category="visit_notes", confidence=1.0, classified_by="t",
+    ))
+    await mixed_db.commit()
+    before = await _profile_version(PROFILE, mixed_db)
+    mixed_db.add(DocumentEntity(
+        id=str(uuid.uuid4()), doc_id="doc-u", category="visit_notes",
+        entity_type="visit_date", entity_value="2026-02-03",
+        confidence=0.9, quote="Seen on 2026-02-03", verified_by_user=None,
+    ))
+    await mixed_db.commit()
+    assert await _changed(mixed_db, before), "e: part missed a date entity"
 
 
 @pytest.mark.asyncio
