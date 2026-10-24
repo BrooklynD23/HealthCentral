@@ -20,6 +20,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 import api.export as export_api
+from core import time as core_time
 import api.profiles as profiles_api
 from api.profiles import PROFILE_DELETE_CONFIRMATION
 from tests.support.routes import route_client
@@ -132,7 +133,7 @@ def test_hc_esp_003_delete_purges_all_three_stores_for_that_profile_only(
 
 def test_hc_esp_004_entry_older_than_30_minutes_is_404(monkeypatch):
     clock = {"now": T0}
-    monkeypatch.setattr(export_api, "utcnow", lambda: clock["now"])
+    monkeypatch.setattr(core_time, "utcnow", lambda: clock["now"])
     with _export_client(A) as exp:
         sid = _create_summary(exp)
         assert export_api._summary_store[sid]["created_at"] == T0  # stamped on write
@@ -144,7 +145,7 @@ def test_hc_esp_004_entry_older_than_30_minutes_is_404(monkeypatch):
 
 def test_hc_esp_005_entry_without_created_at_counts_as_fresh(monkeypatch):
     """L0 ruling (iii): legacy fixtures write no created_at and must be served."""
-    monkeypatch.setattr(export_api, "utcnow", lambda: T0 + timedelta(days=30))
+    monkeypatch.setattr(core_time, "utcnow", lambda: T0 + timedelta(days=30))
     with _export_client(A) as exp:
         sid = _create_summary(exp)
         export_api._summary_store[sid].pop("created_at")

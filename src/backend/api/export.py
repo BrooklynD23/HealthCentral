@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.audit import audit_and_commit, log_export_event
 from core.auth import ProfileDbSession, RequireAuth
 from core.database import get_db
+from core import time as core_time
 from core.denial_audit import audit_denial
 from core.time import NaiveUtcDatetime, profile_timezone_name, to_local, utcnow
 from models import CarePlanTask, Document, Medication, Observation, Profile
@@ -50,7 +51,9 @@ _packet_store: dict[str, dict] = {}
 # In-memory FHIR R4 export storage (HC-M22; same MVP pattern as _packet_store)
 _fhir_store: dict[str, dict] = {}
 
-# Stored exports expire after this long (EXPORT-STORE-PURGE).
+# Stored exports expire after this long (EXPORT-STORE-PURGE). The TTL clock is
+# read via the core.time module so tests that freeze `api.export.utcnow` (the
+# generation-day footer tests) do not also age the stored entries.
 _EXPORT_TTL = timedelta(minutes=30)
 
 
@@ -58,7 +61,7 @@ def _expired(entry: dict) -> bool:
     # L0 ruling (iii): an entry with no `created_at` counts as FRESH, so
     # legacy fixtures that write bare entries keep being served.
     created = entry.get("created_at")
-    return created is not None and utcnow() - created > _EXPORT_TTL
+    return created is not None and core_time.utcnow() - created > _EXPORT_TTL
 
 
 def _prune_expired() -> None:
@@ -485,7 +488,7 @@ async def generate_doctor_summary(
     # Profile-local generation day, added after redaction (a bare ISO date).
     summary_data["generated_on"] = local_today.isoformat()
     _prune_expired()
-    summary_data["created_at"] = utcnow()
+    summary_data["created_at"] = core_time.utcnow()
     _summary_store[summary.summary_id] = summary_data
 
     # Create audit log
@@ -853,7 +856,7 @@ async def generate_visit_prep(
         today=local_today,
     )
     _prune_expired()
-    packet["created_at"] = utcnow()
+    packet["created_at"] = core_time.utcnow()
     _packet_store[packet["packet_id"]] = packet
 
     await audit_and_commit(
@@ -1293,7 +1296,7 @@ async def generate_fhir_export(
     _fhir_store[export_id] = {
         "profile_id": profile_id,
         "bundle": result["bundle"],
-        "created_at": utcnow(),
+        "created_at": core_time.utcnow(),
     }
 
     await audit_and_commit(
