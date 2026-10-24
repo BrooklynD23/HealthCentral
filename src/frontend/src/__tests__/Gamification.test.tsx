@@ -21,7 +21,7 @@ vi.mock('framer-motion', () => {
         return <El {...dom}>{children as React.ReactNode}</El>;
       }),
   });
-  return { motion, AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</> };
+  return { motion, m: motion, AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</> };
 });
 
 const badgesData: { badges: BadgeStatus[] } = { badges: [] };

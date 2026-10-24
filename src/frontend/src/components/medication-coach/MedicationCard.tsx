@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import {
   Pill,
   Clock,
@@ -42,7 +42,7 @@ export function MedicationCard({
   const nextSchedule = medication.schedules.find((s) => s.is_active);
 
   return (
-    <motion.div
+    <m.div
       initial={prefersReducedMotion ? {} : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
@@ -136,6 +136,6 @@ export function MedicationCard({
           </div>
         </CardContent>
       </Card>
-    </motion.div>
+    </m.div>
   );
 }
