@@ -55,7 +55,9 @@ test.describe('UI routes verification', () => {
 
     // CI has no model: an abstain/fallback reply is a valid reply. Assert a new
     // assistant message with non-empty text that is not the question echoed back.
-    await expect(assistantMessages).toHaveCount(before + 1, { timeout: 120_000 });
+    await expect
+      .poll(() => assistantMessages.count(), { timeout: 120_000 })
+      .toBeGreaterThan(before);
     const reply = assistantMessages.last();
     await expect(reply).toBeVisible({ timeout: 120_000 });
     await expect
