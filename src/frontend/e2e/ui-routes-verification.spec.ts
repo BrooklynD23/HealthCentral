@@ -59,14 +59,14 @@ test.describe('UI routes verification', () => {
     await openAuthenticatedPage(page, request, '/settings');
 
     await expect(
-      page.getByText(/Configure AI model and hardware preferences/i)
+      page.getByText(/Configure AI models, document import/i)
     ).toBeVisible({ timeout: 15_000 });
 
     const detectButton = page.getByRole('button', { name: /^(Detect Hardware|Re-detect)$/ });
     await detectButton.click();
 
-    await expect(page.getByText(/^RAM$/).or(page.getByText(/Recommended Tier/i))).toBeVisible({
-      timeout: 60_000,
-    });
+    // Both labels render once detection completes (stricter than the old .or()).
+    await expect(page.getByText(/^RAM$/)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText(/Recommended Tier/i)).toBeVisible({ timeout: 60_000 });
   });
 });
