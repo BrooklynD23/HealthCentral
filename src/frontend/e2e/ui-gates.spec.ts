@@ -3,21 +3,27 @@
  *
  * Every test here proves that a gate helper from e2e/support/gates.ts can
  * fail, or reports the expected defect. Tests marked test.fail() are the
- * known defects of /inbox and the route fade; they are expected to fail until
- * UI-TOKENS and UI-SHELL land, and each one asserts on the specific reason
- * (an axe rule id, a recorded sample below 0.3) so an unrelated error cannot
- * pass it.
+ * known defects of /inbox and the route fade (HC-UIG-002, HC-UIG-003). They
+ * are expected to fail until UI-TOKENS and UI-SHELL land.
  *
- * No backend is needed by these tests: every /api/v1 request is answered by
- * e2e/support/mockApi.ts, and any other API request fails the precondition
- * tests. Fixture pages are served from http://localhost/gates/* through
- * page.route, so they make no network request. (The config's globalSetup and
- * backend webServer still run; see e2e/README.md.)
+ * test.fail() passes on ANY failure, so the defect assertion alone does not
+ * prove the reason. The green "pre" test beside each one is the guard: it shows
+ * the page rendered and the sampler recorded. The console output prints the
+ * axe rule id or the opacity sample that failed.
+ *
+ * Every /api/v1 request in these tests is answered by e2e/support/mockApi.ts,
+ * and any other API request fails the precondition tests. Fixture pages are
+ * served from http://localhost/gates/* through page.route, so they make no
+ * network request. The config may still start the backend webServer and
+ * globalSetup; see e2e/README.md for the run that starts neither.
  */
 
 import { expect, test, type Page } from '@playwright/test';
 import {
+  ROUTE_CONTAINER_SELECTOR,
+  ROUTE_FALLBACK_SELECTOR,
   axeGate,
+  checkSampling,
   consoleAndNetworkGuard,
   maxEventDuration,
   noHorizontalScroll,
@@ -30,12 +36,27 @@ import { installMockApi, seedMockSession } from './support/mockApi';
 const FIXTURE_ORIGIN = 'http://localhost';
 const FIXTURE_PATH = '/gates/fixture';
 
-/** Serves one HTML fixture from a fulfilled route (no network) and opens it. */
-async function serveFixture(page: Page, html: string): Promise<void> {
+/**
+ * Serves one HTML fixture from a fulfilled route (no network) and opens it.
+ * `slowFetchMs` answers GET /gates/slow only after that delay (lazy route
+ * fixtures). Playwright matches the newest route first, so that route is
+ * registered after the page route.
+ */
+async function serveFixture(page: Page, html: string, options: { slowFetchMs?: number } = {}): Promise<void> {
   await page.route(`${FIXTURE_ORIGIN}/gates/**`, (route) =>
     route.fulfill({ status: 200, contentType: 'text/html', body: html })
   );
+  if (options.slowFetchMs !== undefined) {
+    const delay = options.slowFetchMs;
+    await page.route(`${FIXTURE_ORIGIN}/gates/slow`, async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+    });
+  }
   await page.goto(`${FIXTURE_ORIGIN}${FIXTURE_PATH}`);
+  // Idle before the probe starts, as an SPA route change is after the app has loaded.
+  // stillnessProbe's lazyRoute wait then returns at once, which is what the lazy fixtures test.
+  await page.waitForLoadState('networkidle');
 }
 
 function fixtureHtml(body: string, script: string): string {
@@ -137,6 +158,27 @@ test.fail(
 // ---------------------------------------------------------------------------
 // HC-UIG-003: routeOpacitySamples records a sample < 0.3 (test.fail until UI-SHELL).
 // ---------------------------------------------------------------------------
+/**
+ * Waits until the route element has finished its entrance fade. On /inbox the
+ * PageTransition fades in on load; a sample taken during that fade is load-in,
+ * not the nav-click defect that HC-UIG-003 measures.
+ */
+async function settleRoute(page: Page): Promise<void> {
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          ({ container, fallback }) => {
+            const el = document.querySelector(container) ?? document.querySelector(fallback);
+            return el ? parseFloat(getComputedStyle(el).opacity) : NaN;
+          },
+          { container: ROUTE_CONTAINER_SELECTOR, fallback: ROUTE_FALLBACK_SELECTOR }
+        ),
+      { message: 'the route element must finish its entrance fade before the nav click', timeout: 10_000 }
+    )
+    .toBeGreaterThanOrEqual(0.99);
+}
+
 const navigateToVerify = (page: Page) => async () => {
   await page
     .getByRole('navigation', { name: 'Main navigation' })
@@ -148,6 +190,7 @@ test('HC-UIG-003 pre: a nav click samples the route container and ends at opacit
   page,
 }) => {
   await openInbox(page);
+  await settleRoute(page);
 
   const samples = await routeOpacitySamples(page, { navigate: navigateToVerify(page), durationMs: 800 });
   console.log(
@@ -165,6 +208,7 @@ test.fail(
   'HC-UIG-003 route container opacity after a nav click never drops below 0.3 (expected until UI-SHELL)',
   async ({ page }) => {
     await openInbox(page);
+    await settleRoute(page);
 
     const samples = await routeOpacitySamples(page, { navigate: navigateToVerify(page), durationMs: 800 });
     const low = samples.filter((s) => s.opacity < 0.3);
@@ -219,6 +263,32 @@ test('HC-UIG-005 maxEventDuration returns a finite number for a click on /setup 
   expect(Number.isFinite(ms), `expected a finite duration, got ${ms}`).toBe(true);
 });
 
+test('HC-UIG-005 maxEventDuration reports a 120 ms busy click as >= 100 ms and ignores earlier events', async ({
+  page,
+}) => {
+  // A dead observer returns 0 for the /setup click, so the test above cannot
+  // fail on its own. This one needs a known slow click to be seen.
+  await page.setContent(
+    fixtureHtml(
+      '<button id="busy" type="button">Busy</button><button id="quick" type="button">Quick</button>',
+      "document.getElementById('busy').addEventListener('click', function () { var end = performance.now() + 120; while (performance.now() < end) {} });"
+    )
+  );
+  // Before the measurement: this slow event must not be counted.
+  await page.click('#busy');
+  await page.waitForTimeout(200);
+
+  const quick = await maxEventDuration(page, async () => {
+    await page.click('#quick');
+  });
+  const busy = await maxEventDuration(page, async () => {
+    await page.click('#busy');
+  });
+  console.log(`HC-UIG-005 busy click: ${busy} ms; quick click after an earlier busy click: ${quick} ms`);
+  expect(busy, `a 120 ms click must be reported as >= 100 ms, got ${busy}`).toBeGreaterThanOrEqual(100);
+  expect(quick, `the earlier 120 ms click must not be counted, got ${quick}`).toBeLessThan(100);
+});
+
 // ---------------------------------------------------------------------------
 // HC-UIG-006: stillnessProbe self-tests (GREEN). Each failing fixture must be
 // rejected with a message that names the property that moved.
@@ -230,6 +300,12 @@ const FAIL_FIXTURES: Array<{
   kind: 'interaction' | 'navigation';
   expected: string[];
   reason: RegExp;
+  /** Passed to serveFixture: answers GET /gates/slow after this many ms. */
+  slowFetchMs?: number;
+  /** Passed to stillnessProbe. */
+  lazyRoute?: boolean;
+  /** The first capture of `pattern` in the rejection must be at least `min`. */
+  minimum?: { pattern: RegExp; min: number };
 }> = [
   {
     id: '(a)',
@@ -381,15 +457,42 @@ const FAIL_FIXTURES: Array<{
     expected: ['[data-t0]'],
     reason: /computed transform changed/,
   },
+  {
+    id: '(m)',
+    title: 'lazy route: a fetch that starts after the trigger returns, then a [data-t0] transform after the 800 ms window',
+    html: fixtureHtml(
+      '<p data-t0 id="t">Glucose 104 mg/dL</p>',
+      "window.__start = function () { setTimeout(function () { fetch('/gates/slow').then(function () { document.getElementById('t').animate([{transform:'translateX(0px)'},{transform:'translateX(6px)'}], {duration:300, fill:'forwards'}); }); }, 50); };"
+    ),
+    kind: 'interaction',
+    expected: ['[data-t0]'],
+    lazyRoute: true,
+    slowFetchMs: 1200,
+    reason: /computed transform changed/,
+    minimum: { pattern: / at (\d+) ms/, min: 1000 },
+  },
+  {
+    id: '(n)',
+    title: 'the main thread blocks 150 ms during the trigger, so the sampler has a gap',
+    html: fixtureHtml(
+      '<p data-t0 id="t">Glucose 104 mg/dL</p>',
+      'window.__start = function () { var end = performance.now() + 150; while (performance.now() < end) {} };'
+    ),
+    kind: 'interaction',
+    expected: ['[data-t0]'],
+    reason: /sampling gap of \d+ ms/,
+    minimum: { pattern: /sampling gap of (\d+) ms/, min: 100 },
+  },
 ];
 
 for (const fixture of FAIL_FIXTURES) {
   test(`HC-UIG-006 ${fixture.id} stillnessProbe fails: ${fixture.title}`, async ({ page }) => {
-    await serveFixture(page, fixture.html);
+    await serveFixture(page, fixture.html, { slowFetchMs: fixture.slowFetchMs });
     const error = await stillnessProbe(page, {
       trigger: startFixture(page),
       expected: fixture.expected,
       kind: fixture.kind,
+      lazyRoute: fixture.lazyRoute,
     }).then(
       () => null,
       (caught: unknown) => caught
@@ -397,10 +500,23 @@ for (const fixture of FAIL_FIXTURES) {
     console.log(`HC-UIG-006 ${fixture.id} rejected with: ${String(error)}`);
     expect(error, 'the probe must reject this fixture').not.toBeNull();
     expect(String(error), 'the rejection must name the property that moved').toMatch(fixture.reason);
+    if (fixture.minimum) {
+      const captured = Number(fixture.minimum.pattern.exec(String(error))?.[1]);
+      expect(captured, `the rejection must come at or after ${fixture.minimum.min}`).toBeGreaterThanOrEqual(
+        fixture.minimum.min
+      );
+    }
   });
 }
 
-const PASS_FIXTURES: Array<{ id: string; title: string; html: string; kind: 'interaction' | 'navigation' }> = [
+const PASS_FIXTURES: Array<{
+  id: string;
+  title: string;
+  html: string;
+  kind: 'interaction' | 'navigation';
+  slowFetchMs?: number;
+  lazyRoute?: boolean;
+}> = [
   {
     id: 'pass-1',
     title: 'still [data-t0] node beside an infinitely animated non-T0 sibling',
@@ -424,18 +540,57 @@ const PASS_FIXTURES: Array<{ id: string; title: string; html: string; kind: 'int
     ),
     kind: 'navigation',
   },
+  {
+    id: 'pass-3',
+    title: 'lazy route: a fetch that starts after the trigger returns and takes 1200 ms, then stillness',
+    html: fixtureHtml(
+      '<p data-t0 id="t">Glucose 92 mg/dL</p>',
+      "window.__start = function () { setTimeout(function () { fetch('/gates/slow'); }, 50); };"
+    ),
+    kind: 'interaction',
+    slowFetchMs: 1200,
+    lazyRoute: true,
+  },
 ];
 
 for (const fixture of PASS_FIXTURES) {
   test(`HC-UIG-006 ${fixture.id} stillnessProbe passes: ${fixture.title}`, async ({ page }) => {
-    await serveFixture(page, fixture.html);
+    await serveFixture(page, fixture.html, { slowFetchMs: fixture.slowFetchMs });
     const report = await stillnessProbe(page, {
       trigger: startFixture(page),
       expected: ['[data-t0]'],
       kind: fixture.kind,
+      lazyRoute: fixture.lazyRoute,
     });
     console.log(`HC-UIG-006 ${fixture.id} report: ${JSON.stringify(report)}`);
     expect(report.samples, 'probe must take samples').toBeGreaterThan(3);
     expect(report.nodes, 'probe must see the [data-t0] node').toBeGreaterThan(0);
+    if (fixture.lazyRoute) {
+      // The 1200 ms fetch ends at ~1200 ms, network idle is 500 ms of quiet, then 800 ms more.
+      expect(report.elapsedMs, 'the lazy window must run past the fetch, then 800 ms more').toBeGreaterThanOrEqual(2000);
+    }
   });
 }
+
+test('HC-UIG-006 sampling check rejects too few samples and a gap over 40 ms, and passes a 20 ms cadence', () => {
+  const cadence = (from: number, to: number, step: number): number[] => {
+    const times: number[] = [];
+    for (let t = from; t <= to; t += step) times.push(t);
+    return times;
+  };
+
+  const steady = checkSampling(cadence(-100, 800, 20), 0, 800, null);
+  console.log(`HC-UIG-006 sampling steady: ${JSON.stringify(steady)}`);
+  expect(steady.failures, 'a 20 ms cadence must pass').toEqual([]);
+
+  const sparse = checkSampling(cadence(-100, 200, 20), 0, 800, null);
+  console.log(`HC-UIG-006 sampling sparse: ${JSON.stringify(sparse)}`);
+  expect(sparse.failures.join('\n'), 'too few post-trigger samples must be named').toMatch(
+    /only 11 sample\(s\) after the trigger/
+  );
+
+  const gapped = checkSampling([...cadence(-100, 0, 20), 180, ...cadence(200, 800, 20)], 0, 800, null);
+  console.log(`HC-UIG-006 sampling gapped: ${JSON.stringify(gapped)}`);
+  expect(gapped.maxGapMs, 'the 180 ms gap must be measured').toBe(180);
+  expect(gapped.failures.join('\n'), 'the gap must be named').toMatch(/sampling gap of 180 ms/);
+});
