@@ -899,11 +899,16 @@ class TestExtractPageMerge:
 
     @pytest.mark.asyncio
     async def test_hc_epm_002_ruled_lab_grid_unchanged_no_duplicates(self):
-        obs = await self._run([(_EPM_LAB_GRID, 740)], [])
-        assert self._key(obs) == [
+        expected = [
             ("Creatinine", 1.1, "pdf_table"),
             ("Glucose", 95.0, "pdf_table"),
         ]
+        obs = await self._run([(_EPM_LAB_GRID, 740)], [])
+        assert self._key(obs) == expected
+        # Grid starting at y=805 on a 792 pt page: its bbox reaches past the
+        # page. A strict crop would raise and fail the whole document.
+        obs = await self._run([(_EPM_LAB_GRID, 805)], [])
+        assert self._key(obs) == expected
 
     @pytest.mark.asyncio
     async def test_hc_epm_003_grid_row_repeated_as_text_gives_one_observation(self):
@@ -939,3 +944,18 @@ class TestExtractPageMerge:
         obs = await self._run([(grid, 740)], [])
         assert sorted((o.analyte_raw, o.value) for o in obs) == [("Creatinine", 1.1), ("Glucose", 95.0)]
         assert all(o.extraction_method != "pdf_table" for o in obs)
+
+        # Mixed page: a yielding lab grid plus a zero-yield table. Only the
+        # yielding table is cut, so the zero-yield table keeps its lines.
+        quiet = [
+            ["Panel", "Result", "Unit"],
+            ["", "Ferritin 80 ng/mL", ""],
+            ["", "Sodium 140 mmol/L", ""],
+        ]
+        obs = await self._run([(_EPM_LAB_GRID, 740), (quiet, 600)], [])
+        assert self._key(obs) == [
+            ("Creatinine", 1.1, "pdf_table"),
+            ("Ferritin", 80.0, "pdf_text"),
+            ("Glucose", 95.0, "pdf_table"),
+            ("Sodium", 140.0, "pdf_text"),
+        ]
