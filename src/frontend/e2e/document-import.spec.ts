@@ -44,7 +44,12 @@ test.describe('Document Import Smoke Tests', () => {
       .setInputFiles(path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'synthetic-lab.pdf'));
     const imported = await importResponse;
     expect(imported.ok()).toBe(true);
-    const documentId = ((await imported.json()) as { document: { id: string } }).document.id;
+    const body = (await imported.json()) as {
+      document: { id: string };
+      observations_extracted: number;
+    };
+    expect(body.observations_extracted).toBeGreaterThanOrEqual(1);
+    const documentId = body.document.id;
 
     // Assert the backend status, not toast/filename text: a rejected import
     // never produces a 'parsed' row. There is no backend "needs review" status
