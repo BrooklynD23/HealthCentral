@@ -8,7 +8,9 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('UI-MOTION reduced motion', () => {
-  test.use({ reducedMotion: 'reduce' });
+  // reducedMotion is a context option in Playwright 1.58, not a test option
+  // (see accessibility.spec.ts).
+  test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
   test('HC-UIMO-004: /setup has no non-identity transform 60 ms after load under reduced motion', async ({
     page,

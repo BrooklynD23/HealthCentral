@@ -8,6 +8,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Component, type ReactNode } from 'react';
+import { motion } from 'framer-motion';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -17,7 +18,15 @@ import { PageTransition } from '@/components/ui/Motion';
 import { useAuthStore } from '@/stores/authStore';
 
 vi.mock('@/services/api', () => ({
-  apiGet: vi.fn().mockResolvedValue([]),
+  // Empty GETs resolve to []. Endpoints whose page reads a field off the
+  // response get that field, so the route renders its empty state.
+  apiGet: vi.fn(async (path: string) => {
+    if (path === '/gamification/badges') return { badges: [] };
+    if (path === '/settings/model/diagnostics') return { components: [] };
+    if (path === '/settings/model/tiers') return { tiers: [], recommended_tier: null };
+    if (path === '/medications/med-1') return { id: 'med-1', name: 'Test medication', schedules: [] };
+    return [];
+  }),
   apiPost: vi.fn().mockResolvedValue({}),
   apiPut: vi.fn().mockResolvedValue({}),
   apiPatch: vi.fn().mockResolvedValue({}),
@@ -155,6 +164,23 @@ describe('UI-MOTION every route under LazyMotion strict', () => {
       profileName: 'Test Profile',
       expiresIn: 3600,
     });
+  });
+
+  it('HC-UIMO-003 control: a motion.* element under MotionProvider throws, so a leftover would be caught', async () => {
+    const { MotionProvider } = (await import(/* @vite-ignore */ '@/motion/MotionProvider')) as {
+      MotionProvider: (props: { children: ReactNode }) => ReactNode;
+    };
+    const errors: unknown[] = [];
+
+    render(
+      <MotionProvider>
+        <RenderCatcher onError={(error) => errors.push(error)}>
+          <motion.div />
+        </RenderCatcher>
+      </MotionProvider>
+    );
+
+    expect(errors.map((error) => String(error)).join('\n')).toMatch(/motion` component within a `LazyMotion`/);
   });
 
   it.each(ROUTE_PATHS)(
