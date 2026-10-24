@@ -30,6 +30,21 @@ vi.mock('@/services/api', () => ({
   ApiError: class ApiError extends Error {},
 }));
 
+/** jsdom's location.replace is not spy-able; swap window.location for a stub. */
+function stubLocationReplace() {
+  const original = window.location;
+  const replace = vi.fn();
+  Object.defineProperty(window, 'location', {
+    configurable: true,
+    value: { pathname: '/settings', origin: 'http://localhost:3000', replace },
+  });
+  return {
+    replace,
+    restore: () =>
+      Object.defineProperty(window, 'location', { configurable: true, value: original }),
+  };
+}
+
 const backups = [
   { backup_id: 'backup_a', created_at: '2026-07-01T10:00:00Z', file_count: 3, size_bytes: 2048 },
   { backup_id: 'backup_b', created_at: '2026-07-20T10:00:00Z', file_count: 4, size_bytes: 4096 },
@@ -170,5 +185,35 @@ describe('FE-BKUP: restore flow', () => {
 
     await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(false));
     await waitFor(() => expect(reactStateContains(container, 'CorrectHorse1')).toBe(false));
+  });
+  it('HC-RA4-004: a wrong restore password shows the error and keeps the session', async () => {
+    const user = userEvent.setup();
+    const loc = stubLocationReplace();
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: 'Unauthorized',
+      text: async () => '{"detail": "Incorrect password"}',
+    });
+    vi.stubGlobal('fetch', mockFetch);
+    try {
+      // Run the real apiPost so handleAuthError would really fire.
+      const actual = await vi.importActual<typeof import('@/services/api')>('@/services/api');
+      vi.mocked(api.apiPost).mockImplementation(actual.apiPost);
+      renderCard();
+
+      await fillRestoreForm(user, 'WrongHorse1');
+      await user.click(screen.getByRole('button', { name: /restore this backup/i }));
+
+      expect(await screen.findByText(/incorrect password/i)).toBeInTheDocument();
+      expect(mockFetch).toHaveBeenCalled();
+      expect(useAuthStore.getState().token).toBe('tok');
+      expect(useAuthStore.getState().isAuthenticated).toBe(true);
+      expect(loc.replace).not.toHaveBeenCalled();
+      expect(vi.mocked(api.apiPost).mock.calls[0][2]).toEqual({ reauth: true });
+    } finally {
+      loc.restore();
+      vi.unstubAllGlobals();
+    }
   });
 });

@@ -13,6 +13,21 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { apiGet, apiPost, apiPut, apiDelete, apiUpload } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 
+/** jsdom's location.replace is not spy-able; swap window.location for a stub. */
+function stubLocationReplace() {
+  const original = window.location;
+  const replace = vi.fn();
+  Object.defineProperty(window, 'location', {
+    configurable: true,
+    value: { pathname: '/settings', origin: 'http://localhost:3000', replace },
+  });
+  return {
+    replace,
+    restore: () =>
+      Object.defineProperty(window, 'location', { configurable: true, value: original }),
+  };
+}
+
 // Mock fetch
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
@@ -247,6 +262,60 @@ describe('API Client', () => {
         status: 403,
         message: expect.stringContaining('Profile database not available'),
       });
+    });
+  });
+  describe('MVP-REAUTH-401: re-auth 401 must not log the user out', () => {
+    let loc: ReturnType<typeof stubLocationReplace>;
+    beforeEach(() => {
+      loc = stubLocationReplace();
+      useAuthStore.getState().setAuth({
+        token: 'live-token',
+        profileId: 'profile-123',
+        profileName: 'Test Profile',
+      });
+    });
+    afterEach(() => loc.restore());
+
+    const wrongPassword = () =>
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+        text: async () => '{"detail": "Incorrect password"}',
+      });
+
+    it('HC-RA4-001: apiDelete with reauth throws ApiError 401 and keeps the session', async () => {
+      wrongPassword();
+      await expect(
+        apiDelete('/profiles/p1', { password: 'bad' }, { reauth: true })
+      ).rejects.toMatchObject({ status: 401, message: expect.stringContaining('Incorrect password') });
+      expect(useAuthStore.getState().token).toBe('live-token');
+      expect(useAuthStore.getState().isAuthenticated).toBe(true);
+      expect(loc.replace).not.toHaveBeenCalled();
+    });
+
+    it('HC-RA4-001b: apiPost with reauth throws ApiError 401 and keeps the session', async () => {
+      wrongPassword();
+      await expect(
+        apiPost('/backup/b1/restore', { password: 'bad' }, { reauth: true })
+      ).rejects.toMatchObject({ status: 401, message: expect.stringContaining('Incorrect password') });
+      expect(useAuthStore.getState().token).toBe('live-token');
+      expect(useAuthStore.getState().isAuthenticated).toBe(true);
+      expect(loc.replace).not.toHaveBeenCalled();
+    });
+
+    it('HC-RA4-001c: reauth is not forwarded to fetch', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) });
+      await apiPost('/x', { a: 1 }, { reauth: true });
+      expect(mockFetch.mock.calls[0][1]).not.toHaveProperty('reauth');
+    });
+
+    it('HC-RA4-002: a plain apiGet 401 still clears auth and redirects', async () => {
+      wrongPassword();
+      await expect(apiGet('/protected-endpoint')).rejects.toThrow();
+      expect(useAuthStore.getState().token).toBeNull();
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
+      expect(loc.replace).toHaveBeenCalledTimes(1);
     });
   });
 });

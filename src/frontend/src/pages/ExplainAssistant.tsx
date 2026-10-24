@@ -26,7 +26,7 @@ import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/compo
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useAuthStore } from '@/stores/authStore';
-import { useAnalyteList, useModelSettings, useExternalApiSettings, useProviderInfo } from '@/services';
+import { useAnalyteList, useModelSettings, useExternalApiSettings, useProviderInfo, ApiError } from '@/services';
 import { useObservations } from '@/services/observations';
 import { ExternalApiBreakGlassWarning } from '@/components/settings/ExternalApiBreakGlassWarning';
 import {
@@ -412,14 +412,16 @@ export function ExplainAssistant() {
   };
 
   const getErrorContent = (error: unknown): string => {
-    if (error instanceof Error) {
-      if (error.message.includes('501')) {
+    if (error instanceof ApiError) {
+      if (error.status === 501) {
         setModelUnavailable(true);
         return "No AI model is configured yet. Go to Settings to download a local model or connect an external API provider.";
       }
-      if (error.message.includes('401') || error.message.includes('403')) {
+      if (error.status === 401 || error.status === 403) {
         return 'Your session has expired. Please log in again to continue.';
       }
+    }
+    if (error instanceof Error) {
       if (error.message.includes('network') || error.message.includes('fetch')) {
         return 'Unable to connect to the server. Please check your connection and try again.';
       }
@@ -802,6 +804,7 @@ export function ExplainAssistant() {
             <div className="flex gap-3">
               <input
                 type="text"
+                aria-label="Your question"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
@@ -816,6 +819,7 @@ export function ExplainAssistant() {
               />
               <Button
                 onClick={() => handleSend()}
+                aria-label="Send question"
                 disabled={!input.trim() || sendMessage.isPending}
                 className="px-4"
               >

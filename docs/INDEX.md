@@ -1876,6 +1876,12 @@ On Windows and Mac, the app cannot install its encryption library today, so each
 
 Links to: `docs/plans/2026-10-01-packaging-decision.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/research/2026-10-22-mvp/01-desktop-packaging.md`
 
+## `docs/research/2026-10-22-rapidocr/00-README.md`
+
+**RapidOCR premises: licence, offline behaviour, size, accuracy (RAPIDOCR-RESEARCH)**
+
+Owner answer OCR-FOR-MVP (b) "Bundle RapidOCR" rested on four premises.
+
 ## `docs/reviews/2026-09-25/DDI-r1-prompt.md`
 
 **(untitled)**

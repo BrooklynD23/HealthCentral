@@ -107,6 +107,8 @@ class LlamaCppProvider:
 
         patterns = [
             f"{self._settings.default_chat_model}*.gguf",
+            # CPU-DEFAULT-PHI4: CPU-only runs try Phi-4-mini before Gemma 4.
+            *(["*Phi-4-mini*.gguf"] if self._n_gpu_layers == 0 else []),
             "gemma4*.gguf",
             "gemma-4*.gguf",
             "phi-3*.gguf",
