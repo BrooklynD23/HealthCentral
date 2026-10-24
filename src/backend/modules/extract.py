@@ -184,7 +184,7 @@ class ExtractModule:
                     if len(found) == len(tables):
                         for idx, n_obs in enumerate(table_yields):
                             if n_obs:
-                                region = region.outside_bbox(found[idx].bbox)
+                                region = region.outside_bbox(found[idx].bbox, strict=False)
                     text_obs = self._extract_from_text(
                         region.extract_text() or "", page_num, document_id
                     )
