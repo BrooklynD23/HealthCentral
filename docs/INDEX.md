@@ -132,7 +132,7 @@ Links to: `docs/agentic/evals.md`, `docs/agentic/harness.md`
 
 **Workflow Orchestration — Execution Program**
 
-**Model policy.** Implementation runs on the `sonnet` alias; reviews and orchestration run on `opus`. The owner set this on 2026-09-28 for this program, and it overrides the user-level "Opus for…
+**Model policy.** Implementation runs on the `haiku` alias at effort `xhigh` (owner, 2026-10-24: never use Sonnet 5.5; Haiku 5.5 at effort `xhigh` replaces it); reviews and orchestration run on…
 
 Links to: `AGENT.md`, `CLAUDE.md`, `audit/2026-09-25/README.md`, `audit/2026-09-25/handoff-2026-09-28-execution-orchestrator.md`, `audit/2026-09-25/handoff-2026-10-02-wave3.md`, `audit/2026-09-25/swarm-2026-09-27/ledger.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/reviews/2026-09-27-swarm/W04-r1-prompt.md`
 
