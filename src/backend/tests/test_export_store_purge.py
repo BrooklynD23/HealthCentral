@@ -64,8 +64,9 @@ def _db_with_profile(profile) -> MagicMock:
 
 
 @contextmanager
-def _profiles_client(profile_id: str, master_db):
-    with patch.object(profiles_api, "close_profile_database_on_logout", AsyncMock()), \
+def _profiles_client(profile_id: str, master_db, close=None):
+    close = close if close is not None else AsyncMock()
+    with patch.object(profiles_api, "close_profile_database_on_logout", close), \
          patch.object(profiles_api, "revoke_jwt_token", MagicMock()), \
          patch.object(profiles_api, "log_profile_event", AsyncMock()), \
          route_client(profiles_api.router, "/profiles", profile_id=profile_id,
@@ -200,3 +201,53 @@ def test_hc_esp_007_refused_delete_keeps_exports(tmp_path, monkeypatch, body, au
     assert "s-a" in export_api._summary_store
     assert PACKET_ID in export_api._packet_store
     assert FHIR_ID in export_api._fhir_store
+
+
+@pytest.mark.parametrize("route", ["logout", "lock", "delete"])
+def test_hc_esp_008_purge_survives_a_failing_vault_close(tmp_path, monkeypatch, route):
+    """Purge runs before the vault close: a raising close must not leave exports cached."""
+    monkeypatch.setattr(
+        type(profiles_api.settings), "app_data_path", property(lambda self: tmp_path)
+    )
+    _make_vault(tmp_path, A)
+    export_api._summary_store["s-a"] = {"profile_id": A}
+    export_api._packet_store[PACKET_ID] = {"profile_id": A}
+    export_api._fhir_store[FHIR_ID] = {"profile_id": A, "bundle": {}}
+    export_api._summary_store[OTHER_SUMMARY] = {"profile_id": B}
+    export_api._packet_store[OTHER_PACKET] = {"profile_id": B}
+    export_api._fhir_store[OTHER_FHIR] = {"profile_id": B, "bundle": {}}
+
+    failing_close = AsyncMock(side_effect=RuntimeError("vault close failed"))
+    profile = SimpleNamespace(
+        id=A, display_name="T", is_locked=False, password_hash="x",
+        created_at=T0, last_accessed_at=None,
+    )
+    with patch.object(profiles_api, "_load_profile_for_delete",
+                      AsyncMock(return_value=profile)), \
+         patch.object(profiles_api, "authenticate_profile",
+                      AsyncMock(return_value=profile)), \
+         _profiles_client(
+             A, _FakeMasterDb() if route == "delete" else _db_with_profile(
+                 None if route == "logout" else profile),
+             close=failing_close,
+         ) as prof:
+        with pytest.raises(RuntimeError, match="vault close failed"):
+            if route == "logout":
+                prof.post("/profiles/logout")
+            elif route == "lock":
+                prof.post(f"/profiles/{A}/lock")
+            else:
+                prof.request(
+                    "DELETE", f"/profiles/{A}",
+                    json={"password": "CorrectHorse1",
+                          "confirmation_phrase": PROFILE_DELETE_CONFIRMATION,
+                          "export_acknowledged": True},
+                )
+    failing_close.assert_awaited()  # the failing close really was reached
+
+    for store in (export_api._summary_store, export_api._packet_store,
+                  export_api._fhir_store):
+        assert all(v["profile_id"] != A for v in store.values())
+    assert OTHER_SUMMARY in export_api._summary_store
+    assert OTHER_PACKET in export_api._packet_store
+    assert OTHER_FHIR in export_api._fhir_store
