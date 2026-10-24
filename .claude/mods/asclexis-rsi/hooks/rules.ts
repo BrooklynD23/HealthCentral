@@ -88,4 +88,15 @@ export const RULES: readonly Rule[] = [
     source: 'pr-review leads 223,218',
     errorClass: 'embedding-bundle-missing',
   },
+  {
+    id: 'no-such-file-path',
+    tool: 'Bash',
+    when: 'after',
+    match: String.raw`No such file or directory`,
+    action: 'hint',
+    message:
+      'A path was not found ("No such file or directory"). Resolve and verify the path (ls its parent directory) before retrying the command unchanged.',
+    source: 'rsi-2026-10-24-gpubox-1: Bash/no-such-file cluster, 35 failed calls since 2026-10-21, no path recorded',
+    errorClass: 'no-such-file',
+  },
 ]

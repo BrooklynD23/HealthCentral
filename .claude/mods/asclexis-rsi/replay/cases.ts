@@ -17,4 +17,8 @@ export default [
   {"id": "llama-cpp-no-compiler-neg", "rule": "llama-cpp-no-compiler", "tool": "Bash", "input": {"command": "pip install llama-cpp-python"}, "error_text": "ERROR: No matching distribution found", "expect": "pass"},
   {"id": "embedding-bundle-missing-pos", "rule": "embedding-bundle-missing", "tool": "Bash", "input": {"command": "pytest -q tests/"}, "error_text": "FAILED tests/test_rag_pipeline.py::test_api_rag_index_002b - AssertionError", "expect": "hint"},
   {"id": "embedding-bundle-missing-neg", "rule": "embedding-bundle-missing", "tool": "Bash", "input": {"command": "pytest -q tests/"}, "error_text": "FAILED tests/test_auth.py::test_hc_auth_001 - AssertionError", "expect": "pass"},
+  {"id": "no-such-file-path-pos-1", "rule": "no-such-file-path", "tool": "Bash", "input": {"command": "cat docs/missing.md"}, "error_text": "Exit code 1\ncat: docs/missing.md: No such file or directory", "expect": "hint"},
+  {"id": "no-such-file-path-pos-2", "rule": "no-such-file-path", "tool": "Bash", "input": {"command": "cd /mnt/e/Programming/Github Repo/HealthCentral && git status"}, "error_text": "bash: cd: /mnt/e/Programming/Github: No such file or directory", "expect": "hint"},
+  {"id": "no-such-file-path-neg-1", "rule": "no-such-file-path", "tool": "Bash", "input": {"command": "grep -rn 'No such file' docs/"}, "failed": false, "error_text": "docs/agentic/recurring-failures.md:7: No such file or directory", "expect": "pass"},
+  {"id": "no-such-file-path-neg-2", "rule": "no-such-file-path", "tool": "Bash", "input": {"command": "pytest -q tests/test_x.py"}, "error_text": "FAILED tests/test_x.py::test_y - AssertionError: 1 != 2", "expect": "pass"},
 ]
