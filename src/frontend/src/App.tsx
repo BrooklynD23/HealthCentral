@@ -8,7 +8,7 @@
  */
 
 import { Suspense, lazy, type ReactNode } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useResolvedPath } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Skeleton } from './components/ui';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -110,8 +110,8 @@ function RouteFallback() {
 }
 
 // Content-shaped fallbacks for the lazy pages a user lands on, so the swap to
-// the loaded page does not move the layout (G2). Each mirrors its page's header
-// and body. Settings uses the same shape as the page's own loading state.
+// the loaded page does not move the layout (G2). Each approximates its page's
+// header and main area. Settings uses the same shape as the page's own loading state.
 // No motion: the fallback is shown while the page loads, not as a transition.
 
 function InboxFallback() {
@@ -174,11 +174,13 @@ function SettingsFallback() {
 }
 
 /**
- * Error boundary for one route. Keyed by path, so navigating to another page
- * remounts it and clears a caught error.
+ * Error boundary for one route. Keyed by the route's own path, so navigating to
+ * another page remounts it and clears a caught error.
  */
 function RouteBoundary({ children }: { children: ReactNode }) {
-  const { pathname } = useLocation();
+  // The route's own path, not the live location. AppLayout keeps the exiting page
+  // mounted while it fades out, and that page must keep its key or it remounts.
+  const { pathname } = useResolvedPath('.');
   return <ErrorBoundary key={pathname}>{children}</ErrorBoundary>;
 }
 
