@@ -1,12 +1,16 @@
 /**
  * UI-RIBBON: RangeRibbon and RangeTick (HC-UIRR-001..008).
- * Plan: docs/plans/2026-10-23-frontend-revamp-plan.md (UI-RIBBON; §2.6 M10).
+ * Plan: docs/plans/2026-10-23-frontend-revamp-plan.md (UI-RIBBON; §2.6 M10; §2.7 data-t0).
  *
  * The components are loaded with a dynamic import inside each test, so before
  * they exist every id fails on its own line instead of the whole file failing
  * to load.
+ *
+ * Review round 1 added cases for data-t0 (G10), a cursor with no CSS transform
+ * (G5), the band-versus-report conflict, the range caption, the date labels,
+ * nearest-point pointer selection, the keyed reveal and the export size.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import type { TrendData, TrendPoint } from '@/services/types';
 
@@ -28,13 +32,25 @@ const APR_1 = '2026-04-01T00:00:00';
 const APR_10 = '2026-04-10T00:00:00';
 const APR_20 = '2026-04-20T00:00:00';
 
-function point(date: string, value: number, verified?: boolean): TrendPoint {
+const ABOVE_WORDS = 'Above the reference range (per report)';
+const BELOW_WORDS = 'Below the reference range (per report)';
+const CONFLICT_WORDS = "The report's flag and this range disagree";
+const REVEAL_KEY = 'hc:range-ribbon:revealed:glucose';
+
+// `abnormal` is the report's own verdict. The backend sets is_abnormal from the
+// observation's own bounds, so the default follows the default 70-99 series.
+function point(
+  date: string,
+  value: number,
+  verified?: boolean,
+  abnormal: boolean = value < 70 || value > 99
+): TrendPoint {
   return {
     date,
     value,
     unit: 'mg/dL',
-    is_abnormal: false,
-    flag: null,
+    is_abnormal: abnormal,
+    flag: abnormal ? (value < 70 ? 'L' : 'H') : null,
     doc_id: `doc-${date.slice(0, 10)}`,
     extraction_confidence: null,
     // A missing flag is unverified (I-13), so the key is left out when undefined.
@@ -55,14 +71,29 @@ function series(points: TrendPoint[], overrides: Partial<TrendData> = {}): Trend
   };
 }
 
-// Records every Element.animate call with its target, so the reveal can be
-// inspected. jsdom has no Web Animations API.
+// Records every Element.animate call with its target, so the reveal and the
+// glide can be inspected. jsdom has no Web Animations API.
 interface AnimateCall {
   target: Element;
   keyframes: unknown;
   options: Record<string, unknown>;
 }
 let animateCalls: AnimateCall[] = [];
+
+let hadPointerEvent = false;
+beforeAll(() => {
+  // jsdom has no PointerEvent. MouseEvent takes the same clientX init.
+  hadPointerEvent = 'PointerEvent' in window;
+  if (!hadPointerEvent) {
+    Object.defineProperty(window, 'PointerEvent', { configurable: true, value: MouseEvent });
+  }
+});
+
+afterAll(() => {
+  if (!hadPointerEvent) {
+    delete (window as unknown as { PointerEvent?: unknown }).PointerEvent;
+  }
+});
 
 beforeEach(() => {
   sessionStorage.clear();
@@ -80,6 +111,7 @@ beforeEach(() => {
 afterEach(() => {
   delete (Element.prototype as unknown as { animate?: unknown }).animate;
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 function pointGroup(container: HTMLElement, index: number): Element {
@@ -88,24 +120,54 @@ function pointGroup(container: HTMLElement, index: number): Element {
   return group;
 }
 
-function hitOf(container: HTMLElement, index: number): Element {
-  const hit = container.querySelector(`[data-point-index="${index}"] [data-hit]`);
-  if (!hit) throw new Error(`no hit target ${index}`);
-  return hit;
+function markerOf(container: HTMLElement, index: number): Element {
+  const marker = container.querySelector(`[data-point-index="${index}"] [data-marker]`);
+  if (!marker) throw new Error(`no marker ${index}`);
+  return marker;
 }
 
 function cxOf(container: HTMLElement, index: number): number {
-  return Number(hitOf(container, index).getAttribute('cx'));
+  return Number(markerOf(container, index).getAttribute('cx'));
 }
 
 function cyOf(container: HTMLElement, index: number): number {
-  return Number(hitOf(container, index).getAttribute('cy'));
+  return Number(markerOf(container, index).getAttribute('cy'));
 }
 
-function cursorOf(container: HTMLElement): HTMLElement {
-  const cursor = container.querySelector<HTMLElement>('[data-cursor]');
+function cursorOf(container: HTMLElement): SVGLineElement {
+  const cursor = container.querySelector<SVGLineElement>('[data-cursor]');
   if (!cursor) throw new Error('no cursor');
   return cursor;
+}
+
+function sliderOf(): SVGSVGElement {
+  return screen.getByRole('slider') as unknown as SVGSVGElement;
+}
+
+function selectedOf(): number {
+  return Number(sliderOf().getAttribute('aria-valuenow'));
+}
+
+// Puts a pointerdown at `clientX` on the slider. The SVG is 320 units wide and
+// its rect is mocked to 320 px, so a client x is also a user-unit x.
+function pointerAt(clientX: number): void {
+  const svg = sliderOf();
+  vi.spyOn(svg, 'getBoundingClientRect').mockReturnValue({
+    left: 0,
+    top: 0,
+    right: 320,
+    bottom: 160,
+    width: 320,
+    height: 160,
+    x: 0,
+    y: 0,
+    toJSON: () => ({}),
+  } as DOMRect);
+  fireEvent.pointerDown(svg, { clientX });
+}
+
+function cursorAnimations(): AnimateCall[] {
+  return animateCalls.filter((call) => call.target.hasAttribute('data-cursor'));
 }
 
 // textContent runs adjacent cells together ("Apr 1, 2026" + "85" reads as
@@ -181,12 +243,14 @@ describe('RangeRibbon', () => {
 
     expect(container.querySelectorAll('[data-triangle]')).toHaveLength(2);
     expect(pointGroup(container, 0).querySelector('[data-triangle]')).toBeNull();
-    expect(
-      within(pointGroup(container, 1) as HTMLElement).getByText('Above the reference range (per report)')
-    ).toBeInTheDocument();
-    expect(
-      within(pointGroup(container, 2) as HTMLElement).getByText('Below the reference range (per report)')
-    ).toBeInTheDocument();
+    expect(within(pointGroup(container, 1) as HTMLElement).getByText(ABOVE_WORDS)).toBeInTheDocument();
+    expect(within(pointGroup(container, 2) as HTMLElement).getByText(BELOW_WORDS)).toBeInTheDocument();
+
+    // The words are visible in the readout and the table, not only in the hover title.
+    expect(container.querySelector('[data-readout]')?.textContent).toContain(BELOW_WORDS);
+    const table = screen.getByRole('table');
+    expect(within(table).getByText(ABOVE_WORDS)).toBeInTheDocument();
+    expect(within(table).getByText(BELOW_WORDS)).toBeInTheDocument();
   });
 
   it('HC-UIRR-002: a null bound draws no band edge on that side and no triangle against it', async () => {
@@ -194,7 +258,7 @@ describe('RangeRibbon', () => {
     const { container } = render(
       <RangeRibbon
         trend={series(
-          [point(APR_1, 0.5, true), point(APR_10, 118, true)],
+          [point(APR_1, 0.5, true, false), point(APR_10, 118, true)],
           { ref_low: null, ref_high: 99 }
         )}
       />
@@ -204,6 +268,61 @@ describe('RangeRibbon', () => {
     expect(container.querySelector('[data-band]')).toBeNull();
     expect(pointGroup(container, 0).querySelector('[data-triangle]')).toBeNull();
     expect(pointGroup(container, 1).querySelector('[data-triangle="above"]')).not.toBeNull();
+  });
+
+  it('HC-UIRR-002: the range is printed as numbers in a caption outside the chart, for both, one and no bounds', async () => {
+    const { RangeRibbon } = await loadRibbon();
+    const cases: Array<{ overrides: Partial<TrendData>; words: string }> = [
+      {
+        overrides: {},
+        words: 'Reference range from the latest report that gives each limit: 70-99 mg/dL',
+      },
+      {
+        overrides: { ref_low: null },
+        words: 'Upper limit 99 mg/dL, from the latest report that gives it',
+      },
+      {
+        overrides: { ref_high: null },
+        words: 'Lower limit 70 mg/dL, from the latest report that gives it',
+      },
+      {
+        overrides: { ref_low: null, ref_high: null },
+        words: 'No reference range on the reports',
+      },
+    ];
+    for (const testCase of cases) {
+      const { container, unmount } = render(
+        <RangeRibbon trend={series([point(APR_1, 85, true), point(APR_10, 90, true)], testCase.overrides)} />
+      );
+      const caption = container.querySelector('figcaption');
+      expect(caption?.textContent).toBe(testCase.words);
+      expect(caption?.closest('svg')).toBeNull();
+      unmount();
+    }
+  });
+
+  it('HC-UIRR-002: a band side the report does not confirm is a conflict, with no triangle and no out-of-range words', async () => {
+    const { RangeRibbon } = await loadRibbon();
+    const { container } = render(
+      <RangeRibbon
+        trend={series([
+          // Inside the band, but the report flagged it.
+          point(APR_1, 85, true, true),
+          // Above the band, but the report did not flag it: the report's own range differs.
+          point(APR_10, 118, true, false),
+        ])}
+      />
+    );
+    expect(pointGroup(container, 0).getAttribute('data-side')).toBe('conflict');
+    expect(pointGroup(container, 1).getAttribute('data-side')).toBe('conflict');
+    expect(container.querySelectorAll('[data-triangle]')).toHaveLength(0);
+    expect(screen.queryByText(ABOVE_WORDS)).toBeNull();
+    expect(screen.queryByText(BELOW_WORDS)).toBeNull();
+    expect(sliderOf()).toHaveAttribute(
+      'aria-valuetext',
+      "Apr 10, 2026: 118 mg/dL, the report's flag and this range disagree, checked by you"
+    );
+    expect(within(screen.getByRole('table')).getAllByText(CONFLICT_WORDS)).toHaveLength(2);
   });
 
   it('HC-UIRR-003: unverified points are hollow and dashed; verified points are filled', async () => {
@@ -217,11 +336,7 @@ describe('RangeRibbon', () => {
         ])}
       />
     );
-    const marker = (index: number) => {
-      const el = pointGroup(container, index).querySelector('[data-marker]');
-      if (!el) throw new Error(`no marker ${index}`);
-      return el;
-    };
+    const marker = (index: number) => markerOf(container, index);
 
     // Explicit false and a missing flag are both unverified (I-13).
     for (const index of [0, 2]) {
@@ -279,14 +394,17 @@ describe('RangeRibbon', () => {
         <RangeRibbon trend={series([point(APR_1, 85, true), point(APR_10, 118, false)])} />
       );
       expect(animateCalls).toHaveLength(0);
-      fireEvent.click(hitOf(container, 0));
-      expect(cursorOf(container).style.transition).toBe('none');
+      pointerAt(cxOf(container, 0));
+      expect(selectedOf()).toBe(0);
+      expect(cursorAnimations()).toHaveLength(0);
+      expect(cursorOf(container).style.transform).toBe('');
+      expect(Number(cursorOf(container).getAttribute('x1'))).toBeCloseTo(cxOf(container, 0), 3);
     } finally {
       window.matchMedia = original;
     }
   });
 
-  it('HC-UIRR-005: ArrowRight moves the selection and updates aria-valuetext; no transition runs on a keyboard move', async () => {
+  it('HC-UIRR-005: ArrowLeft, ArrowRight, Home and End move the selection, clamp at the ends, and the cursor never has a CSS transform', async () => {
     const { RangeRibbon } = await loadRibbon();
     const { container } = render(
       <RangeRibbon
@@ -297,31 +415,67 @@ describe('RangeRibbon', () => {
         ])}
       />
     );
-    const slider = screen.getByRole('slider');
+    const slider = sliderOf();
     // The default selection is the latest point.
     expect(slider).toHaveAttribute(
       'aria-valuetext',
       "Apr 20, 2026: 60 mg/dL, below the report's range, checked by you"
     );
+    // The cursor is a line placed at the selected point's x: no transform, so G5 can pass.
+    const cursorAt = (index: number) => {
+      expect(cursorOf(container).style.transform).toBe('');
+      expect(Number(cursorOf(container).getAttribute('x1'))).toBeCloseTo(cxOf(container, index), 3);
+      expect(Number(cursorOf(container).getAttribute('x2'))).toBeCloseTo(cxOf(container, index), 3);
+    };
+    cursorAt(2);
 
     fireEvent.keyDown(slider, { key: 'Home' });
-    expect(slider).toHaveAttribute('aria-valuenow', '0');
+    expect(selectedOf()).toBe(0);
+    cursorAt(0);
+    fireEvent.keyDown(slider, { key: 'ArrowLeft' });
+    expect(selectedOf()).toBe(0);
+
     fireEvent.keyDown(slider, { key: 'ArrowRight' });
-    expect(slider).toHaveAttribute('aria-valuenow', '1');
+    expect(selectedOf()).toBe(1);
     expect(slider).toHaveAttribute(
       'aria-valuetext',
       "Apr 10, 2026: 118 mg/dL, above the report's range, not yet checked"
     );
-    expect(cursorOf(container).style.transition).toBe('none');
-    const moved = Number(cursorOf(container).style.transform.match(/translateX\(([-\d.]+)px\)/)?.[1]);
-    expect(moved).toBeCloseTo(cxOf(container, 1), 3);
+    cursorAt(1);
 
-    // A pointer selection glides for --dur-sm; the keyboard move right after it does not.
-    fireEvent.click(hitOf(container, 0));
-    expect(cursorOf(container).style.transition).toContain('--dur-sm');
+    fireEvent.keyDown(slider, { key: 'End' });
+    expect(selectedOf()).toBe(2);
     fireEvent.keyDown(slider, { key: 'ArrowRight' });
-    expect(slider).toHaveAttribute('aria-valuenow', '1');
-    expect(cursorOf(container).style.transition).toBe('none');
+    expect(selectedOf()).toBe(2);
+    cursorAt(2);
+
+    fireEvent.keyDown(slider, { key: 'ArrowLeft' });
+    expect(selectedOf()).toBe(1);
+    cursorAt(1);
+
+    // No transition runs on any keyboard move.
+    expect(cursorAnimations()).toHaveLength(0);
+  });
+
+  it('HC-UIRR-005: a pointer selection picks the nearest point and glides the cursor for --dur-sm (180 ms)', async () => {
+    const { RangeRibbon } = await loadRibbon();
+    const { container } = render(
+      <RangeRibbon trend={series([point(APR_1, 85, true), point(APR_10, 118, false), point(APR_20, 60, true)])} />
+    );
+    // Two user units from point 1 is still nearest to point 1, not to a 12-unit hit area.
+    pointerAt(cxOf(container, 1) - 2);
+    expect(selectedOf()).toBe(1);
+    expect(cursorOf(container).style.transform).toBe('');
+    expect(Number(cursorOf(container).getAttribute('x1'))).toBeCloseTo(cxOf(container, 1), 3);
+
+    const glides = cursorAnimations();
+    expect(glides).toHaveLength(1);
+    expect(glides[0].options.duration).toBe(180);
+
+    // A keyboard move after a pointer move does not glide.
+    fireEvent.keyDown(sliderOf(), { key: 'ArrowRight' });
+    expect(selectedOf()).toBe(2);
+    expect(cursorAnimations()).toHaveLength(1);
   });
 
   it('HC-UIRR-006: the table fallback lists the same dates and values', async () => {
@@ -341,9 +495,54 @@ describe('RangeRibbon', () => {
       rows.map((row) => Array.from(row.querySelectorAll('th, td'), (cell) => cell.textContent))
     ).toEqual([
       ['Apr 1, 2026', '85 mg/dL', 'Within the reference range (per report)', 'Checked by you'],
-      ['Apr 10, 2026', '118 mg/dL', 'Above the reference range (per report)', 'Not yet checked'],
+      ['Apr 10, 2026', '118 mg/dL', ABOVE_WORDS, 'Not yet checked'],
       ['Apr 20, 2026', '96.5 mg/dL', 'Within the reference range (per report)', 'Checked by you'],
     ]);
+  });
+
+  it('HC-UIRR-006: the text layer carries data-t0 (readout, table cells, caption, date labels); the line, points and cursor do not', async () => {
+    const { RangeRibbon } = await loadRibbon();
+    const { container } = render(
+      <RangeRibbon
+        trend={series([point(APR_1, 85, true), point(APR_10, 118, false), point(APR_20, 96.5, true)])}
+      />
+    );
+    expect(container.querySelector('[data-readout]')).toHaveAttribute('data-t0');
+    expect(container.querySelector('figcaption')).toHaveAttribute('data-t0');
+    expect(container.querySelector('[data-axis="first"]')).toHaveAttribute('data-t0');
+    expect(container.querySelector('[data-axis="first"]')?.textContent).toBe('Apr 1, 2026');
+    expect(container.querySelector('[data-axis="last"]')).toHaveAttribute('data-t0');
+    expect(container.querySelector('[data-axis="last"]')?.textContent).toBe('Apr 20, 2026');
+
+    const cells = Array.from(screen.getByRole('table').querySelectorAll('th, td'));
+    expect(cells.length).toBeGreaterThan(0);
+    for (const cell of cells) {
+      expect(cell).toHaveAttribute('data-t0');
+    }
+
+    expect(container.querySelector('polyline')).not.toBeNull();
+    expect(container.querySelector('polyline')).not.toHaveAttribute('data-t0');
+    expect(container.querySelector('[data-cursor]')).not.toHaveAttribute('data-t0');
+    for (const marker of Array.from(container.querySelectorAll('[data-marker]'))) {
+      expect(marker).not.toHaveAttribute('data-t0');
+      expect(marker.closest('[data-t0]')).toBeNull();
+    }
+    for (const group of Array.from(container.querySelectorAll('[data-point-index]'))) {
+      expect(group).not.toHaveAttribute('data-t0');
+    }
+  });
+
+  it('HC-UIRR-006: a result whose date the ribbon cannot read is left out of the chart and the table, and the rest stay correct', async () => {
+    const { RangeRibbon } = await loadRibbon();
+    const { container } = render(
+      <RangeRibbon
+        trend={series([point(APR_1, 85, true), point('04/10/2026', 118, true), point(APR_20, 90, true)])}
+      />
+    );
+    expect(container.querySelectorAll('[data-point-index]')).toHaveLength(2);
+    const rows = within(screen.getByRole('table')).getAllByRole('row').slice(1);
+    expect(rows.map((row) => row.querySelector('th')?.textContent)).toEqual(['Apr 1, 2026', 'Apr 20, 2026']);
+    expect(screen.queryByText('118 mg/dL')).toBeNull();
   });
 
   it('HC-UIRR-006: no value is ever tweened; every number in every frame of the reveal is a data value', async () => {
@@ -390,23 +589,44 @@ describe('RangeRibbon', () => {
     expect(animateCalls).toHaveLength(0);
     second.unmount();
 
-    const getSpy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
       throw new Error('storage blocked');
     });
-    const setSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new Error('storage blocked');
     });
-    try {
-      const blocked = render(
-        <RangeRibbon trend={series(data.data_points, { analyte_canonical: 'hdl' })} />
-      );
-      expect(screen.getByRole('slider')).toBeInTheDocument();
-      expect(screen.getByRole('table')).toBeInTheDocument();
-      blocked.unmount();
-    } finally {
-      getSpy.mockRestore();
-      setSpy.mockRestore();
-    }
+    const blocked = render(
+      <RangeRibbon trend={series(data.data_points, { analyte_canonical: 'hdl' })} />
+    );
+    expect(screen.getByRole('slider')).toBeInTheDocument();
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    blocked.unmount();
+  });
+
+  it('HC-UIRR-006: an empty first render does not use up the reveal, and a changed analyte reveals again', async () => {
+    const { RangeRibbon } = await loadRibbon();
+    const glucose = series([point(APR_1, 85, true), point(APR_10, 118, true)]);
+    const { rerender } = render(<RangeRibbon trend={series([])} />);
+    expect(animateCalls).toHaveLength(0);
+    expect(sessionStorage.getItem(REVEAL_KEY)).toBeNull();
+
+    // Data arrives after the empty first render: it draws, and selects the latest point.
+    rerender(<RangeRibbon trend={glucose} />);
+    expect(animateCalls.length).toBeGreaterThan(0);
+    expect(selectedOf()).toBe(1);
+
+    animateCalls = [];
+    rerender(
+      <RangeRibbon
+        trend={series([point(APR_1, 90, true), point(APR_10, 100, true)], {
+          analyte_canonical: 'hdl',
+          analyte_display_name: 'HDL',
+        })}
+      />
+    );
+    expect(animateCalls.length).toBeGreaterThan(0);
+    expect(selectedOf()).toBe(1);
+    expect(sliderOf()).toHaveAttribute('aria-label', 'HDL: results over time');
   });
 
   it('HC-UIRR-007: no hex literal in either component source', async () => {
@@ -417,25 +637,37 @@ describe('RangeRibbon', () => {
     }
   });
 
-  it('HC-UIRR-007: XMLSerializer output contains the computed token colours', async () => {
+  it('HC-UIRR-007: XMLSerializer output carries every token colour, a fixed size, and no currentColor fallback', async () => {
     const { RangeRibbon, serializeRangeRibbonSvg } = await loadRibbon();
     const root = document.documentElement;
-    root.style.setProperty('--ink-1', '#123456');
-    root.style.setProperty('--outside', '#654321');
+    // Every token the ribbon uses. An unset token would fall back to currentColor.
+    const tokens: Record<string, string> = {
+      '--band': '#0a0a0a',
+      '--line-strong': '#1a1a1a',
+      '--pencil': '#2a2a2a',
+      '--ink-1': '#123456',
+      '--outside': '#654321',
+    };
+    for (const [name, value] of Object.entries(tokens)) root.style.setProperty(name, value);
     try {
       const { container } = render(
-        <RangeRibbon trend={series([point(APR_1, 85, true), point(APR_10, 118, true)])} />
+        <RangeRibbon
+          trend={series([point(APR_1, 85, true), point(APR_10, 118, true), point(APR_20, 90, false)])}
+        />
       );
       const svg = container.querySelector('svg');
       expect(svg).not.toBeNull();
       const out = serializeRangeRibbonSvg(svg as SVGSVGElement);
-      expect(out).toContain('<svg');
-      expect(out).toContain('#123456'); // verified (ink) points
-      expect(out).toContain('#654321'); // out-of-range triangle
       expect(out).not.toMatch(/var\(--/);
+      expect(out).not.toContain('currentColor');
+      for (const value of Object.values(tokens)) {
+        expect(out).toContain(value);
+      }
+      const exported = new DOMParser().parseFromString(out, 'image/svg+xml').documentElement;
+      expect(exported.getAttribute('width')).toBe('320');
+      expect(exported.getAttribute('height')).toBe('160');
     } finally {
-      root.style.removeProperty('--ink-1');
-      root.style.removeProperty('--outside');
+      for (const name of Object.keys(tokens)) root.style.removeProperty(name);
     }
   });
 });
