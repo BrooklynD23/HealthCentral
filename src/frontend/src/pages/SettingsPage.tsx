@@ -608,7 +608,7 @@ export function SettingsPage() {
                           Download
                         </Button>
                       ) : (
-                        <Badge variant="default" className="opacity-50">Incompatible</Badge>
+                        <Badge variant="default">Incompatible</Badge>
                       )}
                       {!isSelected && (tier.downloaded || tier.can_run) && (
                         <Button
