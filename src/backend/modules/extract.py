@@ -494,9 +494,9 @@ class ExtractModule:
         cmp = fields.get("cmp")
         unit = fields.get("unit")
         # Flag before the unit wins, then the flag between unit and range, then the flag after the range.
-        flag_text = next(
-            (fields[key] for key in ("flag", "flag_before", "flag_mid", "flag_after") if fields.get(key)),
-            None,
+        flag_text = (
+            fields.get("flag") or fields.get("flag_before")
+            or fields.get("flag_mid") or fields.get("flag_after")
         )
         flag = flag_text.upper() if flag_text else None
         # A one-bound range ("<100", ">=60") keeps its raw text; a-b ranges are rebuilt from the bounds.
