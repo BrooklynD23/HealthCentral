@@ -225,6 +225,18 @@ describe('HC-UIFB-002: StatusChip shows an icon and words for every state', () =
     expect(inRangeClass).not.toMatch(/status-verified/);
     expect(checkedClass).toMatch(/status-verified/);
   });
+
+  it('in range uses a neutral glyph, not a check mark', async () => {
+    // Would not notice: a check-circle glyph on "In range" that reads as a pass
+    // verdict and sits close to "Checked by you". Lucide puts the icon name in
+    // the svg class (lucide-check-circle-2), so the class shows the glyph.
+    const { StatusChip } = await load<typeof StatusChipModule>('@/components/ui/StatusChip');
+    const { container } = render(<StatusChip state="in-range" />);
+    const icon = container.querySelector('svg');
+
+    expect(icon).not.toBeNull();
+    expect(icon?.getAttribute('class')).not.toMatch(/check/);
+  });
 });
 
 describe('HC-UIFB-003: Pending keeps breathing under reduced motion', () => {
