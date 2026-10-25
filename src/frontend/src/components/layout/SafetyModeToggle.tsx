@@ -18,7 +18,7 @@ export function SafetyModeToggle({ className }: { className?: string }) {
 
   return (
     <div className={cn('flex flex-col gap-1', className)}>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <Switch
           id={switchId}
           checked={false}
@@ -26,7 +26,7 @@ export function SafetyModeToggle({ className }: { className?: string }) {
           aria-disabled="true"
           aria-describedby={noteId}
         />
-        <label htmlFor={switchId} className="text-sm font-medium text-ink">
+        <label htmlFor={switchId} className="sr-only text-sm font-medium text-ink lg:not-sr-only">
           Stricter safety mode
         </label>
         <Popover

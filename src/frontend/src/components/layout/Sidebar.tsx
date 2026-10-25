@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { cn } from '@/utils/cn';
 import { BrandMark } from './BrandMark';
 import { isNavActive, navGroups } from './navConfig';
@@ -17,10 +18,12 @@ export function Sidebar() {
   const navRef = useRef<HTMLElement>(null);
   const activeRef = useRef<HTMLAnchorElement | null>(null);
   const [indicatorTop, setIndicatorTop] = useState<number | null>(null);
+  const prefersReducedMotion = useReducedMotion();
 
   const activeTo = navGroups.flatMap((group) => group.items).find((item) => isNavActive(pathname, item.to))?.to;
 
   // Measured before paint, so the indicator never shows at the wrong row.
+  // Reduced motion places the indicator with `top` and no transform (G5 reads transforms).
   useLayoutEffect(() => {
     setIndicatorTop(activeRef.current ? activeRef.current.offsetTop : null);
   }, [activeTo]);
@@ -39,7 +42,7 @@ export function Sidebar() {
             'transition-transform duration-[var(--dur-md)] ease-[var(--ease-in-out)] motion-reduce:transition-none',
             indicatorTop === null && 'opacity-0'
           )}
-          style={{ transform: `translateY(${indicatorTop ?? 0}px)` }}
+          style={prefersReducedMotion ? { top: indicatorTop ?? 0 } : { transform: `translateY(${indicatorTop ?? 0}px)` }}
         />
         {navGroups.map((group) => (
           <div key={group.label} className="mb-2">
