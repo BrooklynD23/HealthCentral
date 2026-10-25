@@ -1,6 +1,6 @@
 # docs/archive/ — Archive Policy
 
-**Last Updated:** 2026-10-22
+**Last Updated:** 2026-10-25
 **Owner:** Project Lead
 **Refresh Trigger:** A doc is archived or restored
 
@@ -25,6 +25,8 @@ current plans, current status, or open work.
 - **Active work lives in [`docs/features/TASK_LIST.md`](../features/TASK_LIST.md).**
   If you are looking for current status, open tickets, or what to work on
   next, that file is the source of truth — not anything under this directory.
+  The build-program backlog is
+  [`docs/plans/2026-10-15-build-program/queue.md`](../plans/2026-10-15-build-program/queue.md).
 - **Relocate, never rewrite.** Files land here via `git mv` with no content
   changes beyond adding the required historical banner and re-pointing
   relative links for the new directory depth (so docs_lint DOC-007 stays green). The history of a
