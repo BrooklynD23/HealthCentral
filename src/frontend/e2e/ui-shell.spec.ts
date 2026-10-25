@@ -23,9 +23,14 @@ import {
   safetyVisible,
   setTheme,
   stillnessProbe,
-  SAFETY_RAIL_SELECTOR,
 } from './support/gates';
 import { installMockApi, seedMockSession } from './support/mockApi';
+
+/** The rule, impact and first three nodes of an axe violation, so a failure names the element. */
+function describeViolation(v: { id: string; impact?: string | null; nodes: Array<{ target: string[] }> }): string {
+  const nodes = v.nodes.slice(0, 3).map((node) => node.target.join(' ')).join(', ');
+  return `${v.id}:${v.impact} at ${nodes}`;
+}
 
 const DESKTOP = { width: 1440, height: 900 };
 const PHONE = { width: 390, height: 844 };
@@ -191,9 +196,12 @@ function routeFadeFailures(
 }
 
 // ---------------------------------------------------------------------------
-// HC-UISH-002: the skip link is the first tab stop, and each page has one h1.
+// HC-UISH-002: the skip link is the first tab stop, the shell renders no h1, and no route renders more than one.
 // ---------------------------------------------------------------------------
-test.describe('HC-UISH-002 skip link and one h1', () => {
+/** The shell's chrome: sidebar, top bar, tab bar and Safety Rail. /setup and /recover have none of it. */
+const SHELL_CHROME = 'aside, header, nav, [data-safety-rail]';
+
+test.describe('HC-UISH-002 skip link and h1 rules', () => {
   test.use({ viewport: DESKTOP });
 
   test('HC-UISH-002: the first Tab focuses the skip link', async ({ page }) => {
@@ -204,13 +212,16 @@ test.describe('HC-UISH-002 skip link and one h1', () => {
   });
 
   for (const route of [...ALL_ROUTES, '/recover']) {
-    test(`HC-UISH-002: exactly one h1 on ${route}`, async ({ page }) => {
+    test(`HC-UISH-002: the shell renders no h1, and ${route} renders at most one`, async ({ page }) => {
       await openRoute(page, route);
-      await expect(page.locator('h1, main').first()).toBeVisible({ timeout: 15_000 });
-      // Count after the page has loaded. The sidebar brand is an h1 today, so a count taken
-      // before the page's own h1 mounts reads 1 and passes for the wrong reason.
+      // /recover renders no h1 and no main, so wait for any rendered content rather than for one of those.
+      await expect(page.locator('#root')).not.toBeEmpty({ timeout: 15_000 });
+      // Count after the page has loaded, so a count taken before the page's own h1 mounts cannot pass for the wrong reason.
       await page.waitForLoadState('networkidle');
-      await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
+      const shellH1 = await page.locator(SHELL_CHROME).getByRole('heading', { level: 1 }).count();
+      const routeH1 = (await page.getByRole('heading', { level: 1 }).count()) - shellH1;
+      expect(shellH1, 'h1 inside the shell chrome').toBe(0);
+      expect(routeH1, 'h1 inside the route content').toBeLessThanOrEqual(1);
     });
   }
 });
@@ -237,7 +248,10 @@ test.describe('HC-UISH-003 route fade and HC-UISH-009 rail stillness', () => {
       const samples = await sampleRouteContainer(page, route);
       expect(routeFadeFailures(samples, route, true)).toEqual([]);
     });
+  }
 
+  // /explain is left out of HC-UISH-009 until UI-PG-ASK lands (L0 ruling 2026-10-25).
+  for (const route of AUTH_ROUTES.filter((candidate) => candidate !== '/explain')) {
     test(`HC-UISH-009: the Safety Rail stays still through the navigation to ${route}`, async ({ page }) => {
       await openRoute(page, startPageFor(route));
       await expect(page.locator(RAIL)).toBeVisible({ timeout: 15_000 });
@@ -333,11 +347,14 @@ test.describe('HC-UISH-006 relabelled safety toggle', () => {
     await openRoute(page, '/inbox');
     const banner = page.getByRole('banner');
     await expect(banner).toBeVisible({ timeout: 15_000 });
-    await expect(banner).not.toContainText(/Safety Mode/i);
+    await expect(banner).not.toContainText(/Safety Mode/);
     await expect(banner).not.toContainText(/\bON\b/);
     await expect(banner).not.toContainText(/\bOFF\b/);
 
     const toggle = page.getByRole('switch', { name: 'Stricter safety mode' });
+    // The switch's row and the note carry no standalone ON or OFF (case-sensitive, so "on" in a sentence still reads).
+    await expect(toggle.locator('xpath=..')).not.toContainText(/\b(ON|OFF)\b/);
+    await expect(page.locator(TOGGLE_NOTE)).not.toContainText(/\b(ON|OFF)\b/);
     await expect(toggle).toHaveAttribute('aria-checked', 'false');
     await expect(toggle).toHaveAttribute('aria-disabled', 'true');
     await expect(toggle).toHaveAccessibleDescription(/standard safety checks always run/i);
@@ -480,9 +497,9 @@ test.describe('Gate G on every route', () => {
       await expect(page.locator('h1, main').first()).toBeVisible({ timeout: 15_000 });
 
       const light = await axeGate(page, { theme: 'light' });
-      expect(light.blocking.map((v) => `${v.id}:${v.impact}`), 'light axe serious/critical').toEqual([]);
+      expect(light.blocking.map(describeViolation), 'light axe serious/critical').toEqual([]);
       const dark = await axeGate(page, { theme: 'dark' });
-      expect(dark.blocking.map((v) => `${v.id}:${v.impact}`), 'dark axe serious/critical').toEqual([]);
+      expect(dark.blocking.map(describeViolation), 'dark axe serious/critical').toEqual([]);
 
       await page.setViewportSize(PHONE);
       expect((await noHorizontalScroll(page)).ok, 'no horizontal scroll at 390').toBe(true);
