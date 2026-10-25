@@ -781,8 +781,9 @@ class ExtractModule:
     # whitespace runs); callers pass pos/endpos so `\b` still sees the real
     # character before the window.
     _BIRTH_LABEL_TAIL_RE = re.compile(
-        r"(?:\bd\.?\s?o\.?\s?b\.?|\bdate\s+of\s+birth|\bbirth\s*date|\bborn(?:\s+on)?)"
-        r"\s{0,3}[:\-]?\s{0,3}$",
+        r"(?:\bd\.?\s?o\.?\s?b\.?|\bdate\s+of\s+birth|\bbirth\s*date|\bborn(?:\s+on)?"
+        r"|\bdob\s*/\s*(?:sex|gender|age))"
+        r"\s{0,3}(?:\([^()\n]{0,14}\)\s{0,3})?[:\-]?\s{0,3}$",
         re.IGNORECASE,
     )
     _BIRTH_LABEL_WINDOW = 32
@@ -865,13 +866,76 @@ class ExtractModule:
         generic: list[str] = []
         seen: set[str] = set()
 
+        # --- Column layout: a DOB printed under a birth-label header token ---
+        # A line whose whitespace-separated tokens include a single-token birth
+        # label (case-insensitive, a trailing ':' ignored) is a header, unless it
+        # carries a date token itself. The next line is its data row only when it
+        # has the same token count, and the token at the label's index is a DOB
+        # when it is a date. Skipped by character offset, never by value, so the
+        # same date printed elsewhere still counts. In such a data row a birth
+        # label counts only on its own line: the header's label does not reach
+        # into the row's other cells. One split and one pass: linear.
+        birth_labels = {"dob", "d.o.b.", "d.o.b", "birthdate"}
+        lines = text.split("\n")
+        line_starts: list[int] = []
+        offset = 0
+        for line in lines:
+            line_starts.append(offset)
+            offset += len(line) + 1
+        birth_column: set[int] = set()
+        column_row: set[int] = set()
+        # Only a token of this shape can parse as a date: each single-token format in
+        # _normalize_date_str is digits, a separator, a 1-3 character month or day, a
+        # separator, digits and an optional T time. Other tokens skip its 12 strptime
+        # attempts, so a long line of plain tokens stays cheap.
+        date_shape = re.compile(r"\d{1,4}[/\-]\w{1,3}[/\-]\d{1,4}(?:[Tt][\d:]+)?")
+
+        def _is_date_token(token: str) -> bool:
+            return (
+                date_shape.fullmatch(token) is not None
+                and self._normalize_date_str(token) is not None
+            )
+
+        for i in range(len(lines) - 1):
+            header = list(re.finditer(r"\S+", lines[i]))
+            if not any(t.group().lower().removesuffix(":") in birth_labels for t in header):
+                continue
+            if any(_is_date_token(t.group()) for t in header):
+                continue
+            row = list(re.finditer(r"\S+", lines[i + 1]))
+            if len(header) != len(row):
+                continue
+            confirmed = False
+            for col, token in enumerate(header):
+                if token.group().lower().removesuffix(":") not in birth_labels:
+                    continue
+                cell = row[col]
+                if _is_date_token(cell.group()):
+                    confirmed = True
+                    cell_start = line_starts[i + 1] + cell.start()
+                    birth_column.update(range(cell_start, cell_start + len(cell.group())))
+            if confirmed:
+                row_start = line_starts[i + 1]
+                column_row.update(range(row_start, row_start + len(lines[i + 1])))
+
+        def _after_birth_label(pos: int) -> bool:
+            """True if a birth label precedes *pos*; in a column row, only on the same line."""
+            if pos not in column_row:
+                return self._follows_birth_label(text, pos)
+            lo = max(0, pos - self._BIRTH_LABEL_WINDOW)
+            floor = max(text.rfind("\n", lo, pos) + 1, lo)
+            return self._BIRTH_LABEL_TAIL_RE.search(text, floor, pos) is not None
+
         # --- Stage 1: collection-label dates (highest priority) ---
         for m in self._COLLECTION_LABEL_RE.finditer(text):
             # The capture group may contain extra words; try progressively
             # shorter substrings so we get just the date part.
             raw_tail = m.group(1).strip()
             tail_start = m.start(1) + (len(m.group(1)) - len(m.group(1).lstrip()))
-            if self._follows_birth_label(text, tail_start):
+            # A DOB-column cell blocks this label only when the label reaches it
+            # across a line break; a label on the same line as its date wins.
+            crosses_line = "\n" in text[m.start():tail_start]
+            if (crosses_line and tail_start in birth_column) or _after_birth_label(tail_start):
                 continue
             for candidate in _date_candidates_from_tail(raw_tail):
                 iso = self._normalize_date_str(candidate)
@@ -900,7 +964,7 @@ class ExtractModule:
 
         for pattern in generic_patterns:
             for m in re.finditer(pattern, text, re.IGNORECASE):
-                if self._follows_birth_label(text, m.start(1)):
+                if m.start(1) in birth_column or _after_birth_label(m.start(1)):
                     continue
                 candidate = m.group(1).strip()
                 iso = self._normalize_date_str(candidate)
