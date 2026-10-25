@@ -68,6 +68,7 @@ class ExtractionResult:
 
 # Shared unit alternation. Longer alternatives precede their prefixes.
 _UNIT_ALT = (
+    r"mL/min/1\.73m2|x10E3/uL|x10\^3/uL|10\*3/uL|x10E6/uL|"
     r"mIU/L|[uµμ]IU/mL|ng/dL|[uµμ]g/dL|nmol/L|pmol/L|[uµμ]mol/L|"
     r"[uµμ]g/L|g/L|mg/dL|mg/L|g/dL|mmol/L|mEq/L|U/L|IU/L|ng/mL|pg/mL|%|fL|K/uL|M/uL|cells/uL"
 )
@@ -390,38 +391,52 @@ class ExtractModule:
             extraction_method="pdf_table",
         )
 
+    # Optional comparator before a value (Quest/LabCorp "<0.5", ">90"). It makes the value a bound.
+    _CMP_ALT = r"[<>]=?|≤|≥"
+    # A number. The lookaheads keep each digit run in one group, so a long run cannot be
+    # split between two groups (quadratic backtracking). Same language as \d+\.?\d*.
+    _NUM = r"\d+(?!\d)(?:\.\d*(?!\d))?"
+
     # Pattern for "Analyte: Value Unit" format
     LINE_PATTERN = re.compile(
-        r"^([A-Za-z][A-Za-z0-9\s,\-]+?):\s*"  # Analyte name ending with colon
-        r"(\d+\.?\d*)\s*"  # Numeric value
-        r"(" + _UNIT_ALT + r")?"  # Unit
-        r"(?:\s*\((?:Normal:|Ref:?)?\s*([<>]?\d+\.?\d*)\s*[-–]?\s*(\d+\.?\d*)?\))?"  # Reference range
-        r"(?:\s*(H|L|HH|LL|HIGH|LOW|ABNORMAL|CRITICAL))?"  # Flag
+        r"^(?P<name>[A-Za-z][A-Za-z0-9\s,\-]+?):\s*"  # Analyte name ending with colon
+        r"(?:(?P<cmp>" + _CMP_ALT + r")\s*)?"  # Comparator (a bound, not an exact value)
+        r"(?P<value>" + _NUM + r")"  # Numeric value
+        r"(?:\s*(?P<unit>" + _UNIT_ALT + r"))?"  # Unit (optional; the whitespace belongs to it)
+        r"(?:\s*\((?:Normal:|Ref:?)?\s*(?P<ref_low>[<>]?" + _NUM + r")\s*(?:[-–]\s*)?(?P<ref_high>" + _NUM + r")?\))?"  # Reference range
+        r"(?:\s*(?P<flag>H|L|HH|LL|HIGH|LOW|ABNORMAL|CRITICAL))?"  # Flag
         r"\s*$",
         re.IGNORECASE | re.MULTILINE
     )
 
     # Alternative pattern for "Analyte Value Unit (Range)" without colon
     ALT_LINE_PATTERN = re.compile(
-        r"^([A-Za-z][A-Za-z0-9\s,\-]+?)\s+"  # Analyte name
-        r"(\d+\.?\d*)\s*"  # Value
-        r"(" + _UNIT_ALT + r")\s*"  # Required unit
-        r"(?:\(([<>]?\d+\.?\d*)\s*[-–]?\s*(\d+\.?\d*)?\))?"  # Reference range
-        r"(?:\s*(H|L|HH|LL|HIGH|LOW|ABNORMAL|CRITICAL))?"  # Flag
+        r"^(?P<name>[A-Za-z]\s|[A-Za-z](?:\s*[A-Za-z0-9,\-])+?)\s+"  # Analyte name (whitespace runs cannot backtrack; HC-ETF-006)
+        r"(?:(?P<cmp>" + _CMP_ALT + r")\s*)?"  # Comparator (a bound, not an exact value)
+        r"(?P<value>" + _NUM + r")\s*"  # Value
+        r"(?P<unit>" + _UNIT_ALT + r")"  # Required unit
+        r"(?:\s*\((?P<ref_low>[<>]?" + _NUM + r")\s*(?:[-–]\s*)?(?P<ref_high>" + _NUM + r")?\))?"  # Reference range
+        r"(?:\s*(?P<flag>H|L|HH|LL|HIGH|LOW|ABNORMAL|CRITICAL))?"  # Flag
         r"\s*$",
         re.IGNORECASE | re.MULTILINE
     )
 
-    # Column layout: "Analyte Value [Flag] Unit [Range] [Flag]" (whitespace-separated,
-    # unit required, range bare: a-b, <a or >a). Tried after the two patterns above.
+    # Column layout: "Analyte Value [Flag] Unit [Flag] [Range] [Flag]" (whitespace-separated,
+    # unit required, range bare: a-b, <a, <=a, <OR=a, >a, >=a or >OR=a). Tried after the two
+    # patterns above. A one-bound range sets one bound; a comparator before the value does not
+    # make the value a number.
     _FLAG_ALT = r"HH|LL|HIGH|LOW|ABNORMAL|CRITICAL|H|L"
     COLUMN_LINE_PATTERN = re.compile(
-        r"^([A-Za-z][A-Za-z0-9\s,\-]*?)\s+"  # Analyte name
-        r"(\d+\.?\d*)\s+"  # Value
-        r"(?:(" + _FLAG_ALT + r")\s+)?"  # Flag before unit
-        r"(" + _UNIT_ALT + r")"  # Required unit
-        r"(?:\s+(?:(\d+\.?\d*)\s*[-–]\s*(\d+\.?\d*)|<\s*(\d+\.?\d*)|>\s*(\d+\.?\d*)))?"  # Range
-        r"(?:\s+(" + _FLAG_ALT + r"))?"  # Flag after range
+        r"^(?P<name>[A-Za-z](?:\s*[A-Za-z0-9,\-])*?)\s+"  # Analyte name (no trailing whitespace: linear time)
+        r"(?:(?P<cmp>" + _CMP_ALT + r")\s*)?"  # Comparator (a bound, not an exact value)
+        r"(?P<value>" + _NUM + r")\s+"  # Value
+        r"(?:(?P<flag_before>" + _FLAG_ALT + r")\s+)?"  # Flag before unit
+        r"(?P<unit>" + _UNIT_ALT + r")"  # Required unit
+        r"(?:\s+(?:(?P<flag_mid>" + _FLAG_ALT + r")\s+)?"  # Flag between unit and range (only with a range)
+        r"(?:(?P<lo>" + _NUM + r")\s*[-–]\s*(?P<hi>" + _NUM + r")"  # Range a-b
+        r"|(?P<one_lt><(?:OR=|=)?\s*(?P<lt>" + _NUM + r"))"  # Upper bound: <a, <=a, <OR=a
+        r"|(?P<one_gt>>(?:OR=|=)?\s*(?P<gt>" + _NUM + r"))))?"  # Lower bound: >a, >=a, >OR=a
+        r"(?:\s+(?P<flag_after>" + _FLAG_ALT + r"))?"  # Flag after range
         r"\s*$",
         re.IGNORECASE
     )
@@ -467,30 +482,28 @@ class ExtractModule:
         if not match:
             # Try alternative format: "Glucose 95 mg/dL (70-100)"
             match = self.ALT_LINE_PATTERN.match(line)
-
         if not match:
-            col = self.COLUMN_LINE_PATTERN.match(line)
-            if not col:
-                return None
-            name, val, flag_a, col_unit, lo, hi, lt, gt, flag_b = col.groups()
-            col_range_text = (
-                f"{lo}-{hi}" if lo and hi else f"<{lt}" if lt else f">{gt}" if gt else None
-            )
-            # Normalise to the (analyte, value, unit, ref_low, ref_high, flag) shape.
-            if lt:
-                lo, hi = None, lt
-            elif gt:
-                lo, hi = gt, None
-            groups = (name, val, col_unit, lo, hi, flag_a or flag_b)
-        else:
-            groups = match.groups()
-            col_range_text = None
-        analyte = groups[0].strip() if groups[0] else None
-        value_str = groups[1] if len(groups) > 1 else None
-        unit = groups[2] if len(groups) > 2 else None
-        ref_low_str = groups[3] if len(groups) > 3 else None
-        ref_high_str = groups[4] if len(groups) > 4 else None
-        flag = groups[5].upper() if len(groups) > 5 and groups[5] else None
+            # Column layout: "Glucose 95 mg/dL 70-99"
+            match = self.COLUMN_LINE_PATTERN.match(line)
+        if not match:
+            return None
+
+        fields = match.groupdict()
+        analyte = fields["name"].strip() if fields["name"] else None
+        value_str = fields["value"]
+        cmp = fields.get("cmp")
+        unit = fields.get("unit")
+        # Flag before the unit wins, then the flag between unit and range, then the flag after the range.
+        flag_text = (
+            fields.get("flag") or fields.get("flag_before")
+            or fields.get("flag_mid") or fields.get("flag_after")
+        )
+        flag = flag_text.upper() if flag_text else None
+        # A one-bound range ("<100", ">=60") keeps its raw text; a-b ranges are rebuilt from the bounds.
+        one_bound = fields.get("one_lt") or fields.get("one_gt")
+        col_range_text = re.sub(r"\s+", "", one_bound) if one_bound else None
+        ref_low_str = fields.get("ref_low") or fields.get("lo") or fields.get("gt")
+        ref_high_str = fields.get("ref_high") or fields.get("hi") or fields.get("lt")
 
         if not analyte or not value_str:
             return None
@@ -506,11 +519,23 @@ class ExtractModule:
         ):
             return None
 
-        # Parse numeric values
-        try:
-            value = float(value_str)
-        except (ValueError, TypeError):
+        # A comparator is a result only with a unit and a reference bound on the same line
+        # ("Glucose: <70 mg/dL (70-100)"). Without them it is a reference label
+        # ("Diabetes: >6.4", "Desirable range <200 mg/dL", "Normal: <5.7 %"), not a result.
+        if cmp and (not unit or (ref_low_str is None and ref_high_str is None)):
             return None
+
+        # A comparator (<, >, <=, >=) is a bound, never an exact number: value stays None
+        # and the text is kept as value_text (as in _parse_table_row).
+        value = None
+        value_text = None
+        if cmp:
+            value_text = f"{cmp}{value_str}"
+        else:
+            try:
+                value = float(value_str)
+            except (ValueError, TypeError):
+                return None
 
         ref_low = None
         ref_high = None
@@ -545,6 +570,7 @@ class ExtractModule:
         return ExtractedObservation(
             analyte_raw=analyte,
             value=value,
+            value_text=value_text,
             unit=unit,
             ref_low=ref_low,
             ref_high=ref_high,
