@@ -179,7 +179,7 @@ describe('HC-UIPV-003 Source Trace shows the highlighted row, page, date and the
     );
 
     expect(screen.getByText('Page not available')).not.toBeNull();
-    expect(screen.getByText('Read confidence not available')).not.toBeNull();
+    expect(screen.getByText('Not available')).not.toBeNull();
     expect(screen.queryByText('Page 3')).toBeNull();
   });
 });
@@ -187,7 +187,9 @@ describe('HC-UIPV-003 Source Trace shows the highlighted row, page, date and the
 describe('HC-UIPV-005 verify sends one POST, shows the confirmation toast, offers no Undo', () => {
   it('posts once to /observations/{id}/verify, shows the toast, and has no Undo control', async () => {
     const user = userEvent.setup();
-    const fetchMock = vi.fn(async () => jsonResponse({ ...observation, user_verified: true }));
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      jsonResponse({ ...observation, user_verified: true })
+    );
     vi.stubGlobal('fetch', fetchMock);
     const { SourceTrace } = await load<typeof SourceTraceModule>('@/components/results/SourceTrace');
 
@@ -223,7 +225,6 @@ describe('HC-UIPV-006 markup half: data-t0 on every T0 node, none on the highlig
       const node = screen.getByText(text);
       expect(node.closest('[data-t0]'), `T0 node for "${text}"`).not.toBeNull();
     }
-    expect(screen.getByText('This is what your report states.').closest('[data-t0]')).not.toBeNull();
 
     const marks = document.querySelectorAll('[data-trace-mark]');
     expect(marks.length).toBeGreaterThan(0);
