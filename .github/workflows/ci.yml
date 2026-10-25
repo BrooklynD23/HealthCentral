@@ -124,6 +124,10 @@ jobs:
         working-directory: src/frontend
         run: npm run build
 
+      - name: Bundle budget (check-bundle.mjs)
+        working-directory: src/frontend
+        run: node scripts/check-bundle.mjs
+
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
