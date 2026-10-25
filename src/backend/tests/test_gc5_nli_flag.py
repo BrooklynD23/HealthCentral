@@ -7,6 +7,8 @@ Plan: docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock
+
 import pytest
 
 from modules.rag import RAGModule, RetrievedChunk
@@ -566,6 +568,8 @@ def test_hc_gc5_014_chat_abstains_when_predict_fails(monkeypatch):
         "GENERAL INFO:\nNormal fasting glucose is typically 70-100 mg/dL [cite:2]."
     )
     encoder = _RaisingPredictEncoder(RuntimeError("boom"))
+    # SAFETY-MODE-STRICT: mock profile DB; pin OFF (L0 ruling, PR #355)
+    monkeypatch.setattr("api.assistant.is_strict_safety_mode", AsyncMock(return_value=False))
     monkeypatch.setattr("modules.embeddings.load_local_cross_encoder", lambda: encoder)
     saved_flag, saved_rag = settings.use_llm_entailment, assistant._rag_module
     settings.use_llm_entailment = True
@@ -685,6 +689,8 @@ def test_hc_gc5_011_legacy_gate_passes_with_flag_on_under_measured_nli_outputs(m
     monkeypatch.setattr("modules.embeddings.load_local_cross_encoder", lambda: encoder)
     monkeypatch.setattr(settings, "use_llm_entailment", True)
     monkeypatch.setattr(assistant, "_rag_module", None)
+    # SAFETY-MODE-STRICT: mock profile DB; pin OFF (L0 ruling, PR #355)
+    monkeypatch.setattr("api.assistant.is_strict_safety_mode", AsyncMock(return_value=False))
     report = harness.score_cases(harness.load_cases())
     assert encoder.unknown == []
     # The flag really reached the RAG module: exactly #249's 7 NLI calls (flag off makes 0).
