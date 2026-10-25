@@ -103,6 +103,33 @@ function layerToken(name: string): number {
   return Number(match[1]);
 }
 
+/**
+ * Selectors allowed to set animation-duration or iteration-count inside the
+ * reduced-motion block. .animate-shimmer and .animate-bounce are loaders that
+ * keep breathing at 1.6 s; .animate-ping is one decorative one-shot that stops
+ * at its final frame. Any other selector with these properties is a kill switch.
+ */
+const LOADER_AND_ONE_SHOT = ['.animate-ping', '.animate-shimmer', '.animate-bounce'];
+const TIMING_PROPERTY = /animation-(duration|iteration-count)\s*:/;
+
+/** Rules inside the reduced-motion block, comments removed, as selector and body. */
+function reducedMotionRules(css: string): Array<{ selector: string; body: string }> {
+  const mediaAt = css.indexOf('@media (prefers-reduced-motion: reduce)');
+  if (mediaAt < 0) throw new Error('no reduced-motion block in the CSS');
+  const bare = blockBody(css, mediaAt).replace(/\/\*[\s\S]*?\*\//g, '');
+  return Array.from(bare.matchAll(/([^{}]+)\{([^{}]*)\}/g), (m) => ({
+    selector: m[1].trim(),
+    body: m[2],
+  }));
+}
+
+/** Selectors in the reduced-motion block that set timing outside the allowlist. */
+function reducedMotionOffenders(css: string): string[] {
+  return reducedMotionRules(css)
+    .filter((rule) => TIMING_PROPERTY.test(rule.body) && !LOADER_AND_ONE_SHOT.includes(rule.selector))
+    .map((rule) => rule.selector);
+}
+
 describe('HC-UIFB-001: notify() renders role="status" and its action calls the handler', () => {
   it('renders the message inside an element with role="status"', async () => {
     // Would not notice: a toast that shows the text with no status role.
@@ -172,6 +199,32 @@ describe('HC-UIFB-002: StatusChip shows an icon and words for every state', () =
 
     expect(new Set(words).size).toBe(STATUS_STATES.length);
   });
+
+  it.each([
+    ['above-range', 'Above the report'],
+    ['below-range', 'Below the report'],
+  ] as const)('%s names the report as the source of the range (plan §2.2)', async (state, words) => {
+    // Would not notice: a chip that says "Above range" and drops the source,
+    // so the reader cannot tell whose reference range the value is outside.
+    const { StatusChip } = await load<typeof StatusChipModule>('@/components/ui/StatusChip');
+    const { container } = render(<StatusChip state={state} />);
+
+    expect(container.textContent).toContain(words);
+  });
+
+  it('in range reads as neutral; only checked by you takes the verified green', async () => {
+    // Would not notice: a green "In range" chip that reads as a pass verdict
+    // on a value. Checked by you is the one state the verified token means.
+    const { StatusChip } = await load<typeof StatusChipModule>('@/components/ui/StatusChip');
+    const inRange = render(<StatusChip state="in-range" />);
+    const inRangeClass = inRange.container.firstElementChild?.className ?? '';
+    inRange.unmount();
+    const checked = render(<StatusChip state="checked-by-you" />);
+    const checkedClass = checked.container.firstElementChild?.className ?? '';
+
+    expect(inRangeClass).not.toMatch(/status-verified/);
+    expect(checkedClass).toMatch(/status-verified/);
+  });
 });
 
 describe('HC-UIFB-003: Pending keeps breathing under reduced motion', () => {
@@ -179,6 +232,9 @@ describe('HC-UIFB-003: Pending keeps breathing under reduced motion', () => {
     // Would not notice: a kill switch that drops the animation class under
     // reduce (the old global `* { animation-duration: .01ms }` froze loaders).
     setReducedMotion(true);
+    // The mock sets the environment; Pending itself reads no media query, so the
+    // reduce block in globals.css (checked below) is what decides the outcome.
+    expect(window.matchMedia(REDUCED_QUERY).matches).toBe(true);
     const { Pending } = await load<typeof PendingModule>('@/components/ui/Pending');
     render(<Pending>Reading your verified results</Pending>);
 
@@ -210,6 +266,33 @@ describe('HC-UIFB-003: Pending keeps breathing under reduced motion', () => {
     expect(body).not.toMatch(/animation(-name)?\s*:\s*none/);
     expect(body).not.toMatch(/animation-play-state\s*:\s*paused/);
   });
+
+  it('sets no animation-duration or iteration-count outside the loader and one-shot allowlist', () => {
+    // Would not notice: the old global kill switch `* { animation-duration: .01ms;
+    // animation-iteration-count: 1 }`, which froze every loader and passed the
+    // test above. The parse must see the allowlisted rules, or the check is empty.
+    const selectors = reducedMotionRules(GLOBALS_CSS).map((rule) => rule.selector);
+    expect(selectors).toEqual(expect.arrayContaining(LOADER_AND_ONE_SHOT));
+    expect(reducedMotionOffenders(GLOBALS_CSS)).toEqual([]);
+  });
+
+  it('the same check flags the old global kill switch', () => {
+    // Would not notice: a check that flags nothing. The fixture is the kill
+    // switch that froze loaders; the helper must name its `*` selector.
+    const fixture = [
+      '@media (prefers-reduced-motion: reduce) {',
+      '  * {',
+      '    animation-duration: 0.01ms;',
+      '    animation-iteration-count: 1;',
+      '  }',
+      '  .animate-shimmer {',
+      '    animation-duration: 1.6s;',
+      '  }',
+      '}',
+    ].join('\n');
+
+    expect(reducedMotionOffenders(fixture)).toEqual(['*']);
+  });
 });
 
 describe('HC-UIFB-004: DF-3 toast layer sits below the modal and yields to overlays', () => {
@@ -235,6 +318,20 @@ describe('HC-UIFB-004: DF-3 toast layer sits below the modal and yields to overl
     expect(toaster?.getAttribute('style') ?? '').toMatch(/z-index:\s*var\(--z-toast\)/);
   });
 
+  it('AppToaster sets the body font token, not sonner default', async () => {
+    // Would not notice: a toaster left in sonner's own font, so its text does
+    // not match the app's body text.
+    const { AppToaster, notify } = await load<typeof ToastModule>('@/components/ui/toast');
+    render(<AppToaster />);
+    act(() => {
+      notify({ message: 'Font probe' });
+    });
+    await screen.findByText('Font probe');
+
+    const toaster = document.querySelector('[data-sonner-toaster]');
+    expect(toaster?.getAttribute('style') ?? '').toMatch(/font-family:\s*var\(--font-body\)/);
+  });
+
   it('dismisses visible toasts when the asclexis:overlay-open document event fires', async () => {
     // Would not notice: a listener on window instead of document. The event
     // is dispatched without bubbles, so only a document listener receives it.
@@ -245,6 +342,9 @@ describe('HC-UIFB-004: DF-3 toast layer sits below the modal and yields to overl
       notify({ message: 'Toast before the sheet opens' });
     });
     await screen.findByText('Toast before the sheet opens');
+    // Still on screen before the event, so the removal below is the event's
+    // doing and not sonner's 4 s auto-dismiss. The window is 1 s, well under 4 s.
+    expect(screen.getByText('Toast before the sheet opens')).toBeInTheDocument();
 
     act(() => {
       document.dispatchEvent(new Event(OVERLAY_OPEN));
@@ -252,7 +352,7 @@ describe('HC-UIFB-004: DF-3 toast layer sits below the modal and yields to overl
 
     await waitFor(
       () => expect(screen.queryByText('Toast before the sheet opens')).not.toBeInTheDocument(),
-      { timeout: 3000 }
+      { timeout: 1000 }
     );
   });
 });
@@ -301,7 +401,29 @@ describe('HC-UIFB-006: still toasts and StatusChip carry data-t0 and never anima
     expect(item).not.toBeNull();
     expect(item.style.transition).toBe('none');
     expect(item.style.opacity).toBe('1');
-    expect(item.style.transform).toBe('');
+    // Sonner moves the toast from its stylesheet, not from inline styles, so jsdom
+    // cannot see the enter transform. CSS-driven motion is checked by UI-SHELL's
+    // stillnessProbe (the Playwright half of HC-UIFB-006, L0 ruling).
+  });
+
+  it('a still toast keeps its text at full opacity when a newer toast stacks over it', async () => {
+    // Would not notice: sonner's stacking rule `[data-front=false]>*{opacity:0}`
+    // fades the content wrapper of an older toast when a second one arrives, so
+    // the data-t0 value fades in a two-toast stack. Still toasts override it on
+    // their content wrapper with !important utilities (Tailwind 4 suffix).
+    // jsdom can only see the class, not the cascade; the cascade is UI-SHELL's probe.
+    const { AppToaster, notify } = await load<typeof ToastModule>('@/components/ui/toast');
+    render(<AppToaster />);
+
+    act(() => {
+      notify({ message: 'Verified 9.1 on 2026-10-21', still: true });
+    });
+    const text = await screen.findByText('Verified 9.1 on 2026-10-21');
+    const content = text.closest('[data-content]') as HTMLElement;
+
+    expect(content).not.toBeNull();
+    expect(content.className).toMatch(/(^|\s)opacity-100!/);
+    expect(content.className).toMatch(/(^|\s)transition-none!/);
   });
 
   it("a toast without still keeps sonner's transition and carries no data-t0", async () => {
@@ -318,6 +440,9 @@ describe('HC-UIFB-006: still toasts and StatusChip carry data-t0 and never anima
     expect(text).not.toHaveAttribute('data-t0');
     const item = text.closest('[data-sonner-toast]') as HTMLElement;
     expect(item.style.transition).not.toBe('none');
+    // The still-only utilities must stay off a toast with no value in it.
+    const content = text.closest('[data-content]') as HTMLElement;
+    expect(content.className).not.toMatch(/transition-none!/);
   });
 
   it('StatusChip carries data-t0 on its root', async () => {
@@ -331,7 +456,9 @@ describe('HC-UIFB-006: still toasts and StatusChip carry data-t0 and never anima
 
   it('under reduced motion no T0 element or its ancestors animate', async () => {
     // Would not notice: an animation class or inline animation added to a T0
-    // node or to a wrapper above it, which only a reduced-motion run shows.
+    // node or to a wrapper above it. This sees class and style attributes only.
+    // CSS-driven motion (sonner's own reduce rules, transitions in its stylesheet)
+    // is checked by UI-SHELL's stillnessProbe, not here.
     setReducedMotion(true);
     const { AppToaster, notify } = await load<typeof ToastModule>('@/components/ui/toast');
     const { StatusChip } = await load<typeof StatusChipModule>('@/components/ui/StatusChip');
@@ -362,7 +489,8 @@ describe('HC-UIFB-006: still toasts and StatusChip carry data-t0 and never anima
 
 describe('Skeleton and Badge (files in this row; no HC id)', () => {
   it('ListSkeleton container is aria-busy and renders one shape per count', () => {
-    // Would not notice: a loading list that announces nothing to assistive tech.
+    // Would not notice: a loading list that gives assistive tech no signal that
+    // the region is still updating. aria-busy does not announce by itself.
     const { container } = render(<ListSkeleton count={3} />);
     const root = container.firstElementChild as HTMLElement;
 
