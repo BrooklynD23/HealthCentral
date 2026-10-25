@@ -419,6 +419,9 @@ const GATE_ROUTES: GateRoute[] = [
     interact: async (page) => {
       await page.locator(VIEW_DOCUMENT).click();
       await expect(page.locator(PREVIEW_IMAGE)).toBeVisible();
+      // toBeVisible accepts opacity 0, and the image is opacity 0 until onLoad. The card's note also appears
+      // only after onLoad (PageImageOverlay.tsx), so wait for the loaded, settled image before the own-node checks.
+      await waitForSettled(page, PREVIEW_IMAGE);
     },
     // The preview mounts PageImageOverlay (bbox null). No row-owned node exists before the click.
     own: [PAGE_IMAGE_OVERLAY],
@@ -436,7 +439,10 @@ const GATE_ROUTES: GateRoute[] = [
       // Another page: PageImageOverlay refetches for page 1, its highlight unmounts and remounts,
       // and a fresh TraceMark mounts after reduced motion is emulated. Re-selecting the same row would not.
       await page.getByText('Hemoglobin A1c', { exact: true }).first().click();
-      await expect(page.locator(PAGE_ONE_IMAGE)).toBeVisible();
+      // toBeVisible accepts opacity 0, and the image is opacity 0 until onLoad. The highlight and its TraceMark
+      // mount only after onLoad (PageImageOverlay.tsx), so wait for the settled page-1 image, then for its mark.
+      await waitForSettled(page, PAGE_ONE_IMAGE);
+      await expect(page.locator(PAGE_IMAGE_TRACE_MARK)).toBeVisible();
     },
     own: [PAGE_IMAGE_OVERLAY, PAGE_IMAGE_TRACE_MARK],
     ownBefore: [PAGE_IMAGE_OVERLAY, PAGE_IMAGE_TRACE_MARK],
