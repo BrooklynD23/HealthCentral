@@ -10,7 +10,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import {
   Heart,
   Lock,
@@ -259,24 +259,24 @@ export function ProfileSetup() {
         <div className="absolute -bottom-1/4 -left-1/4 w-1/2 h-1/2 rounded-full blur-3xl" />
       </div>
 
-      <motion.div
+      <m.div
         variants={containerVariants}
         initial="hidden"
         animate="show"
         className="w-full max-w-lg relative z-10"
       >
         {restoreNotice && (
-          <motion.div variants={itemVariants} className="mb-6">
+          <m.div variants={itemVariants} className="mb-6">
             <div
               role="status"
               className="rounded-lg border border-status-info/30 bg-status-info-subtle px-4 py-3 text-sm text-ink"
             >
               {restoreNotice}
             </div>
-          </motion.div>
+          </m.div>
         )}
 
-        <motion.div variants={itemVariants} className="text-center mb-10">
+        <m.div variants={itemVariants} className="text-center mb-10">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-linear-to-br from-accent to-accent/80 shadow-card mb-6">
             <Heart className="w-8 h-8 text-white" strokeWidth={2} />
           </div>
@@ -288,14 +288,14 @@ export function ProfileSetup() {
             <br />
             Private, offline-first, and always grounded.
           </p>
-        </motion.div>
+        </m.div>
 
-        <motion.div variants={itemVariants}>
+        <m.div variants={itemVariants}>
           <Card className="mb-6">
             <CardContent className="p-6">
               <div className="space-y-4">
                 {features.map((feature, index) => (
-                  <motion.div
+                  <m.div
                     key={feature.title}
                     initial={prefersReducedMotion ? {} : { opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
@@ -311,15 +311,15 @@ export function ProfileSetup() {
                         {feature.description}
                       </p>
                     </div>
-                  </motion.div>
+                  </m.div>
                 ))}
               </div>
             </CardContent>
           </Card>
-        </motion.div>
+        </m.div>
 
         {hasProfiles && !isCreating && (
-          <motion.div variants={itemVariants} className="mb-6">
+          <m.div variants={itemVariants} className="mb-6">
             <Card>
               <CardContent className="p-6 space-y-4">
                 <h2 className="font-display text-xl font-semibold text-ink">
@@ -376,10 +376,10 @@ export function ProfileSetup() {
                 </form>
               </CardContent>
             </Card>
-          </motion.div>
+          </m.div>
         )}
 
-        <motion.div variants={itemVariants}>
+        <m.div variants={itemVariants}>
           {profilesPending ? null : !isCreating ? (
             <Card>
               <CardContent className="p-6 space-y-4">
@@ -515,17 +515,17 @@ export function ProfileSetup() {
               </div>
             </div>
           )}
-        </motion.div>
+        </m.div>
 
-        <motion.p
+        <m.p
           variants={itemVariants}
           className="text-center text-xs text-ink-tertiary mt-6"
         >
           By creating a profile, you agree to our Terms of Service.
           <br />
           Your data is stored locally and never uploaded.
-        </motion.p>
-      </motion.div>
+        </m.p>
+      </m.div>
     </div>
   );
 }

@@ -38,13 +38,15 @@ vi.mock('@/services/api', () => ({
 // Mock framer-motion to avoid animation issues
 vi.mock('framer-motion', async () => {
   const actual = await vi.importActual('framer-motion');
+  const motionStubs = {
+    div: ({ children, ...props }: React.PropsWithChildren<object>) => (
+      <div {...props}>{children}</div>
+    ),
+  };
   return {
     ...actual,
-    motion: {
-      div: ({ children, ...props }: React.PropsWithChildren<object>) => (
-        <div {...props}>{children}</div>
-      ),
-    },
+    motion: motionStubs,
+    m: motionStubs,
     AnimatePresence: ({ children }: React.PropsWithChildren) => <>{children}</>,
   };
 });
