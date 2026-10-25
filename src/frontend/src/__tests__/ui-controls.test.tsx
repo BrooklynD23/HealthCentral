@@ -323,3 +323,42 @@ describe('HC-UIPC-006 transition-all is banned on the primitives', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// HC-UIPC-007 (vitest half). Per the L0 ruling on PR #365, the 16 ms focus-ring
+// e2e and the stillness probe move to UI-SHELL. This half checks the class lists
+// that decide the timing: jsdom does not run transitions or compute styles.
+// ---------------------------------------------------------------------------
+
+describe('HC-UIPC-007 focus ring and press timing (vitest half)', () => {
+  /** Class tokens of the first Button rendered with the given props. */
+  function buttonClasses(): string[] {
+    const { container, unmount } = render(<Button>Save</Button>);
+    const classes = (container.querySelector('button')?.getAttribute('class') ?? '').split(/\s+/);
+    unmount();
+    return classes;
+  }
+
+  /** The properties named by the Button's transition-[...] utility, or undefined. */
+  function transitionProperties(classes: string[]): string[] | undefined {
+    const token = classes.find((name) => name.startsWith('transition-['));
+    return token?.slice('transition-['.length, -1).split(',');
+  }
+
+  it('HC-UIPC-007: the focus ring (a box-shadow) is not transitioned, so it shows on the first frame', () => {
+    const properties = transitionProperties(buttonClasses());
+    expect(properties).toBeDefined();
+    expect(properties).not.toContain('box-shadow');
+    expect(properties).not.toContain('all');
+  });
+
+  it('HC-UIPC-007: the Button declares its focus ring on :focus-visible', () => {
+    expect(buttonClasses()).toContain('focus-visible:ring-2');
+  });
+
+  it('HC-UIPC-007: press (M1) is colour only under reduced motion', () => {
+    const classes = buttonClasses();
+    expect(classes).toContain('active:scale-[.97]');
+    expect(classes).toContain('motion-reduce:active:scale-100');
+  });
+});
