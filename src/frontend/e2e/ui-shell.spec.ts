@@ -206,7 +206,10 @@ test.describe('HC-UISH-002 skip link and one h1', () => {
   for (const route of [...ALL_ROUTES, '/recover']) {
     test(`HC-UISH-002: exactly one h1 on ${route}`, async ({ page }) => {
       await openRoute(page, route);
-      await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator('h1, main').first()).toBeVisible({ timeout: 15_000 });
+      // Count after the page has loaded. The sidebar brand is an h1 today, so a count taken
+      // before the page's own h1 mounts reads 1 and passes for the wrong reason.
+      await page.waitForLoadState('networkidle');
       await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
     });
   }
