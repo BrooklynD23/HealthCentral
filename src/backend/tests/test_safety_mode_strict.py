@@ -450,6 +450,12 @@ async def test_hc_sma_006_real_pipeline_band_0_6_to_0_75_served_off_withheld_on(
         _set_strict(profile_db, True)
         assert await A.is_strict_safety_mode(profile_db) is True
         on = _module(A.get_strict_rag_module, GLUCOSE_ANSWER, chunks=build_chunks("glucose"), real_pipeline=True)
+        # The final score cannot tell a 0.6 verifier from a 0.75 one, so the pair is pinned
+        # on both factories. A strict scorer with a 0.6 verifier (or the reverse) fails here.
+        assert (off.faithfulness_scorer.config.min_overall_score,
+                off.verifier.config.min_faithfulness_score) == (0.6, 0.6)
+        assert (on.faithfulness_scorer.config.min_overall_score,
+                on.verifier.config.min_faithfulness_score) == (A.STRICT_MIN_SCORE, A.STRICT_MIN_SCORE)
         resp_on = _serve(route, profile_db, master, obs_id, off, on)
     assert resp_on.status_code == status_code, resp_on.text
     body_on = resp_on.json()
