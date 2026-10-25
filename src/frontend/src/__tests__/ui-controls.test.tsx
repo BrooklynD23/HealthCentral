@@ -82,6 +82,14 @@ describe('UI-PRIM-CONTROLS Button', () => {
     render(<Button variant="link">Read more</Button>);
     expect(screen.getByRole('button', { name: 'Read more' })).toBeInTheDocument();
   });
+
+  it('HC-UIPC-001: the link variant is accent text with an underline and no filled background', () => {
+    render(<Button variant="link">Read more</Button>);
+    const classes = screen.getByRole('button', { name: 'Read more' }).className.split(/\s+/);
+    expect(classes).toContain('text-accent');
+    expect(classes).toContain('underline');
+    expect(classes).not.toContain('bg-accent');
+  });
 });
 
 describe('UI-PRIM-CONTROLS IconButton', () => {
