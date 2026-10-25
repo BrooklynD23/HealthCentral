@@ -266,6 +266,40 @@ describe('HC-UIPV-003 Source Trace shows the highlighted row, page, date and the
     expect(screen.getByText('-2 to 2 mmol/L')).not.toBeNull();
     expect(screen.queryByText('-2-2 mmol/L')).toBeNull();
   });
+
+  it('lets a long file name wrap inside the sheet at 390 px: the value column can shrink and the values break', async () => {
+    const { SourceTrace } = await load<typeof SourceTraceModule>('@/components/results/SourceTrace');
+    renderWithProviders(
+      <SourceTrace
+        open
+        observation={observation}
+        sourceFile="a-very-long-lab-report-file-name-with-no-break-point-anywhere.pdf"
+        excerptLines={EXCERPT}
+        matchIndex={1}
+      />
+    );
+
+    const dl = screen.getByText('File').closest('dl');
+    expect(dl).not.toBeNull();
+    // 1fr has an auto minimum, so a long unbroken value would push the sheet sideways. minmax(0,1fr) lets it shrink.
+    expect(dl?.className).toContain('grid-cols-[auto_minmax(0,1fr)]');
+    const values = Array.from(dl?.querySelectorAll('dd') ?? []);
+    expect(values.length).toBe(6);
+    for (const dd of values) {
+      expect(dd.className).toContain('break-words');
+    }
+  });
+
+  it('links "Correct it in Review values" to the exact row, so /verify selects it', async () => {
+    const { SourceTrace } = await load<typeof SourceTraceModule>('@/components/results/SourceTrace');
+    renderWithProviders(
+      <SourceTrace open observation={observation} excerptLines={EXCERPT} matchIndex={1} />
+    );
+
+    // /verify reads ?observation=<id> (src/pages/VerificationWorkbench.tsx, CITE-SRC-001) and selects that row.
+    const link = screen.getByRole('link', { name: 'Correct it in Review values' });
+    expect(link.getAttribute('href')).toBe(`/verify?observation=${OBSERVATION_ID}`);
+  });
 });
 
 describe('HC-UIPV-005 verify sends one POST, shows the confirmation toast, offers no Undo', () => {
