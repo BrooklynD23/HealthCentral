@@ -33,6 +33,14 @@ async function load<T>(specifier: string): Promise<T> {
   return (await import(/* @vite-ignore */ specifier)) as T;
 }
 
+// jsdom has no pointer-capture API, and sonner calls it on pointerdown when a
+// toast's action is pressed. This shim only lets the event run in jsdom.
+if (!Element.prototype.setPointerCapture) {
+  Element.prototype.setPointerCapture = () => {};
+  Element.prototype.releasePointerCapture = () => {};
+  Element.prototype.hasPointerCapture = () => false;
+}
+
 const GLOBALS_CSS = readFileSync(resolve(__dirname, '../styles/globals.css'), 'utf8');
 const REDUCED_QUERY = '(prefers-reduced-motion: reduce)';
 // The DOM event UI-PRIM-OVERLAYS dispatches (HC-UIOV-006). Spelled out here so
@@ -211,8 +219,14 @@ describe('HC-UIFB-004: DF-3 toast layer sits below the modal and yields to overl
   it('AppToaster places its layer at var(--z-toast)', async () => {
     // Would not notice: a toaster left on sonner's default 999999999, which
     // sits above every modal and breaks DF-3.
-    const { AppToaster } = await load<typeof ToastModule>('@/components/ui/toast');
+    const { AppToaster, notify } = await load<typeof ToastModule>('@/components/ui/toast');
     render(<AppToaster />);
+    // sonner renders its layer only while a toast exists, and shows the toast
+    // asynchronously, so show one first and wait for it.
+    act(() => {
+      notify({ message: 'Layer probe' });
+    });
+    await screen.findByText('Layer probe');
 
     const toaster = document.querySelector('[data-sonner-toaster]');
     expect(toaster).not.toBeNull();
