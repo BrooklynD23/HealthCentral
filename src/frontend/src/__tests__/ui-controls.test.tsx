@@ -13,7 +13,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
@@ -325,8 +325,13 @@ describe('HC-UIPC-006 transition-all is banned on the primitives', () => {
     expect(offending).toEqual([]);
   });
 
-  it('HC-UIPC-006: the primitive source files do not name transition-all', () => {
-    for (const file of ['Button.tsx', 'IconButton.tsx', 'Input.tsx', 'Textarea.tsx', 'Select.tsx', 'Checkbox.tsx', 'Switch.tsx', 'Tabs.tsx', 'Card.tsx']) {
+  it('HC-UIPC-006: no source file in src/components/ui names transition-all, including primitives added later', () => {
+    const files = readdirSync(UI_DIR).filter((name) => name.endsWith('.tsx'));
+    // The named primitives must be among them, so an empty listing cannot pass.
+    expect(files).toEqual(
+      expect.arrayContaining(['Button.tsx', 'IconButton.tsx', 'Input.tsx', 'Textarea.tsx', 'Select.tsx', 'Checkbox.tsx', 'Switch.tsx', 'Tabs.tsx', 'Card.tsx'])
+    );
+    for (const file of files) {
       expect(primitiveSource(file), file).not.toMatch(/transition-all/);
     }
   });
