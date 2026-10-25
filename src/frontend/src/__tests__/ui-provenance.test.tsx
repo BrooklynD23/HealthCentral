@@ -13,14 +13,20 @@
  * that need it and the RED run names each id (the ui-feedback.test.tsx pattern).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { CitationTooltip } from '@/components/lab-interpreter/CitationTooltip';
+import { PageImageOverlay } from '@/components/PageImageOverlay';
 import { AppToaster } from '@/components/ui/toast';
 import type { Citation, Observation } from '@/services/types';
 import type * as SourceTraceModule from '@/components/results/SourceTrace';
+
+// The page image is fetched through the documents service; the trace-mark test needs a blob src.
+vi.mock('@/services/documents', () => ({
+  fetchPageImageBlob: vi.fn(async () => new Blob(['fake'], { type: 'image/png' })),
+}));
 
 /** Loads a module at run time (variable specifier, so a missing file fails one test). */
 async function load<T>(specifier: string): Promise<T> {
@@ -350,5 +356,30 @@ describe('HC-UIPV-006 markup half: data-t0 on every T0 node, none on the highlig
 
     const toastText = await screen.findByText('Glucose, Apr 10, 2026 is now marked as checked');
     expect(toastText.closest('[data-t0]')).not.toBeNull();
+  });
+
+  it('draws the trace mark inside the bbox highlight, and no data-t0 node holds it (UI-PROVENANCE)', async () => {
+    (globalThis.URL as unknown as { createObjectURL?: unknown }).createObjectURL = vi.fn(() => 'blob:page-image');
+    (globalThis.URL as unknown as { revokeObjectURL?: unknown }).revokeObjectURL = vi.fn();
+    const bbox = { x0: 100, y0: 200, x1: 300, y1: 250 };
+
+    render(<PageImageOverlay documentId="doc-1" pageNumber={1} bbox={bbox} />);
+
+    const img = screen.getByRole('img', { name: /page 1/i });
+    await waitFor(() => {
+      expect(img.getAttribute('src')).toBe('blob:page-image');
+    });
+
+    Object.defineProperty(img, 'naturalWidth', { value: 600 });
+    Object.defineProperty(img, 'naturalHeight', { value: 800 });
+    Object.defineProperty(img, 'clientWidth', { value: 600 });
+    Object.defineProperty(img, 'clientHeight', { value: 800 });
+
+    fireEvent.load(img);
+
+    const highlight = screen.getByRole('img', { name: /highlighted source region/i });
+    const mark = highlight.querySelector('[data-trace-mark]');
+    expect(mark).not.toBeNull();
+    expect(mark?.closest('[data-t0]')).toBeNull();
   });
 });
