@@ -6,6 +6,10 @@
 // closed. An optional chunk ("when present") prints `absent`, never silently.
 // The main chunk and the first-load set come from dist/index.html, not from a
 // file-name glob: Vite also writes a tiny index-*.js re-export shim.
+// Lazy sets follow the import graph of the emitted JS. "route chunks" are every
+// module the entry loads with import(). "Results total" is main plus the Results
+// page and everything it reaches by static or dynamic import (its chart included).
+// Shared chunks that only static importers load are not route chunks.
 // kB = 1000 bytes, the unit Vite prints in its gzip column.
 
 import { gzipSync } from 'node:zlib';
@@ -15,10 +19,14 @@ import { pathToFileURL } from 'node:url';
 
 const KB = 1000;
 const ASSETS = 'assets/';
-const IMPORT_RE = /\b(?:from|import)\s*["'](\.{1,2}\/[^"']+)["']/g;
+// import x from "./a.js", import "./a.js", export {x} from "./a.js"
+const STATIC_RE = /\b(?:from|import)\s*["'](\.{1,2}\/[^"']+)["']/g;
+// import("./a.js"): how Vite loads each lazy route and the palette
+const DYNAMIC_RE = /\bimport\(\s*["'](\.{1,2}\/[^"']+)["']\s*\)/g;
 
 export const BUDGETS = [
   { name: 'main JS', limitKb: 165, required: true, mode: 'each', pick: (c) => [c.entry] },
+  { name: 'route chunks (each)', limitKb: 30, required: true, mode: 'each', pick: (c) => c.routeChunks() },
   { name: 'route DocumentInbox', limitKb: 30, required: true, mode: 'each', pick: (c) => c.find(/^DocumentInbox-/) },
   { name: 'route VerificationWorkbench', limitKb: 30, required: true, mode: 'each', pick: (c) => c.find(/^VerificationWorkbench-/) },
   { name: 'route SettingsPage', limitKb: 30, required: true, mode: 'each', pick: (c) => c.find(/^SettingsPage-/) },
@@ -64,9 +72,31 @@ function parseIndexHtml(html) {
   return { entry, preload: preloads };
 }
 
-function staticImports(source, page) {
-  const text = Buffer.from(source).toString('utf8');
-  return [...text.matchAll(IMPORT_RE)].map((m) => posix.join(posix.dirname(page), m[1]));
+// Edges out of one emitted JS file, as paths relative to the dist folder.
+function edgesOf(page, bytes) {
+  const text = Buffer.from(bytes).toString('utf8');
+  const target = (m) => posix.join(posix.dirname(page), m[1]);
+  return {
+    statics: [...text.matchAll(STATIC_RE)].map(target),
+    dynamics: [...text.matchAll(DYNAMIC_RE)].map(target),
+  };
+}
+
+// Every file reachable from `start` through static or dynamic imports, sorted.
+// Missing files stay in the result so evaluate() reports them. The entry is not
+// walked into: it is counted once, as main, and its import() list is the route set.
+function reachable(start, byPath, entry) {
+  const seen = new Set();
+  const stack = [start];
+  while (stack.length > 0) {
+    const page = stack.pop();
+    if (seen.has(page)) continue;
+    seen.add(page);
+    if (page === entry || !byPath.has(page) || !page.endsWith('.js')) continue;
+    const { statics, dynamics } = edgesOf(page, byPath.get(page));
+    stack.push(...statics, ...dynamics);
+  }
+  return [...seen].sort();
 }
 
 const row = (budget, status, measuredKb, detail) => ({
@@ -119,15 +149,18 @@ export function checkBudgets(files, budgets = BUDGETS) {
   const { entry, preload } = parseIndexHtml(html);
   const find = (re) =>
     [...byPath.keys()].filter((p) => p.startsWith(ASSETS) && re.test(p.slice(ASSETS.length))).sort();
+  const entryDynamics =
+    entry !== null && byPath.has(entry) ? edgesOf(entry, byPath.get(entry)).dynamics : [];
   const picker = {
     entry,
     preload,
     find,
     cssFiles: () => [...byPath.keys()].filter((p) => p.endsWith('.css')).sort(),
+    routeChunks: () => [...new Set(entryDynamics)].sort(),
     resultsGroup: () => {
       const [page] = find(/^ResultsPage-/);
       if (!page) return [];
-      return [entry, page, ...staticImports(byPath.get(page), page)];
+      return [...new Set([entry, ...reachable(page, byPath, entry)])];
     },
   };
   const rows = budgets.map((b) => evaluate(b, picker, byPath, gzOf));
