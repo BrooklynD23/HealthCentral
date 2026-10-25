@@ -565,7 +565,8 @@ class TestDobLayoutsNotCollectionDates:
     @pytest.mark.parametrize("header,row", [
         ("Name  DOB  Collected", "Jane  01/02/1960  03/04/2026"),
         ("DOB  Collected", "01/02/1960  03/04/2026"),
-    ], ids=["dob-middle-column", "dob-first-column"])
+        ("Name  DOB:  Collected", "Jane  01/02/1960  03/04/2026"),
+    ], ids=["dob-middle-column", "dob-first-column", "dob-colon-header"])
     def test_hc_edf_003_two_line_header_dob_column_is_not_collection_date(self, header, row):
         """HC-EDF-003: the DOB under a header token is skipped by column; the Collected date stays.
 
@@ -589,14 +590,37 @@ class TestDobLayoutsNotCollectionDates:
             elapsed = time.perf_counter() - start
             assert elapsed < 1.0, f"{name} took {elapsed:.2f}s"
 
-    def test_hc_edf_005_collected_header_column_date_is_kept(self):
-        """HC-EDF-005 (pin): a date under a Collected column is kept, also on a token-count mismatch."""
-        m = _module()
-        # Same token count: the DOB column is skipped, the Collected column is not.
-        assert "2026-03-04" in m._extract_dates(
-            "Patient  DOB  Collected\nJane  01/02/1960  03/04/2026\n"
-        )
-        # The header has 3 tokens, the data row 2: nothing is skipped, so nothing is dropped.
-        assert "2026-03-04" in m._extract_dates(
+    @pytest.mark.parametrize("text,expected", [
+        # DOB column is the middle cell: the Collected column date is kept.
+        ("Patient  DOB  Collected\nJane  01/02/1960  03/04/2026\n", ["2026-03-04"]),
+        # Collected column first: the DOB is the second cell of the data row.
+        ("Collected  DOB\n03/04/2026  01/02/1960\n", ["2026-03-04"]),
+        # A labelled date on its own line wins over a DOB header above it.
+        ("Patient DOB\nCollected 03/04/2026\n", ["2026-03-04"]),
+        # A header line that carries a date is not a header: both dates are kept.
+        ("Jane DOB 01/02/1960 F\nCollected 03/04/2026 Received 03/05/2026\n",
+         ["2026-03-04", "2026-03-05"]),
+    ], ids=[
+        "collected-middle-column",
+        "collected-first-column",
+        "labelled-line-under-dob-header",
+        "header-line-with-date",
+    ])
+    def test_hc_edf_005_collected_header_column_date_is_kept(self, text, expected):
+        """HC-EDF-005 (pin): a date under a Collected column or on a labelled line is kept.
+
+        Exact lists, not `in`: a DOB that leaks into the output must fail here.
+        """
+        assert _module()._extract_dates(text) == expected
+
+    def test_hc_edf_005_token_count_mismatch_is_pinned_as_known_gap(self):
+        """HC-EDF-005 (known gap, pinned): on a token-count mismatch the column guard is off.
+
+        The header has 3 tokens and the data row 2, so nothing is skipped by column.
+        The DOB then leaks in as the priority date (Stage 1 reads `Collected` followed
+        by the DOB on the next line). The Collected date is still kept. Pinned so the
+        current output is visible; a fix that changes it must update this on purpose.
+        """
+        assert _module()._extract_dates(
             "Patient  DOB  Collected\n01/02/1960  03/04/2026\n"
-        )
+        ) == ["1960-01-02", "2026-03-04"]
