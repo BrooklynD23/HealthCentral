@@ -10,7 +10,7 @@ Phase 1: Core Lab Interpretation Engine - API Layer
 import json
 import logging
 import re
-from typing import Optional
+from typing import NoReturn, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
@@ -83,6 +83,46 @@ async def _has_interpretation(profile_db: AsyncSession, observation_id: str) -> 
         .limit(1)
     )
     return res.first() is not None
+
+
+# SAFETY-MODE-VERIFIED: under strict safety mode an observation the patient has
+# not verified gets no interpretation. Every route that refuses answers 409 with
+# one shape (the batch route lists the id under "failed" instead).
+async def _audit_unverified_refusal(
+    master_db: AsyncSession,
+    profile_id: str,
+    entity_type: str,
+    entity_id: Optional[str] = None,
+    observation_ids: Optional[list[str]] = None,
+) -> None:
+    """One audit row per refused id. Ids and enums only: no analyte, value, panel
+    name or text. `route` is not an allowed audit detail key (core/audit.py), so
+    the entity fields say what was refused."""
+    details: dict = {"reason": "observation_unverified", "decision": "refuse"}
+    if observation_ids is not None:
+        details["observation_ids"] = observation_ids
+    await _audit_interpretation(
+        master_db, "unverified_refused", profile_id,
+        entity_type=entity_type, entity_id=entity_id, details=details,
+    )
+
+
+async def _refuse_unverified(
+    master_db: AsyncSession,
+    profile_id: str,
+    entity_type: str,
+    entity_id: Optional[str] = None,
+    observation_ids: Optional[list[str]] = None,
+) -> NoReturn:
+    """Audit the refusal, then answer 409. Never returns."""
+    await _audit_unverified_refusal(
+        master_db, profile_id, entity_type, entity_id, observation_ids,
+    )
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={"code": "observation_unverified", "message": "Verify this result first."},
+    )
+
 
 router = APIRouter()
 
@@ -413,6 +453,10 @@ async def generate_interpretation(
             detail="Access denied to this observation"
         )
 
+    # SAFETY-MODE-VERIFIED: refuse before the stored-row shortcut in interpret_observation.
+    if not observation.user_verified and await is_strict_safety_mode(profile_db):
+        await _refuse_unverified(master_db, session.profile_id, "observation", observation_id)
+
     # AUDIT-ORDER D: regenerate over an existing interpretation is irreversible.
     started = force_regenerate and await _has_interpretation(profile_db, observation_id)
     if started:
@@ -475,6 +519,11 @@ async def generate_grounded_interpretation(
             detail="Access denied to this observation",
         )
 
+    # SAFETY-MODE-VERIFIED: read once here; the 0.75 module is chosen further down.
+    strict = await is_strict_safety_mode(profile_db)
+    if strict and not observation.user_verified:
+        await _refuse_unverified(master_db, session.profile_id, "observation", observation_id)
+
     started = force_regenerate and await _has_interpretation(profile_db, observation_id)
     if started:
         await _audit_interpretation(
@@ -504,7 +553,6 @@ async def generate_grounded_interpretation(
     )
 
     # SAFETY-MODE-STRICT: a profile with strict safety mode on gets the 0.75 module.
-    strict = await is_strict_safety_mode(profile_db)
     rag = get_strict_rag_module() if strict else get_rag_module()
     # IUV-1: an unverified (possibly mis-extracted) value is kept out of the question.
     # It can still reach the model through the RAG context until W-3 (I-13) lands.
@@ -671,6 +719,10 @@ async def get_interpretation(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied to this observation"
         )
+
+    # SAFETY-MODE-VERIFIED: refuse even when a row is stored, and before viewed_at is written.
+    if not observation.user_verified and await is_strict_safety_mode(profile_db):
+        await _refuse_unverified(master_db, session.profile_id, "observation", observation_id)
 
     # Get interpretation
     result = await profile_db.execute(
