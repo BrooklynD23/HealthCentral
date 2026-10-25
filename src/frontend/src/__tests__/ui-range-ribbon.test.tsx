@@ -663,9 +663,11 @@ describe('RangeRibbon', () => {
       for (const value of Object.values(tokens)) {
         expect(out).toContain(value);
       }
-      const exported = new DOMParser().parseFromString(out, 'image/svg+xml').documentElement;
-      expect(exported.getAttribute('width')).toBe('320');
-      expect(exported.getAttribute('height')).toBe('160');
+      // The export must be well-formed XML, or a viewer refuses the file.
+      const parsed = new DOMParser().parseFromString(out, 'image/svg+xml');
+      expect(parsed.getElementsByTagName('parsererror')).toHaveLength(0);
+      expect(parsed.documentElement.getAttribute('width')).toBe('320');
+      expect(parsed.documentElement.getAttribute('height')).toBe('160');
     } finally {
       for (const name of Object.keys(tokens)) root.style.removeProperty(name);
     }
