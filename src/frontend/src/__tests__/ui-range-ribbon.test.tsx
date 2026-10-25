@@ -36,9 +36,9 @@ const APR_1 = '2026-04-01T00:00:00';
 const APR_10 = '2026-04-10T00:00:00';
 const APR_20 = '2026-04-20T00:00:00';
 
-const ABOVE_WORDS = 'Above the reference range (per report)';
-const BELOW_WORDS = 'Below the reference range (per report)';
-const CONFLICT_WORDS = "The report's flag and this range disagree";
+const ABOVE_WORDS = 'Above the range used for this chart';
+const BELOW_WORDS = 'Below the range used for this chart';
+const CONFLICT_WORDS = "The report's flag and this chart's range disagree";
 const REVEAL_KEY = 'hc:range-ribbon:revealed:glucose';
 
 // `abnormal` is the report's is_abnormal, which the backend sets to flag !== null
@@ -316,6 +316,19 @@ describe('RangeRibbon', () => {
     }
   });
 
+  it('HC-UIRR-002: the caption prints the cleaned limits, so binary noise in a bound does not reach the caption', async () => {
+    const { RangeRibbon } = await loadRibbon();
+    // 99.10000000000001 is a unit-conversion residue; its clean value is 99.1.
+    const { container } = render(
+      <RangeRibbon
+        trend={series([point(APR_1, 85, true), point(APR_10, 90, true)], { ref_high: 99.10000000000001 })}
+      />
+    );
+    expect(container.querySelector('figcaption')?.textContent).toBe(
+      'Reference range used for this chart: 70-99.1 mg/dL'
+    );
+  });
+
   it('HC-UIRR-002: a directional flag that disagrees with the band is a conflict, with no triangle and no out-of-range words', async () => {
     const { RangeRibbon } = await loadRibbon();
     const { container } = render(
@@ -335,7 +348,7 @@ describe('RangeRibbon', () => {
     expect(screen.queryByText(BELOW_WORDS)).toBeNull();
     expect(sliderOf()).toHaveAttribute(
       'aria-valuetext',
-      "Apr 10, 2026: 118 mg/dL, the report's flag and this range disagree, checked by you"
+      "Apr 10, 2026: 118 mg/dL, the report's flag and this chart's range disagree, checked by you"
     );
     expect(within(screen.getByRole('table')).getAllByText(CONFLICT_WORDS)).toHaveLength(2);
   });
@@ -359,6 +372,9 @@ describe('RangeRibbon', () => {
     expect(pointGroup(container, 2).getAttribute('data-side')).toBe('above');
     expect(container.querySelectorAll('[data-triangle]')).toHaveLength(2);
     expect(within(triangleFor(container, 0)).getByText(ABOVE_WORDS)).toBeInTheDocument();
+    // The visible table words for row 0, not only the triangle's <title>.
+    const rows = within(screen.getByRole('table')).getAllByRole('row').slice(1);
+    expect(within(rows[0]).getByText(ABOVE_WORDS)).toBeInTheDocument();
     expect(container.querySelector('[data-triangle-for="1"]')).toBeNull();
     expect(screen.queryByText(CONFLICT_WORDS)).toBeNull();
   });
@@ -507,7 +523,7 @@ describe('RangeRibbon', () => {
     // The default selection is the latest point.
     expect(slider).toHaveAttribute(
       'aria-valuetext',
-      "Apr 20, 2026: 60 mg/dL, below the report's range, checked by you"
+      "Apr 20, 2026: 60 mg/dL, below this chart's range, checked by you"
     );
     // The cursor is a line placed at the selected point's x: no transform, so G5 can pass.
     const cursorAt = (index: number) => {
@@ -527,7 +543,7 @@ describe('RangeRibbon', () => {
     expect(selectedOf()).toBe(1);
     expect(slider).toHaveAttribute(
       'aria-valuetext',
-      "Apr 10, 2026: 118 mg/dL, above the report's range, not yet checked"
+      "Apr 10, 2026: 118 mg/dL, above this chart's range, not yet checked"
     );
     cursorAt(1);
 
@@ -589,9 +605,9 @@ describe('RangeRibbon', () => {
     expect(
       rows.map((row) => Array.from(row.querySelectorAll('th, td'), (cell) => cell.textContent))
     ).toEqual([
-      ['Apr 1, 2026', '85 mg/dL', 'Within the reference range (per report)', 'Checked by you'],
+      ['Apr 1, 2026', '85 mg/dL', 'Within the range used for this chart', 'Checked by you'],
       ['Apr 10, 2026', '118 mg/dL', ABOVE_WORDS, 'Not yet checked'],
-      ['Apr 20, 2026', '96.5 mg/dL', 'Within the reference range (per report)', 'Checked by you'],
+      ['Apr 20, 2026', '96.5 mg/dL', 'Within the range used for this chart', 'Checked by you'],
     ]);
   });
 
@@ -649,7 +665,7 @@ describe('RangeRibbon', () => {
     );
     expect(sliderOf()).toHaveAttribute(
       'aria-valuetext',
-      "Apr 10, 2026: 99.1001 mg/dL, above the report's range, checked by you"
+      "Apr 10, 2026: 99.1001 mg/dL, above this chart's range, checked by you"
     );
     const rows = within(screen.getByRole('table')).getAllByRole('row').slice(1);
     expect(rows[1].querySelectorAll('td')[0].textContent).toBe('99.1001 mg/dL');
