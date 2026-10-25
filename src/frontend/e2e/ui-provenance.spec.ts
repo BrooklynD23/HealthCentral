@@ -55,7 +55,23 @@ const observation: Observation = {
   user_verified: false,
   extraction_confidence: 0.92,
   source_page: 3,
-  source_bbox_json: '{"x0":10,"y0":20,"x1":200,"y1":40}',
+  // The backend stores [x0,y0,x1,y1] (api/documents.py:661), the form parseBbox reads (VerificationWorkbench.tsx).
+  source_bbox_json: '[10,20,200,40]',
+};
+
+/** A second value on page 1, so /verify can switch the page image to another page. */
+const OTHER_OBSERVATION_ID = '6f1c2c4e-8a1b-4c3d-9e0f-00000000a1c1';
+const otherObservation: Observation = {
+  ...observation,
+  id: OTHER_OBSERVATION_ID,
+  analyte_canonical: 'hemoglobin_a1c',
+  analyte_raw: 'Hemoglobin A1c',
+  value: 5.4,
+  unit: '%',
+  ref_low: 4.0,
+  ref_high: 5.6,
+  ref_range_text: '4.0-5.6 %',
+  source_page: 1,
 };
 
 const documentFixture: Document = {
@@ -113,8 +129,12 @@ const externalApiSettings = {
   redaction_break_glass: false,
 };
 
-/** A 1x1 PNG: enough for the page image to decode, so PageImageOverlay reaches its loaded state. */
-const PAGE_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+/**
+ * A 400x100 PNG for every page. The bbox [10,20,200,40] sits inside it, so the highlight lands on the
+ * page. A 1x1 image would scale the bbox to thousands of px and push it off-screen (recurring-failures #1).
+ */
+const PAGE_PNG_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAZAAAABkCAIAAAAnqfEgAAABDUlEQVR42u3UQREAAAzCMPyrRQI6tksk9NEU4IhIABgWgGEBhgVgWACGBRgWgGEBGBZgWACGBWBYgGEBGBaAYQGGBWBYAIYFGBaAYQEYFmBYAIYFYFiAYQEYFoBhAYYFYFiAYQEYFoBhAYYFYFgAhgUYFoBhARgWYFgAhgVgWIBhARgWgGEBhgVgWACGBRgWgGEBGBZgWACGBWBYgGEBGBaAYQGGBWBYgGEBGBaAYQGGBWBYAIYFGBaAYQEYFmBYAIYFYFiAYQEYFoBhAYYFYFgAhgUYFoBhARgWYFgAhgVgWIBhARgWgGEBhgVgWACGBRgWgGEBGBZgWACGBWBYgGEBGBaAYQGGBWBYgGEBGBaAYQGGBWBYAIYFGBaAYQEYFmBYAIYFYFiAYQEYFoBhAYYFYFgAhgUYFoBhARgWYFgAhgVgWIBhARgWgGEBhgVgWIBhARgWgGEBhgVgWACGBRgWgGEBGBZgWACGBWBYwF8DXxGNujLHPvkAAAAASUVORK5CYII=';
 const PAGE_PNG = Buffer.from(PAGE_PNG_BASE64, 'base64');
 
 /** Answers every /api/v1 request from the fixtures above; records the rest. */
@@ -128,7 +148,10 @@ async function mockApi(page: Page): Promise<string[]> {
       route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 
     if (request.method() === 'GET') {
-      if (path === '/observations') return json([observation]);
+      // /verify lists the rows that need verification; the other routes read the single observation.
+      if (path === '/observations') {
+        return json(url.searchParams.get('needs_verification') === 'true' ? [observation, otherObservation] : [observation]);
+      }
       if (path === '/observations/trends/glucose') return json(trend);
       if (path === `/interpretations/observations/${OBSERVATION_ID}/interpretation`) {
         return json(interpretation);
@@ -212,8 +235,11 @@ const POPOVER = '[role="dialog"][aria-label="Citation 1"]';
 const VIEW_DOCUMENT = 'button[aria-label="View document"]';
 const PREVIEW_IMAGE = 'img[alt="Page 1 of document"][src^="blob:"]';
 const SOURCE_IMAGE = 'img[alt="Page 3 of document"][src^="blob:"]';
+const PAGE_ONE_IMAGE = 'img[alt="Page 1 of document"][src^="blob:"]';
 /** The PageImageOverlay root (a data hook on its Card; PageImageOverlay.tsx). */
 const PAGE_IMAGE_OVERLAY = '[data-page-image-overlay]';
+/** The TraceMark inside the bbox highlight. /verify must show it, so a missing mark fails the own-node match. */
+const PAGE_IMAGE_TRACE_MARK = '[data-page-image-overlay] [data-trace-mark]';
 /** The identity transform, as gates.ts's G5 helper spells it (kept spec-local: gates.ts is not in this row). */
 const IDENTITY_TRANSFORM_SOURCE =
   '^(none|matrix\\(\\s*1,\\s*0,\\s*0,\\s*1,\\s*0,\\s*0\\s*\\)|matrix3d\\(\\s*1,\\s*0,\\s*0,\\s*0,\\s*0,\\s*1,\\s*0,\\s*0,\\s*0,\\s*0,\\s*1,\\s*0,\\s*0,\\s*0,\\s*0,\\s*1\\s*\\))$';
@@ -407,12 +433,13 @@ const GATE_ROUTES: GateRoute[] = [
       await waitForSettled(page, SOURCE_IMAGE);
     },
     interact: async (page) => {
-      // Selecting the observation row again re-requests its page image.
-      await page.getByText('Glucose', { exact: true }).first().click();
-      await expect(page.locator(SOURCE_IMAGE)).toBeVisible();
+      // Another page: PageImageOverlay refetches for page 1, its highlight unmounts and remounts,
+      // and a fresh TraceMark mounts after reduced motion is emulated. Re-selecting the same row would not.
+      await page.getByText('Hemoglobin A1c', { exact: true }).first().click();
+      await expect(page.locator(PAGE_ONE_IMAGE)).toBeVisible();
     },
-    own: [PAGE_IMAGE_OVERLAY],
-    ownBefore: [PAGE_IMAGE_OVERLAY],
+    own: [PAGE_IMAGE_OVERLAY, PAGE_IMAGE_TRACE_MARK],
+    ownBefore: [PAGE_IMAGE_OVERLAY, PAGE_IMAGE_TRACE_MARK],
   },
 ];
 
@@ -519,7 +546,8 @@ for (const route of GATE_ROUTES) {
     const beforeLight = await ownAxeBlocking(page, route.ownBefore, 'light');
     const beforeDark = await ownAxeBlocking(page, route.ownBefore, 'dark');
 
-    // The popover, the document preview and the PageImageOverlay highlight exist only after the interaction.
+    // The popover and the document preview exist only after the interaction. On /verify the page-3 highlight
+    // is already up before it (ownBefore), and the interaction moves it to page 1.
     await route.interact(page);
     await assertOwnMatched(page, route.own, 'after the interaction');
     const afterLight = await ownAxeBlocking(page, route.own, 'light');
