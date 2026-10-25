@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BookOpen } from 'lucide-react';
 import { SourceTrace, type TraceSource } from '@/components/results/SourceTrace';
 import { Popover } from '@/components/ui/Popover';
@@ -23,7 +23,17 @@ export interface CitationTooltipProps {
 export function CitationTooltip({ citation, index, source }: CitationTooltipProps) {
   const [open, setOpen] = useState(false);
   const [sourceOpen, setSourceOpen] = useState(false);
+  const chipRef = useRef<HTMLButtonElement>(null);
+  const sourceWasOpen = useRef(false);
   const page = source?.observation.source_page ?? null;
+
+  // SourceTrace is controlled and has no trigger, so Radix has nothing to return focus to.
+  // Return it to the chip once the sheet has closed. Not in the close handler: the sheet's
+  // focus trap is still on there and pulls focus back into the sheet.
+  useEffect(() => {
+    if (sourceWasOpen.current && !sourceOpen) chipRef.current?.focus();
+    sourceWasOpen.current = sourceOpen;
+  }, [sourceOpen]);
 
   return (
     <>
@@ -35,6 +45,7 @@ export function CitationTooltip({ citation, index, source }: CitationTooltipProp
         className="w-64 text-sm"
         trigger={
           <button
+            ref={chipRef}
             type="button"
             aria-label={`Citation ${index + 1}: ${citation.text}`}
             className={cn(
@@ -58,6 +69,9 @@ export function CitationTooltip({ citation, index, source }: CitationTooltipProp
         <div className="flex items-start gap-2">
           <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-ink-tertiary" aria-hidden="true" />
           <div className="min-w-0 space-y-1">
+            <p data-t0="" className="text-xs font-medium uppercase tracking-wider text-ink-secondary">
+              {citation.type.replace('_', ' ')}
+            </p>
             <p data-t0="" className="leading-relaxed text-ink">
               {citation.text}
             </p>
