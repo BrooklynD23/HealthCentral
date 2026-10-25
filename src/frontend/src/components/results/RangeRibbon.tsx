@@ -463,7 +463,7 @@ function RangeChart({ trend, layout }: RangeChartProps): ReactElement {
             data-point-index={p.order}
             data-verified={String(p.verified)}
             data-side={p.side}
-            style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+            className="transform-fill origin-center"
           >
             {p.verified ? (
               <circle data-marker cx={p.x} cy={p.y} r={MARK_R} fill="var(--ink-1)" stroke="none" />
