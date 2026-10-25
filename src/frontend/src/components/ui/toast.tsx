@@ -20,7 +20,7 @@ export interface NotifyOptions {
 
 // Sonner fades the content wrapper of a non-front toast (`[data-front=false]>*`
 // sets opacity 0 with a .4 s transition). A still toast keeps its wrapper steady
-// with !important utilities, so a second toast cannot fade its value in.
+// with !important utilities, so a second toast cannot fade its value out.
 const STILL_CONTENT = 'opacity-100! transition-none!';
 
 /** Shows a toast. The text sits in an element with role="status". */
