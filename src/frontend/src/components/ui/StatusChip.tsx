@@ -20,20 +20,22 @@ export type StatusChipState =
   | 'info';
 
 // Every state shows an icon and words. The words never say "normal" or
-// "abnormal": a range is a range, and a value outside it is above or below it.
+// "abnormal": a range is a range, and a value outside it is above or below the
+// report's range (plan §2.2). In range is neutral, not the verified green, so it
+// does not read as a verdict; only checked by you takes the verified token.
 const STATES: Record<StatusChipState, { label: string; Icon: LucideIcon; tone: string }> = {
   'in-range': {
     label: 'In range',
     Icon: CheckCircle2,
-    tone: 'bg-status-verified-subtle text-status-verified',
+    tone: 'bg-surface-sunken text-ink',
   },
   'above-range': {
-    label: 'Above range',
+    label: "Above the report's range",
     Icon: ArrowUp,
     tone: 'bg-status-attention-subtle text-status-attention',
   },
   'below-range': {
-    label: 'Below range',
+    label: "Below the report's range",
     Icon: ArrowDown,
     tone: 'bg-status-attention-subtle text-status-attention',
   },
@@ -45,7 +47,7 @@ const STATES: Record<StatusChipState, { label: string; Icon: LucideIcon; tone: s
   'checked-by-you': {
     label: 'Checked by you',
     Icon: UserCheck,
-    tone: 'bg-accent-subtle text-accent',
+    tone: 'bg-status-verified-subtle text-status-verified',
   },
   caution: {
     label: 'Caution',
