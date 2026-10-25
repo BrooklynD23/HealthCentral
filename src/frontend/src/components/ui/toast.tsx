@@ -18,6 +18,11 @@ export interface NotifyOptions {
   still?: boolean;
 }
 
+// Sonner fades the content wrapper of a non-front toast (`[data-front=false]>*`
+// sets opacity 0 with a .4 s transition). A still toast keeps its wrapper steady
+// with !important utilities, so a second toast cannot fade its value in.
+const STILL_CONTENT = 'opacity-100! transition-none!';
+
 /** Shows a toast. The text sits in an element with role="status". */
 export function notify({ message, action, still = false }: NotifyOptions) {
   return toast(
@@ -27,14 +32,17 @@ export function notify({ message, action, still = false }: NotifyOptions) {
     {
       action,
       style: still ? { transition: 'none', opacity: 1 } : undefined,
+      classNames: still ? { content: STILL_CONTENT } : undefined,
     }
   );
 }
 
 // Layer from globals.css (--z-toast sits under --z-modal). Colours come from
-// the tokens, through the variables sonner reads for its own surfaces.
+// the tokens, through the variables sonner reads for its own surfaces. The
+// body font token keeps toast text in the app's face, not sonner's default.
 const TOASTER_STYLE = {
   zIndex: 'var(--z-toast)',
+  fontFamily: 'var(--font-body)',
   '--normal-bg': 'var(--surface-1)',
   '--normal-text': 'var(--ink-1)',
   '--normal-border': 'var(--line)',
