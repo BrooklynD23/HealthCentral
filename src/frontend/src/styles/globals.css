@@ -341,6 +341,12 @@
     animation-duration: 1.6s;
   }
 
+  /* Typing dots (ExplainAssistant) breathe with opacity instead of bouncing. */
+  .animate-bounce {
+    animation-name: pulseSoft;
+    animation-duration: 1.6s;
+  }
+
   /* One-off decorative ping stops at its final frame. */
   .animate-ping {
     animation-duration: 0.01ms;
