@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.assistant import get_rag_module
+from api.assistant import get_rag_module, get_strict_rag_module, is_strict_safety_mode
 from core.audit import audit_and_commit, audit_intent, create_audit_log
 from core.auth import ProfileDbSession, RequireAuth
 from core.database import get_db
@@ -29,7 +29,7 @@ from models import (
     PanelInterpretation,
 )
 from modules import get_interpret_module
-from modules.agent.guardrails.templates import ESCALATE_TEMPLATE
+from modules.agent.guardrails.templates import ABSTAIN_TEMPLATE, ESCALATE_TEMPLATE
 from modules.rag import ModelUnavailableError
 
 logger = logging.getLogger(__name__)
@@ -503,7 +503,9 @@ async def generate_grounded_interpretation(
         intent="completed" if started else None,
     )
 
-    rag = get_rag_module()
+    # SAFETY-MODE-STRICT: a profile with strict safety mode on gets the 0.75 module.
+    strict = await is_strict_safety_mode(profile_db)
+    rag = get_strict_rag_module() if strict else get_rag_module()
     # IUV-1: an unverified (possibly mis-extracted) value is kept out of the question.
     # It can still reach the model through the RAG context until W-3 (I-13) lands.
     shown = (
@@ -605,6 +607,21 @@ async def generate_grounded_interpretation(
             master_db, "prohibited_blocked", session.profile_id,
             entity_type="observation", entity_id=observation_id,
             details={"reason": "prohibited_pattern", "decision": "escalate"},
+        )
+    elif strict and not rag_result.is_valid:
+        # SAFETY-MODE-STRICT: under strict safety mode an answer that fails the
+        # 0.75 checks is withheld. The withheld text must not ship in
+        # full_response either (recurring-failures #2). elif, so the escalation
+        # branch above always wins with exactly one prohibited_blocked row.
+        grounded_segments = [
+            GroundedSegmentResponse(segment_type="uncertainty", content=ABSTAIN_TEMPLATE, citations=[])
+        ]
+        full_response = ABSTAIN_TEMPLATE
+        verification = GroundedVerificationResponse()
+        await _audit_interpretation(
+            master_db, "strict_abstained", session.profile_id,
+            entity_type="observation", entity_id=observation_id,
+            details={"reason": "strict_validation_failed", "decision": "abstain"},
         )
 
     return GroundedInterpretationResponse(
