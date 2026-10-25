@@ -1,24 +1,63 @@
-// UI-ROUTES (HC-UIRT-001): a route element that throws renders the route
-// boundary inside the layout, not a white screen, and its link recovers.
+// UI-ROUTES (HC-UIRT-001): a page that throws while rendering shows the route
+// boundary, not a white screen, and its link recovers. On the routes inside
+// AppLayout the navigation still renders around the boundary. /setup has no
+// layout, so only the boundary is checked there.
 //
 // HC-UIRT-002 (HC-ROUTE-001 unknown-path redirect, HC-ROUTE-002 navigate()
 // guard) is pinned by Routing.test.tsx, which is not edited by this row.
 //
 // The test goes through the real <App /> so a route that is not wrapped in the
 // boundary fails here (a unit test of ErrorBoundary alone cannot see that).
+// The pages are stubs, so the test decides when each one throws.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import App from '@/App';
 import { useAuthStore } from '@/stores/authStore';
 
-// The one lazy page that throws. The lazy import in App.tsx resolves to the
-// same module, so this mock is what the router renders.
-vi.mock('@/pages/SettingsPage', () => ({
-  SettingsPage: function ThrowingSettingsPage() {
-    throw new Error('boom-internal-detail');
-  },
-}));
+// While `throwing` is set, every stubbed page throws. The test clears it right
+// before clicking the recovery link, so the Documents page renders afterwards.
+const stubs = vi.hoisted(() => ({ throwing: true }));
+
+vi.mock('@/pages/ProfileSetup', async () => {
+  const { createElement } = await import('react');
+  return {
+    ProfileSetup: function SetupStub() {
+      if (stubs.throwing) throw new Error('boom-internal-detail');
+      return createElement('h1', null, 'Setup stub');
+    },
+  };
+});
+
+vi.mock('@/pages/DocumentInbox', async () => {
+  const { createElement } = await import('react');
+  return {
+    DocumentInbox: function InboxStub() {
+      if (stubs.throwing) throw new Error('boom-internal-detail');
+      return createElement('h1', null, 'Inbox stub');
+    },
+  };
+});
+
+vi.mock('@/pages/VerificationWorkbench', async () => {
+  const { createElement } = await import('react');
+  return {
+    VerificationWorkbench: function VerifyStub() {
+      if (stubs.throwing) throw new Error('boom-internal-detail');
+      return createElement('h1', null, 'Verify stub');
+    },
+  };
+});
+
+vi.mock('@/pages/SettingsPage', async () => {
+  const { createElement } = await import('react');
+  return {
+    SettingsPage: function SettingsStub() {
+      if (stubs.throwing) throw new Error('boom-internal-detail');
+      return createElement('h1', null, 'Settings stub');
+    },
+  };
+});
 
 vi.mock('@/services/api', () => ({
   apiGet: vi.fn().mockResolvedValue([]),
@@ -45,8 +84,15 @@ describe('UI-ROUTES route error boundary', () => {
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
+    stubs.throwing = true;
     // React logs every caught render error to console.error. That is expected here.
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    useAuthStore.getState().setAuth({
+      token: 'test-token',
+      profileId: 'profile-123',
+      profileName: 'Test Profile',
+      expiresIn: 3600,
+    });
   });
 
   afterEach(() => {
@@ -55,14 +101,13 @@ describe('UI-ROUTES route error boundary', () => {
     window.history.replaceState({}, '', '/');
   });
 
-  it('HC-UIRT-001: a route that throws shows the boundary inside the layout, and its link recovers', async () => {
-    useAuthStore.getState().setAuth({
-      token: 'test-token',
-      profileId: 'profile-123',
-      profileName: 'Test Profile',
-      expiresIn: 3600,
-    });
-    window.history.pushState({}, '', '/settings');
+  it.each([
+    { path: '/inbox', inLayout: true },
+    { path: '/verify', inLayout: true },
+    { path: '/settings', inLayout: true },
+    { path: '/setup', inLayout: false },
+  ])('HC-UIRT-001: $path that throws shows the boundary, and its link recovers', async ({ path, inLayout }) => {
+    window.history.pushState({}, '', path);
 
     render(<App />);
 
@@ -71,16 +116,23 @@ describe('UI-ROUTES route error boundary', () => {
 
     const link = screen.getByRole('link', { name: 'Go to Documents' });
     expect(link).toHaveAttribute('href', '/inbox');
+    // Reloading covers a page whose code chunk failed to load, which a click cannot retry.
+    expect(screen.getByRole('button', { name: 'Reload page' })).toBeInTheDocument();
 
-    // The boundary is per route, inside AppLayout: the navigation still renders.
-    expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBeInTheDocument();
+    if (inLayout) {
+      // The boundary is per route, inside AppLayout: the navigation still renders.
+      expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBeInTheDocument();
+    }
 
     // The thrown message may carry patient data, so it must never reach the page.
     expect(document.body.textContent).not.toContain('boom-internal-detail');
 
-    // The link recovers: navigating away clears the boundary.
+    // The link recovers: it clears the boundary and renders Documents, even when
+    // the broken page is Documents itself (the same path, so no remount).
+    stubs.throwing = false;
     fireEvent.click(link);
     await waitFor(() => expect(window.location.pathname).toBe('/inbox'));
-    await waitFor(() => expect(screen.queryByText('This page hit a problem')).not.toBeInTheDocument());
+    expect(await screen.findByRole('heading', { name: 'Inbox stub' })).toBeInTheDocument();
+    expect(screen.queryByText('This page hit a problem')).not.toBeInTheDocument();
   });
 });
