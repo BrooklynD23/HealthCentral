@@ -6,8 +6,9 @@
 // HC-UIRT-002 (HC-ROUTE-001 unknown-path redirect, HC-ROUTE-002 navigate()
 // guard) is pinned by Routing.test.tsx, which is not edited by this row.
 //
-// The test goes through the real <App /> so a route that is not wrapped in the
-// boundary fails here (a unit test of ErrorBoundary alone cannot see that).
+// The test goes through the real <App /> so the boundary wiring is exercised
+// (a unit test of ErrorBoundary alone cannot see it). The wiring is checked for
+// the four routes below, not for every route inside the boundary.
 // The pages are stubs, so the test decides when each one throws.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -17,8 +18,8 @@ import { useAuthStore } from '@/stores/authStore';
 
 // While `throwing` is set, every stubbed page throws. The test clears it right
 // before clicking the recovery link, so the Documents page renders afterwards.
-// `inboxMounts` counts how many times the Inbox stub mounts (HC-UIRT-003).
-const stubs = vi.hoisted(() => ({ throwing: true, inboxMounts: 0 }));
+// `inboxMounts` and `verifyMounts` count how many times the Inbox and Verify stubs mount (HC-UIRT-003).
+const stubs = vi.hoisted(() => ({ throwing: true, inboxMounts: 0, verifyMounts: 0 }));
 
 vi.mock('@/pages/ProfileSetup', async () => {
   const { createElement } = await import('react');
@@ -45,9 +46,13 @@ vi.mock('@/pages/DocumentInbox', async () => {
 });
 
 vi.mock('@/pages/VerificationWorkbench', async () => {
-  const { createElement } = await import('react');
+  const { createElement, useEffect } = await import('react');
   return {
     VerificationWorkbench: function VerifyStub() {
+      // The hook is called before the throw, so the hook order is the same on every render.
+      useEffect(() => {
+        stubs.verifyMounts += 1;
+      }, []);
       if (stubs.throwing) throw new Error('boom-internal-detail');
       return createElement('h1', null, 'Verify stub');
     },
@@ -144,6 +149,7 @@ describe('UI-ROUTES route error boundary', () => {
   it('HC-UIRT-003: a cross-route navigation inside AppLayout mounts the destination page once', async () => {
     stubs.throwing = false;
     stubs.inboxMounts = 0;
+    stubs.verifyMounts = 0;
     window.history.pushState({}, '', '/verify');
 
     render(<App />);
@@ -161,5 +167,7 @@ describe('UI-ROUTES route error boundary', () => {
 
     expect(screen.getByRole('heading', { name: 'Inbox stub' })).toBeInTheDocument();
     expect(stubs.inboxMounts).toBe(1);
+    // The outgoing page must not remount while it fades out, so Verify still mounts once.
+    expect(stubs.verifyMounts).toBe(1);
   });
 });
