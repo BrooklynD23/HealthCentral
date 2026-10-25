@@ -1120,3 +1120,15 @@ class TestExtractTextForms:
         elapsed = time.perf_counter() - start
         assert obs is None
         assert elapsed < 1.0, f"took {elapsed:.2f}s"
+
+    def test_hc_etf_007_labcorp_hba1c_footnote_block_gives_one_observation(self, extract_module):
+        # "Diabetes: >6.4" and "...: <7.0" are reference labels with no unit, not results.
+        text = "\n".join([
+            "Hemoglobin A1c 5.4 % 4.8-5.6",
+            "Prediabetes: 5.7 - 6.4",
+            "Diabetes: >6.4",
+            "Glycemic control for adults with diabetes: <7.0",
+        ])
+        observations = extract_module._extract_from_text(text, page_num=1, document_id="doc")
+        assert [o.analyte_raw for o in observations] == ["Hemoglobin A1c"]
+        assert observations[0].value == 5.4
