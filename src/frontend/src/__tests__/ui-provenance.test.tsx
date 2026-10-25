@@ -53,7 +53,22 @@ const observation: Observation = {
   user_verified: false,
   extraction_confidence: 0.92,
   source_page: 3,
-  source_bbox_json: '{"x0":10,"y0":20,"x1":200,"y1":40}',
+  // The backend stores [x0,y0,x1,y1] (api/documents.py), the form parseBbox reads.
+  source_bbox_json: '[10,20,200,40]',
+};
+
+/** A second value on the same document, so a row can be switched to another page. */
+const OTHER_OBSERVATION_ID = '6f1c2c4e-8a1b-4c3d-9e0f-00000000a1c1';
+const otherObservation: Observation = {
+  ...observation,
+  id: OTHER_OBSERVATION_ID,
+  analyte_canonical: 'hemoglobin_a1c',
+  analyte_raw: 'Hemoglobin A1c',
+  value: 5.4,
+  unit: '%',
+  ref_low: 4.0,
+  ref_high: 5.6,
+  source_page: 1,
 };
 
 const EXCERPT = ['Test Result Units Range', 'Glucose 96 mg/dL 70-99', 'Hemoglobin A1c 5.4 % 4.0-5.6'];
@@ -66,13 +81,19 @@ const kbCitation: Citation = {
   text: 'Ferritin reflects stored iron; low values can reflect depleted stores.',
 };
 
-function renderWithProviders(ui: React.ReactNode) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return render(
+function withProviders(ui: React.ReactNode, client: QueryClient) {
+  return (
     <MemoryRouter>
       <QueryClientProvider client={client}>{ui}</QueryClientProvider>
     </MemoryRouter>
   );
+}
+
+function renderWithProviders(ui: React.ReactNode) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const result = render(withProviders(ui, client));
+  // Same providers on rerender, so a test can hand one sheet a different row.
+  return { ...result, rerender: (next: React.ReactNode) => result.rerender(withProviders(next, client)) };
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -217,6 +238,9 @@ describe('HC-UIPV-003 Source Trace shows the highlighted row, page, date and the
     expect(matchRow?.querySelector('[data-trace-mark]')).not.toBeNull();
     const otherRow = screen.getByText(EXCERPT[0]).closest('li');
     expect(otherRow?.querySelector('[data-trace-mark]')).toBeNull();
+    // The colour tint is not the only cue: the match is announced in words, the mark itself is aria-hidden.
+    expect(matchRow?.textContent).toContain('Matching line:');
+    expect(otherRow?.textContent).not.toContain('Matching line:');
   });
 
   it('says "not available" where the source has no page, and does not invent one', async () => {
@@ -300,6 +324,54 @@ describe('HC-UIPV-005 verify sends one POST, shows the confirmation toast, offer
     await screen.findByText('Glucose, Apr 10, 2026 is now marked as checked');
     expect(verifyPostsOf(fetchMock)).toHaveLength(1);
   });
+
+  it('a value verified in this sheet does not show as checked when the sheet is reused for another row', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse({ ...observation, user_verified: true }))
+    );
+    const { SourceTrace } = await load<typeof SourceTraceModule>('@/components/results/SourceTrace');
+
+    const { rerender } = renderWithProviders(
+      <>
+        <AppToaster />
+        <SourceTrace open observation={observation} excerptLines={EXCERPT} matchIndex={1} />
+      </>
+    );
+    await user.click(screen.getByRole('button', { name: 'It matches, mark as checked' }));
+    await screen.findByText('Glucose, Apr 10, 2026 is now marked as checked');
+    expect(screen.getByText('You have marked this value as checked.')).not.toBeNull();
+
+    rerender(
+      <>
+        <AppToaster />
+        <SourceTrace open observation={otherObservation} excerptLines={EXCERPT} matchIndex={2} />
+      </>
+    );
+    // B is not verified: its own button is back, and A's checked state is not shown for B.
+    expect(screen.getByRole('button', { name: 'It matches, mark as checked' })).not.toBeNull();
+    expect(screen.queryByText('You have marked this value as checked.')).toBeNull();
+  });
+
+  it('a failed verify shows the alert and keeps the button, so the user can try again', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ detail: 'server error' }, 500)));
+    const { SourceTrace } = await load<typeof SourceTraceModule>('@/components/results/SourceTrace');
+
+    renderWithProviders(
+      <>
+        <AppToaster />
+        <SourceTrace open observation={observation} excerptLines={EXCERPT} matchIndex={1} />
+      </>
+    );
+    await user.click(screen.getByRole('button', { name: 'It matches, mark as checked' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toBe('It could not be marked as checked. Try again.');
+    expect(screen.getByRole('button', { name: 'It matches, mark as checked' })).not.toBeNull();
+    expect(screen.queryByText('You have marked this value as checked.')).toBeNull();
+  });
 });
 
 describe('HC-UIPV-006 markup half: data-t0 on every T0 node, none on the highlight', () => {
@@ -309,7 +381,7 @@ describe('HC-UIPV-006 markup half: data-t0 on every T0 node, none on the highlig
       <SourceTrace open observation={observation} excerptLines={EXCERPT} matchIndex={1} />
     );
 
-    for (const text of [MATCH_LINE, EXCERPT[0], 'Page 3', 'Apr 10, 2026', '70 to 99 mg/dL', 'High']) {
+    for (const text of [MATCH_LINE, EXCERPT[0], 'Page 3', 'Apr 10, 2026', '70 to 99 mg/dL', '96 mg/dL', 'High']) {
       const node = screen.getByText(text);
       expect(node.closest('[data-t0]'), `T0 node for "${text}"`).not.toBeNull();
     }
