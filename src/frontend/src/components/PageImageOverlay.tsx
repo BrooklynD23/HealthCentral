@@ -110,7 +110,7 @@ export const PageImageOverlay: FC<PageImageOverlayProps> = ({
 
   if (imageError) {
     return (
-      <Card>
+      <Card data-page-image-overlay="">
         <CardContent className="py-8">
           <div className="text-center text-ink-secondary">
             <ImageOff className="w-8 h-8 mx-auto mb-2 text-ink-tertiary" />
@@ -122,7 +122,7 @@ export const PageImageOverlay: FC<PageImageOverlayProps> = ({
   }
 
   return (
-    <Card>
+    <Card data-page-image-overlay="">
       <CardContent className="p-2">
         <p className="text-xs text-ink-secondary mb-2 px-1">
           Page {pageNumber} — Source Location

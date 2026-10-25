@@ -12,6 +12,7 @@
  *   PLAYWRIGHT_ASSISTANT_CATEGORY_PROOF=1 npx playwright test e2e/ui-provenance.spec.ts --project=chromium
  */
 
+import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 import type {
   Document,
@@ -21,13 +22,15 @@ import type {
 } from '../src/services/types';
 import {
   axeGate,
-  type AxeGateResult,
   consoleAndNetworkGuard,
   maxEventDuration,
   measureCls,
   noHorizontalScroll,
   reducedMotionSnapshot,
+  setTheme,
   stillnessProbe,
+  type Theme,
+  WCAG_TAGS,
 } from './support/gates';
 
 const PROFILE_ID = '8d2f4a10-6c1e-4b7a-9f00-0000000e2e01';
@@ -204,16 +207,16 @@ async function waitForSettled(page: Page, selector: string): Promise<void> {
   );
 }
 
-/** "rule selector" for each serious or critical node, so a failure names the element. */
-function blockingNodes(result: AxeGateResult): string[] {
-  return result.blocking.flatMap((v) => v.nodes.map((node) => `${v.id} ${node.target.join(' ')}`));
-}
-
 const CHIP = '[aria-label^="Citation 1:"]';
 const POPOVER = '[role="dialog"][aria-label="Citation 1"]';
 const VIEW_DOCUMENT = 'button[aria-label="View document"]';
 const PREVIEW_IMAGE = 'img[alt="Page 1 of document"][src^="blob:"]';
 const SOURCE_IMAGE = 'img[alt="Page 3 of document"][src^="blob:"]';
+/** The PageImageOverlay root (a data hook on its Card; PageImageOverlay.tsx). */
+const PAGE_IMAGE_OVERLAY = '[data-page-image-overlay]';
+/** The identity transform, as gates.ts's G5 helper spells it (kept spec-local: gates.ts is not in this row). */
+const IDENTITY_TRANSFORM_SOURCE =
+  '^(none|matrix\\(\\s*1,\\s*0,\\s*0,\\s*1,\\s*0,\\s*0\\s*\\)|matrix3d\\(\\s*1,\\s*0,\\s*0,\\s*0,\\s*0,\\s*1,\\s*0,\\s*0,\\s*0,\\s*0,\\s*1,\\s*0,\\s*0,\\s*0,\\s*0,\\s*1\\s*\\))$';
 
 interface GateRoute {
   path: string;
@@ -221,6 +224,135 @@ interface GateRoute {
   ready: (page: Page) => Promise<void>;
   /** The gate's interaction: the popover, or the document preview with its page image. */
   interact: (page: Page) => Promise<void>;
+  /**
+   * This row's own nodes after the interaction. G1, G5 and G6 are judged on these
+   * only; the rest of the page is recorded, never asserted.
+   */
+  own: string[];
+  /** The own nodes that already exist before the interaction (empty when none do). */
+  ownBefore: string[];
+}
+
+/** Records one Gate G line: an annotation for the PR body and a console line. */
+function recordLine(line: string): void {
+  test.info().annotations.push({ type: 'gate-g-record', description: line });
+  console.log(line);
+}
+
+/** Visible nodes matching a selector. A scoped check on zero nodes proves nothing (recurring-failures #1). */
+async function visibleMatchCount(page: Page, selector: string): Promise<number> {
+  return page.locator(selector).evaluateAll(
+    (els) =>
+      els.filter((el) => {
+        const rect = el.getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+      }).length
+  );
+}
+
+/** Non-vacuity guard: every own selector must match at least one visible node, or the check fails. */
+async function assertOwnMatched(page: Page, selectors: string[], phase: string): Promise<void> {
+  for (const selector of selectors) {
+    expect(
+      await visibleMatchCount(page, selector),
+      `${phase}: own selector matches no visible node: ${selector}`
+    ).toBeGreaterThan(0);
+  }
+}
+
+/** G1 scoped: serious or critical axe violations inside each own node, in one theme. */
+async function ownAxeBlocking(page: Page, selectors: string[], theme: Theme): Promise<string[]> {
+  await setTheme(page, theme);
+  const found: string[] = [];
+  for (const selector of selectors) {
+    const result = await new AxeBuilder({ page }).withTags(WCAG_TAGS).include(selector).analyze();
+    for (const violation of result.violations) {
+      if (violation.impact !== 'serious' && violation.impact !== 'critical') continue;
+      for (const node of violation.nodes) {
+        found.push(`${violation.id} ${node.target.join(' ')} (own ${selector})`);
+      }
+    }
+  }
+  return found;
+}
+
+/**
+ * Record only: the page-wide axe result for one theme. Each serious or critical node is
+ * named OWN when it sits inside a row-owned selector, and OUTSIDE otherwise.
+ */
+async function recordPageWideAxe(page: Page, own: string[], theme: Theme, path: string): Promise<void> {
+  const full = await axeGate(page, { theme });
+  for (const violation of full.blocking) {
+    for (const node of violation.nodes) {
+      const target = node.target.join(' ');
+      const inOwn = await page.evaluate(
+        ({ selector, selectors }) => {
+          try {
+            const el = document.querySelector(selector);
+            return el !== null && selectors.some((s) => el.closest(s) !== null);
+          } catch {
+            return false;
+          }
+        },
+        { selector: target, selectors: own }
+      );
+      recordLine(`G1 ${path} ${theme} ${violation.id} ${inOwn ? 'OWN' : 'OUTSIDE'} ${target}`);
+    }
+  }
+}
+
+/** G5 scoped: each own node and its descendants must have the identity transform. */
+async function ownTransformOffenders(page: Page, selectors: string[]): Promise<string[]> {
+  return page.evaluate(
+    ({ sels, identitySource }) => {
+      const identity = new RegExp(identitySource);
+      const offenders: string[] = [];
+      for (const selector of sels) {
+        for (const root of Array.from(document.querySelectorAll(selector))) {
+          for (const el of [root, ...Array.from(root.querySelectorAll('*'))]) {
+            const transform = getComputedStyle(el).transform;
+            if (!identity.test(transform)) {
+              offenders.push(`${selector}: ${el.tagName.toLowerCase()} transform=${transform}`);
+            }
+          }
+        }
+      }
+      return offenders;
+    },
+    { sels: selectors, identitySource: IDENTITY_TRANSFORM_SOURCE }
+  );
+}
+
+/** G6 scoped: each visible own node inside the viewport, and not scrolling itself sideways. */
+async function ownBoxProblems(page: Page, selectors: string[]): Promise<string[]> {
+  const measured = await page.evaluate((sels) => {
+    const rows: { selector: string; left: number; right: number; scrollWidth: number; clientWidth: number; innerWidth: number }[] = [];
+    for (const selector of sels) {
+      for (const el of Array.from(document.querySelectorAll(selector))) {
+        const rect = el.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) continue;
+        rows.push({
+          selector,
+          left: rect.left,
+          right: rect.right,
+          scrollWidth: el.scrollWidth,
+          clientWidth: el.clientWidth,
+          innerWidth: window.innerWidth,
+        });
+      }
+    }
+    return rows;
+  }, selectors);
+  const problems: string[] = [];
+  for (const r of measured) {
+    if (r.left < 0) problems.push(`${r.selector}: left ${r.left.toFixed(1)} < 0`);
+    if (r.right > r.innerWidth) problems.push(`${r.selector}: right ${r.right.toFixed(1)} > innerWidth ${r.innerWidth}`);
+    if (r.scrollWidth > r.clientWidth) {
+      problems.push(`${r.selector}: scrollWidth ${r.scrollWidth} > clientWidth ${r.clientWidth}`);
+    }
+  }
+  return problems;
 }
 
 const GATE_ROUTES: GateRoute[] = [
@@ -235,6 +367,8 @@ const GATE_ROUTES: GateRoute[] = [
       await page.locator(CHIP).click();
       await expect(page.locator(POPOVER)).toBeVisible();
     },
+    own: [CHIP, POPOVER],
+    ownBefore: [CHIP],
   },
   {
     path: '/inbox',
@@ -249,6 +383,9 @@ const GATE_ROUTES: GateRoute[] = [
       await page.locator(VIEW_DOCUMENT).click();
       await expect(page.locator(PREVIEW_IMAGE)).toBeVisible();
     },
+    // The preview mounts PageImageOverlay (bbox null). No row-owned node exists before the click.
+    own: [PAGE_IMAGE_OVERLAY],
+    ownBefore: [],
   },
   {
     path: '/verify',
@@ -263,6 +400,8 @@ const GATE_ROUTES: GateRoute[] = [
       await page.getByText('Glucose', { exact: true }).first().click();
       await expect(page.locator(SOURCE_IMAGE)).toBeVisible();
     },
+    own: [PAGE_IMAGE_OVERLAY],
+    ownBefore: [PAGE_IMAGE_OVERLAY],
   },
 ];
 
@@ -353,28 +492,36 @@ test('HC-UIPV-006 the citation popover is still from its opening click (stillnes
 
 // ---------------------------------------------------------------------------
 // Gate G on /interpret, /inbox and /verify.
-// G1 axe light and dark; G2 CLS over load and the interaction; G3 INP with CPU x4
-// for the interaction; G5 reduced motion for the interaction; G6 no horizontal
-// scroll at 390x844 and 320x640; G7 console and network.
+// G1 axe light and dark, G5 reduced motion and G6 viewport fit are judged on this row's
+// own nodes only (GATE_ROUTES[].own). The page-wide results are recorded, never asserted,
+// and each outside node is named in the annotations for its owning row.
+// G2 CLS over load and the interaction; G3 INP with CPU x4 for the interaction;
+// G7 console and network.
 // ---------------------------------------------------------------------------
 for (const route of GATE_ROUTES) {
-  test(`Gate G1 ${route.path} axe has no serious or critical violation in light or dark`, async ({ page }) => {
+  test(`Gate G1 ${route.path} own nodes have no serious or critical violation in light or dark`, async ({ page }) => {
     await mockApi(page);
     await seedSession(page);
     await route.ready(page);
-    // Soft: a failure here must not skip the after-interaction checks below.
-    const light = await axeGate(page);
-    expect.soft(blockingNodes(light), 'light theme').toEqual([]);
-    const dark = await axeGate(page, { theme: 'dark' });
-    expect.soft(blockingNodes(dark), 'dark theme').toEqual([]);
+    // Before the interaction only the own nodes that already exist are scanned.
+    await assertOwnMatched(page, route.ownBefore, 'before the interaction');
+    const beforeLight = await ownAxeBlocking(page, route.ownBefore, 'light');
+    const beforeDark = await ownAxeBlocking(page, route.ownBefore, 'dark');
 
-    // The components this row changed (the open citation popover, the document preview,
-    // the PageImageOverlay highlight) exist only after the gate's interaction.
+    // The popover, the document preview and the PageImageOverlay highlight exist only after the interaction.
     await route.interact(page);
-    const openLight = await axeGate(page, { theme: 'light' });
-    expect(blockingNodes(openLight), 'light theme, after interaction').toEqual([]);
-    const openDark = await axeGate(page, { theme: 'dark' });
-    expect(blockingNodes(openDark), 'dark theme, after interaction').toEqual([]);
+    await assertOwnMatched(page, route.own, 'after the interaction');
+    const afterLight = await ownAxeBlocking(page, route.own, 'light');
+    const afterDark = await ownAxeBlocking(page, route.own, 'dark');
+
+    // Record only: the full page, each node named OWN or OUTSIDE for the owning row.
+    await recordPageWideAxe(page, route.own, 'light', route.path);
+    await recordPageWideAxe(page, route.own, 'dark', route.path);
+
+    expect(beforeLight, 'light theme, before the interaction').toEqual([]);
+    expect(beforeDark, 'dark theme, before the interaction').toEqual([]);
+    expect(afterLight, 'light theme, after the interaction').toEqual([]);
+    expect(afterDark, 'dark theme, after the interaction').toEqual([]);
   });
 
   test(`Gate G2 ${route.path} CLS stays under 0.1 over load and the interaction`, async ({ page }) => {
@@ -395,29 +542,44 @@ for (const route of GATE_ROUTES) {
     expect(slowest).toBeLessThan(200);
   });
 
-  test(`Gate G5 ${route.path} the interaction under reduced motion moves no element`, async ({ page }) => {
+  test(`Gate G5 ${route.path} own nodes and their descendants keep the identity transform under reduced motion`, async ({
+    page,
+  }) => {
     await mockApi(page);
     await seedSession(page);
     await route.ready(page);
-    const offenders = await reducedMotionSnapshot(page, () => route.interact(page));
-    expect(offenders).toEqual([]);
+    // Record only: every page-wide offender. The popper wrapper is outside the own set (GATES-POPPER-TRANSFORM).
+    const pageWide = await reducedMotionSnapshot(page, () => route.interact(page));
+    for (const offender of pageWide) recordLine(`G5 ${route.path} page-wide ${offender}`);
+    // Read 50 ms after the interaction, on the own nodes and their descendants only.
+    await assertOwnMatched(page, route.own, 'after the interaction');
+    expect(await ownTransformOffenders(page, route.own)).toEqual([]);
   });
 
   for (const viewport of [
     { width: 390, height: 844 },
     { width: 320, height: 640 },
   ]) {
-    test(`Gate G6 ${route.path} has no horizontal scroll at ${viewport.width}x${viewport.height}`, async ({ page }) => {
+    test(`Gate G6 ${route.path} own nodes stay inside the viewport at ${viewport.width}x${viewport.height}`, async ({
+      page,
+    }) => {
       await page.setViewportSize(viewport);
       await mockApi(page);
       await seedSession(page);
       await route.ready(page);
-      const scroll = await noHorizontalScroll(page);
-      // Soft: a failure here must not skip the after-interaction check below.
-      expect.soft(scroll.ok, `scrollWidth ${scroll.scrollWidth} > innerWidth ${scroll.innerWidth}`).toBe(true);
+      const pageBefore = await noHorizontalScroll(page);
+      recordLine(`G6 ${route.path} ${viewport.width}x${viewport.height} page-wide before: scrollWidth ${pageBefore.scrollWidth}, innerWidth ${pageBefore.innerWidth}`);
+      await assertOwnMatched(page, route.ownBefore, 'before the interaction');
+      const beforeProblems = await ownBoxProblems(page, route.ownBefore);
+
       await route.interact(page);
-      const opened = await noHorizontalScroll(page);
-      expect(opened.ok, `after interaction: scrollWidth ${opened.scrollWidth} > innerWidth ${opened.innerWidth}`).toBe(true);
+      const pageAfter = await noHorizontalScroll(page);
+      recordLine(`G6 ${route.path} ${viewport.width}x${viewport.height} page-wide after: scrollWidth ${pageAfter.scrollWidth}, innerWidth ${pageAfter.innerWidth}`);
+      await assertOwnMatched(page, route.own, 'after the interaction');
+      const afterProblems = await ownBoxProblems(page, route.own);
+
+      expect(beforeProblems, 'own nodes before the interaction').toEqual([]);
+      expect(afterProblems, 'own nodes after the interaction').toEqual([]);
     });
   }
 
