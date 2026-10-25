@@ -25,10 +25,11 @@ const CLS_BUDGET = 0.02;
  */
 const TOPBAR_BADGE_ROUTES: ReadonlySet<string> = new Set(['/inbox', '/verify', '/trends', '/explain', '/settings']);
 /**
- * Axe names the badge by a selector that depends on the page: `.px-1\.5` on four routes, `.text-\[10px\]`
- * on /trends (same element). The exclusion therefore matches the badge's HTML, not its selector.
- * The exclusion must be the badge itself: a bare span with the badge class and its ON/OFF text.
+ * Axe names the badge by one of these selectors, and the one it picks depends on the run: `.px-1\.5` on
+ * four routes, `.text-\[10px\]` on /trends (same element). Only a node with one of these selectors can be
+ * excluded, and each excluded node must still be the badge: a bare span with its ON/OFF text.
  */
+const TOPBAR_BADGE_SELECTORS: ReadonlySet<string> = new Set(['.px-1\\.5', '.text-\\[10px\\]']);
 const TOPBAR_BADGE_HTML = /^<span\b[^>]*\bpx-1\.5\b[^>]*>(ON|OFF)<\/span>$/;
 
 /** Waits until no finite animation runs. Infinite loaders (spinners, pulses) are ignored. */
@@ -67,12 +68,13 @@ test.describe('UI-TOKENS contrast on scanned routes', () => {
         `HC-UITK-004 ${route} color-contrast nodes (unfiltered): ${JSON.stringify(allNodes.map((node) => node.selector))}`
       );
       // Only the TopBar badge is excluded, and only on the TopBar routes (L0 ruling 1).
-      // Every excluded node must be that badge, so the exclusion cannot hide another .px-1\.5 element.
+      // Every node with a badge selector must be that badge, so a different element with one of these
+      // selectors fails here rather than being excluded.
       const badge = TOPBAR_BADGE_ROUTES.has(route)
-        ? allNodes.filter((node) => TOPBAR_BADGE_HTML.test(node.html))
+        ? allNodes.filter((node) => TOPBAR_BADGE_SELECTORS.has(node.selector))
         : [];
       for (const node of badge) {
-        expect(node.html, `excluded node on ${route} is the TopBar badge`).toMatch(
+        expect(node.html, `excluded ${node.selector} node on ${route} is the TopBar badge`).toMatch(
           TOPBAR_BADGE_HTML
         );
       }
