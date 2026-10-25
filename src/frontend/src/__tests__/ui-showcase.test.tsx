@@ -267,6 +267,10 @@ describe('UI-SHOWCASE-KIT ThinkingOrb (S3)', () => {
   });
 });
 
+// The real-build check, "build:check thinking-orbs row is PASS", lives in
+// UI-PG-DOCUMENTS, the first row that mounts ThinkingOrb. Rollup drops the
+// module while nothing imports it (L0 ruling 2026-10-25). The checks below
+// cover the lazy import only.
 describe('UI-SHOWCASE-KIT ThinkingOrb library load (HC-UISK-004)', () => {
   it('HC-UISK-004: importing the wrapper does not load thinking-orbs', () => {
     expect(LOADS_AT_IMPORT).toBe(0);
