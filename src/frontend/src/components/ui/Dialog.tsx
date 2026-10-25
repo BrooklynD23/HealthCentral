@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { AnimatePresence, m, type TargetAndTransition, type Transition } from 'framer-motion';
+import { AnimatePresence, m, type MotionProps } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { duration, ease } from '@/motion/tokens';
@@ -28,16 +28,12 @@ export interface DialogProps {
   children?: ReactNode;
 }
 
-export interface MotionSpec {
-  initial?: TargetAndTransition;
-  animate?: TargetAndTransition;
-  exit?: TargetAndTransition;
-  transition?: Transition;
-}
+/** The framer props an overlay hands to its content. Typed from MotionProps so `m.div` accepts them. */
+export type MotionSpec = Pick<MotionProps, 'initial' | 'animate' | 'exit' | 'transition'>;
 
 export type ModalVariant = 'dialog' | 'sheet-bottom' | 'sheet-side';
 
-// Radix-independent copies of the tokens in src/motion/tokens.ts, typed as framer's Easing.
+// Mutable copies of the readonly tuples in src/motion/tokens.ts: framer's Easing type does not accept readonly tuples.
 const EASE_OUT: [number, number, number, number] = [...ease.out];
 const EASE_DRAWER: [number, number, number, number] = [...ease.drawer];
 
@@ -87,9 +83,11 @@ const MOTION: Record<ModalVariant, MotionSpec> = {
   'sheet-side': sheetMotion('translateX'),
 };
 
+// Every variant scrolls its own content, so the actions of a tall overlay stay reachable.
 const VARIANT_CLASS: Record<ModalVariant, string> = {
-  dialog: 'inset-x-4 top-1/2 mx-auto max-w-md -translate-y-1/2 rounded-xl',
-  'sheet-bottom': 'inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-2xl',
+  dialog: 'inset-x-4 top-1/2 mx-auto max-h-[calc(100dvh-2rem)] max-w-md -translate-y-1/2 overflow-y-auto rounded-xl',
+  'sheet-bottom':
+    'inset-x-0 bottom-0 max-h-[85dvh] overflow-y-auto rounded-t-2xl pb-[max(1.5rem,env(safe-area-inset-bottom))]',
   'sheet-side': 'inset-y-0 right-0 w-full max-w-md overflow-y-auto',
 };
 
@@ -192,7 +190,7 @@ export function Modal({
                 {...motion}
               >
                 {title ? (
-                  <DialogPrimitive.Title className="pr-8 text-lg font-semibold text-ink">
+                  <DialogPrimitive.Title className="pr-14 text-lg font-semibold text-ink">
                     {title}
                   </DialogPrimitive.Title>
                 ) : null}
@@ -205,7 +203,7 @@ export function Modal({
                 {showClose ? (
                   <DialogPrimitive.Close
                     aria-label="Close"
-                    className="absolute right-4 top-4 rounded-md p-1 text-ink-secondary hover:text-ink focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-hidden"
+                    className="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-md text-ink-secondary hover:text-ink focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-hidden"
                   >
                     <X className="h-4 w-4" aria-hidden="true" />
                   </DialogPrimitive.Close>
