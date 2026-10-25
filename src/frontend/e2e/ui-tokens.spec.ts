@@ -126,6 +126,8 @@ test('HC-UITK-005: the focused nav link has no outline; its ring is the global b
   await nav.blur();
 });
 
+// HC-UITK-006 is a pin, not a check of the fallback font metrics: CLS is 0 on origin/main without the
+// @font-face overrides too, so a wrong override cannot turn this red.
 test('HC-UITK-006: cold-load CLS on /setup is at most 0.02', async ({ page }) => {
   const mock = await installMockApi(page);
   const cls = await measureCls(page, async () => {

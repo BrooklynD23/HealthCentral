@@ -38,7 +38,6 @@
   --color-ink: var(--ink-1);
   --color-ink-secondary: var(--ink-2);
   --color-ink-tertiary: var(--ink-3);
-  --color-ink-disabled: #bfbfbf;
 
   --color-muted-foreground: var(--ink-2);
   --color-border: var(--line);
@@ -46,7 +45,6 @@
   --color-accent: var(--accent);
   --color-accent-subtle: var(--accent-subtle);
   --color-accent-hover: var(--accent-hover);
-  --color-accent-pressed: #1e5a50;
 
   --color-status-caution: var(--caution);
   --color-status-caution-subtle: var(--caution-subtle);
@@ -88,7 +86,6 @@
   --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.04);
   --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.06);
   --shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.08);
-  --shadow-focus: 0 0 0 3px rgba(45, 125, 111, 0.3);
 
   --animate-fade-in: fadeIn 0.3s ease-out;
   --animate-slide-up: slideUp 0.3s ease-out;

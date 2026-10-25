@@ -135,7 +135,6 @@ test.describe('Tailwind 4 style guard', () => {
     // Target: RecoverProfile.tsx:136-143, bare border utility, no border colour or placeholder class.
     const input = page.locator('#recover-code');
     await expect(input).toBeVisible({ timeout: 15000 });
-    // Border is the --line token (UI-TOKENS, globals.css); placeholder is --ink-3.
     expect(await input.evaluate((el) => getComputedStyle(el).borderTopColor)).toBe('rgb(226, 223, 215)');
     expect(await input.evaluate((el) => getComputedStyle(el, '::placeholder').color)).toBe(
       'rgb(104, 100, 93)'
@@ -173,8 +172,8 @@ test.describe('Tailwind 4 style guard', () => {
     expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
     expect(await nav.evaluate((el) => getComputedStyle(el).minHeight)).toBe('44px');
 
-    // Collision guards: body (--paper, globals.css), rounded-lg (DoseLoggingModal.tsx:100 close button,
-    // checked in the modal test), text-ink (--ink-1, Sidebar.tsx:48 heading).
+    // Collision guards: body (globals.css:49), rounded-lg (DoseLoggingModal.tsx:100 close button,
+    // checked in the modal test), text-ink (Sidebar.tsx:48 heading).
     expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(
       'rgb(246, 245, 241)'
     );
