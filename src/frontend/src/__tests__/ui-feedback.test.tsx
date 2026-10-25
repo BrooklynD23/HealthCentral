@@ -400,7 +400,9 @@ describe('HC-UIFB-006: still toasts and StatusChip carry data-t0 and never anima
     const item = text.closest('[data-sonner-toast]') as HTMLElement;
     expect(item).not.toBeNull();
     expect(item.style.transition).toBe('none');
-    expect(item.style.opacity).toBe('1');
+    // No inline opacity: an inline value beats sonner's removed and data-visible=false
+    // rules, so a dismissed still toast would stay at full opacity for 200 ms.
+    expect(item.style.opacity).toBe('');
     // Sonner moves the toast from its stylesheet, not from inline styles, so jsdom
     // cannot see the enter transform. CSS-driven motion is checked by UI-SHELL's
     // stillnessProbe (the Playwright half of HC-UIFB-006, L0 ruling).
