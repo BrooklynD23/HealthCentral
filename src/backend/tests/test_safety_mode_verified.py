@@ -392,3 +392,114 @@ async def test_hc_smd_008_observation_refusals_write_one_row_each_without_text()
         assert json.loads(row.details_json) == ROW_DETAILS
         blob = _blob(row).lower()
         assert "hdl" not in blob and "cholesterol" not in blob, "analyte text in an audit row"
+
+
+# ---------------------------------------------------------------------------
+# HC-SMD-005: GET /recent omits unverified interpretations under ON, before the limit.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_hc_smd_005_recent_lists_both_under_off_and_only_verified_under_on():
+    async with _dbs() as db:
+        made = {}
+        for obs_id in db.ids:
+            resp = _post_interp(db, obs_id, "interpret")
+            assert resp.status_code == 201, resp.text
+            made[obs_id] = resp.json()["id"]
+        await _age(db.profile, db.verified, OLDER)
+        await _age(db.profile, db.unverified, NEWER)
+
+        off = _call(db.profile, db.master, "GET", "/interpretations/recent")
+        assert off.status_code == 200, off.text
+        assert sorted(r["id"] for r in off.json()) == sorted(made.values())
+
+        await _set_strict(db.profile, True)
+        on = _call(db.profile, db.master, "GET", "/interpretations/recent")
+        assert on.status_code == 200, on.text
+        assert [r["id"] for r in on.json()] == [made[db.verified]]
+
+        # The unverified row is the newest. A filter applied after the limit would
+        # return an empty page here; the verified row must still come back.
+        limited = _call(db.profile, db.master, "GET", "/interpretations/recent",
+                        params={"limit": 1})
+        assert limited.status_code == 200, limited.text
+        assert [r["id"] for r in limited.json()] == [made[db.verified]]
+
+
+# ---------------------------------------------------------------------------
+# HC-SMD-006: POST /batch lists the unverified id under "failed" and never generates it.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_hc_smd_006_batch_fails_unverified_and_never_generates_it():
+    generated: list[str] = []
+    real_generate = InterpretModule.interpret_observation
+
+    async def spy(self, observation_id, **kwargs):
+        generated.append(observation_id)
+        return await real_generate(self, observation_id=observation_id, **kwargs)
+
+    async with _dbs() as db:
+        await _set_strict(db.profile, True)
+        with patch.object(InterpretModule, "interpret_observation", spy):
+            resp = _batch(db, db.ids)
+        rows = await _audit_rows(db.master)
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {
+        "successful": [db.verified],
+        "failed": [{"observation_id": db.unverified, "error": BATCH_ERROR}],
+    }
+    assert generated == [db.verified], "the generation stub ran for the unverified id"
+    refused = [r for r in rows if r.event_type == REFUSED_EVENT]
+    assert [r.entity_id for r in refused] == [db.unverified]
+
+
+# ---------------------------------------------------------------------------
+# HC-SMD-007: the panel route refuses when any member is unverified. Members are the
+# ones interpret_panel selects: same profile, panel analytes, the whole calendar day.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_hc_smd_007_panel_refused_for_unverified_member_at_another_time_same_day():
+    async with _dbs(LATER_ROWS) as db:
+        await _set_strict(db.profile, True)
+        resp = _panel(db, COLLECTED_TXT)
+        rows = await _audit_rows(db.master)
+        stored = await _panel_rows(db.profile)
+
+    assert resp.status_code == 409, resp.text
+    assert resp.json() == {"detail": REFUSAL}
+    assert stored == [], "a panel was generated with an unverified member"
+    refused = [r for r in rows if r.event_type == REFUSED_EVENT]
+    assert len(refused) == 1, "one audit row per panel refusal"
+    assert json.loads(refused[0].details_json) == {**ROW_DETAILS, "observation_ids": [db.unverified]}
+    assert "hdl" not in _blob(refused[0]).lower() and "lipid" not in _blob(refused[0]).lower()
+
+
+@pytest.mark.asyncio
+async def test_hc_smd_007_panel_refused_when_off_stored_row_exists_and_not_forced():
+    async with _dbs(LATER_ROWS) as db:
+        made = _panel(db, COLLECTED_TXT)
+        assert made.status_code == 201, made.text
+        stored_id = made.json()["id"]
+
+        await _set_strict(db.profile, True)
+        resp = _panel(db, COLLECTED_TXT)
+        rows = await _panel_rows(db.profile)
+
+    assert resp.status_code == 409, resp.text
+    assert resp.json() == {"detail": REFUSAL}
+    assert stored_id not in resp.text, "the stored panel was returned"
+    assert [r.id for r in rows] == [stored_id], "the refusal must not delete the stored panel"
+
+
+@pytest.mark.asyncio
+async def test_hc_smd_007_all_verified_panel_succeeds_under_on():
+    async with _dbs(ALL_VERIFIED_ROWS) as db:
+        await _set_strict(db.profile, True)
+        resp = _panel(db, COLLECTED_TXT)
+        stored = await _panel_rows(db.profile)
+
+    assert resp.status_code == 201, resp.text
+    assert [r.id for r in stored] == [resp.json()["id"]]
