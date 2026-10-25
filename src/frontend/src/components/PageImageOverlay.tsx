@@ -8,6 +8,7 @@
 import { useState, useRef, useCallback, useEffect, type FC } from 'react';
 import { AlertTriangle, ImageOff } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui';
+import { TraceMark } from '@/components/results/SourceTrace';
 import { cn } from '@/utils/cn';
 import { fetchPageImageBlob } from '@/services/documents';
 import type { BoundingBox } from '@/services/types';
@@ -131,7 +132,7 @@ export const PageImageOverlay: FC<PageImageOverlayProps> = ({
             src={imageSrc ?? undefined}
             alt={`Page ${pageNumber} of document`}
             className={cn(
-              'w-full h-auto rounded-sm border border-black/6',
+              'w-full h-auto rounded-sm border border-black/6 transition-opacity duration-200',
               !imageLoaded && 'opacity-0'
             )}
             onLoad={handleImageLoad}
@@ -146,7 +147,7 @@ export const PageImageOverlay: FC<PageImageOverlayProps> = ({
           {/* Bounding box highlight overlay */}
           {imageLoaded && overlayStyle && (
             <div
-              className="absolute border-2 border-accent bg-accent/10 rounded-xs pointer-events-none"
+              className="absolute border-2 border-accent rounded-xs pointer-events-none"
               style={{
                 left: `${overlayStyle.left}px`,
                 top: `${overlayStyle.top}px`,
@@ -155,7 +156,9 @@ export const PageImageOverlay: FC<PageImageOverlayProps> = ({
               }}
               role="img"
               aria-label="Highlighted source region on document page"
-            />
+            >
+              <TraceMark />
+            </div>
           )}
 
           {/* No bbox available */}
