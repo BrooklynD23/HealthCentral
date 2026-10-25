@@ -4,10 +4,8 @@ export { Badge, badgeVariants, type BadgeProps } from './Badge';
 export { Input, type InputProps } from './Input';
 export { IconButton, type IconButtonProps } from './IconButton';
 export { Textarea, type TextareaProps } from './Textarea';
-export { Select, SelectValue, SelectTrigger, SelectContent, SelectItem } from './Select';
-export { Checkbox } from './Checkbox';
-export { Switch } from './Switch';
-export { Tabs, TabsList, TabsTrigger, TabsContent } from './Tabs';
+// Select, Checkbox, Switch and Tabs wrap Radix. They are imported by path
+// ('@/components/ui/Tabs') so that importers of this barrel do not load Radix.
 export * from './Motion';
 export * from './Skeleton';
 export * from './EmptyState';
