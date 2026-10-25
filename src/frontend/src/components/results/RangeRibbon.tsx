@@ -538,7 +538,7 @@ function RangeChart({ trend, layout }: RangeChartProps): ReactElement {
           <tr className="text-left text-ink-secondary">
             <th data-t0 scope="col" className="font-normal">Date</th>
             <th data-t0 scope="col" className="font-normal">Result</th>
-            <th data-t0 scope="col" className="font-normal">{"Against the report's range"}</th>
+            <th data-t0 scope="col" className="font-normal">{"Against this chart's range"}</th>
             <th data-t0 scope="col" className="font-normal">Checked</th>
           </tr>
         </thead>
