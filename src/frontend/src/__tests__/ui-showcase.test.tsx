@@ -15,6 +15,8 @@ import { join, resolve } from 'node:path';
 import { BeamBorder } from '@/components/ui/BeamBorder';
 import { ThinkingOrb } from '@/components/ui/ThinkingOrb';
 import { ShowcaseReveal, revealDelay } from '@/components/ui/ShowcaseReveal';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { Button } from '@/components/ui/Button';
 import { duration, stagger } from '@/motion/tokens';
 
 // The library is replaced by a stub that counts how often it is loaded and
@@ -358,5 +360,89 @@ describe('UI-SHOWCASE-KIT ShowcaseReveal (S1)', () => {
     expect(source).toMatch(/from\s+['"]@\/motion\/tokens['"]/);
     expect(source).toMatch(/import\s*\{[^}]*\bm\b[^}]*\}\s*from\s+['"]framer-motion['"]/);
     expect(source).not.toMatch(/\bmotion\./);
+  });
+});
+
+describe('UI-SHOWCASE-KIT EmptyState (HC-UISK-006)', () => {
+  beforeEach(() => {
+    setReducedMotion(false);
+    window.sessionStorage.clear();
+  });
+
+  it('HC-UISK-006: an action given as a button renders as a real button', () => {
+    render(
+      <EmptyState
+        title="No values yet"
+        description="Import a report to start."
+        action={<Button>Import a report</Button>}
+      />
+    );
+    expect(screen.getByRole('button', { name: 'Import a report' })).toBeInTheDocument();
+  });
+
+  it('HC-UISK-006: an action given as a link renders as a real link', () => {
+    render(
+      <EmptyState
+        title="No values yet"
+        description="Import a report to start."
+        action={<a href="/inbox">Go to documents</a>}
+      />
+    );
+    expect(screen.getByRole('link', { name: 'Go to documents' })).toHaveAttribute('href', '/inbox');
+  });
+
+  it('HC-UISK-006: action stays optional: this call compiles without one and renders none', () => {
+    // tsc is the check here: the call below must compile with no action (L0 ruling 1).
+    render(<EmptyState title="Nothing here yet" description="Results appear after an import." />);
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.queryByRole('link')).toBeNull();
+  });
+
+  it('HC-UISK-006: the layout is illustration, then the sentence, then the action', () => {
+    render(
+      <EmptyState
+        title="Nothing here yet"
+        description="Results appear after an import."
+        illustration={
+          <svg data-testid="line-art" viewBox="0 0 10 10">
+            <line x1="0" y1="5" x2="10" y2="5" />
+          </svg>
+        }
+        action={<Button>Import a report</Button>}
+      />
+    );
+    const art = screen.getByTestId('line-art');
+    const title = screen.getByRole('heading', { name: 'Nothing here yet' });
+    const description = screen.getByText('Results appear after an import.');
+    const button = screen.getByRole('button', { name: 'Import a report' });
+    const following = Node.DOCUMENT_POSITION_FOLLOWING;
+    expect(art.compareDocumentPosition(title) & following).toBeTruthy();
+    expect(title.compareDocumentPosition(description) & following).toBeTruthy();
+    expect(description.compareDocumentPosition(button) & following).toBeTruthy();
+  });
+
+  it('HC-UISK-006: the illustration is decorative and hidden from assistive technology', () => {
+    render(
+      <EmptyState
+        title="Nothing here yet"
+        description="Results appear after an import."
+        illustration={<svg data-testid="line-art" viewBox="0 0 10 10" />}
+      />
+    );
+    expect(screen.getByTestId('line-art').closest('[aria-hidden="true"]')).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Nothing here yet' })).toBeInTheDocument();
+  });
+
+  it('HC-UISK-006: the sentence takes the S1 entrance: 12 px down and transparent on the first visit', () => {
+    render(
+      <LazyMotion features={domAnimation}>
+        <EmptyState title="Nothing here yet" description="Results appear after an import." />
+      </LazyMotion>
+    );
+    // heading -> sentence group (title and description) -> reveal wrapper for that group.
+    const sentence = screen.getByRole('heading', { name: 'Nothing here yet' }).parentElement;
+    const group = sentence?.parentElement as HTMLElement;
+    expect(group.style.opacity).toBe('0');
+    expect(group.style.transform).toMatch(/translateY\(12px\)/);
   });
 });
