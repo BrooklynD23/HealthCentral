@@ -6,7 +6,7 @@ import { BrandMark } from './BrandMark';
 import { isNavActive, navGroups } from './navConfig';
 
 const ITEM =
-  'relative z-10 flex h-11 items-center gap-3 rounded-xl px-4 text-sm font-medium focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2';
+  'relative z-10 flex h-11 min-h-target items-center gap-3 rounded-xl px-4 text-sm font-medium focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2';
 
 /**
  * The desktop sidebar (plan §3.2, at 1024 px and up). Groups from navConfig.ts;
