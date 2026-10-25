@@ -109,6 +109,70 @@ function RouteFallback() {
   );
 }
 
+// Content-shaped fallbacks for the lazy pages a user lands on, so the swap to
+// the loaded page does not move the layout (G2). Each mirrors its page's header
+// and body. Settings uses the same shape as the page's own loading state.
+// No motion: the fallback is shown while the page loads, not as a transition.
+
+function InboxFallback() {
+  return (
+    <div className="space-y-6" role="status" aria-live="polite">
+      <div className="flex items-center justify-between gap-4">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-4 w-64" />
+        </div>
+        <Skeleton className="h-10 w-44 rounded-xl" />
+      </div>
+      <div className="space-y-3">
+        <Skeleton className="h-20 rounded-2xl" />
+        <Skeleton className="h-20 rounded-2xl" />
+        <Skeleton className="h-20 rounded-2xl" />
+      </div>
+      <span className="sr-only">Loading page...</span>
+    </div>
+  );
+}
+
+function VerifyFallback() {
+  return (
+    <div className="space-y-6" role="status" aria-live="polite">
+      <div className="space-y-2">
+        <Skeleton className="h-8 w-56" />
+        <Skeleton className="h-4 w-72" />
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Skeleton className="h-96 rounded-2xl lg:col-span-2" />
+        <Skeleton className="h-96 rounded-2xl" />
+      </div>
+      <span className="sr-only">Loading page...</span>
+    </div>
+  );
+}
+
+function SettingsFallback() {
+  return (
+    <div className="space-y-6" role="status" aria-live="polite">
+      <div className="space-y-2">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-4 w-64" />
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <Skeleton className="h-40 rounded-2xl" />
+          <Skeleton className="h-40 rounded-2xl" />
+          <Skeleton className="h-80 rounded-2xl" />
+        </div>
+        <div className="space-y-4">
+          <Skeleton className="h-48 rounded-2xl" />
+          <Skeleton className="h-64 rounded-2xl" />
+        </div>
+      </div>
+      <span className="sr-only">Loading page...</span>
+    </div>
+  );
+}
+
 /**
  * Error boundary for one route. Keyed by path, so navigating to another page
  * remounts it and clears a caught error.
@@ -118,10 +182,10 @@ function RouteBoundary({ children }: { children: ReactNode }) {
   return <ErrorBoundary key={pathname}>{children}</ErrorBoundary>;
 }
 
-function lazyRoute(element: ReactNode) {
+function lazyRoute(element: ReactNode, fallback: ReactNode = <RouteFallback />) {
   return (
     <RouteBoundary>
-      <Suspense fallback={<RouteFallback />}>{element}</Suspense>
+      <Suspense fallback={fallback}>{element}</Suspense>
     </RouteBoundary>
   );
 }
@@ -141,8 +205,8 @@ function App() {
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<AppLayout />}>
               <Route index element={<Navigate to="/inbox" replace />} />
-              <Route path="inbox" element={lazyRoute(<DocumentInbox />)} />
-              <Route path="verify" element={lazyRoute(<VerificationWorkbench />)} />
+              <Route path="inbox" element={lazyRoute(<DocumentInbox />, <InboxFallback />)} />
+              <Route path="verify" element={lazyRoute(<VerificationWorkbench />, <VerifyFallback />)} />
               <Route path="trends" element={lazyRoute(<TrendsDashboard />)} />
               <Route path="timeline" element={lazyRoute(<TimelinePage />)} />
               <Route path="search" element={lazyRoute(<SearchPage />)} />
@@ -154,7 +218,7 @@ function App() {
               <Route path="pinboards" element={lazyRoute(<PinboardsPage />)} />
               <Route path="explain" element={lazyRoute(<ExplainAssistant />)} />
               <Route path="export" element={lazyRoute(<ExportPage />)} />
-              <Route path="settings" element={lazyRoute(<SettingsPage />)} />
+              <Route path="settings" element={lazyRoute(<SettingsPage />, <SettingsFallback />)} />
             </Route>
           </Route>
 
