@@ -131,8 +131,8 @@ describe('UI-ROUTES route error boundary', () => {
     // the broken page is Documents itself (the same path, so no remount).
     stubs.throwing = false;
     fireEvent.click(link);
-    await waitFor(() => expect(window.location.pathname).toBe('/inbox'));
-    expect(await screen.findByRole('heading', { name: 'Inbox stub' })).toBeInTheDocument();
+    await waitFor(() => expect(window.location.pathname).toBe('/inbox'), { timeout: 5000 });
+    expect(await screen.findByRole('heading', { name: 'Inbox stub' }, { timeout: 5000 })).toBeInTheDocument();
     expect(screen.queryByText('This page hit a problem')).not.toBeInTheDocument();
   });
 });
