@@ -519,8 +519,10 @@ class ExtractModule:
         ):
             return None
 
-        # A comparator with no unit is a reference label ("Diabetes: >6.4"), not a result.
-        if cmp and not unit:
+        # A comparator is a result only with a unit and a reference bound on the same line
+        # ("Glucose: <70 mg/dL (70-100)"). Without them it is a reference label
+        # ("Diabetes: >6.4", "Desirable range <200 mg/dL", "Normal: <5.7 %"), not a result.
+        if cmp and (not unit or (ref_low_str is None and ref_high_str is None)):
             return None
 
         # A comparator (<, >, <=, >=) is a bound, never an exact number: value stays None
