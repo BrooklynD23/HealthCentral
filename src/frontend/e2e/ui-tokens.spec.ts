@@ -18,6 +18,15 @@ import { openAuthenticatedPage } from './support/auth';
 const CONTRAST_ROUTES = ['/setup', '/inbox', '/verify', '/trends', '/explain', '/settings'] as const;
 /** The plan's CLS budget for a cold load of /setup (G2). */
 const CLS_BUDGET = 0.02;
+/**
+ * L0 ruling 1 (PR #356, 2026-10-24): the TopBar safety-mode "ON" badge (`.px-1\.5`)
+ * fails contrast at 4.44:1 and is reassigned from UI-TOKENS to UI-SHELL §3.6, which
+ * replaces the TopBar. The badge renders in the TopBar on these five routes only.
+ */
+const TOPBAR_BADGE_SELECTOR = '.px-1\\.5';
+const TOPBAR_BADGE_ROUTES: ReadonlySet<string> = new Set(['/inbox', '/verify', '/trends', '/explain', '/settings']);
+/** The exclusion must be the badge itself: a bare span with the badge class and its ON/OFF text. */
+const TOPBAR_BADGE_HTML = /^<span\b[^>]*\bpx-1\.5\b[^>]*>(ON|OFF)<\/span>$/;
 
 /** Waits until no finite animation runs. Infinite loaders (spinners, pulses) are ignored. */
 async function settleFiniteAnimations(page: Page): Promise<void> {
@@ -46,10 +55,26 @@ test.describe('UI-TOKENS contrast on scanned routes', () => {
       await settleFiniteAnimations(page);
 
       const result = await axeGate(page, { theme: 'light' });
-      const nodes = result.violations
+      const allNodes = result.violations
         .filter((violation) => violation.id === 'color-contrast')
-        .flatMap((violation) => violation.nodes.map((node) => node.target.join(' ')));
-      console.log(`HC-UITK-004 ${route} color-contrast nodes: ${JSON.stringify(nodes)}`);
+        .flatMap((violation) =>
+          violation.nodes.map((node) => ({ selector: node.target.join(' '), html: node.html }))
+        );
+      console.log(
+        `HC-UITK-004 ${route} color-contrast nodes (unfiltered): ${JSON.stringify(allNodes.map((node) => node.selector))}`
+      );
+      // Only the TopBar badge is excluded, and only on the TopBar routes (L0 ruling 1).
+      // Every excluded node must be that badge, so the exclusion cannot hide another .px-1\.5 element.
+      const badge = TOPBAR_BADGE_ROUTES.has(route)
+        ? allNodes.filter((node) => node.selector === TOPBAR_BADGE_SELECTOR)
+        : [];
+      for (const node of badge) {
+        expect(node.html, `excluded ${TOPBAR_BADGE_SELECTOR} node on ${route} is the TopBar badge`).toMatch(
+          TOPBAR_BADGE_HTML
+        );
+      }
+      const nodes = allNodes.filter((node) => !badge.includes(node)).map((node) => node.selector);
+      console.log(`HC-UITK-004 ${route} color-contrast nodes (filtered): ${JSON.stringify(nodes)}`);
       expect(nodes, `color-contrast nodes on ${route}`).toEqual([]);
     });
   }

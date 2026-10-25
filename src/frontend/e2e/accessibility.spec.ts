@@ -18,7 +18,7 @@ type Route = (typeof ROUTES)[number];
 interface KnownA11y {
   rule: string;
   selector: string;
-  fixBy: 'UI-TOKENS';
+  fixBy: 'UI-TOKENS' | 'UI-SHELL';
   note: string;
 }
 
@@ -91,27 +91,27 @@ function known(rule: string, fixBy: KnownA11y['fixBy'], note: string, selectors:
 const KNOWN_A11Y: Record<Route, KnownA11y[]> = {
   '/setup': [],
   '/inbox': [
-    ...known("color-contrast", "UI-TOKENS", "serious: contrast below WCAG AA; removed by UI-TOKENS", [
+    ...known("color-contrast", "UI-SHELL", "TopBar ON badge, replaced by UI-SHELL §3.6", [
       ".px-1\\.5",
     ]),
   ],
   '/verify': [
-    ...known("color-contrast", "UI-TOKENS", "serious: contrast below WCAG AA; removed by UI-TOKENS", [
+    ...known("color-contrast", "UI-SHELL", "TopBar ON badge, replaced by UI-SHELL §3.6", [
       ".px-1\\.5",
     ]),
   ],
   '/trends': [
-    ...known("color-contrast", "UI-TOKENS", "serious: contrast below WCAG AA; removed by UI-TOKENS", [
+    ...known("color-contrast", "UI-SHELL", "TopBar ON badge, replaced by UI-SHELL §3.6", [
       ".px-1\\.5",
     ]),
   ],
   '/explain': [
-    ...known("color-contrast", "UI-TOKENS", "serious: contrast below WCAG AA; removed by UI-TOKENS", [
+    ...known("color-contrast", "UI-SHELL", "TopBar ON badge, replaced by UI-SHELL §3.6", [
       ".px-1\\.5",
     ]),
   ],
   '/settings': [
-    ...known("color-contrast", "UI-TOKENS", "serious: contrast below WCAG AA; removed by UI-TOKENS", [
+    ...known("color-contrast", "UI-SHELL", "TopBar ON badge, replaced by UI-SHELL §3.6", [
       ".px-1\\.5",
     ]),
   ],
