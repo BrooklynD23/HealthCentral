@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:check": "npm run build && node scripts/check-bundle.mjs",
     "preview": "vite preview",
     "lint": "eslint .",
     "test": "vitest",
