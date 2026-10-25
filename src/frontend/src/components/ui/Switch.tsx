@@ -21,7 +21,7 @@ const Switch = forwardRef<
       'border-[var(--line-strong)] bg-surface-muted',
       'transition-colors duration-[var(--dur-hover)] ease-[var(--ease-out)]',
       'data-[state=checked]:border-accent data-[state=checked]:bg-accent',
-      'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent/20',
+      'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
       'disabled:cursor-not-allowed disabled:opacity-50',
       className
     )}

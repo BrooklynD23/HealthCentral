@@ -33,7 +33,7 @@ const TabsTrigger = forwardRef<
     className={cn(
       'relative inline-flex min-h-target items-center rounded-md px-3 py-2 text-sm font-medium',
       'text-ink-secondary hover:text-ink data-[state=active]:text-ink',
-      'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent/20',
+      'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
       "after:absolute after:inset-x-2 after:-bottom-px after:h-0.5 after:rounded-full after:bg-accent after:content-['']",
       'after:origin-center after:scale-x-0 after:transition-transform after:duration-[var(--dur-md)] after:ease-[var(--ease-out)]',
       'data-[state=active]:after:scale-x-100',
@@ -52,7 +52,7 @@ const TabsContent = forwardRef<
 >(({ className, ...props }, ref) => (
   <TabsPrimitive.Content
     ref={ref}
-    className={cn('mt-4 rounded-xl focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent/20', className)}
+    className={cn('mt-4 rounded-xl focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2', className)}
     {...props}
   />
 ));

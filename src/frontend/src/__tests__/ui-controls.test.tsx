@@ -369,6 +369,18 @@ describe('HC-UIPC-007 focus ring and press timing (vitest half)', () => {
     expect(buttonClasses()).toContain('focus-visible:ring-2');
   });
 
+  it('HC-UIPC-007: no primitive draws its focus ring in a translucent colour (ring-accent/20 and the like)', () => {
+    // A 20% ring measures 1.35:1 on white, under WCAG 1.4.11's 3:1. The global
+    // *:focus-visible ring (globals.css) is solid accent, so a primitive that
+    // overrides it with an alpha ring removes the only visible focus.
+    const files = readdirSync(UI_DIR).filter((name) => name.endsWith('.tsx'));
+    expect(files).toEqual(expect.arrayContaining(['Switch.tsx', 'Tabs.tsx', 'Input.tsx']));
+    const translucentRings = files.flatMap((file) =>
+      (primitiveSource(file).match(/focus-visible:ring-[\w-]+\/\d+/g) ?? []).map((ring) => `${file}: ${ring}`)
+    );
+    expect(translucentRings).toEqual([]);
+  });
+
   it('HC-UIPC-007: press (M1) is colour only under reduced motion', () => {
     const classes = buttonClasses();
     expect(classes).toContain('active:scale-[.97]');

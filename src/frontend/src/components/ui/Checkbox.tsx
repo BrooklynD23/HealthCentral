@@ -18,7 +18,7 @@ const Checkbox = forwardRef<
       'flex h-6 w-6 shrink-0 items-center justify-center rounded-md border bg-white',
       'border-[var(--line-strong)]',
       'data-[state=checked]:border-accent data-[state=checked]:bg-accent data-[state=checked]:text-[var(--on-accent)]',
-      'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent/20 focus-visible:border-accent',
+      'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:border-accent',
       'disabled:cursor-not-allowed disabled:opacity-50',
       className
     )}
