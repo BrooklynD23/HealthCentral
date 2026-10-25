@@ -28,7 +28,7 @@ Links to: `AGENT.md`, `docs/agentic/recurring-failures.md`
 
 **Local-First Medical Results Companion**
 
-Links to: `AGENT.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `config/.env.example`, `docs/00_architecture_plans_index.md`, `docs/01_backend_architecture_plan.md`, `docs/INDEX.md`, `docs/agentic/orchestration.md`, `docs/agentic/recurring-failures.md`, `docs/agile/AGILE_PLAN.md`, `docs/agile/RELEASE_CHECKLIST.md`, `docs/api/README.md`, `docs/api/endpoints.md`, `docs/architecture/README.md`, `docs/architecture/performance-scalability-review.md`, `docs/architecture/pipelines.md`, `docs/archive/README.md`, `docs/compliance/README.md`, `docs/compliance/audit-checklist.md`, `docs/compliance/data-privacy.md`, `docs/compliance/disaster-recovery.md`, `docs/compliance/hipaa-controls.md`, `docs/features/TASK_LIST.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/prd/PRD_agent_overhaul.md`, `docs/roles/00_roles_index.md`, `docs/roles/backend-api.md`, `docs/user/faq.md`, `docs/user/getting-started.md`, `docs/user/troubleshooting.md`, `docs/user/workflows.md`, `skills/asclexis-agent/SKILL.md`, `skills/asclexis-backend/SKILL.md`, `skills/asclexis-evals/SKILL.md`, `skills/asclexis-guardrails/SKILL.md`, `src/frontend/e2e/BROWSER_MCP_PLAYBOOK.md`, `src/frontend/e2e/ui-full-verification.spec.ts`
+Links to: `.claude/skills/README.md`, `AGENT.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `SECURITY.md`, `docs/00_architecture_plans_index.md`, `docs/INDEX.md`, `docs/agentic/evals.md`, `docs/agentic/harness.md`, `docs/agentic/orchestration.md`, `docs/agentic/recurring-failures.md`, `docs/agentic/rsi-runs/README.md`, `docs/api/README.md`, `docs/api/endpoints.md`, `docs/architecture/README.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/architecture/overview.md`, `docs/architecture/performance-scalability-review.md`, `docs/architecture/pipelines.md`, `docs/archive/README.md`, `docs/capstone-report/README.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/compliance/README.md`, `docs/dev/setup.md`, `docs/features/TASK_LIST.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-24-session-handoff.md`, `docs/research`, `docs/roles/00_roles_index.md`, `docs/user/README.md`, `docs/user/getting-started.md`, `skills/README.md`
 
 ## `docs/00_architecture_plans_index.md`
 
@@ -36,7 +36,7 @@ Links to: `AGENT.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `config/.env.example`, `do
 
 This index defines the canonical documentation order and marks legacy planning files that are kept only for history.
 
-Links to: `docs/architecture/README.md`, `docs/architecture/backend.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/architecture/frontend.md`, `docs/architecture/performance-scalability-review.md`, `docs/architecture/pipelines.md`, `docs/archive/README.md`, `docs/archive/plans/2026-02-15-sprint-06-handoff-prompt.md`, `docs/archive/plans/2026-03-04-handoff.md`, `docs/archive/plans/2026-03-28-roadmap-gsd-m001-m003-historical.md`, `docs/archive/plans/2026-05-11-dynamic-port-selection.md`, `docs/archive/plans/2026-07-02-fable5-architect-handoff-prompt.md`, `docs/archive/plans/2026-07-07-rename-audit-and-shortlist.md`, `docs/archive/plans/2026-07-12-phase-c-handoff-prompt.md`, `docs/archive/plans/2026-07-13-hc-m21-search.md`, `docs/archive/plans/2026-07-30-phase-b-asclexis-rename.md`, `docs/archive/plans/2026-10-04-NPM-MAJORS-react-router7.md`, `docs/archive/plans/2026-10-04-NPM-MAJORS-tailwind4.md`, `docs/archive/plans/2026-10-04-NPM-audit-fix.md`, `docs/archive/plans/2026-10-04-RCC-recovery-code-cache.md`, `docs/archive/plans/2026-10-04-RCC2-secret-retention.md`, `docs/archive/plans/2026-10-04-RCC3-restore-backup.md`, `docs/archive/plans/2026-10-08-DEV-PS1-install-on-lockfile-change.md`, `docs/archive/plans/2026-10-19-session-handoff.md`, `docs/archive/plans/2026-10-20b-session-handoff.md`, `docs/archive/plans/UI-implementation-2-4.md`, `docs/archive/plans/next-agent-documentation-consolidation.md`, `docs/archive/plans/remaining-features-implementation.md`, `docs/archive/plans/sprint-phase-2026-02-13-implementation-plan.md`, `docs/features/TASK_LIST.md`, `docs/plans/2026-06-30-tech-upgrade-survey-9-areas.md`, `docs/plans/2026-07-02-architect-review-proposal-tickets.md`, `docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md`, `docs/plans/2026-09-08-backlog-closure-plan.md`, `docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md`, `docs/plans/implementation-log`, `docs/plans/implementation-log/README.md`, `docs/plans/ingest-imaging-pathology-spec.md`, `docs/plans/roadmap_gap_closure.md`, `docs/roles/00_roles_index.md`, `openwiki/README.md`
+Links to: `docs/architecture/README.md`, `docs/architecture/backend.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/architecture/frontend.md`, `docs/architecture/overview.md`, `docs/architecture/performance-scalability-review.md`, `docs/architecture/pipelines.md`, `docs/archive/README.md`, `docs/archive/plans/2026-02-15-sprint-06-handoff-prompt.md`, `docs/archive/plans/2026-03-04-handoff.md`, `docs/archive/plans/2026-03-28-roadmap-gsd-m001-m003-historical.md`, `docs/archive/plans/2026-05-11-dynamic-port-selection.md`, `docs/archive/plans/2026-07-02-fable5-architect-handoff-prompt.md`, `docs/archive/plans/2026-07-07-rename-audit-and-shortlist.md`, `docs/archive/plans/2026-07-12-phase-c-handoff-prompt.md`, `docs/archive/plans/2026-07-13-hc-m21-search.md`, `docs/archive/plans/2026-07-30-phase-b-asclexis-rename.md`, `docs/archive/plans/2026-10-04-NPM-MAJORS-react-router7.md`, `docs/archive/plans/2026-10-04-NPM-MAJORS-tailwind4.md`, `docs/archive/plans/2026-10-04-NPM-audit-fix.md`, `docs/archive/plans/2026-10-04-RCC-recovery-code-cache.md`, `docs/archive/plans/2026-10-04-RCC2-secret-retention.md`, `docs/archive/plans/2026-10-04-RCC3-restore-backup.md`, `docs/archive/plans/2026-10-08-DEV-PS1-install-on-lockfile-change.md`, `docs/archive/plans/2026-10-17-session-handoff.md`, `docs/archive/plans/2026-10-19-session-handoff.md`, `docs/archive/plans/2026-10-20-session-handoff.md`, `docs/archive/plans/2026-10-20b-session-handoff.md`, `docs/archive/plans/2026-10-21b-session-handoff.md`, `docs/archive/plans/2026-10-21c-session-handoff.md`, `docs/archive/plans/UI-implementation-2-4.md`, `docs/archive/plans/next-agent-documentation-consolidation.md`, `docs/archive/plans/remaining-features-implementation.md`, `docs/archive/plans/sprint-phase-2026-02-13-implementation-plan.md`, `docs/dev/setup.md`, `docs/features/TASK_LIST.md`, `docs/plans/2026-06-30-tech-upgrade-survey-9-areas.md`, `docs/plans/2026-07-02-architect-review-proposal-tickets.md`, `docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md`, `docs/plans/2026-09-08-backlog-closure-plan.md`, `docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-24-session-handoff.md`, `docs/plans/implementation-log`, `docs/plans/implementation-log/README.md`, `docs/plans/ingest-imaging-pathology-spec.md`, `docs/plans/roadmap_gap_closure.md`, `docs/roles/00_roles_index.md`, `openwiki/README.md`
 
 ## `docs/01_backend_architecture_plan.md`
 
@@ -232,7 +232,7 @@ cd src/backend python main.py
 
 Hand-authored mermaid diagrams of the running system, kept here so the whole structure can be reviewed in one place. Mermaid rather than image files on purpose: diagrams render on GitHub, and they…
 
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/00_architecture_plans_index.md`, `docs/architecture/backend.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/architecture/frontend.md`, `docs/architecture/performance-scalability-review.md`, `docs/architecture/pipelines.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/compliance/hipaa-controls.md`
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/00_architecture_plans_index.md`, `docs/architecture/backend.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/architecture/frontend.md`, `docs/architecture/overview.md`, `docs/architecture/performance-scalability-review.md`, `docs/architecture/pipelines.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/compliance/hipaa-controls.md`
 
 ## `docs/architecture/backend.md`
 
@@ -258,6 +258,14 @@ Part of the architecture diagram set.
 
 Links to: `docs/architecture/README.md`
 
+## `docs/architecture/overview.md`
+
+**System Overview**
+
+Moved verbatim from the repository README on 2026-10-25 so the README can stay a short entry point. Part of the architecture diagram set.
+
+Links to: `AGENT.md`, `CLAUDE.md`, `README.md`, `docs/00_architecture_plans_index.md`, `docs/agentic/orchestration.md`, `docs/agentic/recurring-failures.md`, `docs/agile/AGILE_PLAN.md`, `docs/agile/RELEASE_CHECKLIST.md`, `docs/api/README.md`, `docs/api/endpoints.md`, `docs/architecture/README.md`, `docs/architecture/performance-scalability-review.md`, `docs/architecture/pipelines.md`, `docs/archive/README.md`, `docs/compliance/README.md`, `docs/compliance/audit-checklist.md`, `docs/compliance/data-privacy.md`, `docs/compliance/disaster-recovery.md`, `docs/compliance/hipaa-controls.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/prd/PRD_agent_overhaul.md`, `docs/roles/00_roles_index.md`, `docs/user/faq.md`, `docs/user/getting-started.md`, `docs/user/troubleshooting.md`, `docs/user/workflows.md`, `skills/asclexis-agent/SKILL.md`, `skills/asclexis-backend/SKILL.md`, `skills/asclexis-evals/SKILL.md`, `skills/asclexis-guardrails/SKILL.md`
+
 ## `docs/architecture/performance-scalability-review.md`
 
 **Performance & Scalability Review**
@@ -280,7 +288,7 @@ Links to: `docs/architecture/README.md`, `docs/capstone-report/owner-decisions-2
 
 This directory holds documentation that is retained for history only. Nothing here is an active tracker, and nothing here should be read as describing current plans, current status, or open work.
 
-Links to: `docs/features/TASK_LIST.md`
+Links to: `docs/features/TASK_LIST.md`, `docs/plans/2026-10-15-build-program/queue.md`
 
 ## `docs/archive/agile-sprints/SPRINT_0.md`
 
@@ -502,6 +510,14 @@ Links to: `docs/archive/plans/2026-10-04-RCC-recovery-code-cache.md`, `docs/arch
 
 Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`
 
+## `docs/archive/plans/2026-10-17-session-handoff.md`
+
+**Session handoff: 2026-10-16 → 2026-10-17 (L0, Opus 5.5)**
+
+**Superseded by 2026-10-18 handoff.**
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-18-session-handoff.md`
+
 ## `docs/archive/plans/2026-10-19-session-handoff.md`
 
 **Session handoff: 2026-10-18 → 2026-10-19 (L0, Opus 5.5)**
@@ -510,13 +526,37 @@ Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces t
 
 Links to: `AGENT.md`, `CLAUDE.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-18-session-handoff.md`
 
+## `docs/archive/plans/2026-10-20-session-handoff.md`
+
+**Session handoff: 2026-10-19 → 2026-10-20 (L0, Opus 5.5)**
+
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-19 handoff. The session ended because the owner moved development to another machine ("Please push…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-19-session-handoff.md`, `docs/archive/plans/2026-10-20b-session-handoff.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`
+
 ## `docs/archive/plans/2026-10-20b-session-handoff.md`
 
 **Session handoff: 2026-10-20 cloud session → local machine (L0)**
 
 Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-20 handoff. This session ran in a Claude Code cloud container; the owner moved development back to a local…
 
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-20-session-handoff.md`, `docs/plans/2026-10-20c-session-handoff.md`, `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-20-session-handoff.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-20c-session-handoff.md`, `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`
+
+## `docs/archive/plans/2026-10-21b-session-handoff.md`
+
+**Session handoff: 2026-10-21 cloud L0 → local dev machine**
+
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-21 GPU handoff. This session ran as a **cloud** L0 (claude.ai/code container, Linux, 4 CPUs, no GPU, no…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-21c-session-handoff.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-21-session-handoff.md`
+
+## `docs/archive/plans/2026-10-21c-session-handoff.md`
+
+**Session handoff: 2026-10-21 local L0 (laptop) → GPU box tonight**
+
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-21b handoff. This session ran as a **local** L0 on the laptop: Danny-Lenovo, WSL, 6 vCPU, no GPU and no…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/rsi-runs/README.md`, `docs/archive/plans/2026-10-21b-session-handoff.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-22-session-handoff.md`
 
 ## `docs/archive/plans/UI-implementation-2-4.md`
 
@@ -796,6 +836,14 @@ Date: 2026-02-22 Scope (Sprint 06 commits): `a2d25cc` (OPS-003), `1662f0e` (OPS-
 
 A **dev-only** knowledge layer that gives coding agents (Claude Code, etc.) precise, **always-fresh** understanding of this codebase via Serena, an LSP-over-MCP server. It exposes language-server…
 
+## `docs/dev/setup.md`
+
+**Developer Setup and Commands**
+
+Moved verbatim from the repository README on 2026-10-25 so the README can stay a short entry point. Behavioural rules are in `CLAUDE.md`; the collected-test baseline and the definition of done are…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `README.md`, `config/.env.example`, `src/frontend/e2e/BROWSER_MCP_PLAYBOOK.md`, `src/frontend/e2e/ui-full-verification.spec.ts`
+
 ## `docs/features/00_features_index.md`
 
 **HealthCentral Features Index (Current)**
@@ -834,7 +882,7 @@ Links to: `docs/00_architecture_plans_index.md`
 
 ---
 
-Links to: `audit/2026-09-25/gated-items-decision-packet.md`, `docs/agentic/recurring-failures.md`, `docs/plans/2026-07-02-architect-review-proposal-tickets.md`, `docs/plans/2026-09-08-backlog-closure-plan.md`, `docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md`, `docs/plans/2026-10-13-wearables-00-program.md`
+Links to: `AGENT.md`, `audit/2026-09-25/gated-items-decision-packet.md`, `docs/agentic/recurring-failures.md`, `docs/plans/2026-07-02-architect-review-proposal-tickets.md`, `docs/plans/2026-09-08-backlog-closure-plan.md`, `docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md`, `docs/plans/2026-10-13-wearables-00-program.md`, `docs/plans/2026-10-15-build-program/queue.md`
 
 ## `docs/model_tiers/README.md`
 
@@ -1372,14 +1420,6 @@ Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026
 
 Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`
 
-## `docs/plans/2026-10-17-session-handoff.md`
-
-**Session handoff: 2026-10-16 → 2026-10-17 (L0, Opus 5.5)**
-
-**Superseded by 2026-10-18 handoff.**
-
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-18-session-handoff.md`
-
 ## `docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md`
 
 **G-C5 HC-M11 NLI Cross-Encoder Behind a Default-Off Flag Implementation Plan**
@@ -1394,15 +1434,7 @@ Links to: `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/p
 
 Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-17 handoff. Owner answers quoted here are recorded in owner-decisions (rows dated 2026-10-17 and…
 
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-19-session-handoff.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-17-session-handoff.md`
-
-## `docs/plans/2026-10-20-session-handoff.md`
-
-**Session handoff: 2026-10-19 → 2026-10-20 (L0, Opus 5.5)**
-
-Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-19 handoff. The session ended because the owner moved development to another machine ("Please push…
-
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-19-session-handoff.md`, `docs/archive/plans/2026-10-20b-session-handoff.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-17-session-handoff.md`, `docs/archive/plans/2026-10-19-session-handoff.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`
 
 ## `docs/plans/2026-10-20c-session-handoff.md`
 
@@ -1418,23 +1450,7 @@ Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-20b-session-hando
 
 Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-20c handoff. This session ran on the owner's GPU WSL box (RTX 3080, Ollama). The owner's instruction at the…
 
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-20c-session-handoff.md`, `docs/reviews/2026-10-21/b3-codex-plan-review.md`
-
-## `docs/plans/2026-10-21b-session-handoff.md`
-
-**Session handoff: 2026-10-21 cloud L0 → local dev machine**
-
-Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-21 GPU handoff. This session ran as a **cloud** L0 (claude.ai/code container, Linux, 4 CPUs, no GPU, no…
-
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-21-session-handoff.md`
-
-## `docs/plans/2026-10-21c-session-handoff.md`
-
-**Session handoff: 2026-10-21 local L0 (laptop) → GPU box tonight**
-
-Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-21b handoff. This session ran as a **local** L0 on the laptop: Danny-Lenovo, WSL, 6 vCPU, no GPU and no…
-
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/rsi-runs/README.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-21b-session-handoff.md`, `docs/plans/2026-10-22-session-handoff.md`
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-21b-session-handoff.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-20c-session-handoff.md`, `docs/plans/2026-10-24-session-handoff.md`, `docs/reviews/2026-10-21/b3-codex-plan-review.md`
 
 ## `docs/plans/2026-10-22-mvp-rows-plan.md`
 
@@ -1450,7 +1466,7 @@ Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026
 
 Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-21c handoff. This session ran as the **GPU-box** L0 (RTX 3080, WSL, Ollama 0.40.5 with gemma4:e4b,…
 
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/rsi-runs/README.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-21c-session-handoff.md`, `docs/plans/2026-10-24-session-handoff.md`
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/rsi-runs/README.md`, `docs/archive/plans/2026-10-21c-session-handoff.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-24-session-handoff.md`
 
 ## `docs/plans/2026-10-23-frontend-revamp-plan.md`
 
