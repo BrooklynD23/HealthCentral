@@ -10,7 +10,7 @@ export function Pending({ children, className }: { children: ReactNode; classNam
   return (
     <span
       role="status"
-      className={cn('animate-[pulseSoft_1.6s_ease-in-out_infinite] text-sm text-ink-secondary', className)}
+      className={cn('animate-[pulseSoft_1.6s_ease-in-out_infinite] text-sm text-ink', className)}
     >
       {children}
     </span>
