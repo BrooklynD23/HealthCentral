@@ -173,28 +173,23 @@ for i in 8 7 6 5 4 3 2 1; do cmd=(flock "$L.$i.lock" "${cmd[@]}"); done
 exec "${cmd[@]}"
 ```
 
-**`wait_checks.sh`** (added 2026-10-25, the wait helper used this session): waits until each PR's checks complete, prints OK or FAIL plus mergeable for each, and never merges. It uses the same `statusCheckRollup` jq as `merge_par.sh`, polls every 40 s, and gives up after 60 tries. The body was reconstructed from `merge_par.sh` and the session's description, not copied from the session's file, so run it once on a known PR before relying on it.
+**`wait_checks.sh`** (added 2026-10-25, the wait helper used this session): waits until each PR's checks complete, prints OK or FAIL plus mergeable for each, and never merges. It uses the same `statusCheckRollup` jq as `merge_par.sh`, polls every 40 s, and gives up after 60 tries. The body was as used by L0 this session; same jq as `merge_par.sh` and the session's description, not copied from the session's file, so run it once on a known PR before relying on it.
 
 ```bash
 #!/usr/bin/env bash
-# Wait until each PR's checks complete; print OK or FAIL plus mergeable. Never merges.
+# Wait until each PR's checks are all complete; print status. Does not merge.
 cd "/mnt/e/Programming/Github Repo/HealthCentral"
-pending=("$@")
 for i in $(seq 1 60); do
-  left=()
-  for n in "${pending[@]}"; do
-    st=$(gh pr view "$n" --json statusCheckRollup --jq '[.statusCheckRollup[] | (.conclusion // .state // "")] | if length==0 then "WAIT" elif all(.=="SUCCESS" or .=="SKIPPED" or .=="NEUTRAL") then "OK" elif any(.=="FAILURE" or .=="CANCELLED" or .=="TIMED_OUT" or .=="ERROR") then "FAIL" else "WAIT" end' 2>/dev/null)
-    if [ "$st" = OK ] || [ "$st" = FAIL ]; then
-      echo "#$n $st mergeable=$(gh pr view "$n" --json mergeable --jq .mergeable)"
-    else
-      left+=("$n")
-    fi
+  done_all=1; out=""
+  for n in "$@"; do
+    st=$(gh pr view "$n" --json statusCheckRollup --jq '[.statusCheckRollup[] | (.conclusion // .state // "")] | if length==0 then "WAIT" elif all(.=="SUCCESS" or .=="SKIPPED" or .=="NEUTRAL") then "OK" elif any(.=="FAILURE" or .=="CANCELLED" or .=="TIMED_OUT" or .=="ERROR") then "FAIL" else "WAIT" end')
+    m=$(gh pr view "$n" --json mergeable --jq .mergeable)
+    out="$out #$n=$st/$m"; [ "$st" = WAIT ] && done_all=0
   done
-  pending=("${left[@]}"); [ ${#pending[@]} -eq 0 ] && { echo "all checks complete"; exit 0; }
+  [ $done_all = 1 ] && { echo "$out"; exit 0; }
   sleep 40
 done
-echo "timeout; still waiting: ${pending[*]}"
-exit 1
+echo "timeout:$out"
 ```
 
 ## 5. /goal prompt for the next L0
