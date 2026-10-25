@@ -11,6 +11,21 @@
 
 import type { Page, Request, Route } from '@playwright/test';
 import type { Document, Profile, TrendData, TrendPoint } from '../../src/services/types';
+import type {
+  AdherenceStats,
+  Medication,
+  MedicationCorrelations,
+  NotificationSchedulerStatus,
+  Panel,
+} from '../../src/services/types';
+import type { CarePlanTask } from '../../src/services/careTasks';
+import type { FeedbackStatsResponse } from '../../src/services/feedback';
+import type {
+  DiagnosticsListResponse,
+  ExternalApiSettings,
+  ModelSettings,
+  TiersListResponse,
+} from '../../src/services/modelSettings';
 
 /** UI-FIXTURE-NAME: the only person name the harness uses. */
 export const FIXTURE_PERSON = 'Alex Rivera';
@@ -132,6 +147,137 @@ export const trendFixtures: Record<string, TrendData> = {
   },
 };
 
+/**
+ * UI-SHELL (G7): GET fixtures for the endpoints the shell routes call beyond the set above, keyed by
+ * pathname (trailing slashes and query strings are not part of the key). Empty collections keep the
+ * pages in their empty states, so the gates measure the shell rather than seeded data.
+ */
+const MED_DETAIL_ID = 'med-fixture-1';
+
+const medicationDetailFixture: Medication = {
+  id: MED_DETAIL_ID,
+  profile_id: FIXTURE_PROFILE_ID,
+  name: 'Metformin',
+  generic_name: 'metformin hydrochloride',
+  dosage_amount: 500,
+  dosage_unit: 'mg',
+  dosage_form: 'tablet',
+  frequency: 'twice daily',
+  instructions: 'Take with meals.',
+  is_active: true,
+  reminder_enabled: false,
+  started_at: '2026-02-01',
+  ended_at: null,
+  created_at: '2026-02-01T09:00:00Z',
+  updated_at: '2026-02-01T09:00:00Z',
+  schedules: [],
+};
+
+const medicationStatsFixture: AdherenceStats = {
+  medication_id: MED_DETAIL_ID,
+  current_streak_days: 0,
+  longest_streak_days: 0,
+  last_7_days_adherence: 0,
+  last_30_days_adherence: 0,
+  total_doses_taken: 0,
+  total_doses_skipped: 0,
+  total_doses_expected: 0,
+};
+
+const medicationCorrelationsFixture: MedicationCorrelations = {
+  medication_id: MED_DETAIL_ID,
+  started_at: '2026-02-01',
+  ended_at: null,
+  observation_count: 0,
+  excluded_undated_count: 0,
+  analytes: [],
+  observations: [],
+};
+
+const cbcPanelFixture: Panel = {
+  panel_id: 'cbc',
+  panel_name: 'Complete blood count',
+  observations: [],
+  collection_date: null,
+};
+
+const modelSettingsFixture: ModelSettings = {
+  current_tier: 'standard',
+  preferred_tier: null,
+  recommended_tier: 'standard',
+  auto_detect_enabled: false,
+  hardware_info: {
+    ram_total_gb: 16,
+    ram_available_gb: 8,
+    cpu_cores: 8,
+    cpu_name: null,
+    disk_free_gb: 100,
+    gpu_available: false,
+    gpu_vram_gb: null,
+    gpu_name: null,
+    recommended_tier: 'standard',
+    max_supported_tier: 'standard',
+    detection_timestamp: '2026-10-25T08:00:00Z',
+  },
+  tier_availability: {},
+  ocr_preference_enabled: false,
+  ocr_effective: false,
+  ocr_blockers: [],
+  agent_enabled: false,
+};
+
+const tiersFixture: TiersListResponse = { tiers: [], recommended_tier: 'standard' };
+
+const externalApiFixture: ExternalApiSettings = {
+  use_external_api: false,
+  provider: '',
+  model: '',
+  api_key_configured: false,
+  redaction_break_glass: false,
+};
+
+const diagnosticsFixture: DiagnosticsListResponse = { components: [], checked_at: '2026-10-25T08:00:00Z' };
+
+const feedbackStatsFixture: FeedbackStatsResponse = {
+  total_feedback: 0,
+  positive_count: 0,
+  negative_count: 0,
+  correction_count: 0,
+  tag_distribution: {},
+  model_distribution: {},
+  provider_distribution: {},
+};
+
+const schedulerStatusFixture: NotificationSchedulerStatus = {
+  state: 'stopped',
+  active_platform: null,
+  registered_profiles: 0,
+  notifications_sent_this_hour: 0,
+  last_check: null,
+};
+
+const carePlanTasksFixture: CarePlanTask[] = [];
+
+const shellFixtures = new Map<string, unknown>([
+  ['/care-tasks', carePlanTasksFixture],
+  ['/feedback/stats', feedbackStatsFixture],
+  ['/medications', []],
+  [`/medications/${MED_DETAIL_ID}`, medicationDetailFixture],
+  [`/medications/${MED_DETAIL_ID}/doses`, []],
+  [`/medications/${MED_DETAIL_ID}/stats`, medicationStatsFixture],
+  [`/medications/${MED_DETAIL_ID}/correlations`, medicationCorrelationsFixture],
+  ['/notifications/scheduler/status', schedulerStatusFixture],
+  ['/observations', []],
+  ['/observations/panels/cbc', cbcPanelFixture],
+  ['/settings/model', modelSettingsFixture],
+  ['/settings/model/diagnostics', diagnosticsFixture],
+  ['/settings/model/external-api', externalApiFixture],
+  ['/settings/model/gamification', { streaks_hidden: false }],
+  ['/settings/model/tiers', tiersFixture],
+  ['/settings/model/timezone', { timezone: 'UTC' }],
+  ['/settings/model/voice', { voice_logging_enabled: false, voice_modal_seen: false }],
+]);
+
 export interface MockApi {
   /** Requests answered from a fixture, as "METHOD /api/v1/path". */
   readonly served: string[];
@@ -175,6 +321,10 @@ export async function installMockApi(page: Page): Promise<MockApi> {
       if (trend && trendFixtures[trend[1]]) {
         served.push(label);
         return json(trendFixtures[trend[1]]);
+      }
+      if (shellFixtures.has(path)) {
+        served.push(label);
+        return json(shellFixtures.get(path));
       }
     }
 
