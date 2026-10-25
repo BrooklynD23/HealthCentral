@@ -16,6 +16,7 @@ of this set is to support the
 
 | Diagram | What it answers |
 |---|---|
+| [System overview](overview.md) | What the product does, core principles, README-level diagrams, privacy boundaries, stack, project structure |
 | [System context & topology](#system-context) | What processes run, what talks to what, where the network boundary is |
 | [Backend structure](backend.md) | Request lifecycle, module dependencies, data architecture |
 | [Pipelines](pipelines.md) | Document → insight, assistant/agent graph, safety control-flow |

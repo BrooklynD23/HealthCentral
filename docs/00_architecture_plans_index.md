@@ -1,6 +1,6 @@
 # HealthCentral Documentation Index (Current)
 
-**Last Updated:** 2026-10-22
+**Last Updated:** 2026-10-25
 **Owner:** Project Lead
 **Refresh Trigger:** New doc added or doc archived
 
@@ -11,13 +11,14 @@ This index defines the canonical documentation order and marks legacy planning f
 ## Start Here (Canonical Doc Order)
 
 1. `README.md`
-   Repository entrypoint, current architecture overview, setup, and verification commands.
+   Repository entrypoint: short summary and links to architecture, setup, status and every other doc.
 2. `docs/api/endpoints.md`
    Exact mounted backend route inventory and auth requirements.
 3. `docs/00_architecture_plans_index.md`
    This file — full documentation index (you are here).
 4. `docs/features/TASK_LIST.md`
-   Remaining backlog only (active implementation and consolidation tasks).
+   Remaining-work tracker and Session Notes. The live build-program backlog is
+   [`docs/plans/2026-10-15-build-program/queue.md`](plans/2026-10-15-build-program/queue.md).
 5. `docs/05_backend_integration_status.md`
    Historical Reference — Sprint 06 snapshot retained for audit context, not the live tracker.
 
@@ -30,6 +31,9 @@ implementation notes (formerly the top-level `implementation_plan/` directory).
 Linked here so they are reachable from a hand-maintained index rather than only
 from the generated map (DOC-011).
 
+- [`docs/plans/2026-10-15-build-program/queue.md`](plans/2026-10-15-build-program/queue.md) — the build-program
+  execution queue (live backlog); latest session handoff:
+  [`docs/plans/2026-10-24-session-handoff.md`](plans/2026-10-24-session-handoff.md).
 - [`docs/plans/2026-09-08-backlog-closure-plan.md`](plans/2026-09-08-backlog-closure-plan.md)
   — every open item (partial features, open tickets, pending HC-M milestones) verified against the
   tree and sequenced, with the four decisions the owner has to make.
@@ -51,6 +55,11 @@ from the generated map (DOC-011).
   lifecycle, module dependencies, data architecture), [pipelines](architecture/pipelines.md)
   (document→insight, agent graph, safety control-flow), [frontend](architecture/frontend.md), and
   [CI gates](architecture/ci-and-quality-gates.md).
+- [`docs/architecture/overview.md`](architecture/overview.md) — product overview, core principles,
+  README-level diagrams, privacy boundaries, technology stack and project structure (moved from
+  `README.md` 2026-10-25).
+- [`docs/dev/setup.md`](dev/setup.md) — developer setup and commands: launchers, model setup,
+  SQLCipher, migrations, tests (moved from `README.md` 2026-10-25).
 - [`docs/architecture/performance-scalability-review.md`](architecture/performance-scalability-review.md)
   — honest assessment of what degrades as one profile's record grows, and what this system
   deliberately does not need.
@@ -118,6 +127,11 @@ from the generated map (DOC-011).
   [`2026-07-30-phase-b-asclexis-rename.md`](archive/plans/2026-07-30-phase-b-asclexis-rename.md) ·
   [`2026-07-13-hc-m21-search.md`](archive/plans/2026-07-13-hc-m21-search.md) ·
   [`2026-05-11-dynamic-port-selection.md`](archive/plans/2026-05-11-dynamic-port-selection.md)
+- Archived 2026-10-25 (superseded session handoffs, moved with `git mv`; each carries a Historical Reference banner naming its successor; the latest handoff stays in `docs/plans/`):
+  [`2026-10-17-session-handoff.md`](archive/plans/2026-10-17-session-handoff.md) ·
+  [`2026-10-20-session-handoff.md`](archive/plans/2026-10-20-session-handoff.md) ·
+  [`2026-10-21b-session-handoff.md`](archive/plans/2026-10-21b-session-handoff.md) ·
+  [`2026-10-21c-session-handoff.md`](archive/plans/2026-10-21c-session-handoff.md)
 
 ## Source PRDs
 

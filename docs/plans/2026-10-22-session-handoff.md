@@ -6,7 +6,7 @@
 **Owner:** repository owner
 **Refresh Trigger:** the next L0 session reads this first, works §3, and replaces this file with its own handoff.
 
-Read this after [CLAUDE.md](../../CLAUDE.md), [AGENT.md](../../AGENT.md) and the [build-program RUNBOOK](2026-10-15-build-program/RUNBOOK.md). It replaces [the 2026-10-21c handoff](2026-10-21c-session-handoff.md). This session ran as the **GPU-box** L0 (RTX 3080, WSL, Ollama 0.40.5 with gemma4:e4b, llama3.1:8b, qwen3:8b and gemma3:12b), from 2026-10-21 evening to 2026-10-22, started from main `c97192d` with `--plugin-dir .claude/mods/asclexis-rsi`. Treat this file as a lead: verify with `gh pr view` / `git log origin/main` before acting. PR states below were checked at write time (main `afbe1af`); several PRs were still in CI.
+Read this after [CLAUDE.md](../../CLAUDE.md), [AGENT.md](../../AGENT.md) and the [build-program RUNBOOK](2026-10-15-build-program/RUNBOOK.md). It replaces [the 2026-10-21c handoff](../archive/plans/2026-10-21c-session-handoff.md). This session ran as the **GPU-box** L0 (RTX 3080, WSL, Ollama 0.40.5 with gemma4:e4b, llama3.1:8b, qwen3:8b and gemma3:12b), from 2026-10-21 evening to 2026-10-22, started from main `c97192d` with `--plugin-dir .claude/mods/asclexis-rsi`. Treat this file as a lead: verify with `gh pr view` / `git log origin/main` before acting. PR states below were checked at write time (main `afbe1af`); several PRs were still in CI.
 
 ## 1. What this session did
 

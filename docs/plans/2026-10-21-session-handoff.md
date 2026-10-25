@@ -1,5 +1,7 @@
 # Session handoff: 2026-10-21 GPU session → cloud L0 (merges), then next machine
 
+> **Superseded** by [the 2026-10-21b handoff](../archive/plans/2026-10-21b-session-handoff.md) and its successors (newest: [the 2026-10-24 handoff](2026-10-24-session-handoff.md)); retained for history, not an active tracker.
+
 **Last Updated:** 2026-10-21
 **Owner:** repository owner
 **Refresh Trigger:** the next L0 session reads this first, works §3, and replaces this file with its own handoff.

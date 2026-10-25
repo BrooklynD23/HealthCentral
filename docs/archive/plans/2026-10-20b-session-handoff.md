@@ -7,7 +7,7 @@
 **Refresh Trigger:** the next L0 session reads this first, works §3, and replaces this file with its own handoff.
 **Superseded by:** [2026-10-20 local-session handoff](../../plans/2026-10-20c-session-handoff.md).
 
-Read this after [CLAUDE.md](../../../CLAUDE.md), [AGENT.md](../../../AGENT.md) and the [build-program RUNBOOK](../../plans/2026-10-15-build-program/RUNBOOK.md). It replaces [the 2026-10-20 handoff](../../plans/2026-10-20-session-handoff.md). This session ran in a Claude Code cloud container; the owner moved development back to a local machine ("When all current processes are done, can you commit all works/merge into main. Then provide a handoff prompt"). Every PR below was merged with green CI and a final review PASS; ask-first and merge-gated diffs only after the owner's yes. Treat this file as a lead: verify with `gh pr view` / `git log origin/main` before acting.
+Read this after [CLAUDE.md](../../../CLAUDE.md), [AGENT.md](../../../AGENT.md) and the [build-program RUNBOOK](../../plans/2026-10-15-build-program/RUNBOOK.md). It replaces [the 2026-10-20 handoff](2026-10-20-session-handoff.md). This session ran in a Claude Code cloud container; the owner moved development back to a local machine ("When all current processes are done, can you commit all works/merge into main. Then provide a handoff prompt"). Every PR below was merged with green CI and a final review PASS; ask-first and merge-gated diffs only after the owner's yes. Treat this file as a lead: verify with `gh pr view` / `git log origin/main` before acting.
 
 ## 1. What this session did
 

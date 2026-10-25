@@ -1,12 +1,14 @@
 # Session handoff: 2026-10-16 → 2026-10-17 (L0, Opus 5.5)
 
+> **Historical Reference** — superseded by [the 2026-10-18 handoff](../../plans/2026-10-18-session-handoff.md) and its successors (newest: `docs/plans/2026-10-24-session-handoff.md`); retained for history, not an active tracker. Moved from `docs/plans/2026-10-17-session-handoff.md` on 2026-10-25.
+
 **Last Updated:** 2026-10-17
 **Owner:** repository owner
 **Refresh Trigger:** the next L0 session reads this first, works the "Not started" list, and replaces this file with its own handoff.
 
-**Superseded by [2026-10-18 handoff](2026-10-18-session-handoff.md).**
+**Superseded by [2026-10-18 handoff](../../plans/2026-10-18-session-handoff.md).**
 
-Read this after [CLAUDE.md](../../CLAUDE.md), [AGENT.md](../../AGENT.md) and the [build-program RUNBOOK](2026-10-15-build-program/RUNBOOK.md). Owner answers quoted here are recorded in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md) (rows dated 2026-10-17). Verify every fact below with `git`/`gh` before acting on it. This is a lead, not a finding.
+Read this after [CLAUDE.md](../../../CLAUDE.md), [AGENT.md](../../../AGENT.md) and the [build-program RUNBOOK](../../plans/2026-10-15-build-program/RUNBOOK.md). Owner answers quoted here are recorded in [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md) (rows dated 2026-10-17). Verify every fact below with `git`/`gh` before acting on it. This is a lead, not a finding.
 
 ## 1. What this session did
 
