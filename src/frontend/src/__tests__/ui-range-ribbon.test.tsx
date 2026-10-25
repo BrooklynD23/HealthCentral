@@ -108,6 +108,17 @@ function cursorOf(container: HTMLElement): HTMLElement {
   return cursor;
 }
 
+// textContent runs adjacent cells together ("Apr 1, 2026" + "85" reads as
+// "202685"), so the text nodes are joined with a space instead.
+function textNodesOf(root: HTMLElement): string {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const parts: string[] = [];
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    parts.push(node.textContent ?? '');
+  }
+  return parts.join(' ');
+}
+
 function animationsFor(index: number): AnimateCall[] {
   return animateCalls.filter((call) => call.target.getAttribute('data-point-index') === String(index));
 }
@@ -355,7 +366,7 @@ describe('RangeRibbon', () => {
     const frames: string[] = [];
     for (let elapsed = 0; elapsed <= 640; elapsed += 40) {
       if (elapsed > 0) vi.advanceTimersByTime(40);
-      frames.push(`${container.textContent ?? ''} ${slider.getAttribute('aria-valuetext') ?? ''}`);
+      frames.push(`${textNodesOf(container)} ${slider.getAttribute('aria-valuetext') ?? ''}`);
     }
 
     expect(frames[0]).toContain('96.5 mg/dL');
