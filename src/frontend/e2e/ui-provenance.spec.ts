@@ -355,6 +355,17 @@ async function ownBoxProblems(page: Page, selectors: string[]): Promise<string[]
   return problems;
 }
 
+/**
+ * Record only (G6 at 390 and 320 in this row): the own-node box problems for one phase, with the
+ * visible match count per selector, so an empty problem list cannot pass by matching nothing.
+ */
+async function recordOwnBoxes(page: Page, label: string, selectors: string[]): Promise<string[]> {
+  const problems = await ownBoxProblems(page, selectors);
+  const matched = await Promise.all(selectors.map((selector) => visibleMatchCount(page, selector)));
+  recordLine(`${label} matched ${matched.join('/')}, problems ${problems.length ? problems.join('; ') : 'none'}`);
+  return problems;
+}
+
 const GATE_ROUTES: GateRoute[] = [
   {
     path: '/interpret',
@@ -556,11 +567,15 @@ for (const route of GATE_ROUTES) {
     expect(await ownTransformOffenders(page, route.own)).toEqual([]);
   });
 
+  // L0 ruling (2026-10-25 21:54:33Z, restated 21:56:34Z): G6 asserts at 1440 and 1024 here; 390 and 320 are record only, moved to UI-PG-REVIEW (/verify) and UI-PG-RESULTS (/interpret).
   for (const viewport of [
-    { width: 390, height: 844 },
-    { width: 320, height: 640 },
+    { width: 1440, height: 900, asserted: true },
+    { width: 1024, height: 768, asserted: true },
+    { width: 390, height: 844, asserted: false },
+    { width: 320, height: 640, asserted: false },
   ]) {
-    test(`Gate G6 ${route.path} own nodes stay inside the viewport at ${viewport.width}x${viewport.height}`, async ({
+    const size = `${viewport.width}x${viewport.height}`;
+    test(`Gate G6 ${route.path} own nodes stay inside the viewport at ${size}${viewport.asserted ? '' : ' (record only)'}`, async ({
       page,
     }) => {
       await page.setViewportSize(viewport);
@@ -568,16 +583,17 @@ for (const route of GATE_ROUTES) {
       await seedSession(page);
       await route.ready(page);
       const pageBefore = await noHorizontalScroll(page);
-      recordLine(`G6 ${route.path} ${viewport.width}x${viewport.height} page-wide before: scrollWidth ${pageBefore.scrollWidth}, innerWidth ${pageBefore.innerWidth}`);
-      await assertOwnMatched(page, route.ownBefore, 'before the interaction');
-      const beforeProblems = await ownBoxProblems(page, route.ownBefore);
+      recordLine(`G6 ${route.path} ${size} page-wide before: scrollWidth ${pageBefore.scrollWidth}, innerWidth ${pageBefore.innerWidth}`);
+      if (viewport.asserted) await assertOwnMatched(page, route.ownBefore, 'before the interaction');
+      const beforeProblems = await recordOwnBoxes(page, `G6 ${route.path} ${size} own before`, route.ownBefore);
 
       await route.interact(page);
       const pageAfter = await noHorizontalScroll(page);
-      recordLine(`G6 ${route.path} ${viewport.width}x${viewport.height} page-wide after: scrollWidth ${pageAfter.scrollWidth}, innerWidth ${pageAfter.innerWidth}`);
-      await assertOwnMatched(page, route.own, 'after the interaction');
-      const afterProblems = await ownBoxProblems(page, route.own);
+      recordLine(`G6 ${route.path} ${size} page-wide after: scrollWidth ${pageAfter.scrollWidth}, innerWidth ${pageAfter.innerWidth}`);
+      if (viewport.asserted) await assertOwnMatched(page, route.own, 'after the interaction');
+      const afterProblems = await recordOwnBoxes(page, `G6 ${route.path} ${size} own after`, route.own);
 
+      if (!viewport.asserted) return;
       expect(beforeProblems, 'own nodes before the interaction').toEqual([]);
       expect(afterProblems, 'own nodes after the interaction').toEqual([]);
     });
