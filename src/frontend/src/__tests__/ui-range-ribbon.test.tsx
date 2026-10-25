@@ -642,16 +642,17 @@ describe('RangeRibbon', () => {
 
   it('HC-UIRR-006: a converted value with binary noise shows its clean number in the table, the readout and aria-valuetext', async () => {
     const { RangeRibbon } = await loadRibbon();
-    // 99.10010000000001 is what a unit conversion can leave behind (normalize.py does not round).
+    // 99.10010000000001 is what a unit conversion can leave behind (normalize.py multiplies
+    // without rounding). Its clean value is 99.1001.
     const { container } = render(
       <RangeRibbon trend={series([point(APR_1, 85, true), point(APR_10, 99.10010000000001, true, true)])} />
     );
     expect(sliderOf()).toHaveAttribute(
       'aria-valuetext',
-      "Apr 10, 2026: 99.1 mg/dL, above the report's range, checked by you"
+      "Apr 10, 2026: 99.1001 mg/dL, above the report's range, checked by you"
     );
     const rows = within(screen.getByRole('table')).getAllByRole('row').slice(1);
-    expect(rows[1].querySelectorAll('td')[0].textContent).toBe('99.1 mg/dL');
+    expect(rows[1].querySelectorAll('td')[0].textContent).toBe('99.1001 mg/dL');
     expect(textNodesOf(container)).not.toContain('99.10010000000001');
   });
 

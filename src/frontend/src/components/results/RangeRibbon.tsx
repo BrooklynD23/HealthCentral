@@ -6,9 +6,13 @@
  * - The band is the series-level ref_low..ref_high. TrendPoint carries no
  *   per-report range, and the backend may combine bounds from different reports
  *   (plan gap, escalated to L0). A null bound draws no edge and no triangle.
- * - A point is out of range only when the band puts it outside AND the report's
- *   own is_abnormal agrees. When they disagree the point is a conflict: no
- *   triangle and no out-of-range words.
+ * - The band places each point. A printed flag only gives a direction (H, HH,
+ *   HIGH above; L, LL, LOW below). A flag that names no direction (null, A, *,
+ *   CRITICAL, Normal) leaves the band's call in place. A directional flag that
+ *   disagrees with the band, or a directional flag on a point the band calls
+ *   within, is a conflict: no triangle and no out-of-range words. is_abnormal is
+ *   not read.
+ * - With no band on the series, a point gets no range words, whatever its flag.
  * - Unverified points (user_verified is not true, D4) are hollow and dashed;
  *   verified points are filled.
  * - Slider semantics. ← → step and Home/End jump with no transition. A pointer
@@ -118,17 +122,36 @@ function bandSideOf(value: number, low: number | null, high: number | null): Ban
   return 'within';
 }
 
-// The band alone does not decide. An out-of-range call needs the report's own
-// verdict too, and any disagreement is a conflict, so no claim is made.
-function sideOf(value: number, reportAbnormal: boolean, low: number | null, high: number | null): Side {
+type FlagDirection = 'above' | 'below' | 'unknown';
+
+// H, HH and HIGH print above the range; L, LL and LOW below. Any other text (A,
+// *, CRITICAL, Normal, null) gives no direction, so it neither confirms nor
+// contradicts the band.
+function flagDirectionOf(flag: string | null): FlagDirection {
+  const code = (flag ?? '').trim().toUpperCase();
+  if (code === 'H' || code === 'HH' || code === 'HIGH') return 'above';
+  if (code === 'L' || code === 'LL' || code === 'LOW') return 'below';
+  return 'unknown';
+}
+
+// The band places the point. A directional flag must agree with it, and a flag
+// that names no direction leaves the band's call in place.
+function sideOf(value: number, flag: FlagDirection, low: number | null, high: number | null): Side {
   const band = bandSideOf(value, low, high);
-  if (band === 'none') return reportAbnormal ? 'conflict' : 'none';
-  if (band === 'within') return reportAbnormal ? 'conflict' : 'within';
-  return reportAbnormal ? band : 'conflict';
+  if (band === 'none') return 'none';
+  if (flag === 'unknown' || flag === band) return band;
+  return 'conflict';
+}
+
+// Converted values can carry binary noise (normalize.py multiplies without
+// rounding, so 99.1 can arrive as 99.10010000000001). Twelve significant digits
+// keep every lab value exact and drop the noise.
+function cleanNumber(n: number): number {
+  return Number(n.toPrecision(12));
 }
 
 function finiteOrNull(n: number | null): number | null {
-  return typeof n === 'number' && Number.isFinite(n) ? n : null;
+  return typeof n === 'number' && Number.isFinite(n) ? cleanNumber(n) : null;
 }
 
 function buildLayout(trend: TrendData): Layout {
@@ -138,7 +161,15 @@ function buildLayout(trend: TrendData): Layout {
   const parsed = trend.data_points.flatMap((raw: TrendPoint, index) => {
     const parts = parseDate(raw.date);
     if (!parts || !Number.isFinite(raw.value)) return [];
-    return [{ raw, index, parts, time: Date.UTC(parts.year, parts.month - 1, parts.day) }];
+    return [
+      {
+        raw,
+        index,
+        parts,
+        value: cleanNumber(raw.value),
+        time: Date.UTC(parts.year, parts.month - 1, parts.day),
+      },
+    ];
   });
   if (parsed.length === 0) return { points: [], highY: null, lowY: null, band: null };
   parsed.sort((a, b) => a.time - b.time || a.index - b.index);
@@ -149,7 +180,7 @@ function buildLayout(trend: TrendData): Layout {
     tMax > tMin ? PAD_X + ((time - tMin) / (tMax - tMin)) * PLOT_W : PAD_X + PLOT_W / 2;
 
   const domain = [
-    ...parsed.map((p) => p.raw.value),
+    ...parsed.map((p) => p.value),
     ...(low !== null ? [low] : []),
     ...(high !== null ? [high] : []),
   ];
@@ -165,12 +196,12 @@ function buildLayout(trend: TrendData): Layout {
   const points: LayoutPoint[] = parsed.map((p, order) => ({
     order,
     label: formatDate(p.parts),
-    value: p.raw.value,
+    value: p.value,
     unit: p.raw.unit,
     verified: p.raw.user_verified === true,
-    side: sideOf(p.raw.value, p.raw.is_abnormal === true, low, high),
+    side: sideOf(p.value, flagDirectionOf(p.raw.flag), low, high),
     x: xOf(p.time),
-    y: yOf(p.raw.value),
+    y: yOf(p.value),
   }));
 
   const highY = high !== null ? yOf(high) : null;
@@ -182,13 +213,13 @@ function buildLayout(trend: TrendData): Layout {
   return { points, highY, lowY, band };
 }
 
+// No source rule in the words: the backend prefers one observation with both
+// limits and otherwise combines the latest per limit (api/observations.py).
 function rangeCaption(low: number | null, high: number | null, unit: string): string {
   const suffix = unit.trim() === '' ? '' : ` ${unit}`;
-  if (low !== null && high !== null) {
-    return `Reference range from the latest report that gives each limit: ${low}-${high}${suffix}`;
-  }
-  if (high !== null) return `Upper limit ${high}${suffix}, from the latest report that gives it`;
-  if (low !== null) return `Lower limit ${low}${suffix}, from the latest report that gives it`;
+  if (low !== null && high !== null) return `Reference range used for this chart: ${low}-${high}${suffix}`;
+  if (high !== null) return `Upper limit used for this chart: ${high}${suffix}`;
+  if (low !== null) return `Lower limit used for this chart: ${low}${suffix}`;
   return 'No reference range on the reports';
 }
 
@@ -448,13 +479,23 @@ function RangeChart({ trend, layout }: RangeChartProps): ReactElement {
                 strokeDasharray="3 2"
               />
             )}
-            {(p.side === 'above' || p.side === 'below') && (
-              <path data-triangle={p.side} d={triangleD(p.x, p.y, p.side)} fill="var(--outside)">
-                <title>{SIDE_WORDS[p.side]}</title>
-              </path>
-            )}
           </g>
         ))}
+
+        {/* Outside the animated groups: the triangle is static, and a point's reveal scales only its marker. */}
+        {points.map((p) =>
+          p.side === 'above' || p.side === 'below' ? (
+            <path
+              key={p.order}
+              data-triangle={p.side}
+              data-triangle-for={p.order}
+              d={triangleD(p.x, p.y, p.side)}
+              fill="var(--outside)"
+            >
+              <title>{SIDE_WORDS[p.side]}</title>
+            </path>
+          ) : null
+        )}
 
         <line
           ref={cursorRef}
