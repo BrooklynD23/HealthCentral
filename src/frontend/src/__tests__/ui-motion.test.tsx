@@ -6,7 +6,7 @@
  * the real library reject a leftover `motion.*` under LazyMotion strict.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, onTestFinished } from 'vitest';
 import { Component, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -200,6 +200,10 @@ describe('UI-MOTION every route under LazyMotion strict', () => {
       };
       window.history.pushState({}, '', path);
       const errors: unknown[] = [];
+      // The route boundary catches a render error, so RenderCatcher never sees
+      // it. The boundary's fallback and its log line show that it did.
+      const consoleError = vi.spyOn(console, 'error');
+      onTestFinished(() => consoleError.mockRestore());
 
       const { container, unmount } = render(
         <MotionProvider>
@@ -223,6 +227,9 @@ describe('UI-MOTION every route under LazyMotion strict', () => {
       );
 
       expect(errors.map((error) => String(error))).toEqual([]);
+      expect(container.textContent ?? '').not.toContain('This page hit a problem');
+      const routeFailures = consoleError.mock.calls.filter((args) => /Route render failed/.test(String(args[0])));
+      expect(routeFailures).toEqual([]);
       expect(container.innerHTML).not.toBe('');
       unmount();
     },
