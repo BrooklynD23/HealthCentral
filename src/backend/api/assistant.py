@@ -1515,9 +1515,24 @@ async def get_glossary_term(
 
 
 @router.get("/verification-status")
-async def get_verification_status(session: RequireAuth):
-    """Get current verification system status."""
+async def get_verification_status(
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """Get current verification system status. Audited read (SAFETY-MODE-STRICT):
+    reports the faithfulness threshold in force for this profile."""
     rag = get_rag_module()
+    min_score = STRICT_MIN_SCORE if await is_strict_safety_mode(profile_db) else 0.6
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type="verification_status_viewed",
+        action="verification_status_viewed",
+        profile_id=session.profile_id,
+        entity_type="settings",
+        entity_id="verification_status",
+    )
     return {
         "verification_enabled": rag.enable_verification,
         "components": {
@@ -1527,7 +1542,7 @@ async def get_verification_status(session: RequireAuth):
             "faithfulness_scorer": "active",
         },
         "configuration": {
-            "min_faithfulness_score": 0.6,
+            "min_faithfulness_score": min_score,
             "fail_on_contradiction": True,
             "min_supporting_sources": 1,
         },
