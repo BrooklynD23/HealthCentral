@@ -884,11 +884,23 @@ class ExtractModule:
             offset += len(line) + 1
         birth_column: set[int] = set()
         column_row: set[int] = set()
+        # Only a token of this shape can parse as a date: each single-token format in
+        # _normalize_date_str is digits, a separator, a 1-3 character month or day, a
+        # separator, digits and an optional T time. Other tokens skip its 12 strptime
+        # attempts, so a long line of plain tokens stays cheap.
+        date_shape = re.compile(r"\d{1,4}[/\-]\w{1,3}[/\-]\d{1,4}(?:[Tt][\d:]+)?")
+
+        def _is_date_token(token: str) -> bool:
+            return (
+                date_shape.fullmatch(token) is not None
+                and self._normalize_date_str(token) is not None
+            )
+
         for i in range(len(lines) - 1):
             header = list(re.finditer(r"\S+", lines[i]))
             if not any(t.group().lower().removesuffix(":") in birth_labels for t in header):
                 continue
-            if any(self._normalize_date_str(t.group()) is not None for t in header):
+            if any(_is_date_token(t.group()) for t in header):
                 continue
             row = list(re.finditer(r"\S+", lines[i + 1]))
             if len(header) != len(row):
@@ -898,7 +910,7 @@ class ExtractModule:
                 if token.group().lower().removesuffix(":") not in birth_labels:
                     continue
                 cell = row[col]
-                if self._normalize_date_str(cell.group()) is not None:
+                if _is_date_token(cell.group()):
                     confirmed = True
                     cell_start = line_starts[i + 1] + cell.start()
                     birth_column.update(range(cell_start, cell_start + len(cell.group())))
