@@ -94,7 +94,8 @@ function formatCollected(collectedAt: string | null): string | null {
 function formatRange(observation: Observation): string | null {
   const { ref_low, ref_high, unit, ref_range_text } = observation;
   if (ref_low !== null && ref_high !== null) {
-    return `${ref_low}-${ref_high}${unit ? ` ${unit}` : ''}`;
+    // "to", not a dash: a negative low ("-2 to 2") reads apart from a hyphen range.
+    return `${ref_low} to ${ref_high}${unit ? ` ${unit}` : ''}`;
   }
   return ref_range_text || null;
 }
