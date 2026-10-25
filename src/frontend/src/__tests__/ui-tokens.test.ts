@@ -184,7 +184,7 @@ const DEFAULT_PALETTE =
 
 /** Utility suffixes after a colour prefix that are sizes, positions or styles, not colours. */
 const NOT_A_COLOUR =
-  /^(?:\d+(?:\.\d+)?%?|xs|sm|base|lg|xl|[2-9]xl|left|right|center|justify|start|end|balance|pretty|wrap|nowrap|ellipsis|clip|b|t|l|r|x|y|s|e|solid|dashed|dotted|double|none|hidden|inset|cover|contain|fixed|local|scroll|repeat|repeat-x|repeat-y|no-repeat|linear|linear-to-[a-z]+|radial|conic|uppercase|lowercase|capitalize|italic|normal-case|full|box)$/;
+  /^(?:\d+(?:\.\d+)?%?|xs|sm|base|lg|xl|[2-9]xl|left|right|center|justify|start|end|balance|pretty|wrap|nowrap|ellipsis|clip|b|t|l|r|x|y|s|e|solid|dashed|dotted|double|none|hidden|inset|cover|contain|fixed|local|scroll|repeat|repeat-x|repeat-y|no-repeat|linear|linear-to-[a-z]+|radial|conic|uppercase|lowercase|capitalize|italic|normal-case|full)$/;
 
 const COLOUR_PREFIX = /^(?:bg|text|border(?:-[trblxy])?|ring(?:-offset)?|outline|fill|stroke|from|via|to|divide|placeholder|decoration|accent|caret)-([^/]+)(?:\/.*)?$/;
 
