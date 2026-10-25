@@ -21,6 +21,7 @@ import type {
 } from '../src/services/types';
 import {
   axeGate,
+  type AxeGateResult,
   consoleAndNetworkGuard,
   maxEventDuration,
   measureCls,
@@ -203,6 +204,11 @@ async function waitForSettled(page: Page, selector: string): Promise<void> {
   );
 }
 
+/** "rule selector" for each serious or critical node, so a failure names the element. */
+function blockingNodes(result: AxeGateResult): string[] {
+  return result.blocking.flatMap((v) => v.nodes.map((node) => `${v.id} ${node.target.join(' ')}`));
+}
+
 const CHIP = '[aria-label^="Citation 1:"]';
 const POPOVER = '[role="dialog"][aria-label="Citation 1"]';
 const VIEW_DOCUMENT = 'button[aria-label="View document"]';
@@ -356,10 +362,19 @@ for (const route of GATE_ROUTES) {
     await mockApi(page);
     await seedSession(page);
     await route.ready(page);
+    // Soft: a failure here must not skip the after-interaction checks below.
     const light = await axeGate(page);
-    expect(light.blocking.map((v) => v.id), 'light theme').toEqual([]);
+    expect.soft(blockingNodes(light), 'light theme').toEqual([]);
     const dark = await axeGate(page, { theme: 'dark' });
-    expect(dark.blocking.map((v) => v.id), 'dark theme').toEqual([]);
+    expect.soft(blockingNodes(dark), 'dark theme').toEqual([]);
+
+    // The components this row changed (the open citation popover, the document preview,
+    // the PageImageOverlay highlight) exist only after the gate's interaction.
+    await route.interact(page);
+    const openLight = await axeGate(page, { theme: 'light' });
+    expect(blockingNodes(openLight), 'light theme, after interaction').toEqual([]);
+    const openDark = await axeGate(page, { theme: 'dark' });
+    expect(blockingNodes(openDark), 'dark theme, after interaction').toEqual([]);
   });
 
   test(`Gate G2 ${route.path} CLS stays under 0.1 over load and the interaction`, async ({ page }) => {
@@ -398,7 +413,11 @@ for (const route of GATE_ROUTES) {
       await seedSession(page);
       await route.ready(page);
       const scroll = await noHorizontalScroll(page);
-      expect(scroll.ok, `scrollWidth ${scroll.scrollWidth} > innerWidth ${scroll.innerWidth}`).toBe(true);
+      // Soft: a failure here must not skip the after-interaction check below.
+      expect.soft(scroll.ok, `scrollWidth ${scroll.scrollWidth} > innerWidth ${scroll.innerWidth}`).toBe(true);
+      await route.interact(page);
+      const opened = await noHorizontalScroll(page);
+      expect(opened.ok, `after interaction: scrollWidth ${opened.scrollWidth} > innerWidth ${opened.innerWidth}`).toBe(true);
     });
   }
 
