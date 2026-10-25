@@ -519,6 +519,10 @@ class ExtractModule:
         ):
             return None
 
+        # A comparator with no unit is a reference label ("Diabetes: >6.4"), not a result.
+        if cmp and not unit:
+            return None
+
         # A comparator (<, >, <=, >=) is a bound, never an exact number: value stays None
         # and the text is kept as value_text (as in _parse_table_row).
         value = None
