@@ -26,7 +26,7 @@ export interface ThinkingOrbProps extends Omit<HTMLAttributes<HTMLSpanElement>, 
 export function ThinkingOrb({ status, state = 'working', size = 20, className, ...props }: ThinkingOrbProps) {
   return (
     <span {...props} className={cn('inline-flex items-center gap-2', className)}>
-      <span aria-hidden="true" className="inline-flex shrink-0">
+      <span aria-hidden="true" className="inline-flex shrink-0" style={{ width: size, height: size }}>
         <Suspense fallback={null}>
           <ThinkingOrbCanvas state={state} size={size} theme="auto" />
         </Suspense>

@@ -185,6 +185,11 @@ describe('UI-SHOWCASE-KIT BeamBorder colours (S2)', () => {
     }
   });
 
+  it('HC-UISK-002: the beam is painted in an opaque token, so a translucent text colour cannot dim or hide it', () => {
+    // The mask takes its alpha from currentColor. A consumer's text colour must not reach it.
+    expect(bodiesOf('.beam-border__beam')).toMatch(/(?:^|[;\s])color\s*:\s*var\(--accent\)/);
+  });
+
   it('HC-UISK-002: the three colour tokens are defined in globals.css', () => {
     for (const name of ['accent', 'accent-ink', 'band']) {
       expect(GLOBALS_CSS, `--${name} is not defined`).toMatch(new RegExp(`--${name}\\s*:`));
@@ -226,6 +231,15 @@ describe('UI-SHOWCASE-KIT ThinkingOrb (S3)', () => {
     render(<ThinkingOrb status="Reading page 2 of 3" />);
     expect(screen.getByRole('status')).toHaveTextContent('Reading page 2 of 3');
     await screen.findByTestId('orb');
+  });
+
+  it('HC-UISK-003: the canvas box is reserved at its size before the library loads, so the status text does not shift', () => {
+    render(<ThinkingOrb status="Reading page 2 of 3" size={64} />);
+    // The wrapper is the status element's previous sibling; it exists before the library does.
+    const box = screen.getByRole('status').previousElementSibling as HTMLElement;
+    expect(box).toHaveAttribute('aria-hidden', 'true');
+    expect(box.style.width).toBe('64px');
+    expect(box.style.height).toBe('64px');
   });
 
   it('HC-UISK-003: the canvas sits in an aria-hidden wrapper that does not hold the status', async () => {
@@ -360,6 +374,13 @@ describe('UI-SHOWCASE-KIT ShowcaseReveal (S1)', () => {
     expect(source).toMatch(/from\s+['"]@\/motion\/tokens['"]/);
     expect(source).toMatch(/import\s*\{[^}]*\bm\b[^}]*\}\s*from\s+['"]framer-motion['"]/);
     expect(source).not.toMatch(/\bmotion\./);
+  });
+
+  it('HC-UISK-005: S1 moves with a CSS transform string, not the x/y/scale shorthands (plan §2.6: those run on the main thread)', () => {
+    // jsdom renders translateY(12px) for either spelling, so the source is what is checked.
+    const source = readFileSync(join(UI_DIR, 'ShowcaseReveal.tsx'), 'utf8');
+    expect(source).not.toMatch(/(?<![\w.])(?:x|y|scale)\s*:/);
+    expect(source).toMatch(/transform\s*:\s*'translateY\(12px\)'/);
   });
 });
 

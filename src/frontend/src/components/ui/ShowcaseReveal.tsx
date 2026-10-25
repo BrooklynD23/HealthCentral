@@ -30,11 +30,13 @@ function rememberPlayed(): void {
   }
 }
 
+// A CSS transform string, not the x/y shorthands: WAAPI offloads `transform`
+// (framer-motion 10.18 acceleratedValues), so the rise does not run on the main thread.
 const groupVariants: Variants = {
-  hidden: { opacity: 0, y: 12 },
+  hidden: { opacity: 0, transform: 'translateY(12px)' },
   show: (index: number) => ({
     opacity: 1,
-    y: 0,
+    transform: 'translateY(0px)',
     transition: { duration: duration.show, ease: EASE_OUT, delay: revealDelay(index) },
   }),
 };
@@ -58,7 +60,8 @@ export function ShowcaseReveal({ children }: { children: ReactNode }) {
     if (!skip) rememberPlayed();
   }, [skip]);
 
-  const variants = reduced ? reducedVariants : groupVariants;
+  // A later mount in the same session has no transform at all, so it takes the opacity-only set.
+  const variants = reduced || skip ? reducedVariants : groupVariants;
 
   return (
     <m.div initial={skip ? false : 'hidden'} animate="show">

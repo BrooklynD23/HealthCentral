@@ -35,6 +35,9 @@
     var(--band) 0.24turn,
     var(--band) 1turn
   );
+  /* The mask takes its alpha from currentColor: pin it to an opaque token so a
+     consumer's translucent text colour cannot dim or hide the beam. */
+  color: var(--accent);
   -webkit-mask: linear-gradient(currentColor 0 0) content-box, linear-gradient(currentColor 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(currentColor 0 0) content-box exclude, linear-gradient(currentColor 0 0);
