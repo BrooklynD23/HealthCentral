@@ -1132,3 +1132,29 @@ class TestExtractTextForms:
         observations = extract_module._extract_from_text(text, page_num=1, document_id="doc")
         assert [o.analyte_raw for o in observations] == ["Hemoglobin A1c"]
         assert observations[0].value == 5.4
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "Desirable range <200 mg/dL",
+            "Normal: <5.7 %",
+            "Reference Range: <100 mg/dL",
+            "Optimal <100 mg/dL",
+            "High >=240 mg/dL",
+            "Normal >60 mL/min/1.73m2",
+            "Low risk <1.0 mg/L",
+            "Diabetes: >=6.5 %",
+        ],
+    )
+    def test_hc_etf_008_label_line_with_comparator_and_unit_is_not_a_result(self, extract_module, line):
+        # A comparator with a unit but no reference bound on the same line is a label, not a result.
+        assert extract_module._parse_text_line(line, 1) is None
+
+    def test_hc_etf_008_comparator_result_with_reference_range_is_kept(self, extract_module):
+        obs = extract_module._parse_text_line("Glucose: <70 mg/dL (70-100)", 1)
+        assert obs is not None
+        assert obs.analyte_raw == "Glucose"
+        assert obs.value is None
+        assert obs.value_text == "<70"
+        assert obs.unit == "mg/dL"
+        assert (obs.ref_low, obs.ref_high) == (70.0, 100.0)
