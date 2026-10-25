@@ -164,12 +164,19 @@ describe('HC-UIPC-003 Switch', () => {
     expect(toggle).toHaveAttribute('aria-checked', 'false');
   });
 
-  it('disabled blocks the toggle', async () => {
+  it('disabled blocks the toggle, by click and by Space', async () => {
     const user = userEvent.setup();
     render(<Switch aria-label="Reminders" disabled />);
     const toggle = screen.getByRole('switch', { name: 'Reminders' });
 
     await user.click(toggle);
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+
+    // A native disabled button takes no focus, so Space cannot reach it. The
+    // focus call stays in so that a switch made focusable with aria-disabled
+    // (which toggles on Space) fails here, not only on the click above.
+    toggle.focus();
+    await user.keyboard(' ');
     expect(toggle).toHaveAttribute('aria-checked', 'false');
     expect(toggle).toBeDisabled();
   });
