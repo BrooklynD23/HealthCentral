@@ -11,13 +11,14 @@
 // The pages are stubs, so the test decides when each one throws.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
 import App from '@/App';
 import { useAuthStore } from '@/stores/authStore';
 
 // While `throwing` is set, every stubbed page throws. The test clears it right
 // before clicking the recovery link, so the Documents page renders afterwards.
-const stubs = vi.hoisted(() => ({ throwing: true }));
+// `inboxMounts` counts how many times the Inbox stub mounts (HC-UIRT-003).
+const stubs = vi.hoisted(() => ({ throwing: true, inboxMounts: 0 }));
 
 vi.mock('@/pages/ProfileSetup', async () => {
   const { createElement } = await import('react');
@@ -30,9 +31,13 @@ vi.mock('@/pages/ProfileSetup', async () => {
 });
 
 vi.mock('@/pages/DocumentInbox', async () => {
-  const { createElement } = await import('react');
+  const { createElement, useEffect } = await import('react');
   return {
     DocumentInbox: function InboxStub() {
+      // The hook is called before the throw, so the hook order is the same on every render.
+      useEffect(() => {
+        stubs.inboxMounts += 1;
+      }, []);
       if (stubs.throwing) throw new Error('boom-internal-detail');
       return createElement('h1', null, 'Inbox stub');
     },
@@ -134,5 +139,27 @@ describe('UI-ROUTES route error boundary', () => {
     await waitFor(() => expect(window.location.pathname).toBe('/inbox'), { timeout: 5000 });
     expect(await screen.findByRole('heading', { name: 'Inbox stub' }, { timeout: 5000 })).toBeInTheDocument();
     expect(screen.queryByText('This page hit a problem')).not.toBeInTheDocument();
+  });
+
+  it('HC-UIRT-003: a cross-route navigation inside AppLayout mounts the destination page once', async () => {
+    stubs.throwing = false;
+    stubs.inboxMounts = 0;
+    window.history.pushState({}, '', '/verify');
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Verify stub' }, { timeout: 5000 })).toBeInTheDocument();
+    // The outgoing page's wrapper element. It is removed when its exit animation ends.
+    const verifyPage = screen.getByRole('main').firstElementChild;
+
+    const nav = screen.getByRole('navigation', { name: 'Main navigation' });
+    fireEvent.click(within(nav).getByRole('link', { name: 'Inbox' }));
+
+    await waitFor(() => expect(verifyPage?.isConnected).toBe(false), { timeout: 5000 });
+    // Let the entering page finish mounting before counting.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+
+    expect(screen.getByRole('heading', { name: 'Inbox stub' })).toBeInTheDocument();
+    expect(stubs.inboxMounts).toBe(1);
   });
 });
