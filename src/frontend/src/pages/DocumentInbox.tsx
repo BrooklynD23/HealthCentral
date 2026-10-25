@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import {
   Upload,
   FileText,
@@ -382,14 +382,14 @@ export function DocumentInbox() {
               <p>No documents yet. Import your first lab report above.</p>
             </div>
           ) : (
-            <motion.div
+            <m.div
               variants={containerVariants}
               initial="hidden"
               animate="show"
               className="divide-y divide-black/4"
             >
               {documents.map((doc) => (
-                <motion.div
+                <m.div
                   key={doc.id}
                   variants={itemVariants}
                   className="flex items-center gap-4 p-4 hover:bg-surface-muted/50 transition-colors group"
@@ -496,9 +496,9 @@ export function DocumentInbox() {
                       </DropdownMenu.Portal>
                     </DropdownMenu.Root>
                   </div>
-                </motion.div>
+                </m.div>
               ))}
-            </motion.div>
+            </m.div>
           )}
         </CardContent>
       </Card>

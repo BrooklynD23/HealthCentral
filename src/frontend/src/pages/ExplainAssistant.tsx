@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import {
   Send,
   FileText,
@@ -525,7 +525,7 @@ export function ExplainAssistant() {
 
             <AnimatePresence mode="popLayout">
               {messages.map((message) => (
-                <motion.div
+                <m.div
                   key={message.id}
                   data-testid="chat-message"
                   data-role={message.role}
@@ -756,12 +756,12 @@ export function ExplainAssistant() {
                       );
                     })()}
                   </div>
-                </motion.div>
+                </m.div>
               ))}
             </AnimatePresence>
 
             {sendMessage.isPending && (
-              <motion.div
+              <m.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 className="flex justify-start"
@@ -776,7 +776,7 @@ export function ExplainAssistant() {
                     <span className="text-sm">Searching documents and generating response...</span>
                   </div>
                 </div>
-              </motion.div>
+              </m.div>
             )}
 
             <div ref={messagesEndRef} />

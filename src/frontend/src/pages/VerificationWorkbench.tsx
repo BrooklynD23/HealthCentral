@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import {
   CheckCircle,
   AlertTriangle,
@@ -619,7 +619,7 @@ export function VerificationWorkbench() {
                   </thead>
                   <tbody>
                     {observations.map((observation, index) => (
-                      <motion.tr
+                      <m.tr
                         key={observation.id}
                         id={`observation-row-${observation.id}`}
                         initial={prefersReducedMotion ? {} : { opacity: 0, y: 8 }}
@@ -716,7 +716,7 @@ export function VerificationWorkbench() {
                             </Button>
                           </div>
                         </td>
-                      </motion.tr>
+                      </m.tr>
                     ))}
                   </tbody>
                 </table>

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import {
   Brain,
   Loader2,
@@ -321,7 +321,7 @@ export function LabInterpreter() {
             <CardContent className="p-0">
               <div className="divide-y divide-black/4">
                 {analyteList.map((obs, index) => (
-                  <motion.button
+                  <m.button
                     key={obs.analyte_canonical}
                     initial={prefersReducedMotion ? {} : { opacity: 0, x: -8 }}
                     animate={{ opacity: 1, x: 0 }}
@@ -350,7 +350,7 @@ export function LabInterpreter() {
                       )}
                       <ChevronRight className="w-4 h-4 text-ink-tertiary" />
                     </div>
-                  </motion.button>
+                  </m.button>
                 ))}
               </div>
             </CardContent>

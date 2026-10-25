@@ -5,7 +5,7 @@
  */
 
 import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import {
   FileText,
   Download,
@@ -341,7 +341,7 @@ export function ExportPage() {
                   <span>Failed to generate summary. Please try again.</span>
                 </div>
               ) : summary ? (
-                <motion.div
+                <m.div
                   initial={prefersReducedMotion ? {} : { opacity: 0 }}
                   animate={{ opacity: 1 }}
                   className="prose prose-sm max-w-none"
@@ -422,7 +422,7 @@ export function ExportPage() {
                       all results with your healthcare provider.
                     </p>
                   </footer>
-                </motion.div>
+                </m.div>
               ) : (
                 <div className="text-center py-12">
                   <FileText className="w-12 h-12 text-ink-tertiary mx-auto mb-4" />

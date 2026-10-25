@@ -1,4 +1,4 @@
-import { motion, type HTMLMotionProps, type Variants } from 'framer-motion';
+import { m, type HTMLMotionProps, type Variants } from 'framer-motion';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { cn } from '@/utils/cn';
 
@@ -32,7 +32,7 @@ export function PageTransition({ children, className, ...props }: HTMLMotionProp
   const prefersReducedMotion = useReducedMotion();
 
   return (
-    <motion.div
+    <m.div
       initial="initial"
       animate="animate"
       exit="exit"
@@ -42,7 +42,7 @@ export function PageTransition({ children, className, ...props }: HTMLMotionProp
       {...props}
     >
       {children}
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -51,7 +51,7 @@ export function PageTransition({ children, className, ...props }: HTMLMotionProp
  */
 export function StaggerGroup({ children, className, ...props }: HTMLMotionProps<'div'>) {
   return (
-    <motion.div
+    <m.div
       initial="initial"
       animate="animate"
       variants={staggerContainerVariants}
@@ -59,7 +59,7 @@ export function StaggerGroup({ children, className, ...props }: HTMLMotionProps<
       {...props}
     >
       {children}
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -70,13 +70,13 @@ export function StaggerItem({ children, className, ...props }: HTMLMotionProps<'
   const prefersReducedMotion = useReducedMotion();
 
   return (
-    <motion.div
+    <m.div
       variants={prefersReducedMotion ? fadeVariants : slideUpVariants}
       className={className}
       {...props}
     >
       {children}
-    </motion.div>
+    </m.div>
   );
 }
 
