@@ -12,6 +12,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { Plus } from 'lucide-react';
@@ -20,6 +21,8 @@ import { IconButton } from '@/components/ui/IconButton';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { Checkbox } from '@/components/ui/Checkbox';
+import { Switch } from '@/components/ui/Switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
 import {
   Select,
   SelectContent,
@@ -130,8 +133,78 @@ describe('HC-UIPC-005 field error state', () => {
   });
 });
 
+describe('HC-UIPC-003 Switch', () => {
+  it('has role="switch" and Space toggles aria-checked', async () => {
+    const user = userEvent.setup();
+    render(<Switch aria-label="Reminders" />);
+    const toggle = screen.getByRole('switch', { name: 'Reminders' });
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+
+    toggle.focus();
+    await user.keyboard(' ');
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+
+    await user.keyboard(' ');
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+  });
+
+  it('disabled blocks the toggle', async () => {
+    const user = userEvent.setup();
+    render(<Switch aria-label="Reminders" disabled />);
+    const toggle = screen.getByRole('switch', { name: 'Reminders' });
+
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+    expect(toggle).toBeDisabled();
+  });
+});
+
+describe('HC-UIPC-004 Tabs', () => {
+  function renderTabs() {
+    return render(
+      <Tabs defaultValue="one">
+        <TabsList aria-label="Sections">
+          <TabsTrigger value="one">One</TabsTrigger>
+          <TabsTrigger value="two">Two</TabsTrigger>
+          <TabsTrigger value="three">Three</TabsTrigger>
+        </TabsList>
+        <TabsContent value="one">Panel one</TabsContent>
+        <TabsContent value="two">Panel two</TabsContent>
+        <TabsContent value="three">Panel three</TabsContent>
+      </Tabs>
+    );
+  }
+
+  it('ArrowRight and ArrowLeft move focus between tabs (roving)', async () => {
+    const user = userEvent.setup();
+    renderTabs();
+    const one = screen.getByRole('tab', { name: 'One' });
+    const two = screen.getByRole('tab', { name: 'Two' });
+
+    one.focus();
+    await user.keyboard('{ArrowRight}');
+    expect(two).toHaveFocus();
+
+    await user.keyboard('{ArrowLeft}');
+    expect(one).toHaveFocus();
+  });
+
+  it('the tabpanel is aria-labelledby the id of the tab that controls it', async () => {
+    const user = userEvent.setup();
+    renderTabs();
+    const one = screen.getByRole('tab', { name: 'One' });
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', one.id);
+
+    one.focus();
+    await user.keyboard('{ArrowRight}');
+    const two = screen.getByRole('tab', { name: 'Two' });
+    expect(two.id).not.toBe('');
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', two.id);
+  });
+});
+
 describe('HC-UIPC-006 transition-all is banned on the primitives', () => {
-  it('HC-UIPC-006: every Button variant and size, IconButton, Input, Textarea, Select trigger and Checkbox render without transition-all', () => {
+  it('HC-UIPC-006: every Button variant and size, IconButton, Input, Textarea, Select trigger, Checkbox, Switch and Tabs render without transition-all', () => {
     const { container } = render(
       <div>
         {VARIANTS.flatMap((variant) =>
@@ -155,6 +228,13 @@ describe('HC-UIPC-006 transition-all is banned on the primitives', () => {
           </SelectContent>
         </Select>
         <Checkbox aria-label="Saved the code" />
+        <Switch aria-label="Reminders" />
+        <Tabs defaultValue="one">
+          <TabsList aria-label="Sections">
+            <TabsTrigger value="one">One</TabsTrigger>
+          </TabsList>
+          <TabsContent value="one">Panel one</TabsContent>
+        </Tabs>
       </div>
     );
     // Every element with a class attribute, wrappers and icons included.
@@ -167,7 +247,7 @@ describe('HC-UIPC-006 transition-all is banned on the primitives', () => {
   });
 
   it('HC-UIPC-006: the primitive source files do not name transition-all', () => {
-    for (const file of ['Button.tsx', 'IconButton.tsx', 'Input.tsx', 'Textarea.tsx', 'Select.tsx', 'Checkbox.tsx']) {
+    for (const file of ['Button.tsx', 'IconButton.tsx', 'Input.tsx', 'Textarea.tsx', 'Select.tsx', 'Checkbox.tsx', 'Switch.tsx', 'Tabs.tsx']) {
       expect(primitiveSource(file), file).not.toMatch(/transition-all/);
     }
   });
