@@ -447,6 +447,6 @@ E-3-T7 (#160) added the Backend Lint gate to CI. #156 and #165 were built before
 
 ## 13. An agent returns while its own background RED/mutation run is still editing the worktree
 
-Two rows returned while a background RED or mutation run was still in their worktree. UI-TOKENS (PR #356): three product files were left staged at origin/main's versions, and L0 restored them from HEAD. UI-PRIM-CONTROLS (PR #365): `fe/components/ui/Button.tsx` was left mutated, and L0 restored it from the run's byte snapshot. A result read from a worktree that a background job is still writing to says nothing about the files as they stand.
+Two rows returned while a background RED or mutation run was still in their worktree. UI-TOKENS (PR #356): three product files were left staged at origin/main's versions, and L0 restored them from HEAD. UI-PRIM-CONTROLS (PR #365): `src/frontend/src/components/ui/Button.tsx` was left mutated, and L0 restored it from the run's byte snapshot. A result read from a worktree that a background job is still writing to says nothing about the files as they stand.
 
 **Recheck:** run RED and mutation evidence in a separate scratch worktree, or run the snapshot/restore script in the foreground to completion and compare every snapshot file before returning. Never return while a background job writes to the worktree.
