@@ -117,6 +117,7 @@ async def _dbs(*, observation: bool = True):
                 id=str(uuid.uuid4()), profile_id=PROFILE_ID, doc_id=str(uuid.uuid4()),
                 analyte_canonical=ANALYTE, analyte_raw="LDL Cholesterol", value=120.0,
                 unit="mg/dL", ref_low=0.0, ref_high=130.0, collected_at=COLLECTED,
+                user_verified=True,
             )
             profile_db.add(obs)
             await profile_db.commit()
