@@ -162,32 +162,32 @@ export function SourceTrace({
   return (
     <Sheet still open={open} onOpenChange={onOpenChange} trigger={trigger} title={`Source for ${name}`}>
       <div className="space-y-5">
-        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
           <dt className="text-ink-secondary">File</dt>
-          <dd className="text-ink">{sourceFile ?? 'Source file not available'}</dd>
+          <dd className="min-w-0 break-words text-ink">{sourceFile ?? 'Source file not available'}</dd>
 
           <dt className="text-ink-secondary">Location</dt>
-          <dd className="text-ink" data-t0="">
+          <dd className="min-w-0 break-words text-ink" data-t0="">
             {page !== null ? `Page ${page}` : 'Page not available'}
           </dd>
 
           <dt className="text-ink-secondary">Result</dt>
-          <dd className="text-ink" data-t0="">
+          <dd className="min-w-0 break-words text-ink" data-t0="">
             {result ?? 'Result not available'}
           </dd>
 
           <dt className="text-ink-secondary">Collected</dt>
-          <dd className="text-ink" data-t0="">
+          <dd className="min-w-0 break-words text-ink" data-t0="">
             {date ?? 'Collection date not available'}
           </dd>
 
           <dt className="text-ink-secondary">Range</dt>
-          <dd className="text-ink" data-t0="">
+          <dd className="min-w-0 break-words text-ink" data-t0="">
             {range ?? 'Reference range not available'}
           </dd>
 
           <dt className="text-ink-secondary">Read confidence</dt>
-          <dd className="text-ink" data-t0="">
+          <dd className="min-w-0 break-words text-ink" data-t0="">
             {confidence ?? 'Not available'}
           </dd>
         </dl>
@@ -236,7 +236,10 @@ export function SourceTrace({
               </p>
             ) : null}
             <div>
-              <Link to="/verify" className="text-sm font-medium text-accent underline underline-offset-4">
+              <Link
+                to={`/verify?observation=${observation.id}`}
+                className="text-sm font-medium text-accent underline underline-offset-4"
+              >
                 Correct it in Review values
               </Link>
             </div>
