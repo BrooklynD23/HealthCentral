@@ -24,6 +24,14 @@ import { Checkbox } from '@/components/ui/Checkbox';
 import { Switch } from '@/components/ui/Switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
 import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/Card';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -203,8 +211,68 @@ describe('HC-UIPC-004 Tabs', () => {
   });
 });
 
+describe('UI-PRIM-CONTROLS Card', () => {
+  const CARD_VARIANTS = ['plain', 'interactive', 'inset'] as const;
+
+  /** Class tokens of a Card rendered with the given variant. */
+  function cardTokens(variant?: (typeof CARD_VARIANTS)[number]): string[] {
+    const { container, unmount } = render(<Card variant={variant} data-testid="card" />);
+    const tokens = (container.firstElementChild?.getAttribute('class') ?? '').split(/\s+/);
+    unmount();
+    return tokens;
+  }
+
+  it('E1: each variant has a border or a shadow, never both', () => {
+    for (const variant of CARD_VARIANTS) {
+      const tokens = cardTokens(variant);
+      const hasBorder = tokens.includes('border');
+      const hasShadow = tokens.some((token) => /(^|:)shadow-/.test(token));
+      expect(hasBorder && hasShadow, variant).toBe(false);
+    }
+  });
+
+  it('E1: plain is a border with no shadow, and interactive is a shadow with no border', () => {
+    const plain = cardTokens('plain');
+    expect(plain).toContain('border');
+    expect(plain.some((token) => /(^|:)shadow-/.test(token))).toBe(false);
+
+    const interactive = cardTokens('interactive');
+    expect(interactive).not.toContain('border');
+    expect(interactive).toContain('shadow-card');
+  });
+
+  it('only the interactive variant has a hover lift or hover shadow', () => {
+    for (const variant of ['plain', 'inset'] as const) {
+      const hoverTokens = cardTokens(variant).filter((token) => token.startsWith('hover:'));
+      expect(hoverTokens, variant).toEqual([]);
+    }
+    expect(cardTokens('interactive')).toContain('hover:-translate-y-0.5');
+  });
+
+  it('keeps bg-surface-elevated on the default card (the UI-TOKENS contract)', () => {
+    expect(cardTokens()).toContain('bg-surface-elevated');
+  });
+
+  it('renders every subcomponent export inside a card', () => {
+    render(
+      <Card>
+        <CardHeader>
+          <CardTitle>Title</CardTitle>
+          <CardDescription>Description</CardDescription>
+        </CardHeader>
+        <CardContent>Body</CardContent>
+        <CardFooter>Footer</CardFooter>
+      </Card>
+    );
+    expect(screen.getByRole('heading', { name: 'Title' })).toBeInTheDocument();
+    expect(screen.getByText('Description')).toBeInTheDocument();
+    expect(screen.getByText('Body')).toBeInTheDocument();
+    expect(screen.getByText('Footer')).toBeInTheDocument();
+  });
+});
+
 describe('HC-UIPC-006 transition-all is banned on the primitives', () => {
-  it('HC-UIPC-006: every Button variant and size, IconButton, Input, Textarea, Select trigger, Checkbox, Switch and Tabs render without transition-all', () => {
+  it('HC-UIPC-006: every Button variant and size, IconButton, Input, Textarea, Select trigger, Checkbox, Switch, Tabs and Card render without transition-all', () => {
     const { container } = render(
       <div>
         {VARIANTS.flatMap((variant) =>
@@ -229,6 +297,9 @@ describe('HC-UIPC-006 transition-all is banned on the primitives', () => {
         </Select>
         <Checkbox aria-label="Saved the code" />
         <Switch aria-label="Reminders" />
+        <Card />
+        <Card variant="interactive" />
+        <Card variant="inset" />
         <Tabs defaultValue="one">
           <TabsList aria-label="Sections">
             <TabsTrigger value="one">One</TabsTrigger>
@@ -247,7 +318,7 @@ describe('HC-UIPC-006 transition-all is banned on the primitives', () => {
   });
 
   it('HC-UIPC-006: the primitive source files do not name transition-all', () => {
-    for (const file of ['Button.tsx', 'IconButton.tsx', 'Input.tsx', 'Textarea.tsx', 'Select.tsx', 'Checkbox.tsx', 'Switch.tsx', 'Tabs.tsx']) {
+    for (const file of ['Button.tsx', 'IconButton.tsx', 'Input.tsx', 'Textarea.tsx', 'Select.tsx', 'Checkbox.tsx', 'Switch.tsx', 'Tabs.tsx', 'Card.tsx']) {
       expect(primitiveSource(file), file).not.toMatch(/transition-all/);
     }
   });
