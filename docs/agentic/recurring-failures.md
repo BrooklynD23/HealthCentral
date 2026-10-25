@@ -442,3 +442,11 @@ The queue row for E-3a, written by the orchestrator, told implementers to run `r
 E-3-T7 (#160) added the Backend Lint gate to CI. #156 and #165 were built before it existed and merged in the same group without being run against it. Each passed the checks it had been given, but the gate was new, so neither had ever seen it. Main's lint went red on `d427868` with 5 `I001` (unsorted import) errors, and #171 fixed it afterwards. Every PR in the group was green on its own head; the failure existed only in the combination, and nothing in the merge step asked whether the new gate held on the merged tree.
 
 **Recheck:** after merging a PR that adds a gate (a CI job, a lint rule, a guard test), run that gate on `origin/main` before merging the rest of the group, and rebase or fix the remaining PRs on it. Do not read "each PR was green" as "main will be green": `git log --oneline -- .github/workflows/ci.yml` shows which gates are new, and a PR whose base predates one has not been checked against it.
+
+---
+
+## 13. An agent returns while its own background RED/mutation run is still editing the worktree
+
+Two rows returned while a background RED or mutation run was still in their worktree. UI-TOKENS (PR #356): three product files were left staged at origin/main's versions, and L0 restored them from HEAD. UI-PRIM-CONTROLS (PR #365): `fe/components/ui/Button.tsx` was left mutated, and L0 restored it from the run's byte snapshot. A result read from a worktree that a background job is still writing to says nothing about the files as they stand.
+
+**Recheck:** run RED and mutation evidence in a separate scratch worktree, or run the snapshot/restore script in the foreground to completion and compare every snapshot file before returning. Never return while a background job writes to the worktree.
