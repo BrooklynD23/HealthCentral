@@ -7,11 +7,32 @@
  * showcase.css, and the DOM that selects them is read from the rendered tree.
  * The browser checks (G1-3, G5-7, G10) belong to the page rows (L0 ruling 2).
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { render } from '@testing-library/react';
-import { readFileSync } from 'node:fs';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { BeamBorder } from '@/components/ui/BeamBorder';
+import { ThinkingOrb } from '@/components/ui/ThinkingOrb';
+
+// The library is replaced by a stub that counts how often it is loaded and
+// records the props it receives. The real package draws on a canvas, which
+// jsdom does not provide.
+const orbCalls = vi.hoisted(() => ({ loads: 0, props: [] as Record<string, unknown>[] }));
+
+vi.mock('thinking-orbs', async () => {
+  orbCalls.loads += 1;
+  const React = await import('react');
+  return {
+    ThinkingOrb: (props: Record<string, unknown>) => {
+      orbCalls.props.push(props);
+      return React.createElement('canvas', { 'data-testid': 'orb' });
+    },
+  };
+});
+
+// Captured after the imports above run and before any test renders an orb.
+// It is 0 only if ThinkingOrb.tsx does not import the library statically.
+const LOADS_AT_IMPORT = orbCalls.loads;
 
 const UI_DIR = resolve(__dirname, '../components/ui');
 const FRONTEND_DIR = resolve(__dirname, '../..');
@@ -185,5 +206,75 @@ describe('UI-SHOWCASE-KIT BeamBorder colours (S2)', () => {
     expect(pkg).not.toMatch(/"border-beam"/);
     expect(BEAM_SRC).not.toMatch(/from\s+['"]border-beam/);
     expect(BEAM_SRC).toMatch(/import\s+['"]\.\/showcase\.css['"]/);
+  });
+});
+
+describe('UI-SHOWCASE-KIT ThinkingOrb (S3)', () => {
+  it('HC-UISK-003: status is required, so a call without it is a type error', () => {
+    // tsc enforces this line (npx tsc --noEmit); vitest only runs it.
+    // @ts-expect-error status is required
+    const withoutStatus = <ThinkingOrb />;
+    expect(withoutStatus.type).toBe(ThinkingOrb);
+  });
+
+  it('HC-UISK-003: renders the status text as a role=status element', async () => {
+    render(<ThinkingOrb status="Reading page 2 of 3" />);
+    expect(screen.getByRole('status')).toHaveTextContent('Reading page 2 of 3');
+    await screen.findByTestId('orb');
+  });
+
+  it('HC-UISK-003: the canvas sits in an aria-hidden wrapper that does not hold the status', async () => {
+    render(<ThinkingOrb status="Reading page 2 of 3" />);
+    const orb = await screen.findByTestId('orb');
+    const hidden = orb.closest('[aria-hidden="true"]');
+    expect(hidden).not.toBeNull();
+    expect(hidden?.contains(screen.getByRole('status'))).toBe(false);
+  });
+
+  it('HC-UISK-003: the library is given theme="auto"', async () => {
+    render(<ThinkingOrb status="Reading" />);
+    await screen.findByTestId('orb');
+    const last = orbCalls.props[orbCalls.props.length - 1] ?? {};
+    expect(last).toMatchObject({ theme: 'auto' });
+  });
+
+  it('HC-UISK-003: under reduced motion no paused or speed override is passed, so the library draws its static frame', async () => {
+    setReducedMotion(true);
+    render(<ThinkingOrb status="Reading" />);
+    await screen.findByTestId('orb');
+    const last = orbCalls.props[orbCalls.props.length - 1] ?? {};
+    expect(last).not.toHaveProperty('paused');
+    expect(last).not.toHaveProperty('speed');
+  });
+});
+
+describe('UI-SHOWCASE-KIT ThinkingOrb library load (HC-UISK-004)', () => {
+  it('HC-UISK-004: importing the wrapper does not load thinking-orbs', () => {
+    expect(LOADS_AT_IMPORT).toBe(0);
+  });
+
+  it('HC-UISK-004: thinking-orbs loads when an orb mounts, through React.lazy', async () => {
+    render(<ThinkingOrb status="Reading" />);
+    await screen.findByTestId('orb');
+    expect(orbCalls.loads).toBe(1);
+  });
+
+  it('HC-UISK-004: no source file imports thinking-orbs statically; the wrapper imports it with a lazy dynamic import', () => {
+    const staticImport =
+      /^\s*(?:import\s+(?!type\s)[^;]*?\bfrom\s*|import\s*|export\s[^;]*?\bfrom\s*)['"]thinking-orbs['"]/m;
+    const srcRoot = resolve(__dirname, '..');
+    const files = (dir: string): string[] =>
+      readdirSync(dir).flatMap((name) => {
+        const full = join(dir, name);
+        if (statSync(full).isDirectory()) return name === '__tests__' ? [] : files(full);
+        return /\.(ts|tsx)$/.test(name) ? [full] : [];
+      });
+    const offenders = files(srcRoot)
+      .filter((file) => staticImport.test(readFileSync(file, 'utf8')))
+      .map((file) => file.slice(srcRoot.length));
+    expect(offenders).toEqual([]);
+
+    const wrapper = readFileSync(join(UI_DIR, 'ThinkingOrb.tsx'), 'utf8');
+    expect(wrapper).toMatch(/lazy\(\s*\(\)\s*=>\s*import\(\s*['"]thinking-orbs['"]\s*\)/);
   });
 });
