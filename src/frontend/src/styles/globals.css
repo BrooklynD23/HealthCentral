@@ -97,14 +97,6 @@
   --transition-duration-250: 250ms;
   --transition-duration-350: 350ms;
 
-  @keyframes fadeIn {
-    0% {
-      opacity: 0;
-    }
-    100% {
-      opacity: 1;
-    }
-  }
   @keyframes slideUp {
     0% {
       opacity: 0;
@@ -133,15 +125,6 @@
     100% {
       opacity: 1;
       transform: scale(1);
-    }
-  }
-  @keyframes pulseSoft {
-    0%,
-    100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.7;
     }
   }
   @keyframes shimmer {
@@ -307,6 +290,31 @@
 
 @utility min-w-target {
   min-width: 44px;
+}
+
+/*
+ * Keyframes the reduced-motion fallbacks name (plan §2.6 M4 and M12). They sit
+ * outside @theme: Tailwind 4 emits a @theme keyframes block only when a utility
+ * uses it, and nothing used pulseSoft, so the shimmer loader stopped under
+ * reduced motion.
+ */
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes pulseSoft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
 }
 
 /*
