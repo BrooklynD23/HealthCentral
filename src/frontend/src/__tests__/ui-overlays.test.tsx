@@ -242,7 +242,8 @@ describe('HC-UIOV-001 Escape closes each overlay and focus returns to the trigge
     await waitFor(() => expect(screen.queryByRole(ROLE[kind])).not.toBeInTheDocument(), {
       timeout: 2000,
     });
-    expect(trigger).toHaveFocus();
+    // Radix returns focus in a setTimeout(0) after unmount, so the check waits for it.
+    await waitFor(() => expect(trigger).toHaveFocus(), { timeout: 1000 });
   });
 });
 
