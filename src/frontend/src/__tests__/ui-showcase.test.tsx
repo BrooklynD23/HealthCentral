@@ -9,10 +9,13 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { LazyMotion, domAnimation } from 'framer-motion';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { BeamBorder } from '@/components/ui/BeamBorder';
 import { ThinkingOrb } from '@/components/ui/ThinkingOrb';
+import { ShowcaseReveal, revealDelay } from '@/components/ui/ShowcaseReveal';
+import { duration, stagger } from '@/motion/tokens';
 
 // The library is replaced by a stub that counts how often it is loaded and
 // records the props it receives. The real package draws on a canvas, which
@@ -276,5 +279,84 @@ describe('UI-SHOWCASE-KIT ThinkingOrb library load (HC-UISK-004)', () => {
 
     const wrapper = readFileSync(join(UI_DIR, 'ThinkingOrb.tsx'), 'utf8');
     expect(wrapper).toMatch(/lazy\(\s*\(\)\s*=>\s*import\(\s*['"]thinking-orbs['"]\s*\)/);
+  });
+});
+
+describe('UI-SHOWCASE-KIT ShowcaseReveal (S1)', () => {
+  // The motion features are loaded here directly; the app loads them through MotionProvider.
+  function renderReveal() {
+    return render(
+      <LazyMotion features={domAnimation}>
+        <ShowcaseReveal>
+          <p>One</p>
+          <p>Two</p>
+        </ShowcaseReveal>
+      </LazyMotion>
+    );
+  }
+
+  beforeEach(() => {
+    setReducedMotion(false);
+    window.sessionStorage.clear();
+  });
+
+  it('HC-UISK-005: the first visit starts each group 12 px down and transparent', () => {
+    renderReveal();
+    const group = screen.getByText('One').parentElement as HTMLElement;
+    expect(group.style.opacity).toBe('0');
+    expect(group.style.transform).toMatch(/translateY\(12px\)/);
+  });
+
+  it('HC-UISK-005: once per session: the second mount has no transform and is visible', () => {
+    const first = renderReveal();
+    first.unmount();
+    renderReveal();
+    const group = screen.getByText('One').parentElement as HTMLElement;
+    expect(group.style.opacity).not.toBe('0');
+    expect(group.style.transform).not.toMatch(/translate/);
+  });
+
+  it('HC-UISK-005: with storage blocked, the content still renders', () => {
+    // A blocked browser throws when the sessionStorage getter is read, so the
+    // getter itself is replaced. (Spying on Storage.prototype does not reach it.)
+    const original = Object.getOwnPropertyDescriptor(window, 'sessionStorage');
+    Object.defineProperty(window, 'sessionStorage', {
+      configurable: true,
+      get() {
+        throw new DOMException('storage blocked', 'SecurityError');
+      },
+    });
+    try {
+      renderReveal();
+      expect(screen.getByText('One')).toBeInTheDocument();
+      expect(screen.getByText('Two')).toBeInTheDocument();
+    } finally {
+      Reflect.deleteProperty(window, 'sessionStorage');
+      if (original) Object.defineProperty(window, 'sessionStorage', original);
+    }
+  });
+
+  it('HC-UISK-005: under reduced motion the first render is opacity only, with no transform', () => {
+    setReducedMotion(true);
+    renderReveal();
+    const group = screen.getByText('One').parentElement as HTMLElement;
+    expect(group.style.opacity).toBe('0');
+    expect(group.style.transform).not.toMatch(/translate/);
+  });
+
+  it('HC-UISK-005: the stagger is 60 ms per group, capped at 8 steps', () => {
+    expect(revealDelay(0)).toBe(0);
+    expect(revealDelay(3)).toBeCloseTo(0.18, 5);
+    expect(revealDelay(8)).toBeCloseTo(0.48, 5);
+    expect(revealDelay(20)).toBeCloseTo(0.48, 5);
+  });
+
+  it('HC-UISK-005: the timing is the plan S1 timing, taken from the motion tokens', () => {
+    expect(duration.show).toBe(0.48);
+    expect(stagger.show).toEqual({ step: 0.06, cap: 8 });
+    const source = readFileSync(join(UI_DIR, 'ShowcaseReveal.tsx'), 'utf8');
+    expect(source).toMatch(/from\s+['"]@\/motion\/tokens['"]/);
+    expect(source).toMatch(/import\s*\{[^}]*\bm\b[^}]*\}\s*from\s+['"]framer-motion['"]/);
+    expect(source).not.toMatch(/\bmotion\./);
   });
 });
