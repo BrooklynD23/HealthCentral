@@ -1,20 +1,24 @@
 /**
- * RangeRibbon: one analyte over time, against the reference range printed on
- * the reports (UI-RIBBON; plan §UI-RIBBON, motion §2.6 M10).
+ * RangeRibbon: one analyte over time, against the reference range (UI-RIBBON;
+ * plan §UI-RIBBON, motion §2.6 M10, data-t0 §2.7).
  *
  * - x is proportional to the date; straight segments between points.
- * - The band is the series-level ref_low..ref_high (TrendPoint carries no
- *   per-report range). A null bound draws no edge and no triangle on that side.
- * - Out of range means value > ref_high or value < ref_low, never the flag.
- *   An out-of-range point gets a static triangle and the words "(per report)".
+ * - The band is the series-level ref_low..ref_high. TrendPoint carries no
+ *   per-report range, and the backend may combine bounds from different reports
+ *   (plan gap, escalated to L0). A null bound draws no edge and no triangle.
+ * - A point is out of range only when the band puts it outside AND the report's
+ *   own is_abnormal agrees. When they disagree the point is a conflict: no
+ *   triangle and no out-of-range words.
  * - Unverified points (user_verified is not true, D4) are hollow and dashed;
  *   verified points are filled.
- * - Slider semantics. ← → step and Home/End jump with no transition; a pointer
- *   selection glides for --dur-sm. A table gives the same dates and values.
+ * - Slider semantics. ← → step and Home/End jump with no transition. A pointer
+ *   press picks the nearest point and the cursor glides for --dur-sm; the glide
+ *   is a FLIP that ends at identity, so no element keeps a CSS transform.
  * - M10 reveal, once per analyte per session: the line draws in 640 ms and the
  *   points rise from .6 to 1 at 40 ms intervals. The reveal is value-blind, no
  *   number tweens, and reduced motion shows the final frame.
- * - Colours are CSS tokens. serializeRangeRibbonSvg resolves them for export.
+ * - The text layer carries data-t0 (§2.7). Colours are CSS tokens;
+ *   serializeRangeRibbonSvg resolves them for export.
  */
 import {
   useEffect,
@@ -23,6 +27,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
+  type PointerEvent,
   type ReactElement,
 } from 'react';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
@@ -35,22 +40,22 @@ const PAD_X = 16;
 const PLOT_TOP = 24;
 const PLOT_BOTTOM = 136;
 const PLOT_W = VIEW_W - PAD_X * 2;
-const HIT_R = 12;
 const MARK_R = 5;
 const STEP_MS = 40;
 const POINT_MS = Math.round(duration.sm * 1000);
 const DRAW_MS = Math.round(duration.draw * 1000);
 const EASE_OUT = `cubic-bezier(${ease.out.join(', ')})`;
-const GLIDE = 'transform var(--dur-sm) var(--ease-out)';
 const REVEAL_KEY = 'hc:range-ribbon:revealed:';
 
-type Side = 'above' | 'below' | 'within' | 'none';
+type Side = 'above' | 'below' | 'within' | 'none' | 'conflict';
+type Move = 'start' | 'pointer' | 'key';
 
 const SIDE_WORDS: Record<Side, string> = {
   above: 'Above the reference range (per report)',
   below: 'Below the reference range (per report)',
   within: 'Within the reference range (per report)',
   none: 'No reference range on the report',
+  conflict: "The report's flag and this range disagree",
 };
 
 const SIDE_PHRASE: Record<Side, string> = {
@@ -58,6 +63,7 @@ const SIDE_PHRASE: Record<Side, string> = {
   below: "below the report's range",
   within: "within the report's range",
   none: '',
+  conflict: "the report's flag and this range disagree",
 };
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -103,11 +109,22 @@ interface Layout {
   band: { top: number; height: number } | null;
 }
 
-function sideOf(value: number, low: number | null, high: number | null): Side {
+type BandSide = 'above' | 'below' | 'within' | 'none';
+
+function bandSideOf(value: number, low: number | null, high: number | null): BandSide {
   if (low === null && high === null) return 'none';
   if (high !== null && value > high) return 'above';
   if (low !== null && value < low) return 'below';
   return 'within';
+}
+
+// The band alone does not decide. An out-of-range call needs the report's own
+// verdict too, and any disagreement is a conflict, so no claim is made.
+function sideOf(value: number, reportAbnormal: boolean, low: number | null, high: number | null): Side {
+  const band = bandSideOf(value, low, high);
+  if (band === 'none') return reportAbnormal ? 'conflict' : 'none';
+  if (band === 'within') return reportAbnormal ? 'conflict' : 'within';
+  return reportAbnormal ? band : 'conflict';
 }
 
 function finiteOrNull(n: number | null): number | null {
@@ -151,7 +168,7 @@ function buildLayout(trend: TrendData): Layout {
     value: p.raw.value,
     unit: p.raw.unit,
     verified: p.raw.user_verified === true,
-    side: sideOf(p.raw.value, low, high),
+    side: sideOf(p.raw.value, p.raw.is_abnormal === true, low, high),
     x: xOf(p.time),
     y: yOf(p.raw.value),
   }));
@@ -165,6 +182,16 @@ function buildLayout(trend: TrendData): Layout {
   return { points, highY, lowY, band };
 }
 
+function rangeCaption(low: number | null, high: number | null, unit: string): string {
+  const suffix = unit.trim() === '' ? '' : ` ${unit}`;
+  if (low !== null && high !== null) {
+    return `Reference range from the latest report that gives each limit: ${low}-${high}${suffix}`;
+  }
+  if (high !== null) return `Upper limit ${high}${suffix}, from the latest report that gives it`;
+  if (low !== null) return `Lower limit ${low}${suffix}, from the latest report that gives it`;
+  return 'No reference range on the reports';
+}
+
 function valueLabel(point: LayoutPoint): string {
   return [point.value, point.unit].filter((part) => part !== '').join(' ');
 }
@@ -175,6 +202,14 @@ function valueTextOf(point: LayoutPoint): string {
   if (phrase !== '') parts.push(phrase);
   parts.push(point.verified ? 'checked by you' : 'not yet checked');
   return parts.join(', ');
+}
+
+function nearestIndex(points: LayoutPoint[], x: number): number {
+  let best = 0;
+  for (let i = 1; i < points.length; i += 1) {
+    if (Math.abs(points[i].x - x) < Math.abs(points[best].x - x)) best = i;
+  }
+  return best;
 }
 
 // A view that cannot read or write sessionStorage still renders. The reveal then
@@ -207,6 +242,19 @@ interface RangeRibbonProps {
 
 export function RangeRibbon({ trend }: RangeRibbonProps): ReactElement {
   const layout = useMemo(() => buildLayout(trend), [trend]);
+  if (layout.points.length === 0) {
+    return <p className="text-sm text-ink-secondary">No values to chart yet.</p>;
+  }
+  // Keyed by analyte: a different analyte gets fresh selection and reveal state.
+  return <RangeChart key={trend.analyte_canonical} trend={trend} layout={layout} />;
+}
+
+interface RangeChartProps {
+  trend: TrendData;
+  layout: Layout;
+}
+
+function RangeChart({ trend, layout }: RangeChartProps): ReactElement {
   const { points } = layout;
   const count = points.length;
   const reduced = useReducedMotion();
@@ -215,11 +263,13 @@ export function RangeRibbon({ trend }: RangeRibbonProps): ReactElement {
   // Decided once per mount. The reveal is written in an effect, so StrictMode's
   // double render cannot see its own write and skip the reveal.
   const [revealing] = useState(() => !reduced && !hasRevealed(analyte));
-  const [selected, setSelected] = useState(() => Math.max(0, count - 1));
-  const [move, setMove] = useState<'start' | 'pointer' | 'key'>('start');
+  const [selected, setSelected] = useState(() => count - 1);
+  const [move, setMove] = useState<Move>('start');
 
   const svgRef = useRef<SVGSVGElement>(null);
   const lineRef = useRef<SVGGElement>(null);
+  const cursorRef = useRef<SVGLineElement>(null);
+  const lastX = useRef<number | null>(null);
 
   useEffect(() => {
     if (revealing) markRevealed(analyte);
@@ -251,17 +301,42 @@ export function RangeRibbon({ trend }: RangeRibbonProps): ReactElement {
     return () => running.forEach((animation) => animation.cancel());
   }, [revealing]);
 
-  if (count === 0) {
-    return <p className="text-sm text-ink-secondary">No values to chart yet.</p>;
-  }
-
   const active = Math.min(Math.max(selected, 0), count - 1);
   const current = points[active];
-  const glide = move === 'pointer' && !reduced;
+  const currentX = current.x;
+
+  // The cursor is placed by its x1/x2, so it never holds a CSS transform (G5).
+  // A pointer move glides it with a FLIP that ends at identity. A keyboard move
+  // and reduced motion skip the glide.
+  useLayoutEffect(() => {
+    const previous = lastX.current;
+    lastX.current = currentX;
+    if (previous === null || previous === currentX || move !== 'pointer' || reduced) {
+      return undefined;
+    }
+    const cursor = cursorRef.current;
+    if (!cursor || typeof cursor.animate !== 'function') return undefined;
+    const glide = cursor.animate(
+      [{ transform: `translateX(${previous - currentX}px)` }, { transform: 'translateX(0px)' }],
+      { duration: POINT_MS, easing: EASE_OUT }
+    );
+    return () => glide.cancel();
+  }, [currentX, move, reduced]);
 
   const choose = (index: number, how: 'pointer' | 'key') => {
     setMove(how);
     setSelected(index);
+  };
+
+  // The pointer picks the nearest point to its x, so a press between two close
+  // dates lands on the nearer one, with no small hit target to miss.
+  const onPointerDown = (event: PointerEvent<SVGSVGElement>) => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const x = ((event.clientX - rect.left) / rect.width) * VIEW_W;
+    choose(nearestIndex(points, x), 'pointer');
   };
 
   const onKeyDown = (event: KeyboardEvent<SVGSVGElement>) => {
@@ -287,6 +362,9 @@ export function RangeRibbon({ trend }: RangeRibbonProps): ReactElement {
     choose(next, 'key');
   };
 
+  const firstPoint = points[0];
+  const lastPoint = points[count - 1];
+
   return (
     <figure className="space-y-2">
       <svg
@@ -299,8 +377,10 @@ export function RangeRibbon({ trend }: RangeRibbonProps): ReactElement {
         aria-valuenow={active}
         aria-valuetext={valueTextOf(current)}
         onKeyDown={onKeyDown}
+        onPointerDown={onPointerDown}
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
         width="100%"
+        style={{ cursor: 'pointer' }}
         className="block h-auto w-full rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
         {layout.band && (
@@ -354,15 +434,6 @@ export function RangeRibbon({ trend }: RangeRibbonProps): ReactElement {
             data-side={p.side}
             style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
           >
-            <circle
-              data-hit
-              cx={p.x}
-              cy={p.y}
-              r={HIT_R}
-              fill="transparent"
-              style={{ cursor: 'pointer' }}
-              onClick={() => choose(p.order, 'pointer')}
-            />
             {p.verified ? (
               <circle data-marker cx={p.x} cy={p.y} r={MARK_R} fill="var(--ink-1)" stroke="none" />
             ) : (
@@ -385,24 +456,34 @@ export function RangeRibbon({ trend }: RangeRibbonProps): ReactElement {
           </g>
         ))}
 
-        <g
+        <line
+          ref={cursorRef}
           data-cursor
           aria-hidden="true"
-          style={{ transform: `translateX(${current.x}px)`, transition: glide ? GLIDE : 'none' }}
-        >
-          <line
-            x1={0}
-            x2={0}
-            y1={PLOT_TOP - 6}
-            y2={PLOT_BOTTOM + 6}
-            stroke="var(--ink-1)"
-            strokeWidth={1}
-            strokeDasharray="2 2"
-          />
-        </g>
+          x1={currentX}
+          x2={currentX}
+          y1={PLOT_TOP - 6}
+          y2={PLOT_BOTTOM + 6}
+          stroke="var(--ink-1)"
+          strokeWidth={1}
+          strokeDasharray="2 2"
+        />
       </svg>
 
-      <p data-readout className="text-sm text-ink-secondary">
+      <figcaption data-t0 className="text-sm text-ink-secondary">
+        {rangeCaption(
+          finiteOrNull(trend.ref_low),
+          finiteOrNull(trend.ref_high),
+          trend.unit
+        )}
+      </figcaption>
+
+      <div className="flex justify-between text-xs text-ink-secondary">
+        <span data-axis="first" data-t0>{firstPoint.label}</span>
+        {count > 1 && <span data-axis="last" data-t0>{lastPoint.label}</span>}
+      </div>
+
+      <p data-readout data-t0 className="text-sm text-ink-secondary">
         <span className="font-medium text-ink">
           {current.label}: {valueLabel(current)}
         </span>
@@ -414,19 +495,19 @@ export function RangeRibbon({ trend }: RangeRibbonProps): ReactElement {
         <caption className="sr-only">{`${trend.analyte_display_name} results by date`}</caption>
         <thead>
           <tr className="text-left text-ink-secondary">
-            <th scope="col" className="font-normal">Date</th>
-            <th scope="col" className="font-normal">Result</th>
-            <th scope="col" className="font-normal">{"Against the report's range"}</th>
-            <th scope="col" className="font-normal">Checked</th>
+            <th data-t0 scope="col" className="font-normal">Date</th>
+            <th data-t0 scope="col" className="font-normal">Result</th>
+            <th data-t0 scope="col" className="font-normal">{"Against the report's range"}</th>
+            <th data-t0 scope="col" className="font-normal">Checked</th>
           </tr>
         </thead>
         <tbody>
           {points.map((p) => (
             <tr key={p.order}>
-              <th scope="row" className="text-left font-normal">{p.label}</th>
-              <td>{valueLabel(p)}</td>
-              <td>{SIDE_WORDS[p.side]}</td>
-              <td>{p.verified ? 'Checked by you' : 'Not yet checked'}</td>
+              <th data-t0 scope="row" className="text-left font-normal">{p.label}</th>
+              <td data-t0>{valueLabel(p)}</td>
+              <td data-t0>{SIDE_WORDS[p.side]}</td>
+              <td data-t0>{p.verified ? 'Checked by you' : 'Not yet checked'}</td>
             </tr>
           ))}
         </tbody>
@@ -438,11 +519,14 @@ export function RangeRibbon({ trend }: RangeRibbonProps): ReactElement {
 /**
  * Serialises the ribbon SVG for export. A standalone SVG has no page CSS, so each
  * var(--token) is replaced with its computed value (currentColor if the token is
- * unset). Output then carries real colours in light and dark mode.
+ * unset). The size is fixed to the viewBox, because the on-screen width is 100%.
  */
 export function serializeRangeRibbonSvg(svg: SVGSVGElement): string {
+  // XMLSerializer adds the SVG namespace itself. A setAttribute('xmlns') here
+  // would duplicate it, and the output would not be well-formed XML.
   const clone = svg.cloneNode(true) as SVGSVGElement;
-  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  clone.setAttribute('width', String(VIEW_W));
+  clone.setAttribute('height', String(VIEW_H));
   const computed = window.getComputedStyle(document.documentElement);
   const markup = new XMLSerializer().serializeToString(clone);
   return markup.replace(/var\((--[\w-]+)\)/g, (_match, token: string) => {
