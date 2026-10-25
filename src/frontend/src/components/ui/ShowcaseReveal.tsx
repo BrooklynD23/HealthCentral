@@ -3,9 +3,6 @@ import { m, type Variants } from 'framer-motion';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { duration, ease, stagger } from '@/motion/tokens';
 
-/** The entrance plays on the first visit per session only (plan §2.6, S1). */
-const PLAYED_KEY = 'showcase-reveal-played';
-
 const EASE_OUT: [number, number, number, number] = [...ease.out];
 
 /** Seconds before group `index` starts: 60 ms per group, capped at 8 steps. */
@@ -13,18 +10,18 @@ export function revealDelay(index: number): number {
   return Math.min(index, stagger.show.cap) * stagger.show.step;
 }
 
-function alreadyPlayed(): boolean {
+function alreadyPlayed(key: string): boolean {
   try {
-    return window.sessionStorage.getItem(PLAYED_KEY) === '1';
+    return window.sessionStorage.getItem(key) === '1';
   } catch {
     // Storage blocked: play the entrance. The content renders either way.
     return false;
   }
 }
 
-function rememberPlayed(): void {
+function rememberPlayed(key: string): void {
   try {
-    window.sessionStorage.setItem(PLAYED_KEY, '1');
+    window.sessionStorage.setItem(key, '1');
   } catch {
     // Storage blocked: the entrance plays again on the next mount.
   }
@@ -49,16 +46,19 @@ const reducedVariants: Variants = {
 
 /**
  * S1 (plan §2.6): each child group rises 12 px and fades in, staggered, on the
- * first visit per session. Wrap only non-T0 content; a T0 value never moves.
- * On later mounts in the same session the groups appear with no transform.
+ * first visit per session, per surface (L0 ruling 2026-10-25). `id` names the
+ * surface and keys its sessionStorage entry. Wrap only non-T0 content; a T0
+ * value never moves. On a later mount of the same surface in the same session
+ * the groups appear with no transform.
  */
-export function ShowcaseReveal({ children }: { children: ReactNode }) {
+export function ShowcaseReveal({ id, children }: { id: string; children: ReactNode }) {
   const reduced = useReducedMotion();
-  const [skip] = useState(alreadyPlayed);
+  const key = `showcase-reveal:${id}`;
+  const [skip] = useState(() => alreadyPlayed(key));
 
   useEffect(() => {
-    if (!skip) rememberPlayed();
-  }, [skip]);
+    if (!skip) rememberPlayed(key);
+  }, [skip, key]);
 
   // A later mount in the same session has no transform at all, so it takes the opacity-only set.
   const variants = reduced || skip ? reducedVariants : groupVariants;

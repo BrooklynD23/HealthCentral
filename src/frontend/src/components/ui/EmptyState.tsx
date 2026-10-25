@@ -31,7 +31,9 @@ export function EmptyState({
   return (
     <Card className={cn('overflow-hidden', className)}>
       <CardContent className="py-16 text-center">
-        <ShowcaseReveal>
+        {/* A fixed id: every empty state shares one key, so an empty state never
+            uses up the Documents, Overview or About entrances (L0 ruling 2026-10-25). */}
+        <ShowcaseReveal id="empty-state">
           {illustration && (
             <div aria-hidden="true" className="mb-4 flex justify-center">
               {illustration}

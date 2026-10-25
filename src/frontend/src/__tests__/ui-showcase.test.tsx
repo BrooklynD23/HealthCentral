@@ -304,10 +304,10 @@ describe('UI-SHOWCASE-KIT ThinkingOrb library load (HC-UISK-004)', () => {
 
 describe('UI-SHOWCASE-KIT ShowcaseReveal (S1)', () => {
   // The motion features are loaded here directly; the app loads them through MotionProvider.
-  function renderReveal() {
+  function renderReveal(id = 'surface') {
     return render(
       <LazyMotion features={domAnimation}>
-        <ShowcaseReveal>
+        <ShowcaseReveal id={id}>
           <p>One</p>
           <p>Two</p>
         </ShowcaseReveal>
@@ -334,6 +334,22 @@ describe('UI-SHOWCASE-KIT ShowcaseReveal (S1)', () => {
     const group = screen.getByText('One').parentElement as HTMLElement;
     expect(group.style.opacity).not.toBe('0');
     expect(group.style.transform).not.toMatch(/translate/);
+  });
+
+  it('HC-UISK-005: per surface: a second surface with a different id still animates after the first has played', () => {
+    renderReveal('a').unmount();
+
+    const second = renderReveal('b');
+    const groupB = screen.getByText('One').parentElement as HTMLElement;
+    expect(groupB.style.opacity).toBe('0');
+    expect(groupB.style.transform).toMatch(/translateY\(12px\)/);
+    second.unmount();
+
+    // Surface "a" has played this session, so its re-mount takes no transform.
+    renderReveal('a');
+    const groupA = screen.getByText('One').parentElement as HTMLElement;
+    expect(groupA.style.opacity).not.toBe('0');
+    expect(groupA.style.transform).not.toMatch(/translate/);
   });
 
   it('HC-UISK-005: with storage blocked, the content still renders', () => {
