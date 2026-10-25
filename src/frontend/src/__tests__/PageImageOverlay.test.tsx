@@ -161,4 +161,29 @@ describe('PageImageOverlay', () => {
       screen.getByText(/bounding box data not available/i)
     ).toBeDefined();
   });
+
+  it('draws the trace mark inside the bbox highlight, and no data-t0 node holds it (UI-PROVENANCE)', async () => {
+    const bbox = { x0: 100, y0: 200, x1: 300, y1: 250 };
+
+    render(
+      <PageImageOverlay documentId="doc-1" pageNumber={1} bbox={bbox} />
+    );
+
+    const img = screen.getByRole('img', { name: /page 1/i });
+    await waitFor(() => {
+      expect(img.getAttribute('src')).toBe('blob:page-image');
+    });
+
+    Object.defineProperty(img, 'naturalWidth', { value: 600 });
+    Object.defineProperty(img, 'naturalHeight', { value: 800 });
+    Object.defineProperty(img, 'clientWidth', { value: 600 });
+    Object.defineProperty(img, 'clientHeight', { value: 800 });
+
+    fireEvent.load(img);
+
+    const highlight = screen.getByRole('img', { name: /highlighted source region/i });
+    const mark = highlight.querySelector('[data-trace-mark]');
+    expect(mark).not.toBeNull();
+    expect(mark?.closest('[data-t0]')).toBeNull();
+  });
 });

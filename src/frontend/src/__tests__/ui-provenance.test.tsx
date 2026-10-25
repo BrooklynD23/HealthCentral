@@ -76,6 +76,14 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+/** The POSTs that reached the verify endpoint for the test observation. */
+function verifyPostsOf(fetchMock: { mock: { calls: unknown[][] } }): unknown[][] {
+  return fetchMock.mock.calls.filter(([url, init]) => {
+    const method = (init as RequestInit | undefined)?.method;
+    return String(url).endsWith(`/observations/${OBSERVATION_ID}/verify`) && method === 'POST';
+  });
+}
+
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(observation)));
 });
@@ -125,6 +133,18 @@ describe('HC-UIPV-001 citation popover opens on click and Enter, not on hover', 
     expect(within(dialog).queryByRole('button', { name: /open source/i })).toBeNull();
     expect(within(dialog).queryByText(/^Page /)).toBeNull();
   });
+
+  it('keeps the citation type line (knowledge base) above the quote, marked data-t0', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<CitationTooltip citation={kbCitation} index={0} />);
+
+    await user.click(screen.getByRole('button', { name: /^Citation 1: / }));
+    const dialog = screen.getByRole('dialog', { name: 'Citation 1' });
+    const typeLine = within(dialog).getByText('knowledge base');
+    const quote = within(dialog).getByText(kbCitation.text);
+    expect(typeLine.closest('[data-t0]')).not.toBeNull();
+    expect(typeLine.compareDocumentPosition(quote) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  });
 });
 
 describe('UI-PROVENANCE source-aware popover (page and Open source only when the citation carries a source)', () => {
@@ -148,6 +168,30 @@ describe('UI-PROVENANCE source-aware popover (page and Open source only when the
     });
     expect(screen.getByText('This is what your report states.')).not.toBeNull();
   });
+
+  it('returns focus to the citation chip when Source Trace closes with Escape', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <CitationTooltip
+        citation={kbCitation}
+        index={0}
+        source={{ observation, excerptLines: EXCERPT, matchIndex: 1 }}
+      />
+    );
+    const trigger = screen.getByRole('button', { name: /^Citation 1: / });
+
+    await user.click(trigger);
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Citation 1' })).getByRole('button', { name: /open source/i })
+    );
+    await screen.findByRole('dialog', { name: /source for glucose/i });
+
+    await user.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /source for glucose/i })).toBeNull();
+    });
+    expect(document.activeElement).toBe(trigger);
+  });
 });
 
 describe('HC-UIPV-003 Source Trace shows the highlighted row, page, date and the report line', () => {
@@ -160,7 +204,7 @@ describe('HC-UIPV-003 Source Trace shows the highlighted row, page, date and the
     expect(screen.getByText('This is what your report states.')).not.toBeNull();
     expect(screen.getByText('Page 3')).not.toBeNull();
     expect(screen.getByText('Apr 10, 2026')).not.toBeNull();
-    expect(screen.getByText('70-99 mg/dL')).not.toBeNull();
+    expect(screen.getByText('70 to 99 mg/dL')).not.toBeNull();
     expect(screen.getByText('High')).not.toBeNull();
 
     const matchRow = screen.getByText(MATCH_LINE).closest('li');
@@ -181,6 +225,16 @@ describe('HC-UIPV-003 Source Trace shows the highlighted row, page, date and the
     expect(screen.getByText('Page not available')).not.toBeNull();
     expect(screen.getByText('Not available')).not.toBeNull();
     expect(screen.queryByText('Page 3')).toBeNull();
+  });
+
+  it('writes a range with a negative low as "-2 to 2 mmol/L", not "-2-2 mmol/L"', async () => {
+    const { SourceTrace } = await load<typeof SourceTraceModule>('@/components/results/SourceTrace');
+    renderWithProviders(
+      <SourceTrace open observation={{ ...observation, ref_low: -2, ref_high: 2, unit: 'mmol/L' }} />
+    );
+
+    expect(screen.getByText('-2 to 2 mmol/L')).not.toBeNull();
+    expect(screen.queryByText('-2-2 mmol/L')).toBeNull();
   });
 });
 
@@ -203,14 +257,42 @@ describe('HC-UIPV-005 verify sends one POST, shows the confirmation toast, offer
     await user.click(screen.getByRole('button', { name: 'It matches, mark as checked' }));
 
     await screen.findByText('Glucose, Apr 10, 2026 is now marked as checked');
-    const verifyPosts = fetchMock.mock.calls.filter(([url, init]) => {
-      const method = (init as RequestInit | undefined)?.method;
-      return String(url).endsWith(`/observations/${OBSERVATION_ID}/verify`) && method === 'POST';
-    });
+    const verifyPosts = verifyPostsOf(fetchMock);
     expect(verifyPosts).toHaveLength(1);
+    // The verify endpoint takes no value: the body is {}. A body that carried a value would overwrite the stored one.
+    expect(JSON.parse(String((verifyPosts[0][1] as RequestInit).body))).toEqual({});
 
     expect(screen.queryByRole('button', { name: /undo/i })).toBeNull();
     expect(screen.queryByText(/undo/i)).toBeNull();
+  });
+
+  it('a double click while the POST is in flight still sends exactly one POST', async () => {
+    const user = userEvent.setup();
+    // Hold the response until both clicks have landed. A response that arrives at once
+    // removes the button before the second click, and the test would pass with no guard.
+    let releaseResponse: () => void = () => {};
+    const responseGate = new Promise<void>((resolve) => {
+      releaseResponse = resolve;
+    });
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
+      await responseGate;
+      return jsonResponse({ ...observation, user_verified: true });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { SourceTrace } = await load<typeof SourceTraceModule>('@/components/results/SourceTrace');
+
+    renderWithProviders(
+      <>
+        <AppToaster />
+        <SourceTrace open observation={observation} excerptLines={EXCERPT} matchIndex={1} />
+      </>
+    );
+
+    await user.dblClick(screen.getByRole('button', { name: 'It matches, mark as checked' }));
+    releaseResponse();
+
+    await screen.findByText('Glucose, Apr 10, 2026 is now marked as checked');
+    expect(verifyPostsOf(fetchMock)).toHaveLength(1);
   });
 });
 
@@ -221,7 +303,7 @@ describe('HC-UIPV-006 markup half: data-t0 on every T0 node, none on the highlig
       <SourceTrace open observation={observation} excerptLines={EXCERPT} matchIndex={1} />
     );
 
-    for (const text of [MATCH_LINE, EXCERPT[0], 'Page 3', 'Apr 10, 2026', '70-99 mg/dL', 'High']) {
+    for (const text of [MATCH_LINE, EXCERPT[0], 'Page 3', 'Apr 10, 2026', '70 to 99 mg/dL', 'High']) {
       const node = screen.getByText(text);
       expect(node.closest('[data-t0]'), `T0 node for "${text}"`).not.toBeNull();
     }
