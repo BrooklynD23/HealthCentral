@@ -257,8 +257,8 @@ describe('UI-SHOWCASE-KIT ThinkingOrb (S3)', () => {
     expect(last).toMatchObject({ theme: 'auto' });
   });
 
-  it('HC-UISK-003: under reduced motion no paused or speed override is passed, so the library draws its static frame', async () => {
-    setReducedMotion(true);
+  it('HC-UISK-003: no paused or speed override is passed, so the library applies its own reduced-motion frame', async () => {
+    // The wrapper never reads matchMedia; the library does, so this checks only that the wrapper adds no override.
     render(<ThinkingOrb status="Reading" />);
     await screen.findByTestId('orb');
     const last = orbCalls.props[orbCalls.props.length - 1] ?? {};
