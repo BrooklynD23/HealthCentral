@@ -5,8 +5,9 @@
  *   theme. The routes run against the real backend, as in accessibility.spec.ts,
  *   because /verify, /explain and /settings render their contrast-bearing data
  *   only from real responses; the mock API answers four endpoints and nothing else.
- * - HC-UITK-005: the focus ring stays a box-shadow in the accent token, and the
- *   nav link keeps no outline (TW4-FOCUS and TW4-INBOX, pinned here).
+ * - HC-UITK-005: the focus ring stays a box-shadow in the accent token, the
+ *   nav link keeps no outline (TW4-FOCUS and TW4-INBOX, pinned here), and a
+ *   shimmer loader keeps breathing under reduced motion (plan §2.6 M12).
  * - HC-UITK-006: cold-load CLS on /setup is at most 0.02 (measured with the
  *   mock API, which answers the page's only profile request).
  */
@@ -124,6 +125,33 @@ test('HC-UITK-005: the focused nav link has no outline; its ring is the global b
   });
   expect(outline.outlineStyle === 'none' || outline.outlineColor === 'rgba(0, 0, 0, 0)').toBeTruthy();
   await nav.blur();
+});
+
+// Plan §2.6 M12: loaders keep breathing under reduced motion. The fallback names pulseSoft, and Tailwind 4
+// emits a @theme keyframes block only when a utility uses it, so pulseSoft must sit outside @theme.
+test.describe('HC-UITK-005: reduced motion keeps the loaders breathing (M12)', () => {
+  test.use({ contextOptions: { reducedMotion: 'reduce' } });
+
+  test('HC-UITK-005: a shimmer loader still runs pulseSoft, infinitely, under reduced motion', async ({
+    page,
+  }) => {
+    await page.goto('/recover');
+    await expect(page.locator('#recover-code')).toBeVisible({ timeout: 15000 });
+    const running = await page.evaluate(() => {
+      const probe = document.createElement('div');
+      probe.className = 'animate-shimmer';
+      document.body.appendChild(probe);
+      const animations = probe.getAnimations().map((animation) => ({
+        name: (animation as CSSAnimation).animationName,
+        infinite: animation.effect?.getComputedTiming().iterations === Infinity,
+      }));
+      probe.remove();
+      return animations;
+    });
+    expect(running, 'the reduced-motion shimmer runs pulseSoft as a loop').toEqual([
+      { name: 'pulseSoft', infinite: true },
+    ]);
+  });
 });
 
 // HC-UITK-006 is a pin, not a check of the fallback font metrics: CLS is 0 on origin/main without the
