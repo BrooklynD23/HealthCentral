@@ -161,7 +161,7 @@ test.fail(
 );
 
 // ---------------------------------------------------------------------------
-// HC-UIG-003: routeOpacitySamples records a sample < 0.3 (test.fail until UI-SHELL).
+// HC-UIG-003: routeOpacitySamples records a sample < 0.3 (UI-SHELL: the route fade is opacity-only, M7).
 // ---------------------------------------------------------------------------
 /**
  * Waits until the route element has finished its entrance fade. On /inbox the
@@ -187,7 +187,7 @@ async function settleRoute(page: Page): Promise<void> {
 const navigateToVerify = (page: Page) => async () => {
   await page
     .getByRole('navigation', { name: 'Main navigation' })
-    .getByRole('link', { name: 'Verify' })
+    .getByRole('link', { name: 'Review values' })
     .click();
 };
 
@@ -209,8 +209,8 @@ test('HC-UIG-003 pre: a nav click samples the route container and ends at opacit
   expect(samples[samples.length - 1]?.opacity, 'route container must settle at 1').toBe(1);
 });
 
-test.fail(
-  'HC-UIG-003 route container opacity after a nav click never drops below 0.3 (expected until UI-SHELL)',
+test(
+  'HC-UIG-003 route container opacity after a nav click never drops below 0.3',
   async ({ page }) => {
     await openInbox(page);
     await settleRoute(page);

@@ -177,7 +177,7 @@ test.describe('Tailwind 4 style guard', () => {
     expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(
       'rgb(246, 245, 241)'
     );
-    const heading = page.locator('aside h1').first();
+    const heading = page.locator('aside [data-brand]').first();
     expect(await heading.evaluate((el) => getComputedStyle(el).color)).toBe('rgb(28, 27, 25)');
 
     // Cursor: TopBar.tsx:68-78 Button (`h-10 w-10 rounded-xl` + border opacity class + Button.tsx cva) has
