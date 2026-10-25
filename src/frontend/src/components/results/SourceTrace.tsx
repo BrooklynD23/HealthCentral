@@ -10,7 +10,7 @@
  * element is the TraceMark, a separate background with no data-t0. The text never
  * moves.
  */
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { m } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
@@ -131,17 +131,25 @@ export function SourceTrace({
   const page = observation.source_page;
 
   const verify = useVerifyObservation();
-  const [checkedHere, setCheckedHere] = useState(false);
-  const isChecked = observation.user_verified || checkedHere;
+  const { reset: resetVerify } = verify;
+  // The row verified here is kept by id, so a sheet reused for another row does not show it as checked.
+  const [checkedId, setCheckedId] = useState<string | null>(null);
+  const isChecked = observation.user_verified || checkedId === observation.id;
+
+  // A different row starts with no verify state: no stale error, no in-flight flag.
+  useEffect(() => {
+    resetVerify();
+  }, [observation.id, resetVerify]);
 
   // No unverify endpoint exists (be/api/observations.py:384 is verify only), so the
   // confirmation has no Undo.
   const markChecked = () => {
+    const observationId = observation.id;
     verify.mutate(
-      { observationId: observation.id, data: {} },
+      { observationId, data: {} },
       {
         onSuccess: () => {
-          setCheckedHere(true);
+          setCheckedId(observationId);
           notify({
             message: `${[name, date].filter(Boolean).join(', ')} is now marked as checked`,
             still: true,
@@ -188,14 +196,26 @@ export function SourceTrace({
           <h3 className="text-xs font-medium uppercase tracking-wider text-ink-secondary">Excerpt</h3>
           {excerptLines.length > 0 ? (
             <ol className="rounded-lg bg-surface-muted p-3 font-mono text-xs leading-relaxed">
-              {excerptLines.map((line, index) => (
-                <li key={index} className="relative px-2 py-0.5">
-                  {index === matchIndex ? <TraceMark /> : null}
-                  <span data-t0="" className="relative whitespace-pre-wrap break-words">
-                    {line}
-                  </span>
-                </li>
-              ))}
+              {excerptLines.map((line, index) => {
+                const matched = index === matchIndex;
+                return (
+                  // The match has a text prefix and a 2 px left border, so it does not rely on the tint alone.
+                  <li
+                    key={index}
+                    className={cn('relative border-l-2 px-2 py-0.5', matched ? 'border-accent' : 'border-transparent')}
+                  >
+                    {matched ? (
+                      <>
+                        <span className="sr-only">Matching line: </span>
+                        <TraceMark />
+                      </>
+                    ) : null}
+                    <span data-t0="" className="relative whitespace-pre-wrap break-words">
+                      {line}
+                    </span>
+                  </li>
+                );
+              })}
             </ol>
           ) : (
             <p className="text-sm text-ink-secondary">Excerpt not available.</p>
