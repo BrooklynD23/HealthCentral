@@ -88,6 +88,9 @@ async def _has_interpretation(profile_db: AsyncSession, observation_id: str) -> 
 # SAFETY-MODE-VERIFIED: under strict safety mode an observation the patient has
 # not verified gets no interpretation. Every route that refuses answers 409 with
 # one shape (the batch route lists the id under "failed" instead).
+UNVERIFIED_BATCH_ERROR = "Verify this result first"
+
+
 async def _audit_unverified_refusal(
     master_db: AsyncSession,
     profile_id: str,
@@ -95,9 +98,10 @@ async def _audit_unverified_refusal(
     entity_id: Optional[str] = None,
     observation_ids: Optional[list[str]] = None,
 ) -> None:
-    """One audit row per refused id. Ids and enums only: no analyte, value, panel
-    name or text. `route` is not an allowed audit detail key (core/audit.py), so
-    the entity fields say what was refused."""
+    """One audit row per refusal: an observation id, or the unverified member ids of
+    a panel. Ids and enums only: no analyte, value, panel name or text. `route` is
+    not an allowed audit detail key (core/audit.py), so the entity fields say what
+    was refused."""
     details: dict = {"reason": "observation_unverified", "decision": "refuse"}
     if observation_ids is not None:
         details["observation_ids"] = observation_ids
@@ -780,6 +784,27 @@ async def generate_panel_interpretation(
             detail=f"Unknown panel: {panel_name}. Valid panels: {', '.join(PANEL_DEFINITIONS.keys())}"
         )
 
+    # SAFETY-MODE-VERIFIED: refuse before interpret_panel and its stored-row shortcut if
+    # any member is unverified. Members are selected exactly as interpret_panel selects
+    # them (modules/interpret.py:326-335): same profile, panel analytes, whole day.
+    if await is_strict_safety_mode(profile_db):
+        day_start = collected_at.replace(hour=0, minute=0, second=0)
+        day_end = collected_at.replace(hour=23, minute=59, second=59)
+        members = await profile_db.execute(
+            select(Observation.id, Observation.user_verified).where(
+                Observation.profile_id == session.profile_id,
+                Observation.analyte_canonical.in_(PANEL_DEFINITIONS[panel_name_lower]["analytes"]),
+                Observation.collected_at >= day_start,
+                Observation.collected_at <= day_end,
+            )
+        )
+        unverified_ids = [obs_id for obs_id, verified in members.all() if not verified]
+        if unverified_ids:
+            await _refuse_unverified(
+                master_db, session.profile_id, "panel_interpretation",
+                observation_ids=unverified_ids,
+            )
+
     interpret_module = get_interpret_module()
     result = await interpret_module.interpret_panel(
         panel_name=panel_name_lower,
@@ -821,10 +846,16 @@ async def get_recent_interpretations(
 
     Returns the most recently created interpretations, ordered by date.
     """
+    query = select(LabInterpretation).where(
+        LabInterpretation.profile_id == session.profile_id
+    )
+    # SAFETY-MODE-VERIFIED: filter in SQL, before the limit, so a page is never short.
+    if await is_strict_safety_mode(profile_db):
+        query = query.join(
+            Observation, Observation.id == LabInterpretation.observation_id
+        ).where(Observation.user_verified.is_(True))
     result = await profile_db.execute(
-        select(LabInterpretation).where(
-            LabInterpretation.profile_id == session.profile_id
-        ).order_by(LabInterpretation.created_at.desc()).limit(limit)
+        query.order_by(LabInterpretation.created_at.desc()).limit(limit)
     )
     interpretations = result.scalars().all()
 
@@ -891,11 +922,29 @@ async def batch_generate_interpretations(
 
     interpret_module = get_interpret_module()
 
+    # SAFETY-MODE-VERIFIED: under strict mode, read the unverified ids once. They are
+    # refused in the loop, so they stay out of the regenerate audit row below.
+    strict = await is_strict_safety_mode(profile_db)
+    unverified: set[str] = set()
+    if strict:
+        uuid_ids = [i for i in request.observation_ids if UUID_PATTERN.match(i)]
+        if uuid_ids:
+            res = await profile_db.execute(
+                select(Observation.id).where(
+                    Observation.id.in_(uuid_ids),
+                    Observation.user_verified.is_(False),
+                )
+            )
+            unverified = set(res.scalars().all())
+
     # AUDIT-ORDER D: only UUID-shaped ids that already have an interpretation
     # (regenerate deletes it) reach the audit row.
     started = False
     if request.force_regenerate:
-        candidates = [i for i in request.observation_ids if UUID_PATTERN.match(i)]
+        candidates = [
+            i for i in request.observation_ids
+            if UUID_PATTERN.match(i) and i not in unverified
+        ]
         if candidates:
             res = await profile_db.execute(
                 select(LabInterpretation.observation_id).where(
@@ -928,6 +977,14 @@ async def batch_generate_interpretations(
 
             if observation.profile_id != session.profile_id:
                 failed.append({"observation_id": obs_id, "error": "Access denied"})
+                continue
+
+            # SAFETY-MODE-VERIFIED: refused before generation, listed under "failed".
+            if strict and not observation.user_verified:
+                await _audit_unverified_refusal(
+                    master_db, session.profile_id, "observation", obs_id,
+                )
+                failed.append({"observation_id": obs_id, "error": UNVERIFIED_BATCH_ERROR})
                 continue
 
             # Generate interpretation
