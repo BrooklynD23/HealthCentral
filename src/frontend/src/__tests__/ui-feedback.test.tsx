@@ -307,6 +307,79 @@ describe('HC-UIFB-003: Pending keeps breathing under reduced motion', () => {
   });
 });
 
+type Rgb = [number, number, number];
+
+/** The `#rrggbb` value of a `--name: #rrggbb;` declaration inside one theme block. */
+function tokenRgb(block: string, name: string): Rgb {
+  const match = new RegExp(`${name}:\\s*#([0-9a-fA-F]{6})`).exec(block);
+  if (!match) throw new Error(`${name} not declared in this theme block`);
+  return [0, 2, 4].map((i) => parseInt(match[1].slice(i, i + 2), 16)) as Rgb;
+}
+
+/** WCAG relative luminance of an sRGB colour. */
+function relativeLuminance(rgb: Rgb): number {
+  const [r, g, b] = rgb.map((c) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function contrastRatio(a: Rgb, b: Rgb): number {
+  const [hi, lo] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+/** Text at `alpha` over a surface, blended in sRGB the way the browser composites opacity. */
+function blendOver(fg: Rgb, bg: Rgb, alpha: number): Rgb {
+  return fg.map((c, i) => alpha * c + (1 - alpha) * bg[i]) as Rgb;
+}
+
+/** The dimmest opacity pulseSoft reaches, read from the keyframes in globals.css. */
+function pulseSoftMinOpacity(): number {
+  const body = blockBody(GLOBALS_CSS, GLOBALS_CSS.indexOf('@keyframes pulseSoft'));
+  return Math.min(...Array.from(body.matchAll(/opacity:\s*([\d.]+)/g), (m) => Number(m[1])));
+}
+
+const LIGHT_THEME = blockBody(GLOBALS_CSS, GLOBALS_CSS.search(/:root\s*\{/));
+const DARK_THEME = blockBody(GLOBALS_CSS, GLOBALS_CSS.indexOf(":root[data-theme='dark']"));
+const PENDING_INK_TOKEN: Record<string, string> = {
+  'text-ink': '--ink-1',
+  'text-ink-secondary': '--ink-2',
+  'text-ink-tertiary': '--ink-3',
+};
+const SURFACE_TOKENS = ['--paper', '--surface-1', '--surface-2', '--surface-3'];
+
+describe('Pending text holds AA contrast at the dim end of pulseSoft (review round 2)', () => {
+  it.each([
+    ['light', LIGHT_THEME],
+    ['dark', DARK_THEME],
+  ])('%s theme: the Pending text colour is at least 4.5:1 on every surface at its dimmest frame', async (_theme, block) => {
+    // Would not notice: a text colour that passes at full opacity and fails at
+    // the dim end of the breath. axe counts the opacity, so gate G1 would fail
+    // at random on every route that shows Pending. The colour is read from the
+    // class Pending renders, so a change to the class is checked too.
+    const { Pending } = await load<typeof PendingModule>('@/components/ui/Pending');
+    render(<Pending>Reading your verified results</Pending>);
+
+    const textClass = screen
+      .getByRole('status')
+      .className.split(/\s+/)
+      .find((c) => c in PENDING_INK_TOKEN);
+    expect(textClass, 'Pending sets one of the text-ink classes').toBeDefined();
+    const ink = tokenRgb(block, PENDING_INK_TOKEN[textClass as string]);
+    const alpha = pulseSoftMinOpacity();
+
+    const worst = Math.min(
+      ...SURFACE_TOKENS.map((surface) => {
+        const bg = tokenRgb(block, surface);
+        return contrastRatio(blendOver(ink, bg, alpha), bg);
+      })
+    );
+    expect(worst).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
 describe('HC-UIFB-004: DF-3 toast layer sits below the modal and yields to overlays', () => {
   it('the --z-toast token is below --z-modal', () => {
     // Would not notice: an edit that moves the toast layer above the modal.
