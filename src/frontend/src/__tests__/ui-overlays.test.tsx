@@ -8,7 +8,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { ElementType } from 'react';
+import type { ElementType, ReactElement, ReactNode } from 'react';
+import { LazyMotion, MotionConfig, domAnimation } from 'framer-motion';
 import { Dialog } from '@/components/ui/Dialog';
 import { AlertDialog } from '@/components/ui/AlertDialog';
 import { Sheet } from '@/components/ui/Sheet';
@@ -59,11 +60,18 @@ const OVERLAY_OPEN_EVENT = 'asclexis:overlay-open';
 const TITLE_WARNING = /requires a `title` prop/;
 
 const REDUCE_QUERY = '(prefers-reduced-motion: reduce)';
+// Plan §3.2: the phone/desktop boundary is 1024 px (the sidebar appears at >= 1024).
+const DESKTOP_QUERY = '(min-width: 1024px)';
 const realMatchMedia = window.matchMedia;
 
-function setReducedMotion(reduce: boolean) {
+/**
+ * Answers only the two queries the primitives read. The match is exact-string, so a
+ * primitive that queries another width (say 768 px) gets no match and fails the
+ * desktop tests. It cannot see a different width such as 1025 px.
+ */
+function setMedia({ reducedMotion = false, desktop = false }: { reducedMotion?: boolean; desktop?: boolean }) {
   window.matchMedia = ((query: string) => ({
-    matches: reduce && query === REDUCE_QUERY,
+    matches: (reducedMotion && query === REDUCE_QUERY) || (desktop && query === DESKTOP_QUERY),
     media: query,
     onchange: null,
     addListener: () => {},
@@ -72,6 +80,10 @@ function setReducedMotion(reduce: boolean) {
     removeEventListener: () => {},
     dispatchEvent: () => false,
   })) as unknown as typeof window.matchMedia;
+}
+
+function setReducedMotion(reduce: boolean) {
+  setMedia({ reducedMotion: reduce });
 }
 
 const realConsoleError = console.error.bind(console);
@@ -97,6 +109,30 @@ afterEach(() => {
   expect(leaked, 'overlay rendered without a title').toEqual([]);
 });
 
+/**
+ * The providers the app mounts (MotionProvider), with the DOM features loaded at once.
+ * Without them `m.*` renders but no animation runs and AnimatePresence removes the
+ * content at once, so the exit path (and focus return after it) never executes.
+ */
+function Providers({ children }: { children: ReactNode }) {
+  return (
+    <LazyMotion features={domAnimation} strict>
+      <MotionConfig reducedMotion="user">{children}</MotionConfig>
+    </LazyMotion>
+  );
+}
+
+function renderInProviders(ui: ReactElement) {
+  return render(ui, { wrapper: Providers });
+}
+
+const TITLE: Record<OverlayKind, string> = {
+  dialog: 'Lab details',
+  alertdialog: 'Delete this profile?',
+  sheet: 'More',
+};
+const POPOVER_LABEL = 'Potassium details';
+
 function renderOverlay(kind: Kind, still = false) {
   const trigger = <button type="button">{`Open ${kind}`}</button>;
   const body = (
@@ -108,16 +144,16 @@ function renderOverlay(kind: Kind, still = false) {
   );
   switch (kind) {
     case 'dialog':
-      return render(
-        <Dialog trigger={trigger} title="Lab details" description="Read-only summary" still={still}>
+      return renderInProviders(
+        <Dialog trigger={trigger} title={TITLE.dialog} description="Read-only summary" still={still}>
           {body}
         </Dialog>
       );
     case 'alertdialog':
-      return render(
+      return renderInProviders(
         <AlertDialog
           trigger={trigger}
-          title="Delete this profile?"
+          title={TITLE.alertdialog}
           description="This cannot be undone."
           still={still}
         >
@@ -125,14 +161,14 @@ function renderOverlay(kind: Kind, still = false) {
         </AlertDialog>
       );
     case 'sheet':
-      return render(
-        <Sheet trigger={trigger} title="More" description="Other pages" still={still}>
+      return renderInProviders(
+        <Sheet trigger={trigger} title={TITLE.sheet} description="Other pages" still={still}>
           {body}
         </Sheet>
       );
     case 'popover':
-      return render(
-        <Popover trigger={trigger} still={still}>
+      return renderInProviders(
+        <Popover trigger={trigger} label={POPOVER_LABEL} still={still}>
           {body}
         </Popover>
       );
@@ -144,13 +180,13 @@ function renderWithoutTitle(kind: OverlayKind) {
   switch (kind) {
     case 'dialog':
       // @ts-expect-error title is required by the type; this render checks the runtime guard
-      return render(<Dialog trigger={trigger}>{<p>Body</p>}</Dialog>);
+      return renderInProviders(<Dialog trigger={trigger}>{<p>Body</p>}</Dialog>);
     case 'alertdialog':
       // @ts-expect-error title is required by the type; this render checks the runtime guard
-      return render(<AlertDialog trigger={trigger}>{<p>Body</p>}</AlertDialog>);
+      return renderInProviders(<AlertDialog trigger={trigger}>{<p>Body</p>}</AlertDialog>);
     case 'sheet':
       // @ts-expect-error title is required by the type; this render checks the runtime guard
-      return render(<Sheet trigger={trigger}>{<p>Body</p>}</Sheet>);
+      return renderInProviders(<Sheet trigger={trigger}>{<p>Body</p>}</Sheet>);
   }
 }
 
@@ -226,6 +262,58 @@ describe('HC-UIOV-002 focus stays inside an open Dialog or Sheet over 25 Tab pre
   });
 });
 
+describe('HC-UIOV-002 the actions of a tall overlay can be reached: the content scrolls', () => {
+  // Would not notice: the rendered height. jsdom has no layout, so these pin the classes
+  // that make the content scroll inside a 320 x 640 phone viewport. Clipping at that size
+  // is only visible in a browser, and no browser run covers it in this row.
+  it('a Dialog is capped at the viewport and scrolls', async () => {
+    const user = userEvent.setup();
+    renderOverlay('dialog');
+    await user.click(triggerOf('dialog'));
+
+    expect(screen.getByRole('dialog')).toHaveClass('max-h-[calc(100dvh-2rem)]', 'overflow-y-auto');
+  });
+
+  it('an AlertDialog is capped at the viewport and scrolls', async () => {
+    const user = userEvent.setup();
+    renderOverlay('alertdialog');
+    await user.click(triggerOf('alertdialog'));
+
+    expect(screen.getByRole('alertdialog')).toHaveClass('max-h-[calc(100dvh-2rem)]', 'overflow-y-auto');
+  });
+
+  it('a bottom Sheet is capped at 85dvh, scrolls, and clears the home indicator', async () => {
+    const user = userEvent.setup();
+    renderOverlay('sheet');
+    await user.click(triggerOf('sheet'));
+
+    expect(screen.getByRole('dialog')).toHaveClass(
+      'max-h-[85dvh]',
+      'overflow-y-auto',
+      'pb-[max(1.5rem,env(safe-area-inset-bottom))]'
+    );
+  });
+
+  it('a side Sheet on desktop scrolls', async () => {
+    setMedia({ desktop: true });
+    const user = userEvent.setup();
+    renderOverlay('sheet');
+    await user.click(triggerOf('sheet'));
+
+    expect(screen.getByRole('dialog')).toHaveClass('inset-y-0', 'overflow-y-auto');
+  });
+
+  // Would not notice: a close target smaller than 44 px, which the touch-target rule
+  // (plan HC-UIPC-002) forbids. The class is the only thing jsdom can see of its size.
+  it('the close button is a 44 px target', async () => {
+    const user = userEvent.setup();
+    renderOverlay('dialog');
+    await user.click(triggerOf('dialog'));
+
+    expect(screen.getByRole('button', { name: 'Close' })).toHaveClass('h-11', 'w-11');
+  });
+});
+
 describe('HC-UIOV-003 aria-modal, and a missing title fails the test', () => {
   // Would not notice: Radix 1.3.1 emits no missing-DialogTitle warning, so the
   // title guard is this primitive's own console.error. A title that is only whitespace passes it.
@@ -234,8 +322,19 @@ describe('HC-UIOV-003 aria-modal, and a missing title fails the test', () => {
     renderOverlay(kind);
     await user.click(triggerOf(kind));
 
-    expect(screen.getByRole(ROLE[kind])).toHaveAttribute('aria-modal', 'true');
+    // Named by its title: a Title that is not wired to aria-labelledby leaves the name empty.
+    expect(screen.getByRole(ROLE[kind], { name: TITLE[kind] })).toHaveAttribute('aria-modal', 'true');
     expect(titleWarnings).toEqual([]);
+  });
+
+  // Would not notice: a Popover whose label is dropped still has role "dialog", so the
+  // role check alone passes. The name check is what fails when the label is missing.
+  it('popover content is named by its label prop', async () => {
+    const user = userEvent.setup();
+    renderOverlay('popover');
+    await user.click(triggerOf('popover'));
+
+    expect(screen.getByRole('dialog', { name: POPOVER_LABEL })).toBeInTheDocument();
   });
 
   it.each(['dialog', 'alertdialog', 'sheet'] as const)(
@@ -284,6 +383,31 @@ describe('HC-UIOV-004 reduced motion: the content animates opacity only', () => 
       expect(Object.keys((contentMotion(ROLE[kind]).initial ?? {}) as object)).toContain('transform');
     }
   );
+});
+
+describe('HC-UIOV-004 Sheet direction (M5): bottom below 1024 px, side at 1024 px and up', () => {
+  // Would not notice: a breakpoint other than 1024 px, because the mock matches the exact
+  // query string. It also would not notice a sheet that slides from the wrong edge
+  // without the initial transform being checked here.
+  it('below 1024 px the sheet slides from the bottom', async () => {
+    setMedia({ desktop: false });
+    const user = userEvent.setup();
+    renderOverlay('sheet');
+    await user.click(triggerOf('sheet'));
+
+    expect(contentMotion('dialog').initial).toEqual({ transform: 'translateY(100%)' });
+    expect(contentMotion('dialog').exit).toMatchObject({ transform: 'translateY(100%)' });
+  });
+
+  it('at 1024 px the sheet slides from the side', async () => {
+    setMedia({ desktop: true });
+    const user = userEvent.setup();
+    renderOverlay('sheet');
+    await user.click(triggerOf('sheet'));
+
+    expect(contentMotion('dialog').initial).toEqual({ transform: 'translateX(100%)' });
+    expect(contentMotion('dialog').exit).toMatchObject({ transform: 'translateX(100%)' });
+  });
 });
 
 describe('HC-UIOV-005 Popover opens on click, Enter and Space, not on hover', () => {
