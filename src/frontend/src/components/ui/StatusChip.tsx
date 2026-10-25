@@ -2,9 +2,9 @@ import {
   AlertTriangle,
   ArrowDown,
   ArrowUp,
-  CheckCircle2,
   Circle,
   Info,
+  Minus,
   UserCheck,
   type LucideIcon,
 } from 'lucide-react';
@@ -26,7 +26,7 @@ export type StatusChipState =
 const STATES: Record<StatusChipState, { label: string; Icon: LucideIcon; tone: string }> = {
   'in-range': {
     label: 'In range',
-    Icon: CheckCircle2,
+    Icon: Minus,
     tone: 'bg-surface-sunken text-ink',
   },
   'above-range': {
