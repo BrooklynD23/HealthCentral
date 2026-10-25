@@ -16,6 +16,8 @@ export interface PopoverProps {
    * Space through the element's own activation. Hover never opens it.
    */
   trigger: ReactNode;
+  /** The popover's accessible name (its content has role "dialog"). Required. */
+  label: string;
   /** M0 for content that holds T0 data. */
   still?: boolean;
   side?: 'top' | 'right' | 'bottom' | 'left';
@@ -43,6 +45,7 @@ export function Popover({
   defaultOpen,
   onOpenChange,
   trigger,
+  label,
   still = false,
   side = 'bottom',
   align = 'center',
@@ -62,6 +65,7 @@ export function Popover({
             <PopoverPrimitive.Content
               asChild
               forceMount
+              aria-label={label}
               side={side}
               align={align}
               sideOffset={6}
