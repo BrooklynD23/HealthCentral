@@ -132,23 +132,33 @@ test('HC-UITK-005: the focused nav link has no outline; its ring is the global b
 test.describe('HC-UITK-005: reduced motion keeps the loaders breathing (M12)', () => {
   test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
-  test('HC-UITK-005: a shimmer loader still runs pulseSoft, infinitely, under reduced motion', async ({
+  test('HC-UITK-005: a shimmer loader and the typing dots still run pulseSoft, infinitely, under reduced motion', async ({
     page,
   }) => {
     await page.goto('/recover');
     await expect(page.locator('#recover-code')).toBeVisible({ timeout: 15000 });
     const running = await page.evaluate(() => {
-      const probe = document.createElement('div');
-      probe.className = 'animate-shimmer';
-      document.body.appendChild(probe);
-      const animations = probe.getAnimations().map((animation) => ({
-        name: (animation as CSSAnimation).animationName,
-        infinite: animation.effect?.getComputedTiming().iterations === Infinity,
-      }));
-      probe.remove();
-      return animations;
+      const probeAnimations = (tag: string, className: string) => {
+        const probe = document.createElement(tag);
+        probe.className = className;
+        document.body.appendChild(probe);
+        const animations = probe.getAnimations().map((animation) => ({
+          name: (animation as CSSAnimation).animationName,
+          infinite: animation.effect?.getComputedTiming().iterations === Infinity,
+        }));
+        probe.remove();
+        return animations;
+      };
+      return {
+        shimmer: probeAnimations('div', 'animate-shimmer'),
+        // The typing dots in ExplainAssistant.tsx are spans with animate-bounce (plan §2.6 M12, G5).
+        typingDots: probeAnimations('span', 'animate-bounce'),
+      };
     });
-    expect(running, 'the reduced-motion shimmer runs pulseSoft as a loop').toEqual([
+    expect(running.shimmer, 'the reduced-motion shimmer runs pulseSoft as a loop').toEqual([
+      { name: 'pulseSoft', infinite: true },
+    ]);
+    expect(running.typingDots, 'the reduced-motion typing dots run pulseSoft as a loop, not bounce').toEqual([
       { name: 'pulseSoft', infinite: true },
     ]);
   });
