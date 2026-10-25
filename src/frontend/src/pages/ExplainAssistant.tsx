@@ -648,7 +648,7 @@ export function ExplainAssistant() {
                       className={cn(
                         'text-xs mt-2',
                         message.role === 'user'
-                          ? 'text-white/60'
+                          ? 'text-white/80'
                           : 'text-ink-tertiary'
                       )}
                     >
