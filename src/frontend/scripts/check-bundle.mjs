@@ -10,6 +10,8 @@
 // module the entry loads with import(). "Results total" is main plus the Results
 // page and everything it reaches by static or dynamic import (its chart included).
 // Shared chunks that only static importers load are not route chunks.
+// The orbs chunk is found by its source map, not its name: Vite names the
+// package's chunk after its module file (index.es-*.js). That needs sourcemap: true.
 // kB = 1000 bytes, the unit Vite prints in its gzip column.
 
 import { gzipSync } from 'node:zlib';
@@ -23,6 +25,8 @@ const ASSETS = 'assets/';
 const STATIC_RE = /\b(?:from|import)\s*["'](\.{1,2}\/[^"']+)["']/g;
 // import("./a.js"): how Vite loads each lazy route and the palette
 const DYNAMIC_RE = /\bimport\(\s*["'](\.{1,2}\/[^"']+)["']\s*\)/g;
+// A chunk whose source map lists a file under this folder holds the orbs package.
+const ORBS_SOURCE = 'node_modules/thinking-orbs/';
 
 export const BUDGETS = [
   { name: 'main JS', limitKb: 165, required: true, mode: 'each', pick: (c) => [c.entry] },
@@ -33,11 +37,11 @@ export const BUDGETS = [
   { name: 'CSS', limitKb: 25, required: true, mode: 'sum', pick: (c) => c.cssFiles() },
   { name: 'total first-load JS', limitKb: 200, required: true, mode: 'sum', pick: (c) => [c.entry, ...c.preload] },
   { name: 'palette (CommandPalette)', limitKb: 8, required: false, mode: 'each', pick: (c) => c.find(/^CommandPalette-/) },
-  { name: 'thinking-orbs', limitKb: 15, required: false, mode: 'each', pick: (c) => c.find(/^(?:ThinkingOrb|thinking-orbs)-/) },
+  { name: 'thinking-orbs', limitKb: 15, required: false, mode: 'each', pick: (c) => c.orbsChunks() },
   { name: 'Results total', limitKb: 205, required: false, mode: 'sum', pick: (c) => c.resultsGroup() },
 ];
 
-// Reads every file under dist (except source maps) as { path, bytes }, with
+// Reads every file under dist, source maps included, as { path, bytes }, with
 // '/'-separated paths relative to the folder. A missing folder throws.
 export function readDist(dir) {
   const out = [];
@@ -46,7 +50,7 @@ export function readDist(dir) {
       const childAbs = join(abs, entry.name);
       const childRel = rel ? `${rel}/${entry.name}` : entry.name;
       if (entry.isDirectory()) walk(childAbs, childRel);
-      else if (entry.isFile() && !entry.name.endsWith('.map')) {
+      else if (entry.isFile()) {
         out.push({ path: childRel, bytes: readFileSync(childAbs) });
       }
     }
@@ -80,6 +84,12 @@ function edgesOf(page, bytes) {
     statics: [...text.matchAll(STATIC_RE)].map(target),
     dynamics: [...text.matchAll(DYNAMIC_RE)].map(target),
   };
+}
+
+// The source files Vite lists in a chunk's source map; [] when the chunk has no map.
+function sourcesOf(byPath, jsPath) {
+  const map = byPath.get(`${jsPath}.map`);
+  return map ? (JSON.parse(Buffer.from(map).toString('utf8')).sources ?? []) : [];
 }
 
 // Every file reachable from `start` through static or dynamic imports, sorted.
@@ -148,7 +158,9 @@ export function checkBudgets(files, budgets = BUDGETS) {
   const html = byPath.has('index.html') ? Buffer.from(byPath.get('index.html')).toString('utf8') : '';
   const { entry, preload } = parseIndexHtml(html);
   const find = (re) =>
-    [...byPath.keys()].filter((p) => p.startsWith(ASSETS) && re.test(p.slice(ASSETS.length))).sort();
+    [...byPath.keys()]
+      .filter((p) => p.startsWith(ASSETS) && p.endsWith('.js') && re.test(p.slice(ASSETS.length)))
+      .sort();
   const entryDynamics =
     entry !== null && byPath.has(entry) ? edgesOf(entry, byPath.get(entry)).dynamics : [];
   const picker = {
@@ -157,6 +169,15 @@ export function checkBudgets(files, budgets = BUDGETS) {
     find,
     cssFiles: () => [...byPath.keys()].filter((p) => p.endsWith('.css')).sort(),
     routeChunks: () => [...new Set(entryDynamics)].sort(),
+    orbsChunks: () =>
+      [...byPath.keys()]
+        .filter(
+          (p) =>
+            p.startsWith(ASSETS) &&
+            p.endsWith('.js') &&
+            sourcesOf(byPath, p).some((s) => s.includes(ORBS_SOURCE)),
+        )
+        .sort(),
     resultsGroup: () => {
       const [page] = find(/^ResultsPage-/);
       if (!page) return [];

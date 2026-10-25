@@ -155,6 +155,50 @@ describe('HC-UIBG-001: an over-budget chunk fails and names the budget', () => {
     expect(result.ok).toBe(false);
     expect(failedNames(result.rows)).toEqual(['Results total']);
   });
+
+  it('a 16 kB gz thinking-orbs chunk fails its budget, though Vite names it index.es-*', async () => {
+    const { checkBudgets, BUDGETS, readDist } = await loadCheck();
+    const over = replaceBytes(readDist(FIXTURE), 'assets/index.es-fx15.js', incompressible(16_000, 23));
+
+    const result = checkBudgets(over, BUDGETS);
+
+    expect(result.ok).toBe(false);
+    expect(failedNames(result.rows)).toEqual(['thinking-orbs']);
+    expect(result.rows.find((r) => r.name === 'thinking-orbs')?.detail).toContain('assets/index.es-fx15.js');
+  });
+
+  it('a preloaded vendor chunk counts toward total first-load JS, and main JS still passes', async () => {
+    const { checkBudgets, BUDGETS, readDist } = await loadCheck();
+    const files = replaceBytes(readDist(FIXTURE), 'assets/vendor-fx02.js', incompressible(100_000, 29));
+    const over = files.map((f) =>
+      f.path === ENTRY ? { path: f.path, bytes: appendBytes(f.bytes, incompressible(105_000, 31)) } : f,
+    );
+
+    const result = checkBudgets(over, BUDGETS);
+
+    expect(result.ok).toBe(false);
+    expect(failedNames(result.rows)).toEqual(['total first-load JS']);
+    const total = result.rows.find((r) => r.name === 'total first-load JS');
+    expect(total?.measuredKb).toBeGreaterThan(200);
+    expect(total?.detail).toContain('assets/vendor-fx02.js');
+  });
+
+  it('an index.html with two module scripts fails closed: main JS and total first-load JS both FAIL', async () => {
+    const { checkBudgets, BUDGETS, readDist } = await loadCheck();
+    const files = readDist(FIXTURE);
+    const html = dec.decode(files.find((f) => f.path === 'index.html')?.bytes);
+    const twoEntries = html.replace(
+      '</head>',
+      '    <script type="module" crossorigin src="/assets/index-fx00.js"></script>\n  </head>',
+    );
+    expect(twoEntries).not.toBe(html);
+
+    const result = checkBudgets(replaceBytes(files, 'index.html', enc.encode(twoEntries)), BUDGETS);
+
+    expect(result.ok).toBe(false);
+    expect(result.rows.find((r) => r.name === 'main JS')?.status).toBe('FAIL');
+    expect(result.rows.find((r) => r.name === 'total first-load JS')?.status).toBe('FAIL');
+  });
 });
 
 describe('HC-UIBG-002: a fixture under every budget passes', () => {
