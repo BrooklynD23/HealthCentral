@@ -576,13 +576,20 @@ class TestDobLayoutsNotCollectionDates:
         assert _module()._extract_dates(f"{header}\n{row}\n") == ["2026-03-04"]
 
     def test_hc_edf_004_dob_inputs_stay_linear_with_new_tail_regex(self):
-        """HC-EDF-004 (pin): HC-DATE-009's inputs, plus a format-hint probe, each under 1.0 s."""
+        """HC-EDF-004 (pin): HC-DATE-009's inputs, a format-hint probe and a long token header.
+
+        Each must run under 1.0 s. The token header needs its newline: a single
+        line has no next line to read as a data row, so it never reaches the
+        column pass. Its tokens are not whitespace, so the whitespace inputs above
+        cannot see a per-token cost.
+        """
         m = _module()
         many = "".join(f"DOB{' ' * 2000}x 2024-01-{(i % 28) + 1:02d}\n" for i in range(200))
         inputs = {
             "50000-space": "DOB" + " " * 50000 + "x 1970-01-01",
             "50000-space-hint": "DOB (" + " " * 50000 + "x 1970-01-01",
             "200-line": many,
+            "50000-token-header": "DOB " + "1 " * 50000 + "\n",
         }
         for name, text in inputs.items():
             start = time.perf_counter()
@@ -600,11 +607,16 @@ class TestDobLayoutsNotCollectionDates:
         # A header line that carries a date is not a header: both dates are kept.
         ("Jane DOB 01/02/1960 F\nCollected 03/04/2026 Received 03/05/2026\n",
          ["2026-03-04", "2026-03-05"]),
+        # Same header-line guard with no collection label. Without it, the date under
+        # the DOB column is dropped, so the exact list catches the missing guard.
+        ("Jane DOB 01/02/1960 F\nReported 03/04/2026 Received 03/05/2026\n",
+         ["2026-03-04", "2026-03-05"]),
     ], ids=[
         "collected-middle-column",
         "collected-first-column",
         "labelled-line-under-dob-header",
         "header-line-with-date",
+        "header-line-with-unlabelled-date",
     ])
     def test_hc_edf_005_collected_header_column_date_is_kept(self, text, expected):
         """HC-EDF-005 (pin): a date under a Collected column or on a labelled line is kept.
@@ -613,14 +625,24 @@ class TestDobLayoutsNotCollectionDates:
         """
         assert _module()._extract_dates(text) == expected
 
-    def test_hc_edf_005_token_count_mismatch_is_pinned_as_known_gap(self):
-        """HC-EDF-005 (known gap, pinned): on a token-count mismatch the column guard is off.
+    def test_hc_edf_005_token_count_mismatch_keeps_the_collected_date(self):
+        """HC-EDF-005: on a token-count mismatch the column guard is off, and the Collected date stays.
 
         The header has 3 tokens and the data row 2, so nothing is skipped by column.
-        The DOB then leaks in as the priority date (Stage 1 reads `Collected` followed
-        by the DOB on the next line). The Collected date is still kept. Pinned so the
-        current output is visible; a fix that changes it must update this on purpose.
+        The DOB may still leak into the output (see the known-gap test below); the
+        Collected date must never be dropped.
+        """
+        result = _module()._extract_dates("Patient  DOB  Collected\n01/02/1960  03/04/2026\n")
+        assert "2026-03-04" in result
+
+    @pytest.mark.xfail(strict=True, reason="EXTRACT-DOB-FORMS known gap: token-count mismatch")
+    def test_hc_edf_005_token_count_mismatch_dob_leak_known_gap(self):
+        """HC-EDF-005 (known gap): on a token-count mismatch the DOB leaks as a collection date.
+
+        The correct output is ['2026-03-04']; today the DOB 1960-01-02 comes first.
+        Strict xfail: once a fix makes this pass, the run reports XPASS as a failure,
+        so the marker is removed on purpose, not by accident.
         """
         assert _module()._extract_dates(
             "Patient  DOB  Collected\n01/02/1960  03/04/2026\n"
-        ) == ["1960-01-02", "2026-03-04"]
+        ) == ["2026-03-04"]
