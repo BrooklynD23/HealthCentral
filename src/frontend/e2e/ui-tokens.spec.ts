@@ -23,9 +23,12 @@ const CLS_BUDGET = 0.02;
  * fails contrast at 4.44:1 and is reassigned from UI-TOKENS to UI-SHELL §3.6, which
  * replaces the TopBar. The badge renders in the TopBar on these five routes only.
  */
-const TOPBAR_BADGE_SELECTOR = '.px-1\\.5';
 const TOPBAR_BADGE_ROUTES: ReadonlySet<string> = new Set(['/inbox', '/verify', '/trends', '/explain', '/settings']);
-/** The exclusion must be the badge itself: a bare span with the badge class and its ON/OFF text. */
+/**
+ * Axe names the badge by a selector that depends on the page: `.px-1\.5` on four routes, `.text-\[10px\]`
+ * on /trends (same element). The exclusion therefore matches the badge's HTML, not its selector.
+ * The exclusion must be the badge itself: a bare span with the badge class and its ON/OFF text.
+ */
 const TOPBAR_BADGE_HTML = /^<span\b[^>]*\bpx-1\.5\b[^>]*>(ON|OFF)<\/span>$/;
 
 /** Waits until no finite animation runs. Infinite loaders (spinners, pulses) are ignored. */
@@ -66,10 +69,10 @@ test.describe('UI-TOKENS contrast on scanned routes', () => {
       // Only the TopBar badge is excluded, and only on the TopBar routes (L0 ruling 1).
       // Every excluded node must be that badge, so the exclusion cannot hide another .px-1\.5 element.
       const badge = TOPBAR_BADGE_ROUTES.has(route)
-        ? allNodes.filter((node) => node.selector === TOPBAR_BADGE_SELECTOR)
+        ? allNodes.filter((node) => TOPBAR_BADGE_HTML.test(node.html))
         : [];
       for (const node of badge) {
-        expect(node.html, `excluded ${TOPBAR_BADGE_SELECTOR} node on ${route} is the TopBar badge`).toMatch(
+        expect(node.html, `excluded node on ${route} is the TopBar badge`).toMatch(
           TOPBAR_BADGE_HTML
         );
       }
