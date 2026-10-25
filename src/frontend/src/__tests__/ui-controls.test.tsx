@@ -17,6 +17,16 @@ import { join, resolve } from 'node:path';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { IconButton } from '@/components/ui/IconButton';
+import { Input } from '@/components/ui/Input';
+import { Textarea } from '@/components/ui/Textarea';
+import { Checkbox } from '@/components/ui/Checkbox';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/Select';
 
 const UI_DIR = resolve(__dirname, '..', 'components', 'ui');
 const GLOBALS_CSS = resolve(__dirname, '..', 'styles', 'globals.css');
@@ -97,8 +107,31 @@ describe('UI-PRIM-CONTROLS IconButton', () => {
   });
 });
 
+describe('HC-UIPC-005 field error state', () => {
+  it('Input: aria-invalid goes "true" then absent when the error prop clears, and the label stays associated', () => {
+    const { rerender } = render(<Input label="Profile name" error="Name is required" />);
+    expect(screen.getByLabelText('Profile name')).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByLabelText('Profile name')).toHaveAccessibleDescription('Name is required');
+
+    rerender(<Input label="Profile name" />);
+    const input = screen.getByLabelText('Profile name');
+    expect(input).not.toHaveAttribute('aria-invalid');
+    expect(input).not.toHaveAccessibleDescription('Name is required');
+    expect(screen.queryByText('Name is required')).toBeNull();
+  });
+
+  it('Textarea: the same field contract as Input', () => {
+    const { rerender } = render(<Textarea label="Notes" error="Too long" />);
+    expect(screen.getByLabelText('Notes')).toHaveAttribute('aria-invalid', 'true');
+
+    rerender(<Textarea label="Notes" />);
+    expect(screen.getByLabelText('Notes')).not.toHaveAttribute('aria-invalid');
+    expect(screen.queryByText('Too long')).toBeNull();
+  });
+});
+
 describe('HC-UIPC-006 transition-all is banned on the primitives', () => {
-  it('HC-UIPC-006: no Button variant or size, and no IconButton, has transition-all', () => {
+  it('HC-UIPC-006: every Button variant and size, IconButton, Input, Textarea, Select trigger and Checkbox render without transition-all', () => {
     const { container } = render(
       <div>
         {VARIANTS.flatMap((variant) =>
@@ -111,18 +144,30 @@ describe('HC-UIPC-006 transition-all is banned on the primitives', () => {
         <IconButton aria-label="Add dose">
           <Plus />
         </IconButton>
+        <Input label="Dose" />
+        <Textarea label="Notes" />
+        <Select>
+          <SelectTrigger aria-label="Category">
+            <SelectValue placeholder="Pick one" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="a">A</SelectItem>
+          </SelectContent>
+        </Select>
+        <Checkbox aria-label="Saved the code" />
       </div>
     );
-    const buttons = Array.from(container.querySelectorAll('button'));
-    expect(buttons).toHaveLength(VARIANTS.length * SIZES.length + 1);
-    const offending = buttons
-      .filter((button) => hasTransitionAll(button.className))
-      .map((button) => button.className);
+    // Every element with a class attribute, wrappers and icons included.
+    const classed = Array.from(container.querySelectorAll('[class]'));
+    expect(classed.length).toBeGreaterThan(VARIANTS.length * SIZES.length);
+    const offending = classed
+      .filter((element) => hasTransitionAll(element.getAttribute('class') ?? ''))
+      .map((element) => element.getAttribute('class'));
     expect(offending).toEqual([]);
   });
 
-  it('HC-UIPC-006: the Button and IconButton source files do not name transition-all', () => {
-    for (const file of ['Button.tsx', 'IconButton.tsx']) {
+  it('HC-UIPC-006: the primitive source files do not name transition-all', () => {
+    for (const file of ['Button.tsx', 'IconButton.tsx', 'Input.tsx', 'Textarea.tsx', 'Select.tsx', 'Checkbox.tsx']) {
       expect(primitiveSource(file), file).not.toMatch(/transition-all/);
     }
   });
