@@ -937,7 +937,9 @@ I was unable to fully process your question within the time limit. Please try as
                     f"{verification_metadata.failed_claims} claim(s) could not be verified"
                 )
 
-            if verification_metadata.faithfulness_score < 0.6:
+            # SAFETY-MODE-STRICT: compare against the scorer's own threshold. The
+            # default is 0.6, so the default module is unchanged; the strict module passes 0.75.
+            if verification_metadata.faithfulness_score < self.faithfulness_scorer.config.min_overall_score:
                 errors.append(
                     f"Low faithfulness score: {verification_metadata.faithfulness_score:.2f}"
                 )

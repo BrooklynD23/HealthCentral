@@ -233,6 +233,37 @@ def get_rag_module() -> RAGModule:
     return _rag_module
 
 
+# SAFETY-MODE-STRICT: the owner's "Stricter checks" option (0.75, as the option stated).
+# Not a measured value; the owner may change it, and only this constant changes.
+STRICT_MIN_SCORE = 0.75
+_strict_rag_module: Optional[RAGModule] = None
+
+
+def get_strict_rag_module() -> RAGModule:
+    """The legacy RAG module for a profile whose strict safety mode is on.
+
+    Built like get_rag_module, but both the faithfulness and the verifier
+    thresholds are STRICT_MIN_SCORE. Callers choose it only after
+    is_strict_safety_mode(profile_db) returns True.
+    """
+    global _strict_rag_module
+    if _strict_rag_module is None:
+        from core.config import settings as app_settings
+
+        _strict_rag_module = RAGModule(
+            enable_verification=True,
+            verification_config=VerificationConfig(
+                min_faithfulness_score=STRICT_MIN_SCORE,
+                fail_on_contradiction=True,
+                use_llm_entailment=app_settings.use_llm_entailment,
+            ),
+            faithfulness_config=FaithfulnessConfig(
+                min_overall_score=STRICT_MIN_SCORE,
+            ),
+        )
+    return _strict_rag_module
+
+
 def _legacy_serve_or_abstain(result: ValidatedResponse) -> ValidatedResponse:
     """G-B5 (owner decision 2026-09-27): never serve a legacy answer that failed
     validation. Any is_valid=False result (missing or invalid citations,
@@ -1148,7 +1179,10 @@ async def chat(
                 await db.commit()
 
         if not use_agent or agent_failed:
-            result = await rag.query(
+            # SAFETY-MODE-STRICT: a profile with strict safety mode on gets the 0.75
+            # module. OFF keeps the 0.6 module, so OFF is unchanged.
+            legacy_rag = get_strict_rag_module() if await is_strict_safety_mode(profile_db) else rag
+            result = await legacy_rag.query(
                 question=request.question,
                 profile_id=session.profile_id,
                 selected_analytes=request.selected_analytes,
@@ -1481,9 +1515,24 @@ async def get_glossary_term(
 
 
 @router.get("/verification-status")
-async def get_verification_status(session: RequireAuth):
-    """Get current verification system status."""
+async def get_verification_status(
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """Get current verification system status. Audited read (SAFETY-MODE-STRICT):
+    reports the faithfulness threshold in force for this profile."""
     rag = get_rag_module()
+    min_score = STRICT_MIN_SCORE if await is_strict_safety_mode(profile_db) else 0.6
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type="verification_status_viewed",
+        action="verification_status_viewed",
+        profile_id=session.profile_id,
+        entity_type="settings",
+        entity_id="verification_status",
+    )
     return {
         "verification_enabled": rag.enable_verification,
         "components": {
@@ -1493,7 +1542,7 @@ async def get_verification_status(session: RequireAuth):
             "faithfulness_scorer": "active",
         },
         "configuration": {
-            "min_faithfulness_score": 0.6,
+            "min_faithfulness_score": min_score,
             "fail_on_contradiction": True,
             "min_supporting_sources": 1,
         },

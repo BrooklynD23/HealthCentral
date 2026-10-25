@@ -176,7 +176,9 @@ def test_hc_rel_005_chat_route_500_does_not_log_provider_text(log_records):
     async def _profile_db_override():
         yield profile_db
 
+    # SAFETY-MODE-STRICT: mock profile DB; pin OFF (L0 ruling, PR #355)
     with patch.object(assistant_api, "get_rag_module", return_value=_rag_with_real_generation()), \
+        patch("api.assistant.is_strict_safety_mode", AsyncMock(return_value=False)), \
         patch.object(assistant_api, "is_agent_enabled", return_value=False), \
         patch.object(assistant_api, "_get_user_model_settings", AsyncMock(return_value=None)), \
         patch.object(assistant_api, "_get_or_create_session", AsyncMock(return_value=chat_session)), \
