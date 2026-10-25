@@ -184,7 +184,9 @@ describe('HC-UIFB-003: Pending keeps breathing under reduced motion', () => {
 
     const status = screen.getByRole('status');
     expect(status).toHaveTextContent('Reading your verified results');
-    expect(status.className).toMatch(/pulseSoft_1\.6s/);
+    // An exact class token, not a substring: `motion-safe:` or `motion-reduce:`
+    // in front of it would still contain the substring, and would switch it off.
+    expect(status.className.split(/\s+/)).toContain('animate-[pulseSoft_1.6s_ease-in-out_infinite]');
   });
 
   it('names keyframes that change opacity only, never transform', () => {

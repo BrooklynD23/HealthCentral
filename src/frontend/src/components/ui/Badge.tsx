@@ -35,4 +35,14 @@ function Badge({ className, variant, ...props }: BadgeProps) {
   );
 }
 
-export { Badge, badgeVariants };
+const tagClasses = [
+  'inline-flex items-center gap-1.5 rounded-md border border-border',
+  'px-2 py-0.5 text-xs font-medium text-ink-secondary',
+].join(' ');
+
+/** A neutral label with no status colour, so it never reads as a verdict. */
+function Tag({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={cn(tagClasses, className)} {...props} />;
+}
+
+export { Badge, badgeVariants, Tag };
