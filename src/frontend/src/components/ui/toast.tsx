@@ -31,7 +31,7 @@ export function notify({ message, action, still = false }: NotifyOptions) {
     </span>,
     {
       action,
-      style: still ? { transition: 'none', opacity: 1 } : undefined,
+      style: still ? { transition: 'none' } : undefined,
       classNames: still ? { content: STILL_CONTENT } : undefined,
     }
   );
