@@ -8,17 +8,32 @@
  */
 
 import { Suspense, lazy, type ReactNode } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Skeleton } from './components/ui';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Layout
 import { AppLayout } from './components/layout';
 import { ProtectedRoute } from './components/auth';
 
-// Eager pages
-import { ProfileSetup, DocumentInbox, VerificationWorkbench, SettingsPage } from './pages';
+// First-run page (not lazy: it is the entry point before a profile exists).
+// Imported from its module, not the './pages' barrel, so the lazy pages below
+// are not also statically imported into the main chunk.
+import { ProfileSetup } from './pages/ProfileSetup';
 
+const DocumentInbox = lazy(async () => {
+  const module = await import('./pages/DocumentInbox');
+  return { default: module.DocumentInbox };
+});
+const VerificationWorkbench = lazy(async () => {
+  const module = await import('./pages/VerificationWorkbench');
+  return { default: module.VerificationWorkbench };
+});
+const SettingsPage = lazy(async () => {
+  const module = await import('./pages/SettingsPage');
+  return { default: module.SettingsPage };
+});
 const TrendsDashboard = lazy(async () => {
   const module = await import('./pages/TrendsDashboard');
   return { default: module.TrendsDashboard };
@@ -94,8 +109,21 @@ function RouteFallback() {
   );
 }
 
+/**
+ * Error boundary for one route. Keyed by path, so navigating to another page
+ * remounts it and clears a caught error.
+ */
+function RouteBoundary({ children }: { children: ReactNode }) {
+  const { pathname } = useLocation();
+  return <ErrorBoundary key={pathname}>{children}</ErrorBoundary>;
+}
+
 function lazyRoute(element: ReactNode) {
-  return <Suspense fallback={<RouteFallback />}>{element}</Suspense>;
+  return (
+    <RouteBoundary>
+      <Suspense fallback={<RouteFallback />}>{element}</Suspense>
+    </RouteBoundary>
+  );
 }
 
 function App() {
@@ -104,7 +132,7 @@ function App() {
       <BrowserRouter>
         <Routes>
           {/* First run / no profile */}
-          <Route path="/setup" element={<ProfileSetup />} />
+          <Route path="/setup" element={<RouteBoundary><ProfileSetup /></RouteBoundary>} />
 
           {/* Forgot password -> recovery code (SEC-RECOV-001) */}
           <Route path="/recover" element={lazyRoute(<RecoverProfile />)} />
@@ -113,8 +141,8 @@ function App() {
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<AppLayout />}>
               <Route index element={<Navigate to="/inbox" replace />} />
-              <Route path="inbox" element={<DocumentInbox />} />
-              <Route path="verify" element={<VerificationWorkbench />} />
+              <Route path="inbox" element={lazyRoute(<DocumentInbox />)} />
+              <Route path="verify" element={lazyRoute(<VerificationWorkbench />)} />
               <Route path="trends" element={lazyRoute(<TrendsDashboard />)} />
               <Route path="timeline" element={lazyRoute(<TimelinePage />)} />
               <Route path="search" element={lazyRoute(<SearchPage />)} />
@@ -126,7 +154,7 @@ function App() {
               <Route path="pinboards" element={lazyRoute(<PinboardsPage />)} />
               <Route path="explain" element={lazyRoute(<ExplainAssistant />)} />
               <Route path="export" element={lazyRoute(<ExportPage />)} />
-              <Route path="settings" element={<SettingsPage />} />
+              <Route path="settings" element={lazyRoute(<SettingsPage />)} />
             </Route>
           </Route>
 
