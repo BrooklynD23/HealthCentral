@@ -55,19 +55,19 @@ type Side = 'above' | 'below' | 'within' | 'none' | 'conflict';
 type Move = 'start' | 'pointer' | 'key';
 
 const SIDE_WORDS: Record<Side, string> = {
-  above: 'Above the reference range (per report)',
-  below: 'Below the reference range (per report)',
-  within: 'Within the reference range (per report)',
-  none: 'No reference range on the report',
-  conflict: "The report's flag and this range disagree",
+  above: 'Above the range used for this chart',
+  below: 'Below the range used for this chart',
+  within: 'Within the range used for this chart',
+  none: 'No reference range for this chart',
+  conflict: "The report's flag and this chart's range disagree",
 };
 
 const SIDE_PHRASE: Record<Side, string> = {
-  above: "above the report's range",
-  below: "below the report's range",
-  within: "within the report's range",
+  above: "above this chart's range",
+  below: "below this chart's range",
+  within: "within this chart's range",
   none: '',
-  conflict: "the report's flag and this range disagree",
+  conflict: "the report's flag and this chart's range disagree",
 };
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
