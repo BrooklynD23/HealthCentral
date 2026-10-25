@@ -9,6 +9,10 @@
  * Review round 1 added cases for data-t0 (G10), a cursor with no CSS transform
  * (G5), the band-versus-report conflict, the range caption, the date labels,
  * nearest-point pointer selection, the keyed reveal and the export size.
+ *
+ * Review round 2 added cases for flag direction (a null, non-directional or
+ * absent flag does not decide the side), the caption wording, triangles kept
+ * outside animated groups, clean number text and the glide keyframes.
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
@@ -37,20 +41,22 @@ const BELOW_WORDS = 'Below the reference range (per report)';
 const CONFLICT_WORDS = "The report's flag and this range disagree";
 const REVEAL_KEY = 'hc:range-ribbon:revealed:glucose';
 
-// `abnormal` is the report's own verdict. The backend sets is_abnormal from the
-// observation's own bounds, so the default follows the default 70-99 series.
+// `abnormal` is the report's is_abnormal, which the backend sets to flag !== null
+// (api/documents.py). `flag` is the printed flag text. It defaults to the flag a
+// flagged point would carry, and an explicit null or other text overrides it.
 function point(
   date: string,
   value: number,
   verified?: boolean,
-  abnormal: boolean = value < 70 || value > 99
+  abnormal: boolean = value < 70 || value > 99,
+  flag: string | null = abnormal ? (value < 70 ? 'L' : 'H') : null
 ): TrendPoint {
   return {
     date,
     value,
     unit: 'mg/dL',
     is_abnormal: abnormal,
-    flag: abnormal ? (value < 70 ? 'L' : 'H') : null,
+    flag,
     doc_id: `doc-${date.slice(0, 10)}`,
     extraction_confidence: null,
     // A missing flag is unverified (I-13), so the key is left out when undefined.
@@ -124,6 +130,13 @@ function markerOf(container: HTMLElement, index: number): Element {
   const marker = container.querySelector(`[data-point-index="${index}"] [data-marker]`);
   if (!marker) throw new Error(`no marker ${index}`);
   return marker;
+}
+
+// The triangle sits beside its point, not inside the animated point group.
+function triangleFor(container: HTMLElement, index: number): HTMLElement {
+  const triangle = container.querySelector(`[data-triangle-for="${index}"]`);
+  if (!triangle) throw new Error(`no triangle for point ${index}`);
+  return triangle as HTMLElement;
 }
 
 function cxOf(container: HTMLElement, index: number): number {
@@ -242,9 +255,9 @@ describe('RangeRibbon', () => {
     expect(cyOf(container, 2)).toBeGreaterThan(bottom);
 
     expect(container.querySelectorAll('[data-triangle]')).toHaveLength(2);
-    expect(pointGroup(container, 0).querySelector('[data-triangle]')).toBeNull();
-    expect(within(pointGroup(container, 1) as HTMLElement).getByText(ABOVE_WORDS)).toBeInTheDocument();
-    expect(within(pointGroup(container, 2) as HTMLElement).getByText(BELOW_WORDS)).toBeInTheDocument();
+    expect(container.querySelector('[data-triangle-for="0"]')).toBeNull();
+    expect(within(triangleFor(container, 1)).getByText(ABOVE_WORDS)).toBeInTheDocument();
+    expect(within(triangleFor(container, 2)).getByText(BELOW_WORDS)).toBeInTheDocument();
 
     // The words are visible in the readout and the table, not only in the hover title.
     expect(container.querySelector('[data-readout]')?.textContent).toContain(BELOW_WORDS);
@@ -266,24 +279,26 @@ describe('RangeRibbon', () => {
     expect(container.querySelector('[data-band-edge="high"]')).not.toBeNull();
     expect(container.querySelector('[data-band-edge="low"]')).toBeNull();
     expect(container.querySelector('[data-band]')).toBeNull();
-    expect(pointGroup(container, 0).querySelector('[data-triangle]')).toBeNull();
-    expect(pointGroup(container, 1).querySelector('[data-triangle="above"]')).not.toBeNull();
+    expect(container.querySelector('[data-triangle-for="0"]')).toBeNull();
+    expect(container.querySelector('[data-triangle-for="1"][data-triangle="above"]')).not.toBeNull();
   });
 
   it('HC-UIRR-002: the range is printed as numbers in a caption outside the chart, for both, one and no bounds', async () => {
     const { RangeRibbon } = await loadRibbon();
+    // The caption names the range without a source rule: the backend prefers one
+    // observation with both limits, and otherwise combines the latest per limit.
     const cases: Array<{ overrides: Partial<TrendData>; words: string }> = [
       {
         overrides: {},
-        words: 'Reference range from the latest report that gives each limit: 70-99 mg/dL',
+        words: 'Reference range used for this chart: 70-99 mg/dL',
       },
       {
         overrides: { ref_low: null },
-        words: 'Upper limit 99 mg/dL, from the latest report that gives it',
+        words: 'Upper limit used for this chart: 99 mg/dL',
       },
       {
         overrides: { ref_high: null },
-        words: 'Lower limit 70 mg/dL, from the latest report that gives it',
+        words: 'Lower limit used for this chart: 70 mg/dL',
       },
       {
         overrides: { ref_low: null, ref_high: null },
@@ -301,15 +316,15 @@ describe('RangeRibbon', () => {
     }
   });
 
-  it('HC-UIRR-002: a band side the report does not confirm is a conflict, with no triangle and no out-of-range words', async () => {
+  it('HC-UIRR-002: a directional flag that disagrees with the band is a conflict, with no triangle and no out-of-range words', async () => {
     const { RangeRibbon } = await loadRibbon();
     const { container } = render(
       <RangeRibbon
         trend={series([
-          // Inside the band, but the report flagged it.
-          point(APR_1, 85, true, true),
-          // Above the band, but the report did not flag it: the report's own range differs.
-          point(APR_10, 118, true, false),
+          // Inside the band, but the report flagged it high.
+          point(APR_1, 85, true, true, 'H'),
+          // Above the band, but the report flagged it low: the report's own range differs.
+          point(APR_10, 118, true, true, 'L'),
         ])}
       />
     );
@@ -323,6 +338,79 @@ describe('RangeRibbon', () => {
       "Apr 10, 2026: 118 mg/dL, the report's flag and this range disagree, checked by you"
     );
     expect(within(screen.getByRole('table')).getAllByText(CONFLICT_WORDS)).toHaveLength(2);
+  });
+
+  it('HC-UIRR-002: a null, "A" or "Normal" flag names no direction, so the band still places the point', async () => {
+    const { RangeRibbon } = await loadRibbon();
+    const { container } = render(
+      <RangeRibbon
+        trend={series([
+          // Above the band with no flag captured: the band still places it.
+          point(APR_1, 118, true, false, null),
+          // Inside the band, with a FHIR "Normal" interpretation: no conflict.
+          point(APR_10, 85, true, true, 'Normal'),
+          // Above the band, with a flag that gives no direction.
+          point(APR_20, 120, true, true, 'A'),
+        ])}
+      />
+    );
+    expect(pointGroup(container, 0).getAttribute('data-side')).toBe('above');
+    expect(pointGroup(container, 1).getAttribute('data-side')).toBe('within');
+    expect(pointGroup(container, 2).getAttribute('data-side')).toBe('above');
+    expect(container.querySelectorAll('[data-triangle]')).toHaveLength(2);
+    expect(within(triangleFor(container, 0)).getByText(ABOVE_WORDS)).toBeInTheDocument();
+    expect(container.querySelector('[data-triangle-for="1"]')).toBeNull();
+    expect(screen.queryByText(CONFLICT_WORDS)).toBeNull();
+  });
+
+  it('HC-UIRR-002: H, HH and HIGH read above the band and LOW and Low read below it, whatever is_abnormal says', async () => {
+    const { RangeRibbon } = await loadRibbon();
+    const { container } = render(
+      <RangeRibbon
+        trend={series([
+          point(APR_1, 118, true, false, 'HH'),
+          point(APR_10, 60, true, false, 'Low'),
+          point(APR_20, 118, true, false, 'High'),
+        ])}
+      />
+    );
+    expect(pointGroup(container, 0).getAttribute('data-side')).toBe('above');
+    expect(pointGroup(container, 1).getAttribute('data-side')).toBe('below');
+    expect(pointGroup(container, 2).getAttribute('data-side')).toBe('above');
+    expect(container.querySelectorAll('[data-triangle]')).toHaveLength(3);
+  });
+
+  it('HC-UIRR-002: with no band on the series, a flag gives no range words and no triangle', async () => {
+    const { RangeRibbon } = await loadRibbon();
+    const { container } = render(
+      <RangeRibbon
+        trend={series(
+          [point(APR_1, 85, true, false, null), point(APR_10, 118, true, true, 'H')],
+          { ref_low: null, ref_high: null }
+        )}
+      />
+    );
+    expect(pointGroup(container, 1).getAttribute('data-side')).toBe('none');
+    expect(container.querySelectorAll('[data-triangle]')).toHaveLength(0);
+    expect(screen.queryByText(CONFLICT_WORDS)).toBeNull();
+    expect(screen.queryByText(ABOVE_WORDS)).toBeNull();
+    expect(sliderOf()).toHaveAttribute('aria-valuetext', 'Apr 10, 2026: 118 mg/dL, checked by you');
+  });
+
+  it('HC-UIRR-004: no triangle sits inside an animated point, so an out-of-range point scales about its marker like an in-range one', async () => {
+    const { RangeRibbon } = await loadRibbon();
+    const { container } = render(
+      <RangeRibbon
+        trend={series([point(APR_1, 85, true), point(APR_10, 118, true), point(APR_20, 60, true)])}
+      />
+    );
+    expect(animateCalls.some((call) => call.target.hasAttribute('data-point-index'))).toBe(true);
+    for (const call of animateCalls) {
+      expect(call.target.querySelector('[data-triangle]')).toBeNull();
+      expect(call.target.closest('[data-triangle]')).toBeNull();
+    }
+    // The triangles still exist, drawn beside their points.
+    expect(container.querySelectorAll('[data-triangle]')).toHaveLength(2);
   });
 
   it('HC-UIRR-003: unverified points are hollow and dashed; verified points are filled', async () => {
@@ -471,6 +559,13 @@ describe('RangeRibbon', () => {
     const glides = cursorAnimations();
     expect(glides).toHaveLength(1);
     expect(glides[0].options.duration).toBe(180);
+    // The glide starts one step back, at the previous x, and ends at identity with no fill.
+    const keyframes = glides[0].keyframes as Array<{ transform: string }>;
+    expect(keyframes).toHaveLength(2);
+    expect(keyframes[keyframes.length - 1].transform).toBe('translateX(0px)');
+    expect(glides[0].options).not.toHaveProperty('fill');
+    const offset = Number(/^translateX\((-?[\d.e+-]+)px\)$/.exec(keyframes[0].transform)?.[1]);
+    expect(offset).toBeCloseTo(cxOf(container, 2) - cxOf(container, 1), 6);
 
     // A keyboard move after a pointer move does not glide.
     fireEvent.keyDown(sliderOf(), { key: 'ArrowRight' });
@@ -543,6 +638,21 @@ describe('RangeRibbon', () => {
     const rows = within(screen.getByRole('table')).getAllByRole('row').slice(1);
     expect(rows.map((row) => row.querySelector('th')?.textContent)).toEqual(['Apr 1, 2026', 'Apr 20, 2026']);
     expect(screen.queryByText('118 mg/dL')).toBeNull();
+  });
+
+  it('HC-UIRR-006: a converted value with binary noise shows its clean number in the table, the readout and aria-valuetext', async () => {
+    const { RangeRibbon } = await loadRibbon();
+    // 99.10010000000001 is what a unit conversion can leave behind (normalize.py does not round).
+    const { container } = render(
+      <RangeRibbon trend={series([point(APR_1, 85, true), point(APR_10, 99.10010000000001, true, true)])} />
+    );
+    expect(sliderOf()).toHaveAttribute(
+      'aria-valuetext',
+      "Apr 10, 2026: 99.1 mg/dL, above the report's range, checked by you"
+    );
+    const rows = within(screen.getByRole('table')).getAllByRole('row').slice(1);
+    expect(rows[1].querySelectorAll('td')[0].textContent).toBe('99.1 mg/dL');
+    expect(textNodesOf(container)).not.toContain('99.10010000000001');
   });
 
   it('HC-UIRR-006: no value is ever tweened; every number in every frame of the reveal is a data value', async () => {
