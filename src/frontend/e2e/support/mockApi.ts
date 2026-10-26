@@ -24,8 +24,10 @@ import type {
   DiagnosticsListResponse,
   ExternalApiSettings,
   ModelSettings,
+  ProviderInfo,
   TiersListResponse,
 } from '../../src/services/modelSettings';
+import type { SessionListResponse } from '../../src/services/assistant';
 import type { BadgeListResponse, StreakResponse } from '../../src/services/types';
 import type { TimelineResponse } from '../../src/services/timeline';
 import type { BackupListResponse, BackupSchedule } from '../../src/services/backup';
@@ -289,7 +291,26 @@ const backupScheduleFixture: BackupSchedule = {
 
 const donationConsentsFixture: DonationConsentList = { consents: [] };
 
+/** UI-SHELL (G7): the /explain page's two load calls (ExplainAssistant); an empty history keeps its empty state. */
+const assistantSessionsFixture: SessionListResponse = { sessions: [] };
+
+const providerFixture: ProviderInfo = {
+  llm_provider: 'ollama',
+  llm_model: 'fixture-model',
+  ollama_base_url: 'http://127.0.0.1:11434',
+  available: null,
+  capabilities: {
+    context_len: 4096,
+    multimodal: false,
+    function_calling: false,
+    streaming: true,
+    provider_name: 'ollama',
+    model_name: 'fixture-model',
+  },
+};
+
 const shellFixtures = new Map<string, unknown>([
+  ['/assistant/sessions', assistantSessionsFixture],
   ['/backup', backupListFixture],
   ['/backup/schedule', backupScheduleFixture],
   ['/care-tasks', carePlanTasksFixture],
@@ -310,6 +331,7 @@ const shellFixtures = new Map<string, unknown>([
   ['/settings/model/diagnostics', diagnosticsFixture],
   ['/settings/model/external-api', externalApiFixture],
   ['/settings/model/gamification', { streaks_hidden: false }],
+  ['/settings/model/provider', providerFixture],
   ['/settings/model/tiers', tiersFixture],
   ['/settings/model/timezone', { timezone: 'UTC' }],
   ['/settings/model/voice', { voice_logging_enabled: false, voice_modal_seen: false }],
