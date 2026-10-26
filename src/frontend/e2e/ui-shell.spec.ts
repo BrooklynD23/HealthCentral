@@ -187,6 +187,10 @@ function startPageFor(route: string): string {
 
 /** Walks the sampler across one navigation and returns the route container's samples. */
 async function sampleRouteContainer(page: Page, route: string) {
+  // The start page may still be fetching or rendering its data. That work takes the frames the fade needs: on
+  // preview the fade's first frame landed 40-50 ms late on /verify, /interpret, /medications and /search. Measure
+  // the fade from a settled start page, as HC-UISH-008 and HC-UIFB-006 do. The 240 ms bound is unchanged.
+  await page.waitForLoadState('networkidle');
   await page.evaluate(() => {
     const w = window as unknown as {
       __shellSamples?: Array<{ t: number; key: string | null; opacity: number; transform: string }>;
