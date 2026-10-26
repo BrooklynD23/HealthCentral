@@ -1232,6 +1232,7 @@
       "docs/plans/2026-10-25-session-handoff.md",
       "docs/reviews/2026-10-15/build-program-codex.md",
       "docs/reviews/2026-10-22/kv-prefix-measure.md",
+      "docs/reviews/2026-10-26/don-ner-measure.md",
       "README.md"
     ],
     "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md": [
@@ -1250,7 +1251,8 @@
     "docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md": [
       "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md",
       "docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md",
-      "docs/plans/2026-10-15-build-program/queue.md"
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/reviews/2026-10-26/don-ner-measure.md"
     ],
     "docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md": [
       "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md",
@@ -4237,6 +4239,10 @@
     ],
     "docs/reviews/2026-10-22/kv-prefix-measure.md": [
       "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md",
+      "docs/plans/2026-10-15-build-program/queue.md"
+    ],
+    "docs/reviews/2026-10-26/don-ner-measure.md": [
+      "docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md",
       "docs/plans/2026-10-15-build-program/queue.md"
     ],
     "docs/reviews/README.md": [

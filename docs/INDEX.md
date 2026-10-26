@@ -3310,6 +3310,14 @@ Plan: KV-PREFIX-MEASURE; queue row `KV-PREFIX-MEASURE` in queue.md. Feeds the ro
 
 Links to: `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/queue.md`
 
+## `docs/reviews/2026-10-26/don-ner-measure.md`
+
+**DON-NER-MEASURE: on-device PHI detector candidates measured on the GPU box**
+
+Plan: RSI1-DONATE Delta 2026-10-22, DON-NER-MEASURE; queue row `DON-NER-MEASURE` in queue.md. Feeds the new owner gate **DON-NER-MODEL** (same plan, "New owner gate DON-NER-MODEL"). Run by a Claude…
+
+Links to: `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`
+
 ## `docs/reviews/README.md`
 
 **Codex Review Archive**
