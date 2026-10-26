@@ -14,6 +14,8 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import {
+  ROUTE_CONTAINER_SELECTOR,
+  ROUTE_FALLBACK_SELECTOR,
   WCAG_TAGS,
   consoleAndNetworkGuard,
   measureCls,
@@ -125,6 +127,26 @@ async function openRoute(page: Page, route: string) {
   const guard = consoleAndNetworkGuard(page, { mock });
   await page.goto(route);
   return { mock, guard };
+}
+
+/**
+ * Waits until the route element has finished its entrance fade. This is the wait settleRoute in ui-gates.spec.ts
+ * uses. It is copied, not imported: importing that spec would register its tests in this file too.
+ */
+async function settleRoute(page: Page): Promise<void> {
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          ({ container, fallback }) => {
+            const el = document.querySelector(container) ?? document.querySelector(fallback);
+            return el ? parseFloat(getComputedStyle(el).opacity) : NaN;
+          },
+          { container: ROUTE_CONTAINER_SELECTOR, fallback: ROUTE_FALLBACK_SELECTOR }
+        ),
+      { message: 'the route element must finish its entrance fade before the probe starts', timeout: 10_000 }
+    )
+    .toBeGreaterThanOrEqual(0.99);
 }
 
 /** The navigation landmark that is visible at the current width. */
@@ -486,14 +508,30 @@ test.describe('Inherited stillness and focus halves (L0 rulings #363, #364, #365
   });
 
   test('HC-UIFB-006: a still toast keeps its text and rect from the trigger', async ({ page }) => {
+    // The toast module is imported from a /src path, which only the dev server serves (no such path on a preview or deployed build).
+    test.skip(
+      !!process.env.HC_E2E_BASE_URL,
+      'HC_E2E_BASE_URL is set: the /src/components/ui/toast.tsx import path exists only on the dev server'
+    );
+    type Notify = (options: { message: string; still: boolean }) => unknown;
     await page.setViewportSize(DESKTOP);
     await openRoute(page, '/inbox');
     await expect(page.locator(RAIL)).toBeVisible({ timeout: 15_000 });
+    // The inbox renders its list when its data arrives, which takes about 50 ms of React work. Wait for that to
+    // finish, so the probe times the toast and not the page's own data render.
+    await settleRoute(page);
+    await expect(
+      page.getByRole('button', { name: 'View document' }).first().or(page.getByText('No documents yet.'))
+    ).toBeVisible({ timeout: 15_000 });
+    // Import the module before the probe window, so the window does not time module loading.
+    await page.evaluate(async () => {
+      const toast = await import('/src/components/ui/toast.tsx');
+      (window as unknown as { __hcNotify: Notify }).__hcNotify = toast.notify;
+    });
     const report = await stillnessProbe(page, {
       trigger: () =>
-        page.evaluate(async () => {
-          const toast = await import('/src/components/ui/toast.tsx');
-          toast.notify({ message: 'Glucose 118 mg/dL', still: true });
+        page.evaluate(() => {
+          (window as unknown as { __hcNotify: Notify }).__hcNotify({ message: 'Glucose 118 mg/dL', still: true });
         }),
       expected: ['[data-sonner-toast] [data-t0]'],
     });
