@@ -1,0 +1,491 @@
+/**
+ * UI-PROVENANCE vitest halves: HC-UIPV-001 (popover opens on click and Enter,
+ * not on hover; Escape closes and returns focus), HC-UIPV-003 (Source Trace
+ * content), HC-UIPV-005 (verify: one POST, confirmation toast, no Undo),
+ * HC-UIPV-006 (markup half: every T0 node has data-t0; the highlight has none).
+ *
+ * Plan: docs/plans/2026-10-23-frontend-revamp-plan.md, "UI-PROVENANCE".
+ * HC-UIPV-002 (tap in hasTouch) and the stillnessProbe part of HC-UIPV-006 are
+ * Playwright, in e2e/ui-provenance.spec.ts. Layout (DF-2, HC-UIPV-004) is not
+ * measured here: jsdom has no layout (recurring-failures #1, L0 ruling).
+ *
+ * SourceTrace is imported at run time, so a missing module fails only the ids
+ * that need it and the RED run names each id (the ui-feedback.test.tsx pattern).
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router-dom';
+import { CitationTooltip } from '@/components/lab-interpreter/CitationTooltip';
+import { PageImageOverlay } from '@/components/PageImageOverlay';
+import { AppToaster } from '@/components/ui/toast';
+import type { Citation, Observation } from '@/services/types';
+import type * as SourceTraceModule from '@/components/results/SourceTrace';
+
+// The page image is fetched through the documents service; the trace-mark test needs a blob src.
+vi.mock('@/services/documents', () => ({
+  fetchPageImageBlob: vi.fn(async () => new Blob(['fake'], { type: 'image/png' })),
+}));
+
+/** Loads a module at run time (variable specifier, so a missing file fails one test). */
+async function load<T>(specifier: string): Promise<T> {
+  return (await import(/* @vite-ignore */ specifier)) as T;
+}
+
+const OBSERVATION_ID = '6f1c2c4e-8a1b-4c3d-9e0f-123456789abc';
+
+const observation: Observation = {
+  id: OBSERVATION_ID,
+  profile_id: 'profile-1',
+  doc_id: 'doc-1',
+  analyte_canonical: 'glucose',
+  analyte_raw: 'Glucose',
+  value: 96,
+  value_text: null,
+  unit: 'mg/dL',
+  ref_low: 70,
+  ref_high: 99,
+  ref_range_text: '70-99 mg/dL',
+  flag: null,
+  is_abnormal: false,
+  collected_at: '2026-04-10T00:00:00',
+  user_verified: false,
+  extraction_confidence: 0.92,
+  source_page: 3,
+  // The backend stores [x0,y0,x1,y1] (api/documents.py), the form parseBbox reads.
+  source_bbox_json: '[10,20,200,40]',
+};
+
+/** A second value on the same document, so a row can be switched to another page. */
+const OTHER_OBSERVATION_ID = '6f1c2c4e-8a1b-4c3d-9e0f-00000000a1c1';
+const otherObservation: Observation = {
+  ...observation,
+  id: OTHER_OBSERVATION_ID,
+  analyte_canonical: 'hemoglobin_a1c',
+  analyte_raw: 'Hemoglobin A1c',
+  value: 5.4,
+  unit: '%',
+  ref_low: 4.0,
+  ref_high: 5.6,
+  source_page: 1,
+};
+
+const EXCERPT = ['Test Result Units Range', 'Glucose 96 mg/dL 70-99', 'Hemoglobin A1c 5.4 % 4.0-5.6'];
+const MATCH_LINE = EXCERPT[1];
+
+/** A knowledge-base reference, as the interpreter returns it today: no page, no observation. */
+const kbCitation: Citation = {
+  type: 'knowledge_base',
+  id: 'kb-ferritin-1',
+  text: 'Ferritin reflects stored iron; low values can reflect depleted stores.',
+};
+
+function withProviders(ui: React.ReactNode, client: QueryClient) {
+  return (
+    <MemoryRouter>
+      <QueryClientProvider client={client}>{ui}</QueryClientProvider>
+    </MemoryRouter>
+  );
+}
+
+function renderWithProviders(ui: React.ReactNode) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const result = render(withProviders(ui, client));
+  // Same providers on rerender, so a test can hand one sheet a different row.
+  return { ...result, rerender: (next: React.ReactNode) => result.rerender(withProviders(next, client)) };
+}
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+/** The POSTs that reached the verify endpoint for the test observation. */
+function verifyPostsOf(fetchMock: { mock: { calls: unknown[][] } }): unknown[][] {
+  return fetchMock.mock.calls.filter(([url, init]) => {
+    const method = (init as RequestInit | undefined)?.method;
+    return String(url).endsWith(`/observations/${OBSERVATION_ID}/verify`) && method === 'POST';
+  });
+}
+
+beforeEach(() => {
+  vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(observation)));
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  cleanup();
+});
+
+describe('HC-UIPV-001 citation popover opens on click and Enter, not on hover', () => {
+  it('hover alone does not open the popover; a click does', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<CitationTooltip citation={kbCitation} index={0} />);
+
+    const trigger = screen.getByRole('button', { name: /^Citation 1: / });
+    await user.hover(trigger);
+    expect(screen.queryByRole('dialog', { name: 'Citation 1' })).toBeNull();
+    expect(screen.queryByRole('tooltip')).toBeNull();
+
+    await user.click(trigger);
+    expect(screen.getByRole('dialog', { name: 'Citation 1' })).not.toBeNull();
+  });
+
+  it('Enter opens it; Escape closes it and focus returns to the trigger', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<CitationTooltip citation={kbCitation} index={0} />);
+
+    const trigger = screen.getByRole('button', { name: /^Citation 1: / });
+    trigger.focus();
+    await user.keyboard('{Enter}');
+    expect(screen.getByRole('dialog', { name: 'Citation 1' })).not.toBeNull();
+
+    await user.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Citation 1' })).toBeNull();
+    });
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('shows the quote, and no page or Open source, for a knowledge-base reference', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<CitationTooltip citation={kbCitation} index={0} />);
+
+    await user.click(screen.getByRole('button', { name: /^Citation 1: / }));
+    const dialog = screen.getByRole('dialog', { name: 'Citation 1' });
+    expect(within(dialog).getByText(kbCitation.text)).not.toBeNull();
+    expect(within(dialog).queryByRole('button', { name: /open source/i })).toBeNull();
+    expect(within(dialog).queryByText(/^Page /)).toBeNull();
+  });
+
+  it('keeps the citation type line (knowledge base) above the quote, marked data-t0', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<CitationTooltip citation={kbCitation} index={0} />);
+
+    await user.click(screen.getByRole('button', { name: /^Citation 1: / }));
+    const dialog = screen.getByRole('dialog', { name: 'Citation 1' });
+    const typeLine = within(dialog).getByText('knowledge base');
+    const quote = within(dialog).getByText(kbCitation.text);
+    expect(typeLine.closest('[data-t0]')).not.toBeNull();
+    expect(typeLine.compareDocumentPosition(quote) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  });
+});
+
+describe('UI-PROVENANCE source-aware popover (page and Open source only when the citation carries a source)', () => {
+  it('shows the page and an Open source button when a source is passed, and opens Source Trace from it', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <CitationTooltip
+        citation={kbCitation}
+        index={0}
+        source={{ observation, excerptLines: EXCERPT, matchIndex: 1 }}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: /^Citation 1: / }));
+    const dialog = screen.getByRole('dialog', { name: 'Citation 1' });
+    expect(within(dialog).getByText('Page 3')).not.toBeNull();
+
+    await user.click(within(dialog).getByRole('button', { name: /open source/i }));
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: /source/i })).not.toBeNull();
+    });
+    expect(screen.getByText('This is what your report states.')).not.toBeNull();
+  });
+
+  it('returns focus to the citation chip when Source Trace closes with Escape', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <CitationTooltip
+        citation={kbCitation}
+        index={0}
+        source={{ observation, excerptLines: EXCERPT, matchIndex: 1 }}
+      />
+    );
+    const trigger = screen.getByRole('button', { name: /^Citation 1: / });
+
+    await user.click(trigger);
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Citation 1' })).getByRole('button', { name: /open source/i })
+    );
+    await screen.findByRole('dialog', { name: /source for glucose/i });
+
+    await user.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /source for glucose/i })).toBeNull();
+    });
+    expect(document.activeElement).toBe(trigger);
+  });
+});
+
+describe('HC-UIPV-003 Source Trace shows the highlighted row, page, date and the report line', () => {
+  it('renders the matching row with the mark, the page, the date, the range, the read confidence and the report line', async () => {
+    const { SourceTrace } = await load<typeof SourceTraceModule>('@/components/results/SourceTrace');
+    renderWithProviders(
+      <SourceTrace open observation={observation} excerptLines={EXCERPT} matchIndex={1} />
+    );
+
+    expect(screen.getByText('This is what your report states.')).not.toBeNull();
+    expect(screen.getByText('Page 3')).not.toBeNull();
+    expect(screen.getByText('Apr 10, 2026')).not.toBeNull();
+    expect(screen.getByText('70 to 99 mg/dL')).not.toBeNull();
+    expect(screen.getByText('High')).not.toBeNull();
+
+    const matchRow = screen.getByText(MATCH_LINE).closest('li');
+    expect(matchRow?.querySelector('[data-trace-mark]')).not.toBeNull();
+    const otherRow = screen.getByText(EXCERPT[0]).closest('li');
+    expect(otherRow?.querySelector('[data-trace-mark]')).toBeNull();
+    // The colour tint is not the only cue: the match is announced in words, the mark itself is aria-hidden.
+    expect(matchRow?.textContent).toContain('Matching line:');
+    expect(otherRow?.textContent).not.toContain('Matching line:');
+  });
+
+  it('says "not available" where the source has no page, and does not invent one', async () => {
+    const { SourceTrace } = await load<typeof SourceTraceModule>('@/components/results/SourceTrace');
+    renderWithProviders(
+      <SourceTrace
+        open
+        observation={{ ...observation, source_page: null, extraction_confidence: null }}
+      />
+    );
+
+    expect(screen.getByText('Page not available')).not.toBeNull();
+    expect(screen.getByText('Not available')).not.toBeNull();
+    expect(screen.queryByText('Page 3')).toBeNull();
+  });
+
+  it('writes a range with a negative low as "-2 to 2 mmol/L", not "-2-2 mmol/L"', async () => {
+    const { SourceTrace } = await load<typeof SourceTraceModule>('@/components/results/SourceTrace');
+    renderWithProviders(
+      <SourceTrace open observation={{ ...observation, ref_low: -2, ref_high: 2, unit: 'mmol/L' }} />
+    );
+
+    expect(screen.getByText('-2 to 2 mmol/L')).not.toBeNull();
+    expect(screen.queryByText('-2-2 mmol/L')).toBeNull();
+  });
+
+  it('lets a long file name wrap inside the sheet at 390 px: the value column can shrink and the values break', async () => {
+    const { SourceTrace } = await load<typeof SourceTraceModule>('@/components/results/SourceTrace');
+    renderWithProviders(
+      <SourceTrace
+        open
+        observation={observation}
+        sourceFile="a-very-long-lab-report-file-name-with-no-break-point-anywhere.pdf"
+        excerptLines={EXCERPT}
+        matchIndex={1}
+      />
+    );
+
+    const dl = screen.getByText('File').closest('dl');
+    expect(dl).not.toBeNull();
+    // 1fr has an auto minimum, so a long unbroken value would push the sheet sideways. minmax(0,1fr) lets it shrink.
+    expect(dl?.className).toContain('grid-cols-[auto_minmax(0,1fr)]');
+    const values = Array.from(dl?.querySelectorAll('dd') ?? []);
+    expect(values.length).toBe(6);
+    for (const dd of values) {
+      expect(dd.className).toContain('break-words');
+    }
+  });
+
+  it('links "Correct it in Review values" to the exact row, so /verify selects it', async () => {
+    const { SourceTrace } = await load<typeof SourceTraceModule>('@/components/results/SourceTrace');
+    renderWithProviders(
+      <SourceTrace open observation={observation} excerptLines={EXCERPT} matchIndex={1} />
+    );
+
+    // /verify reads ?observation=<id> (src/pages/VerificationWorkbench.tsx, CITE-SRC-001) and selects that row.
+    const link = screen.getByRole('link', { name: 'Correct it in Review values' });
+    expect(link.getAttribute('href')).toBe(`/verify?observation=${OBSERVATION_ID}`);
+  });
+});
+
+describe('HC-UIPV-005 verify sends one POST, shows the confirmation toast, offers no Undo', () => {
+  it('posts once to /observations/{id}/verify, shows the toast, and has no Undo control', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      jsonResponse({ ...observation, user_verified: true })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const { SourceTrace } = await load<typeof SourceTraceModule>('@/components/results/SourceTrace');
+
+    renderWithProviders(
+      <>
+        <AppToaster />
+        <SourceTrace open observation={observation} excerptLines={EXCERPT} matchIndex={1} />
+      </>
+    );
+
+    await user.click(screen.getByRole('button', { name: 'It matches, mark as checked' }));
+
+    await screen.findByText('Glucose, Apr 10, 2026 is now marked as checked');
+    const verifyPosts = verifyPostsOf(fetchMock);
+    expect(verifyPosts).toHaveLength(1);
+    // The verify endpoint takes no value: the body is {}. A body that carried a value would overwrite the stored one.
+    expect(JSON.parse(String((verifyPosts[0][1] as RequestInit).body))).toEqual({});
+
+    expect(screen.queryByRole('button', { name: /undo/i })).toBeNull();
+    expect(screen.queryByText(/undo/i)).toBeNull();
+  });
+
+  it('a double click while the POST is in flight still sends exactly one POST', async () => {
+    const user = userEvent.setup();
+    // Hold the response until both clicks have landed. A response that arrives at once
+    // removes the button before the second click, and the test would pass with no guard.
+    let releaseResponse: () => void = () => {};
+    const responseGate = new Promise<void>((resolve) => {
+      releaseResponse = resolve;
+    });
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
+      await responseGate;
+      return jsonResponse({ ...observation, user_verified: true });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { SourceTrace } = await load<typeof SourceTraceModule>('@/components/results/SourceTrace');
+
+    renderWithProviders(
+      <>
+        <AppToaster />
+        <SourceTrace open observation={observation} excerptLines={EXCERPT} matchIndex={1} />
+      </>
+    );
+
+    await user.dblClick(screen.getByRole('button', { name: 'It matches, mark as checked' }));
+    releaseResponse();
+
+    await screen.findByText('Glucose, Apr 10, 2026 is now marked as checked');
+    expect(verifyPostsOf(fetchMock)).toHaveLength(1);
+  });
+
+  it('a value verified in this sheet does not show as checked when the sheet is reused for another row', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse({ ...observation, user_verified: true }))
+    );
+    const { SourceTrace } = await load<typeof SourceTraceModule>('@/components/results/SourceTrace');
+
+    const { rerender } = renderWithProviders(
+      <>
+        <AppToaster />
+        <SourceTrace open observation={observation} excerptLines={EXCERPT} matchIndex={1} />
+      </>
+    );
+    await user.click(screen.getByRole('button', { name: 'It matches, mark as checked' }));
+    await screen.findByText('Glucose, Apr 10, 2026 is now marked as checked');
+    expect(screen.getByText('You have marked this value as checked.')).not.toBeNull();
+
+    rerender(
+      <>
+        <AppToaster />
+        <SourceTrace open observation={otherObservation} excerptLines={EXCERPT} matchIndex={2} />
+      </>
+    );
+    // B is not verified: its own button is back, and A's checked state is not shown for B.
+    expect(screen.getByRole('button', { name: 'It matches, mark as checked' })).not.toBeNull();
+    expect(screen.queryByText('You have marked this value as checked.')).toBeNull();
+  });
+
+  it('a failed verify shows the alert and keeps the button, so the user can try again', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ detail: 'server error' }, 500)));
+    const { SourceTrace } = await load<typeof SourceTraceModule>('@/components/results/SourceTrace');
+
+    renderWithProviders(
+      <>
+        <AppToaster />
+        <SourceTrace open observation={observation} excerptLines={EXCERPT} matchIndex={1} />
+      </>
+    );
+    await user.click(screen.getByRole('button', { name: 'It matches, mark as checked' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toBe('It could not be marked as checked. Try again.');
+    expect(screen.getByRole('button', { name: 'It matches, mark as checked' })).not.toBeNull();
+    expect(screen.queryByText('You have marked this value as checked.')).toBeNull();
+  });
+});
+
+describe('HC-UIPV-006 markup half: data-t0 on every T0 node, none on the highlight', () => {
+  it('Source Trace: every T0 node carries data-t0; the highlight carries none and sits outside them', async () => {
+    const { SourceTrace } = await load<typeof SourceTraceModule>('@/components/results/SourceTrace');
+    renderWithProviders(
+      <SourceTrace open observation={observation} excerptLines={EXCERPT} matchIndex={1} />
+    );
+
+    for (const text of [MATCH_LINE, EXCERPT[0], 'Page 3', 'Apr 10, 2026', '70 to 99 mg/dL', '96 mg/dL', 'High']) {
+      const node = screen.getByText(text);
+      expect(node.closest('[data-t0]'), `T0 node for "${text}"`).not.toBeNull();
+    }
+
+    const marks = document.querySelectorAll('[data-trace-mark]');
+    expect(marks.length).toBeGreaterThan(0);
+    marks.forEach((mark) => {
+      expect(mark.hasAttribute('data-t0')).toBe(false);
+      expect(mark.closest('[data-t0]')).toBeNull();
+    });
+  });
+
+  it('citation popover: chip label, quote and page carry data-t0; the verify toast is still', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <CitationTooltip
+        citation={kbCitation}
+        index={0}
+        source={{ observation, excerptLines: EXCERPT, matchIndex: 1 }}
+      />
+    );
+
+    const trigger = screen.getByRole('button', { name: /^Citation 1: / });
+    expect(trigger.querySelector('[data-t0]')).not.toBeNull();
+
+    await user.click(trigger);
+    const dialog = screen.getByRole('dialog', { name: 'Citation 1' });
+    expect(within(dialog).getByText(kbCitation.text).closest('[data-t0]')).not.toBeNull();
+    expect(within(dialog).getByText('Page 3').closest('[data-t0]')).not.toBeNull();
+  });
+
+  it('verify toast: the confirmation is a still toast (data-t0 on its status text)', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ ...observation, user_verified: true })));
+    const { SourceTrace } = await load<typeof SourceTraceModule>('@/components/results/SourceTrace');
+
+    renderWithProviders(
+      <>
+        <AppToaster />
+        <SourceTrace open observation={observation} excerptLines={EXCERPT} matchIndex={1} />
+      </>
+    );
+    await user.click(screen.getByRole('button', { name: 'It matches, mark as checked' }));
+
+    const toastText = await screen.findByText('Glucose, Apr 10, 2026 is now marked as checked');
+    expect(toastText.closest('[data-t0]')).not.toBeNull();
+  });
+
+  it('draws the trace mark inside the bbox highlight, and no data-t0 node holds it (UI-PROVENANCE)', async () => {
+    (globalThis.URL as unknown as { createObjectURL?: unknown }).createObjectURL = vi.fn(() => 'blob:page-image');
+    (globalThis.URL as unknown as { revokeObjectURL?: unknown }).revokeObjectURL = vi.fn();
+    const bbox = { x0: 100, y0: 200, x1: 300, y1: 250 };
+
+    render(<PageImageOverlay documentId="doc-1" pageNumber={1} bbox={bbox} />);
+
+    const img = screen.getByRole('img', { name: /page 1/i });
+    await waitFor(() => {
+      expect(img.getAttribute('src')).toBe('blob:page-image');
+    });
+
+    Object.defineProperty(img, 'naturalWidth', { value: 600 });
+    Object.defineProperty(img, 'naturalHeight', { value: 800 });
+    Object.defineProperty(img, 'clientWidth', { value: 600 });
+    Object.defineProperty(img, 'clientHeight', { value: 800 });
+
+    fireEvent.load(img);
+
+    const highlight = screen.getByRole('img', { name: /highlighted source region/i });
+    const mark = highlight.querySelector('[data-trace-mark]');
+    expect(mark).not.toBeNull();
+    expect(mark?.closest('[data-t0]')).toBeNull();
+  });
+});

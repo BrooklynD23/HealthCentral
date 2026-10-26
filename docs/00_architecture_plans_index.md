@@ -33,7 +33,7 @@ from the generated map (DOC-011).
 
 - [`docs/plans/2026-10-15-build-program/queue.md`](plans/2026-10-15-build-program/queue.md) — the build-program
   execution queue (live backlog); latest session handoff:
-  [`docs/plans/2026-10-24-session-handoff.md`](plans/2026-10-24-session-handoff.md).
+  [`docs/plans/2026-10-25-session-handoff.md`](plans/2026-10-25-session-handoff.md).
 - [`docs/plans/2026-09-08-backlog-closure-plan.md`](plans/2026-09-08-backlog-closure-plan.md)
   — every open item (partial features, open tickets, pending HC-M milestones) verified against the
   tree and sequenced, with the four decisions the owner has to make.

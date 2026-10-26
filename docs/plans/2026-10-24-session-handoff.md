@@ -1,5 +1,7 @@
 # Session handoff: 2026-10-24 GPU-box L0 (RTX 3080) → next L0
 
+> **Superseded** by [the 2026-10-25 handoff](2026-10-25-session-handoff.md).
+
 **Last Updated:** 2026-10-24
 **Owner:** repository owner
 **Refresh Trigger:** the next L0 session reads this first, works §3, and replaces this file with its own handoff.

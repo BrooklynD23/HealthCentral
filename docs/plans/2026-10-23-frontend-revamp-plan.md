@@ -422,6 +422,20 @@ Frontend e2e uses `page.route` mocks typed from `fe/services/types.ts` (`e2e/sup
 
 **Acceptance:** the six ids with output; the harness runs with the mock API and no backend; the README lists every helper and when to use the real backend. **Est:** 3 h. **MVP:** P1.
 
+#### GATES-SAMPLE-TIME — time each stillness sample when it is read
+
+**Kind:** PRODUCT (e2e harness). **Files:** `e2e/support/gates.ts` (`startSampler` only), `e2e/ui-gates-sampler.spec.ts` (new), `e2e/README.md` (one line). **Depends on:** UI-GATES (done, #350). **Gate:** none.
+
+**Why.** `snapshot()` in `startSampler` reads every `[data-t0]` node's computed style and rect, then stamps the sample with `performance.now()` on its last line. All of a tick's reads see one DOM state (no task runs inside the tick), and that state is the one at the tick's first read. Stamping at the end adds the tick's own style and layout work to the gap before it, so the gap equals the interval plus that work. On #370, L0 measured this on the same production build (`vite preview`, 2026-10-25): page navigations timed with a bare 20 ms `setInterval` showed gaps of 20-30 ms on main and on the branch, apart from `/settings` on the branch (47-48 ms), while the probe reported 41-61 ms. With the stamp moved to the start of `snapshot()`, HC-UIG-006 still passed every case, including (n), a 150 ms block that must fail (the probe reported 154 ms), and most route gaps fell under 40 ms. The gaps that stayed above it (46-93 ms, including `/settings` and the toggle popover) are real work and stay failures.
+
+**Change.** Read `t` at the start of `snapshot()`. Nothing else changes: the 40 ms bound (`STILLNESS_MAX_GAP_MS`), the 20 ms interval, the 800 ms window, the lazy-route rule and `samplingCheck` stay as they are.
+
+| Id | Check | RED today? |
+|---|---|---|
+| HC-UIG-007 | a `page.setContent` fixture whose page wraps `Element.prototype.getBoundingClientRect` so that one post-trigger call busy-waits 30 ms (nothing else runs long): the probe passes, with `maxGapMs` at most 40. A second fixture busy-waits 60 ms in one call: the probe fails with a sampling gap above 40 ms | yes (stamped at the end, the first fixture's gap is the 20 ms interval plus the 30 ms wait) |
+
+**Acceptance:** HC-UIG-007 RED then GREEN; HC-UIG-001…006 green and unchanged (`git diff origin/main...HEAD -- e2e/ui-gates.spec.ts` is empty); the e2e README says when a sample is timed. **Est:** 1 h. **MVP:** P1 (UI-SHELL's final stillness run waits on it).
+
 #### SAFETY-MODE-REAL — research concrete behaviours for the safety toggle and turn them into an owner question
 
 **Kind:** DOCS (research and design; no slot; nothing under `src/`). **Files:** `docs/research/2026-10-23-safety-mode-real/00-README.md` (new), `docs/INDEX.md`, `docs/_link_graph.json`. **Depends on:** — . **Gate:** UI-SAFETY-TOGGLE answered "Make it real"; its output is the owner question **SAFETY-MODE-BEHAVIOUR**, and any build row then also needs an ask-first yes on the exact diff (**SAFETY-MODE-DIFF**) for each ask-first file it would touch.

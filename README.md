@@ -44,7 +44,7 @@ Prerequisites, what the launchers do, model setup, SQLCipher, migrations, tests 
 ## Current status
 
 - **Backlog:** the build-program [`queue.md`](docs/plans/2026-10-15-build-program/queue.md) is the single execution queue (its header says so). Several planning sections carry a **Ready to build now** line; the newest is under [Planned 2026-10-24, Safety Mode build](docs/plans/2026-10-15-build-program/queue.md#planned-2026-10-24-safety-mode-build), and owner-gated work is under [Owner-blocked and model-machine items](docs/plans/2026-10-15-build-program/queue.md#owner-blocked-and-model-machine-items). This README does not copy queue rows.
-- **Latest session handoff:** [`docs/plans/2026-10-24-session-handoff.md`](docs/plans/2026-10-24-session-handoff.md).
+- **Latest session handoff:** [`docs/plans/2026-10-25-session-handoff.md`](docs/plans/2026-10-25-session-handoff.md).
 - **Remaining-work tracker and session notes:** [`docs/features/TASK_LIST.md`](docs/features/TASK_LIST.md).
 - **Test baseline:** the collected backend test count and the known environment-only failures are in [`CLAUDE.md`](CLAUDE.md) and [`AGENT.md`](AGENT.md#commands-windows-is-the-native-dev-environment).
 
