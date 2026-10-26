@@ -115,6 +115,7 @@ desktop-notifier>=6.2.0   # Cross-platform notifications (async, DBus/UNUserNoti
 pytest>=7.4.0
 pytest-asyncio>=0.23.0
 pytest-cov>=4.1.0
+hypothesis==6.170.9
 black>=24.1.0
 ruff==0.17.1
 mypy>=1.8.0

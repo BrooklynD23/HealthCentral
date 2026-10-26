@@ -77,4 +77,26 @@ export const RULES: readonly Rule[] = [
     source: 'handoff 2026-10-17 s2.2: llama-cpp-python with no C compiler',
     errorClass: 'no-c-compiler',
   },
+  {
+    id: 'embedding-bundle-missing',
+    tool: 'Bash',
+    when: 'after',
+    match: String.raw`test_hc_emb_002_fetched_model_loads_offline|test_api_rag_index_002[bc]?|test_search_vectors_async_calculates_similarity`,
+    action: 'hint',
+    message:
+      'These failures are environmental. Fetch the model with python scripts/download_models.py embedding. Do not lower the 0.7 threshold. Judge on the collected count (recurring-failures #4).',
+    source: 'pr-review leads 223,218',
+    errorClass: 'embedding-bundle-missing',
+  },
+  {
+    id: 'no-such-file-path',
+    tool: 'Bash',
+    when: 'after',
+    match: String.raw`No such file or directory`,
+    action: 'hint',
+    message:
+      'A path was not found ("No such file or directory"). Resolve and verify the path (ls its parent directory) before retrying the command unchanged.',
+    source: 'rsi-2026-10-24-gpubox-1: Bash/no-such-file cluster, 35 failed calls since 2026-10-21, no path recorded',
+    errorClass: 'no-such-file',
+  },
 ]

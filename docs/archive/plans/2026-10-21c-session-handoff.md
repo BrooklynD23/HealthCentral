@@ -1,12 +1,14 @@
 # Session handoff: 2026-10-21 local L0 (laptop) → GPU box tonight
 
-> **Superseded** by [the 2026-10-22 handoff](2026-10-22-session-handoff.md).
+> **Historical Reference** — superseded by [the 2026-10-22 handoff](../../plans/2026-10-22-session-handoff.md) and its successors (newest: `docs/plans/2026-10-24-session-handoff.md`); retained for history, not an active tracker. Moved from `docs/plans/2026-10-21c-session-handoff.md` on 2026-10-25.
+
+> **Superseded** by [the 2026-10-22 handoff](../../plans/2026-10-22-session-handoff.md).
 
 **Last Updated:** 2026-10-21
 **Owner:** repository owner
 **Refresh Trigger:** the next L0 session reads this first, works §3, and replaces this file with its own handoff.
 
-Read this after [CLAUDE.md](../../CLAUDE.md), [AGENT.md](../../AGENT.md) and the [build-program RUNBOOK](2026-10-15-build-program/RUNBOOK.md). It replaces [the 2026-10-21b handoff](2026-10-21b-session-handoff.md). This session ran as a **local** L0 on the laptop: Danny-Lenovo, WSL, 6 vCPU, no GPU and no model host. It was started with `--plugin-dir .claude/mods/asclexis-rsi`. Owner instruction mid-session: "defer anything that needs RTX 3080 GPU computing dev environment for later tonight. We want to implement as much of the works as possible, then run the tests later due to time-constraints." Builds therefore ran focused tests only, and CI ran the full suite. Treat this file as a lead: verify with `gh pr view` / `git log origin/main` before acting.
+Read this after [CLAUDE.md](../../../CLAUDE.md), [AGENT.md](../../../AGENT.md) and the [build-program RUNBOOK](../../plans/2026-10-15-build-program/RUNBOOK.md). It replaces [the 2026-10-21b handoff](2026-10-21b-session-handoff.md). This session ran as a **local** L0 on the laptop: Danny-Lenovo, WSL, 6 vCPU, no GPU and no model host. It was started with `--plugin-dir .claude/mods/asclexis-rsi`. Owner instruction mid-session: "defer anything that needs RTX 3080 GPU computing dev environment for later tonight. We want to implement as much of the works as possible, then run the tests later due to time-constraints." Builds therefore ran focused tests only, and CI ran the full suite. Treat this file as a lead: verify with `gh pr view` / `git log origin/main` before acting.
 
 ## 1. What this session did
 
@@ -25,7 +27,7 @@ Read this after [CLAUDE.md](../../CLAUDE.md), [AGENT.md](../../AGENT.md) and the
 - **Also merged by L0 after this file was first written:** #279 post-merge batch + this handoff (`89b16d2`; #273 merged with it); #276 REDACT-NG-GUARD-TAIL (`79963ee`; `redaction.py` equals licensed head `8986c95`; 4 strict pins; full suite 2315 passed).
 - **Owner merged:** #267 RSI-LOG-STDERR (`1e9ed8d`) and #259 RRSI-CI-REPLAY (`0976557`).
 - **Prompt 30, O-6:** "Freeze now; sign if all pass". Recorded on #210 in comment 6329347525 and in its owner-decisions row. The claim freeze moves from 2026-10-24 to the GPU-box session (2026-10-22). O-6 is signed for that date only if §10 checks 1-11 all pass at the freeze SHA, with outputs in plan §15. Any failure stops F-9 and goes back to the owner.
-- **RSI logs archived:** `.claude/logs/` is git-ignored, so this session committed copies to [docs/agentic/rsi-runs/2026-10-21-laptop/](../agentic/rsi-runs/README.md) (`rsi-log.jsonl` 348 rows, `session-log.jsonl` 7635 rows since 2026-10-11, `summary.json`). The GPU box adds its own folder the same way, so both machines can be combined for the report.
+- **RSI logs archived:** `.claude/logs/` is git-ignored, so this session committed copies to [docs/agentic/rsi-runs/2026-10-21-laptop/](../../agentic/rsi-runs/README.md) (`rsi-log.jsonl` 348 rows, `session-log.jsonl` 7635 rows since 2026-10-11, `summary.json`). The GPU box adds its own folder the same way, so both machines can be combined for the report.
 - **Owner answers this session (local L0 AskUserQuestion):**
   - **Prompt 28, EXTRACT-NL-DIFF:** "Yes, merge #277's diff". Recorded on #277 in comment 6327249339 and in its owner-decisions row.
   - **Prompt 29, REDACT-NG-GT-DIFF:** "Yes, merge with rule last". Recorded on #276 in comment 6328178224 and in its owner-decisions row.
@@ -73,7 +75,7 @@ gh pr merge 271 --merge --delete-branch=false
 3. **After the owner merges #266 and #271:** ask GC5-NEUTRAL-DIFF (GC5-NLI-NEUTRAL). Then run rsi-loop again so the clusters carry error classes.
 4. **Plan the new backlog bullets:** AGENT-CACHE-CARETASKS (`api/assistant.py` `_profile_version` leaves care tasks out of the agent cache key), RUNNER-EXC-LOG (`core/model_runner.py:164,214` log the exception text) and QUEUE-E6-W1. Run one planning agent, then build-wave.
 5. **Owner asks:** OW-3, OW-W0, OW-W3, OW-W7, OW-W13 and H2-SETUP. Owner task, not a question: C-P6 waits on the owner running `scripts/fk_orphan_audit.py` on a vault copy and pasting the counts (P6-ORPHAN answered 2026-10-16).
-6. **RSI archive:** after each rsi-loop run, copy the logs to `docs/agentic/rsi-runs/<date>-gpubox/` per [its README](../agentic/rsi-runs/README.md). Commit them with the next docs PR, after the secret scan.
+6. **RSI archive:** after each rsi-loop run, copy the logs to `docs/agentic/rsi-runs/<date>-gpubox/` per [its README](../../agentic/rsi-runs/README.md). Commit them with the next docs PR, after the secret scan.
 7. **Count slots:** main is 2315 collected after #276 (the slots say 2291). The next post-merge batch updates them.
 
 ## 4. Harness gotchas (local)

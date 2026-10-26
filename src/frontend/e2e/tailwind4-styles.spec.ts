@@ -135,9 +135,9 @@ test.describe('Tailwind 4 style guard', () => {
     // Target: RecoverProfile.tsx:136-143, bare border utility, no border colour or placeholder class.
     const input = page.locator('#recover-code');
     await expect(input).toBeVisible({ timeout: 15000 });
-    expect(await input.evaluate((el) => getComputedStyle(el).borderTopColor)).toBe('rgb(229, 231, 235)');
+    expect(await input.evaluate((el) => getComputedStyle(el).borderTopColor)).toBe('rgb(226, 223, 215)');
     expect(await input.evaluate((el) => getComputedStyle(el, '::placeholder').color)).toBe(
-      'rgb(156, 163, 175)'
+      'rgb(104, 100, 93)'
     );
     await shot(page, 'recover');
   });
@@ -175,10 +175,10 @@ test.describe('Tailwind 4 style guard', () => {
     // Collision guards: body (globals.css:49), rounded-lg (DoseLoggingModal.tsx:100 close button,
     // checked in the modal test), text-ink (Sidebar.tsx:48 heading).
     expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(
-      'rgb(250, 250, 248)'
+      'rgb(246, 245, 241)'
     );
     const heading = page.locator('aside h1').first();
-    expect(await heading.evaluate((el) => getComputedStyle(el).color)).toBe('rgb(31, 31, 31)');
+    expect(await heading.evaluate((el) => getComputedStyle(el).color)).toBe('rgb(28, 27, 25)');
 
     // Cursor: TopBar.tsx:68-78 Button (`h-10 w-10 rounded-xl` + border opacity class + Button.tsx cva) has
     // no cursor-* class and no ancestor in TopBar/layout carries one; enabled, so preflight gives pointer.

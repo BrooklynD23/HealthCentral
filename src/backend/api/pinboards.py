@@ -511,6 +511,7 @@ async def export_pinboard_packet(
         include_normal_observations=True,
         today=local_today,
     )
+    packet["created_at"] = utcnow()  # EXPORT-STORE-PURGE: TTL stamp
     _packet_store[packet["packet_id"]] = packet
     await audit_and_commit(
         master_db, log_pinboard_event, event="export", profile_id=session.profile_id,

@@ -36,15 +36,15 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             'flex h-11 w-full rounded-xl border bg-white px-4 py-2',
             'text-ink placeholder:text-ink-tertiary',
             'transition-colors duration-200',
-            'focus:outline-hidden focus:ring-2 focus:ring-accent/20 focus:border-accent',
+            'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:border-accent',
             'disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-surface-muted',
             error
-              ? 'border-status-critical focus:ring-status-critical/20 focus:border-status-critical'
-              : 'border-black/8',
+              ? 'border-status-critical focus-visible:ring-status-critical focus-visible:border-status-critical'
+              : 'border-[var(--line-strong)]',
             className
           )}
           ref={ref}
-          aria-invalid={error ? 'true' : 'false'}
+          aria-invalid={error ? true : undefined}
           aria-describedby={
             error ? `${inputId}-error` : hint ? `${inputId}-hint` : undefined
           }

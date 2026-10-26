@@ -907,7 +907,7 @@ async def set_llm_provider(
     object.__setattr__(app_settings, "llm_model", request.llm_model)
 
     # Drop the cached provider so get_provider() builds a fresh one.
-    reset_provider()
+    await asyncio.to_thread(reset_provider)
 
     from core.llm.factory import get_provider
     provider = get_provider()

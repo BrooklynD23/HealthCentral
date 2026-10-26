@@ -38,13 +38,15 @@ vi.mock('@/services/api', () => ({
 // Mock framer-motion to avoid animation issues
 vi.mock('framer-motion', async () => {
   const actual = await vi.importActual('framer-motion');
+  const motionStubs = {
+    div: ({ children, ...props }: React.PropsWithChildren<object>) => (
+      <div {...props}>{children}</div>
+    ),
+  };
   return {
     ...actual,
-    motion: {
-      div: ({ children, ...props }: React.PropsWithChildren<object>) => (
-        <div {...props}>{children}</div>
-      ),
-    },
+    motion: motionStubs,
+    m: motionStubs,
     AnimatePresence: ({ children }: React.PropsWithChildren) => <>{children}</>,
   };
 });
@@ -203,7 +205,7 @@ describe('ExplainAssistant', () => {
       renderWithProviders(<ExplainAssistant />);
 
       const input = screen.getByPlaceholderText('Ask about your results...');
-      const sendButton = screen.getByRole('button', { name: '' }); // Send button has no text
+      const sendButton = screen.getByRole('button', { name: 'Send question' });
 
       await user.type(input, 'What does my hemoglobin level mean?');
       await user.click(sendButton);
@@ -350,7 +352,7 @@ describe('ExplainAssistant', () => {
     it('should display 501 error message correctly', async () => {
       const user = userEvent.setup();
       const mockApiPost = vi.mocked(api.apiPost);
-      mockApiPost.mockRejectedValueOnce(new Error('501: Not Implemented'));
+      mockApiPost.mockRejectedValueOnce(new api.ApiError(501, 'Not Implemented', '501: Not Implemented'));
 
       renderWithProviders(<ExplainAssistant />);
 
@@ -365,7 +367,7 @@ describe('ExplainAssistant', () => {
     it('should display session expired message on 401', async () => {
       const user = userEvent.setup();
       const mockApiPost = vi.mocked(api.apiPost);
-      mockApiPost.mockRejectedValueOnce(new Error('401: Unauthorized'));
+      mockApiPost.mockRejectedValueOnce(new api.ApiError(401, 'Unauthorized', '401: Unauthorized'));
 
       renderWithProviders(<ExplainAssistant />);
 
@@ -375,6 +377,42 @@ describe('ExplainAssistant', () => {
       await waitFor(() => {
         expect(screen.getByText(/session has expired/)).toBeInTheDocument();
       });
+    });
+  });
+
+  describe('FE-EXPLAIN-ERR: chat errors branch on ApiError.status', () => {
+    async function ask() {
+      const user = userEvent.setup();
+      renderWithProviders(<ExplainAssistant />);
+      const input = screen.getByPlaceholderText('Ask about your results...');
+      await user.type(input, 'Test question{enter}');
+    }
+
+    it('HC-FEE-001: a real 403 ApiError shows the session-expired message', async () => {
+      vi.mocked(api.apiPost).mockRejectedValueOnce(
+        new api.ApiError(403, 'Forbidden', 'Profile database not available. Please log in again.')
+      );
+      await ask();
+      await waitFor(() => {
+        expect(screen.getByText(/session has expired/)).toBeInTheDocument();
+      });
+    });
+
+    it('HC-FEE-002: a real 501 ApiError shows the no-model message and banner', async () => {
+      vi.mocked(api.apiPost).mockRejectedValueOnce(
+        new api.ApiError(501, 'Not Implemented', 'No LLM provider configured')
+      );
+      await ask();
+      await waitFor(() => {
+        expect(screen.getByText(/No AI model is configured yet/)).toBeInTheDocument();
+      });
+      expect(screen.getByText('No AI model configured')).toBeInTheDocument();
+    });
+
+    it('HC-FEE-003: the question input and icon-only send button have accessible names', () => {
+      renderWithProviders(<ExplainAssistant />);
+      expect(screen.getByRole('textbox', { name: 'Your question' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Send question' })).toBeInTheDocument();
     });
   });
 
@@ -710,6 +748,15 @@ describe('ExplainAssistant', () => {
         probe: 'false',
       });
       expect(screen.getByText('ollama \u00b7 gemma4:e4b')).toBeInTheDocument();
+      expect(screen.queryByText('BioMistral-7B')).toBeNull();
+    });
+
+    it('HC-BTK-001 shows "Local model" (not the tier label) while provider info is pending', async () => {
+      mockModelApis(new Promise(() => {}));
+      renderWithProviders(<ExplainAssistant />);
+
+      await flush();
+      expect(screen.getByText('Local model')).toBeInTheDocument();
       expect(screen.queryByText('BioMistral-7B')).toBeNull();
     });
 

@@ -145,6 +145,16 @@ class UserModelSettings(ProfileDatabaseBase):
         nullable=False,
     )
 
+    # SAFETY-MODE-SETTING: per-profile opt-in to the stricter safety mode.
+    # Off by default. Read via api.assistant.is_strict_safety_mode.
+    # Added by 016_strict_safety_mode.
+    strict_safety_mode: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="0",
+        nullable=False,
+    )
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime,

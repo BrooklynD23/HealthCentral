@@ -861,8 +861,8 @@ I was unable to fully process your question within the time limit. Please try as
             return result.text
 
         except Exception as e:
-            self._logger.error(f"LLM generation failed: {e}")
-            raise RuntimeError(f"Failed to generate response: {e}")
+            self._logger.error("LLM generation failed: %s", type(e).__name__)
+            raise RuntimeError("Failed to generate response") from e
 
     def validate_response(
         self,
@@ -937,7 +937,9 @@ I was unable to fully process your question within the time limit. Please try as
                     f"{verification_metadata.failed_claims} claim(s) could not be verified"
                 )
 
-            if verification_metadata.faithfulness_score < 0.6:
+            # SAFETY-MODE-STRICT: compare against the scorer's own threshold. The
+            # default is 0.6, so the default module is unchanged; the strict module passes 0.75.
+            if verification_metadata.faithfulness_score < self.faithfulness_scorer.config.min_overall_score:
                 errors.append(
                     f"Low faithfulness score: {verification_metadata.faithfulness_score:.2f}"
                 )
@@ -1470,5 +1472,5 @@ I was unable to fully process your question within the time limit. Please try as
                     return self._STRUCTURED_WITHHELD
             return result.text
         except Exception as e:
-            self._logger.error(f"LLM generation failed: {e}")
-            raise RuntimeError(f"Failed to generate response: {e}")
+            self._logger.error("LLM generation failed: %s", type(e).__name__)
+            raise RuntimeError("Failed to generate response") from e

@@ -9,7 +9,8 @@
 
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { useQueryClient } from '@tanstack/react-query';
+import { m } from 'framer-motion';
 import {
   Heart,
   Lock,
@@ -24,7 +25,8 @@ import {
 import { Button, Card, CardContent, Input } from '@/components/ui';
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
-import { useCreateProfile } from '@/services';
+import { useCreateProfile, useLogin, useProfiles } from '@/services';
+import { ApiError } from '@/services/api';
 import { takeRestoreNotice } from '@/services/backup';
 import { RecoveryCodeCard } from '@/components/profile/RecoveryCodeCard';
 
@@ -76,6 +78,7 @@ function validatePassword(password: string): {
 
 export function ProfileSetup() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const prefersReducedMotion = useReducedMotion();
   const [isCreating, setIsCreating] = useState(false);
   const [step, setStep] = useState(0);
@@ -97,6 +100,56 @@ export function ProfileSetup() {
   }>({});
 
   const createProfile = useCreateProfile();
+
+  // SESSION-REENTRY: an existing profile unlocks with its password through the
+  // normal login endpoint. The recovery code is only for a forgotten password.
+  const { data: profiles, isPending: profilesPending } = useProfiles();
+  const login = useLogin();
+  const hasProfiles = !!profiles && profiles.length > 0;
+  const [showCreate, setShowCreate] = useState(false);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [unlockPassword, setUnlockPassword] = useState('');
+  const [unlockError, setUnlockError] = useState<string | null>(null);
+  const unlockProfileId =
+    profiles?.find((p) => p.id === selectedProfileId)?.id ?? profiles?.[0]?.id;
+
+  const handleUnlock = async () => {
+    if (!unlockProfileId) return;
+    setUnlockError(null);
+    if (!unlockPassword) {
+      setUnlockError('Enter your password');
+      return;
+    }
+    try {
+      // useLogin's onSuccess stores the token.
+      await login.mutateAsync({
+        profile_id: unlockProfileId,
+        password: unlockPassword,
+      });
+      setUnlockPassword('');
+      login.reset();
+      // Nothing cached under a previous profile's session may be shown to
+      // this one.
+      queryClient.clear();
+      navigate('/inbox');
+    } catch (err) {
+      login.reset();
+      setUnlockPassword('');
+      if (err instanceof ApiError && err.status === 401) {
+        setUnlockError('Incorrect password');
+      } else if (err instanceof ApiError && err.status === 429) {
+        setUnlockError(
+          'Too many attempts. Wait a moment, then try again.'
+        );
+      } else {
+        setUnlockError(
+          err instanceof Error && err.message
+            ? err.message
+            : 'Could not unlock your profile'
+        );
+      }
+    }
+  };
 
   const handleCreateProfile = async () => {
     // Reset errors
@@ -141,6 +194,9 @@ export function ProfileSetup() {
       // then removes it, with the password and code) and clear the field.
       createProfile.reset();
       setPassword('');
+      // Same rule as unlock: nothing cached under a previous session may be
+      // shown to the new profile.
+      queryClient.clear();
 
       setStep(2);
       await new Promise((r) => setTimeout(r, 500));
@@ -203,24 +259,24 @@ export function ProfileSetup() {
         <div className="absolute -bottom-1/4 -left-1/4 w-1/2 h-1/2 rounded-full blur-3xl" />
       </div>
 
-      <motion.div
+      <m.div
         variants={containerVariants}
         initial="hidden"
         animate="show"
         className="w-full max-w-lg relative z-10"
       >
         {restoreNotice && (
-          <motion.div variants={itemVariants} className="mb-6">
+          <m.div variants={itemVariants} className="mb-6">
             <div
               role="status"
               className="rounded-lg border border-status-info/30 bg-status-info-subtle px-4 py-3 text-sm text-ink"
             >
               {restoreNotice}
             </div>
-          </motion.div>
+          </m.div>
         )}
 
-        <motion.div variants={itemVariants} className="text-center mb-10">
+        <m.div variants={itemVariants} className="text-center mb-10">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-linear-to-br from-accent to-accent/80 shadow-card mb-6">
             <Heart className="w-8 h-8 text-white" strokeWidth={2} />
           </div>
@@ -232,14 +288,14 @@ export function ProfileSetup() {
             <br />
             Private, offline-first, and always grounded.
           </p>
-        </motion.div>
+        </m.div>
 
-        <motion.div variants={itemVariants}>
+        <m.div variants={itemVariants}>
           <Card className="mb-6">
             <CardContent className="p-6">
               <div className="space-y-4">
                 {features.map((feature, index) => (
-                  <motion.div
+                  <m.div
                     key={feature.title}
                     initial={prefersReducedMotion ? {} : { opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
@@ -255,72 +311,146 @@ export function ProfileSetup() {
                         {feature.description}
                       </p>
                     </div>
-                  </motion.div>
+                  </m.div>
                 ))}
               </div>
             </CardContent>
           </Card>
-        </motion.div>
+        </m.div>
 
-        <motion.div variants={itemVariants}>
-          {!isCreating ? (
+        {hasProfiles && !isCreating && (
+          <m.div variants={itemVariants} className="mb-6">
             <Card>
               <CardContent className="p-6 space-y-4">
-                <Input
-                  label="Profile Name"
-                  placeholder="My Health Profile"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  error={formErrors.displayName}
-                  autoComplete="name"
-                />
-
-                <div className="relative">
-                  <Input
-                    type={showPassword ? 'text' : 'password'}
-                    label="Password"
-                    placeholder="Create a secure password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    error={formErrors.password}
-                    autoComplete="new-password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-[38px] text-ink-tertiary hover:text-ink transition-colors"
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-5 h-5" />
-                    ) : (
-                      <Eye className="w-5 h-5" />
-                    )}
-                  </button>
-                </div>
-
-                {showPasswordHints && (
-                  <div className="text-sm text-ink-secondary space-y-1">
-                    <p className="font-medium">Password requirements:</p>
-                    <ul className="list-disc list-inside space-y-0.5">
-                      {passwordValidation.errors.map((err) => (
-                        <li key={err} className="text-status-critical">
-                          {err}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                <Button
-                  onClick={handleCreateProfile}
-                  size="lg"
-                  className="w-full group"
-                  disabled={createProfile.isPending}
+                <h2 className="font-display text-xl font-semibold text-ink">
+                  Unlock your profile
+                </h2>
+                <form
+                  className="space-y-4"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void handleUnlock();
+                  }}
                 >
-                  Create Your Profile
-                  <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-                </Button>
+                  <div>
+                    <label
+                      htmlFor="unlock-profile"
+                      className="block text-sm font-medium text-ink mb-1.5"
+                    >
+                      Profile
+                    </label>
+                    <select
+                      id="unlock-profile"
+                      value={unlockProfileId ?? ''}
+                      onChange={(e) => setSelectedProfileId(e.target.value)}
+                      className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-ink"
+                    >
+                      {profiles!.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.display_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <Input
+                    type="password"
+                    label="Unlock password"
+                    placeholder="Your password"
+                    value={unlockPassword}
+                    onChange={(e) => setUnlockPassword(e.target.value)}
+                    autoComplete="current-password"
+                  />
+                  {unlockError && (
+                    <p role="alert" className="text-sm text-status-critical">
+                      {unlockError}
+                    </p>
+                  )}
+                  <Button
+                    type="submit"
+                    size="lg"
+                    className="w-full"
+                    disabled={login.isPending}
+                  >
+                    Unlock
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </m.div>
+        )}
+
+        <m.div variants={itemVariants}>
+          {profilesPending ? null : !isCreating ? (
+            <Card>
+              <CardContent className="p-6 space-y-4">
+                {hasProfiles && !showCreate ? (
+                  <Button
+                    variant="secondary"
+                    size="lg"
+                    className="w-full"
+                    onClick={() => setShowCreate(true)}
+                  >
+                    Create a new profile
+                  </Button>
+                ) : (
+                  <>
+                    <Input
+                      label="Profile Name"
+                      placeholder="My Health Profile"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      error={formErrors.displayName}
+                      autoComplete="name"
+                    />
+
+                    <div className="relative">
+                      <Input
+                        type={showPassword ? 'text' : 'password'}
+                        label="Password"
+                        placeholder="Create a secure password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        error={formErrors.password}
+                        autoComplete="new-password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-[38px] text-ink-tertiary hover:text-ink transition-colors"
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="w-5 h-5" />
+                        ) : (
+                          <Eye className="w-5 h-5" />
+                        )}
+                      </button>
+                    </div>
+
+                    {showPasswordHints && (
+                      <div className="text-sm text-ink-secondary space-y-1">
+                        <p className="font-medium">Password requirements:</p>
+                        <ul className="list-disc list-inside space-y-0.5">
+                          {passwordValidation.errors.map((err) => (
+                            <li key={err} className="text-status-critical">
+                              {err}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    <Button
+                      onClick={handleCreateProfile}
+                      size="lg"
+                      className="w-full group"
+                      disabled={createProfile.isPending}
+                    >
+                      Create Your Profile
+                      <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                    </Button>
+                  </>
+                )}
 
                 {/* SEC-RECOV-001: the way back in for an existing profile
                     whose password has been forgotten. */}
@@ -385,17 +515,17 @@ export function ProfileSetup() {
               </div>
             </div>
           )}
-        </motion.div>
+        </m.div>
 
-        <motion.p
+        <m.p
           variants={itemVariants}
           className="text-center text-xs text-ink-tertiary mt-6"
         >
           By creating a profile, you agree to our Terms of Service.
           <br />
           Your data is stored locally and never uploaded.
-        </motion.p>
-      </motion.div>
+        </m.p>
+      </m.div>
     </div>
   );
 }

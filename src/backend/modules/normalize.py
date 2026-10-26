@@ -182,7 +182,7 @@ class NormalizeModule:
         "tibc": ["total iron binding capacity", "iron binding capacity"],
 
         # Vitamins
-        "vitamin_d": ["25-hydroxy vitamin d", "25-oh vitamin d", "vitamin d 25-oh", "25(oh)d"],
+        "vitamin_d": ["25-hydroxy vitamin d", "25-oh vitamin d", "vitamin d 25-oh", "25(oh)d", "vitamin d, 25-hydroxy"],
         "vitamin_b12": ["b12", "cobalamin"],
         "folate": ["folic acid", "serum folate"],
 
@@ -290,6 +290,14 @@ class NormalizeModule:
 
         # Look up canonical name
         canonical = self._synonym_to_canonical.get(cleaned)
+
+        if not canonical:
+            # Miss only: retry once with a trailing ", total" or specimen
+            # qualifier removed (whitespace around the comma tolerated).
+            # ", urine" is deliberately absent: keys are serum analytes.
+            base, comma, qualifier = cleaned.rpartition(",")
+            if comma and qualifier.strip() in ("total", "serum", "plasma", "blood", "whole blood"):
+                canonical = self._synonym_to_canonical.get(base.rstrip())
 
         if canonical:
             display_name = self.DISPLAY_NAMES.get(canonical, canonical.replace("_", " ").title())

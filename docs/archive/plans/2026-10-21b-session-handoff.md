@@ -1,10 +1,12 @@
 # Session handoff: 2026-10-21 cloud L0 → local dev machine
 
+> **Historical Reference** — superseded by [the 2026-10-21c handoff](2026-10-21c-session-handoff.md) and its successors (newest: `docs/plans/2026-10-24-session-handoff.md`); retained for history, not an active tracker. Moved from `docs/plans/2026-10-21b-session-handoff.md` on 2026-10-25.
+
 **Last Updated:** 2026-10-21
 **Owner:** repository owner
 **Refresh Trigger:** the next L0 session reads this first, works §3, and replaces this file with its own handoff.
 
-Read this after [CLAUDE.md](../../CLAUDE.md), [AGENT.md](../../AGENT.md) and the [build-program RUNBOOK](2026-10-15-build-program/RUNBOOK.md). It replaces [the 2026-10-21 GPU handoff](2026-10-21-session-handoff.md). This session ran as a **cloud** L0 (claude.ai/code container, Linux, 4 CPUs, no GPU, no model host). The owner's instruction at the end: "pull this back to the local dev machine … commit everything & push, then provide a goal handoff to continue parallelizing dynamic workflow agents." Every branch is pushed and every worktree was clean at handoff. Treat this file as a lead: verify with `gh pr view` / `git log origin/main` before acting.
+Read this after [CLAUDE.md](../../../CLAUDE.md), [AGENT.md](../../../AGENT.md) and the [build-program RUNBOOK](../../plans/2026-10-15-build-program/RUNBOOK.md). It replaces [the 2026-10-21 GPU handoff](../../plans/2026-10-21-session-handoff.md). This session ran as a **cloud** L0 (claude.ai/code container, Linux, 4 CPUs, no GPU, no model host). The owner's instruction at the end: "pull this back to the local dev machine … commit everything & push, then provide a goal handoff to continue parallelizing dynamic workflow agents." Every branch is pushed and every worktree was clean at handoff. Treat this file as a lead: verify with `gh pr view` / `git log origin/main` before acting.
 
 ## 1. What this session did
 
@@ -69,7 +71,7 @@ Prompts 22-26 are recorded in `owner-decisions-2026-09-27.md` (#269). **Prompt 2
 
 ## 3. Next (local L0)
 
-1. **Setup:** fast-forward main; venv `~/venvs/asclexis-311` with `src/backend/requirements.txt`; the embedding bundle in every worktree (`cd src/backend && python scripts/download_models.py embedding`); measure the collected count (expect 2233 on `5c94a75`, plus whatever merged since) and `from main import app`. Start the session with `--plugin-dir .claude/mods/asclexis-rsi`. Recreate `merge_par.sh` per [the 2026-10-21 handoff §5](2026-10-21-session-handoff.md#5-harness-defects-and-gotchas) (`tr -d '\r'`, 20 lines, `bash -n`). Locally `gh` GraphQL works again, so `merge_par.sh` runs as written.
+1. **Setup:** fast-forward main; venv `~/venvs/asclexis-311` with `src/backend/requirements.txt`; the embedding bundle in every worktree (`cd src/backend && python scripts/download_models.py embedding`); measure the collected count (expect 2233 on `5c94a75`, plus whatever merged since) and `from main import app`. Start the session with `--plugin-dir .claude/mods/asclexis-rsi`. Recreate `merge_par.sh` per [the 2026-10-21 handoff §5](../../plans/2026-10-21-session-handoff.md#5-harness-defects-and-gotchas) (`tr -d '\r'`, 20 lines, `bash -n`). Locally `gh` GraphQL works again, so `merge_par.sh` runs as written.
 2. **#272 round-2 fixes** (review comment 6322039225; worktree `hc-plan-s4`, merge main first):
    - (MAJOR) add REDACT-NG-GT-SCOPE as REDACT-NG-GUARD-TAIL's execution gate, answered (a), citing #272 comment 6322138371, in lane E §2.22a, the lane E §5 gate table and the queue row, and add its owner-decisions row ("via prompt 27" on Last Updated). REDACT-NG-GT-DIFF stays merge-only.
    - Add a surname example (`Dr Smith` → `[ID-REDACTED]`) to the REDACT-NG-GT-DIFF question.
