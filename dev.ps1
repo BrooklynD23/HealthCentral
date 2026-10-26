@@ -473,6 +473,51 @@ Write-Status "Installing Python dependencies ..."
 $sqlcipherAvailable = $true
 $requirementsFile = Join-Path $BACKEND_DIR "requirements.txt"
 
+# llama-cpp-python: install the pinned prebuilt CPU wheel first, so no C++ toolchain is needed.
+# The source build (and the compiler check below) applies only when this step is skipped
+# (CMAKE_ARGS set) or finds no wheel for this platform.
+$llamaPin = $null
+$llamaPinLine = Get-Content $requirementsFile | Where-Object { $_ -match '^\s*llama-cpp-python==' } | Select-Object -First 1
+if ($llamaPinLine -match '^\s*llama-cpp-python==([^\s;#]+)') { $llamaPin = $Matches[1] }
+$llamaWheelOk = $false
+if ($env:CMAKE_ARGS) {
+    Write-Status "CMAKE_ARGS is set: skipping the prebuilt llama-cpp-python wheel (pip builds it from source)"
+} elseif ($llamaPin) {
+    Write-Status "Installing llama-cpp-python $llamaPin from the prebuilt wheel index ..."
+    & $venvPip install --only-binary=llama-cpp-python --index-url "https://abetlen.github.io/llama-cpp-python/whl/cpu" "llama-cpp-python==$llamaPin" --no-deps 2>&1 | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        $llamaWheelOk = $true
+        Write-Ok "llama-cpp-python $llamaPin is ready (prebuilt wheel)"
+    } else {
+        Write-Warn "No prebuilt llama-cpp-python $llamaPin wheel was installed (no wheel for this platform, or the index is unreachable); pip will try a source build"
+    }
+}
+
+# No wheel and no C++ compiler: a source build cannot succeed. LLM_PROVIDER=ollama does not need llama-cpp-python.
+$nollamaReqs = $null
+if (-not $llamaWheelOk -and -not (Get-Command cl.exe -ErrorAction SilentlyContinue)) {
+    $llmProvider = "$env:LLM_PROVIDER".Trim().ToLower()
+    foreach ($cfg in @($ENV_FILE, $ENV_EXAMPLE)) {
+        if (-not $llmProvider -and (Test-Path $cfg)) {
+            $providerLine = Get-Content $cfg | Where-Object { $_ -match '^\s*LLM_PROVIDER\s*=' } | Select-Object -Last 1
+            if ($providerLine) { $llmProvider = (($providerLine -split '=', 2)[1] -replace '#.*$', '').Trim().Trim('"', "'").ToLower() }
+        }
+    }
+    if ($llmProvider -eq "ollama") {
+        Write-Warn "llama-cpp-python skipped: no C++ compiler (cl.exe); LLM_PROVIDER=ollama does not need it"
+        $nollamaReqs = Join-Path $env:TEMP "hc-requirements-nollama.txt"
+        Get-Content $requirementsFile | Where-Object { $_ -notmatch '^\s*llama-cpp-python' } | Set-Content $nollamaReqs
+        $requirementsFile = $nollamaReqs
+    } else {
+        Write-Err "No prebuilt llama-cpp-python wheel could be installed, and no C++ compiler (cl.exe) was found on PATH to build it."
+        Write-Err "Install Visual Studio Build Tools with the 'Desktop development with C++' workload:"
+        Write-Err "  https://visualstudio.microsoft.com/visual-cpp-build-tools/"
+        Write-Err "Then open a new window and run dev.bat again. Or set LLM_PROVIDER=ollama in src\backend\.env."
+        Read-Host "  Press Enter to exit"
+        exit 1
+    }
+}
+
 Push-Location $BACKEND_DIR
 $pipOutput = & $venvPip install -r $requirementsFile 2>&1
 $pipExit   = $LASTEXITCODE
@@ -507,6 +552,7 @@ if ($pipExit -ne 0) {
 } else {
     Write-Ok "Python dependencies installed"
 }
+if ($nollamaReqs) { Remove-Item $nollamaReqs -Force -ErrorAction SilentlyContinue }
 
 # ===================================================================
 #  STEP 3b - OCR system tools (Windows): Tesseract + Poppler
