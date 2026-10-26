@@ -1870,6 +1870,14 @@ After the 2026-10-31 showcase, what should "download Asclexis and double-click i
 
 Links to: `docs/plans/2026-10-01-packaging-decision.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-22-mvp/01-desktop-packaging.md`, `docs/research/2026-10-22-mvp/07-owner-questions.md`, `docs/research/2026-10-22-rapidocr/00-README.md`
 
+## `docs/research/2026-10-22-judge-laya/00-README.md`
+
+**Judge research: Laya and the local NLI model as the B-3 advice judge (2026-10-25)**
+
+Queue row **JUDGE-LAYA-RESEARCH** and its plan section, lane B: JUDGE-LAYA-RESEARCH. The gate it runs under, quoted verbatim from owner-decisions-2026-09-27.md line 389:
+
+Links to: `config/model_manifest.json`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`
+
 ## `docs/research/2026-10-22-mvp/00-README.md`
 
 **MVP readiness research package (2026-10-22)**
