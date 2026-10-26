@@ -257,7 +257,7 @@ test.describe('HC-UISH-003 route fade and HC-UISH-009 rail stillness', () => {
       await expect(page.locator(RAIL)).toBeVisible({ timeout: 15_000 });
       const report = await stillnessProbe(page, {
         trigger: () => navigateTo(page, route),
-        expected: [RAIL],
+        expected: [RAIL, TOGGLE_NOTE],
         kind: 'navigation',
         lazyRoute: true,
       });
