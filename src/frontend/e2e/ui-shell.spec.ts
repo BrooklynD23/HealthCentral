@@ -338,6 +338,9 @@ test.describe('HC-UISH-009 phone toggle label stays still', () => {
   }) => {
     await openRoute(page, '/inbox');
     await expect(page.locator(RAIL)).toBeVisible({ timeout: 15_000 });
+    // The label is auto width, so its rect follows its font: the fallback face measures 143.4 px and Source Sans
+    // 119.2 px. The page's own font load is not a route change, so the probe waits for it to finish first.
+    await page.evaluate(() => document.fonts.ready);
     const report = await stillnessProbe(page, {
       trigger: () =>
         page.getByRole('navigation', { name: 'Tab bar' }).getByRole('link', { name: 'Review values', exact: true }).click(),
