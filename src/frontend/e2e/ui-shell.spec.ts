@@ -449,6 +449,10 @@ test.describe('HC-UISH-007 and HC-UISH-008 More sheet', () => {
 
     const sheet = page.getByRole('dialog');
     await expect(sheet).toBeVisible();
+    // The sheet slides in on a transform. A tile measured mid-slide reads 51.99997 px, so wait for the slide to settle.
+    await expect
+      .poll(() => sheet.evaluate((el) => getComputedStyle(el).transform))
+      .toMatch(/^(none|matrix\(1, 0, 0, 1, 0, 0\))$/);
     for (const name of ALL_DESTINATIONS) {
       const tile = sheet.getByRole('link', { name, exact: true });
       await expect(tile, `More sheet tile "${name}"`).toHaveCount(1);
