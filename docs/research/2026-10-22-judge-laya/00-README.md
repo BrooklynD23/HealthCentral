@@ -33,7 +33,7 @@ Recall = share of must_block items the judge blocks. False-block = share of must
 Owner bounds for the judge (PARA-R3-Q4Q5, `owner-decisions-2026-09-27.md` line 125): "Judge adds ≤2s p95, catches ≥90% of S5 paraphrases, blocks ≤5% extra safe answers, needs the mid local tier." Those bounds are for S5, which this row never reads; the dev split is only a guide. Read with that caveat:
 
 - **Every candidate is far inside 2 s p95**, including Laya on CPU (372 ms single, 837 ms with two concurrent requests).
-- **Today's judge with thinking off, already in place, is the most accurate option measured.** With think off, no model returned an unusable answer (0 unavailable in 355 calls per model), which is the failure JUDGE-THINK fixes.
+- **Today's judge with thinking off has no new dependency and is the most accurate option measured.** With think off, no model returned an unusable answer (0 unavailable in 355 calls per model), which is the failure JUDGE-THINK fixes. That judge is the B-3 advice judge in PR #264, still an open draft as of 2026-10-25; its `think=false` setting depends on JUDGE-THINK's `think` plumbing, merged in #305 (2026-10-23).
 - **The scratch Laya fine-tune reaches the same recall as today's best judges but blocks 15.4% of safe answers**, three times the 5% bound. One run, fixed settings, no tuning; see [Q4](#q4-scratch-fine-tune-of-laya).
 - **Laya zero-shot does not meet the 90% recall bound** with either checkpoint (0.728, 0.761).
 - **The NLI model, used zero-shot as an advice judge, blocked nothing** at the 0.5 entailment threshold fixed in advance. Its scores do rank advice above safe text (AUROC 0.784), so a threshold could be tuned, but that tuning would need its own labelled split.
@@ -44,16 +44,34 @@ Owner bounds for the judge (PARA-R3-Q4Q5, `owner-decisions-2026-09-27.md` line 1
 
 | Fact | Source |
 |---|---|
-| Laya revision `7b928d828b7b0e022f929d9bd2e44165aa270148`, licence `apache-2.0`, `library_name` `transformers`, `pipeline_tag` `text-classification`, not gated; `model.safetensors` LFS sha256 `891102d3…cd8be23e`, 842,609,210 bytes | Hugging Face API, `https://huggingface.co/api/models/convaiinnovations/laya` (JSON saved to scratch, then compared with the downloaded files below) |
-| `laya-typed-decisions` revision `e929ae5cf69bc34259cd2f95c9e91145b818b1f0`, `apache-2.0`; `model.safetensors` sha256 `4fa56de7…8a107a24e`, 842,609,220 bytes | `https://huggingface.co/api/models/convaiinnovations/laya-typed-decisions` |
+| Laya revision `7b928d828b7b0e022f929d9bd2e44165aa270148`, licence `apache-2.0`, `library_name` `transformers`, `pipeline_tag` `text-classification`, not gated; `model.safetensors` LFS sha256 `891102d3…cbc8d86c`, 842,609,210 bytes | Hugging Face API, `https://huggingface.co/api/models/convaiinnovations/laya` (JSON saved to scratch, then compared with the downloaded files below) |
+| `laya-typed-decisions` revision `e929ae5cf69bc34259cd2f95c9e91145b818b1f0`, `apache-2.0`; `model.safetensors` sha256 `4fa56de7…8107a24e`, 842,609,220 bytes | `https://huggingface.co/api/models/convaiinnovations/laya-typed-decisions` |
 | ModernBERT-large, 421M parameters, context 512 (root checkpoint) and 1,024 (`typed-decisions`) | model card `https://huggingface.co/convaiinnovations/laya/blob/7b928d828b7b0e022f929d9bd2e44165aa270148/README.md`, checkpoint table |
 | "Base checkpoints are near chance on typed-decisions zero-shot — 0.362 here and 0.352 for multilingual, against a 0.318 random and 0.461 majority-class baseline. The 0.766 belongs to the checkpoint fine-tuned on that benchmark's own training split." | same card, "Honest Limits" (quoted verbatim). So the 0.362 is the card's own benchmark, not advice text; this row measures advice text directly. |
 | Card latency: "32.8 ms (GPU) / 193–464 ms (CPU)" per request, T4 GPU | same card, deployment-mode table |
-| NLI model `cross-encoder/nli-deberta-v3-xsmall` @ `a150876415327c80daeff35ca6f68f5ed8cf5c24`, sha256 `4e4fc497…cd9e9`, Apache-2.0, owner-confirmed pins (GC5-OL-1) | [config/model_manifest.json](../../../config/model_manifest.json) key `nli-deberta-v3-xsmall`; loader `src/backend/modules/embeddings.py:72-113` (`load_local_cross_encoder`) (`local_files_only=True`, sha256 checked) |
+| NLI model `cross-encoder/nli-deberta-v3-xsmall` @ `a150876415327c80daeff35ca6f68f5ed8cf5c24`, sha256 `4e4fc497…66ccd9e9`, Apache-2.0, owner-confirmed pins (GC5-OL-1) | [config/model_manifest.json](../../../config/model_manifest.json) key `nli-deberta-v3-xsmall`; loader `src/backend/modules/embeddings.py:72-113` (`load_local_cross_encoder`) (`local_files_only=True`, sha256 checked) |
 | Today's judge: `FROZEN_PROMPT`, `JUDGE_TIMEOUT_S = 2`, `InferenceConfig(max_tokens=3, temperature=0.0, timeout_seconds=JUDGE_TIMEOUT_S)`, exact `ALLOW`/`BLOCK` parse, else `UNAVAILABLE` | PR #264 head `48a50b5`, `src/backend/modules/agent/guardrails/advice_judge.py:29-47`, `:95-116` |
 | Ollama request body: `num_predict`, `num_ctx` = min(8192, model max), `temperature`, `top_p`, `stop`, optional `think`; 2 s via `asyncio.wait_for` | `origin/main` `f7a5c449`, `src/backend/core/llm/ollama_provider.py:42`, `:135-155`, `:233-246` |
 
-**Downloaded files match the API.** Measured: `sha256sum` of the two `model.safetensors` files gives `891102d372688fc2a094dac56a384bc537b87c63f21f9f3dac0be2b7cbc8d86c` and `4fa56de72383a9d3efa9cfa78955733c81b9fc8067a587ca4beb82c78107a24e`, equal to the API's LFS sha256 values; `git hash-object rl_common.py` gives `d90d564964bcdc77586a257b0acccb5b7b19d6cf`, equal to the API's `blobId` for that file. The scratch NLI copy's sha256 `4e4fc4977f8d29d2a164255c8f69b9d6c158deeb309bb5e70445b94666ccd9e9` equals the repo pin.
+**Downloaded files match the API.** Raw output, 2026-10-25, file inspection only. The two `model.safetensors` LFS values equal the API's `sha256` for those files in the saved `src/*.api.json`; the `rl_common.py` hash equals its API `blobId`; the NLI copy equals the repo pin in `config/model_manifest.json` (line 51).
+
+```text
+$ cd /tmp/claude-1000/judge-laya && sha256sum dl/laya/model.safetensors dl/laya/typed-decisions/model.safetensors dl/nli_parent/nli/model.safetensors dl/laya/rl_common.py
+891102d372688fc2a094dac56a384bc537b87c63f21f9f3dac0be2b7cbc8d86c  dl/laya/model.safetensors
+4fa56de72383a9d3efa9cfa78955733c81b9fc8067a587ca4beb82c78107a24e  dl/laya/typed-decisions/model.safetensors
+4e4fc4977f8d29d2a164255c8f69b9d6c158deeb309bb5e70445b94666ccd9e9  dl/nli_parent/nli/model.safetensors
+8d83611d480c971d640a7b7d3aa2f2219c5e8455e9cc2329fd073681bd8be23e  dl/laya/rl_common.py
+$ cd /tmp/claude-1000/judge-laya && git hash-object dl/laya/rl_common.py
+d90d564964bcdc77586a257b0acccb5b7b19d6cf
+$ cd /tmp/claude-1000/judge-laya && grep -o '"size":842609210,"lfs":{"sha256":"[0-9a-f]*"' src/convaiinnovations_laya.api.json
+"size":842609210,"lfs":{"sha256":"891102d372688fc2a094dac56a384bc537b87c63f21f9f3dac0be2b7cbc8d86c"
+$ cd /tmp/claude-1000/judge-laya && grep -o '"size":842609220,"lfs":{"sha256":"[0-9a-f]*"' src/convaiinnovations_laya-typed-decisions.api.json
+"size":842609220,"lfs":{"sha256":"4fa56de72383a9d3efa9cfa78955733c81b9fc8067a587ca4beb82c78107a24e"
+$ cd /tmp/claude-1000/judge-laya && grep -o '"rfilename":"rl_common.py","blobId":"[0-9a-f]*"' src/convaiinnovations_laya.api.json
+"rfilename":"rl_common.py","blobId":"d90d564964bcdc77586a257b0acccb5b7b19d6cf"
+$ cd "/mnt/e/Programming/Github Repo/hc-judge-laya-research" && grep -n '4e4fc497' config/model_manifest.json
+51:      "sha256": "4e4fc4977f8d29d2a164255c8f69b9d6c158deeb309bb5e70445b94666ccd9e9",
+```
 
 ## Q1. Accuracy method, no contamination
 
@@ -67,13 +85,166 @@ Owner bounds for the judge (PARA-R3-Q4Q5, `owner-decisions-2026-09-27.md` line 1
 ```text
 $ grep -rn -i 'asclexis-sealed' /tmp/claude-1000/judge-laya/scripts /tmp/claude-1000/judge-laya/scripts2; echo "sealed-grep exit $?"
 sealed-grep exit 1
-$ ls -R /tmp/claude-1000/judge-laya/scripts2 /tmp/claude-1000/judge-laya/train /tmp/claude-1000/judge-laya/out
-out: finetune.err finetune.txt freeze_after.txt freeze_before.txt ollama_gemma3.err ollama_gemma3.txt ollama_gemma4.err
-     ollama_gemma4.txt ollama_llama3.1.err ollama_llama3.1.txt ollama_qwen3.err ollama_qwen3.txt zeroshot_cpu.txt
-     zeroshot_cuda.err zeroshot_cuda.txt
-scripts2: __pycache__ common.py finetune_laya.py laya_lib.py ollama_judge.py quiet_run.sh zeroshot_encoders.py
-train: agent_train.json agent_train_v2.json
+$ ls -R /tmp/claude-1000/judge-laya
+/tmp/claude-1000/judge-laya:
+dl
+out
+pr373_body.md
+scripts
+scripts2
+src
+train
+venv
+
+/tmp/claude-1000/judge-laya/dl:
+laya
+nli_parent
+
+/tmp/claude-1000/judge-laya/dl/laya:
+README.md
+__pycache__
+config.json
+email_utils.py
+encoder
+eval
+model.safetensors
+rl_agent_api.py
+rl_agent_config.json
+rl_common.py
+tokenizer
+typed-decisions
+
+/tmp/claude-1000/judge-laya/dl/laya/__pycache__:
+rl_common.cpython-311.pyc
+rl_common.cpython-312.pyc
+
+/tmp/claude-1000/judge-laya/dl/laya/encoder:
+config.json
+
+/tmp/claude-1000/judge-laya/dl/laya/eval:
+results.json
+results.md
+
+/tmp/claude-1000/judge-laya/dl/laya/tokenizer:
+tokenizer.json
+tokenizer_config.json
+
+/tmp/claude-1000/judge-laya/dl/laya/typed-decisions:
+encoder
+model.safetensors
+rl_agent_config.json
+tokenizer
+
+/tmp/claude-1000/judge-laya/dl/laya/typed-decisions/encoder:
+config.json
+
+/tmp/claude-1000/judge-laya/dl/laya/typed-decisions/tokenizer:
+tokenizer.json
+tokenizer_config.json
+
+/tmp/claude-1000/judge-laya/dl/nli_parent:
+nli
+
+/tmp/claude-1000/judge-laya/dl/nli_parent/nli:
+README.md
+added_tokens.json
+config.json
+model.safetensors
+special_tokens_map.json
+spm.model
+tokenizer.json
+tokenizer_config.json
+
+/tmp/claude-1000/judge-laya/out:
+finetune.err
+finetune.txt
+freeze_after.txt
+freeze_before.txt
+ollama_gemma3.err
+ollama_gemma3.txt
+ollama_gemma4.err
+ollama_gemma4.txt
+ollama_llama3.1.err
+ollama_llama3.1.txt
+ollama_qwen3.err
+ollama_qwen3.txt
+zeroshot_cpu.txt
+zeroshot_cuda.err
+zeroshot_cuda.txt
+
+/tmp/claude-1000/judge-laya/scripts:
+__pycache__
+common.py
+laya_lib.py
+ollama_judge.py
+zeroshot_encoders.py
+
+/tmp/claude-1000/judge-laya/scripts/__pycache__:
+common.cpython-311.pyc
+laya_lib.cpython-311.pyc
+
+/tmp/claude-1000/judge-laya/scripts2:
+__pycache__
+common.py
+finetune_laya.py
+laya_lib.py
+ollama_judge.py
+overlap_by_source.py
+quiet_run.sh
+zeroshot_encoders.py
+
+/tmp/claude-1000/judge-laya/scripts2/__pycache__:
+common.cpython-311.pyc
+common.cpython-312.pyc
+laya_lib.cpython-311.pyc
+laya_lib.cpython-312.pyc
+
+/tmp/claude-1000/judge-laya/src:
+convaiinnovations_laya-typed-decisions.api.json
+convaiinnovations_laya.api.json
+
+/tmp/claude-1000/judge-laya/train:
+agent_train.json
+agent_train_v2.json
+
+/tmp/claude-1000/judge-laya/venv:
+CACHEDIR.TAG
+bin
+lib
+lib64
+pyvenv.cfg
+
+/tmp/claude-1000/judge-laya/venv/bin:
+activate
+activate.bat
+activate.csh
+activate.fish
+activate.nu
+activate.ps1
+activate.xsh
+activate_this.py
+deactivate.bat
+pydoc.bat
+python
+python3
+python3.11
+
+/tmp/claude-1000/judge-laya/venv/lib:
+python3.11
+
+/tmp/claude-1000/judge-laya/venv/lib/python3.11:
+site-packages
+
+/tmp/claude-1000/judge-laya/venv/lib/python3.11/site-packages:
+__pycache__
+_virtualenv.pth
+_virtualenv.py
+
+/tmp/claude-1000/judge-laya/venv/lib/python3.11/site-packages/__pycache__:
+_virtualenv.cpython-311.pyc
 ```
+
+The block above is the raw output of `ls -R` on the scratch root, with nothing excluded (`venv/` holds 17 files, so no subtree was left out). Plain `ls -R` does not list hidden entries such as `dl/nli_parent/nli/.cache`. `scripts/` holds an earlier version of four scratch scripts (all four differ from `scripts2/`); the numbers in this document come from `scripts2/`, as the commands above show.
 
 (`agent_train.json` was left by an earlier, killed run of this row; it was not used, because its author session could not be checked.)
 
@@ -118,6 +289,8 @@ user	128m48.433s
 sys	2m23.177s
 ```
 
+Trimmed from the CPU paste above: the `  warnings.warn(` line and the `Loading weights: …` progress-bar line, both printed between the `laya-typed-decisions` and `nli` sections. Both are in `/tmp/claude-1000/judge-laya/out/zeroshot_cpu.txt`; neither carries a measurement.
+
 **GPU.** The repo venv's torch is CPU-only (`2.14.1+cpu`), and installing a CUDA build would need a package download, which this row's network rule does not allow. The GPU runs therefore use an existing CUDA venv on the box, used read-only (`~/hc-mm4/src/backend/.venv-linux`, Python 3.12.3, `torch 2.14.1+cu130`, `transformers 5.20.1`, the same `transformers` as the repo venv). Its package list hash is the same before and after (below). Accuracy is identical to the CPU run, as expected for the same weights.
 
 ```text
@@ -146,7 +319,7 @@ nli-deberta-v3-xsmall cuda latency           concurrency 1: n=119 p50 39 ms  p95
 nli-deberta-v3-xsmall cuda latency           concurrency 2: n=119 p50 91 ms  p95 107 ms  max 111 ms
 ```
 
-**Today's generative judge with thinking off (GPU, Ollama on localhost).** The script sends exactly what #264's judge plus JUDGE-THINK's `think=false` would send through `OllamaProvider` (prompt, options, 2 s wall-clock limit, exact parse). Each model was warmed with one untimed call, then unloaded (`keep_alive 0`) after its run. Every run waited until no UI timing test (`playwright`, `vitest`) was running and held every pytest slot (`quiet_run.sh`, Appendix A).
+**Today's generative judge with thinking off (GPU, Ollama on localhost).** The script `ollama_judge.py` mirrors only #264's request (prompt, options, 2 s wall-clock limit, exact ALLOW/BLOCK parse) plus JUDGE-THINK's `think=false`. It calls Ollama's `/api/chat` directly, not through `OllamaProvider` or `advice_judge`, and does not reproduce `advice_judge`'s `finish_reason`, `is_available` or low-tier checks (`advice_judge.py` lines 100-107 at #264 head `48a50b5`). Those checks can only turn a verdict into UNAVAILABLE. The run had 0 UNAVAILABLE answers and did not record `done_reason`, so their effect on these numbers is not measured.
 
 ```text
 $ cd /tmp/claude-1000/judge-laya/out && /tmp/claude-1000/judge-laya/scripts2/quiet_run.sh ~/venvs/asclexis-311/bin/python -I \
@@ -181,7 +354,7 @@ Not measured: today's generative judge on CPU only (the box always offloads to t
 
 ## Q4. Scratch fine-tune of Laya
 
-The owner asked to compare a *fine-tuned* Laya. One run, on the root (English) checkpoint `convaiinnovations/laya` @ `7b928d828b7b`, the model the owner named. All settings were fixed before the run and nothing was tuned on dev: 3 epochs, batch 16, AdamW lr 2e-5, weight decay 0.01, 10% linear warm-up then linear decay, bf16 autocast, gradient clipping 1.0, seed 0, the same `choice` question as zero-shot with the option order shuffled per item. To fit the 10 GB card next to other work, the embeddings and the bottom 14 of 28 encoder layers were frozen (198.1M of 421.3M parameters trained). Plain torch loop: no trainer package. The weights stayed in memory and were never written to disk; the process exit freed them (`find … -name '*.safetensors' -newer finetune_laya.py` → 0 files).
+The owner asked to compare a *fine-tuned* Laya. One run, on the root (English) checkpoint `convaiinnovations/laya` @ `7b928d828b7b`, the model the owner named. All settings were fixed before the run and nothing was tuned on dev: 3 epochs, batch 16, AdamW lr 2e-5, weight decay 0.01, 10% linear warm-up then linear decay, bf16 autocast, gradient clipping 1.0, seed 0, the same `choice` question as zero-shot with the option order shuffled per item. To fit the 10 GB card next to other work, the embeddings and the bottom 14 of 28 encoder layers were frozen (198.1M of 421.3M parameters trained). Plain torch loop: no trainer package. The weights stayed in memory and were never written to disk; the process exit freed them (search below).
 
 ```text
 $ cd /tmp/claude-1000/judge-laya/out && time /tmp/claude-1000/judge-laya/scripts2/quiet_run.sh unshare -rn env HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
@@ -205,11 +378,20 @@ laya fine-tuned cuda latency                 concurrency 2: n=119 p50 75 ms  p95
 weights never written to disk; process exits and frees them
 ```
 
+Weight files written after the fine-tune script (raw output):
+
+```text
+$ find /tmp/claude-1000/judge-laya /home/danny/.cache -name '*.safetensors' -newer /tmp/claude-1000/judge-laya/scripts2/finetune_laya.py; echo "exit $?"
+exit 0
+```
+
+A wider search of `/tmp/claude-1000` (which includes `don-ner`), `/home/danny/.cache`, `/home/danny/hc-mm4` and this worktree, with the same `-newer` test, found two other `.safetensors` files, both under `/tmp/claude-1000/don-ner/weights/`. They are another project's files, not this run's, and were not opened.
+
 (The "near-duplicate 8" line counts the 6 exact copies too; the per-source split in Q1 shows 2 near-only.)
 
 **Reading it.** The fine-tune learns the task fast (loss 0.004 after 18 s; dev AUROC 0.991, against 0.868 zero-shot), so the ranking is good, but at the fixed 0.5 threshold it over-blocks: 15.4% of safe answers, against the 5% bound. Likely causes, not tested here: more than half of the block side (211 of 381) comes from `must_not_regress.json`, a set built from regex hits, and the allow side is mostly one agent's writing, so the model may have learned "mentions a medicine or condition → block". A real build would need a larger, more varied allow set and a threshold chosen on its own calibration split (never on dev or S5). One run says nothing about run-to-run variance.
 
-**What a real build would need.** Trainer: none beyond `torch` (this run is a short plain loop); the card's own path is the `laya` pip package and a Kaggle notebook, neither used here. Weights: 843 MB `model.safetensors` per fine-tuned checkpoint, pinned by repo + revision + sha256 in `config/model_manifest.json` and fetched by a `download_models.py` subcommand on the `cmd_nli` pattern; because a fine-tuned checkpoint is *our* artifact, it would also need a hosting decision (it cannot be fetched from the upstream repo). Training data: a labelled set that is not S5, not `held_out_final*.json` and not dev, written the `held_out_*` author way.
+**What a real build would need.** Trainer: none beyond `torch` (this run is a short plain loop). torch is BSD-3-Clause: its `LICENSE` file, `/home/danny/venvs/asclexis-311/lib/python3.11/site-packages/torch-2.14.1+cpu.dist-info/licenses/LICENSE`, begins "From PyTorch:" and has the three-clause text (the wheel's `License-Expression` also lists third-party licences). The `laya` pip package's licence was not checked: no licence file for it is in `src/` or `dl/`, and the model card's `license: apache-2.0` is the model's licence, not the package's. The card's own path is the `laya` pip package and a Kaggle notebook, neither used here. Weights: 843 MB `model.safetensors` per fine-tuned checkpoint, pinned by repo + revision + sha256 in `config/model_manifest.json` and fetched by a `download_models.py` subcommand on the `cmd_nli` pattern; because a fine-tuned checkpoint is *our* artifact, it would also need a hosting decision (it cannot be fetched from the upstream repo). Training data: a labelled set that is not S5, not `held_out_final*.json` and not dev, written the `held_out_*` author way.
 
 ## Q5. Dependency, licence, size, Python 3.11
 
@@ -223,14 +405,32 @@ weights never written to disk; process exits and frees them
 | Offline with network blocked | measured (`unshare -rn`, both CPU and GPU runs) | measured (same runs) |
 | Memory | 5.76 GiB peak GPU memory for the scratch fine-tune with half the encoder frozen; inference memory beside a loaded Ollama model not measured | not measured here |
 
-Repo venv unchanged by this row (package-list hash before and after, both venvs):
+Sizes and line counts (raw output):
 
 ```text
-$ for p in ~/venvs/asclexis-311/bin/python /home/danny/hc-mm4/src/backend/.venv-linux/bin/python; do uv pip freeze --python $p | sha256sum; done
-93434ec2b92cde6db549b3c5a8d9668f293214c20c767280b34cb1a94fe74316  -   (before and after)
-ae8e967cd401971a764665ed6ab7e00943713e11593dbdc11b7d36b9de18fc7f  -   (before and after)
-$ diff out/freeze_before.txt out/freeze_after.txt && echo "venvs unchanged"
+$ du -sb /tmp/claude-1000/judge-laya/dl/laya/tokenizer
+3583536	/tmp/claude-1000/judge-laya/dl/laya/tokenizer
+$ wc -l /tmp/claude-1000/judge-laya/dl/laya/rl_common.py
+408 /tmp/claude-1000/judge-laya/dl/laya/rl_common.py
+```
+
+Repo venv unchanged by this row. Each freeze file holds only the sha256 of one venv's `uv pip freeze` output (the package lists were not saved in these files). The first line is `~/venvs/asclexis-311` (the repo venv) and the second is the hc-mm4 venv; the read-only `uv pip freeze` re-check at the end gives the same two hashes today. Raw output:
+
+```text
+$ cat /tmp/claude-1000/judge-laya/out/freeze_before.txt
+93434ec2b92cde6db549b3c5a8d9668f293214c20c767280b34cb1a94fe74316  -
+ae8e967cd401971a764665ed6ab7e00943713e11593dbdc11b7d36b9de18fc7f  -
+$ cat /tmp/claude-1000/judge-laya/out/freeze_after.txt
+93434ec2b92cde6db549b3c5a8d9668f293214c20c767280b34cb1a94fe74316  -
+ae8e967cd401971a764665ed6ab7e00943713e11593dbdc11b7d36b9de18fc7f  -
+$ diff /tmp/claude-1000/judge-laya/out/freeze_before.txt /tmp/claude-1000/judge-laya/out/freeze_after.txt && echo "venvs unchanged"
 venvs unchanged
+$ uv pip freeze --python /home/danny/venvs/asclexis-311/bin/python | sha256sum
+Using Python 3.11.17 environment at: /home/danny/venvs/asclexis-311
+93434ec2b92cde6db549b3c5a8d9668f293214c20c767280b34cb1a94fe74316  -
+$ uv pip freeze --python /home/danny/hc-mm4/src/backend/.venv-linux/bin/python | sha256sum
+Using Python 3.12.3 environment at: /home/danny/hc-mm4/src/backend/.venv-linux
+ae8e967cd401971a764665ed6ab7e00943713e11593dbdc11b7d36b9de18fc7f  -
 ```
 
 ## Q6. Fit with the frozen design
@@ -244,7 +444,7 @@ venvs unchanged
 
 Draft from the plan section's text, filled with the findings above. Asked only after this research lands. This row makes no recommendation; L0 decides whether one is marked.
 
-> "JUDGE-SWAP. The research compared Laya (fine-tuned once on a training split, and zero-shot), the local NLI model and today's judge with thinking off, on a development set (180 advice, 175 safe answers; your sealed S5 was not used). Today's judge with thinking off caught 99–100% of advice and wrongly blocked 1–5% of safe answers (qwen3:8b 1.1%, gemma4:e4b 5.1%), well under 2 s, with no new dependency. The fine-tuned Laya caught 98.9% but wrongly blocked 15.4% (your bound is 5%), adds an 843 MB model and third-party model code, and was trained once with no tuning. Laya without training caught 73–76%; the NLI model, used as is, caught none at the threshold fixed in advance. A swap reopens B-3's frozen design and B-4's sign-off. What next?"
+> "JUDGE-SWAP. The research compared Laya (fine-tuned once on a training split, and zero-shot), the local NLI model and today's judge with thinking off, on a development set (180 advice, 175 safe answers; your sealed S5 was not used). Today's judge with thinking off, across four local Ollama models, caught 91.7–100% of advice (gemma4:e4b and gemma3:12b 100%, qwen3:8b 98.9%, llama3.1:8b 165 of 180 = 91.7%) and wrongly blocked 0–5.1% of safe answers (gemma4:e4b 9 of 175 = 5.1%, just over your 5% bound; qwen3:8b and gemma3:12b 1.1%; llama3.1:8b 0%). Their single-request p95 latency was at most 348 ms, with no new dependency. The fine-tuned Laya, with its embeddings and bottom 14 of 28 encoder layers frozen, caught 98.9% but wrongly blocked 15.4% (your bound is 5%), adds an 843 MB model and third-party model code, and was trained once with no tuning. Laya without training caught 73–76%; the NLI model, used as is, caught none at the threshold fixed in advance. The dev split was written to test the regex filter, sits near the ceiling for the generative judges, and does not predict S5. A swap reopens B-3's frozen design and B-4's sign-off. What next?"
 
 | Option (5 words or fewer) | Description |
 |---|---|
@@ -265,6 +465,8 @@ Draft from the plan section's text, filled with the findings above. Asked only a
 - **No GPU measurement in the repo venv.** It has CPU-only torch, and installing a CUDA build needs a package download outside this row's network rule; the GPU runs used an existing CUDA venv read-only (Python 3.12). Dependency and offline-load questions were answered in the 3.11 repo venv on CPU.
 - **No fine-tune of `laya-typed-decisions`, no repeated runs, no threshold tuning.** One pre-registered run on the checkpoint the owner named; tuning on dev would contaminate it, and no separate calibration split exists yet.
 - **No Laya + Ollama co-residency memory measurement.** Each model was measured alone.
+- **Fine-tune venv differs from plan Q4.** Plan Q4 (lane B) asks for the fine-tune to run "in a separate scratch venv (never the repo venv)". The fine-tune ran in another worktree's backend venv, `/home/danny/hc-mm4/src/backend/.venv-linux` (Python 3.12.3, `torch 2.14.1+cu130`), used read-only: nothing was installed into it, and its package-list hash is unchanged (raw output in the Q5 section). The repo venv was used read-only for the CPU zero-shot run, not for the fine-tune. The empty Python 3.11 venv at `/tmp/claude-1000/judge-laya/venv` (`pyvenv.cfg` and virtualenv files only, no installed packages) is unused. A scratch venv with a CUDA torch would have needed a package download, which this row's network rule did not allow (see **GPU** under Q2 and Q3).
+- **Half the encoder frozen in the fine-tune.** The embeddings and the bottom 14 of 28 encoder layers were frozen to fit the 10 GB card (198.1M of 421.3M parameters trained). Other freeze depths and full fine-tuning were not run, so the 15.4% false-block figure describes this one configuration.
 
 ## Appendix A: scratch scripts
 
