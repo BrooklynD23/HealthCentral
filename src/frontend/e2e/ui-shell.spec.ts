@@ -639,6 +639,107 @@ test.describe('HC-UISH-004 phone top bar: toggle on row 2, no overlap with the r
 });
 
 // ---------------------------------------------------------------------------
+// WCAG 2.2 2.4.11 (Focus Not Obscured, minimum), UI-SHELL review round 1 MAJOR (L0 ruling 11:30:40Z). The sticky
+// header (both rows on phones), the phone tab bar and the Safety Rail cover part of the viewport. Tab must scroll a
+// focused control clear of them, which globals.css does with scroll-padding on html.
+// ---------------------------------------------------------------------------
+/** The chrome a focused control must not sit under. The skip link and the chrome's own controls are exempt below. */
+const FOCUS_CHROME = ['header', 'nav[aria-label="Tab bar"]', RAIL];
+
+/**
+ * Waits until the window's scroll position is unchanged for two animation frames. globals.css sets
+ * scroll-behavior: smooth, so a focus move scrolls over several frames, and the rect is read only after it stops.
+ */
+async function waitForScrollToSettle(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        let previous = NaN;
+        let stableFrames = 0;
+        const frame = () => {
+          const y = window.scrollY;
+          stableFrames = y === previous ? stableFrames + 1 : 0;
+          previous = y;
+          if (stableFrames >= 2) resolve();
+          else requestAnimationFrame(frame);
+        };
+        requestAnimationFrame(frame);
+      })
+  );
+}
+
+interface FocusStop {
+  label: string;
+  /** Empty when the focused control is clear of the chrome. */
+  overlaps: string[];
+  /** True for the skip link, which is drawn above the chrome on purpose, and for the chrome's own controls. */
+  exempt: boolean;
+}
+
+/** Presses Tab until focus leaves the document (or cycles), and records where each focused control sits. */
+async function tabThroughRoute(page: Page, maxPresses: number): Promise<FocusStop[]> {
+  const stops: FocusStop[] = [];
+  for (let press = 0; press < maxPresses; press += 1) {
+    await page.keyboard.press('Tab');
+    await waitForScrollToSettle(page);
+    const stop = await page.evaluate((chromeSelectors: string[]) => {
+      const active = document.activeElement as HTMLElement | null;
+      if (!active || active === document.body) return null;
+      const rect = active.getBoundingClientRect();
+      const chrome = chromeSelectors
+        .flatMap((selector) => Array.from(document.querySelectorAll<HTMLElement>(selector)))
+        .filter((el) => el.getClientRects().length > 0);
+      const name = (active.getAttribute('aria-label') ?? active.textContent ?? '').trim().replace(/\s+/g, ' ');
+      const overlaps = chrome
+        .filter((el) => {
+          const box = el.getBoundingClientRect();
+          return rect.right > box.left && rect.left < box.right && rect.bottom > box.top && rect.top < box.bottom;
+        })
+        .map((el) => (el.tagName === 'HEADER' ? 'header' : el.matches('nav') ? 'tab bar' : 'Safety Rail'));
+      return {
+        label: `${active.tagName.toLowerCase()} "${name.slice(0, 40)}" at y ${Math.round(rect.top)}-${Math.round(rect.bottom)}`,
+        overlaps,
+        exempt:
+          active.getAttribute('href') === '#main-content' || chrome.some((el) => el.contains(active)),
+      };
+    }, FOCUS_CHROME);
+    if (stop === null) break;
+    stops.push(stop);
+  }
+  return stops;
+}
+
+test.describe('WCAG 2.4.11 focus is not obscured by the shell chrome', () => {
+  for (const viewport of [PHONE, DESKTOP]) {
+    test(`focus is not obscured by the header, tab bar or Safety Rail on /settings at ${viewport.width}`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await openRoute(page, '/settings');
+      await expect(page.locator(RAIL)).toBeVisible({ timeout: 15_000 });
+      await settleRoute(page);
+      // Focusable rows below the page's own content, so the last Tab stops sit well below the fold.
+      await page.locator(ROUTE_CONTAINER).evaluate((el) => {
+        for (let i = 0; i < 30; i += 1) {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.textContent = `Focus filler ${i + 1}`;
+          button.style.display = 'block';
+          button.style.height = '80px';
+          button.style.width = '100%';
+          el.appendChild(button);
+        }
+      });
+      const stops = await tabThroughRoute(page, 200);
+      expect(stops.length, 'Tab reached the page controls and the filler rows').toBeGreaterThan(40);
+      const covered = stops.filter((stop) => !stop.exempt && stop.overlaps.length > 0);
+      expect(
+        covered.map((stop) => `${stop.label} is under ${stop.overlaps.join(', ')}`),
+        'focused controls obscured by the shell chrome'
+      ).toEqual([]);
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // HC-UISH-007 (DF-3): a visible toast does not sit over the More sheet.
 // HC-UISH-008: the More sheet closes on Escape, returns focus, and reaches every destination.
 // ---------------------------------------------------------------------------
