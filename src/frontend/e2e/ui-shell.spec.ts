@@ -393,6 +393,69 @@ test.describe('HC-UISH-005 Safety Rail is opaque and on top', () => {
       });
     }
   }
+
+  // The scroll above reaches the bottom, which brings even a rail that is not sticky into view. A 3000 px block
+  // makes the page taller than any viewport, so the rail's position at the top and in the middle is what is tested.
+  for (const viewport of [DESKTOP, PHONE]) {
+    test(`HC-UISH-005: the rail stays in the viewport at scroll 0 and mid-page at ${viewport.width}`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await openRoute(page, '/inbox');
+      await expect(page.locator(RAIL)).toBeVisible({ timeout: 15_000 });
+      await settleRoute(page);
+      await page.locator(ROUTE_CONTAINER).evaluate((el) => {
+        const filler = document.createElement('div');
+        filler.style.height = '3000px';
+        el.appendChild(filler);
+      });
+      const inViewport = async (scrollY: number) => {
+        // html is scroll-behavior: smooth (globals.css), so a plain scrollTo animates and two frames are not enough.
+        // The inline style pins the jump to instant for this check only.
+        await page.evaluate((y) => {
+          document.documentElement.style.scrollBehavior = 'auto';
+          window.scrollTo(0, y);
+        }, scrollY);
+        await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
+        return page.locator(RAIL).evaluate(
+          (rail) => {
+            const rect = rail.getBoundingClientRect();
+            return {
+              top: rect.top,
+              bottom: rect.bottom,
+              viewport: window.innerHeight,
+              scrollY: window.scrollY,
+              docHeight: document.documentElement.scrollHeight,
+            };
+          }
+        );
+      };
+      const top = await inViewport(0);
+      expect(top.scrollY, 'scrolled to the top').toBe(0);
+      expect(top.bottom, 'rail bottom at scroll 0').toBeLessThanOrEqual(top.viewport);
+      expect(top.top, 'rail top at scroll 0').toBeGreaterThanOrEqual(0);
+
+      const middle = Math.round((top.docHeight - top.viewport) / 2);
+      const mid = await inViewport(middle);
+      expect(mid.docHeight, 'the 3000 px block makes the page taller than the viewport').toBeGreaterThan(mid.viewport + 2000);
+      expect(mid.scrollY, `scrolled to the middle (requested ${middle}, document ${mid.docHeight}px)`).toBeGreaterThan(0);
+      expect(mid.bottom, 'rail bottom mid-scroll').toBeLessThanOrEqual(mid.viewport);
+      expect(mid.top, 'rail top mid-scroll').toBeGreaterThanOrEqual(0);
+    });
+  }
+
+  test('HC-UISH-005: on phones the Safety Rail sits flush on the tab bar, with no page strip between them', async ({
+    page,
+  }) => {
+    await page.setViewportSize(PHONE);
+    await openRoute(page, '/inbox');
+    await expect(page.locator(RAIL)).toBeVisible({ timeout: 15_000 });
+    const gap = await page.evaluate(() => {
+      const rail = document.querySelector('[data-safety-rail]')?.getBoundingClientRect();
+      const tabBar = document.querySelector('nav[aria-label="Tab bar"]')?.getBoundingClientRect();
+      if (!rail || !tabBar) return NaN;
+      return tabBar.top - rail.bottom;
+    });
+    expect(Math.abs(gap), 'px between the rail bottom and the tab bar top').toBeLessThanOrEqual(0.5);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -424,11 +487,35 @@ test.describe('HC-UISH-006 relabelled safety toggle', () => {
     await openRoute(page, '/inbox');
     const banner = page.getByRole('banner');
     await expect(banner).toBeVisible({ timeout: 15_000 });
-    const before = await banner.evaluate((el) => el.outerHTML);
+    // Snapshot the whole app root, not only the banner: a click that changed the rail or the route container
+    // would pass a banner-only check. Portals are appended to body, outside #root, so the popover is not in it.
+    await page.waitForLoadState('networkidle');
+    await settleRoute(page);
+    const root = page.locator('#root');
+    const before = await root.evaluate((el) => el.innerHTML);
     await page.getByRole('switch', { name: 'Stricter safety mode' }).click({ force: true });
     await page.waitForTimeout(300);
-    expect(await banner.evaluate((el) => el.outerHTML)).toBe(before);
+    expect(await root.evaluate((el) => el.innerHTML)).toBe(before);
     await expect(page.getByRole('switch', { name: 'Stricter safety mode' })).toHaveAttribute('aria-checked', 'false');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HC-UISH-006 on phones: there the note is in the popover that the info button opens (plan §3.6).
+// ---------------------------------------------------------------------------
+test.describe('HC-UISH-006 phone toggle popover', () => {
+  test.use({ viewport: PHONE });
+
+  test('HC-UISH-006: at 390 px the info popover carries the note above the long text', async ({ page }) => {
+    await openRoute(page, '/inbox');
+    const info = page.getByRole('button', { name: 'About the stricter safety mode' });
+    await expect(info).toBeVisible({ timeout: 15_000 });
+    await info.click();
+    const popover = page.getByRole('dialog', { name: 'About the stricter safety mode' });
+    await expect(popover).toBeVisible();
+    await expect(popover).toContainText('Not available yet. The standard safety checks always run.');
+    await expect(popover).toContainText('A stricter mode is being designed; this switch will turn it on when it is ready.');
+    await expect(popover).not.toContainText(/\b(ON|OFF)\b/);
   });
 });
 
@@ -516,6 +603,47 @@ test.describe('Inherited stillness and focus halves (L0 rulings #363, #364, #365
       expected: [TOGGLE_POPOVER],
     });
     expect(report.nodes).toBeGreaterThan(0);
+  });
+
+  // HC-UISH-009 clause "the safety-toggle popover (T0 copy) opens with M0", checked without the gap limit so it does
+  // not depend on POPOVER-OPEN-COST. In the first frame after the popover mounts, the popover and each ancestor have
+  // no running animation and opacity 1. The dialog element itself has no transform. Its ancestors may carry Radix's
+  // placement transform, which positions the popover and is not motion. Removing `still` fails this.
+  test('HC-UISH-009: the safety-toggle popover mounts with no motion at 390 (M0)', async ({ page }) => {
+    await page.setViewportSize(PHONE);
+    await openRoute(page, '/inbox');
+    await expect(page.locator(RAIL)).toBeVisible({ timeout: 15_000 });
+    await page.getByRole('button', { name: /stricter safety mode/i }).click();
+    await expect(page.locator(TOGGLE_POPOVER)).toBeVisible();
+    const chain = await page.evaluate(
+      () =>
+        new Promise<Array<{ tag: string; role: string | null; running: number; opacity: string; transform: string }>>(
+          (resolve) => {
+            requestAnimationFrame(() => {
+              const nodes: Array<{ tag: string; role: string | null; running: number; opacity: string; transform: string }> =
+                [];
+              for (let el: Element | null = document.querySelector('[data-safety-toggle-popover]'); el; el = el.parentElement) {
+                const cs = getComputedStyle(el);
+                nodes.push({
+                  tag: el.tagName.toLowerCase(),
+                  role: el.getAttribute('role'),
+                  running: el.getAnimations().filter((a) => a.playState === 'running').length,
+                  opacity: cs.opacity,
+                  transform: cs.transform,
+                });
+              }
+              resolve(nodes);
+            });
+          }
+        )
+    );
+    expect(chain.length, 'the popover is in the document').toBeGreaterThan(1);
+    expect(chain.find((node) => node.role === 'dialog'), 'the popover dialog element').toBeDefined();
+    for (const node of chain) {
+      expect(node.running, `running animations on ${node.tag}`).toBe(0);
+      expect(node.opacity, `opacity on ${node.tag}`).toBe('1');
+      if (node.role === 'dialog') expect(node.transform, 'transform on the popover dialog').toBe('none');
+    }
   });
 
   test('HC-UIFB-006: a still toast keeps its text and rect from the trigger', async ({ page }) => {
@@ -664,4 +792,31 @@ test.describe('Gate G on every route', () => {
     const samples = await routeOpacitySamples(page, { navigate: () => navigateTo(page, '/verify'), durationMs: 800 });
     expect(samples.filter((s) => s.opacity < 0.3)).toEqual([]);
   });
+});
+
+// ---------------------------------------------------------------------------
+// Gate G1 at phone width. The tab bar is lg:hidden, so the 1440 run above never scans it, and the More sheet and
+// its tiles only exist when it is open. This run opens the sheet and scans the shell's own nodes, light and dark.
+// ---------------------------------------------------------------------------
+test.describe('Gate G1 at phone width with the More sheet open', () => {
+  test.use({ viewport: PHONE });
+
+  for (const route of AUTH_ROUTES) {
+    for (const theme of ['light', 'dark'] as const) {
+      test(`GATE G1 at 390 on ${route}, ${theme}: shell axe with the tab bar and More sheet`, async ({ page }) => {
+        await openRoute(page, route);
+        await expect(page.locator('h1, main').first()).toBeVisible({ timeout: 15_000 });
+        await page.getByRole('navigation', { name: 'Tab bar' }).getByRole('button', { name: 'More' }).click();
+        const sheet = page.getByRole('dialog');
+        await expect(sheet).toBeVisible();
+        // The sheet slides in on a transform; axe reads colours mid-slide, so wait for the slide to settle.
+        await expect
+          .poll(() => sheet.evaluate((el) => getComputedStyle(el).transform))
+          .toMatch(/^(none|matrix\(1, 0, 0, 1, 0, 0\))$/);
+
+        const violations = await shellAxeBlocking(page, theme);
+        expect(violations.map(describeViolation), `${theme} axe serious/critical on the shell at 390`).toEqual([]);
+      });
+    }
+  }
 });

@@ -2,8 +2,11 @@
 // the transition entries, prefix matching marks the active destination, and
 // every destination name lives in navConfig.ts only (plan §7.5, "Files").
 
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect } from 'vitest';
+import { cleanup, fireEvent, render, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { navGroups, navTabs, isNavActive } from '@/components/layout/navConfig';
+import { Sidebar } from '@/components/layout/Sidebar';
 import appLayoutSource from '@/components/layout/AppLayout.tsx?raw';
 import sidebarSource from '@/components/layout/Sidebar.tsx?raw';
 import mobileTabBarSource from '@/components/layout/MobileTabBar.tsx?raw';
@@ -91,5 +94,42 @@ describe('UI-SHELL navConfig (HC-UISH-001)', () => {
         expect(source, `${file} must not hard-code "${name}"`).not.toContain(`>${name}<`);
       }
     }
+  });
+});
+
+// M9 (plan §2.6): the nav indicator is one element moved by a CSS transition. Its first placement does not slide
+// in from the top of the nav, and a keyboard move jumps. A pointer move between destinations still transitions.
+describe('UI-SHELL nav indicator (M9)', () => {
+  afterEach(() => cleanup());
+
+  function renderSidebarAt(path: string) {
+    const { container } = render(
+      <MemoryRouter initialEntries={[path]}>
+        <Sidebar />
+      </MemoryRouter>
+    );
+    const nav = container.querySelector<HTMLElement>('nav[aria-label="Main navigation"]');
+    const indicator = nav?.querySelector<HTMLElement>('span[aria-hidden="true"]');
+    if (!nav || !indicator) throw new Error('the sidebar renders its nav and indicator');
+    return { nav, indicator };
+  }
+
+  it('M9: the first placement of the indicator is not transitioned (it does not slide in on load)', () => {
+    const { indicator } = renderSidebarAt('/inbox');
+    expect(indicator.style.transition).toBe('none');
+  });
+
+  it('M9: a pointer move between destinations transitions the indicator', () => {
+    const { nav, indicator } = renderSidebarAt('/inbox');
+    fireEvent.pointerDown(nav);
+    fireEvent.click(within(nav).getByRole('link', { name: 'Timeline' }));
+    expect(indicator.style.transition).toBe('');
+  });
+
+  it('M9: a keyboard move between destinations jumps (no transition)', () => {
+    const { nav, indicator } = renderSidebarAt('/inbox');
+    fireEvent.keyDown(nav, { key: 'Tab' });
+    fireEvent.click(within(nav).getByRole('link', { name: 'Timeline' }));
+    expect(indicator.style.transition).toBe('none');
   });
 });
