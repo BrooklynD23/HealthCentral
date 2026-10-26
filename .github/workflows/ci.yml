@@ -140,8 +140,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
-          cache-dependency-path: src/backend/requirements.txt
 
       - name: Install security tools
         # setuptools>=83 patches PYSEC-2026-3447; the runner image ships an
