@@ -554,6 +554,21 @@ if ($pipExit -ne 0) {
 }
 if ($nollamaReqs) { Remove-Item $nollamaReqs -Force -ErrorAction SilentlyContinue }
 
+# Embedding model: document chunks need it. The backend loads it offline and never downloads it;
+# this step is the one place it is fetched (about 88 MB, once). Already installed: no network.
+Write-Status "Checking the embedding model ..."
+Push-Location $BACKEND_DIR
+& $venvPython "scripts\download_models.py" embedding 2>&1 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+$embeddingExit = $LASTEXITCODE
+Pop-Location
+if ($embeddingExit -ne 0) {
+    Write-Err "The embedding model is missing and could not be fetched (it needs internet once, about 88 MB)."
+    Write-Err "To retry, run from src\backend: $venvPython scripts\download_models.py embedding"
+    Read-Host "  Press Enter to exit"
+    exit 1
+}
+Write-Ok "Embedding model is ready"
+
 # ===================================================================
 #  STEP 3b - OCR system tools (Windows): Tesseract + Poppler
 # ===================================================================

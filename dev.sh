@@ -170,6 +170,15 @@ fi
 [ -z "$NOCC_FILTERED" ] || rm -f "$NOCC_FILTERED"
 [ "${HC_DEV_STOP_AFTER_DEPS:-}" != "1" ] || { status "HC_DEV_STOP_AFTER_DEPS=1 set; stopping after dependencies."; exit 0; }
 
+# --- STEP 3a: embedding model (document chunks need it) ----------------------
+# The backend loads it offline and never downloads it; this is the one fetch (about 88 MB, once).
+# Already installed: download_models.py says so and makes no network call.
+status "Checking the embedding model ..."
+if ! (cd "$BACKEND_DIR" && "$VENV_PY" scripts/download_models.py embedding); then
+  die "The embedding model is missing and could not be fetched (it needs internet once, about 88 MB). To retry: cd $BACKEND_DIR && $VENV_PY scripts/download_models.py embedding"
+fi
+ok "Embedding model is ready"
+
 # --- STEP 3b: OCR tools (detect only; no system installs) --------------------
 TESSERACT_OK=0
 if [ "${HC_SKIP_OCR_SETUP:-}" = "1" ]; then
