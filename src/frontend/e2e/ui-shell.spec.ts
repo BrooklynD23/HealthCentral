@@ -573,6 +573,16 @@ test.describe('HC-UISH-004 and HC-UISH-006 round 2: phone top bar and toggle lab
       expect(box.width, 'label box width in px (sr-only is 1 px)').toBeGreaterThan(40);
       expect(box.scrollWidth, 'label scrollWidth').toBe(box.clientWidth);
       expect(box.scrollHeight, 'label scrollHeight').toBe(box.clientHeight);
+
+      // The top bar must not depend on the page. G6 is test.fail on /inbox (PAGE-OVERFLOW), so a top-bar overflow
+      // at 320 would not show there: check every rendered element inside the header against the viewport.
+      const pastEdge = await page.locator('header').evaluate((header) =>
+        Array.from(header.querySelectorAll<HTMLElement>('*'))
+          .map((el) => ({ el, right: el.getBoundingClientRect().right, width: el.getBoundingClientRect().width }))
+          .filter(({ right, width }) => width > 0 && right > window.innerWidth + 0.5)
+          .map(({ el, right }) => `${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ''} right ${Math.round(right)}`)
+      );
+      expect(pastEdge, `top-bar elements past the ${viewport.width} px viewport edge`).toEqual([]);
     });
   }
 
