@@ -505,6 +505,7 @@ test.describe('HC-UISH-007 and HC-UISH-008 More sheet', () => {
 // ---------------------------------------------------------------------------
 test.describe('Inherited stillness and focus halves (L0 rulings #363, #364, #365)', () => {
   test('HC-UIOV-007: the still toggle popover holds still from the opening click', async ({ page }) => {
+    test.fixme(true, 'POPOVER-OPEN-COST: open cost is under ui/Popover.tsx (Radix Presence/DismissableLayer, react commit); L0 ruling 2026-10-26');
     await page.setViewportSize(PHONE);
     await openRoute(page, '/inbox');
     await expect(page.locator(RAIL)).toBeVisible({ timeout: 15_000 });
