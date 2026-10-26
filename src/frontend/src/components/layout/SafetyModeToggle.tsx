@@ -31,6 +31,8 @@ export function SafetyModeToggle({ className }: { className?: string }) {
         />
         <label
           htmlFor={switchId}
+          data-t0
+          data-safety-toggle-label
           className="inline-flex min-h-target items-center whitespace-nowrap text-sm font-medium text-ink lg:min-h-0"
         >
           Stricter safety mode
