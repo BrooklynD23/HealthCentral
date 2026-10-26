@@ -529,6 +529,8 @@ function startSampler(config: { expected: string[]; intervalMs: number }): void 
   };
 
   const snapshot = (): Snap => {
+    // Stamped before the first read: the tick's own style and layout reads then add nothing to the gap.
+    const t = Math.round(performance.now());
     const routeEl = document.querySelector('[data-route-container]');
     let route: RouteSnap | null = null;
     if (routeEl) {
@@ -563,7 +565,7 @@ function startSampler(config: { expected: string[]; intervalMs: number }): void 
       Array.from(document.querySelectorAll(selector)).some((el) => el.matches('[data-t0]'))
     );
 
-    return { t: Math.round(performance.now()), pathname: location.pathname, route, nodes, expectedHits };
+    return { t, pathname: location.pathname, route, nodes, expectedHits };
   };
 
   const tick = () => {
