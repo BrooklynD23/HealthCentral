@@ -11,9 +11,10 @@
  * checked for the h1 and skip-link rules only.
  */
 
+import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import {
-  axeGate,
+  WCAG_TAGS,
   consoleAndNetworkGuard,
   measureCls,
   maxEventDuration,
@@ -23,6 +24,7 @@ import {
   safetyVisible,
   setTheme,
   stillnessProbe,
+  type AxeViolation,
 } from './support/gates';
 import { installMockApi, seedMockSession } from './support/mockApi';
 
@@ -90,6 +92,32 @@ const ALL_DESTINATIONS = [
 const RAIL = '[data-safety-rail]';
 const TOGGLE_POPOVER = '[data-safety-toggle-popover]';
 const TOGGLE_NOTE = '[data-safety-toggle-note]';
+
+/** The shell's own regions for the G1 scoped axe run. Page content in [data-route-container] is not one of them. */
+const SHELL_REGIONS = ['header', 'nav[aria-label="Main navigation"]', 'nav[aria-label="Tab bar"]', RAIL];
+const MORE_SHEET = '[role="dialog"]';
+const ROUTE_CONTAINER = '[data-route-container]';
+
+/**
+ * G1 on the shell's own nodes only (banner, Main navigation, tab bar, More sheet when open, Safety Rail),
+ * serious and critical, in one theme. Page content goes to the page rows (PAGE-A11Y), not this gate.
+ */
+async function shellAxeBlocking(page: Page, theme: 'light' | 'dark'): Promise<AxeViolation[]> {
+  await setTheme(page, theme);
+  let builder = new AxeBuilder({ page }).withTags(WCAG_TAGS);
+  let included = 0;
+  for (const selector of [...SHELL_REGIONS, MORE_SHEET]) {
+    // axe throws when an include matches nothing, so only regions that are rendered are included.
+    if ((await page.locator(selector).count()) > 0) {
+      builder = builder.include(selector);
+      included += 1;
+    }
+  }
+  // With no include, axe would analyse the whole document, which is page content, so refuse to run.
+  if (included === 0) throw new Error('no shell region is rendered on this route; the scoped axe run would scan the page');
+  const results = await builder.exclude(ROUTE_CONTAINER).analyze();
+  return results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
+}
 
 async function openRoute(page: Page, route: string) {
   const mock = await installMockApi(page);
@@ -486,7 +514,7 @@ test.describe('Inherited stillness and focus halves (L0 rulings #363, #364, #365
 });
 
 // ---------------------------------------------------------------------------
-// Gate G on every route: G1 (axe, light and dark), G2 (CLS), G6 (no horizontal
+// Gate G on every route: G1 (axe on the shell's own nodes, light and dark), G2 (CLS), G6 (no horizontal
 // scroll at 390 and 320), G7 (console and network), G9 (Safety Rail visible).
 // ---------------------------------------------------------------------------
 test.describe('Gate G on every route', () => {
@@ -496,10 +524,10 @@ test.describe('Gate G on every route', () => {
       const { guard } = await openRoute(page, route);
       await expect(page.locator('h1, main').first()).toBeVisible({ timeout: 15_000 });
 
-      const light = await axeGate(page, { theme: 'light' });
-      expect(light.blocking.map(describeViolation), 'light axe serious/critical').toEqual([]);
-      const dark = await axeGate(page, { theme: 'dark' });
-      expect(dark.blocking.map(describeViolation), 'dark axe serious/critical').toEqual([]);
+      const light = await shellAxeBlocking(page, 'light');
+      expect(light.map(describeViolation), 'light axe serious/critical on the shell').toEqual([]);
+      const dark = await shellAxeBlocking(page, 'dark');
+      expect(dark.map(describeViolation), 'dark axe serious/critical on the shell').toEqual([]);
 
       await page.setViewportSize(PHONE);
       expect((await noHorizontalScroll(page)).ok, 'no horizontal scroll at 390').toBe(true);
