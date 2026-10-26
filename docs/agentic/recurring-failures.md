@@ -450,3 +450,11 @@ E-3-T7 (#160) added the Backend Lint gate to CI. #156 and #165 were built before
 Two rows returned while a background RED or mutation run was still in their worktree. UI-TOKENS (PR #356): three product files were left staged at origin/main's versions, and L0 restored them from HEAD. UI-PRIM-CONTROLS (PR #365): `src/frontend/src/components/ui/Button.tsx` was left mutated, and L0 restored it from the run's byte snapshot. A result read from a worktree that a background job is still writing to says nothing about the files as they stand.
 
 **Recheck:** run RED and mutation evidence in a separate scratch worktree, or run the snapshot/restore script in the foreground to completion and compare every snapshot file before returning. Never return while a background job writes to the worktree.
+
+---
+
+## 14. A probe that charges its own work to the thing it measures
+
+UI-SHELL (PR #370) failed CI's E2E job on twelve routes with stillness sampling gaps of 44-155 ms against the 40 ms G10 bound, and the 2026-10-25 handoff read it as load flake. On one production build, L0 timed the same navigations with a bare 20 ms `setInterval`: 20-30 ms on main and on the branch, apart from `/settings` on the branch (47-48 ms). `stillnessProbe` stamped each sample with `performance.now()` after reading every `[data-t0]` node's style and rect (`src/frontend/e2e/support/gates.ts`, `snapshot()`), so each gap included the probe's own forced layout. Moving the stamp to the start of `snapshot()` kept every HC-UIG-006 self-test result, and most route gaps fell under 40 ms. The same pass turned up a real defect that both readings had hidden behind the flake label: the Safety Mode note's rect changes on every navigation (376.8 → 307 px wide, about 40 ms in).
+
+**Recheck:** before ruling a timing failure "flake" or "load", time the same action with a bare instrument (a plain timer, a `PerformanceObserver` for `longtask`) on main and on the branch, using the same build. When a probe's result is a duration, find where it reads the clock relative to its own work. Read the probe's other failure lines too: a timing failure can hide a real one in the same run.
