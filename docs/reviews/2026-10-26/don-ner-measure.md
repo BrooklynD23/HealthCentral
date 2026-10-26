@@ -12,7 +12,7 @@ Plan: [RSI1-DONATE Delta 2026-10-22, DON-NER-MEASURE](../../plans/2026-10-17-rsi
 1. **No measured configuration meets DON-RECALL** (100% canaries, at least 95% per Safe Harbor category) on the new agent-written set R2, on either half. The best one meets it on the old set R1 only.
 2. **Best configuration by the plan's rule** (highest minimum per-category union recall on R1 ∪ R2-select, then lowest false-drop rate): **C1 = #239's second pass as is ∪ `obi/deid_roberta_i2b2`**. Minimum category on R1 ∪ R2-select: 84% (geographic 16/19); name 24/25 (96%), age_over_89 19/21 (90%); canaries 14/15. On **R2-gate** (the half that later gates #239, not used to choose): name 9/10, geographic 9/10, age_over_89 7/10 (70%), canaries 9/9; **DON-RECALL NOT MET**.
 3. **Baseline reproduced:** C0 (#239's second pass as is) on R1 gives name 10/14, geographic 6/8, age_over_89 8/10, the park numbers. On R2 it is much worse (R1 ∪ R2-select minimum 53%, geographic 10/19; R2-gate name 3/10, age_over_89 3/10), so R2 is the harder, more realistic set the plan asked for.
-4. **Cost of the best configuration:** 1.42 GB safetensors download (no pickle, no `trust_remote_code`, no new pip package: `transformers` is already pulled by `sentence-transformers`); CPU p50 134 ms / p95 186 ms per answer at 8 threads (GPU p50 19.7 ms); measuring process peak RSS 1.78 GB (C0 alone: 97 MB). False drops on G: 48/548 (8.8%) raw; 30 of those are G defects (day-level dates or "Dr. Lee"), leaving 18/518 (3.5%) against 5/518 (1.0%) for C0. 14 of the 18 are bare month or year mentions ("between January and June").
+4. **Cost of the best configuration:** 1.42 GB safetensors download (no pickle, no `trust_remote_code`, no new pip package: `transformers` is already pulled by `sentence-transformers`); CPU p50 134 ms / p95 186 ms per answer at 8 threads (C2-obi run; GPU p50 19.7 ms, `gpu_latency.py` run); measuring-process peak RSS 1796 MB in the C1-obi run (1781 MB in the C2-obi run; C0 alone: 97 MB). False drops on G: 48/548 (8.8%) raw; 30 of those are G defects (day-level dates or "Dr. Lee"), leaving 18/518 (3.5%) against 5/518 (1.0%) for C0. 14 of the 18 are bare month or year mentions ("between January and June").
 5. **Removing the bare Title Case pair rule (C2) does not pay with any candidate:** with obi it loses one name on R1 (13/14) and one place on R2-select; it does stop every Title Case over-drop among #239's review probe phrases ("Key Findings", "Mayo Clinic", "Healthcare Provider" and four more: none flagged by C2-obi), while "Take 1/2 tablet" is still dropped by the date rule.
 6. **Two candidates and the sealed set were not measured** (GLiNER and Presidio + spaCy need a new pip package, which this run may not install; R3 exists only under the sealed option). See "Skipped".
 
@@ -20,19 +20,31 @@ Plan: [RSI1-DONATE Delta 2026-10-22, DON-NER-MEASURE](../../plans/2026-10-17-rsi
 
 L0 asks this, verbatim from the plan's draft with the brackets filled from this file. The planner's recommendation goes on the option the evidence supports; this file does not choose one.
 
-> "Donation is still off. We measured local (on-device) name-and-place detectors on the old test set, a new set written by a separate agent, and 548 ordinary answers that must not be dropped. The best one, obi/deid_roberta_i2b2 (added to the current rules), catches 90% names, 90% places and 70% ages over 89 on the held-back half of the new set (target 95% each; 96%, 84% and 90% on the half used to pick it) and wrongly drops 18 of 518 good answers (the current rules alone drop 5). It adds a 1.42 GB download that is checked once and never fetched at runtime, with no new package. Which way?"
+> "Donation is still off. We measured three local (on-device) name-and-place detectors, each added to today's rules, on the old test set, a new set written by a separate agent, and 548 ordinary answers that must not be dropped. **No measured candidate reaches the 95% recall bar (DON-RECALL) on the new test set; an Adopt answer means more detector work, and donation stays off (#239 stays draft).** Every configuration, today's rules included, misses the planted age check item 'The patient, 103, …' (dslim also misses 2 of the 9 planted check items in the held-back half; the others catch all 9). False drops for the best by recall (obi): 48 of 548 ordinary answers (35 with today's rules); 30 of those contain a day-level date and are dropped by every option, today's rules included. Excluding those: 18 of 518 (5 today). Per candidate, on the held-back half of the new set (10 items each for names, places and ages over 89; target 95%):
+>
+> | Detector added to today's rules | Names | Places | Ages over 89 | Wrong drops (of 518) | Download | CPU time per answer (median) |
+> |---|---|---|---|---|---|---|
+> | none (today's rules) | 3/10 | 7/10 | 3/10 | 5 | — | — |
+> | obi/deid_roberta_i2b2 | 9/10 | 9/10 | 7/10 | 18 | 1.42 GB | 134 ms |
+> | StanfordAIMI/stanford-deidentifier-base | 9/10 | 9/10 | 5/10 | 17 (14 if the Title Case pair rule is removed, places then 6/10) | 0.44 GB | 35 ms |
+> | dslim/bert-base-NER | 8/10 | 9/10 | 3/10 | 6 | 0.43 GB | 41 ms |
+>
+> None of the three needs a new package; each download is checked once and never fetched at runtime. Obi, Stanford and today's rules drop some answers that only name a month or year ('between January and June'); Safe Harbor counts a month tied to a patient as a date element. Which way?"
 
 | Option (≤ 5 words) | Description |
 |---|---|
-| **Adopt obi, agent sets** | Bundle `obi/deid_roberta_i2b2` like the embedding model; PR-2 resumes and must reach 95% on the agent-written sets. Donation turns on only after that and DON-COPY-V3. |
-| **Adopt obi + sealed set** | As above, plus you write a small sealed test set yourself (as S5 is for the judge); it must also reach 95%, and agents see only the counts. |
-| **Adopt a different candidate** | You pick another row of the table (for example the 0.43 GB Stanford or dslim model, lower recall, 3-4x faster on CPU). |
+| **Adopt [model], agent sets** | Bundle the model like the embedding model; PR-2 resumes and must reach 95% on the agent-written sets. Donation turns on only after that and DON-COPY-V3. |
+| **Adopt [model] + sealed set** | As above, plus you write a small sealed test set yourself (as S5 is for the judge); it must also reach 95%, and agents see only the counts. |
+| **Adopt a different candidate** | You pick another row of the table (for example a smaller model with lower recall). |
 | **Keep donation off** | No model is added; #239 stays a draft; DON-COPY-V3 waits with it. |
 
-**Facts the answer should weigh (measured here):**
-- No "Adopt" option meets the PR-2 bar as measured: the plan's bar (HC-DON-013 MET on R1 ∪ R2 and on R2-gate alone) is not met by any configuration. An "Adopt" answer means more detector work on #239 (age and place shapes; misses listed below) before it can leave draft; the 95% target stays (non-negotiable 7).
-- The best model's remaining misses on R1 ∪ R2-select are a lowercase name pair, a bare ZIP, a unit number, a lowercase town and two digit ages after a comma or "is" (list below).
-- The best model raises false drops mostly on bare month names; under Safe Harbor a month tied to a patient's result is a date element, so some of those drops may be right (see "False drops").
+The four options are the plan's, unchanged and none marked; `[model]` is the candidate the best-by-recall rule names (obi), which L0 fills in when asking.
+
+**Facts behind the numbers (measured here):**
+- The plan's bar for #239 to leave draft (HC-DON-013 MET on R1 ∪ R2 and on R2-gate alone) is not met by any configuration; the 95% target stays (non-negotiable 7).
+- The best configuration's remaining misses on R1 ∪ R2-select are a lowercase name pair, a bare ZIP, a unit number, a lowercase town and two three-digit ages (108 after "is", 103 after a comma; list below). The 103 item is R2-select's age_over_89 canary and is missed by every configuration.
+- Day-level dates in ordinary answers ("on 3 March", 30 of 548) are dropped by today's date rule already, so they cost the same under every option.
+- Bare month or month-year mentions are counted as false drops for every configuration: 2 for today's rules, 14 for obi, 13 for Stanford, 2 for dslim (lists below). Whether a month alone should block donation is the owner's call; the rate here treats each as a false drop.
 
 **Tradeoffs and analogy:** as in the plan (agent sets are faster but every set so far was written by agents who knew the goal; the sealed set costs the owner 60-100 invented examples; a bigger model costs download size and time per record; keeping it off costs nothing and stalls the feature). Analogy: trying shredders on test pages, plus a few pages you kept in a drawer.
 
@@ -58,11 +70,11 @@ L0 asks this, verbatim from the plan's draft with the brackets filled from this 
 - **Python:** `~/venvs/asclexis-311` (Python 3.11.17, `transformers 5.20.1`, `torch 2.14.1+cpu`, `tokenizers 0.23.3`) for every recall, false-drop, CPU latency, RSS and load measurement. **GPU latency only** used the existing CUDA venv `~/hc-mm4/src/backend/.venv-linux` (Python 3.12.3, `transformers 5.20.1`, `torch 2.14.1+cu130`); nothing was installed into either venv.
 - **Network:** used only to read the Hugging Face model API (revision and file list) and to fetch the three candidates' pinned files into `/tmp/claude-1000/don-ner/weights/` (outside the repo). Every measurement ran with `HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1` and `local_files_only=True`.
 - **Box sharing:** before each model command the run waited while a `playwright`/`vitest` process existed (polled every 30 s) and wrapped the command in `/tmp/claude-1000/hold_slots.sh` (holds every pyslot lock, so no pytest ran meanwhile). After the first candidate run L0 set a quiet-box hold (`/tmp/claude-1000/quiet-box.lock`); the run paused until it was removed. **Torch threads:** the first run (C1 obi) used the default 12 threads; every later run set `OMP_NUM_THREADS=8` (printed as `torch_threads: 8`). The obi CPU latency quoted above is from C2-obi at 8 threads (same model, same inputs).
-- **R2 was written blind:** a separate agent session (Claude Haiku 5.5, general-purpose) given only a written brief (categories, minimum counts, the shapes the plan lists, JSON shape, "do not read any repository file, model card or detector source, no web"). It never saw `phi_second_pass.py`, any label set or R1's results. 129 items (name 21, geographic 21, age_over_89 21, 6 for each other category), one canary per category. Its own caveat: it did not mechanically check that each item holds no second category's identifier. R2 was not edited after it was written.
+- **R2 was written blind:** a separate agent session (Claude Haiku 5.5, general-purpose) given only a written brief, pasted verbatim in the appendix ("R2 author brief"). The brief was not saved to a file when it was sent; the appendix copy is reproduced from the Agent tool call in this session's transcript, so the claim that the author saw nothing else rests on this account and on the author's own report ("Written blind: no repo, model-card, source or web access"). The author never saw `phi_second_pass.py`, any label set or R1's results. **The brief itself was written by the measurer**, who had by then read the plan, the first R1 name items and #239's park numbers, but not `phi_second_pass.py`; its example shapes come from the plan's residual-risk list plus the measurer's own inventions, and some R2 items reuse the brief's example strings (for example "ana voss", "60614", "tacoma", "Fairbanks", "Okafor"). That is a limit on R2's independence. 129 items (name 21, geographic 21, age_over_89 21, 6 for each other category), one canary per category. Its own caveat: it did not mechanically check that each item holds no second category's identifier. R2 was not edited after it was written.
 - **Fixed before the first number:** threshold 0.5 for every candidate; label map `PATIENT`/`STAFF`/`HCW`/`PER` → name (`HCW` is the Stanford model's health-care-worker label, the analogue of `STAFF`; the plan's list did not name it), `LOC` → geographic, `AGE` → age_over_89 only for a number ≥ 90 or a spelled number from "ninety", `DATE`/`PHONE`/`EMAIL` → their category, `ID` → ssn, mrn, account_number or device_vehicle_id (affects only the per-category "detector" column; union counts any hit). Unmapped labels (`HOSP`, `PATORG`, `OTHERPHI`, `HOSPITAL`, `VENDOR`, `ORG`, `MISC`) are ignored. Tokens are grouped into spans by label (BILOU / BIO prefixes stripped); long texts are windowed at 512 tokens with stride 64.
 - **Union rule** (as `collect()` runs, and as `measure_phi_recall.py` on `19e7a32` counts it): caught if strict removed the planted string (no token of 3+ characters survives) or **any** detector hit of **any** category on the strict output. So a model can "catch" an item through an unrelated label (for example dslim, which has no AGE label, lifts R1 age_over_89 from 8/10 to 9/10). The "detector" column counts only a same-category hit on the raw text.
 - **C2** removes exactly the last alternative `|\b{_NAME}\s+{_NAME}\b` of the name pattern (asserted by string match in the script); every other rule is as on `19e7a32`.
-- **G (false-drop set):** the 546 `must_allow` texts of the four `prohibited_patterns` files plus the 2 `model_output` answers in `legacy_eval/golden/answer-*.json` = 548 (byte-identical between `19e7a32` and `origin/main`, `cmp`). **The plan's "10 Title Case answers from #239's review" were never posted verbatim** (searched the PR body, review comments and issue comments; only the count "6/10" and three phrases appear). In their place the 10 phrases from #239 review round 1, item 5 (as posted, with their ellipses) plus "Take 1/2 tablet" are a separate probe set, reported per phrase and not in the rate.
+- **G (false-drop set):** the 546 `must_allow` texts of the four `prohibited_patterns` files plus the 2 `model_output` answers in `legacy_eval/golden/answer-*.json` = 548 (byte-identical between `19e7a32` and `origin/main`; `cmp` output in "Raw file checks"). **The plan's "10 Title Case answers from #239's review" were never posted verbatim** (searched the PR body, review comments and issue comments; only the count "6/10" and three phrases appear). In their place the 9 phrases from #239 review round 1, item 5 (as posted, with their ellipses), plus "Take 1/2 tablet" (10 in all), are a separate probe set, reported per phrase and not in the rate.
 - **G defects** (plan: a flagged G item that really holds an identifier is listed and left out of the rate): one regex rule, written after the first model run (C1 obi) and applied identically to every configuration: a day-level date ("3 March", "14 November", ISO `2026-05-14`) or a titled name ("Dr. Lee"). 30 items. Bare months, month-year and years stay counted as false drops even though Safe Harbor treats a month tied to a patient as a date element; that choice makes the false-drop rate pessimistic.
 - **Not tuned:** no threshold, label map, corpus item or C0 rule changed after the first number. Two output-only additions were made after it: the G-defect classifier and the misses lister (`misses.py`, which executes `measure_ner.py`'s unchanged definitions).
 
@@ -94,7 +106,7 @@ Split (from `freeze.py`): name 21 = select 11 + gate 10, geographic 21 = 11 + 10
 
 ## Candidates (cards and files read at the pinned revision, 2026-10-25)
 
-| Candidate @ revision | Licence (card) | Training data (card text) | Weights on disk | Pickle / `trust_remote_code` | Labels used |
+| Candidate @ revision | Licence (card) | Training data (card text) | Bundle bytes (`du -sb`, without `.cache`) | Pickle / `trust_remote_code` | Labels used |
 |---|---|---|---|---|---|
 | `obi/deid_roberta_i2b2` @ `78f2152eb93ddd817290ce8dbe46f1a6685e09fc` | MIT | "The I2B2 2014 … dataset was used to train this model" (790 train notes); the card says nothing about that dataset's licence or data-use agreement | 1,420,096,255 bytes (`model.safetensors` sha256 `557152273204b0a28593da47b423dd0206e87c3b94839bd28ff8d6d90f0cf261`) | none / not needed | `PATIENT`, `STAFF`, `LOC`, `AGE`, `DATE`, `ID`, `PHONE`, `EMAIL` (of 11 + `O`, BILOU) |
 | `StanfordAIMI/stanford-deidentifier-base` @ `661b9c1c717d3165512d440abc3700c386aefab6` | MIT | "trained on a variety of radiology and biomedical documents" (`datasets: radreports`) | 438,271,110 bytes (`pytorch_model.bin` sha256 `fa49ef069171e479f546ce2ee5ed599aa585d1d33bc7a8f54400ac57d9cd2716`) | **pickle only**; `transformers 5.20.1` loads `.bin` with `torch.load(..., weights_only=True)` by default (`modeling_utils.py` `weights_only: bool = True`); not needed | `PATIENT`, `HCW`, `DATE`, `ID`, `PHONE`; no AGE or location label |
@@ -102,14 +114,16 @@ Split (from `freeze.py`): name 21 = select 11 + gate 10, geographic 21 = 11 + 10
 | `urchade/gliner_multi_pii-v1` @ `1fcf13e85f4eef5394e1fcd406cf2ca9ea82351d` | Apache-2.0 | not read | not fetched | pickle (`pytorch_model.bin`) | **not measured** (needs `gliner`) |
 | Presidio + spaCy `en_core_web_lg` | MIT | not read | not fetched | — | **not measured** (needs `presidio-analyzer`, `spacy`) |
 
-Per-candidate cost (measured; full outputs below):
+Raw outputs for this table (revisions, file lists, bundle bytes, sha256s, card lines, label sets, the `weights_only=True` check) are in "Raw file checks" below.
+
+Per-candidate cost (measured; source run named in each cell; full outputs below):
 
 | Candidate | CPU p50 / p95 per G record (8 threads) | GPU p50 / p95 (RTX 3080) | GPU memory (max allocated) | RSS after load / peak RSS (measuring process) | Load (offline, network blocked, warm cache) |
 |---|---|---|---|---|---|
-| none (C0, rules only) | — | — | — | — / 97 MB | — |
-| obi | 133.5 / 185.7 ms (C2 run; C1 run at 12 threads: 127.6 / 145.2 ms) | 19.7 / 28.2 ms | 1362 MiB | 530 MB / 1781 MB | imports 3.95 s + load 0.55 s |
-| Stanford | 34.6 / 43.6 ms | 9.6 / 15.2 ms | 426 MiB | 492 MB / 901 MB | imports 3.24 s + load 0.24 s |
-| dslim | 40.5 / 51.5 ms | 9.0 / 14.0 ms | 421 MiB | 497 MB / 905 MB | imports 3.28 s + load 0.30 s |
+| none (C0, rules only) | — | — | — | — / 97 MB (C0 run) | — |
+| obi | 133.5 / 185.7 ms (C2-obi run; C1-obi run at 12 threads: 127.6 / 145.2 ms) | 19.7 / 28.2 ms (`gpu_latency.py`) | 1362 MiB (`gpu_latency.py`) | 529 MB / 1796 MB (C1-obi run, 12 threads); 530 MB / 1781 MB (C2-obi run) | imports 3.95 s + load 0.55 s (`load_check.py`) |
+| Stanford | 34.6 / 43.6 ms (C1 run; C2 run 35.3 / 42.8) | 9.6 / 15.2 ms | 426 MiB | 492 MB / 901 MB (C1 and C2 runs) | imports 3.24 s + load 0.24 s |
+| dslim | 40.5 / 51.5 ms (C1 run) | 9.0 / 14.0 ms | 421 MiB | 497 MB / 905 MB (C1 run) | imports 3.28 s + load 0.30 s |
 
 ## Step 2: recall per candidate × configuration × corpus
 
@@ -190,7 +204,36 @@ MISS R2_select age_over_89: 'the woman is 108 and her hemoglobin is 9.1' (plante
 MISS R2_select age_over_89 CANARY: 'The patient, 103, was discharged after her blood sugar stabilized.' (planted '103')
 ```
 
-The single R2-select canary missed by every configuration is the age_over_89 canary ("The patient, 103, …").
+The single R2-select canary missed by every configuration is the age_over_89 canary ("The patient, 103, …"). Per-category canaries on R2-select from each result file:
+
+```
+$ cd /tmp/claude-1000/don-ner/out && for f in c0 C1_obi… C2_obi… C1_Stanford… C2_Stanford… C1_dslim… C2_dslim…; do python3 -I -c "import json,sys;r=json.load(open(sys.argv[1]+'.json'));t=r['R2_select'];print(sys.argv[1],{c:(x['canary_union'],x['canary_n']) for c,x in t.items() if x['canary_n']})" $f; done
+c0 {'name': (1, 1), 'geographic': (1, 1), 'age_over_89': (0, 1)}
+C1_obi__deid_roberta_i2b2 {'name': (1, 1), 'geographic': (1, 1), 'age_over_89': (0, 1)}
+C2_obi__deid_roberta_i2b2 {'name': (1, 1), 'geographic': (1, 1), 'age_over_89': (0, 1)}
+C1_StanfordAIMI__stanford-deidentifier-base {'name': (1, 1), 'geographic': (1, 1), 'age_over_89': (0, 1)}
+C2_StanfordAIMI__stanford-deidentifier-base {'name': (1, 1), 'geographic': (1, 1), 'age_over_89': (0, 1)}
+C1_dslim__bert-base-NER {'name': (1, 1), 'geographic': (1, 1), 'age_over_89': (0, 1)}
+C2_dslim__bert-base-NER {'name': (1, 1), 'geographic': (1, 1), 'age_over_89': (0, 1)}
+```
+
+R2 has exactly one age_over_89 canary (the brief and the author's validation: one per category), so this is the 103 item for every configuration.
+
+### Exact command lines
+
+The first line of each block below is a shortened label. The commands actually executed were:
+
+```bash
+# C0 (no /usr/bin/time; peak RSS from the script's own getrusage line)
+cd /tmp/claude-1000/don-ner/out && bash ../scripts/wait_e2e.sh && B="/mnt/e/Programming/Github Repo/hc-don-ner-scratch/src/backend"; \
+  timeout 600 bash /tmp/claude-1000/hold_slots.sh env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -I ../scripts/measure_ner.py "$B" C0 none c0.json >> c0.txt 2>&1
+# C1-obi (default 12 torch threads; before the quiet-box hold)
+/usr/bin/time -v timeout 1500 bash /tmp/claude-1000/hold_slots.sh env HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+  ~/venvs/asclexis-311/bin/python -I ../scripts/measure_ner.py "$B" C1 $W/obi__deid_roberta_i2b2 C1_obi__deid_roberta_i2b2.json >> C1_obi__deid_roberta_i2b2.txt 2> C1_obi__deid_roberta_i2b2.err
+# every other configuration, via run1.sh <config> <model> (appendix), which runs:
+/usr/bin/time -v timeout 1500 bash /tmp/claude-1000/hold_slots.sh env HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 OMP_NUM_THREADS=8 \
+  ~/venvs/asclexis-311/bin/python -I ../scripts/measure_ner.py "$B" $c $W/$m $f.json >> $f.txt 2> $f.err
+```
 
 ### Full outputs
 
@@ -994,7 +1037,160 @@ $ bash /tmp/claude-1000/hold_slots.sh env HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=
 NVIDIA GeForce RTX 3080 torch 2.14.1+cu130 | load to GPU 0.84 s | n=548 p50 9.0 ms p95 14.0 ms | max_memory_allocated 421 MiB
 ```
 
-`nvidia-smi` after the runs: 944 MiB used (nothing left loaded by this run). Ollama `/api/ps` before and after: `{"models":[]}` (this run loaded no Ollama model).
+`nvidia-smi` and Ollama `/api/ps`: raw outputs in "Raw file checks" (`nvidia-smi` re-read at 2026-10-26 08:10 with other work on the box; a 944 MiB reading right after the GPU runs was seen in the session but not saved, so it is not quoted as evidence). This run loaded no Ollama model.
+
+## Raw file checks
+
+Model API and fetch (2026-10-25, the only network use; output as printed in the session):
+
+```
+$ cd /tmp/claude-1000/don-ner && for m in obi/deid_roberta_i2b2 StanfordAIMI/stanford-deidentifier-base dslim/bert-base-NER urchade/gliner_multi_pii-v1; do curl -s "https://huggingface.co/api/models/$m" | python3 -c "
+import json,sys;d=json.load(sys.stdin);print(d['id'],d.get('sha'),d.get('cardData',{}).get('license'),d.get('lastModified'));print('  files:',[s['rfilename'] for s in d.get('siblings',[])])"; done
+obi/deid_roberta_i2b2 78f2152eb93ddd817290ce8dbe46f1a6685e09fc mit 2025-02-23T03:36:26.000Z
+  files: ['.gitattributes', 'README.md', 'config.json', 'merges.txt', 'model.safetensors', 'pytorch_model.bin', 'special_tokens_map.json', 'tokenizer.json', 'tokenizer_config.json', 'vocab.json']
+StanfordAIMI/stanford-deidentifier-base 661b9c1c717d3165512d440abc3700c386aefab6 mit 2024-10-09T17:55:36.000Z
+  files: ['.gitattributes', 'README.md', 'config.json', 'pytorch_model.bin', 'special_tokens_map.json', 'tokenizer_config.json', 'vocab.txt']
+dslim/bert-base-NER d1a3e8f13f8c3566299d95fcfc9a8d2382a9affc mit 2024-10-08T07:51:39.000Z
+  files: ['.gitattributes', 'README.md', 'added_tokens.json', 'config.json', 'flax_model.msgpack', 'model.safetensors', 'onnx/added_tokens.json', 'onnx/config.json', 'onnx/model.onnx', 'onnx/special_tokens_map.json', 'onnx/tokenizer.json', 'onnx/tokenizer_config.json', 'onnx/vocab.txt', 'pytorch_model.bin', 'special_tokens_map.json', 'tf_model.h5', 'tokenizer_config.json', 'vocab.txt']
+urchade/gliner_multi_pii-v1 1fcf13e85f4eef5394e1fcd406cf2ca9ea82351d apache-2.0 2024-04-20T16:16:50.000Z
+  files: ['.gitattributes', 'README.md', 'gliner_config.json', 'pytorch_model.bin']
+
+$ timeout 900 ~/venvs/asclexis-311/bin/python -I fetch.py 2>&1 | grep -v Warning | tail -5   (progress bars trimmed)
+obi/deid_roberta_i2b2 78f2152eb93ddd817290ce8dbe46f1a6685e09fc /tmp/claude-1000/don-ner/weights/obi__deid_roberta_i2b2
+StanfordAIMI/stanford-deidentifier-base 661b9c1c717d3165512d440abc3700c386aefab6 /tmp/claude-1000/don-ner/weights/StanfordAIMI__stanford-deidentifier-base
+dslim/bert-base-NER d1a3e8f13f8c3566299d95fcfc9a8d2382a9affc /tmp/claude-1000/don-ner/weights/dslim__bert-base-NER
+
+$ curl -s localhost:11434/api/ps   (2026-10-25, before the first measurement)
+{"models":[]}
+```
+
+Files, bundle bytes, sha256s, card lines, label sets and the `weights_only` default (2026-10-26, file inspection only):
+
+```
+$ cd /tmp/claude-1000/don-ner/weights && ls -la */
+StanfordAIMI__stanford-deidentifier-base/:
+drwxr-xr-x 3 danny danny      4096 Oct 25 22:30 .
+drwxr-xr-x 5 danny danny      4096 Oct 25 22:30 ..
+drwxr-xr-x 3 danny danny      4096 Oct 25 22:30 .cache
+-rw-r--r-- 1 danny danny      3894 Oct 25 22:30 README.md
+-rw-r--r-- 1 danny danny      1190 Oct 25 22:30 config.json
+-rw-r--r-- 1 danny danny 438039735 Oct 25 22:30 pytorch_model.bin
+-rw-r--r-- 1 danny danny       112 Oct 25 22:30 special_tokens_map.json
+-rw-r--r-- 1 danny danny        29 Oct 25 22:30 tokenizer_config.json
+-rw-r--r-- 1 danny danny    226150 Oct 25 22:30 vocab.txt
+
+dslim__bert-base-NER/:
+drwxr-xr-x 3 danny danny      4096 Oct 25 22:31 .
+drwxr-xr-x 5 danny danny      4096 Oct 25 22:30 ..
+drwxr-xr-x 3 danny danny      4096 Oct 25 22:30 .cache
+-rw-r--r-- 1 danny danny      6558 Oct 25 22:30 README.md
+-rw-r--r-- 1 danny danny         2 Oct 25 22:30 added_tokens.json
+-rw-r--r-- 1 danny danny       829 Oct 25 22:30 config.json
+-rw-r--r-- 1 danny danny 433292294 Oct 25 22:31 model.safetensors
+-rw-r--r-- 1 danny danny       112 Oct 25 22:30 special_tokens_map.json
+-rw-r--r-- 1 danny danny        59 Oct 25 22:30 tokenizer_config.json
+-rw-r--r-- 1 danny danny    213450 Oct 25 22:30 vocab.txt
+
+obi__deid_roberta_i2b2/:
+drwxr-xr-x 3 danny danny       4096 Oct 25 22:30 .
+drwxr-xr-x 5 danny danny       4096 Oct 25 22:30 ..
+drwxr-xr-x 3 danny danny       4096 Oct 25 22:30 .cache
+-rw-r--r-- 1 danny danny       5280 Oct 25 22:30 README.md
+-rw-r--r-- 1 danny danny       2497 Oct 25 22:30 config.json
+-rw-r--r-- 1 danny danny     456356 Oct 25 22:30 merges.txt
+-rw-r--r-- 1 danny danny 1417477308 Oct 25 22:30 model.safetensors
+-rw-r--r-- 1 danny danny        239 Oct 25 22:30 special_tokens_map.json
+-rw-r--r-- 1 danny danny    1355931 Oct 25 22:30 tokenizer.json
+-rw-r--r-- 1 danny danny        351 Oct 25 22:30 tokenizer_config.json
+-rw-r--r-- 1 danny danny     798293 Oct 25 22:30 vocab.json
+
+$ for d in *; do echo "$d $(du -sb --exclude=.cache $d | cut -f1) bytes"; done
+StanfordAIMI__stanford-deidentifier-base 438271110 bytes
+dslim__bert-base-NER 433513304 bytes
+obi__deid_roberta_i2b2 1420096255 bytes
+
+$ sha256sum */*.safetensors */*.bin
+b04492186cfb45a64908487a17a9f8d6ddec3a403ef39db5bca688f0fa702a34  dslim__bert-base-NER/model.safetensors
+557152273204b0a28593da47b423dd0206e87c3b94839bd28ff8d6d90f0cf261  obi__deid_roberta_i2b2/model.safetensors
+fa49ef069171e479f546ce2ee5ed599aa585d1d33bc7a8f54400ac57d9cd2716  StanfordAIMI__stanford-deidentifier-base/pytorch_model.bin
+
+$ grep -n -i "^license:\|i2b2 2014\|trained on\|conll\|datasets:\|radreports\|limited by its training" */README.md | cut -c1-220
+obi__deid_roberta_i2b2/README.md:10:datasets:
+obi__deid_roberta_i2b2/README.md:20:license: mit
+obi__deid_roberta_i2b2/README.md:44:* The I2B2 2014 [[Stubbs and Uzuner, 2015]](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4978170/) dataset was used to train this model.
+StanfordAIMI__stanford-deidentifier-base/README.md:15:datasets:
+StanfordAIMI__stanford-deidentifier-base/README.md:16:- radreports
+StanfordAIMI__stanford-deidentifier-base/README.md:19:license: mit
+StanfordAIMI__stanford-deidentifier-base/README.md:21:Stanford de-identifier was trained on a variety of radiology and biomedical documents with the goal of automatising the de-identification process while reaching satis
+StanfordAIMI__stanford-deidentifier-base/README.md:40:    abstract = "{To develop an automated deidentification pipeline for radiology reports that detect protected health information (PHI) entities and replaces them wit
+dslim__bert-base-NER/README.md:3:datasets:
+dslim__bert-base-NER/README.md:4:- conll2003
+dslim__bert-base-NER/README.md:5:license: mit
+dslim__bert-base-NER/README.md:13:      name: conll2003
+dslim__bert-base-NER/README.md:14:      type: conll2003
+dslim__bert-base-NER/README.md:15:      config: conll2003
+dslim__bert-base-NER/README.md:49:Specifically, this model is a *bert-base-cased* model that was fine-tuned on the English version of the standard [CoNLL-2003 Named Entity Recognition](https://www.aclweb.org/anthology/W0
+dslim__bert-base-NER/README.md:83:This model is limited by its training dataset of entity-annotated news articles from a specific span of time. This may not generalize well for all use cases in different domains. Further
+dslim__bert-base-NER/README.md:87:This model was fine-tuned on English version of the standard [CoNLL-2003 Named Entity Recognition](https://www.aclweb.org/anthology/W03-0419.pdf) dataset. 
+dslim__bert-base-NER/README.md:104:### CoNLL-2003 English Dataset Statistics
+dslim__bert-base-NER/README.md:105:This dataset was derived from the Reuters corpus which consists of Reuters news stories. You can read more about how this dataset was created in the CoNLL-2003 paper. 
+dslim__bert-base-NER/README.md:121:This model was trained on a single NVIDIA V100 GPU with recommended hyperparameters from the [original BERT paper](https://arxiv.org/pdf/1810.04805) which trained & evaluated the model 
+
+$ grep -n -i "n2c2\|agreement\|data use\|dua" obi__deid_roberta_i2b2/README.md; echo "exit=$?"
+exit=1
+
+$ for d in *; do python3 -c "import json,sys;c=json.load(open(sys.argv[1]));print(sys.argv[1], sorted({v.split(\"-\",1)[-1] for v in c[\"id2label\"].values()}))" $d/config.json; done
+StanfordAIMI__stanford-deidentifier-base/config.json ['DATE', 'HCW', 'HOSPITAL', 'ID', 'O', 'PATIENT', 'PHONE', 'VENDOR']
+dslim__bert-base-NER/config.json ['LOC', 'MISC', 'O', 'ORG', 'PER']
+obi__deid_roberta_i2b2/config.json ['AGE', 'DATE', 'EMAIL', 'HOSP', 'ID', 'LOC', 'O', 'OTHERPHI', 'PATIENT', 'PATORG', 'PHONE', 'STAFF']
+
+$ grep -n "weights_only" ~/venvs/asclexis-311/lib/python3.11/site-packages/transformers/modeling_utils.py | head -8
+187:    weights_only: bool = True
+320:    weights_only: bool = True,
+356:    # Fallback to torch.load (if weights_only was explicitly False, do not check safety as this is known to be unsafe)
+357:    if weights_only:
+364:    return torch.load(checkpoint_path, map_location=map_location, weights_only=weights_only, **extra_args)
+816:    weights_only: bool,
+842:                            checkpoint_files[0], map_location="meta", weights_only=weights_only
+3835:        weights_only: bool = True,
+
+$ sed -n 350,365p ~/venvs/asclexis-311/lib/python3.11/site-packages/transformers/modeling_utils.py
+                        raise ValueError(f"Cannot load safetensors of unknown dtype {k_dtype}")
+                    state_dict[k] = torch.empty(size=_slice.get_shape(), dtype=dtype, device="meta")
+                else:
+                    state_dict[k] = f.get_tensor(k).to(map_location)
+            return state_dict
+
+    # Fallback to torch.load (if weights_only was explicitly False, do not check safety as this is known to be unsafe)
+    if weights_only:
+        check_torch_load_is_safe()
+    extra_args = {}
+    # mmap can only be used with files serialized with zipfile-based format.
+    if map_location != "meta" and is_zipfile(checkpoint_path):
+        extra_args = {"mmap": True}
+
+    return torch.load(checkpoint_path, map_location=map_location, weights_only=weights_only, **extra_args)
+```
+
+G sources identical at `19e7a32` and `origin/main`, GPU memory and Ollama now:
+
+```
+$ for f in held_out_dev held_out_final held_out_final2 in_sample; do p=src/backend/tests/fixtures/prohibited_patterns/$f.json; git show 19e7a32:$p > /tmp/claude-1000/don-ner/cmp/a.json; git show origin/main:$p > /tmp/claude-1000/don-ner/cmp/b.json; cmp /tmp/claude-1000/don-ner/cmp/a.json /tmp/claude-1000/don-ner/cmp/b.json && echo "same $f"; done  (and the same for legacy_eval/golden/answer-*.json)
+same held_out_dev
+same held_out_final
+same held_out_final2
+same in_sample
+same answer-glucose-cited-latest.json
+same answer-glucose-cited-with-reference.json
+
+$ nvidia-smi --query-gpu=name,memory.used,memory.total --format=csv
+name, memory.used [MiB], memory.total [MiB]
+NVIDIA GeForce RTX 3080, 1082 MiB, 10240 MiB
+
+$ curl -s localhost:11434/api/ps
+{"models":[]}
+2026-10-26T08:10:46-07:00
+```
 
 ## Skipped
 
@@ -1009,6 +1205,49 @@ NVIDIA GeForce RTX 3080 torch 2.14.1+cu130 | load to GPU 0.84 s | n=548 p50 9.0 
 1. **R2 shows #239's rules are weaker than R1 suggested** even before any model: C0 on R2-gate catches 3/10 names and 3/10 ages over 89. R1's 10/14 was flattering (recurring-failures mode 1, as #239's reviews said).
 2. **Strict redaction catches 0 of 21 R2 ages over 89 and 0 of 21 R2 places** (strict column, C0 tables). That is `redaction.py` (ask-first); no change proposed here.
 3. **30 of G's 548 "must allow" answers hold day-level dates or a named doctor** ("on 3 March", "Dr. Lee"). If donation adopts a "drop on any date" rule, every such answer is dropped by design; DON-NER-MODEL should know that answers citing a result date are not donatable.
+
+## Appendix: R2 author brief (verbatim)
+
+Sent to the blind R2 author as its whole prompt (reproduced from this session's Agent tool call; not saved to a file at the time):
+
+```text
+You are writing a synthetic test corpus for a privacy (PHI) detector evaluation. You are deliberately a "blind" author: do NOT read any file in /mnt/e/Programming/Github Repo/ or any other repository, do not open any model card or detector source code, and do not search the web. Work only from this brief. Write exactly one file: /tmp/claude-1000/don-ner/r2/corpus_v2.json (the directory exists). Do not write anything else anywhere.
+
+Context: a local health app lets patients ask questions about their lab results; the app's answers (and sometimes the patient's own messages) may be donated for model training after redaction. The corpus tests whether an identifier detector catches real-looking identifiers in such text. Each item is one short chat-style sentence or two (what a patient might type, or what an assistant answer might say) containing exactly ONE planted identifier.
+
+JSON shape (exactly this):
+{
+ "version": 2,
+ "note": "Synthetic only. Every identifier is invented. Written blind (R2).",
+ "categories": {
+   "<category>": [ {"text": "...", "planted": "..."}, {"text": "...", "planted": "...", "canary": true}, ... ],
+   ...
+ },
+ "non_phi": []
+}
+Rules for items:
+- "planted" must be an exact substring of "text" (character for character, same case).
+- Exactly one item per category has "canary": true (make it an ordinary-looking item, not the easiest one).
+- Every identifier is invented. Do not use real people (no celebrities, no politicians), and do not use the overused placeholders Jane Doe, John Smith, John Doe. Do not use real phone numbers (use 555-01xx style), real SSNs (use 9xx-xx-xxxx area numbers or other clearly invalid ones), example.com/.test/.invalid for emails and URLs, private or documentation IP ranges (10.x, 192.168.x, 203.0.113.x, 198.51.100.x).
+- No item may contain identifiers from another category (keep each item to one identifier) and the rest of the text should be ordinary lab / health chat language (cholesterol, A1C, hemoglobin, TSH, blood pressure, appointments, refills...).
+- Vary the shapes widely; the point is realistic text, including shapes a simple rule-based detector would miss.
+
+Categories and minimum counts (the 12 HIPAA Safe Harbor style categories used here; use these exact keys):
+- "name": at least 20. Include: lowercase names ("my sister ana voss"), ALL-CAPS names, a bare first name with no cue word ("Tell Priya the results are fine"), a name inside a patient's question ("Should Marcus Ferrante get his A1C rechecked?"), names after greetings, possessive names ("Okafor's lab results"), hyphenated and apostrophe surnames, names of relatives and doctors, names without "Dr."/"Mr." titles, a name at the very start and very end of a sentence, non-Anglo names (Vietnamese, Nigerian, Indian, Mexican, Polish, Arabic...). The planted value can be a full name or a single first/last name.
+- "geographic": at least 20. Include: a bare 5-digit ZIP ("I moved to 60614 last year"), a ZIP+4, a bare city ("I live in tacoma now" lowercase, and Title Case), a county ("Oakridge County"), a street address, a small town, a neighbourhood, an apartment/unit, a city-state pair, a hospital town ("the clinic in Fairbanks"). Plant city/county/street names as subdivisions smaller than a state (states alone are NOT PHI, so do not plant bare state names).
+- "age_over_89": at least 20. Include digit ages 90-110 in many phrasings: "she is 95", "my grandfather, 93, ...", "age 101", "92 yo", "a 97-year-old", "turned 90 last week", spelled numbers ("ninety-three years old", "ninety one"), "in his nineties"? (no: only exact ages; plant the age phrase that includes the number, e.g. "ninety-three"), "aged 104", "at 99 she still walks". The planted value is the number or spelled number (e.g. "95", "ninety-three").
+- "date": at least 5 (dates of birth, admission, visit; varied formats: 03/14/1952, March 3rd, 2024-11-02, "the 5th of June").
+- "phone": at least 5 (varied formats: (555) 014-2231, 555.014.9988, +1 555 014 7777, "call 5550142211").
+- "email": at least 5.
+- "ssn": at least 5 (with and without dashes, with spaces).
+- "mrn": at least 5 (medical record numbers, e.g. "chart number 00482913", "MRN: A-4478812", "record #7731902").
+- "account_number": at least 5 (insurance member IDs, billing account numbers, policy numbers).
+- "url": at least 5 (patient portal links with identifiers, personal sites; use .example/.test domains).
+- "ip_address": at least 5.
+- "device_vehicle_id": at least 5 (pacemaker/insulin pump serial numbers, licence plates, VINs).
+
+Aim for roughly 20-25 items each in name, geographic and age_over_89, and 6-8 in each other category. After writing, validate the file yourself with a short python3 one-liner (json loads; every planted is a substring of its text; exactly one canary per category; minimum counts met) and report the per-category counts and the validation output. Report only counts and validation, not the item texts.
+```
 
 ## Appendix: scripts (scratch, not committed)
 
