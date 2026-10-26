@@ -26,6 +26,10 @@ import type {
   ModelSettings,
   TiersListResponse,
 } from '../../src/services/modelSettings';
+import type { BadgeListResponse, StreakResponse } from '../../src/services/types';
+import type { TimelineResponse } from '../../src/services/timeline';
+import type { BackupListResponse, BackupSchedule } from '../../src/services/backup';
+import type { DonationConsentList } from '../../src/services/donation';
 
 /** UI-FIXTURE-NAME: the only person name the harness uses. */
 export const FIXTURE_PERSON = 'Alex Rivera';
@@ -258,14 +262,47 @@ const schedulerStatusFixture: NotificationSchedulerStatus = {
 
 const carePlanTasksFixture: CarePlanTask[] = [];
 
+/** UI-SHELL (G7): the /timeline, /medications and /settings calls the branch's pages make; empty, like the rest. */
+const timelineFixture: TimelineResponse = { events: [], undated: [] };
+
+const badgesFixture: BadgeListResponse = { badges: [] };
+
+const streakFixture: StreakResponse = {
+  current_streak_days: 0,
+  longest_streak_days: 0,
+  timezone: 'UTC',
+  as_of_date: '2026-10-25',
+  active_days_last_28: 0,
+  weeks_with_log_last_4: 0,
+};
+
+const backupListFixture: BackupListResponse = { backups: [], backup_directory: '', last_backup_at: null };
+
+const backupScheduleFixture: BackupSchedule = {
+  enabled: false,
+  frequency: 'off',
+  retention_days: 30,
+  last_run_at: null,
+  last_result: 'never_run',
+  last_file_count: 0,
+};
+
+const donationConsentsFixture: DonationConsentList = { consents: [] };
+
 const shellFixtures = new Map<string, unknown>([
+  ['/backup', backupListFixture],
+  ['/backup/schedule', backupScheduleFixture],
   ['/care-tasks', carePlanTasksFixture],
+  ['/donation/consents', donationConsentsFixture],
   ['/feedback/stats', feedbackStatsFixture],
+  ['/gamification/badges', badgesFixture],
+  ['/gamification/streaks', streakFixture],
   ['/medications', []],
   [`/medications/${MED_DETAIL_ID}`, medicationDetailFixture],
   [`/medications/${MED_DETAIL_ID}/doses`, []],
   [`/medications/${MED_DETAIL_ID}/stats`, medicationStatsFixture],
   [`/medications/${MED_DETAIL_ID}/correlations`, medicationCorrelationsFixture],
+  ['/memory', []],
   ['/notifications/scheduler/status', schedulerStatusFixture],
   ['/observations', []],
   ['/observations/panels/cbc', cbcPanelFixture],
@@ -276,6 +313,7 @@ const shellFixtures = new Map<string, unknown>([
   ['/settings/model/tiers', tiersFixture],
   ['/settings/model/timezone', { timezone: 'UTC' }],
   ['/settings/model/voice', { voice_logging_enabled: false, voice_modal_seen: false }],
+  ['/timeline', timelineFixture],
 ]);
 
 export interface MockApi {
