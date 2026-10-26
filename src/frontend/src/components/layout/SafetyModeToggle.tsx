@@ -29,7 +29,10 @@ export function SafetyModeToggle({ className }: { className?: string }) {
           aria-disabled="true"
           aria-describedby={noteId}
         />
-        <label htmlFor={switchId} className="sr-only text-sm font-medium text-ink lg:not-sr-only">
+        <label
+          htmlFor={switchId}
+          className="inline-flex min-h-target items-center whitespace-nowrap text-sm font-medium text-ink lg:min-h-0"
+        >
           Stricter safety mode
         </label>
         <Popover

@@ -600,6 +600,45 @@ test.describe('HC-UISH-004 and HC-UISH-006 round 2: phone top bar and toggle lab
 });
 
 // ---------------------------------------------------------------------------
+// UI-SHELL round 2 (L0 ruling 10:24:24Z, "Second row on phones"). Below lg the safety toggle is row 2 of the top bar,
+// under the search icon link and the profile trigger. The top bar ends above the route container, so nothing overlaps.
+// ---------------------------------------------------------------------------
+test.describe('HC-UISH-004 phone top bar: toggle on row 2, no overlap with the route', () => {
+  for (const viewport of [SMALL_PHONE, PHONE]) {
+    test(`HC-UISH-004: the safety toggle sits below the profile trigger, on row 2, at ${viewport.width}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      await openRoute(page, '/inbox');
+      await expect(page.locator(RAIL)).toBeVisible({ timeout: 15_000 });
+      const profile = await page.getByRole('banner').getByRole('button', { name: 'Profile and settings' }).boundingBox();
+      const toggle = await page.getByRole('switch', { name: 'Stricter safety mode' }).boundingBox();
+      expect(profile, 'the profile trigger has a box').not.toBeNull();
+      expect(toggle, 'the switch has a box').not.toBeNull();
+      expect(
+        toggle!.y,
+        'switch top in px, which must be at or below the profile trigger bottom'
+      ).toBeGreaterThanOrEqual(profile!.y + profile!.height);
+    });
+
+    test(`HC-UISH-004: the top bar ends above the route container at ${viewport.width}`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await openRoute(page, '/inbox');
+      await expect(page.locator(RAIL)).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator(ROUTE_CONTAINER)).toBeVisible({ timeout: 15_000 });
+      const bar = await page.getByRole('banner').boundingBox();
+      const container = await page.locator(ROUTE_CONTAINER).boundingBox();
+      expect(bar, 'the top bar has a box').not.toBeNull();
+      expect(container, 'the route container has a box').not.toBeNull();
+      expect(
+        bar!.y + bar!.height,
+        'top-bar bottom in px, which must be at or above the route container top'
+      ).toBeLessThanOrEqual(container!.y);
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // HC-UISH-007 (DF-3): a visible toast does not sit over the More sheet.
 // HC-UISH-008: the More sheet closes on Escape, returns focus, and reaches every destination.
 // ---------------------------------------------------------------------------
