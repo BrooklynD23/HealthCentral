@@ -16,8 +16,11 @@ export function SafetyModeToggle({ className }: { className?: string }) {
   const switchId = useId();
   const noteId = useId();
 
+  // The column has a fixed width on desktop. Its auto width came from the note's text, and that text
+  // measured 376.8 px in the fallback face and 307 px once Source Sans loaded, so the note moved
+  // while the page settled. 384 px holds the fallback on one line, so the note's rect stays put.
   return (
-    <div className={cn('flex flex-col gap-1', className)}>
+    <div className={cn('flex flex-col gap-1 lg:w-96', className)}>
       <div className="flex items-center gap-2">
         <Switch
           id={switchId}
