@@ -228,6 +228,11 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     scroll-behavior: smooth;
+    /* UI-SHELL (WCAG 2.4.11): a focused control scrolls clear of the sticky header and the bottom chrome. AppLayout
+       writes the measured heights to these properties. The 1 rem is clearance: Tab reveals a text field's caret,
+       which sits about 10 px above the field's lower edge, so the field itself needs the margin. */
+    scroll-padding-top: calc(var(--shell-top-h, 0px) + 1rem);
+    scroll-padding-bottom: calc(var(--shell-bottom-h, 0px) + 1rem);
   }
 
   *,
