@@ -57,7 +57,10 @@ const AUTH_ROUTES = [
   '/export',
   '/settings',
 ];
-/** The 15 routes of HC-UISH-002 and gate G. */
+/**
+ * The 15 routes of HC-UISH-002 and gate G6/G7. /setup is not a shell route: App.tsx:201 renders it outside
+ * AppLayout, so it has no banner, navigation or Safety Rail. The shell checks (G1, G9) use AUTH_ROUTES.
+ */
 const ALL_ROUTES = [...AUTH_ROUTES, '/setup'];
 
 /** Destination names as navConfig.ts writes them (the nav link for each route, when it has one). */
@@ -590,11 +593,11 @@ test.describe('Gate G6 on every route', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Gate G on every route: G1 (axe on the shell's own nodes, light and dark), G7 (console and network),
-// G9 (Safety Rail visible). G6 is its own test above.
+// Gate G on every shell route: G1 (axe on the shell's own nodes, light and dark), G7 (console and network),
+// G9 (Safety Rail visible). G6 is its own test above; /setup is outside the shell and keeps only G7.
 // ---------------------------------------------------------------------------
 test.describe('Gate G on every route', () => {
-  for (const route of ALL_ROUTES) {
+  for (const route of AUTH_ROUTES) {
     test(`GATE G on ${route}: axe light and dark, guard, Safety Rail visible`, async ({ page }) => {
       await page.setViewportSize(DESKTOP);
       const { guard } = await openRoute(page, route);
@@ -613,6 +616,16 @@ test.describe('Gate G on every route', () => {
       guard.assertClean();
     });
   }
+
+  // /setup renders outside AppLayout (App.tsx:201): it has no shell, so the shell axe (G1) and the Safety Rail
+  // check (G9) do not run on it. It keeps the guard (G7) here and G6 above. Its whole-page axe findings are page
+  // content, recorded in the PR body under PAGE-A11Y.
+  test('GATE G7 on /setup: console and network guard (outside the shell)', async ({ page }) => {
+    await page.setViewportSize(DESKTOP);
+    const { guard } = await openRoute(page, '/setup');
+    await expect(page.locator('h1, main').first()).toBeVisible({ timeout: 15_000 });
+    guard.assertClean();
+  });
 
   test('GATE G2 and G3 on the shell: CLS on load, INP proxy on a nav click', async ({ page }) => {
     await page.setViewportSize(DESKTOP);
