@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { cn } from '@/utils/cn';
@@ -10,22 +10,48 @@ const ITEM =
 
 /**
  * The desktop sidebar (plan §3.2, at 1024 px and up). Groups from navConfig.ts;
- * the active destination is the longest prefix match (plan §3.1). One indicator
- * element moves with a CSS transition (M9); it does not use a layout spring.
+ * the active destination is the first item whose route is a prefix of the path
+ * (isNavActive, plan §3.1). One indicator element moves with a CSS transition
+ * (M9); it does not use a layout spring.
  */
 export function Sidebar() {
   const { pathname } = useLocation();
   const navRef = useRef<HTMLElement>(null);
   const activeRef = useRef<HTMLAnchorElement | null>(null);
-  const [indicatorTop, setIndicatorTop] = useState<number | null>(null);
+  const placedRef = useRef(false);
+  const keyboardRef = useRef(false);
+  const [indicator, setIndicator] = useState<{ top: number; instant: boolean } | null>(null);
   const prefersReducedMotion = useReducedMotion();
 
   const activeTo = navGroups.flatMap((group) => group.items).find((item) => isNavActive(pathname, item.to))?.to;
 
-  // Measured before paint, so the indicator never shows at the wrong row.
-  // Reduced motion places the indicator with `top` and no transform (G5 reads transforms).
+  // Which input moved the focus last: a keyboard move jumps the indicator (M9), a pointer move transitions it.
+  useEffect(() => {
+    const onKeyDown = () => {
+      keyboardRef.current = true;
+    };
+    const onPointerDown = () => {
+      keyboardRef.current = false;
+    };
+    document.addEventListener('keydown', onKeyDown, true);
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown, true);
+      document.removeEventListener('pointerdown', onPointerDown, true);
+    };
+  }, []);
+
+  // Measured before paint, so the indicator never shows at the wrong row. The first placement is not transitioned:
+  // it would otherwise slide in from the top of the nav on load. Reduced motion places the indicator with `top` and
+  // no transform (G5 reads transforms).
   useLayoutEffect(() => {
-    setIndicatorTop(activeRef.current ? activeRef.current.offsetTop : null);
+    const top = activeRef.current ? activeRef.current.offsetTop : null;
+    if (top === null) {
+      setIndicator(null);
+      return;
+    }
+    setIndicator({ top, instant: !placedRef.current || keyboardRef.current });
+    placedRef.current = true;
   }, [activeTo]);
 
   return (
@@ -40,9 +66,14 @@ export function Sidebar() {
           className={cn(
             'pointer-events-none absolute inset-x-3 top-0 h-11 rounded-xl bg-accent-subtle',
             'transition-transform duration-[var(--dur-md)] ease-[var(--ease-in-out)] motion-reduce:transition-none',
-            indicatorTop === null && 'opacity-0'
+            indicator === null && 'opacity-0'
           )}
-          style={prefersReducedMotion ? { top: indicatorTop ?? 0 } : { transform: `translateY(${indicatorTop ?? 0}px)` }}
+          style={{
+            ...(prefersReducedMotion
+              ? { top: indicator?.top ?? 0 }
+              : { transform: `translateY(${indicator?.top ?? 0}px)` }),
+            ...(indicator?.instant ? { transition: 'none' } : {}),
+          }}
         />
         {navGroups.map((group) => (
           <div key={group.label} className="mb-2">

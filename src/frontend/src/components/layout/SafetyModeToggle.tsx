@@ -41,11 +41,17 @@ export function SafetyModeToggle({ className }: { className?: string }) {
             </IconButton>
           }
         >
-          <p data-t0 data-safety-toggle-popover className="max-w-xs text-sm text-ink">
-            Asclexis checks every answer for medical advice and against your own records. These checks are always
-            on and cannot be turned off. A stricter mode is being designed; this switch will turn it on when it is
-            ready.
-          </p>
+          {/* Phones have no visible note (it is lg-only below), so the note opens the popover, above the long text. */}
+          <div className="max-w-xs space-y-2">
+            <p data-t0 data-safety-toggle-popover-note className="text-sm font-medium text-ink">
+              Not available yet. The standard safety checks always run.
+            </p>
+            <p data-t0 data-safety-toggle-popover className="text-sm text-ink">
+              Asclexis checks every answer for medical advice and against your own records. These checks are always
+              on and cannot be turned off. A stricter mode is being designed; this switch will turn it on when it is
+              ready.
+            </p>
+          </div>
         </Popover>
       </div>
       <p id={noteId} data-t0 data-safety-toggle-note className="hidden text-xs text-ink-secondary lg:block">

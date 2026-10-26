@@ -5,7 +5,8 @@ import { cn } from '@/utils/cn';
  * It sits outside the route container, so the route fade never touches it, and
  * it is never animated. Opaque with no backdrop blur (DF-1).
  *
- * Desktop: sticky at the bottom of the content column. Phones: above the tab bar.
+ * Desktop: sticky at the bottom of the content column. Phones: above the tab bar, which is a 1 px border
+ * plus a 56 px tab row (MobileTabBar), so the rail's bottom is 57 px plus the safe area.
  */
 export function SafetyRail({ className }: { className?: string }) {
   return (
@@ -15,7 +16,7 @@ export function SafetyRail({ className }: { className?: string }) {
       aria-label="Safety notice"
       className={cn(
         'border-t border-border bg-surface-elevated px-4 py-2 text-xs text-ink-secondary',
-        'max-lg:fixed max-lg:inset-x-0 max-lg:bottom-[calc(4rem+env(safe-area-inset-bottom))] max-lg:z-30',
+        'max-lg:fixed max-lg:inset-x-0 max-lg:bottom-[calc(57px+env(safe-area-inset-bottom))] max-lg:z-30',
         'lg:sticky lg:bottom-0 lg:z-30 lg:px-8 lg:py-3',
         className
       )}
