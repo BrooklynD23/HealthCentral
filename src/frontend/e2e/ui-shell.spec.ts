@@ -520,6 +520,86 @@ test.describe('HC-UISH-006 phone toggle popover', () => {
 });
 
 // ---------------------------------------------------------------------------
+// UI-SHELL round 2 (L0 ruling 09:37:07Z). The toggle label shows at every width. Below lg the top-bar search
+// form collapses to an icon link to /search, with a 44 px target. At lg and above the form is unchanged.
+// ---------------------------------------------------------------------------
+test.describe('HC-UISH-004 and HC-UISH-006 round 2: phone top bar and toggle label', () => {
+  for (const viewport of [SMALL_PHONE, PHONE, { width: 1024, height: 768 }, DESKTOP]) {
+    test(`HC-UISH-006: the label "Stricter safety mode" is visible and not clipped at ${viewport.width}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      await openRoute(page, '/inbox');
+      await expect(page.locator(RAIL)).toBeVisible({ timeout: 15_000 });
+      const label = page.getByRole('banner').locator('label', { hasText: 'Stricter safety mode' });
+      await expect(label).toBeVisible();
+      const box = await label.evaluate((el) => {
+        const rect = el.getBoundingClientRect();
+        return {
+          width: rect.width,
+          scrollWidth: el.scrollWidth,
+          clientWidth: el.clientWidth,
+          scrollHeight: el.scrollHeight,
+          clientHeight: el.clientHeight,
+        };
+      });
+      // Playwright counts an sr-only label as visible (it is a 1 px box), so the box size is checked too.
+      expect(box.width, 'label box width in px (sr-only is 1 px)').toBeGreaterThan(40);
+      expect(box.scrollWidth, 'label scrollWidth').toBe(box.clientWidth);
+      expect(box.scrollHeight, 'label scrollHeight').toBe(box.clientHeight);
+    });
+  }
+
+  for (const viewport of [SMALL_PHONE, PHONE]) {
+    test(`HC-UISH-004: below lg the search form is replaced by a 44 px icon link to /search at ${viewport.width}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      await openRoute(page, '/inbox');
+      await expect(page.locator(RAIL)).toBeVisible({ timeout: 15_000 });
+      const banner = page.getByRole('banner');
+      await expect(banner.getByRole('searchbox', { name: 'Search health records' })).toBeHidden();
+      const link = banner.getByRole('link', { name: 'Search', exact: true });
+      await expect(link).toBeVisible();
+      await expect(link).toHaveAttribute('href', '/search');
+      const box = await link.boundingBox();
+      expect(box?.width ?? 0, 'search link width').toBeGreaterThanOrEqual(44);
+      expect(box?.height ?? 0, 'search link height').toBeGreaterThanOrEqual(44);
+    });
+
+    test(`HC-UISH-004: the search link is reached by Tab, and Enter opens /search at ${viewport.width}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      await openRoute(page, '/inbox');
+      await expect(page.locator(RAIL)).toBeVisible({ timeout: 15_000 });
+      const link = page.getByRole('banner').getByRole('link', { name: 'Search', exact: true });
+      await expect(link).toBeVisible();
+      let reached = false;
+      for (let press = 0; press < 30 && !reached; press += 1) {
+        await page.keyboard.press('Tab');
+        reached = await link.evaluate((el) => el === document.activeElement);
+      }
+      expect(reached, 'the search link is in the Tab order').toBe(true);
+      await page.keyboard.press('Enter');
+      await expect(page).toHaveURL(/\/search(\?|$)/, { timeout: 15_000 });
+    });
+  }
+
+  for (const viewport of [{ width: 1024, height: 768 }, DESKTOP]) {
+    test(`HC-UISH-004: at ${viewport.width} the top bar keeps the search form and has no icon link`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await openRoute(page, '/inbox');
+      await expect(page.locator(RAIL)).toBeVisible({ timeout: 15_000 });
+      const banner = page.getByRole('banner');
+      await expect(banner.getByRole('search')).toBeVisible();
+      await expect(banner.getByRole('searchbox', { name: 'Search health records' })).toBeVisible();
+      await expect(banner.getByRole('link', { name: 'Search', exact: true })).toBeHidden();
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // HC-UISH-007 (DF-3): a visible toast does not sit over the More sheet.
 // HC-UISH-008: the More sheet closes on Escape, returns focus, and reaches every destination.
 // ---------------------------------------------------------------------------
