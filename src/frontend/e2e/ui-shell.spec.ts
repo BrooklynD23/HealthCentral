@@ -97,6 +97,8 @@ const ALL_DESTINATIONS = [
 const RAIL = '[data-safety-rail]';
 const TOGGLE_POPOVER = '[data-safety-toggle-popover]';
 const TOGGLE_NOTE = '[data-safety-toggle-note]';
+/** The visible toggle label. It is the only copy of the toggle that shows below lg (the note is lg-only). */
+const TOGGLE_LABEL = '[data-safety-toggle-label]';
 
 /** The shell's own regions for the G1 scoped axe run. Page content in [data-route-container] is not one of them. */
 const SHELL_REGIONS = ['header', 'nav[aria-label="Main navigation"]', 'nav[aria-label="Tab bar"]', RAIL];
@@ -324,6 +326,27 @@ test.describe('HC-UISH-003 route fade and HC-UISH-009 rail stillness', () => {
       expect(report.nodes).toBeGreaterThan(0);
     });
   }
+});
+
+// UI-SHELL review round 2 MINOR 1: row 2 of the phone top bar must stay still during a route change, as the
+// desktop toggle does (L0 ruling 10:24:24Z). Below lg the note is display: none, so the visible label is probed.
+test.describe('HC-UISH-009 phone toggle label stays still', () => {
+  test.use({ viewport: PHONE });
+
+  test('HC-UISH-009: at 390 the Safety Rail and the toggle label stay still through a tab-bar navigation', async ({
+    page,
+  }) => {
+    await openRoute(page, '/inbox');
+    await expect(page.locator(RAIL)).toBeVisible({ timeout: 15_000 });
+    const report = await stillnessProbe(page, {
+      trigger: () =>
+        page.getByRole('navigation', { name: 'Tab bar' }).getByRole('link', { name: 'Review values', exact: true }).click(),
+      expected: [RAIL, TOGGLE_LABEL],
+      kind: 'navigation',
+      lazyRoute: true,
+    });
+    expect(report.nodes).toBeGreaterThan(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
