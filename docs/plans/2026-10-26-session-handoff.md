@@ -1,6 +1,6 @@
 # Session handoff: 2026-10-26 GPU-box L0 (RTX 3080) → next L0
 
-**Last Updated:** 2026-10-26
+**Last Updated:** 2026-10-26 (DON-NER-MODEL answered after merge)
 **Owner:** repository owner
 **Refresh Trigger:** the next L0 session reads this first, works §3, and replaces this file with its own handoff.
 
@@ -57,17 +57,17 @@ Read this after [CLAUDE.md](../../CLAUDE.md), [AGENT.md](../../AGENT.md) and the
 |---|---|---|---|
 | #370 | UI-SHELL | draft `[blocked:claude]` | **Blocked on a permission rule** (§4). Then post an `L0 ruling:` comment and run build-item `{id: "UI-SHELL", resume_pr: 370}` with the box quiet. **Done:** every code fix, including the phone second row (`72763a2c`) and focus scroll-padding. **Left:** T4 stillness on dev and preview (HC-UISH-009, HC-UIFB-006, HC-UIG-006), T5 PR-body lists (PAGE-H1, PAGE-A11Y, PAGE-OVERFLOW, E2E-SET-001 figures, every moved check with its target row), T6 acceptance, CI E2E on the final head. |
 | #376 | CI-CACHE | draft; review PASS; 9/9 green | **Owner merges** (CI file). The auto-mode classifier refused the L0 merge ("Merge Without Review"). Warm CI run: 1090 s → 567 s. |
-| #375 | DON-NER-MEASURE | open; Opus review REVISE, then fixed in `828e622`; L0 round-2 review PASS (comment 6434440876) | Docs-chain merge was in progress at write time; check `gh pr view 375`. After it merges, ask **DON-NER-MODEL** verbatim from `docs/reviews/2026-10-26/don-ner-measure.md` ("Input for owner gate DON-NER-MODEL"), with `[model]` = `obi/deid_roberta_i2b2`. No candidate meets DON-RECALL; #239 stays a draft. |
+| #375 | DON-NER-MEASURE | merged; Opus review REVISE, then fixed in `828e622`; L0 round-2 review PASS (comment 6434440876) | **Merged** `518ba10` (2026-10-26). DON-NER-MODEL was asked after the handoff merged and answered "Adopt obi, agent sets" (owner-decisions row DON-NER-MODEL). Asked verbatim from `docs/reviews/2026-10-26/don-ner-measure.md` ("Input for owner gate DON-NER-MODEL") with `[model]` = `obi/deid_roberta_i2b2`. No candidate met DON-RECALL as measured, so #239 stays a draft until the PR-2 resume delta meets the bar. |
 | #316 | DEV-PS1-FIRSTRUN + LLAMA-WHEEL-INDEX + DEV-EMB-FETCH | draft; suite green (2534 passed, 1 xfailed, 2535 collected) | **The owner's one Windows session** (WIN-TEST-BUNDLE): DPF-1..3, LWI-1, DEF-1, and E-5's `cd src/frontend && npm ci && npm audit`. The PR body's checklist covers DPF-1..3, LWI-1 and DEF-1 only; give the owner the E-5 step separately (the E-5 queue row assigns it to this session). Plan corrections: DPF-2 reads `logs\dev-backend.err.log`; DEF-1's path is `models\embeddings\`. L0 licensed `src/backend/tests/test_dev_sh_prereqs.py` (the stub fails only the binary-only wheel call). Record that on the LLAMA-WHEEL-INDEX row. |
 | #317 | RAG-TIMEOUT-ANSWER | draft `[blocked:claude]` | Unchanged; needs a plan delta (grounded path; follow-up bullet RAG-TIMEOUT-GROUNDED). |
 | #264 | B-3 advice judge | draft | **Never agent-merged.** Now also waits on JUDGE-LAYA-FT, JUDGE-NLI-TUNE and JUDGE-SWAP-ADOPT. |
-| #239 | RSI1-DONATE PR-2 | draft `[blocked:claude]` | **Never agent-merged.** Waits on DON-NER-MODEL. |
+| #239 | RSI1-DONATE PR-2 | draft `[blocked:claude]` | **Never agent-merged.** DON-NER-MODEL answered "Adopt obi, agent sets": the PR-2 resume delta (obi, C1) can be built on #239 after DON-COPY-V3 merges; #239 must meet HC-DON-013 on R1 ∪ R2 and on R2-gate alone, then the owner decides. |
 
 ## 3. Next
 
 1. **Unblock and finish #370 UI-SHELL** (§2). Then a post-merge batch: UI-SHELL done; the LLAMA-WHEEL-INDEX test-file licence; the count line once #316 merges. **21 UI rows wait on UI-SHELL** (13 directly).
 2. **#376 is left for the owner to merge** (CI file; the classifier refused the L0 merge). Do not merge it under the /goal's merge rule unless the owner says so.
-3. **Ask DON-NER-MODEL** once #375 merges, and record the answer verbatim.
+3. **DON-NER-MODEL is answered** ("Adopt obi, agent sets"). Build **DON-COPY-V3** (ready; small PR on main; every existing grant becomes not current), then the **PR-2 resume delta on #239** (obi bundle via `download_models.py phi-ner`, fail closed, HC-DON-025…027; never agent-merged).
 4. **The owner's Windows session for #316** (and the E-5 Windows half). Merge #316 after the checks pass.
 5. **The next UI wave once #370 merges:** run build-wave for UI-PALETTE, the UI-PG-* rows whose deps have landed (each inherits the moved checks on its row), SAFETY-MODE-TOGGLE, and SESSION-REENTRY Task 3. ALERTDIALOG-CANCEL-FOCUS goes before UI-PG-SECURITY.
 6. **NPM-AUDIT-PATCH** (ready; lockfile only; never beside another `package.json` or lockfile PR).
@@ -217,5 +217,5 @@ Setup: git fetch origin; venv ~/venvs/asclexis-311; embedding bundle in each wor
 Model rule: never Sonnet 5.5. Haiku 5.5 at effort xhigh implements; Opus 5.5 reviews (including every drafted owner question); Haiku 5.5 does exploration and test runs. Launch workflow copies from the session scratchpad.
 Priority order: handoff §3 items 1 to 10, in order. Owner direction, verbatim: "Merge everything that is ready, including RSI." and "keep going, merge them as they pass". #239 and #264 are never agent-merged, and #376 is left for the owner. Every other PR you merge yourself once review passes, checks are green and a focused test run passes, with gh pr merge N --merge --delete-branch=false; if the permission check refuses a merge, leave it for the owner and say so.
 Rules: hold /tmp/claude-1000/quiet-box.lock during UI-SHELL stillness runs and keep model-host rows off the box meanwhile; a resume needs an "L0 ruling:" comment; owner answers are quoted verbatim from docs/capstone-report/owner-decisions-2026-09-27.md; grep open owner questions before ruling; ask the owner first for interpret_safety, redaction, faithfulness, verifier_agent and anything auth or encryption; three-dot diffs only; never ruff format; docs PRs merge one at a time.
-Done when #370 is merged and the next UI wave is merged or in flight, DON-NER-MODEL is asked, #316 is merged or waiting only on the owner, the model-host rows are run or documented, the rsi-loop run is archived, and a new handoff replaces docs/plans/2026-10-26-session-handoff.md.
+Done when #370 is merged and the next UI wave is merged or in flight, DON-COPY-V3 is merged or in flight, #316 is merged or waiting only on the owner, the model-host rows are run or documented, the rsi-loop run is archived, and a new handoff replaces docs/plans/2026-10-26-session-handoff.md.
 ```
