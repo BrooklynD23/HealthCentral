@@ -265,9 +265,12 @@ describe('HC-UIOV-001 Escape closes each overlay and focus returns to the trigge
 describe('HC-UIOV-002 focus stays inside an open Dialog or Sheet over 25 Tab presses', () => {
   // Would not notice: jsdom has no layout, so Tab order is the DOM order that user-event
   // computes. Focus leaving through browser chrome cannot happen in this environment.
-  // The outside button is rendered beside the overlay, not in its portal. Without a
-  // focusable element outside, Tab has nowhere to escape to, so the case passed with
-  // modal={false}.
+  // The mechanism (Radix 1.3.1 dialog index.mjs:251-252): the content's FocusScope gets
+  // `loop: true` and `trapped: trapFocus`. `loop` wraps Tab at either end, so the 25 presses
+  // stay inside even with modal={false}; a Tab-only check cannot fail on that mutant.
+  // `trapped` adds the focusin listener that pulls focus back when it moves outside without
+  // Tab. The outside.focus() assertion below is what checks `trapped`.
+  // The outside button is rendered beside the overlay, not in its portal.
   it.each(['dialog', 'sheet'] as const)('%s keeps focus inside across 25 Tab presses', async (kind) => {
     const user = userEvent.setup();
     renderOverlay(kind, false, <button type="button">Outside action</button>);
@@ -282,6 +285,11 @@ describe('HC-UIOV-002 focus stays inside an open Dialog or Sheet over 25 Tab pre
       expect(content.contains(document.activeElement), `focus after Tab ${press}`).toBe(true);
       expect(outside, `outside button after Tab ${press}`).not.toHaveFocus();
     }
+
+    // Focus moved outside without Tab: the focusin listener must return it to the overlay.
+    act(() => outside.focus());
+    expect(content.contains(document.activeElement), 'focus after outside.focus()').toBe(true);
+    expect(outside, 'outside button after outside.focus()').not.toHaveFocus();
   });
 });
 
