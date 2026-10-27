@@ -7,8 +7,8 @@ import { Modal, type DialogProps } from './Dialog';
  *
  * On open, focus moves to the cancel action: the element with `data-alert-cancel` inside
  * the content. Caller order does not matter, so a destructive action may come first in the
- * DOM without taking focus, and Enter on the open dialog cancels. With no such element the
- * default focus stays, and an error is logged.
+ * DOM without taking focus, and Enter on the open dialog cancels. With no such element, or one
+ * that cannot take focus (disabled), the default focus stays and an error is logged.
  */
 export function AlertDialog(props: DialogProps) {
   return (
@@ -24,16 +24,20 @@ export function AlertDialog(props: DialogProps) {
   );
 }
 
-/** Radix calls this once per open. Without a cancel element it logs and keeps the default focus. */
+/**
+ * Radix calls this once per open. A disabled cancel cannot take focus, so the default focus
+ * stays and an error is logged. preventDefault is called only after focus has moved: Radix
+ * skips its own fallback focus when the default is prevented.
+ */
 function focusCancelOnOpen(event: Event) {
   const content = event.currentTarget as HTMLElement | null;
   const cancel = content?.querySelector<HTMLElement>('[data-alert-cancel]');
-  if (!cancel) {
-    console.error(
-      '`AlertDialog` has no cancel action: mark one with `data-alert-cancel` so it gets focus on open.'
-    );
+  cancel?.focus();
+  if (cancel && document.activeElement === cancel) {
+    event.preventDefault();
     return;
   }
-  event.preventDefault();
-  cancel.focus();
+  console.error(
+    '`AlertDialog` has no focusable cancel action: mark one with `data-alert-cancel`, not disabled.'
+  );
 }
