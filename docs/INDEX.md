@@ -1458,7 +1458,7 @@ Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-21b-session-hando
 
 Queue rows: queue.md, "Planned 2026-10-22, MVP rows". Rules: RUNBOOK, contracts §b-§d. Path shorthand as in the queue: `be/` = `src/backend/`, `fe/` = `src/frontend/src/`.
 
-Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-01-packaging-decision.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-22-mvp/01-desktop-packaging.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-01-packaging-decision.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md`, `docs/plans/2026-10-26-session-handoff.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-22-mvp/01-desktop-packaging.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`
 
 ## `docs/plans/2026-10-22-session-handoff.md`
 

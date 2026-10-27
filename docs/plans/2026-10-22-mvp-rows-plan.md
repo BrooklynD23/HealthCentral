@@ -1,6 +1,6 @@
 # MVP rows 2026-10-22 — plans for the MVP pass, owner prompts 40-41 and the bug-fixer follow-ups
 
-**Last Updated:** 2026-10-22 (review round 4: NORMALIZE-COMMA-NAMES urine qualifier dropped, quote, cites, stale statuses; review round 3: fallback test citation, OCR opt-in files, analogy; review round 2: plain-header check only with SQLCipher present, OCR switch facts and gate rewrite, both launcher log matches; review round 1: SQLCipher old-vault handling and new gate SQLC-OLD-VAULTS, CI import path, launcher checks, CPU-only model preference, OCR default gate OCR-DEFAULT-ON, #295/#297/#301 merged)
+**Last Updated:** 2026-10-27 (Opus planner on `e0a995fc`: RAG-TIMEOUT-ANSWER delta for the grounded path with new owner gate RAG-TIMEOUT-GROUNDED (Owner gates item 8); KV-NUMCTX-VERIFY planned); 2026-10-22 (review round 4: NORMALIZE-COMMA-NAMES urine qualifier dropped, quote, cites, stale statuses; review round 3: fallback test citation, OCR opt-in files, analogy; review round 2: plain-header check only with SQLCipher present, OCR switch facts and gate rewrite, both launcher log matches; review round 1: SQLCipher old-vault handling and new gate SQLC-OLD-VAULTS, CI import path, launcher checks, CPU-only model preference, OCR default gate OCR-DEFAULT-ON, #295/#297/#301 merged)
 **Owner:** repository owner
 **Status:** PROPOSED (Opus planner). Docs only. **No owner approval is recorded here.** Every gate keeps its state in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md). Answers cited below come from owner prompts 40-41 (L0 AskUserQuestion, 2026-10-22, record `/tmp/claude-1000/prompts-40-41.json`); their owner-decisions rows land in L0's PR #301 (branch `docs/owner-rows-prompts40-41`), not here.
 **Base measured:** `origin/main` @ `0e2799b` (2026-10-22, after #294 EXTRACT-UNIT-MGL + EXTRACT-DOB-DATE merged); review round 1 re-read the files #295 (`531c712`) and #297 (`afbe1af`) changed on `531c712`, where both had merged. Every `file:line` below was re-read by the planner.
@@ -355,11 +355,95 @@ Owner: **TEST-DEV-DEPS answered "(a) Add both (Recommended)"** (owner prompts 40
 
 ### RAG-TIMEOUT-ANSWER — a generation timeout is served and saved as a normal answer
 
+**Superseded 2026-10-27 in part:** the chat half is already fixed by G-B5 (L0 ruling on #317), and the design, tests and files below are replaced by the [delta](#delta-2026-10-27-to-rag-timeout-answer-the-grounded-path-rag-timeout-grounded) that follows this section.
+
 **Facts:** `be/modules/rag.py:1458-1461` (`_generate_with_runner`) and `:854-858` (`generate_response`) return a canned `"UNCERTAINTIES: I was unable to fully process your question within the time limit…"` string when `finish_reason == "timeout"`; it is validated and persisted as an assistant turn.
 
 **Design:** on timeout raise a dedicated `GenerationTimeoutError(RuntimeError)` (no provider text). Both timeout branches sit inside `try:` blocks whose `except Exception` (`:863`, `:1472`) re-wraps everything as `RuntimeError`, so each gets an `except GenerationTimeoutError: raise` **before** the generic `except`. `query()` has no abstain path today: it catches `GenerationTimeoutError` and returns its normal result shape with one `uncertainty` segment holding `ABSTAIN_TEMPLATE` (imported from `be/modules/agent/guardrails/templates.py`, as `be/api/assistant.py:43` does), `is_valid=False`, `insufficient_context=True`, `insufficient_reasons=["generation_timeout"]`, so the route serves the abstain message and the turn is stored as an abstention, not an answer.
 **Test-first** (`be/tests/test_rag_timeout_answer.py`, new; HTTP via `route_client` on `/assistant/chat`, agent off): HC-RTA-001 runner returns `finish_reason="timeout"` → response is the abstain text (RED); HC-RTA-002 the persisted turn is marked as not valid / abstained (RED); HC-RTA-003 a normal answer unchanged (pin).
 **Files:** `be/modules/rag.py` (the two timeout branches + `query()` catch only), `be/tests/test_rag_timeout_answer.py` (new), slots. **Delta:** +3. **Est:** 1 h. **Order:** ready (#297 merged `afbe1af`; re-read the timeout branches on current main first). #264 (parked) also edits `rag.py`; never beside RUNNER-EXC-INTERP (same two `except` blocks). **MVP:** P1.
+
+### Delta 2026-10-27 to RAG-TIMEOUT-ANSWER: the grounded path (RAG-TIMEOUT-GROUNDED)
+
+**Why a delta.** #317 stopped at Task 0 on 2026-10-23 (comment 6371533697): the planned RED tests were already GREEN on the chat route, and the "raise" design broke two pins outside the row. L0 ruled (comment 6374422151): "Option **(c)** for the chat route, plus a plan delta for the rest. **No code in this PR.**" and "Whether to abstain here (and persist) is a design question. It goes to the planner as a plan delta, not to this row." This delta replaces the design, tests and file list above. #317 has no code (`gh pr diff 317 --name-only` is empty; one claim commit `527a1a59`). Facts re-read on `origin/main` @ `e0a995fc` (2026-10-27).
+
+**Facts.**
+
+1. **Chat is already fixed (G-B5), and it stays as it is.** `_generate_with_runner` returns a canned text on `finish_reason == "timeout"` (`be/modules/rag.py:1461-1463`). The verifier fails that text, so `query()` returns `is_valid=False` with `["2 claim(s) could not be verified", "Low faithfulness score: 0.00"]` (pinned in `be/tests/legacy_eval/test_legacy_eval_gate.py:73`). `/assistant/chat` then serves `ABSTAIN_TEMPLATE` (`_legacy_serve_or_abstain`, `be/api/assistant.py:267-287`, called at `:1202`). Owner answers OQ-1 (**ABSTAIN_TEMPLATE**, which names timeouts) and W4-OQ-2 (**A: keep G-B5 + 20-q count**) cover this. The pins at `test_legacy_eval_gate.py:73` and `:90-92` stay unchanged.
+2. **`generate_response`'s timeout branch (`rag.py:855-859`) has no production caller.** `git grep "generate_response("` under `be/api`, `be/modules` and `be/core` finds only its definition (`rag.py:821`). `be/tests/test_rag_pipeline.py:1391-1415` pins it. This delta does not touch it.
+3. **The grounded route serves the canned text.** `POST /interpretations/observations/{id}/interpret-grounded` (`be/api/interpretations.py:496-688`) calls `rag.query` at `:583-592`. On a timeout, `query()` returns the canned text parsed into segments with `is_valid=False` and the two failed claim checks above. With safety mode **off**, nothing replaces it. `full_response` carries it (`:630-633`), and `verification` reports the failed claims (`:635-644`). With safety mode **on**, the SAFETY-MODE-STRICT branch already serves `ABSTAIN_TEMPLATE` and writes an `interpretation.strict_abstained` audit row (`:663-677`).
+4. **Nothing is persisted on this path.** The grounded answer is never written (`interpretations.py:649-650`: "The grounded answer is not persisted anywhere"; no write after `rag.query`). The persisted `Interpretation` is the template interpretation written by `interpret_module.interpret_observation` before `rag.query` (`:538-549`). The "(and persist)" half of L0's question therefore has no subject on this route.
+5. **What the patient sees today.** `LabInterpreter.tsx:95-101` shows `full_response` in the "Grounded explanation" card and a caution badge "Grounded faithfulness: 0%" (`:188-191`, `is_valid` false, score 0.00). The page has no error state for this request. `generateInterpretation` is used only for `isPending` (`:255`, `:273`, `:276`), so a 503 shows nothing at all.
+6. **Withholding on this route is unsigned.** The owner answered GC5-OL-2 with this caveat in the question: "on /interpretations/.../interpret-grounded the answer is still served with every claim marked failed. That route has no withhold, and adding one is a separate gate." [GC5 plan](2026-10-18-GC5-hc-m11-nli-flag-off.md) `:163` adds: "withholding on that route is still unsigned". SAFETY-MODE-BEHAVIOUR's "Stricter checks" covers strict mode only, and fact 3 shows it already applies there.
+7. **Ask-first files.** No option below edits `modules/interpret_safety.py`, `redaction.py`, `faithfulness.py` or `verifier_agent.py`. `validate_response` calls them; the shared core below skips `validate_response` only for the fixed timeout constant, which contains no model text. Every other response still goes through it (HC-RTA-004). If a build finds it needs an edit to one of those four files, it stops and L0 **asks the owner first**.
+
+**Owner gate.** The patient-visible choice is an open owner question: **RAG-TIMEOUT-GROUNDED** (execution gate, ask now; draft in [Owner gates](#owner-gates) item 8). The planner does not decide it. The design below has a shared core and one branch per option, so build-item can run whichever option the owner picks.
+
+**Design: shared core (options 1, 2 and 3).**
+
+- `be/modules/rag.py`: move the timeout literal of `_generate_with_runner` (`:1462-1463`) into a module constant `GENERATION_TIMEOUT_TEXT`, byte-identical. Add `GENERATION_TIMEOUT_ERROR = "Generation timed out"`. `generate_response` (`:855-859`) is not touched.
+- `query()` (`:1351-1358`): when `response == GENERATION_TIMEOUT_TEXT`, return `ValidatedResponse(segments=self._parse_response_segments(response), is_valid=False, validation_errors=[GENERATION_TIMEOUT_ERROR])` without calling `validate_response`. The segments are exactly today's, so the visible text is unchanged; only the claim checks on a sentence the model never wrote go away. `verification` falls back to `VerificationMetadata()`, so the grounded response's `verification.enabled` becomes false, `total_claims` 0, `issues` empty, `summary` empty and `faithfulness_score` 0.0. The Lab Interpreter badge therefore still shows 0%: the owner question states this. `insufficient_context` stays `False`, because chat shows a "Limited Context Available" banner when it is true (`ExplainAssistant.tsx:547-556`).
+- No exception is added and no signature changes. HC-LEG-005 calls `_generate_with_runner` and `validate_response` directly (`test_legacy_eval_gate.py:87-94`), so its pins hold. On chat, HC-LEG-003 still sees `is_valid=False`, so G-B5 still abstains. The only chat change is the payload's `validation_errors`, which is now `["Generation timed out"]`; that field is not persisted.
+- Known edge: a model answer that is byte-for-byte the timeout constant is also treated as a timeout. That answer is already `is_valid=False` today, so nothing is served that was not served before.
+
+**Design: per option.**
+
+| Option (owner's choice) | Extra change | Patient sees |
+|---|---|---|
+| 1 "Keep the sentence, label it a timeout" | none (shared core only) | same sentence and badge as today |
+| 2 "Abstention text, as chat" | `be/api/interpretations.py`: one `elif GENERATION_TIMEOUT_ERROR in rag_result.validation_errors:` after the strict branch (`:663-677`), shaped like it. Segments become `[uncertainty: ABSTAIN_TEMPLATE]`, `full_response = ABSTAIN_TEMPLATE` (recurring-failures #2: no canned text left in `full_response`), `verification = GroundedVerificationResponse()`, and an audit row `timeout_abstained` with `details={"reason": "generation_timeout", "decision": "abstain"}` | `ABSTAIN_TEMPLATE` (as chat, and as strict mode already shows) |
+| 3 "Error, try again" | `be/api/interpretations.py`: right after `rag.query` (`:592`), `if GENERATION_TIMEOUT_ERROR in rag_result.validation_errors:` raise the existing 503 with the I-16 detail "The explanation could not be generated right now. Please try again." (same as `:598-606`; the `interpretation.grounded` row at `:553-557` is already written). Frontend: an error message for a failed grounded request, in `fe/pages/LabInterpreter.tsx` before UI-PG-RESULTS merges, or in `fe/pages/ResultsPage.tsx` after it (UI-PG-RESULTS deletes `LabInterpreter.tsx`; never beside it) | the retry message |
+| 4 "No change, close the row" | none | L0 closes #317 and the row (`won't-do`, citing the answer) |
+
+**Test-first** (`be/tests/test_rag_timeout_answer.py`, new). The runner is `tests/legacy_eval/harness.py::FakeRunner(text="", finish_reason="timeout")`, so the real `_generate_with_runner` timeout branch runs. Routes go through HTTP: chat via `harness.legacy_chat_client`, grounded via `tests/test_safe_interp_grounded.py::_call` (`route_client`) with `I.get_rag_module` patched to a `RAGModule(enable_verification=True)` whose `retrieve_context` is an `AsyncMock` (the `test_empty_answer.py:53-71` pattern), and `core.external_runner.get_runner_for_request` patched to return the `FakeRunner`.
+
+- **HC-RTA-001** (RED; options 1-3): `RAGModule.query` with the timeout runner returns `is_valid is False` and `validation_errors == ["Generation timed out"]`, and `rag.GENERATION_TIMEOUT_TEXT` equals main's literal. Today the errors are the two claim checks, and the constant does not exist.
+- **HC-RTA-002** (RED; options 1-3): `interpret-grounded`, safety mode off, timeout runner: `validation_errors == ["Generation timed out"]`, and `verification` has `enabled` false, `total_claims == 0` (today 2) and `issues == []`. The rest is per option:
+  - option 1: 201, and `full_response` equals the value Task 1 measures on main (a pin, written before the fix).
+  - option 2: 201, `full_response == ABSTAIN_TEMPLATE`, the canned sentence is not in `resp.text`, and the audit rows are `["interpretation.grounded", "interpretation.timeout_abstained"]` with no question or answer text in any row (the `test_safe_interp_grounded._row_blob` check).
+  - option 3: 503 with the I-16 detail, and the audit rows are `["interpretation.grounded"]`.
+- **HC-RTA-003** (pin, GREEN before and after): `/assistant/chat` with the timeout runner still serves and persists `ABSTAIN_TEMPLATE` (OQ-1, W4-OQ-2).
+- **HC-RTA-004** (pin): a non-timeout answer (`test_safe_interp_grounded.CLEAN_ANSWER`) through `interpret-grounded` keeps its main verdict (`MEASURED_CLEAN_IS_VALID` as in `test_empty_answer.py:28`), and `"Generation timed out"` is not in its errors. This guards against a short-circuit that fires on every answer.
+- **HC-RTA-005** (pin): safety mode on plus the timeout runner still serves `ABSTAIN_TEMPLATE` with exactly one `interpretation.strict_abstained` row (fixture as `test_safety_mode_strict.py`, with a **user-verified** observation, or `_refuse_unverified` at `interpretations.py:530` fires first), so option 2 never writes a second decision row.
+- **Option 3 only:** HC-RTA-006 (vitest, `fe/__tests__/lab-interpreter-error.test.tsx` new, or the ResultsPage test if UI-PG-RESULTS has merged): a rejected grounded mutation renders the error text.
+
+**Tasks.**
+
+1. Task 0 as RUNBOOK §4. Quote the RAG-TIMEOUT-GROUNDED answer; with option 4 stop, and L0 closes #317. Re-read the lines above on current main. Measure today's grounded `full_response` for the timeout runner (for option 1's pin) and paste it.
+2. Write HC-RTA-001…005 (and 006 for option 3). Capture RED for 001 and 002 and GREEN for 003-005 on main.
+3. Shared core in `rag.py`. Then the option's route branch (option 2 or 3) and the frontend change (option 3).
+4. Re-run the pins: HC-LEG-003, HC-LEG-005, `test_generate_response_handles_timeout`, HC-LCPH-019, HC-EAS-003/004, `test_safe_interp_grounded.py`, `test_safety_mode_strict.py`.
+
+**Files** (by option):
+
+- Options 1-3: `be/modules/rag.py` (one constant pair, the `_generate_with_runner` timeout `return`, and the `query()` short-circuit only), `be/tests/test_rag_timeout_answer.py` (new), slots.
+- Options 2 and 3 add `be/api/interpretations.py` (the one branch above only).
+- Option 3 adds `fe/pages/LabInterpreter.tsx` or `fe/pages/ResultsPage.tsx`, plus the vitest file.
+- **Not edited:** `be/tests/legacy_eval/*`, `be/tests/test_rag_pipeline.py`, `be/api/assistant.py`, and the four ask-first modules.
+- **Delta:** +5 backend (option 3: +5 backend, +1 vitest). **Est:** option 1 1 h, option 2 1.5 h, option 3 2.5 h. **Contracts:** option 3 widens I-16's trigger (503 on a timeout as well as on `RuntimeError`); L0 notes it on the I-16 row in the post-merge batch. Options 1 and 2 leave I-16 unchanged.
+
+**Acceptance** (in the worktree, after the final `git merge origin/main`; paste the output):
+
+```bash
+cd src/backend
+P="$(git rev-parse --show-toplevel)/scripts/pyslot.sh"
+"$P" env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest -p no:cacheprovider -q tests/test_rag_timeout_answer.py
+"$P" env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest -p no:cacheprovider -q \
+  tests/legacy_eval/test_legacy_eval_gate.py tests/test_rag_pipeline.py tests/test_rag_headerless.py \
+  tests/test_empty_answer.py tests/test_safe_interp_grounded.py tests/test_safety_mode_strict.py
+git diff --name-only origin/main...HEAD -- modules/interpret_safety.py modules/redaction.py modules/faithfulness.py modules/verifier_agent.py tests/legacy_eval   # must print nothing
+git diff origin/main...HEAD -- modules/rag.py | grep -c '^-.*I was unable to fully process'   # 1: only the _generate_with_runner literal moved
+```
+
+Then RUNBOOK §6 steps 2-6: the full suite (no new failures beyond the 5 environmental ones in CLAUDE.md §4), the collected count with its delta, `python -c "from main import app"`, and `git status --short`. Option 3 also runs `cd src/frontend && npx tsc --noEmit`, with vitest on Windows or CI.
+
+**Order:** blocked on RAG-TIMEOUT-GROUNDED. After the answer, L0 posts an `L0 ruling:` comment on #317 naming the option, and runs build-item `{id: "RAG-TIMEOUT-ANSWER", resume_pr: 317}`; with option 4, L0 closes #317. Rules for parallel work:
+
+- Options 2 and 3: never beside another row whose file list includes `be/api/interpretations.py` (no open or ready row lists it on `e0a995fc`; B-5 is blocked).
+- With option 3, never beside UI-PG-RESULTS.
+- #264 (B-3, parked) also edits `rag.py` and rebases onto this row.
+
+**MVP:** P1 (unchanged; the chat demo path is already safe).
 
 ### RUNNER-EXC-INTERP — five log lines and two exception messages interpolate the provider exception text
 
@@ -441,6 +525,67 @@ Owner: **CPU-DEFAULT-MODEL answered "A and B"** (free text; L0 reading: Phi-4-mi
 2. **OLLAMA-NUM-CTX** is ready with **value 8192** (evidence item 3: the smallest size that holds the largest case plus its output, 4350 + 1024 = 5374 tokens, 100% GPU, about +0.3 GiB VRAM over 4096, at or below every `capabilities().context_len`). The lane A plan's `_OLLAMA_NUM_CTX` constant is `8192`. HC-ONC-001 as planned (lane A) uses `llama3.1:8b` (`context_len` 8192) and asserts `min(_OLLAMA_NUM_CTX, 8192)`, which a constant of 16384 would also pass, so the row **adds HC-ONC-003**: `OllamaProvider(model="gemma4:e4b")` (`context_len` 262144) body has `options.num_ctx == 8192` (RED today: no `num_ctx`); delta +1 over the lane A plan. It still never runs beside JUDGE-THINK (#305, same `_build_request_body`); whichever lands second merges `origin/main` and re-runs both test files.
 3. **OQ-KV-LOCK answered "(a) Accept the window"** (owner prompts 40-41, owner-decisions row OQ-KV-LOCK, L0 PR #301): after a lock or logout, the last prompt's state may stay in local Ollama memory until `keep_alive` expires (5 min; measured 55 s+ after lock in #298 run 2). No code: no `OllamaProvider.unload`, no `keep_alive` change, no lock hook. OLLAMA-NUM-CTX must not add a `keep_alive` field.
 
+### KV-NUMCTX-VERIFY: show that Ollama really runs the app's requests at `num_ctx` 8192 (model host; no code)
+
+**Source.** Bullet KV-NUMCTX-VERIFY (queue, "found 2026-10-23, #318 PR body"). #318 (OLLAMA-NUM-CTX, merged `1aee199`) lists this under "Not run", quoted: "re-run KV-PREFIX-MEASURE step 3 for its largest case through the provider, under the flock wrapper. The pass condition is a `prompt_eval_count` equal to the 32768 run and no `truncat` line in the journal. Reason: it needs the GPU, the local Ollama model and the journal, so RUNBOOK §10.1 routes it to L0 after the PR. The unit tests cannot show that Ollama honours `options.num_ctx`."
+
+**Facts** (re-read on `origin/main` @ `e0a995fc`, 2026-10-27).
+
+1. `be/core/llm/ollama_provider.py:42` `_OLLAMA_NUM_CTX = 8192`, and `:143` sends `"num_ctx": min(_OLLAMA_NUM_CTX, self.capabilities().context_len)` in `_build_request_body` (`:135-149`).
+2. HC-ONC-001…003 (`be/tests/test_ollama_num_ctx.py`) assert the request body only. Nothing in the repo shows that the Ollama server loads the model at that size.
+3. The 2026-10-22 baseline is [kv-prefix-measure.md](../reviews/2026-10-22/kv-prefix-measure.md):
+   - Box and model: Ollama 0.40.5, `gemma4:e4b`, RTX 3080 10 GiB, tree `5f7c67c`.
+   - Server default context: 4096 (`ollama ps` `CONTEXT` 4096).
+   - Case d (largest legacy chat): 2051 tokens at the default with the journal line `truncating input prompt limit=2051 prompt=4350`, and 4350 tokens at `num_ctx` 32768.
+   - Case c (typical legacy chat): 3585 tokens; at 4096 the output was cut after 510 tokens (`n_tokens = 4095, truncated = 1`).
+   - That run POSTed captured bodies straight to `/api/chat` ("step 3", `:94-145`), and those bodies predate `num_ctx`.
+4. The scripts are in the evidence file's appendix, not in the repo: `prompts.py` (`:457-693`), `mlib.py` (`:695-736`) and `step3.py` (`:738-764`). `prompts.py` builds each body with the real `OllamaProvider._build_request_body` (`:592`), so on current main the captured bodies carry `options.num_ctx` 8192 by construction. `/tmp/claude-1000/kv-1022/` may be gone after a restart; recreate the scripts from the appendix.
+
+**Owner answers used.** KV-CACHE-NEXT: **Measure first (Recommended)**. OQ-KV-LOCK: **(a) Accept the window**, so the run adds no `keep_alive` to product code; the scratch `unload()` helper's `keep_alive: 0` call is measurement only, as in 2026-10-22. No new gate. A failed check is a finding for L0, not a decision.
+
+**Isolation (model-host rules).**
+
+- One model-host run at a time: never beside QWEN3-4B-TIER, AUDIT-DB-LOCKED Task 1, JUDGE-LAYA-FT, JUDGE-NLI-TUNE or MM-2.
+- No pytest beside it: every model call runs under `bash /tmp/claude-1000/hold_slots.sh <cmd>`, which holds pyslot locks 1–8. Recreate the script from the [2026-10-26 handoff](2026-10-26-session-handoff.md) appendix if `/tmp` was wiped.
+- Never during a UI-SHELL stillness run. Before starting, and before each step, wait while `/tmp/claude-1000/quiet-box.lock` exists or `pgrep -f "playwright|vitest"` matches. A `pgrep -f` on the row's own script name matches the agents' own shells, so check the load instead (handoff §4).
+
+**Steps** (scratch dir `/tmp/claude-1000/kvv-<date>/`, scratch worktree at `origin/main`; product code is not edited):
+
+1. **Setup record.** Record the following:
+   - `ollama -v`
+   - `systemctl show ollama -p Environment` (`OLLAMA_CONTEXT_LENGTH` set or unset; if set, record the value: the request's `num_ctx` should override it, and the run shows whether it does)
+   - `ollama list | grep gemma4:e4b`
+   - `nvidia-smi --query-gpu=name,memory.total,memory.used --format=csv`
+   - `ollama ps` (empty)
+   - the worktree SHA
+   - `git grep -n "_OLLAMA_NUM_CTX = 8192" -- src/backend/core/llm/ollama_provider.py`
+
+   The embedding bundle must be present in the worktree (`python scripts/download_models.py embedding`, or copy it as the handoff setup does).
+2. **Capture.** Run `prompts.py` from the appendix with `OUT` pointed at the scratch dir. Record:
+   - each case's total characters against the 2026-10-22 table (main has moved since `5f7c67c`, so the prompts may differ; report the difference, do not adjust it);
+   - `body["options"]["num_ctx"]` for cases c and d, which must be 8192.
+
+   If the script no longer runs on current main, fix the scratch copy only and paste the diff.
+3. **Through the app's runner.** Run under `hold_slots.sh`, model unloaded first. Call `get_model_runner()` with `LLM_PROVIDER=ollama LLM_MODEL=gemma4:e4b`, then `generate_async(prompt_d, config_d)`. `prompt_d` is case d's captured `prompt`. `config_d` is an `InferenceConfig` matching the captured body: `max_tokens`, temperature, top_p, and the cite schema if the body has `format`. Raise `timeout_seconds` to 300 so a cold load cannot time out. Then record `ollama ps`. Pass: `CONTEXT` 8192, `PROCESSOR` 100% GPU.
+4. **Token counts.** For cases d and c, with the model unloaded before each request, POST the captured body unchanged (provider-built, `num_ctx` 8192), then the same body with `options.num_ctx` = 32768 (the 2026-10-22 reference). Record `prompt_eval_count`, `eval_count`, `done_reason` and `ollama ps` after each request.
+5. **Journal.** Run `journalctl -u ollama --since "<step 3 start>" --no-pager | grep -i truncat` and paste every hit.
+
+**Pass conditions** (all of them; written down before the run):
+
+- (i) step 2: `num_ctx` is 8192 in both bodies;
+- (ii) step 3: `CONTEXT` is 8192;
+- (iii) step 4: for case d, `prompt_eval_count` at 8192 equals the 32768 run's count;
+- (iv) step 5: no `truncating input prompt` line, and no `truncated = 1` slot line for the 8192 requests;
+- (v) step 4: case c at 8192 is not stopped near `n_tokens` 4095. Its `eval_count` reaches 1024 or it ends with `stop`.
+
+If any check fails, the evidence file says so, quotes the raw lines, and adds a new follow-up bullet to the queue. The row changes no code and does not re-open OLLAMA-NUM-CTX by itself; L0 decides.
+
+**Files:** `docs/reviews/<run date>/kv-numctx-verify.md` (new; setup, raw outputs, pass table, the scratch scripts or their diff from the 2026-10-22 appendix), `docs/INDEX.md`, `docs/_link_graph.json`. No `src/` file, no pytest, no slot change. **Est:** 1 h. **Runtime:** claude or L0 on the GPU box (model host). It holds no code slot, and its PR is docs only.
+
+**Acceptance:** the evidence file has every raw output above and a pass/fail line for each of (i)-(v). Then run `python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py --link-graph && python3 scripts/docs_lint.py`. `git diff --name-only origin/main...HEAD` lists only the three files.
+
+**Order:** ready (OLLAMA-NUM-CTX done, #318 `1aee199`). Run it between other model-host rows, with the box quiet. **MVP:** P2. It is evidence for a fix already shipped: the demo's legacy chat fallback (cases c and d) depends on it, and the agent path does not (cases a and b fit at 4096).
+
 ---
 
 ## CI and e2e
@@ -500,6 +645,21 @@ None of these is answered. Each is asked by L0 only when its trigger exists; no 
    - Options: "On when reader installed" (the setup script switches reading on whenever the new reader or Tesseract is there, as it does for Tesseract today; each patient can still switch it off in Settings, where it starts on). "On, patient opts in" (reading is allowed, but the Settings switch starts off for new profiles, so scans wait until the patient turns it on). "Keep today's rule" (reading only where Tesseract is installed, so the new reader helps only those computers).
    - Tradeoffs: on means more values to check that may contain reading mistakes (they still go through the Verify page); opt-in means a patient with scanned reports sees no values until they find the setting; today's rule leaves most Windows laptops without scan reading.
    - Analogy: a reading assistant who starts reading every photo you hand over, one who waits until you ask, or one who reads only for people who brought their own glasses (Tesseract).
+
+8. **RAG-TIMEOUT-GROUNDED** (RAG-TIMEOUT-ANSWER [delta 2026-10-27](#delta-2026-10-27-to-rag-timeout-answer-the-grounded-path-rag-timeout-grounded); execution gate; ask now). Drafted 2026-10-27 by the Opus planner. Not asked and not answered. One reviewer reads it before L0 asks.
+   - Question: "When the local model runs out of time (60 seconds) while writing the explanation for one lab result on the Lab Interpreter page, with safety mode off, what should you see? Today you see the app's own sentence, 'I was unable to fully process your question within the time limit. Please try asking a more specific question about your results.', with the amber 'Grounded faithfulness: 0%' badge. Behind the scenes, the app reports '2 claim(s) could not be verified' about that sentence. Chat already shows the abstention text for a timeout (your OQ-1 and W4-OQ-2 answers), and with safety mode on this page already shows it too. Nothing on this page is saved either way. You left adding a withhold to this page as a separate decision (GC5-OL-2). Two earlier answers kept this page showing a failed answer under the caution badge: GC5-PFC-DIFF (claims failed, answer still shown) and EMPTY-ANS-SCOPE (an empty answer shows the caution badge with no text)."
+   - Options:
+     - "Keep the sentence, label it": same sentence and badge on screen; the app records 'Generation timed out' instead of two failed checks on a sentence the model never wrote. Chat looks the same. About 1 h.
+     - "Abstention text, as chat": the page shows 'There isn't enough verified information in your record to explain this yet…' and logs an audit entry, as safety mode on does today. About 1.5 h.
+     - "Error, try again": the page shows 'The explanation could not be generated right now. Please try again.' Today this page shows nothing at all when the request fails, so this also needs a small screen change, which the Results page rebuild (UI-PG-RESULTS) must carry over. It also widens the existing "try again" error (contract I-16) from model failures to timeouts. About 2.5 h.
+     - "No change, close the row": today's sentence stays, and the two failed checks stay in the response. RAG-TIMEOUT-ANSWER and draft #317 are closed.
+   - Tradeoffs:
+     - The first option changes nothing you see, and that includes two things that stay wrong. The sentence asks you to 'ask a more specific question', but this page has no question box: you press 'Generate Interpretation' and the app writes the question. And the badge still reads 'Grounded faithfulness: 0%', although no check runs on the sentence any more. In chat, a footer may not claim a check on text the patient does not see (W4-OQ-5); removing the badge for this case would be a separate screen change.
+     - The second option is not strictly true for a timeout. It is the same downside you accepted for chat in OQ-1: "its 'not enough verified information' sentence is not strictly true for a timeout".
+     - The third option is the most accurate message, but it is the most work, and it touches a page that is about to be rebuilt.
+     - The last option leaves a misleading 'could not be verified' note in the response data, which patients do not see. It also keeps the not-actionable 'more specific question' sentence and the 0% badge.
+   - No recommendation. Every option leaves something imperfect on this page. The first is the smallest change and adds no withhold; the second matches chat and strict mode; the third gives the most accurate message, at the most cost. This is changed from the first draft after review: the reviewer found the first option's two costs above.
+   - Analogy: the kitchen ran out of time on one dish. You can hand the diner the kitchen's own note, which asks them to reorder more precisely from a menu they never saw (option 1, as today), hand them the standard "we can't serve this" card (option 2), ask them to order again (option 3), or leave the kitchen's ticket marked "failed inspection" (option 4).
 
 **Not gates:** LEGACY-ADVICE-GATE (L0 tells the owner: stricter, never looser); AGENT-DATEONLY-TZ (L0 tells the owner the midnight tradeoff); RAPIDOCR-RESEARCH (a failed premise goes back to the owner as a new question with the numbers).
 
