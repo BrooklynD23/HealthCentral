@@ -160,11 +160,17 @@ NAMED_DYNAMIC_EXCLUSIONS: dict[str, str] = {
     "api/model_settings.py::set_llm_provider::asyncio.to_thread(reset_provider)":
         "unloads the in-memory LLM provider in a thread; no session",
     "api/model_settings.py::get_environment_diagnostics::asyncio.to_thread(_diagnostics_list_response)":
-        "diagnostics probe in a thread; no DB session on the real path; name-based commit() reach "
-        "is only subprocess .run and re Match .start name collisions",
+        "diagnostics probe in a thread; no DB session on the real path. Name-based commit() reach "
+        "hits three sites: backup_scheduler.run_due_backups, "
+        "notification_scheduler._send_notification, adherence_patterns.relearn_unmarked_windows. "
+        "All three come in only through the subprocess .run and re Match .start name collisions, "
+        "so the real probe path writes no profile data.",
     "api/model_settings.py::recheck_environment_diagnostics::asyncio.to_thread(_diagnostics_list_response)":
-        "diagnostics probe in a thread; no DB session on the real path; name-based commit() reach "
-        "is only subprocess .run and re Match .start name collisions",
+        "diagnostics probe in a thread; no DB session on the real path. Name-based commit() reach "
+        "hits three sites: backup_scheduler.run_due_backups, "
+        "notification_scheduler._send_notification, adherence_patterns.relearn_unmarked_windows. "
+        "All three come in only through the subprocess .run and re Match .start name collisions, "
+        "so the real probe path writes no profile data.",
     "api/observations.py::get_panel_snapshots::snapshots.sort(sort_snap)":
         "sort key function; no session",
     "core/migrations.py::run_profile_migration_async::asyncio.to_thread(run_profile_migration)":
