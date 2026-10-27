@@ -1264,6 +1264,7 @@
     ],
     "docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md": [
       "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md",
+      "docs/plans/2026-10-22-mvp-rows-plan.md",
       "docs/reviews/2026-10-20/gc5-real-model-evidence.md",
       "docs/reviews/2026-10-21/gc5-model-host-evidence.md"
     ],
@@ -1315,6 +1316,9 @@
       "docs/plans/2026-10-24-session-handoff.md",
       "docs/plans/2026-10-26-session-handoff.md",
       "README.md"
+    ],
+    "docs/plans/2026-10-26-session-handoff.md": [
+      "docs/plans/2026-10-22-mvp-rows-plan.md"
     ],
     "docs/plans/implementation-log": [
       "docs/00_architecture_plans_index.md"
@@ -3781,7 +3785,9 @@
       "docs/research/2026-10-22-mvp/00-README.md",
       "docs/reviews/2026-10-22/kv-prefix-measure.md",
       "docs/plans/2026-10-01-packaging-decision.md",
-      "docs/research/2026-10-22-mvp/01-desktop-packaging.md"
+      "docs/research/2026-10-22-mvp/01-desktop-packaging.md",
+      "docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md",
+      "docs/plans/2026-10-26-session-handoff.md"
     ],
     "docs/plans/2026-10-22-session-handoff.md": [
       "docs/plans/2026-10-24-session-handoff.md",
