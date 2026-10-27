@@ -1,6 +1,6 @@
 # RSI run archive
 
-**Last Updated:** 2026-10-24
+**Last Updated:** 2026-10-27
 **Owner:** repository owner (the L0 session that runs rsi-loop adds its run folder)
 **Refresh Trigger:** each rsi-loop run on any machine, or a change to the rsi-log or session-log row format.
 
@@ -27,6 +27,7 @@ Exact cuts, in UTC. Each folder is cut once at archive time. The live session ke
 
 - `2026-10-22-gpubox`: `2026-10-21T00:00Z <= ts < 2026-10-23T00:00Z`. Session-log rows 4657, last archived `ts` `2026-10-22T23:56:01.448692Z`. rsi-log is the whole `rsi/2026-10-21.jsonl` and `rsi/2026-10-22.jsonl`, 3167 rows.
 - `2026-10-24-gpubox`: `ts >= 2026-10-23T00:00Z`, cut at the last archived `ts` `2026-10-24T07:29:07Z` (last row `2026-10-24T07:29:07.485998Z`). Session-log rows 5600. rsi-log is the whole `rsi/2026-10-23.jsonl` and `rsi/2026-10-24.jsonl` as of the same cut, 2518 rows, last row `2026-10-24T07:29:07.404Z`.
+- `2026-10-26-gpubox`: `2026-10-24T07:29:07.485998Z < ts < 2026-10-27T00:00Z` (starts after the `2026-10-24-gpubox` cut, so no row is archived twice). Session-log rows 9668, last archived `ts` `2026-10-26T15:16:53.741751Z`. rsi-log is the rows of `rsi/2026-10-24.jsonl` after the cut plus the whole `rsi/2026-10-26.jsonl`, 2951 rows, last row `2026-10-26T15:16:53.674Z`. There is no `rsi/2026-10-25.jsonl`: the rsi-log has no rows from `2026-10-24T15:15:33.229Z` (last row of `rsi/2026-10-24.jsonl`) to `2026-10-26T02:55:35.360Z` (first row of `rsi/2026-10-26.jsonl`), while a session ran without the mod. The 2026-10-26 handoff's "08:15Z" is the file's local (PDT) mtime, not UTC.
 - `2026-10-21-laptop`: earlier cumulative copy, not trimmed.
 
 ## Runs
@@ -36,6 +37,7 @@ Exact cuts, in UTC. Each folder is cut once at archive time. The live session ke
 | [2026-10-21-laptop](2026-10-21-laptop/summary.json) | `2026-10-21-local` | 344 | 6 | 0 | First run with the mod loaded. The cloud run `2026-10-21-cloud` logged 0 calls because the mod was not loaded |
 | [2026-10-22-gpubox](2026-10-22-gpubox/summary.json) | `none` | 3167 | — | — | no rsi-loop; archive only |
 | [2026-10-24-gpubox](2026-10-24-gpubox/summary.json) | `2026-10-24-gpubox` | 8210 (mined by rsi-loop since 2026-10-21; this folder's rsi-log holds 2518 rows, 2026-10-23..24) | 33 | 1 | mod loaded; dry run first (0 candidates, Codex proposer validated, #303); real run opened RSI PR #341 (owner merges) |
+| [2026-10-26-gpubox](2026-10-26-gpubox/summary.json) | `2026-10-26-gpubox` | 2489 (mined since 2026-10-24T07:18Z, per the handoff) | not recorded | 0 | mod loaded; Claude and Codex both returned "nothing worth proposing". `summary.json` is reconstructed from the 2026-10-26 handoff §1, since the run wrote no summary file |
 
 ## Adding a run (for example, from the GPU box)
 
