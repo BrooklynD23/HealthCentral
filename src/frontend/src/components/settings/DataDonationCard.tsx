@@ -18,7 +18,7 @@ import {
   type DonationPurpose,
 } from '@/services/donation';
 
-export const CONSENT_TEXT_VERSION = '2026-10-20-v2';
+export const CONSENT_TEXT_VERSION = '2026-10-27-v3';
 
 // The audit write can fail after the change is saved, so never claim it failed.
 const NEUTRAL_ERROR = 'Could not confirm your choice. Reload to see what was saved.';
@@ -28,6 +28,7 @@ export const CONSENT_INTRO = [
   'Your data never leaves this device. Before anything is stored as a donated copy, it goes through strict automatic redaction, which removes labelled names and some dates such as 03/15/2024. It can miss other date formats such as 2024-03-15, and names or dates written out in free text, so please keep that in mind.',
   'If you stop, the donated copies for that purpose are deleted. Your own records are not touched. A model already tuned with the copies, or a file already exported from them, is not changed.',
   'Nothing here is medical advice. Donated copies only help improve this app.',
+  'This includes answers from the step-by-step assistant.',
 ].join('\n\n');
 
 export const PURPOSE_COPY: Record<DonationPurpose, { label: string; description: string }> = {
