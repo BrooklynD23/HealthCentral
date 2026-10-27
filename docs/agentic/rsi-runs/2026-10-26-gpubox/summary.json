@@ -1,0 +1,26 @@
+{
+  "run_id": "2026-10-26-gpubox",
+  "reconstructed": true,
+  "source": "Reconstructed from docs/plans/2026-10-26-session-handoff.md section 1 (rsi-loop bullet). The run stopped at 'nothing worth proposing' and wrote no .claude/logs/rsi/summary-*.json; the full workflow result (run wf_9e11b537-2db) is in that L0 session's journal, which a later session cannot read. Clusters and per-cluster counts are not recoverable.",
+  "since": "2026-10-24T07:18Z",
+  "dry_run": false,
+  "mod_loaded": true,
+  "tool_calls_mined": 2489,
+  "clusters": null,
+  "candidates": 0,
+  "proposers": {
+    "claude": "nothing worth proposing",
+    "codex": "nothing worth proposing"
+  },
+  "metrics": {
+    "failure_rate_before_after": {
+      "Bash": ["2.61%", "1.98%"],
+      "Edit": ["11.1%", "1.1%"],
+      "Read": ["2.78%", "0%"]
+    }
+  },
+  "notes": [
+    "Limited by data: the rsi-log has no command or stderr signature (bullet RSI-LOG-CMD, needs owner sign-off, privacy).",
+    "Log gap 2026-10-24T08:15Z to 2026-10-26T02:55Z: the session in between ran without the mod."
+  ]
+}
