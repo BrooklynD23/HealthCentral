@@ -124,6 +124,8 @@ export interface ModalProps extends DialogProps {
   /** AlertDialog: an outside click does not dismiss. Escape still does. */
   dismissOnOutsideClick?: boolean;
   showClose?: boolean;
+  /** Radix's open auto-focus hook: AlertDialog uses it to focus its cancel action. */
+  onOpenAutoFocus?: (event: Event) => void;
 }
 
 /** Shared by Dialog, AlertDialog and Sheet. The variant picks the layout and the motion. */
@@ -133,6 +135,7 @@ export function Modal({
   role = 'dialog',
   dismissOnOutsideClick = true,
   showClose = true,
+  onOpenAutoFocus,
   still = false,
   className,
   trigger,
@@ -180,6 +183,7 @@ export function Modal({
               aria-modal="true"
               onPointerDownOutside={blockOutside}
               onInteractOutside={blockOutside}
+              onOpenAutoFocus={onOpenAutoFocus}
             >
               <m.div
                 className={cn(
