@@ -133,7 +133,7 @@ const TITLE: Record<OverlayKind, string> = {
 };
 const POPOVER_LABEL = 'Potassium details';
 
-function renderOverlay(kind: Kind, still = false) {
+function renderOverlay(kind: Kind, still = false, beside: ReactNode = null) {
   const trigger = <button type="button">{`Open ${kind}`}</button>;
   const body = (
     <>
@@ -145,35 +145,47 @@ function renderOverlay(kind: Kind, still = false) {
   switch (kind) {
     case 'dialog':
       return renderInProviders(
-        <Dialog trigger={trigger} title={TITLE.dialog} description="Read-only summary" still={still}>
-          {body}
-        </Dialog>
+        <>
+          <Dialog trigger={trigger} title={TITLE.dialog} description="Read-only summary" still={still}>
+            {body}
+          </Dialog>
+          {beside}
+        </>
       );
     case 'alertdialog':
       return renderInProviders(
-        <AlertDialog
-          trigger={trigger}
-          title={TITLE.alertdialog}
-          description="This cannot be undone."
-          still={still}
-        >
-          {body}
-          <button type="button" data-alert-cancel>
-            Cancel
-          </button>
-        </AlertDialog>
+        <>
+          <AlertDialog
+            trigger={trigger}
+            title={TITLE.alertdialog}
+            description="This cannot be undone."
+            still={still}
+          >
+            {body}
+            <button type="button" data-alert-cancel>
+              Cancel
+            </button>
+          </AlertDialog>
+          {beside}
+        </>
       );
     case 'sheet':
       return renderInProviders(
-        <Sheet trigger={trigger} title={TITLE.sheet} description="Other pages" still={still}>
-          {body}
-        </Sheet>
+        <>
+          <Sheet trigger={trigger} title={TITLE.sheet} description="Other pages" still={still}>
+            {body}
+          </Sheet>
+          {beside}
+        </>
       );
     case 'popover':
       return renderInProviders(
-        <Popover trigger={trigger} label={POPOVER_LABEL} still={still}>
-          {body}
-        </Popover>
+        <>
+          <Popover trigger={trigger} label={POPOVER_LABEL} still={still}>
+            {body}
+          </Popover>
+          {beside}
+        </>
       );
   }
 }
@@ -253,15 +265,22 @@ describe('HC-UIOV-001 Escape closes each overlay and focus returns to the trigge
 describe('HC-UIOV-002 focus stays inside an open Dialog or Sheet over 25 Tab presses', () => {
   // Would not notice: jsdom has no layout, so Tab order is the DOM order that user-event
   // computes. Focus leaving through browser chrome cannot happen in this environment.
+  // The outside button is rendered beside the overlay, not in its portal. Without a
+  // focusable element outside, Tab has nowhere to escape to, so the case passed with
+  // modal={false}.
   it.each(['dialog', 'sheet'] as const)('%s keeps focus inside across 25 Tab presses', async (kind) => {
     const user = userEvent.setup();
-    renderOverlay(kind);
+    renderOverlay(kind, false, <button type="button">Outside action</button>);
     await user.click(triggerOf(kind));
     const content = screen.getByRole('dialog');
+    // Radix hides the rest of the page from the accessibility tree while the overlay is open,
+    // so the lookup needs hidden: true. The button is still focusable, which is what is tested.
+    const outside = screen.getByRole('button', { name: 'Outside action', hidden: true });
 
     for (let press = 1; press <= 25; press += 1) {
       await user.tab();
       expect(content.contains(document.activeElement), `focus after Tab ${press}`).toBe(true);
+      expect(outside, `outside button after Tab ${press}`).not.toHaveFocus();
     }
   });
 });
