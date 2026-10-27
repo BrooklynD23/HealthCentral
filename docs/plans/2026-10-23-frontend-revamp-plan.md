@@ -1,6 +1,6 @@
 # Frontend revamp 2026-10-23 — merged plan: Ink & Paper on a Motion Gradient
 
-**Last Updated:** 2026-10-24 (SAFETY-MODE build rows planned on `29dca22` from owner prompt 51: SAFETY-MODE-SETTING, -STRICT, -VERIFIED, -TOGGLE, -CITATIONS, -VERIFIED-FE); 2026-10-24 (owner prompt 48: UI-ROUTE-MOTION "Whole-page fade", UI-AUTH-SCREENS "Layout, motion and Lift", SESSION-LOCK-NOW "Add Lock now"); 2026-10-23 (review round 2 of #311: e2e contract-change appendix, `data-t0` owners and M0 route default, overlay rule, fixture screenshot, wave order, base `257e072`); 2026-10-23 (review round 1 of #311: framer-motion 10 kept (owner UI-DEPS), fixture name (owner UI-FIXTURE-NAME), stillness probe G10, UI-AUTH-SCREENS relabelled, test-file ownership, 11 minors)
+**Last Updated:** 2026-10-26 (post-merge batch on `0e8b2b2`: GATES-SAMPLE-TIME done (#374), with its review MINOR 3 noted; §7.10 follow-ups planned: POPOVER-OPEN-COST, SETTINGS-DETECT-BLOCKING, GATES-SAMPLE-TIME-MINORS, ALERTDIALOG-CANCEL-FOCUS; SAFETY-LABEL-WORDING answered "Keep plan default (Recommended)" and closed in §11; UI-PHONE-TOGGLE answered "Second row on phones (Recommended)"); 2026-10-24 (SAFETY-MODE build rows planned on `29dca22` from owner prompt 51: SAFETY-MODE-SETTING, -STRICT, -VERIFIED, -TOGGLE, -CITATIONS, -VERIFIED-FE); 2026-10-24 (owner prompt 48: UI-ROUTE-MOTION "Whole-page fade", UI-AUTH-SCREENS "Layout, motion and Lift", SESSION-LOCK-NOW "Add Lock now"); 2026-10-23 (review round 2 of #311: e2e contract-change appendix, `data-t0` owners and M0 route default, overlay rule, fixture screenshot, wave order, base `257e072`); 2026-10-23 (review round 1 of #311: framer-motion 10 kept (owner UI-DEPS), fixture name (owner UI-FIXTURE-NAME), stillness probe G10, UI-AUTH-SCREENS relabelled, test-file ownership, 11 minors)
 **Owner:** repository owner
 **Status:** PROPOSED (Opus planner). Docs only. **No owner approval is recorded here.** Every gate keeps its state in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md); the owner direction and prompt 44's four answers are recorded there as rows UI-DIRECTION, UI-SAAS-MEANING, UI-SCOPE-1031, UI-DARK-MODE and UI-SAFETY-TOGGLE, prompt 45's two answers as rows UI-DEPS and UI-FIXTURE-NAME, and prompt 48's three answers as rows UI-ROUTE-MOTION, UI-AUTH-SCREENS and SESSION-LOCK-NOW (same PR).
 **Base measured:** `origin/main` @ `257e072` (2026-10-23; merged since the first draft's `15fe095`: #321 MVP-REAUTH-401, #315 CPU-DEFAULT-PHI4, #318 OLLAMA-NUM-CTX, #314 FE-EXPLAIN-ERR, #319 GAUGE-ZERO-WIDTH, #320 INTERP-REGEN-500). The designers and the UI review read `7749744`; since then `src/frontend` changed only through #321 (`services/api.ts`, `profiles.ts`, `backup.ts`), #314 (`ExplainAssistant.tsx`) and #319 (`ReferenceRangeComparison.tsx`) with their tests, and both prototype patches still pass `git apply --check` on `257e072`. Every e2e line cited in [Appendix A](#appendix-a-e2e-assertions-and-the-row-that-changes-each) was read on `257e072` and re-read after #323 (docs) and #312 SESSION-REENTRY Task 1 (`7667439`), which this branch has merged.
@@ -435,6 +435,8 @@ Frontend e2e uses `page.route` mocks typed from `fe/services/types.ts` (`e2e/sup
 | HC-UIG-007 | a `page.setContent` fixture whose page wraps `Element.prototype.getBoundingClientRect` so that one post-trigger call busy-waits 30 ms (nothing else runs long): the probe passes, with `maxGapMs` at most 40. A second fixture busy-waits 60 ms in one call: the probe fails with a sampling gap above 40 ms | yes (stamped at the end, the first fixture's gap is the 20 ms interval plus the 30 ms wait) |
 
 **Acceptance:** HC-UIG-007 RED then GREEN; HC-UIG-001…006 green and unchanged (`git diff origin/main...HEAD -- e2e/ui-gates.spec.ts` is empty); the e2e README says when a sample is timed. **Est:** 1 h. **MVP:** P1 (UI-SHELL's final stillness run waits on it).
+
+**Done 2026-10-25** (#374, `e099a7c`; RED 51 ms, GREEN 30 ms on HC-UIG-007 (a)). As built, the HC-UIG-007 fixtures are served with a fulfilled `page.route` plus `goto` (the `serveFixture` pattern of `ui-gates.spec.ts`), not `page.setContent`; they behave the same here (#374 review MINOR 3, no code change). The other two MINORs are row [GATES-SAMPLE-TIME-MINORS](#gates-sample-time-minors--the-374-review-minors).
 
 #### SAFETY-MODE-REAL — research concrete behaviours for the safety toggle and turn them into an owner question
 
@@ -888,6 +890,69 @@ Done and ignore are optimistic with a toast offering Undo (the care-task API has
 
 **Acceptance:** G on every route in both themes. **Est:** 2 h. **MVP:** P2. If HC-UIDRK-001 finds anything, the fix belongs to the row that owns that file; the flip waits.
 
+### 7.10 Follow-ups planned 2026-10-26 (post-merge batch)
+
+Planned 2026-10-26 on `0e8b2b2` from the L0 rulings on #370 (UI-SHELL, still in flight) and #374 (GATES-SAMPLE-TIME), and the queue bullet ALERTDIALOG-CANCEL-FOCUS. Queue rows: [Planned 2026-10-26, post-merge batch](2026-10-15-build-program/queue.md#planned-2026-10-26-post-merge-batch). The checks UI-SHELL moved to page rows are recorded in those rows' queue cells, not here.
+
+#### POPOVER-OPEN-COST — the popover open costs more than one 40 ms sampling gap
+
+**Kind:** PRODUCT (frontend). **Files:** `fe/components/ui/Popover.tsx`, `e2e/ui-shell.spec.ts` (HC-UIOV-007 browser case: remove its `test.fixme` only), `fe/__tests__/ui-overlays.test.tsx` (HC-UIOV-007 vitest half: selectors only, if needed). **Depends on:** UI-SHELL merged (#370 adds the marked case). **Gate:** none.
+
+**Why.** L0 ruling 08:46:34Z on #370: the browser half of HC-UIOV-007 (the safety-toggle popover opens with a `[data-t0]` child under `stillnessProbe`) failed 2 of 3 runs on a `vite preview` build, with sampling gaps of 53 and 49 ms. Traces on preview and dev (Chromium, 60 ms window after the click): click dispatch 14-20 ms, microtasks 15-19 ms, style 3-4 ms, layout 0.3-0.4 ms, paint 4-6 ms; no CPU sample in `src/components/layout/`. The cost is React render and commit, Radix Popover (Presence, DismissableLayer) and framer frames, all under `ui/Popover.tsx`, a primitive of the done row UI-PRIM-OVERLAYS. About 13 ms of the busy span comes before the click, from Playwright hit-testing (`elementsFromPoint`). #370 marks the case `test.fixme(true, 'POPOVER-OPEN-COST: …')` (fixme, not fail, because it passes intermittently).
+
+**Change.** Find what the open does in one task and cut it below the bound (systematic-debugging; trace first). Leads, not decisions: a `still` popover may not need `AnimatePresence` or framer frames at all; Presence and DismissableLayer may mount more than the content needs. `still` behaviour (M0, no opacity, scale or translate on T0 content) stays.
+
+| Id | Check | RED today? |
+|---|---|---|
+| HC-UIOV-007 (browser half) | the `e2e/ui-shell.spec.ts` case with its `test.fixme` removed: `stillnessProbe` from the opening click passes 10 of 10 runs on a `vite preview` build on a quiet box (`uptime` and `ps` pasted), and CI E2E passes it on the final head | yes (2 of 3 on preview, 49-53 ms) |
+
+**Acceptance:** the case above; HC-UIOV-001…007 (vitest) green; HC-UISH-009's popover M0 case green; `STILLNESS_MAX_GAP_MS`, the 20 ms interval and the 800 ms window unchanged (`git diff origin/main...HEAD -- e2e/support/gates.ts` empty). **Est:** 3 h. **MVP:** P1.
+
+#### SETTINGS-DETECT-BLOCKING — hardware detection blocks the event loop in three settings routes
+
+**Kind:** PRODUCT (backend routes; code slot). **Files:** `be/api/model_settings.py` (only the blocking calls: `selector.detect_hardware_tier()` in `get_model_settings` `:398` and `list_tiers` `:598`; `_diagnostics_list_response()` in `get_environment_diagnostics` `:1200` and `recheck_environment_diagnostics` `:1211`), `be/tests/test_settings_detect_nonblocking.py` (new). **Depends on:** none; never beside another `be/api/model_settings.py` PR. **Gate:** none. Not ask-first (no auth, encryption or safety module); `modules/hardware_detection.py` and `modules/environment_diagnostics.py` are unchanged.
+
+**Why.** L0 ruling 06:35:47Z on #370: `detect_hardware` takes about 2.6 s and runs synchronously inside three `async` handlers (`GET /settings/model`, `GET /settings/model/tiers`, the diagnostics call `modules/environment_diagnostics.py:223`), so the calls serialise on the event loop to about 8-9 s, and every other request waits behind them. E2E-SET-001 (settings page visible within 10 s) takes 10.2 s on main on a cold local backend start; the shell's extra 0.5 s on a cold dev server pushes it over. The 10 s timeout is not raised.
+
+**Change.** Run each blocking call off the loop with `await asyncio.to_thread(...)`, as `PUT /settings/model/provider` already does (`:910`, HC-LUL-001…003). Off-loop rather than a per-process cache (the ruling's other option): a cache would keep stale hardware and model availability after a download, and `POST /diagnostics/recheck` exists to re-run the checks. Response bodies and audit calls are unchanged. If Task 0 finds `detect_hardware` unsafe to run in two threads at once (shared mutable state), stop and report.
+
+| Id | Check | RED today? |
+|---|---|---|
+| HC-SDB-001 | through `tests/support/routes.py::route_client` (one shared portal loop, the HC-LUL pattern): with `detect_hardware_tier` patched to block on a `threading.Event`, `GET /settings/model` is in flight while a second, light request on the same router (`GET /settings/model/provider?probe=false`, as HC-LUL does) returns 200 within 1 s; then the event is set and the first returns 200 with the same body as today | yes (the second request waits for the first) |
+| HC-SDB-002 | the same for `GET /settings/model/tiers` | yes |
+| HC-SDB-003 | the same for `GET /settings/model/diagnostics` and `POST /settings/model/diagnostics/recheck`, with `build_environment_diagnostics` patched to block | yes |
+
+**Acceptance:** HC-SDB-001…003 RED then GREEN with output; `test_model_settings_api.py`, `test_audit_read_settings.py`, `test_tier_capabilities.py` and `test_provider_switch_nonblocking.py` green; full backend suite with the collected count and delta; E2E-SET-001 on a cold local backend, main and branch figures pasted, and CI E2E green. **Est:** 2 h. **MVP:** P1.
+
+#### GATES-SAMPLE-TIME-MINORS — the #374 review MINORs
+
+**Kind:** PRODUCT (e2e harness; test + doc). **Files:** `e2e/README.md` (`:71`, one sentence), `e2e/ui-gates-sampler.spec.ts` (`:73`). **Depends on:** GATES-SAMPLE-TIME (done, #374). **Gate:** none.
+
+**Why.** #374 review round 1 (PASS, 3 MINORs): (1) `e2e/README.md:71` says "so a gap counts the page's work between samples, not the probe's own reads in a tick", which claims more than the code does: stamping at the start keeps a tick's reads out of the gap before that sample, but a read that runs past the 20 ms interval still delays the next tick (HC-UIG-007 (a) is that case: a 30 ms read shows as a 30-31 ms gap). (2) HC-UIG-007 (a) checks only the upper bound, so it would pass if the wrapper never fired. (3) is recorded in the GATES-SAMPLE-TIME section above, no change.
+
+**Change.** (1) Replace the sentence with the review's text: "…before its style and layout reads, so those reads are not added to the gap before the sample. A read that runs past the next interval still delays the next sample and shows as a gap (HC-UIG-007)." (2) In (a), also assert `report.maxGapMs >= 25`, so the case proves the block landed in the window.
+
+| Id | Check | RED today? |
+|---|---|---|
+| HC-UIG-007 (a) | gains `expect(report.maxGapMs).toBeGreaterThanOrEqual(25)`; mutant: with `blockOnceAfterStart(0)` (no block) the case fails, output pasted, then restored | GREEN (a stronger pin; the mutant shows it can fail) |
+
+**Acceptance:** HC-UIG-007 green with `--repeat-each 10`; HC-UIG-001…006 unchanged; the mutant RED pasted. **Est:** 0.5 h. **MVP:** P2.
+
+#### ALERTDIALOG-CANCEL-FOCUS — a destructive AlertDialog opens on Cancel
+
+**Kind:** PRODUCT (frontend; accessibility). **Files:** `fe/components/ui/AlertDialog.tsx`, `fe/components/ui/Dialog.tsx` (`Modal`: accept `onOpenAutoFocus` and pass it to `DialogPrimitive.Content`, nothing else), `fe/__tests__/ui-overlays.test.tsx` (new HC-UIOV-008; the HC-UIOV-002 fixture gains a focusable element outside the overlay). **Depends on:** UI-PRIM-OVERLAYS (done, #363). **Blocks:** UI-PG-SECURITY (DangerZone's destructive confirm) and any destructive-flow consumer (FE-A11Y-DIALOGS). **Gate:** none.
+
+**Why.** #363 L0 review: `AlertDialog.tsx` focuses the first focusable element on open (its own comment: "Radix's AlertDialog focuses Cancel instead, and this one does not. So put the cancel action first: if a destructive action comes first, it gets focus and Enter confirms it."). A rule that depends on the caller's element order is a trap for a destructive confirm. Also, the HC-UIOV-002 focus-trap test passes with `modal={false}`, because its fixture has nothing focusable outside the overlay for Tab to reach.
+
+**Change.** AlertDialog moves initial focus to its cancel action: the element marked `data-alert-cancel` inside the content (an equivalent `cancelRef` prop is fine; the tests pin the behaviour, not the mechanism), through Radix `onOpenAutoFocus` (`preventDefault`, then focus it). With no cancel element it logs `console.error` naming AlertDialog, like the title guard, and keeps the default. Update the component comment. Dialog and Sheet are unchanged. The Dialog close button scrolling away on tall content stays in the queue bullet, not this row.
+
+| Id | Check | RED today? |
+|---|---|---|
+| HC-UIOV-008 | an AlertDialog whose destructive "Delete" comes before "Cancel" in the DOM: on open, Cancel has focus; Enter calls the cancel handler and not the confirm spy; a missing cancel element logs one `console.error` naming AlertDialog | yes (focus lands on "Delete") |
+| HC-UIOV-002 (strengthened) | the fixture has a button outside the overlay; 25 Tab presses never focus it; mutant: `modal={false}` on `DialogPrimitive.Root` fails the case (output pasted), then restored | GREEN (the mutant shows it can fail) |
+
+**Acceptance:** the two ids with output; HC-UIOV-001…007 green; `npx tsc --noEmit` clean. **Est:** 2 h. **MVP:** P2.
+
 ---
 
 ## 8. Session and safety deltas
@@ -959,7 +1024,7 @@ The gates and questions listed under "Execution gates" and "Open questions" belo
 
 **Open questions (rows proceed with the default stated; the answer may change a file later):**
 
-- **SAFETY-LABEL-WORDING.** "Until the safety toggle does something, how should it read?" Options: "'Stricter safety mode', disabled, with 'Not available yet. The standard safety checks always run.'" (the plan's default) / "'Extra safety checks · coming soon', disabled, with the same note" / "A short note only: 'Safety checks always on', with no switch until the real one is built" (this departs from "keep a toggle").
+- ~~**SAFETY-LABEL-WORDING.**~~ **Answered 2026-10-26** (L0 AskUserQuestion; owner-decisions row SAFETY-LABEL-WORDING): "Keep plan default (Recommended)", the first option below, so the default stands and the question is closed. As asked, the question carried the appended parenthetical "(The phone layout you just chose is built with the first option.)". Draft as written: "Until the safety toggle does something, how should it read?" Options: "'Stricter safety mode', disabled, with 'Not available yet. The standard safety checks always run.'" (the plan's default) / "'Extra safety checks · coming soon', disabled, with the same note" / "A short note only: 'Safety checks always on', with no switch until the real one is built" (this departs from "keep a toggle").
 - **UI-NAV-NAMES.** "Which navigation names should ship?" Options: "Documents, Review values, Results, Ask, Follow-ups, Doctor summary" (default) / "Documents, Review, Results, Ask, Tasks, Doctor summary" / "Today's names (Inbox, Verify, Trends, Explain, Tasks, Export) with only the grouping".
 - **UI-BRAND-MARK.** "Keep the heart logo or move to a mark drawn from the pencil-and-ink idea?" Options: "New mark" (default) / "Keep the heart".
 - **MED-BADGES.** "The medication badges ('Week Warrior', 'Comeback Kid') lose their celebration animation either way. What should happen to the badges themselves?" Options: "Keep as today, static" (default) / "Off by default, shown only if streaks are turned on" / "Remove them".

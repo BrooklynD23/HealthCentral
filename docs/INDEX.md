@@ -704,7 +704,7 @@ Links to: `audit/2026-09-25/handoff-2026-09-28-execution-orchestrator.md`, `audi
 
 1. **Governance edits are now approved:** amend `CLAUDE.md` (D3: CSV/JSON as named exceptions; D12: the external runner as a named ModelRunner exception) and `docs/compliance/data-privacy.md` (D3,…
 
-Links to: `docs/capstone-report/README.md`, `docs/capstone-report/implementation-program.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/framing.md`, `docs/research/2026-10-23-frontend-revamp/owner-direction.md`
+Links to: `docs/capstone-report/README.md`, `docs/capstone-report/implementation-program.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/research/2026-10-22-judge-laya/00-README.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/framing.md`, `docs/research/2026-10-23-frontend-revamp/owner-direction.md`
 
 ## `docs/capstone-report/report-outline.md`
 
@@ -1348,7 +1348,7 @@ Links to: `audit/2026-09-25/waves/scaffold/G-C5.md`, `audit/2026-09-25/waves/wav
 
 **Collected-count slot on main:** `CLAUDE.md:30` and `:34` read **1574**; `AGENT.md:76` reads 1574. The orchestrator's "1501" is the slot on PR #95's branch, not main. Every count-changing PR in…
 
-Links to: `audit/2026-09-25/waves/scaffold/G-C3a.md`, `audit/2026-09-25/waves/scaffold/PARA-1-R3.md`, `audit/2026-09-25/waves/scaffold/W-7.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W07-tiered-interpretation-via-modelrunner.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`, `docs/plans/2026-10-15-build-program/contracts.md`
+Links to: `audit/2026-09-25/waves/scaffold/G-C3a.md`, `audit/2026-09-25/waves/scaffold/PARA-1-R3.md`, `audit/2026-09-25/waves/scaffold/W-7.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W07-tiered-interpretation-via-modelrunner.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/research/2026-10-22-judge-laya/00-README.md`
 
 ## `docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md`
 
