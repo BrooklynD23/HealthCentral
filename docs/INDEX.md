@@ -704,7 +704,7 @@ Links to: `audit/2026-09-25/handoff-2026-09-28-execution-orchestrator.md`, `audi
 
 1. **Governance edits are now approved:** amend `CLAUDE.md` (D3: CSV/JSON as named exceptions; D12: the external runner as a named ModelRunner exception) and `docs/compliance/data-privacy.md` (D3,…
 
-Links to: `docs/capstone-report/README.md`, `docs/capstone-report/implementation-program.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/framing.md`, `docs/research/2026-10-23-frontend-revamp/owner-direction.md`
+Links to: `docs/capstone-report/README.md`, `docs/capstone-report/implementation-program.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/research/2026-10-22-judge-laya/00-README.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/framing.md`, `docs/research/2026-10-23-frontend-revamp/owner-direction.md`
 
 ## `docs/capstone-report/report-outline.md`
 
@@ -1348,7 +1348,7 @@ Links to: `audit/2026-09-25/waves/scaffold/G-C5.md`, `audit/2026-09-25/waves/wav
 
 **Collected-count slot on main:** `CLAUDE.md:30` and `:34` read **1574**; `AGENT.md:76` reads 1574. The orchestrator's "1501" is the slot on PR #95's branch, not main. Every count-changing PR in…
 
-Links to: `audit/2026-09-25/waves/scaffold/G-C3a.md`, `audit/2026-09-25/waves/scaffold/PARA-1-R3.md`, `audit/2026-09-25/waves/scaffold/W-7.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W07-tiered-interpretation-via-modelrunner.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`, `docs/plans/2026-10-15-build-program/contracts.md`
+Links to: `audit/2026-09-25/waves/scaffold/G-C3a.md`, `audit/2026-09-25/waves/scaffold/PARA-1-R3.md`, `audit/2026-09-25/waves/scaffold/W-7.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W07-tiered-interpretation-via-modelrunner.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/research/2026-10-22-judge-laya/00-README.md`
 
 ## `docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md`
 
@@ -1499,6 +1499,14 @@ Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/rsi-runs/README.md`, `docs/caps
 Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-24 handoff. This session continued the **GPU-box** L0 (RTX 3080, WSL, Ollama, llama.cpp tiers,…
 
 Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/rsi-runs/README.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-24-safety-mode-build-plan.md`, `docs/plans/2026-10-24-session-handoff.md`
+
+## `docs/plans/2026-10-26-session-handoff.md`
+
+**Session handoff: 2026-10-26 GPU-box L0 (RTX 3080) → next L0**
+
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-25 handoff. This session resumed the **GPU-box** L0 (RTX 3080, WSL, Ollama, `--plugin-dir…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/rsi-runs/README.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-25-session-handoff.md`
 
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
@@ -3309,6 +3317,14 @@ Links to: `docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md`, `docs/reviews/2026
 Plan: KV-PREFIX-MEASURE; queue row `KV-PREFIX-MEASURE` in queue.md. Feeds the row `OLLAMA-NUM-CTX` (plan). Run by an agent on the owner's model host (WSL2, RTX 3080, Ollama 0.40.5), 2026-10-22 12:53…
 
 Links to: `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/queue.md`
+
+## `docs/reviews/2026-10-26/don-ner-measure.md`
+
+**DON-NER-MEASURE: on-device PHI detector candidates measured on the GPU box**
+
+Plan: RSI1-DONATE Delta 2026-10-22, DON-NER-MEASURE; queue row `DON-NER-MEASURE` in queue.md. Feeds the new owner gate **DON-NER-MODEL** (same plan, "New owner gate DON-NER-MODEL"). Run by a Claude…
+
+Links to: `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`
 
 ## `docs/reviews/README.md`
 

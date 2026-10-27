@@ -44,6 +44,7 @@
       "docs/plans/2026-10-22-session-handoff.md",
       "docs/plans/2026-10-24-session-handoff.md",
       "docs/plans/2026-10-25-session-handoff.md",
+      "docs/plans/2026-10-26-session-handoff.md",
       "docs/research/2026-10-12/05-mvp-roadmap-tests.md",
       "README.md",
       "CLAUDE.md"
@@ -76,6 +77,7 @@
       "docs/plans/2026-10-22-session-handoff.md",
       "docs/plans/2026-10-24-session-handoff.md",
       "docs/plans/2026-10-25-session-handoff.md",
+      "docs/plans/2026-10-26-session-handoff.md",
       "docs/research/2026-09-08/PLAN.md",
       "docs/research/2026-10-17-rsi-opt-in-data/00-README.md",
       "docs/research/2026-10-20-rrsi-harness2/01-harness2.md",
@@ -354,6 +356,7 @@
       "docs/plans/2026-10-22-session-handoff.md",
       "docs/plans/2026-10-24-session-handoff.md",
       "docs/plans/2026-10-25-session-handoff.md",
+      "docs/plans/2026-10-26-session-handoff.md",
       "README.md"
     ],
     "docs/agile/AGILE_PLAN.md": [
@@ -732,6 +735,7 @@
       "docs/plans/2026-10-23-frontend-revamp-plan.md",
       "docs/plans/2026-10-24-safety-mode-build-plan.md",
       "docs/plans/2026-10-24-session-handoff.md",
+      "docs/plans/2026-10-26-session-handoff.md",
       "docs/research/2026-10-20-rrsi-harness2/00-README.md",
       "docs/research/2026-10-20-rrsi-harness2/01-harness2.md",
       "docs/research/2026-10-20-rrsi-harness2/02-verdicts.md",
@@ -1168,6 +1172,7 @@
       "docs/plans/2026-10-23-frontend-revamp-plan.md",
       "docs/plans/2026-10-24-session-handoff.md",
       "docs/plans/2026-10-25-session-handoff.md",
+      "docs/plans/2026-10-26-session-handoff.md",
       "docs/reviews/2026-10-15/build-program-codex.md",
       "README.md"
     ],
@@ -1232,6 +1237,7 @@
       "docs/plans/2026-10-25-session-handoff.md",
       "docs/reviews/2026-10-15/build-program-codex.md",
       "docs/reviews/2026-10-22/kv-prefix-measure.md",
+      "docs/reviews/2026-10-26/don-ner-measure.md",
       "README.md"
     ],
     "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md": [
@@ -1250,7 +1256,8 @@
     "docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md": [
       "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md",
       "docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md",
-      "docs/plans/2026-10-15-build-program/queue.md"
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/reviews/2026-10-26/don-ner-measure.md"
     ],
     "docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md": [
       "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md",
@@ -1303,6 +1310,7 @@
     "docs/plans/2026-10-25-session-handoff.md": [
       "docs/00_architecture_plans_index.md",
       "docs/plans/2026-10-24-session-handoff.md",
+      "docs/plans/2026-10-26-session-handoff.md",
       "README.md"
     ],
     "docs/plans/implementation-log": [
@@ -1519,6 +1527,10 @@
     ],
     "docs/research/2026-10-22-fit-decoder/00-README.md": [
       "docs/plans/2026-10-15-build-program/queue.md"
+    ],
+    "docs/research/2026-10-22-judge-laya/00-README.md": [
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md"
     ],
     "docs/research/2026-10-22-mvp/00-README.md": [
       "docs/plans/2026-10-15-build-program/queue.md",
@@ -3176,6 +3188,7 @@
       "docs/research/2026-10-23-frontend-revamp/framing.md",
       "docs/research/2026-10-23-frontend-revamp/00-README.md",
       "docs/plans/2026-10-23-frontend-revamp-plan.md",
+      "docs/research/2026-10-22-judge-laya/00-README.md",
       "docs/plans/2026-09-27-W08-bundled-embedding-model.md",
       "docs/capstone-report/README.md"
     ],
@@ -3635,7 +3648,8 @@
       "audit/2026-09-25/waves/scaffold/W-7.md",
       "docs/plans/2026-10-15-build-program/contracts.md",
       "docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md",
-      "audit/2026-09-25/waves/scaffold/G-C3a.md"
+      "audit/2026-09-25/waves/scaffold/G-C3a.md",
+      "docs/research/2026-10-22-judge-laya/00-README.md"
     ],
     "docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md": [
       "audit/2026-09-25/plans/06-sql-fk-audit.md",
@@ -3814,6 +3828,14 @@
       "docs/plans/2026-10-24-safety-mode-build-plan.md",
       "docs/agentic/rsi-runs/README.md",
       "docs/plans/2026-10-15-build-program/queue.md"
+    ],
+    "docs/plans/2026-10-26-session-handoff.md": [
+      "CLAUDE.md",
+      "AGENT.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-25-session-handoff.md",
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/agentic/rsi-runs/README.md"
     ],
     "docs/plans/implementation-log/README.md": [
       "docs/plans/implementation-log/2024-12-28_project-structure-setup.md",
@@ -4237,6 +4259,10 @@
     ],
     "docs/reviews/2026-10-22/kv-prefix-measure.md": [
       "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md",
+      "docs/plans/2026-10-15-build-program/queue.md"
+    ],
+    "docs/reviews/2026-10-26/don-ner-measure.md": [
+      "docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md",
       "docs/plans/2026-10-15-build-program/queue.md"
     ],
     "docs/reviews/README.md": [
