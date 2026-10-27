@@ -1500,6 +1500,14 @@ Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces t
 
 Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/rsi-runs/README.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-24-safety-mode-build-plan.md`, `docs/plans/2026-10-24-session-handoff.md`
 
+## `docs/plans/2026-10-26-session-handoff.md`
+
+**Session handoff: 2026-10-26 GPU-box L0 (RTX 3080) → next L0**
+
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-25 handoff. This session resumed the **GPU-box** L0 (RTX 3080, WSL, Ollama, `--plugin-dir…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/rsi-runs/README.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-25-session-handoff.md`
+
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
 **Project Structure Setup**
