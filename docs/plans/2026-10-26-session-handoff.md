@@ -19,7 +19,7 @@ Read this after [CLAUDE.md](../../CLAUDE.md), [AGENT.md](../../AGENT.md) and the
     - New gates: JUDGE-SWAP-ADOPT, LAYA-CKPT-HOST.
     - New bullets: STILLNESS-GAP-BOUND, RSI-LOG-CMD.
     - The checks moved out of UI-SHELL are recorded on the page rows that receive them.
-- **Owner answers** (L0 AskUserQuestion, 2026-10-26). Each is recorded verbatim in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md). The full question and option texts are in L0 evidence comment 6419290199 on #377.
+- **Owner answers** (L0 AskUserQuestion, 2026-10-26). Each decision below is recorded verbatim in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md); the parallel-work direction is recorded only in the evidence comment. The full question and option texts are in L0 evidence comment 6419290199 on #377.
   - **UI-PHONE-TOGGLE:** "Second row on phones (Recommended)".
   - **JUDGE-SWAP:** free text, "Try both Layla fine tune and NLI judge". This became rows JUDGE-LAYA-FT and JUDGE-NLI-TUNE. Adoption comes back to the owner as JUDGE-SWAP-ADOPT. B-3 (#264) stays a draft.
   - **SAFETY-LABEL-WORDING:** "Keep plan default (Recommended)".
@@ -27,7 +27,7 @@ Read this after [CLAUDE.md](../../CLAUDE.md), [AGENT.md](../../AGENT.md) and the
   - **Q-E4:** "One row for the batch (Recommended)". This makes NPM-AUDIT-PATCH ready.
   - **Parallel work:** a multi-select direction, all four options chosen: "CI-CACHE + E-5 builds", "Plan unplanned follow-ups", "Run rsi-loop now", "Resume DON-NER now".
 - **#370 UI-SHELL, L0 rulings 4 to 15** (PR comments starting `L0 ruling:`):
-  - Ruling 3 replaced: the `/settings` gap was not branch-only (main also measures 45-57 ms with a bare timer).
+  - Ruling 3 replaced: the `/settings` gap was not branch-only (main measured 43-72 ms with a bare timer in the 03:57Z stop).
   - HC-UISH-008 waits for the More sheet to settle.
   - HC-UIFB-006 waits for `settleRoute` plus the inbox list. Its "toast stall" was the inbox's own data render, logged as INBOX-DATA-RENDER.
   - G6 is split per route, with four page-owned `test.fail` marks (PAGE-OVERFLOW): `/inbox`, `/medications/med-fixture-1`, `/explain`, `/export`.
@@ -57,22 +57,22 @@ Read this after [CLAUDE.md](../../CLAUDE.md), [AGENT.md](../../AGENT.md) and the
 |---|---|---|---|
 | #370 | UI-SHELL | draft `[blocked:claude]` | **Blocked on a permission rule** (§4). Then post an `L0 ruling:` comment and run build-item `{id: "UI-SHELL", resume_pr: 370}` with the box quiet. **Done:** every code fix, including the phone second row (`72763a2c`) and focus scroll-padding. **Left:** T4 stillness on dev and preview (HC-UISH-009, HC-UIFB-006, HC-UIG-006), T5 PR-body lists (PAGE-H1, PAGE-A11Y, PAGE-OVERFLOW, E2E-SET-001 figures, every moved check with its target row), T6 acceptance, CI E2E on the final head. |
 | #376 | CI-CACHE | draft; review PASS; 9/9 green | **Owner merges** (CI file). The auto-mode classifier refused the L0 merge ("Merge Without Review"). Warm CI run: 1090 s → 567 s. |
-| #375 | DON-NER-MEASURE | open; Opus review REVISE, then fixed in `828e622`; L0 re-read the question: PASS | Docs-chain merge was in progress at write time; check `gh pr view 375`. After it merges, ask **DON-NER-MODEL** verbatim from `docs/reviews/2026-10-26/don-ner-measure.md` ("Input for owner gate DON-NER-MODEL"), with `[model]` = `obi/deid_roberta_i2b2`. No candidate meets DON-RECALL; #239 stays a draft. |
-| #316 | DEV-PS1-FIRSTRUN + LLAMA-WHEEL-INDEX + DEV-EMB-FETCH | draft; suite green (2534 passed, 1 xfailed, 2535 collected) | **The owner's one Windows session** (WIN-TEST-BUNDLE): DPF-1..3, LWI-1, DEF-1, and E-5's `cd src/frontend && npm ci && npm audit`. The checklist is in the PR body. Plan corrections: DPF-2 reads `logs\dev-backend.err.log`; DEF-1's path is `models\embeddings\`. L0 licensed `src/backend/tests/test_dev_sh_prereqs.py` (the stub fails only the binary-only wheel call). Record that on the LLAMA-WHEEL-INDEX row. |
-| #317 | RAG-TIMEOUT-ANSWER | draft `[blocked:claude]` | Unchanged; needs a plan delta (grounded path). The queue still lists the row as "ready": correct it. |
+| #375 | DON-NER-MEASURE | open; Opus review REVISE, then fixed in `828e622`; L0 round-2 review PASS (comment 6434440876) | Docs-chain merge was in progress at write time; check `gh pr view 375`. After it merges, ask **DON-NER-MODEL** verbatim from `docs/reviews/2026-10-26/don-ner-measure.md` ("Input for owner gate DON-NER-MODEL"), with `[model]` = `obi/deid_roberta_i2b2`. No candidate meets DON-RECALL; #239 stays a draft. |
+| #316 | DEV-PS1-FIRSTRUN + LLAMA-WHEEL-INDEX + DEV-EMB-FETCH | draft; suite green (2534 passed, 1 xfailed, 2535 collected) | **The owner's one Windows session** (WIN-TEST-BUNDLE): DPF-1..3, LWI-1, DEF-1, and E-5's `cd src/frontend && npm ci && npm audit`. The PR body's checklist covers DPF-1..3, LWI-1 and DEF-1 only; give the owner the E-5 step separately (the E-5 queue row assigns it to this session). Plan corrections: DPF-2 reads `logs\dev-backend.err.log`; DEF-1's path is `models\embeddings\`. L0 licensed `src/backend/tests/test_dev_sh_prereqs.py` (the stub fails only the binary-only wheel call). Record that on the LLAMA-WHEEL-INDEX row. |
+| #317 | RAG-TIMEOUT-ANSWER | draft `[blocked:claude]` | Unchanged; needs a plan delta (grounded path; follow-up bullet RAG-TIMEOUT-GROUNDED). |
 | #264 | B-3 advice judge | draft | **Never agent-merged.** Now also waits on JUDGE-LAYA-FT, JUDGE-NLI-TUNE and JUDGE-SWAP-ADOPT. |
 | #239 | RSI1-DONATE PR-2 | draft `[blocked:claude]` | **Never agent-merged.** Waits on DON-NER-MODEL. |
 
 ## 3. Next
 
-1. **Unblock and finish #370 UI-SHELL** (§2). Then a post-merge batch: UI-SHELL done; the LLAMA-WHEEL-INDEX test-file licence; the count line once #316 merges; correct RAG-TIMEOUT-ANSWER's status. **20 UI rows wait on UI-SHELL.**
-2. **Owner merges #376.**
+1. **Unblock and finish #370 UI-SHELL** (§2). Then a post-merge batch: UI-SHELL done; the LLAMA-WHEEL-INDEX test-file licence; the count line once #316 merges. **21 UI rows wait on UI-SHELL** (13 directly).
+2. **#376 is left for the owner to merge** (CI file; the classifier refused the L0 merge). Do not merge it under the /goal's merge rule unless the owner says so.
 3. **Ask DON-NER-MODEL** once #375 merges, and record the answer verbatim.
 4. **The owner's Windows session for #316** (and the E-5 Windows half). Merge #316 after the checks pass.
 5. **The next UI wave once #370 merges:** run build-wave for UI-PALETTE, the UI-PG-* rows whose deps have landed (each inherits the moved checks on its row), SAFETY-MODE-TOGGLE, and SESSION-REENTRY Task 3. ALERTDIALOG-CANCEL-FOCUS goes before UI-PG-SECURITY.
 6. **NPM-AUDIT-PATCH** (ready; lockfile only; never beside another `package.json` or lockfile PR).
-7. **Model-host rows, one at a time,** with `hold_slots.sh` and no pytest beside them: QWEN3-4B-TIER, AUDIT-DB-LOCKED Task 1, KV-NUMCTX-VERIFY, JUDGE-LAYA-FT, JUDGE-NLI-TUNE. Never during a UI-SHELL stillness run (§4, quiet box).
-8. **Archive the rsi-loop run** `2026-10-26-gpubox` per [`docs/agentic/rsi-runs/README.md`](../agentic/rsi-runs/README.md) (windowed copy). The run wrote no `.claude/logs/rsi/summary-*.json`, because it stopped at "nothing worth proposing". Copy the workflow result into the archive's `summary.json` verbatim, as the 2026-10-21 laptop run did. The result is in this handoff's §1, and in the L0 session's workflow journal for run `wf_9e11b537-2db`, which a later session cannot read..
+7. **Model-host rows, one at a time,** with `hold_slots.sh` and no pytest beside them: QWEN3-4B-TIER, AUDIT-DB-LOCKED Task 1, JUDGE-LAYA-FT, JUDGE-NLI-TUNE. KV-NUMCTX-VERIFY is not a queue row yet: it is an unplanned bullet (queue.md, "found 2026-10-23, #318 PR body"), so it needs a planner row before it can run. Never during a UI-SHELL stillness run (§4, quiet box).
+8. **Archive the rsi-loop run** `2026-10-26-gpubox` per [`docs/agentic/rsi-runs/README.md`](../agentic/rsi-runs/README.md) (windowed copy). The run wrote no `.claude/logs/rsi/summary-*.json`, because it stopped at "nothing worth proposing". Write the archive's `summary.json` from the §1 figures, marked as reconstructed from this handoff: the full workflow result is in the L0 session's journal for run `wf_9e11b537-2db`, which a later session cannot read.
 9. **Owner actions** (remind; do not do them):
    - RSI-REPLAY-REQUIRED: GitHub → Settings → Branches → `main` → add **RSI Replay**. Verify with `gh api repos/{owner}/{repo}/branches/main/protection/required_status_checks --jq .contexts`.
    - SHOW-O3 before **2026-10-31**.
@@ -82,7 +82,7 @@ Read this after [CLAUDE.md](../../CLAUDE.md), [AGENT.md](../../AGENT.md) and the
    - The P6 orphan audit.
 10. **Decide the PROPOSED-status plans** (carried from 2026-10-25 §3 item 5), refresh the [progress dashboard](https://claude.ai/artifact/61W8zR9zbR3QbGtwREWrgf) from queue.md, and write the next handoff replacing this one.
 
-**Progress at handoff** (queue.md on main, 219 rows): 165 done (75%), 3 in flight, 38 blocked, 8 ready, 5 owner actions. By lane: D 95%, A 92%, B 85%, E 70%, F 67%, C 63%, UI 46%.
+**Progress at handoff** (queue.md on main `64c758f`; method: every queue table row whose first cell is a row ID, each ID counted once, "done" = status starting with done, closed, superseded, dropped, withdrawn or won't): 165 of 226 rows done (73%). By lane: D 20/21 (95%), A 49/54 (91%), B 29/36 (81%), E 32/47 (68%), F 12/18 (67%), C 5/8 (62%), UI 18/42 (43%). Other methods give other totals (the #378 fact-check counted 166 of 233 including the owner and model-machine table), so state the method when you refresh it (§3 item 10).
 
 ## 4. Harness gotchas
 
@@ -110,7 +110,7 @@ Read this after [CLAUDE.md](../../CLAUDE.md), [AGENT.md](../../AGENT.md) and the
   - `/tmp/claude-1000` can be wiped by a restart. The scripts are below.
   - `/tmp/claude-1000/windows-checklist-316.md` is in `/tmp` too; its content is also in #316's body.
 
-### Appendix: the four merge and slot scripts (recreate in `/tmp/claude-1000/`)
+### Appendix: the five merge, slot and wait scripts (recreate in `/tmp/claude-1000/`)
 
 There is no `gatemerge_par.sh`; the parallel merge waiter is **`merge_par.sh`**.
 
@@ -190,7 +190,7 @@ for i in 8 7 6 5 4 3 2 1; do cmd=(flock "$L.$i.lock" "${cmd[@]}"); done
 exec "${cmd[@]}"
 ```
 
-**`wait_checks.sh`** (added 2026-10-25, the wait helper used this session): waits until each PR's checks complete, prints OK or FAIL plus mergeable for each, and never merges. It uses the same `statusCheckRollup` jq as `merge_par.sh`, polls every 40 s, and gives up after 60 tries. The body was as used by L0 this session; same jq as `merge_par.sh` and the session's description, not copied from the session's file, so run it once on a known PR before relying on it.
+**`wait_checks.sh`** (added 2026-10-25, the wait helper used in the 2026-10-25 session): waits until each PR's checks complete, prints OK or FAIL plus mergeable for each, and never merges. It uses the same `statusCheckRollup` jq as `merge_par.sh`, polls every 40 s, and gives up after 60 tries. The body was as used by L0 this session; same jq as `merge_par.sh` and the session's description, not copied from the session's file, so run it once on a known PR before relying on it.
 
 ```bash
 #!/usr/bin/env bash
@@ -215,7 +215,7 @@ echo "timeout:$out"
 /goal Resume the Asclexis build program in /mnt/e/Programming/Github Repo/HealthCentral from docs/plans/2026-10-26-session-handoff.md. Read it first, then CLAUDE.md, AGENT.md and docs/plans/2026-10-15-build-program/RUNBOOK.md, and verify every claim with gh and git log origin/main before acting. Never edit the main checkout (it has CRLF working files); work in a worktree.
 Setup: git fetch origin; venv ~/venvs/asclexis-311; embedding bundle in each worktree (cd src/backend && python scripts/download_models.py embedding); measure the collected count through scripts/pyslot.sh (expect 2534 on main, or 2535 once #316 merges); recreate merge_par.sh, chain_merge.sh, docs_chain.sh, hold_slots.sh and wait_checks.sh in /tmp/claude-1000/ from handoff §4; confirm a local model runs through ModelRunner (Ollama: llama3.1:8b or qwen3:8b); start the session with --plugin-dir .claude/mods/asclexis-rsi. Check that the owner's GitHub-write allow rule from handoff §4 is in place before resuming any build item.
 Model rule: never Sonnet 5.5. Haiku 5.5 at effort xhigh implements; Opus 5.5 reviews (including every drafted owner question); Haiku 5.5 does exploration and test runs. Launch workflow copies from the session scratchpad.
-Priority order: handoff §3 items 1 to 10, in order. Owner direction, verbatim: "Merge everything that is ready, including RSI." and "keep going, merge them as they pass". #239 and #264 are never agent-merged. Every other PR you merge yourself once review passes, checks are green and a focused test run passes, with gh pr merge N --merge --delete-branch=false; if the permission check refuses a merge, leave it for the owner and say so.
+Priority order: handoff §3 items 1 to 10, in order. Owner direction, verbatim: "Merge everything that is ready, including RSI." and "keep going, merge them as they pass". #239 and #264 are never agent-merged, and #376 is left for the owner. Every other PR you merge yourself once review passes, checks are green and a focused test run passes, with gh pr merge N --merge --delete-branch=false; if the permission check refuses a merge, leave it for the owner and say so.
 Rules: hold /tmp/claude-1000/quiet-box.lock during UI-SHELL stillness runs and keep model-host rows off the box meanwhile; a resume needs an "L0 ruling:" comment; owner answers are quoted verbatim from docs/capstone-report/owner-decisions-2026-09-27.md; grep open owner questions before ruling; ask the owner first for interpret_safety, redaction, faithfulness, verifier_agent and anything auth or encryption; three-dot diffs only; never ruff format; docs PRs merge one at a time.
 Done when #370 is merged and the next UI wave is merged or in flight, DON-NER-MODEL is asked, #316 is merged or waiting only on the owner, the model-host rows are run or documented, the rsi-loop run is archived, and a new handoff replaces docs/plans/2026-10-26-session-handoff.md.
 ```
