@@ -1,11 +1,11 @@
 /**
- * UI-PRIM-OVERLAYS (HC-UIOV-001..007): Dialog, AlertDialog, Sheet, Popover.
+ * UI-PRIM-OVERLAYS (HC-UIOV-001..008): Dialog, AlertDialog, Sheet, Popover.
  *
  * HC-UIOV-007 is the vitest half only. Its e2e stillnessProbe moved to UI-SHELL
  * (L0 ruling on PR #363). Each describe block names what its checks would miss.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ElementType, ReactElement, ReactNode } from 'react';
@@ -88,7 +88,7 @@ function setReducedMotion(reduce: boolean) {
 
 const realConsoleError = console.error.bind(console);
 const titleWarnings: string[] = [];
-let errorSpy: { mockRestore: () => void } | undefined;
+let errorSpy: MockInstance | undefined;
 
 beforeEach(() => {
   setReducedMotion(false);
@@ -158,6 +158,9 @@ function renderOverlay(kind: Kind, still = false) {
           still={still}
         >
           {body}
+          <button type="button" data-alert-cancel>
+            Cancel
+          </button>
         </AlertDialog>
       );
     case 'sheet':
@@ -523,5 +526,59 @@ describe('HC-UIOV-007 still: no opacity, scale or translate on T0 content (vites
     const t0 = screen.getByRole('dialog').querySelector<HTMLElement>('[data-t0]');
     expect(t0).not.toBeNull();
     expect(motionProblems(t0 as HTMLElement).length).toBeGreaterThan(0);
+  });
+});
+
+describe('HC-UIOV-008 a destructive AlertDialog opens with Cancel focused, whatever the DOM order', () => {
+  // Would not notice: a Cancel that is focused only because it comes first in the DOM. The
+  // fixture puts "Delete" first, so a rule that focuses the first focusable fails (a) and (b).
+  // (c) counts the calls on errorSpy: a missing cancel action must log once per open, and
+  // a second log on the same open fails it.
+  function renderDestructive(onConfirm: () => void, onCancel: () => void) {
+    return renderInProviders(
+      <AlertDialog trigger={<button type="button">Open alertdialog</button>} title={TITLE.alertdialog}>
+        <button type="button" onClick={onConfirm}>
+          Delete
+        </button>
+        <button type="button" data-alert-cancel onClick={onCancel}>
+          Cancel
+        </button>
+      </AlertDialog>
+    );
+  }
+
+  it('on open, Cancel has focus, not the Delete button that comes before it', async () => {
+    const user = userEvent.setup();
+    renderDestructive(vi.fn(), vi.fn());
+    await user.click(triggerOf('alertdialog'));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus());
+  });
+
+  it('Enter calls the cancel handler and not the confirm handler', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    const onCancel = vi.fn();
+    renderDestructive(onConfirm, onCancel);
+    await user.click(triggerOf('alertdialog'));
+    await user.keyboard('{Enter}');
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it('an AlertDialog with no cancel element logs one console.error that names AlertDialog', async () => {
+    const user = userEvent.setup();
+    renderInProviders(
+      <AlertDialog trigger={<button type="button">Open alertdialog</button>} title={TITLE.alertdialog}>
+        <button type="button">Delete</button>
+      </AlertDialog>
+    );
+    await user.click(triggerOf('alertdialog'));
+
+    const named = (errorSpy?.mock.calls ?? []).filter(
+      ([message]) => typeof message === 'string' && message.includes('AlertDialog')
+    );
+    expect(named).toHaveLength(1);
   });
 });
