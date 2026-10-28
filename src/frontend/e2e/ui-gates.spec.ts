@@ -2,12 +2,9 @@
  * UI-GATES acceptance harness self-tests (HC-UIG-001 .. HC-UIG-006, HC-UIG-008).
  *
  * Every test here proves that a gate helper from e2e/support/gates.ts can
- * fail, or reports the expected defect. Tests marked test.fail() are the
- * known defects of /inbox and the route fade (HC-UIG-002, HC-UIG-003). They
- * are expected to fail until UI-TOKENS and UI-SHELL land.
- *
- * test.fail() passes on ANY failure, so the defect assertion alone does not
- * prove the reason. The green "pre" test beside each one is the guard: it shows
+ * fail, or passes on the page it is given. HC-UIG-002 (/inbox colour contrast)
+ * and HC-UIG-003 (the route fade) are plain tests: their assertions must pass
+ * on this branch. The green "pre" test beside each one is the guard: it shows
  * the page rendered and the sampler recorded. The console output prints the
  * axe rule id or the opacity sample that failed.
  *
@@ -127,7 +124,7 @@ test('HC-UIG-001 noHorizontalScroll fails a 600 px block at 390 and passes a fit
 });
 
 // ---------------------------------------------------------------------------
-// HC-UIG-002: axeGate on /inbox reports color-contrast (test.fail until UI-TOKENS).
+// HC-UIG-002: axeGate on /inbox reports no color-contrast (plain test; no longer expected to fail).
 // ---------------------------------------------------------------------------
 test('HC-UIG-002 pre: /inbox renders under the mock API, and axe returns rule ids', async ({ page }) => {
   const { mock, guard } = await openInbox(page);
@@ -138,20 +135,22 @@ test('HC-UIG-002 pre: /inbox renders under the mock API, and axe returns rule id
   expect(mock.unmocked, 'no /api/v1 call may reach the backend').toEqual([]);
   expect(() => guard.assertClean(), 'console and network must be clean on /inbox').not.toThrow();
 
-  // The guard for the test.fail() below: if axe itself throws, that test would pass for the wrong reason.
+  // The guard for the HC-UIG-002 axe test below: axe must return rule ids on /inbox.
   const result = await axeGate(page);
   console.log(`HC-UIG-002 pre axe rule ids: ${JSON.stringify(result.ruleIds)}`);
   expect(Array.isArray(result.ruleIds), 'axeGate must return a list of rule ids').toBe(true);
 });
 
-test.fail(
-  'HC-UIG-002 axeGate on /inbox reports color-contrast (expected until UI-TOKENS)',
+test(
+  'HC-UIG-002 axeGate on /inbox reports color-contrast',
   async ({ page }) => {
     await installMockApi(page);
     await seedMockSession(page);
     await page.goto('/inbox');
     await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
 
+    // Axe reads colour mid-fade if it runs during the route's entrance fade (flaky otherwise).
+    await settleRoute(page);
     const result = await axeGate(page);
     console.log(
       `HC-UIG-002 axe rule ids on /inbox: ${JSON.stringify(result.ruleIds)} ` +
@@ -162,7 +161,7 @@ test.fail(
 );
 
 // ---------------------------------------------------------------------------
-// HC-UIG-003: routeOpacitySamples records a sample < 0.3 (test.fail until UI-SHELL).
+// HC-UIG-003: routeOpacitySamples records a sample < 0.3 (UI-SHELL: the route fade is opacity-only, M7).
 // ---------------------------------------------------------------------------
 /**
  * Waits until the route element has finished its entrance fade. On /inbox the
@@ -188,7 +187,7 @@ async function settleRoute(page: Page): Promise<void> {
 const navigateToVerify = (page: Page) => async () => {
   await page
     .getByRole('navigation', { name: 'Main navigation' })
-    .getByRole('link', { name: 'Verify' })
+    .getByRole('link', { name: 'Review values' })
     .click();
 };
 
@@ -210,8 +209,8 @@ test('HC-UIG-003 pre: a nav click samples the route container and ends at opacit
   expect(samples[samples.length - 1]?.opacity, 'route container must settle at 1').toBe(1);
 });
 
-test.fail(
-  'HC-UIG-003 route container opacity after a nav click never drops below 0.3 (expected until UI-SHELL)',
+test(
+  'HC-UIG-003 route container opacity after a nav click never drops below 0.3',
   async ({ page }) => {
     await openInbox(page);
     await settleRoute(page);
