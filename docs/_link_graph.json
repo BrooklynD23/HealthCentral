@@ -3727,6 +3727,7 @@
     "docs/plans/2026-10-15-build-program/queue.md": [
       "docs/capstone-report/owner-decisions-2026-09-27.md",
       "docs/plans/2026-10-15-build-program/contracts.md",
+      "docs/plans/2026-10-24-safety-mode-build-plan.md",
       "docs/plans/2026-10-20c-session-handoff.md",
       "docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md",
       "docs/research/2026-10-22-fit-decoder/00-README.md",
@@ -3743,7 +3744,6 @@
       "docs/research/2026-10-22-mvp/00-README.md",
       "docs/plans/2026-10-23-frontend-revamp-plan.md",
       "docs/research/2026-10-23-frontend-revamp/00-README.md",
-      "docs/plans/2026-10-24-safety-mode-build-plan.md",
       "docs/research/2026-10-23-safety-mode-real/00-README.md",
       "docs/plans/2026-10-28-followups-plan.md",
       "docs/plans/2026-10-18-session-handoff.md",
