@@ -1,6 +1,6 @@
 # MVP rows 2026-10-22 — plans for the MVP pass, owner prompts 40-41 and the bug-fixer follow-ups
 
-**Last Updated:** 2026-10-27 (RAG-TIMEOUT-GROUNDED answered "Keep the sentence, label it" (Owner gates item 8; the delta's owner gate and order lines updated; post-merge batch 2026-10-27); 2026-10-27 (Opus planner on `e0a995fc`, merged with `018bd094`; review round 2: question rewritten for neutrality, option 3 guarded with `not strict`: RAG-TIMEOUT-ANSWER delta for the grounded path with new owner gate RAG-TIMEOUT-GROUNDED (Owner gates item 8); KV-NUMCTX-VERIFY planned); 2026-10-22 (review round 4: NORMALIZE-COMMA-NAMES urine qualifier dropped, quote, cites, stale statuses; review round 3: fallback test citation, OCR opt-in files, analogy; review round 2: plain-header check only with SQLCipher present, OCR switch facts and gate rewrite, both launcher log matches; review round 1: SQLCipher old-vault handling and new gate SQLC-OLD-VAULTS, CI import path, launcher checks, CPU-only model preference, OCR default gate OCR-DEFAULT-ON, #295/#297/#301 merged)
+**Last Updated:** 2026-10-27 (RAG-TIMEOUT-GROUNDED answered "Keep the sentence, label it", Owner gates item 8; the delta's owner gate and order lines updated; post-merge batch 2026-10-27); 2026-10-27 (Opus planner on `e0a995fc`, merged with `018bd094`; review round 2: question rewritten for neutrality, option 3 guarded with `not strict`: RAG-TIMEOUT-ANSWER delta for the grounded path with new owner gate RAG-TIMEOUT-GROUNDED (Owner gates item 8); KV-NUMCTX-VERIFY planned); 2026-10-22 (review round 4: NORMALIZE-COMMA-NAMES urine qualifier dropped, quote, cites, stale statuses; review round 3: fallback test citation, OCR opt-in files, analogy; review round 2: plain-header check only with SQLCipher present, OCR switch facts and gate rewrite, both launcher log matches; review round 1: SQLCipher old-vault handling and new gate SQLC-OLD-VAULTS, CI import path, launcher checks, CPU-only model preference, OCR default gate OCR-DEFAULT-ON, #295/#297/#301 merged)
 **Owner:** repository owner
 **Status:** PROPOSED (Opus planner). Docs only. **No owner approval is recorded here.** Every gate keeps its state in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md). Answers cited below come from owner prompts 40-41 (L0 AskUserQuestion, 2026-10-22, record `/tmp/claude-1000/prompts-40-41.json`); their owner-decisions rows land in L0's PR #301 (branch `docs/owner-rows-prompts40-41`), not here.
 **Base measured:** `origin/main` @ `0e2799b` (2026-10-22, after #294 EXTRACT-UNIT-MGL + EXTRACT-DOB-DATE merged); review round 1 re-read the files #295 (`531c712`) and #297 (`afbe1af`) changed on `531c712`, where both had merged. Every `file:line` below was re-read by the planner.
@@ -437,7 +437,7 @@ git diff origin/main...HEAD -- modules/rag.py | grep -c '^-.*I was unable to ful
 
 Then RUNBOOK §6 steps 2-6: the full suite (no new failures beyond the 5 environmental ones in CLAUDE.md §4), the collected count with its delta, `python -c "from main import app"`, and `git status --short`. Option 3 also runs `cd src/frontend && npx tsc --noEmit`, with vitest on Windows or CI.
 
-**Order:** RAG-TIMEOUT-GROUNDED answered 2026-10-27 (option 1). L0 posts an `L0 ruling:` comment on #317 naming option 1, then runs build-item `{id: "RAG-TIMEOUT-ANSWER", resume_pr: 317}`. Rules for parallel work:
+**Order:** RAG-TIMEOUT-GROUNDED answered 2026-10-27 (option 1). L0 posted the `L0 ruling:` comment on #317 naming option 1 (comment 6460409318, 2026-10-28T04:07Z) and resumed build-item `{id: "RAG-TIMEOUT-ANSWER", resume_pr: 317}`. Rules for parallel work:
 
 - Options 2 and 3: never beside another row whose file list includes `be/api/interpretations.py` (no open or ready row lists it on `e0a995fc`; B-5 is blocked).
 - With option 3, never beside UI-PG-RESULTS.
@@ -607,7 +607,7 @@ If any check fails, the evidence file says so, quotes the raw lines, and adds a 
 
 ## Owner gates
 
-Item 8 is answered (2026-10-27, owner-decisions row RAG-TIMEOUT-GROUNDED); the answers to the other items are recorded in owner-decisions and the queue, not here. Each is asked by L0 only when its trigger exists; no answer is inferred. Wording is a draft; L0 asks it, the owner's words are recorded verbatim in owner-decisions.
+Item 8 (RAG-TIMEOUT-GROUNDED, 2026-10-27) and item 5 (EXPORT-PURGE-DIFF, 2026-10-24) are answered, with their rows in owner-decisions; the other items are still open. Each is asked by L0 only when its trigger exists; no answer is inferred. Wording is a draft; L0 asks it, the owner's words are recorded verbatim in owner-decisions.
 
 1. **SQLC-WHEEL-DIFF** (SQLCIPHER-WHEEL; merge only; asked with the draft PR's final diff).
    - Question: "Here is the exact change that turns encryption on for Windows and Mac. Linux keeps the package it uses today; Windows and Mac get `sqlcipher3`, which has the encryption built in. The setup script now stops instead of quietly turning encryption off, and the app refuses to start without real encryption. You wrote 'for window'; this also covers Mac. May it merge?"
