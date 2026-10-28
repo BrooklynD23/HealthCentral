@@ -71,6 +71,7 @@ test('HC-UIG-007 (a) a 30 ms block inside one sampler read is not a sampling gap
   });
   console.log(`HC-UIG-007 (a) report: ${JSON.stringify(report)}`);
   expect(report.maxGapMs, 'the 30 ms block must not show as a gap above 40 ms').toBeLessThanOrEqual(40);
+  expect(report.maxGapMs, 'the 30 ms block must land in the window and show a gap of at least 25 ms').toBeGreaterThanOrEqual(25);
 });
 
 test('HC-UIG-007 (b) a 60 ms block inside one sampler read is a sampling gap above 40 ms', async ({ page }) => {

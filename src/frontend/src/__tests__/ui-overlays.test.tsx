@@ -1,11 +1,11 @@
 /**
- * UI-PRIM-OVERLAYS (HC-UIOV-001..007): Dialog, AlertDialog, Sheet, Popover.
+ * UI-PRIM-OVERLAYS (HC-UIOV-001..008): Dialog, AlertDialog, Sheet, Popover.
  *
  * HC-UIOV-007 is the vitest half only. Its e2e stillnessProbe moved to UI-SHELL
  * (L0 ruling on PR #363). Each describe block names what its checks would miss.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ElementType, ReactElement, ReactNode } from 'react';
@@ -88,7 +88,7 @@ function setReducedMotion(reduce: boolean) {
 
 const realConsoleError = console.error.bind(console);
 const titleWarnings: string[] = [];
-let errorSpy: { mockRestore: () => void } | undefined;
+let errorSpy: MockInstance | undefined;
 
 beforeEach(() => {
   setReducedMotion(false);
@@ -133,7 +133,7 @@ const TITLE: Record<OverlayKind, string> = {
 };
 const POPOVER_LABEL = 'Potassium details';
 
-function renderOverlay(kind: Kind, still = false) {
+function renderOverlay(kind: Kind, still = false, beside: ReactNode = null) {
   const trigger = <button type="button">{`Open ${kind}`}</button>;
   const body = (
     <>
@@ -145,32 +145,47 @@ function renderOverlay(kind: Kind, still = false) {
   switch (kind) {
     case 'dialog':
       return renderInProviders(
-        <Dialog trigger={trigger} title={TITLE.dialog} description="Read-only summary" still={still}>
-          {body}
-        </Dialog>
+        <>
+          <Dialog trigger={trigger} title={TITLE.dialog} description="Read-only summary" still={still}>
+            {body}
+          </Dialog>
+          {beside}
+        </>
       );
     case 'alertdialog':
       return renderInProviders(
-        <AlertDialog
-          trigger={trigger}
-          title={TITLE.alertdialog}
-          description="This cannot be undone."
-          still={still}
-        >
-          {body}
-        </AlertDialog>
+        <>
+          <AlertDialog
+            trigger={trigger}
+            title={TITLE.alertdialog}
+            description="This cannot be undone."
+            still={still}
+          >
+            {body}
+            <button type="button" data-alert-cancel>
+              Cancel
+            </button>
+          </AlertDialog>
+          {beside}
+        </>
       );
     case 'sheet':
       return renderInProviders(
-        <Sheet trigger={trigger} title={TITLE.sheet} description="Other pages" still={still}>
-          {body}
-        </Sheet>
+        <>
+          <Sheet trigger={trigger} title={TITLE.sheet} description="Other pages" still={still}>
+            {body}
+          </Sheet>
+          {beside}
+        </>
       );
     case 'popover':
       return renderInProviders(
-        <Popover trigger={trigger} label={POPOVER_LABEL} still={still}>
-          {body}
-        </Popover>
+        <>
+          <Popover trigger={trigger} label={POPOVER_LABEL} still={still}>
+            {body}
+          </Popover>
+          {beside}
+        </>
       );
   }
 }
@@ -250,16 +265,31 @@ describe('HC-UIOV-001 Escape closes each overlay and focus returns to the trigge
 describe('HC-UIOV-002 focus stays inside an open Dialog or Sheet over 25 Tab presses', () => {
   // Would not notice: jsdom has no layout, so Tab order is the DOM order that user-event
   // computes. Focus leaving through browser chrome cannot happen in this environment.
-  it.each(['dialog', 'sheet'] as const)('%s keeps focus inside across 25 Tab presses', async (kind) => {
+  // The mechanism (Radix 1.3.1 dialog index.mjs:251-252): the content's FocusScope gets
+  // `loop: true` and `trapped: trapFocus`. `loop` wraps Tab at either end, so the 25 presses
+  // stay inside even with modal={false}; a Tab-only check cannot fail on that mutant.
+  // `trapped` adds the focusin listener that pulls focus back when it moves outside without
+  // Tab. The outside.focus() assertion below is what checks `trapped`.
+  // The outside button is rendered beside the overlay, not in its portal.
+  it.each(['dialog', 'sheet'] as const)('%s keeps focus inside over 25 Tabs and an outside focus', async (kind) => {
     const user = userEvent.setup();
-    renderOverlay(kind);
+    renderOverlay(kind, false, <button type="button">Outside action</button>);
     await user.click(triggerOf(kind));
     const content = screen.getByRole('dialog');
+    // Radix hides the rest of the page from the accessibility tree while the overlay is open,
+    // so the lookup needs hidden: true. The button is still focusable, which is what is tested.
+    const outside = screen.getByRole('button', { name: 'Outside action', hidden: true });
 
     for (let press = 1; press <= 25; press += 1) {
       await user.tab();
       expect(content.contains(document.activeElement), `focus after Tab ${press}`).toBe(true);
+      expect(outside, `outside button after Tab ${press}`).not.toHaveFocus();
     }
+
+    // Focus moved outside without Tab: the focusin listener must return it to the overlay.
+    act(() => outside.focus());
+    expect(content.contains(document.activeElement), 'focus after outside.focus()').toBe(true);
+    expect(outside, 'outside button after outside.focus()').not.toHaveFocus();
   });
 });
 
@@ -523,5 +553,88 @@ describe('HC-UIOV-007 still: no opacity, scale or translate on T0 content (vites
     const t0 = screen.getByRole('dialog').querySelector<HTMLElement>('[data-t0]');
     expect(t0).not.toBeNull();
     expect(motionProblems(t0 as HTMLElement).length).toBeGreaterThan(0);
+  });
+});
+
+describe('HC-UIOV-008 a destructive AlertDialog opens with Cancel focused, whatever the DOM order', () => {
+  // Would not notice: a Cancel that is focused only because it comes first in the DOM. The
+  // fixture puts "Delete" first, so a rule that focuses the first focusable fails (a) and (b).
+  // (c) counts the calls on errorSpy: a missing cancel action must log once per open, and
+  // a second log on the same open fails it. (c) also checks that focus stays on "Delete", so a
+  // rule that cancels the default focus without moving it fails.
+  // (d) a disabled Cancel cannot take focus: focus must stay inside the dialog and one error
+  // must be logged. Without the check, a rule that calls preventDefault first leaves focus on
+  // the trigger behind the modal.
+  function alertDialogErrors() {
+    return (errorSpy?.mock.calls ?? []).filter(
+      ([message]) => typeof message === 'string' && message.includes('AlertDialog')
+    );
+  }
+
+  function renderDestructive(onConfirm: () => void, onCancel: () => void) {
+    return renderInProviders(
+      <AlertDialog trigger={<button type="button">Open alertdialog</button>} title={TITLE.alertdialog}>
+        <button type="button" onClick={onConfirm}>
+          Delete
+        </button>
+        <button type="button" data-alert-cancel onClick={onCancel}>
+          Cancel
+        </button>
+      </AlertDialog>
+    );
+  }
+
+  it('on open, Cancel has focus, not the Delete button that comes before it', async () => {
+    const user = userEvent.setup();
+    renderDestructive(vi.fn(), vi.fn());
+    await user.click(triggerOf('alertdialog'));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus());
+  });
+
+  it('Enter calls the cancel handler and not the confirm handler', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    const onCancel = vi.fn();
+    renderDestructive(onConfirm, onCancel);
+    await user.click(triggerOf('alertdialog'));
+    await user.keyboard('{Enter}');
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it('an AlertDialog with no cancel element logs one console.error that names AlertDialog', async () => {
+    const user = userEvent.setup();
+    renderInProviders(
+      <AlertDialog trigger={<button type="button">Open alertdialog</button>} title={TITLE.alertdialog}>
+        <button type="button">Delete</button>
+      </AlertDialog>
+    );
+    await user.click(triggerOf('alertdialog'));
+
+    expect(alertDialogErrors()).toHaveLength(1);
+    // No cancel action, so the default focus stays: Radix focuses the first tabbable, Delete.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Delete' })).toHaveFocus());
+  });
+
+  it('a disabled Cancel cannot take focus: focus stays inside the dialog and one error is logged', async () => {
+    const user = userEvent.setup();
+    renderInProviders(
+      <AlertDialog trigger={<button type="button">Open alertdialog</button>} title={TITLE.alertdialog}>
+        <button type="button">Delete</button>
+        <button type="button" data-alert-cancel disabled>
+          Cancel
+        </button>
+      </AlertDialog>
+    );
+    // Looked up before the click: once open, Radix hides the page, so the trigger has no role lookup.
+    const trigger = triggerOf('alertdialog');
+    await user.click(trigger);
+
+    const dialog = screen.getByRole('alertdialog');
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+    expect(trigger).not.toHaveFocus();
+    expect(alertDialogErrors()).toHaveLength(1);
   });
 });
