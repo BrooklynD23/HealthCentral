@@ -429,6 +429,98 @@ class _NoSpans:
         return []
 
 
+# ---- Delta 2026-10-20, second: RunLog isolation (positive control, canary, mutant) ----
+RUNLOG_CANARY = "RUNLOG-CANARY-DON-5b1e7d02"
+
+
+async def _rated_agent_turn(vault, monkeypatch):
+    """Agent chat over HTTP with a canary in a tool output the draft never renders; then a +1 rating.
+
+    Returns the RunLogs recorded during the chat (used by the scratch mutant only).
+    """
+    from unittest.mock import AsyncMock, patch
+
+    import api.assistant as A
+    import api.feedback as F
+    import modules.agent.cache as agent_cache
+    import modules.agent.graph as agent_graph
+    from api.assistant import router as assistant_router
+    from api.feedback import router as feedback_router
+    from core.auth import get_profile_db_session
+    from modules.agent.state import RunLog
+    from modules.agent.tools.query_observations import (
+        QueryObservationsOutput,
+        QueryObservationsTool,
+    )
+    from tests.support.routes import route_client
+
+    class _CanaryOutput(QueryObservationsOutput):
+        unrendered_note: str = RUNLOG_CANARY
+
+    real_run = QueryObservationsTool.run
+
+    async def _run_with_canary(self, args, ctx):
+        out = await real_run(self, args, ctx)
+        return _CanaryOutput(rows=out.rows)  # rows stay empty: the draft prints no calendar date
+
+    run_logs: list = []
+
+    def _recording_run_log(**kwargs):
+        run_log = RunLog(**kwargs)
+        run_logs.append(run_log)
+        return run_log
+
+    # No observation rows: a row would print its collection date ("Jan 15, 2026"), and
+    # the date rule correctly drops any record that carries a calendar date (Safe Harbor).
+    agent_cache.clear_cache()
+
+    async def _db():
+        return vault
+
+    audit_spy = AsyncMock()
+    with patch.object(A, "is_agent_enabled", return_value=True), \
+         patch.object(QueryObservationsTool, "run", _run_with_canary), \
+         patch.object(agent_graph, "RunLog", _recording_run_log), \
+         patch.object(A, "create_audit_log", audit_spy), \
+         patch.object(F, "_emit_audit", AsyncMock()):
+        with route_client(assistant_router, "/assistant", profile_id=PID) as client:
+            client.app.dependency_overrides[get_profile_db_session] = _db
+            resp = client.post("/assistant/chat", json={"question": "what is my glucose?"})
+        assert resp.status_code == 200, resp.text
+        turn = (await vault.execute(
+            select(ChatTurn).where(ChatTurn.role == "assistant", ChatTurn.profile_id == PID)
+        )).scalars().one()
+        with route_client(feedback_router, "/feedback", profile_id=PID) as client:
+            client.app.dependency_overrides[get_profile_db_session] = _db
+            resp = client.post(
+                f"/feedback/turns/{turn.id}", json={"session_id": turn.session_id, "rating": 1},
+            )
+        assert resp.status_code == 200, resp.text
+    agent_cache.clear_cache()
+    return run_logs
+
+
+def _donated_text(rows) -> str:
+    return " ".join(str(getattr(r, c.name)) for r in rows for c in DonatedRecord.__table__.columns)
+
+
+@pytest.mark.asyncio
+async def test_runlog_payload_never_reaches_donated_rows(vault, monkeypatch):
+    from modules.data_donation import collect
+
+    await _consent(vault)
+    await _rated_agent_turn(vault, monkeypatch)
+
+    counts = await collect(vault, PID, PURPOSE)
+
+    # Positive control: the rated agent turn is donated (an empty collection fails here).
+    assert counts.collected >= 1, counts
+    rows = await _donated(vault)
+    assert any("glucose" in (r.prompt_redacted or "").lower() for r in rows), [r.prompt_redacted for r in rows]
+    # The canary sits only in a tool output the draft never renders: it must not be donated.
+    assert RUNLOG_CANARY not in _donated_text(rows)
+
+
 @pytest.mark.asyncio
 async def test_hc_don_014d_v2_grant_collects_nothing_and_v3_regrant_collects(vault):
     """Delta 2026-10-20, second + DON-COPY-V3: a rated turn under the superseded v2 wording donates 0 rows."""
